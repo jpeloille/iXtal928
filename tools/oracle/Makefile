@@ -53,7 +53,10 @@ SRC := harness.c \
        $(PCEM)/src/ppi.c \
        $(PCEM)/src/models/nmi.c \
        $(PCEM)/src/plugin-api/device.c \
-       $(PCEM)/src/flash/rom.c
+       $(PCEM)/src/flash/rom.c \
+       $(PCEM)/src/memory/mem_bios.c \
+       $(PCEM)/src/keyboard/keyboard.c \
+       $(PCEM)/src/keyboard/keyboard_xt.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
 # d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
@@ -62,7 +65,7 @@ WRAP := readmembl writemembl readmemwl writememwl inb outb picint picinterrupt t
 LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/cpu $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
+vpath %.c . $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
 
 .PHONY: all clean selftest
 

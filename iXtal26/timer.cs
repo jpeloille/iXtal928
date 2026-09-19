@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/timer.c (1-191) + pcem-dev/includes/private/timer.h (18-124)
-// STATUS: partial — liste chaînée triée et inlines 32:32 transcrites ; magic, all_timers[], timer_valid() et les branches de récupération de liste omis.
+// STATUS: transcribed — liste chaînée triée, inlines 32:32, et la couche de
+//         validité (magic / all_timers[] / timer_valid). Seules les branches de
+//         récupération de liste corrompue portent un // omitted: motivé.
 
 using iXtal26.Diag;
 
@@ -14,7 +16,7 @@ internal delegate void timer_callback_t(object? p);
 // pcem: timer.h:20-30
 internal sealed class pc_timer_t
 {
-    // omitted: uint32_t magic (timer.h:21) — voir l'omission groupée dans timer.
+    internal uint32_t magic;
     internal uint32_t ts_integer;
     internal uint32_t ts_frac;
     internal int enabled;
@@ -52,13 +54,23 @@ internal static partial class timer
       the head.*/
     private static pc_timer_t? timer_head = null;
 
-    // omitted: TIMER_MAGIC (timer.h:18), magic (timer.h:21), MAX_TIMERS /
-    //   all_timers[256] / num_timers (timer.c:15-17), timer_valid() (timer.c:19-21)
-    //   et les branches de récupération de liste (timer.c:48-66, 117-122, 133-137)
-    //   — détection d'use-after-free sur une struct libérée, inatteignable sous GC.
-    //   Corollaire : le test `!timer` que timer_valid() portait en tête de
-    //   timer_enable/timer_disable disparaît aussi ; une référence nulle y serait
-    //   un bug d'appelant, pas un pc_timer_t libéré.
+    /*All timers ever registered via timer_add are tracked here so we can
+      safely disable them all on reset, even if the caller forgot to call
+      timer_disable before freeing the containing struct.*/
+    // pcem: timer.c:15-17, timer.h:18
+    private const uint32_t TIMER_MAGIC = 0x544D5243; /* 'TMRC' */
+    private const int MAX_TIMERS = 256;
+    private static readonly pc_timer_t?[] all_timers = new pc_timer_t?[MAX_TIMERS];
+    private static int num_timers = 0;
+
+    // pcem: timer.c:19-21
+    //
+    // Ce n'est PAS qu'un détecteur d'use-after-free : timer_reset() remet magic à
+    // zéro sur tous les timers enregistrés (timer.c:162), et ce test les rend donc
+    // inertes jusqu'au prochain timer_add(). C'est du contrôle de flux vivant. Je
+    // l'avais omis en le prenant pour du durcissement propre au C ; le diff de boot
+    // l'a démenti à l'instruction 66 (VERIFICATION.md).
+    private static bool timer_valid(pc_timer_t? timer) => timer != null && timer.magic == TIMER_MAGIC;
 
     // DEVIATION: fatal() appartient à ibm.h/pc.c, qui n'est pas encore transcrit.
     //   Déclaré ici pour que timer.c:33 et timer.c:100 aient une contrepartie.
@@ -89,6 +101,9 @@ internal static partial class timer
     internal static void timer_enable(pc_timer_t timer)
     {
         pc_timer_t? timer_node;
+
+        if (!timer_valid(timer))
+                return;
 
         if (timer.enabled != 0)
                 timer_disable(timer);
@@ -143,6 +158,9 @@ internal static partial class timer
     // pcem: timer.c:92-111
     internal static void timer_disable(pc_timer_t timer)
     {
+        if (!timer_valid(timer))
+                return;
+
         if (timer.enabled == 0)
                 return;
 
@@ -169,7 +187,15 @@ internal static partial class timer
                 timer_head = timer.next;
                 if (timer_head != null)
                 {
-                        timer_head.prev = null;
+                        if (!timer_valid(timer_head))
+                        {
+                                // omitted: pclog (timer.c:118) — sortie pure.
+                                timer_head = null;
+                        }
+                        else
+                        {
+                                timer_head.prev = null;
+                        }
                 }
                 timer.next = timer.prev = null;
                 timer.enabled = 0;
@@ -188,6 +214,13 @@ internal static partial class timer
         {
                 pc_timer_t timer = timer_head;
 
+                if (!timer_valid(timer))
+                {
+                        // omitted: pclog (timer.c:134) — sortie pure.
+                        timer_head = null;
+                        break;
+                }
+
                 if (!TIMER_LESS_THAN_VAL(timer, (uint32_t)tsc))
                         break;
 
@@ -203,17 +236,27 @@ internal static partial class timer
     // pcem: timer.c:150-170
     internal static void timer_reset()
     {
+        int i;
+
         // omitted: pclog("timer_reset\n") (timer.c:153) — sortie pure.
-        // DEVIATION: la boucle de nettoyage de all_timers[] (timer.c:155-164) est
-        //   omise avec all_timers[]. L'équivalence ne vaut que pour les timers
-        //   RÉ-ENREGISTRÉS : timer_add (timer.c:177) remet enabled/prev/next à
-        //   zéro. Un timer jamais ré-ajouté garde ici enabled=1 et ses chaînages,
-        //   et un timer_enable ultérieur atteint fatal("timer_enable - timer->next")
-        //   là où PCem passait sans bruit.
+
+        /* Disable every registered timer so their next/prev pointers are
+           cleaned up before device_close_all() frees the containing structs. */
+        for (i = 0; i < num_timers; i++)
+        {
+                pc_timer_t? t = all_timers[i];
+                if (t != null && t.magic == TIMER_MAGIC)
+                {
+                        t.enabled = 0;
+                        t.prev = t.next = null;
+                        t.magic = 0; /* Invalidate so freed memory is detectable */
+                }
+        }
 
         timer_target = 0;
         tsc = 0;
         timer_head = null;
+        num_timers = 0;
     }
 
     /*Add new timer. If start_timer is set, timer will be enabled with a zero
@@ -222,7 +265,7 @@ internal static partial class timer
     internal static void timer_add(pc_timer_t timer, timer_callback_t callback, object? p, int start_timer)
     {
         /* If this timer is still in the active list, disable it first */
-        if (timer.enabled != 0)
+        if (timer.magic == TIMER_MAGIC && timer.enabled != 0)
                 timer_disable(timer);
 
         // pcem: timer.c:177 — memset(timer, 0, sizeof(pc_timer_t)) ; seuls les
@@ -230,12 +273,16 @@ internal static partial class timer
         timer.ts_integer = 0;
         timer.ts_frac = 0;
 
+        timer.magic = TIMER_MAGIC;
         timer.callback = callback;
         timer.p = p;
         timer.enabled = 0;
         timer.prev = timer.next = null;
 
-        // omitted: l'enregistrement dans all_timers[] (timer.c:185-187).
+        /* Track this timer for cleanup on reset */
+        if (num_timers < MAX_TIMERS)
+                all_timers[num_timers++] = timer;
+
 
         if (start_timer != 0)
                 timer_set_delay_u64(timer, 0);

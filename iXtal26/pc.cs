@@ -106,18 +106,12 @@ internal static partial class pc
         timer.timer_reset();
         io.io_init();
 
-        // pcem: pc.c:184-187 — LE domaine d'horloge. setpitclock() pose onze
-        // globales (PITCONST, CGACONST, xt_cpu_multi, TIMER_USEC...) que le PIT,
-        // le CGA et la conversion TSC du 8088 lisent toutes. L'oublier ne casse
-        // rien à la compilation : ça donne une division par zéro au premier accès
-        // au PIT.
+        // omitted: sound_reset() (pc.c:73), fdc_init/disc_init/fdi_init/img_init
+        //   (pc.c:75-78) — hors périmètre 5150 minimal.
         //
-        // La valeur n'est PAS la fréquence du CPU. Sur une machine non-AT, PCem
-        // passe 14 318 184 Hz — l'oscillateur maître du XT — et c'est
-        // clockhardware() qui convertit les cycles CPU vers ce domaine via
-        // xt_cpu_multi. Passer 4,77 MHz ici ferait tourner toute la machine à un
-        // tiers de sa vitesse, sans qu'aucun test d'opcode ne s'en aperçoive.
-        Models.pit.setpitclock(14318184.0f);
+        // setpitclock() N'EST PAS ici : pc.c:56-74 ne l'appelle pas. Il appartient
+        // à pc_reset() (pc.c:184-187), donc APRÈS model_init() et ses pit_init().
+        // Je l'avais mis ici ; voir VERIFICATION.md § M4.0.
 
         resetpchard();
         return true;
@@ -151,7 +145,27 @@ internal static partial class pc
         // omitted: dma_reset(), fdc_reset(), nvr_recalc() — hors périmètre 5150
         //   minimal ; dma et pic sont réarmés par leurs propres *_init().
         Models.pic.pic_reset();
-        timer.timer_reset();
+
+        // omitted: timer_reset() — pc.c:178 la porte EN COMMENTAIRE. Je l'avais
+        //   ajoutée : elle invalide (magic = 0) tous les chronomètres que
+        //   model_init() vient d'enregistrer, et la machine tourne alors sans PIT.
+        //   Le seul timer_reset() vivant est celui de resetpchard(), pc.c:354,
+        //   AVANT model_init().
+
+        // pcem: pc.c:184-187 — LE domaine d'horloge. setpitclock() pose onze
+        // globales (PITCONST, CGACONST, xt_cpu_multi, TIMER_USEC...) que le PIT,
+        // le CGA et la conversion TSC du 8088 lisent toutes. L'oublier ne casse
+        // rien à la compilation : ça donne une division par zéro au premier accès
+        // au PIT.
+        //
+        // La valeur n'est PAS la fréquence du CPU. Sur une machine non-AT, PCem
+        // passe 14 318 184 Hz — l'oscillateur maître du XT — et c'est
+        // clockhardware() qui convertit les cycles CPU vers ce domaine via
+        // xt_cpu_multi. Passer 4,77 MHz ici ferait tourner toute la machine à un
+        // tiers de sa vitesse, sans qu'aucun test d'opcode ne s'en aperçoive.
+        Models.pit.setpitclock(14318184.0f);
+
+        // omitted: ali1429_reset() (pc.c:190) et le video_init() commenté (pc.c:192).
     }
 
     /// <summary>

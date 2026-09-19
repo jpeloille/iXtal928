@@ -65,6 +65,10 @@ public static class Oracle
     [DllImport(Lib)] public static extern int h_run(int cycs);
     [DllImport(Lib)] public static extern void h_getstate(out HState s);
     [DllImport(Lib)] public static extern ulong h_ram_hash();
+    [DllImport(Lib)] public static extern int h_boot([MarshalAs(UnmanagedType.LPStr)] string romspath);
+    [DllImport(Lib)] public static extern void h_runpc();
+    [DllImport(Lib)] public static extern int h_trace_open([MarshalAs(UnmanagedType.LPStr)] string path);
+    [DllImport(Lib)] public static extern void h_trace_close();
     [DllImport(Lib)] public static extern void h_wlog_reset();
     [DllImport(Lib)] public static extern int h_wlog_count();
     [DllImport(Lib)] public static extern uint h_wlog_get_addr(int i);
@@ -100,4 +104,7 @@ public static class Oracle
 
     /// <summary>Écrit un octet dans la RAM de l'oracle.</summary>
     public static void WriteByte(uint addr, byte value) => h_load(addr, [value], 1);
+    [DllImport(Lib)]
+    internal static extern void h_pit_probe(int t, [Out] ulong[] o);
+
 }

@@ -19,6 +19,12 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
     Console.WriteLine("      opcode que 808x.c laisse tomber dans son `default:`.");
     Console.WriteLine();
+    Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES]");
+    Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
+    Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
+    Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
+    Console.WriteLine("      plus une sonde des trois canaux du PIT.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -30,6 +36,13 @@ switch (args[0])
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
+
+    case "boot-diff":
+    {
+        var roms = args.Length > 1 ? args[1] : "roms";
+        var slices = args.Length > 2 ? int.Parse(args[2]) : 100;
+        return BootDiff.Run(roms, slices);
+    }
 
     case "sst-diff":
     {

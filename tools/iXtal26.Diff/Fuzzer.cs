@@ -287,10 +287,16 @@ public static class Fuzzer
     /// <summary>Rend null si les deux états sont identiques, sinon la
     /// description du premier champ divergent. Aucune réflexion : tout champ
     /// absent de cette liste est un champ non vérifié, et ça doit se voir.</summary>
-    internal static string? CompareStates(in HState a, in HState b, int cycA, int cycB)
-        => Compare(a, b, cycA, cycB);
+    /// <param name="counters">Comparer les compteurs de stubs. Vrai pour le
+    /// fuzzer et pour SST, où chaque cas repart d'un h_reset()/Reset() qui les
+    /// remet à zéro des deux côtés. Faux pour le diff d'amorçage : ce ne sont pas
+    /// des champs de la machine, ils sont absents du hachage de trace, et les
+    /// comparer arrête donc la phase 2 sur du bruit d'instrumentation avant
+    /// qu'elle atteigne la divergence que la phase 1 a signalée.</param>
+    internal static string? CompareStates(in HState a, in HState b, int cycA, int cycB, bool counters = true)
+        => Compare(a, b, cycA, cycB, counters);
 
-    private static string? Compare(in HState a, in HState b, int cycA, int cycB)
+    private static string? Compare(in HState a, in HState b, int cycA, int cycB, bool counters = true)
     {
         if (cycA != cycB) return $"cycles consommés : oracle {cycA}, C# {cycB}";
 
@@ -332,11 +338,12 @@ public static class Fuzzer
             ?? Chk("inhlt", a.inhlt, b.inhlt)
             ?? Chk("takeint", a.takeint, b.takeint)
             // --- compteurs de stubs : détectent l'accord vide ---
-            ?? Chk("n_inb", a.n_inb, b.n_inb)
+            ?? (!counters ? null
+            : Chk("n_inb", a.n_inb, b.n_inb)
             ?? Chk("n_outb", a.n_outb, b.n_outb)
             ?? Chk("n_picint", a.n_picint, b.n_picint)
             ?? Chk("n_picinterrupt", a.n_picinterrupt, b.n_picinterrupt)
-            ?? Chk("n_timer_process", a.n_timer_process, b.n_timer_process)
+            ?? Chk("n_timer_process", a.n_timer_process, b.n_timer_process))
             // Les quatre compteurs mémoire ne sont PLUS comparés depuis M2.
             //
             // Ils dataient de l'ère des stubs, où leur rôle était de détecter

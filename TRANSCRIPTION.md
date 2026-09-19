@@ -28,6 +28,11 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   transcribed` : un `partial` est plus court par construction, chaque ligne absente étant
   couverte par une entrée du registre des omissions. Être plus court sans omission
   déclarée, en revanche, c'est du code oublié — et ça, R6(a) l'attrape.
+  **Les lignes « accolade seule » sont exclues du décompte des deux côtés.** PCem est en
+  K&R, le C# du dépôt en Allman : chaque bloc coûte mécaniquement +1 ligne, sans qu'une
+  seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
+  accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
+  rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
 - **R3 — un seul fichier de prose, plafonné.** Celui-ci, 200 lignes. Les mesures vont
   dans `VERIFICATION.md`, sans plafond : le plafond vise la prose de conception, pas les
   constats. Les données volumineuses vont dans des fichiers générés (`sst-baseline.tsv`,
@@ -124,7 +129,7 @@ Ce qui n'est **pas** transcrit, et pourquoi. Toute nouvelle entrée se justifie 
 
 | Omis | Citation | Raison |
 |---|---|---|
-| `magic` / `TIMER_MAGIC` / `all_timers[256]` / `timer_valid()` et les branches de récupération de liste | `timer.h:19`, `timer.c:16-21, 49-65` | Détection d'use-after-free sur une struct libérée. Inatteignable sous GC. |
+| ~~`magic` / `TIMER_MAGIC` / `all_timers[256]` / `timer_valid()`~~ — **entrée révoquée, transcrite depuis** | `timer.h:19`, `timer.c:16-21` | Le motif inscrit ici (« use-after-free, inatteignable sous GC ») était faux. `timer_reset()` remet `magic` à zéro sur tous les chronomètres enregistrés (`timer.c:162`) et `timer_valid` les rend alors inertes : c'est du contrôle de flux vivant. Coût de l'erreur : la machine tournait sans PIT. Voir VERIFICATION.md § M4.0. Seules restent omises les branches de récupération de liste corrompue (`timer.c:49-65, 117-122, 133-137`), leurs `pclog` étant des sorties pures et le nœud corrompu inatteignable sous GC. |
 | `video_recalctimings` | déclaré `video.h:64` | Mort : jamais assigné, jamais appelé ; seule référence dans le bloc commenté `pit.c:54-55`. |
 | `old_fp_control`, `new_fp_control`, `trunc_fp_control` | `x86.h:100-106` | Sauvegarde du mot de contrôle x87 de l'hôte, sous `#if defined __i386__`. Sans objet en .NET. |
 | `MMX_REG MM[8]`, `ST[8]`, `TOP`, `tag[8]`, `npxs`, `npxc` | `x86.h:59, 93-99` | État 8087/MMX. **Champs absents, pas stubés** — un `ST[8]` stubé invite à une demi-implémentation. |

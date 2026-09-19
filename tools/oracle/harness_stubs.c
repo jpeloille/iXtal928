@@ -110,6 +110,13 @@ uint64_t tsc = 0;
 
 int cpu_get_speed(void) { return 4772728; }
 void cpu_set_edx(void) { }
+
+/* Bit turbo du port 0x61 sur les clones XT. Le 5150 n'en a pas. */
+void cpu_set_turbo(int turbo) { (void)turbo; }
+
+/* Cassette : pas de lecteur, l'entrée reste basse. */
+int cassette_input(void) { return 0; }
+void cassette_set_motor(int on) { (void)on; }
 void cpu_update_waitstates(void) { }
 
 /* --- timings de mode protégé : inatteignables sur un 8088 ----------------- */
@@ -134,13 +141,39 @@ int xi8088_bios_128kb(void) { return 0; }
 
 /* --- haut-parleur : inerte, mais les variables sont lues par ppi.c --------- */
 
+/* Couche hôte du clavier (plat-keyboard.h) : sans fenêtre, aucune touche
+ * n'est enfoncée. keyboard_process() lit pcem_key[] et n'y trouve rien. */
+uint8_t pcem_key[272];
+int rawinputkey[272];
+
+/* Tandy : EEPROM de configuration, machine hors cible. */
+uint8_t tandy_eeprom_read(void) { return 0; }
+
+int was_speaker_enable = 0;
 int ppispeakon = 0;
+int speaker_enable = 0, speaker_gated = 0;
 int gated = 0, speakval = 0, speakon = 0;
 void speaker_update(void) { }
 
 /* --- vidéo : le cœur n'en a pas besoin pour le diff CPU ------------------- */
 
 void video_updatetiming(void) { }
+
+/* Chargement des polices : sans rendu, on ne remplit aucune table. Le POST du
+ * 5150 n'interroge pas les polices, il écrit dans la VRAM du CGA. */
+void loadfont(char *s, int format) { (void)s; (void)format; }
+
+/* Interrogation du registre des cartes vidéo. Une seule carte ici, le CGA :
+ * ce sont ces trois réponses que le PPI compose en interrupteurs DIP pour le
+ * POST, et le C# rend exactement les mêmes (Video/video.cs). */
+int video_is_mda(void) { return 0; }
+int video_is_cga(void) { return 1; }
+int video_is_ega_vga(void) { return 0; }
+
+/* Toshiba T1000 : touche système, machine hors cible. */
+void t1000_syskey(uint8_t andmask, uint8_t ormask, uint8_t xormask) {
+        (void)andmask; (void)ormask; (void)xormask;
+}
 
 /* --- configuration et chemins --------------------------------------------- */
 

@@ -702,4 +702,30 @@ internal static partial class pit
         pit_set_out_func(pit_, 1, pit_null_timer);
         pit_set_out_func(pit_, 2, pit_speaker_timer);
     }
+    /// <summary>Sonde de diagnostic — pendant exact de h_pit_probe()
+    /// (tools/oracle/harness.c). Même ordre de champs, pour que le diff de boot
+    /// nomme le champ divergent au lieu de le faire deviner.</summary>
+    internal static void Probe(int t, uint64_t[] o)
+    {
+        o[0] = pit_.l[t];
+        o[1] = pit_.m[t];
+        o[2] = (uint64_t)(long)pit_.count[t];
+        o[3] = pit_.rl[t];
+        o[4] = (uint64_t)(long)pit_.using_timer[t];
+        o[5] = (uint64_t)(long)pit_.gate[t];
+        o[6] = (uint64_t)(long)pit_.enabled[t];
+        o[7] = (uint64_t)(long)pit_.running[t];
+        o[8] = (uint64_t)(long)pit_.disabled[t];
+        o[9] = (uint64_t)(long)pit_.thit[t];
+        o[10] = (uint64_t)(long)pit_.latched[t];
+        o[11] = (uint64_t)(long)pit_.rereadlatch[t];
+        o[12] = (uint64_t)(long)pit_.rm[t];
+        o[13] = (uint64_t)(long)pit_.@out[t];
+        o[14] = (uint64_t)(long)pit_.timer[t].enabled;
+        o[15] = ((uint64_t)pit_.timer[t].ts_integer << 32) | pit_.timer[t].ts_frac;
+        o[16] = timer.tsc;
+        o[17] = PITCONST;
+        o[18] = timer.timer_get_remaining_u64(pit_.timer[t]);
+    }
+
 }

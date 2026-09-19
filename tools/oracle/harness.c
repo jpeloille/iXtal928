@@ -29,6 +29,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "harness.h"
@@ -36,6 +37,16 @@
 /* Le cœur lui-même. Chemin explicite plutôt qu'un -I : on veut que la ligne dise
  * ce qu'elle fait. Doit venir après harness.h et avant tout code ci-dessous. */
 #include "../../pcem-dev/src/cpu/808x.c"
+
+/* En-têtes de la carte mère, pour h_boot(). Après 808x.c : ils dépendent des
+ * types que celui-ci a déjà tirés. */
+#include "device.h"
+#include "io.h"
+#include "dma.h"
+#include "pit.h"
+#include "model.h"
+
+void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
  * préprocesseur ne connaît pas l'accès à un membre : `out->cycles` deviendrait
@@ -273,6 +284,142 @@ void h_getstate(h_state *out) {
         out->ins = h_ins_count;
 }
 
+/* -----------------------------------------------------------------------
+ * Amorçage de la machine complète, et trace.
+ * ----------------------------------------------------------------------- */
+
+static FILE *h_trace_fp = NULL;
+
+int h_trace_open(const char *path) {
+        h_trace_close();
+        h_trace_fp = fopen(path, "wb");
+        return h_trace_fp != NULL;
+}
+
+void h_trace_close(void) {
+        if (h_trace_fp) {
+                fclose(h_trace_fp);
+                h_trace_fp = NULL;
+        }
+}
+
+/* Une ligne d'état par instruction, réduite à 8 octets. On hache ce que le C#
+ * peut reproduire exactement : l'état architectural et le temps. */
+static void h_trace_note(void) {
+        uint64_t h = 1469598103934665603ULL;
+#define MIX(v)                                                                                                           \
+        do {                                                                                                             \
+                uint64_t _x = (uint64_t)(v);                                                                             \
+                for (int _i = 0; _i < 8; _i++) {                                                                         \
+                        h ^= (_x >> (_i * 8)) & 0xff;                                                                    \
+                        h *= 1099511628211ULL;                                                                           \
+                }                                                                                                        \
+        } while (0)
+        MIX(cpu_state.seg_cs.seg);
+        MIX(cpu_state.pc);
+        for (int i = 0; i < 8; i++)
+                MIX(cpu_state.regs[i].w);
+        MIX(cpu_state.seg_ds.seg);
+        MIX(cpu_state.seg_es.seg);
+        MIX(cpu_state.seg_ss.seg);
+        MIX(cpu_state.flags);
+        MIX(tsc);
+#undef MIX
+        fwrite(&h, sizeof(h), 1, h_trace_fp);
+}
+
+/* Crochets que la couche UI de PCem installe au démarrage (wx-sdl2.c:450) et
+ * que device.c appelle sans les tester. Sans UI liée, ils restent NULL et
+ * device_speed_changed() saute à l'adresse 0 dès le premier setpitclock().
+ * Le C# a le même besoin ; c'est une vraie frontière hôte, pas un détail. */
+static void h_noop(void) { }
+extern void (*_sound_speed_changed)(void);
+
+int h_boot(const char *romspath) {
+        h_set_roms_path(romspath);
+        _sound_speed_changed = h_noop;
+
+        /* Pendant de _808x.ResetCounters() : sans ça, un second h_boot() dans le
+           même processus repart avec les compteurs du premier. */
+        h_stub_counters_reset();
+        h_wlog_reset();
+
+        device_init();
+        mem_size = 640;
+
+        if (!h_mem_inited) {
+                mem_init();
+                h_mem_inited = 1;
+        }
+
+        if (!loadbios())
+                return 0;
+
+        timer_reset();       /* pc.c:72 */
+        io_init();           /* pc.c:74 */
+
+        /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */
+        timer_reset();
+        device_close_all();
+        device_init();
+        io_init();
+        mem_alloc();
+
+        /* model_init() -> xt_init() */
+        dma_init();
+        pic_init();
+        pit_init();
+        mem_add_bios();
+        pit_set_out_func(&pit, 1, pit_refresh_timer_xt);
+        keyboard_xt_init();
+        nmi_init();
+
+        /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
+           ici invalide (magic = 0) tous les chronomètres que model_init() vient
+           d'enregistrer, et la machine tourne sans PIT. setpitclock() appartient
+           bien à pc_reset (pc.c:184-187), donc APRÈS pit_init. */
+        resetx86();
+        pic_reset();
+        setpitclock(14318184.0f);
+
+        nextcyc = 0;
+        memcycs = 0;
+        cycdiff = 0;
+        current_diff = 0;
+        fetchcycles = 0;
+        fetchclocks = 0;
+        tsc_frac = 0;
+        noint = 0;
+        inhlt = 0;
+        takeint = 0;
+        cpu_state._cycles = 0;
+        ins = 0;
+        insc = 0;
+        h_ins_count = 0;
+        return 1;
+}
+
+void h_runpc(void) {
+        int cycles_to_run = 4772728 / 100;
+
+        if (!h_trace_fp) {
+                cpu_state._cycles = 0;
+                execx86(cycles_to_run);
+                return;
+        }
+
+        /* Mode tracé : une instruction à la fois, pour pouvoir noter l'état
+         * après chacune. Le budget total reste celui de la tranche. */
+        int budget = cycles_to_run;
+        while (budget > 0) {
+                cpu_state._cycles = 1;
+                execx86(0);
+                budget -= (1 - cpu_state._cycles);
+                h_trace_note();
+                h_ins_count++;
+        }
+}
+
 /* FNV-1a 64 bits sur la RAM entière. Sert à diffé rer la mémoire sans transférer
  * 1 Mo par instruction ; en cas de divergence, le C# compare octet par octet via
  * h_read pour localiser. */
@@ -283,4 +430,31 @@ uint64_t h_ram_hash(void) {
                 hash *= 1099511628211ULL;
         }
         return hash;
+}
+
+/* --- sonde PIT : diff de boot, phase 2 ------------------------------------
+   Aucun accesseur n'expose l'état du PIT. pit est une globale de pit.c et le
+   harnais est lié avec, donc un extern suffit : on n'instrumente pas le C, on
+   le lit. Ordre identique à Models.pit.Probe() côté C#. */
+extern PIT pit;
+void h_pit_probe(int t, uint64_t *out) {
+        out[0] = pit.l[t];
+        out[1] = pit.m[t];
+        out[2] = (uint64_t)pit.count[t];
+        out[3] = pit.rl[t];
+        out[4] = (uint64_t)pit.using_timer[t];
+        out[5] = (uint64_t)pit.gate[t];
+        out[6] = (uint64_t)pit.enabled[t];
+        out[7] = (uint64_t)pit.running[t];
+        out[8] = (uint64_t)pit.disabled[t];
+        out[9] = (uint64_t)pit.thit[t];
+        out[10] = (uint64_t)pit.latched[t];
+        out[11] = (uint64_t)pit.rereadlatch[t];
+        out[12] = (uint64_t)pit.rm[t];
+        out[13] = (uint64_t)pit.out[t];
+        out[14] = pit.timer[t].enabled;
+        out[15] = ((uint64_t)pit.timer[t].ts_integer << 32) | pit.timer[t].ts_frac;
+        out[16] = tsc;
+        out[17] = PITCONST;
+        out[18] = timer_get_remaining_u64(&pit.timer[t]);
 }

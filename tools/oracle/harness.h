@@ -155,6 +155,26 @@ void h_getstate(h_state *out);
  * transférer 1 Mo par instruction. */
 uint64_t h_ram_hash(void);
 
+/* --- amorçage machine complète (IBM PC 5150) -----------------------------
+ * Miroir exact de pc.initpc() côté C#. Rend 1 si le BIOS a pu être chargé.
+ * romspath est le répertoire des ROMs, p.ex. "roms". */
+int h_boot(const char *romspath);
+
+/* Exécute une tranche de 10 ms, comme runpc(). */
+void h_runpc(void);
+
+/* Trace d'amorçage : hachage d'une ligne d'état par instruction, écrit dans un
+ * fichier. C'est la forme « phase 1 » du diff — 8 octets par instruction au lieu
+ * de la ligne formatée, donc utilisable sur des millions d'instructions. */
+int h_trace_open(const char *path);
+void h_trace_close(void);
+
+/* Sonde PIT — 19 champs du canal t, dans l'ordre de Models.pit.Probe() côté C#.
+ * `pit` est une globale de pit.c et le harnais est lié avec : on lit l'arbre
+ * vendoré, on ne l'instrumente pas. */
+#define H_PIT_PROBE_N 19
+void h_pit_probe(int t, uint64_t *out);
+
 /* Journal d'ecritures de la derniere instruction. Voir harness_stubs.c. */
 void h_wlog_reset(void);
 int h_wlog_count(void);

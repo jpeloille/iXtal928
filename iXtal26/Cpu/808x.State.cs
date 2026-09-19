@@ -59,9 +59,7 @@ internal static partial class _808x
     internal static void Reset()
     {
         FlatMap();
-        Counters.Reset();
-        mem.wlog_reset();
-        ins_count = 0;
+        ResetCounters();
 
         // Configuration machine, posée AVANT resetx86() : celle-ci branche sur
         // AT, is486 et is386 pour choisir le vecteur de reset et rammask.
@@ -80,10 +78,35 @@ internal static partial class _808x
         timer.timer_target = 0x7FFFFFFF;
 
         resetx86();
+        ResetTimingState();
+    }
 
-        // resetx86() ne remet pas ces statiques : elles portent l'état de temps
-        // ENTRE instructions, et un reset partiel ferait diverger le cœur de
-        // lui-même d'un appel à l'autre.
+    /// <summary>Compteurs de diagnostic. Pendant de h_reset():2-4 et du haut de
+    /// h_boot() — dans les deux cas AVANT resetx86().</summary>
+    private static void ResetCounters()
+    {
+        Counters.Reset();
+        mem.wlog_reset();
+        ins_count = 0;
+    }
+
+    /// <summary>Remet à zéro l'état de temps ENTRE instructions et les compteurs
+    /// de diagnostic, sans toucher à la carte mémoire. Pendant exact du bloc final
+    /// de h_boot() (tools/oracle/harness.c).
+    ///
+    /// resetx86() ne touche à rien de tout ça : ce sont des statiques de fichier
+    /// qui, en C, valent zéro parce qu'elles sont en BSS et que PCem n'amorce
+    /// qu'une fois par processus. Le diff de boot amorce deux fois — il faut donc
+    /// l'équivalent explicite des deux côtés, sinon le second amorçage part avec
+    /// l'état du premier et le diff signale une divergence qui n'existe pas.</summary>
+    internal static void ResetDiagState()
+    {
+        ResetCounters();
+        ResetTimingState();
+    }
+
+    private static void ResetTimingState()
+    {
         nextcyc = 0;
         memcycs = 0;
         cycdiff = 0;

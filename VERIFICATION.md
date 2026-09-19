@@ -75,3 +75,71 @@ une fois ces résultats consignés. Il est regénérable depuis l'historique git
 régression de runtime remet G2 en question.
 
 ---
+
+## M4.0 — Diff de traces d'amorçage : oracle contre C#, depuis le reset
+
+Le fuzzer compare une instruction sur un état fabriqué ; SST compare une instruction
+contre du silicium. Ni l'un ni l'autre ne fait tourner une **machine**. Le troisième
+oracle est le diff de traces : les deux cœurs amorcent la même ROM d'IBM PC 5150 et on
+compare instruction par instruction.
+
+Deux phases, comme prévu au plan. Phase 1 : un hachage FNV-1a de 8 octets par instruction
+(CS, pc, les huit registres, DS/ES/SS, flags, tsc) — assez léger pour tracer 700 000
+instructions des deux côtés. Phase 2 : rejeu en pas à pas jusqu'à l'index fautif, avec le
+vecteur d'état complet des 32 champs.
+
+**Ce que la phase 2 a dû apprendre à ne pas comparer.** Les deux premières exécutions se
+sont arrêtées sur `n_inb` puis sur `ins` — des compteurs de diagnostic, absents du
+hachage de phase 1, donc *incapables* d'être la divergence cherchée. Ils divergeaient
+parce que `h_boot()` et `initpc()` ne les remettaient pas à zéro au même moment, et le
+diff s'arrêtait sur son propre bruit avant d'atteindre la vraie panne. Corrigé des deux
+côtés (`h_stub_counters_reset` dans `h_boot`, `_808x.ResetDiagState()` symétrique) et
+`CompareStates(counters: false)` pour le boot.
+
+### Ce que le diff a trouvé : le PIT ne tournait pas du tout
+
+Première divergence architecturale à l'instruction **24 664**, `F000:E0E8`, `IN AL, 0x41` :
+oracle `0x00`, iXtal26 `0xFB`. Une sonde ajoutée sur les trois canaux du PIT (`h_pit_probe`
+lit la globale `pit` de `pit.c` — le C n'est pas instrumenté, il est lu) a reporté le
+premier écart **24 598 instructions plus tôt**, à l'instruction 66, `F000:E0C1`,
+`OUT 0x61, 0xFC` : `pit.count[2]`, oracle 0, C# 65535.
+
+État d'entrée identique des deux côtés. Les deux exécutent la même branche de
+`pit_set_gate_no_timer`, et `pit.timer[2].ts` finit identique. Seul `timer_enable()`
+diverge — parce que le C commence par `if (!timer_valid(timer)) return;` et que le C#
+n'avait pas ce test.
+
+Deux défauts distincts, tous deux confirmés par la source :
+
+1. **`timer.cs` omettait la couche de validité** — `magic`, `all_timers[]`, `num_timers`,
+   `timer_valid()`. Je l'avais classée « détection d'use-after-free, inatteignable sous
+   GC ». C'est faux : `timer_reset()` remet `magic` à zéro sur **tous** les chronomètres
+   enregistrés (`timer.c:162`), et `timer_valid` les rend alors inertes jusqu'au prochain
+   `timer_add()`. C'est du contrôle de flux vivant, pas du durcissement.
+
+2. **`pc_reset()` appelait `timer_reset()`** — que `pc.c:178` porte **en commentaire**.
+   Combiné au défaut n°1, il invalidait tous les chronomètres que `model_init()` venait
+   d'enregistrer : la machine tournait sans PIT, donc sans IRQ0 et sans rafraîchissement
+   DRAM. Symétriquement, `setpitclock(14318184.0)` appartient à `pc_reset()`
+   (`pc.c:184-187`), donc **après** `pit_init()`, et non à `initpc()` où je l'avais mis.
+
+Le second défaut seul faisait disparaître le symptôme. Le premier est une lacune de
+transcription : sans lui, la divergence serait revenue plus loin, au prochain
+`resetpchard()`.
+
+### Mesure
+
+| | |
+|---|---|
+| Amorçage 20 tranches (0,2 s émulée) | **88 459 instructions, identiques** |
+| Amorçage 200 tranches (2 s émulée) | **714 879 instructions, identiques** |
+| Champs comparés par instruction (phase 2) | 32, plus 19 champs de sonde PIT par canal |
+
+Le nombre d'instructions par tranche a changé avec le correctif (87 611 → 88 459 sur 20
+tranches) : c'est la signature du PIT qui se met enfin à tourner.
+
+**Ce que cette mesure ne prouve pas.** Le fuzzer n'a jamais pu attraper ce défaut et ne le
+pourra jamais : il passe par `FlatMap()`/`Reset()`, qui n'appelle `timer_add` qu'une fois
+par processus et jamais `timer_reset()` après enregistrement. SST ne touche pas aux
+chronomètres. Un fuzzer vert après ce correctif ne dit donc rien sur ce correctif — seule
+la longueur du préfixe d'amorçage identique le mesure.
