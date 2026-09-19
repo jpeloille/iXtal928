@@ -110,7 +110,11 @@ public static class Fuzzer
             // Construction : adressage direct (mod=0, rm=6), déplacement = IP+4
             // — pc a alors avancé de l'opcode, du ModRM et des deux octets de
             // déplacement — et DS forcé égal à CS pour que les bases coïncident.
-            var steered = (rng.Next() & 7) == 0 && op <= 0x03;
+            // Applicable à tout opcode porteur d'un ModRM. Dans la bande ALU
+            // 0x00-0x3F, ce sont ceux dont les trois bits bas valent 0 à 3 —
+            // donc 00-03, 08-0B, 10-13… — les formes /r. Les accumulateur-
+            // immédiat (x4, x5) et les PUSH/POP segment (x6, x7) n'en ont pas.
+            var steered = (rng.Next() & 7) == 0 && (op & 7) < 4;
             if (steered)
             {
                 regs[(int)R.DS] = regs[(int)R.CS];
@@ -265,6 +269,9 @@ public static class Fuzzer
     /// <summary>Rend null si les deux états sont identiques, sinon la
     /// description du premier champ divergent. Aucune réflexion : tout champ
     /// absent de cette liste est un champ non vérifié, et ça doit se voir.</summary>
+    internal static string? CompareStates(in HState a, in HState b, int cycA, int cycB)
+        => Compare(a, b, cycA, cycB);
+
     private static string? Compare(in HState a, in HState b, int cycA, int cycB)
     {
         if (cycA != cycB) return $"cycles consommés : oracle {cycA}, C# {cycB}";

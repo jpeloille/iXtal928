@@ -8,6 +8,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("Usage : iXtal26.Diff <commande> [options]");
     Console.WriteLine();
     Console.WriteLine("  sst-probe [--vectors DIR] [--op XX ...] [--limit N] [--baseline FICHIER]");
+    Console.WriteLine("            [--target oracle|csharp]");
     Console.WriteLine("      Sonde SingleStepTests : passe les vecteurs à l'oracle C et");
     Console.WriteLine("      rapporte le taux de réussite. Porte de M0 — décide si le");
     Console.WriteLine("      harnais xunit complet vaut d'être construit.");
@@ -30,12 +31,35 @@ switch (args[0])
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
 
+    case "sst-diff":
+    {
+        // Rejoue des cas SST sur les DEUX cœurs et compare l'état complet.
+        var vectors = "vectors/sst/v2";
+        var op = args.Length > 1 ? args[1] : "00";
+        var n = args.Length > 2 ? int.Parse(args[2]) : 20;
+        Oracle.CheckAbi();
+        var cases = SstProbe.LoadPublic(Path.Combine(vectors, $"{op}.json.gz"));
+        var bad = 0;
+        for (var i = 0; i < Math.Min(n, cases.Count); i++)
+        {
+            var d = SstProbe.DiffCase(cases[i]);
+            if (d is null) continue;
+            Console.WriteLine($"[{cases[i].idx}] {cases[i].name} : {d}");
+            if (++bad >= 5) break;
+        }
+        Console.WriteLine(bad == 0
+            ? $"Les deux cœurs sont d'accord sur {Math.Min(n, cases.Count)} cas."
+            : $"{bad} divergence(s) coeur-a-coeur.");
+        return bad == 0 ? 0 : 1;
+    }
+
     case "sst-probe":
     {
         var vectors = "vectors/sst/v2";
         var ops = new List<string>();
         var limit = 0;
         string? baseline = null;
+        var targetCs = false;
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -45,6 +69,7 @@ switch (args[0])
                 case "--op" when i + 1 < args.Length: ops.Add(args[++i]); break;
                 case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
                 case "--baseline" when i + 1 < args.Length: baseline = args[++i]; break;
+                case "--target" when i + 1 < args.Length: targetCs = args[++i] == "csharp"; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;
@@ -57,7 +82,7 @@ switch (args[0])
                     Path.GetFileName(f).Replace(".json.gz", "")).Order()
                 : []);
 
-        return SstProbe.Run(vectors, ops.ToArray(), limit, baseline);
+        return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs);
     }
 
     case "fuzz":

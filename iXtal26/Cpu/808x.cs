@@ -4,8 +4,8 @@
 // ORACLE: pcem-dev/src/cpu/808x.c
 //         (36-260, 340-455, 456-520, 662-702, 748-886, 886-906, 1222-1340, 3902-3996)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — M1.1a : accesseurs, file de préfetch, calcul d'EA, tables et
-//         helpers de flags, resetx86, boucle execx86, opcodes 0x00-0x07.
+// STATUS: partial — M1.1 : accesseurs, préfetch, EA, tables et helpers de flags,
+//         resetx86, boucle execx86, bande d'opcodes 0x00-0x1F.
 //
 // Le modèle de temps du 8088. C'est la partie la plus fidèle de PCem et la plus
 // fragile à transcrire : la réconciliation entre cycdiff, cycles, memcycs,
@@ -728,8 +728,8 @@ internal static partial class _808x
     // -----------------------------------------------------------------------
     internal static void execx86(int cycs)
     {
-        uint8_t temp;
-        uint16_t addr, tempw;
+        uint8_t temp, temp2;
+        uint16_t addr, tempw, tempw2;
         int trap;
 
         cycles += cycs;
@@ -807,6 +807,198 @@ internal static partial class _808x
                                 ss = oldss;
                         tempw = readmemw(ss, SP);
                         x86seg_c.loadseg(tempw, cpu_state.seg_es);
+                        SP += 2;
+                        cycles -= 12;
+                        break;
+
+                case 0x08: /*OR 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp |= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x09: /*OR 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw |= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x0A: /*OR cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        temp |= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        setr8(cpu_reg, temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x0B: /*OR cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw |= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cpu_state.regs[cpu_reg].w = tempw;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x0C: /*OR AL,#8*/
+                        AL |= FETCH();
+                        setznp8(AL);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+                case 0x0D: /*OR AX,#16*/
+                        AX |= getword();
+                        setznp16(AX);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+
+                case 0x0E: /*PUSH CS*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, ((uint32_t)(SP - 2) & 0xFFFF), CS);
+                        SP -= 2;
+                        cycles -= 14;
+                        break;
+                case 0x0F: /*POP CS - 8088/8086 only*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = readmemw(ss, SP);
+                        x86seg_c.loadseg(tempw, cpu_state.seg_cs);
+                        SP += 2;
+                        cycles -= 12;
+                        break;
+
+                case 0x10: /*ADC 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp2 = getr8(cpu_reg);
+                        setadc8(temp, temp2);
+                        temp += (uint8_t)(temp2 + tempc);
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x11: /*ADC 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = cpu_state.regs[cpu_reg].w;
+                        setadc16(tempw, tempw2);
+                        tempw += (uint16_t)(tempw2 + tempc);
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x12: /*ADC cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        setadc8(getr8(cpu_reg), temp);
+                        setr8(cpu_reg, (uint8_t)(getr8(cpu_reg) + temp + tempc));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x13: /*ADC cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        setadc16(cpu_state.regs[cpu_reg].w, tempw);
+                        cpu_state.regs[cpu_reg].w += (uint16_t)(tempw + tempc);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x14: /*ADC AL,#8*/
+                        tempw = FETCH();
+                        setadc8(AL, (uint8_t)tempw);
+                        AL += (uint8_t)(tempw + tempc);
+                        cycles -= 4;
+                        break;
+                case 0x15: /*ADC AX,#16*/
+                        tempw = getword();
+                        setadc16(AX, tempw);
+                        AX += (uint16_t)(tempw + tempc);
+                        cycles -= 4;
+                        break;
+
+                case 0x16: /*PUSH SS*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, ((uint32_t)(SP - 2) & 0xFFFF), SS);
+                        SP -= 2;
+                        cycles -= 14;
+                        break;
+                case 0x17: /*POP SS*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = readmemw(ss, SP);
+                        x86seg_c.loadseg(tempw, cpu_state.seg_ss);
+                        SP += 2;
+                        noint = 1;
+                        cycles -= 12;
+                        break;
+
+                case 0x18: /*SBB 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp2 = getr8(cpu_reg);
+                        setsbc8(temp, temp2);
+                        temp -= (uint8_t)(temp2 + tempc);
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x19: /*SBB 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = cpu_state.regs[cpu_reg].w;
+                        setsbc16(tempw, tempw2);
+                        tempw -= (uint16_t)(tempw2 + tempc);
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x1A: /*SBB cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        setsbc8(getr8(cpu_reg), temp);
+                        setr8(cpu_reg, (uint8_t)(getr8(cpu_reg) - (temp + tempc)));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x1B: /*SBB cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = cpu_state.regs[cpu_reg].w;
+                        setsbc16(tempw2, tempw);
+                        tempw2 -= (uint16_t)(tempw + tempc);
+                        cpu_state.regs[cpu_reg].w = tempw2;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x1C: /*SBB AL,#8*/
+                        temp = FETCH();
+                        setsbc8(AL, temp);
+                        AL -= (uint8_t)(temp + tempc);
+                        cycles -= 4;
+                        break;
+                case 0x1D: /*SBB AX,#16*/
+                        tempw = getword();
+                        setsbc16(AX, tempw);
+                        AX -= (uint16_t)(tempw + tempc);
+                        cycles -= 4;
+                        break;
+
+                case 0x1E: /*PUSH DS*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, ((uint32_t)(SP - 2) & 0xFFFF), DS);
+                        SP -= 2;
+                        cycles -= 14;
+                        break;
+                case 0x1F: /*POP DS*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = readmemw(ss, SP);
+                        x86seg_c.loadseg(tempw, cpu_state.seg_ds);
+                        if (cpu_state.ssegs != 0)
+                                oldds = ds;
                         SP += 2;
                         cycles -= 12;
                         break;

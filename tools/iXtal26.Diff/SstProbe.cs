@@ -27,7 +27,9 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using iXtal26.Cpu;
 using iXtal26.Diag;
+using iXtal26.Memory;
 
 namespace iXtal26.Diff;
 
@@ -75,10 +77,12 @@ public static class SstProbe
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
-    public static int Run(string vectorsDir, string[] opcodes, int limit, string? baselinePath = null)
+    public static int Run(string vectorsDir, string[] opcodes, int limit, string? baselinePath = null,
+                          bool target808xCs = false)
     {
         Oracle.CheckAbi();
-        Console.WriteLine($"Sonde SST — oracle ABI {Oracle.h_abi_version()}, h_state {Oracle.h_state_size()} o\n");
+        Console.WriteLine($"Sonde SST — cible : {(target808xCs ? "cœur C#" : "oracle C")} " +
+                          $"(ABI {Oracle.h_abi_version()}, h_state {Oracle.h_state_size()} o)\n");
 
         var masks = LoadFlagMasks(Path.Combine(vectorsDir, "metadata.json"));
         var grand = (total: 0, passMasked: 0, passRaw: 0);
@@ -97,28 +101,46 @@ public static class SstProbe
             var n = limit > 0 ? Math.Min(limit, cases.Count) : cases.Count;
             ushort mask = masks.GetValueOrDefault(op, (ushort)0xFFFF);
 
-            int passMasked = 0, passRaw = 0;
+            int passMasked = 0, passRaw = 0, skippedPrefix = 0, run = 0;
             var firstFailures = new List<string>();
 
             for (var i = 0; i < n; i++)
             {
-                var (okMasked, okRaw, why) = RunCase(cases[i], mask);
+                // Les fichiers SST d'un opcode contiennent aussi ses formes
+                // PRÉFIXÉES : environ la moitié des cas de 0x00 commencent par
+                // 26/2E/36/3E (override de segment) ou F2/F3 (REP). Tant que les
+                // préfixes ne sont pas transcrits — ils sont en M1.9, ce sont les
+                // seuls `goto` du fichier — ces cas mesurent l'absence du
+                // préfixe, pas la justesse de l'opcode. On les compte à part au
+                // lieu de les laisser passer pour des échecs.
+                // Filtre appliqué aux DEUX cibles : sans quoi les dénominateurs diffèrent
+                // et la comparaison « le C# reproduit-il la ligne de base ? » n'a pas de sens.
+                if (cases[i].bytes.Length > 0 && IsUnimplementedPrefix((byte)cases[i].bytes[0]))
+                {
+                    skippedPrefix++;
+                    continue;
+                }
+                run++;
+
+                var (okMasked, okRaw, why) = RunCase(cases[i], mask, target808xCs);
                 if (okMasked) passMasked++;
                 if (okRaw) passRaw++;
                 if (!okMasked && firstFailures.Count < 3)
                     firstFailures.Add($"      [{cases[i].idx}] {cases[i].name}: {why}");
             }
 
-            var pct = 100.0 * passMasked / n;
-            Console.WriteLine($"  {op} : {passMasked}/{n} ({pct:F2} %) avec masque 0x{mask:X4}" +
-                              (mask != 0xFFFF ? $" ; {passRaw}/{n} sans masque" : ""));
+            var denom = run > 0 ? run : n;
+            var pct = 100.0 * passMasked / denom;
+            Console.WriteLine($"  {op} : {passMasked}/{denom} ({pct:F2} %) avec masque 0x{mask:X4}" +
+                              (mask != 0xFFFF ? $" ; {passRaw}/{denom} sans masque" : "") +
+                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas préfixés écartés (préfixes en M1.9)" : ""));
             foreach (var f in firstFailures)
                 Console.WriteLine(f);
 
-            baseline.Add(string.Join('\t', op, n, passMasked, $"0x{mask:X4}",
+            baseline.Add(string.Join('\t', op, denom, passMasked, $"0x{mask:X4}",
                 firstFailures.Count > 0 ? firstFailures[0].Trim() : ""));
 
-            grand.total += n;
+            grand.total += denom;
             grand.passMasked += passMasked;
             grand.passRaw += passRaw;
         }
@@ -158,8 +180,11 @@ public static class SstProbe
         return 0;
     }
 
-    private static (bool okMasked, bool okRaw, string why) RunCase(SstCase c, ushort mask)
+    private static (bool okMasked, bool okRaw, string why) RunCase(SstCase c, ushort mask, bool csharp)
     {
+        if (csharp)
+                return RunCaseCsharp(c, mask);
+
         Oracle.h_reset();
 
         // SST : « all bytes fetched after the initial instruction bytes are set
@@ -213,6 +238,95 @@ public static class SstProbe
         return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
     }
 
+    /// <summary>
+    /// Même cas SST, joué par les DEUX cœurs, état complet comparé. Sert quand
+    /// le fuzzer et la sonde SST se contredisent : si le C# diverge de l'oracle
+    /// ici mais pas sous le fuzzer, c'est la MISE EN PLACE qui diffère, pas le
+    /// cœur.
+    /// </summary>
+    internal static string? DiffCase(SstCase c)
+    {
+        var a = HState.Create();
+        var b = HState.Create();
+        var init = ToVector(c.initial.regs, null);
+
+        Oracle.h_reset();
+        Oracle.h_fill_ram(0x90);
+        if (c.initial.ram is not null)
+                foreach (var pair in c.initial.ram)
+                        Oracle.WriteByte(pair[0], (byte)pair[1]);
+        Oracle.h_setregs(init);
+        var cycC = Oracle.h_step();
+        Oracle.h_getstate(out a);
+
+        _808x.Reset();
+        mem.fill_ram(0x90);
+        if (c.initial.ram is not null)
+                foreach (var pair in c.initial.ram)
+                        mem.ram[pair[0] & mem.rammask] = (byte)pair[1];
+        _808x.SetRegs(init);
+        var cycS = _808x.Step();
+        _808x.GetState(ref b);
+
+        return Fuzzer.CompareStates(a, b, cycC, cycS);
+    }
+
+    /// <summary>
+    /// Même cas, exécuté par le cœur C# au lieu de l'oracle. C'est LE critère du
+    /// plan : le C# ne doit pas « maximiser SST », il doit reproduire à
+    /// l'identique la colonne `passe` de sst-baseline.tsv. Un écart dans un sens
+    /// comme dans l'autre est une divergence de transcription.
+    /// </summary>
+    private static (bool okMasked, bool okRaw, string why) RunCaseCsharp(SstCase c, ushort mask)
+    {
+        _808x.Reset();
+        mem.fill_ram(0x90);
+
+        if (c.initial.ram is not null)
+                foreach (var pair in c.initial.ram)
+                        mem.ram[pair[0] & mem.rammask] = (byte)pair[1];
+
+        var init = ToVector(c.initial.regs, null);
+        _808x.SetRegs(init);
+
+        _808x.Step();
+
+        var got = new ushort[(int)R.COUNT];
+        _808x.GetRegs(got);
+
+        var want = ToVector(c.final.regs, init);
+
+        for (var i = 0; i < (int)R.COUNT; i++)
+        {
+                if (i == (int)R.FLAGS) continue;
+                if (got[i] != want[i])
+                        return (false, false, $"{(R)i} = 0x{got[i]:X4}, attendu 0x{want[i]:X4}");
+        }
+
+        var okRawFlags = got[(int)R.FLAGS] == want[(int)R.FLAGS];
+        var okMaskedFlags = (got[(int)R.FLAGS] & mask) == (want[(int)R.FLAGS] & mask);
+
+        if (c.final.ram is not null)
+                foreach (var pair in c.final.ram)
+                {
+                        var actual = mem.ram[pair[0] & mem.rammask];
+                        if (actual != (byte)pair[1])
+                                return (false, false,
+                                    $"mem[0x{pair[0]:X5}] = 0x{actual:X2}, attendu 0x{pair[1]:X2}");
+                }
+
+        var why = okMaskedFlags
+            ? ""
+            : $"flags = 0x{got[(int)R.FLAGS]:X4}, attendu 0x{want[(int)R.FLAGS]:X4}";
+
+        return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
+    }
+
+    /// <summary>Préfixes que le cœur C# ne transcrit pas encore (M1.9) :
+    /// overrides de segment ES/CS/SS/DS et REPNE/REPE.</summary>
+    private static bool IsUnimplementedPrefix(byte b)
+        => b is 0x26 or 0x2E or 0x36 or 0x3E or 0xF2 or 0xF3;
+
     /// <summary>Convertit un objet regs SST en vecteur de 14, en retombant sur
     /// <paramref name="base_"/> pour les champs absents (final est un delta).</summary>
     private static ushort[] ToVector(SstRegs r, ushort[]? base_)
@@ -234,6 +348,8 @@ public static class SstProbe
         if (r.flags.HasValue) v[(int)R.FLAGS] = r.flags.Value;
         return v;
     }
+
+    internal static List<SstCase> LoadPublic(string gzPath) => Load(gzPath);
 
     private static List<SstCase> Load(string gzPath)
     {
