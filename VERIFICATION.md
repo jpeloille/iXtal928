@@ -143,3 +143,69 @@ pourra jamais : il passe par `FlatMap()`/`Reset()`, qui n'appelle `timer_add` qu
 par processus et jamais `timer_reset()` après enregistrement. SST ne touche pas aux
 chronomètres. Un fuzzer vert après ce correctif ne dit donc rien sur ce correctif — seule
 la longueur du préfixe d'amorçage identique le mesure.
+
+### Un angle mort du fuzzer, trouvé en voulant l'utiliser
+
+La passe de non-régression de ce correctif n'a pas rendu de verdict : 40 minutes à
+100 % de processeur, tuée par son propre délai. Le débit réel est pourtant de
+2 700 instructions/s — 120 000 auraient dû prendre 45 s.
+
+Bissection : la ronde **157** ne termine jamais. Le mode flux remplit **toute** la RAM
+d'un seul opcode ; quand cet opcode est l'un des **quatre préfixes de segment**
+(`0x26`, `0x2E`, `0x36`, `0x3E`), le flux est un préfixe infini et aucune instruction
+n'est jamais retirée. `goto opcodestart` (`808x.c:1589/1664/1739/1798`) saute **dans**
+le corps de la boucle : la condition `while (cycles > 0)` n'est jamais réévaluée.
+
+Ce n'est pas un défaut de transcription. Les deux cœurs bouclent, d'accord entre eux, et
+c'est aussi ce que ferait un 8088 réel — les préfixes bloquent les interruptions, la
+séquence ne retire rien. C'est le **remplissage** du fuzzer qui est dégénéré, et la
+conséquence est pire qu'un faux positif : avec 256 opcodes et 1 200 rondes, une
+vingtaine de rondes sont vouées à bloquer, donc **le mode flux n'a jamais exercé un seul
+préfixe de segment** — il s'arrêtait dessus. Le mode simple les couvrait
+(`Fuzzer.cs:107-115`), pas le mode flux.
+
+Corrigé par un remplissage à motif de deux octets, `h_fill_ram2` / `mem.fill_ram2` :
+préfixe, opcode réel, préfixe, opcode réel. Le chemin de préfixe est exercé et la ronde
+termine.
+
+### Et derrière l'angle mort : PCem lit hors de son allocation
+
+Le mode flux, enfin capable de dépasser la ronde 157, a trouvé une divergence à la
+ronde **1691** : `POP CX` avec `SS = 0xFFFF`, `SP = 0x000F`. Oracle `CX = 0x0E59`,
+iXtal26 `0x0059`.
+
+Le mot lu est à cheval sur `0xFFFFF` / `0x100000`. `mem_alloc()` alloue `ram` à
+**exactement** `mem_size` Ko (`mem.c:1344`), et `readmemw` (`808x.c:78`) déréférence un
+`uint16_t *` à `readlookup2[..] + s + a` : l'octet haut est lu **un octet au-delà de
+l'allocation**. Trois exécutions du même cas rendent `0x0E59`, `0x4959`, `0xD859` — du
+tas adjacent.
+
+Il n'y a rien là dont iXtal26 puisse être le pendant fidèle. `mem_alloc()` côté C#
+alloue déjà quatre octets de marge (`mem.cs:706`), donc l'octet haut y vaut zéro, de
+façon déterministe.
+
+**Première tentative, et pourquoi elle était fausse.** J'ai d'abord écrit un test
+général : avant de conclure au défaut de transcription, rejouer la ronde deux fois sur
+le seul oracle et vérifier qu'il s'accorde avec lui-même. L'idée est bonne, le test ne
+l'est pas — **il n'a pas déclenché**. Dans un même processus l'allocateur rend le même
+bloc et l'octet voisin garde sa valeur ; la variation n'apparaît qu'entre processus. Un
+test qui rate le cas pour lequel il a été écrit ne mérite pas de rester comme
+rassurance : il a été retiré.
+
+**Retenu.** `h_pad_ram()` (`tools/oracle/harness.c`) réalloue `ram` avec quatre octets à
+zéro après chaque `mem_alloc()`, et rebase `pages[].mem` — qui pointe dans `ram`
+(`mem.c:1357`) et par lequel passe toute écriture (`mem_write_ramb_page`, `mem.c:877`).
+L'arbre vendoré n'est pas modifié ; seul l'état global de `mem.c` est réécrit après
+coup, ce que le harnais fait déjà pour la carte mémoire plate.
+
+C'est une **déviation assumée de l'oracle**, la première du dépôt : l'oracle n'est plus
+PCem exactement. Elle se justifie du fait que le comportement remplacé n'est pas un
+comportement — c'est de l'UB — et qu'un oracle qui tire aux dés n'est pas un oracle. À
+noter pour plus tard : un 8088 réel, avec ses vingt lignes d'adresse, ferait reboucler
+`0x100000` sur `0x00000`. Ni PCem ni iXtal26 ne le font. C'est à SST de trancher, pas à
+un diff de transcription.
+
+| | |
+|---|---|
+| Fuzzer, mode flux, 256 opcodes | **400 000 instructions, zéro divergence**, 47 s |
+| Amorçage 200 tranches, après padding | **714 879 instructions, identiques** |

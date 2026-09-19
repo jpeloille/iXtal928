@@ -727,6 +727,13 @@ internal static partial class mem
 
     internal static void fill_ram(uint8_t value) => Array.Fill(ram, value, 0, (int)RAM_SIZE);
 
+    /// <summary>Motif de deux octets alternés. Pendant de h_fill_ram2().</summary>
+    internal static void fill_ram2(uint8_t a, uint8_t b)
+    {
+        for (var i = 0; i < (int)RAM_SIZE; i++)
+                ram[i] = (i & 1) != 0 ? b : a;
+    }
+
     // --- journal d'écritures (paire avec tools/oracle/harness_wrap.c) --------
     // Une instruction n'écrit qu'à une poignée d'endroits. Enregistrer ces
     // adresses permet de comparer la mémoire exactement, sans hacher 1 Mo par

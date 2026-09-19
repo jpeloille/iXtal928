@@ -29,6 +29,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -69,6 +70,44 @@ extern void h_set_roms_path(const char *p);
 static mem_mapping_t h_flat_mapping;
 static int h_mem_inited = 0;
 
+/* --- marge de 4 octets sur `ram` : l'oracle doit etre une reference ---------
+ *
+ * PCem alloue `ram` a EXACTEMENT mem_size Ko (mem.c:1344), puis 808x.c:78 lit un
+ * uint16_t a `readlookup2[..] + s + a`. Un acces MOT au sommet de l'espace
+ * adressable lit donc un octet AU-DELA de l'allocation : du tas adjacent. Mesure
+ * sur la meme entree (SS=FFFF, SP=000F, POP CX), trois executions du fuzzer :
+ * l'oracle rend 0x0E59, 0x4959, 0xD859. A l'interieur d'un meme processus la
+ * valeur est stable, d'ou l'insuffisance d'un test de reproductibilite local.
+ *
+ * Il n'y a la aucun comportement a transcrire : c'est de l'UB C, et iXtal26 ne
+ * peut pas en etre le pendant fidele. On realloue donc `ram` avec quatre octets
+ * a zero -- exactement ce que fait mem_alloc() cote C# (mem.cs:706) -- pour que
+ * l'oracle reponde la meme chose a chaque execution.
+ *
+ * DEVIATION assumee, et du HARNAIS seulement : l'arbre vendore n'est pas touche.
+ * On reecrit apres coup l'etat global de mem.c, ce que h_flat_map fait deja.
+ *
+ * Note pour plus tard : un vrai 8088 a 20 lignes d'adresse ferait reboucler
+ * 0x100000 sur 0x00000. Ni PCem ni iXtal26 ne le font. C'est a SST de trancher,
+ * pas a l'oracle -- ici on ne cherche que la fidelite de la transcription. */
+static void h_pad_ram(void) {
+        uint32_t n = mem_size * 1024u, c, npages;
+        uint8_t *fresh = calloc(n + 4, 1);
+
+        memcpy(fresh, ram, n);
+        free(ram);
+        ram = fresh;
+
+        /* pages[].mem pointe DANS ram (mem.c:1357) et mem_write_ramb_page ecrit a
+         * travers (mem.c:877). Sans ce rebasage, toute ecriture part dans le bloc
+         * libere. Meme borne que mem_alloc, y compris ses pages hors-ram. */
+        npages = ((mem_size + 384) * 1024u) >> 12;
+        for (c = 0; c < npages; c++)
+                pages[c].mem = &ram[c << 12];
+
+        resetreadlookup();
+}
+
 static void h_flat_map(void) {
         mem_size = 1024; /* 1 Mo : l'espace complet du 8088 */
         if (!h_mem_inited) {
@@ -76,6 +115,7 @@ static void h_flat_map(void) {
                 h_mem_inited = 1;
         }
         mem_alloc();
+        h_pad_ram();
         mem_set_mem_state(0x000000, 0x100000, MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
         mem_mapping_add(&h_flat_mapping, 0x000000, 0x100000, mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
@@ -149,6 +189,17 @@ void h_load(uint32_t addr, const uint8_t *buf, uint32_t len) {
 
 void h_fill_ram(uint8_t value) {
         memset(ram, value, H_RAM_SIZE);
+}
+
+/* Motif de DEUX octets alternes. Un flux uniforme de prefixe de segment ne
+ * retire jamais d'instruction -- ni ici ni sur un vrai 8088 : `goto opcodestart`
+ * (808x.c:1589/1664/1739/1798) saute DANS le corps de la boucle, donc la
+ * condition `while (cycles > 0)` n'est jamais reevaluee. Alterner le prefixe et
+ * un opcode reel exerce le chemin de prefixe et termine. */
+void h_fill_ram2(uint8_t a, uint8_t b) {
+        uint32_t i;
+        for (i = 0; i < H_RAM_SIZE; i++)
+                ram[i] = (i & 1) ? b : a;
 }
 
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len) {
@@ -364,6 +415,7 @@ int h_boot(const char *romspath) {
         device_init();
         io_init();
         mem_alloc();
+        h_pad_ram();
 
         /* model_init() -> xt_init() */
         dma_init();

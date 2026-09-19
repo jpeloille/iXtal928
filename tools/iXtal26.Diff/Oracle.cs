@@ -58,6 +58,7 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_load(uint addr, byte[] buf, uint len);
     [DllImport(Lib)] public static extern void h_read(uint addr, byte[] buf, uint len);
     [DllImport(Lib)] public static extern void h_fill_ram(byte value);
+    [DllImport(Lib)] public static extern void h_fill_ram2(byte a, byte b);
     [DllImport(Lib)] public static extern void h_set_cs_ip(ushort cs, ushort ip);
     [DllImport(Lib)] public static extern void h_setregs(ushort[] r);
     [DllImport(Lib)] public static extern void h_getregs(ushort[] r);

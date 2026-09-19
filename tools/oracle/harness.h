@@ -117,6 +117,7 @@ void h_read(uint32_t addr, uint8_t *buf, uint32_t len);
  * diviseur, une source de chaîne — et fabrique des divergences qui ne sont ni
  * celles de PCem ni celles du silicium, mais celles du harnais. */
 void h_fill_ram(uint8_t value);
+void h_fill_ram2(uint8_t a, uint8_t b);
 
 /* Positionne CS:IP (et la base de segment correspondante) avant exécution. */
 void h_set_cs_ip(uint16_t cs_sel, uint16_t ip);

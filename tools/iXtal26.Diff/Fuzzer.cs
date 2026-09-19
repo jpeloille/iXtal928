@@ -224,10 +224,39 @@ public static class Fuzzer
             // bien que le flux ne s'épuise jamais et que tout préfetch, même
             // très en avance, lit la même chose des deux côtés.
             var fill = opcodes[rng.Next() % (uint)opcodes.Length];
+
+            // Un flux UNIFORME de préfixe de segment ne retire jamais
+            // d'instruction : `goto opcodestart` (808x.c:1589/1664/1739/1798)
+            // saute DANS le corps de la boucle, donc `while (cycles > 0)` n'est
+            // jamais réévalué. Les deux cœurs bouclent — d'accord entre eux, et
+            // c'est aussi ce que ferait un 8088 réel. La ronde, elle, ne rend
+            // jamais la main : mesuré, la ronde 157 de `--rounds 1200` tenait le
+            // processeur à 100 % pendant 40 minutes sans verdict.
+            //
+            // On alterne donc le préfixe avec un opcode réel. Le chemin de
+            // préfixe reste exercé — c'est même le seul endroit du mode flux qui
+            // le fasse — et la ronde termine.
+            var inner = fill;
+            if (IsSegPrefix(fill))
+            {
+                for (var guard = 0; guard < 16 && IsSegPrefix(inner); guard++)
+                    inner = opcodes[rng.Next() % (uint)opcodes.Length];
+                if (IsSegPrefix(inner))
+                    inner = 0x90;                    // NOP : repli sûr
+            }
+
             Oracle.h_reset();
-            Oracle.h_fill_ram(fill);
             _808x.Reset();
-            mem.fill_ram(fill);
+            if (inner != fill)
+            {
+                Oracle.h_fill_ram2(fill, inner);
+                mem.fill_ram2(fill, inner);
+            }
+            else
+            {
+                Oracle.h_fill_ram(fill);
+                mem.fill_ram(fill);
+            }
 
             for (var i = 0; i < (int)R.COUNT; i++)
                 regs[i] = rng.Next16();
@@ -253,8 +282,9 @@ public static class Fuzzer
                     continue;
 
                 Console.WriteLine($"\nDIVERGENCE ronde {round}, instruction {n} (globale {total})");
-                Console.WriteLine($"  opcode 0x{fill:X2}, CS:IP initial {regs[(int)R.CS]:X4}:{regs[(int)R.IP]:X4}");
+                Console.WriteLine($"  remplissage 0x{fill:X2}" + (inner != fill ? $"/0x{inner:X2}" : "") + $", CS:IP initial {regs[(int)R.CS]:X4}:{regs[(int)R.IP]:X4}");
                 Console.WriteLine($"  {diff}");
+                DumpSides(a, b);
                 Console.WriteLine($"\n  Rejouer : --seed {seed} --rounds {round + 1}");
                 return 1;
             }
@@ -390,5 +420,22 @@ public static class Fuzzer
         var ha = Oracle.h_ram_hash();
         var hb = _808x.RamHash();
         return ha == hb ? null : $"RAM : oracle {ha:X16}, C# {hb:X16}";
+    }
+    /// <summary>État architectural des deux côtés, côte à côte. Le message de
+    /// divergence ne nomme que le PREMIER champ qui diffère ; pour savoir d'où il
+    /// sort il faut voir les segments et le pointeur de pile.</summary>
+    private static void DumpSides(in HState a, in HState b)
+    {
+        string[] rn = { "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI" };
+        for (var i = 0; i < 8; i++)
+            Console.WriteLine($"    {rn[i]}  oracle {a.regs[i] & 0xFFFF:X4}   C# {b.regs[i] & 0xFFFF:X4}" +
+                              (a.regs[i] != b.regs[i] ? "   <<<" : ""));
+        for (var i = 0; i < (int)Seg.COUNT; i++)
+            Console.WriteLine($"    {(Seg)i,-4} oracle {a.seg_sel[i]:X4}:{a.seg_base[i]:X5}   " +
+                              $"C# {b.seg_sel[i]:X4}:{b.seg_base[i]:X5}" +
+                              (a.seg_sel[i] != b.seg_sel[i] || a.seg_base[i] != b.seg_base[i] ? "   <<<" : ""));
+        Console.WriteLine($"    pc    oracle {a.pc:X4} (old {a.oldpc:X4})   C# {b.pc:X4} (old {b.oldpc:X4})");
+        Console.WriteLine($"    ea    oracle {a.eaaddr:X8} seg {a.ea_seg_idx}   C# {b.eaaddr:X8} seg {b.ea_seg_idx}");
+        Console.WriteLine($"    flags oracle {a.flags:X4}   C# {b.flags:X4}");
     }
 }
