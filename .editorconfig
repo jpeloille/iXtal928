@@ -72,3 +72,12 @@ dotnet_diagnostic.IDE0046.severity = none
 dotnet_diagnostic.IDE0055.severity = none
 dotnet_diagnostic.CS0649.severity = none
 dotnet_diagnostic.IDE0044.severity = none
+
+# ---------------------------------------------------------------------------
+# Outillage : les DTO SingleStepTests doivent coller aux noms du JSON (ax, bx,
+# flags...) et les imports P/Invoke aux symboles C (h_reset, h_step...). Le
+# nommage C# normal les rendrait faux ou imposerait une annotation par membre.
+# ---------------------------------------------------------------------------
+[tools/**.cs]
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none

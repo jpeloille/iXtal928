@@ -57,6 +57,10 @@ uint32_t h_abi_version(void) {
         return H_ABI_VERSION;
 }
 
+uint32_t h_state_size(void) {
+        return (uint32_t)sizeof(h_state);
+}
+
 uint8_t *h_ram(void) {
         return ram;
 }
@@ -112,6 +116,10 @@ void h_load(uint32_t addr, const uint8_t *buf, uint32_t len) {
                 ram[(addr + i) & 0xFFFFF] = buf[i];
 }
 
+void h_fill_ram(uint8_t value) {
+        memset(ram, value, H_RAM_SIZE);
+}
+
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len) {
         for (uint32_t i = 0; i < len; i++)
                 buf[i] = ram[(addr + i) & 0xFFFFF];
@@ -121,6 +129,46 @@ void h_set_cs_ip(uint16_t cs_sel, uint16_t ip) {
         loadcs(cs_sel);
         cpu_state.pc = ip;
         FETCHCLEAR(); /* vidange du pipeline, comme sur tout transfert de contrôle */
+}
+
+void h_setregs(const uint16_t r[H_R_COUNT]) {
+        cpu_state.regs[0].w = r[H_R_AX];
+        cpu_state.regs[3].w = r[H_R_BX];
+        cpu_state.regs[1].w = r[H_R_CX];
+        cpu_state.regs[2].w = r[H_R_DX];
+        cpu_state.regs[4].w = r[H_R_SP];
+        cpu_state.regs[5].w = r[H_R_BP];
+        cpu_state.regs[6].w = r[H_R_SI];
+        cpu_state.regs[7].w = r[H_R_DI];
+
+        loadseg(r[H_R_SS], &cpu_state.seg_ss);
+        loadseg(r[H_R_DS], &cpu_state.seg_ds);
+        loadseg(r[H_R_ES], &cpu_state.seg_es);
+        loadcs(r[H_R_CS]);
+
+        cpu_state.pc = r[H_R_IP];
+        cpu_state.flags = r[H_R_FLAGS];
+
+        /* Vidange du pipeline : la file est reconstruite depuis la RAM à cs:ip.
+         * C'est ce que fait tout transfert de contrôle (808x.c:229-255). */
+        FETCHCLEAR();
+}
+
+void h_getregs(uint16_t r[H_R_COUNT]) {
+        r[H_R_AX] = cpu_state.regs[0].w;
+        r[H_R_BX] = cpu_state.regs[3].w;
+        r[H_R_CX] = cpu_state.regs[1].w;
+        r[H_R_DX] = cpu_state.regs[2].w;
+        r[H_R_SP] = cpu_state.regs[4].w;
+        r[H_R_BP] = cpu_state.regs[5].w;
+        r[H_R_SI] = cpu_state.regs[6].w;
+        r[H_R_DI] = cpu_state.regs[7].w;
+        r[H_R_CS] = cpu_state.seg_cs.seg;
+        r[H_R_SS] = cpu_state.seg_ss.seg;
+        r[H_R_DS] = cpu_state.seg_ds.seg;
+        r[H_R_ES] = cpu_state.seg_es.seg;
+        r[H_R_IP] = (uint16_t)cpu_state.pc;
+        r[H_R_FLAGS] = cpu_state.flags;
 }
 
 /* Exécute exactement une instruction et rend les cycles consommés.

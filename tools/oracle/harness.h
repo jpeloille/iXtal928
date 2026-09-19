@@ -110,8 +110,31 @@ void h_load(uint32_t addr, const uint8_t *buf, uint32_t len);
 /* Lit len octets depuis la RAM de l'oracle. */
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len);
 
+/* Remplit toute la RAM d'une valeur. SingleStepTests impose 0x90 : « all bytes
+ * fetched after the initial instruction bytes are set to 0x90 ». Laisser des
+ * zéros change tout opérande lu hors des octets listés dans initial.ram — un
+ * diviseur, une source de chaîne — et fabrique des divergences qui ne sont ni
+ * celles de PCem ni celles du silicium, mais celles du harnais. */
+void h_fill_ram(uint8_t value);
+
 /* Positionne CS:IP (et la base de segment correspondante) avant exécution. */
 void h_set_cs_ip(uint16_t cs_sel, uint16_t ip);
+
+/* Ordre du vecteur de registres de h_setregs / h_getregs. Calqué sur l'objet
+ * "regs" de SingleStepTests pour que le chargement d'un cas soit direct. */
+enum {
+        H_R_AX = 0, H_R_BX, H_R_CX, H_R_DX, H_R_CS, H_R_SS, H_R_DS, H_R_ES,
+        H_R_SP, H_R_BP, H_R_SI, H_R_DI, H_R_IP, H_R_FLAGS, H_R_COUNT
+};
+
+/* Charge d'un coup les 14 registres architecturaux. Les segments passent par
+ * loadcs/loadseg, donc leur base est recalculée (sel << 4 en mode réel), et la
+ * file de préfetch est vidée — ce qui est le bon comportement pour un cas SST :
+ * on sème la RAM à cs:ip et on ignore le champ "queue", redondant avec elle. */
+void h_setregs(const uint16_t r[H_R_COUNT]);
+
+/* Relit les 14 mêmes registres. */
+void h_getregs(uint16_t r[H_R_COUNT]);
 
 /* Exécute exactement une instruction et rend le nombre de cycles consommés.
  * Le budget est réarmé à l'intérieur : execx86() boucle tant que cycles > 0,
@@ -139,6 +162,12 @@ uint8_t *h_ram(void);
  * .so périmé échoue bruyamment au lieu de marshaler du charabia. */
 #define H_ABI_VERSION 1
 uint32_t h_abi_version(void);
+
+/* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
+ * propre Marshal.SizeOf au démarrage : un décalage de champ entre les deux côtés
+ * ne produirait pas d'erreur, il produirait des comparaisons silencieusement
+ * fausses — exactement le genre de panne que ce projet existe pour éviter. */
+uint32_t h_state_size(void);
 
 #ifdef __cplusplus
 }

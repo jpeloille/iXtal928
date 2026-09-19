@@ -1,0 +1,23 @@
+# Généré par : iXtal26.Diff sst-probe --baseline
+# Oracle : PCem v18, 808x.c — ABI 1
+# Le C# doit reproduire la colonne 'passe' à l'identique, pas la maximiser.
+forme	cas	passe	masque	premier_echec
+00	2000	2000	0xFFFF	
+27	2000	1989	0xF7FF	[20] daa: AX = 0x3604, attendu 0x36A4
+2F	2000	1960	0xF7FF	[15] das: AX = 0xEA9B, attendu 0xEAFB
+37	2000	2000	0xF73B	
+3F	2000	2000	0xF73B	
+88	2000	2000	0xFFFF	
+90	2000	2000	0xFFFF	
+A4	2000	2000	0xFFFF	
+AD	2000	1010	0xFFFF	[0] es rep lodsw: AX = 0x94BE, attendu 0xC65C
+C7	2000	2000	0xFFFF	
+D0.4	2000	2000	0xFFEF	
+D0.6	2000	5	0xF72A	[0] setmo byte [ss:bp-3D75h]: mem[0xB0443] = 0x54, attendu 0xFF
+D2.4	2000	1063	0xFFEF	[0] shl byte [ds:si+41h], cl: flags = 0xFC56, attendu 0xF446 (diff masqué 0x0800)
+E8	2000	2000	0xFFFF	
+F6.4	2000	2000	0xFF2B	
+F6.6	2000	955	0xF72A	[2] div byte [ss:bp+di+64h]: AX = 0x0AE6, attendu 0x8ED2
+F7.4	2000	2000	0xFF2B	
+F7.6	2000	982	0xF72A	[2] div word [ss:bx+20B4h]: AX = 0xBE2B, attendu 0x82B9
+FF.0	2000	2000	0xFFFF	

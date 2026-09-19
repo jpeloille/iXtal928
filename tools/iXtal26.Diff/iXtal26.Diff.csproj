@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>iXtal26.Diff</AssemblyName>
+        <RootNamespace>iXtal26.Diff</RootNamespace>
+
+        <!-- Outillage, pas code transcrit : conventions C# normales, warnings pleins.
+             Sauf le nommage des DTO SST et des imports P/Invoke, qui doivent coller
+             au JSON et aux symboles C — voir .editorconfig. -->
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+</Project>
