@@ -24,6 +24,14 @@ internal static partial class cpu
     // Le 5150 n'a pas de mode turbo : une seule vitesse.
     internal static int cpu_get_speed() => CPU_SPEED_8088;
 
+    // pcem: cpu.h — cycles d'attente d'un accès au bus ISA, posés par
+    // setpitclock() via isa_timing. Sur un 5150 tout est ISA à 4,77 MHz.
+    internal static int isa_cycles = 1;
+
+    // pcem: cpu.h — présence d'un 8087. Le PPI le rapporte au BIOS via les
+    // interrupteurs DIP (port 0x62). Aucun coprocesseur sur cette machine.
+    internal static int hasfpu = 0;
+
     // pcem: cpu.c — le bit turbo du port 0x61 sur les clones XT. Sans effet ici.
     internal static void cpu_set_turbo(int turbo) { }
 }

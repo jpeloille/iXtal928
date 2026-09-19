@@ -21,6 +21,9 @@ internal static partial class sound_speaker
     internal static int speakon;
     internal static int speakval;
 
+    // pcem: ibm.h — sortie du PPI vers le haut-parleur (port 0x61 bit 1).
+    internal static int ppispeakon;
+
     // pcem: sound_speaker.c — remplit le tampon audio. Sans sortie : inerte.
     internal static void speaker_update() { }
 }

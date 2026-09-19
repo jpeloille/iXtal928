@@ -1465,6 +1465,17 @@ internal static partial class keyboard
     }
 
     // pcem: keyboard.c:1423-1470
+    // pcem: wx-sdl2-keyboard.c:1-16 — la SEULE fonction de la couche hôte pour le
+    // clavier, et elle tient en une boucle. rawinputkey[] est rempli par la pompe
+    // d'événements SDL (un horodatage à l'appui, 0 au relâchement) ; pcem_key[] en
+    // est la vue booléenne que keyboard_process() consomme.
+    internal static void keyboard_poll_host()
+    {
+        int c;
+        for (c = 0; c < 272; c++)
+                pcem_key[c] = (uint8_t)(rawinputkey[c] > 0 ? 1 : 0);
+    }
+
     internal static void keyboard_process()
     {
         int c;

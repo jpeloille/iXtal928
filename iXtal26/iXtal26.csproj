@@ -51,18 +51,6 @@
          rien. Chaque fichier réintègre la compilation dès que ses points de
          contact sont résolus — c'est la prochaine étape, pas une dette cachée.
          ============================================================ -->
-    <ItemGroup>
-        <Compile Remove="Keyboard/**/*.cs"/>
-        <Compile Remove="Video/**/*.cs"/>
-        <Compile Remove="PluginApi/**/*.cs"/>
-        <Compile Remove="Flash/**/*.cs"/>
-        <Compile Remove="Memory/mem_bios.cs"/>
-        <Compile Remove="Models/pit.cs"/>
-        <Compile Remove="Models/dma.cs"/>
-        <Compile Remove="Models/model.cs"/>
-        <Compile Remove="pc.cs"/>
-        <Compile Remove="ppi.cs"/>
-    </ItemGroup>
 
     <ItemGroup>
         <!-- Les harnais lisent l'état interne du cœur. Le mapping linkage C -> accessibilité

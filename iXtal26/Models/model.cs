@@ -16,12 +16,6 @@ namespace iXtal26.Models;
 
 internal static partial class model
 {
-    // pcem: ibm.h — romsets. Seul ROM_IBMPC est transcrit.
-    internal const int ROM_IBMPC = 0;
-
-    // pcem: ibm.h:272
-    internal static int romset = ROM_IBMPC;
-
     // pcem: model.c:777-778
     //   MODEL m_ibmpc = {"[8088] IBM PC", ROM_IBMPC, "ibmpc", {{"", cpus_8088}, ...},
     //                    MODEL_GFX_NONE, 64, 640, 32, xt_init, NULL};
@@ -47,7 +41,7 @@ internal static partial class model
         common_init();
         mem.mem_add_bios();
         pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_xt);
-        keyboard_xt.keyboard_xt_init();
+        Keyboard.keyboard_xt.keyboard_xt_init();
         nmi.nmi_init();
         // omitted: device_add(&gameport_device) — port jeu, hors périmètre.
         // omitted: device_add(&cassette_device) — port cassette du 5150 ; le BIOS
@@ -57,7 +51,7 @@ internal static partial class model
     // pcem: model.c:686
     internal static void model_init()
     {
-        mem.mem_size = MAX_RAM;
+        // mem_size est posé par initpc, avant mem_alloc (voir pc.cs).
         xt_init();
     }
 }

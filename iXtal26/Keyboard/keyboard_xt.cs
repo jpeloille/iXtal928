@@ -22,6 +22,10 @@ namespace iXtal26.Keyboard;
 
 // pcem: keyboard_xt.c:28-41 — la struct anonyme de PCem. Classe et non struct :
 // timer_add prend l'adresse de send_delay_timer et la range dans sa liste.
+// pcem: keyboard_xt.c — mémorise l'état précédent du gate haut-parleur
+// pour ne déclencher speaker_update() que sur un front.
+internal static partial class keyboard_xt { internal static int was_speaker_enable; }
+
 internal sealed class keyboard_xt_t
 {
     internal int wantirq;
@@ -109,7 +113,7 @@ internal static partial class keyboard_xt
                         keyboard_xt_adddata(0xaa);
                 }
                 keyboard_xt_.pb = val;
-                ppi_.pb = val;
+                ppi.pb = val;
 
                 timer_process();
 

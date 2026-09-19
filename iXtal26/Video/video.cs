@@ -185,6 +185,13 @@ internal static partial class video
     internal static video_blit_memtoscreen_fn? video_blit_memtoscreen_func;
 
     // pcem: video.c:758-916
+    // pcem: video.c:215-540 — interrogation du registre des cartes. Réduites ici à
+    // leur réponse pour la seule carte présente, le CGA : le PPI les appelle pour
+    // composer les interrupteurs DIP que lit le POST.
+    internal static int video_is_mda() => 0;
+    internal static int video_is_cga() => 1;
+    internal static int video_is_ega_vga() => 0;
+
     internal static void video_init()
     {
         // omitted: pclog("Video_init %i %i\n", romset, gfxcard) (video.c:759).

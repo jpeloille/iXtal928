@@ -13,6 +13,14 @@ for (var i = 0; i < args.Length; i++)
         return 0;
     }
 
+    if (arg == "--boot")
+    {
+        var roms = i + 1 < args.Length ? args[++i] : "roms";
+        var slices = i + 1 < args.Length && int.TryParse(args[i+1], out var sl) ? sl : 20;
+        if (slices != 20) i++;
+        return BootTest.Run(roms, slices);
+    }
+
     if (arg == "--frames")
     {
         if (i + 1 >= args.Length || !int.TryParse(args[++i], out maxFrames) || maxFrames < 0)

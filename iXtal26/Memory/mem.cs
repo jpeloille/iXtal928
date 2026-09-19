@@ -459,9 +459,32 @@ internal static partial class mem
         => (uint32_t)(romext[addr & 0x7fff] | (romext[(addr + 1) & 0x7fff] << 8)
                     | (romext[(addr + 2) & 0x7fff] << 16) | (romext[(addr + 3) & 0x7fff] << 24));
 
-    // pcem: mem.c — accès physiques directs, utilisés par le DMA.
-    internal static uint8_t mem_readb_phys(uint32_t addr) => ram[addr & rammask];
-    internal static void mem_writeb_phys(uint32_t addr, uint8_t val) { wlog(addr & rammask, val); ram[addr & rammask] = val; }
+    // pcem: mem.c — accès PHYSIQUES, utilisés par le DMA. Ils passent par la carte
+    // des mappages, pas par ram[] directement : le rafraîchissement DRAM du XT lit
+    // au-dessus de 640 Ko, là où aucune RAM n'est mappée, et doit y trouver 0xFF —
+    // pas une exception. mem_logical_addr est mis à 0xffffffff pour qu'addreadlookup
+    // sorte immédiatement (mem.c:357) : un accès DMA ne remplit pas le cache du CPU.
+    internal static uint8_t mem_readb_phys(uint32_t addr)
+    {
+        mem_mapping_t? map = read_mapping[addr >> 14];
+
+        mem_logical_addr = 0xffffffff;
+
+        if (map != null && map.read_b != null)
+                return map.read_b(addr, map.p);
+
+        return 0xff;
+    }
+
+    internal static void mem_writeb_phys(uint32_t addr, uint8_t val)
+    {
+        mem_mapping_t? map = write_mapping[addr >> 14];
+
+        mem_logical_addr = 0xffffffff;
+
+        if (map != null && map.write_b != null)
+                map.write_b(addr, val, map.p);
+    }
 
     internal static void mem_write_null(uint32_t addr, uint8_t val, object? p) { }
     internal static void mem_write_nullw(uint32_t addr, uint16_t val, object? p) { }
@@ -586,6 +609,26 @@ internal static partial class mem
         mapping.flags = flags;
         mapping.p = p;
         mapping.next = null;
+
+        mem_mapping_recalc(mapping.@base, mapping.size);
+    }
+
+    // pcem: mem.c:1157-1175
+    internal static void mem_mapping_remove(mem_mapping_t mapping)
+    {
+        mem_mapping_t prev;
+        mem_mapping_t? dest;
+
+        prev = base_mapping;
+        dest = prev.next;
+        while (dest != mapping)
+        {
+                if (dest == null)
+                        return; // absente de la liste : rien à retirer
+                prev = dest;
+                dest = dest.next;
+        }
+        prev.next = mapping.next;
 
         mem_mapping_recalc(mapping.@base, mapping.size);
     }
