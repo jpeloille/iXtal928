@@ -5,7 +5,8 @@
 //         (36-260, 340-455, 456-520, 662-702, 748-886, 886-906, 1222-1340, 3902-3996)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — M1.1 : accesseurs, préfetch, EA, tables et helpers de flags,
-//         resetx86, boucle execx86, bande d'opcodes 0x00-0x1F.
+//         resetx86, boucle execx86, opcodes 0x00-0x3F (prefixes de segment
+//         compris).
 //
 // Le modèle de temps du 8088. C'est la partie la plus fidèle de PCem et la plus
 // fragile à transcrire : la réconciliation entre cycdiff, cycles, memcycs,
@@ -17,11 +18,11 @@
 // consolide rien, on n'extrait aucune table, et le diff par instruction compare
 // chacune d'elles dès la première passe.
 
-// CS0164 : le label `opcodestart` n'est pas encore référencé. Ses quatre seuls
-// utilisateurs sont les préfixes de segment (808x.c:1589/1664/1739/1798), qui
-// arrivent en M1.9 — délibérément en dernier, ce sont les seuls `goto` du
-// fichier. À retirer dès qu'ils sont transcrits.
-#pragma warning disable CS0164
+// CS1717 : `ds = ss = ss;` (808x.c:1737, préfixe SS:) et `ds = ss = ds;`
+// (808x.c:1794, préfixe DS:) affectent une variable à elle-même. C'est
+// intentionnel dans PCem — la chaîne d'affectation sauvegarde le segment courant
+// dans les DEUX alias avant l'override — et la forme est conservée telle quelle.
+#pragma warning disable CS1717
 
 using System.Runtime.CompilerServices;
 using iXtal26.Diag;
@@ -730,6 +731,7 @@ internal static partial class _808x
     {
         uint8_t temp, temp2;
         uint16_t addr, tempw, tempw2;
+        int tempi;
         int trap;
 
         cycles += cycs;
@@ -1001,6 +1003,276 @@ internal static partial class _808x
                                 oldds = ds;
                         SP += 2;
                         cycles -= 12;
+                        break;
+
+                case 0x20: /*AND 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp &= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x21: /*AND 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw &= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x22: /*AND cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        temp &= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        setr8(cpu_reg, temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x23: /*AND cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw &= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cpu_state.regs[cpu_reg].w = tempw;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x24: /*AND AL,#8*/
+                        AL &= FETCH();
+                        setznp8(AL);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+                case 0x25: /*AND AX,#16*/
+                        AX &= getword();
+                        setznp16(AX);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+
+                case 0x26: /*ES:*/
+                        oldss = ss;
+                        oldds = ds;
+                        ds = ss = es;
+                        cpu_state.ssegs = 2;
+                        cycles -= 4;
+                        goto opcodestart;
+
+                case 0x27: /*DAA*/
+                        if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
+                        {
+                                tempi = ((uint16_t)AL) + 6;
+                                AL += 6;
+                                cpu_state.flags |= A_FLAG;
+                                if ((tempi & 0x100) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                        }
+                        if ((cpu_state.flags & C_FLAG) != 0 || (AL > 0x9F))
+                        {
+                                AL += 0x60;
+                                cpu_state.flags |= C_FLAG;
+                        }
+                        setznp8(AL);
+                        cycles -= 4;
+                        break;
+
+                case 0x28: /*SUB 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        setsub8(temp, getr8(cpu_reg));
+                        temp -= getr8(cpu_reg);
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x29: /*SUB 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        setsub16(tempw, cpu_state.regs[cpu_reg].w);
+                        tempw -= cpu_state.regs[cpu_reg].w;
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x2A: /*SUB cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        setsub8(getr8(cpu_reg), temp);
+                        setr8(cpu_reg, (uint8_t)(getr8(cpu_reg) - temp));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x2B: /*SUB cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        setsub16(cpu_state.regs[cpu_reg].w, tempw);
+                        cpu_state.regs[cpu_reg].w -= tempw;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x2C: /*SUB AL,#8*/
+                        temp = FETCH();
+                        setsub8(AL, temp);
+                        AL -= temp;
+                        cycles -= 4;
+                        break;
+                case 0x2D: /*SUB AX,#16*/
+                        tempw = getword();
+                        setsub16(AX, tempw);
+                        AX -= tempw;
+                        cycles -= 4;
+                        break;
+
+                case 0x2E: /*CS:*/
+                        oldss = ss;
+                        oldds = ds;
+                        ds = ss = cs;
+                        cpu_state.ssegs = 2;
+                        cycles -= 4;
+                        goto opcodestart;
+
+                case 0x2F: /*DAS*/
+                        if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
+                        {
+                                tempi = ((uint16_t)AL) - 6;
+                                AL -= 6;
+                                cpu_state.flags |= A_FLAG;
+                                if ((tempi & 0x100) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                        }
+                        if ((cpu_state.flags & C_FLAG) != 0 || (AL > 0x9F))
+                        {
+                                AL -= 0x60;
+                                cpu_state.flags |= C_FLAG;
+                        }
+                        setznp8(AL);
+                        cycles -= 4;
+                        break;
+
+                case 0x30: /*XOR 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp ^= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x31: /*XOR 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw ^= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x32: /*XOR cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        temp ^= getr8(cpu_reg);
+                        setznp8(temp);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        setr8(cpu_reg, temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x33: /*XOR cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw ^= cpu_state.regs[cpu_reg].w;
+                        setznp16(tempw);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cpu_state.regs[cpu_reg].w = tempw;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x34: /*XOR AL,#8*/
+                        AL ^= FETCH();
+                        setznp8(AL);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+                case 0x35: /*XOR AX,#16*/
+                        AX ^= getword();
+                        setznp16(AX);
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 4;
+                        break;
+
+                case 0x36: /*SS:*/
+                        oldss = ss;
+                        oldds = ds;
+                        ds = ss = ss;
+                        cpu_state.ssegs = 2;
+                        cycles -= 4;
+                        goto opcodestart;
+
+                case 0x37: /*AAA*/
+                        if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
+                        {
+                                AL += 6;
+                                AH++;
+                                cpu_state.flags |= (A_FLAG | C_FLAG);
+                        }
+                        else
+                                cpu_state.flags &= unchecked((uint16_t)~(A_FLAG | C_FLAG));
+                        AL &= 0xF;
+                        cycles -= 8;
+                        break;
+
+                case 0x38: /*CMP 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        setsub8(temp, getr8(cpu_reg));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x39: /*CMP 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        setsub16(tempw, cpu_state.regs[cpu_reg].w);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x3A: /*CMP cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        setsub8(getr8(cpu_reg), temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x3B: /*CMP cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        setsub16(cpu_state.regs[cpu_reg].w, tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x3C: /*CMP AL,#8*/
+                        temp = FETCH();
+                        setsub8(AL, temp);
+                        cycles -= 4;
+                        break;
+                case 0x3D: /*CMP AX,#16*/
+                        tempw = getword();
+                        setsub16(AX, tempw);
+                        cycles -= 4;
+                        break;
+
+                case 0x3E: /*DS:*/
+                        oldss = ss;
+                        oldds = ds;
+                        ds = ss = ds;
+                        cpu_state.ssegs = 2;
+                        cycles -= 4;
+                        goto opcodestart;
+
+                case 0x3F: /*AAS*/
+                        if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
+                        {
+                                AL -= 6;
+                                AH--;
+                                cpu_state.flags |= (A_FLAG | C_FLAG);
+                        }
+                        else
+                                cpu_state.flags &= unchecked((uint16_t)~(A_FLAG | C_FLAG));
+                        AL &= 0xF;
+                        cycles -= 8;
                         break;
 
                 default:

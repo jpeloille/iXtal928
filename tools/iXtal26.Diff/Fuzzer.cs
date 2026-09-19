@@ -98,6 +98,22 @@ public static class Fuzzer
             for (var i = 1; i < code.Length; i++)
                 code[i] = (byte)rng.Next();
 
+            // Un préfixe de segment (26/2E/36/3E) ne fait que poser l'override et
+            // sauter à opcodestart : l'octet SUIVANT est l'instruction réelle. Si
+            // on le laisse aléatoire, il tombe sur un opcode non encore transcrit
+            // et la divergence mesure ce trou, pas le préfixe. On le tire donc
+            // dans le jeu testé, en excluant les préfixes eux-mêmes pour ne pas
+            // enchaîner indéfiniment.
+            if (IsSegPrefix(op))
+            {
+                var inner = op;
+                for (var guard = 0; guard < 16 && IsSegPrefix(inner); guard++)
+                    inner = opcodes[rng.Next() % (uint)opcodes.Length];
+                if (IsSegPrefix(inner))
+                    inner = 0x90;                    // NOP : repli sûr
+                code[1] = inner;
+            }
+
             // Cas AUTO-RÉFÉRENTIEL, une fois sur huit.
             //
             // readmemb (808x.c:57-64) ne facture memcycs QUE si l'adresse lue
@@ -265,6 +281,8 @@ public static class Fuzzer
     }
 
     private const int FieldCount = 32;
+
+    private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
     /// <summary>Rend null si les deux états sont identiques, sinon la
     /// description du premier champ divergent. Aucune réflexion : tout champ

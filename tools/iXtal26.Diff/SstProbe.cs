@@ -107,12 +107,11 @@ public static class SstProbe
             for (var i = 0; i < n; i++)
             {
                 // Les fichiers SST d'un opcode contiennent aussi ses formes
-                // PRÉFIXÉES : environ la moitié des cas de 0x00 commencent par
-                // 26/2E/36/3E (override de segment) ou F2/F3 (REP). Tant que les
-                // préfixes ne sont pas transcrits — ils sont en M1.9, ce sont les
-                // seuls `goto` du fichier — ces cas mesurent l'absence du
-                // préfixe, pas la justesse de l'opcode. On les compte à part au
-                // lieu de les laisser passer pour des échecs.
+                // PRÉFIXÉES. Tant qu'un préfixe n'est pas transcrit, ces cas
+                // mesurent son absence et non la justesse de l'opcode : on les
+                // compte à part au lieu de les laisser passer pour des échecs.
+                // Les overrides de segment sont tombés en M1.2 ; il ne reste que
+                // REPNE/REPE, qui attendent rep().
                 // Filtre appliqué aux DEUX cibles : sans quoi les dénominateurs diffèrent
                 // et la comparaison « le C# reproduit-il la ligne de base ? » n'a pas de sens.
                 if (cases[i].bytes.Length > 0 && IsUnimplementedPrefix((byte)cases[i].bytes[0]))
@@ -133,7 +132,7 @@ public static class SstProbe
             var pct = 100.0 * passMasked / denom;
             Console.WriteLine($"  {op} : {passMasked}/{denom} ({pct:F2} %) avec masque 0x{mask:X4}" +
                               (mask != 0xFFFF ? $" ; {passRaw}/{denom} sans masque" : "") +
-                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas préfixés écartés (préfixes en M1.9)" : ""));
+                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas REP écartés (rep() en M1.9)" : ""));
             foreach (var f in firstFailures)
                 Console.WriteLine(f);
 
@@ -322,10 +321,10 @@ public static class SstProbe
         return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
     }
 
-    /// <summary>Préfixes que le cœur C# ne transcrit pas encore (M1.9) :
-    /// overrides de segment ES/CS/SS/DS et REPNE/REPE.</summary>
-    private static bool IsUnimplementedPrefix(byte b)
-        => b is 0x26 or 0x2E or 0x36 or 0x3E or 0xF2 or 0xF3;
+    /// <summary>Préfixes que le cœur C# ne transcrit pas encore. Les overrides
+    /// de segment (26/2E/36/3E) sont transcrits depuis M1.2 ; restent REPNE et
+    /// REPE, qui dépendent de rep() — M1.9.</summary>
+    private static bool IsUnimplementedPrefix(byte b) => b is 0xF2 or 0xF3;
 
     /// <summary>Convertit un objet regs SST en vecteur de 14, en retombant sur
     /// <paramref name="base_"/> pour les champs absents (final est un delta).</summary>
