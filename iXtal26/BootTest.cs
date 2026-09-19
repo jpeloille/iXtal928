@@ -23,7 +23,35 @@ internal static class BootTest
             $"{mem.readmemwl(0x410):X4}, taille memoire 0040:0013 = {mem.readmemwl(0x413)} Ko");
 
         DumpTextScreen();
+        ReportFramebuffer();
         return 0;
+    }
+
+    /// <summary>Le framebuffer, lui, est rempli par cga_poll — un chemin
+    /// entièrement distinct du vidage texte ci-dessus, qui lit la VRAM à travers la
+    /// carte mémoire. Des caractères justes en VRAM ne prouvent RIEN sur le rendu :
+    /// si Buffer32 est vide, c'est que le chronomètre du CGA n'appelle pas cga_poll,
+    /// et c'est une question d'enregistrement de timer, pas de rendu.</summary>
+    private static void ReportFramebuffer()
+    {
+        var b = Video.video.Buffer32;
+        if (b.Length == 0)
+        {
+            Console.WriteLine("\nframebuffer : NON ALLOUÉ (initvideo n'a pas tourné)");
+            return;
+        }
+
+        var nz = 0;
+        var lastLine = -1;
+        for (var y = 0; y < Video.video.Height; y++)
+        for (var x = 0; x < Video.video.Stride; x++)
+            if (b[y * Video.video.Stride + x] != 0) { nz++; lastLine = y; }
+
+        Console.WriteLine($"\nframebuffer : {b.Length} pixels, {nz} non nuls, " +
+                          $"dernière ligne touchée {lastLine}");
+        Console.WriteLine($"  xsize={Video.video.xsize} ysize={Video.video.ysize} " +
+                          $"res={Video.video.video_res_x}x{Video.video.video_res_y} " +
+                          $"frames={Video.video.frames}");
     }
 
     /// <summary>Le tampon texte CGA, 80x25, un mot par cellule (caractère, attribut).

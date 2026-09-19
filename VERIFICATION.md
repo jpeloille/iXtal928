@@ -272,3 +272,27 @@ bascule INT 18h et la ROM BASIC **sans un seul bit d'écart** sur les 32 champs 
 segments, drapeaux, et tout le modèle de temps : `cycles`, `tsc`, `tsc_frac`, `memcycs`,
 `fetchcycles`, `fetchclocks`, `nextcyc`, `cycdiff`, `prefetchw`, `prefetchpc`, la file de
 préfetch.
+
+### Ce que le vidage texte NE prouvait pas
+
+Le vidage de `0xB8000` lit la VRAM **à travers la carte mémoire**. C'est un chemin
+entièrement distinct de `cga_poll`, qui dessine dans `Buffer32`. Des caractères justes en
+VRAM ne disent donc rien sur le rendu — et jusqu'ici ce second chemin n'avait **jamais**
+été exécuté par aucun test.
+
+Mesuré (`--boot roms 6000`) :
+
+```
+framebuffer : 4194304 pixels, 46576 non nuls, dernière ligne touchée 237
+  xsize=656 ysize=200 res=80x25 frames=1742
+```
+
+`cga_poll` tourne et dessine : 656x200 est la géométrie CGA 80x25 exacte (640 + 16 de
+bordure). `frames=1742` pour 60 s émulées, là où 59,92 Hz en donnerait ~3 595 : `frames++`
+est gardé par `if (cga->crtc[7])` (`vid_cga.c:368`), donc rien n'est compté tant que le BIOS
+n'a pas programmé le registre 7 du CRTC. Pas d'anomalie.
+
+**Ce qui reste invérifiable pour l'instant** : le contenu des pixels. `cgapal` et `fontdat`
+sont stubés à zéro côté oracle, donc son framebuffer est noir. L'oracle de framebuffer du
+plan (§ Vérification 3) exige d'abord un `cgapal_rebuild` et un `loadfont` réels dans le
+harnais.
