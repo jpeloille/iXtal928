@@ -45,6 +45,7 @@
 #include "mem.h"
 #include "pic.h"
 #include "timer.h"
+#include "video.h"
 #include "x86.h"
 
 #include "harness.h"
@@ -155,17 +156,107 @@ int speaker_enable = 0, speaker_gated = 0;
 int gated = 0, speakval = 0, speakon = 0;
 void speaker_update(void) { }
 
-/* --- vidéo : le cœur n'en a pas besoin pour le diff CPU ------------------- */
+/* --- vidéo -----------------------------------------------------------------
+ *
+ * L'oracle lie le VRAI src/video/vid_cga.c depuis M4.2.
+ *
+ * Ce n'était pas un raffinement. Sans carte CGA, l'espace 0xB8000 de l'oracle
+ * est de la RAM ordinaire, alors que celui d'iXtal26 traverse la carte et ses
+ * états d'attente : les deux harnais modélisaient des MACHINES DIFFÉRENTES. Le
+ * diff d'amorçage l'a sorti à l'instruction 801 677, sur le REP STOSW qui efface
+ * l'écran — oracle 81 924 cycles, C# 147 462.
+ *
+ * src/video/video.c n'est PAS lié : il traîne tout le registre VIDEO_CARD, 90
+ * symboles de cartes qu'on n'émule pas. Ce qui suit fournit donc ses globales et
+ * ses fonctions de frontière hôte, en miroir de Video/video.cs.
+ *
+ * DEUX NIVEAUX, à ne pas confondre :
+ *
+ *   (a) ce qui porte du TEMPS — buffer32 et sa géométrie, hline. cga_poll y
+ *       écrit à chaque balayage ; un buffer32 nul planterait, un buffer32 trop
+ *       petit corromprait le tas. Alloué pour de vrai, 2048x2048, comme
+ *       video.c:1067 et comme video.cs:84-86.
+ *
+ *   (b) ce qui ne porte que des PIXELS — cgapal, fontdat, le chemin composite.
+ *       Stubé à zéro. Le diff d'amorçage compare l'état du CPU, et aucune de ces
+ *       tables ne le touche : elles décident de la COULEUR des points, pas du
+ *       nombre de cycles. À REPRENDRE avant l'oracle de framebuffer du plan
+ *       (§ Vérification 3), qui hashera justement l'index de couleur.
+ */
 
+/* Couche hôte, verbatim de wx-ui/wx-sdl2-video.c:49-71. Transcrite UNE fois, en
+ * C, et le C# la reprend (video.cs) — c'est la règle de la paire de stubs. */
+VIDEO_BITMAP *create_bitmap(int x, int y) {
+        VIDEO_BITMAP *b = malloc(sizeof(VIDEO_BITMAP) + (y * sizeof(uint8_t *)));
+        int c;
+        b->dat = malloc(x * y * 4);
+        for (c = 0; c < y; c++) {
+                b->line[c] = b->dat + (c * x * 4);
+        }
+        b->w = x;
+        b->h = y;
+        return b;
+}
+
+void destroy_bitmap(VIDEO_BITMAP *b) {
+        free(b->dat);
+        free(b);
+}
+
+void hline(VIDEO_BITMAP *b, int x1, int y, int x2, int col) {
+        if (y < 0 || y >= buffer32->h)
+                return;
+
+        for (; x1 < x2; x1++)
+                ((uint32_t *)b->line[y])[x1] = col;
+}
+
+/* (a) le cadre où cga_poll dessine. */
+VIDEO_BITMAP *buffer32 = NULL;
+VIDEO_BITMAP *screen = NULL;
+
+void initvideo(void) {
+        if (!buffer32)
+                buffer32 = create_bitmap(2048, 2048);
+        cgapal_rebuild(0 /*DISPLAY_RGB*/, 0);
+}
+
+/* Globales de video.c lues ou écrites par vid_cga.c. Valeurs initiales de
+ * video.c, reprises telles quelles par video.cs:89-97, 182, 213. */
+int egareads = 0, egawrites = 0;
+int changeframecount = 2;
+int frames = 0;
+int fullchange = 0;
+int video_res_x = 0, video_res_y = 0, video_bpp = 0;
+int xsize = 1, ysize = 1;
+
+/* (b) pixels seulement — voir l'avertissement en tête de section. */
+uint32_t cgapal[16];
+void cgapal_rebuild(int display_type, int contrast) { (void)display_type; (void)contrast; }
+uint8_t fontdat[2048][8];
+void cga_comp_init(int revision) { (void)revision; }
+void update_cga16_color(uint8_t cgamode) { (void)cgamode; }
+void Composite_Process(uint8_t cgamode, uint32_t blend, int border, uint32_t *line) {
+        (void)cgamode; (void)blend; (void)border; (void)line;
+}
+
+/* Frontière hôte. video.cs les rend par un drapeau et un rendu hors boucle ;
+ * ici il n'y a pas d'hôte, donc rien à faire — mais les sites d'appel de
+ * vid_cga.c restent intacts des deux côtés, ce qui est le but. */
+void video_blit_memtoscreen(int x, int y, int y1, int y2, int w, int h) {
+        (void)x; (void)y; (void)y1; (void)y2; (void)w; (void)h;
+}
+void video_wait_for_buffer(void) { }
+void updatewindowsize(int x, int y) { (void)x; (void)y; }
 void video_updatetiming(void) { }
 
 /* Chargement des polices : sans rendu, on ne remplit aucune table. Le POST du
  * 5150 n'interroge pas les polices, il écrit dans la VRAM du CGA. */
-void loadfont(char *s, int format) { (void)s; (void)format; }
+void loadfont(char *s, fontformat_t format) { (void)s; (void)format; }
 
 /* Interrogation du registre des cartes vidéo. Une seule carte ici, le CGA :
  * ce sont ces trois réponses que le PPI compose en interrupteurs DIP pour le
- * POST, et le C# rend exactement les mêmes (Video/video.cs). */
+ * POST, et le C# rend exactement les mêmes (Video/video.cs:191-193). */
 int video_is_mda(void) { return 0; }
 int video_is_cga(void) { return 1; }
 int video_is_ega_vga(void) { return 0; }

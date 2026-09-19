@@ -60,6 +60,12 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 extern uint64_t h_n_inb, h_n_outb, h_n_picint, h_n_picinterrupt, h_n_timer_process;
 extern uint64_t h_n_readmembl, h_n_writemembl, h_n_readmemwl, h_n_writememwl, h_n_fatal;
 extern void h_stub_counters_reset(void);
+
+/* L'oracle lie le vrai src/video/ depuis M4.2. On declare plutot que d'inclure
+ * video.h/vid_cga.h : ces en-tetes referencent mem_mapping_t, pc_timer_t et
+ * device_t, que seul l'include de 808x.c ci-dessus a fait entrer. */
+extern device_t cga_device;
+void initvideo(void);
 extern void h_set_verbose(int v);
 extern void h_set_roms_path(const char *p);
 
@@ -396,6 +402,7 @@ int h_boot(const char *romspath) {
         h_wlog_reset();
 
         device_init();
+        initvideo();          /* pc.c:59 */
         mem_size = 640;
 
         if (!h_mem_inited) {
@@ -425,6 +432,15 @@ int h_boot(const char *romspath) {
         pit_set_out_func(&pit, 1, pit_refresh_timer_xt);
         keyboard_xt_init();
         nmi_init();
+
+        /* video_init(), pc.c:~366. On appelle directement device_add(&cga_device)
+         * plutot que video_init() : le switch sur romset de video.c:761-914 tombe
+         * dans un default qui traverse le registre VIDEO_CARD, lequel n'est pas
+         * transcrit cote C#. Video.video.video_init() (video.cs) fait exactement
+         * ce meme raccourci, marque // DEVIATION. Les deux cotes ajoutent donc la
+         * MEME carte de la MEME facon -- ce qui est tout ce que l'oracle doit
+         * garantir. */
+        device_add(&cga_device);
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient

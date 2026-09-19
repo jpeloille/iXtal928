@@ -233,3 +233,42 @@ main ; elle est à son invite, dans la boucle d'attente clavier de l'INT 16h
 Le vidage écran lit `0xB8000` **à travers la carte mémoire** (`mem_readb_phys`), pas le
 tableau `ram` : c'est le chemin que prendrait un vrai accès, et il vérifie donc au
 passage que la fenêtre CGA est bien mappée.
+
+### M4.2 — L'oracle n'avait pas de carte vidéo
+
+Le diff poussé jusqu'à l'invite BASIC s'arrête à l'instruction **801 677**,
+`F000:F173`, `REP STOSW` de 16 Ko vers `B800:0000` — l'effacement de l'écran, avec
+`DX = 0x03D4` (l'index du CRTC). Oracle **81 924** cycles, iXtal26 **147 462**.
+
+Ce n'est pas un écart de transcription. L'oracle ne liait **aucun** fichier de `src/video/` :
+son `0xB8000` est de la RAM ordinaire, tandis que celui d'iXtal26 traverse la carte CGA et
+ses états d'attente. Les deux harnais modélisaient des machines différentes, et c'est
+iXtal26 qui était le plus complet des deux.
+
+**Un piège de l'édition de liens, au passage.** J'ai d'abord ajouté `src/video/video.c` et
+le `.so` s'est lié « proprement ». Il ne l'était pas : `-shared` tolère les symboles non
+résolus, et le `.so` portait **quatre-vingt-dix** trous — tout le registre `VIDEO_CARD`.
+Seul le lien de `selftest`, qui est un exécutable, l'a révélé. Un appel à l'un de ces
+symboles aurait sauté à l'adresse nulle des mois plus tard. Le Makefile porte désormais
+`-Wl,--no-undefined` : la classe entière de faute échoue maintenant à la construction.
+
+Retenu : lier `vid_cga.c` seul, et fournir les globales et frontières hôte de `video.c` dans
+`harness_stubs.c`, en miroir de `Video/video.cs`. La section distingue explicitement deux
+niveaux — ce qui porte du **temps** (`buffer32` et sa géométrie 2048x2048, `hline` :
+`cga_poll` y écrit à chaque balayage, un pointeur nul planterait) et ce qui ne porte que des
+**pixels** (`cgapal`, `fontdat`, chemin composite), stubé à zéro et à reprendre avant
+l'oracle de framebuffer.
+
+### Mesure d'ensemble, palier (a)
+
+| Oracle | Portée | Résultat |
+|---|---|---|
+| Diff différentiel, mode flux, 256 opcodes | transcription | **300 000 à 400 000 instructions, zéro divergence** |
+| Diff de traces d'amorçage, 6 000 tranches | la machine | **24 944 866 instructions identiques**, du vecteur de reset à l'invite BASIC |
+| Autotest de l'oracle | h_step ≡ h_run | vert, 25 contrôles |
+
+Les deux cœurs exécutent le POST complet de l'IBM PC 5150, le test mémoire de 640 Ko, la
+bascule INT 18h et la ROM BASIC **sans un seul bit d'écart** sur les 32 champs — registres,
+segments, drapeaux, et tout le modèle de temps : `cycles`, `tsc`, `tsc_frac`, `memcycs`,
+`fetchcycles`, `fetchclocks`, `nextcyc`, `cycdiff`, `prefetchw`, `prefetchpc`, la file de
+préfetch.

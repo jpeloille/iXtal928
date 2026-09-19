@@ -56,7 +56,8 @@ SRC := harness.c \
        $(PCEM)/src/flash/rom.c \
        $(PCEM)/src/memory/mem_bios.c \
        $(PCEM)/src/keyboard/keyboard.c \
-       $(PCEM)/src/keyboard/keyboard_xt.c
+       $(PCEM)/src/keyboard/keyboard_xt.c \
+       $(PCEM)/src/video/vid_cga.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
 # d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
@@ -64,8 +65,15 @@ comma := ,
 WRAP := readmembl writemembl readmemwl writememwl inb outb picint picinterrupt timer_process
 LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 
+# -shared tolere les symboles non resolus : un .so peut se lier avec des trous et
+# ne planter qu'au premier appel, des mois plus tard. Mesure : en liant
+# src/video/video.c, l'oracle s'est lie proprement avec QUATRE-VINGT-DIX symboles
+# manquants -- tout le registre VIDEO_CARD. Seul le lien de selftest (executable)
+# l'a revele. On exige donc la resolution complete des le .so.
+LDFLAGS += -Wl,--no-undefined
+
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
 
 .PHONY: all clean selftest
 
