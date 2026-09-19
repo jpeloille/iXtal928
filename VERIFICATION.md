@@ -373,3 +373,42 @@ exactement la propriété du handshake d'origine.
 **Non exercé** : le clavier. Aucune frappe n'a encore été envoyée à la machine — le POST du
 5150 n'en attend aucune, donc rien dans ces exécutions ne traverse `keyboard_poll_host()`.
 La table et `Reset()` ne sont validés que par lecture et compilation.
+
+### M4.4 — Le clavier, vérifié sans gestionnaire de fenêtres
+
+M4.3 laissait le chemin clavier non exercé. Les tentatives d'injection par `xdotool` dans
+la fenêtre ont toutes échoué, et le compteur ajouté pour l'occasion dit pourquoi :
+
+```
+évènements : 26 reçus de SDL, dernier WindowExposed
+clavier    : 0 KeyDown reçus de SDL, 0 mappés ; dernier scancode Unknown -> -1
+```
+
+Le pompage d'évènements fonctionne — 26 évènements de fenêtre arrivent — mais aucune
+touche : la fenêtre n'a jamais obtenu le focus clavier sous ce compositeur. Ça ne
+départage pas « mon code est faux » de « mon injection n'arrive pas », et un gestionnaire
+de fenêtres n'est pas un oracle.
+
+D'où `--boot roms N --type "TEXTE"` : l'injection écrit dans `keyboard.rawinputkey[]` —
+**exactement** le tableau que `Host/SdlKeyboard` remplit — et passe par la même
+`MapScancode`. Seule la livraison SDL est court-circuitée ; tout le reste est exercé pour
+de vrai.
+
+```
+--- frappe de « PRINT 6*7 » puis Entrée ---
+  |Ok
+  |PRINT 6*7
+  | 42
+  |Ok
+```
+
+`keyboard_poll_host` → `keyboard_process` → `scancode_xt` → `keyboard_xt` → IRQ 1 →
+INT 9 du BIOS → tampon clavier de la BDA → INT 16h → l'analyseur de BASIC, qui évalue et
+imprime. Déterministe, reproductible, sans fenêtre.
+
+**Ce que la première tentative a appris.** Elle rendait `print 687` au lieu de `PRINT 6*7` :
+Maj était sans effet. `keyboard_process` balaie `pcem_key[]` de l'indice 0 à 271 et émet
+dans cet ordre — appuyer Maj (0x2A) et « 8 » (0x09) dans la MÊME passe envoie le scancode
+de « 8 » avant celui de Maj, et l'INT 9 lit un « 8 ». Un humain n'a jamais ce problème : il
+appuie sur Maj un scrutin plus tôt. Défaut du harnais, pas de l'émulateur — mais il fallait
+le mesurer pour le savoir, et c'est consigné au site de correction.

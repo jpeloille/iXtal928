@@ -46,6 +46,8 @@ public sealed class SdlHost : IDisposable
     private int _blitsSeen;
     private int _blitsUploaded;
     private int _updateFailures;
+    private int _eventsSeen;
+    private SDL.EventType _lastEventType;
     private int _lastX, _lastY, _lastY1, _lastY2, _lastW, _lastH;
 
     private IntPtr _window;
@@ -277,6 +279,10 @@ public sealed class SdlHost : IDisposable
 
         Console.WriteLine($"géométrie  : xsize={video.xsize} ysize={video.ysize} " +
                           $"fenêtre {video.video_width}x{video.video_height}");
+        Console.WriteLine($"évènements : {_eventsSeen} reçus de SDL, dernier {_lastEventType}");
+        Console.WriteLine($"clavier    : {SdlKeyboard.KeyEventsSeen} KeyDown reçus de SDL, " +
+                          $"{SdlKeyboard.KeyEventsMapped} mappés ; dernier scancode " +
+                          $"{SdlKeyboard.LastScancode} -> {SdlKeyboard.LastMapped}");
     }
 
     /// <summary>Vide la file d'évènements SDL et la transmet intégralement au clavier.</summary>
@@ -285,6 +291,8 @@ public sealed class SdlHost : IDisposable
         while (SDL.PollEvent(out var e))
         {
             var type = (SDL.EventType)e.Type;
+            _eventsSeen++;
+            _lastEventType = type;
 
             if (type is SDL.EventType.Quit or SDL.EventType.WindowCloseRequested)
                 _running = false;

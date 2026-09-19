@@ -44,7 +44,23 @@ for (var i = 0; i < args.Length; i++)
             }
         }
 
-        return BootTest.Run(roms, slices);
+        // --type TEXTE : tape la chaîne dans la machine après l'amorçage et revide
+        // l'écran. C'est la seule vérification du chemin clavier qui ne dépende pas
+        // d'un gestionnaire de fenêtres.
+        string? type = null;
+        if (i + 1 < args.Length && args[i + 1] == "--type")
+        {
+            i++;
+            if (i + 1 >= args.Length)
+            {
+                Console.Error.WriteLine("--type attend une chaîne à taper.");
+                return 2;
+            }
+
+            type = args[++i];
+        }
+
+        return BootTest.Run(roms, slices, type);
     }
 
     if (arg == "--rom-path")
@@ -137,6 +153,10 @@ static void PrintUsage()
     Console.WriteLine("                       et ceux réellement téléversés dans la texture");
     Console.WriteLine("  --boot [CHEMIN] [N]  amorce et raconte en console ce que le POST a écrit");
     Console.WriteLine("                       en mémoire et à l'écran (défauts : roms, 20 tranches)");
+    Console.WriteLine("      --type TEXTE     après --boot : tape TEXTE dans la machine, puis");
+    Console.WriteLine("                       revide l'écran. C'est la seule vérification du");
+    Console.WriteLine("                       chemin clavier qui ne dépende pas d'une fenêtre");
+    Console.WriteLine("                       ayant le focus");
     Console.WriteLine("  -h, --help           affiche cette aide");
     Console.WriteLine();
     Console.WriteLine("Codes de sortie : 0 succès, 1 échec d'exécution, 2 erreur d'usage.");

@@ -36,15 +36,30 @@ public static class SdlKeyboard
     }
 
     /// <summary>Consomme un évènement SDL de touche ; tout autre type est ignoré.</summary>
+    /// <summary>Compteurs de diagnostic, lus par --verbose. Sans eux, « le clavier
+    /// ne répond pas » ne distingue pas « SDL ne livre rien » de « la table de
+    /// scancodes est fausse » de « le cœur ignore pcem_key » — trois pannes très
+    /// différentes qui se ressemblent toutes à l'écran.</summary>
+    public static int KeyEventsSeen { get; private set; }
+    public static int KeyEventsMapped { get; private set; }
+    public static SDL.Scancode LastScancode { get; private set; }
+    public static int LastMapped { get; private set; } = -1;
+
     public static void HandleEvent(in SDL.Event e)
     {
         switch ((SDL.EventType)e.Type)
         {
             case SDL.EventType.KeyDown:
             {
+                KeyEventsSeen++;
                 int keyIdx = MapScancode(e.Key.Scancode);
+                LastScancode = e.Key.Scancode;
+                LastMapped = keyIdx;
                 if (keyIdx != -1)
+                {
+                    KeyEventsMapped++;
                     keyboard.rawinputkey[keyIdx] = PressedValue(e.Key.Timestamp);
+                }
 
                 // omitted: contournement clavier international de display.c:480-485
                 // (#ifdef __WINDOWS__) — il compare le timestamp brut à rawinputkey[LCTRL],
