@@ -13,9 +13,6 @@ for (var i = 0; i < args.Length; i++)
         return 0;
     }
 
-    if (arg == "--gates")
-        return M0Gates.Run();
-
     if (arg == "--frames")
     {
         if (i + 1 >= args.Length || !int.TryParse(args[++i], out maxFrames) || maxFrames < 0)
@@ -44,6 +41,5 @@ static void PrintUsage()
     Console.WriteLine("Usage : iXtal26 [--frames N]");
     Console.WriteLine();
     Console.WriteLine("  --frames N   affiche N images puis quitte (test automatisé, sans interaction)");
-    Console.WriteLine("  --gates      exécute les portes M0 (G1 ref, G2 switch géant, G3 union)");
     Console.WriteLine("  -h, --help   affiche cette aide");
 }
