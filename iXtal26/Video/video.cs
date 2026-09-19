@@ -226,10 +226,38 @@ internal static partial class video
         // omitted: FONT_PC200 (video.c:961-974), FONT_WY700 (video.c:984-990),
         //   FONT_MDSI (video.c:991-997), FONT_T3100E (video.c:998-1021),
         //   FONT_KSC5601 (video.c:1022-1028), FONT_SIGMA400 (video.c:1029-1039) et
-        //   FONT_IM1024 (video.c:1040-1044) — cartes hors palier. Conséquence : ces
-        //   sept formats tombent maintenant dans `default`, c'est-à-dire FONT_CGA.
+        //   FONT_IM1024 (video.c:1040-1044) — cartes hors palier : leurs tables de
+        //   destination (fontdatw, fontdat8x12, fontdatksc5601, fontdat12x18) sont
+        //   omises avec elles.
+        //
+        // MAIS LEURS ÉTIQUETTES DE `case` NE LE SONT PAS, et c'est tout le sujet.
+        // Dans le C, `default:` n'est accolé qu'à `case FONT_CGA` (video.c:975-976) :
+        // les sept formats ci-dessus sont des cas EXPLICITES qui écrivent chacun dans
+        // LEUR table et ne touchent jamais fontdat. Les avoir laissés tomber dans
+        // `default` faisait de chaque appel une relecture en FONT_CGA de fontdat
+        // ENTIER. Et mem_bios.c:59-62 appelle loadfont quatre fois de suite, sans
+        // condition : mda.rom remplissait fontdat correctement, puis wy700.rom
+        // (16 384 o = 2048 x 8) l'écrasait intégralement, puis 8x12.bin (4 096 o)
+        // écrasait les 512 premiers caractères et laissait 0xFF sur le reste —
+        // FileStream.ReadByte() rend -1 en fin de fichier, que le cast en uint8_t
+        // transforme en 0xFF. Résultat à l'écran : un seul glyphe répété sur toute
+        // la grille, y compris à la place des espaces.
+        //
+        // Aucun oracle ne pouvait l'attraper : la police ne touche AUCUN état CPU.
+        // Les 24 944 866 instructions du diff d'amorçage restent identiques, et le
+        // vidage texte de BootTest lit la VRAM — qui est juste. Seul le chemin pixel
+        // est faux, et il n'a eu de lecteur qu'à l'ouverture de la fenêtre.
+        // Voir VERIFICATION.md § M4.3.
         switch (format)
         {
+        case fontformat_t.FONT_PC200:
+        case fontformat_t.FONT_WY700:
+        case fontformat_t.FONT_MDSI:
+        case fontformat_t.FONT_T3100E:
+        case fontformat_t.FONT_KSC5601:
+        case fontformat_t.FONT_SIGMA400:
+        case fontformat_t.FONT_IM1024:
+                break;
         case fontformat_t.FONT_MDA: /* MDA */
                 for (c = 0; c < 256; c++) { /* 8x14 MDA in 8x8 cell (lines 0-7) */
                         for (d = 0; d < 8; d++) {
@@ -360,8 +388,22 @@ internal static partial class video
         blit_data.y2 = y2;
         blit_data.w = w;
         blit_data.h = h;
+
         // DEVIATION: thread_set_event(blit_data.wake_blit_thread) (video.c:1159).
+        //
+        // Le drapeau SEUL ne suffit pas, et c'est un piège qu'on a payé. PCem réveille
+        // ici le thread de blit, et l'appel SUIVANT bloque sur video_wait_for_blit()
+        // (video.c:1150-1153) tant que blit_data.busy vaut 1 : le cœur ne peut donc
+        // JAMAIS écraser un rectangle non encore remonté. Un drapeau, lui, n'est pas une
+        // file — deux blits dans la même tranche de 10 ms n'en faisaient qu'un, et deux
+        // images étaient silencieusement perdues au moment où le POST reprogramme le CRTC.
+        //
+        // Sans thread, l'appel SYNCHRONE du crochet hôte a exactement la propriété du
+        // handshake d'origine : quand il rend la main, le rectangle est remonté. Le
+        // drapeau reste posé pour les hôtes qui n'installent pas de crochet (BootTest,
+        // mode --headless), où rien ne le lit mais où il reste diagnostiquable.
         blit_pending = 1;
+        video_blit_memtoscreen_func?.Invoke(x, y, y1, y2, w, h);
     }
 
     // pcem: video.c:1162-1299

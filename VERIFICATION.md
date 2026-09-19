@@ -44,7 +44,7 @@ Mesurés le 2026-09-19, .NET 10.0.112, x86-64 Linux.
 | **G1** propriété `ref` | **Verte.** `cycles -= 3;`, passage `ref`, `tsc += 0x1_0000_0000UL` mutent bien le champ référencé. |
 | **G2** switch géant + `goto` | **Verte.** **180 106 octets d'IL** pour 256 cas / ~13 900 lignes ; JIT propre en Debug, Release, et sous `DOTNET_TieredCompilation=0` (pas de bailout). Le switch de `808x.c` fait ~2 600 lignes, soit ~1/5 : **marge 5×**, la contingence « découper par quartet » est inutile. |
 | **G3** union explicite | **Verte.** Aliasing `l`/`w`/`b.h`/`b.l`, écriture de demi-octet préservant le reste, `getr8`/`setr8` indexés avec le pliage haut/bas sur le bit 2, et absence de mutation à travers une copie de struct. |
-| **G4** SDL3-CS sous net10 | **Verte.** Restaure et compile ; `dotnet run -- --frames 5` ouvre une fenêtre, rend 5 images, sort 0. |
+| **G4** SDL3-CS sous net10 | **Verte.** Restaure et compile ; ouvre une fenêtre, rend des images, sort 0. La commande d'origine était `dotnet run -- --frames 5` ; `--frames` a été retiré à M4.3 (une tranche vaut 10 ms émulées, pas une image — voir Program.cs). Rejouer avec `dotnet run -- --slices 400`. |
 
 ### Le harnais attrape-t-il vraiment ? (M1.0b)
 
@@ -296,3 +296,80 @@ n'a pas programmé le registre 7 du CRTC. Pas d'anomalie.
 sont stubés à zéro côté oracle, donc son framebuffer est noir. L'oracle de framebuffer du
 plan (§ Vérification 3) exige d'abord un `cgapal_rebuild` et un `loadfont` réels dans le
 harnais.
+
+## M4.3 — L'hôte SDL3, et la police que personne ne regardait
+
+La machine tournait depuis M4.1 sans jamais s'afficher : `Game.cs`, l'échafaudage de démo
+du gabarit de projet, était resté le point d'entrée. `Host/SdlHost.cs` (fenêtre, texture,
+accumulateur horloge murale, remontée du blit), `Host/SdlKeyboard.cs` (105 entrées de
+`SDLScancodeToSystemScancode`) et une table d'arguments refaite le remplacent.
+
+### Le défaut que la fenêtre a révélé en trente secondes
+
+**La police CGA était intégralement corrompue.** Un seul glyphe se répétait sur toute la
+grille 80x25, espaces compris.
+
+`mem_bios.c:59-62` appelle `loadfont` quatre fois de suite, sans condition : `mda.rom`
+(FONT_MDA), `wy700.rom` (FONT_WY700), `8x12.bin` (FONT_MDSI), `im1024font.bin`
+(FONT_IM1024). Dans le C, ces formats écrivent chacun dans **leur** table — `fontdatw`,
+`fontdat8x12` — et `default:` n'est accolé qu'à `case FONT_CGA` (`video.c:975-976`).
+
+J'avais omis ces tables, ce qui est légitime, **et leurs étiquettes de `case` avec elles**,
+ce qui ne l'est pas : les sept formats tombaient alors dans `default` = FONT_CGA. Donc
+`mda.rom` remplissait `fontdat` correctement, puis `wy700.rom` (16 384 o = 2048 x 8)
+l'écrasait *intégralement*, puis `8x12.bin` (4 096 o) écrasait les 512 premiers caractères
+et laissait `0xFF` sur le reste — `FileStream.ReadByte()` rend −1 en fin de fichier, que le
+cast en `uint8_t` transforme en `0xFF`.
+
+Le plus instructif : **mon propre commentaire d'omission énonçait déjà la conséquence** —
+« ces sept formats tombent maintenant dans `default`, c'est-à-dire FONT_CGA ». Le registre
+disait ce qui allait se passer, et personne, moi compris, ne l'a lu comme un défaut.
+
+| | avant | après |
+|---|---|---|
+| Pixels non nuls, écran BASIC (656x200) | 46 576 (35,5 %) | **3 997 (3,0 %)** |
+
+**Troisième angle mort, disjoint des deux déjà consignés.** La police ne touche aucun état
+CPU : les 24 944 866 instructions du diff d'amorçage restent identiques, et le vidage texte
+de `BootTest` montre la bannière BASIC juste — parce que la VRAM *est* juste. Seul le chemin
+pixel était faux, et il n'a eu de lecteur qu'à l'ouverture de la fenêtre. Le chiffre de
+46 576 consigné en M4.2 mesurait donc une police corrompue ; sa chute est un progrès.
+
+### Le drapeau de blit perdait des images
+
+`video_blit_memtoscreen` posait `blit_pending`, que l'hôte consultait une fois par tranche
+de 10 ms. Un drapeau n'est pas une file : deux blits dans la même tranche n'en faisaient
+qu'un. Mesuré sur un amorçage nu, **2 images perdues sur 486**, au transitoire de
+reprogrammation du CRTC.
+
+PCem ne peut pas en perdre : `video_blit_memtoscreen` appelle `video_wait_for_blit()`
+(`video.c:1150-1153`), qui **bloque** le fil d'émulation tant que `blit_data.busy` vaut 1.
+Le crochet `video_blit_memtoscreen_func`, déclaré mais jamais appelé, est maintenant invoqué
+**synchroniquement** : quand il rend la main, le rectangle est remonté. Mono-thread, c'est
+exactement la propriété du handshake d'origine.
+
+### Autres écarts corrigés, tous relevés en relecture croisée
+
+| Constat | Correction |
+|---|---|
+| Fenêtre au contenu indéfini pendant les ~3,5 s précédant le premier blit | `Render()` dès `Init()` |
+| VSync forcée à 1, présentation sur le fil d'émulation | VSync à 0 — `video_vsync = 0` est le défaut de PCem (`wx-sdl2-video.c:30`). Forcée, `RenderPresent` bloquait au milieu de `drawits` et le retard partait dans `if (drawits > 50) drawits = 0`, sans diagnostic |
+| Indicateur de vitesse en moyenne **cumulée** | Fenêtre **glissante** — `onesec()` (`pc.c:168-174`) remet `framecount` à zéro chaque seconde réelle. Cumulée, une chute à 50 % après dix minutes se serait lue « 97 % » |
+| `w` non borné par la texture | Borné. `xsize` vient du registre 1 du CRTC : un invité y écrivant `0xFF` en 40 colonnes donne 4096, le double de la texture |
+| `Run()` rendait 0 même si aucune image n'atteignait la texture | Rend 1 |
+| `--boot roms 60O` exécutait 20 tranches et sortait 0 | Rend 2 avec un message |
+| « l'écart est le nombre d'images perdues » | Faux : `video_frames` est incrémenté avant le `if (h <= 0) return` |
+
+### Mesure
+
+| | |
+|---|---|
+| Fenêtre X11, amorçage complet | **IBM Cassette BASIC C1.10 lisible à l'écran, 100 % du temps réel** |
+| Blits, 400 tranches | 16 émis, 15 consommés, 15 téléversés, **0 en échec**, 0 perdu |
+| Diff d'amorçage, 200 tranches | 714 879 instructions identiques |
+| Fuzzer, 256 opcodes | 300 000 instructions, zéro divergence |
+| `check-oracle.sh` | 16 vérifiés, 0 dérive, arbre vendoré OK |
+
+**Non exercé** : le clavier. Aucune frappe n'a encore été envoyée à la machine — le POST du
+5150 n'en attend aucune, donc rien dans ces exécutions ne traverse `keyboard_poll_host()`.
+La table et `Reset()` ne sont validés que par lecture et compilation.
