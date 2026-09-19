@@ -5,7 +5,7 @@
 //         (36-260, 340-455, 456-520, 662-702, 748-886, 886-906, 1222-1340, 3902-3996)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — M1.1 : accesseurs, préfetch, EA, tables et helpers de flags,
-//         resetx86, boucle execx86, opcodes 0x00-0x3F (prefixes de segment
+//         resetx86, boucle execx86, opcodes 0x00-0x7F (prefixes de segment
 //         compris).
 //
 // Le modèle de temps du 8088. C'est la partie la plus fidèle de PCem et la plus
@@ -731,6 +731,7 @@ internal static partial class _808x
     {
         uint8_t temp, temp2;
         uint16_t addr, tempw, tempw2;
+        int8_t offset;
         int tempi;
         int trap;
 
@@ -1273,6 +1274,246 @@ internal static partial class _808x
                                 cpu_state.flags &= unchecked((uint16_t)~(A_FLAG | C_FLAG));
                         AL &= 0xF;
                         cycles -= 8;
+                        break;
+
+                case 0x40:
+                case 0x41:
+                case 0x42:
+                case 0x43: /*INC r16*/
+                case 0x44:
+                case 0x45:
+                case 0x46:
+                case 0x47:
+                        setadd16nc(cpu_state.regs[opcode & 7].w, 1);
+                        cpu_state.regs[opcode & 7].w++;
+                        cycles -= 3;
+                        break;
+                case 0x48:
+                case 0x49:
+                case 0x4A:
+                case 0x4B: /*DEC r16*/
+                case 0x4C:
+                case 0x4D:
+                case 0x4E:
+                case 0x4F:
+                        setsub16nc(cpu_state.regs[opcode & 7].w, 1);
+                        cpu_state.regs[opcode & 7].w--;
+                        cycles -= 3;
+                        break;
+
+                case 0x50:
+                case 0x51:
+                case 0x52:
+                case 0x53: /*PUSH r16*/
+                case 0x54:
+                case 0x55:
+                case 0x56:
+                case 0x57:
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        SP -= 2;
+                        writememw(ss, SP, cpu_state.regs[opcode & 7].w);
+                        cycles -= 15;
+                        break;
+
+                case 0x58:
+                case 0x59:
+                case 0x5A:
+                case 0x5B: /*POP r16*/
+                case 0x5C:
+                case 0x5D:
+                case 0x5E:
+                case 0x5F:
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        SP += 2;
+                        cpu_state.regs[opcode & 7].w = readmemw(ss, (uint16_t)((SP - 2) & 0xFFFF));
+                        cycles -= 12;
+                        break;
+
+                case 0x60: /*JO alias*/
+                case 0x70: /*JO*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & V_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x61: /*JNO alias*/
+                case 0x71: /*JNO*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & V_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x62: /*JB alias*/
+                case 0x72: /*JB*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & C_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x63: /*JNB alias*/
+                case 0x73: /*JNB*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & C_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x64: /*JE alias*/
+                case 0x74: /*JE*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & Z_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x65: /*JNE alias*/
+                case 0x75: /*JNE*/
+                        offset = (int8_t)FETCH();
+                        cycles -= 4;
+                        if ((cpu_state.flags & Z_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        break;
+                case 0x66: /*JBE alias*/
+                case 0x76: /*JBE*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & (C_FLAG | Z_FLAG)) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x67: /*JNBE alias*/
+                case 0x77: /*JNBE*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & (C_FLAG | Z_FLAG)) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x68: /*JS alias*/
+                case 0x78: /*JS*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & N_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x69: /*JNS alias*/
+                case 0x79: /*JNS*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & N_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6A: /*JP alias*/
+                case 0x7A: /*JP*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & P_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6B: /*JNP alias*/
+                case 0x7B: /*JNP*/
+                        offset = (int8_t)FETCH();
+                        if ((cpu_state.flags & P_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6C: /*JL alias*/
+                case 0x7C: /*JL*/
+                        offset = (int8_t)FETCH();
+                        temp = (uint8_t)(((cpu_state.flags & N_FLAG) != 0) ? 1 : 0);
+                        temp2 = (uint8_t)(((cpu_state.flags & V_FLAG) != 0) ? 1 : 0);
+                        if (temp != temp2)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6D: /*JNL alias*/
+                case 0x7D: /*JNL*/
+                        offset = (int8_t)FETCH();
+                        temp = (uint8_t)(((cpu_state.flags & N_FLAG) != 0) ? 1 : 0);
+                        temp2 = (uint8_t)(((cpu_state.flags & V_FLAG) != 0) ? 1 : 0);
+                        if (temp == temp2)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6E: /*JLE alias*/
+                case 0x7E: /*JLE*/
+                        offset = (int8_t)FETCH();
+                        temp = (uint8_t)(((cpu_state.flags & N_FLAG) != 0) ? 1 : 0);
+                        temp2 = (uint8_t)(((cpu_state.flags & V_FLAG) != 0) ? 1 : 0);
+                        if ((cpu_state.flags & Z_FLAG) != 0 || (temp != temp2))
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
+                        break;
+                case 0x6F: /*JNLE alias*/
+                case 0x7F: /*JNLE*/
+                        offset = (int8_t)FETCH();
+                        temp = (uint8_t)(((cpu_state.flags & N_FLAG) != 0) ? 1 : 0);
+                        temp2 = (uint8_t)(((cpu_state.flags & V_FLAG) != 0) ? 1 : 0);
+                        if (!((cpu_state.flags & Z_FLAG) != 0 || (temp != temp2)))
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 4;
                         break;
 
                 default:

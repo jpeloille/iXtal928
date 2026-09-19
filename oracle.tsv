@@ -13,7 +13,7 @@
 csharp_path	c_path	c_sha256	c_lines	status	note
 iXtal26/Cpu/386_common.cs	pcem-dev/src/cpu/386_common.c	778aef5be04f3a28daffe4095e979770a6d94fd3a1e7b713767cbff781b20696	6-37	partial	cpu_state et nmi_enable ; x86_int au palier (b)
 iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	1573b4052627324efa3bbcde240c375eaf986954ed237f867292d0cb38075722	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
-iXtal26/Cpu/808x.cs	pcem-dev/src/cpu/808x.c	ce5d51cad4356ab7deee49eae607c07055e89b1d7c048037cd18e407fcb3dd16	36-260,340-455,456-520,662-702,748-886,886-906,1222-1812,3902-3996	partial	M1.2 : bandes 0x00-0x3F, prefixes de segment compris
+iXtal26/Cpu/808x.cs	pcem-dev/src/cpu/808x.c	ce5d51cad4356ab7deee49eae607c07055e89b1d7c048037cd18e407fcb3dd16	36-260,340-455,456-520,662-702,748-886,886-906,1222-2034,3902-3996	partial	M1.3 : opcodes 0x00-0x7F (moitie de l'espace)
 iXtal26/Cpu/x86.cs	pcem-dev/includes/private/cpu/x86.h	02a4ecf0d2479c43860f69aa5abcf01c3adc87d9ee2deedba62e368cf9192880	1-245	partial	palier (a) : champs 8087/MMX/SMM/32 bits et flags paresseux omis
 iXtal26/Cpu/x86seg.cs	pcem-dev/src/cpu/x86seg.c	b03f578455a8ecb4e61ffaf533401b5b726fd5ffc29875f3b6ff24fe6e59becb	50-74,419-448,452-566	partial	branches mode reel seulement (~80 lignes sur 3187)
 iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	703abfac025e95f9a11004bec4da51ff73b0680f02be227c5fd7898f8ffea579	-	host	compteurs d'appels des stubs
