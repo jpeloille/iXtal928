@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+
+        <!-- net10.0 = LTS jusqu'en novembre 2028. net9.0 est STS, support terminé le
+             12/05/2026 : bascule maintenant plutôt que migration forcée en cours de
+             transcription. -->
+        <TargetFramework>net10.0</TargetFramework>
+
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Engagement, pas préférence. Le cœur 8088 vise 4,77 MHz : on a 50 à 100× de
+             marge, et le bounds-check convertit un biais de page mal calculé d'un bug
+             invisible en stack trace. Voir le critère d'arrêt du benchmark readlookup2. -->
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+        <!-- Le C enveloppe silencieusement. Explicite parce qu'un Directory.Build.props
+             ou une inspection Rider peut retourner le défaut, et l'échec serait alors une
+             OverflowException des milliers d'instructions après le boot. -->
+        <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+
+        <!-- Plein sur le code hôte. Les fichiers transcrits portent des
+             #pragma warning disable énumérés et commentés, jamais en bloc. -->
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Bindings managés SDL3 : API idiomatique (SDL.Init, SDL.CreateWindowAndRenderer, ...). -->
+        <PackageReference Include="SDL3-CS" Version="3.4.14.1"/>
+
+        <!-- Bibliothèques natives SDL3 livrées par NuGet : rien à installer sur la machine. -->
+        <PackageReference Include="SDL3-CS.Linux" Version="3.4.14.1"/>
+        <PackageReference Include="SDL3-CS.Windows" Version="3.4.14.1"/>
+        <PackageReference Include="SDL3-CS.MacOS" Version="3.4.14.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Les harnais lisent l'état interne du cœur. Le mapping linkage C -> accessibilité
+             C# (static -> private, non-static -> internal) n'a de sens qu'en un seul
+             assembly ; InternalsVisibleTo est la porte de service. -->
+        <InternalsVisibleTo Include="iXtal26.Diff"/>
+        <InternalsVisibleTo Include="iXtal26.Sst"/>
+        <InternalsVisibleTo Include="iXtal26.Bench"/>
+    </ItemGroup>
+
+</Project>

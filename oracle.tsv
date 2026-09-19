@@ -1,0 +1,16 @@
+﻿# Manifeste de transcription. Une ligne par fichier C# ; TSV parce que ça fusionne
+# proprement dans git et que ça se lit dans un terminal.
+#
+# csharp_path   chemin du fichier C# (relatif à la racine du dépôt)
+# c_path        sa contrepartie dans pcem-dev/ ; "-" si le fichier est neuf (hôte, outillage)
+# c_sha256      sha256 du fichier C AU MOMENT de la transcription ; "-" si c_path vaut "-"
+# c_lines       plage de lignes transcrite, ou "-"
+# status        transcribed | deviated | partial | host
+# note          une ligne, vide sauf pour deviated/partial
+#
+# tools/check-oracle.sh rehashe chaque c_path et signale la dérive. C'est la partie qui
+# survit : tout le reste est de la documentation, et la documentation pourrit.
+csharp_path	c_path	c_sha256	c_lines	status	note
+iXtal26/Program.cs	-	-	-	host	point d'entrée, arguments
+iXtal26/GlobalUsings.cs	-	-	-	host	alias stdint, infrastructure de transcription
+iXtal26/Game.cs	-	-	-	host	démo SDL3 — sera remplacée par Host/SdlHost.cs à M4

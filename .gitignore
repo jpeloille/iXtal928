@@ -1,0 +1,29 @@
+# Build
+bin/
+obj/
+*.user
+
+# Rider / IDE
+.idea/
+.vs/
+
+# ROMs — matériel IBM sous copyright, jamais commité.
+# Seul le manifeste de checksums l'est, pour que la CI vérifie ce qu'elle a.
+roms/*
+!roms/roms.sha256
+
+# Vecteurs SingleStepTests — 726 Mo, récupérés par tools/fetch-sst.sh.
+# Seul vectors/sst/MANIFEST.sha256 est commité.
+vectors/*
+!vectors/sst/
+vectors/sst/*
+!vectors/sst/MANIFEST.sha256
+
+# Artefacts de l'oracle C
+tools/oracle/*.so
+tools/oracle/*.o
+tools/oracle/build/
+
+# Copie de travail patchée de pcem-dev (instrumentation de trace).
+# L'arbre de référence pcem-dev/ n'est JAMAIS modifié en place.
+pcem-ref-build/

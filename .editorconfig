@@ -1,0 +1,74 @@
+root = true
+
+# ---------------------------------------------------------------------------
+# Défauts : code hôte, neuf, conventions C# normales.
+# ---------------------------------------------------------------------------
+[*.cs]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+csharp_new_line_before_open_brace = all
+dotnet_sort_system_directives_first = true
+
+[*.{json,tsv,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{sh,Makefile}]
+indent_style = tab
+
+[Makefile]
+indent_style = tab
+
+# ---------------------------------------------------------------------------
+# Code TRANSCRIT depuis pcem-dev/.
+#
+# Ces fichiers reproduisent la structure et les identifiants du C pour qu'un
+# `grep -n <symbole>` renvoie des lignes correspondantes des deux côtés. Toute
+# règle de style qui réécrirait une ligne détruit cette propriété, qui est la
+# seule raison d'être de la transcription.
+#
+# On neutralise donc ici ce que Rider/Roslyn proposerait sur presque chaque
+# ligne. Ce n'est PAS un blanc-seing sur les avertissements du compilateur :
+# ceux-là (CS1717, CS0168, ...) restent traités en erreurs et se neutralisent
+# fichier par fichier avec des #pragma énumérés et commentés.
+# ---------------------------------------------------------------------------
+[{Cpu,Memory,Models,Keyboard,Video,PluginApi}/**.cs]
+
+# Nommage : snake_case de PCem conservé verbatim.
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1708.severity = none
+
+# Mise en forme : réécrire une ligne, c'est perdre la ligne du diff.
+dotnet_diagnostic.IDE0011.severity = none   # ajouter des accolades
+dotnet_diagnostic.IDE0045.severity = none   # utiliser une expression conditionnelle (affectation)
+dotnet_diagnostic.IDE0046.severity = none   # utiliser une expression conditionnelle (retour)
+dotnet_diagnostic.IDE0057.severity = none   # utiliser l'opérateur de plage
+dotnet_diagnostic.IDE0056.severity = none   # utiliser l'opérateur d'index
+dotnet_diagnostic.IDE0066.severity = none   # switch expression
+dotnet_diagnostic.IDE0270.severity = none   # simplifier la vérification de null
+dotnet_diagnostic.IDE0047.severity = none   # parenthèses superflues — la précédence C reste lisible
+dotnet_diagnostic.IDE0048.severity = none   # parenthèses manquantes
+dotnet_diagnostic.IDE0055.severity = none   # mise en forme générale
+
+# Champs globaux transcrits : beaucoup sont écrits par un fichier et lus par un
+# autre, ou renseignés par l'oracle. Roslyn les croit inutilisés.
+dotnet_diagnostic.CS0649.severity = none    # champ jamais assigné
+dotnet_diagnostic.IDE0044.severity = none   # rendre readonly — interdit (cf. R4 : lost write)
+dotnet_diagnostic.IDE0051.severity = none   # membre privé inutilisé
+dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
+
+[{io,timer,pc,ppi}.cs]
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.IDE0011.severity = none
+dotnet_diagnostic.IDE0045.severity = none
+dotnet_diagnostic.IDE0046.severity = none
+dotnet_diagnostic.IDE0055.severity = none
+dotnet_diagnostic.CS0649.severity = none
+dotnet_diagnostic.IDE0044.severity = none

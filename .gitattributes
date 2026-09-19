@@ -1,0 +1,23 @@
+# L'arbre vendoré est l'oracle : il doit être préservé octet pour octet.
+#
+# 315 de ses fichiers ont des fins de ligne CRLF, et ce dépôt tourne sous
+# core.autocrlf=input. Sans la règle ci-dessous, git normaliserait ces fichiers en
+# LF à l'indexation : le contenu après un clone frais ne correspondrait plus au
+# hash publié dans VENDORED.md, et chacun des sha256 par fichier d'oracle.tsv
+# serait faux. Autrement dit, la référence changerait toute seule.
+pcem-dev/** -text
+
+# Nos sources : normalisation LF standard.
+*.cs text eol=lf
+*.csproj text eol=lf
+*.sln text eol=crlf
+*.md text eol=lf
+*.sh text eol=lf
+*.tsv text eol=lf
+Makefile text eol=lf
+
+# Binaires
+*.rom binary
+*.bin binary
+*.gz binary
+*.pack binary
