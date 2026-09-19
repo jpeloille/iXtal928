@@ -1,0 +1,193 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: pcem-dev/includes/private/cpu/x86.h  (lignes 1-245)
+// SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
+// STATUS: partial — palier (a) seulement. Les champs 8087/MMX/SMM/32 bits sont
+//         omis, cf. le registre des omissions de TRANSCRIPTION.md.
+//
+// Types du CPU et couche de macros. x86.h aplatit cpu_state en #define pour que
+// 4 000 lignes puissent écrire `cycles -= 3;` ou `AL = 0x42;`. On reproduit cet
+// aplatissement avec des propriétés ref-returning : une propriété ref EST une
+// variable, donc l'affectation composée compile et mute le référent. Résoudre
+// les macros à la main reviendrait à réécrire chacune de ces 4 000 lignes.
+
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace iXtal26.Cpu;
+
+// pcem: x86.h:29-35
+[StructLayout(LayoutKind.Explicit, Size = 4)]
+internal struct x86reg
+{
+    [FieldOffset(0)] internal uint32_t l;
+    [FieldOffset(0)] internal uint16_t w;
+    [FieldOffset(0)] internal x86reg_b b;
+}
+
+// L'union b tient les deux moitiés 8 bits. Petit-boutien assumé, exactement
+// comme le C : getr8 (x86.h:227) indexe regs[r & 3] et choisit la moitié sur le
+// bit 2 de r, ce qui n'a de sens qu'avec cette disposition.
+[StructLayout(LayoutKind.Explicit, Size = 2)]
+internal struct x86reg_b
+{
+    [FieldOffset(0)] internal uint8_t l;
+    [FieldOffset(1)] internal uint8_t h;
+}
+
+// pcem: x86.h:37-45
+// Classe et non struct : cpu_state.ea_seg est un x86seg* qui aliase l'un des six
+// segments. Un type valeur ferait une copie et l'écriture serait perdue sans
+// diagnostic.
+internal sealed class x86seg
+{
+    internal uint32_t @base;      // `base` est un mot-clé C#
+    internal uint32_t limit, limit_raw;
+    internal uint8_t access, access2;
+    internal uint16_t seg;
+    internal uint32_t limit_low, limit_high;
+    internal int @checked;        // `checked` est un mot-clé C#
+}
+
+// pcem: x86.h:57-118
+internal sealed class cpu_state_t
+{
+    internal readonly x86reg[] regs = new x86reg[8];
+
+    internal x86seg? ea_seg;
+    internal uint32_t eaaddr;
+
+    internal uint32_t pc;
+    internal uint32_t oldpc;
+
+    // pcem: x86.h:76-81 — l'union rm_data. Le palier (a) ne lit jamais la forme
+    // agrégée rm_mod_reg_data, seulement les trois champs.
+    internal int8_t rm, mod, reg;
+
+    internal int8_t ssegs;
+    internal int8_t abrt;
+
+    internal int _cycles;
+
+    internal readonly x86seg seg_cs = new(), seg_ds = new(), seg_es = new();
+    internal readonly x86seg seg_ss = new(), seg_fs = new(), seg_gs = new();
+
+    internal uint32_t CR0;
+
+    internal uint16_t flags, eflags;
+
+    internal uint32_t smbase;
+
+    // omitted: flags_op / flags_res / flags_op1 / flags_op2 — flags paresseux du
+    // cœur 386. Mesuré : 0 occurrence dans 808x.c comme dans x86seg.c, le 8088
+    // calcule ses flags en direct via znptable8/16.
+    // omitted: ST/TOP/tag/npxs/npxc/MM/MM_w4/ismmx — 8087 et MMX.
+    // omitted: smi_pending, op32, cpu_recomp_ins, old_fp_control & co.
+}
+
+internal static partial class x86
+{
+    // pcem: x86.h:119 — le singleton. Global de PCem, global ici : voir
+    // TRANSCRIPTION.md sur pourquoi il n'y a pas de struct d'instance.
+    internal static readonly cpu_state_t cpu_state = new();
+
+    // ---- pcem: x86.h:122-143 — l'aplatissement en macros ------------------
+    // Chacune est une propriété ref : `cycles -= 3;` compile et mute le champ.
+
+    internal static ref int cycles { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => ref cpu_state._cycles; }
+    internal static ref uint32_t cr0 { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => ref cpu_state.CR0; }
+
+    // msw est les 16 bits bas de CR0 (union w/l en C). Une propriété ref ne peut
+    // pas rendre une demi-variable : seul site du fichier où la macro se résout.
+    internal static uint16_t msw
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] get => (uint16_t)cpu_state.CR0;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] set => cpu_state.CR0 = (cpu_state.CR0 & 0xFFFF0000u) | value;
+    }
+
+    /*Segments -
+      _cs,_ds,_es,_ss are the segment structures
+      CS,DS,ES,SS is the 16-bit data
+      cs,ds,es,ss are defines to the bases*/
+    internal static ref uint16_t CS { get => ref cpu_state.seg_cs.seg; }
+    internal static ref uint16_t DS { get => ref cpu_state.seg_ds.seg; }
+    internal static ref uint16_t ES { get => ref cpu_state.seg_es.seg; }
+    internal static ref uint16_t SS { get => ref cpu_state.seg_ss.seg; }
+    internal static ref uint16_t FS { get => ref cpu_state.seg_fs.seg; }
+    internal static ref uint16_t GS { get => ref cpu_state.seg_gs.seg; }
+    internal static ref uint32_t cs { get => ref cpu_state.seg_cs.@base; }
+    internal static ref uint32_t ds { get => ref cpu_state.seg_ds.@base; }
+    internal static ref uint32_t es { get => ref cpu_state.seg_es.@base; }
+    internal static ref uint32_t ss { get => ref cpu_state.seg_ss.@base; }
+    internal static ref uint32_t gs { get => ref cpu_state.seg_gs.@base; }
+
+    // pcem: x86.h:4-27 — registres généraux
+    internal static ref uint32_t EAX { get => ref cpu_state.regs[0].l; }
+    internal static ref uint32_t ECX { get => ref cpu_state.regs[1].l; }
+    internal static ref uint32_t EDX { get => ref cpu_state.regs[2].l; }
+    internal static ref uint32_t EBX { get => ref cpu_state.regs[3].l; }
+    internal static ref uint32_t ESP { get => ref cpu_state.regs[4].l; }
+    internal static ref uint32_t EBP { get => ref cpu_state.regs[5].l; }
+    internal static ref uint32_t ESI { get => ref cpu_state.regs[6].l; }
+    internal static ref uint32_t EDI { get => ref cpu_state.regs[7].l; }
+    internal static ref uint16_t AX { get => ref cpu_state.regs[0].w; }
+    internal static ref uint16_t CX { get => ref cpu_state.regs[1].w; }
+    internal static ref uint16_t DX { get => ref cpu_state.regs[2].w; }
+    internal static ref uint16_t BX { get => ref cpu_state.regs[3].w; }
+    internal static ref uint16_t SP { get => ref cpu_state.regs[4].w; }
+    internal static ref uint16_t BP { get => ref cpu_state.regs[5].w; }
+    internal static ref uint16_t SI { get => ref cpu_state.regs[6].w; }
+    internal static ref uint16_t DI { get => ref cpu_state.regs[7].w; }
+    internal static ref uint8_t AL { get => ref cpu_state.regs[0].b.l; }
+    internal static ref uint8_t AH { get => ref cpu_state.regs[0].b.h; }
+    internal static ref uint8_t CL { get => ref cpu_state.regs[1].b.l; }
+    internal static ref uint8_t CH { get => ref cpu_state.regs[1].b.h; }
+    internal static ref uint8_t DL { get => ref cpu_state.regs[2].b.l; }
+    internal static ref uint8_t DH { get => ref cpu_state.regs[2].b.h; }
+    internal static ref uint8_t BL { get => ref cpu_state.regs[3].b.l; }
+    internal static ref uint8_t BH { get => ref cpu_state.regs[3].b.h; }
+
+    // pcem: x86.h:76-81 — les trois champs de rm_data, vus comme cpu_mod/reg/rm
+    internal static ref int8_t cpu_mod { get => ref cpu_state.mod; }
+    internal static ref int8_t cpu_reg { get => ref cpu_state.reg; }
+    internal static ref int8_t cpu_rm { get => ref cpu_state.rm; }
+
+    // pcem: x86.h:227-235
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static uint8_t getr8(int r) => (r & 4) != 0 ? cpu_state.regs[r & 3].b.h : cpu_state.regs[r & 3].b.l;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void setr8(int r, uint8_t v)
+    {
+        if ((r & 4) != 0) cpu_state.regs[r & 3].b.h = v;
+        else cpu_state.regs[r & 3].b.l = v;
+    }
+
+    // pcem: x86.h:145-172 — drapeaux
+    internal const uint16_t C_FLAG = 0x0001;
+    internal const uint16_t P_FLAG = 0x0004;
+    internal const uint16_t A_FLAG = 0x0010;
+    internal const uint16_t Z_FLAG = 0x0040;
+    internal const uint16_t N_FLAG = 0x0080;
+    internal const uint16_t T_FLAG = 0x0100;
+    internal const uint16_t I_FLAG = 0x0200;
+    internal const uint16_t D_FLAG = 0x0400;
+    internal const uint16_t V_FLAG = 0x0800;
+    internal const uint16_t NT_FLAG = 0x4000;
+
+    // pcem: x86.h:196-210 — globaux hors cpu_state
+    internal static x86seg gdt = new(), ldt = new(), idt = new(), tr = new();
+    internal static uint32_t rmdat;
+    internal static uint32_t easeg;
+    internal static int oldcpl;
+    internal static uint32_t oldss;
+    internal static int nmi_enable;
+    internal static int trap;
+    internal static uint32_t use32;
+    internal static int stack32;
+    internal static uint16_t cpu_cur_status;
+    internal static uint32_t cr2, cr3, cr4;
+    internal static int cgate32;
+    internal static int x86_was_reset;
+}

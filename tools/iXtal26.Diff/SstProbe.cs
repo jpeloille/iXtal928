@@ -27,6 +27,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using iXtal26.Diag;
 
 namespace iXtal26.Diff;
 

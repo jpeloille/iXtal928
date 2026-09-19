@@ -5,7 +5,6 @@ change, jamais pour expliquer une ligne de code. Le projet précédent
 (`~/RiderProjects/Retro/IXtal`) s'est arrêté à `NOP` après 1 490 lignes dont ~1 100 de
 commentaires de conception : les règles ci-dessous sont les anticorps de ce mode d'échec,
 comptables ou greppables, pas déclaratives.
-
 ---
 
 ## Règles
@@ -18,9 +17,13 @@ comptables ou greppables, pas déclaratives.
   (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:`, `// CS0165:`.
   Le commentaire de 140 lignes qui explique un choix de conception relève d'une
   catégorie (e) qui n'existe pas. Le code mort commenté de PCem n'est pas reproduit.
-- **R2 — parité de lignes, ±25 %.** Le C# vivant d'une région doit tomber à ±25 % du C
-  vivant correspondant (blancs et commentaires exclus des deux côtés). Déclenché ⟹ on
-  supprime, on ne négocie pas.
+- **R2 — parité de lignes.** Le C# vivant d'une région se compare au C vivant
+  correspondant (blancs et commentaires exclus des deux côtés). **Le plafond +25 % est
+  toujours contraignant** : c'est lui l'anticorps anti-délayage, déclenché ⟹ on supprime,
+  on ne négocie pas. Le plancher −25 % ne s'applique qu'aux fichiers `status:
+  transcribed` : un `partial` est plus court par construction, chaque ligne absente étant
+  couverte par une entrée du registre des omissions. Être plus court sans omission
+  déclarée, en revanche, c'est du code oublié — et ça, R6(a) l'attrape.
 - **R3 — un seul fichier de prose.** Celui-ci.
 - **R4 — zéro abstraction.** Pas d'`interface`, `abstract class`, générique, LINQ,
   `record`, `async`, DI, méthode d'extension. Le C du palier (a) n'en contient aucun.

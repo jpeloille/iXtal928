@@ -4,78 +4,17 @@
 // ORACLE: (aucun) — couche d'interopérabilité, pas de contrepartie C à transcrire.
 //
 // P/Invoke vers tools/oracle/libixtal26oracle.so : le vrai cœur 8088 de PCem.
+//
+// HState, R et Seg vivent dans l'assembly du cœur (iXtal26.Diag) : c'est le
+// cœur qui remplit le vecteur d'état, et cet outillage qui y marshale l'oracle.
+// La dépendance va outillage -> cœur, jamais l'inverse.
 // C'est par ici que passe tout le diff différentiel — la seule source de vérité
 // pour la comptabilité de cycles, que SingleStepTests ne peut pas valider.
 
 using System.Runtime.InteropServices;
+using iXtal26.Diag;
 
 namespace iXtal26.Diff;
-
-/// <summary>Index des registres dans le vecteur de 14 (calqué sur harness.h).</summary>
-public enum R
-{
-    AX = 0, BX, CX, DX, CS, SS, DS, ES, SP, BP, SI, DI, IP, FLAGS, COUNT
-}
-
-/// <summary>Index des segments (calqué sur harness.h).</summary>
-public enum Seg
-{
-    CS = 0, DS, ES, SS, FS, GS, COUNT
-}
-
-/// <summary>
-/// Image de <c>h_state</c> (tools/oracle/harness.h). L'ordre et les types des
-/// champs doivent correspondre exactement : un décalage ne lèverait aucune
-/// exception, il produirait des comparaisons silencieusement fausses. C'est
-/// pourquoi <see cref="Oracle.CheckAbi"/> assène Marshal.SizeOf contre le
-/// sizeof que le compilateur C rapporte.
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-public struct HState
-{
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public uint[] regs;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_base;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public ushort[] seg_sel;
-    public ushort flags;
-    public ushort eflags;
-    public ushort prefetchpc;
-    public uint pc;
-    public uint oldpc;
-    public uint eaaddr;
-    public int ea_seg_idx;
-    public int ssegs;
-    public int abrt;
-
-    public int cycles;
-    public ulong tsc;
-    public ulong tsc_frac;
-    public int memcycs;
-    public int fetchcycles;
-    public int fetchclocks;
-    public int nextcyc;
-    public int cycdiff;
-    public int current_diff;
-    public int prefetchw;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public byte[] prefetchqueue;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public byte[] _pad;
-
-    public int noint;
-    public int inhlt;
-    public int takeint;
-
-    public ulong n_inb;
-    public ulong n_outb;
-    public ulong n_picint;
-    public ulong n_picinterrupt;
-    public ulong n_timer_process;
-    public ulong n_readmembl;
-    public ulong n_writemembl;
-    public ulong n_readmemwl;
-    public ulong n_writememwl;
-    public ulong n_fatal;
-
-    public ulong ins;
-}
 
 public static class Oracle
 {

@@ -37,12 +37,21 @@ indent_style = tab
 # ceux-là (CS1717, CS0168, ...) restent traités en erreurs et se neutralisent
 # fichier par fichier avec des #pragma énumérés et commentés.
 # ---------------------------------------------------------------------------
-[{Cpu,Memory,Models,Keyboard,Video,PluginApi}/**.cs]
+[**/{Cpu,Memory,Models,Keyboard,Video,PluginApi,Diag}/**.cs]
 
 # Nommage : snake_case de PCem conservé verbatim.
 dotnet_diagnostic.IDE1006.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1708.severity = none
+
+# CS8981 : « le nom de type ne contient que des minuscules ASCII, il pourrait
+# devenir réservé ». Cela frappe chaque conteneur transcrit — mem, io, pc, ppi,
+# timer, video, pit, pic, dma, nmi, model — puisque leur nom doit être celui du
+# fichier C pour que `using static ... mem;` se lise comme `#include "mem.h"`.
+# Ajouter un suffixe à une douzaine de conteneurs pour un avertissement portant
+# sur d'hypothétiques mots-clés futurs serait de la cérémonie. On suppose le
+# risque, et il est réversible d'un coup de sed.
+dotnet_diagnostic.CS8981.severity = none
 
 # Mise en forme : réécrire une ligne, c'est perdre la ligne du diff.
 dotnet_diagnostic.IDE0011.severity = none   # ajouter des accolades
@@ -63,7 +72,7 @@ dotnet_diagnostic.IDE0044.severity = none   # rendre readonly — interdit (cf. 
 dotnet_diagnostic.IDE0051.severity = none   # membre privé inutilisé
 dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
 
-[{io,timer,pc,ppi}.cs]
+[**/{io,timer,pc,ppi}.cs]
 dotnet_diagnostic.IDE1006.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.IDE0011.severity = none

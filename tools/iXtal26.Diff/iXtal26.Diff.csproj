@@ -16,4 +16,10 @@
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <ItemGroup>
+        <!-- HState / R / Seg : le vecteur d'état comparé. Défini par le cœur,
+             consommé ici. -->
+        <ProjectReference Include="../../iXtal26/iXtal26.csproj"/>
+    </ItemGroup>
+
 </Project>
