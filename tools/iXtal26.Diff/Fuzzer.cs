@@ -53,6 +53,138 @@ public static class Fuzzer
         }
     }
 
+    /// <summary>
+    /// Mode « une instruction » : à chaque itération, un opcode du jeu suivi
+    /// d'octets aléatoires est posé à CS:IP, les 14 registres sont tirés, et on
+    /// exécute UNE instruction. C'est le mode qui couvre réellement les opérandes
+    /// — ModRM, déplacements, immédiats — là où le mode flux ne fait varier que
+    /// l'enchaînement.
+    ///
+    /// Les écritures mémoire sont comparées par le journal d'écritures, pas par
+    /// un hachage de la RAM : c'est exact, ça coûte quelques comparaisons au lieu
+    /// de 2 Mo, et ça nomme l'adresse fautive.
+    /// </summary>
+    public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose)
+    {
+        Oracle.CheckAbi();
+        Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
+                          $"{string.Join(",", opcodes.Select(o => $"0x{o:X2}"))}, " +
+                          $"{iterations} itérations, graine {seed}");
+
+        var rng = new Lcg(seed);
+        var a = HState.Create();
+        var b = HState.Create();
+        var regs = new ushort[(int)R.COUNT];
+        var code = new byte[8];
+        var perOpcode = new Dictionary<byte, int>();
+        var steeredCount = 0;
+
+        for (var it = 0; it < iterations; it++)
+        {
+            var op = opcodes[rng.Next() % (uint)opcodes.Length];
+            perOpcode[op] = perOpcode.GetValueOrDefault(op) + 1;
+
+            Oracle.h_reset();
+            Oracle.h_fill_ram(0x90);
+            _808x.Reset();
+            mem.fill_ram(0x90);
+
+            for (var i = 0; i < (int)R.COUNT; i++)
+                regs[i] = rng.Next16();
+            regs[(int)R.CS] = 0x2000;
+            regs[(int)R.IP] = (ushort)(rng.Next() & 0x0FFF);
+
+            code[0] = op;
+            for (var i = 1; i < code.Length; i++)
+                code[i] = (byte)rng.Next();
+
+            // Cas AUTO-RÉFÉRENTIEL, une fois sur huit.
+            //
+            // readmemb (808x.c:57-64) ne facture memcycs QUE si l'adresse lue
+            // diffère de cs + pc. Cette garde ne change donc rien tant que
+            // l'opérande ne tombe pas exactement sur le pointeur d'instruction —
+            // ce que des opérandes aléatoires ne produisent jamais (1 chance sur
+            // 65 536). Sans ces cas construits, la garde est du code non testé
+            // qu'on croit vérifié.
+            //
+            // Construction : adressage direct (mod=0, rm=6), déplacement = IP+4
+            // — pc a alors avancé de l'opcode, du ModRM et des deux octets de
+            // déplacement — et DS forcé égal à CS pour que les bases coïncident.
+            var steered = (rng.Next() & 7) == 0 && op <= 0x03;
+            if (steered)
+            {
+                regs[(int)R.DS] = regs[(int)R.CS];
+                code[1] = 0x06;                                  // mod=00, rm=110 : direct
+                var target = (ushort)(regs[(int)R.IP] + 4);
+                code[2] = (byte)target;
+                code[3] = (byte)(target >> 8);
+            }
+
+            var linear = (uint)(regs[(int)R.CS] << 4) + regs[(int)R.IP];
+            Oracle.h_load(linear, code, (uint)code.Length);
+            for (var i = 0; i < code.Length; i++)
+                mem.ram[(linear + i) & mem.rammask] = code[i];
+
+            if (steered)
+                steeredCount++;
+
+            Oracle.h_setregs(regs);
+            _808x.SetRegs(regs);
+
+            Oracle.h_wlog_reset();
+            mem.wlog_reset();
+
+            var cycC = Oracle.h_step();
+            var cycS = _808x.Step();
+
+            Oracle.h_getstate(out a);
+            _808x.GetState(ref b);
+
+            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites();
+            if (diff is null)
+                continue;
+
+            Console.WriteLine($"\nDIVERGENCE itération {it}");
+            Console.WriteLine($"  opcode 0x{op:X2}, octets {string.Join(" ", code.Select(x => x.ToString("X2")))}");
+            Console.WriteLine($"  CS:IP {regs[(int)R.CS]:X4}:{regs[(int)R.IP]:X4}  " +
+                              $"AX {regs[(int)R.AX]:X4} BX {regs[(int)R.BX]:X4} " +
+                              $"CX {regs[(int)R.CX]:X4} DX {regs[(int)R.DX]:X4}");
+            Console.WriteLine($"  DS {regs[(int)R.DS]:X4} ES {regs[(int)R.ES]:X4} SS {regs[(int)R.SS]:X4} " +
+                              $"SP {regs[(int)R.SP]:X4} BP {regs[(int)R.BP]:X4} " +
+                              $"SI {regs[(int)R.SI]:X4} DI {regs[(int)R.DI]:X4} FL {regs[(int)R.FLAGS]:X4}");
+            Console.WriteLine($"  {diff}");
+            Console.WriteLine($"\n  Rejouer : --mode single --seed {seed} --iter {it + 1}");
+            return 1;
+        }
+
+        Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
+        foreach (var (op, n) in perOpcode.OrderBy(kv => kv.Key))
+            Console.WriteLine($"    0x{op:X2} : {n} tirages");
+        Console.WriteLine($"    dont {steeredCount} cas auto-référentiels (EA == cs+pc)");
+        return 0;
+    }
+
+    /// <summary>Compare les écritures mémoire de la dernière instruction.
+    /// Exact, et nomme l'adresse fautive — là où un hachage dirait seulement
+    /// « la RAM diffère ».</summary>
+    private static string? CmpWrites()
+    {
+        var nC = Oracle.h_wlog_count();
+        var nS = mem.wlog_n;
+        if (nC != nS)
+            return $"nombre d'écritures : oracle {nC}, C# {nS}";
+        for (var i = 0; i < Math.Min(nC, mem.WLOG_MAX); i++)
+        {
+            if (Oracle.h_wlog_get_addr(i) != mem.wlog_addr[i])
+                return $"écriture {i} adresse : oracle 0x{Oracle.h_wlog_get_addr(i):X5}, " +
+                       $"C# 0x{mem.wlog_addr[i]:X5}";
+            if (Oracle.h_wlog_get_val(i) != mem.wlog_val[i])
+                return $"écriture {i} en 0x{mem.wlog_addr[i]:X5} : oracle 0x{Oracle.h_wlog_get_val(i):X2}, " +
+                       $"C# 0x{mem.wlog_val[i]:X2}";
+        }
+        return null;
+    }
+
     public static int Run(byte[] opcodes, int rounds, int instrPerRound, ulong seed, bool verbose,
                           bool ramPerInstr = false)
     {

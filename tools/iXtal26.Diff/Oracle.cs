@@ -65,6 +65,10 @@ public static class Oracle
     [DllImport(Lib)] public static extern int h_run(int cycs);
     [DllImport(Lib)] public static extern void h_getstate(out HState s);
     [DllImport(Lib)] public static extern ulong h_ram_hash();
+    [DllImport(Lib)] public static extern void h_wlog_reset();
+    [DllImport(Lib)] public static extern int h_wlog_count();
+    [DllImport(Lib)] public static extern uint h_wlog_get_addr(int i);
+    [DllImport(Lib)] public static extern byte h_wlog_get_val(int i);
 
     /// <summary>
     /// Vérifie que le contrat binaire tient. À appeler avant toute utilisation :

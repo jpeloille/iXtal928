@@ -12,7 +12,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      rapporte le taux de réussite. Porte de M0 — décide si le");
     Console.WriteLine("      harnais xunit complet vaut d'être construit.");
     Console.WriteLine();
-    Console.WriteLine("  fuzz [--op XX ...] [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
+    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N]");
+    Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
     Console.WriteLine("      opcode que 808x.c laisse tomber dans son `default:`.");
@@ -67,6 +68,8 @@ switch (args[0])
         ulong seed = 1;
         var verbose = false;
         var ramPerInstr = false;
+        var single = false;
+        var iterations = 20000;
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -79,6 +82,8 @@ switch (args[0])
                 case "--seed" when i + 1 < args.Length: seed = ulong.Parse(args[++i]); break;
                 case "-v": verbose = true; break;
                 case "--ram-per-instr": ramPerInstr = true; break;
+                case "--mode" when i + 1 < args.Length: single = args[++i] == "single"; break;
+                case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;
@@ -90,7 +95,9 @@ switch (args[0])
         if (ops.Count == 0)
             ops.Add(0xCE);
 
-        return Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, ramPerInstr);
+        return single
+            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose)
+            : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, ramPerInstr);
     }
 
     default:

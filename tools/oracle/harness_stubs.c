@@ -48,6 +48,29 @@
 
 #include "harness.h"
 
+/* --- journal d'ecritures --------------------------------------------------
+ * Une instruction n'ecrit qu'a une poignee d'endroits. Enregistrer ces adresses
+ * permet de comparer la memoire exactement, sans hacher 1 Mo par instruction et
+ * par cote — et surtout en NOMMANT l'adresse divergente au lieu de dire « la RAM
+ * differe quelque part ». */
+
+uint32_t h_wlog_addr[H_WLOG_MAX];
+uint8_t h_wlog_val[H_WLOG_MAX];
+int h_wlog_n;
+
+static void wlog(uint32_t addr, uint8_t val) {
+        if (h_wlog_n < H_WLOG_MAX) {
+                h_wlog_addr[h_wlog_n] = addr;
+                h_wlog_val[h_wlog_n] = val;
+        }
+        h_wlog_n++; /* continue de compter au-dela, pour que le depassement se voie */
+}
+
+void h_wlog_reset(void) { h_wlog_n = 0; }
+int h_wlog_count(void) { return h_wlog_n; }
+uint32_t h_wlog_get_addr(int i) { return (i >= 0 && i < H_WLOG_MAX) ? h_wlog_addr[i] : 0; }
+uint8_t h_wlog_get_val(int i) { return (i >= 0 && i < H_WLOG_MAX) ? h_wlog_val[i] : 0; }
+
 /* --- compteurs ------------------------------------------------------------ */
 
 uint64_t h_n_inb, h_n_outb, h_n_picint, h_n_picinterrupt, h_n_timer_process;
@@ -94,6 +117,7 @@ uint8_t readmembl(uint32_t addr) {
 void writemembl(uint32_t addr, uint8_t val) {
         h_n_writemembl++;
         ram[addr & rammask] = val;
+        wlog(addr & rammask, val);
 }
 
 uint16_t readmemwl(uint32_t addr) {
@@ -107,6 +131,8 @@ void writememwl(uint32_t addr, uint16_t val) {
         h_n_writememwl++;
         ram[addr & rammask] = (uint8_t)val;
         ram[(addr + 1) & rammask] = (uint8_t)(val >> 8);
+        wlog(addr & rammask, (uint8_t)val);
+        wlog((addr + 1) & rammask, (uint8_t)(val >> 8));
 }
 
 uint32_t readmemll(uint32_t addr) {

@@ -45,6 +45,28 @@ internal static partial class mem
     internal static int[] writelookup2 = new int[1 << 20];
     internal static int readlnum, writelnum;
 
+    // --- journal d'écritures (paire avec harness_stubs.c) -------------------
+    // Une instruction n'écrit qu'à une poignée d'endroits. Enregistrer ces
+    // adresses permet de comparer la mémoire exactement, sans hacher 1 Mo par
+    // instruction et par côté — et surtout en NOMMANT l'adresse divergente au
+    // lieu de dire « la RAM diffère quelque part ».
+    internal const int WLOG_MAX = 16;
+    internal static readonly uint32_t[] wlog_addr = new uint32_t[WLOG_MAX];
+    internal static readonly uint8_t[] wlog_val = new uint8_t[WLOG_MAX];
+    internal static int wlog_n;
+
+    private static void wlog(uint32_t addr, uint8_t val)
+    {
+        if (wlog_n < WLOG_MAX)
+        {
+                wlog_addr[wlog_n] = addr;
+                wlog_val[wlog_n] = val;
+        }
+        wlog_n++; // continue de compter au-delà, pour que le dépassement se voie
+    }
+
+    internal static void wlog_reset() => wlog_n = 0;
+
     /// <summary>
     /// Le cache de pages de 4 Ko est laissé entièrement à -1, ce qui force chaque
     /// accès à descendre dans readmembl/writemembl. Chemin déterministe, et
@@ -71,6 +93,7 @@ internal static partial class mem
     {
         Counters.n_writemembl++;
         ram[addr & rammask] = val;
+        wlog(addr & rammask, val);
     }
 
     internal static uint16_t readmemwl(uint32_t addr)
@@ -86,6 +109,8 @@ internal static partial class mem
         Counters.n_writememwl++;
         ram[addr & rammask] = (uint8_t)val;
         ram[(addr + 1) & rammask] = (uint8_t)(val >> 8);
+        wlog(addr & rammask, (uint8_t)val);
+        wlog((addr + 1) & rammask, (uint8_t)(val >> 8));
     }
 
     internal static void resetreadlookup() => mem_init();

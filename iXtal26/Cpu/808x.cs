@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/cpu/808x.c  (lignes 36-260, 886-906, 1222-1276, 3902-3996)
+// ORACLE: pcem-dev/src/cpu/808x.c
+//         (36-260, 340-455, 456-520, 662-702, 748-886, 886-906, 1222-1340, 3902-3996)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — M1.0b : accesseurs, file de préfetch, clockhardware, et la
-//         coquille d'execx86 avec un seul `default:`. Aucun opcode réel encore.
+// STATUS: partial — M1.1a : accesseurs, file de préfetch, calcul d'EA, tables et
+//         helpers de flags, resetx86, boucle execx86, opcodes 0x00-0x07.
 //
 // Le modèle de temps du 8088. C'est la partie la plus fidèle de PCem et la plus
 // fragile à transcrire : la réconciliation entre cycdiff, cycles, memcycs,
@@ -71,11 +72,13 @@ internal static partial class _808x
     // Ils comptabilisent `memcycs`, les cycles de bus consommés par les DONNÉES,
     // que la réconciliation de fin d'instruction retranchera du budget.
     //
-    // La garde `if (a != (cs + cpu_state.pc))` est chargée de sens : elle
-    // distingue une lecture d'opérande d'une relecture du flux d'instruction, et
-    // l'oublier rend lourde de quelques cycles chaque instruction qui lit son
-    // propre flux — sans que rien ne plante. readmembf, la variante de préfetch,
-    // ne facture rien du tout.
+    // La garde `if (a != (cs + cpu_state.pc))` ne mord que sur les accès
+    // AUTO-RÉFÉRENTIELS — quand l'opérande tombe exactement sur le pointeur
+    // d'instruction. C'est rare, et c'est précisément ce qui la rend dangereuse :
+    // des opérandes aléatoires ne l'atteignent jamais (1 sur 65 536), si bien
+    // qu'on peut la supprimer sans qu'aucun test ne bronche. Le fuzzer fabrique
+    // donc ces cas exprès (voir Fuzzer.RunSingle). readmembf, la variante de
+    // préfetch, ne facture rien du tout.
     // -----------------------------------------------------------------------
 
     private static uint8_t readmemb(uint32_t a)
@@ -277,6 +280,403 @@ internal static partial class _808x
                 timer.timer_process();
     }
 
+    // -----------------------------------------------------------------------
+    // Calcul d'adresse effective (pcem: 808x.c:340-455)
+    // -----------------------------------------------------------------------
+
+    // pcem: 808x.c:344-348
+    //
+    // DEVIATION: en C ce sont des tableaux de POINTEURS vers des champs —
+    //   uint16_t *mod1add[2][8];  uint32_t *mod1seg[8];
+    // le C# sûr n'a pas de pointeur de donnée. On stocke donc des INDEX (de
+    // registre pour mod1add, avec -1 pour le `zero` de PCem ; de segment pour
+    // mod1seg) et on déréférence au site d'usage. Même table, même résultat,
+    // indirection exprimée autrement.
+    private static readonly int[,] mod1add = new int[2, 8];
+    private static readonly int[] mod1seg = new int[8];
+    internal static readonly int[] slowrm = new int[8];
+
+    private const int MOD1_ZERO = -1;
+    private const int MOD1_DS = 0, MOD1_SS = 1;
+
+    // pcem: 808x.c:350-378
+    internal static void makemod1table()
+    {
+        mod1add[0, 0] = 3; // &BX
+        mod1add[0, 1] = 3; // &BX
+        mod1add[0, 2] = 5; // &BP
+        mod1add[0, 3] = 5; // &BP
+        mod1add[0, 4] = 6; // &SI
+        mod1add[0, 5] = 7; // &DI
+        mod1add[0, 6] = 5; // &BP
+        mod1add[0, 7] = 3; // &BX
+        mod1add[1, 0] = 6; // &SI
+        mod1add[1, 1] = 7; // &DI
+        mod1add[1, 2] = 6; // &SI
+        mod1add[1, 3] = 7; // &DI
+        mod1add[1, 4] = MOD1_ZERO;
+        mod1add[1, 5] = MOD1_ZERO;
+        mod1add[1, 6] = MOD1_ZERO;
+        mod1add[1, 7] = MOD1_ZERO;
+        slowrm[0] = 0;
+        slowrm[1] = 1;
+        slowrm[2] = 1;
+        slowrm[3] = 0;
+        mod1seg[0] = MOD1_DS;
+        mod1seg[1] = MOD1_DS;
+        mod1seg[2] = MOD1_SS;
+        mod1seg[3] = MOD1_SS;
+        mod1seg[4] = MOD1_DS;
+        mod1seg[5] = MOD1_DS;
+        mod1seg[6] = MOD1_SS;
+        mod1seg[7] = MOD1_DS;
+    }
+
+    private static uint16_t Mod1Add(int which, int rm)
+    {
+        var idx = mod1add[which, rm];
+        return idx == MOD1_ZERO ? (uint16_t)0 : cpu_state.regs[idx].w;
+    }
+
+    private static uint32_t Mod1Seg(int rm) => mod1seg[rm] == MOD1_DS ? ds : ss;
+
+    // pcem: 808x.c:381-414 — les coûts en cycles du calcul d'EA sont ici, dans
+    // les FETCHADD : c'est la table de timings d'EA du 8086.
+    private static void fetcheal()
+    {
+        if (cpu_mod == 0 && cpu_rm == 6)
+        {
+                cpu_state.eaaddr = getword();
+                easeg = ds;
+                FETCHADD(6);
+        }
+        else
+        {
+                switch (cpu_mod)
+                {
+                case 0:
+                        cpu_state.eaaddr = 0;
+                        if ((cpu_rm & 4) != 0)
+                                FETCHADD(5);
+                        else
+                                FETCHADD(7 + slowrm[cpu_rm]);
+                        break;
+                case 1:
+                        cpu_state.eaaddr = (uint16_t)(int8_t)FETCH();
+                        if ((cpu_rm & 4) != 0)
+                                FETCHADD(9);
+                        else
+                                FETCHADD(11 + slowrm[cpu_rm]);
+                        break;
+                case 2:
+                        cpu_state.eaaddr = getword();
+                        if ((cpu_rm & 4) != 0)
+                                FETCHADD(9);
+                        else
+                                FETCHADD(11 + slowrm[cpu_rm]);
+                        break;
+                }
+                cpu_state.eaaddr += (uint32_t)(Mod1Add(0, cpu_rm) + Mod1Add(1, cpu_rm));
+                easeg = Mod1Seg(cpu_rm);
+                cpu_state.eaaddr &= 0xFFFF;
+        }
+    }
+
+    // pcem: 808x.c:416-455
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint8_t geteab()
+    {
+        if (cpu_mod == 3)
+                return (cpu_rm & 4) != 0 ? cpu_state.regs[cpu_rm & 3].b.h : cpu_state.regs[cpu_rm & 3].b.l;
+        return readmemb(easeg + cpu_state.eaaddr);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint16_t geteaw()
+    {
+        if (cpu_mod == 3)
+                return cpu_state.regs[cpu_rm].w;
+        return readmemw(easeg, (uint16_t)cpu_state.eaaddr);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint16_t geteaw2()
+    {
+        if (cpu_mod == 3)
+                return cpu_state.regs[cpu_rm].w;
+        return readmemw(easeg, (uint16_t)((cpu_state.eaaddr + 2) & 0xFFFF));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void seteab(uint8_t val)
+    {
+        if (cpu_mod == 3)
+        {
+                if ((cpu_rm & 4) != 0)
+                        cpu_state.regs[cpu_rm & 3].b.h = val;
+                else
+                        cpu_state.regs[cpu_rm & 3].b.l = val;
+        }
+        else
+        {
+                writememb(easeg + cpu_state.eaaddr, val);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void seteaw(uint16_t val)
+    {
+        if (cpu_mod == 3)
+                cpu_state.regs[cpu_rm].w = val;
+        else
+        {
+                writememw(easeg, cpu_state.eaaddr, val);
+        }
+    }
+
+    // pcem: 808x.c:86-95 — la macro fetchea()
+    private static void fetchea()
+    {
+        rmdat = FETCH();
+        cpu_reg = (int8_t)((rmdat >> 3) & 7);
+        cpu_mod = (int8_t)((rmdat >> 6) & 3);
+        cpu_rm = (int8_t)(rmdat & 7);
+        if (cpu_mod != 3)
+                fetcheal();
+    }
+
+    // -----------------------------------------------------------------------
+    // Flags (pcem: 808x.c:456-520, 748-886)
+    //
+    // Le 8088 de PCem calcule ses flags EN DIRECT, sans la moindre évaluation
+    // paresseuse : deux tables donnent Z, N et P, le reste est calculé au site.
+    //
+    // RÈGLE DE TRANSCRIPTION, la plus dangereuse du projet : tout intermédiaire
+    // arithmétique est `int` ou `uint`, jamais `byte`/`ushort`. En C,
+    // `((a & 0xF) - (b & 0xF)) & 0x10` est de l'arithmétique int qui donne -1
+    // puis 0x10, donc AF posé. Typer l'intermédiaire en `byte` « pour coller aux
+    // types C » ferait disparaître l'emprunt SILENCIEUSEMENT — et AF n'est
+    // observable qu'à travers DAA/DAS/AAA/AAS.
+    // -----------------------------------------------------------------------
+
+    internal static readonly uint8_t[] znptable8 = new uint8_t[256];
+    private static readonly uint16_t[] znptable16 = new uint16_t[65536];
+
+    // pcem: 808x.c:460-520
+    // Note : la boucle 16 bits ne compte la parité que sur les 8 bits BAS
+    // (les tests vont de `c & 1` à `c & 128`), ce qui est le comportement x86 —
+    // PF ne regarde que l'octet de poids faible.
+    // omitted: les deux pclog de débogage (`znp8 b1`, `znp16 65b1`), sortie pure.
+    internal static void makeznptable()
+    {
+        int c, d;
+        for (c = 0; c < 256; c++)
+        {
+                d = 0;
+                if ((c & 1) != 0) d++;
+                if ((c & 2) != 0) d++;
+                if ((c & 4) != 0) d++;
+                if ((c & 8) != 0) d++;
+                if ((c & 16) != 0) d++;
+                if ((c & 32) != 0) d++;
+                if ((c & 64) != 0) d++;
+                if ((c & 128) != 0) d++;
+                if ((d & 1) != 0)
+                        znptable8[c] = 0;
+                else
+                        znptable8[c] = (uint8_t)P_FLAG;
+                if (c == 0)
+                        znptable8[c] |= (uint8_t)Z_FLAG;
+                if ((c & 0x80) != 0)
+                        znptable8[c] |= (uint8_t)N_FLAG;
+        }
+        for (c = 0; c < 65536; c++)
+        {
+                d = 0;
+                if ((c & 1) != 0) d++;
+                if ((c & 2) != 0) d++;
+                if ((c & 4) != 0) d++;
+                if ((c & 8) != 0) d++;
+                if ((c & 16) != 0) d++;
+                if ((c & 32) != 0) d++;
+                if ((c & 64) != 0) d++;
+                if ((c & 128) != 0) d++;
+                if ((d & 1) != 0)
+                        znptable16[c] = 0;
+                else
+                        znptable16[c] = P_FLAG;
+                if (c == 0)
+                        znptable16[c] |= Z_FLAG;
+                if ((c & 0x8000) != 0)
+                        znptable16[c] |= N_FLAG;
+        }
+    }
+
+    // pcem: 808x.c:748-756
+    private static void setznp8(uint8_t val)
+    {
+        cpu_state.flags &= unchecked((uint16_t)~0xC4);
+        cpu_state.flags |= znptable8[val];
+    }
+
+    private static void setznp16(uint16_t val)
+    {
+        cpu_state.flags &= unchecked((uint16_t)~0xC4);
+        cpu_state.flags |= znptable16[val];
+    }
+
+    // pcem: 808x.c:758-819
+    private static void setadd8(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a + b);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if ((c & 0x100) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & 0x80) == 0 && ((a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setadd8nc(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a + b);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D4);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if (((a ^ b) & 0x80) == 0 && ((a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setadc8(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a + b + tempc);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if ((c & 0x100) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & 0x80) == 0 && ((a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setadd16(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a + (uint32_t)b;
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable16[c & 0xFFFF];
+        if ((c & 0x10000) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & 0x8000) == 0 && ((a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setadd16nc(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a + (uint32_t)b;
+        cpu_state.flags &= unchecked((uint16_t)~0x8D4);
+        cpu_state.flags |= znptable16[c & 0xFFFF];
+        if (((a ^ b) & 0x8000) == 0 && ((a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setadc16(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a + (uint32_t)b + (uint32_t)tempc;
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable16[c & 0xFFFF];
+        if ((c & 0x10000) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & 0x8000) == 0 && ((a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    // pcem: 808x.c:821-884
+    private static void setsub8(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a - b);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if ((c & 0x100) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & (a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setsub8nc(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a - b);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D4);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if (((a ^ b) & (a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setsbc8(uint8_t a, uint8_t b)
+    {
+        uint16_t c = (uint16_t)(a - (b + tempc));
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable8[c & 0xFF];
+        if ((c & 0x100) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & (a ^ c) & 0x80) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setsub16(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a - (uint32_t)b;
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= znptable16[c & 0xFFFF];
+        if ((c & 0x10000) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & (a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setsub16nc(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a - (uint32_t)b;
+        cpu_state.flags &= unchecked((uint16_t)~0x8D4);
+        cpu_state.flags |= (uint16_t)(znptable16[c & 0xFFFF] & ~4);
+        cpu_state.flags |= (uint16_t)(znptable8[c & 0xFF] & 4);
+        if (((a ^ b) & (a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
+    private static void setsbc16(uint16_t a, uint16_t b)
+    {
+        uint32_t c = (uint32_t)a - ((uint32_t)b + (uint32_t)tempc);
+        cpu_state.flags &= unchecked((uint16_t)~0x8D5);
+        cpu_state.flags |= (uint16_t)(znptable16[c & 0xFFFF] & ~4);
+        cpu_state.flags |= (uint16_t)(znptable8[c & 0xFF] & 4);
+        if ((c & 0x10000) != 0)
+                cpu_state.flags |= C_FLAG;
+        if (((a ^ b) & (a ^ c) & 0x8000) != 0)
+                cpu_state.flags |= V_FLAG;
+        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                cpu_state.flags |= A_FLAG;
+    }
+
     // pcem: 808x.c:662-702
     internal static void resetx86()
     {
@@ -308,9 +708,8 @@ internal static partial class _808x
         idt.limit = is386 != 0 ? 0x03FFu : 0xFFFFu;
         cpu_state.flags = 2;
         EAX = EBX = ECX = EDX = ESI = EDI = EBP = ESP = 0;
-        // omitted (M1.0c) : makeznptable() et makemod1table(). Les tables de
-        // flags et d'EA ne servent qu'aux vrais opcodes ; le `default:` de M1.0b
-        // ne touche ni l'un ni l'autre.
+        makeznptable();
+        makemod1table();
         mem.resetreadlookup();
         FETCHCLEAR();
         // omitted: x87_reset(), cpu_set_edx(), codegen_reset() — 8087 et dynarec.
@@ -330,7 +729,7 @@ internal static partial class _808x
     internal static void execx86(int cycs)
     {
         uint8_t temp;
-        uint16_t addr;
+        uint16_t addr, tempw;
         int trap;
 
         cycles += cycs;
@@ -353,6 +752,65 @@ internal static partial class _808x
                 inhlt = 0;
                 switch (opcode)
                 {
+                case 0x00: /*ADD 8,reg*/
+                        fetchea();
+                        temp = geteab();
+                        setadd8(temp, getr8(cpu_reg));
+                        temp += getr8(cpu_reg);
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x01: /*ADD 16,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        setadd16(tempw, cpu_state.regs[cpu_reg].w);
+                        tempw += cpu_state.regs[cpu_reg].w;
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 3 : 24);
+                        break;
+                case 0x02: /*ADD cpu_reg,8*/
+                        fetchea();
+                        temp = geteab();
+                        setadd8(getr8(cpu_reg), temp);
+                        setr8(cpu_reg, (uint8_t)(getr8(cpu_reg) + temp));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x03: /*ADD cpu_reg,16*/
+                        fetchea();
+                        tempw = geteaw();
+                        setadd16(cpu_state.regs[cpu_reg].w, tempw);
+                        cpu_state.regs[cpu_reg].w += tempw;
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x04: /*ADD AL,#8*/
+                        temp = FETCH();
+                        setadd8(AL, temp);
+                        AL += temp;
+                        cycles -= 4;
+                        break;
+                case 0x05: /*ADD AX,#16*/
+                        tempw = getword();
+                        setadd16(AX, tempw);
+                        AX += tempw;
+                        cycles -= 4;
+                        break;
+
+                case 0x06: /*PUSH ES*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, ((uint32_t)(SP - 2) & 0xFFFF), ES);
+                        SP -= 2;
+                        cycles -= 14;
+                        break;
+                case 0x07: /*POP ES*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = readmemw(ss, SP);
+                        x86seg_c.loadseg(tempw, cpu_state.seg_es);
+                        SP += 2;
+                        cycles -= 12;
+                        break;
+
                 default:
                         FETCH();
                         cycles -= 8;

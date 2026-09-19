@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#define H_WLOG_MAX 16
 #define H_RAM_SIZE 0x100000u /* 1 Mo — l'espace d'adressage complet du 8088 */
 
 /* x86.h aplatit cpu_state en macros (`#define cycles cpu_state._cycles`, x86.h:122,
@@ -153,6 +154,12 @@ void h_getstate(h_state *out);
 /* sha256-like : somme de contrôle rapide de la RAM, pour diffé rer sans
  * transférer 1 Mo par instruction. */
 uint64_t h_ram_hash(void);
+
+/* Journal d'ecritures de la derniere instruction. Voir harness_stubs.c. */
+void h_wlog_reset(void);
+int h_wlog_count(void);
+uint32_t h_wlog_get_addr(int i);
+uint8_t h_wlog_get_val(int i);
 
 /* Pointeur direct sur la RAM de l'oracle (1 Mo), pour les cas où le C# doit
  * la comparer en entier. */
