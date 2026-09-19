@@ -209,3 +209,27 @@ un diff de transcription.
 |---|---|
 | Fuzzer, mode flux, 256 opcodes | **400 000 instructions, zéro divergence**, 47 s |
 | Amorçage 200 tranches, après padding | **714 879 instructions, identiques** |
+
+### M4.1 — L'IBM PC 5150 démarre sur Cassette BASIC
+
+Soixante secondes émulées, 24 073 823 instructions, `--boot roms 6000` :
+
+```
+--- écran texte CGA (B800:0000, 80x25) ---
+  |The IBM Personal Computer Basic
+  |Version C1.10 Copyright IBM Corp 1981
+  |62940 Bytes free
+  |Ok
+  [20 ligne(s) vide(s)]
+  |1LIST   2RUN    3LOAD"  4SAVE"  5CONT   6,"LPT1 7TRON   8TROFF  9KEY    0SCREEN
+```
+
+Le POST va au bout : mot d'équipement `0040:0010 = 006D` (CGA 80x25, une disquette),
+taille mémoire `0040:0013 = 640 Ko` après le test à motifs qui occupe les tranches 150
+à 5400. Faute d'unité amorçable, le BIOS bascule sur l'INT 18h et la ROM BASIC prend la
+main ; elle est à son invite, dans la boucle d'attente clavier de l'INT 16h
+(`F000:E84D`, qui lit `0040:001A`/`001C`).
+
+Le vidage écran lit `0xB8000` **à travers la carte mémoire** (`mem_readb_phys`), pas le
+tableau `ram` : c'est le chemin que prendrait un vrai accès, et il vérifie donc au
+passage que la fenêtre CGA est bien mappée.
