@@ -15,6 +15,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+using static iXtal26.Cpu._386_common;
+
 namespace iXtal26.Cpu;
 
 // pcem: x86.h:29-35
@@ -88,9 +90,9 @@ internal sealed class cpu_state_t
 
 internal static partial class x86
 {
-    // pcem: x86.h:119 — le singleton. Global de PCem, global ici : voir
+    // cpu_state vit dans Cpu/386_common.cs, comme en C (386_common.c:6), et
+    // arrive ici par `using static`. Global de PCem, global ici : voir
     // TRANSCRIPTION.md sur pourquoi il n'y a pas de struct d'instance.
-    internal static readonly cpu_state_t cpu_state = new();
 
     // ---- pcem: x86.h:122-143 — l'aplatissement en macros ------------------
     // Chacune est une propriété ref : `cycles -= 3;` compile et mute le champ.
@@ -164,6 +166,9 @@ internal static partial class x86
         else cpu_state.regs[r & 3].b.l = v;
     }
 
+    // pcem: x86.h:145
+    internal static int CPL => (cpu_state.seg_cs.access >> 5) & 3;
+
     // pcem: x86.h:145-172 — drapeaux
     internal const uint16_t C_FLAG = 0x0001;
     internal const uint16_t P_FLAG = 0x0004;
@@ -175,6 +180,11 @@ internal static partial class x86
     internal const uint16_t D_FLAG = 0x0400;
     internal const uint16_t V_FLAG = 0x0800;
     internal const uint16_t NT_FLAG = 0x4000;
+    internal const uint16_t VM_FLAG = 0x0002;  /*In EFLAGS*/
+
+    // pcem: x86.h:185-193
+    internal const uint16_t CPU_STATUS_NOTFLATDS = 1 << 8;
+    internal const uint16_t CPU_STATUS_NOTFLATSS = 1 << 9;
 
     // pcem: x86.h:196-210 — globaux hors cpu_state
     internal static x86seg gdt = new(), ldt = new(), idt = new(), tr = new();
@@ -182,7 +192,6 @@ internal static partial class x86
     internal static uint32_t easeg;
     internal static int oldcpl;
     internal static uint32_t oldss;
-    internal static int nmi_enable;
     internal static int trap;
     internal static uint32_t use32;
     internal static int stack32;
@@ -190,4 +199,13 @@ internal static partial class x86
     internal static uint32_t cr2, cr3, cr4;
     internal static int cgate32;
     internal static int x86_was_reset;
+
+    // pcem: ibm.h:160 — classe de machine. 0 sur un XT.
+    internal static int AT, AMSTRAD, PCI, TANDY, MCA;
+    internal static int is386, is486, cpu_16bitbus;
+
+    // pcem: codegen — drapeaux « segment plat », écrits par loadseg. Le dynarec
+    // n'est pas porté, mais les écritures le sont : les retirer changerait
+    // loadseg, pas seulement le codegen.
+    internal static int codegen_flat_ds = 1, codegen_flat_ss = 1;
 }

@@ -5,6 +5,10 @@ change, jamais pour expliquer une ligne de code. Le projet précédent
 (`~/RiderProjects/Retro/IXtal`) s'est arrêté à `NOP` après 1 490 lignes dont ~1 100 de
 commentaires de conception : les règles ci-dessous sont les anticorps de ce mode d'échec,
 comptables ou greppables, pas déclaratives.
+
+Les **mesures** (résultats de portes, divergences, injections de panne) vont dans
+`VERIFICATION.md` : elles grandissent à chaque jalon et n'ont pas à être rationnées.
+
 ---
 
 ## Règles
@@ -24,7 +28,10 @@ comptables ou greppables, pas déclaratives.
   transcribed` : un `partial` est plus court par construction, chaque ligne absente étant
   couverte par une entrée du registre des omissions. Être plus court sans omission
   déclarée, en revanche, c'est du code oublié — et ça, R6(a) l'attrape.
-- **R3 — un seul fichier de prose.** Celui-ci.
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 200 lignes. Les mesures vont
+  dans `VERIFICATION.md`, sans plafond : le plafond vise la prose de conception, pas les
+  constats. Les données volumineuses vont dans des fichiers générés (`sst-baseline.tsv`,
+  `oracle.tsv`), jamais ici.
 - **R4 — zéro abstraction.** Pas d'`interface`, `abstract class`, générique, LINQ,
   `record`, `async`, DI, méthode d'extension. Le C du palier (a) n'en contient aucun.
   Les six C#-ismes autorisés sont une liste close :
@@ -157,44 +164,3 @@ Chacun a été vérifié dans l'arbre, pas déduit.
    est vide (`thread-pthread.c:46`), `thread_wait_event` n'a pas de boucle de prédicat.
    Le handshake de `video.c:1132-1144` dégénère en attente active sur un `int` non
    atomique. Il n'y a pas de fidélité à préserver : iXtal26 est mono-thread.
-
----
-
-## Résultats des portes M0
-
-Mesurés le 2026-09-19, .NET 10.0.112, x86-64 Linux.
-
-| Porte | Résultat |
-|---|---|
-| **G1** propriété `ref` | **Verte.** `cycles -= 3;`, `cycles = cycles - 7;`, passage `ref`, et `tsc += 0x1_0000_0000UL` mutent bien le champ référencé. |
-| **G2** switch géant + `goto` | **Verte.** **180 106 octets d'IL** pour 256 cas / ~13 900 lignes ; JIT propre en Debug, Release, et sous `DOTNET_TieredCompilation=0` (pas de bailout). Le switch de `808x.c` fait ~2 600 lignes, soit ~1/5 : **marge 5×**, la contingence « découper par quartet » est inutile. |
-| **G3** union explicite | **Verte.** Aliasing `l`/`w`/`b.h`/`b.l`, écriture de demi-octet préservant le reste, `getr8`/`setr8` indexés avec le pliage haut/bas sur le bit 2, et absence de mutation à travers une copie de struct. |
-| **G4** SDL3-CS sous net10 | **Verte.** `SDL3-CS 3.4.14.1` restaure et compile sous `net10.0` ; `dotnet run -- --frames 5` ouvre une fenêtre, rend 5 images, sort 0. |
-
-L'échafaudage (`M0Gates.cs`, `M0Gates.Generated.cs`, le drapeau `--gates`) est supprimé
-une fois ces résultats consignés. Il est regénérable depuis l'historique git si une
-régression de runtime remet G2 en question.
-
----
-
-## Où PCem s'écarte du silicium
-
-Chiffres dans **`sst-baseline.tsv`**, généré par
-`iXtal26.Diff sst-probe --baseline` : c'est de la donnée, pas de la prose, et elle grandira
-à chaque forme sondée. **Le critère n'est pas « 100 % de SST » mais « le C# reproduit la
-colonne `passe` à l'identique ».**
-
-Sondé sur un échantillon *volontairement adverse* (2 000 cas × 19 formes, les opcodes les
-plus retors) : **100 % sur tout ce qui est ordinaire** — ADD, MOV, NOP, MOVSB, CALL, INC,
-MUL, SHL 1, AAA/AAS. Les masques de `metadata.json` sont indispensables : `37` passe de
-117/2000 à 2000/2000 une fois appliqué.
-
-Cinq écarts réels, à transcrire tels quels et à marquer `// pcem bug, reproduced:` —
-`F6.6`/`F7.6` DIV (**débordement de quotient non détecté** : vérifié à la main sur
-`F6.6[2]`, AX=36562 ÷ 12 = 3046 > 255, le 8088 lève INT 0, PCem tronque à 0xE6 et
-poursuit) · `D0.6` SETMO (opcode non documenté, non implémenté) · `AD` REP LODSW ·
-`D2.4` SHL par CL (un seul bit : **OF**) · `27`/`2F` DAA/DAS (AL, ~1–2 % des cas).
-
-Performance relevée : 38 000 cas en 61 s, dominés par `h_reset()` qui remet à `-1` les 16 Mo
-de `readlookup2`/`writelookup2` à chaque cas — ~85 min pour le corpus complet contre 2 min
-visées. Le harnais devra réinitialiser ces tables paresseusement.

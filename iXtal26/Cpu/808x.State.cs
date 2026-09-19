@@ -1,0 +1,210 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: tools/oracle/harness.c  (h_reset / h_step / h_run / h_getstate)
+// STATUS: host — porte de diagnostic, pas de code PCem transcrit.
+//         R2 (parité de lignes) ne s'applique pas.
+//
+// LA PORTE, au singulier.
+//
+// Tout le modèle de temps vit dans des `private static` de _808x : memcycs,
+// fetchcycles, fetchclocks, prefetchw, prefetchpc, prefetchqueue, nextcyc,
+// cycdiff, tsc_frac. C'est la transcription fidèle du C, où ces variables sont
+// `static` et donc invisibles hors de leur unité de traduction.
+//
+// InternalsVisibleTo n'ouvre pas `private` : iXtal26.Diff ne peut rien en voir.
+// La solution est exactement celle retenue côté C, où harness.c compile 808x.c
+// DANS son unité de traduction pour y accéder : ici, une classe partielle. Le
+// fichier est une porte, pas une fenêtre — une seule méthode de lecture, et la
+// règle « static C -> private C# » reste intacte.
+
+using iXtal26.Diag;
+using iXtal26.Memory;
+using static iXtal26.Cpu._386_common;
+using static iXtal26.Cpu.x86;
+
+namespace iXtal26.Cpu;
+
+internal static partial class _808x
+{
+    private static uint64_t ins_count;
+
+    /// <summary>Reset machine complet : XT, 8088. Doit rester le pendant exact
+    /// de h_reset() (tools/oracle/harness.c), sans quoi les deux cœurs ne
+    /// partiraient pas du même point et le diff ne mesurerait rien.</summary>
+    internal static void Reset()
+    {
+        mem.mem_init();
+        Counters.Reset();
+        ins_count = 0;
+
+        // Configuration machine, posée AVANT resetx86() : celle-ci branche sur
+        // AT, is486 et is386 pour choisir le vecteur de reset et rammask.
+        AT = 0;
+        is386 = 0;
+        is486 = 0;
+        is8086 = 0; // 8088 : file de préfetch de 4 octets, pas 6
+        cpu_16bitbus = 0;
+        AMSTRAD = TANDY = PCI = MCA = 0;
+
+        // pcem: pit.c:52 — tops de l'oscillateur maître (14,318 MHz) par cycle
+        // CPU, en 32:32, pour un 8088 à 4 772 728 Hz (cpu_tables.c:33).
+        xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / 4772728.0);
+
+        timer.tsc = 0;
+        timer.timer_target = 0x7FFFFFFF;
+
+        resetx86();
+
+        // resetx86() ne remet pas ces statiques : elles portent l'état de temps
+        // ENTRE instructions, et un reset partiel ferait diverger le cœur de
+        // lui-même d'un appel à l'autre.
+        nextcyc = 0;
+        memcycs = 0;
+        cycdiff = 0;
+        current_diff = 0;
+        fetchcycles = 0;
+        fetchclocks = 0;
+        tsc_frac = 0;
+        noint = 0;
+        inhlt = 0;
+        takeint = 0;
+        cycles = 0;
+        ins = 0;
+        insc = 0;
+    }
+
+    /// <summary>Une instruction exactement. Pendant de h_step().
+    /// execx86 boucle tant que cycles > 0 : en posant le budget à 1, le corps
+    /// s'exécute une fois puis sort, tout opcode coûtant au moins un cycle.</summary>
+    internal static int Step()
+    {
+        cycles = 1;
+        execx86(0);
+        ins_count++;
+        return 1 - cycles;
+    }
+
+    /// <summary>Budget long, la forme de runpc(). Pendant de h_run().</summary>
+    internal static int Run(int cycs)
+    {
+        var before = ins;
+        cycles = 0;
+        execx86(cycs);
+        ins_count += (uint64_t)(ins - before);
+        return cycs - cycles;
+    }
+
+    internal static void SetRegs(ushort[] r)
+    {
+        cpu_state.regs[0].w = r[(int)R.AX];
+        cpu_state.regs[3].w = r[(int)R.BX];
+        cpu_state.regs[1].w = r[(int)R.CX];
+        cpu_state.regs[2].w = r[(int)R.DX];
+        cpu_state.regs[4].w = r[(int)R.SP];
+        cpu_state.regs[5].w = r[(int)R.BP];
+        cpu_state.regs[6].w = r[(int)R.SI];
+        cpu_state.regs[7].w = r[(int)R.DI];
+
+        x86seg_c.loadseg(r[(int)R.SS], cpu_state.seg_ss);
+        x86seg_c.loadseg(r[(int)R.DS], cpu_state.seg_ds);
+        x86seg_c.loadseg(r[(int)R.ES], cpu_state.seg_es);
+        x86seg_c.loadcs(r[(int)R.CS]);
+
+        cpu_state.pc = r[(int)R.IP];
+        cpu_state.flags = r[(int)R.FLAGS];
+
+        FETCHCLEAR();
+    }
+
+    internal static void GetRegs(ushort[] r)
+    {
+        r[(int)R.AX] = cpu_state.regs[0].w;
+        r[(int)R.BX] = cpu_state.regs[3].w;
+        r[(int)R.CX] = cpu_state.regs[1].w;
+        r[(int)R.DX] = cpu_state.regs[2].w;
+        r[(int)R.SP] = cpu_state.regs[4].w;
+        r[(int)R.BP] = cpu_state.regs[5].w;
+        r[(int)R.SI] = cpu_state.regs[6].w;
+        r[(int)R.DI] = cpu_state.regs[7].w;
+        r[(int)R.CS] = cpu_state.seg_cs.seg;
+        r[(int)R.SS] = cpu_state.seg_ss.seg;
+        r[(int)R.DS] = cpu_state.seg_ds.seg;
+        r[(int)R.ES] = cpu_state.seg_es.seg;
+        r[(int)R.IP] = (uint16_t)cpu_state.pc;
+        r[(int)R.FLAGS] = cpu_state.flags;
+    }
+
+    /// <summary>Le vecteur d'état complet. Tout champ ajouté ici doit l'être
+    /// aussi dans h_getstate(), et entrer dans la comparaison : un champ non
+    /// comparé est un champ où la dérive se cache.</summary>
+    internal static void GetState(ref HState s)
+    {
+        for (var i = 0; i < 8; i++)
+                s.regs[i] = cpu_state.regs[i].l;
+
+        var segs = new[] { cpu_state.seg_cs, cpu_state.seg_ds, cpu_state.seg_es,
+                           cpu_state.seg_ss, cpu_state.seg_fs, cpu_state.seg_gs };
+        for (var i = 0; i < (int)Seg.COUNT; i++)
+        {
+                s.seg_sel[i] = segs[i].seg;
+                s.seg_base[i] = segs[i].@base;
+        }
+
+        s.ea_seg_idx = -1;
+        for (var i = 0; i < (int)Seg.COUNT; i++)
+                if (ReferenceEquals(cpu_state.ea_seg, segs[i]))
+                        s.ea_seg_idx = i;
+
+        s.flags = cpu_state.flags;
+        s.eflags = cpu_state.eflags;
+        s.pc = cpu_state.pc;
+        s.oldpc = cpu_state.oldpc;
+        s.eaaddr = cpu_state.eaaddr;
+        s.ssegs = cpu_state.ssegs;
+        s.abrt = cpu_state.abrt;
+
+        s.cycles = cycles;
+        s.tsc = timer.tsc;
+        s.tsc_frac = tsc_frac;
+        s.memcycs = memcycs;
+        s.fetchcycles = fetchcycles;
+        s.fetchclocks = fetchclocks;
+        s.nextcyc = nextcyc;
+        s.cycdiff = cycdiff;
+        s.current_diff = current_diff;
+        s.prefetchw = prefetchw;
+        s.prefetchpc = prefetchpc;
+        Array.Copy(prefetchqueue, s.prefetchqueue, 6);
+
+        s.noint = noint;
+        s.inhlt = inhlt;
+        s.takeint = takeint;
+
+        s.n_inb = Counters.n_inb;
+        s.n_outb = Counters.n_outb;
+        s.n_picint = Counters.n_picint;
+        s.n_picinterrupt = Counters.n_picinterrupt;
+        s.n_timer_process = Counters.n_timer_process;
+        s.n_readmembl = Counters.n_readmembl;
+        s.n_writemembl = Counters.n_writemembl;
+        s.n_readmemwl = Counters.n_readmemwl;
+        s.n_writememwl = Counters.n_writememwl;
+        s.n_fatal = Counters.n_fatal;
+
+        s.ins = ins_count;
+    }
+
+    /// <summary>FNV-1a 64 bits sur la RAM. Même constante et même parcours que
+    /// h_ram_hash(), sinon la comparaison n'a aucun sens.</summary>
+    internal static uint64_t RamHash()
+    {
+        uint64_t hash = 1469598103934665603UL;
+        for (uint32_t i = 0; i < mem.RAM_SIZE; i++)
+        {
+                hash ^= mem.ram[i];
+                hash *= 1099511628211UL;
+        }
+        return hash;
+    }
+}

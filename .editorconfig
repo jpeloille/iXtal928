@@ -73,6 +73,7 @@ dotnet_diagnostic.IDE0051.severity = none   # membre privé inutilisé
 dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
 
 [**/{io,timer,pc,ppi}.cs]
+dotnet_diagnostic.CS8981.severity = none
 dotnet_diagnostic.IDE1006.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.IDE0011.severity = none
