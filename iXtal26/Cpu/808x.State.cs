@@ -32,10 +32,35 @@ internal static partial class _808x
     /// <summary>Reset machine complet : XT, 8088. Doit rester le pendant exact
     /// de h_reset() (tools/oracle/harness.c), sans quoi les deux cœurs ne
     /// partiraient pas du même point et le diff ne mesurerait rien.</summary>
+    private static bool mem_inited;
+
+    /// <summary>Carte plate : 1 Mo de RAM sur tout l'espace d'adressage, à travers
+    /// le vrai mem.c. Pendant exact de h_flat_map() (tools/oracle/harness.c) — les
+    /// deux cœurs doivent partir de la MÊME carte mémoire, sinon le diff compare
+    /// deux machines.</summary>
+    private static void FlatMap()
+    {
+        mem.mem_size = 1024; // 1 Mo : l'espace complet du 8088
+        if (!mem_inited)
+        {
+                mem.mem_init();
+                mem_inited = true;
+        }
+        mem.mem_alloc();
+        mem.mem_set_mem_state(0x000000, 0x100000, mem.MEM_READ_INTERNAL | mem.MEM_WRITE_INTERNAL);
+        mem.mem_mapping_add(h_flat_mapping, 0x000000, 0x100000,
+                            mem.mem_read_ram, mem.mem_read_ramw, mem.mem_read_raml,
+                            mem.mem_write_ram, mem.mem_write_ramw, mem.mem_write_raml,
+                            mem.ram, 0, mem.MEM_MAPPING_INTERNAL, null);
+    }
+
+    private static readonly mem_mapping_t h_flat_mapping = new();
+
     internal static void Reset()
     {
-        mem.mem_init();
+        FlatMap();
         Counters.Reset();
+        mem.wlog_reset();
         ins_count = 0;
 
         // Configuration machine, posée AVANT resetx86() : celle-ci branche sur

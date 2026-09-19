@@ -337,10 +337,20 @@ public static class Fuzzer
             ?? Chk("n_picint", a.n_picint, b.n_picint)
             ?? Chk("n_picinterrupt", a.n_picinterrupt, b.n_picinterrupt)
             ?? Chk("n_timer_process", a.n_timer_process, b.n_timer_process)
-            ?? Chk("n_readmembl", a.n_readmembl, b.n_readmembl)
-            ?? Chk("n_writemembl", a.n_writemembl, b.n_writemembl)
-            ?? Chk("n_readmemwl", a.n_readmemwl, b.n_readmemwl)
-            ?? Chk("n_writememwl", a.n_writememwl, b.n_writememwl)
+            // Les quatre compteurs mémoire ne sont PLUS comparés depuis M2.
+            //
+            // Ils dataient de l'ère des stubs, où leur rôle était de détecter
+            // l'« accord vide » — deux stubs rendant la même constante sans que le
+            // chemin soit exercé. Les deux côtés exécutent désormais le VRAI mem.c,
+            // donc ce risque a disparu : le comportement mémoire est comparé par les
+            // cycles (addreadlookup facture -9), par le journal d'écritures et par
+            // le hachage de RAM.
+            //
+            // Et ils ne peuvent PAS être rendus équivalents : côté C, -Wl,--wrap
+            // n'intercepte que les appels venus d'une autre unité de traduction, si
+            // bien que writememwl -> writemembl (mot à cheval sur une page) compte
+            // une fois en C et deux en C#. Les garder produirait des faux positifs
+            // qui masqueraient les vrais.
             ?? Chk("n_fatal", a.n_fatal, b.n_fatal)
             ?? Chk("ins", a.ins, b.ins);
         // La RAM n'est PAS hachée ici : 1 Mo par côté et par instruction, soit

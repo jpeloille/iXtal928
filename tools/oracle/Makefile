@@ -39,13 +39,30 @@ LDLIBS  := -lm
 # sans quoi chaque symbole serait défini deux fois. Voir l'en-tête de harness.c.
 SRC := harness.c \
        harness_stubs.c \
+       harness_wrap.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
        $(PCEM)/src/cpu/x87_timings.c \
-       $(PCEM)/src/cpu/386_common.c
+       $(PCEM)/src/cpu/386_common.c \
+       $(PCEM)/src/memory/mem.c \
+       $(PCEM)/src/io.c \
+       $(PCEM)/src/timer.c \
+       $(PCEM)/src/models/pit.c \
+       $(PCEM)/src/models/pic.c \
+       $(PCEM)/src/models/dma.c \
+       $(PCEM)/src/ppi.c \
+       $(PCEM)/src/models/nmi.c \
+       $(PCEM)/src/plugin-api/device.c \
+       $(PCEM)/src/flash/rom.c
+
+# Interposition sur les fonctions de PCem pour y poser compteurs et journal
+# d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
+comma := ,
+WRAP := readmembl writemembl readmemwl writememwl inb outb picint picinterrupt timer_process
+LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/cpu
+vpath %.c . $(PCEM)/src/cpu $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
 
 .PHONY: all clean selftest
 

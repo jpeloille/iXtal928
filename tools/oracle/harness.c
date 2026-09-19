@@ -48,8 +48,27 @@
 extern uint64_t h_n_inb, h_n_outb, h_n_picint, h_n_picinterrupt, h_n_timer_process;
 extern uint64_t h_n_readmembl, h_n_writemembl, h_n_readmemwl, h_n_writememwl, h_n_fatal;
 extern void h_stub_counters_reset(void);
-extern void h_mem_init(void);
 extern void h_set_verbose(int v);
+extern void h_set_roms_path(const char *p);
+
+/* Mappage plat : 1 Mo de RAM sur tout l'espace d'adressage, à travers le VRAI
+ * mem.c de PCem. Le fuzzer CPU travaille donc désormais avec les vraies
+ * mem_mapping_t, le vrai remplissage de readlookup2 et sa facturation à
+ * `cycles -= 9` (mem.c:378) — ce que les stubs de M1 ne faisaient pas. */
+static mem_mapping_t h_flat_mapping;
+static int h_mem_inited = 0;
+
+static void h_flat_map(void) {
+        mem_size = 1024; /* 1 Mo : l'espace complet du 8088 */
+        if (!h_mem_inited) {
+                mem_init();
+                h_mem_inited = 1;
+        }
+        mem_alloc();
+        mem_set_mem_state(0x000000, 0x100000, MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
+        mem_mapping_add(&h_flat_mapping, 0x000000, 0x100000, mem_read_ram, mem_read_ramw, mem_read_raml,
+                        mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
+}
 
 static uint64_t h_ins_count;
 
@@ -66,8 +85,9 @@ uint8_t *h_ram(void) {
 }
 
 void h_reset(void) {
-        h_mem_init();
+        h_flat_map();
         h_stub_counters_reset();
+        h_wlog_reset();
         h_ins_count = 0;
 
         /* Configuration machine : IBM XT, Intel 8088.

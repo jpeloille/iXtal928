@@ -1,0 +1,169 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: pcem-dev/src/plugin-api/paths.c
+// STATUS: partial — chemins de recherche des ROMs seulement (roms_paths,
+//         get_roms_path, set_roms_paths, paths_init). nvr/, configs/, logs/,
+//         screenshots/, plugins/ et la persistance de configuration sont omis.
+
+namespace iXtal26.PluginApi;
+
+internal static partial class paths
+{
+    // pcem: paths.c:9, 15-19
+    internal static string default_roms_paths = "";
+
+    /* the number of roms paths */
+    internal static int num_roms_paths;
+    internal static string roms_paths = "";
+    /* this is where pcem.cfg is */
+    internal static string pcem_path = "";
+
+    // omitted: default_nvr_path, default_configs_path, default_logs_path,
+    //   default_screenshots_path, nvr_path, configs_path, logs_path,
+    //   screenshots_path, plugins_default_path, nvr_default_path
+    //   (paths.c:10-13, 20-31) — aucun chemin hors ROM au palier (a).
+
+    // pcem: paths.c:33-39
+    // DEVIATION: le #ifdef _WIN32 devient un test à l'exécution.
+    internal static char get_path_separator()
+    {
+            if (OperatingSystem.IsWindows())
+                    return ';';
+            else
+                    return ':';
+    }
+
+    // pcem: paths.c:41-60
+    // DEVIATION: `char *s` + `int size` -> `out string s` + size. La double
+    //   troncature du C (safe_strncpy à size-1, puis s[min(size-1, z)] = 0) se
+    //   réduit à une longueur de min(size - 1, z), z étant toujours <= len - j.
+    internal static int get_roms_path(int pos, out string s, int size)
+    {
+            int j, i, z, len;
+            char path_separator;
+
+            s = "";
+            path_separator = get_path_separator();
+            len = roms_paths.Length;
+            j = 0;
+            for (i = 0; i < len; i++)
+            {
+                    if (roms_paths[i] == path_separator || i == len - 1)
+                    {
+                            if ((pos--) == 0)
+                            {
+                                    z = (i - j) + ((i == len - 1) ? 1 : 0);
+                                    s = roms_paths.Substring(j, (size - 1 < z) ? size - 1 : z);
+                                    return 1;
+                            }
+                            j = i + 1;
+                    }
+            }
+            return 0;
+    }
+
+    // pcem: paths.c:62-88
+    internal static void set_roms_paths(string path)
+    {
+            string s;
+            int j, i, z, len;
+            string path_separator;
+
+            roms_paths = "";
+            path_separator = get_path_separator().ToString();
+            len = path.Length;
+            j = 0;
+            num_roms_paths = 0;
+            for (i = 0; i < len; i++)
+            {
+                    if (path[i] == path_separator[0] || i == len - 1)
+                    {
+                            z = (i - j) + ((i == len - 1) ? 1 : 0) + 1;
+                            s = path.Substring(j, z - 1);
+                            // omitted: s[(511 < z) ? 511 : z] = 0 — safe_strncpy a déjà
+                            //   posé le NUL en z-1, et la troncature à 511 n'a pas
+                            //   d'objet sans tampon de 512.
+                            s = append_slash(s, 512);
+                            if (dir_exists(s) != 0)
+                            {
+                                    if (num_roms_paths > 0)
+                                            roms_paths += path_separator;
+                                    roms_paths += s;
+                                    num_roms_paths++;
+                            }
+                            j = i + 1;
+                    }
+            }
+    }
+
+    // pcem: paths.c:90
+    // DEVIATION: wx_dir_exists appartient à l'UI wx, remplacée par l'hôte SDL3.
+    internal static int dir_exists(string path) => Directory.Exists(path) ? 1 : 0;
+
+    /* set the default roms paths, this makes them permanent */
+    // pcem: paths.c:112-116
+    internal static void set_default_roms_paths(string s)
+    {
+            default_roms_paths = s;
+            set_roms_paths(s);
+    }
+
+    /* initialize default paths */
+    // pcem: paths.c:190-216, réduit aux chemins de ROM.
+    // DEVIATION: get_pcem_path (paths.c:218-241) cherche SDL_GetBasePath + ".pcem/"
+    //   puis $HOME/.pcem/. iXtal26 n'a pas de répertoire d'installation : on remonte
+    //   depuis le binaire jusqu'au premier répertoire contenant `roms/`, qui est la
+    //   racine du dépôt. append_filename (config.c:396) est un sprintf("%s%s"),
+    //   écrit ici en concaténation.
+    internal static void paths_init()
+    {
+            string s;
+
+            DirectoryInfo? d = new DirectoryInfo(AppContext.BaseDirectory);
+            while (d != null && !Directory.Exists(Path.Combine(d.FullName, "roms")))
+                    d = d.Parent;
+            pcem_path = append_slash((d != null) ? d.FullName : Environment.CurrentDirectory, 512);
+
+            /* set up default paths for this session */
+            s = pcem_path + "roms/";
+            set_default_roms_paths(s);
+
+            // omitted: nvr/, configs/, screenshots/, logs/, nvr/default/ et
+            //   add_config_callback(paths_loadconfig, paths_saveconfig,
+            //   paths_onconfigloaded) (paths.c:204-215) — hors chargement de ROM.
+    }
+
+    // DEVIATION: append_slash et put_backslash appartiennent à
+    //   src/plugin-api/config.c, qui n'est transcrit nulle part. Ils sont ici parce
+    //   que set_roms_paths et romfopen (rom.c:17) en dépendent, et migreront vers
+    //   PluginApi/config.cs. `char *s` muté sur place devient une string rendue.
+    // pcem: config.c:398-406
+    internal static string append_slash(string s, int size)
+    {
+            int c = s.Length - 1;
+            if (s[c] != '/' && s[c] != '\\')
+            {
+                    if (c < size - 2)
+                            s += "/";
+                    else
+                            s = s.Substring(0, c) + "/";
+            }
+            return s;
+    }
+
+    // pcem: config.c:408-414
+    internal static string put_backslash(string s)
+    {
+            int c = s.Length - 1;
+            if (s[c] != '/' && s[c] != '\\')
+                    s += "/";
+            return s;
+    }
+
+    // omitted: set_nvr_path, set_logs_path, set_configs_path, set_screenshots_path,
+    //   set_default_nvr_path, set_default_nvr_default_path, set_default_logs_path,
+    //   set_default_configs_path, set_default_screenshots_path, paths_loadconfig,
+    //   paths_saveconfig, paths_onconfigloaded, get_pcem_path (paths.c:92-142,
+    //   144-188, 218-241) — chemins hors ROM et persistance de la configuration.
+}

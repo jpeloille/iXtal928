@@ -678,6 +678,337 @@ internal static partial class _808x
                 cpu_state.flags |= A_FLAG;
     }
 
+    // ===== rep() : instructions de chaîne (808x.c:908-1215) =====
+    // pcem: 808x.c:55
+    private static bool IRQTEST => (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0 && noint == 0;
+
+    // pcem: 808x.c:908
+    internal static int firstrepcycle = 1;
+
+// CS0162 : les trois `break;` qui suivent un `goto startrep;` (808x.c:933, 940, 947)
+// sont inatteignables. Ils sont conservés — R6(a) veut une contrepartie par ligne de
+// C — et l'avertissement est neutralisé sur la seule rep().
+#pragma warning disable CS0162
+
+    // pcem: 808x.c:910-1215
+    private static void rep(int fv)
+    {
+        uint8_t temp;
+        int c = CX;
+        uint8_t temp2;
+        uint16_t tempw, tempw2;
+        uint16_t ipc = (uint16_t)cpu_state.oldpc;
+        int changeds = 0;
+        uint32_t oldds = ds;
+startrep:
+        temp = FETCH();
+
+        switch (temp)
+        {
+        case 0x08:
+                cpu_state.pc = (uint32_t)(ipc + 1);
+                cycles -= 2;
+                FETCHCLEAR();
+                break;
+        case 0x26: /*ES:*/
+                oldds = ds;
+                ds = es;
+                changeds = 1;
+                cycles -= 2;
+                goto startrep;
+                break;
+        case 0x2E: /*CS:*/
+                oldds = ds;
+                ds = cs;
+                changeds = 1;
+                cycles -= 2;
+                goto startrep;
+                break;
+        case 0x36: /*SS:*/
+                oldds = ds;
+                ds = ss;
+                changeds = 1;
+                cycles -= 2;
+                goto startrep;
+                break;
+        case 0x6E: /*REP OUTSB*/
+                if (c > 0)
+                {
+                        temp2 = readmemb(ds + SI);
+                        io.outb(DX, temp2);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                SI--;
+                        else
+                                SI++;
+                        c--;
+                        cycles -= 5;
+                }
+                if (c > 0)
+                {
+                        firstrepcycle = 0;
+                        cpu_state.pc = ipc;
+                        if (cpu_state.ssegs != 0)
+                                cpu_state.ssegs++;
+                        FETCHCLEAR();
+                }
+                else
+                        firstrepcycle = 1;
+                break;
+        case 0xA4: /*REP MOVSB*/
+                // pcem bug, reproduced: pas de `memcycs = 0;` en tête de boucle, à la
+                // différence de 0xA5/0xA6/0xA7/0xAA/0xAB — le FETCHADD ci-dessous
+                // consomme donc un memcycs jamais remis à zéro.
+                while (c > 0 && !IRQTEST)
+                {
+                        temp2 = readmemb(ds + SI);
+                        writememb(es + DI, temp2);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI--;
+                                SI--;
+                        }
+                        else
+                        {
+                                DI++;
+                                SI++;
+                        }
+                        c--;
+                        cycles -= 17;
+                        clockhardware();
+                        FETCHADD(17 - memcycs);
+                }
+                if (IRQTEST && c > 0)
+                        cpu_state.pc = ipc;
+                break;
+        case 0xA5: /*REP MOVSW*/
+                while (c > 0 && !IRQTEST)
+                {
+                        memcycs = 0;
+                        tempw = readmemw(ds, SI);
+                        writememw(es, DI, tempw);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI -= 2;
+                                SI -= 2;
+                        }
+                        else
+                        {
+                                DI += 2;
+                                SI += 2;
+                        }
+                        c--;
+                        cycles -= 17;
+                        clockhardware();
+                        FETCHADD(17 - memcycs);
+                }
+                if (IRQTEST && c > 0)
+                        cpu_state.pc = ipc;
+                break;
+        case 0xA6: /*REP CMPSB*/
+                if (fv != 0)
+                        cpu_state.flags |= Z_FLAG;
+                else
+                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                while ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)) && !IRQTEST)
+                {
+                        memcycs = 0;
+                        temp = readmemb(ds + SI);
+                        temp2 = readmemb(es + DI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI--;
+                                SI--;
+                        }
+                        else
+                        {
+                                DI++;
+                                SI++;
+                        }
+                        c--;
+                        cycles -= 30;
+                        setsub8(temp, temp2);
+                        clockhardware();
+                        FETCHADD(30 - memcycs);
+                }
+                if (IRQTEST && c > 0 && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                        cpu_state.pc = ipc;
+                break;
+        case 0xA7: /*REP CMPSW*/
+                if (fv != 0)
+                        cpu_state.flags |= Z_FLAG;
+                else
+                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                while ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)) && !IRQTEST)
+                {
+                        memcycs = 0;
+                        tempw = readmemw(ds, SI);
+                        tempw2 = readmemw(es, DI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI -= 2;
+                                SI -= 2;
+                        }
+                        else
+                        {
+                                DI += 2;
+                                SI += 2;
+                        }
+                        c--;
+                        cycles -= 30;
+                        setsub16(tempw, tempw2);
+                        clockhardware();
+                        FETCHADD(30 - memcycs);
+                }
+                if (IRQTEST && c > 0 && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                        cpu_state.pc = ipc;
+                break;
+        case 0xAA: /*REP STOSB*/
+                while (c > 0 && !IRQTEST)
+                {
+                        memcycs = 0;
+                        writememb(es + DI, AL);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI--;
+                        else
+                                DI++;
+                        c--;
+                        cycles -= 10;
+                        clockhardware();
+                        FETCHADD(10 - memcycs);
+                }
+                if (IRQTEST && c > 0)
+                        cpu_state.pc = ipc;
+                break;
+        case 0xAB: /*REP STOSW*/
+                while (c > 0 && !IRQTEST)
+                {
+                        memcycs = 0;
+                        writememw(es, DI, AX);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI -= 2;
+                        else
+                                DI += 2;
+                        c--;
+                        cycles -= 10;
+                        clockhardware();
+                        FETCHADD(10 - memcycs);
+                }
+                if (IRQTEST && c > 0)
+                        cpu_state.pc = ipc;
+                break;
+        case 0xAC: /*REP LODSB*/
+                if (c > 0)
+                {
+                        temp2 = readmemb(ds + SI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                SI--;
+                        else
+                                SI++;
+                        c--;
+                        cycles -= 4;
+                }
+                if (c > 0)
+                {
+                        firstrepcycle = 0;
+                        cpu_state.pc = ipc;
+                        if (cpu_state.ssegs != 0)
+                                cpu_state.ssegs++;
+                        FETCHCLEAR();
+                }
+                else
+                        firstrepcycle = 1;
+                break;
+        case 0xAD: /*REP LODSW*/
+                if (c > 0)
+                {
+                        tempw2 = readmemw(ds, SI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                SI -= 2;
+                        else
+                                SI += 2;
+                        c--;
+                        cycles -= 4;
+                }
+                if (c > 0)
+                {
+                        firstrepcycle = 0;
+                        cpu_state.pc = ipc;
+                        if (cpu_state.ssegs != 0)
+                                cpu_state.ssegs++;
+                        FETCHCLEAR();
+                }
+                else
+                        firstrepcycle = 1;
+                break;
+        case 0xAE: /*REP SCASB*/
+                if (fv != 0)
+                        cpu_state.flags |= Z_FLAG;
+                else
+                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                if ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                {
+                        temp2 = readmemb(es + DI);
+                        setsub8(AL, temp2);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI--;
+                        else
+                                DI++;
+                        c--;
+                        cycles -= 15;
+                }
+                if ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                {
+                        cpu_state.pc = ipc;
+                        firstrepcycle = 0;
+                        if (cpu_state.ssegs != 0)
+                                cpu_state.ssegs++;
+                        FETCHCLEAR();
+                }
+                else
+                        firstrepcycle = 1;
+                break;
+        case 0xAF: /*REP SCASW*/
+                if (fv != 0)
+                        cpu_state.flags |= Z_FLAG;
+                else
+                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                if ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                {
+                        tempw = readmemw(es, DI);
+                        setsub16(AX, tempw);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI -= 2;
+                        else
+                                DI += 2;
+                        c--;
+                        cycles -= 15;
+                }
+                if ((c > 0) && (fv == (((cpu_state.flags & Z_FLAG) != 0) ? 1 : 0)))
+                {
+                        cpu_state.pc = ipc;
+                        firstrepcycle = 0;
+                        if (cpu_state.ssegs != 0)
+                                cpu_state.ssegs++;
+                        FETCHCLEAR();
+                }
+                else
+                        firstrepcycle = 1;
+                break;
+        default:
+                cpu_state.pc = (uint32_t)(ipc + 1);
+                cycles -= 20;
+                FETCHCLEAR();
+                // CS8070: en C, `default:` sort du switch par sa fin ; C# l'interdit.
+                break;
+        }
+        CX = (uint16_t)c;
+        if (changeds != 0)
+                ds = oldds;
+        if (IRQTEST)
+                takeint = 1;
+    }
+#pragma warning restore CS0162
+
     // pcem: 808x.c:662-702
     internal static void resetx86()
     {
@@ -732,8 +1063,9 @@ internal static partial class _808x
         uint8_t temp, temp2;
         uint16_t addr, tempw, tempw2;
         int8_t offset;
-        int tempi;
-        int trap;
+        int tempi, trap, tempws, c;
+        uint16_t tempw3, tempw4;
+        uint32_t templ;
 
         cycles += cycs;
         while (cycles > 0)
@@ -1514,6 +1846,1750 @@ internal static partial class _808x
                                 FETCHCLEAR();
                         }
                         cycles -= 4;
+                        break;
+
+                case 0x80:
+                case 0x82:
+                        fetchea();
+                        temp = geteab();
+                        temp2 = FETCH();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ADD b,#8*/
+                                setadd8(temp, temp2);
+                                seteab((uint8_t)(temp + temp2));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x08: /*OR b,#8*/
+                                temp |= temp2;
+                                setznp8(temp);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteab(temp);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x10: /*ADC b,#8*/
+                                setadc8(temp, temp2);
+                                seteab((uint8_t)(temp + temp2 + tempc));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x18: /*SBB b,#8*/
+                                setsbc8(temp, temp2);
+                                seteab((uint8_t)(temp - (temp2 + tempc)));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x20: /*AND b,#8*/
+                                temp &= temp2;
+                                setznp8(temp);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteab(temp);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x28: /*SUB b,#8*/
+                                setsub8(temp, temp2);
+                                seteab((uint8_t)(temp - temp2));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x30: /*XOR b,#8*/
+                                temp ^= temp2;
+                                setznp8(temp);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteab(temp);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x38: /*CMP b,#8*/
+                                setsub8(temp, temp2);
+                                cycles -= ((cpu_mod == 3) ? 4 : 14);
+                                break;
+                        }
+                        break;
+
+                case 0x81:
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = getword();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ADD w,#16*/
+                                setadd16(tempw, tempw2);
+                                tempw += tempw2;
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x08: /*OR w,#16*/
+                                tempw |= tempw2;
+                                setznp16(tempw);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x10: /*ADC w,#16*/
+                                setadc16(tempw, tempw2);
+                                tempw += (uint16_t)(tempw2 + tempc);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x20: /*AND w,#16*/
+                                tempw &= tempw2;
+                                setznp16(tempw);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x18: /*SBB w,#16*/
+                                setsbc16(tempw, tempw2);
+                                seteaw((uint16_t)(tempw - (tempw2 + tempc)));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x28: /*SUB w,#16*/
+                                setsub16(tempw, tempw2);
+                                tempw -= tempw2;
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x30: /*XOR w,#16*/
+                                tempw ^= tempw2;
+                                setznp16(tempw);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x38: /*CMP w,#16*/
+                                setsub16(tempw, tempw2);
+                                cycles -= ((cpu_mod == 3) ? 4 : 14);
+                                break;
+                        }
+                        break;
+
+                case 0x83:
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = FETCH();
+                        if ((tempw2 & 0x80) != 0)
+                                tempw2 |= 0xFF00;
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ADD w,#8*/
+                                setadd16(tempw, tempw2);
+                                tempw += tempw2;
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x08: /*OR w,#8*/
+                                tempw |= tempw2;
+                                setznp16(tempw);
+                                seteaw(tempw);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | A_FLAG | V_FLAG));
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x10: /*ADC w,#8*/
+                                setadc16(tempw, tempw2);
+                                tempw += (uint16_t)(tempw2 + tempc);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x18: /*SBB w,#8*/
+                                setsbc16(tempw, tempw2);
+                                tempw -= (uint16_t)(tempw2 + tempc);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x20: /*AND w,#8*/
+                                tempw &= tempw2;
+                                setznp16(tempw);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | A_FLAG | V_FLAG));
+                                break;
+                        case 0x28: /*SUB w,#8*/
+                                setsub16(tempw, tempw2);
+                                tempw -= tempw2;
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                break;
+                        case 0x30: /*XOR w,#8*/
+                                tempw ^= tempw2;
+                                setznp16(tempw);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 4 : 23);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | A_FLAG | V_FLAG));
+                                break;
+                        case 0x38: /*CMP w,#8*/
+                                setsub16(tempw, tempw2);
+                                cycles -= ((cpu_mod == 3) ? 4 : 14);
+                                break;
+                        }
+                        break;
+
+                case 0x84: /*TEST b,reg*/
+                        fetchea();
+                        temp = geteab();
+                        temp2 = getr8(cpu_reg);
+                        setznp8((uint8_t)(temp & temp2));
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x85: /*TEST w,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        tempw2 = cpu_state.regs[cpu_reg].w;
+                        setznp16((uint16_t)(tempw & tempw2));
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= ((cpu_mod == 3) ? 3 : 13);
+                        break;
+                case 0x86: /*XCHG b,reg*/
+                        fetchea();
+                        temp = geteab();
+                        seteab(getr8(cpu_reg));
+                        setr8(cpu_reg, temp);
+                        cycles -= ((cpu_mod == 3) ? 4 : 25);
+                        break;
+                case 0x87: /*XCHG w,reg*/
+                        fetchea();
+                        tempw = geteaw();
+                        seteaw(cpu_state.regs[cpu_reg].w);
+                        cpu_state.regs[cpu_reg].w = tempw;
+                        cycles -= ((cpu_mod == 3) ? 4 : 25);
+                        break;
+
+                case 0x88: /*MOV b,reg*/
+                        fetchea();
+                        seteab(getr8(cpu_reg));
+                        cycles -= ((cpu_mod == 3) ? 2 : 13);
+                        break;
+                case 0x89: /*MOV w,reg*/
+                        fetchea();
+                        seteaw(cpu_state.regs[cpu_reg].w);
+                        cycles -= ((cpu_mod == 3) ? 2 : 13);
+                        break;
+                case 0x8A: /*MOV cpu_reg,b*/
+                        fetchea();
+                        temp = geteab();
+                        setr8(cpu_reg, temp);
+                        cycles -= ((cpu_mod == 3) ? 2 : 12);
+                        break;
+                case 0x8B: /*MOV cpu_reg,w*/
+                        fetchea();
+                        tempw = geteaw();
+                        cpu_state.regs[cpu_reg].w = tempw;
+                        cycles -= ((cpu_mod == 3) ? 2 : 12);
+                        break;
+
+                case 0x8C: /*MOV w,sreg*/
+                        fetchea();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ES*/
+                                seteaw(ES);
+                                break;
+                        case 0x08: /*CS*/
+                                seteaw(CS);
+                                break;
+                        case 0x18: /*DS*/
+                                if (cpu_state.ssegs != 0)
+                                        ds = oldds;
+                                seteaw(DS);
+                                break;
+                        case 0x10: /*SS*/
+                                if (cpu_state.ssegs != 0)
+                                        ss = oldss;
+                                seteaw(SS);
+                                break;
+                        }
+                        cycles -= ((cpu_mod == 3) ? 2 : 13);
+                        break;
+
+                case 0x8D: /*LEA*/
+                        fetchea();
+                        cpu_state.regs[cpu_reg].w = (uint16_t)cpu_state.eaaddr;
+                        cycles -= 2;
+                        break;
+
+                case 0x8E: /*MOV sreg,w*/
+                        fetchea();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ES*/
+                                tempw = geteaw();
+                                x86seg_c.loadseg(tempw, cpu_state.seg_es);
+                                break;
+                        case 0x08: /*CS - 8088/8086 only*/
+                                tempw = geteaw();
+                                x86seg_c.loadseg(tempw, cpu_state.seg_cs);
+                                break;
+                        case 0x18: /*DS*/
+                                tempw = geteaw();
+                                x86seg_c.loadseg(tempw, cpu_state.seg_ds);
+                                if (cpu_state.ssegs != 0)
+                                        oldds = ds;
+                                break;
+                        case 0x10: /*SS*/
+                                tempw = geteaw();
+                                x86seg_c.loadseg(tempw, cpu_state.seg_ss);
+                                if (cpu_state.ssegs != 0)
+                                        oldss = ss;
+                                break;
+                        }
+                        cycles -= ((cpu_mod == 3) ? 2 : 12);
+                        // omitted: skipnextprint = 1 (808x.c:2339) — le bloc de trace if (output) n'est pas transcrit.
+                        noint = 1;
+                        break;
+
+                case 0x8F: /*POPW*/
+                        fetchea();
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = readmemw(ss, SP);
+                        SP += 2;
+                        seteaw(tempw);
+                        cycles -= 25;
+                        break;
+
+                case 0x90: /*NOP*/
+                        cycles -= 3;
+                        break;
+
+                case 0x91:
+                case 0x92:
+                case 0x93: /*XCHG AX*/
+                case 0x94:
+                case 0x95:
+                case 0x96:
+                case 0x97:
+                        tempw = AX;
+                        AX = cpu_state.regs[opcode & 7].w;
+                        cpu_state.regs[opcode & 7].w = tempw;
+                        cycles -= 3;
+                        break;
+
+                case 0x98: /*CBW*/
+                        AH = (uint8_t)(((AL & 0x80) != 0) ? 0xFF : 0);
+                        cycles -= 2;
+                        break;
+                case 0x99: /*CWD*/
+                        DX = (uint16_t)(((AX & 0x8000) != 0) ? 0xFFFF : 0);
+                        cycles -= 5;
+                        break;
+                case 0x9A: /*CALL FAR*/
+                        tempw = getword();
+                        tempw2 = getword();
+                        tempw3 = CS;
+                        tempw4 = (uint16_t)cpu_state.pc;
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.pc = tempw;
+                        x86seg_c.loadcs(tempw2);
+                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), tempw3);
+                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), tempw4);
+                        SP -= 4;
+                        cycles -= 36;
+                        FETCHCLEAR();
+                        break;
+                case 0x9B: /*WAIT*/
+                        cycles -= 4;
+                        break;
+                case 0x9C: /*PUSHF*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                        SP -= 2;
+                        cycles -= 14;
+                        break;
+                case 0x9D: /*POPF*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.flags = (uint16_t)(readmemw(ss, SP) & 0xFFF);
+                        SP += 2;
+                        cycles -= 12;
+                        break;
+                case 0x9E: /*SAHF*/
+                        cpu_state.flags = (uint16_t)((cpu_state.flags & 0xFF00) | AH);
+                        cycles -= 4;
+                        break;
+                case 0x9F: /*LAHF*/
+                        AH = (uint8_t)(cpu_state.flags & 0xFF);
+                        cycles -= 4;
+                        break;
+
+                case 0xA0: /*MOV AL,(w)*/
+                        addr = getword();
+                        AL = readmemb(ds + addr);
+                        cycles -= 14;
+                        break;
+                case 0xA1: /*MOV AX,(w)*/
+                        addr = getword();
+                        AX = readmemw(ds, addr);
+                        cycles -= 14;
+                        break;
+                case 0xA2: /*MOV (w),AL*/
+                        addr = getword();
+                        writememb(ds + addr, AL);
+                        cycles -= 14;
+                        break;
+                case 0xA3: /*MOV (w),AX*/
+                        addr = getword();
+                        writememw(ds, addr, AX);
+                        cycles -= 14;
+                        break;
+
+                case 0xA4: /*MOVSB*/
+                        temp = readmemb(ds + SI);
+                        writememb(es + DI, temp);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI--;
+                                SI--;
+                        }
+                        else
+                        {
+                                DI++;
+                                SI++;
+                        }
+                        cycles -= 18;
+                        break;
+                case 0xA5: /*MOVSW*/
+                        tempw = readmemw(ds, SI);
+                        writememw(es, DI, tempw);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI -= 2;
+                                SI -= 2;
+                        }
+                        else
+                        {
+                                DI += 2;
+                                SI += 2;
+                        }
+                        cycles -= 18;
+                        break;
+                case 0xA6: /*CMPSB*/
+                        temp = readmemb(ds + SI);
+                        temp2 = readmemb(es + DI);
+                        setsub8(temp, temp2);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI--;
+                                SI--;
+                        }
+                        else
+                        {
+                                DI++;
+                                SI++;
+                        }
+                        cycles -= 30;
+                        break;
+                case 0xA7: /*CMPSW*/
+                        tempw = readmemw(ds, SI);
+                        tempw2 = readmemw(es, DI);
+                        setsub16(tempw, tempw2);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                        {
+                                DI -= 2;
+                                SI -= 2;
+                        }
+                        else
+                        {
+                                DI += 2;
+                                SI += 2;
+                        }
+                        cycles -= 30;
+                        break;
+                case 0xA8: /*TEST AL,#8*/
+                        temp = FETCH();
+                        setznp8((uint8_t)(AL & temp));
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 5;
+                        break;
+                case 0xA9: /*TEST AX,#16*/
+                        tempw = getword();
+                        setznp16((uint16_t)(AX & tempw));
+                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                        cycles -= 5;
+                        break;
+                case 0xAA: /*STOSB*/
+                        writememb(es + DI, AL);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI--;
+                        else
+                                DI++;
+                        cycles -= 11;
+                        break;
+                case 0xAB: /*STOSW*/
+                        writememw(es, DI, AX);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI -= 2;
+                        else
+                                DI += 2;
+                        cycles -= 11;
+                        break;
+                case 0xAC: /*LODSB*/
+                        AL = readmemb(ds + SI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                SI--;
+                        else
+                                SI++;
+                        cycles -= 16;
+                        break;
+                case 0xAD: /*LODSW*/
+                        AX = readmemw(ds, SI);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                SI -= 2;
+                        else
+                                SI += 2;
+                        cycles -= 16;
+                        break;
+                case 0xAE: /*SCASB*/
+                        temp = readmemb(es + DI);
+                        setsub8(AL, temp);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI--;
+                        else
+                                DI++;
+                        cycles -= 19;
+                        break;
+                case 0xAF: /*SCASW*/
+                        tempw = readmemw(es, DI);
+                        setsub16(AX, tempw);
+                        if ((cpu_state.flags & D_FLAG) != 0)
+                                DI -= 2;
+                        else
+                                DI += 2;
+                        cycles -= 19;
+                        break;
+
+                case 0xB0: /*MOV AL,#8*/
+                        AL = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB1: /*MOV CL,#8*/
+                        CL = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB2: /*MOV DL,#8*/
+                        DL = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB3: /*MOV BL,#8*/
+                        BL = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB4: /*MOV AH,#8*/
+                        AH = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB5: /*MOV CH,#8*/
+                        CH = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB6: /*MOV DH,#8*/
+                        DH = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB7: /*MOV BH,#8*/
+                        BH = FETCH();
+                        cycles -= 4;
+                        break;
+                case 0xB8:
+                case 0xB9:
+                case 0xBA:
+                case 0xBB: /*MOV cpu_reg,#16*/
+                case 0xBC:
+                case 0xBD:
+                case 0xBE:
+                case 0xBF:
+                        cpu_state.regs[opcode & 7].w = getword();
+                        cycles -= 4;
+                        break;
+
+                case 0xC0: /*RET alias*/
+                case 0xC2: /*RET*/
+                        tempw = getword();
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.pc = readmemw(ss, SP);
+                        SP += (uint16_t)(2 + tempw);
+                        cycles -= 24;
+                        FETCHCLEAR();
+                        break;
+                case 0xC1: /*RET alias*/
+                case 0xC3: /*RET*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.pc = readmemw(ss, SP);
+                        SP += 2;
+                        cycles -= 20;
+                        FETCHCLEAR();
+                        break;
+                case 0xC4: /*LES*/
+                        fetchea();
+                        cpu_state.regs[cpu_reg].w = readmemw(easeg, (uint16_t)cpu_state.eaaddr);
+                        tempw = readmemw(easeg, (uint16_t)((cpu_state.eaaddr + 2) & 0xFFFF));
+                        x86seg_c.loadseg(tempw, cpu_state.seg_es);
+                        cycles -= 24;
+                        break;
+                case 0xC5: /*LDS*/
+                        fetchea();
+                        cpu_state.regs[cpu_reg].w = readmemw(easeg, (uint16_t)cpu_state.eaaddr);
+                        tempw = readmemw(easeg, (uint16_t)((cpu_state.eaaddr + 2) & 0xFFFF));
+                        x86seg_c.loadseg(tempw, cpu_state.seg_ds);
+                        if (cpu_state.ssegs != 0)
+                                oldds = ds;
+                        cycles -= 24;
+                        break;
+                case 0xC6: /*MOV b,#8*/
+                        fetchea();
+                        temp = FETCH();
+                        seteab(temp);
+                        cycles -= ((cpu_mod == 3) ? 4 : 14);
+                        break;
+                case 0xC7: /*MOV w,#16*/
+                        fetchea();
+                        tempw = getword();
+                        seteaw(tempw);
+                        cycles -= ((cpu_mod == 3) ? 4 : 14);
+                        break;
+
+                case 0xC8: /*RETF alias*/
+                case 0xCA: /*RETF*/
+                        tempw = getword();
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.pc = readmemw(ss, SP);
+                        x86seg_c.loadcs(readmemw(ss, (uint16_t)(SP + 2)));
+                        SP += 4;
+                        SP += tempw;
+                        cycles -= 33;
+                        FETCHCLEAR();
+                        break;
+                case 0xC9: /*RETF alias*/
+                case 0xCB: /*RETF*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        cpu_state.pc = readmemw(ss, SP);
+                        x86seg_c.loadcs(readmemw(ss, (uint16_t)(SP + 2)));
+                        SP += 4;
+                        cycles -= 34;
+                        FETCHCLEAR();
+                        break;
+                case 0xCC: /*INT 3*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                        SP -= 6;
+                        addr = 3 << 2;
+                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                        cpu_state.pc = readmemw(0, addr);
+                        x86seg_c.loadcs(readmemw(0, (uint16_t)(addr + 2)));
+                        FETCHCLEAR();
+                        cycles -= 72;
+                        break;
+                case 0xCD: /*INT*/
+                        temp = FETCH();
+
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                        SP -= 6;
+                        addr = (uint16_t)(temp << 2);
+                        cpu_state.pc = readmemw(0, addr);
+
+                        x86seg_c.loadcs(readmemw(0, (uint16_t)(addr + 2)));
+                        FETCHCLEAR();
+
+                        cycles -= 71;
+                        break;
+                case 0xCF: /*IRET*/
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        tempw = CS;
+                        tempw2 = (uint16_t)cpu_state.pc;
+                        cpu_state.pc = readmemw(ss, SP);
+                        x86seg_c.loadcs(readmemw(ss, (uint16_t)((SP + 2) & 0xFFFF)));
+                        cpu_state.flags = (uint16_t)(readmemw(ss, (uint16_t)((SP + 4) & 0xFFFF)) & 0xFFF);
+                        SP += 6;
+                        cycles -= 44;
+                        FETCHCLEAR();
+                        nmi_enable = 1;
+                        break;
+
+                case 0xD0:
+                        fetchea();
+                        temp = geteab();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ROL b,1*/
+                                if ((temp & 0x80) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                temp <<= 1;
+                                if ((cpu_state.flags & C_FLAG) != 0)
+                                        temp |= 1;
+                                seteab(temp);
+                                if (((cpu_state.flags & C_FLAG) ^ (temp >> 7)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x08: /*ROR b,1*/
+                                if ((temp & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                temp >>= 1;
+                                if ((cpu_state.flags & C_FLAG) != 0)
+                                        temp |= 0x80;
+                                seteab(temp);
+                                if (((temp ^ (temp >> 1)) & 0x40) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x10: /*RCL b,1*/
+                                temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
+                                if ((temp & 0x80) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                temp <<= 1;
+                                if (temp2 != 0)
+                                        temp |= 1;
+                                seteab(temp);
+                                if (((cpu_state.flags & C_FLAG) ^ (temp >> 7)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x18: /*RCR b,1*/
+                                temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
+                                if ((temp & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                temp >>= 1;
+                                if (temp2 != 0)
+                                        temp |= 0x80;
+                                seteab(temp);
+                                if (((temp ^ (temp >> 1)) & 0x40) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x20:
+                        case 0x30: /*SHL b,1*/
+                                if ((temp & 0x80) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                if (((temp ^ (temp << 1)) & 0x80) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                temp <<= 1;
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        case 0x28: /*SHR b,1*/
+                                if ((temp & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                if ((temp & 0x80) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                temp >>= 1;
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        case 0x38: /*SAR b,1*/
+                                if ((temp & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                temp >>= 1;
+                                if ((temp & 0x40) != 0)
+                                        temp |= 0x80;
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                break;
+                        }
+                        break;
+
+                case 0xD1:
+                        fetchea();
+                        tempw = geteaw();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ROL w,1*/
+                                if ((tempw & 0x8000) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                tempw <<= 1;
+                                if ((cpu_state.flags & C_FLAG) != 0)
+                                        tempw |= 1;
+                                seteaw(tempw);
+                                if (((cpu_state.flags & C_FLAG) ^ (tempw >> 15)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x08: /*ROR w,1*/
+                                if ((tempw & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                tempw >>= 1;
+                                if ((cpu_state.flags & C_FLAG) != 0)
+                                        tempw |= 0x8000;
+                                seteaw(tempw);
+                                if (((tempw ^ (tempw >> 1)) & 0x4000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x10: /*RCL w,1*/
+                                temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
+                                if ((tempw & 0x8000) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                tempw <<= 1;
+                                if (temp2 != 0)
+                                        tempw |= 1;
+                                seteaw(tempw);
+                                if (((cpu_state.flags & C_FLAG) ^ (tempw >> 15)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x18: /*RCR w,1*/
+                                temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
+                                if ((tempw & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                tempw >>= 1;
+                                if (temp2 != 0)
+                                        tempw |= 0x8000;
+                                seteaw(tempw);
+                                if (((tempw ^ (tempw >> 1)) & 0x4000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                break;
+                        case 0x20:
+                        case 0x30: /*SHL w,1*/
+                                if ((tempw & 0x8000) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                if (((tempw ^ (tempw << 1)) & 0x8000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                tempw <<= 1;
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        case 0x28: /*SHR w,1*/
+                                if ((tempw & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                if ((tempw & 0x8000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                tempw >>= 1;
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+
+                        case 0x38: /*SAR w,1*/
+                                if ((tempw & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                tempw >>= 1;
+                                if ((tempw & 0x4000) != 0)
+                                        tempw |= 0x8000;
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= ((cpu_mod == 3) ? 2 : 23);
+                                cpu_state.flags |= A_FLAG;
+                                cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                break;
+                        }
+                        break;
+
+                case 0xD2:
+                        fetchea();
+                        temp = geteab();
+                        c = CL;
+                        if (c == 0)
+                                break;
+                        // CS0165: temp2 n'est écrit que dans les boucles `while (c > 0)`
+                        //   ci-dessous. c >= 1 est acquis ici, elles s'exécutent donc
+                        //   toujours au moins une fois et cette initialisation est inerte.
+                        temp2 = 0;
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ROL b,CL*/
+                                while (c > 0)
+                                {
+                                        temp2 = (uint8_t)(((temp & 0x80) != 0) ? 1 : 0);
+                                        temp = (uint8_t)((temp << 1) | temp2);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                if (temp2 != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteab(temp);
+                                if (((cpu_state.flags & C_FLAG) ^ (temp >> 7)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x08: /*ROR b,CL*/
+                                while (c > 0)
+                                {
+                                        temp2 = (uint8_t)(temp & 1);
+                                        temp >>= 1;
+                                        if (temp2 != 0)
+                                                temp |= 0x80;
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                if (temp2 != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteab(temp);
+                                if (((temp ^ (temp >> 1)) & 0x40) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x10: /*RCL b,CL*/
+                                while (c > 0)
+                                {
+                                        templ = (uint32_t)(cpu_state.flags & C_FLAG);
+                                        temp2 = (uint8_t)(temp & 0x80);
+                                        temp <<= 1;
+                                        if (temp2 != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        if (templ != 0)
+                                                temp |= 1;
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                seteab(temp);
+                                if (((cpu_state.flags & C_FLAG) ^ (temp >> 7)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x18: /*RCR b,CL*/
+                                while (c > 0)
+                                {
+                                        templ = (uint32_t)(cpu_state.flags & C_FLAG);
+                                        temp2 = (uint8_t)(temp & 1);
+                                        temp >>= 1;
+                                        if (temp2 != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        if (templ != 0)
+                                                temp |= 0x80;
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                seteab(temp);
+                                if (((temp ^ (temp >> 1)) & 0x40) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x20:
+                        case 0x30: /*SHL b,CL*/
+                                if (c > 8)
+                                {
+                                        temp = 0;
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                }
+                                else
+                                {
+                                        if (((temp << (c - 1)) & 0x80) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        temp <<= c;
+                                }
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= (c * 4);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        case 0x28: /*SHR b,CL*/
+                                if (c > 8)
+                                {
+                                        temp = 0;
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                }
+                                else
+                                {
+                                        if (((temp >> (c - 1)) & 1) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        temp >>= c;
+                                }
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= (c * 4);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        case 0x38: /*SAR b,CL*/
+                                if (((temp >> (c - 1)) & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                while (c > 0)
+                                {
+                                        temp >>= 1;
+                                        if ((temp & 0x40) != 0)
+                                                temp |= 0x80;
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                seteab(temp);
+                                setznp8(temp);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        }
+                        break;
+
+                case 0xD3:
+                        fetchea();
+                        tempw = geteaw();
+                        c = CL;
+                        if (c == 0)
+                                break;
+                        // CS0165: temp, tempw2 et templ ne sont écrits que dans les boucles
+                        //   `while (c > 0)` ci-dessous. c >= 1 est acquis ici, elles
+                        //   s'exécutent toujours et ces initialisations sont inertes.
+                        temp = 0;
+                        tempw2 = 0;
+                        templ = 0;
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*ROL w,CL*/
+                                while (c > 0)
+                                {
+                                        temp = (uint8_t)(((tempw & 0x8000) != 0) ? 1 : 0);
+                                        tempw = (uint16_t)((tempw << 1) | temp);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                if (temp != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteaw(tempw);
+                                if (((cpu_state.flags & C_FLAG) ^ (tempw >> 15)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x08: /*ROR w,CL*/
+                                while (c > 0)
+                                {
+                                        tempw2 = (uint16_t)(((tempw & 1) != 0) ? 0x8000 : 0);
+                                        tempw = (uint16_t)((tempw >> 1) | tempw2);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                if (tempw2 != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteaw(tempw);
+                                if (((tempw ^ (tempw >> 1)) & 0x4000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x10: /*RCL w,CL*/
+                                while (c > 0)
+                                {
+                                        templ = (uint32_t)(cpu_state.flags & C_FLAG);
+                                        if ((tempw & 0x8000) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        tempw = (uint16_t)((uint32_t)(tempw << 1) | templ);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                // pcem bug, reproduced: `templ` porte la retenue ENTRÉE à la
+                                //   dernière itération, pas celle qui en est sortie ; ce bloc
+                                //   écrase donc le C_FLAG correct posé dans la boucle. Le
+                                //   pendant octet, RCL b,CL (0xD2/0x10), ne l'a pas.
+                                if (templ != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteaw(tempw);
+                                if (((cpu_state.flags & C_FLAG) ^ (tempw >> 15)) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+                        case 0x18: /*RCR w,CL*/
+                                while (c > 0)
+                                {
+                                        templ = (uint32_t)(cpu_state.flags & C_FLAG);
+                                        tempw2 = (uint16_t)(((templ & 1) != 0) ? 0x8000 : 0);
+                                        if ((tempw & 1) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        tempw = (uint16_t)((tempw >> 1) | tempw2);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                // pcem bug, reproduced: `tempw2` porte le bit ENTRÉ (l'ancienne
+                                //   retenue), pas le bit sorti ; ce bloc écrase le C_FLAG
+                                //   correct posé dans la boucle. Le pendant octet, RCR b,CL,
+                                //   a exactement ces quatre lignes commentées (808x.c:3059-3060).
+                                if (tempw2 != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                seteaw(tempw);
+                                if (((tempw ^ (tempw >> 1)) & 0x4000) != 0)
+                                        cpu_state.flags |= V_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                break;
+
+                        case 0x20:
+                        case 0x30: /*SHL w,CL*/
+                                if (c > 16)
+                                {
+                                        tempw = 0;
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                }
+                                else
+                                {
+                                        if (((tempw << (c - 1)) & 0x8000) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        tempw <<= c;
+                                }
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= (c * 4);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+
+                        case 0x28: /*SHR w,CL*/
+                                if (c > 16)
+                                {
+                                        tempw = 0;
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                }
+                                else
+                                {
+                                        if (((tempw >> (c - 1)) & 1) != 0)
+                                                cpu_state.flags |= C_FLAG;
+                                        else
+                                                cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                        tempw >>= c;
+                                }
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= (c * 4);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+
+                        case 0x38: /*SAR w,CL*/
+                                tempw2 = (uint16_t)(tempw & 0x8000);
+                                if (((tempw >> (c - 1)) & 1) != 0)
+                                        cpu_state.flags |= C_FLAG;
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                                while (c > 0)
+                                {
+                                        tempw = (uint16_t)((tempw >> 1) | tempw2);
+                                        c--;
+                                        cycles -= 4;
+                                }
+                                seteaw(tempw);
+                                setznp16(tempw);
+                                cycles -= ((cpu_mod == 3) ? 8 : 28);
+                                cpu_state.flags |= A_FLAG;
+                                break;
+                        }
+                        break;
+
+                case 0xD4: /*AAM*/
+                        tempws = FETCH();
+                        AH = (uint8_t)(AL / tempws);
+                        AL %= (uint8_t)tempws;
+                        setznp16(AX);
+                        cycles -= 83;
+                        break;
+                case 0xD5: /*AAD*/
+                        tempws = FETCH();
+                        AL = (uint8_t)((AH * tempws) + AL);
+                        AH = 0;
+                        setznp16(AX);
+                        cycles -= 60;
+                        break;
+                case 0xD6: /*SETALC*/
+                        AL = (uint8_t)(((cpu_state.flags & C_FLAG) != 0) ? 0xff : 0);
+                        cycles -= 4;
+                        break;
+                case 0xD7: /*XLAT*/
+                        addr = (uint16_t)(BX + AL);
+                        AL = readmemb(ds + addr);
+                        cycles -= 11;
+                        break;
+
+                case 0xd8:
+                        fetchea();
+                        // omitted: le bloc `if (hasfpu)` — ops_808x_fpu_d8_a16[rmdat >> 3](rmdat),
+                        //   encadré d'une sauvegarde/restauration de cpu_state.pc. L'état 8087
+                        //   est hors portage (registre des omissions) et hasfpu vaut 0 sur XT :
+                        //   le bloc ne s'exécute jamais. Idem 0xd9 à 0xdf.
+                        break;
+                case 0xd9:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_d9_a16[rmdat](rmdat).
+                        break;
+                case 0xda:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_da_a16[rmdat](rmdat).
+                        break;
+                case 0xdb:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_db_a16[rmdat](rmdat).
+                        break;
+                case 0xdc:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_dc_a16[rmdat >> 3](rmdat).
+                        break;
+                case 0xdd:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_dd_a16[rmdat](rmdat).
+                        break;
+                case 0xde:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_de_a16[rmdat](rmdat).
+                        break;
+                case 0xdf:
+                        fetchea();
+                        // omitted: bloc `if (hasfpu)` — ops_808x_fpu_df_a16[rmdat](rmdat).
+                        break;
+
+                case 0xE0: /*LOOPNE*/
+                        offset = (int8_t)FETCH();
+                        CX--;
+                        if (CX != 0 && (cpu_state.flags & Z_FLAG) == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 6;
+                        break;
+                case 0xE1: /*LOOPE*/
+                        offset = (int8_t)FETCH();
+                        CX--;
+                        if (CX != 0 && (cpu_state.flags & Z_FLAG) != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 6;
+                        break;
+                case 0xE2: /*LOOP*/
+                        offset = (int8_t)FETCH();
+                        CX--;
+                        if (CX != 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 5;
+                        break;
+                case 0xE3: /*JCXZ*/
+                        offset = (int8_t)FETCH();
+                        if (CX == 0)
+                        {
+                                cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                                cycles -= 12;
+                                FETCHCLEAR();
+                        }
+                        cycles -= 6;
+                        break;
+
+                case 0xE4: /*IN AL*/
+                        temp = FETCH();
+                        AL = io.inb(temp);
+                        cycles -= 14;
+                        break;
+                case 0xE5: /*IN AX*/
+                        temp = FETCH();
+                        AL = io.inb(temp);
+                        AH = io.inb((uint16_t)(temp + 1));
+                        cycles -= 14;
+                        break;
+                case 0xE6: /*OUT AL*/
+                        temp = FETCH();
+                        io.outb(temp, AL);
+                        cycles -= 14;
+                        break;
+                case 0xE7: /*OUT AX*/
+                        temp = FETCH();
+                        io.outb(temp, AL);
+                        io.outb((uint16_t)(temp + 1), AH);
+                        cycles -= 14;
+                        break;
+
+                case 0xE8: /*CALL rel 16*/
+                        tempw = getword();
+                        if (cpu_state.ssegs != 0)
+                                ss = oldss;
+                        writememw(ss, ((uint32_t)(SP - 2) & 0xFFFF), (uint16_t)cpu_state.pc);
+                        SP -= 2;
+                        cpu_state.pc += tempw;
+                        cycles -= 23;
+                        FETCHCLEAR();
+                        break;
+                case 0xE9: /*JMP rel 16*/
+                        tempw = getword();
+                        cpu_state.pc += tempw;
+                        cycles -= 15;
+                        FETCHCLEAR();
+                        break;
+                case 0xEA: /*JMP far*/
+                        addr = getword();
+                        tempw = getword();
+                        cpu_state.pc = addr;
+                        x86seg_c.loadcs(tempw);
+                        cycles -= 15;
+                        FETCHCLEAR();
+                        break;
+                case 0xEB: /*JMP rel*/
+                        offset = (int8_t)FETCH();
+                        cpu_state.pc = (uint32_t)(cpu_state.pc + offset);
+                        cycles -= 15;
+                        FETCHCLEAR();
+                        break;
+                case 0xEC: /*IN AL,DX*/
+                        AL = io.inb(DX);
+                        cycles -= 12;
+                        break;
+                case 0xED: /*IN AX,DX*/
+                        AL = io.inb(DX);
+                        AH = io.inb((uint16_t)(DX + 1));
+                        cycles -= 12;
+                        break;
+                case 0xEE: /*OUT DX,AL*/
+                        io.outb(DX, AL);
+                        cycles -= 12;
+                        break;
+                case 0xEF: /*OUT DX,AX*/
+                        io.outb(DX, AL);
+                        io.outb((uint16_t)(DX + 1), AH);
+                        cycles -= 12;
+                        break;
+
+                case 0xF0: /*LOCK*/
+                case 0xF1: /*LOCK alias*/
+                        cycles -= 4;
+                        break;
+
+                case 0xF2: /*REPNE*/
+                        rep(0);
+                        break;
+                case 0xF3: /*REPE*/
+                        rep(1);
+                        break;
+
+                case 0xF4: /*HLT*/
+                        inhlt = 1;
+                        cpu_state.pc--;
+                        FETCHCLEAR();
+                        cycles -= 2;
+                        break;
+                case 0xF5: /*CMC*/
+                        cpu_state.flags ^= C_FLAG;
+                        cycles -= 2;
+                        break;
+
+                case 0xF6:
+                        fetchea();
+                        temp = geteab();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*TEST b,#8*/
+                        case 0x08:
+                                temp2 = FETCH();
+                                temp &= temp2;
+                                setznp8(temp);
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                cycles -= ((cpu_mod == 3) ? 5 : 11);
+                                break;
+                        case 0x10: /*NOT b*/
+                                temp = (uint8_t)~temp;
+                                seteab(temp);
+                                cycles -= ((cpu_mod == 3) ? 3 : 24);
+                                break;
+                        case 0x18: /*NEG b*/
+                                setsub8(0, temp);
+                                temp = (uint8_t)(0 - temp);
+                                seteab(temp);
+                                cycles -= ((cpu_mod == 3) ? 3 : 24);
+                                break;
+                        case 0x20: /*MUL AL,b*/
+                                setznp8(AL);
+                                AX = (uint16_t)(AL * temp);
+                                if (AX != 0)
+                                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                                else
+                                        cpu_state.flags |= Z_FLAG;
+                                if (AH != 0)
+                                        cpu_state.flags |= (C_FLAG | V_FLAG);
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                                cycles -= 70;
+                                break;
+                        case 0x28: /*IMUL AL,b*/
+                                setznp8(AL);
+                                tempws = (int)((int8_t)AL) * (int)((int8_t)temp);
+                                AX = (uint16_t)(tempws & 0xFFFF);
+                                if (AX != 0)
+                                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                                else
+                                        cpu_state.flags |= Z_FLAG;
+                                if (AH != 0)
+                                        cpu_state.flags |= (C_FLAG | V_FLAG);
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                                cycles -= 80;
+                                break;
+                        case 0x30: /*DIV AL,b*/
+                                tempw = AX;
+                                if (temp != 0)
+                                {
+                                        tempw2 = (uint16_t)(tempw % temp);
+                                        AH = (uint8_t)tempw2;
+                                        tempw /= temp;
+                                        AL = (uint8_t)(tempw & 0xFF);
+                                }
+                                else
+                                {
+                                        // omitted: printf("DIVb BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                        SP -= 6;
+                                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                        cpu_state.pc = readmemw(0, 0);
+                                        x86seg_c.loadcs(readmemw(0, 2));
+                                        FETCHCLEAR();
+                                }
+                                cycles -= 80;
+                                break;
+                        case 0x38: /*IDIV AL,b*/
+                                tempws = (int)AX;
+                                if (temp != 0)
+                                {
+                                        tempw2 = (uint16_t)(tempws % (int)((int8_t)temp));
+                                        AH = (uint8_t)(tempw2 & 0xFF);
+                                        tempws /= (int)((int8_t)temp);
+                                        AL = (uint8_t)(tempws & 0xFF);
+                                }
+                                else
+                                {
+                                        // omitted: printf("IDIVb BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                        SP -= 6;
+                                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                        cpu_state.pc = readmemw(0, 0);
+                                        x86seg_c.loadcs(readmemw(0, 2));
+                                        FETCHCLEAR();
+                                }
+                                cycles -= 101;
+                                break;
+                        }
+                        break;
+
+                case 0xF7:
+                        fetchea();
+                        tempw = geteaw();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*TEST w*/
+                        case 0x08:
+                                tempw2 = getword();
+                                setznp16((uint16_t)(tempw & tempw2));
+                                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG | A_FLAG));
+                                cycles -= ((cpu_mod == 3) ? 5 : 11);
+                                break;
+                        case 0x10: /*NOT w*/
+                                seteaw((uint16_t)~tempw);
+                                cycles -= ((cpu_mod == 3) ? 3 : 24);
+                                break;
+                        case 0x18: /*NEG w*/
+                                setsub16(0, tempw);
+                                tempw = (uint16_t)(0 - tempw);
+                                seteaw(tempw);
+                                cycles -= ((cpu_mod == 3) ? 3 : 24);
+                                break;
+                        case 0x20: /*MUL AX,w*/
+                                setznp16(AX);
+                                templ = (uint32_t)(AX * tempw);
+                                AX = (uint16_t)(templ & 0xFFFF);
+                                DX = (uint16_t)(templ >> 16);
+                                if ((AX | DX) != 0)
+                                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                                else
+                                        cpu_state.flags |= Z_FLAG;
+                                if (DX != 0)
+                                        cpu_state.flags |= (C_FLAG | V_FLAG);
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                                cycles -= 118;
+                                break;
+                        case 0x28: /*IMUL AX,w*/
+                                setznp16(AX);
+                                tempws = (int)((int16_t)AX) * (int)((int16_t)tempw);
+                                if ((tempws >> 15) != 0 && ((tempws >> 15) != -1))
+                                        cpu_state.flags |= (C_FLAG | V_FLAG);
+                                else
+                                        cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                                AX = (uint16_t)(tempws & 0xFFFF);
+                                tempws = (uint16_t)(tempws >> 16);
+                                DX = (uint16_t)(tempws & 0xFFFF);
+                                if ((AX | DX) != 0)
+                                        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                                else
+                                        cpu_state.flags |= Z_FLAG;
+                                cycles -= 128;
+                                break;
+                        case 0x30: /*DIV AX,w*/
+                                templ = (uint32_t)((DX << 16) | AX);
+                                if (tempw != 0)
+                                {
+                                        tempw2 = (uint16_t)(templ % tempw);
+                                        DX = tempw2;
+                                        templ /= tempw;
+                                        AX = (uint16_t)(templ & 0xFFFF);
+                                }
+                                else
+                                {
+                                        // omitted: printf("DIVw BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                        SP -= 6;
+                                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                        cpu_state.pc = readmemw(0, 0);
+                                        x86seg_c.loadcs(readmemw(0, 2));
+                                        FETCHCLEAR();
+                                }
+                                cycles -= 144;
+                                break;
+                        case 0x38: /*IDIV AX,w*/
+                                tempws = (int)((DX << 16) | AX);
+                                if (tempw != 0)
+                                {
+                                        tempw2 = (uint16_t)(tempws % (int)((int16_t)tempw));
+                                        DX = tempw2;
+                                        tempws /= (int)((int16_t)tempw);
+                                        AX = (uint16_t)(tempws & 0xFFFF);
+                                }
+                                else
+                                {
+                                        // omitted: printf("IDIVw BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                        SP -= 6;
+                                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                        cpu_state.pc = readmemw(0, 0);
+                                        x86seg_c.loadcs(readmemw(0, 2));
+                                        FETCHCLEAR();
+                                }
+                                cycles -= 165;
+                                break;
+                        }
+                        break;
+
+                case 0xF8: /*CLC*/
+                        cpu_state.flags &= unchecked((uint16_t)~C_FLAG);
+                        cycles -= 2;
+                        break;
+                case 0xF9: /*STC*/
+                        cpu_state.flags |= C_FLAG;
+                        cycles -= 2;
+                        break;
+                case 0xFA: /*CLI*/
+                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                        cycles -= 3;
+                        break;
+                case 0xFB: /*STI*/
+                        cpu_state.flags |= I_FLAG;
+                        cycles -= 2;
+                        break;
+                case 0xFC: /*CLD*/
+                        cpu_state.flags &= unchecked((uint16_t)~D_FLAG);
+                        cycles -= 2;
+                        break;
+                case 0xFD: /*STD*/
+                        cpu_state.flags |= D_FLAG;
+                        cycles -= 2;
+                        break;
+
+                case 0xFE: /*INC/DEC b*/
+                        fetchea();
+                        temp = geteab();
+                        cpu_state.flags &= unchecked((uint16_t)~V_FLAG);
+                        if ((rmdat & 0x38) != 0)
+                        {
+                                setsub8nc(temp, 1);
+                                temp2 = (uint8_t)(temp - 1);
+                                if ((temp & 0x80) != 0 && (temp2 & 0x80) == 0)
+                                        cpu_state.flags |= V_FLAG;
+                        }
+                        else
+                        {
+                                setadd8nc(temp, 1);
+                                temp2 = (uint8_t)(temp + 1);
+                                if ((temp2 & 0x80) != 0 && (temp & 0x80) == 0)
+                                        cpu_state.flags |= V_FLAG;
+                        }
+                        seteab(temp2);
+                        cycles -= ((cpu_mod == 3) ? 3 : 23);
+                        break;
+
+                case 0xFF:
+                        fetchea();
+                        switch (rmdat & 0x38)
+                        {
+                        case 0x00: /*INC w*/
+                                tempw = geteaw();
+                                setadd16nc(tempw, 1);
+                                seteaw((uint16_t)(tempw + 1));
+                                cycles -= ((cpu_mod == 3) ? 3 : 23);
+                                break;
+                        case 0x08: /*DEC w*/
+                                tempw = geteaw();
+                                setsub16nc(tempw, 1);
+                                seteaw((uint16_t)(tempw - 1));
+                                cycles -= ((cpu_mod == 3) ? 3 : 23);
+                                break;
+                        case 0x10: /*CALL*/
+                                tempw = geteaw();
+                                if (cpu_state.ssegs != 0)
+                                        ss = oldss;
+                                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                SP -= 2;
+                                cpu_state.pc = tempw;
+                                cycles -= ((cpu_mod == 3) ? 20 : 29);
+                                FETCHCLEAR();
+                                break;
+                        case 0x18: /*CALL far*/
+                                tempw = readmemw(easeg, (uint16_t)cpu_state.eaaddr);
+                                tempw2 = readmemw(easeg, (uint16_t)((cpu_state.eaaddr + 2) & 0xFFFF));
+                                tempw3 = CS;
+                                tempw4 = (uint16_t)cpu_state.pc;
+                                if (cpu_state.ssegs != 0)
+                                        ss = oldss;
+                                cpu_state.pc = tempw;
+                                x86seg_c.loadcs(tempw2);
+                                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), tempw3);
+                                writememw(ss, ((uint32_t)((SP - 4) & 0xFFFF)), tempw4);
+                                SP -= 4;
+                                cycles -= 53;
+                                FETCHCLEAR();
+                                break;
+                        case 0x20: /*JMP*/
+                                cpu_state.pc = geteaw();
+                                cycles -= ((cpu_mod == 3) ? 11 : 18);
+                                FETCHCLEAR();
+                                break;
+                        case 0x28: /*JMP far*/
+                                cpu_state.pc = readmemw(easeg, (uint16_t)cpu_state.eaaddr);
+                                x86seg_c.loadcs(readmemw(easeg, (uint16_t)((cpu_state.eaaddr + 2) & 0xFFFF)));
+                                cycles -= 24;
+                                FETCHCLEAR();
+                                break;
+                        case 0x30: /*PUSH w*/
+                                tempw = geteaw();
+                                if (cpu_state.ssegs != 0)
+                                        ss = oldss;
+                                writememw(ss, ((uint32_t)((SP - 2) & 0xFFFF)), tempw);
+                                SP -= 2;
+                                cycles -= ((cpu_mod == 3) ? 15 : 24);
+                                break;
+                        }
                         break;
 
                 default:
