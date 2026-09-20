@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/pc.c  (initpc :178-300, resetpchard :353-400, runpc :470-553)
+// ORACLE: pcem-dev/src/pc.c  (initpc :178-300, resetpc_cad :344-351,
+//         resetpchard :353-400, runpc :470-553, closepc :576-592)
 // STATUS: partial — réduit à l'IBM PC 5150 : disquette comprise (M6), mais ni son,
 //         ni réseau, ni disque dur, ni souris, ni joystick, ni NVR. Ce qui reste
 //         est la séquence d'amorçage et la tranche d'exécution.
@@ -173,6 +174,37 @@ internal static partial class pc
         Video.video.video_init();
 
         pc_reset();
+    }
+
+    // pcem: pc.c:344-351 — Ctrl+Alt+Suppr, poussé dans la file du clavier. Redémarrage
+    // À CHAUD : le BIOS trouve 0x1234 en 0040:0072 et saute le test mémoire de 46 s, là
+    // où resetpchard() réalloue la RAM à zéro (mem.cs:726) et repart à froid.
+    // 83 est le Suppr du pavé du clavier 83 touches du 5150, pas le 0xD3 étendu de l'AT.
+    internal static void resetpc_cad()
+    {
+        Keyboard.keyboard.keyboard_send_scancode(29, 0); /* Ctrl key pressed */
+        Keyboard.keyboard.keyboard_send_scancode(56, 0); /* Alt key pressed */
+        Keyboard.keyboard.keyboard_send_scancode(83, 0); /* Delete key pressed */
+        Keyboard.keyboard.keyboard_send_scancode(29, 1); /* Ctrl key released */
+        Keyboard.keyboard.keyboard_send_scancode(56, 1); /* Alt key released */
+        Keyboard.keyboard.keyboard_send_scancode(83, 1); /* Delete key released */
+    }
+
+    /// <summary>
+    /// pcem: pc.c:576-592 (réduit). Fermeture du processus. Les deux disc_close sont la
+    /// SEULE chose qui vide les tampons d'écriture sur les images : img_writeback
+    /// (disc_img.cs:539) écrit dans le FileStream sans Flush(), et c'est le Close() de
+    /// img_close (disc_img.cs:418) qui les pousse. Sans cet appel, un DOS qui vient
+    /// d'écrire sur la disquette perd ses écritures à la fermeture de la fenêtre.
+    /// </summary>
+    internal static void closepc()
+    {
+        // omitted: codegen_close(), atapi->exit(), dumppic(), dumpregs(), closevideo(),
+        //   lpt1_device_close(), mouse_emu_close(), device_close_all(), zip_eject()
+        //   (pc.c:577-591) — dynarec, ATAPI, LPT, souris, ZIP : hors périmètre 5150.
+        //   device_close_all() n'a rien à fermer que le processus ne rende de lui-même.
+        Disc.disc.disc_close(0);
+        Disc.disc.disc_close(1);
     }
 
     // pcem: pc.c — remise à zéro du CPU et des périphériques sensibles au reset.
