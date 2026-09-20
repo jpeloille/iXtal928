@@ -15,6 +15,14 @@ var maxSlices = 0; // 0 = tourne jusqu'à la fermeture de la fenêtre
 var verbose = false;
 var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'époque
 
+// Configuration machine. null = aucun fichier, donc tous les défauts — c'est-à-dire
+// exactement la machine que décrit VERIFICATION.md. Les surcharges valent -1 tant que
+// la ligne de commande n'a rien dit, pour distinguer « non demandé » de « demandé à 0 »
+// (0 est un type de lecteur légitime : « aucun lecteur »).
+string? configPath = null;
+var ramOverride = -1;
+var driveOverride = new[] { -1, -1 };
+
 // Le budget de turbo vit dans SdlHost : le menu Ctrl+F12 s'en sert aussi pour le réarmer
 // après un reset, et deux 5800 dans l'arbre finiraient par diverger.
 const int DefaultTurboSlices = SdlHost.DefaultTurboSlices;
@@ -71,6 +79,17 @@ for (var i = 0; i < args.Length; i++)
                 case "--type": types.Add(val); break;
                 case "--floppy-a": if (!MountFloppy(0, val)) return 2; break;
                 case "--floppy-b": if (!MountFloppy(1, val)) return 2; break;
+                // La configuration se lit ICI et pas dans la boucle principale :
+                // --boot rend avant d'y arriver. Les deux positionnels de --boot lui
+                // sont propres, ses options aussi.
+                case "--config":
+                    if (!File.Exists(val))
+                    {
+                        Console.Error.WriteLine($"Fichier de configuration introuvable : « {val} ».");
+                        return 2;
+                    }
+                    if (!pc.loadconfig(val)) return 2;
+                    break;
                 default:
                     Console.Error.WriteLine($"Option inconnue après --boot : {opt}");
                     return 2;
@@ -120,6 +139,48 @@ for (var i = 0; i < args.Length; i++)
         }
 
         return TimerCheck.Run(paths.resolve_roms_path(roms), seconds);
+    }
+
+    // --config CHEMIN : le fichier de configuration machine, comme PCem (pc.c:211-226).
+    // Ordre de précédence : défauts, puis fichier, puis ligne de commande. Les options
+    // machine ci-dessous surchargent donc ce que le fichier a dit.
+    if (arg == "--config")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine("--config attend le chemin d'un fichier de configuration.");
+            return 2;
+        }
+
+        // Refusé et non ignoré : un chemin mal tapé donnerait tous les défauts en
+        // silence, donc une machine autre que celle demandée. Même politique que
+        // MountFloppy et que le contrôle de répertoire de ROM d'initpc.
+        configPath = args[++i];
+        if (!File.Exists(configPath))
+        {
+            Console.Error.WriteLine($"Fichier de configuration introuvable : « {configPath} ».");
+            return 2;
+        }
+
+        continue;
+    }
+
+    if (arg is "--ram" or "--drive-a" or "--drive-b")
+    {
+        if (i + 1 >= args.Length || !int.TryParse(args[++i], out var v) || v < 0)
+        {
+            Console.Error.WriteLine($"{arg} attend un entier positif.");
+            return 2;
+        }
+
+        switch (arg)
+        {
+            case "--ram": ramOverride = v; break;
+            case "--drive-a": driveOverride[0] = v; break;
+            default: driveOverride[1] = v; break;
+        }
+
+        continue;
     }
 
     if (arg == "--rom-path")
@@ -226,6 +287,25 @@ if (turboSlices > 0 && maxSlices > 0)
 // Voir paths.resolve_roms_path.
 romsPath = paths.resolve_roms_path(romsPath);
 
+// Défauts → fichier → ligne de commande, dans cet ordre, et AVANT initpc : c'est la
+// séquence de pc_main, qui appelle loadconfig() puis initpc() (wx-sdl2.c:451, :459).
+// Sans --config on ne lit aucun fichier : un lancement nu reste un lancement nu, et
+// rend la machine que VERIFICATION.md décrit.
+if (configPath is not null && !pc.loadconfig(configPath))
+    return 2;
+
+if (ramOverride >= 0)
+    pc.cfg_mem_size = ramOverride;
+
+for (var d = 0; d < 2; d++)
+    if (driveOverride[d] >= 0)
+        pc.cfg_drive_type[d] = driveOverride[d];
+
+if (verbose)
+    Console.WriteLine($"machine : mem_size = {pc.cfg_mem_size} Ko, " +
+                      $"lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
+                      (configPath is null ? " (défauts)" : $" ({configPath})"));
+
 using var host = new SdlHost(romsPath, headless, maxSlices, verbose, turboSlices);
 
 if (!host.Init())
@@ -273,6 +353,18 @@ static void PrintUsage()
     Console.WriteLine("Dans la fenêtre, Ctrl+F12 ouvre le menu : insérer ou éjecter une disquette,");
     Console.WriteLine("réinitialiser la machine. La disquette en place au moment du reset est celle");
     Console.WriteLine("sur laquelle le BIOS amorce.");
+    Console.WriteLine();
+    Console.WriteLine("  --config CHEMIN      fichier de configuration machine (format .cfg de PCem :");
+    Console.WriteLine("                       « clé = valeur », sections [entre crochets], # en");
+    Console.WriteLine("                       commentaire). Clés : model, mem_size, drive_a_type,");
+    Console.WriteLine("                       drive_b_type, disc_a, disc_b, bpb_disable");
+    Console.WriteLine("  --ram N              taille RAM en Ko, de 64 à 640 par pas de 32");
+    Console.WriteLine("  --drive-a T          type de lecteur : 0 aucun, 1 5,25\" DD (le 5150),");
+    Console.WriteLine("                       2 5,25\" HD, 4 3,5\" DD, 5 3,5\" HD. --drive-b T de même");
+    Console.WriteLine();
+    Console.WriteLine("  Précédence : défauts, puis --config, puis les options ci-dessus. Sans");
+    Console.WriteLine("  --config aucun fichier n'est lu, et la machine est celle que décrit");
+    Console.WriteLine("  VERIFICATION.md : 640 Ko, deux lecteurs 5,25\" DD, CGA.");
     Console.WriteLine();
     Console.WriteLine("  --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms,");
     Console.WriteLine("                       cherché d'abord depuis le répertoire courant, puis en");
