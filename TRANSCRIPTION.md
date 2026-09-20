@@ -20,9 +20,10 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   (c) une ligne de provenance par fonction, `// pcem: src/cpu/808x.c:1271-1301` ;
   (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:`, `// CS0165:` ;
   (e) dans `Floppy/` et `Disc/` seulement, un bloc `// noms:` en en-tête : une ligne par
-  identifiant, deux colonnes, **sans prose**, 40 lignes au plus. Contrepartie obligatoire
-  du nommage explicite autorisé plus bas — sans elle, plus rien ne relie le fichier à
-  `pcem-dev/`.
+  identifiant, **sans phrase**, 40 lignes au plus. Deux colonnes — l'identifiant, ce
+  qu'il désigne — et **trois dès qu'un nom est modifié** : nom PCem, nom iXtal26, ce
+  qu'il désigne. Contrepartie obligatoire du nommage explicite autorisé plus bas — sans
+  elle, plus rien ne relie le fichier à `pcem-dev/`.
   Le commentaire de 140 lignes qui explique un choix de conception reste hors budget :
   (e) est une table, pas un exposé. Le code mort commenté de PCem n'est pas reproduit.
 - **R2 — parité de lignes.** Le C# vivant d'une région se compare au C vivant
