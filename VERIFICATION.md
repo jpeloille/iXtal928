@@ -938,8 +938,13 @@ du pourcentage), d'un `Stopwatch` autour du seul `pc.runpc()`.
 
 ## M5.3 — Le turbo d'amorçage : 57 s de POST en 4,2 s, sans toucher à la machine
 
-Mesuré le 2026-09-20, même machine et même protocole que § M5.1 (Core Ultra 7 258V,
-`taskset -c 0-3`, build Release, Rider en fond).
+Mesuré le 2026-09-20, même machine que § M5.1 (Core Ultra 7 258V, `taskset -c 0-3`,
+build Release), **mais pas sur une machine au repos** : une campagne SST tournait dans
+une autre session jusqu'à 17 h 55, et l'IDE faisait tourner un build Debug ensuite. Ces
+chiffres sont donc des **majorants** — la charge ne peut qu'avoir ralenti les trois
+configurations, et elle les a ralenties ensemble, à une mesure près par ligne. Le rapport
+entre elles, lui, tient : c'est lui qui porte la conclusion, pas la milliseconde. Une
+reprise au repos est due, avec le protocole complet de § M5.1 (minimum de 3, Rider fermé).
 
 La question « peut-on accélérer le POST ? » recouvre trois choses que les chiffres
 séparent nettement. Aller jusqu'à l'invite BASIC (6 000 tranches, 60 s émulées) :
