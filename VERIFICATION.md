@@ -1492,3 +1492,106 @@ en-tête, et une ligne blanche avant chaque `[section]`.
 | **`hasfpu`** | Les deux côtés dépendent d'un zéro IMPLICITE, jamais d'une affectation. Le rendre réglable exige d'ajouter l'affectation explicite des deux côtés, sinon un seul change le bit 1 de SW1 |
 | **`video_speed`** | `video_updatetiming` est un no-op côté C alors que `video.cs` calcule vraiment — réglage à sens unique tant que ce n'est pas tranché |
 | **Une deuxième machine** | La table est livrée, les machines non. Un XT 5160 demande son BIOS, ses périphériques et son propre passage au vert |
+
+---
+
+## M8.1 — `Floppy/` et `Disc/` lisibles, sans perdre l'oracle
+
+Le 2026-09-21. Point de départ : les noms de PCem dans `fdc.cs` ne se décodent pas sans
+la fiche du 765, et l'opacité est autant dans les **littéraux** — 42 affectations de
+`fdc.stat` en hexadécimal nu — que dans les identifiants. La contrainte : la revue ligne
+à ligne contre `pcem-dev/` est la seule vérification *statique* du projet, et un nom qui
+change la casse.
+
+D'où l'ordre, qui est tout l'intérêt du jalon : **la table des noms d'abord, le renommage
+ensuite**. Tant que les noms sont ceux de PCem, la table est un glossaire de confort ;
+dès qu'un nom change, elle devient le seul chemin de retour vers `pcem-dev/`, et R1(e) la
+rend obligatoire.
+
+### Le repère, pris avant la première modification
+
+`tools/oracle/harness.c` et les trois fichiers de `tools/iXtal26.Diff/` avaient été
+commités entre § M6 et ici. Les chiffres de § M6 ne pouvaient donc pas être *supposés*
+valides : ils ont été **remesurés sur `3ed82cc`** avant de toucher à quoi que ce soit.
+
+| Épreuve | Repère | § M6 |
+|---|---|---|
+| `boot-diff roms 6000` | 25 457 269 | identique |
+| `boot-diff roms 7000 --fda …b.img` | 26 750 702 | identique |
+| `boot-diff roms 6500 --fda …s.img` | 27 494 583 | identique |
+| `disc-probe 5300 / 5310 / 5400 / 5600` | 20 champs identiques | identique |
+
+Les trois se reproduisent à l'unité. C'est ce repère — pas § M6 — qui a servi de
+référence ensuite : sans lui, une dérive préexistante se serait lue comme une faute de
+renommage, ou l'inverse.
+
+### Ce qui a été fait, et ce que chaque étape a coûté
+
+| Étape | Effet | R2 |
+|---|---|---|
+| Constantes nommées (`MSR_*`, `ST0_*`, `ST1_OR`, `ST3_*`, `RES_*`, `EXEC_*`) | 42 affectations + formes masquées deviennent lisibles | +29 lignes, 1 041/961 = **1,08** |
+| Tables `// noms:` des cinq fichiers | 36 + 16 + 13 + 12 + 9 lignes, cap R1(e) = 40 | commentaires, nul |
+| Renommage `fdc.cs` | 20 identifiants, 263 sites | **inchangé** — renommage pur |
+| Renommage `disc_sector.cs`, `disc.cs` | 5 identifiants (CHRN, `forced_writeprot`) | inchangé |
+| `fdc-trace` | outillage, hors fichiers transcrits | sans objet |
+
+À chaque commit des deux étapes de renommage, la batterie complète : **tous les chiffres
+identiques au repère, à l'unité**, images inchangées, `check-oracle` 22 vérifiés 0 dérive.
+Le renommage étant neutre pour le comportement, tout écart aurait été une faute de frappe
+et rien d'autre — c'est ce qui rend une étape de 263 sites sûre malgré sa taille.
+
+### Trois choses apprises
+
+1. **`sed` ne voit pas ce que le compilateur voit, et inversement.** Le renommage des
+   champs CHRN par `s\.[chrn]\b` a manqué `disc_sector_data[...].n` (`disc_sector.cs:187`
+   et `:209`), hors du préfixe `s.`. Le compilateur l'aurait signalé dès le renommage de
+   la déclaration ; un `grep` ciblé l'a trouvé avant. C'est l'argument pour le renommage
+   sémantique plutôt que textuel — pas la théorie, un cas.
+2. **Les couplages par chaîne ne sont pas typés.** `tools/iXtal26.Diff/BootDiff.cs:264`
+   porte les 20 étiquettes de la sonde sous forme de chaînes. Elles désignent les globales
+   **du C** (`harness.c:559` : `extern int discint, lastbyte, paramstogo, bit_rate`) et
+   gardent donc les noms PCem. Les renommer « par cohérence » aurait fait mentir la sonde
+   sur ce qu'elle compare, sans le moindre diagnostic.
+3. **Nommer à moitié est pire que ne pas nommer.** `ST0_NR` n'a l'air décoratif que
+   jusqu'au moment où le `0x68` de `fdc_callback` reste littéral au milieu de ses voisins
+   nommés. Et `Sense drive status` rend **ST3**, dont la disposition n'est celle d'aucun
+   des trois autres registres : appliquer les `ST0_*` à son `0x28` aurait produit du code
+   faux-lisible, ce qui est le pire des deux mondes.
+
+### Deux défauts de PCem trouvés en inventoriant les noms
+
+Une table qui dit ce qu'un champ désigne bute sur ceux qui ne désignent plus rien.
+
+- **PB-19** — `fdc.written` est déclaré, remis à zéro deux fois, testé une fois, et
+  **jamais posé à 1** dans tout l'arbre vendoré : la détection d'écrasement en écriture
+  hors DMA est morte, là où son symétrique en lecture (`fdc.data_ready`) fonctionne. Le
+  chemin d'écriture n'étant pas exercé par l'amorçage de PC DOS 2.00 (§ M6), rien ne
+  l'avait mis en évidence.
+- **PB-20** — sept champs et globales morts : `abort`, `discmodified[]`, `discrate[]`,
+  `motorspin`, `fdc_ready`, `fdc_indexcount`, `defaultwriteprot`, `oldtrack[]`. Deux ont
+  leur `extern` **commenté** dans `disc.h`, et `oldtrack` n'est lu que par un bloc
+  `ddnoise_seek` commenté : ils ont eu des lecteurs, retirés sans que les définitions
+  suivent.
+
+### La doctrine a bougé trois fois, et la troisième était une correction
+
+R3 : plafond de `TRANSCRIPTION.md` porté de 200 à 220 lignes (214 aujourd'hui), le
+relèvement inscrit dans la règle. R1 : catégorie **(e)**, la table `// noms:`, bornée à
+40 lignes et sans phrase. Table des conventions : ligne « Nommage » exceptée pour
+`Floppy/` et `Disc/`, **pour les deux classes de déviation** — renommer un identifiant et
+nommer une valeur de registre, la seconde réécrivant une expression de PCem et pas
+seulement une étiquette.
+
+La troisième modification a corrigé la première : R1(e) disait « deux colonnes », ce qui
+ne tient plus dès qu'un nom change — il en faut trois, l'ancien, le nouveau, le sens. Une
+règle écrite la veille, invalidée par sa première application réelle.
+
+### Ce que `fdc-trace` montre
+
+`fdc-trace roms 5600 --fda os/pcdos20/pcdos20b.img` : **734 transitions pour 23 093 051
+instructions**, et la séquence d'amorçage se lit sans la fiche technique — reset,
+Specify, Recalibrate, Seek, puis les `Read data` alternant « cherche secteur » et « lit
+secteur ». Il échantillonne depuis l'outillage après chaque `Step()`, comme `disc-probe` :
+aucun point d'accroche dans le cœur, aucune ligne vivante ajoutée, rien qui tourne pendant
+les passes de comparaison. L'oracle n'y participe pas — son instance `fdc` est `static`
+dans `fdc.c`, invisible depuis `harness.c`.
