@@ -84,6 +84,119 @@ internal static partial class pc
         throw new InvalidOperationException(s);
     }
 
+    // DEVIATION: chez PCem, loadconfig() écrit mem_size directement et pc_main est le
+    //   SEUL appelant d'initpc (wx-sdl2.c:444). iXtal26 en a quatre — Program, BootTest,
+    //   TimerCheck, BootDiff — et trois d'entre eux ne lisent aucun fichier. La valeur
+    //   configurée vit donc ici, et initpc la consomme : ceux qui n'appellent pas
+    //   loadconfig obtiennent le DÉFAUT, c'est-à-dire exactement la machine d'avant M8.
+    //   Ce défaut n'est pas un réglage : c'est ce qui garde reproductibles toutes les
+    //   mesures déjà consignées (§ M4.1 « 640 Ko », § M6 « 26 750 702 instructions »).
+    internal static int cfg_mem_size = Models.model_c.MAX_RAM;
+
+    // pcem: pc.c:776-777 — drive_a_type / drive_b_type. Défaut PCem : 7 (3,5" ED),
+    // celui d'une machine moderne. Ici 1 (5,25" DD), le lecteur du 5150, comme
+    // h_boot et comme les deux fdd_set_type qu'initpc portait en dur.
+    internal static int[] cfg_drive_type = { 1, 1 };
+
+    /// <summary>
+    /// pcem: pc.c:607-843 (fortement réduit). PCem lit 74 clés ; soixante-quatre
+    /// décrivent du matériel qu'un 5150 transcrit n'a pas — sept disques durs, CD-ROM,
+    /// ZIP, son, réseau, joystick. Les autres arrivent avec les jalons qui les rendent
+    /// variables (§ M8 du plan : vitesse CPU, carte vidéo, FPU).
+    ///
+    /// À appeler AVANT initpc, comme pc_main le fait (wx-sdl2.c:451 puis :459). Un
+    /// fichier absent n'est pas une faute : config_load rend alors tous les défauts.
+    /// </summary>
+    internal static bool loadconfig(string fn)
+    {
+        PluginApi.config.config_load(PluginApi.config.CFG_MACHINE, fn);
+
+        // pcem: pc.c:643-652 — la clé `model` porte l'internal_name, pas l'indice.
+        string mname = PluginApi.config.config_get_string(
+            PluginApi.config.CFG_MACHINE, null, "model", Models.model_c.model_get_internal_name());
+
+        int m = Models.model_c.model_get_model_from_internal_name(mname);
+
+        // DEVIATION: PCem retombe sur l'indice 0 EN SILENCE (model.c:177) et démarre
+        //   une autre machine que celle demandée, sans un mot. On refuse, en citant ce
+        //   qui existe : c'est la seule façon de ne pas mesurer une machine pour une
+        //   autre. Le clamp `if (model >= model_count())` (pc.c:649) devient sans objet.
+        if (m < 0)
+        {
+                Console.Error.WriteLine($"model = « {mname} » : machine inconnue. Connues :");
+                foreach (Models.MODEL k in Models.model_c.models)
+                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+                return false;
+        }
+
+        Models.model_c.model = m;
+        romset = Models.model_c.model_getromset();  /* pc.c:652 */
+
+        // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
+        // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
+        //   MAX_RAM, la seule valeur qui reproduise la machine que VERIFICATION.md
+        //   décrit. Un défaut qui dérive ferait cesser en silence toutes les mesures
+        //   consignées d'être reproductibles.
+        cfg_mem_size = PluginApi.config.config_get_int(
+            PluginApi.config.CFG_MACHINE, null, "mem_size", Models.model_c.MAX_RAM);
+
+        // pcem: pc.c:695-700 — le clamp de PCem ne borne QUE par le bas, et son test
+        // porte un piège d'unités : min_ram est en Ko avant l'AT, en Mo pour un AT à
+        // granularité < 128. Sans objet sur un 5150. On borne des DEUX côtés, parce
+        // qu'une valeur hors bornes ne produirait pas une erreur mais un SW2 absurde
+        // (keyboard_xt.cs:174-183 : (mem_size - 64) / 32) et un POST qui ment.
+        if (cfg_mem_size < Models.model_c.MIN_RAM || cfg_mem_size > Models.model_c.MAX_RAM
+            || (cfg_mem_size - Models.model_c.MIN_RAM) % Models.model_c.RAM_GRANULARITY != 0)
+        {
+                Console.Error.WriteLine(
+                    $"mem_size = {cfg_mem_size} : hors des bornes du modèle. Attendu de " +
+                    $"{Models.model_c.MIN_RAM} à {Models.model_c.MAX_RAM} Ko par pas de " +
+                    $"{Models.model_c.RAM_GRANULARITY}. On garde {Models.model_c.MAX_RAM}.");
+                cfg_mem_size = Models.model_c.MAX_RAM;
+        }
+
+        // pcem: pc.c:776-777. Le type gouverne max_track et les drapeaux de densité
+        // (fdd.cs:72-96) : un type hors table indexerait hors bornes à la première
+        // recherche de piste, donc on borne plutôt que de laisser lever plus tard.
+        cfg_drive_type[0] = config_get_drive_type("drive_a_type", 0);
+        cfg_drive_type[1] = config_get_drive_type("drive_b_type", 1);
+
+        // pcem: pc.c:673-687 — disc_a / disc_b. La ligne de commande, si elle a parlé,
+        // a déjà rempli discfns[] : PCem SAUTE alors la clé (override_drive_a,
+        // pc.c:227-240) au lieu de la lire puis de l'écraser. La nuance compte quand le
+        // chemin du fichier est mauvais et celui de la ligne de commande bon.
+        if (Floppy.fdd_c.discfns[0].Length == 0)
+                Floppy.fdd_c.discfns[0] = PluginApi.config.config_get_string(
+                    PluginApi.config.CFG_MACHINE, null, "disc_a", "");
+        if (Floppy.fdd_c.discfns[1].Length == 0)
+                Floppy.fdd_c.discfns[1] = PluginApi.config.config_get_string(
+                    PluginApi.config.CFG_MACHINE, null, "disc_b", "");
+
+        // pcem: pc.c:778
+        Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
+            PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
+
+        return true;
+    }
+
+    // pcem: pc.c:776-777, avec la validation que PCem n'a pas : fdd_set_type accepte
+    // n'importe quel entier (fdd.c:176-179) et drive_types n'a que huit entrées.
+    private static int config_get_drive_type(string key, int drive)
+    {
+        int t = PluginApi.config.config_get_int(
+            PluginApi.config.CFG_MACHINE, null, key, cfg_drive_type[drive]);
+
+        if (t < 0 || t > 7)
+        {
+                Console.Error.WriteLine(
+                    $"{key} = {t} : hors de la table des lecteurs (0 à 7, fdd.cs:72-96). " +
+                    $"On garde {cfg_drive_type[drive]}.");
+                return cfg_drive_type[drive];
+        }
+
+        return t;
+    }
+
     /// <summary>
     /// pcem: pc.c:178-300 (réduit). Une seule fois, au démarrage : alloue les
     /// tables, charge les ROMs, initialise les registres d'E/S.
@@ -113,7 +226,7 @@ internal static partial class pc
         // tard : mem_alloc() a déjà alloué zéro octet et mappé le vide, et la
         // machine tourne alors sans RAM. Le BIOS ne plante pas pour autant — il
         // s'exécute depuis la ROM — mais la BDA reste à 0xFF.
-        mem.mem_size = Models.model.MAX_RAM;
+        mem.mem_size = cfg_mem_size;
 
         mem.mem_init();
 
@@ -139,8 +252,8 @@ internal static partial class pc
         // initpc, depuis le fichier de configuration (défaut PCem : 7, 3,5" ED). Le
         // 5150 a des lecteurs 5,25" double densité 360 Ko : type 1 (fdd.c:44-46).
         // tools/oracle/harness.c pose les mêmes deux valeurs.
-        Floppy.fdd_c.fdd_set_type(0, 1);
-        Floppy.fdd_c.fdd_set_type(1, 1);
+        Floppy.fdd_c.fdd_set_type(0, cfg_drive_type[0]);
+        Floppy.fdd_c.fdd_set_type(1, cfg_drive_type[1]);
 
         //
         // setpitclock() N'EST PAS ici : pc.c:56-74 ne l'appelle pas. Il appartient
@@ -170,7 +283,7 @@ internal static partial class pc
         Disc.disc.disc_load(0, Floppy.fdd_c.discfns[0]);
         Disc.disc.disc_load(1, Floppy.fdd_c.discfns[1]);
 
-        Models.model.model_init();
+        Models.model_c.model_init();
         Video.video.video_init();
 
         pc_reset();
