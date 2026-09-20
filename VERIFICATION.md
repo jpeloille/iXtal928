@@ -1734,7 +1734,7 @@ Huit champs identiques, l'empreinte seule diverge. La sonde regarde bien les
 |---|---|
 | `make -C tools/oracle selftest` | vert, 0 échec |
 | `boot-diff roms 6000` | vert, **25 457 269** instructions identiques |
-| `boot-diff roms 6000 --fda pcdos20b.img` | vert, **24 138 079** instructions identiques |
+| `boot-diff roms 7000 --fda pcdos20b.img` | vert, **26 750 702** instructions identiques — le chiffre de § M6, à l'unité |
 | `fuzz --mode stream --rounds 40 --instr 200` | vert, 8 000 instructions, 32 champs |
 | `speaker-probe roms 6000` | 9 champs identiques, empreinte non nulle |
 | `check-oracle.sh` | 24 transcrits vérifiés, 0 dérive, arbre vendoré OK |
@@ -1789,15 +1789,62 @@ l'horloge : elle déroule 60 s émulées en ~10 s murales, et les 181 blocs dép
 9,05 s d'audio — donc **le périphérique consomme bien à 48 kHz temps réel**, et à 100 %
 de vitesse d'émulation production et consommation se rejoignent.
 
+### Le turbo mangeait le bip — trouvé en relisant, corrigé, mesuré
+
+La première version coupait la sortie pendant tout le turbo, et le plan justifiait ce
+choix par « le bip arrive à la reprise ». C'était faux, et c'était le genre de phrase
+qu'on écrit sans la vérifier : **le bip tombe à la tranche 4769, le turbo par défaut
+court jusqu'à 5800.** Le profil de lancement de l'IDE étant `--turbo`, le jalon livrait
+donc exactement le silence qu'il devait supprimer.
+
+Fenêtre d'activation, mesurée sur l'oracle : `speaker_enable` non nul **une seule fois**,
+tranches **4769 à 4795** — 27 tranches, 0,27 s émulée. Il n'y en a pas d'autre jusqu'à
+la tranche 6 000.
+
+Correction : **le bip met fin au turbo.** Le BIOS n'arme le haut-parleur qu'une fois le
+test mémoire passé — le bip *est* le signal de fin de POST, donc précisément ce que le
+turbo existe pour atteindre. Et c'est correct à n'importe quelle taille RAM, là où une
+tranche en dur ne l'aurait été qu'à 640 Ko. Même mécanique que la frappe qui l'arrête
+déjà : on pose `_turboStopped`, et la transition existante rend l'horloge neuve et
+rouvre la sortie.
+
+```
+turbo : 4989 tranches (49.9 s émulées) en 3.64 s mur (x13.7), 1190 images sautées,
+        rendu au temps réel par le bip de fin de POST
+```
+
+**4989 et non 4769**, et l'écart n'est pas un défaut : c'est `pc.runpc` contre `h_run`,
+le fait déjà consigné en § M6. `h_run` remet `cycles` à zéro en tête de tranche,
+`pc.runpc` reporte le reliquat comme `pc.c:475` — 4,4 % de tranches en plus pour le même
+travail émulé. Les deux côtés voient le même bip, pas à la même tranche.
+
+Ce que le dépôt des blocs dit autour du bip, instrumenté puis retiré :
+
+| Tranche | `enable` | muet | déposés | jetés |
+|---|---|---|---|---|
+| 4985 | 0 | oui | 0 | 979 |
+| 4989 | 2 | **non** | 0 | 980 |
+| 4995 | 2 | non | 1 | 980 |
+| 5000 | 2 | non | 2 | 980 |
+| 5020 | 0 | non | 6 | 980 |
+| 5100 | 0 | non | 21 | 980 |
+
+**Le compteur de blocs jetés ne bouge plus d'un seul après la reprise.** Le bip est
+déposé en entier, du premier bloc au dernier. Reste au plus un bloc de 50 ms produit
+pendant la tranche 4988, avant que la coupure ne se lève : sur 210 ms de bip, inaudible.
+
 ### Ce que ce vert ne dit pas
 
-1. **Le taux de perte en régime cadencé n'est pas mesuré.** Il se déduit des chiffres
-   ci-dessus, il n'a pas été relevé : le bilan `--verbose` ne s'imprime qu'à la fermeture
-   de la fenêtre, et aucun mode borné ne reste cadencé.
+1. **Le taux de perte en régime cadencé n'est pas mesuré globalement.** Il l'est autour
+   du bip — zéro bloc jeté sur 21 déposés — mais pas sur une session entière : le bilan
+   `--verbose` ne s'imprime qu'à la fermeture de la fenêtre, et aucun mode borné ne
+   reste cadencé.
 2. **L'oracle est muet.** `givealbuffer` y est vide : ce qui est comparé, ce sont les
    échantillons *avant* la sortie. Que SDL3 les restitue comme OpenAL le ferait n'est
    établi par rien.
-3. **Le turbo coupe la sortie.** Décision d'hôte, sans pendant chez PCem, et donc hors
-   de portée de tout oracle.
+3. **Le turbo coupe la sortie, et c'est le bip qui l'arrête.** Deux décisions d'hôte,
+   sans pendant chez PCem, donc hors de portée de tout oracle. La seconde couple le
+   cadençage à un état de la machine émulée — l'hôte lit `speaker_enable`. C'est le
+   premier endroit où il le fait, et ça mérite d'être su.
 4. **Aucune carte son.** Le registre `SOUND_CARD` n'est pas transcrit ; `sound_handlers`
    n'a qu'une entrée, et elle vient de `speaker_init`.

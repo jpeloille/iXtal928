@@ -77,8 +77,14 @@ public sealed class SdlHost : IDisposable
 
     private bool _turboActive;
 
-    /// <summary>Une frappe met fin au turbo : à partir de là, quelqu'un regarde.</summary>
+    /// <summary>Une frappe met fin au turbo : à partir de là, quelqu'un regarde. Le bip
+    /// de fin de POST aussi : voir la boucle de Run().</summary>
     private bool _turboStopped;
+
+    /// <summary>Lequel des deux a mis fin au turbo. Purement pour --verbose, mais un
+    /// bilan qui dit « interrompu par une frappe » quand personne n'a touché au clavier
+    /// est un bilan qui ment.</summary>
+    private bool _turboStoppedByBeep;
 
     private ulong _lastPresentMs;
     private int _presentsSkipped;
@@ -348,7 +354,7 @@ public sealed class SdlHost : IDisposable
                             _turboSlices = DefaultTurboSlices;
 
                         _turboBase = slices;
-                        _turboStopped = false;
+                        _turboStopped = _turboStoppedByBeep = false;
                         turboStartMs = SDL.GetTicks();
 
                         // Base, et PAS une remise à zéro : _presentsSkipped est aussi le
@@ -407,6 +413,19 @@ public sealed class SdlHost : IDisposable
             // rendrait ce mode partiellement cadencé, donc non reproductible.
             // RELATIF à _turboBase : à 0 au lancement c'est le test d'origine, et après un
             // « Reset materiel + turbo » à la tranche 12 000 c'est ce qui redonne un budget.
+            // LE BIP MET FIN AU TURBO. Le BIOS n'arme le haut-parleur qu'une fois le
+            // test mémoire passé : le bip EST le signal de fin de POST, donc
+            // exactement ce que le turbo existe pour atteindre. Et il tombe là où la
+            // taille RAM le place — tranche 4769 à 640 Ko (mesuré), bien plus tôt à 64.
+            // Sans cette ligne, le budget par défaut de 5800 tranches l'engloutit
+            // entier, puisque la sortie est coupée pendant le turbo : on entendrait le
+            // silence précisément à la seconde où il y a quelque chose à entendre.
+            // Même mécanique que la frappe — on pose _turboStopped, la condition
+            // ci-dessous fait le reste, y compris l'horloge neuve et la réouverture
+            // de la sortie.
+            if (_turboActive && Sound.sound_speaker.speaker_enable != 0)
+                _turboStopped = _turboStoppedByBeep = true;
+
             var turbo = timed && _turboSlices > 0 && !_turboStopped
                         && slices - _turboBase < _turboSlices;
 
@@ -444,7 +463,9 @@ public sealed class SdlHost : IDisposable
                         $"{turboMs / 1000.0:0.00} s mur" +
                         (turboMs > 0 ? $" (x{turboSlices * 10.0 / turboMs:0.0})" : "") +
                         $", {_presentsSkipped - presentsBase} images sautées" +
-                        (_turboStopped ? ", interrompu par une frappe" : ""));
+                        (!_turboStopped ? ""
+                            : _turboStoppedByBeep ? ", rendu au temps réel par le bip de fin de POST"
+                            : ", interrompu par une frappe"));
 
                     drawits = 0;
                     lastTitleMs = oldTime;

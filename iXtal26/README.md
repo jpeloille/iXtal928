@@ -32,9 +32,12 @@ fenêtre glissante — 100 % signifie que les 4,77 MHz sont tenus.
 **Le haut-parleur est branché** : le 5150 bipe en fin de POST, et `BEEP` ou
 `PLAY "CDEFGAB"` sonnent sous BASIC. C'est le canal 2 du PIT et le port 0x61, mixés à
 48 kHz par le pendant de `sound.c` et déposés dans SDL3. Une sortie audio absente n'est
-pas une panne : la machine tourne muette et le dit. Le son se coupe pendant le turbo —
-à quatorze fois le temps réel il ne resterait qu'un hachis. Voir `../VERIFICATION.md`
-§ M9.
+pas une panne : la machine tourne muette et le dit. Voir `../VERIFICATION.md` § M9.
+
+Le son se coupe pendant le turbo — à quatorze fois le temps réel il ne resterait qu'un
+hachis — mais **le bip met fin au turbo** : le BIOS n'arme le haut-parleur qu'une fois
+le test mémoire passé, donc `--turbo` rend la main au temps réel juste avant de biper,
+quelle que soit la taille mémoire. Le turbo saute l'attente, pas le bip.
 
 L'amorçage dure **51,7 s** jusqu'à l'invite BASIC, dont 46 s de test mémoire : c'est la
 durée authentique du 5150 à 640 Ko (VERIFICATION.md § M4.6 et § M6). Pour ne pas la
