@@ -53,6 +53,12 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      le même ordre — une sonde qui ne sert qu'en cas de divergence n'est");
     Console.WriteLine("      jamais exercée par un vert.");
     Console.WriteLine();
+    Console.WriteLine("  fdc-trace [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE]");
+    Console.WriteLine("      Amorce le cœur C# seul et imprime chaque transition du contrôleur, en");
+    Console.WriteLine("      clair : état d'exécution, drapeaux du MSR, état du média. Le pendant à");
+    Console.WriteLine("      l'exécution de la table // noms: de fdc.cs. L'oracle n'y participe pas,");
+    Console.WriteLine("      son instance `fdc` étant static dans fdc.c.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -186,6 +192,25 @@ switch (args[0])
             if (positional++ == 0) roms = args[i]; else slices = int.Parse(args[i]);
         }
         return BootDiff.DiscProbe(roms, slices, fda);
+    }
+
+    case "fdc-trace":
+    {
+        var roms = "roms";
+        var slices = 100;
+        string? fda = null;
+        var positional = 0;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--fda" && i + 1 < args.Length) { fda = args[++i]; continue; }
+            if (positional++ == 0) roms = args[i]; else slices = int.Parse(args[i]);
+        }
+        if (fda is not null && !File.Exists(fda))
+        {
+            Console.Error.WriteLine($"Image de disquette introuvable : {fda}");
+            return 2;
+        }
+        return FloppyTrace.Run(roms, slices, fda);
     }
 
     case "sst-diff":

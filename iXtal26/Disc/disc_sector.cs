@@ -77,7 +77,7 @@ internal static partial class disc_sector
     private const int STATE_FORMAT = 12;
 
     // pcem: disc_sector.c:37-48
-    private static int disc_sector_state;
+    internal static int disc_sector_state;
     private static int disc_sector_track;
     private static int disc_sector_side;
     private static int disc_sector_drive;

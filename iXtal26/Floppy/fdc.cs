@@ -192,7 +192,7 @@ internal static partial class fdc_c
     private static int reset_sense_togo = 0;
     /*FDC*/
     // pcem: fdc.c:80
-    private static FDC fdc = new();
+    internal static FDC fdc = new();
 
     // pcem: fdc.c:84-90
     internal static int lastbyte = 0;
