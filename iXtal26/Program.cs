@@ -64,6 +64,31 @@ for (var i = 0; i < args.Length; i++)
         return BootTest.Run(paths.resolve_roms_path(roms), slices, type);
     }
 
+    // Contrôle de fréquence ABSOLUE. Deux positionnels comme --boot, et pour la
+    // même raison : la commande doit rester citable telle quelle dans un rapport
+    // sans dépendre du reste de la table d'options.
+    if (arg == "--timer-check")
+    {
+        var roms = i + 1 < args.Length ? args[++i] : "roms";
+
+        // 300 s émulées par défaut : à 18,2 Hz cela fait ~5 460 tops, et
+        // l'alignement sur les fronts ramène l'incertitude à ±33 ppm — assez
+        // pour affirmer quatre chiffres significatifs. Une seconde n'en donnerait
+        // que 18, soit 5,5 % de quantification, et ne prouverait rien.
+        var seconds = 300;
+
+        if (i + 1 < args.Length)
+        {
+            if (!int.TryParse(args[++i], out seconds) || seconds <= 0)
+            {
+                Console.Error.WriteLine("--timer-check attend un nombre de secondes émulées entier positif.");
+                return 2;
+            }
+        }
+
+        return TimerCheck.Run(paths.resolve_roms_path(roms), seconds);
+    }
+
     if (arg == "--rom-path")
     {
         if (i + 1 >= args.Length)
@@ -149,6 +174,7 @@ static void PrintUsage()
 {
     Console.WriteLine("Usage : iXtal26 [--rom-path CHEMIN] [--slices N] [--headless] [--verbose]");
     Console.WriteLine("        iXtal26 --boot [CHEMIN] [N]");
+    Console.WriteLine("        iXtal26 --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine();
     Console.WriteLine("Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.");
     Console.WriteLine();
@@ -167,6 +193,11 @@ static void PrintUsage()
     Console.WriteLine("                       revide l'écran. C'est la seule vérification du");
     Console.WriteLine("                       chemin clavier qui ne dépende pas d'une fenêtre");
     Console.WriteLine("                       ayant le focus");
+    Console.WriteLine("  --timer-check [CHEMIN] [SECONDES]");
+    Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
+    Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");
+    Console.WriteLine("                       secondes ÉMULÉES et compare à 1193182/65536 =");
+    Console.WriteLine("                       18,2065 Hz (défauts : roms, 300 s)");
     Console.WriteLine("  -h, --help           affiche cette aide");
     Console.WriteLine();
     Console.WriteLine("Codes de sortie : 0 succès, 1 échec d'exécution, 2 erreur d'usage.");

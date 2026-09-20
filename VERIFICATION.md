@@ -511,3 +511,114 @@ en une commande, pas en une heure passée à soupçonner le rendu.
 C'est le même angle mort que la police corrompue de M4.3, sous une autre forme : ni le diff
 d'amorçage ni le fuzzer ne regardent le chemin pixel, et le chemin pixel n'avait aucune
 voix. Maintenant il en a une.
+
+## M4.6 — Le temps d'amorçage est-il celui d'un vrai 5150 ?
+
+Question posée après avoir trouvé l'amorçage long. Trois angles indépendants, puis une
+confrontation qui en corrige deux.
+
+### 1. Contrôle de fréquence absolue — enfin fait
+
+Le plan le réclamait depuis M3 ; il ne l'avait jamais été. Nul besoin d'un programme
+assemblé à la main : le BIOS programme déjà le canal 0 au diviseur 65536, démasque
+l'IRQ 0, et son INT 8 incrémente `0040:006C`. Fenêtre de 3 000 s émulées, **alignée sur un
+front du compteur aux deux bouts** pour que le compte de tops soit exact :
+
+| | |
+|---|---|
+| tops observés | 54 617 sur 3 000,04 s émulées |
+| fréquence mesurée | **18,205424 Hz** |
+| attendue (1 193 182 / 65 536) | 18,206512 Hz |
+| écart | **−59,79 ppm ± 3,3** |
+
+Le plan demandait quatre chiffres significatifs, soit ~275 ppm : franchi avec 4,5× de marge.
+Une fenêtre de 30 s ne l'aurait pas permis (±333 ppm) — vérifié empiriquement.
+
+Le budget d'erreur **se ferme exactement** :
+
+| terme | valeur | origine |
+|---|---|---|
+| division entière `cpu_get_speed() / 100` | −5,87 ppm | `pc.c:473`, c'est PCem |
+| cycles consommés jamais portés au TSC | −53,9 ppm | voir ci-dessous |
+| **somme** | **−59,8 ppm** | = l'écart mesuré |
+
+Mis HORS DE CAUSE par la mesure : `xt_cpu_multi` vaut exactement 3 × 2³², `PITCONST`
+exactement 12 × 2³², et le rapport tops/TSC tombe à −0,04 ppm (786 432,034 contre
+65 536 × 12 = 786 432). Le domaine d'horloge est juste.
+
+### 2. Un défaut de comptabilité dans PCem, localisé à 100 %
+
+`clockhardware()` (`808x.c:893-904`) prend son `diff`, banque `tsc`, **puis** appelle
+`timer_process()` — qui redescend par `pit_refresh_timer_xt` → `dma_channel_read(0)` →
+`refreshread()` → `FETCHCOMPLETE()`, lequel fait `cycles -= (4 - (fetchcycles & 3))`.
+Ces cycles de **rafraîchissement DRAM** sont donc débités APRÈS la prise du diff, et
+l'instruction suivante refait `cycdiff = cycles` sur la valeur déjà amputée : ils ne
+figurent dans aucun diff.
+
+Mesuré, pas déduit : sur 2 M d'instructions, celles **sans** appel à `timer_process`
+perdent **0 cycle sur 16,1 M** ; **100,000 %** de la perte est sur celles qui en ont un,
+à **1,051 cycle par appel**.
+
+**La perte dépend de la charge**, et c'est ce qui réconciliait deux mesures d'apparence
+contradictoire :
+
+| | TSC par tranche | écart |
+|---|---|---|
+| attendu | 143 181,8 | — |
+| à l'invite BASIC | 143 173,3 | −0,006 % |
+| pendant le test mémoire | 140 457,5 | **−1,90 %** |
+
+Imputation par opcode : `LOOP` 0,80 cycle/exécution, `STOSB` 0,13, `MOV` 0,13, `XOR` 0,07 —
+soit 1,13 sur 63,6, 1,78 %. `LOOP` domine parce que son `FETCHCLEAR` met `prefetchw` à 0
+et désactive la sortie anticipée de `FETCHCOMPLETE`.
+
+**Ce défaut ne change PAS la durée d'amorçage** : ces cycles sont bel et bien débités du
+budget, ils manquent seulement au TSC. Il retarde l'horloge de l'INVITÉ de 1,9 % pendant
+un travail mémoire intensif. C'est exactement la dérive systématique que le diff par
+instruction ne peut pas voir, puisqu'elle est identique des deux côtés.
+
+### 3. Le coût du test mémoire, prédit puis mesuré
+
+Le BIOS teste **41 blocs de 16 Kio** (640 Ko de RAM + 16 Ko de VRAM CGA), un remplissage
+`REP STOSB` puis **cinq passes** de motifs AA → 55 → FF → 01 → 00. Confirmé à l'unité près
+par un profil par adresse linéaire : **3 358 720 itérations = 41 × 16384 × 5**.
+
+| | prédit depuis la ROM et `808x.c` | mesuré | écart |
+|---|---|---|---|
+| coût de la boucle E02E | 63,51 cycles/itération | 63,598 | +0,14 % |
+| test mémoire complet | 46,25 s | **46,18 s** | **−0,16 %** |
+
+### 4. Confrontation au matériel réel — et la limite
+
+Une seule mesure au gabarit exact a été trouvée : IBM 5150, 640 Ko, CGA, BIOS 27/10/82,
+départ à froid → curseur sous `Ok` en **52 s**. Plancher analytique indépendant : 33,6 s
+pour le seul test mémoire, ce qui exclut toute valeur très inférieure.
+
+Nous sommes à **57,30 s** émulées (tranche 5729). **Mais 6,63 s — 11,6 % — sont de la
+pure temporisation disquette** : `Models/model.cs:31` porte `// omitted: fdc_add()` là où
+PCem l'appelle (`model.c:194`), pendant que les interrupteurs DIP déclarent deux lecteurs
+(`0040:0010 = 0x006D`). Le BIOS tourne alors dans le `WAIT_INT` de `F000:EF3A`
+(`TESTB $80, ds:0x3E` / `JNE` / `LOOP` avec CX = 0, BL = 2) jusqu'à échéance complète,
+cinq fois — 655 360 exécutions, tranches 4920 à 5695.
+
+Hors ce poste : **≈ 50,7 s contre 52 s réelles**, rampe d'alimentation et vrai cycle
+moteur compris.
+
+### Verdict
+
+Le temps **émulé** est juste : horloge exacte à 60 ppm près, modèle de coût confirmé à
+0,16 % par une mesure indépendante, durée compatible avec la seule mesure de matériel
+réel disponible. La lenteur de l'amorçage est **authentique** — le test mémoire du 5150
+est linéaire en RAM et 640 Ko est le maximum.
+
+Trois réserves, à ne pas taire :
+1. **6,6 s de trop**, dues à notre propre omission du contrôleur de disquettes.
+2. La référence matérielle est **une seule mesure au chronomètre**, ±2 à 3 s, sur une
+   configuration qui n'est pas la nôtre. « Compatible » est le mot juste, pas « conforme ».
+3. L'accord à 0,16 % confirme l'**arithmétique** de PCem, pas la conformité de son modèle
+   de BIU à un vrai 8088 : `FETCHCLEAR` qui jette la file à chaque `LOOP` pris, le plafond
+   de 16 sur `fetchcycles` — rien ici n'arbitre ces choix contre une table publiée.
+
+Et à ne pas confondre avec tout ce qui précède : « la machine HÔTE tient-elle le temps
+réel ? » est une autre question, lue à 99-100 % dans le titre de la fenêtre, et qui
+n'entre dans aucun des chiffres ci-dessus.

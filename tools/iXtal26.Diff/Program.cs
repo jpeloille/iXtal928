@@ -37,6 +37,31 @@ switch (args[0])
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
 
+    case "speed-check":
+    {
+        var roms = args.Length > 1 ? args[1] : "roms";
+        var n = args.Length > 2 ? int.Parse(args[2]) : 2000;
+        return SpeedCheck.Run(roms, n);
+    }
+
+    // Profil de l'amorçage par adresse linéaire : mesure ce que le modèle de
+    // coût PRÉDIT, au lieu de le prédire une seconde fois.
+    case "boot-profile":
+    {
+        var roms = args.Length > 1 ? args[1] : "roms";
+        var n = args.Length > 2 ? int.Parse(args[2]) : 30_000_000;
+        return BootProfile.Run(roms, n);
+    }
+
+    // Départage l'origine des cycles jamais portés au tsc.
+    case "refresh-check":
+    {
+        var roms = args.Length > 1 ? args[1] : "roms";
+        var skip = args.Length > 2 ? long.Parse(args[2]) : 50_000_000L;
+        var win = args.Length > 3 ? int.Parse(args[3]) : 2_000_000;
+        return BootProfile.Refresh(roms, skip, win);
+    }
+
     case "boot-diff":
     {
         var roms = args.Length > 1 ? args[1] : "roms";
