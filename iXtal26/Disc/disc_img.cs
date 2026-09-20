@@ -213,7 +213,7 @@ internal static partial class disc_img
                         return;
                 writeprot[drive] = 1;
         }
-        fwriteprot[drive] = writeprot[drive];
+        forced_writeprot[drive] = writeprot[drive];
 
         /* Read the BPB */
         // DEVIATION: `fread(&bpb_bps, 1, 2, f)` lit un uint16_t dans l'ordre de l'hôte,
@@ -405,7 +405,7 @@ internal static partial class disc_img
         if (img[drive].xdf_type != 0) /* In case of XDF-formatted image, write-protect */
         {
                 writeprot[drive] = 1;
-                fwriteprot[drive] = writeprot[drive];
+                forced_writeprot[drive] = writeprot[drive];
         }
 
         drives[drive].seek = img_seek;

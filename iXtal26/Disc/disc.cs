@@ -7,7 +7,8 @@
 //         disc_poll et ses périodes, sélection de lecteur et moteur. Omis : le
 //         chargeur FDI (registre des omissions, TRANSCRIPTION.md).
 //
-// noms: ce que les identifiants de disc.c désignent — R1(e).
+// noms: les identifiants de disc.c — R1(e). Un seul nom change :
+//   fwriteprot[]    forced_writeprot[]   protection d'écriture forcée par l'hôte
 //   drives[]        la table de fonctions du format chargé, par lecteur
 //   loaders[]       chargeurs par extension ; sentinelle {0,0,0} en fin (disc.c:53)
 //   driveloaders[]  quel chargeur a ouvert quel lecteur, pour savoir qui le fermera
@@ -19,7 +20,7 @@
 //   motoron         moteur en rotation ; conditionne l'armement de disc_poll
 //   drive_empty[]   aucun média chargé ; se lit comme un changement de disquette
 //   disc_changed[]  drapeau du port 0x3f7, effacé par un seek
-//   writeprot[]     protection du média ; fwriteprot[] = celle forcée par l'hôte
+//   writeprot[]     protection portée par le média lui-même
 //   SECTOR_FIRST/NEXT  -2 / -1 : lire le premier secteur rencontré, puis le suivant
 //   motorspin / fdc_ready / fdc_indexcount / defaultwriteprot / oldtrack[]   MORTS,
 //                   PB-20 ; fdc_ready et fdc_indexcount ont même leur extern commenté
@@ -84,7 +85,7 @@ internal static partial class disc
     internal static pc_timer_t disc_poll_timer = new();
 
     internal static int[] disc_track = new int[2];
-    internal static int[] writeprot = new int[2], fwriteprot = new int[2];
+    internal static int[] writeprot = new int[2], forced_writeprot = new int[2];
 
     internal static DRIVE[] drives = { new(), new() };
     internal static int[] drive_type = new int[2];

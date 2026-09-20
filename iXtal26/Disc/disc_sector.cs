@@ -6,15 +6,17 @@
 // STATUS: transcribed — la machine à états des formats « par secteurs » (.IMG) :
 //         recherche, lecture, écriture, lecture d'adresse, formatage.
 //
-// noms: ce que les identifiants de disc_sector.c désignent — R1(e).
-//   c / h / r / n   l'en-tête CHRN d'un secteur, vocabulaire du 765 : cylindre, tête,
-//                   numéro d'enregistrement, code de taille (128 << n)
-//   cur_sector      où la tête se trouve dans la piste, en secteurs
-//   cur_byte        où elle se trouve dans le secteur, en octets
-//   index_count     tours d'index écoulés ; deux tours sans trouver = échec
-//   disc_intersector_delay  40 tics d'horloge-octet entre deux secteurs (:183)
-//   disc_sector_n   code de taille demandé par la commande en cours
-//   disc_sector_status  la cause d'échec à rendre au contrôleur (FDC_STATUS_*)
+// noms: PCem → iXtal26 → ce qu'il désigne — R1(e). « = » : nom inchangé.
+//   c  cyl          l'en-tête CHRN d'un secteur, vocabulaire du 765 : cylindre,
+//   h  head         tête, numéro d'enregistrement, code de taille (128 << size_code).
+//   r  sector_id    PAS « sect » : ce fichier porte déjà disc_sector_sector et
+//   n  size_code    cur_sector ; une quatrième graphie du mot serait une régression.
+//   disc_sector_n   disc_sector_size_code   code de taille demandé par la commande
+//   cur_sector      =    où la tête se trouve dans la piste, en secteurs
+//   cur_byte        =    où elle se trouve dans le secteur, en octets
+//   index_count     =    tours d'index écoulés ; deux tours sans trouver = échec
+//   disc_intersector_delay  =  40 tics d'horloge-octet entre deux secteurs (:183)
+//   disc_sector_status  =  la cause d'échec à rendre au contrôleur (FDC_STATUS_*)
 //   STATE_*         les treize états : chercher, lire, écrire, adresse, formater
 //   disc_sector_writeback[]  rappel vers img_writeback : écrit la piste dans le fichier
 //   Le sens des appels s'inverse ici : ce fichier RAPPELLE fdc_data, fdc_notfound,
@@ -40,7 +42,7 @@ namespace iXtal26.Disc;
 //   pointeur, c'est le tampon et l'offset — TRANSCRIPTION.md, table des conventions.
 internal struct sector_t
 {
-    internal uint8_t c, h, r, n;
+    internal uint8_t cyl, head, sector_id, size_code;
     internal int rate;
     internal uint8_t[]? data;
     internal int data_off;
@@ -80,7 +82,7 @@ internal static partial class disc_sector
     private static int disc_sector_side;
     private static int disc_sector_drive;
     private static int disc_sector_sector;
-    private static int disc_sector_n;
+    private static int disc_sector_size_code;
     private static int disc_intersector_delay = 0;
     private static uint8_t disc_sector_fill;
     private static int cur_sector, cur_byte;
@@ -98,10 +100,10 @@ internal static partial class disc_sector
         if (disc_sector_count[drive, side] >= MAX_SECTORS)
                 return;
 
-        s.c = c;
-        s.h = h;
-        s.r = r;
-        s.n = n;
+        s.cyl = c;
+        s.head = h;
+        s.sector_id = r;
+        s.size_code = n;
         s.rate = rate;
         s.data = data;
         s.data_off = data_off;
@@ -129,7 +131,7 @@ internal static partial class disc_sector
         disc_sector_side = side;
         disc_sector_drive = drive;
         disc_sector_sector = sector;
-        disc_sector_n = sector_size;
+        disc_sector_size_code = sector_size;
         index_count = 0;
 
         disc_sector_status = FDC_STATUS_AM_NOT_FOUND;
@@ -143,7 +145,7 @@ internal static partial class disc_sector
         disc_sector_side = side;
         disc_sector_drive = drive;
         disc_sector_sector = sector;
-        disc_sector_n = sector_size;
+        disc_sector_size_code = sector_size;
         index_count = 0;
 
         disc_sector_status = FDC_STATUS_AM_NOT_FOUND;
@@ -184,7 +186,7 @@ internal static partial class disc_sector
                 return;
         }
         cur_byte++;
-        if (cur_byte >= (128 << disc_sector_data[disc_sector_drive, disc_sector_side, cur_sector].n))
+        if (cur_byte >= (128 << disc_sector_data[disc_sector_drive, disc_sector_side, cur_sector].size_code))
         {
                 cur_byte = 0;
                 cur_sector++;
@@ -206,7 +208,7 @@ internal static partial class disc_sector
 
         if (cur_sector >= disc_sector_count[disc_sector_drive, disc_sector_side])
                 cur_sector = 0;
-        if (cur_byte >= (128 << disc_sector_data[disc_sector_drive, disc_sector_side, cur_sector].n))
+        if (cur_byte >= (128 << disc_sector_data[disc_sector_drive, disc_sector_side, cur_sector].size_code))
                 cur_byte = 0;
 
         s = disc_sector_data[disc_sector_drive, disc_sector_side, cur_sector];
@@ -232,10 +234,10 @@ internal static partial class disc_sector
                         advance_byte();
                         break;
                 }
-                if (disc_sector_track != s.c || disc_sector_side != s.h || disc_sector_sector != s.r ||
-                    disc_sector_n != s.n)
+                if (disc_sector_track != s.cyl || disc_sector_side != s.head || disc_sector_sector != s.sector_id ||
+                    disc_sector_size_code != s.size_code)
                 {
-                        if (disc_sector_track != s.c)
+                        if (disc_sector_track != s.cyl)
                                 disc_sector_status =
                                         (disc_sector_track == 0xff) ? FDC_STATUS_BAD_CYLINDER : FDC_STATUS_WRONG_CYLINDER;
                         advance_byte();
@@ -345,10 +347,10 @@ internal static partial class disc_sector
                         advance_byte();
                         break;
                 }
-                if (disc_sector_track != s.c || disc_sector_side != s.h || disc_sector_sector != s.r ||
-                    disc_sector_n != s.n)
+                if (disc_sector_track != s.cyl || disc_sector_side != s.head || disc_sector_sector != s.sector_id ||
+                    disc_sector_size_code != s.size_code)
                 {
-                        if (disc_sector_track != s.c)
+                        if (disc_sector_track != s.cyl)
                                 disc_sector_status =
                                         (disc_sector_track == 0xff) ? FDC_STATUS_BAD_CYLINDER : FDC_STATUS_WRONG_CYLINDER;
                         advance_byte();
@@ -357,7 +359,7 @@ internal static partial class disc_sector
                 disc_sector_state = STATE_WRITE_SECTOR;
                 goto case STATE_WRITE_SECTOR;
         case STATE_WRITE_SECTOR:
-                data = fdc_getdata(cur_byte == ((128 << s.n) - 1) ? 1 : 0);
+                data = fdc_getdata(cur_byte == ((128 << s.size_code) - 1) ? 1 : 0);
                 if (data == -1)
                         break;
                 s.data[s.data_off + cur_byte] = (uint8_t)data;
@@ -396,7 +398,7 @@ internal static partial class disc_sector
                 disc_sector_state = STATE_READ_ADDRESS;
                 goto case STATE_READ_ADDRESS;
         case STATE_READ_ADDRESS:
-                fdc_sectorid(s.c, s.h, s.r, s.n, 0, 0);
+                fdc_sectorid(s.cyl, s.head, s.sector_id, s.size_code, 0, 0);
                 advance_byte();
                 disc_sector_state = STATE_IDLE;
                 break;
