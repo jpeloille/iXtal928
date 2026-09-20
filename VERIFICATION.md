@@ -1369,3 +1369,105 @@ même chose par construction ; ce n'est pas un défaut d'iXtal26.
    (`BootTest.cs:62-126`). Les deux côtés taperaient la même chose aux mêmes tranches, et
    le chemin d'écriture — aujourd'hui le plus gros angle mort du dépôt — deviendrait
    diffable.
+
+---
+
+## M8 — La configuration machine, et la première en tandem avec l'oracle
+
+Le 2026-09-20. `plugin-api/config.c` transcrit (`PluginApi/config.cs`), `loadconfig`
+réduit à dix clés (`pc.cs`), la table `MODEL` à une entrée (`Models/model.cs`), et
+**trois setters neufs au contrat de l'oracle** : `h_set_mem_size`, `h_set_drive_type`,
+`h_set_bpb_disable`. `H_ABI_VERSION` passe de 1 à **2**.
+
+### Ce que « configurable » veut dire ici, et pourquoi ce n'est pas « lire un fichier »
+
+iXtal26 ne vaut que par la comparaison au C. **Un paramètre n'est donc configurable que
+s'il est réglable à l'identique des deux côtés** — sinon `boot-diff` compare deux machines
+différentes et appelle cela une divergence de cœur. Avant M8 un seul l'était, `discfns[]`,
+et `h_boot` portait le reste en dur : `mem_size = 640` (`harness.c:410`),
+`fdd_set_type(0/1, 1)` (:428-429).
+
+La mécanique retenue, qui est celle de `discfns` généralisée : **l'outil de diff lit le
+fichier UNE fois**, puis pousse chaque scalaire des deux côtés — `h_set_*` avant `h_boot`,
+la globale C# avant `initpc`. Il ne laisse jamais chaque côté relire le fichier : deux
+résolutions de chemin indépendantes peuvent trouver deux fichiers différents, et le
+harnais ne saurait pas distinguer cela d'une divergence de cœur.
+
+**C'est aussi la raison du fichier plutôt que d'une UI.** Une UI de lancement serait la
+seule source de vérité que l'oracle C ne peut pas lire. Un fichier est relu par l'outil, et
+citable ici — « cette mesure a été faite avec cette configuration ».
+
+### Les défauts ne sont pas ceux de PCem, et c'est la règle
+
+PCem par défaut : `mem_size = 4096`, `drive_*_type = 7` (3,5" ED). Ici chaque défaut
+**reproduit exactement la machine d'avant M8**, parce que ce fichier est plein de mesures
+qui la supposent (§ M4.1 « 640 Ko », § M4.6 « 51,7 s », § M6 « 26 750 702 »). Un défaut qui
+dérive ferait cesser en silence toutes ces mesures d'être reproductibles. Sans `--config`,
+aucun fichier n'est lu.
+
+### Portes
+
+| Porte | Commande | Résultat |
+|---|---|---|
+| **Défauts inchangés** | `boot-diff roms 7000 --fda …b.img` | **26 750 702 instructions identiques** — le chiffre de § M6, à l'unité |
+| **Configuration en tandem, 64 Ko** | `boot-diff roms 3000 --config` (`mem_size = 64`) | **11 645 075 identiques** |
+| **En tandem, 256 Ko + aucun lecteur** | `--config` (`mem_size = 256`, `drive_*_type = 0`) | **16 318 838 identiques** |
+| **`disc_a` depuis le fichier** | `--config` (`disc_a = …b.img`) | **1 069 757 identiques** |
+| DOS + DIR, défauts | `--boot 6500 --floppy-a … --type DIR` | catalogue rendu |
+| Déterminisme | `--slices 6000 --headless`, deux passes | identiques |
+| Empreintes des images | `sha256sum -c os/os.sha256` | inchangées |
+
+La deuxième ligne est le vrai livrable : elle prouve que la configuration se propage **des
+deux côtés à la fois**. Sans elle, le reste ne vaudrait rien.
+
+### Le POST est linéaire en RAM — mesuré, et c'est le bénéfice visible
+
+Première tranche où l'invite BASIC est à l'écran, par bissection sur une échelle fixe
+(donc des **majorants**, pas des valeurs exactes) :
+
+| RAM | Invite BASIC | Temps émulé |
+|---|---|---|
+| 64 Ko | ≤ tranche 1200 | **≤ 12,0 s** |
+| 128 Ko | ≤ tranche 1800 | ≤ 18,0 s |
+| 256 Ko | ≤ tranche 2400 | ≤ 24,0 s |
+| 640 Ko | ≤ tranche 5200 | ≤ 52,0 s |
+
+Cohérent avec les 51,7 s de § M4.6 et avec « le test mémoire est linéaire en RAM ». Un
+5150 à 64 Ko démarre donc en douze secondes **sans turbo** — c'est la machine d'époque, à
+sa vitesse d'époque, avec la RAM que la plupart avaient vraiment.
+
+### Contrôles de robustesse
+
+| Entrée | Comportement |
+|---|---|
+| `mem_size = 100` | refusé (hors pas de 32), message nommé, repli sur 640 |
+| `mem_size = 0x100` | **256** — la sémantique `%i` de `sscanf` est transcrite, préfixe hexa compris |
+| `model = ibmxt` | refusé, avec la liste des machines connues |
+| `--config` absent du disque | refusé avant tout amorçage |
+| fichier + `--ram 128` | **128** — la ligne de commande surcharge le fichier |
+
+### Politique de bug inversée, et pourquoi
+
+`plugin-api/config.c` **n'est pas lié dans l'oracle** (`tools/oracle/Makefile` ;
+`config_get_int` y est un stub qui rend le défaut). Il n'a donc aucun pendant exécutable,
+et ses défauts sont **corrigés** au lieu d'être reproduits, chacun marqué `// DEVIATION:` :
+dernière ligne perdue quand le fichier ne finit pas par un saut de ligne (`config.c:145`),
+tabulations non reconnues comme blanc (`:151`), `sscanf` sans test de retour qui rend une
+valeur indéterminée au lieu du défaut (`:293, :313`), `config_free` qui laisse un pointeur
+pendant (`:71-92`). C'est l'inverse de la politique de `disc.c` (PB-14/15/18), et la raison
+tient en une ligne : là-bas l'oracle exécute le bug, ici il n'existe pas.
+
+Même logique pour `model_get_model_from_internal_name` (`model.c:168-178`), qui rend
+**l'indice 0 en silence** sur un nom inconnu — donc une AMI XT clone au lieu de la machine
+demandée. Ici : refus nommé. Mesurer une machine pour une autre est exactement ce que ce
+dépôt existe pour empêcher.
+
+### Reste ouvert
+
+| Paramètre | Bloqué par |
+|---|---|
+| **Vitesse CPU** | Le budget de tranche est DÉRIVÉ côté C# (`pc.cs`, `cpu_get_speed() / 100`) et **littéral** côté C (`harness.c:489`, `4772728 / 100`), plus `bench.c:28` et `BootProfile.cs:76`. Le rendre configurable sans corriger cela ferait tourner les deux côtés à des vitesses différentes **sans aucun diagnostic** |
+| **Carte vidéo** | Une seule carte transcrite ; quatre éditions en tandem pour un choix à une valeur |
+| **`hasfpu`** | Les deux côtés dépendent d'un zéro IMPLICITE, jamais d'une affectation. Le rendre réglable exige d'ajouter l'affectation explicite des deux côtés, sinon un seul change le bit 1 de SW1 |
+| **`video_speed`** | `video_updatetiming` est un no-op côté C alors que `video.cs` calcule vraiment — réglage à sens unique tant que ce n'est pas tranché |
+| **Une deuxième machine** | La table est livrée, les machines non. Un XT 5160 demande son BIOS, ses périphériques et son propre passage au vert |

@@ -55,6 +55,38 @@ dotnet run -- --boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img --type "" --ty
 que le cœur ne dépend pas du front-end. `--slices` est l'interrupteur de déterminisme —
 sans cadencement horloge murale, deux exécutions donnent le même nombre de cycles.
 
+## Configurer la machine
+
+```bash
+dotnet run -- --config ixtal26.cfg      # la machine décrite par le fichier
+dotnet run -- --ram 64                  # 64 Ko : l'invite BASIC en 12 s au lieu de 52
+```
+
+Format `.cfg` de PCem : `clé = valeur`, sections `[entre crochets]`, `#` en commentaire.
+
+```ini
+model = ibmpc
+mem_size = 640          # 64 à 640 Ko par pas de 32 ; 0x100 marche aussi
+drive_a_type = 1        # 0 aucun, 1 = 5,25" DD (le lecteur du 5150)
+drive_b_type = 1
+disc_a = os/pcdos20/pcdos20b.img
+bpb_disable = 0
+```
+
+**Précédence : défauts, puis `--config`, puis `--ram` / `--drive-a` / `--drive-b`.** Sans
+`--config` aucun fichier n'est lu — la machine est alors celle que décrit
+`../VERIFICATION.md` : 640 Ko, deux lecteurs 5,25" DD, CGA. Ce défaut n'est pas un
+réglage : c'est ce qui garde reproductibles toutes les mesures déjà consignées.
+
+La taille mémoire **est** l'interrupteur SW2 que lit le POST, et le test mémoire est
+linéaire : 64 Ko amorce en 12 s, 640 Ko en 52 s (§ M8). Un 5150 à 64 Ko démarre donc vite
+sans turbo — c'est la machine d'époque avec la RAM que la plupart avaient vraiment.
+
+Chaque paramètre configurable est réglable **à l'identique côté oracle C**, par un
+`h_set_*` appelé avant `h_boot` : `boot-diff --config FICHIER` compare donc la machine
+demandée, pas une autre. C'est la raison d'être du fichier plutôt que d'une interface —
+une UI serait la seule source de vérité que l'oracle ne peut pas lire.
+
 ## Le menu, Ctrl+F12
 
 Dans la fenêtre, **Ctrl+F12** ouvre un menu en surimpression et met la machine en pause :

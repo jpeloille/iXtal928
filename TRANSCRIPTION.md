@@ -124,8 +124,9 @@ Scan mécanique des en-têtes du palier (a), puis de `fdc.c` à M6. **Quatre ent
 Le préfixe `@` est choisi pour que `grep -n base` retrouve encore la ligne.
 
 Collisions conteneur/membre : le fichier `x86seg.c` et le typedef `x86seg` ; `fdc.c` et
-son instance `static FDC fdc` ; `fdd.c` et son tableau `fdd[2]`. Le conteneur prend `_c`
-(`x86seg_c`, `fdc_c`, `fdd_c`), le membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`,
+son instance `static FDC fdc` ; `fdd.c` et son tableau `fdd[2]` ; `model.c` et le global
+`int model` (M8). Le conteneur prend `_c` (`x86seg_c`, `fdc_c`, `fdd_c`, `model_c`), le
+membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`,
 `mem.c`/`mem_mapping_t`, `vid_cga.c`/`cga_t`, `device.c`/`device_t` sont tous distincts.
 `808x.c` → classe `_808x` (un identifiant C# ne peut pas commencer par un chiffre ; le
 nom de fichier, si).
@@ -150,6 +151,7 @@ Ce qui n'est **pas** transcrit, et pourquoi. Toute nouvelle entrée se justifie 
 | `src/wx-ui/`, `src/qt-ui/`, `src/codegen/`, `src/dosbox/`, `thread-pthread.c` | — | Remplacés par l'hôte SDL3 mono-thread. **Exception :** les gestionnaires de menu disquette et reset (`wx-sdl2.c:725-770`) et la création d'image vierge (`wx-createdisc.cc:22-29, 62-73`) sont portés dans `Host/SdlMenu.cs`, dont ils sont l'ORACLE — le contenu des commandes est celui de PCem, seule l'enveloppe wxWidgets disparaît. |
 | `disc_fdi.c`, `fdi2raw.c`, l'entrée `"FDI"` de `loaders[]` et `fdi_init()` | `disc.c:53`, `pc.c:281` | Format de flux FDI : 448 + 2 700 lignes pour un format que ni le 5150 ni DOS ne produisent. L'oracle stube `fdi_load`/`fdi_close` à vide (`harness_stubs.c`). |
 | `fdc37c665.c`, `fdc37c93x.c` | `src/floppy/` | Super I/O de cartes 486/Pentium, hors cible ; leurs accesseurs `fdc_update_*` restent transcrits, `fdc_init` les appelle. |
+| Les DEUX tiers de configuration (`pcem.cfg` global + `configs/<nom>.cfg` machine), `add_config_callback`, `config_dump`, `config_new` | `config.c:7-11, 46-69, 221-224, 458` ; `pc.c:613` | Un seul fichier, `--config CHEMIN`, côté `CFG_MACHINE` : deux tiers ne paient rien avec une seule machine, et trois clés y existent en double chez PCem (`vid_resize`, `video_fullscreen_*`), la valeur machine écrasant la globale par accident d'ordre. **Les défauts de `config.c` sont CORRIGÉS et non reproduits** — il n'est pas lié dans l'oracle (`tools/oracle/Makefile`), donc aucun pendant exécutable ne les exécute. VERIFICATION.md § M8. |
 | `pclog(...)` dans les fichiers de M6 | `disc.c`, `disc_img.c`, `fdc.c:975` | Sorties pures, marquées `// omitted:` sur place. |
 
 **À ne PAS omettre malgré les apparences :** `readlookup2`/`writelookup2`/`addreadlookup`
