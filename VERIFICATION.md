@@ -1616,7 +1616,20 @@ produite est une disquette DOS valide, aux mêmes marqueurs qu'à § M7.1 :
 | `0x1FE` | `55 aa` | signature |
 | `0x200` | `fd ff ff` | début de FAT |
 
-Histogramme : **366 096 octets de `0xF6`**, le remplissage de FORMAT.
+Histogramme : **366 096 octets de `0xF6`**, le remplissage de FORMAT. § M7.1 en comptait
+365 984 : l'écart n'est pas une divergence mais la commande elle-même — les `--type ""`
+qui suivent le formatage font répondre Entrée à `Format another (Y/N)?`, donc l'image
+subit **plusieurs passes** là où § M7.1 en faisait une seule au clavier. Le nombre exact
+dépend du nombre d'Entrées ; les marqueurs de structure, eux, ne bougent pas.
+
+**Deux chemins d'écriture sont exercés, pas un.** Le `0xF6` vient de FORMAT TRACK
+(`STATE_FORMAT` → `img_writeback`). Mais `eb 2c 90` en 0x000 et `fd ff ff` en 0x200 ne
+sont pas du `0xF6` : DOS a écrit le secteur d'amorçage, les FAT et le répertoire racine
+**après** le formatage, par WRITE DATA — donc `case 0x05` de `fdc_write`, son bloc de
+résultat, `fdc_getdata` et `STATE_WRITE_FIND_SECTOR`/`STATE_WRITE_SECTOR`. C'est ce qui
+rend l'épreuve discriminante pour le renommage : une permutation `RES_R`/`RES_N` dans
+l'un des deux blocs de résultat aurait fait mal lire la phase résultat à DOS, et la
+disquette ne serait pas structurellement valide.
 
 **Deux caractères manquaient pour y arriver.** La table de frappe du banc (`BootTest.cs`)
 ne portait ni `:` ni `/` : `FORMAT B:` arrivait en `FORMAT B` et DOS 2.00 répondait
