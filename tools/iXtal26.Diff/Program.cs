@@ -19,13 +19,22 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
     Console.WriteLine("      opcode que 808x.c laisse tomber dans son `default:`.");
     Console.WriteLine();
-    Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE]");
+    Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--config FICHIER]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
     Console.WriteLine("      plus une sonde des trois canaux du PIT et du sous-système disquette.");
     Console.WriteLine("      --fda IMAGE monte la même image .img dans le lecteur A des deux");
     Console.WriteLine("      côtés avant l'amorçage : c'est le diff d'un amorçage DOS.");
+    Console.WriteLine("      --config FICHIER règle la MÊME machine des deux côtés : l'outil");
+    Console.WriteLine("      lit le fichier une fois et pousse chaque scalaire par h_set_*");
+    Console.WriteLine("      côté C et par les globales côté C#. Jamais deux lectures.");
+    Console.WriteLine();
+    Console.WriteLine("  config-check");
+    Console.WriteLine("      Aller-retour du moteur de configuration : on écrit un fichier");
+    Console.WriteLine("      avec config_set_*, on le relit avec config_load, on compare.");
+    Console.WriteLine("      config.c n'est pas lié dans l'oracle — il n'y a rien à quoi le");
+    Console.WriteLine("      comparer, donc c'est la seule porte de sa moitié écriture.");
     Console.WriteLine();
     Console.WriteLine("  speed-check [CHEMIN_ROMS] [TRANCHES]");
     Console.WriteLine("      Où passe le temps ÉMULÉ : cycles consommés contre TSC avancé, par");
@@ -55,6 +64,13 @@ switch (args[0])
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
+
+    // Aller-retour du moteur de configuration. Sa moitié ÉCRITURE — les six
+    // config_set_* et config_save — n'a aucun appelant tant que le menu n'édite pas la
+    // configuration, et un chemin mort est indiscernable d'un chemin cassé. Ceci lui
+    // donne une porte : on écrit, on relit, on compare.
+    case "config-check":
+        return ConfigCheck.Run();
 
     case "speed-check":
     {

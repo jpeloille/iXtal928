@@ -1462,6 +1462,27 @@ Même logique pour `model_get_model_from_internal_name` (`model.c:168-178`), qui
 demandée. Ici : refus nommé. Mesurer une machine pour une autre est exactement ce que ce
 dépôt existe pour empêcher.
 
+### La moitié écriture du moteur, et sa porte
+
+`config_set_*` et `config_save` n'ont aucun appelant tant que le menu n'édite pas la
+configuration — et un chemin mort est indiscernable d'un chemin cassé. `config.c` n'étant
+pas lié dans l'oracle, il n'existe rien à quoi le comparer : d'où une porte d'aller-retour,
+`iXtal26.Diff config-check`, qui écrit un fichier avec les setters, le relit avec le
+parseur et compare. **Onze contrôles, tous verts**, dont trois que le C échouerait :
+
+| Contrôle | Ce qu'il attrape |
+|---|---|
+| clé réécrite (`mem_size` 256 puis 512) | une seconde entrée au lieu d'une mutation en place — `find_entry` rendrait toujours la première et `config_save` écrirait les deux |
+| `[CGA] addr = 0x220` → relu **544** | `config_set_int` écrit en décimal (`sprintf "%i"`), `config_get_int` relit les deux graphies |
+| `[GL3] input_scale = 1.5` → `1.500000` | le `%f` à six décimales, et le point décimal quelle que soit la locale |
+| section et clé absentes → défaut | le chemin par lequel toute la configuration par périphérique tient sans fichier |
+| **ligne indentée par tabulation** | `config.c:151` ne saute que les espaces : le C casse le nom de clé |
+| **valeur non numérique → défaut** | `config.c:293` ne teste pas le retour de `sscanf` et rend une valeur indéterminée |
+| **dernière ligne sans saut final** | `config.c:145` fait `fgets` puis `feof` : le C perd la ligne |
+
+Le fichier produit confirme aussi la forme : section racine anonyme émise **sans**
+en-tête, et une ligne blanche avant chaque `[section]`.
+
 ### Reste ouvert
 
 | Paramètre | Bloqué par |
