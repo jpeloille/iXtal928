@@ -1642,3 +1642,162 @@ Ce que cela prouve reste ce que disait § M7.1 : **une preuve d'usage, pas une p
 fidélité.** `harness.h` n'expose toujours aucune injection clavier, donc l'oracle ne peut
 pas taper `FORMAT B:`. Le chemin d'écriture produit une disquette que DOS relit ; qu'il
 fasse les mêmes cycles que PCem reste non établi.
+
+## M9 — Le haut-parleur : le bip du POST, et une sonde pour l'entendre
+
+Point de départ : la machine bipait déjà et personne ne l'écoutait. `pit.cs:543`,
+`pit.cs:668-680` et `keyboard_xt.cs:125-130` tenaient `speakval`, `speakon`,
+`ppispeakon`, `speaker_gated` et `speaker_enable` à jour depuis M4 — **en écriture
+seule**. Le seul consommateur, `speaker_update()`, était un corps vide.
+
+### La contrainte qui commandait tout, et ce qu'elle a montré
+
+`sound_reset()` (`sound.c:260-261`) installe un chronomètre émulé à **48 kHz**. Le
+harnais stubait le haut-parleur en entier (`harness_stubs.c:153-157`) et ne liait pas
+`sound.c` : brancher le son côté C# seul aurait fait modéliser deux machines
+différentes, `n_timer_process` étant un compteur comparé (`harness.h:88`,
+`Diag/HState.cs:78`).
+
+L'ordre de grandeur annoncé au plan était faux, et la mesure l'a corrigé deux fois.
+
+1. **`timer_process()` n'est pas rare.** `xt_init` réaffecte le canal 1 à
+   `pit_refresh_timer_xt` (`model.c:205`) et le BIOS le programme à 18 ⟹ 216 ticks de
+   14,318 MHz, soit ~66 kHz, plus `cga_poll` au rythme ligne. Ajouter 48 kHz n'est pas
+   un ×1 300.
+2. **Le compteur n'est pas la somme des fréquences** : un seul appel dépile *tous* les
+   chronomètres échus. Toute porte calée sur un ratio prédit aurait déclenché à tort.
+
+Et un résultat qu'aucune des deux prédictions n'avait : **avec le chronomètre installé
+d'un seul côté, le diff d'amorçage reste vert sur 25 457 269 instructions.** Le
+chronomètre à 48 kHz ne perturbe ni la trajectoire architecturale ni le `tsc` du 8088.
+Ce vert-là est une mesure, pas un soulagement : il dit que le hachage par instruction de
+la phase 1 ne regarde que l'état architectural, et que la parité du son devait donc être
+prouvée autrement.
+
+### La doctrine de la vidéo, réappliquée
+
+`sound.c` traîne dix-neuf `SOUND_CARD`, le fil CD, ATAPI et OpenAL. Même arbitrage que
+`src/video/video.c` et ses 90 symboles de cartes (`harness_stubs.c`) : **pas lié**.
+`harness.c` en reprend le cœur temporel, copié verbatim.
+
+`sound_speaker.c`, lui, est **inclus** — `#include`, pas `SRC`. `speaker_buffer` (`:10`),
+`speaker_pos` (`:12`) et `speaker_get_buffer` (`:39`) sont `static` : compilé à part, le
+fichier ne montre rien et `h_speaker_probe` n'aurait rien à lire. C'est mot pour mot la
+raison pour laquelle `harness.c:40` fait `#include "808x.c"`.
+
+### La sonde, et ce qu'elle a attrapé au premier tir
+
+`h_speaker_probe` / `sound_speaker.Probe()` : neuf champs, même ordre des deux côtés. Le
+neuvième est une **empreinte FNV-1a cumulative du son réellement produit**, prise sur
+`outbuffer` juste avant `givealbuffer`, donc après le passage des handlers.
+`speaker_get_buffer` étant `static` dans un fichier vendoré, on ne peut ni l'intercepter
+ni y ajouter une ligne ; et `speaker_buffer` seul ne dirait rien de ce passage.
+
+`speaker-probe` **échoue si l'empreinte est restée à sa graine**. Deux silences
+concordants ne prouvent rien — c'est le faux vert de § M4.5 sous une autre forme.
+
+| Portée | Oracle | C# |
+|---|---|---|
+| `speaker-probe roms 300` | 9 champs, empreinte `CF1968EA83F07483` | identiques |
+| `speaker-probe roms 6000` | 9 champs, empreinte `384EC07B1B64CC83` | identiques |
+
+À 6 000 tranches le haut-parleur est **actif** : `speaker_gated = 1`, `speakon = 1`,
+`ppispeakon = 1`, `speaker_pos = 815`. À 300 il ne l'est pas — l'empreinte n'y hache que
+du silence, et un vert à 300 tranches seul aurait été un vert creux.
+
+**Premier tir, première prise : `speakval` divergeait.** Oracle −2 147 483 648, C# 8 192.
+`pit.c:418` divise par `pit->l[0]` sans le tester, et la ligne est atteinte par chute de
+`case` depuis les trois canaux. Mesuré : tranche 231 d'un amorçage 640 Ko, `l[0] = 0`,
+`l[2] = 65535`, donc `+inf`. Le `(int)` du C rend l'entier indéfini de `cvttss2si`,
+`0x80000000`, que le clamp de la ligne suivante ne rattrape pas. **.NET sature** —
+`(int)float.PositiveInfinity` vaut `int.MaxValue`, que le clamp ramène à `0x2000`.
+`PB-21`, reproduit à `pit.cs:543` avec la garde explicite qu'impose .NET. C'est le seul
+endroit du dépôt où une conversion flottant→entier a dû être écrite à la main.
+
+### L'injection de panne qui valide la sonde
+
+`sound_speaker.c:32-33` place `if (!speaker_enable) was_speaker_enable = 0;` **dans** la
+boucle par échantillon. C'est un verrou d'un échantillon. Hisser ce test hors de la
+boucle — le nettoyage évident — a été fait exprès, puis mesuré :
+
+```
+   speaker_gated … speaker_pos, sound_pos_global   identiques
+ * sound_hash     oracle 4057391949280496771 | C# 7097314269654152323
+```
+
+Huit champs identiques, l'empreinte seule diverge. La sonde regarde bien les
+échantillons, et le « ne pas nettoyer » du C est audible.
+
+### Portes
+
+| Épreuve | Résultat |
+|---|---|
+| `make -C tools/oracle selftest` | vert, 0 échec |
+| `boot-diff roms 6000` | vert, **25 457 269** instructions identiques |
+| `boot-diff roms 6000 --fda pcdos20b.img` | vert, **24 138 079** instructions identiques |
+| `fuzz --mode stream --rounds 40 --instr 200` | vert, 8 000 instructions, 32 champs |
+| `speaker-probe roms 6000` | 9 champs identiques, empreinte non nulle |
+| `check-oracle.sh` | 24 transcrits vérifiés, 0 dérive, arbre vendoré OK |
+| `dotnet build -c Release` | 0 avertissement |
+
+### Parité R2, accolades seules exclues
+
+| Fichier | C | C# | ratio |
+|---|---|---|---|
+| `Sound/sound_speaker.cs` | 32 | 35 | 1,09 |
+| `Sound/sound.cs` | 65 | 50 | 0,77 |
+
+`sound.cs` est `partial` : le plancher −25 % ne s'y applique pas, et les quinze lignes
+absentes sont exactement le fil CD, ATAPI et OpenAL, déclarés `// omitted:` sur place.
+
+### Le coût du chronomètre, mesuré
+
+Protocole de § M5.1 : Release, `taskset -c 0-3`, `--repeat 5`, ordre alterné. « Avant »
+mesuré dans un `git worktree` sur `5537b46`, avec son propre oracle construit sans le
+chronomètre.
+
+| | C (× temps réel) | C# (× temps réel) | ratio C#/C |
+|---|---|---|---|
+| Avant M9 | 24,51 (disp. 5,4 %) | 18,90 (disp. 2,4 %) | 1,297 |
+| Après M9 | 23,15 (disp. 2,9 %) | 17,59 (disp. 7,1 %) | 1,316 |
+| Écart | **−5,5 %** | **−6,9 %** | +1,5 % |
+
+Les deux côtés paient, et presque pareil : le coût est celui du chronomètre, pas d'une
+maladresse C#. Le ratio bouge de 1,5 %, dans le bruit. **17,6× le temps réel** laisse
+la cible des 100 % tenue avec la même marge qu'avant.
+
+Une première mesure « après » a donné 16,60× avec **62 % de dispersion côté C** : elle a
+été jetée et refaite machine au repos. C'est la règle de § M5.1, et elle a servi ici.
+
+### L'étage hôte
+
+`Host/SdlAudio.cs`, pendant de `soundopenal.c`. Mode *push* — flux ouvert avec un
+callback **nul**, alimenté depuis le fil d'émulation comme le crochet de blit. Un
+callback audio SDL3 tournerait sur un fil séparé et serait le premier thread du projet.
+
+**Contre-pression, et c'est le point d'architecture.** `soundopenal.c:173` ne dépose un
+bloc que s'il reste un tampon libre parmi quatre, et **jette** le bloc sinon : l'étage de
+sortie de PCem est perdant par conception, le rythme d'écriture étant celui du CPU émulé.
+Plafond repris à l'identique, quatre blocs, ~200 ms.
+
+```
+--slices 6000 --verbose   audio : 181 blocs déposés, 1000 jetés (2400 échantillons, 50 ms)
+```
+
+1 181 blocs produits pour 60 s émulées, 181 déposés. La boucle `--slices` n'attend pas
+l'horloge : elle déroule 60 s émulées en ~10 s murales, et les 181 blocs déposés valent
+9,05 s d'audio — donc **le périphérique consomme bien à 48 kHz temps réel**, et à 100 %
+de vitesse d'émulation production et consommation se rejoignent.
+
+### Ce que ce vert ne dit pas
+
+1. **Le taux de perte en régime cadencé n'est pas mesuré.** Il se déduit des chiffres
+   ci-dessus, il n'a pas été relevé : le bilan `--verbose` ne s'imprime qu'à la fermeture
+   de la fenêtre, et aucun mode borné ne reste cadencé.
+2. **L'oracle est muet.** `givealbuffer` y est vide : ce qui est comparé, ce sont les
+   échantillons *avant* la sortie. Que SDL3 les restitue comme OpenAL le ferait n'est
+   établi par rien.
+3. **Le turbo coupe la sortie.** Décision d'hôte, sans pendant chez PCem, et donc hors
+   de portée de tout oracle.
+4. **Aucune carte son.** Le registre `SOUND_CARD` n'est pas transcrit ; `sound_handlers`
+   n'a qu'une entrée, et elle vient de `speaker_init`.
