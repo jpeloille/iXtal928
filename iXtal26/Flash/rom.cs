@@ -13,6 +13,9 @@
 
 using iXtal26.Memory;
 using static iXtal26.PluginApi.paths;
+// put_backslash appartient à config.c (config.c:408-414), appelé sans préfixe par
+// romfopen (rom.c:17) comme dans le C.
+using static iXtal26.PluginApi.config;
 
 namespace iXtal26.Flash;
 

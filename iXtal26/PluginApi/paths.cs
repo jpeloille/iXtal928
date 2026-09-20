@@ -6,6 +6,10 @@
 //         get_roms_path, set_roms_paths, paths_init). nvr/, configs/, logs/,
 //         screenshots/, plugins/ et la persistance de configuration sont omis.
 
+// append_slash vit dans config.c chez PCem, donc dans config.cs ici. set_roms_paths et
+// paths_init l'appellent sans préfixe, comme le C qui a les deux dans sa portée globale.
+using static iXtal26.PluginApi.config;
+
 namespace iXtal26.PluginApi;
 
 internal static partial class paths
@@ -188,32 +192,9 @@ internal static partial class paths
             //   paths_onconfigloaded) (paths.c:204-215) — hors chargement de ROM.
     }
 
-    // DEVIATION: append_slash et put_backslash appartiennent à
-    //   src/plugin-api/config.c, qui n'est transcrit nulle part. Ils sont ici parce
-    //   que set_roms_paths et romfopen (rom.c:17) en dépendent, et migreront vers
-    //   PluginApi/config.cs. `char *s` muté sur place devient une string rendue.
-    // pcem: config.c:398-406
-    internal static string append_slash(string s, int size)
-    {
-            int c = s.Length - 1;
-            if (s[c] != '/' && s[c] != '\\')
-            {
-                    if (c < size - 2)
-                            s += "/";
-                    else
-                            s = s.Substring(0, c) + "/";
-            }
-            return s;
-    }
-
-    // pcem: config.c:408-414
-    internal static string put_backslash(string s)
-    {
-            int c = s.Length - 1;
-            if (s[c] != '/' && s[c] != '\\')
-                    s += "/";
-            return s;
-    }
+    // append_slash et put_backslash ont migré vers PluginApi/config.cs, à qui ils
+    // appartiennent (config.c:398-414) — la migration que le commentaire d'ici
+    // annonçait. `using static` en tête de fichier garde les appels inchangés.
 
     // omitted: set_nvr_path, set_logs_path, set_configs_path, set_screenshots_path,
     //   set_default_nvr_path, set_default_nvr_default_path, set_default_logs_path,
