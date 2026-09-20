@@ -18,9 +18,13 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   (a) l'en-tête : deux lignes SPDX + quatre lignes `// ORACLE:` ;
   (b) les commentaires de PCem, *vivants*, verbatim ;
   (c) une ligne de provenance par fonction, `// pcem: src/cpu/808x.c:1271-1301` ;
-  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:`, `// CS0165:`.
-  Le commentaire de 140 lignes qui explique un choix de conception relève d'une
-  catégorie (e) qui n'existe pas. Le code mort commenté de PCem n'est pas reproduit.
+  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:`, `// CS0165:` ;
+  (e) dans `Floppy/` et `Disc/` seulement, un bloc `// noms:` en en-tête : une ligne par
+  identifiant, deux colonnes, **sans prose**, 40 lignes au plus. Contrepartie obligatoire
+  du nommage explicite autorisé plus bas — sans elle, plus rien ne relie le fichier à
+  `pcem-dev/`.
+  Le commentaire de 140 lignes qui explique un choix de conception reste hors budget :
+  (e) est une table, pas un exposé. Le code mort commenté de PCem n'est pas reproduit.
 - **R2 — parité de lignes.** Le C# vivant d'une région se compare au C vivant
   correspondant (blancs et commentaires exclus des deux côtés). **Le plafond +25 % est
   toujours contraignant** : c'est lui l'anticorps anti-délayage, déclenché ⟹ on supprime,
@@ -33,7 +37,9 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 200 lignes. Deux registres de
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 220 lignes — 200 jusqu'à M6.1,
+  relevé une fois pour payer R1(e) et la ligne « Nommage ». Le relèvement s'inscrit ici :
+  un plafond qui bouge sans trace ne plafonne plus. Deux registres de
   **constats** en sont exemptés, parce que le plafond vise la prose de conception et pas
   les faits mesurés : `VERIFICATION.md` (ce que les oracles ont montré) et
   `PCEM_BUGS.md` (les défauts trouvés dans PCem lui-même, identifiants `PB-nn`, cités
@@ -88,7 +94,7 @@ disable` **énumérés et commentés**, jamais en bloc.
 | `uint8_t *p` dans le tampon d'un autre module (`sector_t.data`) | le tampon **et** l'offset : `uint8_t[] data; int data_off;` |
 | `uint8_t`… | alias `global using` (voir `GlobalUsings.cs`) |
 | `goto opcodestart` | `goto opcodestart` |
-| Nommage | `snake_case` de PCem **verbatim** |
+| Nommage | `snake_case` de PCem **verbatim** ; `Floppy/` et `Disc/` exceptés, voir ci-dessous |
 | Fichiers | miroir du chemin C : `src/cpu/808x.c` → `Cpu/808x.cs` |
 
 Trois corollaires non négociables :
@@ -109,6 +115,20 @@ Trois corollaires non négociables :
    silencieusement, et AF n'est observable qu'à travers DAA/DAS/AAA/AAS.
    Corollaire : **ne jamais déplier une affectation composée** — C# insère le cast dans
    `AL += temp` (759 occurrences dans `808x.c`) mais rejette `AL = AL + temp`.
+
+### Nommage explicite — `Floppy/` et `Disc/` seulement
+
+Le vocabulaire du 765 (`stat`, `res`, `pnum`, `tc`, `discint`, `paramstogo`) ne se décode
+pas sans la fiche technique, et l'opacité est autant dans les littéraux que dans les noms.
+Deux déviations y sont permises, **et elles vont ensemble** : renommer un identifiant
+(`stat` → `msr`) ; nommer une valeur de registre matériel (`0x90` → `MSR_RQM|MSR_CB`), ce
+qui réécrit une expression de PCem et pas seulement une étiquette.
+
+Trois conditions, toutes vérifiables : le bloc `// noms:` de R1(e) donne la correspondance
+pour **chaque** nom modifié ; le commit ne contient que le renommage ; la batterie
+d'oracles est verte au même commit, aux mêmes chiffres qu'avant. Le renommage est neutre
+pour le comportement — c'est l'oracle qui le prouve, pas la relecture. Hors de ces deux
+répertoires, la règle reste le verbatim : `808x.cs` dit en en-tête pourquoi.
 
 ### Collisions de mots-clés C#
 
