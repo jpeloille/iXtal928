@@ -19,6 +19,17 @@ fenêtre (Échap appartient à la machine émulée).
 Le titre de la fenêtre affiche la vitesse en pourcentage du temps réel, sur une
 fenêtre glissante — 100 % signifie que les 4,77 MHz sont tenus.
 
+Le POST dure **57 s**, dont 46 s de test mémoire : c'est la durée authentique du 5150
+à 640 Ko (VERIFICATION.md § M4.6). Pour ne pas la regarder passer :
+
+```bash
+dotnet run -- --turbo            # amorce à ~x14, puis rend la machine au temps réel
+```
+
+Le turbo ne touche ni au CPU émulé ni à son horloge : mêmes instructions, mêmes cycles,
+même écran — seule change la vitesse à laquelle l'hôte déroule tout cela, et le nombre
+d'images réellement présentées pendant la phase. Une frappe y met fin.
+
 Lancements non interactifs :
 
 ```bash

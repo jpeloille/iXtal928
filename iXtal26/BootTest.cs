@@ -163,12 +163,13 @@ internal static class BootTest
     /// et c'est une question d'enregistrement de timer, pas de rendu.</summary>
     private static void ReportFramebuffer()
     {
+        // Le test « Buffer32.Length == 0 » qui tenait ici est mort à M5.2 : le tableau
+        // est désormais alloué à la déclaration, donc jamais vide, et la branche ne
+        // pouvait plus se déclencher. Ce qu'elle cherchait à dire — « cga_poll n'a
+        // rien dessiné » — est repris plus bas sur le compte de pixels, qui lui reste
+        // un témoin vivant. Un diagnostic qu'on rend inatteignable sans le remplacer,
+        // c'est le défaut de M4.3 reproduit.
         var b = Video.video.Buffer32;
-        if (b.Length == 0)
-        {
-            Console.WriteLine("\nframebuffer : NON ALLOUÉ (initvideo n'a pas tourné)");
-            return;
-        }
 
         var nz = 0;
         var lastLine = -1;
@@ -176,15 +177,27 @@ internal static class BootTest
         for (var x = 0; x < Video.video.Stride; x++)
             if (b[y * Video.video.Stride + x] != 0) { nz++; lastLine = y; }
 
+        // Empreinte du contenu, pas seulement du compte : deux polices différentes
+        // peuvent allumer le même nombre de pixels. FNV-1a 64 bits sur les mots.
+        var fnv = 14695981039346656037UL;
+        foreach (var px in b)
+        {
+            fnv ^= px;
+            fnv *= 1099511628211UL;
+        }
+
         Console.WriteLine($"\nframebuffer : {b.Length} pixels, {nz} non nuls, " +
-                          $"dernière ligne touchée {lastLine}");
+                          $"dernière ligne touchée {lastLine}, empreinte FNV-1a {fnv:X16}");
+        if (nz == 0)
+            Console.WriteLine("  *** AUCUN pixel tracé : cga_poll n'a pas dessiné. " +
+                              "Chercher du côté de l'enregistrement du chronomètre CGA, pas du rendu. ***");
         // La police est le seul maillon que ni le diff d'amorçage ni le fuzzer ne
         // voient : elle ne touche aucun état CPU. Un fontdat vide donne un écran noir
         // parfaitement silencieux — la VRAM reste juste, seul le tracé disparaît.
         var fontNz = 0;
         for (var c = 0; c < 2048; c++)
         for (var d = 0; d < 8; d++)
-            if (Video.video.fontdat[c, d] != 0) fontNz++;
+            if (Video.video.fontdat[(c << 3) | d] != 0) fontNz++;
 
         Console.WriteLine($"  police : {fontNz} octets non nuls sur 16384 dans fontdat");
         if (fontNz == 0)

@@ -147,21 +147,29 @@ internal static partial class mem
     //   `cr0 >> 31` vaut toujours 0 sur un 8088.
     // omitted: mem_remap_top, ram_remapped_mapping, mem_a20_* — 286+.
 
-    // DEVIATION: garde de réentrance pour l'instrumentation.
+    // DEVIATION: l'instrumentation est posée en MIROIR de -Wl,--wrap.
     //
-    //   Côté C, compteurs et journal d'écritures sont posés par -Wl,--wrap, qui
-    //   n'intercepte QUE les appels venus d'une autre unité de traduction. Quand
-    //   writememwl appelle writemembl en interne (mot à cheval sur une page), le C
-    //   ne compte donc qu'une fois ; le C#, lui, compterait deux fois.
+    //   Côté C, compteurs et journal d'écritures viennent de -Wl,--wrap
+    //   (tools/oracle/harness_wrap.c), qui n'intercepte QUE les appels venus d'une
+    //   autre unité de traduction. Quand writememwl appelle writemembl en interne
+    //   (mot à cheval sur une page), le C ne compte donc qu'une fois.
     //
-    //   Ce compteur de profondeur reproduit la sémantique de --wrap : on
-    //   n'observe qu'au point d'ENTRÉE. Sans lui, les deux côtés divergent sur les
-    //   compteurs sans qu'aucun comportement ne diffère — un faux positif qui
-    //   masquerait les vrais.
-    private static int obs_depth;
-
-    private static bool obs_enter() => obs_depth++ == 0;
-    private static void obs_leave() => obs_depth--;
+    //   Chacune des quatre fonctions se dédouble ici comme ld les dédouble :
+    //   `readmembl` est l'enveloppe — elle compte, puis appelle `__real_readmembl`,
+    //   qui porte le corps de mem.c verbatim. Les appels INTERNES à ce fichier
+    //   visent `__real_`, exactement comme les références intra-unité du C, que ld
+    //   ne détourne pas. Tout appelant d'un autre fichier passe par l'enveloppe.
+    //
+    //   Le nom `__real_` n'est PAS un identifiant de PCem et déroge donc à la règle
+    //   de nommage : c'est délibéré. Il vient de l'éditeur de liens (harness_wrap.c:31
+    //   le déclare `extern`), et c'est précisément ce qu'on transcrit ici — pas une
+    //   fonction de mem.c, mais le mécanisme d'interposition. Un nom inventé
+    //   masquerait d'où vient cette paire.
+    //
+    //   Remplace un compteur de profondeur (obs_depth) et quatre régions try/finally
+    //   qui visaient le même invariant par un détour : mêmes valeurs de compteurs,
+    //   sans la trame compatible funclet ni les trois instructions par accès.
+    //   VERIFICATION.md § M5.2.
 
     // DEVIATION: fatal() appartient à pc.c, pas encore transcrit. Comme
     //   harness_stubs.c, il compte et n'interrompt pas — on est dans un processus
@@ -270,8 +278,12 @@ internal static partial class mem
 
     internal static uint8_t readmembl(uint32_t addr)
     {
-        if (obs_enter()) Counters.n_readmembl++;
-        try {
+        Counters.n_readmembl++;
+        return __real_readmembl(addr);
+    }
+
+    private static uint8_t __real_readmembl(uint32_t addr)
+    {
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
@@ -282,13 +294,17 @@ internal static partial class mem
         if (map != null && map.read_b != null)
                 return map.read_b(addr, map.p);
         return 0xFF;
-        } finally { obs_leave(); }
     }
 
     internal static void writemembl(uint32_t addr, uint8_t val)
     {
-        if (obs_enter()) { Counters.n_writemembl++; wlog(addr & rammask, val); }
-        try {
+        Counters.n_writemembl++;
+        wlog(addr & rammask, val);
+        __real_writemembl(addr, val);
+    }
+
+    private static void __real_writemembl(uint32_t addr, uint8_t val)
+    {
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
@@ -298,13 +314,16 @@ internal static partial class mem
         map = write_mapping[addr >> 14];
         if (map != null && map.write_b != null)
                 map.write_b(addr, val, map.p);
-        } finally { obs_leave(); }
     }
 
     internal static uint16_t readmemwl(uint32_t addr)
     {
-        if (obs_enter()) Counters.n_readmemwl++;
-        try {
+        Counters.n_readmemwl++;
+        return __real_readmemwl(addr);
+    }
+
+    private static uint16_t __real_readmemwl(uint32_t addr)
+    {
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
@@ -313,7 +332,7 @@ internal static partial class mem
         {
                 // omitted: `cycles -= timing_misaligned` — nul sur un 8088.
                 if ((addr & 0xFFF) > 0xFFE)
-                        return (uint16_t)(readmembl(addr) | (readmembl(addr + 1) << 8));
+                        return (uint16_t)(__real_readmembl(addr) | (__real_readmembl(addr + 1) << 8));
                 else if (readlookup2[addr >> 12] != -1)
                 {
                         var i = readlookup2[addr >> 12] + addr;
@@ -333,18 +352,18 @@ internal static partial class mem
         }
 
         return 0xffff;
-        } finally { obs_leave(); }
     }
 
     internal static void writememwl(uint32_t addr, uint16_t val)
     {
-        if (obs_enter())
-        {
-                Counters.n_writememwl++;
-                wlog(addr & rammask, (uint8_t)val);
-                wlog((addr + 1) & rammask, (uint8_t)(val >> 8));
-        }
-        try {
+        Counters.n_writememwl++;
+        wlog(addr & rammask, (uint8_t)val);
+        wlog((addr + 1) & rammask, (uint8_t)(val >> 8));
+        __real_writememwl(addr, val);
+    }
+
+    private static void __real_writememwl(uint32_t addr, uint16_t val)
+    {
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
@@ -353,8 +372,8 @@ internal static partial class mem
         {
                 if ((addr & 0xFFF) > 0xFFE)
                 {
-                        writemembl(addr, (uint8_t)val);
-                        writemembl(addr + 1, (uint8_t)(val >> 8));
+                        __real_writemembl(addr, (uint8_t)val);
+                        __real_writemembl(addr + 1, (uint8_t)(val >> 8));
                         return;
                 }
                 else if (writelookup2[addr >> 12] != -1)
@@ -382,16 +401,17 @@ internal static partial class mem
                         map.write_b(addr + 1, (uint8_t)(val >> 8), map.p);
                 }
         }
-        } finally { obs_leave(); }
     }
 
+    // readmemll / writememll vivent dans mem.c : leurs appels à readmemwl / writememwl
+    // sont intra-unité, donc jamais détournés par --wrap. Ils visent __real_.
     internal static uint32_t readmemll(uint32_t addr)
-        => (uint32_t)readmemwl(addr) | ((uint32_t)readmemwl(addr + 2) << 16);
+        => (uint32_t)__real_readmemwl(addr) | ((uint32_t)__real_readmemwl(addr + 2) << 16);
 
     internal static void writememll(uint32_t addr, uint32_t val)
     {
-        writememwl(addr, (uint16_t)val);
-        writememwl(addr + 2, (uint16_t)(val >> 16));
+        __real_writememwl(addr, (uint16_t)val);
+        __real_writememwl(addr + 2, (uint16_t)(val >> 16));
     }
 
     // -----------------------------------------------------------------------

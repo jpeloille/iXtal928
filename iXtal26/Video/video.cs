@@ -87,7 +87,14 @@ internal static partial class video
     //   hline, d'où Height.
     internal const int Stride = 2048;
     internal const int Height = 2048;
-    internal static uint32_t[] Buffer32 = [];
+
+    // DEVIATION: `static readonly`, alloué ici et non dans initvideo().
+    //   La longueur devient une CONSTANTE pour le JIT, ce qu'un champ réassignable
+    //   ne peut pas être — et cga_poll écrit ~31 M fois par seconde émulée dans ce
+    //   tableau. Même taille, même contenu, même durée de vie utile : create_bitmap
+    //   (video.c:1067) alloue une fois pour toutes, lui aussi. initvideo() remet à
+    //   zéro au lieu de réallouer. VERIFICATION.md § M5.2.
+    internal static readonly uint32_t[] Buffer32 = new uint32_t[Stride * Height];
 
     // pcem: video.c:548-555
     internal static int egareads = 0, egawrites = 0;
@@ -210,7 +217,12 @@ internal static partial class video
     }
 
     // pcem: video.c:920-921
-    internal static readonly uint8_t[,] fontdat = new uint8_t[2048, 8];
+    // DEVIATION: `uint8_t fontdat[2048][8]` aplati en [2048 * 8], indexé (c << 3) | d.
+    //   Un tableau [,] échappe à l'analyse de plages de RyuJIT (deux bornes et une
+    //   multiplication par accès), et cga_poll le lit huit fois par caractère —
+    //   7,7 M lectures par seconde émulée. Le bloc plat est ce que le C a en mémoire.
+    //   fontdatm, hors du chemin chaud, garde sa forme. VERIFICATION.md § M5.1.
+    internal static readonly uint8_t[] fontdat = new uint8_t[2048 * 8];
     internal static readonly uint8_t[,] fontdatm = new uint8_t[2048, 16];
 
     // pcem: video.c:928
@@ -281,12 +293,12 @@ internal static partial class video
                 }
                 for (c = 0; c < 256; c++) { /* 8x8 CGA (thin, secondary, normally unused) */
                         for (d = 0; d < 8; d++) {
-                                fontdat[c + 256, d] = (uint8_t)f.ReadByte();
+                                fontdat[((c + 256) << 3) | d] = (uint8_t)f.ReadByte();
                         }
                 }
                 for (c = 0; c < 256; c++) { /* 8x8 CGA (thick, primary) */
                         for (d = 0; d < 8; d++) {
-                                fontdat[c, d] = (uint8_t)f.ReadByte();
+                                fontdat[(c << 3) | d] = (uint8_t)f.ReadByte();
                         }
                 }
                 break;
@@ -295,7 +307,7 @@ internal static partial class video
                 for (c = 0; c < 2048; c++) /* Allow up to 2048 chars */
                 {
                         for (d = 0; d < 8; d++) {
-                                fontdat[c, d] = (uint8_t)f.ReadByte();
+                                fontdat[(c << 3) | d] = (uint8_t)f.ReadByte();
                         }
                 }
                 break;
@@ -331,8 +343,13 @@ internal static partial class video
     internal static void initvideo()
     {
         // DEVIATION: buffer32 = create_bitmap(2048, 2048) (video.c:1067) — le tableau
-        //   plat remplace le malloc unique et la table de lignes.
-        Buffer32 = new uint32_t[Stride * Height];
+        //   plat remplace le malloc unique et la table de lignes. Il est alloué à la
+        //   déclaration (voir le champ) ; ici on le REMET À ZÉRO, ce que le `new`
+        //   d'avant faisait implicitement. initvideo() tourne deux fois par
+        //   répétition de `bench` (chaque ré-amorçage passe par pc.initpc) : sans ce
+        //   Clear, la seconde mesure hériterait de l'image de la première et
+        //   l'empreinte du framebuffer cesserait d'être reproductible.
+        Array.Clear(Buffer32);
 
         // omitted: le remplissage de rotatevga[] (video.c:1069-1075) et de
         //   edatlookup[] (video.c:1076-1089) — tables EGA.

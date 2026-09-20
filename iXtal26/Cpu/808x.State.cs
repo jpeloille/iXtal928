@@ -244,11 +244,17 @@ internal static partial class _808x
     }
 
     /// <summary>FNV-1a 64 bits sur la RAM. Même constante et même parcours que
-    /// h_ram_hash(), sinon la comparaison n'a aucun sens.</summary>
+    /// h_ram_hash(), sinon la comparaison n'a aucun sens.
+    ///
+    /// Bornée à mem_size Ko, comme h_ram_hash() : sur la carte plate de Reset() c'est
+    /// 1 Mo, mais après initpc() la machine a 640 Ko (+ 4 octets de marge) et lire
+    /// RAM_SIZE sortait du tableau. Jamais appelée après un amorçage jusqu'à M5.1 ;
+    /// le banc `bench` l'a révélé (IndexOutOfRange ici, segfault côté C).</summary>
     internal static uint64_t RamHash()
     {
         uint64_t hash = 1469598103934665603UL;
-        for (uint32_t i = 0; i < mem.RAM_SIZE; i++)
+        var n = (uint32_t)mem.mem_size * 1024u;
+        for (uint32_t i = 0; i < n; i++)
         {
                 hash ^= mem.ram[i];
                 hash *= 1099511628211UL;

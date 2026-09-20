@@ -25,6 +25,17 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
     Console.WriteLine("      plus une sonde des trois canaux du PIT.");
     Console.WriteLine();
+    Console.WriteLine("  speed-check [CHEMIN_ROMS] [TRANCHES]");
+    Console.WriteLine("      Où passe le temps ÉMULÉ : cycles consommés contre TSC avancé, par");
+    Console.WriteLine("      tranche. Mesure le temps ÉMULÉ, pas la vitesse hôte : voir bench.");
+    Console.WriteLine();
+    Console.WriteLine("  bench [CHEMIN_ROMS=roms] [TRANCHES=6000] [--repeat R=5] [--warmup W=600]");
+    Console.WriteLine("        [--side c|csharp|both=both]");
+    Console.WriteLine("      Vitesse HÔTE : Oracle.h_run(47727) contre _808x.Run(47727), sur la");
+    Console.WriteLine("      même trajectoire (vérifiée en fin de banc), ordre alterné, chauffe");
+    Console.WriteLine("      puis ré-amorçage avant mesure, ΔJIT/ΔGC relevés. Release seulement.");
+    Console.WriteLine("      Épingler : taskset -c 0-3.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -42,6 +53,44 @@ switch (args[0])
         var roms = args.Length > 1 ? args[1] : "roms";
         var n = args.Length > 2 ? int.Parse(args[2]) : 2000;
         return SpeedCheck.Run(roms, n);
+    }
+
+    // Vitesse HÔTE, symétrique : h_run contre _808x.Run. Voir Bench.cs.
+    case "bench":
+    {
+        var roms = "roms";
+        var slices = 6000;
+        var repeat = 5;
+        var warmup = 600;
+        var side = "both";
+        var positional = 0;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--repeat" when i + 1 < args.Length: repeat = int.Parse(args[++i]); break;
+                case "--warmup" when i + 1 < args.Length: warmup = int.Parse(args[++i]); break;
+                case "--side" when i + 1 < args.Length: side = args[++i]; break;
+                default:
+                    if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
+                    {
+                        Console.Error.WriteLine($"Option inconnue : {args[i]}");
+                        return 2;
+                    }
+                    if (positional++ == 0) roms = args[i];
+                    else slices = int.Parse(args[i]);
+                    break;
+            }
+        }
+
+        if (side is not ("c" or "csharp" or "both"))
+        {
+            Console.Error.WriteLine($"--side : c, csharp ou both, pas « {side} ».");
+            return 2;
+        }
+
+        return Bench.Run(roms, slices, repeat, warmup, sideC: side != "csharp", sideCs: side != "c");
     }
 
     // Profil de l'amorçage par adresse linéaire : mesure ce que le modèle de

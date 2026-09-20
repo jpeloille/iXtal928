@@ -41,10 +41,12 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   dans des fichiers générés (`sst-baseline.tsv`, `oracle.tsv`), jamais ici.
 - **R4 — zéro abstraction.** Pas d'`interface`, `abstract class`, générique, LINQ,
   `record`, `async`, DI, méthode d'extension. Le C du palier (a) n'en contient aucun.
-  Les six C#-ismes autorisés sont une liste close :
+  Les sept C#-ismes autorisés sont une liste close :
   `delegate` · `class` (structs dont l'adresse est prise) · propriété `ref` (`#define`) ·
   `[StructLayout(Explicit)]` (unions) · alias `global using` (stdint) ·
-  `[MethodImpl(AggressiveInlining)]` (macros-fonctions).
+  `[MethodImpl(AggressiveInlining)]` (macros-fonctions) · `ref` locale d'alias en
+  prologue de `execx86` — et là seulement : contournement d'une limite de RyuJIT,
+  mesuré, VERIFICATION.md § M5.
 - **R5 — cadence de build : 300 lignes.** Jamais plus de 300 lignes neuves sans
   `dotnet build` **et** exécution du vérificateur du jalon courant.
 - **R6 — « fini » par fichier**, quatre conditions : chaque ligne C a une contrepartie ou
@@ -172,3 +174,10 @@ Chacun a été vérifié dans l'arbre, pas déduit.
    est vide (`thread-pthread.c:46`), `thread_wait_event` n'a pas de boucle de prédicat.
    Le handshake de `video.c:1132-1144` dégénère en attente active sur un `int` non
    atomique. Il n'y a pas de fidélité à préserver : iXtal26 est mono-thread.
+7. **Une propriété `ref` n'est un `#define` qu'en deçà de ~922 locales par méthode.**
+   RyuJIT refuse *tout* inlining — `AggressiveInlining` compris — dès que
+   `lvaCount ≥ 0,9 × JitMaxLocalsToTrack` (`fginline.cpp`), et les temporaires du switch
+   de `execx86` (un par `x -= n` sur un byref) y arrivent avant le premier candidat :
+   1 507 `call` dans le Tier1, dont 898 vers des accesseurs d'une ligne. D'où la 7e
+   entrée de R4. `JitDisasmSummary` ne le montre pas (« Tier1 »), seul `JitDisasm` le
+   montre ; la porte G2 n'avait vérifié que la compilation. VERIFICATION.md § M5.

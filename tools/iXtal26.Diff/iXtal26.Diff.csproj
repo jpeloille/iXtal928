@@ -14,6 +14,13 @@
              au JSON et aux symboles C — voir .editorconfig. -->
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+        <!-- Le MÊME réglage que iXtal26.csproj, et pour une raison de mesure, pas de
+             vitesse : `bench` fait tourner le cœur DANS ce processus-ci, donc c'est ce
+             runtimeconfig-ci qui gouverne son JIT. Sans cette ligne, le banc mesurerait
+             un cœur étagé et le produit livrerait un cœur non étagé — deux machines
+             différentes, et un ratio C#/C qui ne décrirait plus rien. -->
+        <TieredCompilation>false</TieredCompilation>
     </PropertyGroup>
 
     <ItemGroup>

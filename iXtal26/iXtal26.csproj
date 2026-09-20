@@ -12,15 +12,26 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <InvariantGlobalization>true</InvariantGlobalization>
 
-        <!-- Engagement, pas préférence. Le cœur 8088 vise 4,77 MHz : on a 50 à 100× de
-             marge, et le bounds-check convertit un biais de page mal calculé d'un bug
-             invisible en stack trace. Voir le critère d'arrêt du benchmark readlookup2. -->
+        <!-- Engagement, pas préférence. Le cœur 8088 vise 4,77 MHz. La marge n'est pas
+             « 50 à 100× » comme supposé avant de mesurer : 15× sur un cœur P à 4,8 GHz,
+             là où le C de PCem en a 25× (VERIFICATION.md § M5). Et le bounds-check n'y
+             est pour presque rien — 80 dans execx86, au même IPC que le C ; il convertit
+             un biais de page mal calculé d'un bug invisible en stack trace. -->
         <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
 
         <!-- Le C enveloppe silencieusement. Explicite parce qu'un Directory.Build.props
              ou une inspection Rider peut retourner le défaut, et l'échec serait alors une
              OverflowException des milliers d'instructions après le boot. -->
         <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+
+        <!-- Mesuré, pas supposé : -5 % en régime établi (VERIFICATION.md § M5.2), deux
+             passes alternées de cinq répétitions. Un émulateur n'est pas une application
+             de bureau — il doit tenir 100 tranches/s dès la première, pas après quelques
+             centaines le temps que les paliers montent. Le tiering laissait d'ailleurs du
+             Tier0 en vol jusque dans le profil (cga_poll et hline en QuickJitted).
+             Coût : +164 ms au démarrage, une fois. Effet secondaire utile : la dispersion
+             du banc tombe de 6-9 % à 2-3 %, donc toute mesure ultérieure est plus nette. -->
+        <TieredCompilation>false</TieredCompilation>
 
         <!-- Plein sur le code hôte. Les fichiers transcrits portent des
              #pragma warning disable énumérés et commentés, jamais en bloc. -->
@@ -58,7 +69,12 @@
              assembly ; InternalsVisibleTo est la porte de service. -->
         <InternalsVisibleTo Include="iXtal26.Diff"/>
         <InternalsVisibleTo Include="iXtal26.Sst"/>
-        <InternalsVisibleTo Include="iXtal26.Bench"/>
+        <!-- iXtal26.Bench retiré : ce projet n'a jamais existé. Bench.cs a atterri
+             dans tools/iXtal26.Diff, déjà couvert par la ligne ci-dessus. Une porte
+             ouverte sur un assembly inexistant ne protège rien et laisse croire à un
+             projet qu'on chercherait. (iXtal26.Sst est dans le même cas aujourd'hui —
+             SstProbe.cs vit aussi dans iXtal26.Diff — mais le nom dit une intention,
+             § M5.0 ; à trancher, pas à balayer en passant.) -->
     </ItemGroup>
 
 </Project>

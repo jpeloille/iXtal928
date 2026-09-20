@@ -36,6 +36,16 @@ Performance relevée : 38 000 cas en 61 s, dominés par `h_reset()` qui remet à
 de `readlookup2`/`writelookup2` à chaque cas — ~85 min pour le corpus complet contre 2 min
 visées. Le harnais devra réinitialiser ces tables paresseusement.
 
+> **Constat de M0, à lire avec § M5.0.** Ce paragraphe est exact *pour les données de M0* :
+> `git show 60cf953:sst-baseline.tsv` porte bien 19 formes, et les cinq écarts qu'il
+> énumère sont les cinq que ces 19 formes révèlent. Ce qui a changé depuis :
+> (1) M1.2 a ajouté les douze formes ADC/SBB `10`–`1D`, qui forment une **sixième** famille
+> — aujourd'hui `PB-01` — sans que cette prose soit reprise ; les défauts de PCem ont
+> depuis leur registre propre, `PCEM_BUGS.md`. (2) La ligne de base couvre les 84 formes
+> depuis M5.0, contre 67 entre M1.2 et M5.0. (3) La réinitialisation paresseuse de
+> `h_reset()` n'a jamais eu à être faite : à 2 000 cas par forme, les 84 formes passent
+> sans qu'on y touche.
+
 ---
 
 ## Résultats des portes M0
@@ -625,3 +635,375 @@ Trois réserves, à ne pas taire :
 Et à ne pas confondre avec tout ce qui précède : « la machine HÔTE tient-elle le temps
 réel ? » est une autre question, lue à 99-100 % dans le titre de la fenêtre, et qui
 n'entre dans aucun des chiffres ci-dessus.
+
+---
+
+## M5.0 — Le corpus SST complet contre le cœur C#
+
+Mesuré le 2026-09-20, .NET 10.0.112, x86-64 Linux. Oracle : `libixtal26oracle.so`, ABI 1.
+
+La sonde SST de M0 était une **porte**, pas une vérification : elle mesurait si PCem suit
+le silicium d'assez près pour mériter d'être transcrit. Elle ne visait que l'oracle C, sur
+19 formes choisies pour être retorses. Le harnais qu'elle devait décider n'avait jamais
+été passé au cœur C#, et `sst-baseline.tsv` n'avait pas bougé depuis M1.2 — 67 formes,
+alors que `vectors/sst/v2/` en porte 84 et que le jeu d'instructions est complet depuis
+M1.4.
+
+Les deux cibles ont donc été passées sur **les 84 formes**, 2 000 cas chacune : 168 000
+cas présentés, 166 998 joués après le filtre de préfixes.
+
+### Le critère est tenu octet pour octet
+
+Le plan ne demande pas « 100 % de SST » : il demande que le C# **reproduise la colonne
+`passe` de l'oracle à l'identique**. Les deux lignes de base, corps hors en-tête de
+provenance, ont le même condensé :
+
+```
+d994e8f7d46d8ed9cd3cf43f4f09028345937ce753dc5fbb89547ff70f929f60   oracle C
+d994e8f7d46d8ed9cd3cf43f4f09028345937ce753dc5fbb89547ff70f929f60   cœur C#
+```
+
+160 592 / 166 998 des deux côtés, colonne `premier_echec` comprise — même cas en premier
+échec, mêmes valeurs observées et attendues, sur chacune des 84 formes.
+
+### Et la vérification forte : l'état complet, pas la colonne
+
+L'égalité des compteurs est nécessaire, pas suffisante : deux cœurs peuvent échouer le
+même **nombre** de cas sans échouer les **mêmes**, et deux états faux différents comptent
+pareil. `sst-diff` rejoue chaque cas sur les deux cœurs et confronte les **32 champs
+d'état plus les cycles consommés**, via `Fuzzer.CompareStates`.
+
+| | |
+|---|---|
+| formes | **84 / 84** |
+| cas rejoués sur les deux cœurs | **168 000** |
+| divergences | **0** |
+
+Le C# ne reproduit donc pas le score de PCem, il reproduit son **état bit à bit** — y
+compris les 19 formes où PCem s'écarte du silicium, faux drapeaux compris.
+
+### Les 19 formes déviantes, par famille
+
+Toutes échouées identiquement des deux côtés. Chiffres sur 2 000 cas, sauf `AD` (1 515
+après filtre).
+
+| Famille | Formes | Réussite | Défaut |
+|---|---|---|---|
+| ADC / SBB, drapeau AF | `10`–`15`, `18`–`1D` | 1 905 à 1 953 | **PB-01** |
+| DAA / DAS | `27`, `2F` | 1 989 / 1 960 | **sans entrée PB** — voir ci-dessous |
+| REP LODSW | `AD` | 1 004 | — |
+| SETMO | `D0.6` | 5 | opcode non documenté, non implémenté |
+| SHL par CL, drapeau OF | `D2.4` | 1 063 | — |
+| DIV, débordement de quotient | `F6.6`, `F7.6` | 955 / 982 | — |
+
+**Les tirets de la colonne « Défaut » sont des trous, pas des acquittements.** Cinq des six
+familles n'ont **aucune entrée `PB-nn`** : DAA/DAS, REP LODSW, SETMO, SHL par CL et le
+débordement de quotient de DIV. Le § Portée de `PCEM_BUGS.md` n'impute qu'une seule entrée
+à SingleStepTests, PB-01 ; l'oracle SST en a en réalité éclairé six. Ces cinq-là sont
+décrites en prose dans le constat de M0 ci-dessus, mais elles ne sont pas instruites à la
+ligne de C, pas identifiées, et donc pas citables depuis un marqueur
+`// pcem bug, reproduced:`.
+
+**PB-01 chiffré.** Le registre annonce « ~3 à 4 % de divergence sur ADC/SBB, toujours sur
+le seul bit 0x0010 ». Sur douze formes × 2 000 cas : de 1 905/2000 (`19`, SBB word, 4,75 %)
+à 1 953/2000 (`1D`, 2,35 %), et **les douze premiers échecs portent tous
+`diff masqué 0x0010`**. Aucune exception.
+
+**DAA/DAS n'est pas un effet de PB-01, et n'a pas d'entrée.** PB-01 fausse AF sur ADC et
+SBB, et le registre le note « observable à travers DAA, DAS, AAA et AAS ». Mais un cas SST
+de `27` est autonome : AF lui est **donné** par l'état initial, aucun ADC ne le précède.
+Et les échecs ne portent pas sur un drapeau — ils portent sur **AL** : `daa` donne
+`AX = 0x3604` contre `0x36A4` attendu, `das` donne `0xEA9B` contre `0xEAFB`. C'est le
+résultat de DAA/DAS lui-même qui est faux, indépendamment de PB-01. À instruire et à
+verser à `PCEM_BUGS.md` — 11 et 40 cas sur 2 000, jamais examinés à la ligne.
+
+**Dix-huit formes entrent dans la ligne de base** — `40 43 48 4B` (INC/DEC), `50 53 58 5B`
+(PUSH/POP), `70 72 74 75 76 78 7A 7C 7E 7F` (Jcc). Elles passent 2000/2000 des deux côtés.
+
+### Deux défauts du harnais, trouvés par la campagne elle-même
+
+1. **`RunCaseCsharp` omettait le suffixe `(diff masqué 0x…)`** qu'émet la branche oracle.
+   Aucun cœur ne divergeait, mais un `diff` des deux lignes de base signalait **13 fausses
+   différences** — ce qui défait très exactement le critère « reproduire ce fichier à
+   l'identique ». Un garde-fou qui crie sur sa propre mise en forme ne garde plus rien.
+   Corrigé, `SstProbe.cs` ; les deux fichiers sont identiques depuis.
+
+2. **`IsUnimplementedPrefix` est périmé.** Il écarte encore `F2`/`F3` au motif qu'ils
+   « attendent `rep()` », alors que `808x.cs:3277-3281` les traite depuis M1.4. Mesuré :
+   **1 002 cas jamais joués** (0,60 %), tous sur `A4` et `AD`. Le filtre ne teste que
+   `bytes[0]`, d'où l'incohérence visible sur `AD`, dont le premier échec est un
+   `26 F3 AD` qui passe au travers.
+
+   **`sst-diff` tranche la question** : il n'applique pas ce filtre, et a donc joué `A4` et
+   `AD` sur **2 000 cas chacun** là où la sonde n'en joue que 1 483 et 1 515. Les deux
+   reviennent d'accord. Les 1 002 cas masqués ne cachent aucune divergence — retirer le
+   filtre ne fera qu'ajouter de la couverture sur les opérations de chaîne. Non retiré
+   ici : ça change les dénominateurs de `sst-baseline.tsv`, et re-baser est une décision,
+   pas une conséquence.
+
+### Ce que ce vert ne dit pas
+
+- **Il ne couvre pas la déviation M5.1** des alias `ref` de prologue dans `execx86`. La
+  bibliothèque mesurée a été construite à 13:56:10 ; `808x.cs` a été modifié à 16:32:32 ;
+  aucune construction entre les deux. Toutes les mesures ci-dessus portent sur le cœur
+  **d'avant**. Le contrôle structurel passe — `cpu_state` est `static readonly` d'instance
+  unique (`386_common.cs:19`), `regs` un `readonly x86reg[8]` jamais réalloué (`x86.cs:58`),
+  `seg_cs`/`seg_ds`/… des `readonly x86seg` jamais réassignées (`x86.cs:75-76`), donc aucun
+  alias ne peut se périmer et une écriture faite par une fonction appelée vise la même
+  adresse. Mais structurellement sûr n'est pas mesuré, et c'est précisément ce que SST sait
+  adjuger. **À relancer contre M5.1.**
+- **Il ne couvre pas 79,5 % du corpus.** 168 000 cas sur les **819 000** que portent les 84
+  fichiers. L'échantillon est le même qu'à M0 par forme, pas le corpus entier.
+- **Il ne dit rien du diff d'amorçage ni du fuzzer**, et **rien du chemin pixel** — SST ne
+  fait pas tourner une machine. Les trois oracles attrapent des classes disjointes.
+- **Il ne valide pas le modèle de BIU.** SST v2 porte des traces de cycles par broche ;
+  `RunCase` ne lit que `initial`/`final`. Les champs `cycles`, `queue` et `hash` sont
+  désérialisés et ignorés, comme depuis M0.
+
+Preuves : `sst-baseline.tsv` (84 formes) pour la ligne de base ; le reste est régénérable
+par `iXtal26.Diff sst-probe --limit 2000 [--target csharp]` et `sst-diff <forme> 2000`.
+
+---
+
+## M5.1 — Vitesse hôte : « aussi rapide que du C ? », mesuré
+
+Mesuré le 2026-09-20, .NET 10.0.112 (runtime 10.0.12), gcc, Core Ultra 7 258V — 4 cœurs P
+(cpu 0-3, 4,8 GHz) + 4 cœurs LPE (cpu 4-7, 3,7 GHz), gouverneur `powersave`, Rider actif
+en fond. Tout est épinglé `taskset -c 0-3`, minimum ou médiane de 3.
+
+Le dépôt ne contenait **aucune mesure de vitesse hôte** : zéro `Stopwatch` dans tout le C#,
+`speed-check` mesure le temps *émulé*, et le « 100 % » du titre SDL ne peut pas dépasser
+100 par construction (le frein `drawits` attend l'horloge murale : 15× de marge et 1,05×
+s'affichent pareil). Le `.csproj` affirmait « 50 à 100× de marge ». La question n'avait
+jamais été posée à la machine.
+
+### La réponse
+
+| Cœur | 60 s émulées (6 000 × `h_run`/`Run(47727)`, 24 944 866 instr.) | × temps réel | ratio |
+|---|---|---|---|
+| C, oracle instrumenté (`libixtal26oracle.so` : `-O2 -fPIC`, `--wrap`, sans LTO) | **2 525 ms** | 23,8 | 1 |
+| C, **production** (`tools/oracle/build/bench` : `-O2 -flto -march=x86-64-v2`, sans `--wrap`) | **1 659 ms** | 36,2 | 0,66 |
+| C#, avant M5.1 (HEAD `e75784e`) | 3 936 ms | 15,2 | 1,56 |
+| C#, **M5.1** (prologue + `cols` + `fontdat`) | **3 514 ms** | 17,1 | **1,39** ; 2,12 contre la production |
+
+Trajectoire vérifiée en fin de banc : Δins, Σcycles (296 826 600), vecteur d'état (32
+champs) et hachage FNV de la RAM **identiques** entre les trois cœurs — sinon le ratio
+n'est pas imprimé. Commandes :
+`iXtal26.Diff bench roms 6000 --repeat 3 --warmup 600` · `make -C tools/oracle bench` puis
+`tools/oracle/build/bench roms 6000 3 600`.
+
+L'oracle instrumenté est **50 % plus lent que PCem compilé comme PCem** : `--wrap` sur les
+accès lents, `-fPIC` sans `-fvisibility=hidden` (281 relocations GOT), pas de LTO. La
+comparaison « à instrumentation égale » est 1,39 ; contre le C livré, 2,12 — et le C#
+porte encore ses compteurs et son journal d'écritures en ligne (`mem.cs:271-386`).
+
+### Où va l'écart : les compteurs matériels tranchent
+
+`perf stat`, 6 000 tranches `--boot` (démarrage .NET compris) :
+
+| | cycles | instructions | IPC | branch-misses | L1i misses |
+|---|---|---|---|---|---|
+| C (.so) | 3,93 G | 21,7 G | 5,53 | 9,6 M | 2,8 M |
+| C#, prologue | 6,56 G | 36,5 G | 5,57 | 16,7 M | 24,3 M |
+| C#, prologue + `cols` + `fontdat` | 6,25 G | 34,9 G | 5,59 | 16,6 M | — |
+
+**Même IPC.** Le C# n'est pas ralenti par les caches ni la prédiction : il **exécute plus
+d'instructions hôte** — 1 517 par instruction 8088 contre 873. C'est du code généré et de
+l'instrumentation, rien d'autre.
+
+`perf record` par fonction (`DOTNET_PerfMapEnabled=1 DOTNET_EnableWriteXorExecute=0` — sans
+le second, le code JIT vit dans un `memfd:doublemapper` que perf ne symbolise pas) :
+
+| Fonction | C (.so) | C#, prologue | C#, M5.1 |
+|---|---|---|---|
+| `cga_poll` | 43,9 % · 1,12 s | 41,5 % · 1,78 s | 36,7 % · 1,55 s |
+| `execx86` | 12,6 % · 0,32 s | 7,6 % · **0,32 s** | 8,3 % · 0,35 s |
+| `FETCHADD` + `FETCH` | 14,1 % · 0,36 s | 7,7 % · 0,33 s | 8,8 % · 0,37 s |
+| `readmembl` + `mem_read_bios` + `readmembf` (+ `__wrap`, PLT) | 8,4 % · 0,21 s | 6,9 % · 0,30 s | 9,2 % · 0,39 s |
+| `clockhardware` | 2,6 % · 0,066 s | 1,5 % · 0,066 s | 2,4 % · 0,10 s |
+| timers (`timer_enable/process/remove_head`) | 4,5 % · 0,12 s | 3,5 % · 0,15 s | 3,6 % · 0,15 s |
+| JIT (`libclrjit`) | — | 8,7 % · 0,37 s | ≈ idem |
+| runtime (`libcoreclr`, barrières d'écriture, `__tls_get_addr`, thunks de délégués) | — | 8,9 % · 0,38 s | ≈ 6 % |
+
+**Après le prologue, le cœur CPU proprement dit est à parité avec le C** (`execx86`,
+`FETCH*`, `clockhardware`). L'écart vit dans `cga_poll` — le premier poste des DEUX côtés,
+44 % du temps du C —, dans la chauffe du JIT, et dans le runtime.
+
+### Ce qu'on a appris de RyuJIT, et vérifié à la source (`dotnet/runtime`, `release/10.0`)
+
+- `execx86` (26 270 octets d'IL, 9 825 instructions, 1 209 blocs, 357 `case`) est compilée
+  en Tier1 — **pas en MinOpts** —, mais **sans un seul inlining** : 1 507 `call` dans le
+  listing, dont 898 vers les accesseurs d'une ligne qui transcrivent `#define cycles`,
+  `AL`, `cpu_mod`… ; 51 `FETCH()` marqués `AggressiveInlining`, 51 appels. Porte :
+  `lvaHaveManyLocals(0.9f)` (`fginline.cpp:1133`) — dès 922 locales
+  (0,9 × `JitMaxLocalsToTrack` = 0x400), `CALLSITE_TOO_MANY_LOCALS`, fatal, **hors de la
+  policy, donc aveugle à `AggressiveInlining`**. L'importation crée un temporaire par `dup`
+  de byref (chaque `x -= n` sur une propriété `ref`) : le compte est dépassé avant le
+  premier candidat. Preuve différentielle : `clockhardware`, `geteab`, `rep` inlinent les
+  mêmes accesseurs sans un `call`.
+- **Contre-épreuve** : `DOTNET_JitMaxLocalsToTrack=0x4000 DOTNET_TieredCompilation=0`
+  réinline (1 508 → 946 appels, trame 0x948 → 0x4A8) pour **5 % de chrono**. Les appels
+  étaient un défaut réel, pas *le* défaut. En mode tiered, le même bouton retarde le Tier1
+  de plusieurs secondes : inutilisable.
+- Le **prologue de `ref` locales** (`808x.cs:1063-1080`, 7e entrée de R4) : 898 → 26
+  appels d'accesseurs, 636 `call` au total, trame 2 376 → 312 octets, code 31 → 24 Ko.
+  Gain ≈ 5 %, risque nul : alias purs sur des champs `readonly` jamais remplacés.
+- Les cinq seuils MinOpts (60 000 octets, 20 000 instr., 2 000 blocs, 2 000 locales,
+  8 000 réf. ; `compiler.cpp:3710`) sont comptés sur l'IL **avant** importation, donc
+  mesurables sur la DLL : `ilspycmd -il -t iXtal26.Cpu._808x iXtal26/bin/Release/net10.0/iXtal26.dll`.
+  `execx86` est à **60 % du seuil de blocs**. Le palier (b) 8086 doit rejouer ce compte
+  (garde-fou G2 bis) : franchir 2 000 blocs débraye tout, silencieusement — aucun oracle
+  ne le verrait, seul `DOTNET_JitDisasmSummary=1` (« MinOpts ») le dit.
+- **Ce que G2 ne prouvait pas.** Sa méthode de 180 106 octets d'IL (VERIFICATION.md § M0)
+  était nécessairement en MinOpts ; « pas de bailout » voulait dire « ça compile », pas
+  « c'est optimisé ». `JitDisasmSummary` ne montre pas l'absence d'inlining ; `JitDisasm`
+  oui.
+- Réglages runtime (`TieredPGO`, `TieredCompilation`, `TC_QuickJitForLoops`, OSR, R2R,
+  `JitInlineBudget`) : aucun effet mesurable. `AggressiveOptimization` n'élève aucune porte.
+
+### Les deux leviers vidéo (M5.1, code transcrit, `// DEVIATION:`)
+
+| | Forme | Vérification |
+|---|---|---|
+| `cols` | `new uint32_t[4]` par appel de `cga_poll` (31 400/s émulée) → tableau statique réutilisé, comme le `uint32_t cols[4]` de pile du C. Chaque chemin écrit ses éléments avant de les lire. | `--boot roms 6000` : `ins 24073823`, écran BASIC, 3 997 pixels, **empreinte FNV du framebuffer identique** (`D8C027E793FF9677`) |
+| `fontdat` | `uint8_t[2048, 8]` → `uint8_t[2048 * 8]` indexé `(c << 3) \| d` : un tableau `[,]` échappe à l'analyse de plages de RyuJIT (`rangecheck.cpp` ne connaît que `GT_ARR_LENGTH`). | idem — l'empreinte est le seul juge du chemin pixel, ajoutée à `--boot` pour l'occasion |
+
+### Oracles, sur le cœur M5.1
+
+| | |
+|---|---|
+| Diff d'amorçage, 6 000 tranches | **24 944 866 instructions identiques** |
+| Fuzzer, mode flux, 256 opcodes, 1 500 × 200 | **300 000 instructions, zéro divergence** |
+| `bench`, trajectoire (Δins, Σcycles, 32 champs, RAM) | identique C / C#, 6 mesures reproductibles |
+| Framebuffer, `--boot roms 6000` | empreinte identique avant/après |
+| SST, sonde (84 formes, `--limit 2000`) | **160 592 / 166 998**, condensé du corps identique à `sst-baseline.tsv` |
+| SST, `sst-diff` (84 formes × 2 000 cas) | **168 000 cas rejoués, zéro divergence** |
+
+#### SST relancé contre le cœur M5.1
+
+M5.0 mesurait le cœur **d'avant** le prologue de `ref` locales : la `.so` datait de
+13:56:10, `808x.cs` de 16:32:32, sans construction entre les deux. La campagne est donc
+rejouée, et **les deux côtés sont reconstruits avant de mesurer** — `libixtal26oracle.so`
+à 16:59:05, `iXtal26.dll` à 16:59:33, contre un `808x.cs` figé à 16:32:32. C'est la
+précaution qui manquait, pas le résultat.
+
+| | |
+|---|---|
+| Sonde, `sst-probe --limit 2000 --target csharp` | 160 592 / 166 998 (96,16 %), **10 min 20 s** |
+| Condensé du corps (`tail -n +4 … \| sha256sum`) | `d994e8f7d46d8ed9cd3cf43f4f09028345937ce753dc5fbb89547ff70f929f60` des deux côtés ; `diff` vide, colonne `premier_echec` comprise |
+| `sst-diff <forme> 2000`, 84 invocations | **84 formes, 0 en divergence**, 22 min 32 s |
+
+Le prologue de `ref` locales ne déplace **aucun** cas : ni le score, ni l'identité des cas
+échoués, ni les 32 champs d'état, ni les cycles. L'hypothèse « l'alias vaut toute la
+boucle » est désormais mesurée, pas seulement raisonnée à partir de `static readonly`.
+
+**Ce que ce vert ne dit pas** : `--limit 2000` reproduit *délibérément* l'échantillon de
+M5.0, sans quoi le condensé ne serait plus comparable. 168 000 cas sur les 819 000 que
+portent les 84 fichiers — « 84/84 » est une reproduction, pas une couverture de corpus.
+
+### Deux défauts trouvés en mesurant
+
+1. **`h_ram_hash()` et `_808x.RamHash()` lisaient 1 Mo** (`H_RAM_SIZE`/`RAM_SIZE`) sur une
+   machine amorcée à 640 Ko + 4 : segfault côté C, `IndexOutOfRange` côté C#. Jamais
+   appelées après un amorçage jusqu'ici (le fuzzer travaille sur la carte plate de 1 Mo).
+   Bornées à `mem_size` Ko des deux côtés.
+2. **Épingler un processus .NET sur UN cœur fausse la mesure** : `taskset -c 3` donne
+   6,9 s au lieu de 4,2 — le fil de compilation Tier1 partage le cœur avec l'émulation.
+   Les quatre cœurs P, ou un seul cœur seulement une fois ΔJIT = 0.
+
+### Ce que ce chiffre ne dit pas, et ce qui reste
+
+- **`cga_poll` reste 1,4× le C** (1,55 s contre 1,12 s) : bornes sur ~31 M d'accès à
+  `Buffer32` par seconde émulée, `hline`, `cgapal`. Ce n'est pas le siège d'un écart
+  singulier — le C recharge sept valeurs par pixel à cause de `-fno-strict-aliasing` —
+  mais c'est le premier poste des deux côtés.
+- **Le chemin lent mémoire** (`readmembl` par octet de code ROM : `mem_read_bios`
+  n'appelle jamais `addreadlookup`, donc chaque octet de F000/F600 le traverse, des deux
+  côtés) coûte 0,39 s contre 0,21 s. Le delta C# : `obs_depth`, la région `try/finally`,
+  deux bornes, un délégué non dévirtualisé. Levier B du plan, non fait : le miroir exact
+  de `-Wl,--wrap` (enveloppe + `__real_readmembl`) rendrait `obs_depth` et `try/finally`
+  inutiles.
+- **La chauffe du JIT** (0,37 s) est un coût fixe, pas de régime : il disparaît d'une
+  mesure de régime stationnaire, pas d'un `--boot`.
+- **Découper `execx86`** reste le seul levier pour les ~310 sites `static inline` du C
+  (`FETCH`, `FETCHCLEAR`, `geteab/w`, `seteab/w`, `setznp8/16`, `getword`) que le JIT ne
+  peut pas inliner tant que la méthode dépasse la porte. Refusé à M5.1 ; à chiffrer.
+- **Pour la cible 386** : `386.c:194` dispatche par table de pointeurs de fonction, une
+  fonction par opcode. Le monolithe qui bloque RyuJIT est propre au 8088.
+
+La marge de l'hôte se lit maintenant dans le titre de la fenêtre (`marge x17,1`, à côté
+du pourcentage), d'un `Stopwatch` autour du seul `pc.runpc()`.
+
+---
+
+## M5.3 — Le turbo d'amorçage : 57 s de POST en 4,2 s, sans toucher à la machine
+
+Mesuré le 2026-09-20, même machine et même protocole que § M5.1 (Core Ultra 7 258V,
+`taskset -c 0-3`, build Release, Rider en fond).
+
+La question « peut-on accélérer le POST ? » recouvre trois choses que les chiffres
+séparent nettement. Aller jusqu'à l'invite BASIC (6 000 tranches, 60 s émulées) :
+
+| | temps mur | facteur |
+|---|---|---|
+| fenêtre, frein sur horloge murale (comportement d'origine) | **≈ 57 s** | 1 |
+| fenêtre, frein retiré, toutes les images présentées (`--slices 6000`) | 9,5 à 10,3 s | ~6 |
+| fenêtre, **`--turbo`** (frein retiré + présentation bridée) | **4,24 s** pour 5 800 tranches | **13,7** |
+| headless, frein retiré — plancher, aucun chemin de blit | 3,93 s | 14,6 |
+| si le cœur C# égalait le C de production (§ M5.1) | ≈ 1,7 s | 34 |
+
+**Le frein vaut 6×, la présentation encore 2×, et toute l'optimisation du cœur transcrit
+vaut au mieux 2× par-dessus.** C'est ce rapport qui a décidé de l'ordre des travaux :
+l'axe hôte d'abord, le code transcrit ensuite.
+
+### Ce que le turbo change, et ce qu'il ne change pas
+
+`--turbo [N]` (défaut 5 800 tranches ; l'invite BASIC tombe à la tranche 5 729, § M4.6)
+n'attend pas l'horloge murale pendant les N premières tranches, puis rend la machine au
+temps réel. Une frappe y met fin — à partir de là, quelqu'un regarde.
+
+La trajectoire émulée est **rigoureusement inchangée** : `--boot roms 6000` rend toujours
+`ins = 24073823`, `0040:0010 = 006D`, 640 Ko, l'écran `The IBM Personal Computer Basic` /
+`Ok`, 3 997 pixels et l'empreinte `D8C027E793FF9677`. Le turbo vit entièrement dans
+`Host/SdlHost.cs` et `Program.cs` : aucun `// DEVIATION:`, aucun oracle exposé.
+
+Ce qui est sauté est **hôte** : pendant le turbo, le CGA émet des centaines d'images par
+seconde murale ; on n'en présente qu'une toutes les 16 ms (1 428 sautées sur ~1 690 au
+dernier relevé). `video_blit_complete()` reste **inconditionnel** — c'est lui qui rend la
+propriété du handshake de PCem, et le CGA redessinant toutes ses lignes à chaque image,
+une image sautée n'est jamais une ligne perdue.
+
+### Le piège du réarmement, et une attribution fausse corrigée par la mesure
+
+1. **`drawits` doit repartir de zéro à la sortie du turbo.** Sans cela l'accumulateur
+   encaisse d'un coup les ~50 s de retard, et la branche `if (drawits > 50) drawits = 0`
+   (wx-sdl2.c:176-179) les jette **sans rien dire** : une demi-seconde d'émulation en
+   accéléré, invisible. On repart donc d'une horloge neuve, compteurs de titre compris.
+2. **`--slices N` reste hors du turbo**, et c'est un contrat : ce mode ne cadence rien du
+   début à la fin, et c'est ce qui rend deux exécutions identiques. `--turbo` avec
+   `--slices` est **refusé**, pas ignoré — une option sans effet est indiscernable d'une
+   option qui ne marche pas.
+3. **L'attribution des 4 s d'écart entre temps mur et temps CPU était fausse.** On les
+   croyait dans `RenderPresent` (attente du compositeur). Chronométré des deux côtés :
+   **recopie + `UpdateTexture` 2 686 ms contre `RenderPresent` 1 190 ms** sur 1 741
+   images. Le garde saute donc les deux, et pas seulement la présentation. Ces deux
+   chiffres sont imprimés par `--verbose` (`chemin blit:`), que le banc de § M5.1 ne
+   pouvait pas produire : headless, il n'installe aucun crochet de blit.
+
+### Vérifications
+
+| | |
+|---|---|
+| Trajectoire, `--boot roms 6000` | `ins 24073823`, empreinte `D8C027E793FF9677`, écran BASIC — **identiques à § M5.1** |
+| Le frein reprend après le turbo | 12 s d'horloge murale après `--turbo 400` : **2,07 s user + 0,48 s système** (turbo permanent en aurait coûté 12) |
+| Phase turbo, par le programme lui-même | `turbo : 5800 tranches (58 s émulées) en 4.24 s mur (x13.7), 1428 images sautées` |
+| Table d'options | `--turbo 0`, `--turbo abc`, `--turbo --slices` : code 2 et message explicite ; `--turbo --headless` retombe sur la règle de `--headless` |
+
+Ce que le turbo ne fait PAS : il ne rend pas le cœur plus rapide. Les 4,24 s restent
+2,5× le C de production sur la même trajectoire, et le POST dure toujours 57 s pour la
+machine émulée. Restent donc, dans l'ordre : le miroir de `--wrap` côté C# (levier B,
+§ M5.2), les bornes de `cga_poll`, puis le contrôleur de disquettes — 6,63 s de
+temporisation à vide dans le POST (§ M4.6), que **l'oracle C partage** (aucun source
+`floppy/` ni `disc/` dans `tools/oracle/Makefile`) : ce jalon-là doit déplacer les deux
+côtés à la fois, sous peine de transformer les 24 944 866 instructions identiques en
+divergence à la tranche ~4920.

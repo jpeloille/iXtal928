@@ -9,6 +9,7 @@
 #
 #   make            construit la bibliothèque
 #   make selftest   construit et exécute l'autotest (aucun C# requis)
+#   make bench      construit build/bench, le banc « C de production » (voir bench.c)
 #   make clean
 
 PCEM    := ../../pcem-dev
@@ -75,7 +76,23 @@ LDFLAGS += -Wl,--no-undefined
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
 vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
 
-.PHONY: all clean selftest
+# --- bench : la référence « C de production » ---------------------------------
+# Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap
+# (les compteurs h_n_* sont définis dans harness_stubs.c, donc le lien passe ;
+# simplement plus rien ne les incrémente), et avec les drapeaux du build amont
+# Release — -flto et -march compris, que CFLAGS omet. Objets à part dans
+# build/lto/ : -flto et -march changent le code, on ne les mélange pas à ceux de
+# la .so. -fPIC n'a pas lieu d'être dans un exécutable.
+#
+# -Wl,--no-undefined est gardé par symétrie avec la .so ; pour un exécutable il
+# est redondant (ld refuse déjà tout symbole non résolu), mais inoffensif.
+BENCH_FLAGS := -O2 -fomit-frame-pointer -fno-strict-aliasing -flto -march=x86-64-v2 -g \
+               -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable \
+               -Wno-misleading-indentation -Wno-implicit-fallthrough
+BENCH_SRC   := $(filter-out harness_wrap.c,$(SRC))
+BENCH_OBJ   := $(addprefix $(BUILD)/lto/,$(notdir $(BENCH_SRC:.c=.o)))
+
+.PHONY: all clean selftest bench bench-native
 
 all: $(TARGET)
 
@@ -94,6 +111,28 @@ selftest: $(BUILD)/selftest
 
 $(BUILD)/selftest: selftest.c $(TARGET) | $(BUILD)
 	$(CC) $(CFLAGS) $(INC) -o $@ selftest.c -L. -l:$(TARGET) -Wl,-rpath,'$$ORIGIN/..' $(LDLIBS)
+
+bench: $(BUILD)/bench
+	@echo "bench : $(BUILD)/bench construit. Lancer : taskset -c 0-3 $(BUILD)/bench ../../roms"
+
+# Le lien porte les mêmes drapeaux que la compilation : avec -flto, c'est à
+# l'édition de liens que l'optimisation a lieu, et -march y est relu.
+$(BUILD)/bench: bench.c $(BENCH_OBJ) | $(BUILD)
+	$(CC) $(BENCH_FLAGS) $(INC) -Wl,--no-undefined -o $@ bench.c $(BENCH_OBJ) $(LDLIBS)
+
+$(BUILD)/lto/%.o: %.c | $(BUILD)/lto
+	$(CC) $(BENCH_FLAGS) $(INC) -c $< -o $@
+
+$(BUILD)/lto:
+	@mkdir -p $(BUILD)/lto
+
+# Variante -march=native, optionnelle : recompile tout d'une traite (pas de
+# cache d'objets), parce que ses objets ne sont pas échangeables avec ceux de
+# build/lto/. Chiffre valable sur CETTE machine seulement.
+bench-native: bench.c $(BENCH_SRC) | $(BUILD)
+	$(CC) $(subst -march=x86-64-v2,-march=native,$(BENCH_FLAGS)) $(INC) -Wl,--no-undefined \
+	      -o $(BUILD)/bench-native bench.c $(BENCH_SRC) $(LDLIBS)
+	@echo "bench-native : $(BUILD)/bench-native construit (-march=native)."
 
 clean:
 	rm -rf $(BUILD) $(TARGET)

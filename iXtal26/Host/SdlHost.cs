@@ -4,6 +4,7 @@
 // ORACLE: wx-sdl2.c, wx-sdl2-video.c
 // STATUS: host
 
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using iXtal26.Video;
 using SDL3;
@@ -36,10 +37,40 @@ public sealed class SdlHost : IDisposable
     /// <summary>Intervalle, en tranches, entre deux rafraîchissements du titre.</summary>
     private const int TitleInterval = 200;
 
+    /// <summary>
+    /// Intervalle minimal, en millisecondes d'horloge MURALE, entre deux présentations
+    /// pendant le turbo. Le CGA émet ~29 images par seconde ÉMULÉE ; à 14x le temps
+    /// réel cela ferait ~400 présentations par seconde murale, qu'aucun écran ne montre.
+    /// </summary>
+    private const int TurboPresentIntervalMs = 16;
+
     private readonly string _romsPath;
     private readonly bool _headless;
     private readonly int _maxSlices;
     private readonly bool _verbose;
+
+    /// <summary>
+    /// Nombre de tranches pendant lesquelles on n'attend pas l'horloge murale au
+    /// démarrage ; 0 = pas de turbo. Ne concerne QUE le mode cadencé : avec
+    /// --slices N, l'exécution entière reste libre, et c'est ce qui garantit que
+    /// deux exécutions traversent les mêmes états.
+    /// </summary>
+    private readonly int _turboSlices;
+
+    private bool _turboActive;
+
+    /// <summary>Une frappe met fin au turbo : à partir de là, quelqu'un regarde.</summary>
+    private bool _turboStopped;
+
+    private ulong _lastPresentMs;
+    private int _presentsSkipped;
+
+    // Départ du coût du chemin de blit, en tops de Stopwatch : ConsumeBlit (recopie
+    // ligne à ligne + UpdateTexture) d'un côté, Render (RenderPresent, donc l'attente
+    // du compositeur) de l'autre. Les 9,49 s mur contre 5,42 s user d'un amorçage sans
+    // frein se partagent entre ces deux-là, et rien ne disait lequel payait.
+    private long _copyTicks;
+    private long _presentTicks;
 
     // Compteurs de --verbose. Un chemin de blit mort est autrement indiscernable d'un
     // écran légitimement noir : SDL ne signale rien quand on ne l'appelle PAS.
@@ -70,13 +101,16 @@ public sealed class SdlHost : IDisposable
     /// <paramref name="headless"/> n'initialise aucune ressource SDL : c'est ce qui
     /// garantit que le cœur ne dépend pas du front-end. <paramref name="maxSlices"/>
     /// borne le nombre d'appels à runpc() ; 0 = jusqu'à la fermeture de la fenêtre.
+    /// <paramref name="turboSlices"/> lève le frein d'horloge sur les premières
+    /// tranches ; 0 = jamais.
     /// </summary>
-    public SdlHost(string romsPath, bool headless, int maxSlices, bool verbose)
+    public SdlHost(string romsPath, bool headless, int maxSlices, bool verbose, int turboSlices = 0)
     {
         _romsPath = romsPath;
         _headless = headless;
         _maxSlices = maxSlices;
         _verbose = verbose;
+        _turboSlices = turboSlices;
     }
 
     /// <summary>Amorce la machine puis, si besoin, la fenêtre. False + message sur stderr en cas d'échec.</summary>
@@ -160,9 +194,35 @@ public sealed class SdlHost : IDisposable
     {
         video.blit_pending = 0;
         _blitsSeen++;
+
+        // Pendant le turbo, la machine tourne ~14x plus vite que l'horloge : présenter
+        // chaque image demanderait des centaines de RenderPresent par seconde murale à
+        // un écran qui en montre soixante. On en saute — mais on ne saute que la part
+        // HÔTE : video_blit_complete reste inconditionnel, c'est lui qui rend la
+        // propriété du handshake de PCem (aucune image écrasée avant lecture). Le CGA
+        // redessine toutes ses lignes à chaque image : une image sautée n'est jamais
+        // une ligne perdue, seulement une image jamais montrée.
+        var now = _headless ? 0UL : SDL.GetTicks();
+
+        if (_turboActive && !_headless && now - _lastPresentMs < TurboPresentIntervalMs)
+        {
+            _presentsSkipped++;
+            video.video_blit_complete();
+            return;
+        }
+
+        var t0 = Stopwatch.GetTimestamp();
         ConsumeBlit();
+        var t1 = Stopwatch.GetTimestamp();
+
         video.video_blit_complete();
+
+        var t2 = Stopwatch.GetTimestamp();
         Render();
+
+        _copyTicks += t1 - t0;
+        _presentTicks += Stopwatch.GetTimestamp() - t2;
+        _lastPresentMs = now;
     }
 
     /// <summary>Boucle principale. Renvoie le code de retour du processus.</summary>
@@ -177,9 +237,16 @@ public sealed class SdlHost : IDisposable
         var drawits = 0;
 
         var oldTime = _headless ? 0UL : SDL.GetTicks();
+        var turboStartMs = oldTime;
         var slices = 0;
         var slicesAtLastTitle = 0;
         var lastTitleMs = oldTime;
+
+        // Temps passé DANS runpc(), en tops de Stopwatch. Le pourcentage du titre est
+        // borné à 100 par le frein drawits ci-dessous : il détecte un décrochage, il ne
+        // dit rien de la marge. Ce compteur, lui, la donne (voir UpdateTitle).
+        var busyTicks = 0L;
+        var busyTicksAtLastTitle = 0L;
 
         _running = true;
 
@@ -193,7 +260,44 @@ public sealed class SdlHost : IDisposable
             if (!_running)
                 break;
 
-            if (timed)
+            // Le turbo ne vit QUE dans le mode cadencé : --slices N tourne déjà sans
+            // frein de bout en bout, et c'est un contrat que PrintUsage documente
+            // (« deux exécutions traversent alors les mêmes états »). L'y mêler
+            // rendrait ce mode partiellement cadencé, donc non reproductible.
+            var turbo = timed && _turboSlices > 0 && !_turboStopped && slices < _turboSlices;
+
+            if (turbo != _turboActive)
+            {
+                _turboActive = turbo;
+
+                // Fin du turbo : horloge NEUVE. Sans ce réarmement, drawits encaisse
+                // d'un coup les ~50 s de retard accumulées pendant le turbo, et la
+                // branche « if (drawits > 50) drawits = 0 » les jette SANS RIEN DIRE.
+                // Le compteur du titre est remis à la même origine, sinon la première
+                // fenêtre glissante d'après turbo afficherait un pourcentage absurde.
+                if (!turbo)
+                {
+                    oldTime = SDL.GetTicks();
+
+                    // Dit ce que le turbo a coûté et rapporté, une fois, au moment où
+                    // il rend la main. Sans cette ligne, la seule trace du turbo est
+                    // un titre de fenêtre qui a déjà changé quand on le lit.
+                    var turboMs = oldTime - turboStartMs;
+                    Console.WriteLine(
+                        $"turbo : {slices} tranches ({slices / 100.0:0.#} s émulées) en " +
+                        $"{turboMs / 1000.0:0.00} s mur" +
+                        (turboMs > 0 ? $" (x{slices * 10.0 / turboMs:0.0})" : "") +
+                        $", {_presentsSkipped} images sautées" +
+                        (_turboStopped ? ", interrompu par une frappe" : ""));
+
+                    drawits = 0;
+                    lastTitleMs = oldTime;
+                    slicesAtLastTitle = slices;
+                    busyTicksAtLastTitle = busyTicks;
+                }
+            }
+
+            if (timed && !turbo)
             {
                 var newTime = SDL.GetTicks();
                 drawits += (int)(newTime - oldTime);
@@ -213,7 +317,9 @@ public sealed class SdlHost : IDisposable
                     drawits = 0;
             }
 
+            var t0 = Stopwatch.GetTimestamp();
             pc.runpc();
+            busyTicks += Stopwatch.GetTimestamp() - t0;
             slices++;
 
             // Plus de PresentIfBlitted ici : le crochet OnBlit a déjà tout fait,
@@ -228,9 +334,11 @@ public sealed class SdlHost : IDisposable
             if (timed && slices - slicesAtLastTitle >= TitleInterval)
             {
                 var nowMs = SDL.GetTicks();
-                UpdateTitle(slices - slicesAtLastTitle, nowMs - lastTitleMs);
+                UpdateTitle(slices - slicesAtLastTitle, nowMs - lastTitleMs,
+                            busyTicks - busyTicksAtLastTitle, turbo);
                 slicesAtLastTitle = slices;
                 lastTitleMs = nowMs;
+                busyTicksAtLastTitle = busyTicks;
             }
         }
 
@@ -266,7 +374,17 @@ public sealed class SdlHost : IDisposable
     {
         Console.WriteLine($"tranches   : {slices} ({slices / 100.0:0.##} s émulées)");
         Console.WriteLine($"blits      : {video.video_frames} émis par le cœur, {_blitsSeen} consommés, " +
-                          $"{_blitsUploaded} téléversés, {_updateFailures} en échec");
+                          $"{_blitsUploaded} téléversés, {_updateFailures} en échec" +
+                          (_presentsSkipped > 0 ? $", {_presentsSkipped} sautés en turbo" : ""));
+
+        // Le chemin de blit est de l'HÔTE, pas de la machine : ces deux chiffres
+        // disent lequel de la recopie ou de l'attente du compositeur paie, question
+        // que le banc (headless) ne peut pas poser puisqu'il n'installe aucun crochet.
+        if (!_headless && _blitsUploaded > 0)
+            Console.WriteLine(
+                $"chemin blit: recopie+UpdateTexture {_copyTicks / (double)Stopwatch.Frequency * 1000:0} ms, " +
+                $"RenderPresent {_presentTicks / (double)Stopwatch.Frequency * 1000:0} ms " +
+                $"sur {_blitsUploaded} images");
 
         if (_headless)
             Console.WriteLine("             (headless : aucun crochet installé, zéro consommé est NORMAL)");
@@ -296,6 +414,11 @@ public sealed class SdlHost : IDisposable
 
             if (type is SDL.EventType.Quit or SDL.EventType.WindowCloseRequested)
                 _running = false;
+
+            // Une frappe met fin au turbo : à partir de là, quelqu'un regarde l'écran
+            // et attend que la machine réponde à SA vitesse, pas à celle de l'hôte.
+            if (type is SDL.EventType.KeyDown)
+                _turboStopped = true;
 
             // Tout part au clavier, y compris la perte de focus : c'est lui qui décide
             // ce qu'il en fait. Échap n'arrête rien ici — la touche est à la machine.
@@ -413,14 +536,34 @@ public sealed class SdlHost : IDisposable
     /// chiffre affiché est instantané. Une moyenne depuis le lancement rendrait
     /// l'indicateur aveugle à ce qu'il existe pour montrer — après dix minutes à
     /// 100 %, une chute à 50 % pendant trente secondes se lirait « 97 % ».
+    ///
+    /// LE POURCENTAGE NE PEUT PAS DÉPASSER 100. Le frein drawits de Run() attend
+    /// l'horloge murale avant chaque tranche : un cœur avec 15x de marge et un cœur à
+    /// 1,05x affichent tous deux « 100 % ». D'où la MARGE, à côté : temps émulé des
+    /// tranches (10 ms chacune) divisé par le temps réellement passé dans runpc().
+    /// Mesuré à M5 : environ 15x sur un cœur P à 4,8 GHz — pas les 50 à 100x que le
+    /// csproj supposait avant qu'on ne mesure.
     /// </summary>
-    private void UpdateTitle(int slices, ulong elapsedMs)
+    private void UpdateTitle(int slices, ulong elapsedMs, long busyTicks, bool turbo)
     {
         if (elapsedMs == 0)
             return;
 
         var percent = slices * 1000L / (long)elapsedMs;
-        SDL.SetWindowTitle(_window, $"{WindowTitle} — {percent} %");
+        var busySeconds = busyTicks / (double)Stopwatch.Frequency;
+        var headroom = busySeconds > 0 ? slices * 0.01 / busySeconds : 0;
+
+        // Pendant le turbo, le pourcentage n'a plus de sens : il dépasse 100 et ne dit
+        // rien. Ce qu'on affiche alors est le facteur RÉELLEMENT tenu, présentation
+        // comprise — pas la marge du cœur, qui est plus flatteuse.
+        if (turbo)
+        {
+            var actual = slices * 10.0 / elapsedMs;
+            SDL.SetWindowTitle(_window, $"{WindowTitle} — turbo x{actual:0.0} (marge x{headroom:0.0})");
+            return;
+        }
+
+        SDL.SetWindowTitle(_window, $"{WindowTitle} — {percent} % — marge x{headroom:0.0}");
     }
 
     /// <summary>Libère texture, renderer, fenêtre puis SDL. Idempotent, et sans effet en headless.</summary>

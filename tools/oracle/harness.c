@@ -488,12 +488,18 @@ void h_runpc(void) {
         }
 }
 
-/* FNV-1a 64 bits sur la RAM entière. Sert à diffé rer la mémoire sans transférer
+/* FNV-1a 64 bits sur la RAM allouée. Sert à différer la mémoire sans transférer
  * 1 Mo par instruction ; en cas de divergence, le C# compare octet par octet via
- * h_read pour localiser. */
+ * h_read pour localiser.
+ *
+ * Bornée à mem_size Ko, pas à H_RAM_SIZE. Sur la carte plate de h_reset() les
+ * deux valent 1 Mo ; mais après h_boot() la machine a 640 Ko (h_pad_ram alloue
+ * mem_size*1024 + 4 octets) et lire 1 Mo sort du bloc — segfault, mesuré par
+ * bench.c. Même borne côté C# : Bench.RamHash() hache mem.ram sur mem_size Ko. */
 uint64_t h_ram_hash(void) {
         uint64_t hash = 1469598103934665603ULL;
-        for (uint32_t i = 0; i < H_RAM_SIZE; i++) {
+        uint32_t n = (uint32_t)mem_size * 1024u;
+        for (uint32_t i = 0; i < n; i++) {
                 hash ^= ram[i];
                 hash *= 1099511628211ULL;
         }

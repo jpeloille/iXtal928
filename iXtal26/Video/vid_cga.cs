@@ -190,6 +190,13 @@ internal static partial class vid_cga
         cga.dispofftime = (uint64_t)_dispofftime;
     }
 
+    // DEVIATION: `uint32_t cols[4]` (vid_cga.c:127) est un tableau de PILE, gratuit.
+    //   `new uint32_t[4]` par appel coûtait une allocation, ses barrières d'écriture
+    //   et du GC, 31 400 fois par seconde émulée — mesuré à 0,3 s sur 60 s (perf,
+    //   VERIFICATION.md § M5.1). Un tableau statique réutilisé : cga_poll n'est pas
+    //   réentrant, et chaque chemin écrit ses éléments avant de les lire.
+    private static readonly uint32_t[] cols_buf = new uint32_t[4];
+
     // pcem: vid_cga.c:119-409
     internal static void cga_poll(object? p)
     {
@@ -200,7 +207,7 @@ internal static partial class vid_cga
         int oldvc;
         uint8_t chr, attr;
         uint16_t dat;
-        uint32_t[] cols = new uint32_t[4];
+        uint32_t[] cols = cols_buf;
         int col;
         int oldsc;
 
@@ -261,7 +268,7 @@ internal static partial class vid_cga
                                         {
                                                 for (c = 0; c < 8; c++)
                                                         Buffer32[cga.displine * Stride + (x << 3) + c + 8] =
-                                                                cols[(fontdat[chr + cga.fontbase, cga.sc & 7] & (1 << (c ^ 7))) != 0
+                                                                cols[(fontdat[((chr + cga.fontbase) << 3) | (cga.sc & 7)] & (1 << (c ^ 7))) != 0
                                                                              ? 1
                                                                              : 0] ^
                                                                 0xffffffu;
@@ -270,7 +277,7 @@ internal static partial class vid_cga
                                         {
                                                 for (c = 0; c < 8; c++)
                                                         Buffer32[cga.displine * Stride + (x << 3) + c + 8] =
-                                                                cols[(fontdat[chr + cga.fontbase, cga.sc & 7] & (1 << (c ^ 7))) != 0
+                                                                cols[(fontdat[((chr + cga.fontbase) << 3) | (cga.sc & 7)] & (1 << (c ^ 7))) != 0
                                                                              ? 1
                                                                              : 0];
                                         }
@@ -307,7 +314,7 @@ internal static partial class vid_cga
                                                 for (c = 0; c < 8; c++)
                                                         Buffer32[cga.displine * Stride + (x << 4) + (c << 1) + 8] =
                                                                 Buffer32[cga.displine * Stride + (x << 4) + (c << 1) + 1 + 8] =
-                                                                        cols[(fontdat[chr + cga.fontbase, cga.sc & 7] &
+                                                                        cols[(fontdat[((chr + cga.fontbase) << 3) | (cga.sc & 7)] &
                                                                               (1 << (c ^ 7))) != 0
                                                                                      ? 1
                                                                                      : 0] ^
@@ -318,7 +325,7 @@ internal static partial class vid_cga
                                                 for (c = 0; c < 8; c++)
                                                         Buffer32[cga.displine * Stride + (x << 4) + (c << 1) + 8] =
                                                                 Buffer32[cga.displine * Stride + (x << 4) + (c << 1) + 1 + 8] =
-                                                                        cols[(fontdat[chr + cga.fontbase, cga.sc & 7] &
+                                                                        cols[(fontdat[((chr + cga.fontbase) << 3) | (cga.sc & 7)] &
                                                                               (1 << (c ^ 7))) != 0
                                                                                      ? 1
                                                                                      : 0];
