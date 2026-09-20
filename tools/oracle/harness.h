@@ -176,6 +176,13 @@ void h_trace_close(void);
 #define H_PIT_PROBE_N 19
 void h_pit_probe(int t, uint64_t *out);
 
+/* Sonde haut-parleur (M9) — 9 champs, dans l'ordre de
+ * Sound.sound_speaker.Probe() côté C#. Le dernier est une empreinte cumulative
+ * du son produit : c'est la seule voix du chemin audio dans le diff, et elle ne
+ * vaut que si elle a bougé (voir h_speaker_probe dans harness.c). */
+#define H_SPEAKER_PROBE_N 9
+void h_speaker_probe(uint64_t *out);
+
 /* --- disquette (M6) ---------------------------------------------------------
  * Pendant de discfns[] (fdd.c:6) : pc.c le remplit depuis argv AVANT initpc, et
  * resetpchard le consomme (pc.c:367-368). À appeler avant h_boot. NULL ou "" :

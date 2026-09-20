@@ -140,8 +140,6 @@ void codegen_set_rounding_mode(int mode) { (void)mode; }
 void ps2_cache_clean(void) { }
 int xi8088_bios_128kb(void) { return 0; }
 
-/* --- haut-parleur : inerte, mais les variables sont lues par ppi.c --------- */
-
 /* Couche hôte du clavier (plat-keyboard.h) : sans fenêtre, aucune touche
  * n'est enfoncée. keyboard_process() lit pcem_key[] et n'y trouve rien. */
 uint8_t pcem_key[272];
@@ -150,11 +148,11 @@ int rawinputkey[272];
 /* Tandy : EEPROM de configuration, machine hors cible. */
 uint8_t tandy_eeprom_read(void) { return 0; }
 
-int was_speaker_enable = 0;
-int ppispeakon = 0;
-int speaker_enable = 0, speaker_gated = 0;
-int gated = 0, speakval = 0, speakon = 0;
-void speaker_update(void) { }
+/* --- haut-parleur : plus de stub, le vrai sound_speaker.c est compilé dans
+ * harness.c depuis M9. Les cinq définitions qui étaient ici (was_speaker_enable,
+ * ppispeakon, speaker_enable, speaker_gated, gated/speakval/speakon, et un
+ * speaker_update() vide) entreraient maintenant en collision avec
+ * sound_speaker.c:5-15. Voir l'en-tête « son » de harness.c. */
 
 /* --- vidéo -----------------------------------------------------------------
  *

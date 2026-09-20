@@ -51,6 +51,139 @@
 #include "disc.h"
 #include "disc_img.h"
 
+/* --- son : le chronomètre à 48 kHz, et le haut-parleur (M9) ------------------
+ *
+ * MÊME MOTIF QUE 808x.c, ET POUR LA MÊME RAISON. speaker_buffer
+ * (sound_speaker.c:10), speaker_pos (:12) et speaker_get_buffer (:39) sont
+ * `static`. Lié normalement, le fichier ne montre rien et h_speaker_probe n'a
+ * rien à lire. On le compile donc DANS cette unité de traduction — il ne doit
+ * pas figurer dans SRC du Makefile, sinon chaque symbole est défini deux fois.
+ *
+ * src/sound/sound.c, lui, n'est PAS lié : il traîne dix-neuf SOUND_CARD, le fil
+ * CD, les appels ATAPI et OpenAL. Même arbitrage que src/video/video.c et ses
+ * quatre-vingt-dix symboles de cartes (voir harness_stubs.c). Ce qui suit en
+ * reprend la part qui compte, copiée verbatim.
+ *
+ * DEUX NIVEAUX, à ne pas confondre :
+ *
+ *   (a) ce qui PORTE DU TEMPS — sound_poll_timer, réarmé à 48 kHz. C'est un
+ *       chronomètre de plus dans la liste de timer.c, donc des timer_process()
+ *       en plus, donc n_timer_process qui change. Sans lui ici, l'oracle et le
+ *       C# ne modélisent pas la même machine et le diff d'amorçage vire au rouge
+ *       sur le compteur avant d'avoir rien prouvé.
+ *
+ *   (b) ce qui ne porte QUE du son — givealbuffer. Réduit à rien : l'oracle est
+ *       muet, et le silence ne coûte pas un cycle. C'est l'empreinte
+ *       h_sound_hash, prise au même endroit des deux côtés, qui compare les
+ *       échantillons.
+ */
+#include "../../pcem-dev/src/sound/sound_speaker.c"
+
+/* sound.c:108-117 */
+static struct {
+        void (*get_buffer)(int32_t *buffer, int len, void *p);
+        void *priv;
+} sound_handlers[8];
+
+static int sound_handlers_num;
+
+static pc_timer_t sound_poll_timer;
+static uint64_t sound_poll_latch;
+int sound_pos_global = 0;
+
+int soundon = 1;   /* sound.c:119 */
+
+/* sound.c:126 pose 48000/10 = 4800, ce qui rendrait 1000/sound_buf_len NUL et
+ * sound_update_buf_length() une division par zéro. La valeur vivante est celle
+ * de pc.c:635, en MILLISECONDES : 200. Elle gouverne sound_buf_len_al, donc
+ * l'instant où sound_pos_global reboucle, donc speaker_pos, donc l'empreinte.
+ * Elle DOIT valoir 200 des deux côtés (Sound/sound.cs). */
+int sound_buf_len = 200;
+int sound_gain = 0;                  /* sound.c:127 */
+int sound_buf_len_al = 48000 / 20;   /* soundopenal.c:27 */
+
+/* sound.c:129-136 */
+void sound_update_buf_length(void) {
+        int new_buf_len = (48000 / (1000 / sound_buf_len)) / 4;
+
+        if (new_buf_len > MAXSOUNDBUFLEN)
+                new_buf_len = MAXSOUNDBUFLEN;
+
+        sound_buf_len_al = new_buf_len;
+}
+
+static int32_t *outbuffer;   /* sound.c:199 */
+
+/* sound.c:211-215 */
+void sound_add_handler(void (*get_buffer)(int32_t *buffer, int len, void *p), void *p) {
+        sound_handlers[sound_handlers_num].get_buffer = get_buffer;
+        sound_handlers[sound_handlers_num].priv = p;
+        sound_handlers_num++;
+}
+
+/* Empreinte FNV-1a cumulative du son RÉELLEMENT produit, prise là où PCem
+ * appelle givealbuffer — donc après le passage des handlers. speaker_buffer seul
+ * ne dirait rien de ce passage, et speaker_get_buffer étant `static` dans un
+ * fichier vendoré, on ne peut ni l'intercepter ni y ajouter une ligne. Même
+ * point de prise côté C#, au même endroit de sound_poll. */
+uint64_t h_sound_hash;
+
+static void h_sound_mix_hash(void) {
+        int c;
+        for (c = 0; c < sound_buf_len_al * 2; c++) {
+                h_sound_hash ^= (uint64_t)(uint32_t)outbuffer[c];
+                h_sound_hash *= 1099511628211ULL;
+        }
+}
+
+/* sound.c:218-256 */
+void sound_poll(void *priv) {
+        timer_advance_u64(&sound_poll_timer, sound_poll_latch);
+
+        /* omitted: cd_pos et thread_set_event(sound_cd_event) (sound.c:221-225) —
+           fil CD, hors périmètre 5150. */
+
+        sound_pos_global++;
+        if (sound_pos_global == sound_buf_len_al) {
+                int c;
+
+                memset(outbuffer, 0, sound_buf_len_al * 2 * sizeof(int32_t));
+
+                for (c = 0; c < sound_handlers_num; c++)
+                        sound_handlers[c].get_buffer(outbuffer, sound_buf_len_al, sound_handlers[c].priv);
+
+                h_sound_mix_hash();
+
+                if (soundon)
+                        givealbuffer(outbuffer);
+
+                sound_pos_global = 0;
+                sound_update_buf_length();
+        }
+}
+
+/* sound.c:258 */
+void sound_speed_changed(void) { sound_poll_latch = (uint64_t)((double)TIMER_USEC * (1000000.0 / 48000.0)); }
+
+/* sound.c:260-268. L'allocation d'outbuffer est hissée de sound_init()
+ * (sound.c:205), qui appartient à l'IHM chez PCem (wx-sdl2.c:470) : l'oracle
+ * n'en a pas, et sound_poll écrirait dans un pointeur nul au premier tampon
+ * plein. Même hissage côté C#, pour la même raison. */
+void sound_reset(void) {
+        if (!outbuffer)
+                outbuffer = malloc(MAXSOUNDBUFLEN * 2 * sizeof(int32_t));
+
+        timer_add(&sound_poll_timer, sound_poll, NULL, 1);
+
+        sound_handlers_num = 0;
+
+        /* omitted: sound_set_cd_volume(), ioctl_audio_stop(), image_audio_stop()
+           (sound.c:265-267) — CD, hors périmètre. */
+}
+
+/* L'étage hôte de PCem (soundopenal.c:143). Muet ici : voir le niveau (b). */
+void givealbuffer(int32_t *buf) { (void)buf; }
+
 void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
@@ -409,7 +542,14 @@ extern int bpb_disable;
 
 int h_boot(const char *romspath) {
         h_set_roms_path(romspath);
-        _sound_speed_changed = h_noop;
+
+        /* Depuis M9 ce crochet n'est plus un no-op : c'est lui qui pose
+         * sound_poll_latch. Sans lui, le latch vaut 0, timer_advance_u64(t, 0)
+         * ne fait pas avancer l'échéance et timer_process() boucle à l'infini
+         * sur le chronomètre du son. */
+        _sound_speed_changed = sound_speed_changed;
+
+        h_sound_hash = 1469598103934665603ULL;
 
         /* Pendant de _808x.ResetCounters() : sans ça, un second h_boot() dans le
            même processus repart avec les compteurs du premier. */
@@ -429,6 +569,7 @@ int h_boot(const char *romspath) {
                 return 0;
 
         timer_reset();       /* pc.c:276 */
+        sound_reset();       /* pc.c:277 */
         io_init();           /* pc.c:278 */
         fdc_init();          /* pc.c:279 */
         disc_init();         /* pc.c:280 */
@@ -443,6 +584,9 @@ int h_boot(const char *romspath) {
         timer_reset();
         device_close_all();
         device_init();
+        sound_reset();               /* pc.c:361 — AVANT speaker_init : il remet
+                                        sound_handlers_num à 0 et effacerait
+                                        l'enregistrement du handler. */
         io_init();
         mem_alloc();
         h_pad_ram();
@@ -469,6 +613,7 @@ int h_boot(const char *romspath) {
          * MEME carte de la MEME facon -- ce qui est tout ce que l'oracle doit
          * garantir. */
         device_add(&cga_device);
+        speaker_init();              /* pc.c:375, juste après video_init() */
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient
@@ -610,4 +755,26 @@ void h_pit_probe(int t, uint64_t *out) {
         out[16] = tsc;
         out[17] = PITCONST;
         out[18] = timer_get_remaining_u64(&pit.timer[t]);
+}
+
+/* --- sonde haut-parleur (M9) ------------------------------------------------
+   Neuf champs, ordre identique à Sound.sound_speaker.Probe() côté C#.
+
+   speaker_pos est `static` dans sound_speaker.c : lisible ici, et SEULEMENT ici,
+   parce que ce .c est compilé dans cette unité de traduction. C'est le curseur
+   de rattrapage du générateur — une désynchronisation s'y voit avant de s'entendre.
+
+   Le neuvième champ est l'empreinte du son réellement produit, cumulée bloc par
+   bloc dans sound_poll. Une empreinte identique des deux côtés ne prouve rien si
+   elle est restée à sa graine : le C# doit vérifier qu'elle a BOUGÉ. */
+void h_speaker_probe(uint64_t *out) {
+        out[0] = (uint64_t)(int64_t)speaker_gated;
+        out[1] = (uint64_t)(int64_t)speaker_enable;
+        out[2] = (uint64_t)(int64_t)was_speaker_enable;
+        out[3] = (uint64_t)(int64_t)speakon;
+        out[4] = (uint64_t)(int64_t)speakval;
+        out[5] = (uint64_t)(int64_t)ppispeakon;
+        out[6] = (uint64_t)(int64_t)speaker_pos;
+        out[7] = (uint64_t)(int64_t)sound_pos_global;
+        out[8] = h_sound_hash;
 }
