@@ -27,3 +27,6 @@ tools/oracle/build/
 # Copie de travail patchée de pcem-dev (instrumentation de trace).
 # L'arbre de référence pcem-dev/ n'est JAMAIS modifié en place.
 pcem-ref-build/
+
+# Espaces de travail et états de session des agents — jamais versionnés.
+.claude/
