@@ -325,6 +325,7 @@ internal static partial class pc
 
         Models.model_c.model_init();
         Video.video.video_init();
+        Sound.sound_speaker.speaker_init();   // pc.c:375
 
         pc_reset();
     }
