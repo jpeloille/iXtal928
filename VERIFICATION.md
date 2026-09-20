@@ -412,3 +412,102 @@ dans cet ordre — appuyer Maj (0x2A) et « 8 » (0x09) dans la MÊME passe envo
 de « 8 » avant celui de Maj, et l'INT 9 lit un « 8 ». Un humain n'a jamais ce problème : il
 appuie sur Maj un scrutin plus tôt. Défaut du harnais, pas de l'émulateur — mais il fallait
 le mesurer pour le savoir, et c'est consigné au site de correction.
+
+### M4.5 — L'amorçage dépendait du répertoire d'où l'on lançait
+
+Lancé depuis Rider, le binaire rendait 1 sur `Failed to load ROM!`. Les ROMs étaient
+pourtant là, intactes, et la même commande depuis la racine du dépôt amorçait jusqu'à
+BASIC. **L'échec dépendait de l'endroit d'où on lançait, pas de ce qu'on lançait** — la
+pire classe de bogue à diagnostiquer, parce que la première chose qu'on fait pour le
+reproduire, `cd` à la racine, est précisément ce qui le masque.
+
+La chaîne, du symptôme à la cause :
+
+| Maillon | Ce qui se passait |
+|---|---|
+| Rider (`WORKING_DIRECTORY` vide) | répertoire courant = `bin/Debug/net10.0/` |
+| `Program.cs` | `romsPath = "roms"`, chemin **relatif**, jamais ancré |
+| `set_roms_paths` (`paths.c:62-88`) | `dir_exists("roms/")` faux → chemin **écarté en silence**, `num_roms_paths = 0` |
+| `romfopen` (`rom.c:10-24`) | boucle `for (i = 0; i < num_roms_paths; ++i)` → **zéro itération**, rend NULL |
+| `loadbios` | accuse les ROMs, alors que le répertoire entier manquait |
+
+Le dépôt contenait déjà la réponse, jamais appelée : `paths_init()` (`paths.c:190-216`)
+remonte depuis l'emplacement du binaire jusqu'au premier répertoire contenant `roms/`.
+`grep` confirme zéro appelant — écrite, commentée, morte.
+
+**La résolution est faite dans `Program.cs`, pas dans `initpc`.** C'est l'hôte qui sait
+d'où il a été lancé ; `initpc` ne fait que consommer le chemin qu'on lui tend. La placer
+dans `initpc` l'aurait aussi imposée à `BootDiff`, qui doit garder le chemin **tel quel**
+(voir plus bas).
+
+`resolve_roms_path` essaie, dans cet ordre : le répertoire courant s'il contient déjà le
+chemin — une exécution depuis la racine, un chemin absolu et un `--rom-path` qui tombe
+juste gardent exactement leur comportement — puis la remontée depuis le binaire, puis le
+chemin inchangé, pour que le message cite ce que l'utilisateur a tapé.
+
+**Deux fautes, deux messages.** « le répertoire n'existe pas » et « le répertoire existe
+mais pas les fichiers » se confondaient en un seul `Failed to load ROM!`, qui envoyait
+chercher des fichiers dans un dossier absent. `initpc` teste désormais `num_roms_paths`
+avant `loadbios`, et `loadbios` cite le chemin **résolu** (`paths.roms_paths`), pas la
+chaîne d'origine.
+
+**Le piège de la chaîne vide, relevé en relecture.** `Path.Combine(d, "")` rend `d`, qui
+existe toujours : la remontée s'arrêtait à sa première itération et `--rom-path ""`
+recevait « Impossible de charger le BIOS depuis `bin/Debug/net10.0/` » — un chemin que
+l'utilisateur n'a jamais écrit. La chaîne vide sort maintenant avant la boucle.
+
+**Ce que la remontée ne protège pas.** `AppContext.BaseDirectory` est le **premier**
+candidat testé : un `roms/` posé à côté du binaire gagne sur celui du dépôt. C'est correct
+une fois déployé, et c'est un piège en développement — un `roms/` partiel copié à la main
+dans `bin/Debug/net10.0/` charge le BIOS, amorce vert, et laisse `mda.rom` absent. Or
+`loadfont` (`video.cs:216-225`) **retourne en silence** quand `romfopen` rend NULL : c'est
+le défaut de M4.3 à l'identique, et aucun oracle ne l'attrape, la police ne touchant aucun
+état CPU. PCem imprime pourtant la trace (`pclog("loadfont %i %s %p")`, `video.c:934`,
+marquée `omitted:`) : **la rétablir rendrait ce cas audible.** Non fait ici.
+
+**`tools/iXtal26.Diff` garde son `"roms"` relatif, délibérément.** `BootDiff` passe la même
+chaîne à `Oracle.h_boot()` (`harness.c:395`, côté C) et à `pc.initpc()` (côté C#). La
+résoudre d'un seul côté ferait lire deux répertoires différents aux deux moitiés du
+différentiel — exactement ce qu'un oracle différentiel ne doit jamais faire.
+
+### Mesure
+
+| | |
+|---|---|
+| `--boot roms 20`, depuis la racine / `bin/Debug/net10.0/` / `/tmp` | **sorties identiques aux trois**, 74 126 instructions |
+| `--boot roms 6000` depuis `/tmp` | **24 073 823 instructions** — le chiffre de M4.1, obtenu hors du dépôt |
+| Écran, même exécution | `IBM Personal Computer Basic C1.10`, `62940 Bytes free`, `Ok` |
+| Framebuffer, même exécution | 3 997 pixels non nuls, 1 742 images — **les polices sont chargées** |
+| `--rom-path /nexistepas` | « Aucun répertoire de ROM utilisable », rend 1 |
+| `--rom-path /tmp/roms-vide` | « Impossible de charger le BIOS depuis `/tmp/roms-vide/` », rend 1 |
+| `--rom-path ""` | « Aucun répertoire de ROM utilisable », rend 1 |
+
+Les 3 997 pixels non nuls sont la vérification qui compte : un code de sortie 0 se serait
+contenté d'un `roms/` partiel. Ils prouvent que le `roms/` résolu est l'entier.
+
+### M4.5 — Un écran noir muet
+
+Écran noir en fenêtre, avec les seuls pavés gris de la ligne de touches de fonction
+visibles. Signature exacte d'un `fontdat` **entièrement nul** : le fond des cellules en
+vidéo inverse continue d'être peint, mais aucun pixel de glyphe n'est tracé. La VRAM reste
+juste, `--boot` montre la bannière, et rien ne dit qu'il manque une police.
+
+C'est le prix d'une omission que j'avais classée « sortie pure » : `pclog("loadfont %i %s
+%p")` (`video.c:934`). Elle est rétablie, en message d'échec :
+
+```
+loadfont : im1024font.bin introuvable — police non chargée.
+```
+
+et `--boot` rapporte désormais l'état de la table :
+
+```
+police : 3082 octets non nuls sur 16384 dans fontdat
+```
+
+avec un avertissement explicite si le compte est nul. Un écran noir doit se diagnostiquer
+en une commande, pas en une heure passée à soupçonner le rendu.
+
+C'est le même angle mort que la police corrompue de M4.3, sous une autre forme : ni le diff
+d'amorçage ni le fuzzer ne regardent le chemin pixel, et le chemin pixel n'avait aucune
+voix. Maintenant il en a une.

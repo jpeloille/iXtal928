@@ -109,6 +109,54 @@ internal static partial class paths
             set_roms_paths(s);
     }
 
+    // DEVIATION: sans équivalent pcem. pcem ancre ses chemins sur get_pcem_path()
+    //   (paths.c:218-241), omis ici ; il a donc fallu dire explicitement ce qui sert
+    //   de référence, et ce N'EST PAS le répertoire courant.
+    //
+    //   Rider lance le binaire avec bin/Debug/net10.0/ pour répertoire courant, où
+    //   « roms » n'existe pas. set_roms_paths() écarte silencieusement un répertoire
+    //   absent (ligne 88) : num_roms_paths retombait à 0, romfopen() bouclait zéro
+    //   fois et loadbios() rendait 0 en accusant les ROMs, alors que le fautif était
+    //   le répertoire courant. La même commande depuis la racine du dépôt marchait :
+    //   l'échec dépendait d'où on lançait, pas de ce qu'on lançait.
+    //
+    //   Règle, dans cet ordre :
+    //     1. le chemin existe relativement au répertoire courant -> rendu tel quel.
+    //        Une exécution depuis la racine du dépôt, un chemin absolu et un
+    //        --rom-path qui tombe juste gardent EXACTEMENT leur comportement ;
+    //     2. sinon on remonte depuis l'emplacement du BINAIRE jusqu'au premier
+    //        répertoire qui le contient — la racine du dépôt en développement, le
+    //        répertoire d'installation une fois déployé ;
+    //     3. sinon le chemin est rendu inchangé, pour que le message d'échec cite
+    //        ce que l'utilisateur a tapé plutôt qu'un chemin qu'il n'a jamais écrit.
+    internal static string resolve_roms_path(string path)
+    {
+            // La chaîne vide sort AVANT la remontée. Path.Combine(d, "") rend d, qui
+            // existe toujours : la boucle s'arrêterait à sa première itération et
+            // rendrait le répertoire du binaire. « --rom-path "" » recevrait alors
+            // « Impossible de charger le BIOS depuis bin/Debug/net10.0/ » au lieu du
+            // « aucun répertoire utilisable » que ce cas mérite.
+            if (path.Length == 0 || Directory.Exists(path))
+                    return path;
+
+            return find_upwards(path) ?? path;
+    }
+
+    // Tronc commun de resolve_roms_path et paths_init : le premier répertoire qui
+    // contienne `relative`, en remontant depuis l'emplacement du binaire. Rend null
+    // si la racine du système est atteinte sans l'avoir trouvé.
+    private static string? find_upwards(string relative)
+    {
+            for (DirectoryInfo? d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
+            {
+                    string candidate = Path.Combine(d.FullName, relative);
+                    if (Directory.Exists(candidate))
+                            return candidate;
+            }
+
+            return null;
+    }
+
     /* initialize default paths */
     // pcem: paths.c:190-216, réduit aux chemins de ROM.
     // DEVIATION: get_pcem_path (paths.c:218-241) cherche SDL_GetBasePath + ".pcem/"
@@ -116,14 +164,20 @@ internal static partial class paths
     //   depuis le binaire jusqu'au premier répertoire contenant `roms/`, qui est la
     //   racine du dépôt. append_filename (config.c:396) est un sprintf("%s%s"),
     //   écrit ici en concaténation.
+    //
+    //   La remontée est INCONDITIONNELLE ici, là où resolve_roms_path donne d'abord
+    //   sa chance au répertoire courant. Les deux politiques diffèrent exprès :
+    //   paths_init est la réponse pcem à « où suis-je installé », qui ne doit rien
+    //   devoir à l'endroit d'où l'on a tapé la commande.
     internal static void paths_init()
     {
             string s;
 
-            DirectoryInfo? d = new DirectoryInfo(AppContext.BaseDirectory);
-            while (d != null && !Directory.Exists(Path.Combine(d.FullName, "roms")))
-                    d = d.Parent;
-            pcem_path = append_slash((d != null) ? d.FullName : Environment.CurrentDirectory, 512);
+            // pcem_path est le PARENT du roms/ trouvé.
+            string? found = find_upwards("roms");
+            pcem_path = append_slash(
+                    (found != null) ? (Path.GetDirectoryName(found) ?? Environment.CurrentDirectory)
+                                    : Environment.CurrentDirectory, 512);
 
             /* set up default paths for this session */
             s = pcem_path + "roms/";

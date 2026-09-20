@@ -6,6 +6,7 @@
 
 using iXtal26;
 using iXtal26.Host;
+using iXtal26.PluginApi;
 
 // Point d'entrée : lit les arguments, puis laisse SdlHost tenir la fenêtre et la boucle.
 var romsPath = "roms";
@@ -60,7 +61,7 @@ for (var i = 0; i < args.Length; i++)
             type = args[++i];
         }
 
-        return BootTest.Run(roms, slices, type);
+        return BootTest.Run(paths.resolve_roms_path(roms), slices, type);
     }
 
     if (arg == "--rom-path")
@@ -128,6 +129,13 @@ if (headless && maxSlices == 0)
     return 2;
 }
 
+// Résolu ICI, et pas dans initpc : c'est l'hôte qui sait d'où il a été lancé, et
+// initpc ne fait que consommer le chemin qu'on lui tend. Sans cela, « roms » était
+// interprété depuis le répertoire courant — bin/Debug/net10.0/ sous Rider, où il
+// n'existe pas — et l'amorçage échouait selon l'endroit d'où on lançait le binaire.
+// Voir paths.resolve_roms_path.
+romsPath = paths.resolve_roms_path(romsPath);
+
 using var host = new SdlHost(romsPath, headless, maxSlices, verbose);
 
 if (!host.Init())
@@ -144,7 +152,9 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.");
     Console.WriteLine();
-    Console.WriteLine("  --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms)");
+    Console.WriteLine("  --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms,");
+    Console.WriteLine("                       cherché d'abord depuis le répertoire courant, puis en");
+    Console.WriteLine("                       remontant depuis l'emplacement du binaire)");
     Console.WriteLine("  --slices N           s'arrête au bout de N tranches de 10 ms émulées, et");
     Console.WriteLine("                       n'attend pas l'horloge murale entre elles : deux");
     Console.WriteLine("                       exécutions traversent alors les mêmes états");

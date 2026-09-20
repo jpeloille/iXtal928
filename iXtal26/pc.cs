@@ -81,6 +81,19 @@ internal static partial class pc
     {
         PluginApi.paths.set_roms_paths(romsPath);
 
+        // set_roms_paths() écarte silencieusement un répertoire absent (paths.cs:88).
+        // Sans ce test, num_roms_paths valait 0, romfopen() bouclait zéro fois et
+        // l'échec remontait jusqu'à loadbios(), qui accusait les ROMs — alors que le
+        // répertoire entier manquait. Deux fautes très différentes méritent deux
+        // messages, sinon on cherche des fichiers dans un dossier qui n'existe pas.
+        if (PluginApi.paths.num_roms_paths == 0)
+        {
+            Console.Error.WriteLine(
+                $"Aucun répertoire de ROM utilisable : « {romsPath} » est absent ou illisible.\n" +
+                "Attendu : un répertoire roms/ contenant ibmpc/pc102782.bin.");
+            return false;
+        }
+
         PluginApi.device.device_init();
         Video.video.initvideo();
 
@@ -96,7 +109,7 @@ internal static partial class pc
         if (mem_bios.loadbios() == 0)
         {
                 Console.Error.WriteLine(
-                    $"Impossible de charger le BIOS de l'IBM PC 5150 depuis « {romsPath} ».\n" +
+                    $"Impossible de charger le BIOS de l'IBM PC 5150 depuis « {PluginApi.paths.roms_paths} ».\n" +
                     "Attendu : ibmpc/pc102782.bin (8 Ko) et, optionnellement, les quatre\n" +
                     "ROMs BASIC ibmpc/basicc11.f6/.f8/.fa/.fc.");
                 return false;

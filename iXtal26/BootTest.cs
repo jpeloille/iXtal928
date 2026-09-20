@@ -178,6 +178,19 @@ internal static class BootTest
 
         Console.WriteLine($"\nframebuffer : {b.Length} pixels, {nz} non nuls, " +
                           $"dernière ligne touchée {lastLine}");
+        // La police est le seul maillon que ni le diff d'amorçage ni le fuzzer ne
+        // voient : elle ne touche aucun état CPU. Un fontdat vide donne un écran noir
+        // parfaitement silencieux — la VRAM reste juste, seul le tracé disparaît.
+        var fontNz = 0;
+        for (var c = 0; c < 2048; c++)
+        for (var d = 0; d < 8; d++)
+            if (Video.video.fontdat[c, d] != 0) fontNz++;
+
+        Console.WriteLine($"  police : {fontNz} octets non nuls sur 16384 dans fontdat");
+        if (fontNz == 0)
+            Console.WriteLine("  *** fontdat est VIDE : aucun caractère ne sera tracé. " +
+                              "Vérifier que roms/mda.rom est présent et lisible. ***");
+
         Console.WriteLine($"  xsize={Video.video.xsize} ysize={Video.video.ysize} " +
                           $"res={Video.video.video_res_x}x{Video.video.video_res_y} " +
                           $"frames={Video.video.frames}");

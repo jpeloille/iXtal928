@@ -35,6 +35,10 @@ internal enum fontformat_t
 
 internal static partial class video
 {
+    // DEVIATION: pclog() appartient à ibm.h / plugin-api/logging.c, pas encore
+    //   transcrit. Même forme que mem_bios.cs:20 et rom.cs:32.
+    private static void pclog(string s) => Console.Error.Write(s);
+
     // omitted: les 64 VIDEO_CARD de video.c:70-213 sauf v_cga, et video_init_builtin
     //   (video.c:1301-1354) qui les enregistre — MDA/EGA/VGA/SVGA/Voodoo, hors cible 5150.
     // omitted: video_card_available / video_card_getname / video_card_getdevice /
@@ -218,9 +222,15 @@ internal static partial class video
         FileStream? f = romfopen(s, "rb");
         int c, d;
 
-        // omitted: pclog("loadfont %i %s %p\n", format, s, f) (video.c:934).
+        // pcem: video.c:934 — ce pclog était omis comme « sortie pure ». Il ne
+        // l'est pas : quand la police manque, fontdat reste à zéro, CHAQUE cellule
+        // rend un glyphe vide, et l'écran est noir SANS UN MOT. Le fond des cellules
+        // en vidéo inverse continue d'être peint, donc la fenêtre montre des pavés
+        // gris sur fond noir — un symptôme qu'on peut passer une heure à attribuer
+        // au rendu alors que c'est un fichier introuvable.
         if (f == null)
         {
+                pclog($"loadfont : {s} introuvable — police non chargée.\n");
                 return;
         }
         // omitted: FONT_PC200 (video.c:961-974), FONT_WY700 (video.c:984-990),
