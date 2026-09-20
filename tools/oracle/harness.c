@@ -170,6 +170,8 @@ void sound_speed_changed(void) { sound_poll_latch = (uint64_t)((double)TIMER_USE
  * n'en a pas, et sound_poll écrirait dans un pointeur nul au premier tampon
  * plein. Même hissage côté C#, pour la même raison. */
 void sound_reset(void) {
+        h_sound_hash = 1469598103934665603ULL;
+
         if (!outbuffer)
                 outbuffer = malloc(MAXSOUNDBUFLEN * 2 * sizeof(int32_t));
 
@@ -548,8 +550,6 @@ int h_boot(const char *romspath) {
          * ne fait pas avancer l'échéance et timer_process() boucle à l'infini
          * sur le chronomètre du son. */
         _sound_speed_changed = sound_speed_changed;
-
-        h_sound_hash = 1469598103934665603ULL;
 
         /* Pendant de _808x.ResetCounters() : sans ça, un second h_boot() dans le
            même processus repart avec les compteurs du premier. */

@@ -232,6 +232,13 @@ internal static partial class pc
     /// </summary>
     internal static bool initpc(string romsPath)
     {
+        // pcem: wx-sdl2.c:450 — l'IHM pose ce crochet AVANT initpc, et device.c:68
+        // l'appelle sans le tester. Il est posé ici, donc pour TOUS les points
+        // d'entrée : --headless, --boot, --timer-check et BootDiff n'ont pas
+        // d'hôte, et un latch nul ferait boucler timer_process() à l'infini sur
+        // le chronomètre du son. tools/oracle/harness.c fait de même.
+        PluginApi.device._sound_speed_changed = Sound.sound.sound_speed_changed;
+
         PluginApi.paths.set_roms_paths(romsPath);
 
         // set_roms_paths() écarte silencieusement un répertoire absent (paths.cs:88).
@@ -270,7 +277,7 @@ internal static partial class pc
 
         // omitted: codegen_init() — dynarec non porté.
         timer.timer_reset();
-        // omitted: sound_reset() (pc.c:277) — pas de son.
+        Sound.sound.sound_reset();   // pc.c:277
         io.io_init();
         Floppy.fdc_c.fdc_init();
         Disc.disc.disc_init();
@@ -302,6 +309,10 @@ internal static partial class pc
         timer.timer_reset();
         PluginApi.device.device_close_all();
         PluginApi.device.device_init();
+
+        // pcem: pc.c:361 — AVANT speaker_init() : sound_reset() remet
+        // sound_handlers_num à 0 et effacerait l'enregistrement du handler.
+        Sound.sound.sound_reset();
 
         io.io_init();
         // omitted: cpu_set() — cpu.c n'est pas porté ; la configuration 8088 est

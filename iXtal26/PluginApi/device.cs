@@ -30,6 +30,9 @@ internal delegate int device_available_fn();
 internal delegate void device_speed_changed_fn(object p);
 internal delegate void device_force_redraw_fn(object p);
 
+// pcem: device.c:26 — void (*_sound_speed_changed)(void)
+internal delegate void sound_speed_changed_t();
+
 // DEVIATION: `char *s` est un tampon de sortie que les handlers concatènent
 //   (sound_sb_dsp.c:1273). Sans pointeur, la contrepartie est un StringBuilder ;
 //   `max_len` est conservé à sa place dans la signature.
@@ -111,8 +114,14 @@ internal static partial class device
     //   network_cards[], lpt_devices[] (device.c:16-21) et les types SOUND_CARD,
     //   video_timings_t, VIDEO_CARD, MODEL, HDD_CONTROLLER, NETWORK_CARD,
     //   lpt_device_t, LPT_DEVICE (devices.h:48-118) — registres enfichables.
-    // omitted: _sound_speed_changed (device.c:26, appelé :68) — assigné par
-    //   wx-sdl2.c:450 et qt-sdl2.c:460, interfaces remplacées par l'hôte SDL3.
+    // pcem: device.c:26 — void (*_sound_speed_changed)(void). Crochet posé par
+    // l'IHM chez PCem (wx-sdl2.c:450, qt-sdl2.c:460) ; ici par pc.initpc(), et
+    // INCONDITIONNELLEMENT. C'est lui qui pose sound_poll_latch : laissé nul, le
+    // latch vaut 0, timer_advance_u64(t, 0) ne fait pas avancer l'échéance et
+    // timer_process() boucle à l'infini sur le chronomètre du son. L'appel de
+    // device.c:68 n'est pas testé — un crochet oublié doit se voir au premier
+    // setpitclock(), pas se taire.
+    internal static sound_speed_changed_t? _sound_speed_changed;
     // omitted: model_getdevice (device.c:28), model_get_config_int/string
     //   (device.c:118-152), model_count et pcem_add_model (device.c:212-224) —
     //   dépendent de MODEL, donc de CPU ; arrivent avec le modèle xt.
@@ -192,7 +201,8 @@ internal static partial class device
             }
         }
 
-        // omitted: _sound_speed_changed() (device.c:68).
+        // pcem: device.c:68
+        _sound_speed_changed();
     }
 
     // pcem: device.c:71-81
