@@ -110,6 +110,14 @@ public sealed class SdlHost : IDisposable
     private SdlMenu? _menu;
 
     /// <summary>
+    /// Sortie audio. Null en --headless, et null aussi si le périphérique refuse de
+    /// s'ouvrir : une carte son absente n'est pas une panne de 5150. La machine
+    /// émulée ne change pas pour autant — sound_poll tourne et speaker_update
+    /// remplit dans les deux cas, seul le dépôt disparaît.
+    /// </summary>
+    private SdlAudio? _audio;
+
+    /// <summary>
     /// Action demandée par le menu, à exécuter au sommet de la boucle de Run(). Elle ne
     /// peut pas l'être dans PumpEvents : resetpchard() reconstruit la machine entière, et
     /// les compteurs d'horloge à réarmer sont des locales de Run().
@@ -165,7 +173,7 @@ public sealed class SdlHost : IDisposable
 
         SDL.SetAppMetadata(WindowTitle, "1.0", "com.example.ixtal26");
 
-        if (!SDL.Init(SDL.InitFlags.Video))
+        if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Audio))
             return Fail("SDL.Init");
 
         _sdlInitialised = true;
@@ -201,6 +209,22 @@ public sealed class SdlHost : IDisposable
         SDL.SetTextureScaleMode(_texture, SDL.ScaleMode.Nearest);
 
         _menu = new SdlMenu(_window, _renderer, _romsPath);
+
+        // Pendant de sound_init() (sound.c:201), que PCem appelle depuis son IHM
+        // (wx-sdl2.c:470) et non depuis pc.c. Un échec n'est pas fatal : le 5150
+        // tourne muet, et le chronomètre du son du cœur n'en sait rien.
+        var audio = new SdlAudio();
+        if (audio.Init())
+        {
+            _audio = audio;
+            Sound.sound.sound_give_buffer_func = _audio.GiveBuffer;
+        }
+        else
+        {
+            audio.Dispose();
+            Console.Error.WriteLine(
+                $"Audio indisponible ({SDL.GetError()}) — la machine tourne, sans le haut-parleur.");
+        }
 
         // Le CGA n'émet son premier blit qu'à la tranche ~348, soit 3,5 s d'horloge
         // murale : sans cette peinture, la fenêtre reste au contenu indéfini que le
@@ -390,6 +414,15 @@ public sealed class SdlHost : IDisposable
             {
                 _turboActive = turbo;
 
+                // Muet pendant le turbo. À ~14x le temps réel, le mixeur produit
+                // quatorze secondes de son par seconde murale : la file se remplit,
+                // la contre-pression jette, et il ne reste qu'un hachis. Le turbo est
+                // une décision d'hôte que PCem n'a pas — on coupe la sortie, comme on
+                // saute déjà les présentations. La machine émulée ne change pas d'un
+                // cycle : sound_poll tourne, speaker_update remplit.
+                if (_audio is not null)
+                    _audio.Muted = turbo;
+
                 // Fin du turbo : horloge NEUVE. Sans ce réarmement, drawits encaisse
                 // d'un coup les ~50 s de retard accumulées pendant le turbo, et la
                 // branche « if (drawits > 50) drawits = 0 » les jette SANS RIEN DIRE.
@@ -511,6 +544,15 @@ public sealed class SdlHost : IDisposable
 
         if (_headless)
             Console.WriteLine("             (headless : aucun crochet installé, zéro consommé est NORMAL)");
+
+        // Le chemin audio est aussi muet qu'un écran noir quand il échoue : sans ces
+        // deux chiffres, « pas de son » ne distingue pas un périphérique absent d'un
+        // mixeur qui ne produit rien. Même leçon que § M4.5.
+        Console.WriteLine(_audio is null
+            ? "audio      : aucune sortie ouverte"
+            : $"audio      : {_audio.BlocksQueued} blocs déposés, {_audio.BlocksDropped} jetés " +
+              $"({Sound.sound.sound_buf_len_al} échantillons par bloc, " +
+              $"{Sound.sound.sound_buf_len_al / 48.0:0.#} ms)");
 
         if (_blitsSeen == 0)
             Console.WriteLine("dernier    : aucun");
@@ -748,6 +790,12 @@ public sealed class SdlHost : IDisposable
         // Le cœur garde sinon un délégué vers un hôte détruit, et le prochain blit
         // rendrait à travers un renderer libéré.
         video.video_blit_memtoscreen_func = null;
+
+        // Même raison : le cœur garderait un délégué vers un flux détruit, et le
+        // prochain sound_poll déposerait dans un IntPtr libéré.
+        Sound.sound.sound_give_buffer_func = null;
+        _audio?.Dispose();
+        _audio = null;
 
         _disposed = true;
 
