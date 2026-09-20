@@ -28,13 +28,18 @@ namespace iXtal26.Diff;
 
 public static class BootDiff
 {
-    public static int Run(string romsPath, int slices)
+    /// <param name="discA">Image de disquette du lecteur A, ou null : la MÊME image
+    /// est montée des deux côtés, avant l'amorçage, comme pc.c le fait depuis argv
+    /// (pc.c:231) — c'est la seule façon de comparer un amorçage DOS.</param>
+    public static int Run(string romsPath, int slices, string? discA = null)
     {
         Oracle.CheckAbi();
 
         var oraclePath = Path.Combine(Path.GetTempPath(), "ixtal-boot-oracle.bin");
 
-        Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches)…");
+        Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
+                          (discA is null ? ")…" : $", A: = {discA})…"));
+        Oracle.h_set_discfn(0, discA ?? "");
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -55,6 +60,7 @@ public static class BootDiff
 
         Console.WriteLine($"Amorçage du cœur C# ({slices} tranches)…");
         _808x.ResetDiagState();
+        Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath))
             return 1;
 
@@ -97,7 +103,7 @@ public static class BootDiff
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");
         Console.WriteLine("Phase 2 — rejeu en pas à pas, état complet :\n");
-        return Phase2(romsPath, diverged);
+        return Phase2(romsPath, diverged, discA);
     }
 
     /// <summary>
@@ -105,10 +111,12 @@ public static class BootDiff
     /// fois, et on compare le vecteur d'état complet à l'index fautif. La phase 1
     /// dit OÙ ; celle-ci dit QUOI.
     /// </summary>
-    private static int Phase2(string romsPath, int index)
+    private static int Phase2(string romsPath, int index, string? discA)
     {
+        Oracle.h_set_discfn(0, discA ?? "");
         if (Oracle.h_boot(romsPath) == 0) return 1;
         _808x.ResetDiagState();
+        Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
 
         var a = Diag.HState.Create();
@@ -165,6 +173,7 @@ public static class BootDiff
             {
                 Console.WriteLine($"\n  -> {d}");
                 DumpPit();
+                DumpDisc();
                 var lin = (a.seg_base[0] + a.oldpc) & 0xFFFFF;
                 var bo = new byte[6];
                 Oracle.h_read(lin, bo, 6);
@@ -228,6 +237,74 @@ public static class BootDiff
                 ? $"  PIT canal {t} : identique"
                 : $"  PIT canal {t} : {string.Join("  |  ", diff)}");
         }
+    }
+
+    private static readonly string[] DiscFields =
+    {
+        "discint", "disc_3f7", "lastbyte", "paramstogo", "bit_rate", "motoron", "disc_drivesel", "curdrive",
+        "disc_track[0]", "disc_track[1]", "drive_empty[0]", "drive_empty[1]", "disc_changed[0]", "disc_changed[1]",
+        "writeprot[0]", "writeprot[1]", "disc_notfound", "readflash", "poll_timer.enabled", "poll_remaining",
+    };
+
+    /// <summary>Amorce les deux côtés sur N tranches et imprime les deux sondes
+    /// disquette côte à côte. Rend 0 si elles concordent champ à champ.
+    ///
+    /// Les tranches passent par h_run / _808x.Run, comme le banc : les deux remettent
+    /// `cycles` à zéro en tête de tranche, donc suivent la MÊME trajectoire. Ni
+    /// h_runpc (remise à zéro) ni pc.runpc (report du reliquat, comme pc.c) ne
+    /// conviennent l'un contre l'autre : une sonde prise un reliquat plus tôt d'un
+    /// côté montrait un moteur encore allumé là où l'autre l'avait déjà coupé.</summary>
+    public static int DiscProbe(string romsPath, int slices, string? discA)
+    {
+        Oracle.CheckAbi();
+        var budget = pc.cpu_get_speed() / 100;
+        Oracle.h_set_discfn(0, discA ?? "");
+        if (Oracle.h_boot(romsPath) == 0) return 1;
+        for (var i = 0; i < slices; i++) Oracle.h_run(budget);
+
+        _808x.ResetDiagState();
+        Floppy.fdd_c.discfns[0] = discA ?? "";
+        if (!pc.initpc(romsPath)) return 1;
+        for (var i = 0; i < slices; i++) _808x.Run(budget);
+
+        var oc = new ulong[DiscFields.Length];
+        var cs = new ulong[DiscFields.Length];
+        Oracle.h_disc_probe(oc);
+        iXtal26.Floppy.fdc_c.Probe(cs);
+
+        var bad = 0;
+        for (var f = 0; f < DiscFields.Length; f++)
+        {
+            var flag = oc[f] == cs[f] ? " " : "*";
+            if (oc[f] != cs[f]) bad++;
+            Console.WriteLine($" {flag} {DiscFields[f],-20} oracle {oc[f],22} | C# {cs[f],22}");
+        }
+
+        Console.WriteLine(bad == 0
+            ? $"\nSonde disquette : {DiscFields.Length} champs identiques après {slices} tranches."
+            : $"\nSonde disquette : {bad} champ(s) divergent(s).");
+        return bad == 0 ? 0 : 1;
+    }
+
+    /// <summary>Le sous-système disquette des deux côtés — les globales de disc.c et
+    /// fdc.c que l'oracle expose sans instrumenter (h_disc_probe). L'instance
+    /// `fdc` est static dans fdc.c et n'y figure pas : si tout concorde ici, la
+    /// divergence est dans fdc.c ou en amont, dans le DMA ou le PIC.</summary>
+    private static void DumpDisc()
+    {
+        var oc = new ulong[DiscFields.Length];
+        var cs = new ulong[DiscFields.Length];
+        Oracle.h_disc_probe(oc);
+        iXtal26.Floppy.fdc_c.Probe(cs);
+
+        var diff = new List<string>();
+        for (var f = 0; f < DiscFields.Length; f++)
+            if (oc[f] != cs[f])
+                diff.Add($"{DiscFields[f]}: oracle {oc[f]} / C# {cs[f]}");
+
+        Console.WriteLine(diff.Count == 0
+            ? "  disquette : identique"
+            : $"  disquette : {string.Join("  |  ", diff)}");
     }
 
     /// <summary>Vrai dès qu'un champ de la sonde diverge sur l'un des trois canaux.</summary>

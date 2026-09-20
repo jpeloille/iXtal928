@@ -963,7 +963,8 @@ l'axe hôte d'abord, le code transcrit ensuite.
 
 ### Ce que le turbo change, et ce qu'il ne change pas
 
-`--turbo [N]` (défaut 5 800 tranches ; l'invite BASIC tombe à la tranche 5 729, § M4.6)
+`--turbo [N]` (défaut 5 800 tranches ; l'invite BASIC tombait alors à la tranche 5 729,
+§ M4.6 — M6 l'a ramenée à 5 167, et le défaut couvre aussi l'invite de PC DOS à 5 520)
 n'attend pas l'horloge murale pendant les N premières tranches, puis rend la machine au
 temps réel. Une frappe y met fin — à partir de là, quelqu'un regarde.
 
@@ -1012,3 +1013,134 @@ temporisation à vide dans le POST (§ M4.6), que **l'oracle C partage** (aucun 
 `floppy/` ni `disc/` dans `tools/oracle/Makefile`) : ce jalon-là doit déplacer les deux
 côtés à la fois, sous peine de transformer les 24 944 866 instructions identiques en
 divergence à la tranche ~4920.
+
+---
+
+## M6 — Le lecteur de disquette : PC DOS 2.00 amorce, et l'oracle est d'accord
+
+Le 2026-09-20. § M5.3 posait la condition : ce jalon devait **déplacer les deux côtés à
+la fois**, sous peine de transformer les 24 944 866 instructions identiques en divergence
+à la tranche ~4920. C'est ce qui a été fait : cinq fichiers transcrits (`floppy/fdc.c`,
+`floppy/fdd.c`, `disc/disc.c`, `disc/disc_img.c`, `disc/disc_sector.c`, plus
+`get_extension` de `config.c`) et les mêmes cinq fichiers C liés dans
+`tools/oracle/Makefile`, avec trois stubs (`readflash`, `isa_cycles`, le chargeur FDI).
+Le câblage suit `pc.c` à la ligne des deux côtés : `fdc_init/disc_init/img_init` dans
+`initpc` (`:279-282`), `fdc_init/disc_reset/disc_load` dans `resetpchard` (`:365-368`),
+`fdc_add` dans `common_init` (`model.c:194`), `fdc_reset` dans `pc_reset` (`:180`).
+
+Un choix de configuration, identique des deux côtés et qui ne vient pas de PCem : le
+type de lecteur. PCem le lit dans son fichier de configuration (`pc.c:776`, défaut 7 =
+3,5" ED). Le 5150 a des 5,25" double densité : **type 1** (`fdd.c:44-46`), posé dans
+`pc.cs` et dans `h_boot`.
+
+### Mesures
+
+| Oracle | Commande | Résultat |
+|---|---|---|
+| Diff d'amorçage, sans disquette | `boot-diff roms 6000` | **25 457 269 instructions identiques** (24 944 866 avant M6) |
+| Diff d'amorçage, disquette système | `boot-diff roms 7000 --fda os/pcdos20/pcdos20b.img` | **26 750 702 instructions identiques** — POST, INT 19h, secteur d'amorçage, IBMBIO, IBMDOS, COMMAND, invite de date |
+| Diff d'amorçage, disquette non système | `boot-diff roms 6500 --fda os/pcdos20/pcdos20s.img` | **27 494 583 identiques** — le secteur d'amorçage lit le répertoire et affiche `Non-System disk or disk error` |
+| Sonde disquette | `disc-probe roms 5300 / 5310 / 5400`, `5600 --fda …b.img` | 20 champs identiques à chaque fois |
+| Fuzzer, mode flux, 256 opcodes | `fuzz --mode stream --rounds 8000 --op 00 … --op FF` | 400 000 instructions, zéro divergence (il ne voit pas la disquette : dit pour mémoire) |
+| Autotest de l'oracle | `make -C tools/oracle selftest` | vert |
+| Manifeste | `tools/check-oracle.sh` | 22 vérifiés, 0 dérive, arbre vendoré intact |
+| Images | `sha256sum os/pcdos20/*.img` | inchangées après toutes les passes (ouvertes en lecture-écriture) |
+
+Et la machine, vue de la console — `--boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img
+--type "" --type "" --type DIR` :
+
+```
+  |Current date is Tue  1-01-1980
+  |Enter new date:
+  |Current time is  0:00:13.89
+  |Enter new time:
+  |The IBM Personal Computer DOS
+  |Version 2.00 (C)Copyright IBM Corp 1981, 1982, 1983
+  |A>DIR
+  | Volume in drive A has no label
+  | Directory of  A:\
+  |COMMAND  COM    17664   3-08-83  12:00p
+  |ANSI     SYS     1664   3-08-83  12:00p
+  ...
+```
+
+Sans disquette, `--boot roms 6000` rend toujours l'écran BASIC, `ins = 24586052`
+(24 073 823 avant), `0040:0010 = 006D`, 640 Ko, empreinte `6EF1F53C27AB77AF` (la phase
+du curseur diffère, BASIC ayant démarré 5,7 s plus tôt).
+
+### La réserve n° 1 de § M4.6 : rétrécie, et la prédiction corrigée de 1,0 s
+
+§ M4.6 imputait **6,63 s** de l'amorçage à l'absence du contrôleur (tranches 4920 à 5695
+dans le `WAIT_INT` de `F000:EF3A`) et en déduisait, par soustraction, « ≈ 50,7 s hors ce
+poste ».
+
+**Événement mesuré : l'invite BASIC `Ok` COMPLÈTE**, le même que celui de § M4.6 — et pas
+la bannière, qui commence à s'écrire une quinzaine de tranches plus tôt. Bissection sur la
+ligne `Ok` seule, `--boot roms N` : 5166 non, 5168 oui.
+
+| | tranche | temps émulé |
+|---|---|---|
+| avant M6, sans contrôleur (§ M4.6) | 5 729 | 57,29 s |
+| après M6, contrôleur présent | **5 167** | **51,67 s** |
+| gagné | 562 | **5,62 s** |
+
+La prédiction de § M4.6 était donc **optimiste de 1,0 s** : retirer la temporisation ne
+rend pas les 6,63 s, parce qu'un contrôleur PRÉSENT travaille — recalibrage (2048 µs),
+seek (1024 µs), démarrage moteur, lecture du secteur d'amorçage — là où un contrôleur
+absent ne faisait qu'expirer. **5,62 s de temporisation retirées, ≈ 1,0 s de travail réel
+ajouté.** Le « ≈ 50,7 s » de § M4.6 se lit donc comme un plancher, pas comme une
+prédiction : il soustrayait un poste au lieu de le remplacer.
+
+Contre les **52 s** chronométrées sur un vrai 5150 (§ M4.6 § 4, mesure unique, ±2 à 3 s),
+51,67 s est un meilleur accord que 57,29 s — mais la réserve n° 2 de § M4.6 tient
+intégralement : une seule mesure au chronomètre sur une configuration qui n'est pas la
+nôtre ne fait pas une conformité.
+
+Avec la disquette système, l'invite de date de PC DOS 2.00 tombe **entre les tranches
+5 516 et 5 520** (bissection sur `Enter new date`), soit ≈ 55,2 s émulées.
+
+### Parité R2, accolades seules exclues
+
+| Fichier | C | C# | ratio |
+|---|---|---|---|
+| `Floppy/fdd.cs` | 113 | 123 | 1,09 |
+| `Floppy/fdc.cs` | 963 | 991 | 1,03 |
+| `Disc/disc.cs` | 174 | 194 | 1,11 |
+| `Disc/disc_img.cs` | 320 | 324 | 1,01 |
+| `Disc/disc_sector.cs` | 264 | 273 | 1,03 |
+
+### Deux choses apprises en vérifiant
+
+1. **`h_runpc` et `pc.runpc` ne suivent pas la même trajectoire.** `h_runpc` remet
+   `cycles` à zéro en tête de tranche ; `pc.runpc`, comme `pc.c:475`, laisse `execx86`
+   faire `cycles += cycs` et reporte le reliquat négatif. La première version de
+   `disc-probe` comparait l'un à l'autre et montrait `motoron` à 1 côté C# contre 0 côté
+   oracle à la tranche 5300 : pas une divergence du contrôleur, la même coupure de
+   moteur vue un reliquat plus tôt. Le diff d'amorçage (`h_step`/`Step`) et le banc
+   (`h_run`/`Run`) sont symétriques et n'ont jamais eu ce problème ; `disc-probe` passe
+   désormais par `h_run`/`Run`. À retenir avant d'écrire un nouvel outil de comparaison.
+2. **Le POST affiche `131`** — code du test de bouclage cassette — avant que BASIC ou DOS
+   n'écrive. C'était déjà le cas (BASIC efface l'écran, DOS non) : `model.cs` omet
+   `cassette_device` et l'oracle stube `cassette_input` à 0, donc les deux côtés le font
+   à l'identique. Un vrai 5150 sans magnétophone ne l'affiche pas — c'est le port qui
+   est testé, pas l'appareil. À transcrire (`devices/cassette.c`) pour un POST propre.
+
+### Défauts de PCem relevés en transcrivant
+
+PB-14 (`disc_set_rate` : le cas 1 retombe dans le cas 2), PB-15 (`fdd_getrpm` : `switch`
+inatteignable), PB-16 (`img_load` éjecte sans annuler `f`), PB-17 (`track_data` de 20 Ko
+débordé par une piste XDF ED), PB-18 (`strcpy` de `discfns` sur lui-même). Registre :
+`PCEM_BUGS.md`.
+
+### Ce que ce vert ne dit pas
+
+- **Rien n'a été écrit sur la disquette.** L'amorçage de DOS 2.00 et `DIR` ne font que
+  lire ; les états `STATE_WRITE_*` et `STATE_FORMAT` de `disc_sector.c`, `img_writeback`
+  et `fdc_getdata` sont transcrits mais **aucun oracle ne les a exercés**. Le prochain
+  jalon est un `COPY` ou un `FORMAT` sous DOS, des deux côtés, avec comparaison de
+  l'image résultante.
+- Le lecteur B:, les images double face (320/360 Ko), le FIFO du 82077 (le BIOS du 5150
+  ne le configure pas) et les formats XDF ne sont couverts par aucune passe.
+- Le fuzzer est structurellement aveugle à tout ceci : il n'appelle ni `h_boot` ni
+  `disc_load`.
+

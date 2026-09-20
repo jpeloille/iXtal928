@@ -17,7 +17,7 @@ using SDL3;
 namespace iXtal26;
 internal static class BootTest
 {
-    internal static int Run(string roms, int slices, string? type = null)
+    internal static int Run(string roms, int slices, List<string>? types = null)
     {
         if (!pc.initpc(roms)) return 1;
         Console.WriteLine($"initpc OK — reset CS:IP = {x86.CS:X4}:{_386_common.cpu_state.pc:X4}");
@@ -37,8 +37,9 @@ internal static class BootTest
         DumpTextScreen();
         ReportFramebuffer();
 
-        if (type is not null)
-            TypeAndDump(type);
+        if (types is not null)
+            foreach (var type in types)
+                TypeAndDump(type);
 
         return 0;
     }
@@ -67,8 +68,9 @@ internal static class BootTest
 
         PressKey('\n');
 
-        // Laisser l'application traiter la ligne.
-        for (var i = 0; i < 60; i++)
+        // Laisser l'application traiter la ligne. Deux secondes : un DIR sur
+        // disquette doit lire la FAT et le répertoire, moteur à relancer compris.
+        for (var i = 0; i < 200; i++)
             pc.runpc();
 
         DumpTextScreen();

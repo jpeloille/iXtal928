@@ -58,7 +58,12 @@ SRC := harness.c \
        $(PCEM)/src/memory/mem_bios.c \
        $(PCEM)/src/keyboard/keyboard.c \
        $(PCEM)/src/keyboard/keyboard_xt.c \
-       $(PCEM)/src/video/vid_cga.c
+       $(PCEM)/src/video/vid_cga.c \
+       $(PCEM)/src/floppy/fdc.c \
+       $(PCEM)/src/floppy/fdd.c \
+       $(PCEM)/src/disc/disc.c \
+       $(PCEM)/src/disc/disc_img.c \
+       $(PCEM)/src/disc/disc_sector.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
 # d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
@@ -74,7 +79,7 @@ LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 LDFLAGS += -Wl,--no-undefined
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

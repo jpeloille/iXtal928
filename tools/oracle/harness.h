@@ -176,6 +176,19 @@ void h_trace_close(void);
 #define H_PIT_PROBE_N 19
 void h_pit_probe(int t, uint64_t *out);
 
+/* --- disquette (M6) ---------------------------------------------------------
+ * Pendant de discfns[] (fdd.c:6) : pc.c le remplit depuis argv AVANT initpc, et
+ * resetpchard le consomme (pc.c:367-368). À appeler avant h_boot. NULL ou "" :
+ * lecteur vide. Les types de lecteur sont posés par h_boot (5,25" DD, comme
+ * pc.cs) et ne se configurent pas. */
+void h_set_discfn(int drive, const char *fn);
+
+/* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
+ * Floppy.fdc_c.Probe() côté C#. L'instance `fdc` est static dans fdc.c, donc hors
+ * de portée sans l'inclure ; les globales suffisent à nommer le champ divergent. */
+#define H_DISC_PROBE_N 20
+void h_disc_probe(uint64_t *out);
+
 /* Journal d'ecritures de la derniere instruction. Voir harness_stubs.c. */
 void h_wlog_reset(void);
 int h_wlog_count(void);

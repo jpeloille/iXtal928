@@ -62,7 +62,7 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
 ### Portée
 
 Le code **transcrit** (`Cpu/`, `Memory/`, `Models/`, `Keyboard/`, `Video/`, `PluginApi/`,
-`io.cs`, `timer.cs`, `pc.cs`, `ppi.cs`) garde les identifiants et commentaires anglais de
+`Floppy/`, `Disc/`, `io.cs`, `timer.cs`, `pc.cs`, `ppi.cs`) garde les identifiants et commentaires anglais de
 PCem ; `.editorconfig` y neutralise les règles de style qui réécriraient une ligne.
 
 Le code **hôte**, neuf (`Host/`, `Program.cs`), suit les conventions C# normales et reste
@@ -84,6 +84,8 @@ disable` **énumérés et commentés**, jamais en bloc.
 | `readlookup2[]` de `uintptr_t` biaisés | `int[]` d'offsets dans `byte[] ram` ; `ram[readlookup2[a>>12] + a]` |
 | Pointeurs de fonction | types `delegate` nommés, tableaux dimensionnés comme en C |
 | `void *p` | `object` + cast explicite dans le handler |
+| `(void *)f` passé à `timer_add`, `f` sans paramètre | `f(object? p)` ; les appels directs passent `null` (`fdc_callback`) |
+| `uint8_t *p` dans le tampon d'un autre module (`sector_t.data`) | le tampon **et** l'offset : `uint8_t[] data; int data_off;` |
 | `uint8_t`… | alias `global using` (voir `GlobalUsings.cs`) |
 | `goto opcodestart` | `goto opcodestart` |
 | Nommage | `snake_case` de PCem **verbatim** |
@@ -110,20 +112,23 @@ Trois corollaires non négociables :
 
 ### Collisions de mots-clés C#
 
-Scan mécanique des en-têtes du palier (a). **Deux entrées, c'est tout :**
+Scan mécanique des en-têtes du palier (a), puis de `fdc.c` à M6. **Quatre entrées :**
 
 | C | C# | Où |
 |---|---|---|
 | `base` | `@base` | `x86seg.base` (`x86.h:38`), `mem_mapping_t.base` (`mem.h`) |
 | `checked` | `@checked` | `x86seg.checked` (`x86.h:44`) |
+| `params` | `@params` | `FDC.params` (`fdc.c:33`) |
+| `lock` | `@lock` | `FDC.lock` (`fdc.c:39`) |
 
 Le préfixe `@` est choisi pour que `grep -n base` retrouve encore la ligne.
 
-Une collision conteneur/type : le fichier `x86seg.c` et le typedef `x86seg`. La classe
-conteneur devient `x86seg_c`, le type garde `x86seg`. Seul cas — `pit.c`/`PIT`,
-`timer.c`/`pc_timer_t`, `mem.c`/`mem_mapping_t`, `vid_cga.c`/`cga_t`, `device.c`/`device_t`
-sont tous distincts. `808x.c` → classe `_808x` (un identifiant C# ne peut pas commencer
-par un chiffre ; le nom de fichier, si).
+Collisions conteneur/membre : le fichier `x86seg.c` et le typedef `x86seg` ; `fdc.c` et
+son instance `static FDC fdc` ; `fdd.c` et son tableau `fdd[2]`. Le conteneur prend `_c`
+(`x86seg_c`, `fdc_c`, `fdd_c`), le membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`,
+`mem.c`/`mem_mapping_t`, `vid_cga.c`/`cga_t`, `device.c`/`device_t` sont tous distincts.
+`808x.c` → classe `_808x` (un identifiant C# ne peut pas commencer par un chiffre ; le
+nom de fichier, si).
 
 ---
 
@@ -143,6 +148,9 @@ Ce qui n'est **pas** transcrit, et pourquoi. Toute nouvelle entrée se justifie 
 | Chemin composite CGA (`Composite_Process`, `cga->composite`) | `vid_cga.c:~380` | Inutile au palier (a), et contient un vrai bug de PCem (écriture octet via lecture dword). L'éviter esquive la question de politique de bug. |
 | `hline`, `create_bitmap`, `destroy_bitmap`, `screen` comme remontées cœur→hôte | déclarés `video.h`, définis `wx-sdl2-video.c:15,49,57,59` | Inversion de dépendance. `hline` (appelé `vid_cga.c:275`) devient un `Array.Fill` sur le buffer plat. |
 | `src/wx-ui/`, `src/qt-ui/`, `src/codegen/`, `src/dosbox/`, `thread-pthread.c` | — | Remplacés par l'hôte SDL3 mono-thread. |
+| `disc_fdi.c`, `fdi2raw.c`, l'entrée `"FDI"` de `loaders[]` et `fdi_init()` | `disc.c:53`, `pc.c:281` | Format de flux FDI : 448 + 2 700 lignes pour un format que ni le 5150 ni DOS ne produisent. L'oracle stube `fdi_load`/`fdi_close` à vide (`harness_stubs.c`). |
+| `fdc37c665.c`, `fdc37c93x.c` | `src/floppy/` | Super I/O de cartes 486/Pentium, hors cible ; leurs accesseurs `fdc_update_*` restent transcrits, `fdc_init` les appelle. |
+| `pclog(...)` dans les fichiers de M6 | `disc.c`, `disc_img.c`, `fdc.c:975` | Sorties pures, marquées `// omitted:` sur place. |
 
 **À ne PAS omettre malgré les apparences :** `readlookup2`/`writelookup2`/`addreadlookup`
 /`addwritelookup` (portent du temps, `cycles -= 9` à `mem.c:378`) · `mem_logical_addr`

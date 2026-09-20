@@ -15,8 +15,10 @@ var maxSlices = 0; // 0 = tourne jusqu'à la fermeture de la fenêtre
 var verbose = false;
 var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'époque
 
-// L'invite BASIC tombe à la tranche 5 729 (VERIFICATION.md § M4.6) ; on laisse de quoi
-// voir la bannière s'écrire, et rendre la main un peu APRÈS plutôt qu'un peu avant.
+// L'invite BASIC tombait à la tranche 5 729 (VERIFICATION.md § M4.6) ; depuis M6 le
+// contrôleur de disquettes répond au BIOS au lieu d'expirer, et elle tombe à 5 167 —
+// l'invite de date de PC DOS 2.00 à 5 520 (§ M6, bissectées). On laisse de quoi voir la
+// bannière s'écrire, et rendre la main un peu APRÈS plutôt qu'un peu avant.
 const int DefaultTurboSlices = 5800;
 
 for (var i = 0; i < args.Length; i++)
@@ -52,21 +54,49 @@ for (var i = 0; i < args.Length; i++)
 
         // --type TEXTE : tape la chaîne dans la machine après l'amorçage et revide
         // l'écran. C'est la seule vérification du chemin clavier qui ne dépende pas
-        // d'un gestionnaire de fenêtres.
-        string? type = null;
-        if (i + 1 < args.Length && args[i + 1] == "--type")
+        // d'un gestionnaire de fenêtres. Répétable : DOS demande la date puis l'heure
+        // avant de rendre son invite, donc « --type "" --type "" --type DIR ».
+        // --floppy-a/-b : l'image à monter, comme en mode fenêtre (voir plus bas).
+        var types = new List<string>();
+        while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
-            i++;
+            var opt = args[++i];
             if (i + 1 >= args.Length)
             {
-                Console.Error.WriteLine("--type attend une chaîne à taper.");
+                Console.Error.WriteLine($"{opt} attend un argument.");
                 return 2;
             }
 
-            type = args[++i];
+            var val = args[++i];
+            switch (opt)
+            {
+                case "--type": types.Add(val); break;
+                case "--floppy-a": if (!MountFloppy(0, val)) return 2; break;
+                case "--floppy-b": if (!MountFloppy(1, val)) return 2; break;
+                default:
+                    Console.Error.WriteLine($"Option inconnue après --boot : {opt}");
+                    return 2;
+            }
         }
 
-        return BootTest.Run(paths.resolve_roms_path(roms), slices, type);
+        return BootTest.Run(paths.resolve_roms_path(roms), slices, types);
+    }
+
+    // --floppy-a CHEMIN, --floppy-b CHEMIN : image .img montée dans le lecteur avant
+    // l'amorçage — le pendant de « --load_drive_a » de PCem (pc.c:227-233), qui
+    // remplit discfns[] AVANT initpc pour que resetpchard la charge (pc.c:367). Le
+    // BIOS du 5150 amorce alors dessus au lieu de basculer sur la ROM BASIC.
+    if (arg is "--floppy-a" or "--floppy-b")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"{arg} attend le chemin d'une image de disquette.");
+            return 2;
+        }
+
+        if (!MountFloppy(arg == "--floppy-a" ? 0 : 1, args[++i]))
+            return 2;
+        continue;
     }
 
     // Contrôle de fréquence ABSOLUE. Deux positionnels comme --boot, et pour la
@@ -207,10 +237,38 @@ if (!host.Init())
 // signal que le cœur est fait pour émettre. L'étouffer ici le perdrait.
 return host.Run();
 
+// Monte une image dans le lecteur : résout le chemin comme resolve_roms_path résout
+// un répertoire (tel quel depuis le répertoire courant, sinon en remontant depuis
+// le binaire), puis la dépose dans discfns[] pour que resetpchard la charge. Une
+// image absente est refusée ICI, avec son chemin : disc_load, lui, se tairait et
+// laisserait le lecteur vide — le BIOS irait sur BASIC et rien ne dirait pourquoi.
+static bool MountFloppy(int drive, string path)
+{
+    var resolved = path;
+    if (!File.Exists(resolved))
+    {
+        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d is not null; d = d.Parent)
+        {
+            var candidate = Path.Combine(d.FullName, path);
+            if (File.Exists(candidate)) { resolved = candidate; break; }
+        }
+    }
+
+    if (!File.Exists(resolved))
+    {
+        Console.Error.WriteLine($"Image de disquette introuvable : « {path} ».");
+        return false;
+    }
+
+    iXtal26.Floppy.fdd_c.discfns[drive] = resolved;
+    return true;
+}
+
 static void PrintUsage()
 {
-    Console.WriteLine("Usage : iXtal26 [--rom-path CHEMIN] [--slices N] [--headless] [--verbose] [--turbo [N]]");
-    Console.WriteLine("        iXtal26 --boot [CHEMIN] [N]");
+    Console.WriteLine("Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]");
+    Console.WriteLine("                [--headless] [--verbose] [--turbo [N]]");
+    Console.WriteLine("        iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...");
     Console.WriteLine("        iXtal26 --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine();
     Console.WriteLine("Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.");
@@ -218,6 +276,10 @@ static void PrintUsage()
     Console.WriteLine("  --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms,");
     Console.WriteLine("                       cherché d'abord depuis le répertoire courant, puis en");
     Console.WriteLine("                       remontant depuis l'emplacement du binaire)");
+    Console.WriteLine("  --floppy-a IMG       image .img (brute, 160 à 360 Ko sur ce lecteur 5,25\" DD)");
+    Console.WriteLine("                       montée dans le lecteur A: avant l'amorçage ; le BIOS");
+    Console.WriteLine("                       démarre dessus. --floppy-b IMG : le lecteur B:.");
+    Console.WriteLine("                       Ouverte en lecture-écriture : DOS y écrit pour de vrai");
     Console.WriteLine("  --slices N           s'arrête au bout de N tranches de 10 ms émulées, et");
     Console.WriteLine("                       n'attend pas l'horloge murale entre elles : deux");
     Console.WriteLine("                       exécutions traversent alors les mêmes états");
@@ -234,10 +296,10 @@ static void PrintUsage()
     Console.WriteLine("                       n'attend déjà jamais l'horloge");
     Console.WriteLine("  --boot [CHEMIN] [N]  amorce et raconte en console ce que le POST a écrit");
     Console.WriteLine("                       en mémoire et à l'écran (défauts : roms, 20 tranches)");
-    Console.WriteLine("      --type TEXTE     après --boot : tape TEXTE dans la machine, puis");
-    Console.WriteLine("                       revide l'écran. C'est la seule vérification du");
-    Console.WriteLine("                       chemin clavier qui ne dépende pas d'une fenêtre");
-    Console.WriteLine("                       ayant le focus");
+    Console.WriteLine("      --type TEXTE     après --boot : tape TEXTE puis Entrée dans la machine,");
+    Console.WriteLine("                       et revide l'écran. Répétable, dans l'ordre. C'est la");
+    Console.WriteLine("                       seule vérification du chemin clavier qui ne dépende");
+    Console.WriteLine("                       pas d'une fenêtre ayant le focus");
     Console.WriteLine("  --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/pc.c  (initpc :178-300, resetpchard :353-400, runpc :470-553)
-// STATUS: partial — réduit à l'IBM PC 5150 : pas de disquette, ni son, ni réseau,
-//         ni disque dur, ni souris, ni joystick, ni NVR. Ce qui reste est la
-//         séquence d'amorçage et la tranche d'exécution.
+// STATUS: partial — réduit à l'IBM PC 5150 : disquette comprise (M6), mais ni son,
+//         ni réseau, ni disque dur, ni souris, ni joystick, ni NVR. Ce qui reste
+//         est la séquence d'amorçage et la tranche d'exécution.
 //
 // pc.c n'est pas une boucle : runpc() est une TRANCHE de 10 ms
 // (cpu_get_speed() / 100 cycles). Le cadençage sur horloge murale vit dans l'hôte
@@ -52,6 +52,7 @@ internal static partial class pc
     internal const int ROM_XI8088 = 26;  // hors cible, présent pour les gardes
     internal const int ROM_LEDGE_MODELM = 27;  // hors cible, présent pour les gardes
     internal const int ROM_ATARIPC3 = 28;  // hors cible, présent pour les gardes
+    internal const int ROM_PC5086 = 29;  // hors cible, présent pour les gardes (fdc.c:98, :628)
 
     // pcem: ibm.h:272 — le romset courant, défini par pc.c chez PCem.
     internal static int romset = ROM_IBMPC;
@@ -60,6 +61,15 @@ internal static partial class pc
     internal const int CPU_SPEED_8088 = 4772728;
 
     internal static int framecount, framecountx;
+
+    // pcem: pc.c:78 — témoin d'activité disque, lu par la barre d'état de l'hôte.
+    internal static int readflash;
+
+    // pcem: ibm.h:19-23 — les macros readflash_*.
+    internal const int READFLASH_FDC = 0;
+    internal const int READFLASH_HDC = 4;
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    internal static void readflash_set(int offset, int drive) { readflash |= 1 << ((offset) + (drive)); }
 
     internal static int cpu_get_speed() => CPU_SPEED_8088;
 
@@ -117,10 +127,20 @@ internal static partial class pc
 
         // omitted: codegen_init() — dynarec non porté.
         timer.timer_reset();
+        // omitted: sound_reset() (pc.c:277) — pas de son.
         io.io_init();
+        Floppy.fdc_c.fdc_init();
+        Disc.disc.disc_init();
+        // omitted: fdi_init() (pc.c:281) — chargeur FDI, registre des omissions.
+        Disc.disc_img.img_init();
 
-        // omitted: sound_reset() (pc.c:73), fdc_init/disc_init/fdi_init/img_init
-        //   (pc.c:75-78) — hors périmètre 5150 minimal.
+        // pcem: pc.c:776-777 — loadconfig() pose drive_a_type/drive_b_type AVANT
+        // initpc, depuis le fichier de configuration (défaut PCem : 7, 3,5" ED). Le
+        // 5150 a des lecteurs 5,25" double densité 360 Ko : type 1 (fdd.c:44-46).
+        // tools/oracle/harness.c pose les mêmes deux valeurs.
+        Floppy.fdd_c.fdd_set_type(0, 1);
+        Floppy.fdd_c.fdd_set_type(1, 1);
+
         //
         // setpitclock() N'EST PAS ici : pc.c:56-74 ne l'appelle pas. Il appartient
         // à pc_reset() (pc.c:184-187), donc APRÈS model_init() et ses pit_init().
@@ -144,6 +164,10 @@ internal static partial class pc
         // omitted: cpu_set() — cpu.c n'est pas porté ; la configuration 8088 est
         //   posée par model.cs. Voir TRANSCRIPTION.md.
         mem.mem_alloc();
+        Floppy.fdc_c.fdc_init();
+        Disc.disc.disc_reset();
+        Disc.disc.disc_load(0, Floppy.fdd_c.discfns[0]);
+        Disc.disc.disc_load(1, Floppy.fdd_c.discfns[1]);
 
         Models.model.model_init();
         Video.video.video_init();
@@ -155,8 +179,9 @@ internal static partial class pc
     internal static void pc_reset()
     {
         _808x.resetx86();
-        // omitted: dma_reset(), fdc_reset(), nvr_recalc() — hors périmètre 5150
-        //   minimal ; dma et pic sont réarmés par leurs propres *_init().
+        // omitted: dma_reset(), nvr_recalc() — hors périmètre 5150 minimal ; dma et
+        //   pic sont réarmés par leurs propres *_init().
+        Floppy.fdc_c.fdc_reset();
         Models.pic.pic_reset();
 
         // omitted: timer_reset() — pc.c:178 la porte EN COMMENTAIRE. Je l'avais

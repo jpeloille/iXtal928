@@ -266,6 +266,38 @@ void t1000_syskey(uint8_t andmask, uint8_t ormask, uint8_t xormask) {
         (void)andmask; (void)ormask; (void)xormask;
 }
 
+/* --- disquette (M6) --------------------------------------------------------
+ *
+ * L'oracle lie les VRAIS floppy/fdc.c, floppy/fdd.c, disc/disc.c, disc/disc_img.c
+ * et disc/disc_sector.c. Restent à fournir : deux globales de pc.c et cpu.c
+ * qu'ils lisent, le chargeur FDI que la table de disc.c:53 référence sans qu'on
+ * le lie (disc_fdi.c tire fdi2raw.c — Disc/disc.cs omet la même entrée, marquée),
+ * et get_extension, dont config.c n'est pas lié (il tire tout le fichier de
+ * configuration). */
+
+int readflash;      /* pc.c:78 — readflash_set() y pose le témoin d'activité disque */
+int isa_cycles = 1; /* cpu.c:17 — cpu_set() y copie atclk_div : 1 pour cpus_8088[0] (cpu_tables.c:33) */
+
+void fdi_init(void) { }
+void fdi_load(int drive, char *fn) { (void)drive; (void)fn; }
+void fdi_close(int drive) { (void)drive; }
+
+/* config.c:416-428, verbatim. PluginApi/config.cs le transcrit de même. */
+char *get_extension(char *s) {
+        int c = strlen(s) - 1;
+
+        if (c <= 0)
+                return s;
+
+        while (c && s[c] != '.')
+                c--;
+
+        if (!c)
+                return &s[strlen(s)];
+
+        return &s[c + 1];
+}
+
 /* --- configuration et chemins --------------------------------------------- */
 
 char logs_path[512] = "";

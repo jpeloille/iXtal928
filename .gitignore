@@ -13,10 +13,10 @@ roms/*
 !roms/roms.sha256
 
 # Images de disquette et de disque dur — logiciels sous copyright (PC DOS…), même
-# règle que roms/ : jamais commitées. Apparues à la main pour le palier XT ; quand
-# ce palier aura besoin d'un ancrage, il prendra la forme d'un manifeste de
-# checksums, comme roms/roms.sha256, et lui seul sera versionné.
+# règle que roms/ : jamais commitées. Seul le manifeste de checksums l'est, comme
+# roms/roms.sha256 : c'est lui qui ancre les mesures de VERIFICATION.md § M6.
 os/*
+!os/os.sha256
 
 # Vecteurs SingleStepTests — 726 Mo, récupérés par tools/fetch-sst.sh.
 # Seul vectors/sst/MANIFEST.sha256 est commité.

@@ -28,7 +28,7 @@ internal static partial class model
     internal static void common_init()
     {
         dma.dma_init();
-        // omitted: fdc_add() — contrôleur de disquettes, hors périmètre.
+        Floppy.fdc_c.fdc_add();
         // omitted: lpt_init() — port parallèle, hors périmètre.
         pic.pic_init();
         pit.pit_init();

@@ -46,6 +46,10 @@
 #include "dma.h"
 #include "pit.h"
 #include "model.h"
+#include "fdc.h"
+#include "fdd.h"
+#include "disc.h"
+#include "disc_img.h"
 
 void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 
@@ -413,8 +417,16 @@ int h_boot(const char *romspath) {
         if (!loadbios())
                 return 0;
 
-        timer_reset();       /* pc.c:72 */
-        io_init();           /* pc.c:74 */
+        timer_reset();       /* pc.c:276 */
+        io_init();           /* pc.c:278 */
+        fdc_init();          /* pc.c:279 */
+        disc_init();         /* pc.c:280 */
+        img_init();          /* pc.c:282 ; fdi_init (pc.c:281) est un stub vide, chargeur FDI non lié */
+
+        /* pc.c:776-777 — loadconfig() pose les types de lecteur AVANT initpc. Le
+         * 5150 a des 5,25" double densité : type 1 (fdd.c:44-46), comme pc.cs. */
+        fdd_set_type(0, 1);
+        fdd_set_type(1, 1);
 
         /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */
         timer_reset();
@@ -423,9 +435,14 @@ int h_boot(const char *romspath) {
         io_init();
         mem_alloc();
         h_pad_ram();
+        fdc_init();                  /* pc.c:365 */
+        disc_reset();                /* pc.c:366 */
+        disc_load(0, discfns[0]);    /* pc.c:367 */
+        disc_load(1, discfns[1]);    /* pc.c:368 */
 
         /* model_init() -> xt_init() */
         dma_init();
+        fdc_add();                   /* model.c:194 */
         pic_init();
         pit_init();
         mem_add_bios();
@@ -447,6 +464,7 @@ int h_boot(const char *romspath) {
            d'enregistrer, et la machine tourne sans PIT. setpitclock() appartient
            bien à pc_reset (pc.c:184-187), donc APRÈS pit_init. */
         resetx86();
+        fdc_reset();                 /* pc.c:180 */
         pic_reset();
         setpitclock(14318184.0f);
 
@@ -504,6 +522,46 @@ uint64_t h_ram_hash(void) {
                 hash *= 1099511628211ULL;
         }
         return hash;
+}
+
+/* --- disquette (M6) --------------------------------------------------------- */
+
+void h_set_discfn(int drive, const char *fn) {
+        if (drive < 0 || drive > 1)
+                return;
+        strncpy(discfns[drive], fn ? fn : "", sizeof(discfns[drive]) - 1);
+        discfns[drive][sizeof(discfns[drive]) - 1] = 0;
+}
+
+/* Globales non static de disc.c et fdc.c : on les lit, on n'instrumente rien.
+   Même ordre que Floppy.fdc_c.Probe() côté C#. */
+extern int discint, lastbyte, paramstogo, bit_rate;
+extern uint8_t disc_3f7;
+extern int motoron, disc_drivesel, curdrive, disc_notfound;
+extern int disc_track[2], drive_empty[2], disc_changed[2], writeprot[2];
+extern pc_timer_t disc_poll_timer;
+
+void h_disc_probe(uint64_t *out) {
+        out[0] = (uint64_t)(int64_t)discint;
+        out[1] = disc_3f7;
+        out[2] = (uint64_t)(int64_t)lastbyte;
+        out[3] = (uint64_t)(int64_t)paramstogo;
+        out[4] = (uint64_t)(int64_t)bit_rate;
+        out[5] = (uint64_t)(int64_t)motoron;
+        out[6] = (uint64_t)(int64_t)disc_drivesel;
+        out[7] = (uint64_t)(int64_t)curdrive;
+        out[8] = (uint64_t)(int64_t)disc_track[0];
+        out[9] = (uint64_t)(int64_t)disc_track[1];
+        out[10] = (uint64_t)(int64_t)drive_empty[0];
+        out[11] = (uint64_t)(int64_t)drive_empty[1];
+        out[12] = (uint64_t)(int64_t)disc_changed[0];
+        out[13] = (uint64_t)(int64_t)disc_changed[1];
+        out[14] = (uint64_t)(int64_t)writeprot[0];
+        out[15] = (uint64_t)(int64_t)writeprot[1];
+        out[16] = (uint64_t)(int64_t)disc_notfound;
+        out[17] = (uint64_t)(int64_t)readflash;
+        out[18] = (uint64_t)(int64_t)disc_poll_timer.enabled;
+        out[19] = timer_get_remaining_u64(&disc_poll_timer);
 }
 
 /* --- sonde PIT : diff de boot, phase 2 ------------------------------------

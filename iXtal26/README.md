@@ -1,10 +1,12 @@
 # iXtal26
 
-Émulateur d'**IBM PC 5150** (8088 à 4,77 MHz + CGA), transcrit de PCem v18 en C#.
+Émulateur d'**IBM PC 5150** (8088 à 4,77 MHz, CGA, contrôleur de disquettes), transcrit
+de PCem v18 en C#.
 
 Le cœur est vérifié bit à bit contre le C d'origine, gardé dans `pcem-dev/` : les deux
-exécutent le POST du 5150 puis la ROM BASIC sur **24 944 866 instructions identiques**,
-registres, segments, drapeaux et modèle de temps compris. Voir `../VERIFICATION.md`.
+exécutent le POST du 5150 puis la ROM BASIC sur **25 457 269 instructions identiques**,
+et l'amorçage de PC DOS 2.00 depuis une disquette sur **26 750 702**, registres, segments,
+drapeaux et modèle de temps compris. Voir `../VERIFICATION.md`.
 
 ## Lancer
 
@@ -12,15 +14,24 @@ registres, segments, drapeaux et modèle de temps compris. Voir `../VERIFICATION
 dotnet run                       # fenêtre, ROMs dans « roms », tourne jusqu'à fermeture
 ```
 
-Faute d'unité amorçable, le BIOS bascule sur l'INT 18h et la machine s'arrête sur
-l'invite de l'IBM Cassette BASIC C1.10. Le clavier est branché ; la croix ferme la
-fenêtre (Échap appartient à la machine émulée).
+Sans disquette, le BIOS bascule sur l'INT 18h et la machine s'arrête sur l'invite de
+l'IBM Cassette BASIC C1.10. Le clavier est branché ; la croix ferme la fenêtre (Échap
+appartient à la machine émulée).
+
+```bash
+dotnet run -- --floppy-a os/pcdos20/pcdos20b.img   # amorce sur l'image du lecteur A:
+```
+
+`--floppy-a IMG` (et `--floppy-b`) monte une image brute `.img` — 160, 180, 320 ou 360 Ko
+sur les lecteurs 5,25" double densité du 5150 — **en lecture-écriture** : ce que DOS y
+écrit est écrit pour de vrai. Une image absente est refusée avec son chemin.
 
 Le titre de la fenêtre affiche la vitesse en pourcentage du temps réel, sur une
 fenêtre glissante — 100 % signifie que les 4,77 MHz sont tenus.
 
-Le POST dure **57 s**, dont 46 s de test mémoire : c'est la durée authentique du 5150
-à 640 Ko (VERIFICATION.md § M4.6). Pour ne pas la regarder passer :
+L'amorçage dure **51,7 s** jusqu'à l'invite BASIC, dont 46 s de test mémoire : c'est la
+durée authentique du 5150 à 640 Ko (VERIFICATION.md § M4.6 et § M6). Pour ne pas la
+regarder passer :
 
 ```bash
 dotnet run -- --turbo            # amorce à ~x14, puis rend la machine au temps réel
@@ -36,13 +47,13 @@ Lancements non interactifs :
 dotnet run -- --slices 6000            # 60 s émulées, sans cadencement, puis sortie
 dotnet run -- --headless --slices 6000 # idem, sans initialiser la moindre vidéo SDL
 dotnet run -- --boot roms 6000 # amorce et vide l'écran texte CGA sur la console
+dotnet run -- --boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img --type "" --type "" --type DIR
+                               # amorce DOS, répond aux invites de date et d'heure, tape DIR
 ```
 
 `--headless` n'est pas un raccourci de test : c'est la ligne architecturale qui garantit
 que le cœur ne dépend pas du front-end. `--slices` est l'interrupteur de déterminisme —
 sans cadencement horloge murale, deux exécutions donnent le même nombre de cycles.
-
-`dotnet run -- --help` donne la table complète.
 
 ## Fichiers
 
@@ -53,8 +64,8 @@ sans cadencement horloge murale, deux exécutions donnent le même nombre de cyc
 | `Host/SdlKeyboard.cs` | Scancodes SDL → PC/XT jeu 1, vers `keyboard.rawinputkey`       |
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
-Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `pc.cs`, `io.cs`,
-`timer.cs`, `ppi.cs`) est du code **transcrit** : identifiants et commentaires anglais de
+Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`,
+`pc.cs`, `io.cs`, `timer.cs`, `ppi.cs`) est du code **transcrit** : identifiants et commentaires anglais de
 PCem conservés, une ligne `// pcem:` par fonction. Les règles sont dans
 `../TRANSCRIPTION.md`, la correspondance fichier à fichier dans `../oracle.tsv`.
 
@@ -64,6 +75,12 @@ Matériel IBM sous copyright : non distribué, `.gitignore`d. Attendu dans `roms
 `ibmpc/pc102782.bin` (BIOS 8 Ko) et, pour la ROM BASIC, `ibmpc/basicc11.f6/.f8/.fa/.fc`.
 `mda.rom` fournit la police 8×8 du CGA, que `loadbios` charge inconditionnellement.
 Les empreintes attendues sont dans `../roms/roms.sha256`.
+
+## Images de disquette
+
+Logiciels sous copyright (PC DOS…) : non distribués, `.gitignore`d comme les ROMs. Seul
+`../os/os.sha256` est versionné ; il ancre les mesures de VERIFICATION.md § M6, faites
+sur `os/pcdos20/pcdos20b.img` (PC DOS 2.00, disquette système, 180 Ko simple face).
 
 ## SDL3 : d'où viennent les binaires
 

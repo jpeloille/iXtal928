@@ -108,4 +108,9 @@ public static class Oracle
     [DllImport(Lib)]
     internal static extern void h_pit_probe(int t, [Out] ulong[] o);
 
+    // M6 — disquette : image du lecteur A/B (à poser AVANT h_boot), et sonde des
+    // globales de disc.c/fdc.c, pendant de Floppy.fdc_c.Probe().
+    [DllImport(Lib)] public static extern void h_set_discfn(int drive, [MarshalAs(UnmanagedType.LPStr)] string fn);
+    [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
+
 }
