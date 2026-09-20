@@ -5,6 +5,20 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: transcribed — la machine à états des formats « par secteurs » (.IMG) :
 //         recherche, lecture, écriture, lecture d'adresse, formatage.
+//
+// noms: ce que les identifiants de disc_sector.c désignent — R1(e).
+//   c / h / r / n   l'en-tête CHRN d'un secteur, vocabulaire du 765 : cylindre, tête,
+//                   numéro d'enregistrement, code de taille (128 << n)
+//   cur_sector      où la tête se trouve dans la piste, en secteurs
+//   cur_byte        où elle se trouve dans le secteur, en octets
+//   index_count     tours d'index écoulés ; deux tours sans trouver = échec
+//   disc_intersector_delay  40 tics d'horloge-octet entre deux secteurs (:183)
+//   disc_sector_n   code de taille demandé par la commande en cours
+//   disc_sector_status  la cause d'échec à rendre au contrôleur (FDC_STATUS_*)
+//   STATE_*         les treize états : chercher, lire, écrire, adresse, formater
+//   disc_sector_writeback[]  rappel vers img_writeback : écrit la piste dans le fichier
+//   Le sens des appels s'inverse ici : ce fichier RAPPELLE fdc_data, fdc_notfound,
+//   fdc_finishread et fdc_writeprotect — le média pousse les octets, le contrôleur subit.
 
 // CS8602 : `s.data[cur_byte]` et `disc_sector_writeback[drive](...)` déréférencent
 // des références que l'analyse de nullabilité croit nulles. Elles ne le sont que

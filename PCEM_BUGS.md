@@ -313,13 +313,26 @@ n'est pas exercé par l'amorçage de PC DOS 2.00 (VERIFICATION.md § M6), donc r
 mis en évidence à l'exécution.
 *Reproduit* : `Floppy/fdc.cs`, test conservé tel quel.
 
-### PB-20 — `fdc.abort` est écrit une fois et jamais lu
+### PB-20 — Sept champs et globales morts dans la couche disquette
 
-`fdc.c:97`, dans `fdc_reset`. Aucune lecture dans tout l'arbre vendoré : champ mort,
-probablement le vestige d'un chemin d'annulation de commande jamais écrit.
+Aucun n'est lu nulle part dans l'arbre vendoré :
 
-*Effet* : aucun.
-*Reproduit* : `Floppy/fdc.cs`, champ et affectation conservés.
+| Symbole | Défini | Remarque |
+|---|---|---|
+| `fdc.abort` | `fdc.c:97` | écrit une fois dans `fdc_reset` |
+| `discmodified[2]` | `fdc.c:87` | jamais écrit non plus |
+| `discrate[2]` | `fdc.c:88` | idem |
+| `motorspin` | `disc.c:30` | — |
+| `fdc_ready` | `disc.c:25` | son `extern` est **commenté** (`disc.h:48`) |
+| `fdc_indexcount` | `disc.c:33` | `extern` commenté aussi (`disc.h:49`), initialisé à 52 |
+| `defaultwriteprot` | `disc.c:23` | — |
+| `oldtrack[2]` | `disc.c:205` | seul usage : le bloc `ddnoise_seek` commenté, `:210-213` |
+
+*Effet* : aucun. Deux `extern` commentés et un usage commenté disent que ces symboles ont
+eu des lecteurs, retirés sans que les définitions suivent.
+*Reproduit* : `Floppy/fdc.cs` et `Disc/disc.cs`, définitions conservées — le code mort
+*commenté* de PCem n'est pas reproduit (R1), mais une variable morte n'est pas un
+commentaire.
 
 ---
 

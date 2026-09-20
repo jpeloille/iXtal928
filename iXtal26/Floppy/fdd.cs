@@ -5,6 +5,19 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: transcribed — le lecteur : type, piste courante, densel, tr/min, pas
 //         double. Conteneur fdd_c : le tableau fdd[2] de fdd.c:8-19 garde son nom.
+//
+// noms: ce que les identifiants de fdd.c désignent — R1(e).
+//   fdd[]             l'état MÉCANIQUE des deux lecteurs ; fdc.c a son propre état
+//   type              index dans drive_types[] ; le 5150 a le type 1 (5,25" DD)
+//   track             piste où la tête se trouve vraiment ≠ fdc.track[], qui est une
+//                     croyance du contrôleur et peut en différer
+//   densel            DENSity SELect, la broche de densité reçue du contrôleur
+//   drate/kbps/fdc_kbps  déclarés par fdd.c, jamais lus nulle part
+//   max_track         dernière piste atteignable ; 0 = lecteur absent
+//   flags             FLAG_* : vitesses, format, trous supportés, double pas
+//   FLAG_HOLE0/1/2    trou du média : double, haute, extra densité
+//   SEEK_RECALIBRATE  -999 : un pas assez grand pour être borné à la piste 0
+//   fdd_swap          échange A:/B:, appliqué au lecteur et non au contrôleur
 
 // CS0162 : fdd_getrpm (fdd.c:117-149) porte un switch après un if/else dont toutes
 // les branches retournent. Code mort en C, erreur en C# ; reproduit sous ce pragma

@@ -6,6 +6,43 @@
 // STATUS: transcribed — le NEC 765 / 82077 : ports 0x3f0-0x3f7, commandes, FIFO,
 //         DMA canal 2, IRQ 6, chien de garde PCjr. Conteneur fdc_c : l'instance
 //         `static FDC fdc` de fdc.c:80 garde son nom.
+//
+// noms: ce que les identifiants de fdc.c désignent — R1(e). Abréviations de la fiche
+//   du µPD765 / 82077 sauf mention contraire.
+//   stat            Main Status Register, port 0x3f4 — bits MSR_* plus bas
+//   dat             registre de données, port 0x3f5
+//   dor             Digital Output Register, port 0x3f2 : moteur, sélection, reset
+//   st0             ST0 mémorisé, rendu plus tard par Sense interrupt status
+//   res[]           octets de la phase résultat, lus depuis la FIN : res[10-paramstogo]
+//   params[]        octets reçus en phase commande
+//   pnum / ptot     paramètres reçus / attendus
+//   paramstogo      octets de résultat restant à rendre
+//   command         opcode courant ; 0x06/0x26/0x46… ne diffèrent que par MT, MFM, SK
+//   discint         état d'exécution dispatché par fdc_callback ; sentinelles EXEC_*
+//   fdc_reset_stat  les quatre Sense interrupt status qui suivent un reset
+//   tc              Terminal Count : le signal du DMA qui clôt le transfert
+//   eot[]           End Of Track : dernier secteur de la piste, paramètre de commande
+//   track[]         piste où le contrôleur CROIT être ; la vraie est dans fdd.c
+//   rw_track        piste demandée par la commande de lecture ou d'écriture
+//   sector_size     code N : la taille vaut 128 << N octets
+//   specify[]       les deux octets de Specify : temps de pas, chargement, mode DMA
+//   config / pretrk octets de Configure ; pretrk = piste de début de précompensation
+//   perp            commande 0x12, mode perpendiculaire (disquettes ED)
+//   lock            commande 0x94/0x14 : protège FIFO et seuil d'un reset logiciel
+//   rwc[]           forçage de débit par lecteur (fiche Winbond W83877F, :251-259)
+//   drvrate[]       débit propre au lecteur, distinct de fdc.rate
+//   densel*         DENSity SELect : la broche de densité envoyée au lecteur
+//   fifo / tfifo    FIFO activé / son seuil, tous deux posés par Configure
+//   inread          une lecture est en cours
+//   pos             index dans format_dat ; remis à zéro au début de chaque commande
+//   is_nsc          FDC porté par un Super I/O National Semiconductor ; pas sur 5150
+//   enh_mode        mode étendu du TDR, port 0x3f3 ; pas sur 5150
+//   pcjr / ps1      variantes de machine ; le PCjr a le chien de garde de :150-163
+//   disc_3f7        dernière valeur écrite au CCR, port 0x3f7
+//   lastbyte        le dernier octet lu a vidé la phase résultat
+//   written / abort / discmodified[] / discrate[]   MORTS — PB-19, PB-20
+//   Les étiquettes de la sonde (tools/iXtal26.Diff/BootDiff.cs:264) sont des CHAÎNES et
+//   gardent les noms PCem : elles désignent les globales du C, pas les champs d'ici.
 
 // CS8600/CS8602 : `FDC fdc = (FDC)p;` dans fdc_watchdog_poll — le `void *p` des
 // timers est déclaré `object?` ; ici il vaut toujours &fdc (fdc.c:1265). Même cas
@@ -171,7 +208,8 @@ internal static partial class fdc_c
         fdc.st0 = 0;
         fdc.@lock = 0;
         fdc.head = 0;
-        // pcem bug, reproduced: PB-20 — abort est écrit ici et lu nulle part.
+        // pcem bug, reproduced: PB-20 — abort est écrit ici et lu nulle part ; même
+        // cas que discmodified[] et discrate[] plus bas.
         fdc.abort = 0;
         if (AT == 0 && romset != ROM_XI8088 && romset != ROM_PC5086)
         {

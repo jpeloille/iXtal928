@@ -5,6 +5,16 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: transcribed — le chargeur d'images brutes (.IMG/.IMA/.360/.XDF) :
 //         géométrie par BPB ou par taille, cartes XDF, lecture/écriture de piste.
+//
+// noms: ce que les identifiants de disc_img.c désignent — R1(e).
+//   img[]           l'état des deux images ouvertes
+//   track_data[côté]  la piste courante décodée en mémoire, 20 Ko par face
+//   sectors/tracks/sides  la géométrie, DÉDUITE de la taille du fichier (img_load)
+//   xdf_*           tables du format XDF d'IBM : pistes à secteurs de tailles mêlées
+//   bpb_disable     ignorer le BIOS Parameter Block et ne croire que la taille
+//   hole            trou du média : 0 = double, 1 = haute, 2 = extra densité
+//   bitcell_period_300rpm  durée d'une cellule binaire ramenée à 300 tr/min
+//   fopen/fread/fwrite  les trois de la libc, réécrits sur FileStream
 
 // CS8602/CS8604 : `img[drive].f` est testé contre null en tête de chaque fonction,
 // mais l'analyse de nullabilité ne suit pas un champ atteint à travers un index de

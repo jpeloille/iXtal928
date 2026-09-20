@@ -6,6 +6,23 @@
 // STATUS: partial — le répartiteur : chargeurs par extension, DRIVE drives[2],
 //         disc_poll et ses périodes, sélection de lecteur et moteur. Omis : le
 //         chargeur FDI (registre des omissions, TRANSCRIPTION.md).
+//
+// noms: ce que les identifiants de disc.c désignent — R1(e).
+//   drives[]        la table de fonctions du format chargé, par lecteur
+//   loaders[]       chargeurs par extension ; sentinelle {0,0,0} en fin (disc.c:53)
+//   driveloaders[]  quel chargeur a ouvert quel lecteur, pour savoir qui le fermera
+//   curdrive        lecteur courant vu du média, posé par disc_set_drivesel
+//   disc_drivesel   le même choix vu du contrôleur (fdc.c:571) ; les deux coexistent
+//   disc_period     période de l'horloge-octet en µs ; c'est ELLE qui fait tourner
+//                   la machine à états, disc_poll n'étant rien d'autre
+//   disc_notfound   compte à rebours : à zéro, le secteur est déclaré introuvable
+//   motoron         moteur en rotation ; conditionne l'armement de disc_poll
+//   drive_empty[]   aucun média chargé ; se lit comme un changement de disquette
+//   disc_changed[]  drapeau du port 0x3f7, effacé par un seek
+//   writeprot[]     protection du média ; fwriteprot[] = celle forcée par l'hôte
+//   SECTOR_FIRST/NEXT  -2 / -1 : lire le premier secteur rencontré, puis le suivant
+//   motorspin / fdc_ready / fdc_indexcount / defaultwriteprot / oldtrack[]   MORTS,
+//                   PB-20 ; fdc_ready et fdc_indexcount ont même leur extern commenté
 
 // CS8602 : `loaders[c].load(drive, fn)` et `.close(drive)` sont des delegates
 // nullables parce que la sentinelle {0, 0, 0} termine la table (disc.c:53) ; le
