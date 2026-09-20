@@ -1595,3 +1595,37 @@ secteur ». Il échantillonne depuis l'outillage après chaque `Step()`, comme `
 aucun point d'accroche dans le cœur, aucune ligne vivante ajoutée, rien qui tourne pendant
 les passes de comparaison. L'oracle n'y participe pas — son instance `fdc` est `static`
 dans `fdc.c`, invisible depuis `harness.c`.
+
+### L'angle mort de la batterie : elle ne lit que
+
+Les huit épreuves ci-dessus **n'écrivent jamais**. `boot-diff` et `disc-probe` amorcent et
+lisent ; le renommage, lui, a touché `fdc_writeprotect`, les blocs de résultat de WRITE et
+de FORMAT, `byte_written`, et les usages de `s.cyl` / `s.sector_id` dans `STATE_WRITE_*` et
+`STATE_FORMAT`. Une permutation `RES_ST1`/`RES_ST2` y aurait compilé proprement et serait
+restée **invisible sur un amorçage en lecture seule**.
+
+D'où la reprise de la procédure de § M7.1, cette fois sans fenêtre : image vierge de
+368 640 octets en B:, PC DOS 2.00 en A:, `FORMAT B:` tapé par `--boot … --type`. L'image
+produite est une disquette DOS valide, aux mêmes marqueurs qu'à § M7.1 :
+
+| Offset | Octets | Sens |
+|---|---|---|
+| `0x000` | `eb 2c 90` + `IBM  2.0` | saut court et nom OEM |
+| `0x013` | `d0 02` | 720 secteurs = 2 × 40 × 9 |
+| `0x015` | `fd` | descripteur de média 360 Ko |
+| `0x1FE` | `55 aa` | signature |
+| `0x200` | `fd ff ff` | début de FAT |
+
+Histogramme : **366 096 octets de `0xF6`**, le remplissage de FORMAT.
+
+**Deux caractères manquaient pour y arriver.** La table de frappe du banc (`BootTest.cs`)
+ne portait ni `:` ni `/` : `FORMAT B:` arrivait en `FORMAT B` et DOS 2.00 répondait
+`Invalid parameter`. Aucune commande DOS ne pouvait désigner un lecteur ni porter un
+commutateur — le chemin d'écriture était hors d'atteinte sans fenêtre, et personne ne
+l'avait remarqué parce que § M7.1 l'avait exercé **à la main**. Deux `case` dans
+`ScancodeFor` et la vérification devient rejouable.
+
+Ce que cela prouve reste ce que disait § M7.1 : **une preuve d'usage, pas une preuve de
+fidélité.** `harness.h` n'expose toujours aucune injection clavier, donc l'oracle ne peut
+pas taper `FORMAT B:`. Le chemin d'écriture produit une disquette que DOS relit ; qu'il
+fasse les mêmes cycles que PCem reste non établi.
