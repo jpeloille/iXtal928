@@ -146,6 +146,35 @@ internal static partial class paths
             return find_upwards(path) ?? path;
     }
 
+    // DEVIATION: même politique que resolve_roms_path, mais pour un FICHIER. Sans
+    //   équivalent PCem, qui prend les chemins de son .cfg tels quels parce que son
+    //   répertoire courant est toujours celui de l'installation.
+    //
+    //   Le besoin est le même et le symptôme était le même : `disc_a = os/…/x.img`
+    //   dans un fichier de configuration marchait depuis la racine du dépôt et
+    //   échouait EN SILENCE sous Rider, qui lance depuis bin/Debug/net10.0 — disc_load
+    //   ne dit rien quand il ne trouve pas son fichier (disc.cs:112-113), le lecteur
+    //   restait vide et la machine partait sur BASIC. L'échec dépendait d'où on
+    //   lançait, pas de ce qu'on lançait. Rend null si le fichier reste introuvable,
+    //   pour que l'appelant puisse le DIRE au lieu de monter un lecteur vide.
+    internal static string? resolve_file_path(string path)
+    {
+            if (path.Length == 0)
+                    return null;
+
+            if (File.Exists(path))
+                    return path;
+
+            for (DirectoryInfo? d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
+            {
+                    string candidate = Path.Combine(d.FullName, path);
+                    if (File.Exists(candidate))
+                            return candidate;
+            }
+
+            return null;
+    }
+
     // Tronc commun de resolve_roms_path et paths_init : le premier répertoire qui
     // contienne `relative`, en remontant depuis l'emplacement du binaire. Rend null
     // si la racine du système est atteinte sans l'avoir trouvé.

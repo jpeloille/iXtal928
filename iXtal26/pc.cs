@@ -166,17 +166,46 @@ internal static partial class pc
         // pc.c:227-240) au lieu de la lire puis de l'écraser. La nuance compte quand le
         // chemin du fichier est mauvais et celui de la ligne de commande bon.
         if (Floppy.fdd_c.discfns[0].Length == 0)
-                Floppy.fdd_c.discfns[0] = PluginApi.config.config_get_string(
-                    PluginApi.config.CFG_MACHINE, null, "disc_a", "");
+                Floppy.fdd_c.discfns[0] = config_get_disc("disc_a");
         if (Floppy.fdd_c.discfns[1].Length == 0)
-                Floppy.fdd_c.discfns[1] = PluginApi.config.config_get_string(
-                    PluginApi.config.CFG_MACHINE, null, "disc_b", "");
+                Floppy.fdd_c.discfns[1] = config_get_disc("disc_b");
 
         // pcem: pc.c:778
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
 
         return true;
+    }
+
+    /// <summary>
+    /// pcem: pc.c:673-687, avec la résolution de chemin que PCem n'a pas besoin de
+    /// faire — son répertoire courant est toujours celui de l'installation.
+    ///
+    /// Ici un chemin relatif doit survivre au répertoire de travail : Rider lance
+    /// depuis bin/Debug/net10.0, où « os/… » n'existe pas. Et disc_load SE TAIT quand
+    /// il ne trouve pas le fichier (disc.cs:112-113) : sans ce contrôle, le lecteur
+    /// restait vide, la machine partait sur BASIC, et rien ne disait pourquoi.
+    /// C'est la même politique que --floppy-a, qui refuse une image absente en citant
+    /// son chemin plutôt que de laisser le silence décider.
+    /// </summary>
+    private static string config_get_disc(string key)
+    {
+        string fn = PluginApi.config.config_get_string(
+            PluginApi.config.CFG_MACHINE, null, key, "");
+
+        if (fn.Length == 0)
+                return "";
+
+        string? resolved = PluginApi.paths.resolve_file_path(fn);
+
+        if (resolved == null)
+        {
+                Console.Error.WriteLine(
+                    $"{key} = « {fn} » : image de disquette introuvable, lecteur laissé vide.");
+                return "";
+        }
+
+        return resolved;
     }
 
     // pcem: pc.c:776-777, avec la validation que PCem n'a pas : fdd_set_type accepte

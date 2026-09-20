@@ -83,12 +83,13 @@ for (var i = 0; i < args.Length; i++)
                 // --boot rend avant d'y arriver. Les deux positionnels de --boot lui
                 // sont propres, ses options aussi.
                 case "--config":
-                    if (!File.Exists(val))
+                    var cfgPath = paths.resolve_file_path(val);
+                    if (cfgPath is null)
                     {
                         Console.Error.WriteLine($"Fichier de configuration introuvable : « {val} ».");
                         return 2;
                     }
-                    if (!pc.loadconfig(val)) return 2;
+                    if (!pc.loadconfig(cfgPath)) return 2;
                     break;
                 default:
                     Console.Error.WriteLine($"Option inconnue après --boot : {opt}");
@@ -155,10 +156,14 @@ for (var i = 0; i < args.Length; i++)
         // Refusé et non ignoré : un chemin mal tapé donnerait tous les défauts en
         // silence, donc une machine autre que celle demandée. Même politique que
         // MountFloppy et que le contrôle de répertoire de ROM d'initpc.
-        configPath = args[++i];
-        if (!File.Exists(configPath))
+        // Résolu comme --rom-path et --floppy-a : tel quel depuis le répertoire
+        // courant, sinon en remontant depuis le binaire. Sans cela « --config
+        // ixtal26.cfg » marcherait depuis la racine du dépôt et pas depuis Rider,
+        // qui lance depuis bin/Debug/net10.0 — l'échec dépendrait d'où on lance.
+        configPath = paths.resolve_file_path(args[++i]);
+        if (configPath is null)
         {
-            Console.Error.WriteLine($"Fichier de configuration introuvable : « {configPath} ».");
+            Console.Error.WriteLine($"Fichier de configuration introuvable : « {args[i]} ».");
             return 2;
         }
 
@@ -322,17 +327,13 @@ return host.Run();
 // laisserait le lecteur vide — le BIOS irait sur BASIC et rien ne dirait pourquoi.
 static bool MountFloppy(int drive, string path)
 {
-    var resolved = path;
-    if (!File.Exists(resolved))
-    {
-        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d is not null; d = d.Parent)
-        {
-            var candidate = Path.Combine(d.FullName, path);
-            if (File.Exists(candidate)) { resolved = candidate; break; }
-        }
-    }
+    // La remontée vit dans paths.resolve_file_path, pour qu'il n'existe qu'UNE
+    // politique de résolution de fichier : la clé disc_a d'un fichier de configuration
+    // doit se comporter exactement comme --floppy-a, sans quoi la même image marche
+    // par un chemin et pas par l'autre.
+    var resolved = paths.resolve_file_path(path);
 
-    if (!File.Exists(resolved))
+    if (resolved is null)
     {
         Console.Error.WriteLine($"Image de disquette introuvable : « {path} ».");
         return false;
