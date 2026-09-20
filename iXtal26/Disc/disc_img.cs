@@ -15,6 +15,8 @@
 //   hole            trou du média : 0 = double, 1 = haute, 2 = extra densité
 //   bitcell_period_300rpm  durée d'une cellule binaire ramenée à 300 tr/min
 //   fopen/fread/fwrite  les trois de la libc, réécrits sur FileStream
+//   TYPES : img_t = une image ouverte — le fichier, sa géométrie, la piste décodée ;
+//   disc_img = le conteneur du fichier.
 
 // CS8602/CS8604 : `img[drive].f` est testé contre null en tête de chaque fonction,
 // mais l'analyse de nullabilité ne suit pas un champ atteint à travers un index de

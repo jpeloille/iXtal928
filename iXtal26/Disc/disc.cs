@@ -13,7 +13,7 @@
 //   loaders[]       chargeurs par extension ; sentinelle {0,0,0} en fin (disc.c:53)
 //   driveloaders[]  quel chargeur a ouvert quel lecteur, pour savoir qui le fermera
 //   curdrive        lecteur courant vu du média, posé par disc_set_drivesel
-//   disc_drivesel   le même choix vu du contrôleur (fdc.c:571) ; les deux coexistent
+//   disc_drivesel   le même choix vu du contrôleur (fdc.c:504) ; les deux coexistent
 //   disc_period     période de l'horloge-octet en µs ; c'est ELLE qui fait tourner
 //                   la machine à états, disc_poll n'étant rien d'autre
 //   disc_notfound   compte à rebours : à zéro, le secteur est déclaré introuvable
@@ -24,6 +24,8 @@
 //   SECTOR_FIRST/NEXT  -2 / -1 : lire le premier secteur rencontré, puis le suivant
 //   motorspin / fdc_ready / fdc_indexcount / defaultwriteprot / oldtrack[]   MORTS,
 //                   PB-20 ; fdc_ready et fdc_indexcount ont même leur extern commenté
+//   TYPES : DRIVE = la table de fonctions d'un format monté ; loader_t = une entrée de
+//   loaders[] ; disc = le conteneur du fichier, sans suffixe : aucune collision ici.
 
 // CS8602 : `loaders[c].load(drive, fn)` et `.close(drive)` sont des delegates
 // nullables parce que la sentinelle {0, 0, 0} termine la table (disc.c:53) ; le

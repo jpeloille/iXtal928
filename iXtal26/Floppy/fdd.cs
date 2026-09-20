@@ -18,6 +18,9 @@
 //   FLAG_HOLE0/1/2    trou du média : double, haute, extra densité
 //   SEEK_RECALIBRATE  -999 : un pas assez grand pour être borné à la piste 0
 //   fdd_swap          échange A:/B:, appliqué au lecteur et non au contrôleur
+//   TYPES : fdd_t = la struct anonyme de fdd.c:8-19 (classe, son tableau est muté) ;
+//   drive_type_t = une entrée de drive_types[] (struct, copiée par valeur) ; fdd_c =
+//   le conteneur du fichier, suffixe _c parce que `fdd` est pris par le tableau.
 
 // CS0162 : fdd_getrpm (fdd.c:117-149) porte un switch après un if/else dont toutes
 // les branches retournent. Code mort en C, erreur en C# ; reproduit sous ce pragma

@@ -156,7 +156,7 @@ internal static partial class pc
         }
 
         // pcem: pc.c:776-777. Le type gouverne max_track et les drapeaux de densité
-        // (fdd.cs:72-96) : un type hors table indexerait hors bornes à la première
+        // (fdd.cs:88-112) : un type hors table indexerait hors bornes à la première
         // recherche de piste, donc on borne plutôt que de laisser lever plus tard.
         cfg_drive_type[0] = config_get_drive_type("drive_a_type", 0);
         cfg_drive_type[1] = config_get_drive_type("drive_b_type", 1);
@@ -183,7 +183,7 @@ internal static partial class pc
     ///
     /// Ici un chemin relatif doit survivre au répertoire de travail : Rider lance
     /// depuis bin/Debug/net10.0, où « os/… » n'existe pas. Et disc_load SE TAIT quand
-    /// il ne trouve pas le fichier (disc.cs:112-113) : sans ce contrôle, le lecteur
+    /// il ne trouve pas le fichier (disc.cs:132-133) : sans ce contrôle, le lecteur
     /// restait vide, la machine partait sur BASIC, et rien ne disait pourquoi.
     /// C'est la même politique que --floppy-a, qui refuse une image absente en citant
     /// son chemin plutôt que de laisser le silence décider.
@@ -218,7 +218,7 @@ internal static partial class pc
         if (t < 0 || t > 7)
         {
                 Console.Error.WriteLine(
-                    $"{key} = {t} : hors de la table des lecteurs (0 à 7, fdd.cs:72-96). " +
+                    $"{key} = {t} : hors de la table des lecteurs (0 à 7, fdd.cs:88-112). " +
                     $"On garde {cfg_drive_type[drive]}.");
                 return cfg_drive_type[drive];
         }
@@ -335,8 +335,8 @@ internal static partial class pc
     /// <summary>
     /// pcem: pc.c:576-592 (réduit). Fermeture du processus. Les deux disc_close sont la
     /// SEULE chose qui vide les tampons d'écriture sur les images : img_writeback
-    /// (disc_img.cs:539) écrit dans le FileStream sans Flush(), et c'est le Close() de
-    /// img_close (disc_img.cs:418) qui les pousse. Sans cet appel, un DOS qui vient
+    /// (disc_img.cs:551) écrit dans le FileStream sans Flush(), et c'est le Close() de
+    /// img_close (disc_img.cs:430) qui les pousse. Sans cet appel, un DOS qui vient
     /// d'écrire sur la disquette perd ses écritures à la fermeture de la fenêtre.
     /// </summary>
     internal static void closepc()

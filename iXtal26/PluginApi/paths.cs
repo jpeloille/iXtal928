@@ -153,7 +153,7 @@ internal static partial class paths
     //   Le besoin est le même et le symptôme était le même : `disc_a = os/…/x.img`
     //   dans un fichier de configuration marchait depuis la racine du dépôt et
     //   échouait EN SILENCE sous Rider, qui lance depuis bin/Debug/net10.0 — disc_load
-    //   ne dit rien quand il ne trouve pas son fichier (disc.cs:112-113), le lecteur
+    //   ne dit rien quand il ne trouve pas son fichier (disc.cs:132-133), le lecteur
     //   restait vide et la machine partait sur BASIC. L'échec dépendait d'où on
     //   lançait, pas de ce qu'on lançait. Rend null si le fichier reste introuvable,
     //   pour que l'appelant puisse le DIRE au lieu de monter un lecteur vide.

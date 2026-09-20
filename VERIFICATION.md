@@ -1158,11 +1158,11 @@ seul pour éjecter, `resetpchard` pour le reset matériel).
 
 **Le cœur n'a rien eu à apprendre.** `resetpchard()` appelle déjà `disc_load(0,
 discfns[0])` (`pc.cs:169`, fidèle à `pc.c:367`) et `disc_load` pose lui-même
-`discfns[drive] = fn` (`disc.cs:127`). Le menu n'a donc qu'à insérer ; la disquette en
+`discfns[drive] = fn` (`disc.cs:147`). Le menu n'a donc qu'à insérer ; la disquette en
 place au moment du reset est celle sur laquelle le BIOS amorce, sans une ligne de colle.
 Aucun interrupteur DIP à ajuster non plus : SW1 rend `0x6D` en dur
 (`keyboard_xt.cs:148-159`), qui déclare déjà « un lecteur de disquette » — c'est
-`disc_notfound = 1000` (`disc.cs:286-289`) qui renvoie vers BASIC quand il n'y a rien.
+`disc_notfound = 1000` (`disc.cs:306-309`) qui renvoie vers BASIC quand il n'y a rien.
 
 ### Ce que la lecture de `timer.cs` a réglé avant d'écrire le code
 
@@ -1246,7 +1246,7 @@ Dans la fenêtre, `Ctrl+F12` puis les flèches. **Non vérifiés à l'exécution
 3. **Ctrl+Alt+Suppr** (`resetpc_cad`), redémarrage à chaud sans test mémoire ;
 4. **éjection** puis reset → retour à BASIC ;
 5. **changement de disquette à chaud sous DOS** puis `DIR` : premier exercice réel de
-   DSKCHG (`fdc.cs:790-797`) ;
+   DSKCHG (`fdc.cs:878-887`) ;
 6. **`closepc()`** : écrire sous DOS sur une **copie** d'image, fermer la fenêtre, et
    vérifier que l'empreinte a changé. C'est la seule chose qui vide les tampons
    d'`img_writeback`, qui n'appelle aucun `Flush()` ;
@@ -1269,13 +1269,13 @@ de l'invité, passé en `params[4]` de la commande FORMAT TRACK du FDC, et il n'
 qu'une fois la disquette formatée depuis la machine émulée.
 
 **Quatre tailles, pas les neuf de PCem.** `drive_types[1]` (5,25" DD, le lecteur du 5150,
-`pc.cs:141-142`) ne porte que `FLAG_HOLE0` et `max_track = 41` (`fdd.cs:76-78`) :
+`pc.cs:141-142`) ne porte que `FLAG_HOLE0` et `max_track = 41` (`fdd.cs:92-94`) :
 `fdd_can_read_medium` refuse toute image HD ou ED. Offrir 1,44 Mo serait offrir une image
 que la machine rejette sans rien dire.
 
 **Pourquoi une image nulle se relit toujours :** les cinq lectures de BPB d'`img_load`
-(`disc_img.cs:211-220`) rendent 0, donc `bpb_sides < 1` est vrai et la garde de
-`disc_img.cs:230` force la branche de devinette par **taille**. La même garde rend
+(`disc_img.cs:223-232`) rendent 0, donc `bpb_sides < 1` est vrai et la garde de
+`disc_img.cs:242` force la branche de devinette par **taille**. La même garde rend
 inatteignable la division `0/0` de la branche BPB. La taille du fichier est donc le seul
 déterminant de la géométrie — et c'est pourquoi le menu écrit noir sur blanc que **la taille
 choisie EST le format que l'image acceptera**.
@@ -1329,8 +1329,8 @@ Et l'image sur disque est une disquette DOS structurellement valide :
 Histogramme du fichier entier : **365 984 octets de `0xF6`**, le remplissage de FORMAT —
 soit la confirmation directe que le `0xF6` vient de l'invité et non de la création.
 
-C'est le **premier exercice réel** de `disc_format` (`disc.cs:313`) → `disc_sector_format`
-→ `STATE_FORMAT` → `img_writeback` (`disc_img.cs:539`), que § M6 listait comme « non exercé
+C'est le **premier exercice réel** de `disc_format` (`disc.cs:333`) → `disc_sector_format`
+→ `STATE_FORMAT` → `img_writeback` (`disc_img.cs:551`), que § M6 listait comme « non exercé
 par aucun oracle ». Les écritures atteignent bien le fichier : `img_writeback` n'appelle
 aucun `Flush()`, et le contenu est lisible sur disque.
 
@@ -1543,8 +1543,8 @@ et rien d'autre — c'est ce qui rend une étape de 263 sites sûre malgré sa t
 ### Trois choses apprises
 
 1. **`sed` ne voit pas ce que le compilateur voit, et inversement.** Le renommage des
-   champs CHRN par `s\.[chrn]\b` a manqué `disc_sector_data[...].n` (`disc_sector.cs:187`
-   et `:209`), hors du préfixe `s.`. Le compilateur l'aurait signalé dès le renommage de
+   champs CHRN par `s\.[chrn]\b` a manqué `disc_sector_data[...].n` (`disc_sector.cs:191`
+   et `:213`), hors du préfixe `s.`. Le compilateur l'aurait signalé dès le renommage de
    la déclaration ; un `grep` ciblé l'a trouvé avant. C'est l'argument pour le renommage
    sémantique plutôt que textuel — pas la théorie, un cas.
 2. **Les couplages par chaîne ne sont pas typés.** `tools/iXtal26.Diff/BootDiff.cs:264`

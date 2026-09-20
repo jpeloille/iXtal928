@@ -154,6 +154,12 @@ internal static class BootTest
         case '(': shift = true; return SDL.Scancode.Alpha9;
         case ')': shift = true; return SDL.Scancode.Alpha0;
         case '?': shift = true; return SDL.Scancode.Slash;
+        // Sans les deux suivants, aucune commande DOS ne peut désigner un lecteur ni
+        // porter un commutateur : « FORMAT B: » arrivait en « FORMAT B », et DOS 2.00
+        // répondait « Invalid parameter ». C'est ce qui bloquait la vérification du
+        // chemin d'écriture sans fenêtre (VERIFICATION.md § M8.1).
+        case ':': shift = true; return SDL.Scancode.Semicolon;
+        case '/': return SDL.Scancode.Slash;
         default: return SDL.Scancode.Unknown;
         }
     }

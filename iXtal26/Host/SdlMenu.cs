@@ -34,7 +34,7 @@ internal enum MenuAction
 /// </summary>
 internal sealed class SdlMenu
 {
-    /// <summary>Les quatre extensions que disc.cs:90-94 sait charger. FDI est omis (registre des omissions).</summary>
+    /// <summary>Les quatre extensions que disc.cs:110-113 sait charger. FDI est omis (registre des omissions).</summary>
     private static readonly string[] Extensions = [".img", ".ima", ".360", ".xdf"];
 
     private static readonly SDL.DialogFileFilter[] DialogFilters =
@@ -81,10 +81,10 @@ internal sealed class SdlMenu
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
     // 5150 sait lire : drive_types[1] ne porte que FLAG_HOLE0 et max_track = 41
-    // (fdd.cs:76-78), donc fdd_can_read_medium (fdd.cs:203-217) refuse toute image HD ou ED.
+    // (fdd.cs:92-94), donc fdd_can_read_medium (fdd.cs:219-233) refuse toute image HD ou ED.
     //
     // PCem ne stocke PAS la géométrie, seulement le PRODUIT faces x pistes x secteurs :
-    // elle est re-déduite de la TAILLE DU FICHIER par img_load (disc_img.cs:230-294). La
+    // elle est re-déduite de la TAILLE DU FICHIER par img_load (disc_img.cs:242-305). La
     // factorisation « 1 * 40 * 8 » n'est donc que de la documentation au niveau du source,
     // exactement comme dans le C.
     // omitted: 720 kB, 1.2 MB, 1.44 MB, 2.88 MB (wx-createdisc.cc:26-28) — haute et extra
@@ -381,8 +381,8 @@ internal sealed class SdlMenu
     /// Il n'apparaît dans l'image qu'une fois celle-ci formatée depuis la machine émulée.
     ///
     /// Conséquence garantie par construction : les cinq lectures de BPB d'img_load
-    /// (disc_img.cs:211-220) rendent toutes 0, donc « bpb_sides &lt; 1 » est vrai et la garde
-    /// de disc_img.cs:230 force la branche de devinette par TAILLE. La même garde rend
+    /// (disc_img.cs:223-232) rendent toutes 0, donc « bpb_sides &lt; 1 » est vrai et la garde
+    /// de disc_img.cs:242 force la branche de devinette par TAILLE. La même garde rend
     /// inatteignable la division 0/0 de la branche BPB.
     /// </summary>
     private void CreateBlank((string Name, string Stem, int NrSectors) format)
@@ -530,7 +530,7 @@ internal sealed class SdlMenu
 
     /// <summary>
     /// pcem: wx-sdl2.c:749-752 — disc_close puis disc_load, sans reset. L'invité voit le
-    /// changement par la ligne DSKCHG du port 0x3F7, que disc_load arme (disc.cs:125-128).
+    /// changement par la ligne DSKCHG du port 0x3F7, que disc_load arme (disc.cs:145-147).
     /// </summary>
     private void Insert(int drive, string path)
     {
@@ -541,7 +541,7 @@ internal sealed class SdlMenu
         disc.disc_load(drive, path);
 
         // disc_load se tait quand il échoue : il pose drive_empty = 1 et discfns = ""
-        // (disc.cs:133-135). Sans ce test d'après-coup, une image refusée — extension
+        // (disc.cs:153-155). Sans ce test d'après-coup, une image refusée — extension
         // inconnue, fichier illisible — est indiscernable d'une insertion réussie.
         if (disc.drive_empty[drive] != 0)
         {

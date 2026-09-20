@@ -18,7 +18,7 @@
 //   fdc_reset_stat  reset_sense_togo  les quatre Sense interrupt suivant un reset
 //   tc          terminal_count  le signal du DMA qui clôt le transfert
 //   eot[]       end_of_track[]  dernier secteur de la piste, paramètre de commande
-//   rwc[]       rate_override[] forçage de débit par lecteur (Winbond W83877F, :251)
+//   rwc[]       rate_override[] forçage de débit par lecteur (Winbond W83877F, :294)
 //   drvrate[]   drive_rate[]    débit propre au lecteur, distinct de fdc.rate
 //   pretrk      precomp_track   piste de début de précompensation d'écriture
 //   perp        perp_mode       commande 0x12, mode perpendiculaire (disquettes ED)
@@ -42,6 +42,8 @@
 //   disc_3f7    =               dernière valeur écrite au CCR, port 0x3f7
 //   lastbyte    =               le dernier octet lu a vidé la phase résultat
 //   abort, discmodified[], discrate[]  =  MORTS — PB-20
+//   TYPES : FDC = la struct de fdc.c:27-78 ; fdc_c = le conteneur du fichier, suffixe
+//   _c parce que PCem n'a pas de classe et que `fdc` est pris par l'instance.
 //   Les FONCTIONS gardent toutes les noms de PCem : elles sont l'API entre modules.
 //   Les étiquettes de la sonde (BootDiff.cs:264) sont des chaînes et gardent elles
 //   aussi les noms PCem : elles désignent les globales du C, pas les champs d'ici.
@@ -138,7 +140,7 @@ internal static partial class fdc_c
 
     // DEVIATION: valeurs de registre que fdc.c écrit en hexadécimal nu. Nommées ici et
     //   pas dans PCem — TRANSCRIPTION.md, § Nommage explicite. Les bits du DOR n'y sont
-    //   pas : le PCjr (fdc.c:298-312) ne leur donne pas la même disposition qu'un AT, et
+    //   pas : le PCjr (fdc.c:287-300) ne leur donne pas la même disposition qu'un AT, et
     //   un seul jeu de noms serait faux pour l'un des deux.
     private const int MSR_RQM = 0x80;
     private const int MSR_DIO = 0x40; /*1 = FDC vers UC*/

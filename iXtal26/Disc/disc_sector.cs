@@ -15,10 +15,12 @@
 //   cur_sector      =    où la tête se trouve dans la piste, en secteurs
 //   cur_byte        =    où elle se trouve dans le secteur, en octets
 //   index_count     =    tours d'index écoulés ; deux tours sans trouver = échec
-//   disc_intersector_delay  =  40 tics d'horloge-octet entre deux secteurs (:183)
+//   disc_intersector_delay  =  40 tics d'horloge-octet entre deux secteurs (:201)
 //   disc_sector_status  =  la cause d'échec à rendre au contrôleur (FDC_STATUS_*)
 //   STATE_*         les treize états : chercher, lire, écrire, adresse, formater
 //   disc_sector_writeback[]  rappel vers img_writeback : écrit la piste dans le fichier
+//   TYPES : sector_t = un secteur et son en-tête CHRN, plus le tampon et l'offset qui
+//   remplacent le `uint8_t *data` du C ; disc_sector = le conteneur du fichier.
 //   Le sens des appels s'inverse ici : ce fichier RAPPELLE fdc_data, fdc_notfound,
 //   fdc_finishread et fdc_writeprotect — le média pousse les octets, le contrôleur subit.
 
