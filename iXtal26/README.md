@@ -55,6 +55,39 @@ dotnet run -- --boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img --type "" --ty
 que le cœur ne dépend pas du front-end. `--slices` est l'interrupteur de déterminisme —
 sans cadencement horloge murale, deux exécutions donnent le même nombre de cycles.
 
+## Le menu, Ctrl+F12
+
+Dans la fenêtre, **Ctrl+F12** ouvre un menu en surimpression et met la machine en pause :
+insérer une image dans A: ou B: (liste des `.img`/`.ima`/`.360`/`.xdf` trouvés sous `os/`,
+plus un « Parcourir... » qui ouvre le sélecteur du système), éjecter, réinitialiser. Ce sont
+les commandes que PCem porte dans son menu wxWidgets (`wx-sdl2.c:725-770`).
+
+**« Creer une disquette vierge... »** fabrique une image neuve dans `os/` et l'insère dans
+A: dans la foulée. Quatre tailles, les seules que le lecteur 5,25" DD du 5150 sache lire :
+160, 180, 320 et 360 Ko. Le nom est automatique (`vierge-360k.img`, puis `-2`, `-3`…) :
+jamais d'écrasement.
+
+Attention à deux choses. **La taille choisie est le format que l'image acceptera** —
+`img_load` fige la géométrie sur la taille du fichier, et `img_writeback` calcule ensuite
+ses offsets dessus. Et **un `.img` ne peut pas représenter un support non formaté** : le
+format *est* la suite des données de secteurs, sans marques d'adresse. Ce que vous obtenez
+est l'équivalent d'une disquette formatée bas niveau et logiquement vide — tous les secteurs
+existent et se lisent, leur contenu est nul. Il faut passer `FORMAT` sous DOS pour lui
+donner son BPB et sa FAT ; c'est à ce moment, et seulement là, que les `0xF6` apparaissent,
+écrits par l'invité. C'est exactement ce que fait PCem.
+
+L'insertion est immédiate et ne demande aucun reset : DOS voit le changement par la ligne
+DSKCHG. Le reset matériel, lui, relit `discfns[]` — donc la disquette en place au moment du
+reset est celle sur laquelle le BIOS amorce. Deux resets sont offerts parce qu'ils ne
+coûtent pas la même chose : le reset matériel repart à froid, avec les 46 s de test mémoire
+(d'où la variante « + turbo », qui les déroule en quelques secondes murales), là où
+Ctrl+Alt+Suppr est un redémarrage à chaud que le BIOS expédie sans retester la mémoire.
+
+Le menu est inerte sous `--slices`, pour la même raison que `--turbo` y est refusé : ce
+mode existe pour que deux exécutions traversent les mêmes états.
+
+`dotnet run -- --help` donne la table complète.
+
 ## Fichiers
 
 | Fichier               | Rôle                                                          |
@@ -62,6 +95,7 @@ sans cadencement horloge murale, deux exécutions donnent le même nombre de cyc
 | `Program.cs`          | Point d'entrée, table d'arguments                             |
 | `Host/SdlHost.cs`     | Fenêtre, texture, accumulateur horloge murale, remontée du blit |
 | `Host/SdlKeyboard.cs` | Scancodes SDL → PC/XT jeu 1, vers `keyboard.rawinputkey`       |
+| `Host/SdlMenu.cs`     | Menu Ctrl+F12 : disquettes et reset (`wx-sdl2.c:725-770`)      |
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
 Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`,

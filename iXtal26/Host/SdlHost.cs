@@ -38,6 +38,14 @@ public sealed class SdlHost : IDisposable
     private const int TitleInterval = 200;
 
     /// <summary>
+    /// Budget de turbo par défaut, en tranches. L'invite BASIC tombe à la tranche 5 167 et
+    /// l'invite de date de PC DOS 2.00 à 5 520 (VERIFICATION.md § M6, bissectées) : on
+    /// laisse de quoi voir la bannière s'écrire. Ici et pas dans Program.cs parce que le
+    /// menu s'en sert aussi pour réarmer le turbo après un reset — un seul 5800 dans l'arbre.
+    /// </summary>
+    internal const int DefaultTurboSlices = 5800;
+
+    /// <summary>
     /// Intervalle minimal, en millisecondes d'horloge MURALE, entre deux présentations
     /// pendant le turbo. Le CGA émet ~29 images par seconde ÉMULÉE ; à 14x le temps
     /// réel cela ferait ~400 présentations par seconde murale, qu'aucun écran ne montre.
@@ -54,8 +62,18 @@ public sealed class SdlHost : IDisposable
     /// démarrage ; 0 = pas de turbo. Ne concerne QUE le mode cadencé : avec
     /// --slices N, l'exécution entière reste libre, et c'est ce qui garantit que
     /// deux exécutions traversent les mêmes états.
+    ///
+    /// Plus readonly depuis que le menu peut relancer le turbo après un reset : une
+    /// session lancée sans --turbo en obtient alors DefaultTurboSlices.
     /// </summary>
-    private readonly int _turboSlices;
+    private int _turboSlices;
+
+    /// <summary>
+    /// Tranche à laquelle le turbo courant a commencé. Le compteur doit être RELATIF :
+    /// « slices &lt; _turboSlices » ne peut plus être vrai à la tranche 12 000, donc sans
+    /// cette base un reset ne pourrait jamais relancer le turbo.
+    /// </summary>
+    private int _turboBase;
 
     private bool _turboActive;
 
@@ -84,6 +102,20 @@ public sealed class SdlHost : IDisposable
     private IntPtr _window;
     private IntPtr _renderer;
     private IntPtr _texture;
+
+    /// <summary>
+    /// Menu Ctrl+F12. Null en --headless : Init() rend avant d'avoir un renderer, et le
+    /// menu n'a alors rien où se dessiner ni personne pour l'ouvrir.
+    /// </summary>
+    private SdlMenu? _menu;
+
+    /// <summary>
+    /// Action demandée par le menu, à exécuter au sommet de la boucle de Run(). Elle ne
+    /// peut pas l'être dans PumpEvents : resetpchard() reconstruit la machine entière, et
+    /// les compteurs d'horloge à réarmer sont des locales de Run().
+    /// </summary>
+    private MenuAction _pendingAction;
+
     private bool _sdlInitialised;
     private bool _disposed;
     private bool _running;
@@ -168,6 +200,8 @@ public sealed class SdlHost : IDisposable
         // Pixel d'époque : l'interpolation bilinéaire rendrait le 8x8 du CGA flou.
         SDL.SetTextureScaleMode(_texture, SDL.ScaleMode.Nearest);
 
+        _menu = new SdlMenu(_window, _renderer, _romsPath);
+
         // Le CGA n'émet son premier blit qu'à la tranche ~348, soit 3,5 s d'horloge
         // murale : sans cette peinture, la fenêtre reste au contenu indéfini que le
         // compositeur veut bien lui donner pendant tout ce temps.
@@ -238,6 +272,10 @@ public sealed class SdlHost : IDisposable
 
         var oldTime = _headless ? 0UL : SDL.GetTicks();
         var turboStartMs = oldTime;
+
+        // Images sautées déjà comptées quand le turbo courant a commencé ; voir le
+        // réarmement plus bas. Zéro pour le turbo de lancement.
+        var presentsBase = 0;
         var slices = 0;
         var slicesAtLastTitle = 0;
         var lastTitleMs = oldTime;
@@ -260,11 +298,93 @@ public sealed class SdlHost : IDisposable
             if (!_running)
                 break;
 
+            // Les actions du menu s'exécutent ICI, au sommet de la boucle : donc hors de
+            // runpc() et hors de OnBlit. resetpchard() reconstruit la machine entière
+            // (device_close_all, mem_alloc, model_init) ; l'appeler depuis le crochet de
+            // blit, c'est-à-dire depuis l'intérieur d'execx86, arracherait l'état sous les
+            // pieds de l'instruction en cours. PumpEvents ne doit donc jamais agir lui-même.
+            if (_pendingAction != MenuAction.None)
+            {
+                MenuAction action = _pendingAction;
+                _pendingAction = MenuAction.None;
+
+                switch (action)
+                {
+                    case MenuAction.HardReset:
+                        pc.resetpchard();
+                        break;
+
+                    case MenuAction.HardResetTurbo:
+                        pc.resetpchard();
+
+                        // Turbo NEUF. Une session lancée sans --turbo en obtient le budget
+                        // par défaut : sinon l'entrée de menu ne ferait rien, ce qui est
+                        // indiscernable d'une entrée cassée.
+                        if (_turboSlices <= 0)
+                            _turboSlices = DefaultTurboSlices;
+
+                        _turboBase = slices;
+                        _turboStopped = false;
+                        turboStartMs = SDL.GetTicks();
+
+                        // Base, et PAS une remise à zéro : _presentsSkipped est aussi le
+                        // total qu'imprime --verbose, et ce total existe pour distinguer
+                        // un chemin de blit mort d'un écran légitimement noir.
+                        presentsBase = _presentsSkipped;
+                        break;
+
+                    case MenuAction.Cad:
+                        // L'invité redémarre de lui-même, sur sa propre cadence : le BIOS
+                        // trouve 0x1234 en 0040:0072 et saute le test mémoire. Rien à
+                        // recharger — l'insertion s'est faite à chaud, le lecteur porte
+                        // déjà l'image.
+                        pc.resetpc_cad();
+                        break;
+
+                    default:
+                        _running = false;
+                        break;
+                }
+
+                if (!_running)
+                    break;
+
+                // Horloge NEUVE, exactement comme à la sortie du turbo plus bas : le temps
+                // passé dans le menu et dans resetpchard() ne doit pas s'accumuler dans
+                // drawits, que la branche « if (drawits > 50) drawits = 0 » jetterait SANS
+                // RIEN DIRE. Et le compteur du titre repart de la même origine, sinon la
+                // première fenêtre glissante d'après-menu affiche un pourcentage absurde.
+                oldTime = SDL.GetTicks();
+                drawits = 0;
+                lastTitleMs = oldTime;
+                slicesAtLastTitle = slices;
+                busyTicksAtLastTitle = busyTicks;
+            }
+
+            // Menu ouvert : la machine est EN PAUSE, comme PCem qui pose pause = 1 autour
+            // de chaque action (wx-sdl2.c:728-738). C'est aussi ce qui fait de cette boucle
+            // le seul présentateur : sans tranche il n'y a pas de blit, donc pas d'OnBlit,
+            // et le menu doit s'afficher même sur un invité qui a coupé la vidéo.
+            //
+            // Effet de bord assumé : UpdateTitle n'est atteint qu'après runpc(), donc le
+            // pourcentage du titre se FIGE tant que le menu est ouvert. C'est correct —
+            // la machine ne tourne pas — mais ça ressemble à un gel, d'où cette ligne.
+            if (_menu is not null && _menu.IsOpen)
+            {
+                _menu.Poll();
+                Render();
+                SDL.Delay(16);
+                continue;
+            }
+
             // Le turbo ne vit QUE dans le mode cadencé : --slices N tourne déjà sans
             // frein de bout en bout, et c'est un contrat que PrintUsage documente
             // (« deux exécutions traversent alors les mêmes états »). L'y mêler
             // rendrait ce mode partiellement cadencé, donc non reproductible.
-            var turbo = timed && _turboSlices > 0 && !_turboStopped && slices < _turboSlices;
+            // RELATIF à _turboBase : à 0 au lancement c'est le test d'origine, et après un
+            // « Reset materiel + turbo » à la tranche 12 000 c'est ce qui redonne un budget.
+            var turbo = timed && _turboSlices > 0 && !_turboStopped
+                        && slices - _turboBase < _turboSlices;
 
             if (turbo != _turboActive)
             {
@@ -282,12 +402,15 @@ public sealed class SdlHost : IDisposable
                     // Dit ce que le turbo a coûté et rapporté, une fois, au moment où
                     // il rend la main. Sans cette ligne, la seule trace du turbo est
                     // un titre de fenêtre qui a déjà changé quand on le lit.
+                    // Compté depuis _turboBase : un turbo relancé par le menu à la
+                    // tranche 12 000 rapporterait sinon les 12 000 d'avant avec lui.
                     var turboMs = oldTime - turboStartMs;
+                    var turboSlices = slices - _turboBase;
                     Console.WriteLine(
-                        $"turbo : {slices} tranches ({slices / 100.0:0.#} s émulées) en " +
+                        $"turbo : {turboSlices} tranches ({turboSlices / 100.0:0.#} s émulées) en " +
                         $"{turboMs / 1000.0:0.00} s mur" +
-                        (turboMs > 0 ? $" (x{slices * 10.0 / turboMs:0.0})" : "") +
-                        $", {_presentsSkipped} images sautées" +
+                        (turboMs > 0 ? $" (x{turboSlices * 10.0 / turboMs:0.0})" : "") +
+                        $", {_presentsSkipped - presentsBase} images sautées" +
                         (_turboStopped ? ", interrompu par une frappe" : ""));
 
                     drawits = 0;
@@ -401,6 +524,12 @@ public sealed class SdlHost : IDisposable
         Console.WriteLine($"clavier    : {SdlKeyboard.KeyEventsSeen} KeyDown reçus de SDL, " +
                           $"{SdlKeyboard.KeyEventsMapped} mappés ; dernier scancode " +
                           $"{SdlKeyboard.LastScancode} -> {SdlKeyboard.LastMapped}");
+
+        // Un menu qui ne s'ouvre jamais parce que le gestionnaire de fenêtres intercepte
+        // Ctrl+F12 est autrement indiscernable d'un menu qui s'ouvre et ne dessine rien.
+        if (_menu is not null)
+            Console.WriteLine($"menu       : {_menu.Opens} ouvertures, {_menu.Inserts} insertions, " +
+                              $"{_menu.Resets} resets, {_menu.Creations} creations");
     }
 
     /// <summary>Vide la file d'évènements SDL et la transmet intégralement au clavier.</summary>
@@ -414,6 +543,44 @@ public sealed class SdlHost : IDisposable
 
             if (type is SDL.EventType.Quit or SDL.EventType.WindowCloseRequested)
                 _running = false;
+
+            // Ctrl+F12 : bascule du menu de l'hôte. Le `continue` n'est pas cosmétique —
+            // sans lui F12 (0x58) et Ctrl (0x1D) atterrissent dans keyboard.rawinputkey et
+            // l'invité les voit. Le bloc est AU-DESSUS de la ligne du turbo ci-dessous pour
+            // la même raison de fond : un accord de l'hôte n'est pas « quelqu'un tape ».
+            //
+            // Inerte sous --slices : ce mode ne cadence RIEN et son contrat est que deux
+            // exécutions traversent les mêmes états (Program.cs refuse déjà --turbo à côté
+            // pour cette raison). Insérer une disquette à la main le casserait autant.
+            if (_menu is not null && _maxSlices <= 0 && type is SDL.EventType.KeyDown
+                && e.Key.Scancode == SDL.Scancode.F12
+                && (e.Key.Mod & SDL.Keymod.Ctrl) != 0 && !e.Key.Repeat)
+            {
+                if (_menu.IsOpen)
+                    _menu.Close();
+                else
+                    _menu.Open();
+
+                continue;
+            }
+
+            // Menu ouvert : il avale TOUT. L'invité ne doit pas recevoir les flèches avec
+            // lesquelles on navigue, et elles ne doivent pas non plus tuer le turbo.
+            if (_menu is not null && _menu.IsOpen)
+            {
+                MenuAction action = _menu.HandleEvent(in e);
+
+                if (action != MenuAction.None)
+                {
+                    // Fermer AVANT d'agir : sans cela Run() retombe dans la pause au tour
+                    // suivant, et la machine est réinitialisée mais figée — rien ne se
+                    // passe à l'écran. Close() relâche aussi l'Entrée qui vient de valider.
+                    _menu.Close();
+                    _pendingAction = action;
+                }
+
+                continue;
+            }
 
             // Une frappe met fin au turbo : à partir de là, quelqu'un regarde l'écran
             // et attend que la machine réponde à SA vitesse, pas à celle de l'hôte.
@@ -523,6 +690,12 @@ public sealed class SdlHost : IDisposable
             SDL.RenderTexture(_renderer, _texture, in src, IntPtr.Zero);
         }
 
+        // Le menu se compose ICI, sur le renderer, après la texture du CGA : il ne touche
+        // jamais video.Buffer32. C'est ce qui garde l'image émulée comparable à l'oracle —
+        // --boot, boot-diff et les empreintes de framebuffer de § M5.1 ne voient rien.
+        if (_menu is not null && _menu.IsOpen)
+            _menu.Render();
+
         SDL.RenderPresent(_renderer);
     }
 
@@ -577,6 +750,13 @@ public sealed class SdlHost : IDisposable
         video.video_blit_memtoscreen_func = null;
 
         _disposed = true;
+
+        // pc.c:584-585, par closepc(). C'est le SEUL endroit qui vide les tampons
+        // d'écriture sur les images : img_writeback écrit sans Flush(), et seul le Close()
+        // de img_close les pousse. Sans cela un DOS qui vient d'écrire sur la disquette
+        // perd ses écritures à la fermeture de la fenêtre — ce que le menu, en rendant le
+        // va-et-vient de disquettes courant, rendrait courant aussi.
+        pc.closepc();
 
         if (_texture != IntPtr.Zero)
         {

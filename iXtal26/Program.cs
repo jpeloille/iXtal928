@@ -15,11 +15,9 @@ var maxSlices = 0; // 0 = tourne jusqu'à la fermeture de la fenêtre
 var verbose = false;
 var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'époque
 
-// L'invite BASIC tombait à la tranche 5 729 (VERIFICATION.md § M4.6) ; depuis M6 le
-// contrôleur de disquettes répond au BIOS au lieu d'expirer, et elle tombe à 5 167 —
-// l'invite de date de PC DOS 2.00 à 5 520 (§ M6, bissectées). On laisse de quoi voir la
-// bannière s'écrire, et rendre la main un peu APRÈS plutôt qu'un peu avant.
-const int DefaultTurboSlices = 5800;
+// Le budget de turbo vit dans SdlHost : le menu Ctrl+F12 s'en sert aussi pour le réarmer
+// après un reset, et deux 5800 dans l'arbre finiraient par diverger.
+const int DefaultTurboSlices = SdlHost.DefaultTurboSlices;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -272,6 +270,9 @@ static void PrintUsage()
     Console.WriteLine("        iXtal26 --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine();
     Console.WriteLine("Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.");
+    Console.WriteLine("Dans la fenêtre, Ctrl+F12 ouvre le menu : insérer ou éjecter une disquette,");
+    Console.WriteLine("réinitialiser la machine. La disquette en place au moment du reset est celle");
+    Console.WriteLine("sur laquelle le BIOS amorce.");
     Console.WriteLine();
     Console.WriteLine("  --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms,");
     Console.WriteLine("                       cherché d'abord depuis le répertoire courant, puis en");
@@ -282,7 +283,8 @@ static void PrintUsage()
     Console.WriteLine("                       Ouverte en lecture-écriture : DOS y écrit pour de vrai");
     Console.WriteLine("  --slices N           s'arrête au bout de N tranches de 10 ms émulées, et");
     Console.WriteLine("                       n'attend pas l'horloge murale entre elles : deux");
-    Console.WriteLine("                       exécutions traversent alors les mêmes états");
+    Console.WriteLine("                       exécutions traversent alors les mêmes états. Ctrl+F12");
+    Console.WriteLine("                       y est inerte, pour ne pas ruiner ce contrat");
     Console.WriteLine("  --headless           n'initialise aucune vidéo SDL ; exige --slices");
     Console.WriteLine("  --verbose            en fin d'exécution, compte les blits émis par le CGA");
     Console.WriteLine("                       et ceux réellement téléversés dans la texture");

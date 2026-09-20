@@ -1144,3 +1144,228 @@ débordé par une piste XDF ED), PB-18 (`strcpy` de `discfns` sur lui-même). Re
 - Le fuzzer est structurellement aveugle à tout ceci : il n'appelle ni `h_boot` ni
   `disc_load`.
 
+
+---
+
+## M7 — Le menu Ctrl+F12 : insérer une disquette, réinitialiser, amorcer dessus
+
+Le 2026-09-20. Fonctionnalité d'**hôte** : `Host/SdlMenu.cs` (neuf), plus deux
+transcriptions dans `pc.cs` (`resetpc_cad`, `pc.c:344-351` ; `closepc` réduit,
+`pc.c:576-592`). L'ORACLE du menu est `wx-sdl2.c:725-770`, le gestionnaire de commandes
+du menu wxWidgets de PCem : seule l'enveloppe wxWidgets disparaît, le contenu des
+commandes est celui de PCem (`disc_close` puis `disc_load` pour changer, `disc_close`
+seul pour éjecter, `resetpchard` pour le reset matériel).
+
+**Le cœur n'a rien eu à apprendre.** `resetpchard()` appelle déjà `disc_load(0,
+discfns[0])` (`pc.cs:169`, fidèle à `pc.c:367`) et `disc_load` pose lui-même
+`discfns[drive] = fn` (`disc.cs:127`). Le menu n'a donc qu'à insérer ; la disquette en
+place au moment du reset est celle sur laquelle le BIOS amorce, sans une ligne de colle.
+Aucun interrupteur DIP à ajuster non plus : SW1 rend `0x6D` en dur
+(`keyboard_xt.cs:148-159`), qui déclare déjà « un lecteur de disquette » — c'est
+`disc_notfound = 1000` (`disc.cs:286-289`) qui renvoie vers BASIC quand il n'y a rien.
+
+### Ce que la lecture de `timer.cs` a réglé avant d'écrire le code
+
+`resetpchard()` n'avait **jamais tourné deux fois** dans ce dépôt : son unique appelant
+était la dernière ligne d'`initpc()`. Le menu le rend répétable, et chaque `pc_timer_t`
+est une instance statique unique que `disc_reset`, `fdc_init`, `pit_init` et
+`keyboard_xt_init` repassent à `timer_add`. La question était donc : deux resets
+inscrivent-ils deux fois le même chronomètre ? Non — `timer_reset()` (`timer.cs:237-260`)
+pose `timer_head = null` **et** `num_timers = 0`, donc vide le registre au lieu de se
+contenter d'invalider les `magic` ; `timer_add` (`:265-289`) ré-inscrit depuis l'indice 0.
+`resetpchard()` est idempotent quant aux chronomètres **parce que** `timer_reset()` est sa
+première instruction. Et `mem_alloc()` fait `ram = new byte[...]` (`mem.cs:726`), un
+tableau neuf à zéro : un reset matériel est un démarrage authentiquement à froid,
+`0040:0072` ne porte pas 0x1234, le test mémoire de 46 s se déroule en entier. C'est ce
+qui rend l'entrée « Reset materiel + turbo » utile et pas cosmétique.
+
+### Non-régression — l'oracle n'a pas bougé d'une instruction
+
+| Porte | Commande | Résultat |
+|---|---|---|
+| Diff d'amorçage sur disquette | `boot-diff roms 7000 --fda os/pcdos20/pcdos20b.img` | **26 750 702 instructions identiques** — le chiffre de § M6, inchangé |
+| Amorçage DOS + DIR | `--boot roms 6500 --floppy-a …b.img --type "" --type "" --type DIR` | invite `A>` et catalogue complet |
+| Déterminisme | `--slices 6000 --headless --verbose`, deux passes | 6000 tranches, 1915 blits, à l'identique |
+| Turbo de lancement | `--turbo --verbose` | 5800 tranches en 9,34 s mur (x6,2) — la condition devenue relative à `_turboBase` (0 au lancement) est le test d'origine |
+| Fenêtre + `closepc` | `--slices 2000 --verbose --floppy-a …b.img` | code 0, 486 images téléversées, `menu : 0 ouvertures` |
+| Empreintes des images | `sha256sum -c os/os.sha256` | inchangées après toutes les passes, insertions comprises |
+
+Le compilateur est resté à **0 avertissement** avec `TreatWarningsAsErrors` plein.
+
+### Fonctionnel — observé à l'écran
+
+Session fenêtrée sous XWayland, copies d'écran à l'appui :
+
+- le menu s'ouvre en surimpression au-dessus de BASIC et **met la machine en pause** ; il
+  est dessiné sur le renderer, entre `RenderTexture` et `RenderPresent`, et ne touche
+  jamais `video.Buffer32` — c'est ce qui laisse `boot-diff` et les empreintes de
+  framebuffer de § M5.1 strictement inchangés ;
+- l'écran de choix liste les deux images de `os/` avec leur taille (`pcdos20b.img 180 Ko`,
+  `pcdos20s.img 180 Ko`) et l'entrée `Parcourir...` ;
+- **une image insérée par le menu est bien amorcée par un reset déclenché par le menu** :
+  l'écran est passé de BASIC au secteur d'amorçage d'une disquette, `Non-System disk or
+  disk error / Replace and strike any key when ready` — donc `pcdos20s.img`, précisément
+  le comportement que § M6 attribue à cette image. Le `131` au-dessus est le code POST de
+  bouclage cassette, préexistant et connu (§ M6), pas un symptôme neuf.
+
+  **Ce qui n'est PAS établi, et la raison :** quelles entrées de menu ont produit cette
+  séquence, ni dans quel ordre. La session était pilotée à la fois par XTEST et par
+  l'utilisateur à son clavier, et les deux flux sont indiscernables dans le journal ; la
+  dernière image sélectionnée à l'écran était `pcdos20b.img`, or c'est `pcdos20s.img` qui
+  a amorcé. Le fait observé est donc le lien insertion → reset → amorçage, pas le chemin
+  exact qui y mène. À refaire proprement quand un scénario scriptable sera possible.
+
+**Un défaut trouvé à l'écran et corrigé** : les glyphes de `RenderDebugText` remplissent
+leur cellule de 8 px de haut. Empiler les lignes tous les 8 px ne laisse aucun blanc entre
+elles et la liste devient un pâté où les jambages touchent les hampes de la ligne suivante.
+Hauteur de ligne portée à 10 px (`SdlMenu.Row`), plus des marges intérieures de 4 × 3 px.
+Illisible au premier rendu, net au second ; rien qu'une relecture du code n'aurait montré.
+
+**Un second défaut, trouvé en relisant** : le résultat du sélecteur natif n'était récolté
+que depuis `HandleEvent`. Or le rappel arrive quand le système veut, souvent sans qu'aucun
+évènement SDL ne suive : le fichier choisi serait resté en attente jusqu'à la frappe
+suivante — ce qui se lit exactement comme « le sélecteur n'a rien fait ». D'où `Poll()`,
+appelé à chaque tour de la boucle de pause.
+
+**Fait d'outillage, coûteux à redécouvrir** : SDL3 **ignore les évènements clavier
+synthétiques `XSendEvent`**, donc `xdotool key --window` ne l'atteint pas ; seul XTEST
+passe, et il exige le focus clavier. Or GNOME sous XWayland refuse `xdotool
+windowactivate` (prévention du vol de focus). Un scénario de menu ne se scripte donc pas
+sur ce bureau sans un serveur X dédié (Xvfb/Xephyr, absents de cette machine).
+
+### Reste ouvert — non mesuré, à faire à la main
+
+Dans la fenêtre, `Ctrl+F12` puis les flèches. **Non vérifiés à l'exécution :**
+
+1. le **réarmement du turbo** par « Reset materiel + turbo » (entrée n° 6). Les quatre
+   affectations sont relues, la condition relative est prouvée au lancement, mais aucune
+   seconde ligne `turbo :` n'a été observée ;
+2. **« Parcourir... »** — jamais déclenché. Cette machine a `xdg-desktop-portal-gnome` et
+   `zenity`, donc le sélecteur devrait s'ouvrir ; s'il échoue, le menu doit afficher le
+   texte de `SDL.GetError()` et non rester muet ;
+3. **Ctrl+Alt+Suppr** (`resetpc_cad`), redémarrage à chaud sans test mémoire ;
+4. **éjection** puis reset → retour à BASIC ;
+5. **changement de disquette à chaud sous DOS** puis `DIR` : premier exercice réel de
+   DSKCHG (`fdc.cs:790-797`) ;
+6. **`closepc()`** : écrire sous DOS sur une **copie** d'image, fermer la fenêtre, et
+   vérifier que l'empreinte a changé. C'est la seule chose qui vide les tampons
+   d'`img_writeback`, qui n'appelle aucun `Flush()` ;
+7. **cinq resets d'affilée**, puis une minute d'horloge murale contre une vraie montre à
+   l'invite DOS, et `--timer-check roms 300` toujours à 18,2065 Hz. La lecture de
+   `timer.cs` dit que c'est propre ; la mesure resterait à le prouver.
+
+---
+
+## M7.1 — Créer une disquette vierge, et le premier formatage réel
+
+Le 2026-09-20, dans la foulée de § M7. Entrée de menu **« Creer une disquette vierge... »**,
+ORACLE `wx-createdisc.cc:22-29, 62-73` (`IDM_DISC_CREATE`). Tout est dans `Host/SdlMenu.cs` :
+aucun fichier transcrit n'a bougé.
+
+La création tient en dix lignes chez PCem et autant ici : un tampon de 512 octets à zéro,
+écrit `nr_sectors` fois. **Pas de BPB, pas de FAT, pas de signature `0xAA55`** — le fichier
+est strictement N × 512 octets nuls. L'octet est `0x00` et non `0xF6` : le `0xF6` est celui
+de l'invité, passé en `params[4]` de la commande FORMAT TRACK du FDC, et il n'apparaît
+qu'une fois la disquette formatée depuis la machine émulée.
+
+**Quatre tailles, pas les neuf de PCem.** `drive_types[1]` (5,25" DD, le lecteur du 5150,
+`pc.cs:141-142`) ne porte que `FLAG_HOLE0` et `max_track = 41` (`fdd.cs:76-78`) :
+`fdd_can_read_medium` refuse toute image HD ou ED. Offrir 1,44 Mo serait offrir une image
+que la machine rejette sans rien dire.
+
+**Pourquoi une image nulle se relit toujours :** les cinq lectures de BPB d'`img_load`
+(`disc_img.cs:211-220`) rendent 0, donc `bpb_sides < 1` est vrai et la garde de
+`disc_img.cs:230` force la branche de devinette par **taille**. La même garde rend
+inatteignable la division `0/0` de la branche BPB. La taille du fichier est donc le seul
+déterminant de la géométrie — et c'est pourquoi le menu écrit noir sur blanc que **la taille
+choisie EST le format que l'image acceptera**.
+
+### Non-régression
+
+| Porte | Résultat |
+|---|---|
+| `boot-diff roms 7000 --fda os/pcdos20/pcdos20b.img` | **26 750 702 instructions identiques**, inchangé depuis § M6 |
+| `--slices 6000 --headless --verbose`, deux passes | 6000 tranches, 1915 blits, à l'identique |
+| `sha256sum -c os/os.sha256` | les deux images d'origine intactes |
+| Compilation | 0 avertissement, `TreatWarningsAsErrors` plein |
+
+### L'image produite, à la création
+
+`vierge-360k.img`, format « 360 Ko, 9 sect. × 40 pistes × 2 faces » :
+
+| Contrôle | Commande | Résultat |
+|---|---|---|
+| Taille | `ls -l` | **368 640 octets** = 720 × 512, exactement `2 * 40 * 9` secteurs |
+| Contenu | `tr -d '\0' < … \| wc -c` | **0** — pas un seul octet non nul |
+| Réellement alloué | `du --block-size=1` | **368 640** et non 0 : l'écriture est faite secteur par secteur, pas par `SetLength`, donc le fichier n'est **pas sparse** |
+
+`cmp … /dev/zero` a été écarté : `/dev/zero` étant infini, `cmp` s'arrête sur l'EOF de
+l'image, **sort non nul**, et n'aurait prouvé que la concordance d'un préfixe.
+
+### Le formatage sous DOS — premier exercice réel du chemin d'écriture
+
+`FORMAT B:` sur l'image vierge, sous PC DOS 2.00, **aboutit** :
+
+```
+Formatting...Format complete
+   362496 bytes total disk space
+   362496 bytes available on disk
+```
+
+Et l'image sur disque est une disquette DOS structurellement valide :
+
+| Offset | Octets | Sens |
+|---|---|---|
+| `0x000` | `eb 2c 90` | saut court + NOP, entrée de secteur d'amorçage |
+| `0x003` | `49 42 4d 20 20 32 2e 30` | nom OEM « IBM  2.0 » |
+| `0x00B` | `00 02` | 512 octets par secteur |
+| `0x013` | `d0 02` | **720 secteurs au total** — exactement `2 * 40 * 9` |
+| `0x015` | `fd` | descripteur de média 0xFD = 360 Ko, 9 secteurs, 2 faces |
+| `0x018` | `09 00` | 9 secteurs par piste |
+| `0x01A` | `02 00` | 2 têtes |
+| `0x1FE` | `55 aa` | signature |
+| `0x200` | `fd ff ff` | début de FAT : descripteur + marqueur de fin |
+
+Histogramme du fichier entier : **365 984 octets de `0xF6`**, le remplissage de FORMAT —
+soit la confirmation directe que le `0xF6` vient de l'invité et non de la création.
+
+C'est le **premier exercice réel** de `disc_format` (`disc.cs:313`) → `disc_sector_format`
+→ `STATE_FORMAT` → `img_writeback` (`disc_img.cs:539`), que § M6 listait comme « non exercé
+par aucun oracle ». Les écritures atteignent bien le fichier : `img_writeback` n'appelle
+aucun `Flush()`, et le contenu est lisible sur disque.
+
+**Et ce n'est PAS comparé à l'oracle.** Vérifié dans l'arbre : `harness.h` n'expose aucune
+injection clavier (ni `h_type`, ni `rawinputkey`) et `boot-diff` n'accepte que `--fda`
+(`tools/iXtal26.Diff/Program.cs:122-150`). Il n'existe aujourd'hui aucun moyen de faire
+taper `FORMAT B:` au côté C. **Un formatage réussi est une preuve d'usage, pas une preuve de
+fidélité** : il montre que le chemin d'écriture produit une disquette que DOS relit, il ne
+montre pas qu'il fait les mêmes cycles que PCem.
+
+### Amorçer sur une disquette vierge : observé, non expliqué
+
+Reset matériel avec l'image vierge en A:, avant tout formatage : l'écran rend le code POST
+`131` et un curseur, **et rien d'autre**. Pas de bascule BASIC.
+
+C'est cohérent avec le code et ce n'est pas le cas de § M7 : là le lecteur était *vide*,
+`drives[].readsector` valait `null` et `disc_notfound = 1000` renvoyait vers l'INT 18h. Ici
+l'image est **chargée**, `drive_empty[0] == 0`, les sept délégués sont câblés et `img_seek`
+enregistre neuf secteurs valides par piste : le secteur 0 se lit parfaitement — 512 octets
+nuls — et le BIOS saute dedans. `00 00` se décode `ADD [BX+SI], AL`, répété, puis
+l'exécution part dans une RAM elle aussi à zéro.
+
+**Non établi :** si le BIOS du 27/10/82 teste la signature `0xAA55` avant de sauter, et où
+le processeur finit. La session était pilotée à la fois par XTEST et par l'utilisateur au
+clavier, donc la séquence exacte n'est pas attribuable — seul l'écran l'est. PCem fait la
+même chose par construction ; ce n'est pas un défaut d'iXtal26.
+
+### Reste ouvert
+
+1. **Les trois autres tailles** (160/180/320 Ko) : formule commune (`NrSectors * 512`)
+   vérifiée sur 360 Ko, mais les fichiers 163 840 / 184 320 / 327 680 octets n'ont pas été
+   produits ni mesurés.
+2. **`FreeName`** — le suffixe `-2`, `-3`… contre l'écrasement n'a pas été exercé.
+3. Le jalon qui s'en déduit, **M8** : ajouter `h_rawinputkey(int idx, int val)` à
+   `harness.c` et `--type` à `boot-diff`, sur le modèle de `BootTest.TypeAndDump`
+   (`BootTest.cs:62-126`). Les deux côtés taperaient la même chose aux mêmes tranches, et
+   le chemin d'écriture — aujourd'hui le plus gros angle mort du dépôt — deviendrait
+   diffable.
