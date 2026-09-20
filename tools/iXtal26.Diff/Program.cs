@@ -53,6 +53,13 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      le même ordre — une sonde qui ne sert qu'en cas de divergence n'est");
     Console.WriteLine("      jamais exercée par un vert.");
     Console.WriteLine();
+    Console.WriteLine("  speaker-probe [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE]");
+    Console.WriteLine("      Amorce les deux côtés et imprime la sonde du haut-parleur de chacun :");
+    Console.WriteLine("      les six globales de sound_speaker.c, le curseur speaker_pos, la");
+    Console.WriteLine("      position du mixeur, et une empreinte du son RÉELLEMENT produit. Une");
+    Console.WriteLine("      empreinte restée à sa graine est un échec : deux silences concordants");
+    Console.WriteLine("      ne prouvent rien. C'est la seule voix du chemin audio dans le diff.");
+    Console.WriteLine();
     Console.WriteLine("  fdc-trace [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE]");
     Console.WriteLine("      Amorce le cœur C# seul et imprime chaque transition du contrôleur, en");
     Console.WriteLine("      clair : état d'exécution, drapeaux du MSR, état du média. Le pendant à");
@@ -192,6 +199,20 @@ switch (args[0])
             if (positional++ == 0) roms = args[i]; else slices = int.Parse(args[i]);
         }
         return BootDiff.DiscProbe(roms, slices, fda);
+    }
+
+    case "speaker-probe":
+    {
+        var roms = "roms";
+        var slices = 300;
+        string? fda = null;
+        var positional = 0;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--fda" && i + 1 < args.Length) { fda = args[++i]; continue; }
+            if (positional++ == 0) roms = args[i]; else slices = int.Parse(args[i]);
+        }
+        return BootDiff.SpeakerProbe(roms, slices, fda);
     }
 
     case "fdc-trace":

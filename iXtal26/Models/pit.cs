@@ -540,7 +540,19 @@ internal static partial class pit
                         pit.wm[t] = 0;
                         break;
                 }
-                Sound.sound_speaker.speakval = (int)((((float)pit.l[2] / (float)pit.l[0]) * 0x4000) - 0x2000);
+                // pcem bug, reproduced: PB-21 — pit.c:418 divise par l[0] sans le
+                //   tester, et le POST y passe : tranche 231 d'un amorçage 640 Ko,
+                //   l[0] = 0, l[2] = 65535, donc +inf.
+                // DEVIATION: le (int) du C rend alors l'entier indéfini de
+                //   cvttss2si, 0x80000000, que le clamp ci-dessous ne rattrape pas.
+                //   .NET SATURE : (int)float.PositiveInfinity vaut int.MaxValue, et
+                //   le clamp le ramène à 0x2000. Écrire `(int)` ici ferait donc
+                //   diverger speakval de l'oracle à chaque amorçage — mesuré par
+                //   speaker-probe. La garde reproduit la conversion x86, elle ne la
+                //   corrige pas.
+                float speakf = (((float)pit.l[2] / (float)pit.l[0]) * 0x4000) - 0x2000;
+                Sound.sound_speaker.speakval =
+                    speakf >= -2147483648.0f && speakf < 2147483648.0f ? (int)speakf : int.MinValue;
                 if (Sound.sound_speaker.speakval > 0x2000)
                         Sound.sound_speaker.speakval = 0x2000;
                 break;

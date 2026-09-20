@@ -22,7 +22,7 @@ public static class Oracle
     // 2 depuis M8 : h_set_mem_size s'ajoute au contrat (harness.h). Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 2;
+    public const int AbiVersion = 3;
 
     static Oracle()
     {
@@ -118,5 +118,10 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_set_drive_type(int drive, int type);
     [DllImport(Lib)] public static extern void h_set_bpb_disable(int v);
     [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
+
+    // M9 — haut-parleur : sonde des globales de sound_speaker.c, pendant de
+    // Sound.sound_speaker.Probe(). Le neuvième champ est l'empreinte du son
+    // produit — la seule voix du chemin audio dans le diff.
+    [DllImport(Lib)] internal static extern void h_speaker_probe([Out] ulong[] o);
 
 }

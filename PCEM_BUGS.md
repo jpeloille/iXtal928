@@ -253,6 +253,38 @@ accommode pour un pointeur identique.
 
 ---
 
+### PB-21 — `speakval` divise par `pit->l[0]` sans le tester, et le POST y passe
+
+`pit.c:418`, dans `pit_write` :
+
+```c
+speakval = (((float)pit->l[2] / (float)pit->l[0]) * 0x4000) - 0x2000;
+if (speakval > 0x2000)
+        speakval = 0x2000;
+```
+
+La ligne est atteinte par **chute de `case`** depuis les trois canaux : toute écriture
+aux ports 0x40, 0x41 ou 0x42 la recalcule, même quand `l[0]` n'a pas encore été chargé.
+Mesuré sur un amorçage 640 Ko : à la tranche 231, `l[0] = 0` et `l[2] = 65535`, donc
+`+inf`. Le `(int)` de PCem rend alors l'**entier indéfini** de `cvttss2si`, 0x80000000 —
+et le clamp de la ligne suivante ne le rattrape pas, `INT_MIN` n'étant pas `> 0x2000`.
+Les deux commentaires laissés par l'auteur au-dessus (`pit.c:420-421`,
+`"Speaker overflow"`) disent qu'il a soupçonné le débordement sans le fermer.
+
+*Effet* : `speakval` sort de sa plage nominale [−0x2000, +0x2000] et vaut `INT_MIN`
+jusqu'à la prochaine écriture au PIT. Il n'est lu que par `speaker_update`
+(`sound_speaker.c:24`) quand `pit.m[2]` vaut 0 ou 4 ; le bip du POST est en mode 3, donc
+l'audition n'en dépend pas. Tronqué en `int16_t` à `sound_speaker.c:35`, `INT_MIN`
+donnerait 0 — le silence, là où la valeur nominale aurait donné une tension.
+
+*Reproduit* : `Models/pit.cs:543`, avec la garde explicite qu'impose .NET — voir la
+`DEVIATION` sur place. C'est le seul endroit du dépôt où une conversion flottant→entier
+devait être écrite à la main : .NET **sature** (`(int)float.PositiveInfinity` vaut
+`int.MaxValue`, que le clamp ramène alors à 0x2000) là où x86 rend l'entier indéfini.
+Trouvé par la sonde `speaker-probe` de M9, au premier tir.
+
+---
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits

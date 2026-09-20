@@ -235,7 +235,7 @@ uint8_t *h_ram(void);
 /* 2 depuis M8 : les setters de configuration (h_set_mem_size, h_set_drive_type,
  * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
  * et le C# doit le dire au lieu de tomber sur un symbole absent. */
-#define H_ABI_VERSION 2
+#define H_ABI_VERSION 3
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

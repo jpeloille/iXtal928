@@ -194,6 +194,7 @@ public static class BootDiff
                 Console.WriteLine($"\n  -> {d}");
                 DumpPit();
                 DumpDisc();
+                DumpSpeaker();
                 var lin = (a.seg_base[0] + a.oldpc) & 0xFFFFF;
                 var bo = new byte[6];
                 Oracle.h_read(lin, bo, 6);
@@ -257,6 +258,84 @@ public static class BootDiff
                 ? $"  PIT canal {t} : identique"
                 : $"  PIT canal {t} : {string.Join("  |  ", diff)}");
         }
+    }
+
+    private static readonly string[] SpeakerFields =
+    {
+        "speaker_gated", "speaker_enable", "was_speaker_enable", "speakon", "speakval", "ppispeakon",
+        "speaker_pos", "sound_pos_global", "sound_hash",
+    };
+
+    /// <summary>La graine FNV-1a, celle que sound_reset() pose des deux côtés. Une
+    /// empreinte restée là signifie qu'aucun bloc n'a été produit : deux silences
+    /// concordants ne prouvent rien, et c'est le faux vert que cette sonde existe
+    /// pour attraper.</summary>
+    private const ulong HashSeed = 1469598103934665603UL;
+
+    /// <summary>Amorce les deux côtés sur N tranches et imprime les deux sondes du
+    /// haut-parleur côte à côte. Même montage que DiscProbe — h_run / _808x.Run,
+    /// pas h_runpc / pc.runpc.</summary>
+    public static int SpeakerProbe(string romsPath, int slices, string? discA)
+    {
+        Oracle.CheckAbi();
+        var budget = pc.cpu_get_speed() / 100;
+        Oracle.h_set_discfn(0, discA ?? "");
+        Oracle.h_set_mem_size(pc.cfg_mem_size);
+        Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
+        Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
+        Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
+        if (Oracle.h_boot(romsPath) == 0) return 1;
+        for (var i = 0; i < slices; i++) Oracle.h_run(budget);
+
+        _808x.ResetDiagState();
+        Floppy.fdd_c.discfns[0] = discA ?? "";
+        if (!pc.initpc(romsPath)) return 1;
+        for (var i = 0; i < slices; i++) _808x.Run(budget);
+
+        var oc = new ulong[SpeakerFields.Length];
+        var cs = new ulong[SpeakerFields.Length];
+        Oracle.h_speaker_probe(oc);
+        Sound.sound_speaker.Probe(cs);
+
+        var bad = 0;
+        for (var f = 0; f < SpeakerFields.Length; f++)
+        {
+            var flag = oc[f] == cs[f] ? " " : "*";
+            if (oc[f] != cs[f]) bad++;
+            Console.WriteLine($" {flag} {SpeakerFields[f],-20} oracle {oc[f],22} | C# {cs[f],22}");
+        }
+
+        var mute = oc[8] == HashSeed;
+        Console.WriteLine();
+        Console.WriteLine(mute
+            ? $"Empreinte restée à sa graine après {slices} tranches : AUCUN bloc produit. " +
+              "Un accord ici ne prouve rien."
+            : $"Empreinte : {oc[8]:X16} — le son a bien été produit des deux côtés.");
+        Console.WriteLine(bad == 0
+            ? $"Sonde haut-parleur : {SpeakerFields.Length} champs identiques après {slices} tranches."
+            : $"Sonde haut-parleur : {bad} champ(s) divergent(s).");
+        return bad == 0 && !mute ? 0 : 1;
+    }
+
+    /// <summary>Les neuf champs du haut-parleur des deux côtés, en phase 2 du diff.
+    /// speaker_buffer et speaker_pos sont `static` dans sound_speaker.c : ils ne
+    /// sont lisibles que parce que le harnais compile ce .c dans son unité de
+    /// traduction, comme il le fait de 808x.c.</summary>
+    private static void DumpSpeaker()
+    {
+        var oc = new ulong[SpeakerFields.Length];
+        var cs = new ulong[SpeakerFields.Length];
+        Oracle.h_speaker_probe(oc);
+        Sound.sound_speaker.Probe(cs);
+
+        var diff = new List<string>();
+        for (var f = 0; f < SpeakerFields.Length; f++)
+            if (oc[f] != cs[f])
+                diff.Add($"{SpeakerFields[f]}: oracle {oc[f]} / C# {cs[f]}");
+
+        Console.WriteLine(diff.Count == 0
+            ? "  haut-parleur : identique"
+            : $"  haut-parleur : {string.Join("  |  ", diff)}");
     }
 
     private static readonly string[] DiscFields =
