@@ -301,6 +301,26 @@ seul de la vitesse.
 *Reproduit* : `Floppy/fdd.cs`, sous `#pragma warning disable CS0162` — C# fait du code
 mort une erreur.
 
+### PB-19 — `fdc.written` n'est jamais posé à 1 : la détection d'écrasement en écriture est morte
+
+`fdc.c:46` le déclare, `:554` et `:1219` le remettent à zéro, `:1186` le teste — et aucune
+ligne de `pcem-dev/` ne lui donne jamais la valeur 1. Le champ frère `fdc.data_ready`, lui,
+est bien posé (`:1064`, `:1072`) et arme la détection symétrique en lecture.
+
+*Effet* : en écriture hors DMA, `fdc_getdata` ne peut pas détecter que l'UC n'a pas fourni
+l'octet à temps ; `fdc_overrun` n'est jamais appelé par ce chemin. Le chemin d'écriture
+n'est pas exercé par l'amorçage de PC DOS 2.00 (VERIFICATION.md § M6), donc rien ne l'a
+mis en évidence à l'exécution.
+*Reproduit* : `Floppy/fdc.cs`, test conservé tel quel.
+
+### PB-20 — `fdc.abort` est écrit une fois et jamais lu
+
+`fdc.c:97`, dans `fdc_reset`. Aucune lecture dans tout l'arbre vendoré : champ mort,
+probablement le vestige d'un chemin d'annulation de commande jamais écrit.
+
+*Effet* : aucun.
+*Reproduit* : `Floppy/fdc.cs`, champ et affectation conservés.
+
 ---
 
 ## Portée de ce registre
@@ -313,7 +333,7 @@ audit systématique de PCem** :
 | SingleStepTests | PB-01 |
 | Fuzzer différentiel | PB-07 |
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
-| Relecture ligne à ligne pendant la transcription | PB-02, PB-04, PB-05, PB-06, PB-08, PB-09, PB-10, PB-11, PB-12, PB-13, PB-14 à PB-18 |
+| Relecture ligne à ligne pendant la transcription | PB-02, PB-04, PB-05, PB-06, PB-08, PB-09, PB-10, PB-11, PB-12, PB-13, PB-14 à PB-20 |
 
 Le palier (a) et M6 ne transcrivent que ~7 200 des 309 000 lignes de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné, et les cœurs 286/386/486, le dynarec, les autres cartes vidéo et

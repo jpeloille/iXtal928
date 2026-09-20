@@ -171,6 +171,7 @@ internal static partial class fdc_c
         fdc.st0 = 0;
         fdc.@lock = 0;
         fdc.head = 0;
+        // pcem bug, reproduced: PB-20 — abort est écrit ici et lu nulle part.
         fdc.abort = 0;
         if (AT == 0 && romset != ROM_XI8088 && romset != ROM_PC5086)
         {
@@ -1316,6 +1317,8 @@ internal static partial class fdc_c
 
         if (fdc.pcjr != 0 || fdc.dma == 0)
         {
+                // pcem bug, reproduced: PB-19 — written n'est jamais posé à 1 : ce test
+                // ne peut pas se déclencher, l'écrasement en écriture n'est pas détecté.
                 if (fdc.written != 0)
                 {
                         fdc_overrun();
