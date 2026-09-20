@@ -33,10 +33,12 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 200 lignes. Les mesures vont
-  dans `VERIFICATION.md`, sans plafond : le plafond vise la prose de conception, pas les
-  constats. Les données volumineuses vont dans des fichiers générés (`sst-baseline.tsv`,
-  `oracle.tsv`), jamais ici.
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 200 lignes. Deux registres de
+  **constats** en sont exemptés, parce que le plafond vise la prose de conception et pas
+  les faits mesurés : `VERIFICATION.md` (ce que les oracles ont montré) et
+  `PCEM_BUGS.md` (les défauts trouvés dans PCem lui-même, identifiants `PB-nn`, cités
+  par les marqueurs `// pcem bug, reproduced:` du code). Les données volumineuses vont
+  dans des fichiers générés (`sst-baseline.tsv`, `oracle.tsv`), jamais ici.
 - **R4 — zéro abstraction.** Pas d'`interface`, `abstract class`, générique, LINQ,
   `record`, `async`, DI, méthode d'extension. Le C du palier (a) n'en contient aucun.
   Les six C#-ismes autorisés sont une liste close :

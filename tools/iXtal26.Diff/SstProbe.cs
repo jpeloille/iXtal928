@@ -314,9 +314,14 @@ public static class SstProbe
                                     $"mem[0x{pair[0]:X5}] = 0x{actual:X2}, attendu 0x{pair[1]:X2}");
                 }
 
+        // Même libellé que la branche oracle, suffixe « diff masqué » compris : le
+        // critère du plan est que les deux lignes de base soient identiques OCTET
+        // POUR OCTET, et premier_echec est une de leurs colonnes. Un suffixe absent
+        // d'un seul côté fait diverger 13 formes sans qu'aucun cœur ne diverge.
         var why = okMaskedFlags
             ? ""
-            : $"flags = 0x{got[(int)R.FLAGS]:X4}, attendu 0x{want[(int)R.FLAGS]:X4}";
+            : $"flags = 0x{got[(int)R.FLAGS]:X4}, attendu 0x{want[(int)R.FLAGS]:X4} " +
+              $"(diff masqué 0x{(got[(int)R.FLAGS] ^ want[(int)R.FLAGS]) & mask:X4})";
 
         return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
     }

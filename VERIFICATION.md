@@ -5,6 +5,9 @@ document borné, qui ne bouge que quand une règle change. Celui-ci porte ce qu'
 constaté : résultats de portes, divergences, injections de panne. Il grandit à chaque
 jalon, et c'est normal.
 
+Les défauts trouvés dans **PCem lui-même** ont leur propre registre, `PCEM_BUGS.md`,
+qui leur donne des identifiants stables `PB-nn`.
+
 La séparation n'est pas cosmétique : le plafond de 200 lignes de TRANSCRIPTION.md est
 l'anticorps contre la prose de conception qui a tué le projet précédent. Une mesure n'est
 pas de la prose, et elle ne doit pas être rationnée.

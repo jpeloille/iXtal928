@@ -1060,6 +1060,22 @@ startrep:
     // -----------------------------------------------------------------------
     internal static void execx86(int cycs)
     {
+        // DEVIATION: alias de prologue. RyuJIT refuse tout inlining dans cette méthode
+        //   (fginline.cpp : lvaCount >= 0,9 x JitMaxLocalsToTrack, franchi par les
+        //   temporaires du switch avant fgInline) : chaque `cycles -= n` devenait un
+        //   `call get_cycles`, 898 appels au total. Ces ref locales masquent les
+        //   propriétés ref de x86.cs pour la durée de la méthode — même référent, même
+        //   mémoire, aucune ligne du switch ne change. VERIFICATION.md § M5.1.
+        ref int cycles = ref x86.cycles;
+        ref int8_t cpu_mod = ref x86.cpu_mod;
+        ref int8_t cpu_reg = ref x86.cpu_reg;
+        ref uint32_t cs = ref x86.cs, ds = ref x86.ds, es = ref x86.es, ss = ref x86.ss;
+        ref uint16_t CS = ref x86.CS, DS = ref x86.DS, ES = ref x86.ES, SS = ref x86.SS;
+        ref uint16_t AX = ref x86.AX, CX = ref x86.CX, DX = ref x86.DX, BX = ref x86.BX;
+        ref uint16_t SP = ref x86.SP, SI = ref x86.SI, DI = ref x86.DI;
+        ref uint8_t AL = ref x86.AL, AH = ref x86.AH, CL = ref x86.CL, CH = ref x86.CH;
+        ref uint8_t DL = ref x86.DL, DH = ref x86.DH, BL = ref x86.BL, BH = ref x86.BH;
+
         uint8_t temp, temp2;
         uint16_t addr, tempw, tempw2;
         int8_t offset;
