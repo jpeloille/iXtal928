@@ -124,12 +124,14 @@ switch (args[0])
         var roms = "roms";
         var slices = 100;
         string? fda = null;
+        string? cfg = null;
         var positional = 0;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--fda" when i + 1 < args.Length: fda = args[++i]; break;
+                case "--config" when i + 1 < args.Length: cfg = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {
@@ -146,7 +148,14 @@ switch (args[0])
             Console.Error.WriteLine($"Image de disquette introuvable : {fda}");
             return 2;
         }
-        return BootDiff.Run(roms, slices, fda);
+        // Refusé et non ignoré : un fichier mal tapé donnerait tous les défauts, donc
+        // une comparaison verte qui ne prouve RIEN de la configuration demandée.
+        if (cfg is not null && !File.Exists(cfg))
+        {
+            Console.Error.WriteLine($"Fichier de configuration introuvable : {cfg}");
+            return 2;
+        }
+        return BootDiff.Run(roms, slices, fda, cfg);
     }
 
     case "disc-probe":

@@ -396,6 +396,17 @@ static void h_trace_note(void) {
 static void h_noop(void) { }
 extern void (*_sound_speed_changed)(void);
 
+/* --- configuration machine (M8) ---------------------------------------------
+ * 640 par défaut : la valeur que h_boot portait en dur, et que TOUTE mesure déjà
+ * consignée dans VERIFICATION.md suppose. Un h_boot sans h_set_mem_size préalable
+ * doit donc rendre exactement la machine d'avant M8. */
+int h_mem_size_kb = 640;
+
+/* 1 = 5,25" DD, le lecteur du 5150 (fdd.c:44-46), comme pc.cs. */
+int h_drive_type[2] = {1, 1};
+
+extern int bpb_disable;
+
 int h_boot(const char *romspath) {
         h_set_roms_path(romspath);
         _sound_speed_changed = h_noop;
@@ -407,7 +418,7 @@ int h_boot(const char *romspath) {
 
         device_init();
         initvideo();          /* pc.c:59 */
-        mem_size = 640;
+        mem_size = h_mem_size_kb;
 
         if (!h_mem_inited) {
                 mem_init();
@@ -425,8 +436,8 @@ int h_boot(const char *romspath) {
 
         /* pc.c:776-777 — loadconfig() pose les types de lecteur AVANT initpc. Le
          * 5150 a des 5,25" double densité : type 1 (fdd.c:44-46), comme pc.cs. */
-        fdd_set_type(0, 1);
-        fdd_set_type(1, 1);
+        fdd_set_type(0, h_drive_type[0]);
+        fdd_set_type(1, h_drive_type[1]);
 
         /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */
         timer_reset();
@@ -523,6 +534,16 @@ uint64_t h_ram_hash(void) {
         }
         return hash;
 }
+
+void h_set_mem_size(int kb) { h_mem_size_kb = kb; }
+
+void h_set_drive_type(int drive, int type) {
+        if (drive < 0 || drive > 1)
+                return;
+        h_drive_type[drive] = type;
+}
+
+void h_set_bpb_disable(int v) { bpb_disable = v; }
 
 /* --- disquette (M6) --------------------------------------------------------- */
 

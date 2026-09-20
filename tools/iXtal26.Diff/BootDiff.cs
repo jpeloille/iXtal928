@@ -31,15 +31,31 @@ public static class BootDiff
     /// <param name="discA">Image de disquette du lecteur A, ou null : la MÊME image
     /// est montée des deux côtés, avant l'amorçage, comme pc.c le fait depuis argv
     /// (pc.c:231) — c'est la seule façon de comparer un amorçage DOS.</param>
-    public static int Run(string romsPath, int slices, string? discA = null)
+    /// <param name="configPath">Fichier de configuration, ou null pour les défauts.
+    /// C'est CET OUTIL qui le lit, une fois, et qui pousse ensuite chaque scalaire des
+    /// DEUX côtés — jamais initpc de son côté et h_boot du sien. Deux lectures
+    /// indépendantes, ce sont deux résolutions de chemin qui peuvent trouver deux
+    /// fichiers différents : une divergence de configuration déguisée en divergence de
+    /// cœur, et le harnais ne saurait pas faire la différence.</param>
+    public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null)
     {
         Oracle.CheckAbi();
+
+        if (configPath is not null && !pc.loadconfig(configPath))
+            return 2;
+
+        Console.WriteLine($"Configuration : mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
+                          (configPath is null ? " (défaut)" : $" ({configPath})"));
 
         var oraclePath = Path.Combine(Path.GetTempPath(), "ixtal-boot-oracle.bin");
 
         Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
                           (discA is null ? ")…" : $", A: = {discA})…"));
         Oracle.h_set_discfn(0, discA ?? "");
+        Oracle.h_set_mem_size(pc.cfg_mem_size);
+        Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
+        Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
+        Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -114,6 +130,10 @@ public static class BootDiff
     private static int Phase2(string romsPath, int index, string? discA)
     {
         Oracle.h_set_discfn(0, discA ?? "");
+        Oracle.h_set_mem_size(pc.cfg_mem_size);
+        Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
+        Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
+        Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         _808x.ResetDiagState();
         Floppy.fdd_c.discfns[0] = discA ?? "";
@@ -259,6 +279,10 @@ public static class BootDiff
         Oracle.CheckAbi();
         var budget = pc.cpu_get_speed() / 100;
         Oracle.h_set_discfn(0, discA ?? "");
+        Oracle.h_set_mem_size(pc.cfg_mem_size);
+        Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
+        Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
+        Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 

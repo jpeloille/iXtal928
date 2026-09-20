@@ -183,6 +183,30 @@ void h_pit_probe(int t, uint64_t *out);
  * pc.cs) et ne se configurent pas. */
 void h_set_discfn(int drive, const char *fn);
 
+/* --- configuration machine (M8) ---------------------------------------------
+ * Taille RAM en Ko, pendant de mem_size (mem.c:102) que loadconfig pose AVANT
+ * initpc chez PCem (pc.c:694). À appeler avant h_boot ; sans appel, h_boot garde
+ * 640, la valeur qu'il portait en dur et que toutes les mesures de
+ * VERIFICATION.md supposent.
+ *
+ * C'est le PATRON de tout paramètre machine configurable : l'outil de diff lit la
+ * configuration UNE fois, puis pousse le même scalaire des deux côtés — ici, et
+ * dans mem.mem_size côté C#. Laisser chaque côté relire le fichier ouvrirait la
+ * porte à deux résolutions de chemin divergentes, soit exactement la panne que la
+ * comparaison différentielle existe pour attraper. */
+void h_set_mem_size(int kb);
+
+/* Type de lecteur, pendant de fdd_set_type (fdd.c:176) que loadconfig pose AVANT
+ * initpc (pc.c:776-777). Sans appel, h_boot garde 1 — 5,25" DD, le lecteur du
+ * 5150. Le type gouverne max_track et les drapeaux de densité (fdd.c:38-64),
+ * donc fdd_seek et fdd_can_read_medium : un type divergent fait diverger la
+ * recherche de piste avant toute lecture de secteur. */
+void h_set_drive_type(int drive, int type);
+
+/* Pendant de bpb_disable (disc_img.c:22). Force img_load à deviner la géométrie
+ * depuis la taille du fichier au lieu de lire le BPB. */
+void h_set_bpb_disable(int v);
+
 /* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
  * Floppy.fdc_c.Probe() côté C#. L'instance `fdc` est static dans fdc.c, donc hors
  * de portée sans l'inclure ; les globales suffisent à nommer le champ divergent. */
@@ -201,7 +225,10 @@ uint8_t *h_ram(void);
 
 /* Version du contrat. Incrémentée dès que h_state change de forme, pour qu'un
  * .so périmé échoue bruyamment au lieu de marshaler du charabia. */
-#define H_ABI_VERSION 1
+/* 2 depuis M8 : les setters de configuration (h_set_mem_size, h_set_drive_type,
+ * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
+ * et le C# doit le dire au lieu de tomber sur un symbole absent. */
+#define H_ABI_VERSION 2
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -19,7 +19,10 @@ namespace iXtal26.Diff;
 public static class Oracle
 {
     private const string Lib = "ixtal26oracle";
-    public const int AbiVersion = 1;
+    // 2 depuis M8 : h_set_mem_size s'ajoute au contrat (harness.h). Doit suivre
+    // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
+    // est périmé » d'un symbole introuvable au premier appel.
+    public const int AbiVersion = 2;
 
     static Oracle()
     {
@@ -111,6 +114,9 @@ public static class Oracle
     // M6 — disquette : image du lecteur A/B (à poser AVANT h_boot), et sonde des
     // globales de disc.c/fdc.c, pendant de Floppy.fdc_c.Probe().
     [DllImport(Lib)] public static extern void h_set_discfn(int drive, [MarshalAs(UnmanagedType.LPStr)] string fn);
+    [DllImport(Lib)] public static extern void h_set_mem_size(int kb);
+    [DllImport(Lib)] public static extern void h_set_drive_type(int drive, int type);
+    [DllImport(Lib)] public static extern void h_set_bpb_disable(int v);
     [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
 
 }
