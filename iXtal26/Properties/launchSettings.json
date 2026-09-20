@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "iXtal26": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26.cfg --turbo"
+    },
+    "iXtal26 (machine de reference, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    },
+    "iXtal26 (64 Ko, demarrage court)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26.cfg --ram 64"
+    },
+    "iXtal26 (diagnostic)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26.cfg --turbo --verbose"
+    }
+  }
+}

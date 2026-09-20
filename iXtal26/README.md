@@ -73,6 +73,27 @@ disc_a = os/pcdos20/pcdos20b.img
 bpb_disable = 0
 ```
 
+### Depuis l'IDE
+
+`Properties/launchSettings.json` porte quatre profils de lancement, que Rider et
+`dotnet run --launch-profile` lisent tous les deux. Le premier est le défaut :
+
+| Profil | Arguments |
+|---|---|
+| `iXtal26` | `--config ixtal26.cfg --turbo` |
+| `iXtal26 (machine de reference, sans turbo)` | *(aucun)* |
+| `iXtal26 (64 Ko, demarrage court)` | `--config ixtal26.cfg --ram 64` |
+| `iXtal26 (diagnostic)` | `--config ixtal26.cfg --turbo --verbose` |
+
+**Un profil ne s'applique qu'à un lancement SANS arguments.** Dès qu'on passe `-- …`,
+`dotnet run` remplace les arguments du profil par les vôtres : toutes les commandes de ce
+fichier et de `../VERIFICATION.md` gardent donc exactement leur comportement.
+
+Les chemins de `--config`, `--floppy-a` et de la clé `disc_a` sont résolus d'abord
+relativement au répertoire courant, sinon en remontant depuis le binaire. C'est ce qui
+fait qu'un lancement depuis Rider — qui part de `bin/Debug/net10.0/` — trouve les mêmes
+fichiers qu'un lancement depuis la racine du dépôt.
+
 **Précédence : défauts, puis `--config`, puis `--ram` / `--drive-a` / `--drive-b`.** Sans
 `--config` aucun fichier n'est lu — la machine est alors celle que décrit
 `../VERIFICATION.md` : 640 Ko, deux lecteurs 5,25" DD, CGA. Ce défaut n'est pas un
