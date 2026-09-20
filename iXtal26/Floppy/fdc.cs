@@ -97,6 +97,48 @@ internal static partial class fdc_c
     private const int ST2_BC = (1 << 1); /*Bad cylinder*/
     private const int ST2_MD = (1 << 0);
 
+    // DEVIATION: valeurs de registre que fdc.c écrit en hexadécimal nu. Nommées ici et
+    //   pas dans PCem — TRANSCRIPTION.md, § Nommage explicite. Les bits du DOR n'y sont
+    //   pas : le PCjr (fdc.c:298-312) ne leur donne pas la même disposition qu'un AT, et
+    //   un seul jeu de noms serait faux pour l'un des deux.
+    private const int MSR_RQM = 0x80;
+    private const int MSR_DIO = 0x40; /*1 = FDC vers UC*/
+    private const int MSR_NDM = 0x20; /*Transfert hors DMA*/
+    private const int MSR_CB = 0x10;  /*Commande en cours*/
+    private const int MSR_DRIVE_MASK = 0x0f;
+
+    private const int ST0_IC_INVALID = 0x80;
+    private const int ST0_IC_ABNORMAL = 0x40;
+    private const int ST0_SE = 0x20; /*Seek end*/
+    private const int ST0_NR = 0x08; /*Not ready*/
+    private const int ST0_HD = 0x04;
+
+    private const int ST1_OR = 0x10; /*Overrun*/
+
+    /*Sense drive status rend ST3, dont la disposition n'est celle d'aucun des trois autres*/
+    private const int ST3_FT = 0x80; /*Fault*/
+    private const int ST3_WP = 0x40;
+    private const int ST3_RDY = 0x20;
+    private const int ST3_T0 = 0x10;
+    private const int ST3_TS = 0x08; /*Two-sided*/
+
+    /*Disposition du résultat à SEPT octets. res[] est adressé depuis la FIN
+      (res[RES_N - paramstogo], :773) : les résultats à un, deux et dix octets occupent
+      d'autres tranches du même tableau et gardent donc leurs indices nus.*/
+    private const int RES_ST0 = 4;
+    private const int RES_ST1 = 5;
+    private const int RES_ST2 = 6;
+    private const int RES_C = 7;
+    private const int RES_H = 8;
+    private const int RES_R = 9;
+    private const int RES_N = 10;
+
+    /*Sentinelles de discint, hors de l'espace des opcodes*/
+    private const int EXEC_END_INT = -3;
+    private const int EXEC_END = -2;
+    private const int EXEC_RESET = -1;
+    private const int EXEC_INVALID = 0xfc;
+
     // pcem: fdc.h:31
     internal const int FDC_STATUS_AM_NOT_FOUND = 0;
     internal const int FDC_STATUS_NOT_FOUND = 1;
@@ -124,7 +166,7 @@ internal static partial class fdc_c
     // pcem: fdc.c:91-103
     internal static void fdc_reset()
     {
-        fdc.stat = 0x80;
+        fdc.stat = MSR_RQM;
         fdc.pnum = fdc.ptot = 0;
         fdc.st0 = 0;
         fdc.@lock = 0;
@@ -360,7 +402,7 @@ internal static partial class fdc_c
                         if ((val & 0x80) != 0 && (fdc.dor & 0x80) == 0)
                         {
                                 timer_set_delay_u64(fdc.timer, 8 * TIMER_USEC);
-                                discint = -1;
+                                discint = EXEC_RESET;
                                 fdc_reset();
                         }
                         disc_set_motor_enable(val & 0x01);
@@ -371,7 +413,7 @@ internal static partial class fdc_c
                         if ((val & 4) != 0 && (fdc.dor & 4) == 0)
                         {
                                 timer_set_delay_u64(fdc.timer, 8 * TIMER_USEC);
-                                discint = -1;
+                                discint = EXEC_RESET;
                                 fdc_reset();
                         }
                         disc_set_motor_enable((val & 0xf0) != 0 ? 1 : 0);
@@ -391,23 +433,23 @@ internal static partial class fdc_c
                 if ((val & 0x80) != 0)
                 {
                         timer_set_delay_u64(fdc.timer, 8 * TIMER_USEC);
-                        discint = -1;
+                        discint = EXEC_RESET;
                         fdc_reset();
                 }
                 return;
         case 5: /*Command register*/
-                if ((fdc.stat & 0xf0) == 0xb0)
+                if ((fdc.stat & ~MSR_DRIVE_MASK) == (MSR_RQM | MSR_NDM | MSR_CB))
                 {
                         if (fdc.pcjr != 0 || fdc.fifo == 0)
                         {
                                 fdc.dat = val;
-                                fdc.stat &= unchecked((uint8_t)~0x80);
+                                fdc.stat &= unchecked((uint8_t)~MSR_RQM);
                         }
                         else
                         {
                                 fdc_fifo_buf_write(val);
                                 if (fdc.fifobufpos == 0)
-                                        fdc.stat &= unchecked((uint8_t)~0x80);
+                                        fdc.stat &= unchecked((uint8_t)~MSR_RQM);
                         }
                         break;
                 }
@@ -424,7 +466,7 @@ internal static partial class fdc_c
                                         goto default;
                                 fdc.pnum = 0;
                                 fdc.ptot = 4;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 fdc.format_state = 0;
                                 break;
@@ -433,18 +475,18 @@ internal static partial class fdc_c
                         case 0x42: /*Read track*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 8;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x03: /*Specify*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 2;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 break;
                         case 0x04: /*Sense drive status*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 1;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 break;
                         case 0x05:
                         case 0x45:
@@ -452,7 +494,7 @@ internal static partial class fdc_c
                         case 0xc5: /*Write data*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 8;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x06:
@@ -465,13 +507,13 @@ internal static partial class fdc_c
                         case 0xe6:
                                 fdc.pnum = 0;
                                 fdc.ptot = 8;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x07: /*Recalibrate*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 1;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 break;
                         case 0x08: /*Sense interrupt status*/
                                 if (fdc.int_pending != 0 || fdc_reset_stat != 0)
@@ -483,8 +525,8 @@ internal static partial class fdc_c
                                 }
                                 else
                                 {
-                                        fdc.stat = 0x10;
-                                        discint = 0xfc;
+                                        fdc.stat = MSR_CB;
+                                        discint = EXEC_INVALID;
                                         timer_set_delay_u64(fdc.timer, 100 * TIMER_USEC);
                                 }
                                 break;
@@ -492,7 +534,7 @@ internal static partial class fdc_c
                         case 0x4a: /*Read sector ID*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 1;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x0d:
@@ -501,14 +543,14 @@ internal static partial class fdc_c
                         case 0xcd: /*Format track*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 5;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 fdc.format_state = 0;
                                 break;
                         case 0x0f: /*Seek*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 2;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 break;
                         case 0x0e: /*Dump registers*/
                                 fdc.lastdrive = fdc.drive;
@@ -525,13 +567,13 @@ internal static partial class fdc_c
                         case 0x12: /*Set perpendicular mode*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 1;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x13: /*Configure*/
                                 fdc.pnum = 0;
                                 fdc.ptot = 3;
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                                 fdc.pos = 0;
                                 break;
                         case 0x14: /*Unlock*/
@@ -553,8 +595,8 @@ internal static partial class fdc_c
 
                         default:
                         // bad_command: — `goto bad_command` s'écrit `goto default`, l'étiquette est la même.
-                                fdc.stat = 0x10;
-                                discint = 0xfc;
+                                fdc.stat = MSR_CB;
+                                discint = EXEC_INVALID;
                                 timer_set_delay_u64(fdc.timer, 100 * TIMER_USEC);
                                 break;
                         }
@@ -566,7 +608,7 @@ internal static partial class fdc_c
                         {
                                 uint64_t time;
 
-                                fdc.stat = 0x30;
+                                fdc.stat = MSR_NDM | MSR_CB;
                                 timer_set_delay_u64(fdc.timer, 256 * TIMER_USEC);
                                 disc_drivesel = fdc.drive & 1;
                                 fdc_reset_stat = 0;
@@ -592,7 +634,7 @@ internal static partial class fdc_c
                                         break;
 
                                 case 0x03: /*Specify*/
-                                        fdc.stat = 0x80;
+                                        fdc.stat = MSR_RQM;
                                         fdc.specify[0] = fdc.@params[0];
                                         fdc.specify[1] = fdc.@params[1];
                                         fdc.dma = (fdc.specify[1] & 1) ^ 1;
@@ -621,7 +663,7 @@ internal static partial class fdc_c
                                         readflash_set(READFLASH_FDC, fdc.drive);
                                         fdc.pos = 0;
                                         if (fdc.pcjr != 0)
-                                                fdc.stat = 0xb0;
+                                                fdc.stat = MSR_RQM | MSR_NDM | MSR_CB;
                                         break;
 
                                 case 0x06:
@@ -666,7 +708,7 @@ internal static partial class fdc_c
                                         fdc.head = (fdc.@params[0] & 4) != 0 ? 1 : 0;
                                         fdc.format_state = 1;
                                         fdc.pos = 0;
-                                        fdc.stat = 0x30;
+                                        fdc.stat = MSR_NDM | MSR_CB;
                                         break;
 
                                 case 0x0f: /*Seek*/
@@ -756,8 +798,8 @@ internal static partial class fdc_c
                 temp = fdc.stat;
                 break;
         case 5: /*Data*/
-                fdc.stat &= unchecked((uint8_t)~0x80);
-                if ((fdc.stat & 0xf0) == 0xf0)
+                fdc.stat &= unchecked((uint8_t)~MSR_RQM);
+                if ((fdc.stat & ~MSR_DRIVE_MASK) == (MSR_RQM | MSR_DIO | MSR_NDM | MSR_CB))
                 {
                         if (fdc.pcjr != 0 || fdc.fifo == 0)
                                 temp = fdc.dat;
@@ -770,25 +812,25 @@ internal static partial class fdc_c
                 if (paramstogo != 0)
                 {
                         paramstogo--;
-                        temp = fdc.res[10 - paramstogo];
+                        temp = fdc.res[RES_N - paramstogo];
                         if (paramstogo == 0)
                         {
-                                fdc.stat = 0x80;
+                                fdc.stat = MSR_RQM;
                         }
                         else
                         {
-                                fdc.stat |= 0xC0;
+                                fdc.stat |= MSR_RQM | MSR_DIO;
                         }
                 }
                 else
                 {
                         if (lastbyte != 0)
-                                fdc.stat = 0x80;
+                                fdc.stat = MSR_RQM;
                         lastbyte = 0;
                         temp = fdc.dat;
                         fdc.data_ready = 0;
                 }
-                fdc.stat &= 0xf0;
+                fdc.stat &= unchecked((uint8_t)~MSR_DRIVE_MASK);
                 break;
         case 7: /*Disk change*/
                 drive = (fdc.dor & 1) ^ fdd_swap;
@@ -816,18 +858,18 @@ internal static partial class fdc_c
 
         switch (discint)
         {
-        case -3: /*End of command with interrupt*/
+        case EXEC_END_INT: /*End of command with interrupt*/
                 fdc_int();
-                goto case -2;
-        case -2: /*End of command*/
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0x80);
+                goto case EXEC_END;
+        case EXEC_END: /*End of command*/
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM);
                 return;
-        case -1: /*Reset*/
+        case EXEC_RESET: /*Reset*/
                 fdc_int();
                 fdc_reset_stat = 4;
                 return;
         case 1: /*Mode*/
-                fdc.stat = 0x80;
+                fdc.stat = MSR_RQM;
                 fdc.densel_force = (fdc.@params[2] & 0xC0) >> 6;
                 return;
 
@@ -837,15 +879,15 @@ internal static partial class fdc_c
                 if (fdc.eot[fdc.drive] == 0 || fdc.tc != 0)
                 {
                         fdc.inread = 0;
-                        discint = -2;
+                        discint = EXEC_END;
                         fdc_int();
-                        fdc.stat = 0xD0;
-                        fdc.res[4] = (uint8_t)((fdc.head != 0 ? 4 : 0) | fdc.drive);
-                        fdc.res[5] = fdc.res[6] = 0;
-                        fdc.res[7] = (uint8_t)fdc.track[fdc.drive];
-                        fdc.res[8] = (uint8_t)fdc.head;
-                        fdc.res[9] = (uint8_t)fdc.sector;
-                        fdc.res[10] = fdc.@params[4];
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+                        fdc.res[RES_ST0] = (uint8_t)((fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+                        fdc.res[RES_ST1] = fdc.res[RES_ST2] = 0;
+                        fdc.res[RES_C] = (uint8_t)fdc.track[fdc.drive];
+                        fdc.res[RES_H] = (uint8_t)fdc.head;
+                        fdc.res[RES_R] = (uint8_t)fdc.sector;
+                        fdc.res[RES_N] = fdc.@params[4];
                         paramstogo = 7;
                         return;
                 }
@@ -857,18 +899,18 @@ internal static partial class fdc_c
                 drive = fdc.@params[0] & 1;
                 if (fdd_get_type(drive) != 0)
                 {
-                        fdc.res[10] = (uint8_t)((fdc.@params[0] & 7) | 0x28);
+                        fdc.res[10] = (uint8_t)((fdc.@params[0] & 7) | ST3_RDY | ST3_TS);
                         if (fdd_track0(drive) != 0)
-                                fdc.res[10] |= 0x10;
+                                fdc.res[10] |= ST3_T0;
                         if (writeprot[drive] != 0)
-                                fdc.res[10] |= 0x40;
+                                fdc.res[10] |= ST3_WP;
                 }
                 else
                 {
-                        fdc.res[10] = (uint8_t)(0x80 | (fdc.@params[0] & 3));
+                        fdc.res[10] = (uint8_t)(ST3_FT | (fdc.@params[0] & 3));
                 }
 
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 paramstogo = 1;
                 discint = 0;
                 return;
@@ -896,15 +938,15 @@ internal static partial class fdc_c
                         fdc.sector++;
                 if (fdc.tc != 0)
                 {
-                        discint = -2;
+                        discint = EXEC_END;
                         fdc_int();
-                        fdc.stat = 0xD0;
-                        fdc.res[4] = (uint8_t)((fdc.head != 0 ? 4 : 0) | fdc.drive);
-                        fdc.res[5] = fdc.res[6] = 0;
-                        fdc.res[7] = (uint8_t)fdc.rw_track;
-                        fdc.res[8] = (uint8_t)fdc.head;
-                        fdc.res[9] = (uint8_t)fdc.sector;
-                        fdc.res[10] = fdc.@params[4];
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+                        fdc.res[RES_ST0] = (uint8_t)((fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+                        fdc.res[RES_ST1] = fdc.res[RES_ST2] = 0;
+                        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+                        fdc.res[RES_H] = (uint8_t)fdc.head;
+                        fdc.res[RES_R] = (uint8_t)fdc.sector;
+                        fdc.res[RES_N] = fdc.@params[4];
                         paramstogo = 7;
                         return;
                 }
@@ -935,15 +977,15 @@ internal static partial class fdc_c
                 if (fdc.tc != 0)
                 {
                         fdc.inread = 0;
-                        discint = -2;
+                        discint = EXEC_END;
                         fdc_int();
-                        fdc.stat = 0xD0;
-                        fdc.res[4] = (uint8_t)((fdc.head != 0 ? 4 : 0) | fdc.drive);
-                        fdc.res[5] = fdc.res[6] = 0;
-                        fdc.res[7] = (uint8_t)fdc.rw_track;
-                        fdc.res[8] = (uint8_t)fdc.head;
-                        fdc.res[9] = (uint8_t)fdc.sector;
-                        fdc.res[10] = fdc.@params[4];
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+                        fdc.res[RES_ST0] = (uint8_t)((fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+                        fdc.res[RES_ST1] = fdc.res[RES_ST2] = 0;
+                        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+                        fdc.res[RES_H] = (uint8_t)fdc.head;
+                        fdc.res[RES_R] = (uint8_t)fdc.sector;
+                        fdc.res[RES_N] = fdc.@params[4];
                         paramstogo = 7;
                         return;
                 }
@@ -955,19 +997,19 @@ internal static partial class fdc_c
                 drive = fdc.@params[0] & 1;
                 fdc.track[fdc.drive] = 0;
                 if (fdc.drive <= 1 && fdd_get_type(drive) != 0)
-                        fdc.st0 = (uint8_t)(0x20 | (fdc.@params[0] & 3) | (fdc.head != 0 ? 4 : 0));
+                        fdc.st0 = (uint8_t)(ST0_SE | (fdc.@params[0] & 3) | (fdc.head != 0 ? ST0_HD : 0));
                 else
-                        fdc.st0 = (uint8_t)(0x68 | (fdc.@params[0] & 3) | (fdc.head != 0 ? 4 : 0));
+                        fdc.st0 = (uint8_t)(ST0_IC_ABNORMAL | ST0_SE | ST0_NR | (fdc.@params[0] & 3) | (fdc.head != 0 ? ST0_HD : 0));
                 fdc.int_pending = 1;
-                discint = -3;
+                discint = EXEC_END_INT;
                 timer_set_delay_u64(fdc.timer, 2048 * TIMER_USEC);
-                fdc.stat = (uint8_t)(0x80 | (1 << fdc.drive));
+                fdc.stat = (uint8_t)(MSR_RQM | (1 << fdc.drive));
                 return;
 
         case 8: /*Sense interrupt status*/
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 if (fdc_reset_stat != 0)
-                        fdc.res[9] = (uint8_t)(0xc0 | (4 - fdc_reset_stat) | (fdc.head != 0 ? 4 : 0));
+                        fdc.res[9] = (uint8_t)(ST0_IC_INVALID | ST0_IC_ABNORMAL | (4 - fdc_reset_stat) | (fdc.head != 0 ? ST0_HD : 0));
                 else
                         fdc.res[9] = fdc.st0;
                 fdc.res[10] = (uint8_t)fdc.track[fdc.drive];
@@ -1006,15 +1048,15 @@ internal static partial class fdc_c
                 }
                 else
                 {
-                        discint = -2;
+                        discint = EXEC_END;
                         fdc_int();
-                        fdc.stat = 0xD0;
-                        fdc.res[4] = (uint8_t)((fdc.head != 0 ? 4 : 0) | fdc.drive);
-                        fdc.res[5] = fdc.res[6] = 0;
-                        fdc.res[7] = (uint8_t)fdc.track[fdc.drive];
-                        fdc.res[8] = (uint8_t)fdc.head;
-                        fdc.res[9] = (uint8_t)(fdc.format_dat[fdc.pos - 2] + 1);
-                        fdc.res[10] = fdc.@params[4];
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+                        fdc.res[RES_ST0] = (uint8_t)((fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+                        fdc.res[RES_ST1] = fdc.res[RES_ST2] = 0;
+                        fdc.res[RES_C] = (uint8_t)fdc.track[fdc.drive];
+                        fdc.res[RES_H] = (uint8_t)fdc.head;
+                        fdc.res[RES_R] = (uint8_t)(fdc.format_dat[fdc.pos - 2] + 1);
+                        fdc.res[RES_N] = fdc.@params[4];
                         paramstogo = 7;
                         fdc.format_state = 0;
                         return;
@@ -1025,16 +1067,16 @@ internal static partial class fdc_c
                 drive = fdc.@params[0] & 1;
                 fdc.track[fdc.drive] = fdc.@params[1];
                 if (fdc.drive <= 1 && fdd_get_type(drive) != 0)
-                        fdc.st0 = (uint8_t)(0x20 | (fdc.@params[0] & 3) | (fdc.head != 0 ? 4 : 0));
+                        fdc.st0 = (uint8_t)(ST0_SE | (fdc.@params[0] & 3) | (fdc.head != 0 ? ST0_HD : 0));
                 else
-                        fdc.st0 = (uint8_t)(0x68 | (fdc.@params[0] & 3) | (fdc.head != 0 ? 4 : 0));
+                        fdc.st0 = (uint8_t)(ST0_IC_ABNORMAL | ST0_SE | ST0_NR | (fdc.@params[0] & 3) | (fdc.head != 0 ? ST0_HD : 0));
                 fdc.int_pending = 1;
-                discint = -3;
+                discint = EXEC_END_INT;
                 timer_set_delay_u64(fdc.timer, 1024 * TIMER_USEC);
-                fdc.stat = (uint8_t)(0x80 | (1 << fdc.drive));
+                fdc.stat = (uint8_t)(MSR_RQM | (1 << fdc.drive));
                 return;
         case 0x0e: /*Dump registers*/
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[1] = (uint8_t)fdc.track[0];
                 fdc.res[2] = (uint8_t)fdc.track[1];
                 fdc.res[3] = 0;
@@ -1050,7 +1092,7 @@ internal static partial class fdc_c
                 return;
 
         case 0x10: /*Version*/
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[10] = 0x90;
                 paramstogo = 1;
                 discint = 0;
@@ -1058,7 +1100,7 @@ internal static partial class fdc_c
 
         case 0x12:
                 fdc.perp = fdc.@params[0];
-                fdc.stat = 0x80;
+                fdc.stat = MSR_RQM;
                 return;
         case 0x13: /*Configure*/
                 fdc.config = fdc.@params[1];
@@ -1066,33 +1108,33 @@ internal static partial class fdc_c
                 fdc.fifo = (fdc.@params[1] & 0x20) != 0 ? 0 : 1;
                 fdc.tfifo = (fdc.@params[1] & 0xF) + 1;
                 // omitted: pclog("FIFO is now %02X, threshold is %02X\n", ...) — sortie pure
-                fdc.stat = 0x80;
+                fdc.stat = MSR_RQM;
                 return;
         case 0x14: /*Unlock*/
                 fdc.@lock = 0;
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[10] = 0;
                 paramstogo = 1;
                 discint = 0;
                 return;
         case 0x94: /*Lock*/
                 fdc.@lock = 1;
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[10] = 0x10;
                 paramstogo = 1;
                 discint = 0;
                 return;
 
         case 0x18: /*NSC*/
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[10] = 0x73;
                 paramstogo = 1;
                 discint = 0;
                 return;
 
-        case 0xfc: /*Invalid*/
-                fdc.dat = fdc.st0 = 0x80;
-                fdc.stat = (uint8_t)((fdc.stat & 0xf) | 0xd0);
+        case EXEC_INVALID: /*Invalid*/
+                fdc.dat = fdc.st0 = ST0_IC_INVALID;
+                fdc.stat = (uint8_t)((fdc.stat & MSR_DRIVE_MASK) | MSR_RQM | MSR_DIO | MSR_CB);
                 fdc.res[10] = fdc.st0;
                 paramstogo = 1;
                 discint = 0;
@@ -1107,14 +1149,14 @@ internal static partial class fdc_c
         timer_disable(fdc.timer);
 
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)(0x40 | (fdc.head != 0 ? 4 : 0) | fdc.drive);
-        fdc.res[5] = 0x10; /*Overrun*/
-        fdc.res[6] = 0;
-        fdc.res[7] = 0;
-        fdc.res[8] = 0;
-        fdc.res[9] = 0;
-        fdc.res[10] = 0;
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)(ST0_IC_ABNORMAL | (fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+        fdc.res[RES_ST1] = ST1_OR;
+        fdc.res[RES_ST2] = 0;
+        fdc.res[RES_C] = 0;
+        fdc.res[RES_H] = 0;
+        fdc.res[RES_R] = 0;
+        fdc.res[RES_N] = 0;
         paramstogo = 7;
     }
 
@@ -1136,7 +1178,7 @@ internal static partial class fdc_c
                 {
                         fdc.dat = data;
                         fdc.data_ready = 1;
-                        fdc.stat = 0xf0;
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_NDM | MSR_CB;
                 }
                 else
                 {
@@ -1146,7 +1188,7 @@ internal static partial class fdc_c
                         {
                                 // We have wrapped around, means FIFO is over
                                 fdc.data_ready = 1;
-                                fdc.stat = 0xf0;
+                                fdc.stat = MSR_RQM | MSR_DIO | MSR_NDM | MSR_CB;
                         }
                 }
         }
@@ -1158,7 +1200,7 @@ internal static partial class fdc_c
                 if (fdc.fifo == 0)
                 {
                         fdc.data_ready = 1;
-                        fdc.stat = 0xd0;
+                        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
                 }
                 else
                 {
@@ -1167,7 +1209,7 @@ internal static partial class fdc_c
                         {
                                 // We have wrapped around, means FIFO is over
                                 fdc.data_ready = 1;
-                                fdc.stat = 0xd0;
+                                fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
                         }
                 }
         }
@@ -1188,31 +1230,31 @@ internal static partial class fdc_c
         timer_disable(fdc.timer);
 
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)(0x40 | (fdc.head != 0 ? 4 : 0) | fdc.drive);
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)(ST0_IC_ABNORMAL | (fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
         switch (reason)
         {
         case FDC_STATUS_AM_NOT_FOUND:
-                fdc.res[5] = ST1_ND | ST1_MA;
-                fdc.res[6] = 0;
+                fdc.res[RES_ST1] = ST1_ND | ST1_MA;
+                fdc.res[RES_ST2] = 0;
                 break;
         case FDC_STATUS_NOT_FOUND:
-                fdc.res[5] = ST1_ND;
-                fdc.res[6] = 0;
+                fdc.res[RES_ST1] = ST1_ND;
+                fdc.res[RES_ST2] = 0;
                 break;
         case FDC_STATUS_WRONG_CYLINDER:
-                fdc.res[5] = ST1_ND;
-                fdc.res[6] = ST2_WC;
+                fdc.res[RES_ST1] = ST1_ND;
+                fdc.res[RES_ST2] = ST2_WC;
                 break;
         case FDC_STATUS_BAD_CYLINDER:
-                fdc.res[5] = ST1_ND;
-                fdc.res[6] = ST2_WC | ST2_BC;
+                fdc.res[RES_ST1] = ST1_ND;
+                fdc.res[RES_ST2] = ST2_WC | ST2_BC;
                 break;
         }
-        fdc.res[7] = (uint8_t)fdc.rw_track;
-        fdc.res[8] = (uint8_t)fdc.head;
-        fdc.res[9] = (uint8_t)fdc.sector;
-        fdc.res[10] = (uint8_t)fdc.sector_size;
+        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+        fdc.res[RES_H] = (uint8_t)fdc.head;
+        fdc.res[RES_R] = (uint8_t)fdc.sector;
+        fdc.res[RES_N] = (uint8_t)fdc.sector_size;
         paramstogo = 7;
     }
 
@@ -1222,14 +1264,14 @@ internal static partial class fdc_c
         timer_disable(fdc.timer);
 
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)(0x40 | (fdc.head != 0 ? 4 : 0) | fdc.drive);
-        fdc.res[5] = 0x20; /*Data error*/
-        fdc.res[6] = 0x20; /*Data error in data field*/
-        fdc.res[7] = (uint8_t)fdc.rw_track;
-        fdc.res[8] = (uint8_t)fdc.head;
-        fdc.res[9] = (uint8_t)fdc.sector;
-        fdc.res[10] = (uint8_t)fdc.sector_size;
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)(ST0_IC_ABNORMAL | (fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+        fdc.res[RES_ST1] = ST1_DE;
+        fdc.res[RES_ST2] = ST2_DD;
+        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+        fdc.res[RES_H] = (uint8_t)fdc.head;
+        fdc.res[RES_R] = (uint8_t)fdc.sector;
+        fdc.res[RES_N] = (uint8_t)fdc.sector_size;
         paramstogo = 7;
     }
 
@@ -1239,14 +1281,14 @@ internal static partial class fdc_c
         timer_disable(fdc.timer);
 
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)(0x40 | (fdc.head != 0 ? 4 : 0) | fdc.drive);
-        fdc.res[5] = 0x20; /*Data error*/
-        fdc.res[6] = 0;
-        fdc.res[7] = (uint8_t)fdc.rw_track;
-        fdc.res[8] = (uint8_t)fdc.head;
-        fdc.res[9] = (uint8_t)fdc.sector;
-        fdc.res[10] = (uint8_t)fdc.sector_size;
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)(ST0_IC_ABNORMAL | (fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+        fdc.res[RES_ST1] = ST1_DE;
+        fdc.res[RES_ST2] = 0;
+        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+        fdc.res[RES_H] = (uint8_t)fdc.head;
+        fdc.res[RES_R] = (uint8_t)fdc.sector;
+        fdc.res[RES_N] = (uint8_t)fdc.sector_size;
         paramstogo = 7;
     }
 
@@ -1256,14 +1298,14 @@ internal static partial class fdc_c
         timer_disable(fdc.timer);
 
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)(0x40 | (fdc.head != 0 ? 4 : 0) | fdc.drive);
-        fdc.res[5] = 0x02; /*Not writeable*/
-        fdc.res[6] = 0;
-        fdc.res[7] = (uint8_t)fdc.rw_track;
-        fdc.res[8] = (uint8_t)fdc.head;
-        fdc.res[9] = (uint8_t)fdc.sector;
-        fdc.res[10] = (uint8_t)fdc.sector_size;
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)(ST0_IC_ABNORMAL | (fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+        fdc.res[RES_ST1] = ST1_NW;
+        fdc.res[RES_ST2] = 0;
+        fdc.res[RES_C] = (uint8_t)fdc.rw_track;
+        fdc.res[RES_H] = (uint8_t)fdc.head;
+        fdc.res[RES_R] = (uint8_t)fdc.sector;
+        fdc.res[RES_N] = (uint8_t)fdc.sector_size;
         paramstogo = 7;
     }
 
@@ -1284,14 +1326,14 @@ internal static partial class fdc_c
                         data = fdc.dat;
 
                         if (last == 0)
-                                fdc.stat = 0xb0;
+                                fdc.stat = MSR_RQM | MSR_NDM | MSR_CB;
                 }
                 else
                 {
                         data = fdc_fifo_buf_read();
 
                         if (last == 0 && (fdc.fifobufpos == 0))
-                                fdc.stat = 0xb0;
+                                fdc.stat = MSR_RQM | MSR_NDM | MSR_CB;
                 }
         }
         else
@@ -1301,14 +1343,14 @@ internal static partial class fdc_c
                 if (fdc.fifo == 0)
                 {
                         if (last == 0)
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                 }
                 else
                 {
                         fdc_fifo_buf_dummy();
 
                         if (last == 0 && (fdc.fifobufpos == 0))
-                                fdc.stat = 0x90;
+                                fdc.stat = MSR_RQM | MSR_CB;
                 }
 
                 if ((data & DMA_OVER) != 0)
@@ -1323,14 +1365,14 @@ internal static partial class fdc_c
     internal static void fdc_sectorid(uint8_t track, uint8_t side, uint8_t sector, uint8_t size, uint8_t crc1, uint8_t crc2)
     {
         fdc_int();
-        fdc.stat = 0xD0;
-        fdc.res[4] = (uint8_t)((fdc.head != 0 ? 4 : 0) | fdc.drive);
-        fdc.res[5] = 0;
-        fdc.res[6] = 0;
-        fdc.res[7] = track;
-        fdc.res[8] = side;
-        fdc.res[9] = sector;
-        fdc.res[10] = size;
+        fdc.stat = MSR_RQM | MSR_DIO | MSR_CB;
+        fdc.res[RES_ST0] = (uint8_t)((fdc.head != 0 ? ST0_HD : 0) | fdc.drive);
+        fdc.res[RES_ST1] = 0;
+        fdc.res[RES_ST2] = 0;
+        fdc.res[RES_C] = track;
+        fdc.res[RES_H] = side;
+        fdc.res[RES_R] = sector;
+        fdc.res[RES_N] = size;
         paramstogo = 7;
     }
 
