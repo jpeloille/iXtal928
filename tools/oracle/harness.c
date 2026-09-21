@@ -690,6 +690,13 @@ void h_set_drive_type(int drive, int type) {
 
 void h_set_bpb_disable(int v) { bpb_disable = v; }
 
+/* M10 — la machine. `romset` est une globale du HARNAIS (harness_stubs.c:100),
+ * pas de pcem-dev/ : pc.c n'est pas lie. Ecriture directe, meme patron que
+ * bpb_disable, et rien a patcher dans l'arbre vendore. A poser avant h_boot :
+ * loadbios() le lit depuis l'interieur. */
+extern int romset;
+void h_set_romset(int r) { romset = r; }
+
 /* --- disquette (M6) --------------------------------------------------------- */
 
 void h_set_discfn(int drive, const char *fn) {

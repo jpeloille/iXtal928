@@ -44,7 +44,10 @@ public static class BootDiff
         if (configPath is not null && !pc.loadconfig(configPath))
             return 2;
 
-        Console.WriteLine($"Configuration : mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
+        // La MACHINE en tête : depuis M10 le dépôt en a deux, et un diff qui ne dit pas
+        // laquelle il compare laisse croire qu'il n'y en a qu'une.
+        Console.WriteLine($"Configuration : machine = {Models.model_c.model_get_internal_name()}, " +
+                          $"mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                           (configPath is null ? " (défaut)" : $" ({configPath})"));
 
         var oraclePath = Path.Combine(Path.GetTempPath(), "ixtal-boot-oracle.bin");
@@ -56,6 +59,7 @@ public static class BootDiff
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
+        Oracle.h_set_romset(pc.romset);
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -134,6 +138,7 @@ public static class BootDiff
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
+        Oracle.h_set_romset(pc.romset);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         _808x.ResetDiagState();
         Floppy.fdd_c.discfns[0] = discA ?? "";
@@ -284,6 +289,7 @@ public static class BootDiff
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
+        Oracle.h_set_romset(pc.romset);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
@@ -362,6 +368,7 @@ public static class BootDiff
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
+        Oracle.h_set_romset(pc.romset);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 

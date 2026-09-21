@@ -19,10 +19,10 @@ namespace iXtal26.Diff;
 public static class Oracle
 {
     private const string Lib = "ixtal26oracle";
-    // 2 depuis M8 : h_set_mem_size s'ajoute au contrat (harness.h). Doit suivre
+    // 4 depuis M10 : h_set_romset s'ajoute au contrat (harness.h). Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 3;
+    public const int AbiVersion = 4;
 
     static Oracle()
     {
@@ -117,6 +117,11 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_set_mem_size(int kb);
     [DllImport(Lib)] public static extern void h_set_drive_type(int drive, int type);
     [DllImport(Lib)] public static extern void h_set_bpb_disable(int v);
+
+    // M10 — la machine, poussée en SCALAIRE. Le harnais ne lie ni pc.c ni model.c :
+    // il n'a pas de models[] à indexer. Côté C# le romset dérive du nom via
+    // loadconfig ; ici on pousse la valeur déjà résolue. À appeler avant h_boot.
+    [DllImport(Lib)] public static extern void h_set_romset(int r);
     [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
 
     // M9 — haut-parleur : sonde des globales de sound_speaker.c, pendant de

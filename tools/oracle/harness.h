@@ -214,6 +214,18 @@ void h_set_drive_type(int drive, int type);
  * depuis la taille du fichier au lieu de lire le BPB. */
 void h_set_bpb_disable(int v);
 
+/* --- machine (M10) ----------------------------------------------------------
+ * Le romset, valeur de l'énumération ROM_* (ibm.h:164+) : 0 = IBM PC 5150,
+ * 1 = IBM XT 5160. À appeler AVANT h_boot — c'est loadbios() qui le lit
+ * (mem_bios.c:63), et il tourne à l'intérieur.
+ *
+ * C'est un SCALAIRE et non un nom de machine, délibérément : le harnais ne lie
+ * ni pc.c ni model.c, donc il n'a pas de models[] à indexer ni de
+ * model_getromset() à appeler. Côté C# le romset DÉRIVE du nom via loadconfig ;
+ * l'outil de diff pousse ici la valeur déjà résolue. Même doctrine que
+ * h_set_mem_size : une seule lecture de la configuration, deux poussées. */
+void h_set_romset(int r);
+
 /* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
  * Floppy.fdc_c.Probe() côté C#. L'instance `fdc` est static dans fdc.c, donc hors
  * de portée sans l'inclure ; les globales suffisent à nommer le champ divergent. */
@@ -235,7 +247,8 @@ uint8_t *h_ram(void);
 /* 2 depuis M8 : les setters de configuration (h_set_mem_size, h_set_drive_type,
  * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
  * et le C# doit le dire au lieu de tomber sur un symbole absent. */
-#define H_ABI_VERSION 3
+/* 4 depuis M10 : h_set_romset s'ajoute au contrat. */
+#define H_ABI_VERSION 4
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
