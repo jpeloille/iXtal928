@@ -247,6 +247,19 @@ void h_kbd_process(void);
  * fichier poussé à un fichier qui ne l'est pas. */
 void h_closepc(void);
 
+/* --- disque dur (M12) -------------------------------------------------------
+ * Geometrie et image d'un disque, et le nom INTERNE de la carte. À appeler AVANT
+ * h_boot : xebec_init lit les deux par hdd_load dès sa construction.
+ *
+ * `drive` est une LETTRE DE LECTEUR DOS — 0 = C:, 1 = D: — et non un numéro de
+ * contrôleur. Le Fixed Disk Adapter n'en gère que deux.
+ *
+ * La géométrie n'est pas libre : xebec_set_switches (mfm_xebec.c:725) exige
+ * 17 secteurs par piste et l'un des quatre couples (306,4) (612,4) (615,4)
+ * (306,8), faute de quoi l'unité est présentée comme type 0 et le POST diverge. */
+void h_set_hdd(int drive, const char *fn, int spt, int hpc, int tracks);
+void h_set_hdd_controller(const char *name);
+
 /* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
  * Floppy.fdc_c.Probe() côté C#. L'instance `fdc` est static dans fdc.c, donc hors
  * de portée sans l'inclure ; les globales suffisent à nommer le champ divergent. */
@@ -268,8 +281,8 @@ uint8_t *h_ram(void);
 /* 2 depuis M8 : les setters de configuration (h_set_mem_size, h_set_drive_type,
  * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
  * et le C# doit le dire au lieu de tomber sur un symbole absent. */
-/* 5 depuis M11 : h_rawinputkey, h_kbd_process et h_closepc s'ajoutent au contrat. */
-#define H_ABI_VERSION 5
+/* 6 depuis M12 : h_set_hdd et h_set_hdd_controller s'ajoutent au contrat. */
+#define H_ABI_VERSION 6
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

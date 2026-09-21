@@ -451,6 +451,27 @@ internal static partial class pc
         Video.video.video_init();
         Sound.sound_speaker.speaker_init();   // pc.c:375
 
+        // pcem: pc.c:392 — hdd_controller_init(hdd_controller_name).
+        //
+        // DEVIATION: le registre HDD_CONTROLLER (seize cartes, hdd.c:149-164) est
+        //   écarté comme SOUND_CARD et VIDEO_CARD. Avec une seule carte câblée,
+        //   hdd_controller_init (hdd.c:128-140) se réduit à son unique effet — un
+        //   device_add. Modèle littéral de video_init(), qui fait déjà
+        //   device_add(cga_device) sans traverser VIDEO_CARD.
+        //
+        //   Un nom inconnu, y compris le "" par défaut, ne monte aucune carte et ne
+        //   dit rien : c'est exactement ce que fait PCem, dont le `fatal` de
+        //   hdd.c:140 est COMMENTÉ.
+        //
+        // APRÈS mem_alloc(), et ce n'est pas un détail : mem_alloc détruit toute la
+        // liste de mappages (mem.cs:722-746), donc une carte à ROM d'extension posée
+        // avant verrait son mappage effacé. La position de pc.c:392 le garantit.
+        Disc.hdd_c.hdd_controller_name = cfg_hdd_controller;
+        if (cfg_hdd_controller == "mfm_xebec")
+                PluginApi.device.device_add(Mfm.mfm_xebec.mfm_xebec_device);
+        else if (cfg_hdd_controller == "dtc5150x")
+                PluginApi.device.device_add(Mfm.mfm_xebec.dtc_5150x_device);
+
         pc_reset();
     }
 

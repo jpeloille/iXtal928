@@ -48,6 +48,13 @@
 #include "video.h"
 #include "x86.h"
 
+/* M12 : les types des stubs de disque dur en fin de fichier. minivhd.h tire
+ * stdbool et les typedefs MVHDMeta/MVHDGeom/MVHDError ; ramdisk.h le typedef
+ * ramdisk_t. Le -I de includes/private/hdd/ les rend accessibles sous ce chemin,
+ * exactement comme hdd_file.c les inclut. */
+#include "minivhd/minivhd.h"
+#include "ramdisk/ramdisk.h"
+
 #include "harness.h"
 
 /* --- journal d'ecritures --------------------------------------------------
@@ -368,3 +375,56 @@ void fatal(const char *format, ...) {
 }
 
 void pclog_end(void) { }
+
+/* --- disque dur (M12) -------------------------------------------------------
+ *
+ * L'oracle lie src/mfm/mfm_xebec.c et src/hdd/hdd_file.c, mais PAS src/hdd/hdd.c :
+ * celui-ci traîne les seize HDD_CONTROLLER et leurs quinze device_t (MFM AT, ESDI,
+ * IDE, XTIDE, SCSI…). Même arbitrage que src/video/video.c et ses quatre-vingt-dix
+ * symboles de cartes, et que src/sound/sound.c a M9. Ce qui suit fournit donc les
+ * globales de hdd.c et d'ide.c, en miroir de Disc/hdd.cs cote C#.
+ *
+ * ide_fn[] est defini par src/ide/ide.c chez PCem, fichier qu'on ne lie pas non
+ * plus ; ses six consommateurs re-declarent l'extern localement, mfm_xebec.c:26
+ * compris. Il DOIT porter la meme valeur des deux cotes : sinon hdd_load ouvre un
+ * fichier d'un cote et pas de l'autre, et xebec_set_switches calcule deux
+ * `switches` differents -- divergence des le premier `in 0x322`. */
+PcemHDC hdc[7];
+char hdd_controller_name[16];
+char ide_fn[7][512];
+
+/* logging.c:99 — pclog, error et fatal etaient deja la, pas warning.
+ * xebec_set_switches l'appelle sur une geometrie non supportee. */
+void warning(const char *format, ...) { }
+
+/* --- les deux branches mortes de hdd_file.c ---------------------------------
+ *
+ * hdd_file.c aiguille vers trois formats : brut, VHD, ramdisk. Un 5160 avec une
+ * image brute n'emprunte que le premier — mais le LIEN, lui, reclame les dix-sept
+ * symboles des deux autres, et -Wl,--no-undefined ne pardonne pas.
+ *
+ * Stuber ici coute dix-sept lignes triviales. Lier minivhd/ et ramdisk/ en
+ * couterait 3 996, dont 1 797 (cwalk.c, libxml2_encoding.c) ne servent qu'aux VHD
+ * DIFFERENTIELS et a leurs chemins parents UTF-16.
+ *
+ * Les deux predicats d'aiguillage rendent FAUX, donc aucune des autres fonctions
+ * n'est jamais atteinte : ce sont des stubs de lien, pas de comportement. Cote C#,
+ * Disc/hdd_file.cs ne porte carrement pas ces branches. */
+int mvhd_errno = 0;
+bool mvhd_file_is_vhd(FILE *f) { return false; }
+MVHDMeta *mvhd_open(const char *path, bool readonly, int *err) { return NULL; }
+void mvhd_close(MVHDMeta *vhdm) { }
+int mvhd_read_sectors(MVHDMeta *vhdm, uint32_t offset, int num_sectors, void *out_buff) { return 1; }
+int mvhd_write_sectors(MVHDMeta *vhdm, uint32_t offset, int num_sectors, void *in_buff) { return 1; }
+int mvhd_format_sectors(MVHDMeta *vhdm, uint32_t offset, int num_sectors) { return 1; }
+MVHDGeom mvhd_get_geometry(MVHDMeta *vhdm) { MVHDGeom g = {0, 0, 0}; return g; }
+const char *mvhd_strerr(MVHDError err) { return ""; }
+
+ramdisk_t *ramdisk_init(void) { return NULL; }
+void ramdisk_free(ramdisk_t *ramdisk) { }
+int ramdisk_set_size(ramdisk_t *ramdisk, size_t size) { return -1; }
+int ramdisk_write(ramdisk_t *ramdisk, const char *buf, size_t size) { return -1; }
+int ramdisk_read(ramdisk_t *ramdisk, char *buf, size_t size) { return -1; }
+int ramdisk_seek(ramdisk_t *ramdisk, off_t offset, int whence) { return -1; }
+int ramdisk_get_cursor_mem(ramdisk_t *ramdisk, char **mem, size_t *size) { return -1; }
+int ramdisk_load_file(ramdisk_t *ramdisk, FILE *fp) { return -1; }

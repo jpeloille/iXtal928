@@ -188,6 +188,15 @@ void givealbuffer(int32_t *buf) { (void)buf; }
 
 void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 
+/* M12 — disque dur. hdc[] et hdd_controller_name sont definis par hdd.c, ide_fn
+ * par ide.c ; aucun des deux n'est lie (registres de cartes), donc harness_stubs.c
+ * les porte. Les deux device_t viennent de mfm_xebec.c, lie. */
+extern PcemHDC hdc[7];
+extern char hdd_controller_name[16];
+extern char ide_fn[7][512];
+extern device_t mfm_xebec_device;
+extern device_t dtc_5150x_device;
+
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
  * préprocesseur ne connaît pas l'accès à un membre : `out->cycles` deviendrait
  * `out->cpu_state._cycles`. On la retire donc ici et on écrit explicitement
@@ -615,6 +624,14 @@ int h_boot(const char *romspath) {
         device_add(&cga_device);
         speaker_init();              /* pc.c:375, juste après video_init() */
 
+        /* pc.c:392 — hdd_controller_init(hdd_controller_name), reduit. APRES
+           mem_alloc() : celui-ci detruit toute la liste de mappages, et une carte a
+           ROM d'extension posee avant verrait la sienne effacee. */
+        if (!strcmp(hdd_controller_name, "mfm_xebec"))
+                device_add(&mfm_xebec_device);
+        else if (!strcmp(hdd_controller_name, "dtc5150x"))
+                device_add(&dtc_5150x_device);
+
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient
            d'enregistrer, et la machine tourne sans PIT. setpitclock() appartient
@@ -696,6 +713,33 @@ void h_set_bpb_disable(int v) { bpb_disable = v; }
  * loadbios() le lit depuis l'interieur. */
 extern int romset;
 void h_set_romset(int r) { romset = r; }
+
+/* --- disque dur (M12) -------------------------------------------------------
+ *
+ * La carte est ajoutee comme la CGA l'est : device_add direct, sans traverser le
+ * registre HDD_CONTROLLER de hdd.c -- seize cartes et quinze device_t que l'oracle
+ * ne lie pas. hdd_controller_init (hdd.c:128-140) se reduit alors a son unique
+ * effet, et c'est le miroir exact de pc.resetpchard() cote C#.
+ *
+ * Un nom inconnu, y compris le "" par defaut, ne monte aucune carte et ne dit
+ * rien : le `fatal` de hdd.c:140 est COMMENTE chez PCem. */
+/* Geometrie et image d'un disque, a poser AVANT h_boot : xebec_init les lit par
+ * hdd_load des sa construction. Patron de h_set_discfn. */
+void h_set_hdd(int drive, const char *fn, int spt, int hpc, int tracks) {
+        if (drive < 0 || drive > 6)
+                return;
+        strncpy(ide_fn[drive], fn ? fn : "", sizeof(ide_fn[drive]) - 1);
+        ide_fn[drive][sizeof(ide_fn[drive]) - 1] = 0;
+        hdc[drive].spt = spt;
+        hdc[drive].hpc = hpc;
+        hdc[drive].tracks = tracks;
+}
+
+/* Le nom INTERNE de la carte : "mfm_xebec", "dtc5150x", ou rien. */
+void h_set_hdd_controller(const char *name) {
+        strncpy(hdd_controller_name, name ? name : "", sizeof(hdd_controller_name) - 1);
+        hdd_controller_name[sizeof(hdd_controller_name) - 1] = 0;
+}
 
 /* --- clavier (M11) : injecter une frappe dans l'oracle ----------------------
  *

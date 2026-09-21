@@ -102,6 +102,10 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        for (var hd = 0; hd < 2; hd++)
+            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
+                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -275,6 +279,10 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        for (var hd = 0; hd < 2; hd++)
+            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
+                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         _808x.ResetDiagState();
         Floppy.fdd_c.discfns[0] = discA ?? "";
@@ -426,6 +434,10 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        for (var hd = 0; hd < 2; hd++)
+            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
+                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
@@ -505,6 +517,10 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        for (var hd = 0; hd < 2; hd++)
+            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
+                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 

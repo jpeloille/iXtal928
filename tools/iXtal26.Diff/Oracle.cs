@@ -19,10 +19,10 @@ namespace iXtal26.Diff;
 public static class Oracle
 {
     private const string Lib = "ixtal26oracle";
-    // 5 depuis M11 : h_rawinputkey, h_kbd_process et h_closepc s'ajoutent au contrat. Doit suivre
+    // 6 depuis M12 : h_set_hdd et h_set_hdd_controller s'ajoutent au contrat. Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 5;
+    public const int AbiVersion = 6;
 
     static Oracle()
     {
@@ -130,6 +130,14 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_rawinputkey(int idx, int val);
     [DllImport(Lib)] public static extern void h_kbd_process();
     [DllImport(Lib)] public static extern void h_closepc();
+
+    // M12 — disque dur. `drive` est une LETTRE DE LECTEUR DOS (0 = C:, 1 = D:), pas
+    // un numéro de contrôleur. À poser avant h_boot : xebec_init lit géométrie et
+    // image par hdd_load dès sa construction.
+    [DllImport(Lib)] public static extern void h_set_hdd(int drive,
+        [MarshalAs(UnmanagedType.LPStr)] string fn, int spt, int hpc, int tracks);
+    [DllImport(Lib)] public static extern void h_set_hdd_controller(
+        [MarshalAs(UnmanagedType.LPStr)] string name);
     [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
 
     // M9 — haut-parleur : sonde des globales de sound_speaker.c, pendant de
