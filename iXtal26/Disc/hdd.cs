@@ -43,6 +43,23 @@ internal static partial class hdd_c
     //   "ibmscsi_mca", onze caractères, donc la troncature n'a jamais lieu.
     internal static string hdd_controller_name = "";
 
+    // pcem: ide.c:105 — `char ide_fn[7][512]`, les chemins d'image des sept disques.
+    //
+    // DÉFINI DANS ide/ide.c, le fichier qu'on ne veut surtout pas lier. PCem lui-même
+    // ne l'inclut jamais pour ça : ses six consommateurs re-déclarent l'extern
+    // localement, y compris mfm_xebec.c:26. Il vit donc ici, à côté de la géométrie
+    // qu'il complète — et il DOIT porter la même valeur des deux côtés du diff, sans
+    // quoi hdd_load ouvre un fichier d'un côté et pas de l'autre, et
+    // xebec_set_switches calcule deux `switches` différents : divergence dès le
+    // premier `in 0x322`.
+    //
+    // Relevé au passage, sans marqueur parce qu'il n'y a rien à reproduire :
+    // scsi_ibm.c:21 déclare `ide_fn[4][512]` contre le `[7][512]` réel d'ide.c:105.
+    // Bornes divergentes sur le même objet, dans deux unités de traduction. Sans
+    // objet ici — scsi_ibm.c n'est pas transcrit — mais l'entrée revient au registre
+    // des défauts de PCem.
+    internal static string[] ide_fn = new string[7] { "", "", "", "", "", "", "" };
+
     // omitted: hdd_controllers[] et les seize HDD_CONTROLLER (hdd.c:149-164,
     //   :167-182), hdd_controller_get_name/get_internal_name/get_flags/available
     //   (:28-50), is_mfm/is_ide/is_scsi/has_config/get_device (:52-122),

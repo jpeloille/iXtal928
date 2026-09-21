@@ -99,6 +99,12 @@ internal static partial class pc
     // h_boot et comme les deux fdd_set_type qu'initpc portait en dur.
     internal static int[] cfg_drive_type = { 1, 1 };
 
+    // pcem: hdd.c:22 — `hdd_controller_name`. Vit ici et non dans Disc/hdd.cs pour la
+    // même raison que cfg_mem_size et cfg_drive_type : la valeur CONFIGURÉE est
+    // consommée par resetpchard, et les points d'entrée qui ne lisent aucun fichier
+    // doivent obtenir le défaut — c'est-à-dire aucune carte.
+    internal static string cfg_hdd_controller = "";
+
     /// <summary>
     /// pcem: pc.c:643-652. Choisit la machine par son internal_name et en déduit le
     /// romset. Partagé par la clé `model` du fichier et par l'option --model : les deux
@@ -218,11 +224,64 @@ internal static partial class pc
         if (Floppy.fdd_c.discfns[1].Length == 0)
                 Floppy.fdd_c.discfns[1] = config_get_disc("disc_b");
 
+        // pcem: pc.c:688-692 — le nom INTERNE de la carte de disque dur.
+        //
+        // Le défaut est "" et non "none", et c'est reproduit : le `else` de PCem est
+        // MORT, config_get_string ne rendant jamais NULL. Un nom vide ne correspond à
+        // rien dans la recherche, et PCem sort alors par un `fatal` COMMENTÉ
+        // (hdd.c:140) — donc sans carte et sans un mot. Effet identique à "none", par
+        // un chemin différent. On ne « corrige » pas vers "none".
+        cfg_hdd_controller = PluginApi.config.config_get_string(
+            PluginApi.config.CFG_MACHINE, null, "hdd_controller", "");
+
+        // pcem: pc.c:719-734 — géométrie et image des disques C: et D:.
+        //
+        // LES PRÉFIXES SONT DES LETTRES DE LECTEUR DOS : hdc_ = C:, hdd_ = D:. Le
+        // Fixed Disk Adapter en gère deux (mfm_xebec.c:733, boucle sur d ∈ {0,1}),
+        // d'où ces deux-là et pas plus.
+        //
+        // omitted: hde_*, hdf_*, hdg_*, hdh_*, hdi_* (pc.c:735-774) — les cinq autres
+        //   disques, qui appartiennent aux contrôleurs IDE et SCSI, hors périmètre.
+        //   PCem déroule le bloc sept fois plutôt que de boucler ; on en garde deux.
+        for (int d = 0; d < 2; d++)
+        {
+                string pfx = d == 0 ? "hdc" : "hdd";
+                Disc.hdd_c.hdc[d].spt = PluginApi.config.config_get_int(
+                    PluginApi.config.CFG_MACHINE, null, $"{pfx}_sectors", 0);
+                Disc.hdd_c.hdc[d].hpc = PluginApi.config.config_get_int(
+                    PluginApi.config.CFG_MACHINE, null, $"{pfx}_heads", 0);
+                Disc.hdd_c.hdc[d].tracks = PluginApi.config.config_get_int(
+                    PluginApi.config.CFG_MACHINE, null, $"{pfx}_cylinders", 0);
+                Disc.hdd_c.ide_fn[d] = config_get_hdd_fn($"{pfx}_fn");
+        }
+
         // pcem: pc.c:778
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
 
         return true;
+    }
+
+    /// <summary>
+    /// Le chemin d'une image de DISQUE DUR. Distinct de config_get_disc, et pour une
+    /// raison de comportement : hdd_load_ext CRÉE le fichier s'il n'existe pas
+    /// (hdd_file.c:67-74). Refuser un chemin introuvable, comme on le fait pour une
+    /// disquette, interdirait donc le premier démarrage sur un disque neuf.
+    ///
+    /// On résout si le fichier existe — pour que Rider, qui lance depuis
+    /// bin/Debug/net10.0, trouve la même image que la racine du dépôt — et on rend la
+    /// chaîne telle quelle sinon, ce que fait PCem, dont le répertoire courant est
+    /// toujours celui de l'installation.
+    /// </summary>
+    private static string config_get_hdd_fn(string key)
+    {
+        string fn = PluginApi.config.config_get_string(
+            PluginApi.config.CFG_MACHINE, null, key, "");
+
+        if (fn.Length == 0)
+                return "";
+
+        return PluginApi.paths.resolve_file_path(fn) ?? fn;
     }
 
     /// <summary>
