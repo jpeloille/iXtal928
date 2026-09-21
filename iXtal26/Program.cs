@@ -21,6 +21,7 @@ var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'�
 // (0 est un type de lecteur légitime : « aucun lecteur »).
 string? configPath = null;
 var ramOverride = -1;
+string? modelOverride = null;
 var driveOverride = new[] { -1, -1 };
 
 // Le budget de turbo vit dans SdlHost : le menu Ctrl+F12 s'en sert aussi pour le réarmer
@@ -64,6 +65,7 @@ for (var i = 0; i < args.Length; i++)
         // avant de rendre son invite, donc « --type "" --type "" --type DIR ».
         // --floppy-a/-b : l'image à monter, comme en mode fenêtre (voir plus bas).
         var types = new List<string>();
+        string? bootModel = null;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
             var opt = args[++i];
@@ -79,6 +81,12 @@ for (var i = 0; i < args.Length; i++)
                 case "--type": types.Add(val); break;
                 case "--floppy-a": if (!MountFloppy(0, val)) return 2; break;
                 case "--floppy-b": if (!MountFloppy(1, val)) return 2; break;
+                // COLLECTÉ, pas appliqué ici : dans cette boucle les options prennent
+                // effet dans l'ordre écrit, et --config poserait alors le modèle après
+                // --model. La précédence doit être la même qu'en mode fenêtre — défauts,
+                // puis --config, puis la ligne de commande — quel que soit l'ordre de
+                // frappe. Appliqué juste avant BootTest.Run.
+                case "--model": bootModel = val; break;
                 // La configuration se lit ICI et pas dans la boucle principale :
                 // --boot rend avant d'y arriver. Les deux positionnels de --boot lui
                 // sont propres, ses options aussi.
@@ -96,6 +104,9 @@ for (var i = 0; i < args.Length; i++)
                     return 2;
             }
         }
+
+        if (bootModel is not null && !pc.setmodel(bootModel))
+            return 2;
 
         return BootTest.Run(paths.resolve_roms_path(roms), slices, types);
     }
@@ -185,6 +196,18 @@ for (var i = 0; i < args.Length; i++)
             default: driveOverride[1] = v; break;
         }
 
+        continue;
+    }
+
+    if (arg == "--model")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine("--model attend un nom de machine.");
+            return 2;
+        }
+
+        modelOverride = args[++i];
         continue;
     }
 
@@ -299,8 +322,21 @@ romsPath = paths.resolve_roms_path(romsPath);
 if (configPath is not null && !pc.loadconfig(configPath))
     return 2;
 
+// --model AVANT --ram : c'est le modèle qui porte les bornes mémoire, et le XT est à
+// 64 Ko de granularité là où le 5150 est à 32. Dans l'autre ordre, --model ibmxt --ram 96
+// passerait le contrôle du 5150 puis monterait une machine que PCem ne décrit pas.
+if (modelOverride is not null && !pc.setmodel(modelOverride))
+    return 2;
+
+// Refusé, pas corrigé : une taille tapée en ligne de commande est explicite. Avant M10
+// cette affectation ne passait par AUCUN contrôle — le seul chemin du dépôt qui pouvait
+// fabriquer un SW2 absurde sans rien dire.
 if (ramOverride >= 0)
+{
+    if (!pc.check_mem_size(ramOverride))
+        return 2;
     pc.cfg_mem_size = ramOverride;
+}
 
 for (var d = 0; d < 2; d++)
     if (driveOverride[d] >= 0)
@@ -359,7 +395,10 @@ static void PrintUsage()
     Console.WriteLine("                       « clé = valeur », sections [entre crochets], # en");
     Console.WriteLine("                       commentaire). Clés : model, mem_size, drive_a_type,");
     Console.WriteLine("                       drive_b_type, disc_a, disc_b, bpb_disable");
-    Console.WriteLine("  --ram N              taille RAM en Ko, de 64 à 640 par pas de 32");
+    Console.WriteLine("  --model NOM          machine : ibmpc (IBM PC 5150) ou ibmxt (IBM XT 5160).");
+    Console.WriteLine("                       Un nom inconnu est refusé en citant ce qui existe");
+    Console.WriteLine("  --ram N              taille RAM en Ko. Les bornes viennent de la MACHINE :");
+    Console.WriteLine("                       64 à 640 par pas de 32 sur ibmpc, par pas de 64 sur ibmxt");
     Console.WriteLine("  --drive-a T          type de lecteur : 0 aucun, 1 5,25\" DD (le 5150),");
     Console.WriteLine("                       2 5,25\" HD, 4 3,5\" DD, 5 3,5\" HD. --drive-b T de même");
     Console.WriteLine();

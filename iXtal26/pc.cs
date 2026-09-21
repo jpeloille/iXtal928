@@ -99,6 +99,53 @@ internal static partial class pc
     internal static int[] cfg_drive_type = { 1, 1 };
 
     /// <summary>
+    /// pcem: pc.c:643-652. Choisit la machine par son internal_name et en déduit le
+    /// romset. Partagé par la clé `model` du fichier et par l'option --model : les deux
+    /// doivent refuser de la MÊME façon, sinon la ligne de commande ouvrirait une porte
+    /// que le fichier ferme.
+    ///
+    /// DEVIATION: PCem retombe sur l'indice 0 EN SILENCE (model.c:177) et démarre une
+    ///   autre machine que celle demandée, sans un mot. On refuse, en citant ce qui
+    ///   existe : c'est la seule façon de ne pas mesurer une machine pour une autre. Le
+    ///   clamp `if (model >= model_count())` (pc.c:649) devient sans objet.
+    /// </summary>
+    internal static bool setmodel(string mname)
+    {
+        int m = Models.model_c.model_get_model_from_internal_name(mname);
+
+        if (m < 0)
+        {
+                Console.Error.WriteLine($"model = « {mname} » : machine inconnue. Connues :");
+                foreach (Models.MODEL k in Models.model_c.models)
+                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+                return false;
+        }
+
+        Models.model_c.model = m;
+        romset = Models.model_c.model_getromset();  /* pc.c:652 */
+        return true;
+    }
+
+    /// <summary>
+    /// Contrôle une taille mémoire contre les bornes de la machine COURANTE. Rend false
+    /// sans rien écrire dans cfg_mem_size : à la différence de la clé de configuration,
+    /// qui retombe sur un défaut, une valeur tapée en ligne de commande est explicite —
+    /// la corriger en silence donnerait une machine que l'utilisateur n'a pas demandée.
+    /// </summary>
+    internal static bool check_mem_size(int kb)
+    {
+        var mdl = Models.model_c.models[Models.model_c.model];
+        if (kb >= mdl.min_ram && kb <= mdl.max_ram
+            && (kb - mdl.min_ram) % mdl.ram_granularity == 0)
+                return true;
+
+        Console.Error.WriteLine(
+            $"mem_size = {kb} : hors des bornes de « {mdl.internal_name} ». Attendu de " +
+            $"{mdl.min_ram} à {mdl.max_ram} Ko par pas de {mdl.ram_granularity}.");
+        return false;
+    }
+
+    /// <summary>
     /// pcem: pc.c:607-843 (fortement réduit). PCem lit 74 clés ; soixante-quatre
     /// décrivent du matériel qu'un 5150 transcrit n'a pas — sept disques durs, CD-ROM,
     /// ZIP, son, réseau, joystick. Les autres arrivent avec les jalons qui les rendent
@@ -115,22 +162,8 @@ internal static partial class pc
         string mname = PluginApi.config.config_get_string(
             PluginApi.config.CFG_MACHINE, null, "model", Models.model_c.model_get_internal_name());
 
-        int m = Models.model_c.model_get_model_from_internal_name(mname);
-
-        // DEVIATION: PCem retombe sur l'indice 0 EN SILENCE (model.c:177) et démarre
-        //   une autre machine que celle demandée, sans un mot. On refuse, en citant ce
-        //   qui existe : c'est la seule façon de ne pas mesurer une machine pour une
-        //   autre. Le clamp `if (model >= model_count())` (pc.c:649) devient sans objet.
-        if (m < 0)
-        {
-                Console.Error.WriteLine($"model = « {mname} » : machine inconnue. Connues :");
-                foreach (Models.MODEL k in Models.model_c.models)
-                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+        if (!setmodel(mname))
                 return false;
-        }
-
-        Models.model_c.model = m;
-        romset = Models.model_c.model_getromset();  /* pc.c:652 */
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
         // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
