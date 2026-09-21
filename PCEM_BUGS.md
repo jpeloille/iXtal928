@@ -153,6 +153,73 @@ lisant une 360 Ko), `disc_period` est posé à 26, 16 ou 4 puis **écrasé par 3
 (`fdc.c:98`).
 *Reproduit* : `Disc/disc.cs`, `goto case 2` marqué.
 
+### PB-22 — `CMD_FORMAT_TRACK` ne réinitialise pas `sector`, et formate donc à côté
+
+`mfm_xebec.c:369-387`. Les trois autres commandes d'accès au disque commencent par
+`xebec->sector = xebec->command[2] & 0x1f` — `CMD_VERIFY_SECTORS` (`:340`),
+`CMD_READ_SECTORS` (`:395`), `CMD_WRITE_SECTORS` (`:486`). `CMD_FORMAT_TRACK`, non.
+
+Or `xebec_get_sector` (`:236-270`) fait entrer `sector` dans le calcul d'adresse au même
+titre que le cylindre et la tête. Le formatage démarre donc au secteur **laissé par la
+commande précédente** : il déborde sur la piste suivante et laisse intact le début de la
+piste visée. Et si le résidu est ≥ 17, le test de borne de `:260` fait échouer la commande
+en `ERR_ILLEGAL_SECTOR_ADDRESS`.
+
+*Effet* : latent sous PC DOS 2.00, qui fait précéder chaque `FORMAT TRACK` d'un accès
+laissant `sector` à 0 — le `FORMAT C: /S` de § M12 produit une image octet pour octet
+identique des deux côtés. Un pilote qui enchaînerait deux formatages sans accès
+intermédiaire, lui, formaterait la mauvaise piste.
+*Reproduit* : `Mfm/mfm_xebec.cs`, l'absence d'affectation est conservée et marquée.
+
+### PB-23 — Le bit d'unité de l'octet de fin est toujours nul
+
+`mfm_xebec.c:293` :
+
+```c
+xebec->completion_byte = xebec->drive_sel & 0x20;
+```
+
+`drive_sel` vaut **0 ou 1** — il est posé deux lignes plus haut par
+`(xebec->command[1] & 0x20) ? 1 : 0`. Le masque `0x20` sur une valeur qui ne dépasse
+jamais 1 rend donc **toujours 0**. L'intention était `command[1] & 0x20`.
+
+*Preuve interne* : `CMD_READ_STATUS` fait correctement `data[1] = drive_sel ? 0x20 : 0`
+(`:322`) — le même bit, reconstruit proprement, trente lignes plus bas.
+*Effet* : l'octet de fin ne signale jamais que la commande visait l'unité D. Sans
+conséquence sur un XT à un seul disque, ce qui est la configuration historique.
+*Reproduit* : `Mfm/mfm_xebec.cs`.
+
+### PB-25 — La borne des têtes est testée avec `>` au lieu de `>=`
+
+`mfm_xebec.c:250` et `:255`. Les têtes sont numérotées **depuis 0**, donc `head == hpc`
+est déjà hors du disque ; avec `>`, elle passe le filtre et le calcul d'adresse de `:265`
+vise une piste entière au-delà du cylindre demandé, **en silence**.
+
+*Preuve interne* : le test des secteurs, cinq lignes plus bas (`:260`), écrit bien
+`>= 17`. Les deux bornes sont dans la même fonction, écrites dans la même minute, l'une
+juste et l'autre fausse.
+*Effet* : une lecture ou une écriture sur la tête `hpc` atteint des données valides mais
+**d'ailleurs**. `mfm_at.c:113` porte exactement le même défaut : ancêtre commun.
+*Reproduit* : `Mfm/mfm_xebec.cs`.
+
+### PB-28 — `CMD_DTC_GET_DRIVE_PARAMS` répond une géométrie inventée sur une unité absente
+
+`mfm_xebec.c:651-666`. Quatre commandes touchent à une unité qui peut ne pas exister ;
+trois testent `drive->hdd_file.f` et répondent `ERR_NOT_READY` (`:299`, `:305`, `:560`,
+`:733`). Celle-ci, non — elle lit directement la géométrie :
+
+```c
+xebec->data[2] = drive->hdd_file.hpc - 1;
+```
+
+Sur une unité absente, `hpc` vaut 0 et la troncature en `uint8_t` donne **`0xff`** : 256
+têtes annoncées.
+
+*Effet* : propre au DTC 5150X, carte qui n'est pas celle du jalon. Le Xebec d'IBM n'a pas
+cette commande.
+*Reproduit* : `Mfm/mfm_xebec.cs` — le fichier porte les deux cartes, on transcrit les deux.
+
+
 ---
 
 ## B. Comportement indéfini en C
@@ -285,6 +352,39 @@ Trouvé par la sonde `speaker-probe` de M9, au premier tir.
 
 ---
 
+### PB-24 — `rom_init` expose 12 Ko de tas non initialisé à l'invité
+
+`rom.c:60-62` :
+
+```c
+rom->rom = malloc(size);
+fseek(f, file_offset, SEEK_SET);
+fread(rom->rom, size, 1, f);
+```
+
+Le retour de `fread` est **ignoré**. Quand le fichier est plus court que `size`, la queue
+de l'allocation garde ce que `malloc` a rendu, et `mem_mapping_add` la publie à l'invité.
+
+Les deux appels du Fixed Disk Adapter le font tous les deux :
+
+| Appel | `size` | Fichier | Non initialisé |
+|---|---|---|---|
+| `mfm_xebec.c:757` | `0x4000` | `ibm_xebec_62x0822_1985.bin`, 4 096 o | **12 288 o** |
+| `mfm_xebec.c:793` | `0x4000` | `dtc_cxd21a.bin`, 8 192 o | **8 192 o** |
+
+Le masque passé vaut `0x3fff` : les 16 Ko sont adressables, rien ne replie la lecture sur
+la partie chargée.
+
+*Atténué en pratique* : l'en-tête des deux ROMs déclare sa vraie longueur — `55 aa 08`
+pour le Xebec (8 × 512 = 4 096) et `55 aa 10` pour le DTC (16 × 512 = 8 192) — donc le
+balayage de ROM d'extension du POST ne somme et n'exécute que ce qui est chargé. Il faut
+un accès explicite de l'invité au-delà pour voir le tas.
+*NON reproduit — divergence assumée* : `Flash/rom.cs:123` alloue un tableau CLR, donc
+**zéro**. Ce n'est pas un comportement dont être le pendant fidèle : c'est de l'UB, et
+trois exécutions donnent trois valeurs. Même arbitrage que `h_pad_ram` — un oracle qui
+tire aux dés n'est pas un oracle. Voir le registre des omissions de `TRANSCRIPTION.md`.
+
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -366,11 +466,68 @@ eu des lecteurs, retirés sans que les définitions suivent.
 *commenté* de PCem n'est pas reproduit (R1), mais une variable morte n'est pas un
 commentaire.
 
+### PB-26 — Quatre chaînes de `fatal()` fausses par copier-coller dans `mfm_xebec.c`
+
+| Ligne | La chaîne dit | Le code est dans |
+|---|---|---|
+| `:131` | `Read data STATE_COMPLETION_BYTE` | `case STATE_SEND_DATA` |
+| `:133` | `Data write with full data!` | le chemin de **lecture** (`port 0x320` en `in`) |
+| `:174` | `Bad write data state - STATE_START_COMMAND` | `case STATE_RECEIVE_COMMAND` |
+| `:671` | `CMD_INIT_DRIVE_PARAMS bad state` | `case CMD_DTC_GET_DRIVE_PARAMS` |
+
+*Effet* : aucun sur le comportement — les conditions et les actions sont justes. Mais
+`fatal()` tue l'émulateur en imprimant sa chaîne : quand l'un de ces quatre se déclenche,
+le message désigne le mauvais endroit.
+*Reproduit* : `Mfm/mfm_xebec.cs`, chaînes conservées telles quelles.
+
+### PB-27 — Trois `switch` internes sans `default:` là où six autres appellent `fatal()`
+
+`mfm_xebec.c:314` (`CMD_READ_STATUS`), `:675` (`CMD_DTC_GET_GEOMETRY`) et `:694`
+(`CMD_DTC_SET_GEOMETRY`) ouvrent un `switch (xebec->state)` sans branche par défaut. Les
+six autres commandes qui en ouvrent un — `:334`, `:389`, `:480`, `:573`, `:594`, `:651` —
+terminent toutes par `default: fatal(...)`.
+
+*Effet* : sur un état inattendu, le contrôleur ne fait **rien** : ni octet de fin, ni
+chronomètre réarmé, ni IRQ. Il se fige au lieu de s'arrêter bruyamment, ce qui est le
+contraire de l'intention affichée par les six autres. Aucun état atteint pendant
+l'amorçage, `FDISK` et `FORMAT C: /S` de § M12 n'y mène.
+*Reproduit* : `Mfm/mfm_xebec.cs`, les trois `switch` restent sans `default:`.
+
+### PB-29 — `ide_fn` déclaré `[4][512]` dans `scsi_ibm.c`, défini `[7][512]` dans `ide.c`
+
+`ide.c:105` définit `char ide_fn[7][512]`. `scsi_ibm.c:21` en re-déclare l'`extern` avec
+une borne différente : `extern char ide_fn[4][512];`. Les cinq autres consommateurs — dont
+`mfm_xebec.c:26` — écrivent bien `[7][512]`.
+
+*Effet* : aucun à l'exécution, la borne d'un tableau externe n'entrant pas dans l'édition
+de liens. Mais un lecteur de `scsi_ibm.c` en déduit quatre disques là où il y en a sept,
+et un `-fsanitize=bounds` sur cette unité de traduction signalerait à tort les indices 4
+à 6.
+*Sans objet ici* : `scsi_ibm.c` n'est pas transcrit. `Disc/hdd.cs` porte la définition à
+sept, celle d'`ide.c`.
+
+### PB-30 — Trois symboles morts dans `mfm_xebec.c`
+
+| Symbole | Défini | Occurrences dans l'arbre |
+|---|---|---|
+| `cfg_spt` | `mfm_xebec.c:41` | 1 — sa déclaration. Ni lu ni écrit |
+| `STATE_DUNNO` | `mfm_xebec.c:37` | 1 — sa déclaration dans l'énumération d'états |
+| `STAT_DRQ` | `mfm_xebec.c:81` | 1 — son `#define` |
+
+Les deux champs voisins de `cfg_spt` dans la même structure, `cfg_hpc` et `cfg_cyl`, sont
+vivants : `CMD_INIT_DRIVE_PARAMS` les remplit. Le nom `STAT_DRQ` vient du jeu de bits du
+contrôleur ATA, où il existe ; le Xebec n'a pas ce bit.
+
+*Effet* : aucun.
+*Reproduit* : `Mfm/mfm_xebec.cs`, les trois définitions sont conservées — une constante
+morte n'est pas un commentaire (même arbitrage que PB-20).
+
+
 ---
 
 ## Portée de ce registre
 
-Ces dix-huit défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -378,10 +535,26 @@ audit systématique de PCem** :
 | SingleStepTests | PB-01 |
 | Fuzzer différentiel | PB-07 |
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
-| Relecture ligne à ligne pendant la transcription | PB-02, PB-04, PB-05, PB-06, PB-08, PB-09, PB-10, PB-11, PB-12, PB-13, PB-14 à PB-20 |
+| Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21 |
+| Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30 |
 
-Le palier (a) et M6 ne transcrivent que ~7 200 des 309 000 lignes de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné, et les cœurs 286/386/486, le dynarec, les autres cartes vidéo et
-tout le son sont hors de ce registre.
+Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
+lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les autres cartes vidéo, les
+cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre.
+
+Deux frontières ont bougé et le disaient mal :
+
+- **Le son n'est plus hors périmètre.** M9 a transcrit le mixeur et le haut-parleur, et y
+  a trouvé PB-21 — le seul défaut de ce registre qu'une **exécution** ait révélé, tous les
+  autres venant de la relecture ou d'un oracle.
+- **Le disque dur non plus.** M12 a transcrit le Fixed Disk Adapter et la couche image, et
+  en a rapporté neuf entrées d'un coup, PB-22 à PB-30. C'est le plus fort rendement au
+  millier de lignes du dépôt : 707 lignes de C pour neuf défauts, contre 1 834 pour sept à
+  M6. Une carte que peu de logiciels exercent est moins relue qu'un cœur d'UC.
+
+Un défaut de PCem se **reproduit**, avec une exception nommée : `PB-24` est de l'UB dont
+la valeur change d'une exécution à l'autre, et un oracle qui tire aux dés n'est pas un
+oracle. La divergence est assumée et inscrite au registre des omissions de
+`TRANSCRIPTION.md`, comme `h_pad_ram` avant elle.
 
 Aucun de ces défauts n'a été remonté en amont ; `VENDORED.md` donne l'URL du projet.

@@ -38,9 +38,10 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 220 lignes — 200 jusqu'à M6.1,
-  relevé une fois pour payer R1(e) et la ligne « Nommage ». Le relèvement s'inscrit ici :
-  un plafond qui bouge sans trace ne plafonne plus. Deux registres de
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 225 lignes — 200 jusqu'à M6.1,
+  puis 220, puis 225 à M12 pour payer les cinq entrées du disque dur au registre des
+  omissions : une famille de périphériques entière y entrait d'un coup. Le relèvement
+  s'inscrit ici, à chaque fois : un plafond qui bouge sans trace ne plafonne plus. Deux registres de
   **constats** en sont exemptés, parce que le plafond vise la prose de conception et pas
   les faits mesurés : `VERIFICATION.md` (ce que les oracles ont montré) et
   `PCEM_BUGS.md` (les défauts trouvés dans PCem lui-même, identifiants `PB-nn`, cités
@@ -177,6 +178,11 @@ Ce qui n'est **pas** transcrit, et pourquoi. Toute nouvelle entrée se justifie 
 | Le fil CD de `sound.c` et le registre `SOUND_CARD` | `sound.c:31-105, 120-124, 143-197` | Dix-neuf cartes son et un lecteur de CD-ROM sur un 5150 de 1981. `sound.c` n'est donc **pas lié** à l'oracle, même arbitrage que `video.c` et ses 90 symboles de cartes : `harness.c` en reprend le cœur temporel, copié verbatim, et c'est ce qui porte le chronomètre à 48 kHz des deux côtés. VERIFICATION.md § M9. |
 | `gated` | `sound_speaker.c:5` | Mort chez PCem aussi : sa seule référence est le `printf` commenté `:20`. `speakval`, `speakon` et `ppispeakon`, déclarés sur la même ligne, sont vivants et transcrits. |
 | `speaker_mute` du PCjr, `sn76489`, `pssj` | `keyboard_pcjr.c:129-132`, `model.c:228` | Le 5150 n'a que le haut-parleur du canal 2 du PIT : `m_ibmpc` a `device = NULL` (`model.c:777`) et `xt_init` n'ajoute aucun périphérique sonore. `speaker_mute` **est** transcrit — c'est `speaker_init` qui le pose — mais rien ne le met à 1. |
+| Le registre `HDD_CONTROLLER` : `hdd_controllers[]`, ses seize entrées et ses huit accesseurs | `hdd.c:28-182` | Seize contrôleurs de disque dur, dont un seul est câblé. Même arbitrage que `SOUND_CARD` (§ M9) et `VIDEO_CARD` : un registre de cartes enfichables ne porte pas de temps. `hdd_controller_init` se réduit à son unique effet, un `device_add`, écrit sur place dans `pc.resetpchard()` — modèle littéral de `video_init()`. Mais `hdd.c` n'est **pas** entièrement écartable : il définit `hdc[7]` et `hdd_controller_name[16]`, seules définitions de l'arbre, transcrites dans `Disc/hdd.cs`. VERIFICATION.md § M12. |
+| `src/ide/` (2 032 lignes) et `src/scsi/` (8 180 lignes) | — | Contrôleurs IDE/ATAPI et SCSI, et les cartes qui les portent. Aucune machine du dépôt n'en a : le 5150 n'a pas de disque dur, le 5160 a le Fixed Disk Adapter, qui est MFM. **Exception :** `ide_fn[7][512]`, défini `ide.c:105`, est transcrit dans `Disc/hdd.cs` — `mfm_xebec.c:26` le re-déclare `extern`, comme cinq autres consommateurs, et sans lui la carte ne sait pas quel fichier ouvrir. |
+| `src/hdd/minivhd/` (3 723 lignes) et `src/hdd/ramdisk/` (273 lignes) ; les branches `HDD_IMG_VHD` et `HDD_IMG_RAW_RAM` de `hdd_file.c` | `hdd_file.c:12-24, 42-64, 96-147` et les quatre fonctions d'E/S | Images VHD différentielles et disques en RAM. **1 797 des 3 723 lignes** (`cwalk.c`, `libxml2_encoding.c`) ne servent qu'aux chemins parents UTF-16 des VHD différentiels — un 5160 avec une image brute n'en emprunte pas une ligne. Les deux prédicats d'aiguillage, `mvhd_file_is_vhd` (par contenu) et `is_ramdisk_file` (par extension), sont rendus **faux** : deux stubs contre 3 996 lignes. Côté oracle, dix-sept stubs d'édition de liens dans `harness_stubs.c`. |
+| Le champ `FILE *f` de `PcemHDC` | `ibm.h:366-372` | Mort dans tout l'arbre vendoré : `hdd_file_t` porte son propre descripteur, et aucune ligne n'écrit `hdc[d].f`. |
+| **Divergence assumée** (pas une omission) : `rom_init` alloue un tableau CLR, donc à zéro, là où `malloc` rend du tas | `rom.c:60-62`, appelé `mfm_xebec.c:757` et `:793` | PCem alloue `size` puis ignore le retour de `fread` : une ROM de 4 096 octets dans une allocation de 16 384 laisse **12 288 octets de tas** lisibles par l'invité (`PB-24`). De l'UB, pas un comportement — trois exécutions, trois valeurs. Même arbitrage que `h_pad_ram` ci-dessus. Atténué par l'en-tête de ROM, qui déclare sa vraie longueur et borne le balayage du POST. |
 
 **À ne PAS omettre malgré les apparences :** `readlookup2`/`writelookup2`/`addreadlookup`
 /`addwritelookup` (portent du temps, `cycles -= 9` à `mem.c:378`) · `mem_logical_addr`

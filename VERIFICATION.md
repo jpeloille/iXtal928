@@ -2119,3 +2119,240 @@ Non-régression : `boot-diff roms 6000` → **25 457 269**, à l'unité. Le titr
 natif, et `xdotool` — qui est X11 — ne voit aucune fenêtre. Ce qui est vérifié, c'est
 l'expression qui la produit : la même que celle de la ligne `--verbose`, qui imprime bien
 `machine : [8088] IBM XT` sous les deux formes de sélection.
+
+## M12 — Le disque dur du XT : FDISK, FORMAT C: /S, et trois trous dans le harnais
+
+Le 5160 est le premier IBM PC livré avec un disque fixe dans sa configuration standard :
+c'est ce que veut dire le « XT ». M10 émulait la machine sans sa raison d'être.
+
+Le contrôleur n'est pas sur la carte mère. C'est l'**IBM Fixed Disk Adapter**, de
+conception Xebec, une carte avec sa propre ROM d'extension en 0xC8000 qui apporte l'INT 13h
+du disque fixe — ce qui explique le constat de § M10, « le BIOS du XT démarre sans
+contrôleur de disque dur ». Elle prend l'IRQ 5 et le canal DMA 3, que personne d'autre
+n'occupait dans ce dépôt.
+
+### Ce qui a été transcrit, et la parité
+
+| Fichier C# | Oracle | Lignes vives C# / C | |
+|---|---|---|---|
+| `Mfm/mfm_xebec.cs` | `src/mfm/mfm_xebec.c` | **566 / 572** | ratio 0,99 — le fichier porte **deux** cartes, `mfm_xebec_device` et `dtc_5150x_device`, qui partagent `xebec_close`, `xebec_read`, `xebec_write` et `xebec_callback`. Le DTC vient gratuitement ; seul le Xebec est câblé |
+| `Disc/hdd_file.cs` | `src/hdd/hdd_file.c` | **110 / 196** | branche `HDD_IMG_RAW` seule. Les 86 lignes d'écart sont exactement les branches VHD et ramdisk : 63 pour les trois blocs `:12-24`, `:42-64` et `:96-147`, le reste dans les quatre fonctions d'E/S |
+| `Disc/hdd.cs` | `src/hdd/hdd.c` | **8 / 129** | les deux globales seules, `hdc[7]` et `hdd_controller_name[16]`. Le reste est le registre `HDD_CONTROLLER` et ses huit accesseurs, omis — même arbitrage que `SOUND_CARD` (§ M9) et `VIDEO_CARD` |
+
+**`hdd.c` n'était pas entièrement écartable**, et c'est le piège que la reconnaissance a
+trouvé : `ibm.h:366-372` ne porte que l'`extern` de `hdc[7]`, la définition est dans
+`hdd.c`. Un registre de cartes qu'on écarte peut abriter les seules définitions de
+l'arbre ; il faut lire avant d'écarter.
+
+**`ide_fn[7][512]` est défini dans `ide/ide.c`**, le fichier qu'on ne veut surtout pas
+lier — 2 032 lignes de contrôleur IDE pour une machine qui n'en a pas. PCem lui-même ne
+l'inclut jamais pour ça : ses six consommateurs re-déclarent l'`extern` localement, y
+compris `mfm_xebec.c:26`. Il vit donc dans `Disc/hdd.cs`, à côté de la géométrie qu'il
+complète, et il **doit** porter la même valeur des deux côtés du diff : sans quoi
+`xebec_set_switches` calcule deux `switches` différents et le diff rougit au premier
+`in 0x322`.
+
+**`hdd_file.c` traînait 3 996 lignes de C tiers** — `minivhd/` (3 723) et `ramdisk/`
+(273), dont 1 797 (`cwalk.c`, `libxml2_encoding.c`) ne servent qu'aux chemins parents
+UTF-16 des VHD différentiels. Les deux prédicats d'aiguillage, `mvhd_file_is_vhd` (par
+contenu) et `is_ramdisk_file` (par extension), sont rendus **faux** : deux stubs contre
+3 996 lignes. Côté oracle, dix-sept stubs d'édition de liens dans `harness_stubs.c`, que
+`-Wl,--no-undefined` a énumérés exactement comme il l'avait fait pour les 90 symboles de
+`video.c`.
+
+### La géométrie n'est pas libre
+
+`xebec_set_switches` (`mfm_xebec.c:716-747`) n'accepte que **17 secteurs par piste** et
+quatre couples (cylindres, têtes) : (306,4), (612,4), (615,4), (306,8). Hors de là,
+`warning()` et les interrupteurs restent à zéro — le disque est annoncé en type 0 quelle
+que soit sa taille, et le POST diverge. Rien ne le refuse : c'est un avertissement.
+
+Le disque du jalon est donc **306 × 4 × 17 = 20 808 secteurs = 10 653 696 octets**, le
+10 Mo historique du XT.
+
+### Trois trous dans le harnais, tous trouvés en cherchant pourquoi rien ne s'écrivait
+
+Le symptôme était : « Image C: identique des deux côtés — mais INCHANGÉE depuis le
+départ ». Le garde-fou de § M11 faisait son travail, campagne après campagne, sans qu'on
+sache pourquoi. Un vidage de l'écran texte a donné la réponse en une ligne : **« Missing
+operating system »**. La machine amorçait sur le disque dur, pas sur la disquette.
+
+**1. `boot-diff` écrasait la disquette du fichier de configuration.** `BootDiff.Run` faisait
+`discfns[0] = csharpA ?? ""` sans condition : `--fda` absent, la clé `disc_a` que
+`loadconfig` venait de poser était remplacée par une chaîne vide. Les deux côtés étant
+amputés pareil, **le diff restait vert** — il comparait deux machines également sourdes.
+Introduit à M11 avec les copies par côté, invisible jusqu'ici parce que toutes les
+campagnes disquette passaient `--fda` explicitement.
+
+**2. La porte des images ne pouvait pas échouer.** Le verdict était
+
+```csharp
+return CompareImages(…, "A:") & CompareImages(…, "B:") & CompareImages(…, "C:");
+```
+
+`CompareImages` rend 1 en cas de divergence et 0 sinon, **y compris quand rien n'est
+monté**. Un `&` entre trois codes ne vaut donc 1 que si toutes les images divergent **en
+même temps**, et un lecteur vide suffisait à masquer les autres. Le texte imprimé, lui, a
+toujours été juste : la porte des images de M11 était lue **à l'œil**, jamais par le code
+de sortie. C'est `|` qui la rend exécutable — bitwise et non `||`, pour que les quatre
+lignes s'impriment même après la première divergence.
+
+Vérifié par **contrôle négatif** : un octet retourné dans l'image du côté C# juste avant la
+comparaison donne `Image C: : 1 octet(s) divergent(s), le premier en 0x1BE — oracle 00,
+C# FF` et **code de sortie 1** ; la même campagne sans sabotage sort 0. Le crochet a été
+retiré.
+
+**3. `ide_fn[1]` partait tel quel à l'oracle** pendant que le C# lisait le même fichier :
+le défaut même qu'on venait de fermer pour A:, B: et C:, en attente d'un second disque.
+Inerte tant que D: est vide — c'est l'origine du « Cannot open file '' » bénin — refermé
+au passage, avec une quatrième ligne de comparaison.
+
+### Une porte perdue, et récupérée
+
+Le correctif (1) déplace un chiffre de régression, et il faut le dire : **`boot-diff
+roms 6000 --config ixtal26-xt.cfg` mesurait en fait le XT SANS disquette**, donc sa ROM
+BASIC. Le correctif rend la clé au fichier, et cette campagne-là n'avait alors plus aucune
+commande pour l'exprimer — `boot-diff` n'avait pas de `--model`.
+
+Il en a un maintenant, et la preuve est arithmétique : `boot-diff roms 6000 --model ibmxt`
+rend **23 442 234**, l'ancien chiffre à l'unité. La porte n'a pas bougé, elle a changé de
+nom.
+
+### Les deux chemins neufs, comptés
+
+IRQ 5 et canal DMA 3 n'avaient jamais tourné. Compteur temporaire, posé puis retiré, sur
+l'arc complet depuis un disque vierge :
+
+| Étape | IRQ 5 | DMA canal 3 |
+|---|---|---|
+| Amorçage seul, carte montée | 7 | 512 o lus, 512 o écrits |
+| + `FDISK`, création de la partition | 9 | 1 024 o lus, 1 024 o écrits |
+| + redémarrage et `FORMAT C: /S` | **1 303** | **72 192 o lus, 42 496 o écrits** |
+
+Les 41 472 octets que DOS annonce à l'écran — « 41472 bytes used by system » — sont
+exactement ce que le canal DMA a écrit entre les deux dernières lignes. Le compte du
+chemin d'écriture et le compte de l'invité tombent juste l'un sur l'autre.
+
+**Et les deux chemins d'écriture ne se confondent pas.** `FORMAT TRACK` passe par
+`hdd_format_sectors`, qui n'emprunte **pas** le DMA ; `WRITE DATA` passe par
+`hdd_write_sectors` et le canal 3. Le formatage écrit des zéros sur des zéros et ne
+change donc pas un octet de l'image : ce qui reste visible dans la comparaison, ce sont
+les 33 744 octets du système de fichiers.
+
+### Les portes
+
+| Épreuve | Résultat |
+|---|---|
+| `boot-diff roms 6000` | **25 457 269** — 5150, ROM BASIC, inchangé |
+| `boot-diff roms 7000 --fda …pcdos20b.img` | **26 750 702** — 5150, DOS, inchangé |
+| `boot-diff roms 6000 --model ibmxt` | **23 442 234** — XT, ROM BASIC (ex-porte 3, renommée) |
+| `boot-diff roms 6000 --config ixtal26-xt.cfg` | **19 511 811** — XT, DOS : chiffre NEUF, le correctif (1) l'a corrigé |
+| `boot-diff roms 7000 --config ixtal26-xt.cfg --fda …` | **22 086 920** — XT, DOS, inchangé |
+| Campagne M11, `FORMAT B:` sur disquette | **48 783 446** instructions, **367 370 octets** — à l'unité, et désormais sous une porte exécutable |
+
+### La campagne du disque dur, et c'est elle la porte du jalon
+
+L'arc entier, depuis une image de 10 653 696 octets à **zéro**, en une seule campagne :
+
+```
+boot-diff roms 6000 --config /tmp/xt-arc.cfg --type-at 6000 --type-settle 3000
+          --type "" --type "" --type FDISK --type 1 --type "" --type ""
+          --type "" --type "" --type "FORMAT C: /S" --type ""
+```
+
+Les six premières lignes répondent aux invites de date et d'heure, ouvrent `FDISK`,
+choisissent « Create DOS Partition », acceptent le disque entier et laissent la machine
+**redémarrer d'elle-même** ; les quatre dernières répondent aux invites du nouvel
+amorçage et formatent.
+
+| Résultat | |
+|---|---|
+| Trace d'instructions | **vert, 98 945 755 instructions identiques** — deux fois la campagne de M11, la plus longue du dépôt |
+| Image C: | identique des deux côtés, **33 982 octets écrits par l'invité** |
+| Empreinte des deux images | `sha256 3aa1e5ff75e31ec5…`, la même des deux côtés |
+| Écran | « Format complete / System transferred / 10 550 784 bytes available on disk » |
+
+**33 982 = 33 744 + 238**, et les deux termes ont été mesurés séparément : 33 744 pour un
+`FORMAT C: /S` seul sur une image déjà partitionnée, 238 pour un `FDISK` seul sur une
+image vierge. Les deux commandes n'écrivent pas au même endroit et leurs comptes
+s'additionnent exactement.
+
+Le disque produit est un vrai disque fixe DOS :
+
+| Offset | Octets | Sens |
+|---|---|---|
+| `0x1EE` | `80 00 02 00 01 03 51 30 01 00 00 00 03 51 00 00` | entrée de partition : amorçable, type 01 (FAT12), LBA 1, 20 739 secteurs |
+| `0x1FE` | `55 aa` | signature du MBR |
+| `0x200` | `eb 2c 90` + `IBM  2.0` | secteur d'amorçage de la partition |
+| `0x215` | `f8` | descripteur de média **disque fixe** — `fd` était celui de la 360 Ko de § M11 |
+
+L'entrée est dans le **quatrième** emplacement de la table, pas le premier : c'est ce que
+fait le FDISK de PC DOS 2.00, et les deux côtés le font pareil.
+
+### Une image montée en lecture-écriture n'est vierge qu'une fois
+
+Constat fait en rejouant la campagne de M11 pour vérifier la porte redevenue exécutable :
+elle a rendu **16 306 octets écrits** au lieu des 367 370 consignés. Ni le cœur ni le
+harnais n'avaient bougé — la trace était à **48 783 446**, à l'unité. C'est
+`os/vierge-360k.img` qui n'était plus vierge : une campagne antérieure y avait écrit un
+système de fichiers complet, 349 713 octets de `0xF6` compris. `CompareImages` compte les
+octets qui ont changé **depuis le départ**, et le départ avait dérivé.
+
+Rejouée depuis une image réellement à zéro : **367 370 octets**, le chiffre de M11 à
+l'unité.
+
+Le garde-fou « INCHANGÉE depuis le départ » n'attrape que le cas total. Un départ
+**partiellement** pré-écrit passe au travers et donne un compte plus petit sans rien
+signaler. Toute mesure de chemin d'écriture doit donc partir d'une image fraîche, et `os/`
+n'est pas versionné : la recette doit le dire, pas le supposer.
+
+### Neuf défauts de PCem, `PB-22` à `PB-30`
+
+C'est le plus fort rendement au millier de lignes du dépôt : 707 lignes de C pour neuf
+entrées, contre 1 834 pour sept à M6. Une carte que peu de logiciels exercent est moins
+relue qu'un cœur d'UC.
+
+| | |
+|---|---|
+| `PB-22` | `CMD_FORMAT_TRACK` ne réinitialise pas `sector` là où les trois autres commandes d'accès le font |
+| `PB-23` | `completion_byte = drive_sel & 0x20` sur une valeur qui vaut 0 ou 1 : toujours nul |
+| `PB-24` | `rom_init` ignore le retour de `fread` : **12 288 octets de tas** publiés à l'invité. **Non reproduit**, divergence assumée |
+| `PB-25` | borne des têtes testée avec `>` au lieu de `>=`, cinq lignes au-dessus d'un `>=` correct |
+| `PB-26` | quatre chaînes de `fatal()` fausses par copier-coller |
+| `PB-27` | trois `switch` internes sans `default:` là où six autres appellent `fatal()` |
+| `PB-28` | `CMD_DTC_GET_DRIVE_PARAMS` répond 256 têtes sur une unité absente |
+| `PB-29` | `ide_fn` déclaré `[4][512]` dans `scsi_ibm.c`, défini `[7][512]` dans `ide.c` |
+| `PB-30` | trois symboles morts : `cfg_spt`, `STATE_DUNNO`, `STAT_DRQ` |
+
+`PB-22` mérite une note, parce que c'est le seul que la campagne aurait pu faire rougir et
+qui n'a rien fait : PC DOS 2.00 fait précéder chaque `FORMAT TRACK` d'un accès qui laisse
+`sector` à 0. L'image est donc identique des deux côtés **parce que les deux reproduisent
+le défaut**, pas parce qu'il est inoffensif. Un pilote qui enchaînerait deux formatages
+formaterait la mauvaise piste.
+
+`PB-24` est la seule divergence assumée du jalon, et pour la raison de `h_pad_ram` : de
+l'UB dont la valeur change d'une exécution à l'autre, et un oracle qui tire aux dés n'est
+pas un oracle. Atténuée en pratique — l'en-tête des deux ROMs déclare sa vraie longueur
+(`55 aa 08` pour le Xebec, `55 aa 10` pour le DTC) et borne le balayage du POST.
+
+### Ce que ce vert ne dit pas
+
+1. **Un seul contrôleur, une seule géométrie.** Le Xebec d'IBM en (306, 4, 17). Le DTC
+   5150X est transcrit ligne à ligne mais **n'a jamais été monté** : aucune des trois
+   commandes qui lui sont propres n'a tourné, ni sous oracle ni ailleurs. Les trois autres
+   géométries admises non plus.
+2. **Un seul système, une seule version.** PC DOS 2.00. Ni DOS 3, ni un pilote qui
+   parlerait directement au contrôleur.
+3. **Le DMA en défaut n'est pas exercé.** Les boucles `DMA_NODATA` de `mfm_xebec.c`
+   suspendent en conservant `data_pos` et laissent un chronomètre de 2 000 µs reprendre.
+   Rien dans cette campagne ne les a fait suspendre : le canal 3 a toujours répondu.
+4. **Dix-neuf `fatal()` vivants n'ont pas été atteints.** C'est une bonne nouvelle et pas
+   une preuve : un `in`/`out` sur 0x320 dans un état inattendu tue l'émulateur des deux
+   côtés, et seul un logiciel qui s'y risque le montrerait.
+5. **`PB-23`, `PB-25`, `PB-27` et `PB-28` n'ont aucun pendant exécuté.** Ils sont
+   transcrits et marqués ; la campagne ne passe pas dessus. Ce qui est vérifié, c'est que
+   les deux côtés font la même chose sur le chemin que DOS emprunte.
+6. **L'arc part d'un disque vierge et s'arrête au formatage.** Il n'écrit ni ne réécrit de
+   fichier après coup, et ne teste ni la relecture après remontage, ni un second disque en
+   D:.
+

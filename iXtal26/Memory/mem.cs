@@ -741,6 +741,12 @@ internal static partial class mem
 
         // omitted: ram_high_mapping / ram_mid_mapping — mémoire au-delà de 1 Mo et
         //   RAM d'ombre 640-768 Ko, hors du 5150.
+        // omitted: romext_mapping (mem.c:1422-1425) — sous garde `romset ==
+        //   ROM_IBMPS1_2011`, machine absente de model.cs. L'omission était réelle
+        //   mais NON MARQUÉE jusqu'à M12 : un trou du registre, relevé en câblant le
+        //   Fixed Disk Adapter, qui vise justement 0xc8000 — la même adresse. Les
+        //   deux ne se rencontrent pas : la carte passe par rom_init/mem_mapping_add,
+        //   et sur un XT cette garde est fausse.
 
         resetreadlookup();
     }

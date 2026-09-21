@@ -1,7 +1,7 @@
 # iXtal26
 
 Émulateur d'**IBM PC 5150** et d'**IBM XT 5160** (8088 à 4,77 MHz, CGA, contrôleur de
-disquettes, haut-parleur), transcrit de PCem v18 en C#.
+disquettes, haut-parleur, et le Fixed Disk Adapter du XT), transcrit de PCem v18 en C#.
 
 Le cœur est vérifié bit à bit contre le C d'origine, gardé dans `pcem-dev/` : les deux
 exécutent le POST du 5150 puis la ROM BASIC sur **25 457 269 instructions identiques**,
@@ -149,6 +149,44 @@ Chaque paramètre configurable est réglable **à l'identique côté oracle C**,
 demandée, pas une autre. C'est la raison d'être du fichier plutôt que d'une interface —
 une UI serait la seule source de vérité que l'oracle ne peut pas lire.
 
+## Le disque dur du XT
+
+C'est ce que veut dire le « XT » : le 5160 est le premier IBM PC livré avec un disque fixe
+dans sa configuration standard. Le contrôleur n'est pas sur la carte mère — c'est l'**IBM
+Fixed Disk Adapter**, de conception Xebec, une carte avec sa propre ROM d'extension en
+0xC8000 qui apporte l'INT 13h du disque fixe. Le BIOS du 5160 n'en contient pas une ligne.
+
+Il n'est pas monté par défaut : sa ROM change la trajectoire du POST, et `os/` n'est pas
+versionné. Quatre clés l'allument, toutes documentées dans `../ixtal26-xt.cfg` :
+
+```ini
+hdd_controller = mfm_xebec   # ou dtc5150x, la carte DTC 5150X, transcrite aussi
+hdc_sectors = 17             # la carte n'accepte QUE 17
+hdc_heads = 4
+hdc_cylinders = 306          # 306x4x17 = 10 653 696 o, le 10 Mo historique
+hdc_fn = os/xt-10mo.img      # cree s'il manque, et non pre-alloue
+```
+
+**La géométrie n'est pas libre** : `xebec_set_switches` n'admet que 17 secteurs par piste
+et quatre couples (cylindres, têtes) — (306,4), (612,4), (615,4) et (306,8). Hors de là, la
+carte se contente d'un avertissement, annonce le disque en type 0 et le POST diverge.
+
+Et les préfixes de clés sont des **lettres de lecteur DOS**, pas des numéros de
+contrôleur : `hdc_` = C:, `hdd_` = D:, jusqu'à `hdi_` = I:. La clé `hdd_controller`
+ci-dessus n'a rien à voir avec les `hdd_` de géométrie — collision de préfixe héritée de
+PCem.
+
+Un disque neuf se prépare comme en 1983, sous PC DOS 2.00 :
+
+```
+FDISK          -> 1 (Create DOS Partition), puis Entree ; la machine redemarre
+FORMAT C: /S   -> « Format complete / System transferred »
+```
+
+après quoi la machine amorce sur C:. **Cet arc entier est vert au diff contre le C de
+PCem**, image de disque comparée octet par octet entre les deux côtés — pas seulement la
+trace d'instructions (`../VERIFICATION.md` § M12).
+
 ## Le menu, Ctrl+F12
 
 Dans la fenêtre, **Ctrl+F12** ouvre un menu en surimpression et met la machine en pause :
@@ -192,7 +230,7 @@ mode existe pour que deux exécutions traversent les mêmes états.
 | `Host/SdlMenu.cs`     | Menu Ctrl+F12 : disquettes et reset (`wx-sdl2.c:725-770`)      |
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
-Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`,
+Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`, `Mfm/`, `Sound/`,
 `pc.cs`, `io.cs`, `timer.cs`, `ppi.cs`) est du code **transcrit** : identifiants et commentaires anglais de
 PCem conservés, une ligne `// pcem:` par fonction. Les règles sont dans
 `../TRANSCRIPTION.md`, la correspondance fichier à fichier dans `../oracle.tsv`.
@@ -204,11 +242,18 @@ Matériel IBM sous copyright : non distribué, `.gitignore`d. Attendu dans `roms
 `mda.rom` fournit la police 8×8 du CGA, que `loadbios` charge inconditionnellement.
 Les empreintes attendues sont dans `../roms/roms.sha256`.
 
-## Images de disquette
+## Images de disquette et de disque dur
 
 Logiciels sous copyright (PC DOS…) : non distribués, `.gitignore`d comme les ROMs. Seul
 `../os/os.sha256` est versionné ; il ancre les mesures de VERIFICATION.md § M6, faites
 sur `os/pcdos20/pcdos20b.img` (PC DOS 2.00, disquette système, 180 Ko simple face).
+
+Les images de disque dur non plus ne sont pas versionnées. **Elles dérivent** : une image
+montée en lecture-écriture est écrite pour de vrai, et une campagne qui la reformate part
+de ce que la précédente y a laissé. C'est vrai des disquettes aussi — le `vierge-360k.img`
+de `os/` n'est vierge qu'une fois. Toute mesure d'un chemin d'écriture doit donc repartir
+d'une image fraîche, sans quoi elle compte les octets qui ont changé depuis la fois d'avant
+et non depuis le vide (VERIFICATION.md § M12).
 
 ## SDL3 : d'où viennent les binaires
 
