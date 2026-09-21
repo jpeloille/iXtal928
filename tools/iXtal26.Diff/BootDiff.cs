@@ -22,6 +22,7 @@
 // où les machines sont d'accord.
 
 using iXtal26.Cpu;
+using iXtal26.Host;
 using iXtal26.Memory;
 
 namespace iXtal26.Diff;
@@ -37,7 +38,14 @@ public static class BootDiff
     /// indépendantes, ce sont deux résolutions de chemin qui peuvent trouver deux
     /// fichiers différents : une divergence de configuration déguisée en divergence de
     /// cœur, et le harnais ne saurait pas faire la différence.</param>
-    public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null)
+    /// <param name="discB">Image du lecteur B. C'est là que va la disquette VIERGE
+    /// d'un FORMAT : on ne formate pas le disque système sous les pieds de DOS.</param>
+    /// <param name="types">Lignes à taper, une fois l'invite atteinte. C'est ce qui
+    /// met le chemin d'ÉCRITURE du contrôleur sous comparaison — FORMAT et WRITE DATA
+    /// ne s'atteignent pas autrement, et jusqu'ici l'oracle ne savait pas taper.</param>
+    /// <param name="typeAt">Tranche de la première frappe : le temps d'amorcer.</param>
+    public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
+                          string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0)
     {
         Oracle.CheckAbi();
 
@@ -52,9 +60,43 @@ public static class BootDiff
 
         var oraclePath = Path.Combine(Path.GetTempPath(), "ixtal-boot-oracle.bin");
 
+        // LE CALENDRIER DE FRAPPE, construit UNE fois et rejoué à l'identique des deux
+        // côtés. Purement arithmétique : il ne dépend d'aucun état de la machine, donc
+        // les deux côtés le suivent sans avoir à se parler. C'est ce qui rend une frappe
+        // comparable — et sans frappe, FORMAT et WRITE DATA restent hors d'atteinte.
+        var script = new List<KeyScript.Event>();
+        if (types is not null && types.Count > 0)
+        {
+            var (evts, endSlice) = KeyScript.Build(types, typeAt, KeyScript.SlicesAfterLine);
+            script = evts;
+            if (endSlice > slices)
+            {
+                Console.WriteLine($"  frappe : {script.Count} évènements de la tranche {typeAt} à {endSlice} ; " +
+                                  $"tranches portées de {slices} à {endSlice}");
+                slices = endSlice;
+            }
+            else
+            {
+                Console.WriteLine($"  frappe : {script.Count} évènements de la tranche {typeAt} à {endSlice}");
+            }
+        }
+
+        // UNE COPIE PAR CÔTÉ. Les deux cœurs écrivent pour de vrai sur l'image montée :
+        // leur donner le même fichier ferait lire au second ce que le premier vient
+        // d'écrire, et la divergence serait fabriquée par le harnais. Les comparer
+        // ensuite octet par octet est le vrai oracle du chemin d'écriture — le diff
+        // d'instructions dit que les deux font pareil, les images disent ce qu'elles ont
+        // produit.
+        var oracleA = CopyForSide(discA, "oracle-a");
+        var oracleB = CopyForSide(discB, "oracle-b");
+        var csharpA = CopyForSide(discA, "csharp-a");
+        var csharpB = CopyForSide(discB, "csharp-b");
+
         Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
-                          (discA is null ? ")…" : $", A: = {discA})…"));
-        Oracle.h_set_discfn(0, discA ?? "");
+                          (discA is null ? "" : $", A: = {discA}") +
+                          (discB is null ? "" : $", B: = {discB}") + ")…");
+        Oracle.h_set_discfn(0, oracleA ?? "");
+        Oracle.h_set_discfn(1, oracleB ?? "");
         Oracle.h_set_mem_size(pc.cfg_mem_size);
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
@@ -70,9 +112,23 @@ public static class BootDiff
             Console.Error.WriteLine($"Impossible d'écrire {oraclePath}.");
             return 1;
         }
+        var e = 0;
         for (var i = 0; i < slices; i++)
+        {
+            // Les touches sont posées AVANT la tranche, comme BootTest les pose avant
+            // runpc() : c'est keyboard_poll_host, à la fin de la tranche, qui les voit.
+            while (e < script.Count && script[e].Slice == i)
+            {
+                Oracle.h_rawinputkey(script[e].Index, script[e].Value);
+                e++;
+            }
             Oracle.h_runpc();
+            // pc.c:490-491 — runpc() appelle keyboard_poll_host puis keyboard_process
+            // APRÈS execx86. h_runpc ne le fait pas ; on le fait ici, au même point.
+            Oracle.h_kbd_process();
+        }
         Oracle.h_trace_close();
+        Oracle.h_closepc();
 
         var oracleTrace = File.ReadAllBytes(oraclePath);
         var nOracle = oracleTrace.Length / 8;
@@ -80,14 +136,22 @@ public static class BootDiff
 
         Console.WriteLine($"Amorçage du cœur C# ({slices} tranches)…");
         _808x.ResetDiagState();
-        Floppy.fdd_c.discfns[0] = discA ?? "";
+        Floppy.fdd_c.discfns[0] = csharpA ?? "";
+        Floppy.fdd_c.discfns[1] = csharpB ?? "";
         if (!pc.initpc(romsPath))
             return 1;
 
         var diverged = -1;
         var n = 0;
+        var ev = 0;
         for (var s = 0; s < slices && diverged < 0; s++)
         {
+            while (ev < script.Count && script[ev].Slice == s)
+            {
+                Keyboard.keyboard.rawinputkey[script[ev].Index] = script[ev].Value;
+                ev++;
+            }
+
             var budget = pc.cpu_get_speed() / 100;
             while (budget > 0)
             {
@@ -100,7 +164,12 @@ public static class BootDiff
                 }
                 n++;
             }
+
+            Keyboard.keyboard.keyboard_poll_host();
+            Keyboard.keyboard.keyboard_process();
         }
+
+        pc.closepc();
 
         if (diverged < 0)
         {
@@ -118,12 +187,79 @@ public static class BootDiff
             }
 
             Console.WriteLine($"\nVert : {n} instructions, les deux amorçages sont identiques.");
-            return 0;
+
+            // Le diff d'instructions dit que les deux cœurs font la même chose. Les
+            // images disent ce qu'ils ont ÉCRIT — et c'est le seul oracle que le chemin
+            // d'écriture ait jamais eu.
+            return CompareImages(discA, oracleA, csharpA, "A:")
+                 & CompareImages(discB, oracleB, csharpB, "B:");
         }
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");
         Console.WriteLine("Phase 2 — rejeu en pas à pas, état complet :\n");
         return Phase2(romsPath, diverged, discA);
+    }
+
+    /// <summary>Copie une image dans un fichier temporaire propre à un côté, ou rend
+    /// null si aucune image n'est montée. Les deux cœurs écrivent pour de vrai : sans
+    /// cette copie, le second lirait ce que le premier a écrit.</summary>
+    private static string? CopyForSide(string? src, string tag)
+    {
+        if (src is null)
+            return null;
+
+        var dst = Path.Combine(Path.GetTempPath(), $"ixtal-{tag}-{Path.GetFileName(src)}");
+        File.Copy(src, dst, overwrite: true);
+        return dst;
+    }
+
+    /// <summary>Compare les deux images produites. Rend 0 si elles concordent — ou si
+    /// rien n'était monté. Une image identique à celle de DÉPART est signalée : deux
+    /// disquettes intactes se ressemblent parfaitement, et ne prouvent rien du chemin
+    /// d'écriture.</summary>
+    private static int CompareImages(string? src, string? a, string? b, string label)
+    {
+        if (src is null || a is null || b is null)
+            return 0;
+
+        var oa = File.ReadAllBytes(a);
+        var ob = File.ReadAllBytes(b);
+        var orig = File.ReadAllBytes(src);
+
+        if (oa.Length != ob.Length)
+        {
+            Console.Error.WriteLine($"Image {label} : tailles différentes, oracle {oa.Length}, C# {ob.Length}.");
+            return 1;
+        }
+
+        var diffs = 0;
+        var first = -1;
+        for (var i = 0; i < oa.Length; i++)
+            if (oa[i] != ob[i])
+            {
+                if (first < 0) first = i;
+                diffs++;
+            }
+
+        if (diffs != 0)
+        {
+            Console.Error.WriteLine(
+                $"Image {label} : {diffs} octet(s) divergent(s), le premier en 0x{first:X}" +
+                $" — oracle {oa[first]:X2}, C# {ob[first]:X2}.");
+            return 1;
+        }
+
+        var touched = 0;
+        if (orig.Length == oa.Length)
+            for (var i = 0; i < oa.Length; i++)
+                if (oa[i] != orig[i])
+                    touched++;
+
+        Console.WriteLine(touched == 0
+            ? $"Image {label} : identique des deux côtés — mais INCHANGÉE depuis le départ. " +
+              "Le chemin d'écriture n'a pas été exercé ; cet accord ne prouve rien."
+            : $"Image {label} : identique des deux côtés, {touched} octet(s) écrits par l'invité.");
+        return 0;
     }
 
     /// <summary>

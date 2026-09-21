@@ -19,13 +19,19 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
     Console.WriteLine("      opcode que 808x.c laisse tomber dans son `default:`.");
     Console.WriteLine();
-    Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--config FICHIER]");
+    Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
+    Console.WriteLine("            [--config FICHIER] [--type TEXTE ...] [--type-at N]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
     Console.WriteLine("      plus une sonde des trois canaux du PIT et du sous-système disquette.");
     Console.WriteLine("      --fda IMAGE monte la même image .img dans le lecteur A des deux");
     Console.WriteLine("      côtés avant l'amorçage : c'est le diff d'un amorçage DOS.");
+    Console.WriteLine("      --type TEXTE tape la MÊME chaîne des deux côtés, à la MÊME tranche,");
+    Console.WriteLine("      à partir de --type-at N. C'est ce qui met le chemin d'ÉCRITURE du");
+    Console.WriteLine("      contrôleur sous comparaison : FORMAT et WRITE DATA ne s'atteignent");
+    Console.WriteLine("      qu'en tapant une commande. Les images montées sont COPIÉES par côté,");
+    Console.WriteLine("      puis comparées octet par octet — les deux cœurs écrivent pour de vrai.");
     Console.WriteLine("      --config FICHIER règle la MÊME machine des deux côtés : l'outil");
     Console.WriteLine("      lit le fichier une fois et pousse chaque scalaire par h_set_*");
     Console.WriteLine("      côté C et par les globales côté C#. Jamais deux lectures.");
@@ -153,13 +159,19 @@ switch (args[0])
         var roms = "roms";
         var slices = 100;
         string? fda = null;
+        string? fdb = null;
         string? cfg = null;
+        var types = new List<string>();
+        var typeAt = 0;
         var positional = 0;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--fda" when i + 1 < args.Length: fda = args[++i]; break;
+                case "--fdb" when i + 1 < args.Length: fdb = args[++i]; break;
+                case "--type" when i + 1 < args.Length: types.Add(args[++i]); break;
+                case "--type-at" when i + 1 < args.Length: typeAt = int.Parse(args[++i]); break;
                 case "--config" when i + 1 < args.Length: cfg = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
@@ -177,6 +189,18 @@ switch (args[0])
             Console.Error.WriteLine($"Image de disquette introuvable : {fda}");
             return 2;
         }
+        if (fdb is not null && !File.Exists(fdb))
+        {
+            Console.Error.WriteLine($"Image de disquette introuvable : {fdb}");
+            return 2;
+        }
+        // Refusé plutôt qu'ignoré : taper à la tranche 0 tape dans le test mémoire,
+        // et l'invite n'existe pas encore. Une frappe sans --type-at ne prouverait rien.
+        if (types.Count > 0 && typeAt <= 0)
+        {
+            Console.Error.WriteLine("--type exige --type-at N : la tranche où l'invite est atteinte.");
+            return 2;
+        }
         // Refusé et non ignoré : un fichier mal tapé donnerait tous les défauts, donc
         // une comparaison verte qui ne prouve RIEN de la configuration demandée.
         if (cfg is not null && !File.Exists(cfg))
@@ -184,7 +208,7 @@ switch (args[0])
             Console.Error.WriteLine($"Fichier de configuration introuvable : {cfg}");
             return 2;
         }
-        return BootDiff.Run(roms, slices, fda, cfg);
+        return BootDiff.Run(roms, slices, fda, cfg, fdb, types, typeAt);
     }
 
     case "disc-probe":
