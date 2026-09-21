@@ -66,6 +66,7 @@ for (var i = 0; i < args.Length; i++)
         // --floppy-a/-b : l'image à monter, comme en mode fenêtre (voir plus bas).
         var types = new List<string>();
         string? bootModel = null;
+        var settle = KeyScript.SlicesAfterLine;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
             var opt = args[++i];
@@ -87,6 +88,15 @@ for (var i = 0; i < args.Length; i++)
                 // puis --config, puis la ligne de commande — quel que soit l'ordre de
                 // frappe. Appliqué juste avant BootTest.Run.
                 case "--model": bootModel = val; break;
+                // Tranches laissées à l'application après chaque Entrée. Le défaut
+                // suffit à un DIR ; un FORMAT 360 Ko en demande ~4 000.
+                case "--settle":
+                    if (!int.TryParse(val, out settle) || settle < 0)
+                    {
+                        Console.Error.WriteLine("--settle attend un entier positif.");
+                        return 2;
+                    }
+                    break;
                 // La configuration se lit ICI et pas dans la boucle principale :
                 // --boot rend avant d'y arriver. Les deux positionnels de --boot lui
                 // sont propres, ses options aussi.
@@ -108,7 +118,7 @@ for (var i = 0; i < args.Length; i++)
         if (bootModel is not null && !pc.setmodel(bootModel))
             return 2;
 
-        return BootTest.Run(paths.resolve_roms_path(roms), slices, types);
+        return BootTest.Run(paths.resolve_roms_path(roms), slices, types, settle);
     }
 
     // --floppy-a CHEMIN, --floppy-b CHEMIN : image .img montée dans le lecteur avant

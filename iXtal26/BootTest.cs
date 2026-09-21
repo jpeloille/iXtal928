@@ -17,7 +17,12 @@ using SDL3;
 namespace iXtal26;
 internal static class BootTest
 {
-    internal static int Run(string roms, int slices, List<string>? types = null)
+    /// <param name="settle">Tranches laissées à l'application après chaque Entrée.
+    /// Le défaut de KeyScript suffit à un DIR ; un FORMAT d'une disquette 360 Ko en
+    /// demande ~4 000, soit 40 s émulées. Mesuré : à 200 tranches, FORMAT n'écrit que
+    /// 18 432 des 368 640 octets et l'écran reste sur « Formatting... ».</param>
+    internal static int Run(string roms, int slices, List<string>? types = null,
+                            int settle = KeyScript.SlicesAfterLine)
     {
         if (!pc.initpc(roms)) return 1;
         Console.WriteLine($"initpc OK — reset CS:IP = {x86.CS:X4}:{_386_common.cpu_state.pc:X4}");
@@ -39,7 +44,7 @@ internal static class BootTest
 
         if (types is not null)
             foreach (var type in types)
-                TypeAndDump(type);
+                TypeAndDump(type, settle);
 
         return 0;
     }
@@ -59,7 +64,7 @@ internal static class BootTest
     /// voie : il compare pcem_key[] à oldkey[] une fois par runpc(), donc au moins
     /// une tranche appuyée et une relâchée.
     /// </summary>
-    private static void TypeAndDump(string text)
+    private static void TypeAndDump(string text, int settle)
     {
         Console.WriteLine($"\n--- frappe de « {text} » puis Entrée ---");
 
@@ -68,9 +73,9 @@ internal static class BootTest
 
         PressKey('\n');
 
-        // Laisser l'application traiter la ligne. Deux secondes : un DIR sur
-        // disquette doit lire la FAT et le répertoire, moteur à relancer compris.
-        for (var i = 0; i < 200; i++)
+        // Laisser l'application traiter la ligne. La cadence vit dans KeyScript,
+        // partagée avec boot-diff : deux frappes différentes ne se comparent pas.
+        for (var i = 0; i < settle; i++)
             pc.runpc();
 
         DumpTextScreen();
@@ -78,21 +83,12 @@ internal static class BootTest
 
     private static void PressKey(char ch)
     {
-        var shift = false;
-        var sc = ScancodeFor(ch, ref shift);
-
-        if (sc == SDL.Scancode.Unknown)
-        {
-            Console.Error.WriteLine($"caractère non mappé : « {ch} »");
-            return;
-        }
-
-        var idx = SdlKeyboard.MapScancode(sc);
-        var shiftIdx = SdlKeyboard.MapScancode(SDL.Scancode.LShift);
+        var idx = KeyScript.IndexFor(ch, out var shift);
+        var shiftIdx = KeyScript.ShiftIndex();
 
         if (idx < 0)
         {
-            Console.Error.WriteLine($"scancode non mappé : {sc}");
+            Console.Error.WriteLine($"caractère non mappé : « {ch} »");
             return;
         }
 
@@ -105,62 +101,25 @@ internal static class BootTest
         if (shift && shiftIdx >= 0)
         {
             keyboard.rawinputkey[shiftIdx] = 1;
-            for (var i = 0; i < 4; i++)
-                pc.runpc();
+            Step();
         }
 
         keyboard.rawinputkey[idx] = 1;
-        for (var i = 0; i < 4; i++)
-            pc.runpc();
+        Step();
 
         keyboard.rawinputkey[idx] = 0;
-        for (var i = 0; i < 4; i++)
-            pc.runpc();
+        Step();
 
         if (shift && shiftIdx >= 0)
         {
             keyboard.rawinputkey[shiftIdx] = 0;
-            for (var i = 0; i < 4; i++)
+            Step();
+        }
+
+        static void Step()
+        {
+            for (var i = 0; i < KeyScript.SlicesPerStep; i++)
                 pc.runpc();
-        }
-    }
-
-    /// <summary>Sous-ensemble ASCII suffisant pour une ligne de BASIC. Pas une table
-    /// de clavier : juste de quoi rendre le test lisible.</summary>
-    private static SDL.Scancode ScancodeFor(char ch, ref bool shift)
-    {
-        if (ch is >= 'A' and <= 'Z')
-        {
-                shift = true;
-                return SDL.Scancode.A + (ch - 'A');
-        }
-
-        if (ch is >= 'a' and <= 'z')
-                return SDL.Scancode.A + (ch - 'a');
-        if (ch is >= '1' and <= '9')
-                return SDL.Scancode.Alpha1 + (ch - '1');
-
-        switch (ch)
-        {
-        case '0': return SDL.Scancode.Alpha0;
-        case ' ': return SDL.Scancode.Space;
-        case '\n': return SDL.Scancode.Return;
-        case '.': return SDL.Scancode.Period;
-        case ',': return SDL.Scancode.Comma;
-        case '-': return SDL.Scancode.Minus;
-        case '"': shift = true; return SDL.Scancode.Apostrophe;
-        case '*': shift = true; return SDL.Scancode.Alpha8;
-        case '+': shift = true; return SDL.Scancode.Equals;
-        case '(': shift = true; return SDL.Scancode.Alpha9;
-        case ')': shift = true; return SDL.Scancode.Alpha0;
-        case '?': shift = true; return SDL.Scancode.Slash;
-        // Sans les deux suivants, aucune commande DOS ne peut désigner un lecteur ni
-        // porter un commutateur : « FORMAT B: » arrivait en « FORMAT B », et DOS 2.00
-        // répondait « Invalid parameter ». C'est ce qui bloquait la vérification du
-        // chemin d'écriture sans fenêtre (VERIFICATION.md § M8.1).
-        case ':': shift = true; return SDL.Scancode.Semicolon;
-        case '/': return SDL.Scancode.Slash;
-        default: return SDL.Scancode.Unknown;
         }
     }
 
