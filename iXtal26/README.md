@@ -1,12 +1,14 @@
 # iXtal26
 
-Émulateur d'**IBM PC 5150** (8088 à 4,77 MHz, CGA, contrôleur de disquettes), transcrit
-de PCem v18 en C#.
+Émulateur d'**IBM PC 5150** et d'**IBM XT 5160** (8088 à 4,77 MHz, CGA, contrôleur de
+disquettes, haut-parleur), transcrit de PCem v18 en C#.
 
 Le cœur est vérifié bit à bit contre le C d'origine, gardé dans `pcem-dev/` : les deux
 exécutent le POST du 5150 puis la ROM BASIC sur **25 457 269 instructions identiques**,
 et l'amorçage de PC DOS 2.00 depuis une disquette sur **26 750 702**, registres, segments,
-drapeaux et modèle de temps compris. Voir `../VERIFICATION.md`.
+drapeaux et modèle de temps compris. Le XT 5160 a ses deux campagnes à lui, vertes
+également : **23 442 234** sur sa ROM BASIC et **22 086 920** sous DOS. Voir
+`../VERIFICATION.md`.
 
 ## Lancer
 
@@ -69,14 +71,21 @@ sans cadencement horloge murale, deux exécutions donnent le même nombre de cyc
 
 ```bash
 dotnet run -- --config ixtal26.cfg      # la machine décrite par le fichier
+dotnet run -- --model ibmxt             # l'IBM XT 5160 au lieu du 5150
 dotnet run -- --ram 64                  # 64 Ko : l'invite BASIC en 12 s au lieu de 52
 ```
+
+Deux machines : `ibmpc` (IBM PC 5150, le défaut) et `ibmxt` (IBM XT 5160). Elles partagent
+tout — même 8088, même init, même CGA — sauf le BIOS, le port cassette et la granularité
+RAM : **32 Ko par pas sur le 5150, 64 sur le XT**. `mem_size = 96` est donc accepté sur
+l'un et refusé sur l'autre. Les deux amorcent la ROM BASIC et PC DOS 2.00 ; les deux sont
+vertes au diff contre le C de PCem (`../VERIFICATION.md` § M10).
 
 Format `.cfg` de PCem : `clé = valeur`, sections `[entre crochets]`, `#` en commentaire.
 
 ```ini
-model = ibmpc
-mem_size = 640          # 64 à 640 Ko par pas de 32 ; 0x100 marche aussi
+model = ibmpc           # ou ibmxt ; --model l'emporte sur cette clé
+mem_size = 640          # bornes DE LA MACHINE ; 0x100 marche aussi
 drive_a_type = 1        # 0 aucun, 1 = 5,25" DD (le lecteur du 5150)
 drive_b_type = 1
 disc_a = os/pcdos20/pcdos20b.img
@@ -109,9 +118,13 @@ fichiers qu'un lancement depuis la racine du dépôt.
 `../VERIFICATION.md` : 640 Ko, deux lecteurs 5,25" DD, CGA. Ce défaut n'est pas un
 réglage : c'est ce qui garde reproductibles toutes les mesures déjà consignées.
 
-La taille mémoire **est** l'interrupteur SW2 que lit le POST, et le test mémoire est
-linéaire : 64 Ko amorce en 12 s, 640 Ko en 52 s (§ M8). Un 5150 à 64 Ko démarre donc vite
-sans turbo — c'est la machine d'époque avec la RAM que la plupart avaient vraiment.
+Sur le **5150**, la taille mémoire *est* l'interrupteur SW2 que lit le POST, et le test
+mémoire est linéaire : 64 Ko amorce en 12 s, 640 Ko en 52 s (§ M8). Un 5150 à 64 Ko démarre
+donc vite sans turbo — c'est la machine d'époque avec la RAM que la plupart avaient.
+
+Sur le **XT**, non : la lecture du port 0x62 ne porte pas la taille mémoire, et le BIOS du
+5160 la détermine en balayant. Le couplage `mem_size` ↔ durée d'amorçage ne s'y transfère
+pas (§ M10).
 
 Chaque paramètre configurable est réglable **à l'identique côté oracle C**, par un
 `h_set_*` appelé avant `h_boot` : `boot-diff --config FICHIER` compare donc la machine

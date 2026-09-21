@@ -1442,7 +1442,7 @@ sa vitesse d'époque, avec la RAM que la plupart avaient vraiment.
 |---|---|
 | `mem_size = 100` | refusé (hors pas de 32), message nommé, repli sur 640 |
 | `mem_size = 0x100` | **256** — la sémantique `%i` de `sscanf` est transcrite, préfixe hexa compris |
-| `model = ibmxt` | refusé, avec la liste des machines connues |
+| ~~`model = ibmxt`~~ | **périmé depuis § M10** : la machine existe et démarre. Le contrôle valait « un nom hors table est refusé » ; il est rejoué à § M10 avec `model = ibm5170`, qui lui n'existe pas |
 | `--config` absent du disque | refusé avant tout amorçage |
 | fichier + `--ram 128` | **128** — la ligne de commande surcharge le fichier |
 
@@ -1848,3 +1848,113 @@ pendant la tranche 4988, avant que la coupure ne se lève : sur 210 ms de bip, i
    premier endroit où il le fait, et ça mérite d'être su.
 4. **Aucune carte son.** Le registre `SOUND_CARD` n'est pas transcrit ; `sound_handlers`
    n'a qu'une entrée, et elle vient de `speaker_init`.
+
+## M10 — L'IBM XT 5160 : une deuxième machine, et une table qui cesse d'être une constante
+
+`models[]` n'avait qu'une entrée. **Une table à une seule entrée est une constante**, et
+rien n'avait jamais prouvé que le code n'est pas câblé en dur sur le 5150. Le XT 5160 est
+le moyen le moins cher de lever ce doute, et le seul disponible sans quitter le 8088.
+
+### Pourquoi le jalon est petit, et pourquoi ce n'est pas une déception
+
+`grep -rn "ROM_IBMXT" pcem-dev/src/` rend **deux lignes** : le chargeur (`mem_bios.c:166`)
+et l'entrée de table (`model.c:782`). Rien d'autre, dans tout PCem, ne distingue un XT
+d'un PC. Les deux machines partagent le **même `xt_init()`**, et le `xt_init` du C# était
+déjà neutre — il omet cassette et gameport, comme celui du harnais.
+
+Le delta de comportement était donc **déjà transcrit** : les trois gardes
+`romset == ROM_IBMPC` de `keyboard_xt.c` ont toutes leur branche `else` en C#. Le travail
+n'était pas d'écrire une machine, mais de prouver que celle qui dormait démarre.
+
+### Le seul câblage en dur, et il était exactement là où on le cherchait
+
+`model.cs` déclarait `MIN_RAM` / `MAX_RAM` / `RAM_GRANULARITY` en **constantes de classe**,
+alors que `MODEL` portait déjà `min_ram` / `max_ram` / `ram_granularity` — **écrits depuis
+M8, et lus par personne**. Le XT est à 64 Ko de granularité là où le 5150 est à 32 : c'est
+la deuxième machine qui rend ces champs vivants. Vérifié dans les deux sens :
+
+| Entrée | ibmpc | ibmxt |
+|---|---|---|
+| `mem_size = 96` | accepté (pas de 32) | **refusé** (pas de 64), message nommant la machine |
+
+`DEFAULT_RAM` reste une constante, et c'est délibéré : `pc.cs:94` est un initialiseur de
+champ, évalué avant qu'aucun modèle ne soit choisi. Ce sont les 640 Ko du 5150, parce que
+toute mesure de ce fichier les suppose. Ce n'est **pas** `max_ram` du modèle : les deux
+valent 640 aujourd'hui, et les confondre ferait dériver le défaut avec la première machine
+qui monte plus haut.
+
+### Portes
+
+| Épreuve | Résultat |
+|---|---|
+| `boot-diff roms 6000` (ibmpc) | **25 457 269** — à l'unité, inchangé |
+| `boot-diff roms 6000 --config` (ibmxt) | **vert, 23 442 234 instructions** |
+| `boot-diff roms 7000 --config --fda …b.img` (ibmxt) | **vert, 22 086 920 instructions** |
+| `make -C tools/oracle selftest` | vert, 0 échec |
+| `speaker-probe roms 6000` (ibmpc) | 9 champs identiques, empreinte `384EC07B1B64CC83` |
+| `disc-probe roms 5600 --fda …b.img` (ibmpc) | 20 champs identiques |
+| `check-oracle.sh` | 26 transcrits vérifiés, 0 dérive, arbre vendoré OK |
+| `dotnet build -c Release` | 0 avertissement |
+
+**La porte du 5150 passe AVANT qu'on regarde le XT**, à chaque commit. Ajouter une entrée à
+`models[]` ne doit rien changer au chemin par défaut ; si ce chiffre bougeait, tous ceux
+déjà consignés parleraient d'une autre machine sans le dire.
+
+### Le vert le plus fort du jalon, et pourquoi il n'est pas creux
+
+Un diff vert sur deux machines qui planteraient de la même façon resterait vert. Contrôlé
+à part :
+
+```
+--boot roms 6500 --model ibmxt --floppy-a …b.img --type "" --type "" --type DIR
+  |The IBM Personal Computer DOS
+  |Version 2.00 (C)Copyright IBM Corp 1981, 1982, 1983
+  |A>DIR
+  |COMMAND  COM    17664   3-08-83  12:00p
+  …
+```
+
+PC DOS 2.00 amorce sur le XT et rend son catalogue. **Le chemin disquette n'est pas mêlé au
+BIOS du 5150** — c'est ce que ce jalon existait pour établir, et rien ne l'avait montré
+avant.
+
+### Une assertion du plan corrigée par la mesure
+
+Le jalon annonçait réveiller **deux** branches jamais exercées. Un compteur temporaire,
+posé puis retiré, a tranché :
+
+| Branche | ibmpc | ibmxt |
+|---|---|---|
+| Lecture 0x62, branche non-5150 (`keyboard_xt.cs:195-205`) | jamais | **atteinte** — réveillée |
+| Lecture 0x60, branche non-5150 (`keyboard_xt.cs:162-166`) | **atteinte** | atteinte |
+
+La seconde n'était pas morte : sa garde est `(romset == ROM_IBMPC || …) && (pb & 0x80)`, et
+le 5150 y tombe dès que le bit 7 de `pb` est bas — c'est-à-dire à presque chaque lecture
+clavier. Sans ce compteur, § M10 aurait annoncé deux branches réveillées et aurait eu tort
+de moitié. Un jalon dont le bénéfice est d'exercer du code mort doit **mesurer** lequel.
+
+### Ce que le XT fait autrement, et qui surprend
+
+**Sa taille mémoire ne passe pas par SW2.** Sur le 5150, le port 0x62 rend
+`(mem_size - 64) / 32` en deux demi-octets ; sur le XT cette lecture part dans la branche
+`else`, qui ne porte que la configuration vidéo et le FPU. Le BIOS du 5160 détermine sa
+mémoire **en balayant** — et rapporte bien 640 Ko en `0040:0013`. Corollaire pour les
+mesures : le couplage `mem_size` ↔ durée d'amorçage de § M8 (12 s à 64 Ko, 52 s à 640)
+**ne transfère pas** au XT.
+
+Et la question ouverte du plan est levée : **le BIOS du XT démarre sans contrôleur de
+disque dur.** `xt_init` n'en ajoute aucun, et rien ne l'attend.
+
+### Ce que ce vert ne dit pas
+
+1. **Deux machines, un seul cœur.** Le banc de vitesse, SST et le fuzzer restent sur le
+   5150 : ils testent le 8088, qui est identique. À partir d'ici, **seul le diff d'amorçage
+   rejoue les deux machines**.
+2. **Le chemin d'écriture du XT n'est pas plus vérifié que celui du 5150.** `harness.h`
+   n'expose toujours aucune injection clavier : l'oracle ne peut pas taper `FORMAT B:`, ni
+   sur l'une ni sur l'autre. Deux machines, le même angle mort.
+3. **La variante deux puces n'a pas été exercée.** `case ROM_IBMXT` a deux chemins —
+   `xt.rom` (65 536 o) et la paire `5000027.u19` + `1501512.u18`. Seul le premier a tourné ;
+   le second est transcrit et jamais atteint, `xt.rom` étant présent.
+4. **`xt050986.0` / `.1` sont dans `roms/ibmxt/` et ne sont référencés par rien** —
+   ni par PCem, ni ici.
