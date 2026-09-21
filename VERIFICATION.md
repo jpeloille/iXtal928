@@ -2076,3 +2076,46 @@ La recette de § M7.1 et § M8.1 redevient donc rejouable en une commande.
    prouvé, c'est que les deux réagissent pareil aux mêmes touches aux mêmes tranches.
 4. **Le chemin d'écriture hors DMA reste mort** (`PB-19`, `fdc.written` jamais posé à 1) :
    aucun des deux côtés ne l'exerce, et cet accord-là reste un accord vide.
+
+### M11.1 — Le titre mentait
+
+M10 a livré deux machines ; rien ne disait laquelle tournait. `SdlHost.cs` portait
+
+```csharp
+private const string WindowTitle = "iXtal26 - IBM PC 5150";
+```
+
+**en dur**, et la ligne de `--verbose` annonçait `mem_size` et les lecteurs sans nommer la
+machine. Un XT qui tournait affichait donc « IBM PC 5150 » — au seul endroit où l'on
+regarde. C'est le même défaut que le chemin pixel de § M4.5 et que le chemin audio de
+§ M9 : pas une panne, une absence de voix.
+
+Le titre vient désormais de `models[model].name`, verbatim de PCem. Une **méthode** et non
+un champ : un initialiseur s'évaluerait avant `pc.initpc()`, donc avant qu'un modèle soit
+choisi.
+
+### Ce qui discrimine vraiment, et c'est mesuré
+
+Un titre qui change prouve qu'une chaîne a changé, pas qu'une machine a changé. Le compte
+d'images d'un amorçage de 6 000 tranches, lui, sépare les trois cas :
+
+| Commande | Écran atteint | `frames` |
+|---|---|---|
+| `--boot roms 6000` | ROM BASIC du 5150 | **1 915** |
+| `--boot roms 6000 --model ibmxt` | ROM BASIC du 5160 | **3 366** |
+| `--boot roms 6000 --config ixtal26-xt.cfg` | invite de date de PC DOS 2.00 | **3 346** |
+
+Autre repère du même ordre, relevé au passage : le **bip de fin de POST tombe à la
+tranche 2 923 sur le XT**, contre 4 989 sur le 5150 (§ M9). Le POST du 5160 est plus
+court, et c'est encore le turbo qui le dit — il rend la main au temps réel deux secondes
+émulées plus tôt.
+
+Non-régression : `boot-diff roms 6000` → **25 457 269**, à l'unité. Le titre, le
+`--verbose` et les messages d'échec sont de l'hôte ; ils ne doivent rien changer au cœur.
+
+### Ce que ce vert ne dit pas
+
+**La chaîne de titre n'a pas été relue depuis le compositeur.** SDL3 tourne ici en Wayland
+natif, et `xdotool` — qui est X11 — ne voit aucune fenêtre. Ce qui est vérifié, c'est
+l'expression qui la produit : la même que celle de la ligne `--verbose`, qui imprime bien
+`machine : [8088] IBM XT` sous les deux formes de sélection.
