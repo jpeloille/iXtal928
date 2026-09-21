@@ -61,7 +61,14 @@ dotnet run -- --headless --slices 6000 # idem, sans initialiser la moindre vidé
 dotnet run -- --boot roms 6000 # amorce et vide l'écran texte CGA sur la console
 dotnet run -- --boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img --type "" --type "" --type DIR
                                # amorce DOS, répond aux invites de date et d'heure, tape DIR
+dotnet run -- --boot roms 5700 --floppy-a os/pcdos20/pcdos20b.img --floppy-b vierge.img \
+              --settle 4500 --type "" --type "" --type "FORMAT B:" --type ""
+                               # formate une disquette vierge en B:
 ```
+
+`--settle N` est le nombre de tranches laissées à l'application après chaque Entrée. Le
+défaut, 200, suffit à un `DIR` ; un `FORMAT` d'une 360 Ko en demande ~4 500, faute de quoi
+l'écran reste sur « Formatting... » et l'image n'est écrite qu'au dixième.
 
 `--headless` n'est pas un raccourci de test : c'est la ligne architecturale qui garantit
 que le cœur ne dépend pas du front-end. `--slices` est l'interrupteur de déterminisme —

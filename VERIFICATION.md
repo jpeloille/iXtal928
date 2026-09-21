@@ -1364,11 +1364,11 @@ même chose par construction ; ce n'est pas un défaut d'iXtal26.
    vérifiée sur 360 Ko, mais les fichiers 163 840 / 184 320 / 327 680 octets n'ont pas été
    produits ni mesurés.
 2. **`FreeName`** — le suffixe `-2`, `-3`… contre l'écrasement n'a pas été exercé.
-3. Le jalon qui s'en déduit, **M8** : ajouter `h_rawinputkey(int idx, int val)` à
-   `harness.c` et `--type` à `boot-diff`, sur le modèle de `BootTest.TypeAndDump`
-   (`BootTest.cs:62-126`). Les deux côtés taperaient la même chose aux mêmes tranches, et
-   le chemin d'écriture — aujourd'hui le plus gros angle mort du dépôt — deviendrait
-   diffable.
+3. ~~Le jalon qui s'en déduit, **M8** : ajouter `h_rawinputkey(int idx, int val)` à
+   `harness.c` et `--type` à `boot-diff`…~~ **Fait à § M11**, trois jalons plus tard que
+   prévu : M8 est parti sur la configuration, M9 sur le son, M10 sur la deuxième machine.
+   La prédiction était juste jusque dans les noms de fonctions ; seule la date était
+   fausse.
 
 ---
 
@@ -1638,10 +1638,14 @@ commutateur — le chemin d'écriture était hors d'atteinte sans fenêtre, et p
 l'avait remarqué parce que § M7.1 l'avait exercé **à la main**. Deux `case` dans
 `ScancodeFor` et la vérification devient rejouable.
 
-Ce que cela prouve reste ce que disait § M7.1 : **une preuve d'usage, pas une preuve de
+~~Ce que cela prouve reste ce que disait § M7.1 : **une preuve d'usage, pas une preuve de
 fidélité.** `harness.h` n'expose toujours aucune injection clavier, donc l'oracle ne peut
-pas taper `FORMAT B:`. Le chemin d'écriture produit une disquette que DOS relit ; qu'il
-fasse les mêmes cycles que PCem reste non établi.
+pas taper `FORMAT B:`.~~
+
+**Périmé par § M11.** `h_rawinputkey` et `h_kbd_process` existent, l'oracle tape
+`FORMAT B:`, et les deux côtés produisent la **même disquette octet pour octet**. Ce
+paragraphe est conservé barré plutôt que réécrit : il datait la limite, et savoir combien
+de temps elle a tenu vaut mieux que de faire comme si elle n'avait pas existé.
 
 ## M9 — Le haut-parleur : le bip du POST, et une sonde pour l'entendre
 
@@ -1958,3 +1962,117 @@ disque dur.** `xt_init` n'en ajoute aucun, et rien ne l'attend.
    le second est transcrit et jamais atteint, `xt.rom` étant présent.
 4. **`xt050986.0` / `.1` sont dans `roms/ibmxt/` et ne sont référencés par rien** —
    ni par PCem, ni ici.
+
+## M11 — Le chemin d'écriture sous oracle : l'oracle apprend à taper
+
+Le plus gros angle mort du dépôt, nommé comme tel depuis § M7.1 et réaffirmé à § M8.1 :
+`FORMAT` et `WRITE DATA` ne s'atteignent qu'en **tapant une commande sous DOS**, et le
+harnais ne savait pas taper. Les deux jalons précédents les avaient donc exercés côté C#
+seul — « une preuve d'usage, pas une preuve de fidélité ».
+
+### Ce qui manquait tenait en vingt lignes
+
+| Fonction | Ce qu'elle fait |
+|---|---|
+| `h_rawinputkey` | écrit dans `rawinputkey[]`, le **même** tableau que la pompe SDL remplit côté hôte |
+| `h_kbd_process` | `keyboard_poll_host()` (`wx-sdl2-keyboard.c:11-16`, quatre lignes) puis `keyboard_process()`, dans l'ordre de `pc.c:490-491` |
+| `h_closepc` | pendant de `pc.closepc()` — les deux `disc_close` qui **vident** les tampons |
+
+`h_runpc` ne les appelle **pas** : l'oracle n'a pas de couche hôte, et les y glisser
+changerait toutes les mesures déjà consignées. C'est l'outil de diff qui déclenche, au
+même point de la tranche des deux côtés.
+
+`h_closepc` n'est pas un détail de propreté. `img_writeback` écrit dans le `FILE *` sans
+`fflush`, et c'est le `fclose` de `img_close` qui pousse : sans lui, comparer deux images
+après un FORMAT comparerait un fichier vidé à un fichier qui ne l'est pas — une divergence
+entièrement fabriquée par le harnais.
+
+### Une copie par côté, et c'est ce qui manquait pour que tout ait un sens
+
+Les deux cœurs écrivent **pour de vrai** sur l'image montée. Leur donner le même fichier
+ferait lire au second ce que le premier vient d'écrire. C'était d'ailleurs un risque
+latent depuis M6, où `--fda` passait le même chemin aux deux : inoffensif tant que
+l'amorçage n'écrivait pas, mais personne ne l'avait vérifié.
+
+Chaque côté reçoit donc sa copie, et les deux sont **comparées octet par octet** à la fin.
+C'est le vrai oracle du chemin d'écriture : le diff d'instructions dit que les deux cœurs
+font la même chose, les images disent ce qu'ils ont **produit**.
+
+Et une image identique à celle de départ est **signalée** : deux disquettes intactes se
+ressemblent parfaitement et ne prouvent rien. Le contrôle s'est déclenché du premier coup
+sur le lecteur A, qui n'est pas écrit — exactement le faux vert qu'il existe pour attraper.
+
+### La porte
+
+```
+boot-diff roms 15000 --fda os/pcdos20/pcdos20b.img --fdb vierge-360k.img
+          --type-at 5700 --type "" --type "" --type "FORMAT B:" --type ""
+```
+
+| Résultat | |
+|---|---|
+| Trace d'instructions | **vert, 48 783 446 instructions identiques** — la plus longue campagne du dépôt |
+| Image A: | identique, et **signalée inchangée** |
+| Image B: | identique des deux côtés, **367 370 octets écrits par l'invité** |
+| Empreinte des deux images | `sha256 6a0be87ff88cf1b4…`, la même des deux côtés |
+
+La disquette produite est une vraie disquette DOS :
+
+| Offset | Octets | Sens |
+|---|---|---|
+| `0x000` | `eb 2c 90` + `IBM  2.0` | saut court et nom OEM |
+| `0x013` | `d0 02` | 720 secteurs = 2 × 40 × 9 |
+| `0x015` | `fd` | descripteur de média 360 Ko |
+| `0x1FE` | `55 aa` | signature |
+| `0x200` | `fd ff ff` | début de FAT |
+
+**365 984 octets de `0xF6`** — le chiffre de § M7.1, à l'unité, et cette fois obtenu des
+deux côtés.
+
+**Deux chemins d'écriture sont comparés, pas un.** Le `0xF6` vient de FORMAT TRACK
+(`STATE_FORMAT` → `img_writeback`). Mais `eb 2c 90` en `0x000` et `fd ff ff` en `0x200`
+n'en sont pas : DOS les a écrits **après** le formatage, par WRITE DATA — `case 0x05` de
+`fdc_write`, son bloc de résultat, `fdc_getdata`, `STATE_WRITE_FIND_SECTOR` et
+`STATE_WRITE_SECTOR`.
+
+### Non-régression
+
+| Épreuve | Résultat |
+|---|---|
+| `boot-diff roms 6000` | **25 457 269** — à l'unité, avec `keyboard_process` désormais appelé des deux côtés à vide |
+| `make -C tools/oracle selftest` | vert |
+| `dotnet build -c Release` | 0 avertissement |
+
+Le premier chiffre compte plus qu'il n'en a l'air : `keyboard_poll_host` et
+`keyboard_process` tournent maintenant à chaque tranche des deux côtés. Sans touche
+enfoncée, ils ne coûtent pas un cycle émulé — et c'est **mesuré**, pas supposé.
+
+### Une reproductibilité récupérée au passage
+
+`--boot --type` laissait 200 tranches à l'application après chaque Entrée. Assez pour un
+`DIR`, pas pour un FORMAT : **mesuré à 200 tranches, `FORMAT B:` n'écrit que 18 432 des
+368 640 octets** et l'écran reste sur « Formatting... ». D'où `--boot --settle N`, et à
+4 500 :
+
+```
+|Formatting...Format complete
+|   362496 bytes total disk space
+|   362496 bytes available on disk
+```
+
+La recette de § M7.1 et § M8.1 redevient donc rejouable en une commande.
+
+### Ce que ce vert ne dit pas
+
+1. **Un seul scénario d'écriture.** FORMAT d'une disquette vierge en 360 Ko, sous PC DOS
+   2.00, sur le 5150. Ni les trois autres tailles, ni le XT, ni une réécriture de fichier
+   existante, ni `DISKCOPY`.
+2. **La frappe n'est pas la frappe d'un humain.** Le calendrier est arithmétique — quatre
+   tranches par état de touche — là où une personne tape à des intervalles quelconques. Ce
+   qui est comparé est un scénario déterministe, ce qui est précisément ce qu'un oracle
+   demande, et ce qui ne couvre pas les cadences pathologiques.
+3. **`keyboard_process` est appelé par l'outil de diff, pas par `h_runpc`.** Les deux
+   côtés sont symétriques, mais l'oracle reste une machine sans couche hôte : ce qui est
+   prouvé, c'est que les deux réagissent pareil aux mêmes touches aux mêmes tranches.
+4. **Le chemin d'écriture hors DMA reste mort** (`PB-19`, `fdc.written` jamais posé à 1) :
+   aucun des deux côtés ne l'exerce, et cet accord-là reste un accord vide.
