@@ -101,7 +101,7 @@ bpb_disable = 0
 
 ### Depuis l'IDE
 
-`Properties/launchSettings.json` porte quatre profils de lancement, que Rider et
+`Properties/launchSettings.json` porte six profils de lancement, que Rider et
 `dotnet run --launch-profile` lisent tous les deux. Le premier est le défaut :
 
 | Profil | Arguments |
@@ -110,6 +110,17 @@ bpb_disable = 0
 | `iXtal26 (machine de reference, sans turbo)` | *(aucun)* |
 | `iXtal26 (64 Ko, demarrage court)` | `--config ixtal26.cfg --ram 64` |
 | `iXtal26 (diagnostic)` | `--config ixtal26.cfg --turbo --verbose` |
+| `iXtal26 (IBM XT 5160)` | `--config ixtal26-xt.cfg --turbo` |
+| `iXtal26 (IBM XT 5160, ROM BASIC)` | `--model ibmxt --turbo` |
+
+Les deux derniers montrent les **deux façons** de choisir une machine. Le second n'a pas
+de `--config` : sans fichier, aucune disquette n'est montée, donc le XT tombe sur **sa**
+ROM BASIC — celle contenue dans `xt.rom`, là où le 5150 charge quatre fichiers
+`basicc11.*`.
+
+**La barre de titre nomme la machine** (`iXtal26 - [8088] IBM XT`), et `--verbose`
+l'imprime en tête. Avant M11.1 le titre portait « IBM PC 5150 » en dur : un XT qui
+tournait affichait 5150, ce qui est le seul endroit où l'on regarde.
 
 **Un profil ne s'applique qu'à un lancement SANS arguments.** Dès qu'on passe `-- …`,
 `dotnet run` remplace les arguments du profil par les vôtres : toutes les commandes de ce

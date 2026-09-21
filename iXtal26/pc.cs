@@ -3,9 +3,10 @@
 //
 // ORACLE: pcem-dev/src/pc.c  (initpc :178-300, resetpc_cad :344-351,
 //         resetpchard :353-400, runpc :470-553, closepc :576-592)
-// STATUS: partial — réduit à l'IBM PC 5150 : disquette comprise (M6), mais ni son,
-//         ni réseau, ni disque dur, ni souris, ni joystick, ni NVR. Ce qui reste
-//         est la séquence d'amorçage et la tranche d'exécution.
+// STATUS: partial — réduit à deux machines 8088, l'IBM PC 5150 et l'IBM XT 5160
+//         (M10) : disquette (M6) et haut-parleur (M9) compris, mais ni réseau, ni
+//         disque dur, ni souris, ni joystick, ni NVR. Ce qui reste est la séquence
+//         d'amorçage et la tranche d'exécution.
 //
 // pc.c n'est pas une boucle : runpc() est une TRANCHE de 10 ms
 // (cpu_get_speed() / 100 cycles). Le cadençage sur horloge murale vit dans l'hôte
@@ -20,10 +21,10 @@ namespace iXtal26;
 
 internal static partial class pc
 {
-    // pcem: ibm.h:163-... — l'énumération des romsets, dans l'ordre du C. Seul
-    // ROM_IBMPC est une cible ; les autres existent parce que les périphériques
-    // transcrits (clavier, mem_bios) branchent dessus, et qu'on ne réécrit pas
-    // leurs conditions.
+    // pcem: ibm.h:163-... — l'énumération des romsets, dans l'ordre du C. Deux sont
+    // des cibles depuis M10, ROM_IBMPC et ROM_IBMXT ; les autres existent parce que
+    // les périphériques transcrits (clavier, mem_bios) branchent dessus, et qu'on ne
+    // réécrit pas leurs conditions.
     internal const int ROM_IBMPC = 0;
     internal const int ROM_IBMXT = 1;
     internal const int ROM_IBMPCJR = 2;
@@ -274,6 +275,20 @@ internal static partial class pc
     }
 
     /// <summary>
+    /// Les fichiers de ROM qu'attend la machine COURANTE, pour les messages d'échec.
+    /// Pendant, côté diagnostic, du `switch (romset)` de loadbios (mem_bios.cs:99) :
+    /// deux machines, deux jeux de fichiers, et un message qui cite l'autre envoie
+    /// chercher au mauvais endroit.
+    /// </summary>
+    private static string RomHint() => romset switch
+    {
+        ROM_IBMXT => "ibmxt/xt.rom (64 Ko), ou à défaut la paire " +
+                     "ibmxt/5000027.u19 + ibmxt/1501512.u18 (32 Ko chacune)",
+        _ => "ibmpc/pc102782.bin (8 Ko) et, optionnellement, les quatre ROMs BASIC " +
+             "ibmpc/basicc11.f6/.f8/.fa/.fc",
+    };
+
+    /// <summary>
     /// pcem: pc.c:178-300 (réduit). Une seule fois, au démarrage : alloue les
     /// tables, charge les ROMs, initialise les registres d'E/S.
     /// </summary>
@@ -295,9 +310,12 @@ internal static partial class pc
         // messages, sinon on cherche des fichiers dans un dossier qui n'existe pas.
         if (PluginApi.paths.num_roms_paths == 0)
         {
+            // Le fichier cité est celui de la MACHINE choisie. Citer pc102782.bin en
+            // dur, comme avant M11.1, faisait accuser des fichiers du 5150 pour un
+            // échec du 5160 — et envoyait chercher au mauvais endroit.
             Console.Error.WriteLine(
                 $"Aucun répertoire de ROM utilisable : « {romsPath} » est absent ou illisible.\n" +
-                "Attendu : un répertoire roms/ contenant ibmpc/pc102782.bin.");
+                $"Attendu : un répertoire roms/ contenant {RomHint()}.");
             return false;
         }
 
@@ -316,9 +334,9 @@ internal static partial class pc
         if (mem_bios.loadbios() == 0)
         {
                 Console.Error.WriteLine(
-                    $"Impossible de charger le BIOS de l'IBM PC 5150 depuis « {PluginApi.paths.roms_paths} ».\n" +
-                    "Attendu : ibmpc/pc102782.bin (8 Ko) et, optionnellement, les quatre\n" +
-                    "ROMs BASIC ibmpc/basicc11.f6/.f8/.fa/.fc.");
+                    $"Impossible de charger le BIOS de « {Models.model_c.models[Models.model_c.model].name} »" +
+                    $" depuis « {PluginApi.paths.roms_paths} ».\n" +
+                    $"Attendu : {RomHint()}.");
                 return false;
         }
 

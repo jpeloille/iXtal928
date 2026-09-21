@@ -353,7 +353,10 @@ for (var d = 0; d < 2; d++)
         pc.cfg_drive_type[d] = driveOverride[d];
 
 if (verbose)
-    Console.WriteLine($"machine : mem_size = {pc.cfg_mem_size} Ko, " +
+    // La MACHINE en tête, comme BootDiff l'a gagnée à M10 : depuis qu'il y en a deux,
+    // une ligne de diagnostic qui ne la nomme pas laisse croire qu'il n'y en a qu'une.
+    Console.WriteLine($"machine : {iXtal26.Models.model_c.models[iXtal26.Models.model_c.model].name}, " +
+                      $"mem_size = {pc.cfg_mem_size} Ko, " +
                       $"lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                       (configPath is null ? " (défauts)" : $" ({configPath})"));
 

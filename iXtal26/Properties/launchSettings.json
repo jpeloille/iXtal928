@@ -15,6 +15,14 @@
     "iXtal26 (diagnostic)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26.cfg --turbo --verbose"
+    },
+    "iXtal26 (IBM XT 5160)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-xt.cfg --turbo"
+    },
+    "iXtal26 (IBM XT 5160, ROM BASIC)": {
+      "commandName": "Project",
+      "commandLineArgs": "--model ibmxt --turbo"
     }
   }
 }

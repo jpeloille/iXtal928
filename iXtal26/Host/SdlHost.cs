@@ -17,10 +17,25 @@ namespace iXtal26.Host;
 /// </summary>
 public sealed class SdlHost : IDisposable
 {
-    // ASCII pur, délibérément : SDL3-CS ne marshale pas le titre en UTF-8 et le
-    // tiret cadratin ressortait « â€" » dans la barre de fenêtre. Un titre est du
-    // texte que l'utilisateur lit ; ce n'est pas l'endroit où défendre la typographie.
-    private const string WindowTitle = "iXtal26 - IBM PC 5150";
+    /// <summary>
+    /// Le titre NOMME LA MACHINE. Il portait « IBM PC 5150 » en dur, ce qui, depuis que
+    /// le dépôt en a deux (§ M10), faisait afficher « 5150 » à un XT qui tournait — le
+    /// seul endroit où l'utilisateur regarde, et il mentait.
+    ///
+    /// Une méthode et non un champ : un initialiseur de champ s'évaluerait AVANT
+    /// pc.initpc(), donc avant qu'un modèle soit choisi. Les quatre sites d'appel sont
+    /// tous postérieurs.
+    ///
+    /// Le nom est celui de la table, verbatim de PCem — « [8088] IBM PC », « [8088] IBM
+    /// XT ». Pas une étiquette maison : celle-ci se maintient toute seule, et une
+    /// troisième machine héritera de son titre sans qu'on y touche.
+    ///
+    /// ASCII pur, délibérément : SDL3-CS ne marshale pas le titre en UTF-8 et le tiret
+    /// cadratin ressortait « â€" » dans la barre de fenêtre. Un titre est du texte que
+    /// l'utilisateur lit ; ce n'est pas l'endroit où défendre la typographie.
+    /// </summary>
+    private static string WindowTitle() =>
+        $"iXtal26 - {Models.model_c.models[Models.model_c.model].name}";
 
     /// <summary>Repli tant que le CGA n'a pas appelé updatewindowsize : 656 x (200 * 2 + 16).</summary>
     private const int DefaultWindowWidth = 656;
@@ -177,7 +192,7 @@ public sealed class SdlHost : IDisposable
         if (_headless)
             return true;
 
-        SDL.SetAppMetadata(WindowTitle, "1.0", "com.example.ixtal26");
+        SDL.SetAppMetadata(WindowTitle(), "1.0", "com.example.ixtal26");
 
         if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Audio))
             return Fail("SDL.Init");
@@ -191,7 +206,7 @@ public sealed class SdlHost : IDisposable
         _windowWidth = video.video_width > 0 ? video.video_width : DefaultWindowWidth;
         _windowHeight = video.video_height > 0 ? video.video_height : DefaultWindowHeight;
 
-        if (!SDL.CreateWindowAndRenderer(WindowTitle, _windowWidth, _windowHeight,
+        if (!SDL.CreateWindowAndRenderer(WindowTitle(), _windowWidth, _windowHeight,
                 SDL.WindowFlags.Resizable, out _window, out _renderer))
             return Fail("SDL.CreateWindowAndRenderer");
 
@@ -795,11 +810,11 @@ public sealed class SdlHost : IDisposable
         if (turbo)
         {
             var actual = slices * 10.0 / elapsedMs;
-            SDL.SetWindowTitle(_window, $"{WindowTitle} — turbo x{actual:0.0} (marge x{headroom:0.0})");
+            SDL.SetWindowTitle(_window, $"{WindowTitle()} — turbo x{actual:0.0} (marge x{headroom:0.0})");
             return;
         }
 
-        SDL.SetWindowTitle(_window, $"{WindowTitle} — {percent} % — marge x{headroom:0.0}");
+        SDL.SetWindowTitle(_window, $"{WindowTitle()} — {percent} % — marge x{headroom:0.0}");
     }
 
     /// <summary>Libère texture, renderer, fenêtre puis SDL. Idempotent, et sans effet en headless.</summary>
