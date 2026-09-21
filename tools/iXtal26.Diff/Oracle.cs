@@ -19,10 +19,10 @@ namespace iXtal26.Diff;
 public static class Oracle
 {
     private const string Lib = "ixtal26oracle";
-    // 4 depuis M10 : h_set_romset s'ajoute au contrat (harness.h). Doit suivre
+    // 5 depuis M11 : h_rawinputkey, h_kbd_process et h_closepc s'ajoutent au contrat. Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 4;
+    public const int AbiVersion = 5;
 
     static Oracle()
     {
@@ -122,6 +122,14 @@ public static class Oracle
     // il n'a pas de models[] à indexer. Côté C# le romset dérive du nom via
     // loadconfig ; ici on pousse la valeur déjà résolue. À appeler avant h_boot.
     [DllImport(Lib)] public static extern void h_set_romset(int r);
+
+    // M11 — de quoi TAPER dans l'oracle, et donc de quoi mettre le chemin d'écriture
+    // du contrôleur sous comparaison. h_rawinputkey écrit dans le même tableau que la
+    // pompe SDL ; h_kbd_process fait keyboard_poll_host puis keyboard_process, dans
+    // l'ordre de runpc(). h_closepc vide les tampons d'écriture sur les images.
+    [DllImport(Lib)] public static extern void h_rawinputkey(int idx, int val);
+    [DllImport(Lib)] public static extern void h_kbd_process();
+    [DllImport(Lib)] public static extern void h_closepc();
     [DllImport(Lib)] internal static extern void h_disc_probe([Out] ulong[] o);
 
     // M9 — haut-parleur : sonde des globales de sound_speaker.c, pendant de

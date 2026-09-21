@@ -226,6 +226,27 @@ void h_set_bpb_disable(int v);
  * h_set_mem_size : une seule lecture de la configuration, deux poussées. */
 void h_set_romset(int r);
 
+/* --- clavier (M11) ----------------------------------------------------------
+ * De quoi TAPER dans l'oracle, et donc de quoi mettre le chemin d'écriture du
+ * contrôleur de disquettes sous comparaison. Sans ces deux-là, FORMAT et WRITE
+ * DATA ne s'exerçaient que côté C# (§ M7.1, § M8.1) : une preuve d'usage, pas
+ * une preuve de fidélité.
+ *
+ * h_rawinputkey écrit dans rawinputkey[] — le MÊME tableau que la pompe SDL
+ * remplit côté hôte. h_kbd_process fait keyboard_poll_host() puis
+ * keyboard_process(), dans l'ordre où runpc() les appelle (pc.c:490-491).
+ *
+ * h_runpc ne les appelle PAS : l'oracle n'a pas de couche hôte, et les y glisser
+ * changerait toutes les mesures déjà consignées. C'est l'appelant qui déclenche,
+ * au même point de la tranche des deux côtés. */
+void h_rawinputkey(int idx, int val);
+void h_kbd_process(void);
+
+/* Pendant de pc.closepc() : les deux disc_close qui VIDENT les tampons d'écriture
+ * sur les images. Sans lui, comparer deux images après un FORMAT comparerait un
+ * fichier poussé à un fichier qui ne l'est pas. */
+void h_closepc(void);
+
 /* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
  * Floppy.fdc_c.Probe() côté C#. L'instance `fdc` est static dans fdc.c, donc hors
  * de portée sans l'inclure ; les globales suffisent à nommer le champ divergent. */
@@ -247,8 +268,8 @@ uint8_t *h_ram(void);
 /* 2 depuis M8 : les setters de configuration (h_set_mem_size, h_set_drive_type,
  * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
  * et le C# doit le dire au lieu de tomber sur un symbole absent. */
-/* 4 depuis M10 : h_set_romset s'ajoute au contrat. */
-#define H_ABI_VERSION 4
+/* 5 depuis M11 : h_rawinputkey, h_kbd_process et h_closepc s'ajoutent au contrat. */
+#define H_ABI_VERSION 5
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

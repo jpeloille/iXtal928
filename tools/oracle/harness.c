@@ -697,7 +697,51 @@ void h_set_bpb_disable(int v) { bpb_disable = v; }
 extern int romset;
 void h_set_romset(int r) { romset = r; }
 
+/* --- clavier (M11) : injecter une frappe dans l'oracle ----------------------
+ *
+ * Le chemin d'ECRITURE du contrôleur de disquettes n'a jamais été sous oracle,
+ * et la raison tenait ici : le harnais ne savait pas taper. FORMAT et WRITE DATA
+ * ne s'atteignent qu'en tapant une commande sous DOS, donc § M7.1 et § M8.1 les
+ * ont exercés côté C# SEUL — « une preuve d'usage, pas une preuve de fidélité ».
+ *
+ * pcem_key[] et rawinputkey[] sont définis par harness_stubs.c, qui tient lieu
+ * de wx-sdl2-keyboard.c. On y ajoute les deux seules fonctions qui manquaient. */
+extern uint8_t pcem_key[272];
+extern int rawinputkey[272];
+void keyboard_process(void);
+
+/* Pendant exact de ce que Host/SdlKeyboard écrit depuis la pompe SDL, et de ce
+ * que BootTest écrit à la main : un horodatage à l'appui, 0 au relâchement. */
+void h_rawinputkey(int idx, int val) {
+        if (idx < 0 || idx >= 272)
+                return;
+        rawinputkey[idx] = val;
+}
+
+/* wx-sdl2-keyboard.c:11-16 (keyboard_poll_host, quatre lignes) puis
+ * keyboard_process() — l'ordre de pc.c:490-491, où runpc() les appelle APRES
+ * execx86. h_runpc ne les appelle pas : l'oracle n'a pas de couche hôte, et les
+ * y mettre changerait toutes les mesures déjà consignées. C'est donc l'outil de
+ * diff qui déclenche, au même point de la tranche que le C#. */
+void h_kbd_process(void) {
+        int c;
+
+        for (c = 0; c < 272; ++c)
+                pcem_key[c] = rawinputkey[c] > 0;
+
+        keyboard_process();
+}
+
 /* --- disquette (M6) --------------------------------------------------------- */
+
+/* Pendant de pc.closepc() (pc.c:584-585), et de la MEME nécessité : img_writeback
+ * écrit dans le FILE* sans fflush, et c'est le fclose de img_close qui pousse. Sans
+ * cet appel, comparer les deux images après un FORMAT compare un fichier vidé à un
+ * fichier qui ne l'est pas — une divergence entièrement fabriquée par le harnais. */
+void h_closepc(void) {
+        disc_close(0);
+        disc_close(1);
+}
 
 void h_set_discfn(int drive, const char *fn) {
         if (drive < 0 || drive > 1)
