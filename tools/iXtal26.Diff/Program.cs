@@ -20,7 +20,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      opcode que 808x.c laisse tomber dans son `default:`.");
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
-    Console.WriteLine("            [--config FICHIER] [--type TEXTE ...] [--type-at N]");
+    Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
+    Console.WriteLine("            [--type-settle N]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -35,6 +36,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      --config FICHIER règle la MÊME machine des deux côtés : l'outil");
     Console.WriteLine("      lit le fichier une fois et pousse chaque scalaire par h_set_*");
     Console.WriteLine("      côté C et par les globales côté C#. Jamais deux lectures.");
+    Console.WriteLine("      --model NOM choisit la machine sans fichier, et l'emporte sur la");
+    Console.WriteLine("      clé `model` de --config. Les images montées par le FICHIER comptent");
+    Console.WriteLine("      autant que --fda/--fdb : les clés disc_a, disc_b et hdc_fn sont");
+    Console.WriteLine("      copiées par côté, puis comparées, comme les options.");
     Console.WriteLine();
     Console.WriteLine("  config-check");
     Console.WriteLine("      Aller-retour du moteur de configuration : on écrit un fichier");
@@ -161,8 +166,10 @@ switch (args[0])
         string? fda = null;
         string? fdb = null;
         string? cfg = null;
+        string? model = null;
         var types = new List<string>();
         var typeAt = 0;
+        var typeSettle = iXtal26.Host.KeyScript.SlicesAfterLine;
         var positional = 0;
         for (var i = 1; i < args.Length; i++)
         {
@@ -172,7 +179,14 @@ switch (args[0])
                 case "--fdb" when i + 1 < args.Length: fdb = args[++i]; break;
                 case "--type" when i + 1 < args.Length: types.Add(args[++i]); break;
                 case "--type-at" when i + 1 < args.Length: typeAt = int.Parse(args[++i]); break;
+                case "--type-settle" when i + 1 < args.Length: typeSettle = int.Parse(args[++i]); break;
                 case "--config" when i + 1 < args.Length: cfg = args[++i]; break;
+                // --model : le pendant de celui du programme principal, et il redevient
+                // nécessaire à M12. Tant que boot-diff écrasait disc_a, « --config
+                // ixtal26-xt.cfg » mesurait en fait le XT SANS disquette, donc sa ROM
+                // BASIC. Le correctif rend la clé au fichier, et cette campagne-là
+                // n'avait alors plus aucune commande pour l'exprimer.
+                case "--model" when i + 1 < args.Length: model = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {
@@ -208,7 +222,7 @@ switch (args[0])
             Console.Error.WriteLine($"Fichier de configuration introuvable : {cfg}");
             return 2;
         }
-        return BootDiff.Run(roms, slices, fda, cfg, fdb, types, typeAt);
+        return BootDiff.Run(roms, slices, fda, cfg, fdb, types, typeAt, typeSettle, model);
     }
 
     case "disc-probe":

@@ -43,13 +43,25 @@ public static class BootDiff
     /// <param name="types">Lignes à taper, une fois l'invite atteinte. C'est ce qui
     /// met le chemin d'ÉCRITURE du contrôleur sous comparaison — FORMAT et WRITE DATA
     /// ne s'atteignent pas autrement, et jusqu'ici l'oracle ne savait pas taper.</param>
+    /// <param name="model">Nom interne de machine, ou null pour laisser parler la
+    /// configuration. Appliqué APRÈS elle : la ligne de commande l'emporte.</param>
     /// <param name="typeAt">Tranche de la première frappe : le temps d'amorcer.</param>
+    /// <param name="typeSettle">Tranches laissées à l'application après chaque
+    /// Entrée. Le défaut suffit à un DIR ; un FORMAT en demande des milliers, et
+    /// sans cela la comparaison d'images trouve une image INCHANGÉE — accord vide
+    /// que CompareImages signale.</param>
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
-                          string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0)
+                          string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
+                          int typeSettle = KeyScript.SlicesAfterLine, string? model = null)
     {
         Oracle.CheckAbi();
 
         if (configPath is not null && !pc.loadconfig(configPath))
+            return 2;
+
+        // APRÈS --config, comme dans le programme principal : la ligne de commande
+        // l'emporte sur le fichier, quel que soit l'ordre de frappe.
+        if (model is not null && !pc.setmodel(model))
             return 2;
 
         // La MACHINE en tête : depuis M10 le dépôt en a deux, et un diff qui ne dit pas
@@ -67,7 +79,7 @@ public static class BootDiff
         var script = new List<KeyScript.Event>();
         if (types is not null && types.Count > 0)
         {
-            var (evts, endSlice) = KeyScript.Build(types, typeAt, KeyScript.SlicesAfterLine);
+            var (evts, endSlice) = KeyScript.Build(types, typeAt, typeSettle);
             script = evts;
             if (endSlice > slices)
             {
@@ -87,10 +99,37 @@ public static class BootDiff
         // ensuite octet par octet est le vrai oracle du chemin d'écriture — le diff
         // d'instructions dit que les deux font pareil, les images disent ce qu'elles ont
         // produit.
+        // --fda / --fdb l'emportent, mais la clé disc_a du fichier de configuration
+        // compte aussi : loadconfig l'a déjà posée dans discfns[]. Avant ce correctif,
+        // BootDiff ÉCRASAIT discfns[] par la valeur de --fda — donc "" quand l'option
+        // était absente — et un `boot-diff --config` dont le .cfg monte une disquette
+        // démarrait sans. Les deux côtés étant écrasés pareil, le diff restait VERT :
+        // il comparait deux machines également amputées. Trouvé à M12, en cherchant
+        // pourquoi un FORMAT ne s'exécutait pas ; introduit à M11 avec les copies par
+        // côté, et invisible jusque-là parce que toutes les campagnes disquette
+        // passaient --fda explicitement.
+        discA ??= Floppy.fdd_c.discfns[0].Length == 0 ? null : Floppy.fdd_c.discfns[0];
+        discB ??= Floppy.fdd_c.discfns[1].Length == 0 ? null : Floppy.fdd_c.discfns[1];
+
         var oracleA = CopyForSide(discA, "oracle-a");
         var oracleB = CopyForSide(discB, "oracle-b");
         var csharpA = CopyForSide(discA, "csharp-a");
         var csharpB = CopyForSide(discB, "csharp-b");
+
+        // Le DISQUE DUR suit la même règle, et il en a d'autant plus besoin : un
+        // FDISK ou un FORMAT C: écrit vraiment, et les deux côtés partageant un
+        // fichier, le second lirait ce que le premier vient d'écrire. Le chemin vient
+        // du fichier de configuration, pas d'une option : la clé hdc_fn le porte déjà.
+        // D: SUIT C:, et pas par symétrie décorative : ide_fn[1] partait tel quel à
+        // l'oracle pendant que le C# lisait le même fichier. Inerte tant que D: n'a
+        // pas d'image — d'où le « Cannot open file '' » bénin — mais c'est le défaut
+        // même qu'on vient de fermer pour A:, B: et C:, en attente d'un second disque.
+        var discC = Disc.hdd_c.ide_fn[0].Length == 0 ? null : Disc.hdd_c.ide_fn[0];
+        var discD = Disc.hdd_c.ide_fn[1].Length == 0 ? null : Disc.hdd_c.ide_fn[1];
+        var oracleC = CopyForSide(discC, "oracle-c");
+        var csharpC = CopyForSide(discC, "csharp-c");
+        var oracleD = CopyForSide(discD, "oracle-d");
+        var csharpD = CopyForSide(discD, "csharp-d");
 
         Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
                           (discA is null ? "" : $", A: = {discA}") +
@@ -103,9 +142,10 @@ public static class BootDiff
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
-        for (var hd = 0; hd < 2; hd++)
-            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
-                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
+        Oracle.h_set_hdd(0, oracleC ?? "", Disc.hdd_c.hdc[0].spt,
+                         Disc.hdd_c.hdc[0].hpc, Disc.hdd_c.hdc[0].tracks);
+        Oracle.h_set_hdd(1, oracleD ?? "", Disc.hdd_c.hdc[1].spt,
+                         Disc.hdd_c.hdc[1].hpc, Disc.hdd_c.hdc[1].tracks);
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -142,6 +182,8 @@ public static class BootDiff
         _808x.ResetDiagState();
         Floppy.fdd_c.discfns[0] = csharpA ?? "";
         Floppy.fdd_c.discfns[1] = csharpB ?? "";
+        Disc.hdd_c.ide_fn[0] = csharpC ?? "";
+        Disc.hdd_c.ide_fn[1] = csharpD ?? "";
         if (!pc.initpc(romsPath))
             return 1;
 
@@ -192,11 +234,27 @@ public static class BootDiff
 
             Console.WriteLine($"\nVert : {n} instructions, les deux amorçages sont identiques.");
 
+            // L'écran du côté C#, quand on a tapé : un accord parfait sur une image
+            // inchangée laisse la question « pourquoi la frappe n'a-t-elle rien
+            // produit ? » sans réponse, et c'est là qu'elle se lit.
+            if (script.Count > 0)
+                iXtal26.BootTest.DumpTextScreen();
+
             // Le diff d'instructions dit que les deux cœurs font la même chose. Les
             // images disent ce qu'ils ont ÉCRIT — et c'est le seul oracle que le chemin
             // d'écriture ait jamais eu.
+            // `|` ET PAS `&`, et c'est un correctif, pas un style. CompareImages rend 1
+            // en cas de divergence et 0 sinon, y compris quand rien n'est monté ; un
+            // `&` entre trois codes de sortie ne valait donc 1 que si les QUATRE images
+            // divergeaient EN MÊME TEMPS, et un lecteur vide suffisait à masquer les
+            // autres. Le verdict imprimé, lui, a toujours été juste : la porte des
+            // images de M11 était lue à l'œil, jamais par le code de sortie. C'est
+            // `|` qui la rend exécutable. Bitwise et non `||` : les quatre lignes
+            // doivent s'imprimer, y compris après la première divergence.
             return CompareImages(discA, oracleA, csharpA, "A:")
-                 & CompareImages(discB, oracleB, csharpB, "B:");
+                 | CompareImages(discB, oracleB, csharpB, "B:")
+                 | CompareImages(discC, oracleC, csharpC, "C: (disque dur)")
+                 | CompareImages(discD, oracleD, csharpD, "D: (disque dur)");
         }
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");

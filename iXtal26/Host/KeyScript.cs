@@ -76,6 +76,11 @@ public static class KeyScript
         switch (ch)
         {
         case '0': return SDL.Scancode.Alpha0;
+        // Échap, écrit « \e ». FDISK de PC DOS 2.00 est un menu plein écran dont on
+        // ne sort pas autrement : sans cette touche, le chemin d'écriture du disque
+        // dur reste hors d'atteinte sans fenêtre, exactement comme « : » et « / »
+        // bloquaient FORMAT B: avant § M8.1.
+        case '\e': return SDL.Scancode.Escape;
         case ' ': return SDL.Scancode.Space;
         case '\n': return SDL.Scancode.Return;
         case '.': return SDL.Scancode.Period;

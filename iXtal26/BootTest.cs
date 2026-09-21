@@ -15,7 +15,7 @@ using iXtal26.Keyboard;
 using iXtal26.Memory;
 using SDL3;
 namespace iXtal26;
-internal static class BootTest
+public static class BootTest
 {
     /// <param name="settle">Tranches laissées à l'application après chaque Entrée.
     /// Le défaut de KeyScript suffit à un DIR ; un FORMAT d'une disquette 360 Ko en
@@ -179,7 +179,10 @@ internal static class BootTest
     /// <summary>Le tampon texte CGA, 80x25, un mot par cellule (caractère, attribut).
     /// C'est la seule preuve directe que le POST est allé au bout : la BDA dit ce que
     /// le BIOS a mesuré, l'écran dit ce qu'il a décidé d'en faire.</summary>
-    private static void DumpTextScreen()
+    /// <summary>Public depuis M12 : boot-diff en a besoin. Un diff vert dont
+    /// l'image de disque est restée INCHANGÉE ne dit pas POURQUOI la frappe n'a rien
+    /// produit — et sans l'écran, on cherche à l'aveugle.</summary>
+    public static void DumpTextScreen()
     {
         Console.WriteLine("\n--- écran texte CGA (B800:0000, 80x25) ---");
         var blank = 0;
