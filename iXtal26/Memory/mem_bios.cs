@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/memory/mem_bios.c
-// STATUS: partial — romfread, mem_load_basic et loadbios réduit au seul cas
-//         ROM_IBMPC. Les 101 autres romsets sont omis.
+// STATUS: partial — romfread, mem_load_basic et loadbios réduit aux cas
+//         ROM_IBMPC et ROM_IBMXT. Les 100 autres romsets sont omis.
 
 using static iXtal26.Flash.rom;
 using static iXtal26.Memory.mem;
@@ -78,8 +78,10 @@ internal static partial class mem_bios
     internal static int loadbios()
     {
             FileStream? f = null;
-            // omitted: `FILE *ff` et `int c` (mem_bios.c:56-57) — leurs seuls usages
-            //   sont dans les romsets omis.
+            FileStream? ff;
+            // omitted: `int c` (mem_bios.c:57) — ses seuls usages sont dans les
+            //   romsets omis. `ff` (mem_bios.c:56) est vivant depuis ROM_IBMXT :
+            //   la variante deux puces du XT lit deux fichiers à la fois.
 
             loadfont("mda.rom", FONT_MDA);
             loadfont("wy700.rom", FONT_WY700);
@@ -108,8 +110,36 @@ internal static partial class mem_bios
                             break;
                     return 1;
 
-            // omitted: les 101 autres cas de `romset` (mem_bios.c:74-542, 553-1277),
-            //   de ROM_PC1512 à ROM_GA686BX — machines hors cible IBM PC 5150.
+            // pcem: mem_bios.c:166-181
+            case ROM_IBMXT:
+                    f = romfopen("ibmxt/xt.rom", "rb");
+                    if (f == null)
+                    {
+                            f = romfopen("ibmxt/5000027.u19", "rb");
+                            ff = romfopen("ibmxt/1501512.u18", "rb");
+                            if (f == null || ff == null)
+                                    break;
+                            romfread(rom, 0, 0x8000, 1, f);
+                            romfread(rom, 0x8000, 0x8000, 1, ff);
+                            ff.Close();
+                            f.Close();
+                            return 1;
+                    }
+                    else
+                    {
+                            romfread(rom, 0, 65536, 1, f);
+                            f.Close();
+                            return 1;
+                    }
+                    // omitted: le `break;` de mem_bios.c:181 — inatteignable, les deux
+                    //   branches du if/else rendent. C# en fait une erreur (CS0162).
+                    //
+                    // Pas de mem_load_basic ici, contrairement à ROM_IBMPC : le BASIC
+                    // du XT est DANS xt.rom, qui couvre les 64 Ko de F000:0000 d'un
+                    // bloc. biosmask vaut 0xffff pour les deux machines.
+
+            // omitted: les 100 autres cas de `romset` (mem_bios.c:74-165, 182-542,
+            //   553-1277), de ROM_PC1512 à ROM_GA686BX — machines hors cible.
             }
             printf("Failed to load ROM!\n");
             // pcem bug, reproduced: `f` n'est pas remis à NULL par le fclose de la

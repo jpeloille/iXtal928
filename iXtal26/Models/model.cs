@@ -68,28 +68,55 @@ internal static partial class model_c
     internal const int MODEL_GFX_DISABLE_SW = 0x300;
     internal const int MODEL_GFX_MASK = 0x300;
 
+    // DEVIATION: la RAM par défaut d'AVANT toute configuration. pc.cs:94 est un
+    //   initialiseur de champ : il s'exécute avant qu'un modèle soit choisi et ne peut
+    //   donc pas lire models[model]. Ce sont les 640 Ko du 5150, délibérément, parce que
+    //   toute mesure consignée dans VERIFICATION.md les suppose — un défaut qui dérive
+    //   ferait cesser en silence toutes ces mesures d'être reproductibles.
+    //   Les bornes de VALIDATION, elles, viennent du modèle (pc.cs:148).
+    internal const int DEFAULT_RAM = 640;
+
     // pcem: model.c:777-778
     //   MODEL m_ibmpc = {"[8088] IBM PC", ROM_IBMPC, "ibmpc", {{"", cpus_8088}, ...},
     //                    MODEL_GFX_NONE, 64, 640, 32, xt_init, NULL};
-    internal const int MIN_RAM = 64;
-    internal const int MAX_RAM = 640;
-    internal const int RAM_GRANULARITY = 32;
-
     internal static readonly MODEL m_ibmpc = new MODEL
     {
         name = "[8088] IBM PC",
         id = pc.ROM_IBMPC,
         internal_name = "ibmpc",
         flags = MODEL_GFX_NONE,
-        min_ram = MIN_RAM,
-        max_ram = MAX_RAM,
-        ram_granularity = RAM_GRANULARITY,
+        min_ram = 64,
+        max_ram = 640,
+        ram_granularity = 32,
+        init = xt_init,
+    };
+
+    // pcem: model.c:782-783
+    //   MODEL m_ibmxt = {"[8088] IBM XT", ROM_IBMXT, "ibmxt", {{"", cpus_8088}, ...},
+    //                    MODEL_GFX_NONE, 64, 640, 64, xt_init, NULL};
+    //
+    // MÊME init que le 5150 : PCem câble les deux machines avec xt_init (model.c:202).
+    // Tout le delta tient au romset, à la granularité RAM — 64 et non 32 — et à la
+    // cassette, que seul le 5150 reçoit et que xt_init omet déjà des deux côtés.
+    internal static readonly MODEL m_ibmxt = new MODEL
+    {
+        name = "[8088] IBM XT",
+        id = pc.ROM_IBMXT,
+        internal_name = "ibmxt",
+        flags = MODEL_GFX_NONE,
+        min_ram = 64,
+        max_ram = 640,
+        ram_granularity = 64,
         init = xt_init,
     };
 
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
-    // model_init_builtin (model.c:1625-1746). Une entrée sur les 97 de PCem.
-    internal static readonly MODEL[] models = { m_ibmpc };
+    // model_init_builtin (model.c:1625-1746). Deux entrées sur les 97 de PCem.
+    //
+    // L'ORDRE COMPTE : `model` vaut 0 sans configuration, donc la première entrée est
+    // la machine par défaut. Toute mesure de VERIFICATION.md suppose le 5150 ; déplacer
+    // m_ibmpc d'ici les invaliderait toutes sans qu'une seule porte ne rougisse.
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;

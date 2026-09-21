@@ -91,7 +91,7 @@ internal static partial class pc
     //   loadconfig obtiennent le DÉFAUT, c'est-à-dire exactement la machine d'avant M8.
     //   Ce défaut n'est pas un réglage : c'est ce qui garde reproductibles toutes les
     //   mesures déjà consignées (§ M4.1 « 640 Ko », § M6 « 26 750 702 instructions »).
-    internal static int cfg_mem_size = Models.model_c.MAX_RAM;
+    internal static int cfg_mem_size = Models.model_c.DEFAULT_RAM;
 
     // pcem: pc.c:776-777 — drive_a_type / drive_b_type. Défaut PCem : 7 (3,5" ED),
     // celui d'une machine moderne. Ici 1 (5,25" DD), le lecteur du 5150, comme
@@ -134,25 +134,39 @@ internal static partial class pc
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
         // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
-        //   MAX_RAM, la seule valeur qui reproduise la machine que VERIFICATION.md
+        //   DEFAULT_RAM, la seule valeur qui reproduise la machine que VERIFICATION.md
         //   décrit. Un défaut qui dérive ferait cesser en silence toutes les mesures
-        //   consignées d'être reproductibles.
+        //   consignées d'être reproductibles. Ce n'est PAS max_ram du modèle : les deux
+        //   valent 640 aujourd'hui, mais les confondre ferait dériver le défaut avec la
+        //   première machine qui monte plus haut.
         cfg_mem_size = PluginApi.config.config_get_int(
-            PluginApi.config.CFG_MACHINE, null, "mem_size", Models.model_c.MAX_RAM);
+            PluginApi.config.CFG_MACHINE, null, "mem_size", Models.model_c.DEFAULT_RAM);
 
         // pcem: pc.c:695-700 — le clamp de PCem ne borne QUE par le bas, et son test
         // porte un piège d'unités : min_ram est en Ko avant l'AT, en Mo pour un AT à
         // granularité < 128. Sans objet sur un 5150. On borne des DEUX côtés, parce
         // qu'une valeur hors bornes ne produirait pas une erreur mais un SW2 absurde
         // (keyboard_xt.cs:174-183 : (mem_size - 64) / 32) et un POST qui ment.
-        if (cfg_mem_size < Models.model_c.MIN_RAM || cfg_mem_size > Models.model_c.MAX_RAM
-            || (cfg_mem_size - Models.model_c.MIN_RAM) % Models.model_c.RAM_GRANULARITY != 0)
+        //
+        // Ce motif-là vaut pour le 5150 SEUL : sur un XT, la lecture 0x62 part dans la
+        // branche `else` (keyboard_xt.cs:192-204) et ne porte plus la taille mémoire du
+        // tout — le BIOS du 5160 la détermine en balayant. La borne y reste utile pour
+        // une autre raison : mem_alloc dimensionne la RAM, et 96 Ko sur une machine à
+        // pas de 64 serait une machine que PCem ne décrit pas.
+        // Les bornes viennent du MODÈLE choisi, pas de constantes : le XT est à 64 Ko de
+        // granularité là où le 5150 est à 32 (model.c:777 contre :782). Les champs
+        // min_ram/max_ram/ram_granularity de MODEL existaient depuis M8 et n'étaient lus
+        // par personne — une table à une seule entrée est une constante, et c'est la
+        // deuxième machine qui les rend vivants.
+        var mdl = Models.model_c.models[Models.model_c.model];
+        if (cfg_mem_size < mdl.min_ram || cfg_mem_size > mdl.max_ram
+            || (cfg_mem_size - mdl.min_ram) % mdl.ram_granularity != 0)
         {
                 Console.Error.WriteLine(
-                    $"mem_size = {cfg_mem_size} : hors des bornes du modèle. Attendu de " +
-                    $"{Models.model_c.MIN_RAM} à {Models.model_c.MAX_RAM} Ko par pas de " +
-                    $"{Models.model_c.RAM_GRANULARITY}. On garde {Models.model_c.MAX_RAM}.");
-                cfg_mem_size = Models.model_c.MAX_RAM;
+                    $"mem_size = {cfg_mem_size} : hors des bornes de « {mdl.internal_name} ». " +
+                    $"Attendu de {mdl.min_ram} à {mdl.max_ram} Ko par pas de " +
+                    $"{mdl.ram_granularity}. On garde {mdl.max_ram}.");
+                cfg_mem_size = mdl.max_ram;
         }
 
         // pcem: pc.c:776-777. Le type gouverne max_track et les drapeaux de densité
