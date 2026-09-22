@@ -206,6 +206,29 @@ internal static partial class _808x
                 s.seg_checked[i] = segs[i].@checked;
         }
 
+        // Les quatre descripteurs système. Globaux hors cpu_state des deux côtés
+        // (x86.h:171), d'où le tableau séparé et non un élargissement de segs[].
+        var sys = new[] { x86.gdt, x86.ldt, x86.idt, x86.tr };
+        for (var i = 0; i < (int)Sys.COUNT; i++)
+        {
+                s.sys_base[i] = sys[i].@base;
+                s.sys_limit[i] = sys[i].limit;
+                s.sys_limit_raw[i] = sys[i].limit_raw;
+                s.sys_limit_low[i] = sys[i].limit_low;
+                s.sys_limit_high[i] = sys[i].limit_high;
+                s.sys_checked[i] = sys[i].@checked;
+                s.sys_sel[i] = sys[i].seg;
+                s.sys_access[i] = sys[i].access;
+                s.sys_access2[i] = sys[i].access2;
+        }
+
+        s.cr0 = cpu_state.CR0;
+        s.cr2 = x86.cr2;
+        s.cr3 = x86.cr3;
+        s.use32 = x86.use32;
+        s.stack32 = x86.stack32;
+        s.cpl_override = x86.cpl_override;
+
         s.ea_seg_idx = -1;
         for (var i = 0; i < (int)Seg.COUNT; i++)
                 if (ReferenceEquals(cpu_state.ea_seg, segs[i]))

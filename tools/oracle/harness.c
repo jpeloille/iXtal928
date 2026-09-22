@@ -207,6 +207,14 @@ extern device_t dtc_5150x_device;
  * qui est celui que le C# doit comparer. */
 #undef cycles
 
+/* Même piège, même remède, au jalon 286 : x86.h:127 définit `cr0` comme une macro
+ * vers cpu_state.CR0.l, donc `out->cr0` deviendrait `out->cpu_state.CR0.l`. Le
+ * `#undef` de harness.h ne suffit pas — x86.h est inclus APRÈS lui, par 808x.c
+ * ligne 43, et le redéfinit. On le retire donc ici aussi, une fois 808x.c déplié.
+ * Rien au-delà de ce point n'utilise la macro : vérifié, harness.c n'écrit `cr0`
+ * qu'une fois, dans h_getstate. */
+#undef cr0
+
 /* Fournis par harness_stubs.c */
 extern uint64_t h_n_inb, h_n_outb, h_n_picint, h_n_picinterrupt, h_n_timer_process;
 extern uint64_t h_n_readmembl, h_n_writemembl, h_n_readmemwl, h_n_writememwl, h_n_fatal;
@@ -460,6 +468,30 @@ void h_getstate(h_state *out) {
                 out->seg_access2[i] = segs[i]->access2;
                 out->seg_checked[i] = segs[i]->checked;
         }
+
+        /* Les quatre descripteurs système. Globaux chez PCem (x86.h:171), pas membres
+         * de cpu_state — d'où le tableau séparé, et non un élargissement de segs[]. */
+        const x86seg *sys[H_SYS_COUNT] = { &gdt, &ldt, &idt, &tr };
+        for (int i = 0; i < H_SYS_COUNT; i++) {
+                out->sys_base[i] = sys[i]->base;
+                out->sys_limit[i] = sys[i]->limit;
+                out->sys_limit_raw[i] = sys[i]->limit_raw;
+                out->sys_limit_low[i] = sys[i]->limit_low;
+                out->sys_limit_high[i] = sys[i]->limit_high;
+                out->sys_checked[i] = sys[i]->checked;
+                out->sys_sel[i] = sys[i]->seg;
+                out->sys_access[i] = sys[i]->access;
+                out->sys_access2[i] = sys[i]->access2;
+        }
+
+        /* cpu_state.CR0.l, écrit sans passer par la macro : harness.h fait `#undef cr0`
+         * pour que le nom reste disponible comme champ de structure. */
+        out->cr0 = cpu_state.CR0.l;
+        out->cr2 = cr2;
+        out->cr3 = cr3;
+        out->use32 = use32;
+        out->stack32 = stack32;
+        out->cpl_override = cpl_override;
 
         out->ea_seg_idx = -1;
         for (int i = 0; i < H_SEG_COUNT; i++)

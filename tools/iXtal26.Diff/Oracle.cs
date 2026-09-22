@@ -22,7 +22,7 @@ public static class Oracle
     // 6 depuis M12 : h_set_hdd et h_set_hdd_controller s'ajoutent au contrat. Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 7;
+    public const int AbiVersion = 8;
 
     static Oracle()
     {

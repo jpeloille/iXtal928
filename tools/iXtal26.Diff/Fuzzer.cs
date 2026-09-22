@@ -310,7 +310,10 @@ public static class Fuzzer
         return 0;
     }
 
-    private const int FieldCount = 39; /* 32 + les 7 champs de cache descripteur */
+    /* 32 d'origine, + 7 champs de cache descripteur par segment, + 9 champs par
+     * descripteur système, + les 6 registres de contrôle. Compté en formes de champ,
+     * pas en entrées de tableau : la boucle en couvre 6, la suivante 4. */
+    private const int FieldCount = 54;
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -360,7 +363,40 @@ public static class Fuzzer
                 return $"{(Seg)i} checked : oracle {a.seg_checked[i]}, C# {b.seg_checked[i]}";
         }
 
-        return Chk("flags", a.flags, b.flags)
+        // Les quatre descripteurs système. Inertes sur un 8088 : rien ne les écrit hors
+        // de LGDT/LIDT/LLDT/LTR, qui n'existent pas ici. Comparés quand même, et les neuf
+        // champs, y compris les trois que PCem ne pose jamais pour eux (limit_low,
+        // limit_high, checked) — le cas à attraper est le C# qui écrirait là où le C
+        // s'abstient.
+        for (var i = 0; i < (int)Sys.COUNT; i++)
+        {
+            if (a.sys_base[i] != b.sys_base[i])
+                return $"{(Sys)i} base : oracle 0x{a.sys_base[i]:X8}, C# 0x{b.sys_base[i]:X8}";
+            if (a.sys_limit[i] != b.sys_limit[i])
+                return $"{(Sys)i} limit : oracle 0x{a.sys_limit[i]:X8}, C# 0x{b.sys_limit[i]:X8}";
+            if (a.sys_limit_raw[i] != b.sys_limit_raw[i])
+                return $"{(Sys)i} limit_raw : oracle 0x{a.sys_limit_raw[i]:X8}, C# 0x{b.sys_limit_raw[i]:X8}";
+            if (a.sys_limit_low[i] != b.sys_limit_low[i])
+                return $"{(Sys)i} limit_low : oracle 0x{a.sys_limit_low[i]:X8}, C# 0x{b.sys_limit_low[i]:X8}";
+            if (a.sys_limit_high[i] != b.sys_limit_high[i])
+                return $"{(Sys)i} limit_high : oracle 0x{a.sys_limit_high[i]:X8}, C# 0x{b.sys_limit_high[i]:X8}";
+            if (a.sys_checked[i] != b.sys_checked[i])
+                return $"{(Sys)i} checked : oracle {a.sys_checked[i]}, C# {b.sys_checked[i]}";
+            if (a.sys_sel[i] != b.sys_sel[i])
+                return $"{(Sys)i} sélecteur : oracle 0x{a.sys_sel[i]:X4}, C# 0x{b.sys_sel[i]:X4}";
+            if (a.sys_access[i] != b.sys_access[i])
+                return $"{(Sys)i} access : oracle 0x{a.sys_access[i]:X2}, C# 0x{b.sys_access[i]:X2}";
+            if (a.sys_access2[i] != b.sys_access2[i])
+                return $"{(Sys)i} access2 : oracle 0x{a.sys_access2[i]:X2}, C# 0x{b.sys_access2[i]:X2}";
+        }
+
+        return Chk("cr0", a.cr0, b.cr0)
+            ?? Chk("cr2", a.cr2, b.cr2)
+            ?? Chk("cr3", a.cr3, b.cr3)
+            ?? Chk("use32", a.use32, b.use32)
+            ?? Chk("stack32", a.stack32, b.stack32)
+            ?? Chk("cpl_override", a.cpl_override, b.cpl_override)
+            ?? Chk("flags", a.flags, b.flags)
             ?? Chk("eflags", a.eflags, b.eflags)
             ?? Chk("pc", a.pc, b.pc)
             ?? Chk("oldpc", a.oldpc, b.oldpc)

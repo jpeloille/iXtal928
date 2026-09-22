@@ -198,6 +198,11 @@ internal static partial class x86
     internal static uint16_t cpu_cur_status;
     internal static uint32_t cr2, cr3, cr4;
     internal static int cgate32;
+    // pcem: x86.h:217 — fait sauter les contrôles de privilège le temps d'un
+    // chargement de descripteur. Jamais posé sur un 8088 ; entre au jalon 286 avec
+    // le reste des registres système, pour que le vecteur d'état le compare dès
+    // maintenant à la valeur qu'il ne fait pas varier.
+    internal static int cpl_override;
     internal static int x86_was_reset;
 
     // pcem: ibm.h:160 — classe de machine. 0 sur un XT.

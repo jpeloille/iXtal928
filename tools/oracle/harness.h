@@ -37,6 +37,15 @@
 /* Ordre des segments dans les tableaux ci-dessous. Fixé, partagé avec le C#. */
 enum { H_SEG_CS = 0, H_SEG_DS, H_SEG_ES, H_SEG_SS, H_SEG_FS, H_SEG_GS, H_SEG_COUNT };
 
+/* Les quatre descripteurs SYSTÈME. Ils ont le type x86seg comme les six segments,
+ * mais ce ne sont pas des segments : gdt et idt n'ont pas de sélecteur, aucun des
+ * quatre n'est chargeable par un préfixe, et `ea_seg` ne peut pas les viser. D'où
+ * un jeu de tableaux à part plutôt qu'un élargissement de H_SEG_COUNT — sans quoi
+ * la boucle de `ea_seg_idx` les balaierait pour rien et l'index cesserait de vouloir
+ * dire « lequel des six ». Chez PCem ce sont des globaux (x86.h:171), pas des
+ * membres de cpu_state. */
+enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
+
 /* Disposition explicite, pas de padding implicite : le C# marshale ça tel quel.
  * Tout champ ajouté ici doit l'être aussi côté C#, et entrer dans le vecteur
  * diffé — un champ non comparé est un champ où la dérive se cache. */
@@ -65,6 +74,43 @@ typedef struct h_state {
         int32_t  seg_checked[H_SEG_COUNT];
         uint8_t  seg_access[H_SEG_COUNT];
         uint8_t  seg_access2[H_SEG_COUNT];
+
+        /* LES QUATRE DESCRIPTEURS SYSTÈME et les registres de contrôle, ajoutés au
+         * jalon 286 juste après le cache descripteur, et pour la même raison : sur un
+         * 8088 ils sont CONSTANTS, donc le câblage se vérifie pendant qu'il est encore
+         * trivial et le contrôle négatif coûte trois lignes. Les laisser pour plus tard
+         * ferait câbler exec386 contre un vecteur aveugle aux registres exacts que
+         * l'amorçage du mode protégé écrit — LGDT, LIDT, LLDT, LTR, LMSW n'écrivent
+         * QUE là-dedans. Une divergence y resterait invisible jusqu'à ce qu'elle
+         * ressorte, bien plus loin, en adresse fausse.
+         *
+         * Les neuf champs de x86seg sont repris pour les quatre, alors que PCem n'en
+         * écrit que six (base, limit, limit_raw, access, access2, seg — mesuré sur
+         * x86seg.c et loadall_load_segment, x86_ops_misc.h:896-912). Les trois autres
+         * sont repris quand même : le cas qu'on veut attraper est justement le C# qui
+         * ÉCRIT un champ que le C laisse tranquille. */
+        uint32_t sys_base[H_SYS_COUNT];
+        uint32_t sys_limit[H_SYS_COUNT];
+        uint32_t sys_limit_raw[H_SYS_COUNT];
+        uint32_t sys_limit_low[H_SYS_COUNT];
+        uint32_t sys_limit_high[H_SYS_COUNT];
+        int32_t  sys_checked[H_SYS_COUNT];
+        uint16_t sys_sel[H_SYS_COUNT];
+        uint8_t  sys_access[H_SYS_COUNT];
+        uint8_t  sys_access2[H_SYS_COUNT];
+
+        /* cr0 est cpu_state.CR0.l ; msw en est les 16 bits bas, donc pas de champ
+         * séparé. cr4 est omis : 486 et au-delà, aucun chemin 286 ne le lit.
+         * cpl_override n'est pas un registre mais l'interrupteur qui fait sauter les
+         * contrôles de privilège pendant un chargement de descripteur ; le comparer,
+         * c'est attraper un C# qui oublierait de le remettre à zéro. */
+        uint32_t cr0;
+        uint32_t cr2;
+        uint32_t cr3;
+        uint32_t use32;
+        int32_t  stack32;
+        int32_t  cpl_override;
+
         uint16_t flags;
         uint16_t eflags;
         uint16_t prefetchpc;
@@ -305,7 +351,10 @@ uint8_t *h_ram(void);
 /* 7 depuis le jalon 286 : h_state porte le cache descripteur des six segments —
  * limit, limit_raw, limit_low, limit_high, access, access2, checked. Le vecteur
  * change de TAILLE, donc un .so périmé marshalerait du charabia en silence. */
-#define H_ABI_VERSION 7
+/* 8 depuis le jalon 286, deuxième moitié : les quatre descripteurs système (gdt,
+ * ldt, idt, tr) et cr0, cr2, cr3, use32, stack32, cpl_override. Même raison, même
+ * moment — LGDT, LIDT, LLDT, LTR et LMSW n'écrivent que là. */
+#define H_ABI_VERSION 8
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

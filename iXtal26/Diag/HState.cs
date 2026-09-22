@@ -34,6 +34,14 @@ public enum Seg
     CS = 0, DS, ES, SS, FS, GS, COUNT
 }
 
+/// <summary>Index des quatre descripteurs système (calqué sur harness.h).
+/// Séparés des segments : gdt et idt n'ont pas de sélecteur, aucun des quatre n'est
+/// chargeable par un préfixe, et ea_seg ne peut pas les viser.</summary>
+public enum Sys
+{
+    GDT = 0, LDT, IDT, TR, COUNT
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct HState
 {
@@ -54,6 +62,32 @@ public struct HState
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public int[] seg_checked;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public byte[] seg_access;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public byte[] seg_access2;
+
+    // Les QUATRE DESCRIPTEURS SYSTÈME et les registres de contrôle, ajoutés juste après
+    // le cache descripteur et pour la même raison : sur un 8088 ils sont constants, donc
+    // le câblage se vérifie pendant qu'il est encore trivial. LGDT, LIDT, LLDT, LTR et
+    // LMSW n'écrivent QUE là-dedans ; un vecteur aveugle à ces champs laisserait passer
+    // tout l'amorçage du mode protégé sans rien voir.
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public uint[] sys_base;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public uint[] sys_limit;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public uint[] sys_limit_raw;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public uint[] sys_limit_low;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public uint[] sys_limit_high;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public int[] sys_checked;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public ushort[] sys_sel;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public byte[] sys_access;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public byte[] sys_access2;
+
+    // cr0 est cpu_state.CR0 ; msw en est les 16 bits bas, donc pas de champ séparé.
+    // cr4 est omis : 486 et au-delà. cpl_override n'est pas un registre mais
+    // l'interrupteur qui fait sauter les contrôles de privilège.
+    public uint cr0;
+    public uint cr2;
+    public uint cr3;
+    public uint use32;
+    public int stack32;
+    public int cpl_override;
+
     public ushort flags;
     public ushort eflags;
     public ushort prefetchpc;
@@ -111,6 +145,15 @@ public struct HState
         seg_checked = new int[(int)Seg.COUNT],
         seg_access = new byte[(int)Seg.COUNT],
         seg_access2 = new byte[(int)Seg.COUNT],
+        sys_base = new uint[(int)Sys.COUNT],
+        sys_limit = new uint[(int)Sys.COUNT],
+        sys_limit_raw = new uint[(int)Sys.COUNT],
+        sys_limit_low = new uint[(int)Sys.COUNT],
+        sys_limit_high = new uint[(int)Sys.COUNT],
+        sys_checked = new int[(int)Sys.COUNT],
+        sys_sel = new ushort[(int)Sys.COUNT],
+        sys_access = new byte[(int)Sys.COUNT],
+        sys_access2 = new byte[(int)Sys.COUNT],
         prefetchqueue = new byte[6],
         _pad = new byte[2],
     };
