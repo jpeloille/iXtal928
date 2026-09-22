@@ -60,7 +60,7 @@ internal sealed class SdlMenu
     /// <summary>Entrées d'image visibles à la fois dans l'écran de choix.</summary>
     private const int PickWindow = 10;
 
-    private enum Screen { Main, Pick, Create, Dialog }
+    private enum Screen { Main, Pick, Create, CreateHdd, Dialog }
 
     // Les entrées de l'écran principal, dans l'ordre d'affichage. L'index sélectionné
     // indexe ce tableau : pas de correspondance à maintenir entre le texte et l'action.
@@ -71,13 +71,17 @@ internal sealed class SdlMenu
         ("Ejecter A:", MainItem.EjectA),
         ("Ejecter B:", MainItem.EjectB),
         ("Creer une disquette vierge...", MainItem.CreateBlank),
+        ("Creer un disque dur vierge...", MainItem.CreateBlankHdd),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
         ("Ctrl+Alt+Suppr (redemarrage a chaud)", MainItem.Cad),
         ("Quitter", MainItem.Quit),
     ];
 
-    private enum MainItem { InsertA, InsertB, EjectA, EjectB, CreateBlank, HardReset, HardResetTurbo, Cad, Quit }
+    private enum MainItem
+    {
+        InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateBlankHdd, HardReset, HardResetTurbo, Cad, Quit,
+    }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
     // 5150 sait lire : drive_types[1] ne porte que FLAG_HOLE0 et max_track = 41
@@ -117,6 +121,12 @@ internal sealed class SdlMenu
     private int _pickIndex;
     private int _pickTop;
     private int _createIndex;
+
+    /// <summary>Type de disque dur choisi, 0 pour le type 01. Quarante-six entrées : il
+    /// faut aussi mémoriser le haut de la fenêtre, comme l'écran de choix d'image.</summary>
+    private int _createHddIndex;
+
+    private int _createHddTop;
 
     /// <summary>Lecteur visé par l'écran de choix : 0 = A:, 1 = B:.</summary>
     private int _pickDrive;
@@ -234,6 +244,10 @@ internal sealed class SdlMenu
                 HandleCreate(e.Key.Scancode);
                 return MenuAction.None;
 
+            case Screen.CreateHdd:
+                HandleCreateHdd(e.Key.Scancode);
+                return MenuAction.None;
+
             default:
                 // La boîte de dialogue est ouverte : elle appartient au système, on ne
                 // peut pas la fermer d'ici. Échap renonce seulement à son résultat.
@@ -292,6 +306,13 @@ internal sealed class SdlMenu
                 _createIndex = DiscFormats.Length - 1; /* 360 Ko : le format du 5150 à deux faces */
                 _message = "";
                 _screen = Screen.Create;
+                return MenuAction.None;
+
+            case MainItem.CreateBlankHdd:
+                _createHddIndex = 0; /* type 01, 306x4x17 : le 10 Mo du XT */
+                _createHddTop = 0;
+                _message = "";
+                _screen = Screen.CreateHdd;
                 return MenuAction.None;
 
             case MainItem.HardReset:
@@ -353,6 +374,126 @@ internal sealed class SdlMenu
             _pickTop = _pickIndex;
         else if (_pickIndex >= _pickTop + PickWindow)
             _pickTop = _pickIndex - PickWindow + 1;
+    }
+
+    private void HandleCreateHdd(SDL.Scancode sc)
+    {
+        switch (sc)
+        {
+            case SDL.Scancode.Up:
+                _createHddIndex = (_createHddIndex + 45) % 46;
+                break;
+
+            case SDL.Scancode.Down:
+                _createHddIndex = (_createHddIndex + 1) % 46;
+                break;
+
+            case SDL.Scancode.Escape:
+                _screen = Screen.Main;
+                return;
+
+            case SDL.Scancode.Return or SDL.Scancode.KpEnter:
+                CreateBlankHdd(_createHddIndex + 1);
+                _screen = Screen.Main;
+                return;
+
+            default:
+                return;
+        }
+
+        // Même fenêtre de défilement que l'écran de choix d'image, et pour la même
+        // raison : quarante-six entrées ne tiennent pas dans une boîte de hauteur fixe,
+        // là où les quatre formats de disquette y tiennent à plat.
+        if (_createHddIndex < _createHddTop)
+            _createHddTop = _createHddIndex;
+        else if (_createHddIndex >= _createHddTop + PickWindow)
+            _createHddTop = _createHddIndex - PickWindow + 1;
+    }
+
+    /// <summary>
+    /// DEVIATION: le libellé de PCem — « Type %02i : cylinders=%i, heads=%i, size=%iMB »
+    ///   (wx-config.c:1581-1586), que HddImage.Label rend verbatim et que --create-hdd
+    ///   imprime tel quel — fait jusqu'à 46 caractères. La boîte en a 46 EN TOUT
+    ///   (Cols), marque et marge comprises, et rien ne coupe une ligne trop longue : le
+    ///   type 46 déborderait. D'où cette forme courte, propre au menu.
+    /// « * » marque les géométries que le Fixed Disk Adapter accepte. Six des quarante-six
+    /// types, pas quatre : la table du BIOS a des doublons.
+    /// </summary>
+    private static string HddMenuLabel(int type)
+    {
+        (int cylinders, int heads) = HddImage.hd_types[type - 1];
+
+        if (cylinders == 0 || heads == 0)
+            return $"   Type {type:D2}   reserve, non creable";
+
+        string mark = HddImage.XebecSwitch(cylinders, heads, HddImage.TypeSectorsPerTrack) >= 0 ? "*" : " ";
+        long mb = HddImage.SizeOf(cylinders, heads, HddImage.TypeSectorsPerTrack) / (1024 * 1024);
+
+        return $" {mark} Type {type:D2}  {cylinders,4} cyl x {heads,2} tetes  {mb,3} Mo";
+    }
+
+    /// <summary>
+    /// pcem: wx-config.c:1645-1653 et :1682-1683, par HddImage.
+    ///
+    /// DEVIATION: l'image n'est PAS montée, là où CreateBlank insère la disquette dans
+    ///   A:. La disquette peut l'être parce que DOS attend qu'on l'insère pendant qu'il
+    ///   tourne ; un disque dur, non — la carte lit ide_fn[] au device_add de
+    ///   resetpchard (pc.cs), et sa géométrie vient du fichier de configuration, qui
+    ///   reste maître. PCem ne le monte pas non plus : il dit « remember to partition
+    ///   and format the new drive », et c'est tout ce qu'il y a à faire.
+    ///
+    /// Les clés vont sur la CONSOLE et non dans la boîte : elles font cinq lignes, et
+    /// _message en tient une, tronquée à 44 caractères.
+    /// </summary>
+    private void CreateBlankHdd(int type)
+    {
+        (int cylinders, int heads) = HddImage.hd_types[type - 1];
+        int spt = HddImage.TypeSectorsPerTrack;
+
+        if (!HddImage.Validate(cylinders, heads, spt, out string error))
+        {
+            _message = $"type {type:D2} refuse : {error}";
+            return;
+        }
+
+        string root = ImagesRoot();
+
+        try
+        {
+            // os/ est .gitignore'd, donc absent d'un clone neuf : on le crée au moment
+            // d'écrire, pas avant. Sans effet s'il existe déjà.
+            Directory.CreateDirectory(root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _message = $"creation de {root} impossible : {ex.Message}";
+            return;
+        }
+
+        string? path = FreeName(root, $"hdd-type{type:D2}");
+
+        if (path is null)
+        {
+            _message = "trop d'images vierges de ce type dans os/.";
+            return;
+        }
+
+        if (!HddImage.Create(path, cylinders, heads, spt, out string message))
+        {
+            _message = message;
+            return;
+        }
+
+        Creations++;
+
+        Console.WriteLine($"{path} : {HddImage.Label(type)}");
+        Console.WriteLine(message);
+        Console.WriteLine();
+        Console.WriteLine("À ajouter au fichier de configuration, puis reset matériel :");
+        Console.WriteLine();
+        Console.Write(HddImage.ConfigBlock(path, cylinders, heads, spt));
+
+        _message = $"{Path.GetFileName(path)} cree, cles en console";
     }
 
     private void HandleCreate(SDL.Scancode sc)
@@ -765,6 +906,35 @@ internal sealed class SdlMenu
                 if (_images.Length > PickWindow)
                     lines.Add($" ({_pickIndex + 1} sur {_images.Length})");
 
+                lines.Add("");
+                lines.Add(" Echap: annuler");
+                break;
+
+            case Screen.CreateHdd:
+                lines.Add(" Creer un disque dur vierge dans os/");
+                lines.Add("");
+
+                int hddEnd = Math.Min(46, _createHddTop + PickWindow);
+
+                for (int i = _createHddTop; i < hddEnd; i++)
+                {
+                    if (i == _createHddIndex)
+                        selected = lines.Count;
+
+                    lines.Add(HddMenuLabel(i + 1));
+                }
+
+                lines.Add($" ({_createHddIndex + 1} sur 46)");
+                lines.Add("");
+
+                // Le piege merite d'etre lu, pas decouvert : la carte n'accepte que
+                // 17 secteurs et quatre couples (cylindres, tetes). Hors de la elle
+                // n'emet qu'un avertissement, annonce le disque en type 0, et le POST
+                // diverge. Rien ne le refuse.
+                lines.Add(" * : accepte par le Fixed Disk Adapter ; les");
+                lines.Add(" autres se creent, mais le POST diverge.");
+                lines.Add(" Vierge = secteurs nuls : passer FDISK puis");
+                lines.Add(" FORMAT C: /S. Cles a coller : voir console.");
                 lines.Add("");
                 lines.Add(" Echap: annuler");
                 break;
