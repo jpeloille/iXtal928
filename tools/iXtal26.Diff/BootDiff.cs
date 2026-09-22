@@ -70,7 +70,19 @@ public static class BootDiff
                           $"mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                           (configPath is null ? " (défaut)" : $" ({configPath})"));
 
-        var oraclePath = Path.Combine(Path.GetTempPath(), "ixtal-boot-oracle.bin");
+        // LE NUMÉRO DE PROCESSUS DANS LE NOM, et ce n'est pas de la précaution : ce
+        // chemin était FIXE, comme celui des copies d'images de CopyForSide. Deux
+        // boot-diff lancés en même temps écrivaient donc la même trace et les mêmes
+        // copies, et le second lisait ce que le premier venait d'écrire.
+        //
+        // Constaté à M13, et le symptôme est sournois : une campagne de régression
+        // lancée pendant une campagne à disque dur a rendu « PREMIÈRE DIVERGENCE à
+        // l'instruction 21 » sur le 5150, puis « ÉCART DE LONGUEUR : oracle 35 622 286,
+        // C# 26 750 702 » — 35 622 286 étant le compte de l'AUTRE campagne. Un rouge
+        // entièrement fabriqué par le harnais, qui envoie chercher une régression qui
+        // n'existe pas. Rejouées en série, les deux portes rendent leur chiffre exact.
+        var oraclePath = Path.Combine(Path.GetTempPath(),
+                                      $"ixtal-boot-oracle-{Environment.ProcessId}.bin");
 
         // LE CALENDRIER DE FRAPPE, construit UNE fois et rejoué à l'identique des deux
         // côtés. Purement arithmétique : il ne dépend d'aucun état de la machine, donc
@@ -178,6 +190,15 @@ public static class BootDiff
         var nOracle = oracleTrace.Length / 8;
         Console.WriteLine($"  oracle : {nOracle} instructions tracées");
 
+        // Supprimée dès qu'elle est en mémoire. Tant que le nom était fixe, chaque
+        // campagne écrasait la précédente et /tmp ne grossissait pas ; maintenant qu'il
+        // porte le numéro de processus, il faut le dire. Huit octets par instruction,
+        // donc 792 Mo pour l'arc de § M12 — on ne laisse pas cela derrière soi. Les
+        // copies d'images, elles, RESTENT : ce sont les pièces qu'on veut relire après
+        // coup, et elles ne pèsent que la taille du disque émulé.
+        try { File.Delete(oraclePath); }
+        catch (IOException) { /* laissée sur place : sans conséquence pour la suite */ }
+
         Console.WriteLine($"Amorçage du cœur C# ({slices} tranches)…");
         _808x.ResetDiagState();
         Floppy.fdd_c.discfns[0] = csharpA ?? "";
@@ -264,13 +285,18 @@ public static class BootDiff
 
     /// <summary>Copie une image dans un fichier temporaire propre à un côté, ou rend
     /// null si aucune image n'est montée. Les deux cœurs écrivent pour de vrai : sans
-    /// cette copie, le second lirait ce que le premier a écrit.</summary>
+    /// cette copie, le second lirait ce que le premier a écrit.
+    ///
+    /// Le numéro de processus est dans le nom pour la MÊME raison, d'un cran plus haut :
+    /// deux boot-diff concurrents partageaient ces copies, donc les deux campagnes
+    /// écrivaient sur les mêmes images. Voir le commentaire d'oraclePath.</summary>
     private static string? CopyForSide(string? src, string tag)
     {
         if (src is null)
             return null;
 
-        var dst = Path.Combine(Path.GetTempPath(), $"ixtal-{tag}-{Path.GetFileName(src)}");
+        var dst = Path.Combine(Path.GetTempPath(),
+                               $"ixtal-{tag}-{Environment.ProcessId}-{Path.GetFileName(src)}");
         File.Copy(src, dst, overwrite: true);
         return dst;
     }
