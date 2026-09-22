@@ -68,6 +68,14 @@ internal static partial class _386
         return t;
     }
 
+    // Les groupes transcrits se posent après coup, chacun dans son fichier, ce qui
+    // laisse les trous bruyants. Un groupe absent de cette liste est un groupe dont
+    // chaque opcode échoue en se nommant.
+    static _386()
+    {
+        PoserGroupeMov();
+    }
+
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
     /// l'opcode. Un handler manquant doit s'entendre — pas rendre zéro cycle et
     /// laisser la divergence se manifester trois mille instructions plus loin.
@@ -91,10 +99,103 @@ internal static partial class _386
     // pour le 286, via cpu_update_waitstates (cpu.c:2010-2047).
     // -----------------------------------------------------------------------
 
-    // omitted: prefetch_run / prefetch_flush / prefetch_prefixes
-    //   (386_dynarec.c:155-208) — le modèle de préfetch lui-même. Aucun appelant
-    //   tant qu'aucun handler n'existe : PREFETCH_RUN n'est invoqué QUE depuis les
-    //   corps de 386_ops.h. Il arrive avec le premier groupe d'opcodes.
+    // pcem: 386_dynarec.c:150-153
+    private static int prefetch_bytes;
+    private static int prefetch_prefixes;
+
+    /// <summary>pcem: 386_dynarec.c:155-206 — LE MODÈLE DE PRÉFETCH DE
+    /// L'INTERPRÉTEUR, et non du recompilateur.
+    ///
+    /// Il facture le remplissage de la file d'instruction : chaque instruction
+    /// consomme des octets, et la file se recharge par tranches de
+    /// cpu_prefetch_width au prix de cpu_prefetch_cycles chacune. Quand
+    /// l'instruction met plus de temps qu'il n'en faut pour recharger, la file se
+    /// remplit gratuitement — d'où la seconde boucle.
+    ///
+    /// Il ne tourne QUE si cpu_prefetch_cycles est non nul (386_dynarec.c:210). Sur
+    /// un 8088 c'est zéro et le modèle est inerte ; sur un 286 il vaut 2, et ce
+    /// modèle entre alors dans les cycles comparés.</summary>
+    private static void prefetch_run(int instr_cycles, int bytes, int modrm, int reads, int reads_l,
+                                     int writes, int writes_l, int ea32)
+    {
+        int mem_cycles = reads * cpu.cpu_cycles_read + reads_l * cpu.cpu_cycles_read_l
+                       + writes * cpu.cpu_cycles_write + writes_l * cpu.cpu_cycles_write_l;
+
+        if (instr_cycles < mem_cycles)
+                instr_cycles = mem_cycles;
+
+        prefetch_bytes -= prefetch_prefixes;
+        prefetch_bytes -= bytes;
+        if (modrm != -1)
+        {
+                if (ea32 != 0)
+                {
+                        if ((modrm & 7) == 4)
+                        {
+                                if ((modrm & 0x700) == 0x500)
+                                        prefetch_bytes -= 5;
+                                else if ((modrm & 0xc0) == 0x40)
+                                        prefetch_bytes -= 2;
+                                else if ((modrm & 0xc0) == 0x80)
+                                        prefetch_bytes -= 5;
+                        }
+                        else
+                        {
+                                if ((modrm & 0xc7) == 0x05)
+                                        prefetch_bytes -= 4;
+                                else if ((modrm & 0xc0) == 0x40)
+                                        prefetch_bytes--;
+                                else if ((modrm & 0xc0) == 0x80)
+                                        prefetch_bytes -= 4;
+                        }
+                }
+                else
+                {
+                        if ((modrm & 0xc7) == 0x06)
+                                prefetch_bytes -= 2;
+                        else if ((modrm & 0xc0) != 0xc0)
+                                prefetch_bytes -= ((modrm & 0xc0) >> 6);
+                }
+        }
+
+        /*Fill up prefetch queue*/
+        while (prefetch_bytes < 0)
+        {
+                prefetch_bytes += cpu.cpu_prefetch_width;
+                cycles -= cpu.cpu_prefetch_cycles;
+        }
+
+        /*Subtract cycles used for memory access by instruction*/
+        instr_cycles -= mem_cycles;
+
+        while (instr_cycles >= cpu.cpu_prefetch_cycles)
+        {
+                prefetch_bytes += cpu.cpu_prefetch_width;
+                instr_cycles -= cpu.cpu_prefetch_cycles;
+        }
+
+        prefetch_prefixes = 0;
+        if (prefetch_bytes > 16)
+                prefetch_bytes = 16;
+    }
+
+    // pcem: 386_dynarec.c:208
+    internal static void prefetch_flush() => prefetch_bytes = 0;
+
+    // pcem: 386_dynarec.c:210-221 — les gardes. PREFETCH_RUN ne fait rien tant que
+    // cpu_prefetch_cycles est nul, ce qui est le cas de tout le palier (a).
+    internal static void PREFETCH_RUN(int instr_cycles, int bytes, int modrm, int reads, int reads_l,
+                                      int writes, int writes_l, int ea32)
+    {
+        if (cpu.cpu_prefetch_cycles != 0)
+                prefetch_run(instr_cycles, bytes, modrm, reads, reads_l, writes, writes_l, ea32);
+    }
+
+    internal static void PREFETCH_PREFIX()
+    {
+        if (cpu.cpu_prefetch_cycles != 0)
+                prefetch_prefixes++;
+    }
 
     internal static void CLOCK_CYCLES(int c) => cycles -= c;
 

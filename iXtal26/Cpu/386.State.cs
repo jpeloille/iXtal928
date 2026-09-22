@@ -43,12 +43,52 @@ internal static partial class _386
         cpu.cpu_cycles_write_l = 4;
         cpu.cpu_mem_prefetch_cycles = 2;
         cpu.cpu_rom_prefetch_cycles = 2;
+
+        // cpu.c:325-353, la branche `case CPU_286:` dans l'ordre exact.
+        cpu.timing_rr = 2;      // register dest - register src
+        cpu.timing_rm = 7;      // register dest - memory src
+        cpu.timing_mr = 7;      // memory dest   - register src
+        cpu.timing_mm = 7;      // memory dest   - memory src
+        cpu.timing_rml = 9;     // register dest - memory src long
+        cpu.timing_mrl = 11;    // memory dest   - register src long
+        cpu.timing_mml = 11;    // memory dest   - memory src
+        cpu.timing_bt = 7 - 3;  // branch taken
+        cpu.timing_bnt = 3;     // branch not taken
+        cpu.timing_int = 0;
+        cpu.timing_int_rm = 23;
+        cpu.timing_int_v86 = 0;
+        cpu.timing_int_pm = 40;
+        cpu.timing_int_pm_outer = 78;
+        cpu.timing_iret_rm = 17;
+        cpu.timing_iret_v86 = 0;
+        cpu.timing_iret_pm = 31;
+        cpu.timing_iret_pm_outer = 55;
+        cpu.timing_call_rm = 13;
+        cpu.timing_call_pm = 26;
+        cpu.timing_call_pm_gate = 52;
+        cpu.timing_call_pm_gate_inner = 82;
+        cpu.timing_retf_rm = 15;
+        cpu.timing_retf_pm = 25;
+        cpu.timing_retf_pm_outer = 55;
+        cpu.timing_jmp_rm = 11;
+        cpu.timing_jmp_pm = 23;
+        cpu.timing_jmp_pm_gate = 38;
     }
 
     /// <summary>Pendant de h_reset() avec h_core == H_CORE_286.</summary>
     internal static void Reset286()
     {
         _808x.FlatMap286();
+
+        // LES COMPTEURS ET L'ÉTAT DE TEMPS, avant resetx86 comme h_reset les remet.
+        //
+        // h_reset() les remet à zéro QUEL QUE SOIT le cœur sélectionné : ce ne sont
+        // pas des affaires du 8088, ce sont celles du harnais. Les omettre ici ferait
+        // partir le C# avec ce que la campagne précédente a laissé, pendant que
+        // l'oracle repart de zéro — et dix des champs comparés (n_readmembl et les
+        // neuf autres compteurs de stubs) divergeraient dès la première instruction.
+        // La panne se lirait comme un défaut de handler. Elle n'en serait pas un.
+        _808x.ResetCounters();
 
         // AT = 1 : c'est LUI qui aiguille vers exec386 chez PCem (pc.c:484), et
         // resetx86() branche dessus pour le vecteur de reset et rammask.
@@ -61,10 +101,17 @@ internal static partial class _386
 
         cpu_config_286();
 
+        // Posé aussi côté oracle sans condition de cœur (harness.c:331). exec386 fait
+        // `tsc += ins_cycles` sans multiplicateur, donc c'est probablement inerte ici —
+        // mais « probablement inerte » est exactement ce qu'on disait des vingt
+        // timing_* à zéro. Les deux côtés portent la même valeur, point.
+        _808x.xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / 4772728.0);
+
         timer.tsc = 0;
         timer.timer_target = 0x7FFFFFFF;
 
         _808x.resetx86();
+        _808x.ResetTimingState();
     }
 
     /// <summary>Une instruction exactement. Pendant de h_step286().
@@ -85,6 +132,11 @@ internal static partial class _386
         timer.timer_target = (uint32_t)timer.tsc;
         exec386(0);
         timer.timer_target = savedTarget;
+
+        // Le pendant de `h_ins_count++` dans h_step286. Ce compteur EST dans le
+        // vecteur comparé : l'oublier fait rougir le fuzzeur dès la première
+        // instruction, sur un champ qui n'a rien à voir avec le handler testé.
+        _808x.ins_count++;
 
         return 1 - cycles;
     }

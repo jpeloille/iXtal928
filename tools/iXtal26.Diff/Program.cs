@@ -349,6 +349,10 @@ switch (args[0])
         ulong seed = 1;
         var verbose = false;
         var ramPerInstr = false;
+        // A2.2c — quel cœur les DEUX côtés exécutent. Basculés ensemble, et avant
+        // leur reset : c'est h_reset qui applique AT, et resetx86 en tire le vecteur
+        // de reset et rammask.
+        var fuzzCore = Oracle.Core8088;
         var single = false;
         var iterations = 20000;
 
@@ -363,6 +367,9 @@ switch (args[0])
                 case "--seed" when i + 1 < args.Length: seed = ulong.Parse(args[++i]); break;
                 case "-v": verbose = true; break;
                 case "--ram-per-instr": ramPerInstr = true; break;
+                case "--core":
+                    fuzzCore = args[++i] == "286" ? Oracle.Core286 : Oracle.Core8088;
+                    break;
                 case "--mode" when i + 1 < args.Length: single = args[++i] == "single"; break;
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 default:
@@ -378,7 +385,7 @@ switch (args[0])
 
         return single
             ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose)
-            : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, ramPerInstr);
+            : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, fuzzCore, ramPerInstr);
     }
 
     default:

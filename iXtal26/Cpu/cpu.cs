@@ -51,4 +51,23 @@ internal static partial class cpu
     internal static int cpu_prefetch_width;
     internal static int cpu_cycles_read, cpu_cycles_read_l;
     internal static int cpu_cycles_write, cpu_cycles_write_l;
+
+    // pcem: cpu.h — le modèle de temps par CLASSE d'instruction, posé par cpu_set()
+    // (cpu.c:323-353 pour le 286). Tous à ZÉRO pour un 8088, qui porte son temps
+    // dans 808x.c et n'en lit aucun — 0 occurrence, mesuré.
+    //
+    // Les vingt de mode protégé sont là AVANT d'être lus, délibérément : à zéro des
+    // deux côtés ils auraient formé un accord vide à la première instruction de mode
+    // protégé, les deux cœurs d'accord sur un temps faux.
+    internal static int timing_rr, timing_rm, timing_mr, timing_mm;
+    internal static int timing_rml, timing_mrl, timing_mml;
+    internal static int timing_bt, timing_bnt;
+    internal static int timing_int, timing_int_rm, timing_int_v86;
+    internal static int timing_int_pm, timing_int_pm_outer;
+    internal static int timing_iret_rm, timing_iret_v86;
+    internal static int timing_iret_pm, timing_iret_pm_outer;
+    internal static int timing_call_rm, timing_call_pm;
+    internal static int timing_call_pm_gate, timing_call_pm_gate_inner;
+    internal static int timing_retf_rm, timing_retf_pm, timing_retf_pm_outer;
+    internal static int timing_jmp_rm, timing_jmp_pm, timing_jmp_pm_gate;
 }

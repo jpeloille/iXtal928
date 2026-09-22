@@ -27,7 +27,7 @@ namespace iXtal26.Cpu;
 
 internal static partial class _808x
 {
-    private static uint64_t ins_count;
+    internal static uint64_t ins_count;
 
     /// <summary>Reset machine complet : XT, 8088. Doit rester le pendant exact
     /// de h_reset() (tools/oracle/harness.c), sans quoi les deux cœurs ne
@@ -88,7 +88,7 @@ internal static partial class _808x
 
     /// <summary>Compteurs de diagnostic. Pendant de h_reset():2-4 et du haut de
     /// h_boot() — dans les deux cas AVANT resetx86().</summary>
-    private static void ResetCounters()
+    internal static void ResetCounters()
     {
         Counters.Reset();
         mem.wlog_reset();
@@ -110,7 +110,7 @@ internal static partial class _808x
         ResetTimingState();
     }
 
-    private static void ResetTimingState()
+    internal static void ResetTimingState()
     {
         nextcyc = 0;
         memcycs = 0;

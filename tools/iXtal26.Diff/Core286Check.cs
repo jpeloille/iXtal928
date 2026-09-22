@@ -16,6 +16,7 @@
 // manifesterait des milliers d'instructions plus loin, sans rapport visible.
 
 using iXtal26.Cpu;
+using static iXtal26.Cpu.x86;
 
 namespace iXtal26.Diff;
 
@@ -31,11 +32,37 @@ public static class Core286Check
         Check("0x90 (NOP)", 0x90, ref echecs);
         Check("0xF4 (HLT)", 0xF4, ref echecs);
 
+        // UN PAS EST-IL BIEN UNE INSTRUCTION ?
+        //
+        // Vérifié côté oracle dès A2.0 (« pas 0 : 1 instruction(s) »), jamais côté
+        // C# : tant que la table était vide, aucun pas ne s'achevait. Maintenant
+        // qu'un handler existe, on peut le mesurer — et il le faut. Si les deux
+        // mécanismes de pas-à-pas ne comptaient pas pareil, chaque divergence du
+        // fuzzeur désignerait ensuite le mauvais coupable.
+        //
+        // C'est _808x.ins, le compteur du CŒUR incrémenté DANS exec386, et non le
+        // compteur du harnais qu'on avance nous-mêmes d'un cran par appel.
+        _386.Reset286();
+        iXtal26.Memory.mem.ram[0xFFFF0] = 0xB8;   // MOV AX, imm16
+        iXtal26.Memory.mem.ram[0xFFFF1] = 0x34;
+        iXtal26.Memory.mem.ram[0xFFFF2] = 0x12;
+        var avant = _808x.ins;
+        _386.Step286();
+        var avance = _808x.ins - avant;
+        if (avance == 1 && AX == 0x1234)
+            Console.WriteLine($"  [ok] un pas = une instruction (AX = {AX:X4})");
+        else
+        {
+            Console.WriteLine($"  [ECHEC] un pas a avance de {avance} instruction(s), AX = {AX:X4}");
+            echecs++;
+        }
+
         Console.WriteLine();
         if (echecs == 0)
         {
             Console.WriteLine("Vert : la boucle tourne, l'aiguillage atteint la bonne entrée,");
-            Console.WriteLine("       et un opcode non transcrit échoue en se nommant.");
+            Console.WriteLine("       un opcode non transcrit échoue en se nommant,");
+            Console.WriteLine("       et un pas vaut exactement une instruction.");
             return 0;
         }
         Console.WriteLine($"ROUGE : {echecs} contrôle(s) en échec.");

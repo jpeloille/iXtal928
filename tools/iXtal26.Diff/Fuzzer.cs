@@ -205,7 +205,10 @@ public static class Fuzzer
         return null;
     }
 
-    public static int Run(byte[] opcodes, int rounds, int instrPerRound, ulong seed, bool verbose,
+    /// <summary>`core` vaut Oracle.Core8088 ou Oracle.Core286. Les deux côtés
+    /// doivent être basculés ENSEMBLE et avant leur reset : c'est h_reset qui
+    /// applique AT, et resetx86 en tire le vecteur de reset et rammask.</summary>
+    public static int Run(byte[] opcodes, int rounds, int instrPerRound, ulong seed, bool verbose, int core,
                           bool ramPerInstr = false)
     {
         Oracle.CheckAbi();
@@ -245,8 +248,12 @@ public static class Fuzzer
                     inner = 0x90;                    // NOP : repli sûr
             }
 
+            Oracle.h_set_core(core);
             Oracle.h_reset();
-            _808x.Reset();
+            if (core == Oracle.Core286)
+                _386.Reset286();
+            else
+                _808x.Reset();
             if (inner != fill)
             {
                 Oracle.h_fill_ram2(fill, inner);
@@ -270,7 +277,7 @@ public static class Fuzzer
             for (var n = 0; n < instrPerRound; n++)
             {
                 var cycC = Oracle.h_step();
-                var cycS = _808x.Step();
+                var cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
 
                 Oracle.h_getstate(out a);
                 _808x.GetState(ref b);
