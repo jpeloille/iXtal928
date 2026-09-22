@@ -146,16 +146,43 @@ void h_cpu_config_8088(void) {
  * (cpu.c:191 et :207 ; cpu_tables.c:70). cpu_flags y vaut 0 — le 286 est interpréteur
  * par conception, et c'est ce qui autorise à laisser src/codegen/ dehors.
  *
- * Ce que cette fonction NE fait PAS, et qu'il faut savoir : cpu_set() pose aussi les
- * quatre mem_*_cycles / cache_*_cycles (2, 2, 2, 2) via cpu_update_waitstates(), dont
- * l'interposition ci-dessous est un no-op. Inoffensif tant qu'aucun accès mémoire du
- * 286 n'est facturé ; à lever au moment où les cycles mémoire entreront dans la
- * comparaison, et pas en silence. */
+ * CORRIGÉ EN A2.2 : ce commentaire disait que les cycles mémoire étaient « inoffensifs
+ * tant qu'aucun accès mémoire du 286 n'est facturé », et remettait à plus tard. C'était
+ * le même piège que les vingt timing_*, une marche plus bas. cpu_update_waitstates() est
+ * interposé en no-op (models[] nul), donc cpu_prefetch_cycles reste à ZÉRO — et
+ * PREFETCH_RUN est gardé par `if (cpu_prefetch_cycles)` (386_dynarec.c:210). Le modèle de
+ * préfetch de l'interpréteur ne tournerait donc JAMAIS, des deux côtés, et la porte
+ * « fuzzeur vert, cycles compris » aurait mesuré un modèle éteint.
+ *
+ * Sur un vrai 286, cpu_update_waitstates() retombe sur la branche `/* Use memory
+ * timings *(/` (cpu.c:2036-2041) : aucune des trois options qui la court-circuitent
+ * — cache interne, waitstates forcés, cache externe — n'est active par défaut.
+ *
+ * ET cpu_16bitbus VAUT 1 sur un 286 (cpu.c:189). Ce n'est pas un détail de temps :
+ * resetx86() en tire `rammask = cpu_16bitbus ? 0xFFFFFF : 0xFFFFFFFF` (808x.c:682). À
+ * zéro, le harnais donnait au 286 un bus d'adresse de 32 bits. Un 286 en a 24. Posé ici
+ * parce que h_reset() appelle cette fonction APRÈS `cpu_16bitbus = 0` et AVANT
+ * resetx86(). */
 void h_cpu_config_286(void) {
         x86_setopcodes(ops_286, ops_286_0f, dynarec_ops_286, dynarec_ops_286_0f);
 
         cpu_busspeed = 6000000;
         isa_cycles = 1;
+
+        /* cpu.c:189 — et resetx86() en dépend pour rammask. */
+        cpu_16bitbus = 1;
+
+        /* Ce que cpu_update_waitstates() poserait, branche « memory timings », pour
+         * cpus_286[0] : mem_read_cycles = mem_write_cycles = 2 (cpu_tables.c:70), et le
+         * facteur (cpu_16bitbus ? 2 : 1) vaut donc 2. */
+        cpu_prefetch_width = 2;   /* cpu.c:2016 — cpu_16bitbus ? 2 : 4 */
+        cpu_prefetch_cycles = 2;  /* cpu.c:2037 */
+        cpu_cycles_read = 2;      /* cpu.c:2038 */
+        cpu_cycles_read_l = 4;    /* cpu.c:2039 */
+        cpu_cycles_write = 2;     /* cpu.c:2040 */
+        cpu_cycles_write_l = 4;   /* cpu.c:2041 */
+        cpu_mem_prefetch_cycles = 2; /* cpu.c:2045 */
+        cpu_rom_prefetch_cycles = 2; /* cpu.c:2046-2047 — rspeed 6 MHz <= 8 MHz */
 
         timing_rr = 2;     /* register dest - register src */
         timing_rm = 7;     /* register dest - memory src */
