@@ -840,7 +840,12 @@ internal static partial class mfm_xebec
     }
 
     // pcem: mfm_xebec.c:716-723
-    private static readonly (int tracks, int hpc)[] xebec_hd_types =
+    //
+    // `internal` et non `private` depuis M12.1 : Host/HddImage.cs la lit pour marquer,
+    // dans la table des 46 types du BIOS, ceux que CETTE carte accepte. Recopier les
+    // quatre couples là-bas les ferait dériver du fichier qui les fait respecter, et la
+    // carte refuserait alors en silence une géométrie que l'utilitaire aurait proposée.
+    internal static readonly (int tracks, int hpc)[] xebec_hd_types =
     {
         (306, 4), /*Type 0*/
         (612, 4), /*Type 16*/
