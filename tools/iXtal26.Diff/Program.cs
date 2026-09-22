@@ -98,6 +98,12 @@ switch (args[0])
     case "fetch-probe":
         return FetchProbe.Run(args.Length > 1 ? args[1] : "roms");
 
+    // A2.2b — la porte de la boucle. Un pas sous le coeur 286 doit atteindre le
+    // handler d'echec ET NOMMER SON OPCODE. Elle prouve la boucle, le fetch,
+    // l'index d'aiguillage et la plomberie de cycles, sans un seul handler ecrit.
+    case "core286-check":
+        return Core286Check.Run();
+
     // Aller-retour du moteur de configuration. Sa moitié ÉCRITURE — les six
     // config_set_* et config_save — n'a aucun appelant tant que le menu n'édite pas la
     // configuration, et un chemin mort est indiscernable d'un chemin cassé. Ceci lui

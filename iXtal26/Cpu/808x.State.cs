@@ -56,6 +56,11 @@ internal static partial class _808x
 
     private static readonly mem_mapping_t h_flat_mapping = new();
 
+    /// <summary>La même carte plate, pour le cœur 286. Pendant de h_flat_map()
+    /// quand h_core vaut H_CORE_286 : c'est la MÊME fonction côté C, d'où l'appel
+    /// à FlatMap() ici plutôt qu'une copie.</summary>
+    internal static void FlatMap286() => FlatMap();
+
     internal static void Reset()
     {
         FlatMap();

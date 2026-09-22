@@ -117,6 +117,45 @@ internal static partial class _386_common
     private static uint32_t ReadL(byte[] p, int i) =>
         (uint32_t)(p[i] | (p[i + 1] << 8) | (p[i + 2] << 16) | (p[i + 3] << 24));
 
+    // -----------------------------------------------------------------------
+    // pcem: 386_common.h:8-40 — les accès mémoire RAPIDES de l'interpréteur 386.
+    //
+    // À ne pas confondre avec les readmemw/writememw de 808x.c : ce sont DEUX jeux
+    // de macros homonymes, dans deux unités de traduction différentes, et c'est
+    // pour cela qu'ils coexistent chez PCem. Ceux-ci court-circuitent le dispatch
+    // par mem_mapping quand la page est dans readlookup2/writelookup2 ET que
+    // l'accès est aligné ; sinon ils retombent sur readmemwl/writememwl.
+    //
+    // Le repli n'est PAS équivalent au chemin rapide du point de vue du vecteur
+    // d'état : readmemwl incrémente Counters.n_readmemwl, un champ comparé. Sauter
+    // le chemin rapide ferait donc rougir le fuzzeur — c'est voulu.
+    // -----------------------------------------------------------------------
+
+    internal static uint16_t readmemw(uint32_t s, uint32_t a)
+    {
+        var addr = s + a;
+        if (mem.readlookup2[addr >> 12] == -1 || (addr & 1) != 0)
+                return mem.readmemwl(addr);
+        return ReadW(mem.ram, unchecked(mem.readlookup2[addr >> 12] + (int)addr));
+    }
+
+    internal static void writememw(uint32_t s, uint32_t a, uint16_t v)
+    {
+        var addr = s + a;
+        if (mem.writelookup2[addr >> 12] == -1 || (addr & 1) != 0)
+        {
+                mem.writememwl(addr, v);
+                return;
+        }
+        var i = unchecked(mem.writelookup2[addr >> 12] + (int)addr);
+        mem.ram[i] = (byte)v;
+        mem.ram[i + 1] = (byte)(v >> 8);
+    }
+
+    // omitted: readmemb/readmeml/readmemq et writememb/writememl/writememq —
+    //   aucun appelant tant que les handlers n'existent pas. Ils arrivent avec le
+    //   groupe d'opcodes qui les emploie, pas avant.
+
     // pcem: 386_common.h:160-176. Le pc avance AVANT la lecture, et la lecture se
     // fait à l'adresse d'avant : c'est ce qui permet aux handlers de relire leurs
     // propres octets d'immédiat après coup.

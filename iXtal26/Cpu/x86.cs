@@ -79,6 +79,12 @@ internal sealed class cpu_state_t
 
     internal uint16_t flags, eflags;
 
+    // pcem: x86.h:71 — le quadrant d'opérandes courant, `cpu_state.op32 = use32`
+    // au sommet de la boucle de exec386 (386.c:172). Il indexe la table d'opcodes :
+    // `x86_opcodes[(opcode | op32) & 0x3ff]`. Nul sur un 286, qui n'a pas de
+    // variantes 32 bits — d'où les 256 seules entrées atteignables sur 1024.
+    internal uint32_t op32;
+
     internal uint32_t smbase;
 
     // pcem: x86.h:65-68 — LES DRAPEAUX PARESSEUX. Dé-omis en A2.1.
@@ -97,7 +103,7 @@ internal sealed class cpu_state_t
     internal uint32_t flags_op1, flags_op2;
 
     // omitted: ST/TOP/tag/npxs/npxc/MM/MM_w4/ismmx — 8087 et MMX.
-    // omitted: smi_pending, op32, cpu_recomp_ins, old_fp_control & co.
+    // omitted: smi_pending, cpu_recomp_ins, old_fp_control & co.
 }
 
 internal static partial class x86

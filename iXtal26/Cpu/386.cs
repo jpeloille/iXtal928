@@ -1,0 +1,239 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: pcem-dev/src/cpu/386.c  (exec386, lignes 153-295)
+// SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
+// STATUS: partial — A2.2b : la BOUCLE et l'aiguillage. La table d'opcodes est
+//         vide : chaque entrée échoue bruyamment en nommant son opcode.
+//
+// LA BOUCLE DU 286 ET DU 386, ET CE QUI LA DISTINGUE DE CELLE DU 8088.
+//
+// execx86 (808x.c:1222) est `cycles += cycs; while (cycles > 0)` : une seule
+// boucle, bornée par le budget. exec386 en a DEUX. L'externe est bornée par le
+// budget ; l'INTERNE par `cycdiff < cycle_period`, où cycle_period est la distance
+// au prochain réveil de chronomètre. Le budget ne borne pas l'interne — c'est ce
+// qui rend le pas-à-pas différent (voir h_step286 dans tools/oracle/harness.c).
+//
+// CE QUI N'EST PAS ENCORE LÀ, et qui échoue au lieu de mentir :
+//   - les 256 handlers (A2.2c et suivants) ;
+//   - flags_rebuild(), dont les tables vivent dans x86_flags.h ;
+//   - pmodeint, taskswitch, x86_smi_enter — mode protégé et SMM.
+// Aucun de ces chemins n'est atteignable tant que la table est vide : sans
+// handler, il n'y a ni abandon, ni piège, ni interruption logicielle.
+//
+// 386.c:1-152 n'est PAS transcrit, et c'est délibéré : ce bloc est du code MORT,
+// dupliqué à l'identique dans 386_dynarec.c:30-154. Seule la copie de
+// 386_dynarec.c est vivante, parce que c'est elle que l'inclusion de 386_ops.h
+// voit. Vérifié : 386.c ne contient aucun `#include "386_ops.h"`.
+
+using iXtal26.Memory;
+using static iXtal26.Cpu._386_common;
+using static iXtal26.Cpu.x86;
+
+namespace iXtal26.Cpu;
+
+// pcem: x86_ops.h:4 — `typedef int (*OpFn)(uint32_t fetchdat)`
+internal delegate int OpFn(uint32_t fetchdat);
+
+internal static partial class _386
+{
+    // pcem: x86_ops.h:8-11. Quatre tables chez PCem ; les deux dynarec ne sont
+    // jamais lues ici — cpu_use_dynarec vaut 0, et le 286 comme le 386 sont
+    // interpréteurs par conception (cpu_flags == 0 dans cpu_tables.c).
+    internal static OpFn[]? x86_opcodes;
+    internal static OpFn[]? x86_opcodes_0f;
+
+    // pcem: cpu.c:2003
+    internal static void x86_setopcodes(OpFn[] opcodes, OpFn[] opcodes_0f)
+    {
+        x86_opcodes = opcodes;
+        x86_opcodes_0f = opcodes_0f;
+    }
+
+    // -----------------------------------------------------------------------
+    // La table du 286 (pcem: 386_ops.h:10721 — `OpFn OP_TABLE(286)[1024]`).
+    //
+    // 1024 entrées, mais SEULES LES 256 PREMIÈRES SONT ATTEIGNABLES : l'index est
+    // `(opcode | cpu_state.op32) & 0x3ff` et op32 vaut use32, nul sur un 286. Les
+    // trois quadrants hauts sont les variantes 32 bits, que ce processeur n'a pas.
+    // -----------------------------------------------------------------------
+    internal static readonly OpFn[] ops_286 = BuildEmpty();
+    internal static readonly OpFn[] ops_286_0f = BuildEmpty();
+
+    private static OpFn[] BuildEmpty()
+    {
+        var t = new OpFn[1024];
+        for (var i = 0; i < t.Length; i++)
+                t[i] = opNonTranscrit;
+        return t;
+    }
+
+    /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
+    /// l'opcode. Un handler manquant doit s'entendre — pas rendre zéro cycle et
+    /// laisser la divergence se manifester trois mille instructions plus loin.
+    ///
+    /// L'opcode est relu depuis la mémoire plutôt que mémorisé dans un champ : la
+    /// boucle a déjà avancé le pc, mais oldpc désigne toujours le début de
+    /// l'instruction. Aucun état inventé.</summary>
+    private static int opNonTranscrit(uint32_t fetchdat)
+    {
+        var op = fastreadb(cs + cpu_state.oldpc);
+        pc.fatal($"opcode {op:X2} non transcrit (A2.2b : la table du 286 est vide) " +
+                 $"a {CS:X4}:{cpu_state.oldpc:X4}\n");
+        return 0;
+    }
+
+    // -----------------------------------------------------------------------
+    // pcem: 386_dynarec.c:210-225 — les macros de temps de l'INTERPRÉTEUR.
+    //
+    // PREFETCH_RUN est gardé par `if (cpu_prefetch_cycles)`. Sur un 8088 ce
+    // compteur vaut zéro et le modèle ne tourne pas ; il ne prend ses valeurs que
+    // pour le 286, via cpu_update_waitstates (cpu.c:2010-2047).
+    // -----------------------------------------------------------------------
+
+    // omitted: prefetch_run / prefetch_flush / prefetch_prefixes
+    //   (386_dynarec.c:155-208) — le modèle de préfetch lui-même. Aucun appelant
+    //   tant qu'aucun handler n'existe : PREFETCH_RUN n'est invoqué QUE depuis les
+    //   corps de 386_ops.h. Il arrive avec le premier groupe d'opcodes.
+
+    internal static void CLOCK_CYCLES(int c) => cycles -= c;
+
+    // -----------------------------------------------------------------------
+    // pcem: 386.c:153-295
+    // -----------------------------------------------------------------------
+    internal static void exec386(int cycs)
+    {
+        uint32_t addr;
+        int tempi;
+        int cycdiff;
+        int oldcyc;
+
+        cycles += cycs;
+
+        while (cycles > 0)
+        {
+                int cycle_period = (int)(timer.timer_target - (uint32_t)timer.tsc) + 1;
+
+                x86_was_reset = 0;
+                cycdiff = 0;
+                oldcyc = cycles;
+
+                while (cycdiff < cycle_period)
+                {
+                        int ins_cycles = cycles;
+
+                        cpu_state.oldpc = cpu_state.pc;
+                        cpu_state.op32 = use32;
+
+                        cpu_state.ea_seg = cpu_state.seg_ds;
+                        cpu_state.ssegs = 0;
+
+                        rmdat = fastreadl(cs + cpu_state.pc);
+
+                        if (cpu_state.abrt == 0)
+                        {
+                                var opcode = (uint8_t)(rmdat & 0xFF);
+                                rmdat >>= 8;
+                                trap = cpu_state.flags & T_FLAG;
+
+                                // omitted: le bloc `if (output == 3) pclog(...)` —
+                                //   trace de débogage, sortie pure.
+                                cpu_state.pc++;
+                                x86_opcodes![(opcode | cpu_state.op32) & 0x3ff](rmdat);
+                                if (x86_was_reset != 0)
+                                        break;
+                        }
+
+                        if (cpu_state.abrt != 0)
+                        {
+                                flags_rebuild();
+                                tempi = cpu_state.abrt & ABRT_MASK;
+                                cpu_state.abrt = 0;
+                                x86_doabrt(tempi);
+                                if (cpu_state.abrt != 0)
+                                {
+                                        cpu_state.abrt = 0;
+                                        cpu_state.pc = cpu_state.oldpc;
+                                        pc.fatal($"Double fault {_808x.ins}\n");
+                                }
+                        }
+
+                        // omitted: `if (cpu_state.smi_pending) x86_smi_enter()` — SMM,
+                        //   486 et au-delà. Le champ smi_pending n'existe pas dans le
+                        //   cpu_state de ce port.
+                        if (trap != 0)
+                        {
+                                flags_rebuild();
+                                if ((msw & 1) != 0)
+                                {
+                                        pc.fatal("trap en mode protege : pmodeint n'est pas transcrit (Ap)\n");
+                                }
+                                else
+                                {
+                                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), cpu_state.flags);
+                                        writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                        writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                        SP -= 6;
+                                        addr = (1 << 2) + idt.@base;
+                                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                        cpu_state.pc = readmemw(0, addr);
+                                        x86seg_c.loadcs(readmemw(0, addr + 2));
+                                }
+                        }
+                        else if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
+                        {
+                                pc.fatal("NMI : x86_int n'est pas transcrit pour ce coeur (A2.2b)\n");
+                        }
+                        else if ((cpu_state.flags & I_FLAG) != 0 && Models.pic.pic_intpending != 0)
+                        {
+                                pc.fatal("interruption materielle : chemin non transcrit (A2.2b)\n");
+                        }
+
+                        _808x.ins++;
+                        _808x.insc++;
+
+                        ins_cycles -= cycles;
+                        timer.tsc += (uint64_t)ins_cycles;
+
+                        cycdiff = oldcyc - cycles;
+
+                        // omitted: le bloc `timetolive` — garde-fou de débogage de PCem.
+                }
+
+                if (timer.TIMER_VAL_LESS_THAN_VAL(timer.timer_target, (uint32_t)timer.tsc))
+                        timer.timer_process();
+        }
+    }
+
+    /// <summary>pcem: x86_flags.h:420 — la GARDE est transcrite, la reconstruction
+    /// ne l'est pas.
+    ///
+    /// `flags_rebuild` ne fait rien tant que `flags_op == FLAGS_UNKNOWN`, et c'est
+    /// le cas tant qu'aucun handler ne pose l'opération : la table est vide. Le
+    /// corps, lui, dépend des six tables de x86_flags.h (CF_SET, PF_SET, AF_SET,
+    /// ZF_SET, NF_SET, VF_SET), environ 400 lignes qui arrivent avec le groupe
+    /// `arith` — le premier à alimenter ces champs.
+    ///
+    /// Échouer ici est le comportement voulu : un handler qui poserait flags_op
+    /// sans que la reconstruction existe rendrait des drapeaux faux en SILENCE.</summary>
+    internal static void flags_rebuild()
+    {
+        if (cpu_state.flags_op != FLAGS_UNKNOWN)
+                pc.fatal("flags_rebuild : les tables de x86_flags.h ne sont pas transcrites\n");
+    }
+
+    // pcem: x86_flags.h:6 — première valeur de l'énumération, donc 0.
+    internal const int FLAGS_UNKNOWN = 0;
+
+    // pcem: x86.h — masque des causes d'abandon.
+    private const int ABRT_MASK = 7;
+
+    /// <summary>pcem: x86seg.c — la levée d'exception. Mode protégé pour
+    /// l'essentiel ; inatteignable tant que la table est vide, puisqu'un abandon
+    /// ne peut naître que d'un handler ou d'un chargement de segment.</summary>
+    private static void x86_doabrt(int abrt)
+    {
+        pc.fatal($"x86_doabrt({abrt}) : non transcrit (Ap)\n");
+    }
+}
