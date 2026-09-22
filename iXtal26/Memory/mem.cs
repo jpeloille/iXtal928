@@ -16,6 +16,7 @@
 // Le cache de 4 Ko n'est PAS une optimisation : addreadlookup facture
 // `cycles -= 9` (mem.c:378), donc son remplissage est visible dans le temps émulé.
 
+using iXtal26.Cpu;
 using iXtal26.Diag;
 using static iXtal26.Cpu.x86;
 
@@ -49,8 +50,9 @@ internal sealed class mem_mapping_t
     internal mem_write_l_fn? write_l;
 
     // DEVIATION: en C, `uint8_t *exec` pointe dans ram ou rom. Ici, le tableau
-    //   porteur et un offset. Le seul consommateur est _mem_exec[], non transcrit
-    //   (chemin 386/dynarec) : le champ existe pour la forme, il n'est jamais lu.
+    //   porteur et un offset. Son consommateur est _mem_exec[], transcrit en A2.2a :
+    //   ce champ EST lu depuis, par mem_mapping_recalc. (Il ne l'était pas au palier
+    //   (a), et ce commentaire disait alors « il n'est jamais lu ».)
     internal byte[]? exec;
     internal int exec_offset;
 
@@ -82,8 +84,28 @@ internal static partial class mem
     private static readonly mem_mapping_t?[] read_mapping = new mem_mapping_t?[0x40000];
     private static readonly mem_mapping_t?[] write_mapping = new mem_mapping_t?[0x40000];
     private static readonly uint8_t[] _mem_state = new uint8_t[0x40000];
-    // omitted: _mem_exec[0x40000] — chemin d'instruction du cœur 386 et des
-    //   marches de table de pages. Mesuré : 0 occurrence dans 808x.c.
+
+    // pcem: mem.c:28 — `static uint8_t *_mem_exec[0x40000]`. Transcrit en A2.2a ;
+    // l'omission valait tant que seul le 8088 tournait.
+    //
+    // C'EST LE CHEMIN D'INSTRUCTION, et il est INCONDITIONNEL : exec386 fait
+    // `fastreadl(cs + pc)` à CHAQUE instruction (386.c:176), et fastreadl passe par
+    // getpccache, qui ne lit que ceci. Mode réel compris — rien de tout cela n'est
+    // propre à la pagination, contrairement à ce que TRANSCRIPTION.md:170 laissait
+    // entendre en le rangeant avec mmutranslatereal et page_lookup.
+    //
+    // DEVIATION: porteur + offset, pas un pointeur. C'est l'idiome déjà retenu pour
+    //   mem_mapping_t.exec juste au-dessus, et il est OBLIGATOIRE ici plutôt que
+    //   commode : readlookup2 peut se contenter d'un offset parce qu'il vise toujours
+    //   ram[], alors que _mem_exec vise la RAM *ou* une ROM. Deux tableaux parallèles,
+    //   donc, et non un seul int[].
+    private static readonly byte[]?[] _mem_exec = new byte[0x40000][];
+    private static readonly int[] _mem_exec_off = new int[0x40000];
+
+    // pcem: mem.c:40 — le remplissage de 0xFF que getpccache rend sur un fetch hors
+    // de toute cartographie. Une page entière, pour que la lecture reste dans les
+    // bornes quel que soit le déplacement dans la page.
+    private static readonly byte[] ff_array = new byte[0x1000];
 
     private static readonly mem_mapping_t base_mapping = new();
     internal static readonly mem_mapping_t ram_low_mapping = new();
@@ -196,7 +218,7 @@ internal static partial class mem
         for (c = 0; c < 256; c++)
                 writelookup[c] = unchecked((int)0xFFFFFFFF);
         writelnext = 0;
-        // omitted: pccache = 0xFFFFFFFF — cache d'instruction du cœur 386.
+        _386_common.pccache = 0xFFFFFFFF; // pcem: mem.c:89
     }
 
     // pcem: mem.c:93-...
@@ -216,6 +238,15 @@ internal static partial class mem
                         writelookup[c] = unchecked((int)0xFFFFFFFF);
                 }
         }
+        // pcem: mem.c:113-115. `mmuflush++` est omis — compteur du dynarec.
+        //
+        // DEVIATION: le C pose `pccache2 = (uint8_t *)0xFFFFFFFF`, une valeur POISON
+        //   qui ferait fauter si on la déréférençait. Ici, null : même intention, et
+        //   la faute est nommée au lieu d'être un segfault. Inatteignable de toute
+        //   façon — pccache vaut 0xFFFFFFFF et `a >> 12` ne dépasse jamais 0xFFFFF,
+        //   donc le test de page ne peut pas réussir avant un remplissage.
+        _386_common.pccache = 0xFFFFFFFF;
+        _386_common.pccache2 = null;
     }
 
     internal static void flushmmucache_cr3() => flushmmucache();
@@ -270,6 +301,47 @@ internal static partial class mem
         writelnext &= (cachesize - 1);
 
         cycles -= 9;
+    }
+
+    // -----------------------------------------------------------------------
+    // Le chemin d'INSTRUCTION (pcem: mem.c:420-442). Transcrit en A2.2a.
+    // -----------------------------------------------------------------------
+
+    /// <summary>pcem: mem.c:420 — rend le tableau porteur de la page d'instruction
+    /// qui contient <paramref name="a"/>, et le biais à lui ajouter.
+    ///
+    /// En C la fonction rend un `uint8_t *` BIAISÉ, relu par l'appelant comme
+    /// `pccache2[a]` avec l'adresse VIRTUELLE complète. Ici, porteur et biais
+    /// séparés : `porteur[biais + a]` transcrit ce déréférencement littéralement.
+    /// Le biais est négatif dans le cas général — c'est le principe même du procédé,
+    /// pas un accident.</summary>
+    internal static byte[] getpccache(uint32_t a, out int bias)
+    {
+        uint32_t a2 = a;
+
+        // omitted: `if (cr0 >> 31) { a = mmutranslate_read(a); ... }` — pagination.
+        //   Ni le 8088 ni le 286 ne paginent : cr0 bit 31 est un 386.
+        a &= rammask;
+
+        if (_mem_exec[a >> 14] != null)
+        {
+                // C'est ICI que le coût du préfetch bascule entre ROM et RAM, à chaque
+                // changement de page d'instruction. Sur un 8088 les deux valeurs sont
+                // nulles et l'écriture est sans effet.
+                if ((read_mapping[a >> 14]!.flags & MEM_MAPPING_ROM) != 0)
+                        cpu.cpu_prefetch_cycles = cpu.cpu_rom_prefetch_cycles;
+                else
+                        cpu.cpu_prefetch_cycles = cpu.cpu_mem_prefetch_cycles;
+
+                bias = unchecked(_mem_exec_off[a >> 14] + (int)(a & 0x3000) - (int)(a2 & ~0xFFFu));
+                return _mem_exec[a >> 14]!;
+        }
+
+        // omitted: pclog("Bad getpccache %08X\n", a) — trace de débogage, sortie pure,
+        //   comme partout ailleurs dans ce port. Le RETOUR, lui, est transcrit : un
+        //   fetch hors cartographie doit lire 0xFF, pas fauter.
+        bias = unchecked(0 - (int)(a2 & ~0xFFFu));
+        return ff_array;
     }
 
     // -----------------------------------------------------------------------
@@ -564,6 +636,7 @@ internal static partial class mem
         {
                 read_mapping[c >> 14] = null;
                 write_mapping[c >> 14] = null;
+                _mem_exec[c >> 14] = null;
         }
 
         /*Walk mapping list*/
@@ -586,6 +659,13 @@ internal static partial class mem
                                     mem_mapping_read_allowed(mapping.flags, _mem_state[c >> 14]))
                                 {
                                         read_mapping[c >> 14] = mapping;
+                                        if (mapping.exec != null)
+                                        {
+                                                _mem_exec[c >> 14] = mapping.exec;
+                                                _mem_exec_off[c >> 14] = mapping.exec_offset + (int)(c - mapping.@base);
+                                        }
+                                        else
+                                                _mem_exec[c >> 14] = null;
                                 }
                                 if ((mapping.write_b != null || mapping.write_w != null || mapping.write_l != null) &&
                                     mem_mapping_write_allowed(mapping.flags, _mem_state[c >> 14]))
@@ -728,6 +808,9 @@ internal static partial class mem
         writelookup2 = new int[1024 * 1024];
         Array.Fill(readlookup2, -1);
         Array.Fill(writelookup2, -1);
+
+        // pcem: mem.c:1334
+        Array.Fill(ff_array, (byte)0xff);
     }
 
     // pcem: mem.c:1340-1400, réduit au 5150 (pas de RAM au-delà de 640 Ko)
@@ -739,6 +822,7 @@ internal static partial class mem
 
         Array.Clear(read_mapping);
         Array.Clear(write_mapping);
+        Array.Clear(_mem_exec); // pcem: mem.c:1371
         Array.Clear(_mem_state);
         base_mapping.next = null;
 

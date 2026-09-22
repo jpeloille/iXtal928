@@ -13,6 +13,9 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      rapporte le taux de réussite. Porte de M0 — décide si le");
     Console.WriteLine("      harnais xunit complet vaut d'être construit.");
     Console.WriteLine();
+    Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
+    Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
+    Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N]");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
@@ -88,6 +91,12 @@ switch (args[0])
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
+
+    // A2.2a — le chemin de fetch de exec386, mis sous oracle AVANT d'ecrire la
+    // boucle. Une erreur de biais d'une page y est silencieuse : elle rend des
+    // octets plausibles, pris au mauvais endroit.
+    case "fetch-probe":
+        return FetchProbe.Run(args.Length > 1 ? args[1] : "roms");
 
     // Aller-retour du moteur de configuration. Sa moitié ÉCRITURE — les six
     // config_set_* et config_save — n'a aucun appelant tant que le menu n'édite pas la

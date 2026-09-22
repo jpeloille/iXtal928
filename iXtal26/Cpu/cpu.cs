@@ -34,4 +34,21 @@ internal static partial class cpu
 
     // pcem: cpu.c — le bit turbo du port 0x61 sur les clones XT. Sans effet ici.
     internal static void cpu_set_turbo(int turbo) { }
+
+    // pcem: cpu.h — le modèle de temps de PRÉFETCH de l'interpréteur, posé par
+    // cpu_update_waitstates() (cpu.c:2010-2047). Ajoutés en A2.2a parce que
+    // getpccache les ÉCRIT : c'est lui qui bascule entre le coût d'une ROM et celui
+    // de la RAM, à chaque changement de page d'instruction.
+    //
+    // Tous à ZÉRO pour un 8088, et c'est le comportement juste : 808x.c porte son
+    // propre modèle de préfetch dans ses statiques (fetchcycles, prefetchqueue), et
+    // ne lit aucun de ces symboles — 0 occurrence, mesuré. Ils ne prennent des
+    // valeurs que pour le 286, où PREFETCH_RUN est gardé par
+    // `if (cpu_prefetch_cycles)` (386_dynarec.c:210).
+    internal static int cpu_prefetch_cycles;
+    internal static int cpu_mem_prefetch_cycles;
+    internal static int cpu_rom_prefetch_cycles;
+    internal static int cpu_prefetch_width;
+    internal static int cpu_cycles_read, cpu_cycles_read_l;
+    internal static int cpu_cycles_write, cpu_cycles_write_l;
 }

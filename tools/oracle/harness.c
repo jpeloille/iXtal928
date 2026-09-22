@@ -285,6 +285,27 @@ static void h_pad_ram(void) {
         for (c = 0; c < npages; c++)
                 pages[c].mem = &ram[c << 12];
 
+        /* ET LE CHEMIN D'INSTRUCTION, trouve par la porte de A2.2a.
+         *
+         * mem_alloc() enregistre ram_low_mapping avec `ram` comme pointeur d'EXEC
+         * (mem.c:1404), et mem_mapping_recalc en derive _mem_exec[] (mem.c:1111).
+         * Reallouer `ram` juste apres laisse les deux pendants. Le rebasage de
+         * pages[] ci-dessus attrapait le chemin d'ECRITURE ; celui-ci manquait.
+         *
+         * Inerte pendant tout le palier (a) : ni 808x.c ni aucun chemin du 8088 ne
+         * lit mapping->exec ou _mem_exec. La premiere lecture est getpccache, donc
+         * la PREMIERE INSTRUCTION de exec386 -- qui dereferencait un bloc libere.
+         * Mesure avant correction : ram = 0x...42ba010, ram_low_mapping.exec =
+         * 0x...435b010, soit ram + 0xA1000, hors d'une allocation de 640 Ko.
+         * SIGSEGV net.
+         *
+         * mem_mapping_set_exec rappelle mem_mapping_recalc, donc _mem_exec[] est
+         * reconstruit par la meme occasion. On ne touche que ram_low_mapping : c'est
+         * la seule que mem_alloc fasse pointer dans `ram` en deca de 1 Mo, et le
+         * harnais ne depasse jamais cette borne. */
+        if (ram_low_mapping.size)
+                mem_mapping_set_exec(&ram_low_mapping, ram);
+
         resetreadlookup();
 }
 

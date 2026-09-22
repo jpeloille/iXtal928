@@ -54,6 +54,16 @@ enum { H_CORE_8088 = 0, H_CORE_286 = 1 };
 void h_set_core(int core);
 int h_get_core(void);
 
+/* A2.2a — le chemin de FETCH de exec386, exposé pour être diffé AVANT que exec386
+ * existe côté C#. fastreadl est un `static inline` de 386_common.h : absent de la .so
+ * sans cette réexportation. Il traverse getpccache, le cache de page pccache/pccache2
+ * et son arithmétique de biais. Une erreur de page y est parfaitement silencieuse —
+ * elle rend des octets plausibles, pris au mauvais endroit. */
+uint32_t h_fastreadb(uint32_t a);
+uint32_t h_fastreadw(uint32_t a);
+uint32_t h_fastreadl(uint32_t a);
+uint32_t h_pccache(void);
+
 /* Disposition explicite, pas de padding implicite : le C# marshale ça tel quel.
  * Tout champ ajouté ici doit l'être aussi côté C#, et entrer dans le vecteur
  * diffé — un champ non comparé est un champ où la dérive se cache. */
@@ -390,9 +400,11 @@ uint8_t *h_ram(void);
  * moment — LGDT, LIDT, LLDT, LTR et LMSW n'écrivent que là. */
 /* 9 depuis A2.0 : h_set_core / h_get_core s'ajoutent au contrat. h_state ne change pas
  * de forme, mais un .so bâti avant ne les exporte pas et le C# doit le dire. */
+/* 11 depuis A2.2a : h_fastreadl et h_pccache s'ajoutent au contrat — le chemin de
+ * fetch de exec386, expose pour etre diffe avant que exec386 existe cote C#. */
 /* 10 depuis A2.1 : h_state porte les quatre drapeaux paresseux — flags_op, flags_res,
  * flags_op1, flags_op2. Le vecteur change de TAILLE. */
-#define H_ABI_VERSION 10
+#define H_ABI_VERSION 11
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -25,7 +25,7 @@ public static class Oracle
     // 7 et 8 au jalon 286 : h_state s'élargit (cache descripteur, puis descripteurs
     // système). 9 : h_set_core / h_get_core s'ajoutent au contrat. 10 : les quatre
     // drapeaux paresseux entrent dans h_state.
-    public const int AbiVersion = 10;
+    public const int AbiVersion = 11;
 
     static Oracle()
     {
@@ -76,6 +76,14 @@ public static class Oracle
     public const int Core286 = 1;
     [DllImport(Lib)] public static extern void h_set_core(int core);
     [DllImport(Lib)] public static extern int h_get_core();
+
+    // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des
+    // `static inline` de 386_common.h : tools/oracle/harness_fetch.c les instancie
+    // dans son unité de traduction, la seule qui puisse inclure cet en-tête.
+    [DllImport(Lib)] public static extern uint h_fastreadb(uint a);
+    [DllImport(Lib)] public static extern uint h_fastreadw(uint a);
+    [DllImport(Lib)] public static extern uint h_fastreadl(uint a);
+    [DllImport(Lib)] public static extern uint h_pccache();
 
     [DllImport(Lib)] public static extern int h_step();
     [DllImport(Lib)] public static extern int h_run(int cycs);

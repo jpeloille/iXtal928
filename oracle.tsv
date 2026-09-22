@@ -12,14 +12,14 @@
 # survit : tout le reste est de la documentation, et la documentation pourrit.
 csharp_path	c_path	c_sha256	c_lines	status	note
 iXtal26/Cpu/386_common.cs	pcem-dev/src/cpu/386_common.c	778aef5be04f3a28daffe4095e979770a6d94fd3a1e7b713767cbff781b20696	6-37	partial	cpu_state et nmi_enable ; x86_int au palier (b)
-iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	112d7045c70500efd2a1cd245caa89438e9633eb317fcc282d8ddd048295a1b0	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
+iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	6500634da405b601c1d774b8045ea2652d19c10d4cbe4d9a0b6915125d816f5e	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
 iXtal26/Cpu/808x.cs	pcem-dev/src/cpu/808x.c	ce5d51cad4356ab7deee49eae607c07055e89b1d7c048037cd18e407fcb3dd16	36-3996	partial	M1.4 : jeu d'instructions 8088 COMPLET (256 opcodes) + rep()
 iXtal26/Cpu/cpu.cs	pcem-dev/src/cpu/cpu.c	abdcaebcb6938fb88770ddab69651892cedcdb312293a4c22e7b3c1e81d7311d	-	partial	reduit : vitesse 8088 seule
 iXtal26/Cpu/x86.cs	pcem-dev/includes/private/cpu/x86.h	02a4ecf0d2479c43860f69aa5abcf01c3adc87d9ee2deedba62e368cf9192880	1-245	partial	palier (a) : champs 8087/MMX/SMM/32 bits et flags paresseux omis
 iXtal26/Cpu/x86seg.cs	pcem-dev/src/cpu/x86seg.c	b03f578455a8ecb4e61ffaf533401b5b726fd5ffc29875f3b6ff24fe6e59becb	50-74,419-448,452-566	partial	branches mode reel seulement (~80 lignes sur 3187)
 iXtal26/Devices/cassette.cs	pcem-dev/src/devices/cassette.c	c6fff8e080086c90d9193b802ce5c026d093605aeaa9609a2c37ccf130cddc99	-	partial	interface seule
 iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	31e12e04351b82a620f6b868e91b18fb1bdf508c1baea167df4286c559fc2695	-	host	compteurs d'appels des stubs
-iXtal26/Diag/HState.cs	tools/oracle/harness.h	d9ea29f3e5b56c87ac78bbb56a0c330febc9cf950599ec1d7d01caf243210a13	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
+iXtal26/Diag/HState.cs	tools/oracle/harness.h	ebb3961dc9ad3b6a4f0db17c4274e2bc0029cea00299e9350df5b0c316388941	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
 iXtal26/Disc/disc.cs	pcem-dev/src/disc/disc.c	444b2958bdf57de9c513ebb801462d6d0dbeb78835376407b9436e20d26f37b0	1-269	partial	M6 : chargeur FDI omis de la table loaders[]
 iXtal26/Disc/disc_img.cs	pcem-dev/src/disc/disc_img.c	261ef2ed0fac464a51747d80df093f750bad3c986732493b202c5fd761f31592	1-439	transcribed	M6 : stdio en FileStream, tableaux XDF en escalier
 iXtal26/Disc/disc_sector.cs	pcem-dev/src/disc/disc_sector.c	9cca61beaac22d748e89aba73e725b6024065dcb4647d2cad5a02e5375fa5c49	1-373	transcribed	M6 : uint8_t *data -> (tampon, offset)
