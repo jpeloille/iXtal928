@@ -4,7 +4,8 @@
 // ORACLE: pcem-dev/src/wx-ui/wx-config.c:1427-1440 (create_drive_raw)
 //         + :1295-1302 (hd_types[46]), :1580-1586 (libellé d'un type),
 //         :1607-1633 (les quatre validations), :1682-1683 (message de fin),
-//         :1722-1731 (géométrie -> numéro de type)
+//         :1722-1731 (géométrie -> numéro de type),
+//         :1340-1357 (check_hd_type, branche MFM : taille -> géométrie)
 // STATUS: host
 //
 // FABRIQUER UNE IMAGE DE DISQUE DUR VIERGE.
@@ -106,6 +107,108 @@ internal static class HddImage
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// pcem: wx-config.c:1340-1357, la branche MFM de check_hd_type — la géométrie d'une
+    /// image déduite de sa SEULE taille.
+    ///
+    /// Elle sert exactement là où PCem s'en sert : quand on désigne une image qui
+    /// existe déjà, et qu'il serait absurde de redemander sa géométrie alors que le
+    /// fichier la porte. C'est ce que fait hd_file (:2038-2120) après le sélecteur de
+    /// fichiers. M12.1 l'avait omise, et le motif inscrit au registre était « il sert le
+    /// sélecteur de fichiers du dialogue, que ce dépôt n'a pas » — l'omission tombe avec
+    /// la phrase, puisque --hdd EST ce sélecteur.
+    ///
+    /// PREMIER TROUVÉ, comme TypeFor et pour la même raison : la table a des doublons, et
+    /// 10 653 696 octets rendent le type 01, jamais le 23.
+    ///
+    /// omitted: la branche non-MFM (:1358-1380), son heuristique à seuils et son repli.
+    ///   Elle sert les contrôleurs IDE et SCSI, dont ce dépôt n'a aucun. Elle porte au
+    ///   passage un défaut que rien ici ne peut exercer : `sz % 17` teste la taille en
+    ///   OCTETS là où le sens serait `(sz / 512) % 17`.
+    /// </summary>
+    /// <returns>Le type BIOS, 0 si la taille ne correspond à aucun — auquel cas la
+    /// géométrie rendue est le repli 63/16 du C, qu'AUCUNE carte transcrite ne sait
+    /// adresser : les deux câblent 17 secteurs. L'appelant doit le refuser.</returns>
+    internal static (int cylinders, int heads, int spt, int type) GuessGeometry(long size)
+    {
+        for (int c = 0; c < 46; c++)
+        {
+            if (SizeOf(hd_types[c].cylinders, hd_types[c].heads, TypeSectorsPerTrack) == size)
+                    return (hd_types[c].cylinders, hd_types[c].heads, TypeSectorsPerTrack, c + 1);
+        }
+
+        return ((int)(((size / 512) / 16) / 63), 16, 63, 0);
+    }
+
+    /// <summary>
+    /// Les types que cette TAILLE peut désigner, et s'ils ne décrivent pas tous la même
+    /// géométrie.
+    ///
+    /// SANS ORACLE : PCem n'en a pas besoin, parce que son hd_file (wx-config.c:2085-2088)
+    /// montre la géométrie déduite dans HdSizeDlg et laisse l'utilisateur la corriger
+    /// avant de l'appliquer. Une option de ligne de commande n'a pas ce dialogue, donc
+    /// elle doit au moins DIRE quand le choix n'est pas déterminé.
+    ///
+    /// Le besoin est réel et mesuré : check_hd_type compare des TAILLES, pas des
+    /// géométries, et sept tailles de la table en désignent plusieurs. Trois recouvrent
+    /// des géométries différentes — 306x4 contre 612x2, 615x4 contre 820x3, 615x8 contre
+    /// 820x6 — et une quatrième est le cas qui compte ici : 21 307 392 octets, c'est le
+    /// type 13 (306 x 8) OU le type 16 (612 x 4), et le Fixed Disk Adapter accepte LES
+    /// DEUX. Monter l'un pour l'autre garde la bonne capacité et change l'adressage CHS.
+    /// </summary>
+    internal static int[] TypesWithSize(long size, out bool geometryAmbiguous)
+    {
+        int n = 0;
+
+        for (int c = 0; c < 46; c++)
+        {
+            if (hd_types[c].cylinders != 0 &&
+                SizeOf(hd_types[c].cylinders, hd_types[c].heads, TypeSectorsPerTrack) == size)
+                    n++;
+        }
+
+        int[] found = new int[n];
+        int k = 0;
+
+        for (int c = 0; c < 46; c++)
+        {
+            if (hd_types[c].cylinders != 0 &&
+                SizeOf(hd_types[c].cylinders, hd_types[c].heads, TypeSectorsPerTrack) == size)
+                    found[k++] = c + 1;
+        }
+
+        // Deux filtres, et les deux comptent.
+        //
+        // Plusieurs entrées de MÊME géométrie ne gênent personne : la table a des
+        // doublons, et (306, 4) reste (306, 4) qu'on l'appelle type 01 ou type 23.
+        //
+        // Et une géométrie que la CARTE n'accepte pas ne gêne pas davantage : 10 653 696
+        // octets, c'est le type 01 (306 x 4) ou le type 34 (612 x 2), mais le Fixed Disk
+        // Adapter ne connaît pas 612 x 2 — le choix est donc déterminé, et avertir
+        // chaque fois qu'on monte le 10 Mo standard du XT serait du bruit. Il ne reste
+        // qu'un seul cas vraiment indécidable, et c'est bien le sien : 21 307 392 octets,
+        // type 13 (306 x 8) ou type 16 (612 x 4), tous deux admis.
+        int firstUsable = -1;
+
+        geometryAmbiguous = false;
+
+        for (int a = 0; a < found.Length; a++)
+        {
+            (int cyl, int hpc) = hd_types[found[a] - 1];
+
+            if (XebecSwitch(cyl, hpc, TypeSectorsPerTrack) < 0)
+                    continue;
+
+            if (firstUsable < 0)
+                    firstUsable = found[a];
+            else if (cyl != hd_types[firstUsable - 1].cylinders ||
+                     hpc != hd_types[firstUsable - 1].heads)
+                    geometryAmbiguous = true;
+        }
+
+        return found;
     }
 
     /// <summary>

@@ -156,8 +156,30 @@ dans sa configuration standard. Le contrôleur n'est pas sur la carte mère — 
 Fixed Disk Adapter**, de conception Xebec, une carte avec sa propre ROM d'extension en
 0xC8000 qui apporte l'INT 13h du disque fixe. Le BIOS du 5160 n'en contient pas une ligne.
 
-Il n'est pas monté par défaut : sa ROM change la trajectoire du POST, et `os/` n'est pas
-versionné. Quatre clés l'allument, toutes documentées dans `../ixtal26-xt.cfg` :
+**Le plus court pour monter un disque** est l'option, qui ne demande aucun fichier de
+configuration :
+
+```bash
+dotnet run -- --model ibmxt --hdd os/mon-disque.img      # C:
+dotnet run -- --model ibmxt --hdd IMG --hdd-d AUTRE.img  # et D:
+```
+
+La **géométrie se déduit de la taille du fichier** — c'est `check_hd_type`, que PCem
+applique au même endroit, après son sélecteur de fichiers — et la carte `mfm_xebec` est
+posée si aucune configuration n'en a nommé. Une taille qui ne correspond à aucun des
+46 types du BIOS est **refusée** plutôt que repliée sur 63 secteurs, que nos deux cartes
+ne savent pas adresser.
+
+Un cas mérite l'attention : **21 307 392 octets, c'est le type 13 (306 × 8) *ou* le type 16
+(612 × 4)**, et le Fixed Disk Adapter accepte les deux. La taille ne tranche pas. L'option
+le dit et retient le type 13, comme PCem ; `--hdd-type 16` impose l'autre. Se tromper garde
+la bonne capacité et décale l'adressage CHS, donc le système de fichiers se lit de travers
+sans qu'aucune erreur n'apparaisse.
+
+Pour une machine qu'on relance souvent, les clés d'un fichier de configuration restent plus
+pratiques. Elles ne sont **pas** actives par défaut : la ROM de la carte change la
+trajectoire du POST, et `os/` n'est pas versionné. Quatre clés l'allument, toutes
+documentées dans `../ixtal26-xt.cfg` :
 
 ```ini
 hdd_controller = mfm_xebec   # ou dtc5150x, la carte DTC 5150X, transcrite aussi

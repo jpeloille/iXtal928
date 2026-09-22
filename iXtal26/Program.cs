@@ -24,6 +24,15 @@ var ramOverride = -1;
 string? modelOverride = null;
 var driveOverride = new[] { -1, -1 };
 
+// --hdd / --hdd-d. COLLECTÉS et non appliqués sur place, comme --model et --ram :
+// loadconfig écrase ide_fn[] et hdc[] SANS condition (pc.cs), là où il saute disc_a
+// quand discfns[] est déjà rempli. La ligne de commande doit l'emporter sur le
+// fichier, donc elle s'applique après lui.
+var hddOverride = new string?[] { null, null };
+
+// Le type FORCÉ, quand la taille n'est pas déterminante. -1 = déduire.
+var hddTypeOverride = new[] { -1, -1 };
+
 // Le budget de turbo vit dans SdlHost : le menu Ctrl+F12 s'en sert aussi pour le réarmer
 // après un reset, et deux 5800 dans l'arbre finiraient par diverger.
 const int DefaultTurboSlices = SdlHost.DefaultTurboSlices;
@@ -66,6 +75,8 @@ for (var i = 0; i < args.Length; i++)
         // --floppy-a/-b : l'image à monter, comme en mode fenêtre (voir plus bas).
         var types = new List<string>();
         string? bootModel = null;
+        string? bootHdd = null;
+        var bootHddType = -1;
         var settle = KeyScript.SlicesAfterLine;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
@@ -88,6 +99,16 @@ for (var i = 0; i < args.Length; i++)
                 // puis --config, puis la ligne de commande — quel que soit l'ordre de
                 // frappe. Appliqué juste avant BootTest.Run.
                 case "--model": bootModel = val; break;
+                // COLLECTÉS pour la même raison que --model : ils doivent s'appliquer
+                // APRÈS --config, qui écrase ide_fn[] et hdc[] sans condition.
+                case "--hdd": bootHdd = val; break;
+                case "--hdd-type":
+                    if (!int.TryParse(val, out bootHddType) || bootHddType < 1 || bootHddType > 46)
+                    {
+                        Console.Error.WriteLine("--hdd-type attend un type de disque du BIOS, de 1 à 46.");
+                        return 2;
+                    }
+                    break;
                 // Tranches laissées à l'application après chaque Entrée. Le défaut
                 // suffit à un DIR ; un FORMAT 360 Ko en demande ~4 000.
                 case "--settle":
@@ -118,6 +139,15 @@ for (var i = 0; i < args.Length; i++)
         if (bootModel is not null && !pc.setmodel(bootModel))
             return 2;
 
+        if (bootHdd is null && bootHddType >= 0)
+        {
+            Console.Error.WriteLine("--hdd-type sans --hdd : rien à typer.");
+            return 2;
+        }
+
+        if (bootHdd is not null && !MountHdd(0, bootHdd, bootHddType))
+            return 2;
+
         return BootTest.Run(paths.resolve_roms_path(roms), slices, types, settle);
     }
 
@@ -135,6 +165,41 @@ for (var i = 0; i < args.Length; i++)
 
         if (!MountFloppy(arg == "--floppy-a" ? 0 : 1, args[++i]))
             return 2;
+        continue;
+    }
+
+    // Monter un DISQUE DUR qui existe déjà. Il n'y avait aucun chemin pour cela avant
+    // M13 : --floppy-a existait, et le disque dur n'était atteignable que par --config.
+    //
+    // La géométrie n'est pas demandée — elle se DÉDUIT de la taille du fichier, par la
+    // branche MFM de check_hd_type que PCem applique au même endroit, après son
+    // sélecteur de fichiers (wx-config.c:2085).
+    if (arg is "--hdd" or "--hdd-d")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"{arg} attend le chemin d'une image de disque dur.");
+            return 2;
+        }
+
+        hddOverride[arg == "--hdd" ? 0 : 1] = args[++i];
+        continue;
+    }
+
+    // Trancher une taille ambiguë. PCem n'a pas besoin de cela : son hd_file montre la
+    // géométrie déduite dans un dialogue et laisse la corriger avant de l'appliquer
+    // (wx-config.c:2085-2088). Une ligne de commande n'a pas ce dialogue.
+    if (arg is "--hdd-type" or "--hdd-d-type")
+    {
+        if (i + 1 >= args.Length || !int.TryParse(args[i + 1], out var ht) || ht < 1 || ht > 46)
+        {
+            Console.Error.WriteLine($"{arg} attend un type de disque du BIOS, de 1 à 46.");
+            Console.Error.WriteLine("--create-hdd sans argument les liste tous.");
+            return 2;
+        }
+
+        i++;
+        hddTypeOverride[arg == "--hdd-type" ? 0 : 1] = ht;
         continue;
     }
 
@@ -364,6 +429,19 @@ for (var d = 0; d < 2; d++)
     if (driveOverride[d] >= 0)
         pc.cfg_drive_type[d] = driveOverride[d];
 
+for (var d = 0; d < 2; d++)
+{
+    if (hddOverride[d] is null && hddTypeOverride[d] >= 0)
+    {
+        Console.Error.WriteLine(
+            $"--hdd{(d == 0 ? "" : "-d")}-type sans --hdd{(d == 0 ? "" : "-d")} : rien à typer.");
+        return 2;
+    }
+
+    if (hddOverride[d] is not null && !MountHdd(d, hddOverride[d]!, hddTypeOverride[d]))
+        return 2;
+}
+
 if (verbose)
     // La MACHINE en tête, comme BootDiff l'a gagnée à M10 : depuis qu'il y en a deux,
     // une ligne de diagnostic qui ne la nomme pas laisse croire qu'il n'y en a qu'une.
@@ -386,6 +464,123 @@ return host.Run();
 // le binaire), puis la dépose dans discfns[] pour que resetpchard la charge. Une
 // image absente est refusée ICI, avec son chemin : disc_load, lui, se tairait et
 // laisserait le lecteur vide — le BIOS irait sur BASIC et rien ne dirait pourquoi.
+/// <summary>
+/// Monte une image de DISQUE DUR existante, géométrie déduite de sa taille.
+///
+/// Trois écarts avec MountFloppy, tous imposés par le matériel :
+///
+///   1. La géométrie d'une disquette se déduit de la taille PAR LE CŒUR, dans img_load
+///      (disc_img.cs). Celle d'un disque dur vient de la CONFIGURATION — hdd_load_ext
+///      pose spt/hpc/tracks depuis ses paramètres — donc c'est ici qu'il faut la
+///      calculer, et c'est check_hd_type qui le fait chez PCem.
+///   2. Une taille qui ne correspond à aucun type est REFUSÉE. Le repli 63/16 du C
+///      (wx-config.c:1355-1357) existe pour les contrôleurs IDE, que ce dépôt n'a pas :
+///      les deux cartes transcrites câblent 17 secteurs dans leur ADRESSAGE
+///      (xebec_get_sector), donc un disque à 63 secteurs serait annoncé sans être
+///      adressable. Mieux vaut le dire que produire une machine qui diverge au POST.
+///   3. Une carte est posée si la configuration n'en a pas nommé : sans contrôleur, une
+///      image montée n'est vue par personne.
+/// </summary>
+static bool MountHdd(int drive, string path, int forcedType)
+{
+    var resolved = paths.resolve_file_path(path);
+
+    if (resolved is null)
+    {
+        Console.Error.WriteLine($"Image de disque dur introuvable : « {path} ».");
+        Console.Error.WriteLine("Pour en fabriquer une : --create-hdd (sans argument, il liste les types).");
+        return false;
+    }
+
+    long size;
+
+    try
+    {
+        size = new FileInfo(resolved).Length;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine($"Image de disque dur illisible : « {resolved} » — {ex.Message}");
+        return false;
+    }
+
+    var (cylinders, heads, spt, type) = HddImage.GuessGeometry(size);
+
+    // Un type imposé l'emporte, mais seulement s'il décrit BIEN ce fichier : accepter
+    // « --hdd-type 16 » sur une image de 10 Mo monterait un disque deux fois trop grand,
+    // dont la moitié n'existe pas.
+    if (forcedType >= 1)
+    {
+        var (fc, fh) = HddImage.hd_types[forcedType - 1];
+
+        if (HddImage.SizeOf(fc, fh, HddImage.TypeSectorsPerTrack) != size)
+        {
+            Console.Error.WriteLine(
+                $"--hdd-type {forcedType} décrit {HddImage.SizeOf(fc, fh, HddImage.TypeSectorsPerTrack)} " +
+                $"octets, mais « {resolved} » en fait {size}.");
+            return false;
+        }
+
+        (cylinders, heads, spt, type) = (fc, fh, HddImage.TypeSectorsPerTrack, forcedType);
+    }
+
+    if (type == 0)
+    {
+        Console.Error.WriteLine(
+            $"« {resolved} » fait {size} octets, ce qui ne correspond à aucun des 46 types " +
+            "de disque du BIOS.");
+        Console.Error.WriteLine(
+            "Les cartes transcrites câblent 17 secteurs par piste : une géométrie déduite " +
+            "autrement serait annoncée sans être adressable.");
+        Console.Error.WriteLine("--create-hdd liste les tailles admises.");
+        return false;
+    }
+
+    iXtal26.Disc.hdd_c.ide_fn[drive] = resolved;
+    iXtal26.Disc.hdd_c.hdc[drive].spt = spt;
+    iXtal26.Disc.hdd_c.hdc[drive].hpc = heads;
+    iXtal26.Disc.hdd_c.hdc[drive].tracks = cylinders;
+
+    if (pc.cfg_hdd_controller.Length == 0)
+        pc.cfg_hdd_controller = "mfm_xebec";
+
+    Console.WriteLine($"Disque {(drive == 0 ? "C" : "D")}: {resolved} — {HddImage.Label(type)}" +
+                      $", carte {pc.cfg_hdd_controller}");
+
+    // La taille ne suffit pas toujours à nommer un type, et il faut le DIRE : sept
+    // tailles de la table en désignent plusieurs, et pour l'une d'elles les deux
+    // candidats ont une géométrie DIFFÉRENTE et sont tous deux acceptés par le Fixed
+    // Disk Adapter — 21 307 392 octets, c'est le type 13 (306 x 8) ou le type 16
+    // (612 x 4). Se tromper garde la bonne capacité et change l'adressage CHS, donc le
+    // système de fichiers se lit de travers sans qu'aucune erreur n'apparaisse.
+    // La carte accepte-t-elle seulement cette géométrie ? Sans ce mot, une image de
+    // taille valide mais de géométrie inconnue de la carte donne un POST qui diverge,
+    // et xebec_set_switches se contente d'un warning() que personne ne lit.
+    if (HddImage.XebecSwitch(cylinders, heads, spt) < 0)
+    {
+        Console.Error.WriteLine(
+            $"  ATTENTION : le Fixed Disk Adapter n'accepte pas {cylinders} x {heads}. Il " +
+            "annoncera le disque en type 0 et le POST divergera.");
+        Console.Error.WriteLine("  Les géométries admises sont listées par --create-hdd.");
+    }
+
+    var candidates = HddImage.TypesWithSize(size, out var ambiguous);
+
+    if (ambiguous && forcedType < 0)
+    {
+        Console.Error.WriteLine($"  ATTENTION : {size} octets ne désigne pas un type unique.");
+
+        foreach (var t in candidates)
+            Console.Error.WriteLine($"    {HddImage.Label(t)}");
+
+        Console.Error.WriteLine(
+            $"  Le type {type:D2} a été retenu, comme le ferait PCem. Si l'image a été " +
+            $"formatée avec une autre géométrie, --hdd{(drive == 0 ? "" : "-d")}-type N le dit.");
+    }
+
+    return true;
+}
+
 static bool MountFloppy(int drive, string path)
 {
     // La remontée vit dans paths.resolve_file_path, pour qu'il n'existe qu'UNE
@@ -624,10 +819,20 @@ static void PrintUsage()
     Console.WriteLine("                       n'attend déjà jamais l'horloge");
     Console.WriteLine("  --boot [CHEMIN] [N]  amorce et raconte en console ce que le POST a écrit");
     Console.WriteLine("                       en mémoire et à l'écran (défauts : roms, 20 tranches)");
+    Console.WriteLine("      --hdd IMG        après --boot : monte un disque dur, comme l'option");
+    Console.WriteLine("                       principale. --hdd-type N la complète");
     Console.WriteLine("      --type TEXTE     après --boot : tape TEXTE puis Entrée dans la machine,");
     Console.WriteLine("                       et revide l'écran. Répétable, dans l'ordre. C'est la");
     Console.WriteLine("                       seule vérification du chemin clavier qui ne dépende");
     Console.WriteLine("                       pas d'une fenêtre ayant le focus");
+    Console.WriteLine("  --hdd IMG            monte une image de disque dur EXISTANTE en C:, géométrie");
+    Console.WriteLine("                       déduite de sa taille. --hdd-d IMG : le disque D:. Une");
+    Console.WriteLine("                       taille qui ne correspond à aucun des 46 types du BIOS");
+    Console.WriteLine("                       est refusée. Pose la carte mfm_xebec si --config n'en a");
+    Console.WriteLine("                       pas nommé, et l'emporte sur les clés hdc_*/hdd_*");
+    Console.WriteLine("  --hdd-type N         force le type de disque de C: quand sa taille en désigne");
+    Console.WriteLine("                       plusieurs — 21 307 392 octets, c'est le type 13 (306x8)");
+    Console.WriteLine("                       ou le type 16 (612x4). --hdd-d-type N : le disque D:");
     Console.WriteLine("  --create-hdd [TYPE|CYL,TETES,SECT] [CHEMIN]");
     Console.WriteLine("                       fabrique une image de disque dur VIERGE — des zéros, à");
     Console.WriteLine("                       la taille exacte de la géométrie — puis imprime les");
