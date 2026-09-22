@@ -13,6 +13,7 @@ var romsPath = "roms";
 var headless = false;
 var maxSlices = 0; // 0 = tourne jusqu'à la fermeture de la fenêtre
 var verbose = false;
+var setup = false;
 var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'époque
 
 // Configuration machine. null = aucun fichier, donc tous les défauts — c'est-à-dire
@@ -355,6 +356,16 @@ for (var i = 0; i < args.Length; i++)
     // Sans compteur de blits, une exécution muette ne distingue pas « le CGA a balayé
     // et l'hôte a téléversé » de « rien n'est jamais arrivé à la texture » : dans les
     // deux cas la fenêtre est noire et le code de sortie vaut 0.
+    // OUVRIR l'écran de construction, même quand des arguments ont déjà parlé. Le
+    // pendant du Configuration Manager de PCem, que `config_override` saute quand
+    // --config est passé (wx-sdl2.c:481-488) : ici l'écran s'ouvre tout seul sur un
+    // lancement NU, et --setup le force.
+    if (arg == "--setup")
+    {
+        setup = true;
+        continue;
+    }
+
     if (arg == "--verbose")
     {
         verbose = true;
@@ -450,10 +461,27 @@ if (verbose)
                       $"lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                       (configPath is null ? " (défauts)" : $" ({configPath})"));
 
+// L'ÉCRAN S'OUVRE SUR UN LANCEMENT NU, et seulement là. Dès qu'un argument décrit la
+// machine, on la monte telle qu'il l'a dite : toutes les recettes de VERIFICATION.md et
+// les six profils de Rider gardent leur comportement au cycle près. --setup passe outre.
+//
+// --slices et --headless ne le voient jamais non plus : le premier existe pour que deux
+// exécutions traversent les mêmes états, et un écran qui attend une touche n'a pas sa
+// place dans ce contrat — c'est le même arbitrage que le menu Ctrl+F12, inerte sous
+// --slices depuis M7.
+var machineChosen = configPath is not null || modelOverride is not null || ramOverride >= 0 ||
+                    driveOverride[0] >= 0 || driveOverride[1] >= 0 ||
+                    hddOverride[0] is not null || hddOverride[1] is not null ||
+                    iXtal26.Floppy.fdd_c.discfns[0].Length != 0 ||
+                    iXtal26.Floppy.fdd_c.discfns[1].Length != 0;
+
+var showSetup = (setup || !machineChosen) && !headless && maxSlices <= 0;
+
 using var host = new SdlHost(romsPath, headless, maxSlices, verbose, turboSlices);
 
-if (!host.Init())
-    return 1;
+if (!host.Init(showSetup))
+    // Renoncer n'est pas échouer : quitter l'écran de construction sort par 0.
+    return host.SetupCancelled ? 0 : 1;
 
 // Pas de try/catch : pc.fatal() lève, et une trace d'exception est précisément le
 // signal que le cœur est fait pour émettre. L'étouffer ici le perdrait.
@@ -847,6 +875,11 @@ static void PrintUsage()
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");
     Console.WriteLine("                       secondes ÉMULÉES et compare à 1193182/65536 =");
     Console.WriteLine("                       18,2065 Hz (défauts : roms, 300 s)");
+    Console.WriteLine("  --setup              ouvre l'écran de construction de machine avant de");
+    Console.WriteLine("                       démarrer : modèle, mémoire, disquettes, disques durs,");
+    Console.WriteLine("                       charger ou enregistrer une machine de configs/. Il");
+    Console.WriteLine("                       s'ouvre DÉJÀ tout seul sur un lancement sans argument ;");
+    Console.WriteLine("                       jamais sous --slices, --headless ni --boot");
     Console.WriteLine("  -h, --help           affiche cette aide");
     Console.WriteLine();
     Console.WriteLine("Codes de sortie : 0 succès, 1 échec d'exécution, 2 erreur d'usage.");

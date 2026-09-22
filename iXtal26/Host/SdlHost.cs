@@ -174,8 +174,31 @@ public sealed class SdlHost : IDisposable
         _turboSlices = turboSlices;
     }
 
-    /// <summary>Amorce la machine puis, si besoin, la fenêtre. False + message sur stderr en cas d'échec.</summary>
-    public bool Init()
+    /// <summary>
+    /// Vrai si l'écran de construction a été quitté volontairement. Init rend alors
+    /// false SANS que rien ait échoué, et le processus doit sortir par 0 : « j'ai
+    /// renoncé » n'est pas « ça n'a pas marché ».
+    /// </summary>
+    public bool SetupCancelled { get; private set; }
+
+    /// <summary>
+    /// Amorce la machine puis, si besoin, la fenêtre. False + message sur stderr en cas
+    /// d'échec.
+    ///
+    /// DEUX ORDRES, et c'est tout l'enjeu de M13.
+    ///
+    /// Le chemin DIRECT garde celui d'origine — `initpc` AVANT la vidéo. Ce n'est pas
+    /// arbitraire : une ROM absente est alors signalée sans qu'une fenêtre ait clignoté.
+    /// Toutes les recettes de VERIFICATION.md passent par là et ne changent pas d'un
+    /// cycle.
+    ///
+    /// Le chemin de CONSTRUCTION l'inverse, parce qu'il le faut : l'écran a besoin d'un
+    /// renderer pour se dessiner, et il choisit la machine que `initpc` va monter. La
+    /// fenêtre s'ouvre donc à la taille de repli (video_width vaut zéro avant le premier
+    /// balayage CGA), et SyncWindowSize la recale après.
+    /// </summary>
+    /// <param name="setup">Ouvrir l'écran de construction avant de monter la machine.</param>
+    public bool Init(bool setup = false)
     {
         if (_headless && _maxSlices <= 0)
         {
@@ -185,13 +208,53 @@ public sealed class SdlHost : IDisposable
             return false;
         }
 
+        // --headless n'a ni fenêtre ni écran : il ne reste que la machine.
         // initpc() écrit lui-même la raison de son échec (ROMs absentes).
-        if (!pc.initpc(_romsPath))
-            return false;
-
         if (_headless)
-            return true;
+            return pc.initpc(_romsPath);
 
+        if (setup)
+        {
+            if (!InitVideo())
+                return false;
+
+            if (!RunSetup())
+            {
+                SetupCancelled = true;
+                return false;
+            }
+
+            if (!pc.initpc(_romsPath))
+                return false;
+
+            // La machine a choisi sa résolution ; la fenêtre était à la taille de repli.
+            SyncWindowSize();
+            SDL.SetWindowTitle(_window, WindowTitle());
+        }
+        else
+        {
+            if (!pc.initpc(_romsPath))
+                return false;
+
+            if (!InitVideo())
+                return false;
+        }
+
+        return InitAudioAndBlit();
+    }
+
+    /// <summary>
+    /// pcem: wx-sdl2.c:481-488 — `wx_load_config` ouvre le Configuration Manager et ne
+    /// démarre l'émulation que s'il rend vrai. Faux = l'utilisateur a renoncé.
+    /// </summary>
+    private bool RunSetup() => new SdlSetup(_window, _renderer, _romsPath).Run();
+
+    /// <summary>
+    /// SDL, la fenêtre, le renderer, la texture et le menu. Ne touche à AUCUN état de
+    /// machine : c'est ce qui permet de l'appeler avant `initpc`.
+    /// </summary>
+    private bool InitVideo()
+    {
         SDL.SetAppMetadata(WindowTitle(), "1.0", "com.example.ixtal26");
 
         if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Audio))
@@ -231,6 +294,14 @@ public sealed class SdlHost : IDisposable
 
         _menu = new SdlMenu(_window, _renderer, _romsPath);
 
+        return true;
+    }
+
+    /// <summary>Sortie audio, première peinture, et le crochet de blit. Commun aux deux
+    /// ordres, et toujours APRÈS que la machine existe : sound_give_buffer_func et
+    /// video_blit_memtoscreen_func sont des crochets du cœur.</summary>
+    private bool InitAudioAndBlit()
+    {
         // Pendant de sound_init() (sound.c:201), que PCem appelle depuis son IHM
         // (wx-sdl2.c:470) et non depuis pc.c. Un échec n'est pas fatal : le 5150
         // tourne muet, et le chronomètre du son du cœur n'en sait rien.

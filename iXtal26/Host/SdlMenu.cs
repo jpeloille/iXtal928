@@ -55,10 +55,10 @@ internal sealed class SdlMenu
     private const int Row = Cell + 2;
 
     /// <summary>Largeur de la boîte, en caractères. Le plus long libellé y tient avec sa marge.</summary>
-    private const int Cols = 46;
+    internal const int Cols = 46;
 
     /// <summary>Entrées d'image visibles à la fois dans l'écran de choix.</summary>
-    private const int PickWindow = 10;
+    internal const int PickWindow = 10;
 
     private enum Screen { Main, Pick, Create, CreateHdd, Dialog }
 
@@ -644,23 +644,7 @@ internal sealed class SdlMenu
 
         try
         {
-            List<string> found = [];
-
-            foreach (string path in Directory.EnumerateFiles(_imagesRoot, "*", SearchOption.AllDirectories))
-            {
-                foreach (string ext in Extensions)
-                {
-                    if (path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                    {
-                        found.Add(path);
-                        break;
-                    }
-                }
-            }
-
-            // Ordinal, donc stable d'une exécution à l'autre quelle que soit la culture.
-            found.Sort(StringComparer.Ordinal);
-            _images = found.ToArray();
+            _images = FindImages(_imagesRoot);
 
             if (_images.Length == 0)
                 _message = "aucune image dans os/ — utiliser Parcourir...";
@@ -785,13 +769,19 @@ internal sealed class SdlMenu
     /// Dessine la surimpression. Appelée par SdlHost.Render() APRÈS la texture du CGA et
     /// avant RenderPresent, donc sans jamais toucher au framebuffer émulé.
     /// </summary>
-    internal void Render()
-    {
-        string[] lines = BuildLines(out int selected);
+    internal void Render() => DrawBox(_renderer, BuildLines(out int selected), selected);
 
+    /// <summary>
+    /// Dessine une boîte de lignes ASCII centrée, une ligne en vidéo inverse. `internal
+    /// static` depuis M13 : l'écran de construction (Host/SdlSetup.cs) s'en sert aussi, et
+    /// deux implémentations du même cadre dériveraient — la largeur, l'échelle et le pas
+    /// de ligne sont des mesures faites à l'écran, pas des choix qu'on refait.
+    /// </summary>
+    internal static void DrawBox(IntPtr renderer, string[] lines, int selected)
+    {
         int rows = lines.Length;
 
-        if (!SDL.GetRenderOutputSize(_renderer, out int outW, out int outH))
+        if (!SDL.GetRenderOutputSize(renderer, out int outW, out int outH))
             return;
 
         // Marges intérieures, en pixels non mis à l'échelle : sans elles la première et la
@@ -807,7 +797,7 @@ internal sealed class SdlMenu
         // la boîte mange l'écran sans rien gagner en lisibilité.
         int scale = Math.Clamp(Math.Min(outW * 9 / (10 * boxWpx), outH * 9 / (10 * boxHpx)), 1, 4);
 
-        SDL.SetRenderScale(_renderer, scale, scale);
+        SDL.SetRenderScale(renderer, scale, scale);
 
         // Coordonnées en unités mises à l'échelle à partir d'ici.
         float boxW = boxWpx;
@@ -815,14 +805,14 @@ internal sealed class SdlMenu
         float x0 = ((float)outW / scale - boxW) / 2f;
         float y0 = ((float)outH / scale - boxH) / 2f;
 
-        SDL.SetRenderDrawBlendMode(_renderer, SDL.BlendMode.Blend);
+        SDL.SetRenderDrawBlendMode(renderer, SDL.BlendMode.Blend);
 
         var box = new SDL.FRect { X = x0, Y = y0, W = boxW, H = boxH };
-        SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 220);
-        SDL.RenderFillRect(_renderer, in box);
+        SDL.SetRenderDrawColor(renderer, 0, 0, 0, 220);
+        SDL.RenderFillRect(renderer, in box);
 
-        SDL.SetRenderDrawColor(_renderer, 170, 170, 170, 255);
-        SDL.RenderRect(_renderer, in box);
+        SDL.SetRenderDrawColor(renderer, 170, 170, 170, 255);
+        SDL.RenderRect(renderer, in box);
 
         for (int i = 0; i < rows; i++)
         {
@@ -833,20 +823,20 @@ internal sealed class SdlMenu
                 // Vidéo inverse pour la ligne choisie : un curseur « > » seul se perd
                 // dans une liste de chemins.
                 var row = new SDL.FRect { X = x0 + 1, Y = y - 1, W = boxW - 2, H = Row };
-                SDL.SetRenderDrawColor(_renderer, 170, 170, 170, 255);
-                SDL.RenderFillRect(_renderer, in row);
-                SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 255);
+                SDL.SetRenderDrawColor(renderer, 170, 170, 170, 255);
+                SDL.RenderFillRect(renderer, in row);
+                SDL.SetRenderDrawColor(renderer, 0, 0, 0, 255);
             }
             else
             {
-                SDL.SetRenderDrawColor(_renderer, 200, 200, 200, 255);
+                SDL.SetRenderDrawColor(renderer, 200, 200, 200, 255);
             }
 
-            SDL.RenderDebugText(_renderer, x0 + PadX, y, lines[i]);
+            SDL.RenderDebugText(renderer, x0 + PadX, y, lines[i]);
         }
 
-        SDL.SetRenderDrawBlendMode(_renderer, SDL.BlendMode.None);
-        SDL.SetRenderScale(_renderer, 1f, 1f);
+        SDL.SetRenderDrawBlendMode(renderer, SDL.BlendMode.None);
+        SDL.SetRenderScale(renderer, 1f, 1f);
     }
 
     /// <summary>
@@ -994,7 +984,35 @@ internal sealed class SdlMenu
         return Truncate(Path.GetFileName(fn), Cols - 8) + mark;
     }
 
-    private static string Describe(string path)
+    /// <summary>
+    /// Les images d'un répertoire, récursivement, triées de façon stable. `internal
+    /// static` depuis M13 : l'écran de construction liste la même chose, et deux
+    /// balayages avec chacun sa liste d'extensions finiraient par ne pas montrer les
+    /// mêmes fichiers. Lève ce que l'appelant doit dire lui-même.
+    /// </summary>
+    internal static string[] FindImages(string root)
+    {
+        List<string> found = [];
+
+        foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            foreach (string ext in Extensions)
+            {
+                if (path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                {
+                    found.Add(path);
+                    break;
+                }
+            }
+        }
+
+        // Ordinal, donc stable d'une exécution à l'autre quelle que soit la culture.
+        found.Sort(StringComparer.Ordinal);
+
+        return found.ToArray();
+    }
+
+    internal static string Describe(string path)
     {
         string name;
 
@@ -1012,6 +1030,6 @@ internal sealed class SdlMenu
 
     private static string DriveLetter(int drive) => drive == 0 ? "A" : "B";
 
-    private static string Truncate(string s, int max)
+    internal static string Truncate(string s, int max)
         => s.Length <= max ? s : string.Concat("...", s.AsSpan(s.Length - max + 3));
 }

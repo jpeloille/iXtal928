@@ -1,12 +1,16 @@
 {
   "profiles": {
+    "iXtal26 (construire la machine)": {
+      "commandName": "Project",
+      "commandLineArgs": "--setup"
+    },
     "iXtal26": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26.cfg --turbo"
     },
     "iXtal26 (machine de reference, sans turbo)": {
       "commandName": "Project",
-      "commandLineArgs": ""
+      "commandLineArgs": "--model ibmpc"
     },
     "iXtal26 (64 Ko, demarrage court)": {
       "commandName": "Project",

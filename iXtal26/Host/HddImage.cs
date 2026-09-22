@@ -352,10 +352,24 @@ internal static class HddImage
     /// </summary>
     internal static string ConfigPath(string path, string imagesRoot)
     {
-        string? dir = Path.GetDirectoryName(Path.GetFullPath(path));
+        // « Pas d'image » reste « pas d'image ». Path.GetFullPath("") LÈVE, et le premier
+        // appelant — --create-hdd, qui n'a jamais de chemin vide — ne pouvait pas le
+        // montrer. L'écran de construction, lui, enregistre un lecteur B vide dès la
+        // première machine.
+        if (path.Length == 0)
+            return "";
 
-        if (dir is not null && dir == Path.GetFullPath(imagesRoot))
-            return Path.Combine("os", Path.GetFileName(path));
+        // SOUS os/, pas seulement DEDANS. La distinction n'était pas visible tant que
+        // seul --create-hdd appelait : il écrit toujours à la racine de os/. L'image de
+        // PC DOS, elle, vit dans os/pcdos20/, et une machine enregistrée depuis Rider
+        // aurait porté son chemin absolu.
+        string full = Path.GetFullPath(path);
+        string root = Path.GetFullPath(imagesRoot);
+        string prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root
+                        : root + Path.DirectorySeparatorChar;
+
+        if (full.StartsWith(prefix, StringComparison.Ordinal))
+            return Path.Combine("os", full.Substring(prefix.Length));
 
         return path;
     }

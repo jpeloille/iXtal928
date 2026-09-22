@@ -18,6 +18,12 @@ roms/*
 os/*
 !os/os.sha256
 
+# Machines construites depuis l'écran de --setup, et enregistrées par config_save.
+# Même règle que os/ : elles pointent des images qui ne sont pas versionnées, et leurs
+# chemins n'ont de sens que sur la machine qui les a écrites. Les deux .cfg de la racine
+# — ixtal26.cfg et ixtal26-xt.cfg — sont les exemples livrés, eux sont suivis.
+configs/
+
 # Vecteurs SingleStepTests — 726 Mo, récupérés par tools/fetch-sst.sh.
 # Seul vectors/sst/MANIFEST.sha256 est commité.
 vectors/*
