@@ -2267,7 +2267,9 @@ les 33 744 octets du système de fichiers.
 L'arc entier, depuis une image de 10 653 696 octets à **zéro**, en une seule campagne :
 
 ```
-head -c 10653696 /dev/zero > /tmp/xt-arc-hdd.img
+--create-hdd 1 /tmp/xt-arc-hdd.img          # depuis § M12.1 ; avant, un
+                                            # « head -c 10653696 /dev/zero », qui
+                                            # donne le meme fichier a l'octet
 # /tmp/xt-arc.cfg = ixtal26-xt.cfg avec les quatre cles disque decommentees
 #                   et hdc_fn = /tmp/xt-arc-hdd.img
 boot-diff roms 6000 --config /tmp/xt-arc.cfg --type-at 6000 --type-settle 3000
@@ -2307,7 +2309,8 @@ fait le FDISK de PC DOS 2.00, et les deux côtés le font pareil.
 ### Et la machine amorce sur C:, sous oracle aussi
 
 Le disque produit par la campagne précédente, remonté seul — **aucune disquette**, la clé
-`disc_a` retirée de la configuration :
+`disc_a` retirée de la configuration (`/tmp/xt-bootc.cfg`, pointant une copie de l'image
+formatée) :
 
 ```
 boot-diff roms 6000 --config /tmp/xt-bootc.cfg --type-at 6000 --type-settle 800
@@ -2388,4 +2391,159 @@ pas un oracle. Atténuée en pratique — l'en-tête des deux ROMs déclare sa v
    de `COPY` vers C:, pas de réécriture d'un fichier existant — et ne teste pas un second
    disque en D:. La relecture après remontage, elle, l'est : c'est la campagne
    d'amorçage sur C: ci-dessus.
+
+
+## M12.1 — Fabriquer le disque, avec la table de types du BIOS
+
+§ M12 a livré le Fixed Disk Adapter. Mais **fabriquer le disque restait manuel et
+piégeux** : les recettes de § M12 passaient par un `head -c 10653696 /dev/zero`, taille
+calculée à la main, et `ixtal26-xt.cfg` portait un tableau de géométries à recopier sans se
+tromper. Trois pièges, tous silencieux :
+
+1. **La géométrie n'est pas libre.** `xebec_set_switches` exige 17 secteurs par piste et
+   l'un de quatre couples (cylindres, têtes). Hors de là, la carte se contente d'un
+   `warning()`, laisse ses interrupteurs à zéro — le disque est alors annoncé en **type 0**,
+   pas absent — et le POST diverge. **Rien ne le refuse.**
+2. **17 est câblé dans l'ADRESSAGE**, pas seulement dans la validation :
+   `xebec_get_sector` teste `sector >= 17` et calcule
+   `addr = ((cylinder × heads) + head) × 17 + sector`. La clé `hdc_sectors` n'a donc
+   qu'une valeur juste, et rien ne le dit à l'exécution.
+3. **Une image créée implicitement fait zéro octet.** `hdd_load_ext` la crée vide et ne la
+   pré-alloue jamais ; `hdd.sectors` vient de la configuration, pas du fichier. Or
+   `hdd_read_sectors` ignore la fin de fichier — pendant du `fread` dont PCem ignore le
+   retour. Lire un secteur jamais écrit rend **le contenu résiduel de `xebec.sector_buf`**,
+   pas des zéros. Les deux côtés du diff font la même chose : ce n'est pas un défaut de
+   fidélité, c'est un défaut de **reproductibilité**, et il rend le garde-fou « INCHANGÉE
+   depuis le départ » de `BootDiff` aveugle à son propre point de départ.
+
+### L'oracle n'était pas là où on le cherchait
+
+`wx-createdisc.cc` — l'oracle de « Creer une disquette vierge... » depuis § M7.1 — ne fait
+que des **disquettes**, neuf tailles de 160 Ko à 100 Mo, et n'a aucune notion de géométrie.
+Le disque dur de PCem passe ailleurs : par le bouton « New… » de la page *Hard disc* de la
+boîte de configuration, donc par `hdnew_dlgproc` (`wx-config.c:1550-1839`). Ce jalon est
+donc un **portage**, du même statut que `Host/SdlMenu.cs`, pas une invention — et il a
+fallu chercher pour le savoir. Ce qui est transcrit :
+
+| | Citation |
+|---|---|
+| `create_drive_raw()` — la création | `wx-config.c:1427-1440` |
+| `hd_types[46]` — la table de types du BIOS | `:1295-1302` |
+| Libellé d'un type et calcul de taille | `:1580-1586` |
+| Les quatre validations, messages **verbatim** | `:1607-1633` |
+| Le message de fin | `:1682-1683` |
+| Géométrie → numéro de type | `:1722-1731` |
+
+`create_drive_raw` est **structurellement identique** à `wx-createdisc.cc:62-73`, donc à
+`SdlMenu.CreateBlank` : un tampon de 512 octets nuls, écrit `cyl × hpc × spt` fois. Et rien
+n'est posé dans le secteur 0 — ni MBR, ni table de partition, ni signature `55AA`. PCem le
+dit lui-même, c'est son message de fin : *« Drive created, remember to partition and format
+the new drive. »*
+
+Omis de `hdnew_dlgproc`, et inscrit au registre : les trois formats VHD (`:1645-1668`,
+couverts par l'omission `minivhd/` de § M12), la saisie par taille en Mo (`:1736-1754`) qui
+force 63/16, et `check_hd_type` (`:1340-1382`) qui déduit un type de la **taille** d'un
+fichier existant — il sert le sélecteur de fichiers du dialogue, que ce dépôt n'a pas.
+
+### Ce que la table révèle, et qui interdit d'écrire le marquage à la main
+
+| Fait | |
+|---|---|
+| 46 entrées `(cylindres, têtes)`, 17 secteurs **implicites** | comparées une à une au C : **identiques** |
+| L'entrée 14 vaut `(0, 0)` | c'est le **type 15, réservé** dans la table de l'IBM AT. PCem le laisse dans sa liste déroulante, où il affiche « size=0MB » |
+| **SIX** des 46 types sont compatibles Xebec, pas quatre | la table a des doublons : `(306,4)` est aux types **01 et 23**, `(615,4)` aux types **02 et 06** |
+
+Le marquage se **calcule** donc contre `xebec_hd_types`, passée `internal` pour l'occasion.
+Une liste de quatre écrite à la main serait fausse dès la première relecture ; et recopier
+les quatre couples les ferait dériver du fichier qui les fait respecter, après quoi la
+carte refuserait **en silence** une géométrie que l'utilitaire aurait proposée.
+
+Mesuré : les six types marqués sont bien 01, 02, 06, 13, 16, 23.
+
+### Quatre déviations, toutes marquées sur place
+
+1. **`CreateNew` là où PCem ouvre en `"wb"`** et écrase donc en silence. Il peut se le
+   permettre : son chemin vient d'un sélecteur de fichiers dont le système demande
+   confirmation. Ici il vient d'un argument ou d'un nom calculé, et rien ne redemanderait.
+2. **Un cinquième refus, que PCem n'a pas.** Ses trois bornes sont des **plafonds** ; le
+   plancher n'existe pas, et le type 15 de sa propre table le traverse sans un mot pour
+   produire un fichier de zéro octet — exactement ce que ce jalon existe pour éviter.
+3. **Un libellé court au menu.** Celui de PCem fait jusqu'à 46 caractères ; la boîte en a
+   46 **en tout**, marque et marge comprises, et rien ne coupe une ligne trop longue. Mesuré
+   après compression : libellé le plus long **39** caractères, ligne statique la plus longue
+   **45**, écran de **20** lignes. `--create-hdd`, lui, imprime le libellé verbatim.
+4. **L'image n'est pas montée**, là où `CreateBlank` insère la disquette dans A:. La
+   disquette peut l'être parce que DOS attend qu'on l'insère pendant qu'il tourne ; un
+   disque dur, non — la carte lit `ide_fn[]` au `device_add` de `resetpchard`, et sa
+   géométrie vient du fichier de configuration, qui reste maître. PCem ne le monte pas non
+   plus.
+
+Un cinquième écart n'en est pas un : le calcul de taille est en 64 bits, ce qui est le
+pendant des **deux** calculs du C — `int` pour les 46 types, où il ne peut pas déborder, et
+`uint64_t` pour la saisie libre, où il déborderait.
+
+### Les portes
+
+| Épreuve | Résultat |
+|---|---|
+| Table comparée au C, entrée par entrée | **46 / 46 identiques** |
+| Types marqués compatibles Xebec | **01, 02, 06, 13, 16, 23** — six, et calculés |
+| Type 01 : taille | **10 653 696 octets** = 306 × 4 × 17 × 512, à l'unité |
+| Type 01 : contenu | **tous les octets nuls** |
+| Type 01 : allocation | **non sparse** — `du` et `du --apparent-size` égaux, 10 653 696 des deux côtés |
+| Type 01 contre `head -c 10653696 /dev/zero` | **`cmp` silencieux** : le même fichier à l'octet |
+| Neuf refus | type 15, type 0, type 47, `abc`, `306,4` incomplet, 64 secteurs, 17 têtes, 265265 cylindres, 0 cylindre → **code 2** ; fichier existant → **code 1** |
+| `boot-diff roms 6000` | **25 457 269** à chacun des trois commits |
+| `check-oracle.sh` | 30 transcrits vérifiés, 0 dérive, arbre vendoré OK |
+| `dotnet build -c Release` | 0 avertissement |
+
+**Et la porte de fond : l'image sert vraiment.** L'arc complet de § M12 rejoué à
+l'identique, mais depuis une image fabriquée par `--create-hdd 1` au lieu du `head -c` :
+
+| | |
+|---|---|
+| Trace d'instructions | **vert, 98 945 755 instructions identiques** |
+| Image C: | identique des deux côtés, **33 982 octets écrits par l'invité** |
+
+**Les deux chiffres de § M12, à l'unité.** C'était le seul verdict capable de dire que la
+fabrique produit le même point de départ que la recette qu'elle remplace — un chiffre
+différent aurait signifié le contraire, sans qu'aucune autre épreuve ne le voie.
+
+### Une question du plan, tranchée par la mesure
+
+Le plan notait « à vérifier, pas à supposer » que PC DOS 2.00 sache formater les types
+au-delà de ~16 Mo : FAT12 plafonne à 4 085 clusters, et 41 616 secteurs n'y tiennent qu'avec
+16 secteurs par cluster. Mesuré sur le **type 16** (612 × 4 × 17 = 21 307 392 octets),
+`FDISK` puis `FORMAT C: /S` :
+
+```
+|Formatting...Format complete
+|System transferred
+| 21225472 bytes total disk space
+|    41472 bytes used by system
+| 21184000 bytes available on disk
+```
+
+DOS 2.00 s'en sort seul. L'inquiétude était sans objet, et c'est mesuré et non déduit.
+
+### Ce que ce vert ne dit pas
+
+1. **« Le menu et la ligne de commande produisent le même octet » n'est pas MESURÉ.** Le
+   piloter demanderait une fenêtre focalisée, et SDL3 tourne ici en Wayland natif — même
+   limite qu'au titre de fenêtre de § M11.1. Ce qui est vérifié est structurel, par
+   relecture et par `grep` : les deux appelants lisent la géométrie dans
+   `HddImage.hd_types[type-1]` et `HddImage.TypeSectorsPerTrack`, appellent le même
+   `HddImage.Create`, et **aucun ne porte de géométrie en dur**. Pour un type donné, ils
+   passent donc des arguments identiques à la même fabrique — mais c'est un argument de
+   code, pas une empreinte comparée.
+2. **L'entrée de menu n'a jamais été affichée.** Ses largeurs sont calculées et vérifiées
+   contre `Cols`, pas vues à l'écran. Même angle mort que le titre de fenêtre.
+3. **Deux types sur quarante-six ont été créés**, le 01 et le 16, plus une géométrie libre.
+   Les quarante-trois autres ne sont validés que par le calcul de leur taille.
+4. **Aucun contrôleur ne sait adresser autre chose que 17 secteurs par piste.** La saisie
+   libre accepte jusqu'à 63 comme chez PCem, et la commande dit alors que la carte refusera
+   — mais ce chemin n'a pas d'émulation derrière lui dans ce dépôt, et n'en aura qu'avec un
+   contrôleur IDE.
+5. **`hdd_controller = mfm_xebec` est écrit en dur dans le bloc de clés imprimé.** La carte
+   `dtc5150x` est transcrite et accepterait toute géométrie ; le bloc ne la propose pas.
 

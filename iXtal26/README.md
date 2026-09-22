@@ -171,12 +171,33 @@ hdc_fn = os/xt-10mo.img      # cree s'il manque, et non pre-alloue
 et quatre couples (cylindres, têtes) — (306,4), (612,4), (615,4) et (306,8). Hors de là, la
 carte se contente d'un avertissement, annonce le disque en type 0 et le POST diverge.
 
+Il n'y a donc pas à calculer une taille à la main :
+
+```bash
+dotnet run -- --create-hdd          # liste les 46 types de disque du BIOS
+dotnet run -- --create-hdd 1        # cree os/vierge-hdd-type01.img, le 10 Mo du XT
+dotnet run -- --create-hdd 1 CHEMIN # ou le fichier de votre choix
+```
+
+L'image est faite de **zéros, à la taille exacte de la géométrie**, et la commande imprime
+les quatre clés à coller. Le listing marque d'une étoile les géométries que la carte
+accepte — **six** des quarante-six types, la table du BIOS ayant des doublons. `TYPE` peut
+aussi s'écrire `CYL,TETES,SECT` pour la saisie libre, bornée comme chez PCem. Un fichier
+existant est refusé, jamais écrasé. La même chose est au menu Ctrl+F12, sous
+« Creer un disque dur vierge... ».
+
+Sans cela, pointer `hdc_fn` vers un chemin libre marche quand même — `hdd_load_ext` crée le
+fichier — mais il fait alors **zéro octet** et n'est jamais pré-alloué : lire un secteur
+jamais écrit rend le contenu résiduel du tampon de la carte, pas des zéros. C'est
+reproductible, donc le diff reste vert, mais le point de départ n'est plus connu.
+
 Et les préfixes de clés sont des **lettres de lecteur DOS**, pas des numéros de
 contrôleur : `hdc_` = C:, `hdd_` = D:, jusqu'à `hdi_` = I:. La clé `hdd_controller`
 ci-dessus n'a rien à voir avec les `hdd_` de géométrie — collision de préfixe héritée de
 PCem.
 
-Un disque neuf se prépare comme en 1983, sous PC DOS 2.00 :
+Le disque créé est vierge au sens fort — tous ses secteurs existent et valent zéro. Il se
+prépare ensuite comme en 1983, sous PC DOS 2.00 :
 
 ```
 FDISK          -> 1 (Create DOS Partition), puis Entree ; la machine redemarre
