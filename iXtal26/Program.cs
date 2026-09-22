@@ -163,6 +163,18 @@ for (var i = 0; i < args.Length; i++)
         return TimerCheck.Run(paths.resolve_roms_path(roms), seconds);
     }
 
+    // FABRIQUER une image de disque dur vierge, puis sortir. PREMIÈRE commande du dépôt
+    // qui produit un fichier : --boot et --timer-check racontent, celle-ci écrit.
+    //
+    // Elle existe parce que la géométrie n'est pas libre et que rien, à l'exécution, ne
+    // le dit : le Fixed Disk Adapter n'accepte que 17 secteurs par piste et quatre
+    // couples (cylindres, têtes), et hors de là il se contente d'un warning(), annonce
+    // le disque en type 0 et laisse le POST diverger. Voir Host/HddImage.cs.
+    if (arg == "--create-hdd")
+    {
+        return CreateHdd(args, ref i, romsPath);
+    }
+
     // --config CHEMIN : le fichier de configuration machine, comme PCem (pc.c:211-226).
     // Ordre de précédence : défauts, puis fichier, puis ligne de commande. Les options
     // machine ci-dessous surchargent donc ce que le fichier a dit.
@@ -392,6 +404,170 @@ static bool MountFloppy(int drive, string path)
     return true;
 }
 
+/// <summary>
+/// Les 46 types de disque du BIOS, et lesquels la carte du dépôt sait adresser. Lister
+/// est le service le plus utile de cette commande : la table est longue, ses doublons
+/// ne se voient pas, et son entrée 15 est un piège.
+/// </summary>
+static void PrintHddTypes()
+{
+    Console.WriteLine("Les 46 types de disque du BIOS (pcem-dev/src/wx-ui/wx-config.c:1295-1302).");
+    Console.WriteLine("17 secteurs par piste, implicites dans toute la table.");
+    Console.WriteLine();
+    Console.WriteLine("« * » : géométrie que l'IBM Fixed Disk Adapter accepte. Les autres se créent,");
+    Console.WriteLine("mais la carte n'en dira qu'un avertissement, annoncera le disque en type 0 et");
+    Console.WriteLine("le POST divergera. La carte dtc5150x, elle, n'impose aucune restriction.");
+    Console.WriteLine();
+
+    for (var t = 1; t <= 46; t++)
+    {
+        var (cyl, heads) = HddImage.hd_types[t - 1];
+
+        // Le type 15 est RÉSERVÉ dans la table de l'IBM AT, et PCem le laisse dans sa
+        // liste déroulante où il affiche « size=0MB ». On le montre aussi — le cacher
+        // décalerait les numéros — mais on dit ce qu'il est.
+        if (cyl == 0 || heads == 0)
+        {
+            Console.WriteLine($"    {HddImage.Label(t)}   (réservé, non créable)");
+            continue;
+        }
+
+        var sw = HddImage.XebecSwitch(cyl, heads, HddImage.TypeSectorsPerTrack);
+
+        Console.WriteLine($"  {(sw >= 0 ? "*" : " ")} {HddImage.Label(t)}" +
+                          $"   {HddImage.SizeOf(cyl, heads, HddImage.TypeSectorsPerTrack)} octets" +
+                          (sw >= 0 ? $", interrupteurs type {sw}" : ""));
+    }
+}
+
+/// <summary>
+/// --create-hdd. Rend un code de sortie : 0 succès, 1 échec d'exécution, 2 erreur
+/// d'usage, comme le reste de la table.
+/// </summary>
+static int CreateHdd(string[] args, ref int i, string romsPath)
+{
+    // Sans argument, on liste et on sort SANS RIEN CRÉER. Un défaut implicite qui
+    // fabriquerait 10 Mo parce qu'on a tapé la commande pour voir serait exactement le
+    // genre de surprise que ce dépôt refuse ailleurs.
+    if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        PrintHddTypes();
+        return 0;
+    }
+
+    var spec = args[++i];
+    int cylinders, heads, spt;
+
+    if (spec.Contains(','))
+    {
+        // La saisie libre du dialogue de PCem (wx-config.c:1613-1621), en ligne de
+        // commande et pas au menu : saisir trois nombres dans une surimpression SDL
+        // demanderait un éditeur de texte que le menu n'a pas — il n'a qu'une liste et
+        // le sélecteur de fichiers du système.
+        var f = spec.Split(',');
+
+        if (f.Length != 3 || !int.TryParse(f[0], out cylinders) ||
+            !int.TryParse(f[1], out heads) || !int.TryParse(f[2], out spt))
+        {
+            Console.Error.WriteLine(
+                $"--create-hdd : géométrie illisible « {spec} », attendu CYLINDRES,TETES,SECTEURS.");
+            return 2;
+        }
+    }
+    else
+    {
+        if (!int.TryParse(spec, out var type) || type < 1 || type > 46)
+        {
+            Console.Error.WriteLine(
+                $"--create-hdd : « {spec} » n'est ni un type de 1 à 46, ni une géométrie " +
+                "CYLINDRES,TETES,SECTEURS.");
+            Console.Error.WriteLine("--create-hdd sans argument liste les 46 types.");
+            return 2;
+        }
+
+        (cylinders, heads) = HddImage.hd_types[type - 1];
+        spt = HddImage.TypeSectorsPerTrack;
+    }
+
+    if (!HddImage.Validate(cylinders, heads, spt, out var error))
+    {
+        Console.Error.WriteLine($"--create-hdd : {error}");
+        return 2;
+    }
+
+    // Le chemin donné, sinon le premier nom libre dans os/ — le MÊME os/ que le menu
+    // Ctrl+F12, par le même ImagesRoot : deux résolutions, ce sont deux répertoires qui
+    // finissent par différer, et une image invisible dans la liste du menu.
+    string path;
+
+    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        path = args[++i];
+    }
+    else
+    {
+        var root = SdlMenu.ImagesRoot(romsPath);
+
+        try
+        {
+            // os/ est .gitignore'd, donc absent d'un clone neuf.
+            Directory.CreateDirectory(root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"--create-hdd : création de {root} impossible : {ex.Message}");
+            return 1;
+        }
+
+        var known = HddImage.TypeFor(cylinders, heads, spt);
+        var stem = known != 0 ? $"hdd-type{known:D2}" : $"hdd-{cylinders}x{heads}x{spt}";
+        var free = SdlMenu.FreeName(root, stem);
+
+        if (free is null)
+        {
+            Console.Error.WriteLine($"--create-hdd : trop d'images « vierge-{stem} » dans {root}.");
+            return 1;
+        }
+
+        path = free;
+    }
+
+    var sectors = (long)cylinders * heads * spt;
+    var bytes = HddImage.SizeOf(cylinders, heads, spt);
+
+    Console.WriteLine($"Création de {path}");
+    Console.WriteLine($"  géométrie   : {cylinders} cylindres x {heads} têtes x {spt} secteurs " +
+                      $"= {sectors} secteurs");
+    Console.WriteLine($"  taille      : {bytes} octets ({bytes / (1024 * 1024)} Mo)");
+
+    var biosType = HddImage.TypeFor(cylinders, heads, spt);
+    Console.WriteLine(biosType != 0
+        ? $"  type BIOS   : {HddImage.Label(biosType)}"
+        : "  type BIOS   : aucun — « Custom type » chez PCem");
+
+    var switches = HddImage.XebecSwitch(cylinders, heads, spt);
+    Console.WriteLine(switches >= 0
+        ? $"  carte       : acceptée par l'IBM Fixed Disk Adapter, interrupteurs type {switches}"
+        : "  carte       : REFUSÉE par l'IBM Fixed Disk Adapter — il n'accepte que 17 secteurs\n" +
+          "                et (306,4) (612,4) (615,4) (306,8). Il n'en dira qu'un\n" +
+          "                avertissement, annoncera le disque en type 0, et le POST\n" +
+          "                divergera. Sans objet pour la carte dtc5150x.");
+
+    if (!HddImage.Create(path, cylinders, heads, spt, out var message))
+    {
+        Console.Error.WriteLine($"--create-hdd : {message}");
+        return 1;
+    }
+
+    Console.WriteLine(message);
+    Console.WriteLine();
+    Console.WriteLine("À ajouter au fichier de configuration :");
+    Console.WriteLine();
+    Console.Write(HddImage.ConfigBlock(path, cylinders, heads, spt));
+
+    return 0;
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]");
@@ -447,6 +623,15 @@ static void PrintUsage()
     Console.WriteLine("                       et revide l'écran. Répétable, dans l'ordre. C'est la");
     Console.WriteLine("                       seule vérification du chemin clavier qui ne dépende");
     Console.WriteLine("                       pas d'une fenêtre ayant le focus");
+    Console.WriteLine("  --create-hdd [TYPE|CYL,TETES,SECT] [CHEMIN]");
+    Console.WriteLine("                       fabrique une image de disque dur VIERGE — des zéros, à");
+    Console.WriteLine("                       la taille exacte de la géométrie — puis imprime les");
+    Console.WriteLine("                       clés à coller dans un .cfg. Sans argument : liste les");
+    Console.WriteLine("                       46 types de disque du BIOS et sort sans rien créer.");
+    Console.WriteLine("                       TYPE va de 1 à 46 ; CYL,TETES,SECT est la saisie libre,");
+    Console.WriteLine("                       bornée comme chez PCem (secteurs 63, têtes 16). Sans");
+    Console.WriteLine("                       CHEMIN, écrit le premier nom libre dans os/. Un fichier");
+    Console.WriteLine("                       existant est refusé, jamais écrasé");
     Console.WriteLine("  --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");

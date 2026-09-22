@@ -156,14 +156,22 @@ internal sealed class SdlMenu
     /// créerait le répertoire au mauvais endroit. D'où le repli sur le frère de roms/,
     /// dont initpc a déjà garanti l'existence.
     /// </summary>
-    private string ImagesRoot()
+    private string ImagesRoot() => ImagesRoot(_romsPath);
+
+    /// <summary>
+    /// `internal static` depuis M12.1 : --create-hdd doit écrire dans le MÊME os/ que le
+    /// menu, sans quoi une image créée en ligne de commande n'apparaîtrait pas dans la
+    /// liste du menu, et réciproquement. Deux résolutions de chemin, ce sont deux
+    /// répertoires qui finissent par différer.
+    /// </summary>
+    internal static string ImagesRoot(string romsPath)
     {
         string root = PluginApi.paths.resolve_roms_path("os");
 
         if (Directory.Exists(root))
             return root;
 
-        string? parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(_romsPath));
+        string? parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(romsPath));
 
         return parent is null ? root : Path.Combine(parent, "os");
     }
@@ -451,7 +459,7 @@ internal sealed class SdlMenu
     /// qui est précisément le défaut d'une boîte « Enregistrer sous ». Null si la centaine
     /// est épuisée — improbable, mais une boucle sans borne ne se justifie pas.
     /// </summary>
-    private static string? FreeName(string root, string stem)
+    internal static string? FreeName(string root, string stem)
     {
         for (int n = 1; n <= 100; n++)
         {
