@@ -110,6 +110,9 @@ internal static partial class _386
         timer.tsc = 0;
         timer.timer_target = 0x7FFFFFFF;
 
+        // Même raison que ResetTimingState pour le 8088.
+        prefetch_reset();
+
         _808x.resetx86();
         _808x.ResetTimingState();
     }

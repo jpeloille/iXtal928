@@ -64,7 +64,10 @@ public static class Fuzzer
     /// un hachage de la RAM : c'est exact, ça coûte quelques comparaisons au lieu
     /// de 2 Mo, et ça nomme l'adresse fautive.
     /// </summary>
-    public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose)
+    /// <summary>`core` : voir Run. AVEC UNE TABLE D'OPCODES PARTIELLE, C'EST LE
+    /// SEUL MODE UTILISABLE — le mode flux enchaîne les instructions et finit par
+    /// tomber sur un opcode non transcrit, qui échoue bruyamment et à raison.</summary>
+    public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core)
     {
         Oracle.CheckAbi();
         Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
@@ -84,9 +87,13 @@ public static class Fuzzer
             var op = opcodes[rng.Next() % (uint)opcodes.Length];
             perOpcode[op] = perOpcode.GetValueOrDefault(op) + 1;
 
+            Oracle.h_set_core(core);
             Oracle.h_reset();
             Oracle.h_fill_ram(0x90);
-            _808x.Reset();
+            if (core == Oracle.Core286)
+                _386.Reset286();
+            else
+                _808x.Reset();
             mem.fill_ram(0x90);
 
             for (var i = 0; i < (int)R.COUNT; i++)
@@ -155,7 +162,7 @@ public static class Fuzzer
             mem.wlog_reset();
 
             var cycC = Oracle.h_step();
-            var cycS = _808x.Step();
+            var cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
 
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
@@ -321,7 +328,7 @@ public static class Fuzzer
      * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux.
      * Compté en formes de champ, pas en entrées de tableau : la boucle en couvre 6, la
      * suivante 4. */
-    private const int FieldCount = 58;
+    private const int FieldCount = 60;
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -337,7 +344,7 @@ public static class Fuzzer
     internal static string? CompareStates(in HState a, in HState b, int cycA, int cycB, bool counters = true)
         => Compare(a, b, cycA, cycB, counters);
 
-    private static string? Compare(in HState a, in HState b, int cycA, int cycB, bool counters = true)
+    internal static string? Compare(in HState a, in HState b, int cycA, int cycB, bool counters = true)
     {
         if (cycA != cycB) return $"cycles consommés : oracle {cycA}, C# {cycB}";
 
@@ -410,6 +417,8 @@ public static class Fuzzer
             ?? Chk("flags_res", a.flags_res, b.flags_res)
             ?? Chk("flags_op1", a.flags_op1, b.flags_op1)
             ?? Chk("flags_op2", a.flags_op2, b.flags_op2)
+            ?? Chk("prefetch_bytes", a.prefetch_bytes, b.prefetch_bytes)
+            ?? Chk("prefetch_prefixes", a.prefetch_prefixes, b.prefetch_prefixes)
             ?? Chk("flags", a.flags, b.flags)
             ?? Chk("eflags", a.eflags, b.eflags)
             ?? Chk("pc", a.pc, b.pc)

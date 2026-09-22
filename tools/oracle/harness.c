@@ -39,6 +39,11 @@
 void h_cpu_config_8088(void);
 void h_cpu_config_286(void);
 
+/* harness_386.c — le modèle de préfetch du 286, `static` chez PCem. */
+int h_prefetch_bytes(void);
+int h_prefetch_prefixes(void);
+void h_prefetch_reset(void);
+
 /* QUEL CŒUR le harnais exécute. Le sélecteur n'est pas inventé : chez PCem c'est
  * `is386 ? exec386 : AT ? exec386 : execx86` (pc.c:478-487), donc un 286 est très
  * exactement « AT sans is386 ». On garde ce couple comme état de vérité et on ne
@@ -372,6 +377,10 @@ void h_reset(void) {
         tsc = 0;
         timer_target = 0x7FFFFFFF;
 
+        /* Même raison que les statiques de temps de 808x.c remises plus bas : PCem
+         * n'amorce qu'une fois par processus, le harnais en boucle. */
+        h_prefetch_reset();
+
         resetx86();
 
         /* resetx86() ne remet pas ces statiques : elles portent l'état de temps
@@ -574,6 +583,9 @@ void h_getstate(h_state *out) {
         out->flags_res = cpu_state.flags_res;
         out->flags_op1 = cpu_state.flags_op1;
         out->flags_op2 = cpu_state.flags_op2;
+
+        out->prefetch_bytes = h_prefetch_bytes();
+        out->prefetch_prefixes = h_prefetch_prefixes();
 
         out->ea_seg_idx = -1;
         for (int i = 0; i < H_SEG_COUNT; i++)

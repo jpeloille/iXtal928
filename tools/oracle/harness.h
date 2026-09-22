@@ -64,6 +64,12 @@ uint32_t h_fastreadw(uint32_t a);
 uint32_t h_fastreadl(uint32_t a);
 uint32_t h_pccache(void);
 
+/* Le modèle de préfetch du 286. `static` dans 386_dynarec.c, exposés par
+ * harness_386.c qui le compile dans son unité de traduction. */
+int h_prefetch_bytes(void);
+int h_prefetch_prefixes(void);
+void h_prefetch_reset(void);
+
 /* Disposition explicite, pas de padding implicite : le C# marshale ça tel quel.
  * Tout champ ajouté ici doit l'être aussi côté C#, et entrer dans le vecteur
  * diffé — un champ non comparé est un champ où la dérive se cache. */
@@ -154,6 +160,18 @@ typedef struct h_state {
         uint32_t flags_res;
         uint32_t flags_op1;
         uint32_t flags_op2;
+
+        /* LE MODÈLE DE PRÉFETCH DU 286 (386_dynarec.c:152-153), ajouté en A2.2d.
+         *
+         * Pendants exacts, pour le cœur 286, de memcycs / fetchcycles /
+         * prefetchqueue plus bas : de l'état de TEMPS entre instructions, que rien
+         * d'architectural ne révèle. Le vecteur les comparait pour le 8088 depuis M1
+         * et pas pour le 286 — un trou, et il a mordu : un cas dirigé rendait
+         * « cycles consommés : oracle 24, C# 20 » sans qu'aucun champ ne dise
+         * pourquoi. Le fuzzeur ne pouvait pas le voir, les deux côtés dérivant
+         * ensemble tant qu'ils exécutent la même suite. */
+        int32_t  prefetch_bytes;
+        int32_t  prefetch_prefixes;
 
         uint16_t flags;
         uint16_t eflags;
@@ -404,7 +422,9 @@ uint8_t *h_ram(void);
  * fetch de exec386, expose pour etre diffe avant que exec386 existe cote C#. */
 /* 10 depuis A2.1 : h_state porte les quatre drapeaux paresseux — flags_op, flags_res,
  * flags_op1, flags_op2. Le vecteur change de TAILLE. */
-#define H_ABI_VERSION 11
+/* 12 depuis A2.2d : h_state porte prefetch_bytes et prefetch_prefixes, et
+ * h_prefetch_reset s'ajoute au contrat. */
+#define H_ABI_VERSION 12
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

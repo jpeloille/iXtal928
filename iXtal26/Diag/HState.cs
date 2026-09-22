@@ -98,6 +98,12 @@ public struct HState
     public uint flags_op1;
     public uint flags_op2;
 
+    // Le modèle de préfetch du 286 (386_dynarec.c:152-153) : pendants exacts, pour
+    // ce cœur, de memcycs/fetchcycles/prefetchqueue plus bas. De l'état de TEMPS que
+    // rien d'architectural ne révèle.
+    public int prefetch_bytes;
+    public int prefetch_prefixes;
+
     public ushort flags;
     public ushort eflags;
     public ushort prefetchpc;

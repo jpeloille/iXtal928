@@ -333,13 +333,20 @@ internal static partial class _808x
         mod1seg[7] = MOD1_DS;
     }
 
-    private static uint16_t Mod1Add(int which, int rm)
+    internal static uint16_t Mod1Add(int which, int rm)
     {
         var idx = mod1add[which, rm];
         return idx == MOD1_ZERO ? (uint16_t)0 : cpu_state.regs[idx].w;
     }
 
     private static uint32_t Mod1Seg(int rm) => mod1seg[rm] == MOD1_DS ? ds : ss;
+
+    /// <summary>`mod1seg[rm] == &ss` du C (386_dynarec.c:104). Le C compare des
+    /// ADRESSES de segment ; ici on compare l'index, qui est ce que la table stocke.
+    /// Ouvert en A2.2d : fetch_ea_16_long en a besoin, et en C `mod1add`/`mod1seg`
+    /// sont des globaux NON statiques de 808x.c déclarés dans x86.h (x86.h:213-214),
+    /// donc partagés avec 386_dynarec.c. Les ouvrir RESTAURE la parité.</summary>
+    internal static bool Mod1IsSS(int rm) => mod1seg[rm] == MOD1_SS;
 
     // pcem: 808x.c:381-414 — les coûts en cycles du calcul d'EA sont ici, dans
     // les FETCHADD : c'est la table de timings d'EA du 8086.

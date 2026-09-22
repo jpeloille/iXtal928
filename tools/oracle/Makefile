@@ -42,12 +42,12 @@ SRC := harness.c \
        harness_stubs.c \
        harness_wrap.c \
        harness_fetch.c \
+       harness_386.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
        $(PCEM)/src/cpu/x87_timings.c \
        $(PCEM)/src/cpu/386_common.c \
        $(PCEM)/src/cpu/386.c \
-       $(PCEM)/src/cpu/386_dynarec.c \
        $(PCEM)/src/cpu/cpu.c \
        $(PCEM)/src/cpu/cpu_tables.c \
        $(PCEM)/src/memory/mem.c \

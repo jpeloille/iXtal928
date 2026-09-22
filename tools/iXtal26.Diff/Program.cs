@@ -384,7 +384,7 @@ switch (args[0])
             ops.Add(0xCE);
 
         return single
-            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose)
+            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore)
             : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, fuzzCore, ramPerInstr);
     }
 

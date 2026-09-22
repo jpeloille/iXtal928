@@ -25,7 +25,7 @@ public static class Oracle
     // 7 et 8 au jalon 286 : h_state s'élargit (cache descripteur, puis descripteurs
     // système). 9 : h_set_core / h_get_core s'ajoutent au contrat. 10 : les quatre
     // drapeaux paresseux entrent dans h_state.
-    public const int AbiVersion = 11;
+    public const int AbiVersion = 12;
 
     static Oracle()
     {

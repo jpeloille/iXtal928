@@ -215,6 +215,22 @@ internal static partial class x86
     internal static int stack32;
     internal static uint16_t cpu_cur_status;
     internal static uint32_t cr2, cr3, cr4;
+    // pcem: x86.h:255-267 — les causes d'abandon. ABRT_MASK vaut 0x7F et non 7 :
+    // le bit haut porte ABRT_EXPECTED, une distinction du recompilateur.
+    internal const int ABRT_NONE = 0;
+    internal const int ABRT_GEN = 1;
+    internal const int ABRT_TS = 0xA;
+    internal const int ABRT_NP = 0xB;
+    internal const int ABRT_SS = 0xC;
+    internal const int ABRT_GPF = 0xD;
+    internal const int ABRT_PF = 0xE;
+    internal const int ABRT_MASK = 0x7f;
+
+    // pcem: x86.h:268 — le code d'erreur que le gestionnaire empile en mode
+    // protégé. En mode réel il est posé puis ignoré ; on le porte quand même,
+    // parce que le ne pas porter ferait diverger la transcription de x86gpf.
+    internal static uint32_t abrt_error;
+
     internal static int cgate32;
     // pcem: x86.h:217 — fait sauter les contrôles de privilège le temps d'un
     // chargement de descripteur. Jamais posé sur un 8088 ; entre au jalon 286 avec

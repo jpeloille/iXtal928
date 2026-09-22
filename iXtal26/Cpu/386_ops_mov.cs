@@ -168,6 +168,203 @@ internal static partial class _386
         return 0;
     }
 
+    // -----------------------------------------------------------------------
+    // A2.2d — LES DIX AVEC ADRESSE EFFECTIVE (x86_ops_mov.h).
+    //
+    // Deux remarques qui valent pour tous :
+    //
+    // 1. `cpu_mod == 3` désigne un REGISTRE : aucun accès mémoire, aucune garde, et
+    //    le coût tombe à timing_rr. C'est la moitié des cas, et c'est celle que les
+    //    gardes ne traversent pas.
+    //
+    // 2. Les macros du C portent un `return` pour leur APPELANT — fetch_ea_16,
+    //    SEG_CHECK_*, CHECK_*, ILLEGAL_ON. Une méthode C# ne peut pas faire sortir
+    //    son appelant : elles rendent `true`, et le site d'appel écrit le `return`.
+    //    Même arbre de décision, dit explicitement.
+    //
+    // `is486` est nul ici, mais l'expression est gardée telle quelle : c'est le C.
+    // -----------------------------------------------------------------------
+
+    // pcem: x86_ops_mov.h:449 — MOV r/m8, r8
+    private static int opMOV_b_r_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3)
+        {
+                setr8(cpu_rm, getr8(cpu_reg));
+                CLOCK_CYCLES(cpu.timing_rr);
+                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        }
+        else
+        {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
+                seteab(getr8(cpu_reg));
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 1, 0, 0);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:464 — MOV r/m16, r16
+    private static int opMOV_w_r_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3)
+        {
+                cpu_state.regs[cpu_rm].w = cpu_state.regs[cpu_reg].w;
+                CLOCK_CYCLES(cpu.timing_rr);
+                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        }
+        else
+        {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 1)) return 1;
+                seteaw(cpu_state.regs[cpu_reg].w);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 1, 0, 0);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:540 — MOV r8, r/m8
+    private static int opMOV_r_b_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3)
+        {
+                setr8(cpu_reg, getr8(cpu_rm));
+                CLOCK_CYCLES(cpu.timing_rr);
+                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        }
+        else
+        {
+                uint8_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
+                temp = geteab();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setr8(cpu_reg, temp);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 1, 0, 0, 0, 0);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:556 — MOV r16, r/m16
+    private static int opMOV_r_w_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3)
+        {
+                cpu_state.regs[cpu_reg].w = cpu_state.regs[cpu_rm].w;
+                CLOCK_CYCLES(cpu.timing_rr);
+                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        }
+        else
+        {
+                uint16_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 1)) return 1;
+                temp = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.regs[cpu_reg].w = temp;
+                CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 1, 0, 0, 0, 0);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:256-342 — les MOFFS : adresse DIRECTE sur deux octets,
+    // sans ModRM. D'où le -1 passé à PREFETCH_RUN, et l'absence de fetch_ea.
+
+    private static int opMOV_AL_a16(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        uint8_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, addr)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AL = temp;
+        CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+        PREFETCH_RUN(4, 3, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    private static int opMOV_AX_a16(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        uint16_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, (uint32_t)(addr + 1))) return 1;
+        temp = readmemw(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AX = temp;
+        CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+        PREFETCH_RUN(4, 3, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    private static int opMOV_a16_AL(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememb(cpu_state.ea_seg!.@base, addr, AL);
+        CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+        PREFETCH_RUN(2, 3, -1, 0, 0, 1, 0, 0);
+        return cpu_state.abrt;
+    }
+
+    private static int opMOV_a16_AX(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememw(cpu_state.ea_seg!.@base, addr, AX);
+        CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+        PREFETCH_RUN(2, 3, -1, 0, 0, 1, 0, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:174-205 — MOV r/m, imm. ILLEGAL_ON mord dès que le champ
+    // `reg` du ModRM est non nul : l'encodage n'en prévoit qu'une forme, /0.
+
+    private static int opMOV_b_imm_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = readmemb(cs, cpu_state.pc);
+        cpu_state.pc++;
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
+        seteab(temp);
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 3, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
+        return cpu_state.abrt;
+    }
+
+    private static int opMOV_w_imm_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = getword();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteaw(temp);
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 4, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
+        return cpu_state.abrt;
+    }
+
     /// <summary>Pose les seize dans la table. Les emplacements sont ceux de la .so,
     /// relevés par gdb sur `ops_286[]` plutôt que lus dans le texte de 386_ops.h —
     /// deux tentatives de lecture du texte ont rendu 1008 entrées sur 1024 et donc
@@ -193,5 +390,21 @@ internal static partial class _386
         ops_286[0xBD] = opMOV_BP_imm;
         ops_286[0xBE] = opMOV_SI_imm;
         ops_286[0xBF] = opMOV_DI_imm;
+
+        // A2.2d — les dix avec adresse effective.
+        ops_286[0x88] = opMOV_b_r_a16;
+        ops_286[0x89] = opMOV_w_r_a16;
+        ops_286[0x8A] = opMOV_r_b_a16;
+        ops_286[0x8B] = opMOV_r_w_a16;
+        ops_286[0xA0] = opMOV_AL_a16;
+        ops_286[0xA1] = opMOV_AX_a16;
+        ops_286[0xA2] = opMOV_a16_AL;
+        ops_286[0xA3] = opMOV_a16_AX;
+        ops_286[0xC6] = opMOV_b_imm_a16;
+        ops_286[0xC7] = opMOV_w_imm_a16;
+
+        // 8C et 8E (MOV r/m, seg et MOV seg, r/m) N'Y SONT PAS : ils vivent dans
+        // x86_ops_mov_seg.h, un autre groupe, et passent par loadseg. Le groupe
+        // `mov` proprement dit compte donc 26 handlers atteignables, pas 28.
     }
 }

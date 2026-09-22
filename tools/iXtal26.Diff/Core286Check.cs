@@ -57,6 +57,30 @@ public static class Core286Check
             echecs++;
         }
 
+        // LES CAS-LIMITES, CONSTRUITS PLUTÔT QU'ESPÉRÉS.
+        //
+        // Chacun demande une valeur précise d'adresse effective : une chance sur
+        // 65 536 en tirage uniforme, donc 30 000 instructions de fuzzeur ne les
+        // voient probablement JAMAIS. Les écrire à la main est la seule façon
+        // d'exercer les fonctions qu'ils traversent.
+
+        // (a) L'ÉCRITURE MOT QUI FRANCHIT 0xFFFF. opMOV_a16_AX n'a pas de
+        //     CHECK_WRITE : l'accès a bien lieu, et writememwl se scinde en deux
+        //     écritures d'octet de part et d'autre de la frontière de page.
+        Cas("ecriture mot a cheval : MOV [FFFF], AX", [0xA3, 0xFF, 0xFF], ref echecs);
+
+        // (b) L'ABANDON, le vrai. opMOV_w_r_a16 porte CHECK_WRITE(seg, ea, ea+1) :
+        //     à l'offset 0xFFFF, `high` vaut 0x10000 et dépasse limit_high. C'est le
+        //     seul cas qui traverse x86gpf, la branche d'abandon de exec386,
+        //     x86_doabrt et son empilement. Encodage : mod=00, rm=110 (direct),
+        //     reg=000 (AX).
+        Cas("abandon : MOV [FFFF], AX par ModRM direct", [0x89, 0x06, 0xFF, 0xFF], ref echecs);
+
+        // (c) L'OPCODE ILLÉGAL : C6 avec un champ `reg` non nul. Le fuzzeur le voit
+        //     sept fois sur huit, mais le chemin ILLEGAL_ON -> x86illegal -> x86_int
+        //     mérite d'être nommé quelque part.
+        Cas("opcode illegal : MOV [BX], imm8 avec reg != 0", [0xC6, 0x08, 0x42], ref echecs);
+
         Console.WriteLine();
         if (echecs == 0)
         {
@@ -98,6 +122,52 @@ public static class Core286Check
                 Console.WriteLine($"  [ECHEC] {nom} : attendait « {attendu} », a eu « {m.Trim()} »");
                 echecs++;
             }
+        }
+    }
+
+    /// <summary>Un cas DIRIGÉ, comparé à l'oracle sur les 58 champs. Les deux côtés
+    /// reçoivent le même code au même endroit et le même état de registres.</summary>
+    private static void Cas(string nom, byte[] code, ref int echecs)
+    {
+        var regs = new ushort[(int)iXtal26.Diag.R.COUNT];
+        for (var i = 0; i < regs.Length; i++)
+                regs[i] = 0;
+        regs[(int)iXtal26.Diag.R.CS] = 0x1000;
+        regs[(int)iXtal26.Diag.R.SS] = 0x2000;
+        regs[(int)iXtal26.Diag.R.DS] = 0x3000;
+        regs[(int)iXtal26.Diag.R.SP] = 0x0100;
+        regs[(int)iXtal26.Diag.R.AX] = 0x1234;
+        regs[(int)iXtal26.Diag.R.BX] = 0x0010;
+
+        Oracle.h_set_core(Oracle.Core286);
+        Oracle.h_reset();
+        Oracle.h_fill_ram(0x90);
+        _386.Reset286();
+        iXtal26.Memory.mem.fill_ram(0x90);
+
+        var linear = (uint)(regs[(int)iXtal26.Diag.R.CS] << 4);
+        Oracle.h_load(linear, code, (uint)code.Length);
+        for (var i = 0; i < code.Length; i++)
+                iXtal26.Memory.mem.ram[linear + i] = code[i];
+
+        Oracle.h_setregs(regs);
+        _808x.SetRegs(regs);
+
+        var cycC = Oracle.h_step();
+        var cycS = _386.Step286();
+
+        var a = iXtal26.Diag.HState.Create();
+        var b = iXtal26.Diag.HState.Create();
+        Oracle.h_getstate(out a);
+        _808x.GetState(ref b);
+
+        var diff = Fuzzer.Compare(a, b, cycC, cycS);
+        if (diff is null)
+                Console.WriteLine($"  [ok] {nom} : identique, pc {b.pc:X4} CS {b.seg_sel[1]:X4} cycles {cycS}");
+        else
+        {
+                Console.WriteLine($"  [ECHEC] {nom} : {diff}");
+                echecs++;
         }
     }
 }

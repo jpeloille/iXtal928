@@ -242,6 +242,9 @@ internal static partial class _808x
         s.flags_op1 = cpu_state.flags_op1;
         s.flags_op2 = cpu_state.flags_op2;
 
+        s.prefetch_bytes = _386.prefetch_bytes;
+        s.prefetch_prefixes = _386.prefetch_prefixes;
+
         s.ea_seg_idx = -1;
         for (var i = 0; i < (int)Seg.COUNT; i++)
                 if (ReferenceEquals(cpu_state.ea_seg, segs[i]))

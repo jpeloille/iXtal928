@@ -104,4 +104,20 @@ internal static partial class x86seg_c
                 Memory.mem.flushmmucache_cr3();
         oldcpl = CPL;
     }
+
+    // pcem: x86seg.c:135-139 — LA LEVÉE D'EXCEPTION, réduite à ce qu'elle est :
+    // poser la cause et le code d'erreur. C'est exec386 qui, voyant `abrt` non nul,
+    // appellera x86_doabrt. Le message ne sert qu'au pclog de PCem, omis ici.
+    internal static void x86gpf(string s, uint16_t error)
+    {
+        cpu_state.abrt = (int8_t)ABRT_GPF;
+        abrt_error = error;
+    }
+
+    // pcem: x86seg.c:145-149
+    internal static void x86ss(string s, uint16_t error)
+    {
+        cpu_state.abrt = (int8_t)ABRT_SS;
+        abrt_error = error;
+    }
 }

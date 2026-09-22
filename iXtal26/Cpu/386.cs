@@ -99,9 +99,19 @@ internal static partial class _386
     // pour le 286, via cpu_update_waitstates (cpu.c:2010-2047).
     // -----------------------------------------------------------------------
 
-    // pcem: 386_dynarec.c:150-153
-    private static int prefetch_bytes;
-    private static int prefetch_prefixes;
+    // pcem: 386_dynarec.c:152-153. `internal` et non `private` : ils entrent dans le
+    // vecteur d'état comparé, comme les statiques de temps de 808x.c — dont l'oracle
+    // a dû, pour la même raison, compiler le .c dans son unité de traduction.
+    internal static int prefetch_bytes;
+    internal static int prefetch_prefixes;
+
+    /// <summary>Pendant de h_prefetch_reset(). PCem ne le fait jamais : ce sont des
+    /// statiques de BSS et il n'amorce qu'une fois par processus.</summary>
+    internal static void prefetch_reset()
+    {
+        prefetch_bytes = 0;
+        prefetch_prefixes = 0;
+    }
 
     /// <summary>pcem: 386_dynarec.c:155-206 — LE MODÈLE DE PRÉFETCH DE
     /// L'INTERPRÉTEUR, et non du recompilateur.
@@ -327,14 +337,46 @@ internal static partial class _386
     // pcem: x86_flags.h:6 — première valeur de l'énumération, donc 0.
     internal const int FLAGS_UNKNOWN = 0;
 
-    // pcem: x86.h — masque des causes d'abandon.
-    private const int ABRT_MASK = 7;
-
-    /// <summary>pcem: x86seg.c — la levée d'exception. Mode protégé pour
-    /// l'essentiel ; inatteignable tant que la table est vide, puisqu'un abandon
-    /// ne peut naître que d'un handler ou d'un chargement de segment.</summary>
-    private static void x86_doabrt(int abrt)
+    /// <summary>pcem: x86seg.c:76-112 — LA PRISE EN CHARGE DE L'ABANDON, branche
+    /// MODE RÉEL seulement.
+    ///
+    /// Elle devient atteignable en A2.2d, et pas par le mode protégé : CHECK_READ
+    /// mord quand un accès MOT déborde de limit_high, ce qui arrive à l'offset
+    /// 0xFFFF en mode réel. Le fuzzeur y tombe tout seul.
+    ///
+    /// Le geste est celui d'une interruption matérielle : empiler flags, CS et pc,
+    /// puis sauter par le vecteur. `pc = oldpc` d'abord — l'instruction fautive est
+    /// REJOUÉE après l'exception, elle n'est pas passée.</summary>
+    private static void x86_doabrt(int x86_abrt)
     {
-        pc.fatal($"x86_doabrt({abrt}) : non transcrit (Ap)\n");
+        cpu_state.pc = cpu_state.oldpc;
+        cpu_state.seg_cs.access = (uint8_t)(oldcpl << 5);
+
+        if ((msw & 1) != 0)
+        {
+                pc.fatal("x86_doabrt en mode protege : pmodeint n'est pas transcrit (Ap)\n");
+                return;
+        }
+
+        uint32_t addr = (uint32_t)(x86_abrt << 2) + idt.@base;
+        if (stack32 != 0)
+        {
+                writememw(ss, ESP - 2, cpu_state.flags);
+                writememw(ss, ESP - 4, CS);
+                writememw(ss, ESP - 6, (uint16_t)cpu_state.pc);
+                ESP -= 6;
+        }
+        else
+        {
+                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), cpu_state.flags);
+                writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                SP -= 6;
+        }
+
+        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+        cpu_state.pc = readmemw(0, addr);
+        x86seg_c.loadcs(readmemw(0, addr + 2));
     }
 }
