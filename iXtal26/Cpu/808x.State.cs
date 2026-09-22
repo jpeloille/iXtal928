@@ -229,6 +229,14 @@ internal static partial class _808x
         s.stack32 = x86.stack32;
         s.cpl_override = x86.cpl_override;
 
+        // Les quatre drapeaux paresseux, LUS et non matérialisés : appeler un
+        // flags_rebuild() ici rendrait la représentation paresseuse invisible à toutes
+        // les captures. Voir x86.cs pour le raisonnement complet.
+        s.flags_op = cpu_state.flags_op;
+        s.flags_res = cpu_state.flags_res;
+        s.flags_op1 = cpu_state.flags_op1;
+        s.flags_op2 = cpu_state.flags_op2;
+
         s.ea_seg_idx = -1;
         for (var i = 0; i < (int)Seg.COUNT; i++)
                 if (ReferenceEquals(cpu_state.ea_seg, segs[i]))

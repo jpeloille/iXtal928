@@ -311,9 +311,10 @@ public static class Fuzzer
     }
 
     /* 32 d'origine, + 7 champs de cache descripteur par segment, + 9 champs par
-     * descripteur système, + les 6 registres de contrôle. Compté en formes de champ,
-     * pas en entrées de tableau : la boucle en couvre 6, la suivante 4. */
-    private const int FieldCount = 54;
+     * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux.
+     * Compté en formes de champ, pas en entrées de tableau : la boucle en couvre 6, la
+     * suivante 4. */
+    private const int FieldCount = 58;
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -396,6 +397,12 @@ public static class Fuzzer
             ?? Chk("use32", a.use32, b.use32)
             ?? Chk("stack32", a.stack32, b.stack32)
             ?? Chk("cpl_override", a.cpl_override, b.cpl_override)
+            // Les drapeaux paresseux AVANT `flags` : quand les deux divergent, c'est la
+            // cause qu'on veut lire, pas la conséquence.
+            ?? Chk("flags_op", a.flags_op, b.flags_op)
+            ?? Chk("flags_res", a.flags_res, b.flags_res)
+            ?? Chk("flags_op1", a.flags_op1, b.flags_op1)
+            ?? Chk("flags_op2", a.flags_op2, b.flags_op2)
             ?? Chk("flags", a.flags, b.flags)
             ?? Chk("eflags", a.eflags, b.eflags)
             ?? Chk("pc", a.pc, b.pc)

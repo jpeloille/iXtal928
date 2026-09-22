@@ -119,6 +119,32 @@ typedef struct h_state {
         int32_t  stack32;
         int32_t  cpl_override;
 
+        /* LES DRAPEAUX PARESSEUX (x86.h:65-68), ajoutés en A2.1.
+         *
+         * exec386 ne matérialise pas `flags` : il retient l'OPÉRATION (flags_op) et ses
+         * opérandes, et ne reconstruit les six bits arithmétiques qu'au moment où
+         * quelqu'un les lit — flags_rebuild(), x86_flags.h:420. Entre deux
+         * reconstructions, `cpu_state.flags` est donc PÉRIMÉ.
+         *
+         * D'où le piège : comparer `flags` seul, c'est comparer un champ mort DES DEUX
+         * CÔTÉS. L'accord vide parfait.
+         *
+         * On COMPARE ces quatre champs plutôt que d'appeler flags_rebuild() avant chaque
+         * capture, et le départage n'est pas la mutation — flags_rebuild est gardée et
+         * idempotente — mais la COUVERTURE. L'appel rendrait flags_op égal à
+         * FLAGS_UNKNOWN à toutes les captures PAR CONSTRUCTION : la représentation
+         * paresseuse ne serait jamais comparée, et un cœur qui calcule flags_res
+         * autrement tout en matérialisant les mêmes six bits passerait. Ici la
+         * divergence échoue à l'instruction qui l'a causée.
+         *
+         * Inertes sur un 8088 — 808x.c ne contient aucune occurrence de flags_op, et les
+         * six appels de x86seg.c sont en mode protégé ou SMM. Ils entrent donc AVANT
+         * d'être nécessaires, comme le cache descripteur avant eux. */
+        int32_t  flags_op;
+        uint32_t flags_res;
+        uint32_t flags_op1;
+        uint32_t flags_op2;
+
         uint16_t flags;
         uint16_t eflags;
         uint16_t prefetchpc;
@@ -364,7 +390,9 @@ uint8_t *h_ram(void);
  * moment — LGDT, LIDT, LLDT, LTR et LMSW n'écrivent que là. */
 /* 9 depuis A2.0 : h_set_core / h_get_core s'ajoutent au contrat. h_state ne change pas
  * de forme, mais un .so bâti avant ne les exporte pas et le C# doit le dire. */
-#define H_ABI_VERSION 9
+/* 10 depuis A2.1 : h_state porte les quatre drapeaux paresseux — flags_op, flags_res,
+ * flags_op1, flags_op2. Le vecteur change de TAILLE. */
+#define H_ABI_VERSION 10
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

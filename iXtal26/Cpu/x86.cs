@@ -81,9 +81,21 @@ internal sealed class cpu_state_t
 
     internal uint32_t smbase;
 
-    // omitted: flags_op / flags_res / flags_op1 / flags_op2 — flags paresseux du
-    // cœur 386. Mesuré : 0 occurrence dans 808x.c comme dans x86seg.c, le 8088
-    // calcule ses flags en direct via znptable8/16.
+    // pcem: x86.h:65-68 — LES DRAPEAUX PARESSEUX. Dé-omis en A2.1.
+    //
+    // exec386 ne matérialise pas `flags` : il retient l'OPÉRATION et ses opérandes, et
+    // ne reconstruit les six bits arithmétiques qu'au moment où quelqu'un les lit
+    // (flags_rebuild, x86_flags.h:420). Entre deux reconstructions `flags` est PÉRIMÉ,
+    // donc le comparer seul serait comparer un champ mort des deux côtés.
+    //
+    // Le 8088 ne les touche toujours pas — 0 occurrence dans 808x.c, et les six appels
+    // de x86seg.c sont en mode protégé ou SMM, inatteignables ici. Ils entrent avant
+    // d'être nécessaires, pour que le vecteur d'état vérifie le câblage des deux côtés
+    // pendant qu'ils ne varient pas encore.
+    internal int flags_op;
+    internal uint32_t flags_res;
+    internal uint32_t flags_op1, flags_op2;
+
     // omitted: ST/TOP/tag/npxs/npxc/MM/MM_w4/ismmx — 8087 et MMX.
     // omitted: smi_pending, op32, cpu_recomp_ins, old_fp_control & co.
 }

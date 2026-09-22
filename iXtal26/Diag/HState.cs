@@ -88,6 +88,16 @@ public struct HState
     public int stack32;
     public int cpl_override;
 
+    // Les DRAPEAUX PARESSEUX (x86.h:65-68). exec386 ne matérialise pas `flags` : entre
+    // deux flags_rebuild() il est périmé, donc le comparer seul serait un accord vide.
+    // On compare la représentation paresseuse elle-même plutôt que de la matérialiser
+    // avant chaque capture — sans quoi flags_op vaudrait FLAGS_UNKNOWN à toutes les
+    // captures par construction, et ne serait jamais comparé.
+    public int flags_op;
+    public uint flags_res;
+    public uint flags_op1;
+    public uint flags_op2;
+
     public ushort flags;
     public ushort eflags;
     public ushort prefetchpc;

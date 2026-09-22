@@ -546,6 +546,14 @@ void h_getstate(h_state *out) {
         out->stack32 = stack32;
         out->cpl_override = cpl_override;
 
+        /* Les quatre drapeaux paresseux, LUS et non matérialisés. Appeler
+         * flags_rebuild() ici poserait flags_op à FLAGS_UNKNOWN et rendrait la
+         * représentation paresseuse invisible à toutes les captures — voir harness.h. */
+        out->flags_op = cpu_state.flags_op;
+        out->flags_res = cpu_state.flags_res;
+        out->flags_op1 = cpu_state.flags_op1;
+        out->flags_op2 = cpu_state.flags_op2;
+
         out->ea_seg_idx = -1;
         for (int i = 0; i < H_SEG_COUNT; i++)
                 if (cpu_state.ea_seg == segs[i])
