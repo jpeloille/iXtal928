@@ -107,10 +107,19 @@ void h_stub_counters_reset(void) {
  * ce qui ramène le dynarec » — reste vrai, et c'est pourquoi ces modules sont stubés
  * plus bas.
  *
- * GAIN INATTENDU : les vingt timing_* de mode protégé étaient à ZÉRO des deux côtés.
- * Inertes sur un 8088, ils seraient devenus un accord vide dès la première instruction
- * de mode protégé — les deux cœurs d'accord sur un temps faux. Ils prennent maintenant
- * leurs vraies valeurs, posées par cpu_set() depuis cpus_286[].
+ * RECTIFICATION du jalon 286 (A2.0). Ce commentaire affirmait, comme le message du
+ * commit 62288a6, que lier cpu.c faisait prendre aux vingt timing_* de mode protégé
+ * « leurs vraies valeurs, posées par cpu_set() depuis cpus_286[] ». C'EST FAUX, et
+ * mesuré tel : une sonde qui les imprime après h_reset() rend VINGT ZÉROS. Lier une
+ * unité fournit les symboles ; les valeurs, elles, sont assignées par cpu_set()
+ * (cpu.c:323-353), et cpu_set() ne tourne JAMAIS ici — models[] est un tableau de
+ * pointeurs nuls, c'est toute la raison des quatre interpositions ci-dessous.
+ *
+ * Aucune conséquence sur le palier (a) : 808x.c ne lit aucun de ces vingt symboles
+ * (zéro occurrence), donc les cinq chiffres de régression restaient justes. La
+ * conséquence est pour la SUITE : x86seg.c et tous les x86_ops_*.h les lisent, et à
+ * zéro des deux côtés ils auraient produit exactement l'accord vide que le commentaire
+ * se félicitait d'avoir évité. D'où h_cpu_config_286(), qui les pose à la main.
  *
  * DEUX VALEURS NE SONT PAS DES DÉFAUTS et doivent être ré-affirmées : cpu_busspeed et
  * isa_cycles. cpu.c les définit à zéro ; le harnais les posait à 4 772 728 et à 1. Les
@@ -127,6 +136,55 @@ int romset = 0; /* ROM_IBMPC */
 void h_cpu_config_8088(void) {
         cpu_busspeed = 4772728;
         isa_cycles = 1; /* cpu.c:17 — atclk_div, 1 pour cpus_8088[0] (cpu_tables.c:33) */
+}
+
+/* Ce que cpu_set() poserait pour cpus_286[0] — le « 286/6 » de l'IBM AT 5170. Repris
+ * de cpu.c:323-353, la branche `case CPU_286:`, à l'identique et dans l'ordre. Elle est
+ * inatteignable ici : cpu_set() déréférence models[], nul.
+ *
+ * cpu_busspeed = rspeed / multi = 6 000 000 / 1, et isa_cycles = atclk_div = 1
+ * (cpu.c:191 et :207 ; cpu_tables.c:70). cpu_flags y vaut 0 — le 286 est interpréteur
+ * par conception, et c'est ce qui autorise à laisser src/codegen/ dehors.
+ *
+ * Ce que cette fonction NE fait PAS, et qu'il faut savoir : cpu_set() pose aussi les
+ * quatre mem_*_cycles / cache_*_cycles (2, 2, 2, 2) via cpu_update_waitstates(), dont
+ * l'interposition ci-dessous est un no-op. Inoffensif tant qu'aucun accès mémoire du
+ * 286 n'est facturé ; à lever au moment où les cycles mémoire entreront dans la
+ * comparaison, et pas en silence. */
+void h_cpu_config_286(void) {
+        x86_setopcodes(ops_286, ops_286_0f, dynarec_ops_286, dynarec_ops_286_0f);
+
+        cpu_busspeed = 6000000;
+        isa_cycles = 1;
+
+        timing_rr = 2;     /* register dest - register src */
+        timing_rm = 7;     /* register dest - memory src */
+        timing_mr = 7;     /* memory dest   - register src */
+        timing_mm = 7;     /* memory dest   - memory src */
+        timing_rml = 9;    /* register dest - memory src long */
+        timing_mrl = 11;   /* memory dest   - register src long */
+        timing_mml = 11;   /* memory dest   - memory src */
+        timing_bt = 7 - 3; /* branch taken */
+        timing_bnt = 3;    /* branch not taken */
+        timing_int = 0;
+        timing_int_rm = 23;
+        timing_int_v86 = 0;
+        timing_int_pm = 40;
+        timing_int_pm_outer = 78;
+        timing_iret_rm = 17;
+        timing_iret_v86 = 0;
+        timing_iret_pm = 31;
+        timing_iret_pm_outer = 55;
+        timing_call_rm = 13;
+        timing_call_pm = 26;
+        timing_call_pm_gate = 52;
+        timing_call_pm_gate_inner = 82;
+        timing_retf_rm = 15;
+        timing_retf_pm = 25;
+        timing_retf_pm_outer = 55;
+        timing_jmp_rm = 11;
+        timing_jmp_pm = 23;
+        timing_jmp_pm_gate = 38;
 }
 
 /* INTERPOSITION, pas redéfinition : cpu.c définit le vrai cpu_update_waitstates(), qui

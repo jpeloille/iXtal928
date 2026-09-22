@@ -46,6 +46,14 @@ enum { H_SEG_CS = 0, H_SEG_DS, H_SEG_ES, H_SEG_SS, H_SEG_FS, H_SEG_GS, H_SEG_COU
  * membres de cpu_state. */
 enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
 
+/* Quel cœur le harnais exécute. Chez PCem le choix n'est pas un drapeau à part : c'est
+ * `is386 ? exec386 : AT ? exec386 : execx86` (pc.c:478-487). Un 286 est donc « AT sans
+ * is386 », et h_set_core() ne fait que mémoriser le choix pour que h_reset() le
+ * réapplique — resetx86() branche sur AT (808x.c:680). */
+enum { H_CORE_8088 = 0, H_CORE_286 = 1 };
+void h_set_core(int core);
+int h_get_core(void);
+
 /* Disposition explicite, pas de padding implicite : le C# marshale ça tel quel.
  * Tout champ ajouté ici doit l'être aussi côté C#, et entrer dans le vecteur
  * diffé — un champ non comparé est un champ où la dérive se cache. */
@@ -354,7 +362,9 @@ uint8_t *h_ram(void);
 /* 8 depuis le jalon 286, deuxième moitié : les quatre descripteurs système (gdt,
  * ldt, idt, tr) et cr0, cr2, cr3, use32, stack32, cpl_override. Même raison, même
  * moment — LGDT, LIDT, LLDT, LTR et LMSW n'écrivent que là. */
-#define H_ABI_VERSION 8
+/* 9 depuis A2.0 : h_set_core / h_get_core s'ajoutent au contrat. h_state ne change pas
+ * de forme, mais un .so bâti avant ne les exporte pas et le C# doit le dire. */
+#define H_ABI_VERSION 9
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

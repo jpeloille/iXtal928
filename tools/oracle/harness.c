@@ -37,6 +37,21 @@
 
 /* harness_stubs.c — les deux valeurs de configuration CPU que cpu.c laisse à zéro. */
 void h_cpu_config_8088(void);
+void h_cpu_config_286(void);
+
+/* QUEL CŒUR le harnais exécute. Le sélecteur n'est pas inventé : chez PCem c'est
+ * `is386 ? exec386 : AT ? exec386 : execx86` (pc.c:478-487), donc un 286 est très
+ * exactement « AT sans is386 ». On garde ce couple comme état de vérité et on ne
+ * mémorise ici que le choix, pour que h_reset() le réapplique — resetx86() branche
+ * sur AT (808x.c:680) pour le vecteur de reset et rammask.
+ *
+ * Défaut H_CORE_8088 : un appelant qui ignore h_set_core() obtient le palier (a)
+ * inchangé, ce que les cinq chiffres de régression vérifient. */
+static int h_core = H_CORE_8088;
+
+void h_set_core(int core) { h_core = (core == H_CORE_286) ? H_CORE_286 : H_CORE_8088; }
+
+int h_get_core(void) { return h_core; }
 
 /* Le cœur lui-même. Chemin explicite plutôt qu'un -I : on veut que la ligne dise
  * ce qu'elle fait. Doit venir après harness.h et avant tout code ci-dessous. */
@@ -309,7 +324,7 @@ void h_reset(void) {
         /* Configuration machine : IBM XT, Intel 8088.
          * Posée avant resetx86() parce que celle-ci branche sur AT, is486 et
          * is386 (808x.c:671-687) pour choisir le vecteur de reset et rammask. */
-        AT = 0;
+        AT = (h_core == H_CORE_286); /* pc.c:484 — c'est AT qui aiguille vers exec386 */
         is386 = 0;
         is486 = 0;
         is8086 = 0; /* 8088 : file de préfetch de 4 octets, pas 6 */
@@ -321,7 +336,10 @@ void h_reset(void) {
          * à zéro et que cpu_set() poserait. Elles étaient des initialiseurs dans
          * harness_stubs.c ; les perdre en liant cpu.c déplacerait les cinq chiffres de
          * régression du 8088 sans rien dire. */
-        h_cpu_config_8088();
+        if (h_core == H_CORE_286)
+                h_cpu_config_286();
+        else
+                h_cpu_config_8088();
 
         /* Multiplicateur TSC du XT. clockhardware() (808x.c:893-904) convertit les
          * cycles CPU en tops de l'oscillateur maître à 14,318 MHz en virgule fixe
@@ -434,7 +452,39 @@ void h_getregs(uint16_t r[H_R_COUNT]) {
  * comptabilité interne est entièrement relative (`cycdiff = cycles` au sommet de
  * boucle, puis tout se mesure en `cycdiff - cycles`). La dette réelle entre
  * instructions est portée par `nextcyc`, qu'on ne touche pas. */
+/* LE PAS-À-PAS DU 286 N'EST PAS CELUI DU 8088, et la différence est structurelle.
+ *
+ * execx86() est `cycles += cycs; while (cycles > 0)` (808x.c:1222) : un budget de 1
+ * suffit à n'exécuter qu'une instruction. exec386() a DEUX boucles (386.c:162-172), et
+ * l'interne est bornée par `cycdiff < cycle_period`, où
+ * `cycle_period = (timer_target - (uint32_t)tsc) + 1`. Le budget `cycles` ne la borne
+ * pas : avec timer_target à 0x7FFFFFFF, elle continue quoi qu'il arrive.
+ *
+ * On rapproche donc la borne : timer_target posé à tsc rend cycle_period == 1, l'interne
+ * sort après une instruction (tout opcode coûte au moins un cycle), et l'externe sort
+ * parce que cycles est retombé à zéro ou moins.
+ *
+ * DEVIATION assumée, et son prix dit : le bas de la boucle externe fait alors
+ * `if (TIMER_VAL_LESS_THAN_VAL(timer_target, tsc)) timer_process();` — donc un
+ * timer_process() par pas, là où le 8088 n'en déclenche aucun. C'est acceptable ici
+ * parce que le harnais est une porte de diagnostic et que le C# devra faire LE MÊME
+ * geste au même endroit ; c'est inacceptable en silence, d'où ce bloc. timer_target est
+ * restauré après coup pour que l'état comparé ne porte pas la trace du mécanisme. */
+static int h_step286(void) {
+        uint32_t saved_target = timer_target;
+
+        cpu_state._cycles = 1;
+        timer_target = (uint32_t)tsc;
+        exec386(0);
+        timer_target = saved_target;
+
+        h_ins_count++;
+        return 1 - cpu_state._cycles;
+}
+
 int h_step(void) {
+        if (h_core == H_CORE_286)
+                return h_step286();
         cpu_state._cycles = 1;
         execx86(0);
         h_ins_count++;
@@ -444,7 +494,10 @@ int h_step(void) {
 int h_run(int cycs) {
         uint64_t before = ins;
         cpu_state._cycles = 0;
-        execx86(cycs);
+        if (h_core == H_CORE_286)
+                exec386(cycs);
+        else
+                execx86(cycs);
         h_ins_count += (uint64_t)(ins - before);
         return cycs - cpu_state._cycles;
 }

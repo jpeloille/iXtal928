@@ -22,7 +22,9 @@ public static class Oracle
     // 6 depuis M12 : h_set_hdd et h_set_hdd_controller s'ajoutent au contrat. Doit suivre
     // H_ABI_VERSION à l'identique — c'est ce garde, et lui seul, qui distingue « le .so
     // est périmé » d'un symbole introuvable au premier appel.
-    public const int AbiVersion = 8;
+    // 7 et 8 au jalon 286 : h_state s'élargit (cache descripteur, puis descripteurs
+    // système). 9 : h_set_core / h_get_core s'ajoutent au contrat.
+    public const int AbiVersion = 9;
 
     static Oracle()
     {
@@ -65,6 +67,15 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_set_cs_ip(ushort cs, ushort ip);
     [DllImport(Lib)] public static extern void h_setregs(ushort[] r);
     [DllImport(Lib)] public static extern void h_getregs(ushort[] r);
+    // A2.0 — quel cœur l'oracle exécute. 0 = 8088 (execx86), 1 = 286 (exec386 avec
+    // ops_286). À poser AVANT h_reset : c'est h_reset qui applique AT, et resetx86
+    // branche dessus pour le vecteur de reset. Le défaut est 0, donc un appelant qui
+    // l'ignore obtient le palier (a) inchangé.
+    public const int Core8088 = 0;
+    public const int Core286 = 1;
+    [DllImport(Lib)] public static extern void h_set_core(int core);
+    [DllImport(Lib)] public static extern int h_get_core();
+
     [DllImport(Lib)] public static extern int h_step();
     [DllImport(Lib)] public static extern int h_run(int cycs);
     [DllImport(Lib)] public static extern void h_getstate(out HState s);
