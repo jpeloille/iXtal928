@@ -618,7 +618,23 @@ void h_trace_close(void) {
 }
 
 /* Une ligne d'état par instruction, réduite à 8 octets. On hache ce que le C#
- * peut reproduire exactement : l'état architectural et le temps. */
+ * peut reproduire exactement : l'état architectural et le temps.
+ *
+ * CE QUE `MIX(cpu_state.flags)` VOUDRA DIRE SOUS LE 286, et qu'il vaut mieux savoir
+ * avant de le diagnostiquer à chaud. Le 8088 matérialise ses drapeaux à chaque
+ * instruction, donc hacher `flags` hache une valeur vivante. exec386 ne les matérialise
+ * PAS (voir les quatre champs paresseux dans harness.h) : la trace hachera une valeur
+ * PÉRIMÉE, et les deux côtés ne s'accorderont dessus que s'ils effondrent la paresse aux
+ * MÊMES frontières d'instruction — ce que fait une transcription fidèle, et rien d'autre.
+ *
+ * Conséquence pratique : sous le 286, une divergence de phase 1 dont le champ affiché est
+ * `flags` désigne très probablement une divergence de `flags_op` ou de `flags_res`, une
+ * instruction plus tôt. Ne pas chercher le défaut dans le calcul des drapeaux : le
+ * chercher dans QUAND chaque côté appelle flags_rebuild(). La phase 2 et le fuzzeur
+ * comparent les quatre champs et nomment la vraie cause ; la phase 1 ne le peut pas.
+ *
+ * On ne matérialise pas ici pour y remédier : ce serait muter l'état au point de capture,
+ * et rendre la représentation paresseuse invisible à la phase 2 aussi. */
 static void h_trace_note(void) {
         uint64_t h = 1469598103934665603ULL;
 #define MIX(v)                                                                                                           \
