@@ -385,6 +385,52 @@ trois exécutions donnent trois valeurs. Même arbitrage que `h_pad_ram` — un 
 tire aux dés n'est pas un oracle. Voir le registre des omissions de `TRANSCRIPTION.md`.
 
 
+### PB-31 — `cga_close` libère un `mem_mapping_t` encore chaîné, et `closepc()` le traverse
+
+Trois lignes, chacune correcte seule, qui composent un `free` suivi d'un déréférencement.
+
+1. `cga_t` porte son mappage **par valeur** : `mem_mapping_t mapping;` (`vid_cga.h:4`), chaîné
+   dans la liste globale par `mem_mapping_add(&cga->mapping, 0xb8000, …)` (`vid_cga.c:432`).
+2. `cga_close` (`vid_cga.c:441-446`) fait `free(cga->vram); free(cga);` — **sans
+   `mem_mapping_remove`**. Le maillon reste donc dans la liste, en pointeur pendant.
+3. `mem_mapping_remove` (`mem.c:1158-1175`) parcourt sans garde de fin :
+
+```c
+prev = &base_mapping;
+dest = prev->next;
+while (dest != mapping) { prev = dest; dest = dest->next; }
+```
+
+Il n'y a **pas** de `dest != NULL` : un maillon libéré, et la boucle part dans la mémoire
+réallouée jusqu'à la faute.
+
+*Atteignable chez PCem, pas seulement ici.* `closepc()` (`pc.c:576-592`) appelle
+`device_close_all()` (`:589`), et `closepc()` **est appelé** — `wx-sdl2.c:649`,
+`qt-sdl2.c:701`, `pc.c:601`. `device_close_all` (`device.c:34-44`) ferme dans l'ordre
+croissant des indices, et `video_init()` (`pc.c:374`) précède `hdd_controller_init()`
+(`pc.c:392`) : la CGA est donc libérée **avant** la carte de disque dur, dont le
+`xebec_close` appelle `rom_deinit` (`mfm_xebec.c:769`) donc `mem_mapping_remove`
+(`rom.c:113`). Quitter PCem sur une machine CGA + Fixed Disk Adapter suit ce chemin.
+
+*Effet* : faute de segmentation à la fermeture. Reproduit dans l'oracle en ajoutant
+`device_close_all()` à `h_closepc`, trace obtenue sous gdb :
+
+```
+#0 mem_mapping_remove  mem.c:1170      dest = dest->next;
+#1 rom_deinit          rom.c:113
+#2 xebec_close         mfm_xebec.c:769
+#3 device_close_all    device.c:40
+```
+
+*NON reproduit — divergence assumée*, et elle ne se choisit pas : le C# n'a pas de `free`.
+`cga_close` n'y libère rien, la liste de mappages reste parcourable, et
+`mem_mapping_remove` trouve sa cible. Le côté C# appelle donc `device_close_all()`
+fidèlement (`pc.cs`, `closepc`) ; l'oracle, qui est une bibliothèque et non un processus
+qui s'arrête, vide ses tampons par `fflush(NULL)` et le dit sur place. Même famille que
+`h_pad_ram` et `PB-24` — ce qui diverge est la gestion mémoire manuelle, pas un
+comportement émulé. VERIFICATION.md § M13.
+
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -527,7 +573,7 @@ morte n'est pas un commentaire (même arbitrage que PB-20).
 
 ## Portée de ce registre
 
-Ces **trente** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente et un** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -535,7 +581,7 @@ audit systématique de PCem** :
 | SingleStepTests | PB-01 |
 | Fuzzer différentiel | PB-07 |
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
-| Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21 |
+| Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31 |
 | Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été

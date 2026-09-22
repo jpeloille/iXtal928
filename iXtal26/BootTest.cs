@@ -46,6 +46,15 @@ public static class BootTest
             foreach (var type in types)
                 TypeAndDump(type, settle);
 
+        // pc.c:584-585, par closepc(). Ajouté à M13 : --boot ÉCRIT sur les images — le
+        // README donne « --settle 4500 --type "FORMAT B:" » comme recette — et cette
+        // fonction rendait sans jamais fermer, laissant le vidage des tampons au hasard
+        // de la sortie de processus. Mesuré sur le disque dur : un FDISK seul écrit
+        // 512 octets, qui restent dans le tampon, et l'image sur l'hôte reste à zéro.
+        // BootDiff, lui, appelait déjà closepc (BootDiff.cs) — c'est ce chemin-ci qui
+        // manquait.
+        pc.closepc();
+
         return 0;
     }
 

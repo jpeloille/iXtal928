@@ -490,20 +490,34 @@ internal static partial class pc
     }
 
     /// <summary>
-    /// pcem: pc.c:576-592 (réduit). Fermeture du processus. Les deux disc_close sont la
-    /// SEULE chose qui vide les tampons d'écriture sur les images : img_writeback
-    /// (disc_img.cs:551) écrit dans le FileStream sans Flush(), et c'est le Close() de
-    /// img_close (disc_img.cs:430) qui les pousse. Sans cet appel, un DOS qui vient
-    /// d'écrire sur la disquette perd ses écritures à la fermeture de la fenêtre.
+    /// pcem: pc.c:576-592 (réduit). Fermeture du processus, et le SEUL endroit qui vide
+    /// les tampons d'écriture sur les images.
+    ///
+    /// Les deux `disc_close` s'occupent des disquettes : img_writeback (disc_img.cs:551)
+    /// écrit dans le FileStream sans Flush(), et c'est le Close() d'img_close
+    /// (disc_img.cs:430) qui les pousse.
+    ///
+    /// `device_close_all` s'occupe du DISQUE DUR, par xebec_close → hdd_close →
+    /// FileStream.Close() (mfm_xebec.cs, hdd_file.cs). Il était omis jusqu'à M13, avec ce
+    /// motif : « device_close_all() n'a rien à fermer que le processus ne rende de
+    /// lui-même ». C'était vrai quand la phrase a été écrite, et M12 l'a rendu faux sans
+    /// que personne n'y revienne — depuis, le Fixed Disk Adapter tient un FileStream
+    /// tamponné.
+    ///
+    /// MESURÉ, et la perte était totale, pas latente : un FDISK seul écrit un secteur de
+    /// 512 octets, qui tient entièrement dans le tampon de 4 Ko et n'en sort jamais.
+    /// L'image restait à ZÉRO octet non nul alors que l'écran affichait la partition
+    /// écrite. Les campagnes de § M12 y échappaient par le volume — un FORMAT pousse
+    /// 10 Mo, donc tout sauf le dernier tampon partiel — et non par construction.
     /// </summary>
     internal static void closepc()
     {
         // omitted: codegen_close(), atapi->exit(), dumppic(), dumpregs(), closevideo(),
-        //   lpt1_device_close(), mouse_emu_close(), device_close_all(), zip_eject()
-        //   (pc.c:577-591) — dynarec, ATAPI, LPT, souris, ZIP : hors périmètre 5150.
-        //   device_close_all() n'a rien à fermer que le processus ne rende de lui-même.
+        //   lpt1_device_close(), mouse_emu_close(), zip_eject() (pc.c:577-591) —
+        //   dynarec, ATAPI, LPT, souris, ZIP : hors périmètre 5150.
         Disc.disc.disc_close(0);
         Disc.disc.disc_close(1);
+        PluginApi.device.device_close_all();
     }
 
     // pcem: pc.c — remise à zéro du CPU et des périphériques sensibles au reset.

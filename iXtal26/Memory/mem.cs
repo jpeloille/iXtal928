@@ -634,6 +634,18 @@ internal static partial class mem
     }
 
     // pcem: mem.c:1157-1175
+    //
+    // DEVIATION: la garde `dest == null` n'existe pas dans le C, qui écrit
+    //   « while (dest != mapping) { prev = dest; dest = dest->next; } » SANS test de fin
+    //   de liste (mem.c:1166-1170). Marquée à M13, quand elle a cessé d'être théorique :
+    //   c'est exactement ce test qui empêche ici le mode de panne de PB-31. Chez PCem,
+    //   cga_close libère le cga_t sans retirer le mem_mapping_t qu'il contient
+    //   (vid_cga.c:441-446), le maillon reste chaîné en pointeur pendant, et le
+    //   parcours suivant part dans la mémoire réallouée — faute de segmentation
+    //   reproduite sous gdb dans l'oracle. Ici rien n'est libéré et la liste reste
+    //   parcourable ; la garde ne sert donc jamais sur le chemin du 5150, mais sans
+    //   elle un maillon manquant lèverait une NullReferenceException au lieu de rendre.
+    //   Voir VERIFICATION.md § M13.
     internal static void mem_mapping_remove(mem_mapping_t mapping)
     {
         mem_mapping_t prev;

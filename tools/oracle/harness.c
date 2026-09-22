@@ -781,10 +781,37 @@ void h_kbd_process(void) {
 /* Pendant de pc.closepc() (pc.c:584-585), et de la MEME nécessité : img_writeback
  * écrit dans le FILE* sans fflush, et c'est le fclose de img_close qui pousse. Sans
  * cet appel, comparer les deux images après un FORMAT compare un fichier vidé à un
- * fichier qui ne l'est pas — une divergence entièrement fabriquée par le harnais. */
+ * fichier qui ne l'est pas — une divergence entièrement fabriquée par le harnais.
+ *
+ * Le DISQUE DUR a la MEME necessite -- mesure cote C# : un FDISK seul ecrit 512 octets
+ * qui ne sortent jamais du tampon, et l'image reste a zero. Mais il ne peut pas etre
+ * vide de la meme facon des deux cotes.
+ *
+ * DEVIATION: fflush(NULL) la ou pc.closepc() appelle device_close_all() (pc.c:589).
+ *   Le pendant fidele a ete ecrit, puis RETIRE apres plantage : device_close_all()
+ *   ferme la CGA avant la carte, cga_close() fait free(cga) SANS mem_mapping_remove
+ *   (vid_cga.c:441-446), le mem_mapping_t de la CGA reste donc chaine dans la liste
+ *   globale en pointeur pendant, et le rom_deinit de xebec_close le traverse --
+ *   mem_mapping_remove boucle « while (dest != mapping) » sans garde de fin de liste
+ *   (mem.c:1166-1170). Trace obtenue sous gdb :
+ *       #0 mem_mapping_remove  mem.c:1170
+ *       #1 rom_deinit          rom.c:113
+ *       #2 xebec_close         mfm_xebec.c:769
+ *       #3 device_close_all    device.c:40
+ *   C'est un defaut de PCem, atteignable chez lui : closepc() est bien appele
+ *   (wx-sdl2.c:649), et quitter PCem sur une machine CGA + Xebec suit ce chemin.
+ *   Registre : PB-31.
+ *
+ *   Le cote C#, lui, garde device_close_all() et ne plante pas : rien n'y est libere,
+ *   la liste de mappages reste parcourable, et mem_mapping_remove trouve sa cible.
+ *   Meme famille que h_pad_ram -- ce qui diverge est de la gestion memoire manuelle,
+ *   pas un comportement emule. Ce qui compte pour la comparaison d'images est que les
+ *   octets soient sur le disque des deux cotes, et fflush(NULL) le garantit : il vide
+ *   TOUS les flux ouverts en ecriture du processus, disque dur compris. */
 void h_closepc(void) {
         disc_close(0);
         disc_close(1);
+        fflush(NULL);
 }
 
 void h_set_discfn(int drive, const char *fn) {
