@@ -890,4 +890,94 @@ internal sealed class SdlSetup
 
         return $" {mark} Type {type:D2}  {cylinders,4} cyl x {heads,2} tetes  {mb,3} Mo";
     }
+
+    /// <summary>
+    /// Auto-contrôle de la logique de l'écran, sans SDL ni fenêtre.
+    ///
+    /// Il existe parce que CE CODE N'A AUCUN AUTRE MOYEN D'ÊTRE EXÉCUTÉ. SDL3 tourne ici
+    /// en Wayland natif et rien ne donne le focus à une fenêtre : sans cela, la
+    /// navigation au clavier, la bascule d'écran et le recalage de la fenêtre de
+    /// défilement n'auraient jamais tourné une seule fois. Ce dépôt traite un chemin mort
+    /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
+    /// moitié écriture du moteur de configuration, et c'est le même ici.
+    ///
+    /// Deux des huit contrôles sont des non-régressions nées d'une relecture : la
+    /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
+    /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
+    /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
+    /// processus qui sort sans rien faire.
+    /// </summary>
+    /// <returns>0 si tout passe, 1 sinon.</returns>
+    internal static int SelfCheck(string romsPath)
+    {
+        var st = new SdlSetup(IntPtr.Zero, IntPtr.Zero, romsPath);
+        int fail = 0;
+
+        void Check(string what, bool ok, string got)
+        {
+            Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] {what} : {got}");
+
+            if (!ok)
+                    fail++;
+        }
+
+        Console.WriteLine("Auto-contrôle de l'écran de construction.");
+        Console.WriteLine();
+        Console.WriteLine("Revisite d'une liste après changement de modèle :");
+
+        st.Activate(Item.Memory);
+        st.BuildLines(out int sel1);
+        Check("liste mémoire, 5150 à 640 Ko", sel1 >= 0,
+              $"{st._pickLabels.Length} entrées, index {st._pickIndex}, haut {st._pickTop}, " +
+              $"ligne choisie {sel1}");
+        st._screen = Screen.Main;
+
+        st.Activate(Item.Model);
+        st._pickIndex = 1; /* ibmxt */
+        st.ApplyPick();
+
+        st.Activate(Item.Memory);
+        st.BuildLines(out int sel2);
+        Check("la MÊME liste rouverte après passage au XT", sel2 >= 0,
+              $"{st._pickLabels.Length} entrées, index {st._pickIndex}, haut {st._pickTop}, " +
+              $"ligne choisie {sel2}");
+        Check("le haut de fenêtre reste dans les bornes",
+              st._pickTop >= 0 && st._pickTop < st._pickLabels.Length,
+              $"haut {st._pickTop} sur {st._pickLabels.Length}");
+        st._screen = Screen.Main;
+
+        Console.WriteLine();
+        Console.WriteLine("Chemin clavier de l'écran principal :");
+
+        st._mainIndex = 0;
+        bool done = st.HandleMain(SDL.Scancode.Down, out bool start);
+        Check("Bas ne termine pas", !done && !start,
+              $"termine={done} demarre={start} index={st._mainIndex}");
+
+        st._mainIndex = 0;
+        st.HandleMain(SDL.Scancode.Up, out _);
+        Check("Haut depuis la première entrée boucle en fin",
+              st._mainIndex == MainItems.Length - 1, $"index {st._mainIndex}");
+
+        done = st.HandleMain(SDL.Scancode.Return, out start);
+        Check("Entrée sur « Demarrer » termine ET démarre", done && start,
+              $"termine={done} demarre={start}");
+
+        st._mainIndex = 0;
+        done = st.HandleMain(SDL.Scancode.Escape, out start);
+        Check("Échap termine SANS démarrer", done && !start,
+              $"termine={done} demarre={start}");
+
+        st._mainIndex = 0; /* Item.Model */
+        done = st.HandleMain(SDL.Scancode.Return, out start);
+        Check("Entrée sur un champ ouvre sa liste",
+              !done && !start && st._screen == Screen.Pick, $"écran {st._screen}");
+
+        Console.WriteLine();
+        Console.WriteLine(fail == 0
+            ? "Vert : les huit contrôles passent."
+            : $"{fail} contrôle(s) en échec.");
+
+        return fail == 0 ? 0 : 1;
+    }
 }

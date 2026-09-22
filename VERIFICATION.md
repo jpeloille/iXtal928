@@ -2763,9 +2763,29 @@ hdc_cylinders = 306
 hdc_fn = os/vierge-hdd-type01.img
 ```
 
+**Et un auto-contrôle, parce que ce code n'a aucun autre moyen d'être exécuté.** SDL3
+tourne ici en Wayland natif et rien ne donne le focus à une fenêtre : sans `--setup-check`,
+la navigation au clavier et les bascules d'écran n'auraient jamais tourné une seule fois.
+C'est le motif de `config-check` pour la moitié écriture du moteur de configuration, et
+c'est le même ici — ce dépôt traite un chemin mort comme un chemin cassé.
+
+Huit contrôles, tous verts. Deux méritent d'être nommés :
+
+- **la revisite d'une liste après changement de modèle.** Ouvrir la liste mémoire d'un
+  5150 à 640 Ko met le curseur en 19ᵉ position et le haut de fenêtre à 9 ; passer au XT
+  et rouvrir donne 10 entrées, index 9, **haut 0** — `Activate` remet le haut à zéro
+  avant de reconstruire, donc aucune fenêtre périmée ne survit. Vérifié parce que la
+  question a été posée, pas parce qu'on soupçonnait le contraire.
+- **les deux sorties de l'écran principal** : « Demarrer » rend `(termine, démarre)` =
+  `(vrai, vrai)`, Échap rend `(vrai, faux)`. C'est la différence entre une machine qui
+  démarre et un processus qui sort sans rien faire, et aucune autre porte ne la voit.
+
+Contrôle négatif fait : inverser la sortie d'Échap donne `[ECHEC]` et **code de sortie 1**;
+le contrôle sain sort 0.
+
 **Reste** : `make -C tools/oracle selftest` vert, `check-oracle.sh` sans dérive,
-`config-check` vert, `dotnet build -c Release` sans avertissement, `TRANSCRIPTION.md` à
-223 lignes sous le plafond de 225.
+`config-check` vert, `--setup-check` vert, `dotnet build -c Release` sans avertissement,
+`TRANSCRIPTION.md` à 223 lignes sous le plafond de 225.
 
 ### Un profil de Rider a dû changer de forme pour ne pas changer de sens
 
@@ -2783,9 +2803,12 @@ Un septième profil, « construire la machine », porte `--setup` et vient en t�
    longue ligne fait 44 caractères sur 46 — sa hauteur comptée en lignes, ses transitions
    d'état exercées par une sonde. Son apparence, non. Même angle mort que le titre de
    fenêtre de § M11.1 et l'entrée de menu de § M12.1.
-2. **Aucune touche n'a jamais été livrée à l'écran par SDL.** La sonde appelait
-   `Activate` et `ApplyPick` directement ; `Handle`, `HandleMain` et `HandleList` — donc
-   la navigation au clavier et `Echap` — n'ont pas d'exécution derrière eux.
+2. **Aucune touche n'a jamais été livrée à l'écran PAR SDL.** `--setup-check` appelle
+   `HandleMain` directement, avec des `SDL.Scancode` fabriqués. Restent sans aucune
+   exécution : `Run()` — la boucle d'évènements elle-même —, le répartiteur `Handle`, et
+   `HandleList`, donc la navigation DANS une liste et son défilement. Ce qui est vérifié,
+   c'est que les fonctions font ce qu'on croit quand on les appelle ; pas que SDL les
+   appelle.
 3. **« Parcourir... » n'existe pas dans cet écran.** Il liste `os/`. Un chemin quelconque
    passe par `--floppy-a` ou `--hdd`.
 4. **Une seule machine a été composée et enregistrée.** Le chargement d'une machine

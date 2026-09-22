@@ -360,6 +360,12 @@ for (var i = 0; i < args.Length; i++)
     // pendant du Configuration Manager de PCem, que `config_override` saute quand
     // --config est passé (wx-sdl2.c:481-488) : ici l'écran s'ouvre tout seul sur un
     // lancement NU, et --setup le force.
+    // Auto-contrôle de l'écran de construction. Il existe parce que ce code n'a aucun
+    // autre moyen d'être exécuté : rien ici ne donne le focus à une fenêtre SDL. Même
+    // motif que config-check pour la moitié écriture du moteur de configuration.
+    if (arg == "--setup-check")
+        return iXtal26.Host.SdlSetup.SelfCheck(paths.resolve_roms_path(romsPath));
+
     if (arg == "--setup")
     {
         setup = true;
@@ -880,6 +886,9 @@ static void PrintUsage()
     Console.WriteLine("                       charger ou enregistrer une machine de configs/. Il");
     Console.WriteLine("                       s'ouvre DÉJÀ tout seul sur un lancement sans argument ;");
     Console.WriteLine("                       jamais sous --slices, --headless ni --boot");
+    Console.WriteLine("  --setup-check        auto-contrôle de l'écran de construction, sans fenêtre :");
+    Console.WriteLine("                       navigation, bascules d'écran, recalage de la liste. Ce");
+    Console.WriteLine("                       code n'a aucun autre moyen d'être exécuté ici");
     Console.WriteLine("  -h, --help           affiche cette aide");
     Console.WriteLine();
     Console.WriteLine("Codes de sortie : 0 succès, 1 échec d'exécution, 2 erreur d'usage.");
