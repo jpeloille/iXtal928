@@ -2482,6 +2482,28 @@ Un cinquième écart n'en est pas un : le calcul de taille est en 64 bits, ce qu
 pendant des **deux** calculs du C — `int` pour les 46 types, où il ne peut pas déborder, et
 `uint64_t` pour la saisie libre, où il déborderait.
 
+### Le bloc de clés imprimé dépendait du répertoire de lancement
+
+Défaut trouvé en relisant la promesse faite à l'utilisateur — « les quatre clés, prêtes à
+coller » — depuis un second répertoire. `ImagesRoot` rend `os` **relatif** quand le
+répertoire courant est la racine du dépôt, et un chemin **absolu** quand on lance depuis
+`bin/Release/net10.0`, ce que fait Rider et ce pour quoi son repli existe. La clé imprimée
+suivait, et donnait alors une configuration qui marche sur cette machine et sur aucune
+autre.
+
+`HddImage.ConfigPath` rend donc `os/NOM` dès que l'image est dans `os/`, et le chemin tel
+quel sinon — un chemin explicitement demandé reste celui qu'on a demandé. La forme relative
+est celle que `resolve_file_path` retrouve de partout : il essaie le répertoire courant,
+puis remonte depuis le binaire.
+
+**La leçon est de méthode** : une commande mesurée depuis un seul répertoire n'est pas
+mesurée. C'est la même famille que le titre de fenêtre de § M11.1 et que la clé `disc_a`
+écrasée de § M12 — une sortie juste là où on l'a regardée.
+
+Durci au passage : les deux positionnels testaient `StartsWith("--")` là où `--turbo`
+(`Program.cs:266`) teste `StartsWith('-')`. `--create-hdd 1 -v` créait donc un fichier
+nommé « -v ».
+
 ### Les portes
 
 | Épreuve | Résultat |
@@ -2490,8 +2512,9 @@ pendant des **deux** calculs du C — `int` pour les 46 types, où il ne peut pa
 | Types marqués compatibles Xebec | **01, 02, 06, 13, 16, 23** — six, et calculés |
 | Type 01 : taille | **10 653 696 octets** = 306 × 4 × 17 × 512, à l'unité |
 | Type 01 : contenu | **tous les octets nuls** |
-| Type 01 : allocation | **non sparse** — `du` et `du --apparent-size` égaux, 10 653 696 des deux côtés |
+| Type 01 : allocation | **non sparse** — `du` et `du --apparent-size` égaux, 10 653 696 des deux côtés, mesuré dans `os/` donc **sur ext4** et non sur le tmpfs de `/tmp`, où ces deux nombres s'accordent pour des raisons qui ne se généralisent pas |
 | Type 01 contre `head -c 10653696 /dev/zero` | **`cmp` silencieux** : le même fichier à l'octet |
+| Clé `hdc_fn` imprimée | **`os/vierge-hdd-type01.img` depuis les DEUX répertoires** — la racine du dépôt et `bin/Release/net10.0`, celui d'où Rider lance |
 | Neuf refus | type 15, type 0, type 47, `abc`, `306,4` incomplet, 64 secteurs, 17 têtes, 265265 cylindres, 0 cylindre → **code 2** ; fichier existant → **code 1** |
 | `boot-diff roms 6000` | **25 457 269** à chacun des trois commits |
 | `check-oracle.sh` | 30 transcrits vérifiés, 0 dérive, arbre vendoré OK |

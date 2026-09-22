@@ -234,6 +234,29 @@ internal static class HddImage
     /// Le préfixe est `hdc_`, soit le lecteur C: : les préfixes de ces clés sont des
     /// LETTRES DE LECTEUR DOS et non des numéros de contrôleur (Disc/hdd.cs).
     /// </summary>
+    /// <summary>
+    /// Le chemin tel qu'une clé `hdc_fn` doit le porter : « os/NOM » quand l'image est
+    /// dans os/, le chemin tel quel sinon.
+    ///
+    /// Ce n'est pas de la cosmétique. Le chemin de CRÉATION dépend du répertoire courant
+    /// — ImagesRoot rend « os » relatif depuis la racine du dépôt, mais un chemin absolu
+    /// quand on lance depuis bin/Release/net10.0, ce que fait Rider. Imprimer celui-là
+    /// dans le bloc de clés donnerait une configuration qui marche sur cette machine et
+    /// sur aucune autre, alors que la documentation promet des clés « prêtes à coller ».
+    /// La forme relative, elle, est celle que resolve_file_path retrouve depuis n'importe
+    /// où : il essaie le répertoire courant, puis remonte depuis le binaire (paths.cs).
+    /// Mesuré depuis les deux répertoires, pas déduit.
+    /// </summary>
+    internal static string ConfigPath(string path, string imagesRoot)
+    {
+        string? dir = Path.GetDirectoryName(Path.GetFullPath(path));
+
+        if (dir is not null && dir == Path.GetFullPath(imagesRoot))
+            return Path.Combine("os", Path.GetFileName(path));
+
+        return path;
+    }
+
     internal static string ConfigBlock(string path, int cylinders, int heads, int spt)
         => $"hdd_controller = mfm_xebec\n" +
            $"hdc_sectors = {spt}\n" +

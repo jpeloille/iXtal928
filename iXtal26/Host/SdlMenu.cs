@@ -491,7 +491,7 @@ internal sealed class SdlMenu
         Console.WriteLine();
         Console.WriteLine("À ajouter au fichier de configuration, puis reset matériel :");
         Console.WriteLine();
-        Console.Write(HddImage.ConfigBlock(path, cylinders, heads, spt));
+        Console.Write(HddImage.ConfigBlock(HddImage.ConfigPath(path, root), cylinders, heads, spt));
 
         _message = $"{Path.GetFileName(path)} cree, cles en console";
     }

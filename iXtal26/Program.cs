@@ -449,7 +449,10 @@ static int CreateHdd(string[] args, ref int i, string romsPath)
     // Sans argument, on liste et on sort SANS RIEN CRÉER. Un défaut implicite qui
     // fabriquerait 10 Mo parce qu'on a tapé la commande pour voir serait exactement le
     // genre de surprise que ce dépôt refuse ailleurs.
-    if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+    // StartsWith('-') et non "--", comme --turbo : sans cela « --create-hdd 1 -v »
+    // avalerait -v comme chemin et créerait un fichier nommé « -v ». Aucun type ni
+    // géométrie valide ne commence par un tiret.
+    if (i + 1 >= args.Length || args[i + 1].StartsWith('-'))
     {
         PrintHddTypes();
         return 0;
@@ -500,13 +503,15 @@ static int CreateHdd(string[] args, ref int i, string romsPath)
     // finissent par différer, et une image invisible dans la liste du menu.
     string path;
 
-    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+    var imagesRoot = SdlMenu.ImagesRoot(romsPath);
+
+    if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
     {
         path = args[++i];
     }
     else
     {
-        var root = SdlMenu.ImagesRoot(romsPath);
+        var root = imagesRoot;
 
         try
         {
@@ -563,7 +568,7 @@ static int CreateHdd(string[] args, ref int i, string romsPath)
     Console.WriteLine();
     Console.WriteLine("À ajouter au fichier de configuration :");
     Console.WriteLine();
-    Console.Write(HddImage.ConfigBlock(path, cylinders, heads, spt));
+    Console.Write(HddImage.ConfigBlock(HddImage.ConfigPath(path, imagesRoot), cylinders, heads, spt));
 
     return 0;
 }
