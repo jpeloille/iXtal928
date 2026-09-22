@@ -310,7 +310,7 @@ public static class Fuzzer
         return 0;
     }
 
-    private const int FieldCount = 32;
+    private const int FieldCount = 39; /* 32 + les 7 champs de cache descripteur */
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -340,6 +340,24 @@ public static class Fuzzer
                 return $"{(Seg)i} sélecteur : oracle 0x{a.seg_sel[i]:X4}, C# 0x{b.seg_sel[i]:X4}";
             if (a.seg_base[i] != b.seg_base[i])
                 return $"{(Seg)i} base : oracle 0x{a.seg_base[i]:X8}, C# 0x{b.seg_base[i]:X8}";
+
+            // Le cache descripteur. Inerte sur un 8088 — loadseg n'y touche pas quand
+            // msw & 1 vaut zéro — mais comparé dès maintenant : c'est ce qui vérifie le
+            // câblage des deux côtés pendant qu'il ne varie pas encore.
+            if (a.seg_limit[i] != b.seg_limit[i])
+                return $"{(Seg)i} limit : oracle 0x{a.seg_limit[i]:X8}, C# 0x{b.seg_limit[i]:X8}";
+            if (a.seg_limit_raw[i] != b.seg_limit_raw[i])
+                return $"{(Seg)i} limit_raw : oracle 0x{a.seg_limit_raw[i]:X8}, C# 0x{b.seg_limit_raw[i]:X8}";
+            if (a.seg_limit_low[i] != b.seg_limit_low[i])
+                return $"{(Seg)i} limit_low : oracle 0x{a.seg_limit_low[i]:X8}, C# 0x{b.seg_limit_low[i]:X8}";
+            if (a.seg_limit_high[i] != b.seg_limit_high[i])
+                return $"{(Seg)i} limit_high : oracle 0x{a.seg_limit_high[i]:X8}, C# 0x{b.seg_limit_high[i]:X8}";
+            if (a.seg_access[i] != b.seg_access[i])
+                return $"{(Seg)i} access : oracle 0x{a.seg_access[i]:X2}, C# 0x{b.seg_access[i]:X2}";
+            if (a.seg_access2[i] != b.seg_access2[i])
+                return $"{(Seg)i} access2 : oracle 0x{a.seg_access2[i]:X2}, C# 0x{b.seg_access2[i]:X2}";
+            if (a.seg_checked[i] != b.seg_checked[i])
+                return $"{(Seg)i} checked : oracle {a.seg_checked[i]}, C# {b.seg_checked[i]}";
         }
 
         return Chk("flags", a.flags, b.flags)

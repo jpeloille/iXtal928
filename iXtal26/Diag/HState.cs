@@ -41,6 +41,19 @@ public struct HState
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public uint[] regs;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_base;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public ushort[] seg_sel;
+
+    // Le CACHE DESCRIPTEUR des six segments, ajouté au jalon 286. Les deux côtés le
+    // portaient déjà — x86seg a huit champs — mais le vecteur n'en comparait que
+    // `base` et `seg`. Sur un 8088 les six autres ne bougent jamais ; en mode protégé
+    // ils portent tout. Ils entrent AVANT d'être nécessaires, pour vérifier le câblage
+    // pendant qu'il est encore trivial.
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_limit;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_limit_raw;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_limit_low;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public uint[] seg_limit_high;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public int[] seg_checked;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public byte[] seg_access;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)] public byte[] seg_access2;
     public ushort flags;
     public ushort eflags;
     public ushort prefetchpc;
@@ -91,6 +104,13 @@ public struct HState
         regs = new uint[8],
         seg_base = new uint[(int)Seg.COUNT],
         seg_sel = new ushort[(int)Seg.COUNT],
+        seg_limit = new uint[(int)Seg.COUNT],
+        seg_limit_raw = new uint[(int)Seg.COUNT],
+        seg_limit_low = new uint[(int)Seg.COUNT],
+        seg_limit_high = new uint[(int)Seg.COUNT],
+        seg_checked = new int[(int)Seg.COUNT],
+        seg_access = new byte[(int)Seg.COUNT],
+        seg_access2 = new byte[(int)Seg.COUNT],
         prefetchqueue = new byte[6],
         _pad = new byte[2],
     };

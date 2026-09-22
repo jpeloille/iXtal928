@@ -452,6 +452,13 @@ void h_getstate(h_state *out) {
         for (int i = 0; i < H_SEG_COUNT; i++) {
                 out->seg_sel[i] = segs[i]->seg;
                 out->seg_base[i] = segs[i]->base;
+                out->seg_limit[i] = segs[i]->limit;
+                out->seg_limit_raw[i] = segs[i]->limit_raw;
+                out->seg_limit_low[i] = segs[i]->limit_low;
+                out->seg_limit_high[i] = segs[i]->limit_high;
+                out->seg_access[i] = segs[i]->access;
+                out->seg_access2[i] = segs[i]->access2;
+                out->seg_checked[i] = segs[i]->checked;
         }
 
         out->ea_seg_idx = -1;

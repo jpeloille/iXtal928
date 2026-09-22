@@ -45,6 +45,26 @@ typedef struct h_state {
         uint32_t regs[8];             /* .l de chaque x86reg : AX CX DX BX SP BP SI DI */
         uint32_t seg_base[H_SEG_COUNT];
         uint16_t seg_sel[H_SEG_COUNT];
+
+        /* LE CACHE DESCRIPTEUR de chaque segment, ajouté au jalon 286.
+         *
+         * Les deux côtés le portaient déjà — x86seg a huit champs chez PCem
+         * (x86.h:37-45) comme en C# (x86.cs) — mais le vecteur n'en comparait que
+         * DEUX, `base` et `seg`. Sur un 8088 cela suffisait : `msw & 1` vaut toujours
+         * zéro, loadseg ne pose que la base, et les six autres champs ne bougent
+         * jamais. En mode protégé ce sont eux qui portent tout — limite, droits
+         * d'accès, granularité — et une divergence y serait restée invisible.
+         *
+         * Ils entrent AVANT d'être nécessaires, et c'est délibéré : le 8088 les
+         * compare dès maintenant à des valeurs qu'il ne fait pas varier, ce qui
+         * vérifie le câblage des deux côtés pendant qu'il est encore trivial. */
+        uint32_t seg_limit[H_SEG_COUNT];
+        uint32_t seg_limit_raw[H_SEG_COUNT];
+        uint32_t seg_limit_low[H_SEG_COUNT];
+        uint32_t seg_limit_high[H_SEG_COUNT];
+        int32_t  seg_checked[H_SEG_COUNT];
+        uint8_t  seg_access[H_SEG_COUNT];
+        uint8_t  seg_access2[H_SEG_COUNT];
         uint16_t flags;
         uint16_t eflags;
         uint16_t prefetchpc;
@@ -282,7 +302,10 @@ uint8_t *h_ram(void);
  * h_set_bpb_disable) s'ajoutent au contrat. Un .so bâti avant ne les exporte pas,
  * et le C# doit le dire au lieu de tomber sur un symbole absent. */
 /* 6 depuis M12 : h_set_hdd et h_set_hdd_controller s'ajoutent au contrat. */
-#define H_ABI_VERSION 6
+/* 7 depuis le jalon 286 : h_state porte le cache descripteur des six segments —
+ * limit, limit_raw, limit_low, limit_high, access, access2, checked. Le vecteur
+ * change de TAILLE, donc un .so périmé marshalerait du charabia en silence. */
+#define H_ABI_VERSION 7
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

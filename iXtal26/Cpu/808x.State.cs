@@ -197,6 +197,13 @@ internal static partial class _808x
         {
                 s.seg_sel[i] = segs[i].seg;
                 s.seg_base[i] = segs[i].@base;
+                s.seg_limit[i] = segs[i].limit;
+                s.seg_limit_raw[i] = segs[i].limit_raw;
+                s.seg_limit_low[i] = segs[i].limit_low;
+                s.seg_limit_high[i] = segs[i].limit_high;
+                s.seg_access[i] = segs[i].access;
+                s.seg_access2[i] = segs[i].access2;
+                s.seg_checked[i] = segs[i].@checked;
         }
 
         s.ea_seg_idx = -1;
