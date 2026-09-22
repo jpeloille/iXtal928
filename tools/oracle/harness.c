@@ -35,6 +35,9 @@
 
 #include "harness.h"
 
+/* harness_stubs.c — les deux valeurs de configuration CPU que cpu.c laisse à zéro. */
+void h_cpu_config_8088(void);
+
 /* Le cœur lui-même. Chemin explicite plutôt qu'un -I : on veut que la ligne dise
  * ce qu'elle fait. Doit venir après harness.h et avant tout code ci-dessous. */
 #include "../../pcem-dev/src/cpu/808x.c"
@@ -306,6 +309,12 @@ void h_reset(void) {
         cpu_16bitbus = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
+        /* cpu_busspeed et isa_cycles : les DEUX valeurs que cpu.c, désormais lié, laisse
+         * à zéro et que cpu_set() poserait. Elles étaient des initialiseurs dans
+         * harness_stubs.c ; les perdre en liant cpu.c déplacerait les cinq chiffres de
+         * régression du 8088 sans rien dire. */
+        h_cpu_config_8088();
+
         /* Multiplicateur TSC du XT. clockhardware() (808x.c:893-904) convertit les
          * cycles CPU en tops de l'oscillateur maître à 14,318 MHz en virgule fixe
          * 32:32, parce qu'il n'y a pas de rapport entier entre les deux fréquences.
@@ -553,6 +562,18 @@ extern int bpb_disable;
 
 int h_boot(const char *romspath) {
         h_set_roms_path(romspath);
+
+        /* AVANT tout le reste. h_boot() ne passe PAS par h_reset() — il appelle
+         * resetx86() directement — donc sans cet appel isa_cycles restait à la valeur
+         * que cpu.c lui donne, ZÉRO, au lieu de 1.
+         *
+         * Mesuré : les cinq portes de régression sont passées au rouge, avec un état
+         * architectural IDENTIQUE des deux côtés et un seul champ divergent, `tsc`.
+         * isa_cycles gouverne le coût en cycles d'un accès d'E/S (io.c) : à zéro, les
+         * in/out du POST ne facturent plus rien, et l'horloge dérive sans que jamais un
+         * registre ne bouge. Exactement le mode de panne que l'en-tête de ce fichier
+         * décrit — « se tromper ici ne plante rien, ne fausse aucun registre ». */
+        h_cpu_config_8088();
 
         /* Depuis M9 ce crochet n'est plus un no-op : c'est lui qui pose
          * sound_poll_latch. Sans lui, le latch vaut 0, timer_advance_u64(t, 0)

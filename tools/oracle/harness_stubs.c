@@ -47,6 +47,8 @@
 #include "timer.h"
 #include "video.h"
 #include "x86.h"
+#include "x86_ops.h"   /* OpFn, et les extern des tables dynarec_ops_* */
+#include "codegen.h"   /* codegen_timing_t, codeblock_t — pour STUBER, pas pour lier */
 
 /* M12 : les types des stubs de disque dur en fin de fichier. minivhd.h tire
  * stdbool et les typedefs MVHDMeta/MVHDGeom/MVHDError ; ramdisk.h le typedef
@@ -92,51 +94,161 @@ void h_stub_counters_reset(void) {
 
 /* --- configuration CPU : IBM PC 5150, Intel 8088 -------------------------- */
 
-int AMSTRAD = 0, AT = 0, is386 = 0, PCI = 0, TANDY = 0, MCA = 0;
-int is486 = 0;
-int hasfpu = 0;
-int fpu_type = 0;
-int cpu_16bitbus = 0;
-int cpu_iscyrix = 0;
-int cpu_cyrix_alignment = 0;
-int cpu_cache_int_enabled = 0, cpu_cache_ext_enabled = 0;
-int cpu_block_end = 0;
+/* DEPUIS LE JALON 286, src/cpu/cpu.c EST LIÉ, et il DÉFINIT lui-même les quarante-deux
+ * globales que ce fichier posait à la main : is386, is486, hasfpu, fpu_type,
+ * cpu_16bitbus, cpu_iscyrix, cpu_cyrix_alignment, cpu_cache_*, cpu_block_end,
+ * cpu_busspeed, cpu_prefetch_*, timing_misaligned, tsc, isa_cycles, les vingt
+ * timing_* de mode protégé, et les fonctions cpu_get_speed / cpu_set_edx /
+ * cpu_set_turbo / cpu_update_waitstates.
+ *
+ * Elles sont donc RETIRÉES d'ici : les garder donnait quarante-deux « multiple
+ * definition » au lien. Le commentaire qui expliquait pourquoi cpu.c n'était pas lié
+ * — « cpu_set() référence toutes les tables d'opcodes et les modules codegen_timing_*,
+ * ce qui ramène le dynarec » — reste vrai, et c'est pourquoi ces modules sont stubés
+ * plus bas.
+ *
+ * GAIN INATTENDU : les vingt timing_* de mode protégé étaient à ZÉRO des deux côtés.
+ * Inertes sur un 8088, ils seraient devenus un accord vide dès la première instruction
+ * de mode protégé — les deux cœurs d'accord sur un temps faux. Ils prennent maintenant
+ * leurs vraies valeurs, posées par cpu_set() depuis cpus_286[].
+ *
+ * DEUX VALEURS NE SONT PAS DES DÉFAUTS et doivent être ré-affirmées : cpu_busspeed et
+ * isa_cycles. cpu.c les définit à zéro ; le harnais les posait à 4 772 728 et à 1. Les
+ * laisser tomber déplacerait les cinq chiffres de régression du 8088 EN SILENCE. D'où
+ * h_cpu_config_8088(), appelée aux deux points d'entrée. */
+
+int AMSTRAD = 0, AT = 0, PCI = 0, TANDY = 0, MCA = 0;
 int insc = 0;
-int cpu_busspeed = 4772728;
 int amstrad_latch = 0;
 int romset = 0; /* ROM_IBMPC */
 
-/* Le 8088 ne modélise pas de prefetch cote memoire (c'est 808x.c qui porte le
- * modele, cf. FETCH/FETCHADD) : ces compteurs restent nuls, comme le fait
- * cpu_update_waitstates() pour un 8088. */
-int cpu_prefetch_cycles = 0, cpu_prefetch_width = 0;
-int cpu_mem_prefetch_cycles = 0, cpu_rom_prefetch_cycles = 0;
-int timing_misaligned = 0;
+/* Les valeurs que cpu_set() poserait pour un 8088 d'IBM PC 5150, et que cpu.c laisse à
+ * zéro tant qu'on ne l'appelle pas. Les deux seules qui ne sont pas le défaut. */
+void h_cpu_config_8088(void) {
+        cpu_busspeed = 4772728;
+        isa_cycles = 1; /* cpu.c:17 — atclk_div, 1 pour cpus_8088[0] (cpu_tables.c:33) */
+}
 
-/* Le TSC : défini par cpu.c chez PCem, que l'oracle ne lie pas. */
-uint64_t tsc = 0;
+/* INTERPOSITION, pas redéfinition : cpu.c définit le vrai cpu_update_waitstates(), qui
+ * déréférence models[model]->cpu[...]. models[] est un tableau de pointeurs NULS ici —
+ * le harnais n'appelle jamais cpu_set() et ne lie pas model.c — donc le vrai plante au
+ * premier resetx86() (808x.c:676). Attrapé par l'autotest, pas deviné.
+ *
+ * Le no-op EST le comportement du palier (a) : sans cpu_set(), cpu_prefetch_cycles et
+ * cpu_prefetch_width restent à zéro, et c'est ce que le 8088 veut — il porte son modèle
+ * de préfetch dans 808x.c, pas côté mémoire.
+ *
+ * Au jalon 286 cette fonction devra déléguer à __real_cpu_update_waitstates() une fois
+ * models[] peuplé ; le wrapper est le point où ce basculement s'écrira, en un endroit. */
+void __wrap_cpu_update_waitstates(void) { }
 
-int cpu_get_speed(void) { return 4772728; }
-void cpu_set_edx(void) { }
+/* Les trois autres FONCTIONS que cpu.c définit désormais et qui dépendent toutes de
+ * models[] ou de cpu_s. Corps repris À L'IDENTIQUE de ce que harness_stubs.c posait au
+ * palier (a) : c'est le comportement mesuré des cinq chiffres de régression.
+ *
+ * Sur les quarante-deux symboles retirés, ces quatre sont les seuls à être des
+ * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes
+ * valeurs — sauf cpu_busspeed et isa_cycles, ré-affirmées par h_cpu_config_8088(). */
+int __wrap_cpu_get_speed(void) { return 4772728; }
+void __wrap_cpu_set_edx(void) { }
 
 /* Bit turbo du port 0x61 sur les clones XT. Le 5150 n'en a pas. */
-void cpu_set_turbo(int turbo) { (void)turbo; }
+void __wrap_cpu_set_turbo(int turbo) { (void)turbo; }
 
 /* Cassette : pas de lecteur, l'entrée reste basse. */
 int cassette_input(void) { return 0; }
 void cassette_set_motor(int on) { (void)on; }
-void cpu_update_waitstates(void) { }
-
-/* --- timings de mode protégé : inatteignables sur un 8088 ----------------- */
-
-int timing_rr = 0;
-int timing_call_rm = 0, timing_call_pm = 0, timing_call_pm_gate = 0, timing_call_pm_gate_inner = 0;
-int timing_int = 0, timing_int_rm = 0, timing_int_v86 = 0, timing_int_pm = 0, timing_int_pm_outer = 0;
-int timing_iret_rm = 0, timing_iret_v86 = 0, timing_iret_pm = 0, timing_iret_pm_outer = 0;
-int timing_jmp_rm = 0, timing_jmp_pm = 0, timing_jmp_pm_gate = 0;
-int timing_retf_rm = 0, timing_retf_pm = 0, timing_retf_pm_outer = 0;
 
 /* --- dynarec : non porté --------------------------------------------------- */
+
+/* Les soixante-et-un symboles que lier 386_dynarec.c réclame et que src/codegen/ —
+ * 39 307 lignes vives — fournirait. Mesuré au lien : les stuber en coûte 61 ; NE PAS
+ * lier 386_dynarec.c en coûterait 98, parce que les tables ops_286 / ops_386 / ops_REPE
+ * y sont instanciées et deviendraient manquantes à leur tour (386.c n'inclut PAS
+ * 386_ops.h — zéro occurrence).
+ *
+ * Aucun n'est jamais atteint : cpu_use_dynarec vaut 0, et le 286 comme le 386 de PCem
+ * sont interpréteurs PAR CONCEPTION — cpu_flags == 0 dans cpu_tables.c,
+ * CPU_SUPPORTS_DYNAREC n'apparaît qu'au 486. 386.c neutralise même CPU_BLOCK_END() en
+ * le redéfinissant à vide (386.c:17-18).
+ *
+ * Les tables dynarec_ops_* restent à NULL : x86_setopcodes les copie dans
+ * x86_dynarec_opcodes, que seul exec386_dynarec déréférence. */
+
+OpFn dynarec_ops_286[1024];
+OpFn dynarec_ops_286_0f[1024];
+OpFn dynarec_ops_386[1024];
+OpFn dynarec_ops_386_0f[1024];
+OpFn dynarec_ops_winchip_0f[1024];
+OpFn dynarec_ops_winchip2_0f[1024];
+OpFn dynarec_ops_pentium_0f[1024];
+OpFn dynarec_ops_pentiummmx_0f[1024];
+OpFn dynarec_ops_pentiumpro_0f[1024];
+OpFn dynarec_ops_pentium2_0f[1024];
+OpFn dynarec_ops_c6x86_0f[1024];
+OpFn dynarec_ops_c6x86mx_0f[1024];
+OpFn dynarec_ops_fpu_d8_a16[32];
+OpFn dynarec_ops_fpu_d8_a32[32];
+OpFn dynarec_ops_fpu_d9_a16[256];
+OpFn dynarec_ops_fpu_d9_a32[256];
+OpFn dynarec_ops_fpu_da_a16[256];
+OpFn dynarec_ops_fpu_da_a32[256];
+OpFn dynarec_ops_fpu_db_a16[256];
+OpFn dynarec_ops_fpu_db_a32[256];
+OpFn dynarec_ops_fpu_dc_a16[32];
+OpFn dynarec_ops_fpu_dc_a32[32];
+OpFn dynarec_ops_fpu_dd_a16[256];
+OpFn dynarec_ops_fpu_dd_a32[256];
+OpFn dynarec_ops_fpu_de_a16[256];
+OpFn dynarec_ops_fpu_de_a32[256];
+OpFn dynarec_ops_fpu_df_a16[256];
+OpFn dynarec_ops_fpu_df_a32[256];
+OpFn dynarec_ops_nofpu_a16[256];
+OpFn dynarec_ops_nofpu_a32[256];
+OpFn dynarec_ops_fpu_686_da_a16[256];
+OpFn dynarec_ops_fpu_686_da_a32[256];
+OpFn dynarec_ops_fpu_686_db_a16[256];
+OpFn dynarec_ops_fpu_686_db_a32[256];
+OpFn dynarec_ops_fpu_686_df_a16[256];
+OpFn dynarec_ops_fpu_686_df_a32[256];
+OpFn dynarec_ops_REPE[1024];
+OpFn dynarec_ops_REPNE[1024];
+OpFn dynarec_ops_3DNOW[256];
+
+/* Les modules de temps des UC au-dessus du 386 — cpu_set() les référence pour les
+ * 486 et suivants. Jamais lus ici. */
+codegen_timing_t codegen_timing_486;
+codegen_timing_t codegen_timing_686;
+codegen_timing_t codegen_timing_cyrixiii;
+codegen_timing_t codegen_timing_k6;
+codegen_timing_t codegen_timing_p6;
+codegen_timing_t codegen_timing_pentium;
+codegen_timing_t codegen_timing_winchip;
+codegen_timing_t codegen_timing_winchip2;
+
+/* Une FONCTION, pas un module : cpu_set() l'appelle pour chaque famille d'UC. */
+void codegen_timing_set(codegen_timing_t *timing) { (void)timing; }
+
+uint32_t codegen_endpc = 0;
+int codegen_flags_changed = 0;
+codeblock_t *codeblock = 0;
+uint16_t *codeblock_hash = 0;
+
+/* PCI : aucune machine du dépôt n'en a. */
+int pci_burst_time = 0, pci_nonburst_time = 0;
+
+void codegen_block_init(uint32_t phys_addr) { (void)phys_addr; }
+void codegen_block_start_recompile(codeblock_t *block) { (void)block; }
+void codegen_block_end_recompile(codeblock_t *block) { (void)block; }
+void codegen_block_end(void) { }
+void codegen_block_remove(void) { }
+void codegen_check_flush(struct page_t *page, uint64_t mask, uint32_t phys_addr) {
+        (void)page; (void)mask; (void)phys_addr;
+}
+void codegen_generate_call(uint8_t opcode, OpFn op, uint32_t fetchdat, uint32_t new_pc,
+                           uint32_t old_pc) {
+        (void)opcode; (void)op; (void)fetchdat; (void)new_pc; (void)old_pc;
+}
 
 int codegen_flat_ds = 1, codegen_flat_ss = 1;
 int codegen_in_recompile = 0;
@@ -281,7 +393,7 @@ void t1000_syskey(uint8_t andmask, uint8_t ormask, uint8_t xormask) {
  * configuration). */
 
 int readflash;      /* pc.c:78 — readflash_set() y pose le témoin d'activité disque */
-int isa_cycles = 1; /* cpu.c:17 — cpu_set() y copie atclk_div : 1 pour cpus_8088[0] (cpu_tables.c:33) */
+
 
 void fdi_init(void) { }
 void fdi_load(int drive, char *fn) { (void)drive; (void)fn; }

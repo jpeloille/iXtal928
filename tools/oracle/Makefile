@@ -45,6 +45,10 @@ SRC := harness.c \
        $(PCEM)/src/cpu/x87.c \
        $(PCEM)/src/cpu/x87_timings.c \
        $(PCEM)/src/cpu/386_common.c \
+       $(PCEM)/src/cpu/386.c \
+       $(PCEM)/src/cpu/386_dynarec.c \
+       $(PCEM)/src/cpu/cpu.c \
+       $(PCEM)/src/cpu/cpu_tables.c \
        $(PCEM)/src/memory/mem.c \
        $(PCEM)/src/io.c \
        $(PCEM)/src/timer.c \
@@ -72,6 +76,23 @@ SRC := harness.c \
 comma := ,
 WRAP := readmembl writemembl readmemwl writememwl inb outb picint picinterrupt timer_process
 LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
+
+# Une interposition D'UNE AUTRE NATURE, et qui vaut pour la .so ET pour bench.
+#
+# Depuis que cpu.c est lié, resetx86() (808x.c:676) appelle le VRAI
+# cpu_update_waitstates(), qui déréférence models[model]->cpu[...]. Or models[] est un
+# tableau de pointeurs nuls ici : le harnais n'appelle jamais cpu_set() et ne lie pas
+# model.c. Segmentation fault au premier reset, attrapée par l'autotest.
+#
+# Le no-op était le comportement du palier (a) — harness_stubs.c le documentait :
+# « Le 8088 ne modélise pas de prefetch côté mémoire, ces compteurs restent nuls ».
+# On le garde donc à l'identique, par interposition plutôt que par redéfinition. Le
+# wrapper vit dans harness_stubs.c, pas dans harness_wrap.c, parce que bench exclut ce
+# dernier ; et ce drapeau-ci s'applique aux deux cibles, là où les neuf ci-dessus sont
+# propres à la .so (bench doit mesurer SANS compteurs).
+WRAP_BOTH := cpu_update_waitstates cpu_set_edx cpu_get_speed cpu_set_turbo
+WRAPFLAGS_BOTH := $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP_BOTH))
+LDFLAGS += $(WRAPFLAGS_BOTH)
 
 # -shared tolere les symboles non resolus : un .so peut se lier avec des trous et
 # ne planter qu'au premier appel, des mois plus tard. Mesure : en liant
@@ -125,7 +146,7 @@ bench: $(BUILD)/bench
 # Le lien porte les mêmes drapeaux que la compilation : avec -flto, c'est à
 # l'édition de liens que l'optimisation a lieu, et -march y est relu.
 $(BUILD)/bench: bench.c $(BENCH_OBJ) | $(BUILD)
-	$(CC) $(BENCH_FLAGS) $(INC) -Wl,--no-undefined -o $@ bench.c $(BENCH_OBJ) $(LDLIBS)
+	$(CC) $(BENCH_FLAGS) $(INC) -Wl,--no-undefined $(WRAPFLAGS_BOTH) -o $@ bench.c $(BENCH_OBJ) $(LDLIBS)
 
 $(BUILD)/lto/%.o: %.c | $(BUILD)/lto
 	$(CC) $(BENCH_FLAGS) $(INC) -c $< -o $@
