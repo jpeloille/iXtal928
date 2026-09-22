@@ -2819,3 +2819,185 @@ Un septième profil, « construire la machine », porte `--setup` et vient en t�
    `--config configs/x.cfg` suivi d'un enregistrement d'aplatir un fichier que
    l'utilisateur aurait commenté à la main.
 
+
+## M14 — Fabriquer une disquette formatée, et y déposer des fichiers de l'hôte
+
+Parti d'une question : *« je voudrais pouvoir créer une disquette et y déposer des
+fichiers venant de mon disque dur Linux »*. Le dépôt s'arrêtait juste avant. Il savait
+fabriquer une image de N × 512 octets **nuls** — `SdlMenu.CreateBlank`, pendant de
+`wx-createdisc.cc:62-73` — et rien de plus : pas de BPB, pas de FAT, pas de signature.
+La seule route vers une disquette utilisable passait par `FORMAT` **dans** la machine
+émulée, ce qui ne fait entrer aucun octet venu de l'hôte.
+
+Et aucun contournement n'existait sur cette machine : `mtools` n'est pas installé, et
+`mkfs.fat` seul sait formater une image mais pas y copier de fichier.
+
+### Les quatre BPB ne sont pas devinés : ils sont lus dans FORMAT.COM
+
+C'est le point qui décide si tout le reste tient. Écrire un système de fichiers de
+mémoire produit une image que DOS lit de travers **en silence** — la taille est bonne, le
+nombre de secteurs est bon, et le contenu est faux.
+
+`os/pcdos20/pcdos20b.img` porte `FORMAT.COM`. À l'offset **0xC7FA** de l'image, quatre
+enregistrements de 18 octets, immédiatement suivis de `"Formatting...$"` :
+
+```
+01 01 00 02 40 00 40 01 fe 01 00 08 00 01 00 00 00 00   160 Ko
+02 01 00 02 70 00 80 02 ff 01 00 08 00 02 00 00 00 00   320 Ko
+01 01 00 02 40 00 68 01 fc 02 00 09 00 01 00 00 00 00   180 Ko
+02 01 00 02 70 00 d0 02 fd 02 00 09 00 02 00 00 00 00   360 Ko
+```
+
+C'est le BPB privé de son mot `bps`, soit les offsets `0x0D`-`0x1D` du secteur d'amorce.
+Les deux **derniers** reproduisent octet pour octet les secteurs 0 de `pcdos20b.img`
+(180 Ko) et `vierge-360k.img` (360 Ko), deux disquettes réellement formatées par DOS 2.00
+que le dépôt porte déjà. Les deux premiers sont donc du même niveau de preuve — et c'est
+ce qui rend le 160 Ko et le 320 Ko non conjecturaux, aucune de ces deux tailles n'existant
+sur disque ici.
+
+### Le BIOS du 5150 ne lit AUCUNE signature sur disquette
+
+Désassemblé dans `roms/ibmpc/pc102782.bin`, l'INT 19h en `0xE701` :
+
+```
+e712: b8 01 02    mov ax,0201      ; lire 1 secteur
+e715: 2b d2 / 8e c2 / bb 00 7c     ; ES:BX = 0000:7C00
+e71f: cd 13
+e722: 73 c0       jae e6e4
+e6e4: ea 00 7c 00 00                jmp 0000:7C00     ; INCONDITIONNEL
+```
+
+La retenue de l'INT 13h est la **seule** condition. Aucun `cmp` sur `0xAA55` — les deux
+occurrences de cette valeur dans la ROM appartiennent au balayage des ROM d'extension.
+Conséquence contraignante : un secteur 0 nul s'exécuterait en `add [bx+si],al` et partirait
+dans le décor. **Le talon d'amorce est obligatoire, pas décoratif.** Il est écrit à la
+main — 36 octets — et non recopié du chargeur d'IBM, que `.gitignore` refuse de versionner.
+Il a été **assemblé puis re-désassemblé** avant d'être figé, et l'adresse du message est
+recalculée depuis la longueur du talon plutôt qu'écrite en dur.
+
+### L'invariant de géométrie, mesuré et non supposé
+
+Une image vierge fait rendre 0 aux cinq lectures de BPB d'`img_load`, donc la garde de
+`disc_img.cs:242` force la branche de devinette par **taille**. Les images de `FatImage`
+portent un BPB valide : elles prennent l'**autre** branche (`:309-392`). Les deux doivent
+rendre la même géométrie, sinon c'est l'image qui est fausse. `bpb_disable`, posé à 0 puis
+à 1 sur le **même fichier**, compare exactement les deux chemins — d'où `disc_img.Probe`,
+sonde de diagnostic sur le modèle de `fdc_c.Probe`, `img[]` étant privé.
+
+| | par BPB | par taille |
+|---|---|---|
+| 160 Ko | 8 × 40 × 1, secteur 512, trou 0, xdf 0 | identique |
+| 180 Ko | 9 × 40 × 1, secteur 512, trou 0, xdf 0 | identique |
+| 320 Ko | 8 × 40 × 2, secteur 512, trou 0, xdf 0 | identique |
+| 360 Ko | 9 × 40 × 2, secteur 512, trou 0, xdf 0 | identique |
+
+Le 320 Ko est le seul dont la branche taille ne *calcule* pas `sides` et hérite du défaut
+de `:237` — c'est la ligne fragile, et c'est celle que la mesure couvre.
+
+### L'empaquetage FAT12 : trois contrôles, et pourquoi le troisième ne suffit pas
+
+`--fat-check`. La FAT1 de `os/vierge-360k.img` est la chaîne de `BASIC.COM` et couvre les
+**deux** alignements de l'empaquetage 12 bits sur toute sa longueur :
+
+```
+fd ff ff 03 40 00 05 60 00 07 80 00 09 a0 00 0b c0 00 0d e0 00 0f 00 01 11 f0 ff
+```
+
+1. **Valeurs absolues** — entrée 0 = `0xFFD`, entrée 1 = `0xFFF`, entrées 2..16 = `n+1`,
+   entrée 17 = `0xFFF`. C'est ce contrôle qui épingle la branche **impaire** seule :
+   l'entrée 3 est impaire et vaut 4, ce qu'aucune inversion des deux branches ne contrefait.
+2. **Écriture depuis zéro** — la chaîne 2→17 écrite dans une FAT vierge rend les 27 mêmes
+   octets.
+3. **Aller-retour** — 354 entrées écrites puis relues, et les deux entrées réservées
+   intactes.
+
+Le troisième seul ne prouverait rien : il exerce lecture et écriture **composées**, et
+deux défauts inverses l'un de l'autre s'y annulent.
+
+### Le marqueur de fin de répertoire, et les quatre racines qu'on rencontre
+
+C'est l'oubli le plus discret du lot : `FORMAT` remplit la racine de `0xF6`, qui n'est ni
+`0x00` ni `0xE5`, donc un `DIR` y lirait une entrée nommée `0xF6F6F6…`. DOS, lui, estampe
+un `0x00` sur l'octet 0 de la première entrée jamais utilisée — visible en `0xA20` de
+`vierge-360k.img`.
+
+L'invariant : **après un dépôt, exactement un `0x00`, et après toutes les entrées
+utilisées.** Une image sortie de `Create` n'en présente qu'une disposition ; le disque en
+présente quatre, parce que `FORMAT` ne pose aucun marqueur, que `DEL` laisse des `0xE5`, et
+qu'une entrée peut traîner **après** le marqueur. Les quatre sont exercées, avec le cas
+tordu — l'entrée orpheline en 1 alors que l'entrée 0 porte le marqueur — qui range bien le
+nouveau `0x00` en 2, donc après l'orpheline.
+
+### Une sonde hôte dans un fichier à part
+
+`disc_img.Probe` n'a **aucun pendant dans l'oracle**. `fdc_c.Probe` en a un —
+`h_disc_probe()`, `harness.c:853` — et c'est ce qui l'autorise à vivre dans un fichier
+transcrit. Invoquer ce précédent pour celle-ci serait confondre deux catégories : ce
+serait du code hôte non déclaré au milieu d'une région gouvernée par R1 et R2. Elle vit
+donc dans `Disc/disc_img_probe.cs`, `STATUS: host`, seconde partie du `partial` — la
+frontière de fichier dit la catégorie sans qu'on ait à croire un commentaire.
+
+### Ce que DOS 2.00 en dit, pour les quatre formats
+
+Fabrication, dépôt de deux fichiers venus de `/tmp`, puis `DIR B:` et `TYPE B:LISEZMOI.TXT` :
+
+| format | ce que DOS annonce | octets libres annoncés par l'outil |
+|---|---|---|
+| 160 Ko | les deux fichiers, 43 et 3000 octets, dates et heures exactes | 156 672 — **identique** |
+| 180 Ko | idem | 176 128 — **identique** |
+| 320 Ko | idem | 318 464 — **identique** |
+| 360 Ko | idem, plus un fichier de taille nulle | 358 400 — **identique** |
+
+`TYPE` rend le contenu exact du fichier Linux. Un lecteur FAT12 **indépendant** (écrit en
+Python, donc sans partage de code avec `FatImage`) extrait les trois fichiers d'une 360 Ko :
+`md5` identiques aux sources, `FAT1 == FAT2`. `fsck.fat 4.2` relit le secteur d'amorce et
+retrouve toute la géométrie.
+
+### Les deux sens, et l'aller-retour complet
+
+- **Le talon exécuté.** Amorcé sur une disquette fabriquée ici : le BIOS charge le secteur,
+  saute dedans, et l'écran affiche `Disquette non systeme / Remplacer et frapper une touche`.
+  Puis INT 19h, qui relit la même disquette — **boucle infinie voulue**, identique à celle
+  du vrai chargeur d'IBM.
+- **DOS qui écrit.** `COPY B:LISEZMOI.TXT B:COPIE.TXT` sous DOS 2.00 : `1 File(s) copied`,
+  cluster 3 alloué, `FAT1 == FAT2` après coup, secteur d'amorce intact (`IXTAL1.0`, `55AA`),
+  et le `md5` de la copie égal à celui du fichier Linux d'origine.
+- **L'outil qui reprend.** `--floppy-put` sur cette même image après DOS : le dépôt passe,
+  et un doublon de l'entrée que **DOS** a écrite est refusé en la nommant.
+
+### Les refus, et l'image inchangée
+
+Tous exercés, chacun nommant la règle violée : radical de 9 caractères (**refusé, jamais
+tronqué** — tronquer fabrique un doublon silencieux), nom de périphérique DOS, espace dans
+le nom, source inexistante, répertoire, place insuffisante (« 391 clusters demandés, il en
+reste 350 »), doublon, image non formatée (« la fabriquer avec `--create-floppy` »), format
+inconnu, fichier déjà existant. Après les dix, `cmp` déclare l'image **identique octet pour
+octet** à ce qu'elle était avant : la phase 1 n'écrit rien.
+
+Le refus qui compte le plus est celui d'une image **montée** : `img_seek` tient une piste
+en cache qu'`img_writeback` réécrit, et au-dessus DOS garde sa propre copie de la FAT et de
+la racine. Éjecter, écrire dans son dos, réinsérer — et DOS réécrit sa FAT périmée. Le menu
+Ctrl+F12 **n'éjecte donc jamais** à la place de l'utilisateur.
+
+### Ce que ce vert ne dit pas
+
+1. **Le menu Ctrl+F12 n'a pas été vu.** `--menu-check` exerce ses chemins clavier — les deux
+   entrées neuves, le bouclage de la liste des formats, le titre en mode cible, Échap — mais
+   s'arrête **net devant le sélecteur de fichiers**, qui exige une vraie fenêtre. Les deux
+   temps du dépôt par le menu (choisir l'image, puis la source) ne sont couverts par aucune
+   exécution. Même angle mort que § M13.
+2. **`--menu-check` a d'abord trouvé une assertion fausse, pas un défaut.** « Haut depuis le
+   dernier format boucle sur le premier » était faux : `Haut` décrémente. Le contrôle a
+   corrigé celui qui l'écrivait.
+3. **Aucun `FORMAT` réel n'a été relancé** pour confirmer que FORMAT applique bien
+   l'enregistrement 1 au simple face 8 secteurs et le 2 au double face. La question reste
+   ouverte sur la **provenance** ; elle est sans objet sur la **validité**, DOS 2.00 lisant
+   les quatre images fabriquées ici.
+4. **Le répertoire racine seul.** Pas de sous-répertoires, et un répertoire donné en source
+   est refusé. Le répertoire racine d'un FAT12 ne s'agrandit pas — 64 ou 112 entrées.
+5. **Aucune disquette système.** Rendre l'image amorçable reste le travail de `SYS` sous DOS.
+6. **Écriture seule.** Extraire un fichier de l'image vers Linux n'existe pas encore ; le
+   parcours de FAT est écrit, la commande ne l'est pas.
+7. **Une seule taille de cluster par format.** Le remplissage du dernier cluster est
+   vérifié par la relecture, pas par une inspection de ce qui traîne au-delà de la taille
+   déclarée.

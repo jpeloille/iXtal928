@@ -241,6 +241,22 @@ for (var i = 0; i < args.Length; i++)
         return CreateHdd(args, ref i, romsPath);
     }
 
+    // FABRIQUER une disquette FORMATÉE, puis sortir. Sa voisine --create-hdd, comme le
+    // « Creer une disquette vierge » du menu, produit un fichier de zéros que DOS ne
+    // sait pas lire tant que FORMAT n'est pas passé DANS la machine. Celle-ci pose le
+    // système de fichiers depuis l'hôte, ce qui est la moitié qui manquait pour y faire
+    // entrer un fichier du disque Linux. Voir Host/FatImage.cs.
+    if (arg == "--create-floppy")
+    {
+        return CreateFloppy(args, ref i, romsPath);
+    }
+
+    // DÉPOSER des fichiers de l'hôte dans une image, puis sortir. L'autre moitié.
+    if (arg == "--floppy-put")
+    {
+        return FloppyPut(args, ref i);
+    }
+
     // --config CHEMIN : le fichier de configuration machine, comme PCem (pc.c:211-226).
     // Ordre de précédence : défauts, puis fichier, puis ligne de commande. Les options
     // machine ci-dessous surchargent donc ce que le fichier a dit.
@@ -365,6 +381,19 @@ for (var i = 0; i < args.Length; i++)
     // motif que config-check pour la moitié écriture du moteur de configuration.
     if (arg == "--setup-check")
         return iXtal26.Host.SdlSetup.SelfCheck(paths.resolve_roms_path(romsPath));
+
+    // Auto-contrôle du formateur de disquette, même motif : un système de fichiers faux
+    // ne se voit pas à l'œil — l'image a la bonne taille et le bon nombre de secteurs,
+    // et DOS la lit de travers en silence. Il porte aussi l'invariant de géométrie, qui
+    // ne peut se mesurer qu'en chargeant vraiment une image par les deux branches
+    // d'img_load.
+    if (arg == "--fat-check")
+        return iXtal26.Host.FatImage.SelfCheck();
+
+    // Auto-contrôle du menu Ctrl+F12, pour la même raison que --setup-check : ses chemins
+    // clavier n'ont aucun autre moyen d'être exécutés.
+    if (arg == "--menu-check")
+        return iXtal26.Host.SdlMenu.SelfCheck(paths.resolve_roms_path(romsPath));
 
     if (arg == "--setup")
     {
@@ -670,6 +699,154 @@ static void PrintHddTypes()
 }
 
 /// <summary>
+/// --create-floppy. Même forme que CreateHdd, et pour les mêmes raisons : sans argument
+/// on LISTE et on sort sans rien créer, et la garde StartsWith('-') empêche
+/// « --create-floppy 360k -v » de créer un fichier nommé « -v ».
+/// </summary>
+static int CreateFloppy(string[] args, ref int i, string romsPath)
+{
+    if (i + 1 >= args.Length || args[i + 1].StartsWith('-'))
+    {
+        Console.WriteLine("Formats de disquette (les seuls que le lecteur 5,25\" DD du 5150 sait lire) :");
+        Console.WriteLine();
+
+        for (var c = 0; c < FatImage.Formats.Length; c++)
+        {
+            var g = FatImage.Formats[c];
+
+            Console.WriteLine($"  {g.Stem,-5} {g.Name}");
+            Console.WriteLine($"        {FatImage.ClusterCount(g)} clusters de " +
+                              $"{FatImage.BytesPerCluster(g)} octets, " +
+                              $"{g.RootEntries} entrées de répertoire, " +
+                              $"média 0x{g.MediaDescriptor:X2}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("L'image est formatée en FAT12, vide et NON SYSTÈME : pour la rendre");
+        Console.WriteLine("amorçable, faire SYS B: depuis DOS dans la machine.");
+        return 0;
+    }
+
+    var spec = args[++i];
+    var index = FatImage.FormatIndex(spec);
+
+    if (index < 0)
+    {
+        Console.Error.WriteLine($"--create-floppy : « {spec} » n'est pas un format connu.");
+        Console.Error.WriteLine("--create-floppy sans argument les liste tous.");
+        return 2;
+    }
+
+    var format = FatImage.Formats[index];
+
+    // Le chemin donné, sinon le premier nom libre dans os/ — le MÊME os/ que le menu
+    // Ctrl+F12 et que --create-hdd, par le même ImagesRoot.
+    string path;
+
+    if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+    {
+        path = args[++i];
+    }
+    else
+    {
+        var root = SdlMenu.ImagesRoot(romsPath);
+
+        try
+        {
+            // os/ est .gitignore'd, donc absent d'un clone neuf.
+            Directory.CreateDirectory(root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"--create-floppy : création de {root} impossible : {ex.Message}");
+            return 1;
+        }
+
+        var free = SdlMenu.FreeName(root, "fat" + format.Stem);
+
+        if (free is null)
+        {
+            Console.Error.WriteLine($"--create-floppy : trop d'images « vierge-fat{format.Stem} » dans {root}.");
+            return 1;
+        }
+
+        path = free;
+    }
+
+    Console.WriteLine($"Création de {path}");
+    Console.WriteLine($"  format      : {format.Name}");
+    Console.WriteLine($"  taille      : {FatImage.ImageSize(format)} octets " +
+                      $"({FatImage.ImageSize(format) / 1024} Ko)");
+    Console.WriteLine($"  FAT12       : {format.NumberOfFats} copies de " +
+                      $"{format.SectorsPerFat} secteur(s), " +
+                      $"{FatImage.ClusterCount(format)} clusters de " +
+                      $"{FatImage.BytesPerCluster(format)} octets");
+    Console.WriteLine($"  racine      : {format.RootEntries} entrées, " +
+                      $"au secteur {format.ReservedSectors + format.NumberOfFats * format.SectorsPerFat}");
+
+    if (!FatImage.Create(path, format, out var message))
+    {
+        Console.Error.WriteLine($"--create-floppy : {message}");
+        return 1;
+    }
+
+    Console.WriteLine(message);
+    Console.WriteLine();
+    Console.WriteLine("Disquette NON SYSTÈME : amorcer dessus affiche un message et attend une");
+    Console.WriteLine("touche, en boucle. Pour y déposer des fichiers : --floppy-put.");
+    return 0;
+}
+
+/// <summary>
+/// --floppy-put IMAGE FICHIER... — déposer des fichiers de l'hôte dans une image.
+/// </summary>
+static int FloppyPut(string[] args, ref int i)
+{
+    if (i + 1 >= args.Length || args[i + 1].StartsWith('-'))
+    {
+        Console.Error.WriteLine("--floppy-put attend une image puis au moins un fichier.");
+        Console.Error.WriteLine("  --floppy-put os/disquette.img /home/moi/PROG.COM LISEZ.TXT");
+        return 2;
+    }
+
+    // Résolu comme --floppy-a et --config : tel quel depuis le répertoire courant, sinon
+    // en remontant depuis le binaire. Sans cela la commande marcherait depuis la racine
+    // du dépôt et pas depuis Rider, qui lance depuis bin/Debug/net10.0.
+    var image = paths.resolve_file_path(args[++i]);
+
+    if (image is null)
+    {
+        Console.Error.WriteLine($"--floppy-put : image introuvable « {args[i]} ».");
+        return 2;
+    }
+
+    var n = 0;
+
+    while (i + 1 + n < args.Length && !args[i + 1 + n].StartsWith('-'))
+        n++;
+
+    if (n == 0)
+    {
+        Console.Error.WriteLine("--floppy-put : aucun fichier à déposer.");
+        return 2;
+    }
+
+    var sources = new string[n];
+
+    for (var c = 0; c < n; c++)
+        sources[c] = args[++i];
+
+    if (!FatImage.Put(image, sources, out var message))
+    {
+        Console.Error.WriteLine($"--floppy-put : {message}");
+        return 1;
+    }
+
+    Console.WriteLine(message);
+    return 0;
+}
+
+/// <summary>
 /// --create-hdd. Rend un code de sortie : 0 succès, 1 échec d'exécution, 2 erreur
 /// d'usage, comme le reste de la table.
 /// </summary>
@@ -876,6 +1053,27 @@ static void PrintUsage()
     Console.WriteLine("                       bornée comme chez PCem (secteurs 63, têtes 16). Sans");
     Console.WriteLine("                       CHEMIN, écrit le premier nom libre dans os/. Un fichier");
     Console.WriteLine("                       existant est refusé, jamais écrasé");
+    Console.WriteLine("  --create-floppy [FORMAT] [CHEMIN]");
+    Console.WriteLine("                       fabrique une image de disquette FORMATÉE en FAT12, vide");
+    Console.WriteLine("                       et non système : secteur d'amorce, BPB, deux FAT,");
+    Console.WriteLine("                       répertoire racine. Contrairement au « Creer une");
+    Console.WriteLine("                       disquette vierge » du menu, qui écrit des zéros que DOS");
+    Console.WriteLine("                       ne sait pas lire tant que FORMAT n'est pas passé DANS la");
+    Console.WriteLine("                       machine. Sans argument : liste les quatre formats et sort");
+    Console.WriteLine("                       sans rien créer. FORMAT vaut 160k, 180k, 320k ou 360k —");
+    Console.WriteLine("                       les seuls que le lecteur 5,25\" DD du 5150 sait lire.");
+    Console.WriteLine("                       Sans CHEMIN, écrit le premier nom libre dans os/. Un");
+    Console.WriteLine("                       fichier existant est refusé, jamais écrasé");
+    Console.WriteLine("  --floppy-put IMAGE FICHIER...");
+    Console.WriteLine("                       dépose des fichiers du disque hôte dans la racine d'une");
+    Console.WriteLine("                       image formatée. Les noms doivent tenir en 8.3 : un nom");
+    Console.WriteLine("                       trop long est REFUSÉ, jamais tronqué — tronquer");
+    Console.WriteLine("                       fabriquerait un doublon silencieux. Refuse aussi une");
+    Console.WriteLine("                       image montée dans A: ou B:, qu'il faut éjecter d'abord");
+    Console.WriteLine("  --fat-check          auto-contrôle du formateur : l'empaquetage FAT12 contre");
+    Console.WriteLine("                       la FAT d'une disquette réellement formatée par DOS 2.00,");
+    Console.WriteLine("                       le secteur d'amorce, et l'invariant de géométrie — les");
+    Console.WriteLine("                       deux branches d'img_load doivent lire la même chose");
     Console.WriteLine("  --timer-check [CHEMIN] [SECONDES]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");

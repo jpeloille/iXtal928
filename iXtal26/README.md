@@ -290,6 +290,20 @@ existent et se lisent, leur contenu est nul. Il faut passer `FORMAT` sous DOS po
 donner son BPB et sa FAT ; c'est à ce moment, et seulement là, que les `0xF6` apparaissent,
 écrits par l'invité. C'est exactement ce que fait PCem.
 
+**« Creer une disquette formatee... »** fait l'autre moitié : elle pose un système de
+fichiers FAT12 complet — secteur d'amorce, BPB, deux FAT, répertoire racine — et l'image
+est utilisable telle quelle, sans passer `FORMAT`. Mêmes quatre tailles. Contrairement à
+la précédente, **elle n'est pas insérée dans A:** : la suite naturelle est d'y déposer un
+fichier, et cela est refusé sur une image montée (voir ci-dessous).
+
+**« Deposer un fichier de l'hote... »** demande d'abord l'image, puis ouvre le sélecteur
+du système pour choisir n'importe quel fichier du disque Linux, et l'écrit dans la racine
+de la disquette. Si l'image est montée dans A: ou B:, le dépôt est **refusé** et non
+contourné : `img_seek` tient une piste entière en cache qu'`img_writeback` réécrit, et
+au-dessus DOS garde sa propre copie de la FAT et du répertoire. Éjecter, écrire dans son
+dos, réinsérer — et DOS réécrit sa FAT périmée, effaçant l'entrée qu'on vient de poser.
+« Ejecter A: » est deux lignes plus haut.
+
 L'insertion est immédiate et ne demande aucun reset : DOS voit le changement par la ligne
 DSKCHG. Le reset matériel, lui, relit `discfns[]` — donc la disquette en place au moment du
 reset est celle sur laquelle le BIOS amorce. Deux resets sont offerts parce qu'ils ne
@@ -312,6 +326,7 @@ mode existe pour que deux exécutions traversent les mêmes états.
 | `Host/SdlMenu.cs`     | Menu Ctrl+F12 : disquettes et reset (`wx-sdl2.c:725-770`)      |
 | `Host/SdlSetup.cs`    | Écran de construction de machine (`wx-config_sel.c`)           |
 | `Host/HddImage.cs`    | Images de disque dur : les 46 types du BIOS, créer, deviner    |
+| `Host/FatImage.cs`    | Disquettes FAT12 : formater, déposer un fichier de l'hôte      |
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
 Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`, `Mfm/`, `Sound/`,
@@ -325,6 +340,41 @@ Matériel IBM sous copyright : non distribué, `.gitignore`d. Attendu dans `roms
 `ibmpc/pc102782.bin` (BIOS 8 Ko) et, pour la ROM BASIC, `ibmpc/basicc11.f6/.f8/.fa/.fc`.
 `mda.rom` fournit la police 8×8 du CGA, que `loadbios` charge inconditionnellement.
 Les empreintes attendues sont dans `../roms/roms.sha256`.
+
+## Faire entrer un fichier du disque Linux
+
+En ligne de commande, deux étapes, qui n'allument pas la machine :
+
+```
+dotnet run -- --create-floppy                       # liste les quatre formats, ne crée rien
+dotnet run -- --create-floppy 360k os/travail.img   # une disquette FAT12 vide, prête à l'emploi
+dotnet run -- --floppy-put os/travail.img ~/PROG.COM ~/LISEZ.TXT
+dotnet run -- --boot roms 6500 --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/travail.img \
+              --type "" --type "" --type "DIR B:"
+```
+
+La différence avec « Creer une disquette vierge » tient en une phrase : celle-là écrit des
+zéros que DOS ne sait pas lire tant que `FORMAT` n'est pas passé **dans** la machine ;
+`--create-floppy` pose le système de fichiers depuis l'hôte. Les quatre BPB ne sont pas
+reconstruits de mémoire — ils sont **lus dans le `FORMAT.COM` de PC DOS 2.00**, à l'offset
+0xC7FA de `os/pcdos20/pcdos20b.img`, et les deux que le dépôt peut recouper reproduisent
+octet pour octet les disquettes qu'il porte (VERIFICATION.md § M14).
+
+Les noms doivent tenir en **8.3**. Un nom trop long est **refusé, jamais tronqué** :
+tronquer `rapport-annuel.txt` et `rapport-mensuel.txt` en `RAPPORT.TXT` fabriquerait un
+doublon silencieux. Sont refusés de la même façon les caractères hors du jeu DOS, les noms
+de périphériques (`CON`, `PRN`, `LPT1`…), les répertoires, un horodatage hors 1980-2107, un
+doublon, une racine pleine et le manque de place — chacun avec un message qui **nomme la
+règle**. Aucun octet n'est écrit avant que tous les fichiers de la ligne soient acceptés.
+
+La disquette produite est **non système**. Amorcer dessus affiche `Disquette non systeme`
+et attend une touche, en boucle — comme le vrai chargeur d'IBM. Pour la rendre amorçable,
+`SYS B:` depuis DOS.
+
+`--fat-check` et `--menu-check` sont les auto-contrôles : l'empaquetage FAT12 contre la FAT
+d'une disquette réellement formatée par DOS 2.00, le secteur d'amorce, la conversion de
+noms, le refus d'image montée, l'invariant de géométrie entre les deux branches
+d'`img_load`, et les chemins clavier du menu.
 
 ## Images de disquette et de disque dur
 

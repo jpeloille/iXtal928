@@ -43,6 +43,13 @@ internal sealed class SdlMenu
         new SDL.DialogFileFilter("All files", "*"),
     ];
 
+    /// <summary>Le filtre du choix d'une SOURCE à déposer : un fichier à mettre sur une
+    /// disquette n'a aucune extension particulière.</summary>
+    private static readonly SDL.DialogFileFilter[] AnyFileFilter =
+    [
+        new SDL.DialogFileFilter("All files", "*"),
+    ];
+
     /// <summary>Taille d'une cellule de la police de débogage de SDL, en pixels non mis à l'échelle.</summary>
     private const int Cell = 8;
 
@@ -60,7 +67,15 @@ internal sealed class SdlMenu
     /// <summary>Entrées d'image visibles à la fois dans l'écran de choix.</summary>
     internal const int PickWindow = 10;
 
-    private enum Screen { Main, Pick, Create, CreateHdd, Dialog }
+    private enum Screen { Main, Pick, Create, CreateFat, CreateHdd, Dialog }
+
+    /// <summary>
+    /// À quoi sert la boîte de dialogue en cours. Le sélecteur du système est ASYNCHRONE
+    /// et il n'en existe qu'un : sans cette étiquette, le résultat qui revient est
+    /// indiscernable entre « l'image à insérer », « l'image où déposer » et « le fichier
+    /// hôte à déposer ». Le dépôt en enchaîne deux, d'où le besoin.
+    /// </summary>
+    private enum DialogPurpose { InsertDisc, PutTarget, PutSource }
 
     // Les entrées de l'écran principal, dans l'ordre d'affichage. L'index sélectionné
     // indexe ce tableau : pas de correspondance à maintenir entre le texte et l'action.
@@ -71,6 +86,8 @@ internal sealed class SdlMenu
         ("Ejecter A:", MainItem.EjectA),
         ("Ejecter B:", MainItem.EjectB),
         ("Creer une disquette vierge...", MainItem.CreateBlank),
+        ("Creer une disquette formatee...", MainItem.CreateFat),
+        ("Deposer un fichier de l'hote...", MainItem.PutFile),
         ("Creer un disque dur vierge...", MainItem.CreateBlankHdd),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
@@ -80,7 +97,8 @@ internal sealed class SdlMenu
 
     private enum MainItem
     {
-        InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateBlankHdd, HardReset, HardResetTurbo, Cad, Quit,
+        InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateFat, PutFile, CreateBlankHdd,
+        HardReset, HardResetTurbo, Cad, Quit,
     }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
@@ -128,8 +146,26 @@ internal sealed class SdlMenu
 
     private int _createHddTop;
 
-    /// <summary>Lecteur visé par l'écran de choix : 0 = A:, 1 = B:.</summary>
+    /// <summary>Format choisi dans l'écran de disquette FORMATÉE, index dans
+    /// FatImage.Formats.</summary>
+    private int _createFatIndex;
+
+    /// <summary>Lecteur visé par l'écran de choix : 0 = A:, 1 = B:, ou PickPutTarget
+    /// quand la liste sert à désigner l'image où DÉPOSER au lieu du lecteur où
+    /// insérer.</summary>
     private int _pickDrive;
+
+    /// <summary>Valeur de _pickDrive qui fait de l'écran de choix un choix de CIBLE de
+    /// dépôt. -1 et pas un booléen de plus : c'est le même écran, la même liste et le
+    /// même défilement, et deux états parallèles finiraient par se contredire.</summary>
+    private const int PickPutTarget = -1;
+
+    /// <summary>Image désignée pour un dépôt, entre le choix de la cible et celui de la
+    /// source. Le sélecteur du système étant asynchrone, elle doit survivre au retour à
+    /// la boucle d'évènements.</summary>
+    private string _putImage = "";
+
+    private DialogPurpose _dialogPurpose;
 
     private string[] _images = [];
     private string _imagesRoot = "";
@@ -149,6 +185,7 @@ internal sealed class SdlMenu
     internal int Inserts { get; private set; }
     internal int Resets { get; private set; }
     internal int Creations { get; private set; }
+    internal int Puts { get; private set; }
 
     internal SdlMenu(IntPtr window, IntPtr renderer, string romsPath)
     {
@@ -244,6 +281,10 @@ internal sealed class SdlMenu
                 HandleCreate(e.Key.Scancode);
                 return MenuAction.None;
 
+            case Screen.CreateFat:
+                HandleCreateFat(e.Key.Scancode);
+                return MenuAction.None;
+
             case Screen.CreateHdd:
                 HandleCreateHdd(e.Key.Scancode);
                 return MenuAction.None;
@@ -308,6 +349,16 @@ internal sealed class SdlMenu
                 _screen = Screen.Create;
                 return MenuAction.None;
 
+            case MainItem.CreateFat:
+                _createFatIndex = FatImage.Formats.Length - 1; /* 360 Ko, le format du 5150 */
+                _message = "";
+                _screen = Screen.CreateFat;
+                return MenuAction.None;
+
+            case MainItem.PutFile:
+                OpenPick(PickPutTarget);
+                return MenuAction.None;
+
             case MainItem.CreateBlankHdd:
                 _createHddIndex = 0; /* type 01, 306x4x17 : le 10 Mo du XT */
                 _createHddTop = 0;
@@ -352,14 +403,22 @@ internal sealed class SdlMenu
                 return;
 
             case SDL.Scancode.Return or SDL.Scancode.KpEnter:
-                if (_pickIndex < _images.Length)
+                // Trois issues, et la liste est la même dans les trois : insérer dans un
+                // lecteur, désigner la cible d'un dépôt, ou aller chercher hors de os/.
+                if (_pickIndex >= _images.Length)
                 {
-                    Insert(_pickDrive, _images[_pickIndex]);
-                    _screen = Screen.Main;
+                    Browse(_pickDrive == PickPutTarget ? DialogPurpose.PutTarget
+                                                       : DialogPurpose.InsertDisc);
+                }
+                else if (_pickDrive == PickPutTarget)
+                {
+                    _putImage = _images[_pickIndex];
+                    Browse(DialogPurpose.PutSource);
                 }
                 else
                 {
-                    Browse();
+                    Insert(_pickDrive, _images[_pickIndex]);
+                    _screen = Screen.Main;
                 }
 
                 return;
@@ -374,6 +433,74 @@ internal sealed class SdlMenu
             _pickTop = _pickIndex;
         else if (_pickIndex >= _pickTop + PickWindow)
             _pickTop = _pickIndex - PickWindow + 1;
+    }
+
+    private void HandleCreateFat(SDL.Scancode sc)
+    {
+        switch (sc)
+        {
+            case SDL.Scancode.Up:
+                _createFatIndex = (_createFatIndex + FatImage.Formats.Length - 1) % FatImage.Formats.Length;
+                break;
+
+            case SDL.Scancode.Down:
+                _createFatIndex = (_createFatIndex + 1) % FatImage.Formats.Length;
+                break;
+
+            case SDL.Scancode.Escape:
+                _screen = Screen.Main;
+                break;
+
+            case SDL.Scancode.Return or SDL.Scancode.KpEnter:
+                CreateFormatted(FatImage.Formats[_createFatIndex]);
+                _screen = Screen.Main;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Fabrique une disquette FORMATÉE dans os/, vide et prête à recevoir des fichiers.
+    ///
+    /// DEUX DIFFÉRENCES VOULUES avec sa voisine CreateBlank, et elles vont ensemble.
+    /// CreateBlank insère l'image dans A: parce que son cas d'usage EST de la fabriquer
+    /// pendant que DOS attend « Insert new diskette for drive A: » pour la formater.
+    /// Celle-ci n'a pas besoin de FORMAT, et la suite naturelle est d'y déposer un
+    /// fichier — ce que FatImage.Put refuse sur une image montée. L'insérer d'office
+    /// mettrait donc l'utilisateur dans le seul état où l'étape suivante est interdite.
+    /// </summary>
+    private void CreateFormatted(FatImage.Format format)
+    {
+        string root = ImagesRoot();
+
+        try
+        {
+            // os/ est .gitignore'd, donc absent d'un clone neuf.
+            Directory.CreateDirectory(root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _message = $"creation de {root} impossible : {ex.Message}";
+            return;
+        }
+
+        string? path = FreeName(root, "fat" + format.Stem);
+
+        if (path is null)
+        {
+            _message = "trop d'images de cette taille dans os/.";
+            return;
+        }
+
+        if (!FatImage.Create(path, format, out string message))
+        {
+            Console.WriteLine(message);
+            _message = $"echec : {Path.GetFileName(path)}";
+            return;
+        }
+
+        Creations++;
+        Console.WriteLine(message);
+        _message = $"{Path.GetFileName(path)} cree, formate, vide.";
     }
 
     private void HandleCreateHdd(SDL.Scancode sc)
@@ -705,18 +832,29 @@ internal sealed class SdlMenu
     /// Sous Linux il passe par un portail XDG (donc DBus), ce qui exige que la boucle
     /// d'évènements continue de tourner — elle le fait, l'émulation seule est en pause.
     /// </summary>
-    private void Browse()
+    private void Browse(DialogPurpose purpose)
     {
         _screen = Screen.Dialog;
+        _dialogPurpose = purpose;
         _message = "";
         _dialogPath = null;
         _dialogError = null;
         Volatile.Write(ref _dialogDone, 0);
 
-        string start = Directory.Exists(_imagesRoot) ? _imagesRoot : AppContext.BaseDirectory;
+        // Chercher une SOURCE à déposer, c'est chercher n'importe quoi n'importe où sur
+        // le disque hôte : ni le filtre d'images ni os/ n'ont de sens. C'est la seule
+        // chose que ce sélecteur apporte au dépôt, et elle suffit à le justifier — taper
+        // un chemin absolu dans une police 8x8 n'est pas une interface.
+        bool source = purpose == DialogPurpose.PutSource;
+        string start = source ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                      : Directory.Exists(_imagesRoot) ? _imagesRoot : AppContext.BaseDirectory;
 
-        SDL.ShowOpenFileDialog(_dialogCallback, IntPtr.Zero, _window,
-                               DialogFilters, DialogFilters.Length, start, false);
+        if (source)
+            SDL.ShowOpenFileDialog(_dialogCallback, IntPtr.Zero, _window,
+                                   AnyFileFilter, AnyFileFilter.Length, start, false);
+        else
+            SDL.ShowOpenFileDialog(_dialogCallback, IntPtr.Zero, _window,
+                                   DialogFilters, DialogFilters.Length, start, false);
     }
 
     /// <summary>
@@ -762,7 +900,50 @@ internal sealed class SdlMenu
             return;
         }
 
-        Insert(_pickDrive, _dialogPath);
+        switch (_dialogPurpose)
+        {
+            case DialogPurpose.PutTarget:
+                // Premier des deux temps : on tient l'image, il faut maintenant la
+                // source. On REPART aussitôt en dialogue au lieu de revenir au menu —
+                // _screen vient d'être remis à Main juste au-dessus, et Browse le
+                // repose.
+                _putImage = _dialogPath;
+                Browse(DialogPurpose.PutSource);
+                return;
+
+            case DialogPurpose.PutSource:
+                DoPut(_putImage, _dialogPath);
+                return;
+
+            default:
+                Insert(_pickDrive, _dialogPath);
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Dépose un fichier de l'hôte dans une image, depuis le menu.
+    ///
+    /// Le refus d'une image MONTÉE vient de FatImage.Put et n'est pas rattrapé ici : le
+    /// menu n'éjecte JAMAIS à la place de l'utilisateur. Éjecter, écrire dans le dos de
+    /// DOS, réinsérer — et DOS réécrit la FAT qu'il garde de son côté, effaçant l'entrée
+    /// qu'on vient de poser. « Ejecter A: » est deux lignes plus haut, à une touche.
+    /// </summary>
+    private void DoPut(string image, string source)
+    {
+        if (FatImage.Put(image, [source], out string message))
+        {
+            Puts++;
+            _message = $"{Path.GetFileName(source)} -> {Path.GetFileName(image)}";
+            Console.WriteLine(message);
+            return;
+        }
+
+        // Tronqué à la largeur de la boîte : les messages de FatImage nomment la règle
+        // violée et sont donc longs. Le détail complet part en console, comme les clés
+        // de CreateBlankHdd.
+        Console.WriteLine(message);
+        _message = message.Length <= Cols - 2 ? message : message.Substring(0, Cols - 5) + "...";
     }
 
     /// <summary>
@@ -869,7 +1050,9 @@ internal sealed class SdlMenu
                 break;
 
             case Screen.Pick:
-                lines.Add($" Disquette pour {DriveLetter(_pickDrive)}:");
+                lines.Add(_pickDrive == PickPutTarget
+                          ? " Image ou deposer (le fichier vient apres)"
+                          : $" Disquette pour {DriveLetter(_pickDrive)}:");
                 lines.Add("");
 
                 int top = _pickTop;
@@ -953,8 +1136,34 @@ internal sealed class SdlMenu
                 lines.Add(" Echap: annuler");
                 break;
 
+            case Screen.CreateFat:
+                lines.Add(" Creer une disquette FORMATEE dans os/");
+                lines.Add("");
+
+                for (int i = 0; i < FatImage.Formats.Length; i++)
+                {
+                    if (i == _createFatIndex)
+                        selected = lines.Count;
+
+                    lines.Add("   " + FatImage.Formats[i].Name);
+                }
+
+                lines.Add("");
+                lines.Add(" FAT12 vide, prete a l'emploi : pas besoin");
+                lines.Add(" de FORMAT. Elle n'est PAS inseree, parce");
+                lines.Add(" qu'on ne depose pas sur une image montee.");
+                lines.Add(" NON SYSTEME : faire SYS pour l'amorcer.");
+                lines.Add("");
+                lines.Add(" Echap: annuler");
+                break;
+
             default:
-                lines.Add($" Disquette pour {DriveLetter(_pickDrive)}:");
+                lines.Add(_dialogPurpose switch
+                {
+                    DialogPurpose.PutTarget => " Image ou deposer",
+                    DialogPurpose.PutSource => $" Fichier a mettre dans {Path.GetFileName(_putImage)}",
+                    _ => $" Disquette pour {DriveLetter(_pickDrive)}:",
+                });
                 lines.Add("");
                 lines.Add(" Selecteur du systeme ouvert.");
                 lines.Add(" Choisir un fichier dans sa fenetre.");
@@ -1032,4 +1241,147 @@ internal sealed class SdlMenu
 
     internal static string Truncate(string s, int max)
         => s.Length <= max ? s : string.Concat("...", s.AsSpan(s.Length - max + 3));
+
+    /// <summary>
+    /// Auto-contrôle des chemins clavier du menu. Même motif que SdlSetup.SelfCheck et
+    /// que config-check : rien ici ne donne le focus à une fenêtre SDL, donc sans lui ces
+    /// chemins ne s'exécuteraient jamais avant le jour où ils comptent.
+    ///
+    /// Il s'arrête NET devant le sélecteur de fichiers du système : Browse appelle
+    /// SDL.ShowOpenFileDialog avec _window, qui vaut IntPtr.Zero ici. Les deux temps du
+    /// dépôt — choisir l'image, puis la source — ne sont donc pas couverts, et c'est une
+    /// limite à connaître plutôt qu'un contrôle à faire semblant d'écrire.
+    /// </summary>
+    /// <returns>0 si tout passe, 1 sinon.</returns>
+    internal static int SelfCheck(string romsPath)
+    {
+        var m = new SdlMenu(IntPtr.Zero, IntPtr.Zero, romsPath);
+        int fail = 0;
+
+        void Check(string what, bool ok, string got)
+        {
+            Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] {what} : {got}");
+
+            if (!ok)
+                    fail++;
+        }
+
+        // Positionne l'écran principal sur une entrée donnée sans toucher au clavier
+        // émulé, puis valide. Open() appelle SdlKeyboard.Reset, qu'on ne veut pas ici.
+        MenuAction Activate(MainItem item)
+        {
+            m._screen = Screen.Main;
+            m._mainIndex = 0;
+
+            for (int c = 0; c < MainItems.Length; c++)
+            {
+                if (MainItems[c].Item == item)
+                        m._mainIndex = c;
+            }
+
+            return m.HandleMain(SDL.Scancode.Return);
+        }
+
+        Console.WriteLine("Auto-contrôle du menu Ctrl+F12.");
+        Console.WriteLine();
+        Console.WriteLine("Les deux entrées neuves mènent où il faut :");
+
+        Activate(MainItem.CreateFat);
+        Check("« Creer une disquette formatee » ouvre son ecran",
+              m._screen == Screen.CreateFat, $"ecran {m._screen}");
+        Check("le format prechoisi est le 360 Ko",
+              m._createFatIndex == FatImage.Formats.Length - 1,
+              FatImage.Formats[m._createFatIndex].Stem);
+
+        string[] lines = m.BuildLines(out int sel);
+        int listed = 0;
+
+        for (int c = 0; c < lines.Length; c++)
+        {
+            for (int d = 0; d < FatImage.Formats.Length; d++)
+            {
+                if (lines[c].Contains(FatImage.Formats[d].Name, StringComparison.Ordinal))
+                        listed++;
+            }
+        }
+
+        Check("l'ecran liste les quatre formats, un choisi",
+              listed == FatImage.Formats.Length && sel >= 0,
+              $"{listed} format(s), ligne choisie {sel}, {lines.Length} lignes");
+        Check("toutes les lignes tiennent dans la boite", AllFit(lines),
+              $"la plus longue fait {Longest(lines)} sur {Cols}");
+
+        m.HandleCreateFat(SDL.Scancode.Down);
+        Check("Bas depuis le dernier format boucle sur le premier",
+              m._createFatIndex == 0, FatImage.Formats[m._createFatIndex].Stem);
+        m.HandleCreateFat(SDL.Scancode.Up);
+        Check("Haut depuis le premier boucle sur le dernier",
+              m._createFatIndex == FatImage.Formats.Length - 1,
+              FatImage.Formats[m._createFatIndex].Stem);
+        m.HandleCreateFat(SDL.Scancode.Up);
+        Check("et Haut encore descend d'un cran, sans boucler",
+              m._createFatIndex == FatImage.Formats.Length - 2,
+              FatImage.Formats[m._createFatIndex].Stem);
+
+        m.HandleCreateFat(SDL.Scancode.Escape);
+        Check("Echap revient au menu SANS rien creer", m._screen == Screen.Main,
+              $"ecran {m._screen}, {m.Creations} creation(s)");
+
+        Console.WriteLine();
+        Console.WriteLine("Le dépôt ouvre la liste en mode CIBLE, pas en mode lecteur :");
+
+        Activate(MainItem.PutFile);
+        Check("« Deposer un fichier » ouvre la liste d'images",
+              m._screen == Screen.Pick, $"ecran {m._screen}");
+        Check("la liste vise une cible de depot, aucun lecteur",
+              m._pickDrive == PickPutTarget, $"_pickDrive = {m._pickDrive}");
+
+        lines = m.BuildLines(out sel);
+        Check("son titre ne parle pas de lecteur",
+              lines.Length != 0 && !lines[0].Contains("Disquette pour", StringComparison.Ordinal),
+              $"« {lines[0].Trim()} »");
+        Check("toutes les lignes tiennent dans la boite", AllFit(lines),
+              $"la plus longue fait {Longest(lines)} sur {Cols}");
+
+        m.HandlePick(SDL.Scancode.Escape);
+        Check("Echap referme la liste sans rien deposer",
+              m._screen == Screen.Main && m.Puts == 0, $"ecran {m._screen}, {m.Puts} depot(s)");
+
+        Console.WriteLine();
+        Console.WriteLine("Les entrées d'origine n'ont pas bougé :");
+
+        Activate(MainItem.InsertA);
+        Check("« Inserer dans A: » vise bien le lecteur 0",
+              m._screen == Screen.Pick && m._pickDrive == 0, $"_pickDrive = {m._pickDrive}");
+        m.HandlePick(SDL.Scancode.Escape);
+
+        Check("« Quitter » rend toujours MenuAction.Quit",
+              Activate(MainItem.Quit) == MenuAction.Quit, "Quit");
+        Check("« Reset materiel » rend toujours MenuAction.HardReset",
+              Activate(MainItem.HardReset) == MenuAction.HardReset, "HardReset");
+
+        Console.WriteLine();
+        Console.WriteLine(fail == 0 ? "Vert : tous les contrôles passent."
+                                    : $"{fail} contrôle(s) en échec.");
+
+        return fail == 0 ? 0 : 1;
+    }
+
+    private static int Longest(string[] lines)
+    {
+        int n = 0;
+
+        for (int c = 0; c < lines.Length; c++)
+        {
+            if (lines[c].Length > n)
+                    n = lines[c].Length;
+        }
+
+        return n;
+    }
+
+    /// <summary>La boîte a une largeur FIXE de Cols caractères : une ligne plus longue
+    /// est tronquée à l'écran, donc un texte qu'on croit avoir écrit et que personne ne
+    /// lit jamais en entier.</summary>
+    private static bool AllFit(string[] lines) => Longest(lines) <= Cols;
 }
