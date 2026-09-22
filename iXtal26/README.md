@@ -183,9 +183,11 @@ FDISK          -> 1 (Create DOS Partition), puis Entree ; la machine redemarre
 FORMAT C: /S   -> « Format complete / System transferred »
 ```
 
-après quoi la machine amorce sur C:. **Cet arc entier est vert au diff contre le C de
-PCem**, image de disque comparée octet par octet entre les deux côtés — pas seulement la
-trace d'instructions (`../VERIFICATION.md` § M12).
+après quoi la machine amorce sur C:, disquette retirée. **Cet arc entier est vert au diff
+contre le C de PCem** — 98 945 755 instructions identiques pour le partitionnement et le
+formatage, 25 941 449 pour l'amorçage sur C: qui suit, et l'image de disque comparée octet
+par octet entre les deux côtés, pas seulement la trace d'instructions
+(`../VERIFICATION.md` § M12).
 
 ## Le menu, Ctrl+F12
 

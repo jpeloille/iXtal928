@@ -1892,13 +1892,20 @@ qui monte plus haut.
 | Épreuve | Résultat |
 |---|---|
 | `boot-diff roms 6000` (ibmpc) | **25 457 269** — à l'unité, inchangé |
-| `boot-diff roms 6000 --config` (ibmxt) | **vert, 23 442 234 instructions** |
+| `boot-diff roms 6000 --config` (ibmxt) | **vert, 23 442 234 instructions** — mais voir ci-dessous : depuis § M12 cette campagne s'écrit `--model ibmxt` |
 | `boot-diff roms 7000 --config --fda …b.img` (ibmxt) | **vert, 22 086 920 instructions** |
 | `make -C tools/oracle selftest` | vert, 0 échec |
 | `speaker-probe roms 6000` (ibmpc) | 9 champs identiques, empreinte `384EC07B1B64CC83` |
 | `disc-probe roms 5600 --fda …b.img` (ibmpc) | 20 champs identiques |
 | `check-oracle.sh` | 26 transcrits vérifiés, 0 dérive, arbre vendoré OK |
 | `dotnet build -c Release` | 0 avertissement |
+
+**Rectification apportée par § M12.** La deuxième ligne mesurait le XT **sans disquette**,
+donc sa ROM BASIC, et non ce que son `--config` annonçait : `boot-diff` écrasait alors la
+clé `disc_a` du fichier. La commande qui rend 23 442 234 aujourd'hui est
+`boot-diff roms 6000 --model ibmxt` — même chiffre à l'unité, sous son vrai nom.
+`boot-diff roms 6000 --config ixtal26-xt.cfg` amorce désormais vraiment DOS et rend
+**19 511 811**.
 
 **La porte du 5150 passe AVANT qu'on regarde le XT**, à chaque commit. Ajouter une entrée à
 `models[]` ne doit rien changer au chemin par défaut ; si ce chiffre bougeait, tous ceux
@@ -2249,12 +2256,20 @@ les 33 744 octets du système de fichiers.
 | `boot-diff roms 6000 --config ixtal26-xt.cfg` | **19 511 811** — XT, DOS : chiffre NEUF, le correctif (1) l'a corrigé |
 | `boot-diff roms 7000 --config ixtal26-xt.cfg --fda …` | **22 086 920** — XT, DOS, inchangé |
 | Campagne M11, `FORMAT B:` sur disquette | **48 783 446** instructions, **367 370 octets** — à l'unité, et désormais sous une porte exécutable |
+| Arc `FDISK` + `FORMAT C: /S`, disque à zéro | **98 945 755** instructions, **33 982 octets** |
+| Amorçage depuis C:, sans disquette | **25 941 449** instructions |
+| `make -C tools/oracle selftest` | vert, 0 échec |
+| `speaker-probe roms 6000` · `disc-probe roms 6000 --fda …` | 9 et 20 champs identiques |
+| `check-oracle.sh` · `dotnet build -c Release` | 0 dérive, arbre vendoré OK · 0 avertissement |
 
 ### La campagne du disque dur, et c'est elle la porte du jalon
 
 L'arc entier, depuis une image de 10 653 696 octets à **zéro**, en une seule campagne :
 
 ```
+head -c 10653696 /dev/zero > /tmp/xt-arc-hdd.img
+# /tmp/xt-arc.cfg = ixtal26-xt.cfg avec les quatre cles disque decommentees
+#                   et hdc_fn = /tmp/xt-arc-hdd.img
 boot-diff roms 6000 --config /tmp/xt-arc.cfg --type-at 6000 --type-settle 3000
           --type "" --type "" --type FDISK --type 1 --type "" --type ""
           --type "" --type "" --type "FORMAT C: /S" --type ""
@@ -2288,6 +2303,23 @@ Le disque produit est un vrai disque fixe DOS :
 
 L'entrée est dans le **quatrième** emplacement de la table, pas le premier : c'est ce que
 fait le FDISK de PC DOS 2.00, et les deux côtés le font pareil.
+
+### Et la machine amorce sur C:, sous oracle aussi
+
+Le disque produit par la campagne précédente, remonté seul — **aucune disquette**, la clé
+`disc_a` retirée de la configuration :
+
+```
+boot-diff roms 6000 --config /tmp/xt-bootc.cfg --type-at 6000 --type-settle 800
+          --type "" --type "" --type DIR
+```
+
+**Vert, 25 941 449 instructions identiques**, écran à `C>` et `DIR` qui liste
+`COMMAND COM 17664` et `10543104 bytes free`. C'est le troisième terme de la portée du
+jalon, et il exerce ce que les deux autres n'exercent pas : le **chemin de lecture** du
+contrôleur pris par l'INT 19h du BIOS, puis la relecture du système de fichiers qu'une
+autre campagne a écrit. L'image y est forcément inchangée — un `DIR` n'écrit rien — et
+l'outil le signale, comme il doit.
 
 ### Une image montée en lecture-écriture n'est vierge qu'une fois
 
@@ -2352,7 +2384,8 @@ pas un oracle. Atténuée en pratique — l'en-tête des deux ROMs déclare sa v
 5. **`PB-23`, `PB-25`, `PB-27` et `PB-28` n'ont aucun pendant exécuté.** Ils sont
    transcrits et marqués ; la campagne ne passe pas dessus. Ce qui est vérifié, c'est que
    les deux côtés font la même chose sur le chemin que DOS emprunte.
-6. **L'arc part d'un disque vierge et s'arrête au formatage.** Il n'écrit ni ne réécrit de
-   fichier après coup, et ne teste ni la relecture après remontage, ni un second disque en
-   D:.
+6. **L'arc s'arrête au formatage.** Il n'écrit ni ne réécrit de fichier après coup — pas
+   de `COPY` vers C:, pas de réécriture d'un fichier existant — et ne teste pas un second
+   disque en D:. La relecture après remontage, elle, l'est : c'est la campagne
+   d'amorçage sur C: ci-dessus.
 
