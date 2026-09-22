@@ -74,6 +74,37 @@ l'écran reste sur « Formatting... » et l'image n'est écrite qu'au dixième.
 que le cœur ne dépend pas du front-end. `--slices` est l'interrupteur de déterminisme —
 sans cadencement horloge murale, deux exécutions donnent le même nombre de cycles.
 
+## Construire la machine avant de la lancer
+
+Un lancement **sans argument** ouvre un écran de construction : on choisit la machine, la
+mémoire, les disquettes des lecteurs A: et B:, le contrôleur de disque dur et les images
+de C: et D: — ou on en crée une sur place, qui est affectée dans la foulée. Puis
+« Demarrer ».
+
+```bash
+dotnet run                  # l'écran s'ouvre
+dotnet run -- --setup       # le force, même si d'autres options ont parlé
+```
+
+Il sait aussi **charger une machine enregistrée** — les `.cfg` de `configs/` et les deux
+exemples de la racine — et **enregistrer** celle qu'on vient de composer, dans
+`configs/machine.cfg`, `machine-2.cfg`… Ce répertoire n'est pas versionné : ces fichiers
+pointent des images qui ne le sont pas non plus.
+
+L'enregistrement va **toujours** dans `configs/`, jamais par-dessus `ixtal26.cfg` ou
+`ixtal26-xt.cfg` : `config_save` réécrit le fichier depuis l'arbre en mémoire, et cet
+arbre ne porte pas les commentaires — les deux exemples y perdraient toute leur
+documentation.
+
+**L'écran ne monte rien.** Il remplit exactement ce que `--config` remplit, puis rend la
+main ; c'est `initpc` qui monte. Un seul chemin de montage, donc pas un second à tenir en
+accord avec le premier.
+
+Et il ne s'ouvre **jamais** quand un argument a décrit la machine — `--config`, `--model`,
+`--ram`, `--floppy-a`, `--hdd`… — ni sous `--slices`, `--headless` ou `--boot`. Toutes les
+commandes de ce fichier et de `../VERIFICATION.md` gardent donc leur comportement au cycle
+près.
+
 ## Configurer la machine
 
 ```bash
@@ -101,17 +132,23 @@ bpb_disable = 0
 
 ### Depuis l'IDE
 
-`Properties/launchSettings.json` porte six profils de lancement, que Rider et
+`Properties/launchSettings.json` porte sept profils de lancement, que Rider et
 `dotnet run --launch-profile` lisent tous les deux. Le premier est le défaut :
 
 | Profil | Arguments |
 |---|---|
+| `iXtal26 (construire la machine)` | `--setup` |
 | `iXtal26` | `--config ixtal26.cfg --turbo` |
-| `iXtal26 (machine de reference, sans turbo)` | *(aucun)* |
+| `iXtal26 (machine de reference, sans turbo)` | `--model ibmpc` |
 | `iXtal26 (64 Ko, demarrage court)` | `--config ixtal26.cfg --ram 64` |
 | `iXtal26 (diagnostic)` | `--config ixtal26.cfg --turbo --verbose` |
 | `iXtal26 (IBM XT 5160)` | `--config ixtal26-xt.cfg --turbo` |
 | `iXtal26 (IBM XT 5160, ROM BASIC)` | `--model ibmxt --turbo` |
+
+`--model ibmpc` dans le profil de référence est un **no-op volontaire** : `ibmpc` est
+déjà le défaut, et le nommer explicitement dit à l'émulateur que la machine est choisie,
+donc que l'écran de construction n'a pas à s'ouvrir. Sans lui, ce profil montrerait
+l'écran au lieu d'amorcer la machine que `../VERIFICATION.md` décrit.
 
 Les deux derniers montrent les **deux façons** de choisir une machine. Le second n'a pas
 de `--config` : sans fichier, aucune disquette n'est montée, donc le XT tombe sur **sa**
@@ -273,6 +310,8 @@ mode existe pour que deux exécutions traversent les mêmes états.
 | `Host/SdlHost.cs`     | Fenêtre, texture, accumulateur horloge murale, remontée du blit |
 | `Host/SdlKeyboard.cs` | Scancodes SDL → PC/XT jeu 1, vers `keyboard.rawinputkey`       |
 | `Host/SdlMenu.cs`     | Menu Ctrl+F12 : disquettes et reset (`wx-sdl2.c:725-770`)      |
+| `Host/SdlSetup.cs`    | Écran de construction de machine (`wx-config_sel.c`)           |
+| `Host/HddImage.cs`    | Images de disque dur : les 46 types du BIOS, créer, deviner    |
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
 Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`, `Mfm/`, `Sound/`,

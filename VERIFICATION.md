@@ -2570,3 +2570,229 @@ DOS 2.00 s'en sort seul. L'inquiétude était sans objet, et c'est mesuré et no
 5. **`hdd_controller = mfm_xebec` est écrit en dur dans le bloc de clés imprimé.** La carte
    `dtc5150x` est transcrite et accepterait toute géométrie ; le bloc ne la propose pas.
 
+
+## M13 — Construire la machine avant de la lancer
+
+Parti d'un symptôme : « j'ai un FDISK mais une fois la machine relancée, elle ne voit pas
+l'image ». La cause immédiate n'était pas un défaut — après `FDISK` le disque est
+partitionné mais sans système de fichiers, et il reste `FORMAT C: /S`. Mais la question
+posée, *« comment la monter avant le lancement »*, a découvert trois manques et deux
+défauts, dont un de perte de données.
+
+### La perte d'écritures était totale, pas latente
+
+`pc.closepc()` ne fermait que les deux disquettes. Son commentaire d'omission disait
+« `device_close_all()` n'a rien à fermer que le processus ne rende de lui-même » : vrai
+quand la phrase a été écrite, **rendu faux par § M12** sans que personne n'y revienne,
+puisque le Fixed Disk Adapter tient depuis un `FileStream` tamponné.
+
+Un `FDISK` écrit **un** secteur de 512 octets. Il tient entièrement dans le tampon de
+4 Ko et n'en sort jamais.
+
+| | Octets non nuls dans l'image, après sortie du processus |
+|---|---|
+| Avant correctif | **0** — alors que l'écran affichait la partition écrite |
+| Après | **238** — entrée de partition en `0x1EE`, signature `55 aa` |
+
+Les campagnes de § M12 y échappaient **par le volume** — un `FORMAT` pousse 10 Mo, donc
+tout sauf le dernier tampon partiel — et non par construction. `BootTest.Run` ne fermait
+pas non plus, alors que le README donne `--settle 4500 --type "FORMAT B:"` comme recette.
+
+**Leçon générale** : un commentaire qui justifie une omission par l'état du dépôt périme
+quand le dépôt change, et rien ne le signale.
+
+### `PB-31`, trouvé en corrigeant l'oracle symétriquement
+
+Et il fallait le corriger symétriquement : ne vider qu'un côté ferait diverger les images
+sur le tampon non vidé de l'autre — la divergence fabriquée par le harnais que § M11
+décrit. Le pendant fidèle a été écrit, puis **retiré après plantage** :
+
+```
+#0 mem_mapping_remove  mem.c:1170   dest = dest->next;
+#1 rom_deinit          rom.c:113
+#2 xebec_close         mfm_xebec.c:769
+#3 device_close_all    device.c:40
+```
+
+`cga_close` fait `free(cga)` **sans** `mem_mapping_remove`, alors que `cga_t` porte son
+`mem_mapping_t` par valeur et que `cga_standalone_init` l'a chaîné. Le maillon reste dans
+la liste en pointeur pendant, et `mem_mapping_remove` le traverse avec une boucle
+`while (dest != mapping)` **sans garde de fin de liste**. Atteignable chez PCem :
+`closepc()` est bien appelé (`wx-sdl2.c:649`), et `video_init` précède
+`hdd_controller_init`.
+
+Non reproduit, et la divergence ne se choisit pas : le C# n'a pas de `free`. Le côté C#
+appelle donc `device_close_all()` fidèlement ; l'oracle, qui est une **bibliothèque** et
+non un processus qui s'arrête, vide par `fflush(NULL)`.
+
+### Deux `boot-diff` concurrents fabriquent un rouge
+
+Le chemin de la trace oracle était fixe, celui des copies d'images aussi. Une boucle de
+régression lancée pendant une campagne à disque dur a rendu :
+
+```
+roms 6000                     PREMIÈRE DIVERGENCE à l'instruction 21
+roms 7000 --fda …b.img        ÉCART DE LONGUEUR : oracle 35 622 286, C# 26 750 702
+```
+
+**35 622 286 est le compte de l'autre campagne.** Rejouées en série, les deux portes
+rendent leur chiffre exact. Le numéro de processus entre dans les deux noms, et la trace
+— 8 octets par instruction, 792 Mo pour l'arc de § M12 — est supprimée dès qu'elle est en
+mémoire.
+
+C'est la même famille que le partage d'image fermé à § M11 entre les deux **côtés** d'un
+diff ; ici c'était entre deux **exécutions**.
+
+### `--hdd`, et ce que la mesure a corrigé dans le plan
+
+Il n'y avait aucun chemin pour monter un disque dur sans écrire un fichier de
+configuration. `--hdd IMG` le fait, géométrie déduite de la taille par la branche MFM de
+`check_hd_type` — que § M12.1 avait omise en écrivant « il sert le sélecteur de fichiers
+du dialogue, que ce dépôt n'a pas ». L'omission tombe avec la phrase.
+
+Le plan affirmait que l'aller-retour taille → type serait l'identité sur les 46 types.
+**Faux, et mesuré** : `check_hd_type` compare des **tailles**, pas des géométries. Sept
+tailles en désignent plusieurs, quatre recouvrent des géométries différentes :
+
+| Taille | Candidats |
+|---|---|
+| 10 653 696 | type 01 (306×4), type 23 (306×4), type 34 (612×2) |
+| **21 307 392** | **type 13 (306×8), type 16 (612×4)** — les deux admis par le Xebec |
+| 21 411 840 | type 02 (615×4), type 06 (615×4), type 10 (820×3) |
+| 42 823 680 | type 37 (615×8), type 40 (820×6) |
+
+PCem s'en sort parce que `hd_file` montre la géométrie déduite dans `HdSizeDlg` et laisse
+la corriger. Une option n'a pas ce dialogue, d'où un avertissement **restreint aux
+géométries que la carte accepte** — sans quoi monter le 10 Mo standard du XT avertirait à
+chaque fois pour un type 34 que le Xebec ne connaît pas — et `--hdd-type N` pour trancher.
+
+Se tromper entre 13 et 16 garde la bonne capacité et **décale l'adressage CHS** : le
+système de fichiers se lit de travers sans qu'aucune erreur n'apparaisse.
+
+### L'écran de construction
+
+`Host/SdlSetup.cs`. L'oracle n'est pas une invention : PCem ouvre son **Configuration
+Manager** avant de démarrer — `pc_main` tourne, puis wxWidgets démarre et `wx_load_config`
+appelle `config_selection_open` avant `start_emulation`, sauf si `--config` a parlé
+(`config_override`, `wx-sdl2.c:481-488`). Ses machines sont des `configs/<nom>.cfg`,
+listées par un simple glob.
+
+**L'écran ne monte rien**, et c'est sa propriété centrale. Il remplit exactement ce que
+`pc.loadconfig` remplit — `pc.setmodel`, `cfg_mem_size`, `cfg_drive_type[]`,
+`cfg_hdd_controller`, `discfns[]`, `hdc[]`, `ide_fn[]` — puis rend la main. C'est `initpc`
+puis `resetpchard` qui montent, comme pour `--config`. Un seul chemin de montage.
+
+**L'ordre d'initialisation s'inverse, et seulement sur ce chemin.** `SdlHost.Init`
+appelait `pc.initpc` **avant** `SDL.Init` et la fenêtre — ce qui fait qu'une ROM absente
+est signalée sans qu'une fenêtre ait clignoté. Cet ordre est conservé tel quel sur le
+chemin direct ; l'écran, lui, a besoin d'un renderer pour se dessiner et choisit la
+machine que `initpc` va monter, donc il l'inverse. La fenêtre s'ouvre à la taille de repli
+— `video_width` vaut zéro avant le premier balayage CGA — et `SyncWindowSize`, qui existe
+déjà, la recale après.
+
+Il donne enfin un appelant aux six `config_set_*` et à `config_save`, transcrits et
+vérifiés par `config-check` depuis § M8, et **morts depuis** — `ConfigCheck.cs` le disait :
+« n'a aucun appelant tant que le menu n'édite pas la configuration ».
+
+### Ce qu'une sonde a trouvé, et que l'œil n'aurait pas vu
+
+L'écran ne se pilote pas ici : SDL3 tourne en Wayland natif et rien ne donne le focus à
+une fenêtre. On a donc mesuré ses lignes par une sonde temporaire, posée puis retirée —
+et elle a rendu **deux défauts réels** qu'une relecture n'aurait pas donnés :
+
+1. **La fenêtre de défilement n'était pas recalée à l'ouverture.** Ouvrir la liste mémoire
+   d'un 5150 à 640 Ko plaçait le curseur en 19ᵉ position et affichait les dix premières :
+   `selected` valait **−1**, aucune ligne n'était en vidéo inverse, et l'écran paraissait
+   n'avoir rien de sélectionné.
+2. **Les `.cfg` de la racine n'étaient pas trouvés.** Lancé depuis la racine,
+   `resolve_roms_path` rend « roms » tel quel, dont `GetDirectoryName` rend `""` ;
+   `Directory.GetFiles("")` lève, l'exception était avalée, et la liste sortait vide alors
+   qu'`ixtal26.cfg` et `ixtal26-xt.cfg` sont là.
+
+Et deux autres sont tombés en exerçant l'enregistrement, tous deux dans `ConfigPath`
+(§ M12.1), qu'un seul appelant ne pouvait pas montrer :
+
+3. **Il levait sur un chemin vide** — `Path.GetFullPath("")` — et une machine a toujours
+   un lecteur B vide à enregistrer. `--create-hdd` n'a jamais de chemin vide.
+4. **Il ne relativisait que ce qui est DIRECTEMENT dans `os/`.** L'image de PC DOS vit
+   dans `os/pcdos20/` : une machine enregistrée depuis Rider aurait porté son chemin
+   absolu. Vérifié depuis les deux répertoires, la même ligne sort :
+   `disc_a = os/pcdos20/pcdos20b.img`.
+
+### Les portes
+
+**L'inertie d'abord, et c'est la plus importante.** Rien de ce jalon ne doit toucher une
+machine que la ligne de commande décrit :
+
+| Épreuve | Résultat |
+|---|---|
+| `boot-diff roms 6000` | **25 457 269** |
+| `boot-diff roms 7000 --fda …b.img` | **26 750 702** |
+| `boot-diff roms 6000 --model ibmxt` | **23 442 234** |
+| `boot-diff roms 6000 --config ixtal26-xt.cfg` | **19 511 811** |
+| `boot-diff roms 7000 --config ixtal26-xt.cfg --fda …` | **22 086 920** |
+
+Et l'écran ne s'ouvre pour aucune recette existante : `--boot`, `--slices`, `--headless`,
+`--config`, `--model` ont tous été exécutés et ont tous rendu la main sans attendre une
+touche.
+
+**La porte de fond : la machine que l'écran produit est verte au diff.** Composée par le
+code de l'écran — XT, 512 Ko, PC DOS en A:, un disque dur créé sur place et affecté à C: —
+puis enregistrée, puis relue :
+
+| | |
+|---|---|
+| `--config configs/machine.cfg --verbose` | `[8088] IBM XT, mem_size = 512 Ko` |
+| `--boot --config configs/machine.cfg` | amorce DOS, `DIR` liste 23 fichiers |
+| **`boot-diff roms 6000 --config configs/machine.cfg`** | **vert, 19 049 926 instructions** |
+
+C'est ce dernier qui compte : il dit que l'écran produit une configuration que **l'oracle
+sait lire aussi**, donc une machine réelle et pas seulement un fichier plausible.
+
+Le fichier écrit, vérifié ligne à ligne, porte les seize clés de `pc.loadconfig` avec des
+chemins relatifs des deux côtés :
+
+```ini
+model = ibmxt
+mem_size = 512
+disc_a = os/pcdos20/pcdos20b.img
+hdd_controller = mfm_xebec
+hdc_sectors = 17
+hdc_heads = 4
+hdc_cylinders = 306
+hdc_fn = os/vierge-hdd-type01.img
+```
+
+**Reste** : `make -C tools/oracle selftest` vert, `check-oracle.sh` sans dérive,
+`config-check` vert, `dotnet build -c Release` sans avertissement, `TRANSCRIPTION.md` à
+223 lignes sous le plafond de 225.
+
+### Un profil de Rider a dû changer de forme pour ne pas changer de sens
+
+Le profil « machine de reference, sans turbo » ne passait **aucun** argument — ce qui,
+depuis ce jalon, ouvre l'écran. Il passe maintenant `--model ibmpc`, un **no-op
+volontaire** : `ibmpc` est déjà le défaut, et le nommer dit que la machine est choisie.
+Vérifié : `machine : [8088] IBM PC, mem_size = 640 Ko, lecteurs 1/1 (défauts)`, comme
+avant.
+
+Un septième profil, « construire la machine », porte `--setup` et vient en tête.
+
+### Ce que ce vert ne dit pas
+
+1. **L'écran n'a jamais été VU.** Ses largeurs sont mesurées contre `Cols` — la plus
+   longue ligne fait 44 caractères sur 46 — sa hauteur comptée en lignes, ses transitions
+   d'état exercées par une sonde. Son apparence, non. Même angle mort que le titre de
+   fenêtre de § M11.1 et l'entrée de menu de § M12.1.
+2. **Aucune touche n'a jamais été livrée à l'écran par SDL.** La sonde appelait
+   `Activate` et `ApplyPick` directement ; `Handle`, `HandleMain` et `HandleList` — donc
+   la navigation au clavier et `Echap` — n'ont pas d'exécution derrière eux.
+3. **« Parcourir... » n'existe pas dans cet écran.** Il liste `os/`. Un chemin quelconque
+   passe par `--floppy-a` ou `--hdd`.
+4. **Une seule machine a été composée et enregistrée.** Le chargement d'une machine
+   enregistrée est exercé par la liste, pas par un aller-retour complet depuis l'écran.
+5. **`config_save` détruit les commentaires**, parce que le parseur saute les `#` et que
+   `entry_t` n'a pas de champ pour eux. C'est pourquoi l'enregistrement va toujours dans
+   `configs/` et jamais par-dessus les deux exemples de la racine — mais rien n'empêche un
+   `--config configs/x.cfg` suivi d'un enregistrement d'aplatir un fichier que
+   l'utilisateur aurait commenté à la main.
+
