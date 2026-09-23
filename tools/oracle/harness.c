@@ -924,12 +924,31 @@ int h_boot(const char *romspath) {
         return 1;
 }
 
+/* h_runpc AIGUILLAIT SUR RIEN, ET C'EST LE SEUL CHEMIN QUI NE LE FAISAIT PAS.
+ *
+ * h_step() et h_run() branchent sur h_core depuis A2.0 ; h_runpc appelait execx86
+ * en dur. Or c'est LUI que la phase 1 de boot-diff emprunte, donc aucun amorçage
+ * différentiel ne pouvait tourner sur le cœur 286 — ce qui rendait le bloc B3
+ * invérifiable, et le bloc C avec lui puisqu'il n'est exerçable que par un
+ * amorçage AT.
+ *
+ * pc.c:479-487 aiguille sur `is386 ? … : AT ? exec386 : execx86`. Ici is386 est
+ * toujours nul (le harnais ne monte pas de 386), donc le pendant est h_core.
+ *
+ * LE MODE TRACÉ NE FAIT PAS LE GESTE DE h_step286. Celui-ci pose timer_target =
+ * tsc pour forcer cycle_period à 1, parce qu'un PAS doit valoir exactement une
+ * instruction. Ici on veut la BOUCLE telle qu'elle est : exec386(0) rend la main
+ * après une instruction de lui-même, le budget de la tranche restant maître.
+ * Poser timer_target changerait le temps que voit l'invité, donc l'amorçage. */
 void h_runpc(void) {
         int cycles_to_run = 4772728 / 100;
 
         if (!h_trace_fp) {
                 cpu_state._cycles = 0;
-                execx86(cycles_to_run);
+                if (h_core == H_CORE_286)
+                        exec386(cycles_to_run);
+                else
+                        execx86(cycles_to_run);
                 return;
         }
 
@@ -938,7 +957,10 @@ void h_runpc(void) {
         int budget = cycles_to_run;
         while (budget > 0) {
                 cpu_state._cycles = 1;
-                execx86(0);
+                if (h_core == H_CORE_286)
+                        exec386(0);
+                else
+                        execx86(0);
                 budget -= (1 - cpu_state._cycles);
                 h_trace_note();
                 h_ins_count++;

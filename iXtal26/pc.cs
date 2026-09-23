@@ -601,8 +601,29 @@ internal static partial class pc
 
         Video.video.startblit();
 
-        // Le 5150 n'est ni AT ni 386 : toujours le cœur 808x.
-        _808x.execx86(cycles_to_run);
+        // pcem: pc.c:479-487 — LE SÉLECTEUR DE CŒUR, transcrit pour de vrai.
+        //
+        // Cette ligne était « Le 5150 n'est ni AT ni 386 : toujours le cœur 808x »
+        // et un appel direct à execx86. C'était le garde-fou que PLAN-286.md avait
+        // posé dès A0 : aucune machine ne sélectionne le cœur 286 tant qu'il n'est
+        // pas complet. La table d'opcodes l'est depuis A11, donc le garde-fou tombe.
+        //
+        // AT EST LE SEUL DISCRIMINANT ICI, et ce n'est pas une simplification : un
+        // 286 est « AT sans is386 ». is386 reste nul pour les trois machines du
+        // dépôt — aucune n'a de 386 — donc la première branche est morte
+        // aujourd'hui, et transcrite quand même parce que c'est la structure du C.
+        if (is386 != 0)
+        {
+                // omitted: `if (cpu_use_dynarec) exec386_dynarec(...)` — src/codegen/
+                //   n'est pas porté, et le 286 comme le 386 sont des interpréteurs par
+                //   conception : cpu_flags vaut 0 dans cpu_tables.c, CPU_SUPPORTS_DYNAREC
+                //   n'apparaît qu'au 486.
+                Cpu._386.exec386(cycles_to_run);
+        }
+        else if (AT != 0)
+                Cpu._386.exec386(cycles_to_run);
+        else
+                _808x.execx86(cycles_to_run);
 
         Keyboard.keyboard.keyboard_poll_host();
         Keyboard.keyboard.keyboard_process();

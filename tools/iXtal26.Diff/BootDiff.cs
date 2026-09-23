@@ -153,6 +153,11 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
+        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
+        // globale AT, que resetpchard ne pose que pendant.
+        Oracle.h_set_core(CoeurDuModele());
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_hdd(0, oracleC ?? "", Disc.hdd_c.hdc[0].spt,
                          Disc.hdd_c.hdc[0].hpc, Disc.hdd_c.hdc[0].tracks);
@@ -290,6 +295,15 @@ public static class BootDiff
     /// Le numéro de processus est dans le nom pour la MÊME raison, d'un cran plus haut :
     /// deux boot-diff concurrents partageaient ces copies, donc les deux campagnes
     /// écrivaient sur les mêmes images. Voir le commentaire d'oraclePath.</summary>
+    /// <summary>Le cœur que ce modèle réclame, lu sur son flag MODEL_AT.
+    ///
+    /// pcem: pc.c:484 — `AT ? exec386 : execx86`. On ne peut pas lire la globale
+    /// `AT` ici : elle est posée par model_init, pendant resetpchard, donc après
+    /// que l'oracle ait eu besoin de la réponse.</summary>
+    private static int CoeurDuModele()
+        => (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
+                ? Oracle.Core286 : Oracle.Core8088;
+
     private static string? CopyForSide(string? src, string tag)
     {
         if (src is null)
@@ -363,6 +377,11 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
+        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
+        // globale AT, que resetpchard ne pose que pendant.
+        Oracle.h_set_core(CoeurDuModele());
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -518,6 +537,11 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
+        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
+        // globale AT, que resetpchard ne pose que pendant.
+        Oracle.h_set_core(CoeurDuModele());
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -601,6 +625,11 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
+        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
+        // globale AT, que resetpchard ne pose que pendant.
+        Oracle.h_set_core(CoeurDuModele());
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,

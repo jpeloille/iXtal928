@@ -12,7 +12,7 @@
 # survit : tout le reste est de la documentation, et la documentation pourrit.
 csharp_path	c_path	c_sha256	c_lines	status	note
 iXtal26/Cpu/386_common.cs	pcem-dev/src/cpu/386_common.c	778aef5be04f3a28daffe4095e979770a6d94fd3a1e7b713767cbff781b20696	6-37	partial	cpu_state et nmi_enable ; x86_int au palier (b)
-iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	af4fde40a907b1ff91c36d8b4ad9d843fab61701d28f1cbb82a1e257f4328bc6	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
+iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	d3e3eda476ed2e6567c08d347558170c072153adf0d208ccc037a4f3ab005e0f	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
 iXtal26/Cpu/808x.cs	pcem-dev/src/cpu/808x.c	ce5d51cad4356ab7deee49eae607c07055e89b1d7c048037cd18e407fcb3dd16	36-3996	partial	M1.4 : jeu d'instructions 8088 COMPLET (256 opcodes) + rep()
 iXtal26/Cpu/cpu.cs	pcem-dev/src/cpu/cpu.c	abdcaebcb6938fb88770ddab69651892cedcdb312293a4c22e7b3c1e81d7311d	-	partial	reduit : vitesse 8088 seule
 iXtal26/Cpu/x86.cs	pcem-dev/includes/private/cpu/x86.h	02a4ecf0d2479c43860f69aa5abcf01c3adc87d9ee2deedba62e368cf9192880	1-245	partial	palier (a) : champs 8087/MMX/SMM/32 bits et flags paresseux omis
@@ -56,7 +56,7 @@ iXtal26/Cpu/386_ops_arith.cs	pcem-dev/includes/private/cpu/x86_ops_arith.h	dcf27
 iXtal26/Cpu/386_ops_mov.cs	pcem-dev/includes/private/cpu/x86_ops_mov.h	859ba6974da8c8b79b91143ef00703f7177256b5d9c51cab8d9c277c8239775e	3-99,174-205,256-342,449-571	partial	les 26 formes a16 atteignables par ops_286 ; formes a32 et l_ hors 286
 iXtal26/Cpu/386.cs	pcem-dev/src/cpu/386.c	2bcd7829774e2530579c6a162ed6d6a85bb86a2bd18d872d76a79af35c5cbccb	153-295	partial	exec386 ; 386.c:1-152 est du code mort, duplique dans 386_dynarec.c:30-154
 iXtal26/Cpu/386_common.cs	pcem-dev/includes/private/cpu/386_common.h	d85f59792b485347a9d1787a3b83986df75e53973e918ae98d576759e317b858	8-40,58-92,100-176,180-236	partial	chemin de fetch, acces par adresse effective, gardes ; x86_int et x86illegal depuis 386_common.c
-iXtal26/Cpu/386.State.cs	tools/oracle/harness.c	af4fde40a907b1ff91c36d8b4ad9d843fab61701d28f1cbb82a1e257f4328bc6	-	host	porte de diagnostic du coeur 286 ; pendant de h_set_core / h_reset / h_step286
+iXtal26/Cpu/386.State.cs	tools/oracle/harness.c	d3e3eda476ed2e6567c08d347558170c072153adf0d208ccc037a4f3ab005e0f	-	host	porte de diagnostic du coeur 286 ; pendant de h_set_core / h_reset / h_step286
 iXtal26/Cpu/386_ops_stack.cs	pcem-dev/includes/private/cpu/x86_ops_stack.h	05ae05449dc5b4feb9ad9368f0cd5fd820d62f15c1eaffce032caed5df64aecd	3-626	partial	A4 puis A6 : les 30 emplacements de pile atteignables sur un 286, ENTER et LEAVE compris ; formes _l et _a32 omises
 iXtal26/Cpu/386_ops_jump.cs	pcem-dev/includes/private/cpu/x86_ops_jump.h	ee9d7513a4a33885a518172d6caa05e3407505e4bd33f115eaed64bdefc94c1c	3-351	partial	A5 : les 26 emplacements de saut atteignables sur un 286, CALL et RET proches compris ; formes _l et _a32 omises
 iXtal26/Cpu/386_ops_call.cs	pcem-dev/includes/private/cpu/x86_ops_call.h	1e7c1fb1beaa88f718d7800a40e294cffdb0e14687ed78bfcac4a9a68a33be7f	3-251	partial	A6 : CALL far et le groupe FF ; formes _l et _a32 omises
