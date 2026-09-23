@@ -39,7 +39,6 @@ public static class Core286Check
         // aura plus rien a verifier ici. D'ici la, tenir cette liste a jour fait
         // partie du travail de chaque groupe : un Check sur un opcode qu'on vient
         // de transcrire rougit, ce qui est exactement ce qu'on veut qu'il fasse.
-        Check("0x90 (NOP)", 0x90, ref echecs);
         Check("0xF4 (HLT)", 0xF4, ref echecs);
 
         // UN PAS EST-IL BIEN UNE INSTRUCTION ?
@@ -397,6 +396,75 @@ public static class Core286Check
         Cas("XCHG BL, [BX] : l'ordre lire / ecrire / poser", [0x86, 0x1F], ref echecs);
         Suite("ADD16 puis XCHG : aucun drapeau ne doit bouger",
               [0x05, 0xFF, 0xFF, 0x93], 2, ref echecs);
+
+        // (x) LES DECALAGES LISENT flags_rebuild AU LIEU DE SEULEMENT MATERIALISER.
+        //
+        //     RCL et RCR consultent `cpu_state.flags & C_FLAG` comme retenue
+        //     ENTRANTE. Sans le flags_rebuild() en tete de OP_SHIFT, ce serait un
+        //     champ perime. A7 materialisait avant d'ECRIRE ; A9 materialise
+        //     avant de LIRE, et c'est la premiere fois.
+        //
+        //     En mode simple le fuzzeur ne peut pas l'exercer : flags_op vaut
+        //     FLAGS_UNKNOWN au depart, donc flags_rebuild est un no-op et la
+        //     retenue lue est celle des registres initiaux. Il faut un poseur
+        //     AVANT. Deux poseurs x quatre rotations x deux largeurs.
+        foreach (var (pose, nomP) in new (byte[] code, string nom)[] {
+                     ([0x05, 0xFF, 0xFF], "ADD16 (retenue posee)"),
+                     ([0x2D, 0x01, 0x00], "SUB16 (pas d'emprunt)"),
+                 })
+                foreach (var (modrm, nomO) in new (byte modrm, string nom)[] {
+                             (0xD3, "RCL BX,1"), (0xDB, "RCR BX,1"),
+                             (0xC3, "ROL BX,1"), (0xCB, "ROR BX,1"),
+                         })
+                {
+                        var code = new byte[pose.Length + 2];
+                        pose.CopyTo(code, 0);
+                        code[pose.Length] = 0xD1;          // groupe mot, compte = 1
+                        code[pose.Length + 1] = modrm;
+                        Suite($"{nomP} puis {nomO} : la retenue ENTRANTE", code, 2,
+                              ref echecs, 0, 0x8000, 0x8001);
+                }
+
+        // (y) LE DECALAGE DE ZERO NE FAIT RIEN, pas meme poser un drapeau —
+        //     `if (!c) return 0;` avant flags_rebuild — ET IL NE CONSOMME AUCUN
+        //     CYCLE. C'est la premiere instruction transcrite dans ce cas, et la
+        //     consequence n'a rien d'evident : la boucle interne de exec386 est
+        //     bornee par `cycdiff < cycle_period`, que h_step286 et Step286
+        //     ramenent a 1. Un cycdiff qui reste a zero fait REPARTIR la boucle,
+        //     et « un pas » execute DEUX instructions.
+        //
+        //     Les deux cotes le font a l'identique, donc la comparaison reste
+        //     juste. C'est pourquoi ces suites demandent DEUX pas pour TROIS
+        //     instructions : le second pas avale le decalage nul ET le NOP qui
+        //     suit. Le remplissage RAM vaut 0x90 exactement pour cela, et c'est
+        //     ce qui a force la transcription de opNOP avant son groupe.
+        Suite("ADD16 puis SHL BL,CL avec CL=0 : zero cycle, le pas avale le NOP",
+              [0x05, 0xFF, 0xFF, 0xD2, 0xE3], 2, ref echecs, 0, 0x1234, 0x0010, 0);
+        Suite("ADD16 puis SHL BX,CL avec CL=0 : zero cycle, le pas avale le NOP",
+              [0x05, 0xFF, 0xFF, 0xD3, 0xE3], 2, ref echecs, 0, 0x1234, 0x0010, 0);
+        Suite("ADD16 puis RCL BX,0 par immediat : meme fuite",
+              [0x05, 0xFF, 0xFF, 0xC1, 0xD3, 0x00], 2, ref echecs);
+
+        // (z) LES HUIT SOUS-OPCODES, sur les trois facons de fournir le compte.
+        //     SHL est a DEUX etiquettes — 0x20 et 0x30 — et le cas /6 le montre.
+        foreach (var (op, nomG) in new (byte op, string nom)[] {
+                     (0xD0, "D0 (octet, compte 1)"), (0xD1, "D1 (mot, compte 1)"),
+                     (0xD2, "D2 (octet, CL)"), (0xD3, "D3 (mot, CL)"),
+                 })
+                for (var sous = 0; sous < 8; sous++)
+                {
+                        var modrm = (byte)(0xC3 | (sous << 3));   // mod=11, rm=011 (BX)
+                        Cas($"{nomG} /{sous}", [op, modrm], ref echecs,
+                            0x0001, 0x8000, 0x8001, 5);
+                }
+
+        // Les formes a IMMEDIAT portent un octet de plus et PREFETCH_PREFIX.
+        Cas("C0 /4 : SHL BL, 3", [0xC0, 0xE3, 0x03], ref echecs, 0, 0x1234, 0x0081);
+        Cas("C1 /7 : SAR BX, 5", [0xC1, 0xFB, 0x05], ref echecs, 0, 0x1234, 0x8001);
+        Cas("C1 /4 : SHL BX, 17 — le compte est masque a 31, pas a 15",
+            [0xC1, 0xE3, 0x11], ref echecs, 0, 0x1234, 0x8001);
+        Cas("C1 /2 : RCL BX, 0 — l'immediat nul ne fait rien",
+            [0xC1, 0xD3, 0x00], ref echecs, 0x0001, 0x1234, 0x8001);
 
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //

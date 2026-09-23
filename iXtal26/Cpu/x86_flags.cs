@@ -6,11 +6,19 @@
 // STATUS: complete — l'en-tête entier, y compris les formes 32 bits que le 286
 //         n'atteint pas. Les découper aurait demandé de juger case par case ce
 //         qui est atteignable ; les reprendre en bloc ne coûte que des étiquettes.
-//         VÉRIFIÉ PAR COMPTAGE, et non plus affirmé : 31 `static inline` côté C,
-//         31 méthodes côté C#, aucune manquante. A3a l'annonçait déjà « entier »
-//         alors qu'il en manquait SIX — les poseurs « sans retenue ». Personne ne
-//         pouvait le voir : check-oracle.sh compare l'empreinte du fichier C, pas
-//         la couverture, et six fonctions de six lignes sur 603 passent sous R2.
+//         VÉRIFIÉ PAR COMPTAGE, et le comptage porte sur TOUTES les définitions
+//         de l'en-tête : 31 `static inline` ET les 2 `#define` fonctionnels
+//         (set_flags_shift, set_flags_rotate), soit 33 contre 33.
+//         Ce fichier a menti DEUX FOIS sur sa complétude. A3a l'annonçait
+//         « entier » alors qu'il manquait six poseurs « sans retenue » ; cba30be
+//         les a ajoutés en écrivant « 31 fonctions sur 31, vérifié par comptage »
+//         — exact, et toujours incomplet, parce qu'une macro n'est pas un
+//         `static inline`. Aucune des trois portes ne pouvait le voir :
+//         check-oracle.sh compare l'empreinte du fichier C et non la couverture,
+//         R2 compare des lignes et six fonctions de six lignes sur 603 passent
+//         sous le seuil, et le fuzzeur ne dit rien d'un symbole sans appelant.
+//         Un « complete » ne vaut que si le contrôle énumère toutes les
+//         catégories de définition, pas une seule.
 //
 // LES DRAPEAUX PARESSEUX, ET POURQUOI ILS SONT PARESSEUX.
 //
@@ -385,6 +393,39 @@ internal static class x86_flags
         cpu_state.flags_op1 = a; cpu_state.flags_op2 = b;
         cpu_state.flags_res = a + b;
         cpu_state.flags_op = FLAGS_ADD32;
+    }
+
+    // LES DEUX MACROS DE L'EN-TETE, pcem: x86_flags.h:471-479.
+    //
+    // ELLES MANQUAIENT AUSSI, et cba30be ne les avait pas vues : son comptage
+    // portait sur les `static inline`, et une macro n'en est pas une. Le fichier
+    // disait « 31 fonctions sur 31, vérifié par comptage » — exact, et toujours
+    // incomplet. Trouvées par A9, qui en a besoin.
+    //
+    // La leçon est la même que la première fois, en plus précis : un « complete »
+    // ne vaut que si le contrôle énumère TOUTES les définitions de l'en-tête, pas
+    // une catégorie. L'en-tête ci-dessus dit maintenant ce qui a été compté.
+    //
+    // set_flags_rotate NE POSE NI op1 NI op2, et ce n'est pas un oubli : les
+    // aiguillages de CF_SET et NF_SET sur FLAGS_ROL*/ROR* ne lisent que
+    // flags_res, et ceux de ZF_SET, PF_SET et VF_SET retombent sur
+    // cpu_state.flags. Une rotation ne redéfinit donc que C et V, que le handler
+    // pose lui-même — d'où le flags_rebuild() en tête de OP_SHIFT.
+
+    /// <summary>pcem: x86_flags.h:471-475</summary>
+    internal static void set_flags_shift(int op, uint32_t orig, int shift, uint32_t res)
+    {
+        cpu_state.flags_op = op;
+        cpu_state.flags_res = res;
+        cpu_state.flags_op1 = orig;
+        cpu_state.flags_op2 = (uint32_t)shift;
+    }
+
+    /// <summary>pcem: x86_flags.h:477-479</summary>
+    internal static void set_flags_rotate(int op, uint32_t res)
+    {
+        cpu_state.flags_op = op;
+        cpu_state.flags_res = res;
     }
 
     // LES SIX POSEURS « SANS RETENUE », pcem: x86_flags.h:499-519 et 540-560.

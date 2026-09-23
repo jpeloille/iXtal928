@@ -151,6 +151,24 @@ public static class Fuzzer
                 code[3] = (byte)(target >> 8);
             }
 
+            // UN DECALAGE DE COMPTE NUL NE CONSOMME AUCUN CYCLE (A9), et la
+            // boucle interne de exec386 REPART alors : le pas execute
+            // l'instruction suivante, prise dans les octets aleatoires du
+            // tampon. Le remplissage RAM vaut 0x90 pour qu'une fuite tombe sur
+            // un NOP, mais il ne protege qu'AU-DELA du tampon — a l'interieur,
+            // l'octet suivant est du hasard, et une fois sur deux un opcode non
+            // transcrit. Mesure : plantage au bout de ~40 000 iterations.
+            //
+            // On garantit donc un compte NON NUL. Le cas nul n'est pas perdu :
+            // il est couvert par les suites (y) de core286-check, qui placent
+            // une instruction CONNUE derriere. C'est le partage habituel — le
+            // fuzzeur balaie l'espace, les cas diriges tiennent ce qu'il ne
+            // peut pas construire.
+            if (op is 0xD2 or 0xD3)
+                regs[(int)R.CX] |= 1;                // CL & 31 != 0
+            else if (op is 0xC0 or 0xC1)
+                code[1 + TailleModRM16(code[1])] |= 1;
+
             var linear = (uint)(regs[(int)R.CS] << 4) + regs[(int)R.IP];
             Oracle.h_load(linear, code, (uint)code.Length);
             for (var i = 0; i < code.Length; i++)
@@ -193,6 +211,19 @@ public static class Fuzzer
             Console.WriteLine($"    0x{op:X2} : {n} tirages");
         Console.WriteLine($"    dont {steeredCount} cas auto-référentiels (EA == cs+pc)");
         return 0;
+    }
+
+    /// <summary>Nombre d'octets qu'occupent le ModRM et son déplacement, en
+    /// adressage 16 bits. Sert à trouver où commence l'immédiat.
+    /// pcem: la table de 386_dynarec.c:85-130, réduite à sa longueur.</summary>
+    private static int TailleModRM16(byte modrm)
+    {
+        var mod = (modrm >> 6) & 3;
+        var rm = modrm & 7;
+        if (mod == 3) return 1;
+        if (mod == 0) return rm == 6 ? 3 : 1;
+        if (mod == 1) return 2;
+        return 3;
     }
 
     /// <summary>L'octet SUIVANT sera-t-il exécuté comme une instruction ?
