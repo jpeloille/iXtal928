@@ -80,6 +80,8 @@ internal static partial class _386
         PoserGroupeAppel();
         PoserGroupeRetour();
         PoserGroupeDrapeaux();
+        PoserGroupeIncDec();
+        PoserGroupeXchg();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme

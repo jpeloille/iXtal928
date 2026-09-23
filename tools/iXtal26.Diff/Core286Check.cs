@@ -346,6 +346,58 @@ public static class Core286Check
         Suite("SAHF depuis AH puis LAHF vers AH",
               [0x9E, 0x9F], 2, ref echecs, 0, 0xD500, 0x0010);
 
+        // (t) INC ET DEC NE TOUCHENT PAS LA RETENUE, et c'est TOUT ce qui les
+        //     separe d'un ADD 1 ou d'un SUB 1. Le mecanisme est dans les poseurs :
+        //     setadd16nc appelle flags_rebuild_c() AVANT de poser l'operation et
+        //     pose FLAGS_INC16 — CF_SET, voyant cette espece, ira relire le C
+        //     MATERIALISE plutot que de le recalculer.
+        //
+        //     En mode simple le fuzzeur ne peut pas le voir : flags_op vaut
+        //     FLAGS_UNKNOWN au depart, donc flags_rebuild_c n'a rien a sauver.
+        //     Il faut poser une retenue AVANT, puis INC, puis la RELIRE.
+        foreach (var (pose, nomP) in new (byte[] code, string nom)[] {
+                     ([0x05, 0xFF, 0xFF], "ADD16 (retenue posee)"),
+                     ([0x2D, 0x01, 0x00], "SUB16 (pas d'emprunt)"),
+                 })
+                foreach (var (op, nomO) in new (byte op, string nom)[] {
+                             (0x40, "INC AX"), (0x48, "DEC AX"),
+                             (0x43, "INC BX"), (0x4B, "DEC BX"),
+                         })
+                {
+                        var code = new byte[pose.Length + 3];
+                        pose.CopyTo(code, 0);
+                        code[pose.Length] = op;
+                        code[pose.Length + 1] = 0x15;      // ADC AX, imm16
+                        code[pose.Length + 2] = 0x00;
+                        Suite($"{nomP}, {nomO}, puis ADC relit la retenue", code, 3,
+                              ref echecs, 0, 0x8000, 0x7FFF);
+                }
+
+        // (u) LE PASSAGE 0x7FFF -> 0x8000. setflags est appele AVANT que le
+        //     registre ne bouge, donc les drapeaux decrivent l'ANCIENNE valeur.
+        //     Inverser les deux lignes de la macro changerait VF_SET ici, et
+        //     NULLE PART AILLEURS.
+        Cas("INC AX avec AX=7FFF : debordement signe", [0x40], ref echecs, 0, 0x7FFF, 0);
+        Cas("DEC AX avec AX=8000 : debordement signe", [0x48], ref echecs, 0, 0x8000, 0);
+        Cas("INC AX avec AX=FFFF : passe a zero sans toucher CF", [0x40], ref echecs,
+            0x0001, 0xFFFF, 0);
+
+        // (v) FE : UN HANDLER POUR DEUX INSTRUCTIONS, separees par `rmdat & 0x38`.
+        //     Le test est BINAIRE — tout ce qui n'est pas zero est un DEC — donc
+        //     il n'y a pas de sous-opcode illegal, contrairement a FF.
+        Cas("FE /0 : INC BL", [0xFE, 0xC3], ref echecs);
+        Cas("FE /1 : DEC BL", [0xFE, 0xCB], ref echecs);
+        Cas("FE /5 : DEC aussi — le test est binaire", [0xFE, 0xEB], ref echecs);
+        Cas("FE /0 en MEMOIRE : INC [BX]", [0xFE, 0x07], ref echecs);
+
+        // (w) XCHG NE POSE AUCUN DRAPEAU, et 0x90 n'est PAS XCHG AX,AX : la table
+        //     y met opNOP, qui vit dans x86_ops_misc.h. C'est le seul trou de la
+        //     bande 90-97, verifie sur ops_286[] et non suppose.
+        Cas("XCHG AX, BX", [0x93], ref echecs);
+        Cas("XCHG BL, [BX] : l'ordre lire / ecrire / poser", [0x86, 0x1F], ref echecs);
+        Suite("ADD16 puis XCHG : aucun drapeau ne doit bouger",
+              [0x05, 0xFF, 0xFF, 0x93], 2, ref echecs);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
