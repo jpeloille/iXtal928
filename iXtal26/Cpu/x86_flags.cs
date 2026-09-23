@@ -6,6 +6,11 @@
 // STATUS: complete — l'en-tête entier, y compris les formes 32 bits que le 286
 //         n'atteint pas. Les découper aurait demandé de juger case par case ce
 //         qui est atteignable ; les reprendre en bloc ne coûte que des étiquettes.
+//         VÉRIFIÉ PAR COMPTAGE, et non plus affirmé : 31 `static inline` côté C,
+//         31 méthodes côté C#, aucune manquante. A3a l'annonçait déjà « entier »
+//         alors qu'il en manquait SIX — les poseurs « sans retenue ». Personne ne
+//         pouvait le voir : check-oracle.sh compare l'empreinte du fichier C, pas
+//         la couverture, et six fonctions de six lignes sur 603 passent sous R2.
 //
 // LES DRAPEAUX PARESSEUX, ET POURQUOI ILS SONT PARESSEUX.
 //
@@ -382,6 +387,52 @@ internal static class x86_flags
         cpu_state.flags_op = FLAGS_ADD32;
     }
 
+    // LES SIX POSEURS « SANS RETENUE », pcem: x86_flags.h:499-519 et 540-560.
+    //
+    // Ils manquaient, dans un fichier qui s'annonçait « l'en-tête entier ». Ni
+    // check-oracle.sh ni R2 ne pouvaient le voir : le premier compare l'empreinte
+    // du fichier C, pas la couverture ; la seconde compare des LIGNES, et six
+    // fonctions de six lignes sur 603 restent sous le seuil. Seul un besoin réel
+    // les a fait remarquer — opFF_w_a16 (INC/DEC vers adresse effective) les
+    // appelle, et il n'existait aucun appelant avant A6.
+    //
+    // CE QU'ILS ONT DE PARTICULIER, et c'est tout leur objet : ils appellent
+    // flags_rebuild_c() AVANT de poser l'opération, et posent FLAGS_INC*/DEC* et
+    // non FLAGS_ADD*/SUB*. INC et DEC ne touchent pas la retenue ; flags_rebuild_c
+    // matérialise donc le C courant dans cpu_state.flags pour qu'il survive à
+    // l'écrasement de flags_op, et CF_SET, voyant FLAGS_INC*/DEC*, va le relire
+    // là (x86_flags.cs, dernière branche). Sans l'appel, la retenue serait perdue.
+
+    /// <summary>pcem: x86_flags.h:499-505</summary>
+    internal static void setadd8nc(uint8_t a, uint8_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = (uint32_t)((a + b) & 0xff);
+        cpu_state.flags_op = FLAGS_INC8;
+    }
+
+    /// <summary>pcem: x86_flags.h:506-512</summary>
+    internal static void setadd16nc(uint16_t a, uint16_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = (uint32_t)((a + b) & 0xffff);
+        cpu_state.flags_op = FLAGS_INC16;
+    }
+
+    /// <summary>pcem: x86_flags.h:513-519</summary>
+    internal static void setadd32nc(uint32_t a, uint32_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = a + b;
+        cpu_state.flags_op = FLAGS_INC32;
+    }
+
     internal static void setsub8(uint8_t a, uint8_t b)
     {
         cpu_state.flags_op1 = a; cpu_state.flags_op2 = b;
@@ -402,6 +453,36 @@ internal static class x86_flags
     }
 
     // `tempc` est la retenue ENTRANTE, posée par le handler avant l'appel.
+    /// <summary>pcem: x86_flags.h:540-546</summary>
+    internal static void setsub8nc(uint8_t a, uint8_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = (uint32_t)((a - b) & 0xff);
+        cpu_state.flags_op = FLAGS_DEC8;
+    }
+
+    /// <summary>pcem: x86_flags.h:547-553</summary>
+    internal static void setsub16nc(uint16_t a, uint16_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = (uint32_t)((a - b) & 0xffff);
+        cpu_state.flags_op = FLAGS_DEC16;
+    }
+
+    /// <summary>pcem: x86_flags.h:554-560</summary>
+    internal static void setsub32nc(uint32_t a, uint32_t b)
+    {
+        flags_rebuild_c();
+        cpu_state.flags_op1 = a;
+        cpu_state.flags_op2 = b;
+        cpu_state.flags_res = a - b;
+        cpu_state.flags_op = FLAGS_DEC32;
+    }
+
     internal static void setadc8(uint8_t a, uint8_t b)
     {
         cpu_state.flags_op1 = a; cpu_state.flags_op2 = b;

@@ -1,4 +1,4 @@
-﻿# Manifeste de transcription. Une ligne par fichier C# ; TSV parce que ça fusionne
+# Manifeste de transcription. Une ligne par fichier C# ; TSV parce que ça fusionne
 # proprement dans git et que ça se lit dans un terminal.
 #
 # csharp_path   chemin du fichier C# (relatif à la racine du dépôt)
@@ -45,7 +45,7 @@ iXtal26/Sound/sound.cs	pcem-dev/src/sound/sound.c	03d85227ac6e2f541046c7bb1c0232
 iXtal26/Sound/sound_speaker.cs	pcem-dev/src/sound/sound_speaker.c	40958678cf1e3089ad7f6938e5334030331393f5c48a3fb50bbfa42a5da1ef7d	5-55	transcribed	
 iXtal26/io.cs	tools/oracle/harness_stubs.c	31e12e04351b82a620f6b868e91b18fb1bdf508c1baea167df4286c559fc2695	-	partial	stub M1, src/io.c a M2
 iXtal26/timer.cs	pcem-dev/includes/private/timer.h	5bbaa4b2b7e8691bc744da02b844d18abc6b32438d0028a7c7c55d02eb3ac5ca	-	transcribed	+ src/timer.c, couche de validite comprise
-iXtal26/Cpu/x86_flags.cs	pcem-dev/includes/private/cpu/x86_flags.h	6e5aaaed519346eef1a7423151e304c0dece79d1516d4e18485bf499e18aa6c9	1-603	transcribed	en-tete entier, formes 32 bits comprises ; AF_SET ADC/SBB s'ecarte du silicium, voir sst-baseline.tsv
+iXtal26/Cpu/x86_flags.cs	pcem-dev/includes/private/cpu/x86_flags.h	6e5aaaed519346eef1a7423151e304c0dece79d1516d4e18485bf499e18aa6c9	1-603	transcribed	31 fonctions sur 31, verifie par comptage ; formes 32 bits comprises ; AF_SET ADC/SBB s'ecarte du silicium, voir sst-baseline.tsv
 iXtal26/Cpu/386_ops_arith.cs	pcem-dev/includes/private/cpu/x86_ops_arith.h	dcf2717e70d9d55c56fd1c3cd78836839678ec2fad5ddcd9286241dde2521c7b	3-914	partial	A3d : le fichier entier pour ce qu'un 286 atteint ; les formes _a32 et _l_* restent omises
 iXtal26/Cpu/386_ops_mov.cs	pcem-dev/includes/private/cpu/x86_ops_mov.h	859ba6974da8c8b79b91143ef00703f7177256b5d9c51cab8d9c277c8239775e	3-99,174-205,256-342,449-571	partial	les 26 formes a16 atteignables par ops_286 ; formes a32 et l_ hors 286
 iXtal26/Cpu/386.cs	pcem-dev/src/cpu/386.c	2bcd7829774e2530579c6a162ed6d6a85bb86a2bd18d872d76a79af35c5cbccb	153-295	partial	exec386 ; 386.c:1-152 est du code mort, duplique dans 386_dynarec.c:30-154
