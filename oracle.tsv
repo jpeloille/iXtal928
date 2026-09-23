@@ -33,6 +33,7 @@ iXtal26/GlobalUsings.cs	-	-	-	host	alias stdint, infrastructure de transcription
 iXtal26/Host/SdlAudio.cs	pcem-dev/src/sound/soundopenal.c	a413b67200f84c67ed83289a13a437d86179eaa15dd8713149cdacc5fcd512f6	25-208	host	etage de sortie : OpenAL remplace par SDL3, meme interface
 iXtal26/Host/HddImage.cs	pcem-dev/src/wx-ui/wx-config.c	7548a788bfcfcec08fc3437c443a8c14d595bb04f0c21c215b7d5a5b4b0a6599	1295-1302,1427-1440,1580-1586,1607-1633,1682-1683,1722-1731	host	M12.1 : fabrique d'images de disque dur ; VHD, saisie en Mo et check_hd_type omis
 iXtal26/Host/SdlHost.cs	-	-	-	host	fenêtre, boucle drawits, remontée du blit CGA
+iXtal26/Keyboard/keyboard_at.cs	pcem-dev/src/keyboard/keyboard_at.c	1a612d474a0d76955209a5be9bec14043f2d57d9fe6cbe86a35e51d9c0a5ff7f	17-851	partial	B1b : le 8042 entier, A20 et la ligne de reset comprises ; les branches de huit machines etrangeres au registre
 iXtal26/Host/SdlKeyboard.cs	pcem-dev/src/wx-ui/wx-sdl2-display.c	1084c4e4b1c9bceaf1dd90e9f7ad31aba639bf452b0638d8c5339e32a92a1475	144-252	host	table SDLScancodeToSystemScancode, 105 entrees
 iXtal26/Host/SdlSetup.cs	pcem-dev/src/wx-ui/wx-config_sel.c	e140571abf32de40b69e7d9d4033f8025d42fac90a896df087811c908ddde479	1-313	host	M13 : ecran de construction ; « Parcourir… » et les pages hors 5150/XT omis
 iXtal26/Memory/mem.cs	pcem-dev/src/memory/mem.c	966e709dcbd19255a6c7e8a4bc5335f1fb860f936cbd923c1414aa7aca0e110b	-	partial	M2 : carte memoire, cache de pages, mappages ; pagination et dynarec omis
