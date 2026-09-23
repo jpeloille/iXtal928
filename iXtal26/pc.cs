@@ -21,10 +21,22 @@ namespace iXtal26;
 
 internal static partial class pc
 {
-    // pcem: ibm.h:163-... — l'énumération des romsets, dans l'ordre du C. Deux sont
-    // des cibles depuis M10, ROM_IBMPC et ROM_IBMXT ; les autres existent parce que
-    // les périphériques transcrits (clavier, mem_bios) branchent dessus, et qu'on ne
-    // réécrit pas leurs conditions.
+    // pcem: ibm.h:163-265 — l'énumération des romsets. Deux sont des cibles depuis
+    // M10, ROM_IBMPC et ROM_IBMXT, une troisième depuis B2, ROM_IBMAT ; les autres
+    // existent parce que les périphériques transcrits (clavier, fdc, mem_bios)
+    // branchent dessus, et qu'on ne réécrit pas leurs conditions.
+    //
+    // CETTE TABLE DISAIT « DANS L'ORDRE DU C » ET QUATRE ENTRÉES MENTAIENT. Les
+    // premières vingt-six suivent l'énum ; les quatre suivantes avaient reçu 26, 27,
+    // 28 et 29 — les places libres — au lieu de leurs vraies valeurs 82, 94, 65 et
+    // 100. Corrigé ici, en comparant la table entière à l'énum et non en la relisant :
+    // 102 entrées en C, quatre désaccords.
+    //
+    // LATENT ET NON VIVANT, mais il fallait le corriger avant d'en ajouter d'autres :
+    // `romset` TRAVERSE L'ABI — BootDiff et AtProbe font h_set_romset(pc.romset) —
+    // donc une valeur fausse ici nomme une AUTRE machine côté oracle. ROM_XI8088 = 26
+    // désignait ROM_CMDPC30. Sans conséquence aujourd'hui parce que romset ne vaut
+    // jamais que 0, 1 ou 25, et que les quatre ne sont lues que dans des `==`.
     internal const int ROM_IBMPC = 0;
     internal const int ROM_IBMXT = 1;
     internal const int ROM_IBMPCJR = 2;
@@ -51,10 +63,17 @@ internal static partial class pc
     internal const int ROM_TANDY1000HX = 23;
     internal const int ROM_TANDY1000SL2 = 24;
     internal const int ROM_IBMAT = 25;
-    internal const int ROM_XI8088 = 26;  // hors cible, présent pour les gardes
-    internal const int ROM_LEDGE_MODELM = 27;  // hors cible, présent pour les gardes
-    internal const int ROM_ATARIPC3 = 28;  // hors cible, présent pour les gardes
-    internal const int ROM_PC5086 = 29;  // hors cible, présent pour les gardes (fdc.c:98, :628)
+    internal const int ROM_XI8088 = 82;  // hors cible, présent pour les gardes
+    internal const int ROM_LEDGE_MODELM = 94;  // hors cible, présent pour les gardes
+    internal const int ROM_ATARIPC3 = 65;  // hors cible, présent pour les gardes
+    internal const int ROM_PC5086 = 100;
+
+    // B1b : les deux que keyboard_at.cs lit. ROM_IBMXT286 apparaît dans la SEULE
+    // condition de keyboard_at_read qui décide si l'accès coûte huit cycles ISA, et
+    // un IBM AT est l'autre moitié de cette condition. ROM_T3100E garde une douzaine
+    // de branches du 8042, toutes vers le Toshiba, non transcrit.
+    internal const int ROM_IBMXT286 = 66;  // hors cible, présent pour les gardes
+    internal const int ROM_T3100E = 70;    // hors cible, présent pour les gardes  // hors cible, présent pour les gardes (fdc.c:98, :628)
 
     // pcem: ibm.h:272 — le romset courant, défini par pc.c chez PCem.
     internal static int romset = ROM_IBMPC;
