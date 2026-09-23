@@ -133,11 +133,8 @@ public static class Fuzzer
             // Construction : adressage direct (mod=0, rm=6), déplacement = IP+4
             // — pc a alors avancé de l'opcode, du ModRM et des deux octets de
             // déplacement — et DS forcé égal à CS pour que les bases coïncident.
-            // Applicable à tout opcode porteur d'un ModRM. Dans la bande ALU
-            // 0x00-0x3F, ce sont ceux dont les trois bits bas valent 0 à 3 —
-            // donc 00-03, 08-0B, 10-13… — les formes /r. Les accumulateur-
-            // immédiat (x4, x5) et les PUSH/POP segment (x6, x7) n'en ont pas.
-            var steered = (rng.Next() & 7) == 0 && (op & 7) < 4;
+            // Applicable au seul opcode porteur d'un ModRM : voir PorteModRM.
+            var steered = (rng.Next() & 7) == 0 && PorteModRM(op);
             if (steered)
             {
                 regs[(int)R.DS] = regs[(int)R.CS];
@@ -190,6 +187,23 @@ public static class Fuzzer
         Console.WriteLine($"    dont {steeredCount} cas auto-référentiels (EA == cs+pc)");
         return 0;
     }
+
+    /// <summary>L'opcode porte-t-il un octet ModRM ?
+    ///
+    /// LE TEST PRÉCÉDENT ÉTAIT `(op &amp; 7) &lt; 4`, vrai pour les formes /r de la
+    /// bande ALU 0x00-0x3F et FAUX partout ailleurs — il rendait vrai pour A0-A3
+    /// (moffs), B0-B3 et B8-BB (MOV reg,imm) et A8 (TEST AL,imm), qui n'ont pas
+    /// de ModRM du tout. Ces itérations-là étaient comptées « auto-référentielles »
+    /// alors qu'elles se contentaient d'écraser l'immédiat par 06 xx xx : pas un
+    /// faux vert, mais un chiffre qui surestimait la couverture d'un bon quart.
+    ///
+    /// À TENIR À JOUR avec la table : un opcode à ModRM absent d'ici ne sera
+    /// jamais dirigé, et la garde de readmemb restera non testée pour lui.</summary>
+    private static bool PorteModRM(byte op) =>
+        (op < 0x40 && (op & 7) < 4) ||      // bande ALU : les formes /r
+        (op >= 0x80 && op <= 0x85) ||        // groupe immédiat 80-83, TEST 84-85
+        (op >= 0x88 && op <= 0x8B) ||        // MOV /r
+        op == 0xC6 || op == 0xC7;            // MOV ea, imm
 
     /// <summary>Compare les écritures mémoire de la dernière instruction.
     /// Exact, et nomme l'adresse fautive — là où un hachage dirait seulement

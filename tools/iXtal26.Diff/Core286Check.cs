@@ -155,6 +155,28 @@ public static class Core286Check
         Suite("SBB8 chaine : la branche FLAGS_SBC8 de CF_SET",
               [0x1C, 0xFF, 0x1C, 0x00], 2, ref echecs);
 
+        // (i) LA RETENUE PARESSEUSE A TRAVERS LE GROUPE IMMEDIAT.
+        //
+        //     Les sous-opcodes /2 (ADC) et /3 (SBB) de 80/81/82/83 lisent CF_SET()
+        //     DANS le switch de ARITH_MULTI. Meme angle mort qu'en (f) : le mode
+        //     simple ne leur donne jamais un flags_op paresseux. Ces quatre
+        //     suites sont la seule chose qui exerce ce chemin-la, et la derniere
+        //     est aussi le seul endroit ou 0x82 — l'alias non documente de 0x80 —
+        //     est nomme dans un cas dirige.
+        Suite("ADD16 pose la retenue, 83 /2 (ADC imm8 etendu) la lit",
+              [0x05, 0xFF, 0xFF, 0x83, 0xD0, 0x00], 2, ref echecs);
+        Suite("SUB16 pose l'emprunt, 81 /3 (SBB imm16) le lit",
+              [0x2D, 0xFF, 0xFF, 0x81, 0xD8, 0x00, 0x00], 2, ref echecs);
+        Suite("ADD8 pose la retenue, 80 /2 (ADC imm8) la lit",
+              [0x04, 0xFF, 0x80, 0xD0, 0x00], 2, ref echecs);
+        Suite("SUB8 pose l'emprunt, 82 /3 le lit — l'ALIAS de 0x80",
+              [0x2C, 0xFF, 0x82, 0xD8, 0x00], 2, ref echecs);
+
+        // (j) TEST sur le chemin du piege. Meme espece paresseuse que OR — ZN —
+        //     mais posee par un autre handler, et sans ecriture.
+        Cas("piege apres TEST16", [0x85, 0xC3], ref echecs, 0x0102);
+        Cas("piege apres TEST8", [0x84, 0xC3], ref echecs, 0x0102);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16

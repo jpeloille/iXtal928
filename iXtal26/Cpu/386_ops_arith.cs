@@ -1,14 +1,19 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/includes/private/cpu/x86_ops_arith.h  (OP_ARITH, ses sept
-//         invocations et CMP, lignes 3-524)
+// ORACLE: pcem-dev/includes/private/cpu/x86_ops_arith.h  (en entier, lignes
+//         3-914 : OP_ARITH et ses sept invocations, CMP, TEST, ARITH_MULTI)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — A3c : la matrice OP_ARITH et les SEPT familles qu'elle
-//         engendre (ADD, OR, ADC, SBB, AND, SUB, XOR), soit 42 handlers, plus
-//         les SIX de CMP, qui ne sortent pas de la macro. Le reste du fichier C
-//         attend son passage : TEST (84/85/A8/A9) et le groupe immédiat
-//         ARITH_MULTI (80/81/83). Le compte du fichier est 42 + 6 + 4 + 3.
+// STATUS: partial — A3d : le fichier C est couvert de bout en bout pour ce
+//         qu'un 286 atteint. 42 handlers de OP_ARITH (ADD, OR, ADC, SBB, AND,
+//         SUB, XOR), 6 de CMP, 4 de TEST, 3 du groupe immédiat ARITH_MULTI :
+//         55 handlers DISTINCTS pour 56 EMPLACEMENTS, parce que 0x82 est un
+//         alias de 0x80.
+//         `partial` et non `transcribed`, et ça ne changera pas au 286 : les
+//         formes `_a32` et `_l_*` de chaque famille restent dehors, et ce sont
+//         elles que le registre des omissions ci-dessous couvre.
+//         TEST n'est pas fini pour autant : TEST r/m,imm (F6 /0, F7 /0) vit
+//         dans un AUTRE en-tête.
 //
 // LA SOURCE EST UNE MACRO, ET C'EST ELLE QU'ON TRANSCRIT.
 //
@@ -91,7 +96,7 @@ internal static partial class _386
                                  ArithFlags8 setflags8, ArithFlags16 setflags16,
                                  bool gettempc)
     {
-        // pcem: x86_ops_arith.h:4 — op##name##_b_rmw_a16
+        // pcem: x86_ops_arith.h:4-30 — op##name##_b_rmw_a16
         ops_286[slotBRmw] = fetchdat =>
         {
                 if (gettempc)
@@ -124,7 +129,7 @@ internal static partial class _386
                 return 0;
         };
 
-        // pcem: x86_ops_arith.h:61 — op##name##_w_rmw_a16
+        // pcem: x86_ops_arith.h:59-85 — op##name##_w_rmw_a16
         ops_286[slotWRmw] = fetchdat =>
         {
                 if (gettempc)
@@ -163,7 +168,7 @@ internal static partial class _386
                 return 0;
         };
 
-        // pcem: x86_ops_arith.h:176 — op##name##_b_rm_a16. Le résultat va dans le
+        // pcem: x86_ops_arith.h:169-185 — op##name##_b_rm_a16. Le résultat va dans le
         // REGISTRE, donc pas de SEG_CHECK_WRITE ni de seteab.
         ops_286[slotBRm] = fetchdat =>
         {
@@ -185,7 +190,7 @@ internal static partial class _386
                 return 0;
         };
 
-        // pcem: x86_ops_arith.h:232 — op##name##_w_rm_a16
+        // pcem: x86_ops_arith.h:204-220 — op##name##_w_rm_a16
         ops_286[slotWRm] = fetchdat =>
         {
                 uint16_t dst, src;
@@ -206,7 +211,7 @@ internal static partial class _386
                 return 0;
         };
 
-        // pcem: x86_ops_arith.h:288 — op##name##_AL_imm. Ici gettempc vient APRÈS
+        // pcem: x86_ops_arith.h:274-285 — op##name##_AL_imm. Ici gettempc vient APRÈS
         // la lecture de dst et src, contrairement aux formes à ModRM.
         ops_286[slotALImm] = fetchdat =>
         {
@@ -221,7 +226,7 @@ internal static partial class _386
                 return 0;
         };
 
-        // pcem: x86_ops_arith.h:300 — op##name##_AX_imm
+        // pcem: x86_ops_arith.h:286-297 — op##name##_AX_imm
         ops_286[slotAXImm] = fetchdat =>
         {
                 uint16_t dst = AX;
@@ -441,5 +446,351 @@ internal static partial class _386
         ops_286[0x3B] = opCMP_w_rm_a16;
         ops_286[0x3C] = opCMP_AL_imm;
         ops_286[0x3D] = opCMP_AX_imm;
+
+        PoserTest();
+        PoserGroupeImmediat();
+    }
+
+    // ---------------------------------------------------------------- TEST
+
+    // TEST a la forme de CMP — il lit, il ne réécrit pas, et ses formes à EA
+    // portent les mêmes cycles EN DUR — mais il pose setznp et non setsub. Les
+    // quatre handlers sont écrits à la main comme PCem les écrit : pas de macro
+    // ici non plus.
+
+    // pcem: x86_ops_arith.h:526-542 — opTEST_b_a16
+    private static int opTEST_b_a16(uint32_t fetchdat)
+    {
+        uint8_t temp, temp2;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = getr8(cpu_reg);
+        setznp8((uint8_t)(temp & temp2));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:561-577 — opTEST_w_a16
+    private static int opTEST_w_a16(uint32_t fetchdat)
+    {
+        uint16_t temp, temp2;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = cpu_state.regs[cpu_reg].w;
+        setznp16((uint16_t)(temp & temp2));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:631-637 — opTEST_AL
+    private static int opTEST_AL(uint32_t fetchdat)
+    {
+        uint8_t temp = (uint8_t)fetchdat; cpu_state.pc++;
+        setznp8((uint8_t)(AL & temp));
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:638-644 — opTEST_AX
+    private static int opTEST_AX(uint32_t fetchdat)
+    {
+        uint16_t temp = (uint16_t)fetchdat; cpu_state.pc += 2;
+        setznp16((uint16_t)(AX & temp));
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // omitted: opTEST_b_a32, opTEST_w_a32, opTEST_l_a16/a32, opTEST_EAX — même
+    //   raison que partout ailleurs dans ce fichier : op32 est nul sur un 286.
+    //   ATTENTION : TEST n'est pas fini pour autant. Les formes TEST r/m, imm
+    //   (F6 /0 et F7 /0) vivent dans un AUTRE en-tête et ne relèvent pas d'ici.
+
+    /// <summary>pcem: 84, 85, A8, A9 — relevés sur ops_286[] par gdb.</summary>
+    private static void PoserTest()
+    {
+        ops_286[0x84] = opTEST_b_a16;
+        ops_286[0x85] = opTEST_w_a16;
+        ops_286[0xA8] = opTEST_AL;
+        ops_286[0xA9] = opTEST_AX;
+    }
+
+    // ------------------------------------------------- le groupe immédiat
+
+    // ARITH_MULTI : LA SECONDE MACRO DU FICHIER (x86_ops_arith.h:655-720).
+    //
+    // Elle porte le CORPS COMMUN des opcodes 80/81/82/83 — l'aiguillage sur les
+    // trois bits `reg` du ModRM, qui choisit laquelle des huit opérations ALU
+    // s'applique à (ea, immédiat). Ses deux paramètres sont des LARGEURS, collées
+    // par ## : `getea##ea_width`, `setadd##flag_width`.
+    //
+    // DEVIATION: le C# n'a pas de collage de jetons. Là où OP_ARITH se
+    //   paramétrait par des délégués (les trois expressions variables sont des
+    //   VALEURS), ici les sept opérations variables sont des TYPES, et le corps
+    //   porte des `return 1` en son milieu. Des délégués ne gagneraient rien et
+    //   forceraient à tout passer en uint32_t, donc à perdre le masquage que
+    //   setadd8 et setadd16 ne font pas pareil. On écrit donc les DEUX
+    //   instanciations de largeur atteignables sur un 286 — (b, 8) et (w, 16) —
+    //   et pas une de plus. Substituer b<->w et 8<->16 dans l'une doit rendre
+    //   l'autre, à l'identique.
+    //
+    // DEVIATION: le macro fait `return 1` depuis le milieu du corps ; une méthode
+    //   C# ne peut pas rendre la main pour son appelant. Même idiome que
+    //   fetch_ea_16 : la méthode rend `true` pour « l'appelant doit rendre 1 ».
+    //
+    // LE SOUS-OPCODE CMP (reg == 7) COÛTE 7 CYCLES EN MÉMOIRE, pas 5 comme les
+    // opCMP_*_rmw de A3c. Ce n'est pas une coquille de ce port : les deux
+    // constantes sont bien différentes dans PCem.
+
+    // pcem: x86_ops_arith.h:656-720, ARITH_MULTI(b, 8)
+    private static bool ARITH_MULTI_b8(uint32_t rmdat, uint8_t src)
+    {
+        uint8_t dst = geteab();
+        if (cpu_state.abrt != 0)
+                return true;
+        switch (rmdat & 0x38)
+        {
+        case 0x00: /*ADD ea, #*/
+                seteab((uint8_t)(dst + src));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadd8(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x08: /*OR ea, #*/
+                dst |= src;
+                seteab(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp8(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x10: /*ADC ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteab((uint8_t)(dst + src + tempc));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadc8(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x18: /*SBB ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteab((uint8_t)(dst - (src + tempc)));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsbc8(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x20: /*AND ea, #*/
+                dst &= src;
+                seteab(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp8(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x28: /*SUB ea, #*/
+                seteab((uint8_t)(dst - src));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsub8(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x30: /*XOR ea, #*/
+                dst ^= src;
+                seteab(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp8(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x38: /*CMP ea, #*/
+                setsub8(dst, src);
+                if (is486 != 0)
+                        CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+                else
+                        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 7);
+                break;
+        }
+        return false;
+    }
+
+    // pcem: x86_ops_arith.h:656-720, ARITH_MULTI(w, 16)
+    private static bool ARITH_MULTI_w16(uint32_t rmdat, uint16_t src)
+    {
+        uint16_t dst = geteaw();
+        if (cpu_state.abrt != 0)
+                return true;
+        switch (rmdat & 0x38)
+        {
+        case 0x00: /*ADD ea, #*/
+                seteaw((uint16_t)(dst + src));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadd16(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x08: /*OR ea, #*/
+                dst |= src;
+                seteaw(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x10: /*ADC ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteaw((uint16_t)(dst + src + tempc));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadc16(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x18: /*SBB ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteaw((uint16_t)(dst - (src + tempc)));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsbc16(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x20: /*AND ea, #*/
+                dst &= src;
+                seteaw(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x28: /*SUB ea, #*/
+                seteaw((uint16_t)(dst - src));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsub16(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x30: /*XOR ea, #*/
+                dst ^= src;
+                seteaw(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr);
+                break;
+        case 0x38: /*CMP ea, #*/
+                setsub16(dst, src);
+                if (is486 != 0)
+                        CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+                else
+                        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 7);
+                break;
+        }
+        return false;
+    }
+
+    // pcem: x86_ops_arith.h:723-740 — op80_a16
+    private static int op80_a16(uint32_t fetchdat)
+    {
+        uint8_t src;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_b8(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr, 3, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 3, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:759-776 — op81_w_a16
+    private static int op81_w_a16(uint32_t fetchdat)
+    {
+        uint16_t src;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getword();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_w16(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr, 4, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 4, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:832-851 — op83_w_a16. Même corps que 81, à ceci près
+    // que l'immédiat est un OCTET étendu en signe : c'est toute la raison d'être
+    // de l'opcode.
+    private static int op83_w_a16(uint32_t fetchdat)
+    {
+        uint16_t src;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((src & 0x80) != 0)
+                src |= 0xff00;
+        if (ARITH_MULTI_w16(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mr, 3, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 3, (int)fetchdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+
+        return 0;
+    }
+
+    // omitted: op80_a32, op81_l_a16/a32, op81_w_a32, op83_l_a16/a32, op83_w_a32 —
+    //   op32 nul sur un 286, comme partout dans ce fichier.
+
+    /// <summary>pcem: 80, 81, 82, 83 — relevés sur ops_286[] par gdb.
+    ///
+    /// 0x82 N'EST PAS UN TROU : la table y met op80_a16, le MÊME handler qu'en
+    /// 0x80. C'est l'alias non documenté du 8086, et il survit jusqu'ici. Lu dans
+    /// la .so, pas supposé — supposer « 80, 81, 83 » aurait laissé 0x82 tomber
+    /// dans le handler d'échec bruyant.</summary>
+    private static void PoserGroupeImmediat()
+    {
+        ops_286[0x80] = op80_a16;
+        ops_286[0x81] = op81_w_a16;
+        ops_286[0x82] = op80_a16;
+        ops_286[0x83] = op83_w_a16;
     }
 }
