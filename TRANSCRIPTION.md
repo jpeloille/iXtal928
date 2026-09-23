@@ -38,9 +38,17 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 225 lignes — 200 jusqu'à M6.1,
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 240 lignes — 200 jusqu'à M6.1,
   puis 220, puis 225 à M12 pour payer les cinq entrées du disque dur au registre des
-  omissions : une famille de périphériques entière y entrait d'un coup. Le relèvement
+  omissions : une famille de périphériques entière y entrait d'un coup. **Puis 240 au
+  jalon 286**, et pour la même raison qu'à M12 : `x86seg.c` entre d'un bloc au bloc C —
+  deux mille lignes vives, dont `loadcsjmp`, `loadcscall`, `pmoderetf`, `pmodeint`,
+  `pmodeiret` et `taskswitch286` — et le mode protégé est le premier domaine de ce dépôt
+  dont **le seul oracle est PCem lui-même**, sans SingleStepTests ni amorçage
+  indépendant pour le départager. Ce qu'on y omet doit donc être écrit plus
+  précisément, pas moins : une omission qu'aucun oracle ne peut contredire ne tient que
+  par sa justification. Le fichier était à 225/225 exactement quand B1b s'est terminé,
+  et B3 n'avait plus une ligne. Le relèvement
   s'inscrit ici, à chaque fois : un plafond qui bouge sans trace ne plafonne plus. Deux registres de
   **constats** en sont exemptés, parce que le plafond vise la prose de conception et pas
   les faits mesurés : `VERIFICATION.md` (ce que les oracles ont montré) et
