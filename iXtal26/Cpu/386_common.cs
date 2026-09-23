@@ -172,9 +172,28 @@ internal static partial class _386_common
         mem.ram[unchecked(mem.writelookup2[addr >> 12] + (int)addr)] = v;
     }
 
-    // omitted: readmeml/readmemq et writememl/writememq — aucun appelant tant que
-    //   les handlers 32 bits n'existent pas. Ils arrivent avec le groupe qui les
-    //   emploie, pas avant.
+    /// <summary>pcem: 386_common.h:31-35 — writememl.
+    ///
+    /// Arrivé avec son premier appelant, comme annoncé : la branche `cgate32` de
+    /// CALL_FAR_w (A6) passe par PUSH_L, qui passe par ici. Même structure que
+    /// writememw, avec un alignement sur QUATRE octets au lieu de deux.</summary>
+    internal static void writememl(uint32_t s, uint32_t a, uint32_t v)
+    {
+        var addr = s + a;
+        if (mem.writelookup2[addr >> 12] == -1 || (addr & 3) != 0)
+        {
+                mem.writememll(addr, v);
+                return;
+        }
+        var i = unchecked(mem.writelookup2[addr >> 12] + (int)addr);
+        mem.ram[i] = (byte)v;
+        mem.ram[i + 1] = (byte)(v >> 8);
+        mem.ram[i + 2] = (byte)(v >> 16);
+        mem.ram[i + 3] = (byte)(v >> 24);
+    }
+
+    // omitted: readmeml/readmemq et writememq — toujours aucun appelant. Ils
+    //   arriveront avec le groupe qui les emploie, pas avant.
 
     // -----------------------------------------------------------------------
     // L'ADRESSE EFFECTIVE (pcem: 386_dynarec.c:85-130).
@@ -494,8 +513,36 @@ internal static partial class _386_common
         return ret;
     }
 
-    // omitted: PUSH_L / POP_L (386_ops.h:28-40, 58-70) — aucun opcode 32 bits
-    //   n'est atteignable sur un 286.
+    /// <summary>pcem: 386_ops.h:28-40.
+    ///
+    /// A4 L'AVAIT DÉCLARÉ « INATTEIGNABLE », ET C'ÉTAIT FAUX. Aucun OPCODE 32 bits
+    /// n'est atteignable sur un 286, mais CALL_FAR_w — une macro 16 bits — porte
+    /// une branche `if (cgate32)` qui l'appelle. Elle n'est prise qu'à travers une
+    /// porte d'appel 32 bits, donc jamais en mode réel ; l'omettre n'en restait
+    /// pas moins une transcription incomplète, et A6 s'en est aperçu en ayant
+    /// besoin du symbole. « Inatteignable » se vérifie sur les APPELANTS, pas sur
+    /// la largeur du nom.</summary>
+    internal static void PUSH_L(uint32_t val)
+    {
+        if (stack32 != 0)
+        {
+                writememl(ss, ESP - 4, val);
+                if (cpu_state.abrt != 0)
+                        return;
+                ESP -= 4;
+        }
+        else
+        {
+                writememl(ss, (uint32_t)((SP - 4) & 0xFFFF), val);
+                if (cpu_state.abrt != 0)
+                        return;
+                SP -= 4;
+        }
+    }
+
+    // omitted: POP_L (386_ops.h:58-70) — aucun appelant : RETF_a16 et opIRET_286
+    //   lisent la pile par readmemw, pas par POP_L, et la forme RETF_a32 qui
+    //   l'utiliserait n'est pas atteignable.
 
     /// <summary>pcem: 386_ops.h:5-12 — la macro ILLEGAL_ON. Comme fetch_ea_16, elle
     /// rend `true` quand le handler doit sortir, le `return 0` du C étant

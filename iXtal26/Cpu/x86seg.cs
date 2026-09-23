@@ -105,6 +105,33 @@ internal static partial class x86seg_c
         oldcpl = CPL;
     }
 
+    // LES TROIS AUTRES PORTES DU MODE PROTÉGÉ, déclarées ici et non transcrites.
+    //
+    // loadcscall (354 lignes vives), pmoderetf (248) et pmodeiret (300) sont
+    // appelées par A6 — CALL far, RETF, IRET — mais UNIQUEMENT quand msw & 1.
+    // En mode réel leurs appelants prennent l'autre branche, écrite sur place.
+    //
+    // Elles échouent BRUYAMMENT plutôt que de rendre du silence. C'est la même
+    // décision qu'à A2.2b pour la table vide, et elle vaut pour la même raison :
+    // un RETF qui rendrait sans rien faire laisserait le cœur avancer sur du
+    // vide, et la divergence se manifesterait des milliers d'instructions plus
+    // loin. Ici, le premier passage en mode protégé nomme ce qui manque.
+    //
+    // Leur transcription est le bloc `C` du plan (PLAN-286.md) : ~1 950 lignes
+    // vives sur les 2 446 de x86seg.c.
+
+    internal static void loadcscall(uint16_t seg, uint32_t old_pc)
+        => pc.fatal($"loadcscall (seg {seg:X4}) : x86seg.c n'est transcrit qu'en " +
+                    "mode reel (bloc C du plan)\n");
+
+    internal static void pmoderetf(int is32, uint16_t off)
+        => pc.fatal($"pmoderetf (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
+                    "mode reel (bloc C du plan)\n");
+
+    internal static void pmodeiret(int is32)
+        => pc.fatal($"pmodeiret (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
+                    "mode reel (bloc C du plan)\n");
+
     // pcem: x86seg.c — loadcsjmp, la BRANCHE MODE RÉEL seulement (les 19 dernières
     // lignes des 236 de la fonction).
     //

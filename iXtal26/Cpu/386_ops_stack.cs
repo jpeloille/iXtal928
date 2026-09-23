@@ -4,7 +4,9 @@
 // ORACLE: pcem-dev/includes/private/cpu/x86_ops_stack.h  (en entier, lignes
 //         3-626)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — A4 : les 30 emplacements de la pile qu'un 286 atteint.
+// STATUS: partial — A4 puis A6 : les 30 emplacements de la pile qu'un 286
+//         atteint (28 à A4, plus ENTER et LEAVE à A6, quand le groupe `call`
+//         leur a donné des voisins).
 //         Les formes `_l` (PUSH_L_OP, POP_L_OP, PUSHA_l, POPA_l, ENTER_l,
 //         LEAVE_l, les `_l` de PUSH_SEG_OPS/POP_SEG_OPS) et les formes `_a32`
 //         restent dehors, déclarées au registre des omissions.
@@ -292,15 +294,107 @@ internal static partial class _386
         return 1;
     }
 
+    // pcem: x86_ops_stack.h:375-429 — opENTER_w.
+    //
+    // LE SEUL HANDLER DU GROUPE QUI BOUCLE, et le seul dont le modèle de temps
+    // est CUMULÉ : `instr_cycles`, `reads` et `writes` s'accumulent au fil des
+    // tours, et PREFETCH_RUN ne reçoit le total qu'à la fin. Le nombre de tours
+    // vient du TROISIÈME octet de l'instruction — `(fetchdat >> 16) & 0xff` —
+    // et non d'un getbytef, d'où le `cpu_state.pc++` isolé qui suit.
+    //
+    // LE PREMIER TOUR EST SAUTÉ : `while (--count)` décrémente AVANT de tester,
+    // donc un ENTER de niveau 1 ne recopie aucun lien et se contente d'empiler
+    // frame_ptr. C'est conforme au 286 et ce n'est pas évident à la lecture.
+    private static int opENTER_w(uint32_t fetchdat)
+    {
+        uint16_t offset = (uint16_t)fetchdat; cpu_state.pc += 2;   // getwordf()
+        int count = (int)((fetchdat >> 16) & 0xff);
+        cpu_state.pc++;
+        uint32_t tempEBP = EBP, tempESP = ESP, frame_ptr;
+        int reads = 0, writes = 1, instr_cycles = 0;
+
+        PUSH_W(BP);
+        if (cpu_state.abrt != 0)
+                return 1;
+        frame_ptr = ESP;
+
+        if (count > 0)
+        {
+                while (--count != 0)
+                {
+                        uint16_t tempw;
+
+                        BP -= 2;
+                        tempw = readmemw(ss, BP);
+                        if (cpu_state.abrt != 0)
+                        {
+                                ESP = tempESP;
+                                EBP = tempEBP;
+                                return 1;
+                        }
+                        PUSH_W(tempw);
+                        if (cpu_state.abrt != 0)
+                        {
+                                ESP = tempESP;
+                                EBP = tempEBP;
+                                return 1;
+                        }
+                        CLOCK_CYCLES(is486 != 0 ? 3 : 4);
+                        reads++;
+                        writes++;
+                        instr_cycles += is486 != 0 ? 3 : 4;
+                }
+                PUSH_W((uint16_t)frame_ptr);
+                if (cpu_state.abrt != 0)
+                {
+                        ESP = tempESP;
+                        EBP = tempEBP;
+                        return 1;
+                }
+                CLOCK_CYCLES(is486 != 0 ? 3 : 5);
+                writes++;
+                instr_cycles += is486 != 0 ? 3 : 5;
+        }
+        BP = (uint16_t)frame_ptr;
+
+        if (stack32 != 0)
+                ESP -= offset;
+        else
+                SP -= offset;
+        CLOCK_CYCLES(is486 != 0 ? 14 : 10);
+        instr_cycles += is486 != 0 ? 14 : 10;
+        PREFETCH_RUN(instr_cycles, 3, -1, reads, 0, writes, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_stack.h:486-501 — opLEAVE_w. `SP = BP` avant le dépilement :
+    // c'est le seul endroit du groupe où le pointeur de pile est écrasé plutôt
+    // qu'ajusté, et tempESP existe pour le remettre si POP_W abandonne.
+    private static int opLEAVE_w(uint32_t fetchdat)
+    {
+        uint32_t tempESP = ESP;
+        uint16_t temp;
+
+        SP = BP;
+        temp = POP_W();
+        if (cpu_state.abrt != 0)
+        {
+                ESP = tempESP;
+                return 1;
+        }
+        BP = temp;
+
+        CLOCK_CYCLES(4);
+        PREFETCH_RUN(4, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
     // omitted: toutes les formes `_l` et `_a32` de cet en-tête — PUSH_L_OP,
     //   POP_L_OP, opPUSHA_l, opPOPA_l, opPUSH_imm_l, opPUSH_imm_bl, opPOPW_a32,
     //   opPOPL_a16/a32, opENTER_l, opLEAVE_l, les `_l` de PUSH_SEG_OPS et
     //   POP_SEG_OPS, opPOP_SS_l — inatteignables tant qu'op32 est nul.
     // omitted: opPUSH_FS/GS et opPOP_FS/GS — le 286 n'a ni FS ni GS, et la table
     //   ne leur donne aucun emplacement.
-    // omitted: opENTER_w (:375-429) et opLEAVE_w (:486-501) — leurs emplacements
-    //   C8 et C9 relèvent du groupe `call`, qui n'est pas encore transcrit ; les
-    //   poser seuls laisserait un handler sans voisin pour l'exercer.
 
     /// <summary>Emplacements relevés sur ops_286[] de la .so par gdb.
     ///
@@ -316,6 +410,8 @@ internal static partial class _386
         ops_286[0x68] = opPUSH_imm_w;
         ops_286[0x6A] = opPUSH_imm_bw;
         ops_286[0x8F] = opPOPW_a16;
+        ops_286[0xC8] = opENTER_w;
+        ops_286[0xC9] = opLEAVE_w;
 
         ops_286[0x06] = PushSeg(() => ES);
         ops_286[0x0E] = PushSeg(() => CS);

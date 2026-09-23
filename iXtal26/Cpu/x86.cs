@@ -199,6 +199,20 @@ internal static partial class x86
     internal const uint16_t V_FLAG = 0x0800;
     internal const uint16_t NT_FLAG = 0x4000;
     internal const uint16_t VM_FLAG = 0x0002;  /*In EFLAGS*/
+    // pcem: x86.h:158-159 — les drapeaux d'interruption VIRTUELS, du Pentium.
+    // Portés parce que opCLI, opSTI et opPUSHF les testent ; leurs branches ne
+    // sont prises que si cr4 porte VME ou PVI, ce qu'un 286 ne fait jamais.
+    internal const uint16_t VIF_FLAG = 0x0008;  /*In EFLAGS*/
+    internal const uint16_t VIP_FLAG = 0x0010;  /*In EFLAGS*/
+
+    // pcem: x86.h:163-164
+    internal const uint32_t CR4_VME = 1 << 0;
+    internal const uint32_t CR4_PVI = 1 << 1;
+
+    // pcem: x86.h:169 — `#define IOPLp ((!(msw & 1)) || (CPL <= IOPL))`.
+    // En mode réel il vaut TOUJOURS vrai : c'est ce qui fait que CLI et STI y
+    // posent simplement le drapeau sans jamais lever de faute.
+    internal static bool IOPLp => (msw & 1) == 0 || CPL <= IOPL;
 
     // pcem: x86.h:185-193
     internal const uint16_t CPU_STATUS_NOTFLATDS = 1 << 8;
@@ -231,7 +245,28 @@ internal static partial class x86
     // parce que le ne pas porter ferait diverger la transcription de x86gpf.
     internal static uint32_t abrt_error;
 
+    // pcem: x86.h:216 — `extern int cgate16, cgate32;`. Posés par loadcscall
+    // (mode protégé) pour dire à CALL_FAR quelle LARGEUR empiler : une porte
+    // d'appel 16 bits empile deux mots, une porte 32 bits deux longs. En mode
+    // réel les deux restent nuls, et CALL_FAR_w prend donc sa branche `else`,
+    // celle qui empile en 32 bits — un détail qui n'a l'air de rien et qui est
+    // observable au premier CALL far.
+    internal static int cgate16;
     internal static int cgate32;
+
+    // pcem: x86.h:250-254. `optype` dit à x86_doabrt et aux routines de mode
+    // protégé quelle FAMILLE d'instruction a levé l'exception : un abandon en
+    // plein CALL ne se rattrape pas comme un abandon en plein IRET. Posé autour
+    // des appels au mode protégé, remis à zéro juste après.
+    internal static int optype;
+    internal const int JMP = 1;
+    internal const int CALL = 2;
+    internal const int IRET = 3;
+    internal const int OPTYPE_INT = 4;
+
+    // pcem: x86.h:167 — `#define IOPL ((cpu_state.flags >> 12) & 3)`
+    internal static int IOPL => (cpu_state.flags >> 12) & 3;
+
     // pcem: x86.h:217 — fait sauter les contrôles de privilège le temps d'un
     // chargement de descripteur. Jamais posé sur un 8088 ; entre au jalon 286 avec
     // le reste des registres système, pour que le vecteur d'état le compare dès
@@ -247,6 +282,15 @@ internal static partial class x86
     // et il ne tourne pas ici. On la pose donc, sans la lire — le contraire
     // ferait diverger le C# du C le jour où un autre lecteur apparaîtrait.
     internal static int cpu_block_end;
+
+    // pcem: 386_dynarec.c:233 et le codegen. INERTES ICI, pour la même raison que
+    // cpu_block_end juste au-dessus : les handlers les POSENT parce qu'ils sont
+    // compilés dans 386_dynarec.c, mais exec386 vient de 386.c, qui ne lit ni
+    // l'un ni l'autre — vérifié, zéro occurrence de cpu_end_block_after_ins dans
+    // 386.c. On les porte sans les lire ; ne pas les porter ferait diverger la
+    // transcription de opSTI et de opPOPF_286.
+    internal static int cpu_end_block_after_ins;
+    internal static int codegen_flags_changed;
 
     internal static int x86_was_reset;
 

@@ -237,6 +237,56 @@ public static class Core286Check
         Cas("JMP far : l'opcode du vecteur de reset", [0xEA, 0x00, 0x10, 0x00, 0x20],
             ref echecs);
 
+        // (m) L'APPEL ET LE RETOUR, EN PAIRE.
+        //
+        //     Un CALL seul ne prouve rien : c'est le RETURN qui dit si ce qui a
+        //     ete empile est ce qu'on attendait. Le fuzzeur en mode simple ne
+        //     peut pas former la paire — meme angle mort qu'en (f) et (k).
+        //
+        //     CALL_FAR_w empile par la branche `else`, donc PUSH_W deux fois,
+        //     SEIZE bits. La branche PUSH_L n'est prise qu'a travers une porte
+        //     d'appel 32 bits, que seul le mode protege pose. Si l'une des deux
+        //     largeurs etait fausse, le RETF d'apres reviendrait ailleurs.
+        Suite("CALL far 1000:0008 puis RETF",
+              [0x9A, 0x08, 0x00, 0x00, 0x10, 0xB8, 0x00, 0x00, 0xCB], 2, ref echecs);
+        Suite("CALL near +3 puis RET near",
+              [0xE8, 0x03, 0x00, 0xB8, 0x00, 0x00, 0xC3], 2, ref echecs);
+        Suite("CALL far puis RETF imm : la pile recule de 4 + imm",
+              [0x9A, 0x08, 0x00, 0x00, 0x10, 0xB8, 0x00, 0x00, 0xCA, 0x04, 0x00],
+              2, ref echecs);
+
+        // (n) IRET, MONTE A LA MAIN. Il depile ip, cs, flags — dans cet ordre —
+        //     donc on empile flags, cs, ip. Trois PUSH imm puis le IRET.
+        //     nmi_enable = 1 est son vrai effet de bord, et il est HORS des deux
+        //     branches : il s'execute meme quand le mode protege a fait le
+        //     travail.
+        Suite("PUSH flags, PUSH cs, PUSH ip, puis IRET",
+              [0x68, 0x02, 0x00, 0x68, 0x00, 0x10, 0x68, 0x20, 0x00, 0xCF],
+              4, ref echecs);
+
+        // (o) ENTER ET LEAVE. ENTER est le seul handler du groupe pile qui
+        //     BOUCLE, et son modele de temps est CUMULE — instr_cycles, reads et
+        //     writes s'accumulent, PREFETCH_RUN ne recoit le total qu'a la fin.
+        //     `while (--count)` saute le premier tour : un ENTER de niveau 1 ne
+        //     recopie aucun lien. Trois niveaux pour couvrir les trois cas.
+        Suite("ENTER 4,0 puis LEAVE", [0xC8, 0x04, 0x00, 0x00, 0xC9], 2, ref echecs);
+        Suite("ENTER 4,1 puis LEAVE — le tour saute", [0xC8, 0x04, 0x00, 0x01, 0xC9],
+              2, ref echecs);
+        Suite("ENTER 4,3 puis LEAVE — deux tours de boucle",
+              [0xC8, 0x04, 0x00, 0x03, 0xC9], 2, ref echecs);
+
+        // (p) LE GROUPE FF, sous-opcode par sous-opcode. Sept cas dont un
+        //     illegal ; le fuzzeur les tire au hasard mais ne nomme jamais
+        //     lequel il a vu.
+        Cas("FF /0 : INC BX vers registre", [0xFF, 0xC3], ref echecs);
+        Cas("FF /1 : DEC BX vers registre", [0xFF, 0xCB], ref echecs);
+        Cas("FF /2 : CALL proche indirect", [0xFF, 0xD3], ref echecs);
+        Cas("FF /4 : JMP proche indirect", [0xFF, 0xE3], ref echecs);
+        Cas("FF /6 : PUSH vers adresse effective", [0xFF, 0xF3], ref echecs);
+        Cas("FF /7 : illegal", [0xFF, 0xFB], ref echecs);
+        Cas("FF /0 en MEMOIRE : INC [BX], timing_mm et non timing_mr",
+            [0xFF, 0x07], ref echecs);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
