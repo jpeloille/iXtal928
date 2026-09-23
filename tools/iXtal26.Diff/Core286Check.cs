@@ -96,6 +96,65 @@ public static class Core286Check
         // instant. T_FLAG = 0x100, plus le bit 1 toujours à un.
         Cas("piege apres ADD : T_FLAG arme", [0x01, 0xC3], ref echecs, 0x0102);
 
+        // (e) LA MATÉRIALISATION, UNE FOIS PAR ESPÈCE DE DRAPEAU PARESSEUX.
+        //
+        // Le fuzzeur compare flags_op/res/op1/op2 : il vérifie donc les POSEURS
+        // (setadd, setsub, setadc, setsbc, setznp). Il ne vérifie PAS les
+        // lecteurs — VF_SET, AF_SET, CF_SET, NF_SET par espèce — parce qu'en mode
+        // simple chaque itération repart d'un reset, la paresse n'est jamais
+        // effondrée, et les six branches de flags_rebuild ne tournent pas.
+        //
+        // Le cas (d) en effondrait une seule, FLAGS_ADD16. Les autres espèces que
+        // la bande ALU sait produire — ADD8, SUB8/16, ADC8/16, SBC8/16, ZN8/16 —
+        // ne seraient lues qu'au premier PUSHF, Jcc ou INT transcrit, c'est-à-dire
+        // loin de leur cause. On les effondre ici, à l'instruction qui les pose.
+        //
+        // Trois jeux de valeurs : le premier ne déborde pas en signé, le deuxième
+        // déborde à l'addition (0x7FFF + 1), le troisième à la soustraction
+        // (0 - 0x8000). VF_SET est la branche la plus facile à écrire de travers,
+        // et le débordement est la seule chose qui la distingue d'un zéro constant.
+        (byte[] code, string nom)[] especes =
+        [
+                ([0x00, 0xC3], "ADD8"),  ([0x01, 0xC3], "ADD16"),
+                ([0x28, 0xC3], "SUB8"),  ([0x29, 0xC3], "SUB16"),
+                ([0x10, 0xC3], "ADC8"),  ([0x11, 0xC3], "ADC16"),
+                ([0x18, 0xC3], "SBB8"),  ([0x19, 0xC3], "SBB16"),
+                ([0x08, 0xC3], "OR8 (ZN8)"), ([0x09, 0xC3], "OR16 (ZN16)"),
+        ];
+        (ushort ax, ushort bx)[] jeux = [(0x1234, 0x0010), (0x0001, 0x7FFF), (0x8000, 0x0000)];
+        foreach (var (code, nom) in especes)
+                foreach (var (ax, bx) in jeux)
+                        Cas($"piege apres {nom} (AX={ax:X4} BX={bx:X4})", code, ref echecs,
+                            0x0102, ax, bx);
+
+        // (f) LA RETENUE ENTRANTE VENUE D'UN ÉTAT PARESSEUX.
+        //
+        // ADC et SBB lisent CF_SET() pour poser tempc. En mode simple, flags_op
+        // vaut toujours FLAGS_UNKNOWN au départ : CF_SET tombe dans sa dernière
+        // branche et rend `flags & C_FLAG`. Autrement dit le fuzzeur, même sur
+        // 40 000 itérations, n'exerce JAMAIS les branches ADD/SUB/ADC/SBC/ZN de
+        // CF_SET comme source de tempc — celles-là mêmes que l'en-tête de
+        // 386_ops_arith.cs dit être la raison de l'ordre de `gettempc`.
+        //
+        // Il faut deux instructions : une qui pose l'espèce, une qui la lit. C'est
+        // exactement ce qu'un fuzzeur en mode simple ne peut pas construire.
+        Suite("ADD16 pose la retenue, ADC16 la lit",
+              [0x05, 0xFF, 0xFF, 0x15, 0x00, 0x00], 2, ref echecs);
+        Suite("SUB16 pose l'emprunt, SBB16 le lit",
+              [0x2D, 0xFF, 0xFF, 0x1D, 0x00, 0x00], 2, ref echecs);
+        Suite("OR16 (ZN16) force la retenue a zero, ADC16 la lit",
+              [0x0D, 0x00, 0x00, 0x15, 0x01, 0x00], 2, ref echecs);
+        Suite("ADC16 chaine : la branche FLAGS_ADC16 de CF_SET",
+              [0x15, 0xFF, 0xFF, 0x15, 0x00, 0x00], 2, ref echecs);
+        Suite("ADD8 pose la retenue, ADC8 la lit",
+              [0x04, 0xFF, 0x14, 0x00], 2, ref echecs);
+        Suite("SUB8 pose l'emprunt, SBB8 le lit",
+              [0x2C, 0xFF, 0x1C, 0x00], 2, ref echecs);
+        Suite("ADC8 chaine : la branche FLAGS_ADC8 de CF_SET",
+              [0x14, 0xFF, 0x14, 0x00], 2, ref echecs);
+        Suite("SBB8 chaine : la branche FLAGS_SBC8 de CF_SET",
+              [0x1C, 0xFF, 0x1C, 0x00], 2, ref echecs);
+
         Console.WriteLine();
         if (echecs == 0)
         {
@@ -140,9 +199,21 @@ public static class Core286Check
         }
     }
 
-    /// <summary>Un cas DIRIGÉ, comparé à l'oracle sur les 58 champs. Les deux côtés
-    /// reçoivent le même code au même endroit et le même état de registres.</summary>
-    private static void Cas(string nom, byte[] code, ref int echecs, ushort flags = 0)
+    /// <summary>Un cas DIRIGÉ d'UNE instruction, comparé à l'oracle sur les 60
+    /// champs. Les deux côtés reçoivent le même code au même endroit et le même
+    /// état de registres.</summary>
+    private static void Cas(string nom, byte[] code, ref int echecs, ushort flags = 0,
+                            ushort ax = 0x1234, ushort bx = 0x0010)
+        => Suite(nom, code, 1, ref echecs, flags, ax, bx);
+
+    /// <summary>Le même, sur PLUSIEURS instructions d'affilée — et c'est le seul
+    /// moyen d'exercer ce qu'une instruction laisse à la suivante.
+    ///
+    /// La comparaison a lieu APRÈS CHAQUE PAS, pas seulement au bout : si le
+    /// second diverge, on veut lire que le premier était bon. Un seul état
+    /// comparé à la fin dirait « divergence » sans dire laquelle des deux.</summary>
+    private static void Suite(string nom, byte[] code, int pas, ref int echecs,
+                              ushort flags = 0, ushort ax = 0x1234, ushort bx = 0x0010)
     {
         var regs = new ushort[(int)iXtal26.Diag.R.COUNT];
         for (var i = 0; i < regs.Length; i++)
@@ -151,8 +222,8 @@ public static class Core286Check
         regs[(int)iXtal26.Diag.R.SS] = 0x2000;
         regs[(int)iXtal26.Diag.R.DS] = 0x3000;
         regs[(int)iXtal26.Diag.R.SP] = 0x0100;
-        regs[(int)iXtal26.Diag.R.AX] = 0x1234;
-        regs[(int)iXtal26.Diag.R.BX] = 0x0010;
+        regs[(int)iXtal26.Diag.R.AX] = ax;
+        regs[(int)iXtal26.Diag.R.BX] = bx;
         regs[(int)iXtal26.Diag.R.FLAGS] = flags;
 
         Oracle.h_set_core(Oracle.Core286);
@@ -169,21 +240,28 @@ public static class Core286Check
         Oracle.h_setregs(regs);
         _808x.SetRegs(regs);
 
-        var cycC = Oracle.h_step();
-        var cycS = _386.Step286();
-
         var a = iXtal26.Diag.HState.Create();
         var b = iXtal26.Diag.HState.Create();
-        Oracle.h_getstate(out a);
-        _808x.GetState(ref b);
 
-        var diff = Fuzzer.Compare(a, b, cycC, cycS);
-        if (diff is null)
-                Console.WriteLine($"  [ok] {nom} : identique, pc {b.pc:X4} CS {b.seg_sel[1]:X4} cycles {cycS}");
-        else
+        for (var n = 1; n <= pas; n++)
         {
-                Console.WriteLine($"  [ECHEC] {nom} : {diff}");
-                echecs++;
+                var cycC = Oracle.h_step();
+                var cycS = _386.Step286();
+
+                Oracle.h_getstate(out a);
+                _808x.GetState(ref b);
+
+                var diff = Fuzzer.Compare(a, b, cycC, cycS);
+                if (diff is not null)
+                {
+                        var ou = pas == 1 ? "" : $" (pas {n}/{pas})";
+                        Console.WriteLine($"  [ECHEC] {nom}{ou} : {diff}");
+                        echecs++;
+                        return;
+                }
         }
+
+        Console.WriteLine($"  [ok] {nom} : identique, pc {b.pc:X4} CS {b.seg_sel[1]:X4} " +
+                          $"AX {b.regs[0]:X4} BX {b.regs[3]:X4} flags {b.flags:X4}");
     }
 }
