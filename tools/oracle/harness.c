@@ -430,9 +430,40 @@ void h_fill_ram2(uint8_t a, uint8_t b) {
                 ram[i] = (i & 1) ? b : a;
 }
 
+/* LIT LA RAM, ET RIEN D'AUTRE. Le masque a 0xFFFFF est un masque d'ADRESSE, pas
+ * une borne du tableau : ram[] fait mem_size Ko, et 0xB8000 sort d'une machine a
+ * 512 Ko. Mesure a la sonde AT : SIGSEGV en lisant la memoire video.
+ *
+ * On borne donc, et on rend 0xFF au-dela — la valeur d'un bus flottant, celle que
+ * readmembl rend sur une adresse sans mappage. Pour lire ce qui n'est PAS de la
+ * RAM, voir h_read_phys ci-dessous. */
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len) {
+        uint32_t taille = (uint32_t)mem_size * 1024;
+        for (uint32_t i = 0; i < len; i++) {
+                uint32_t a = (addr + i) & 0xFFFFF;
+                buf[i] = (a < taille) ? ram[a] : 0xFF;
+        }
+}
+
+/* LIT PAR LES MAPPAGES, donc la memoire video, les ROM d'extension et tout ce
+ * qui n'est pas de la RAM. C'est ce qu'il faut pour voir l'ECRAN — et sans lui on
+ * ne sait pas distinguer « le POST a fini » de « le POST affiche une erreur et
+ * attend F1 ».
+ *
+ * ON APPELLE __real_readmembl ET NON readmembl, et la difference compte :
+ * readmembl est detourne par --wrap et incrementerait h_n_readmembl, un champ
+ * COMPARE par le fuzzeur. Une sonde ne doit pas laisser de trace dans ce qu'elle
+ * observe.
+ *
+ * Il reste UNE trace : __real_readmembl pose mem_logical_addr et peut peupler
+ * readlookup2 par addreadlookup. C'est assume — cette fonction est faite pour
+ * etre appelee A LA FIN d'une campagne, quand plus rien n'est compare. Elle n'a
+ * pas sa place dans une boucle de mesure. */
+extern uint8_t __real_readmembl(uint32_t addr);
+
+void h_read_phys(uint32_t addr, uint8_t *buf, uint32_t len) {
         for (uint32_t i = 0; i < len; i++)
-                buf[i] = ram[(addr + i) & 0xFFFFF];
+                buf[i] = __real_readmembl((addr + i) & rammask);
 }
 
 void h_set_cs_ip(uint16_t cs_sel, uint16_t ip) {

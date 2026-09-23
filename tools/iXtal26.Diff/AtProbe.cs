@@ -92,9 +92,13 @@ public static class AtProbe
         // le POST a VOULU dire. La carte montee est une CGA (h_boot fait
         // device_add(&cga_device)), donc le texte est en B8000, un octet de
         // caractere suivi d'un octet d'attribut.
+        //
+        // h_read_phys ET NON h_read : le second indexe ram[] et 0xB8000 sort
+        // d'une machine a 512 Ko — il faisait SEGFAULT. C'est cette sonde qui
+        // l'a trouve.
         Console.WriteLine("\n  Ecran (B8000, 80x25, lignes non vides) :");
         var vram = new byte[80 * 25 * 2];
-        Oracle.h_read(0xB8000, vram, (uint)vram.Length);
+        Oracle.h_read_phys(0xB8000, vram, (uint)vram.Length);
         for (var ligne = 0; ligne < 25; ligne++)
         {
             var txt = new char[80];
@@ -108,6 +112,42 @@ public static class AtProbe
             if (!vide)
                 Console.WriteLine($"   {ligne,2} | {new string(txt).TrimEnd()}");
         }
+
+        // LE CMOS, LU DANS LA .so — et il ne dit PAS ce que je croyais.
+        //
+        // J'avais ecrit que l'oracle prenait la branche « pas de fichier » de
+        // loadnvr. L'ecran 162 ne le prouvait pas : un CMOS a ZERO donne le meme
+        // ecran, sa somme de controle etant fausse elle aussi. Cette sonde
+        // separe les deux, et elle est le debut du comparateur de B3.
+        //
+        // La branche sans fichier (nvr.c:524-534) laisse 0xFF PARTOUT sauf
+        // [0]=[2]=[4]=0, [7]=[8]=1, [9]=0x80, [0x0B]=0x02, [0x32]=0x19.
+        var p_nvr = Oracle.Symbole("nvrram");
+        var cmos = new byte[128];
+        System.Runtime.InteropServices.Marshal.Copy(p_nvr, cmos, 0, 128);
+        Console.WriteLine("\n  CMOS (nvrram[128]) apres h_boot :");
+        for (var l = 0; l < 8; l++)
+                Console.WriteLine($"   {l * 16:X2} | " +
+                        string.Join(" ", cmos.Skip(l * 16).Take(16).Select(b => b.ToString("X2"))));
+        var tousZero = cmos.All(b => b == 0);
+        var motifSansFichier = cmos[0] == 0 && cmos[2] == 0 && cmos[4] == 0 &&
+                               cmos[7] == 1 && cmos[8] == 1 && cmos[9] == 0x80 &&
+                               cmos[0x32] == 0x19;
+        Console.WriteLine(tousZero
+                ? "   -> TOUT A ZERO : le harnais n'appelle PAS loadnvr. Son resetpchard\n" +
+                  "      reduit l'omet, et le CMOS reste l'etat statique du .bss. C'est\n" +
+                  "      CE qu'un futur boot-diff --model ibmat devra reproduire, PAS\n" +
+                  "      la branche sans fichier de loadnvr."
+                : motifSansFichier
+                        ? "   -> motif de la branche SANS FICHIER de loadnvr (nvr.c:524-534)."
+                        : "   -> ni zero ni le motif sans fichier : le POST a deja ecrit dedans.");
+
+        // isa_cycles, pendant de la regle 3 : lier cpu.c fournit le SYMBOLE,
+        // cpu_set() pose la VALEUR, et h_cpu_config_286 est ce qui en tient lieu.
+        // readnvr et writenvr facturent tous deux ISA_CYCLES(8) : une valeur de
+        // 8088 restee la ferait diverger chaque acces au CMOS.
+        Console.WriteLine($"\n  isa_cycles = {System.Runtime.InteropServices.Marshal.ReadInt32(Oracle.Symbole("isa_cycles"))}" +
+                          "   (0 = jamais pose : ISA_CYCLES(8) rendrait 0)");
 
         Console.WriteLine("\nVert : la sonde a tourne. Ce qu'elle rapporte est une MESURE,");
         Console.WriteLine("       pas une comparaison — le cote C# n'a pas encore de machine AT.");

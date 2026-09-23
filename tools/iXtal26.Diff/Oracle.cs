@@ -47,6 +47,20 @@ public static class Oracle
         });
     }
 
+    /// <summary>Adresse d'un symbole GLOBAL de la .so, hors contrat h_*.
+    ///
+    /// Le contrat ABI couvre les fonctions ; les variables globales de PCem, elles,
+    /// sont exportees par le lieur sans que personne les ait declarees. Les lire
+    /// directement evite de faire grossir h_state pour une MESURE ponctuelle — et
+    /// c'est la version C# du gdb dont on se sert pour lire ops_286[].</summary>
+    public static IntPtr Symbole(string nom)
+    {
+        foreach (var candidate in Candidates())
+            if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out var h))
+                return NativeLibrary.GetExport(h, nom);
+        throw new DllNotFoundException("libixtal26oracle.so introuvable");
+    }
+
     private static IEnumerable<string> Candidates()
     {
         var dir = AppContext.BaseDirectory;
@@ -63,6 +77,10 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_reset();
     [DllImport(Lib)] public static extern void h_load(uint addr, byte[] buf, uint len);
     [DllImport(Lib)] public static extern void h_read(uint addr, byte[] buf, uint len);
+    // Lit par les MAPPAGES et non par ram[] : memoire video, ROM d'extension.
+    // A appeler A LA FIN d'une campagne — voir harness.c, elle laisse une trace
+    // dans readlookup2.
+    [DllImport(Lib)] public static extern void h_read_phys(uint addr, byte[] buf, uint len);
     [DllImport(Lib)] public static extern void h_fill_ram(byte value);
     [DllImport(Lib)] public static extern void h_fill_ram2(byte a, byte b);
     [DllImport(Lib)] public static extern void h_set_cs_ip(ushort cs, ushort ip);
