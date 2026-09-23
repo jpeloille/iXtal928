@@ -2,7 +2,28 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/pc.c  (initpc :178-300, resetpc_cad :344-351,
-//         resetpchard :353-400, runpc :470-553, closepc :576-592)
+//         resetpchard :353-442, runpc :470-553, closepc :576-592)
+//
+// LA PLAGE DE resetpchard DISAIT :353-400 ET LA FONCTION VA JUSQU'A 442. Mesure par
+// appariement d'accolades, pas a l'oeil. Les quarante-deux lignes de queue n'etaient
+// donc ni transcrites ni inscrites au registre — un trou qu'aucun oracle ne pouvait
+// signaler, puisque rien ne les reclamait.
+// omitted: keyboard_at_reset() (pc.c:405) — appel INCONDITIONNEL, le second apres
+//   celui de model_init (:372). Idempotent aujourd'hui : son corps n'est que des
+//   constantes plus video_is_mda(), et aucun code invite ne tourne entre les deux.
+//   Il CESSE de l'etre des qu'un second resetpchard tourne sur un 8042 deja
+//   interroge, keyboard_at.cs incrementant les deux bits bas de input_port a chaque
+//   commande 0xC0.
+// omitted: cpu_cache_int_enabled = cpu_cache_ext_enabled = 0 (:407) — meme motif
+//   qu'en 808x.cs : leur seul lecteur, cpu_update_waitstates(), est enveloppe A VIDE
+//   par l'oracle (harness_stubs.c:268).
+// omitted: cpu_set_turbo() (:439) — le quatrieme __wrap_ du Makefile, lui aussi a
+//   corps vide (harness_stubs.c:281).
+// omitted: image_close() (:411) et le bloc cdrom — lecteur de CD-ROM, hors cible.
+// omitted: mem_set_704kb() (:370-371) — garde `!AT && max_ram <= 768`, fausse pour les
+//   trois machines du depot. NOTE : le C teste `AT` AVANT que model_init() ne le pose,
+//   donc sur un changement de machine a chaud il lit le AT de la PRECEDENTE. Defaut
+//   de PCem, sans effet ici, mais c'est le meme piege d'ordre que AT=1 vs mem_add_bios.
 // STATUS: partial — réduit à deux machines 8088, l'IBM PC 5150 et l'IBM XT 5160
 //         (M10) : disquette (M6) et haut-parleur (M9) compris, mais ni réseau, ni
 //         disque dur, ni souris, ni joystick, ni NVR. Ce qui reste est la séquence

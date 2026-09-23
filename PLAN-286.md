@@ -216,11 +216,37 @@ C   mode protégé
 l'absence rend les autres invérifiables, et elle ne dépend d'aucune des
 précédentes — seulement du harnais.
 
+## Ce que le bloc C n'a PAS comme oracle — mesuré, à lire avant d'écrire
+
+Le mode protégé est le premier domaine de ce dépôt dont le seul oracle est PCem
+lui-même. Et à l'intérieur de ce seul oracle, **les écritures mémoire de C ne
+sont couvertes par aucun compteur** :
+
+- `Fuzzer.cs` ne compare que **six** compteurs — `n_inb`, `n_outb`, `n_picint`,
+  `n_picinterrupt`, `n_timer_process`, `n_fatal`. Les quatre compteurs mémoire
+  (`n_readmembl`, `n_writememwl`…) sont **remplis** dans `h_state` et **jamais
+  comparés** : retirés à M2, et pour une raison saine que `Fuzzer.cs` documente
+  sur place — `--wrap` n'intercepte que les appels inter-unités, donc
+  `writememwl → writemembl` compte une fois en C et deux en C#.
+- Conséquence pour C : la lecture des descripteurs dans la GDT/LDT et les
+  écritures du **bit accédé** — `loadcsjmp`, `loadseg`, `pmodeint`, `pmodeiret` —
+  n'ont pour filet que le journal d'écritures et le hachage de RAM. Ces
+  écritures se transcrivent **à l'œil**, et il faut le savoir en les écrivant.
+- Deux reconnaissances du bloc C ont justifié leur travail par « une omission
+  ferait rougir le fuzzeur ». C'est faux, et c'est écrit ici pour que ça ne se
+  redise pas.
+
 ## Ce que je ne sais pas encore
 
-- **Combien d'instructions le POST de l'AT exécute avant d'entrer en mode
-  protégé.** B2 le mesurera, et ce chiffre déciderait peut-être de remonter C
-  dans l'ordre. Aujourd'hui je l'ignore, et je ne veux pas planifier dessus.
+- ~~**Combien d'instructions le POST de l'AT exécute avant d'entrer en mode
+  protégé.**~~ **Mesuré : ~5 400 354 instructions** (`2d56321`, reconfirmé par
+  la reconnaissance de B3/C). Le POST entre en mode protégé, en ressort par la
+  ligne de reset du 8042, et atteint l'écran.
+- **`mem_remap_top_384k` n'est PAS un prérequis de B3.** Mesuré deux fois :
+  `grep -n 'mem_remap' tools/oracle/` rend **zéro** — l'oracle ne l'appelle
+  jamais — et son corps est gardé par `if (mem_size > 640)` (`mem.c:1295`) alors
+  que la sonde AT pose 512 Ko. Le bloc B3 le porte donc **en commentaire**, pas
+  en code : l'écrire créerait une divergence là où il n'y en a pas.
 - **Si le 287 est nécessaire.** A13 le tranchera en lisant ce que `ops_286` met
   aux huit emplacements ESCAPE.
 - **Le coût réel de C.** 1 950 lignes vives est une taille, pas une durée : le

@@ -57,6 +57,25 @@ internal static partial class x86seg_c
     // omitted: toute la branche mode protégé (msw & 1), ~350 lignes.
     internal static int loadseg(uint16_t seg, x86seg s)
     {
+        // LA GARDE MANQUAIT, ET C'ETAIT LE SEUL ENDROIT DU BLOC C QUI SE TROMPAIT
+        // SANS LE DIRE.
+        //
+        // Le C ouvre sur `if (msw & 1 && !(eflags & VM_FLAG))` (x86seg.c:276) et met
+        // TOUT le mode protege dedans — 133 lignes vives sur les 176 de la fonction.
+        // Le C# entrait directement dans la branche mode reel : en mode protege il
+        // chargeait un descripteur plat `seg << 4` et rendait 0, comme si tout allait
+        // bien. loadcsjmp, lui, echoue bruyamment depuis toujours.
+        //
+        // La ROM de l'AT fait `MOV SS, 0x28` juste apres son JMP FAR en mode protege :
+        // c'est le premier appelant qui aurait menti, et la divergence se serait
+        // manifestee des milliers d'instructions plus loin, sur une pile fausse.
+        if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
+        {
+                pc.fatal($"loadseg en mode protege (seg {seg:X4}) : x86seg.c n'est " +
+                         "transcrit qu'en mode reel (bloc C du plan)\n");
+                return 1;
+        }
+
         s.access = (3 << 5) | 2;
         s.access2 = 0;
         s.@base = (uint32_t)(seg << 4);
@@ -91,6 +110,21 @@ internal static partial class x86seg_c
     // omitted: toute la branche mode protégé, ~90 lignes.
     internal static void loadcs(uint16_t seg)
     {
+        // Meme defaut que loadseg ci-dessus, meme correction : le C garde son mode
+        // protege derriere `if (msw & 1 && !(eflags & VM_FLAG))` (x86seg.c:457), et
+        // le C# n'avait pas la garde.
+        //
+        // SES DEUX APPELANTS SONT PARTICULIERS, et c'est pour ca que le defaut n'a
+        // jamais mordu : x86_doabrt (x86seg.c:110) et taskswitch286 (:2541, sous
+        // `eflags & VM_FLAG`, donc jamais sur un 286). Mesure : `grep -n
+        // '[^a-z_]loadcs(' x86seg.c` rend exactement ces deux sites.
+        if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
+        {
+                pc.fatal($"loadcs en mode protege (seg {seg:X4}) : x86seg.c n'est " +
+                         "transcrit qu'en mode reel (bloc C du plan)\n");
+                return;
+        }
+
         cpu_state.seg_cs.@base = (uint32_t)(seg << 4);
         cpu_state.seg_cs.limit = 0xFFFF;
         cpu_state.seg_cs.limit_low = 0;
@@ -104,6 +138,35 @@ internal static partial class x86seg_c
                 Memory.mem.flushmmucache_cr3();
         oldcpl = CPL;
     }
+
+    // LA QUEUE DE x86seg.c — 273 LIGNES VIVES QU'AUCUN 286 N'ATTEINT, et ce n'est
+    // pas la fiche technique qui le dit mais les TABLES, lues dans la .so.
+    //
+    // omitted: sysenter (x86seg.c:2851-2881) et sysexit (:2883-2911) — 0F 34 et
+    //   0F 35, Pentium II.
+    // omitted: x86_smi_trigger (:2913), smi_write_descriptor_cache (:2915-2919),
+    //   smi_load_descriptor_cache (:2920-2937), smi_load_smi_selector (:2939-2947),
+    //   x86_smi_enter (:2987-3094), x86_smi_leave (:3096-3187) — le mode de gestion
+    //   systeme. Ses appelants sont models/piix.c, vt82c586b.c, piix_pm.c et sio.c,
+    //   dont AUCUN n'est lie a l'oracle. 386.cs:339 porte deja l'omission du test
+    //   `if (smi_pending)` cote boucle.
+    // omitted: cyrix_write_seg_descriptor (:2949-2954) et cyrix_load_seg_descriptor
+    //   (:2956-2985) — les opcodes SMM propres a Cyrix (SVDC, RSDC, SVLDT...).
+    // omitted: stimes, dtimes, btimes (:22-24) — trois compteurs de mise au point,
+    //   lus seulement par un pclog commente (:89).
+    // omitted: breaknullsegs (:30) — `#define breaknullsegs 0`, garde morte chez PCem.
+    // omitted: le prototype taskswitch386 (:35) — ORPHELIN chez PCem lui-meme : sa
+    //   seule autre occurrence de tout l'arbre est le commentaire :772, et il n'a
+    //   AUCUNE definition.
+    //
+    // MESURE, et c'est la table qui tranche, pas le processeur : les pointeurs de
+    // ops_286 et ops_286_0f lus dans les RELOCATIONS de libixtal26oracle.so, croises
+    // avec la table de symboles complete (les handlers sont `static`, donc invisibles
+    // a nm -D et a dladdr — c'est ce qui a fait echouer les deux premieres tentatives).
+    //   ops_286    : 251 handlers distincts, AUCUN de SMM / sysenter / Cyrix
+    //   ops_286_0f :   7 handlers distincts — op0F00_a16, op0F01_286, opLAR_w_a16,
+    //                  opLSL_w_a16, opLOADALL, opCLTS, et ILLEGAL
+    // Le second compte confirme a l'identique ce que faaf0fb avait lu au gdb.
 
     // LES TROIS AUTRES PORTES DU MODE PROTÉGÉ, déclarées ici et non transcrites.
     //

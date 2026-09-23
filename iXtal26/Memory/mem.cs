@@ -286,6 +286,20 @@ internal static partial class mem
         _386_common.pccache2 = null;
     }
 
+    // DEVIATION: flushmmucache_cr3() N'EST PAS flushmmucache(), et l'aliaser en est une.
+    //
+    //   flushmmucache_cr3() : la boucle sur les 256 anneaux, et RIEN d'autre.
+    //   flushmmucache()     : la meme boucle, PLUS mmuflush++, pccache = 0xFFFFFFFF
+    //                         et pccache2 = 0xFFFFFFFF.
+    //
+    // Le C# ecrase donc pccache et pccache2 la ou PCem les laisse intacts. Dormant au
+    // palier (a) : les deux appelants vivants (x86seg.cs, dans loadcs et loadcsjmp)
+    // exigent `CPL == 3 && oldcpl != 3`, et le POST de l'AT reste a CPL 0.
+    //
+    // MAIS LE BLOC C L'APPELLE DIX-HUIT FOIS — grep -c dans x86seg.c — donc cette
+    // ligne doit devenir une vraie transcription avant que le mode protege tourne.
+    // NON MESURE : pccache n'est pas dans h_state, donc l'effet sur les champs
+    // compares, et le cout en cycles via getpccache, restent inconnus.
     internal static void flushmmucache_cr3() => flushmmucache();
 
     // pcem: mem.c:354-379 — le `cycles -= 9` final est de l'ÉMULATION, pas de la
