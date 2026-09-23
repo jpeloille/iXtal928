@@ -111,13 +111,20 @@ public static class Fuzzer
             // et la divergence mesure ce trou, pas le préfixe. On le tire donc
             // dans le jeu testé, en excluant les préfixes eux-mêmes pour ne pas
             // enchaîner indéfiniment.
-            if (IsSegPrefix(op))
+            //
+            // 0x17 (POP SS) TOMBE SOUS LA MÊME RÈGLE, pour une raison différente :
+            // il n'est pas un préfixe, mais il EXÉCUTE l'instruction suivante
+            // lui-même (x86_ops_stack.h:573-598 — l'ombre d'interruption du 286,
+            // qui laisse un MOV SP,... suivre un chargement de SS sans qu'une
+            // interruption ne survienne sur une pile a moitié chargée). L'octet
+            // suivant est donc exécuté, pas ignoré.
+            if (EnchaineSurLaSuivante(op))
             {
                 var inner = op;
-                for (var guard = 0; guard < 16 && IsSegPrefix(inner); guard++)
+                for (var guard = 0; guard < 16 && EnchaineSurLaSuivante(inner); guard++)
                     inner = opcodes[rng.Next() % (uint)opcodes.Length];
-                if (IsSegPrefix(inner))
-                    inner = 0x90;                    // NOP : repli sûr
+                if (EnchaineSurLaSuivante(inner))
+                    inner = 0xB8;                    // MOV AX,imm16 : repli sûr
                 code[1] = inner;
             }
 
@@ -187,6 +194,11 @@ public static class Fuzzer
         Console.WriteLine($"    dont {steeredCount} cas auto-référentiels (EA == cs+pc)");
         return 0;
     }
+
+    /// <summary>L'octet SUIVANT sera-t-il exécuté comme une instruction ?
+    /// Vrai des quatre préfixes de segment, qui sautent à opcodestart, et de
+    /// POP SS, qui va chercher et aiguille l'opcode suivant lui-même.</summary>
+    private static bool EnchaineSurLaSuivante(byte op) => IsSegPrefix(op) || op == 0x17;
 
     /// <summary>L'opcode porte-t-il un octet ModRM ?
     ///

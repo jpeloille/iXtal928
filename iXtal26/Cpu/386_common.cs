@@ -442,6 +442,61 @@ internal static partial class _386_common
     // pcem: 386_common.c:156-165
     internal static void x86illegal() => x86_int(6);
 
+    // LES PRIMITIVES DE PILE, pcem: 386_ops.h:14-56.
+    //
+    // Elles vivent dans 386_ops.h, pas dans 386_common.h — mais c'est déjà le cas
+    // de ILLEGAL_ON juste en dessous, et pour la même raison : 386_ops.h est
+    // essentiellement la TABLE, et ce dépôt n'a pas de fichier qui lui corresponde.
+    // Les mettre ici les place à côté des readmemw/writememw qu'elles appellent.
+    //
+    // `stack32` gouverne la largeur du POINTEUR de pile, pas celle de la donnée :
+    // un PUSH 16 bits sur une pile 32 bits décrémente ESP de 2, pas de 4. Sur un
+    // 286 stack32 est toujours nul, mais la branche est transcrite — c'est elle
+    // qui rendra le jalon 386 additif.
+
+    /// <summary>pcem: 386_ops.h:14-26</summary>
+    internal static void PUSH_W(uint16_t val)
+    {
+        if (stack32 != 0)
+        {
+                writememw(ss, ESP - 2, val);
+                if (cpu_state.abrt != 0)
+                        return;
+                ESP -= 2;
+        }
+        else
+        {
+                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), val);
+                if (cpu_state.abrt != 0)
+                        return;
+                SP -= 2;
+        }
+    }
+
+    /// <summary>pcem: 386_ops.h:42-56</summary>
+    internal static uint16_t POP_W()
+    {
+        uint16_t ret;
+        if (stack32 != 0)
+        {
+                ret = readmemw(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                ESP += 2;
+        }
+        else
+        {
+                ret = readmemw(ss, SP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                SP += 2;
+        }
+        return ret;
+    }
+
+    // omitted: PUSH_L / POP_L (386_ops.h:28-40, 58-70) — aucun opcode 32 bits
+    //   n'est atteignable sur un 286.
+
     /// <summary>pcem: 386_ops.h:5-12 — la macro ILLEGAL_ON. Comme fetch_ea_16, elle
     /// rend `true` quand le handler doit sortir, le `return 0` du C étant
     /// intransportable tel quel.</summary>

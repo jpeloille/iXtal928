@@ -75,6 +75,7 @@ internal static partial class _386
     {
         PoserGroupeMov();
         PoserGroupeArith();
+        PoserGroupePile();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
