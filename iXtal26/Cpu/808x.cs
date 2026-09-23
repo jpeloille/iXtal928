@@ -1051,11 +1051,73 @@ startrep:
         makemod1table();
         mem.resetreadlookup();
         FETCHCLEAR();
-        // omitted: x87_reset(), cpu_set_edx(), codegen_reset() — 8087 et dynarec.
+        // omitted: x87_reset() et codegen_reset() — 8087 et dynarec.
+        // omitted: cpu_cache_int_enabled = 0 et cpu_update_waitstates() (808x.c:675-676),
+        //   et cpu_set_edx() (:698). NON PAS parce qu'ils sont hors cible : l'oracle les
+        //   INTERPOSE À VIDE. __wrap_cpu_update_waitstates() et __wrap_cpu_set_edx()
+        //   (harness_stubs.c:268, :278) ont un corps vide, parce que les vraies
+        //   déréférencent models[model]->cpu[...].cpus, et que cpu[0].cpus est NUL —
+        //   mesuré par at-probe, offset 104, sizeof(MODEL) = 208. Omettre ici est donc
+        //   le pendant EXACT de l'oracle, pas un raccourci. cpu_cache_int_enabled n'a
+        //   d'ailleurs qu'un lecteur, cpu.c:2018, à l'intérieur de la fonction vidée.
+        //   La déclaration manquait depuis M1.4 : R6(a), rattrapé en câblant le 8042.
         mem.mmu_perm = 4;
         x86seg_c.x86seg_reset();
         x86_was_reset = 1;
         cpu_state.smbase = 0x30000;
+    }
+
+    // pcem: 808x.c:706-746 — LE RESET DOUX, ET C'EST LA SEULE SORTIE DU MODE PROTÉGÉ.
+    //
+    // Un 286 ne sait pas revenir en mode réel : LMSW ne peut pas effacer le bit qu'il
+    // a posé (386_ops_0f.cs). La seule issue est la ligne de reset, et sur un AT c'est
+    // le 8042 qui la tient — commande 0xFE en 0x64. Le BIOS s'en sert après avoir
+    // dimensionné la mémoire haute, et il retrouve son état par LOADALL.
+    //
+    // CE QU'IL NE FAIT PAS, ET LA DIFFÉRENCE EST POUR LE 286 : il ne vide les registres
+    // généraux QUE si is386. Sur un 286 EAX..ESP TRAVERSENT le reset — c'est ainsi que
+    // le BIOS se souvient d'où il en était. resetx86(), lui, les vide sans condition.
+    // Il ne refait pas non plus makeznptable, makemod1table, resetreadlookup, mmu_perm
+    // ni smbase : ces cinq-là sont du reset DUR.
+    internal static void softresetx86()
+    {
+        use32 = 0;
+        stack32 = 0;
+        cpu_cur_status = 0;
+        msw = 0;
+        if (is486 != 0)
+                cr0 = 1 << 30;
+        else
+                cr0 = 0;
+        // omitted: cpu_cache_int_enabled = 0 et cpu_update_waitstates() — voir resetx86.
+        cr4 = 0;
+        cpu_state.eflags = 0;
+        cgate32 = 0;
+        if (AT != 0)
+        {
+                x86seg_c.loadcs(0xF000);
+                cpu_state.pc = 0xFFF0;
+                mem.rammask = cpu_16bitbus != 0 ? 0xFFFFFF : 0xFFFFFFFF;
+        }
+        else
+        {
+                x86seg_c.loadcs(0xFFFF);
+                cpu_state.pc = 0;
+                mem.rammask = 0xfffff;
+        }
+        cpu_state.flags = 2;
+        idt.@base = 0;
+        if (is386 != 0)
+        {
+                idt.limit = 0x03FF;
+                EAX = EBX = ECX = EDX = ESI = EDI = EBP = ESP = 0;
+        }
+        else
+                idt.limit = 0xFFFF;
+        x86seg_c.x86seg_reset();
+        mem.flushmmucache();
+        x86_was_reset = 1;
+        FETCHCLEAR();
     }
 
     // -----------------------------------------------------------------------

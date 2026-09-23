@@ -43,9 +43,13 @@ internal static partial class video
     //   (video.c:1301-1354) qui les enregistre — MDA/EGA/VGA/SVGA/Voodoo, hors cible 5150.
     // omitted: video_card_available / video_card_getname / video_card_getdevice /
     //   video_card_has_config / video_card_getid / video_old_to_new / video_new_to_old /
-    //   video_get_internal_name / video_get_video_from_internal_name / video_is_mda /
-    //   video_is_cga / video_is_ega_vga (video.c:215-540) — interrogation du registre
-    //   VIDEO_CARD, qui n'est pas transcrit.
+    //   video_get_internal_name / video_get_video_from_internal_name (video.c:215-540)
+    //   — interrogation du registre VIDEO_CARD, qui n'est pas transcrit.
+    //   CETTE LIGNE NOMMAIT AUSSI video_is_mda, video_is_cga et video_is_ega_vga, et
+    //   c'était FAUX : elles sont transcrites plus bas, réduites à leur réponse pour la
+    //   seule carte présente. Relevé en câblant le 8042 (B1b), qui appelle la première
+    //   depuis keyboard_at_reset. L'oracle les stube aux mêmes valeurs —
+    //   harness_stubs.c:502-503 rend 0 et 1 — donc la réduction est un pendant mesuré.
     // omitted: video_fullscreen / video_fullscreen_scale / video_fullscreen_first /
     //   video_force_aspect_ration / vid_disc_indicator / vid_resize / readflash
     //   (video.c:542-544) — état de la fenêtre et des visionneuses de débogage.

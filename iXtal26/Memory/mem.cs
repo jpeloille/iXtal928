@@ -167,7 +167,44 @@ internal static partial class mem
     //   d'écriture est simplifié au lieu d'être transcrit.
     // omitted: mmutranslate_read/write, mmutranslatereal — pagination 386.
     //   `cr0 >> 31` vaut toujours 0 sur un 8088.
-    // omitted: mem_remap_top, ram_remapped_mapping, mem_a20_* — 286+.
+    // omitted: mem_remap_top, ram_remapped_mapping — la remise en correspondance des
+    //   384 Ko du haut, propre au chipset de l'AT. Bloc B3.
+
+    // A20, ET C'EST LE 8042 QUI LA TIENT.
+    //
+    // La 21e ligne d'adresse d'un AT passe par une porte que le contrôleur de clavier
+    // commande — une prothèse pour que les programmes qui comptaient sur le
+    // rebouclage à 1 Mo du 8086 continuent de tourner sur un 286, qui a vingt-quatre
+    // lignes. Fermée, `rammask` perd le bit 20 et l'adresse reboucle ; ouverte, la
+    // mémoire haute devient atteignable.
+    //
+    // DÉ-OMISSION : cette ligne disait « mem_a20_* — 286+ », et B1b est l'endroit où
+    // ça cesse d'être vrai. keyboard_at.cs les écrit en deux points, la commande 0xD1
+    // et l'auto-test 0xAA.
+    //
+    // mem_a20_state VAUT 2 AU DÉPART, et ce n'est pas un détail : avec zéro, le
+    // premier mem_a20_recalc() prendrait la branche `state && !mem_a20_state` et
+    // poserait rammask = 0xFFFFFFFF — le rebouclage à 1 Mo du XT, cassé.
+    // pcem: mem.c:1289-1290
+    internal static int mem_a20_key = 0, mem_a20_alt = 0;
+    private static int mem_a20_state = 2;
+
+    // pcem: mem.c:1448-1460
+    internal static void mem_a20_recalc()
+    {
+        int state = mem_a20_key | mem_a20_alt;
+        if (state != 0 && mem_a20_state == 0)
+        {
+                rammask = (AT != 0 && cpu_16bitbus != 0) ? 0xffffff : 0xffffffff;
+                flushmmucache();
+        }
+        else if (state == 0 && mem_a20_state != 0)
+        {
+                rammask = (AT != 0 && cpu_16bitbus != 0) ? 0xefffff : 0xffefffff;
+                flushmmucache();
+        }
+        mem_a20_state = state;
+    }
 
     // DEVIATION: l'instrumentation est posée en MIROIR de -Wl,--wrap.
     //
@@ -946,6 +983,13 @@ internal static partial class mem
         //   Fixed Disk Adapter, qui vise justement 0xc8000 — la même adresse. Les
         //   deux ne se rencontrent pas : la carte passe par rom_init/mem_mapping_add,
         //   et sur un XT cette garde est fausse.
+
+        // pcem: mem.c:1428-1430 — la fin de mem_alloc. Avec key = 2 et state = 2,
+        // mem_a20_recalc() ne prend AUCUNE de ses deux branches : rammask garde ce
+        // que resetx86() a posé. C'est voulu.
+        mem_a20_key = 2;
+        mem_a20_alt = 0;
+        mem_a20_recalc();
 
         resetreadlookup();
     }
