@@ -81,6 +81,21 @@ public static class Core286Check
         //     mérite d'être nommé quelque part.
         Cas("opcode illegal : MOV [BX], imm8 avec reg != 0", [0xC6, 0x08, 0x42], ref echecs);
 
+        // (d) LE PIÈGE PAS-À-PAS, avec T_FLAG armé.
+        //
+        // C'est le premier cas où flags_rebuild() fait vraiment son travail des deux
+        // côtés. exec386 appelle flags_rebuild sur le chemin du piège (386.c:227) ;
+        // tant qu'aucun handler ne posait flags_op, l'appel était un no-op. Un ADD
+        // suivi d'un piège force la matérialisation, puis l'empilement des flags
+        // MATÉRIALISÉS — si les deux côtés ne reconstruisaient pas à l'identique, la
+        // valeur empilée les séparerait.
+        //
+        // C'est aussi ce que le commentaire de h_trace_note (ab8f50b) annonçait :
+        // sous le 286, la phase 1 de boot-diff hache un `flags` périmé. Ici il cesse
+        // de l'être, et on vérifie que les deux côtés le matérialisent au même
+        // instant. T_FLAG = 0x100, plus le bit 1 toujours à un.
+        Cas("piege apres ADD : T_FLAG arme", [0x01, 0xC3], ref echecs, 0x0102);
+
         Console.WriteLine();
         if (echecs == 0)
         {
@@ -127,7 +142,7 @@ public static class Core286Check
 
     /// <summary>Un cas DIRIGÉ, comparé à l'oracle sur les 58 champs. Les deux côtés
     /// reçoivent le même code au même endroit et le même état de registres.</summary>
-    private static void Cas(string nom, byte[] code, ref int echecs)
+    private static void Cas(string nom, byte[] code, ref int echecs, ushort flags = 0)
     {
         var regs = new ushort[(int)iXtal26.Diag.R.COUNT];
         for (var i = 0; i < regs.Length; i++)
@@ -138,6 +153,7 @@ public static class Core286Check
         regs[(int)iXtal26.Diag.R.SP] = 0x0100;
         regs[(int)iXtal26.Diag.R.AX] = 0x1234;
         regs[(int)iXtal26.Diag.R.BX] = 0x0010;
+        regs[(int)iXtal26.Diag.R.FLAGS] = flags;
 
         Oracle.h_set_core(Oracle.Core286);
         Oracle.h_reset();

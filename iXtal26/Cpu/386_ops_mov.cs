@@ -3,20 +3,23 @@
 //
 // ORACLE: pcem-dev/includes/private/cpu/x86_ops_mov.h  (lignes 3-99)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — A2.2c, première tranche : les SEIZE `MOV reg, imm`.
+// STATUS: complete pour ops_286 — les VINGT-SIX handlers du groupe.
 //
-// POURQUOI CETTE TRANCHE D'ABORD.
+// LE GROUPE COMPTE 26 HANDLERS, PAS 28. Relevé sur la table de la .so par gdb et
+// non sur le texte de 386_ops.h : 8C et 8E (MOV r/m,seg et MOV seg,r/m) portent
+// bien un nom en opMOV*, mais ils vivent dans x86_ops_mov_seg.h, un autre groupe,
+// et passent par loadseg. A2.2c annonçait 28 ici ; c'était une confusion entre les
+// deux en-têtes, corrigée à A2.2d.
 //
-// Le groupe `mov` compte 28 handlers parmi les 256 entrées atteignables de
-// ops_286 (relevé sur la table de la .so par gdb, pas sur le texte). Seize d'entre
-// eux — B0 à BF — n'ont NI modrm NI adresse effective : ils lisent leur immédiat
-// dans fetchdat, écrivent un registre, et c'est tout.
+// DEUX TRANCHES, ET POURQUOI DANS CET ORDRE.
 //
-// Ils ne dépendent donc que de ce qui existe déjà : getbytef/getwordf (A2.2a) et
-// CLOCK_CYCLES/PREFETCH_RUN (A2.2b). Les douze autres réclament fetch_ea_16,
-// eal_r/eal_w et la famille geteab — machinerie neuve, qui mérite son propre
-// passage plutôt que d'être couplée à la première mise en service du fuzzeur sur
-// le cœur 286.
+// A2.2c — les seize B0 à BF, `MOV reg, imm`. Ni modrm ni adresse effective : ils
+// lisent leur immédiat dans fetchdat et écrivent un registre. Ne dépendant que de
+// ce qui existait déjà, ils ont porté SEULS la première mise en service du fuzzeur
+// sur le cœur 286.
+//
+// A2.2d — les dix autres, qui réclamaient fetch_ea_16, eal_r/eal_w, la famille
+// geteab et les gardes. Machinerie neuve, donc passage séparé.
 //
 // LE MODÈLE DE TEMPS EST DANS LA BOUCLE, PAS DANS LE HANDLER. CLOCK_CYCLES facture
 // timing_rr (2 sur un 286) ; PREFETCH_RUN facture le rechargement de la file

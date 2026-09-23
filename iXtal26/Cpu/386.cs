@@ -74,6 +74,7 @@ internal static partial class _386
     static _386()
     {
         PoserGroupeMov();
+        PoserGroupeArith();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
@@ -317,25 +318,13 @@ internal static partial class _386
         }
     }
 
-    /// <summary>pcem: x86_flags.h:420 — la GARDE est transcrite, la reconstruction
-    /// ne l'est pas.
-    ///
-    /// `flags_rebuild` ne fait rien tant que `flags_op == FLAGS_UNKNOWN`, et c'est
-    /// le cas tant qu'aucun handler ne pose l'opération : la table est vide. Le
-    /// corps, lui, dépend des six tables de x86_flags.h (CF_SET, PF_SET, AF_SET,
-    /// ZF_SET, NF_SET, VF_SET), environ 400 lignes qui arrivent avec le groupe
-    /// `arith` — le premier à alimenter ces champs.
-    ///
-    /// Échouer ici est le comportement voulu : un handler qui poserait flags_op
-    /// sans que la reconstruction existe rendrait des drapeaux faux en SILENCE.</summary>
-    internal static void flags_rebuild()
-    {
-        if (cpu_state.flags_op != FLAGS_UNKNOWN)
-                pc.fatal("flags_rebuild : les tables de x86_flags.h ne sont pas transcrites\n");
-    }
+    // pcem: x86_flags.h:420 — la matérialisation des drapeaux paresseux, transcrite
+    // en A3a dans Cpu/x86_flags.cs. Jusque-là, ce point n'était qu'une garde qui
+    // échouait : sans corps, un handler posant flags_op aurait rendu des drapeaux
+    // faux EN SILENCE.
+    internal static void flags_rebuild() => x86_flags.flags_rebuild();
 
-    // pcem: x86_flags.h:6 — première valeur de l'énumération, donc 0.
-    internal const int FLAGS_UNKNOWN = 0;
+    internal const int FLAGS_UNKNOWN = x86_flags.FLAGS_UNKNOWN;
 
     /// <summary>pcem: x86seg.c:76-112 — LA PRISE EN CHARGE DE L'ABANDON, branche
     /// MODE RÉEL seulement.
