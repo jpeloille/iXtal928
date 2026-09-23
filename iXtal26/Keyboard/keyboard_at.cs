@@ -118,7 +118,8 @@ internal static partial class keyboard_at
     // pcem: keyboard_at.c:65
     // CS0542 : la globale `keyboard_at` ne peut pas porter le nom de la classe
     // conteneur. Suffixe `_`, comme keyboard_xt_, pic_ et pit_.
-    internal static readonly keyboard_at_t keyboard_at_ = new();
+    // PAS `readonly` : keyboard_at_init la REMPLACE, voir plus bas.
+    internal static keyboard_at_t keyboard_at_ = new();
 
     /*Translation table taken from https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#ss10.3*/
     // pcem: keyboard_at.c:67-80 — le jeu 2 vers le jeu 1. Le clavier d'un AT parle le
@@ -814,10 +815,27 @@ internal static partial class keyboard_at
     // pcem: keyboard_at.c:827-841
     internal static void keyboard_at_init()
     {
-        // omitted: memset(&keyboard_at, 0, sizeof(keyboard_at)) (:829) — l'instance est
-        //   allouee par le CLR, donc deja a zero. Marque parce qu'un second appel
-        //   d'init NE remettrait PAS l'etat a zero ici, la ou le C le ferait : rien ne
-        //   rappelle keyboard_at_init dans ce depot, et h_boot ne le fait qu'une fois.
+        // pcem: keyboard_at.c:829 — memset(&keyboard_at, 0, sizeof(keyboard_at)).
+        //
+        // UNE INSTANCE NEUVE, ET NON « le CLR l'a deja mise a zero ». C'est ce que
+        // j'avais ecrit, en m'appuyant sur « rien ne rappelle keyboard_at_init ici » —
+        // un compte d'APPELANTS, donc exactement l'erreur que ce jalon a faite cinq
+        // fois deja. Le C remet a zero A CHAQUE init ; un champ statique ne l'est qu'au
+        // PREMIER. Or l'oracle passe par ici a chaque h_boot, BootDiff en a cinq sites
+        // d'appel — la phase 2 reamorce pour rejouer — et le reset materiel du menu en
+        // sera un autre des que B3 cablera l'AT.
+        //
+        // CE QUE keyboard_at_reset NE RESTAURE PAS, et qui divergerait donc au SECOND
+        // amorcage seulement : want60, command, key_command, mem[1..31], out, translate,
+        // next_is_release, reset_delay, wantirq12. Un rouge de phase 2 sans rouge de
+        // phase 1, le plus penible a diagnostiquer.
+        //
+        // SUR : resetpchard() appelle timer_reset() AVANT device_init() des deux cotes
+        // (pc.cs et harness.c), donc les trois anciens pc_timer_t ont quitte la liste
+        // quand timer_add y met les neufs. Et le memset du C NE TOUCHE PAS key_queue,
+        // key_ctrl_queue ni mouse_queue : ce sont des statiques HORS de la struct. On
+        // ne les remet donc pas a zero non plus.
+        keyboard_at_ = new();
         io_sethandler(0x0060, 0x0005, keyboard_at_read, null, null, keyboard_at_write, null, null, null);
         keyboard_at_reset();
         keyboard_send = keyboard_at_adddata_keyboard;
