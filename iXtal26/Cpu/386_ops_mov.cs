@@ -368,12 +368,52 @@ internal static partial class _386
         return cpu_state.abrt;
     }
 
+    // pcem: x86_ops_mov.h — opLEA_w_a16.
+    //
+    // IL NE LIT RIEN. C'est la seule instruction à adresse effective de toute la
+    // table qui calcule eaaddr puis s'arrête : ni geteaw, ni SEG_CHECK, ni
+    // segment. D'où l'ILLEGAL_ON(mod == 3) — sans opérande mémoire il n'y a
+    // pas d'adresse à calculer.
+    private static int opLEA_w_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        cpu_state.regs[cpu_reg].w = (uint16_t)cpu_state.eaaddr;
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h — opXLAT_a16.
+    //
+    // `(BX + AL) & 0xFFFF` : la table ne peut pas déborder du segment, le
+    // masquage est dans l'instruction. Et le segment est cpu_state.ea_seg —
+    // donc surchargeable par un préfixe, contrairement aux opérations de chaîne
+    // dont la destination est figée sur ES.
+    private static int opXLAT_a16(uint32_t fetchdat)
+    {
+        uint32_t addr = (uint32_t)((BX + AL) & 0xFFFF);
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AL = temp;
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
     /// <summary>Pose les seize dans la table. Les emplacements sont ceux de la .so,
     /// relevés par gdb sur `ops_286[]` plutôt que lus dans le texte de 386_ops.h —
     /// deux tentatives de lecture du texte ont rendu 1008 entrées sur 1024 et donc
     /// des indices décalés de quatre. La table binaire ne ment pas.</summary>
     private static void PoserGroupeMov()
     {
+        ops_286[0x8D] = opLEA_w_a16;
+        ops_286[0xD7] = opXLAT_a16;
+
         // B0-B7 : MOV r8, imm8
         ops_286[0xB0] = opMOV_AL_imm;
         ops_286[0xB1] = opMOV_CL_imm;

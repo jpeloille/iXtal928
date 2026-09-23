@@ -18,6 +18,24 @@ internal static partial class cpu
     // pcem: cpu_tables.c:33 — cpus_8088[0], « 8088/4.77 ».
     internal const int CPU_SPEED_8088 = 4772728;
 
+    // pcem: cpu.h:6 et cpu.h:52 — le FABRICANT, et il n'est pas decoratif :
+    // opAAD et opAAM s'en servent pour decider si la base d'un AAD/AAM non
+    // standard est respectee (Intel) ou forcee a 10 (les autres). Nul par
+    // defaut, donc MANU_INTEL, et c'est ce que cpu_set() poserait pour un 286.
+    internal const int MANU_INTEL = 0;
+    internal static int cpu_manufacturer;
+
+    // pcem: cpu.h:111 — lu par les branches DIV et IDIV des groupes F6 et F7,
+    // qui posent les drapeaux AUTREMENT sur un Cyrix. Nul sur un 286 ; la
+    // branche `!cpu_iscyrix` est donc toujours prise, et la porter garde la
+    // structure de PCem lisible.
+    internal static int cpu_iscyrix;
+
+    // pcem: cpu.h — lu par les handlers REP pour choisir leur budget de cycles
+    // par appel : `(is386 && cpu_use_dynarec) ? 1000 : 100`. Nul ici, et is386
+    // l'est aussi sur un 286, donc le budget est toujours 100.
+    internal static int cpu_use_dynarec;
+
     internal static int cpu_busspeed = CPU_SPEED_8088;
 
     // pcem: cpu.c:2067-2071 — cpu_turbo ? cpu_turbo_speed : cpu_nonturbo_speed.

@@ -404,9 +404,73 @@ internal static partial class _386_common
         return fastreadl(x86.cs + (cpu_state.pc - 4));
     }
 
+    /// <summary>pcem: 386_common.c:80-114 — x86_int_sw.
+    ///
+    /// CE N'EST PAS x86_int, ET LA DIFFÉRENCE TIENT EN UNE LIGNE ABSENTE :
+    /// x86_int fait `cpu_state.pc = cpu_state.oldpc` avant d'empiler, x86_int_sw
+    /// ne le fait pas. Une FAUTE doit pointer sur l'instruction qui l'a causée,
+    /// pour qu'un gestionnaire puisse la rejouer ; une interruption LOGICIELLE
+    /// doit pointer APRÈS, pour que l'IRET reprenne à la suite. C'est toute la
+    /// distinction, et elle est invisible si on ne la cherche pas.
+    ///
+    /// L'autre écart est le coût : `timing_int` puis `timing_int_rm`, soit 0 + 23
+    /// sur un 286, là où x86_int facture 70 en dur.</summary>
+    internal static void x86_int_sw(int num)
+    {
+        uint32_t addr;
+        _386.flags_rebuild();
+        cycles -= cpu.timing_int;
+        if ((msw & 1) != 0)
+        {
+                x86seg_c.pmodeint(num, 1);
+        }
+        else
+        {
+                addr = (uint32_t)(num << 2) + idt.@base;
+
+                if ((uint32_t)((num << 2) + 3) > idt.limit)
+                {
+                        x86_int(13);
+                }
+                else
+                {
+                        if (stack32 != 0)
+                        {
+                                writememw(ss, ESP - 2, cpu_state.flags);
+                                writememw(ss, ESP - 4, CS);
+                                writememw(ss, ESP - 6, (uint16_t)cpu_state.pc);
+                                ESP -= 6;
+                        }
+                        else
+                        {
+                                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), cpu_state.flags);
+                                writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                SP -= 6;
+                        }
+
+                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                        cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                        cpu_state.pc = readmemw(0, addr);
+                        x86seg_c.loadcs(readmemw(0, addr + 2));
+                        cycles -= cpu.timing_int_rm;
+                }
+        }
+        trap = 0;
+        _386.CPU_BLOCK_END();
+    }
+
+    // omitted: x86_int_sw_rm (386_common.c:117-153) — la forme « mode réel
+    //   virtuel » d'une INT logicielle, appelée par le seul opINT quand cr4
+    //   porte VME. Ni cr4 ni VM_FLAG ne sont posés sur un 286.
+
     // -----------------------------------------------------------------------
-    // pcem: 386_common.c:117-155 — x86_int, et x86illegal qui n'est que son
-    // habillage pour l'opcode invalide.
+    // pcem: 386_common.c:39-78 — x86_int, et :155-164 — x86illegal, qui n'est
+    // que son habillage pour l'opcode invalide.
+    //
+    // La citation disait « :117-155 » jusqu'a A11 : c'est la plage de
+    // x86_int_sw_rm, pas celle de x86_int. Corrigee en ajoutant x86_int_sw,
+    // qui occupe :80-114 et qu'il ne faut PAS confondre avec celle-ci.
     //
     // Atteignable dès A2.2d : ILLEGAL_ON mord sur C6/C7 dès que le champ `reg` du
     // ModRM est non nul, ce que des octets aléatoires produisent sept fois sur huit.

@@ -26,20 +26,22 @@ public static class Core286Check
     {
         var echecs = 0;
 
-        // Le 286 démarre à F000:FFF0 (AT = 1, resetx86 808x.c:680-683), soit
-        // l'adresse physique 0xFFFF0. On y pose un opcode ENCORE NON TRANSCRIT.
+        // LA PORTE DE A2.2b A ETE RETIREE, ET C'EST SA REUSSITE.
         //
-        // 0xEA y figurait jusqu'a A5 — c'est l'opcode du vecteur de reset, et le
-        // choisir avait du sens tant que la table etait vide. A5 l'a transcrit, et
-        // ce controle est passe au ROUGE : la porte de A2.2b a tenu jusqu'au bout,
-        // puis a dit qu'elle n'avait plus lieu d'etre sous cette forme.
+        // Elle posait un opcode NON TRANSCRIT au vecteur de reset et exigeait que
+        // le coeur echoue en le NOMMANT. Elle a tenu de A2.2b a A11, et a rougi
+        // trois fois — a chaque fois parce qu'un groupe venait de transcrire
+        // l'opcode qu'elle surveillait : 0xEA a A5, 0x90 a A9, 0xF4 a A11.
         //
-        // CETTE PORTE EST DESTINEE A DISPARAITRE. Quand les 256 emplacements
-        // seront poses, plus aucun opcode ne tombera dans opNonTranscrit et il n'y
-        // aura plus rien a verifier ici. D'ici la, tenir cette liste a jour fait
-        // partie du travail de chaque groupe : un Check sur un opcode qu'on vient
-        // de transcrire rougit, ce qui est exactement ce qu'on veut qu'il fasse.
-        Check("0xF4 (HLT)", 0xF4, ref echecs);
+        // Les 256 emplacements sont poses. Plus aucun opcode ne tombe dans
+        // opNonTranscrit, donc il n'y a plus rien a verifier ici. Le handler
+        // d'echec, lui, RESTE en place : il garde la table contre une regression
+        // qui viderait une entree.
+        //
+        // Ce qu'elle a prouve avant de partir : la boucle tourne, le fetch lit
+        // rmdat, l'aiguillage atteint `(opcode | op32) & 0x3ff`, et un trou
+        // s'entend au lieu de rendre zero cycle en silence.
+
 
         // UN PAS EST-IL BIEN UNE INSTRUCTION ?
         //
@@ -553,37 +555,6 @@ public static class Core286Check
         return 1;
     }
 
-    private static void Check(string nom, byte opcode, ref int echecs)
-    {
-        _386.Reset286();
-        iXtal26.Memory.mem.ram[0xFFFF0] = opcode;
-
-        // rammask doit valoir 0x00FFFFFF : 24 lignes d'adresse, pas 32.
-        if (iXtal26.Memory.mem.rammask != 0x00FFFFFF)
-        {
-            Console.WriteLine($"  [ECHEC] rammask = {iXtal26.Memory.mem.rammask:X8}, attendu 00FFFFFF");
-            echecs++;
-        }
-
-        try
-        {
-            _386.Step286();
-            Console.WriteLine($"  [ECHEC] {nom} : aucun échec levé — la table rend du vide en silence");
-            echecs++;
-        }
-        catch (Exception e)
-        {
-            var m = e.Message;
-            var attendu = $"opcode {opcode:X2} non transcrit";
-            if (m.Contains(attendu, StringComparison.Ordinal))
-                Console.WriteLine($"  [ok] {nom} : « {m.Trim()} »");
-            else
-            {
-                Console.WriteLine($"  [ECHEC] {nom} : attendait « {attendu} », a eu « {m.Trim()} »");
-                echecs++;
-            }
-        }
-    }
 
     /// <summary>Un cas DIRIGÉ d'UNE instruction, comparé à l'oracle sur les 60
     /// champs. Les deux côtés reçoivent le même code au même endroit et le même

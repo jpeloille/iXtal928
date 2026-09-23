@@ -166,6 +166,45 @@ void h_cpu_config_8088(void) {
 void h_cpu_config_286(void) {
         x86_setopcodes(ops_286, ops_286_0f, dynarec_ops_286, dynarec_ops_286_0f);
 
+        /* LES DEUX TABLES DE REPETITION, cpu.c:232-233.
+         *
+         * Meme defaut que les tables FPU juste en dessous, et trouve le meme jour :
+         * x86_opcodes_REPE est une globale de cpu.c, donc NULL, et opREPE fait
+         * `if (x86_opcodes_REPE[...])`. Verifie dans la .so par gdb avant
+         * correction : `print x86_opcodes_REPE` rendait 0x0, alors que
+         * `info symbol ops_REPE[0xA4]` nommait bien opREP_MOVSB_a16. Le premier
+         * REP MOVSB aurait fait sauter l'oracle. */
+        x86_opcodes_REPE = ops_REPE;
+        x86_opcodes_REPNE = ops_REPNE;
+
+        /* LES HUIT TABLES D'ECHAPPEMENT FPU, cpu.c:293-309, branche `else` —
+         * celle que prend un processeur SANS coprocesseur, et un 286 nu en est un.
+         *
+         * Elles etaient ABSENTES jusqu'a A11, et ce n'etait pas sans consequence :
+         * les globales de cpu.c valent NULL au depart, et opESCAPE_d8_a16 fait
+         * `return x86_opcodes_d8_a16[(fetchdat >> 3) & 0x1f](fetchdat)`. Le premier
+         * opcode D8-DF aurait deref'erence un pointeur nul et fait sauter l'oracle.
+         *
+         * Meme classe de defaut que les vingt timing_* a zero trouves a A2.0 : lier
+         * cpu.c fournit les SYMBOLES, c'est cpu_set() qui pose les VALEURS, et
+         * cpu_set() ne tourne jamais ici. */
+        x86_opcodes_d8_a16 = ops_nofpu_a16;
+        x86_opcodes_d8_a32 = ops_nofpu_a32;
+        x86_opcodes_d9_a16 = ops_nofpu_a16;
+        x86_opcodes_d9_a32 = ops_nofpu_a32;
+        x86_opcodes_da_a16 = ops_nofpu_a16;
+        x86_opcodes_da_a32 = ops_nofpu_a32;
+        x86_opcodes_db_a16 = ops_nofpu_a16;
+        x86_opcodes_db_a32 = ops_nofpu_a32;
+        x86_opcodes_dc_a16 = ops_nofpu_a16;
+        x86_opcodes_dc_a32 = ops_nofpu_a32;
+        x86_opcodes_dd_a16 = ops_nofpu_a16;
+        x86_opcodes_dd_a32 = ops_nofpu_a32;
+        x86_opcodes_de_a16 = ops_nofpu_a16;
+        x86_opcodes_de_a32 = ops_nofpu_a32;
+        x86_opcodes_df_a16 = ops_nofpu_a16;
+        x86_opcodes_df_a32 = ops_nofpu_a32;
+
         cpu_busspeed = 6000000;
         isa_cycles = 1;
 

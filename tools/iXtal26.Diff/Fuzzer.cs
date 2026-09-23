@@ -118,12 +118,59 @@ public static class Fuzzer
             // qui laisse un MOV SP,... suivre un chargement de SS sans qu'une
             // interruption ne survienne sur une pile a moitié chargée). L'octet
             // suivant est donc exécuté, pas ignoré.
+            // DEUX FAMILLES FONT EXECUTER L'OCTET D'APRES L'ADRESSE EFFECTIVE,
+            // et il faut donc le tirer dans le jeu teste comme on le fait pour
+            // les prefixes — mais a un OFFSET qui depend du ModRM.
+            //
+            //   - MOV SS, r/m quand le champ `reg` vaut 2 : l'ombre
+            //     d'interruption, meme mecanisme que POP SS (A4).
+            //   - LES HUIT ESCAPE D8-DF. op_nofpu_a16 (x87_ops.h:278-286) ne
+            //     porte AUCUN CLOCK_CYCLES : sans coprocesseur, une instruction
+            //     de calcul flottant decode son adresse effective et rend la
+            //     main a COUT NUL. C'est la classe trouvee a A9 — un cycdiff qui
+            //     reste a zero fait repartir la boucle interne d'exec386, et le
+            //     « pas » avale l'instruction suivante.
+            //     Mesure : opcode 0xDF, octets DF 45 B5 0F D2 — le 0F au rang 3
+            //     est l'octet d'apres, et il aiguille vers la table a deux
+            //     octets, vide.
+            //
+            // Le remplissage RAM a 0x90 ne protege qu'AU-DELA du tampon ; a
+            // l'interieur les octets sont aleatoires.
+            if ((op == 0x8E && ((code[1] >> 3) & 7) == 2) || (op >= 0xD8 && op <= 0xDF))
+            {
+                // LE TIRAGE DOIT EXCLURE LES INSTRUCTIONS A COUT NUL ELLES-MEMES,
+                // sinon la fuite se rallonge d'un cran : `DB 0D DB E7 0F` — deux
+                // ESCAPE d'affilee, et le 0F au TROISIEME rang. Mesure a
+                // l'iteration 9610. On borne donc la chaine a un seul cran.
+                var suite = op;
+                for (var guard = 0; guard < 16 &&
+                                    (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67
+                                     || CoutNul(suite)); guard++)
+                    suite = opcodes[rng.Next() % (uint)opcodes.Length];
+                if (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67 || CoutNul(suite))
+                    suite = 0xB8;
+                code[1 + TailleModRM16(code[1])] = suite;
+            }
+
             if (EnchaineSurLaSuivante(op))
             {
+                // 0x66 ET 0x67 SONT EXCLUS EN PLUS DES ENCHAINEURS, et la raison
+                // n'est pas la commodité. ops_286[0x66] vaut ILLEGAL — un 66 nu
+                // est un opcode invalide sur un 286. Mais ops_REPE et ops_REPNE
+                // sont PARTAGEES entre generations dans PCem, et y mettent
+                // op_66_REPE / op_67_REPE. Un `F2 66 AD` pose donc op32 = 0x100
+                // et atteint ops_REPNE[0x1AD] = opREP_LODSL_a16, la forme 32
+                // BITS. Mesure :
+                //   opcode 0xF2, octets F2 66 AD — cycles : oracle 112, C# 22
+                // Ces formes `_l` et `_a32` ne sont pas transcrites : elles sont
+                // hors du jalon 286 et arriveront avec le 386. Le chemin qui y
+                // mene n'existe sur AUCUN 286 reel, ou 66 et 67 sont invalides ;
+                // c'est un artefact du partage de table, pas un comportement.
                 var inner = op;
-                for (var guard = 0; guard < 16 && EnchaineSurLaSuivante(inner); guard++)
+                for (var guard = 0; guard < 16 &&
+                                    (EnchaineSurLaSuivante(inner) || inner is 0x66 or 0x67); guard++)
                     inner = opcodes[rng.Next() % (uint)opcodes.Length];
-                if (EnchaineSurLaSuivante(inner))
+                if (EnchaineSurLaSuivante(inner) || inner is 0x66 or 0x67)
                     inner = 0xB8;                    // MOV AX,imm16 : repli sûr
                 code[1] = inner;
             }
@@ -184,7 +231,27 @@ public static class Fuzzer
             mem.wlog_reset();
 
             var cycC = Oracle.h_step();
-            var cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
+            int cycS;
+            try
+            {
+                cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
+            }
+            catch (Exception e)
+            {
+                // UN ARRET FATAL DU CŒUR EST UN RESULTAT, pas un accident de
+                // l'outil : il doit nommer l'iteration et les octets comme le
+                // ferait une divergence. Sans ce bloc le fuzzeur mourait sur un
+                // `opcode 0F xx non transcrit` sans dire par quel chemin il y
+                // etait arrive — et le chemin est justement ce qu'on cherche.
+                Console.WriteLine($"\nARRET FATAL iteration {it}");
+                Console.WriteLine($"  opcode 0x{op:X2}, octets {string.Join(" ", code.Select(x => x.ToString("X2")))}");
+                Console.WriteLine($"  CS:IP {regs[(int)R.CS]:X4}:{regs[(int)R.IP]:X4}  " +
+                                  $"AX {regs[(int)R.AX]:X4} BX {regs[(int)R.BX]:X4} " +
+                                  $"CX {regs[(int)R.CX]:X4} DX {regs[(int)R.DX]:X4}");
+                Console.WriteLine($"  {e.Message.Trim()}");
+                Console.WriteLine($"\n  Rejouer : --mode single --seed {seed} --iter {it + 1}");
+                return 1;
+            }
 
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
@@ -213,6 +280,17 @@ public static class Fuzzer
         return 0;
     }
 
+    /// <summary>L'instruction consomme-t-elle ZERO cycle ?
+    ///
+    /// Une instruction a cout nul laisse cycdiff a zero, donc la boucle interne
+    /// d'exec386 REPART et le « pas » avale la suivante (A9). Deux familles :
+    ///   - les huit ESCAPE D8-DF sans coprocesseur, dont op_nofpu_a16 ne porte
+    ///     aucun CLOCK_CYCLES ;
+    ///   - les decalages de compte nul, deja evites en garantissant un compte
+    ///     non nul plus haut.
+    /// Seule la premiere a besoin d'etre exclue ici.</summary>
+    private static bool CoutNul(byte op) => op >= 0xD8 && op <= 0xDF;
+
     /// <summary>Nombre d'octets qu'occupent le ModRM et son déplacement, en
     /// adressage 16 bits. Sert à trouver où commence l'immédiat.
     /// pcem: la table de 386_dynarec.c:85-130, réduite à sa longueur.</summary>
@@ -227,9 +305,22 @@ public static class Fuzzer
     }
 
     /// <summary>L'octet SUIVANT sera-t-il exécuté comme une instruction ?
-    /// Vrai des quatre préfixes de segment, qui sautent à opcodestart, et de
-    /// POP SS, qui va chercher et aiguille l'opcode suivant lui-même.</summary>
-    private static bool EnchaineSurLaSuivante(byte op) => IsSegPrefix(op) || op == 0x17;
+    ///
+    /// Vrai des quatre préfixes de segment, qui sautent à opcodestart ; de
+    /// POP SS, qui va chercher et aiguille l'opcode suivant lui-même (A4) ; et
+    /// depuis A11 de LOCK (F0, F1) et des deux préfixes de répétition (F2, F3),
+    /// qui font exactement la même chose.
+    ///
+    /// LES OUBLIER NE DONNE PAS UN FAUX VERT MAIS UN PLANTAGE : l'octet suivant
+    /// est du hasard, et une fois sur seize c'est 0x0F, qui aiguille vers la
+    /// table à DEUX octets — vide, et bruyante par conception. Mesuré :
+    ///   `iXtal26 FATAL: opcode 0F 8B non transcrit` au bout de quelques
+    ///   dizaines de milliers d'itérations, sur un F2 suivi d'un 0F.
+    ///
+    /// La boucle de garde qui suit redessine `inner` tant qu'il enchaîne à son
+    /// tour, donc il n'y a jamais de chaîne à deux niveaux à couvrir.</summary>
+    private static bool EnchaineSurLaSuivante(byte op) =>
+        IsSegPrefix(op) || op == 0x17 || op is 0xF0 or 0xF1 or 0xF2 or 0xF3;
 
     /// <summary>L'opcode porte-t-il un octet ModRM ?
     ///

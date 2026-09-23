@@ -128,6 +128,10 @@ internal static partial class x86seg_c
         => pc.fatal($"pmoderetf (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");
 
+    internal static void pmodeint(int num, int soft)
+        => pc.fatal($"pmodeint (num {num:X2}) : x86seg.c n'est transcrit qu'en " +
+                    "mode reel (bloc C du plan)\n");
+
     internal static void pmodeiret(int is32)
         => pc.fatal($"pmodeiret (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");

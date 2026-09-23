@@ -27,6 +27,20 @@ internal static partial class _386
     {
         x86_setopcodes(ops_286, ops_286_0f);
 
+        // cpu.c:293-309, branche `else` — celle d'un processeur SANS
+        // coprocesseur. Reset286 pose hasfpu = 0, donc les huit tables
+        // d'echappement pointent toutes vers ops_nofpu_a16. Pendant exact de ce
+        // que h_cpu_config_286 fait cote oracle ; les deux doivent rester
+        // symetriques, faute de quoi un D8-DF divergerait.
+        x86_opcodes_d8_a16 = ops_nofpu_a16;
+        x86_opcodes_d9_a16 = ops_nofpu_a16;
+        x86_opcodes_da_a16 = ops_nofpu_a16;
+        x86_opcodes_db_a16 = ops_nofpu_a16;
+        x86_opcodes_dc_a16 = ops_nofpu_a16;
+        x86_opcodes_dd_a16 = ops_nofpu_a16;
+        x86_opcodes_de_a16 = ops_nofpu_a16;
+        x86_opcodes_df_a16 = ops_nofpu_a16;
+
         cpu.cpu_busspeed = 6000000;
         cpu.isa_cycles = 1;
 

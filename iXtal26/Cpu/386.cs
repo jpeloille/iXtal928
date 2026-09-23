@@ -85,11 +85,44 @@ internal static partial class _386
         PoserGroupeDecalages();
         PoserNop();
         PoserGroupeChaines();
+        PoserGroupePrefixes();
+        PoserGroupeES();
+        PoserGroupeBCD();
+        PoserGroupeInterruptions();
+        PoserGroupeMovSeg();
+        PoserGroupeMul();
+        PoserGroupeMisc();
+        PoserGroupeFPU();
+        PoserGroupeRep();
+        PoserGroupeModeProtege();
+
+        // LES QUATRE QUADRANTS SONT IDENTIQUES, et il faut les recopier.
+        //
+        // L'index d'aiguillage est `(opcode | cpu_state.op32) & 0x3ff`, et op32
+        // vaut use32 — nul sur un 286, d'ou l'idee recue que seuls les 256
+        // premiers comptent. FAUX : les prefixes 66 et 67 POSENT op32 eux-memes,
+        // sans consulter use32. Ils sont ILLEGAL dans ops_286, mais les tables
+        // ops_REPE et ops_REPNE, elles, sont PARTAGEES entre generations et y
+        // mettent op_66_REPE / op_67_REPE. Un `REPNE 67 xx` pose donc op32 =
+        // 0x200 sur un 286, et l'index sort du quadrant zero.
+        //
+        // Verifie dans la .so par gdb : ops_286[0x67], [0x167], [0x267] et
+        // [0x367] nomment tous ILLEGAL ; ops_286[0xA4], [0x1A4] et [0x2A4] tous
+        // opMOVSB_a16. Sans cette recopie, le C# tombait sur opNonTranscrit la
+        // ou l'oracle executait le handler — mesure a A11 :
+        //   opcode 0xF2, octets F2 67 — cycles : oracle 4, C# 90
+        for (var q = 1; q < 4; q++)
+                for (var i = 0; i < 256; i++)
+                        ops_286[(q << 8) | i] = ops_286[i];
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
     /// l'opcode. Un handler manquant doit s'entendre — pas rendre zéro cycle et
     /// laisser la divergence se manifester trois mille instructions plus loin.
+    ///
+    /// LA TABLE À UN OCTET EST PLEINE DEPUIS A11 — 256 sur 256 — donc cette
+    /// entrée n'y figure plus. Elle reste la garnissure de ops_286_0f, la table
+    /// à DEUX octets, dont les six handlers d'un 286 relèvent du bloc C du plan.
     ///
     /// L'opcode est relu depuis la mémoire plutôt que mémorisé dans un champ : la
     /// boucle a déjà avancé le pc, mais oldpc désigne toujours le début de
@@ -97,8 +130,20 @@ internal static partial class _386
     private static int opNonTranscrit(uint32_t fetchdat)
     {
         var op = fastreadb(cs + cpu_state.oldpc);
-        pc.fatal($"opcode {op:X2} non transcrit (A2.2b : la table du 286 est vide) " +
-                 $"a {CS:X4}:{cpu_state.oldpc:X4}\n");
+        // UN ÉCHAPPEMENT 0F NOMMAIT « 0F » ET NON LE SECOND OCTET, parce que
+        // oldpc pointe sur le premier. Le message mentait sur ce qui manque ;
+        // il donne maintenant les deux, et dit laquelle des deux tables est
+        // en cause.
+        if (op == 0x0F)
+        {
+                var op2 = fastreadb(cs + cpu_state.oldpc + 1);
+                pc.fatal($"opcode 0F {op2:X2} non transcrit (la table a DEUX octets " +
+                         $"du 286 est vide : six handlers, bloc C du plan) " +
+                         $"a {CS:X4}:{cpu_state.oldpc:X4}\n");
+                return 0;
+        }
+        pc.fatal($"opcode {op:X2} non transcrit (la table a un octet devrait etre " +
+                 $"pleine depuis A11) a {CS:X4}:{cpu_state.oldpc:X4}\n");
         return 0;
     }
 
