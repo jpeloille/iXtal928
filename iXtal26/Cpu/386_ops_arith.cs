@@ -1,15 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/includes/private/cpu/x86_ops_arith.h  (OP_ARITH et ses sept
-//         invocations, lignes 3-318)
+// ORACLE: pcem-dev/includes/private/cpu/x86_ops_arith.h  (OP_ARITH, ses sept
+//         invocations et CMP, lignes 3-524)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — A3b : la matrice OP_ARITH et les SEPT familles qu'elle
-//         engendre (ADD, OR, ADC, SBB, AND, SUB, XOR), soit 42 handlers.
-//         Le reste du fichier C attend son passage : CMP — qui n'écrit pas son
-//         résultat et porte ses cycles en dur — puis TEST (84/85/A8/A9) et le
-//         groupe immédiat ARITH_MULTI (80/81/83). Le compte final du fichier
-//         n'est donc pas 42 mais 42 + 6 + 4 + 3.
+// STATUS: partial — A3c : la matrice OP_ARITH et les SEPT familles qu'elle
+//         engendre (ADD, OR, ADC, SBB, AND, SUB, XOR), soit 42 handlers, plus
+//         les SIX de CMP, qui ne sortent pas de la macro. Le reste du fichier C
+//         attend son passage : TEST (84/85/A8/A9) et le groupe immédiat
+//         ARITH_MULTI (80/81/83). Le compte du fichier est 42 + 6 + 4 + 3.
 //
 // LA SOURCE EST UNE MACRO, ET C'EST ELLE QU'ON TRANSCRIT.
 //
@@ -301,5 +300,146 @@ internal static partial class _386
                  (dst, src) => (uint16_t)(dst ^ src),
                  (dst, src) => setznp8((uint8_t)(dst ^ src)),
                  (dst, src) => setznp16((uint16_t)(dst ^ src)), false);
+
+        PoserCmp();
+    }
+
+    // CMP N'EST PAS UNE HUITIÈME INVOCATION DE LA MACRO, et PCem ne l'a pas écrit
+    // comme telle : x86_ops_arith.h:320-524 aligne quinze fonctions à la main. Le
+    // reproduire en réglant OP_ARITH aurait l'air plus court et serait FAUX sur
+    // trois points, chacun observable :
+    //
+    //   - CMP n'écrit pas son résultat : ni seteab/seteaw, ni le second test
+    //     d'abandon qui les suit dans la macro. L'opérande mémoire est intact,
+    //     et le journal d'écritures le voit.
+    //     (Le SEG_CHECK_READ des formes _rmw, lui, est une différence de TEXTE
+    //     et non de comportement : SEG_CHECK_WRITE teste la MÊME condition,
+    //     `base == 0xffffffff`, et seule la chaîne passée à x86gpf change —
+    //     elle va au pclog, pas à l'état. Ni l'un ni l'autre ne vérifie la
+    //     limite d'offset ; c'est CHECK_WRITE, un autre macro, qui le fait, et
+    //     ni CMP ni OP_ARITH ne l'appellent.)
+    //   - les cycles des formes _rmw sont EN DUR, et dépendent du modèle :
+    //     `is486 ? (mod==3 ? 1 : 2) : (mod==3 ? 2 : 5)`. Sur un 286 cela donne
+    //     2 ou 5 — quand timing_rr et timing_rm, que PREFETCH_RUN reçoit au même
+    //     endroit, valent 2 et 7. Les deux appels ne sont PAS d'accord, comme
+    //     dans la forme mot de _rmw (voir OP_ARITH ci-dessus).
+    //   - l'ordre des opérandes de setsub s'inverse entre _rmw et _rm : la
+    //     première compare (mémoire, registre), la seconde (registre, mémoire).
+    //
+    // Il n'y a pas non plus de gettempc : CMP ne lit aucune retenue entrante.
+
+    // pcem: x86_ops_arith.h:320-334 — opCMP_b_rmw_a16
+    private static int opCMP_b_rmw_a16(uint32_t fetchdat)
+    {
+        uint8_t dst;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(dst, getr8(cpu_reg));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:353-367 — opCMP_w_rmw_a16
+    private static int opCMP_w_rmw_a16(uint32_t fetchdat)
+    {
+        uint16_t dst;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(dst, cpu_state.regs[cpu_reg].w);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:419-431 — opCMP_b_rm_a16. Ici les cycles suivent
+    // timing_rr/timing_rm, comme PREFETCH_RUN : seules les formes _rmw portent
+    // les constantes en dur.
+    private static int opCMP_b_rm_a16(uint32_t fetchdat)
+    {
+        uint8_t src;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(getr8(cpu_reg), src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:446-458 — opCMP_w_rm_a16
+    private static int opCMP_w_rm_a16(uint32_t fetchdat)
+    {
+        uint16_t src;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(cpu_state.regs[cpu_reg].w, src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_rm, 2, (int)fetchdat,
+                     (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:500-507 — opCMP_AL_imm. `getbytef()` est une macro à
+    // deux instructions (386_common.h:267) : la valeur, puis cpu_state.pc++. Le
+    // C# la déplie, comme les formes AL_imm de OP_ARITH.
+    private static int opCMP_AL_imm(uint32_t fetchdat)
+    {
+        uint8_t src = (uint8_t)fetchdat; cpu_state.pc++;
+        setsub8(AL, src);
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:508-515 — opCMP_AX_imm
+    private static int opCMP_AX_imm(uint32_t fetchdat)
+    {
+        uint16_t src = (uint16_t)fetchdat; cpu_state.pc += 2;
+        setsub16(AX, src);
+        CLOCK_CYCLES(cpu.timing_rr);
+        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // omitted: les neuf autres formes de CMP — `_a32`, `_l_*` et `_EAX_imm` —
+    //   pour la raison qui écarte leurs homologues de OP_ARITH : inatteignables
+    //   tant que op32 est nul.
+
+    /// <summary>Emplacements relevés sur ops_286[] de la .so par gdb : 38 à 3D,
+    /// le dernier bloc de la bande ALU. L'ordre des six est celui des autres
+    /// familles — b_rmw, w_rmw, b_rm, w_rm, AL_imm, AX_imm.</summary>
+    private static void PoserCmp()
+    {
+        ops_286[0x38] = opCMP_b_rmw_a16;
+        ops_286[0x39] = opCMP_w_rmw_a16;
+        ops_286[0x3A] = opCMP_b_rm_a16;
+        ops_286[0x3B] = opCMP_w_rm_a16;
+        ops_286[0x3C] = opCMP_AL_imm;
+        ops_286[0x3D] = opCMP_AX_imm;
     }
 }

@@ -155,6 +155,33 @@ public static class Core286Check
         Suite("SBB8 chaine : la branche FLAGS_SBC8 de CF_SET",
               [0x1C, 0xFF, 0x1C, 0x00], 2, ref echecs);
 
+        // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
+        //
+        //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
+        //     porte CHECK_WRITE(seg, ea, ea+1), qui teste la LIMITE d'offset.
+        //     39 06 FF FF, CMP [FFFF], AX, est le meme ModRM au meme offset et
+        //     doit aller au bout : CMP ne porte que SEG_CHECK_READ, qui teste
+        //     `base == 0xffffffff` et rien d'autre.
+        //
+        //     Ce que le cas verifie donc n'est pas un abandon mais son ABSENCE,
+        //     plus la lecture mot a cheval sur 0xFFFF et le journal d'ecritures
+        //     VIDE — CMP ne reecrit pas son operande. Lire `pc 0004` et non
+        //     `pc 9090` est le resultat attendu.
+        //
+        //     (SEG_CHECK_READ et SEG_CHECK_WRITE testent la meme condition ;
+        //     seule la chaine passee a x86gpf differe, et elle va au pclog. En
+        //     mode reel les deux sont indiscernables — c'est l'absence de
+        //     CHECK_WRITE qui separe CMP de opMOV_w_r_a16, pas le choix entre
+        //     les deux SEG_CHECK_*.)
+        Cas("pas d'abandon : CMP [FFFF], AX par ModRM direct",
+            [0x39, 0x06, 0xFF, 0xFF], ref echecs);
+
+        // (h) CMP SUR LE CHEMIN DU PIEGE. Meme espece que SUB — setsub16 — mais
+        //     atteinte par un autre handler, et sans ecriture du resultat : c'est
+        //     la matérialisation qui doit voir exactement les memes op1/op2.
+        Cas("piege apres CMP16", [0x39, 0xC3], ref echecs, 0x0102);
+        Cas("piege apres CMP8", [0x38, 0xC3], ref echecs, 0x0102);
+
         Console.WriteLine();
         if (echecs == 0)
         {
