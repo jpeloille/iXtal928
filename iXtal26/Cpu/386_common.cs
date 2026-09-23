@@ -544,6 +544,59 @@ internal static partial class _386_common
     //   lisent la pile par readmemw, pas par POP_L, et la forme RETF_a32 qui
     //   l'utiliserait n'est pas atteignable.
 
+    /// <summary>pcem: 386_common.h:44-56 — la macro check_io_perm.
+    ///
+    /// EN MODE RÉEL ELLE NE FAIT RIEN. IOPLp y vaut toujours vrai et VM_FLAG est
+    /// nul, donc la garde n'est jamais franchie. Elle est transcrite parce que
+    /// INS, OUTS, IN et OUT la portent, et que l'omettre ferait mentir leur
+    /// structure — pas parce qu'un 286 en mode réel la visite.
+    ///
+    /// DEVIATION: `return 1` depuis le milieu du macro ; la méthode rend `true`
+    ///   pour « l'appelant doit rendre 1 », comme fetch_ea_16.</summary>
+    internal static bool check_io_perm(uint16_t port)
+    {
+        if (!IOPLp || (cpu_state.eflags & VM_FLAG) != 0)
+        {
+                int tempi = checkio(port);
+                if (cpu_state.abrt != 0)
+                        return true;
+                if (tempi != 0)
+                {
+                        if ((cpu_state.eflags & VM_FLAG) != 0)
+                                x86seg_c.x86gpf_expected("", 0);
+                        else
+                                x86seg_c.x86gpf("", 0);
+                        return true;
+                }
+        }
+        return false;
+    }
+
+    /// <summary>pcem: 386_common.c:167-185 — checkio, la carte de permissions
+    /// d'E/S du TSS.
+    ///
+    /// Inatteignable en mode réel : check_io_perm ne l'appelle que si IOPLp est
+    /// faux ou VM_FLAG posé, et ni l'un ni l'autre n'arrive sur un 286 hors mode
+    /// protégé. Transcrite quand même — elle ne dépend que de `tr`, déjà dans le
+    /// vecteur d'état depuis A1b, et la laisser dehors aurait fait de
+    /// check_io_perm une coquille.</summary>
+    internal static int checkio(int port)
+    {
+        uint16_t t;
+        uint8_t d;
+        cpl_override = 1;
+        t = readmemw(tr.@base, 0x66);
+        cpl_override = 0;
+        if (cpu_state.abrt != 0)
+                return 0;
+        if ((t + (port >> 3)) > tr.limit)
+                return 1;
+        cpl_override = 1;
+        d = mem.readmembl((uint32_t)(tr.@base + t + (port >> 3)));
+        cpl_override = 0;
+        return d & (1 << (port & 7));
+    }
+
     /// <summary>pcem: 386_ops.h:5-12 — la macro ILLEGAL_ON. Comme fetch_ea_16, elle
     /// rend `true` quand le handler doit sortir, le `return 0` du C étant
     /// intransportable tel quel.</summary>

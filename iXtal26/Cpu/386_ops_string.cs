@@ -1,0 +1,366 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: pcem-dev/includes/private/cpu/x86_ops_string.h  (les 14 handlers
+//         `_a16` d'un 286, lignes 3-621)
+// SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
+// STATUS: partial — A10 : les 14 emplacements qu'un 286 atteint. Les formes
+//         `_a32` et les six `L` (MOVSL, CMPSL, STOSL, LODSL, SCASL, INSL,
+//         OUTSL) restent dehors, déclarées au registre des omissions.
+//         REP et REPNE (F2, F3) vivent dans x86_ops_rep.h et arrivent avec A10b.
+//
+// QUATORZE HANDLERS ÉCRITS À LA MAIN, sans une seule macro — et c'est ce qui
+// rend le groupe dangereux à transcrire : quatorze corps presque identiques,
+// où la faute se cache dans un incrément.
+//
+// LE MOTIF EST TOUJOURS LE MÊME : vérifier les segments, lire ou écrire,
+// avancer SI et/ou DI selon D_FLAG, facturer. Ce qui varie :
+//   - QUELS registres avancent. MOVS et CMPS bougent SI ET DI ; STOS et SCAS
+//     seulement DI ; LODS seulement SI. INS bouge DI, OUTS bouge SI.
+//   - DE COMBIEN : 1 pour les formes octet, 2 pour les formes mot.
+//   - QUEL segment. Le SOURCE est cpu_state.ea_seg — donc DS par défaut, mais
+//     surchargeable par un préfixe — tandis que la DESTINATION est TOUJOURS ES,
+//     jamais surchargeable. C'est l'asymétrie du jeu d'instructions, et elle
+//     est visible ici : `cpu_state.ea_seg` d'un côté, `cpu_state.seg_es` de
+//     l'autre, littéralement.
+//   - LE SENS de setsub. CMPS compare (source, destination) ; SCAS compare
+//     (accumulateur, destination). Les deux posent des drapeaux, les autres non.
+//
+// INS ET OUTS TIRENT LE PORT D'E/S AVEC EUX, et c'est pour cela que
+// check_io_perm et checkio entrent à ce jalon (386_common.cs). En mode réel
+// check_io_perm ne fait rien — IOPLp y est toujours vrai — mais les quatre
+// handlers la portent et l'omettre aurait fait mentir leur structure.
+
+using iXtal26.Memory;
+using static iXtal26.Cpu._386_common;
+using static iXtal26.Cpu.x86;
+using static iXtal26.Cpu.x86_flags;
+
+namespace iXtal26.Cpu;
+
+internal static partial class _386
+{
+    // pcem: x86_ops_string.h:3 — opMOVSB_a16
+    private static int opMOVSB_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        writememb(es, DI, temp);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+        {
+                DI--;
+                SI--;
+        }
+        else
+        {
+                DI++;
+                SI++;
+        }
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:48 — opMOVSW_a16
+    private static int opMOVSW_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        temp = readmemw(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        writememw(es, DI, temp);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+        {
+                DI -= 2;
+                SI -= 2;
+        }
+        else
+        {
+                DI += 2;
+                SI += 2;
+        }
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:138 — opCMPSB_a16
+    private static int opCMPSB_a16(uint32_t fetchdat)
+    {
+        uint8_t src, dst;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (SEG_CHECK_READ(cpu_state.seg_es!)) return 1;
+        src = readmemb(cpu_state.ea_seg!.@base, SI);
+        dst = readmemb(es, DI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(src, dst);
+        if ((cpu_state.flags & D_FLAG) != 0)
+        {
+                DI--;
+                SI--;
+        }
+        else
+        {
+                DI++;
+                SI++;
+        }
+        CLOCK_CYCLES(is486 != 0 ? 8 : 10);
+        PREFETCH_RUN(is486 != 0 ? 8 : 10, 1, -1, 2, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:181 — opCMPSW_a16
+    private static int opCMPSW_a16(uint32_t fetchdat)
+    {
+        uint16_t src, dst;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (SEG_CHECK_READ(cpu_state.seg_es!)) return 1;
+        src = readmemw(cpu_state.ea_seg!.@base, SI);
+        dst = readmemw(es, DI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(src, dst);
+        if ((cpu_state.flags & D_FLAG) != 0)
+        {
+                DI -= 2;
+                SI -= 2;
+        }
+        else
+        {
+                DI += 2;
+                SI += 2;
+        }
+        CLOCK_CYCLES(is486 != 0 ? 8 : 10);
+        PREFETCH_RUN(is486 != 0 ? 8 : 10, 1, -1, 2, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:267 — opSTOSB_a16
+    private static int opSTOSB_a16(uint32_t fetchdat)
+    {
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        writememb(es, DI, AL);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI--;
+        else
+                DI++;
+        CLOCK_CYCLES(4);
+        PREFETCH_RUN(4, 1, -1, 0, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:294 — opSTOSW_a16
+    private static int opSTOSW_a16(uint32_t fetchdat)
+    {
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        writememw(es, DI, AX);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI -= 2;
+        else
+                DI += 2;
+        CLOCK_CYCLES(4);
+        PREFETCH_RUN(4, 1, -1, 0, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:348 — opLODSB_a16
+    private static int opLODSB_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AL = temp;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                SI--;
+        else
+                SI++;
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:381 — opLODSW_a16
+    private static int opLODSW_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemw(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AX = temp;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                SI -= 2;
+        else
+                SI += 2;
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:447 — opSCASB_a16
+    private static int opSCASB_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.seg_es!)) return 1;
+        temp = readmemb(es, DI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(AL, temp);
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI--;
+        else
+                DI++;
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:480 — opSCASW_a16
+    private static int opSCASW_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.seg_es!)) return 1;
+        temp = readmemw(es, DI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(AX, temp);
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI -= 2;
+        else
+                DI += 2;
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 1, -1, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:546 — opINSB_a16
+    private static int opINSB_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        if (check_io_perm(DX)) return 1;
+        temp = io.inb(DX);
+        writememb(es, DI, temp);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI--;
+        else
+                DI++;
+        CLOCK_CYCLES(15);
+        PREFETCH_RUN(15, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:581 — opINSW_a16
+    private static int opINSW_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (SEG_CHECK_WRITE(cpu_state.seg_es!)) return 1;
+        if (check_io_perm(DX)) return 1;
+        if (check_io_perm((uint16_t)(DX + 1))) return 1;
+        temp = io.inw(DX);
+        writememw(es, DI, temp);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                DI -= 2;
+        else
+                DI += 2;
+        CLOCK_CYCLES(15);
+        PREFETCH_RUN(15, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:659 — opOUTSB_a16
+    private static int opOUTSB_a16(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (check_io_perm(DX)) return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                SI--;
+        else
+                SI++;
+        io.outb(DX, temp);
+        CLOCK_CYCLES(14);
+        PREFETCH_RUN(14, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_string.h:694 — opOUTSW_a16
+    private static int opOUTSW_a16(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemw(cpu_state.ea_seg!.@base, SI);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (check_io_perm(DX)) return 1;
+        if (check_io_perm((uint16_t)(DX + 1))) return 1;
+        if ((cpu_state.flags & D_FLAG) != 0)
+                SI -= 2;
+        else
+                SI += 2;
+        io.outw(DX, temp);
+        CLOCK_CYCLES(14);
+        PREFETCH_RUN(14, 1, -1, 1, 0, 1, 0, 0);
+        return 0;
+    }
+    // omitted: les 14 formes `_a32` et les sept formes `L` (MOVSL, CMPSL,
+    //   STOSL, LODSL, SCASL, INSL, OUTSL) avec leurs variantes — op32 nul sur
+    //   un 286.
+
+    /// <summary>pcem: 6C-6F et A4-AF — relevés sur ops_286[] par gdb.
+    /// A8 et A9 sont TEST AL/AX,imm (A3d) et non des opérations de chaîne : la
+    /// bande A4-AF n'est pas continue.</summary>
+    private static void PoserGroupeChaines()
+    {
+        ops_286[0x6C] = opINSB_a16;
+        ops_286[0x6D] = opINSW_a16;
+        ops_286[0x6E] = opOUTSB_a16;
+        ops_286[0x6F] = opOUTSW_a16;
+        ops_286[0xA4] = opMOVSB_a16;
+        ops_286[0xA5] = opMOVSW_a16;
+        ops_286[0xA6] = opCMPSB_a16;
+        ops_286[0xA7] = opCMPSW_a16;
+        ops_286[0xAA] = opSTOSB_a16;
+        ops_286[0xAB] = opSTOSW_a16;
+        ops_286[0xAC] = opLODSB_a16;
+        ops_286[0xAD] = opLODSW_a16;
+        ops_286[0xAE] = opSCASB_a16;
+        ops_286[0xAF] = opSCASW_a16;
+    }
+}

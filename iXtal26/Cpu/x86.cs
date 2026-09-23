@@ -239,6 +239,9 @@ internal static partial class x86
     internal const int ABRT_GPF = 0xD;
     internal const int ABRT_PF = 0xE;
     internal const int ABRT_MASK = 0x7f;
+    // pcem: x86.h:267 — `#define ABRT_EXPECTED ((int8_t)0x80)`. Porté depuis A10,
+    // où x86gpf_expected en a besoin.
+    internal const int ABRT_EXPECTED = unchecked((int)0xffffff80);
 
     // pcem: x86.h:268 — le code d'erreur que le gestionnaire empile en mode
     // protégé. En mode réel il est posé puis ignoré ; on le porte quand même,

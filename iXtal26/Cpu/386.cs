@@ -84,6 +84,7 @@ internal static partial class _386
         PoserGroupeXchg();
         PoserGroupeDecalages();
         PoserNop();
+        PoserGroupeChaines();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme

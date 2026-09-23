@@ -177,6 +177,21 @@ internal static partial class x86seg_c
         abrt_error = error;
     }
 
+    // pcem: x86seg.c:140-144 — x86gpf_expected.
+    //
+    // CE N'EST PAS x86gpf. Il pose `ABRT_GPF | ABRT_EXPECTED`, donc le BIT HAUT
+    // en plus — celui-là même qui explique qu'ABRT_MASK vaille 0x7F et non 7
+    // (voir x86.cs). Le recompilateur s'en sert pour distinguer une faute
+    // attendue, que l'émulation provoque exprès, d'une faute subie. exec386 ne
+    // lit que `abrt & ABRT_MASK`, donc la différence est inerte ici — mais la
+    // perdre ferait que cpu_state.abrt, qui EST dans le vecteur comparé,
+    // divergerait de l'oracle.
+    internal static void x86gpf_expected(string s, uint16_t error)
+    {
+        cpu_state.abrt = (int8_t)(ABRT_GPF | ABRT_EXPECTED);
+        abrt_error = error;
+    }
+
     // pcem: x86seg.c:145-149
     internal static void x86ss(string s, uint16_t error)
     {

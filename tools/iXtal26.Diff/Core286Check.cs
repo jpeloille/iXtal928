@@ -466,6 +466,54 @@ public static class Core286Check
         Cas("C1 /2 : RCL BX, 0 — l'immediat nul ne fait rien",
             [0xC1, 0xD3, 0x00], ref echecs, 0x0001, 0x1234, 0x8001);
 
+        // (aa) LES CHAINES AVANCENT DANS LES DEUX SENS, et D_FLAG decide. Le
+        //      fuzzeur tire D une fois sur deux, mais il n'enchaine jamais un
+        //      STD avec une operation de chaine : en mode simple, D vient des
+        //      registres initiaux, pas d'une instruction. Ces suites le posent.
+        //
+        //      Et le SEGMENT SOURCE est surchargeable quand la DESTINATION ne
+        //      l'est pas : le source est cpu_state.ea_seg, la destination
+        //      toujours ES. Un prefixe 26 (ES) devant un MOVS change donc la
+        //      lecture et pas l'ecriture — asymetrie invisible sans cas dirige,
+        //      puisque le prefixe 26 n'est pas encore transcrit.
+        foreach (var (op, nom) in new (byte op, string nom)[] {
+                     (0xA4, "MOVSB"), (0xA5, "MOVSW"), (0xA6, "CMPSB"), (0xA7, "CMPSW"),
+                     (0xAA, "STOSB"), (0xAB, "STOSW"), (0xAC, "LODSB"), (0xAD, "LODSW"),
+                     (0xAE, "SCASB"), (0xAF, "SCASW"),
+                 })
+        {
+                Suite($"CLD puis {nom} : SI/DI AVANCENT", [0xFC, op], 2, ref echecs,
+                      0, 0x1234, 0x0010);
+                Suite($"STD puis {nom} : SI/DI RECULENT", [0xFD, op], 2, ref echecs,
+                      0, 0x1234, 0x0010);
+        }
+
+        // (bb) CMPS ET SCAS POSENT DES DRAPEAUX, et dans un ORDRE D'OPERANDES
+        //      different : CMPS compare (source, destination), SCAS compare
+        //      (accumulateur, destination). Inverser l'un des deux donnerait le
+        //      bon ZF et le mauvais CF — d'ou le Jcc derriere, qui LIT le
+        //      resultat au lieu de le comparer champ a champ.
+        foreach (var (op, nom) in new (byte op, string nom)[] {
+                     (0xA6, "CMPSB"), (0xA7, "CMPSW"), (0xAE, "SCASB"), (0xAF, "SCASW"),
+                 })
+                foreach (var (jcc, nomJ) in new (byte jcc, string nom)[] {
+                             (0x72, "JB"), (0x74, "JE"), (0x7C, "JL"), (0x77, "JNBE"),
+                         })
+                        Suite($"{nom} puis {nomJ} : le SENS de la comparaison",
+                              [op, jcc, 0x02], 2, ref echecs, 0, 0x8000, 0x0010);
+
+        // (cc) INS ET OUTS TIRENT LE PORT D'E/S. A10 est le premier groupe a
+        //      appeler inw/outw, et c'est ce qui a revele que n_inb et n_outb ne
+        //      comptaient pas le meme ensemble d'evenements des deux cotes :
+        //      `--wrap=inb` est un mecanisme de l'editeur de liens et ne voit pas
+        //      l'appel que io.c fait depuis son propre inw.
+        Cas("INSB", [0x6C], ref echecs);
+        Cas("INSW : deux inb sous le capot, aucun compte cote oracle", [0x6D], ref echecs);
+        Cas("OUTSB", [0x6E], ref echecs);
+        Cas("OUTSW", [0x6F], ref echecs);
+        Suite("STD puis INSW : DI recule de deux", [0xFD, 0x6D], 2, ref echecs);
+        Suite("STD puis OUTSW : SI recule de deux", [0xFD, 0x6F], 2, ref echecs);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16

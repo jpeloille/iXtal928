@@ -61,3 +61,4 @@ iXtal26/Cpu/386_ops_xchg.cs	pcem-dev/includes/private/cpu/x86_ops_xchg.h	785c6b0
 
 iXtal26/Cpu/386_ops_shift.cs	pcem-dev/includes/private/cpu/x86_ops_shift.h	053c578ed5fb1574b41e74229dc758abbd4699928d3066833b65804a9c4fbf8b	3-544	partial	A9 : les 6 emplacements atteignables sur un 286 ; OP_SHIFT_l et les formes _a32 omises
 iXtal26/Cpu/386_ops_misc.cs	pcem-dev/includes/private/cpu/x86_ops_misc.h	e88375ec5118ab69eafbc4165c27c0263f81b5d39520308e086036eee6d4b105	28-32	partial	A9 : opNOP seul, pour que le remplissage RAM du fuzzeur soit transcrit ; le reste arrive avec A12
+iXtal26/Cpu/386_ops_string.cs	pcem-dev/includes/private/cpu/x86_ops_string.h	6dc28ae5e95a81eace59676b6c72038eac0d2dec8372d95b2eea0d99d612fb90	3-621	partial	A10 : les 14 emplacements atteignables sur un 286 ; formes _a32 et L omises

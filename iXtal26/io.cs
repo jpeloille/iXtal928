@@ -141,9 +141,22 @@ internal static partial class io
     //          pc.c:107.
 
     // pcem: io.c:103-122
-    internal static uint8_t inb(uint16_t port)
+    // LE COMPTEUR EST UN VOLET DE DIAGNOSTIC, PAS DU CODE TRANSCRIT, et il doit
+    // compter LE MEME ENSEMBLE D'EVENEMENTS que l'oracle.
+    //
+    // Cote oracle, n_inb vient de `--wrap=inb` (tools/oracle/harness_wrap.c:61),
+    // qui est un mecanisme de L'EDITEUR DE LIENS : il ne detourne que les
+    // references EXTERNES a inb. L'appel que io.c fait depuis son propre inw —
+    // `return inb(port) | (inb(port + 1) << 8)` — est resolu dans la meme unite
+    // de traduction et N'EST PAS compte.
+    //
+    // Compter tout ici ferait donc diverger deux compteurs qui mesurent deux
+    // choses differentes. Mesure a A10, sur le premier opcode a appeler inw :
+    //   INSW (6D) : n_inb, oracle 0x0, C# 0x2
+    // Le corps reste verbatim ; seul l'endroit ou le compteur s'incremente
+    // change, et il mime exactement __wrap_inb.
+    private static uint8_t inb_corps(uint16_t port)
     {
-        Counters.n_inb++;
         uint8_t temp = 0xff;
 
         if (port_inb[port, 0] != null)
@@ -158,19 +171,34 @@ internal static partial class io
         return temp;
     }
 
-    // pcem: io.c:124
-    internal static uint8_t cpu_readport(uint32_t port) { return inb((uint16_t)port); }
+    /// <summary>pcem: io.c:100-123. Le point d'entree EXTERNE : c'est lui que le
+    /// cœur et les peripheriques appellent, et c'est lui que `--wrap=inb`
+    /// detourne cote oracle.</summary>
+    internal static uint8_t inb(uint16_t port)
+    {
+        Counters.n_inb++;
+        return inb_corps(port);
+    }
+
+    // pcem: io.c:124. DANS io.c, donc NON compte par --wrap — voir inb_corps.
+    internal static uint8_t cpu_readport(uint32_t port) { return inb_corps((uint16_t)port); }
 
     // pcem: io.c:126-135
-    internal static void outb(uint16_t port, uint8_t val)
+    private static void outb_corps(uint16_t port, uint8_t val)
     {
-        Counters.n_outb++;
         if (port_outb[port, 0] != null)
             port_outb[port, 0](port, val, port_priv[port, 0]);
         if (port_outb[port, 1] != null)
             port_outb[port, 1](port, val, port_priv[port, 1]);
 
         return;
+    }
+
+    /// <summary>Le point d'entree EXTERNE, pendant de __wrap_outb.</summary>
+    internal static void outb(uint16_t port, uint8_t val)
+    {
+        Counters.n_outb++;
+        outb_corps(port, val);
     }
 
     // pcem: io.c:137-145
@@ -181,7 +209,7 @@ internal static partial class io
         if (port_inw[port, 1] != null)
             return port_inw[port, 1](port, port_priv[port, 1]);
 
-        return (uint16_t)(inb(port) | (inb((uint16_t)(port + 1)) << 8));
+        return (uint16_t)(inb_corps(port) | (inb_corps((uint16_t)(port + 1)) << 8));
     }
 
     // pcem: io.c:147-162
@@ -195,8 +223,8 @@ internal static partial class io
         if (port_outw[port, 0] != null || port_outw[port, 1] != null)
             return;
 
-        outb(port, (uint8_t)val);
-        outb((uint16_t)(port + 1), (uint8_t)(val >> 8));
+        outb_corps(port, (uint8_t)val);
+        outb_corps((uint16_t)(port + 1), (uint8_t)(val >> 8));
     }
 
     // pcem: io.c:164-172
