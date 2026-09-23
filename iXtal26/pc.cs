@@ -586,7 +586,24 @@ internal static partial class pc
         // clockhardware() qui convertit les cycles CPU vers ce domaine via
         // xt_cpu_multi. Passer 4,77 MHz ici ferait tourner toute la machine à un
         // tiers de sa vitesse, sans qu'aucun test d'opcode ne s'en aperçoive.
-        Models.pit.setpitclock(14318184.0f);
+        // LA BRANCHE AT, ET SA VALEUR EST UN LITTÉRAL PAR NÉCESSITÉ MESURÉE.
+        //
+        // Le C écrit `setpitclock(models[model]->cpu[cpu_manufacturer].cpus[cpu].rspeed)`
+        // — la vitesse de l'entrée de CPU du modèle. Ce dépôt ne peut PAS l'écrire :
+        // sa struct MODEL ne porte pas de membre `cpu`, cpu.c étant réduit à la vitesse
+        // du 8088. Et l'oracle ne le peut pas non plus, pour une raison mesurée plutôt
+        // que supposée : models[ROM_IBMAT]->cpu[0].cpus est NUL (at-probe, offset 104
+        // donné par le compilateur), et les deux fonctions de cpu.c qui déréférencent ce
+        // pointeur sont enveloppées À VIDE par --wrap. Le harnais écrit donc
+        // `setpitclock(AT ? 6000000.0f : 14318184.0f)` (harness.c:908), et c'est ce
+        // littéral qui est le pendant fidèle — 6 MHz, cpus_286[0].rspeed.
+        //
+        // C'EST LA LIGNE QUI A FAIT MARCHER LE POST DE L'AT. Sans elle, PITCONST vaut
+        // 12 cycles CPU par tic de PIT au lieu de 5,03 : le PIT tourne 2,4 fois trop
+        // lentement par rapport au processeur, le compte de rafraîchissement mémoire
+        // reste sous le 0xF600 que le BIOS exige, et le POST s'arrête sur un HLT en
+        // F000:05C4 après cent millions d'instructions.
+        Models.pit.setpitclock(AT != 0 ? 6000000.0f : 14318184.0f);
 
         // omitted: ali1429_reset() (pc.c:190) et le video_init() commenté (pc.c:192).
     }

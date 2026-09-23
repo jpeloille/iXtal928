@@ -110,13 +110,106 @@ internal static partial class model_c
         init = xt_init,
     };
 
+    // pcem: model.c:335-346 — at_init, LA MACHINE AT.
+    //
+    // CE QUI SÉPARE UN AT D'UN XT tient en six gestes, et chacun compte :
+    //   - AT = 1, qui aiguille runpc vers exec386 ET fait prendre à resetx86 le
+    //     vecteur F000:FFF0 au lieu de FFFF:0000, et rammask 24 bits ;
+    //   - pit_refresh_timer_at au lieu de _xt : le rafraîchissement mémoire bascule
+    //     un bit du PPI au lieu de déclencher un cycle DMA, et le POST le COMPTE ;
+    //   - dma16_init : le second 8237, celui des transferts 16 bits ;
+    //   - keyboard_at_init : le 8042, qui tient A20 ET la ligne de reset — seule
+    //     sortie du mode protégé d'un 286 ;
+    //   - nvr_device : le MC146818, horloge et CMOS, que le POST lit avant tout ;
+    //   - pic2_init : le second 8259, cascadé sur l'IRQ 2, sans qui l'IRQ 8 de
+    //     l'horloge n'a personne à qui parler.
+    //
+    // cpu_config_286() N'EST PAS DANS LE C, et c'est une DEVIATION assumée. PCem la
+    // fait par cpu_set(), appelé depuis resetpchard, que ce dépôt n'a pas porté —
+    // cpu.c n'est réduit qu'à la vitesse du 8088. L'oracle fait le même geste au même
+    // endroit : h_cpu_config_286() est appelé avant resetx86() (harness.c:374), pour
+    // la même raison qu'ici — resetx86 BRANCHE sur AT, is386 et cpu_16bitbus.
+    // Elle vit dans 386.State.cs, avec les autres pendants de h_*.
+    //
+    // mem_add_bios EST APPELÉ APRÈS `AT = 1`, COMME DANS LE C, et sa branche AT reste
+    // omise. Ce n'est pas une contradiction mais un accord mesuré :
+    //   - le C mappe 0xE0000-0xEFFFF quand AT, ce que mem.cs omet explicitement ;
+    //   - L'ORACLE NE LA CRÉE PAS NON PLUS : son inline appelle mem_add_bios() AVANT
+    //     de poser AT = 1 (harness.c:847 puis :852), donc la branche est fausse chez
+    //     lui aussi. Les deux côtés s'accordent, et diffèrent de PCem.
+    //   - Et ce mappage serait un ALIAS : biosmask vaut 0xffff pour l'AT
+    //     (mem_bios.c:64, que le case ROM_IBMAT ne change pas), donc
+    //     `rom + (0x20000 & biosmask)` vaut `rom + 0` — les mêmes 64 Ko une seconde
+    //     fois. Le POST atteint l'écran sans, mesuré.
+    // NE PAS « corriger » l'ordre : déplacer AT = 1 après mem_add_bios ne changerait
+    // rien ici et ferait mentir la citation.
+    internal static void at_init()
+    {
+        Cpu.x86.AT = 1;
+        Cpu._386.cpu_config_286();
+        common_init();
+        mem.mem_add_bios();
+        pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_at);
+        dma.dma16_init();
+        Keyboard.keyboard_at.keyboard_at_init();
+        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        pic.pic2_init();
+        Cpu._808x.nmi_mask = 0;
+        // omitted: device_add(&gameport_device) — port jeu, hors périmètre, et
+        //   l'oracle ne le lie pas davantage (harness.c le dit sur place).
+        // omitted: nmi_init() — c'est le XT qui l'appelle, pas l'AT : sur un AT le
+        //   masque de NMI est le bit 7 du port 0x70, tenu par writenvr.
+    }
+
+    // pcem: model.c:348-351
+    //
+    // omitted: mem_remap_top_384k() (model.c:350) — son SEUL apport sur at_init, et il
+    //   est inerte ici, mesuré deux fois :
+    //     1. l'oracle ne l'appelle JAMAIS — `grep -n 'mem_remap' tools/oracle/` rend
+    //        zéro, son inline de at_init s'en passe ;
+    //     2. son corps est gardé par `if (mem_size > 640)` (mem.c:1295), et un AT de
+    //        ce dépôt tourne à 512 Ko — c'est la taille que la sonde pose et celle que
+    //        le POST affiche, « 00512 KB OK ».
+    //   L'écrire créerait une divergence là où il n'y en a pas.
+    internal static void ibm_at_init()
+    {
+        at_init();
+    }
+
+    // pcem: model.c:1106-1115
+    //
+    // LE PREMIER MODÈLE DU DÉPÔT QUI N'EST PAS UN 8088, et son flag MODEL_AT est ce
+    // que BootDiff lit pour choisir le cœur des DEUX côtés, avant l'amorçage.
+    //
+    // omitted: le membre `cpu` — `{{"", cpus_ibmat}, {"", NULL}, {"", NULL}}`. La
+    //   struct MODEL de ce dépôt ne le porte pas : les tables de CPU appartiennent à
+    //   cpu.c, réduit à la vitesse du 8088, et cpu_config_286() tient lieu de l'entrée
+    //   qu'on y lirait. L'ORACLE EST DANS LE MÊME ÉTAT, et c'est mesuré :
+    //   models[ROM_IBMAT]->cpu[0].cpus est NUL côté oracle (at-probe, offset 104), et
+    //   les deux fonctions de cpu.c qui le déréférencent sont enveloppées à vide.
+    internal static readonly MODEL m_ibmat = new MODEL
+    {
+        name = "[286] IBM AT",
+        id = pc.ROM_IBMAT,
+        internal_name = "ibmat",
+        flags = MODEL_GFX_NONE | MODEL_AT,
+        min_ram = 256,
+        max_ram = 15872,
+        ram_granularity = 128,
+        init = ibm_at_init,
+    };
+
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
     // model_init_builtin (model.c:1625-1746). Deux entrées sur les 97 de PCem.
     //
     // L'ORDRE COMPTE : `model` vaut 0 sans configuration, donc la première entrée est
     // la machine par défaut. Toute mesure de VERIFICATION.md suppose le 5150 ; déplacer
     // m_ibmpc d'ici les invaliderait toutes sans qu'une seule porte ne rougisse.
-    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt };
+    // m_ibmat EN DERNIER, ET CE N'EST PAS UN DÉTAIL DE STYLE : `model` vaut 0 sans
+    // configuration, donc la première entrée est la machine par défaut. L'insérer
+    // ailleurs qu'à la fin décalerait les indices et changerait la machine par défaut
+    // sans qu'une seule porte ne rougisse — tout VERIFICATION.md suppose le 5150.
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;
