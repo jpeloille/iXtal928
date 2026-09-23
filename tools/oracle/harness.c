@@ -211,6 +211,15 @@ void givealbuffer(int32_t *buf) { (void)buf; }
 
 void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 
+/* B2 — les quatre symboles de l'AT. Leurs en-têtes existent (keyboard_at.h,
+ * devices/nvr.h) mais les inclure tirerait device.h et ses dépendances dans
+ * cette unité, qui inclut déjà 808x.c. On les déclare, comme pour
+ * keyboard_xt_init juste au-dessus. */
+void keyboard_at_init(void);
+void h_models_init(void);
+extern int model;
+extern device_t nvr_device;
+
 /* M12 — disque dur. hdc[] et hdd_controller_name sont definis par hdd.c, ide_fn
  * par ide.c ; aucun des deux n'est lie (registres de cartes), donc harness_stubs.c
  * les porte. Les deux device_t viennent de mfm_xebec.c, lie. */
@@ -722,7 +731,13 @@ int h_boot(const char *romspath) {
          * in/out du POST ne facturent plus rien, et l'horloge dérive sans que jamais un
          * registre ne bouge. Exactement le mode de panne que l'en-tête de ce fichier
          * décrit — « se tromper ici ne plante rien, ne fausse aucun registre ». */
-        h_cpu_config_8088();
+        /* B2 — la configuration du processeur suit le coeur choisi par
+         * h_set_core(), comme h_reset() le fait depuis A2.0. h_boot ne passe PAS
+         * par h_reset : il appelle resetx86() directement, d'ou cette ligne. */
+        if (h_core == H_CORE_286)
+                h_cpu_config_286();
+        else
+                h_cpu_config_8088();
 
         /* Depuis M9 ce crochet n'est plus un no-op : c'est lui qui pose
          * sound_poll_latch. Sans lui, le latch vaut 0, timer_advance_u64(t, 0)
@@ -774,15 +789,51 @@ int h_boot(const char *romspath) {
         disc_load(0, discfns[0]);    /* pc.c:367 */
         disc_load(1, discfns[1]);    /* pc.c:368 */
 
-        /* model_init() -> xt_init() */
+        /* model_init() -> xt_init() ou at_init(), model.c:180-196 et 335-351.
+         *
+         * LES DEUX PARTAGENT common_init() — dma_init, fdc_add, pic_init,
+         * pit_init — et divergent ensuite. Le harnais inline common_init plutot
+         * que de l'appeler : lpt_init, serial1_init et serial2_init ne sont pas
+         * lies, et le cote C# ne les transcrit pas davantage.
+         *
+         * CE QUI SEPARE UN AT D'UN XT tient en six lignes, et chacune compte :
+         *   - AT = 1, qui aiguille resetx86 vers le vecteur du 286 ET rammask ;
+         *   - pit_refresh_timer_at au lieu de _xt, un rafraichissement memoire
+         *     de periode differente ;
+         *   - dma16_init : le second controleur DMA, celui des transferts 16 bits ;
+         *   - keyboard_at_init : le 8042, qui tient A20 ET LA LIGNE DE RESET —
+         *     seule sortie du mode protege d'un 286 ;
+         *   - nvr_device : le MC146818, horloge temps reel et CMOS. Le POST le
+         *     lit avant tout le reste et s'arrete sur une somme de controle
+         *     fausse ;
+         *   - pic2_init : le second 8259, cascade sur l'IRQ 2.
+         *
+         * nmi_mask = 0 sur un AT la ou xt_init appelle nmi_init(). */
         dma_init();
         fdc_add();                   /* model.c:194 */
         pic_init();
         pit_init();
         mem_add_bios();
-        pit_set_out_func(&pit, 1, pit_refresh_timer_xt);
-        keyboard_xt_init();
-        nmi_init();
+
+        if (h_core == H_CORE_286) {
+                /* models[] cesse d'etre nul pour l'AT : nvr.c le dereference a
+                 * chaque ecriture CMOS. Voir harness_stubs.c. */
+                h_models_init();
+                model = ROM_IBMAT;
+                AT = 1;
+                pit_set_out_func(&pit, 1, pit_refresh_timer_at);
+                dma16_init();
+                keyboard_at_init();
+                device_add(&nvr_device);
+                pic2_init();
+                nmi_mask = 0;
+                /* omitted: device_add(&gameport_device) — le port jeu n'est pas
+                   lie, et le cote C# ne le transcrit pas. */
+        } else {
+                pit_set_out_func(&pit, 1, pit_refresh_timer_xt);
+                keyboard_xt_init();
+                nmi_init();
+        }
 
         /* video_init(), pc.c:~366. On appelle directement device_add(&cga_device)
          * plutot que video_init() : le switch sur romset de video.c:761-914 tombe

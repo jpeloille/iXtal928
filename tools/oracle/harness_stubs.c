@@ -46,6 +46,7 @@
 #include "pic.h"
 #include "timer.h"
 #include "video.h"
+#include "models/model.h"
 #include "x86.h"
 #include "x86_ops.h"   /* OpFn, et les extern des tables dynarec_ops_* */
 #include "codegen.h"   /* codegen_timing_t, codeblock_t — pour STUBER, pas pour lier */
@@ -664,3 +665,87 @@ int ramdisk_read(ramdisk_t *ramdisk, char *buf, size_t size) { return -1; }
 int ramdisk_seek(ramdisk_t *ramdisk, off_t offset, int whence) { return -1; }
 int ramdisk_get_cursor_mem(ramdisk_t *ramdisk, char **mem, size_t *size) { return -1; }
 int ramdisk_load_file(ramdisk_t *ramdisk, FILE *fp) { return -1; }
+
+/* ---------------------------------------------------------------------------
+ * B2 — LES VINGT SYMBOLES QUE nvr.c TRAINE AVEC LUI.
+ *
+ * nvr.c ne porte pas que le MC146818 de l'AT : il sert aussi de point d'entree
+ * a la sauvegarde d'etat de six AUTRES machines — Toshiba T1000, T1200, T3100e,
+ * la Tandy tc8521, la Xi8088. Lier nvr.c amene donc leurs crochets, dont aucun
+ * n'est atteint sur un AT : nvr_load() et nvr_save() n'appellent ces fonctions
+ * que si `romset` designe la machine correspondante.
+ *
+ * Ce sont de VRAIS stubs, pas des transcriptions : ils existent pour que
+ * -Wl,--no-undefined passe, et ils ECHOUENT s'ils sont appeles — un appel
+ * signifierait que le harnais monte une machine qu'il ne devrait pas.
+ * ------------------------------------------------------------------------- */
+
+char nvr_path[512];
+char nvr_default_path[512];
+char config_name[256];
+int mouse_scan;
+
+#define H_STUB_NVR(nom)                                                                                                                  void nom(void) { h_fatal_stub(#nom); }
+
+static void h_fatal_stub(const char *nom) {
+        fprintf(stderr, "iXtal26 oracle FATAL: %s appele — le harnais monte une machine "
+                        "qui n'est pas l'AT ni le XT\n", nom);
+        abort();
+}
+
+H_STUB_NVR(t1000_configsys_loadnvr)
+H_STUB_NVR(t1000_configsys_savenvr)
+H_STUB_NVR(t1000_emsboard_loadnvr)
+H_STUB_NVR(t1000_emsboard_savenvr)
+H_STUB_NVR(t1200_state_loadnvr)
+H_STUB_NVR(t1200_state_savenvr)
+H_STUB_NVR(tc8521_loadnvr)
+H_STUB_NVR(tc8521_savenvr)
+H_STUB_NVR(t3100e_config_get)
+H_STUB_NVR(t3100e_display_set)
+H_STUB_NVR(t3100e_mono_get)
+H_STUB_NVR(t3100e_mono_set)
+H_STUB_NVR(t3100e_notify_set)
+H_STUB_NVR(t3100e_turbo_set)
+H_STUB_NVR(xi8088_turbo_get)
+H_STUB_NVR(xi8088_turbo_set)
+
+/* ---------------------------------------------------------------------------
+ * B2 — models[] CESSE D'ETRE ENTIEREMENT NUL.
+ *
+ * Il l'etait depuis M0, et sept commentaires de ce fichier s'appuient dessus :
+ * cpu_set() le dereference, donc on ne l'appelle jamais, donc h_cpu_config_286()
+ * existe. Ca tenait tant que RIEN d'autre ne le lisait.
+ *
+ * nvr.c le lit. writenvr (nvr.c:201) teste `models[model]->flags & (MODEL_MCA |
+ * MODEL_AMSTRAD)` a chaque ecriture dans le CMOS — et le POST de l'AT ecrit dans
+ * le CMOS avant tout le reste. Mesure, sous gdb :
+ *
+ *   Program received signal SIGSEGV
+ *   #0  writenvr (nvr.c:201)
+ *   #1  outb (port=112, val=141)
+ *   #2  opOUT_AL_imm
+ *   #3  exec386
+ *
+ * On pose donc UNE entree, celle de l'AT, avec les seuls champs que le harnais
+ * fait lire : `flags`. Le reste est a zero, et c'est volontaire — un champ qui
+ * compterait un jour doit planter, pas rendre du plausible.
+ *
+ * CE N'EST PAS UNE TRANSCRIPTION de m_ibmat (model.c:1106-1115) : c'est le
+ * MINIMUM que le harnais doit fournir pour que nvr.c tourne, et son en-tete le
+ * dit. Le jour ou une autre fonction lira un autre champ, elle lira zero et le
+ * defaut se verra — ce qui est preferable a un tableau rempli de valeurs
+ * inventees.
+ * ------------------------------------------------------------------------- */
+
+static MODEL h_model_ibmat = {
+        .name = "[286] IBM AT",
+        .id = ROM_IBMAT,
+        .internal_name = "ibmat",
+        .flags = MODEL_GFX_NONE | MODEL_AT,
+        .min_ram = 256,
+        .max_ram = 15872,
+        .ram_granularity = 128,
+};
+
+void h_models_init(void) { models[ROM_IBMAT] = &h_model_ibmat; }

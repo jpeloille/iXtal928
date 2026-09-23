@@ -63,6 +63,9 @@ SRC := harness.c \
        $(PCEM)/src/memory/mem_bios.c \
        $(PCEM)/src/keyboard/keyboard.c \
        $(PCEM)/src/keyboard/keyboard_xt.c \
+       $(PCEM)/src/keyboard/keyboard_at.c \
+       $(PCEM)/src/devices/nvr.c \
+       $(PCEM)/src/rtc.c \
        $(PCEM)/src/video/vid_cga.c \
        $(PCEM)/src/floppy/fdc.c \
        $(PCEM)/src/floppy/fdd.c \
@@ -103,7 +106,7 @@ LDFLAGS += $(WRAPFLAGS_BOTH)
 LDFLAGS += -Wl,--no-undefined
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/devices
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

@@ -101,6 +101,11 @@ switch (args[0])
     // A2.2b — la porte de la boucle. Un pas sous le coeur 286 doit atteindre le
     // handler d'echec ET NOMMER SON OPCODE. Elle prouve la boucle, le fetch,
     // l'index d'aiguillage et la plomberie de cycles, sans un seul handler ecrit.
+    // B2 — la sonde d'amorcage AT. Oracle seul, aucune comparaison : voir
+    // AtProbe.cs pour pourquoi c'est l'ordre du plan.
+    case "at-probe":
+        return AtProbe.Run(args.Length > 1 ? args[1] : "roms");
+
     case "core286-check":
         return Core286Check.Run();
 

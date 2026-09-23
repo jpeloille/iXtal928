@@ -658,7 +658,13 @@ public static class Core286Check
                 }
         }
 
-        Console.WriteLine($"  [ok] {nom} : identique, pc {b.pc:X4} CS {b.seg_sel[1]:X4} " +
+        // seg_sel[0] EST CS, seg_sel[1] est DS (Seg.CS = 0, voir HState.cs:34).
+        // Cette ligne affichait DS sous l'etiquette CS depuis A2.2d — sans
+        // consequence sur les comparaisons, qui portent sur le vecteur entier,
+        // mais un diagnostic qui ment n'aide personne. Trouve en ecrivant
+        // at-probe, ou le meme index rendait CS:IP 0000:FFF0 au reset d'un 286
+        // qui demarre a F000:FFF0.
+        Console.WriteLine($"  [ok] {nom} : identique, pc {b.pc:X4} CS {b.seg_sel[0]:X4} " +
                           $"AX {b.regs[0]:X4} BX {b.regs[3]:X4} flags {b.flags:X4}");
     }
 }
