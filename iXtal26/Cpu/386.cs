@@ -95,6 +95,7 @@ internal static partial class _386
         PoserGroupeFPU();
         PoserGroupeRep();
         PoserGroupeModeProtege();
+        PoserTable0F();
 
         // LES QUATRE QUADRANTS SONT IDENTIQUES, et il faut les recopier.
         //

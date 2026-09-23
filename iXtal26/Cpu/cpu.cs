@@ -36,6 +36,13 @@ internal static partial class cpu
     // l'est aussi sur un 286, donc le budget est toujours 100.
     internal static int cpu_use_dynarec;
 
+    // pcem: cpu.c:114, pose a 314 et 315. Un acces mal aligne coute
+    // timing_misaligned cycles — ZERO sur un 286, la valeur que cpu_set() donne
+    // avant le switch ; seul le Pentium (cpu.c:447) le porte a 3. Portes parce
+    // que readmemll et writememll les lisent, pas parce qu'ils mordent ici.
+    internal static int timing_misaligned;
+    internal static int cpu_cyrix_alignment;
+
     internal static int cpu_busspeed = CPU_SPEED_8088;
 
     // pcem: cpu.c:2067-2071 — cpu_turbo ? cpu_turbo_speed : cpu_nonturbo_speed.

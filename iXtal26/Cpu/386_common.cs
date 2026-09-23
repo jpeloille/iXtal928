@@ -192,8 +192,23 @@ internal static partial class _386_common
         mem.ram[i + 3] = (byte)(v >> 24);
     }
 
-    // omitted: readmeml/readmemq et writememq — toujours aucun appelant. Ils
-    //   arriveront avec le groupe qui les emploie, pas avant.
+    /// <summary>pcem: 386_common.h:12-15 — readmeml.
+    ///
+    /// Arrivé avec son premier appelant, comme annoncé : LGDT et LIDT lisent la
+    /// base sur QUATRE octets. Même structure que readmemw, avec un alignement
+    /// sur quatre au lieu de deux.</summary>
+    internal static uint32_t readmeml(uint32_t s, uint32_t a)
+    {
+        var addr = s + a;
+        if (mem.readlookup2[addr >> 12] == -1 || (addr & 3) != 0)
+                return mem.readmemll(addr);
+        var i = unchecked(mem.readlookup2[addr >> 12] + (int)addr);
+        return (uint32_t)(mem.ram[i] | (mem.ram[i + 1] << 8) |
+                          (mem.ram[i + 2] << 16) | (mem.ram[i + 3] << 24));
+    }
+
+    // omitted: readmemq et writememq — toujours aucun appelant. Ils arriveront
+    //   avec le groupe qui les emploie, pas avant.
 
     // -----------------------------------------------------------------------
     // L'ADRESSE EFFECTIVE (pcem: 386_dynarec.c:85-130).

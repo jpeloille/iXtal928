@@ -475,15 +475,118 @@ internal static partial class mem
         }
     }
 
-    // readmemll / writememll vivent dans mem.c : leurs appels à readmemwl / writememwl
-    // sont intra-unité, donc jamais détournés par --wrap. Ils visent __real_.
-    internal static uint32_t readmemll(uint32_t addr)
-        => (uint32_t)__real_readmemwl(addr) | ((uint32_t)__real_readmemwl(addr + 2) << 16);
+    // readmemll / writememll vivent dans mem.c : leurs appels à readmemwl /
+    // writememwl sont intra-unité, donc jamais détournés par --wrap. Ils visent
+    // __real_.
+    //
+    // ILS ONT ETE DES RACCOURCIS JUSQU'A LA SECONDE TABLE. Ils se contentaient
+    // de deux accès de mot, ce qui suffisait au palier (a) où personne ne les
+    // appelait. SGDT les a exercés pour de vrai, et l'écart s'est vu tout de
+    // suite :
+    //   0F 01 /0 : SGDT vers [BX] — cycles : oracle 20, C# 38
+    // Le C, lui, traite trois cas distincts sur une adresse mal alignée : à
+    // cheval sur une page il scinde en deux mots, sinon il écrit les QUATRE
+    // octets d'un coup par writelookup2, et il ne retombe sur les handlers de
+    // mapping que si le raccourci n'est pas disponible.
 
+    /// <summary>pcem: mem.c — readmemll</summary>
+    internal static uint32_t readmemll(uint32_t addr)
+    {
+        mem_mapping_t? map;
+
+        mem_logical_addr = addr;
+
+        if ((addr & 3) != 0)
+        {
+                if (cpu.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
+                        x86.cycles -= cpu.timing_misaligned;
+                if ((addr & 0xFFF) > 0xFFC)
+                {
+                        // omitted: mmutranslate_read — pas de pagination sur un 286.
+                        return (uint32_t)__real_readmemwl(addr) |
+                               ((uint32_t)__real_readmemwl(addr + 2) << 16);
+                }
+                else if (readlookup2[addr >> 12] != -1)
+                {
+                        var i = unchecked(readlookup2[addr >> 12] + (int)addr);
+                        return (uint32_t)(ram[i] | (ram[i + 1] << 8) |
+                                          (ram[i + 2] << 16) | (ram[i + 3] << 24));
+                }
+        }
+
+        // omitted: page_lookup[] (dynarec) et mmutranslate_read (pagination).
+        addr &= rammask;
+
+        map = read_mapping[addr >> 14];
+        if (map != null)
+        {
+                if (map.read_l != null)
+                        return map.read_l(addr, map.p);
+
+                if (map.read_w != null)
+                        return (uint32_t)(map.read_w(addr, map.p) |
+                                          (map.read_w(addr + 2, map.p) << 16));
+
+                if (map.read_b != null)
+                        return (uint32_t)(map.read_b(addr, map.p) |
+                                          (map.read_b(addr + 1, map.p) << 8) |
+                                          (map.read_b(addr + 2, map.p) << 16) |
+                                          (map.read_b(addr + 3, map.p) << 24));
+        }
+
+        return 0xffffffff;
+    }
+
+    /// <summary>pcem: mem.c — writememll</summary>
     internal static void writememll(uint32_t addr, uint32_t val)
     {
-        __real_writememwl(addr, (uint16_t)val);
-        __real_writememwl(addr + 2, (uint16_t)(val >> 16));
+        mem_mapping_t? map;
+
+        mem_logical_addr = addr;
+
+        if ((addr & 3) != 0)
+        {
+                if (cpu.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
+                        x86.cycles -= cpu.timing_misaligned;
+                if ((addr & 0xFFF) > 0xFFC)
+                {
+                        // omitted: mmutranslate_write — pas de pagination sur un 286.
+                        __real_writememwl(addr, (uint16_t)val);
+                        __real_writememwl(addr + 2, (uint16_t)(val >> 16));
+                        return;
+                }
+                else if (writelookup2[addr >> 12] != -1)
+                {
+                        var i = unchecked(writelookup2[addr >> 12] + (int)addr);
+                        ram[i] = (byte)val;
+                        ram[i + 1] = (byte)(val >> 8);
+                        ram[i + 2] = (byte)(val >> 16);
+                        ram[i + 3] = (byte)(val >> 24);
+                        return;
+                }
+        }
+
+        // omitted: page_lookup[] (dynarec) et mmutranslate_write (pagination).
+        addr &= rammask;
+
+        map = write_mapping[addr >> 14];
+        if (map != null)
+        {
+                if (map.write_l != null)
+                        map.write_l(addr, val, map.p);
+                else if (map.write_w != null)
+                {
+                        map.write_w(addr, (uint16_t)val, map.p);
+                        map.write_w(addr + 2, (uint16_t)(val >> 16), map.p);
+                }
+                else if (map.write_b != null)
+                {
+                        map.write_b(addr, (uint8_t)val, map.p);
+                        map.write_b(addr + 1, (uint8_t)(val >> 8), map.p);
+                        map.write_b(addr + 2, (uint8_t)(val >> 16), map.p);
+                        map.write_b(addr + 3, (uint8_t)(val >> 24), map.p);
+                }
+        }
     }
 
     // -----------------------------------------------------------------------

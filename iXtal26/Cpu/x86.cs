@@ -215,6 +215,9 @@ internal static partial class x86
     internal static bool IOPLp => (msw & 1) == 0 || CPL <= IOPL;
 
     // pcem: x86.h:185-193
+    // pcem: x86.h:185 — pose par LMSW quand le bit 0 du mot d'etat machine
+    // passe a un. Porte depuis la seconde table ; lu par le recompilateur seul.
+    internal const uint16_t CPU_STATUS_PMODE = 1 << 2;
     internal const uint16_t CPU_STATUS_NOTFLATDS = 1 << 8;
     internal const uint16_t CPU_STATUS_NOTFLATSS = 1 << 9;
 

@@ -516,6 +516,44 @@ public static class Core286Check
         Suite("STD puis INSW : DI recule de deux", [0xFD, 0x6D], 2, ref echecs);
         Suite("STD puis OUTSW : SI recule de deux", [0xFD, 0x6F], 2, ref echecs);
 
+        // (dd) LA SECONDE TABLE. 0x0F est exclu du fuzz — il aiguille vers
+        //      ops_286_0f, et les corps de 0F00, LAR et LSL ne sont pas
+        //      transcrits (mode protege, bloc C). Les cas diriges sont donc le
+        //      SEUL controle de cette table, et il faut les nommer un par un.
+        //
+        //      op0F01_286 est le plus important du jalon : LMSW est la porte par
+        //      laquelle un 286 ENTRE en mode protege, et il n'en existe pas
+        //      d'autre — pas de MOV CR0 avant le 386.
+        Cas("0F 01 /0 : SGDT vers [BX]", [0x0F, 0x01, 0x07], ref echecs);
+        Cas("0F 01 /1 : SIDT vers [BX]", [0x0F, 0x01, 0x0F], ref echecs);
+        Cas("0F 01 /4 : SMSW vers BX — masque 0xFFF0 sur un 286",
+            [0x0F, 0x01, 0xE3], ref echecs);
+        Cas("0F 01 /2 : LGDT depuis [BX]", [0x0F, 0x01, 0x17], ref echecs);
+        Cas("0F 01 /3 : LIDT depuis [BX]", [0x0F, 0x01, 0x1F], ref echecs);
+        Cas("0F 01 /7 : illegal sur un 286 (INVLPG est du 486)",
+            [0x0F, 0x01, 0x3F], ref echecs);
+        Cas("0F 06 : CLTS efface le bit 3 de cr0", [0x0F, 0x06], ref echecs);
+
+        // LGDT PUIS SGDT : l'aller-retour. Si la base ou la limite etaient
+        // mal lues ou mal ecrites, le second ne rendrait pas le premier. Et
+        // SGDT force les huit bits hauts a UN sur un 286 — ecart que seul un
+        // aller-retour rend visible.
+        Suite("LGDT [BX] puis SGDT [BX] : l'aller-retour, avec |= 0xff000000",
+              [0x0F, 0x01, 0x17, 0x0F, 0x01, 0x07], 2, ref echecs);
+
+        // LMSW NE PERMET PAS DE SORTIR du mode protege : `if (msw & 1) tempw |= 1`.
+        // Ici msw part a zero, donc le bit se pose — et le cas suivant verifie
+        // qu'un second LMSW a zero ne l'efface pas.
+        Cas("0F 01 /6 : LMSW depuis BX", [0x0F, 0x01, 0x33], ref echecs, 0, 0x1234, 0x0000);
+
+        // 0F 00, LAR et LSL commencent par NOTRM : en mode reel ils levent
+        // INT 6 et s'arretent. C'est TOUT ce qu'un 286 hors mode protege en
+        // voit, et c'est verifiable.
+        Cas("0F 00 : NOTRM leve INT 6 en mode reel", [0x0F, 0x00, 0x03], ref echecs);
+        Cas("0F 02 (LAR) : NOTRM leve INT 6", [0x0F, 0x02, 0xC3], ref echecs);
+        Cas("0F 03 (LSL) : NOTRM leve INT 6", [0x0F, 0x03, 0xC3], ref echecs);
+        Cas("0F 04 : illegal, la table n'a que six entrees", [0x0F, 0x04], ref echecs);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
