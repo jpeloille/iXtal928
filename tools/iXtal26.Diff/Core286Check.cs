@@ -287,6 +287,65 @@ public static class Core286Check
         Cas("FF /0 en MEMOIRE : INC [BX], timing_mm et non timing_mr",
             [0xFF, 0x07], ref echecs);
 
+        // (q) LE GROUPE DRAPEAUX MET flags_rebuild SUR LE CHEMIN CHAUD.
+        //
+        //     CMC, CLC, STC, SAHF, LAHF et PUSHF l'appellent en premiere ligne,
+        //     parce qu'ils manipulent cpu_state.flags DIRECTEMENT et qu'une
+        //     representation paresseuse vivante rendrait ce champ perime. Mais en
+        //     mode simple flags_op vaut FLAGS_UNKNOWN au depart, donc
+        //     flags_rebuild y est un NO-OP : le fuzzeur les exerce tous sans
+        //     jamais faire travailler la fonction.
+        //
+        //     Il faut un poseur de drapeaux JUSTE AVANT. Six especes paresseuses
+        //     x six opcodes qui reconstruisent.
+        (byte[] code, string nom)[] poseursQ =
+        [
+                ([0x05, 0xFF, 0xFF], "ADD16"),
+                ([0x2D, 0x01, 0x00], "SUB16"),
+                ([0x15, 0xFF, 0xFF], "ADC16"),
+                ([0x1D, 0x01, 0x00], "SBB16"),
+                ([0x0D, 0x00, 0x00], "OR16 (ZN16)"),
+                ([0x04, 0xFF], "ADD8"),
+        ];
+        (byte op, string nom)[] lecteurs =
+        [
+                (0xF5, "CMC"), (0xF8, "CLC"), (0xF9, "STC"),
+                (0x9E, "SAHF"), (0x9F, "LAHF"), (0x9C, "PUSHF"),
+        ];
+        foreach (var (pose, nomP) in poseursQ)
+                foreach (var (op, nomL) in lecteurs)
+                {
+                        var code = new byte[pose.Length + 1];
+                        pose.CopyTo(code, 0);
+                        code[pose.Length] = op;
+                        Suite($"{nomP} puis {nomL} : flags_rebuild travaille", code, 2,
+                              ref echecs, 0, 0x8000, 0x0000);
+                }
+
+        // (r) CLD, STD ET CLI N'APPELLENT PAS flags_rebuild, et ce n'est pas un
+        //     oubli de PCem : D_FLAG et I_FLAG ne font pas partie des six bits
+        //     que la paresse couvre. Le masque 0x8d5 de flags_rebuild les laisse
+        //     intacts. Ces trois cas verifient que poser D ou I APRES un ADD ne
+        //     detruit pas le resultat paresseux — si l'un des deux cotes
+        //     reconstruisait la ou l'autre ne le fait pas, flags_op divergerait.
+        Suite("ADD16 puis CLD : la paresse doit SURVIVRE",
+              [0x05, 0xFF, 0xFF, 0xFC], 2, ref echecs);
+        Suite("ADD16 puis STD : la paresse doit SURVIVRE",
+              [0x05, 0xFF, 0xFF, 0xFD], 2, ref echecs);
+        Suite("ADD16 puis CLI : la paresse doit SURVIVRE",
+              [0x05, 0xFF, 0xFF, 0xFA], 2, ref echecs);
+        Suite("ADD16 puis STI : la paresse doit SURVIVRE",
+              [0x05, 0xFF, 0xFF, 0xFB], 2, ref echecs);
+
+        // (s) PUSHF puis POPF_286 : l'aller-retour. Le masque 0x0fd5 de la
+        //     branche mode reel garde IOPL et NT de l'ancien etat ; si l'un des
+        //     deux cotes prenait un autre des quatre masques, la valeur relue
+        //     differerait. flags_extract a la fin remet flags_op a UNKNOWN.
+        Suite("ADD16, PUSHF, POPF_286 : l'aller-retour des drapeaux",
+              [0x05, 0xFF, 0xFF, 0x9C, 0x9D], 3, ref echecs);
+        Suite("SAHF depuis AH puis LAHF vers AH",
+              [0x9E, 0x9F], 2, ref echecs, 0, 0xD500, 0x0010);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
