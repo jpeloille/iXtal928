@@ -105,6 +105,42 @@ internal static partial class x86seg_c
         oldcpl = CPL;
     }
 
+    // pcem: x86seg.c — loadcsjmp, la BRANCHE MODE RÉEL seulement (les 19 dernières
+    // lignes des 236 de la fonction).
+    //
+    // La branche mode protégé — 200 lignes qui lisent le descripteur dans la GDT
+    // ou la LDT, vérifient CPL/DPL, distinguent segment de code conforme, porte
+    // d'appel, TSS — relève du bloc `Ap` du plan et n'est pas transcrite. Elle
+    // échoue BRUYAMMENT plutôt que de rendre du silence, même doctrine que la
+    // table vide de A2.2b : un JMP far en mode protégé doit nommer ce qui manque,
+    // pas charger CS comme si de rien n'était.
+    //
+    // La branche mode réel, elle, est exactement loadcs ci-dessus plus une
+    // facturation de cycles. C'est elle que le vecteur de reset emprunte.
+    internal static void loadcsjmp(uint16_t seg, uint32_t old_pc)
+    {
+        if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
+        {
+                pc.fatal($"loadcsjmp en mode protege (seg {seg:X4}) : x86seg.c n'est " +
+                         "transcrit qu'en mode reel (bloc Ap du plan)\n");
+                return;
+        }
+
+        cpu_state.seg_cs.@base = (uint32_t)(seg << 4);
+        cpu_state.seg_cs.limit = 0xFFFF;
+        cpu_state.seg_cs.limit_low = 0;
+        cpu_state.seg_cs.limit_high = 0xffff;
+        CS = seg;
+        if ((cpu_state.eflags & VM_FLAG) != 0)
+                cpu_state.seg_cs.access = (3 << 5) | 2;
+        else
+                cpu_state.seg_cs.access = (0 << 5) | 2;
+        if (CPL == 3 && oldcpl != 3)
+                Memory.mem.flushmmucache_cr3();
+        oldcpl = CPL;
+        cycles -= cpu.timing_jmp_rm;
+    }
+
     // pcem: x86seg.c:135-139 — LA LEVÉE D'EXCEPTION, réduite à ce qu'elle est :
     // poser la cause et le code d'erreur. C'est exec386 qui, voyant `abrt` non nul,
     // appellera x86_doabrt. Le message ne sert qu'au pclog de PCem, omis ici.

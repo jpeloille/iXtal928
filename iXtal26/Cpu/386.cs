@@ -76,6 +76,7 @@ internal static partial class _386
         PoserGroupeMov();
         PoserGroupeArith();
         PoserGroupePile();
+        PoserGroupeSauts();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
@@ -210,6 +211,16 @@ internal static partial class _386
     }
 
     internal static void CLOCK_CYCLES(int c) => cycles -= c;
+
+    // pcem: 386_dynarec.c:225. Même corps que CLOCK_CYCLES dans l'interpréteur —
+    // la distinction n'existe que pour le recompilateur, qui n'est pas lié ici.
+    internal static void CLOCK_CYCLES_ALWAYS(int c) => cycles -= c;
+
+    // pcem: 386_dynarec.c:221
+    internal static void PREFETCH_FLUSH() => prefetch_flush();
+
+    // pcem: 386_dynarec.c:22 — voir x86.cs pour pourquoi c'est inerte.
+    internal static void CPU_BLOCK_END() => cpu_block_end = 1;
 
     // -----------------------------------------------------------------------
     // pcem: 386.c:153-295

@@ -237,6 +237,17 @@ internal static partial class x86
     // le reste des registres système, pour que le vecteur d'état le compare dès
     // maintenant à la valeur qu'il ne fait pas varier.
     internal static int cpl_override;
+    // pcem: 386_dynarec.c:22 — `#define CPU_BLOCK_END() cpu_block_end = 1`.
+    //
+    // INERTE ICI, ET IL FAUT SAVOIR POURQUOI. Les handlers sont instanciés par
+    // 386_dynarec.c (c'est lui qui fait `#include "386_ops.h"`), donc c'est SA
+    // définition de CPU_BLOCK_END qu'ils portent — celle qui pose ce drapeau.
+    // Mais 386.c, dont vient exec386, redéfinit la macro À VIDE (386.c:17-18) et
+    // ne lit jamais la variable : seul exec_interpreter du dynarec la consulte,
+    // et il ne tourne pas ici. On la pose donc, sans la lire — le contraire
+    // ferait diverger le C# du C le jour où un autre lecteur apparaîtrait.
+    internal static int cpu_block_end;
+
     internal static int x86_was_reset;
 
     // pcem: ibm.h:160 — classe de machine. 0 sur un XT.

@@ -27,8 +27,18 @@ public static class Core286Check
         var echecs = 0;
 
         // Le 286 démarre à F000:FFF0 (AT = 1, resetx86 808x.c:680-683), soit
-        // l'adresse physique 0xFFFF0. On y pose un opcode connu.
-        Check("0xEA au vecteur de reset", 0xEA, ref echecs);
+        // l'adresse physique 0xFFFF0. On y pose un opcode ENCORE NON TRANSCRIT.
+        //
+        // 0xEA y figurait jusqu'a A5 — c'est l'opcode du vecteur de reset, et le
+        // choisir avait du sens tant que la table etait vide. A5 l'a transcrit, et
+        // ce controle est passe au ROUGE : la porte de A2.2b a tenu jusqu'au bout,
+        // puis a dit qu'elle n'avait plus lieu d'etre sous cette forme.
+        //
+        // CETTE PORTE EST DESTINEE A DISPARAITRE. Quand les 256 emplacements
+        // seront poses, plus aucun opcode ne tombera dans opNonTranscrit et il n'y
+        // aura plus rien a verifier ici. D'ici la, tenir cette liste a jour fait
+        // partie du travail de chaque groupe : un Check sur un opcode qu'on vient
+        // de transcrire rougit, ce qui est exactement ce qu'on veut qu'il fasse.
         Check("0x90 (NOP)", 0x90, ref echecs);
         Check("0xF4 (HLT)", 0xF4, ref echecs);
 
@@ -177,6 +187,56 @@ public static class Core286Check
         Cas("piege apres TEST16", [0x85, 0xC3], ref echecs, 0x0102);
         Cas("piege apres TEST8", [0x84, 0xC3], ref echecs, 0x0102);
 
+        // (k) LES SEIZE CONDITIONS, LUES SUR UN ETAT PARESSEUX.
+        //
+        //     A5 met VF_SET, CF_SET, ZF_SET, NF_SET et PF_SET sur le chemin
+        //     chaud. Le fuzzeur en mode simple ne peut exercer que leur DERNIERE
+        //     branche — celle qui lit cpu_state.flags — parce qu'il repart d'un
+        //     reset a chaque iteration et que flags_op y vaut FLAGS_UNKNOWN.
+        //
+        //     Un Jcc qui suit un ADD, un SUB ou un OR dans la MEME suite lit au
+        //     contraire une espece paresseuse reelle. Seize conditions x trois
+        //     poseurs x deux jeux de valeurs, dont un qui deborde en signe : c'est
+        //     ce qui separe un VF_SET juste d'un zero constant, et c'est la seule
+        //     chose qui distingue JL de JB.
+        (byte[] code, string nom)[] poseurs =
+        [
+                ([0x05, 0xFF, 0xFF], "ADD16 AX,FFFF"),
+                ([0x2D, 0x01, 0x00], "SUB16 AX,1"),
+                ([0x0D, 0x00, 0x00], "OR16 AX,0"),
+        ];
+        string[] noms = ["JO","JNO","JB","JNB","JE","JNE","JBE","JNBE",
+                         "JS","JNS","JP","JNP","JL","JNL","JLE","JNLE"];
+        (ushort ax, ushort bx)[] valeurs = [(0x1234, 0x0010), (0x8000, 0x0000)];
+        foreach (var (pose, nomPose) in poseurs)
+                foreach (var (ax, bx) in valeurs)
+                        for (var j = 0; j < 16; j++)
+                        {
+                                var code = new byte[pose.Length + 2];
+                                pose.CopyTo(code, 0);
+                                code[pose.Length] = (byte)(0x70 + j);
+                                code[pose.Length + 1] = 0x02;      // deplacement +2
+                                Suite($"{nomPose} puis {noms[j]} (AX={ax:X4})", code, 2, ref echecs,
+                                      0, ax, bx);
+                        }
+
+        // (l) LES BOUCLES ET LE SAUT LOINTAIN.
+        //
+        //     LOOP decremente CX AVANT de le tester et facture ses cycles AVANT le
+        //     test — donc aussi quand il ne saute pas. JCXZ ne decremente rien et
+        //     porte des cycles EN DUR. Trois cas ou CX vaut 1 : la decrementation
+        //     l'amene a zero et la boucle NE saute PAS, ce qu'un CX aleatoire ne
+        //     produit qu'une fois sur 65 536.
+        Cas("LOOP avec CX=1 : la decrementation l'amene a zero, il NE saute PAS",
+            [0xE2, 0x02], ref echecs, 0, 0x1234, 0x0010, 1);
+        Cas("LOOP avec CX=0 : il reboucle 65 535 fois", [0xE2, 0x02], ref echecs,
+            0, 0x1234, 0x0010, 0);
+        Cas("LOOPE avec CX=1 et ZF pose", [0xE1, 0x02], ref echecs, 0x0042, 0x1234, 0x0010, 1);
+        Cas("JCXZ avec CX=0 : saute", [0xE3, 0x02], ref echecs, 0, 0x1234, 0x0010, 0);
+        Cas("JCXZ avec CX=1 : ne saute pas", [0xE3, 0x02], ref echecs, 0, 0x1234, 0x0010, 1);
+        Cas("JMP far : l'opcode du vecteur de reset", [0xEA, 0x00, 0x10, 0x00, 0x20],
+            ref echecs);
+
         // (g) LE MEME ENCODAGE QUE (b), ET IL NE DOIT PAS ABANDONNER.
         //
         //     Le cas (b) — 89 06 FF FF, MOV [FFFF], AX — abandonne : opMOV_w_r_a16
@@ -252,8 +312,8 @@ public static class Core286Check
     /// champs. Les deux côtés reçoivent le même code au même endroit et le même
     /// état de registres.</summary>
     private static void Cas(string nom, byte[] code, ref int echecs, ushort flags = 0,
-                            ushort ax = 0x1234, ushort bx = 0x0010)
-        => Suite(nom, code, 1, ref echecs, flags, ax, bx);
+                            ushort ax = 0x1234, ushort bx = 0x0010, ushort cx = 0)
+        => Suite(nom, code, 1, ref echecs, flags, ax, bx, cx);
 
     /// <summary>Le même, sur PLUSIEURS instructions d'affilée — et c'est le seul
     /// moyen d'exercer ce qu'une instruction laisse à la suivante.
@@ -262,7 +322,8 @@ public static class Core286Check
     /// second diverge, on veut lire que le premier était bon. Un seul état
     /// comparé à la fin dirait « divergence » sans dire laquelle des deux.</summary>
     private static void Suite(string nom, byte[] code, int pas, ref int echecs,
-                              ushort flags = 0, ushort ax = 0x1234, ushort bx = 0x0010)
+                              ushort flags = 0, ushort ax = 0x1234, ushort bx = 0x0010,
+                              ushort cx = 0)
     {
         var regs = new ushort[(int)iXtal26.Diag.R.COUNT];
         for (var i = 0; i < regs.Length; i++)
@@ -273,6 +334,7 @@ public static class Core286Check
         regs[(int)iXtal26.Diag.R.SP] = 0x0100;
         regs[(int)iXtal26.Diag.R.AX] = ax;
         regs[(int)iXtal26.Diag.R.BX] = bx;
+        regs[(int)iXtal26.Diag.R.CX] = cx;
         regs[(int)iXtal26.Diag.R.FLAGS] = flags;
 
         Oracle.h_set_core(Oracle.Core286);
