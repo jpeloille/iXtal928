@@ -860,7 +860,21 @@ int h_boot(const char *romspath) {
         resetx86();
         fdc_reset();                 /* pc.c:180 */
         pic_reset();
-        setpitclock(14318184.0f);
+        /* pc.c:184-187 — `if (AT) setpitclock(rspeed) else setpitclock(14318184.0)`.
+                 *
+                 * PITCONST = cpuclock / 1193182, donc le NOMBRE DE CYCLES CPU par tic
+                 * du PIT. Le passer a 14318184 sur un AT donnait 12 cycles par tic la
+                 * ou un 286/6 en demande 5,03 : le PIT tournait 2,4 fois trop lentement
+                 * PAR RAPPORT AU PROCESSEUR.
+                 *
+                 * Mesure : le POST de l'AT compte les bascules du bit de rafraichissement
+                 * et exige au moins 0xF600 (F000:05B8). Il en trouvait moins et s'arretait
+                 * sur un HLT en F000:05C4, apres 100 millions d'instructions.
+                 *
+                 * 6000000 est la rspeed de cpus_ibmat[0], le « 286/6 » de l'AT 5170
+                 * (cpu_tables.c:86) — la meme valeur que h_cpu_config_286 donne deja a
+                 * cpu_busspeed. */
+                setpitclock(AT ? 6000000.0f : 14318184.0f);
 
         nextcyc = 0;
         memcycs = 0;

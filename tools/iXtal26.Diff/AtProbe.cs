@@ -52,7 +52,7 @@ public static class AtProbe
         // conditions : le bit 0 du mot d'état machine passe a un (entrée en mode
         // protégé), ou le budget est épuisé.
         const int tranche = 200_000;
-        const int tranches = 5000;
+        const int tranches = 2000;
         ulong total = 0;
         var pmodeA = -1L;
 
@@ -69,10 +69,10 @@ public static class AtProbe
                 Console.WriteLine($"      CS:IP {s.seg_sel[0]:X4}:{s.pc:X4}  msw {s.cr0 & 0xFFFF:X4}");
                 Console.WriteLine($"      gdt base {s.sys_base[0]:X8} limit {s.sys_limit[0]:X4}");
                 Console.WriteLine($"      idt base {s.sys_base[2]:X8} limit {s.sys_limit[2]:X4}");
-                break;
+                Console.WriteLine("      — on CONTINUE : ce qui suit dit jusqu'ou le POST va.\n");
             }
 
-            if (t % 250 == 0)
+            if (t % 500 == 0)
                 Console.WriteLine($"  {total,12:N0} instr   CS:IP {s.seg_sel[0]:X4}:{s.pc:X4}   " +
                                   $"AX {s.regs[0]:X4}  msw {s.cr0 & 0xFFFF:X4}   " +
                                   $"timer {s.n_timer_process,10:N0}  inb {s.n_inb,9:N0}  " +
@@ -86,6 +86,28 @@ public static class AtProbe
 
         if (pmodeA < 0)
             Console.WriteLine("\n  Le POST n'est PAS entre en mode protege dans ce budget.");
+
+        // L'ECRAN, ET C'EST LA PREUVE QUI MANQUE AU RESTE. Les compteurs disent
+        // que le coeur tourne ; seul le contenu de la memoire video dit ce que
+        // le POST a VOULU dire. La carte montee est une CGA (h_boot fait
+        // device_add(&cga_device)), donc le texte est en B8000, un octet de
+        // caractere suivi d'un octet d'attribut.
+        Console.WriteLine("\n  Ecran (B8000, 80x25, lignes non vides) :");
+        var vram = new byte[80 * 25 * 2];
+        Oracle.h_read(0xB8000, vram, (uint)vram.Length);
+        for (var ligne = 0; ligne < 25; ligne++)
+        {
+            var txt = new char[80];
+            var vide = true;
+            for (var col = 0; col < 80; col++)
+            {
+                var ch = vram[(ligne * 80 + col) * 2];
+                txt[col] = ch >= 32 && ch < 127 ? (char)ch : ' ';
+                if (ch != 0 && ch != 32) vide = false;
+            }
+            if (!vide)
+                Console.WriteLine($"   {ligne,2} | {new string(txt).TrimEnd()}");
+        }
 
         Console.WriteLine("\nVert : la sonde a tourne. Ce qu'elle rapporte est une MESURE,");
         Console.WriteLine("       pas une comparaison — le cote C# n'a pas encore de machine AT.");
