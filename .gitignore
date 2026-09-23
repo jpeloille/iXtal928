@@ -42,3 +42,7 @@ pcem-ref-build/
 
 # Espaces de travail et états de session des agents — jamais versionnés.
 .claude/
+
+# Brouillon de travail apparu a la racine, hors arborescence du projet.
+# Non versionne : ce n'est ni du transcrit, ni de l'outillage.
+/memCSharp.cs
