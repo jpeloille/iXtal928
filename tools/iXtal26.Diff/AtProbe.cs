@@ -142,6 +142,38 @@ public static class AtProbe
                         ? "   -> motif de la branche SANS FICHIER de loadnvr (nvr.c:524-534)."
                         : "   -> ni zero ni le motif sans fichier : le POST a deja ecrit dedans.");
 
+        // models[ROM_IBMAT]->cpu[0].cpus — ET IL EST NUL.
+        //
+        // h_model_ibmat ne pose que name, id, internal_name, flags et les trois
+        // tailles de RAM. Le membre cpu[5] porte un POINTEUR, CPU *cpus, laisse a
+        // zero. Or cpu_set_edx() (cpu.c) fait
+        //   EDX = models[model]->cpu[cpu_manufacturer].cpus[cpu].edx_reset;
+        // donc il DEREFERENCE NULL. Offsets mesures par le compilateur, pas
+        // supposes : sizeof(MODEL) = 208, offsetof(cpu[0].cpus) = 104.
+        //
+        // ET RIEN NE PLANTE, parce que --wrap intercepte les DEUX appelants :
+        // __wrap_cpu_set_edx() et __wrap_cpu_update_waitstates() sont VIDES
+        // (harness_stubs.c:268 et :278). Le pointeur nul est donc reel et sans
+        // consequence — mais il fixe le comportement que le C# doit avoir.
+        //
+        // CE QUE CA DECIDE POUR B1b ET B3 : la commande 0xFE du 8042 (« pulse
+        // output port », la SEULE sortie du mode protege d'un 286) fait
+        // softresetx86() puis cpu_set_edx(). Sur l'oracle, cpu_set_edx ne fait
+        // RIEN : EDX garde sa valeur d'avant le reset. Un C# qui calculerait
+        // edx_reset depuis cpus_286[] divergerait. Peupler cpu[0].cpus et
+        // deleguer a __real_ est un choix a faire EXPLICITEMENT, pas par defaut.
+        var p_models = Oracle.Symbole("models");
+        var p_ibmat = System.Runtime.InteropServices.Marshal.ReadIntPtr(p_models, 25 * 8);
+        Console.WriteLine($"\n  models[ROM_IBMAT] = 0x{p_ibmat.ToInt64():X}");
+        if (p_ibmat != IntPtr.Zero)
+        {
+                var p_cpus = System.Runtime.InteropServices.Marshal.ReadIntPtr(p_ibmat, 104);
+                Console.WriteLine($"  ->cpu[0].cpus      = 0x{p_cpus.ToInt64():X}" +
+                        (p_cpus == IntPtr.Zero
+                                ? "   NUL — mais --wrap vide ses deux appelants."
+                                : "   peuple."));
+        }
+
         // isa_cycles, pendant de la regle 3 : lier cpu.c fournit le SYMBOLE,
         // cpu_set() pose la VALEUR, et h_cpu_config_286 est ce qui en tient lieu.
         // readnvr et writenvr facturent tous deux ISA_CYCLES(8) : une valeur de
