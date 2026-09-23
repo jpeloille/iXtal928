@@ -3,7 +3,10 @@
 //
 // ORACLE: pcem-dev/src/memory/mem_bios.c
 // STATUS: partial — romfread, mem_load_basic et loadbios réduit aux cas
-//         ROM_IBMPC et ROM_IBMXT. Les 100 autres romsets sont omis.
+//         ROM_IBMPC, ROM_IBMXT et, depuis B3, ROM_IBMAT — le seul dont les deux
+//         ROM sont ENTRELACÉES octet par octet, u27 les pairs et u47 les impairs,
+//         parce qu'un AT a un bus de données de seize bits. Les 99 autres romsets
+//         sont omis.
 
 using static iXtal26.Flash.rom;
 using static iXtal26.Memory.mem;
@@ -108,6 +111,46 @@ internal static partial class mem_bios
                     f.Close();
                     if (mem_load_basic("ibmpc") == 0)
                             break;
+                    return 1;
+
+            // pcem: mem_bios.c:288-304 — L'IBM AT, ET SES DEUX ROM SONT ENTRELACÉES.
+            //
+            // Un AT a un bus de DONNÉES de seize bits, et IBM l'a câblé avec deux
+            // boîtiers de huit : u27 porte tous les octets PAIRS, u47 tous les IMPAIRS.
+            // D'où la boucle `c += 2` et non un romfread par moitié — c'est le seul
+            // chargement de ce dépôt qui ne peut pas passer par romfread.
+            //
+            // getc() OCTET PAR OCTET, 65 536 fois par fichier, est ce que fait le C. Le
+            // pendant fidèle est ReadByte() et non un buffer : romfread ne convient pas,
+            // et lire les deux fichiers en entier pour les fusionner serait plus rapide
+            // mais ne serait plus la même suite d'appels. Ici le coût est nul — un seul
+            // chargement au démarrage.
+            //
+            // omitted: le bloc commenté amic206.bin de `case ROM_IBMAT` (:289-293) —
+            //   PCem l'a désactivé lui-même ; le case tombe DANS ROM_IBMAT386, et c'est
+            //   ce qui rend les deux machines identiques de ce point de vue.
+            case ROM_IBMAT:
+                    f = romfopen("ibmat/62x0820.u27", "rb");
+                    ff = romfopen("ibmat/62x0821.u47", "rb");
+                    // DEVIATION: le C fait `if (!f || !ff) break;` et FUIT celui des deux
+                    //   qui s'était ouvert. Ici on le ferme. Sans effet observable sur
+                    //   l'émulation — aucun oracle ne peut voir un descripteur — mais un
+                    //   FileStream abandonné garde le fichier verrouillé jusqu'au passage
+                    //   du ramasse-miettes, ce que le C ne fait pas. Corrigé plutôt que
+                    //   reproduit, et marqué parce que ce n'est pas le geste du C.
+                    if (f == null || ff == null)
+                    {
+                            f?.Close();
+                            ff?.Close();
+                            break;
+                    }
+                    for (var c = 0x0000; c < 0x10000; c += 2)
+                    {
+                            rom[c] = (uint8_t)f.ReadByte();
+                            rom[c + 1] = (uint8_t)ff.ReadByte();
+                    }
+                    ff.Close();
+                    f.Close();
                     return 1;
 
             // pcem: mem_bios.c:166-181

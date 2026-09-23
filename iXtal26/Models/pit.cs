@@ -6,8 +6,10 @@
 //         pit_read_timer, pit_dump_and_disable_timer, pit_load, pit_set_gate(_no_timer),
 //         pit_over, pit_write, pit_read, pit_timer_over, pit_clock,
 //         pit_set_using_timer, pit_set_out_func, pit_null_timer, pit_irq0_timer,
-//         pit_refresh_timer_xt, pit_speaker_timer, pit_init. Omis : pit2 et tout
-//         le PS/2, l'AT, le PCjr, et les deux globales mortes de pit.c.
+//         pit_refresh_timer_xt, pit_speaker_timer, pit_init, et depuis B3
+//         pit_refresh_timer_at. Omis : pit2 et tout le PS/2, le PCjr, et les deux
+//         globales mortes de pit.c. Cette ligne omettait « l'AT » en bloc, ce qui
+//         n'est plus vrai : son rafraîchissement mémoire est transcrit.
 
 // CS8618 : `PIT_nr.pit` transcrit `struct PIT *pit` (ibm.h:75). Le C le laisse
 // indéterminé jusqu'à pit_init (pit.c:594) ; aucun constructeur ne peut le poser
@@ -667,6 +669,23 @@ internal static partial class pit
                 pic.picint(1);
         if (new_out == 0)
                 pic.picintc(1);
+    }
+
+    // pcem: pit.c:558-561 — LE RAFRAÎCHISSEMENT MÉMOIRE D'UN AT, et le POST le COMPTE.
+    //
+    // Sur un XT le canal 1 du PIT déclenche un cycle de rafraîchissement DRAM par le
+    // DMA ; sur un AT il fait basculer le bit 4 du port B du PPI, et le BIOS compte les
+    // bascules pour vérifier que l'horloge tourne. Il en exige au moins 0xF600
+    // (F000:05B8), et en dessous il s'arrête sur un HLT en F000:05C4.
+    //
+    // C'EST CE COMPTE QUI A FAIT ÉCHOUER B2 PENDANT CENT MILLIONS D'INSTRUCTIONS, et le
+    // défaut n'était pas ici : le harnais n'avait que la branche XT de setpitclock, donc
+    // PITCONST valait 12 cycles CPU par tic au lieu de 5,03 et le PIT tournait 2,4 fois
+    // trop lentement par rapport au processeur. Le bit basculait, simplement pas assez.
+    internal static void pit_refresh_timer_at(int new_out, int old_out)
+    {
+        if (new_out != 0 && old_out == 0)
+                ppi_c.ppi.pb ^= 0x10;
     }
 
     // pcem: pit.c:553-556

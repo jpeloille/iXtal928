@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/models/dma.c
-// STATUS: partial — le 8237 8 bits du 5150 (canaux 0-3, ports 0x00-0x0f et
-//         pages 0x80-0x87). Les DÉCLARATIONS d'état du C sont transcrites en
-//         entier (dma16_wp, dma16_command, dma_ps2, dma_t.ps2_mode) pour que
-//         les fonctions survivantes restent verbatim ; seuls les HANDLERS
-//         16 bits et PS/2 sont omis, chacun marqué sur place.
+// STATUS: partial — LES DEUX 8237 : celui du 5150 (canaux 0-3, ports 0x00-0x0f,
+//         pages 0x80-0x87) et, depuis B3, celui de l'AT (canaux 4-7, ports
+//         0xc0-0xdf, pages 0x88-0x8f) — dma16_read, dma16_write, dma16_init et
+//         les trois cases 16 bits de dma_page_write. Les DÉCLARATIONS d'état du C
+//         sont transcrites en entier (dma16_wp, dma16_command, dma_ps2,
+//         dma_t.ps2_mode). N'est plus omis que le PS/2, marqué sur place.
+//         Cette ligne disait « seuls les HANDLERS 16 bits et PS/2 sont omis ».
 
 using iXtal26.Cpu;
 using iXtal26.Memory;
@@ -34,9 +36,10 @@ internal sealed class dma_t
 
 internal static partial class dma
 {
-    // CS0414 : dma16_wp est ecrit par le chemin 16 bits (AT) mais jamais relu ici,
-    // le 5150 n'ayant que le DMA 8 bits. Transcrit pour la forme, cf. omissions.
-#pragma warning disable CS0414
+    // CS0414 RETIRÉ À B3. Cette classe portait `#pragma warning disable CS0414` parce
+    // que dma16_wp était écrit sans jamais être relu : le 5150 n'a que le DMA 8 bits.
+    // dma16_read et dma16_write sont transcrits maintenant, donc il a un lecteur, et le
+    // build est propre SANS le pragma — vérifié en le retirant.
     // pcem: dma.h:8-9
     internal const int DMA_NODATA = -1;
     internal const int DMA_OVER = 0x10000;
@@ -46,7 +49,11 @@ internal static partial class dma
 
     // pcem: dma.c:13-21
     private static uint8_t[] dmaregs = new uint8_t[16];
-    // omitted: dma16regs[16] (dma.c:14) — lu et écrit par dma16_read/dma16_write seuls
+    // pcem: dma.c:14 — DÉ-OMISSION : dma16_read et dma16_write sont transcrits depuis
+    // B3, et ce tableau est leur seul état propre. Il porte le dernier octet écrit dans
+    // chaque registre, et dma16_read le rend TEL QUEL pour les emplacements que son
+    // switch ne couvre pas — c'est son `return dma16regs[addr & 0xf]` final.
+    private static readonly uint8_t[] dma16regs = new uint8_t[16];
     private static uint8_t[] dmapages = new uint8_t[16];
 
     private static int dma_wp, dma16_wp;
@@ -204,8 +211,155 @@ internal static partial class dma
 
     // omitted: dma_ps2_read (dma.c:164-224), dma_ps2_write (dma.c:226-311) —
     //          ports 0x18/0x1a du DMA PS/2
-    // omitted: dma16_read (dma.c:313-350), dma16_write (dma.c:352-426) — 8237
-    //          16 bits, canaux 4-7, ports 0xc0-0xdf : absent du 5150
+
+    // LE SECOND 8237, CELUI DES TRANSFERTS 16 BITS, ET L'AT L'EXERCE POUR DE VRAI.
+    //
+    // MESURE, pas déduction : une sonde dlsym sur la globale `dma` (exportée, `nm -D`
+    // rend « B dma ») lit zéro partout après h_boot, puis après ~12 millions
+    // d'instructions de POST :
+    //     dma[4].mode = C0   dma[5].mode = 41   dma[6].mode = 42   dma[7].mode = 43
+    //     dma[5].page = 08   dma[6].page = 06   dma[7].page = 06
+    // Or dma[4..7].mode n'est écrit QUE par dma16_write (case 0xb) et dma[5..7].page
+    // QUE par les trois cases de dma_page_write ci-dessous. Les deux plages de ports
+    // ne sont décodées que par dma16_init.
+    //
+    // SES ADRESSES SONT EN MOTS, PAS EN OCTETS, et c'est tout l'écart avec le premier
+    // 8237 : `(ac >> 1) & 0xff` à la lecture, `(val << 1)` à l'écriture. Un canal
+    // 16 bits compte des mots, donc son registre d'adresse est décalé d'un bit — et
+    // c'est pourquoi la page est masquée à 0xfe et l'adresse à 0x1ffff au lieu de
+    // 0xffff. Confondre les deux donnerait des transferts au bon endroit divisé par
+    // deux.
+    //
+    // dma16_wp EST UN BASCULEUR PARTAGÉ par les registres d'adresse ET de compte : un
+    // `^= 1` à chaque accès, et c'est lui qui distingue l'octet bas du haut. Les cases
+    // 0xc et 0xd le remettent à zéro. Il était déclaré depuis M4 sans lecteur, d'où le
+    // CS0414 que l'en-tête mentionnait ; il en a un maintenant, et le pragma est parti.
+
+    // pcem: dma.c:313-350
+    internal static uint8_t dma16_read(uint16_t addr, object priv)
+    {
+        int channel = ((addr >> 2) & 3) + 4;
+        uint8_t temp;
+        // omitted: printf de trace (dma.c:316) — sortie pure.
+        addr >>= 1;
+        switch (addr & 0xf)
+        {
+        case 0:
+        case 2:
+        case 4:
+        case 6: /*Address registers*/
+                dma16_wp ^= 1;
+                if (dma_ps2.is_ps2 != 0)
+                {
+                        if (dma16_wp != 0)
+                                return (uint8_t)dma_[channel].ac;
+                        return (uint8_t)((dma_[channel].ac >> 8) & 0xff);
+                }
+                if (dma16_wp != 0)
+                        return (uint8_t)((dma_[channel].ac >> 1) & 0xff);
+                return (uint8_t)((dma_[channel].ac >> 9) & 0xff);
+
+        case 1:
+        case 3:
+        case 5:
+        case 7: /*Count registers*/
+                dma16_wp ^= 1;
+                if (dma16_wp != 0)
+                        temp = (uint8_t)(dma_[channel].cc & 0xff);
+                else
+                        temp = (uint8_t)(dma_[channel].cc >> 8);
+                return temp;
+
+        case 8: /*Status register*/
+                temp = (uint8_t)(dma_stat >> 4);
+                dma_stat &= unchecked((uint8_t)~0xf0);
+                return temp;
+        }
+        return dma16regs[addr & 0xf];
+    }
+
+    // pcem: dma.c:352-426
+    internal static void dma16_write(uint16_t addr, uint8_t val, object priv)
+    {
+        int channel = ((addr >> 2) & 3) + 4;
+        // omitted: printf de trace (dma.c:354) — sortie pure.
+        addr >>= 1;
+        dma16regs[addr & 0xf] = val;
+        switch (addr & 0xf)
+        {
+        case 0:
+        case 2:
+        case 4:
+        case 6: /*Address registers*/
+                dma16_wp ^= 1;
+                if (dma_ps2.is_ps2 != 0)
+                {
+                        if (dma16_wp != 0)
+                                dma_[channel].ab = (dma_[channel].ab & 0xffff00) | val;
+                        else
+                                dma_[channel].ab = (dma_[channel].ab & 0xff00ff) | ((uint32_t)val << 8);
+                }
+                else
+                {
+                        if (dma16_wp != 0)
+                                dma_[channel].ab = (dma_[channel].ab & 0xfffe00) | ((uint32_t)val << 1);
+                        else
+                                dma_[channel].ab = (dma_[channel].ab & 0xfe01ff) | ((uint32_t)val << 9);
+                }
+                dma_[channel].ac = dma_[channel].ab;
+                return;
+
+        case 1:
+        case 3:
+        case 5:
+        case 7: /*Count registers*/
+                dma16_wp ^= 1;
+                if (dma16_wp != 0)
+                        dma_[channel].cb = (uint16_t)((dma_[channel].cb & 0xff00) | val);
+                else
+                        dma_[channel].cb = (uint16_t)((dma_[channel].cb & 0x00ff) | (val << 8));
+                dma_[channel].cc = dma_[channel].cb;
+                return;
+
+        case 8: /*Control register*/
+                return;
+
+        case 0xa: /*Mask*/
+                if ((val & 4) != 0)
+                        dma_m |= (uint8_t)(0x10 << (val & 3));
+                else
+                        dma_m &= unchecked((uint8_t)~(0x10 << (val & 3)));
+                return;
+
+        case 0xb: /*Mode*/
+                channel = (val & 3) + 4;
+                dma_[channel].mode = val;
+                if (dma_ps2.is_ps2 != 0)
+                {
+                        dma_[channel].ps2_mode &= unchecked((uint8_t)~0x1c);
+                        if ((val & 0x20) != 0)
+                                dma_[channel].ps2_mode |= 0x10;
+                        if ((val & 0xc) == 8)
+                                dma_[channel].ps2_mode |= 4;
+                        else if ((val & 0xc) == 4)
+                                dma_[channel].ps2_mode |= 0xc;
+                }
+                return;
+
+        case 0xc: /*Clear FF*/
+                dma16_wp = 0;
+                return;
+
+        case 0xd: /*Master clear*/
+                dma16_wp = 0;
+                dma_m |= 0xf0;
+                return;
+
+        case 0xf: /*Mask write*/
+                dma_m = (uint8_t)((dma_m & 0x0f) | ((val & 0xf) << 4));
+                return;
+        }
+    }
 
     // pcem: dma.c:428-467
     internal static void dma_page_write(uint16_t addr, uint8_t val, object priv)
@@ -233,8 +387,24 @@ internal static partial class dma
                 dma_[0].ab = (dma_[0].ab & 0xffff) | ((uint32_t)dma_[0].page << 16);
                 dma_[0].ac = (dma_[0].ac & 0xffff) | ((uint32_t)dma_[0].page << 16);
                 break;
-        // omitted: cases 0x9, 0xa, 0xb (dma.c:451-465) — pages étendues des
-        //          canaux 5-7, décodées par le seul dma16_init (0x88-0x8f)
+        // LES TROIS PAGES DES CANAUX 16 BITS. Masque 0xfe et non 0xf, et l'adresse
+        // conservée sur 17 bits et non 16 : le bit 16 appartient à l'adresse en mots,
+        // pas à la page. Mesuré posées par le POST (voir dma16_write ci-dessus).
+        case 0x9:
+                dma_[6].page = (uint8_t)(val & 0xfe);
+                dma_[6].ab = (dma_[6].ab & 0x1ffff) | ((uint32_t)dma_[6].page << 16);
+                dma_[6].ac = (dma_[6].ac & 0x1ffff) | ((uint32_t)dma_[6].page << 16);
+                break;
+        case 0xa:
+                dma_[7].page = (uint8_t)(val & 0xfe);
+                dma_[7].ab = (dma_[7].ab & 0x1ffff) | ((uint32_t)dma_[7].page << 16);
+                dma_[7].ac = (dma_[7].ac & 0x1ffff) | ((uint32_t)dma_[7].page << 16);
+                break;
+        case 0xb:
+                dma_[5].page = (uint8_t)(val & 0xfe);
+                dma_[5].ab = (dma_[5].ab & 0x1ffff) | ((uint32_t)dma_[5].page << 16);
+                dma_[5].ac = (dma_[5].ac & 0x1ffff) | ((uint32_t)dma_[5].page << 16);
+                break;
         }
     }
 
@@ -249,7 +419,15 @@ internal static partial class dma
         dma_ps2.is_ps2 = 0;
     }
 
-    // omitted: dma16_init (dma.c:477-480) — ports 0xc0-0xdf et pages 0x88-0x8f
+    // pcem: dma.c:477-480 — DEUX plages, et la seconde est un ALIAS : dma_page_read et
+    // dma_page_write sont les MÊMES handlers qu'en 0x80-0x87, ce qui donne à un port
+    // de 0x88-0x8f l'indice `addr & 0xf` de 8 à 15 — d'où les cases 0x9, 0xa et 0xb.
+    internal static void dma16_init()
+    {
+        io.io_sethandler(0x00C0, 0x0020, dma16_read, null, null, dma16_write, null, null, null);
+        io.io_sethandler(0x0088, 0x0008, dma_page_read, null, null, dma_page_write, null, null, null);
+    }
+
     // omitted: ps2_dma_init (dma.c:482-486) — ports 0x18/0x1a, pose is_ps2 = 1
 
     // pcem: dma.c:488-491
