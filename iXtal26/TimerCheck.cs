@@ -120,7 +120,9 @@ internal static class TimerCheck
         return k == _tscPerCycle ? tsc / k : (long)Math.Floor(tsc / _tscPerCycle);
     }
 
-    internal static int Run(string roms, int seconds, int bootSlices)
+    /// <param name="ramLoad">« --charge ram » : la fenêtre mesure une boucle écrite en RAM
+    /// plutôt que ce que la machine faisait à la fin de l'amorçage. Voir InstallRamLoop.</param>
+    internal static int Run(string roms, int seconds, int bootSlices, bool ramLoad = false)
     {
         if (!pc.initpc(roms))
                 return 1;
@@ -251,6 +253,9 @@ internal static class TimerCheck
         }
 
         Console.WriteLine($"  le compteur avance : +{probe1 - probe0} tops en 1 s contractuelle. Mesure autorisée.\n");
+
+        if (ramLoad && !InstallRamLoop())
+                return 1;
 
         // ---------------------------------------------------------------
         // La fenêtre. On l'aligne sur un FRONT du compteur aux deux bouts :
@@ -392,6 +397,46 @@ internal static class TimerCheck
         Console.WriteLine($"EMPREINTE: tops={ticks} tranches={windowSlices} tsc={dtsc} cons={dcons} ins={dins} insc={dinsc}");
 
         return 0;
+    }
+
+    // MOV CX,FFFF / DEC CX / JNZ -3 / JMP -8 : une boucle sur registres, qui ne touche pas
+    // la mémoire hors de son propre préfetch.
+    private static readonly byte[] RamLoop = [0xB9, 0xFF, 0xFF, 0x49, 0x75, 0xFD, 0xEB, 0xF8];
+    private const uint32_t RamLoopAddr = 0x600;
+
+    /// <summary>
+    /// LA CHARGE « RAM », pour mesurer la marge de l'hôte là où elle se décide. À la fin de
+    /// l'amorçage, un BIOS attend une touche ou un disque dans une boucle en ROM ; au-delà de
+    /// 8 MHz, chaque mot lu en ROM coûte rspeed / 1e6 cycles (20 à 286/20), donc très peu
+    /// d'instructions par seconde invitée, donc un hôte peu chargé et une marge flatteuse.
+    /// Un programme qui tourne en RAM en exécute cinq fois plus. On écrit donc en 0000:0600
+    /// une boucle sur registres, et le 286 y saute, interruptions AUTORISÉES : l'INT 8 du
+    /// BIOS continue de compter les tops, et la mesure reste celle du reste de l'outil.
+    ///
+    /// Outil hôte, pas un comportement de la machine : la RAM et CS:IP sont écrits de
+    /// l'extérieur, comme un débogueur le ferait. Réservé au 286 en mode réel — le 8088
+    /// porte sa propre file de préfetch, et un sélecteur de mode protégé ne se pose pas ainsi.
+    /// </summary>
+    private static bool InstallRamLoop()
+    {
+        if (x86.AT == 0 || (x86.msw & 1) != 0)
+        {
+                Console.Error.WriteLine("--charge ram : réservée au 286 en mode réel " +
+                                        $"(AT = {x86.AT}, MSW.PE = {x86.msw & 1}).");
+                return false;
+        }
+
+        for (var i = 0; i < RamLoop.Length; i++)
+                mem.ram[RamLoopAddr + i] = RamLoop[i];
+
+        x86seg_c.loadcs(0);
+        _386_common.cpu_state.pc = RamLoopAddr;
+        _386_common.cpu_state.flags |= (uint16_t)x86.I_FLAG;
+        mem.flushmmucache();
+        _386.prefetch_reset();
+
+        Console.WriteLine($"--- charge « ram » : boucle MOV CX,FFFF / DEC CX / JNZ / JMP en 0000:{RamLoopAddr:X4}, IF = 1 ---\n");
+        return true;
     }
 
     /// <summary>Avance tranche par tranche jusqu'à ce que le compteur de tops

@@ -261,6 +261,7 @@ for (var i = 0; i < args.Length; i++)
         string? tcModel = null;
         string? tcGfx = null;
         var tcCpu = -1;
+        var tcRam = false;
         var bootSlices = TimerCheck.DefaultBootSlices;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
@@ -276,6 +277,16 @@ for (var i = 0; i < args.Length; i++)
             {
                 case "--model": tcModel = val; break;
                 case "--gfxcard": tcGfx = val; break;
+                // La charge de la fenêtre : « repos » (défaut, ce que la machine faisait) ou
+                // « ram », une boucle en RAM — celle qui décide de la marge de l'hôte.
+                case "--charge":
+                    if (val is not ("ram" or "repos"))
+                    {
+                        Console.Error.WriteLine("--charge attend « repos » ou « ram ».");
+                        return 2;
+                    }
+                    tcRam = val == "ram";
+                    break;
                 case "--cpu":
                     if (!int.TryParse(val, out tcCpu) || tcCpu < 0)
                     {
@@ -321,7 +332,7 @@ for (var i = 0; i < args.Length; i++)
         if (!pc.check_cpu())
             return 2;
 
-        return TimerCheck.Run(paths.resolve_roms_path(roms), seconds, bootSlices);
+        return TimerCheck.Run(paths.resolve_roms_path(roms), seconds, bootSlices, tcRam);
     }
 
     // FABRIQUER une image de disque dur vierge, puis sortir. PREMIÈRE commande du dépôt
@@ -1254,6 +1265,7 @@ static void PrintUsage()
     Console.WriteLine("                       deux branches d'img_load doivent lire la même chose");
     Console.WriteLine("  --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER] [--cpu N]");
     Console.WriteLine("                [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]");
+    Console.WriteLine("                [--charge repos|ram]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");
     Console.WriteLine("                       secondes ÉMULÉES et compare à 1193182/65536 =");

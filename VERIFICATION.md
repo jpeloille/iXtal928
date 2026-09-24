@@ -3439,6 +3439,56 @@ ROM 20) et `--cpu 6` (286/25). C'est le premier témoin DIFFÉRENTIEL du temps d
 ces vitesses — mémoire et préfetch en RAM ; le préfetch en ROM, lui, n'est atteint que par
 un amorçage, donc par aucun diff tant que NEAT manque à l'oracle.
 
+### Étape 7 : l'ami286 en 286/20 et 286/25 — mesuré
+
+Aucun code transcrit : des mesures, et une charge ajoutée à l'outil. Au repos, un BIOS
+attend dans une boucle en ROM, où chaque mot coûte rspeed / 1e6 cycles au-delà de 8 MHz :
+très peu d'instructions par seconde invitée, un hôte peu chargé, une marge flatteuse.
+`--timer-check --charge ram` écrit donc en 0000:0600 une boucle sur registres
+(`MOV CX,FFFF / DEC CX / JNZ / JMP`) et y fait sauter le 286, en mode réel, IF = 1 : l'INT 8
+continue de compter les tops. C'est cette charge qui décide de la faisabilité.
+
+Protocole : `--timer-check roms 300 --model ami286 --cpu N --charge ram`, `taskset -c 0-3`,
+trois passages, CMOS figé (répertoire jetable). **Machine PAS au repos** — Rider ouvert,
+charge moyenne 2,5 à 3,4 : les marges ci-dessous sont des MINORANTS.
+
+| | 286/20 (`cpu = 5`) | 286/25 (`cpu = 6`) | Prédit |
+|---|---|---|---|
+| budget par tranche | 200 000 | 250 000 | idem |
+| fréquence vue par l'invité (rapport 5) | **20 000 168,9 Hz** (+8,4 ppm) | **25 000 211,0 Hz** (+8,4 ppm) | 20,000 / 25,000 MHz ± 60 ppm |
+| temps invité / contractuel (rapport 6) | 0,999992 | 0,999992 | 1,0000 |
+| cycles jamais portés au tsc | 0 | 0 | 0 |
+| trois passages | EMPREINTE identique au chiffre près | idem | — |
+| temps hôte de la fenêtre de 300 s, min / max | 12,091 / 12,548 s | 13,845 / 14,354 s | — |
+| **marge** (s invitées par s hôte) | **×24,8** | **×21,7** | > 1,1 |
+| MIPS invité, CPI (charge ram) | 2,35 ; 8,5 | 2,94 ; 8,5 | — |
+
+Au repos (60 s), la même machine fait 0,67 MIPS à 286/20, CPI 29,9 — le coût de la ROM ;
+sous la charge ram, 2,35 MIPS. La marge tombe de ×34 à ×24 : c'est bien la charge qui
+décide, et elle laisse plus de vingt fois le temps réel.
+
+## M16 — conclusion
+
+La question était : « mon 80286 tourne-t-il entre 20 et 25 MHz ? ». Au départ, **non** :
+6,000 MHz vus par l'invité, 4,773 MHz fournis, son temps à 79,5 % du temps réel — le budget
+du 8088, des deux côtés, invisible à toute porte. Désormais, sur l'ami286, `cpu = 5` donne
+un 286 que l'invité mesure à **20,000 MHz** et `cpu = 6` à **25,000 MHz**, tenant le temps
+réel avec une marge d'au moins ×21 sur cette machine. Ce qui le garantit :
+
+- **la configuration** est vérifiée contre le VRAI `cpu_set()` de PCem, entrée par entrée
+  (`cpu-config-check`, 21 configurations, dans les deux ordres) ;
+- **le temps d'exécution** à 20 et 25 MHz est vérifié en différentiel par le fuzz du 286
+  (`--cpu 5`, `--cpu 6`, 255 opcodes, cycles et tsc compris), empreinte confrontée ;
+- **le budget** est confronté à chaque boot-diff par l'empreinte CPU, et sa porte
+  discriminante est `boot-diff --cpu 3` (8088/10, vert à 52 936 819) ;
+- **la cadence** est mesurée par `--timer-check` et affichée par le titre de la fenêtre.
+
+**Ce que ce vert ne dit pas.** L'ami286 n'a aucun boot-diff : l'oracle n'a ni `neat.c` ni
+`mfm_at.c`. Le préfetch en ROM à 20/25 cycles n'est donc exercé par aucun diff — seulement
+par l'amorçage, et symétriquement. Restent aussi une DEVIATION déclarée (`cpu_set_edx` : DX
+gardé au reset, là où PCem pose 0) et la vérification à l'œil du titre de la fenêtre sous le
+frein (`invite 100 % - 20.00 MHz`), que seul un lancement fenêtré peut montrer.
+
 ## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
 
 Parti d'une demande simple — *« fabrique un CMOS pour AMI 286 »* — après le constat de
