@@ -93,6 +93,7 @@ public static class Oracle
     public const int Core8088 = 0;
     public const int Core286 = 1;
     [DllImport(Lib)] public static extern void h_set_core(int core);
+    [DllImport(Lib)] public static extern void h_prefetch_reset();
     [DllImport(Lib)] public static extern int h_get_core();
 
     // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des

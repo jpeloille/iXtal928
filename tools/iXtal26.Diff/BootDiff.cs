@@ -206,6 +206,26 @@ public static class BootDiff
 
         Console.WriteLine($"Amorçage du cœur C# ({slices} tranches)…");
         _808x.ResetDiagState();
+        // L'ÉTAT DE PRÉFETCH DU 286 SE REPORTAIT D'UNE PHASE À L'AUTRE, ET LES DEUX
+        // CÔTÉS ARRIVAIENT SALES DIFFÉREMMENT.
+        //
+        // prefetch_bytes et prefetch_prefixes sont des statiques de 386_dynarec.c que
+        // NI h_boot NI pc.initpc ne remettent — PCem n'amorce qu'une fois par processus,
+        // le diff deux fois : la phase 1 court l'amorçage entier, la phase 2 le rejoue
+        // en pas à pas. Chaque côté entrait donc en phase 2 avec ce que SON propre
+        // phase 1 avait laissé, et comme elle divergeait, les deux restes différaient.
+        //
+        // MESURÉ : au premier boot-diff AT, tsc valait 11 côté oracle et 13 côté C# à
+        // l'instruction 0, CS:IP F000:FFF0. Onze est exactement timing_jmp_rm, que les
+        // DEUX côtés posent à 11 — vérifié. opJMP_far_a16 et prefetch_run sont des
+        // transcriptions fidèles — vérifiées ligne à ligne. Les quatre entrées du modèle
+        // de préfetch s'accordent — vérifiées. Il ne restait que l'état.
+        //
+        // h_prefetch_reset() était au contrat ABI depuis A2.2a sans jamais être importé.
+        // Appelé sans condition de cœur, comme h_reset le fait (harness.c:391) : sur un
+        // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
+        Oracle.h_prefetch_reset();
+        Cpu._386.prefetch_reset();
         Floppy.fdd_c.discfns[0] = csharpA ?? "";
         Floppy.fdd_c.discfns[1] = csharpB ?? "";
         Disc.hdd_c.ide_fn[0] = csharpC ?? "";
@@ -404,6 +424,26 @@ public static class BootDiff
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
         _808x.ResetDiagState();
+        // L'ÉTAT DE PRÉFETCH DU 286 SE REPORTAIT D'UNE PHASE À L'AUTRE, ET LES DEUX
+        // CÔTÉS ARRIVAIENT SALES DIFFÉREMMENT.
+        //
+        // prefetch_bytes et prefetch_prefixes sont des statiques de 386_dynarec.c que
+        // NI h_boot NI pc.initpc ne remettent — PCem n'amorce qu'une fois par processus,
+        // le diff deux fois : la phase 1 court l'amorçage entier, la phase 2 le rejoue
+        // en pas à pas. Chaque côté entrait donc en phase 2 avec ce que SON propre
+        // phase 1 avait laissé, et comme elle divergeait, les deux restes différaient.
+        //
+        // MESURÉ : au premier boot-diff AT, tsc valait 11 côté oracle et 13 côté C# à
+        // l'instruction 0, CS:IP F000:FFF0. Onze est exactement timing_jmp_rm, que les
+        // DEUX côtés posent à 11 — vérifié. opJMP_far_a16 et prefetch_run sont des
+        // transcriptions fidèles — vérifiées ligne à ligne. Les quatre entrées du modèle
+        // de préfetch s'accordent — vérifiées. Il ne restait que l'état.
+        //
+        // h_prefetch_reset() était au contrat ABI depuis A2.2a sans jamais être importé.
+        // Appelé sans condition de cœur, comme h_reset le fait (harness.c:391) : sur un
+        // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
+        Oracle.h_prefetch_reset();
+        Cpu._386.prefetch_reset();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
 
@@ -566,6 +606,26 @@ public static class BootDiff
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
         _808x.ResetDiagState();
+        // L'ÉTAT DE PRÉFETCH DU 286 SE REPORTAIT D'UNE PHASE À L'AUTRE, ET LES DEUX
+        // CÔTÉS ARRIVAIENT SALES DIFFÉREMMENT.
+        //
+        // prefetch_bytes et prefetch_prefixes sont des statiques de 386_dynarec.c que
+        // NI h_boot NI pc.initpc ne remettent — PCem n'amorce qu'une fois par processus,
+        // le diff deux fois : la phase 1 court l'amorçage entier, la phase 2 le rejoue
+        // en pas à pas. Chaque côté entrait donc en phase 2 avec ce que SON propre
+        // phase 1 avait laissé, et comme elle divergeait, les deux restes différaient.
+        //
+        // MESURÉ : au premier boot-diff AT, tsc valait 11 côté oracle et 13 côté C# à
+        // l'instruction 0, CS:IP F000:FFF0. Onze est exactement timing_jmp_rm, que les
+        // DEUX côtés posent à 11 — vérifié. opJMP_far_a16 et prefetch_run sont des
+        // transcriptions fidèles — vérifiées ligne à ligne. Les quatre entrées du modèle
+        // de préfetch s'accordent — vérifiées. Il ne restait que l'état.
+        //
+        // h_prefetch_reset() était au contrat ABI depuis A2.2a sans jamais être importé.
+        // Appelé sans condition de cœur, comme h_reset le fait (harness.c:391) : sur un
+        // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
+        Oracle.h_prefetch_reset();
+        Cpu._386.prefetch_reset();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
         for (var i = 0; i < slices; i++) _808x.Run(budget);
@@ -654,6 +714,26 @@ public static class BootDiff
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
         _808x.ResetDiagState();
+        // L'ÉTAT DE PRÉFETCH DU 286 SE REPORTAIT D'UNE PHASE À L'AUTRE, ET LES DEUX
+        // CÔTÉS ARRIVAIENT SALES DIFFÉREMMENT.
+        //
+        // prefetch_bytes et prefetch_prefixes sont des statiques de 386_dynarec.c que
+        // NI h_boot NI pc.initpc ne remettent — PCem n'amorce qu'une fois par processus,
+        // le diff deux fois : la phase 1 court l'amorçage entier, la phase 2 le rejoue
+        // en pas à pas. Chaque côté entrait donc en phase 2 avec ce que SON propre
+        // phase 1 avait laissé, et comme elle divergeait, les deux restes différaient.
+        //
+        // MESURÉ : au premier boot-diff AT, tsc valait 11 côté oracle et 13 côté C# à
+        // l'instruction 0, CS:IP F000:FFF0. Onze est exactement timing_jmp_rm, que les
+        // DEUX côtés posent à 11 — vérifié. opJMP_far_a16 et prefetch_run sont des
+        // transcriptions fidèles — vérifiées ligne à ligne. Les quatre entrées du modèle
+        // de préfetch s'accordent — vérifiées. Il ne restait que l'état.
+        //
+        // h_prefetch_reset() était au contrat ABI depuis A2.2a sans jamais être importé.
+        // Appelé sans condition de cœur, comme h_reset le fait (harness.c:391) : sur un
+        // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
+        Oracle.h_prefetch_reset();
+        Cpu._386.prefetch_reset();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
         for (var i = 0; i < slices; i++) _808x.Run(budget);
