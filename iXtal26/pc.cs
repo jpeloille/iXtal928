@@ -513,6 +513,20 @@ internal static partial class pc
                 PluginApi.device.device_add(Mfm.mfm_xebec.dtc_5150x_device);
 
         pc_reset();
+
+        // omitted: resetide() (pc.c:395) — contrôleurs IDE, au registre des omissions.
+
+        // pcem: pc.c:397 — loadnvr(). Pose le CMOS à 0xFF partout sauf la date du
+        // 1er janvier 1980 et le bit 24 heures ; la somme de contrôle reste donc fausse
+        // et le POST de l'AT s'arrête sur « 162-System Options Not Set », comme un vrai
+        // 5170 à pile vide.
+        //
+        // ET SANS ELLE LE POST TOMBE DANS DE L'UB DE PCem. nvrram[RTC_MONTH] valant 0,
+        // rtc_recalc appelle rtc_get_days(0, …) qui fait `rtc_days_in_month[month - 1]`,
+        // donc l'indice -1 : le C lit l'octet qui précède le tableau et continue, le C#
+        // lève. Trouvé par le premier boot-diff AT qui franchissait le mode protégé.
+        // L'oracle l'appelle maintenant au même point (harness.c).
+        Devices.nvr.loadnvr();
     }
 
     // pcem: pc.c:344-351 — Ctrl+Alt+Suppr, poussé dans la file du clavier. Redémarrage

@@ -68,23 +68,204 @@ internal static partial class x86seg_c
     // omitted: toute la branche mode protégé (msw & 1), ~350 lignes.
     internal static int loadseg(uint16_t seg, x86seg s)
     {
-        // LA GARDE MANQUAIT, ET C'ETAIT LE SEUL ENDROIT DU BLOC C QUI SE TROMPAIT
-        // SANS LE DIRE.
-        //
-        // Le C ouvre sur `if (msw & 1 && !(eflags & VM_FLAG))` (x86seg.c:276) et met
-        // TOUT le mode protege dedans — 133 lignes vives sur les 176 de la fonction.
-        // Le C# entrait directement dans la branche mode reel : en mode protege il
-        // chargeait un descripteur plat `seg << 4` et rendait 0, comme si tout allait
-        // bien. loadcsjmp, lui, echoue bruyamment depuis toujours.
-        //
-        // La ROM de l'AT fait `MOV SS, 0x28` juste apres son JMP FAR en mode protege :
-        // c'est le premier appelant qui aurait menti, et la divergence se serait
-        // manifestee des milliers d'instructions plus loin, sur une pile fausse.
+        // pcem: x86seg.c:276-417 — LE MODE PROTEGE, et la ROM de l'AT y entre par
+        // `MOV SS, 0x28` juste apres son JMP FAR. Cette branche etait un fatal() ;
+        // c'est le premier morceau du bloc C qui devient un vrai chemin.
         if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
         {
-                pc.fatal($"loadseg en mode protege (seg {seg:X4}) : x86seg.c n'est " +
-                         "transcrit qu'en mode reel (bloc C du plan)\n");
-                return 1;
+                // omitted: `#define DPL ((segdat[2] >> 13) & 3)` (x86seg.c:448) — une
+                //   macro sur une variable LOCALE, definie APRES loadseg et donc hors de
+                //   sa portee. Cette branche-ci ecrit `dpl` en local et le lit trois
+                //   fois ; c'est loadcs et loadcsjmp qui utilisent la macro, et elles y
+                //   ont leur propre fonction locale.
+                var segdat = new uint16_t[4];
+
+                // LE SELECTEUR NUL N'EST PAS UNE ERREUR, SAUF POUR SS. Charger 0 dans DS,
+                // ES, FS ou GS est legal et documente : ca rend le segment inutilisable
+                // sans lever quoi que ce soit, et la faute viendra au premier acces. Pour
+                // SS c'est un #SS immediat, une pile sans segment n'ayant pas de sens.
+                //
+                // ET `base = -1` EST LA SENTINELLE, pas une adresse. 0xFFFFFFFF est ce que
+                // SEG_CHECK_READ et SEG_CHECK_WRITE testent (386_common.cs) pour dire
+                // « segment vide ». Le `(uint32_t)` est donc obligatoire et pas cosmetique.
+                if ((seg & ~3) == 0)
+                {
+                        if (s == cpu_state.seg_ss)
+                        {
+                                // omitted: pclog("SS selector = NULL!") — sortie pure.
+                                x86ss(null!, 0);
+                                return 1;
+                        }
+                        s.seg = 0;
+                        s.access = 0;
+                        s.@base = unchecked((uint32_t)(-1));
+                        if (s == cpu_state.seg_ds)
+                                cpu_cur_status |= CPU_STATUS_NOTFLATDS;
+                        return 0;
+                }
+
+                // LE BIT 2 CHOISIT LA TABLE, et la limite se compare AVANT d'ajouter la
+                // base — un descripteur hors table est un #GP, pas une lecture sauvage.
+                uint32_t addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        if (addr >= ldt.limit)
+                        {
+                                // omitted: pclog("Bigger than LDT limit...") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit)
+                        {
+                                // omitted: pclog("Bigger than GDT limit...") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        addr += gdt.@base;
+                }
+
+                // cpl_override = 1 AUTOUR DE LA LECTURE, ET C'EST INDISPENSABLE. Le
+                // processeur lit la table des descripteurs avec ses propres privileges,
+                // pas ceux du programme : sans ce drapeau, readmemw appliquerait la
+                // verification de segment et un programme au CPL 3 ne pourrait pas
+                // charger un selecteur.
+                cpl_override = 1;
+                segdat[0] = readmemw(0, addr);
+                segdat[1] = readmemw(0, addr + 2);
+                segdat[2] = readmemw(0, addr + 4);
+                segdat[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                int dpl = (segdat[2] >> 13) & 3;
+
+                if (s == cpu_state.seg_ss)
+                {
+                        // LE TEST DU SELECTEUR NUL EST REFAIT, et c'est du code mort chez
+                        // PCem : la garde du haut a deja rendu 1 pour SS dans ce cas. Porte
+                        // tel quel — le corriger serait reecrire l'oracle, pas le
+                        // transcrire.
+                        if ((seg & ~3) == 0)
+                        {
+                                // omitted: pclog("Load SS null selector") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        // SS EXIGE L'EGALITE STRICTE DES TROIS PRIVILEGES, la ou un segment
+                        // de donnees se contente d'inegalites : RPL == CPL == DPL. Une pile
+                        // dont le privilege differe de celui du code qui l'utilise n'a pas
+                        // de sens, et c'est ce qui rend le changement de pile des portes
+                        // d'appel si contraint.
+                        if ((seg & 3) != CPL || dpl != CPL)
+                        {
+                                // omitted: pclog("Invalid SS permiss") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        switch ((segdat[2] >> 8) & 0x1F)
+                        {
+                        case 0x12:
+                        case 0x13:
+                        case 0x16:
+                        case 0x17: /*r/w*/
+                                break;
+                        default:
+                                // omitted: pclog("Invalid SS type") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        // SS ABSENT DONNE #SS, PAS #NP, la ou tous les autres segments
+                        // donnent #NP quelques lignes plus bas. La distinction est dans le
+                        // silicium et le gestionnaire s'en sert.
+                        if ((segdat[2] & 0x8000) == 0)
+                        {
+                                // omitted: pclog("Load SS not present!") — sortie pure.
+                                x86ss(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                        set_stack32((segdat[3] & 0x40) != 0 ? 1 : 0);
+                }
+                else if (s != cpu_state.seg_cs)
+                {
+                        // omitted: les deux `if (output) pclog(...)` (x86seg.c:361-364) —
+                        //   sorties pures sous un drapeau de mise au point.
+                        switch ((segdat[2] >> 8) & 0x1F)
+                        {
+                        case 0x10:
+                        case 0x11:
+                        case 0x12:
+                        case 0x13: /*Data segments*/
+                        case 0x14:
+                        case 0x15:
+                        case 0x16:
+                        case 0x17:
+                        case 0x1A:
+                        case 0x1B: /*Readable non-conforming code*/
+                                if ((seg & 3) > dpl || (CPL) > dpl)
+                                {
+                                        // omitted: pclog("Data seg fail...") — sortie pure.
+                                        x86gpf(null!, (uint16_t)(seg & ~3));
+                                        return 1;
+                                }
+                                break;
+                        case 0x1E:
+                        case 0x1F: /*Readable conforming code*/
+                                break;
+                        default:
+                                // omitted: pclog("Invalid segment type...") — sortie pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return 1;
+                        }
+                }
+
+                if ((segdat[2] & 0x8000) == 0)
+                {
+                        x86np("Load data seg not present", (uint16_t)(seg & 0xfffc));
+                        return 1;
+                }
+                s.seg = seg;
+                do_seg_load(s, segdat);
+
+                // LE BIT D'ACCES EST ECRIT DANS LA TABLE, ET POUR TOUS LES SEGMENTS.
+                //
+                // CS_ACCESSED et SEL_ACCESSED sont TOUS DEUX definis (x86seg.c:17, :21),
+                // donc le `#ifndef CS_ACCESSED` qui enveloppait ce bloc d'un
+                // `if (s != &_cs)` N'EST PAS compile : CS le recoit aussi. Verifie par grep,
+                // pas suppose — c'est le genre de #ifdef qu'on lit a l'envers.
+                //
+                // ET C'EST UNE ECRITURE EN MEMOIRE QU'AUCUN COMPTEUR NE SURVEILLE : les
+                // quatre compteurs memoire de h_state sont remplis mais jamais compares
+                // (PLAN-286.md). Son seul filet est le hachage de RAM.
+                cpl_override = 1;
+                writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+
+                s.@checked = 0;
+                if (s == cpu_state.seg_ds)
+                        codegen_flat_ds = 0;
+                if (s == cpu_state.seg_ss)
+                        codegen_flat_ss = 0;
+
+                if (s == cpu_state.seg_ds)
+                {
+                        if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                                cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATDS);
+                        else
+                                cpu_cur_status |= CPU_STATUS_NOTFLATDS;
+                }
+                if (s == cpu_state.seg_ss)
+                {
+                        if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                                cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATSS);
+                        else
+                                cpu_cur_status |= CPU_STATUS_NOTFLATSS;
+                }
+
+                return cpu_state.abrt;
         }
 
         s.access = (3 << 5) | 2;
@@ -210,6 +391,17 @@ internal static partial class x86seg_c
         => pc.fatal($"pmodeiret (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");
 
+    /// <summary>pcem: x86seg.c:2393-2748 — LE CHANGEMENT DE TACHE, etape 8 du bloc C.
+    ///
+    /// Dernier de la sequence, et pour une raison mesuree : ses seuls appelants sont les
+    /// portes de TACHE — type 0x100 et 0x900 dans loadcsjmp et loadcscall, et le bit
+    /// correspondant de l'IDT dans pmodeint. Le POST de l'IBM AT n'en emprunte aucune :
+    /// pas de descripteur de type 9 dans sa GDT, pas de porte de type 5 dans son IDT.
+    /// Echoue bruyamment en attendant, meme doctrine que ses voisines.</summary>
+    internal static void taskswitch286(uint16_t seg, uint16_t[] segdat, int is32)
+        => pc.fatal($"taskswitch286 (seg {seg:X4}, is32 {is32}) : x86seg.c n'est pas " +
+                    "encore transcrit jusque-la (bloc C etape 8)\n");
+
     // pcem: x86seg.c — loadcsjmp, la BRANCHE MODE RÉEL seulement (les 19 dernières
     // lignes des 236 de la fonction).
     //
@@ -226,8 +418,227 @@ internal static partial class x86seg_c
     {
         if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
         {
-                pc.fatal($"loadcsjmp en mode protege (seg {seg:X4}) : x86seg.c n'est " +
-                         "transcrit qu'en mode reel (bloc Ap du plan)\n");
+                var segdat = new uint16_t[4];
+                // pcem: x86seg.c:448 — `#define DPL ((segdat[2] >> 13) & 3)`, macro sur
+                // une locale. Fonction locale ici, meme portee, et elle SUIT segdat quand
+                // le code le recharge depuis la porte d'appel — c'est voulu chez PCem et
+                // c'est le piege de cette fonction : DPL ne designe pas toujours le meme
+                // descripteur.
+                int DPL() => (segdat[2] >> 13) & 3;
+
+                if ((seg & ~3) == 0)
+                {
+                        // omitted: pclog("Trying to load CS with NULL selector!...") — pure.
+                        x86gpf(null!, 0);
+                        return;
+                }
+                uint32_t addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat[0] = readmemw(0, addr);
+                segdat[1] = readmemw(0, addr + 2);
+                segdat[2] = readmemw(0, addr + 4);
+                segdat[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return;
+                // omitted: `if (output) pclog(...)` (x86seg.c:609-610) — sortie pure.
+
+                // LE BIT 12 SEPARE LES DEUX MONDES : segment de code ordinaire d'un cote,
+                // descripteur SYSTEME de l'autre — porte d'appel ou porte de tache. C'est
+                // le seul embranchement de cette fonction qui compte vraiment.
+                if ((segdat[2] & 0x1000) != 0) /*Normal code segment*/
+                {
+                        // LE SEGMENT CONFORME NE VERIFIE RIEN, et c'est toute sa raison
+                        // d'etre : il s'execute au privilege de l'APPELANT, donc y sauter
+                        // depuis un CPL plus bas est legal. Pour un segment NON conforme,
+                        // PCem exige `RPL <= CPL` ET `CPL == DPL` — l'egalite, pas une
+                        // inegalite : un JMP ne change PAS de niveau de privilege, c'est
+                        // l'affaire de loadcscall et de ses portes.
+                        if ((segdat[2] & 0x400) == 0) /*Not conforming*/
+                        {
+                                if ((seg & 3) > CPL) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                                if (CPL != DPL()) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        }
+                        if (CPL < DPL()) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        if ((segdat[2] & 0x8000) == 0)
+                        {
+                                x86np("Load CS JMP not present\n", (uint16_t)(seg & 0xfffc));
+                                return;
+                        }
+                        set_use32(segdat[3] & 0x40);
+
+                        // CS_ACCESSED est defini (x86seg.c:17), donc ce bloc EST compile.
+                        cpl_override = 1;
+                        writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                        cpl_override = 0;
+
+                        // LE RPL DU SELECTEUR CHARGE DEVIENT LE CPL COURANT, et le DPL du
+                        // cache est REECRIT pour correspondre. Les deux lignes vont
+                        // ensemble : `CS = (seg & ~3) | CPL` force les deux bits bas, et le
+                        // masque sur segdat[2] remplace le champ DPL par CPL avant que
+                        // do_seg_load ne le range dans access. Sans la seconde, le cache
+                        // porterait le DPL de la table et CPL se lirait faux a l'acces
+                        // suivant.
+                        CS = (uint16_t)((seg & ~3) | CPL);
+                        segdat[2] = (uint16_t)((segdat[2] & ~(3 << (5 + 8))) | (CPL << (5 + 8)));
+
+                        do_seg_load(cpu_state.seg_cs, segdat);
+                        if (CPL == 3 && oldcpl != 3)
+                                Memory.mem.flushmmucache_cr3();
+                        oldcpl = CPL;
+                        // omitted: le bloc commente x86seg.c:644-653 — PCem y avait inline
+                        //   ce que set_use32 fait, et l'a remplace par l'appel ci-dessus.
+                        cycles -= cpu.timing_jmp_pm;
+                }
+                else /*System segment*/
+                {
+                        if ((segdat[2] & 0x8000) == 0)
+                        {
+                                x86np("Load CS JMP system selector not present\n", (uint16_t)(seg & 0xfffc));
+                                return;
+                        }
+                        uint16_t type = (uint16_t)(segdat[2] & 0xF00);
+                        uint32_t newpc = segdat[0];
+                        // LE BIT 11 DU TYPE DIT « 32 BITS », et c'est lui qui decide si le
+                        // point d'entree de la porte fait 16 ou 32 bits. Sur un 286 les
+                        // types 0xC00 et 0x900 n'existent pas dans une table valide, mais
+                        // PCem ne les garde pas : un descripteur forge les atteindrait.
+                        if ((type & 0x800) != 0)
+                                newpc |= (uint32_t)(segdat[3] << 16);
+                        switch (type)
+                        {
+                        case 0x400: /*Call gate*/
+                        case 0xC00:
+                                cgate32 = (type & 0x800);
+                                cgate16 = cgate32 == 0 ? 1 : 0;
+                                cpu_state.oldpc = cpu_state.pc;
+                                if ((DPL() < CPL) || (DPL() < (seg & 3)))
+                                {
+                                        x86gpf(null!, (uint16_t)(seg & ~3));
+                                        return;
+                                }
+                                // Le test de presence est REFAIT ici alors que la garde du
+                                // haut vient de le faire sur le meme segdat : code mort chez
+                                // PCem, porte tel quel.
+                                if ((segdat[2] & 0x8000) == 0)
+                                {
+                                        x86np("Load CS JMP call gate not present\n", (uint16_t)(seg & 0xfffc));
+                                        return;
+                                }
+                                uint16_t seg2 = segdat[1];
+
+                                if ((seg2 & ~3) == 0)
+                                {
+                                        // omitted: pclog("...NULL selector! lcsjmpcg") — pure.
+                                        x86gpf(null!, 0);
+                                        return;
+                                }
+                                addr = (uint32_t)(seg2 & ~7);
+                                if ((seg2 & 4) != 0)
+                                {
+                                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                        addr += ldt.@base;
+                                }
+                                else
+                                {
+                                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                        addr += gdt.@base;
+                                }
+                                // SEGDAT EST RECHARGE, DONC DPL() CHANGE DE SENS. A partir
+                                // d'ici la macro designe le descripteur CIBLE de la porte, et
+                                // plus la porte elle-meme. C'est le piege de cette fonction.
+                                cpl_override = 1;
+                                segdat[0] = readmemw(0, addr);
+                                segdat[1] = readmemw(0, addr + 2);
+                                segdat[2] = readmemw(0, addr + 4);
+                                segdat[3] = readmemw(0, addr + 6);
+                                cpl_override = 0;
+                                if (cpu_state.abrt != 0)
+                                        return;
+
+                                if (DPL() > CPL) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                if ((segdat[2] & 0x8000) == 0)
+                                {
+                                        x86np("Load CS JMP from call gate not present\n", (uint16_t)(seg2 & 0xfffc));
+                                        return;
+                                }
+
+                                switch (segdat[2] & 0x1F00)
+                                {
+                                case 0x1800:
+                                case 0x1900:
+                                case 0x1A00:
+                                case 0x1B00: /*Non-conforming code*/
+                                        if (DPL() > CPL)
+                                        {
+                                                // omitted: pclog("Call gate DPL > CPL") — pure.
+                                                x86gpf(null!, (uint16_t)(seg2 & ~3));
+                                                return;
+                                        }
+                                        // LE C TOMBE DANS LE CAS SUIVANT, et ce n'est pas un
+                                        // oubli de `break` : un code non conforme dont le DPL
+                                        // passe le test se charge exactement comme un
+                                        // conforme. C# interdit la chute implicite, d'ou le
+                                        // `goto case` — meme flot, syntaxe differente.
+                                        goto case 0x1C00;
+                                case 0x1C00:
+                                case 0x1D00:
+                                case 0x1E00:
+                                case 0x1F00: /*Conforming*/
+                                        CS = seg2;
+                                        do_seg_load(cpu_state.seg_cs, segdat);
+                                        if (CPL == 3 && oldcpl != 3)
+                                                Memory.mem.flushmmucache_cr3();
+                                        oldcpl = CPL;
+                                        set_use32(segdat[3] & 0x40);
+                                        cpu_state.pc = newpc;
+
+                                        cpl_override = 1;
+                                        writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                                        cpl_override = 0;
+                                        break;
+
+                                default:
+                                        // omitted: pclog("JMP Call gate bad segment type") — pure.
+                                        x86gpf(null!, (uint16_t)(seg2 & ~3));
+                                        return;
+                                }
+                                cycles -= cpu.timing_jmp_pm_gate;
+                                break;
+
+                        case 0x100: /*286 Task gate*/
+                        case 0x900: /*386 Task gate*/
+                                // LE PC REVIENT A old_pc, ET C'EST POUR CA QUE loadcsjmp LE
+                                // RECOIT. Un changement de tache sauvegarde l'etat courant
+                                // dans l'ancien TSS ; il doit y ranger l'adresse de
+                                // l'instruction JMP elle-meme, pas celle qui la suit.
+                                cpu_state.pc = old_pc;
+                                optype = JMP;
+                                cpl_override = 1;
+                                taskswitch286(seg, segdat, segdat[2] & 0x800);
+                                cpu_state.flags &= unchecked((uint16_t)~NT_FLAG);
+                                cpl_override = 0;
+                                // omitted: le `case 0xB00` commente et l'appel commente a
+                                //   taskswitch386 (x86seg.c:770-772) — ce dernier n'a AUCUNE
+                                //   definition dans tout l'arbre, voir le registre.
+                                return;
+
+                        default:
+                                // omitted: pclog("Bad JMP CS ... special descriptor ...") — pure.
+                                x86gpf(null!, 0);
+                                return;
+                        }
+                }
                 return;
         }
 

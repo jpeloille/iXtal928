@@ -113,8 +113,30 @@ internal static class rtc
     }
 
     // pcem: rtc.c:43-49
+    //
+    // DEVIATION: org_month == 0 fait lire `rtc_days_in_month[-1]` en C, hors bornes.
+    //   Le C lit et continue ; C# lève IndexOutOfRangeException. Trouvé par le premier
+    //   boot-diff AT qui franchissait le mode protégé et arrivait au tic de seconde de
+    //   l'horloge.
+    //
+    //   CE QUE LE C LIT EST MESURÉ, PAS SUPPOSÉ : les quatre octets qui précèdent le
+    //   tableau dans la .so sont du remplissage de .rodata à ZÉRO — lus à l'offset
+    //   0x17f89c, et les quatre suivants sont bien 31, 28, 31. Donc le C rend 0, et le
+    //   C# rend 0.
+    //
+    //   ET ZÉRO EST BÉNIN ICI : rtc_recalc teste `mday == rtc_get_days(...) + 1`, avec
+    //   mday à 0 lui aussi, donc `0 == 1` est faux et il n'y a pas de report. Les deux
+    //   côtés se comportent à l'identique, ce qui est tout ce que l'oracle demande.
+    //
+    //   POURQUOI mon VAUT 0 : la branche « pas de fichier » de loadnvr pose
+    //   nvrram[RTC_MONTH] = 1 mais N'APPELLE PAS time_internal_set_nvrram — c'est la
+    //   branche `f != NULL` qui le fait. internal_clock reste donc à zéro des deux
+    //   côtés, et c'est fidèle. Seul org_month == 0 est atteignable : rtc_recalc
+    //   absorbe le 13 juste après, donc l'indice ne peut pas non plus dépasser 11.
     private static int rtc_get_days(int org_month, int org_year)
     {
+        if (org_month == 0)
+                return 0;
         if (org_month != 2)
                 return rtc_days_in_month[org_month - 1];
         else

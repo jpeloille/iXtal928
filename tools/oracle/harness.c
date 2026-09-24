@@ -218,6 +218,7 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
  * cette unité, qui inclut déjà 808x.c. On les déclare, comme pour
  * keyboard_xt_init juste au-dessus. */
 void keyboard_at_init(void);
+void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
 void h_models_init(void);
 extern int model;
 extern device_t nvr_device;
@@ -1005,6 +1006,25 @@ int h_boot(const char *romspath) {
                  * (cpu_tables.c:86) — la meme valeur que h_cpu_config_286 donne deja a
                  * cpu_busspeed. */
                 setpitclock(AT ? 6000000.0f : 14318184.0f);
+
+        /* pc.c:397 — loadnvr(), ET ELLE MANQUAIT. Le harnais l'omettait, ce qui
+         * laissait le CMOS a ZERO au lieu de la branche « pas de fichier » de
+         * loadnvr : 0xFF partout sauf la date du 1er janvier 1980.
+         *
+         * SANS ELLE LE POST TOMBE DANS DE L'UB DE PCem. nvrram[RTC_MONTH] valant 0,
+         * rtc_recalc() appelle rtc_get_days(0, ...) qui fait
+         * `rtc_days_in_month[org_month - 1]`, donc l'indice -1 : le C lit l'octet qui
+         * precede le tableau et continue, le C# leve. Les deux cotes ne pouvaient
+         * s'accorder que par accident.
+         *
+         * Le comportement VISIBLE ne change pas : sans fichier at.nvr la somme de
+         * controle reste fausse et le POST s'arrete toujours sur « 162-System Options
+         * Not Set ». Ce qui change est qu'on prend le chemin que PCem prend, au lieu
+         * d'un chemin que personne n'a ecrit. A appeler des DEUX cotes, au meme point.
+         *
+         * Corrige une affirmation de B1a : nvr.cs disait « l'oracle n'appelle pas
+         * loadnvr du tout », et c'etait vrai — ca ne l'est plus. */
+        loadnvr();
 
         nextcyc = 0;
         memcycs = 0;
