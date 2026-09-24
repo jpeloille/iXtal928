@@ -19,7 +19,13 @@
 
 #include <stdint.h>
 
-#define H_WLOG_MAX 16
+/* 64 depuis C7a, et pas par confort : la branche 286 de taskswitch286 fait 19
+ * writememw (sed -n '2639,2850p' x86seg.c | grep -c writememw), et __wrap_writememwl
+ * pose DEUX entrees par mot, donc 38. Une porte d'appel 16 bits avec count = 31 — le
+ * maximum, x86seg.c:989 — fait 33 PUSHW, donc 66 : ce pire cas reste AU-DELA de 64 et
+ * doit etre couvert par la comparaison d'octets de h_read, pas par le journal. C'est
+ * dit plutot que pretendu couvert. */
+#define H_WLOG_MAX 64
 #define H_RAM_SIZE 0x100000u /* 1 Mo — l'espace d'adressage complet du 8088 */
 
 /* x86.h aplatit cpu_state en macros (`#define cycles cpu_state._cycles`, x86.h:122,
@@ -225,6 +231,46 @@ typedef struct h_state {
         uint64_t n_writememwl;
         uint64_t n_fatal;
 
+        /* --- les sept globaux du MODE PROTEGE, depuis le bloc C etape C7a -----
+         *
+         * Aucun n'etait dans ce vecteur, et les sept sont ecrits par les fonctions
+         * de x86seg.c. Places ICI et non parmi les registres : ce sont des globaux
+         * de x86seg.c et de 808x.c, pas des champs de cpu_state.
+         *
+         * Le lien les fournit deja — nm -D les rend tous en B — donc aucune unite
+         * a ajouter : la regle 3 joue a l'endroit pour une fois. */
+        uint32_t abrt_error;   /* x86seg.c:27 — ecrit par les cinq leveurs (:138-158),
+                                  lu par x86_doabrt (:119-131) pour empiler le code
+                                  d'erreur. x86_doabrt SAUTE cet empilement quand
+                                  `abrt || x86_was_reset`, donc sur faute imbriquee il
+                                  ne laisse AUCUNE trace en RAM. Et h_state.abrt est un
+                                  accord vide : 386.c:205 le remet a 0 AVANT l'appel. */
+        int32_t intgatesize;   /* x86seg.c:32 — ecrit par pmodeint seul (:1702), lu par
+                                  x86_doabrt seul (:117). Decide entre writememw et
+                                  writememl, donc le NOMBRE d'octets empiles. */
+        int32_t cgate16;       /* x86seg.c:28 — loadcsjmp :671, loadcscall :988. */
+        int32_t cgate32;       /* x86seg.c:28 — loadcsjmp :670, loadcscall :987. Paire
+                                  REDONDANTE par construction (cgate16 = !cgate32) :
+                                  comparer les deux attrape une transcription qui n'en
+                                  poserait qu'un. cgate32 decide PUSH_L vs PUSH_W dans
+                                  la macro appelante (x86_ops_call.h:21, :69). */
+        int32_t optype;        /* x86.h:250-254 — le SEUL des sept a porter de l'etat
+                                  ENTRE instructions : `grep -c 'optype = 0' x86seg.c`
+                                  rend 0, et x86seg.c:765 (JMP) comme :1995 (OPTYPE_INT)
+                                  ne se defont jamais. taskswitch286 le lit dix fois. */
+        int32_t oldcpl;        /* 808x.c:35 — x86_doabrt:79 fait
+                                  `seg_cs.access = oldcpl << 5`, donc un oldcpl divergent
+                                  change le CPL apres TOUTE faute. Et sa garde
+                                  `CPL == 3 && oldcpl != 3` deplace un flushmmucache_cr3,
+                                  donc des cycles, sur une instruction ulterieure. */
+        uint16_t cur_status;   /* cpu_cur_status (x86.h:185). Ecrit par set_stack32,
+                                  set_use32, do_seg_load, LMSW et LOADALL ; lu par RIEN
+                                  que l'oracle execute — src/codegen/ est hors de SRC.
+                                  Retenu QUAND MEME, et c'est la doctrine de b932df7 :
+                                  « le cas qu'on veut attraper est le C# qui ECRIT un
+                                  champ que le C laisse tranquille ». */
+        uint16_t _pad2[3];
+
         /* --- divers ------------------------------------------------------- */
         uint64_t ins;                 /* instructions exécutées depuis h_reset */
 } h_state;
@@ -280,6 +326,12 @@ int h_step(void);
  * La phase 2 du boot-diff doit compter les memes iterations que la phase 1, faute de
  * quoi elle ne rejoue pas la meme execution. Voir harness.c. */
 int h_step_trace(void);
+
+/* La borne du journal d'ecritures, pour que le C# la CONFRONTE au lieu de la recopier.
+ * Les deux 16 etaient ecrits en dur et jamais compares : monter un seul des deux donnait
+ * un vert tronque au lieu d'une erreur. C'est un changement d'ABI PAR LE COMPORTEMENT,
+ * qu'un .so perime ne signalerait pas — d'ou l'accesseur. */
+int h_wlog_max(void);
 
 /* Exécute jusqu'à épuisement d'un budget de cycs cycles — la forme qu'emploie
  * runpc() (execx86(cpu_get_speed() / 100), soit 47 727 cycles par tranche de
@@ -438,7 +490,11 @@ uint8_t *h_ram(void);
  * change PAS de taille — c'est une fonction, pas un champ. */
 /* 14 depuis le bloc C etape 6a : h_step_trace s'ajoute au contrat, pour que les deux
  * phases du boot-diff empruntent le MEME pas. Le vecteur ne change pas de taille. */
-#define H_ABI_VERSION 14
+/* 15 depuis C7a : sept champs du mode protege entrent dans h_state — abrt_error,
+ * intgatesize, cgate16, cgate32, optype, oldcpl, cur_status — et h_wlog_max
+ * s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois bumps
+ * precedents. */
+#define H_ABI_VERSION 15
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -29,7 +29,10 @@ public static class Oracle
     // PAS de taille — c'est une fonction, pas un champ.
     // 14 au bloc C etape 6a : h_step_trace s'ajoute au contrat, pour que les deux
     // phases du boot-diff empruntent le MEME pas.
-    public const int AbiVersion = 14;
+    // 15 a C7a : sept champs du mode protege entrent dans h_state et h_wlog_max
+    // s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois
+    // bumps precedents.
+    public const int AbiVersion = 15;
 
     static Oracle()
     {
@@ -100,6 +103,7 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_prefetch_reset();
     [DllImport(Lib)] public static extern void h_seg_clear_residue();
     [DllImport(Lib)] public static extern int h_step_trace();
+    [DllImport(Lib)] public static extern int h_wlog_max();
     [DllImport(Lib)] public static extern int h_get_core();
 
     // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des
@@ -141,6 +145,17 @@ public static class Oracle
             throw new InvalidOperationException(
                 $"Taille de h_state : {native} octets côté C, {managed} côté C#. " +
                 "Les champs ont divergé — toute comparaison serait silencieusement fausse.");
+
+        // LA BORNE DU JOURNAL EST CONFRONTEE, PAS RECOPIEE. Les deux 16 etaient ecrits
+        // en dur de chaque cote et jamais compares : monter un seul des deux donnait un
+        // journal TRONQUE d'un cote, donc un vert creux, et rien ne le disait. C'est un
+        // changement d'ABI par le COMPORTEMENT, qu'un .so perime ne signale pas — d'ou
+        // l'accesseur plutot qu'une constante partagee.
+        var natWlog = h_wlog_max();
+        if (natWlog != Memory.mem.WLOG_MAX)
+            throw new InvalidOperationException(
+                $"Borne du journal d'ecritures : {natWlog} cote C, {Memory.mem.WLOG_MAX} cote C#. " +
+                "Le journal serait tronque d'un seul cote, et la comparaison rendrait un vert creux.");
     }
 
     /// <summary>Lit un octet de la RAM de l'oracle.</summary>

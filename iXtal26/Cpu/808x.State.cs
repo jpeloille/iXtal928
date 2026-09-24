@@ -286,6 +286,16 @@ internal static partial class _808x
         s.n_writememwl = Counters.n_writememwl;
         s.n_fatal = Counters.n_fatal;
 
+        // LES SEPT GLOBAUX DU MODE PROTEGE (C7a). Ils vivent dans x86.cs et x86seg.cs,
+        // pas dans cpu_state — d'ou leur place a la fin du vecteur.
+        s.abrt_error = x86.abrt_error;
+        s.intgatesize = x86seg_c.intgatesize;
+        s.cgate16 = x86.cgate16;
+        s.cgate32 = x86.cgate32;
+        s.optype = x86.optype;
+        s.oldcpl = x86.oldcpl;
+        s.cur_status = x86.cpu_cur_status;
+
         s.ins = ins_count;
     }
 

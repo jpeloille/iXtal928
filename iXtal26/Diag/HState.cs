@@ -145,6 +145,19 @@ public struct HState
     public ulong n_writememwl;
     public ulong n_fatal;
 
+    // LES SEPT GLOBAUX DU MODE PROTEGE (C7a), dans le MEME ORDRE et aux MEMES TYPES
+    // que harness.h. Ce vecteur est marshale tel quel : un champ deplace ou retaille
+    // ferait lire de travers tout ce qui suit, et h_state_size() contre
+    // Marshal.SizeOf<HState>() est ce qui l'attrape.
+    public uint abrt_error;
+    public int intgatesize;
+    public int cgate16;
+    public int cgate32;
+    public int optype;
+    public int oldcpl;
+    public ushort cur_status;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)] public ushort[] _pad2;
+
     public ulong ins;
 
     /// <summary>Alloue les tableaux de longueur fixe. Nécessaire avant remplissage
@@ -172,5 +185,6 @@ public struct HState
         sys_access2 = new byte[(int)Sys.COUNT],
         prefetchqueue = new byte[6],
         _pad = new byte[2],
+        _pad2 = new ushort[3],
     };
 }

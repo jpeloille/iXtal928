@@ -78,7 +78,12 @@ SRC := harness.c \
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
 # d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
 comma := ,
-WRAP := readmembl writemembl readmemwl writememwl inb outb picint picinterrupt timer_process
+# writememll / readmemll ajoutes a C7a : writememl est une MACRO (386_common.h:32-36)
+# qui descend dans writememll, absent de WRAP jusqu ici. x86_doabrt empile le code
+# d erreur par writememl des que intgatesize != 16 — et intgatesize vaut 0 au depart —
+# donc cette ecriture n avait AUCUN temoin : ni compteur (les quatre retires a M2), ni
+# journal, ni hachage (RunSingle n appelle jamais h_ram_hash).
+WRAP := readmembl writemembl readmemwl writememwl writememll readmemll inb outb picint picinterrupt timer_process
 LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 
 # Une interposition D'UNE AUTRE NATURE, et qui vaut pour la .so ET pour bench.

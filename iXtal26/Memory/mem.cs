@@ -588,8 +588,33 @@ internal static partial class mem
         return 0xffffffff;
     }
 
-    /// <summary>pcem: mem.c — writememll</summary>
+    /// <summary>L'enveloppe de writememll, pendant de __wrap_writememll (C7a).
+    ///
+    /// QUATRE ENTREES DE JOURNAL, UNE PAR OCTET, et AUCUN compteur. Le compteur serait
+    /// faux pour la raison qui a fait retirer les quatre de la mémoire à M2 : `--wrap`
+    /// est un mécanisme de LIEN et n'intercepte pas les appels internes à mem.c, si bien
+    /// qu'un accès à cheval compterait une fois en C et deux ici. Le journal, lui, note
+    /// des ADRESSES et des VALEURS : il est vrai des deux côtés quel que soit le chemin.
+    ///
+    /// POURQUOI MAINTENANT : writememl est une macro (386_common.h:32-36) qui descend
+    /// ici, et x86_doabrt empile le code d'erreur par writememl dès que
+    /// intgatesize != 16 — or intgatesize vaut ZÉRO au départ. Cette écriture n'avait
+    /// donc aucun témoin : ni compteur, ni journal, ni hachage de RAM, RunSingle
+    /// n'appelant jamais h_ram_hash.</summary>
     internal static void writememll(uint32_t addr, uint32_t val)
+    {
+        wlog(addr & rammask, (uint8_t)val);
+        wlog((addr + 1) & rammask, (uint8_t)(val >> 8));
+        wlog((addr + 2) & rammask, (uint8_t)(val >> 16));
+        wlog((addr + 3) & rammask, (uint8_t)(val >> 24));
+        __real_writememll(addr, val);
+    }
+
+    /// <summary>pcem: mem.c — writememll, le CORPS. Son chemin à cheval appelle
+    /// __real_writememwl et non writememwl, donc sans journaliser une seconde fois —
+    /// exactement comme le C, où __wrap_writememll descend dans __real_writememll dont
+    /// les appels INTERNES échappent à --wrap.</summary>
+    private static void __real_writememll(uint32_t addr, uint32_t val)
     {
         mem_mapping_t? map;
 
@@ -1021,7 +1046,12 @@ internal static partial class mem
     // Une instruction n'écrit qu'à une poignée d'endroits. Enregistrer ces
     // adresses permet de comparer la mémoire exactement, sans hacher 1 Mo par
     // instruction et par côté, et en NOMMANT l'adresse divergente.
-    internal const int WLOG_MAX = 16;
+    // 64 depuis C7a, et la valeur est CONFRONTEE a celle de l'oracle par CheckAbi
+    // plutot que recopiee : les deux 16 etaient ecrits en dur et jamais compares, si
+    // bien que monter un seul des deux donnait un vert TRONQUE au lieu d'une erreur.
+    // Le motif de 64 est dans harness.h — 38 entrees pour la branche 286 de
+    // taskswitch286, et un pire cas de porte d'appel a 66 qui reste au-dela.
+    internal const int WLOG_MAX = 64;
     internal static readonly uint32_t[] wlog_addr = new uint32_t[WLOG_MAX];
     internal static readonly uint8_t[] wlog_val = new uint8_t[WLOG_MAX];
     internal static int wlog_n;

@@ -128,8 +128,15 @@ internal static partial class _386_common
     // l'accès est aligné ; sinon ils retombent sur readmemwl/writememwl.
     //
     // Le repli n'est PAS équivalent au chemin rapide du point de vue du vecteur
-    // d'état : readmemwl incrémente Counters.n_readmemwl, un champ comparé. Sauter
-    // le chemin rapide ferait donc rougir le fuzzeur — c'est voulu.
+    // d'état : readmemwl incrémente Counters.n_readmemwl.
+    //
+    // MAIS « UN CHAMP COMPARÉ » ÉTAIT FAUX. Les quatre compteurs mémoire sont REMPLIS
+    // dans h_state et JAMAIS comparés — retirés à M2, et Fuzzer.cs documente pourquoi
+    // sur place : `--wrap` est un mécanisme de LIEN, donc writememwl → writemembl
+    // compte une fois en C et deux en C#, et les garder produirait des faux positifs.
+    // Sauter le chemin rapide ne ferait donc PAS rougir le fuzzeur. Ce qui l'attrape
+    // aujourd'hui, ce sont les CYCLES — addreadlookup facture -9 — et le journal
+    // d'écritures. Relevé par une reconnaissance, pas par une porte.
     // -----------------------------------------------------------------------
 
     internal static uint16_t readmemw(uint32_t s, uint32_t a)

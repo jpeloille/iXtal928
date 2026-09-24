@@ -55,6 +55,36 @@ void __wrap_writememwl(uint32_t addr, uint16_t val) {
         __real_writememwl(addr, val);
 }
 
+/* LES DEUX ACCES DE DOUBLE MOT, ajoutes a C7a.
+ *
+ * writememl est une MACRO (386_common.h:32-36) : elle prend un chemin rapide par
+ * eal_w quand l'adresse est alignee, sinon elle descend dans writememll — qui
+ * n'etait PAS dans WRAP. Or x86_doabrt empile le code d'erreur par writememl des que
+ * intgatesize != 16, et intgatesize vaut ZERO au depart : cette ecriture n'avait donc
+ * aucun temoin. Ni compteur — les quatre de la memoire ont ete retires a M2 — ni
+ * journal, ni hachage, RunSingle n'appelant jamais h_ram_hash (ses deux appels sont
+ * dans Run, lignes 442 et 457). C'est l'accord vide au sens exact de harness.h.
+ *
+ * PAS DE COMPTEUR ICI, seulement le journal : ajouter n_writememll ou n_readmemll au
+ * vecteur les ferait diverger pour la meme raison que les quatre retires — --wrap est
+ * un mecanisme de LIEN et n'intercepte pas les appels internes a mem.c, si bien qu'un
+ * acces a cheval compte une fois en C et quatre en C#. Le journal, lui, note des
+ * ADRESSES et des VALEURS : il est vrai des deux cotes quel que soit le chemin.
+ *
+ * QUATRE h_wlog_note, un par octet, et c'est le pendant exact de __wrap_writememwl
+ * qui en pose deux. */
+extern void __real_writememll(uint32_t addr, uint32_t val);
+void __wrap_writememll(uint32_t addr, uint32_t val) {
+        h_wlog_note(addr & rammask, (uint8_t)val);
+        h_wlog_note((addr + 1) & rammask, (uint8_t)(val >> 8));
+        h_wlog_note((addr + 2) & rammask, (uint8_t)(val >> 16));
+        h_wlog_note((addr + 3) & rammask, (uint8_t)(val >> 24));
+        __real_writememll(addr, val);
+}
+
+extern uint32_t __real_readmemll(uint32_t addr);
+uint32_t __wrap_readmemll(uint32_t addr) { return __real_readmemll(addr); }
+
 /* --- E/S ------------------------------------------------------------------- */
 
 extern uint8_t __real_inb(uint16_t port);

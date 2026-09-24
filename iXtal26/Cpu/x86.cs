@@ -269,8 +269,14 @@ internal static partial class x86
 
     // pcem: x86.h:250-254. `optype` dit à x86_doabrt et aux routines de mode
     // protégé quelle FAMILLE d'instruction a levé l'exception : un abandon en
-    // plein CALL ne se rattrape pas comme un abandon en plein IRET. Posé autour
-    // des appels au mode protégé, remis à zéro juste après.
+    // plein CALL ne se rattrape pas comme un abandon en plein IRET.
+    //
+    // « REMIS À ZÉRO JUSTE APRÈS » ÉTAIT FAUX, et c'est mesuré :
+    // `grep -c 'optype = 0' x86seg.c` rend ZÉRO. Les cinq remises à zéro sont dans les
+    // macros CALL et RET de x86_ops_call.h / x86_ops_ret.h ; les deux affectations de
+    // x86seg.c — `optype = JMP` (:765) et `optype = OPTYPE_INT` (:1995) — ne se défont
+    // JAMAIS. C'est donc le seul des sept globaux du mode protégé à porter de l'état
+    // ENTRE instructions, et la raison pour laquelle h_seg_clear_residue le nettoie.
     internal static int optype;
     internal const int JMP = 1;
     internal const int CALL = 2;

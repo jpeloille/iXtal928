@@ -473,10 +473,14 @@ public static class Fuzzer
     }
 
     /* 32 d'origine, + 7 champs de cache descripteur par segment, + 9 champs par
-     * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux.
+     * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux,
+     * + les 7 globaux du mode protégé de C7a — abrt_error, intgatesize, cgate16,
+     * cgate32, optype, oldcpl, cur_status.
      * Compté en formes de champ, pas en entrées de tableau : la boucle en couvre 6, la
-     * suivante 4. */
-    private const int FieldCount = 60;
+     * suivante 4. Tenu À LA MAIN par doctrine : une réflexion sur HState rendrait ce
+     * nombre juste sans garantir qu'un Chk() existe pour chaque champ, ce qui est
+     * précisément ce qu'on veut savoir. */
+    private const int FieldCount = 67;
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -613,6 +617,21 @@ public static class Fuzzer
             // bien que writememwl -> writemembl (mot à cheval sur une page) compte
             // une fois en C et deux en C#. Les garder produirait des faux positifs
             // qui masqueraient les vrais.
+            // LES SEPT GLOBAUX DU MODE PROTEGE (C7a), places ICI — apres les compteurs
+            // mais avant `ins` — pour une raison de LECTURE : quand l'un d'eux diverge,
+            // c'est la CAUSE qu'on veut lire, pas la consequence. Meme arbitrage que les
+            // quatre drapeaux paresseux devant `flags` a A2.1.
+            //
+            // cgate16 ET cgate32 tous les deux, alors qu'ils sont redondants par
+            // construction (cgate16 = !cgate32) : c'est justement ce qui attrape une
+            // transcription qui n'en poserait qu'un.
+            ?? Chk("abrt_error", a.abrt_error, b.abrt_error)
+            ?? Chk("intgatesize", a.intgatesize, b.intgatesize)
+            ?? Chk("cgate16", a.cgate16, b.cgate16)
+            ?? Chk("cgate32", a.cgate32, b.cgate32)
+            ?? Chk("optype", a.optype, b.optype)
+            ?? Chk("oldcpl", a.oldcpl, b.oldcpl)
+            ?? Chk("cur_status", a.cur_status, b.cur_status)
             ?? Chk("n_fatal", a.n_fatal, b.n_fatal)
             ?? Chk("ins", a.ins, b.ins);
         // La RAM n'est PAS hachée ici : 1 Mo par côté et par instruction, soit

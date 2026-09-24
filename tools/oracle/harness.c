@@ -219,6 +219,12 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
  * keyboard_xt_init juste au-dessus. */
 void keyboard_at_init(void);
 void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
+
+/* intgatesize est le SEUL des sept globaux de C7a qu'aucun en-tete ne declare : c'est
+ * un `int intgatesize;` nu a x86seg.c:32, sans extern nulle part dans l'arbre — les six
+ * autres sont dans x86.h (:179, :202, :216, :250, :268). Declare ici, comme loadnvr et
+ * les quatre symboles de l'AT. */
+extern int intgatesize;
 void h_models_init(void);
 extern int model;
 extern device_t nvr_device;
@@ -574,6 +580,9 @@ static int h_step286(void) {
  *
  * Sur un 8088 il n'y a rien a distinguer : execx86(0) rend la main apres exactement une
  * instruction, et c'est pourquoi le probleme n'existait pas avant l'AT. */
+/* La borne du journal, exposee pour que le C# la CONFRONTE. Voir harness.h. */
+int h_wlog_max(void) { return H_WLOG_MAX; }
+
 int h_step_trace(void) {
         if (h_core == H_CORE_286) {
                 cpu_state._cycles = 1;
@@ -697,6 +706,23 @@ void h_seg_clear_residue(void) {
         cpu_state.eaaddr = 0;
         cpu_state.ssegs = 0;
         cpu_state.abrt = 0;
+
+        /* LES SIX GLOBAUX DU MODE PROTEGE QUE resetx86 NE REMET PAS (C7a).
+         *
+         * cgate32 en est absent A DESSEIN : resetx86 le pose deja (808x.c:679, :723),
+         * donc l'ajouter ici serait une ligne morte.
+         *
+         * optype est le plus important des six : c'est le SEUL a porter de l'etat
+         * entre instructions — `grep -c 'optype = 0' x86seg.c` rend ZERO, et les
+         * affectations JMP (:765) et OPTYPE_INT (:1995) ne se defont jamais. Sans ce
+         * nettoyage, l'iteration N+1 du fuzz herite de N des deux cotes : vert, vide,
+         * et la recette --seed ne rejoue plus le meme etat. */
+        abrt_error = 0;
+        intgatesize = 0;
+        cgate16 = 0;
+        optype = 0;
+        oldcpl = 0;
+        cpu_cur_status = 0;
 }
 
 
@@ -796,6 +822,16 @@ void h_getstate(h_state *out) {
         out->n_readmemwl = h_n_readmemwl;
         out->n_writememwl = h_n_writememwl;
         out->n_fatal = h_n_fatal;
+
+        /* LES SEPT GLOBAUX DU MODE PROTEGE (C7a). Declares dans x86.h et x86seg.c,
+         * fournis par le lien — aucune unite a ajouter. */
+        out->abrt_error = abrt_error;
+        out->intgatesize = intgatesize;
+        out->cgate16 = cgate16;
+        out->cgate32 = cgate32;
+        out->optype = optype;
+        out->oldcpl = oldcpl;
+        out->cur_status = cpu_cur_status;
 
         out->ins = h_ins_count;
 }

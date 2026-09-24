@@ -1173,12 +1173,15 @@ internal static partial class x86seg_c
     // pcem: x86seg.c — loadcsjmp, la BRANCHE MODE RÉEL seulement (les 19 dernières
     // lignes des 236 de la fonction).
     //
-    // La branche mode protégé — 200 lignes qui lisent le descripteur dans la GDT
-    // ou la LDT, vérifient CPL/DPL, distinguent segment de code conforme, porte
-    // d'appel, TSS — relève du bloc `Ap` du plan et n'est pas transcrite. Elle
-    // échoue BRUYAMMENT plutôt que de rendre du silence, même doctrine que la
-    // table vide de A2.2b : un JMP far en mode protégé doit nommer ce qui manque,
-    // pas charger CS comme si de rien n'était.
+    // CE COMMENTAIRE DISAIT « n'est pas transcrite. Elle échoue BRUYAMMENT » ET
+    // C'ÉTAIT PÉRIMÉ depuis dcb8960 : la branche mode protégé est juste en dessous,
+    // avec son descripteur lu dans la GDT ou la LDT, ses tests CPL/DPL, son segment
+    // conforme, sa porte d'appel et sa porte de tâche. Seule celle-ci appelle encore
+    // un stub, taskswitch286, et elle le fait en le nommant.
+    //
+    // Relevé par une reconnaissance en lecture seule, pas par une porte : aucun test
+    // ne vérifie qu'un commentaire dit vrai. C'est la quatrième ligne de statut de
+    // cette session à se révéler fausse à la première mesure.
     //
     // La branche mode réel, elle, est exactement loadcs ci-dessus plus une
     // facturation de cycles. C'est elle que le vecteur de reset emprunte.
