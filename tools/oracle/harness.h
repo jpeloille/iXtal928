@@ -421,6 +421,21 @@ void h_set_bpb_disable(int v);
  * h_set_mem_size : une seule lecture de la configuration, deux poussées. */
 void h_set_romset(int r);
 
+/* --- vidéo (M15) ------------------------------------------------------------
+ * La carte, valeur de l'énumération GFX_* (ibm.h:274-289) : 0 = CGA, 13 = VGA.
+ * À appeler AVANT h_boot, qui fait le device_add. Sans appel : CGA, le défaut de
+ * PCem quand la clé gfxcard est absente (pc.c:660-664). */
+void h_set_gfxcard(int g);
+
+/* Sonde VGA — H_VGA_PROBE_N champs dans l'ordre de Video.vid_svga.Probe() côté C#.
+ * Tout à zéro sans carte svga. Hachages FNV-1a pour les tableaux (VRAM, registres,
+ * palettes, buffer32), valeurs brutes pour les scalaires. */
+#define H_VGA_PROBE_N 64
+void h_vga_probe(uint64_t *out);
+
+/* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
+uint8_t *h_vga_vram(void);
+
 /* --- clavier (M11) ----------------------------------------------------------
  * De quoi TAPER dans l'oracle, et donc de quoi mettre le chemin d'écriture du
  * contrôleur de disquettes sous comparaison. Sans ces deux-là, FORMAT et WRITE
@@ -500,7 +515,10 @@ uint8_t *h_ram(void);
  * s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois bumps
  * precedents. */
 /* 16 : h_set_trace_notsc s'ajoute au contrat. Le vecteur ne change pas de taille. */
-#define H_ABI_VERSION 16
+/* 17 depuis M15 : h_set_gfxcard, h_vga_probe et h_vga_vram s'ajoutent au contrat, et
+ * l'oracle lie vid_vga.c, vid_svga.c et vid_svga_render.c. Le vecteur ne change pas
+ * de taille. */
+#define H_ABI_VERSION 17
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

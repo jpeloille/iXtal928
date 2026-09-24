@@ -46,6 +46,7 @@
 #include "pic.h"
 #include "timer.h"
 #include "video.h"
+#include "viewer.h"   /* viewer_t — stubs des visionneuses, section vidéo */
 #include "models/model.h"
 #include "x86.h"
 #include "x86_ops.h"   /* OpFn, et les extern des tables dynarec_ops_* */
@@ -457,9 +458,45 @@ void hline(VIDEO_BITMAP *b, int x1, int y, int x2, int col) {
 VIDEO_BITMAP *buffer32 = NULL;
 VIDEO_BITMAP *screen = NULL;
 
+/* video.c:559 — lue par svga_render_4bpp_* (vid_svga_render.c:372-424). Remplie par
+ * initvideo, comme video.c:1076-1089 le fait. */
+uint8_t edatlookup[4][4];
+
+/* video.c:546 — lues par svga_render_15bpp_* et _16bpp_* SEULEMENT, que la VGA
+ * n'atteint pas : vga_init pose bpp = 8 (vid_vga.c:114) et rien ne le change. Laissées
+ * NULLES, donc un rendu 15/16 bpp atteint par erreur plante au lieu de peindre du
+ * faux — le pendant du fatal() que le côté C# met dans ces fonctions. */
+uint32_t *video_15to32 = NULL, *video_16to32 = NULL;
+
 void initvideo(void) {
+        int c, d;
+
         if (!buffer32)
                 buffer32 = create_bitmap(2048, 2048);
+        /* DEVIATION: video.c:1067 alloue un buffer32 NEUF à chaque initvideo ; ici il
+         * est alloué une fois et REMIS À ZÉRO, comme video.cs le fait (Array.Clear).
+         * Sans ce memset, la phase 2 du boot-diff hériterait des pixels de la phase 1,
+         * et la comparaison de framebuffer de fin de course — le seul oracle des pixels
+         * de la VGA — comparerait deux histoires différentes. Neutre pour la CGA :
+         * cgapal est stubé à zéro, donc cga_poll n'y écrit que des zéros. */
+        memset(buffer32->dat, 0, 2048 * 2048 * 4);
+
+        /* omitted: rotatevga[] (video.c:1069-1075) — EGA seule ; vid_svga.c porte sa
+         * propre svga_rotate. */
+        for (c = 0; c < 4; c++) {
+                for (d = 0; d < 4; d++) {
+                        edatlookup[c][d] = 0;
+                        if (c & 1)
+                                edatlookup[c][d] |= 1;
+                        if (d & 1)
+                                edatlookup[c][d] |= 2;
+                        if (c & 2)
+                                edatlookup[c][d] |= 0x10;
+                        if (d & 2)
+                                edatlookup[c][d] |= 0x20;
+                }
+        }
+        /* omitted: video_15to32 / video_16to32 (video.c:1091-1097) — voir plus haut. */
         cgapal_rebuild(0 /*DISPLAY_RGB*/, 0);
 }
 
@@ -476,6 +513,11 @@ int xsize = 1, ysize = 1;
 uint32_t cgapal[16];
 void cgapal_rebuild(int display_type, int contrast) { (void)display_type; (void)contrast; }
 uint8_t fontdat[2048][8];
+/* video.c:925-926 — lues par svga_render_text_80_ksc5601 SEULEMENT, rendu des cartes
+ * coréennes que la VGA n'installe jamais (svga_recalctimings ne le choisit pas).
+ * Définies pour l'édition de liens, à zéro, et jamais lues. */
+uint8_t fontdatksc5601[16384][32];
+uint8_t fontdatksc5601_user[192][32];
 void cga_comp_init(int revision) { (void)revision; }
 void update_cga16_color(uint8_t cgamode) { (void)cgamode; }
 void Composite_Process(uint8_t cgamode, uint32_t blend, int border, uint32_t *line) {
@@ -490,18 +532,83 @@ void video_blit_memtoscreen(int x, int y, int y1, int y2, int w, int h) {
 }
 void video_wait_for_buffer(void) { }
 void updatewindowsize(int x, int y) { (void)x; (void)y; }
-void video_updatetiming(void) { }
+
+/* video.c:594-596 et 727-752 — RÉELLE depuis la VGA, et c'était le piège du jalon.
+ *
+ * Tant que seule la CGA était liée, ce stub pouvait rester vide : vid_cga.c ne lit
+ * aucune des six globales video_timing_*. vid_svga.c les facture à CHAQUE accès —
+ * `cycles -= video_timing_write_b` (vid_svga.c:818), `-= video_timing_read_b`
+ * (:1068). Laissées à zéro ici pendant que video.cs les calcule, chaque octet écrit
+ * en VRAM aurait coûté 8 cycles d'un côté et 0 de l'autre : une dérive de tsc sans un
+ * registre de différence, exactement la panne que l'en-tête de ce fichier décrit.
+ *
+ * Réduite comme video.cs:158-186 la réduit : la branche `video_speed == -1`
+ * (video.c:599-726) traverse le registre VIDEO_CARD. Pour la CGA comme pour la VGA,
+ * la table de la carte vaut {VIDEO_ISA, 8, 16, 32} (video.c:96, :191), et aucun des
+ * quatre romsets du dépôt n'a de cas dans le switch — donc la ligne 0 de la table
+ * donne les mêmes nombres. Pendant exact de video.cs, pas de video.c. */
+enum { VIDEO_ISA = 0, VIDEO_BUS }; /* video.c:62 — local à video.c, pas d'en-tête */
+int video_speed = 0;
+int video_timing[7][4] = {{VIDEO_ISA, 8, 16, 32}, {VIDEO_ISA, 6, 8, 16}, {VIDEO_ISA, 3, 3, 6},
+                          {VIDEO_BUS, 4, 8, 16},  {VIDEO_BUS, 4, 5, 10}, {VIDEO_BUS, 3, 3, 4}};
+int video_timing_read_b, video_timing_read_w, video_timing_read_l;
+int video_timing_write_b, video_timing_write_w, video_timing_write_l;
+extern float bus_timing;
+
+void video_updatetiming(void) {
+        if (video_timing[video_speed][0] == VIDEO_ISA) {
+                video_timing_read_b = ISA_CYCLES(video_timing[video_speed][1]);
+                video_timing_read_w = ISA_CYCLES(video_timing[video_speed][2]);
+                video_timing_read_l = ISA_CYCLES(video_timing[video_speed][3]);
+                video_timing_write_b = ISA_CYCLES(video_timing[video_speed][1]);
+                video_timing_write_w = ISA_CYCLES(video_timing[video_speed][2]);
+                video_timing_write_l = ISA_CYCLES(video_timing[video_speed][3]);
+        } else {
+                video_timing_read_b = (int)(bus_timing * video_timing[video_speed][1]);
+                video_timing_read_w = (int)(bus_timing * video_timing[video_speed][2]);
+                video_timing_read_l = (int)(bus_timing * video_timing[video_speed][3]);
+                video_timing_write_b = (int)(bus_timing * video_timing[video_speed][1]);
+                video_timing_write_w = (int)(bus_timing * video_timing[video_speed][2]);
+                video_timing_write_l = (int)(bus_timing * video_timing[video_speed][3]);
+        }
+        if (cpu_16bitbus) {
+                video_timing_read_l = video_timing_read_w * 2;
+                video_timing_write_l = video_timing_write_w * 2;
+        }
+}
+
+/* pc.c:87 — lu par svga_doblit (vid_svga.c:1453, :1466). Défaut de la configuration
+ * globale (pc.c:622), que ce dépôt ne lit pas. */
+int vid_resize = 0;
+
+/* pc.c:89 — svga_read/svga_write l'incrémentent à chaque accès ; personne ne le lit
+ * dans l'oracle. */
+int cycles_lost = 0;
+
+/* Les visionneuses de débogage de l'UI (wx-ui/viewer.h) : vid_svga.c les enregistre
+ * (svga_init, :796-799) et les rafraîchit (svga_poll, :628-633). Sorties pures. */
+viewer_t viewer_font, viewer_palette, viewer_palette_16, viewer_vram;
+void viewer_add(char *title, viewer_t *viewer, void *p) { (void)title; (void)viewer; (void)p; }
+void viewer_update(viewer_t *viewer, void *p) { (void)viewer; (void)p; }
 
 /* Chargement des polices : sans rendu, on ne remplit aucune table. Le POST du
  * 5150 n'interroge pas les polices, il écrit dans la VRAM du CGA. */
 void loadfont(char *s, fontformat_t format) { (void)s; (void)format; }
 
-/* Interrogation du registre des cartes vidéo. Une seule carte ici, le CGA :
- * ce sont ces trois réponses que le PPI compose en interrupteurs DIP pour le
- * POST, et le C# rend exactement les mêmes (Video/video.cs:191-193). */
+/* Interrogation du registre des cartes vidéo, video.c:409-540. Deux cartes depuis la
+ * VGA, choisies par gfxcard (pc.c:77), que h_set_gfxcard pose AVANT h_boot. Ce sont
+ * ces réponses que le PPI du XT compose en interrupteurs DIP, et le C# rend les mêmes
+ * (Video/video.cs).
+ *
+ * Réduites : le switch sur romset qui ouvre chacune (video.c:410-452, :456-500,
+ * :504-538) n'a de cas pour aucun des quatre romsets du dépôt, donc on tombe toujours
+ * dans la lecture des drapeaux de la carte — VIDEO_FLAG_TYPE_CGA pour v_cga
+ * (video.c:96), VIDEO_FLAG_TYPE_SPECIAL pour v_vga (video.c:191). */
+int gfxcard = 0; /* pc.c:77 ; GFX_CGA = 0 (ibm.h:276) */
+
 int video_is_mda(void) { return 0; }
-int video_is_cga(void) { return 1; }
-int video_is_ega_vga(void) { return 0; }
+int video_is_cga(void) { return gfxcard == GFX_CGA; }
+int video_is_ega_vga(void) { return gfxcard == GFX_VGA; }
 
 /* Toshiba T1000 : touche système, machine hors cible. */
 void t1000_syskey(uint8_t andmask, uint8_t ormask, uint8_t xormask) {

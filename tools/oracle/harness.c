@@ -262,6 +262,14 @@ extern void h_stub_counters_reset(void);
  * video.h/vid_cga.h : ces en-tetes referencent mem_mapping_t, pc_timer_t et
  * device_t, que seul l'include de 808x.c ci-dessus a fait entrer. */
 extern device_t cga_device;
+/* M15 — la VGA. vid_svga.h est inclus, lui : h_vga_probe lit svga_t champ par champ,
+ * et une redéclaration à la main de cette structure de 70 champs dériverait sans bruit
+ * de celle que vid_svga.c compile. mem_mapping_t et pc_timer_t sont déjà là, PALETTE
+ * vient de video.h. */
+#include "video.h"
+#include "vid_svga.h"
+extern device_t vga_device;
+extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
 extern void h_set_roms_path(const char *p);
@@ -1057,8 +1065,28 @@ int h_boot(const char *romspath) {
          * transcrit cote C#. Video.video.video_init() (video.cs) fait exactement
          * ce meme raccourci, marque // DEVIATION. Les deux cotes ajoutent donc la
          * MEME carte de la MEME facon -- ce qui est tout ce que l'oracle doit
-         * garantir. */
-        device_add(&cga_device);
+         * garantir.
+         *
+         * M15 : deux cartes, choisies par gfxcard (h_set_gfxcard), comme
+         * video_card_getdevice le ferait pour GFX_CGA et GFX_VGA (video.c:96, :191). */
+        if (gfxcard == GFX_VGA) {
+                svga_t *svga;
+
+                device_add(&vga_device);
+                /* DEVIATION de l'ORACLE (pas d'iXtal26) : svga_init alloue la VRAM et
+                 * changedvram par malloc SANS les effacer (vid_svga.c:772, :777) — du
+                 * tas, donc de l'UB et pas un comportement. Le premier amorçage du
+                 * processus reçoit une VRAM de 256 Ko issue de mmap, donc nulle ; mais
+                 * vga_close la libère, glibc relève alors son seuil de mmap dynamique,
+                 * et la VRAM du SECOND h_boot — la phase 2 du boot-diff — vient du tas
+                 * avec les octets de la première. changedvram (4 Ko) vient du tas dès
+                 * le départ. Le côté C# alloue des tableaux CLR, nuls. Même arbitrage
+                 * que h_pad_ram et PB-24 : il n'y a rien dont être le pendant fidèle. */
+                svga = svga_get_pri();
+                memset(svga->vram, 0, svga->vram_max);
+                memset(svga->changedvram, 0, 0x1000000 >> 12);
+        } else
+                device_add(&cga_device);
         speaker_init();              /* pc.c:375, juste après video_init() */
 
         /* pc.c:392 — hdd_controller_init(hdd_controller_name), reduit. APRES
@@ -1205,6 +1233,116 @@ void h_set_bpb_disable(int v) { bpb_disable = v; }
  * loadbios() le lit depuis l'interieur. */
 extern int romset;
 void h_set_romset(int r) { romset = r; }
+
+/* --- vidéo (M15) ------------------------------------------------------------
+ *
+ * gfxcard est une globale de pc.c (pc.c:77) que le harnais définit lui-même
+ * (harness_stubs.c) : même patron que romset. À poser avant h_boot. */
+void h_set_gfxcard(int g) { gfxcard = g; }
+
+static uint64_t h_fnv(uint64_t hash, const uint8_t *p, size_t n) {
+        for (size_t i = 0; i < n; i++) {
+                hash ^= p[i];
+                hash *= 1099511628211ULL;
+        }
+        return hash;
+}
+
+/* L'état de la VGA en fin de course, dans l'ordre de Video.vid_svga.Probe() côté
+ * C#. Le diff d'instructions voit tout ce que le CPU relit — une IN 3DA, une lecture
+ * de VRAM — et RIEN de ce qu'il ne relit pas : la palette, la police du plan 2, les
+ * pixels. Ce vecteur est l'oracle de tout cela. Les tableaux sont hachés ; les
+ * scalaires sont rendus bruts, pour que la sonde NOMME le champ divergent.
+ *
+ * Rend tout à zéro sans carte svga : la sonde est alors muette, pas fausse. */
+void h_vga_probe(uint64_t *out) {
+        const uint64_t basis = 1469598103934665603ULL;
+        svga_t *svga = svga_get_pri();
+        uint32_t pl[512];
+        int f = 0, c;
+
+        memset(out, 0, H_VGA_PROBE_N * sizeof(uint64_t));
+        if (!svga)
+                return;
+
+        /* pallook en petit-boutiste explicite : le C# hache les mêmes octets. */
+        for (c = 0; c < 512; c++)
+                pl[c] = svga->pallook[c];
+
+        out[f++] = 1;
+        out[f++] = h_fnv(basis, svga->vram, svga->vram_max);
+        out[f++] = h_fnv(basis, svga->changedvram, 0x1000000 >> 12);
+        out[f++] = h_fnv(basis, buffer32->dat, 2048 * 2048 * 4);
+        out[f++] = h_fnv(basis, svga->crtc, sizeof(svga->crtc));
+        out[f++] = h_fnv(basis, svga->seqregs, sizeof(svga->seqregs));
+        out[f++] = h_fnv(basis, svga->gdcreg, sizeof(svga->gdcreg));
+        out[f++] = h_fnv(basis, svga->attrregs, sizeof(svga->attrregs));
+        out[f++] = h_fnv(basis, (const uint8_t *)svga->vgapal, 256 * 3);
+        out[f++] = h_fnv(basis, (const uint8_t *)pl, sizeof(pl));
+        out[f++] = h_fnv(basis, svga->egapal, sizeof(svga->egapal));
+        out[f++] = svga->miscout;
+        out[f++] = svga->crtcreg;
+        out[f++] = (uint64_t)(int64_t)svga->seqaddr;
+        out[f++] = (uint64_t)(int64_t)svga->gdcaddr;
+        out[f++] = (uint64_t)(int64_t)svga->attraddr;
+        out[f++] = (uint64_t)(int64_t)svga->attrff;
+        out[f++] = (uint64_t)(int64_t)svga->attr_palette_enable;
+        out[f++] = svga->dac_mask;
+        out[f++] = svga->dac_status;
+        out[f++] = (uint64_t)(int64_t)svga->dac_read;
+        out[f++] = (uint64_t)(int64_t)svga->dac_write;
+        out[f++] = (uint64_t)(int64_t)svga->dac_pos;
+        out[f++] = (uint64_t)svga->la | ((uint64_t)svga->lb << 8) | ((uint64_t)svga->lc << 16) |
+                   ((uint64_t)svga->ld << 24);
+        out[f++] = (uint64_t)(int64_t)svga->writemode;
+        out[f++] = (uint64_t)(int64_t)svga->readmode;
+        out[f++] = (uint64_t)(int64_t)svga->readplane;
+        out[f++] = (uint64_t)(int64_t)svga->chain4;
+        out[f++] = (uint64_t)(int64_t)svga->chain2_write;
+        out[f++] = (uint64_t)(int64_t)svga->chain2_read;
+        out[f++] = svga->writemask;
+        out[f++] = svga->plane_mask;
+        out[f++] = svga->charseta;
+        out[f++] = svga->charsetb;
+        out[f++] = svga->banked_mask;
+        out[f++] = svga->mapping.base;
+        out[f++] = svga->mapping.size;
+        out[f++] = svga->cgastat;
+        out[f++] = (uint64_t)(int64_t)svga->vc;
+        out[f++] = (uint64_t)(int64_t)svga->sc;
+        out[f++] = (uint64_t)(int64_t)svga->displine;
+        out[f++] = (uint64_t)(int64_t)svga->linepos;
+        out[f++] = (uint64_t)(int64_t)svga->dispon;
+        out[f++] = svga->ma;
+        out[f++] = svga->maback;
+        out[f++] = svga->ca;
+        out[f++] = (uint64_t)(int64_t)svga->vtotal;
+        out[f++] = (uint64_t)(int64_t)svga->dispend;
+        out[f++] = (uint64_t)(int64_t)svga->hdisp;
+        out[f++] = (uint64_t)(int64_t)svga->htotal;
+        out[f++] = svga->dispontime;
+        out[f++] = svga->dispofftime;
+        out[f++] = svga->timer.ts_integer;
+        out[f++] = svga->timer.ts_frac;
+        out[f++] = (uint64_t)(int64_t)svga->fullchange;
+        out[f++] = (uint64_t)(int64_t)svga->frames;
+        out[f++] = (uint64_t)(int64_t)svga->firstline;
+        out[f++] = (uint64_t)(int64_t)svga->lastline;
+        out[f++] = (uint64_t)(int64_t)xsize;
+        out[f++] = (uint64_t)(int64_t)ysize;
+        out[f++] = (uint64_t)(int64_t)svga->video_res_x;
+        out[f++] = (uint64_t)(int64_t)svga->video_res_y;
+        out[f++] = (uint64_t)(int64_t)svga->video_bpp;
+        out[f++] = (uint64_t)(int64_t)svga->blink;
+}
+
+/* Pointeur direct sur la VRAM de l'oracle, NULL sans carte svga : la sonde VGA y lit
+ * l'écran texte SANS passer par svga_read, qui mettrait à jour les verrous la..ld et
+ * facturerait des cycles — lire l'écran changerait la machine. */
+uint8_t *h_vga_vram(void) {
+        svga_t *svga = svga_get_pri();
+        return svga ? svga->vram : NULL;
+}
 
 /* --- disque dur (M12) -------------------------------------------------------
  *

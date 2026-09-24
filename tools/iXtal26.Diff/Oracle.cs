@@ -33,7 +33,7 @@ public static class Oracle
     // s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois
     // bumps precedents.
     // 16 : h_set_trace_notsc s'ajoute au contrat.
-    public const int AbiVersion = 16;
+    public const int AbiVersion = 17;
 
     static Oracle()
     {
@@ -206,5 +206,16 @@ public static class Oracle
     // Sound.sound_speaker.Probe(). Le neuvième champ est l'empreinte du son
     // produit — la seule voix du chemin audio dans le diff.
     [DllImport(Lib)] internal static extern void h_speaker_probe([Out] ulong[] o);
+
+    // M15 — vidéo. La carte (GFX_CGA = 0, GFX_VGA = 13, ibm.h:274-289), à poser avant
+    // h_boot ; la sonde VGA, pendant de Video.vid_svga.Probe() ; et la VRAM brute,
+    // lue sans passer par svga_read — qui mettrait à jour les verrous et facturerait
+    // des cycles : lire l'écran changerait la machine.
+    public const int GFX_CGA = 0;
+    public const int GFX_VGA = 13;
+    public const int VgaProbeN = 64;
+    [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
+    [DllImport(Lib)] internal static extern void h_vga_probe([Out] ulong[] o);
+    [DllImport(Lib)] internal static extern IntPtr h_vga_vram();
 
 }

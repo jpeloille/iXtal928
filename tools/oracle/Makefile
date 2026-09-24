@@ -67,6 +67,9 @@ SRC := harness.c \
        $(PCEM)/src/devices/nvr.c \
        $(PCEM)/src/rtc.c \
        $(PCEM)/src/video/vid_cga.c \
+       $(PCEM)/src/video/vid_vga.c \
+       $(PCEM)/src/video/vid_svga.c \
+       $(PCEM)/src/video/vid_svga_render.c \
        $(PCEM)/src/floppy/fdc.c \
        $(PCEM)/src/floppy/fdd.c \
        $(PCEM)/src/disc/disc.c \
