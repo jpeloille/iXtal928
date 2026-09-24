@@ -773,7 +773,14 @@ public sealed class SdlHost : IDisposable
 
             // Une frappe met fin au turbo : à partir de là, quelqu'un regarde l'écran
             // et attend que la machine réponde à SA vitesse, pas à celle de l'hôte.
-            if (type is SDL.EventType.KeyDown)
+            //
+            // Une touche de modification SEULE n'est pas une frappe. L'accord du menu
+            // commence par Ctrl, et le KeyDown du Ctrl arrive ici AVANT celui de F12,
+            // que le bloc du menu intercepte : sans cette exclusion, ouvrir le menu
+            // pendant le turbo le coupait, et le bilan disait « interrompu par une
+            // frappe » alors que personne n'avait rien tapé à la machine. La touche
+            // suivante, elle, compte : Shift puis A arrête le turbo sur le A.
+            if (type is SDL.EventType.KeyDown && !IsModifier(e.Key.Scancode))
                 _turboStopped = true;
 
             // Tout part au clavier, y compris la perte de focus : c'est lui qui décide
@@ -781,6 +788,13 @@ public sealed class SdlHost : IDisposable
             SdlKeyboard.HandleEvent(in e);
         }
     }
+
+    /// <summary>Les huit touches de modification : Ctrl, Shift, Alt et Gui, des deux côtés.</summary>
+    private static bool IsModifier(SDL.Scancode scancode) =>
+        scancode is SDL.Scancode.LCtrl or SDL.Scancode.RCtrl
+            or SDL.Scancode.LShift or SDL.Scancode.RShift
+            or SDL.Scancode.LAlt or SDL.Scancode.RAlt
+            or SDL.Scancode.LGUI or SDL.Scancode.RGUI;
 
     /// <summary>Pendant de updatewindowsize (video.cs:543), appelée une fois par changement.</summary>
     private void SyncWindowSize()
