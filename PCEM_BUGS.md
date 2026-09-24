@@ -569,6 +569,31 @@ contrôleur ATA, où il existe ; le Xebec n'a pas ce bit.
 morte n'est pas un commentaire (même arbitrage que PB-20).
 
 
+### PB-32 — `pmodeint` : une précédence d'opérateurs annule le code d'erreur
+
+`x86seg.c:1659`, dans la branche « vecteur hors des bornes de l'IDT » :
+
+```c
+x86gpf(NULL, (num * 8) + 2 + (soft) ? 0 : 1);
+```
+
+`+` lie plus fort que `?:` en C, donc la condition est `((num * 8) + 2 + soft)`. Elle est
+**toujours non nulle** — `num * 8 + 2` vaut au minimum 2 — et l'expression rend donc
+**toujours 0**. Le code d'erreur voulu, `(num * 8) + 2`, n'est jamais transmis ; les deux
+branches du ternaire, 0 et 1, sont là par accident de parenthésage.
+
+Les deux autres sites de la même fonction qui construisent ce code d'erreur l'écrivent
+correctement — `x86gpf(NULL, (num * 8) + 2)` aux lignes 1687 et 1692 — ce qui confirme
+l'intention.
+
+*Effet* : un `INT n` dont le vecteur dépasse la limite de l'IDT lève bien un #GP, mais avec
+un code d'erreur nul au lieu du sélecteur fautif. Un gestionnaire qui lirait le code pour
+identifier la cause verrait zéro. Aucun BIOS ni DOS de ce dépôt ne le lit.
+*Reproduit* : `Cpu/x86seg.cs`, marqueur `// pcem bug, reproduced: PB-32` dans `pmodeint`.
+Transcrit avec la même précédence, donc le même résultat — le corriger changerait le code
+d'erreur d'un côté seulement.
+
+
 ---
 
 ## Portée de ce registre

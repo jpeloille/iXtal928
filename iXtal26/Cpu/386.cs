@@ -409,10 +409,64 @@ internal static partial class _386
 
         if ((msw & 1) != 0)
         {
-                pc.fatal("x86_doabrt en mode protege : pmodeint n'est pas transcrit (Ap)\n");
+                x86seg_c.pmodeint(x86_abrt, 0);
+        }
+        else
+        {
+                RealModeAbrt(x86_abrt);
                 return;
         }
 
+        // pcem: x86seg.c:113-133 — LA QUEUE MODE PROTEGE, et elle n'empile le code
+        // d'erreur qu'APRES que pmodeint ait change de pile.
+        //
+        // L'ORDRE EST LE POINT : pmodeint empile flags, CS et pc sur la pile du niveau
+        // CIBLE, puis on ajoute le code d'erreur par-dessus. L'inverse le mettrait sur
+        // l'ancienne pile, que le gestionnaire ne lit pas.
+        //
+        // ET LE TEST DE SORTIE COMPTE AUTANT. Si pmodeint a lui-meme faute — abrt non
+        // nul — ou s'il a provoque un reset par triple faute — x86_was_reset — il n'y a
+        // plus de pile ou ecrire : on rend la main sans rien empiler.
+        if (cpu_state.abrt != 0 || x86_was_reset != 0)
+                return;
+
+        // intgatesize EST ECRIT PAR pmodeint ET LU ICI, ET NULLE PART AILLEURS. A zero
+        // il ferait prendre la branche 32 bits, la MAUVAISE sur un 286 — quatre octets
+        // empiles au lieu de deux, et le gestionnaire lirait tout de travers. C'est
+        // pourquoi les deux arrivent dans le meme commit.
+        if (x86seg_c.intgatesize == 16)
+        {
+                if (stack32 != 0)
+                {
+                        writememw(ss, ESP - 2, (uint16_t)abrt_error);   // le C tronque implicitement
+                        ESP -= 2;
+                }
+                else
+                {
+                        writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)abrt_error);
+                        SP -= 2;
+                }
+        }
+        else
+        {
+                if (stack32 != 0)
+                {
+                        writememl(ss, ESP - 4, abrt_error);
+                        ESP -= 4;
+                }
+                else
+                {
+                        writememl(ss, (uint32_t)((SP - 4) & 0xFFFF), abrt_error);
+                        SP -= 4;
+                }
+        }
+    }
+
+    /// <summary>pcem: x86seg.c:95-112 — la branche MODE REEL de x86_doabrt, extraite
+    /// pour que la queue mode protege puisse rendre la main en un seul endroit. Le C
+    /// fait `return` au milieu de la fonction ; l'extraction garde le meme flot.</summary>
+    private static void RealModeAbrt(int x86_abrt)
+    {
         uint32_t addr = (uint32_t)(x86_abrt << 2) + idt.@base;
         if (stack32 != 0)
         {

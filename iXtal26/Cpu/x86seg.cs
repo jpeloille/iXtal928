@@ -383,9 +383,401 @@ internal static partial class x86seg_c
         => pc.fatal($"pmoderetf (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");
 
+    // pcem: x86seg.c:32 — intgatesize. SEUL pmodeint l'ecrit, et x86_doabrt le lit pour
+    // decider s'il empile le code d'erreur sur 16 ou 32 bits. A zero il prendrait la
+    // branche 32 bits, la MAUVAISE sur un 286 — c'est pour ca que les deux arrivent
+    // dans le meme commit.
+    internal static int intgatesize;
+
+    // pcem: x86seg.c:1626-2007 — L'INTERRUPTION EN MODE PROTEGE.
+    //
+    // TROIS PORTES POSSIBLES dans l'IDT, et le type le dit : interruption (0x600,
+    // 0xE00), piege (0x700, 0xF00), ou tache (0x500). Les deux premieres ne different
+    // que par UN bit — le 0x100 — et ce bit decide si I_FLAG est efface : une porte
+    // d'INTERRUPTION masque les interruptions en entrant, une porte de PIEGE non.
+    //
+    // ET LE CAS LE PLUS LONG EST UN CHANGEMENT DE PILE. Quand DPL2 < CPL, l'interruption
+    // monte en privilege : elle doit prendre la pile du niveau cible, lue dans le TSS,
+    // et empiler l'ANCIENNE paire SS:SP en plus de flags, CS et pc. C'est la moitie de
+    // la fonction.
     internal static void pmodeint(int num, int soft)
-        => pc.fatal($"pmodeint (num {num:X2}) : x86seg.c n'est transcrit qu'en " +
-                    "mode reel (bloc C du plan)\n");
+    {
+        var segdat = new uint16_t[4];
+        var segdat2 = new uint16_t[4];
+        var segdat3 = new uint16_t[4];
+        uint32_t addr, oaddr;
+        uint16_t newss;
+        uint32_t oldss, oldsp;
+        int type;
+        uint32_t newsp;
+        uint16_t seg = 0;
+        int new_cpl;
+        int DPL() => (segdat[2] >> 13) & 3;
+        int DPL2() => (segdat2[2] >> 13) & 3;
+        int DPL3() => (segdat3[2] >> 13) & 3;
+
+        // UNE INTERRUPTION LOGICIELLE EN V86 EXIGE IOPL == 3. Branche morte sur un 286 ;
+        // VM_FLAG y est inatteignable.
+        if ((cpu_state.eflags & VM_FLAG) != 0 && IOPL != 3 && soft != 0)
+        {
+                // omitted: les deux pclog("V86 banned int") — sorties pures.
+                x86gpf(null!, 0);
+                return;
+        }
+        addr = (uint32_t)(num << 3);
+        if (addr >= idt.limit)
+        {
+                // LA TRIPLE FAUTE EST UN RESET, ET C'EST LE SILICIUM. Si le vecteur 8
+                // (#DF, double faute) est lui-meme hors de l'IDT, le processeur ne peut
+                // plus rien signaler : il se reinitialise. C'est la SEULE facon dont un
+                // 286 sort du mode protege sans passer par le 8042.
+                if (num == 8)
+                {
+                        // omitted: pclog("Triple fault!") — sortie pure.
+                        Cpu._808x.softresetx86();
+                        // omitted: cpu_set_edx() — l'oracle l'interpose A VIDE
+                        //   (__wrap_cpu_set_edx, harness_stubs.c:278), voir 808x.cs.
+                }
+                else if (num == 0xD)
+                {
+                        // omitted: pclog("Double fault!") — sortie pure.
+                        pmodeint(8, 0);
+                }
+                else
+                {
+                        // pcem bug, reproduced: PB-32 — precedence d'operateurs. Le C ecrit
+                        //   `(num * 8) + 2 + (soft) ? 0 : 1`, et `+` lie plus fort que `?:` :
+                        //   la condition est `((num*8) + 2 + soft)`, toujours non nulle, donc
+                        //   le code d'erreur vaut TOUJOURS 0. Le `(num*8)+2` voulu n'est
+                        //   jamais transmis. Reproduit tel quel — PCem est l'oracle.
+                        x86gpf(null!, (uint16_t)((((num * 8) + 2 + soft) != 0) ? 0 : 1));
+                }
+                return;
+        }
+        addr += idt.@base;
+
+        // NOTER LES PREMIERS ARGUMENTS : 0, 2, 4, 6 et non 0, 0, 0, 0. readmemw additionne
+        // ses deux arguments, donc c'est bien addr+2, addr+4, addr+6 — mais le C le note
+        // AUTREMENT ici que partout ailleurs dans le fichier, et la forme se garde.
+        cpl_override = 1;
+        segdat[0] = readmemw(0, addr);
+        segdat[1] = readmemw(2, addr);
+        segdat[2] = readmemw(4, addr);
+        segdat[3] = readmemw(6, addr);
+        cpl_override = 0;
+        if (cpu_state.abrt != 0)
+                return;
+        oaddr = addr;
+
+        if ((segdat[2] & 0x1F00) == 0)
+        {
+                // x86gpf_expected ET PAS x86gpf : le commentaire de PCem le dit — ca se
+                // declenche sur TOUTES les interruptions V86 d'EMM386, et le marquer
+                // « attendu » evite au recompilateur d'invalider ses blocs.
+                if ((cpu_state.eflags & VM_FLAG) != 0)
+                        x86gpf_expected(null!, (uint16_t)((num * 8) + 2));
+                else
+                        x86gpf(null!, (uint16_t)((num * 8) + 2));
+                return;
+        }
+        // `&& soft` EST LA DIFFERENCE ENTRE UN INT ET UNE FAUTE. Un INT n exige que la
+        // porte soit au moins aussi privilegiee que l'appelant ; une exception MATERIELLE
+        // n'a pas a le verifier, le processeur n'etant pas un programme.
+        if (DPL() < CPL && soft != 0)
+        {
+                x86gpf(null!, (uint16_t)((num * 8) + 2));
+                return;
+        }
+        type = segdat[2] & 0x1F00;
+        switch (type)
+        {
+        case 0x600:
+        case 0x700:
+        case 0xE00:
+        case 0xF00: /*Interrupt and trap gates*/
+                intgatesize = (type >= 0x800) ? 32 : 16;
+                if ((segdat[2] & 0x8000) == 0)
+                {
+                        x86np("Int gate not present\n", (uint16_t)((num << 3) | 2));
+                        return;
+                }
+                seg = segdat[1];
+                new_cpl = seg & 3;
+
+                addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                // omitted: le bloc commente x86seg.c:1730-1735 — un test `(seg&3) < CPL`
+                //   que PCem a desactive ; le desactiver EST son comportement.
+                cpl_override = 1;
+                segdat2[0] = readmemw(0, addr);
+                segdat2[1] = readmemw(0, addr + 2);
+                segdat2[2] = readmemw(0, addr + 4);
+                segdat2[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return;
+                oaddr = addr;
+
+                if (DPL2() > CPL) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+
+                switch (segdat2[2] & 0x1F00)
+                {
+                case 0x1800:
+                case 0x1900:
+                case 0x1A00:
+                case 0x1B00: /*Non-conforming*/
+                        if (DPL2() < CPL)
+                        {
+                                if ((segdat2[2] & 0x8000) == 0)
+                                {
+                                        x86np("Int gate CS not present\n", (uint16_t)(segdat[1] & 0xfffc));
+                                        return;
+                                }
+                                if ((cpu_state.eflags & VM_FLAG) != 0 && DPL2() != 0)
+                                {
+                                        x86gpf(null!, (uint16_t)(segdat[1] & 0xFFFC));
+                                        return;
+                                }
+                                /*Load new stack*/
+                                // LA NOUVELLE PILE EST DANS LE TSS, ET SA DISPOSITION DEPEND
+                                // DU TYPE DE TSS. `tr.access & 8` distingue un TSS de 386
+                                // (entrees de huit octets, SP sur 32 bits) d'un TSS de 286
+                                // (quatre octets, SP sur 16). Un 286 prend la seconde
+                                // branche, mais les deux sont la.
+                                oldss = SS;
+                                oldsp = ESP;
+                                cpl_override = 1;
+                                if ((tr.access & 8) != 0)
+                                {
+                                        addr = (uint32_t)(4 + tr.@base + (DPL2() * 8));
+                                        newss = readmemw(0, addr + 4);
+                                        newsp = readmeml(0, addr);
+                                }
+                                else
+                                {
+                                        addr = (uint32_t)(2 + tr.@base + (DPL2() * 4));
+                                        newss = readmemw(0, addr + 2);
+                                        newsp = readmemw(0, addr);
+                                }
+                                cpl_override = 0;
+                                if ((newss & ~3) == 0)
+                                {
+                                        x86ss(null!, (uint16_t)(newss & ~3));
+                                        return;
+                                }
+                                addr = (uint32_t)(newss & ~7);
+                                if ((newss & 4) != 0)
+                                {
+                                        if (addr >= ldt.limit) { x86ss(null!, (uint16_t)(newss & ~3)); return; }
+                                        addr += ldt.@base;
+                                }
+                                else
+                                {
+                                        if (addr >= gdt.limit) { x86ss(null!, (uint16_t)(newss & ~3)); return; }
+                                        addr += gdt.@base;
+                                }
+                                cpl_override = 1;
+                                segdat3[0] = readmemw(0, addr);
+                                segdat3[1] = readmemw(0, addr + 2);
+                                segdat3[2] = readmemw(0, addr + 4);
+                                segdat3[3] = readmemw(0, addr + 6);
+                                cpl_override = 0;
+                                if (cpu_state.abrt != 0)
+                                        return;
+                                if (((newss & 3) != DPL2()) || (DPL3() != DPL2()))
+                                {
+                                        x86ss(null!, (uint16_t)(newss & ~3));
+                                        return;
+                                }
+                                if ((segdat3[2] & 0x1A00) != 0x1200)
+                                {
+                                        x86ss(null!, (uint16_t)(newss & ~3));
+                                        return;
+                                }
+                                if ((segdat3[2] & 0x8000) == 0)
+                                {
+                                        x86np("Int gate loading SS not present\n", (uint16_t)(newss & 0xfffc));
+                                        return;
+                                }
+                                SS = newss;
+                                set_stack32((segdat3[3] & 0x40) != 0 ? 1 : 0);
+                                if (stack32 != 0)
+                                        ESP = newsp;
+                                else
+                                        SP = (uint16_t)newsp;
+                                do_seg_load(cpu_state.seg_ss, segdat3);
+
+                                cpl_override = 1;
+                                writememw(0, addr + 4, (uint16_t)(segdat3[2] | 0x100)); /*Set accessed bit*/
+                                cpl_override = 0;
+
+                                // cpl_override = 1 AUTOUR DES EMPILEMENTS, et ce n'est pas la
+                                // meme raison qu'autour des lectures de descripteur : ici la
+                                // pile appartient au niveau CIBLE, plus privilegie que celui
+                                // qu'on quitte. Sans le drapeau, le PUSH serait refuse.
+                                cpl_override = 1;
+                                if (type >= 0x800)
+                                {
+                                        if ((cpu_state.eflags & VM_FLAG) != 0)
+                                        {
+                                                PUSHL(GS);
+                                                PUSHL(FS);
+                                                PUSHL(DS);
+                                                PUSHL(ES);
+                                                if (cpu_state.abrt != 0)
+                                                        return;
+                                                loadseg(0, cpu_state.seg_ds);
+                                                loadseg(0, cpu_state.seg_es);
+                                                loadseg(0, cpu_state.seg_fs);
+                                                loadseg(0, cpu_state.seg_gs);
+                                        }
+                                        PUSHL(oldss);
+                                        PUSHL(oldsp);
+                                        PUSHL((uint32_t)(cpu_state.flags | (cpu_state.eflags << 16)));
+                                        PUSHL(CS);
+                                        PUSHL(cpu_state.pc);
+                                        if (cpu_state.abrt != 0)
+                                                return;
+                                }
+                                else
+                                {
+                                        PUSHW((uint16_t)oldss);
+                                        PUSHW((uint16_t)oldsp);
+                                        PUSHW(cpu_state.flags);
+                                        PUSHW(CS);
+                                        PUSHW((uint16_t)cpu_state.pc);
+                                        if (cpu_state.abrt != 0)
+                                                return;
+                                }
+                                cpl_override = 0;
+                                cpu_state.seg_cs.access = 0;
+                                cycles -= cpu.timing_int_pm_outer - cpu.timing_int_pm;
+                                break;
+                        }
+                        else if (DPL2() != CPL)
+                        {
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        // LA CHUTE EST VOULUE : si DPL2 == CPL, un code non conforme se
+                        // traite exactement comme un conforme — pas de changement de pile.
+                        // C# interdit la chute implicite, d'ou goto case.
+                        goto case 0x1C00;
+                case 0x1C00:
+                case 0x1D00:
+                case 0x1E00:
+                case 0x1F00: /*Conforming*/
+                        if ((segdat2[2] & 0x8000) == 0)
+                        {
+                                x86np("Int gate CS not present\n", (uint16_t)(segdat[1] & 0xfffc));
+                                return;
+                        }
+                        if ((cpu_state.eflags & VM_FLAG) != 0 && DPL2() < CPL)
+                        {
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        // `type > 0x800` ICI, MAIS `type >= 0x800` POUR intgatesize ET POUR
+                        // le bloc ci-dessus. La difference porte sur le type 0x800 exactement,
+                        // qui n'est pas une porte valide — donc inerte, et conservee telle
+                        // quelle parce que c'est ce que le C ecrit.
+                        if (type > 0x800)
+                        {
+                                PUSHL((uint32_t)(cpu_state.flags | (cpu_state.eflags << 16)));
+                                PUSHL(CS);
+                                PUSHL(cpu_state.pc);
+                                if (cpu_state.abrt != 0)
+                                        return;
+                        }
+                        else
+                        {
+                                PUSHW(cpu_state.flags);
+                                PUSHW(CS);
+                                PUSHW((uint16_t)cpu_state.pc);
+                                if (cpu_state.abrt != 0)
+                                        return;
+                        }
+                        new_cpl = CS & 3;
+                        break;
+                default:
+                        x86gpf(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                do_seg_load(cpu_state.seg_cs, segdat2);
+                CS = (uint16_t)((seg & ~3) | new_cpl);
+                cpu_state.seg_cs.access = (uint8_t)((cpu_state.seg_cs.access & ~(3 << 5)) | (new_cpl << 5));
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                // LE POINT D'ENTREE VIENT DE segdat, PAS DE segdat2 : l'offset est dans la
+                // PORTE, le segment dans le descripteur de code. Les confondre donnerait un
+                // saut a l'adresse du descripteur.
+                if (type > 0x800)
+                        cpu_state.pc = (uint32_t)(segdat[0] | (segdat[3] << 16));
+                else
+                        cpu_state.pc = segdat[0];
+                set_use32(segdat2[3] & 0x40);
+
+                cpl_override = 1;
+                writememw(0, oaddr + 4, (uint16_t)(segdat2[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+
+                cpu_state.eflags &= unchecked((uint16_t)~VM_FLAG);
+                cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_V86);
+                // LE BIT 0x100 SEPARE LA PORTE D'INTERRUPTION DE LA PORTE DE PIEGE, et
+                // c'est tout ce qui les distingue : absent, I_FLAG est efface.
+                if ((type & 0x100) == 0)
+                        cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                cpu_state.flags &= unchecked((uint16_t)~(T_FLAG | NT_FLAG));
+                cycles -= cpu.timing_int_pm;
+                break;
+
+        case 0x500: /*Task gate*/
+                seg = segdat[1];
+                addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat2[0] = readmemw(0, addr);
+                segdat2[1] = readmemw(0, addr + 2);
+                segdat2[2] = readmemw(0, addr + 4);
+                segdat2[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return;
+                if ((segdat2[2] & 0x8000) == 0)
+                {
+                        x86np("Int task gate not present\n", (uint16_t)(segdat[1] & 0xfffc));
+                        return;
+                }
+                optype = OPTYPE_INT;
+                cpl_override = 1;
+                taskswitch286(seg, segdat2, segdat2[2] & 0x800);
+                cpl_override = 0;
+                break;
+
+        default:
+                x86gpf(null!, (uint16_t)(seg & ~3));
+                return;
+        }
+    }
 
     // pcem: x86seg.c:2009-2391 — L'IRET DU MODE PROTEGE, et c'est par lui que le POST
     // de l'AT ressort apres avoir dimensionne la memoire haute.
