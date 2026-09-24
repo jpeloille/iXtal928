@@ -56,6 +56,8 @@ static int h_core = H_CORE_8088;
 
 void h_set_core(int core) { h_core = (core == H_CORE_286) ? H_CORE_286 : H_CORE_8088; }
 
+
+
 int h_get_core(void) { return h_core; }
 
 /* Le cœur lui-même. Chemin explicite plutôt qu'un -I : on veut que la ligne dise
@@ -571,6 +573,103 @@ int h_run(int cycs) {
         h_ins_count += (uint64_t)(ins - before);
         return cycs - cpu_state._cycles;
 }
+
+/* LES DEUX CHAMPS QUE seg_reset() NE REMET PAS — UNE DEVIATION DU HARNAIS, PAS DU
+ * COEUR.
+ *
+ * seg_reset() (x86seg.c:50-65) pose access, access2, limit, limit_low, limit_high,
+ * base et seg. Il laisse EXACTEMENT DEUX champs du cache descripteur intacts, et
+ * les deux ont ete trouves l'un apres l'autre par le boot-diff AT :
+ *   - limit_raw, ecrit seulement par do_seg_load (x86seg.c:181) et LLDT / LTR
+ *     (x86_ops_pmode.h:218, :255) ;
+ *   - checked, ecrit par loadseg (:413, :423), taskswitch286 (:2864-2902) et
+ *     cyrix_load_seg_descriptor (:2968).
+ * Releve en enumerant la struct x86seg (x86.h:37-45) champ par champ contre le
+ * corps de seg_reset, plutot qu'en attendant que le diff les sorte un par un.
+ *
+ * C'EST FIDELE, ET SANS CONSEQUENCE CHEZ PCem PARCE QU'IL N'AMORCE QU'UNE FOIS PAR
+ * PROCESSUS. Le diff amorce deux fois : la phase 1 court l'amorcage entier, la
+ * phase 2 le rejoue en pas a pas. L'oracle entrait donc en phase 2 avec ce que son
+ * mode protege avait laisse — CS.limit_raw a 0xFFFF, DS.checked a 1 — et le C# avec
+ * zero, faute d'etre alle aussi loin. La phase 2 rapportait ca comme sa premiere
+ * divergence, a l'instruction 0, MASQUANT la vraie cause deux instructions plus
+ * loin.
+ *
+ * Meme famille que h_prefetch_reset : ce n'est pas le coeur qu'on corrige, c'est le
+ * harnais qu'on rend deterministe. A appeler des DEUX cotes au meme point. */
+/* Les DEUX champs que seg_reset() ne touche pas. */
+static void h_seg_clear_one(x86seg *s) {
+        s->limit_raw = 0;
+        s->checked = 0;
+}
+
+/* TOUS les champs, pour les descripteurs que resetx86() n'initialise pas du tout. */
+static void h_seg_clear_all(x86seg *s) {
+        s->base = 0;
+        s->limit = 0;
+        s->limit_raw = 0;
+        s->access = 0;
+        s->access2 = 0;
+        s->seg = 0;
+        s->limit_low = 0;
+        s->limit_high = 0;
+        s->checked = 0;
+}
+
+void h_seg_clear_residue(void) {
+        /* Les six segments : resetx86() -> x86seg_reset() -> seg_reset() pose sept de
+         * leurs neuf champs, donc seuls limit_raw et checked trainent. */
+        h_seg_clear_one(&cpu_state.seg_cs);
+        h_seg_clear_one(&cpu_state.seg_ds);
+        h_seg_clear_one(&cpu_state.seg_es);
+        h_seg_clear_one(&cpu_state.seg_fs);
+        h_seg_clear_one(&cpu_state.seg_gs);
+        h_seg_clear_one(&cpu_state.seg_ss);
+
+        /* gdt, ldt et tr : resetx86() n'en pose AUCUN champ — il ne cite que idt
+         * (808x.c:690-694). Leur valeur d'un amorcage propre est donc zero partout, et
+         * c'est MESURE et non suppose : A1b l'avait sonde en faisant rendre 0x12345678
+         * au C# pour lire celle de l'oracle, et les trois s'accordaient a zero la ou
+         * idt.limit portait 0xFFFF. Ce sont des x86seg comme les autres, donc ils ont
+         * limit_raw et checked aussi — c'est LDT.limit_raw qui a sorti ce cas, apres
+         * que gdt.base et ldt.base avaient ete traites. */
+        h_seg_clear_all(&gdt);
+        h_seg_clear_all(&ldt);
+        h_seg_clear_all(&tr);
+
+        /* idt, lui, EST initialise par resetx86 : base = 0 et limit = 0xFFFF sur un
+         * 286. On ne touche donc que les deux champs qu'il laisse, comme pour les six
+         * segments — ecraser sa limite serait effacer une valeur juste. */
+        h_seg_clear_one(&idt);
+
+        /* ET LE RESTE DE h_state QUE resetx86() NE CITE PAS.
+         *
+         * Enumere sur la struct h_state (harness.h) champ par champ, en cochant ceux
+         * que resetx86, x86seg_reset, ResetTimingState, ResetCounters ou
+         * h_prefetch_reset posent deja. Ce qui suit est ce qui restait, et c'etait la
+         * seule facon d'arreter de les decouvrir un par un : limit_raw, puis checked,
+         * puis gdt.base, puis ldt.limit_raw, puis flags_op — cinq tours de diff pour
+         * cinq champs de la MEME famille.
+         *
+         * Leur valeur d'un amorcage propre est zero : ce sont des globales de .bss que
+         * PCem n'a aucune raison de remettre, n'amorcant qu'une fois par processus.
+         * Pour flags_op, zero EST la valeur juste et pas seulement la valeur neuve —
+         * c'est FLAGS_UNKNOWN (x86_flags.h), l'etat « aucun drapeau paresseux en
+         * attente », et c'est ce que le fuzzeur voit a chaque iteration. */
+        cr2 = 0;
+        cr3 = 0;
+        cpl_override = 0;
+        cpu_state.flags_op = 0;
+        cpu_state.flags_res = 0;
+        cpu_state.flags_op1 = 0;
+        cpu_state.flags_op2 = 0;
+        cpu_state.oldpc = 0;
+        cpu_state.eaaddr = 0;
+        cpu_state.ssegs = 0;
+        cpu_state.abrt = 0;
+}
+
+
 
 void h_getstate(h_state *out) {
         memset(out, 0, sizeof(*out));

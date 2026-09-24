@@ -226,6 +226,8 @@ public static class BootDiff
         // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
         Oracle.h_prefetch_reset();
         Cpu._386.prefetch_reset();
+        Oracle.h_seg_clear_residue();
+        Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = csharpA ?? "";
         Floppy.fdd_c.discfns[1] = csharpB ?? "";
         Disc.hdd_c.ide_fn[0] = csharpC ?? "";
@@ -247,7 +249,7 @@ public static class BootDiff
             var budget = pc.cpu_get_speed() / 100;
             while (budget > 0)
             {
-                budget -= PasCsharp();
+                budget -= PasCsharpTrace();
                 var h = TraceHash();
                 if (n < nOracle)
                 {
@@ -335,6 +337,19 @@ public static class BootDiff
     /// fait le même geste au même endroit (h_step286, harness.c:543).</summary>
     private static int PasCsharp()
         => CoeurDuModele() == Oracle.Core286 ? Cpu._386.Step286() : _808x.Step();
+
+    /// <summary>Le pas de la PHASE 1, qui n'est pas celui de la phase 2.
+    ///
+    /// h_runpc en mode tracé fait `cpu_state._cycles = 1; exec386(0);` SANS poser
+    /// timer_target — voir Step286Trace. h_step, lui, passe par h_step286 qui le pose.
+    /// Les deux phases doivent donc appeler des steppers différents, et les appeler
+    /// tous deux Step286 rendait la phase 1 incohérente avec la phase 2.
+    ///
+    /// Sur un 8088 il n'y a qu'un pas : execx86 n'a pas de boucle interne bornée par
+    /// cycle_period, donc _808x.Step() vaut pour les deux phases — et c'est pourquoi le
+    /// défaut n'existait pas avant l'AT.</summary>
+    private static int PasCsharpTrace()
+        => CoeurDuModele() == Oracle.Core286 ? Cpu._386.Step286Trace() : _808x.Step();
 
     private static int CoeurDuModele()
         => (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
@@ -444,6 +459,8 @@ public static class BootDiff
         // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
         Oracle.h_prefetch_reset();
         Cpu._386.prefetch_reset();
+        Oracle.h_seg_clear_residue();
+        Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
 
@@ -626,6 +643,8 @@ public static class BootDiff
         // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
         Oracle.h_prefetch_reset();
         Cpu._386.prefetch_reset();
+        Oracle.h_seg_clear_residue();
+        Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
         for (var i = 0; i < slices; i++) _808x.Run(budget);
@@ -734,6 +753,8 @@ public static class BootDiff
         // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
         Oracle.h_prefetch_reset();
         Cpu._386.prefetch_reset();
+        Oracle.h_seg_clear_residue();
+        Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = discA ?? "";
         if (!pc.initpc(romsPath)) return 1;
         for (var i = 0; i < slices; i++) _808x.Run(budget);

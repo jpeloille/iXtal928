@@ -70,6 +70,11 @@ int h_prefetch_bytes(void);
 int h_prefetch_prefixes(void);
 void h_prefetch_reset(void);
 
+/* Remet a zero les DEUX champs du cache descripteur que seg_reset() ne touche pas,
+ * limit_raw et checked, sur les six segments. DEVIATION du harnais : PCem ne les
+ * remet jamais, n'amorcant qu'une fois par processus. Voir harness.c. */
+void h_seg_clear_residue(void);
+
 /* Disposition explicite, pas de padding implicite : le C# marshale ça tel quel.
  * Tout champ ajouté ici doit l'être aussi côté C#, et entrer dans le vecteur
  * diffé — un champ non comparé est un champ où la dérive se cache. */
@@ -424,7 +429,9 @@ uint8_t *h_ram(void);
  * flags_op1, flags_op2. Le vecteur change de TAILLE. */
 /* 12 depuis A2.2d : h_state porte prefetch_bytes et prefetch_prefixes, et
  * h_prefetch_reset s'ajoute au contrat. */
-#define H_ABI_VERSION 12
+/* 13 depuis le bloc C : h_seg_clear_residue s'ajoute au contrat. Le vecteur ne
+ * change PAS de taille — c'est une fonction, pas un champ. */
+#define H_ABI_VERSION 13
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

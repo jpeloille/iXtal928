@@ -141,6 +141,107 @@ internal static partial class _386
     /// DEVIATION assumée, identique des deux côtés : un timer_process() par pas, là
     /// où le 8088 n'en déclenche aucun. timer_target est restauré pour que l'état
     /// comparé ne porte pas la trace du mécanisme.</summary>
+    /// <summary>Pendant de h_seg_clear_residue(). DEVIATION du harnais, pas du cœur.
+    ///
+    /// limit_raw et checked sont les DEUX SEULS champs de x86seg (x86.h:37-45) que
+    /// seg_reset() ne remet pas — relevé en énumérant la struct contre son corps, pas
+    /// en attendant que le diff les sorte un par un. PCem ne les remet jamais, et ça ne
+    /// lui coûte rien parce qu'il n'amorce qu'une fois par processus ; le diff amorce
+    /// deux fois. Voir harness.c pour le raisonnement complet.
+    ///
+    /// SANS APPELANT AUJOURD'HUI HORS DE BootDiff, et il faut qu'il en reste ainsi :
+    /// appelé depuis le chemin produit, il effacerait un champ que le mode protégé
+    /// vient d'écrire.</summary>
+    internal static void ClearSegResidue()
+    {
+        cpu_state.seg_cs.limit_raw = 0;
+        cpu_state.seg_cs.@checked = 0;
+        cpu_state.seg_ds.limit_raw = 0;
+        cpu_state.seg_ds.@checked = 0;
+        cpu_state.seg_es.limit_raw = 0;
+        cpu_state.seg_es.@checked = 0;
+        cpu_state.seg_fs.limit_raw = 0;
+        cpu_state.seg_fs.@checked = 0;
+        cpu_state.seg_gs.limit_raw = 0;
+        cpu_state.seg_gs.@checked = 0;
+        cpu_state.seg_ss.limit_raw = 0;
+        cpu_state.seg_ss.@checked = 0;
+
+        // gdt, ldt ET tr : resetx86() n'en pose AUCUN champ — il ne cite que idt. Leur
+        // valeur d'un amorçage propre est donc zéro PARTOUT, mesuré à A1b où les trois
+        // s'accordaient à zéro là où idt.limit portait 0xFFFF. Et ce sont des x86seg
+        // comme les autres, donc ils ont limit_raw et checked aussi : c'est
+        // LDT.limit_raw qui a sorti ce cas, après que gdt.base et ldt.base aient été
+        // traités. Vider champ par champ invitait à en oublier un — on vide tout.
+        ClearAll(gdt);
+        ClearAll(ldt);
+        ClearAll(tr);
+
+        // idt, lui, EST initialisé par resetx86 : base = 0 et limit = 0xFFFF sur un
+        // 286. On ne touche donc que ses deux champs restants — écraser sa limite
+        // serait effacer une valeur juste.
+        idt.limit_raw = 0;
+        idt.@checked = 0;
+
+        // ET LE RESTE DE h_state QUE resetx86() NE CITE PAS.
+        //
+        // Énuméré sur la struct h_state champ par champ, en cochant ceux que resetx86,
+        // x86seg_reset, ResetTimingState, ResetCounters ou prefetch_reset posent déjà.
+        // C'était la seule façon d'arrêter de les découvrir un par un : limit_raw, puis
+        // checked, puis gdt.base, puis ldt.limit_raw, puis flags_op — cinq tours de
+        // diff pour cinq champs de la MÊME famille.
+        //
+        // Pour flags_op, zéro EST la valeur juste et pas seulement la valeur neuve :
+        // c'est FLAGS_UNKNOWN, « aucun drapeau paresseux en attente ».
+        cr2 = 0;
+        cr3 = 0;
+        cpl_override = 0;
+        cpu_state.flags_op = 0;
+        cpu_state.flags_res = 0;
+        cpu_state.flags_op1 = 0;
+        cpu_state.flags_op2 = 0;
+        cpu_state.oldpc = 0;
+        cpu_state.eaaddr = 0;
+        cpu_state.ssegs = 0;
+        cpu_state.abrt = 0;
+    }
+
+    /// <summary>Les neuf champs d'un x86seg à zéro. Pour les descripteurs que
+    /// resetx86() n'initialise pas du tout.</summary>
+    private static void ClearAll(x86seg s)
+    {
+        s.@base = 0;
+        s.limit = 0;
+        s.limit_raw = 0;
+        s.access = 0;
+        s.access2 = 0;
+        s.seg = 0;
+        s.limit_low = 0;
+        s.limit_high = 0;
+        s.@checked = 0;
+    }
+
+    /// <summary>Une instruction, SANS toucher timer_target. Pendant de la boucle tracée
+    /// de h_runpc (harness.c), et PAS de h_step286.
+    ///
+    /// LA DIFFÉRENCE EST LE TEMPS QUE VOIT L'INVITÉ. Step286 pose timer_target à tsc
+    /// pour forcer cycle_period à 1, ce qui déclenche un timer_process() par pas — une
+    /// DEVIATION assumée, nécessaire au pas-à-pas où un pas doit valoir exactement une
+    /// instruction. La boucle tracée de h_runpc, elle, ne le fait pas : elle veut
+    /// l'amorçage tel qu'il se déroule.
+    ///
+    /// LES DEUX PHASES DU boot-diff N'EMPRUNTENT DONC PAS LE MÊME PAS, et c'est ce qui
+    /// a produit une incohérence lisible : la phase 1 annonçait une divergence à
+    /// l'instruction 2 que la phase 2 ne retrouvait pas — « les états concordent à
+    /// l'index signalé ». Ce n'était pas le cœur mais deux steppers différents.</summary>
+    internal static int Step286Trace()
+    {
+        cycles = 1;
+        exec386(0);
+        _808x.ins_count++;
+        return 1 - cycles;
+    }
+
     internal static int Step286()
     {
         var savedTarget = timer.timer_target;

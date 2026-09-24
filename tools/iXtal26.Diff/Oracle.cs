@@ -25,7 +25,9 @@ public static class Oracle
     // 7 et 8 au jalon 286 : h_state s'élargit (cache descripteur, puis descripteurs
     // système). 9 : h_set_core / h_get_core s'ajoutent au contrat. 10 : les quatre
     // drapeaux paresseux entrent dans h_state.
-    public const int AbiVersion = 12;
+    // 13 au bloc C : h_seg_clear_residue s'ajoute au contrat. Le vecteur ne change
+    // PAS de taille — c'est une fonction, pas un champ.
+    public const int AbiVersion = 13;
 
     static Oracle()
     {
@@ -94,6 +96,7 @@ public static class Oracle
     public const int Core286 = 1;
     [DllImport(Lib)] public static extern void h_set_core(int core);
     [DllImport(Lib)] public static extern void h_prefetch_reset();
+    [DllImport(Lib)] public static extern void h_seg_clear_residue();
     [DllImport(Lib)] public static extern int h_get_core();
 
     // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des
