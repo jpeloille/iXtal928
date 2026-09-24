@@ -188,7 +188,7 @@ internal static partial class fdc_c
 
     // pcem: cpu.h:163 — #define ISA_CYCLES(x) (x * isa_cycles), comme video.cs:153
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ISA_CYCLES(int x) => x * Cpu.cpu.isa_cycles;
+    private static int ISA_CYCLES(int x) => x * Cpu.cpu_c.isa_cycles;
 
     // pcem: fdc.c:25
     private static int reset_sense_togo = 0;

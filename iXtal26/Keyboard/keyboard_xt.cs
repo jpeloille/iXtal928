@@ -5,7 +5,7 @@
 // STATUS: partial — PPI du XT (0x60 SW1, 0x61 gate/turbo/reset, 0x62 SW2), file
 //         de 16 scancodes, poll. Omis : t1000_syskey, tandy_eeprom_read, pclog.
 
-using static iXtal26.Cpu.cpu;
+using static iXtal26.Cpu.cpu_c;
 using static iXtal26.Devices.cassette;
 using static iXtal26.Keyboard.keyboard;
 using static iXtal26.Memory.mem;

@@ -298,7 +298,7 @@ internal static partial class _386
     private static int opREP_MOVSB_a16(uint32_t fetchdat)
     {
         int reads = 0, writes = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -357,7 +357,7 @@ internal static partial class _386
     private static int opREP_MOVSW_a16(uint32_t fetchdat)
     {
         int reads = 0, writes = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -416,7 +416,7 @@ internal static partial class _386
     private static int opREP_STOSB_a16(uint32_t fetchdat)
     {
         int writes = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -460,7 +460,7 @@ internal static partial class _386
     private static int opREP_STOSW_a16(uint32_t fetchdat)
     {
         int writes = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -505,7 +505,7 @@ internal static partial class _386
     private static int opREP_LODSB_a16(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -542,7 +542,7 @@ internal static partial class _386
     private static int opREP_LODSW_a16(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         if (CX > 0)
@@ -753,7 +753,7 @@ internal static partial class _386
     private static int opREP_SCASB_a16_NE(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0, tempz;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         tempz = 0;
@@ -793,7 +793,7 @@ internal static partial class _386
     private static int opREP_SCASB_a16_E(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0, tempz;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         tempz = 1;
@@ -833,7 +833,7 @@ internal static partial class _386
     private static int opREP_SCASW_a16_NE(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0, tempz;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         tempz = 0;
@@ -873,7 +873,7 @@ internal static partial class _386
     private static int opREP_SCASW_a16_E(uint32_t fetchdat)
     {
         int reads = 0, total_cycles = 0, tempz;
-        int cycles_end = cycles - ((is386 != 0 && cpu.cpu_use_dynarec != 0) ? 1000 : 100);
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
         if (trap != 0)
                 cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
         tempz = 1;

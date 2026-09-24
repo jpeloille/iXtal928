@@ -59,8 +59,8 @@ internal static partial class _386
     private static int opSETALC(uint32_t fetchdat)
     {
         AL = (CF_SET() != 0) ? (uint8_t)0xff : (uint8_t)0;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 1, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 1, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
@@ -195,8 +195,8 @@ internal static partial class _386
                 seteab((uint8_t)~dst);
                 if (cpu_state.abrt != 0)
                         return 1;
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x18: /*NEG b*/
@@ -206,8 +206,8 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 setsub8(0, dst);
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x20: /*MUL AL,b*/
@@ -239,7 +239,7 @@ internal static partial class _386
                 {
                         AH = (uint8_t)(src16 % dst);
                         AL = (uint8_t)((src16 / dst) & 0xff);
-                        if (cpu.cpu_iscyrix == 0)
+                        if (cpu_c.cpu_iscyrix == 0)
                         {
                                 flags_rebuild();
                                 cpu_state.flags |= 0x8D5; /*Not a Cyrix*/
@@ -251,8 +251,8 @@ internal static partial class _386
                         x86_int(0);
                         return 1;
                 }
-                CLOCK_CYCLES((is486 != 0 && cpu.cpu_iscyrix == 0) ? 16 : 14);
-                PREFETCH_RUN((is486 != 0 && cpu.cpu_iscyrix == 0) ? 16 : 14, 2, (int)fetchdat,
+                CLOCK_CYCLES((is486 != 0 && cpu_c.cpu_iscyrix == 0) ? 16 : 14);
+                PREFETCH_RUN((is486 != 0 && cpu_c.cpu_iscyrix == 0) ? 16 : 14, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
                 break;
         case 0x38: /*IDIV AL,b*/
@@ -264,7 +264,7 @@ internal static partial class _386
                 {
                         AH = (uint8_t)((tempws % (int)((int8_t)dst)) & 0xff);
                         AL = (uint8_t)(tempws2 & 0xff);
-                        if (cpu.cpu_iscyrix == 0)
+                        if (cpu_c.cpu_iscyrix == 0)
                         {
                                 flags_rebuild();
                                 cpu_state.flags |= 0x8D5; /*Not a Cyrix*/
@@ -326,8 +326,8 @@ internal static partial class _386
                 seteaw((uint16_t)~dst);
                 if (cpu_state.abrt != 0)
                         return 1;
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x18: /*NEG w*/
@@ -337,8 +337,8 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 setsub16(0, dst);
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x20: /*MUL AX,w*/
@@ -373,7 +373,7 @@ internal static partial class _386
                 {
                         DX = (uint16_t)(templ % dst);
                         AX = (uint16_t)((templ / dst) & 0xffff);
-                        if (cpu.cpu_iscyrix == 0)
+                        if (cpu_c.cpu_iscyrix == 0)
                                 setznp16(AX); /*Not a Cyrix*/
                 }
                 else
@@ -381,8 +381,8 @@ internal static partial class _386
                         x86_int(0);
                         return 1;
                 }
-                CLOCK_CYCLES((is486 != 0 && cpu.cpu_iscyrix == 0) ? 24 : 22);
-                PREFETCH_RUN((is486 != 0 && cpu.cpu_iscyrix == 0) ? 24 : 22, 2, (int)fetchdat,
+                CLOCK_CYCLES((is486 != 0 && cpu_c.cpu_iscyrix == 0) ? 24 : 22);
+                PREFETCH_RUN((is486 != 0 && cpu_c.cpu_iscyrix == 0) ? 24 : 22, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 0);
                 break;
         case 0x38: /*IDIV AX,w*/
@@ -394,7 +394,7 @@ internal static partial class _386
                 {
                         DX = (uint16_t)(tempws % (int)((int16_t)dst));
                         AX = (uint16_t)(tempws2 & 0xffff);
-                        if (cpu.cpu_iscyrix == 0)
+                        if (cpu_c.cpu_iscyrix == 0)
                                 setznp16(AX); /*Not a Cyrix*/
                 }
                 else

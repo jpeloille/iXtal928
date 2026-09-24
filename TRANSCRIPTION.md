@@ -158,11 +158,11 @@ Scan mécanique des en-têtes du palier (a), puis de `fdc.c` à M6 et de `vid_sv
 
 Le préfixe `@` est choisi pour que `grep -n base` retrouve encore la ligne.
 
-Collisions conteneur/membre : le fichier `x86seg.c` et le typedef `x86seg` ; `fdc.c` et
-son instance `static FDC fdc` ; `fdd.c` et son tableau `fdd[2]` ; `model.c` et le global
-`int model` (M8). Le conteneur prend `_c` (`x86seg_c`, `fdc_c`, `fdd_c`, `model_c`), le
-membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`,
-`mem.c`/`mem_mapping_t`, `vid_cga.c`/`cga_t`, `device.c`/`device_t` sont tous distincts.
+Collisions conteneur/membre : `x86seg.c` et le typedef `x86seg` ; `fdc.c` et son instance
+`static FDC fdc` ; `fdd.c` et `fdd[2]` ; `model.c` et `int model` (M8) ; `cpu.c` et
+`int cpu` (M16). Le conteneur prend `_c` (`x86seg_c`, `fdc_c`, `fdd_c`, `model_c`, `cpu_c`),
+le membre garde son nom. `pit.c`/`PIT`, `timer.c`/`pc_timer_t`, `mem.c`/`mem_mapping_t`,
+`vid_cga.c`/`cga_t`, `device.c`/`device_t` sont tous distincts.
 `808x.c` → classe `_808x` (un identifiant C# ne peut pas commencer par un chiffre ; le
 nom de fichier, si).
 

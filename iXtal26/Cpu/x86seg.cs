@@ -520,7 +520,7 @@ internal static partial class x86seg_c
                 oldcpl = CPL;
                 set_use32(segdat[3] & 0x40);
 
-                cycles -= cpu.timing_retf_pm;
+                cycles -= cpu_c.timing_retf_pm;
         }
         else
         {
@@ -670,7 +670,7 @@ internal static partial class x86seg_c
                 check_seg_valid(cpu_state.seg_es);
                 check_seg_valid(cpu_state.seg_fs);
                 check_seg_valid(cpu_state.seg_gs);
-                cycles -= cpu.timing_retf_pm_outer;
+                cycles -= cpu_c.timing_retf_pm_outer;
         }
     }
 
@@ -951,7 +951,7 @@ internal static partial class x86seg_c
                                 }
                                 cpl_override = 0;
                                 cpu_state.seg_cs.access = 0;
-                                cycles -= cpu.timing_int_pm_outer - cpu.timing_int_pm;
+                                cycles -= cpu_c.timing_int_pm_outer - cpu_c.timing_int_pm;
                                 break;
                         }
                         else if (DPL2() != CPL)
@@ -1029,7 +1029,7 @@ internal static partial class x86seg_c
                 if ((type & 0x100) == 0)
                         cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
                 cpu_state.flags &= unchecked((uint16_t)~(T_FLAG | NT_FLAG));
-                cycles -= cpu.timing_int_pm;
+                cycles -= cpu_c.timing_int_pm;
                 break;
 
         case 0x500: /*Task gate*/
@@ -1132,7 +1132,7 @@ internal static partial class x86seg_c
                 cpu_state.seg_cs.limit_high = 0xffff;
                 CS = seg;
                 cpu_state.flags = (uint16_t)((uint32_t)(cpu_state.flags & 0x3000) | (tempflags & 0xCFD5) | 2u);
-                cycles -= cpu.timing_iret_rm;
+                cycles -= cpu_c.timing_iret_rm;
                 return;
         }
 
@@ -1231,7 +1231,7 @@ internal static partial class x86seg_c
                         use32 = 0;
                         cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_USE32);
                         cpu_state.flags = (uint16_t)((tempflags & 0xFFD5) | 2);
-                        cycles -= cpu.timing_iret_v86;
+                        cycles -= cpu_c.timing_iret_v86;
                         return;
                 }
         }
@@ -1333,7 +1333,7 @@ internal static partial class x86seg_c
                 cpl_override = 1;
                 writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
                 cpl_override = 0;
-                cycles -= cpu.timing_iret_pm;
+                cycles -= cpu_c.timing_iret_pm;
         }
         else /*Return to outer level*/
         {
@@ -1442,7 +1442,7 @@ internal static partial class x86seg_c
                 check_seg_valid(cpu_state.seg_es);
                 check_seg_valid(cpu_state.seg_fs);
                 check_seg_valid(cpu_state.seg_gs);
-                cycles -= cpu.timing_iret_pm_outer;
+                cycles -= cpu_c.timing_iret_pm_outer;
         }
         cpu_state.pc = newpc;
         cpu_state.flags = (uint16_t)((cpu_state.flags & ~flagmask) | (tempflags & flagmask & 0xFFD5) | 2);
@@ -1560,7 +1560,7 @@ internal static partial class x86seg_c
                         oldcpl = CPL;
                         // omitted: le bloc commente x86seg.c:644-653 — PCem y avait inline
                         //   ce que set_use32 fait, et l'a remplace par l'appel ci-dessus.
-                        cycles -= cpu.timing_jmp_pm;
+                        cycles -= cpu_c.timing_jmp_pm;
                 }
                 else /*System segment*/
                 {
@@ -1675,7 +1675,7 @@ internal static partial class x86seg_c
                                         x86gpf(null!, (uint16_t)(seg2 & ~3));
                                         return;
                                 }
-                                cycles -= cpu.timing_jmp_pm_gate;
+                                cycles -= cpu_c.timing_jmp_pm_gate;
                                 break;
 
                         case 0x100: /*286 Task gate*/
@@ -1716,7 +1716,7 @@ internal static partial class x86seg_c
         if (CPL == 3 && oldcpl != 3)
                 Memory.mem.flushmmucache_cr3();
         oldcpl = CPL;
-        cycles -= cpu.timing_jmp_rm;
+        cycles -= cpu_c.timing_jmp_rm;
     }
 
     // pcem: x86seg.c:135-139 — LA LEVÉE D'EXCEPTION, réduite à ce qu'elle est :

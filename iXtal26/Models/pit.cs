@@ -118,10 +118,10 @@ internal static partial class pit
         VGACONST1 = (uint64_t)((clock / 25175000.0) * (float)(1UL << 32));
         VGACONST2 = (uint64_t)((clock / 28322000.0) * (float)(1UL << 32));
         isa_timing = (float)(clock / 8000000.0);
-        bus_timing = (float)(clock / (double)cpu.cpu_busspeed);
+        bus_timing = (float)(clock / (double)cpu_c.cpu_busspeed);
         Video.video.video_updatetiming();
 
-        _808x.xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / (double)cpu.cpu_get_speed());
+        _808x.xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / (double)cpu_c.cpu_get_speed());
         RTCCONST = (uint64_t)((clock / 32768.0) * (float)(1UL << 32));
         timer.TIMER_USEC = (uint64_t)((clock / 1000000.0) * (float)(1UL << 32));
         PluginApi.device.device_speed_changed();

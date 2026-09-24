@@ -496,5 +496,5 @@ internal static class nvr
         new("Motorola MC146818 RTC", 0, nvr_init, nvr_close, null, nvr_speed_changed, null, null, null);
 
     // pcem: cpu.h:163
-    private static int ISA_CYCLES(int x) => x * Cpu.cpu.isa_cycles;
+    private static int ISA_CYCLES(int x) => x * Cpu.cpu_c.isa_cycles;
 }

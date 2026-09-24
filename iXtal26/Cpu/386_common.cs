@@ -441,7 +441,7 @@ internal static partial class _386_common
     {
         uint32_t addr;
         _386.flags_rebuild();
-        cycles -= cpu.timing_int;
+        cycles -= cpu_c.timing_int;
         if ((msw & 1) != 0)
         {
                 x86seg_c.pmodeint(num, 1);
@@ -475,7 +475,7 @@ internal static partial class _386_common
                         cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
                         cpu_state.pc = readmemw(0, addr);
                         x86seg_c.loadcs(readmemw(0, addr + 2));
-                        cycles -= cpu.timing_int_rm;
+                        cycles -= cpu_c.timing_int_rm;
                 }
         }
         trap = 0;

@@ -43,64 +43,64 @@ internal static partial class _386
     private static int opMOV_AL_imm(uint32_t fetchdat)
     {
         AL = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_AH_imm(uint32_t fetchdat)
     {
         AH = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_BL_imm(uint32_t fetchdat)
     {
         BL = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_BH_imm(uint32_t fetchdat)
     {
         BH = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_CL_imm(uint32_t fetchdat)
     {
         CL = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_CH_imm(uint32_t fetchdat)
     {
         CH = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_DL_imm(uint32_t fetchdat)
     {
         DL = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_DH_imm(uint32_t fetchdat)
     {
         DH = (uint8_t)fetchdat; cpu_state.pc++;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
@@ -110,64 +110,64 @@ internal static partial class _386
     private static int opMOV_AX_imm(uint32_t fetchdat)
     {
         AX = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_BX_imm(uint32_t fetchdat)
     {
         BX = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_CX_imm(uint32_t fetchdat)
     {
         CX = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_DX_imm(uint32_t fetchdat)
     {
         DX = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_SI_imm(uint32_t fetchdat)
     {
         SI = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_DI_imm(uint32_t fetchdat)
     {
         DI = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_BP_imm(uint32_t fetchdat)
     {
         BP = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
     private static int opMOV_SP_imm(uint32_t fetchdat)
     {
         SP = (uint16_t)fetchdat; cpu_state.pc += 2;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, -1, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, -1, 0, 0, 0, 0, 0);
         return 0;
     }
 
@@ -195,8 +195,8 @@ internal static partial class _386
         if (cpu_mod == 3)
         {
                 setr8(cpu_rm, getr8(cpu_reg));
-                CLOCK_CYCLES(cpu.timing_rr);
-                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         }
         else
         {
@@ -216,8 +216,8 @@ internal static partial class _386
         if (cpu_mod == 3)
         {
                 cpu_state.regs[cpu_rm].w = cpu_state.regs[cpu_reg].w;
-                CLOCK_CYCLES(cpu.timing_rr);
-                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         }
         else
         {
@@ -237,8 +237,8 @@ internal static partial class _386
         if (cpu_mod == 3)
         {
                 setr8(cpu_reg, getr8(cpu_rm));
-                CLOCK_CYCLES(cpu.timing_rr);
-                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         }
         else
         {
@@ -262,8 +262,8 @@ internal static partial class _386
         if (cpu_mod == 3)
         {
                 cpu_state.regs[cpu_reg].w = cpu_state.regs[cpu_rm].w;
-                CLOCK_CYCLES(cpu.timing_rr);
-                PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         }
         else
         {
@@ -348,8 +348,8 @@ internal static partial class _386
                 return 1;
         if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
         seteab(temp);
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 3, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
         return cpu_state.abrt;
     }
 
@@ -363,8 +363,8 @@ internal static partial class _386
         if (cpu_state.abrt != 0)
                 return 1;
         seteaw(temp);
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 4, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 4, (int)fetchdat, 0, 0, cpu_mod == 3 ? 1 : 0, 0, 0);
         return cpu_state.abrt;
     }
 
@@ -379,8 +379,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         cpu_state.regs[cpu_reg].w = (uint16_t)cpu_state.eaaddr;
-        CLOCK_CYCLES(cpu.timing_rr);
-        PREFETCH_RUN(cpu.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         return 0;
     }
 

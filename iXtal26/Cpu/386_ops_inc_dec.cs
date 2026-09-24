@@ -46,8 +46,8 @@ internal static partial class _386
                 {
                         setadd16nc(cpu_state.regs[reg].w, 1);
                         cpu_state.regs[reg].w += 1;
-                        CLOCK_CYCLES(cpu.timing_rr);
-                        PREFETCH_RUN(cpu.timing_rr, 1, -1, 0, 0, 0, 0, 0);
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 1, -1, 0, 0, 0, 0, 0);
                         return 0;
                 };
 
@@ -56,8 +56,8 @@ internal static partial class _386
                 {
                         setsub16nc(cpu_state.regs[reg].w, 1);
                         cpu_state.regs[reg].w -= 1;
-                        CLOCK_CYCLES(cpu.timing_rr);
-                        PREFETCH_RUN(cpu.timing_rr, 1, -1, 0, 0, 0, 0, 0);
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 1, -1, 0, 0, 0, 0, 0);
                         return 0;
                 };
         }
@@ -98,8 +98,8 @@ internal static partial class _386
                         return 1;
                 setadd8nc(temp, 1);
         }
-        CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-        PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                      (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
         return 0;
     }

@@ -35,7 +35,7 @@
 // `else if` qui la definit — le controleur d'abord, toujours.
 
 using iXtal26.Models;
-using static iXtal26.Cpu.cpu;
+using static iXtal26.Cpu.cpu_c;
 using static iXtal26.Cpu.x86;
 using static iXtal26.Keyboard.keyboard;
 using static iXtal26.Memory.mem;

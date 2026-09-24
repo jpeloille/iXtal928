@@ -57,7 +57,7 @@ internal static partial class _386
         else
         {
                 x86seg_c.loadcs(new_seg);
-                cycles -= cpu.timing_call_rm;
+                cycles -= cpu_c.timing_call_rm;
         }
         optype = 0;
         if (cpu_state.abrt != 0)
@@ -153,8 +153,8 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 setadd16nc(temp, 1);
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x08: /*DEC w*/
@@ -167,8 +167,8 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 setsub16nc(temp, 1);
-                CLOCK_CYCLES((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm);
-                PREFETCH_RUN((cpu_mod == 3) ? cpu.timing_rr : cpu.timing_mm, 2, (int)fetchdat,
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat,
                              (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
                 break;
         case 0x10: /*CALL*/

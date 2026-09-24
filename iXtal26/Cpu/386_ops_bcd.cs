@@ -59,7 +59,7 @@ internal static partial class _386
     private static int opAAD(uint32_t fetchdat)
     {
         int @base = (uint8_t)fetchdat; cpu_state.pc++;   // getbytef()
-        if (cpu.cpu_manufacturer != cpu.MANU_INTEL)
+        if (cpu_c.cpu_manufacturer != cpu_c.MANU_INTEL)
                 @base = 10;
         AL = (uint8_t)((AH * @base) + AL);
         AH = 0;
@@ -74,7 +74,7 @@ internal static partial class _386
     private static int opAAM(uint32_t fetchdat)
     {
         int @base = (uint8_t)fetchdat; cpu_state.pc++;
-        if (@base == 0 || cpu.cpu_manufacturer != cpu.MANU_INTEL)
+        if (@base == 0 || cpu_c.cpu_manufacturer != cpu_c.MANU_INTEL)
                 @base = 10;
         AH = (uint8_t)(AL / @base);
         AL %= (uint8_t)@base;

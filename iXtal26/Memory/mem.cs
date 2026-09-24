@@ -387,9 +387,9 @@ internal static partial class mem
                 // changement de page d'instruction. Sur un 8088 les deux valeurs sont
                 // nulles et l'écriture est sans effet.
                 if ((read_mapping[a >> 14]!.flags & MEM_MAPPING_ROM) != 0)
-                        cpu.cpu_prefetch_cycles = cpu.cpu_rom_prefetch_cycles;
+                        cpu_c.cpu_prefetch_cycles = cpu_c.cpu_rom_prefetch_cycles;
                 else
-                        cpu.cpu_prefetch_cycles = cpu.cpu_mem_prefetch_cycles;
+                        cpu_c.cpu_prefetch_cycles = cpu_c.cpu_mem_prefetch_cycles;
 
                 bias = unchecked(_mem_exec_off[a >> 14] + (int)(a & 0x3000) - (int)(a2 & ~0xFFFu));
                 return _mem_exec[a >> 14]!;
@@ -556,8 +556,8 @@ internal static partial class mem
 
         if ((addr & 3) != 0)
         {
-                if (cpu.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
-                        x86.cycles -= cpu.timing_misaligned;
+                if (cpu_c.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
+                        x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFC)
                 {
                         // omitted: mmutranslate_read — pas de pagination sur un 286.
@@ -629,8 +629,8 @@ internal static partial class mem
 
         if ((addr & 3) != 0)
         {
-                if (cpu.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
-                        x86.cycles -= cpu.timing_misaligned;
+                if (cpu_c.cpu_cyrix_alignment == 0 || (addr & 7) > 4)
+                        x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFC)
                 {
                         // omitted: mmutranslate_write — pas de pagination sur un 286.

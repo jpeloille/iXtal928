@@ -62,7 +62,7 @@ internal static partial class _386
                 ESP += (uint32_t)(4 + stack_offset);
         else
                 SP += (uint16_t)(4 + stack_offset);
-        cycles -= cpu.timing_retf_rm;
+        cycles -= cpu_c.timing_retf_rm;
         return false;
     }
 
@@ -134,7 +134,7 @@ internal static partial class _386
                         SP += 6;
                 }
                 x86seg_c.loadcs(new_cs);
-                cycles -= cpu.timing_iret_rm;
+                cycles -= cpu_c.timing_iret_rm;
         }
         flags_extract();
         nmi_enable = 1;

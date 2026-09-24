@@ -183,7 +183,7 @@ internal static partial class video
 
     // pcem: cpu.h:163
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ISA_CYCLES(int x) => x * cpu.isa_cycles;
+    private static int ISA_CYCLES(int x) => x * cpu_c.isa_cycles;
 
     // pcem: video.c:598-749
     internal static void video_updatetiming()

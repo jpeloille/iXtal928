@@ -185,8 +185,8 @@ internal static partial class _386
     private static void prefetch_run(int instr_cycles, int bytes, int modrm, int reads, int reads_l,
                                      int writes, int writes_l, int ea32)
     {
-        int mem_cycles = reads * cpu.cpu_cycles_read + reads_l * cpu.cpu_cycles_read_l
-                       + writes * cpu.cpu_cycles_write + writes_l * cpu.cpu_cycles_write_l;
+        int mem_cycles = reads * cpu_c.cpu_cycles_read + reads_l * cpu_c.cpu_cycles_read_l
+                       + writes * cpu_c.cpu_cycles_write + writes_l * cpu_c.cpu_cycles_write_l;
 
         if (instr_cycles < mem_cycles)
                 instr_cycles = mem_cycles;
@@ -228,17 +228,17 @@ internal static partial class _386
         /*Fill up prefetch queue*/
         while (prefetch_bytes < 0)
         {
-                prefetch_bytes += cpu.cpu_prefetch_width;
-                cycles -= cpu.cpu_prefetch_cycles;
+                prefetch_bytes += cpu_c.cpu_prefetch_width;
+                cycles -= cpu_c.cpu_prefetch_cycles;
         }
 
         /*Subtract cycles used for memory access by instruction*/
         instr_cycles -= mem_cycles;
 
-        while (instr_cycles >= cpu.cpu_prefetch_cycles)
+        while (instr_cycles >= cpu_c.cpu_prefetch_cycles)
         {
-                prefetch_bytes += cpu.cpu_prefetch_width;
-                instr_cycles -= cpu.cpu_prefetch_cycles;
+                prefetch_bytes += cpu_c.cpu_prefetch_width;
+                instr_cycles -= cpu_c.cpu_prefetch_cycles;
         }
 
         prefetch_prefixes = 0;
@@ -254,13 +254,13 @@ internal static partial class _386
     internal static void PREFETCH_RUN(int instr_cycles, int bytes, int modrm, int reads, int reads_l,
                                       int writes, int writes_l, int ea32)
     {
-        if (cpu.cpu_prefetch_cycles != 0)
+        if (cpu_c.cpu_prefetch_cycles != 0)
                 prefetch_run(instr_cycles, bytes, modrm, reads, reads_l, writes, writes_l, ea32);
     }
 
     internal static void PREFETCH_PREFIX()
     {
-        if (cpu.cpu_prefetch_cycles != 0)
+        if (cpu_c.cpu_prefetch_cycles != 0)
                 prefetch_prefixes++;
     }
 

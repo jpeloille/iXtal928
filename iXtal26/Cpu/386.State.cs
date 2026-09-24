@@ -41,52 +41,52 @@ internal static partial class _386
         x86_opcodes_de_a16 = ops_nofpu_a16;
         x86_opcodes_df_a16 = ops_nofpu_a16;
 
-        cpu.cpu_busspeed = 6000000;
-        cpu.isa_cycles = 1;
+        cpu_c.cpu_busspeed = 6000000;
+        cpu_c.isa_cycles = 1;
 
         // cpu.c:189 — et resetx86() en tire rammask. Un 286 a 24 lignes d'adresse.
         cpu_16bitbus = 1;
 
         // cpu.c:2036-2047, branche « memory timings » : mem_read_cycles =
         // mem_write_cycles = 2 (cpu_tables.c:70), et (cpu_16bitbus ? 2 : 1) vaut 2.
-        cpu.cpu_prefetch_width = 2;
-        cpu.cpu_prefetch_cycles = 2;
-        cpu.cpu_cycles_read = 2;
-        cpu.cpu_cycles_read_l = 4;
-        cpu.cpu_cycles_write = 2;
-        cpu.cpu_cycles_write_l = 4;
-        cpu.cpu_mem_prefetch_cycles = 2;
-        cpu.cpu_rom_prefetch_cycles = 2;
+        cpu_c.cpu_prefetch_width = 2;
+        cpu_c.cpu_prefetch_cycles = 2;
+        cpu_c.cpu_cycles_read = 2;
+        cpu_c.cpu_cycles_read_l = 4;
+        cpu_c.cpu_cycles_write = 2;
+        cpu_c.cpu_cycles_write_l = 4;
+        cpu_c.cpu_mem_prefetch_cycles = 2;
+        cpu_c.cpu_rom_prefetch_cycles = 2;
 
         // cpu.c:325-353, la branche `case CPU_286:` dans l'ordre exact.
-        cpu.timing_rr = 2;      // register dest - register src
-        cpu.timing_rm = 7;      // register dest - memory src
-        cpu.timing_mr = 7;      // memory dest   - register src
-        cpu.timing_mm = 7;      // memory dest   - memory src
-        cpu.timing_rml = 9;     // register dest - memory src long
-        cpu.timing_mrl = 11;    // memory dest   - register src long
-        cpu.timing_mml = 11;    // memory dest   - memory src
-        cpu.timing_bt = 7 - 3;  // branch taken
-        cpu.timing_bnt = 3;     // branch not taken
-        cpu.timing_int = 0;
-        cpu.timing_int_rm = 23;
-        cpu.timing_int_v86 = 0;
-        cpu.timing_int_pm = 40;
-        cpu.timing_int_pm_outer = 78;
-        cpu.timing_iret_rm = 17;
-        cpu.timing_iret_v86 = 0;
-        cpu.timing_iret_pm = 31;
-        cpu.timing_iret_pm_outer = 55;
-        cpu.timing_call_rm = 13;
-        cpu.timing_call_pm = 26;
-        cpu.timing_call_pm_gate = 52;
-        cpu.timing_call_pm_gate_inner = 82;
-        cpu.timing_retf_rm = 15;
-        cpu.timing_retf_pm = 25;
-        cpu.timing_retf_pm_outer = 55;
-        cpu.timing_jmp_rm = 11;
-        cpu.timing_jmp_pm = 23;
-        cpu.timing_jmp_pm_gate = 38;
+        cpu_c.timing_rr = 2;      // register dest - register src
+        cpu_c.timing_rm = 7;      // register dest - memory src
+        cpu_c.timing_mr = 7;      // memory dest   - register src
+        cpu_c.timing_mm = 7;      // memory dest   - memory src
+        cpu_c.timing_rml = 9;     // register dest - memory src long
+        cpu_c.timing_mrl = 11;    // memory dest   - register src long
+        cpu_c.timing_mml = 11;    // memory dest   - memory src
+        cpu_c.timing_bt = 7 - 3;  // branch taken
+        cpu_c.timing_bnt = 3;     // branch not taken
+        cpu_c.timing_int = 0;
+        cpu_c.timing_int_rm = 23;
+        cpu_c.timing_int_v86 = 0;
+        cpu_c.timing_int_pm = 40;
+        cpu_c.timing_int_pm_outer = 78;
+        cpu_c.timing_iret_rm = 17;
+        cpu_c.timing_iret_v86 = 0;
+        cpu_c.timing_iret_pm = 31;
+        cpu_c.timing_iret_pm_outer = 55;
+        cpu_c.timing_call_rm = 13;
+        cpu_c.timing_call_pm = 26;
+        cpu_c.timing_call_pm_gate = 52;
+        cpu_c.timing_call_pm_gate_inner = 82;
+        cpu_c.timing_retf_rm = 15;
+        cpu_c.timing_retf_pm = 25;
+        cpu_c.timing_retf_pm_outer = 55;
+        cpu_c.timing_jmp_rm = 11;
+        cpu_c.timing_jmp_pm = 23;
+        cpu_c.timing_jmp_pm_gate = 38;
     }
 
     /// <summary>Pendant de h_reset() avec h_core == H_CORE_286.</summary>
@@ -110,7 +110,7 @@ internal static partial class _386
         is386 = 0;
         is486 = 0;
         _808x.is8086 = 0;
-        cpu.hasfpu = 0;
+        cpu_c.hasfpu = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
         cpu_config_286();

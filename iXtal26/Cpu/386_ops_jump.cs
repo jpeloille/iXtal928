@@ -83,19 +83,19 @@ internal static partial class _386
                 ops_286[0x70 + n] = fetchdat =>
                 {
                         int8_t offset = (int8_t)(uint8_t)fetchdat; cpu_state.pc++;   // (int8_t)getbytef()
-                        CLOCK_CYCLES(cpu.timing_bnt);
+                        CLOCK_CYCLES(cpu_c.timing_bnt);
                         if (cond())
                         {
                                 cpu_state.pc += (uint32_t)offset;
                                 if ((cpu_state.op32 & 0x100) == 0)
                                         cpu_state.pc &= 0xffff;
-                                CLOCK_CYCLES_ALWAYS(cpu.timing_bt);
+                                CLOCK_CYCLES_ALWAYS(cpu_c.timing_bt);
                                 CPU_BLOCK_END();
-                                PREFETCH_RUN(cpu.timing_bt + cpu.timing_bnt, 2, -1, 0, 0, 0, 0, 0);
+                                PREFETCH_RUN(cpu_c.timing_bt + cpu_c.timing_bnt, 2, -1, 0, 0, 0, 0, 0);
                                 PREFETCH_FLUSH();
                                 return 1;
                         }
-                        PREFETCH_RUN(cpu.timing_bnt, 2, -1, 0, 0, 0, 0, 0);
+                        PREFETCH_RUN(cpu_c.timing_bnt, 2, -1, 0, 0, 0, 0, 0);
                         return 0;
                 };
         }

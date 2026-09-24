@@ -13,7 +13,7 @@
 
 namespace iXtal26.Cpu;
 
-internal static partial class cpu
+internal static partial class cpu_c
 {
     // pcem: cpu_tables.c:33 — cpus_8088[0], « 8088/4.77 ».
     internal const int CPU_SPEED_8088 = 4772728;
