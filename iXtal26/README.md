@@ -28,8 +28,12 @@ dotnet run -- --floppy-a os/pcdos20/pcdos20b.img   # amorce sur l'image du lecte
 sur les lecteurs 5,25" double densité du 5150 — **en lecture-écriture** : ce que DOS y
 écrit est écrit pour de vrai. Une image absente est refusée avec son chemin.
 
-Le titre de la fenêtre affiche la vitesse en pourcentage du temps réel, sur une
-fenêtre glissante — 100 % signifie que les 4,77 MHz sont tenus.
+Le titre de la fenêtre affiche, sur une fenêtre glissante, trois chiffres tirés du tsc
+de la machine : `invite NN %`, la vitesse à laquelle le temps de l'invité s'écoule
+rapportée au temps réel ; `X MHz`, les cycles CPU émulés par seconde murale ; et
+`marge xM`, ce que l'hôte tiendrait sans le frein. Sur le 5150, 100 % et 4,77 MHz vont
+ensemble. `--timer-check` mesure les mêmes grandeurs au compteur de tops du BIOS, sur
+n'importe quelle machine (`--model`, `--config`).
 
 **Le haut-parleur est branché** : le 5150 bipe en fin de POST, et `BEEP` ou
 `PLAY "CDEFGAB"` sonnent sous BASIC. C'est le canal 2 du PIT et le port 0x61, mixés à

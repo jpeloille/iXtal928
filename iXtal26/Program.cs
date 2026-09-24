@@ -224,7 +224,7 @@ for (var i = 0; i < args.Length; i++)
         // que 18, soit 5,5 % de quantification, et ne prouverait rien.
         var seconds = 300;
 
-        if (i + 1 < args.Length)
+        if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
             if (!int.TryParse(args[++i], out seconds) || seconds <= 0)
             {
@@ -233,7 +233,60 @@ for (var i = 0; i < args.Length; i++)
             }
         }
 
-        return TimerCheck.Run(paths.resolve_roms_path(roms), seconds);
+        // Les options de la MACHINE, sur le patron de --boot et pour les mêmes
+        // raisons : --config se lit dans la boucle, --model et --gfxcard sont
+        // collectés puis appliqués après lui, quel que soit l'ordre de frappe. Sans
+        // elles l'outil ne mesurait que le 5150 — le modèle par défaut — et rendait
+        // la main avant que la boucle principale ait appliqué quoi que ce soit.
+        string? tcModel = null;
+        string? tcGfx = null;
+        var bootSlices = TimerCheck.DefaultBootSlices;
+        while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
+        {
+            var opt = args[++i];
+            if (i + 1 >= args.Length)
+            {
+                Console.Error.WriteLine($"{opt} attend un argument.");
+                return 2;
+            }
+
+            var val = args[++i];
+            switch (opt)
+            {
+                case "--model": tcModel = val; break;
+                case "--gfxcard": tcGfx = val; break;
+                case "--floppy-a": if (!MountFloppy(0, val)) return 2; break;
+                case "--floppy-b": if (!MountFloppy(1, val)) return 2; break;
+                // Tranches d'amorçage avant la fenêtre. 6 000 amènent le 5150 à
+                // l'invite BASIC ; une machine au POST plus long peut en demander plus.
+                case "--boot-slices":
+                    if (!int.TryParse(val, out bootSlices) || bootSlices <= 0)
+                    {
+                        Console.Error.WriteLine("--boot-slices attend un nombre de tranches entier positif.");
+                        return 2;
+                    }
+                    break;
+                case "--config":
+                    var cfgPath = paths.resolve_file_path(val);
+                    if (cfgPath is null)
+                    {
+                        Console.Error.WriteLine($"Fichier de configuration introuvable : « {val} ».");
+                        return 2;
+                    }
+                    if (!pc.loadconfig(cfgPath)) return 2;
+                    break;
+                default:
+                    Console.Error.WriteLine($"Option inconnue après --timer-check : {opt}");
+                    return 2;
+            }
+        }
+
+        if (tcModel is not null && !pc.setmodel(tcModel))
+            return 2;
+        if (tcGfx is not null && !pc.setgfxcard(tcGfx))
+            return 2;
+
+        return TimerCheck.Run(paths.resolve_roms_path(roms), seconds, bootSlices);
     }
 
     // FABRIQUER une image de disque dur vierge, puis sortir. PREMIÈRE commande du dépôt
@@ -1040,7 +1093,7 @@ static void PrintUsage()
     Console.WriteLine("Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]");
     Console.WriteLine("                [--headless] [--verbose] [--turbo [N]]");
     Console.WriteLine("        iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...");
-    Console.WriteLine("        iXtal26 --timer-check [CHEMIN] [SECONDES]");
+    Console.WriteLine("        iXtal26 --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]...");
     Console.WriteLine();
     Console.WriteLine("Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.");
     Console.WriteLine("Dans la fenêtre, Ctrl+F12 ouvre le menu : insérer ou éjecter une disquette,");
@@ -1132,11 +1185,14 @@ static void PrintUsage()
     Console.WriteLine("                       la FAT d'une disquette réellement formatée par DOS 2.00,");
     Console.WriteLine("                       le secteur d'amorce, et l'invariant de géométrie — les");
     Console.WriteLine("                       deux branches d'img_load doivent lire la même chose");
-    Console.WriteLine("  --timer-check [CHEMIN] [SECONDES]");
+    Console.WriteLine("  --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]");
+    Console.WriteLine("                [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");
     Console.WriteLine("                       secondes ÉMULÉES et compare à 1193182/65536 =");
-    Console.WriteLine("                       18,2065 Hz (défauts : roms, 300 s)");
+    Console.WriteLine("                       18,2065 Hz (défauts : roms, 300 s). Imprime aussi la");
+    Console.WriteLine("                       CADENCE : fréquence du processeur vue par l'invité,");
+    Console.WriteLine("                       vitesse du temps invité, et marge de l'hôte");
     Console.WriteLine("  --setup              ouvre l'écran de construction de machine avant de");
     Console.WriteLine("                       démarrer : modèle, mémoire, disquettes, disques durs,");
     Console.WriteLine("                       charger ou enregistrer une machine de configs/. Il");

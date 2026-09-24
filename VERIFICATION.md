@@ -3210,3 +3210,71 @@ ce mode-là n'a été vu que dans `Buffer32`, l'hôte n'ayant pas de frappe scri
    (ci-dessus), et en mode texte seulement.
 4. **256 Ko de VRAM seulement**, la valeur de `vga_init` ; une SVGA en voudrait plus, et
    aucune n'est transcrite.
+
+---
+
+## M16 — La cadence du 286 : la mesurer, puis la régler
+
+Parti de la question *« comment mesurer la cadence de la machine émulée ? je voudrais
+vérifier que mon 80286 tourne entre 20 et 25 MHz »*. La réponse de la lecture du code
+précède toute mesure : **il ne le pouvait pas**. `cpu_get_speed()` rendait 4 772 728 en
+dur (`pc.cs`, `Cpu/cpu.cs`) — le budget du 8088 — alors que `pc_reset` pose
+`setpitclock(6 000 000)` pour l'AT. L'oracle fait exactement pareil (`__wrap_cpu_get_speed`,
+`h_runpc`, `harness.c:1121`), assumé au commit `9dff06f` « pour la symétrie » : **aucune
+porte ne pouvait voir l'écart**, puisque les deux côtés l'ont. PCem, lui, rend rspeed
+(`cpu.c:196-203`, `:2067-2071`) : 60 000 cycles par tranche pour un 286/6.
+
+### Trois chiffres, qu'il ne faut pas confondre
+
+| Chiffre | Définition | Ce qui le mesure |
+|---|---|---|
+| **Cadence vue par l'invité** | cycles consommés par seconde du compteur de tops BDA | `--timer-check`, rapport 5 |
+| **Cadence fournie** | cycles consommés par seconde MURALE | titre de la fenêtre, `X MHz` |
+| **Vitesse du temps invité** | secondes de BDA par seconde contractuelle (100 tranches) | `--timer-check`, rapport 6 ; titre, `invite NN %` |
+
+Un banc d'essai EXÉCUTÉ DANS L'INVITÉ — une boucle chronométrée au PIT, `TIMER` en BASICA —
+ne peut pas trancher : le PIT, le RTC et le CPU sont dans le même domaine d'horloge, la
+mesure s'annule et rend l'horloge de `setpitclock` par construction. Seule une comparaison
+avec les tranches, ou avec une montre, fait apparaître l'écart. Sans aucun code : `TIME`
+sous DOS, soixante secondes au chronomètre, `TIME` à nouveau — l'AT n'en compte que 47,7.
+
+### Étape 1 : l'instrument (code hôte seul)
+
+`--timer-check` était le contrôle de fréquence absolue du 5150 : constantes du 8088 en dur,
+et une branche qui rendait la main **avant** que `--config` et `--model` soient appliqués —
+il ne pouvait mesurer que la machine par défaut. Il prend désormais `--model`, `--config`,
+`--gfxcard`, `--floppy-a/b` et `--boot-slices`, lit le budget, l'horloge et le nombre de tsc
+par cycle **après** `initpc`, et ajoute trois rapports : fréquence vue par l'invité (5),
+temps invité sur temps contractuel (6), et un bloc hôte non déterministe (7). Le titre de la
+fenêtre compte le temps de l'invité dans son tsc, tranche par tranche autour de `runpc()`,
+au lieu de supposer 10 ms par tranche : `invite NN % - X MHz - marge xM`.
+
+**Inertie sur le 5150** : toutes les lignes déterministes identiques à la sortie du binaire
+de référence (`ebd4aef`) — 5 462 tops, Δtsc, cycles, instructions, rapports 1 à 4
+(−59,89 ppm). Les nouveaux rapports disent ce que § « Contrôle de fréquence » établissait
+déjà : 4,773 MHz vus par l'invité (+52,3 ppm, le manque de comptabilité du 8088), rapport
+de temps 0,999942.
+
+**Sur les deux 286**, avec `--timer-check roms 300 --model ibmat` puis `--model ami286`,
+prédictions écrites avant la mesure :
+
+| | Prédit | ibmat | ami286 |
+|---|---|---|---|
+| 1. Δtsc par s contractuelle | 4 772 700 contre 6 000 000 | 4 772 700,05 (−204 550 ppm) | 4 772 700,03 (−204 550 ppm) |
+| 2. tops par s de tsc | 18,2065 (tautologique) | 18,206509 (−0,18 ppm) | 18,206509 (−0,18 ppm) |
+| 3. tops par s contractuelle | ≈ 14,482 | **14,482368** | **14,482368** |
+| 5. fréquence vue par l'invité | 6,000 MHz | **6 000 001,1 Hz** (+0,18 ppm) | **6 000 001,1 Hz** (+0,18 ppm) |
+| 6. temps invité / contractuel | 0,7955 | **0,795450** | **0,795450** |
+| cycles jamais portés au tsc | 0 | 0 sur 1 431 905 470 | 0 sur 1 431 905 462 |
+| tsc par top | 329 552,4 | 329 552,467 | 329 552,465 |
+
+Le 286 n'a **aucun** manque de comptabilité : `exec386` ajoute au tsc les cycles de chaque
+instruction, E/S comprises (`386.cs`, `timer.tsc += ins_cycles`), là où le 8088 en perd
+53,9 ppm. Les deux machines donnent la même fenêtre de 4 345 tops ; seul le CPI les
+distingue (4,70 contre 6,47), c'est-à-dire ce que leurs BIOS exécutent.
+
+**Conclusion de l'étape 1** : le 286 d'iXtal26 tourne, VU PAR L'INVITÉ, à 6,000 MHz — et
+l'horloge murale ne lui fournit que 4,773 MHz : son temps s'écoule à 79,545 % du temps réel,
+et le « 100 % » que le titre affichait sur l'AT valait en réalité 80 %. Les chiffres de
+l'hôte (rapport 7) ne sont pas consignés ici : une autre session compilait pendant la
+mesure, et le protocole de § M5.1 exige une machine au repos.

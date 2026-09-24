@@ -404,6 +404,22 @@ public sealed class SdlHost : IDisposable
         var busyTicks = 0L;
         var busyTicksAtLastTitle = 0L;
 
+        // La CADENCE de l'invité, cumulée tranche par tranche AUTOUR de runpc() :
+        // secondes de temps invité et cycles CPU, tirés du tsc. Une tranche ne vaut
+        // 10 ms invitées que si le budget de runpc() correspond à l'horloge posée par
+        // setpitclock() — vrai sur le 5150, FAUX sur l'AT tant que son budget est
+        // celui du 8088. D'où ces compteurs plutôt que « tranches × 10 ms ».
+        //
+        // Par tranche et pas par différence de tsc entre deux titres : resetpchard()
+        // remet le tsc à zéro (timer.cs:257) et peut changer de machine, donc
+        // d'horloge et de cœur. Un Δtsc pris autour d'un seul runpc() ne franchit
+        // jamais un reset, et se convertit avec l'horloge de la machine qui l'a produit.
+        var guestSeconds = 0.0;
+        var guestCycles = 0.0;
+        var guestSecondsAtLastTitle = 0.0;
+        var guestCyclesAtLastTitle = 0.0;
+        var wall = Stopwatch.StartNew();
+
         _running = true;
 
         while (_running)
@@ -477,6 +493,8 @@ public sealed class SdlHost : IDisposable
                 lastTitleMs = oldTime;
                 slicesAtLastTitle = slices;
                 busyTicksAtLastTitle = busyTicks;
+                guestSecondsAtLastTitle = guestSeconds;
+                guestCyclesAtLastTitle = guestCycles;
             }
 
             // Menu ouvert : la machine est EN PAUSE, comme PCem qui pose pause = 1 autour
@@ -559,6 +577,8 @@ public sealed class SdlHost : IDisposable
                     lastTitleMs = oldTime;
                     slicesAtLastTitle = slices;
                     busyTicksAtLastTitle = busyTicks;
+                    guestSecondsAtLastTitle = guestSeconds;
+                    guestCyclesAtLastTitle = guestCycles;
                 }
             }
 
@@ -582,9 +602,11 @@ public sealed class SdlHost : IDisposable
                     drawits = 0;
             }
 
+            var tscBefore = timer.tsc;
             var t0 = Stopwatch.GetTimestamp();
             pc.runpc();
             busyTicks += Stopwatch.GetTimestamp() - t0;
+            AddCadence(timer.tsc - tscBefore, ref guestSeconds, ref guestCycles);
             slices++;
 
             // Plus de PresentIfBlitted ici : le crochet OnBlit a déjà tout fait,
@@ -599,16 +621,19 @@ public sealed class SdlHost : IDisposable
             if (timed && slices - slicesAtLastTitle >= TitleInterval)
             {
                 var nowMs = SDL.GetTicks();
-                UpdateTitle(slices - slicesAtLastTitle, nowMs - lastTitleMs,
-                            busyTicks - busyTicksAtLastTitle, turbo);
+                UpdateTitle(nowMs - lastTitleMs, busyTicks - busyTicksAtLastTitle,
+                            guestSeconds - guestSecondsAtLastTitle,
+                            guestCycles - guestCyclesAtLastTitle, turbo);
                 slicesAtLastTitle = slices;
                 lastTitleMs = nowMs;
                 busyTicksAtLastTitle = busyTicks;
+                guestSecondsAtLastTitle = guestSeconds;
+                guestCyclesAtLastTitle = guestCycles;
             }
         }
 
         if (_verbose)
-            PrintSummary(slices);
+            PrintSummary(slices, guestSeconds, guestCycles, busyTicks, wall.Elapsed.TotalSeconds);
 
         // Une fenêtre noire et un code 0 sont indiscernables d'un succès dans une
         // chaîne d'intégration. Si PAS UNE SEULE image n'a atteint la texture alors
@@ -635,9 +660,22 @@ public sealed class SdlHost : IDisposable
     /// installé. C'est dit explicitement, faute de quoi ce bilan ressemblerait très
     /// exactement à un chemin de blit mort — ce que --verbose existe pour écarter.
     /// </summary>
-    private void PrintSummary(int slices)
+    private void PrintSummary(int slices, double guestSeconds, double cycles, long busyTicks, double wallSeconds)
     {
-        Console.WriteLine($"tranches   : {slices} ({slices / 100.0:0.##} s émulées)");
+        Console.WriteLine($"tranches   : {slices} ({slices / 100.0:0.##} s contractuelles, 10 ms par tranche)");
+
+        // La cadence, cumulée depuis le lancement, pauses du menu comprises dans le temps
+        // mural. Le temps INVITÉ vient du tsc, pas des tranches : les deux ne coïncident
+        // que si le budget de runpc() correspond à l'horloge de setpitclock(). Leur
+        // rapport est imprimé pour que l'écart se lise sans calcul.
+        var busySeconds = busyTicks / (double)Stopwatch.Frequency;
+        if (slices > 0)
+            Console.WriteLine(
+                $"cadence    : {guestSeconds:0.###} s invitées (tsc), soit {guestSeconds * 100.0 / slices:0.####} " +
+                $"par tranche de 10 ms ; {cycles / 1e6:0.###} M cycles, {cycles / guestSeconds / 1e6:0.###} MHz " +
+                $"vus par l'invité, {cycles / wallSeconds / 1e6:0.###} MHz par seconde murale ; " +
+                $"invité {guestSeconds * 100.0 / wallSeconds:0.#} % du temps réel ; " +
+                $"marge x{(busySeconds > 0 ? guestSeconds / busySeconds : 0):0.00}");
         Console.WriteLine($"blits      : {video.video_frames} émis par le cœur, {_blitsSeen} consommés, " +
                           $"{_blitsUploaded} téléversés, {_updateFailures} en échec" +
                           (_presentsSkipped > 0 ? $", {_presentsSkipped} sautés en turbo" : ""));
@@ -851,9 +889,36 @@ public sealed class SdlHost : IDisposable
     }
 
     /// <summary>
-    /// Une tranche = 10 ms émulées (pc.cs:177), donc 100 tranches par seconde murale
-    /// valent 100 %. C'est la mesure qui dit si la machine tient ses 4,77 MHz.
+    /// Ajoute une tranche à la cadence cumulée : Δtsc converti en secondes INVITÉES et
+    /// en cycles CPU, avec l'horloge et le cœur de la machine qui l'a produit.
+    ///
+    /// Le tsc compte toujours dans l'unité de l'horloge que setpitclock() a reçue
+    /// (pit.cpuclock) : 14 318 184 Hz sur un 808x, la vitesse du CPU sur un 286. Un
+    /// cycle CPU vaut xt_cpu_multi / 2^32 tsc sur le 808x (clockhardware), et un tsc
+    /// sur le 286 (exec386 y ajoute les cycles bruts).
+    /// </summary>
+    private static void AddCadence(ulong dtsc, ref double guestSeconds, ref double cycles)
+    {
+        guestSeconds += dtsc / (double)Models.pit.cpuclock;
+        cycles += Cpu.x86.AT != 0 ? dtsc : dtsc * 4294967296.0 / Cpu._808x.xt_cpu_multi;
+    }
+
+    /// <summary>
+    /// Trois chiffres, et aucun n'est « tranches × 10 ms ». Une tranche ne vaut 10 ms
+    /// INVITÉES que si le budget de runpc() correspond à l'horloge que setpitclock() a
+    /// posée ; sur l'AT, dont le budget est encore celui du 8088, elle en vaut 7,95. Le
+    /// titre compte donc le temps de l'invité dans son tsc, pas dans les tranches.
+    ///
+    ///   invite NN %  — secondes invitées par seconde murale : la vitesse à laquelle le
+    ///                  temps de la machine s'écoule. 100 % : elle tient le temps réel.
+    ///   X MHz        — cycles CPU émulés par seconde MURALE : la cadence réellement
+    ///                  fournie, celle qu'un chronomètre posé sur la table verrait.
+    ///   marge xM     — secondes invitées par seconde passée dans runpc() : ce que
+    ///                  l'hôte pourrait tenir sans le frein.
+    ///
     /// Le titre plutôt que RenderDebugText : l'image doit rester comparable à l'oracle.
+    /// ASCII pur, pour la raison dite sur WindowTitle() : pas d'accent, pas de tiret
+    /// cadratin, pas de signe de multiplication.
     ///
     /// FENÊTRE GLISSANTE, pas moyenne cumulée. onesec() (pc.c:168-174) fait
     /// « fps = framecount; framecount = 0; » sur un timer d'une seconde réelle : le
@@ -861,33 +926,35 @@ public sealed class SdlHost : IDisposable
     /// l'indicateur aveugle à ce qu'il existe pour montrer — après dix minutes à
     /// 100 %, une chute à 50 % pendant trente secondes se lirait « 97 % ».
     ///
-    /// LE POURCENTAGE NE PEUT PAS DÉPASSER 100. Le frein drawits de Run() attend
-    /// l'horloge murale avant chaque tranche : un cœur avec 15x de marge et un cœur à
-    /// 1,05x affichent tous deux « 100 % ». D'où la MARGE, à côté : temps émulé des
-    /// tranches (10 ms chacune) divisé par le temps réellement passé dans runpc().
-    /// Mesuré à M5 : environ 15x sur un cœur P à 4,8 GHz — pas les 50 à 100x que le
-    /// csproj supposait avant qu'on ne mesure.
+    /// LE POURCENTAGE NE DÉPASSE PAS la vitesse que le budget permet. Le frein drawits
+    /// de Run() attend l'horloge murale avant chaque tranche : un cœur avec 15x de marge
+    /// et un cœur à 1,05x affichent tous deux « 100 % ». D'où la MARGE, à côté. Mesuré à
+    /// M5 sur le 5150 : environ 15x sur un cœur P à 4,8 GHz.
     /// </summary>
-    private void UpdateTitle(int slices, ulong elapsedMs, long busyTicks, bool turbo)
+    private void UpdateTitle(ulong elapsedMs, long busyTicks, double guestSeconds, double cycles, bool turbo)
     {
         if (elapsedMs == 0)
             return;
 
-        var percent = slices * 1000L / (long)elapsedMs;
+        var wallSeconds = elapsedMs / 1000.0;
+        var percent = (long)Math.Round(guestSeconds * 100.0 / wallSeconds);
+        var mhz = cycles / wallSeconds / 1e6;
         var busySeconds = busyTicks / (double)Stopwatch.Frequency;
-        var headroom = busySeconds > 0 ? slices * 0.01 / busySeconds : 0;
+        var headroom = busySeconds > 0 ? guestSeconds / busySeconds : 0;
 
         // Pendant le turbo, le pourcentage n'a plus de sens : il dépasse 100 et ne dit
         // rien. Ce qu'on affiche alors est le facteur RÉELLEMENT tenu, présentation
         // comprise — pas la marge du cœur, qui est plus flatteuse.
         if (turbo)
         {
-            var actual = slices * 10.0 / elapsedMs;
-            SDL.SetWindowTitle(_window, $"{WindowTitle()} — turbo x{actual:0.0} (marge x{headroom:0.0})");
+            var actual = guestSeconds / wallSeconds;
+            SDL.SetWindowTitle(_window,
+                $"{WindowTitle()} - turbo x{actual:0.0} - {mhz:0.00} MHz (marge x{headroom:0.0})");
             return;
         }
 
-        SDL.SetWindowTitle(_window, $"{WindowTitle()} — {percent} % — marge x{headroom:0.0}");
+        SDL.SetWindowTitle(_window,
+            $"{WindowTitle()} - invite {percent} % - {mhz:0.00} MHz - marge x{headroom:0.0}");
     }
 
     /// <summary>Libère texture, renderer, fenêtre puis SDL. Idempotent, et sans effet en headless.</summary>
