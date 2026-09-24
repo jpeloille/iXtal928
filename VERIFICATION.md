@@ -3184,13 +3184,29 @@ le défaut connu de l'AT côté C#, sans rapport avec la carte.
 la divergence que `TRANSCRIPTION.md` décrit, le C# lisant `nvr/.at.nvr` là où l'oracle prend
 la branche sans fichier. Aucun `boot-diff` d'AT ne peut aujourd'hui atteindre la VGA.
 
+Ce qui se mesure quand même, sur le 286 : les entrées du chemin de temps. Lues dans la
+`.so` après un amorçage AT en VGA, `video_timing_read_b/w/l` et `write_b/w/l` valent
+**8 / 16 / 32**, avec `isa_cycles = 1` et `cpu_16bitbus = 1` — donc `read_l = read_w × 2`
+a bien joué. Le C# les tire de la même formule, `isa_cycles` et `cpu_16bitbus` étant posés
+à 1 en dur (`386.State.cs:45`, `:48`). Et la machine de § « 286 complet », `ami286` à
+4 096 Ko, termine son POST en VGA : bannière AMI tracée par le BIOS VGA, `04096 KB OK`, et
+« CMOS display type mismatch » disparu — le CMOS de référence déclare une EGA/VGA.
+
+### La fenêtre, enfin
+
+Rien de ce qui précède ne passe par l'hôte : `--boot` et `boot-diff` s'arrêtent à
+`Buffer32`. Le vrai hôte SDL, XT, VGA, 6 200 tranches, `--verbose` : **4 497 blits émis,
+4 497 consommés, 4 497 téléversés, 0 en échec**, dernier blit `x=32 y=0 y1=0 y2=400 w=720
+h=400`, fenêtre recalée à 720 × 400. La texture de 512 lignes tient les 480 du mode 12h ;
+ce mode-là n'a été vu que dans `Buffer32`, l'hôte n'ayant pas de frappe scriptée.
+
 ### Ce que ce vert ne dit pas
 
 1. **L'AT n'est pas sous oracle pour la VGA.** Tout le vert ci-dessus est sur 8088. Le cœur
-   286 accède à la VRAM par le même `svga_read`/`svga_write`, mais avec un bus de 16 bits
-   (`video_timing_read_l = read_w * 2`) : ce chemin-là n'a été vu qu'en exécution.
+   286 accède à la VRAM par le même `svga_read`/`svga_write`, avec un bus de 16 bits : ses
+   ENTRÉES de temps sont mesurées égales, son exécution n'a été vue qu'en `--boot`.
 2. **Deux rendus, le chemin `fast`, le curseur et l'entrelacé** n'ont que la relecture.
-3. **L'hôte SDL n'est pas sous oracle** : la fenêtre à 720 × 400 ou 640 × 480, l'étirement
-   de la texture. `Buffer32` l'est, la remontée non.
+3. **L'hôte SDL n'est pas sous oracle** : `Buffer32` l'est, la remontée seulement comptée
+   (ci-dessus), et en mode texte seulement.
 4. **256 Ko de VRAM seulement**, la valeur de `vga_init` ; une SVGA en voudrait plus, et
    aucune n'est transcrite.
