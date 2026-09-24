@@ -3467,13 +3467,29 @@ Au repos (60 s), la même machine fait 0,67 MIPS à 286/20, CPI 29,9 — le coû
 sous la charge ram, 2,35 MIPS. La marge tombe de ×34 à ×24 : c'est bien la charge qui
 décide, et elle laisse plus de vingt fois le temps réel.
 
-## M16 — conclusion
+**Et sur la machine de l'utilisateur**, pas seulement l'ami286 par défaut (CGA, 640 Ko) :
+`ixtal26-286.cfg` sans son disque — ami286, **4 096 Ko, VGA**, lecteurs 5 et 2 —, avec son
+CMOS copié, même protocole. L'amorçage finit en mode réel (la charge ram le vérifie).
+
+| | 286/20 | 286/25 |
+|---|---|---|
+| fréquence vue par l'invité | 20 000 168,8 Hz | 25 000 620,8 Hz (+24,8 ppm) |
+| temps invité / contractuel | 0,999992 | 0,999975 |
+| temps hôte de 300 s, min / max | 9,085 / 9,118 s | 10,854 / 10,991 s |
+| **marge** | **×33,0** | **×27,4** |
+
+Plus large qu'en CGA : sur cette machine, `cga_poll` coûte davantage à l'hôte que la VGA
+(§ M5.1 en faisait déjà le premier poste). Ni l'une ni l'autre marge ne compte le coût de la
+présentation SDL, que le titre de la fenêtre ne compte pas non plus.
+
+### Conclusion
 
 La question était : « mon 80286 tourne-t-il entre 20 et 25 MHz ? ». Au départ, **non** :
 6,000 MHz vus par l'invité, 4,773 MHz fournis, son temps à 79,5 % du temps réel — le budget
 du 8088, des deux côtés, invisible à toute porte. Désormais, sur l'ami286, `cpu = 5` donne
 un 286 que l'invité mesure à **20,000 MHz** et `cpu = 6` à **25,000 MHz**, tenant le temps
-réel avec une marge d'au moins ×21 sur cette machine. Ce qui le garantit :
+réel avec une marge d'au moins ×21 sur cet hôte — ×27 sur la machine VGA à 4 Mo de
+l'utilisateur. Ce qui le garantit :
 
 - **la configuration** est vérifiée contre le VRAI `cpu_set()` de PCem, entrée par entrée
   (`cpu-config-check`, 21 configurations, dans les deux ordres) ;
