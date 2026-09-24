@@ -96,8 +96,14 @@ internal static partial class device
     // pcem: devices.h:14-20
     /*Device does not currently work correctly and will be disabled in a release build*/
     internal const uint32_t DEVICE_NOT_WORKING = 1;
-    // omitted: DEVICE_AT, DEVICE_MCA, DEVICE_PCI, DEVICE_PS1 (devices.h:16-19) —
-    //   drapeaux de machines postérieures au 5150.
+    /*Device requires an AT-compatible system*/
+    // Entré avec mfm_at, qui le porte. INERTE ici : device_available (:179) ne teste
+    // que DEVICE_NOT_WORKING, et chez PCem ce drapeau ne sert qu'à la boîte de
+    // configuration, pour n'offrir la carte qu'aux machines AT. Le registre
+    // HDD_CONTROLLER qui l'y lisait est au registre des omissions.
+    internal const uint32_t DEVICE_AT = 2;
+    // omitted: DEVICE_MCA, DEVICE_PCI, DEVICE_PS1 (devices.h:17-19) — drapeaux de
+    //   machines qui ne sont pas dans ce dépôt.
 
     // pcem: config.h:8
     internal const int CFG_MACHINE = 0;
