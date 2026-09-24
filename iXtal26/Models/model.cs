@@ -176,6 +176,39 @@ internal static partial class model_c
         at_init();
     }
 
+    // pcem: model.c:452-455 — at_neat_init : at_init puis le chipset.
+    internal static void at_neat_init()
+    {
+        at_init();
+        neat.neat_init();
+    }
+
+    // pcem: model.c:986-995 — LE CLONE AMI 286, seconde machine à 286 du dépôt.
+    //
+    // POURQUOI ELLE EXISTE ICI : le BIOS de l'IBM AT affiche « 161-System Options Not
+    // Set-(Run SETUP) » sans pile CMOS valide, et son SETUP est sur la disquette de
+    // diagnostics, absente. Un BIOS AMI porte le sien EN ROM. C'est la seule façon,
+    // avec ce que le dépôt a, d'obtenir un 286 qui démarre sans invite.
+    //
+    // ET ELLE VÉRIFIE LE CŒUR AUTREMENT : un second BIOS emprunte d'autres chemins du
+    // mode protégé que celui d'IBM, ce qui vaut mieux qu'une seconde configuration de
+    // la même machine — même argument qu'à M10 pour le XT 5160.
+    //
+    // MODEL_HAS_IDE est porté FIDÈLEMENT alors que ce dépôt n'a aucun contrôleur IDE :
+    // src/ide/ est au registre des omissions. Le flag ne fait qu'autoriser l'interface
+    // à proposer un disque IDE ; le retirer serait réécrire la table.
+    internal static readonly MODEL m_ami286 = new MODEL
+    {
+        name = "[286] AMI 286 clone",
+        id = pc.ROM_AMI286,
+        internal_name = "ami286",
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        min_ram = 512,
+        max_ram = 16384,
+        ram_granularity = 128,
+        init = at_neat_init,
+    };
+
     // pcem: model.c:1106-1115
     //
     // LE PREMIER MODÈLE DU DÉPÔT QUI N'EST PAS UN 8088, et son flag MODEL_AT est ce
@@ -209,7 +242,7 @@ internal static partial class model_c
     // configuration, donc la première entrée est la machine par défaut. L'insérer
     // ailleurs qu'à la fin décalerait les indices et changerait la machine par défaut
     // sans qu'une seule porte ne rougisse — tout VERIFICATION.md suppose le 5150.
-    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat };
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286 };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;

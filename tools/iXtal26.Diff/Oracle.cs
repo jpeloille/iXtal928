@@ -32,7 +32,8 @@ public static class Oracle
     // 15 a C7a : sept champs du mode protege entrent dans h_state et h_wlog_max
     // s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois
     // bumps precedents.
-    public const int AbiVersion = 15;
+    // 16 : h_set_trace_notsc s'ajoute au contrat.
+    public const int AbiVersion = 16;
 
     static Oracle()
     {
@@ -104,6 +105,7 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_seg_clear_residue();
     [DllImport(Lib)] public static extern int h_step_trace();
     [DllImport(Lib)] public static extern int h_wlog_max();
+    [DllImport(Lib)] public static extern void h_set_trace_notsc(int on);
     [DllImport(Lib)] public static extern int h_get_core();
 
     // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des

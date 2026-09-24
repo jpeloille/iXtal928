@@ -333,6 +333,11 @@ int h_step_trace(void);
  * qu'un .so perime ne signalerait pas — d'ou l'accesseur. */
 int h_wlog_max(void);
 
+/* Retire tsc du hachage de trace, pour separer une divergence de TEMPS d'une divergence
+ * FONCTIONNELLE. Drapeau de diagnostic : a poser des deux cotes, et un boot-diff sans
+ * tsc ne remplace pas un boot-diff complet. Voir harness.c. */
+void h_set_trace_notsc(int on);
+
 /* Exécute jusqu'à épuisement d'un budget de cycs cycles — la forme qu'emploie
  * runpc() (execx86(cpu_get_speed() / 100), soit 47 727 cycles par tranche de
  * 10 ms sur un XT). Sert à vérifier que h_step() ne fausse pas la comptabilité,
@@ -494,7 +499,8 @@ uint8_t *h_ram(void);
  * intgatesize, cgate16, cgate32, optype, oldcpl, cur_status — et h_wlog_max
  * s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois bumps
  * precedents. */
-#define H_ABI_VERSION 15
+/* 16 : h_set_trace_notsc s'ajoute au contrat. Le vecteur ne change pas de taille. */
+#define H_ABI_VERSION 16
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

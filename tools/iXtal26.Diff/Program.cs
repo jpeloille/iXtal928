@@ -200,6 +200,12 @@ switch (args[0])
                 case "--type" when i + 1 < args.Length: types.Add(args[++i]); break;
                 case "--type-at" when i + 1 < args.Length: typeAt = int.Parse(args[++i]); break;
                 case "--type-settle" when i + 1 < args.Length: typeSettle = int.Parse(args[++i]); break;
+                // --no-tsc : retire tsc du hachage de trace des DEUX cotes, pour separer
+                // une divergence de TEMPS d'une divergence FONCTIONNELLE. Voir harness.c.
+                case "--no-tsc":
+                        BootDiff.SansTsc = true;
+                        Oracle.h_set_trace_notsc(1);
+                        break;
                 case "--config" when i + 1 < args.Length: cfg = args[++i]; break;
                 // --model : le pendant de celui du programme principal, et il redevient
                 // nécessaire à M12. Tant que boot-diff écrasait disc_a, « --config

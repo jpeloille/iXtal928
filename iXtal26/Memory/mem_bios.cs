@@ -113,6 +113,28 @@ internal static partial class mem_bios
                             break;
                     return 1;
 
+            // pcem: mem_bios.c:396-403 — L'AMI 286, ET C'EST LE CHARGEMENT LE PLUS
+            // SIMPLE DU DÉPÔT : un seul fichier de 64 Ko, lu d'un trait.
+            //
+            // À COMPARER AVEC L'IBM AT juste en dessous, dont les deux ROM sont
+            // entrelacées octet par octet. La différence n'est pas d'époque mais de
+            // conception : IBM a câblé son bus de seize bits avec deux boîtiers de
+            // huit, les clones ont attendu qu'un boîtier de seize existe.
+            //
+            // ET C'EST CE BIOS QUI DÉBLOQUE LE « 161-System Options Not Set » : un AMI
+            // porte son SETUP en ROM, là où celui de l'IBM AT est sur la disquette de
+            // diagnostics — que ce dépôt n'a pas. Le message « (Run SETUP) » de l'AT
+            // désigne donc un programme introuvable.
+            case ROM_AMI286:
+                    f = romfopen("ami286/amic206.bin", "rb");
+                    if (f == null)
+                            break;
+                    romfread(rom, 0, 65536, 1, f);
+                    f.Close();
+                    // omitted: `memset(romext, 0x63, 0x8000)` (mem_bios.c:402) — PCem
+                    //   l'a mis en commentaire lui-même.
+                    return 1;
+
             // pcem: mem_bios.c:288-304 — L'IBM AT, ET SES DEUX ROM SONT ENTRELACÉES.
             //
             // Un AT a un bus de DONNÉES de seize bits, et IBM l'a câblé avec deux

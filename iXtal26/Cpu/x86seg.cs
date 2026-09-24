@@ -379,9 +379,300 @@ internal static partial class x86seg_c
         => pc.fatal($"loadcscall (seg {seg:X4}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");
 
+    // pcem: x86seg.c:1320-1624 — LE RETF DU MODE PROTEGE.
+    //
+    // ECRIT PARCE QUE LE BIOS DE L'AMI 286 EN A BESOIN, et c'est un vrai amorcage qui
+    // l'a montre : `--boot --model ami286` tombait sur ce stub a la tranche 0, apres
+    // 8 691 instructions. Le BIOS de l'IBM AT ne l'atteignait jamais. Deux BIOS
+    // empruntent donc des chemins differents du mode protege, ce qui est tout l'argument
+    // d'une seconde machine.
+    //
+    // `off` EST LE NOMBRE D'OCTETS A DEPILER EN PLUS — la forme `RETF imm16`. Et il est
+    // ajoute DEUX FOIS dans le chemin « niveau exterieur » : une fois avant les tests,
+    // une fois a la toute fin. Ce n'est pas une erreur de PCem mais la mecanique du
+    // silicium : le premier ajout depile les parametres de l'ANCIENNE pile, le second
+    // ceux de la NOUVELLE. Les omettre ou les confondre laisse une pile decalee.
     internal static void pmoderetf(int is32, uint16_t off)
-        => pc.fatal($"pmoderetf (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
-                    "mode reel (bloc C du plan)\n");
+    {
+        uint32_t newpc;
+        uint32_t newsp;
+        uint32_t addr, oaddr;
+        var segdat = new uint16_t[4];
+        var segdat2 = new uint16_t[4];
+        uint16_t seg, newss;
+        uint32_t oldsp = ESP;
+        int DPL() => (segdat[2] >> 13) & 3;
+        int DPL2() => (segdat2[2] >> 13) & 3;
+
+        if (is32 != 0)
+        {
+                newpc = POPL();
+                seg = (uint16_t)POPL();
+                if (cpu_state.abrt != 0)
+                        return;
+        }
+        else
+        {
+                newpc = POPW();
+                seg = POPW();
+                if (cpu_state.abrt != 0)
+                        return;
+        }
+        // UN RETF NE PEUT QUE DESCENDRE, comme un IRET : `(seg & 3) < CPL` est un #GP.
+        if ((seg & 3) < CPL)
+        {
+                ESP = oldsp;
+                x86gpf(null!, (uint16_t)(seg & ~3));
+                return;
+        }
+        // NOTER L'ABSENCE DE `ESP = oldsp` ICI, la ou les quatorze autres sorties de la
+        // fonction le font. C'est dans le C, et ca se recopie : un RETF vers un selecteur
+        // nul laisse la pile depilee. Asymetrie de PCem, pas de la transcription.
+        if ((seg & ~3) == 0)
+        {
+                x86gpf(null!, 0);
+                return;
+        }
+        addr = (uint32_t)(seg & ~7);
+        if ((seg & 4) != 0)
+        {
+                if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                addr += ldt.@base;
+        }
+        else
+        {
+                if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                addr += gdt.@base;
+        }
+        cpl_override = 1;
+        segdat[0] = readmemw(0, addr);
+        segdat[1] = readmemw(0, addr + 2);
+        segdat[2] = readmemw(0, addr + 4);
+        segdat[3] = readmemw(0, addr + 6);
+        cpl_override = 0;
+        if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+        oaddr = addr;
+
+        // LE PREMIER DES DEUX AJOUTS DE `off`, et il a lieu AVANT les verifications de
+        // type. Une faute apres cette ligne laisse donc la pile DEJA avancee de off — et
+        // les `ESP = oldsp` qui suivent la remettent bien en arriere, celle-la comprise.
+        if (stack32 != 0)
+                ESP += off;
+        else
+                SP += (uint16_t)off;
+
+        if (CPL == (seg & 3))
+        {
+                /*Retour au MEME niveau*/
+                switch (segdat[2] & 0x1F00)
+                {
+                case 0x1800:
+                case 0x1900:
+                case 0x1A00:
+                case 0x1B00: /*Non-conforming*/
+                        // AU MEME NIVEAU c'est CPL qui est teste contre DPL ; au niveau
+                        // EXTERIEUR c'est le RPL. La distinction est dans le C et elle est
+                        // juste : au meme niveau le RPL EST le CPL.
+                        if (CPL != DPL())
+                        {
+                                ESP = oldsp;
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        break;
+                case 0x1C00:
+                case 0x1D00:
+                case 0x1E00:
+                case 0x1F00: /*Conforming*/
+                        if (CPL < DPL())
+                        {
+                                ESP = oldsp;
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        break;
+                default:
+                        // Et ici PAS de `ESP = oldsp`, alors que la branche exterieure en a
+                        // un au meme endroit. Encore une asymetrie du C, portee telle quelle.
+                        x86gpf(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                if ((segdat[2] & 0x8000) == 0)
+                {
+                        ESP = oldsp;
+                        x86np("RETF CS not present\n", (uint16_t)(seg & 0xfffc));
+                        return;
+                }
+
+                cpl_override = 1;
+                writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+
+                cpu_state.pc = newpc;
+                /*Conforming segments don't change CPL, so CPL = RPL*/
+                if ((segdat[2] & 0x400) != 0)
+                        segdat[2] = (uint16_t)((segdat[2] & ~(3 << (5 + 8))) | ((seg & 3) << (5 + 8)));
+                CS = seg;
+                do_seg_load(cpu_state.seg_cs, segdat);
+                cpu_state.seg_cs.access = (uint8_t)((cpu_state.seg_cs.access & ~(3 << 5)) | ((CS & 3) << 5));
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                set_use32(segdat[3] & 0x40);
+
+                cycles -= cpu.timing_retf_pm;
+        }
+        else
+        {
+                /*Retour a un niveau EXTERIEUR : SS et SP sont depiles en plus*/
+                switch (segdat[2] & 0x1F00)
+                {
+                case 0x1800:
+                case 0x1900:
+                case 0x1A00:
+                case 0x1B00: /*Non-conforming*/
+                        if ((seg & 3) != DPL())
+                        {
+                                ESP = oldsp;
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        break;
+                case 0x1C00:
+                case 0x1D00:
+                case 0x1E00:
+                case 0x1F00: /*Conforming*/
+                        if ((seg & 3) < DPL())
+                        {
+                                ESP = oldsp;
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        break;
+                default:
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                if ((segdat[2] & 0x8000) == 0)
+                {
+                        ESP = oldsp;
+                        x86np("RETF CS not present\n", (uint16_t)(seg & 0xfffc));
+                        return;
+                }
+                if (is32 != 0)
+                {
+                        newsp = POPL();
+                        newss = (uint16_t)POPL();
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+                else
+                {
+                        newsp = POPW();
+                        newss = POPW();
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+                if ((newss & ~3) == 0)
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                addr = (uint32_t)(newss & ~7);
+                if ((newss & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(newss & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(newss & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat2[0] = readmemw(0, addr);
+                segdat2[1] = readmemw(0, addr + 2);
+                segdat2[2] = readmemw(0, addr + 4);
+                segdat2[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+
+                // LES TROIS MEMES TESTS QUE pmodeiret, DANS UN ORDRE DIFFERENT. Ici le
+                // type vient AVANT le DPL ; dans pmodeiret c'est l'inverse. Sans
+                // consequence — les trois doivent passer — mais l'ordre se recopie.
+                // Et comme dans pmodeiret, PCem a mis en commentaire
+                // `((newss & 3) != DPL) || (DPL2 != DPL)` au profit de
+                // `(newss & 3) != (seg & 3)` : le RPL de la pile contre celui du CODE.
+                if ((newss & 3) != (seg & 3))
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                if ((segdat2[2] & 0x1A00) != 0x1200)
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                if ((segdat2[2] & 0x8000) == 0)
+                {
+                        ESP = oldsp;
+                        x86np("RETF loading SS not present\n", (uint16_t)(newss & 0xfffc));
+                        return;
+                }
+                if (DPL2() != (seg & 3))
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                SS = newss;
+                set_stack32((segdat2[3] & 0x40) != 0 ? 1 : 0);
+                if (stack32 != 0)
+                        ESP = newsp;
+                else
+                        SP = (uint16_t)newsp;
+                do_seg_load(cpu_state.seg_ss, segdat2);
+
+                // DEUX BITS D'ACCES, et le second par `oaddr` — l'adresse du descripteur
+                // de CODE, sauvegardee avant que addr ne serve a la pile.
+                cpl_override = 1;
+                writememw(0, addr + 4, (uint16_t)(segdat2[2] | 0x100)); /*Set accessed bit*/
+                writememw(0, oaddr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+
+                /*Conforming segments don't change CPL, so CPL = RPL*/
+                if ((segdat[2] & 0x400) != 0)
+                        segdat[2] = (uint16_t)((segdat[2] & ~(3 << (5 + 8))) | ((seg & 3) << (5 + 8)));
+
+                cpu_state.pc = newpc;
+                CS = seg;
+                do_seg_load(cpu_state.seg_cs, segdat);
+                // NOTER L'ABSENCE de la reecriture de seg_cs.access que la branche « meme
+                // niveau » fait juste apres do_seg_load. Elle n'est pas ici, et c'est dans
+                // le C : le masque sur segdat[2] juste au-dessus en tient lieu, mais
+                // SEULEMENT pour un segment conforme. Asymetrie portee telle quelle.
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                set_use32(segdat[3] & 0x40);
+
+                // LE SECOND AJOUT DE `off` : les parametres de la NOUVELLE pile.
+                if (stack32 != 0)
+                        ESP += off;
+                else
+                        SP += (uint16_t)off;
+
+                check_seg_valid(cpu_state.seg_ds);
+                check_seg_valid(cpu_state.seg_es);
+                check_seg_valid(cpu_state.seg_fs);
+                check_seg_valid(cpu_state.seg_gs);
+                cycles -= cpu.timing_retf_pm_outer;
+        }
+    }
 
     // pcem: x86seg.c:32 — intgatesize. SEUL pmodeint l'ecrit, et x86_doabrt le lit pour
     // decider s'il empile le code d'erreur sur 16 ou 32 bits. A zero il prendrait la

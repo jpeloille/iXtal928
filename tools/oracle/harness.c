@@ -873,6 +873,25 @@ void h_trace_close(void) {
  *
  * On ne matérialise pas ici pour y remédier : ce serait muter l'état au point de capture,
  * et rendre la représentation paresseuse invisible à la phase 2 aussi. */
+/* HACHER SANS tsc, POUR SEPARER LE TEMPS DU FONCTIONNEL.
+ *
+ * Le boot-diff AT decroche a l'instruction 627 262 sur `cycles consommes : oracle 68,
+ * C# 87` a F000:3C99 — un MOV AL,AH dans la boucle qui programme le CRTC de la CGA,
+ * donc du TEMPS DE CARTE VIDEO. Ce seul ecart empeche de voir tout ce qui suit, et ce
+ * qui suit contient un defaut FONCTIONNEL : le POST de l'AT rend « 104-System Board
+ * Error » cote C# et pas cote oracle, et 104 sur un AT veut dire « protected mode
+ * failure ».
+ *
+ * tsc est le SEUL champ du hachage que le temps touche — les autres sont CS, pc, les
+ * huit registres, DS/ES/SS et flags. L'exclure rend donc le diff aveugle au temps et
+ * voyant au reste, ce qui est exactement ce qu'on veut pour trouver le 104.
+ *
+ * A POSER DES DEUX COTES, sans quoi les deux hachages ne portent pas sur la meme
+ * chose — et c'est un drapeau de DIAGNOSTIC, pas une porte : un boot-diff sans tsc ne
+ * remplace pas un boot-diff complet, il precede son diagnostic. */
+static int h_trace_notsc = 0;
+void h_set_trace_notsc(int on) { h_trace_notsc = on ? 1 : 0; }
+
 static void h_trace_note(void) {
         uint64_t h = 1469598103934665603ULL;
 #define MIX(v)                                                                                                           \
@@ -891,7 +910,8 @@ static void h_trace_note(void) {
         MIX(cpu_state.seg_es.seg);
         MIX(cpu_state.seg_ss.seg);
         MIX(cpu_state.flags);
-        MIX(tsc);
+        if (!h_trace_notsc)
+                MIX(tsc);
 #undef MIX
         fwrite(&h, sizeof(h), 1, h_trace_fp);
 }

@@ -540,6 +540,11 @@ public static class BootDiff
     }
 
     /// <summary>Doit rester le pendant exact de h_trace_note() (harness.c).</summary>
+    /// <summary>Retire tsc du hachage, des DEUX cotes. Voir harness.c pour le motif :
+    /// separer une divergence de TEMPS d'une divergence FONCTIONNELLE. Drapeau de
+    /// DIAGNOSTIC — un boot-diff sans tsc ne remplace pas un boot-diff complet.</summary>
+    internal static bool SansTsc;
+
     internal static ulong TraceHash()
     {
         ulong h = 1469598103934665603UL;
@@ -559,7 +564,8 @@ public static class BootDiff
         Mix(st.seg_es.seg);
         Mix(st.seg_ss.seg);
         Mix(st.flags);
-        Mix(timer.tsc);
+        if (!SansTsc)
+                Mix(timer.tsc);
         return h;
     }
     private static readonly string[] PitFields =

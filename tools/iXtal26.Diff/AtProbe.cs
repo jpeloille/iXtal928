@@ -34,7 +34,12 @@ public static class AtProbe
 
         Oracle.h_set_core(Oracle.Core286);
         Oracle.h_set_romset(ROM_IBMAT);
-        Oracle.h_set_mem_size(512);
+        // 640 Ko et non 512 : c'est ce que le produit emploie par defaut
+        // (model_c.DEFAULT_RAM), et comparer l'ecran de l'oracle a celui de
+        // `--boot --model ibmat` exige la MEME taille. A 512 l'oracle rend 161 seul,
+        // a 640 il faut verifier s'il rend aussi 104 — « protected mode failure » sur
+        // un AT, donc peut-etre un defaut du bloc C plutot qu'un artefact de CMOS.
+        Oracle.h_set_mem_size(640);
 
         if (Oracle.h_boot(romsPath) == 0)
         {

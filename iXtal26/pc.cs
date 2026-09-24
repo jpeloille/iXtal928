@@ -93,6 +93,10 @@ internal static partial class pc
     // condition de keyboard_at_read qui décide si l'accès coûte huit cycles ISA, et
     // un IBM AT est l'autre moitié de cette condition. ROM_T3100E garde une douzaine
     // de branches du 8042, toutes vers le Toshiba, non transcrit.
+    // ROM_AMI286 = 27 dans l'énum du C, et 26-27 étaient les deux seules places encore
+    // libres après ROM_IBMAT — d'où la correction de 84e39ec, qui avait rendu leurs
+    // vraies valeurs aux quatre entrées squattant ici.
+    internal const int ROM_AMI286 = 27;
     internal const int ROM_IBMXT286 = 66;  // hors cible, présent pour les gardes
     internal const int ROM_T3100E = 70;    // hors cible, présent pour les gardes  // hors cible, présent pour les gardes (fdc.c:98, :628)
 
