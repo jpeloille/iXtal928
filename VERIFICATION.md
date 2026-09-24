@@ -3278,3 +3278,108 @@ l'horloge murale ne lui fournit que 4,773 MHz : son temps s'écoule à 79,545 % 
 et le « 100 % » que le titre affichait sur l'AT valait en réalité 80 %. Les chiffres de
 l'hôte (rapport 7) ne sont pas consignés ici : une autre session compilait pendant la
 mesure, et le protocole de § M5.1 exige une machine au repos.
+
+## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
+
+Parti d'une demande simple — *« fabrique un CMOS pour AMI 286 »* — après le constat de
+`8a125cf` : le CMOS survivait à l'extinction, mais le POST se plaignait toujours de deux
+choses, « CMOS memory size mismatch » et « CMOS display type mismatch ». Le SETUP en ROM
+les corrigerait ; le piloter demande d'envoyer Suppr, les flèches et F10 à l'aveugle.
+
+### La machine, telle que son propre POST l'imprime
+
+```
+  Main Processor     : 80286            Base Memory Size   : 640 KB
+  Numeric Processor  : None             Ext. Memory Size   : 3072 KB
+  Floppy Drive A:    : 1.44 MB, 3 "     Hard Disk C: Type  : 46
+  Floppy Drive B:    : 1.2 MB, 5 "      Hard Disk D: Type  : None
+  Display Type       : VGA or EGA       Serial Port(s)     : None
+  ROM-BIOS Date      : 10/15/90         Parallel Port(s)   : None
+```
+
+Aucune plainte CMOS, aucun 161, aucun 162.
+
+### La somme de contrôle, établie par trois voies
+
+Elle n'est écrite nulle part dans PCem : elle vit dans les BIOS.
+
+> `somme = Σ octets[0x10 … 0x2D]` sur 16 bits · `[0x2E]` poids **fort**, `[0x2F]` poids
+> faible · **une somme nulle est rejetée**.
+
+| voie | où |
+|---|---|
+| Les fichiers livrés | `default/ami286.nvr` → 0x0AB6 · `default/at.nvr` → 0x00E5, tous deux concordants |
+| IBM AT, vérification | `62x0820`+`62x0821` entrelacés, `0x06fe-0x0727` |
+| AMI 286, **écriture** | `amic206.bin:0xacd0-0xad11` — le SETUP lui-même |
+
+La troisième est la plus utile : `--make-nvr` ne fait rien d'autre que ce qu'elle fait.
+
+### Trois choses que la mesure a corrigées
+
+**1. `0x30/0x31` est en kilo-octets.** Ma lecture du désassemblage en faisait des unités
+de 64 Ko. Un amorçage à 4 096 Ko laisse `00 0C`, soit 3 072 exactement — `mem_size −
+1024`, pas son quotient. Le test de `0x8e85` est donc « déclaré ≠ trouvé », et c'est ce
+qui explique la plainte des fichiers de PCem : `ami286.nvr` déclare 1 024 Ko d'étendue, et
+sur une machine qui n'en a pas le POST réécrit `0x30/0x31` à zéro.
+
+**2. Les deux sites de test de l'affichage s'excluent.** `0x9716` ne s'applique que si le
+vecteur d'INT 10h a quitté F000 — carte à ROM d'extension — et **exige** alors `00` ;
+`0x97dd` vaut pour une vidéo de carte mère et **refuse** `00`. Une VGA se déclare donc
+`00`, qui est déjà la valeur livrée par PCem ; une CGA doit dire `20`.
+
+**3. Un désaccord CMOS/lecteur n'est pas cosmétique.** Déclarer A: en 1,44 Mo pendant que
+PCem monte un 1,2 Mo fait programmer le contrôleur pour de la haute densité 3,5" : la
+disquette de 180 Ko devient illisible, « DISKETTE BOOT FAILURE », lecteur bon et image
+intacte. D'où un CMOS par configuration.
+
+### Le point fixe
+
+La preuve la plus forte disponible ici, faute d'oracle : la région de configuration
+`0x10-0x3F` est **identique octet pour octet** avant et après l'amorçage, et `0x0E` reste
+à zéro. Le BIOS n'a rien trouvé à corriger. Vérifié sur trois amorçages successifs, dont
+un avec frappe.
+
+### Trois plafonds successifs sur le disque dur, chacun mesuré
+
+| étape | taille | ce qui plafonne |
+|---|---:|---|
+| Le fichier image | **152,4 Mio** | type 46 de la table du BIOS, 1224 × 15 × 17, lu dans `amic206.bin:0xE6D1` |
+| Ce que l'INT 13h expose | **127,5 Mio** | `AH=08h` fait `sub ax,2` puis écrête les cylindres à 0x3FF (`0xA331-0xA33C`) |
+| Ce que FDISK partitionne | **127,5 Mio** | 261 119 secteurs, fin CHS `1023/14/17` — il prend tout ce que le BIOS décrit |
+| Ce que PC DOS 2.00 formate | **31,5 Mio** | 64 511 secteurs, 16 secteurs par cluster, 4 031 clusters — juste sous la limite des 4 085 du FAT12 |
+
+Les deux cents derniers cylindres du disque ne sont donc atteignables par rien.
+
+### L'amorçage depuis C:
+
+```
+C>DIR
+ Volume in drive C has no label
+ Directory of  C:\
+COMMAND  COM    17664   3-08-83  12:00p
+        1 File(s)  32923648 bytes free
+```
+
+Chaîne complète : `--make-nvr` de la configuration d'installation, amorçage sur la
+disquette, `FDISK`, création de partition, redémarrage automatique, `FORMAT C: /S`, puis
+`--make-nvr` de la configuration finale et amorçage sur le disque.
+
+### Ce qui n'a PAS d'oracle, et pourquoi
+
+L'oracle ne lit pas le même CMOS : ses `nvr_path`, `nvr_default_path` et `config_name`
+sont trois globales de `.bss` jamais affectées (`harness_stubs.c:683-685`), donc il prend
+toujours la branche « pas de fichier ». **Aucun `boot-diff` de classe AT n'est possible** ;
+la campagne VGA de M15 l'a constaté indépendamment. La vérification est donc côté C#
+seul — assumée, pas subie —, comme les écritures disque de M6.
+
+### Le risque nommé qui ne s'est pas réalisé
+
+Compter 3 Mo de mémoire haute fait passer le POST en mode protégé et en revenir par
+l'octet `0x0F` du CMOS et un reset du 8042 : le territoire du 104 non résolu, avec
+`loadcscall` et `taskswitch286` encore en `fatal()`. Aucun n'est tombé.
+
+### Un écart observé une fois, non reproduit
+
+Un amorçage a lu `0x10 = 0x22` alors que `--make-nvr` venait d'écrire `0x42` dans le même
+enchaînement de commandes. Deux reproductions ultérieures, avec et sans frappe, ont rendu
+`0x42` à l'aller comme au retour. **La cause n'est pas connue et n'est pas inventée ici.**
