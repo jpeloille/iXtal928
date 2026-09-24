@@ -387,9 +387,385 @@ internal static partial class x86seg_c
         => pc.fatal($"pmodeint (num {num:X2}) : x86seg.c n'est transcrit qu'en " +
                     "mode reel (bloc C du plan)\n");
 
+    // pcem: x86seg.c:2009-2391 — L'IRET DU MODE PROTEGE, et c'est par lui que le POST
+    // de l'AT ressort apres avoir dimensionne la memoire haute.
+    //
+    // TROIS SORTIES POSSIBLES, et l'ordre des tests les separe : un changement de tache
+    // si NT est pose, un retour au MEME niveau, ou un retour a un niveau MOINS
+    // privilegie qui depile en plus SS et SP.
+    //
+    // `ESP = oldsp` PARTOUT OU IL ECHOUE, et c'est la moitie du travail de cette
+    // fonction. Un IRET depile trois ou cinq mots ; si la verification echoue au
+    // milieu, la pile doit revenir a son etat d'avant, sans quoi le gestionnaire
+    // d'exception rejouerait l'instruction sur une pile a demi consommee. PCem le
+    // repete a chacun de ses quinze points de sortie.
     internal static void pmodeiret(int is32)
-        => pc.fatal($"pmodeiret (is32 {is32}) : x86seg.c n'est transcrit qu'en " +
-                    "mode reel (bloc C du plan)\n");
+    {
+        uint32_t newsp;
+        uint16_t newss;
+        uint32_t tempflags, flagmask;
+        uint32_t newpc;
+        var segdat = new uint16_t[4];
+        var segdat2 = new uint16_t[4];
+        var segs = new uint16_t[4];
+        uint16_t seg = 0;
+        uint32_t addr, oaddr;
+        uint32_t oldsp = ESP;
+        int DPL() => (segdat[2] >> 13) & 3;
+        int DPL2() => (segdat2[2] >> 13) & 3;
+
+        // LA BRANCHE V86 EST MORTE SUR UN 286, gardee par is386 qui vaut 0 pour les
+        // trois machines du depot. Transcrite quand meme : is386 est une VARIABLE et
+        // non une constante de compilation, et la fidelite de structure est la seule
+        // defense d'un bloc que nul oracle independant ne verifie.
+        if (is386 != 0 && (cpu_state.eflags & VM_FLAG) != 0)
+        {
+                if (IOPL != 3)
+                {
+                        // omitted: pclog("V86 IRET! IOPL!=3") — sortie pure.
+                        x86gpf(null!, 0);
+                        return;
+                }
+                if (is32 != 0)
+                {
+                        newpc = POPL();
+                        seg = (uint16_t)POPL();
+                        tempflags = POPL();
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+                else
+                {
+                        newpc = POPW();
+                        seg = POPW();
+                        tempflags = POPW();
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+                cpu_state.pc = newpc;
+                cpu_state.seg_cs.@base = (uint32_t)(seg << 4);
+                cpu_state.seg_cs.limit = 0xFFFF;
+                cpu_state.seg_cs.limit_low = 0;
+                cpu_state.seg_cs.limit_high = 0xffff;
+                CS = seg;
+                cpu_state.flags = (uint16_t)((uint32_t)(cpu_state.flags & 0x3000) | (tempflags & 0xCFD5) | 2u);
+                cycles -= cpu.timing_iret_rm;
+                return;
+        }
+
+        // NT POSE VEUT DIRE « CETTE TACHE A ETE APPELEE PAR UNE AUTRE », et l'IRET est
+        // alors un RETOUR DE TACHE, pas un retour d'interruption : le selecteur de la
+        // tache precedente est dans les deux premiers octets du TSS courant. C'est
+        // pourquoi taskswitch286 est un appelant de pmodeiret et non l'inverse.
+        //
+        // NOTER L'ORDRE DES ARGUMENTS : `readmemw(tr.base, 0)`, la base en premier et
+        // l'offset a zero. Le reste de la fonction fait l'inverse, `readmemw(0, addr)`.
+        // Les deux sont corrects — readmemw additionne ses deux arguments — mais
+        // l'asymetrie est dans le C et se recopie telle quelle.
+        if ((cpu_state.flags & NT_FLAG) != 0)
+        {
+                seg = readmemw(tr.@base, 0);
+                addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        // omitted: pclog("TS LDT ... IRET") — sortie pure.
+                        x86ts(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                else
+                {
+                        if (addr >= gdt.limit)
+                        {
+                                x86ts(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat[0] = readmemw(0, addr);
+                segdat[1] = readmemw(0, addr + 2);
+                segdat[2] = readmemw(0, addr + 4);
+                segdat[3] = readmemw(0, addr + 6);
+                taskswitch286(seg, segdat, segdat[2] & 0x800);
+                cpl_override = 0;
+                return;
+        }
+
+        // LE MASQUE DE DRAPEAUX EST UN MECANISME DE PRIVILEGE. Un programme moins
+        // privilegie ne doit pas pouvoir se donner IOPL ni toucher NT : les deux bits
+        // sont retires du masque selon CPL, donc l'IRET les laisse tels quels au lieu
+        // de les charger depuis la pile. C'est le seul endroit de x86seg.c ou un
+        // drapeau depile est IGNORE plutot que refuse.
+        flagmask = 0xFFFF;
+        if (CPL != 0)
+                flagmask &= unchecked((uint32_t)~0x3000);
+        if (IOPL < CPL)
+                flagmask &= unchecked((uint32_t)~0x200);
+
+        if (is32 != 0)
+        {
+                newpc = POPL();
+                seg = (uint16_t)POPL();
+                tempflags = POPL();
+                if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+                // Seconde branche morte sur un 286 : IRETD vers le mode V86, sous is386.
+                if (is386 != 0 && ((tempflags >> 16) & VM_FLAG) != 0)
+                {
+                        newsp = POPL();
+                        newss = (uint16_t)POPL();
+                        segs[0] = (uint16_t)POPL();
+                        segs[1] = (uint16_t)POPL();
+                        segs[2] = (uint16_t)POPL();
+                        segs[3] = (uint16_t)POPL();
+                        if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+                        cpu_state.eflags = (uint16_t)(tempflags >> 16);
+                        cpu_cur_status |= CPU_STATUS_V86;
+                        loadseg(segs[0], cpu_state.seg_es);
+                        do_seg_v86_init(cpu_state.seg_es);
+                        loadseg(segs[1], cpu_state.seg_ds);
+                        do_seg_v86_init(cpu_state.seg_ds);
+                        cpu_cur_status |= CPU_STATUS_NOTFLATDS;
+                        loadseg(segs[2], cpu_state.seg_fs);
+                        do_seg_v86_init(cpu_state.seg_fs);
+                        loadseg(segs[3], cpu_state.seg_gs);
+                        do_seg_v86_init(cpu_state.seg_gs);
+
+                        cpu_state.pc = newpc & 0xffff;
+                        cpu_state.seg_cs.@base = (uint32_t)(seg << 4);
+                        cpu_state.seg_cs.limit = 0xFFFF;
+                        cpu_state.seg_cs.limit_low = 0;
+                        cpu_state.seg_cs.limit_high = 0xffff;
+                        CS = seg;
+                        cpu_state.seg_cs.access = (3 << 5) | 2;
+                        if (CPL == 3 && oldcpl != 3)
+                                Memory.mem.flushmmucache_cr3();
+                        oldcpl = CPL;
+
+                        ESP = newsp;
+                        loadseg(newss, cpu_state.seg_ss);
+                        do_seg_v86_init(cpu_state.seg_ss);
+                        cpu_cur_status |= CPU_STATUS_NOTFLATSS;
+                        use32 = 0;
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_USE32);
+                        cpu_state.flags = (uint16_t)((tempflags & 0xFFD5) | 2);
+                        cycles -= cpu.timing_iret_v86;
+                        return;
+                }
+        }
+        else
+        {
+                newpc = POPW();
+                seg = POPW();
+                tempflags = POPW();
+                if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+        }
+
+        if ((seg & ~3) == 0)
+        {
+                // omitted: pclog("IRET CS=0") — sortie pure.
+                ESP = oldsp;
+                x86gpf(null!, 0);
+                return;
+        }
+
+        addr = (uint32_t)(seg & ~7);
+        if ((seg & 4) != 0)
+        {
+                if (addr >= ldt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                addr += ldt.@base;
+        }
+        else
+        {
+                if (addr >= gdt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                addr += gdt.@base;
+        }
+        // UN IRET NE PEUT QUE DESCENDRE EN PRIVILEGE, JAMAIS MONTER. `(seg & 3) < CPL`
+        // est un #GP : c'est ce test, et lui seul, qui empeche un programme au CPL 3 de
+        // revenir au CPL 0 en forgeant une pile.
+        if ((seg & 3) < CPL)
+        {
+                ESP = oldsp;
+                x86gpf(null!, (uint16_t)(seg & ~3));
+                return;
+        }
+        cpl_override = 1;
+        segdat[0] = readmemw(0, addr);
+        segdat[1] = readmemw(0, addr + 2);
+        segdat[2] = readmemw(0, addr + 4);
+        segdat[3] = readmemw(0, addr + 6);
+        cpl_override = 0;
+        if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+
+        switch (segdat[2] & 0x1F00)
+        {
+        case 0x1800:
+        case 0x1900:
+        case 0x1A00:
+        case 0x1B00: /*Non-conforming code*/
+                // NON CONFORME EXIGE L'EGALITE, conforme se contente de `>=`. La
+                // difference tient au fait qu'un segment conforme s'execute au privilege
+                // de l'appelant : y revenir avec un RPL plus grand est legal.
+                if ((seg & 3) != DPL())
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                break;
+        case 0x1C00:
+        case 0x1D00:
+        case 0x1E00:
+        case 0x1F00: /*Conforming code*/
+                if ((seg & 3) < DPL())
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(seg & ~3));
+                        return;
+                }
+                break;
+        default:
+                // omitted: pclog("IRET CS != code seg") — sortie pure.
+                ESP = oldsp;
+                x86gpf(null!, (uint16_t)(seg & ~3));
+                return;
+        }
+        if ((segdat[2] & 0x8000) == 0)
+        {
+                ESP = oldsp;
+                x86np("IRET CS not present\n", (uint16_t)(seg & 0xfffc));
+                return;
+        }
+
+        if ((seg & 3) == CPL)
+        {
+                /*Même niveau*/
+                CS = seg;
+                do_seg_load(cpu_state.seg_cs, segdat);
+                cpu_state.seg_cs.access = (uint8_t)((cpu_state.seg_cs.access & ~(3 << 5)) | ((CS & 3) << 5));
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                set_use32(segdat[3] & 0x40);
+
+                cpl_override = 1;
+                writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+                cycles -= cpu.timing_iret_pm;
+        }
+        else /*Return to outer level*/
+        {
+                oaddr = addr;
+                if (is32 != 0)
+                {
+                        newsp = POPL();
+                        newss = (uint16_t)POPL();
+                        if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+                }
+                else
+                {
+                        newsp = POPW();
+                        newss = POPW();
+                        if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+                }
+
+                if ((newss & ~3) == 0)
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                addr = (uint32_t)(newss & ~7);
+                if ((newss & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(newss & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { ESP = oldsp; x86gpf(null!, (uint16_t)(newss & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat2[0] = readmemw(0, addr);
+                segdat2[1] = readmemw(0, addr + 2);
+                segdat2[2] = readmemw(0, addr + 4);
+                segdat2[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0) { ESP = oldsp; return; }
+
+                // TROIS TESTS SUR LE NOUVEAU SS, ET LE PREMIER N'EST PAS CELUI QU'ON
+                // CROIT. PCem a mis en commentaire `((newss & 3) != DPL) || (DPL2 != DPL)`
+                // et le remplace par `(newss & 3) != (seg & 3)` : le RPL de la pile doit
+                // egaler celui du CODE vers lequel on retourne, pas le DPL du descripteur
+                // de code. Les deux se confondent presque toujours, et « presque » est la
+                // raison pour laquelle l'ancienne ligne est encore visible dans le C.
+                if ((newss & 3) != (seg & 3))
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                if ((segdat2[2] & 0x1A00) != 0x1200)
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                if (DPL2() != (seg & 3))
+                {
+                        ESP = oldsp;
+                        x86gpf(null!, (uint16_t)(newss & ~3));
+                        return;
+                }
+                if ((segdat2[2] & 0x8000) == 0)
+                {
+                        ESP = oldsp;
+                        x86np("IRET loading SS not present\n", (uint16_t)(newss & 0xfffc));
+                        return;
+                }
+                SS = newss;
+                set_stack32((segdat2[3] & 0x40) != 0 ? 1 : 0);
+                if (stack32 != 0)
+                        ESP = newsp;
+                else
+                        SP = (uint16_t)newsp;
+                do_seg_load(cpu_state.seg_ss, segdat2);
+
+                // DEUX BITS D'ACCES ECRITS, celui de SS et celui de CS, et le second
+                // utilise `oaddr` — l'adresse du descripteur de CODE, sauvegardee avant
+                // que addr ne soit reaffecte au descripteur de pile. Perdre oaddr
+                // marquerait le mauvais descripteur.
+                cpl_override = 1;
+                writememw(0, addr + 4, (uint16_t)(segdat2[2] | 0x100)); /*Set accessed bit*/
+                writememw(0, oaddr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                cpl_override = 0;
+
+                /*Conforming segments don't change CPL, so CPL = RPL*/
+                if ((segdat[2] & 0x400) != 0)
+                        segdat[2] = (uint16_t)((segdat[2] & ~(3 << (5 + 8))) | ((seg & 3) << (5 + 8)));
+
+                CS = seg;
+                do_seg_load(cpu_state.seg_cs, segdat);
+                cpu_state.seg_cs.access = (uint8_t)((cpu_state.seg_cs.access & ~(3 << 5)) | ((CS & 3) << 5));
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                set_use32(segdat[3] & 0x40);
+
+                // ET LES QUATRE AUTRES SEGMENTS SONT REVALIDES, parce que CPL vient de
+                // MONTER : un selecteur charge au CPL 0 peut etre illegal au CPL 3.
+                // check_seg_valid les vide plutot que de lever — voir sa transcription.
+                check_seg_valid(cpu_state.seg_ds);
+                check_seg_valid(cpu_state.seg_es);
+                check_seg_valid(cpu_state.seg_fs);
+                check_seg_valid(cpu_state.seg_gs);
+                cycles -= cpu.timing_iret_pm_outer;
+        }
+        cpu_state.pc = newpc;
+        cpu_state.flags = (uint16_t)((cpu_state.flags & ~flagmask) | (tempflags & flagmask & 0xFFD5) | 2);
+        if (is32 != 0)
+                cpu_state.eflags = (uint16_t)(tempflags >> 16);
+    }
 
     /// <summary>pcem: x86seg.c:2393-2748 — LE CHANGEMENT DE TACHE, etape 8 du bloc C.
     ///

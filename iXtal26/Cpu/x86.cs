@@ -222,6 +222,9 @@ internal static partial class x86
     internal const uint16_t CPU_STATUS_USE32 = 1 << 0;
     internal const uint16_t CPU_STATUS_STACK32 = 1 << 1;
     internal const uint16_t CPU_STATUS_PMODE = 1 << 2;
+    // pcem: x86.h:186 — DÉ-OMISSION : pmodeiret le pose sur son retour vers le V86,
+    // branche morte sur un 286 mais transcrite (voir x86seg.cs).
+    internal const uint16_t CPU_STATUS_V86 = 1 << 3;
     internal const uint16_t CPU_STATUS_NOTFLATDS = 1 << 8;
     internal const uint16_t CPU_STATUS_NOTFLATSS = 1 << 9;
 
