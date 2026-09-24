@@ -23,7 +23,7 @@ iXtal26/Cpu/x86seg.cs	pcem-dev/src/cpu/x86seg.c	b03f578455a8ecb4e61ffaf533401b5b
 iXtal26/Devices/nvr.cs	pcem-dev/src/devices/nvr.c	b969db50e5fe43c81408802ed677626335306780ea0722774c80740ed32187bd	18-783	partial	B1a + nvrfopen, loadnvr et savenvr REELS, reduits aux deux machines a 286 ; les trente autres cas du switch au registre
 iXtal26/rtc.cs	pcem-dev/src/rtc.c	8ded99fe0d6dee1e10448927f189fa53fa2df739a5321fe76ac550e371970a7c	17-222	partial	B1 : l'horloge interne du MC146818 ; time_internal_sync lit l'horloge de l'hote
 iXtal26/Devices/cassette.cs	pcem-dev/src/devices/cassette.c	c6fff8e080086c90d9193b802ce5c026d093605aeaa9609a2c37ccf130cddc99	-	partial	interface seule
-iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	2ef94bc968feae9d76da2e9e33d9f858419b0f8086af85298dc49d1d5c4b49b7	-	host	compteurs d'appels des stubs
+iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	5dda972f226f983988352657d375efe89aba06fbd5b7ea2f45e5b08a429e38c3	-	host	compteurs d'appels des stubs
 iXtal26/Diag/HState.cs	tools/oracle/harness.h	04c454026866e5298ca294c97d55edf8f1b0cfdde4cc6b5275e4a262870126fc	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
 iXtal26/Disc/disc.cs	pcem-dev/src/disc/disc.c	444b2958bdf57de9c513ebb801462d6d0dbeb78835376407b9436e20d26f37b0	1-269	partial	M6 : chargeur FDI omis de la table loaders[]
 iXtal26/Disc/disc_img.cs	pcem-dev/src/disc/disc_img.c	261ef2ed0fac464a51747d80df093f750bad3c986732493b202c5fd761f31592	1-439	transcribed	M6 : stdio en FileStream, tableaux XDF en escalier
@@ -44,7 +44,7 @@ iXtal26/Memory/mem.cs	pcem-dev/src/memory/mem.c	966e709dcbd19255a6c7e8a4bc5335f1
 iXtal26/Memory/mem_bios.cs	pcem-dev/src/memory/mem_bios.c	be209a1717d10ae5ed55cd713153f00e787d9814abcdfac22cd410f1ae8617bd	9-72,166-181,543-552,1278-1284	partial	loadbios reduit a ROM_IBMPC et ROM_IBMXT ; 100 romsets omis
 iXtal26/Mfm/mfm_at.cs	pcem-dev/src/mfm/mfm_at.c	04ccf299fb326874b77a0e9c391e9182078f45e2366fec5a48c1c912eb6956cf	1-533	transcribed	le controleur de disque dur d'un AT ; mfm_drive_t et mfm_t IMBRIQUES, mfm_xebec.cs ayant deja ce nom au namespace
 iXtal26/Mfm/mfm_xebec.cs	pcem-dev/src/mfm/mfm_xebec.c	ad4768c283854477f7eda9f45633b6fc40b14181cbf340b8f2bda117933055c2	1-803	transcribed	M12 : les DEUX cartes, Xebec et DTC 5150X ; seul mfm_xebec est cable
-iXtal26/Models/model.cs	pcem-dev/src/models/model.c	c13e03229da8948b32a9e3c46482da69c319af87a7e17ae892709f9dc5f71523	148-178,192-211,335-351,452-455,686-694,777-783,986-995,1106-1115	partial	quatre machines sur 97 : ibmpc, ibmxt, ibmat, ami286 ; ibmat pointe cpus_286 et non cpus_ibmat (DEVIATION temporaire, M16)
+iXtal26/Models/model.cs	pcem-dev/src/models/model.c	c13e03229da8948b32a9e3c46482da69c319af87a7e17ae892709f9dc5f71523	148-178,192-211,335-351,452-455,686-694,777-783,986-995,1106-1115	partial	quatre machines sur 97 : ibmpc, ibmxt, ibmat, ami286, chacune avec sa table de CPU
 iXtal26/Models/model.cs	pcem-dev/includes/public/pcem/devices.h	28996d850f31b851948f251f7731cff98f10295ff197e1c18ae47567c816a62f	69-82	partial	struct MODEL ; son membre cpu[5] depuis M16, device omis
 iXtal26/Models/neat.cs	pcem-dev/src/models/neat.c	da5599b1b341bf33c3f41233bec4b177f6cf14c008ee77bd484e6314da58d417	1-62	partial	les deux ports de config et les quatre pages EMS ; neat_writeems/readems sans appelant
 iXtal26/Models/nmi.cs	pcem-dev/src/models/nmi.c	010a827b5c25f798704650f423ee58531fd24028430d15a10f2c0ebb04a0ab20	-	partial	nmi_mask seul

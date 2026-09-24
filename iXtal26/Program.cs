@@ -423,8 +423,7 @@ for (var i = 0; i < args.Length; i++)
     }
 
     // L'INDICE du processeur dans la table de la machine (M16) : 5 est un 286/20 sur
-    // l'ami286, un 8088/16 sur le 5150, et n'existe pas sur l'ibmat de PCem (cpus_ibmat) — ici
-    // accepté tant que dure la DEVIATION temporaire de model.cs (T-ibmat). Collecté puis
+    // l'ami286, un 8088/16 sur le 5150, et n'existe pas sur l'ibmat (cpus_ibmat). Collecté puis
     // appliqué APRÈS --model, et jugé contre la machine finale par pc.check_cpu.
     if (arg == "--cpu")
     {
@@ -1173,9 +1172,7 @@ static void PrintUsage()
     Console.WriteLine("                       précédence que --model : l'emporte sur la clé gfxcard");
     Console.WriteLine("  --cpu N              processeur : l'INDICE dans la table de la machine, appliqué");
     Console.WriteLine("                       après --model. ibmpc/ibmxt : 0 = 8088/4.77 … 5 = 8088/16 ;");
-    Console.WriteLine("                       ibmat : 0 = 286/6, 1 = 286/8 chez PCem, et pour l'instant");
-    Console.WriteLine("                       la table de l'ami286 (M16, DEVIATION temporaire) ;");
-    Console.WriteLine("                       ami286 : 0 = 286/6 …");
+    Console.WriteLine("                       ibmat : 0 = 286/6, 1 = 286/8 ; ami286 : 0 = 286/6 …");
     Console.WriteLine("                       5 = 286/20, 6 = 286/25. Hors table : refusé, en listant");
     Console.WriteLine("                       ce qui existe. Aussi sous --boot et --timer-check");
     Console.WriteLine("  --ram N              taille RAM en Ko. Les bornes viennent de la MACHINE :");

@@ -234,19 +234,16 @@ internal static partial class model_c
     // LE PREMIER MODÈLE DU DÉPÔT QUI N'EST PAS UN 8088, et son flag MODEL_AT est ce
     // que BootDiff lit pour choisir le cœur des DEUX côtés, avant l'amorçage.
     //
-    // DEVIATION: TEMPORAIRE (M16, étape 3 → étape 5). PCem donne à l'IBM AT la table
-    //   `cpus_ibmat` (model.c:1109) : 286/6 et 286/8, à TROIS cycles de lecture et
-    //   d'écriture mémoire. Elle pointe ici sur `cpus_286`, dont l'entrée 0 — 286/6 à
-    //   DEUX cycles — est ce que l'AT de ce dépôt a toujours eu, des deux côtés, sans
-    //   que rien ne le signale. Rendre l'AT à sa vraie table déplace son temps : c'est
-    //   un levier à part, avec son chiffre (VERIFICATION.md § M16). L'oracle pointe sur
-    //   la même table, au même titre.
+    // `cpus_ibmat` (model.c:1109) : 286/6 et 286/8, à TROIS cycles de lecture et
+    // d'écriture mémoire. Jusqu'à M16 l'AT de ce dépôt avait ceux de cpus_286[0], DEUX,
+    // des deux côtés et sans que rien ne le signale : c'est le levier B de M16 qui l'a
+    // rendu à sa table (VERIFICATION.md § M16, étape 5).
     internal static readonly MODEL m_ibmat = new MODEL
     {
         name = "[286] IBM AT",
         id = pc.ROM_IBMAT,
         internal_name = "ibmat",
-        cpu = [new("", Cpu.cpu_tables.cpus_286), new("", null), new("", null), new(), new()],
+        cpu = [new("", Cpu.cpu_tables.cpus_ibmat), new("", null), new("", null), new(), new()],
         flags = MODEL_GFX_NONE | MODEL_AT,
         min_ram = 256,
         max_ram = 15872,

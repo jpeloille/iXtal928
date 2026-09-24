@@ -876,10 +876,7 @@ H_STUB_NVR(xi8088_turbo_set)
  * pas par l'ordre d'enregistrement de model_init_builtin (model.c:1625-1746), que le
  * harnais ne lie pas. Les champs sont ceux de model.c:777-778, :782-783, :986-995 et
  * :1106-1115 ; `init` et `device` restent nuls, le harnais inlinant les deux inits.
- *
- * DEVIATION TEMPORAIRE (M16, étape 3 → étape 5) : l'IBM AT pointe sur cpus_286 et non
- * sur cpus_ibmat (model.c:1109) — trois cycles mémoire au lieu de deux. Même geste côté
- * C#, model.cs ; le rendre à sa table est un levier à part. */
+ * L'IBM AT a sa vraie table, cpus_ibmat, depuis le levier B de M16 (étape 5). */
 static MODEL h_model_ibmpc = {
         .name = "[8088] IBM PC",
         .id = ROM_IBMPC,
@@ -906,7 +903,7 @@ static MODEL h_model_ibmat = {
         .name = "[286] IBM AT",
         .id = ROM_IBMAT,
         .internal_name = "ibmat",
-        .cpu = {{"", cpus_286}, {"", NULL}, {"", NULL}},
+        .cpu = {{"", cpus_ibmat}, {"", NULL}, {"", NULL}},
         .flags = MODEL_GFX_NONE | MODEL_AT,
         .min_ram = 256,
         .max_ram = 15872,

@@ -3388,6 +3388,33 @@ abi 18, fuzz 8088 et 286, core286-check et SST identiques, les cinq boot-diff, `
 Ce qui bouge, et devait bouger : les comptes `--boot` et les écrans `vga-probe` de l'AT
 (atteints plus tôt), les tranches des scripts `--type-at` de l'AT (à diviser par 1,257).
 
+### Étape 5 : le levier B — l'IBM AT rendu à cpus_ibmat
+
+`m_ibmat` pointe sur `cpus_ibmat` (`model.c:1109`) des deux côtés : 286/6 et 286/8, à trois
+cycles de lecture et d'écriture mémoire. L'AT de ce dépôt avait, depuis B2, les deux
+cycles de `cpus_286[0]` — l'entrée de l'ami286 —, symétriquement, donc sans qu'aucune
+porte ne le voie. Levier accepté par l'utilisateur sur les chiffres de l'étape 4.
+
+| Contrôle | Prédit | Mesuré |
+|---|---|---|
+| `cpu-config-check` (et `--inverse`) | 21 identiques : ibmat 286/6 et 286/8 à lecture/écriture 3/6, préfetch mémoire et ROM 3 ; `cpu = 2` refusé | **21 identiques, 4 refus** |
+| `--timer-check --model ibmat` (300 s) | rapports 1, 3, 5, 6 inchangés ; CPI en hausse | rapport 6 **0,999992** ; **277 837 045** instructions sur la fenêtre contre 383 287 727 ; CPI 6,48 |
+| `--boot roms 1000 --model ibmat` | moins que 9 932 822 instructions, tsc ≈ 60 000 000 | **8 170 432**, tsc 60 000 034 |
+| `boot-diff --model ibmat` | empreinte identique ; divergence **toujours à l'instruction 40** | empreinte identique (mem 3, 3/6) ; divergence à l'instruction **50** |
+| ami286, ibmpc, ibmxt, fuzz, core286-check, SST | strictement inchangés | identiques |
+
+**Une prédiction manquée, et pourquoi.** La divergence de l'ibmat est la même — `IN AL,71h`
+en `F000:0169`, l'oracle lit `0xFF` (CMOS sans fichier), le C# `0x10` (`nvr/.at.nvr`, sha256
+inchangé) — mais le chemin qui y mène compte dix instructions de plus. Seul le temps a
+changé, donc ce chemin en dépend : une attente avant la lecture du CMOS, dont le nombre de
+tours suit la durée des instructions. Le mécanisme exact n'a pas été tracé. Les deux côtés
+restent identiques jusque-là, instruction par instruction.
+
+Bougent comme prévu : `at-probe` (oracle seul, ROM_IBMAT), les écrans `vga-probe` et les
+comptes `--boot` de l'ibmat. Portes, au chiffre près : build Release 0 avertissement, build
+Diff, make oracle + selftest, check-oracle 0 dérive, abi 18, fuzz 8088 et 286, core286-check
+et SST identiques, les cinq boot-diff, `boot-diff --cpu 3` à 52 936 819, `--setup-check`.
+
 ## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
 
 Parti d'une demande simple — *« fabrique un CMOS pour AMI 286 »* — après le constat de
