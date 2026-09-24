@@ -1178,6 +1178,10 @@ int h_boot(const char *romspath) {
          * cpu_update_waitstates() ne repose sur aucun zéro implicite. */
         cpu_cache_int_enabled = cpu_cache_ext_enabled = 0;
 
+        /* pc.c:439 — le VRAI depuis le levier A de M16, inerte : cpu_set() a posé
+         * cpu_turbo à 1. Pendant de pc.resetpchard côté C#. */
+        cpu_set_turbo(1);
+
         nextcyc = 0;
         memcycs = 0;
         cycdiff = 0;

@@ -4,7 +4,7 @@
 // ORACLE: pcem-dev/src/cpu/cpu.c + includes/private/cpu/cpu.h
 // STATUS: partial — cpu_set() réduit aux deux familles que les tables du dépôt
 //         portent, le 8088 et le 286 (M16) ; cpu_update_waitstates() entier ;
-//         cpu_get_speed(). Tout ce qui concerne le 386 et au-delà — tables d'opcodes
+//         cpu_get_speed() et cpu_set_turbo(). Tout ce qui concerne le 386 et au-delà — tables d'opcodes
 //         32 bits, dynarec, FPU, MSR, Cyrix — est omis, bloc par bloc, sur place.
 //
 // L'oracle lie cpu.c (tools/oracle/Makefile) et fait tourner le VRAI cpu_set() de
@@ -61,11 +61,8 @@ internal static partial class cpu_c
     internal static int fpu_type;
 
     // pcem: cpu.c:14-15
-    // DEVIATION: `internal` et non `private` comme le `static` du C : tant que
-    //   cpu_get_speed() est gelé (voir plus bas), rien ne les lit, et le compilateur
-    //   refuserait un champ privé écrit sans jamais être lu.
-    internal static int cpu_turbo_speed, cpu_nonturbo_speed;
-    internal static int cpu_turbo = 1;
+    private static int cpu_turbo_speed, cpu_nonturbo_speed;
+    private static int cpu_turbo = 1;
 
     // pcem: cpu.c:82
     // DEVIATION: `int cpu = 3` chez PCem, qui passe TOUJOURS par loadconfig avant
@@ -113,20 +110,46 @@ internal static partial class cpu_c
     // Le PPI du 5150 la rapporte au BIOS via les interrupteurs DIP (port 0x62).
     internal static int hasfpu = 0;
 
-    // pcem: cpu.c:2067-2071 — `if (cpu_turbo) return cpu_turbo_speed; return
-    // cpu_nonturbo_speed;`.
-    // DEVIATION: TEMPORAIRE (M16, étape 3 → étape 4). Le budget de tranche reste
-    //   celui du 8088 sur TOUTES les machines, des deux côtés (l'oracle enveloppe
-    //   cpu_get_speed() à la même constante) : l'étape 3 porte la STRUCTURE de
-    //   cpu_set() à chiffres gelés, et le levier A — le budget suit rspeed — est un
-    //   commit à part, avec son propre chiffre. VERIFICATION.md § M16.
-    internal static int cpu_get_speed() => 4772728;
+    // pcem: cpu.c:2050-2063 — le bit turbo du port 0x61 sur les clones XT, et le
+    // cpu_set_turbo(1) de fin de resetpchard (pc.c:439). keyboard_xt.cs ne l'appelle que
+    // pour GENXT, DTKXT, AMIXT et PXXT, jamais atteints ici ; celui de resetpchard est
+    // inerte, cpu_set() venant de poser cpu_turbo à 1.
+    internal static void cpu_set_turbo(int turbo)
+    {
+        if (cpu_turbo != turbo)
+        {
+                cpu_turbo = turbo;
 
-    // pcem: cpu.c:2050-2063 — le bit turbo du port 0x61 sur les clones XT. Seul
-    // keyboard_xt.cs l'appelle, et seulement pour GENXT, DTKXT, AMIXT et PXXT : jamais
-    // atteint ici. Corps vide tant que cpu_get_speed() est gelé — les deux se
-    // transcrivent ensemble, au levier A.
-    internal static void cpu_set_turbo(int turbo) { }
+                cpu_s = model_c.models[model_c.model].cpu[cpu_manufacturer].cpus![cpu];
+                if (cpu_s.cpu_type >= CPU_286)
+                {
+                        if (cpu_turbo != 0)
+                                pit.setpitclock(cpu_turbo_speed);
+                        else
+                                pit.setpitclock(cpu_nonturbo_speed);
+                }
+                else
+                        pit.setpitclock(14318184.0f);
+        }
+    }
+
+    // omitted: cpu_get_turbo() et cpu_set_nonturbo_divider() (cpu.c:2065, :2073-2080) —
+    //   leurs seuls appelants sont des chipsets de clones (scat, opti495, t1000…) que le
+    //   dépôt ne porte pas.
+
+    // pcem: cpu.c:2067-2071
+    //
+    // C'EST LE BUDGET DE CHAQUE TRANCHE (pc.c:473), et jusqu'à M16 il valait 4 772 728
+    // en dur, sur TOUTES les machines et des deux côtés : un 286 recevait les cycles d'un
+    // 8088 pendant que son PIT comptait à 6 MHz, et son temps s'écoulait à 79,5 % du
+    // temps réel (VERIFICATION.md § M16). Avant le premier cpu_set(), il rend 0 : tout
+    // lecteur doit donc venir après initpc — c'est vérifié pour chacun (§ M16, étape 4).
+    internal static int cpu_get_speed()
+    {
+        if (cpu_turbo != 0)
+                return cpu_turbo_speed;
+        return cpu_nonturbo_speed;
+    }
 
     // pcem: cpu.h — le modèle de temps de PRÉFETCH de l'interpréteur, posé par
     // cpu_update_waitstates() (cpu.c:2010-2047). Ajoutés en A2.2a parce que

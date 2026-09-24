@@ -290,22 +290,15 @@ void __wrap_cpu_update_waitstates(void) { }
  * c'est le comportement mesuré des cinq chiffres de régression.
  *
  * M16 : models[] est peuplé sur le chemin de h_boot, donc « elles plantent » n'est plus
- * le motif. Ce sont désormais des DÉVIATIONS, déclarées des deux côtés : cpu_get_speed
- * et cpu_set_turbo sont gelées jusqu'au levier A (étape 4), cpu_set_edx garde DX au
- * reset là où PCem pose edx_reset (voir keyboard_at.cs, x86seg.cs).
+ * le motif. cpu_get_speed et cpu_set_turbo ne sont plus enveloppées depuis le levier A
+ * (étape 4) : ce sont les vraies. Reste cpu_set_edx, DÉVIATION déclarée des deux
+ * côtés : DX est gardé au reset là où PCem pose edx_reset (keyboard_at.cs, x86seg.cs).
  *
  * Sur les quarante-deux symboles retirés, ces quatre sont les seuls à être des
  * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes
  * valeurs — sauf cpu_busspeed et isa_cycles, ré-affirmées par h_cpu_config_8088(). */
-/* DEVIATION TEMPORAIRE (M16, étape 3 → étape 4) : le budget reste celui du 8088 sur
- * toutes les machines, comme cpu_get_speed() côté C# (cpu.cs). Le levier A retire
- * l'enveloppe. */
-int __wrap_cpu_get_speed(void) { return 4772728; }
 void __wrap_cpu_set_edx(void) { }
 
-/* Bit turbo du port 0x61 sur les clones XT. Le 5150 n'en a pas. DEVIATION TEMPORAIRE
- * (M16, étape 3 → 4), avec __wrap_cpu_get_speed : pendant du corps vide de cpu.cs. */
-void __wrap_cpu_set_turbo(int turbo) { (void)turbo; }
 
 /* Cassette : pas de lecteur, l'entrée reste basse. */
 int cassette_input(void) { return 0; }

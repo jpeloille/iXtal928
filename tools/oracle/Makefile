@@ -102,7 +102,12 @@ LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 # wrapper vit dans harness_stubs.c, pas dans harness_wrap.c, parce que bench exclut ce
 # dernier ; et ce drapeau-ci s'applique aux deux cibles, là où les neuf ci-dessus sont
 # propres à la .so (bench doit mesurer SANS compteurs).
-WRAP_BOTH := cpu_update_waitstates cpu_set_edx cpu_get_speed cpu_set_turbo
+#
+# M16, levier A : cpu_get_speed et cpu_set_turbo SORTENT de la liste. Le budget de
+# chaque tranche est celui de PCem, cpu_turbo ? cpu_turbo_speed : cpu_nonturbo_speed,
+# que le vrai cpu_set() pose dans h_boot. Restent enveloppés les deux appels des resets
+# (cpu_update_waitstates) et cpu_set_edx, DEVIATIONS déclarées des deux côtés.
+WRAP_BOTH := cpu_update_waitstates cpu_set_edx
 WRAPFLAGS_BOTH := $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP_BOTH))
 LDFLAGS += $(WRAPFLAGS_BOTH)
 

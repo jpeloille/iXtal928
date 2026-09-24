@@ -1487,7 +1487,7 @@ en-tête, et une ligne blanche avant chaque `[section]`.
 
 | Paramètre | Bloqué par |
 |---|---|
-| **Vitesse CPU** | Le budget de tranche est DÉRIVÉ côté C# (`pc.cs`, `cpu_get_speed() / 100`) et **littéral** côté C (`harness.c:489`, `4772728 / 100`), plus `bench.c:28` et `BootProfile.cs:76`. Le rendre configurable sans corriger cela ferait tourner les deux côtés à des vitesses différentes **sans aucun diagnostic** |
+| **Vitesse CPU** | **Fermé en § M16** (étapes 3 et 4) : clé `cpu`, vrai `cpu_set()` des deux côtés, budget = rspeed / 100, empreinte CPU confrontée. — Le budget de tranche est DÉRIVÉ côté C# (`pc.cs`, `cpu_get_speed() / 100`) et **littéral** côté C (`harness.c:489`, `4772728 / 100`), plus `bench.c:28` et `BootProfile.cs:76`. Le rendre configurable sans corriger cela ferait tourner les deux côtés à des vitesses différentes **sans aucun diagnostic** |
 | **Carte vidéo** | Une seule carte transcrite ; quatre éditions en tandem pour un choix à une valeur |
 | **`hasfpu`** | Les deux côtés dépendent d'un zéro IMPLICITE, jamais d'une affectation. Le rendre réglable exige d'ajouter l'affectation explicite des deux côtés, sinon un seul change le bit 1 de SW1 |
 | **`video_speed`** | `video_updatetiming` est un no-op côté C alors que `video.cs` calcule vraiment — réglage à sens unique tant que ce n'est pas tranché |
@@ -3351,6 +3351,42 @@ régressions). Rien de bloquant ; ce qu'elle a trouvé, et ce qui en a été fai
   d'une machine, et ajoute son message à celui de la mémoire au lieu de l'écraser.
 - Citations corrigées (`cpu.h`, `cpu.c`, plages de `oracle.tsv`), commentaires périmés de
   `386_ops_fpu.cs`, `mem.cs`, `AtProbe.cs` et `BootDiff.cs` réécrits.
+
+### Étape 4 : le levier A — le budget suit rspeed
+
+Une ligne de chaque côté : `cpu_get_speed()` et `cpu_set_turbo()` deviennent verbatim
+(`cpu.c:2050-2071`), et l'oracle retire les deux enveloppes (`Makefile`, `WRAP_BOTH`).
+`h_runpc` et `runpc` lisent désormais le budget de PCem — `cpu_turbo ? cpu_turbo_speed :
+cpu_nonturbo_speed`, que `cpu_set()` pose — et `resetpchard` finit par le `cpu_set_turbo(1)`
+de `pc.c:439`, inerte.
+
+**Prédictions écrites avant la mesure, et tenues :**
+
+| Contrôle | Prédit | Mesuré |
+|---|---|---|
+| `--timer-check --model ibmat`, rapport 1 | 6 000 000 /s | **6 000 000,000** |
+| rapport 3 | 18,2065 Hz ± 33 ppm | 18,206966 (+24,9 ppm) |
+| rapport 5, fréquence vue par l'invité | 6,000 MHz | **5 999 850,7 Hz** (−24,9 ppm) |
+| rapport 6, temps invité / contractuel | 1,0000 | **1,000025** |
+| cycles jamais portés au tsc | 0 | 0 sur 1 800 300 000 |
+| même chose, `--model ami286` | idem | 6 000 000,07 ; 18,206966 ; 5 999 850,8 ; 1,000025 ; 0 |
+| `--boot roms 1000 --model ibmat` | entre les comptes à 1 257 et 1 258 tranches de l'ancien budget : [9 931 862 ; 9 938 230] | **9 932 822**, tsc 60 000 003 |
+| `--boot roms 1000 --model ami286` | [8 091 512 ; 8 097 243] | **8 092 369**, tsc 59 999 825 |
+| `boot-diff roms 6000 --cpu 3` (8088/10, 100 000 cycles) | vert, compte ≠ 25 457 269 | **vert, 52 936 819** |
+| `cpu-config-check` (et `--inverse`) | budget = rspeed / 100 | 47 727 … 160 000 (8088), 60 000 … 250 000 (286), vert |
+| ibmpc, ibmxt | strictement inchangés | les cinq boot-diff, `--timer-check`, `vga-probe` identiques |
+
+`boot-diff --cpu 3` est LA porte de ce levier : c'est le seul diff qui va jusqu'au contrôle
+de longueur final avec un budget changé — l'AT diverge avant, sur le CMOS — et il exerce un
+`xt_cpu_multi` non entier (14 318 184 / 10 000 000). Un budget asymétrique y sortirait en
+écart de longueur, et l'empreinte CPU l'aurait nommé avant.
+
+Le bilan `--verbose` de l'ami286 dit désormais « 1 seconde invitée par tranche de 10 ms » :
+**sous le frein, le 286 tient le temps réel à 6 MHz**. Porte, au chiffre près : build
+Release 0 avertissement, build Diff, make oracle + selftest + bench, check-oracle 0 dérive,
+abi 18, fuzz 8088 et 286, core286-check et SST identiques, les cinq boot-diff, `--setup-check`.
+Ce qui bouge, et devait bouger : les comptes `--boot` et les écrans `vga-probe` de l'AT
+(atteints plus tôt), les tranches des scripts `--type-at` de l'AT (à diviser par 1,257).
 
 ## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
 

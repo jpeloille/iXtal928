@@ -14,8 +14,6 @@
 //   Il CESSE de l'etre des qu'un second resetpchard tourne sur un 8042 deja
 //   interroge, keyboard_at.cs incrementant les deux bits bas de input_port a chaque
 //   commande 0xC0.
-// omitted: cpu_set_turbo() (:439) — gele avec cpu_get_speed() jusqu'au levier A de
-//   M16 (cpu.cs), et le quatrieme __wrap_ du Makefile a corps vide cote oracle.
 // omitted: image_close() (:411) et le bloc cdrom — lecteur de CD-ROM, hors cible.
 // omitted: mem_set_704kb() (:370-371) — garde `!AT && max_ram <= 768`, fausse pour les
 //   trois machines du depot. NOTE : le C teste `AT` AVANT que model_init() ne le pose,
@@ -670,6 +668,13 @@ internal static partial class pc
         // et cpu_set() les a lus à zéro. Transcrit pour que cpu_update_waitstates() ne
         // repose sur aucun zéro implicite.
         cpu_c.cpu_cache_int_enabled = cpu_c.cpu_cache_ext_enabled = 0;
+
+        // omitted: image_close() et le bloc cdrom (pc.c:411-433) — voir l'en-tête.
+        // omitted: sound_update_buf_length() (:438) — n'était pas marqué. Il recalcule la
+        //   longueur du tampon son depuis la configuration audio, que resetpchard ne change
+        //   pas ici, et sound_poll le rappelle à chaque bloc (sound.cs).
+        // pcem: pc.c:439 — inerte : cpu_set() a déjà posé cpu_turbo à 1.
+        cpu_c.cpu_set_turbo(1);
     }
 
     // pcem: pc.c:344-351 — Ctrl+Alt+Suppr, poussé dans la file du clavier. Redémarrage
