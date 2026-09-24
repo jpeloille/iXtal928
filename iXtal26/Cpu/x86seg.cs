@@ -1,14 +1,25 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/cpu/x86seg.c  (lignes 50-74, 419-448, 452-566)
+// ORACLE: pcem-dev/src/cpu/x86seg.c  (plages dans oracle.tsv)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — branches MODE RÉEL uniquement (~80 lignes sur 3 187).
+// STATUS: partial — les branches MODE RÉEL, plus LES FONDATIONS DU MODE PROTÉGÉ
+//         depuis le bloc C étape 4 : les cinq leveurs d'exception, x86abort,
+//         set_stack32, set_use32, do_seg_load, do_seg_v86_init, check_seg_valid,
+//         PUSHW / PUSHL / POPW / POPL. Restent à écrire : loadseg et loadcsjmp en
+//         mode protégé (étape 5), pmodeint et pmodeiret (6), pmoderetf et
+//         loadcscall (7), taskswitch286 (8). Voir PLAN-286.md.
 //
 // x86seg.c est partagé entre le cœur 8088 et le cœur 386 : 808x.c l'appelle pour
 // loadcs/loadseg, et sur un XT `msw & 1` vaut toujours 0, donc seules les
-// branches `else` sont atteintes. Tout le mode protégé — descripteurs, portes,
-// TSS, gates — est hors palier (a) et constitue son propre lot de travail.
+// branches `else` étaient atteintes au palier (a).
+//
+// TROIS FONCTIONS PRÉCÈDENT LEURS APPELANTS, et c'est voulu : do_seg_load,
+// do_seg_v86_init et check_seg_valid n'ont encore personne qui les appelle — ce sera
+// l'étape 5. Elles sont écrites d'abord parce que TOUT le reste du bloc C en dépend,
+// et que l'alternative était un commit de deux mille lignes. Le compilateur ne s'en
+// plaint pas (C# n'avertit pas sur une méthode privée non appelée), donc c'est écrit
+// ici plutôt que laissé à deviner.
 //
 // Le nom de conteneur est x86seg_c : le fichier x86seg.c et le typedef x86seg se
 // disputent le nom, et c'est le type qui le garde (cf. TRANSCRIPTION.md).
@@ -264,5 +275,290 @@ internal static partial class x86seg_c
     {
         cpu_state.abrt = (int8_t)ABRT_SS;
         abrt_error = error;
+    }
+
+    // pcem: x86seg.c:150-154 — DÉFAUT DE TSS. Levé par taskswitch286 et par les portes
+    // de tâche ; il n'était pas transcrit parce qu'aucun chemin de mode réel ne le lève.
+    internal static void x86ts(string s, uint16_t error)
+    {
+        cpu_state.abrt = (int8_t)ABRT_TS;
+        abrt_error = error;
+    }
+
+    // pcem: x86seg.c:155-159 — SEGMENT ABSENT, bit `present` du descripteur à zéro.
+    internal static void x86np(string s, uint16_t error)
+    {
+        cpu_state.abrt = (int8_t)ABRT_NP;
+        abrt_error = error;
+    }
+
+    // DEVIATION: x86abort (x86seg.c:40-48) fait error(), dumpregs(), pclog_end() puis
+    //   exit(-1). Les trois premiers sont des sorties pures, non transcrites dans ce
+    //   dépôt ; le quatrième est un arrêt du processus. On le rend par pc.fatal(), qui
+    //   lève — même geste que partout ailleurs ici, et l'appelant ne reprend pas la main
+    //   dans les deux cas. Ses appelants sont dans les chemins de mode protégé les plus
+    //   profonds, là où PCem lui-même renonce.
+    internal static void x86abort(string format)
+        => pc.fatal($"x86abort : {format}\n");
+
+    // pcem: x86seg.c:161-167 — LA TAILLE DE LA PILE, et elle est DOUBLE.
+    //
+    // `stack32` gouverne si les push/pop utilisent ESP ou SP, et le MÊME fait est
+    // recopié dans un bit de cpu_cur_status. Ce n'est pas une redondance gratuite : le
+    // recompilateur teste cpu_cur_status en un seul ET pour décider s'il peut réutiliser
+    // un bloc compilé. Les deux doivent bouger ENSEMBLE, et c'est pourquoi PCem passe
+    // par cette fonction plutôt que d'écrire stack32 directement.
+    internal static void set_stack32(int s)
+    {
+        stack32 = s;
+        if (stack32 != 0)
+                cpu_cur_status |= CPU_STATUS_STACK32;
+        else
+                cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_STACK32);
+    }
+
+    // pcem: x86seg.c:169-177 — LA TAILLE D'OPÉRANDE PAR DÉFAUT DU SEGMENT DE CODE.
+    //
+    // 0x300 ET PAS 1, et ce n'est pas un drapeau booléen : `use32` sert d'INDEX dans
+    // ops_286 / ops_386, `(opcode | cpu_state.op32) & 0x3ff`, et op32 vaut use32. Les
+    // bits 8 et 9 sélectionnent le quadrant de la table — d'où les quatre copies
+    // identiques de ops_286 (A11). Sur un 286 use32 reste nul, donc seul le premier
+    // quadrant est atteint ; la fonction est transcrite parce que c'est le mode protégé
+    // qui l'appelle, et que sa valeur EST comparée.
+    internal static void set_use32(int u)
+    {
+        if (u != 0)
+        {
+                use32 = 0x300;
+                cpu_cur_status |= CPU_STATUS_USE32;
+        }
+        else
+        {
+                use32 = 0;
+                cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_USE32);
+        }
+    }
+
+    // pcem: x86seg.c:179-213 — LE CHARGEMENT D'UN DESCRIPTEUR, cœur de tout le bloc C.
+    //
+    // Les quatre mots que la GDT ou la LDT rend deviennent les neuf champs du cache. Ce
+    // qui se lit mal et compte beaucoup :
+    //
+    // limit_raw GARDE LA VALEUR BRUTE, limit peut être MULTIPLIÉE PAR 4096. Le bit 7 de
+    // segdat[3] est la granularité : posé, la limite est en PAGES et non en octets, d'où
+    // `(limit << 12) | 0xFFF`. limit_raw est ce qu'on relira pour SGDT ou pour réécrire
+    // le descripteur — c'est pourquoi les deux champs existent, et pourquoi limit_raw
+    // n'est écrit QUE par ici, par LLDT et par LTR.
+    //
+    // is386 GARDE LES HUIT BITS HAUTS DE LA BASE. Sur un 286 la base fait 24 bits : le
+    // quatrième mot n'en porte pas l'octet de poids fort. La branche est transcrite et
+    // morte ici — is386 vaut 0 pour les trois machines du dépôt.
+    //
+    // LE SEGMENT À EXPANSION VERS LE BAS INVERSE LES DEUX BORNES. Le test
+    // `(segdat[2] & 0x1800) != 0x1000 || !(segdat[2] & (1 << 10))` isole le seul cas qui
+    // le fait : un segment de DONNÉES dont le bit 10 est posé. Alors limit_low devient
+    // `limit + 1` et limit_high le maximum — une pile qui croît vers le bas et dont
+    // l'accès légal est AU-DESSUS de la limite. Se tromper ici rend des segments qui
+    // marchent presque.
+    private static void do_seg_load(x86seg s, uint16_t[] segdat)
+    {
+        s.limit = (uint32_t)(segdat[0] | ((segdat[3] & 0xF) << 16));
+        s.limit_raw = s.limit;
+        if ((segdat[3] & 0x80) != 0)
+                s.limit = (s.limit << 12) | 0xFFF;
+        s.@base = (uint32_t)(segdat[1] | ((segdat[2] & 0xFF) << 16));
+        if (is386 != 0)
+                s.@base |= (uint32_t)((segdat[3] >> 8) << 24);
+        s.access = (uint8_t)(segdat[2] >> 8);
+        s.access2 = (uint8_t)(segdat[3] & 0xf0);
+
+        if ((segdat[2] & 0x1800) != 0x1000 || (segdat[2] & (1 << 10)) == 0) /*expand-down*/
+        {
+                s.limit_high = s.limit;
+                s.limit_low = 0;
+        }
+        else
+        {
+                s.limit_high = (segdat[3] & 0x40) != 0 ? 0xffffffff : 0xffff;
+                s.limit_low = s.limit + 1;
+        }
+
+        if (s == cpu_state.seg_ds)
+        {
+                if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATDS);
+                else
+                        cpu_cur_status |= CPU_STATUS_NOTFLATDS;
+        }
+        if (s == cpu_state.seg_ss)
+        {
+                if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATSS);
+                else
+                        cpu_cur_status |= CPU_STATUS_NOTFLATSS;
+        }
+    }
+
+    // pcem: x86seg.c:215-221 — l'état d'un segment en mode virtuel 8086 : DPL 3, limite
+    // de 64 Ko. Transcrite parce que pmodeiret et taskswitch286 l'appellent ; le mode
+    // V86 lui-même est inatteignable sur un 286, VM_FLAG étant un drapeau de EFLAGS que
+    // seuls un IRET 32 bits ou un changement de tâche peuvent poser.
+    private static void do_seg_v86_init(x86seg s)
+    {
+        s.access = (3 << 5) | 2;
+        s.access2 = 0;
+        s.limit = 0xffff;
+        s.limit_low = 0;
+        s.limit_high = 0xffff;
+    }
+
+    // pcem: x86seg.c:223-269 — LA REVALIDATION D'UN SÉLECTEUR, et son effet est de
+    // VIDER le segment, pas de lever une exception.
+    //
+    // Appelée après un changement de niveau de privilège : un sélecteur parfaitement
+    // chargé peut devenir illégal parce que CPL a monté. PCem ne fait alors PAS de
+    // faute — il fait `loadseg(0, s)`, ce qui charge le sélecteur nul. La faute viendra
+    // plus tard, au premier accès, et c'est le comportement du silicium.
+    //
+    // LE BIT 2 DU SÉLECTEUR CHOISIT LA TABLE : posé, c'est la LDT ; sinon la GDT. Et la
+    // comparaison est `(seg & ~7) >= limit`, donc sur l'OFFSET du descripteur, les trois
+    // bits bas étant le sélecteur de table et le RPL.
+    //
+    // LE CODE CONFORME EST LA SEULE EXCEPTION AU TEST DE PRIVILÈGE. Les cas 0x1E et
+    // 0x1F passent sans rien vérifier : un segment de code conforme s'exécute au
+    // privilège de l'APPELANT, donc y accéder depuis un CPL plus bas est légal par
+    // construction. Tout le reste exige `(seg & 3) <= dpl && CPL <= dpl`.
+    private static void check_seg_valid(x86seg s)
+    {
+        int dpl = (s.access >> 5) & 3;
+        int valid = 1;
+
+        if ((s.seg & 4) != 0)
+        {
+                if ((s.seg & ~7) >= ldt.limit)
+                        valid = 0;
+        }
+        else
+        {
+                if ((s.seg & ~7) >= gdt.limit)
+                        valid = 0;
+        }
+
+        switch (s.access & 0x1f)
+        {
+        case 0x10:
+        case 0x11:
+        case 0x12:
+        case 0x13: /*Data segments*/
+        case 0x14:
+        case 0x15:
+        case 0x16:
+        case 0x17:
+        case 0x1A:
+        case 0x1B: /*Readable non-conforming code*/
+                if ((s.seg & 3) > dpl || (CPL) > dpl)
+                {
+                        valid = 0;
+                        break;
+                }
+                break;
+
+        case 0x1E:
+        case 0x1F: /*Readable conforming code*/
+                break;
+
+        default:
+                valid = 0;
+                break;
+        }
+
+        if (valid == 0)
+                loadseg(0, s);
+    }
+
+    // pcem: x86seg.c:804-862 — LES QUATRE ACCÈS À LA PILE DU MODE PROTÉGÉ.
+    //
+    // CE NE SONT PAS LES MACROS PUSH_W / POP_W de x86_ops_call.h, qui portent le même
+    // nom à un tiret près et vivent ailleurs. Celles-ci sont des FONCTIONS de x86seg.c,
+    // appelées par loadcscall, pmoderetf, pmodeint et pmodeiret.
+    //
+    // CHACUNE TESTE abrt APRÈS L'ACCÈS ET AVANT DE BOUGER LE POINTEUR. Si l'écriture
+    // faute — pile trop courte, segment absent — ESP ne doit PAS avoir avancé : le
+    // gestionnaire d'exception rejouera l'instruction, et une pile déjà décrémentée la
+    // ferait écrire deux fois. C'est la partie facile à perdre en transcrivant.
+    internal static void PUSHW(uint16_t v)
+    {
+        if (stack32 != 0)
+        {
+                writememw(ss, ESP - 2, v);
+                if (cpu_state.abrt != 0)
+                        return;
+                ESP -= 2;
+        }
+        else
+        {
+                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), v);
+                if (cpu_state.abrt != 0)
+                        return;
+                SP -= 2;
+        }
+    }
+
+    internal static void PUSHL(uint32_t v)
+    {
+        if (stack32 != 0)
+        {
+                writememl(ss, ESP - 4, v);
+                if (cpu_state.abrt != 0)
+                        return;
+                ESP -= 4;
+        }
+        else
+        {
+                writememl(ss, (uint32_t)((SP - 4) & 0xFFFF), v);
+                if (cpu_state.abrt != 0)
+                        return;
+                SP -= 4;
+        }
+    }
+
+    internal static uint16_t POPW()
+    {
+        uint16_t tempw;
+        if (stack32 != 0)
+        {
+                tempw = readmemw(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                ESP += 2;
+        }
+        else
+        {
+                tempw = readmemw(ss, SP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                SP += 2;
+        }
+        return tempw;
+    }
+
+    internal static uint32_t POPL()
+    {
+        uint32_t templ;
+        if (stack32 != 0)
+        {
+                templ = readmeml(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                ESP += 4;
+        }
+        else
+        {
+                templ = readmeml(ss, SP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                SP += 4;
+        }
+        return templ;
     }
 }

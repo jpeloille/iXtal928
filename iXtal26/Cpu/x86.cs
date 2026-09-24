@@ -217,6 +217,10 @@ internal static partial class x86
     // pcem: x86.h:185-193
     // pcem: x86.h:185 — pose par LMSW quand le bit 0 du mot d'etat machine
     // passe a un. Porte depuis la seconde table ; lu par le recompilateur seul.
+    // pcem: x86.h:183-184 — DÉ-OMISSION au bloc C : set_use32 et set_stack32 les
+    // écrivent, et rien d'autre dans tout l'arbre ne le fait.
+    internal const uint16_t CPU_STATUS_USE32 = 1 << 0;
+    internal const uint16_t CPU_STATUS_STACK32 = 1 << 1;
     internal const uint16_t CPU_STATUS_PMODE = 1 << 2;
     internal const uint16_t CPU_STATUS_NOTFLATDS = 1 << 8;
     internal const uint16_t CPU_STATUS_NOTFLATSS = 1 << 9;
