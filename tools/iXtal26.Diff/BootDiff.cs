@@ -227,7 +227,7 @@ public static class BootDiff
             var budget = pc.cpu_get_speed() / 100;
             while (budget > 0)
             {
-                budget -= _808x.Step();
+                budget -= PasCsharp();
                 var h = TraceHash();
                 if (n < nOracle)
                 {
@@ -300,6 +300,22 @@ public static class BootDiff
     /// pcem: pc.c:484 — `AT ? exec386 : execx86`. On ne peut pas lire la globale
     /// `AT` ici : elle est posée par model_init, pendant resetpchard, donc après
     /// que l'oracle ait eu besoin de la réponse.</summary>
+    /// <summary>Un pas sur le cœur que le modèle réclame, et le pendant exact de
+    /// h_step() qui aiguille sur h_core depuis A2.0.
+    ///
+    /// CE MANQUAIT, ET C'ÉTAIT LA PREMIÈRE DIVERGENCE DU PREMIER boot-diff AT :
+    /// `tsc, oracle 11, C# 105` à l'instruction 0, CS:IP F000:FFF0. Onze est
+    /// exactement timing_jmp_rm, le JMP FAR du vecteur de reset d'un AT ; le 105 était
+    /// le 8088 exécutant des octets qui ne sont pas pour lui. L'étape 1 avait fait
+    /// aiguiller h_runpc côté oracle ; ce côté-ci ne suivait pas.
+    ///
+    /// Step286 porte la DEVIATION du pas-à-pas — timer_target posé à tsc pour rendre
+    /// cycle_period égal à 1 — et c'est voulu ici : la phase 2 compare l'état APRÈS
+    /// CHAQUE instruction, donc un pas doit valoir exactement une instruction. h_step
+    /// fait le même geste au même endroit (h_step286, harness.c:543).</summary>
+    private static int PasCsharp()
+        => CoeurDuModele() == Oracle.Core286 ? Cpu._386.Step286() : _808x.Step();
+
     private static int CoeurDuModele()
         => (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
                 ? Oracle.Core286 : Oracle.Core8088;
@@ -410,7 +426,7 @@ public static class BootDiff
                     Oracle.h_pit_probe(t, before[t]);
 
             var cycC = Oracle.h_step();
-            var cycS = _808x.Step();
+            var cycS = PasCsharp();
 
             if (pitFirst < 0)
                 Oracle.h_getstate(out a0);
