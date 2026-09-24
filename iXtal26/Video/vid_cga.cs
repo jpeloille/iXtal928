@@ -186,8 +186,11 @@ internal static partial class vid_cga
         _dispofftime = disptime - _dispontime;
         _dispontime *= pit.CGACONST;
         _dispofftime *= pit.CGACONST;
-        cga.dispontime = (uint64_t)_dispontime;
-        cga.dispofftime = (uint64_t)_dispofftime;
+        // pcem bug, reproduced: PB-36 — même conversion d'un double négatif qu'à
+        //   svga_recalctimings, dès que crtc[1] dépasse crtc[0] + 1 : GCC rend
+        //   (uint64_t)(int64_t)x, C# saturerait à 0. Trouvé à M15 en relisant la VGA.
+        cga.dispontime = unchecked((uint64_t)(int64_t)_dispontime);
+        cga.dispofftime = unchecked((uint64_t)(int64_t)_dispofftime);
     }
 
     // DEVIATION: `uint32_t cols[4]` (vid_cga.c:127) est un tableau de PILE, gratuit.

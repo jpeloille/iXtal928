@@ -684,11 +684,49 @@ C lit hors du tableau sans broncher, le C# lèverait ; `vgapal_at` rend les octe
 `pallook[511]`, comme la disposition mémoire du C. Le diff de la campagne l'a vérifié : les
 registres qui reçoivent ces lectures sont hachés à chaque instruction.
 
+### PB-36 — Un temps « hors affichage » négatif, converti en entier non signé sans borne
+
+`vid_svga.c:442-451`, la fin de `svga_recalctimings` :
+
+```c
+        _dispofftime = disptime - _dispontime;
+        ...
+        svga->dispofftime = (uint64_t)_dispofftime;
+        if (svga->dispofftime < TIMER_USEC)
+                svga->dispofftime = TIMER_USEC;
+```
+
+`disptime` est `htotal = CR00 + 6`, `_dispontime` est `hdisp = CR01 + 1` : dès que CR01
+dépasse CR00 + 5, la différence est négative. Et le cas n'est pas exotique — le BIOS VGA
+écrit le CRTC dans l'ordre des index, donc en passant du mode 3 (CR00 = 5Fh, CR01 = 4Fh) à
+un mode 40 colonnes il pose CR00 = 2Dh **avant** CR01 : `htotal` 51, `hdisp` 80, et
+`svga_recalctimings` tourne entre les deux (`vid_vga.c:46`).
+
+La conversion d'un `double` négatif en `uint64_t` est de l'UB en C. GCC la compile en
+`cvttsd2si` (objdump de `build/vid_svga.o`) : le négatif devient `(uint64_t)(int64_t)x`,
+une valeur énorme, que le `<` **non signé** de `:450` laisse passer. `timer_advance_u64`
+fait alors **reculer** le chronomètre de la carte : `svga_poll` se redéclenche aussitôt,
+et la période de ligne reste celle de `htotal` — l'arithmétique modulo 2^64 retombe sur
+ses pieds. `vid_cga.c:109-116` porte le même motif (`crtc[1] > crtc[0] + 1`), sans borne
+du tout.
+
+*Effet* : aucun à l'écran. Mais la conversion est de l'UB, et un autre compilateur — ou
+.NET, voir plus bas — en fait autre chose, ce qui change la phase du balayage, donc les
+bits de `3DAh`.
+*Reproduit* : `Video/vid_svga.cs` et `Video/vid_cga.cs`, marqueur
+`// pcem bug, reproduced: PB-36`, par `unchecked((uint64_t)(int64_t)x)`. Le `(uint64_t)x`
+direct n'était PAS fidèle : .NET 9 et au-delà **saturent** à 0 (mesuré sur .NET 10 :
+`(ulong)-5.5 = 0`, `(ulong)(long)-5.5 = 0xFFFFFFFFFFFFFFFB`, GCC -O2 rend le second). Trouvé
+par la relecture contradictoire de § M15, puis rendu observable : un programme DEBUG qui
+pose CR00 = 2Dh sous CR01 = 4Fh et lit `3DAh` 8 192 fois fait rougir le diff d'amorçage à
+l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 969 642
+instructions — avec la nouvelle.
+
 ---
 
 ## Portée de ce registre
 
-Ces **trente-cinq** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente-six** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -698,7 +736,8 @@ audit systématique de PCem** :
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
 | Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
 | Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
-| Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35 |
+| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35 |
+| Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA et la VGA, les

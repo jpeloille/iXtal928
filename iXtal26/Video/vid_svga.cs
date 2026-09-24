@@ -700,8 +700,15 @@ internal static partial class vid_svga
         _dispontime *= crtcconst;
         _dispofftime *= crtcconst;
 
-        svga.dispontime = (uint64_t)_dispontime;
-        svga.dispofftime = (uint64_t)_dispofftime;
+        // pcem bug, reproduced: PB-36 — `(uint64_t)_dispofftime` d'un double NÉGATIF, dès
+        //   que hdisp_time dépasse htotal (CR01 + 1 > CR00 + 6). Le C ne le borne pas, et
+        //   la conversion est de l'UB que GCC compile en cvttsd2si : le négatif devient
+        //   (uint64_t)(int64_t)x, une valeur énorme que le `<` non signé de :450 laisse
+        //   passer, et timer_advance_u64 fait alors RECULER le chronomètre. C# depuis .NET 9
+        //   SATURE à 0, que la borne relevait à TIMER_USEC : une autre période de ligne. La
+        //   double conversion reproduit GCC pour |x| < 2^63 — mesuré des deux côtés.
+        svga.dispontime = unchecked((uint64_t)(int64_t)_dispontime);
+        svga.dispofftime = unchecked((uint64_t)(int64_t)_dispofftime);
         if (svga.dispontime < TIMER_USEC)
                 svga.dispontime = TIMER_USEC;
         if (svga.dispofftime < TIMER_USEC)

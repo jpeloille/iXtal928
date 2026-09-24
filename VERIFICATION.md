@@ -3139,6 +3139,40 @@ filet est la relecture ci-dessous.
 Et un troisième, laissé tel quel : `KeyScript` ne sait pas taper `[` ni `]`. La campagne
 contourne par `es:` puis `lodsb`.
 
+### La relecture contradictoire, et le seul défaut qu'elle a trouvé
+
+Le diff prouve l'équivalence sur les chemins exercés ; pour les autres, la relecture. Cinq
+relecteurs sur des tranches disjointes — registres et `recalctimings`, `poll` et accès
+larges, `svga_write`/`svga_read`, les rendus, la colle (`vid_vga.c`, le registre de
+`video.c`, `pc.c`, le harnais) —, puis un sceptique par tranche chargé de **réfuter** chaque
+constat. Seize constats, quinze confirmés, un rejeté (déjà corrigé entre-temps).
+
+Quatorze sont des citations ou des commentaires faux : des plages `// pcem:` décalées de
+trois à huit lignes dans `video.cs` et `keyboard_at.cs`, un décompte faux (« soixante-quatre
+cartes » : `video.c` en définit cinquante, en enregistre quarante-neuf), un `default:` que
+le `switch` de `video_init` n'a pas, et un commentaire qui prétendait que seul `vga_init`
+pose `bpp = 8` — `svga_init` le fait d'abord. Tous corrigés. Aucun ne touchait le
+comportement, et c'est le constat : **le diff ne voit pas les commentaires, et c'est la
+relecture seule qui les tient honnêtes.**
+
+Le quinzième est sémantique, et c'est PB-36 : `(uint64_t)` d'un `double` négatif dans
+`svga_recalctimings`, que GCC rend `(uint64_t)(int64_t)x` et que .NET 10 **sature** à 0.
+Le transitoire qui l'atteint — CR00 réécrit avant CR01 en passant en 40 colonnes — avait
+traversé la campagne graphique sans rougir : aucune trame n'était tombée dans la fenêtre.
+Rendu observable par un programme DEBUG qui la tient ouverte (CR00 = 2Dh sous CR01 = 4Fh,
+8 192 lectures de `3DAh`) :
+
+| | Diff |
+|---|---|
+| ancienne conversion `(uint64_t)x` | **rouge**, instruction 36 899 042 |
+| `unchecked((uint64_t)(int64_t)x)` | **vert**, 37 969 642 instructions, sonde 64/64 |
+
+`vid_cga.c:115-116` porte le même motif depuis M4, corrigé de la même façon ; les cinq
+portes du 8088 le couvrent. Et un défaut de l'OUTIL au passage : la phase 2 de `boot-diff`
+ne rejoue pas le script de frappe, donc elle ne peut pas localiser une divergence d'une
+campagne tapée — elle a rendu ici « les états concordent », sur une machine restée à
+l'invite de date. Laissé tel quel, noté.
+
 ### L'IBM AT
 
 `--boot --model ibmat --gfxcard vga --floppy-a pcdos20b.img --type $'\x01'` amorce PC DOS
