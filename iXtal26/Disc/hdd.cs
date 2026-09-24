@@ -4,7 +4,7 @@
 // ORACLE: pcem-dev/src/hdd/hdd.c  (PcemHDC : includes/private/ibm.h:366-372)
 // STATUS: partial — les DEUX globales de hdd.c, et rien d'autre. Le registre
 //         HDD_CONTROLLER et ses huit accesseurs sont omis : registre de cartes,
-//         même famille que SOUND_CARD et VIDEO_CARD.
+//         même famille que SOUND_CARD (VIDEO_CARD, réduit, depuis M15).
 //
 // hdd.c fait 182 lignes dont 90 % de registre. Mais il n'est pas entièrement
 // écartable : il DÉFINIT `hdc[7]`, la table de géométrie dont `ibm.h:372` ne porte
@@ -64,7 +64,8 @@ internal static partial class hdd_c
     //   :167-182), hdd_controller_get_name/get_internal_name/get_flags/available
     //   (:28-50), is_mfm/is_ide/is_scsi/has_config/get_device (:52-122),
     //   current_is_* (:124-126), hdd_controller_init_builtin (:166) — registre de
-    //   cartes enfichables, même arbitrage que SOUND_CARD (§ M9) et VIDEO_CARD.
+    //   cartes enfichables, même arbitrage que SOUND_CARD (§ M9) — et que VIDEO_CARD
+    //   jusqu'à M15, où la VGA en a fait une table à deux entrées (video.cs).
     //   hdd_controller_init (:128-140) se réduit à son unique effet, un
     //   device_add, écrit sur place dans pc.resetpchard().
     // omitted: null_hdd_device (:24, redéfini :147) — la carte « None ».

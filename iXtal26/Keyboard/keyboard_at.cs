@@ -767,11 +767,11 @@ internal static partial class keyboard_at
                 keyboard_at_.status &= unchecked((uint8_t)~(STAT_RTIMEOUT /* | STAT_TTIMEOUT*/));
                 break;
         }
-        // omitted: pclog de trace (:798) — sortie pure.
+        // omitted: pclog de trace (:806) — sortie pure.
         return temp;
     }
 
-    // pcem: keyboard_at.c:802-820
+    // pcem: keyboard_at.c:810-827
     //
     // L'ETAT DE DEPART DIT DEJA CE QUE LE POST VA TROUVER : status = LOCK | CD, donc
     // « clavier deverrouille » et « la derniere ecriture etait une commande » ;
@@ -784,7 +784,7 @@ internal static partial class keyboard_at
         keyboard_at_.mem[0] = 0x11;
         keyboard_at_.wantirq = 0;
         keyboard_at_.output_port = 0xcf;
-        // omitted: la branche `romset == ROM_XI8088` (:808-809), qui inverse 0xb0/0xf0.
+        // omitted: la branche `romset == ROM_XI8088` (:816-817), qui inverse 0xb0/0xf0.
         //
         // input_port EST LE DIP DE LA CARTE VIDEO. video_is_mda() rend 0 dans ce depot,
         // comme le stub de l'oracle (harness_stubs.c:502), donc 0xB0 — « pas un MDA ».

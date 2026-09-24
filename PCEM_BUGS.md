@@ -648,11 +648,47 @@ réussir.
 corriger serait réécrire la table d'un oracle ; `PrintHddTypes` cite ce PB à la place.
 
 
+### PB-35 — Lire le DAC juste après `OUT 3C8h,0` indexe `vgapal[-1]`
+
+`vid_svga.c:122-126`, l'écriture de l'index d'ÉCRITURE du DAC :
+
+```c
+        case 0x3C8:
+                svga->dac_write = val;
+                svga->dac_read = val - 1;
+                svga->dac_pos = 0;
+```
+
+puis `:241-247`, les deux premières lectures de `3C9h` :
+
+```c
+                                return svga->vgapal[svga->dac_read].r;
+                        return svga->vgapal[svga->dac_read].r & 0x3f;
+```
+
+`val = 0` donne `dac_read = -1`, et rien ne le borne avant les cas 0 et 1 — seul le cas 2
+masque, `(svga->dac_read + 1) & 255`. `vgapal[-1]` est hors du tableau : dans `svga_t`,
+le champ qui le PRÉCÈDE est `uint32_t pallook[512]`, et `RGB` étant aligné sur un octet il
+n'y a pas de bourrage entre les deux. La lecture rend donc les octets 1 à 3 de
+`pallook[511]`.
+
+*Effet* : les deux premières composantes lues valent ce que contient la fin de
+`pallook[]`, pas une couleur du DAC. Pour une VGA c'est **zéro**, et c'est connaissable :
+`pallook` n'est écrit qu'aux indices 0-255 (`3C9h` et `svga_set_ramdac_type`), et
+`vga_init` a tout effacé. Un vrai DAC lirait à l'index de LECTURE, que `3C7h` pose.
+*Atteint* : oui, et compté — deux fois dans la campagne graphique de VERIFICATION.md
+§ M15, par un programme qui fait `OUT 3C8h,0` puis trois `IN AL,DX` sur `3C9h`. Le BIOS
+VGA, lui, ne le fait jamais : 1 536 lectures du DAC, aucune à l'index -1.
+*Reproduit* : `Video/vid_svga.cs`, `vgapal_at`, marqueur `// pcem bug, reproduced:`. Le
+C lit hors du tableau sans broncher, le C# lèverait ; `vgapal_at` rend les octets de
+`pallook[511]`, comme la disposition mémoire du C. Le diff de la campagne l'a vérifié : les
+registres qui reçoivent ces lectures sont hachés à chaque instruction.
+
 ---
 
 ## Portée de ce registre
 
-Ces **trente-deux** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente-cinq** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -662,10 +698,10 @@ audit systématique de PCem** :
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
 | Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
 | Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
-| Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30 |
+| Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les autres cartes vidéo, les
+lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA et la VGA, les
 cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre.
 
 Deux frontières ont bougé et le disaient mal :

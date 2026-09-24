@@ -108,8 +108,28 @@ internal static partial class pc
 
     internal static int framecount, framecountx;
 
+    // pcem: pc.c:77 — la carte vidéo, en identifiant HÉRITÉ (GFX_*) : video_old_to_new
+    // le traduit en indice de video_cards[]. Zéro, donc la CGA, tant que rien ne le pose
+    // — le défaut de PCem quand la clé gfxcard est absente (pc.c:660-664), et celui de
+    // toutes les mesures déjà consignées.
+    internal static int gfxcard;
+
+    // pcem: ibm.h:274-289 — les trois valeurs de l'énumération GFX_* que ce dépôt lit.
+    // GFX_VGA vaut 13 : sa place dans l'énumération, pas un choix.
+    internal const int GFX_BUILTIN = -1;
+    internal const int GFX_CGA = 0;
+    internal const int GFX_VGA = 13;
+
     // pcem: pc.c:78 — témoin d'activité disque, lu par la barre d'état de l'hôte.
     internal static int readflash;
+
+    // pcem: pc.c:87 — lu par svga_doblit. Réglage de la configuration GLOBALE
+    // (pc.c:622), tiers au registre des omissions : il garde le défaut de PCem, 0.
+    internal static int vid_resize;
+
+    // pcem: pc.c:89 — svga_read et svga_write y ajoutent le coût de chaque accès ; seule
+    // la barre d'état de l'interface le lit chez PCem.
+    internal static int cycles_lost = 0;
 
     // pcem: ibm.h:19-23 — les macros readflash_*.
     internal const int READFLASH_FDC = 0;
@@ -178,6 +198,41 @@ internal static partial class pc
     }
 
     /// <summary>
+    /// pcem: pc.c:660-664. Choisit la carte vidéo par son internal_name — "cga" ou
+    /// "vga" — et pose gfxcard, l'identifiant HÉRITÉ. Partagé par la clé `gfxcard` du
+    /// fichier et par l'option --gfxcard, pour la même raison que setmodel.
+    ///
+    /// DEVIATION: video_get_video_from_internal_name rend 0 — la CGA — pour un nom
+    ///   inconnu, et PCem démarre alors EN SILENCE une autre carte que celle demandée.
+    ///   On refuse en citant ce qui existe, comme setmodel. Le nom VIDE, lui, garde le
+    ///   comportement de PCem : c'est la clé absente, donc la CGA.
+    ///
+    /// La présence de la ROM n'est PAS vérifiée ici : les chemins de ROM ne sont posés
+    /// que par initpc, APRÈS la configuration. Une ROM absente le dit alors par le pclog
+    /// de rom_init (« ROM image not found : ibm_vga.bin »), comme chez PCem.
+    /// </summary>
+    internal static bool setgfxcard(string name)
+    {
+        int c;
+
+        for (c = 0; c < Video.video.video_cards.Length; c++)
+        {
+                if (Video.video.video_cards[c].internal_name == name)
+                        break;
+        }
+        if (name.Length > 0 && c == Video.video.video_cards.Length)
+        {
+                Console.Error.WriteLine($"gfxcard = « {name} » : carte inconnue. Connues :");
+                foreach (Video.VIDEO_CARD k in Video.video.video_cards)
+                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+                return false;
+        }
+
+        gfxcard = Video.video.video_get_video_from_internal_name(name);
+        return true;
+    }
+
+    /// <summary>
     /// Contrôle une taille mémoire contre les bornes de la machine COURANTE. Rend false
     /// sans rien écrire dans cfg_mem_size : à la différence de la clé de configuration,
     /// qui retombe sur un défaut, une valeur tapée en ligne de commande est explicite —
@@ -214,6 +269,11 @@ internal static partial class pc
             PluginApi.config.CFG_MACHINE, null, "model", Models.model_c.model_get_internal_name());
 
         if (!setmodel(mname))
+                return false;
+
+        // pcem: pc.c:660-664 — la clé porte l'internal_name de la carte ; absente, "" et
+        // donc la CGA.
+        if (!setgfxcard(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "gfxcard", "")))
                 return false;
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
@@ -519,10 +579,10 @@ internal static partial class pc
         // pcem: pc.c:392 — hdd_controller_init(hdd_controller_name).
         //
         // DEVIATION: le registre HDD_CONTROLLER (seize cartes, hdd.c:149-164) est
-        //   écarté comme SOUND_CARD et VIDEO_CARD. Avec une seule carte câblée,
-        //   hdd_controller_init (hdd.c:128-140) se réduit à son unique effet — un
-        //   device_add. Modèle littéral de video_init(), qui fait déjà
-        //   device_add(cga_device) sans traverser VIDEO_CARD.
+        //   écarté comme SOUND_CARD — et comme VIDEO_CARD l'était jusqu'à M15, où la
+        //   VGA l'a fait transcrire, réduit à deux entrées (video.cs). Avec une seule
+        //   carte câblée, hdd_controller_init (hdd.c:128-140) se réduit à son unique
+        //   effet — un device_add.
         //
         //   Un nom inconnu, y compris le "" par défaut, ne monte aucune carte et ne
         //   dit rien : c'est exactement ce que fait PCem, dont le `fatal` de

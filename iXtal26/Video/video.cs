@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/video/video.c + includes/private/video/video.h
-// STATUS: partial — buffer32 et sa géométrie, blit, cgapal/cgapal_rebuild/makecol,
-//         loadfont (FONT_MDA et FONT_CGA), fontdat/fontdatm, xsize/ysize,
-//         video_res_*, video_updatetiming réduit, video_init réduit à la CGA.
-//         Omis : les 63 autres cartes, le registre VIDEO_CARD, les shaders et les
-//         visionneuses de débogage.
+// STATUS: partial — buffer32, blit, cgapal/makecol/makecol32/RGB, loadfont (MDA, CGA),
+//         fontdat/fontdatm, edatlookup, xsize/ysize, video_res_*, video_updatetiming
+//         réduit, le registre VIDEO_CARD réduit à v_cga et v_vga, video_init.
+//         Omis : les 62 autres cartes, les shaders et les visionneuses de débogage.
 
 using System.Runtime.CompilerServices;
 using iXtal26.Cpu;
@@ -18,6 +17,32 @@ namespace iXtal26.Video;
 
 // pcem: video.h:68
 internal delegate void video_blit_memtoscreen_fn(int x, int y, int y1, int y2, int w, int h);
+
+// pcem: video.h:14-18 — `typedef RGB PALETTE[256]` devient un RGB[256] là où il sert
+// (svga_t.vgapal). Struct : copié par valeur, jamais par adresse.
+internal struct RGB
+{
+    internal uint8_t r, g, b;
+}
+
+// pcem: devices.h:54-58
+internal struct video_timings_t
+{
+    internal int type;
+    internal int write_b, write_w, write_l;
+    internal int read_b, read_w, read_l;
+}
+
+// pcem: devices.h:60-67
+internal sealed class VIDEO_CARD
+{
+    internal string name = "";
+    internal string internal_name = "";
+    internal PluginApi.device_t? device;
+    internal int legacy_id;
+    internal int flags;
+    internal video_timings_t timing;
+}
 
 // pcem: video.h:81-91
 internal enum fontformat_t
@@ -39,31 +64,27 @@ internal static partial class video
     //   transcrit. Même forme que mem_bios.cs:20 et rom.cs:32.
     private static void pclog(string s) => Console.Error.Write(s);
 
-    // omitted: les 64 VIDEO_CARD de video.c:70-213 sauf v_cga, et video_init_builtin
-    //   (video.c:1301-1354) qui les enregistre — MDA/EGA/VGA/SVGA/Voodoo, hors cible 5150.
-    // omitted: video_card_available / video_card_getname / video_card_getdevice /
-    //   video_card_has_config / video_card_getid / video_old_to_new / video_new_to_old /
-    //   video_get_internal_name / video_get_video_from_internal_name (video.c:215-540)
-    //   — interrogation du registre VIDEO_CARD, qui n'est pas transcrit.
-    //   CETTE LIGNE NOMMAIT AUSSI video_is_mda, video_is_cga et video_is_ega_vga, et
-    //   c'était FAUX : elles sont transcrites plus bas, réduites à leur réponse pour la
-    //   seule carte présente. Relevé en câblant le 8042 (B1b), qui appelle la première
-    //   depuis keyboard_at_reset. L'oracle les stube aux mêmes valeurs —
-    //   harness_stubs.c:502-503 rend 0 et 1 — donc la réduction est un pendant mesuré.
+    // omitted: les 48 VIDEO_CARD de video.c:69-193 autres que v_cga et v_vga — MDA, EGA,
+    //   SVGA, Voodoo, hors cible. Le registre est TRANSCRIT depuis la VGA, réduit à ses
+    //   deux entrées : avec une seule il était une constante, et video_is_* rendait une
+    //   réponse figée. Voir video_cards plus bas.
+    // omitted: video_card_has_config et video_card_getid (video.c:340-363) — seule la
+    //   boîte de configuration de l'UI les appelle, et aucune des deux cartes n'a de
+    //   dialogue de réglage.
     // omitted: video_fullscreen / video_fullscreen_scale / video_fullscreen_first /
     //   video_force_aspect_ration / vid_disc_indicator / vid_resize / readflash
     //   (video.c:542-544) — état de la fenêtre et des visionneuses de débogage.
     // omitted: video_15to32 / video_16to32 (video.c:546) — tables de conversion 15 et
     //   16 bpp des SVGA.
-    // omitted: rotatevga[8][256] (video.c:551) et edatlookup[4][4] (video.c:559) —
-    //   tables EGA ; aucune carte du palier ne les lit.
+    // omitted: rotatevga[8][256] (video.c:551) — table de l'EGA ; vid_svga.c porte sa
+    //   propre svga_rotate.
     // omitted: fontdatw / fontdat8x12 / fontdat12x18 / fontdatksc5601 /
     //   fontdatksc5601_user (video.c:922-926) — Wyse 700, MDSI Genius, Image Manager
     //   1024 et KSC-5601.
     // omitted: create_bitmap / destroy_bitmap / screen (wx-sdl2-video.c:15, 57, 59) —
     //   inversion de dépendance cœur -> hôte, voir le registre des omissions.
 
-    // pcem: video.c:63
+    // pcem: video.c:62
     internal const int VIDEO_ISA = 0;
     internal const int VIDEO_BUS = 1;
 
@@ -79,6 +100,10 @@ internal static partial class video
     // pcem: video.h:20
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static uint32_t makecol(int r, int g, int b) => (uint32_t)((b) | ((g) << 8) | ((r) << 16));
+
+    // pcem: video.h:21
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static uint32_t makecol32(int r, int g, int b) => (uint32_t)((b) | ((g) << 8) | ((r) << 16));
 
     // pcem: video.h:4-8, video.c:918, wx-sdl2-video.c:59-69
     //
@@ -110,6 +135,10 @@ internal static partial class video
 
     // pcem: video.c:557
     internal static int fullchange;
+
+    // pcem: video.c:559 — lue par svga_render_4bpp_* (vid_svga_render.cs), remplie par
+    // initvideo.
+    internal static readonly uint8_t[,] edatlookup = new uint8_t[4, 4];
 
     /*Video timing settings -
 
@@ -156,13 +185,16 @@ internal static partial class video
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int ISA_CYCLES(int x) => x * cpu.isa_cycles;
 
-    // pcem: video.c:598-746
+    // pcem: video.c:598-749
     internal static void video_updatetiming()
     {
         // omitted: la branche `video_speed == -1` (video.c:599-726) — elle lit
         //   video_cards[video_old_to_new(gfxcard)]->timing puis substitue une table
-        //   par romset (timing_dram, timing_pc1512, timing_vga, timing_t3100e…),
-        //   c'est-à-dire le registre VIDEO_CARD et les 63 autres cartes.
+        //   par romset (timing_dram, timing_pc1512, timing_vga, timing_t3100e…).
+        //   video_speed vaut 0 (video.c:594) : la clé de configuration qui le met à
+        //   -1 (pc.c:665) n'est pas lue. Et pour les deux cartes du registre, sur les
+        //   quatre romsets du dépôt, les deux branches rendent les MÊMES nombres —
+        //   v_cga et v_vga portent {VIDEO_ISA, 8, 16, 32}, la ligne 0 de la table.
         if (video_timing[video_speed, 0] == VIDEO_ISA)
         {
                 video_timing_read_b = ISA_CYCLES(video_timing[video_speed, 1]);
@@ -199,25 +231,159 @@ internal static partial class video
     // pcem: video.c:756
     internal static video_blit_memtoscreen_fn? video_blit_memtoscreen_func;
 
-    // pcem: video.c:758-916
-    // pcem: video.c:215-540 — interrogation du registre des cartes. Réduites ici à
-    // leur réponse pour la seule carte présente, le CGA : le PPI les appelle pour
-    // composer les interrupteurs DIP que lit le POST.
-    internal static int video_is_mda() => 0;
-    internal static int video_is_cga() => 1;
-    internal static int video_is_ega_vga() => 0;
+    // pcem: video.c:64-67
+    internal const int VIDEO_FLAG_TYPE_CGA = 0;
+    internal const int VIDEO_FLAG_TYPE_MDA = 1;
+    internal const int VIDEO_FLAG_TYPE_SPECIAL = 2;
+    internal const int VIDEO_FLAG_TYPE_MASK = 3;
 
+    // pcem: video.c:96
+    internal static readonly VIDEO_CARD v_cga = new VIDEO_CARD
+    {
+        name = "CGA", internal_name = "cga", device = vid_cga.cga_device, legacy_id = pc.GFX_CGA,
+        flags = VIDEO_FLAG_TYPE_CGA,
+        timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+    };
+
+    // pcem: video.c:191
+    internal static readonly VIDEO_CARD v_vga = new VIDEO_CARD
+    {
+        name = "VGA", internal_name = "vga", device = vid_vga.vga_device, legacy_id = pc.GFX_VGA,
+        flags = VIDEO_FLAG_TYPE_SPECIAL,
+        timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
+    };
+
+    // pcem: plugin-api/device.c:17 et video.c:1301-1354 — le registre, rempli par
+    // video_init_builtin dans l'ordre de ses pcem_add_video.
+    //
+    // DEVIATION: deux entrées au lieu des quarante-neuf que video_init_builtin enregistre
+    //   (cinquante pcem_add_video, dont v_pgc sous USE_EXPERIMENTAL_PGC), dans l'ordre RELATIF de PCem
+    //   (v_cga en :1312 avant v_vga en :1351), et en tableau fixe comme models[]
+    //   (model.cs) plutôt que par pcem_add_video. Les INDICES diffèrent donc de ceux de
+    //   PCem — v_cga y est à 10 — mais aucun indice ne sort de ce fichier : la
+    //   configuration écrit l'internal_name, et gfxcard porte l'identifiant HÉRITÉ
+    //   (GFX_*), que video_old_to_new traduit. La sentinelle NULL de fin de liste est
+    //   la longueur du tableau.
+    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_vga };
+
+    // pcem: video.c:215-223
+    internal static int video_card_available(int card)
+    {
+        if (card == pc.GFX_BUILTIN)
+                return 1;
+
+        if (video_cards[card].device != null)
+                return PluginApi.device.device_available(video_cards[card].device!);
+
+        return 1;
+    }
+
+    // pcem: video.c:225-232
+    internal static string video_card_getname(int card)
+    {
+        if (card == pc.GFX_BUILTIN)
+                return "Built-in video";
+        if (card >= video_cards.Length)
+                return "";
+
+        return video_cards[card].name;
+    }
+
+    // pcem: video.c:234-338
+    // omitted: le switch sur romset (video.c:235-336) — trente-trois étiquettes de
+    //   romset pour les cartes intégrées de machines dont aucune n'est au dépôt ; les
+    //   quatre romsets du dépôt tombent tous dans le `return` final.
+    internal static PluginApi.device_t? video_card_getdevice(int card, int romset)
+    {
+        return video_cards[card].device;
+    }
+
+    // pcem: video.c:365-378
+    internal static int video_old_to_new(int card)
+    {
+        int c = 0;
+
+        if (card == pc.GFX_BUILTIN)
+                return pc.GFX_BUILTIN;
+
+        while (c < video_cards.Length && video_cards[c].device != null)
+        {
+                if (video_cards[c].legacy_id == card)
+                        return c;
+                c++;
+        }
+
+        return 0;
+    }
+
+    // pcem: video.c:380-385
+    internal static int video_new_to_old(int card)
+    {
+        if (card == pc.GFX_BUILTIN)
+                return pc.GFX_BUILTIN;
+
+        return video_cards[card].legacy_id;
+    }
+
+    // pcem: video.c:387-392
+    internal static string video_get_internal_name(int card)
+    {
+        if (card == pc.GFX_BUILTIN)
+                return "builtin";
+
+        return video_cards[card].internal_name;
+    }
+
+    // pcem: video.c:394-407
+    internal static int video_get_video_from_internal_name(string s)
+    {
+        int c = 0;
+
+        if (s == "builtin")
+                return pc.GFX_BUILTIN;
+
+        while (c < video_cards.Length)
+        {
+                if (video_cards[c].internal_name == s)
+                        return video_cards[c].legacy_id;
+                c++;
+        }
+
+        return 0;
+    }
+
+    // pcem: video.c:409-454, :455-502, :503-540
+    // omitted: le switch sur romset qui ouvre chacune des trois (video.c:410-452,
+    //   :456-500, :504-538) — des machines à vidéo intégrée, dont aucune n'est au dépôt :
+    //   les quatre romsets du dépôt tombent tous dans la lecture des drapeaux de la carte.
+    //   Le PPI du XT les lit pour composer les interrupteurs DIP (keyboard_xt.cs), le
+    //   8042 de l'AT pour son port d'entrée (keyboard_at.cs). L'oracle rend les mêmes
+    //   réponses depuis gfxcard (harness_stubs.c).
+    internal static int video_is_mda()
+    {
+        return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_MDA ? 1 : 0;
+    }
+
+    internal static int video_is_cga()
+    {
+        return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_CGA ? 1 : 0;
+    }
+
+    internal static int video_is_ega_vga()
+    {
+        return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_SPECIAL ? 1 : 0;
+    }
+
+    // pcem: video.c:758-916
     internal static void video_init()
     {
         // omitted: pclog("Video_init %i %i\n", romset, gfxcard) (video.c:759).
         // omitted: le switch sur romset (video.c:761-914) — PCjr, Tandy, PC1512,
         //   PC1640, PC200, PPC512, Olivetti M24, PC2086/3086, MegaPC, SPC4620P,
         //   SPC6033P, Acer 386, AMA932J, PS/1, PS/2, T3100e, T1000, PC425X, PB410A,
-        //   PB570, PB520R, CBM SL386SX25 : aucun n'est un 5150.
-        // DEVIATION: `device_add(video_cards[video_old_to_new(gfxcard)]->device)`
-        //   (video.c:915) traverse le registre VIDEO_CARD, non transcrit. La seule
-        //   carte du palier est la CGA.
-        PluginApi.device.device_add(vid_cga.cga_device);
+        //   PB570, PB520R, CBM SL386SX25 : aucune n'est au dépôt, et les quatre romsets
+        //   qui y sont tombent tous dans la ligne qui suit.
+        PluginApi.device.device_add(video_cards[video_old_to_new(pc.gfxcard)].device!);
     }
 
     // pcem: video.c:920-921
@@ -355,8 +521,24 @@ internal static partial class video
         //   l'empreinte du framebuffer cesserait d'être reproductible.
         Array.Clear(Buffer32);
 
-        // omitted: le remplissage de rotatevga[] (video.c:1069-1075) et de
-        //   edatlookup[] (video.c:1076-1089) — tables EGA.
+        int c, d;
+
+        // omitted: le remplissage de rotatevga[] (video.c:1069-1075) — table de l'EGA.
+        for (c = 0; c < 4; c++)
+        {
+                for (d = 0; d < 4; d++)
+                {
+                        edatlookup[c, d] = 0;
+                        if ((c & 1) != 0)
+                                edatlookup[c, d] |= 1;
+                        if ((d & 1) != 0)
+                                edatlookup[c, d] |= 2;
+                        if ((c & 2) != 0)
+                                edatlookup[c, d] |= 0x10;
+                        if ((d & 2) != 0)
+                                edatlookup[c, d] |= 0x20;
+                }
+        }
         // omitted: l'allocation et le remplissage de video_15to32 et video_16to32
         //   (video.c:1091-1097) — conversions 15 et 16 bpp.
 

@@ -44,8 +44,10 @@ public sealed class SdlHost : IDisposable
 
     /// <summary>
     /// vid_cga.cs:413 arrête le balayage à « displine >= 360 », et la hauteur demandée
-    /// au blit vaut (lastline - firstline) + 8, donc 368 lignes au pire. Une texture
-    /// 2048 x 2048, calquée sur Buffer32, coûterait 16 Mo pour n'en servir que 368.
+    /// au blit vaut (lastline - firstline) + 8, donc 368 lignes au pire. La VGA monte à
+    /// 480 : svga_doblit demande ysize = lastline - firstline + 1, soit 400 lignes en
+    /// texte et 480 en mode 12h. Une texture 2048 x 2048, calquée sur Buffer32,
+    /// coûterait 16 Mo pour n'en servir que 480 au plus.
     /// </summary>
     private const int TextureHeight = 512;
 

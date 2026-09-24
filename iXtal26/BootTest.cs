@@ -184,8 +184,11 @@ public static class BootTest
         for (var d = 0; d < 8; d++)
             if (Video.video.fontdat[(c << 3) | d] != 0) fontNz++;
 
-        Console.WriteLine($"  police : {fontNz} octets non nuls sur 16384 dans fontdat");
-        if (fontNz == 0)
+        // La VGA ne lit PAS fontdat : sa police est dans le plan 2 de sa VRAM, que son
+        // BIOS y charge. Le compte ne veut alors rien dire, et l'avertissement mentirait.
+        if (Video.vid_svga.svga_get_pri() is null)
+            Console.WriteLine($"  police : {fontNz} octets non nuls sur 16384 dans fontdat");
+        if (fontNz == 0 && Video.vid_svga.svga_get_pri() is null)
             Console.WriteLine("  *** fontdat est VIDE : aucun caractère ne sera tracé. " +
                               "Vérifier que roms/mda.rom est présent et lisible. ***");
 
@@ -197,11 +200,21 @@ public static class BootTest
     /// <summary>Le tampon texte CGA, 80x25, un mot par cellule (caractère, attribut).
     /// C'est la seule preuve directe que le POST est allé au bout : la BDA dit ce que
     /// le BIOS a mesuré, l'écran dit ce qu'il a décidé d'en faire.</summary>
-    /// <summary>Public depuis M12 : boot-diff en a besoin. Un diff vert dont
+    /// <summary>Visible de boot-diff depuis M12 (internal depuis M15 : il prend un
+    /// svga_t, interne, et InternalsVisibleTo couvre iXtal26.Diff) : boot-diff en a besoin. Un diff vert dont
     /// l'image de disque est restée INCHANGÉE ne dit pas POURQUOI la frappe n'a rien
     /// produit — et sans l'écran, on cherche à l'aveugle.</summary>
-    public static void DumpTextScreen()
+    /// <param name="svga">La carte VGA à lire, quand l'appelant l'a retenue avant que
+    /// closepc ne la ferme ; sinon celle qui est montée, s'il y en a une.</param>
+    internal static void DumpTextScreen(Video.svga_t? svga = null)
     {
+        svga ??= Video.vid_svga.svga_get_pri();
+        if (svga is not null)
+        {
+            DumpVgaTextScreen(svga);
+            return;
+        }
+
         Console.WriteLine("\n--- écran texte CGA (B800:0000, 80x25) ---");
         var blank = 0;
         for (var y = 0; y < 25; y++)
@@ -210,6 +223,48 @@ public static class BootTest
             for (var x = 0; x < 80; x++)
             {
                 var c = mem.mem_readb_phys((uint32_t)(0xB8000 + (y * 80 + x) * 2));
+                line[x] = c is >= 0x20 and < 0x7F ? (char)c : ' ';
+            }
+
+            var text = new string(line).TrimEnd();
+            if (text.Length == 0) { blank++; continue; }
+            if (blank > 0) { Console.WriteLine($"  [{blank} ligne(s) vide(s)]"); blank = 0; }
+            Console.WriteLine($"  |{text}");
+        }
+
+        if (blank > 0)
+            Console.WriteLine($"  [{blank} ligne(s) vide(s)]");
+    }
+
+    /// <summary>L'écran texte d'une VGA, lu dans sa VRAM BRUTE et non par
+    /// mem_readb_phys : celui-ci passerait par svga_read, qui met à jour les verrous
+    /// la..ld et facture des cycles — lire l'écran changerait la machine, et boot-diff
+    /// compare l'état de la carte APRÈS cet affichage.
+    ///
+    /// En mode texte la VGA range le caractère au plan 0 et l'attribut au plan 1, à
+    /// l'adresse CPU décalée de deux (branche chain2_write de svga_write) : la cellule
+    /// d'offset CPU o est en vram[(o &amp; ~1) &lt;&lt; 2]. Largeur et page viennent de la
+    /// zone de données du BIOS, lue dans mem.ram — 0040:004A colonnes, 0040:004E
+    /// décalage de la page, 0040:0084 lignes moins une.</summary>
+    private static void DumpVgaTextScreen(Video.svga_t svga)
+    {
+        var cols = mem.ram[0x44A] | (mem.ram[0x44B] << 8);
+        var page = mem.ram[0x44E] | (mem.ram[0x44F] << 8);
+        var rows = mem.ram[0x484] + 1;
+        if (cols is not (40 or 80))
+            cols = 80;
+        if (rows is < 25 or > 50)
+            rows = 25;
+
+        Console.WriteLine($"\n--- écran texte VGA (VRAM plans 0/1, {cols}x{rows}, page +0x{page:X}) ---");
+        var blank = 0;
+        for (var y = 0; y < rows; y++)
+        {
+            var line = new char[cols];
+            for (var x = 0; x < cols; x++)
+            {
+                var o = (page + 2 * (y * cols + x)) & 0x7fff;
+                var c = svga.vram[(o & ~1) << 2];
                 line[x] = c is >= 0x20 and < 0x7F ? (char)c : ' ';
             }
 

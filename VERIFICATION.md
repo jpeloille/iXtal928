@@ -3001,3 +3001,162 @@ Ctrl+F12 **n'éjecte donc jamais** à la place de l'utilisateur.
 7. **Une seule taille de cluster par format.** Le remplissage du dernier cluster est
    vérifié par la relecture, pas par une inspection de ce qui traîne au-delà de la taille
    déclarée.
+
+---
+
+## M15 — La VGA d'IBM : trois fichiers de PCem, et un oracle qui voit enfin les pixels
+
+Parti de la demande *« ajoute le nécessaire pour avoir du VGA »*. PCem porte la VGA d'IBM en
+trois fichiers : `vid_vga.c` (170 lignes), la carte elle-même, et le socle générique de toutes
+ses SVGA, `vid_svga.c` (1 682) et `vid_svga_render.c` (916). La ROM est au dépôt :
+`roms/ibm_vga.bin`, 32 Ko dont PCem mappe 24 Ko en C0000 à partir de l'offset 0x2000 — et
+l'en-tête déclare exactement 48 × 512 octets, donc le balayage des ROM ne lit rien au-delà.
+
+### L'ordre : l'oracle d'abord (`4f56525`)
+
+Même ordre que B2 pour l'AT : la `.so` apprend la VGA avant qu'une ligne de C# ne s'écrive.
+`vga-probe` amorce l'**oracle seul** et lit l'écran dans la VRAM brute :
+
+| Machine | Écran de l'oracle, VGA |
+|---|---|
+| `ibmat` | `00640 KB OK` / `161-System Options Not Set-(Run SETUP)` |
+| `ami286` | `286-BIOS (C)1990 …` / `CMOS display type mismatch` / `Press <F1>` |
+| `ibmxt` | Cassette BASIC C1.10, `62940 Bytes free`, `Ok` |
+| `ibmpc` | idem |
+
+`hdisp` 720, 400 lignes, cellules de 9 points partout : le BIOS VGA a posé le mode 3. La
+question « le 5150 et le XT balaient-ils C0000 ? » est tranchée par la mesure : oui. PCem
+propose d'ailleurs la VGA sur les quatre machines — aucun des filtres de `wx-config.c:145`
+(PCI, MCA) ne la retire.
+
+### Le piège du jalon était un stub vide
+
+`video_updatetiming` était un no-op dans l'oracle, et les six `video_timing_*` n'y existaient
+pas : `vid_cga.c` ne les lit pas. `vid_svga.c` les facture à **chaque** accès —
+`cycles -= video_timing_write_b` (`:818`), `-= video_timing_read_b` (`:1068`). Laissées à
+zéro pendant que `video.cs` les calcule, chaque octet de VRAM aurait coûté 8 cycles d'un
+côté et 0 de l'autre : une dérive de `tsc` sans un registre de différence. Rendue réelle,
+réduite comme `video.cs` la réduit. **Les cinq chiffres du 8088 n'ont pas bougé d'une unité
+avec la VGA liée**, ce qui prouve que l'oracle reste neutre pour la CGA.
+
+### Deux déviations de l'oracle
+
+- `svga_init` alloue VRAM et `changedvram` par `malloc` sans les effacer (`vid_svga.c:772`,
+  `:777`). La première VRAM du processus vient de `mmap`, donc nulle ; mais `vga_close` la
+  libère, glibc relève son seuil de mmap dynamique, et la VRAM de la **phase 2** du
+  boot-diff vient du tas avec les octets de la phase 1. `memset` après `device_add` — même
+  arbitrage que `h_pad_ram` et PB-24.
+- `initvideo` remet `buffer32` à zéro, comme `video.cs` (`Array.Clear`). Sans cela la
+  comparaison de framebuffer comparerait deux histoires.
+
+### Ce qui a été transcrit, et la parité
+
+| Fichier | C vivant | C# vivant | Rapport |
+|---|---:|---:|---:|
+| `vid_svga.cs` ← `vid_svga.c` (sans `*_linear`) + `vid_svga.h` | 1 119 | 1 207 | 1,078 (1,006 hors sonde) |
+| `vid_svga_render.cs` ← rendus transcrits + `vid_svga_render_remap.h` | 351 | 385 | 1,096 |
+| `vid_vga.cs` ← `vid_vga.c` (sans `ps1vga`) | 99 | 97 | 0,979 |
+
+Tout ce qu'une VGA **appelle** est transcrit, chemins inertes compris — le chemin `fast` de
+`svga_writew`/`readw`, le curseur matériel et le recouvrement de `svga_poll`, l'entrelacé :
+moins cher que d'en justifier l'omission. Omis, au registre : la fenêtre linéaire, les rendus
+qu'aucune ligne de `vid_svga.c` ni `vid_vga.c` ne choisit pour une VGA, `ps1vga_init`. Les
+rendus 15 à 32 bpp que `vid_svga.c` **nomme** restent, en `fatal()`.
+
+**Le registre `VIDEO_CARD` cesse d'être une constante.** Avec la seule CGA, `video_is_cga()`
+rendait 1 en dur des deux côtés ; `video_init` faisait `device_add(cga_device)` sans le
+registre. Il est transcrit, réduit à `v_cga` et `v_vga` : `video_init`, `video_is_*`,
+`video_old_to_new`, `video_get_video_from_internal_name`. La leçon de § M10, une seconde fois.
+
+**Un ordre d'évaluation vérifié sur le binaire.** `svga_readw` fait
+`svga_read(addr) | (svga_read(addr + 1) << 8)` : deux appels à effets de bord (verrous
+`la..ld`, cycles) dont le C ne fixe pas l'ordre. C# évalue de gauche à droite ; `objdump` de
+`build/vid_svga.o` montre GCC appeler aussi `addr` puis `addr + 1`. Noté sur place.
+
+### La sonde VGA : l'oracle de ce que le diff d'instructions ne voit pas
+
+Le diff compare ce que le CPU relit — une `IN 3DA`, une lecture de VRAM — et rien de ce qu'il
+ne relit pas : la palette du DAC, la police du plan 2, les pixels. `h_vga_probe` et
+`vid_svga.Probe` rendent 64 champs — VRAM, `changedvram`, `buffer32`, registres CRTC,
+séquenceur, GDC et attributs, `vgapal`, `pallook` et `egapal` hachés en FNV-1a, et les
+scalaires bruts. `boot-diff` les compare en fin de course dès qu'une VGA est montée.
+
+Le harnais sait-il rougir ? Quatre pannes injectées puis révoquées, XT, BASIC :
+
+| Panne | Diff d'instructions | Sonde VGA |
+|---|---|---|
+| F1 : `svga_write` facture un cycle de plus | **rouge**, instruction 1 062 816, `tsc` | — |
+| F2 : 9ᵉ colonne des cellules de texte, `fg` au lieu de `bg` | vert, 23 360 025 | **rouge**, `#buffer32` seul |
+| F3 : DAC 6 → 8 bits en `× 3` au lieu de `× 4` | vert | **rouge**, `#pallook` et `#buffer32` |
+| F4 : `attrregs[0x14] & 0x8` au lieu de `& 0xc` | vert | vert — **inerte, mesuré** : `attrregs[0x14]` vaut 0 |
+| F4b : `attrregs[c] & 0x1f` au lieu de `& 0x3f` | vert | **rouge**, `#egapal` seul |
+
+F2, F3 et F4b sont exactement ce que le diff d'instructions ne peut pas voir.
+
+### Les campagnes
+
+| Campagne | Instructions identiques | Sonde VGA |
+|---|---:|---|
+| 5150, ROM BASIC, `--gfxcard vga` | 25 266 173 | 64/64, 4 542 trames |
+| 5150, PC DOS 2.00 | 26 534 951 | 64/64, 5 222 trames |
+| XT, ROM BASIC | 23 360 025 | 64/64, 4 478 trames |
+| XT, PC DOS 2.00 | 22 029 326 | 64/64, 5 148 trames |
+| **XT, DOS + DEBUG, modes 13h, 12h, 0Dh, 4, 1, 3** | **353 694 491** | **64/64, 88 809 trames** |
+
+La dernière tape 125 lignes en 1 740 évènements de clavier, de la tranche 7 000 à la
+tranche 138 960 : `B:DEBUG`, un programme qui passe en 13h et remplit l'écran
+octet par octet, un qui pilote le GDC à la main en 12h — modes d'écriture 2 et 3, XOR, AND
+et OR, rotation, set/reset, mode de lecture 1, et une lecture du DAC juste après
+`OUT 3C8h,0` —, puis chaque mode du BIOS avec défilement.
+
+### La couverture, comptée et non supposée
+
+Compteurs de passage dans une copie jetable du C#, sur la même campagne :
+
+| | Exercé |
+|---|---|
+| Rendus | blank, texte 80 (6,7 M lignes), texte 40, 2 bpp basse rés., 4 bpp basse et haute rés., 8 bpp basse rés. — **7 sur 9** |
+| Écriture | mode 0 en `chain2`, `chain4` et plans ; mode 0 + OR + set/reset ; mode 1 (3,2 M) ; mode 2, mode 2 + XOR ; mode 3 + AND + rotation |
+| Lecture | mode 0 en `chain2`, `chain4` et plans ; mode 1 |
+| DAC | 1 539 lectures, dont 2 à l'index -1 (PB-35) |
+
+**Jamais atteints** : `svga_render_2bpp_highres` et `svga_render_8bpp_highres`, qu'aucun
+mode du BIOS ne choisit ; le chemin `fast` (il exige `packed_chain4` ou `fb_only`, qu'aucune
+ligne de la VGA ne pose) ; curseur matériel, recouvrement, entrelacé. Pour ceux-là le seul
+filet est la relecture ci-dessous.
+
+### Deux défauts d'outillage, trouvés en chemin
+
+1. **`boot-diff` plafonnait à ~268 M d'instructions.** Il chargeait la trace de l'oracle par
+   `File.ReadAllBytes` (2 Go au plus) et l'indexait par `n * 8` en `int`. La campagne
+   graphique l'a dépassé — un 8088 qui fait défiler le mode 13h octet par octet. La trace se
+   lit désormais en flux ; les chiffres de non-régression sont inchangés.
+2. **L'écran de fin s'imprimait sous l'en-tête « CGA ».** `pc.closepc()` ferme la carte,
+   `svga_pri` redevient nul, et l'affichage retombait sur `mem_readb_phys` — donc sur
+   `svga_read`, qui touche les verrous. La carte est retenue avant `closepc`, et l'écran
+   VGA se lit dans la VRAM brute (`BootTest.DumpVgaTextScreen`).
+
+Et un troisième, laissé tel quel : `KeyScript` ne sait pas taper `[` ni `]`. La campagne
+contourne par `es:` puis `lodsb`.
+
+### L'IBM AT
+
+`--boot --model ibmat --gfxcard vga --floppy-a pcdos20b.img --type $'\x01'` amorce PC DOS
+2.00 en VGA : invites de date et d'heure en 80 × 25. Le `104-System Board Error` du POST est
+le défaut connu de l'AT côté C#, sans rapport avec la carte.
+
+`boot-diff --model ibmat --gfxcard vga` diverge à l'instruction 7 : `IN AL,71h`, oracle
+`0xFF`, C# `0x10` — le **CMOS**. Même site et mêmes valeurs en CGA (instruction 40) : c'est
+la divergence que `TRANSCRIPTION.md` décrit, le C# lisant `nvr/.at.nvr` là où l'oracle prend
+la branche sans fichier. Aucun `boot-diff` d'AT ne peut aujourd'hui atteindre la VGA.
+
+### Ce que ce vert ne dit pas
+
+1. **L'AT n'est pas sous oracle pour la VGA.** Tout le vert ci-dessus est sur 8088. Le cœur
+   286 accède à la VRAM par le même `svga_read`/`svga_write`, mais avec un bus de 16 bits
+   (`video_timing_read_l = read_w * 2`) : ce chemin-là n'a été vu qu'en exécution.
+2. **Deux rendus, le chemin `fast`, le curseur et l'entrelacé** n'ont que la relecture.
+3. **L'hôte SDL n'est pas sous oracle** : la fenêtre à 720 × 400 ou 640 × 480, l'étirement
+   de la texture. `Buffer32` l'est, la remontée non.
+4. **256 Ko de VRAM seulement**, la valeur de `vga_init` ; une SVGA en voudrait plus, et
+   aucune n'est transcrite.

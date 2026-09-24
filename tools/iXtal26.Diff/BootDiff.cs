@@ -52,7 +52,8 @@ public static class BootDiff
     /// que CompareImages signale.</param>
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
                           string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
-                          int typeSettle = KeyScript.SlicesAfterLine, string? model = null)
+                          int typeSettle = KeyScript.SlicesAfterLine, string? model = null,
+                          string? gfxcard = null)
     {
         Oracle.CheckAbi();
 
@@ -63,10 +64,13 @@ public static class BootDiff
         // l'emporte sur le fichier, quel que soit l'ordre de frappe.
         if (model is not null && !pc.setmodel(model))
             return 2;
+        if (gfxcard is not null && !pc.setgfxcard(gfxcard))
+            return 2;
 
         // La MACHINE en tête : depuis M10 le dépôt en a deux, et un diff qui ne dit pas
         // laquelle il compare laisse croire qu'il n'y en a qu'une.
         Console.WriteLine($"Configuration : machine = {Models.model_c.model_get_internal_name()}, " +
+                          $"carte = {Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard))}, " +
                           $"mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                           (configPath is null ? " (défaut)" : $" ({configPath})"));
 
@@ -158,6 +162,9 @@ public static class BootDiff
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
+        // M15 — la carte vidéo, comme le cœur : poussée AVANT h_boot, qui fait le
+        // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
+        Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_hdd(0, oracleC ?? "", Disc.hdd_c.hdc[0].spt,
                          Disc.hdd_c.hdc[0].hpc, Disc.hdd_c.hdc[0].tracks);
@@ -191,18 +198,33 @@ public static class BootDiff
         Oracle.h_trace_close();
         Oracle.h_closepc();
 
-        var oracleTrace = File.ReadAllBytes(oraclePath);
-        var nOracle = oracleTrace.Length / 8;
-        Console.WriteLine($"  oracle : {nOracle} instructions tracées");
+        // La sonde VGA de l'oracle, prise MAINTENANT : son état ne bouge plus jusqu'à la
+        // phase 2, mais le relevé côté C# doit se faire avant pc.closepc(), qui ferme la
+        // carte — autant relever les deux au même point de leur histoire.
+        var vgaOracle = new ulong[Oracle.VgaProbeN];
+        Oracle.h_vga_probe(vgaOracle);
 
-        // Supprimée dès qu'elle est en mémoire. Tant que le nom était fixe, chaque
+        // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
+        // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
+        // ~268 M d'instructions. Buté à M15 par la campagne graphique de la VGA — un
+        // 8088 qui fait défiler le mode 13h octet par octet —, qui en trace davantage.
+        // La comparaison est strictement séquentielle : un lecteur suffit.
+        //
+        // Supprimée à la fermeture (DeleteOnClose). Tant que le nom était fixe, chaque
         // campagne écrasait la précédente et /tmp ne grossissait pas ; maintenant qu'il
         // porte le numéro de processus, il faut le dire. Huit octets par instruction,
         // donc 792 Mo pour l'arc de § M12 — on ne laisse pas cela derrière soi. Les
         // copies d'images, elles, RESTENT : ce sont les pièces qu'on veut relire après
         // coup, et elles ne pèsent que la taille du disque émulé.
-        try { File.Delete(oraclePath); }
-        catch (IOException) { /* laissée sur place : sans conséquence pour la suite */ }
+        var nOracle = new FileInfo(oraclePath).Length / 8;
+        if (nOracle > int.MaxValue)
+        {
+            Console.Error.WriteLine($"Trace de {nOracle} instructions : au-delà de ce que l'indice en int compte.");
+            return 1;
+        }
+        using var oracleTrace = new BinaryReader(new FileStream(oraclePath, FileMode.Open, FileAccess.Read,
+            FileShare.Read, 1 << 20, FileOptions.SequentialScan | FileOptions.DeleteOnClose));
+        Console.WriteLine($"  oracle : {nOracle} instructions tracées");
 
         Console.WriteLine($"Amorçage du cœur C# ({slices} tranches)…");
         _808x.ResetDiagState();
@@ -253,7 +275,7 @@ public static class BootDiff
                 var h = TraceHash();
                 if (n < nOracle)
                 {
-                    var o = BitConverter.ToUInt64(oracleTrace, n * 8);
+                    var o = oracleTrace.ReadUInt64();
                     if (o != h) { diverged = n; break; }
                 }
                 n++;
@@ -263,6 +285,12 @@ public static class BootDiff
             Keyboard.keyboard.keyboard_process();
         }
 
+        var vgaCsharp = new ulong[Oracle.VgaProbeN];
+        Video.vid_svga.Probe(vgaCsharp);
+        // La carte, retenue AVANT closepc : device_close_all passe par vga_close, qui
+        // remet svga_pri à nul. Sans cette référence, l'écran de fin se lisait par
+        // mem_readb_phys — donc par svga_read — sous un en-tête « CGA ».
+        var svgaEnd = Video.vid_svga.svga_get_pri();
         pc.closepc();
 
         if (diverged < 0)
@@ -282,11 +310,19 @@ public static class BootDiff
 
             Console.WriteLine($"\nVert : {n} instructions, les deux amorçages sont identiques.");
 
+            // M15 — l'état de la carte VGA en fin de course. Le diff d'instructions voit
+            // tout ce que le CPU relit, et RIEN de ce qu'il ne relit pas : la palette du
+            // DAC, la police du plan 2, les pixels. C'est ici qu'ils se comparent. AVANT
+            // DumpTextScreen, qui ne touche pas la carte mais qu'on garde en aval par
+            // principe. Sans carte VGA des deux côtés, la sonde est muette : la CGA de
+            // l'oracle a une palette stubée, ses pixels ne se comparent pas.
+            var vgaVerdict = CompareVga(vgaOracle, vgaCsharp);
+
             // L'écran du côté C#, quand on a tapé : un accord parfait sur une image
             // inchangée laisse la question « pourquoi la frappe n'a-t-elle rien
             // produit ? » sans réponse, et c'est là qu'elle se lit.
             if (script.Count > 0)
-                iXtal26.BootTest.DumpTextScreen();
+                iXtal26.BootTest.DumpTextScreen(svgaEnd);
 
             // Le diff d'instructions dit que les deux cœurs font la même chose. Les
             // images disent ce qu'ils ont ÉCRIT — et c'est le seul oracle que le chemin
@@ -299,7 +335,8 @@ public static class BootDiff
             // images de M11 était lue à l'œil, jamais par le code de sortie. C'est
             // `|` qui la rend exécutable. Bitwise et non `||` : les quatre lignes
             // doivent s'imprimer, y compris après la première divergence.
-            return CompareImages(discA, oracleA, csharpA, "A:")
+            return vgaVerdict
+                 | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discC, oracleC, csharpC, "C: (disque dur)")
                  | CompareImages(discD, oracleD, csharpD, "D: (disque dur)");
@@ -364,6 +401,34 @@ public static class BootDiff
                                $"ixtal-{tag}-{Environment.ProcessId}-{Path.GetFileName(src)}");
         File.Copy(src, dst, overwrite: true);
         return dst;
+    }
+
+    /// <summary>Compare les deux sondes VGA de fin de course, champ par champ. Rend 0 si
+    /// elles concordent — ou si aucun côté n'a de carte svga. Un accord sur une VRAM
+    /// jamais écrite serait vide : le compte de trames le signale.</summary>
+    private static int CompareVga(ulong[] o, ulong[] c)
+    {
+        if (o[0] == 0 && c[0] == 0)
+            return 0;
+
+        var bad = 0;
+        for (var f = 0; f < VgaProbe.Fields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  VGA {VgaProbe.Fields[f],-20} oracle {o[f],22} | C# {c[f],22}");
+        }
+
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde VGA : {bad} champ(s) divergent(s) sur {VgaProbe.Fields.Length}.");
+            return 1;
+        }
+
+        Console.WriteLine($"Sonde VGA : {VgaProbe.Fields.Length} champs identiques — VRAM, registres, " +
+                          $"palettes et framebuffer ; {o[Array.IndexOf(VgaProbe.Fields, "frames")]} trames tracées.");
+        return 0;
     }
 
     /// <summary>Compare les deux images produites. Rend 0 si elles concordent — ou si
@@ -433,6 +498,9 @@ public static class BootDiff
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
+        // M15 — la carte vidéo, comme le cœur : poussée AVANT h_boot, qui fait le
+        // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
+        Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -627,6 +695,9 @@ public static class BootDiff
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
+        // M15 — la carte vidéo, comme le cœur : poussée AVANT h_boot, qui fait le
+        // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
+        Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -737,6 +808,9 @@ public static class BootDiff
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
+        // M15 — la carte vidéo, comme le cœur : poussée AVANT h_boot, qui fait le
+        // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
+        Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         for (var hd = 0; hd < 2; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,

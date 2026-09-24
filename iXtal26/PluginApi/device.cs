@@ -5,9 +5,10 @@
 // STATUS: partial — device_t, device_config_t réduit, devices[]/device_priv[],
 //         device_init/device_add/device_close_all/device_available/
 //         device_speed_changed/device_force_redraw/device_add_status_info,
-//         device_get_config_int/string, pcem_add_device ; omis : les registres
-//         MODEL/VIDEO_CARD/SOUND_CARD/HDD_CONTROLLER/NETWORK_CARD/LPT_DEVICE, la
-//         famille model_get_config_* et l'API plugin pcem_*_get_config_*.
+//         device_get_config_int/string, pcem_add_device ; omis ici : les registres
+//         MODEL/VIDEO_CARD/SOUND_CARD/HDD_CONTROLLER/NETWORK_CARD/LPT_DEVICE (models[]
+//         vit dans model.cs, video_cards[] dans video.cs), la famille
+//         model_get_config_* et l'API plugin pcem_*_get_config_*.
 
 // CS8600/CS8602/CS8604 : l'analyse de nullabilité de C# ne suit pas l'état des
 // éléments de tableau. `if (devices[c] != null)` — le test de PCem, une ligne
@@ -116,10 +117,11 @@ internal static partial class device
     internal static object?[] device_priv = new object?[DEV_MAX];
     // omitted: device.c:7-12 — re-déclarations `extern` de ce que le fichier
     //   définit lui-même, sans contrepartie C#.
-    // omitted: models[], video_cards[], sound_cards[], hdd_controllers[],
-    //   network_cards[], lpt_devices[] (device.c:16-21) et les types SOUND_CARD,
-    //   video_timings_t, VIDEO_CARD, MODEL, HDD_CONTROLLER, NETWORK_CARD,
+    // omitted: sound_cards[], hdd_controllers[], network_cards[], lpt_devices[]
+    //   (device.c:18-21) et les types SOUND_CARD, HDD_CONTROLLER, NETWORK_CARD,
     //   lpt_device_t, LPT_DEVICE (devices.h:48-118) — registres enfichables.
+    //   models[] et MODEL vivent dans model.cs ; video_cards[] (device.c:17),
+    //   video_timings_t et VIDEO_CARD dans video.cs, réduits à la CGA et à la VGA.
     // pcem: device.c:26 — void (*_sound_speed_changed)(void). Crochet posé par
     // l'IHM chez PCem (wx-sdl2.c:450, qt-sdl2.c:460) ; ici par pc.initpc(), et
     // INCONDITIONNELLEMENT. C'est lui qui pose sound_poll_latch : laissé nul, le

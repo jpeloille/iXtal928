@@ -24,7 +24,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -193,6 +193,7 @@ switch (args[0])
         string? fdb = null;
         string? cfg = null;
         string? model = null;
+        string? gfx = null;
         var types = new List<string>();
         var typeAt = 0;
         var typeSettle = iXtal26.Host.KeyScript.SlicesAfterLine;
@@ -219,6 +220,8 @@ switch (args[0])
                 // BASIC. Le correctif rend la clé au fichier, et cette campagne-là
                 // n'avait alors plus aucune commande pour l'exprimer.
                 case "--model" when i + 1 < args.Length: model = args[++i]; break;
+                // M15 — la carte vidéo, avec la même précédence que --model.
+                case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {
@@ -254,7 +257,7 @@ switch (args[0])
             Console.Error.WriteLine($"Fichier de configuration introuvable : {cfg}");
             return 2;
         }
-        return BootDiff.Run(roms, slices, fda, cfg, fdb, types, typeAt, typeSettle, model);
+        return BootDiff.Run(roms, slices, fda, cfg, fdb, types, typeAt, typeSettle, model, gfx);
     }
 
     case "vga-probe":

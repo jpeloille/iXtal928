@@ -5,7 +5,8 @@
 //         machines de configs/, en charger une, en enregistrer une)
 //         + wx-config.c:658-675 (choix de la machine), :742-753 (mémoire, bornée et
 //         granulée par le modèle), :773-792 (types de lecteurs), :2038-2120 (assigner
-//         une image de disque dur existante)
+//         une image de disque dur existante), :139-161 (la carte vidéo, filtrée par
+//         video_card_available)
 // STATUS: host
 //
 // CONSTRUIRE LA MACHINE AVANT DE LA LANCER.
@@ -27,11 +28,11 @@
 //   rendez-vous entre deux fils : le recopier ici en ferait une seconde implémentation
 //   d'un mécanisme délicat. L'écran liste os/, ce qui est la demande — « issu de ma
 //   liste disponible » — et --floppy-a / --hdd prennent un chemin quelconque.
-// omitted: tout ce que la boîte de PCem règle et que cette machine n'a pas — CPU, FPU,
-//   dynarec, waitstates, carte vidéo, carte son, CD-ROM, ZIP, LPT, souris, joystick,
-//   réseau (wx-config.c, pages 0 à 7). Le 5150 et le XT n'ont qu'un 8088 à 4,77 MHz,
-//   une CGA et le haut-parleur : les proposer serait proposer des machines qui
-//   n'existent pas dans ce dépôt.
+// omitted: tout ce que la boîte de PCem règle et que ces machines n'ont pas — CPU, FPU,
+//   dynarec, waitstates, carte son, CD-ROM, ZIP, LPT, souris, joystick, réseau
+//   (wx-config.c, pages 0 à 7). Les proposer serait proposer des machines qui
+//   n'existent pas dans ce dépôt. La CARTE VIDÉO, elle, est proposée depuis M15 : deux
+//   cartes y sont transcrites, la CGA et la VGA.
 
 using iXtal26.PluginApi;
 using SDL3;
@@ -43,7 +44,7 @@ internal sealed class SdlSetup
     /// <summary>Les lignes que l'écran principal propose, dans l'ordre d'affichage.</summary>
     private enum Item
     {
-        Model, Memory, FloppyA, FloppyB, Controller, DiskC, DiskD, Load, Save, Start,
+        Model, Memory, Video, FloppyA, FloppyB, Controller, DiskC, DiskD, Load, Save, Start,
     }
 
     private enum Screen { Main, Pick, CreateHdd }
@@ -59,7 +60,7 @@ internal sealed class SdlSetup
 
     private static readonly Item[] MainItems =
     [
-        Item.Model, Item.Memory, Item.FloppyA, Item.FloppyB, Item.Controller,
+        Item.Model, Item.Memory, Item.Video, Item.FloppyA, Item.FloppyB, Item.Controller,
         Item.DiskC, Item.DiskD, Item.Load, Item.Save, Item.Start,
     ];
 
@@ -223,6 +224,7 @@ internal sealed class SdlSetup
         {
             case Item.Model: BuildModelList(); break;
             case Item.Memory: BuildMemoryList(); break;
+            case Item.Video: BuildVideoList(); break;
             case Item.FloppyA or Item.FloppyB: BuildImageList(item); break;
             case Item.Controller: BuildControllerList(); break;
             case Item.DiskC or Item.DiskD: BuildImageList(item); break;
@@ -287,6 +289,42 @@ internal sealed class SdlSetup
             if (kb == pc.cfg_mem_size)
                 _pickIndex = i;
         }
+    }
+
+    /// <summary>
+    /// pcem: wx-config.c:139-161 — les cartes du registre que video_card_available
+    /// déclare présentes, c'est-à-dire dont la ROM est là. Le second test,
+    /// gfx_present[], vaut ce même video_card_available (wx-sdl2.c:523). PCem ajoute
+    /// trois filtres (PCI, MCA, et MCA inversé) qu'aucune des deux cartes ni des quatre
+    /// machines ne déclenche : la VGA est proposée partout, comme chez lui.
+    ///
+    /// Les chemins de ROM sont posés ICI et pas seulement par initpc : l'écran tourne
+    /// AVANT elle, et sans eux rom_present("ibm_vga.bin") rendrait faux — la VGA
+    /// disparaîtrait de la liste sans un mot. initpc les reposera à l'identique.
+    /// </summary>
+    private void BuildVideoList()
+    {
+        var cards = Video.video.video_cards;
+        var labels = new List<string>();
+        var values = new List<string>();
+
+        paths.set_roms_paths(_romsPath);
+
+        for (int c = 0; c < cards.Length; c++)
+        {
+            if (Video.video.video_card_available(c) == 0)
+                continue;
+
+            labels.Add($"   {cards[c].name}");
+            values.Add(cards[c].internal_name);
+
+            if (Video.video.video_new_to_old(c) == pc.gfxcard)
+                _pickIndex = labels.Count - 1;
+        }
+
+        _pickTitle = " Carte video";
+        _pickLabels = labels.ToArray();
+        _pickValues = values.ToArray();
     }
 
     private void BuildControllerList()
@@ -468,6 +506,11 @@ internal sealed class SdlSetup
 
             case Item.Memory:
                 pc.cfg_mem_size = int.Parse(value);
+                break;
+
+            case Item.Video:
+                // La liste vient du registre lui-même : setgfxcard ne peut pas refuser.
+                pc.setgfxcard(value);
                 break;
 
             case Item.FloppyA:
@@ -658,6 +701,9 @@ internal sealed class SdlSetup
         config.config_set_string(config.CFG_MACHINE, null, "model",
                                  Models.model_c.model_get_internal_name());
         config.config_set_int(config.CFG_MACHINE, null, "mem_size", pc.cfg_mem_size);
+        // pcem: pc.c:879
+        config.config_set_string(config.CFG_MACHINE, null, "gfxcard",
+                                 Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)));
         config.config_set_int(config.CFG_MACHINE, null, "drive_a_type", pc.cfg_drive_type[0]);
         config.config_set_int(config.CFG_MACHINE, null, "drive_b_type", pc.cfg_drive_type[1]);
 
@@ -832,6 +878,9 @@ internal sealed class SdlSetup
             case Item.Memory:
                 return Field("Memoire", $"{pc.cfg_mem_size} Ko");
 
+            case Item.Video:
+                return Field("Video", Video.video.video_card_getname(Video.video.video_old_to_new(pc.gfxcard)));
+
             case Item.FloppyA:
                 return Field("Lecteur A:", ShortName(Floppy.fdd_c.discfns[0], "(vide)"));
 
@@ -901,7 +950,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des huit contrôles sont des non-régressions nées d'une relecture : la
+    /// Deux des dix contrôles sont des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -947,6 +996,24 @@ internal sealed class SdlSetup
         st._screen = Screen.Main;
 
         Console.WriteLine();
+        Console.WriteLine("Carte vidéo (M15) :");
+
+        int gfxBefore = pc.gfxcard;
+        st.Activate(Item.Video);
+        int vga = Array.IndexOf(st._pickValues, "vga");
+        Check("la VGA est proposée quand ibm_vga.bin est là", vga >= 0,
+              $"{st._pickLabels.Length} carte(s) : {string.Join(",", st._pickValues)}");
+        if (vga >= 0)
+        {
+            st._pickIndex = vga;
+            st.ApplyPick();
+        }
+        Check("la choisir pose gfxcard = GFX_VGA", pc.gfxcard == pc.GFX_VGA,
+              $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
+        pc.gfxcard = gfxBefore;
+        st._screen = Screen.Main;
+
+        Console.WriteLine();
         Console.WriteLine("Chemin clavier de l'écran principal :");
 
         st._mainIndex = 0;
@@ -975,7 +1042,7 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les huit contrôles passent."
+            ? "Vert : les dix contrôles passent."
             : $"{fail} contrôle(s) en échec.");
 
         return fail == 0 ? 0 : 1;

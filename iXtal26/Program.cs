@@ -23,6 +23,7 @@ var turboSlices = 0; // 0 = pas de turbo : le POST se déroule à sa vitesse d'�
 string? configPath = null;
 var ramOverride = -1;
 string? modelOverride = null;
+string? gfxOverride = null;
 var driveOverride = new[] { -1, -1 };
 
 // --hdd / --hdd-d. COLLECTÉS et non appliqués sur place, comme --model et --ram :
@@ -76,6 +77,7 @@ for (var i = 0; i < args.Length; i++)
         // --floppy-a/-b : l'image à monter, comme en mode fenêtre (voir plus bas).
         var types = new List<string>();
         string? bootModel = null;
+        string? bootGfx = null;
         string? bootHdd = null;
         var bootHddType = -1;
         var settle = KeyScript.SlicesAfterLine;
@@ -100,6 +102,9 @@ for (var i = 0; i < args.Length; i++)
                 // puis --config, puis la ligne de commande — quel que soit l'ordre de
                 // frappe. Appliqué juste avant BootTest.Run.
                 case "--model": bootModel = val; break;
+                // COLLECTÉ comme --model, et pour la même raison : il l'emporte sur la
+                // clé gfxcard de --config, quel que soit l'ordre de frappe.
+                case "--gfxcard": bootGfx = val; break;
                 // COLLECTÉS pour la même raison que --model : ils doivent s'appliquer
                 // APRÈS --config, qui écrase ide_fn[] et hdc[] sans condition.
                 case "--hdd": bootHdd = val; break;
@@ -138,6 +143,8 @@ for (var i = 0; i < args.Length; i++)
         }
 
         if (bootModel is not null && !pc.setmodel(bootModel))
+            return 2;
+        if (bootGfx is not null && !pc.setgfxcard(bootGfx))
             return 2;
 
         if (bootHdd is null && bootHddType >= 0)
@@ -315,6 +322,18 @@ for (var i = 0; i < args.Length; i++)
         continue;
     }
 
+    if (arg == "--gfxcard")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine("--gfxcard attend un nom de carte vidéo.");
+            return 2;
+        }
+
+        gfxOverride = args[++i];
+        continue;
+    }
+
     if (arg == "--rom-path")
     {
         if (i + 1 >= args.Length)
@@ -459,6 +478,9 @@ if (configPath is not null && !pc.loadconfig(configPath))
 // 64 Ko de granularité là où le 5150 est à 32. Dans l'autre ordre, --model ibmxt --ram 96
 // passerait le contrôle du 5150 puis monterait une machine que PCem ne décrit pas.
 if (modelOverride is not null && !pc.setmodel(modelOverride))
+    return 2;
+
+if (gfxOverride is not null && !pc.setgfxcard(gfxOverride))
     return 2;
 
 // Refusé, pas corrigé : une taille tapée en ligne de commande est explicite. Avant M10
@@ -1006,6 +1028,8 @@ static void PrintUsage()
     Console.WriteLine("                       drive_b_type, disc_a, disc_b, bpb_disable");
     Console.WriteLine("  --model NOM          machine : ibmpc (IBM PC 5150) ou ibmxt (IBM XT 5160).");
     Console.WriteLine("                       Un nom inconnu est refusé en citant ce qui existe");
+    Console.WriteLine("  --gfxcard NOM        carte vidéo : cga (défaut) ou vga (ROM ibm_vga.bin). Même");
+    Console.WriteLine("                       précédence que --model : l'emporte sur la clé gfxcard");
     Console.WriteLine("  --ram N              taille RAM en Ko. Les bornes viennent de la MACHINE :");
     Console.WriteLine("                       64 à 640 par pas de 32 sur ibmpc, par pas de 64 sur ibmxt");
     Console.WriteLine("  --drive-a T          type de lecteur : 0 aucun, 1 5,25\" DD (le 5150),");
