@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/devices/nvr.c  (lignes 18-232 et 784-802)
+// ORACLE: pcem-dev/src/devices/nvr.c  (lignes 18-802)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — B1 : le MC146818 lui-même. loadnvr (:233-543) et savenvr
-//         (:544-783) sont réduits au SEUL cas de l'AT : les 550 lignes qu'ils
-//         font sont un `switch` sur des dizaines de machines, et chacune ouvre
-//         un fichier de sauvegarde différent. Voir le registre des omissions.
+// STATUS: partial — le MC146818 en entier, nvrfopen comprise, et les DEUX
+//         branches de loadnvr. Des `switch (romset)` de loadnvr (:233-543) et
+//         savenvr (:544-783) ne restent que ROM_IBMAT et ROM_AMI286 : les 550
+//         lignes qu'ils font sont un nom de fichier par machine, sur une
+//         trentaine de machines absentes. Voir le registre des omissions.
 //
 // L'HORLOGE TEMPS RÉEL ET LES 128 OCTETS DE CMOS, ET LE POST LES LIT AVANT TOUT.
 //
@@ -72,9 +73,13 @@ internal static class nvr
     /// qu'un émulateur peut livrer. En ÉCRITURE l'échec du premier est définitif, et le
     /// C rend NULL — ce que savenvr ne vérifie pas, voir PB-33.
     ///
-    /// LE POINT EST DANS LE NOM DU FICHIER, pas dans l'extension : « default.at.nvr »
-    /// et non « default/at.nvr ». C'est une convention de PCem et elle se recopie —
-    /// changer le séparateur ferait chercher un fichier qui n'existe pas.</summary>
+    /// LE POINT VIENT DE config_name, ET IL EST VIDE ICI. Le premier chemin colle
+    /// `config_name`, un point, puis `fn` : avec un nom de configuration il donne
+    /// « nvr/machine.at.nvr », sans lui « nvr/.at.nvr » — un fichier CACHÉ, que
+    /// `ls nvr/*.nvr` ne montre pas. Le second chemin, lui, ne porte aucun point :
+    /// `nvr_default_path` vaut « nvr/default/ » et `fn` s'y ajoute tel quel.
+    /// config_name n'est jamais affecté dans ce dépôt (config.cs:54), donc --config
+    /// ne change PAS le nom du CMOS, contrairement à PCem.</summary>
     private static FileStream? nvrfopen(string fn, string mode)
     {
         string s;
@@ -337,27 +342,34 @@ internal static class nvr
         return (uint8_t)nvraddr;
     }
 
-    /// <summary>pcem: nvr.c:233-543 — loadnvr, RÉDUITE À SA BRANCHE SANS FICHIER.
+    /// <summary>pcem: nvr.c:233-543 — loadnvr, ses DEUX branches, réduite aux deux
+    /// machines à 286.
     ///
     /// Les 310 lignes du C sont un `switch (romset)` sur une trentaine de
-    /// machines, chacune ouvrant un fichier de sauvegarde à son nom. Ce dépôt
-    /// n'en expose aucun — nvrfopen est omise — donc toutes les branches mènent
-    /// au même endroit : celui qu'on garde. Sans fichier, le CMOS part à 0xFF,
-    /// daté du 1er janvier 1980, le seul bit 24 heures posé.
+    /// machines, chacune ouvrant un fichier de sauvegarde à son nom. Seuls
+    /// ROM_IBMAT et ROM_AMI286 sont ici, le second avec son nvrmask à 127.
+    /// Sans fichier, le CMOS part à 0xFF, daté du 1er janvier 1980, le seul bit
+    /// 24 heures posé.
     ///
-    /// ET L'ORACLE N'APPELLE PAS CETTE FONCTION DU TOUT. C'est une MESURE, pas
-    /// une lecture : `at-probe` vide nvrram[128] depuis la .so après h_boot et
-    /// n'y trouve NI 0xFF NI la date de 1980 — les octets 0x10 à 0x7F sont à
-    /// zéro, et 0x00 à 0x0F portent ce que le POST et l'horloge ont écrit
-    /// par-dessus le .bss. Le resetpchard réduit du harnais omet loadnvr, que
-    /// pc.c appelle pourtant en :289 et :397.
+    /// L'ORACLE APPELLE BIEN CETTE FONCTION (harness.c:1112), ET POURTANT IL NE
+    /// LIT PAS LE MÊME FICHIER. Ses nvr_path, nvr_default_path et config_name
+    /// sont trois globales de .bss jamais affectées (harness_stubs.c:683-685) :
+    /// il compose « ./.ami286.nvr » et « ./ami286.nvr », qui n'existent ni l'un
+    /// ni l'autre, donc il prend TOUJOURS la branche sans fichier — là où le C#
+    /// lit le vrai fichier, parce que pc.cs:421-426 pose les trois chemins.
     ///
-    /// CE PIÈGE EST POUR B3, et il est facile à ne pas voir : le POST de l'AT
-    /// s'arrête sur « 162-System Options Not Set » dans les DEUX états, un CMOS
-    /// à zéro ayant une somme de contrôle aussi fausse qu'un CMOS à 0xFF.
-    /// L'écran ne départage rien. Un `boot-diff --model ibmat` qui appellerait
-    /// loadnvr côté C# seul divergerait — sur la DATE, donc des centaines de
-    /// milliers d'instructions après la cause.</summary>
+    /// C'est une divergence d'état du CMOS AVANT LA PREMIÈRE INSTRUCTION, et
+    /// aucun `boot-diff` de classe AT ne peut la traverser. Les cinq chiffres du
+    /// 8088 n'en souffrent pas : leur romset tombe dans le `default:`, donc les
+    /// deux côtés sont sans fichier.
+    ///
+    /// ET L'ÉCRAN NE DÉPARTAGE RIEN, ce qui rend le piège facile à ne pas voir :
+    /// le POST de l'AT s'arrête sur « 162-System Options Not Set » dans les DEUX
+    /// états, un CMOS à zéro ayant une somme de contrôle aussi fausse qu'un CMOS
+    /// à 0xFF. Mesuré dans la ROM : la boucle de vérification (62x0820 entrelacé,
+    /// 0x06fe-0x0727) somme 0x10 à 0x2D sur 16 bits, compare à 0x2E en poids fort
+    /// et 0x2F en poids faible, ET REJETTE UNE SOMME NULLE par un `or bx,bx /
+    /// jz`.</summary>
     internal static void loadnvr()
     {
         FileStream? f;

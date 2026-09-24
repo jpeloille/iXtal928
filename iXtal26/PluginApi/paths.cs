@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/plugin-api/paths.c
-// STATUS: partial — chemins de recherche des ROMs seulement (roms_paths,
-//         get_roms_path, set_roms_paths, paths_init). nvr/, configs/, logs/,
-//         screenshots/, plugins/ et la persistance de configuration sont omis.
+// STATUS: partial — les chemins de recherche des ROMs (roms_paths, get_roms_path,
+//         set_roms_paths, paths_init) et les trois chemins du CMOS (nvr_path,
+//         default_nvr_path, nvr_default_path, avec leurs setters). configs/,
+//         logs/, screenshots/, plugins/ et la persistance de configuration sont
+//         omis. paths_init est MORT : c'est pc.cs:421-426 qui pose les chemins
+//         du CMOS, parce que paths_init écraserait celui des ROMs que --rom-path
+//         a posé.
 
 // append_slash vit dans config.c chez PCem, donc dans config.cs ici. set_roms_paths et
 // paths_init l'appellent sans préfixe, comme le C qui a les deux dans sa portée globale.
@@ -262,9 +266,13 @@ internal static partial class paths
     // appartiennent (config.c:398-414) — la migration que le commentaire d'ici
     // annonçait. `using static` en tête de fichier garde les appels inchangés.
 
-    // omitted: set_nvr_path, set_logs_path, set_configs_path, set_screenshots_path,
-    //   set_default_nvr_path, set_default_nvr_default_path, set_default_logs_path,
-    //   set_default_configs_path, set_default_screenshots_path, paths_loadconfig,
-    //   paths_saveconfig, paths_onconfigloaded, get_pcem_path (paths.c:92-142,
-    //   144-188, 218-241) — chemins hors ROM et persistance de la configuration.
+    // omitted: set_logs_path, set_configs_path, set_screenshots_path,
+    //   set_default_logs_path, set_default_configs_path, set_default_screenshots_path,
+    //   paths_loadconfig, paths_saveconfig, paths_onconfigloaded, get_pcem_path
+    //   (paths.c:92-142, 144-188, 218-241) — chemins hors ROM et hors CMOS, et
+    //   persistance de la configuration.
+    //
+    // set_nvr_path, set_default_nvr_path et set_default_nvr_default_path étaient dans
+    // cette liste alors qu'ils sont définis plus haut, :221, :224 et :234. Ils sont
+    // entrés avec nvrfopen ; la liste, elle, n'avait pas suivi.
 }

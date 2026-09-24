@@ -674,7 +674,16 @@ static void PrintHddTypes()
     Console.WriteLine();
     Console.WriteLine("« * » : géométrie que l'IBM Fixed Disk Adapter accepte. Les autres se créent,");
     Console.WriteLine("mais la carte n'en dira qu'un avertissement, annoncera le disque en type 0 et");
-    Console.WriteLine("le POST divergera. La carte dtc5150x, elle, n'impose aucune restriction.");
+    Console.WriteLine("le POST divergera. La carte dtc5150x, elle, n'impose aucune restriction, et");
+    Console.WriteLine("mfm_at prend sa géométrie du BIOS : sur un 286, les 46 types sont ouverts.");
+    Console.WriteLine();
+    Console.WriteLine("Cette table est celle de la liste déroulante de PCem. Mesurée contre la table");
+    Console.WriteLine("de la ROM AMI 286 (F000:E401), elle concorde sur 45 entrées et se trompe sur");
+    Console.WriteLine("le type 39 : la ROM dit 987 cylindres, PCem 462. Voir PB-34.");
+    Console.WriteLine();
+    Console.WriteLine("Et l'INT 13h de cette ROM écrête les cylindres à 1023 (fonction AH=08h), donc");
+    Console.WriteLine("au-delà de 1024 cylindres la fin du disque est déclarée mais inatteignable par");
+    Console.WriteLine("DOS. Concerne le seul type 46.");
     Console.WriteLine();
 
     for (var t = 1; t <= 46; t++)

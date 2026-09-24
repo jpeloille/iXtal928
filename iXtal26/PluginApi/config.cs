@@ -49,8 +49,13 @@ internal static partial class config
     internal static string config_file_default = "";
 
     // pcem: config.c:8 — nom sans extension. Chez PCem il nomme aussi la NVRAM
-    // (nvr.c:33-54), couplage qui fait perdre le CMOS quand on renomme un .cfg ;
-    // iXtal26 n'a pas de NVR, donc le couplage n'existe pas.
+    // (nvr.c:33-54), couplage qui fait perdre le CMOS quand on renomme un .cfg.
+    //
+    // LE COUPLAGE EXISTE ICI AUSSI — nvr.cs:85 lit ce champ — mais RIEN NE
+    // L'AFFECTE JAMAIS, là où PCem le pose depuis le nom du fichier de
+    // configuration (pc.c:217-219, wx-config_sel.c:90-92), tous deux omis.
+    // Conséquence observable : le CMOS s'appelle « nvr/.at.nvr », un fichier
+    // caché, et --config ne change pas son nom.
     internal static string config_name = "";
 
     // pcem: config.c:130 — `list_t *head = is_global ? &global : &machine;`. Le C prend

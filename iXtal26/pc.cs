@@ -414,10 +414,12 @@ internal static partial class pc
         // cette raison — c'est l'appelant qui décide où sont les ROM, pas le binaire —
         // et l'appeler ici les écraserait.
         //
-        // Résolus par la MÊME politique que les ROM : resolve_roms_path remonte l'arbre
-        // depuis le répertoire courant, parce que Rider lance depuis bin/Debug/net10.0
-        // là où PCem a toujours pour répertoire courant celui de son installation. Sans
-        // ça le CMOS partait dans « ./.ami286.nvr », à la racine du dépôt — mesuré.
+        // Résolus par la MÊME politique que les ROM : resolve_roms_path essaie d'abord
+        // le chemin tel quel depuis le répertoire courant (paths.cs:158), puis remonte
+        // l'arbre depuis AppContext.BaseDirectory (paths.cs:196) — et c'est bien cette
+        // seconde passe qui sert, parce que Rider lance depuis bin/Debug/net10.0 là où
+        // PCem a toujours pour répertoire courant celui de son installation. Sans ça le
+        // CMOS partait dans « ./.ami286.nvr », à la racine du dépôt — mesuré.
         PluginApi.paths.set_default_nvr_path(
                 PluginApi.paths.resolve_roms_path("nvr") is { Length: > 0 } n ? n : "nvr");
         PluginApi.paths.set_default_nvr_default_path(
@@ -539,10 +541,11 @@ internal static partial class pc
 
         // omitted: resetide() (pc.c:395) — contrôleurs IDE, au registre des omissions.
 
-        // pcem: pc.c:397 — loadnvr(). Pose le CMOS à 0xFF partout sauf la date du
-        // 1er janvier 1980 et le bit 24 heures ; la somme de contrôle reste donc fausse
-        // et le POST de l'AT s'arrête sur « 162-System Options Not Set », comme un vrai
-        // 5170 à pile vide.
+        // pcem: pc.c:397 — loadnvr(). Lit « nvr/.<machine>.nvr », sinon le CMOS de
+        // référence « nvr/default/<machine>.nvr ». SANS AUCUN DES DEUX il pose 0xFF
+        // partout sauf la date du 1er janvier 1980 et le bit 24 heures ; la somme de
+        // contrôle est alors fausse et le POST de l'AT s'arrête sur « 162-System
+        // Options Not Set », comme un vrai 5170 à pile vide.
         //
         // ET SANS ELLE LE POST TOMBE DANS DE L'UB DE PCem. nvrram[RTC_MONTH] valant 0,
         // rtc_recalc appelle rtc_get_days(0, …) qui fait `rtc_days_in_month[month - 1]`,

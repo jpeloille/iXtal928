@@ -238,10 +238,10 @@ internal static partial class model_c
     // L'ORDRE COMPTE : `model` vaut 0 sans configuration, donc la première entrée est
     // la machine par défaut. Toute mesure de VERIFICATION.md suppose le 5150 ; déplacer
     // m_ibmpc d'ici les invaliderait toutes sans qu'une seule porte ne rougisse.
-    // m_ibmat EN DERNIER, ET CE N'EST PAS UN DÉTAIL DE STYLE : `model` vaut 0 sans
-    // configuration, donc la première entrée est la machine par défaut. L'insérer
-    // ailleurs qu'à la fin décalerait les indices et changerait la machine par défaut
-    // sans qu'une seule porte ne rougisse — tout VERIFICATION.md suppose le 5150.
+    // TOUTE MACHINE NEUVE ENTRE EN DERNIER, et ce n'est pas un détail de style :
+    // l'insérer ailleurs qu'à la fin décalerait les indices de celles qui suivent et
+    // changerait la machine par défaut sans qu'une seule porte ne rougisse. m_ibmat
+    // est entrée ainsi, puis m_ami286 derrière elle — d'où l'ordre ci-dessous.
     internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286 };
 
     // pcem: ibm.h — l'indice de la machine courante.

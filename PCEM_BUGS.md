@@ -620,12 +620,39 @@ dans ce dépôt** : le premier amorçage après l'écriture de `savenvr`, avec u
 encore absent, a levé exactement là — c'est ce qui a fait créer le répertoire et son
 `README.md`.
 
+### PB-34 — Le type de disque 39 de la boîte de configuration ne correspond à aucun BIOS
+
+`wx-config.c:1295-1302`, la table des 46 types que la liste déroulante propose, entrée 39 :
+
+```c
+        462, 7,
+```
+
+La ROM d'un BIOS AMI 286 (`amic206.bin`, table des paramètres de disque fixe à
+`F000:E401`, entrée 39 en `0xE661`) dit **987 × 7**, soit 60 076 800 octets contre les
+28 127 232 de PCem — un facteur 2,14 sur le seul nombre de cylindres, les têtes et les 17
+secteurs par piste concordant. **Les 45 autres entrées concordent exactement**, secteurs
+par piste compris : ce n'est pas un décalage d'indice, c'est une entrée isolée. Le type 38
+vaut (987, 3) des deux côtés, et la ROM enchaîne 38 = 987 × 3 puis 39 = 987 × 7 — deux
+variantes d'un même modèle de disque, cohérence que le 462 de PCem casse.
+
+Le type 39 est hors de portée du BIOS de l'IBM AT, qui n'a que 23 types : aucun BIOS de ce
+dépôt ne le confirme, et celui qui le porte le contredit.
+
+*Effet* : une image créée au type 39 depuis l'interface de PCem a une géométrie qu'aucun
+BIOS ne programmera. `CMD_SET_PARAMETERS` transporte les têtes et les secteurs, pas les
+cylindres, donc l'incohérence ne se voit qu'au premier accès au-delà du cylindre 462 —
+`mfm_get_sector` refuse alors sur « wrong cylinder », après que le formatage a paru
+réussir.
+*Reproduit* : `Host/HddImage.cs`, la table est recopiée **verbatim**, le 462 compris. La
+corriger serait réécrire la table d'un oracle ; `PrintHddTypes` cite ce PB à la place.
+
 
 ---
 
 ## Portée de ce registre
 
-Ces **trente et un** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente-deux** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -633,7 +660,8 @@ audit systématique de PCem** :
 | SingleStepTests | PB-01 |
 | Fuzzer différentiel | PB-07 |
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
-| Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31 |
+| Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
+| Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
 | Relecture ligne à ligne pendant la transcription | tous les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été

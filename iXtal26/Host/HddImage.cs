@@ -55,7 +55,25 @@ internal static class HddImage
     // L'ENTRÉE 14 VAUT (0, 0), et ce n'est pas une coquille : c'est le type 15, réservé
     // dans la table de l'IBM AT. PCem la laisse dans sa liste déroulante, où elle
     // affiche « size=0MB » ; ici elle est refusée à la création, parce qu'un fichier de
-    // zéro octet est exactement ce que ce fichier existe pour éviter.
+    // zéro octet est exactement ce que ce fichier existe pour éviter. Mesuré : la ROM
+    // AMI porte bien seize octets nuls à cet emplacement (0xE4E1).
+    //
+    // CETTE TABLE EST CELLE D'UNE LISTE DÉROULANTE, PAS CELLE D'UN BIOS, et l'écart se
+    // mesure. La vraie table vit dans la ROM — pour l'AMI 286, à F000:E401, seize octets
+    // par entrée, indexée par `type - 1`, avec les secteurs par piste à l'offset 14 et
+    // une borne explicite à 46 dans le code d'indexation (amic206.bin:0xA882,
+    // `cmp al,2Eh / ja`). Comparées entrée par entrée, 45 des 46 concordent exactement,
+    // secteurs par piste compris. **La 39e ne concorde pas** : la ROM dit 987 x 7, PCem
+    // dit 462 x 7. Voir `// pcem bug, reproduced: PB-34` — la table reste verbatim,
+    // parce que corriger un oracle n'est pas le transcrire.
+    //
+    // ET L'INT 13h N'ATTEINT PAS TOUT CE QUE LA TABLE DÉCRIT. Mesuré dans la même ROM,
+    // 0xA331-0xA33C : la fonction AH=08h fait `sub ax,2` puis écrête les cylindres à
+    // 0x3FF. Un type 46 (1224 cylindres) est donc annoncé à 1024 x 15 x 17 = 133 693 440
+    // octets, là où la table en décrit 159 805 440 : les deux cents derniers cylindres,
+    // environ 25 Mio, sont hors d'atteinte de tout appelant qui dimensionne le disque
+    // par AH=08h — DOS et FDISK compris. Le fichier, lui, se crée en entier : c'est bien
+    // la géométrie de la table que le contrôleur adresse au coup par coup.
     internal static readonly (int cylinders, int heads)[] hd_types =
     {
         (306, 4),   (615, 4),   (615, 6),  (940, 8),  (940, 6),  (615, 4),  (462, 8),  (733, 5), (900, 15), (820, 3),
