@@ -555,6 +555,35 @@ static int h_step286(void) {
         return 1 - cpu_state._cycles;
 }
 
+/* LE MEME PAS QUE LA BOUCLE TRACEE DE h_runpc, ET C'EST TOUT L'INTERET.
+ *
+ * h_step286 pose timer_target = tsc pour forcer cycle_period a 1, ce qui declenche un
+ * timer_process() par pas. h_runpc en mode trace ne le fait PAS. Les deux phases du
+ * boot-diff empruntaient donc des pas differents, et apres six cent mille instructions
+ * leurs horloges avaient divergé : la phase 2 devenait une TROISIEME execution,
+ * coherente avec elle-meme, qui n'avait pas la divergence de la phase 1 au meme indice.
+ * Le diff le disait — « les etats concordent a l'index signale » — sans pouvoir la
+ * localiser.
+ *
+ * ET LA RACINE EST PLUS PROFONDE : la boucle tracee appelle h_trace_note UNE FOIS PAR
+ * ITERATION, et une iteration de exec386 n'est pas forcement une instruction — sa
+ * boucle interne est bornee par cycdiff, que le budget cycles ne borne pas. L'indice de
+ * la trace compte donc des ITERATIONS. Pour que la phase 2 rejoue ce que la phase 1 a
+ * mesure, elle doit compter la meme chose, donc faire le meme geste. C'est cette
+ * fonction.
+ *
+ * Sur un 8088 il n'y a rien a distinguer : execx86(0) rend la main apres exactement une
+ * instruction, et c'est pourquoi le probleme n'existait pas avant l'AT. */
+int h_step_trace(void) {
+        if (h_core == H_CORE_286) {
+                cpu_state._cycles = 1;
+                exec386(0);
+                h_ins_count++;
+                return 1 - cpu_state._cycles;
+        }
+        return h_step();
+}
+
 int h_step(void) {
         if (h_core == H_CORE_286)
                 return h_step286();

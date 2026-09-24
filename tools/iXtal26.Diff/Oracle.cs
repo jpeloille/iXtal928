@@ -27,7 +27,9 @@ public static class Oracle
     // drapeaux paresseux entrent dans h_state.
     // 13 au bloc C : h_seg_clear_residue s'ajoute au contrat. Le vecteur ne change
     // PAS de taille — c'est une fonction, pas un champ.
-    public const int AbiVersion = 13;
+    // 14 au bloc C etape 6a : h_step_trace s'ajoute au contrat, pour que les deux
+    // phases du boot-diff empruntent le MEME pas.
+    public const int AbiVersion = 14;
 
     static Oracle()
     {
@@ -97,6 +99,7 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_set_core(int core);
     [DllImport(Lib)] public static extern void h_prefetch_reset();
     [DllImport(Lib)] public static extern void h_seg_clear_residue();
+    [DllImport(Lib)] public static extern int h_step_trace();
     [DllImport(Lib)] public static extern int h_get_core();
 
     // A2.2a — le chemin de fetch de exec386, porte par porte. fastread* sont des

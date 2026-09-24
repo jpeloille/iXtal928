@@ -276,6 +276,11 @@ void h_getregs(uint16_t r[H_R_COUNT]);
  * donc on l'appelle avec de quoi faire une seule instruction. */
 int h_step(void);
 
+/* Un pas AVEC le geste de la boucle tracee de h_runpc, donc SANS toucher timer_target.
+ * La phase 2 du boot-diff doit compter les memes iterations que la phase 1, faute de
+ * quoi elle ne rejoue pas la meme execution. Voir harness.c. */
+int h_step_trace(void);
+
 /* Exécute jusqu'à épuisement d'un budget de cycs cycles — la forme qu'emploie
  * runpc() (execx86(cpu_get_speed() / 100), soit 47 727 cycles par tranche de
  * 10 ms sur un XT). Sert à vérifier que h_step() ne fausse pas la comptabilité,
@@ -431,7 +436,9 @@ uint8_t *h_ram(void);
  * h_prefetch_reset s'ajoute au contrat. */
 /* 13 depuis le bloc C : h_seg_clear_residue s'ajoute au contrat. Le vecteur ne
  * change PAS de taille — c'est une fonction, pas un champ. */
-#define H_ABI_VERSION 13
+/* 14 depuis le bloc C etape 6a : h_step_trace s'ajoute au contrat, pour que les deux
+ * phases du boot-diff empruntent le MEME pas. Le vecteur ne change pas de taille. */
+#define H_ABI_VERSION 14
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

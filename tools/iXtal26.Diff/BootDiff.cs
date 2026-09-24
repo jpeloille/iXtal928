@@ -482,8 +482,14 @@ public static class BootDiff
                 for (var t = 0; t < 3; t++)
                     Oracle.h_pit_probe(t, before[t]);
 
-            var cycC = Oracle.h_step();
-            var cycS = PasCsharp();
+            // LES DEUX PHASES EMPRUNTENT LE MEME PAS, et c'est ce qui rend l'indice de
+            // la phase 1 rejouable. h_step / Step286 posent timer_target pour forcer
+            // cycle_period a 1 ; la boucle tracee de h_runpc ne le fait pas. Utiliser
+            // l'un en phase 1 et l'autre en phase 2 faisait de la phase 2 une TROISIEME
+            // execution, qui n'avait pas la divergence de la phase 1 au meme indice —
+            // le diff le disait sans pouvoir la localiser.
+            var cycC = Oracle.h_step_trace();
+            var cycS = PasCsharpTrace();
 
             if (pitFirst < 0)
                 Oracle.h_getstate(out a0);
