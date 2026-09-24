@@ -126,23 +126,33 @@ void h_stub_counters_reset(void) {
  * DEUX VALEURS NE SONT PAS DES DÉFAUTS et doivent être ré-affirmées : cpu_busspeed et
  * isa_cycles. cpu.c les définit à zéro ; le harnais les posait à 4 772 728 et à 1. Les
  * laisser tomber déplacerait les cinq chiffres de régression du 8088 EN SILENCE. D'où
- * h_cpu_config_8088(), appelée aux deux points d'entrée. */
+ * h_cpu_config_8088().
+ *
+ * M16 — « cpu_set() ne tourne JAMAIS ici » a cessé d'être vrai pour h_boot() : models[]
+ * est peuplé (plus bas) et h_boot() appelle le vrai cpu_set() de PCem, avant mem_alloc
+ * comme pc.c:363. h_reset() — fuzz, sst, selftest, core286-check — garde les deux
+ * h_cpu_config_*, parce qu'il n'amorce aucune machine. */
 
 int AMSTRAD = 0, AT = 0, PCI = 0, TANDY = 0, MCA = 0;
 int insc = 0;
 int amstrad_latch = 0;
 int romset = 0; /* ROM_IBMPC */
 
-/* Les valeurs que cpu_set() poserait pour un 8088 d'IBM PC 5150, et que cpu.c laisse à
- * zéro tant qu'on ne l'appelle pas. Les deux seules qui ne sont pas le défaut. */
+/* Les valeurs que cpu_set() pose pour un 8088 d'IBM PC 5150, et que cpu.c laisse à
+ * zéro tant qu'on ne l'appelle pas. Les deux seules qui ne sont pas le défaut. Depuis
+ * M16, pour h_reset() seul — pendant de _808x.Reset() côté C#. */
 void h_cpu_config_8088(void) {
         cpu_busspeed = 4772728;
         isa_cycles = 1; /* cpu.c:17 — atclk_div, 1 pour cpus_8088[0] (cpu_tables.c:33) */
 }
 
-/* Ce que cpu_set() poserait pour cpus_286[0] — le « 286/6 » de l'IBM AT 5170. Repris
- * de cpu.c:323-353, la branche `case CPU_286:`, à l'identique et dans l'ordre. Elle est
- * inatteignable ici : cpu_set() déréférence models[], nul.
+/* Ce que cpu_set() pose pour cpus_286[0] — le « 286/6 ». Repris de cpu.c:323-353, la
+ * branche `case CPU_286:`, à l'identique et dans l'ordre.
+ *
+ * DEPUIS M16 ELLE NE SERT QU'À h_reset() — fuzz, sst, selftest, core286-check —, qui
+ * n'amorce aucune machine. h_boot() fait tourner le VRAI cpu_set() de PCem sur les
+ * quatre machines (harness.c). Garder celle-ci à cpus_286[0] garde à ces outils le même
+ * objet qu'avant ; pendant exact de cpu_config_286() côté C# (386.State.cs).
  *
  * cpu_busspeed = rspeed / multi = 6 000 000 / 1, et isa_cycles = atclk_div = 1
  * (cpu.c:191 et :207 ; cpu_tables.c:70). cpu_flags y vaut 0 — le 286 est interpréteur
@@ -256,9 +266,9 @@ void h_cpu_config_286(void) {
 }
 
 /* INTERPOSITION, pas redéfinition : cpu.c définit le vrai cpu_update_waitstates(), qui
- * déréférence models[model]->cpu[...]. models[] est un tableau de pointeurs NULS ici —
- * le harnais n'appelle jamais cpu_set() et ne lie pas model.c — donc le vrai plante au
- * premier resetx86() (808x.c:676). Attrapé par l'autotest, pas deviné.
+ * déréférence models[model]->cpu[...]. models[] était un tableau de pointeurs NULS ici
+ * jusqu'à M16 — et le reste pour h_reset(), qui ne pose pas `model` — donc le vrai
+ * plante au premier resetx86() (808x.c:676). Attrapé par l'autotest, pas deviné.
  *
  * Le no-op EST le comportement du palier (a) : sans cpu_set(), cpu_prefetch_cycles et
  * cpu_prefetch_width restent à zéro, et c'est ce que le 8088 veut — il porte son modèle
@@ -266,19 +276,35 @@ void h_cpu_config_286(void) {
  *
  * Au jalon 286 cette fonction devra déléguer à __real_cpu_update_waitstates() une fois
  * models[] peuplé ; le wrapper est le point où ce basculement s'écrira, en un endroit. */
+/*
+ * M16 : cpu_set() tourne désormais dans h_boot(), et l'appel qu'IL fait à
+ * cpu_update_waitstates() est interne à cpu.o — --wrap ne réécrit que les références
+ * NON DÉFINIES, donc celui-là atteint le vrai. L'empreinte CPU le prouve (champs de
+ * préfetch et de cycles, cpu-config-check). Restent enveloppés les appels de resetx86 et
+ * softresetx86 (808x.c:676, :720), pendants de l'omission côté C# (808x.cs) : à 8 MHz et
+ * moins ils sont inertes, au-delà c'est l'étape 6 de M16. */
 void __wrap_cpu_update_waitstates(void) { }
 
-/* Les trois autres FONCTIONS que cpu.c définit désormais et qui dépendent toutes de
- * models[] ou de cpu_s. Corps repris À L'IDENTIQUE de ce que harness_stubs.c posait au
- * palier (a) : c'est le comportement mesuré des cinq chiffres de régression.
+/* Les trois autres FONCTIONS que cpu.c définit et qui dépendent de models[] ou de
+ * cpu_s. Corps repris À L'IDENTIQUE de ce que harness_stubs.c posait au palier (a) :
+ * c'est le comportement mesuré des cinq chiffres de régression.
+ *
+ * M16 : models[] est peuplé sur le chemin de h_boot, donc « elles plantent » n'est plus
+ * le motif. Ce sont désormais des DÉVIATIONS, déclarées des deux côtés : cpu_get_speed
+ * et cpu_set_turbo sont gelées jusqu'au levier A (étape 4), cpu_set_edx garde DX au
+ * reset là où PCem pose edx_reset (voir keyboard_at.cs, x86seg.cs).
  *
  * Sur les quarante-deux symboles retirés, ces quatre sont les seuls à être des
  * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes
  * valeurs — sauf cpu_busspeed et isa_cycles, ré-affirmées par h_cpu_config_8088(). */
+/* DEVIATION TEMPORAIRE (M16, étape 3 → étape 4) : le budget reste celui du 8088 sur
+ * toutes les machines, comme cpu_get_speed() côté C# (cpu.cs). Le levier A retire
+ * l'enveloppe. */
 int __wrap_cpu_get_speed(void) { return 4772728; }
 void __wrap_cpu_set_edx(void) { }
 
-/* Bit turbo du port 0x61 sur les clones XT. Le 5150 n'en a pas. */
+/* Bit turbo du port 0x61 sur les clones XT. Le 5150 n'en a pas. DEVIATION TEMPORAIRE
+ * (M16, étape 3 → 4), avec __wrap_cpu_get_speed : pendant du corps vide de cpu.cs. */
 void __wrap_cpu_set_turbo(int turbo) { (void)turbo; }
 
 /* Cassette : pas de lecteur, l'entrée reste basse. */
@@ -845,14 +871,177 @@ H_STUB_NVR(xi8088_turbo_set)
  * inventees.
  * ------------------------------------------------------------------------- */
 
+/* M16 — LES QUATRE MACHINES, et leur membre `cpu`.
+ *
+ * Jusqu'à M16 une seule entrée existait, et sans `cpu` : cpu_set() ne tournait jamais,
+ * h_cpu_config_286() en tenait lieu. Le vrai cpu_set() de PCem tourne désormais dans
+ * h_boot(), et il lit `models[model]->cpu[cpu_manufacturer].cpus[cpu]` — d'où les
+ * tables, qui sont celles de cpu_tables.c, LIÉ : ce sont les données de PCem, pas une
+ * recopie.
+ *
+ * DEVIATION de l'ORACLE : models[] est indexé par ROMSET (model = romset dans h_boot),
+ * pas par l'ordre d'enregistrement de model_init_builtin (model.c:1625-1746), que le
+ * harnais ne lie pas. Les champs sont ceux de model.c:777-778, :782-783, :986-995 et
+ * :1106-1115 ; `init` et `device` restent nuls, le harnais inlinant les deux inits.
+ *
+ * DEVIATION TEMPORAIRE (M16, étape 3 → étape 5) : l'IBM AT pointe sur cpus_286 et non
+ * sur cpus_ibmat (model.c:1109) — trois cycles mémoire au lieu de deux. Même geste côté
+ * C#, model.cs ; le rendre à sa table est un levier à part. */
+static MODEL h_model_ibmpc = {
+        .name = "[8088] IBM PC",
+        .id = ROM_IBMPC,
+        .internal_name = "ibmpc",
+        .cpu = {{"", cpus_8088}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE,
+        .min_ram = 64,
+        .max_ram = 640,
+        .ram_granularity = 32,
+};
+
+static MODEL h_model_ibmxt = {
+        .name = "[8088] IBM XT",
+        .id = ROM_IBMXT,
+        .internal_name = "ibmxt",
+        .cpu = {{"", cpus_8088}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE,
+        .min_ram = 64,
+        .max_ram = 640,
+        .ram_granularity = 64,
+};
+
 static MODEL h_model_ibmat = {
         .name = "[286] IBM AT",
         .id = ROM_IBMAT,
         .internal_name = "ibmat",
+        .cpu = {{"", cpus_286}, {"", NULL}, {"", NULL}},
         .flags = MODEL_GFX_NONE | MODEL_AT,
         .min_ram = 256,
         .max_ram = 15872,
         .ram_granularity = 128,
 };
 
-void h_models_init(void) { models[ROM_IBMAT] = &h_model_ibmat; }
+static MODEL h_model_ami286 = {
+        .name = "[286] AMI 286 clone",
+        .id = ROM_AMI286,
+        .internal_name = "ami286",
+        .cpu = {{"", cpus_286}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        .min_ram = 512,
+        .max_ram = 16384,
+        .ram_granularity = 128,
+};
+
+void h_models_init(void) {
+        models[ROM_IBMPC] = &h_model_ibmpc;
+        models[ROM_IBMXT] = &h_model_ibmxt;
+        models[ROM_IBMAT] = &h_model_ibmat;
+        models[ROM_AMI286] = &h_model_ami286;
+}
+
+/* --- processeur (M16) -------------------------------------------------------
+ *
+ * Le fabricant et l'INDICE dans la table de la machine, pendant des clés
+ * `cpu_manufacturer` et `cpu` (pc.c:653-654). Poussés par h_set_cpu AVANT h_boot,
+ * comme le romset : une lecture de la configuration côté C#, deux poussées. Écrits
+ * EXPLICITEMENT dans les globales de cpu.c par h_boot, parce que cpu.c:82 initialise
+ * `cpu` à 3 — un 8088/10 ou un 286/12 en silence. */
+int h_cpu_manu = 0;
+int h_cpu_index = 0;
+
+void h_set_cpu(int manu, int n) {
+        h_cpu_manu = manu;
+        h_cpu_index = n;
+}
+
+/* L'indice poussé est-il dans la table de la machine ? PCem ne le vérifie pas
+ * (cpu.c:171-175 ne teste que le pointeur de table) ; le C# refuse par check_cpu, et
+ * h_boot refuse ici de la même façon plutôt que de lire hors du tableau. */
+int h_cpu_table_ok(void) {
+        MODEL *m = models[romset];
+        CPU *t;
+        int n = 0;
+
+        if (!m || h_cpu_manu < 0 || h_cpu_manu >= 5 || !(t = m->cpu[h_cpu_manu].cpus))
+                return 0;
+        while (t[n].cpu_type != -1)
+                n++;
+        return h_cpu_index >= 0 && h_cpu_index < n;
+}
+
+/* Le budget d'une tranche, pc.c:473, par la MÊME fonction que h_runpc emploie. Exposé
+ * pour que l'outil de diff le CONFRONTE à celui du C# : un budget asymétrique ne se voit
+ * pas dans la trace d'un AT, qui diverge avant le contrôle de longueur final. */
+int h_slice_budget(void) {
+        return cpu_get_speed() / 100;
+}
+
+/* L'EMPREINTE CPU — H_CPU_FP_N champs, dans l'ordre exact de CpuFingerprint.Csharp()
+ * (tools/iXtal26.Diff). Tout ce que cpu_set() et setpitclock() posent et que le temps
+ * de l'invité lit, en scalaires bruts pour que la sonde NOMME le champ divergent.
+ *
+ * cpu_prefetch_cycles est EXCLU : getpccache() le réécrit à chaque changement de page
+ * d'instruction (ROM contre RAM), il ne dit rien de la configuration. */
+extern uint64_t PITCONST;
+
+static uint32_t h_fbits(float f) {
+        uint32_t u;
+        memcpy(&u, &f, sizeof(u));
+        return u;
+}
+
+void h_cpu_fingerprint(uint64_t *out) {
+        const int *timings[] = {
+                &timing_rr, &timing_rm, &timing_mr, &timing_mm, &timing_rml, &timing_mrl, &timing_mml,
+                &timing_bt, &timing_bnt, &timing_int, &timing_int_rm, &timing_int_v86, &timing_int_pm,
+                &timing_int_pm_outer, &timing_iret_rm, &timing_iret_v86, &timing_iret_pm,
+                &timing_iret_pm_outer, &timing_call_rm, &timing_call_pm, &timing_call_pm_gate,
+                &timing_call_pm_gate_inner, &timing_retf_rm, &timing_retf_pm, &timing_retf_pm_outer,
+                &timing_jmp_rm, &timing_jmp_pm, &timing_jmp_pm_gate};
+        uint64_t hash = 1469598103934665603ULL;
+        int i = 0;
+
+        for (size_t k = 0; k < sizeof(timings) / sizeof(timings[0]); k++) {
+                hash ^= (uint32_t)*timings[k];
+                hash *= 1099511628211ULL;
+        }
+
+        out[i++] = (uint64_t)(int64_t)cpu_get_speed();
+        out[i++] = (uint64_t)(int64_t)h_slice_budget();
+        out[i++] = (uint64_t)(int64_t)cpu_busspeed;
+        out[i++] = (uint64_t)(int64_t)isa_cycles;
+        out[i++] = (uint64_t)(int64_t)cpu_16bitbus;
+        out[i++] = (uint64_t)(int64_t)is8086;
+        out[i++] = (uint64_t)(int64_t)is386;
+        out[i++] = (uint64_t)(int64_t)is486;
+        out[i++] = (uint64_t)(int64_t)hasfpu;
+        out[i++] = (uint64_t)(int64_t)cpu_iscyrix;
+        out[i++] = (uint64_t)(int64_t)cpu_prefetch_width;
+        out[i++] = (uint64_t)(int64_t)cpu_mem_prefetch_cycles;
+        out[i++] = (uint64_t)(int64_t)cpu_rom_prefetch_cycles;
+        out[i++] = (uint64_t)(int64_t)cpu_cycles_read;
+        out[i++] = (uint64_t)(int64_t)cpu_cycles_read_l;
+        out[i++] = (uint64_t)(int64_t)cpu_cycles_write;
+        out[i++] = (uint64_t)(int64_t)cpu_cycles_write_l;
+        out[i++] = (uint64_t)(int64_t)timing_misaligned;
+        out[i++] = hash;
+        out[i++] = h_fbits(cpuclock);
+        out[i++] = PITCONST;
+        out[i++] = CGACONST;
+        out[i++] = RTCCONST;
+        out[i++] = TIMER_USEC;
+        out[i++] = xt_cpu_multi;
+        out[i++] = h_fbits(isa_timing);
+        out[i++] = h_fbits(bus_timing);
+        out[i++] = (uint64_t)(int64_t)video_timing_read_b;
+        out[i++] = (uint64_t)(int64_t)video_timing_read_w;
+        out[i++] = (uint64_t)(int64_t)video_timing_read_l;
+        out[i++] = (uint64_t)(int64_t)video_timing_write_b;
+        out[i++] = (uint64_t)(int64_t)video_timing_write_w;
+        out[i++] = (uint64_t)(int64_t)video_timing_write_l;
+        out[i++] = (uint64_t)(int64_t)mem_size;
+        out[i++] = (uint64_t)(int64_t)cpu;
+        out[i++] = (uint64_t)(int64_t)cpu_manufacturer;
+        out[i++] = (uint64_t)(int64_t)(cpu_s ? cpu_s->rspeed : 0);
+        while (i < H_CPU_FP_N)
+                out[i++] = 0;
+}

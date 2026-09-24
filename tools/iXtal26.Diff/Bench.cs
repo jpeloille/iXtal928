@@ -73,7 +73,10 @@ public static class Bench
             return 2;
         }
 
-        var budget = pc.cpu_get_speed() / 100;
+        // Le banc est un banc de 8088 PAR CONSTRUCTION, et son budget un littéral : le
+        // pendant de BUDGET dans tools/oracle/bench.c. Lire cpu_get_speed() ici, AVANT
+        // tout amorçage, rendrait la vitesse de la machine précédente — ou rien.
+        var budget = 4772728 / 100;
         Header(budget, slices, repeat, warmup);
 
         // AggressiveOptimization sur ce que le banc appelle dans la fenêtre

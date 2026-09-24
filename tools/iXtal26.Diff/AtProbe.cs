@@ -34,6 +34,10 @@ public static class AtProbe
 
         Oracle.h_set_core(Oracle.Core286);
         Oracle.h_set_romset(ROM_IBMAT);
+        // M16 — l'entrée 0 de la table de l'AT, EXPLICITEMENT : h_boot fait tourner le
+        // vrai cpu_set() avec l'indice poussé, et un indice laissé par une commande
+        // précédente du même processus choisirait une autre vitesse.
+        Oracle.h_set_cpu(0, 0);
         // 640 Ko et non 512 : c'est ce que le produit emploie par defaut
         // (model_c.DEFAULT_RAM), et comparer l'ecran de l'oracle a celui de
         // `--boot --model ibmat` exige la MEME taille. A 512 l'oracle rend 161 seul,
@@ -147,7 +151,13 @@ public static class AtProbe
                         ? "   -> motif de la branche SANS FICHIER de loadnvr (nvr.c:524-534)."
                         : "   -> ni zero ni le motif sans fichier : le POST a deja ecrit dedans.");
 
-        // models[ROM_IBMAT]->cpu[0].cpus — ET IL EST NUL.
+        // models[ROM_IBMAT]->cpu[0].cpus — IL ÉTAIT NUL JUSQU'À M16.
+        //
+        // Depuis M16, h_boot peuple models[] pour les quatre romsets et fait tourner le
+        // vrai cpu_set() : la sonde le constate (« peuple »). Ce qui suit est l'état
+        // d'avant, gardé parce qu'il explique pourquoi cpu_set_edx et les
+        // cpu_update_waitstates des resets restent enveloppés — désormais comme des
+        // DÉVIATIONS déclarées (keyboard_at.cs, 808x.cs), et non plus par nécessité.
         //
         // h_model_ibmat ne pose que name, id, internal_name, flags et les trois
         // tailles de RAM. Le membre cpu[5] porte un POINTEUR, CPU *cpus, laisse a

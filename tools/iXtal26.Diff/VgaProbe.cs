@@ -61,6 +61,7 @@ public static class VgaProbe
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_romset(pc.romset);
+        Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         Oracle.h_set_core(core);
         Oracle.h_set_gfxcard(Oracle.GFX_VGA);
         if (Oracle.h_boot(romsPath) == 0)

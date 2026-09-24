@@ -39,6 +39,11 @@
 void h_cpu_config_8088(void);
 void h_cpu_config_286(void);
 
+/* harness_stubs.c — M16 : les quatre machines de models[], et le processeur poussé. */
+void h_models_init(void);
+int h_cpu_table_ok(void);
+extern int h_cpu_manu, h_cpu_index;
+
 /* harness_386.c — le modèle de préfetch du 286, `static` chez PCem. */
 int h_prefetch_bytes(void);
 int h_prefetch_prefixes(void);
@@ -955,13 +960,10 @@ int h_boot(const char *romspath) {
          * in/out du POST ne facturent plus rien, et l'horloge dérive sans que jamais un
          * registre ne bouge. Exactement le mode de panne que l'en-tête de ce fichier
          * décrit — « se tromper ici ne plante rien, ne fausse aucun registre ». */
-        /* B2 — la configuration du processeur suit le coeur choisi par
-         * h_set_core(), comme h_reset() le fait depuis A2.0. h_boot ne passe PAS
-         * par h_reset : il appelle resetx86() directement, d'ou cette ligne. */
-        if (h_core == H_CORE_286)
-                h_cpu_config_286();
-        else
-                h_cpu_config_8088();
+        /* M16 — la configuration du processeur N'EST PLUS POSÉE ICI. Elle l'était, par
+         * h_cpu_config_286/_8088 selon h_core, avant tout le reste ; c'est désormais le
+         * vrai cpu_set() de PCem qui la pose, à SA place : dans resetpchard, après
+         * io_init et avant mem_alloc (pc.c:362-364), plus bas. */
 
         /* Depuis M9 ce crochet n'est plus un no-op : c'est lui qui pose
          * sound_poll_latch. Sans lui, le latch vaut 0, timer_advance_u64(t, 0)
@@ -1006,6 +1008,33 @@ int h_boot(const char *romspath) {
                                         sound_handlers_num à 0 et effacerait
                                         l'enregistrement du handler. */
         io_init();
+
+        /* pc.c:363 — cpu_set(), LE VRAI, avant mem_alloc qui lit cpu_16bitbus (M16).
+         *
+         * `model` vaut le romset (DEVIATION de l'ORACLE, harness_stubs.c : models[] y est
+         * indexé par romset). cpu et cpu_manufacturer sont écrits EXPLICITEMENT : cpu.c:82
+         * initialise `cpu` à 3, et chez PCem c'est loadconfig qui l'écrase toujours.
+         *
+         * Deux refus, là où PCem n'en a aucun : un indice hors de la table (le C# refuse de
+         * même, check_cpu dans pc.cs), et une table qui contredit le coeur choisi par
+         * h_set_core — le harnais inline l'init de l'AT sur h_core, cpu_set lit le type
+         * dans la table : les deux doivent dire la même machine. */
+        h_models_init();
+        model = romset;
+        if (!h_cpu_table_ok()) {
+                fprintf(stderr, "h_boot : cpu %d (fabricant %d) hors de la table du romset %d\n",
+                        h_cpu_index, h_cpu_manu, romset);
+                return 0;
+        }
+        cpu_manufacturer = h_cpu_manu;
+        cpu = h_cpu_index;
+        cpu_set();
+        if ((cpu_s->cpu_type == CPU_286) != (h_core == H_CORE_286)) {
+                fprintf(stderr, "h_boot : la table du romset %d (cpu_type %d) contredit le coeur %d\n",
+                        romset, cpu_s->cpu_type, h_core);
+                return 0;
+        }
+
         mem_alloc();
         h_pad_ram();
         fdc_init();                  /* pc.c:365 */
@@ -1032,7 +1061,12 @@ int h_boot(const char *romspath) {
          *     fausse ;
          *   - pic2_init : le second 8259, cascade sur l'IRQ 2.
          *
-         * nmi_mask = 0 sur un AT la ou xt_init appelle nmi_init(). */
+         * nmi_mask = 0 sur un AT la ou xt_init appelle nmi_init().
+         *
+         * model.c:688 d'abord — AMSTRAD = AT = PCI = TANDY = MCA = 0. Absente jusqu'a
+         * M16 des deux cotes : un 8088 amorce apres un AT dans le meme processus
+         * gardait AT = 1. Pendant de model_init() cote C# (model.cs). */
+        AMSTRAD = AT = PCI = TANDY = MCA = 0;
         dma_init();
         fdc_add();                   /* model.c:194 */
         pic_init();
@@ -1040,10 +1074,8 @@ int h_boot(const char *romspath) {
         mem_add_bios();
 
         if (h_core == H_CORE_286) {
-                /* models[] cesse d'etre nul pour l'AT : nvr.c le dereference a
-                 * chaque ecriture CMOS. Voir harness_stubs.c. */
-                h_models_init();
-                model = ROM_IBMAT;
+                /* models[] et `model` sont posés plus haut, avant cpu_set() (M16) :
+                 * nvr.c les déréférence à chaque écriture CMOS. */
                 AT = 1;
                 pit_set_out_func(&pit, 1, pit_refresh_timer_at);
                 dma16_init();
@@ -1115,10 +1147,13 @@ int h_boot(const char *romspath) {
                  * et exige au moins 0xF600 (F000:05B8). Il en trouvait moins et s'arretait
                  * sur un HLT en F000:05C4, apres 100 millions d'instructions.
                  *
-                 * 6000000 est la rspeed de cpus_ibmat[0], le « 286/6 » de l'AT 5170
-                 * (cpu_tables.c:86) — la meme valeur que h_cpu_config_286 donne deja a
-                 * cpu_busspeed. */
-                setpitclock(AT ? 6000000.0f : 14318184.0f);
+                 * VERBATIM depuis M16 : c'est la rspeed de l'entree de CPU choisie, que
+                 * cpu_set() vient de lire. C'etait le litteral 6000000 tant que models[]
+                 * etait nul — la rspeed de cpus_286[0] comme de cpus_ibmat[0]. */
+        if (AT)
+                setpitclock(models[model]->cpu[cpu_manufacturer].cpus[cpu].rspeed);
+        else
+                setpitclock(14318184.0);
 
         /* pc.c:397 — loadnvr(), ET ELLE MANQUAIT. Le harnais l'omettait, ce qui
          * laissait le CMOS a ZERO au lieu de la branche « pas de fichier » de
@@ -1138,6 +1173,10 @@ int h_boot(const char *romspath) {
          * Corrige une affirmation de B1a : nvr.cs disait « l'oracle n'appelle pas
          * loadnvr du tout », et c'etait vrai — ca ne l'est plus. */
         loadnvr();
+
+        /* pc.c:407 — inerte (aucun cache n'est actif), transcrit des deux côtés pour que
+         * cpu_update_waitstates() ne repose sur aucun zéro implicite. */
+        cpu_cache_int_enabled = cpu_cache_ext_enabled = 0;
 
         nextcyc = 0;
         memcycs = 0;
@@ -1173,7 +1212,9 @@ int h_boot(const char *romspath) {
  * après une instruction de lui-même, le budget de la tranche restant maître.
  * Poser timer_target changerait le temps que voit l'invité, donc l'amorçage. */
 void h_runpc(void) {
-        int cycles_to_run = 4772728 / 100;
+        /* pc.c:473 — `cpu_get_speed() / 100`, par h_slice_budget(), la MÊME fonction que
+         * l'empreinte CPU confronte au C#. C'était le littéral 4772728 / 100 jusqu'à M16. */
+        int cycles_to_run = h_slice_budget();
 
         if (!h_trace_fp) {
                 cpu_state._cycles = 0;

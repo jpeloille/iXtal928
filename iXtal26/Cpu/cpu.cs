@@ -2,34 +2,90 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/cpu/cpu.c + includes/private/cpu/cpu.h
-// STATUS: partial — RÉDUIT À L'EXTRÊME. cpu.c fait 2 080 lignes dont l'essentiel
-//         est cpu_set(), qui sélectionne les tables d'opcodes des 286 à 686 et
-//         référence tout le dynarec. Rien de cela n'existe pour un 8088 : la
-//         configuration tient dans les quatre valeurs ci-dessous.
+// STATUS: partial — cpu_set() réduit aux deux familles que les tables du dépôt
+//         portent, le 8088 et le 286 (M16) ; cpu_update_waitstates() entier ;
+//         cpu_get_speed(). Tout ce qui concerne le 386 et au-delà — tables d'opcodes
+//         32 bits, dynarec, FPU, MSR, Cyrix — est omis, bloc par bloc, sur place.
 //
-// C'est exactement pour cette raison que l'oracle C ne lie pas cpu.c non plus
-// (voir tools/oracle/harness_stubs.c) : le lier ferait passer les symboles
-// manquants de 66 à 133 et ramènerait le recompilateur.
+// L'oracle lie cpu.c (tools/oracle/Makefile) et fait tourner le VRAI cpu_set() de
+// PCem depuis M16 : ce fichier est donc vérifié contre lui par l'empreinte CPU de
+// tools/iXtal26.Diff (cpu-config-check), et non contre une recopie de ses règles.
+
+using iXtal26.Models;
 
 namespace iXtal26.Cpu;
 
 internal static partial class cpu_c
 {
-    // pcem: cpu_tables.c:33 — cpus_8088[0], « 8088/4.77 ».
-    internal const int CPU_SPEED_8088 = 4772728;
+    // pcem: cpu.h:9-50 — les types de CPU que nomment les tables du dépôt ET les
+    // expressions verbatim de cpu_set() (is486, cpu_iscyrix, cpu_16bitbus) et de
+    // cpu_update_waitstates().
+    /*808x class CPUs*/
+    internal const int CPU_8088 = 0;
+    internal const int CPU_8086 = 1;
+
+    /*286 class CPUs*/
+    internal const int CPU_286 = 2;
+
+    /*386 class CPUs*/
+    internal const int CPU_386SX = 3;
+    internal const int CPU_386DX = 4;
+    internal const int CPU_486SLC = 5;
+    internal const int CPU_486DLC = 6;
+
+    /*486 class CPUs*/
+    internal const int CPU_i486SX = 7;
+    internal const int CPU_Cx486S = 9;
+    internal const int CPU_Cx486DX = 12;
+    internal const int CPU_Cx5x86 = 14;
+
+    /*586 class CPUs*/
+    internal const int CPU_Cx6x86 = 19;
+    internal const int CPU_Cx6x86MX = 20;
+    internal const int CPU_Cx6x86L = 21;
+    internal const int CPU_CxGX1 = 22;
+    // omitted: les dix-huit autres types (CPU_Am486SX … CPU_CYRIX_III, cpu.h:24-50, hors ceux ci-dessus) —
+    //   aucune table du dépôt ne les porte, et aucune expression transcrite ne les nomme.
 
     // pcem: cpu.h:6 et cpu.h:52 — le FABRICANT, et il n'est pas decoratif :
     // opAAD et opAAM s'en servent pour decider si la base d'un AAD/AAM non
     // standard est respectee (Intel) ou forcee a 10 (les autres). Nul par
-    // defaut, donc MANU_INTEL, et c'est ce que cpu_set() poserait pour un 286.
+    // defaut, donc MANU_INTEL, et c'est ce que cpu_set() pose pour les deux familles.
     internal const int MANU_INTEL = 0;
-    internal static int cpu_manufacturer;
+
+    // pcem: cpu.h:72 — enum { FPU_NONE, … }.
+    internal const int FPU_NONE = 0;
+
+    // pcem: cpu.c:11 — posé par loadconfig depuis la clé `fpu` chez PCem (pc.c:655-656),
+    // clé que ce dépôt ne lit pas : il reste FPU_NONE, donc hasfpu vaut 0.
+    internal static int fpu_type;
+
+    // pcem: cpu.c:14-15
+    // DEVIATION: `internal` et non `private` comme le `static` du C : tant que
+    //   cpu_get_speed() est gelé (voir plus bas), rien ne les lit, et le compilateur
+    //   refuserait un champ privé écrit sans jamais être lu.
+    internal static int cpu_turbo_speed, cpu_nonturbo_speed;
+    internal static int cpu_turbo = 1;
+
+    // pcem: cpu.c:82
+    // DEVIATION: `int cpu = 3` chez PCem, qui passe TOUJOURS par loadconfig avant
+    //   cpu_set() — et le défaut de la clé y est 0 (pc.c:654). Ici plusieurs points
+    //   d'entrée n'ont pas de fichier de configuration (--boot, --timer-check, les
+    //   outils Diff) : le 3 atteindrait cpu_set() et démarrerait un 8088/10 ou un
+    //   286/12 en silence. Même arbitrage que DEFAULT_RAM (model.cs).
+    internal static int cpu = 0, cpu_manufacturer = 0;
+
+    // pcem: cpu.c:83, :168
+    internal static CPU? cpu_s;
 
     // pcem: cpu.h:111 — lu par les branches DIV et IDIV des groupes F6 et F7,
     // qui posent les drapeaux AUTREMENT sur un Cyrix. Nul sur un 286 ; la
     // branche `!cpu_iscyrix` est donc toujours prise, et la porter garde la
     // structure de PCem lisible.
     internal static int cpu_iscyrix;
+
+    // pcem: cpu.c:87 — posé par cpu_set() : rspeed / multi.
+    internal static int cpu_busspeed;
 
     // pcem: cpu.h — lu par les handlers REP pour choisir leur budget de cycles
     // par appel : `(is386 && cpu_use_dynarec) ? 1000 : 100`. Nul ici, et is386
@@ -43,21 +99,33 @@ internal static partial class cpu_c
     internal static int timing_misaligned;
     internal static int cpu_cyrix_alignment;
 
-    internal static int cpu_busspeed = CPU_SPEED_8088;
+    // pcem: cpu.c:95-96 — l'override d'états d'attente (clé `cpu_waitstates`, pc.c:658,
+    // non lue ici) et les deux caches, que rien dans l'arbre porté n'active. Tous à
+    // zéro : cpu_update_waitstates() prend donc la branche « memory timings ».
+    internal static int cpu_waitstates;
+    internal static int cpu_cache_int_enabled, cpu_cache_ext_enabled;
 
-    // pcem: cpu.c:2067-2071 — cpu_turbo ? cpu_turbo_speed : cpu_nonturbo_speed.
-    // Le 5150 n'a pas de mode turbo : une seule vitesse.
-    internal static int cpu_get_speed() => CPU_SPEED_8088;
+    // pcem: cpu.c:17 — posé par cpu_set() : atclk_div de l'entrée. Le coût d'un accès
+    // au bus ISA, en cycles CPU, que ISA_CYCLES(x) multiplie.
+    internal static int isa_cycles;
 
-    // pcem: cpu.h — cycles d'attente d'un accès au bus ISA, posés par
-    // setpitclock() via isa_timing. Sur un 5150 tout est ISA à 4,77 MHz.
-    internal static int isa_cycles = 1;
-
-    // pcem: cpu.h — présence d'un 8087. Le PPI le rapporte au BIOS via les
-    // interrupteurs DIP (port 0x62). Aucun coprocesseur sur cette machine.
+    // pcem: cpu.c:20 — présence d'un coprocesseur, posée par cpu_set() depuis fpu_type.
+    // Le PPI du 5150 la rapporte au BIOS via les interrupteurs DIP (port 0x62).
     internal static int hasfpu = 0;
 
-    // pcem: cpu.c — le bit turbo du port 0x61 sur les clones XT. Sans effet ici.
+    // pcem: cpu.c:2067-2071 — `if (cpu_turbo) return cpu_turbo_speed; return
+    // cpu_nonturbo_speed;`.
+    // DEVIATION: TEMPORAIRE (M16, étape 3 → étape 4). Le budget de tranche reste
+    //   celui du 8088 sur TOUTES les machines, des deux côtés (l'oracle enveloppe
+    //   cpu_get_speed() à la même constante) : l'étape 3 porte la STRUCTURE de
+    //   cpu_set() à chiffres gelés, et le levier A — le budget suit rspeed — est un
+    //   commit à part, avec son propre chiffre. VERIFICATION.md § M16.
+    internal static int cpu_get_speed() => 4772728;
+
+    // pcem: cpu.c:2050-2063 — le bit turbo du port 0x61 sur les clones XT. Seul
+    // keyboard_xt.cs l'appelle, et seulement pour GENXT, DTKXT, AMIXT et PXXT : jamais
+    // atteint ici. Corps vide tant que cpu_get_speed() est gelé — les deux se
+    // transcrivent ensemble, au levier A.
     internal static void cpu_set_turbo(int turbo) { }
 
     // pcem: cpu.h — le modèle de temps de PRÉFETCH de l'interpréteur, posé par
@@ -65,10 +133,10 @@ internal static partial class cpu_c
     // getpccache les ÉCRIT : c'est lui qui bascule entre le coût d'une ROM et celui
     // de la RAM, à chaque changement de page d'instruction.
     //
-    // Tous à ZÉRO pour un 8088, et c'est le comportement juste : 808x.c porte son
-    // propre modèle de préfetch dans ses statiques (fetchcycles, prefetchqueue), et
-    // ne lit aucun de ces symboles — 0 occurrence, mesuré. Ils ne prennent des
-    // valeurs que pour le 286, où PREFETCH_RUN est gardé par
+    // À ZÉRO pour un 8088 — mem_read_cycles vaut 0 dans cpus_8088 — et c'est le
+    // comportement juste : 808x.c porte son propre modèle de préfetch dans ses
+    // statiques (fetchcycles, prefetchqueue), et ne lit aucun de ces symboles. Ils
+    // ne mordent que sur le 286, où PREFETCH_RUN est gardé par
     // `if (cpu_prefetch_cycles)` (386_dynarec.c:210).
     internal static int cpu_prefetch_cycles;
     internal static int cpu_mem_prefetch_cycles;
@@ -95,4 +163,183 @@ internal static partial class cpu_c
     internal static int timing_call_pm_gate, timing_call_pm_gate_inner;
     internal static int timing_retf_rm, timing_retf_pm, timing_retf_pm_outer;
     internal static int timing_jmp_rm, timing_jmp_pm, timing_jmp_pm_gate;
+
+    // pcem: cpu.c:170-353, 1128-1130
+    internal static void cpu_set()
+    {
+        if (model_c.models[model_c.model].cpu[cpu_manufacturer].cpus == null)
+        {
+                /*CPU is invalid, set to default*/
+                cpu_manufacturer = 0;
+                cpu = 0;
+        }
+
+        cpu_s = model_c.models[model_c.model].cpu[cpu_manufacturer].cpus![cpu];
+
+        // omitted: CPUID et cpuspeed (cpu.c:179-180) — CPUID n'a de lecteur qu'à partir
+        //   du 486 (opCPUID), et cpuspeed n'est lu que par saveconfig (pc.c:882).
+        _808x.is8086 = (cpu_s.cpu_type > CPU_8088) ? 1 : 0;
+        x86.is386 = (cpu_s.cpu_type >= CPU_386SX) ? 1 : 0;
+        x86.is486 = (cpu_s.cpu_type >= CPU_i486SX) || (cpu_s.cpu_type == CPU_486SLC || cpu_s.cpu_type == CPU_486DLC) ? 1 : 0;
+        hasfpu = (fpu_type != FPU_NONE) ? 1 : 0;
+
+        cpu_iscyrix = (cpu_s.cpu_type == CPU_486SLC || cpu_s.cpu_type == CPU_486DLC || cpu_s.cpu_type == CPU_Cx486S ||
+                       cpu_s.cpu_type == CPU_Cx486DX || cpu_s.cpu_type == CPU_Cx5x86 || cpu_s.cpu_type == CPU_Cx6x86 ||
+                       cpu_s.cpu_type == CPU_Cx6x86MX || cpu_s.cpu_type == CPU_Cx6x86L || cpu_s.cpu_type == CPU_CxGX1) ? 1 : 0;
+        x86.cpu_16bitbus = (cpu_s.cpu_type == CPU_286 || cpu_s.cpu_type == CPU_386SX || cpu_s.cpu_type == CPU_486SLC) ? 1 : 0;
+        if (cpu_s.multi != 0)
+                cpu_busspeed = cpu_s.rspeed / cpu_s.multi;
+        // omitted: cpu_multi, ccr0 à ccr6 et has_vlb (cpu.c:192-194) — lus seulement par
+        //   les Cyrix, le bus VLB et le calcul de la cadence du 486 : aucun lecteur ici.
+
+        cpu_turbo_speed = cpu_s.rspeed;
+        if (cpu_s.cpu_type < CPU_286)
+                cpu_nonturbo_speed = 4772728;
+        else if (cpu_s.rspeed < 8000000)
+                cpu_nonturbo_speed = cpu_s.rspeed;
+        else
+                cpu_nonturbo_speed = 8000000;
+        cpu_turbo = 1;
+
+        cpu_update_waitstates();
+
+        isa_cycles = cpu_s.atclk_div;
+
+        if (cpu_s.rspeed <= 8000000)
+                cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
+        else
+                cpu_rom_prefetch_cycles = cpu_s.rspeed / 1000000;
+
+        // omitted: pci_nonburst_time / pci_burst_time (cpu.c:214-220) — pas de bus PCI.
+        // omitted: les pclog (cpu.c:221, :228-229) — sorties de diagnostic seulement.
+        // omitted: io_sethandler / io_removehandler(0x0022, cyrix_*) (cpu.c:223-226) —
+        //   cpu_iscyrix vaut 0 sur les deux familles, et io_init() vient de vider la
+        //   table (pc.c:362) : le removehandler ne retire rien.
+        // omitted: x86_setopcodes(ops_386, …) et les tables REPE, REPNE, 3DNOW
+        //   (cpu.c:231-237) — ops_386 n'est pas porté ; la branche CPU_286 ci-dessous
+        //   pose la table du 286, et les deux REP sont câblées (386_ops_rep.cs:915).
+        // omitted: les seize tables dynarec (cpu.c:239-273) et codegen_timing_set (:274)
+        //   — src/codegen/ n'est pas porté, cpu_use_dynarec vaut 0.
+
+        if (hasfpu != 0)
+        {
+                pc.fatal("not implemented: cpu.c:276-292 — tables d'échappement FPU (ops_fpu_*)\n");
+        }
+        else
+        {
+                _386.x86_opcodes_d8_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_d9_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_da_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_db_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_dc_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_dd_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_de_a16 = _386.ops_nofpu_a16;
+                _386.x86_opcodes_df_a16 = _386.ops_nofpu_a16;
+                // omitted: les huit x86_opcodes_*_a32 — l'adressage 32 bits n'existe
+                //   ni sur le 8088 ni sur le 286.
+        }
+
+        // omitted: memset(&msr, 0, sizeof(msr)) (cpu.c:312) — les MSR du Pentium.
+        timing_misaligned = 0;
+        cpu_cyrix_alignment = 0;
+        // omitted: cpu_CR4_mask = 0 (cpu.c:316) — CR4 n'existe pas avant le 486.
+
+        switch (cpu_s.cpu_type)
+        {
+        case CPU_8088:
+        case CPU_8086:
+                break;
+
+        case CPU_286:
+                _386.x86_setopcodes(_386.ops_286, _386.ops_286_0f);
+                timing_rr = 2;     /*register dest - register src*/
+                timing_rm = 7;     /*register dest - memory src*/
+                timing_mr = 7;     /*memory dest   - register src*/
+                timing_mm = 7;     /*memory dest   - memory src*/
+                timing_rml = 9;    /*register dest - memory src long*/
+                timing_mrl = 11;   /*memory dest   - register src long*/
+                timing_mml = 11;   /*memory dest   - memory src*/
+                timing_bt = 7 - 3; /*branch taken*/
+                timing_bnt = 3;    /*branch not taken*/
+                timing_int = 0;
+                timing_int_rm = 23;
+                timing_int_v86 = 0;
+                timing_int_pm = 40;
+                timing_int_pm_outer = 78;
+                timing_iret_rm = 17;
+                timing_iret_v86 = 0;
+                timing_iret_pm = 31;
+                timing_iret_pm_outer = 55;
+                timing_call_rm = 13;
+                timing_call_pm = 26;
+                timing_call_pm_gate = 52;
+                timing_call_pm_gate_inner = 82;
+                timing_retf_rm = 15;
+                timing_retf_pm = 25;
+                timing_retf_pm_outer = 55;
+                timing_jmp_rm = 11;
+                timing_jmp_pm = 23;
+                timing_jmp_pm_gate = 38;
+                break;
+
+        // omitted: les cas CPU_386SX à CPU_CYRIX_III (cpu.c:355-1126) — aucune table du
+        //   dépôt ne porte ces types.
+
+        default:
+                pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");
+                break;
+        }
+
+        // omitted: switch (fpu_type) (cpu.c:1132-1152) — les tables de temps x87 ;
+        //   fpu_type vaut FPU_NONE, dont le cas est un `break`.
+    }
+
+    // pcem: cpu.c:2010-2048
+    internal static void cpu_update_waitstates()
+    {
+        cpu_s = model_c.models[model_c.model].cpu[cpu_manufacturer].cpus![cpu];
+
+        if (x86.is486 != 0)
+                cpu_prefetch_width = 16;
+        else
+                cpu_prefetch_width = x86.cpu_16bitbus != 0 ? 2 : 4;
+
+        if (cpu_cache_int_enabled != 0)
+        {
+                /* Disable prefetch emulation */
+                cpu_prefetch_cycles = 0;
+        }
+        else if (cpu_waitstates != 0 && (cpu_s.cpu_type >= CPU_286 && cpu_s.cpu_type <= CPU_386DX))
+        {
+                /* Waitstates override */
+                cpu_prefetch_cycles = cpu_waitstates + 1;
+                cpu_cycles_read = cpu_waitstates + 1;
+                cpu_cycles_read_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * (cpu_waitstates + 1);
+                cpu_cycles_write = cpu_waitstates + 1;
+                cpu_cycles_write_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * (cpu_waitstates + 1);
+        }
+        else if (cpu_cache_ext_enabled != 0)
+        {
+                /* Use cache timings */
+                cpu_prefetch_cycles = cpu_s.cache_read_cycles;
+                cpu_cycles_read = cpu_s.cache_read_cycles;
+                cpu_cycles_read_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * cpu_s.cache_read_cycles;
+                cpu_cycles_write = cpu_s.cache_write_cycles;
+                cpu_cycles_write_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * cpu_s.cache_write_cycles;
+        }
+        else
+        {
+                /* Use memory timings */
+                cpu_prefetch_cycles = cpu_s.mem_read_cycles;
+                cpu_cycles_read = cpu_s.mem_read_cycles;
+                cpu_cycles_read_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * cpu_s.mem_read_cycles;
+                cpu_cycles_write = cpu_s.mem_write_cycles;
+                cpu_cycles_write_l = (x86.cpu_16bitbus != 0 ? 2 : 1) * cpu_s.mem_write_cycles;
+        }
+        if (x86.is486 != 0)
+                cpu_prefetch_cycles = (cpu_prefetch_cycles * 11) / 16;
+        cpu_mem_prefetch_cycles = cpu_prefetch_cycles;
+        if (cpu_s.rspeed <= 8000000)
+                cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
+    }
 }

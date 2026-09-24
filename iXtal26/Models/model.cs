@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/models/model.c  (common_init :192-200, xt_init :202-211,
-//         m_ibmpc :777-778, model_init :686-694, model_getromset :148,
-//         model_get_model_from_internal_name :168-178)
-//         + includes/public/pcem/devices.h:69-82 (MODEL)
-// STATUS: partial — une seule machine, l'IBM PC 5150. Les 96 autres MODEL et
-//         leurs fonctions d'init sont omises.
+//         at_init :335-351, at_neat_init :452-455, m_ibmpc :777-778, m_ibmxt :782-783,
+//         m_ami286 :986-995, m_ibmat :1106-1115, model_init :686-694,
+//         model_getromset :148, model_get_model_from_internal_name :168-178)
+//         + includes/public/pcem/devices.h:69-82 (MODEL, et son membre cpu[5] depuis M16)
+// STATUS: partial — quatre machines sur 97 : IBM PC 5150, IBM XT 5160, IBM AT 5170
+//         et le clone AMI 286. Les 93 autres MODEL et leurs fonctions d'init sont
+//         omises.
 //
 // Fait notable : PCem câble le 5150 et le XT 5160 avec le MÊME xt_init(). La seule
 // différence tient au romset (ROM_IBMPC vs ROM_IBMXT), à la RAM de base (32 vs
@@ -24,10 +26,23 @@ namespace iXtal26.Models;
 // pcem: model.c:686 — `void (*init)()`.
 internal delegate void model_init_fn();
 
+// pcem: devices.h:73-76 — `struct { char name[8]; CPU *cpus; } cpu[5];`
+// DEVIATION: struct ANONYME chez PCem, nommée ici — C# n'a pas de type anonyme en champ.
+internal struct MODEL_cpu
+{
+    internal string name;
+    internal Cpu.CPU[]? cpus;
+
+    internal MODEL_cpu(string name, Cpu.CPU[]? cpus)
+    {
+        this.name = name;
+        this.cpus = cpus;
+    }
+}
+
 // pcem: includes/public/pcem/devices.h:69-82, RÉDUIT.
-// omitted: `cpu[5]` — les paquets CPU alternatifs ; cpu.c n'est pas transcrit et le
-//   5150 n'a qu'un 8088. omitted: `device` — le device_t de configuration par machine
-//   (PCjr, Amstrad, Xi8088) ; m_ibmpc le laisse à NULL, le 5150 n'a pas d'options.
+// omitted: `device` — le device_t de configuration par machine (PCjr, Amstrad,
+//   Xi8088) ; les quatre machines du dépôt le laissent à NULL.
 internal sealed class MODEL
 {
     internal string name = "";
@@ -37,6 +52,11 @@ internal sealed class MODEL
 
     // pcem: LA CLÉ ÉCRITE DANS LE .cfg, 24 octets chez PCem.
     internal string internal_name = "";
+
+    // pcem: les paquets de CPU de la machine, un par FABRICANT (cpu_manufacturer) ;
+    // `cpu` indexe l'entrée dans la table. CINQ places, comme en C : un fabricant de 3
+    // ou 4 doit tomber sur un `cpus` nul — le test de cpu.c:171 —, pas hors du tableau.
+    internal MODEL_cpu[] cpu = new MODEL_cpu[5];
 
     internal int flags;
     internal int min_ram, max_ram;
@@ -84,6 +104,7 @@ internal static partial class model_c
         name = "[8088] IBM PC",
         id = pc.ROM_IBMPC,
         internal_name = "ibmpc",
+        cpu = [new("", Cpu.cpu_tables.cpus_8088), new("", null), new("", null), new(), new()],
         flags = MODEL_GFX_NONE,
         min_ram = 64,
         max_ram = 640,
@@ -103,6 +124,7 @@ internal static partial class model_c
         name = "[8088] IBM XT",
         id = pc.ROM_IBMXT,
         internal_name = "ibmxt",
+        cpu = [new("", Cpu.cpu_tables.cpus_8088), new("", null), new("", null), new(), new()],
         flags = MODEL_GFX_NONE,
         min_ram = 64,
         max_ram = 640,
@@ -124,12 +146,10 @@ internal static partial class model_c
     //   - pic2_init : le second 8259, cascadé sur l'IRQ 2, sans qui l'IRQ 8 de
     //     l'horloge n'a personne à qui parler.
     //
-    // cpu_config_286() N'EST PAS DANS LE C, et c'est une DEVIATION assumée. PCem la
-    // fait par cpu_set(), appelé depuis resetpchard, que ce dépôt n'a pas porté —
-    // cpu.c n'est réduit qu'à la vitesse du 8088. L'oracle fait le même geste au même
-    // endroit : h_cpu_config_286() est appelé avant resetx86() (harness.c:374), pour
-    // la même raison qu'ici — resetx86 BRANCHE sur AT, is386 et cpu_16bitbus.
-    // Elle vit dans 386.State.cs, avec les autres pendants de h_*.
+    // LA CONFIGURATION DU PROCESSEUR N'EST PAS ICI, et c'est la place du C : PCem la
+    // pose par cpu_set(), appelé depuis resetpchard AVANT mem_alloc (pc.c:363). Jusqu'à
+    // M16 ce dépôt appelait cpu_config_286() à cette ligne-ci, faute d'avoir porté
+    // cpu_set() — donc APRÈS mem_alloc, qui lit cpu_16bitbus pour plafonner la RAM.
     //
     // mem_add_bios EST APPELÉ APRÈS `AT = 1`, COMME DANS LE C, et sa branche AT reste
     // omise. Ce n'est pas une contradiction mais un accord mesuré :
@@ -146,7 +166,6 @@ internal static partial class model_c
     internal static void at_init()
     {
         Cpu.x86.AT = 1;
-        Cpu._386.cpu_config_286();
         common_init();
         mem.mem_add_bios();
         pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_at);
@@ -202,6 +221,7 @@ internal static partial class model_c
         name = "[286] AMI 286 clone",
         id = pc.ROM_AMI286,
         internal_name = "ami286",
+        cpu = [new("", Cpu.cpu_tables.cpus_286), new("", null), new("", null), new(), new()],
         flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
         min_ram = 512,
         max_ram = 16384,
@@ -214,17 +234,19 @@ internal static partial class model_c
     // LE PREMIER MODÈLE DU DÉPÔT QUI N'EST PAS UN 8088, et son flag MODEL_AT est ce
     // que BootDiff lit pour choisir le cœur des DEUX côtés, avant l'amorçage.
     //
-    // omitted: le membre `cpu` — `{{"", cpus_ibmat}, {"", NULL}, {"", NULL}}`. La
-    //   struct MODEL de ce dépôt ne le porte pas : les tables de CPU appartiennent à
-    //   cpu.c, réduit à la vitesse du 8088, et cpu_config_286() tient lieu de l'entrée
-    //   qu'on y lirait. L'ORACLE EST DANS LE MÊME ÉTAT, et c'est mesuré :
-    //   models[ROM_IBMAT]->cpu[0].cpus est NUL côté oracle (at-probe, offset 104), et
-    //   les deux fonctions de cpu.c qui le déréférencent sont enveloppées à vide.
+    // DEVIATION: TEMPORAIRE (M16, étape 3 → étape 5). PCem donne à l'IBM AT la table
+    //   `cpus_ibmat` (model.c:1109) : 286/6 et 286/8, à TROIS cycles de lecture et
+    //   d'écriture mémoire. Elle pointe ici sur `cpus_286`, dont l'entrée 0 — 286/6 à
+    //   DEUX cycles — est ce que l'AT de ce dépôt a toujours eu, des deux côtés, sans
+    //   que rien ne le signale. Rendre l'AT à sa vraie table déplace son temps : c'est
+    //   un levier à part, avec son chiffre (VERIFICATION.md § M16). L'oracle pointe sur
+    //   la même table, au même titre.
     internal static readonly MODEL m_ibmat = new MODEL
     {
         name = "[286] IBM AT",
         id = pc.ROM_IBMAT,
         internal_name = "ibmat",
+        cpu = [new("", Cpu.cpu_tables.cpus_286), new("", null), new("", null), new(), new()],
         flags = MODEL_GFX_NONE | MODEL_AT,
         min_ram = 256,
         max_ram = 15872,
@@ -233,7 +255,7 @@ internal static partial class model_c
     };
 
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
-    // model_init_builtin (model.c:1625-1746). Deux entrées sur les 97 de PCem.
+    // model_init_builtin (model.c:1625-1746). Quatre entrées sur les 97 de PCem.
     //
     // L'ORDRE COMPTE : `model` vaut 0 sans configuration, donc la première entrée est
     // la machine par défaut. Toute mesure de VERIFICATION.md suppose le 5150 ; déplacer
@@ -306,6 +328,14 @@ internal static partial class model_c
     // pcem: model.c:686-694
     internal static void model_init()
     {
+        // omitted: pclog("Initting as %s") (model.c:687) — sortie pure.
+        // pcem: model.c:688 — sans elle, une machine 8088 amorcée APRÈS un AT dans le même
+        // processus garde AT = 1 : pc_reset prend la branche AT de setpitclock et resetx86
+        // le vecteur du 286. Omise sans marque jusqu'à M16, dont cpu-config-check est le
+        // premier outil à amorcer plusieurs machines d'affilée.
+        Cpu.x86.AMSTRAD = Cpu.x86.AT = Cpu.x86.PCI = Cpu.x86.TANDY = Cpu.x86.MCA = 0;
+        // omitted: ide_set_bus_master(NULL, …) (model.c:689) — pas de contrôleur IDE.
+
         // mem_size est posé par initpc, avant mem_alloc (voir pc.cs).
         models[model].init?.Invoke();
         // omitted: device_add(models[model]->device) (model.c:693) — m_ibmpc n'a pas

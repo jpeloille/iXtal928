@@ -24,6 +24,7 @@ string? configPath = null;
 var ramOverride = -1;
 string? modelOverride = null;
 string? gfxOverride = null;
+int cpuOverride = -1;
 var driveOverride = new[] { -1, -1 };
 
 // --hdd / --hdd-d. COLLECTÉS et non appliqués sur place, comme --model et --ram :
@@ -80,6 +81,7 @@ for (var i = 0; i < args.Length; i++)
         string? bootGfx = null;
         string? bootHdd = null;
         var bootHddType = -1;
+        var bootCpu = -1;
         var settle = KeyScript.SlicesAfterLine;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
@@ -105,6 +107,15 @@ for (var i = 0; i < args.Length; i++)
                 // COLLECTÉ comme --model, et pour la même raison : il l'emporte sur la
                 // clé gfxcard de --config, quel que soit l'ordre de frappe.
                 case "--gfxcard": bootGfx = val; break;
+                // COLLECTÉ comme --model : l'indice ne vaut que dans la table de la
+                // machine FINALE.
+                case "--cpu":
+                    if (!int.TryParse(val, out bootCpu) || bootCpu < 0)
+                    {
+                        Console.Error.WriteLine("--cpu attend l'indice du processeur dans la table de la machine.");
+                        return 2;
+                    }
+                    break;
                 // COLLECTÉS pour la même raison que --model : ils doivent s'appliquer
                 // APRÈS --config, qui écrase ide_fn[] et hdc[] sans condition.
                 case "--hdd": bootHdd = val; break;
@@ -145,6 +156,15 @@ for (var i = 0; i < args.Length; i++)
         if (bootModel is not null && !pc.setmodel(bootModel))
             return 2;
         if (bootGfx is not null && !pc.setgfxcard(bootGfx))
+            return 2;
+        if (bootCpu >= 0)
+        {
+            iXtal26.Cpu.cpu_c.cpu_manufacturer = 0;
+            iXtal26.Cpu.cpu_c.cpu = bootCpu;
+        }
+        // Jugé ICI, contre la machine finale, pour sortir en 2 comme toute option
+        // refusée — initpc le jugerait aussi, mais rendrait 1, le code d'un amorçage raté.
+        if (!pc.check_cpu())
             return 2;
 
         if (bootHdd is null && bootHddType >= 0)
@@ -240,6 +260,7 @@ for (var i = 0; i < args.Length; i++)
         // la main avant que la boucle principale ait appliqué quoi que ce soit.
         string? tcModel = null;
         string? tcGfx = null;
+        var tcCpu = -1;
         var bootSlices = TimerCheck.DefaultBootSlices;
         while (i + 1 < args.Length && args[i + 1].StartsWith("--", StringComparison.Ordinal))
         {
@@ -255,6 +276,13 @@ for (var i = 0; i < args.Length; i++)
             {
                 case "--model": tcModel = val; break;
                 case "--gfxcard": tcGfx = val; break;
+                case "--cpu":
+                    if (!int.TryParse(val, out tcCpu) || tcCpu < 0)
+                    {
+                        Console.Error.WriteLine("--cpu attend l'indice du processeur dans la table de la machine.");
+                        return 2;
+                    }
+                    break;
                 case "--floppy-a": if (!MountFloppy(0, val)) return 2; break;
                 case "--floppy-b": if (!MountFloppy(1, val)) return 2; break;
                 // Tranches d'amorçage avant la fenêtre. 6 000 amènent le 5150 à
@@ -284,6 +312,13 @@ for (var i = 0; i < args.Length; i++)
         if (tcModel is not null && !pc.setmodel(tcModel))
             return 2;
         if (tcGfx is not null && !pc.setgfxcard(tcGfx))
+            return 2;
+        if (tcCpu >= 0)
+        {
+            iXtal26.Cpu.cpu_c.cpu_manufacturer = 0;
+            iXtal26.Cpu.cpu_c.cpu = tcCpu;
+        }
+        if (!pc.check_cpu())
             return 2;
 
         return TimerCheck.Run(paths.resolve_roms_path(roms), seconds, bootSlices);
@@ -384,6 +419,22 @@ for (var i = 0; i < args.Length; i++)
         }
 
         gfxOverride = args[++i];
+        continue;
+    }
+
+    // L'INDICE du processeur dans la table de la machine (M16) : 5 est un 286/20 sur
+    // l'ami286, un 8088/16 sur le 5150, et n'existe pas sur l'ibmat de PCem (cpus_ibmat) — ici
+    // accepté tant que dure la DEVIATION temporaire de model.cs (T-ibmat). Collecté puis
+    // appliqué APRÈS --model, et jugé contre la machine finale par pc.check_cpu.
+    if (arg == "--cpu")
+    {
+        if (i + 1 >= args.Length || !int.TryParse(args[i + 1], out cpuOverride) || cpuOverride < 0)
+        {
+            Console.Error.WriteLine("--cpu attend l'indice du processeur dans la table de la machine (0, 1, …).");
+            return 2;
+        }
+
+        i++;
         continue;
     }
 
@@ -561,6 +612,12 @@ if (modelOverride is not null && !pc.setmodel(modelOverride))
 if (gfxOverride is not null && !pc.setgfxcard(gfxOverride))
     return 2;
 
+if (cpuOverride >= 0)
+{
+    iXtal26.Cpu.cpu_c.cpu_manufacturer = 0;
+    iXtal26.Cpu.cpu_c.cpu = cpuOverride;
+}
+
 // Refusé, pas corrigé : une taille tapée en ligne de commande est explicite. Avant M10
 // cette affectation ne passait par AUCUN contrôle — le seul chemin du dépôt qui pouvait
 // fabriquer un SW2 absurde sans rien dire.
@@ -604,13 +661,19 @@ if (verbose)
 // exécutions traversent les mêmes états, et un écran qui attend une touche n'a pas sa
 // place dans ce contrat — c'est le même arbitrage que le menu Ctrl+F12, inerte sous
 // --slices depuis M7.
-var machineChosen = configPath is not null || modelOverride is not null || ramOverride >= 0 ||
+var machineChosen = configPath is not null || modelOverride is not null || cpuOverride >= 0 || ramOverride >= 0 ||
                     driveOverride[0] >= 0 || driveOverride[1] >= 0 ||
                     hddOverride[0] is not null || hddOverride[1] is not null ||
                     iXtal26.Floppy.fdd_c.discfns[0].Length != 0 ||
                     iXtal26.Floppy.fdd_c.discfns[1].Length != 0;
 
 var showSetup = (setup || !machineChosen) && !headless && maxSlices <= 0;
+
+// Le processeur se juge contre la machine FINALE — --config, puis --model, puis --cpu —
+// et sort en 2 comme toute option refusée. Pas quand l'écran de construction s'ouvre :
+// il ramène lui-même l'indice dans la table (SdlSetup.ClampCpu).
+if (!showSetup && !pc.check_cpu())
+    return 2;
 
 using var host = new SdlHost(romsPath, headless, maxSlices, verbose, turboSlices);
 
@@ -1108,6 +1171,13 @@ static void PrintUsage()
     Console.WriteLine("                       Un nom inconnu est refusé en citant ce qui existe");
     Console.WriteLine("  --gfxcard NOM        carte vidéo : cga (défaut) ou vga (ROM ibm_vga.bin). Même");
     Console.WriteLine("                       précédence que --model : l'emporte sur la clé gfxcard");
+    Console.WriteLine("  --cpu N              processeur : l'INDICE dans la table de la machine, appliqué");
+    Console.WriteLine("                       après --model. ibmpc/ibmxt : 0 = 8088/4.77 … 5 = 8088/16 ;");
+    Console.WriteLine("                       ibmat : 0 = 286/6, 1 = 286/8 chez PCem, et pour l'instant");
+    Console.WriteLine("                       la table de l'ami286 (M16, DEVIATION temporaire) ;");
+    Console.WriteLine("                       ami286 : 0 = 286/6 …");
+    Console.WriteLine("                       5 = 286/20, 6 = 286/25. Hors table : refusé, en listant");
+    Console.WriteLine("                       ce qui existe. Aussi sous --boot et --timer-check");
     Console.WriteLine("  --ram N              taille RAM en Ko. Les bornes viennent de la MACHINE :");
     Console.WriteLine("                       64 à 640 par pas de 32 sur ibmpc, par pas de 64 sur ibmxt");
     Console.WriteLine("  --drive-a T          type de lecteur : 0 aucun, 1 5,25\" DD (le 5150),");
@@ -1185,7 +1255,7 @@ static void PrintUsage()
     Console.WriteLine("                       la FAT d'une disquette réellement formatée par DOS 2.00,");
     Console.WriteLine("                       le secteur d'amorce, et l'invariant de géométrie — les");
     Console.WriteLine("                       deux branches d'img_load doivent lire la même chose");
-    Console.WriteLine("  --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]");
+    Console.WriteLine("  --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER] [--cpu N]");
     Console.WriteLine("                [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]");
     Console.WriteLine("                       amorce, vérifie que l'INT 8 du BIOS tourne, puis");
     Console.WriteLine("                       compte les tops de la BDA (0040:006C) sur SECONDES");

@@ -726,8 +726,10 @@ internal static partial class x86seg_c
                 {
                         // omitted: pclog("Triple fault!") — sortie pure.
                         Cpu._808x.softresetx86();
-                        // omitted: cpu_set_edx() — l'oracle l'interpose A VIDE
-                        //   (__wrap_cpu_set_edx, harness_stubs.c:278), voir 808x.cs.
+                        // DEVIATION: cpu_set_edx() (x86seg.c:1654) non appelé, et
+                        //   l'oracle l'enveloppe à vide. PCem pose EDX = edx_reset —
+                        //   0 dans les trois tables du dépôt — après la triple faute ;
+                        //   ici DX garde sa valeur, des deux côtés. Voir keyboard_at.cs.
                 }
                 else if (num == 0xD)
                 {

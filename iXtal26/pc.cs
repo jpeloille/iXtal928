@@ -14,20 +14,17 @@
 //   Il CESSE de l'etre des qu'un second resetpchard tourne sur un 8042 deja
 //   interroge, keyboard_at.cs incrementant les deux bits bas de input_port a chaque
 //   commande 0xC0.
-// omitted: cpu_cache_int_enabled = cpu_cache_ext_enabled = 0 (:407) — meme motif
-//   qu'en 808x.cs : leur seul lecteur, cpu_update_waitstates(), est enveloppe A VIDE
-//   par l'oracle (harness_stubs.c:268).
-// omitted: cpu_set_turbo() (:439) — le quatrieme __wrap_ du Makefile, lui aussi a
-//   corps vide (harness_stubs.c:281).
+// omitted: cpu_set_turbo() (:439) — gele avec cpu_get_speed() jusqu'au levier A de
+//   M16 (cpu.cs), et le quatrieme __wrap_ du Makefile a corps vide cote oracle.
 // omitted: image_close() (:411) et le bloc cdrom — lecteur de CD-ROM, hors cible.
 // omitted: mem_set_704kb() (:370-371) — garde `!AT && max_ram <= 768`, fausse pour les
 //   trois machines du depot. NOTE : le C teste `AT` AVANT que model_init() ne le pose,
 //   donc sur un changement de machine a chaud il lit le AT de la PRECEDENTE. Defaut
 //   de PCem, sans effet ici, mais c'est le meme piege d'ordre que AT=1 vs mem_add_bios.
-// STATUS: partial — réduit à deux machines 8088, l'IBM PC 5150 et l'IBM XT 5160
-//         (M10) : disquette (M6) et haut-parleur (M9) compris, mais ni réseau, ni
-//         disque dur, ni souris, ni joystick, ni NVR. Ce qui reste est la séquence
-//         d'amorçage et la tranche d'exécution.
+// STATUS: partial — quatre machines : IBM PC 5150 et XT 5160 (8088), IBM AT 5170 et
+//         clone AMI 286 (286, sélection de CPU par table depuis M16) ; disquette,
+//         disque dur MFM, CMOS, CGA et VGA, haut-parleur. Ni réseau, ni souris, ni
+//         joystick, ni son. Ce qui reste est la séquence d'amorçage et la tranche.
 //
 // pc.c n'est pas une boucle : runpc() est une TRANCHE de 10 ms
 // (cpu_get_speed() / 100 cycles). Le cadençage sur horloge murale vit dans l'hôte
@@ -103,9 +100,6 @@ internal static partial class pc
     // pcem: ibm.h:272 — le romset courant, défini par pc.c chez PCem.
     internal static int romset = ROM_IBMPC;
 
-    // pcem: ibm.h — vitesse du 8088 de l'IBM PC/XT, cpu_tables.c:33.
-    internal const int CPU_SPEED_8088 = 4772728;
-
     internal static int framecount, framecountx;
 
     // pcem: pc.c:77 — la carte vidéo, en identifiant HÉRITÉ (GFX_*) : video_old_to_new
@@ -136,8 +130,6 @@ internal static partial class pc
     internal const int READFLASH_HDC = 4;
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     internal static void readflash_set(int offset, int drive) { readflash |= 1 << ((offset) + (drive)); }
-
-    internal static int cpu_get_speed() => CPU_SPEED_8088;
 
     // DEVIATION: fatal() de PCem appelle dumpregs() puis exit(-1). Ici on lève :
     //   l'hôte décide quoi en faire, et un test n'a pas à voir son processus
@@ -233,6 +225,39 @@ internal static partial class pc
     }
 
     /// <summary>
+    /// Contrôle le processeur choisi — fabricant et indice — contre la table de la
+    /// machine COURANTE, et refuse en citant ce qui existe.
+    ///
+    /// DEVIATION: PCem ne valide rien. Un fabricant sans table retombe EN SILENCE sur
+    ///   0/0 (cpu.c:171-175) ; un indice égal à la sentinelle atteint le `default:
+    ///   fatal` de cpu.c:1128 ; au-delà, c'est une lecture hors du tableau. Son interface
+    ///   ramène l'indice dans la table (wx-config.c:957-959) — une ligne de commande n'a
+    ///   pas d'interface, et une valeur tapée est explicite : même politique que
+    ///   setmodel et check_mem_size, qui refusent plutôt que démarrer autre chose.
+    /// </summary>
+    internal static bool check_cpu()
+    {
+        var mdl = Models.model_c.models[Models.model_c.model];
+        var manu = cpu_c.cpu_manufacturer;
+        var cpus = manu >= 0 && manu < mdl.cpu.Length ? mdl.cpu[manu].cpus : null;
+
+        var n = 0;
+        while (cpus is not null && cpus[n].cpu_type != -1)
+                n++;
+
+        if (cpus is not null && cpu_c.cpu >= 0 && cpu_c.cpu < n)
+                return true;
+
+        Console.Error.WriteLine(cpus is null
+            ? $"cpu_manufacturer = {manu} : « {mdl.internal_name} » n'a pas de processeur de ce fabricant. Connu : 0."
+            : $"cpu = {cpu_c.cpu} : hors de la table de « {mdl.internal_name} ». Connus :");
+        var table = mdl.cpu[0].cpus!;
+        for (var c = 0; table[c].cpu_type != -1; c++)
+                Console.Error.WriteLine($"  cpu = {c}  ({table[c].name})");
+        return false;
+    }
+
+    /// <summary>
     /// Contrôle une taille mémoire contre les bornes de la machine COURANTE. Rend false
     /// sans rien écrire dans cfg_mem_size : à la différence de la clé de configuration,
     /// qui retombe sur un défaut, une valeur tapée en ligne de commande est explicite —
@@ -270,6 +295,16 @@ internal static partial class pc
 
         if (!setmodel(mname))
                 return false;
+
+        // pcem: pc.c:653-654 — le fabricant et l'INDICE dans la table de la machine :
+        // `cpu = 5` est un 286/20 sur l'ami286 et n'existe pas dans la table cpus_ibmat de PCem. La validité
+        // ne se juge donc que contre la machine FINALE — --model s'applique après ce
+        // fichier — et c'est check_cpu(), appelé par initpc, qui la juge.
+        // omitted: fpu (pc.c:655-656), cpu_use_dynarec (:657), cpu_waitstates (:658) —
+        //   aucune machine du dépôt n'a de coprocesseur, le dynarec n'est pas porté, et
+        //   l'override d'états d'attente n'a pas de machine qui le demande.
+        cpu_c.cpu_manufacturer = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cpu_manufacturer", 0);
+        cpu_c.cpu = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cpu", 0);
 
         // pcem: pc.c:660-664 — la clé porte l'internal_name de la carte ; absente, "" et
         // donc la CGA.
@@ -503,6 +538,13 @@ internal static partial class pc
             return false;
         }
 
+        // Le processeur se juge contre la machine FINALE : --config a pu poser `cpu`,
+        // puis --model changer de machine. Refusé ICI, avant d'amorcer quoi que ce
+        // soit, pour que tous les points d'entrée — fenêtre, --boot, --timer-check, les
+        // outils Diff — refusent de la même façon. Voir check_cpu.
+        if (!check_cpu())
+            return false;
+
         PluginApi.device.device_init();
         Video.video.initvideo();
 
@@ -564,8 +606,11 @@ internal static partial class pc
         Sound.sound.sound_reset();
 
         io.io_init();
-        // omitted: cpu_set() — cpu.c n'est pas porté ; la configuration 8088 est
-        //   posée par model.cs. Voir TRANSCRIPTION.md.
+        // pcem: pc.c:363 — AVANT mem_alloc, qui lit cpu_16bitbus pour plafonner la RAM
+        // d'un bus de 24 bits (mem.cs, mem_alloc). Ce dépôt posait la configuration du
+        // 286 dans at_init, donc APRÈS : sur un ami286 à 16 384 Ko, la RAM haute sortait
+        // mal plafonnée au premier amorçage, et autrement au second.
+        Cpu.cpu_c.cpu_set();
         mem.mem_alloc();
         Floppy.fdc_c.fdc_init();
         Disc.disc.disc_reset();
@@ -620,6 +665,11 @@ internal static partial class pc
         // lève. Trouvé par le premier boot-diff AT qui franchissait le mode protégé.
         // L'oracle l'appelle maintenant au même point (harness.c).
         Devices.nvr.loadnvr();
+
+        // pcem: pc.c:407. Inerte : rien dans l'arbre porté n'active l'un ou l'autre cache,
+        // et cpu_set() les a lus à zéro. Transcrit pour que cpu_update_waitstates() ne
+        // repose sur aucun zéro implicite.
+        cpu_c.cpu_cache_int_enabled = cpu_c.cpu_cache_ext_enabled = 0;
     }
 
     // pcem: pc.c:344-351 — Ctrl+Alt+Suppr, poussé dans la file du clavier. Redémarrage
@@ -693,24 +743,17 @@ internal static partial class pc
         // clockhardware() qui convertit les cycles CPU vers ce domaine via
         // xt_cpu_multi. Passer 4,77 MHz ici ferait tourner toute la machine à un
         // tiers de sa vitesse, sans qu'aucun test d'opcode ne s'en aperçoive.
-        // LA BRANCHE AT, ET SA VALEUR EST UN LITTÉRAL PAR NÉCESSITÉ MESURÉE.
         //
-        // Le C écrit `setpitclock(models[model]->cpu[cpu_manufacturer].cpus[cpu].rspeed)`
-        // — la vitesse de l'entrée de CPU du modèle. Ce dépôt ne peut PAS l'écrire :
-        // sa struct MODEL ne porte pas de membre `cpu`, cpu.c étant réduit à la vitesse
-        // du 8088. Et l'oracle ne le peut pas non plus, pour une raison mesurée plutôt
-        // que supposée : models[ROM_IBMAT]->cpu[0].cpus est NUL (at-probe, offset 104
-        // donné par le compilateur), et les deux fonctions de cpu.c qui déréférencent ce
-        // pointeur sont enveloppées À VIDE par --wrap. Le harnais écrit donc
-        // `setpitclock(AT ? 6000000.0f : 14318184.0f)` (harness.c:908), et c'est ce
-        // littéral qui est le pendant fidèle — 6 MHz, cpus_286[0].rspeed.
-        //
-        // C'EST LA LIGNE QUI A FAIT MARCHER LE POST DE L'AT. Sans elle, PITCONST vaut
-        // 12 cycles CPU par tic de PIT au lieu de 5,03 : le PIT tourne 2,4 fois trop
-        // lentement par rapport au processeur, le compte de rafraîchissement mémoire
-        // reste sous le 0xF600 que le BIOS exige, et le POST s'arrête sur un HLT en
-        // F000:05C4 après cent millions d'instructions.
-        Models.pit.setpitclock(AT != 0 ? 6000000.0f : 14318184.0f);
+        // Sur un AT, c'est la rspeed de l'entrée de CPU choisie. Ce fut un littéral,
+        // 6 MHz, tant que MODEL ne portait pas de membre `cpu` (jusqu'à M16) — et
+        // c'est la ligne qui a fait marcher le POST de l'AT : à 14 318 184, PITCONST
+        // vaut 12 cycles CPU par tic de PIT au lieu de 5,03, le compte de
+        // rafraîchissement mémoire reste sous le 0xF600 que le BIOS exige, et le POST
+        // s'arrête sur un HLT en F000:05C4 après cent millions d'instructions.
+        if (AT != 0)
+                Models.pit.setpitclock(Models.model_c.models[Models.model_c.model].cpu[cpu_c.cpu_manufacturer].cpus![cpu_c.cpu].rspeed);
+        else
+                Models.pit.setpitclock(14318184.0f);
 
         // omitted: ali1429_reset() (pc.c:190) et le video_init() commenté (pc.c:192).
     }
@@ -721,7 +764,7 @@ internal static partial class pc
     /// </summary>
     internal static void runpc()
     {
-        int cycles_to_run = cpu_get_speed() / 100;
+        int cycles_to_run = cpu_c.cpu_get_speed() / 100;
 
         Video.video.startblit();
 

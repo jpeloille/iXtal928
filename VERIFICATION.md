@@ -3279,6 +3279,79 @@ et le « 100 % » que le titre affichait sur l'AT valait en réalité 80 %. Les 
 l'hôte (rapport 7) ne sont pas consignés ici : une autre session compilait pendant la
 mesure, et le protocole de § M5.1 exige une machine au repos.
 
+### Étape 3 : cpu_set() à sa place, chiffres gelés
+
+La sélection de CPU de PCem est portée, réduite aux deux familles que les tables du dépôt
+portent : `struct CPU` et les tables `cpus_8088`, `cpus_286`, `cpus_ibmat`
+(`Cpu/cpu_tables.cs`), `cpu_set()` réduit et `cpu_update_waitstates()` entier
+(`Cpu/cpu.cs`), le membre `cpu[5]` de `MODEL`, les clés `cpu_manufacturer` et `cpu`, et
+`--cpu N`. `cpu_set()` tourne dans `resetpchard` AVANT `mem_alloc`, comme `pc.c:363` —
+ce dépôt posait la configuration du 286 dans `at_init`, donc après. `setpitclock` lit la
+rspeed de l'entrée choisie. Un indice hors de la table est REFUSÉ en listant ce qui
+existe (`check_cpu`, DEVIATION : PCem lit hors du tableau).
+
+**Côté oracle, le VRAI `cpu_set()` de PCem tourne** dans `h_boot` : `models[]` peuplé
+pour les quatre romsets, `model = romset`, `cpu` et `cpu_manufacturer` poussés par
+`h_set_cpu` et écrits explicitement (`cpu.c:82` les initialise à 3). `h_reset` — fuzz,
+SST, selftest, core286-check — garde `h_cpu_config_*`. ABI 18.
+
+Deux provisoires, marqués `DEVIATION: TEMPORAIRE` des deux côtés, pour que cette étape ne
+déplace aucun chiffre : `cpu_get_speed()` rend encore 4 772 728 partout, et l'ibmat
+pointe encore sur `cpus_286` au lieu de `cpus_ibmat`.
+
+**L'empreinte CPU** (`h_cpu_fingerprint`, `CpuFingerprint.cs`) : 37 grandeurs — vitesse,
+budget de tranche, cycles mémoire, préfetch, `isa_cycles`, domaine d'horloge, temps
+vidéo, `mem_size` —, prises juste après l'amorçage des deux côtés et confrontées champ
+par champ. `boot-diff` la vérifie avant la première instruction ; c'est elle qui ferme le
+piège « un budget asymétrique ne se voit pas dans la trace d'un AT ».
+
+**`cpu-config-check`** amorce chaque entrée de chaque table des deux côtés :
+
+| Machine | Entrées | Résultat |
+|---|---|---|
+| ibmpc, ibmxt | 8088/4.77 à 8088/16 | 12 identiques |
+| ibmat (T-ibmat), ami286 | 286/6 à 286/25 | 14 identiques |
+| indice hors table | 6, 6, 7, 7 | 4 refus concordants |
+
+À 286/20 et 286/25, les deux côtés donnent `busspeed` 2e7 / 2,5e7, `isa_cycles` 3,
+lecture/écriture 4/8, préfetch mémoire 4, préfetch ROM **20 / 25**, temps vidéo
+24/48/96. Le préfetch identique prouve au passage que `--wrap` ne capture pas l'appel
+interne de `cpu_set` à `cpu_update_waitstates` — sinon il serait nul côté oracle.
+
+**Tout est resté en place**, au chiffre près : les cinq boot-diff (25 457 269 /
+26 750 702 / 23 442 234 / 19 511 811 / 22 086 920), fuzz 8088 et fuzz 286 (255 opcodes),
+core286-check et SST (160 592 / 166 998, forme par forme) identiques aux sorties de
+`ebd4aef`, selftest, `--setup-check`. Contre le binaire de `9530e21`, depuis un même
+répertoire et un même instantané de CMOS : `--timer-check` sur les quatre machines,
+`--boot` 1 500 tranches sur ibmat et ami286, `vga-probe` sur les quatre machines —
+identiques. `at-probe` ne diffère que par deux adresses, et parce qu'il constate
+désormais `cpus` peuplé. `boot-diff --model ibmat` vérifie l'empreinte, puis diverge
+toujours à l'instruction 40, sur le CMOS (§ M15).
+
+**Relecture contradictoire avant commit** (trois relecteurs : fidélité, symétrie,
+régressions). Rien de bloquant ; ce qu'elle a trouvé, et ce qui en a été fait :
+
+- **`AT` n'était jamais remis à 0**, d'aucun côté : PCem le fait dans `model_init`
+  (`model.c:688`, `AMSTRAD = AT = PCI = TANDY = MCA = 0`), omis sans marque. Un 8088
+  amorcé après un AT dans le même processus partait en mode AT — des deux côtés, donc
+  en vert. Le vert de `cpu-config-check` ne tenait qu'à l'ordre de son balayage.
+  Transcrit des deux côtés ; `cpu-config-check --inverse` balaye maintenant les AT
+  d'abord, et doit rester vert.
+- **Deux omissions avaient perdu leur motif.** `cpu_update_waitstates()` aux resets et
+  `cpu_set_edx()` après un reset se justifiaient par « `cpu[0].cpus` est NUL », ce que
+  cette étape rend faux. Ce sont désormais des `DEVIATION:` déclarées : TEMPORAIRE (étape
+  6) pour la première — au-delà de 8 MHz le préfetch garde le coût de la ROM après un
+  reset —, un levier à part pour la seconde — PCem pose `EDX = edx_reset` (0) au retour
+  du mode protégé, ce dépôt garde DX, des deux côtés.
+- **L'aide et trois commentaires décrivaient `cpus_ibmat`** alors que l'ibmat, sous
+  T-ibmat, accepte les sept indices de l'ami286. Marqués.
+- **Un indice hors table sortait en 1**, le code d'un amorçage raté, là où `--model` ou
+  `--ram` refusés sortent en 2. `check_cpu` est appelé avant `initpc` dans les trois
+  chemins du programme. L'écran de construction ramène l'indice aussi au CHARGEMENT
+  d'une machine, et ajoute son message à celui de la mémoire au lieu de l'écraser.
+- Citations corrigées (`cpu.h`, `cpu.c`, plages de `oracle.tsv`), commentaires périmés de
+  `386_ops_fpu.cs`, `mem.cs`, `AtProbe.cs` et `BootDiff.cs` réécrits.
+
 ## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
 
 Parti d'une demande simple — *« fabrique un CMOS pour AMI 286 »* — après le constat de

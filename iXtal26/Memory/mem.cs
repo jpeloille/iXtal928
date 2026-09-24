@@ -1028,7 +1028,8 @@ internal static partial class mem
         // chipset NEAT ne l'appelle pas.
         //
         // LA BRANCHE 16 BITS EST VIVANTE ICI, elle ne l'était pas sur un 8088 :
-        // cpu_16bitbus vaut 1 sur un 286 (posé par cpu_config_286), donc au-delà de
+        // cpu_16bitbus vaut 1 sur un 286 (posé par cpu_set(), AVANT ce mem_alloc depuis
+        // M16 — il l'était après, par cpu_config_286 dans at_init), donc au-delà de
         // 16 256 Ko la carte est plafonnée là et non à mem_size. Un 286 ne peut pas
         // adresser plus : son bus fait vingt-quatre lignes.
         if (mem_size > 1024)

@@ -66,10 +66,20 @@ public static class BootDiff
             return 2;
         if (gfxcard is not null && !pc.setgfxcard(gfxcard))
             return 2;
+        // M16 — le processeur, APRÈS --model : l'indice ne vaut que dans la table de la
+        // machine finale, et check_cpu (appelé par initpc) le juge contre elle.
+        if (CpuOverride is { } cpuN)
+        {
+            Cpu.cpu_c.cpu_manufacturer = 0;
+            Cpu.cpu_c.cpu = cpuN;
+        }
+        if (!pc.check_cpu())
+            return 2;
 
         // La MACHINE en tête : depuis M10 le dépôt en a deux, et un diff qui ne dit pas
         // laquelle il compare laisse croire qu'il n'y en a qu'une.
-        Console.WriteLine($"Configuration : machine = {Models.model_c.model_get_internal_name()}, " +
+        var cpuName = Models.model_c.models[Models.model_c.model].cpu[Cpu.cpu_c.cpu_manufacturer].cpus![Cpu.cpu_c.cpu].name;
+        Console.WriteLine($"Configuration : machine = {Models.model_c.model_get_internal_name()}, cpu = {Cpu.cpu_c.cpu} ({cpuName}), " +
                           $"carte = {Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard))}, " +
                           $"mem_size = {pc.cfg_mem_size} Ko, lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                           (configPath is null ? " (défaut)" : $" ({configPath})"));
@@ -157,8 +167,12 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
+        // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
+        Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
-        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
+        // compte.
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
@@ -175,6 +189,10 @@ public static class BootDiff
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
             return 1;
         }
+        // M16 — l'empreinte CPU de l'oracle, prise AVANT la moindre tranche : c'est la
+        // configuration que cpu_set() et setpitclock() viennent de poser. Confrontée à
+        // celle du C# juste après son initpc, plus bas.
+        var cpuFpOracle = CpuFingerprint.Oracle_();
         if (Oracle.h_trace_open(oraclePath) == 0)
         {
             Console.Error.WriteLine($"Impossible d'écrire {oraclePath}.");
@@ -257,6 +275,19 @@ public static class BootDiff
         if (!pc.initpc(romsPath))
             return 1;
 
+        // M16 — LA CONFIGURATION DU PROCESSEUR EST CONFRONTÉE, PAS SUPPOSÉE ÉGALE. Un
+        // budget de tranche, un domaine d'horloge ou des cycles mémoire asymétriques ne
+        // se voient pas forcément dans la trace : un AT y diverge bien avant le contrôle
+        // de longueur final. Tout écart ici est un rouge, nommé, avant la première
+        // instruction.
+        var cpuFpCsharp = CpuFingerprint.Csharp();
+        if (CpuFingerprint.Compare(cpuFpOracle, cpuFpCsharp) != 0)
+        {
+            Console.WriteLine("ROUGE : les deux côtés n'amorcent pas le même processeur.");
+            return 1;
+        }
+        Console.WriteLine($"  empreinte CPU identique : {CpuFingerprint.Summary(cpuFpCsharp)}");
+
         var diverged = -1;
         var n = 0;
         var ev = 0;
@@ -268,7 +299,7 @@ public static class BootDiff
                 ev++;
             }
 
-            var budget = pc.cpu_get_speed() / 100;
+            var budget = Cpu.cpu_c.cpu_get_speed() / 100;
             while (budget > 0)
             {
                 budget -= PasCsharpTrace();
@@ -493,8 +524,12 @@ public static class BootDiff
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
+        // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
+        Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
-        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
+        // compte.
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
@@ -611,6 +646,10 @@ public static class BootDiff
     /// <summary>Retire tsc du hachage, des DEUX cotes. Voir harness.c pour le motif :
     /// separer une divergence de TEMPS d'une divergence FONCTIONNELLE. Drapeau de
     /// DIAGNOSTIC — un boot-diff sans tsc ne remplace pas un boot-diff complet.</summary>
+    /// <summary>M16 — --cpu N : l'indice dans la table de CPU de la machine, appliqué
+    /// après --config et --model. Null : celui du fichier, ou 0.</summary>
+    internal static int? CpuOverride;
+
     internal static bool SansTsc;
 
     internal static ulong TraceHash()
@@ -683,15 +722,18 @@ public static class BootDiff
     public static int SpeakerProbe(string romsPath, int slices, string? discA)
     {
         Oracle.CheckAbi();
-        var budget = pc.cpu_get_speed() / 100;
         Oracle.h_set_discfn(0, discA ?? "");
         Oracle.h_set_mem_size(pc.cfg_mem_size);
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
+        // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
+        Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
-        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
+        // compte.
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
@@ -703,6 +745,9 @@ public static class BootDiff
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
+        // Le budget se lit APRÈS l'amorçage : c'est cpu_set() qui pose la vitesse, et
+        // avant lui cpu_get_speed() n'a rien à rendre. Le même sert aux deux côtés.
+        var budget = Oracle.h_slice_budget();
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
         _808x.ResetDiagState();
@@ -796,15 +841,18 @@ public static class BootDiff
     public static int DiscProbe(string romsPath, int slices, string? discA)
     {
         Oracle.CheckAbi();
-        var budget = pc.cpu_get_speed() / 100;
         Oracle.h_set_discfn(0, discA ?? "");
         Oracle.h_set_mem_size(pc.cfg_mem_size);
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
         Oracle.h_set_bpb_disable(Disc.disc_img.bpb_disable);
         Oracle.h_set_romset(pc.romset);
+        // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
+        // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
+        Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
-        // fait `AT = (h_core == H_CORE_286)` (harness.c:362), donc l'ordre compte.
+        // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
+        // compte.
         // Le discriminant est le flag du modèle, connu AVANT l'amorçage — pas la
         // globale AT, que resetpchard ne pose que pendant.
         Oracle.h_set_core(CoeurDuModele());
@@ -816,6 +864,9 @@ public static class BootDiff
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
+        // Le budget se lit APRÈS l'amorçage : c'est cpu_set() qui pose la vitesse, et
+        // avant lui cpu_get_speed() n'a rien à rendre. Le même sert aux deux côtés.
+        var budget = Oracle.h_slice_budget();
         for (var i = 0; i < slices; i++) Oracle.h_run(budget);
 
         _808x.ResetDiagState();

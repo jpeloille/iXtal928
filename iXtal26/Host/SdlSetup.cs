@@ -502,6 +502,8 @@ internal sealed class SdlSetup
                     pc.cfg_mem_size = Math.Clamp(kb, mdl.min_ram, mdl.max_ram);
                     _message = $"memoire ramenee a {pc.cfg_mem_size} Ko pour cette machine.";
                 }
+
+                ClampCpu();
                 break;
 
             case Item.Memory:
@@ -647,6 +649,31 @@ internal sealed class SdlSetup
     /// déjà rempli (précédence de la ligne de commande, pc.cs). Sans ce vidage, charger
     /// une machine après en avoir composé une laisserait la disquette de la première.
     /// </summary>
+    /// <summary>
+    /// Le processeur est un INDICE dans la table de la machine : `cpu = 5` est un 286/20
+    /// sur l'ami286, un 8088/16 sur le 5150, et `cpu = 6` n'existe pas sur le 5150. PCem
+    /// le ramène sur la dernière entrée quand on change de machine (wx-config.c:957-959) ;
+    /// même geste ici — au changement de machine ET au chargement d'un fichier —, plutôt
+    /// qu'une machine que pc.check_cpu refuserait au démarrage, fenêtre fermée. L'écran n'a
+    /// pas de ligne pour choisir le processeur : le ramener est la seule correction
+    /// possible, et elle est DITE, à la suite de ce qui a déjà été dit.
+    /// </summary>
+    private void ClampCpu()
+    {
+        var cpus = Models.model_c.models[Models.model_c.model].cpu[0].cpus!;
+        int c = 0;
+        while (cpus[c].cpu_type != -1)
+            c++;
+
+        Cpu.cpu_c.cpu_manufacturer = 0;
+        if (Cpu.cpu_c.cpu >= 0 && Cpu.cpu_c.cpu < c)
+            return;
+
+        Cpu.cpu_c.cpu = Cpu.cpu_c.cpu < 0 ? 0 : c - 1;
+        var said = $"processeur ramene a {cpus[Cpu.cpu_c.cpu].name} pour cette machine.";
+        _message = string.IsNullOrEmpty(_message) ? said : $"{_message} {said}";
+    }
+
     private void LoadMachine(string path)
     {
         Floppy.fdd_c.discfns[0] = "";
@@ -659,6 +686,7 @@ internal sealed class SdlSetup
         }
 
         _message = $"{Path.GetFileName(path)} charge.";
+        ClampCpu();
     }
 
     /// <summary>
@@ -700,6 +728,11 @@ internal sealed class SdlSetup
 
         config.config_set_string(config.CFG_MACHINE, null, "model",
                                  Models.model_c.model_get_internal_name());
+        // pcem: pc.c:873-874 — sans elles, une machine enregistrée perdait son processeur
+        // et revenait à l'entrée 0 de sa table au prochain chargement. Pas de ligne à
+        // l'écran pour le choisir : le registre omet le sélecteur, pas la clé.
+        config.config_set_int(config.CFG_MACHINE, null, "cpu_manufacturer", Cpu.cpu_c.cpu_manufacturer);
+        config.config_set_int(config.CFG_MACHINE, null, "cpu", Cpu.cpu_c.cpu);
         config.config_set_int(config.CFG_MACHINE, null, "mem_size", pc.cfg_mem_size);
         // pcem: pc.c:879
         config.config_set_string(config.CFG_MACHINE, null, "gfxcard",

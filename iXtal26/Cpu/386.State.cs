@@ -19,10 +19,14 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
-    /// <summary>Ce que cpu_set() poserait pour cpus_286[0], le « 286/6 » de l'AT
-    /// 5170. Pendant de h_cpu_config_286() (tools/oracle/harness_stubs.c), repris
-    /// de cpu.c:323-353 — la branche `case CPU_286:`, inatteignable ici comme
-    /// là-bas parce qu'elle déréférence models[].</summary>
+    /// <summary>Ce que cpu_set() pose pour cpus_286[0], le « 286/6 ». Pendant de
+    /// h_cpu_config_286() (tools/oracle/harness_stubs.c), repris de cpu.c:323-353.
+    ///
+    /// DEPUIS M16 IL NE SERT QU'À Reset286(), le chemin HÔTE du fuzzeur, de SST et de
+    /// core286-check, qui n'amorce aucune machine : les deux vraies machines 286 passent
+    /// par cpu_set() (Cpu/cpu.cs), appelé par resetpchard comme chez PCem. Ses valeurs
+    /// sont exactement celles de cpus_286[0] — ce qui garde à ces trois outils le même
+    /// objet qu'avant.</summary>
     internal static void cpu_config_286()
     {
         x86_setopcodes(ops_286, ops_286_0f);

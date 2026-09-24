@@ -24,7 +24,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga] [--cpu N]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -86,6 +86,13 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      AT de B2 : l'oracle doit savoir faire tourner la VGA avant qu'une");
     Console.WriteLine("      ligne de C# ne s'écrive.");
     Console.WriteLine();
+    Console.WriteLine("  cpu-config-check [CHEMIN_ROMS] [--inverse]");
+    Console.WriteLine("      Balaye les tables de CPU des quatre machines : amorce chaque entrée");
+    Console.WriteLine("      des deux côtés — l'oracle fait tourner le vrai cpu_set() de PCem — et");
+    Console.WriteLine("      confronte l'empreinte CPU (vitesse, budget, cycles mémoire, préfetch,");
+    Console.WriteLine("      domaine d'horloge, temps vidéo). L'indice hors table doit être refusé");
+    Console.WriteLine("      des deux côtés.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -114,6 +121,21 @@ switch (args[0])
 
     case "core286-check":
         return Core286Check.Run();
+
+    // M16 — le balayage des tables de CPU : chaque entrée de chaque machine, amorcée
+    // des deux côtés, l'empreinte CPU confrontée champ par champ. Le seul témoin
+    // différentiel du 286/20 et du 286/25, qu'aucun boot-diff n'atteint.
+    case "cpu-config-check":
+    {
+        var roms = "roms";
+        var reverse = false;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--inverse") reverse = true;
+            else roms = args[i];
+        }
+        return CpuConfigCheck.Run(roms, reverse);
+    }
 
     // Aller-retour du moteur de configuration. Sa moitié ÉCRITURE — les six
     // config_set_* et config_save — n'a aucun appelant tant que le menu n'édite pas la
@@ -222,6 +244,9 @@ switch (args[0])
                 case "--model" when i + 1 < args.Length: model = args[++i]; break;
                 // M15 — la carte vidéo, avec la même précédence que --model.
                 case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
+                // M16 — l'indice dans la table de CPU de la machine, appliqué APRÈS
+                // --model : `--cpu 3` est un 8088/10 sur l'ibmpc, un 286/12 sur l'ami286.
+                case "--cpu" when i + 1 < args.Length: BootDiff.CpuOverride = int.Parse(args[++i]); break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {

@@ -130,7 +130,7 @@ internal static class FloppyTrace
 
         for (var s = 0; s < slices; s++)
         {
-            var budget = pc.cpu_get_speed() / 100;
+            var budget = Cpu.cpu_c.cpu_get_speed() / 100;
             while (budget > 0)
             {
                 budget -= _808x.Step();

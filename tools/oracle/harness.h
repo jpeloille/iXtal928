@@ -340,7 +340,7 @@ void h_set_trace_notsc(int on);
 
 /* Exécute jusqu'à épuisement d'un budget de cycs cycles — la forme qu'emploie
  * runpc() (execx86(cpu_get_speed() / 100), soit 47 727 cycles par tranche de
- * 10 ms sur un XT). Sert à vérifier que h_step() ne fausse pas la comptabilité,
+ * 10 ms sur un 8088 à 4,77 MHz ; voir h_slice_budget). Sert à vérifier que h_step() ne fausse pas la comptabilité,
  * et servira au diff plein régime. Rend les cycles réellement consommés. */
 int h_run(int cycs);
 
@@ -420,6 +420,23 @@ void h_set_bpb_disable(int v);
  * l'outil de diff pousse ici la valeur déjà résolue. Même doctrine que
  * h_set_mem_size : une seule lecture de la configuration, deux poussées. */
 void h_set_romset(int r);
+
+/* --- processeur (M16) -------------------------------------------------------
+ * Le fabricant et l'INDICE dans la table de CPU de la machine, pendant des clés
+ * `cpu_manufacturer` et `cpu` (pc.c:653-654). À appeler AVANT h_boot, comme le romset :
+ * h_boot fait tourner le vrai cpu_set() de PCem avec eux, et refuse (rend 0) un indice
+ * hors de la table ou une table qui contredit le coeur de h_set_core. */
+void h_set_cpu(int manu, int n);
+
+/* Le budget d'une tranche, `cpu_get_speed() / 100` (pc.c:473) — celui que h_runpc
+ * emploie, par la même fonction. */
+int h_slice_budget(void);
+
+/* L'EMPREINTE CPU — H_CPU_FP_N champs dans l'ordre de CpuFingerprint.Csharp() côté C# :
+ * tout ce que cpu_set() et setpitclock() posent et que le temps de l'invité lit. À
+ * prendre juste après h_boot. Les champs au-delà du dernier nommé valent zéro. */
+#define H_CPU_FP_N 48
+void h_cpu_fingerprint(uint64_t *out);
 
 /* --- vidéo (M15) ------------------------------------------------------------
  * La carte, valeur de l'énumération GFX_* (ibm.h:274-289) : 0 = CGA, 13 = VGA.
@@ -518,7 +535,10 @@ uint8_t *h_ram(void);
 /* 17 depuis M15 : h_set_gfxcard, h_vga_probe et h_vga_vram s'ajoutent au contrat, et
  * l'oracle lie vid_vga.c, vid_svga.c et vid_svga_render.c. Le vecteur ne change pas
  * de taille. */
-#define H_ABI_VERSION 17
+/* 18 depuis M16 : h_set_cpu, h_slice_budget et h_cpu_fingerprint s'ajoutent au
+ * contrat, et h_boot fait tourner le vrai cpu_set(). Le vecteur ne change pas de
+ * taille. */
+#define H_ABI_VERSION 18
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

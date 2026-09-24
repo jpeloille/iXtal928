@@ -75,6 +75,13 @@ internal static partial class _808x
         cpu_16bitbus = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
+        // Pendant de h_cpu_config_8088() (tools/oracle/harness_stubs.c) : les deux
+        // valeurs que cpu_set() poserait pour cpus_8088[0] et que cpu.c laisse à zéro.
+        // Ce chemin n'amorce aucune machine, donc cpu_set() ne tourne pas. Elles étaient
+        // les initialiseurs de cpu.cs jusqu'à M16 — qui les rend à leur zéro du C.
+        cpu_c.cpu_busspeed = 4772728;
+        cpu_c.isa_cycles = 1;
+
         // pcem: pit.c:52 — tops de l'oscillateur maître (14,318 MHz) par cycle
         // CPU, en 32:32, pour un 8088 à 4 772 728 Hz (cpu_tables.c:33).
         xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / 4772728.0);

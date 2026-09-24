@@ -29,7 +29,7 @@ public static class SpeedCheck
         if (!pc.initpc(romsPath))
             return 1;
 
-        var budget = pc.cpu_get_speed() / 100;
+        var budget = Cpu.cpu_c.cpu_get_speed() / 100;
         long consumed = 0;
         ulong tsc0 = timer.tsc;
 

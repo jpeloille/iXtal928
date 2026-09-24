@@ -125,7 +125,7 @@ internal static class TimerCheck
         if (!pc.initpc(roms))
                 return 1;
 
-        _speed = pc.cpu_get_speed();
+        _speed = cpu_c.cpu_get_speed();
         _cyclesPerSlice = _speed / 100;
         _clock = pit.cpuclock;
         _tscPerCycle = x86.AT != 0 ? 1.0 : _808x.xt_cpu_multi / TwoPow32;

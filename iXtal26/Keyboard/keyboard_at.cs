@@ -702,13 +702,13 @@ internal static partial class keyboard_at
                 case 0xf8: case 0xfa: case 0xfc:
                 case 0xfe:              /*Pulse output port - pin 0 selected - x86 reset*/
                         Cpu._808x.softresetx86(); /*Pulse reset!*/
-                        // omitted: cpu_set_edx() (:751) — l'oracle l'INTERPOSE A VIDE,
-                        //   __wrap_cpu_set_edx() (harness_stubs.c:278), parce que la vraie
-                        //   dereference models[model]->cpu[...].cpus et que cpu[0].cpus est
-                        //   NUL : mesure par at-probe, offset 104. Donc EDX GARDE SA VALEUR
-                        //   d'avant le reset des deux cotes. Un C# qui calculerait
-                        //   edx_reset depuis cpus_286[] divergerait — c'est un choix a
-                        //   faire explicitement, pas par defaut.
+                        // DEVIATION: cpu_set_edx() (:751) non appele, et l'oracle
+                        //   l'enveloppe a vide (__wrap_cpu_set_edx, harness_stubs.c).
+                        //   Jusqu'a M16 le motif etait « cpu[0].cpus est NUL » ; il ne
+                        //   l'est plus. PCem pose EDX = edx_reset — 0 dans cpus_286 comme
+                        //   dans cpus_ibmat — apres ce reset ; ici DX GARDE SA VALEUR, des
+                        //   deux cotes. Le transcrire change l'etat vu par le BIOS au
+                        //   retour du mode protege : un levier a part, des deux cotes.
                         break;
 
                 case 0xff: /*Pulse output port - but no pins selected - sent by MegaPC BIOS*/

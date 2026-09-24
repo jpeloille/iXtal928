@@ -32,8 +32,10 @@ public static class Oracle
     // 15 a C7a : sept champs du mode protege entrent dans h_state et h_wlog_max
     // s'ajoute au contrat. Le vecteur change de TAILLE, contrairement aux trois
     // bumps precedents.
-    // 16 : h_set_trace_notsc s'ajoute au contrat.
-    public const int AbiVersion = 17;
+    // 16 : h_set_trace_notsc s'ajoute au contrat. 17 a M15 : la VGA.
+    // 18 a M16 : h_set_cpu, h_slice_budget et h_cpu_fingerprint, et h_boot fait
+    // tourner le vrai cpu_set(). Le vecteur ne change pas de taille.
+    public const int AbiVersion = 18;
 
     static Oracle()
     {
@@ -215,6 +217,15 @@ public static class Oracle
     public const int GFX_VGA = 13;
     public const int VgaProbeN = 64;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
+
+    // M16 — le processeur : fabricant et INDICE dans la table de la machine, à poser
+    // avant h_boot, qui fait tourner le vrai cpu_set() de PCem avec eux ; le budget de
+    // tranche que h_runpc emploie ; et l'empreinte CPU, pendant de
+    // CpuFingerprint.Csharp().
+    public const int CpuFpN = 48;
+    [DllImport(Lib)] public static extern void h_set_cpu(int manu, int n);
+    [DllImport(Lib)] public static extern int h_slice_budget();
+    [DllImport(Lib)] internal static extern void h_cpu_fingerprint([Out] ulong[] o);
     [DllImport(Lib)] internal static extern void h_vga_probe([Out] ulong[] o);
     [DllImport(Lib)] internal static extern IntPtr h_vga_vram();
 
