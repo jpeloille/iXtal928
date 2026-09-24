@@ -53,6 +53,15 @@ public static class BootTest
         // 512 octets, qui restent dans le tampon, et l'image sur l'hôte reste à zéro.
         // BootDiff, lui, appelait déjà closepc (BootDiff.cs) — c'est ce chemin-ci qui
         // manquait.
+        // pcem: wx-sdl2.c:623 — savenvr() AVANT closepc(), et c'est l'interface qui
+        // l'appelle, pas pc.c. Le mettre dans closepc serait deplacer un geste
+        // d'interface dans le coeur ; il est donc ici et dans SdlHost, les deux chemins
+        // de sortie de ce depot.
+        //
+        // SANS CET APPEL LE CMOS NE SURVIT PAS, et le SETUP d'un BIOS AMI ne sert alors
+        // a rien : la machine reecrirait sa configuration a chaque demarrage et
+        // retrouverait « CMOS system options not set ».
+        Devices.nvr.savenvr();
         pc.closepc();
 
         return 0;

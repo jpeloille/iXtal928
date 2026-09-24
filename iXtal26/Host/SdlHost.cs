@@ -911,6 +911,14 @@ public sealed class SdlHost : IDisposable
         // de img_close les pousse. Sans cela un DOS qui vient d'écrire sur la disquette
         // perd ses écritures à la fermeture de la fenêtre — ce que le menu, en rendant le
         // va-et-vient de disquettes courant, rendrait courant aussi.
+        // pcem: wx-sdl2.c:623 — savenvr() AVANT closepc(). Voir BootTest.cs pour le
+        // raisonnement ; les deux chemins de sortie doivent faire le meme geste.
+        //
+        // omitted: la sauvegarde PERIODIQUE de wx-sdl2.c:181-185 — « toutes les 200
+        //   images si nvr_dosave ». Elle protege contre une fermeture brutale, pas
+        //   contre une fermeture normale, et nvr_dosave reste donc pose sans lecteur
+        //   entre deux sorties. A ajouter si une perte sur plantage devient genante.
+        Devices.nvr.savenvr();
         pc.closepc();
 
         if (_texture != IntPtr.Zero)

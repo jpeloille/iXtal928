@@ -594,6 +594,33 @@ Transcrit avec la même précédence, donc le même résultat — le corriger ch
 d'erreur d'un côté seulement.
 
 
+### PB-33 — `savenvr` écrit dans un fichier qu'il n'a pas vérifié avoir ouvert
+
+`nvr.c:770-772`, la queue commune de `savenvr` après son `switch (oldromset)` :
+
+```c
+        fwrite(nvrram, 128, 1, f);
+        fclose(f);
+```
+
+Aucun test de `f`. Or `nvrfopen` rend **explicitement NULL** en écriture dès que le chemin
+composé n'est pas ouvrable — `nvr.c:50-52`, avec son propre `pclog("Failed to open file
+'%s' for write")`. Un répertoire `nvr/` absent suffit : le `switch` a rendu un `f` nul, et
+`fwrite` le déréférence.
+
+Le cas est atteignable sans effort : PCem livre son répertoire `nvr/`, mais rien ne
+garantit qu'il survive à une installation manuelle, et le message de `nvrfopen` montre que
+l'échec était *attendu* — simplement pas propagé.
+
+*Effet* : plantage à la sortie de l'émulateur, après que la session a tourné normalement.
+Le CMOS de la session est perdu, ce qui est la conséquence la moins grave.
+*Reproduit* : `Devices/nvr.cs`, marqueur `// pcem bug, reproduced: PB-33`. Le
+`NullReferenceException` de C# est le pendant du déréférencement de NULL du C. **Mesuré
+dans ce dépôt** : le premier amorçage après l'écriture de `savenvr`, avec un `nvr/`
+encore absent, a levé exactement là — c'est ce qui a fait créer le répertoire et son
+`README.md`.
+
+
 ---
 
 ## Portée de ce registre

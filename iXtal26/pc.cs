@@ -406,6 +406,25 @@ internal static partial class pc
 
         PluginApi.paths.set_roms_paths(romsPath);
 
+        // pcem: paths.c:206-207, 214-215 — LES DEUX CHEMINS DU CMOS, posés ici et non
+        // par paths_init().
+        //
+        // POURQUOI PAS paths_init() : il pose AUSSI le chemin des ROM, que la ligne
+        // au-dessus vient d'établir depuis --rom-path. Il est mort dans ce dépôt pour
+        // cette raison — c'est l'appelant qui décide où sont les ROM, pas le binaire —
+        // et l'appeler ici les écraserait.
+        //
+        // Résolus par la MÊME politique que les ROM : resolve_roms_path remonte l'arbre
+        // depuis le répertoire courant, parce que Rider lance depuis bin/Debug/net10.0
+        // là où PCem a toujours pour répertoire courant celui de son installation. Sans
+        // ça le CMOS partait dans « ./.ami286.nvr », à la racine du dépôt — mesuré.
+        PluginApi.paths.set_default_nvr_path(
+                PluginApi.paths.resolve_roms_path("nvr") is { Length: > 0 } n ? n : "nvr");
+        PluginApi.paths.set_default_nvr_default_path(
+                PluginApi.config.append_slash(
+                        PluginApi.paths.resolve_roms_path("nvr/default") is { Length: > 0 } d
+                                ? d : "nvr/default", 512));
+
         // set_roms_paths() écarte silencieusement un répertoire absent (paths.cs:88).
         // Sans ce test, num_roms_paths valait 0, romfopen() bouclait zéro fois et
         // l'échec remontait jusqu'à loadbios(), qui accusait les ROMs — alors que le

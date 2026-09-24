@@ -36,6 +36,8 @@
 
 using iXtal26.Models;
 using iXtal26.PluginApi;
+using static iXtal26.Flash.rom;
+using static iXtal26.PluginApi.config;
 using static iXtal26.rtc_h;
 
 namespace iXtal26.Devices;
@@ -60,9 +62,45 @@ internal static class nvr
         internal int onesec_cnt;
     }
 
-    // omitted: nvrfopen (nvr.c:33-54) — elle compose un chemin depuis nvr_path
-    //   et config_name, deux réglages de l'interface que ce dépôt ne pose pas.
-    //   Sans elle, loadnvr ne peut prendre que sa branche « pas de fichier ».
+    /// <summary>pcem: nvr.c:33-54 — DÉ-OMISSION. Elle compose le chemin du fichier de
+    /// CMOS, et sans elle loadnvr ne pouvait prendre que sa branche « pas de fichier ».
+    ///
+    /// DEUX CHEMINS, ET LE SECOND EST EN LECTURE SEULE. Le premier est
+    /// `nvr_path + config_name + "." + fn` — donc un CMOS PAR CONFIGURATION, ce qui
+    /// permet à deux machines de la même famille de ne pas se marcher dessus. S'il
+    /// échoue en lecture, `nvr_default_path + fn` est tenté : c'est le CMOS de référence
+    /// qu'un émulateur peut livrer. En ÉCRITURE l'échec du premier est définitif, et le
+    /// C rend NULL — ce que savenvr ne vérifie pas, voir PB-33.
+    ///
+    /// LE POINT EST DANS LE NOM DU FICHIER, pas dans l'extension : « default.at.nvr »
+    /// et non « default/at.nvr ». C'est une convention de PCem et elle se recopie —
+    /// changer le séparateur ferait chercher un fichier qui n'existe pas.</summary>
+    private static FileStream? nvrfopen(string fn, string mode)
+    {
+        string s;
+        FileStream? f;
+
+        s = paths.nvr_path;
+        s = put_backslash(s);
+        s += config_name;
+        s += ".";
+        s += fn;
+        // omitted: pclog("NVR try opening %s\n", s) — sortie pure.
+        f = fopen(s, mode);
+        if (f != null)
+                return f;
+
+        if (mode[0] == 'r')
+        {
+                s = paths.nvr_default_path + fn;
+                return fopen(s, mode);
+        }
+        else
+        {
+                // omitted: pclog("Failed to open file '%s' for write\n", s) — sortie pure.
+                return null;
+        }
+    }
 
     // pcem: nvr.c:56
     internal static void getnvrtime() { rtc.time_get(nvrram); }
@@ -322,29 +360,108 @@ internal static class nvr
     /// milliers d'instructions après la cause.</summary>
     internal static void loadnvr()
     {
+        FileStream? f;
+
         nvrmask = 63;
         oldromset = pc.romset;
 
-        // omitted: le switch sur romset et fread(nvrram, 128, 1, f) — pas de
-        //   fichier de sauvegarde dans ce depot. On prend toujours la branche
-        //   `if (!f)`, ci-dessous, verbatim.
-        for (var i = 0; i < 128; i++)
-                nvrram[i] = 0xFF;
-        if (rtc.enable_sync == 0)
+        // LE SWITCH, REDUIT AUX DEUX MACHINES A 286 DU DEPOT. Les trente autres cas du
+        // C font la meme chose avec un autre nom de fichier ; ils sont au registre.
+        //
+        // nvrmask = 127 POUR L'AMI 286 ET 63 POUR L'AT, et ce n'est pas un detail : le
+        // masque borne l'adresse que le port 0x70 accepte, donc la TAILLE du CMOS vue
+        // par le BIOS — 64 octets sur un 5170, 128 sur un clone. Le laisser a 63 sur
+        // l'AMI ferait replier ses adresses hautes sur les basses et corromprait sa
+        // somme de controle a chaque ecriture.
+        switch (pc.romset)
         {
-                nvrram[RTC_SECONDS] = nvrram[RTC_MINUTES] = nvrram[RTC_HOURS] = 0;
-                nvrram[RTC_DOM] = nvrram[RTC_MONTH] = 1;
-                nvrram[RTC_YEAR] = BCD(80);
-                nvrram[RTC_CENTURY] = BCD(19);
-                nvrram[RTC_REGB] = RTC_2412;
+        case pc.ROM_IBMAT:
+                f = nvrfopen("at.nvr", "rb");
+                break;
+        case pc.ROM_AMI286:
+                f = nvrfopen("ami286.nvr", "rb");
+                nvrmask = 127;
+                break;
+        // omitted: les trente autres cas (nvr.c:238-523) — meme geste, autre nom de
+        //   fichier ; voir le registre des omissions.
+        default:
+                f = null;
+                break;
         }
+
+        if (f == null)
+        {
+                for (var i = 0; i < 128; i++)
+                        nvrram[i] = 0xFF;
+                if (rtc.enable_sync == 0)
+                {
+                        nvrram[RTC_SECONDS] = nvrram[RTC_MINUTES] = nvrram[RTC_HOURS] = 0;
+                        nvrram[RTC_DOM] = nvrram[RTC_MONTH] = 1;
+                        nvrram[RTC_YEAR] = BCD(80);
+                        nvrram[RTC_CENTURY] = BCD(19);
+                        nvrram[RTC_REGB] = RTC_2412;
+                }
+                return;
+        }
+        // pcem: `fread(nvrram, 128, 1, f)` — de la libc, donc le flux directement.
+        f.ReadExactly(nvrram, 0, 128);
+        if (rtc.enable_sync != 0)
+        {
+                // omitted: time_internal_sync(nvrram) (nvr.c:537) — elle lit l'horloge de
+                //   l'HOTE, qu'aucun oracle ne peut comparer. enable_sync vaut 0.
+        }
+        else
+        {
+                /* Update the internal clock state based on the NVR registers. */
+                rtc.time_internal_set_nvrram(nvrram);
+        }
+        f.Close();
+        // CES DEUX LIGNES ECRASENT CE QUI VIENT D'ETRE LU, et c'est dans le C : le taux
+        // d'interruption periodique et le bit 24 heures sont reposes a chaque
+        // chargement, quoi que le fichier contienne. Un CMOS sauvegarde ne peut donc pas
+        // porter une autre valeur pour ces deux registres.
+        nvrram[RTC_REGA] = 6;
+        nvrram[RTC_REGB] = RTC_2412;
     }
 
-    // omitted: savenvr (nvr.c:544-783) — 240 lignes du meme switch, en ecriture.
-    //   Sans nvrfopen elle n'a nulle part ou ecrire. nvr_dosave reste donc pose
-    //   sans lecteur, et c'est FIDELE : son seul lecteur chez PCem est la boucle
-    //   de trames de l'interface, qui sauve toutes les 200 images
-    //   (wx-sdl2.c:181, qt-sdl2.c:184) — deja omise avec src/wx-ui/ et src/qt-ui/.
+    /// <summary>pcem: nvr.c:544-783 — DÉ-OMISSION, réduite aux deux machines à 286.
+    ///
+    /// ELLE SWITCHE SUR `oldromset`, PAS SUR `romset`, et c'est délibéré chez PCem :
+    /// `oldromset` est posé par loadnvr, donc savenvr écrit dans le fichier de la
+    /// machine qui a CHARGÉ ce CMOS, pas de celle qui tourne maintenant. Sur un
+    /// changement de machine à chaud, c'est ce qui évite d'écraser le CMOS de la
+    /// nouvelle avec celui de l'ancienne.
+    ///
+    /// PB-33 EST ICI : le C ne vérifie pas que nvrfopen a réussi avant d'écrire.</summary>
+    internal static void savenvr()
+    {
+        FileStream? f;
+
+        switch (oldromset)
+        {
+        case pc.ROM_IBMAT:
+                f = nvrfopen("at.nvr", "wb");
+                break;
+        case pc.ROM_AMI286:
+                f = nvrfopen("ami286.nvr", "wb");
+                break;
+        // omitted: les trente autres cas (nvr.c:548-767), dont celui de ROM_IBMXT286 qui
+        //   ouvre DEUX fichiers et fuit le premier (nvr.c:571-573) — machine absente de
+        //   ce depot, donc le defaut n'est pas reproductible ici.
+
+        default:
+                return;
+        }
+
+        // pcem bug, reproduced: PB-33 — le C fait `fwrite(nvrram, 128, 1, f)` SANS
+        //   verifier f, alors que nvrfopen rend NULL en ecriture des que le chemin
+        //   n'existe pas : un repertoire nvr/ absent suffit. Le C dereference alors NULL.
+        //   Reproduit tel quel — le NullReferenceException de C# est le pendant du
+        //   segfault du C, et corriger l'oracle, ce n'est plus un oracle.
+        // pcem: `fwrite(nvrram, 128, 1, f)` — de la libc, donc le flux directement.
+        f!.Write(nvrram, 0, 128);
+        f!.Close();
+    }
 
     // pcem: nvr.c:784-794
     private static object? nvr_init()

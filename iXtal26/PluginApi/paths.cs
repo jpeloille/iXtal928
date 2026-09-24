@@ -23,10 +23,25 @@ internal static partial class paths
     /* this is where pcem.cfg is */
     internal static string pcem_path = "";
 
-    // omitted: default_nvr_path, default_configs_path, default_logs_path,
-    //   default_screenshots_path, nvr_path, configs_path, logs_path,
-    //   screenshots_path, plugins_default_path, nvr_default_path
-    //   (paths.c:10-13, 20-31) — aucun chemin hors ROM au palier (a).
+    // pcem: paths.c:10, 21, 31 — DÉ-OMISSION des trois chemins du CMOS.
+    //
+    // Ils cessent d'être omissibles quand une machine doit GARDER son CMOS : sans eux,
+    // nvrfopen ne peut composer aucun chemin, loadnvr prend toujours sa branche « pas
+    // de fichier », et le SETUP du BIOS AMI ne sert à rien puisque rien ne survit à
+    // l'extinction. C'est ce qui laisse l'IBM AT sur « 161-System Options Not Set » et
+    // l'AMI 286 sur « CMOS system options not set ».
+    //
+    // nvr_default_path EST UN SECOND CHEMIN, pas un doublon : nvrfopen le tente en
+    // LECTURE SEULE quand le premier échoue (nvr.c:48-50), pour qu'une machine neuve
+    // trouve un CMOS de référence livré avec l'émulateur. En écriture, l'échec du
+    // premier chemin est définitif.
+    internal static string nvr_path = "";
+    internal static string default_nvr_path = "";
+    internal static string nvr_default_path = "";
+
+    // omitted: default_configs_path, default_logs_path, default_screenshots_path,
+    //   configs_path, logs_path, screenshots_path, plugins_default_path
+    //   (paths.c:11-13, 22-30) — captures d'écran, journaux et greffons hors périmètre.
 
     // pcem: paths.c:33-39
     // DEVIATION: le #ifdef _WIN32 devient un test à l'exécution.
@@ -202,6 +217,22 @@ internal static partial class paths
     //   sa chance au répertoire courant. Les deux politiques diffèrent exprès :
     //   paths_init est la réponse pcem à « où suis-je installé », qui ne doit rien
     //   devoir à l'endroit d'où l'on a tapé la commande.
+    // pcem: paths.c:92-95
+    internal static void set_nvr_path(string v) { nvr_path = append_slash(v, 512); }
+
+    // pcem: paths.c:119-122 — pose LES DEUX, le défaut et le courant.
+    internal static void set_default_nvr_path(string v)
+    {
+            default_nvr_path = v;
+            set_nvr_path(v);
+    }
+
+    // pcem: paths.c:124 — celui-ci N'appelle PAS append_slash, à la différence des
+    // autres poseurs. C'est dans le C, et nvrfopen concatène sans séparateur
+    // (nvr.c:49) : le « / » doit donc être dans la valeur passée. paths_init passe bien
+    // « nvr/default/ ».
+    internal static void set_default_nvr_default_path(string v) { nvr_default_path = v; }
+
     internal static void paths_init()
     {
             string s;
@@ -216,9 +247,15 @@ internal static partial class paths
             s = pcem_path + "roms/";
             set_default_roms_paths(s);
 
-            // omitted: nvr/, configs/, screenshots/, logs/, nvr/default/ et
+            // pcem: paths.c:206-207, 214-215
+            s = pcem_path + "nvr/";
+            set_default_nvr_path(s);
+            s = pcem_path + "nvr/default/";
+            set_default_nvr_default_path(s);
+
+            // omitted: configs/, screenshots/, logs/ et
             //   add_config_callback(paths_loadconfig, paths_saveconfig,
-            //   paths_onconfigloaded) (paths.c:204-215) — hors chargement de ROM.
+            //   paths_onconfigloaded) (paths.c:208-213, 217) — hors périmètre.
     }
 
     // append_slash et put_backslash ont migré vers PluginApi/config.cs, à qui ils

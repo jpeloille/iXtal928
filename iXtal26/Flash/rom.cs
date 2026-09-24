@@ -38,9 +38,27 @@ internal static partial class rom
     //   getc se lisent directement sur le flux. Seuls fopen et fread, dont la
     //   valeur de retour porte du sens (NULL, nombre d'éléments lus), gardent un
     //   nom — mem_bios.c consomme le second.
-    private static FileStream? fopen(string s, string mode)
+    // `internal` et non `private` depuis que nvrfopen existe : en C, fopen est la
+    // fonction de la libc, donc visible de partout. L'ouvrir RESTAURE la parité — même
+    // argument que mod1add et mod1seg à A2.2a.
+    // ET `mode` EST DESORMAIS HONORE. Ce shim l'IGNORAIT et ouvrait toujours en
+    // lecture : ecrit quand seule la lecture de ROM servait, et jamais marque comme
+    // reduit — un parametre present et mort. nvrfopen l'a decouvert en rendant NULL sur
+    // « wb », ce qui a fait tirer PB-33 au premier amorcage.
+    //
+    // FileMode.Create ET NON OpenOrCreate pour « w » : la libc tronque a l'ouverture,
+    // et un CMOS de 128 octets ecrit par-dessus un fichier plus long en laisserait la
+    // queue.
+    internal static FileStream? fopen(string s, string mode)
     {
-            try { return new FileStream(s, FileMode.Open, FileAccess.Read); }
+            var write = mode.Length > 0 && (mode[0] == 'w' || mode[0] == 'a');
+            try
+            {
+                    return write
+                            ? new FileStream(s, mode[0] == 'a' ? FileMode.Append : FileMode.Create,
+                                             FileAccess.Write)
+                            : new FileStream(s, FileMode.Open, FileAccess.Read);
+            }
             catch (IOException) { return null; }
             catch (UnauthorizedAccessException) { return null; }
             catch (ArgumentException) { return null; }

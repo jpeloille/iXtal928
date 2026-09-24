@@ -46,3 +46,8 @@ pcem-ref-build/
 # Brouillon de travail apparu a la racine, hors arborescence du projet.
 # Non versionne : ce n'est ni du transcrit, ni de l'outillage.
 /memCSharp.cs
+
+# Le CMOS de session, ecrit par savenvr a chaque sortie. nvr/default/ est du
+# contenu de reference et reste suivi.
+nvr/*.nvr
+nvr/.*.nvr
