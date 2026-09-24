@@ -401,6 +401,31 @@ for (var i = 0; i < args.Length; i++)
     if (arg == "--setup-check")
         return iXtal26.Host.SdlSetup.SelfCheck(paths.resolve_roms_path(romsPath));
 
+    // Fabrique le CMOS d'une machine à partir de SON fichier de configuration, et de
+    // nulle part ailleurs : les deux ne peuvent donc pas se contredire. Voir
+    // Host/NvrImage.cs, et nvr/README.md pour la disposition mesurée.
+    //
+    // POURQUOI UN VERBE PLUTÔT QUE LE SETUP. Le SETUP en ROM d'un BIOS AMI ferait le
+    // même travail, mais le piloter demande d'envoyer Suppr, les flèches et F10 à
+    // l'aveugle. Et l'IBM AT n'a pas de SETUP en ROM du tout — le sien est sur la
+    // disquette de diagnostics, que ce dépôt n'a pas.
+    if (arg == "--make-nvr")
+    {
+        if (i + 2 >= args.Length || args[i + 1].StartsWith('-') || args[i + 2].StartsWith('-'))
+        {
+            Console.Error.WriteLine("--make-nvr CONFIG.cfg SORTIE.nvr [--force]");
+            Console.Error.WriteLine("Exemple : --make-nvr ixtal26-286.cfg nvr/.ami286.nvr");
+            return 2;
+        }
+
+        var cfg = args[++i];
+        var outNvr = args[++i];
+        var force = i + 1 < args.Length && args[i + 1] == "--force";
+        if (force) i++;
+
+        return iXtal26.Host.NvrImage.Make(cfg, outNvr, romsPath, force);
+    }
+
     // Auto-contrôle du formateur de disquette, même motif : un système de fichiers faux
     // ne se voit pas à l'œil — l'image a la bonne taille et le bon nombre de secteurs,
     // et DOS la lit de travers en silence. Il porte aussi l'invariant de géométrie, qui

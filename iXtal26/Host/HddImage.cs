@@ -392,10 +392,24 @@ internal static class HddImage
         return path;
     }
 
+    /// <summary>
+    /// LA CARTE PROPOSÉE DÉPEND DE LA GÉOMÉTRIE, et ce n'était pas le cas avant que
+    /// mfm_at existe : ce bloc conseillait mfm_xebec pour les 46 types, y compris les
+    /// quarante-deux que le Fixed Disk Adapter ne sait pas adresser. Suivre le conseil
+    /// pour un type 46 donnait un disque annoncé en type 0 et un POST qui diverge.
+    ///
+    /// XebecSwitch rend -1 pour une géométrie que les interrupteurs du Xebec ne codent
+    /// pas ; dans ce cas la seule carte du dépôt qui puisse l'adresser est mfm_at, celle
+    /// d'un AT. Elle demande une machine à 286 — un XT n'a pas d'INT 13h pour disque
+    /// dur dans son BIOS, l'INT 13h du Xebec venant de la ROM de la carte.
+    /// </summary>
     internal static string ConfigBlock(string path, int cylinders, int heads, int spt)
-        => $"hdd_controller = mfm_xebec\n" +
+        => $"hdd_controller = {(XebecSwitch(cylinders, heads, spt) >= 0 ? "mfm_xebec" : "mfm_at")}\n" +
            $"hdc_sectors = {spt}\n" +
            $"hdc_heads = {heads}\n" +
            $"hdc_cylinders = {cylinders}\n" +
-           $"hdc_fn = {path}\n";
+           $"hdc_fn = {path}\n" +
+           (XebecSwitch(cylinders, heads, spt) >= 0 ? ""
+            : "# mfm_at : cette géométrie dépasse ce que le Fixed Disk Adapter du XT\n" +
+              "# sait adresser. Machine à 286 obligatoire (ibmat ou ami286).\n");
 }

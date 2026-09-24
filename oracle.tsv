@@ -96,3 +96,10 @@ iXtal26/Flash/rom.cs	pcem-dev/src/flash/rom.c	1336cb86979d5a7640b4faa0f408142241
 iXtal26/PluginApi/device.cs	pcem-dev/src/plugin-api/device.c	d37e77e60bec8bd431e04fd68aabca5b6169a2be5ac476b5dc4ec8113fe2db21	-	partial	device_t et le cycle de vie des peripheriques ; les six registres de cartes enfichables omis
 iXtal26/PluginApi/paths.cs	pcem-dev/src/plugin-api/paths.c	3d658f55954f12f83c7369b38fa2cb478ea5a5a3ba69e2c405ba204c7a941856	-	partial	chemins de ROM + les trois chemins du CMOS ; configs/, logs/, screenshots/, plugins/ omis
 iXtal26/Disc/disc_img_probe.cs	-	-	-	host	sonde d'image de disquette ; aucun pendant dans PCem ni dans le harnais
+
+iXtal26/BootTest.cs	-	-	-	host	amorcage sur console : BDA, VRAM, framebuffer et frappe ; aucun pendant dans PCem
+iXtal26/Host/FatImage.cs	-	-	-	host	formateur FAT12 hote ; PCem ne sait pas fabriquer une disquette
+iXtal26/Host/KeyScript.cs	-	-	-	host	cadence de frappe partagee par --boot et boot-diff
+iXtal26/Host/NvrImage.cs	-	-	-	host	generateur de CMOS ; la reference est une ROM, amic206.bin:0xacd0-0xad11
+iXtal26/Host/SdlMenu.cs	pcem-dev/src/wx-ui/wx-sdl2.c	db1cce12c1b5f6b7c489ac39e819203d0b6d5fccf622bfdc607921a11f54f04d	725-770	host	menu de l'hote : montage et ejection des disquettes
+iXtal26/TimerCheck.cs	-	-	-	host	auto-controle du chronometre ; aucun pendant dans PCem

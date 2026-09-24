@@ -591,11 +591,18 @@ internal static partial class pc
         // APRÈS mem_alloc(), et ce n'est pas un détail : mem_alloc détruit toute la
         // liste de mappages (mem.cs:722-746), donc une carte à ROM d'extension posée
         // avant verrait son mappage effacé. La position de pc.c:392 le garantit.
+        //   TROIS CARTES DEPUIS LE 286, et la troisième n'est pas interchangeable avec
+        //   les deux autres : mfm_at répond en 0x1F0 sur l'IRQ 14 et prend sa géométrie
+        //   du BIOS, là où le Xebec et le DTC portent leur propre ROM d'extension et
+        //   n'adressent que quatre géométries. Un AT veut mfm_at ; un XT ne peut pas
+        //   s'en servir, son BIOS n'ayant pas d'INT 13h pour disque dur.
         Disc.hdd_c.hdd_controller_name = cfg_hdd_controller;
         if (cfg_hdd_controller == "mfm_xebec")
                 PluginApi.device.device_add(Mfm.mfm_xebec.mfm_xebec_device);
         else if (cfg_hdd_controller == "dtc5150x")
                 PluginApi.device.device_add(Mfm.mfm_xebec.dtc_5150x_device);
+        else if (cfg_hdd_controller == "mfm_at")
+                PluginApi.device.device_add(Mfm.mfm_at.mfm_at_device);
 
         pc_reset();
 
