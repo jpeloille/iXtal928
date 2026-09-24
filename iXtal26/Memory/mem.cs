@@ -109,6 +109,13 @@ internal static partial class mem
 
     private static readonly mem_mapping_t base_mapping = new();
     internal static readonly mem_mapping_t ram_low_mapping = new();
+
+    // pcem: mem.c:33-34 — les deux mappages que le 5150 n'avait pas. ram_high porte la
+    // mémoire au-delà de 1 Mo, ram_mid la tranche 640 Ko - 1 Mo d'une carte qui en a
+    // plus de 768 Ko. Entrés avec l'AMI 286 à 4 096 Ko.
+    internal static readonly mem_mapping_t ram_high_mapping = new();
+    internal static readonly mem_mapping_t ram_mid_mapping = new();
+
     internal static readonly mem_mapping_t[] bios_mapping = CreateMappings(8);
 
     private static mem_mapping_t[] CreateMappings(int n)
@@ -1014,8 +1021,38 @@ internal static partial class mem
                         mem_write_ram, mem_write_ramw, mem_write_raml,
                         ram, 0, MEM_MAPPING_INTERNAL, null);
 
-        // omitted: ram_high_mapping / ram_mid_mapping — mémoire au-delà de 1 Mo et
-        //   RAM d'ombre 640-768 Ko, hors du 5150.
+        // pcem: mem.c:1406-1418 — LA MÉMOIRE AU-DELÀ DE 1 Mo, et le seuil est bien
+        // `> 1024` et non `>= 1024` : une carte de 1 024 Ko pile n'a RIEN au-dessus de
+        // 1 Mo, ses 384 Ko du haut tombant dans l'espace des ROM et de la vidéo. C'est
+        // mem_remap_top_384k qui les récupère sur un IBM AT, et lui seul — un clone à
+        // chipset NEAT ne l'appelle pas.
+        //
+        // LA BRANCHE 16 BITS EST VIVANTE ICI, elle ne l'était pas sur un 8088 :
+        // cpu_16bitbus vaut 1 sur un 286 (posé par cpu_config_286), donc au-delà de
+        // 16 256 Ko la carte est plafonnée là et non à mem_size. Un 286 ne peut pas
+        // adresser plus : son bus fait vingt-quatre lignes.
+        if (mem_size > 1024)
+        {
+                var high = (uint32_t)(((cpu_16bitbus != 0 && mem_size > 16256) ? (16256 - 1024)
+                                                                              : (mem_size - 1024)) * 1024);
+                mem_set_mem_state(0x100000, high, MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
+                mem_mapping_add(ram_high_mapping, 0x100000, high,
+                                mem_read_ram, mem_read_ramw, mem_read_raml,
+                                mem_write_ram, mem_write_ramw, mem_write_raml,
+                                ram, 0x100000, MEM_MAPPING_INTERNAL, null);
+        }
+
+        // pcem: mem.c:1419-1421 — et 640 Ko à 768 Ko est de la RAM VIDÉO, d'où ce
+        // second seuil. Le mappage couvre pourtant 0xa0000 sur 0x60000 en entier, donc
+        // jusqu'à 1 Mo : c'est mem_set_mem_state(0x0a0000, 0x60000, EXTERNAL) plus haut
+        // et les cartes ajoutées après qui décident, par priorité, de ce qui gagne.
+        // Ce mappage n'est PAS accompagné d'un mem_set_mem_state chez PCem non plus.
+        if (mem_size > 768)
+                mem_mapping_add(ram_mid_mapping, 0xa0000, 0x60000,
+                                mem_read_ram, mem_read_ramw, mem_read_raml,
+                                mem_write_ram, mem_write_ramw, mem_write_raml,
+                                ram, 0xa0000, MEM_MAPPING_INTERNAL, null);
+
         // omitted: romext_mapping (mem.c:1422-1425) — sous garde `romset ==
         //   ROM_IBMPS1_2011`, machine absente de model.cs. L'omission était réelle
         //   mais NON MARQUÉE jusqu'à M12 : un trou du registre, relevé en câblant le
