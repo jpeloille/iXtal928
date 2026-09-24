@@ -67,6 +67,26 @@ public static class Fuzzer
     /// <summary>`core` : voir Run. AVEC UNE TABLE D'OPCODES PARTIELLE, C'EST LE
     /// SEUL MODE UTILISABLE — le mode flux enchaîne les instructions et finit par
     /// tomber sur un opcode non transcrit, qui échoue bruyamment et à raison.</summary>
+    private static bool ConfigChecked;
+
+    /// <summary>M16 — l'empreinte CPU des deux côtés, confrontée UNE fois, après le premier
+    /// reset : h_reset et Reset286/Reset font tourner cpu_set() depuis l'étape 6, et un
+    /// `--cpu N` qui n'atteindrait qu'un côté fuzzerait deux machines différentes — en
+    /// vert tant que les instructions tirées ne touchent pas la mémoire.</summary>
+    private static bool CheckCpuConfig()
+    {
+        ConfigChecked = true;
+        var fpOracle = CpuFingerprint.Oracle_();
+        var fpCsharp = CpuFingerprint.Csharp();
+        if (CpuFingerprint.Compare(fpOracle, fpCsharp) != 0)
+        {
+            Console.WriteLine("ROUGE : les deux côtés ne fuzzent pas le même processeur.");
+            return false;
+        }
+        Console.WriteLine($"  empreinte CPU identique : {CpuFingerprint.Summary(fpCsharp)}");
+        return true;
+    }
+
     public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core)
     {
         Oracle.CheckAbi();
@@ -94,6 +114,8 @@ public static class Fuzzer
                 _386.Reset286();
             else
                 _808x.Reset();
+            if (!ConfigChecked && !CheckCpuConfig())
+                return 1;
             mem.fill_ram(0x90);
 
             for (var i = 0; i < (int)R.COUNT; i++)
@@ -409,6 +431,8 @@ public static class Fuzzer
                 _386.Reset286();
             else
                 _808x.Reset();
+            if (!ConfigChecked && !CheckCpuConfig())
+                return 1;
             if (inner != fill)
             {
                 Oracle.h_fill_ram2(fill, inner);

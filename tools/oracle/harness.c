@@ -35,13 +35,10 @@
 
 #include "harness.h"
 
-/* harness_stubs.c — les deux valeurs de configuration CPU que cpu.c laisse à zéro. */
-void h_cpu_config_8088(void);
-void h_cpu_config_286(void);
-
 /* harness_stubs.c — M16 : les quatre machines de models[], et le processeur poussé. */
 void h_models_init(void);
 int h_cpu_table_ok(void);
+int h_cpu_index_ok(int rs, int n);
 extern int h_cpu_manu, h_cpu_index;
 
 /* harness_386.c — le modèle de préfetch du 286, `static` chez PCem. */
@@ -389,14 +386,21 @@ void h_reset(void) {
         cpu_16bitbus = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
-        /* cpu_busspeed et isa_cycles : les DEUX valeurs que cpu.c, désormais lié, laisse
-         * à zéro et que cpu_set() poserait. Elles étaient des initialiseurs dans
-         * harness_stubs.c ; les perdre en liant cpu.c déplacerait les cinq chiffres de
-         * régression du 8088 sans rien dire. */
-        if (h_core == H_CORE_286)
-                h_cpu_config_286();
-        else
-                h_cpu_config_8088();
+        /* LE VRAI cpu_set() (M16, étape 6), là où h_cpu_config_286/_8088 en recopiaient
+         * les valeurs : le 5150 pour le coeur 8088, l'ami286 pour le 286 — son entrée 0,
+         * le 286/6, par défaut, ou celle que h_set_cpu a poussée (`fuzz --cpu N`).
+         * resetx86() appelle désormais le vrai cpu_update_waitstates(), qui lit la table
+         * de la machine : il faut une machine, même ici. Pendant exact de _808x.Reset()
+         * et de _386.Reset286() côté C#. */
+        h_models_init();
+        model = (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
+        cpu_manufacturer = 0;
+        cpu = (h_core == H_CORE_286) ? h_cpu_index : 0;
+        if (!h_cpu_index_ok(model, cpu)) {
+                fprintf(stderr, "h_reset : cpu %d hors de la table du romset %d, 0 à la place\n", cpu, model);
+                cpu = 0;
+        }
+        cpu_set();
 
         /* Multiplicateur TSC du XT. clockhardware() (808x.c:893-904) convertit les
          * cycles CPU en tops de l'oscillateur maître à 14,318 MHz en virgule fixe

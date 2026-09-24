@@ -1034,6 +1034,12 @@ startrep:
                 cr0 = 1 << 30;
         else
                 cr0 = 0;
+        // pcem: 808x.c:675-676 — depuis M16 (étape 6). Omis jusque-là parce que l'oracle
+        // l'enveloppait à vide, `cpus` y étant NUL ; cpu_set() tourne désormais des deux
+        // côtés. Au-delà de 8 MHz c'est lui qui remet le préfetch au coût de la RAM à
+        // chaque reset — le coût de la ROM, rspeed / 1e6, n'y survit plus.
+        cpu_c.cpu_cache_int_enabled = 0;
+        cpu_c.cpu_update_waitstates();
         cr4 = 0;
         cpu_state.eflags = 0;
         cgate32 = 0;
@@ -1058,14 +1064,6 @@ startrep:
         mem.resetreadlookup();
         FETCHCLEAR();
         // omitted: x87_reset() et codegen_reset() — 8087 et dynarec.
-        // DEVIATION: TEMPORAIRE (M16, étape 6). cpu_cache_int_enabled = 0 et
-        //   cpu_update_waitstates() (808x.c:675-676) ne sont PAS appelés, et l'oracle
-        //   enveloppe à vide le même appel (__wrap_cpu_update_waitstates, harness_stubs.c).
-        //   Jusqu'à M16 le motif était « cpu[0].cpus est NUL » ; il ne l'est plus —
-        //   cpu_set() tourne des deux côtés. L'effet réel : à 8 MHz et moins, rom = mem et
-        //   l'appel ne changerait rien ; AU-DELÀ, PCem remet le préfetch au coût de la RAM
-        //   à chaque reset, et ce dépôt garde celui de la ROM (rspeed / 1e6) jusqu'au
-        //   prochain getpccache. Symétrique, donc invisible au diff.
         // omitted: cpu_set_edx() (:698) — inerte ICI : EDX vient d'être mis à zéro, et
         //   edx_reset vaut 0 dans les trois tables du dépôt (cpu_tables.cs).
         mem.mmu_perm = 4;
@@ -1096,9 +1094,10 @@ startrep:
                 cr0 = 1 << 30;
         else
                 cr0 = 0;
-        // DEVIATION: TEMPORAIRE (M16, étape 6) — cpu_cache_int_enabled = 0 et
-        //   cpu_update_waitstates() (808x.c:719-720) non appelés ; voir resetx86. C'est ce
-        //   reset-ci que le 8042 déclenche (port 0x64, 0xFE) pour sortir du mode protégé.
+        // pcem: 808x.c:719-720 — voir resetx86. C'est ce reset-ci que le 8042 déclenche
+        // (port 0x64, 0xFE) pour sortir du mode protégé.
+        cpu_c.cpu_cache_int_enabled = 0;
+        cpu_c.cpu_update_waitstates();
         cr4 = 0;
         cpu_state.eflags = 0;
         cgate32 = 0;

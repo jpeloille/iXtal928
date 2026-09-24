@@ -3415,6 +3415,30 @@ comptes `--boot` de l'ibmat. Portes, au chiffre près : build Release 0 avertiss
 Diff, make oracle + selftest, check-oracle 0 dérive, abi 18, fuzz 8088 et 286, core286-check
 et SST identiques, les cinq boot-diff, `boot-diff --cpu 3` à 52 936 819, `--setup-check`.
 
+### Étape 6 : les resets passent par la table
+
+`resetx86` et `softresetx86` appellent `cpu_update_waitstates()` (`808x.c:675-676`,
+`:719-720`), des deux côtés : l'oracle retire sa dernière enveloppe de cette famille, et
+`h_reset` comme `_808x.Reset()` / `_386.Reset286()` font tourner `cpu_set()` sur la machine
+que leur cœur désigne (5150, ou ami286 à l'entrée poussée). `h_cpu_config_286/_8088` et
+`cpu_config_286` — les recopies à la main de M0 à M16 — disparaissent. Au-delà de 8 MHz,
+le préfetch retombe désormais au coût de la RAM à chaque reset, comme chez PCem ; c'est le
+reset que le 8042 déclenche pour sortir du mode protégé. Levier accepté par l'utilisateur.
+
+**Prédiction : aucune porte ne bouge à 8 MHz et moins.** Tenue, contre le binaire de
+l'étape 5 : les cinq boot-diff, `boot-diff --cpu 3` (52 936 819), fuzz 8088 et 286,
+core286-check, SST (forme par forme), `cpu-config-check` et `--inverse` (21, 4 refus),
+`--timer-check` et `--boot` sur les quatre machines, `vga-probe` sur les quatre — tous
+identiques ; `at-probe` ne diffère que par deux adresses.
+
+**Gagné : le fuzz du 286 aux vitesses hautes.** `fuzz --core 286 --cpu N` pousse l'entrée
+aux deux côtés, et le fuzzeur confronte désormais l'empreinte CPU après son premier reset —
+un `--cpu` qui n'atteindrait qu'un côté fuzzerait deux machines. Verts sur 255 opcodes, 67
+champs, cycles et tsc compris : `--cpu 5` (286/20 : lecture/écriture 4/8, isa 3, préfetch
+ROM 20) et `--cpu 6` (286/25). C'est le premier témoin DIFFÉRENTIEL du temps d'exécution à
+ces vitesses — mémoire et préfetch en RAM ; le préfetch en ROM, lui, n'est atteint que par
+un amorçage, donc par aucun diff tant que NEAT manque à l'oracle.
+
 ## M17 — Un 286 complet : le CMOS fabriqué, et la machine qui démarre sur son disque
 
 Parti d'une demande simple — *« fabrique un CMOS pour AMI 286 »* — après le constat de

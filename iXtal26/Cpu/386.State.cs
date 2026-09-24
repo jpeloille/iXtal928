@@ -19,79 +19,10 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
-    /// <summary>Ce que cpu_set() pose pour cpus_286[0], le « 286/6 ». Pendant de
-    /// h_cpu_config_286() (tools/oracle/harness_stubs.c), repris de cpu.c:323-353.
-    ///
-    /// DEPUIS M16 IL NE SERT QU'À Reset286(), le chemin HÔTE du fuzzeur, de SST et de
-    /// core286-check, qui n'amorce aucune machine : les deux vraies machines 286 passent
-    /// par cpu_set() (Cpu/cpu.cs), appelé par resetpchard comme chez PCem. Ses valeurs
-    /// sont exactement celles de cpus_286[0] — ce qui garde à ces trois outils le même
-    /// objet qu'avant.</summary>
-    internal static void cpu_config_286()
-    {
-        x86_setopcodes(ops_286, ops_286_0f);
-
-        // cpu.c:293-309, branche `else` — celle d'un processeur SANS
-        // coprocesseur. Reset286 pose hasfpu = 0, donc les huit tables
-        // d'echappement pointent toutes vers ops_nofpu_a16. Pendant exact de ce
-        // que h_cpu_config_286 fait cote oracle ; les deux doivent rester
-        // symetriques, faute de quoi un D8-DF divergerait.
-        x86_opcodes_d8_a16 = ops_nofpu_a16;
-        x86_opcodes_d9_a16 = ops_nofpu_a16;
-        x86_opcodes_da_a16 = ops_nofpu_a16;
-        x86_opcodes_db_a16 = ops_nofpu_a16;
-        x86_opcodes_dc_a16 = ops_nofpu_a16;
-        x86_opcodes_dd_a16 = ops_nofpu_a16;
-        x86_opcodes_de_a16 = ops_nofpu_a16;
-        x86_opcodes_df_a16 = ops_nofpu_a16;
-
-        cpu_c.cpu_busspeed = 6000000;
-        cpu_c.isa_cycles = 1;
-
-        // cpu.c:189 — et resetx86() en tire rammask. Un 286 a 24 lignes d'adresse.
-        cpu_16bitbus = 1;
-
-        // cpu.c:2036-2047, branche « memory timings » : mem_read_cycles =
-        // mem_write_cycles = 2 (cpu_tables.c:70), et (cpu_16bitbus ? 2 : 1) vaut 2.
-        cpu_c.cpu_prefetch_width = 2;
-        cpu_c.cpu_prefetch_cycles = 2;
-        cpu_c.cpu_cycles_read = 2;
-        cpu_c.cpu_cycles_read_l = 4;
-        cpu_c.cpu_cycles_write = 2;
-        cpu_c.cpu_cycles_write_l = 4;
-        cpu_c.cpu_mem_prefetch_cycles = 2;
-        cpu_c.cpu_rom_prefetch_cycles = 2;
-
-        // cpu.c:325-353, la branche `case CPU_286:` dans l'ordre exact.
-        cpu_c.timing_rr = 2;      // register dest - register src
-        cpu_c.timing_rm = 7;      // register dest - memory src
-        cpu_c.timing_mr = 7;      // memory dest   - register src
-        cpu_c.timing_mm = 7;      // memory dest   - memory src
-        cpu_c.timing_rml = 9;     // register dest - memory src long
-        cpu_c.timing_mrl = 11;    // memory dest   - register src long
-        cpu_c.timing_mml = 11;    // memory dest   - memory src
-        cpu_c.timing_bt = 7 - 3;  // branch taken
-        cpu_c.timing_bnt = 3;     // branch not taken
-        cpu_c.timing_int = 0;
-        cpu_c.timing_int_rm = 23;
-        cpu_c.timing_int_v86 = 0;
-        cpu_c.timing_int_pm = 40;
-        cpu_c.timing_int_pm_outer = 78;
-        cpu_c.timing_iret_rm = 17;
-        cpu_c.timing_iret_v86 = 0;
-        cpu_c.timing_iret_pm = 31;
-        cpu_c.timing_iret_pm_outer = 55;
-        cpu_c.timing_call_rm = 13;
-        cpu_c.timing_call_pm = 26;
-        cpu_c.timing_call_pm_gate = 52;
-        cpu_c.timing_call_pm_gate_inner = 82;
-        cpu_c.timing_retf_rm = 15;
-        cpu_c.timing_retf_pm = 25;
-        cpu_c.timing_retf_pm_outer = 55;
-        cpu_c.timing_jmp_rm = 11;
-        cpu_c.timing_jmp_pm = 23;
-        cpu_c.timing_jmp_pm_gate = 38;
-    }
+    /// <summary>L'indice, dans cpus_286, du processeur que Reset286() configure — le
+    /// `--cpu N` de `fuzz --core 286`. Pendant de h_set_cpu() côté oracle ; 0, le 286/6,
+    /// par défaut.</summary>
+    internal static int FuzzCpu;
 
     /// <summary>Pendant de h_reset() avec h_core == H_CORE_286.</summary>
     internal static void Reset286()
@@ -117,7 +48,14 @@ internal static partial class _386
         cpu_c.hasfpu = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
-        cpu_config_286();
+        // LE VRAI cpu_set(), sur la table de l'ami286 (M16, étape 6) — pendant exact de
+        // h_reset() côté oracle. Il remplace cpu_config_286(), qui en recopiait les valeurs
+        // pour cpus_286[0] : les mêmes à l'indice 0, et `fuzz --core 286 --cpu N` exerce
+        // désormais les autres entrées. resetx86() lit la table par cpu_update_waitstates().
+        Models.model_c.model = Models.model_c.model_get_model_from_internal_name("ami286");
+        cpu_c.cpu_manufacturer = 0;
+        cpu_c.cpu = FuzzCpu;
+        cpu_c.cpu_set();
 
         // Posé aussi côté oracle sans condition de cœur (harness.c:331). exec386 fait
         // `tsc += ins_cycles` sans multiplicateur, donc c'est probablement inerte ici —

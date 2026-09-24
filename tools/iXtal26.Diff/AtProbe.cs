@@ -155,9 +155,9 @@ public static class AtProbe
         //
         // Depuis M16, h_boot peuple models[] pour les quatre romsets et fait tourner le
         // vrai cpu_set() : la sonde le constate (« peuple »). Ce qui suit est l'état
-        // d'avant, gardé parce qu'il explique pourquoi cpu_set_edx et les
-        // cpu_update_waitstates des resets restent enveloppés — désormais comme des
-        // DÉVIATIONS déclarées (keyboard_at.cs, 808x.cs), et non plus par nécessité.
+        // d'avant, gardé parce qu'il explique pourquoi cpu_set_edx reste enveloppé —
+        // désormais comme une DÉVIATION déclarée (keyboard_at.cs), et non plus par
+        // nécessité ; cpu_update_waitstates ne l'est plus depuis l'étape 6.
         //
         // h_model_ibmat ne pose que name, id, internal_name, flags et les trois
         // tailles de RAM. Le membre cpu[5] porte un POINTEUR, CPU *cpus, laisse a
@@ -190,7 +190,7 @@ public static class AtProbe
         }
 
         // isa_cycles, pendant de la regle 3 : lier cpu.c fournit le SYMBOLE,
-        // cpu_set() pose la VALEUR, et h_cpu_config_286 est ce qui en tient lieu.
+        // cpu_set() pose la VALEUR — le vrai, depuis M16.
         // readnvr et writenvr facturent tous deux ISA_CYCLES(8) : une valeur de
         // 8088 restee la ferait diverger chaque acces au CMOS.
         Console.WriteLine($"\n  isa_cycles = {System.Runtime.InteropServices.Marshal.ReadInt32(Oracle.Symbole("isa_cycles"))}" +

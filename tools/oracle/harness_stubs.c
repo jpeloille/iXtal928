@@ -130,160 +130,26 @@ void h_stub_counters_reset(void) {
  *
  * M16 — « cpu_set() ne tourne JAMAIS ici » a cessé d'être vrai pour h_boot() : models[]
  * est peuplé (plus bas) et h_boot() appelle le vrai cpu_set() de PCem, avant mem_alloc
- * comme pc.c:363. h_reset() — fuzz, sst, selftest, core286-check — garde les deux
- * h_cpu_config_*, parce qu'il n'amorce aucune machine. */
+ * comme pc.c:363. Et depuis l'étape 6 h_reset() — fuzz, sst, selftest, core286-check —
+ * aussi, sur la machine que son coeur désigne : les h_cpu_config_* ont disparu. */
 
 int AMSTRAD = 0, AT = 0, PCI = 0, TANDY = 0, MCA = 0;
 int insc = 0;
 int amstrad_latch = 0;
 int romset = 0; /* ROM_IBMPC */
 
-/* Les valeurs que cpu_set() pose pour un 8088 d'IBM PC 5150, et que cpu.c laisse à
- * zéro tant qu'on ne l'appelle pas. Les deux seules qui ne sont pas le défaut. Depuis
- * M16, pour h_reset() seul — pendant de _808x.Reset() côté C#. */
-void h_cpu_config_8088(void) {
-        cpu_busspeed = 4772728;
-        isa_cycles = 1; /* cpu.c:17 — atclk_div, 1 pour cpus_8088[0] (cpu_tables.c:33) */
-}
 
-/* Ce que cpu_set() pose pour cpus_286[0] — le « 286/6 ». Repris de cpu.c:323-353, la
- * branche `case CPU_286:`, à l'identique et dans l'ordre.
- *
- * DEPUIS M16 ELLE NE SERT QU'À h_reset() — fuzz, sst, selftest, core286-check —, qui
- * n'amorce aucune machine. h_boot() fait tourner le VRAI cpu_set() de PCem sur les
- * quatre machines (harness.c). Garder celle-ci à cpus_286[0] garde à ces outils le même
- * objet qu'avant ; pendant exact de cpu_config_286() côté C# (386.State.cs).
- *
- * cpu_busspeed = rspeed / multi = 6 000 000 / 1, et isa_cycles = atclk_div = 1
- * (cpu.c:191 et :207 ; cpu_tables.c:70). cpu_flags y vaut 0 — le 286 est interpréteur
- * par conception, et c'est ce qui autorise à laisser src/codegen/ dehors.
- *
- * CORRIGÉ EN A2.2 : ce commentaire disait que les cycles mémoire étaient « inoffensifs
- * tant qu'aucun accès mémoire du 286 n'est facturé », et remettait à plus tard. C'était
- * le même piège que les vingt timing_*, une marche plus bas. cpu_update_waitstates() est
- * interposé en no-op (models[] nul), donc cpu_prefetch_cycles reste à ZÉRO — et
- * PREFETCH_RUN est gardé par `if (cpu_prefetch_cycles)` (386_dynarec.c:210). Le modèle de
- * préfetch de l'interpréteur ne tournerait donc JAMAIS, des deux côtés, et la porte
- * « fuzzeur vert, cycles compris » aurait mesuré un modèle éteint.
- *
- * Sur un vrai 286, cpu_update_waitstates() retombe sur la branche `/* Use memory
- * timings *(/` (cpu.c:2036-2041) : aucune des trois options qui la court-circuitent
- * — cache interne, waitstates forcés, cache externe — n'est active par défaut.
- *
- * ET cpu_16bitbus VAUT 1 sur un 286 (cpu.c:189). Ce n'est pas un détail de temps :
- * resetx86() en tire `rammask = cpu_16bitbus ? 0xFFFFFF : 0xFFFFFFFF` (808x.c:682). À
- * zéro, le harnais donnait au 286 un bus d'adresse de 32 bits. Un 286 en a 24. Posé ici
- * parce que h_reset() appelle cette fonction APRÈS `cpu_16bitbus = 0` et AVANT
- * resetx86(). */
-void h_cpu_config_286(void) {
-        x86_setopcodes(ops_286, ops_286_0f, dynarec_ops_286, dynarec_ops_286_0f);
+/* h_cpu_config_8088() et h_cpu_config_286() ont vécu ici de M0 à M16 : recopies à la main
+ * de ce que cpu_set() pose pour cpus_8088[0] et cpus_286[0], parce que cpu_set() ne
+ * tournait pas — models[] était nul. Depuis M16 (étape 6), h_boot() ET h_reset() font
+ * tourner le vrai, et l'empreinte CPU (cpu-config-check) le confronte au C#. Leur
+ * histoire — les vingt timing_* à zéro (A2.0), les tables FPU nulles (A11),
+ * cpu_16bitbus et rammask — est dans git log et VERIFICATION.md. */
 
-        /* LES DEUX TABLES DE REPETITION, cpu.c:232-233.
-         *
-         * Meme defaut que les tables FPU juste en dessous, et trouve le meme jour :
-         * x86_opcodes_REPE est une globale de cpu.c, donc NULL, et opREPE fait
-         * `if (x86_opcodes_REPE[...])`. Verifie dans la .so par gdb avant
-         * correction : `print x86_opcodes_REPE` rendait 0x0, alors que
-         * `info symbol ops_REPE[0xA4]` nommait bien opREP_MOVSB_a16. Le premier
-         * REP MOVSB aurait fait sauter l'oracle. */
-        x86_opcodes_REPE = ops_REPE;
-        x86_opcodes_REPNE = ops_REPNE;
-
-        /* LES HUIT TABLES D'ECHAPPEMENT FPU, cpu.c:293-309, branche `else` —
-         * celle que prend un processeur SANS coprocesseur, et un 286 nu en est un.
-         *
-         * Elles etaient ABSENTES jusqu'a A11, et ce n'etait pas sans consequence :
-         * les globales de cpu.c valent NULL au depart, et opESCAPE_d8_a16 fait
-         * `return x86_opcodes_d8_a16[(fetchdat >> 3) & 0x1f](fetchdat)`. Le premier
-         * opcode D8-DF aurait deref'erence un pointeur nul et fait sauter l'oracle.
-         *
-         * Meme classe de defaut que les vingt timing_* a zero trouves a A2.0 : lier
-         * cpu.c fournit les SYMBOLES, c'est cpu_set() qui pose les VALEURS, et
-         * cpu_set() ne tourne jamais ici. */
-        x86_opcodes_d8_a16 = ops_nofpu_a16;
-        x86_opcodes_d8_a32 = ops_nofpu_a32;
-        x86_opcodes_d9_a16 = ops_nofpu_a16;
-        x86_opcodes_d9_a32 = ops_nofpu_a32;
-        x86_opcodes_da_a16 = ops_nofpu_a16;
-        x86_opcodes_da_a32 = ops_nofpu_a32;
-        x86_opcodes_db_a16 = ops_nofpu_a16;
-        x86_opcodes_db_a32 = ops_nofpu_a32;
-        x86_opcodes_dc_a16 = ops_nofpu_a16;
-        x86_opcodes_dc_a32 = ops_nofpu_a32;
-        x86_opcodes_dd_a16 = ops_nofpu_a16;
-        x86_opcodes_dd_a32 = ops_nofpu_a32;
-        x86_opcodes_de_a16 = ops_nofpu_a16;
-        x86_opcodes_de_a32 = ops_nofpu_a32;
-        x86_opcodes_df_a16 = ops_nofpu_a16;
-        x86_opcodes_df_a32 = ops_nofpu_a32;
-
-        cpu_busspeed = 6000000;
-        isa_cycles = 1;
-
-        /* cpu.c:189 — et resetx86() en dépend pour rammask. */
-        cpu_16bitbus = 1;
-
-        /* Ce que cpu_update_waitstates() poserait, branche « memory timings », pour
-         * cpus_286[0] : mem_read_cycles = mem_write_cycles = 2 (cpu_tables.c:70), et le
-         * facteur (cpu_16bitbus ? 2 : 1) vaut donc 2. */
-        cpu_prefetch_width = 2;   /* cpu.c:2016 — cpu_16bitbus ? 2 : 4 */
-        cpu_prefetch_cycles = 2;  /* cpu.c:2037 */
-        cpu_cycles_read = 2;      /* cpu.c:2038 */
-        cpu_cycles_read_l = 4;    /* cpu.c:2039 */
-        cpu_cycles_write = 2;     /* cpu.c:2040 */
-        cpu_cycles_write_l = 4;   /* cpu.c:2041 */
-        cpu_mem_prefetch_cycles = 2; /* cpu.c:2045 */
-        cpu_rom_prefetch_cycles = 2; /* cpu.c:2046-2047 — rspeed 6 MHz <= 8 MHz */
-
-        timing_rr = 2;     /* register dest - register src */
-        timing_rm = 7;     /* register dest - memory src */
-        timing_mr = 7;     /* memory dest   - register src */
-        timing_mm = 7;     /* memory dest   - memory src */
-        timing_rml = 9;    /* register dest - memory src long */
-        timing_mrl = 11;   /* memory dest   - register src long */
-        timing_mml = 11;   /* memory dest   - memory src */
-        timing_bt = 7 - 3; /* branch taken */
-        timing_bnt = 3;    /* branch not taken */
-        timing_int = 0;
-        timing_int_rm = 23;
-        timing_int_v86 = 0;
-        timing_int_pm = 40;
-        timing_int_pm_outer = 78;
-        timing_iret_rm = 17;
-        timing_iret_v86 = 0;
-        timing_iret_pm = 31;
-        timing_iret_pm_outer = 55;
-        timing_call_rm = 13;
-        timing_call_pm = 26;
-        timing_call_pm_gate = 52;
-        timing_call_pm_gate_inner = 82;
-        timing_retf_rm = 15;
-        timing_retf_pm = 25;
-        timing_retf_pm_outer = 55;
-        timing_jmp_rm = 11;
-        timing_jmp_pm = 23;
-        timing_jmp_pm_gate = 38;
-}
-
-/* INTERPOSITION, pas redéfinition : cpu.c définit le vrai cpu_update_waitstates(), qui
- * déréférence models[model]->cpu[...]. models[] était un tableau de pointeurs NULS ici
- * jusqu'à M16 — et le reste pour h_reset(), qui ne pose pas `model` — donc le vrai
- * plante au premier resetx86() (808x.c:676). Attrapé par l'autotest, pas deviné.
- *
- * Le no-op EST le comportement du palier (a) : sans cpu_set(), cpu_prefetch_cycles et
- * cpu_prefetch_width restent à zéro, et c'est ce que le 8088 veut — il porte son modèle
- * de préfetch dans 808x.c, pas côté mémoire.
- *
- * Au jalon 286 cette fonction devra déléguer à __real_cpu_update_waitstates() une fois
- * models[] peuplé ; le wrapper est le point où ce basculement s'écrira, en un endroit. */
-/*
- * M16 : cpu_set() tourne désormais dans h_boot(), et l'appel qu'IL fait à
- * cpu_update_waitstates() est interne à cpu.o — --wrap ne réécrit que les références
- * NON DÉFINIES, donc celui-là atteint le vrai. L'empreinte CPU le prouve (champs de
- * préfetch et de cycles, cpu-config-check). Restent enveloppés les appels de resetx86 et
- * softresetx86 (808x.c:676, :720), pendants de l'omission côté C# (808x.cs) : à 8 MHz et
- * moins ils sont inertes, au-delà c'est l'étape 6 de M16. */
-void __wrap_cpu_update_waitstates(void) { }
+/* __wrap_cpu_update_waitstates() a vécu ici jusqu'à M16 (étape 6) : un no-op qui
+ * interposait les appels de resetx86 et softresetx86 (808x.c:676, :720), le vrai
+ * déréférençant models[], nul. models[] est peuplé par h_boot et h_reset, et le vrai
+ * tourne — au-delà de 8 MHz, c'est lui qui remet le préfetch au coût de la RAM. */
 
 /* Les trois autres FONCTIONS que cpu.c définit et qui dépendent de models[] ou de
  * cpu_s. Corps repris À L'IDENTIQUE de ce que harness_stubs.c posait au palier (a) :
@@ -296,7 +162,7 @@ void __wrap_cpu_update_waitstates(void) { }
  *
  * Sur les quarante-deux symboles retirés, ces quatre sont les seuls à être des
  * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes
- * valeurs — sauf cpu_busspeed et isa_cycles, ré-affirmées par h_cpu_config_8088(). */
+ * valeurs — sauf cpu_busspeed et isa_cycles, que le vrai cpu_set() pose désormais. */
 void __wrap_cpu_set_edx(void) { }
 
 
@@ -956,6 +822,19 @@ int h_cpu_table_ok(void) {
         while (t[n].cpu_type != -1)
                 n++;
         return h_cpu_index >= 0 && h_cpu_index < n;
+}
+
+/* La même borne pour h_reset(), qui choisit sa machine par le coeur et non par romset. */
+int h_cpu_index_ok(int rs, int n) {
+        MODEL *m = models[rs];
+        CPU *t;
+        int c = 0;
+
+        if (!m || !(t = m->cpu[0].cpus))
+                return 0;
+        while (t[c].cpu_type != -1)
+                c++;
+        return n >= 0 && n < c;
 }
 
 /* Le budget d'une tranche, pc.c:473, par la MÊME fonction que h_runpc emploie. Exposé

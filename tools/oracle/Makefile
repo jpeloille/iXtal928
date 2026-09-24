@@ -107,7 +107,10 @@ LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 # chaque tranche est celui de PCem, cpu_turbo ? cpu_turbo_speed : cpu_nonturbo_speed,
 # que le vrai cpu_set() pose dans h_boot. Restent enveloppés les deux appels des resets
 # (cpu_update_waitstates) et cpu_set_edx, DEVIATIONS déclarées des deux côtés.
-WRAP_BOTH := cpu_update_waitstates cpu_set_edx
+# M16, étape 6 : cpu_update_waitstates SORT à son tour — models[] est peuplé par h_boot
+# et h_reset, et le vrai remet le préfetch au coût de la RAM à chaque reset, comme PCem.
+# Reste cpu_set_edx, DEVIATION déclarée des deux côtés.
+WRAP_BOTH := cpu_set_edx
 WRAPFLAGS_BOTH := $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP_BOTH))
 LDFLAGS += $(WRAPFLAGS_BOTH)
 

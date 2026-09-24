@@ -21,11 +21,10 @@
 // `x86_opcodes_d8_a16[...](fetchdat)` — le premier D8 aurait fait sauter
 // l'oracle sur un déréférencement nul. Même classe de défaut que les vingt
 // timing_* à zéro trouvés à A2.0 : lier cpu.c fournit les SYMBOLES, cpu_set()
-// pose les VALEURS, et cpu_set() ne tournait pas ici avant M16. Corrigé dans
-// h_cpu_config_286 (harness_stubs.c) ET dans cpu_config_286 (386.State.cs) —
-// les deux doivent rester symétriques. Depuis M16, les machines amorcées passent
-// par cpu_set() (Cpu/cpu.cs), qui pose les mêmes huit pointeurs ; les deux
-// fonctions ne servent plus qu'au chemin hôte du fuzzeur et de SST.
+// pose les VALEURS, et cpu_set() ne tournait pas ici avant M16. Corrigé alors dans
+// h_cpu_config_286 (harness_stubs.c) ET dans cpu_config_286 (386.State.cs), deux
+// recopies symétriques. Depuis M16 les deux côtés font tourner cpu_set() (Cpu/cpu.cs
+// et le vrai de PCem), qui pose les mêmes huit pointeurs, et les recopies ont disparu.
 //
 // DEUX INDEXATIONS DIFFÉRENTES, et ce n'est pas une coquille : D8 et DC lisent
 // `(fetchdat >> 3) & 0x1f`, les six autres `fetchdat & 0xff`. Sans

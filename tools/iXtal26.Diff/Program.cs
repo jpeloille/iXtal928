@@ -16,7 +16,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
-    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N]");
+    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286 [--cpu N]]");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
@@ -442,6 +442,24 @@ switch (args[0])
                 case "--core":
                     fuzzCore = args[++i] == "286" ? Oracle.Core286 : Oracle.Core8088;
                     break;
+                // M16 — l'entrée de cpus_286 que le 286 fuzzé reçoit, des DEUX côtés :
+                // h_reset et Reset286 font tourner cpu_set() sur la table de l'ami286.
+                // --cpu 5 exerce le 286/20 : 4 cycles mémoire, isa 3, préfetch ROM 20.
+                case "--cpu" when i + 1 < args.Length:
+                {
+                    var n = int.Parse(args[++i]);
+                    var count = 0;
+                    while (iXtal26.Cpu.cpu_tables.cpus_286[count].cpu_type != -1)
+                        count++;
+                    if (n < 0 || n >= count)
+                    {
+                        Console.Error.WriteLine($"--cpu {n} : hors de cpus_286 (0 à {count - 1}).");
+                        return 2;
+                    }
+                    Oracle.h_set_cpu(0, n);
+                    iXtal26.Cpu._386.FuzzCpu = n;
+                    break;
+                }
                 case "--mode" when i + 1 < args.Length: single = args[++i] == "single"; break;
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 default:
