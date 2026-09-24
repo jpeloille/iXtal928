@@ -293,8 +293,221 @@ internal static partial class _386
         return 0;
     };
 
-    // omitted: op0F00_common (x86_ops_pmode.h:176-336) — SLDT, STR, LLDT, LTR,
-    //   VERR, VERW. Inatteignable hors mode protege ; bloc C.
+    /// <summary>pcem: x86_ops_pmode.h:176-336 — op0F00_common : SLDT, STR, LLDT, LTR,
+    /// VERR, VERW, aiguillés par le champ `reg` du ModRM.
+    ///
+    /// LE POST DE L'IBM AT EN A BESOIN, et c'est une vraie exécution qui l'a montré, pas
+    /// une lecture : `--boot roms 6000 --model ibmat` tombait sur le fatal() de
+    /// NotrmPuisEchec à la tranche 600, après 4 799 914 instructions, alors que le
+    /// boot-diff n'y arrivait jamais.
+    ///
+    /// LLDT ET LTR LISENT LE DESCRIPTEUR OCTET PAR OCTET, pas par mots de seize bits
+    /// comme do_seg_load. Ce n'est pas une coquette de PCem : la base d'un descripteur
+    /// système est éparpillée sur les octets 2-3, 4 et 7, et la limite sur 0-1 plus le
+    /// quartet bas de l'octet 6. Lire par mots obligerait à masquer davantage.
+    ///
+    /// ET LTR ÉCRIT DANS LA TABLE, LLDT NON. `access |= 2` puis `writememb(0, addr + 5,
+    /// access)` : charger le registre de tâche marque le TSS OCCUPÉ, pour qu'une seconde
+    /// commutation vers la même tâche soit refusée. C'est le seul effet de bord mémoire
+    /// des six, et il tombe sous le même angle mort que le bit d'accès — aucun compteur
+    /// ne le surveille.
+    ///
+    /// VERR ET VERW RENDENT LEUR VERDICT DANS ZF, ET NE FAUTENT JAMAIS. C'est leur raison
+    /// d'être : demander « puis-je lire ce sélecteur ? » sans risquer le #GP que la
+    /// lecture provoquerait. D'où `cpl_override` autour de la lecture du descripteur, et
+    /// le retour précoce sur sélecteur nul — ZF déjà effacé, donc « non ».
+    ///
+    /// LEUR DIFFÉRENCE EST PLUS FINE QU'ELLE N'EN A L'AIR : VERR accepte un code
+    /// conforme SANS vérifier le privilège — `(desc & 0xC00) != 0xC00` exclut ce cas du
+    /// test — et refuse un code non lisible. VERW refuse TOUT code et exige une donnée
+    /// inscriptible. Échanger les deux donnerait un émulateur qui marche presque.</summary>
+    private static int op0F00_common(uint32_t fetchdat, int ea32)
+    {
+        int dpl, valid, granularity;
+        uint32_t addr, @base, limit;
+        uint16_t desc, sel;
+        uint8_t access, access2;
+
+        switch (rmdat & 0x38)
+        {
+        case 0x00: /*SLDT*/
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                seteaw(ldt.seg);
+                CLOCK_CYCLES(4);
+                PREFETCH_RUN(4, 2, (int)rmdat, 0, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
+                break;
+        case 0x08: /*STR*/
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                seteaw(tr.seg);
+                CLOCK_CYCLES(4);
+                PREFETCH_RUN(4, 2, (int)rmdat, 0, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
+                break;
+        case 0x10: /*LLDT*/
+                // `(CPL || VM_FLAG) && (cr0 & 1)` : en mode REEL la garde est fausse, donc
+                // LLDT y est legal — c'est NOTRM en amont qui l'y interdit, pas ceci.
+                if ((CPL != 0 || (cpu_state.eflags & VM_FLAG) != 0) && (cr0 & 1) != 0)
+                {
+                        // omitted: pclog("Invalid LLDT!") — sortie pure.
+                        x86seg_c.x86gpf(null!, 0);
+                        return 1;
+                }
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                sel = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                addr = (uint32_t)(sel & ~7) + gdt.@base;
+                limit = (uint32_t)(readmemw(0, addr) + ((readmemb(0, addr + 6) & 0xf) << 16));
+                @base = (uint32_t)(readmemw(0, addr + 2) | (readmemb(0, addr + 4) << 16)
+                                   | (readmemb(0, addr + 7) << 24));
+                access = readmemb(0, addr + 5);
+                access2 = readmemb(0, addr + 6);
+                granularity = readmemb(0, addr + 6) & 0x80;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ldt.limit = limit;
+                ldt.limit_raw = limit;
+                ldt.access = access;
+                ldt.access2 = access2;
+                if (granularity != 0)
+                {
+                        ldt.limit <<= 12;
+                        ldt.limit |= 0xfff;
+                }
+                ldt.@base = @base;
+                ldt.seg = sel;
+                CLOCK_CYCLES(20);
+                PREFETCH_RUN(20, 2, (int)rmdat, (cpu_mod == 3) ? 0 : 1, 2, 0, 0, ea32);
+                break;
+        case 0x18: /*LTR*/
+                // NOTER LE `break` ET NON `return 1` de LLDT. La difference est dans le C
+                // et elle est visible : apres x86gpf, LLDT rend 1 et LTR tombe en bas de
+                // la fonction, qui rend `cpu_state.abrt`. Les deux valent 1 puisque x86gpf
+                // vient de le poser — mais la forme se recopie, pas le raisonnement.
+                if ((CPL != 0 || (cpu_state.eflags & VM_FLAG) != 0) && (cr0 & 1) != 0)
+                {
+                        // omitted: pclog("Invalid LTR!") — sortie pure.
+                        x86seg_c.x86gpf(null!, 0);
+                        break;
+                }
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                sel = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                addr = (uint32_t)(sel & ~7) + gdt.@base;
+                limit = (uint32_t)(readmemw(0, addr) + ((readmemb(0, addr + 6) & 0xf) << 16));
+                @base = (uint32_t)(readmemw(0, addr + 2) | (readmemb(0, addr + 4) << 16)
+                                   | (readmemb(0, addr + 7) << 24));
+                access = readmemb(0, addr + 5);
+                access2 = readmemb(0, addr + 6);
+                granularity = readmemb(0, addr + 6) & 0x80;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                // LE TSS EST MARQUE OCCUPE, ET C'EST UNE ECRITURE EN MEMOIRE. Bit 1 de
+                // l'octet d'acces. Aucun compteur ne la surveille — meme angle mort que le
+                // bit d'accede des descripteurs de segment.
+                access |= 2;
+                writememb(0, addr + 5, access);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                tr.seg = sel;
+                tr.limit = limit;
+                tr.limit_raw = limit;
+                tr.access = access;
+                tr.access2 = access2;
+                if (granularity != 0)
+                {
+                        tr.limit <<= 12;
+                        tr.limit |= 0xFFF;
+                }
+                tr.@base = @base;
+                CLOCK_CYCLES(20);
+                PREFETCH_RUN(20, 2, (int)rmdat, (cpu_mod == 3) ? 0 : 1, 2, 0, 0, ea32);
+                break;
+        case 0x20: /*VERR*/
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                sel = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                flags_rebuild();
+                cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                if ((sel & 0xfffc) == 0)
+                        return 0; /*Null selector*/
+                cpl_override = 1;
+                valid = (sel & ~7) < (int)(((sel & 4) != 0) ? ldt.limit : gdt.limit) ? 1 : 0;
+                desc = readmemw(0, (((sel & 4) != 0) ? ldt.@base : gdt.@base) + (uint32_t)(sel & ~7) + 4);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((desc & 0x1000) == 0)
+                        valid = 0;
+                if ((desc & 0xC00) != 0xC00) /*Exclude conforming code segments*/
+                {
+                        dpl = (desc >> 13) & 3; /*Check permissions*/
+                        if (dpl < CPL || dpl < (sel & 3))
+                                valid = 0;
+                }
+                if ((desc & 0x0800) != 0 && (desc & 0x0200) == 0)
+                        valid = 0; /*Non-readable code*/
+                if (valid != 0)
+                        cpu_state.flags |= Z_FLAG;
+                CLOCK_CYCLES(20);
+                PREFETCH_RUN(20, 2, (int)rmdat, (cpu_mod == 3) ? 1 : 2, 0, 0, 0, ea32);
+                break;
+        case 0x28: /*VERW*/
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                sel = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                flags_rebuild();
+                cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                if ((sel & 0xfffc) == 0)
+                        return 0; /*Null selector*/
+                cpl_override = 1;
+                valid = (sel & ~7) < (int)(((sel & 4) != 0) ? ldt.limit : gdt.limit) ? 1 : 0;
+                desc = readmemw(0, (((sel & 4) != 0) ? ldt.@base : gdt.@base) + (uint32_t)(sel & ~7) + 4);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((desc & 0x1000) == 0)
+                        valid = 0;
+                dpl = (desc >> 13) & 3; /*Check permissions*/
+                if (dpl < CPL || dpl < (sel & 3))
+                        valid = 0;
+                if ((desc & 0x0800) != 0)
+                        valid = 0; /*Code*/
+                if ((desc & 0x0200) == 0)
+                        valid = 0; /*Read-only data*/
+                if (valid != 0)
+                        cpu_state.flags |= Z_FLAG;
+                CLOCK_CYCLES(20);
+                PREFETCH_RUN(20, 2, (int)rmdat, (cpu_mod == 3) ? 1 : 2, 0, 0, 0, ea32);
+                break;
+
+        default:
+                // omitted: pclog("Bad 0F 00 opcode %02X") — sortie pure.
+                // `pc -= 3` AVANT x86illegal : l'INT 6 doit pointer sur l'instruction
+                // fautive, et pc a deja avance de trois octets — 0F, 00 et le ModRM.
+                cpu_state.pc -= 3;
+                _386_common.x86illegal();
+                break;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_pmode.h:337-342
+    private static int op0F00_a16(uint32_t fetchdat)
+    {
+        if (NOTRM()) return 1;
+        fetch_ea_16(fetchdat);
+        return op0F00_common(fetchdat, 0);
+    }
+
     // omitted: opLOADALL386 (x86_ops_misc.h:882-...) — c'est la forme 386, et
     //   la table donne opLOADALL a un 286. Verifie dans la .so.
 
@@ -305,7 +518,7 @@ internal static partial class _386
         for (var i = 0; i < 1024; i++)
                 ops_286_0f[i] = ILLEGAL;
 
-        ops_286_0f[0x00] = NotrmPuisEchec("0F 00 (SLDT/STR/LLDT/LTR/VERR/VERW)");
+        ops_286_0f[0x00] = op0F00_a16;
         ops_286_0f[0x01] = op0F01_286;
         ops_286_0f[0x02] = NotrmPuisEchec("LAR");
         ops_286_0f[0x03] = NotrmPuisEchec("LSL");

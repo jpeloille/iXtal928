@@ -65,6 +65,12 @@ internal static partial class _808x
     // Posé par setpitclock() (pit.c:52) à M3 ; en M1 c'est h_reset qui le fixe.
     internal static uint64_t xt_cpu_multi;
 
+    // pcem: 808x.c:33 — nmi_auto_clear. DÉ-OMISSION : le chemin d'interruption de
+    // exec386 le lit (386.c:245-248), et il n'était pas là. Personne ne le pose à 1
+    // dans l'arbre lié — `grep -rn 'nmi_auto_clear = 1' pcem-dev/src` est vide — donc
+    // sa branche est morte ; transcrite quand même, parce que la structure du C est ce
+    // qui se lit, et qu'une branche absente se remarque moins qu'une branche morte.
+    internal static int nmi_auto_clear;
     internal static int nmi, nmi_mask;
 
     // -----------------------------------------------------------------------

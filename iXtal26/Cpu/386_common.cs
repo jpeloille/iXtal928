@@ -502,9 +502,10 @@ internal static partial class _386_common
         uint32_t addr;
         _386.flags_rebuild();
         cpu_state.pc = cpu_state.oldpc;
+        // pmodeint EST transcrit depuis 3942f70 : ce site etait un fatal().
         if ((msw & 1) != 0)
         {
-                pc.fatal("x86_int en mode protege : pmodeint n'est pas transcrit (Ap)\n");
+                x86seg_c.pmodeint(num, 0);
                 return;
         }
 

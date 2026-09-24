@@ -84,6 +84,11 @@ public static class KeyScript
         // n'envoie jamais Échap. La touche reste, elle n'a simplement pas le rôle
         // qu'on lui prêtait.
         case '\e': return SDL.Scancode.Escape;
+        // F1, ecrite « \1 ». Ajoutee pour repondre a l'invite du POST de l'IBM AT :
+        // « 161-System Options Not Set-(Run SETUP) / (RESUME = "F1" KEY) ». Sans elle,
+        // un AT sans fichier at.nvr s'arrete la et ne demarre jamais — ce n'est pas une
+        // panne mais une question, et il faut pouvoir y repondre.
+        case '\u0001': return SDL.Scancode.F1;
         case ' ': return SDL.Scancode.Space;
         case '\n': return SDL.Scancode.Return;
         case '.': return SDL.Scancode.Period;

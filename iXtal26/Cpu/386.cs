@@ -344,7 +344,7 @@ internal static partial class _386
                                 flags_rebuild();
                                 if ((msw & 1) != 0)
                                 {
-                                        pc.fatal("trap en mode protege : pmodeint n'est pas transcrit (Ap)\n");
+                                        x86seg_c.pmodeint(1, 0);
                                 }
                                 else
                                 {
@@ -359,13 +359,65 @@ internal static partial class _386
                                         x86seg_c.loadcs(readmemw(0, addr + 2));
                                 }
                         }
+                        // pcem: 386.c:240-248 — LA NMI, ET ELLE SE DESARME ELLE-MEME.
+                        //
+                        // `nmi_enable = 0` apres l'avoir prise : une seconde NMI ne sera
+                        // pas servie avant que quelque chose la reactive. C'est le
+                        // comportement du 8088 comme du 286, et c'est pourquoi le port
+                        // 0xA0 du XT et le bit 7 du port 0x70 de l'AT existent.
+                        //
+                        // `oldpc` EST POSE AVANT L'APPEL, et ca compte : x86_int fait
+                        // `cpu_state.pc = cpu_state.oldpc` pour que l'instruction fautive
+                        // soit REJOUEE apres l'interruption. Sans cette ligne, x86_int
+                        // rejouerait celle d'avant.
                         else if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
                         {
-                                pc.fatal("NMI : x86_int n'est pas transcrit pour ce coeur (A2.2b)\n");
+                                cpu_state.oldpc = cpu_state.pc;
+                                _386_common.x86_int(2);
+                                nmi_enable = 0;
+                                if (_808x.nmi_auto_clear != 0)
+                                {
+                                        _808x.nmi_auto_clear = 0;
+                                        _808x.nmi = 0;
+                                }
                         }
+                        // pcem: 386.c:249-275 — L'INTERRUPTION MATERIELLE, et c'est ELLE
+                        // qui manquait pour qu'un AT tourne pour de vrai.
+                        //
+                        // Le boot-diff ne l'atteignait pas : il compare instruction par
+                        // instruction et la premiere IRQ0 du PIT arrive bien avant. Mais
+                        // `--boot roms 6000 --model ibmat` tombait dessus a la tranche 0,
+                        // apres 8 690 instructions. Un fatal() sur le chemin le plus
+                        // ordinaire d'une machine.
+                        //
+                        // 0xFF VEUT DIRE « PERSONNE », et il faut le tester : picinterrupt
+                        // rend 0xFF quand aucune ligne n'est finalement servie — une IRQ
+                        // masquee entre-temps, ou un acquittement spontane. Prendre le
+                        // vecteur 0xFF serait sauter dans la table par son dernier
+                        // emplacement.
                         else if ((cpu_state.flags & I_FLAG) != 0 && Models.pic.pic_intpending != 0)
                         {
-                                pc.fatal("interruption materielle : chemin non transcrit (A2.2b)\n");
+                                var temp = Models.pic.picinterrupt();
+                                if (temp != 0xFF)
+                                {
+                                        flags_rebuild();
+                                        if ((msw & 1) != 0)
+                                        {
+                                                x86seg_c.pmodeint(temp, 0);
+                                        }
+                                        else
+                                        {
+                                                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), cpu_state.flags);
+                                                writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                                writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                                SP -= 6;
+                                                addr = (uint32_t)(temp << 2) + idt.@base;
+                                                cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                                cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                                cpu_state.pc = readmemw(0, addr);
+                                                x86seg_c.loadcs(readmemw(0, addr + 2));
+                                        }
+                                }
                         }
 
                         _808x.ins++;
