@@ -277,21 +277,127 @@ internal static partial class _386
         return 0;
     }
 
-    /// <summary>pcem: x86_ops_pmode.h:337-342 — op0F00_a16, et les macros opLAR
-    /// (:56-113) et opLSL (:116-172).
-    ///
-    /// LES TROIS COMMENCENT PAR NOTRM, et c'est tout ce qu'ils font en mode
-    /// réel : la macro lève INT 6 — opcode invalide — si `msw & 1` est nul.
-    /// Leurs corps sont donc INATTEIGNABLES hors mode protégé, et ce n'est pas
-    /// une omission par largeur mais par MODE. Ils échouent bruyamment après la
-    /// garde, comme loadcsjmp et ses voisines dans x86seg.cs.</summary>
-    private static OpFn NotrmPuisEchec(string nom) => fetchdat =>
+
+    // pcem: x86_ops_pmode.h:56-113 — opLAR(w_a16, fetch_ea_16, 0, 0), la seule forme que
+    // ops_286_0f référence (relevé dans la .so, voir x86seg.cs). M20 : Windows 3.x en
+    // mode standard valide ses sélecteurs avec. Vérifié par pm-check.
+    // omitted: les formes w_a32, l_a16, l_a32 (x86_ops_pmode.h:113) — 386.
+    //
+    // LE VERDICT EST DANS ZF, ET LAR NE FAUTE PAS SUR UN MAUVAIS SÉLECTEUR : il efface ZF
+    // et rend. Le type n'est refusé que pour 0, 8, A et D (réservés), et le privilège
+    // n'est vérifié que hors code conforme.
+    private static int opLAR_w_a16(uint32_t fetchdat)
     {
+        int valid;
+        uint16_t sel, desc = 0;
+
         if (NOTRM()) return 1;
-        pc.fatal($"{nom} en mode protege : x86_ops_pmode.h n'est transcrit " +
-                 "qu'en mode reel (bloc C du plan)\n");
-        return 0;
-    };
+        fetch_ea_16(fetchdat);
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        sel = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        flags_rebuild();
+        if ((sel & 0xfffc) == 0)
+        {
+                cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+                return 0;
+        } /*Null selector*/
+        valid = (sel & ~7) < ((sel & 4) != 0 ? ldt.limit : gdt.limit) ? 1 : 0;
+        if (valid != 0)
+        {
+                cpl_override = 1;
+                desc = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4));
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return 1;
+        }
+        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+        if ((desc & 0x1f00) == 0x000)
+                valid = 0;
+        if ((desc & 0x1f00) == 0x800)
+                valid = 0;
+        if ((desc & 0x1f00) == 0xa00)
+                valid = 0;
+        if ((desc & 0x1f00) == 0xd00)
+                valid = 0;
+        if ((desc & 0x1c00) < 0x1c00) /*Exclude conforming code segments*/
+        {
+                int dpl = (desc >> 13) & 3;
+                if (dpl < CPL || dpl < (sel & 3))
+                        valid = 0;
+        }
+        if (valid != 0)
+        {
+                cpu_state.flags |= Z_FLAG;
+                cpl_override = 1;
+                cpu_state.regs[cpu_reg].w =
+                        (uint16_t)(readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4)) & 0xff00);
+                cpl_override = 0;
+        }
+        CLOCK_CYCLES(11);
+        PREFETCH_RUN(11, 2, (int)rmdat, 2, 0, 0, 0, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_pmode.h:116-172 — opLSL(w_a16, fetch_ea_16, 0, 0), même relevé.
+    // omitted: les formes w_a32, l_a16, l_a32 (x86_ops_pmode.h:171-172) — 386.
+    //
+    // PLUS PERMISSIF QUE LAR SUR LES TYPES : il refuse toute porte (`(desc & 0x1400) ==
+    // 0x400`) et les types 0 et A, mais accepte un TSS ou une LDT — dont la limite a un
+    // sens. Et sa variable s'appelle `rpl` là où elle lit un DPL : le nom est de PCem.
+    private static int opLSL_w_a16(uint32_t fetchdat)
+    {
+        int valid;
+        uint16_t sel, desc = 0;
+
+        if (NOTRM()) return 1;
+        fetch_ea_16(fetchdat);
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        sel = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        flags_rebuild();
+        cpu_state.flags &= unchecked((uint16_t)~Z_FLAG);
+        if ((sel & 0xfffc) == 0)
+                return 0; /*Null selector*/
+        valid = (sel & ~7) < ((sel & 4) != 0 ? ldt.limit : gdt.limit) ? 1 : 0;
+        if (valid != 0)
+        {
+                cpl_override = 1;
+                desc = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4));
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return 1;
+        }
+        if ((desc & 0x1400) == 0x400)
+                valid = 0; /*Interrupt or trap or call gate*/
+        if ((desc & 0x1f00) == 0x000)
+                valid = 0; /*Invalid*/
+        if ((desc & 0x1f00) == 0xa00)
+                valid = 0;             /*Invalid*/
+        if ((desc & 0x1c00) != 0x1c00) /*Exclude conforming code segments*/
+        {
+                int rpl = (desc >> 13) & 3;
+                if (rpl < CPL || rpl < (sel & 3))
+                        valid = 0;
+        }
+        if (valid != 0)
+        {
+                cpu_state.flags |= Z_FLAG;
+                cpl_override = 1;
+                cpu_state.regs[cpu_reg].w = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7)));
+                cpl_override = 0;
+        }
+        CLOCK_CYCLES(10);
+        PREFETCH_RUN(10, 2, (int)rmdat, 4, 0, 0, 0, 0);
+        return cpu_state.abrt;
+    }
 
     /// <summary>pcem: x86_ops_pmode.h:176-336 — op0F00_common : SLDT, STR, LLDT, LTR,
     /// VERR, VERW, aiguillés par le champ `reg` du ModRM.
@@ -520,8 +626,8 @@ internal static partial class _386
 
         ops_286_0f[0x00] = op0F00_a16;
         ops_286_0f[0x01] = op0F01_286;
-        ops_286_0f[0x02] = NotrmPuisEchec("LAR");
-        ops_286_0f[0x03] = NotrmPuisEchec("LSL");
+        ops_286_0f[0x02] = opLAR_w_a16;
+        ops_286_0f[0x03] = opLSL_w_a16;
         ops_286_0f[0x05] = opLOADALL;
         ops_286_0f[0x06] = opCLTS;
     }
