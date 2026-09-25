@@ -88,10 +88,16 @@ public static class BootTest
         // disquettes sans fenêtre : « @A:chemin » (ou @B:) change la disquette comme le
         // menu Ctrl+F12 — disc_close puis disc_load, SdlMenu.Insert —, « @wait N » laisse
         // passer N tranches sans rien taper. Ni l'une ni l'autre ne frappe de touche.
-        if (text.Length > 3 && text[0] == '@' && text[2] == ':' && (text[1] is 'A' or 'B'))
+        if (text.Length >= 3 && text[0] == '@' && text[2] == ':' && (text[1] is 'A' or 'B'))
         {
             var drive = text[1] - 'A';
             Disc.disc.disc_close(drive);
+            if (text.Length == 3)
+            {
+                // « @A: » seul : éjecter, disc_close sans disc_load (wx-sdl2.c:759-761).
+                Console.WriteLine($"\n--- {text[1]}: éjecté ---");
+                return;
+            }
             Disc.disc.disc_load(drive, text[3..]);
             Console.WriteLine($"\n--- {text[1]}: {text[3..]} inséré" +
                               (Disc.disc.drive_empty[drive] != 0 ? " — REFUSÉ par disc_load ---" : " ---"));

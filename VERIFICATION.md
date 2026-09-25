@@ -3785,11 +3785,35 @@ Identique des deux côtés, donc transcrit, mais pas le 286 réel :
 - `LAR`/`LSL` sur sélecteur nul rendent avant `CLOCK_CYCLES` : coût nul, le pas avale
   l'instruction suivante.
 
+### Le second arrêt : le groupe `0F 00` s'exécutait tout entier en SLDT
+
+Julien a relancé l'installation : `x86abort : Bigger than GDT limit 2052 011F CSC` — que
+PCem aurait fait aussi (`x86abort` = `exit`). Une porte CPL3 → 0 lisait sa pile interne dans
+une « TSS » en `00C000` : du texte (« EXPANDED MEMORY MANAGER »). TR n'avait jamais été
+chargé.
+
+Pour ne plus dépendre d'allers-retours, `--boot` a appris à dérouler une installation :
+`@A:image` change la disquette comme le menu Ctrl+F12, `@A:` l'éjecte, `@wait N` laisse
+passer N tranches. L'installation, rejouée sur une COPIE du disque de Julien (clavier
+AZERTY : `q.setup` pour `a:setup`, `zin` pour `win`), a reproduit l'arrêt. Un journal
+jetable a montré DOSX exécutant `0F 00 D0` (`LLDT AX`) puis `0F 00 DE` (`LTR SI`) —
+décodés /2 et /3 par `cpu_reg`, mais exécutés comme `SLDT`.
+
+Cause : chez PCem, `x86.h:197` fait `#define fetchdat rmdat`, donc dans `op0F00_common`
+`rmdat` est le PARAMÈTRE. Le C# nommait ce paramètre `fetchdat` et lisait la GLOBALE
+`rmdat`, que seule la boucle d'`exec386` pose : derrière l'échappement `0F` elle commence un
+octet trop tôt. Invisible depuis le jalon 286 : le boot-diff de l'AT diverge à
+l'instruction 50 (CMOS), et `pm-check` n'avait aucun cas `0F 00`. Dix cas ajoutés AVANT la
+correction : 9 rouges, puis verts. **66 verts, 0 rouge.**
+
+### Windows 3.1, installé et démarré
+
+Même installation rejouée de bout en bout, C# seul, depuis une copie : sept disquettes,
+nom, « Windows 3.1 is now set up », disquette éjectée, redémarrage, `WIN` — le
+Gestionnaire de programmes s'ouvre en 640 × 480, mode standard, sur l'ami286 (286/16,
+4 Mo, Trident 8900D). Aucun `fatal()` de bout en bout.
+
 ### Ce qui reste
 
 `taskswitch286` (`x86seg.c:2393-2849`, 356 lignes) : atteint par `CALL`/`JMP` vers une
-TSS, pas transcrit — le plan ne le fait que si Windows l'atteint. L'essai de Windows lui-
-même est côté C# seul et demande de changer de disquette en cours de SETUP, ce que `--boot`
-ne sait pas faire : il revient à Julien, dans la fenêtre. Sur une copie de son disque, la
-phase DOS de SETUP a laissé `C:\WINDOWS` (SETUP, SYSTEM, son état `W8D4OP2T.A4G`) mais pas
-encore `WIN.COM`.
+TSS, pas transcrit — Windows 3.1 en mode standard ne l'a pas atteint.
