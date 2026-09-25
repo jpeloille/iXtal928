@@ -27,6 +27,10 @@
     "iXtal26 (IBM XT 5160, ROM BASIC)": {
       "commandName": "Project",
       "commandLineArgs": "--model ibmxt --turbo"
+    },
+    "iXtal26 (286, Trident 8900D, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-286.cfg"
     }
   }
 }
