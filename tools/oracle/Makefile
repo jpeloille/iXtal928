@@ -73,6 +73,8 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_svga.c \
        $(PCEM)/src/video/vid_svga_render.c \
        $(PCEM)/src/video/vid_tkd8001_ramdac.c \
+       $(PCEM)/src/models/serial.c \
+       $(PCEM)/src/mouse/mouse_serial.c \
        $(PCEM)/src/floppy/fdc.c \
        $(PCEM)/src/floppy/fdd.c \
        $(PCEM)/src/disc/disc.c \
@@ -125,7 +127,7 @@ LDFLAGS += $(WRAPFLAGS_BOTH)
 LDFLAGS += -Wl,--no-undefined
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/devices
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/devices $(PCEM)/src/mouse
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

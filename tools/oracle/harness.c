@@ -271,6 +271,17 @@ extern device_t cga_device;
 #include "video.h"
 #include "vid_svga.h"
 extern device_t vga_device;
+/* M21 — le port serie et la souris serie Microsoft (serial.c, mouse_serial.c). */
+#include "serial.h"
+#include "mouse.h"
+extern mouse_t mouse_serial_microsoft;
+static void *h_mouse_p;
+/* Pendant de mouse_poll (mouse.c:33-36) : le harnais n'a pas de souris hote ; cet
+ * appel injecte des mickeys pour qu'un diff exerce le chemin de reception. */
+void h_mouse_poll(int x, int y, int z, int b) {
+        if (h_mouse_p)
+                mouse_serial_microsoft.poll(x, y, z, b, h_mouse_p);
+}
 /* M19 — les deux Trident (vid_tvga.h), compilées par harness_tvga.c qui inclut
  * vid_tvga.c pour en lire la tvga_t privée. */
 #include "vid_tvga.h"
@@ -1079,6 +1090,9 @@ int h_boot(const char *romspath) {
         fdc_add();                   /* model.c:194 */
         pic_init();
         pit_init();
+        /* model.c:198-199 — M21 : les deux UART, COM1 et COM2. lpt_init reste dehors. */
+        serial1_init(0x3f8, 4, 1);
+        serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
         if (h_core == H_CORE_286) {
@@ -1098,6 +1112,12 @@ int h_boot(const char *romspath) {
                 keyboard_xt_init();
                 nmi_init();
         }
+
+        /* mouse_emu_init(), pc.c:373 — M21. mouse.c n'est pas lie (ses cinq autres
+         * souris tirent amstrad.c, keyboard_olim24.c...) : le registre est reduit, comme
+         * cote C#, a mouse_list[0] — la souris serie Microsoft, mouse_type = 0 par
+         * defaut (pc.c:784). */
+        h_mouse_p = mouse_serial_microsoft.init();
 
         /* video_init(), pc.c:374. On appelle directement device_add plutot que
          * video_init() : le switch sur romset de video.c:761-914 n'a de cas pour
@@ -1150,6 +1170,7 @@ int h_boot(const char *romspath) {
         resetx86();
         fdc_reset();                 /* pc.c:180 */
         pic_reset();
+        serial_reset();              /* pc.c:182, M21 */
         /* pc.c:184-187 — `if (AT) setpitclock(rspeed) else setpitclock(14318184.0)`.
                  *
                  * PITCONST = cpuclock / 1193182, donc le NOMBRE DE CYCLES CPU par tic

@@ -37,7 +37,7 @@ indent_style = tab
 # ceux-là (CS1717, CS0168, ...) restent traités en erreurs et se neutralisent
 # fichier par fichier avec des #pragma énumérés et commentés.
 # ---------------------------------------------------------------------------
-[**/{Cpu,Memory,Models,Keyboard,Video,PluginApi,Diag,Devices,Sound,Flash,Floppy,Disc}/**.cs]
+[**/{Cpu,Memory,Models,Keyboard,Video,PluginApi,Diag,Devices,Sound,Flash,Floppy,Disc,Mouse}/**.cs]
 
 # Nommage : snake_case de PCem conservé verbatim.
 dotnet_diagnostic.IDE1006.severity = none

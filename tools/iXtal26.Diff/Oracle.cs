@@ -37,7 +37,9 @@ public static class Oracle
     // tourner le vrai cpu_set(). Le vecteur ne change pas de taille.
     // 19 a M19 : les Trident. h_vga_probe passe de 64 a 86 champs, la temporisation
     // suit la carte (video_speed = -1) et video_is_* lisent ses drapeaux.
-    public const int AbiVersion = 19;
+    // 20 a M21 : COM1, COM2 et la souris serie Microsoft entrent dans l'oracle ;
+    // h_mouse_poll s'ajoute au contrat.
+    public const int AbiVersion = 20;
 
     static Oracle()
     {
@@ -221,6 +223,7 @@ public static class Oracle
     public const int GFX_TVGA9000B = 42;  // ibm.h:318
     public const int VgaProbeN = 86;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
+    [DllImport(Lib)] public static extern void h_mouse_poll(int x, int y, int z, int b);
 
     // M16 — le processeur : fabricant et INDICE dans la table de la machine, à poser
     // avant h_boot, qui fait tourner le vrai cpu_set() de PCem avec eux ; le budget de

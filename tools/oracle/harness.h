@@ -451,6 +451,9 @@ void h_set_gfxcard(int g);
 #define H_VGA_PROBE_N 86   /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 */
 void h_vga_probe(uint64_t *out);
 
+/* M21 — injecte un mouvement de souris (mickeys x, y, z, boutons), pendant de mouse_poll. */
+void h_mouse_poll(int x, int y, int z, int b);
+
 /* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
 uint8_t *h_vga_vram(void);
 
@@ -542,7 +545,9 @@ uint8_t *h_ram(void);
 /* 19 depuis M19 : les Trident. h_vga_probe passe de 64 à 86 champs, la temporisation
  * suit la carte (video_speed = -1) et video_is_* lisent ses drapeaux. Le vecteur
  * h_state ne change pas de taille. */
-#define H_ABI_VERSION 19
+/* 20 depuis M21 : h_mouse_poll s'ajoute au contrat ; COM1, COM2 et la souris serie
+ * Microsoft entrent dans l'oracle. Le vecteur ne change pas de taille. */
+#define H_ABI_VERSION 20
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

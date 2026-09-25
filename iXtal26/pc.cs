@@ -132,6 +132,20 @@ internal static partial class pc
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     internal static void readflash_set(int offset, int drive) { readflash |= 1 << ((offset) + (drive)); }
 
+    // pcem: pc.c:109-120 — M21.
+    internal static int pollmouse_delay = 2;
+    internal static void pollmouse()
+    {
+        int x, y, z;
+        pollmouse_delay--;
+        if (pollmouse_delay != 0)
+                return;
+        pollmouse_delay = 2;
+        Mouse.mouse.mouse_poll_host?.Invoke();
+        Mouse.mouse.mouse_get_mickeys(out x, out y, out z);
+        Mouse.mouse.mouse_poll(x, y, z, Mouse.mouse.mouse_buttons);
+    }
+
     // DEVIATION: fatal() de PCem appelle dumpregs() puis exit(-1). Ici on lève :
     //   l'hôte décide quoi en faire, et un test n'a pas à voir son processus
     //   disparaître.
@@ -621,6 +635,8 @@ internal static partial class pc
         Disc.disc.disc_load(1, Floppy.fdd_c.discfns[1]);
 
         Models.model_c.model_init();
+        // pcem: pc.c:373 — M21 : la souris série Microsoft sur COM1 (mouse_type = 0).
+        Mouse.mouse.mouse_emu_init();
         Video.video.video_init();
         Sound.sound_speaker.speaker_init();   // pc.c:375
 
@@ -735,6 +751,8 @@ internal static partial class pc
         //   pic sont réarmés par leurs propres *_init().
         Floppy.fdc_c.fdc_reset();
         Models.pic.pic_reset();
+        // pcem: pc.c:182 — M21.
+        Models.serial.serial_reset();
 
         // omitted: timer_reset() — pc.c:178 la porte EN COMMENTAIRE. Je l'avais
         //   ajoutée : elle invalide (magic = 0) tous les chronomètres que
@@ -804,7 +822,8 @@ internal static partial class pc
 
         Keyboard.keyboard.keyboard_poll_host();
         Keyboard.keyboard.keyboard_process();
-        // omitted: pollmouse(), joystick_poll() — hors périmètre.
+        pollmouse();
+        // omitted: joystick_poll() — hors périmètre.
 
         Video.video.endblit();
 

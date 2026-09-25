@@ -306,7 +306,8 @@ internal static partial class model_c
         // omitted: lpt_init() — port parallèle, hors périmètre.
         pic.pic_init();
         pit.pit_init();
-        // omitted: serial1_init/serial2_init — UART, hors périmètre.
+        serial.serial1_init(0x3f8, 4, 1);
+        serial.serial2_init(0x2f8, 3, 1);
     }
 
     // pcem: model.c:202-211

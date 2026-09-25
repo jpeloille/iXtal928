@@ -277,6 +277,8 @@ public sealed class SdlHost : IDisposable
                 SDL.WindowFlags.Resizable, out _window, out _renderer))
             return Fail("SDL.CreateWindowAndRenderer");
 
+        SdlMouse.Init(_window);
+
         // DEVIATION: PCem laisse la vsync À ZÉRO par défaut (video_vsync = 0,
         //   wx-sdl2-video.c:30) et n'en fait qu'une option de menu. La forcer ici
         //   bloquerait RenderPresent jusqu'au vblank AU MILIEU de l'accumulateur
@@ -782,6 +784,11 @@ public sealed class SdlHost : IDisposable
             // pendant le turbo le coupait, et le bilan disait « interrompu par une
             // frappe » alors que personne n'avait rien tapé à la machine. La touche
             // suivante, elle, compte : Shift puis A arrête le turbo sur le A.
+            // M21 — la souris : un clic capture, Ctrl+Fin libère ; ni l'un ni l'autre
+            // n'atteint le clavier de l'invité.
+            if (SdlMouse.HandleEvent(in e))
+                continue;
+
             if (type is SDL.EventType.KeyDown && !IsModifier(e.Key.Scancode))
                 _turboStopped = true;
 
