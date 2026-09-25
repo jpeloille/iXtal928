@@ -46,10 +46,12 @@ public sealed class SdlHost : IDisposable
     /// vid_cga.cs:413 arrête le balayage à « displine >= 360 », et la hauteur demandée
     /// au blit vaut (lastline - firstline) + 8, donc 368 lignes au pire. La VGA monte à
     /// 480 : svga_doblit demande ysize = lastline - firstline + 1, soit 400 lignes en
-    /// texte et 480 en mode 12h. Une texture 2048 x 2048, calquée sur Buffer32,
-    /// coûterait 16 Mo pour n'en servir que 480 au plus.
+    /// texte et 480 en mode 12h. M19 : les Trident montent à 600 (5Eh), 768 (62h) et
+    /// 1 024 lignes (63h de la 8900D) ; 512 tronquait tout cela en silence. La texture
+    /// est donc calquée sur Buffer32 — 16 Mo — et l'écrêtage ne garde plus que ses
+    /// bornes.
     /// </summary>
-    private const int TextureHeight = 512;
+    private const int TextureHeight = video.Height;
 
     /// <summary>Intervalle, en tranches, entre deux rafraîchissements du titre.</summary>
     private const int TitleInterval = 200;
