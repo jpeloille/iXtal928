@@ -12,7 +12,7 @@
 // atteignable en mode réel : il recharge l'état entier — MSW, registres, caches
 // descripteurs, GDTR, LDTR, IDTR, TR — depuis la table en 0x800.
 //
-// Chaque cas écrit les mêmes tables des deux côtés (GDT, LDT, IDT, deux TSS, piles),
+// Chaque cas écrit les mêmes tables des deux côtés (GDT de 26 entrées, LDT, IDT, deux TSS, piles),
 // pose LOADALL en 0000:7C00, puis exécute pas à pas : LOADALL, l'instruction testée, et
 // quelques NOP à l'arrivée. Après CHAQUE pas : état complet (Fuzzer.Compare), journal
 // d'écritures, hachage de la RAM entière. Un arrêt fatal() du C# est un résultat NOMMÉ.
@@ -131,11 +131,13 @@ public static class PmCheck
             Desc(0x000F, StackBase, 0x92),                      // 80 pile DPL0 minuscule
             Gate(0x0100, SelNotPresent, c.GateWords, 0xE4),     // 88 porte DPL3 -> code absent
         };
+        // Index 25 — le sélecteur 00CB de Windows : GDT (TI = 0), RPL 3. Code DPL3.
+        while (g.Count < 25) g.Add(new byte[8]);
+        g.Add(Desc(0xFFFF, TargetBase, 0xFA));
         for (var i = 0; i < g.Count; i++) poke(Gdt + (uint)(8 * i), g[i]);
 
-        // LDT : index 1 code DPL3, index 25 (sélecteur 00CB, celui de Windows) code DPL3.
-        poke(Ldt + 8, Desc(0xFFFF, Code3Base, 0xFA));
-        poke(Ldt + 25 * 8, Desc(0xFFFF, TargetBase, 0xFA));
+        // LDT : index 1 (sélecteur 000F en RPL 3), code DPL3.
+        poke(Ldt + 8, Desc(0xFFFF, TargetBase, 0xFA));
 
         // IDT : 32 portes d'interruption DPL0 vers 08:E000, et 0x1F DPL3 (atteignable en CPL3).
         for (uint v = 0; v < 32; v++)
@@ -188,7 +190,7 @@ public static class PmCheck
         Td(0x3C, c.Cpl3 ? Code3Base : CodeBase, (byte)(c.Cpl3 ? 0xFB : 0x9B), 0xFFFF);
         Td(0x42, c.Cpl3 ? Stack3Base : StackBase, (byte)(c.Cpl3 ? 0xF3 : 0x93), 0xFFFF);
         Td(0x48, DataBase, 0x93, 0xFFFF);                       // DS
-        Td(0x4E, Gdt, 0, 18 * 8 - 1);                           // GDTR
+        Td(0x4E, Gdt, 0, 26 * 8 - 1);                           // GDTR
         Td(0x54, Ldt, 0x82, 0x00FF);                            // LDTR
         Td(0x5A, Idt, 0, 32 * 8 - 1);                           // IDTR
         Td(0x60, Tss, 0x81, 0x002B);                            // TR
@@ -269,7 +271,8 @@ public static class PmCheck
             new() { Name = "CALL FAR conforme", Code = CallFar(SelConform, 0x0100) },
             new() { Name = "CALL FAR conforme depuis CPL3", Cpl3 = true, Code = CallFar(SelConform, 0x0100) },
             new() { Name = "CALL FAR m16:16 (FF /3)", Code = [0xFF, 0x1E, 0x00, 0x00] },
-            new() { Name = "CALL FAR par la LDT (00CB, comme Windows)", Cpl3 = true, Code = CallFar(0x00CB, 0x0100) },
+            new() { Name = "CALL FAR GDT index 25 (00CB, comme Windows)", Cpl3 = true, Code = CallFar(0x00CB, 0x0100) },
+            new() { Name = "CALL FAR par la LDT (000F)", Cpl3 = true, Code = CallFar(0x000F, 0x0100) },
             new() { Name = "CALL FAR porte d'appel même privilège", Code = CallFar(SelGate0, 0x0000) },
             new() { Name = "CALL FAR sélecteur nul -> #GP", Code = CallFar(0x0000, 0x0000) },
             new() { Name = "CALL FAR hors de la GDT -> #GP", Code = CallFar(0x0400, 0x0000) },

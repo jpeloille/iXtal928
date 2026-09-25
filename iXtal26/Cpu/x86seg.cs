@@ -360,24 +360,395 @@ internal static partial class x86seg_c
     //                  opLSL_w_a16, opLOADALL, opCLTS, et ILLEGAL
     // Le second compte confirme a l'identique ce que faaf0fb avait lu au gdb.
 
-    // LES TROIS AUTRES PORTES DU MODE PROTÉGÉ, déclarées ici et non transcrites.
+    // pcem: x86seg.c:864-1318 — LE CALL FAR DU MODE PROTÉGÉ (M20).
     //
-    // loadcscall (354 lignes vives), pmoderetf (248) et pmodeiret (300) sont
-    // appelées par A6 — CALL far, RETF, IRET — mais UNIQUEMENT quand msw & 1.
-    // En mode réel leurs appelants prennent l'autre branche, écrite sur place.
+    // Écrit parce que Windows 3.11 en mode standard l'atteint dès que DOSX passe la main
+    // à KRNL286 : `CALL FAR` vers le sélecteur 00CB de sa LDT. Vérifié par pm-check,
+    // l'état construit par LOADALL des deux côtés.
     //
-    // Elles échouent BRUYAMMENT plutôt que de rendre du silence. C'est la même
-    // décision qu'à A2.2b pour la table vide, et elle vaut pour la même raison :
-    // un RETF qui rendrait sans rien faire laisserait le cœur avancer sur du
-    // vide, et la divergence se manifesterait des milliers d'instructions plus
-    // loin. Ici, le premier passage en mode protégé nomme ce qui manque.
-    //
-    // Leur transcription est le bloc `C` du plan (PLAN-286.md) : ~1 950 lignes
-    // vives sur les 2 446 de x86seg.c.
-
+    // Deux pièges hérités du C, rendus tels quels :
+    //   - DPL est une MACRO sur la locale segdat (x86seg.c:448) : quand la porte d'appel
+    //     recharge segdat depuis le descripteur CIBLE, DPL change de sens.
+    //   - le `case` « non conforme » TOMBE dans le `case` « conforme » quand DPL == CPL
+    //     (x86seg.c:1256-1260 → :1261) : rendu par `goto case 0x1C00`.
     internal static void loadcscall(uint16_t seg, uint32_t old_pc)
-        => pc.fatal($"loadcscall (seg {seg:X4}) : x86seg.c n'est transcrit qu'en " +
-                    "mode reel (bloc C du plan)\n");
+    {
+        uint16_t seg2;
+        var segdat = new uint16_t[4];
+        var segdat2 = new uint16_t[4];
+        uint16_t newss;
+        uint32_t addr, oldssbase = ss, oaddr;
+        uint32_t newpc;
+        int count;
+        uint32_t oldss, oldsp, newsp, oldsp2;
+        int type;
+        uint16_t tempw;
+        int DPL() => (segdat[2] >> 13) & 3;
+        int DPL2() => (segdat2[2] >> 13) & 3;
+
+        // omitted: `int csout = output;` et tous les `if (csout)`/`if (output) pclog(...)`
+        //   — sorties pures.
+        if ((msw & 1) != 0 && (cpu_state.eflags & VM_FLAG) == 0)
+        {
+                if ((seg & ~3) == 0)
+                {
+                        // omitted: pclog("Trying to load CS with NULL selector! lcscall") — pure.
+                        x86gpf(null!, 0);
+                        return;
+                }
+                addr = (uint32_t)(seg & ~7);
+                if ((seg & 4) != 0)
+                {
+                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        addr += gdt.@base;
+                }
+                cpl_override = 1;
+                segdat[0] = readmemw(0, addr);
+                segdat[1] = readmemw(0, addr + 2);
+                segdat[2] = readmemw(0, addr + 4);
+                segdat[3] = readmemw(0, addr + 6);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return;
+                type = segdat[2] & 0xF00;
+                newpc = segdat[0];
+                if ((type & 0x800) != 0)
+                        newpc |= (uint32_t)(segdat[3] << 16);
+
+                if ((segdat[2] & 0x1000) != 0)
+                {
+                        if ((segdat[2] & 0x400) == 0) /*Not conforming*/
+                        {
+                                if ((seg & 3) > CPL) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                                if (CPL != DPL()) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        }
+                        if (CPL < DPL()) { x86gpf(null!, (uint16_t)(seg & ~3)); return; }
+                        if ((segdat[2] & 0x8000) == 0)
+                        {
+                                x86np("Load CS call not present", (uint16_t)(seg & 0xfffc));
+                                return;
+                        }
+                        set_use32(segdat[3] & 0x40);
+
+                        // CS_ACCESSED est defini (x86seg.c:17), donc ce bloc EST compile.
+                        cpl_override = 1;
+                        writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                        cpl_override = 0;
+
+                        /*Conforming segments don't change CPL, so preserve existing CPL*/
+                        if ((segdat[2] & 0x400) != 0)
+                        {
+                                seg = (uint16_t)((seg & ~3) | CPL);
+                                segdat[2] = (uint16_t)((segdat[2] & ~(3 << (5 + 8))) | (CPL << (5 + 8)));
+                        }
+                        else /*On non-conforming segments, set RPL = CPL*/
+                                seg = (uint16_t)((seg & ~3) | CPL);
+                        CS = seg;
+                        do_seg_load(cpu_state.seg_cs, segdat);
+                        if (CPL == 3 && oldcpl != 3)
+                                Memory.mem.flushmmucache_cr3();
+                        oldcpl = CPL;
+                        // omitted: le bloc commente x86seg.c:966-975 (use32 inline).
+                        cycles -= cpu_c.timing_call_pm;
+                }
+                else
+                {
+                        type = segdat[2] & 0xF00;
+                        switch (type)
+                        {
+                        case 0x400: /*Call gate*/
+                        case 0xC00: /*386 Call gate*/
+                                cgate32 = (type & 0x800);
+                                cgate16 = cgate32 == 0 ? 1 : 0;
+                                count = segdat[2] & 31;
+                                if ((DPL() < CPL) || (DPL() < (seg & 3)))
+                                {
+                                        x86gpf(null!, (uint16_t)(seg & ~3));
+                                        return;
+                                }
+                                if ((segdat[2] & 0x8000) == 0)
+                                {
+                                        x86np("Call gate not present\n", (uint16_t)(seg & 0xfffc));
+                                        return;
+                                }
+                                seg2 = segdat[1];
+
+                                if ((seg2 & ~3) == 0)
+                                {
+                                        // omitted: pclog("...NULL selector! lcscallcg") — pure.
+                                        x86gpf(null!, 0);
+                                        return;
+                                }
+                                addr = (uint32_t)(seg2 & ~7);
+                                if ((seg2 & 4) != 0)
+                                {
+                                        if (addr >= ldt.limit) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                        addr += ldt.@base;
+                                }
+                                else
+                                {
+                                        if (addr >= gdt.limit) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                        addr += gdt.@base;
+                                }
+                                // SEGDAT EST RECHARGE : DPL() designe desormais le code CIBLE.
+                                cpl_override = 1;
+                                segdat[0] = readmemw(0, addr);
+                                segdat[1] = readmemw(0, addr + 2);
+                                segdat[2] = readmemw(0, addr + 4);
+                                segdat[3] = readmemw(0, addr + 6);
+                                cpl_override = 0;
+                                if (cpu_state.abrt != 0)
+                                        return;
+
+                                if (DPL() > CPL) { x86gpf(null!, (uint16_t)(seg2 & ~3)); return; }
+                                if ((segdat[2] & 0x8000) == 0)
+                                {
+                                        x86np("Call gate CS not present", (uint16_t)(seg2 & 0xfffc));
+                                        return;
+                                }
+
+                                switch (segdat[2] & 0x1F00)
+                                {
+                                case 0x1800:
+                                case 0x1900:
+                                case 0x1A00:
+                                case 0x1B00: /*Non-conforming code*/
+                                        if (DPL() < CPL)
+                                        {
+                                                uint16_t oldcs = CS;
+                                                oaddr = addr;
+                                                /*Load new stack*/
+                                                oldss = SS;
+                                                oldsp = oldsp2 = ESP;
+                                                cpl_override = 1;
+                                                if ((tr.access & 8) != 0)
+                                                {
+                                                        addr = (uint32_t)(4 + tr.@base + (DPL() * 8));
+                                                        newss = readmemw(0, addr + 4);
+                                                        newsp = readmeml(0, addr);
+                                                }
+                                                else
+                                                {
+                                                        addr = (uint32_t)(2 + tr.@base + (DPL() * 4));
+                                                        newss = readmemw(0, addr + 2);
+                                                        newsp = readmemw(0, addr);
+                                                }
+                                                cpl_override = 0;
+                                                if (cpu_state.abrt != 0)
+                                                        return;
+                                                if ((newss & ~3) == 0)
+                                                {
+                                                        // omitted: pclog("Call gate loading null SS") — pure.
+                                                        x86ts(null!, (uint16_t)(newss & ~3));
+                                                        return;
+                                                }
+                                                addr = (uint32_t)(newss & ~7);
+                                                if ((newss & 4) != 0)
+                                                {
+                                                        if (addr >= ldt.limit)
+                                                        {
+                                                                x86abort($"Bigger than LDT limit {newss:X4} {addr:X8} {ldt.limit:X4} CSC SS\n");
+                                                                x86ts(null!, (uint16_t)(newss & ~3));
+                                                                return;
+                                                        }
+                                                        addr += ldt.@base;
+                                                }
+                                                else
+                                                {
+                                                        if (addr >= gdt.limit)
+                                                        {
+                                                                x86abort($"Bigger than GDT limit {newss:X4} {gdt.limit:X4} CSC\n");
+                                                                x86ts(null!, (uint16_t)(newss & ~3));
+                                                                return;
+                                                        }
+                                                        addr += gdt.@base;
+                                                }
+                                                cpl_override = 1;
+                                                segdat2[0] = readmemw(0, addr);
+                                                segdat2[1] = readmemw(0, addr + 2);
+                                                segdat2[2] = readmemw(0, addr + 4);
+                                                segdat2[3] = readmemw(0, addr + 6);
+                                                cpl_override = 0;
+                                                if (cpu_state.abrt != 0)
+                                                        return;
+                                                if (((newss & 3) != DPL()) || (DPL2() != DPL()))
+                                                {
+                                                        // omitted: pclog("Call gate loading SS with wrong permissions...") — pure.
+                                                        x86ts(null!, (uint16_t)(newss & ~3));
+                                                        return;
+                                                }
+                                                if ((segdat2[2] & 0x1A00) != 0x1200)
+                                                {
+                                                        // omitted: pclog("Call gate loading SS wrong type") — pure.
+                                                        x86ts(null!, (uint16_t)(newss & ~3));
+                                                        return;
+                                                }
+                                                if ((segdat2[2] & 0x8000) == 0)
+                                                {
+                                                        // omitted: pclog("Call gate loading SS not present") — pure.
+                                                        x86ss("Call gate loading SS not present\n", (uint16_t)(newss & 0xfffc));
+                                                        return;
+                                                }
+                                                if (stack32 == 0)
+                                                        oldsp &= 0xFFFF;
+                                                SS = newss;
+                                                set_stack32((segdat2[3] & 0x40) != 0 ? 1 : 0);
+                                                if (stack32 != 0)
+                                                        ESP = newsp;
+                                                else
+                                                        SP = (uint16_t)newsp;
+
+                                                do_seg_load(cpu_state.seg_ss, segdat2);
+
+                                                // SEL_ACCESSED est defini (x86seg.c:21), donc ce bloc EST compile.
+                                                cpl_override = 1;
+                                                writememw(0, addr + 4, (uint16_t)(segdat2[2] | 0x100)); /*Set accessed bit*/
+                                                cpl_override = 0;
+
+                                                CS = seg2;
+                                                do_seg_load(cpu_state.seg_cs, segdat);
+                                                if (CPL == 3 && oldcpl != 3)
+                                                        Memory.mem.flushmmucache_cr3();
+                                                oldcpl = CPL;
+                                                set_use32(segdat[3] & 0x40);
+                                                cpu_state.pc = newpc;
+
+                                                cpl_override = 1;
+                                                writememw(0, oaddr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                                                cpl_override = 0;
+
+                                                if (type == 0xC00)
+                                                {
+                                                        PUSHL(oldss);
+                                                        PUSHL(oldsp2);
+                                                        if (cpu_state.abrt != 0)
+                                                        {
+                                                                // omitted: pclog("ABRT PUSHL") — pure.
+                                                                SS = (uint16_t)oldss;
+                                                                ESP = oldsp2;
+                                                                CS = oldcs;
+                                                                return;
+                                                        }
+                                                        if (count != 0)
+                                                        {
+                                                                while (count != 0)
+                                                                {
+                                                                        count--;
+                                                                        PUSHL(readmeml(oldssbase, (uint32_t)(oldsp + (count * 4))));
+                                                                        if (cpu_state.abrt != 0)
+                                                                        {
+                                                                                // omitted: pclog("ABRT COPYL") — pure.
+                                                                                SS = (uint16_t)oldss;
+                                                                                ESP = oldsp2;
+                                                                                CS = oldcs;
+                                                                                return;
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                                else
+                                                {
+                                                        PUSHW((uint16_t)oldss);
+                                                        PUSHW((uint16_t)oldsp2);
+                                                        if (cpu_state.abrt != 0)
+                                                        {
+                                                                // omitted: pclog("ABRT PUSHW") — pure.
+                                                                SS = (uint16_t)oldss;
+                                                                ESP = oldsp2;
+                                                                CS = oldcs;
+                                                                return;
+                                                        }
+                                                        if (count != 0)
+                                                        {
+                                                                while (count != 0)
+                                                                {
+                                                                        count--;
+                                                                        tempw = readmemw(oldssbase,
+                                                                                         (uint32_t)((oldsp & 0xFFFF) + (count * 2)));
+                                                                        PUSHW(tempw);
+                                                                        if (cpu_state.abrt != 0)
+                                                                        {
+                                                                                // omitted: pclog("ABRT COPYW") — pure.
+                                                                                SS = (uint16_t)oldss;
+                                                                                ESP = oldsp2;
+                                                                                CS = oldcs;
+                                                                                return;
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                                cycles -= cpu_c.timing_call_pm_gate_inner;
+                                                break;
+                                        }
+                                        else if (DPL() > CPL)
+                                        {
+                                                // omitted: pclog("Call gate DPL > CPL") — pure.
+                                                x86gpf(null!, (uint16_t)(seg2 & ~3));
+                                                return;
+                                        }
+                                        // Le C tombe dans le cas conforme (x86seg.c:1261).
+                                        goto case 0x1C00;
+                                case 0x1C00:
+                                case 0x1D00:
+                                case 0x1E00:
+                                case 0x1F00: /*Conforming*/
+                                        CS = seg2;
+                                        do_seg_load(cpu_state.seg_cs, segdat);
+                                        if (CPL == 3 && oldcpl != 3)
+                                                Memory.mem.flushmmucache_cr3();
+                                        oldcpl = CPL;
+                                        set_use32(segdat[3] & 0x40);
+                                        cpu_state.pc = newpc;
+
+                                        cpl_override = 1;
+                                        writememw(0, addr + 4, (uint16_t)(segdat[2] | 0x100)); /*Set accessed bit*/
+                                        cpl_override = 0;
+                                        cycles -= cpu_c.timing_call_pm_gate;
+                                        break;
+
+                                default:
+                                        // omitted: pclog("Call gate bad segment type") — pure.
+                                        x86gpf(null!, (uint16_t)(seg2 & ~3));
+                                        return;
+                                }
+                                break;
+
+                        case 0x100: /*286 Task gate*/
+                        case 0x900: /*386 Task gate*/
+                                cpu_state.pc = old_pc;
+                                cpl_override = 1;
+                                taskswitch286(seg, segdat, segdat[2] & 0x800);
+                                cpl_override = 0;
+                                break;
+
+                        default:
+                                // omitted: pclog("Bad CALL special descriptor %03X") — pure.
+                                x86gpf(null!, (uint16_t)(seg & ~3));
+                                return;
+                        }
+                }
+        }
+        else
+        {
+                cpu_state.seg_cs.@base = (uint32_t)(seg << 4);
+                cpu_state.seg_cs.limit = 0xFFFF;
+                cpu_state.seg_cs.limit_low = 0;
+                cpu_state.seg_cs.limit_high = 0xffff;
+                CS = seg;
+                if ((cpu_state.eflags & VM_FLAG) != 0)
+                        cpu_state.seg_cs.access = (3 << 5) | 2;
+                else
+                        cpu_state.seg_cs.access = (0 << 5) | 2;
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+        }
+    }
 
     // pcem: x86seg.c:1320-1624 — LE RETF DU MODE PROTEGE.
     //
