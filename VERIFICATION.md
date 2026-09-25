@@ -3817,3 +3817,15 @@ Gestionnaire de programmes s'ouvre en 640 × 480, mode standard, sur l'ami286 (2
 
 `taskswitch286` (`x86seg.c:2393-2849`, 356 lignes) : atteint par `CALL`/`JMP` vers une
 TSS, pas transcrit — Windows 3.1 en mode standard ne l'a pas atteint.
+
+## M21 — COM1, COM2 et la souris série Microsoft
+
+`serial.c`, `mouse_serial.c` et `mouse.c` (registre réduit à la souris Microsoft,
+`mouse_type = 0`) transcrits, oracle d'abord (ABI 20, `h_mouse_poll`). Les boot-diffs
+changent de chiffres — le POST sonde COM1 et COM2 — et restent verts des deux côtés,
+sonde VGA 86/86 comprise (chiffres dans le message de `adfc7a9`). Test ciblé sous oracle,
+XT + DEBUG : BDA `0040:0000` = `03F8 02F8` ; RTS levé → LSR `61`, `3F8` rend `4D` (« M »),
+puis LSR `60` — vert, 30 450 207 instructions. Windows 3.1 réinstallé sur une copie du
+disque de Julien (ami286, Trident 8900D) : SETUP détecte la souris, le curseur apparaît
+dans le Gestionnaire de programmes. Le déplacement réel ne se vérifie qu'à la main, dans
+la fenêtre : un clic capture la souris, Ctrl+Fin la libère.
