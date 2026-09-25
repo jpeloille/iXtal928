@@ -3609,3 +3609,125 @@ l'octet `0x0F` du CMOS et un reset du 8042 : le territoire du 104 non résolu, a
 Un amorçage a lu `0x10 = 0x22` alors que `--make-nvr` venait d'écrire `0x42` dans le même
 enchaînement de commandes. Deux reproductions ultérieures, avec et sans frappe, ont rendu
 `0x42` à l'aller comme au retour. **La cause n'est pas connue et n'est pas inventée ici.**
+
+## M19 — Les deux Trident, 9000B puis 8900D, sous oracle sur le 5150 et le XT
+
+`vid_tvga.c` (417 lignes) et `vid_tkd8001_ramdac.c` (62) transcrits en entier ; la 9000B
+enregistrée d'abord, la 8900D une fois ses rendus 15/16/24 bpp écrits. Branche `m19-tvga`,
+worktree dédié. Portes réduites par étape (boot-diffs et sonde) à la demande de Julien ;
+SST et fuzz au dernier commit.
+
+### Étape 1 : la temporisation par carte
+
+La branche `video_speed == -1` de `video_updatetiming` (`video.c:599-735`) est celle que
+PCem prend réellement (`pc.c:665`). Transcrite des deux côtés, elle ne change **rien** pour
+la CGA et la VGA — prédit et mesuré à l'unité sur les dix boot-diffs de référence. Pour
+les Trident, lu sur l'oracle à l'étape 2 : bus 8 bits, 8900D lecture 8/8/12 écriture 3/3/6,
+9000B 7/7/12 ; bus 16 bits (`ibmat`), `_l = 2 × _w`. Le C# rend les mêmes (empreinte CPU
+confrontée, « vidéo 7/7/12 »).
+
+### Étape 2 : l'oracle d'abord — les BIOS tournent sur un 8088
+
+`vga-probe --gfxcard`, oracle seul, 6 000 tranches, sur `ibmpc` et `ibmxt` :
+
+| Carte | INT 10h en fin de course | Mode posé | Invite |
+|---|---|---|---|
+| 9000B (`D3.0`, 11/12/91) | C000:14C8 | 3, hdisp 720, 449 lignes | BASIC `Ok` |
+| 8900D (`C4.3`, 07/12/93) | C000:1398 | 3, hdisp 720, 449 lignes | BASIC `Ok` |
+
+Les deux points d'entrée sont ceux lus dans les ROM avant tout amorçage : la ROM a tourné
+et rendu la main. Aucun opcode 186+ sur les chemins d'init et d'INT 10h (désassemblage
+récursif), confirmé par l'exécution. `video_is_ega_vga` de l'oracle lit désormais les
+drapeaux de la carte : `gfxcard == GFX_VGA` aurait fait diverger le PPI du XT avant la
+première instruction.
+
+### Étapes 3 et 7 : les boot-diffs des deux cartes, verts du premier coup
+
+| Machine | 9000B | 8900D |
+|---|---:|---:|
+| 5150, ROM BASIC | 25 252 602 | 25 261 150 |
+| 5150, PC DOS 2.00 | 26 914 975 | 26 920 563 |
+| XT, ROM BASIC | 23 330 506 | 23 346 138 |
+| XT, PC DOS 2.00 | 22 411 492 | 22 419 149 |
+
+Sonde 86/86 partout (64 champs de M15, onze génériques — banques, `bpp`, masques,
+`rowoffset`, `ma_latch`, entrelacé, `clock` en bits —, onze de la `tvga_t` et du RAMDAC).
+Les dix nombres de référence (CGA et VGA) inchangés à chaque étape.
+
+### Étape 4 : la campagne DEBUG de la 9000B, et le défaut qu'elle a trouvé HORS de la Trident
+
+201 lignes tapées sous DEBUG (XT, PC DOS 2.00, B: = `pcdos20s.img`) : pokes directs en mode
+texte (SR0B lu et écrit, GDC0F, 3D8/3D9 ouverts et fermés, SR0E et GDC0E en new mode,
+SR0D/SR0E/SR0C en old mode, 3DB), puis un programme en 100 lancé pour douze modes
+(`r ax` avant chaque `g`) : 5Dh, 5Ch, 5Eh, 62h, 5Bh, 5Fh, 50h, 53h, 55h, 57h, 5Ah, 3. Il
+remplit chaque banque par SR0E, copie une banque dans une autre banques séparées, passe
+GDC6 à la carte 0, pose l'entrelacé, puis oldctrl2 bit 4 et un recalcul provoqué par CR13.
+Aucune paire index/donnée n'est tapée en mode graphique ; aucun caractère non mappé.
+
+**Premier passage : rouge à l'instruction 229 190 925**, rejoué SEUL au même indice. La
+phase 2 ne rejoue pas `--type` et rendait « les états concordent » — inutilisable. D'où
+`boot-diff --lockstep N` : les deux côtés au pas commun, tranche par tranche, frappe
+comprise, état CPU à chaque tranche, sonde VGA toutes les N. Il a nommé l'écart :
+
+```
+PREMIER ÉCART en fin de tranche 87160, pendant la ligne tapée 174 « g » (mode 50h)
+  CPU : cycles : oracle -327686, C# -786436
+```
+
+14 cycles de plus par mot écrit côté C# dans le `rep stosw` vers A000, en mode texte :
+deux octets à 7 cycles, la temporisation de la carte. **La cause est dans `Memory/mem.cs`,
+pas dans la Trident** : `mem_mapping_set_addr` omettait `mapping->enable = 0` avant de
+recalculer l'ancienne plage, et `= 1` avant la nouvelle (`mem.c:1194`, `:1198`). Sans eux,
+le recalcul de l'ANCIENNE plage retrouvait la carte encore active et la re-mappait : après
+un passage de 128 Ko en A0000 à 32 Ko en B8000, A0000-B7FFF restait routé vers la SVGA côté
+C#, sans mappage côté PCem. Présent depuis M2 (`62ae24f`), invisible tant qu'aucune
+campagne n'écrivait en A000 après un retour en mode texte. Corrigé : **258 890 009
+instructions identiques, sonde 86/86, 68 137 trames**, et les dix boot-diffs de référence
+ainsi que les huit Trident inchangés.
+
+### Étape 7 : la campagne de la 8900D
+
+La même, étendue à 271 lignes : six modes hi-color du BIOS (74h, 75h, 76h, 6Bh, 6Ch, 7Eh),
+puis le TKD8001 piloté à la main — quatre lectures de 3C6 sans toucher 3C7-3C9, écriture de
+E0, A0 puis C0 (16, 15, 24 bpp) sur le mode 5Dh, et un recalcul provoqué par CR13, sans
+lequel le rendu ne change pas. **Verte du premier coup : 339 586 475 instructions, sonde
+86/86, 154 069 trames**, empreinte « vidéo 8/8/12 » (lecture) des deux côtés.
+
+### Les injections de panne (copies jetables, oracle intact)
+
+Campagne courte sous DEBUG, sans relecture des registres touchés :
+
+| Faute plantée | Diff d'instructions | Sonde |
+|---|---|---|
+| (témoin, 9000B) | vert, 35 912 517 | 86/86 |
+| F1 — GDC0E perd le bit 3 de `tvga_3d9` | vert | **rouge** : `read_bank`, `tvga.3d9` |
+| F2 — `read_bank` suit toujours `write_bank` | rouge à 33 446 278 | — |
+| F3 — `oldctrl2` jamais stocké en old mode | rouge à 1 161 740 (POST) | — |
+| F4 — fréquence de clksel 2 fausse (44,0 au lieu de 44,9 MHz) | vert | **rouge** : `clock(bits)` et 14 champs de balayage |
+| F5 — le TKD8001 ne compte plus les lectures de 3C6 (8900D) | rouge à 1 174 898 (POST) | — |
+
+F4 n'était pas vu au premier essai : en mode 3, clksel vaut 1, qui n'a pas de cas dans la
+table de la Trident. Un `o 3c2 6b` (clksel 2) l'a rendu observable.
+
+### La couverture, comptée (copie jetable, C# seul, même campagne)
+
+| | 9000B | 8900D |
+|---|---|---|
+| banques d'écriture | 0 à 7 | 0 à 15 |
+| lecture séparée de l'écriture | w1/r3, w0/r5, w7/r3… | w15/r3, w15/r0… |
+| `banked_mask` 0x1ffff | 12 | 21 |
+| entrelacé / oldctrl2 bit 4 | 33 / 27 | 61 / 379 |
+| clksel atteints | 0-7, C, E | 0-7, C, E, F |
+| 3DB écrit | 1 | 25 (par le BIOS) |
+| TKD8001 : bpp 15 / 24 / 16 | — | 4 / 4 / 4 |
+| rendus | text_80, blank, 4bpp_highres, 8bpp_lowres, 8bpp_highres | + 15bpp_lowres/highres, 16bpp_highres, 24bpp_lowres/highres |
+
+**Jamais atteints** : `16bpp_lowres` (le chemin de PB-38), `2bpp_*`, `32bpp_*`, le chemin
+`fast`, le curseur matériel.
+
+### Ce que la campagne a montré de PCem
+
+`high_res_256` se déclenche en mode texte sur la 9000B : 33 recalculs avec le rendu
+`text_80` actif, que `tvga_recalctimings` remplace alors par `svga_render_8bpp_highres`
+(`vid_tvga.c:320-330`, sans garde de mode graphique). Transcrit tel quel ; non encore
+inscrit au registre des défauts faute d'avoir regardé l'écran produit.

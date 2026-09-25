@@ -1179,7 +1179,8 @@ static void PrintUsage()
     Console.WriteLine("                       drive_b_type, disc_a, disc_b, bpb_disable");
     Console.WriteLine("  --model NOM          machine : ibmpc (IBM PC 5150) ou ibmxt (IBM XT 5160).");
     Console.WriteLine("                       Un nom inconnu est refusé en citant ce qui existe");
-    Console.WriteLine("  --gfxcard NOM        carte vidéo : cga (défaut) ou vga (ROM ibm_vga.bin). Même");
+    Console.WriteLine("  --gfxcard NOM        carte vidéo : cga (défaut), vga (ROM ibm_vga.bin), tvga8900d");
+    Console.WriteLine("                       (trident.bin, 1 Mo) ou tvga9000b (tvga9000b/BIOS.BIN). Même");
     Console.WriteLine("                       précédence que --model : l'emporte sur la clé gfxcard");
     Console.WriteLine("  --cpu N              processeur : l'INDICE dans la table de la machine, appliqué");
     Console.WriteLine("                       après --model. ibmpc/ibmxt : 0 = 8088/4.77 … 5 = 8088/16 ;");

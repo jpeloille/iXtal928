@@ -123,6 +123,11 @@ RAM : **32 Ko par pas sur le 5150, 64 sur le XT**. `mem_size = 96` est donc acce
 l'un et refusé sur l'autre. Les deux amorcent la ROM BASIC et PC DOS 2.00 ; les deux sont
 vertes au diff contre le C de PCem (`../VERIFICATION.md` § M10).
 
+Quatre cartes vidéo, par `--gfxcard` ou la clé `gfxcard` : `cga` (le défaut), `vga` (VGA
+d'IBM, `ibm_vga.bin`), `tvga9000b` (Trident 9000B, 512 Ko, `tvga9000b/BIOS.BIN`) et
+`tvga8900d` (Trident 8900D, 1 Mo, `trident.bin`, jusqu'à 24 bits par pixel). Toutes sont
+vertes au diff contre PCem sur le 5150 et le XT (`../VERIFICATION.md` § M15 et § M19).
+
 Format `.cfg` de PCem : `clé = valeur`, sections `[entre crochets]`, `#` en commentaire.
 
 ```ini

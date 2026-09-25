@@ -983,7 +983,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des douze contrôles sont des non-régressions nées d'une relecture : la
+    /// Deux des quatorze contrôles sont des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -1057,6 +1057,20 @@ internal sealed class SdlSetup
         }
         Check("la choisir pose gfxcard = GFX_TVGA9000B", pc.gfxcard == pc.GFX_TVGA9000B,
               $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
+        st._screen = Screen.Main;
+
+        // M19 — la Trident 8900D, trident.bin à la racine des ROM.
+        st.Activate(Item.Video);
+        int tvga8900d = Array.IndexOf(st._pickValues, "tvga8900d");
+        Check("la Trident 8900D est proposée quand trident.bin est là", tvga8900d >= 0,
+              $"{st._pickLabels.Length} carte(s) : {string.Join(",", st._pickValues)}");
+        if (tvga8900d >= 0)
+        {
+            st._pickIndex = tvga8900d;
+            st.ApplyPick();
+        }
+        Check("la choisir pose gfxcard = GFX_TVGA", pc.gfxcard == pc.GFX_TVGA,
+              $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
         pc.gfxcard = gfxBefore;
         st._screen = Screen.Main;
 
@@ -1089,7 +1103,7 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les douze contrôles passent."
+            ? "Vert : les quatorze contrôles passent."
             : $"{fail} contrôle(s) en échec.");
 
         return fail == 0 ? 0 : 1;
