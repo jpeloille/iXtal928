@@ -418,7 +418,7 @@ void video_blit_memtoscreen(int x, int y, int y1, int y2, int w, int h) {
 void video_wait_for_buffer(void) { }
 void updatewindowsize(int x, int y) { (void)x; (void)y; }
 
-/* video.c:594-596 et 727-752 — RÉELLE depuis la VGA, et c'était le piège du jalon.
+/* video.c:594-596 et 598-749 — RÉELLE depuis la VGA, et c'était le piège du jalon.
  *
  * Tant que seule la CGA était liée, ce stub pouvait rester vide : vid_cga.c ne lit
  * aucune des six globales video_timing_*. vid_svga.c les facture à CHAQUE accès —
@@ -427,21 +427,70 @@ void updatewindowsize(int x, int y) { (void)x; (void)y; }
  * en VRAM aurait coûté 8 cycles d'un côté et 0 de l'autre : une dérive de tsc sans un
  * registre de différence, exactement la panne que l'en-tête de ce fichier décrit.
  *
- * Réduite comme video.cs:158-186 la réduit : la branche `video_speed == -1`
- * (video.c:599-726) traverse le registre VIDEO_CARD. Pour la CGA comme pour la VGA,
- * la table de la carte vaut {VIDEO_ISA, 8, 16, 32} (video.c:96, :191), et aucun des
- * quatre romsets du dépôt n'a de cas dans le switch — donc la ligne 0 de la table
- * donne les mêmes nombres. Pendant exact de video.cs, pas de video.c. */
+ * Depuis M19, la branche `video_speed == -1` est là, comme dans video.cs : c'est
+ * celle que PCem prend, pc.c:665 posant -1 quand la clé est absente. Elle lit la
+ * table de la CARTE, et les Trident n'ont pas celle de la ligne 0. video.c n'étant
+ * pas lié (90 symboles de cartes), le registre est réduit à h_video_cards[], recopié
+ * des entrées de video.c pour les cartes que video.cs enregistre. Le switch (romset)
+ * (video.c:607-718) n'a de cas pour aucun des quatre romsets du dépôt. */
 enum { VIDEO_ISA = 0, VIDEO_BUS }; /* video.c:62 — local à video.c, pas d'en-tête */
-int video_speed = 0;
+/* DEVIATION de l'oracle : 0 chez PCem (video.c:594), mais loadconfig() l'écrase
+ * toujours par la clé, défaut -1 (pc.c:665) ; l'oracle n'a pas de loadconfig. */
+int video_speed = -1;
 int video_timing[7][4] = {{VIDEO_ISA, 8, 16, 32}, {VIDEO_ISA, 6, 8, 16}, {VIDEO_ISA, 3, 3, 6},
                           {VIDEO_BUS, 4, 8, 16},  {VIDEO_BUS, 4, 5, 10}, {VIDEO_BUS, 3, 3, 4}};
 int video_timing_read_b, video_timing_read_w, video_timing_read_l;
 int video_timing_write_b, video_timing_write_w, video_timing_write_l;
 extern float bus_timing;
 
+/* video.c:64-67 — locales à video.c, pas d'en-tête. */
+#define VIDEO_FLAG_TYPE_CGA 0
+#define VIDEO_FLAG_TYPE_MDA 1
+#define VIDEO_FLAG_TYPE_SPECIAL 2
+#define VIDEO_FLAG_TYPE_MASK 3
+
+/* video.c:96, :177-181, :191 — legacy_id, drapeaux et table de chaque carte. */
+typedef struct h_video_card_t {
+        int legacy_id;
+        int flags;
+        video_timings_t timing;
+} h_video_card_t;
+static const h_video_card_t h_video_cards[] = {
+        {GFX_CGA, VIDEO_FLAG_TYPE_CGA, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
+        {GFX_TVGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 3, 3, 6, 8, 8, 12}},
+        {GFX_TVGA9000B, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 7, 7, 12, 7, 7, 12}},
+        {GFX_VGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
+};
+static const h_video_card_t *h_video_card(int card) {
+        for (unsigned c = 0; c < sizeof(h_video_cards) / sizeof(h_video_cards[0]); c++)
+                if (h_video_cards[c].legacy_id == card)
+                        return &h_video_cards[c];
+        fatal("h_video_card : gfxcard %i absente de h_video_cards[]\n", card);
+        return NULL;
+}
+
 void video_updatetiming(void) {
-        if (video_timing[video_speed][0] == VIDEO_ISA) {
+        if (video_speed == -1) {
+                const video_timings_t *timing;
+
+                timing = &h_video_card(gfxcard)->timing;
+
+                if (timing->type == VIDEO_ISA) {
+                        video_timing_read_b = ISA_CYCLES(timing->read_b);
+                        video_timing_read_w = ISA_CYCLES(timing->read_w);
+                        video_timing_read_l = ISA_CYCLES(timing->read_l);
+                        video_timing_write_b = ISA_CYCLES(timing->write_b);
+                        video_timing_write_w = ISA_CYCLES(timing->write_w);
+                        video_timing_write_l = ISA_CYCLES(timing->write_l);
+                } else {
+                        video_timing_read_b = (int)(bus_timing * timing->read_b);
+                        video_timing_read_w = (int)(bus_timing * timing->read_w);
+                        video_timing_read_l = (int)(bus_timing * timing->read_l);
+                        video_timing_write_b = (int)(bus_timing * timing->write_b);
+                        video_timing_write_w = (int)(bus_timing * timing->write_w);
+                        video_timing_write_l = (int)(bus_timing * timing->write_l);
+                }
+        } else if (video_timing[video_speed][0] == VIDEO_ISA) {
                 video_timing_read_b = ISA_CYCLES(video_timing[video_speed][1]);
                 video_timing_read_w = ISA_CYCLES(video_timing[video_speed][2]);
                 video_timing_read_l = ISA_CYCLES(video_timing[video_speed][3]);

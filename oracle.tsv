@@ -23,7 +23,7 @@ iXtal26/Cpu/x86seg.cs	pcem-dev/src/cpu/x86seg.c	b03f578455a8ecb4e61ffaf533401b5b
 iXtal26/Devices/nvr.cs	pcem-dev/src/devices/nvr.c	b969db50e5fe43c81408802ed677626335306780ea0722774c80740ed32187bd	18-783	partial	B1a + nvrfopen, loadnvr et savenvr REELS, reduits aux deux machines a 286 ; les trente autres cas du switch au registre
 iXtal26/rtc.cs	pcem-dev/src/rtc.c	8ded99fe0d6dee1e10448927f189fa53fa2df739a5321fe76ac550e371970a7c	17-222	partial	B1 : l'horloge interne du MC146818 ; time_internal_sync lit l'horloge de l'hote
 iXtal26/Devices/cassette.cs	pcem-dev/src/devices/cassette.c	c6fff8e080086c90d9193b802ce5c026d093605aeaa9609a2c37ccf130cddc99	-	partial	interface seule
-iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	4aee00990383e4add1500292579fa2a780134901061d3cdefd57920bcdf98e2d	-	host	compteurs d'appels des stubs
+iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	01141d47d088eae8bcd8d468fa3ed94339bc5e40298e6cd2083224bc2be5375e	-	host	compteurs d'appels des stubs
 iXtal26/Diag/HState.cs	tools/oracle/harness.h	04c454026866e5298ca294c97d55edf8f1b0cfdde4cc6b5275e4a262870126fc	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
 iXtal26/Disc/disc.cs	pcem-dev/src/disc/disc.c	444b2958bdf57de9c513ebb801462d6d0dbeb78835376407b9436e20d26f37b0	1-269	partial	M6 : chargeur FDI omis de la table loaders[]
 iXtal26/Disc/disc_img.cs	pcem-dev/src/disc/disc_img.c	261ef2ed0fac464a51747d80df093f750bad3c986732493b202c5fd761f31592	1-439	transcribed	M6 : stdio en FileStream, tableaux XDF en escalier

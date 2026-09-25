@@ -176,7 +176,11 @@ internal static partial class video
     // pcem: video.c:594-596 — la septième ligne n'est pas initialisée en C ; C#
     // exige un initialiseur complet pour un tableau multidimensionnel, et le
     // zero-fill implicite du C est donc écrit.
-    internal static int video_speed = 0;
+    // DEVIATION: `video_speed = 0` chez PCem (video.c:594), mais loadconfig() l'écrase
+    //   TOUJOURS par la clé, défaut -1 (pc.c:665). Trois des quatre appelants d'initpc
+    //   ne lisent aucun fichier (pc.cs, cfg_mem_size) : l'initialiseur porte donc la
+    //   valeur avec laquelle PCem tourne réellement, comme gfxcard porte la CGA.
+    internal static int video_speed = -1;
     internal static readonly int[,] video_timing = new int[7, 4] { { VIDEO_ISA, 8, 16, 32 }, { VIDEO_ISA, 6, 8, 16 }, { VIDEO_ISA, 3, 3, 6 },
                                                                   { VIDEO_BUS, 4, 8, 16 },  { VIDEO_BUS, 4, 5, 10 }, { VIDEO_BUS, 3, 3, 4 },
                                                                   { 0, 0, 0, 0 } };
@@ -188,14 +192,39 @@ internal static partial class video
     // pcem: video.c:598-749
     internal static void video_updatetiming()
     {
-        // omitted: la branche `video_speed == -1` (video.c:599-726) — elle lit
-        //   video_cards[video_old_to_new(gfxcard)]->timing puis substitue une table
-        //   par romset (timing_dram, timing_pc1512, timing_vga, timing_t3100e…).
-        //   video_speed vaut 0 (video.c:594) : la clé de configuration qui le met à
-        //   -1 (pc.c:665) n'est pas lue. Et pour les deux cartes du registre, sur les
-        //   quatre romsets du dépôt, les deux branches rendent les MÊMES nombres —
-        //   v_cga et v_vga portent {VIDEO_ISA, 8, 16, 32}, la ligne 0 de la table.
-        if (video_timing[video_speed, 0] == VIDEO_ISA)
+        if (video_speed == -1)
+        {
+                video_timings_t timing;
+                int new_gfxcard = 0;
+
+                new_gfxcard = video_old_to_new(pc.gfxcard);
+                timing = video_cards[new_gfxcard].timing;
+
+                // omitted: le switch (romset) (video.c:607-718) — des tables de
+                //   remplacement (timing_dram, timing_pc1512, timing_vga…) pour des
+                //   machines à vidéo intégrée. Branches NON prises : aucun des quatre
+                //   romsets du dépôt n'y a d'étiquette.
+
+                if (timing.type == VIDEO_ISA)
+                {
+                        video_timing_read_b = ISA_CYCLES(timing.read_b);
+                        video_timing_read_w = ISA_CYCLES(timing.read_w);
+                        video_timing_read_l = ISA_CYCLES(timing.read_l);
+                        video_timing_write_b = ISA_CYCLES(timing.write_b);
+                        video_timing_write_w = ISA_CYCLES(timing.write_w);
+                        video_timing_write_l = ISA_CYCLES(timing.write_l);
+                }
+                else
+                {
+                        video_timing_read_b = (int)(pit.bus_timing * timing.read_b);
+                        video_timing_read_w = (int)(pit.bus_timing * timing.read_w);
+                        video_timing_read_l = (int)(pit.bus_timing * timing.read_l);
+                        video_timing_write_b = (int)(pit.bus_timing * timing.write_b);
+                        video_timing_write_w = (int)(pit.bus_timing * timing.write_w);
+                        video_timing_write_l = (int)(pit.bus_timing * timing.write_l);
+                }
+        }
+        else if (video_timing[video_speed, 0] == VIDEO_ISA)
         {
                 video_timing_read_b = ISA_CYCLES(video_timing[video_speed, 1]);
                 video_timing_read_w = ISA_CYCLES(video_timing[video_speed, 2]);

@@ -308,6 +308,8 @@ internal static partial class pc
         // donc la CGA.
         if (!setgfxcard(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "gfxcard", "")))
                 return false;
+        // pcem: pc.c:665
+        Video.video.video_speed = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "video_speed", -1);
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
         // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
