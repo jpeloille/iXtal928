@@ -3742,3 +3742,54 @@ identique. Puis la même machine avec `--gfxcard tvga9000b` et `tvga8900d` : mê
 configuration AMI (« Display Type : VGA or EGA »), même `C:\>`, CMOS inchangé — l'octet
 d'affichage reste `00`, la ROM étant en C000. Aucun `nvr` à régénérer. La fenêtre à
 2 048 lignes (étape 5) n'a pas été regardée : c'est à Julien de le faire.
+
+## M20 — Le mode protégé du 286 pour Windows 3.11 en mode standard
+
+L'installation de Windows 3.11 sur l'ami286 de Julien s'arrêtait à la 3e disquette, quand
+SETUP quitte DOS pour lancer Windows en mode standard (DOSX, KRNL286) :
+`fatal: loadcscall (seg 00CB)`. Le bloc C avait laissé en `fatal()` ce que le POST et DOS
+n'atteignaient pas.
+
+### L'oracle : `pm-check`, l'état de mode protégé construit par LOADALL
+
+L'ami286 n'a pas de boot-diff et le fuzzeur ne part qu'en mode réel ; mais l'oracle lie
+`x86seg.c` en entier. `pm-check` écrit les mêmes tables des deux côtés (GDT de 26 entrées,
+LDT, IDT de 32 portes, deux TSS 286, piles), entre en mode protégé par `LOADALL` (0F 05)
+depuis la table en 0x800, puis exécute pas à pas : LOADALL, l'instruction testée, trois
+NOP. Après chaque pas : état complet, journal d'écritures, hachage de la RAM entière.
+**Un processus par cas** : ni `h_reset`, ni `Reset286`, ni `LOADALL` ne remettent tout —
+mesuré, un CS de limite 0xFF chargé par un cas restait dans `limit_raw` des suivants côté
+oracle, et un `fatal()` au milieu de `CALL_FAR_w` laissait `optype = CALL` côté C#.
+
+| Étape | Commit | pm-check (58 cas) |
+|---|---|---|
+| 0 — le banc, avant tout C# | `6d4c01f` | 13 verts (le bloc C, rétroactivement), 0 rouge, 44 arrêts nommés |
+| 1 — `loadcscall` (`x86seg.c:864-1318`) | `3790167` | 34 verts, 0 rouge |
+| 2 — `LAR`, `LSL` (`x86_ops_pmode.h:56-172`) | `2fe4d08` | 54 verts, 0 rouge |
+| 3 — double faute (`386.c:206-216`) | `3642778` | 56 verts, 0 rouge, 2 arrêts (`taskswitch286`) |
+
+Les cas `loadcscall`, tous verts du premier coup : même privilège, conforme depuis CPL0 et
+CPL3, `FF /3`, GDT index 25 (le `00CB` de Windows : TI = 0, donc la GDT — le banc l'avait
+d'abord cru dans la LDT et rendait un #GP, juste, des deux côtés), LDT, porte d'appel même
+privilège, porte CPL3 → CPL0 avec bascule de pile par la TSS et copie de 0, 1, 5 et 31
+paramètres, #GP (nul, hors GDT, données, DPL, limite), #NP, #TS.
+
+### Ce que PCem fait, et que le banc montre sans le juger
+
+Identique des deux côtés, donc transcrit, mais pas le 286 réel :
+- un `CALL FAR` vers un segment de DONNÉES le charge comme CS (`0060:0004`) ;
+- un `CALL FAR` vers une vraie porte de tâche (type 5) rend #GP : `loadcscall` ne traite
+  comme tâche que les types 1 et 9 — ceux d'un TSS ;
+- ni la limite du segment de code ni celle de la nouvelle pile ne sont vérifiées à l'appel ;
+- une faute depuis CPL3 vers une porte DPL0 est livrée sans bascule de pile, CS = `000B` ;
+- `LAR`/`LSL` sur sélecteur nul rendent avant `CLOCK_CYCLES` : coût nul, le pas avale
+  l'instruction suivante.
+
+### Ce qui reste
+
+`taskswitch286` (`x86seg.c:2393-2849`, 356 lignes) : atteint par `CALL`/`JMP` vers une
+TSS, pas transcrit — le plan ne le fait que si Windows l'atteint. L'essai de Windows lui-
+même est côté C# seul et demande de changer de disquette en cours de SETUP, ce que `--boot`
+ne sait pas faire : il revient à Julien, dans la fenêtre. Sur une copie de son disque, la
+phase DOS de SETUP a laissé `C:\WINDOWS` (SETUP, SYSTEM, son état `W8D4OP2T.A4G`) mais pas
+encore `WIN.COM`.
