@@ -747,11 +747,13 @@ lecture, donc sans effet sur les adresses.
 *Effet* : en 24 bpp basse résolution, seuls les huit premiers pixels de chaque ligne
 changent, et ils portent le DERNIER groupe de la ligne ; le reste du tampon garde l'image
 précédente.
-*Atteint* : par la Trident 8900D seulement — son RAMDAC TKD8001 pose `bpp = 24`
-(`vid_tkd8001_ramdac.c:26-28`), et `svga_recalctimings` choisit le rendu basse résolution
-quand le bit 6 d'AR10 est posé (`vid_svga.c:341`, `:403-407`), sauf si `tvga_recalctimings` force la
-haute résolution. VERIFICATION.md § M19.
-*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-37`.
+*Atteint* : oui, et compté — 368 908 appels dans la campagne de la 8900D (VERIFICATION.md
+§ M19), où le RAMDAC TKD8001 pose `bpp = 24` (`vid_tkd8001_ramdac.c:26-28`) et où
+`svga_recalctimings` choisit le rendu basse résolution quand le bit 6 d'AR10 est posé
+(`vid_svga.c:341`, `:403-407`).
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-37`. Confronté
+à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
+hachage de `buffer32` porte les pixels que ce rendu écrit.
 
 ### PB-38 — `svga_render_16bpp_lowres` avance `ma` deux fois
 
@@ -773,11 +775,13 @@ départ de la ligne suivante quand le rendu n'est pas rappelé sur une ligne ré
 compteur de ligne du CRTC (`svga_poll`, `vid_svga.c:564-578`) le recharge depuis `maback` à chaque ligne
 affichée, ce qui borne l'effet.
 
-*Effet* : invisible tant que `svga_poll` recharge `ma` depuis `maback` avant chaque ligne ;
-un `ma` doublé ne sert qu'au test `changedvram` de l'appel suivant sur la même ligne.
-*Atteint* : Trident 8900D, `bpp = 16` par le TKD8001, rendu basse résolution. VERIFICATION.md
-§ M19.
-*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-38`.
+*Effet* (déduit à la lecture, non mesuré) : invisible tant que `svga_poll` recharge `ma`
+depuis `maback` avant chaque ligne ; un `ma` doublé ne servirait qu'au test `changedvram`
+d'un appel suivant sur la même ligne.
+*Atteint* : **non** par la campagne de § M19 — `16bpp_lowres` y est le seul des six rendus
+neufs à zéro passage. Il faudrait `bpp = 16` (TKD8001 de la 8900D) avec le bit 6 d'AR10.
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-38` — reproduction
+PAS ENCORE confrontée à l'oracle.
 
 ---
 

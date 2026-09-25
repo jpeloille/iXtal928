@@ -3731,3 +3731,14 @@ table de la Trident. Un `o 3c2 6b` (clksel 2) l'a rendu observable.
 `text_80` actif, que `tvga_recalctimings` remplace alors par `svga_render_8bpp_highres`
 (`vid_tvga.c:320-330`, sans garde de mode graphique). Transcrit tel quel ; non encore
 inscrit au registre des défauts faute d'avoir regardé l'écran produit.
+
+### Le 286, en `--boot` seulement (C# seul, répertoire jetable)
+
+Le correctif de `mem_mapping_set_addr` touche toute machine SVGA, y compris l'ami286 que rien
+ne diffe. `ixtal26-286.cfg` tel que Julien l'a (`cpu = 4`, VGA, 4 Mo, disque type 46),
+copies du CMOS et du disque dans `/tmp`, binaire de l'étape 7, 20 000 tranches : POST sans
+plainte, HIMEM installé, `C:\>`. Deux amorçages : `0x0E = 00`, région `0x10-0x3F`
+identique. Puis la même machine avec `--gfxcard tvga9000b` et `tvga8900d` : même écran de
+configuration AMI (« Display Type : VGA or EGA »), même `C:\>`, CMOS inchangé — l'octet
+d'affichage reste `00`, la ROM étant en C000. Aucun `nvr` à régénérer. La fenêtre à
+2 048 lignes (étape 5) n'a pas été regardée : c'est à Julien de le faire.

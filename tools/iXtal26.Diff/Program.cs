@@ -25,6 +25,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
     Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b] [--cpu N]");
+    Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -43,6 +44,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      clé `model` de --config. Les images montées par le FICHIER comptent");
     Console.WriteLine("      autant que --fda/--fdb : les clés disc_a, disc_b et hdc_fn sont");
     Console.WriteLine("      copiées par côté, puis comparées, comme les options.");
+    Console.WriteLine("      --lockstep N : diagnostic. Les deux côtés avancent ENSEMBLE, tranche par");
+    Console.WriteLine("      tranche, frappe comprise ; état CPU comparé à chaque tranche, sonde VGA");
+    Console.WriteLine("      toutes les N (et à chaque tranche dès --lockstep-from S). Nomme le premier");
+    Console.WriteLine("      écart et la ligne tapée en cours — la phase 2 ne rejoue pas --type.");
     Console.WriteLine();
     Console.WriteLine("  config-check");
     Console.WriteLine("      Aller-retour du moteur de configuration : on écrit un fichier");
