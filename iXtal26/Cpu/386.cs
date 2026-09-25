@@ -330,9 +330,24 @@ internal static partial class _386
                                 x86_doabrt(tempi);
                                 if (cpu_state.abrt != 0)
                                 {
+                                        // pcem: 386.c:206-216 — LA DOUBLE FAUTE, M20. C'était un
+                                        //   fatal() sans marqueur ; PCem livre #DF par pmodeint(8, 0),
+                                        //   et une faute de plus est la triple faute : reset.
                                         cpu_state.abrt = 0;
                                         cpu_state.pc = cpu_state.oldpc;
-                                        pc.fatal($"Double fault {_808x.ins}\n");
+                                        // omitted: pclog("Double fault %i\n", ins) — sortie pure.
+                                        x86seg_c.pmodeint(8, 0);
+                                        if (cpu_state.abrt != 0)
+                                        {
+                                                cpu_state.abrt = 0;
+                                                _808x.softresetx86();
+                                                // DEVIATION: cpu_set_edx() (386.c:214) non appelé, et
+                                                //   l'oracle l'enveloppe à vide (__wrap_cpu_set_edx,
+                                                //   harness_stubs.c). Même arbitrage que les deux autres
+                                                //   resets, x86seg.cs (triple faute de pmodeint) et
+                                                //   keyboard_at.cs : DX garde sa valeur, des deux côtés.
+                                                // omitted: pclog("Triple fault - reset\n") — sortie pure.
+                                        }
                                 }
                         }
 
