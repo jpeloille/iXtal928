@@ -90,6 +90,10 @@ commenté en français. `TreatWarningsAsErrors` est plein partout ; sur les fich
 transcrits, les avertissements du compilateur se neutralisent par `#pragma warning
 disable` **énumérés et commentés**, jamais en bloc.
 
+Exception : `Program.cs` et `Host/CommandLine/` n'ont aucun commentaire hors de leur
+en-tête. Leurs noms disent ce que fait le code, et le pourquoi est dans
+`iXtal26/Docs/ligne-de-commande.md`.
+
 ---
 
 ## Conventions de transcription

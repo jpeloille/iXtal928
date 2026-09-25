@@ -118,3 +118,22 @@ iXtal26/Mouse/mouse_serial.cs	pcem-dev/src/mouse/mouse_serial.c	a3bd0f05ddc669d6
 iXtal26/Mouse/mouse.cs	pcem-dev/src/mouse/mouse.c	52cdd3021053b91fe047df42d80f24aa62435d09fdc13a31de673c3f387c351e	1-42	partial	M21 : mouse_list reduit a la souris serie Microsoft ; cote hote de wx-sdl2-mouse.c (mickeys, boutons)
 iXtal26/Mouse/mouse.cs	pcem-dev/includes/private/mouse/mouse.h	6ae550b58e21ce2ec77e076d1e58f2e9e3da80dc0c9512473276e0fb6b7e522b	1-30	transcribed	M21 : mouse_t en classe
 iXtal26/Host/SdlMouse.cs	pcem-dev/src/wx-ui/wx-sdl2-mouse.c	58a31177270c284aca066e7a4e90045f0d693496b11ba0744cdb310cf7ed1e27	-	host	M21 : capture au clic, liberation Ctrl+Fin, mouse_poll_host par SDL3
+iXtal26/Host/CommandLine/ArgumentCursor.cs	-	-	-	host	lecture des arguments ; les trois politiques de lecture anticipee
+iXtal26/Host/CommandLine/BiosDiskType.cs	-	-	-	host	borne des 46 types de disque du BIOS
+iXtal26/Host/CommandLine/BootVerb.cs	-	-	-	host	verbe --boot
+iXtal26/Host/CommandLine/ConfigurationFile.cs	-	-	-	host	resolution et chargement de --config
+iXtal26/Host/CommandLine/CreateFloppyVerb.cs	-	-	-	host	verbe --create-floppy
+iXtal26/Host/CommandLine/CreateHardDiskVerb.cs	-	-	-	host	verbe --create-hdd
+iXtal26/Host/CommandLine/DriveMounter.cs	-	-	-	host	montage des disquettes et des disques durs
+iXtal26/Host/CommandLine/ExitCode.cs	-	-	-	host	codes de sortie 0/1/2
+iXtal26/Host/CommandLine/Failure.cs	-	-	-	host	messages d'erreur sur stderr
+iXtal26/Host/CommandLine/FloppyPutVerb.cs	-	-	-	host	verbe --floppy-put
+iXtal26/Host/CommandLine/FreeImagePath.cs	-	-	-	host	premier nom libre dans os/
+iXtal26/Host/CommandLine/HardDiskTypeListing.cs	-	-	-	host	liste des types de disque
+iXtal26/Host/CommandLine/Launcher.cs	-	-	-	host	boucle d'arguments et lancement de la machine ; pendant de pc_main
+iXtal26/Host/CommandLine/MachineOverrides.cs	-	-	-	host	surcharges de la machine, partagees par la fenetre, --boot et --timer-check
+iXtal26/Host/CommandLine/MachineRunOptions.cs	-	-	-	host	etat de la ligne de commande du lancement d'une machine
+iXtal26/Host/CommandLine/MakeNvrVerb.cs	-	-	-	host	verbe --make-nvr
+iXtal26/Host/CommandLine/StandardOutput.cs	-	-	-	host	sortie console en un bloc
+iXtal26/Host/CommandLine/TimerCheckVerb.cs	-	-	-	host	verbe --timer-check
+iXtal26/Host/CommandLine/UsageText.cs	-	-	-	host	texte d'aide
