@@ -3,8 +3,8 @@
 //
 // ORACLE: pcem-dev/src/video/vid_svga_render.c + includes/private/video/vid_svga_render_remap.h
 // STATUS: partial — le remappage d'adresse du CRTC, et les rendus que svga_recalctimings
-//         choisit pour une VGA : vide, texte 40 et 80, 2, 4 et 8 bpp. Les rendus 15 à
-//         32 bpp sont des fatal() : seul un bpp autre que 8 les atteint, et la VGA le fige.
+//         choisit pour une VGA ou une Trident : vide, texte 40 et 80, 2, 4, 8, 15, 16 et
+//         24 bpp. Les rendus 32 bpp sont des fatal() : aucune carte du dépôt n'y va.
 
 using System.Runtime.CompilerServices;
 using static iXtal26.Video.video;
@@ -607,22 +607,337 @@ internal static partial class vid_svga_render
         }
     }
 
-    // omitted: les corps de svga_render_15bpp_lowres / _highres, 16bpp, 24bpp et 32bpp
-    //   (vid_svga_render.c:519-854). svga_recalctimings ne les choisit que pour
-    //   svga->bpp = 15, 16, 24 ou 32 (vid_svga.c:391-414). Or bpp vaut 8 : svga_init le
-    //   pose (vid_svga.c:771), vga_init le repose (vid_vga.c:114), et aucune autre ligne
-    //   de vid_vga.c ni de vid_svga.c ne l'écrit — seuls les pilotes de cartes SVGA le
-    //   changent. Les FONCTIONS restent, parce que svga_recalctimings les nomme toutes
-    //   (vid_svga.c:391-414) et svga_poll les variantes _lowres (:694-696) : un corps
-    //   fatal() rend leur atteinte bruyante (R6). L'oracle, qui laisse video_15to32 et
-    //   video_16to32 NULL, planterait sur les rendus 15 et 16 bpp ; pas sur 24 et 32,
-    //   qui ne lisent aucune table — là, seul le C# lèverait.
-    internal static void svga_render_15bpp_lowres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:519");
-    internal static void svga_render_15bpp_highres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:559");
-    internal static void svga_render_16bpp_lowres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:606");
-    internal static void svga_render_16bpp_highres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:647");
-    internal static void svga_render_24bpp_lowres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:694");
-    internal static void svga_render_24bpp_highres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:742");
+    // pcem: vid_svga_render.c:519-557
+    internal static void svga_render_15bpp_lowres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - (svga.scrollcache & 6)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x += 4)
+                        {
+                                uint32_t dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1)) & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 4) & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+                        }
+                        svga.ma += (uint32_t)(x << 1);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 2)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                svga.ma += 4;
+                        }
+                }
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    // pcem: vid_svga_render.c:559-604
+    internal static void svga_render_15bpp_highres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - ((svga.scrollcache & 6) >> 1)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x += 8)
+                        {
+                                uint32_t dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1)) & svga.vram_display_mask);
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 4) & svga.vram_display_mask);
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 8) & svga.vram_display_mask);
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 12) & svga.vram_display_mask);
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+                        }
+
+                        svga.ma += (uint32_t)(x << 1);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 2)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_15to32[dat & 0xffff];
+                                Buffer32[p++] = video_15to32[dat >> 16];
+
+                                svga.ma += 4;
+                        }
+                }
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    // pcem: vid_svga_render.c:606-645
+    internal static void svga_render_16bpp_lowres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - (svga.scrollcache & 6)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x += 4)
+                        {
+                                uint32_t dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1)) & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 4) & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+                        }
+                        svga.ma += (uint32_t)(x << 1);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 2)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                svga.ma += 4;
+                        }
+                }
+                // pcem bug, reproduced: PB-38 — ma avance une SECONDE fois, après la branche
+                //   qui l'a déjà avancé ; les trois autres rendus 15/16 bpp ne le font pas.
+                svga.ma += (uint32_t)(x << 1);
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    // pcem: vid_svga_render.c:647-692
+    internal static void svga_render_16bpp_highres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - ((svga.scrollcache & 6) >> 1)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x += 8)
+                        {
+                                uint32_t dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1)) & svga.vram_display_mask);
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 4) & svga.vram_display_mask);
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 8) & svga.vram_display_mask);
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                dat = vram_l(svga, (uint32_t)(svga.ma + (x << 1) + 12) & svga.vram_display_mask);
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+                        }
+
+                        svga.ma += (uint32_t)(x << 1);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 2)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p++] = video_16to32[dat & 0xffff];
+                                Buffer32[p++] = video_16to32[dat >> 16];
+
+                                svga.ma += 4;
+                        }
+                }
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    // pcem: vid_svga_render.c:694-740
+    internal static void svga_render_24bpp_lowres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - (svga.scrollcache & 6)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                // pcem bug, reproduced: PB-37 — p n'avance jamais : chaque tour de boucle
+                //   réécrit les huit MÊMES pixels, en tête de ligne, et le reste de la ligne
+                //   garde l'image précédente. Et ma n'est pas masqué en sortie, contrairement
+                //   aux cinq autres rendus 15 à 24 bpp.
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x++)
+                        {
+                                uint32_t dat0 = vram_l(svga, svga.ma & svga.vram_display_mask);
+                                uint32_t dat1 = vram_l(svga, (svga.ma + 4) & svga.vram_display_mask);
+                                uint32_t dat2 = vram_l(svga, (svga.ma + 8) & svga.vram_display_mask);
+
+                                Buffer32[p + 0] = Buffer32[p + 1] = dat0 & 0xffffff;
+                                Buffer32[p + 2] = Buffer32[p + 3] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                Buffer32[p + 4] = Buffer32[p + 5] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                Buffer32[p + 6] = Buffer32[p + 7] = dat2 >> 8;
+
+                                svga.ma += 12;
+                        }
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 4)
+                        {
+                                uint32_t dat0, dat1, dat2;
+                                uint32_t addr;
+
+                                addr = svga.remap_func(svga, svga.ma);
+                                dat0 = vram_l(svga, addr & svga.vram_display_mask);
+                                addr = svga.remap_func(svga, svga.ma + 4);
+                                dat1 = vram_l(svga, addr & svga.vram_display_mask);
+                                addr = svga.remap_func(svga, svga.ma + 8);
+                                dat2 = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p + 0] = Buffer32[p + 1] = dat0 & 0xffffff;
+                                Buffer32[p + 2] = Buffer32[p + 3] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                Buffer32[p + 4] = Buffer32[p + 5] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                Buffer32[p + 6] = Buffer32[p + 7] = dat2 >> 8;
+
+                                svga.ma += 12;
+                        }
+                }
+        }
+    }
+
+    // pcem: vid_svga_render.c:742-789
+    internal static void svga_render_24bpp_highres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - ((svga.scrollcache & 6) >> 1)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x += 4)
+                        {
+                                uint32_t dat0 = vram_l(svga, svga.ma & svga.vram_display_mask);
+                                uint32_t dat1 = vram_l(svga, (svga.ma + 4) & svga.vram_display_mask);
+                                uint32_t dat2 = vram_l(svga, (svga.ma + 8) & svga.vram_display_mask);
+
+                                Buffer32[p++] = dat0 & 0xffffff;
+                                Buffer32[p++] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                Buffer32[p++] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                Buffer32[p++] = dat2 >> 8;
+
+                                svga.ma += 12;
+                        }
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x += 4)
+                        {
+                                uint32_t dat0, dat1, dat2;
+                                uint32_t addr;
+
+                                addr = svga.remap_func(svga, svga.ma);
+                                dat0 = vram_l(svga, addr & svga.vram_display_mask);
+                                addr = svga.remap_func(svga, svga.ma + 4);
+                                dat1 = vram_l(svga, addr & svga.vram_display_mask);
+                                addr = svga.remap_func(svga, svga.ma + 8);
+                                dat2 = vram_l(svga, addr & svga.vram_display_mask);
+
+                                Buffer32[p++] = dat0 & 0xffffff;
+                                Buffer32[p++] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                Buffer32[p++] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                Buffer32[p++] = dat2 >> 8;
+
+                                svga.ma += 12;
+                        }
+                }
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    // omitted: les corps de svga_render_32bpp_lowres / _highres (vid_svga_render.c:791-854).
+    //   svga_recalctimings ne les choisit que pour bpp = 32, et aucune carte du dépôt ne le
+    //   pose : le TKD8001 de la 8900D s'arrête à 24 bpp (vid_tkd8001_ramdac.c:20-29). Les
+    //   FONCTIONS restent, parce que svga_recalctimings les nomme (vid_svga.c:391-414) :
+    //   un corps fatal() rend leur atteinte bruyante (R6).
     internal static void svga_render_32bpp_lowres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:791");
     internal static void svga_render_32bpp_highres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:825");
 

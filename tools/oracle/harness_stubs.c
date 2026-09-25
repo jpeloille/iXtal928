@@ -347,10 +347,9 @@ VIDEO_BITMAP *screen = NULL;
  * initvideo, comme video.c:1076-1089 le fait. */
 uint8_t edatlookup[4][4];
 
-/* video.c:546 — lues par svga_render_15bpp_* et _16bpp_* SEULEMENT, que la VGA
- * n'atteint pas : vga_init pose bpp = 8 (vid_vga.c:114) et rien ne le change. Laissées
- * NULLES, donc un rendu 15/16 bpp atteint par erreur plante au lieu de peindre du
- * faux — le pendant du fatal() que le côté C# met dans ces fonctions. */
+/* video.c:546 — lues par svga_render_15bpp_* et _16bpp_*. NULLES jusqu'à M19 : la VGA
+ * ne quitte pas bpp = 8. Le RAMDAC TKD8001 de la Trident 8900D pose 15, 16 ou 24
+ * (vid_tkd8001_ramdac.c:20-29), et initvideo les remplit donc comme video.c. */
 uint32_t *video_15to32 = NULL, *video_16to32 = NULL;
 
 void initvideo(void) {
@@ -381,7 +380,16 @@ void initvideo(void) {
                                 edatlookup[c][d] |= 0x20;
                 }
         }
-        /* omitted: video_15to32 / video_16to32 (video.c:1091-1097) — voir plus haut. */
+        /* video.c:1091-1097. Allouées une fois : initvideo tourne à chaque h_boot. */
+        if (!video_15to32)
+                video_15to32 = malloc(4 * 65536);
+        for (c = 0; c < 65536; c++)
+                video_15to32[c] = ((c & 31) << 3) | (((c >> 5) & 31) << 11) | (((c >> 10) & 31) << 19);
+
+        if (!video_16to32)
+                video_16to32 = malloc(4 * 65536);
+        for (c = 0; c < 65536; c++)
+                video_16to32[c] = ((c & 31) << 3) | (((c >> 5) & 63) << 10) | (((c >> 11) & 31) << 19);
         cgapal_rebuild(0 /*DISPLAY_RGB*/, 0);
 }
 

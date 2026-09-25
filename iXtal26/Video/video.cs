@@ -74,8 +74,6 @@ internal static partial class video
     // omitted: video_fullscreen / video_fullscreen_scale / video_fullscreen_first /
     //   video_force_aspect_ration / vid_disc_indicator / vid_resize / readflash
     //   (video.c:542-544) — état de la fenêtre et des visionneuses de débogage.
-    // omitted: video_15to32 / video_16to32 (video.c:546) — tables de conversion 15 et
-    //   16 bpp des SVGA.
     // omitted: rotatevga[8][256] (video.c:551) — table de l'EGA ; vid_svga.c porte sa
     //   propre svga_rotate.
     // omitted: fontdatw / fontdat8x12 / fontdat12x18 / fontdatksc5601 /
@@ -256,6 +254,10 @@ internal static partial class video
 
     // pcem: video.c:754
     internal static int video_res_x, video_res_y, video_bpp;
+
+    // pcem: video.c:546 — lues par les rendus 15 et 16 bpp, que le RAMDAC TKD8001 de
+    // la Trident 8900D rend atteignables (M19).
+    internal static uint32_t[] video_15to32 = null!, video_16to32 = null!;
 
     // pcem: video.c:756
     internal static video_blit_memtoscreen_fn? video_blit_memtoscreen_func;
@@ -576,8 +578,13 @@ internal static partial class video
                                 edatlookup[c, d] |= 0x20;
                 }
         }
-        // omitted: l'allocation et le remplissage de video_15to32 et video_16to32
-        //   (video.c:1091-1097) — conversions 15 et 16 bpp.
+        video_15to32 = new uint32_t[65536];
+        for (c = 0; c < 65536; c++)
+                video_15to32[c] = (uint32_t)(((c & 31) << 3) | (((c >> 5) & 31) << 11) | (((c >> 10) & 31) << 19));
+
+        video_16to32 = new uint32_t[65536];
+        for (c = 0; c < 65536; c++)
+                video_16to32[c] = (uint32_t)(((c & 31) << 3) | (((c >> 5) & 63) << 10) | (((c >> 11) & 31) << 19));
 
         cgapal_rebuild(DISPLAY_RGB, 0);
 

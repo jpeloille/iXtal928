@@ -722,11 +722,68 @@ pose CR00 = 2Dh sous CR01 = 4Fh et lit `3DAh` 8 192 fois fait rougir le diff d'a
 l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 969 642
 instructions — avec la nouvelle.
 
+### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
+
+`vid_svga_render.c:707-718`, la branche sans remappage :
+
+```c
+                        for (x = 0; x <= svga->hdisp; x++) {
+                                ...
+                                p[0] = p[1] = dat0 & 0xffffff;
+                                p[2] = p[3] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                p[4] = p[5] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                p[6] = p[7] = dat2 >> 8;
+
+                                svga->ma += 12;
+                        }
+```
+
+`p` n'est ni incrémenté ni recalculé : chaque tour réécrit les huit MÊMES pixels, en tête de
+ligne. La branche avec remappage (`:720-738`) a le même défaut. Le rendu haute résolution
+voisin (`:742-789`) écrit par `*p++` et ne l'a pas. Et `svga->ma` n'est pas masqué en
+sortie, contrairement aux cinq autres rendus 15 à 24 bpp — `ma` est masqué à chaque
+lecture, donc sans effet sur les adresses.
+
+*Effet* : en 24 bpp basse résolution, seuls les huit premiers pixels de chaque ligne
+changent, et ils portent le DERNIER groupe de la ligne ; le reste du tampon garde l'image
+précédente.
+*Atteint* : par la Trident 8900D seulement — son RAMDAC TKD8001 pose `bpp = 24`
+(`vid_tkd8001_ramdac.c:26-28`), et `svga_recalctimings` choisit le rendu basse résolution
+quand le bit 6 d'AR10 est posé (`vid_svga.c:341`, `:403-407`), sauf si `tvga_recalctimings` force la
+haute résolution. VERIFICATION.md § M19.
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-37`.
+
+### PB-38 — `svga_render_16bpp_lowres` avance `ma` deux fois
+
+`vid_svga_render.c:620-642` :
+
+```c
+                        svga->ma += x << 1;
+                } else {
+                        ...
+                }
+                svga->ma += x << 1;
+                svga->ma &= svga->vram_display_mask;
+```
+
+La branche sans remappage avance déjà `ma` de `x << 1` ; la ligne qui suit la branche
+l'avance une seconde fois — et, avec remappage, ajoute `x << 1` à un `ma` déjà avancé de 4
+par groupe. Les trois autres rendus 15/16 bpp n'ont que la première. `ma` sert d'adresse de
+départ de la ligne suivante quand le rendu n'est pas rappelé sur une ligne répétée ; le
+compteur de ligne du CRTC (`svga_poll`, `vid_svga.c:564-578`) le recharge depuis `maback` à chaque ligne
+affichée, ce qui borne l'effet.
+
+*Effet* : invisible tant que `svga_poll` recharge `ma` depuis `maback` avant chaque ligne ;
+un `ma` doublé ne sert qu'au test `changedvram` de l'appel suivant sur la même ligne.
+*Atteint* : Trident 8900D, `bpp = 16` par le TKD8001, rendu basse résolution. VERIFICATION.md
+§ M19.
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-38`.
+
 ---
 
 ## Portée de ce registre
 
-Ces **trente-six** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **trente-huit** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -736,11 +793,11 @@ audit systématique de PCem** :
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
 | Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
 | Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
-| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35 |
+| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38 |
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA et la VGA, les
+lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
 cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre.
 
 Deux frontières ont bougé et le disaient mal :
