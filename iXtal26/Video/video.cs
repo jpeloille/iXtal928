@@ -274,6 +274,14 @@ internal static partial class video
         timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
     };
 
+    // pcem: video.c:179-181
+    internal static readonly VIDEO_CARD v_tvga9000b = new VIDEO_CARD
+    {
+        name = "Trident TVGA9000B", internal_name = "tvga9000b", device = vid_tvga.tvga9000b_device, legacy_id = pc.GFX_TVGA9000B,
+        flags = VIDEO_FLAG_TYPE_SPECIAL,
+        timing = new video_timings_t { type = VIDEO_ISA, write_b = 7, write_w = 7, write_l = 12, read_b = 7, read_w = 7, read_l = 12 },
+    };
+
     // pcem: video.c:191
     internal static readonly VIDEO_CARD v_vga = new VIDEO_CARD
     {
@@ -285,15 +293,15 @@ internal static partial class video
     // pcem: plugin-api/device.c:17 et video.c:1301-1354 — le registre, rempli par
     // video_init_builtin dans l'ordre de ses pcem_add_video.
     //
-    // DEVIATION: deux entrées au lieu des quarante-neuf que video_init_builtin enregistre
+    // DEVIATION: trois entrées au lieu des quarante-neuf que video_init_builtin enregistre
     //   (cinquante pcem_add_video, dont v_pgc sous USE_EXPERIMENTAL_PGC), dans l'ordre RELATIF de PCem
-    //   (v_cga en :1312 avant v_vga en :1351), et en tableau fixe comme models[]
+    //   (v_cga en :1312, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
     //   (model.cs) plutôt que par pcem_add_video. Les INDICES diffèrent donc de ceux de
     //   PCem — v_cga y est à 10 — mais aucun indice ne sort de ce fichier : la
     //   configuration écrit l'internal_name, et gfxcard porte l'identifiant HÉRITÉ
     //   (GFX_*), que video_old_to_new traduit. La sentinelle NULL de fin de liste est
     //   la longueur du tableau.
-    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_vga };
+    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_tvga9000b, v_vga };
 
     // pcem: video.c:215-223
     internal static int video_card_available(int card)

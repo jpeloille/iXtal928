@@ -1684,8 +1684,22 @@ internal static partial class vid_svga
         o[f++] = (uint64_t)(long)svga.lowres;
         o[f++] = (uint64_t)(long)svga.hdisp_time;
         o[f++] = BitConverter.DoubleToUInt64Bits(svga.clock);
-        // Les onze champs propres à la Trident (tvga_t, RAMDAC) restent à zéro : aucune
-        // carte de ce registre n'en porte encore.
+        // Les onze champs de la Trident : sa tvga_t et son RAMDAC. Zéro pour une autre
+        // carte — svga.p n'est une tvga_t que si la carte en est une.
+        if (svga.p is tvga_t tvga)
+        {
+                o[f++] = tvga.id;
+                o[f++] = (uint64_t)(long)tvga.oldmode;
+                o[f++] = tvga.tvga_3d8;
+                o[f++] = tvga.tvga_3d9;
+                o[f++] = tvga.oldctrl1;
+                o[f++] = tvga.oldctrl2;
+                o[f++] = tvga.newctrl2;
+                o[f++] = (uint64_t)(long)tvga.vram_size;
+                o[f++] = tvga.vram_mask;
+                o[f++] = (uint64_t)(long)tvga.ramdac.state;
+                o[f++] = tvga.ramdac.ctrl;
+        }
     }
 
     // FNV-1a 64 bits, le h_fnv de harness.c.
