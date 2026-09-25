@@ -339,7 +339,7 @@ internal static partial class _386
                 cpl_override = 0;
         }
         CLOCK_CYCLES(11);
-        PREFETCH_RUN(11, 2, (int)rmdat, 2, 0, 0, 0, 0);
+        PREFETCH_RUN(11, 2, (int)fetchdat, 2, 0, 0, 0, 0);
         return cpu_state.abrt;
     }
 
@@ -395,7 +395,7 @@ internal static partial class _386
                 cpl_override = 0;
         }
         CLOCK_CYCLES(10);
-        PREFETCH_RUN(10, 2, (int)rmdat, 4, 0, 0, 0, 0);
+        PREFETCH_RUN(10, 2, (int)fetchdat, 4, 0, 0, 0, 0);
         return cpu_state.abrt;
     }
 
@@ -427,7 +427,17 @@ internal static partial class _386
     /// conforme SANS vérifier le privilège — `(desc & 0xC00) != 0xC00` exclut ce cas du
     /// test — et refuse un code non lisible. VERW refuse TOUT code et exige une donnée
     /// inscriptible. Échanger les deux donnerait un émulateur qui marche presque.</summary>
-    private static int op0F00_common(uint32_t fetchdat, int ea32)
+    // LE PARAMÈTRE S'APPELLE rmdat, ET C'EST LA CORRECTION DE M20. Chez PCem, x86.h:197
+    // fait `#define fetchdat rmdat` : dans op0F00_common(uint32_t fetchdat, ...), `rmdat`
+    // désigne donc le PARAMÈTRE — les octets qui suivent `0F 00`. Nommé `fetchdat` ici,
+    // le corps lisait la GLOBALE rmdat, que seule la boucle d'exec386 pose : pour tout
+    // opcode à un octet les deux coïncident, mais derrière l'échappement 0F la globale
+    // commence un octet trop tôt, sur le `00`. Les six instructions du groupe
+    // s'exécutaient toutes en SLDT. Trouvé par Windows 3.11 : DOSX fait `LLDT AX` puis
+    // `LTR SI`, TR restait nul, et sa première porte d'appel vers l'anneau 0 lisait une
+    // « TSS » dans du texte. L'AT ne l'avait jamais montré : son boot-diff diverge à
+    // l'instruction 50, sur le CMOS. pm-check le vérifie depuis.
+    private static int op0F00_common(uint32_t rmdat, int ea32)
     {
         int dpl, valid, granularity;
         uint32_t addr, @base, limit;

@@ -84,6 +84,29 @@ public static class BootTest
     /// </summary>
     private static void TypeAndDump(string text, int settle)
     {
+        // M20 — deux commandes de script, pour dérouler une installation à plusieurs
+        // disquettes sans fenêtre : « @A:chemin » (ou @B:) change la disquette comme le
+        // menu Ctrl+F12 — disc_close puis disc_load, SdlMenu.Insert —, « @wait N » laisse
+        // passer N tranches sans rien taper. Ni l'une ni l'autre ne frappe de touche.
+        if (text.Length > 3 && text[0] == '@' && text[2] == ':' && (text[1] is 'A' or 'B'))
+        {
+            var drive = text[1] - 'A';
+            Disc.disc.disc_close(drive);
+            Disc.disc.disc_load(drive, text[3..]);
+            Console.WriteLine($"\n--- {text[1]}: {text[3..]} inséré" +
+                              (Disc.disc.drive_empty[drive] != 0 ? " — REFUSÉ par disc_load ---" : " ---"));
+            return;
+        }
+        if (text.StartsWith("@wait ", StringComparison.Ordinal))
+        {
+            var n = int.Parse(text[6..]);
+            for (var i = 0; i < n; i++)
+                pc.runpc();
+            Console.WriteLine($"\n--- {n} tranches d'attente ---");
+            DumpTextScreen();
+            return;
+        }
+
         Console.WriteLine($"\n--- frappe de « {text} » puis Entrée ---");
 
         foreach (var ch in text)

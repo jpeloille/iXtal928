@@ -42,7 +42,8 @@ public static class PmCheck
         public bool Cpl3;
         public byte[] Code = [];
         public int GateWords;                  // mots copiés par les portes d'appel 0x40/0x88
-        public ushort Bx;                      // BX au départ (LAR/LSL)
+        public ushort Bx;                      // BX au départ (LAR/LSL, VERR/VERW)
+        public ushort Ax;                      // AX au départ (LLDT/LTR)
         public int Steps = 3;                  // pas APRÈS LOADALL
         public Action<Action<uint, byte[]>>? Tweak;
         public ushort[]? StackWords;           // mots posés en SS:SP au départ
@@ -186,6 +187,7 @@ public static class PmCheck
         Tw(0x2C, (ushort)(sp0 - 0x40));                         // SP : sous les paramètres
         if (c.StackWords is not null) Tw(0x2C, sp0);
         Tw(0x2E, c.Bx);                                         // BX
+        Tw(0x34, c.Ax);                                         // AX
         Td(0x36, DataBase, 0x93, 0xFFFF);                       // ES
         Td(0x3C, c.Cpl3 ? Code3Base : CodeBase, (byte)(c.Cpl3 ? 0xFB : 0x9B), 0xFFFF);
         Td(0x42, c.Cpl3 ? Stack3Base : StackBase, (byte)(c.Cpl3 ? 0xF3 : 0x93), 0xFFFF);
@@ -306,6 +308,22 @@ public static class PmCheck
         }
         foreach (var (sel, what) in new (ushort, string)[] { (SelTarget, "code"), (SelDataAsCode, "données") })
             l.Add(new() { Name = $"LAR AX,BX depuis CPL3 — {what} DPL0", Cpl3 = true, Bx = sel, Code = [0x0F, 0x02, 0xC3], Steps = 1 });
+
+        // --- 0F 00 : SLDT, STR, LLDT, LTR, VERR, VERW (x86_ops_pmode.h:176-336) ---
+        // Ajoutés après l'arrêt de Windows : DOSX fait LLDT AX puis LTR SI, et le C#
+        // aiguillait les six sur la globale rmdat au lieu du paramètre.
+        l.Add(new() { Name = "SLDT AX (0F 00 C0)", Code = [0x0F, 0x00, 0xC0], Steps = 1 });
+        l.Add(new() { Name = "STR AX (0F 00 C8)", Code = [0x0F, 0x00, 0xC8], Steps = 1 });
+        l.Add(new() { Name = "LLDT AX (0F 00 D0)", Ax = SelLdtDesc, Code = [0x0F, 0x00, 0xD0], Steps = 1 });
+        l.Add(new() { Name = "LTR AX (0F 00 D8), TSS n°2", Ax = SelTss2, Code = [0x0F, 0x00, 0xD8], Steps = 1 });
+        l.Add(new() { Name = "LTR depuis CPL3 -> #GP", Cpl3 = true, Ax = SelTss2, Code = [0x0F, 0x00, 0xD8], Steps = 1 });
+        l.Add(new() { Name = "VERR BX — code (0F 00 E3)", Bx = SelCode0, Code = [0x0F, 0x00, 0xE3], Steps = 1 });
+        l.Add(new() { Name = "VERW BX — données (0F 00 EB)", Bx = SelData0, Code = [0x0F, 0x00, 0xEB], Steps = 1 });
+        l.Add(new() { Name = "VERW BX — code (0F 00 EB)", Bx = SelCode0, Code = [0x0F, 0x00, 0xEB], Steps = 1 });
+        l.Add(new() { Name = "LLDT puis CALL FAR par la nouvelle LDT", Ax = SelLdtDesc,
+                      Code = [0x0F, 0x00, 0xD0, .. CallFar(0x000C, 0x0100)] });
+        l.Add(new() { Name = "LTR puis porte CPL3->0 (la TSS chargée donne SS0)", Cpl3 = false, Ax = SelTss2,
+                      Code = [0x0F, 0x00, 0xD8], Steps = 1 });
 
         // --- double faute : #GP livré par une porte 13 absente ---
         l.Add(new() { Name = "double faute : #GP puis porte 13 absente", Code = JmpFar(0x0000, 0x0000),
