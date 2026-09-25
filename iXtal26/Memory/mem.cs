@@ -931,12 +931,18 @@ internal static partial class mem
         mem_mapping_recalc(mapping.@base, mapping.size);
     }
 
-    // pcem: mem.c:1192-1200
+    // pcem: mem.c:1192-1203
     internal static void mem_mapping_set_addr(mem_mapping_t mapping, uint32_t @base, uint32_t size)
     {
+        /*Remove old mapping*/
+        mapping.enable = 0;
         mem_mapping_recalc(mapping.@base, mapping.size);
+
+        /*Set new mapping*/
+        mapping.enable = 1;
         mapping.@base = @base;
         mapping.size = size;
+
         mem_mapping_recalc(mapping.@base, mapping.size);
     }
 

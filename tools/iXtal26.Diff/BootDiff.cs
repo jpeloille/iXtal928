@@ -193,6 +193,9 @@ public static class BootDiff
         // configuration que cpu_set() et setpitclock() viennent de poser. Confrontée à
         // celle du C# juste après son initpc, plus bas.
         var cpuFpOracle = CpuFingerprint.Oracle_();
+        if (LockstepEvery > 0)
+            return Lockstep(romsPath, slices, script, types, typeAt, typeSettle, oraclePath, cpuFpOracle,
+                            csharpA, csharpB, csharpC, csharpD);
         if (Oracle.h_trace_open(oraclePath) == 0)
         {
             Console.Error.WriteLine($"Impossible d'écrire {oraclePath}.");
@@ -516,6 +519,102 @@ public static class BootDiff
     /// fois, et on compare le vecteur d'état complet à l'index fautif. La phase 1
     /// dit OÙ ; celle-ci dit QUOI.
     /// </summary>
+    /// <summary>M19 — --lockstep N [--lockstep-from S] : les deux côtés avancent
+    /// ENSEMBLE, tranche par tranche, avec la même frappe. La phase 2 ne rejoue pas
+    /// --type, donc une divergence de campagne tapée n'était pas localisable (§ M15) ;
+    /// ici l'état CPU est comparé à chaque fin de tranche, la sonde VGA complète toutes
+    /// les N tranches puis à chaque tranche dès S, et le premier écart est NOMMÉ, avec
+    /// la ligne tapée en cours. Diagnostic : le verdict reste celui du boot-diff.</summary>
+    internal static int LockstepEvery;
+    internal static int LockstepFrom = int.MaxValue;
+
+    private static int Lockstep(string romsPath, int slices, List<KeyScript.Event> script,
+                                IReadOnlyList<string>? types, int typeAt, int typeSettle, string oraclePath,
+                                ulong[] cpuFpOracle, string? a, string? b, string? c, string? d)
+    {
+        // La MÊME boucle tracée que la phase 1 côté oracle : la trace est écrite puis jetée.
+        if (Oracle.h_trace_open(oraclePath) == 0)
+            return 1;
+        _808x.ResetDiagState();
+        Cpu._386.prefetch_reset();
+        Cpu._386.ClearSegResidue();
+        Floppy.fdd_c.discfns[0] = a ?? "";
+        Floppy.fdd_c.discfns[1] = b ?? "";
+        Disc.hdd_c.ide_fn[0] = c ?? "";
+        Disc.hdd_c.ide_fn[1] = d ?? "";
+        if (!pc.initpc(romsPath))
+            return 1;
+        if (CpuFingerprint.Compare(cpuFpOracle, CpuFingerprint.Csharp()) != 0)
+            return 1;
+
+        // Fin de tranche de chaque ligne tapée, pour nommer celle qui était en cours.
+        var lineEnd = new List<int>();
+        if (types is not null)
+            for (var k = 1; k <= types.Count; k++)
+                lineEnd.Add(KeyScript.Build(types.Take(k).ToList(), typeAt, typeSettle).endSlice);
+
+        var sa = Diag.HState.Create();
+        var sb = Diag.HState.Create();
+        var vo = new ulong[Oracle.VgaProbeN];
+        var vc = new ulong[Oracle.VgaProbeN];
+        var e = 0;
+        long n = 0;
+        Console.WriteLine($"Pas commun : {slices} tranches, état CPU à chaque tranche, sonde VGA toutes les " +
+                          $"{LockstepEvery}" + (LockstepFrom < int.MaxValue ? $" puis à chaque tranche dès {LockstepFrom}" : ""));
+        for (var s = 0; s < slices; s++)
+        {
+            while (e < script.Count && script[e].Slice == s)
+            {
+                Oracle.h_rawinputkey(script[e].Index, script[e].Value);
+                Keyboard.keyboard.rawinputkey[script[e].Index] = script[e].Value;
+                e++;
+            }
+            Oracle.h_runpc();
+            Oracle.h_kbd_process();
+            var budget = Cpu.cpu_c.cpu_get_speed() / 100;
+            while (budget > 0)
+            {
+                budget -= PasCsharpTrace();
+                n++;
+            }
+            Keyboard.keyboard.keyboard_poll_host();
+            Keyboard.keyboard.keyboard_process();
+
+            Oracle.h_getstate(out sa);
+            _808x.GetState(ref sb);
+            var dcpu = Fuzzer.CompareStates(sa, sb, 0, 0, counters: false);
+            var dv = 0;
+            if (dcpu is not null || s % LockstepEvery == 0 || s >= LockstepFrom)
+            {
+                Oracle.h_vga_probe(vo);
+                Video.vid_svga.Probe(vc);
+                for (var f = 0; f < VgaProbe.Fields.Length; f++)
+                    if (vo[f] != vc[f])
+                        dv++;
+            }
+            if (dcpu is null && dv == 0)
+                continue;
+
+            var line = lineEnd.FindIndex(x => x > s);
+            Console.WriteLine($"\nPREMIER ÉCART en fin de tranche {s} (≈ instruction {n} côté C#), " +
+                              (line >= 0 ? $"pendant la ligne tapée {line} « {types![line]} »" : "hors frappe"));
+            Console.WriteLine($"  oracle CS:IP {sa.seg_sel[0]:X4}:{sa.pc:X4}   C# CS:IP {sb.seg_sel[0]:X4}:{sb.pc:X4}");
+            Console.WriteLine($"  CPU : {dcpu ?? "identique"}");
+            if (dv != 0)
+                CompareVga(vo, vc);
+            DumpPit();
+            Oracle.h_trace_close();
+            File.Delete(oraclePath);
+            return 1;
+        }
+        Oracle.h_trace_close();
+        File.Delete(oraclePath);
+        Console.WriteLine($"\nPas commun vert : {slices} tranches, {n} instructions côté C#.");
+        Oracle.h_vga_probe(vo);
+        Video.vid_svga.Probe(vc);
+        return CompareVga(vo, vc);
+    }
+
     private static int Phase2(string romsPath, int index, string? discA)
     {
         Oracle.h_set_discfn(0, discA ?? "");

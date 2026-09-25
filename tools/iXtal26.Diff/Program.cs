@@ -24,7 +24,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b] [--cpu N]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -247,6 +247,9 @@ switch (args[0])
                 // M16 — l'indice dans la table de CPU de la machine, appliqué APRÈS
                 // --model : `--cpu 3` est un 8088/10 sur l'ibmpc, un 286/12 sur l'ami286.
                 case "--cpu" when i + 1 < args.Length: BootDiff.CpuOverride = int.Parse(args[++i]); break;
+                // M19 — diagnostic : les deux côtés au pas commun, frappe comprise.
+                case "--lockstep" when i + 1 < args.Length: BootDiff.LockstepEvery = int.Parse(args[++i]); break;
+                case "--lockstep-from" when i + 1 < args.Length: BootDiff.LockstepFrom = int.Parse(args[++i]); break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {
