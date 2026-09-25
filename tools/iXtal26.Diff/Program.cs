@@ -127,6 +127,10 @@ switch (args[0])
     case "core286-check":
         return Core286Check.Run();
 
+    // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
+    case "pm-check":
+        return PmCheck.Run(args.Length >= 3 && args[1] == "--case" ? int.Parse(args[2]) : -1);
+
     // M16 — le balayage des tables de CPU : chaque entrée de chaque machine, amorcée
     // des deux côtés, l'empreinte CPU confrontée champ par champ. Le seul témoin
     // différentiel du 286/20 et du 286/25, qu'aucun boot-diff n'atteint.

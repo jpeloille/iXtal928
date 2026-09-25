@@ -364,7 +364,7 @@ public static class Fuzzer
     /// <summary>Compare les écritures mémoire de la dernière instruction.
     /// Exact, et nomme l'adresse fautive — là où un hachage dirait seulement
     /// « la RAM diffère ».</summary>
-    private static string? CmpWrites()
+    internal static string? CmpWrites()
     {
         var nC = Oracle.h_wlog_count();
         var nS = mem.wlog_n;
@@ -683,7 +683,7 @@ public static class Fuzzer
         return null;
     }
 
-    private static string? CmpRam()
+    internal static string? CmpRam()
     {
         var ha = Oracle.h_ram_hash();
         var hb = _808x.RamHash();
