@@ -439,7 +439,8 @@ int h_slice_budget(void);
 void h_cpu_fingerprint(uint64_t *out);
 
 /* --- vidéo (M15) ------------------------------------------------------------
- * La carte, valeur de l'énumération GFX_* (ibm.h:274-289) : 0 = CGA, 13 = VGA.
+ * La carte, valeur de l'énumération GFX_* (ibm.h:274-318) : 0 = CGA, 13 = VGA,
+ * 4 = Trident 8900D, 42 = Trident 9000B (M19).
  * À appeler AVANT h_boot, qui fait le device_add. Sans appel : CGA, le défaut de
  * PCem quand la clé gfxcard est absente (pc.c:660-664). */
 void h_set_gfxcard(int g);
@@ -447,7 +448,7 @@ void h_set_gfxcard(int g);
 /* Sonde VGA — H_VGA_PROBE_N champs dans l'ordre de Video.vid_svga.Probe() côté C#.
  * Tout à zéro sans carte svga. Hachages FNV-1a pour les tableaux (VRAM, registres,
  * palettes, buffer32), valeurs brutes pour les scalaires. */
-#define H_VGA_PROBE_N 64
+#define H_VGA_PROBE_N 86   /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 */
 void h_vga_probe(uint64_t *out);
 
 /* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
@@ -538,7 +539,10 @@ uint8_t *h_ram(void);
 /* 18 depuis M16 : h_set_cpu, h_slice_budget et h_cpu_fingerprint s'ajoutent au
  * contrat, et h_boot fait tourner le vrai cpu_set(). Le vecteur ne change pas de
  * taille. */
-#define H_ABI_VERSION 18
+/* 19 depuis M19 : les Trident. h_vga_probe passe de 64 à 86 champs, la temporisation
+ * suit la carte (video_speed = -1) et video_is_* lisent ses drapeaux. Le vecteur
+ * h_state ne change pas de taille. */
+#define H_ABI_VERSION 19
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

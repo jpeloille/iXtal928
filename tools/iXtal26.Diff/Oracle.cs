@@ -35,7 +35,9 @@ public static class Oracle
     // 16 : h_set_trace_notsc s'ajoute au contrat. 17 a M15 : la VGA.
     // 18 a M16 : h_set_cpu, h_slice_budget et h_cpu_fingerprint, et h_boot fait
     // tourner le vrai cpu_set(). Le vecteur ne change pas de taille.
-    public const int AbiVersion = 18;
+    // 19 a M19 : les Trident. h_vga_probe passe de 64 a 86 champs, la temporisation
+    // suit la carte (video_speed = -1) et video_is_* lisent ses drapeaux.
+    public const int AbiVersion = 19;
 
     static Oracle()
     {
@@ -214,8 +216,10 @@ public static class Oracle
     // lue sans passer par svga_read — qui mettrait à jour les verrous et facturerait
     // des cycles : lire l'écran changerait la machine.
     public const int GFX_CGA = 0;
+    public const int GFX_TVGA = 4;        // ibm.h:280, la 8900D
     public const int GFX_VGA = 13;
-    public const int VgaProbeN = 64;
+    public const int GFX_TVGA9000B = 42;  // ibm.h:318
+    public const int VgaProbeN = 86;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
 
     // M16 — le processeur : fabricant et INDICE dans la table de la machine, à poser

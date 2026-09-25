@@ -80,7 +80,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      l'exécution de la table // noms: de fdc.cs. L'oracle n'y participe pas,");
     Console.WriteLine("      son instance `fdc` étant static dans fdc.c.");
     Console.WriteLine();
-    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE]");
+    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE] [--gfxcard vga|tvga8900d|tvga9000b]");
     Console.WriteLine("      Amorce l'ORACLE SEUL avec une carte VGA et imprime la sonde de la");
     Console.WriteLine("      carte et l'écran texte lu dans sa VRAM brute. Le pendant de la sonde");
     Console.WriteLine("      AT de B2 : l'oracle doit savoir faire tourner la VGA avant qu'une");
@@ -291,6 +291,7 @@ switch (args[0])
         var slices = 1000;
         var model = "ibmat";
         string? fda = null;
+        var card = "vga";
         var positional = 0;
         for (var i = 1; i < args.Length; i++)
         {
@@ -298,6 +299,7 @@ switch (args[0])
             {
                 case "--fda" when i + 1 < args.Length: fda = args[++i]; break;
                 case "--model" when i + 1 < args.Length: model = args[++i]; break;
+                case "--gfxcard" when i + 1 < args.Length: card = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {
@@ -309,7 +311,7 @@ switch (args[0])
                     break;
             }
         }
-        return VgaProbe.Run(roms, slices, model, fda);
+        return VgaProbe.Run(roms, slices, model, fda, card);
     }
 
     case "disc-probe":

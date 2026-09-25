@@ -37,9 +37,24 @@ public static class VgaProbe
         "dispend", "hdisp", "htotal", "dispontime", "dispofftime", "timer.ts_integer",
         "timer.ts_frac", "fullchange", "frames", "firstline", "lastline", "xsize", "ysize",
         "video_res_x", "video_res_y", "video_bpp", "blink",
+        // M19 — l'état que la Trident rend atteignable, puis la tvga_t et son RAMDAC.
+        "read_bank", "write_bank", "bpp", "vram_display_mask", "vram_mask", "rowoffset",
+        "ma_latch", "interlace", "lowres", "hdisp_time", "clock(bits)",
+        "tvga.id", "tvga.oldmode", "tvga.3d8", "tvga.3d9", "tvga.oldctrl1", "tvga.oldctrl2",
+        "tvga.newctrl2", "tvga.vram_size", "tvga.vram_mask", "ramdac.state", "ramdac.ctrl",
     ];
 
-    public static int Run(string romsPath, int slices, string model, string? fda)
+    // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du
+    // registre C# : la sonde amorce l'oracle SEUL, avant que le C# connaisse la carte.
+    private static int Card(string name) => name switch
+    {
+        "vga" => Oracle.GFX_VGA,
+        "tvga8900d" => Oracle.GFX_TVGA,
+        "tvga9000b" => Oracle.GFX_TVGA9000B,
+        _ => -1,
+    };
+
+    public static int Run(string romsPath, int slices, string model, string? fda, string card = "vga")
     {
         Oracle.CheckAbi();
         if (Fields.Length != Oracle.VgaProbeN)
@@ -49,10 +64,16 @@ public static class VgaProbe
         }
         if (!pc.setmodel(model))
             return 2;
+        var gfx = Card(card);
+        if (gfx < 0)
+        {
+            Console.Error.WriteLine($"--gfxcard « {card} » : vga, tvga8900d ou tvga9000b.");
+            return 2;
+        }
 
         var core = (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
                 ? Oracle.Core286 : Oracle.Core8088;
-        Console.WriteLine($"Sonde VGA — ORACLE SEUL : machine {model}, {pc.cfg_mem_size} Ko, " +
+        Console.WriteLine($"Sonde VGA — ORACLE SEUL : machine {model}, carte {card}, {pc.cfg_mem_size} Ko, " +
                           $"{slices} tranches" + (fda is null ? "" : $", A: = {fda}") + "\n");
 
         Oracle.h_set_discfn(0, fda ?? "");
@@ -63,12 +84,17 @@ public static class VgaProbe
         Oracle.h_set_romset(pc.romset);
         Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
         Oracle.h_set_core(core);
-        Oracle.h_set_gfxcard(Oracle.GFX_VGA);
+        Oracle.h_set_gfxcard(gfx);
         if (Oracle.h_boot(romsPath) == 0)
         {
-            Console.Error.WriteLine($"h_boot a échoué depuis « {romsPath} » (ibm_vga.bin présent ?).");
+            Console.Error.WriteLine($"h_boot a échoué depuis « {romsPath} » (ROM de la carte présente ?).");
             return 1;
         }
+        // M19 — la temporisation de la carte, telle que video_updatetiming l'a posée.
+        var fp = CpuFingerprint.Oracle_();
+        for (var k = 0; k < CpuFingerprint.Names.Length; k++)
+            if (CpuFingerprint.Names[k].StartsWith("video_timing", StringComparison.Ordinal))
+                Console.WriteLine($"  {CpuFingerprint.Names[k],-22} {(long)fp[k]}");
         for (var i = 0; i < slices; i++)
         {
             Oracle.h_runpc();
@@ -90,6 +116,11 @@ public static class VgaProbe
         Marshal.Copy(Oracle.h_vga_vram(), vram, 0, vram.Length);
         var bda = new byte[0x100];
         Oracle.h_read_phys(0x400, bda, (uint)bda.Length);
+        // Le vecteur d'INT 10h en fin de course : en C000:xxxx, la ROM de la carte a
+        // tourné — une ROM jamais appelée ne peut pas s'y inscrire.
+        var ivt = new byte[4];
+        Oracle.h_read_phys(0x40, ivt, 4);
+        Console.WriteLine($"\n  INT 10h -> {ivt[3]:X2}{ivt[2]:X2}:{ivt[1]:X2}{ivt[0]:X2}");
         PrintText(vram, bda, "oracle");
         return 0;
     }

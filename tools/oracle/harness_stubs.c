@@ -540,9 +540,13 @@ void loadfont(char *s, fontformat_t format) { (void)s; (void)format; }
  * (video.c:96), VIDEO_FLAG_TYPE_SPECIAL pour v_vga (video.c:191). */
 int gfxcard = 0; /* pc.c:77 ; GFX_CGA = 0 (ibm.h:276) */
 
-int video_is_mda(void) { return 0; }
-int video_is_cga(void) { return gfxcard == GFX_CGA; }
-int video_is_ega_vga(void) { return gfxcard == GFX_VGA; }
+/* M19 : lues sur les drapeaux de h_video_cards[], comme video.c:499, :539 et
+ * video.cs:362-375 — plus sur gfxcard. Avec trois cartes SPECIAL, `gfxcard == GFX_VGA`
+ * rendait 0 pour une Trident là où le C# rend 1 : les interrupteurs du PPI du XT
+ * divergeaient avant la première instruction. */
+int video_is_mda(void) { return (h_video_card(gfxcard)->flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_MDA; }
+int video_is_cga(void) { return (h_video_card(gfxcard)->flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_CGA; }
+int video_is_ega_vga(void) { return (h_video_card(gfxcard)->flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_SPECIAL; }
 
 /* Toshiba T1000 : touche système, machine hors cible. */
 void t1000_syskey(uint8_t andmask, uint8_t ormask, uint8_t xormask) {

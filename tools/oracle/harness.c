@@ -271,6 +271,10 @@ extern device_t cga_device;
 #include "video.h"
 #include "vid_svga.h"
 extern device_t vga_device;
+/* M19 — les deux Trident (vid_tvga.h), compilées par harness_tvga.c qui inclut
+ * vid_tvga.c pour en lire la tvga_t privée. */
+#include "vid_tvga.h"
+void h_tvga_probe(svga_t *svga, uint64_t *out);
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1105,14 +1109,20 @@ int h_boot(const char *romspath) {
          * video_cards[video_old_to_new(gfxcard)]->device designe (video.c:96, :191).
          * Les deux cotes ajoutent donc la MEME carte de la MEME facon -- ce qui est
          * tout ce que l'oracle doit garantir. */
-        if (gfxcard == GFX_VGA) {
+        if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B) {
                 svga_t *svga;
 
-                device_add(&vga_device);
+                /* M19 : les deux Trident, video.c:177-181. */
+                if (gfxcard == GFX_TVGA)
+                        device_add(&tvga8900d_device);
+                else if (gfxcard == GFX_TVGA9000B)
+                        device_add(&tvga9000b_device);
+                else
+                        device_add(&vga_device);
                 /* DEVIATION de l'ORACLE (pas d'iXtal26) : svga_init alloue la VRAM et
                  * changedvram par malloc SANS les effacer (vid_svga.c:772, :777) — du
                  * tas, donc de l'UB et pas un comportement. Le premier amorçage du
-                 * processus reçoit une VRAM de 256 Ko issue de mmap, donc nulle ; mais
+                 * processus reçoit une VRAM (256 Ko, 512 Ko ou 1 Mo) issue de mmap, donc nulle ; mais
                  * vga_close la libère, glibc relève alors son seuil de mmap dynamique,
                  * et la VRAM du SECOND h_boot — la phase 2 du boot-diff — vient du tas
                  * avec les octets de la première. changedvram (4 Ko) vient du tas dès
@@ -1383,6 +1393,19 @@ void h_vga_probe(uint64_t *out) {
         out[f++] = (uint64_t)(int64_t)svga->video_res_y;
         out[f++] = (uint64_t)(int64_t)svga->video_bpp;
         out[f++] = (uint64_t)(int64_t)svga->blink;
+        /* M19 — ce que la Trident rend atteignable et que les 64 premiers ne voyaient pas. */
+        out[f++] = svga->read_bank;
+        out[f++] = svga->write_bank;
+        out[f++] = (uint64_t)(int64_t)svga->bpp;
+        out[f++] = svga->vram_display_mask;
+        out[f++] = svga->vram_mask;
+        out[f++] = (uint64_t)(int64_t)svga->rowoffset;
+        out[f++] = svga->ma_latch;
+        out[f++] = (uint64_t)(int64_t)svga->interlace;
+        out[f++] = (uint64_t)(int64_t)svga->lowres;
+        out[f++] = (uint64_t)(int64_t)svga->hdisp_time;
+        memcpy(&out[f++], &svga->clock, sizeof(uint64_t));
+        h_tvga_probe(svga, &out[f]);
 }
 
 /* Pointeur direct sur la VRAM de l'oracle, NULL sans carte svga : la sonde VGA y lit

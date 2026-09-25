@@ -1672,6 +1672,20 @@ internal static partial class vid_svga
         o[f++] = (uint64_t)(long)svga.video_res_y;
         o[f++] = (uint64_t)(long)svga.video_bpp;
         o[f++] = (uint64_t)(long)svga.blink;
+        // M19 — ce que la Trident rend atteignable et que les 64 premiers ne voyaient pas.
+        o[f++] = svga.read_bank;
+        o[f++] = svga.write_bank;
+        o[f++] = (uint64_t)(long)svga.bpp;
+        o[f++] = svga.vram_display_mask;
+        o[f++] = svga.vram_mask;
+        o[f++] = (uint64_t)(long)svga.rowoffset;
+        o[f++] = svga.ma_latch;
+        o[f++] = (uint64_t)(long)svga.interlace;
+        o[f++] = (uint64_t)(long)svga.lowres;
+        o[f++] = (uint64_t)(long)svga.hdisp_time;
+        o[f++] = BitConverter.DoubleToUInt64Bits(svga.clock);
+        // Les onze champs propres à la Trident (tvga_t, RAMDAC) restent à zéro : aucune
+        // carte de ce registre n'en porte encore.
     }
 
     // FNV-1a 64 bits, le h_fnv de harness.c.
