@@ -56,7 +56,15 @@ void h_prefetch_reset(void);
  * inchangé, ce que les cinq chiffres de régression vérifient. */
 static int h_core = H_CORE_8088;
 
-void h_set_core(int core) { h_core = (core == H_CORE_286) ? H_CORE_286 : H_CORE_8088; }
+void h_set_core(int core) {
+        h_core = (core == H_CORE_286 || core == H_CORE_386) ? core : H_CORE_8088;
+}
+
+/* LE 286 ET LE 386 EMPRUNTENT LE MEME exec386 (pc.c:478-487), et c'est ce predicat — pas
+ * `h_core == H_CORE_286` — qui aiguille. G2, D0.2 : les dix sites qui testaient le 286
+ * seul, relevés par grep, le lisent tous ; un seul oublié renvoyait le 386 vers
+ * execx86 sans rien dire. Seul le CHOIX DE LA MACHINE distingue encore les deux. */
+static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386; }
 
 
 
@@ -393,7 +401,7 @@ void h_reset(void) {
         /* Configuration machine : IBM XT, Intel 8088.
          * Posée avant resetx86() parce que celle-ci branche sur AT, is486 et
          * is386 (808x.c:671-687) pour choisir le vecteur de reset et rammask. */
-        AT = (h_core == H_CORE_286); /* pc.c:484 — c'est AT qui aiguille vers exec386 */
+        AT = h_exec386(); /* pc.c:484 — c'est AT qui aiguille vers exec386 */
         is386 = 0;
         is486 = 0;
         is8086 = 0; /* 8088 : file de préfetch de 4 octets, pas 6 */
@@ -408,9 +416,9 @@ void h_reset(void) {
          * de la machine : il faut une machine, même ici. Pendant exact de _808x.Reset()
          * et de _386.Reset286() côté C#. */
         h_models_init();
-        model = (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
+        model = (h_core == H_CORE_386) ? ROM_AMI386SX : (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
         cpu_manufacturer = 0;
-        cpu = (h_core == H_CORE_286) ? h_cpu_index : 0;
+        cpu = h_exec386() ? h_cpu_index : 0;
         if (!h_cpu_index_ok(model, cpu)) {
                 fprintf(stderr, "h_reset : cpu %d hors de la table du romset %d, 0 à la place\n", cpu, model);
                 cpu = 0;
@@ -616,7 +624,7 @@ static int h_step286(void) {
 int h_wlog_max(void) { return H_WLOG_MAX; }
 
 int h_step_trace(void) {
-        if (h_core == H_CORE_286) {
+        if (h_exec386()) {
                 cpu_state._cycles = 1;
                 exec386(0);
                 h_ins_count++;
@@ -626,7 +634,7 @@ int h_step_trace(void) {
 }
 
 int h_step(void) {
-        if (h_core == H_CORE_286)
+        if (h_exec386())
                 return h_step286();
         cpu_state._cycles = 1;
         execx86(0);
@@ -637,7 +645,7 @@ int h_step(void) {
 int h_run(int cycs) {
         uint64_t before = ins;
         cpu_state._cycles = 0;
-        if (h_core == H_CORE_286)
+        if (h_exec386())
                 exec386(cycs);
         else
                 execx86(cycs);
@@ -1044,6 +1052,13 @@ int h_boot(const char *romspath) {
          * dans la table : les deux doivent dire la même machine. */
         h_models_init();
         model = romset;
+        /* G2, D0.2 : l'ami386 est dans models[] pour que cpu_set() et le fuzzeur aient un
+         * 386, mais son init (at_headland_init, model.c:482-485) n'est pas liee. Refus
+         * BRUYANT, comme le C# (model.cs), plutot qu'une demi-machine qui amorcerait. */
+        if (romset == ROM_AMI386SX) {
+                fprintf(stderr, "h_boot : ami386 — le chipset Headland n'est pas lie a l'oracle (G3)\n");
+                return 0;
+        }
         if (!h_cpu_table_ok()) {
                 fprintf(stderr, "h_boot : cpu %d (fabricant %d) hors de la table du romset %d\n",
                         h_cpu_index, h_cpu_manu, romset);
@@ -1052,7 +1067,8 @@ int h_boot(const char *romspath) {
         cpu_manufacturer = h_cpu_manu;
         cpu = h_cpu_index;
         cpu_set();
-        if ((cpu_s->cpu_type == CPU_286) != (h_core == H_CORE_286)) {
+        if ((cpu_s->cpu_type >= CPU_386SX ? H_CORE_386 : cpu_s->cpu_type == CPU_286 ? H_CORE_286 : H_CORE_8088)
+            != h_core) {
                 fprintf(stderr, "h_boot : la table du romset %d (cpu_type %d) contredit le coeur %d\n",
                         romset, cpu_s->cpu_type, h_core);
                 return 0;
@@ -1099,7 +1115,7 @@ int h_boot(const char *romspath) {
         serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
-        if (h_core == H_CORE_286) {
+        if (h_exec386()) {
                 /* models[] et `model` sont posés plus haut, avant cpu_set() (M16) :
                  * nvr.c les déréférence à chaque écriture CMOS. */
                 AT = 1;
@@ -1261,7 +1277,7 @@ void h_runpc(void) {
 
         if (!h_trace_fp) {
                 cpu_state._cycles = 0;
-                if (h_core == H_CORE_286)
+                if (h_exec386())
                         exec386(cycles_to_run);
                 else
                         execx86(cycles_to_run);
@@ -1273,7 +1289,7 @@ void h_runpc(void) {
         int budget = cycles_to_run;
         while (budget > 0) {
                 cpu_state._cycles = 1;
-                if (h_core == H_CORE_286)
+                if (h_exec386())
                         exec386(0);
                 else
                         execx86(0);

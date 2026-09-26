@@ -110,7 +110,9 @@ public static class Fuzzer
             Oracle.h_set_core(core);
             Oracle.h_reset();
             Oracle.h_fill_ram(0x90);
-            if (core == Oracle.Core286)
+            if (core == Oracle.Core386)
+                _386.Reset386();
+            else if (core == Oracle.Core286)
                 _386.Reset286();
             else
                 _808x.Reset();
@@ -256,7 +258,7 @@ public static class Fuzzer
             int cycS;
             try
             {
-                cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
+                cycS = Oracle.Exec386(core) ? _386.Step286() : _808x.Step();
             }
             catch (Exception e)
             {
@@ -427,7 +429,9 @@ public static class Fuzzer
 
             Oracle.h_set_core(core);
             Oracle.h_reset();
-            if (core == Oracle.Core286)
+            if (core == Oracle.Core386)
+                _386.Reset386();
+            else if (core == Oracle.Core286)
                 _386.Reset286();
             else
                 _808x.Reset();
@@ -456,7 +460,7 @@ public static class Fuzzer
             for (var n = 0; n < instrPerRound; n++)
             {
                 var cycC = Oracle.h_step();
-                var cycS = core == Oracle.Core286 ? _386.Step286() : _808x.Step();
+                var cycS = Oracle.Exec386(core) ? _386.Step286() : _808x.Step();
 
                 Oracle.h_getstate(out a);
                 _808x.GetState(ref b);

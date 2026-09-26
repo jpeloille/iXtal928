@@ -16,7 +16,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
-    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286 [--cpu N]]");
+    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
@@ -98,6 +98,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      domaine d'horloge, temps vidéo). L'indice hors table doit être refusé");
     Console.WriteLine("      des deux côtés.");
     Console.WriteLine();
+    Console.WriteLine("  ops-count [--missing]");
+    Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
+    Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -105,6 +109,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
 
 switch (args[0])
 {
+    // G2, D0.6 — ce que la table du 386 porte réellement, lue vivante.
+    case "ops-count":
+        return OpsCount.Run(args.Contains("--missing"));
+
     case "abi":
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
@@ -454,20 +462,29 @@ switch (args[0])
                 case "-v": verbose = true; break;
                 case "--ram-per-instr": ramPerInstr = true; break;
                 case "--core":
-                    fuzzCore = args[++i] == "286" ? Oracle.Core286 : Oracle.Core8088;
+                    fuzzCore = args[++i] switch
+                    {
+                        "286" => Oracle.Core286,
+                        "386" => Oracle.Core386,
+                        _ => Oracle.Core8088,
+                    };
                     break;
                 // M16 — l'entrée de cpus_286 que le 286 fuzzé reçoit, des DEUX côtés :
                 // h_reset et Reset286 font tourner cpu_set() sur la table de l'ami286.
                 // --cpu 5 exerce le 286/20 : 4 cycles mémoire, isa 3, préfetch ROM 20.
                 case "--cpu" when i + 1 < args.Length:
                 {
+                    // G2 : la table est celle du cœur — cpus_286 ou cpus_i386SX. --core doit
+                    // donc précéder --cpu.
                     var n = int.Parse(args[++i]);
+                    var table = fuzzCore == Oracle.Core386
+                        ? iXtal26.Cpu.cpu_tables.cpus_i386SX : iXtal26.Cpu.cpu_tables.cpus_286;
                     var count = 0;
-                    while (iXtal26.Cpu.cpu_tables.cpus_286[count].cpu_type != -1)
+                    while (table[count].cpu_type != -1)
                         count++;
                     if (n < 0 || n >= count)
                     {
-                        Console.Error.WriteLine($"--cpu {n} : hors de cpus_286 (0 à {count - 1}).");
+                        Console.Error.WriteLine($"--cpu {n} : hors de la table du cœur (0 à {count - 1}).");
                         return 2;
                     }
                     Oracle.h_set_cpu(0, n);

@@ -848,11 +848,27 @@ static MODEL h_model_ami286 = {
         .ram_granularity = 128,
 };
 
+/* G2, D0.2 — m_ami386 (model.c:1238-1247), la table Intel SEULE : cpus_Am386SX et
+ * cpus_486SLC sont omis ici COMME dans model.cs, pour que les deux cotes lisent la meme
+ * table. Son init n'est pas liee : h_boot la refuse. Elle sert a cpu_set() et au
+ * fuzzeur du coeur 386 (h_reset, H_CORE_386). */
+static MODEL h_model_ami386 = {
+        .name = "[386SX] AMI 386SX clone",
+        .id = ROM_AMI386SX,
+        .internal_name = "ami386",
+        .cpu = {{"Intel", cpus_i386SX}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        .min_ram = 512,
+        .max_ram = 16384,
+        .ram_granularity = 128,
+};
+
 void h_models_init(void) {
         models[ROM_IBMPC] = &h_model_ibmpc;
         models[ROM_IBMXT] = &h_model_ibmxt;
         models[ROM_IBMAT] = &h_model_ibmat;
         models[ROM_AMI286] = &h_model_ami286;
+        models[ROM_AMI386SX] = &h_model_ami386;
 }
 
 /* --- processeur (M16) -------------------------------------------------------

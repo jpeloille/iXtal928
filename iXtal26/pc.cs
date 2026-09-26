@@ -92,6 +92,9 @@ internal static partial class pc
     // libres après ROM_IBMAT — d'où la correction de 84e39ec, qui avait rendu leurs
     // vraies valeurs aux quatre entrées squattant ici.
     internal const int ROM_AMI286 = 27;
+    // G2, D0.2 : l'ami386, dont le cœur 386 a besoin pour que cpu_set() lise un 386.
+    // Valeur lue par le compilateur sur ibm.h (43), pas comptée à la main.
+    internal const int ROM_AMI386SX = 43;
     internal const int ROM_IBMXT286 = 66;  // hors cible, présent pour les gardes
     internal const int ROM_T3100E = 70;    // hors cible, présent pour les gardes  // hors cible, présent pour les gardes (fdc.c:98, :628)
 
@@ -561,6 +564,17 @@ internal static partial class pc
         // outils Diff — refusent de la même façon. Voir check_cpu.
         if (!check_cpu())
             return false;
+
+        // G2, D0.2 : une machine de la table dont l'init n'est pas transcrite — l'ami386,
+        // présente pour que le cœur 386 ait un cpu_set(), attend son chipset Headland
+        // (G3). REFUS BRUYANT, comme h_boot côté oracle, plutôt qu'une demi-machine.
+        if (Models.model_c.models[Models.model_c.model].init is null)
+        {
+            Console.Error.WriteLine(
+                $"La machine « {Models.model_c.models[Models.model_c.model].internal_name} » n'est pas " +
+                "encore amorçable : son chipset n'est pas transcrit (Headland, bloc G3 de PLAN.md).");
+            return false;
+        }
 
         PluginApi.device.device_init();
         Video.video.initvideo();

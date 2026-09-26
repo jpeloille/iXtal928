@@ -40,7 +40,8 @@ public static class Oracle
     // 20 a M21 : COM1, COM2 et la souris serie Microsoft entrent dans l'oracle ;
     // h_mouse_poll s'ajoute au contrat.
     // 21 en G2, D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de taille.
-    public const int AbiVersion = 21;
+    // 22 en G2, D0.2 : h_set_core accepte 2, le coeur 386. Le vecteur ne change pas.
+    public const int AbiVersion = 22;
 
     static Oracle()
     {
@@ -107,6 +108,20 @@ public static class Oracle
     // l'ignore obtient le palier (a) inchangé.
     public const int Core8088 = 0;
     public const int Core286 = 1;
+    // G2, D0.2 : 2 = 386, le MÊME exec386 sur l'ami386 (ops_386, is386, temps du 386).
+    public const int Core386 = 2;
+
+    /// <summary>Le 286 et le 386 empruntent le même exec386 : c'est ce prédicat, pas
+    /// `core == Core286`, qui choisit Step286 contre _808x.Step — pendant de
+    /// h_exec386() côté oracle.</summary>
+    public static bool Exec386(int core) => core is Core286 or Core386;
+
+    /// <summary>Le cœur d'une machine : 8088 hors AT ; sur un AT, le type de la
+    /// première entrée de sa table de CPU. Un seul endroit, pour BootDiff, VgaProbe et
+    /// CpuConfigCheck, qui le recopiaient chacun sur MODEL_AT seul.</summary>
+    internal static int CoreForModel(iXtal26.Models.MODEL m)
+        => (m.flags & iXtal26.Models.model_c.MODEL_AT) == 0 ? Core8088
+         : m.cpu[0].cpus![0].cpu_type >= iXtal26.Cpu.cpu_c.CPU_386SX ? Core386 : Core286;
     [DllImport(Lib)] public static extern void h_set_core(int core);
     [DllImport(Lib)] public static extern void h_prefetch_reset();
     [DllImport(Lib)] public static extern void h_seg_clear_residue();

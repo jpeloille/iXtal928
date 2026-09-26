@@ -93,11 +93,11 @@ silicium voient tout (le mode réel), puis ce qu'ils ne voient plus.
 | # | Quoi | Pourquoi |
 |---|---|---|
 | D0.1 ✅ | `cr4` et `dr[8]` entrent dans `h_state` ; ABI 21 | `MOV CRx`/`MOV DRx` les écrivent. **Correction** : la première version de ce plan voulait élargir `eflags` à 32 bits — faux, c'est déjà le mot haut d'EFLAGS chez PCem. TR6/TR7 n'ont pas de stockage (`MOV TRx` ne fait que journaliser) |
-| D0.2 | Porter `cpus_i386SX` et `cpus_i386DX` (`cpu_tables.c`), puis `cpu_set()` sur un 386 des deux côtés | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
-| D0.3 | `Oracle.Core386` : `h_set_core`, `Step386`, et `boot-diff`/`BootDiff.CoeurDuModele` qui le reconnaissent | Même geste que `Core286` |
+| D0.2 ✅ | Porter `cpus_i386SX` (`cpu_tables.c`), `m_ami386` des deux côtés (init absente, **refus bruyant**), et `cpu_set()` sur un 386 : `x86_setopcodes(ops_386)` inconditionnel, temps du 386SX. `ops_386`/`ops_386_0f` remplies de leur part partagée par le fichier **généré** `386_ops_table386.cs` (`tools/ops386-table.py`). `cpus_i386DX` viendra avec l'ami386dx (G3) | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
+| D0.3 ✅ | `Oracle.Core386` / `H_CORE_386`, un seul prédicat « exec386 » de chaque côté (`h_exec386`, `Oracle.Exec386`, `Oracle.CoreForModel`) ; fait avec D0.2 | Un site oublié renvoyait le 386 vers execx86 en silence |
 | D0.4 | Le fuzzeur en `Core386` : préfixes `66`/`67` tirés, registres 32 bits aléatoires, tables tirées dans les quatre quadrants | `Fuzzer.cs` exclut aujourd'hui `66`/`67` « jusqu'au 386 » |
 | D0.5 | `sst386-probe` : lecteur `MOO` en C# (dans `tools/iXtal26.Diff`), liste de révocation, `--baseline` comme `sst-probe` ; `tools/fetch-sst.sh` étendu au dépôt 80386 (`.gitignore`) | Le seul oracle silicium du bloc |
-| D0.6 | Script de mesure : emplacements `ops_386`/`ops_386_0f` posés contre la table C | Le compteur « N / 1 024 » de chaque commit, comme pour A |
+| D0.6 ✅ | `tools/ops386-table.py` (ce que PCem attend) et `iXtal26.Diff ops-count` (ce que la table C# vivante porte) — fait avec D0.2 | Le compteur « N / 1 024 » de chaque commit, comme pour A |
 
 **Porte de D0** : les boot-diffs 8088 et 286 inchangés à l'unité ; `sst386-probe` tourne
 et rend un rouge **nommé** sur chaque fichier (aucun handler 32 bits n'existe encore) ;

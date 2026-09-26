@@ -56,7 +56,10 @@ enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
  * `is386 ? exec386 : AT ? exec386 : execx86` (pc.c:478-487). Un 286 est donc « AT sans
  * is386 », et h_set_core() ne fait que mémoriser le choix pour que h_reset() le
  * réapplique — resetx86() branche sur AT (808x.c:680). */
-enum { H_CORE_8088 = 0, H_CORE_286 = 1 };
+/* H_CORE_386 depuis G2 etape D0.2 : le MEME exec386, mais sur une machine dont la table
+ * porte un 386 — cpu_set() pose is386, les temps du 386 et x86_setopcodes(ops_386, …).
+ * La machine est l'ami386 (ROM_AMI386SX), la premiere de G3. */
+enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2 };
 void h_set_core(int core);
 int h_get_core(void);
 
@@ -564,7 +567,9 @@ uint8_t *h_ram(void);
  * Microsoft entrent dans l'oracle. Le vecteur ne change pas de taille. */
 /* 21 depuis G2 etape D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de
  * TAILLE. */
-#define H_ABI_VERSION 21
+/* 22 depuis G2 etape D0.2 : h_set_core accepte H_CORE_386. Le vecteur ne change pas de
+ * taille. */
+#define H_ABI_VERSION 22
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
