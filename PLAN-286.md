@@ -3,21 +3,90 @@
 > Écrit le 23 septembre 2026, au commit `e8475ba`. Tous les chiffres viennent
 > d'une mesure faite ce jour-là, pas d'une estimation : les emplacements sont
 > comptés sur `ops_286[]` lu dans la `.so` par gdb, les lignes vives par script.
+>
+> **Mis à jour le 26 septembre 2026, au commit `f1f45da` (après M21).** Les blocs
+> A, B et C sont faits, sauf `taskswitch286`. Le détail de chaque jalon est dans
+> `VERIFICATION.md` ; les sections plus bas qui décrivent A, B et C sont gardées
+> comme historique. Ce qui reste à couvrir est en tête, § « Tâches à couvrir ».
+> La feuille de route d'ensemble, du 8088 au 486 DX2-66, est dans `PLAN.md`.
 
-## Où on en est, à l'emplacement près
+## Où on en est, au 26 septembre 2026
 
 | | |
 |---|---:|
 | Emplacements posés dans `ops_286[]` | **256 / 256** ✅ |
-| Mode protégé (`x86seg.cs` vif / `x86seg.c` vif) | **~90 / 2 446** |
-| La machine AT, côté C# | **rien** |
-| L'oracle sait-il amorcer un AT ? | **non** |
+| Seconde table `ops_286_0f` (six handlers) | ✅ — groupe `0F 00` corrigé en M20 (`5c6ddd0`) |
+| Mode protégé (`x86seg.cs`) | ✅ **sauf `taskswitch286`** (356 lignes, `x86seg.c:2393-2849`) — son corps C# est un `pc.fatal` |
+| `nvr.cs`, `keyboard_at.cs` (B1) | ✅ |
+| L'oracle amorce un AT (B2) | ✅ — mais `boot-diff --model ibmat` diverge sur le CMOS (voir tâche 4) |
+| La machine AT, côté C# (B3) | ✅ — IBM AT 5170 et ami286 : 4 Mo, 1,44 + 1,2 Mo, disque type 46, VGA/Trident (M17, M19) |
+| Cadence du 286 | ✅ — 6 MHz, `--timer-check --model ibmat` rapport 6 à 0,99999 (M16) |
+| Ce qui tourne | PC DOS 2.00 ; Windows 3.1/3.11 en mode standard, HIMEM, souris série (M20, M21) |
+| Coprocesseur 287 | **absent** — les neuf ESCAPE sont `op_nofpu_a16` (`Cpu/386_ops_fpu.cs`) |
 
-Fait : `mov` (26), `arith` au sens large — `OP_ARITH`, CMP, TEST, groupe
-immédiat (56), pile (28). Tout cela est vert au fuzzeur à chaque commit, et les
-cinq chiffres du 8088 n'ont pas bougé d'une unité.
+## Tâches à couvrir
 
-## Le point que l'on sous-estime
+Relevées le 26 septembre 2026 dans les sections « Reste ouvert » et « Ce qui reste » de
+`VERIFICATION.md`. Rien de cette liste n'est commencé.
+
+### 1. Vérifications manuelles de M7, jamais faites (`VERIFICATION.md` § M7)
+
+- [ ] Réarmement du turbo par « Reset matériel + turbo » (entrée n° 6) : une seconde ligne
+      `turbo :` doit apparaître.
+- [ ] **Ctrl+Alt+Suppr** (`resetpc_cad`) : redémarrage à chaud sans test mémoire.
+- [ ] Éjection puis reset : retour à BASIC.
+- [ ] Changement de disquette à chaud sous DOS puis `DIR` : premier exercice réel de
+      DSKCHG (`fdc.cs`).
+- [ ] `closepc()` : écrire sous DOS sur une **copie** d'image, fermer la fenêtre, vérifier
+      que l'empreinte a changé.
+- [ ] Cinq resets d'affilée, puis une minute d'horloge contre une vraie montre à l'invite
+      DOS ; `--timer-check roms 300` toujours à 18,2065 Hz.
+
+### 2. Disquettes vierges (`VERIFICATION.md` § M7.1)
+
+- [ ] Produire et mesurer les images 160, 180 et 320 Ko (163 840 / 184 320 / 327 680
+      octets) ; seule la 360 Ko l'a été.
+- [ ] Exercer `FreeName` : le suffixe `-2`, `-3`… contre l'écrasement.
+
+### 3. Mode protégé : `taskswitch286`
+
+- [ ] Transcrire `taskswitch286` (`x86seg.c:2393-2849`), atteint par `CALL`/`JMP` vers une
+      TSS. Windows 3.1 en mode standard ne l'atteint pas ; OS/2 1.x et certains
+      extenseurs DOS, oui. Oracle : le fuzzeur en état protégé et `pm-check`, avec la
+      réserve de § « Ce que le bloc C n'a PAS comme oracle ».
+- [ ] Mettre à jour l'en-tête `STATUS:` de `Cpu/x86seg.cs`, resté à « étapes 5 à 8 à
+      écrire » alors que seule l'étape 8 reste.
+
+### 4. Rendre l'AT comparable à l'oracle
+
+- [ ] `boot-diff --model ibmat` diverge à la lecture du CMOS (`IN AL,71h` : oracle `0xFF`,
+      C# `0x10`) : le C# lit `nvr/.at.nvr`, l'oracle prend la branche sans fichier. Tant
+      que ce n'est pas réglé, l'AT n'a que `--boot` et la sonde VGA comme témoins.
+- [ ] Le `104-System Board Error` du POST de l'IBM AT côté C#, relevé en M15 et non revu
+      depuis M17 (CMOS fabriqué) : vérifier s'il existe encore, sinon l'expliquer.
+
+### 5. Réglages de configuration encore bloqués (`VERIFICATION.md` § M8)
+
+- [ ] **`hasfpu`** et le **287** : les deux côtés reposent sur un zéro implicite. Poser
+      l'affectation explicite des deux côtés avant de le rendre réglable ; transcrire
+      `x87*.c` si un 287 est voulu.
+- [ ] **`video_speed`** : `video_updatetiming` est un no-op côté C et calcule côté C#.
+      Trancher avant d'en faire un réglage.
+
+### 6. Souris
+
+- [ ] Vérifier à la main le déplacement réel du curseur sous Windows (seule la détection
+      est prouvée) : clic pour capturer, Ctrl+Fin pour libérer.
+
+### 7. Hors du jalon 286, à décider
+
+- [ ] **Le 386** : le cœur `exec386` et les Trident sont en place, rien d'autre n'est
+      engagé.
+- [ ] **Son** : AdLib, Sound Blaster — rien de transcrit.
+- [ ] **Performance** : 1,39× l'oracle, 2,12× le C de production (M5.1), écart dans
+      `cga_poll`. Aucun levier sans mesure et accord explicite.
+
+## Le point que l'on sous-estime *(historique — B2 est fait)*
 
 **L'oracle ne sait pas amorcer un AT.** `h_boot()` (`tools/oracle/harness.c`) est
 câblé 8088/XT : il appelle `h_cpu_config_8088()` et monte les périphériques du
@@ -126,7 +195,7 @@ fausses sur le seul `arith`.
 
 ---
 
-## B — L'oracle et la machine AT
+## B — L'oracle et la machine AT  ✅ *FAIT (M16, M17)*
 
 ### B1 — `nvr.cs` et `keyboard_at.cs`
 
@@ -166,7 +235,7 @@ Le modèle, la carte mémoire, `mem_remap_top_384k`. Petit, une fois B1 fait.
 
 ---
 
-## C — Le mode protégé
+## C — Le mode protégé  ✅ *FAIT (M20), sauf `taskswitch286` — tâche 3*
 
 `x86seg.c` fait **2 446 lignes vives en 38 fonctions**. Les six qui comptent :
 
@@ -195,7 +264,7 @@ Prérequis d'outillage : apprendre au fuzzeur à fabriquer un état protégé va
 
 ---
 
-## L'ordre que je recommande
+## L'ordre que je recommandais *(historique — suivi jusqu'au bout)*
 
 ```
 A5  jump          ← le verrou : rien ne boucle sans lui
@@ -247,18 +316,23 @@ sont couvertes par aucun compteur** :
   jamais — et son corps est gardé par `if (mem_size > 640)` (`mem.c:1295`) alors
   que la sonde AT pose 512 Ko. Le bloc B3 le porte donc **en commentaire**, pas
   en code : l'écrire créerait une divergence là où il n'y en a pas.
-- **Si le 287 est nécessaire.** A13 le tranchera en lisant ce que `ops_286` met
-  aux huit emplacements ESCAPE.
-- **Le coût réel de C.** 1 950 lignes vives est une taille, pas une durée : le
-  mode protégé est la partie la moins mécanique du jalon.
+- ~~**Si le 287 est nécessaire.**~~ **Tranché en A11** : les neuf ESCAPE qu'un
+  286 atteint sont `op_nofpu_a16`, le coprocesseur reste hors du jalon
+  (`Cpu/386_ops_fpu.cs`). Le rendre disponible est la tâche 5.
+- ~~**Le coût réel de C.**~~ Fait en M20, sauf `taskswitch286`.
 
 ## Ce qui ne doit pas bouger
 
-Les cinq chiffres du 8088, à l'unité, à chaque commit :
+Les chiffres des boot-diffs, à l'unité, à chaque commit. Ils ont changé en M21
+(`adfc7a9`), parce que le POST sonde désormais COM1 et COM2 :
 
 ```
-25 457 269 · 26 750 702 · 23 442 234 · 19 511 811 · 22 086 920
+CGA   25 457 272 · 26 750 652 · 23 442 235 · 19 511 753 · 22 086 862 · --cpu 3 52 936 825
+VGA   25 266 197 · 26 535 071 · 23 359 863 · 22 029 350
+8900D 25 261 156 · 26 920 758 · 23 346 144 · 22 419 298   (sonde VGA 86/86)
 ```
+
+Avant M21 : `25 457 269 · 26 750 702 · 23 442 234 · 19 511 811 · 22 086 920`.
 
 plus `check-oracle.sh` à zéro dérive, `selftest`, `--setup-check`, zéro
 avertissement, et le fuzzeur 8088 sur ses 60 champs.
