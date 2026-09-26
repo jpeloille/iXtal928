@@ -192,29 +192,38 @@ de la première tranche à la dernière (c'est ce qui rend deux exécutions iden
 Accepter `--turbo` à côté donnerait une option sans effet, indiscernable d'une option qui
 ne marche pas.
 
-### `--monitor`, `--pixel-mm` et `--crt`
+### `--monitor`, `--host-diagonal`, `--pixel-mm` et `--crt`
 
-Trois options d'**affichage seul** : elles agissent sur la fenêtre et le renderer, jamais sur
+Quatre options d'**affichage seul** : elles agissent sur la fenêtre et le renderer, jamais sur
 `video.Buffer32`. `--boot`, boot-diff et les empreintes de framebuffer n'en voient rien.
 
 `--monitor 14|15|17` (défaut 15) simule un moniteur d'époque : toute trame, 640×480 comme
-1024×768 ou le texte 720×400, remplit la même surface 4:3, celle du tube (270×202, 280×210,
-320×240 mm), en filtrage linéaire. La fenêtre ne suit plus les changements de mode de
+1024×768 ou le texte 720×400, remplit la même surface 4:3, celle du tube : diagonale annoncée
+× fraction visible (0,92 par défaut, clé `visible_fraction`), décomposée en 4:3 — un 15"
+montre 280,4 × 210,3 mm. Filtrage linéaire par défaut (`scale_mode = 1`, la clé et le sens
+de PCem), plus proche voisin au choix. La fenêtre ne suit plus les changements de mode de
 l'invité, comme un CRT. `--monitor entier` revient aux pixels entiers : facteur
 round(0,42 / MM), proportions de la trame, plus proche voisin.
 
-`--pixel-mm` donne la taille d'un pixel de l'écran hôte (défaut 0,25). SDL3 ne fournit plus
-de DPI physique fiable : c'est à l'utilisateur de la dire (sous X11, `xrandr` donne la
-largeur en mm ; largeur / nombre de colonnes). Au-delà de 2 mm, la valeur est refusée :
-c'est une faute de frappe, pas un écran. La fenêtre est réduite si elle dépasse le bureau.
+La taille d'un pixel de la dalle hôte : SDL3 connaît la résolution native
+(`GetDesktopDisplayMode`) mais pas la taille physique — `GetDisplayContentScale` est le
+facteur de l'OS (125 %, Retina), pas un pas de pixel. On la dit donc : `--host-diagonal 27`
+(pas = diagonale / √(largeur² + hauteur²), 0,2335 mm pour un 27" en 2560 × 1440), ou
+directement `--pixel-mm`, qui l'emporte. Sans l'un ni l'autre : 0,2331. Au-delà de 2 mm,
+la valeur est refusée : c'est une faute de frappe, pas un écran. La fenêtre est réduite si
+elle dépasse le bureau.
+
+La fenêtre est créée en `HighPixelDensity` : sous HiDPI (Wayland fractionnaire, Retina) le
+renderer reçoit les pixels de la dalle. Sans ce drapeau, le compositeur agrandissait par
+dessus notre propre mise à l'échelle.
 
 `--crt` assombrit la moitié basse de chaque ligne émulée (~38 % de noir), à condition
 d'avoir au moins deux pixels hôte par ligne : en dessous ce ne serait que du moiré, et le
 menu affiche « trop fines ici ».
 
-**Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→) et « Lignes CRT ».
-Les trois réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
-`pixel_mm`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
+**Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→), « Lignes CRT » et
+« Filtrage ». Les réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
+`scale_mode`, `visible_fraction`, `pixel_mm`, `host_diagonal`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
 puis config, puis ligne de commande. Ils ne sont **réécrits que dans `configs/`** :
 `config_save` réémet l'arbre sans ses commentaires, et un `ixtal26.cfg` documenté à la main
 les perdrait. Hors de `configs/`, le menu dit « pour cette session ».

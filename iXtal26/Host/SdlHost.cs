@@ -135,6 +135,9 @@ public sealed class SdlHost : IDisposable
     private IntPtr _scanlineTexture;
     private int _scanlineRows;
 
+    /// <summary>Taille d'un pixel de la dalle, résolue par ApplyDisplay.</summary>
+    private double _pixelMm = DisplaySettings.DefaultPixelMm;
+
     /// <summary>
     /// Menu Ctrl+F12. Null en --headless : Init() rend avant d'avoir un renderer, et le
     /// menu n'a alors rien où se dessiner ni personne pour l'ouvrir.
@@ -295,9 +298,12 @@ public sealed class SdlHost : IDisposable
         _windowHeight = video.video_height > 0 ? video.video_height : DefaultWindowHeight;
 
         if (!SDL.CreateWindowAndRenderer(WindowTitle(), _windowWidth, _windowHeight,
-                SDL.WindowFlags.Resizable, out _window, out _renderer))
+                SDL.WindowFlags.Resizable | SDL.WindowFlags.HighPixelDensity, out _window, out _renderer))
             return Fail("SDL.CreateWindowAndRenderer");
 
+        // HighPixelDensity : sous HiDPI (Wayland fractionnaire, Retina) le renderer reçoit
+        // les pixels de la dalle, pas des points que le compositeur agrandirait ensuite.
+        // Sans lui, notre mise à l'échelle et celle du système se cumulaient : flou.
         SdlMouse.Init(_window);
 
         // DEVIATION: PCem laisse la vsync À ZÉRO par défaut (video_vsync = 0,
@@ -859,12 +865,25 @@ public sealed class SdlHost : IDisposable
     private void ApplyDisplay()
     {
         // Pixels entiers : le plus proche voisin garde le 8x8 net. Moniteur : le facteur
-        // n'est pas entier, et le linéaire évite des colonnes d'épaisseurs inégales —
-        // le flou qu'il apporte est celui du faisceau.
-        SDL.SetTextureScaleMode(_texture, _display.Monitor == CrtMonitor.Integer
-                                          ? SDL.ScaleMode.Nearest : SDL.ScaleMode.Linear);
+        // n'est pas entier ; le linéaire évite des colonnes d'épaisseurs inégales, et le
+        // flou qu'il apporte est celui du faisceau. « Filtrage : net » le refuse.
+        SDL.SetTextureScaleMode(_texture, CurrentScaleMode());
+
+        int nativeW = 0, nativeH = 0;
+        uint display = SDL.GetDisplayForWindow(_window);
+
+        if (display != 0 && SDL.GetDesktopDisplayMode(display) is { } mode)
+        {
+            nativeW = (int)MathF.Round(mode.W * mode.PixelDensity);
+            nativeH = (int)MathF.Round(mode.H * mode.PixelDensity);
+        }
+
+        _pixelMm = _display.ResolvePixelMm(nativeW, nativeH);
         ResizeWindow();
     }
+
+    private SDL.ScaleMode CurrentScaleMode() =>
+        _display.Monitor != CrtMonitor.Integer && _display.Smooth ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest;
 
     /// <summary>
     /// Moniteur : la fenêtre a la surface visible du tube, convertie en pixels hôte par
@@ -890,7 +909,7 @@ public sealed class SdlHost : IDisposable
 
         if (_display.Monitor == CrtMonitor.Integer)
         {
-            int factor = Math.Max(1, (int)Math.Round(DisplaySettings.EraPixelMm / _display.PixelMm));
+            int factor = Math.Max(1, (int)Math.Round(DisplaySettings.EraPixelMm / _pixelMm));
 
             while (factor > 1 && (_windowWidth * factor > maxW || _windowHeight * factor > maxH))
                 factor--;
@@ -900,9 +919,9 @@ public sealed class SdlHost : IDisposable
         }
         else
         {
-            (double mmW, double mmH) = DisplaySettings.VisibleMm(_display.Monitor);
-            w = (float)(mmW / _display.PixelMm);
-            h = (float)(mmH / _display.PixelMm);
+            (double mmW, double mmH) = DisplaySettings.VisibleMm(_display.Monitor, _display.VisibleFraction);
+            w = (float)(mmW / _pixelMm);
+            h = (float)(mmH / _pixelMm);
 
             float shrink = Math.Min(1f, Math.Min(maxW / w, maxH / h));
             w *= shrink;
@@ -1101,8 +1120,7 @@ public sealed class SdlHost : IDisposable
             SDL.SetTextureBlendMode(_scanlineTexture, SDL.BlendMode.Blend);
         }
 
-        SDL.SetTextureScaleMode(_scanlineTexture, _display.Monitor == CrtMonitor.Integer
-                                                  ? SDL.ScaleMode.Nearest : SDL.ScaleMode.Linear);
+        SDL.SetTextureScaleMode(_scanlineTexture, CurrentScaleMode());
         SDL.RenderTexture(_renderer, _scanlineTexture, IntPtr.Zero, in dst);
     }
 

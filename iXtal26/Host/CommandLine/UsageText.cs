@@ -12,7 +12,8 @@ internal static class UsageText
         $"""
         Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]
                         [--headless] [--verbose] [--turbo [N]]
-                        [--monitor 14|15|17|entier] [--pixel-mm MM] [--crt]
+                        [--monitor 14|15|17|entier] [--host-diagonal POUCES]
+                        [--pixel-mm MM] [--crt]
                 iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...
                 iXtal26 --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]...
 
@@ -69,11 +70,15 @@ internal static class UsageText
           --monitor T          moniteur simulé (défaut : 15). 14, 15 ou 17 : toute trame
                                remplit la surface 4:3 du tube, à sa taille réelle ;
                                entier : pixels entiers, proportions de la trame
-          --pixel-mm MM        taille d'un pixel de l'écran hôte, en mm (défaut 0.25 ;
-                               0.27 pour un 24" Full HD, 0.16 pour un 27" 4K)
+          --host-diagonal P    diagonale de l'écran hôte en pouces (ex. 27) : la taille
+                               d'un pixel en découle, avec la résolution native que
+                               donne SDL
+          --pixel-mm MM        taille d'un pixel de l'écran hôte, en mm, qui l'emporte
+                               sur --host-diagonal (défaut 0.2331 ; 0.27 pour un 24"
+                               Full HD, 0.16 pour un 27" 4K)
           --crt                lignes de balayage, dessinées s'il y a au moins deux
                                pixels hôte par ligne émulée
-                               Les trois se règlent aussi au menu Ctrl+F12, et
+                               Moniteur, lignes et filtrage se règlent au menu Ctrl+F12, et
                                s'enregistrent dans [SDL2] quand la config est dans
                                configs/. Affichage seul : l'image émulée n'est pas touchée
           --boot [CHEMIN] [N]  amorce et raconte en console ce que le POST a écrit

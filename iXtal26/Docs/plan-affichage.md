@@ -7,8 +7,9 @@ framebuffer) restent aveugles à ce plan, et c'est voulu.
 ## Fait (26/09/2026)
 
 - **Moniteur d'époque (défaut, 15")** — `SdlHost.ComputeRect` / `ResizeWindow` : toute
-  trame remplit la surface 4:3 du tube (14" 270×202, 15" 280×210, 17" 320×240 mm), à sa
-  taille réelle via `--pixel-mm`, filtrage linéaire. La fenêtre ne suit plus les modes de
+  trame remplit la surface 4:3 du tube (diagonale × 0,92 visible, 3-4-5 : 15" =
+  280,4 × 210,3 mm), à sa taille réelle via `--host-diagonal` ou `--pixel-mm`, filtrage
+  linéaire ou net (« Filtrage », `scale_mode`). Fenêtre en `HighPixelDensity`. La fenêtre ne suit plus les modes de
   l'invité. Liseré du linéaire évité : `ClearTextureBorder` noircit le texel qui borde la
   trame à chaque changement de taille.
 - **Pixels entiers (`--monitor entier`)** — facteur entier, proportions de la trame,
@@ -34,9 +35,10 @@ en pixels hôte par `--pixel-mm`. Même technique que les lignes : une texture r
 aucun shader. N'a de sens qu'à partir de ×4 environ, donc sur un écran 4K.
 Réglage : `--crt mask` ou `--dot-pitch MM`.
 
-### 3. Taille visible réglable
-Les surfaces sont fixées par diagonale. Un vrai moniteur avait ses molettes de taille et
-de position : une clé `[SDL2]` `visible_mm` permettrait de coller à un modèle précis.
+### 3. Détection de la taille de dalle
+SDL3 n'expose pas la taille physique : il faut `--host-diagonal`. L'EDID (octets 21-22,
+taille en cm, ou les descripteurs détaillés en mm) la donnerait sans rien demander, via
+`/sys/class/drm/*/edid` sous Linux. Hors SDL, donc par plateforme.
 
 ### 4. Flou du faisceau, halo, courbure
 Il faut des shaders : l'API GPU de SDL3 (`SDL_GPU`) ou un renderer à shaders.

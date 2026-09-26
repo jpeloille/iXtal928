@@ -108,6 +108,14 @@ internal static class Launcher
             case "--crt":
                 options.Display.ScanlinesOverride = true;
                 return KeepParsing;
+            case "--host-diagonal":
+                if (!cursor.HasNext ||
+                    !double.TryParse(cursor.TakeNext(), NumberStyles.Float, CultureInfo.InvariantCulture,
+                                     out var hostDiagonal) ||
+                    hostDiagonal is <= 0 or > 200)
+                    return Failure.Usage("--host-diagonal attend la diagonale de l'écran hôte en pouces (ex. 27).");
+                options.Display.HostDiagonalOverride = hostDiagonal;
+                return KeepParsing;
             case "--monitor":
                 if (!cursor.HasNext || !DisplaySettings.TryParseMonitor(cursor.TakeNext(), out var monitor))
                     return Failure.Usage("--monitor attend 14, 15, 17 ou entier.");

@@ -96,6 +96,7 @@ internal sealed class SdlMenu
         ("Creer un disque dur vierge...", MainItem.CreateBlankHdd),
         ("Moniteur", MainItem.Monitor),
         ("Lignes CRT", MainItem.Scanlines),
+        ("Filtrage", MainItem.Filter),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
         ("Ctrl+Alt+Suppr (redemarrage a chaud)", MainItem.Cad),
@@ -105,7 +106,7 @@ internal sealed class SdlMenu
     private enum MainItem
     {
         InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateFat, PutFile, CreateBlankHdd,
-        Monitor, Scanlines, HardReset, HardResetTurbo, Cad, Quit,
+        Monitor, Scanlines, Filter, HardReset, HardResetTurbo, Cad, Quit,
     }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
@@ -360,6 +361,11 @@ internal sealed class SdlMenu
                 _message = "lignes CRT " + _display.Save();
                 return MenuAction.DisplayChanged;
 
+            case MainItem.Filter:
+                _display.Smooth = !_display.Smooth;
+                _message = "filtrage " + _display.Save();
+                return MenuAction.DisplayChanged;
+
             case MainItem.InsertA:
                 OpenPick(0);
                 return MenuAction.None;
@@ -433,6 +439,8 @@ internal sealed class SdlMenu
         MainItem.Scanlines => !_display.Scanlines ? $"{label} : non"
                               : _display.ScanlinesTooFine ? $"{label} : oui (trop fines ici)"
                               : $"{label} : oui",
+        MainItem.Filter => _display.Monitor == CrtMonitor.Integer ? $"{label} : net (pixels entiers)"
+                           : _display.Smooth ? $"{label} : doux" : $"{label} : net",
         _ => label,
     };
 
@@ -1579,12 +1587,36 @@ internal sealed class SdlMenu
         Check("sans config, rien n'est ecrit et le menu le dit",
               m._message.Contains("pour cette session", StringComparison.Ordinal), m._message);
 
+        bool smooth = m._display.Smooth;
+        Check("« Filtrage » bascule doux / net",
+              Activate(MainItem.Filter) == MenuAction.DisplayChanged && m._display.Smooth != smooth,
+              m._display.Smooth ? "doux" : "net");
+        m._display.Smooth = smooth;
+
         m._display.ScanlinesTooFine = true;
         lines = m.BuildLines(out _);
         Check("les libelles les plus longs tiennent dans la boite", AllFit(lines),
               $"la plus longue fait {Longest(lines)} sur {Cols}");
         m._display.Scanlines = false;
         m._display.ScanlinesTooFine = false;
+
+        Console.WriteLine();
+        Console.WriteLine("Les surfaces et le pixel hôte se calculent :");
+
+        (double w15, double h15) = DisplaySettings.VisibleMm(CrtMonitor.In15, DisplaySettings.DefaultVisibleFraction);
+        Check("15\" a 0,92 : 280,4 x 210,3 mm, en 4:3",
+              Math.Abs(w15 - 280.4) < 0.05 && Math.Abs(h15 - 210.3) < 0.05 && Math.Abs(w15 * 3 - h15 * 4) < 1e-9,
+              $"{w15:0.0} x {h15:0.0}");
+
+        var dev = new DisplaySettings { HostDiagonalInches = 27 };
+        double pitch = dev.ResolvePixelMm(2560, 1440);
+        Check("27\" en 2560x1440 : 0,2335 mm (108,8 ppi)", Math.Abs(pitch - 0.2335) < 5e-5,
+              $"{pitch:0.0000} mm, {25.4 / pitch:0.0} ppi");
+        dev.PixelMm = 0.2331;
+        Check("pixel_mm l'emporte sur la diagonale", dev.ResolvePixelMm(2560, 1440) == 0.2331,
+              $"{dev.ResolvePixelMm(2560, 1440)}");
+        Check("sans rien : le repli", new DisplaySettings().ResolvePixelMm(0, 0) == DisplaySettings.DefaultPixelMm,
+              $"{DisplaySettings.DefaultPixelMm}");
 
         Console.WriteLine();
         Console.WriteLine("Les réglages se retrouvent d'une session à l'autre, dans configs/ seulement :");
@@ -1603,6 +1635,7 @@ internal sealed class SdlMenu
             var written = new DisplaySettings
             {
                 ConfigPath = saved, Monitor = CrtMonitor.In17, Scanlines = true, PixelMm = 0.234,
+                Smooth = false, HostDiagonalInches = 27, VisibleFraction = 0.9,
             };
             written.Save();
 
@@ -1610,8 +1643,11 @@ internal sealed class SdlMenu
             var read = new DisplaySettings();
             read.Load();
             Check("configs/machine.cfg relu : memes valeurs",
-                  read.Monitor == CrtMonitor.In17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4,
-                  $"{read.Monitor}, crt {read.Scanlines}, {read.PixelMm:0.###} mm");
+                  read.Monitor == CrtMonitor.In17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4 &&
+                  !read.Smooth && Math.Abs(read.HostDiagonalInches - 27) < 1e-4 &&
+                  Math.Abs(read.VisibleFraction - 0.9) < 1e-4,
+                  $"{read.Monitor}, crt {read.Scanlines}, {read.PixelMm:0.###} mm, " +
+                  $"{(read.Smooth ? "doux" : "net")}, {read.HostDiagonalInches}\", {read.VisibleFraction:0.##}");
             Check("et la machine y est toujours",
                   config.config_get_string(config.CFG_MACHINE, null, "model", "") == "ibmxt", "model = ibmxt");
 
