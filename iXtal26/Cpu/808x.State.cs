@@ -42,6 +42,16 @@ internal static partial class _808x
     /// pour le 386 (G2, D2) — voir h_ram_top() côté oracle.</summary>
     private static void FlatMap(int kb = 1024)
     {
+        // Pendant du chemin court de h_flat_map (G2, D3) : la carte de 16 Mo n'est
+        // allouée qu'une fois ; si mem.ram est encore celle qu'elle a posée, on la remet
+        // à zéro et on vide le cache de traduction. Une machine amorcée (initpc) a
+        // réalloué mem.ram, donc ReferenceEquals échoue et le chemin complet reprend.
+        if (kb == 16384 && ReferenceEquals(mem.ram, flatRam) && mem.mem_size == kb)
+        {
+                Array.Clear(mem.ram);
+                mem.resetreadlookup();
+                return;
+        }
         mem.mem_size = kb;
         if (!mem_inited)
         {
@@ -55,7 +65,10 @@ internal static partial class _808x
                             mem.mem_read_ram, mem.mem_read_ramw, mem.mem_read_raml,
                             mem.mem_write_ram, mem.mem_write_ramw, mem.mem_write_raml,
                             mem.ram, 0, mem.MEM_MAPPING_INTERNAL, null);
+        flatRam = kb == 16384 ? mem.ram : null;
     }
+
+    private static byte[]? flatRam;
 
     private static readonly mem_mapping_t h_flat_mapping = new();
 

@@ -372,7 +372,21 @@ static void h_pad_ram(void) {
  * corpus SST 386 que la carte de 1 Mo mettait « hors carte ». */
 static uint32_t h_ram_top(void) { return (uint32_t)mem_size * 1024u; }
 
+/* LA CARTE DE 16 Mo N'EST ALLOUEE QU'UNE FOIS (G2, D3, accord de Julien). mem_alloc +
+ * h_pad_ram reallouaient, remettaient a zero et recopiaient 16 Mo a CHAQUE h_reset —
+ * ~11 ms par iteration de fuzz 386, surtout ici et dans le new byte[] du C#. Si la RAM
+ * courante est celle qu'a posee la derniere carte 386, on la remet seulement a zero et
+ * on vide le cache de traduction : les mappages, eux, n'ont pas bouge. h_boot invalide
+ * (h_flat_ram = NULL) : une machine amorcee refait ses propres mappages. Meme geste
+ * cote C# (FlatMap), meme etat final des deux cotes — une RAM nulle, la carte plate. */
+static uint8_t *h_flat_ram;
+
 static void h_flat_map(void) {
+        if (h_core == H_CORE_386 && h_flat_ram && ram == h_flat_ram && mem_size == 16384) {
+                memset(ram, 0, h_ram_top() + 4);
+                resetreadlookup();
+                return;
+        }
         mem_size = (h_core == H_CORE_386) ? 16384 : 1024; /* Ko */
         if (!h_mem_inited) {
                 mem_init();
@@ -383,6 +397,7 @@ static void h_flat_map(void) {
         mem_set_mem_state(0x000000, h_ram_top(), MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
         mem_mapping_add(&h_flat_mapping, 0x000000, h_ram_top(), mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
+        h_flat_ram = (h_core == H_CORE_386) ? ram : NULL;
 }
 
 static uint64_t h_ins_count;
@@ -1001,6 +1016,7 @@ int h_drive_type[2] = {1, 1};
 extern int bpb_disable;
 
 int h_boot(const char *romspath) {
+        h_flat_ram = NULL; /* voir h_flat_map : la machine refait ses mappages */
         h_set_roms_path(romspath);
 
         /* AVANT tout le reste. h_boot() ne passe PAS par h_reset() — il appelle
