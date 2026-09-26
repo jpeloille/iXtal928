@@ -211,10 +211,10 @@ dotnet run -- --model ibmxt --hdd IMG --hdd-d AUTRE.img  # et D:
 ```
 
 La **géométrie se déduit de la taille du fichier** — c'est `check_hd_type`, que PCem
-applique au même endroit, après son sélecteur de fichiers — et la carte `mfm_xebec` est
-posée si aucune configuration n'en a nommé. Une taille qui ne correspond à aucun des
-46 types du BIOS est **refusée** plutôt que repliée sur 63 secteurs, que nos deux cartes
-ne savent pas adresser.
+applique au même endroit, après son sélecteur de fichiers — et le contrôleur de la machine
+(`mfm_at` sur un AT, `mfm_xebec` ailleurs) est posé si rien n'en a nommé ; `--hdd-controller`
+le choisit. Une taille qui ne correspond à aucun des 46 types du BIOS est **refusée**
+plutôt que repliée sur 63 secteurs, que nos cartes ne savent pas adresser.
 
 Un cas mérite l'attention : **21 307 392 octets, c'est le type 13 (306 × 8) *ou* le type 16
 (612 × 4)**, et le Fixed Disk Adapter accepte les deux. La taille ne tranche pas. L'option

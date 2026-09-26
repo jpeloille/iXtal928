@@ -15,10 +15,10 @@ internal static class TimerCheckVerb
 
     public static ExitCode Run(ArgumentCursor cursor)
     {
-        var romDirectory = cursor.HasNext ? cursor.TakeNext() : DefaultRomDirectory;
+        var romDirectory = cursor.NextIsPositional ? cursor.TakeNext() : DefaultRomDirectory;
         var emulatedSeconds = DefaultEmulatedSeconds;
 
-        if (cursor.HasNext && !cursor.NextIsOption &&
+        if (cursor.NextIsPositional &&
             (!int.TryParse(cursor.TakeNext(), out emulatedSeconds) || emulatedSeconds <= 0))
             return Failure.Usage("--timer-check attend un nombre de secondes émulées entier positif.");
 

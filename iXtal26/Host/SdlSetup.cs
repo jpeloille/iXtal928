@@ -327,11 +327,28 @@ internal sealed class SdlSetup
         _pickValues = values.ToArray();
     }
 
+    /// <summary>
+    /// pcem: wx-config.c:229-265 — les contrôleurs du registre, filtrés sur la machine :
+    /// mfm_at n'apparaît que sur un AT. La liste vient de HardDiskControllers, la même que
+    /// --hdd-controller.
+    /// </summary>
     private void BuildControllerList()
     {
+        var labels = new List<string> { "   (aucun)" };
+        var values = new List<string> { NoneValue };
+
+        foreach (var controller in HardDiskControllers.All)
+        {
+            if (!HardDiskControllers.IsAvailable(controller))
+                continue;
+
+            labels.Add($"   {controller.InternalName,-10} {controller.Label}");
+            values.Add(controller.InternalName);
+        }
+
         _pickTitle = " Controleur de disque dur";
-        _pickLabels = ["   (aucun)", "   mfm_xebec  IBM Fixed Disk Adapter", "   dtc5150x   DTC 5150X"];
-        _pickValues = [NoneValue, "mfm_xebec", "dtc5150x"];
+        _pickLabels = labels.ToArray();
+        _pickValues = values.ToArray();
 
         for (int i = 0; i < _pickValues.Length; i++)
             if (_pickValues[i] == pc.cfg_hdd_controller)
@@ -504,6 +521,7 @@ internal sealed class SdlSetup
                 }
 
                 ClampCpu();
+                ClampController();
                 break;
 
             case Item.Memory:
@@ -549,6 +567,29 @@ internal sealed class SdlSetup
     }
 
     /// <summary>
+    /// Après un changement de modèle, le contrôleur peut ne plus exister sur la machine :
+    /// mfm_at quitte la liste quand on repasse d'un AT à un XT. PCem revient alors à la
+    /// première entrée, « None » (wx-config.c:264-265). Ici on fait de même, sauf si un
+    /// disque est monté : un disque sans contrôleur ne serait vu par personne, donc il
+    /// reçoit celui de la nouvelle machine.
+    /// </summary>
+    private void ClampController()
+    {
+        if (HardDiskControllers.IsAvailable(pc.cfg_hdd_controller))
+            return;
+
+        bool diskMounted = Disc.hdd_c.ide_fn[0].Length != 0 || Disc.hdd_c.ide_fn[1].Length != 0;
+        string previous = pc.cfg_hdd_controller;
+
+        pc.cfg_hdd_controller = diskMounted ? HardDiskControllers.DefaultForCurrentMachine : NoneValue;
+
+        string replacement = pc.cfg_hdd_controller.Length == 0 ? "aucun" : pc.cfg_hdd_controller;
+        string note = $"{previous} absent de cette machine : controleur {replacement}.";
+
+        _message = _message.Length == 0 ? note : $"{_message} {note}";
+    }
+
+    /// <summary>
     /// Pose une image de disque dur et SA géométrie. Les deux vont ensemble : hdd_load_ext
     /// prend spt/hpc/tracks de la configuration, pas du fichier, donc une image sans sa
     /// géométrie serait lue avec celle du disque précédent.
@@ -584,9 +625,10 @@ internal sealed class SdlSetup
         Disc.hdd_c.hdc[drive].tracks = cylinders;
 
         // Une carte est posée si aucune n'est choisie : une image montée sans contrôleur
-        // n'est vue par personne, et rien ne le dirait.
+        // n'est vue par personne, et rien ne le dirait. Celle de la machine : mfm_at sur
+        // un AT, le Xebec ailleurs.
         if (pc.cfg_hdd_controller.Length == 0)
-            pc.cfg_hdd_controller = "mfm_xebec";
+            pc.cfg_hdd_controller = HardDiskControllers.DefaultForCurrentMachine;
 
         // Le cas indécidable de § M13 : 21 307 392 octets, c'est le type 13 (306 x 8) ou
         // le type 16 (612 x 4), et le Fixed Disk Adapter accepte les deux.
@@ -983,7 +1025,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des quatorze contrôles sont des non-régressions nées d'une relecture : la
+    /// Deux des dix-neuf contrôles sont des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -1075,6 +1117,45 @@ internal sealed class SdlSetup
         st._screen = Screen.Main;
 
         Console.WriteLine();
+        Console.WriteLine("Contrôleur de disque dur, filtré sur la machine :");
+
+        string controllerBefore = pc.cfg_hdd_controller;
+        int modelBefore = Models.model_c.model;
+        pc.cfg_hdd_controller = NoneValue;
+
+        st.Activate(Item.Model);
+        st._pickIndex = Array.IndexOf(st._pickValues, "ibmat");
+        st.ApplyPick();
+
+        st.Activate(Item.Controller);
+        int mfmAt = Array.IndexOf(st._pickValues, "mfm_at");
+        Check("mfm_at est proposé sur l'IBM AT", mfmAt >= 0,
+              $"{string.Join(",", st._pickValues)}");
+        Check("le Xebec reste proposé sur l'IBM AT", Array.IndexOf(st._pickValues, "mfm_xebec") >= 0,
+              $"{string.Join(",", st._pickValues)}");
+        if (mfmAt >= 0)
+        {
+            st._pickIndex = mfmAt;
+            st.ApplyPick();
+        }
+        Check("le choisir pose cfg_hdd_controller = mfm_at", pc.cfg_hdd_controller == "mfm_at",
+              $"« {pc.cfg_hdd_controller} », ligne « {MainLine(Item.Controller).Trim()} »");
+
+        st.Activate(Item.Model);
+        st._pickIndex = Array.IndexOf(st._pickValues, "ibmxt");
+        st.ApplyPick();
+        Check("repasser au XT sans disque ramène le contrôleur à aucun", pc.cfg_hdd_controller.Length == 0,
+              $"« {pc.cfg_hdd_controller} », message « {st._message} »");
+
+        st.Activate(Item.Controller);
+        Check("mfm_at est absent de la liste du XT", Array.IndexOf(st._pickValues, "mfm_at") < 0,
+              $"{string.Join(",", st._pickValues)}");
+        st._screen = Screen.Main;
+
+        pc.setmodel(Models.model_c.models[modelBefore].internal_name);
+        pc.cfg_hdd_controller = controllerBefore;
+
+        Console.WriteLine();
         Console.WriteLine("Chemin clavier de l'écran principal :");
 
         st._mainIndex = 0;
@@ -1103,7 +1184,7 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les quatorze contrôles passent."
+            ? "Vert : les dix-neuf contrôles passent."
             : $"{fail} contrôle(s) en échec.");
 
         return fail == 0 ? 0 : 1;

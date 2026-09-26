@@ -15,10 +15,10 @@ internal static class BootVerb
 
     public static ExitCode Run(ArgumentCursor cursor)
     {
-        var romDirectory = cursor.HasNext ? cursor.TakeNext() : DefaultRomDirectory;
+        var romDirectory = cursor.NextIsPositional ? cursor.TakeNext() : DefaultRomDirectory;
         var sliceCount = DefaultSliceCount;
 
-        if (cursor.HasNext && (!int.TryParse(cursor.TakeNext(), out sliceCount) || sliceCount <= 0))
+        if (cursor.NextIsPositional && (!int.TryParse(cursor.TakeNext(), out sliceCount) || sliceCount <= 0))
             return Failure.Usage("--boot attend un nombre de tranches entier positif.");
 
         var typedLines = new List<string>();
@@ -57,6 +57,9 @@ internal static class BootVerb
                 case "--hdd":
                     machine.SetHardDiskImage(0, value);
                     break;
+                case "--hdd-controller":
+                    machine.HardDiskController = value;
+                    break;
                 case "--hdd-type":
                     if (!int.TryParse(value, out var biosType) || !BiosDiskType.IsInRange(biosType))
                         return Failure.Usage("--hdd-type attend un type de disque du BIOS, de 1 à 46.");
@@ -75,7 +78,8 @@ internal static class BootVerb
             }
         }
 
-        if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryMountHardDisks())
+        if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardDiskController() ||
+            !machine.TryMountHardDisks())
             return ExitCode.UsageError;
 
         return (ExitCode)BootTest.Run(paths.resolve_roms_path(romDirectory), sliceCount, typedLines, settleSlices);

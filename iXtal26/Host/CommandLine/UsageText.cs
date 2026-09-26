@@ -68,7 +68,8 @@ internal static class UsageText
           --boot [CHEMIN] [N]  amorce et raconte en console ce que le POST a écrit
                                en mémoire et à l'écran (défauts : roms, 20 tranches)
               --hdd IMG        après --boot : monte un disque dur, comme l'option
-                               principale. --hdd-type N la complète
+                               principale. --hdd-type N et --hdd-controller NOM la
+                               complètent
               --type TEXTE     après --boot : tape TEXTE puis Entrée dans la machine,
                                et revide l'écran. Répétable, dans l'ordre. C'est la
                                seule vérification du chemin clavier qui ne dépende
@@ -76,8 +77,13 @@ internal static class UsageText
           --hdd IMG            monte une image de disque dur EXISTANTE en C:, géométrie
                                déduite de sa taille. --hdd-d IMG : le disque D:. Une
                                taille qui ne correspond à aucun des 46 types du BIOS
-                               est refusée. Pose la carte mfm_xebec si --config n'en a
-                               pas nommé, et l'emporte sur les clés hdc_*/hdd_*
+                               est refusée. Pose le contrôleur de la machine (mfm_at
+                               sur un AT, mfm_xebec ailleurs) si rien n'en a nommé, et
+                               l'emporte sur les clés hdc_*/hdd_*
+          --hdd-controller NOM contrôleur de disque dur : mfm_xebec (IBM Fixed Disk
+                               Adapter), dtc5150x (DTC 5150X), ou mfm_at (IBM AT, sur
+                               les seules machines AT). Même précédence que --gfxcard :
+                               l'emporte sur la clé hdd_controller
           --hdd-type N         force le type de disque de C: quand sa taille en désigne
                                plusieurs — 21 307 392 octets, c'est le type 13 (306x8)
                                ou le type 16 (612x4). --hdd-d-type N : le disque D:

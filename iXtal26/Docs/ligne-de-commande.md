@@ -59,14 +59,16 @@ précisément le signal que le cœur est fait pour émettre. L'étouffer ici le 
 
 **Renoncer n'est pas échouer** : quitter l'écran de construction sort par 0.
 
-## Trois politiques de lecture anticipée
+## Deux politiques de lecture anticipée
 
 Elles sont distinctes, et il faut les garder ainsi :
 
-- **Les positionnels de `--boot` et de `--timer-check` avalent l'argument suivant quel qu'il
-  soit** comme répertoire de ROM. `--boot --floppy-a x` prend donc « --floppy-a » pour un
-  répertoire.
-- **Les options qui suivent un verbe se reconnaissent à `--`** (`ArgumentCursor.NextIsOption`).
+- **Les positionnels de `--boot` et de `--timer-check`, et les options qui suivent un verbe,
+  s'arrêtent à `--`** (`ArgumentCursor.NextIsPositional`, `NextIsOption`). Jusqu'au
+  26/09/2026, les positionnels avalaient l'argument suivant quel qu'il soit :
+  `--timer-check --model ibmat`, la forme que citent PLAN-286.md et VERIFICATION.md,
+  prenait « --model » pour le répertoire de ROM et sortait en 2. Le test `--` et non `-`
+  garde le refus d'un nombre négatif : `--boot roms -5` est toujours rejeté.
 - **`--turbo`, `--make-nvr`, `--create-hdd`, `--create-floppy` et `--floppy-put` s'arrêtent au
   premier `-`** (`ArgumentCursor.NextIsValue`). Un nombre ne peut pas commencer par un
   tiret : ce test distingue « --turbo 3000 » de « --turbo --verbose » sans consommer
@@ -121,8 +123,16 @@ Trois écarts avec le montage d'une disquette, tous imposés par le matériel :
    cartes transcrites câblent 17 secteurs dans leur ADRESSAGE (xebec_get_sector), donc un
    disque à 63 secteurs serait annoncé sans être adressable. Mieux vaut le dire que
    produire une machine qui diverge au POST.
-3. Une carte (`mfm_xebec`) est posée si la configuration n'en a pas nommé : sans
-   contrôleur, une image montée n'est vue par personne.
+3. Le contrôleur de la machine est posé si rien n'en a nommé : `mfm_at` sur un AT,
+   `mfm_xebec` ailleurs (`HardDiskControllers.DefaultForCurrentMachine`). Sans
+   contrôleur, une image montée n'est vue par personne. Sur l'AT, `mfm_at` prend la
+   géométrie dans le CMOS : `nvr/default/at.nvr` déclare le type 0, donc le disque
+   n'apparaît qu'avec un CMOS fabriqué par `--make-nvr`. Mesuré le 26/09/2026, le Xebec
+   ne faisait pas mieux sur l'`ibmat` (0 disque au BDA 0040:0075, dans les deux cas).
+
+L'avertissement « le Fixed Disk Adapter n'accepte pas C x H » ne concerne que le Xebec. Il
+ne sort plus sous `dtc5150x` ni sous `mfm_at`, qui acceptent toutes les géométries de la
+table.
 
 Un type imposé l'emporte, mais seulement s'il décrit BIEN ce fichier. Accepter
 « --hdd-type 16 » sur une image de 10 Mo monterait un disque deux fois trop grand, dont la
@@ -138,6 +148,15 @@ n'apparaisse.
 Avant le montage, il faut aussi savoir si la carte accepte cette géométrie. Sans cet
 avertissement, une image de taille valide mais de géométrie inconnue de la carte donne un
 POST qui diverge, et xebec_set_switches se contente d'un warning() que personne ne lit.
+
+### `--hdd-controller NOM`
+
+Choisit le contrôleur de disque dur parmi ceux de la machine : `mfm_xebec` et `dtc5150x`
+partout, et `mfm_at` sur les seules machines AT. C'est le filtre DEVICE_AT/MODEL_AT de
+PCem (wx-config.c:237-242), et la liste est celle de l'écran de construction
+(`Host/HardDiskControllers.cs`). Un nom inconnu, ou absent de la machine, est refusé en
+listant ceux qui existent. L'option s'applique après `--config` et `--model`, comme
+`--gfxcard`, et l'emporte sur la clé `hdd_controller`.
 
 ### `--hdd-type N`, `--hdd-d-type N`
 
@@ -193,6 +212,11 @@ L'ÉCRAN S'OUVRE SUR UN LANCEMENT NU, et seulement là. Dès qu'un argument déc
 machine, on la monte telle qu'il l'a dite : toutes les recettes de VERIFICATION.md et les
 profils de Rider gardent leur comportement au cycle près. `--setup` passe outre.
 
+`--gfxcard` et `--hdd-controller` seuls ne comptent pas comme une machine choisie : c'est
+l'utilisateur qui choisit la carte graphique et le contrôleur de sa machine. L'écran
+s'ouvre donc avec ce choix déjà sélectionné, et le reste à composer. Décision de Julien,
+26/09/2026.
+
 `--slices` et `--headless` ne le voient jamais non plus. Le premier existe pour que deux
 exécutions traversent les mêmes états, et un écran qui attend une touche n'a pas sa place
 dans ce contrat. C'est le même arbitrage que pour le menu Ctrl+F12, inerte sous `--slices`
@@ -213,6 +237,9 @@ Conservé tel quel : VERIFICATION.md invoque « --boot roms 6000 ». Ses deux po
 lui sont propres et ignorent `--rom-path`, ce qui garde la commande de vérification
 indépendante du reste de la table.
 
+Les deux positionnels sont facultatifs et s'arrêtent à `--` : `--boot --model ibmxt` amorce
+sur `roms`, en 20 tranches.
+
 Un nombre mal tapé ne doit PAS retomber sur le défaut. « --boot roms 60O » (lettre O)
 exécutait 20 tranches, imprimait un écran vide et sortait 0 : indiscernable d'un cœur qui
 n'affiche rien. Et le « if (slices != 20) i++ » d'origine ne consommait même pas
@@ -226,7 +253,7 @@ L'option est répétable : DOS demande la date puis l'heure avant de rendre son 
 `--settle N` fixe le nombre de tranches laissées à l'application après chaque Entrée. Le
 défaut suffit à un DIR ; un FORMAT 360 Ko en demande ~4 000.
 
-`--model`, `--gfxcard`, `--cpu`, `--hdd` et `--hdd-type` sont COLLECTÉS, pas appliqués
+`--model`, `--gfxcard`, `--cpu`, `--hdd`, `--hdd-type` et `--hdd-controller` sont COLLECTÉS, pas appliqués
 dans la boucle. Là, les options prennent effet dans l'ordre écrit, et `--config` poserait
 alors le modèle après `--model`. La précédence doit être la même qu'en mode fenêtre —
 défauts, puis `--config`, puis la ligne de commande — quel que soit l'ordre de frappe.

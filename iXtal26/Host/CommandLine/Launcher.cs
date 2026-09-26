@@ -69,6 +69,11 @@ internal static class Launcher
                     return Failure.Usage("--model attend un nom de machine.");
                 options.Machine.Model = cursor.TakeNext();
                 return KeepParsing;
+            case "--hdd-controller":
+                if (!cursor.HasNext)
+                    return Failure.Usage("--hdd-controller attend un nom de contrôleur de disque dur.");
+                options.Machine.HardDiskController = cursor.TakeNext();
+                return KeepParsing;
             case "--gfxcard":
                 if (!cursor.HasNext)
                     return Failure.Usage("--gfxcard attend un nom de carte vidéo.");
@@ -229,7 +234,8 @@ internal static class Launcher
 
         var machine = options.Machine;
 
-        if (!machine.TryApplyModelGraphicsCardAndProcessor() || !machine.TryApplyMemorySize())
+        if (!machine.TryApplyModelGraphicsCardAndProcessor() || !machine.TryApplyHardDiskController() ||
+            !machine.TryApplyMemorySize())
             return false;
 
         machine.ApplyFloppyDriveTypes();

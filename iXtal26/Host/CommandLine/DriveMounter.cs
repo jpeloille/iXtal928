@@ -12,8 +12,6 @@ namespace iXtal26.Host.CommandLine;
 
 internal static class DriveMounter
 {
-    private const string DefaultHardDiskController = "mfm_xebec";
-
     private readonly record struct HardDiskGeometry(int Cylinders, int Heads, int SectorsPerTrack, int BiosType);
 
     public static string HardDiskOptionSuffix(int drive) => drive == 0 ? "" : "-d";
@@ -44,7 +42,7 @@ internal static class DriveMounter
         }
 
         if (!TryReadImageSize(resolvedPath, out var imageSize) ||
-            !TryResolveGeometry(resolvedPath, imageSize, forcedType, out var geometry))
+            !TryResolveGeometry(drive, resolvedPath, imageSize, forcedType, out var geometry))
             return false;
 
         hdd_c.ide_fn[drive] = resolvedPath;
@@ -53,7 +51,7 @@ internal static class DriveMounter
         hdd_c.hdc[drive].tracks = geometry.Cylinders;
 
         if (pc.cfg_hdd_controller.Length == 0)
-            pc.cfg_hdd_controller = DefaultHardDiskController;
+            pc.cfg_hdd_controller = HardDiskControllers.DefaultForCurrentMachine;
 
         Console.WriteLine($"Disque {(drive == 0 ? "C" : "D")}: {resolvedPath} — {HddImage.Label(geometry.BiosType)}" +
                           $", carte {pc.cfg_hdd_controller}");
@@ -81,7 +79,7 @@ internal static class DriveMounter
         }
     }
 
-    private static bool TryResolveGeometry(string resolvedPath, long imageSize, int? forcedType,
+    private static bool TryResolveGeometry(int drive, string resolvedPath, long imageSize, int? forcedType,
                                            out HardDiskGeometry geometry)
     {
         if (forcedType is { } biosType)
@@ -94,7 +92,7 @@ internal static class DriveMounter
                 return true;
 
             Console.Error.WriteLine(
-                $"--hdd-type {biosType} décrit {forcedSize} " +
+                $"--hdd{HardDiskOptionSuffix(drive)}-type {biosType} décrit {forcedSize} " +
                 $"octets, mais « {resolvedPath} » en fait {imageSize}.");
             return false;
         }
@@ -117,7 +115,8 @@ internal static class DriveMounter
 
     private static void WarnIfAdapterRejectsGeometry(HardDiskGeometry geometry)
     {
-        if (HddImage.XebecSwitch(geometry.Cylinders, geometry.Heads, geometry.SectorsPerTrack) >= 0)
+        if (pc.cfg_hdd_controller != "mfm_xebec" ||
+            HddImage.XebecSwitch(geometry.Cylinders, geometry.Heads, geometry.SectorsPerTrack) >= 0)
             return;
 
         Console.Error.WriteLine(

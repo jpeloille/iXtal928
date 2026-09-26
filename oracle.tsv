@@ -137,3 +137,5 @@ iXtal26/Host/CommandLine/MakeNvrVerb.cs	-	-	-	host	verbe --make-nvr
 iXtal26/Host/CommandLine/StandardOutput.cs	-	-	-	host	sortie console en un bloc
 iXtal26/Host/CommandLine/TimerCheckVerb.cs	-	-	-	host	verbe --timer-check
 iXtal26/Host/CommandLine/UsageText.cs	-	-	-	host	texte d'aide
+iXtal26/Host/HardDiskControllers.cs	pcem-dev/src/hdd/hdd.c	a9eb48b9ffb082e9fd6bf28753c6f59a90e6b7aae9d50b968c6210b9037eb31a	149-164	host	controleurs de disque dur choisissables ; trois des seize entrees du registre
+iXtal26/Host/HardDiskControllers.cs	pcem-dev/src/wx-ui/wx-config.c	7548a788bfcfcec08fc3437c443a8c14d595bb04f0c21c215b7d5a5b4b0a6599	237-242	host	le filtre DEVICE_AT contre MODEL_AT

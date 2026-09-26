@@ -16,6 +16,8 @@ internal sealed class ArgumentCursor(string[] arguments)
 
     public bool NextIsOption => HasNext && arguments[position + 1].StartsWith("--", StringComparison.Ordinal);
 
+    public bool NextIsPositional => HasNext && !NextIsOption;
+
     public bool NextIsValue => HasNext && !arguments[position + 1].StartsWith('-');
 
     public bool MoveNext() => ++position < arguments.Length;

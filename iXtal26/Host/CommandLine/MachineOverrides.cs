@@ -5,6 +5,7 @@
 // STATUS: host
 
 using iXtal26.Cpu;
+using iXtal26.Models;
 
 namespace iXtal26.Host.CommandLine;
 
@@ -23,6 +24,8 @@ internal sealed class MachineOverrides
     public int? ProcessorIndex { get; set; }
 
     public int? MemoryKilobytes { get; set; }
+
+    public string? HardDiskController { get; set; }
 
     public bool DescribesMachine =>
         Model is not null || ProcessorIndex is not null || MemoryKilobytes is not null ||
@@ -54,6 +57,24 @@ internal sealed class MachineOverrides
 
     public bool TryApplyMachineAndCheckProcessor() =>
         TryApplyModelGraphicsCardAndProcessor() && pc.check_cpu();
+
+    public bool TryApplyHardDiskController()
+    {
+        if (HardDiskController is null)
+            return true;
+
+        if (HardDiskController.Length != 0 && HardDiskControllers.IsAvailable(HardDiskController))
+        {
+            pc.cfg_hdd_controller = HardDiskController;
+            return true;
+        }
+
+        Console.Error.WriteLine(
+            $"--hdd-controller « {HardDiskController} » : contrôleur inconnu ou absent de cette machine " +
+            $"({model_c.models[model_c.model].name}).");
+        Console.Error.WriteLine($"Disponibles : {HardDiskControllers.AvailableNames()}.");
+        return false;
+    }
 
     public bool TryApplyMemorySize()
     {
