@@ -267,4 +267,141 @@ internal static partial class _386
         ops_286[0xFC] = opCLD;
         ops_286[0xFD] = opSTD;
     }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_flag.h ----
+
+    // pcem: x86_ops_flag.h:165-212 — POPF du 386 (G2, D2).
+    private static int opPOPF(uint32_t fetchdat)
+    {
+        uint16_t tempw;
+
+        if ((cpu_state.eflags & VM_FLAG) != 0 && IOPL < 3)
+        {
+                if ((cr4 & CR4_VME) != 0)
+                {
+                        uint32_t old_esp = ESP;
+
+                        tempw = POP_W();
+                        if (cpu_state.abrt != 0)
+                        {
+                                ESP = old_esp;
+                                return 1;
+                        }
+
+                        if ((tempw & T_FLAG) != 0 || ((tempw & I_FLAG) != 0 && (cpu_state.eflags & VIP_FLAG) != 0))
+                        {
+                                ESP = old_esp;
+                                x86seg_c.x86gpf("", 0);
+                                return 1;
+                        }
+                        if ((tempw & I_FLAG) != 0)
+                                cpu_state.eflags |= VIF_FLAG;
+                        else
+                                cpu_state.eflags &= unchecked((uint16_t)~VIF_FLAG);
+                        cpu_state.flags = (uint16_t)((cpu_state.flags & 0x3200) | (tempw & 0x4dd5) | 2);
+                }
+                else
+                {
+                        x86seg_c.x86gpf("", 0);
+                        return 1;
+                }
+        }
+        else
+        {
+                tempw = POP_W();
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if (CPL == 0 || (msw & 1) == 0)
+                        cpu_state.flags = (uint16_t)((tempw & 0x7fd5) | 2);
+                else if (IOPLp)
+                        cpu_state.flags = (uint16_t)((cpu_state.flags & 0x3000) | (tempw & 0x4fd5) | 2);
+                else
+                        cpu_state.flags = (uint16_t)((cpu_state.flags & 0x3200) | (tempw & 0x4dd5) | 2);
+        }
+        flags_extract();
+
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 1, 0, 0, 0, 0);
+
+        codegen_flags_changed = 0;
+
+        return 0;
+    }
+
+    // pcem: x86_ops_flag.h:213-250
+    private static int opPOPFD(uint32_t fetchdat)
+    {
+        uint32_t templ;
+
+        if ((cpu_state.eflags & VM_FLAG) != 0 && IOPL < 3)
+        {
+                x86seg_c.x86gpf("", 0);
+                return 1;
+        }
+
+        templ = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        if (CPL == 0 || (msw & 1) == 0)
+                cpu_state.flags = (uint16_t)((templ & 0x7fd5) | 2);
+        else if (IOPLp)
+                cpu_state.flags = (uint16_t)(((uint32_t)cpu_state.flags & 0x3000) | (templ & 0x4fd5) | 2);
+        else
+                cpu_state.flags = (uint16_t)(((uint32_t)cpu_state.flags & 0x3200) | (templ & 0x4dd5) | 2);
+
+        templ &= is486 != 0 ? 0x3c0000u : 0;
+        templ |= (uint32_t)((cpu_state.eflags & 3) << 16);
+        if ((cpu_CR4_mask & CR4_VME) != 0)
+                cpu_state.eflags = (uint16_t)((templ >> 16) & 0x3f);
+        else if (CPUID != 0)
+                cpu_state.eflags = (uint16_t)((templ >> 16) & 0x27);
+        else if (is486 != 0)
+                cpu_state.eflags = (uint16_t)((templ >> 16) & 7);
+        else
+                cpu_state.eflags = (uint16_t)((templ >> 16) & 3);
+
+        flags_extract();
+
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 0, 1, 0, 0, 0);
+
+        codegen_flags_changed = 0;
+
+        return 0;
+    }
+
+    // pcem: x86_ops_flag.h:117-135
+    private static int opPUSHFD(uint32_t fetchdat)
+    {
+        uint16_t tempw;
+        if ((cpu_state.eflags & VM_FLAG) != 0 && IOPL < 3)
+        {
+                x86seg_c.x86gpf("", 0);
+                return 1;
+        }
+        if ((cpu_CR4_mask & CR4_VME) != 0)
+                tempw = (uint16_t)(cpu_state.eflags & 0x3c);
+        else if (CPUID != 0)
+                tempw = (uint16_t)(cpu_state.eflags & 0x24);
+        else
+                tempw = (uint16_t)(cpu_state.eflags & 4);
+        flags_rebuild();
+        PUSH_L(cpu_state.flags | ((uint32_t)tempw << 16));
+        CLOCK_CYCLES(4);
+        PREFETCH_RUN(4, 1, -1, 0, 0, 0, 1, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_flag_386()
+    {
+        ops_386[0x09D] = opPOPF;
+        ops_386[0x19C] = opPUSHFD;
+        ops_386[0x19D] = opPOPFD;
+        ops_386[0x29D] = opPOPF;
+        ops_386[0x39C] = opPUSHFD;
+        ops_386[0x39D] = opPOPFD;
+    }
 }

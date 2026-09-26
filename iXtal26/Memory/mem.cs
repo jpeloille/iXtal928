@@ -465,7 +465,7 @@ internal static partial class mem
                         return (uint16_t)(__real_readmembl(addr) | (__real_readmembl(addr + 1) << 8));
                 else if (readlookup2[addr >> 12] != -1)
                 {
-                        var i = readlookup2[addr >> 12] + addr;
+                        var i = unchecked(readlookup2[addr >> 12] + (int)addr); // G2 : int + uint rendait un long, sans le rebouclage du pointeur C au-dela de 2 Go
                         return (uint16_t)(ram[i] | (ram[i + 1] << 8));
                 }
         }
@@ -508,7 +508,7 @@ internal static partial class mem
                 }
                 else if (writelookup2[addr >> 12] != -1)
                 {
-                        var i = writelookup2[addr >> 12] + addr;
+                        var i = unchecked(writelookup2[addr >> 12] + (int)addr); // G2 : idem, rebouclage 32 bits
                         ram[i] = (uint8_t)val;
                         ram[i + 1] = (uint8_t)(val >> 8);
                         return;

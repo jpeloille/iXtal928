@@ -36,7 +36,10 @@ internal static partial class _386
     /// h_reset() côté oracle, qui ne choisit que `model` selon h_core.</summary>
     private static void ResetExec386(string machine)
     {
-        _808x.FlatMap286();
+        if (machine == "ami386")
+                _808x.FlatMap386();
+        else
+                _808x.FlatMap286();
 
         // LES COMPTEURS ET L'ÉTAT DE TEMPS, avant resetx86 comme h_reset les remet.
         //

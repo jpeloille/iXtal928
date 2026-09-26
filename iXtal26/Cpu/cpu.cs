@@ -262,9 +262,14 @@ internal static partial class cpu_c
                 _386.x86_opcodes_dd_a16 = _386.ops_nofpu_a16;
                 _386.x86_opcodes_de_a16 = _386.ops_nofpu_a16;
                 _386.x86_opcodes_df_a16 = _386.ops_nofpu_a16;
-                // omitted: les huit x86_opcodes_*_a32 = ops_nofpu_a32 — ils ne sont lus
-                //   que par les opESCAPE_*_a32 du 386, pas encore transcrits (G2, D2) ;
-                //   un 67 D8 tombe aujourd'hui sur opNonTranscrit, qui se nomme.
+                _386.x86_opcodes_d8_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_d9_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_da_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_db_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_dc_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_dd_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_de_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_df_a32 = _386.ops_nofpu_a32;
         }
 
         // omitted: memset(&msr, 0, sizeof(msr)) (cpu.c:312) — les MSR du Pentium.

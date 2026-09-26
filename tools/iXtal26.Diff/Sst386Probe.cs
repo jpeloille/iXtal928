@@ -31,7 +31,8 @@ namespace iXtal26.Diff;
 
 internal static class Sst386Probe
 {
-    private const uint CarteMax = 0x100000;
+    // La carte du cœur 386 fait 16 Mo depuis D2 : tout le corpus (bus 24 bits) y tient.
+    private const uint CarteMax = 0x1000000;
 
     internal static int Run(string vectors, List<string> forms, int limit, bool csharp, string? baseline)
     {

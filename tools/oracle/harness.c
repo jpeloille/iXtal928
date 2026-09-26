@@ -365,16 +365,23 @@ static void h_pad_ram(void) {
         resetreadlookup();
 }
 
+/* LA TAILLE DE LA CARTE, par coeur. 1 Mo pour le 8088 et le 286 ; 16 Mo pour le 386
+ * (G2, D2) : l'adressage 32 bits tire des adresses effectives partout, rammask les
+ * ramene sous 16 Mo (bus 24 bits du 386SX), et au-dela du bloc alloue PCem lirait hors
+ * de `ram` — le C# y leve une exception. C'est aussi ce qui rend jouables les cas du
+ * corpus SST 386 que la carte de 1 Mo mettait « hors carte ». */
+static uint32_t h_ram_top(void) { return (uint32_t)mem_size * 1024u; }
+
 static void h_flat_map(void) {
-        mem_size = 1024; /* 1 Mo : l'espace complet du 8088 */
+        mem_size = (h_core == H_CORE_386) ? 16384 : 1024; /* Ko */
         if (!h_mem_inited) {
                 mem_init();
                 h_mem_inited = 1;
         }
         mem_alloc();
         h_pad_ram();
-        mem_set_mem_state(0x000000, 0x100000, MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
-        mem_mapping_add(&h_flat_mapping, 0x000000, 0x100000, mem_read_ram, mem_read_ramw, mem_read_raml,
+        mem_set_mem_state(0x000000, h_ram_top(), MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
+        mem_mapping_add(&h_flat_mapping, 0x000000, h_ram_top(), mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
 }
 
@@ -461,7 +468,7 @@ void h_reset(void) {
 
 void h_load(uint32_t addr, const uint8_t *buf, uint32_t len) {
         for (uint32_t i = 0; i < len; i++)
-                ram[(addr + i) & 0xFFFFF] = buf[i];
+                ram[(addr + i) & (h_ram_top() - 1)] = buf[i];
 }
 
 void h_fill_ram(uint8_t value) {
@@ -489,7 +496,7 @@ void h_fill_ram2(uint8_t a, uint8_t b) {
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len) {
         uint32_t taille = (uint32_t)mem_size * 1024;
         for (uint32_t i = 0; i < len; i++) {
-                uint32_t a = (addr + i) & 0xFFFFF;
+                uint32_t a = (addr + i) & (h_ram_top() - 1);
                 buf[i] = (a < taille) ? ram[a] : 0xFF;
         }
 }

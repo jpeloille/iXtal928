@@ -96,7 +96,7 @@ silicium voient tout (le mode réel), puis ce qu'ils ne voient plus.
 | D0.2 ✅ | Porter `cpus_i386SX` (`cpu_tables.c`), `m_ami386` des deux côtés (init absente, **refus bruyant**), et `cpu_set()` sur un 386 : `x86_setopcodes(ops_386)` inconditionnel, temps du 386SX. `ops_386`/`ops_386_0f` remplies de leur part partagée par le fichier **généré** `386_ops_table386.cs` (`tools/ops386-table.py`). `cpus_i386DX` viendra avec l'ami386dx (G3) | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
 | D0.3 ✅ | `Oracle.Core386` / `H_CORE_386`, un seul prédicat « exec386 » de chaque côté (`h_exec386`, `Oracle.Exec386`, `Oracle.CoreForModel`) ; fait avec D0.2 | Un site oublié renvoyait le 386 vers execx86 en silence |
 | D0.4 | Le fuzzeur en `Core386` : préfixes `66`/`67` tirés, registres 32 bits aléatoires, tables tirées dans les quatre quadrants | `Fuzzer.cs` exclut aujourd'hui `66`/`67` « jusqu'au 386 » |
-| D0.5 ✅ | `sst386-probe` (lecteur MOO, révocation, `--target`, `--baseline`) et `tools/fetch-sst386.sh`. Base oracle `sst386-baseline.tsv` : **1 189 372 / 1 413 471** ; C# 423 569 (s'arrête en nommant ce qui manque). **345 228 cas hors carte (> 1 Mo) : étendre la carte plate à 16 Mo avant la fin de D3.** Pièges : eip capturé après le HLT final (attendu − 1) ; EFLAGS en clair (`h_flags_rebuild`) | Le seul oracle silicium du bloc |
+| D0.5 ✅ | `sst386-probe` (lecteur MOO, révocation, `--target`, `--baseline`) et `tools/fetch-sst386.sh`. Base oracle `sst386-baseline.tsv` : **1 189 372 / 1 413 471** ; C# 423 569 (s'arrête en nommant ce qui manque). ~~345 228 cas hors carte~~ : carte plate portée à **16 Mo** en D2, base oracle régénérée (plus aucun cas hors carte). Pièges : eip capturé après le HLT final (attendu − 1) ; EFLAGS en clair (`h_flags_rebuild`) | Le seul oracle silicium du bloc |
 | D0.6 ✅ | `tools/ops386-table.py` (ce que PCem attend) et `iXtal26.Diff ops-count` (ce que la table C# vivante porte) — fait avec D0.2 | Le compteur « N / 1 024 » de chaque commit, comme pour A |
 
 **Porte de D0** : les boot-diffs 8088 et 286 inchangés à l'unité ; `sst386-probe` tourne
@@ -110,7 +110,7 @@ le fuzzeur `Core386` rend 100 % vert quand il est restreint au quadrant 0 sans `
 `fastreadl`. **Rien ne s'exécute encore en 32 bits**, mais un `66 90` ou un `67 8B 00`
 décode, et le fuzzeur le voit.
 
-### D2 — Les familles déjà connues, en formes `_l` et `_a32`
+### D2 — Les familles déjà connues, en formes `_l` et `_a32`  ✅ *fait : `ops_386` 1024/1024 ; REP 32 bits ; carte 16 Mo ; SST 386 C# identique à l'oracle sur 799 formes sur 941, toutes celles hors 0F*
 
 Un en-tête par commit, dans l'ordre de A4 à A11. Chaque handler 16 bits est déjà relu,
 donc la différence est mécanique, **sauf** là où la largeur change la sémantique :

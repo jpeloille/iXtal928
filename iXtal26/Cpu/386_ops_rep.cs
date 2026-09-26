@@ -106,7 +106,7 @@ internal static partial class _386
     /// le groupe rep » — ce qui ne disait rien de leur CONTENU. Trouvé par le
     /// fuzzeur, en lisant ops_REPE[] dans la .so : 0x26, 0x2E, 0x36, 0x3E y
     /// nomment opES_REPE_w_a16 et ses sœurs.</summary>
-    private static OpFn PrefixeSegmentRep(x86seg seg, OpFn?[] table) => fetchdat =>
+    private static OpFn PrefixeSegmentRep(x86seg seg, OpFn?[] table, uint32_t quadrant = 0) => fetchdat =>
     {
         fetchdat = fastreadl(x86.cs + cpu_state.pc);
         if (cpu_state.abrt != 0)
@@ -118,9 +118,9 @@ internal static partial class _386
         CLOCK_CYCLES(4);
         PREFETCH_PREFIX();
 
-        if (table[fetchdat & 0xff] != null)
-                return table[fetchdat & 0xff]!(fetchdat >> 8);
-        return x86_opcodes![fetchdat & 0xff](fetchdat >> 8);
+        if (table[(fetchdat & 0xff) | quadrant] != null)
+                return table[(fetchdat & 0xff) | quadrant]!(fetchdat >> 8);
+        return x86_opcodes![(fetchdat & 0xff) | quadrant](fetchdat >> 8);
     };
 
     /// <summary>pcem: x86_ops_prefix.h:112-140 — op_66_REPE / op_67_REPE et
@@ -959,5 +959,1542 @@ internal static partial class _386
 
         ops_286[0xF2] = PrefixeRep(ops_REPNE);
         ops_286[0xF3] = PrefixeRep(ops_REPE);
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_rep.h ----
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_INSL_a16(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (CX > 0) {
+                uint32_t temp;
+
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                check_io_perm((uint16_t)(DX + 2));
+                check_io_perm((uint16_t)(DX + 3));
+                temp = io.inl(DX);
+                writememl(es, DI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        DI -= 4;
+                else
+                        DI += 4;
+                CX--;
+                cycles -= 15;
+                reads++;
+                writes++;
+                total_cycles += 15;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, writes, 0);
+        if (CX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_OUTSL_a16(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (CX > 0) {
+                uint32_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, SI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                check_io_perm((uint16_t)(DX + 2));
+                check_io_perm((uint16_t)(DX + 3));
+                io.outl(DX, temp);
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        SI -= 4;
+                else
+                        SI += 4;
+                CX--;
+                cycles -= 14;
+                reads++;
+                writes++;
+                total_cycles += 14;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, writes, 0);
+        if (CX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_MOVSL_a16(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (CX > 0) {
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        }
+        while (CX > 0) {
+                uint32_t temp;
+
+                if ((DI < (cpu_state.seg_es).limit_low) || (DI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                temp = readmeml(cpu_state.ea_seg!.@base, SI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                writememl(es, DI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        DI -= 4;
+                        SI -= 4;
+                } else {
+                        DI += 4;
+                        SI += 4;
+                }
+                CX--;
+                cycles -= is486 != 0 ? 3 : 4;
+                _808x.ins++;
+                reads++;
+                writes++;
+                total_cycles += is486 != 0 ? 3 : 4;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (CX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_STOSL_a16(uint32_t fetchdat)
+    {
+        int writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (CX > 0)
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        while (CX > 0) {
+                if ((DI < (cpu_state.seg_es).limit_low) || (DI + 3 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                writememl(es, DI, EAX);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        DI -= 4;
+                else
+                        DI += 4;
+                CX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                writes++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, 0, 0, writes, 0);
+        if (CX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_LODSL_a16(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (CX > 0)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        while (CX > 0) {
+                EAX = readmeml(cpu_state.ea_seg!.@base, SI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        SI -= 4;
+                else
+                        SI += 4;
+                CX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                reads++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if (CX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_INSB_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint8_t temp;
+
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+                check_io_perm(DX);
+                temp = io.inb(DX);
+                writememb(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI--;
+                else
+                        EDI++;
+                ECX--;
+                cycles -= 15;
+                reads++;
+                writes++;
+                total_cycles += 15;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_INSW_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint16_t temp;
+
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                temp = io.inw(DX);
+                writememw(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 2;
+                else
+                        EDI += 2;
+                ECX--;
+                cycles -= 15;
+                reads++;
+                writes++;
+                total_cycles += 15;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_INSL_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint32_t temp;
+
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                check_io_perm((uint16_t)(DX + 2));
+                check_io_perm((uint16_t)(DX + 3));
+                temp = io.inl(DX);
+                writememl(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 4;
+                else
+                        EDI += 4;
+                ECX--;
+                cycles -= 15;
+                reads++;
+                writes++;
+                total_cycles += 15;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, writes, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_OUTSB_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint8_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                temp = readmemb(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                check_io_perm(DX);
+                io.outb(DX, temp);
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI--;
+                else
+                        ESI++;
+                ECX--;
+                cycles -= 14;
+                reads++;
+                writes++;
+                total_cycles += 14;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_OUTSW_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint16_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                temp = readmemw(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                io.outw(DX, temp);
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI -= 2;
+                else
+                        ESI += 2;
+                ECX--;
+                cycles -= 14;
+                reads++;
+                writes++;
+                total_cycles += 14;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_OUTSL_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+
+        if (ECX > 0) {
+                uint32_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                check_io_perm(DX);
+                check_io_perm((uint16_t)(DX + 1));
+                check_io_perm((uint16_t)(DX + 2));
+                check_io_perm((uint16_t)(DX + 3));
+                io.outl(DX, temp);
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI -= 4;
+                else
+                        ESI += 4;
+                ECX--;
+                cycles -= 14;
+                reads++;
+                writes++;
+                total_cycles += 14;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, writes, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_MOVSB_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0) {
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        }
+        while (ECX > 0) {
+                uint8_t temp;
+
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                temp = readmemb(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                writememb(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI--;
+                        ESI--;
+                } else {
+                        EDI++;
+                        ESI++;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 3 : 4;
+                _808x.ins++;
+                reads++;
+                writes++;
+                total_cycles += is486 != 0 ? 3 : 4;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_MOVSW_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0) {
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        }
+        while (ECX > 0) {
+                uint16_t temp;
+
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                temp = readmemw(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                writememw(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 2;
+                        ESI -= 2;
+                } else {
+                        EDI += 2;
+                        ESI += 2;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 3 : 4;
+                _808x.ins++;
+                reads++;
+                writes++;
+                total_cycles += is486 != 0 ? 3 : 4;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_MOVSL_a32(uint32_t fetchdat)
+    {
+        int reads = 0, writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0) {
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        }
+        while (ECX > 0) {
+                uint32_t temp;
+
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                temp = readmeml(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                writememl(es, EDI, temp);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 4;
+                        ESI -= 4;
+                } else {
+                        EDI += 4;
+                        ESI += 4;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 3 : 4;
+                _808x.ins++;
+                reads++;
+                writes++;
+                total_cycles += is486 != 0 ? 3 : 4;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_STOSB_a32(uint32_t fetchdat)
+    {
+        int writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        while (ECX > 0) {
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                writememb(es, EDI, AL);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI--;
+                else
+                        EDI++;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                writes++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_STOSW_a32(uint32_t fetchdat)
+    {
+        int writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        while (ECX > 0) {
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI + 1 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                writememw(es, EDI, AX);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 2;
+                else
+                        EDI += 2;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                writes++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, 0, writes, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_STOSL_a32(uint32_t fetchdat)
+    {
+        int writes = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
+        while (ECX > 0) {
+                if ((EDI < (cpu_state.seg_es).limit_low) || (EDI + 3 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                writememl(es, EDI, EAX);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 4;
+                else
+                        EDI += 4;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                writes++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, 0, 0, writes, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_LODSB_a32(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        while (ECX > 0) {
+                AL = readmemb(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI--;
+                else
+                        ESI++;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                reads++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_LODSW_a32(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        while (ECX > 0) {
+                AX = readmemw(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI -= 2;
+                else
+                        ESI += 2;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                reads++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_LODSL_a32(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        if (ECX > 0)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        while (ECX > 0) {
+                EAX = readmeml(cpu_state.ea_seg!.@base, ESI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        ESI -= 4;
+                else
+                        ESI += 4;
+                ECX--;
+                cycles -= is486 != 0 ? 4 : 5;
+                reads++;
+                total_cycles += is486 != 0 ? 4 : 5;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if (ECX > 0) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSL_a16_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 0;
+        if ((CX > 0) && (0 == tempz)) {
+                uint32_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, SI);
+                temp2 = readmeml(es, DI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        DI -= 4;
+                        SI -= 4;
+                } else {
+                        DI += 4;
+                        SI += 4;
+                }
+                CX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub32(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((CX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASL_a16_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 0;
+        if ((CX > 0) && (0 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((CX > 0) && (0 == tempz)) {
+                uint32_t temp = readmeml(es, DI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub32(EAX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        DI -= 4;
+                else
+                        DI += 4;
+                CX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((CX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSL_a16_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 1;
+        if ((CX > 0) && (1 == tempz)) {
+                uint32_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, SI);
+                temp2 = readmeml(es, DI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        DI -= 4;
+                        SI -= 4;
+                } else {
+                        DI += 4;
+                        SI += 4;
+                }
+                CX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub32(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((CX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASL_a16_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 1;
+        if ((CX > 0) && (1 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((CX > 0) && (1 == tempz)) {
+                uint32_t temp = readmeml(es, DI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub32(EAX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        DI -= 4;
+                else
+                        DI += 4;
+                CX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((CX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSB_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz)) {
+                uint8_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmemb(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmemb(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI--;
+                        ESI--;
+                } else {
+                        EDI++;
+                        ESI++;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub8(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSW_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz)) {
+                uint16_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmemw(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmemw(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 2;
+                        ESI -= 2;
+                } else {
+                        EDI += 2;
+                        ESI += 2;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub16(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSL_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz)) {
+                uint32_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmeml(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 4;
+                        ESI -= 4;
+                } else {
+                        EDI += 4;
+                        ESI += 4;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub32(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASB_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (0 == tempz)) {
+                uint8_t temp = readmemb(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub8(AL, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI--;
+                else
+                        EDI++;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASW_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (0 == tempz)) {
+                uint16_t temp = readmemw(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub16(AX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 2;
+                else
+                        EDI += 2;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASL_a32_NE(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 0;
+        if ((ECX > 0) && (0 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (0 == tempz)) {
+                uint32_t temp = readmeml(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub32(EAX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 4;
+                else
+                        EDI += 4;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((ECX > 0) && (0 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSB_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz)) {
+                uint8_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmemb(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmemb(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI--;
+                        ESI--;
+                } else {
+                        EDI++;
+                        ESI++;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub8(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSW_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz)) {
+                uint16_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmemw(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmemw(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 2;
+                        ESI -= 2;
+                } else {
+                        EDI += 2;
+                        ESI += 2;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub16(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_CMPSL_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz)) {
+                uint32_t temp, temp2;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                temp = readmeml(cpu_state.ea_seg!.@base, ESI);
+                temp2 = readmeml(es, EDI);
+                if (cpu_state.abrt != 0)
+                        return 1;
+
+                if ((cpu_state.flags & D_FLAG) != 0) {
+                        EDI -= 4;
+                        ESI -= 4;
+                } else {
+                        EDI += 4;
+                        ESI += 4;
+                }
+                ECX--;
+                cycles -= is486 != 0 ? 7 : 9;
+                reads += 2;
+                total_cycles += is486 != 0 ? 7 : 9;
+                setsub32(temp, temp2);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+        }
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASB_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (1 == tempz)) {
+                uint8_t temp = readmemb(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub8(AL, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI--;
+                else
+                        EDI++;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASW_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (1 == tempz)) {
+                uint16_t temp = readmemw(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub16(AX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 2;
+                else
+                        EDI += 2;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, reads, 0, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_rep.h — REP_OPS / REP_OPS_CMPS_SCAS développés (G2, D2)
+    private static int opREP_SCASL_a32_E(uint32_t fetchdat)
+    {
+        int reads = 0, total_cycles = 0, tempz;
+        int cycles_end = cycles - ((is386 != 0 && cpu_c.cpu_use_dynarec != 0) ? 1000 : 100);
+        if ((trap) != 0)
+                cycles_end = cycles + 1; /*Force the instruction to end after only one iteration when trap flag set*/
+        tempz = 1;
+        if ((ECX > 0) && (1 == tempz))
+                if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+        while ((ECX > 0) && (1 == tempz)) {
+                uint32_t temp = readmeml(es, EDI);
+                if (cpu_state.abrt != 0)
+                        break;
+                setsub32(EAX, temp);
+                tempz = ZF_SET() != 0 ? 1 : 0;
+                if ((cpu_state.flags & D_FLAG) != 0)
+                        EDI -= 4;
+                else
+                        EDI += 4;
+                ECX--;
+                cycles -= is486 != 0 ? 5 : 8;
+                reads++;
+                total_cycles += is486 != 0 ? 5 : 8;
+                _808x.ins++;
+                if (cycles < cycles_end)
+                        break;
+        }
+        _808x.ins--;
+        PREFETCH_RUN(total_cycles, 1, -1, 0, reads, 0, 0, 0);
+        if ((ECX > 0) && (1 == tempz)) {
+                CPU_BLOCK_END();
+                cpu_state.pc = cpu_state.oldpc;
+                return 1;
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: 386_ops.h — OP_TABLE(REPE) et OP_TABLE(REPNE), quadrants 1 à 3 compris (G2, D2).
+    private static void PoserRep386()
+    {
+        ops_REPE[0x026] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPE, 0x000);
+        ops_REPE[0x02E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPE, 0x000);
+        ops_REPE[0x036] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPE, 0x000);
+        ops_REPE[0x03E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPE, 0x000);
+        ops_REPE[0x064] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPE, 0x000);
+        ops_REPE[0x065] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPE, 0x000);
+        ops_REPE[0x066] = PrefixeTaille(0x100, ops_REPE);
+        ops_REPE[0x067] = PrefixeTaille(0x200, ops_REPE);
+        ops_REPE[0x06C] = opREP_INSB_a16;
+        ops_REPE[0x06D] = opREP_INSW_a16;
+        ops_REPE[0x06E] = opREP_OUTSB_a16;
+        ops_REPE[0x06F] = opREP_OUTSW_a16;
+        ops_REPE[0x0A4] = opREP_MOVSB_a16;
+        ops_REPE[0x0A5] = opREP_MOVSW_a16;
+        ops_REPE[0x0A6] = opREP_CMPSB_a16_E;
+        ops_REPE[0x0A7] = opREP_CMPSW_a16_E;
+        ops_REPE[0x0AA] = opREP_STOSB_a16;
+        ops_REPE[0x0AB] = opREP_STOSW_a16;
+        ops_REPE[0x0AC] = opREP_LODSB_a16;
+        ops_REPE[0x0AD] = opREP_LODSW_a16;
+        ops_REPE[0x0AE] = opREP_SCASB_a16_E;
+        ops_REPE[0x0AF] = opREP_SCASW_a16_E;
+        ops_REPE[0x126] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPE, 0x100);
+        ops_REPE[0x12E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPE, 0x100);
+        ops_REPE[0x136] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPE, 0x100);
+        ops_REPE[0x13E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPE, 0x100);
+        ops_REPE[0x164] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPE, 0x100);
+        ops_REPE[0x165] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPE, 0x100);
+        ops_REPE[0x166] = PrefixeTaille(0x100, ops_REPE);
+        ops_REPE[0x167] = PrefixeTaille(0x200, ops_REPE);
+        ops_REPE[0x16C] = opREP_INSB_a16;
+        ops_REPE[0x16D] = opREP_INSL_a16;
+        ops_REPE[0x16E] = opREP_OUTSB_a16;
+        ops_REPE[0x16F] = opREP_OUTSL_a16;
+        ops_REPE[0x1A4] = opREP_MOVSB_a16;
+        ops_REPE[0x1A5] = opREP_MOVSL_a16;
+        ops_REPE[0x1A6] = opREP_CMPSB_a16_E;
+        ops_REPE[0x1A7] = opREP_CMPSL_a16_E;
+        ops_REPE[0x1AA] = opREP_STOSB_a16;
+        ops_REPE[0x1AB] = opREP_STOSL_a16;
+        ops_REPE[0x1AC] = opREP_LODSB_a16;
+        ops_REPE[0x1AD] = opREP_LODSL_a16;
+        ops_REPE[0x1AE] = opREP_SCASB_a16_E;
+        ops_REPE[0x1AF] = opREP_SCASL_a16_E;
+        ops_REPE[0x226] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPE, 0x200);
+        ops_REPE[0x22E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPE, 0x200);
+        ops_REPE[0x236] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPE, 0x200);
+        ops_REPE[0x23E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPE, 0x200);
+        ops_REPE[0x264] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPE, 0x200);
+        ops_REPE[0x265] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPE, 0x200);
+        ops_REPE[0x266] = PrefixeTaille(0x100, ops_REPE);
+        ops_REPE[0x267] = PrefixeTaille(0x200, ops_REPE);
+        ops_REPE[0x26C] = opREP_INSB_a32;
+        ops_REPE[0x26D] = opREP_INSW_a32;
+        ops_REPE[0x26E] = opREP_OUTSB_a32;
+        ops_REPE[0x26F] = opREP_OUTSW_a32;
+        ops_REPE[0x2A4] = opREP_MOVSB_a32;
+        ops_REPE[0x2A5] = opREP_MOVSW_a32;
+        ops_REPE[0x2A6] = opREP_CMPSB_a32_E;
+        ops_REPE[0x2A7] = opREP_CMPSW_a32_E;
+        ops_REPE[0x2AA] = opREP_STOSB_a32;
+        ops_REPE[0x2AB] = opREP_STOSW_a32;
+        ops_REPE[0x2AC] = opREP_LODSB_a32;
+        ops_REPE[0x2AD] = opREP_LODSW_a32;
+        ops_REPE[0x2AE] = opREP_SCASB_a32_E;
+        ops_REPE[0x2AF] = opREP_SCASW_a32_E;
+        ops_REPE[0x326] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPE, 0x300);
+        ops_REPE[0x32E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPE, 0x300);
+        ops_REPE[0x336] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPE, 0x300);
+        ops_REPE[0x33E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPE, 0x300);
+        ops_REPE[0x364] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPE, 0x300);
+        ops_REPE[0x365] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPE, 0x300);
+        ops_REPE[0x366] = PrefixeTaille(0x100, ops_REPE);
+        ops_REPE[0x367] = PrefixeTaille(0x200, ops_REPE);
+        ops_REPE[0x36C] = opREP_INSB_a32;
+        ops_REPE[0x36D] = opREP_INSL_a32;
+        ops_REPE[0x36E] = opREP_OUTSB_a32;
+        ops_REPE[0x36F] = opREP_OUTSL_a32;
+        ops_REPE[0x3A4] = opREP_MOVSB_a32;
+        ops_REPE[0x3A5] = opREP_MOVSL_a32;
+        ops_REPE[0x3A6] = opREP_CMPSB_a32_E;
+        ops_REPE[0x3A7] = opREP_CMPSL_a32_E;
+        ops_REPE[0x3AA] = opREP_STOSB_a32;
+        ops_REPE[0x3AB] = opREP_STOSL_a32;
+        ops_REPE[0x3AC] = opREP_LODSB_a32;
+        ops_REPE[0x3AD] = opREP_LODSL_a32;
+        ops_REPE[0x3AE] = opREP_SCASB_a32_E;
+        ops_REPE[0x3AF] = opREP_SCASL_a32_E;
+        ops_REPNE[0x026] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPNE, 0x000);
+        ops_REPNE[0x02E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPNE, 0x000);
+        ops_REPNE[0x036] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPNE, 0x000);
+        ops_REPNE[0x03E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPNE, 0x000);
+        ops_REPNE[0x064] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPNE, 0x000);
+        ops_REPNE[0x065] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPNE, 0x000);
+        ops_REPNE[0x066] = PrefixeTaille(0x100, ops_REPNE);
+        ops_REPNE[0x067] = PrefixeTaille(0x200, ops_REPNE);
+        ops_REPNE[0x06C] = opREP_INSB_a16;
+        ops_REPNE[0x06D] = opREP_INSW_a16;
+        ops_REPNE[0x06E] = opREP_OUTSB_a16;
+        ops_REPNE[0x06F] = opREP_OUTSW_a16;
+        ops_REPNE[0x0A4] = opREP_MOVSB_a16;
+        ops_REPNE[0x0A5] = opREP_MOVSW_a16;
+        ops_REPNE[0x0A6] = opREP_CMPSB_a16_NE;
+        ops_REPNE[0x0A7] = opREP_CMPSW_a16_NE;
+        ops_REPNE[0x0AA] = opREP_STOSB_a16;
+        ops_REPNE[0x0AB] = opREP_STOSW_a16;
+        ops_REPNE[0x0AC] = opREP_LODSB_a16;
+        ops_REPNE[0x0AD] = opREP_LODSW_a16;
+        ops_REPNE[0x0AE] = opREP_SCASB_a16_NE;
+        ops_REPNE[0x0AF] = opREP_SCASW_a16_NE;
+        ops_REPNE[0x126] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPNE, 0x100);
+        ops_REPNE[0x12E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPNE, 0x100);
+        ops_REPNE[0x136] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPNE, 0x100);
+        ops_REPNE[0x13E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPNE, 0x100);
+        ops_REPNE[0x164] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPNE, 0x100);
+        ops_REPNE[0x165] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPNE, 0x100);
+        ops_REPNE[0x166] = PrefixeTaille(0x100, ops_REPNE);
+        ops_REPNE[0x167] = PrefixeTaille(0x200, ops_REPNE);
+        ops_REPNE[0x16C] = opREP_INSB_a16;
+        ops_REPNE[0x16D] = opREP_INSL_a16;
+        ops_REPNE[0x16E] = opREP_OUTSB_a16;
+        ops_REPNE[0x16F] = opREP_OUTSL_a16;
+        ops_REPNE[0x1A4] = opREP_MOVSB_a16;
+        ops_REPNE[0x1A5] = opREP_MOVSL_a16;
+        ops_REPNE[0x1A6] = opREP_CMPSB_a16_NE;
+        ops_REPNE[0x1A7] = opREP_CMPSL_a16_NE;
+        ops_REPNE[0x1AA] = opREP_STOSB_a16;
+        ops_REPNE[0x1AB] = opREP_STOSL_a16;
+        ops_REPNE[0x1AC] = opREP_LODSB_a16;
+        ops_REPNE[0x1AD] = opREP_LODSL_a16;
+        ops_REPNE[0x1AE] = opREP_SCASB_a16_NE;
+        ops_REPNE[0x1AF] = opREP_SCASL_a16_NE;
+        ops_REPNE[0x226] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPNE, 0x200);
+        ops_REPNE[0x22E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPNE, 0x200);
+        ops_REPNE[0x236] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPNE, 0x200);
+        ops_REPNE[0x23E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPNE, 0x200);
+        ops_REPNE[0x264] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPNE, 0x200);
+        ops_REPNE[0x265] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPNE, 0x200);
+        ops_REPNE[0x266] = PrefixeTaille(0x100, ops_REPNE);
+        ops_REPNE[0x267] = PrefixeTaille(0x200, ops_REPNE);
+        ops_REPNE[0x26C] = opREP_INSB_a32;
+        ops_REPNE[0x26D] = opREP_INSW_a32;
+        ops_REPNE[0x26E] = opREP_OUTSB_a32;
+        ops_REPNE[0x26F] = opREP_OUTSW_a32;
+        ops_REPNE[0x2A4] = opREP_MOVSB_a32;
+        ops_REPNE[0x2A5] = opREP_MOVSW_a32;
+        ops_REPNE[0x2A6] = opREP_CMPSB_a32_NE;
+        ops_REPNE[0x2A7] = opREP_CMPSW_a32_NE;
+        ops_REPNE[0x2AA] = opREP_STOSB_a32;
+        ops_REPNE[0x2AB] = opREP_STOSW_a32;
+        ops_REPNE[0x2AC] = opREP_LODSB_a32;
+        ops_REPNE[0x2AD] = opREP_LODSW_a32;
+        ops_REPNE[0x2AE] = opREP_SCASB_a32_NE;
+        ops_REPNE[0x2AF] = opREP_SCASW_a32_NE;
+        ops_REPNE[0x326] = PrefixeSegmentRep(cpu_state.seg_es, ops_REPNE, 0x300);
+        ops_REPNE[0x32E] = PrefixeSegmentRep(cpu_state.seg_cs, ops_REPNE, 0x300);
+        ops_REPNE[0x336] = PrefixeSegmentRep(cpu_state.seg_ss, ops_REPNE, 0x300);
+        ops_REPNE[0x33E] = PrefixeSegmentRep(cpu_state.seg_ds, ops_REPNE, 0x300);
+        ops_REPNE[0x364] = PrefixeSegmentRep(cpu_state.seg_fs, ops_REPNE, 0x300);
+        ops_REPNE[0x365] = PrefixeSegmentRep(cpu_state.seg_gs, ops_REPNE, 0x300);
+        ops_REPNE[0x366] = PrefixeTaille(0x100, ops_REPNE);
+        ops_REPNE[0x367] = PrefixeTaille(0x200, ops_REPNE);
+        ops_REPNE[0x36C] = opREP_INSB_a32;
+        ops_REPNE[0x36D] = opREP_INSL_a32;
+        ops_REPNE[0x36E] = opREP_OUTSB_a32;
+        ops_REPNE[0x36F] = opREP_OUTSL_a32;
+        ops_REPNE[0x3A4] = opREP_MOVSB_a32;
+        ops_REPNE[0x3A5] = opREP_MOVSL_a32;
+        ops_REPNE[0x3A6] = opREP_CMPSB_a32_NE;
+        ops_REPNE[0x3A7] = opREP_CMPSL_a32_NE;
+        ops_REPNE[0x3AA] = opREP_STOSB_a32;
+        ops_REPNE[0x3AB] = opREP_STOSL_a32;
+        ops_REPNE[0x3AC] = opREP_LODSB_a32;
+        ops_REPNE[0x3AD] = opREP_LODSL_a32;
+        ops_REPNE[0x3AE] = opREP_SCASB_a32_NE;
+        ops_REPNE[0x3AF] = opREP_SCASL_a32_NE;
     }
 }

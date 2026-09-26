@@ -119,4 +119,66 @@ internal static partial class _386
         ops_286[0xDE] = opESCAPE_de_a16;
         ops_286[0xDF] = opESCAPE_df_a16;
     }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_fpu.h ----
+
+    // pcem: x87_ops.h:287-295 — op_nofpu_a32, et ops_nofpu_a32 qui en est 256 copies.
+    private static int op_nofpu_a32(uint32_t fetchdat)
+    {
+        if ((cr0 & 0xc) != 0)
+        {
+                x86_int(7);
+                return 1;
+        }
+        else
+        {
+                if (fetch_ea_32(fetchdat)) return 1;
+                return 0;
+        }
+    }
+
+    internal static readonly OpFn[] ops_nofpu_a32 = BuildNofpu32();
+
+    private static OpFn[] BuildNofpu32()
+    {
+        var t = new OpFn[256];
+        for (var i = 0; i < 256; i++)
+                t[i] = op_nofpu_a32;
+        return t;
+    }
+
+    internal static OpFn[]? x86_opcodes_d8_a32, x86_opcodes_d9_a32, x86_opcodes_da_a32,
+                            x86_opcodes_db_a32, x86_opcodes_dc_a32, x86_opcodes_dd_a32,
+                            x86_opcodes_de_a32, x86_opcodes_df_a32;
+
+    // pcem: x86_ops_fpu.h:4-25 — les huit opESCAPE_*_a32.
+    private static int opESCAPE_d8_a32(uint32_t fetchdat) => x86_opcodes_d8_a32![(fetchdat >> 3) & 0x1f](fetchdat);
+    private static int opESCAPE_d9_a32(uint32_t fetchdat) => x86_opcodes_d9_a32![fetchdat & 0xff](fetchdat);
+    private static int opESCAPE_da_a32(uint32_t fetchdat) => x86_opcodes_da_a32![fetchdat & 0xff](fetchdat);
+    private static int opESCAPE_db_a32(uint32_t fetchdat) => x86_opcodes_db_a32![fetchdat & 0xff](fetchdat);
+    private static int opESCAPE_dc_a32(uint32_t fetchdat) => x86_opcodes_dc_a32![(fetchdat >> 3) & 0x1f](fetchdat);
+    private static int opESCAPE_dd_a32(uint32_t fetchdat) => x86_opcodes_dd_a32![fetchdat & 0xff](fetchdat);
+    private static int opESCAPE_de_a32(uint32_t fetchdat) => x86_opcodes_de_a32![fetchdat & 0xff](fetchdat);
+    private static int opESCAPE_df_a32(uint32_t fetchdat) => x86_opcodes_df_a32![fetchdat & 0xff](fetchdat);
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_fpu_386()
+    {
+        ops_386[0x2D8] = opESCAPE_d8_a32;
+        ops_386[0x2D9] = opESCAPE_d9_a32;
+        ops_386[0x2DA] = opESCAPE_da_a32;
+        ops_386[0x2DB] = opESCAPE_db_a32;
+        ops_386[0x2DC] = opESCAPE_dc_a32;
+        ops_386[0x2DD] = opESCAPE_dd_a32;
+        ops_386[0x2DE] = opESCAPE_de_a32;
+        ops_386[0x2DF] = opESCAPE_df_a32;
+        ops_386[0x3D8] = opESCAPE_d8_a32;
+        ops_386[0x3D9] = opESCAPE_d9_a32;
+        ops_386[0x3DA] = opESCAPE_da_a32;
+        ops_386[0x3DB] = opESCAPE_db_a32;
+        ops_386[0x3DC] = opESCAPE_dc_a32;
+        ops_386[0x3DD] = opESCAPE_dd_a32;
+        ops_386[0x3DE] = opESCAPE_de_a32;
+        ops_386[0x3DF] = opESCAPE_df_a32;
+    }
 }

@@ -113,4 +113,73 @@ internal static partial class _386
         PoserIncDecRegistres();
         ops_286[0xFE] = opINCDEC_b_a16;
     }
+
+    /// <summary>G2, D2 — les seize instanciations 32 bits de INC_DEC_OP
+    /// (x86_ops_inc_dec.h:21-38), aux quadrants 1 et 3.</summary>
+    private static void PoserIncDec386()
+    {
+        for (var n = 0; n < 8; n++)
+        {
+                var reg = n;
+                // INC_DEC_OP(INC_Exx, Exx, 1, setadd32nc)
+                OpFn inc = fetchdat =>
+                {
+                        setadd32nc(cpu_state.regs[reg].l, 1);
+                        cpu_state.regs[reg].l += 1;
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 1, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+                // INC_DEC_OP(DEC_Exx, Exx, -1, setsub32nc)
+                OpFn dec = fetchdat =>
+                {
+                        setsub32nc(cpu_state.regs[reg].l, 1);
+                        cpu_state.regs[reg].l -= 1;
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 1, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+                ops_386[0x140 + reg] = inc;
+                ops_386[0x340 + reg] = inc;
+                ops_386[0x148 + reg] = dec;
+                ops_386[0x348 + reg] = dec;
+        }
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_inc_dec.h ----
+
+    // pcem: x86_ops_inc_dec.h:73
+    private static int opINCDEC_b_a32(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        if ((fetchdat & 0x38) != 0) {
+                seteab((uint8_t)(temp - 1));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setsub8nc(temp, 1);
+        } else {
+                seteab((uint8_t)(temp + 1));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setadd8nc(temp, 1);
+        }
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_inc_dec_386()
+    {
+        ops_386[0x2FE] = opINCDEC_b_a32;
+        ops_386[0x3FE] = opINCDEC_b_a32;
+    }
 }

@@ -134,6 +134,30 @@ internal static partial class _386
         // APRÈS la table du 286 et ses recopies : la part partagée s'y lit.
         PoserTable386Partagee();
         PoserPrefixes386();
+        PoserRep386();
+        PoserPile386();
+        PoserIncDec386();
+        PoserLsel386();
+        PoserOp0F386();
+        PoserGroupeArith386();
+        PoserGroupe_fpu_386();
+        PoserGroupe_arith_386();
+        PoserGroupe_string_386();
+        PoserGroupe_stack_386();
+        PoserGroupe_shift_386();
+        PoserGroupe_pmode_386();
+        PoserGroupe_mul_386();
+        PoserGroupe_misc_386();
+        PoserGroupe_jump_386();
+        PoserGroupe_inc_dec_386();
+        PoserGroupe_int_386();
+        PoserGroupe_call_386();
+        PoserGroupe_ret_386();
+        PoserGroupe_io_386();
+        PoserGroupe_flag_386();
+        PoserGroupe_xchg_386();
+        PoserGroupeMovSeg386();
+        PoserGroupeMov386();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme

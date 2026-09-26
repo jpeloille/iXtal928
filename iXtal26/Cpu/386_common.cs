@@ -439,6 +439,34 @@ internal static partial class _386_common
                 cpu_state.regs[cpu_rm].w = v;
     }
 
+    // pcem: 386_common.h:196-201 et :242-249 — G2, D2 : les formes 32 bits.
+    internal static uint32_t geteal()
+    {
+        if (cpu_mod == 3)
+                return cpu_state.regs[cpu_rm].l;
+        if (eal_r != -1)
+                return ReadL(mem.ram, eal_r);
+        return readmeml(easeg, cpu_state.eaaddr);
+    }
+
+    internal static void seteal(uint32_t v)
+    {
+        if (cpu_mod != 3)
+        {
+                if (eal_w != -1)
+                {
+                        mem.ram[eal_w] = (byte)v;
+                        mem.ram[eal_w + 1] = (byte)(v >> 8);
+                        mem.ram[eal_w + 2] = (byte)(v >> 16);
+                        mem.ram[eal_w + 3] = (byte)(v >> 24);
+                }
+                else
+                        mem.writememll(easeg + cpu_state.eaaddr, v);
+        }
+        else
+                cpu_state.regs[cpu_rm].l = v;
+    }
+
     // -----------------------------------------------------------------------
     // Les GARDES (pcem: 386_common.h:58-92). Elles ne sont PAS inertes en mode
     // réel : CHECK_WRITE teste le bit « inscriptible » d'access, et loadseg pose
@@ -664,6 +692,73 @@ internal static partial class _386_common
                         return;
                 SP -= 2;
         }
+    }
+
+    // pcem: 386_common.c:187-225 — divexcp, divl, idivl (G2, D2). divexcp n'y fait que
+    // journaliser et lever INT 0 ; le pclog est omis.
+    internal static int divl(uint32_t val)
+    {
+        if (val == 0)
+        {
+                x86_int(0);
+                return 1;
+        }
+        uint64_t num = (((uint64_t)EDX) << 32) | EAX;
+        uint64_t quo = num / val;
+        uint32_t rem = (uint32_t)(num % val);
+        uint32_t quo32 = (uint32_t)(quo & 0xFFFFFFFF);
+        if (quo != (uint64_t)quo32)
+        {
+                x86_int(0);
+                return 1;
+        }
+        EDX = rem;
+        EAX = quo32;
+        return 0;
+    }
+
+    // PCEM : num = INT64_MIN et val = -1 est une division indéfinie en C (SIGFPE sur
+    // x86-64) ; .NET y lève OverflowException. Transcrit tel quel, écart consigné.
+    internal static int idivl(int32_t val)
+    {
+        if (val == 0)
+        {
+                x86_int(0);
+                return 1;
+        }
+        int64_t num = (int64_t)((((uint64_t)EDX) << 32) | EAX);
+        int64_t quo = num / val;
+        int32_t rem = (int32_t)(num % val);
+        int32_t quo32 = (int32_t)(quo & 0xFFFFFFFF);
+        if (quo != (int64_t)quo32)
+        {
+                x86_int(0);
+                return 1;
+        }
+        EDX = (uint32_t)rem;
+        EAX = (uint32_t)quo32;
+        return 0;
+    }
+
+    /// <summary>pcem: 386_ops.h:58-72 — G2, D2.</summary>
+    internal static uint32_t POP_L()
+    {
+        uint32_t ret;
+        if (stack32 != 0)
+        {
+                ret = readmeml(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                ESP += 4;
+        }
+        else
+        {
+                ret = readmeml(ss, SP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                SP += 4;
+        }
+        return ret;
     }
 
     /// <summary>pcem: 386_ops.h:42-56</summary>

@@ -163,4 +163,84 @@ internal static partial class _386
         ops_286[0xEE] = opOUT_AL_DX;
         ops_286[0xEF] = opOUT_AX_DX;
     }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_io.h ----
+
+    // pcem: x86_ops_io.h:110
+    private static int opIN_EAX_DX(uint32_t fetchdat)
+    {
+        if (check_io_perm(DX)) return 1;
+        if (check_io_perm((uint16_t)(DX + 1))) return 1;
+        if (check_io_perm((uint16_t)(DX + 2))) return 1;
+        if (check_io_perm((uint16_t)(DX + 3))) return 1;
+        EAX = io.inl(DX);
+        CLOCK_CYCLES(12);
+        PREFETCH_RUN(12, 1, -1, 0, 1, 0, 0, 0);
+        // omitted: `if ((cpu_state.smi_pending) != 0) return 1;` — SMM, 486 et au-dela.
+        if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
+                return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_io.h:28
+    private static int opIN_EAX_imm(uint32_t fetchdat)
+    {
+        uint16_t port = (uint8_t)fetchdat; cpu_state.pc++;
+        if (check_io_perm(port)) return 1;
+        if (check_io_perm((uint16_t)(port + 1))) return 1;
+        if (check_io_perm((uint16_t)(port + 2))) return 1;
+        if (check_io_perm((uint16_t)(port + 3))) return 1;
+        EAX = io.inl(port);
+        CLOCK_CYCLES(12);
+        PREFETCH_RUN(12, 2, -1, 0, 1, 0, 0, 0);
+        // omitted: `if ((cpu_state.smi_pending) != 0) return 1;` — SMM, 486 et au-dela.
+        if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
+                return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_io.h:149
+    private static int opOUT_EAX_DX(uint32_t fetchdat)
+    {
+        if (check_io_perm(DX)) return 1;
+        if (check_io_perm((uint16_t)(DX + 1))) return 1;
+        if (check_io_perm((uint16_t)(DX + 2))) return 1;
+        if (check_io_perm((uint16_t)(DX + 3))) return 1;
+        io.outl(DX, EAX);
+        PREFETCH_RUN(11, 1, -1, 0, 0, 0, 1, 0);
+        // omitted: `if ((cpu_state.smi_pending) != 0) return 1;` — SMM, 486 et au-dela.
+        if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
+                return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_io.h:71
+    private static int opOUT_EAX_imm(uint32_t fetchdat)
+    {
+        uint16_t port = (uint8_t)fetchdat; cpu_state.pc++;
+        if (check_io_perm(port)) return 1;
+        if (check_io_perm((uint16_t)(port + 1))) return 1;
+        if (check_io_perm((uint16_t)(port + 2))) return 1;
+        if (check_io_perm((uint16_t)(port + 3))) return 1;
+        io.outl(port, EAX);
+        CLOCK_CYCLES(10);
+        PREFETCH_RUN(10, 2, -1, 0, 0, 0, 1, 0);
+        // omitted: `if ((cpu_state.smi_pending) != 0) return 1;` — SMM, 486 et au-dela.
+        if (_808x.nmi != 0 && nmi_enable != 0 && _808x.nmi_mask != 0)
+                return 1;
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_io_386()
+    {
+        ops_386[0x1E5] = opIN_EAX_imm;
+        ops_386[0x1E7] = opOUT_EAX_imm;
+        ops_386[0x1ED] = opIN_EAX_DX;
+        ops_386[0x1EF] = opOUT_EAX_DX;
+        ops_386[0x3E5] = opIN_EAX_imm;
+        ops_386[0x3E7] = opOUT_EAX_imm;
+        ops_386[0x3ED] = opIN_EAX_DX;
+        ops_386[0x3EF] = opOUT_EAX_DX;
+    }
 }

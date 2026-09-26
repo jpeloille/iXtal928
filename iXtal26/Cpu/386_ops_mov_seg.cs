@@ -196,4 +196,309 @@ internal static partial class _386
         ops_286[0xC4] = opLES_w_a16;
         ops_286[0xC5] = opLDS_w_a16;
     }
+
+    /// <summary>G2, D2 — la macro opLsel(name, sel) (x86_ops_mov_seg.h:406-485) en
+    /// ses quatre formes : `l` pour 32 bits d'offset, `a32` pour l'adresse effective.
+    /// Instanciée pour ES, FS et GS (:486) ; LES_w_a16 garde sa méthode du 286.</summary>
+    private static OpFn OpLsel(x86seg sel, bool l, bool a32) => fetchdat =>
+    {
+        if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        uint32_t addr = l ? readmeml(easeg, cpu_state.eaaddr) : readmemw(easeg, cpu_state.eaaddr);
+        uint16_t seg = readmemw(easeg, cpu_state.eaaddr + (l ? 4u : 2u));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, sel);
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (l)
+                cpu_state.regs[cpu_reg].l = addr;
+        else
+                cpu_state.regs[cpu_reg].w = (uint16_t)addr;
+        CLOCK_CYCLES(7);
+        if (l)
+                PREFETCH_RUN(7, 2, (int)fetchdat, 1, 1, 0, 0, a32 ? 1 : 0);
+        else
+                PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, a32 ? 1 : 0);
+        return 0;
+    };
+
+    private static void PoserLsel386()
+    {
+        ops_386[0x1C4] = OpLsel(cpu_state.seg_es, true, false);
+        ops_386[0x2C4] = OpLsel(cpu_state.seg_es, false, true);
+        ops_386[0x3C4] = OpLsel(cpu_state.seg_es, true, true);
+        foreach (var (op, sel) in new[] { (0xB4, cpu_state.seg_fs), (0xB5, cpu_state.seg_gs) })
+        {
+                ops_386_0f[op] = OpLsel(sel, false, false);
+                ops_386_0f[0x100 | op] = OpLsel(sel, true, false);
+                ops_386_0f[0x200 | op] = OpLsel(sel, false, true);
+                ops_386_0f[0x300 | op] = OpLsel(sel, true, true);
+        }
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_mov_seg.h ----
+
+    // pcem: x86_ops_mov_seg.h:286
+    private static int opLDS_l_a16(uint32_t fetchdat)
+    {
+        uint32_t addr;
+        uint16_t seg;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmeml(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ds);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 1, 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov_seg.h:306
+    private static int opLDS_l_a32(uint32_t fetchdat)
+    {
+        uint32_t addr;
+        uint16_t seg;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmeml(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ds);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 1, 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov_seg.h:267
+    private static int opLDS_w_a32(uint32_t fetchdat)
+    {
+        uint16_t addr, seg;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmemw(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ds);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov_seg.h:64
+    private static int opMOV_l_seg_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+
+        switch (fetchdat & 0x38) {
+        case 0x00: /*ES*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = ES;
+                else
+                        seteaw((uint16_t)(ES));
+                break;
+        case 0x08: /*CS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = CS;
+                else
+                        seteaw((uint16_t)(CS));
+                break;
+        case 0x18: /*DS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = DS;
+                else
+                        seteaw((uint16_t)(DS));
+                break;
+        case 0x10: /*SS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = SS;
+                else
+                        seteaw((uint16_t)(SS));
+                break;
+        case 0x20: /*FS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = FS;
+                else
+                        seteaw((uint16_t)(FS));
+                break;
+        case 0x28: /*GS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = GS;
+                else
+                        seteaw((uint16_t)(GS));
+                break;
+        }
+
+        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 3);
+        PREFETCH_RUN((cpu_mod == 3) ? 2 : 3, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov_seg.h:112
+    private static int opMOV_l_seg_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+
+        switch (fetchdat & 0x38) {
+        case 0x00: /*ES*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = ES;
+                else
+                        seteaw((uint16_t)(ES));
+                break;
+        case 0x08: /*CS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = CS;
+                else
+                        seteaw((uint16_t)(CS));
+                break;
+        case 0x18: /*DS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = DS;
+                else
+                        seteaw((uint16_t)(DS));
+                break;
+        case 0x10: /*SS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = SS;
+                else
+                        seteaw((uint16_t)(SS));
+                break;
+        case 0x20: /*FS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = FS;
+                else
+                        seteaw((uint16_t)(FS));
+                break;
+        case 0x28: /*GS*/
+                if (cpu_mod == 3)
+                        cpu_state.regs[cpu_rm].l = GS;
+                else
+                        seteaw((uint16_t)(GS));
+                break;
+        }
+
+        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 3);
+        PREFETCH_RUN((cpu_mod == 3) ? 2 : 3, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov_seg.h:204
+    private static int opMOV_seg_w_a32(uint32_t fetchdat)
+    {
+        uint16_t new_seg;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        new_seg = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        switch (fetchdat & 0x38) {
+        case 0x00: /*ES*/
+                x86seg_c.loadseg(new_seg, cpu_state.seg_es);
+                break;
+        case 0x18: /*DS*/
+                x86seg_c.loadseg(new_seg, cpu_state.seg_ds);
+                break;
+        case 0x10: /*SS*/
+                x86seg_c.loadseg(new_seg, cpu_state.seg_ss);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.oldpc = cpu_state.pc;
+                cpu_state.op32 = use32;
+                cpu_state.ssegs = 0;
+                cpu_state.ea_seg = cpu_state.seg_ds;
+                fetchdat = fastreadl(x86.cs + cpu_state.pc);
+                cpu_state.pc++;
+                if (cpu_state.abrt != 0)
+                        return 1;
+                x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                return 1;
+        case 0x20: /*FS*/
+                x86seg_c.loadseg(new_seg, cpu_state.seg_fs);
+                break;
+        case 0x28: /*GS*/
+                x86seg_c.loadseg(new_seg, cpu_state.seg_gs);
+                break;
+        }
+
+        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 2 : 5, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov_seg.h:33
+    private static int opMOV_w_seg_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+
+        switch (fetchdat & 0x38) {
+        case 0x00: /*ES*/
+                seteaw((uint16_t)(ES));
+                break;
+        case 0x08: /*CS*/
+                seteaw((uint16_t)(CS));
+                break;
+        case 0x18: /*DS*/
+                seteaw((uint16_t)(DS));
+                break;
+        case 0x10: /*SS*/
+                seteaw((uint16_t)(SS));
+                break;
+        case 0x20: /*FS*/
+                seteaw((uint16_t)(FS));
+                break;
+        case 0x28: /*GS*/
+                seteaw((uint16_t)(GS));
+                break;
+        }
+
+        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 3);
+        PREFETCH_RUN((cpu_mod == 3) ? 2 : 3, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupeMovSeg386()
+    {
+        ops_386[0x18C] = opMOV_l_seg_a16;
+        ops_386[0x1C5] = opLDS_l_a16;
+        ops_386[0x28C] = opMOV_w_seg_a32;
+        ops_386[0x28E] = opMOV_seg_w_a32;
+        ops_386[0x2C5] = opLDS_w_a32;
+        ops_386[0x38C] = opMOV_l_seg_a32;
+        ops_386[0x38E] = opMOV_seg_w_a32;
+        ops_386[0x3C5] = opLDS_l_a32;
+    }
 }

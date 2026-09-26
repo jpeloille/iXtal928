@@ -38,17 +38,20 @@ internal static partial class _808x
     /// le vrai mem.c. Pendant exact de h_flat_map() (tools/oracle/harness.c) — les
     /// deux cœurs doivent partir de la MÊME carte mémoire, sinon le diff compare
     /// deux machines.</summary>
-    private static void FlatMap()
+    /// <summary>Pendant de h_flat_map(). `kb` : 1 024 pour le 8088 et le 286, 16 384
+    /// pour le 386 (G2, D2) — voir h_ram_top() côté oracle.</summary>
+    private static void FlatMap(int kb = 1024)
     {
-        mem.mem_size = 1024; // 1 Mo : l'espace complet du 8088
+        mem.mem_size = kb;
         if (!mem_inited)
         {
                 mem.mem_init();
                 mem_inited = true;
         }
         mem.mem_alloc();
-        mem.mem_set_mem_state(0x000000, 0x100000, mem.MEM_READ_INTERNAL | mem.MEM_WRITE_INTERNAL);
-        mem.mem_mapping_add(h_flat_mapping, 0x000000, 0x100000,
+        var top = (uint32_t)kb * 1024;
+        mem.mem_set_mem_state(0x000000, top, mem.MEM_READ_INTERNAL | mem.MEM_WRITE_INTERNAL);
+        mem.mem_mapping_add(h_flat_mapping, 0x000000, top,
                             mem.mem_read_ram, mem.mem_read_ramw, mem.mem_read_raml,
                             mem.mem_write_ram, mem.mem_write_ramw, mem.mem_write_raml,
                             mem.ram, 0, mem.MEM_MAPPING_INTERNAL, null);
@@ -60,6 +63,9 @@ internal static partial class _808x
     /// quand h_core vaut H_CORE_286 : c'est la MÊME fonction côté C, d'où l'appel
     /// à FlatMap() ici plutôt qu'une copie.</summary>
     internal static void FlatMap286() => FlatMap();
+
+    /// <summary>La carte de 16 Mo du cœur 386 (G2, D2).</summary>
+    internal static void FlatMap386() => FlatMap(16384);
 
     internal static void Reset()
     {

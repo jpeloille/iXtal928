@@ -190,4 +190,22 @@ internal static partial class _386
         ops_286[0xF0] = opLOCK;
         ops_286[0xF1] = opLOCK;
     }
+
+    // pcem: 386_ops.h:159-179 — op0F_l_a16, op0F_w_a32, op0F_l_a32 (G2, D2) : la table
+    // 0F, au quadrant de la forme.
+    private static OpFn Op0F(int quadrant) => fetchdat =>
+    {
+        int opcode = (int)(fetchdat & 0xff);
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+
+        return x86_opcodes_0f![opcode | quadrant](fetchdat >> 8);
+    };
+
+    private static void PoserOp0F386()
+    {
+        ops_386[0x10F] = Op0F(0x100);
+        ops_386[0x20F] = Op0F(0x200);
+        ops_386[0x30F] = Op0F(0x300);
+    }
 }
