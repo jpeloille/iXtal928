@@ -544,6 +544,14 @@ void h_setregs(const uint16_t r[H_R_COUNT]) {
         FETCHCLEAR();
 }
 
+void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16_t gs_sel) {
+        for (int i = 0; i < 8; i++)
+                cpu_state.regs[i].l = (cpu_state.regs[i].l & 0xffff) | ((uint32_t)hi[i] << 16);
+        cpu_state.eflags = eflags;
+        loadseg(fs_sel, &cpu_state.seg_fs);
+        loadseg(gs_sel, &cpu_state.seg_gs);
+}
+
 void h_getregs(uint16_t r[H_R_COUNT]) {
         r[H_R_AX] = cpu_state.regs[0].w;
         r[H_R_BX] = cpu_state.regs[3].w;

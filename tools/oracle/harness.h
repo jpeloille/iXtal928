@@ -335,6 +335,14 @@ void h_setregs(const uint16_t r[H_R_COUNT]);
 /* Relit les 14 mêmes registres. */
 void h_getregs(uint16_t r[H_R_COUNT]);
 
+/* G2, D0.4 — CE QUE h_setregs NE POSE PAS SUR UN 386, à appeler APRÈS lui : les moitiés
+ * hautes des huit registres généraux (ordre de cpu_state.regs : EAX ECX EDX EBX ESP EBP
+ * ESI EDI), le mot haut d'EFLAGS (VM, RF — x86.h:113) et les sélecteurs de FS et GS,
+ * chargés par loadseg comme les quatre autres. (Pas `gs` : x86.h:143 en fait une macro.) Le fuzzeur du cœur 386 les tire au
+ * hasard ; les laisser à zéro rendrait invisible un handler 16 bits qui écrase la
+ * moitié haute. */
+void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16_t gs_sel);
+
 /* Exécute exactement une instruction et rend le nombre de cycles consommés.
  * Le budget est réarmé à l'intérieur : execx86() boucle tant que cycles > 0,
  * donc on l'appelle avec de quoi faire une seule instruction. */
@@ -569,7 +577,8 @@ uint8_t *h_ram(void);
  * TAILLE. */
 /* 22 depuis G2 etape D0.2 : h_set_core accepte H_CORE_386. Le vecteur ne change pas de
  * taille. */
-#define H_ABI_VERSION 22
+/* 23 depuis G2 etape D0.4 : h_setregs386 s'ajoute au contrat. */
+#define H_ABI_VERSION 23
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

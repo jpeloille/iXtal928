@@ -179,6 +179,18 @@ internal static partial class _808x
         FETCHCLEAR();
     }
 
+    /// <summary>Pendant de h_setregs386 (G2, D0.4), à appeler après SetRegs : moitiés
+    /// hautes des registres généraux dans l'ordre de cpu_state.regs, mot haut d'EFLAGS,
+    /// sélecteurs de FS et GS.</summary>
+    internal static void SetRegs386(ushort[] hi, ushort eflags, ushort fs, ushort gs)
+    {
+        for (var i = 0; i < 8; i++)
+                cpu_state.regs[i].l = (cpu_state.regs[i].l & 0xffff) | ((uint32_t)hi[i] << 16);
+        cpu_state.eflags = eflags;
+        x86seg_c.loadseg(fs, cpu_state.seg_fs);
+        x86seg_c.loadseg(gs, cpu_state.seg_gs);
+    }
+
     internal static void GetRegs(ushort[] r)
     {
         r[(int)R.AX] = cpu_state.regs[0].w;

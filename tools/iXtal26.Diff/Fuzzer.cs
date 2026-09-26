@@ -166,12 +166,17 @@ public static class Fuzzer
                 // sinon la fuite se rallonge d'un cran : `DB 0D DB E7 0F` — deux
                 // ESCAPE d'affilee, et le 0F au TROISIEME rang. Mesure a
                 // l'iteration 9610. On borne donc la chaine a un seul cran.
+                //
+                // 0x8E EST EXCLU POUR LA MEME RAISON (G2, D0.4) : MOV SS reexecute la
+                // suivante quand son `reg` vaut 2, et son ModRM n'est tire qu'apres.
+                // Mesure, coeur 386 : `8E 94 2B 8F 8E D5 64` — le second MOV SS
+                // execute le 64 du troisieme rang, prefixe FS pas encore transcrit.
                 var suite = op;
                 for (var guard = 0; guard < 16 &&
-                                    (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67
+                                    (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67 or 0x8E
                                      || CoutNul(suite)); guard++)
                     suite = opcodes[rng.Next() % (uint)opcodes.Length];
-                if (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67 || CoutNul(suite))
+                if (EnchaineSurLaSuivante(suite) || suite is 0x66 or 0x67 or 0x8E || CoutNul(suite))
                     suite = 0xB8;
                 code[1 + TailleModRM16(code[1])] = suite;
             }
@@ -250,6 +255,8 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
+            if (core == Oracle.Core386)
+                Seed386(ref rng);
 
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -456,6 +463,8 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
+            if (core == Oracle.Core386)
+                Seed386(ref rng);
 
             for (var n = 0; n < instrPerRound; n++)
             {
@@ -509,6 +518,22 @@ public static class Fuzzer
      * nombre juste sans garantir qu'un Chk() existe pour chaque champ, ce qui est
      * précisément ce qu'on veut savoir. */
     private const int FieldCount = 69;
+
+    /// <summary>G2, D0.4 — ce qu'un 386 a de plus qu'un 286, tiré au hasard et posé des
+    /// DEUX côtés après SetRegs : les moitiés hautes des huit registres généraux, FS et
+    /// GS. Le mot haut d'EFLAGS reste à zéro — VM y est, et le fuzzeur part en mode
+    /// réel ; RF n'a de lecteur que le piège de débogage. Sans ces moitiés hautes, un
+    /// handler 16 bits qui écrase EAX tout entier passerait vert : zéro des deux côtés.</summary>
+    private static void Seed386(ref Lcg rng)
+    {
+        var hi = new ushort[8];
+        for (var i = 0; i < hi.Length; i++)
+            hi[i] = rng.Next16();
+        var fs = rng.Next16();
+        var gs = rng.Next16();
+        Oracle.h_setregs386(hi, 0, fs, gs);
+        _808x.SetRegs386(hi, 0, fs, gs);
+    }
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 

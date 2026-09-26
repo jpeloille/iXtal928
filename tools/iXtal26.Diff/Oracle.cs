@@ -41,7 +41,8 @@ public static class Oracle
     // h_mouse_poll s'ajoute au contrat.
     // 21 en G2, D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de taille.
     // 22 en G2, D0.2 : h_set_core accepte 2, le coeur 386. Le vecteur ne change pas.
-    public const int AbiVersion = 22;
+    // 23 en G2, D0.4 : h_setregs386.
+    public const int AbiVersion = 23;
 
     static Oracle()
     {
@@ -101,6 +102,8 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_fill_ram2(byte a, byte b);
     [DllImport(Lib)] public static extern void h_set_cs_ip(ushort cs, ushort ip);
     [DllImport(Lib)] public static extern void h_setregs(ushort[] r);
+    // G2, D0.4 — moitiés hautes, mot haut d'EFLAGS, FS et GS ; après h_setregs.
+    [DllImport(Lib)] public static extern void h_setregs386(ushort[] hi, ushort eflags, ushort fs, ushort gs);
     [DllImport(Lib)] public static extern void h_getregs(ushort[] r);
     // A2.0 — quel cœur l'oracle exécute. 0 = 8088 (execx86), 1 = 286 (exec386 avec
     // ops_286). À poser AVANT h_reset : c'est h_reset qui applique AT, et resetx86
