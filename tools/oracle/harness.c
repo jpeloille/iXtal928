@@ -552,6 +552,13 @@ void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16
         loadseg(gs_sel, &cpu_state.seg_gs);
 }
 
+void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7) {
+        cpu_state.CR0.l = cr0_val;
+        cr3 = cr3_val;
+        dr[6] = dr6;
+        dr[7] = dr7;
+}
+
 void h_getregs(uint16_t r[H_R_COUNT]) {
         r[H_R_AX] = cpu_state.regs[0].w;
         r[H_R_BX] = cpu_state.regs[3].w;

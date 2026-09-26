@@ -98,6 +98,11 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      domaine d'horloge, temps vidéo). L'indice hors table doit être refusé");
     Console.WriteLine("      des deux côtés.");
     Console.WriteLine();
+    Console.WriteLine("  sst386-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp]");
+    Console.WriteLine("               [--baseline FICHIER]");
+    Console.WriteLine("      Sonde SingleStepTests/80386 (386EX, mode réel, format MOO) : l'état final");
+    Console.WriteLine("      de chaque cas contre le silicium. --baseline ÉCRIT la ligne de base.");
+    Console.WriteLine();
     Console.WriteLine("  ops-count [--missing]");
     Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
     Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
@@ -109,6 +114,31 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
 
 switch (args[0])
 {
+    // G2, D0.5 — le corpus SingleStepTests/80386, oracle silicium du cœur 386.
+    case "sst386-probe":
+    {
+        var vectors = "vectors/sst386";
+        var forms = new List<string>();
+        var limit = 0;
+        var csharp = false;
+        string? baseline = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--vectors" when i + 1 < args.Length: vectors = args[++i]; break;
+                case "--op" when i + 1 < args.Length: forms.Add(args[++i]); break;
+                case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
+                case "--target" when i + 1 < args.Length: csharp = args[++i] == "csharp"; break;
+                case "--baseline" when i + 1 < args.Length: baseline = args[++i]; break;
+                default:
+                    Console.Error.WriteLine($"Option inconnue : {args[i]}");
+                    return 2;
+            }
+        }
+        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline);
+    }
+
     // G2, D0.6 — ce que la table du 386 porte réellement, lue vivante.
     case "ops-count":
         return OpsCount.Run(args.Contains("--missing"));

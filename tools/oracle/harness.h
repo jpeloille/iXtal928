@@ -343,6 +343,13 @@ void h_getregs(uint16_t r[H_R_COUNT]);
  * moitié haute. */
 void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16_t gs_sel);
 
+/* G2, D0.5 — les registres système qu'un cas SingleStepTests/80386 pose (RG32 : cr0, cr3,
+ * dr6, dr7). cr0 est cpu_state.CR0.l, msw en est le mot bas (x86.h). */
+void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7);
+
+/* G2, D0.5 — flags_rebuild(), pour la sonde SST 386 (harness_386.c). */
+void h_flags_rebuild(void);
+
 /* Exécute exactement une instruction et rend le nombre de cycles consommés.
  * Le budget est réarmé à l'intérieur : execx86() boucle tant que cycles > 0,
  * donc on l'appelle avec de quoi faire une seule instruction. */
@@ -578,7 +585,8 @@ uint8_t *h_ram(void);
 /* 22 depuis G2 etape D0.2 : h_set_core accepte H_CORE_386. Le vecteur ne change pas de
  * taille. */
 /* 23 depuis G2 etape D0.4 : h_setregs386 s'ajoute au contrat. */
-#define H_ABI_VERSION 23
+/* 24 depuis G2 etape D0.5 : h_setsys386 et h_flags_rebuild s'ajoutent au contrat. */
+#define H_ABI_VERSION 24
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
