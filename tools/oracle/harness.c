@@ -729,6 +729,7 @@ void h_seg_clear_residue(void) {
          * attente », et c'est ce que le fuzzeur voit a chaque iteration. */
         cr2 = 0;
         cr3 = 0;
+        memset(dr, 0, sizeof(dr));
         cpl_override = 0;
         cpu_state.flags_op = 0;
         cpu_state.flags_res = 0;
@@ -802,6 +803,9 @@ void h_getstate(h_state *out) {
         out->use32 = use32;
         out->stack32 = stack32;
         out->cpl_override = cpl_override;
+        out->cr4 = cr4;
+        for (int i = 0; i < 8; i++)
+                out->dr[i] = dr[i];
 
         /* Les quatre drapeaux paresseux, LUS et non matérialisés. Appeler
          * flags_rebuild() ici poserait flags_op à FLAGS_UNKNOWN et rendrait la

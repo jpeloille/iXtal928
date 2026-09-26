@@ -79,7 +79,7 @@ public struct HState
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public byte[] sys_access2;
 
     // cr0 est cpu_state.CR0 ; msw en est les 16 bits bas, donc pas de champ séparé.
-    // cr4 est omis : 486 et au-delà. cpl_override n'est pas un registre mais
+    // cpl_override n'est pas un registre mais
     // l'interrupteur qui fait sauter les contrôles de privilège.
     public uint cr0;
     public uint cr2;
@@ -87,6 +87,13 @@ public struct HState
     public uint use32;
     public int stack32;
     public int cpl_override;
+
+    // cr4 et les huit registres de débogage (G2, D0.1) : écrits par MOV CRx et MOV DRx,
+    // constants à zéro tant qu'aucun handler 386 n'existe. TR6/TR7 n'ont pas de
+    // stockage chez PCem. `eflags` est déjà le mot HAUT d'EFLAGS (VM, RF) : rien à
+    // élargir.
+    public uint cr4;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public uint[] dr;
 
     // Les DRAPEAUX PARESSEUX (x86.h:65-68). exec386 ne matérialise pas `flags` : entre
     // deux flags_rebuild() il est périmé, donc le comparer seul serait un accord vide.
@@ -165,6 +172,7 @@ public struct HState
     public static HState Create() => new()
     {
         regs = new uint[8],
+        dr = new uint[8],
         seg_base = new uint[(int)Seg.COUNT],
         seg_sel = new ushort[(int)Seg.COUNT],
         seg_limit = new uint[(int)Seg.COUNT],

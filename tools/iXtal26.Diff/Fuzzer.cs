@@ -499,12 +499,12 @@ public static class Fuzzer
     /* 32 d'origine, + 7 champs de cache descripteur par segment, + 9 champs par
      * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux,
      * + les 7 globaux du mode protégé de C7a — abrt_error, intgatesize, cgate16,
-     * cgate32, optype, oldcpl, cur_status.
+     * cgate32, optype, oldcpl, cur_status, + cr4 et dr[] de G2 D0.1.
      * Compté en formes de champ, pas en entrées de tableau : la boucle en couvre 6, la
      * suivante 4. Tenu À LA MAIN par doctrine : une réflexion sur HState rendrait ce
      * nombre juste sans garantir qu'un Chk() existe pour chaque champ, ce qui est
      * précisément ce qu'on veut savoir. */
-    private const int FieldCount = 67;
+    private const int FieldCount = 69;
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
 
@@ -581,9 +581,14 @@ public static class Fuzzer
                 return $"{(Sys)i} access2 : oracle 0x{a.sys_access2[i]:X2}, C# 0x{b.sys_access2[i]:X2}";
         }
 
+        for (var i = 0; i < 8; i++)
+            if (a.dr[i] != b.dr[i])
+                return $"dr{i} : oracle 0x{a.dr[i]:X8}, C# 0x{b.dr[i]:X8}";
+
         return Chk("cr0", a.cr0, b.cr0)
             ?? Chk("cr2", a.cr2, b.cr2)
             ?? Chk("cr3", a.cr3, b.cr3)
+            ?? Chk("cr4", a.cr4, b.cr4)
             ?? Chk("use32", a.use32, b.use32)
             ?? Chk("stack32", a.stack32, b.stack32)
             ?? Chk("cpl_override", a.cpl_override, b.cpl_override)

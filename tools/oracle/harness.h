@@ -146,6 +146,21 @@ typedef struct h_state {
         int32_t  stack32;
         int32_t  cpl_override;
 
+        /* cr4 ET LES HUIT REGISTRES DE DEBOGAGE, ajoutes en G2 etape D0.1, avant le
+         * premier handler 386 qui les ecrit : MOV CRx et MOV DRx (x86_ops_mov_ctrl.h:
+         * 134, :187, :209, :221). Meme doctrine que le cache descripteur : ils entrent
+         * CONSTANTS, a zero des deux cotes, et le cablage se verifie pendant qu'il est
+         * trivial. cr4 est remis par resetx86 (808x.c:677) ; dr[] ne l'est par RIEN,
+         * PCem n'amorcant qu'une fois par processus — h_seg_clear_residue le remet,
+         * comme cr2 et cr3 ; ClearSegResidue cote C#.
+         * Les registres de test TR6/TR7 n'ont pas de stockage chez PCem : MOV TRx ne
+         * fait que journaliser (x86_ops_mov_ctrl.h:227-275). Rien a ajouter.
+         *
+         * `eflags` n'a PAS a s'elargir : c'est deja le MOT HAUT d'EFLAGS
+         * (x86.h:113, VM_FLAG = 0x0002 « In EFLAGS »), donc RF et VM y sont. */
+        uint32_t cr4;
+        uint32_t dr[8];
+
         /* LES DRAPEAUX PARESSEUX (x86.h:65-68), ajoutés en A2.1.
          *
          * exec386 ne matérialise pas `flags` : il retient l'OPÉRATION (flags_op) et ses
@@ -547,7 +562,9 @@ uint8_t *h_ram(void);
  * h_state ne change pas de taille. */
 /* 20 depuis M21 : h_mouse_poll s'ajoute au contrat ; COM1, COM2 et la souris serie
  * Microsoft entrent dans l'oracle. Le vecteur ne change pas de taille. */
-#define H_ABI_VERSION 20
+/* 21 depuis G2 etape D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de
+ * TAILLE. */
+#define H_ABI_VERSION 21
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

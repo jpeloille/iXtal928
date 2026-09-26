@@ -137,6 +137,7 @@ internal static partial class _386
         // c'est FLAGS_UNKNOWN, « aucun drapeau paresseux en attente ».
         cr2 = 0;
         cr3 = 0;
+        Array.Clear(dr);
         cpl_override = 0;
         cpu_state.flags_op = 0;
         cpu_state.flags_res = 0;

@@ -239,6 +239,10 @@ internal static partial class x86
     internal static int stack32;
     internal static uint16_t cpu_cur_status;
     internal static uint32_t cr2, cr3, cr4;
+
+    // pcem: x86.h:174 / 386_common.c:13 — les huit registres de débogage, écrits par
+    // MOV DRx (x86_ops_mov_ctrl.h:209, :221). Entrés dans h_state en G2, D0.1.
+    internal static readonly uint32_t[] dr = new uint32_t[8];
     // pcem: x86.h:255-267 — les causes d'abandon. ABRT_MASK vaut 0x7F et non 7 :
     // le bit haut porte ABRT_EXPECTED, une distinction du recompilateur.
     internal const int ABRT_NONE = 0;

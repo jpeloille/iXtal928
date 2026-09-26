@@ -17,7 +17,7 @@
 | Pagination (`mem.c` : `mmutranslate*`, `flushmmucache*`, `page_lookup`) | **omise** (`Memory/mem.cs`, en-tête) |
 | `taskswitch286` (TSS 286 et 386, `x86seg.c:2393-2849`) | `pc.fatal` |
 | V86 dans `x86seg.cs` | branches `VM_FLAG` présentes mais jamais exercées |
-| Oracle : `h_state.eflags` | **16 bits** — VM (bit 17) et RF (bit 16) invisibles |
+| Oracle : `h_state` | `eflags` est déjà le **mot haut** d'EFLAGS (`x86.h:113`, VM = `0x0002`) : VM et RF y sont. Manquaient `cr4` et `dr[8]` — **ajoutés en D0.1** |
 
 Les tables `ops_386` et `ops_386_0f` servent **aussi au 486** : `cpu.c` fait
 `x86_setopcodes(ops_386, ops_386_0f, …)` pour les deux. Les instructions propres au 486
@@ -92,7 +92,7 @@ silicium voient tout (le mode réel), puis ce qu'ils ne voient plus.
 
 | # | Quoi | Pourquoi |
 |---|---|---|
-| D0.1 | `h_state.eflags` passe à 32 bits ; `abi` monte d'un cran | Sans VM ni RF dans le vecteur, un `POPFD` ou un `IRETD` faux passe vert |
+| D0.1 ✅ | `cr4` et `dr[8]` entrent dans `h_state` ; ABI 21 | `MOV CRx`/`MOV DRx` les écrivent. **Correction** : la première version de ce plan voulait élargir `eflags` à 32 bits — faux, c'est déjà le mot haut d'EFLAGS chez PCem. TR6/TR7 n'ont pas de stockage (`MOV TRx` ne fait que journaliser) |
 | D0.2 | Porter `cpus_i386SX` et `cpus_i386DX` (`cpu_tables.c`), puis `cpu_set()` sur un 386 des deux côtés | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
 | D0.3 | `Oracle.Core386` : `h_set_core`, `Step386`, et `boot-diff`/`BootDiff.CoeurDuModele` qui le reconnaissent | Même geste que `Core286` |
 | D0.4 | Le fuzzeur en `Core386` : préfixes `66`/`67` tirés, registres 32 bits aléatoires, tables tirées dans les quatre quadrants | `Fuzzer.cs` exclut aujourd'hui `66`/`67` « jusqu'au 386 » |

@@ -242,6 +242,9 @@ internal static partial class _808x
         s.use32 = x86.use32;
         s.stack32 = x86.stack32;
         s.cpl_override = x86.cpl_override;
+        s.cr4 = x86.cr4;
+        for (var i = 0; i < 8; i++)
+                s.dr[i] = x86.dr[i];
 
         // Les quatre drapeaux paresseux, LUS et non matérialisés : appeler un
         // flags_rebuild() ici rendrait la représentation paresseuse invisible à toutes

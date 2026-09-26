@@ -39,7 +39,8 @@ public static class Oracle
     // suit la carte (video_speed = -1) et video_is_* lisent ses drapeaux.
     // 20 a M21 : COM1, COM2 et la souris serie Microsoft entrent dans l'oracle ;
     // h_mouse_poll s'ajoute au contrat.
-    public const int AbiVersion = 20;
+    // 21 en G2, D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de taille.
+    public const int AbiVersion = 21;
 
     static Oracle()
     {
