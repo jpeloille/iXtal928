@@ -17,6 +17,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
+    Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
@@ -479,6 +480,8 @@ switch (args[0])
         var fuzzCore = Oracle.Core8088;
         var single = false;
         var iterations = 20000;
+        // G2, D4 — `--0f XX` vise la table à deux octets : `0F XX`, préfixes 66/67 tirés.
+        var second0F = new List<byte>();
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -522,6 +525,8 @@ switch (args[0])
                     break;
                 }
                 case "--mode" when i + 1 < args.Length: single = args[++i] == "single"; break;
+                case "--0f" when i + 1 < args.Length:
+                    second0F.Add(Convert.ToByte(args[++i], 16)); break;
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
@@ -531,11 +536,22 @@ switch (args[0])
 
         // 0xCE (INTO) : vérifié par extraction du switch de 808x.c, c'est le seul
         // des 256 opcodes qui n'a pas de `case` et tombe donc dans `default:`.
+        if (second0F.Count > 0)
+        {
+            if (!single || fuzzCore != Oracle.Core386 || ops.Count > 0)
+            {
+                Console.Error.WriteLine("--0f : seulement avec --core 386 --mode single, et sans --op.");
+                return 2;
+            }
+            ops.Add(0x0F);
+        }
+
         if (ops.Count == 0)
             ops.Add(0xCE);
 
         return single
-            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore)
+            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore,
+                               second0F.Count > 0 ? second0F.ToArray() : null)
             : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, fuzzCore, ramPerInstr);
     }
 

@@ -110,6 +110,14 @@ internal static partial class cpu_c
     // Le PPI du 5150 la rapporte au BIOS via les interrupteurs DIP (port 0x62).
     internal static int hasfpu = 0;
 
+    // pcem: cpu.h:121, :127-128 et cpu.c:12 — la seule caractéristique que lit l'arbre
+    // porté : MOV CRx (G2, D4) n'accepte CR4 que si elle est présente. cpu_set() ne pose
+    // cpu_features qu'au 486 et au-delà (cpu.c:484 et suivantes) ; sur un 386 elle reste
+    // à zéro, et CR4 est un registre inexistant.
+    internal const int CPU_FEATURE_CR4 = 1 << 3;
+    internal static uint32_t cpu_features;
+    internal static int cpu_has_feature(int feature) => (int)(cpu_features & (uint32_t)feature);
+
     // pcem: cpu.c:2050-2063 — le bit turbo du port 0x61 sur les clones XT, et le
     // cpu_set_turbo(1) de fin de resetpchard (pc.c:439). keyboard_xt.cs ne l'appelle que
     // pour GENXT, DTKXT, AMIXT et PXXT, jamais atteints ici ; celui de resetpchard est

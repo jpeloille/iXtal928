@@ -153,6 +153,14 @@ corpus `v1_ex_real_mode` doit être vert au recensement des déviations près.
 `0F 01`. `LOADALL386` (`0F 07`). `x86_ops_pmode.h` (519), ses formes 32 bits.
 **Oracle** : le fuzzeur. Le corpus SST ne teste pas l'entrée en mode protégé.
 
+✅ *D4 fait : `ops_386_0f` 1024/1024, `ops_386` et `ops_386_0f` pleines (2048/2048). Fuzzeur :
+mode `--0f XX` (préfixes 66/67 tirés, CR0/CR3/DR6/DR7 tirés, bloc LOADALL386 tenu en
+ES:EDI), vert sur les onze seconds octets, graines 1 et 7. **Ce qu'il ne voit pas** : en
+mode réel, les formes 32 bits de `0F 00`, LAR et LSL s'arrêtent à NOTRM (INT 6), et la
+branche #GP de `MOV CRx/DRx/TRx` n'est jamais prise — pm-check 386, en D5. La lecture de CR2
+et de DR0-DR5 ne voit que zéro (h_setsys386 ne les pose pas). PG reste nul partout : avec
+PG, la pagination de PCem indexe la RAM sans borne et l'oracle tombe (segfault mesuré).*
+
 ### D5 — Le mode protégé 32 bits
 
 - les branches `is32`/`use32`/`stack32` de `loadcscall`, `pmodeint`, `pmodeiret` et

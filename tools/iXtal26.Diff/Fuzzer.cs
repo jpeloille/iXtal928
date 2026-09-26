@@ -87,7 +87,10 @@ public static class Fuzzer
         return true;
     }
 
-    public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core)
+    /// <param name="second0F">G2, D4 — non nul : chaque itération tire `0F xx`, xx pris
+    /// dans cette liste, précédé d'un préfixe 66, 67, des deux ou d'aucun. Voir Poser0F.</param>
+    public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core,
+                                byte[]? second0F = null)
     {
         Oracle.CheckAbi();
         Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
@@ -98,8 +101,11 @@ public static class Fuzzer
         var a = HState.Create();
         var b = HState.Create();
         var regs = new ushort[(int)R.COUNT];
-        var code = new byte[8];
+        // Douze octets en mode --0f : deux préfixes, 0F xx, ModRM, SIB et un disp32
+        // en font neuf. Huit sinon, pour que les graines des autres modes rejouent.
+        var code = new byte[second0F is null ? 8 : 12];
         var perOpcode = new Dictionary<byte, int>();
+        var per0F = new Dictionary<byte, int>();
         var steeredCount = 0;
 
         for (var it = 0; it < iterations; it++)
@@ -245,6 +251,29 @@ public static class Fuzzer
             else if (op is 0xC0 or 0xC1)
                 code[1 + TailleModRM16(code[1])] |= 1;
 
+            // G2, D4 — le second octet est tiré ici, APRÈS les réécritures du chemin à un
+            // octet : aucune ne touche un 0x0F (ni préfixe, ni ModRM porté), et le tampon
+            // est de toute façon réécrit en entier.
+            byte op2 = 0;
+            var rmSansPG = -1;
+            if (second0F is not null)
+            {
+                op2 = Poser0F(code, second0F, ref rng, out var modrm);
+                // MOV CR0,r AVEC PG TIRÉ FAIT TOMBER L'ORACLE, mesuré (segfault, graine 1).
+                // TF est tiré lui aussi : l'INT 1 qui suit le pas empile sous pagination,
+                // et mmutranslatereal (mem.c:220-277) lit le répertoire en cr3 & ~0xFFF —
+                // un cr3 tiré, jusqu'à 4 Go, dans une RAM de 16 Mo, sans borne. Le bit 31
+                // de la source est donc effacé, comme dans SeedSys386 et le bloc LOADALL.
+                if (op2 == 0x22)
+                    rmSansPG = modrm & 7;
+                per0F[op2] = per0F.GetValueOrDefault(op2) + 1;
+                // LOADALL386 lit 0xCC octets en ES:EDI. Hors d'un tampon tenu, il lirait
+                // le 0x90 de remplissage, ou le code lui-même ; ES est donc tenu entre
+                // 0x3000 et 0x6FFF, loin du code en 2000:0xxx, et EDI sans moitié haute.
+                if (op2 == 0x07)
+                    regs[(int)R.ES] = (ushort)(0x3000 + (rng.Next() % 0x4000));
+            }
+
             var linear = (uint)(regs[(int)R.CS] << 4) + regs[(int)R.IP];
             Oracle.h_load(linear, code, (uint)code.Length);
             for (var i = 0; i < code.Length; i++)
@@ -256,7 +285,13 @@ public static class Fuzzer
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
             if (core == Oracle.Core386)
-                Seed386(ref rng);
+                Seed386(ref rng, ediHautNul: op2 == 0x07 && second0F is not null, sansPG: rmSansPG);
+            if (second0F is not null)
+            {
+                SeedSys386(ref rng);
+                if (op2 == 0x07)
+                    PoserBlocLoadall386(ref rng, (uint)(regs[(int)R.ES] << 4) + regs[(int)R.DI]);
+            }
 
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -310,8 +345,74 @@ public static class Fuzzer
         Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
         foreach (var (op, n) in perOpcode.OrderBy(kv => kv.Key))
             Console.WriteLine($"    0x{op:X2} : {n} tirages");
+        foreach (var (op2, n) in per0F.OrderBy(kv => kv.Key))
+            Console.WriteLine($"    0F {op2:X2} : {n} tirages");
         Console.WriteLine($"    dont {steeredCount} cas auto-référentiels (EA == cs+pc)");
         return 0;
+    }
+
+    /// <summary>G2, D4 — l'instruction `[66|67|66 67] 0F xx` et des octets tirés.
+    ///
+    /// LE PRÉFIXE CHOISIT LE QUADRANT de ops_386_0f : 66 le 1 (o32/a16), 67 le 2
+    /// (o16/a32), les deux le 3. Sans lui, seules les formes w_a16 seraient vues.
+    /// Rend le second octet.</summary>
+    private static byte Poser0F(byte[] code, byte[] seconds, ref Lcg rng, out byte modrm)
+    {
+        var n = 0;
+        switch (rng.Next() & 3)
+        {
+            case 1: code[n++] = 0x66; break;
+            case 2: code[n++] = 0x67; break;
+            case 3: code[n++] = 0x66; code[n++] = 0x67; break;
+        }
+        code[n++] = 0x0F;
+        var op2 = seconds[rng.Next() % (uint)seconds.Length];
+        code[n++] = op2;
+        for (var i = n; i < code.Length; i++)
+            code[i] = (byte)rng.Next();
+        modrm = code[n];
+        return op2;
+    }
+
+    /// <summary>G2, D4 — CR0, CR3, DR6 et DR7 tirés, des deux côtés, par h_setsys386.
+    ///
+    /// CR0 GARDE PE ET PG NULS. PE à 1 ferait du pas un pas en mode protégé, avec des
+    /// descripteurs que personne n'a posés ; PG à 1 ferait traduire chaque accès par la
+    /// pagination de PCem, que le C# omet encore (D6). Les trente autres bits sont
+    /// tirés : MOV r,CR0, SMSW et LMSW les lisent.
+    ///
+    /// CR2 ET DR0 À DR5 RESTENT À ZÉRO : h_setsys386 ne les pose pas, et les remettre
+    /// au hasard coûterait un cran d'ABI. Leur LECTURE ne voit donc que zéro ; leur
+    /// écriture, elle, est comparée comme tout le vecteur.</summary>
+    private static void SeedSys386(ref Lcg rng)
+    {
+        var cr0 = rng.Next() & 0x7FFFFFFE;
+        var cr3 = rng.Next();
+        var dr6 = rng.Next();
+        var dr7 = rng.Next();
+        Oracle.h_setsys386(cr0, cr3, dr6, dr7);
+        iXtal26.Cpu.x86.cr0 = cr0;
+        iXtal26.Cpu.x86.cr3 = cr3;
+        iXtal26.Cpu.x86.dr[6] = dr6;
+        iXtal26.Cpu.x86.dr[7] = dr7;
+    }
+
+    /// <summary>G2, D4 — le bloc de 0xCC octets que LOADALL386 lit en ES:EDI, tiré et
+    /// écrit des deux côtés.
+    ///
+    /// LE BIT PG DU MOT CR0 EST EFFACÉ (octet 3, bit 7). LOADALL386 écrit CR0 EN
+    /// PREMIER : avec PG posé, toutes les lectures suivantes du bloc passeraient par
+    /// la pagination de PCem, omise côté C#. Le reste est du hasard pur — sélecteurs,
+    /// bases, limites, drapeaux, EIP — et le vecteur d'état compare chaque champ.</summary>
+    private static void PoserBlocLoadall386(ref Lcg rng, uint linear)
+    {
+        var bloc = new byte[0xCC];
+        for (var i = 0; i < bloc.Length; i++)
+            bloc[i] = (byte)rng.Next();
+        bloc[3] &= 0x7F;
+        Oracle.h_load(linear, bloc, (uint)bloc.Length);
+        for (var i = 0; i < bloc.Length; i++)
+            mem.ram[(linear + i) & mem.rammask] = bloc[i];
     }
 
     /// <summary>L'instruction consomme-t-elle ZERO cycle ?
@@ -529,11 +630,15 @@ public static class Fuzzer
     /// GS. Le mot haut d'EFLAGS reste à zéro — VM y est, et le fuzzeur part en mode
     /// réel ; RF n'a de lecteur que le piège de débogage. Sans ces moitiés hautes, un
     /// handler 16 bits qui écrase EAX tout entier passerait vert : zéro des deux côtés.</summary>
-    private static void Seed386(ref Lcg rng)
+    private static void Seed386(ref Lcg rng, bool ediHautNul = false, int sansPG = -1)
     {
         var hi = new ushort[8];
         for (var i = 0; i < hi.Length; i++)
             hi[i] = rng.Next16();
+        if (ediHautNul)
+            hi[7] = 0;
+        if (sansPG >= 0)
+            hi[sansPG] &= 0x7FFF;
         var fs = rng.Next16();
         var gs = rng.Next16();
         Oracle.h_setregs386(hi, 0, fs, gs);

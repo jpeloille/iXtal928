@@ -169,6 +169,8 @@ internal static partial class _386
         PoserGroupe_xchg_386();
         PoserGroupeMovSeg386();
         PoserGroupeMov386();
+        PoserGroupe_pmode_0f_386();
+        PoserGroupe_mov_ctrl_0f_386();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
