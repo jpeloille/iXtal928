@@ -277,6 +277,93 @@ internal static partial class _386_common
         }
     }
 
+    // pcem: 386_dynarec.c:30-83 — G2, D1 : l'adresse effective 32 bits, SIB compris.
+    private static void fetch_ea_32_long(uint32_t rmdat)
+    {
+        eal_r = eal_w = -1;
+        easeg = cpu_state.ea_seg!.@base;
+        if (cpu_rm == 4)
+        {
+                var sib = (uint8_t)(rmdat >> 8);
+
+                switch (cpu_mod)
+                {
+                case 0:
+                        cpu_state.eaaddr = cpu_state.regs[sib & 7].l;
+                        cpu_state.pc++;
+                        break;
+                case 1:
+                        cpu_state.pc++;
+                        cpu_state.eaaddr = ((uint32_t)(int8_t)getbyte()) + cpu_state.regs[sib & 7].l;
+                        //                        cpu_state.pc++;
+                        break;
+                case 2:
+                        cpu_state.eaaddr = (fastreadl(cs + cpu_state.pc + 1)) + cpu_state.regs[sib & 7].l;
+                        cpu_state.pc += 5;
+                        break;
+                }
+                /*SIB byte present*/
+                if ((sib & 7) == 5 && cpu_mod == 0)
+                        cpu_state.eaaddr = getlong();
+                else if ((sib & 6) == 4 && cpu_state.ssegs == 0)
+                {
+                        easeg = ss;
+                        cpu_state.ea_seg = cpu_state.seg_ss;
+                }
+                if (((sib >> 3) & 7) != 4)
+                        cpu_state.eaaddr += cpu_state.regs[(sib >> 3) & 7].l << (sib >> 6);
+        }
+        else
+        {
+                cpu_state.eaaddr = cpu_state.regs[cpu_rm].l;
+                if (cpu_mod != 0)
+                {
+                        if (cpu_rm == 5 && cpu_state.ssegs == 0)
+                        {
+                                easeg = ss;
+                                cpu_state.ea_seg = cpu_state.seg_ss;
+                        }
+                        if (cpu_mod == 1)
+                        {
+                                cpu_state.eaaddr += ((uint32_t)(int8_t)(rmdat >> 8));
+                                cpu_state.pc++;
+                        }
+                        else
+                        {
+                                cpu_state.eaaddr += getlong();
+                        }
+                }
+                else if (cpu_rm == 5)
+                {
+                        cpu_state.eaaddr = getlong();
+                }
+        }
+        if (easeg != 0xFFFFFFFF && ((easeg + cpu_state.eaaddr) & 0xFFF) <= 0xFFC)
+        {
+                var addr = easeg + cpu_state.eaaddr;
+                if (mem.readlookup2[addr >> 12] != -1)
+                        eal_r = unchecked(mem.readlookup2[addr >> 12] + (int)addr);
+                if (mem.writelookup2[addr >> 12] != -1)
+                        eal_w = unchecked(mem.writelookup2[addr >> 12] + (int)addr);
+        }
+    }
+
+    /// <summary>pcem: 386_dynarec.c:140 — la macro fetch_ea_32. Même convention que
+    /// fetch_ea_16 : `true` quand le handler doit sortir. Seule différence avec elle,
+    /// verbatim : le test d'abandon est HORS du `if (cpu_mod != 3)`.</summary>
+    internal static bool fetch_ea_32(uint32_t rmdat)
+    {
+        cpu_state.pc++;
+        cpu_mod = (int8_t)((rmdat >> 6) & 3);
+        cpu_reg = (int8_t)((rmdat >> 3) & 7);
+        cpu_rm = (int8_t)(rmdat & 7);
+        if (cpu_mod != 3)
+        {
+                fetch_ea_32_long(rmdat);
+        }
+        return cpu_state.abrt != 0;
+    }
+
     /// <summary>pcem: 386_dynarec.c:128 — la macro fetch_ea_16.
     ///
     /// En C elle contient un `return 1` sur abandon, ce qu'une méthode C# ne peut

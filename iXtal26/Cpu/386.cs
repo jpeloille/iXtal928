@@ -133,6 +133,7 @@ internal static partial class _386
 
         // APRÈS la table du 286 et ses recopies : la part partagée s'y lit.
         PoserTable386Partagee();
+        PoserPrefixes386();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme

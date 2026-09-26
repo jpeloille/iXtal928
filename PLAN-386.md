@@ -103,7 +103,7 @@ silicium voient tout (le mode réel), puis ce qu'ils ne voient plus.
 et rend un rouge **nommé** sur chaque fichier (aucun handler 32 bits n'existe encore) ;
 le fuzzeur `Core386` rend 100 % vert quand il est restreint au quadrant 0 sans `66`/`67`.
 
-### D1 — Le décodage 32 bits
+### D1 — Le décodage 32 bits  ✅ *fait : `ops_386` 602/1024 ; SST 386 C# 464 946, 351 formes sur 941 identiques à l'oracle, aucune au-dessus*
 
 `x86_ops_prefix.h` (168) : `op_66`, `op_67`, les préfixes FS et GS. Dans `386_common.h`
 (280) et `x86.h` (333) : `fetch_ea_32` (SIB, `disp32`), `geteal`/`seteal`, `getr32`,

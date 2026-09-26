@@ -350,8 +350,10 @@ public static class Fuzzer
     ///
     /// La boucle de garde qui suit redessine `inner` tant qu'il enchaîne à son
     /// tour, donc il n'y a jamais de chaîne à deux niveaux à couvrir.</summary>
+    // 64 et 65 (G2, D1) : préfixes FS et GS sur un 386 ; ILLEGAL sur un 286, où les
+    // tenir pour enchaîneurs ne fait que choisir l'octet suivant.
     private static bool EnchaineSurLaSuivante(byte op) =>
-        IsSegPrefix(op) || op == 0x17 || op is 0xF0 or 0xF1 or 0xF2 or 0xF3;
+        IsSegPrefix(op) || op is 0x64 or 0x65 || op == 0x17 || op is 0xF0 or 0xF1 or 0xF2 or 0xF3;
 
     /// <summary>L'opcode porte-t-il un octet ModRM ?
     ///
