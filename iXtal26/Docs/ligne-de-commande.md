@@ -197,10 +197,21 @@ ne marche pas.
 Quatre options d'**affichage seul** : elles agissent sur la fenêtre et le renderer, jamais sur
 `video.Buffer32`. `--boot`, boot-diff et les empreintes de framebuffer n'en voient rien.
 
-`--monitor 14|15|17` (défaut 15) simule un moniteur d'époque : toute trame, 640×480 comme
-1024×768 ou le texte 720×400, remplit la même surface 4:3, celle du tube : diagonale annoncée
-× fraction visible (0,92 par défaut, clé `visible_fraction`), décomposée en 4:3 — un 15"
-montre 280,4 × 210,3 mm. Filtrage linéaire par défaut (`scale_mode = 1`, la clé et le sens
+`--monitor` simule un moniteur d'époque : toute trame, 640×480 comme 1024×768 ou le texte
+720×400, remplit la même surface 4:3, celle du tube, diagonale visible décomposée en 3-4-5.
+
+- `nec3v` : NEC MultiSync 3V (JC-1535VMA, 1994), 15" nominal, 14" visibles, soit
+  284,5 × 213,4 mm, 31-50 kHz, 55-90 Hz (crtdatabase.com). Il **respecte ses capacités** :
+  un signal hors plage donne un écran noir et le message du moniteur. La CGA (15,7 kHz) et
+  l'EGA (21,8 kHz) en sont exclues, le 1024×768 à 60 Hz (48,4 kHz) passe. Les fréquences
+  viennent du timer de la carte (`dispontime + dispofftime`, `vtotal`) ; la CGA, sans accès
+  statique, est tenue pour 15,70 kHz / 59,92 Hz. PCem ajoute 6 au CRTC 0 au lieu de 5
+  (`vid_svga.cs:589`) : la VGA mesure 31,16 kHz au lieu de 31,47, encore dans la plage.
+- `14`, `15`, `17` : génériques, diagonale × 0,93 visible (le ratio NEC, clé
+  `visible_fraction`), acceptent tout signal.
+- `auto` (défaut) : le 3V derrière une VGA ou une Trident, un générique 14" derrière la
+  CGA, que le 3V ne synchronise pas.
+- `entier` : pas de moniteur, pixels entiers. Filtrage linéaire par défaut (`scale_mode = 1`, la clé et le sens
 de PCem), plus proche voisin au choix. La fenêtre ne suit plus les changements de mode de
 l'invité, comme un CRT. `--monitor entier` revient aux pixels entiers : facteur
 round(0,42 / MM), proportions de la trame, plus proche voisin.
@@ -223,7 +234,8 @@ menu affiche « trop fines ici ».
 
 **Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→), « Lignes CRT » et
 « Filtrage ». Les réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
-`scale_mode`, `visible_fraction`, `pixel_mm`, `host_diagonal`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
+`scale_mode`, `visible_fraction`, `pixel_mm`, `host_diagonal` ; `monitor` vaut `auto`,
+`nec3v`, `14`, `15`, `17` ou `entier`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
 puis config, puis ligne de commande. Ils ne sont **réécrits que dans `configs/`** :
 `config_save` réémet l'arbre sans ses commentaires, et un `ixtal26.cfg` documenté à la main
 les perdrait. Hors de `configs/`, le menu dit « pour cette session ».

@@ -6,9 +6,11 @@ framebuffer) restent aveugles à ce plan, et c'est voulu.
 
 ## Fait (26/09/2026)
 
-- **Moniteur d'époque (défaut, 15")** — `SdlHost.ComputeRect` / `ResizeWindow` : toute
-  trame remplit la surface 4:3 du tube (diagonale × 0,92 visible, 3-4-5 : 15" =
-  280,4 × 210,3 mm), à sa taille réelle via `--host-diagonal` ou `--pixel-mm`, filtrage
+- **NEC MultiSync 3V (auto derrière une VGA/Trident)** — 14" visibles, 284,5 × 213,4 mm ;
+  31-50 kHz, 55-90 Hz respectés (`SdlHost.SignalTiming`, écran « hors plage » sinon).
+  Génériques 14/15/17" à 93 % visibles, sans limite de fréquence, et 14" derrière la CGA.
+- **Moniteur d'époque** — `SdlHost.ComputeRect` / `ResizeWindow` : toute
+  trame remplit la surface 4:3 du tube, à sa taille réelle via `--host-diagonal` ou `--pixel-mm`, filtrage
   linéaire ou net (« Filtrage », `scale_mode`). Fenêtre en `HighPixelDensity`. La fenêtre ne suit plus les modes de
   l'invité. Liseré du linéaire évité : `ClearTextureBorder` noircit le texel qui borde la
   trame à chaque changement de taille.

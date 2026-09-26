@@ -118,7 +118,7 @@ internal static class Launcher
                 return KeepParsing;
             case "--monitor":
                 if (!cursor.HasNext || !DisplaySettings.TryParseMonitor(cursor.TakeNext(), out var monitor))
-                    return Failure.Usage("--monitor attend 14, 15, 17 ou entier.");
+                    return Failure.Usage("--monitor attend auto, nec3v, 14, 15, 17 ou entier.");
                 options.Display.MonitorOverride = monitor;
                 return KeepParsing;
             case "--headless":

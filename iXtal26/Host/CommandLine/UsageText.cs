@@ -12,7 +12,7 @@ internal static class UsageText
         $"""
         Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]
                         [--headless] [--verbose] [--turbo [N]]
-                        [--monitor 14|15|17|entier] [--host-diagonal POUCES]
+                        [--monitor auto|nec3v|14|15|17|entier] [--host-diagonal POUCES]
                         [--pixel-mm MM] [--crt]
                 iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...
                 iXtal26 --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]...
@@ -67,9 +67,12 @@ internal static class UsageText
                                seule la vitesse à laquelle l'hôte la déroule change.
                                Une frappe y met fin. Incompatible avec --slices, qui
                                n'attend déjà jamais l'horloge
-          --monitor T          moniteur simulé (défaut : 15). 14, 15 ou 17 : toute trame
-                               remplit la surface 4:3 du tube, à sa taille réelle ;
-                               entier : pixels entiers, proportions de la trame
+          --monitor T          moniteur simulé. nec3v : NEC MultiSync 3V (14" visibles,
+                               31-50 kHz, 55-90 Hz ; hors plage, écran noir) ; 14, 15,
+                               17 : génériques, 93 % visibles, acceptent tout ; auto
+                               (défaut) : le 3V derrière une VGA ou Trident, un 14"
+                               derrière la CGA ; entier : pixels entiers, sans moniteur.
+                               Toute trame remplit la surface 4:3 du tube, à taille réelle
           --host-diagonal P    diagonale de l'écran hôte en pouces (ex. 27) : la taille
                                d'un pixel en découle, avec la résolution native que
                                donne SDL

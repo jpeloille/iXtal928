@@ -742,6 +742,11 @@ public sealed class SdlHost : IDisposable
 
         Console.WriteLine($"géométrie  : xsize={video.xsize} ysize={video.ysize} " +
                           $"fenêtre {video.video_width}x{video.video_height}");
+
+        (double kHz, double hz) = SignalTiming();
+        Console.WriteLine($"signal     : {kHz:0.00} kHz / {hz:0.00} Hz, moniteur " +
+                          $"{DisplaySettings.Describe(Monitor())}" +
+                          (_display.OutOfRange is { } refused ? $" HORS PLAGE ({refused})" : ""));
         Console.WriteLine($"évènements : {_eventsSeen} reçus de SDL, dernier {_lastEventType}");
         Console.WriteLine($"clavier    : {SdlKeyboard.KeyEventsSeen} KeyDown reçus de SDL, " +
                           $"{SdlKeyboard.KeyEventsMapped} mappés ; dernier scancode " +
@@ -856,7 +861,7 @@ public sealed class SdlHost : IDisposable
 
         // Un CRT ne change pas de taille quand l'invité change de mode : seule la
         // fenêtre à pixels entiers suit la trame.
-        if (_display.Monitor == CrtMonitor.Integer)
+        if (Monitor() == CrtMonitor.Integer)
             ResizeWindow();
     }
 
@@ -883,7 +888,32 @@ public sealed class SdlHost : IDisposable
     }
 
     private SDL.ScaleMode CurrentScaleMode() =>
-        _display.Monitor != CrtMonitor.Integer && _display.Smooth ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest;
+        Monitor() != CrtMonitor.Integer && _display.Smooth ? SDL.ScaleMode.Linear : SDL.ScaleMode.Nearest;
+
+    /// <summary>Le moniteur effectif : Auto résolu selon la carte vidéo configurée.</summary>
+    private CrtMonitor Monitor() => _display.Effective();
+
+    /// <summary>
+    /// Fréquences du signal que la carte émet : ligne = dispontime + dispofftime, en
+    /// unités de timer (TIMER_USEC par µs), trame = ligne × vtotal. La CGA n'a pas
+    /// d'accès statique à son état : elle balaye à 14,318 MHz / 912 = 15,70 kHz, 262
+    /// lignes, 59,92 Hz, et aucun programme de l'époque n'en sortait.
+    /// </summary>
+    private static (double HorizontalKHz, double VerticalHz) SignalTiming()
+    {
+        var svga = vid_svga.svga_get_pri();
+
+        if (svga is null)
+            return (15.70, 59.92);
+
+        double line = svga.dispontime + (double)svga.dispofftime;
+
+        if (line <= 0 || timer.TIMER_USEC == 0)
+            return (0, 0);
+
+        double horizontalHz = 1e6 * timer.TIMER_USEC / line;
+        return (horizontalHz / 1000.0, svga.vtotal > 0 ? horizontalHz / svga.vtotal : 0);
+    }
 
     /// <summary>
     /// Moniteur : la fenêtre a la surface visible du tube, convertie en pixels hôte par
@@ -907,7 +937,9 @@ public sealed class SdlHost : IDisposable
 
         float w, h;
 
-        if (_display.Monitor == CrtMonitor.Integer)
+        CrtMonitor monitor = Monitor();
+
+        if (monitor == CrtMonitor.Integer)
         {
             int factor = Math.Max(1, (int)Math.Round(DisplaySettings.EraPixelMm / _pixelMm));
 
@@ -919,7 +951,8 @@ public sealed class SdlHost : IDisposable
         }
         else
         {
-            (double mmW, double mmH) = DisplaySettings.VisibleMm(_display.Monitor, _display.VisibleFraction);
+            (double mmW, double mmH) =
+                DisplaySettings.VisibleMm(DisplaySettings.Profile(monitor, _display.VisibleFraction));
             w = (float)(mmW / _pixelMm);
             h = (float)(mmH / _pixelMm);
 
@@ -1031,13 +1064,21 @@ public sealed class SdlHost : IDisposable
         SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 255);
         SDL.RenderClear(_renderer);
 
-        if (_frameWidth > 0 && _frameHeight > 0)
+        CrtMonitor monitor = Monitor();
+        string? outOfRange = OutOfRange(monitor);
+        _display.OutOfRange = outOfRange;
+
+        if (outOfRange is not null)
+        {
+            DrawOutOfRange(DisplaySettings.Describe(monitor), outOfRange);
+        }
+        else if (_frameWidth > 0 && _frameHeight > 0)
         {
             var src = new SDL.FRect { X = 0f, Y = 0f, W = _frameWidth, H = _frameHeight };
             var dst = new SDL.FRect { W = _frameWidth, H = _frameHeight };
 
             if (SDL.GetRenderOutputSize(_renderer, out int outW, out int outH) && outW > 0 && outH > 0)
-                dst = ComputeRect(outW, outH, _frameWidth, _frameHeight, _display.Monitor);
+                dst = ComputeRect(outW, outH, _frameWidth, _frameHeight, monitor);
 
             SDL.RenderTexture(_renderer, _texture, in src, in dst);
 
@@ -1056,6 +1097,62 @@ public sealed class SdlHost : IDisposable
             _menu.Render();
 
         SDL.RenderPresent(_renderer);
+    }
+
+    /// <summary>Null si le moniteur accepte le signal, sinon ce qu'il reçoit, en clair.</summary>
+    private string? OutOfRange(CrtMonitor monitor)
+    {
+        if (monitor == CrtMonitor.Integer)
+            return null;
+
+        MonitorProfile profile = DisplaySettings.Profile(monitor, _display.VisibleFraction);
+
+        if (profile.IsGeneric)
+            return null;
+
+        (double kHz, double hz) = SignalTiming();
+
+        if (kHz <= 0 || profile.Accepts(kHz, hz))
+            return null;
+
+        return $"{kHz:0.0} kHz / {hz:0} Hz";
+    }
+
+    /// <summary>
+    /// Un moniteur multisynchrone hors plage ne montre rien d'exploitable. Écran noir et
+    /// trois lignes, sur le renderer : Buffer32 n'est pas touché, l'oracle ne voit rien.
+    /// </summary>
+    private void DrawOutOfRange(string monitorName, string signal)
+    {
+        if (!SDL.GetRenderOutputSize(_renderer, out int outW, out int outH) || outW <= 0 || outH <= 0)
+            return;
+
+        MonitorProfile p = DisplaySettings.Nec3V;
+        string[] lines =
+        [
+            $"{monitorName} : signal hors plage",
+            $"recu : {signal}",
+            $"accepte : {p.MinHorizontalKHz:0}-{p.MaxHorizontalKHz:0} kHz, {p.MinVerticalHz:0}-{p.MaxVerticalHz:0} Hz",
+            "Ctrl+F12 : choisir un autre moniteur",
+        ];
+
+        int cell = SDL.DebugTextFontCharacterSize;
+        int longest = lines.Max(l => l.Length);
+        float scale = Math.Clamp(outW / (float)(longest * cell + 4 * cell), 1f, 3f);
+        scale = MathF.Floor(scale);
+
+        SDL.SetRenderScale(_renderer, scale, scale);
+        SDL.SetRenderDrawColor(_renderer, 200, 200, 200, 255);
+
+        float y = (outH / scale - lines.Length * cell * 2) / 2f;
+
+        foreach (string line in lines)
+        {
+            SDL.RenderDebugText(_renderer, (outW / scale - line.Length * cell) / 2f, y, line);
+            y += cell * 2;
+        }
+
+        SDL.SetRenderScale(_renderer, 1f, 1f);
     }
 
     /// <summary>

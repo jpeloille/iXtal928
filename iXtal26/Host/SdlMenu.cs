@@ -435,11 +435,13 @@ internal sealed class SdlMenu
     /// valeur courante, les autres leur texte fixe.</summary>
     private string MainLabel(string label, MainItem item) => item switch
     {
-        MainItem.Monitor => $"{label} : {DisplaySettings.Describe(_display.Monitor)}",
+        MainItem.Monitor => _display.Monitor == CrtMonitor.Auto
+                            ? $"{label} : auto ({DisplaySettings.Describe(_display.Effective())})"
+                            : $"{label} : {DisplaySettings.Describe(_display.Monitor)}",
         MainItem.Scanlines => !_display.Scanlines ? $"{label} : non"
                               : _display.ScanlinesTooFine ? $"{label} : oui (trop fines ici)"
                               : $"{label} : oui",
-        MainItem.Filter => _display.Monitor == CrtMonitor.Integer ? $"{label} : net (pixels entiers)"
+        MainItem.Filter => _display.Effective() == CrtMonitor.Integer ? $"{label} : net (pixels entiers)"
                            : _display.Smooth ? $"{label} : doux" : $"{label} : net",
         _ => label,
     };
@@ -1545,11 +1547,11 @@ internal sealed class SdlMenu
         Console.WriteLine("Le moniteur étale toute trame sur la même surface 4:3 :");
 
         (int W, int H)[] frames = [(640, 480), (800, 600), (1024, 768), (720, 400), (656, 416)];
-        SDL.FRect first = SdlHost.ComputeRect(1310, 983, 640, 480, CrtMonitor.In15);
+        SDL.FRect first = SdlHost.ComputeRect(1310, 983, 640, 480, CrtMonitor.Generic15);
 
         foreach ((int fw, int fh) in frames)
         {
-            SDL.FRect r = SdlHost.ComputeRect(1310, 983, fw, fh, CrtMonitor.In15);
+            SDL.FRect r = SdlHost.ComputeRect(1310, 983, fw, fh, CrtMonitor.Generic15);
             Check($"{fw}x{fh} sous un moniteur", r.W == first.W && r.H == first.H && r.W * 3 == r.H * 4,
                   $"{r.W}x{r.H} en ({r.X}, {r.Y})");
         }
@@ -1603,10 +1605,43 @@ internal sealed class SdlMenu
         Console.WriteLine();
         Console.WriteLine("Les surfaces et le pixel hôte se calculent :");
 
-        (double w15, double h15) = DisplaySettings.VisibleMm(CrtMonitor.In15, DisplaySettings.DefaultVisibleFraction);
-        Check("15\" a 0,92 : 280,4 x 210,3 mm, en 4:3",
-              Math.Abs(w15 - 280.4) < 0.05 && Math.Abs(h15 - 210.3) < 0.05 && Math.Abs(w15 * 3 - h15 * 4) < 1e-9,
-              $"{w15:0.0} x {h15:0.0}");
+        (double w3v, double h3v) = DisplaySettings.VisibleMm(DisplaySettings.Nec3V);
+        Check("NEC MultiSync 3V, 14\" visibles : 284,5 x 213,4 mm, en 4:3",
+              Math.Abs(w3v - 284.5) < 0.05 && Math.Abs(h3v - 213.4) < 0.05 && Math.Abs(w3v * 3 - h3v * 4) < 1e-9,
+              $"{w3v:0.0} x {h3v:0.0}");
+
+        (double w15, double h15) = DisplaySettings.VisibleMm(
+            DisplaySettings.Profile(CrtMonitor.Generic15, DisplaySettings.DefaultVisibleFraction));
+        Check("generique 15\" a 0,93 : 283,5 x 212,6 mm",
+              Math.Abs(w15 - 283.5) < 0.05 && Math.Abs(h15 - 212.6) < 0.05, $"{w15:0.0} x {h15:0.0}");
+
+        Console.WriteLine();
+        Console.WriteLine("Le 3V refuse ce qu'il ne sait pas synchroniser :");
+
+        (string What, double KHz, double Hz, bool Ok)[] signals =
+        [
+            ("VGA 640x480", 31.47, 59.94, true),
+            ("VGA texte 720x400", 31.47, 70.09, true),
+            ("SVGA 1024x768 a 60 Hz", 48.36, 60.0, true),
+            ("CGA", 15.70, 59.92, false),
+            ("EGA 640x350", 21.85, 59.7, false),
+            ("1280x1024 a 60 Hz", 64.0, 60.0, false),
+        ];
+
+        foreach ((string what, double kHz, double hz, bool ok) in signals)
+            Check($"{what} ({kHz} kHz, {hz} Hz) {(ok ? "accepte" : "refuse")}",
+                  DisplaySettings.Nec3V.Accepts(kHz, hz) == ok, ok ? "affiche" : "hors plage");
+
+        Check("un generique accepte tout",
+              DisplaySettings.Profile(CrtMonitor.Generic14, 0.93).Accepts(15.7, 59.9), "CGA affichee");
+        Check("auto : le 3V derriere une VGA",
+              DisplaySettings.Resolve(CrtMonitor.Auto, vgaClassCard: true) == CrtMonitor.Nec3V, "3V");
+        Check("auto : un generique 14\" derriere la CGA",
+              DisplaySettings.Resolve(CrtMonitor.Auto, vgaClassCard: false) == CrtMonitor.Generic14, "14\"");
+        Check("les anciennes valeurs de la cle se relisent",
+              DisplaySettings.TryParseMonitor("15", out CrtMonitor m15) && m15 == CrtMonitor.Generic15 &&
+              DisplaySettings.TryParseMonitor("0", out CrtMonitor m0) && m0 == CrtMonitor.Integer,
+              "15 -> generique 15, 0 -> entier");
 
         var dev = new DisplaySettings { HostDiagonalInches = 27 };
         double pitch = dev.ResolvePixelMm(2560, 1440);
@@ -1634,7 +1669,7 @@ internal sealed class SdlMenu
             config.config_load(config.CFG_MACHINE, saved);
             var written = new DisplaySettings
             {
-                ConfigPath = saved, Monitor = CrtMonitor.In17, Scanlines = true, PixelMm = 0.234,
+                ConfigPath = saved, Monitor = CrtMonitor.Generic17, Scanlines = true, PixelMm = 0.234,
                 Smooth = false, HostDiagonalInches = 27, VisibleFraction = 0.9,
             };
             written.Save();
@@ -1643,7 +1678,7 @@ internal sealed class SdlMenu
             var read = new DisplaySettings();
             read.Load();
             Check("configs/machine.cfg relu : memes valeurs",
-                  read.Monitor == CrtMonitor.In17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4 &&
+                  read.Monitor == CrtMonitor.Generic17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4 &&
                   !read.Smooth && Math.Abs(read.HostDiagonalInches - 27) < 1e-4 &&
                   Math.Abs(read.VisibleFraction - 0.9) < 1e-4,
                   $"{read.Monitor}, crt {read.Scanlines}, {read.PixelMm:0.###} mm, " +
@@ -1657,10 +1692,10 @@ internal sealed class SdlMenu
             Check("un .cfg hors de configs/ n'est pas reecrit",
                   File.ReadAllText(handWritten) == original, said);
 
-            var cli = new DisplaySettings { ConfigPath = saved, MonitorOverride = CrtMonitor.In14 };
+            var cli = new DisplaySettings { ConfigPath = saved, MonitorOverride = CrtMonitor.Generic14 };
             config.config_load(config.CFG_MACHINE, saved);
             cli.Load();
-            Check("--monitor l'emporte sur la config", cli.Monitor == CrtMonitor.In14 && cli.Scanlines,
+            Check("--monitor l'emporte sur la config", cli.Monitor == CrtMonitor.Generic14 && cli.Scanlines,
                   $"{cli.Monitor}, crt {cli.Scanlines}");
         }
         finally
