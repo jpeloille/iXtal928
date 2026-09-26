@@ -142,6 +142,8 @@ vert sur leurs fichiers, **aux formes déviantes recensées près** ; boot-diffs
 | D3.4 | `LFS`/`LGS`/`LSS`, `PUSH`/`POP FS`/`GS`, `IMUL r, r/m` (`0F AF`) | dans `x86_ops_misc.h` / `x86_ops_stack.h` / `x86_ops_mul.h` |
 | D3.5 | `x86_ops_atomic.h` (322) et les 486 de `x86_ops_misc.h` | `CMPXCHG`, `XADD`, `BSWAP`, `CPUID`, `INVD`/`WBINVD`, **avec leur garde `is486`** ; vérifiés illégaux sur un 386, exercés en G6 |
 
+✅ *D3 fait : `ops_386_0f` 984/1024 (restent les 40 de D4) ; corpus SST 386 : C# identique à l'oracle sur 941 formes sur 941.*
+
 **Jalon visible à la fin de D3** : le jeu d'instructions 386 complet en mode réel. Le
 corpus `v1_ex_real_mode` doit être vert au recensement des déviations près.
 

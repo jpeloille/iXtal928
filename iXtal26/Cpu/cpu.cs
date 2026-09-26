@@ -407,4 +407,9 @@ internal static partial class cpu_c
         if (cpu_s.rspeed <= 8000000)
                 cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
     }
+
+    // pcem: cpu.c:1155 — cpu_CPUID. Lu par opCPUID seulement si CPUID != 0, c'est-à-dire
+    // à partir du 486 (cpu_set, cpuid_model) : il échoue en se nommant d'ici G6.
+    internal static void cpu_CPUID()
+        => pc.fatal("not implemented: cpu.c:1155 — cpu_CPUID (486, bloc G6)\n");
 }

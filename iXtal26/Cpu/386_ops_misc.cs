@@ -982,4 +982,61 @@ internal static partial class _386
         ops_386[0x3F6] = opF6_a32;
         ops_386[0x3F7] = opF7_l_a32;
     }
+
+    // ---- G2, D3 : la table 0F du 386, x86_ops_misc.h ----
+
+    // pcem: x86_ops_misc.h:976
+    private static int opCPUID(uint32_t fetchdat)
+    {
+        if ((CPUID) != 0) {
+                cpu_c.cpu_CPUID();
+                CLOCK_CYCLES(9);
+                return 0;
+        }
+        cpu_state.pc = cpu_state.oldpc;
+        x86illegal();
+        return 1;
+    }
+
+    // pcem: x86_ops_misc.h:808
+    private static int opINVD(uint32_t fetchdat)
+    {
+        if ((is486) == 0) {
+                x86illegal();
+                return 1;
+        }
+        CLOCK_CYCLES(1000);
+        CPU_BLOCK_END();
+        return 0;
+    }
+
+
+    // pcem: x86_ops_misc.h:817
+    private static int opWBINVD(uint32_t fetchdat)
+    {
+        if ((is486) == 0) {
+                x86illegal();
+                return 1;
+        }
+        CLOCK_CYCLES(10000);
+        CPU_BLOCK_END();
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_misc_0f_386()
+    {
+        ops_386_0f[0x008] = opINVD;
+        ops_386_0f[0x009] = opWBINVD;
+        ops_386_0f[0x0A2] = opCPUID;
+        ops_386_0f[0x108] = opINVD;
+        ops_386_0f[0x109] = opWBINVD;
+        ops_386_0f[0x1A2] = opCPUID;
+        ops_386_0f[0x208] = opINVD;
+        ops_386_0f[0x209] = opWBINVD;
+        ops_386_0f[0x2A2] = opCPUID;
+        ops_386_0f[0x308] = opINVD;
+        ops_386_0f[0x309] = opWBINVD;
+        ops_386_0f[0x3A2] = opCPUID;
+    }
 }

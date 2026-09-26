@@ -116,6 +116,26 @@ internal static partial class _386
         PoserXchgAccumulateur();
     }
 
+    /// <summary>pcem: x86_ops_xchg.h:222-230 — opBSWAP(reg), sur les huit registres (G2,
+    /// D3). SANS garde is486 chez PCem : un 386 l'exécute. Transcrit tel quel.</summary>
+    private static void PoserBSWAP386()
+    {
+        for (var n = 0; n < 8; n++)
+        {
+                var r = n;
+                OpFn bswap = fetchdat =>
+                {
+                        uint32_t reg = cpu_state.regs[r].l;
+                        cpu_state.regs[r].l = (reg >> 24) | ((reg >> 8) & 0xff00) | ((reg << 8) & 0xff0000) | ((reg << 24) & 0xff000000);
+                        CLOCK_CYCLES(1);
+                        PREFETCH_RUN(1, 1, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+                for (var q = 0; q < 0x400; q += 0x100)
+                        ops_386_0f[q | (0xC8 + r)] = bswap;
+        }
+    }
+
     // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_xchg.h ----
 
     // pcem: x86_ops_xchg.h:205

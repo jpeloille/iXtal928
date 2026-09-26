@@ -101,6 +101,86 @@ internal static partial class _386
         }
     }
 
+    /// <summary>G2, D3 — les formes longues de opJ(condition) (x86_ops_jump.h:37-72) :
+    /// `_w` (déplacement 16 bits, pc masqué à 64 Ko) et `_l` (32 bits), dans la table 0F
+    /// aux emplacements 80-8F, `_w` aux quadrants 0 et 2, `_l` aux 1 et 3.</summary>
+    private static void PoserSautsLongs386()
+    {
+        for (var n = 0; n < 16; n++)
+        {
+                var cond = conditions[n];
+
+                // pcem: x86_ops_jump.h — opJ##condition##_w
+                OpFn w = fetchdat =>
+                {
+                        int16_t offset = (int16_t)(uint16_t)fetchdat; cpu_state.pc += 2;   // (int16_t)getwordf()
+                        CLOCK_CYCLES(cpu_c.timing_bnt);
+                        if (cond())
+                        {
+                                cpu_state.pc += (uint32_t)offset;
+                                cpu_state.pc &= 0xffff;
+                                CLOCK_CYCLES_ALWAYS(cpu_c.timing_bt);
+                                CPU_BLOCK_END();
+                                PREFETCH_RUN(cpu_c.timing_bt + cpu_c.timing_bnt, 3, -1, 0, 0, 0, 0, 0);
+                                PREFETCH_FLUSH();
+                                return 1;
+                        }
+                        PREFETCH_RUN(cpu_c.timing_bnt, 3, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+
+                // pcem: x86_ops_jump.h — opJ##condition##_l
+                OpFn l = fetchdat =>
+                {
+                        uint32_t offset = getlong();
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        CLOCK_CYCLES(cpu_c.timing_bnt);
+                        if (cond())
+                        {
+                                cpu_state.pc += offset;
+                                CLOCK_CYCLES_ALWAYS(cpu_c.timing_bt);
+                                CPU_BLOCK_END();
+                                PREFETCH_RUN(cpu_c.timing_bt + cpu_c.timing_bnt, 5, -1, 0, 0, 0, 0, 0);
+                                PREFETCH_FLUSH();
+                                return 1;
+                        }
+                        PREFETCH_RUN(cpu_c.timing_bnt, 5, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+
+                ops_386_0f[0x080 + n] = w;
+                ops_386_0f[0x280 + n] = w;
+                ops_386_0f[0x180 + n] = l;
+                ops_386_0f[0x380 + n] = l;
+
+                // pcem: x86_ops_set.h:3-19 — opSET##condition##_a16 et _a32. Pas de
+                // PREFETCH_RUN dans la macro : transcrit tel quel.
+                OpFn set16 = fetchdat =>
+                {
+                        if (fetch_ea_16(fetchdat)) return 1;
+                        if (cpu_mod != 3)
+                                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                        seteab((uint8_t)(cond() ? 1 : 0));
+                        CLOCK_CYCLES(4);
+                        return cpu_state.abrt;
+                };
+                OpFn set32 = fetchdat =>
+                {
+                        if (fetch_ea_32(fetchdat)) return 1;
+                        if (cpu_mod != 3)
+                                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                        seteab((uint8_t)(cond() ? 1 : 0));
+                        CLOCK_CYCLES(4);
+                        return cpu_state.abrt;
+                };
+                ops_386_0f[0x090 + n] = set16;
+                ops_386_0f[0x190 + n] = set16;
+                ops_386_0f[0x290 + n] = set32;
+                ops_386_0f[0x390 + n] = set32;
+        }
+    }
+
     // ------------------------------------------------------------ les boucles
 
     /// <summary>pcem: x86_ops_jump.h — opLOOPNE_w (:93-106), opLOOPE_w (:122-135)

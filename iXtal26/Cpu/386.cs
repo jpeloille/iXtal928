@@ -134,6 +134,17 @@ internal static partial class _386
         // APRÈS la table du 286 et ses recopies : la part partagée s'y lit.
         PoserTable386Partagee();
         PoserPrefixes386();
+        PoserBSWAP386();
+        PoserSHxD386();
+        PoserBTx386();
+        PoserSautsLongs386();
+        PoserGroupe_misc_0f_386();
+        PoserGroupe_mov_seg_0f_386();
+        PoserGroupe_mul_0f_386();
+        PoserGroupe_atomic_0f_386();
+        PoserGroupe_movx_0f_386();
+        PoserGroupe_bitscan_0f_386();
+        PoserGroupe_bit_0f_386();
         PoserRep386();
         PoserPile386();
         PoserIncDec386();

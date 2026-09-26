@@ -308,4 +308,111 @@ internal static partial class _386
         ops_386[0x369] = opIMUL_l_il_a32;
         ops_386[0x36B] = opIMUL_l_ib_a32;
     }
+
+    // ---- G2, D3 : la table 0F du 386, x86_ops_mul.h ----
+
+    // pcem: x86_ops_mul.h:274
+    private static int opIMUL_l_l_a16(uint32_t fetchdat)
+    {
+        int64_t temp64;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        temp64 = (int64_t)(int32_t)cpu_state.regs[cpu_reg].l * (int64_t)(int32_t)geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = (uint32_t)(temp64 & 0xFFFFFFFF);
+        flags_rebuild();
+        if ((temp64 >> 31) != 0 && (temp64 >> 31) != -1)
+                cpu_state.flags |= C_FLAG | V_FLAG;
+        else
+                cpu_state.flags &= unchecked((uint16_t)~((C_FLAG | V_FLAG)));
+
+        CLOCK_CYCLES(30);
+        PREFETCH_RUN(30, 2, (int)fetchdat, 0, 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mul.h:295
+    private static int opIMUL_l_l_a32(uint32_t fetchdat)
+    {
+        int64_t temp64;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        temp64 = (int64_t)(int32_t)cpu_state.regs[cpu_reg].l * (int64_t)(int32_t)geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = (uint32_t)(temp64 & 0xFFFFFFFF);
+        flags_rebuild();
+        if ((temp64 >> 31) != 0 && (temp64 >> 31) != -1)
+                cpu_state.flags |= C_FLAG | V_FLAG;
+        else
+                cpu_state.flags &= unchecked((uint16_t)~((C_FLAG | V_FLAG)));
+
+        CLOCK_CYCLES(30);
+        PREFETCH_RUN(30, 2, (int)fetchdat, 0, 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mul.h:231
+    private static int opIMUL_w_w_a16(uint32_t fetchdat)
+    {
+        int32_t templ;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        templ = (int32_t)(int16_t)cpu_state.regs[cpu_reg].w * (int32_t)(int16_t)geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = (uint16_t)(templ & 0xFFFF);
+        flags_rebuild();
+        if ((templ >> 15) != 0 && (templ >> 15) != -1)
+                cpu_state.flags |= C_FLAG | V_FLAG;
+        else
+                cpu_state.flags &= unchecked((uint16_t)~((C_FLAG | V_FLAG)));
+
+        CLOCK_CYCLES(18);
+        PREFETCH_RUN(18, 2, (int)fetchdat, 1, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mul.h:252
+    private static int opIMUL_w_w_a32(uint32_t fetchdat)
+    {
+        int32_t templ;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+
+        templ = (int32_t)(int16_t)cpu_state.regs[cpu_reg].w * (int32_t)(int16_t)geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = (uint16_t)(templ & 0xFFFF);
+        flags_rebuild();
+        if ((templ >> 15) != 0 && (templ >> 15) != -1)
+                cpu_state.flags |= C_FLAG | V_FLAG;
+        else
+                cpu_state.flags &= unchecked((uint16_t)~((C_FLAG | V_FLAG)));
+
+        CLOCK_CYCLES(18);
+        PREFETCH_RUN(18, 2, (int)fetchdat, 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_mul_0f_386()
+    {
+        ops_386_0f[0x0AF] = opIMUL_w_w_a16;
+        ops_386_0f[0x1AF] = opIMUL_l_l_a16;
+        ops_386_0f[0x2AF] = opIMUL_w_w_a32;
+        ops_386_0f[0x3AF] = opIMUL_l_l_a32;
+    }
 }

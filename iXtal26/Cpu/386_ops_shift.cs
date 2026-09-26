@@ -503,6 +503,123 @@ internal static partial class _386
         return false;
     }
 
+    // pcem: x86_ops_shift.h:591-659 — SHLD_w, SHLD_l, SHRD_w, SHRD_l (G2, D3). Chacune
+    // rend `true` quand le handler doit rendre 1 ; le compte est déjà masqué à 31.
+    private static bool SHLD_w(int count)
+    {
+        if (count != 0)
+        {
+                uint16_t tempw = geteaw();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = ((tempw << (count - 1)) & (1 << 15)) != 0 ? 1 : 0;
+                uint32_t templ = ((uint32_t)tempw << 16) | cpu_state.regs[cpu_reg].w;
+                if (count <= 16)
+                        tempw = (uint16_t)(templ >> (16 - count));
+                else
+                        tempw = (uint16_t)((templ << count) >> 16);
+                seteaw(tempw);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(tempw);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHLD_l(int count)
+    {
+        if (count != 0)
+        {
+                uint32_t templ = geteal();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = ((templ << (count - 1)) & 0x80000000) != 0 ? 1 : 0;
+                templ = (templ << count) | (cpu_state.regs[cpu_reg].l >> (32 - count));
+                seteal(templ);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(templ);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHRD_w(int count)
+    {
+        if (count != 0)
+        {
+                uint16_t tempw = geteaw();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = (tempw >> (count - 1)) & 1;
+                uint32_t templ = tempw | ((uint32_t)cpu_state.regs[cpu_reg].w << 16);
+                tempw = (uint16_t)(templ >> count);
+                seteaw(tempw);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(tempw);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHRD_l(int count)
+    {
+        if (count != 0)
+        {
+                uint32_t templ = geteal();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = (int)((templ >> (count - 1)) & 1);
+                templ = (templ >> count) | (cpu_state.regs[cpu_reg].l << (32 - count));
+                seteal(templ);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(templ);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    // pcem: x86_ops_shift.h:660-714 — opSHxD(operation) : les formes _i (compte
+    // immédiat) et _CL, en a16 et a32.
+    private static OpFn OpSHxD(Func<int, bool> operation, bool imm, bool a32) => fetchdat =>
+    {
+        int count;
+        if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        count = imm ? getbyte() & 31 : CL & 31;
+        if (operation(count)) return 1;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, a32 ? 1 : 0);
+        return 0;
+    };
+
+    private static void PoserSHxD386()
+    {
+        foreach (var (op, w, l) in new (int, Func<int, bool>, Func<int, bool>)[]
+                 { (0xA4, SHLD_w, SHLD_l), (0xAC, SHRD_w, SHRD_l) })
+        {
+                foreach (var (o, imm) in new[] { (op, true), (op + 1, false) })
+                {
+                        ops_386_0f[o] = OpSHxD(w, imm, false);
+                        ops_386_0f[0x100 | o] = OpSHxD(l, imm, false);
+                        ops_386_0f[0x200 | o] = OpSHxD(w, imm, true);
+                        ops_386_0f[0x300 | o] = OpSHxD(l, imm, true);
+                }
+        }
+    }
+
     // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_shift.h ----
 
     // pcem: x86_ops_shift.h:329

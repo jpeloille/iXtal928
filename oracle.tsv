@@ -140,3 +140,8 @@ iXtal26/Host/CommandLine/TimerCheckVerb.cs	-	-	-	host	verbe --timer-check
 iXtal26/Host/CommandLine/UsageText.cs	-	-	-	host	texte d'aide
 iXtal26/Host/HardDiskControllers.cs	pcem-dev/src/hdd/hdd.c	a9eb48b9ffb082e9fd6bf28753c6f59a90e6b7aae9d50b968c6210b9037eb31a	149-164	host	controleurs de disque dur choisissables ; trois des seize entrees du registre
 iXtal26/Host/HardDiskControllers.cs	pcem-dev/src/wx-ui/wx-config.c	7548a788bfcfcec08fc3437c443a8c14d595bb04f0c21c215b7d5a5b4b0a6599	237-242	host	le filtre DEVICE_AT contre MODEL_AT
+iXtal26/Cpu/386_ops_bit.cs	pcem-dev/includes/private/cpu/x86_ops_bit.h	b62013d86b38d13c84a9f6687c731256a09c462547222b00b37eff515d23325e	-	partial	BT/BTS/BTR/BTC, groupe BA (G2 D3)
+iXtal26/Cpu/386_ops_bitscan.cs	pcem-dev/includes/private/cpu/x86_ops_bitscan.h	c80aaa424b0709d1ceab0851ff7bf566fbbc4ccf169de6ce0d21c0e3452428fe	-	partial	BSF/BSR et BS_common (G2 D3)
+iXtal26/Cpu/386_ops_movx.cs	pcem-dev/includes/private/cpu/x86_ops_movx.h	bf549a9fc445a1d1b821b942e57cb617af0d7c69666de9fbd07bd2a71ceaec6a	-	partial	MOVZX/MOVSX (G2 D3)
+iXtal26/Cpu/386_ops_atomic.cs	pcem-dev/includes/private/cpu/x86_ops_atomic.h	92ba6a949ea41571a40d441e02b098e1fb7a932f1ee40bc7d39868ddc5c31e68	-	partial	CMPXCHG/XADD, gardes is486 (G2 D3)
+iXtal26/Cpu/386_ops_jump.cs	pcem-dev/includes/private/cpu/x86_ops_set.h	f7973f9be3971d0ddc4539281bf8706712e1215af1ca8c4b7bc33c4e35c0070f	-	partial	opSET(condition), pose avec les sauts longs (G2 D3)

@@ -501,4 +501,105 @@ internal static partial class _386
         ops_386[0x38E] = opMOV_seg_w_a32;
         ops_386[0x3C5] = opLDS_l_a32;
     }
+
+    // ---- G2, D3 : la table 0F du 386, x86_ops_mov_seg.h ----
+
+    // pcem: x86_ops_mov_seg.h:365
+    private static int opLSS_l_a16(uint32_t fetchdat)
+    {
+        uint32_t addr;
+        uint16_t seg;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmeml(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ss);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, 0);
+        return 1;
+    }
+
+    // pcem: x86_ops_mov_seg.h:385
+    private static int opLSS_l_a32(uint32_t fetchdat)
+    {
+        uint32_t addr;
+        uint16_t seg;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmeml(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ss);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, 1);
+        return 1;
+    }
+
+    // pcem: x86_ops_mov_seg.h:327
+    private static int opLSS_w_a16(uint32_t fetchdat)
+    {
+        uint16_t addr, seg;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmemw(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ss);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, 0);
+        return 1;
+    }
+
+    // pcem: x86_ops_mov_seg.h:346
+    private static int opLSS_w_a32(uint32_t fetchdat)
+    {
+        uint16_t addr, seg;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        addr = readmemw(easeg, cpu_state.eaaddr);
+        seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg(seg, cpu_state.seg_ss);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = addr;
+
+        CLOCK_CYCLES(7);
+        PREFETCH_RUN(7, 2, (int)fetchdat, 2, 0, 0, 0, 1);
+        return 1;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_mov_seg_0f_386()
+    {
+        ops_386_0f[0x0B2] = opLSS_w_a16;
+        ops_386_0f[0x1B2] = opLSS_l_a16;
+        ops_386_0f[0x2B2] = opLSS_w_a32;
+        ops_386_0f[0x3B2] = opLSS_l_a32;
+    }
 }
