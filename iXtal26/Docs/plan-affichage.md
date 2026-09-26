@@ -14,6 +14,8 @@ framebuffer) restent aveugles à ce plan, et c'est voulu.
   linéaire ou net (« Filtrage », `scale_mode`). Fenêtre en `HighPixelDensity`. La fenêtre ne suit plus les modes de
   l'invité. Liseré du linéaire évité : `ClearTextureBorder` noircit le texel qui borde la
   trame à chaque changement de taille.
+- **Taille d'image (`--fill`, 90 % par défaut)** — les molettes H-SIZE/V-SIZE : l'image
+  couvre 70 à 100 % de la surface du tube, marge noire. Menu : ←/→ par 1 %.
 - **Pixels entiers (`--monitor entier`)** — facteur entier, proportions de la trame,
   fenêtre au facteur round(0,42 / MM).
 - **`--crt`, lignes de balayage** — `SdlHost.DrawScanlines` : deux texels par ligne émulée

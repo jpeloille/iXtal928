@@ -1078,7 +1078,7 @@ public sealed class SdlHost : IDisposable
             var dst = new SDL.FRect { W = _frameWidth, H = _frameHeight };
 
             if (SDL.GetRenderOutputSize(_renderer, out int outW, out int outH) && outW > 0 && outH > 0)
-                dst = ComputeRect(outW, outH, _frameWidth, _frameHeight, monitor);
+                dst = ComputeRect(outW, outH, _frameWidth, _frameHeight, monitor, _display.FillPercent);
 
             SDL.RenderTexture(_renderer, _texture, in src, in dst);
 
@@ -1160,9 +1160,12 @@ public sealed class SdlHost : IDisposable
     /// Pixels entiers : le plus grand facteur entier qui tient, proportions de la trame ;
     /// réduction fractionnaire si même ×1 déborde. Moniteur : le plus grand 4:3 qui tient,
     /// quelle que soit la trame — un CRT étalait 720×400 comme 1024×768 sur tout le tube.
+    /// Sous un moniteur, <paramref name="fillPercent"/> réduit ce 4:3 autour de son centre :
+    /// les molettes de taille. La fenêtre garde la surface du tube, la marge reste noire.
     /// Centré, coordonnées entières. Pure : l'auto-contrôle du menu l'exerce sans SDL.
     /// </summary>
-    internal static SDL.FRect ComputeRect(int outW, int outH, int frameW, int frameH, CrtMonitor monitor)
+    internal static SDL.FRect ComputeRect(int outW, int outH, int frameW, int frameH, CrtMonitor monitor,
+                                          int fillPercent = 100)
     {
         float w, h;
 
@@ -1176,7 +1179,7 @@ public sealed class SdlHost : IDisposable
         else
         {
             // Largeur multiple de 4 : la hauteur, 3/4 de la largeur, tombe juste.
-            w = MathF.Floor(Math.Min(outW, outH * 4f / 3f) / 4f) * 4f;
+            w = MathF.Floor(Math.Min(outW, outH * 4f / 3f) * fillPercent / 100f / 4f) * 4f;
             h = w * 3f / 4f;
         }
 

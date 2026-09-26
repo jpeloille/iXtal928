@@ -211,7 +211,16 @@ Quatre options d'**affichage seul** : elles agissent sur la fenêtre et le rende
   `visible_fraction`), acceptent tout signal.
 - `auto` (défaut) : le 3V derrière une VGA ou une Trident, un générique 14" derrière la
   CGA, que le 3V ne synchronise pas.
-- `entier` : pas de moniteur, pixels entiers. Filtrage linéaire par défaut (`scale_mode = 1`, la clé et le sens
+- `entier` : pas de moniteur, pixels entiers.
+
+Au démarrage d'une VGA ou d'une Trident, le CRTC garde quelques secondes ses valeurs de
+mise sous tension (39,5 kHz / 154 Hz mesurés sur la 9000B) : le 3V affiche « hors plage »
+jusqu'à ce que le BIOS vidéo le programme. Un vrai 3V restait noir au même moment.
+
+`--fill PCT` (70 à 100, défaut 90, clé `fill_percent`) : les molettes H-SIZE/V-SIZE. L'image
+couvre ce pourcentage de la surface visible, centrée, en 4:3 ; la fenêtre garde la surface
+du tube et la marge reste noire. Aucune fiche ne documente ce réglage, fait en usine ou par
+le propriétaire : 90 % est un point de départ, pas une mesure. Filtrage linéaire par défaut (`scale_mode = 1`, la clé et le sens
 de PCem), plus proche voisin au choix. La fenêtre ne suit plus les changements de mode de
 l'invité, comme un CRT. `--monitor entier` revient aux pixels entiers : facteur
 round(0,42 / MM), proportions de la trame, plus proche voisin.
@@ -232,9 +241,9 @@ dessus notre propre mise à l'échelle.
 d'avoir au moins deux pixels hôte par ligne : en dessous ce ne serait que du moiré, et le
 menu affiche « trop fines ici ».
 
-**Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→), « Lignes CRT » et
-« Filtrage ». Les réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
-`scale_mode`, `visible_fraction`, `pixel_mm`, `host_diagonal` ; `monitor` vaut `auto`,
+**Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→), « Lignes CRT »,
+« Filtrage » et « Taille d'image » (←/→ par 1 %, Entrée par 5 %). Les réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
+`scale_mode`, `fill_percent`, `visible_fraction`, `pixel_mm`, `host_diagonal` ; `monitor` vaut `auto`,
 `nec3v`, `14`, `15`, `17` ou `entier`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
 puis config, puis ligne de commande. Ils ne sont **réécrits que dans `configs/`** :
 `config_save` réémet l'arbre sans ses commentaires, et un `ixtal26.cfg` documenté à la main

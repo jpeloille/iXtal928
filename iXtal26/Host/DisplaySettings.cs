@@ -47,8 +47,8 @@ internal readonly record struct MonitorProfile(
 /// `scale_mode` est la clé de PCem, avec son sens (0 plus proche voisin, 1 linéaire,
 /// défaut 1 : wx-sdl2-video.c:29, wx-sdl2-video-renderer.c:20).
 ///
-/// DEVIATION: les clés `monitor`, `crt`, `visible_fraction`, `pixel_mm` et
-///   `host_diagonal` n'existent pas chez PCem. Elles vivent dans la section [SDL2] où
+/// DEVIATION: les clés `monitor`, `crt`, `fill_percent`, `visible_fraction`, `pixel_mm`
+///   et `host_diagonal` n'existent pas chez PCem. Elles vivent dans la section [SDL2] où
 ///   PCem range son `scale` (wx-sdl2.c:249), mais ne réutilisent pas `scale` : chez PCem
 ///   c'est un indice 0,5× … 2,5× de la trame, ici la surface est celle d'un moniteur,
 ///   quelle que soit la trame.
@@ -89,6 +89,19 @@ internal sealed class DisplaySettings
 
     internal bool Scanlines { get; set; }
 
+    /// <summary>Bornes et défaut de FillPercent. 90 : l'image ne touchait pas les bords
+    /// du tube, par réglage d'usine ou de son propriétaire ; aucune fiche ne le donne.</summary>
+    internal const int MinFillPercent = 70;
+    internal const int MaxFillPercent = 100;
+    internal const int DefaultFillPercent = 90;
+
+    /// <summary>
+    /// Molettes H-SIZE/V-SIZE : part de la surface visible du tube réellement couverte par
+    /// l'image, en %. Même taux sur les deux axes, le 4:3 reste. Sans effet en pixels
+    /// entiers, où il n'y a pas de tube.
+    /// </summary>
+    internal int FillPercent { get; set; } = DefaultFillPercent;
+
     /// <summary>Filtrage sous un moniteur : linéaire (doux) ou plus proche voisin (net).
     /// Les pixels entiers sont toujours nets : leur facteur est exact.</summary>
     internal bool Smooth { get; set; } = true;
@@ -108,6 +121,8 @@ internal sealed class DisplaySettings
     internal CrtMonitor? MonitorOverride { get; set; }
 
     internal bool? ScanlinesOverride { get; set; }
+
+    internal int? FillPercentOverride { get; set; }
 
     internal double? PixelMmOverride { get; set; }
 
@@ -217,6 +232,8 @@ internal sealed class DisplaySettings
 
         Scanlines = config.config_get_int(config.CFG_MACHINE, Section, "crt", Scanlines ? 1 : 0) != 0;
         Smooth = config.config_get_int(config.CFG_MACHINE, Section, "scale_mode", Smooth ? 1 : 0) != 0;
+        FillPercent = Math.Clamp(config.config_get_int(config.CFG_MACHINE, Section, "fill_percent", FillPercent),
+                                 MinFillPercent, MaxFillPercent);
 
         float fraction = config.config_get_float(config.CFG_MACHINE, Section, "visible_fraction",
                                                  (float)VisibleFraction);
@@ -234,6 +251,7 @@ internal sealed class DisplaySettings
 
         Monitor = MonitorOverride ?? Monitor;
         Scanlines = ScanlinesOverride ?? Scanlines;
+        FillPercent = FillPercentOverride ?? FillPercent;
         PixelMm = PixelMmOverride ?? PixelMm;
         HostDiagonalInches = HostDiagonalOverride ?? HostDiagonalInches;
     }
@@ -262,6 +280,7 @@ internal sealed class DisplaySettings
         config.config_set_string(config.CFG_MACHINE, Section, "monitor", ConfigName(Monitor));
         config.config_set_int(config.CFG_MACHINE, Section, "crt", Scanlines ? 1 : 0);
         config.config_set_int(config.CFG_MACHINE, Section, "scale_mode", Smooth ? 1 : 0);
+        config.config_set_int(config.CFG_MACHINE, Section, "fill_percent", FillPercent);
         config.config_set_float(config.CFG_MACHINE, Section, "visible_fraction", (float)VisibleFraction);
 
         if (PixelMm > 0)

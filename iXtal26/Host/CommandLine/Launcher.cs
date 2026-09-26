@@ -116,6 +116,13 @@ internal static class Launcher
                     return Failure.Usage("--host-diagonal attend la diagonale de l'écran hôte en pouces (ex. 27).");
                 options.Display.HostDiagonalOverride = hostDiagonal;
                 return KeepParsing;
+            case "--fill":
+                if (!cursor.TryTakeInt32(out var fillPercent) ||
+                    fillPercent is < DisplaySettings.MinFillPercent or > DisplaySettings.MaxFillPercent)
+                    return Failure.Usage(
+                        $"--fill attend un pourcentage de {DisplaySettings.MinFillPercent} à {DisplaySettings.MaxFillPercent}.");
+                options.Display.FillPercentOverride = fillPercent;
+                return KeepParsing;
             case "--monitor":
                 if (!cursor.HasNext || !DisplaySettings.TryParseMonitor(cursor.TakeNext(), out var monitor))
                     return Failure.Usage("--monitor attend auto, nec3v, 14, 15, 17 ou entier.");

@@ -13,7 +13,7 @@ internal static class UsageText
         Usage : iXtal26 [--rom-path CHEMIN] [--floppy-a IMG] [--floppy-b IMG] [--slices N]
                         [--headless] [--verbose] [--turbo [N]]
                         [--monitor auto|nec3v|14|15|17|entier] [--host-diagonal POUCES]
-                        [--pixel-mm MM] [--crt]
+                        [--pixel-mm MM] [--crt] [--fill PCT]
                 iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...
                 iXtal26 --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]...
 
@@ -73,6 +73,8 @@ internal static class UsageText
                                (défaut) : le 3V derrière une VGA ou Trident, un 14"
                                derrière la CGA ; entier : pixels entiers, sans moniteur.
                                Toute trame remplit la surface 4:3 du tube, à taille réelle
+          --fill PCT           part du tube couverte par l'image, de 70 à 100 (défaut 90) :
+                               les molettes H-SIZE/V-SIZE. Sans effet en pixels entiers
           --host-diagonal P    diagonale de l'écran hôte en pouces (ex. 27) : la taille
                                d'un pixel en découle, avec la résolution native que
                                donne SDL

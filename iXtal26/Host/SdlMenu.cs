@@ -97,6 +97,7 @@ internal sealed class SdlMenu
         ("Moniteur", MainItem.Monitor),
         ("Lignes CRT", MainItem.Scanlines),
         ("Filtrage", MainItem.Filter),
+        ("Taille d'image", MainItem.Fill),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
         ("Ctrl+Alt+Suppr (redemarrage a chaud)", MainItem.Cad),
@@ -106,7 +107,7 @@ internal sealed class SdlMenu
     private enum MainItem
     {
         InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateFat, PutFile, CreateBlankHdd,
-        Monitor, Scanlines, Filter, HardReset, HardResetTurbo, Cad, Quit,
+        Monitor, Scanlines, Filter, Fill, HardReset, HardResetTurbo, Cad, Quit,
     }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
@@ -344,6 +345,10 @@ internal sealed class SdlMenu
                 when MainItems[_mainIndex].Item == MainItem.Monitor:
                 return ChangeMonitor(sc == SDL.Scancode.Left ? -1 : 1);
 
+            case SDL.Scancode.Left or SDL.Scancode.Right
+                when MainItems[_mainIndex].Item == MainItem.Fill:
+                return ChangeFill(sc == SDL.Scancode.Left ? -1 : 1);
+
             case SDL.Scancode.Return or SDL.Scancode.KpEnter:
                 break;
 
@@ -360,6 +365,12 @@ internal sealed class SdlMenu
                 _display.Scanlines = !_display.Scanlines;
                 _message = "lignes CRT " + _display.Save();
                 return MenuAction.DisplayChanged;
+
+            case MainItem.Fill:
+                // Entrée avance de 5 et reboucle sur le minimum : les flèches font le détail.
+                return ChangeFill(_display.FillPercent >= DisplaySettings.MaxFillPercent
+                                  ? DisplaySettings.MinFillPercent - _display.FillPercent
+                                  : Math.Min(5, DisplaySettings.MaxFillPercent - _display.FillPercent));
 
             case MainItem.Filter:
                 _display.Smooth = !_display.Smooth;
@@ -431,6 +442,14 @@ internal sealed class SdlMenu
         return MenuAction.DisplayChanged;
     }
 
+    private MenuAction ChangeFill(int step)
+    {
+        _display.FillPercent = Math.Clamp(_display.FillPercent + step,
+                                          DisplaySettings.MinFillPercent, DisplaySettings.MaxFillPercent);
+        _message = "taille d'image " + _display.Save();
+        return MenuAction.DisplayChanged;
+    }
+
     /// <summary>Libellé de l'écran principal : les deux entrées d'affichage portent leur
     /// valeur courante, les autres leur texte fixe.</summary>
     private string MainLabel(string label, MainItem item) => item switch
@@ -443,6 +462,9 @@ internal sealed class SdlMenu
                               : $"{label} : oui",
         MainItem.Filter => _display.Effective() == CrtMonitor.Integer ? $"{label} : net (pixels entiers)"
                            : _display.Smooth ? $"{label} : doux" : $"{label} : net",
+        MainItem.Fill => _display.Effective() == CrtMonitor.Integer
+                         ? $"{label} : sans objet (pixels entiers)"
+                         : $"{label} : {_display.FillPercent} %",
         _ => label,
     };
 
@@ -1556,6 +1578,14 @@ internal sealed class SdlMenu
                   $"{r.W}x{r.H} en ({r.X}, {r.Y})");
         }
 
+        SDL.FRect filled = SdlHost.ComputeRect(1310, 983, 1024, 768, CrtMonitor.Generic15, 90);
+        Check("a 90 % : 4:3, centre, 90 % de la largeur",
+              filled.W * 3 == filled.H * 4 && Math.Abs(filled.W - first.W * 0.9f) <= 4 &&
+              Math.Abs(filled.X * 2 + filled.W - 1310) <= 1 && Math.Abs(filled.Y * 2 + filled.H - 983) <= 1,
+              $"{filled.W}x{filled.H} en ({filled.X}, {filled.Y})");
+        SDL.FRect integer = SdlHost.ComputeRect(2400, 1350, 640, 480, CrtMonitor.Integer, 70);
+        Check("sans effet en pixels entiers", integer.W == 1280 && integer.H == 960, $"{integer.W}x{integer.H}");
+
         foreach ((int fw, int fh) in frames)
         {
             SDL.FRect r = SdlHost.ComputeRect(2400, 1350, fw, fh, CrtMonitor.Integer);
@@ -1588,6 +1618,23 @@ internal sealed class SdlMenu
               Activate(MainItem.Scanlines) == MenuAction.DisplayChanged && m._display.Scanlines, "oui");
         Check("sans config, rien n'est ecrit et le menu le dit",
               m._message.Contains("pour cette session", StringComparison.Ordinal), m._message);
+
+        int fill = m._display.FillPercent;
+        m._screen = Screen.Main;
+        m._mainIndex = Array.FindIndex(MainItems, e => e.Item == MainItem.Fill);
+        Check("« Taille d'image » : Droite +1 %, menu ouvert",
+              m.HandleMain(SDL.Scancode.Right) == MenuAction.DisplayChanged && m._display.FillPercent == fill + 1,
+              $"{fill} -> {m._display.FillPercent} %");
+        m._display.FillPercent = DisplaySettings.MaxFillPercent;
+        m.HandleMain(SDL.Scancode.Right);
+        Check("borne a 100 %", m._display.FillPercent == DisplaySettings.MaxFillPercent, $"{m._display.FillPercent} %");
+        m.HandleMain(SDL.Scancode.Return);
+        Check("Entree a 100 % reboucle sur 70 %", m._display.FillPercent == DisplaySettings.MinFillPercent,
+              $"{m._display.FillPercent} %");
+        m.HandleMain(SDL.Scancode.Left);
+        Check("et ne descend pas sous 70 %", m._display.FillPercent == DisplaySettings.MinFillPercent,
+              $"{m._display.FillPercent} %");
+        m._display.FillPercent = fill;
 
         bool smooth = m._display.Smooth;
         Check("« Filtrage » bascule doux / net",
@@ -1670,7 +1717,7 @@ internal sealed class SdlMenu
             var written = new DisplaySettings
             {
                 ConfigPath = saved, Monitor = CrtMonitor.Generic17, Scanlines = true, PixelMm = 0.234,
-                Smooth = false, HostDiagonalInches = 27, VisibleFraction = 0.9,
+                Smooth = false, HostDiagonalInches = 27, VisibleFraction = 0.9, FillPercent = 84,
             };
             written.Save();
 
@@ -1680,7 +1727,7 @@ internal sealed class SdlMenu
             Check("configs/machine.cfg relu : memes valeurs",
                   read.Monitor == CrtMonitor.Generic17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4 &&
                   !read.Smooth && Math.Abs(read.HostDiagonalInches - 27) < 1e-4 &&
-                  Math.Abs(read.VisibleFraction - 0.9) < 1e-4,
+                  Math.Abs(read.VisibleFraction - 0.9) < 1e-4 && read.FillPercent == 84,
                   $"{read.Monitor}, crt {read.Scanlines}, {read.PixelMm:0.###} mm, " +
                   $"{(read.Smooth ? "doux" : "net")}, {read.HostDiagonalInches}\", {read.VisibleFraction:0.##}");
             Check("et la machine y est toujours",
