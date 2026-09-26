@@ -8,6 +8,7 @@
 
 using iXtal26.Disc;
 using iXtal26.Floppy;
+using iXtal26.PluginApi;
 using SDL3;
 
 namespace iXtal26.Host;
@@ -20,6 +21,10 @@ internal enum MenuAction
     HardResetTurbo,
     Cad,
     Quit,
+
+    /// <summary>Moniteur ou lignes de balayage changés : l'hôte réapplique, le menu
+    /// reste ouvert pour qu'on voie l'effet.</summary>
+    DisplayChanged,
 }
 
 /// <summary>
@@ -89,6 +94,8 @@ internal sealed class SdlMenu
         ("Creer une disquette formatee...", MainItem.CreateFat),
         ("Deposer un fichier de l'hote...", MainItem.PutFile),
         ("Creer un disque dur vierge...", MainItem.CreateBlankHdd),
+        ("Moniteur", MainItem.Monitor),
+        ("Lignes CRT", MainItem.Scanlines),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
         ("Ctrl+Alt+Suppr (redemarrage a chaud)", MainItem.Cad),
@@ -98,7 +105,7 @@ internal sealed class SdlMenu
     private enum MainItem
     {
         InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateFat, PutFile, CreateBlankHdd,
-        HardReset, HardResetTurbo, Cad, Quit,
+        Monitor, Scanlines, HardReset, HardResetTurbo, Cad, Quit,
     }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
@@ -167,8 +174,17 @@ internal sealed class SdlMenu
 
     private DialogPurpose _dialogPurpose;
 
-    private string[] _images = [];
+    /// <summary>Une ligne de l'écran de choix : une image, un sous-dossier ou « .. ».</summary>
+    private readonly record struct PickEntry(string Path, string Label, bool IsDirectory);
+
+    /// <summary>Contenu de _pickDir : « .. » s'il y a lieu, les sous-dossiers qui
+    /// contiennent des images, puis les images du niveau.</summary>
+    private PickEntry[] _entries = [];
     private string _imagesRoot = "";
+
+    /// <summary>Dossier affiché par l'écran de choix, toujours sous _imagesRoot. Gardé
+    /// d'une ouverture à l'autre : on retrouve le dossier de la dernière insertion.</summary>
+    private string _pickDir = "";
 
     /// <summary>Dernier message d'état, affiché sous les entrées. Vide = rien à dire.</summary>
     private string _message = "";
@@ -187,8 +203,13 @@ internal sealed class SdlMenu
     internal int Creations { get; private set; }
     internal int Puts { get; private set; }
 
-    internal SdlMenu(IntPtr window, IntPtr renderer, string romsPath)
+    /// <summary>Réglages d'affichage de l'hôte : le menu les change et les enregistre,
+    /// SdlHost les applique sur MenuAction.DisplayChanged.</summary>
+    private readonly DisplaySettings _display;
+
+    internal SdlMenu(IntPtr window, IntPtr renderer, string romsPath, DisplaySettings? display = null)
     {
+        _display = display ?? new DisplaySettings();
         _window = window;
         _renderer = renderer;
         _romsPath = romsPath;
@@ -318,6 +339,10 @@ internal sealed class SdlMenu
                 Close();
                 return MenuAction.None;
 
+            case SDL.Scancode.Left or SDL.Scancode.Right
+                when MainItems[_mainIndex].Item == MainItem.Monitor:
+                return ChangeMonitor(sc == SDL.Scancode.Left ? -1 : 1);
+
             case SDL.Scancode.Return or SDL.Scancode.KpEnter:
                 break;
 
@@ -327,6 +352,14 @@ internal sealed class SdlMenu
 
         switch (MainItems[_mainIndex].Item)
         {
+            case MainItem.Monitor:
+                return ChangeMonitor(1);
+
+            case MainItem.Scanlines:
+                _display.Scanlines = !_display.Scanlines;
+                _message = "lignes CRT " + _display.Save();
+                return MenuAction.DisplayChanged;
+
             case MainItem.InsertA:
                 OpenPick(0);
                 return MenuAction.None;
@@ -383,10 +416,30 @@ internal sealed class SdlMenu
         }
     }
 
+    private MenuAction ChangeMonitor(int step)
+    {
+        int at = Array.IndexOf(DisplaySettings.Cycle, _display.Monitor);
+        int count = DisplaySettings.Cycle.Length;
+        _display.Monitor = DisplaySettings.Cycle[((at < 0 ? 0 : at) + step + count) % count];
+        _message = "moniteur " + _display.Save();
+        return MenuAction.DisplayChanged;
+    }
+
+    /// <summary>Libellé de l'écran principal : les deux entrées d'affichage portent leur
+    /// valeur courante, les autres leur texte fixe.</summary>
+    private string MainLabel(string label, MainItem item) => item switch
+    {
+        MainItem.Monitor => $"{label} : {DisplaySettings.Describe(_display.Monitor)}",
+        MainItem.Scanlines => !_display.Scanlines ? $"{label} : non"
+                              : _display.ScanlinesTooFine ? $"{label} : oui (trop fines ici)"
+                              : $"{label} : oui",
+        _ => label,
+    };
+
     private void HandlePick(SDL.Scancode sc)
     {
         // Une entrée de plus que la liste : la dernière est « Parcourir... ».
-        int count = _images.Length + 1;
+        int count = _entries.Length + 1;
 
         switch (sc)
         {
@@ -402,22 +455,32 @@ internal sealed class SdlMenu
                 _screen = Screen.Main;
                 return;
 
+            case SDL.Scancode.Backspace or SDL.Scancode.Left:
+                if (!SamePath(_pickDir, _imagesRoot))
+                    EnterDirectory(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(_pickDir))!);
+                return;
+
+            case SDL.Scancode.Return or SDL.Scancode.KpEnter
+                when _pickIndex < _entries.Length && _entries[_pickIndex].IsDirectory:
+                EnterDirectory(_entries[_pickIndex].Path);
+                return;
+
             case SDL.Scancode.Return or SDL.Scancode.KpEnter:
                 // Trois issues, et la liste est la même dans les trois : insérer dans un
                 // lecteur, désigner la cible d'un dépôt, ou aller chercher hors de os/.
-                if (_pickIndex >= _images.Length)
+                if (_pickIndex >= _entries.Length)
                 {
                     Browse(_pickDrive == PickPutTarget ? DialogPurpose.PutTarget
                                                        : DialogPurpose.InsertDisc);
                 }
                 else if (_pickDrive == PickPutTarget)
                 {
-                    _putImage = _images[_pickIndex];
+                    _putImage = _entries[_pickIndex].Path;
                     Browse(DialogPurpose.PutSource);
                 }
                 else
                 {
-                    Insert(_pickDrive, _images[_pickIndex]);
+                    Insert(_pickDrive, _entries[_pickIndex].Path);
                     _screen = Screen.Main;
                 }
 
@@ -754,9 +817,10 @@ internal sealed class SdlMenu
     }
 
     /// <summary>
-    /// Balaie os/ pour les quatre extensions chargeables. La racine est résolue par
+    /// Liste _pickDir pour les quatre extensions chargeables. La racine est résolue par
     /// resolve_roms_path, qui donne d'abord sa chance au répertoire courant puis remonte
     /// depuis le binaire (paths.cs:132) — sous Rider le courant est bin/Debug/net10.0/.
+    /// Un _pickDir disparu, ou hors d'une racine qui a changé, ramène à la racine.
     /// </summary>
     private void ScanImages()
     {
@@ -764,28 +828,96 @@ internal sealed class SdlMenu
 
         if (!Directory.Exists(_imagesRoot))
         {
-            _images = [];
+            _entries = [];
             _message = $"repertoire d'images introuvable : {_imagesRoot}";
             return;
         }
 
+        if (!Directory.Exists(_pickDir) || !IsUnder(_pickDir, _imagesRoot))
+            _pickDir = _imagesRoot;
+
         try
         {
-            _images = FindImages(_imagesRoot);
+            _entries = ListDirectory(_pickDir, !SamePath(_pickDir, _imagesRoot));
 
-            if (_images.Length == 0)
+            if (_entries.Length == 0)
                 _message = "aucune image dans os/ — utiliser Parcourir...";
         }
         catch (IOException ex)
         {
-            _images = [];
-            _message = $"lecture de os/ impossible : {ex.Message}";
+            _entries = [];
+            _message = $"lecture de {_pickDir} impossible : {ex.Message}";
         }
         catch (UnauthorizedAccessException ex)
         {
-            _images = [];
-            _message = $"lecture de os/ refusee : {ex.Message}";
+            _entries = [];
+            _message = $"lecture de {_pickDir} refusee : {ex.Message}";
         }
+    }
+
+    private void EnterDirectory(string dir)
+    {
+        _pickDir = dir;
+        _pickIndex = 0;
+        _pickTop = 0;
+        _message = "";
+        ScanImages();
+    }
+
+    /// <summary>
+    /// Un niveau : « .. » si demandé, les sous-dossiers qui contiennent au moins une
+    /// image (à n'importe quelle profondeur), puis les images. Même tri ordinal que
+    /// FindImages. Lève ce que l'appelant doit dire lui-même.
+    /// </summary>
+    private static PickEntry[] ListDirectory(string dir, bool withParent)
+    {
+        List<PickEntry> entries = [];
+
+        if (withParent)
+            entries.Add(new PickEntry(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(dir))!, "..", true));
+
+        string[] dirs = Directory.GetDirectories(dir);
+        Array.Sort(dirs, StringComparer.Ordinal);
+
+        foreach (string sub in dirs)
+        {
+            if (FindImages(sub).Length != 0)
+                entries.Add(new PickEntry(sub, Truncate(Path.GetFileName(sub) + "/", Cols - 4), true));
+        }
+
+        string[] files = Directory.GetFiles(dir);
+        Array.Sort(files, StringComparer.Ordinal);
+
+        foreach (string file in files)
+        {
+            if (IsImage(file))
+                entries.Add(new PickEntry(file, Describe(file), false));
+        }
+
+        return entries.ToArray();
+    }
+
+    private static bool IsImage(string path)
+    {
+        foreach (string ext in Extensions)
+        {
+            if (path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)),
+                      Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)), StringComparison.Ordinal);
+
+    private static bool IsUnder(string path, string root)
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        string top = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+
+        return full == top || full.StartsWith(top + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -847,6 +979,7 @@ internal sealed class SdlMenu
         // un chemin absolu dans une police 8x8 n'est pas une interface.
         bool source = purpose == DialogPurpose.PutSource;
         string start = source ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                      : Directory.Exists(_pickDir) ? _pickDir
                       : Directory.Exists(_imagesRoot) ? _imagesRoot : AppContext.BaseDirectory;
 
         if (source)
@@ -1041,8 +1174,8 @@ internal sealed class SdlMenu
 
                 selected = lines.Count + _mainIndex;
 
-                foreach ((string label, _) in MainItems)
-                    lines.Add("   " + label);
+                foreach ((string label, MainItem item) in MainItems)
+                    lines.Add("   " + MainLabel(label, item));
 
                 lines.Add("");
                 lines.Add(" Fleches: choisir   Entree: valider");
@@ -1053,33 +1186,35 @@ internal sealed class SdlMenu
                 lines.Add(_pickDrive == PickPutTarget
                           ? " Image ou deposer (le fichier vient apres)"
                           : $" Disquette pour {DriveLetter(_pickDrive)}:");
+                lines.Add(" " + Truncate(PickLocation(), Cols - 2));
                 lines.Add("");
 
                 int top = _pickTop;
-                int end = Math.Min(_images.Length, top + PickWindow);
+                int end = Math.Min(_entries.Length, top + PickWindow);
 
                 for (int i = top; i < end; i++)
                 {
                     if (i == _pickIndex)
                         selected = lines.Count;
 
-                    lines.Add("   " + Describe(_images[i]));
+                    lines.Add("   " + _entries[i].Label);
                 }
 
                 // « Parcourir... » n'est visible que si la fenêtre atteint le bas de la
                 // liste — sinon elle sauterait par-dessus les entrées non affichées.
-                if (end >= _images.Length)
+                if (end >= _entries.Length)
                 {
-                    if (_pickIndex == _images.Length)
+                    if (_pickIndex == _entries.Length)
                         selected = lines.Count;
 
                     lines.Add("   Parcourir...");
                 }
 
-                if (_images.Length > PickWindow)
-                    lines.Add($" ({_pickIndex + 1} sur {_images.Length})");
+                if (_entries.Length > PickWindow)
+                    lines.Add($" ({_pickIndex + 1} sur {_entries.Length})");
 
                 lines.Add("");
+                lines.Add(" Entree: ouvrir   Retour: remonter");
                 lines.Add(" Echap: annuler");
                 break;
 
@@ -1205,14 +1340,8 @@ internal sealed class SdlMenu
 
         foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
-            foreach (string ext in Extensions)
-            {
-                if (path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                {
-                    found.Add(path);
-                    break;
-                }
-            }
+            if (IsImage(path))
+                found.Add(path);
         }
 
         // Ordinal, donc stable d'une exécution à l'autre quelle que soit la culture.
@@ -1237,7 +1366,17 @@ internal sealed class SdlMenu
         return Truncate(name, Cols - 4);
     }
 
-    private static string DriveLetter(int drive) => drive == 0 ? "A" : "B";
+    /// <summary>« os/ » suivi du chemin de _pickDir sous la racine.</summary>
+    private string PickLocation()
+    {
+        if (!IsUnder(_pickDir, _imagesRoot))
+            return "os/";
+
+        string rel = Path.GetRelativePath(_imagesRoot, _pickDir);
+        return rel == "." ? "os/" : "os/" + rel.Replace(Path.DirectorySeparatorChar, '/') + "/";
+    }
+
+        private static string DriveLetter(int drive) => drive == 0 ? "A" : "B";
 
     internal static string Truncate(string s, int max)
         => s.Length <= max ? s : string.Concat("...", s.AsSpan(s.Length - max + 3));
@@ -1353,12 +1492,145 @@ internal sealed class SdlMenu
         Activate(MainItem.InsertA);
         Check("« Inserer dans A: » vise bien le lecteur 0",
               m._screen == Screen.Pick && m._pickDrive == 0, $"_pickDrive = {m._pickDrive}");
+
+        Console.WriteLine();
+        Console.WriteLine("La liste suit l'arborescence de os/ :");
+
+        m._pickDir = "";
+        m.OpenPick(0);
+        Check("elle s'ouvre a la racine, sans « .. »",
+              SamePath(m._pickDir, m._imagesRoot) && (m._entries.Length == 0 || m._entries[0].Label != ".."),
+              m.PickLocation());
+
+        int firstDir = Array.FindIndex(m._entries, e => e.IsDirectory);
+
+        if (firstDir < 0)
+        {
+            Console.WriteLine("  (aucun sous-dossier d'images dans os/ : navigation non exercee)");
+        }
+        else
+        {
+            string sub = m._entries[firstDir].Path;
+            m._pickIndex = firstDir;
+            m.HandlePick(SDL.Scancode.Return);
+            Check("Entree sur un dossier l'ouvre, sans quitter l'ecran",
+                  m._screen == Screen.Pick && SamePath(m._pickDir, sub), m.PickLocation());
+            Check("le dossier commence par « .. »",
+                  m._entries.Length != 0 && m._entries[0].Label == "..", $"{m._entries.Length} entree(s)");
+            Check("aucune ligne hors de la boite", AllFit(m.BuildLines(out _)), m.PickLocation());
+
+            m.HandlePick(SDL.Scancode.Backspace);
+            Check("Retour remonte a la racine", SamePath(m._pickDir, m._imagesRoot), m.PickLocation());
+
+            m.HandlePick(SDL.Scancode.Backspace);
+            Check("et ne sort jamais de os/", SamePath(m._pickDir, m._imagesRoot), m.PickLocation());
+        }
+
         m.HandlePick(SDL.Scancode.Escape);
 
         Check("« Quitter » rend toujours MenuAction.Quit",
               Activate(MainItem.Quit) == MenuAction.Quit, "Quit");
         Check("« Reset materiel » rend toujours MenuAction.HardReset",
               Activate(MainItem.HardReset) == MenuAction.HardReset, "HardReset");
+
+        Console.WriteLine();
+        Console.WriteLine("Le moniteur étale toute trame sur la même surface 4:3 :");
+
+        (int W, int H)[] frames = [(640, 480), (800, 600), (1024, 768), (720, 400), (656, 416)];
+        SDL.FRect first = SdlHost.ComputeRect(1310, 983, 640, 480, CrtMonitor.In15);
+
+        foreach ((int fw, int fh) in frames)
+        {
+            SDL.FRect r = SdlHost.ComputeRect(1310, 983, fw, fh, CrtMonitor.In15);
+            Check($"{fw}x{fh} sous un moniteur", r.W == first.W && r.H == first.H && r.W * 3 == r.H * 4,
+                  $"{r.W}x{r.H} en ({r.X}, {r.Y})");
+        }
+
+        foreach ((int fw, int fh) in frames)
+        {
+            SDL.FRect r = SdlHost.ComputeRect(2400, 1350, fw, fh, CrtMonitor.Integer);
+            Check($"{fw}x{fh} en pixels entiers", r.W % fw == 0 && r.H % fh == 0 && r.W / fw == r.H / fh,
+                  $"{r.W}x{r.H}, x{r.W / fw}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Les deux entrées d'affichage :");
+
+        CrtMonitor before = m._display.Monitor;
+        Check("« Moniteur » fait defiler les tailles, menu ouvert",
+              Activate(MainItem.Monitor) == MenuAction.DisplayChanged && m._display.Monitor != before,
+              $"{before} -> {m._display.Monitor}");
+
+        for (int c = 1; c < DisplaySettings.Cycle.Length; c++)
+            m.HandleMain(SDL.Scancode.Right);
+        Check("et revient au depart apres un tour complet", m._display.Monitor == before,
+              m._display.Monitor.ToString());
+
+        m.HandleMain(SDL.Scancode.Left);
+        Check("Gauche recule d'un cran",
+              m._display.Monitor == DisplaySettings.Cycle[(Array.IndexOf(DisplaySettings.Cycle, before) +
+                                                           DisplaySettings.Cycle.Length - 1) %
+                                                          DisplaySettings.Cycle.Length],
+              m._display.Monitor.ToString());
+        m._display.Monitor = before;
+
+        Check("« Lignes CRT » bascule",
+              Activate(MainItem.Scanlines) == MenuAction.DisplayChanged && m._display.Scanlines, "oui");
+        Check("sans config, rien n'est ecrit et le menu le dit",
+              m._message.Contains("pour cette session", StringComparison.Ordinal), m._message);
+
+        m._display.ScanlinesTooFine = true;
+        lines = m.BuildLines(out _);
+        Check("les libelles les plus longs tiennent dans la boite", AllFit(lines),
+              $"la plus longue fait {Longest(lines)} sur {Cols}");
+        m._display.Scanlines = false;
+        m._display.ScanlinesTooFine = false;
+
+        Console.WriteLine();
+        Console.WriteLine("Les réglages se retrouvent d'une session à l'autre, dans configs/ seulement :");
+
+        string scratch = Directory.CreateTempSubdirectory("ixtal26-display-").FullName;
+
+        try
+        {
+            string saved = Path.Combine(scratch, "configs", "machine.cfg");
+            string handWritten = Path.Combine(scratch, "ixtal26.cfg");
+            Directory.CreateDirectory(Path.GetDirectoryName(saved)!);
+            File.WriteAllText(saved, "model = ibmxt\n");
+            File.WriteAllText(handWritten, "# documente a la main\nmodel = ibmxt\n");
+
+            config.config_load(config.CFG_MACHINE, saved);
+            var written = new DisplaySettings
+            {
+                ConfigPath = saved, Monitor = CrtMonitor.In17, Scanlines = true, PixelMm = 0.234,
+            };
+            written.Save();
+
+            config.config_load(config.CFG_MACHINE, saved);
+            var read = new DisplaySettings();
+            read.Load();
+            Check("configs/machine.cfg relu : memes valeurs",
+                  read.Monitor == CrtMonitor.In17 && read.Scanlines && Math.Abs(read.PixelMm - 0.234) < 1e-4,
+                  $"{read.Monitor}, crt {read.Scanlines}, {read.PixelMm:0.###} mm");
+            Check("et la machine y est toujours",
+                  config.config_get_string(config.CFG_MACHINE, null, "model", "") == "ibmxt", "model = ibmxt");
+
+            string original = File.ReadAllText(handWritten);
+            config.config_load(config.CFG_MACHINE, handWritten);
+            string said = new DisplaySettings { ConfigPath = handWritten }.Save();
+            Check("un .cfg hors de configs/ n'est pas reecrit",
+                  File.ReadAllText(handWritten) == original, said);
+
+            var cli = new DisplaySettings { ConfigPath = saved, MonitorOverride = CrtMonitor.In14 };
+            config.config_load(config.CFG_MACHINE, saved);
+            cli.Load();
+            Check("--monitor l'emporte sur la config", cli.Monitor == CrtMonitor.In14 && cli.Scanlines,
+                  $"{cli.Monitor}, crt {cli.Scanlines}");
+        }
+        finally
+        {
+            Directory.Delete(scratch, recursive: true);
+        }
 
         Console.WriteLine();
         Console.WriteLine(fail == 0 ? "Vert : tous les contrôles passent."

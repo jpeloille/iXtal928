@@ -192,6 +192,33 @@ de la première tranche à la dernière (c'est ce qui rend deux exécutions iden
 Accepter `--turbo` à côté donnerait une option sans effet, indiscernable d'une option qui
 ne marche pas.
 
+### `--monitor`, `--pixel-mm` et `--crt`
+
+Trois options d'**affichage seul** : elles agissent sur la fenêtre et le renderer, jamais sur
+`video.Buffer32`. `--boot`, boot-diff et les empreintes de framebuffer n'en voient rien.
+
+`--monitor 14|15|17` (défaut 15) simule un moniteur d'époque : toute trame, 640×480 comme
+1024×768 ou le texte 720×400, remplit la même surface 4:3, celle du tube (270×202, 280×210,
+320×240 mm), en filtrage linéaire. La fenêtre ne suit plus les changements de mode de
+l'invité, comme un CRT. `--monitor entier` revient aux pixels entiers : facteur
+round(0,42 / MM), proportions de la trame, plus proche voisin.
+
+`--pixel-mm` donne la taille d'un pixel de l'écran hôte (défaut 0,25). SDL3 ne fournit plus
+de DPI physique fiable : c'est à l'utilisateur de la dire (sous X11, `xrandr` donne la
+largeur en mm ; largeur / nombre de colonnes). Au-delà de 2 mm, la valeur est refusée :
+c'est une faute de frappe, pas un écran. La fenêtre est réduite si elle dépasse le bureau.
+
+`--crt` assombrit la moitié basse de chaque ligne émulée (~38 % de noir), à condition
+d'avoir au moins deux pixels hôte par ligne : en dessous ce ne serait que du moiré, et le
+menu affiche « trop fines ici ».
+
+**Menu et persistance.** Ctrl+F12 porte « Moniteur » (Entrée ou ←/→) et « Lignes CRT ».
+Les trois réglages vivent dans la section `[SDL2]` du .cfg machine (`monitor`, `crt`,
+`pixel_mm`), lus après `--config` ou après l'écran de construction. Précédence : défauts,
+puis config, puis ligne de commande. Ils ne sont **réécrits que dans `configs/`** :
+`config_save` réémet l'arbre sans ses commentaires, et un `ixtal26.cfg` documenté à la main
+les perdrait. Hors de `configs/`, le menu dit « pour cette session ».
+
 ### `--verbose`
 
 Sans compteur de blits, une exécution muette ne distingue pas « le CGA a balayé et l'hôte

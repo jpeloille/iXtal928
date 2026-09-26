@@ -128,6 +128,13 @@ public sealed class SdlHost : IDisposable
     private IntPtr _renderer;
     private IntPtr _texture;
 
+    /// <summary>Moniteur, lignes de balayage, taille d'un pixel hôte. Partagé avec le
+    /// menu, qui le change ; appliqué par ApplyDisplay.</summary>
+    private readonly DisplaySettings _display;
+
+    private IntPtr _scanlineTexture;
+    private int _scanlineRows;
+
     /// <summary>
     /// Menu Ctrl+F12. Null en --headless : Init() rend avant d'avoir un renderer, et le
     /// menu n'a alors rien où se dessiner ni personne pour l'ouvrir.
@@ -169,8 +176,10 @@ public sealed class SdlHost : IDisposable
     /// <paramref name="turboSlices"/> lève le frein d'horloge sur les premières
     /// tranches ; 0 = jamais.
     /// </summary>
-    public SdlHost(string romsPath, bool headless, int maxSlices, bool verbose, int turboSlices = 0)
+    internal SdlHost(string romsPath, bool headless, int maxSlices, bool verbose, int turboSlices = 0,
+                   DisplaySettings? display = null)
     {
+        _display = display ?? new DisplaySettings();
         _romsPath = romsPath;
         _headless = headless;
         _maxSlices = maxSlices;
@@ -251,7 +260,19 @@ public sealed class SdlHost : IDisposable
     /// pcem: wx-sdl2.c:481-488 — `wx_load_config` ouvre le Configuration Manager et ne
     /// démarre l'émulation que s'il rend vrai. Faux = l'utilisateur a renoncé.
     /// </summary>
-    private bool RunSetup() => new SdlSetup(_window, _renderer, _romsPath).Run();
+    private bool RunSetup()
+    {
+        var setup = new SdlSetup(_window, _renderer, _romsPath);
+
+        if (!setup.Run())
+            return false;
+
+        // Les réglages d'affichage suivent le fichier que l'écran a chargé ou enregistré.
+        _display.ConfigPath = setup.ConfigPath ?? _display.ConfigPath;
+        _display.Load();
+        ApplyDisplay();
+        return true;
+    }
 
     /// <summary>
     /// SDL, la fenêtre, le renderer, la texture et le menu. Ne touche à AUCUN état de
@@ -298,7 +319,9 @@ public sealed class SdlHost : IDisposable
         // Pixel d'époque : l'interpolation bilinéaire rendrait le 8x8 du CGA flou.
         SDL.SetTextureScaleMode(_texture, SDL.ScaleMode.Nearest);
 
-        _menu = new SdlMenu(_window, _renderer, _romsPath);
+        _menu = new SdlMenu(_window, _renderer, _romsPath, _display);
+        _display.Load();
+        ApplyDisplay();
 
         return true;
     }
@@ -763,6 +786,14 @@ public sealed class SdlHost : IDisposable
             {
                 MenuAction action = _menu.HandleEvent(in e);
 
+                // Affichage seul : rien de la machine n'est touché, on l'applique tout de
+                // suite et le menu reste ouvert pour qu'on juge l'effet.
+                if (action == MenuAction.DisplayChanged)
+                {
+                    ApplyDisplay();
+                    continue;
+                }
+
                 if (action != MenuAction.None)
                 {
                     // Fermer AVANT d'agir : sans cela Run() retombe dans la pause au tour
@@ -816,7 +847,69 @@ public sealed class SdlHost : IDisposable
 
         _windowWidth = video.video_width;
         _windowHeight = video.video_height;
-        SDL.SetWindowSize(_window, _windowWidth, _windowHeight);
+
+        // Un CRT ne change pas de taille quand l'invité change de mode : seule la
+        // fenêtre à pixels entiers suit la trame.
+        if (_display.Monitor == CrtMonitor.Integer)
+            ResizeWindow();
+    }
+
+    /// <summary>Filtrage et taille de fenêtre selon _display. Appelée au démarrage et à
+    /// chaque changement fait dans le menu.</summary>
+    private void ApplyDisplay()
+    {
+        // Pixels entiers : le plus proche voisin garde le 8x8 net. Moniteur : le facteur
+        // n'est pas entier, et le linéaire évite des colonnes d'épaisseurs inégales —
+        // le flou qu'il apporte est celui du faisceau.
+        SDL.SetTextureScaleMode(_texture, _display.Monitor == CrtMonitor.Integer
+                                          ? SDL.ScaleMode.Nearest : SDL.ScaleMode.Linear);
+        ResizeWindow();
+    }
+
+    /// <summary>
+    /// Moniteur : la fenêtre a la surface visible du tube, convertie en pixels hôte par
+    /// PixelMm. Pixels entiers : la trame fois round(0,42 / PixelMm). Dans les deux cas,
+    /// réduite tant qu'elle dépasse le bureau.
+    /// </summary>
+    private void ResizeWindow()
+    {
+        float density = SDL.GetWindowPixelDensity(_window);
+        if (density <= 0f)
+            density = 1f;
+
+        float maxW = float.MaxValue, maxH = float.MaxValue;
+        uint display = SDL.GetDisplayForWindow(_window);
+
+        if (display != 0 && SDL.GetDisplayUsableBounds(display, out SDL.Rect usable))
+        {
+            maxW = usable.W * density;
+            maxH = usable.H * density;
+        }
+
+        float w, h;
+
+        if (_display.Monitor == CrtMonitor.Integer)
+        {
+            int factor = Math.Max(1, (int)Math.Round(DisplaySettings.EraPixelMm / _display.PixelMm));
+
+            while (factor > 1 && (_windowWidth * factor > maxW || _windowHeight * factor > maxH))
+                factor--;
+
+            w = _windowWidth * factor;
+            h = _windowHeight * factor;
+        }
+        else
+        {
+            (double mmW, double mmH) = DisplaySettings.VisibleMm(_display.Monitor);
+            w = (float)(mmW / _display.PixelMm);
+            h = (float)(mmH / _display.PixelMm);
+
+            float shrink = Math.Min(1f, Math.Min(maxW / w, maxH / h));
+            w *= shrink;
+            h *= shrink;
+        }
+
+        SDL.SetWindowSize(_window, (int)MathF.Ceiling(w / density), (int)MathF.Ceiling(h / density));
     }
 
     /// <summary>Remontée Buffer32 -> texture, sémantique de sdl_blit_memtoscreen (wx-sdl2-video.c:175-193).</summary>
@@ -870,6 +963,12 @@ public sealed class SdlHost : IDisposable
             Array.Copy(source, (line * video.Stride) + x, _screen, yy * w, w);
         }
 
+        // Le filtrage linéaire lit aussi le texel qui borde la trame : ce qu'un mode plus
+        // grand y a laissé ferait un liseré. Une colonne et une ligne noires, une fois par
+        // changement de taille.
+        if ((w != _frameWidth || h != _frameHeight) && (w < video.Stride || h < TextureHeight))
+            ClearTextureBorder(w, h);
+
         _frameWidth = w;
         _frameHeight = h;
 
@@ -890,7 +989,24 @@ public sealed class SdlHost : IDisposable
         }
     }
 
-    /// <summary>Une image : fond noir, puis la zone utile de la texture étirée à la fenêtre.</summary>
+    private void ClearTextureBorder(int w, int h)
+    {
+        var black = new uint[Math.Max(w, h) + 1];
+
+        if (w < video.Stride)
+        {
+            var column = new SDL.Rect { X = w, Y = 0, W = 1, H = Math.Min(h + 1, TextureHeight) };
+            SDL.UpdateTexture(_texture, in column, MemoryMarshal.AsBytes(black.AsSpan(0, column.H)), 4);
+        }
+
+        if (h < TextureHeight)
+        {
+            var row = new SDL.Rect { X = 0, Y = h, W = Math.Min(w + 1, video.Stride), H = 1 };
+            SDL.UpdateTexture(_texture, in row, MemoryMarshal.AsBytes(black.AsSpan(0, row.W)), row.W * 4);
+        }
+    }
+
+    /// <summary>Une image : fond noir, puis la zone utile de la texture, placée par ComputeRect.</summary>
     private void Render()
     {
         SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 255);
@@ -899,7 +1015,19 @@ public sealed class SdlHost : IDisposable
         if (_frameWidth > 0 && _frameHeight > 0)
         {
             var src = new SDL.FRect { X = 0f, Y = 0f, W = _frameWidth, H = _frameHeight };
-            SDL.RenderTexture(_renderer, _texture, in src, IntPtr.Zero);
+            var dst = new SDL.FRect { W = _frameWidth, H = _frameHeight };
+
+            if (SDL.GetRenderOutputSize(_renderer, out int outW, out int outH) && outW > 0 && outH > 0)
+                dst = ComputeRect(outW, outH, _frameWidth, _frameHeight, _display.Monitor);
+
+            SDL.RenderTexture(_renderer, _texture, in src, in dst);
+
+            // Moins de deux pixels hôte par ligne émulée : une ligne sur deux ne se
+            // dessine pas, elle ne ferait que du moiré. Le menu le dit.
+            _display.ScanlinesTooFine = _display.Scanlines && dst.H < 2 * _frameHeight;
+
+            if (_display.Scanlines && !_display.ScanlinesTooFine)
+                DrawScanlines(in dst);
         }
 
         // Le menu se compose ICI, sur le renderer, après la texture du CGA : il ne touche
@@ -909,6 +1037,73 @@ public sealed class SdlHost : IDisposable
             _menu.Render();
 
         SDL.RenderPresent(_renderer);
+    }
+
+    /// <summary>
+    /// Où poser la trame dans une sortie de <paramref name="outW"/> × <paramref name="outH"/>.
+    /// Pixels entiers : le plus grand facteur entier qui tient, proportions de la trame ;
+    /// réduction fractionnaire si même ×1 déborde. Moniteur : le plus grand 4:3 qui tient,
+    /// quelle que soit la trame — un CRT étalait 720×400 comme 1024×768 sur tout le tube.
+    /// Centré, coordonnées entières. Pure : l'auto-contrôle du menu l'exerce sans SDL.
+    /// </summary>
+    internal static SDL.FRect ComputeRect(int outW, int outH, int frameW, int frameH, CrtMonitor monitor)
+    {
+        float w, h;
+
+        if (monitor == CrtMonitor.Integer)
+        {
+            int factor = Math.Min(outW / frameW, outH / frameH);
+            float k = factor > 0 ? factor : Math.Min(outW / (float)frameW, outH / (float)frameH);
+            w = MathF.Floor(k * frameW);
+            h = MathF.Floor(k * frameH);
+        }
+        else
+        {
+            // Largeur multiple de 4 : la hauteur, 3/4 de la largeur, tombe juste.
+            w = MathF.Floor(Math.Min(outW, outH * 4f / 3f) / 4f) * 4f;
+            h = w * 3f / 4f;
+        }
+
+        return new SDL.FRect { X = MathF.Floor((outW - w) / 2f), Y = MathF.Floor((outH - h) / 2f), W = w, H = h };
+    }
+
+    /// <summary>Opacité du noir entre deux lignes : 0x60, soit ~38 %.</summary>
+    private const uint ScanlineAlpha = 0x60;
+
+    /// <summary>
+    /// Deux texels par ligne émulée, clair puis sombre, étirés sur dst : la moitié basse de
+    /// chaque ligne est l'espace entre deux passages du faisceau. Plus proche voisin en
+    /// pixels entiers (bord franc), linéaire sous un moniteur (le facteur n'est pas entier).
+    /// La texture n'est refaite que si la hauteur de trame change.
+    /// </summary>
+    private void DrawScanlines(in SDL.FRect dst)
+    {
+        int rows = 2 * _frameHeight;
+
+        if (_scanlineTexture == IntPtr.Zero || _scanlineRows != rows)
+        {
+            if (_scanlineTexture != IntPtr.Zero)
+                SDL.DestroyTexture(_scanlineTexture);
+
+            _scanlineTexture = SDL.CreateTexture(_renderer, SDL.PixelFormat.ARGB8888,
+                SDL.TextureAccess.Static, 1, rows);
+            _scanlineRows = rows;
+
+            if (_scanlineTexture == IntPtr.Zero)
+                return;
+
+            var column = new uint[rows];
+            for (int y = 1; y < rows; y += 2)
+                column[y] = ScanlineAlpha << 24;
+
+            var rect = new SDL.Rect { X = 0, Y = 0, W = 1, H = rows };
+            SDL.UpdateTexture(_scanlineTexture, in rect, MemoryMarshal.AsBytes(column.AsSpan()), 4);
+            SDL.SetTextureBlendMode(_scanlineTexture, SDL.BlendMode.Blend);
+        }
+
+        SDL.SetTextureScaleMode(_scanlineTexture, _display.Monitor == CrtMonitor.Integer
+                                                  ? SDL.ScaleMode.Nearest : SDL.ScaleMode.Linear);
+        SDL.RenderTexture(_renderer, _scanlineTexture, IntPtr.Zero, in dst);
     }
 
     /// <summary>
@@ -1017,6 +1212,12 @@ public sealed class SdlHost : IDisposable
         {
             SDL.DestroyTexture(_texture);
             _texture = IntPtr.Zero;
+        }
+
+        if (_scanlineTexture != IntPtr.Zero)
+        {
+            SDL.DestroyTexture(_scanlineTexture);
+            _scanlineTexture = IntPtr.Zero;
         }
 
         if (_renderer != IntPtr.Zero)

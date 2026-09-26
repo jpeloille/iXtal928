@@ -93,6 +93,10 @@ internal sealed class SdlSetup
     }
 
     /// <summary>Vrai pour démarrer la machine, faux pour quitter sans rien monter.</summary>
+    /// <summary>Dernier .cfg chargé ou enregistré par cet écran : les réglages
+    /// d'affichage (DisplaySettings) y vivent aussi. Null si aucun.</summary>
+    internal string? ConfigPath { get; private set; }
+
     internal bool Run()
     {
         SDL.SetWindowTitle(_window, "iXtal26 - construire la machine");
@@ -728,6 +732,7 @@ internal sealed class SdlSetup
         }
 
         _message = $"{Path.GetFileName(path)} charge.";
+        ConfigPath = path;
         ClampCpu();
     }
 
@@ -806,6 +811,7 @@ internal sealed class SdlSetup
         config.config_set_int(config.CFG_MACHINE, null, "bpb_disable", Disc.disc_img.bpb_disable);
 
         config.config_save(config.CFG_MACHINE, path);
+        ConfigPath = path;
 
         _message = $"enregistree : configs/{Path.GetFileName(path)}";
     }

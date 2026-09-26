@@ -1,0 +1,51 @@
+# Plan — l'affichage, du pixel entier au tube cathodique
+
+Tout ce qui suit est de l'**hôte** : la fenêtre, le renderer, des textures superposées.
+Rien n'écrit dans `video.Buffer32`. Les oracles (`--boot`, boot-diff, empreintes de
+framebuffer) restent aveugles à ce plan, et c'est voulu.
+
+## Fait (26/09/2026)
+
+- **Moniteur d'époque (défaut, 15")** — `SdlHost.ComputeRect` / `ResizeWindow` : toute
+  trame remplit la surface 4:3 du tube (14" 270×202, 15" 280×210, 17" 320×240 mm), à sa
+  taille réelle via `--pixel-mm`, filtrage linéaire. La fenêtre ne suit plus les modes de
+  l'invité. Liseré du linéaire évité : `ClearTextureBorder` noircit le texel qui borde la
+  trame à chaque changement de taille.
+- **Pixels entiers (`--monitor entier`)** — facteur entier, proportions de la trame,
+  fenêtre au facteur round(0,42 / MM).
+- **`--crt`, lignes de balayage** — `SdlHost.DrawScanlines` : deux texels par ligne émulée
+  (clair, sombre à ~38 %) étirés sur l'image. Dessinées seulement à ≥ 2 pixels hôte par
+  ligne : sur un écran à 0,234 mm, un 15" fait 897 px de haut, donc rien en 480 lignes et
+  plus ; visibles en 350/400 lignes et en CGA.
+- **Menu Ctrl+F12 et persistance** — `DisplaySettings` : « Moniteur » et « Lignes CRT »,
+  clés `[SDL2]` `monitor`/`crt`/`pixel_mm`, réécrites seulement dans `configs/`.
+
+## Reste à faire, du moins cher au plus cher
+
+### 1. Lignes de balayage fidèles au CGA
+Le CGA double ses 200 lignes (`vid_cga.cs:491`, `(ysize << 1) + 16`). `--crt` assombrit
+chaque ligne de la trame, donc donne 400 lignes visibles là où le moniteur 5153 en
+montrait 200. Il faudrait connaître le doublement : un champ posé par la carte vidéo
+à côté de `updatewindowsize`, lu par l'hôte. À ne pas deviner depuis la hauteur.
+
+### 2. Masque de phosphore (dot pitch)
+Superposer une grille RVB (fentes ou triades) au pas du tube, 0,28 à 0,39 mm, convertie
+en pixels hôte par `--pixel-mm`. Même technique que les lignes : une texture répétée,
+aucun shader. N'a de sens qu'à partir de ×4 environ, donc sur un écran 4K.
+Réglage : `--crt mask` ou `--dot-pitch MM`.
+
+### 3. Taille visible réglable
+Les surfaces sont fixées par diagonale. Un vrai moniteur avait ses molettes de taille et
+de position : une clé `[SDL2]` `visible_mm` permettrait de coller à un modèle précis.
+
+### 4. Flou du faisceau, halo, courbure
+Il faut des shaders : l'API GPU de SDL3 (`SDL_GPU`) ou un renderer à shaders.
+C'est un vrai chantier (pipeline GPU, shaders compilés par plateforme). Effets visés :
+- flou horizontal léger (le faisceau n'est pas un point) ;
+- halo (bloom) autour des zones claires ;
+- courbure du tube et coins arrondis ;
+- rémanence du phosphore (mélange avec l'image précédente).
+
+## Portes
+Affichage seul : `--menu-check` et un lancement fenêtré suffisent. Pas de boot-diff
+tant qu'aucun commit ne touche au cœur ni à `Buffer32`.

@@ -22,6 +22,8 @@ internal sealed class MachineRunOptions
 
     public int? TurboSlices { get; set; }
 
+    public DisplaySettings Display { get; } = new();
+
     public string? ConfigurationPath { get; set; }
 
     public MachineOverrides Machine { get; } = new();

@@ -4,6 +4,7 @@
 // ORACLE: pcem-dev/src/wx-ui/wx-sdl2.c:444-479 (pc_main)
 // STATUS: host
 
+using System.Globalization;
 using iXtal26.Models;
 using iXtal26.PluginApi;
 
@@ -96,6 +97,22 @@ internal static class Launcher
                 return KeepParsing;
             case "--turbo":
                 return CollectTurboSlices(cursor, options);
+            case "--pixel-mm":
+                if (!cursor.HasNext ||
+                    !double.TryParse(cursor.TakeNext(), NumberStyles.Float, CultureInfo.InvariantCulture,
+                                     out var pixelMillimetres) ||
+                    pixelMillimetres is <= 0 or > 2)
+                    return Failure.Usage("--pixel-mm attend la taille d'un pixel de l'écran hôte en mm (ex. 0.16 ou 0.27).");
+                options.Display.PixelMmOverride = pixelMillimetres;
+                return KeepParsing;
+            case "--crt":
+                options.Display.ScanlinesOverride = true;
+                return KeepParsing;
+            case "--monitor":
+                if (!cursor.HasNext || !DisplaySettings.TryParseMonitor(cursor.TakeNext(), out var monitor))
+                    return Failure.Usage("--monitor attend 14, 15, 17 ou entier.");
+                options.Display.MonitorOverride = monitor;
+                return KeepParsing;
             case "--headless":
                 options.IsHeadless = true;
                 return KeepParsing;
@@ -219,7 +236,7 @@ internal static class Launcher
             return ExitCode.UsageError;
 
         using var host = new SdlHost(romDirectory, options.IsHeadless, options.SliceLimit ?? 0, options.IsVerbose,
-                                     options.TurboSlices ?? 0);
+                                     options.TurboSlices ?? 0, options.Display);
 
         if (!host.Init(showsSetupScreen))
             return host.SetupCancelled ? ExitCode.Success : ExitCode.RuntimeFailure;
@@ -231,6 +248,8 @@ internal static class Launcher
     {
         if (options.ConfigurationPath is not null && !pc.loadconfig(options.ConfigurationPath))
             return false;
+
+        options.Display.ConfigPath = options.ConfigurationPath;
 
         var machine = options.Machine;
 
