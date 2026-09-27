@@ -159,6 +159,18 @@ internal static partial class _386
         cpu_state.eaaddr = 0;
         cpu_state.ssegs = 0;
         cpu_state.abrt = 0;
+
+        // LES SIX GLOBALES DU MODE PROTÉGÉ, pendant de h_seg_clear_residue (harness.c,
+        // C7a). Elles manquaient ici : invisible tant que seul boot-diff l'appelait, sur
+        // des machines qui n'entrent jamais en mode protégé. pm-fuzz (G2 D5) enchaîne les
+        // itérations dans un processus : mesuré, `intgatesize : oracle 0, C# 32` au pas 0
+        // de l'itération qui suit un pmodeint.
+        abrt_error = 0;
+        x86seg_c.intgatesize = 0;
+        cgate16 = 0;
+        optype = 0;
+        oldcpl = 0;
+        cpu_cur_status = 0;
     }
 
     /// <summary>Les neuf champs d'un x86seg à zéro. Pour les descripteurs que

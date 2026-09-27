@@ -59,6 +59,8 @@ public static class PmCheck386
         public uint[]? StackDwords;
         public Action<Action<uint, byte[]>>? Tweak;
         public Func<HState, string?>? Expect;          // sur l'état final de l'oracle
+        public uint[]? Regs;                           // fuzzeur : EAX..EDI, ordre de cpu_state
+        public bool Fuzz;                              // fuzzeur : aucun chemin vers taskswitch286
     }
 
     public static int Run(int only = -1)
@@ -141,7 +143,9 @@ public static class PmCheck386
         g[0x38 >> 3] = Desc(0xFFFF, Stack3Base, 0xF2, 0x40);         // pile 32 DPL3
         g[0x40 >> 3] = Gate(0x0100, SelTarget32, c.GateDwords, 0xEC); // porte d'appel 386 DPL3
         g[0x48 >> 3] = Gate(0x0100, SelTarget32, 0, 0x8C);           // porte d'appel 386 DPL0
-        g[0x50 >> 3] = Desc(0x67, Tss, 0x89);                        // TSS 386 disponible
+        // En fuzz, la TSS de TR est OCCUPÉE (0x8B) : un CALL ou JMP tiré sur elle prend le
+        // #GP du `default` de loadcscall au lieu de taskswitch286, pas encore écrit.
+        g[0x50 >> 3] = Desc(0x67, Tss, (byte)(c.Fuzz ? 0x8B : 0x89)); // TSS 386
         g[0x58 >> 3] = Desc(0xFFFF, TargetBase, 0x1A, 0x40);         // code NON présent
         g[0x60 >> 3] = Desc(0xFFFF, DataBase, 0x92);                 // données (cible de CALL : #GP)
         g[0x68 >> 3] = Desc(0x00FF, Ldt, 0x82);                      // LDT
@@ -153,6 +157,11 @@ public static class PmCheck386
         g[0x98 >> 3] = Desc(0xFFFF, TargetBase, 0x9A);               // code 16 DPL0, cible
         g[0xA0 >> 3] = Desc(0xFFFF, Code3Base, 0xFA);                // code 16 DPL3
         g[0xA8 >> 3] = Desc(0xFFFF, Stack3Base, 0xF2);               // pile 16 DPL3
+        if (c.Fuzz)
+        {
+            g[0x70 >> 3] = new byte[8];                               // ni porte de tâche
+            g[0x78 >> 3] = new byte[8];                               // ni TSS n°2
+        }
         for (var i = 0; i < g.Length; i++) poke(Gdt + (uint)(8 * i), g[i]);
 
         poke(Ldt + 8, Desc(0xFFFF, TargetBase, 0xFA, 0x40));         // LDT idx 1 : code 32 DPL3
@@ -215,11 +224,19 @@ public static class PmCheck386
         Bd(0x18, EspDepart);                                    // ESP
         Bd(0x1C, c.Ebx);
         Bd(0x28, c.Eax);
+        if (c.Regs is not null)
+        {
+            // Ordre de cpu_state (EAX ECX EDX EBX ESP EBP ESI EDI) vers celui du bloc ; ESP
+            // reste EspDepart, sans quoi la plupart des tirages ne feraient que des #SS.
+            int[] off = [0x28, 0x24, 0x20, 0x1C, 0x18, 0x14, 0x10, 0x0C];
+            for (var i = 0; i < 8; i++)
+                if (i != 4) Bd(off[i], c.Regs[i]);
+        }
         Bw(0x34, SelTss);
         Bw(0x38, SelLdtDesc);
         Bw(0x3C, SelData); Bw(0x40, SelData); Bw(0x44, SelData);
         Bw(0x48, ssSel); Bw(0x4C, csSel); Bw(0x50, SelData);
-        Seg(0x54, Tss, 0x67, 0x89, 0);                           // TR : TSS 386
+        Seg(0x54, Tss, 0x67, (byte)(c.Fuzz ? 0x8B : 0x89), 0);   // TR : TSS 386
         Seg(0x60, Idt, 32 * 8 - 1, 0, 0);                        // IDTR
         Seg(0x6C, Gdt, GdtEntries * 8 - 1, 0, 0);                // GDTR
         Seg(0x78, Ldt, 0xFF, 0x82, 0);                           // LDTR
@@ -241,6 +258,13 @@ public static class PmCheck386
         Oracle.h_fill_ram(0x90);
         _386.Reset386();
         mem.fill_ram(0x90);
+        // CE QUE NI h_reset NI Reset386 NE REMETTENT : abrt, les globales C7a, limit_raw,
+        // checked. Le banc s'en passait (un processus par cas) ; le fuzzeur enchaîne les
+        // itérations dans un seul. Mesuré : un LIDT registre sous TF laissait abrt = 13
+        // (l'INT 1 fautait sur l'IDT chargée), et l'itération suivante livrait ce #GP en
+        // mode réel au lieu d'exécuter LOADALL386 — des deux côtés, d'où le contrôle du pas 0.
+        Oracle.h_seg_clear_residue();
+        _386.ClearSegResidue();
 
         Build(c, (addr, bytes) =>
         {
@@ -261,6 +285,12 @@ public static class PmCheck386
 
         var a = HState.Create();
         var b = HState.Create();
+        if (Environment.GetEnvironmentVariable("PMFUZZ_TRACE") is not null)
+        {
+            Oracle.h_getstate(out a);
+            Console.WriteLine($"    avant : noint {a.noint} inhlt {a.inhlt} takeint {a.takeint} abrt {a.abrt} cur {a.cur_status:X} " +
+                              $"flags {a.flags:X4} eflags {a.eflags:X4} cr0 {a.cr0:X} idt {a.sys_base[(int)Sys.IDT]:X}/{a.sys_limit[(int)Sys.IDT]:X}");
+        }
         for (var s = 0; s <= c.Steps; s++)
         {
             Oracle.h_wlog_reset();
@@ -285,7 +315,7 @@ public static class PmCheck386
                 // Le banc lui-même : LOADALL386 a-t-il posé l'état voulu ?
                 var cs32 = Est32(c.Start);
                 if (a.use32 != (cs32 ? 0x300u : 0u) || a.stack32 != (cs32 || c.Stack32In16 ? 1 : 0))
-                    return $"BANC FAUX après LOADALL386 : use32 0x{a.use32:X}, stack32 {a.stack32}";
+                    return $"BANC FAUX après LOADALL386 : use32 0x{a.use32:X}, stack32 {a.stack32}, CS:EIP {a.seg_sel[(int)Seg.CS]:X4}:{a.pc:X8}, CR0 {a.cr0:X8}, IDT {a.sys_base[(int)Sys.IDT]:X8}/{a.sys_limit[(int)Sys.IDT]:X}, abrt {a.abrt}";
             }
         }
         var attente = c.Expect?.Invoke(a);
@@ -306,6 +336,86 @@ public static class PmCheck386
     private static byte[] Imm16(ushort v) => [(byte)v, (byte)(v >> 8)];
     private static byte[] Far32(byte op, ushort sel, uint off) => [op, .. Imm32(off), .. Imm16(sel)];
     private static byte[] Far16(byte op, ushort sel, ushort off) => [op, .. Imm16(off), .. Imm16(sel)];
+
+    /// <summary>G2, D5 — LE FUZZEUR EN MODE PROTÉGÉ. Chaque itération construit l'état par
+    /// LOADALL386 comme un cas du banc, anneau et taille de code tirés, registres et FLAGS
+    /// tirés (NT effacé : IRET prendrait le lien arrière vers taskswitch286), puis exécute
+    /// UNE instruction tirée et compare tout.
+    ///
+    /// PG N'EST JAMAIS POSÉ : `0F 22` (MOV CRx,r) et `0F 07` (LOADALL386) sont réécrits en
+    /// `0F 20`, derrière les préfixes. Avec PG, l'oracle tombe (voir Fuzzer.SeedSys386).
+    ///
+    /// Un seul processus pour toutes les itérations, à la différence du banc : l'état qui
+    /// survit à un reset est le même des deux côtés tant qu'ils ne divergent pas, et le
+    /// premier arrêt fatal termine la campagne.</summary>
+    public static int Fuzz(byte[] opcodes, byte[]? second0F, int iterations, ulong seed)
+    {
+        Oracle.CheckAbi();
+        Console.WriteLine($"Fuzz mode protégé 386 — {iterations} itérations, graine {seed}, " +
+                          $"{opcodes.Length} opcodes" + (second0F is null ? "" : $", 0F : {second0F.Length}"));
+        var st = seed == 0 ? 0x9E3779B97F4A7C15UL : seed;
+        uint Next() { st ^= st << 13; st ^= st >> 7; st ^= st << 17; return (uint)(st >> 32); }
+        var parDepart = new int[4];
+        var arrets = 0;
+        for (var it = 0; it < iterations; it++)
+        {
+            var code = new byte[12];
+            for (var i = 0; i < code.Length; i++) code[i] = (byte)Next();
+            var n = 0;
+            switch (Next() & 3)
+            {
+                case 1: code[n++] = 0x66; break;
+                case 2: code[n++] = 0x67; break;
+                case 3: code[n++] = 0x66; code[n++] = 0x67; break;
+            }
+            if (second0F is not null)
+            {
+                code[n++] = 0x0F;
+                code[n] = second0F[Next() % (uint)second0F.Length];
+            }
+            else
+                code[n] = opcodes[Next() % (uint)opcodes.Length];
+            SansPagination(code);
+            var regs = new uint[8];
+            for (var i = 0; i < 8; i++)
+                regs[i] = (Next() & 3) == 0 ? (Next() & 0xFF) : Next();
+            var depart = (Depart)(Next() & 3);
+            parDepart[(int)depart]++;
+            var c = new Case
+            {
+                Name = $"itération {it}", Start = depart, Code = code, Regs = regs, Fuzz = true,
+                Flags = (ushort)((Next() & 0x3FD5 & ~0x4000) | 0x0002),
+            };
+            if (Environment.GetEnvironmentVariable("PMFUZZ_FROM") is { } fr && it < int.Parse(fr))
+                continue;
+            var r = RunCase(c);
+            if (Environment.GetEnvironmentVariable("PMFUZZ_TRACE") is { } tr && it >= int.Parse(tr))
+                Console.WriteLine($"  [{it}] {depart} {string.Join(" ", code.Select(x => x.ToString("X2")))} FL {c.Flags:X4} -> {r}");
+            if (r.StartsWith("vert", StringComparison.Ordinal))
+                continue;
+            Console.WriteLine($"\n{(r.StartsWith("ARRÊT", StringComparison.Ordinal) ? "ARRET" : "DIVERGENCE")} itération {it}, départ {depart}");
+            Console.WriteLine($"  octets {string.Join(" ", code.Select(x => x.ToString("X2")))}");
+            Console.WriteLine($"  EAX {regs[0]:X8} ECX {regs[1]:X8} EDX {regs[2]:X8} EBX {regs[3]:X8} " +
+                              $"EBP {regs[5]:X8} ESI {regs[6]:X8} EDI {regs[7]:X8} FLAGS {c.Flags:X4}");
+            Console.WriteLine($"  {r}");
+            Console.WriteLine($"\n  Rejouer : pm-fuzz --seed {seed} --iter {it + 1}");
+            arrets++;
+            return 1;
+        }
+        Console.WriteLine($"\nVert : {iterations} instructions en mode protégé, zéro divergence " +
+                          $"(départs 0/16 {parDepart[0]}, 0/32 {parDepart[1]}, 3/16 {parDepart[2]}, 3/32 {parDepart[3]}).");
+        return arrets;
+    }
+
+    private static void SansPagination(byte[] code)
+    {
+        var i = 0;
+        while (i < code.Length - 1 && code[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0x64 or 0x65 or 0x66 or 0x67
+                                              or 0xF0 or 0xF2 or 0xF3)
+            i++;
+        if (i < code.Length - 1 && code[i] == 0x0F && code[i + 1] is 0x22 or 0x07)
+            code[i + 1] = 0x20;
+    }
 
     private static List<Case> Cases()
     {

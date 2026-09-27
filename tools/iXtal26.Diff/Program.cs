@@ -18,6 +18,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
     Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
+    Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
+    Console.WriteLine("      386 en mode protégé : état par LOADALL386, une instruction tirée par itération");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
@@ -167,6 +169,27 @@ switch (args[0])
         return Core286Check.Run();
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
+    // G2, D5 — le fuzzeur en mode protégé du 386 (PmCheck386.Fuzz).
+    case "pm-fuzz":
+    {
+        var ops = new List<byte>();
+        var sec = new List<byte>();
+        var it = 20000;
+        ulong sd = 1;
+        for (var i = 1; i < args.Length; i++)
+            switch (args[i])
+            {
+                case "--op" when i + 1 < args.Length: ops.Add(Convert.ToByte(args[++i], 16)); break;
+                case "--0f" when i + 1 < args.Length: sec.Add(Convert.ToByte(args[++i], 16)); break;
+                case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
+                case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
+            }
+        if (ops.Count == 0 && sec.Count == 0)
+            for (var o = 0; o < 256; o++) ops.Add((byte)o);
+        return PmCheck386.Fuzz(ops.ToArray(), sec.Count > 0 ? sec.ToArray() : null, it, sd);
+    }
+
     case "pm-check":
     {
         // G2, D5 — `--core 386` : le banc du 386 (PmCheck386), le 286 restant le défaut.
