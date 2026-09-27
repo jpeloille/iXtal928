@@ -407,7 +407,7 @@ public static class BootDiff
     /// CHAQUE instruction, donc un pas doit valoir exactement une instruction. h_step
     /// fait le même geste au même endroit (h_step286, harness.c:543).</summary>
     private static int PasCsharp()
-        => CoeurDuModele() == Oracle.Core286 ? Cpu._386.Step286() : _808x.Step();
+        => Oracle.Exec386(CoeurDuModele()) ? Cpu._386.Step286() : _808x.Step();
 
     /// <summary>Le pas de la PHASE 1, qui n'est pas celui de la phase 2.
     ///
@@ -420,11 +420,10 @@ public static class BootDiff
     /// cycle_period, donc _808x.Step() vaut pour les deux phases — et c'est pourquoi le
     /// défaut n'existait pas avant l'AT.</summary>
     private static int PasCsharpTrace()
-        => CoeurDuModele() == Oracle.Core286 ? Cpu._386.Step286Trace() : _808x.Step();
+        => Oracle.Exec386(CoeurDuModele()) ? Cpu._386.Step286Trace() : _808x.Step();
 
     private static int CoeurDuModele()
-        => (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
-                ? Oracle.Core286 : Oracle.Core8088;
+        => Oracle.CoreForModel(Models.model_c.models[Models.model_c.model]);
 
     private static string? CopyForSide(string? src, string tag)
     {

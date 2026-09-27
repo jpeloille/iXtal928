@@ -239,6 +239,15 @@ internal static partial class x86
     internal static int stack32;
     internal static uint16_t cpu_cur_status;
     internal static uint32_t cr2, cr3, cr4;
+
+    // pcem: cpu.c:100 et cpu.c:135 — lus par PUSHFD/POPFD (G2, D2). Posés par cpu_set
+    // au 486 seulement (CPUID = cpuid_model, cpu_CR4_mask) : zéro sur un 386, comme ici.
+    internal static int CPUID;
+    internal static uint64_t cpu_CR4_mask;
+
+    // pcem: x86.h:174 / 386_common.c:13 — les huit registres de débogage, écrits par
+    // MOV DRx (x86_ops_mov_ctrl.h:209, :221). Entrés dans h_state en G2, D0.1.
+    internal static readonly uint32_t[] dr = new uint32_t[8];
     // pcem: x86.h:255-267 — les causes d'abandon. ABRT_MASK vaut 0x7F et non 7 :
     // le bit haut porte ABRT_EXPECTED, une distinction du recompilateur.
     internal const int ABRT_NONE = 0;

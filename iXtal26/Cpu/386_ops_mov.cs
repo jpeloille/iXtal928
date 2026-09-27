@@ -450,4 +450,538 @@ internal static partial class _386
         // x86_ops_mov_seg.h, un autre groupe, et passent par loadseg. Le groupe
         // `mov` proprement dit compte donc 26 handlers atteignables, pas 28.
     }
+
+    // ---- G2, D2.1 : les formes 32 bits (_l, _a32) de x86_ops_mov.h ----
+
+    // pcem: x86_ops_mov.h:405
+    private static int opLEA_l_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        cpu_state.regs[cpu_reg].l = cpu_state.eaaddr & 0xffff;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:413
+    private static int opLEA_l_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        cpu_state.regs[cpu_reg].l = cpu_state.eaaddr;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:396
+    private static int opLEA_w_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        cpu_state.regs[cpu_reg].w = (uint16_t)cpu_state.eaaddr;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:269
+    private static int opMOV_AL_a32(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        uint8_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, addr)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AL = temp;
+        CLOCK_CYCLES((is486 != 0) ? 1 : 4);
+        PREFETCH_RUN(4, 5, -1, 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:295
+    private static int opMOV_AX_a32(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        uint16_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, addr + 1)) return 1;
+        temp = readmemw(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AX = temp;
+        CLOCK_CYCLES((is486 != 0) ? 1 : 4);
+        PREFETCH_RUN(4, 5, -1, 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:308
+    private static int opMOV_EAX_a16(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        uint32_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, (uint32_t)(addr + 3))) return 1;
+        temp = readmeml(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        EAX = temp;
+        CLOCK_CYCLES((is486 != 0) ? 1 : 4);
+        PREFETCH_RUN(4, 3, -1, 0, 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:321
+    private static int opMOV_EAX_a32(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        uint32_t temp;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (CHECK_READ(cpu_state.ea_seg!, addr, addr + 3)) return 1;
+        temp = readmeml(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        EAX = temp;
+        CLOCK_CYCLES((is486 != 0) ? 1 : 4);
+        PREFETCH_RUN(4, 5, -1, 0, 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:101
+    private static int opMOV_EAX_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        EAX = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:155
+    private static int opMOV_EBP_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        EBP = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:110
+    private static int opMOV_EBX_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        EBX = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:119
+    private static int opMOV_ECX_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        ECX = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:146
+    private static int opMOV_EDI_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        EDI = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:128
+    private static int opMOV_EDX_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        EDX = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:137
+    private static int opMOV_ESI_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        ESI = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:164
+    private static int opMOV_ESP_imm(uint32_t fetchdat)
+    {
+        uint32_t templ = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        ESP = templ;
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:369
+    private static int opMOV_a16_EAX(uint32_t fetchdat)
+    {
+        uint16_t addr = (uint16_t)fetchdat; cpu_state.pc += 2;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememl(cpu_state.ea_seg!.@base, addr, EAX);
+        CLOCK_CYCLES((is486 != 0) ? 1 : 2);
+        PREFETCH_RUN(2, 3, -1, 0, 0, 0, 1, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:343
+    private static int opMOV_a32_AL(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememb(cpu_state.ea_seg!.@base, addr, AL);
+        CLOCK_CYCLES((is486 != 0) ? 1 : 2);
+        PREFETCH_RUN(2, 5, -1, 0, 0, 1, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:359
+    private static int opMOV_a32_AX(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememw(cpu_state.ea_seg!.@base, addr, AX);
+        CLOCK_CYCLES((is486 != 0) ? 1 : 2);
+        PREFETCH_RUN(2, 5, -1, 0, 0, 1, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:377
+    private static int opMOV_a32_EAX(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        writememl(cpu_state.ea_seg!.@base, addr, EAX);
+        CLOCK_CYCLES((is486 != 0) ? 1 : 2);
+        PREFETCH_RUN(2, 5, -1, 0, 0, 0, 1, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:189
+    private static int opMOV_b_imm_a32(uint32_t fetchdat)
+    {
+        uint8_t temp;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteab(temp);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 3, (int)fetchdat, 0, 0, (cpu_mod == 3) ? 1 : 0, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:464
+    private static int opMOV_b_r_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                setr8(cpu_rm, getr8(cpu_reg));
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
+                seteab(getr8(cpu_reg));
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 1, 0, 1);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:229
+    private static int opMOV_l_imm_a16(uint32_t fetchdat)
+    {
+        uint32_t temp;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteal(temp);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 6, (int)fetchdat, 0, 0, 0, (cpu_mod == 3) ? 1 : 0, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:242
+    private static int opMOV_l_imm_a32(uint32_t fetchdat)
+    {
+        uint32_t temp;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteal(temp);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 6, (int)fetchdat, 0, 0, 0, (cpu_mod == 3) ? 1 : 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:509
+    private static int opMOV_l_r_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_rm].l = cpu_state.regs[cpu_reg].l;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        } else {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 3)) return 1;
+                seteal(cpu_state.regs[cpu_reg].l);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 0, 1, 0);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:524
+    private static int opMOV_l_r_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_rm].l = cpu_state.regs[cpu_reg].l;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 3)) return 1;
+                seteal(cpu_state.regs[cpu_reg].l);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 0, 1, 1);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:559
+    private static int opMOV_r_b_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                setr8(cpu_reg, getr8(cpu_rm));
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                uint8_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr)) return 1;
+                temp = geteab();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setr8(cpu_reg, temp);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 1, 0, 0, 0, 1);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:616
+    private static int opMOV_r_l_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_reg].l = cpu_state.regs[cpu_rm].l;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 0);
+        } else {
+                uint32_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 3)) return 1;
+                temp = geteal();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.regs[cpu_reg].l = temp;
+                CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 0, 1, 0, 0, 0);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:635
+    private static int opMOV_r_l_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_reg].l = cpu_state.regs[cpu_rm].l;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                uint32_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 3)) return 1;
+                temp = geteal();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.regs[cpu_reg].l = temp;
+                CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 0, 1, 0, 0, 1);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:597
+    private static int opMOV_r_w_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_reg].w = cpu_state.regs[cpu_rm].w;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                uint16_t temp;
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (CHECK_READ(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 1)) return 1;
+                temp = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.regs[cpu_reg].w = temp;
+                CLOCK_CYCLES((is486 != 0) ? 1 : 4);
+                PREFETCH_RUN(4, 2, (int)fetchdat, 1, 0, 0, 0, 1);
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_mov.h:216
+    private static int opMOV_w_imm_a32(uint32_t fetchdat)
+    {
+        uint16_t temp;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (ILLEGAL_ON((fetchdat & 0x38) != 0)) return 0;
+        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = getword();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteaw(temp);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 4, (int)fetchdat, 0, 0, (cpu_mod == 3) ? 1 : 0, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:494
+    private static int opMOV_w_r_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod == 3) {
+                cpu_state.regs[cpu_rm].w = cpu_state.regs[cpu_reg].w;
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+        } else {
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 1)) return 1;
+                seteaw(cpu_state.regs[cpu_reg].w);
+                CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                PREFETCH_RUN(2, 2, (int)fetchdat, 0, 0, 1, 0, 1);
+        }
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_mov.h:435
+    private static int opXLAT_a32(uint32_t fetchdat)
+    {
+        uint32_t addr = EBX + AL;
+        uint8_t temp;
+
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = readmemb(cpu_state.ea_seg!.@base, addr);
+        if (cpu_state.abrt != 0)
+                return 1;
+        AL = temp;
+        CLOCK_CYCLES(5);
+        PREFETCH_RUN(5, 1, -1, 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupeMov386()
+    {
+        ops_386[0x189] = opMOV_l_r_a16;
+        ops_386[0x18B] = opMOV_r_l_a16;
+        ops_386[0x18D] = opLEA_l_a16;
+        ops_386[0x1A1] = opMOV_EAX_a16;
+        ops_386[0x1A3] = opMOV_a16_EAX;
+        ops_386[0x1B8] = opMOV_EAX_imm;
+        ops_386[0x1B9] = opMOV_ECX_imm;
+        ops_386[0x1BA] = opMOV_EDX_imm;
+        ops_386[0x1BB] = opMOV_EBX_imm;
+        ops_386[0x1BC] = opMOV_ESP_imm;
+        ops_386[0x1BD] = opMOV_EBP_imm;
+        ops_386[0x1BE] = opMOV_ESI_imm;
+        ops_386[0x1BF] = opMOV_EDI_imm;
+        ops_386[0x1C7] = opMOV_l_imm_a16;
+        ops_386[0x288] = opMOV_b_r_a32;
+        ops_386[0x289] = opMOV_w_r_a32;
+        ops_386[0x28A] = opMOV_r_b_a32;
+        ops_386[0x28B] = opMOV_r_w_a32;
+        ops_386[0x28D] = opLEA_w_a32;
+        ops_386[0x2A0] = opMOV_AL_a32;
+        ops_386[0x2A1] = opMOV_AX_a32;
+        ops_386[0x2A2] = opMOV_a32_AL;
+        ops_386[0x2A3] = opMOV_a32_AX;
+        ops_386[0x2C6] = opMOV_b_imm_a32;
+        ops_386[0x2C7] = opMOV_w_imm_a32;
+        ops_386[0x2D7] = opXLAT_a32;
+        ops_386[0x388] = opMOV_b_r_a32;
+        ops_386[0x389] = opMOV_l_r_a32;
+        ops_386[0x38A] = opMOV_r_b_a32;
+        ops_386[0x38B] = opMOV_r_l_a32;
+        ops_386[0x38D] = opLEA_l_a32;
+        ops_386[0x3A0] = opMOV_AL_a32;
+        ops_386[0x3A1] = opMOV_EAX_a32;
+        ops_386[0x3A2] = opMOV_a32_AL;
+        ops_386[0x3A3] = opMOV_a32_EAX;
+        ops_386[0x3B8] = opMOV_EAX_imm;
+        ops_386[0x3B9] = opMOV_ECX_imm;
+        ops_386[0x3BA] = opMOV_EDX_imm;
+        ops_386[0x3BB] = opMOV_EBX_imm;
+        ops_386[0x3BC] = opMOV_ESP_imm;
+        ops_386[0x3BD] = opMOV_EBP_imm;
+        ops_386[0x3BE] = opMOV_ESI_imm;
+        ops_386[0x3BF] = opMOV_EDI_imm;
+        ops_386[0x3C6] = opMOV_b_imm_a32;
+        ops_386[0x3C7] = opMOV_l_imm_a32;
+        ops_386[0x3D7] = opXLAT_a32;
+    }
 }

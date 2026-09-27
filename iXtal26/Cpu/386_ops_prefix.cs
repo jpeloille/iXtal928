@@ -42,7 +42,10 @@ internal static partial class _386
     ///   six invocations d'un 286 passent x86_opcodes aux DEUX, donc le test
     ///   `if (opcode_table[...])` est toujours vrai et la seconde branche morte.
     ///   On garde le test : il dit ce que la macro dit.</summary>
-    private static OpFn PrefixeSegment(x86seg seg) => fetchdat =>
+    /// <remarks>G2, D1 : `quadrant` porte les quatre formes de la macro — 0 pour
+    /// `_w_a16`, 0x100 `_l_a16`, 0x200 `_w_a32`, 0x300 `_l_a32` — qui ne diffèrent que
+    /// par le `| 0x…` de l'index.</remarks>
+    private static OpFn PrefixeSegment(x86seg seg, uint32_t quadrant = 0) => fetchdat =>
     {
         fetchdat = fastreadl(x86.cs + cpu_state.pc);
         if (cpu_state.abrt != 0)
@@ -54,10 +57,56 @@ internal static partial class _386
         CLOCK_CYCLES(4);
         PREFETCH_PREFIX();
 
-        if (x86_opcodes![fetchdat & 0xff] != null)
-                return x86_opcodes[fetchdat & 0xff](fetchdat >> 8);
-        return x86_opcodes[fetchdat & 0xff](fetchdat >> 8);
+        if (x86_opcodes![(fetchdat & 0xff) | quadrant] != null)
+                return x86_opcodes[(fetchdat & 0xff) | quadrant](fetchdat >> 8);
+        return x86_opcodes[(fetchdat & 0xff) | quadrant](fetchdat >> 8);
     };
+
+    // pcem: x86_ops_prefix.h:86-97 — G2, D1.
+    private static int op_66(uint32_t fetchdat) /*Data size select*/
+    {
+        fetchdat = fastreadl(x86.cs + cpu_state.pc);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.pc++;
+
+        cpu_state.op32 = ((use32 & 0x100) ^ 0x100) | (cpu_state.op32 & 0x200);
+        CLOCK_CYCLES(2);
+        PREFETCH_PREFIX();
+        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+    }
+
+    // pcem: x86_ops_prefix.h:98-109 — G2, D1.
+    private static int op_67(uint32_t fetchdat) /*Address size select*/
+    {
+        fetchdat = fastreadl(x86.cs + cpu_state.pc);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.pc++;
+
+        cpu_state.op32 = ((use32 & 0x200) ^ 0x200) | (cpu_state.op32 & 0x100);
+        CLOCK_CYCLES(2);
+        PREFETCH_PREFIX();
+        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+    }
+
+    /// <summary>G2, D1 — les préfixes du 386 dans ops_386 (386_ops.h, OP_TABLE(386)) :
+    /// les six de segment, FS et GS compris, en leurs quatre formes, et 66/67 dans les
+    /// quatre quadrants.</summary>
+    private static void PoserPrefixes386()
+    {
+        for (uint32_t q = 0; q < 0x400; q += 0x100)
+        {
+                ops_386[0x26 | q] = PrefixeSegment(cpu_state.seg_es, q);
+                ops_386[0x2E | q] = PrefixeSegment(cpu_state.seg_cs, q);
+                ops_386[0x36 | q] = PrefixeSegment(cpu_state.seg_ss, q);
+                ops_386[0x3E | q] = PrefixeSegment(cpu_state.seg_ds, q);
+                ops_386[0x64 | q] = PrefixeSegment(cpu_state.seg_fs, q);
+                ops_386[0x65 | q] = PrefixeSegment(cpu_state.seg_gs, q);
+                ops_386[0x66 | q] = op_66;
+                ops_386[0x67 | q] = op_67;
+        }
+    }
 
     // pcem: 386_ops.h:106-112 — ILLEGAL.
     //
@@ -140,5 +189,23 @@ internal static partial class _386
 
         ops_286[0xF0] = opLOCK;
         ops_286[0xF1] = opLOCK;
+    }
+
+    // pcem: 386_ops.h:159-179 — op0F_l_a16, op0F_w_a32, op0F_l_a32 (G2, D2) : la table
+    // 0F, au quadrant de la forme.
+    private static OpFn Op0F(int quadrant) => fetchdat =>
+    {
+        int opcode = (int)(fetchdat & 0xff);
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+
+        return x86_opcodes_0f![opcode | quadrant](fetchdat >> 8);
+    };
+
+    private static void PoserOp0F386()
+    {
+        ops_386[0x10F] = Op0F(0x100);
+        ops_386[0x20F] = Op0F(0x200);
+        ops_386[0x30F] = Op0F(0x300);
     }
 }

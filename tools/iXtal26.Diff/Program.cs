@@ -16,7 +16,12 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
-    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286 [--cpu N]]");
+    Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
+    Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
+    Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
+    Console.WriteLine("  page-check [--iter N] [--seed N] [--renew N] [--oracle]");
+    Console.WriteLine("      mmutranslatereal confronté des deux côtés, tables de pages tirées en RAM");
+    Console.WriteLine("      386 en mode protégé : état par LOADALL386, une instruction tirée par itération");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
     Console.WriteLine("      comparé après chaque instruction. Par défaut 0xCE, le seul");
@@ -98,6 +103,15 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      domaine d'horloge, temps vidéo). L'indice hors table doit être refusé");
     Console.WriteLine("      des deux côtés.");
     Console.WriteLine();
+    Console.WriteLine("  sst386-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp]");
+    Console.WriteLine("               [--baseline FICHIER]");
+    Console.WriteLine("      Sonde SingleStepTests/80386 (386EX, mode réel, format MOO) : l'état final");
+    Console.WriteLine("      de chaque cas contre le silicium. --baseline ÉCRIT la ligne de base.");
+    Console.WriteLine();
+    Console.WriteLine("  ops-count [--missing]");
+    Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
+    Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
+    Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
@@ -105,6 +119,35 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
 
 switch (args[0])
 {
+    // G2, D0.5 — le corpus SingleStepTests/80386, oracle silicium du cœur 386.
+    case "sst386-probe":
+    {
+        var vectors = "vectors/sst386";
+        var forms = new List<string>();
+        var limit = 0;
+        var csharp = false;
+        string? baseline = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--vectors" when i + 1 < args.Length: vectors = args[++i]; break;
+                case "--op" when i + 1 < args.Length: forms.Add(args[++i]); break;
+                case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
+                case "--target" when i + 1 < args.Length: csharp = args[++i] == "csharp"; break;
+                case "--baseline" when i + 1 < args.Length: baseline = args[++i]; break;
+                default:
+                    Console.Error.WriteLine($"Option inconnue : {args[i]}");
+                    return 2;
+            }
+        }
+        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline);
+    }
+
+    // G2, D0.6 — ce que la table du 386 porte réellement, lue vivante.
+    case "ops-count":
+        return OpsCount.Run(args.Contains("--missing"));
+
     case "abi":
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
@@ -128,8 +171,54 @@ switch (args[0])
         return Core286Check.Run();
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
+    // G2, D6 — la sonde de la pagination (PageCheck).
+    case "page-check":
+    {
+        var it = 200000;
+        ulong sd = 1;
+        var renew = 5000;
+        var oracleOnly = false;
+        for (var i = 1; i < args.Length; i++)
+            switch (args[i])
+            {
+                case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
+                case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                case "--renew" when i + 1 < args.Length: renew = int.Parse(args[++i]); break;
+                case "--oracle": oracleOnly = true; break;
+                default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
+            }
+        return PageCheck.Run(it, sd, renew, oracleOnly);
+    }
+
+    // G2, D5 — le fuzzeur en mode protégé du 386 (PmCheck386.Fuzz).
+    case "pm-fuzz":
+    {
+        var ops = new List<byte>();
+        var sec = new List<byte>();
+        var it = 20000;
+        ulong sd = 1;
+        for (var i = 1; i < args.Length; i++)
+            switch (args[i])
+            {
+                case "--op" when i + 1 < args.Length: ops.Add(Convert.ToByte(args[++i], 16)); break;
+                case "--0f" when i + 1 < args.Length: sec.Add(Convert.ToByte(args[++i], 16)); break;
+                case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
+                case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
+            }
+        if (ops.Count == 0 && sec.Count == 0)
+            for (var o = 0; o < 256; o++) ops.Add((byte)o);
+        return PmCheck386.Fuzz(ops.ToArray(), sec.Count > 0 ? sec.ToArray() : null, it, sd);
+    }
+
     case "pm-check":
-        return PmCheck.Run(args.Length >= 3 && args[1] == "--case" ? int.Parse(args[2]) : -1);
+    {
+        // G2, D5 — `--core 386` : le banc du 386 (PmCheck386), le 286 restant le défaut.
+        var core386 = args.Length >= 3 && args[1] == "--core" && args[2] == "386";
+        var k = core386 ? 3 : 1;
+        var only = args.Length >= k + 2 && args[k] == "--case" ? int.Parse(args[k + 1]) : -1;
+        return core386 ? PmCheck386.Run(only) : PmCheck.Run(only);
+    }
 
     // M16 — le balayage des tables de CPU : chaque entrée de chaque machine, amorcée
     // des deux côtés, l'empreinte CPU confrontée champ par champ. Le seul témoin
@@ -441,6 +530,8 @@ switch (args[0])
         var fuzzCore = Oracle.Core8088;
         var single = false;
         var iterations = 20000;
+        // G2, D4 — `--0f XX` vise la table à deux octets : `0F XX`, préfixes 66/67 tirés.
+        var second0F = new List<byte>();
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -454,20 +545,29 @@ switch (args[0])
                 case "-v": verbose = true; break;
                 case "--ram-per-instr": ramPerInstr = true; break;
                 case "--core":
-                    fuzzCore = args[++i] == "286" ? Oracle.Core286 : Oracle.Core8088;
+                    fuzzCore = args[++i] switch
+                    {
+                        "286" => Oracle.Core286,
+                        "386" => Oracle.Core386,
+                        _ => Oracle.Core8088,
+                    };
                     break;
                 // M16 — l'entrée de cpus_286 que le 286 fuzzé reçoit, des DEUX côtés :
                 // h_reset et Reset286 font tourner cpu_set() sur la table de l'ami286.
                 // --cpu 5 exerce le 286/20 : 4 cycles mémoire, isa 3, préfetch ROM 20.
                 case "--cpu" when i + 1 < args.Length:
                 {
+                    // G2 : la table est celle du cœur — cpus_286 ou cpus_i386SX. --core doit
+                    // donc précéder --cpu.
                     var n = int.Parse(args[++i]);
+                    var table = fuzzCore == Oracle.Core386
+                        ? iXtal26.Cpu.cpu_tables.cpus_i386SX : iXtal26.Cpu.cpu_tables.cpus_286;
                     var count = 0;
-                    while (iXtal26.Cpu.cpu_tables.cpus_286[count].cpu_type != -1)
+                    while (table[count].cpu_type != -1)
                         count++;
                     if (n < 0 || n >= count)
                     {
-                        Console.Error.WriteLine($"--cpu {n} : hors de cpus_286 (0 à {count - 1}).");
+                        Console.Error.WriteLine($"--cpu {n} : hors de la table du cœur (0 à {count - 1}).");
                         return 2;
                     }
                     Oracle.h_set_cpu(0, n);
@@ -475,6 +575,8 @@ switch (args[0])
                     break;
                 }
                 case "--mode" when i + 1 < args.Length: single = args[++i] == "single"; break;
+                case "--0f" when i + 1 < args.Length:
+                    second0F.Add(Convert.ToByte(args[++i], 16)); break;
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
@@ -484,11 +586,22 @@ switch (args[0])
 
         // 0xCE (INTO) : vérifié par extraction du switch de 808x.c, c'est le seul
         // des 256 opcodes qui n'a pas de `case` et tombe donc dans `default:`.
+        if (second0F.Count > 0)
+        {
+            if (!single || fuzzCore != Oracle.Core386 || ops.Count > 0)
+            {
+                Console.Error.WriteLine("--0f : seulement avec --core 386 --mode single, et sans --op.");
+                return 2;
+            }
+            ops.Add(0x0F);
+        }
+
         if (ops.Count == 0)
             ops.Add(0xCE);
 
         return single
-            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore)
+            ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore,
+                               second0F.Count > 0 ? second0F.ToArray() : null)
             : Fuzzer.Run(ops.ToArray(), rounds, instr, seed, verbose, fuzzCore, ramPerInstr);
     }
 

@@ -277,6 +277,93 @@ internal static partial class _386_common
         }
     }
 
+    // pcem: 386_dynarec.c:30-83 — G2, D1 : l'adresse effective 32 bits, SIB compris.
+    private static void fetch_ea_32_long(uint32_t rmdat)
+    {
+        eal_r = eal_w = -1;
+        easeg = cpu_state.ea_seg!.@base;
+        if (cpu_rm == 4)
+        {
+                var sib = (uint8_t)(rmdat >> 8);
+
+                switch (cpu_mod)
+                {
+                case 0:
+                        cpu_state.eaaddr = cpu_state.regs[sib & 7].l;
+                        cpu_state.pc++;
+                        break;
+                case 1:
+                        cpu_state.pc++;
+                        cpu_state.eaaddr = ((uint32_t)(int8_t)getbyte()) + cpu_state.regs[sib & 7].l;
+                        //                        cpu_state.pc++;
+                        break;
+                case 2:
+                        cpu_state.eaaddr = (fastreadl(cs + cpu_state.pc + 1)) + cpu_state.regs[sib & 7].l;
+                        cpu_state.pc += 5;
+                        break;
+                }
+                /*SIB byte present*/
+                if ((sib & 7) == 5 && cpu_mod == 0)
+                        cpu_state.eaaddr = getlong();
+                else if ((sib & 6) == 4 && cpu_state.ssegs == 0)
+                {
+                        easeg = ss;
+                        cpu_state.ea_seg = cpu_state.seg_ss;
+                }
+                if (((sib >> 3) & 7) != 4)
+                        cpu_state.eaaddr += cpu_state.regs[(sib >> 3) & 7].l << (sib >> 6);
+        }
+        else
+        {
+                cpu_state.eaaddr = cpu_state.regs[cpu_rm].l;
+                if (cpu_mod != 0)
+                {
+                        if (cpu_rm == 5 && cpu_state.ssegs == 0)
+                        {
+                                easeg = ss;
+                                cpu_state.ea_seg = cpu_state.seg_ss;
+                        }
+                        if (cpu_mod == 1)
+                        {
+                                cpu_state.eaaddr += ((uint32_t)(int8_t)(rmdat >> 8));
+                                cpu_state.pc++;
+                        }
+                        else
+                        {
+                                cpu_state.eaaddr += getlong();
+                        }
+                }
+                else if (cpu_rm == 5)
+                {
+                        cpu_state.eaaddr = getlong();
+                }
+        }
+        if (easeg != 0xFFFFFFFF && ((easeg + cpu_state.eaaddr) & 0xFFF) <= 0xFFC)
+        {
+                var addr = easeg + cpu_state.eaaddr;
+                if (mem.readlookup2[addr >> 12] != -1)
+                        eal_r = unchecked(mem.readlookup2[addr >> 12] + (int)addr);
+                if (mem.writelookup2[addr >> 12] != -1)
+                        eal_w = unchecked(mem.writelookup2[addr >> 12] + (int)addr);
+        }
+    }
+
+    /// <summary>pcem: 386_dynarec.c:140 — la macro fetch_ea_32. Même convention que
+    /// fetch_ea_16 : `true` quand le handler doit sortir. Seule différence avec elle,
+    /// verbatim : le test d'abandon est HORS du `if (cpu_mod != 3)`.</summary>
+    internal static bool fetch_ea_32(uint32_t rmdat)
+    {
+        cpu_state.pc++;
+        cpu_mod = (int8_t)((rmdat >> 6) & 3);
+        cpu_reg = (int8_t)((rmdat >> 3) & 7);
+        cpu_rm = (int8_t)(rmdat & 7);
+        if (cpu_mod != 3)
+        {
+                fetch_ea_32_long(rmdat);
+        }
+        return cpu_state.abrt != 0;
+    }
+
     /// <summary>pcem: 386_dynarec.c:128 — la macro fetch_ea_16.
     ///
     /// En C elle contient un `return 1` sur abandon, ce qu'une méthode C# ne peut
@@ -350,6 +437,34 @@ internal static partial class _386_common
         }
         else
                 cpu_state.regs[cpu_rm].w = v;
+    }
+
+    // pcem: 386_common.h:196-201 et :242-249 — G2, D2 : les formes 32 bits.
+    internal static uint32_t geteal()
+    {
+        if (cpu_mod == 3)
+                return cpu_state.regs[cpu_rm].l;
+        if (eal_r != -1)
+                return ReadL(mem.ram, eal_r);
+        return readmeml(easeg, cpu_state.eaaddr);
+    }
+
+    internal static void seteal(uint32_t v)
+    {
+        if (cpu_mod != 3)
+        {
+                if (eal_w != -1)
+                {
+                        mem.ram[eal_w] = (byte)v;
+                        mem.ram[eal_w + 1] = (byte)(v >> 8);
+                        mem.ram[eal_w + 2] = (byte)(v >> 16);
+                        mem.ram[eal_w + 3] = (byte)(v >> 24);
+                }
+                else
+                        mem.writememll(easeg + cpu_state.eaaddr, v);
+        }
+        else
+                cpu_state.regs[cpu_rm].l = v;
     }
 
     // -----------------------------------------------------------------------
@@ -503,9 +618,15 @@ internal static partial class _386_common
         _386.flags_rebuild();
         cpu_state.pc = cpu_state.oldpc;
         // pmodeint EST transcrit depuis 3942f70 : ce site etait un fatal().
+        //
+        // LE `cycles -= 70` DE LA FIN VAUT POUR LES DEUX BRANCHES (386_common.c:44-76). Un
+        // `return` nu ici le sautait à chaque exception en mode protégé — 286 compris — et
+        // aucun cas de pm-check 286 ne levait d'INT 6. Trouvé par pm-fuzz (G2 D5), mesure :
+        // `C6 2F`, #UD depuis CPL3, oracle 333 cycles, C# 263.
         if ((msw & 1) != 0)
         {
                 x86seg_c.pmodeint(num, 0);
+                cycles -= 70;
                 return;
         }
 
@@ -577,6 +698,73 @@ internal static partial class _386_common
                         return;
                 SP -= 2;
         }
+    }
+
+    // pcem: 386_common.c:187-225 — divexcp, divl, idivl (G2, D2). divexcp n'y fait que
+    // journaliser et lever INT 0 ; le pclog est omis.
+    internal static int divl(uint32_t val)
+    {
+        if (val == 0)
+        {
+                x86_int(0);
+                return 1;
+        }
+        uint64_t num = (((uint64_t)EDX) << 32) | EAX;
+        uint64_t quo = num / val;
+        uint32_t rem = (uint32_t)(num % val);
+        uint32_t quo32 = (uint32_t)(quo & 0xFFFFFFFF);
+        if (quo != (uint64_t)quo32)
+        {
+                x86_int(0);
+                return 1;
+        }
+        EDX = rem;
+        EAX = quo32;
+        return 0;
+    }
+
+    // PCEM : num = INT64_MIN et val = -1 est une division indéfinie en C (SIGFPE sur
+    // x86-64) ; .NET y lève OverflowException. Transcrit tel quel, écart consigné.
+    internal static int idivl(int32_t val)
+    {
+        if (val == 0)
+        {
+                x86_int(0);
+                return 1;
+        }
+        int64_t num = (int64_t)((((uint64_t)EDX) << 32) | EAX);
+        int64_t quo = num / val;
+        int32_t rem = (int32_t)(num % val);
+        int32_t quo32 = (int32_t)(quo & 0xFFFFFFFF);
+        if (quo != (int64_t)quo32)
+        {
+                x86_int(0);
+                return 1;
+        }
+        EDX = (uint32_t)rem;
+        EAX = (uint32_t)quo32;
+        return 0;
+    }
+
+    /// <summary>pcem: 386_ops.h:58-72 — G2, D2.</summary>
+    internal static uint32_t POP_L()
+    {
+        uint32_t ret;
+        if (stack32 != 0)
+        {
+                ret = readmeml(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                ESP += 4;
+        }
+        else
+        {
+                ret = readmeml(ss, SP);
+                if (cpu_state.abrt != 0)
+                        return 0;
+                SP += 4;
+        }
+        return ret;
     }
 
     /// <summary>pcem: 386_ops.h:42-56</summary>

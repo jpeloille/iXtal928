@@ -56,7 +56,15 @@ void h_prefetch_reset(void);
  * inchangé, ce que les cinq chiffres de régression vérifient. */
 static int h_core = H_CORE_8088;
 
-void h_set_core(int core) { h_core = (core == H_CORE_286) ? H_CORE_286 : H_CORE_8088; }
+void h_set_core(int core) {
+        h_core = (core == H_CORE_286 || core == H_CORE_386) ? core : H_CORE_8088;
+}
+
+/* LE 286 ET LE 386 EMPRUNTENT LE MEME exec386 (pc.c:478-487), et c'est ce predicat — pas
+ * `h_core == H_CORE_286` — qui aiguille. G2, D0.2 : les dix sites qui testaient le 286
+ * seul, relevés par grep, le lisent tous ; un seul oublié renvoyait le 386 vers
+ * execx86 sans rien dire. Seul le CHOIX DE LA MACHINE distingue encore les deux. */
+static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386; }
 
 
 
@@ -357,17 +365,39 @@ static void h_pad_ram(void) {
         resetreadlookup();
 }
 
+/* LA TAILLE DE LA CARTE, par coeur. 1 Mo pour le 8088 et le 286 ; 16 Mo pour le 386
+ * (G2, D2) : l'adressage 32 bits tire des adresses effectives partout, rammask les
+ * ramene sous 16 Mo (bus 24 bits du 386SX), et au-dela du bloc alloue PCem lirait hors
+ * de `ram` — le C# y leve une exception. C'est aussi ce qui rend jouables les cas du
+ * corpus SST 386 que la carte de 1 Mo mettait « hors carte ». */
+static uint32_t h_ram_top(void) { return (uint32_t)mem_size * 1024u; }
+
+/* LA CARTE DE 16 Mo N'EST ALLOUEE QU'UNE FOIS (G2, D3, accord de Julien). mem_alloc +
+ * h_pad_ram reallouaient, remettaient a zero et recopiaient 16 Mo a CHAQUE h_reset —
+ * ~11 ms par iteration de fuzz 386, surtout ici et dans le new byte[] du C#. Si la RAM
+ * courante est celle qu'a posee la derniere carte 386, on la remet seulement a zero et
+ * on vide le cache de traduction : les mappages, eux, n'ont pas bouge. h_boot invalide
+ * (h_flat_ram = NULL) : une machine amorcee refait ses propres mappages. Meme geste
+ * cote C# (FlatMap), meme etat final des deux cotes — une RAM nulle, la carte plate. */
+static uint8_t *h_flat_ram;
+
 static void h_flat_map(void) {
-        mem_size = 1024; /* 1 Mo : l'espace complet du 8088 */
+        if (h_core == H_CORE_386 && h_flat_ram && ram == h_flat_ram && mem_size == 16384) {
+                memset(ram, 0, h_ram_top() + 4);
+                resetreadlookup();
+                return;
+        }
+        mem_size = (h_core == H_CORE_386) ? 16384 : 1024; /* Ko */
         if (!h_mem_inited) {
                 mem_init();
                 h_mem_inited = 1;
         }
         mem_alloc();
         h_pad_ram();
-        mem_set_mem_state(0x000000, 0x100000, MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
-        mem_mapping_add(&h_flat_mapping, 0x000000, 0x100000, mem_read_ram, mem_read_ramw, mem_read_raml,
+        mem_set_mem_state(0x000000, h_ram_top(), MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
+        mem_mapping_add(&h_flat_mapping, 0x000000, h_ram_top(), mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
+        h_flat_ram = (h_core == H_CORE_386) ? ram : NULL;
 }
 
 static uint64_t h_ins_count;
@@ -393,7 +423,7 @@ void h_reset(void) {
         /* Configuration machine : IBM XT, Intel 8088.
          * Posée avant resetx86() parce que celle-ci branche sur AT, is486 et
          * is386 (808x.c:671-687) pour choisir le vecteur de reset et rammask. */
-        AT = (h_core == H_CORE_286); /* pc.c:484 — c'est AT qui aiguille vers exec386 */
+        AT = h_exec386(); /* pc.c:484 — c'est AT qui aiguille vers exec386 */
         is386 = 0;
         is486 = 0;
         is8086 = 0; /* 8088 : file de préfetch de 4 octets, pas 6 */
@@ -408,9 +438,9 @@ void h_reset(void) {
          * de la machine : il faut une machine, même ici. Pendant exact de _808x.Reset()
          * et de _386.Reset286() côté C#. */
         h_models_init();
-        model = (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
+        model = (h_core == H_CORE_386) ? ROM_AMI386SX : (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
         cpu_manufacturer = 0;
-        cpu = (h_core == H_CORE_286) ? h_cpu_index : 0;
+        cpu = h_exec386() ? h_cpu_index : 0;
         if (!h_cpu_index_ok(model, cpu)) {
                 fprintf(stderr, "h_reset : cpu %d hors de la table du romset %d, 0 à la place\n", cpu, model);
                 cpu = 0;
@@ -453,7 +483,7 @@ void h_reset(void) {
 
 void h_load(uint32_t addr, const uint8_t *buf, uint32_t len) {
         for (uint32_t i = 0; i < len; i++)
-                ram[(addr + i) & 0xFFFFF] = buf[i];
+                ram[(addr + i) & (h_ram_top() - 1)] = buf[i];
 }
 
 void h_fill_ram(uint8_t value) {
@@ -481,7 +511,7 @@ void h_fill_ram2(uint8_t a, uint8_t b) {
 void h_read(uint32_t addr, uint8_t *buf, uint32_t len) {
         uint32_t taille = (uint32_t)mem_size * 1024;
         for (uint32_t i = 0; i < len; i++) {
-                uint32_t a = (addr + i) & 0xFFFFF;
+                uint32_t a = (addr + i) & (h_ram_top() - 1);
                 buf[i] = (a < taille) ? ram[a] : 0xFF;
         }
 }
@@ -535,6 +565,41 @@ void h_setregs(const uint16_t r[H_R_COUNT]) {
          * C'est ce que fait tout transfert de contrôle (808x.c:229-255). */
         FETCHCLEAR();
 }
+
+void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16_t gs_sel) {
+        for (int i = 0; i < 8; i++)
+                cpu_state.regs[i].l = (cpu_state.regs[i].l & 0xffff) | ((uint32_t)hi[i] << 16);
+        cpu_state.eflags = eflags;
+        loadseg(fs_sel, &cpu_state.seg_fs);
+        loadseg(gs_sel, &cpu_state.seg_gs);
+}
+
+void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7) {
+        cpu_state.CR0.l = cr0_val;
+        cr3 = cr3_val;
+        dr[6] = dr6;
+        dr[7] = dr7;
+}
+
+/* G2, D6 — page-check : UN appel de mmutranslatereal (mem.c:220-317) dans un contexte que
+ * l'appelant pose. CPL se lit dans seg_cs.access (x86.h), d'où l'écriture de ses bits 5-6 ;
+ * cpl_override et abrt sont posés tels quels — abrt non nul exerce le retour anticipé de
+ * la première ligne. abrt_error est remis à zéro pour que seule CET appel le pose.
+ * cr0 (WP, bit 16) et cr3 se posent par h_setsys386 ; les tables, par h_load. */
+uint32_t h_mmutranslate(uint32_t addr, int rw, int cpl, int cpl_ovr, int abrt_in) {
+        uint32_t r;
+
+        cpu_state.seg_cs.access = (cpu_state.seg_cs.access & ~0x60) | ((cpl & 3) << 5);
+        cpl_override = cpl_ovr;
+        cpu_state.abrt = abrt_in;
+        abrt_error = 0;
+        r = mmutranslatereal(addr, rw);
+        cpl_override = 0;
+        return r;
+}
+
+/* G2, D6 — mmu_perm (mem.c:59), que mmutranslatereal pose et que h_state ne porte pas. */
+int h_mmu_perm(void) { return mmu_perm; }
 
 void h_getregs(uint16_t r[H_R_COUNT]) {
         r[H_R_AX] = cpu_state.regs[0].w;
@@ -616,7 +681,7 @@ static int h_step286(void) {
 int h_wlog_max(void) { return H_WLOG_MAX; }
 
 int h_step_trace(void) {
-        if (h_core == H_CORE_286) {
+        if (h_exec386()) {
                 cpu_state._cycles = 1;
                 exec386(0);
                 h_ins_count++;
@@ -626,7 +691,7 @@ int h_step_trace(void) {
 }
 
 int h_step(void) {
-        if (h_core == H_CORE_286)
+        if (h_exec386())
                 return h_step286();
         cpu_state._cycles = 1;
         execx86(0);
@@ -637,7 +702,7 @@ int h_step(void) {
 int h_run(int cycs) {
         uint64_t before = ins;
         cpu_state._cycles = 0;
-        if (h_core == H_CORE_286)
+        if (h_exec386())
                 exec386(cycs);
         else
                 execx86(cycs);
@@ -729,6 +794,7 @@ void h_seg_clear_residue(void) {
          * attente », et c'est ce que le fuzzeur voit a chaque iteration. */
         cr2 = 0;
         cr3 = 0;
+        memset(dr, 0, sizeof(dr));
         cpl_override = 0;
         cpu_state.flags_op = 0;
         cpu_state.flags_res = 0;
@@ -802,6 +868,9 @@ void h_getstate(h_state *out) {
         out->use32 = use32;
         out->stack32 = stack32;
         out->cpl_override = cpl_override;
+        out->cr4 = cr4;
+        for (int i = 0; i < 8; i++)
+                out->dr[i] = dr[i];
 
         /* Les quatre drapeaux paresseux, LUS et non matérialisés. Appeler
          * flags_rebuild() ici poserait flags_op à FLAGS_UNKNOWN et rendrait la
@@ -967,6 +1036,7 @@ int h_drive_type[2] = {1, 1};
 extern int bpb_disable;
 
 int h_boot(const char *romspath) {
+        h_flat_ram = NULL; /* voir h_flat_map : la machine refait ses mappages */
         h_set_roms_path(romspath);
 
         /* AVANT tout le reste. h_boot() ne passe PAS par h_reset() — il appelle
@@ -1040,6 +1110,13 @@ int h_boot(const char *romspath) {
          * dans la table : les deux doivent dire la même machine. */
         h_models_init();
         model = romset;
+        /* G2, D0.2 : l'ami386 est dans models[] pour que cpu_set() et le fuzzeur aient un
+         * 386, mais son init (at_headland_init, model.c:482-485) n'est pas liee. Refus
+         * BRUYANT, comme le C# (model.cs), plutot qu'une demi-machine qui amorcerait. */
+        if (romset == ROM_AMI386SX) {
+                fprintf(stderr, "h_boot : ami386 — le chipset Headland n'est pas lie a l'oracle (G3)\n");
+                return 0;
+        }
         if (!h_cpu_table_ok()) {
                 fprintf(stderr, "h_boot : cpu %d (fabricant %d) hors de la table du romset %d\n",
                         h_cpu_index, h_cpu_manu, romset);
@@ -1048,7 +1125,8 @@ int h_boot(const char *romspath) {
         cpu_manufacturer = h_cpu_manu;
         cpu = h_cpu_index;
         cpu_set();
-        if ((cpu_s->cpu_type == CPU_286) != (h_core == H_CORE_286)) {
+        if ((cpu_s->cpu_type >= CPU_386SX ? H_CORE_386 : cpu_s->cpu_type == CPU_286 ? H_CORE_286 : H_CORE_8088)
+            != h_core) {
                 fprintf(stderr, "h_boot : la table du romset %d (cpu_type %d) contredit le coeur %d\n",
                         romset, cpu_s->cpu_type, h_core);
                 return 0;
@@ -1095,7 +1173,7 @@ int h_boot(const char *romspath) {
         serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
-        if (h_core == H_CORE_286) {
+        if (h_exec386()) {
                 /* models[] et `model` sont posés plus haut, avant cpu_set() (M16) :
                  * nvr.c les déréférence à chaque écriture CMOS. */
                 AT = 1;
@@ -1257,7 +1335,7 @@ void h_runpc(void) {
 
         if (!h_trace_fp) {
                 cpu_state._cycles = 0;
-                if (h_core == H_CORE_286)
+                if (h_exec386())
                         exec386(cycles_to_run);
                 else
                         execx86(cycles_to_run);
@@ -1269,7 +1347,7 @@ void h_runpc(void) {
         int budget = cycles_to_run;
         while (budget > 0) {
                 cpu_state._cycles = 1;
-                if (h_core == H_CORE_286)
+                if (h_exec386())
                         exec386(0);
                 else
                         execx86(0);

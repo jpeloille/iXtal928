@@ -3,8 +3,9 @@
 //
 // ORACLE: pcem-dev/src/memory/mem.c + includes/private/memory/mem.h
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — palier (a) : carte mémoire, cache de pages, accès et
-//         mappages. Pagination, dynarec et remappage 386+ omis.
+// STATUS: partial — carte mémoire, cache de pages, accès et mappages ; la
+//         pagination du 386 depuis G2 D6 (mmutranslatereal, flushmmucache_cr3, les
+//         branches `cr0 >> 31`). Dynarec et remappage 386+ omis.
 //
 // La carte mémoire de PCem, et le cache de pages qui EST le chemin chaud du 8088.
 //
@@ -172,8 +173,138 @@ internal static partial class mem
     // omitted: pages / page_lookup / byte_dirty_mask / byte_code_present_mask —
     //   suivi de pages sales du dynarec. Conséquence marquée plus bas : le chemin
     //   d'écriture est simplifié au lieu d'être transcrit.
-    // omitted: mmutranslate_read/write, mmutranslatereal — pagination 386.
-    //   `cr0 >> 31` vaut toujours 0 sur un 8088.
+    // pcem: mem.c:213-214 — mmutranslate_read/write sont deux macros sur
+    //   mmutranslatereal(addr, 0/1) ; appelée directement ici.
+
+    // pcem: x86.h:161, :165 — les deux bits que la traduction consulte.
+    private const uint32_t WP_FLAG = 0x10000; /*In CR0*/
+    private const uint32_t CR4_PSE = 1 << 4;
+
+    // pcem: mem.c:216-218 — mmu_readl / mmu_writel, un mot double lu ou écrit par
+    // _mem_exec, la carte d'exécution de 16 Ko, SANS passer par les mappages ni par le
+    // journal d'écritures : c'est ainsi que les bits A et D se posent.
+    //
+    // DEVIATION: le C déréférence _mem_exec[addr >> 14] sans le tester, et tombe (segfault
+    //   mesuré à D4) quand cr3 ou un PDE sort de la RAM. Ici un arrêt qui se nomme.
+    private static uint32_t mmu_readl(uint32_t addr)
+    {
+        var p = _mem_exec[addr >> 14];
+        if (p == null)
+        {
+                pc.fatal($"mmu_readl hors de _mem_exec : {addr:X8} (le C y déréférence NULL)\n");
+                return 0;
+        }
+        var i = unchecked(_mem_exec_off[addr >> 14] + (int)(addr & 0x3fff));
+        return (uint32_t)(p[i] | (p[i + 1] << 8) | (p[i + 2] << 16) | (p[i + 3] << 24));
+    }
+
+    private static void mmu_writel(uint32_t addr, uint32_t val)
+    {
+        var p = _mem_exec[addr >> 14];
+        if (p == null)
+        {
+                pc.fatal($"mmu_writel hors de _mem_exec : {addr:X8} (le C y déréférence NULL)\n");
+                return;
+        }
+        var i = unchecked(_mem_exec_off[addr >> 14] + (int)(addr & 0x3fff));
+        p[i] = (uint8_t)val;
+        p[i + 1] = (uint8_t)(val >> 8);
+        p[i + 2] = (uint8_t)(val >> 16);
+        p[i + 3] = (uint8_t)(val >> 24);
+    }
+
+    /// <summary>pcem: mem.c:220-317 — mmutranslatereal. G2, D6, sous page-check.
+    ///
+    /// DEUX NIVEAUX : le répertoire (cr3 + bits 31-22) puis la table (bits 21-12). Une
+    /// entrée absente, ou des droits refusés, posent cr2, abrt = ABRT_PF et abrt_error
+    /// (bit 0 : présente, bit 1 : écriture, bit 2 : CPL 3), et rendent 0xFFFFFFFF — la
+    /// même valeur qu'une adresse physique réelle 0xFFFFFFFF, et les appelants ne les
+    /// distinguent pas.
+    ///
+    /// LES DROITS SONT CEUX DU PDE ET DU PTE COMBINÉS (`temp & temp2`). WP est testé même
+    /// sur un 386, qui n'a pas ce bit : c'est PCem. cpl_override (lecture d'une table
+    /// système depuis l'anneau 3) lève le contrôle d'utilisateur.
+    ///
+    /// LA TRADUCTION ÉCRIT EN MÉMOIRE : bit A du PDE, bits A et D du PTE (0x20, 0x40), par
+    /// mmu_writel. page-check les relit des deux côtés.
+    ///
+    /// LA BRANCHE DES PAGES DE 4 Mo (cr4 & CR4_PSE) est transcrite mais morte sur un 386,
+    /// où MOV CR4 est un opcode invalide ; aucun oracle ne l'exerce avant le Pentium.</summary>
+    internal static uint32_t mmutranslatereal(uint32_t addr, int rw)
+    {
+        uint32_t addr2;
+        uint32_t temp, temp2, temp3;
+
+        if (_386_common.cpu_state.abrt != 0)
+                return 0xFFFFFFFF; // `return -1`
+
+        addr2 = ((cr3 & ~0xfffu) + ((addr >> 20) & 0xffc));
+        temp = temp2 = mmu_readl(addr2);
+        if ((temp & 1) == 0)
+        {
+                cr2 = addr;
+                temp &= 1;
+                if (CPL == 3)
+                        temp |= 4;
+                if (rw != 0)
+                        temp |= 2;
+                _386_common.cpu_state.abrt = ABRT_PF;
+                abrt_error = temp;
+                return 0xFFFFFFFF; // `return -1`
+        }
+
+        if ((temp & 0x80) != 0 && (cr4 & CR4_PSE) != 0)
+        {
+                /*4MB page*/
+                if ((CPL == 3 && (temp & 4) == 0 && cpl_override == 0) ||
+                    (rw != 0 && (temp & 2) == 0 && ((CPL == 3 && cpl_override == 0) || (cr0 & WP_FLAG) != 0)))
+                {
+                        cr2 = addr;
+                        temp &= 1;
+                        if (CPL == 3)
+                                temp |= 4;
+                        if (rw != 0)
+                                temp |= 2;
+                        _386_common.cpu_state.abrt = ABRT_PF;
+                        abrt_error = temp;
+                        return 0xFFFFFFFF; // `return -1`
+                }
+
+                mmu_perm = (int)(temp & 4);
+                // `((uint32_t *)ram)[addr2 >> 2] |= 0x20` : ram, et non _mem_exec.
+                ram[addr2 & ~3u] |= 0x20;
+
+                return (temp & ~0x3fffffu) + (addr & 0x3fffff);
+        }
+
+        temp = mmu_readl((temp & ~0xfffu) + ((addr >> 10) & 0xffc));
+        temp3 = temp & temp2;
+        if ((temp & 1) == 0 || (CPL == 3 && (temp3 & 4) == 0 && cpl_override == 0) ||
+            (rw != 0 && (temp3 & 2) == 0 && ((CPL == 3 && cpl_override == 0) || (cr0 & WP_FLAG) != 0)))
+        {
+                cr2 = addr;
+                temp &= 1;
+                if (CPL == 3)
+                        temp |= 4;
+                if (rw != 0)
+                        temp |= 2;
+                _386_common.cpu_state.abrt = ABRT_PF;
+                abrt_error = temp;
+                return 0xFFFFFFFF; // `return -1`
+        }
+        mmu_perm = (int)(temp & 4);
+        mmu_writel(addr2, temp2 | 0x20);
+        mmu_writel((temp2 & ~0xfffu) + ((addr >> 10) & 0xffc), temp | (rw != 0 ? 0x60u : 0x20u));
+
+        return (temp & ~0xFFFu) + (addr & 0xFFF);
+    }
+
+    // omitted: mmutranslate_noabrt (mem.c:319-345) — son seul appelant est get_phys
+    //   (mem.h:146-180), du dynarec.
+    // omitted: mmu_invalidate (mem.c:347-350) — INVLPG, 486 (G6).
+    // omitted: flushmmucache_nopc (mem.c:136-150) — appelé par les chipsets 486 et
+    //   Pentium (vl82c480, i430*, i440*, cs8230, mvp3), aucun porté.
+    // omitted: mem_flush_write_page (mem.c:189-211) — sans appelant hors du dynarec.
     // omitted: mem_remap_top, ram_remapped_mapping — la remise en correspondance des
     //   384 Ko du haut, propre au chipset de l'AT. Bloc B3.
 
@@ -293,21 +424,32 @@ internal static partial class mem
         _386_common.pccache2 = null;
     }
 
-    // DEVIATION: flushmmucache_cr3() N'EST PAS flushmmucache(), et l'aliaser en est une.
+    // pcem: mem.c:152-187 — flushmmucache_cr3. G2, D6 : ce n'est plus un alias.
     //
-    //   flushmmucache_cr3() : la boucle sur les 256 anneaux, et RIEN d'autre.
-    //   flushmmucache()     : la meme boucle, PLUS mmuflush++, pccache = 0xFFFFFFFF
-    //                         et pccache2 = 0xFFFFFFFF.
-    //
-    // Le C# ecrase donc pccache et pccache2 la ou PCem les laisse intacts. Dormant au
-    // palier (a) : les deux appelants vivants (x86seg.cs, dans loadcs et loadcsjmp)
-    // exigent `CPL == 3 && oldcpl != 3`, et le POST de l'AT reste a CPL 0.
-    //
-    // MAIS LE BLOC C L'APPELLE DIX-HUIT FOIS — grep -c dans x86seg.c — donc cette
-    // ligne doit devenir une vraie transcription avant que le mode protege tourne.
-    // NON MESURE : pccache n'est pas dans h_state, donc l'effet sur les champs
-    // compares, et le cout en cycles via getpccache, restent inconnus.
-    internal static void flushmmucache_cr3() => flushmmucache();
+    // C'EST flushmmucache MOINS SA QUEUE : la boucle sur les 256 anneaux, et RIEN d'autre —
+    // ni mmuflush++, ni pccache = 0xFFFFFFFF, ni pccache2. L'alias qui tenait lieu depuis
+    // le palier (a) écrasait pccache là où PCem le laisse, donc forçait un getpccache de
+    // plus au changement d'anneau vers 3 (loadcs, loadcsjmp, pmoderetf, pmodeiret…).
+    // Dormant tant que rien ne paginait ; avec la pagination, getpccache TRADUIT, et un
+    // appel de plus pose des bits A.
+    internal static void flushmmucache_cr3()
+    {
+        int c;
+        for (c = 0; c < 256; c++)
+        {
+                if (readlookup[c] != unchecked((int)0xFFFFFFFF))
+                {
+                        readlookup2[readlookup[c]] = -1;
+                        readlookup[c] = unchecked((int)0xFFFFFFFF);
+                }
+                if (writelookup[c] != unchecked((int)0xFFFFFFFF))
+                {
+                        // omitted: page_lookup[writelookup[c]] = NULL — dynarec.
+                        writelookup2[writelookup[c]] = -1;
+                        writelookup[c] = unchecked((int)0xFFFFFFFF);
+                }
+        }
+    }
 
     // pcem: mem.c:354-379 — le `cycles -= 9` final est de l'ÉMULATION, pas de la
     // comptabilité parasite : le remplissage du cache coûte du temps au 8088.
@@ -377,8 +519,19 @@ internal static partial class mem
     {
         uint32_t a2 = a;
 
-        // omitted: `if (cr0 >> 31) { a = mmutranslate_read(a); ... }` — pagination.
-        //   Ni le 8088 ni le 286 ne paginent : cr0 bit 31 est un 386.
+        if ((cr0 >> 31) != 0)
+        {
+                a = mmutranslatereal(a, 0);
+
+                // FAUTE DE PAGE AU FETCH : le C rend `ram` NU, sans biais — l'appelant lira
+                // ram[a] à l'adresse linéaire. abrt est posé, l'instruction ne s'exécutera
+                // pas, mais la lecture a lieu.
+                if (a == 0xFFFFFFFF)
+                {
+                        bias = 0;
+                        return ram;
+                }
+        }
         a &= rammask;
 
         if (_mem_exec[a >> 14] != null)
@@ -417,7 +570,12 @@ internal static partial class mem
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
-        // omitted: `if (cr0 >> 31) addr = mmutranslate_read(addr);` — pagination.
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 0);
+                if (addr == 0xFFFFFFFF)
+                        return 0xFF;
+        }
         addr &= rammask;
 
         map = read_mapping[addr >> 14];
@@ -438,7 +596,13 @@ internal static partial class mem
         mem_mapping_t? map;
 
         mem_logical_addr = addr;
-        // omitted: page_lookup[] (dynarec) et mmutranslate_write (pagination).
+        // omitted: page_lookup[] — dynarec, toujours nul ici (BLOCK_INVALID vaut 0).
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 1);
+                if (addr == 0xFFFFFFFF)
+                        return;
+        }
         addr &= rammask;
 
         map = write_mapping[addr >> 14];
@@ -462,12 +626,30 @@ internal static partial class mem
         {
                 // omitted: `cycles -= timing_misaligned` — nul sur un 8088.
                 if ((addr & 0xFFF) > 0xFFE)
+                {
+                        // À CHEVAL SUR DEUX PAGES : les deux sont traduites AVANT toute
+                        // lecture, pour qu'une faute sur la seconde annule l'accès entier.
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 0) == 0xffffffff)
+                                        return 0xffff;
+                                if (mmutranslatereal(addr + 1, 0) == 0xffffffff)
+                                        return 0xffff;
+                        }
                         return (uint16_t)(__real_readmembl(addr) | (__real_readmembl(addr + 1) << 8));
+                }
                 else if (readlookup2[addr >> 12] != -1)
                 {
-                        var i = readlookup2[addr >> 12] + addr;
+                        var i = unchecked(readlookup2[addr >> 12] + (int)addr); // G2 : int + uint rendait un long, sans le rebouclage du pointeur C au-dela de 2 Go
                         return (uint16_t)(ram[i] | (ram[i + 1] << 8));
                 }
+        }
+
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 0);
+                if (addr == 0xFFFFFFFF)
+                        return 0xFFFF;
         }
 
         addr &= rammask;
@@ -502,17 +684,32 @@ internal static partial class mem
         {
                 if ((addr & 0xFFF) > 0xFFE)
                 {
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 1) == 0xffffffff)
+                                        return;
+                                if (mmutranslatereal(addr + 1, 1) == 0xffffffff)
+                                        return;
+                        }
                         __real_writemembl(addr, (uint8_t)val);
                         __real_writemembl(addr + 1, (uint8_t)(val >> 8));
                         return;
                 }
                 else if (writelookup2[addr >> 12] != -1)
                 {
-                        var i = writelookup2[addr >> 12] + addr;
+                        var i = unchecked(writelookup2[addr >> 12] + (int)addr); // G2 : idem, rebouclage 32 bits
                         ram[i] = (uint8_t)val;
                         ram[i + 1] = (uint8_t)(val >> 8);
                         return;
                 }
+        }
+
+        // omitted: page_lookup[] — dynarec.
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 1);
+                if (addr == 0xFFFFFFFF)
+                        return;
         }
 
         addr &= rammask;
@@ -560,7 +757,13 @@ internal static partial class mem
                         x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFC)
                 {
-                        // omitted: mmutranslate_read — pas de pagination sur un 286.
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 0) == 0xffffffff)
+                                        return 0xffffffff;
+                                if (mmutranslatereal(addr + 3, 0) == 0xffffffff)
+                                        return 0xffffffff;
+                        }
                         return (uint32_t)__real_readmemwl(addr) |
                                ((uint32_t)__real_readmemwl(addr + 2) << 16);
                 }
@@ -572,7 +775,13 @@ internal static partial class mem
                 }
         }
 
-        // omitted: page_lookup[] (dynarec) et mmutranslate_read (pagination).
+        // omitted: page_lookup[] — dynarec.
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 0);
+                if (addr == 0xFFFFFFFF)
+                        return 0xFFFFFFFF;
+        }
         addr &= rammask;
 
         map = read_mapping[addr >> 14];
@@ -633,7 +842,13 @@ internal static partial class mem
                         x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFC)
                 {
-                        // omitted: mmutranslate_write — pas de pagination sur un 286.
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 1) == 0xffffffff)
+                                        return;
+                                if (mmutranslatereal(addr + 3, 1) == 0xffffffff)
+                                        return;
+                        }
                         __real_writememwl(addr, (uint16_t)val);
                         __real_writememwl(addr + 2, (uint16_t)(val >> 16));
                         return;
@@ -649,7 +864,13 @@ internal static partial class mem
                 }
         }
 
-        // omitted: page_lookup[] (dynarec) et mmutranslate_write (pagination).
+        // omitted: page_lookup[] — dynarec.
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 1);
+                if (addr == 0xFFFFFFFF)
+                        return;
+        }
         addr &= rammask;
 
         map = write_mapping[addr >> 14];

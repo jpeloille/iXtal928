@@ -49,7 +49,7 @@ internal static class CpuConfigCheck
             while (table[n].cpu_type != -1)
                 n++;
 
-            var core = (mdl.flags & model_c.MODEL_AT) != 0 ? Oracle.Core286 : Oracle.Core8088;
+            var core = Oracle.CoreForModel(mdl);
 
             // L'indice n, un cran après la dernière entrée, est la sentinelle : les deux
             // côtés doivent le refuser, et c'est vérifié comme le reste.

@@ -77,6 +77,8 @@ internal static partial class _386
     internal delegate uint16_t ArithOp16(uint16_t dst, uint16_t src);
     internal delegate void ArithFlags8(uint8_t dst, uint8_t src);
     internal delegate void ArithFlags16(uint16_t dst, uint16_t src);
+    internal delegate uint32_t ArithOp32(uint32_t dst, uint32_t src);
+    internal delegate void ArithFlags32(uint32_t dst, uint32_t src);
 
     // omitted: les NEUF autres formes que la macro engendre par famille — les six
     //   variantes `_a32` (fetch_ea_32), et les trois formes longues `_l_rmw_a16`,
@@ -707,6 +709,79 @@ internal static partial class _386
         return false;
     }
 
+    // pcem: x86_ops_arith.h:656-720, ARITH_MULTI(l, 32) (G2, D2)
+    private static bool ARITH_MULTI_l32(uint32_t rmdat, uint32_t src)
+    {
+        uint32_t dst = geteal();
+        if (cpu_state.abrt != 0)
+                return true;
+        switch (rmdat & 0x38)
+        {
+        case 0x00: /*ADD ea, #*/
+                seteal(dst + src);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadd32(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x08: /*OR ea, #*/
+                dst |= src;
+                seteal(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x10: /*ADC ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteal(dst + src + (uint32_t)tempc);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setadc32(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x18: /*SBB ea, #*/
+                tempc = CF_SET() != 0 ? 1 : 0;
+                seteal(dst - (src + (uint32_t)tempc));
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsbc32(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x20: /*AND ea, #*/
+                dst &= src;
+                seteal(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x28: /*SUB ea, #*/
+                seteal(dst - src);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setsub32(dst, src);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x30: /*XOR ea, #*/
+                dst ^= src;
+                seteal(dst);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(dst);
+                CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr);
+                break;
+        case 0x38: /*CMP ea, #*/
+                setsub32(dst, src);
+                if (is486 != 0)
+                        CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+                else
+                        CLOCK_CYCLES((cpu_mod == 3) ? 2 : 7);
+                break;
+        }
+        return false;
+    }
+
     // pcem: x86_ops_arith.h:723-740 — op80_a16
     private static int op80_a16(uint32_t fetchdat)
     {
@@ -792,5 +867,665 @@ internal static partial class _386
         ops_286[0x81] = op81_w_a16;
         ops_286[0x82] = op80_a16;
         ops_286[0x83] = op83_w_a16;
+    }
+
+
+    /// <summary>G2, D2 — les neuf formes 32 bits d'une famille OP_ARITH
+    /// (x86_ops_arith.h:31-58, 86-168, 186-203, 221-273, 298-309), posées dans ops_386 :
+    /// `b_rmw_a32` et `b_rm_a32` aux quadrants 2 et 3, `w_*_a32` au 2, `l_*_a16` au 1,
+    /// `l_*_a32` au 3, `EAX_imm` aux 1 et 3. `baseOp` est l'opcode de la forme b_rmw.
+    ///
+    /// Les incohérences de PCem sont transcrites : les formes MOT et LONG passent
+    /// timing_mr à CLOCK_CYCLES et timing_rr à PREFETCH_RUN ; les formes `l_rm`
+    /// passent timing_rml à CLOCK_CYCLES et timing_rm à PREFETCH_RUN.</summary>
+    private static void OP_ARITH_386(int baseOp, ArithOp8 op8, ArithOp16 op16, ArithOp32 op32,
+                                     ArithFlags8 setflags8, ArithFlags16 setflags16,
+                                     ArithFlags32 setflags32, bool gettempc)
+    {
+        // op##name##_b_rmw_a32
+        OpFn bRmwA32 = fetchdat =>
+        {
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (fetch_ea_32(fetchdat)) return 1;
+                if (cpu_mod == 3)
+                {
+                        uint8_t dst = getr8(cpu_rm);
+                        uint8_t src = getr8(cpu_reg);
+                        setflags8(dst, src);
+                        setr8(cpu_rm, op8(dst, src));
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+                }
+                else
+                {
+                        uint8_t dst;
+                        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                        dst = geteab();
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        uint8_t src = getr8(cpu_reg);
+                        seteab(op8(dst, src));
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        setflags8(dst, src);
+                        CLOCK_CYCLES(cpu_c.timing_mr);
+                        PREFETCH_RUN(cpu_c.timing_mr, 2, (int)fetchdat, 1, 0, 1, 0, 1);
+                }
+                return 0;
+        };
+
+        // op##name##_w_rmw_a32
+        OpFn wRmwA32 = fetchdat =>
+        {
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (fetch_ea_32(fetchdat)) return 1;
+                if (cpu_mod == 3)
+                {
+                        uint16_t dst = cpu_state.regs[cpu_rm].w;
+                        uint16_t src = cpu_state.regs[cpu_reg].w;
+                        setflags16(dst, src);
+                        cpu_state.regs[cpu_rm].w = op16(dst, src);
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, 1);
+                }
+                else
+                {
+                        uint16_t dst;
+                        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                        dst = geteaw();
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        uint16_t src = cpu_state.regs[cpu_reg].w;
+                        seteaw(op16(dst, src));
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        setflags16(dst, src);
+                        CLOCK_CYCLES(cpu_c.timing_mr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 1, 0, 1, 0, 1);
+                }
+                return 0;
+        };
+
+        // op##name##_l_rmw_a16 / _a32 : même corps, fetch_ea et ea32 près.
+        OpFn LRmw(bool a32) => fetchdat =>
+        {
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
+                if (cpu_mod == 3)
+                {
+                        uint32_t dst = cpu_state.regs[cpu_rm].l;
+                        uint32_t src = cpu_state.regs[cpu_reg].l;
+                        setflags32(dst, src);
+                        cpu_state.regs[cpu_rm].l = op32(dst, src);
+                        CLOCK_CYCLES(cpu_c.timing_rr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 0, 0, 0, a32 ? 1 : 0);
+                }
+                else
+                {
+                        uint32_t dst;
+                        if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+                        dst = geteal();
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        uint32_t src = cpu_state.regs[cpu_reg].l;
+                        seteal(op32(dst, src));
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        setflags32(dst, src);
+                        CLOCK_CYCLES(cpu_c.timing_mr);
+                        PREFETCH_RUN(cpu_c.timing_rr, 2, (int)fetchdat, 0, 1, 0, 1, a32 ? 1 : 0);
+                }
+                return 0;
+        };
+
+        // op##name##_b_rm_a32
+        OpFn bRmA32 = fetchdat =>
+        {
+                uint8_t dst, src;
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (fetch_ea_32(fetchdat)) return 1;
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                dst = getr8(cpu_reg);
+                src = geteab();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setflags8(dst, src);
+                setr8(cpu_reg, op8(dst, src));
+                CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
+                PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
+                             cpu_mod == 3 ? 0 : 1, 0, 0, 0, 1);
+                return 0;
+        };
+
+        // op##name##_w_rm_a32
+        OpFn wRmA32 = fetchdat =>
+        {
+                uint16_t dst, src;
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (fetch_ea_32(fetchdat)) return 1;
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                dst = cpu_state.regs[cpu_reg].w;
+                src = geteaw();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setflags16(dst, src);
+                cpu_state.regs[cpu_reg].w = op16(dst, src);
+                CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm);
+                PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
+                             cpu_mod == 3 ? 0 : 1, 0, 0, 0, 1);
+                return 0;
+        };
+
+        // op##name##_l_rm_a16 / _a32
+        OpFn LRm(bool a32) => fetchdat =>
+        {
+                uint32_t dst, src;
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
+                if (cpu_mod != 3)
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                dst = cpu_state.regs[cpu_reg].l;
+                src = geteal();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                setflags32(dst, src);
+                cpu_state.regs[cpu_reg].l = op32(dst, src);
+                CLOCK_CYCLES(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rml);
+                PREFETCH_RUN(cpu_mod == 3 ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat,
+                             0, cpu_mod == 3 ? 0 : 1, 0, 0, a32 ? 1 : 0);
+                return 0;
+        };
+
+        // op##name##_EAX_imm — gettempc APRÈS la lecture, comme AL/AX_imm.
+        OpFn eaxImm = fetchdat =>
+        {
+                uint32_t dst = EAX;
+                uint32_t src = getlong();
+                if (cpu_state.abrt != 0)
+                        return 1;
+                if (gettempc)
+                        tempc = CF_SET() != 0 ? 1 : 0;
+                setflags32(dst, src);
+                EAX = op32(dst, src);
+                CLOCK_CYCLES(cpu_c.timing_rr);
+                PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+                return 0;
+        };
+
+        ops_386[0x200 | baseOp] = bRmwA32;
+        ops_386[0x300 | baseOp] = bRmwA32;
+        ops_386[0x200 | (baseOp + 1)] = wRmwA32;
+        ops_386[0x100 | (baseOp + 1)] = LRmw(false);
+        ops_386[0x300 | (baseOp + 1)] = LRmw(true);
+        ops_386[0x200 | (baseOp + 2)] = bRmA32;
+        ops_386[0x300 | (baseOp + 2)] = bRmA32;
+        ops_386[0x200 | (baseOp + 3)] = wRmA32;
+        ops_386[0x100 | (baseOp + 3)] = LRm(false);
+        ops_386[0x300 | (baseOp + 3)] = LRm(true);
+        ops_386[0x100 | (baseOp + 5)] = eaxImm;
+        ops_386[0x300 | (baseOp + 5)] = eaxImm;
+    }
+
+    /// <summary>G2, D2 — les sept invocations, en 32 bits (x86_ops_arith.h:312-318).</summary>
+    private static void PoserGroupeArith386()
+    {
+        OP_ARITH_386(0x00, (d, s) => (uint8_t)(d + s), (d, s) => (uint16_t)(d + s), (d, s) => d + s,
+                     setadd8, setadd16, setadd32, false);
+        OP_ARITH_386(0x10, (d, s) => (uint8_t)(d + s + tempc), (d, s) => (uint16_t)(d + s + tempc),
+                     (d, s) => d + s + (uint32_t)tempc, setadc8, setadc16, setadc32, true);
+        OP_ARITH_386(0x28, (d, s) => (uint8_t)(d - s), (d, s) => (uint16_t)(d - s), (d, s) => d - s,
+                     setsub8, setsub16, setsub32, false);
+        OP_ARITH_386(0x18, (d, s) => (uint8_t)(d - (s + tempc)), (d, s) => (uint16_t)(d - (s + tempc)),
+                     (d, s) => d - (s + (uint32_t)tempc), setsbc8, setsbc16, setsbc32, true);
+        OP_ARITH_386(0x08, (d, s) => (uint8_t)(d | s), (d, s) => (uint16_t)(d | s), (d, s) => d | s,
+                     (d, s) => setznp8((uint8_t)(d | s)), (d, s) => setznp16((uint16_t)(d | s)),
+                     (d, s) => setznp32(d | s), false);
+        OP_ARITH_386(0x20, (d, s) => (uint8_t)(d & s), (d, s) => (uint16_t)(d & s), (d, s) => d & s,
+                     (d, s) => setznp8((uint8_t)(d & s)), (d, s) => setznp16((uint16_t)(d & s)),
+                     (d, s) => setznp32(d & s), false);
+        OP_ARITH_386(0x30, (d, s) => (uint8_t)(d ^ s), (d, s) => (uint16_t)(d ^ s), (d, s) => d ^ s,
+                     (d, s) => setznp8((uint8_t)(d ^ s)), (d, s) => setznp16((uint16_t)(d ^ s)),
+                     (d, s) => setznp32(d ^ s), false);
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_arith.h ----
+
+    // pcem: x86_ops_arith.h:741
+    private static int op80_a32(uint32_t fetchdat)
+    {
+        uint8_t src;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_b8(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 3, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 3, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1,
+                             0, 1);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:795
+    private static int op81_l_a16(uint32_t fetchdat)
+    {
+        uint32_t src;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_l32(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 6, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 6, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0,
+                             (cpu_mod == 3) ? 0 : 1, 0);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:813
+    private static int op81_l_a32(uint32_t fetchdat)
+    {
+        uint32_t src;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_l32(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 6, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 6, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0,
+                             (cpu_mod == 3) ? 0 : 1, 1);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:777
+    private static int op81_w_a32(uint32_t fetchdat)
+    {
+        uint16_t src;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getword();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (ARITH_MULTI_w16(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 4, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 4, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1,
+                             0, 1);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:873
+    private static int op83_l_a16(uint32_t fetchdat)
+    {
+        uint32_t src;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((src & 0x80) != 0)
+                src |= 0xffffff00;
+        if (ARITH_MULTI_l32(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0,
+                             (cpu_mod == 3) ? 0 : 1, 0);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:893
+    private static int op83_l_a32(uint32_t fetchdat)
+    {
+        uint32_t src;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((src & 0x80) != 0)
+                src |= 0xffffff00;
+        if (ARITH_MULTI_l32(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0,
+                             (cpu_mod == 3) ? 0 : 1, 1);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:852
+    private static int op83_w_a32(uint32_t fetchdat)
+    {
+        uint16_t src;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        src = getbyte();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((src & 0x80) != 0)
+                src |= 0xff00;
+        if (ARITH_MULTI_w16(fetchdat, src)) return 1;
+        if ((fetchdat & 0x38) == 0x38)
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_mr, 3, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        else
+                PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 3, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1,
+                             0, 1);
+
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:516
+    private static int opCMP_EAX_imm(uint32_t fetchdat)
+    {
+        uint32_t src = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub32(EAX, src);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:432
+    private static int opCMP_b_rm_a32(uint32_t fetchdat)
+    {
+        uint8_t src;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(getr8(cpu_reg), src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:336
+    private static int opCMP_b_rmw_a32(uint32_t fetchdat)
+    {
+        uint8_t dst;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub8(dst, getr8(cpu_reg));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:473
+    private static int opCMP_l_rm_a16(uint32_t fetchdat)
+    {
+        uint32_t src;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub32(cpu_state.regs[cpu_reg].l, src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rml);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:486
+    private static int opCMP_l_rm_a32(uint32_t fetchdat)
+    {
+        uint32_t src;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub32(cpu_state.regs[cpu_reg].l, src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rml);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:386
+    private static int opCMP_l_rmw_a16(uint32_t fetchdat)
+    {
+        uint32_t dst;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub32(dst, cpu_state.regs[cpu_reg].l);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:402
+    private static int opCMP_l_rmw_a32(uint32_t fetchdat)
+    {
+        uint32_t dst;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub32(dst, cpu_state.regs[cpu_reg].l);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:459
+    private static int opCMP_w_rm_a32(uint32_t fetchdat)
+    {
+        uint16_t src;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        src = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(cpu_state.regs[cpu_reg].w, src);
+        CLOCK_CYCLES((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:369
+    private static int opCMP_w_rmw_a32(uint32_t fetchdat)
+    {
+        uint16_t dst;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        dst = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setsub16(dst, cpu_state.regs[cpu_reg].w);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:645
+    private static int opTEST_EAX(uint32_t fetchdat)
+    {
+        uint32_t temp = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        setznp32(EAX & temp);
+        CLOCK_CYCLES(cpu_c.timing_rr);
+        PREFETCH_RUN(cpu_c.timing_rr, 5, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:543
+    private static int opTEST_b_a32(uint32_t fetchdat)
+    {
+        uint8_t temp, temp2;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = getr8(cpu_reg);
+        setznp8((uint8_t)(temp & temp2));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:596
+    private static int opTEST_l_a16(uint32_t fetchdat)
+    {
+        uint32_t temp, temp2;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = cpu_state.regs[cpu_reg].l;
+        setznp32(temp & temp2);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:613
+    private static int opTEST_l_a32(uint32_t fetchdat)
+    {
+        uint32_t temp, temp2;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = cpu_state.regs[cpu_reg].l;
+        setznp32(temp & temp2);
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_arith.h:578
+    private static int opTEST_w_a32(uint32_t fetchdat)
+    {
+        uint16_t temp, temp2;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        temp2 = cpu_state.regs[cpu_reg].w;
+        setznp16((uint16_t)(temp & temp2));
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 2);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 2 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? cpu_c.timing_rr : cpu_c.timing_rm, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, 0, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_arith_386()
+    {
+        ops_386[0x139] = opCMP_l_rmw_a16;
+        ops_386[0x13B] = opCMP_l_rm_a16;
+        ops_386[0x13D] = opCMP_EAX_imm;
+        ops_386[0x181] = op81_l_a16;
+        ops_386[0x183] = op83_l_a16;
+        ops_386[0x185] = opTEST_l_a16;
+        ops_386[0x1A9] = opTEST_EAX;
+        ops_386[0x238] = opCMP_b_rmw_a32;
+        ops_386[0x239] = opCMP_w_rmw_a32;
+        ops_386[0x23A] = opCMP_b_rm_a32;
+        ops_386[0x23B] = opCMP_w_rm_a32;
+        ops_386[0x280] = op80_a32;
+        ops_386[0x281] = op81_w_a32;
+        ops_386[0x282] = op80_a32;
+        ops_386[0x283] = op83_w_a32;
+        ops_386[0x284] = opTEST_b_a32;
+        ops_386[0x285] = opTEST_w_a32;
+        ops_386[0x338] = opCMP_b_rmw_a32;
+        ops_386[0x339] = opCMP_l_rmw_a32;
+        ops_386[0x33A] = opCMP_b_rm_a32;
+        ops_386[0x33B] = opCMP_l_rm_a32;
+        ops_386[0x33D] = opCMP_EAX_imm;
+        ops_386[0x380] = op80_a32;
+        ops_386[0x381] = op81_l_a32;
+        ops_386[0x382] = op80_a32;
+        ops_386[0x383] = op83_l_a32;
+        ops_386[0x384] = opTEST_b_a32;
+        ops_386[0x385] = opTEST_l_a32;
+        ops_386[0x3A9] = opTEST_EAX;
     }
 }

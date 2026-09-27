@@ -47,7 +47,7 @@ namespace iXtal26.Cpu;
 internal static partial class _386
 {
     // pcem: x86_ops_shift.h:3-104 — OP_SHIFT_b(c, ea32), avec ea32 = 0.
-    private static bool OP_SHIFT_b(uint32_t rmdat, int c, uint8_t temp)
+    private static bool OP_SHIFT_b(uint32_t rmdat, int c, uint8_t temp, int ea32 = 0)
     {
         uint8_t temp_orig = temp;
         uint8_t temp2;
@@ -65,7 +65,7 @@ internal static partial class _386
                 set_flags_rotate(FLAGS_ROL8, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x08: /*ROR b,CL*/
                 temp = (uint8_t)((temp >> (c & 7)) | (temp << (8 - (c & 7))));
@@ -75,7 +75,7 @@ internal static partial class _386
                 set_flags_rotate(FLAGS_ROR8, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x10: /*RCL b,CL*/
                 temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
@@ -98,7 +98,7 @@ internal static partial class _386
                         cpu_state.flags |= V_FLAG;
                 CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
                 PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x18: /*RCR b,CL*/
                 temp2 = (uint8_t)(cpu_state.flags & C_FLAG);
@@ -121,7 +121,7 @@ internal static partial class _386
                         cpu_state.flags |= V_FLAG;
                 CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
                 PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x20:
         case 0x30: /*SHL b,CL*/
@@ -131,7 +131,7 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SHL8, temp_orig, c, (uint32_t)((temp << c) & 0xff));
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x28: /*SHR b,CL*/
                 seteab((uint8_t)(temp >> c));
@@ -140,7 +140,7 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SHR8, temp_orig, c, (uint32_t)(temp >> c));
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x38: /*SAR b,CL*/
                 temp = (uint8_t)((int8_t)temp >> c);
@@ -150,14 +150,14 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SAR8, temp_orig, c, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         }
         return false;
     }
 
     // pcem: x86_ops_shift.h:106-207 — OP_SHIFT_w(c, ea32), avec ea32 = 0.
-    private static bool OP_SHIFT_w(uint32_t rmdat, int c, uint16_t temp)
+    private static bool OP_SHIFT_w(uint32_t rmdat, int c, uint16_t temp, int ea32 = 0)
     {
         uint16_t temp_orig = temp;
         uint16_t temp2;
@@ -175,7 +175,7 @@ internal static partial class _386
                 set_flags_rotate(FLAGS_ROL16, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x08: /*ROR w,CL*/
                 temp = (uint16_t)((temp >> (c & 15)) | (temp << (16 - (c & 15))));
@@ -185,7 +185,7 @@ internal static partial class _386
                 set_flags_rotate(FLAGS_ROR16, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x10: /*RCL w, c*/
                 temp2 = (uint16_t)(cpu_state.flags & C_FLAG);
@@ -208,7 +208,7 @@ internal static partial class _386
                         cpu_state.flags |= V_FLAG;
                 CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
                 PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x18: /*RCR w, c*/
                 temp2 = (uint16_t)(cpu_state.flags & C_FLAG);
@@ -231,7 +231,7 @@ internal static partial class _386
                         cpu_state.flags |= V_FLAG;
                 CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
                 PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x20:
         case 0x30: /*SHL w, c*/
@@ -241,7 +241,7 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SHL16, temp_orig, c, (uint32_t)((temp << c) & 0xffff));
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x28: /*SHR w, c*/
                 seteaw((uint16_t)(temp >> c));
@@ -250,7 +250,7 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SHR16, temp_orig, c, (uint32_t)(temp >> c));
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         case 0x38: /*SAR w, c*/
                 temp = (uint16_t)((int16_t)temp >> c);
@@ -260,7 +260,7 @@ internal static partial class _386
                 set_flags_shift(FLAGS_SAR16, temp_orig, c, temp);
                 CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
                 PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
-                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 0);
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
         }
         return false;
@@ -390,4 +390,464 @@ internal static partial class _386
         ops_286[0xD2] = opD2_a16;
         ops_286[0xD3] = opD3_w_a16;
     }
+
+    /// <summary>pcem: x86_ops_shift.h:209-311 — OP_SHIFT_l(c, ea32) (G2, D2). Même
+    /// convention que OP_SHIFT_w ; le compte n'y est PAS masqué à 31 par la macro, et
+    /// RCL lit CF_SET() là où RCR lit le drapeau matérialisé — verbatim.</summary>
+    private static bool OP_SHIFT_l(uint32_t rmdat, int c, uint32_t temp, int ea32)
+    {
+        uint32_t temp_orig = temp;
+        uint32_t temp2;
+        uint32_t tempc;
+        if (c == 0)
+                return false;
+        flags_rebuild();
+        switch (rmdat & 0x38)
+        {
+        case 0x00: /*ROL l, c*/
+                temp = (temp << c) | (temp >> (32 - c));
+                seteal(temp);
+                if (cpu_state.abrt != 0)
+                        return true;
+                set_flags_rotate(FLAGS_ROL32, temp);
+                CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
+                PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
+                break;
+        case 0x08: /*ROR l,CL*/
+                temp = (temp >> c) | (temp << (32 - c));
+                seteal(temp);
+                if (cpu_state.abrt != 0)
+                        return true;
+                set_flags_rotate(FLAGS_ROR32, temp);
+                CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
+                PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
+                             (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
+                break;
+        case 0x10: /*RCL l, c*/
+                temp2 = (uint32_t)CF_SET();
+                if (is486 != 0)
+                        CLOCK_CYCLES_ALWAYS(c);
+                while (c > 0)
+                {
+                        tempc = temp2 != 0 ? 1u : 0u;
+                        temp2 = temp & 0x80000000;
+                        temp = (temp << 1) | tempc;
+                        c--;
+                }
+                seteal(temp);
+                if (cpu_state.abrt != 0)
+                        return true;
+                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                if (temp2 != 0)
+                        cpu_state.flags |= C_FLAG;
+                if (((cpu_state.flags & C_FLAG) ^ (temp >> 31)) != 0)
+                        cpu_state.flags |= V_FLAG;
+                CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
+                PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
+                             0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, ea32);
+                break;
+        case 0x18: /*RCR l, c*/
+                temp2 = (uint32_t)(cpu_state.flags & C_FLAG);
+                if (is486 != 0)
+                        CLOCK_CYCLES_ALWAYS(c);
+                while (c > 0)
+                {
+                        tempc = temp2 != 0 ? 0x80000000 : 0;
+                        temp2 = temp & 1;
+                        temp = (temp >> 1) | tempc;
+                        c--;
+                }
+                seteal(temp);
+                if (cpu_state.abrt != 0)
+                        return true;
+                cpu_state.flags &= unchecked((uint16_t)~(C_FLAG | V_FLAG));
+                if (temp2 != 0)
+                        cpu_state.flags |= C_FLAG;
+                if (((temp ^ (temp >> 1)) & 0x40000000) != 0)
+                        cpu_state.flags |= V_FLAG;
+                CLOCK_CYCLES((cpu_mod == 3) ? 9 : 10);
+                PREFETCH_RUN((cpu_mod == 3) ? 9 : 10, 2, (int)rmdat,
+                             0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, ea32);
+                break;
+        case 0x20:
+        case 0x30: /*SHL l, c*/
+                seteal(temp << c);
+                if (cpu_state.abrt != 0)
+                        return true;
+                set_flags_shift(FLAGS_SHL32, temp_orig, c, temp << c);
+                CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
+                PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
+                             0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, ea32);
+                break;
+        case 0x28: /*SHR l, c*/
+                seteal(temp >> c);
+                if (cpu_state.abrt != 0)
+                        return true;
+                set_flags_shift(FLAGS_SHR32, temp_orig, c, temp >> c);
+                CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
+                PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
+                             0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, ea32);
+                break;
+        case 0x38: /*SAR l, c*/
+                temp = (uint32_t)((int32_t)temp >> c);
+                seteal(temp);
+                if (cpu_state.abrt != 0)
+                        return true;
+                set_flags_shift(FLAGS_SAR32, temp_orig, c, temp);
+                CLOCK_CYCLES((cpu_mod == 3) ? 3 : 7);
+                PREFETCH_RUN((cpu_mod == 3) ? 3 : 7, 2, (int)rmdat,
+                             0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, ea32);
+                break;
+        }
+        return false;
+    }
+
+    // pcem: x86_ops_shift.h:591-659 — SHLD_w, SHLD_l, SHRD_w, SHRD_l (G2, D3). Chacune
+    // rend `true` quand le handler doit rendre 1 ; le compte est déjà masqué à 31.
+    private static bool SHLD_w(int count)
+    {
+        if (count != 0)
+        {
+                uint16_t tempw = geteaw();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = ((tempw << (count - 1)) & (1 << 15)) != 0 ? 1 : 0;
+                uint32_t templ = ((uint32_t)tempw << 16) | cpu_state.regs[cpu_reg].w;
+                if (count <= 16)
+                        tempw = (uint16_t)(templ >> (16 - count));
+                else
+                        tempw = (uint16_t)((templ << count) >> 16);
+                seteaw(tempw);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(tempw);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHLD_l(int count)
+    {
+        if (count != 0)
+        {
+                uint32_t templ = geteal();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = ((templ << (count - 1)) & 0x80000000) != 0 ? 1 : 0;
+                templ = (templ << count) | (cpu_state.regs[cpu_reg].l >> (32 - count));
+                seteal(templ);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(templ);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHRD_w(int count)
+    {
+        if (count != 0)
+        {
+                uint16_t tempw = geteaw();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = (tempw >> (count - 1)) & 1;
+                uint32_t templ = tempw | ((uint32_t)cpu_state.regs[cpu_reg].w << 16);
+                tempw = (uint16_t)(templ >> count);
+                seteaw(tempw);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp16(tempw);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    private static bool SHRD_l(int count)
+    {
+        if (count != 0)
+        {
+                uint32_t templ = geteal();
+                if (cpu_state.abrt != 0)
+                        return true;
+                int tempc = (int)((templ >> (count - 1)) & 1);
+                templ = (templ >> count) | (cpu_state.regs[cpu_reg].l << (32 - count));
+                seteal(templ);
+                if (cpu_state.abrt != 0)
+                        return true;
+                setznp32(templ);
+                flags_rebuild();
+                if (tempc != 0)
+                        cpu_state.flags |= C_FLAG;
+        }
+        return false;
+    }
+
+    // pcem: x86_ops_shift.h:660-714 — opSHxD(operation) : les formes _i (compte
+    // immédiat) et _CL, en a16 et a32.
+    private static OpFn OpSHxD(Func<int, bool> operation, bool imm, bool a32) => fetchdat =>
+    {
+        int count;
+        if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        count = imm ? getbyte() & 31 : CL & 31;
+        if (operation(count)) return 1;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 3, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, a32 ? 1 : 0);
+        return 0;
+    };
+
+    private static void PoserSHxD386()
+    {
+        foreach (var (op, w, l) in new (int, Func<int, bool>, Func<int, bool>)[]
+                 { (0xA4, SHLD_w, SHLD_l), (0xAC, SHRD_w, SHRD_l) })
+        {
+                foreach (var (o, imm) in new[] { (op, true), (op + 1, false) })
+                {
+                        ops_386_0f[o] = OpSHxD(w, imm, false);
+                        ops_386_0f[0x100 | o] = OpSHxD(l, imm, false);
+                        ops_386_0f[0x200 | o] = OpSHxD(w, imm, true);
+                        ops_386_0f[0x300 | o] = OpSHxD(l, imm, true);
+                }
+        }
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_shift.h ----
+
+    // pcem: x86_ops_shift.h:329
+    private static int opC0_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint8_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = readmemb(x86.cs, cpu_state.pc) & 31;
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_b(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:380
+    private static int opC1_l_a16(uint32_t fetchdat)
+    {
+        int c;
+        uint32_t temp;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = readmemb(x86.cs, cpu_state.pc) & 31;
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 0)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:397
+    private static int opC1_l_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint32_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = readmemb(x86.cs, cpu_state.pc) & 31;
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:363
+    private static int opC1_w_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint16_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = readmemb(x86.cs, cpu_state.pc) & 31;
+        cpu_state.pc++;
+        PREFETCH_PREFIX();
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_w(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:429
+    private static int opD0_a32(uint32_t fetchdat)
+    {
+        int c = 1;
+        uint8_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_b(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:471
+    private static int opD1_l_a16(uint32_t fetchdat)
+    {
+        int c = 1;
+        uint32_t temp;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 0)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:485
+    private static int opD1_l_a32(uint32_t fetchdat)
+    {
+        int c = 1;
+        uint32_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:457
+    private static int opD1_w_a32(uint32_t fetchdat)
+    {
+        int c = 1;
+        uint16_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_w(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:515
+    private static int opD2_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint8_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = CL & 31;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_b(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:560
+    private static int opD3_l_a16(uint32_t fetchdat)
+    {
+        int c;
+        uint32_t temp;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = CL & 31;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 0)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:575
+    private static int opD3_l_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint32_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = CL & 31;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_l(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: x86_ops_shift.h:545
+    private static int opD3_w_a32(uint32_t fetchdat)
+    {
+        int c;
+        uint16_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        c = CL & 31;
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if (OP_SHIFT_w(fetchdat, c, temp, 1)) return 1;
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_shift_386()
+    {
+        ops_386[0x1C1] = opC1_l_a16;
+        ops_386[0x1D1] = opD1_l_a16;
+        ops_386[0x1D3] = opD3_l_a16;
+        ops_386[0x2C0] = opC0_a32;
+        ops_386[0x2C1] = opC1_w_a32;
+        ops_386[0x2D0] = opD0_a32;
+        ops_386[0x2D1] = opD1_w_a32;
+        ops_386[0x2D2] = opD2_a32;
+        ops_386[0x2D3] = opD3_w_a32;
+        ops_386[0x3C0] = opC0_a32;
+        ops_386[0x3C1] = opC1_l_a32;
+        ops_386[0x3D0] = opD0_a32;
+        ops_386[0x3D1] = opD1_l_a32;
+        ops_386[0x3D2] = opD2_a32;
+        ops_386[0x3D3] = opD3_l_a32;
+    }
 }
+

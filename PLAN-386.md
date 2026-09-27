@@ -17,7 +17,7 @@
 | Pagination (`mem.c` : `mmutranslate*`, `flushmmucache*`, `page_lookup`) | **omise** (`Memory/mem.cs`, en-tête) |
 | `taskswitch286` (TSS 286 et 386, `x86seg.c:2393-2849`) | `pc.fatal` |
 | V86 dans `x86seg.cs` | branches `VM_FLAG` présentes mais jamais exercées |
-| Oracle : `h_state.eflags` | **16 bits** — VM (bit 17) et RF (bit 16) invisibles |
+| Oracle : `h_state` | `eflags` est déjà le **mot haut** d'EFLAGS (`x86.h:113`, VM = `0x0002`) : VM et RF y sont. Manquaient `cr4` et `dr[8]` — **ajoutés en D0.1** |
 
 Les tables `ops_386` et `ops_386_0f` servent **aussi au 486** : `cpu.c` fait
 `x86_setopcodes(ops_386, ops_386_0f, …)` pour les deux. Les instructions propres au 486
@@ -92,25 +92,25 @@ silicium voient tout (le mode réel), puis ce qu'ils ne voient plus.
 
 | # | Quoi | Pourquoi |
 |---|---|---|
-| D0.1 | `h_state.eflags` passe à 32 bits ; `abi` monte d'un cran | Sans VM ni RF dans le vecteur, un `POPFD` ou un `IRETD` faux passe vert |
-| D0.2 | Porter `cpus_i386SX` et `cpus_i386DX` (`cpu_tables.c`), puis `cpu_set()` sur un 386 des deux côtés | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
-| D0.3 | `Oracle.Core386` : `h_set_core`, `Step386`, et `boot-diff`/`BootDiff.CoeurDuModele` qui le reconnaissent | Même geste que `Core286` |
+| D0.1 ✅ | `cr4` et `dr[8]` entrent dans `h_state` ; ABI 21 | `MOV CRx`/`MOV DRx` les écrivent. **Correction** : la première version de ce plan voulait élargir `eflags` à 32 bits — faux, c'est déjà le mot haut d'EFLAGS chez PCem. TR6/TR7 n'ont pas de stockage (`MOV TRx` ne fait que journaliser) |
+| D0.2 ✅ | Porter `cpus_i386SX` (`cpu_tables.c`), `m_ami386` des deux côtés (init absente, **refus bruyant**), et `cpu_set()` sur un 386 : `x86_setopcodes(ops_386)` inconditionnel, temps du 386SX. `ops_386`/`ops_386_0f` remplies de leur part partagée par le fichier **généré** `386_ops_table386.cs` (`tools/ops386-table.py`). `cpus_i386DX` viendra avec l'ami386dx (G3) | Pose `is386`, les `timing_*` et `x86_setopcodes(ops_386…)`. Règle A3 : lier ne suffit pas, **`cpu_set()` pose les valeurs** |
+| D0.3 ✅ | `Oracle.Core386` / `H_CORE_386`, un seul prédicat « exec386 » de chaque côté (`h_exec386`, `Oracle.Exec386`, `Oracle.CoreForModel`) ; fait avec D0.2 | Un site oublié renvoyait le 386 vers execx86 en silence |
 | D0.4 | Le fuzzeur en `Core386` : préfixes `66`/`67` tirés, registres 32 bits aléatoires, tables tirées dans les quatre quadrants | `Fuzzer.cs` exclut aujourd'hui `66`/`67` « jusqu'au 386 » |
-| D0.5 | `sst386-probe` : lecteur `MOO` en C# (dans `tools/iXtal26.Diff`), liste de révocation, `--baseline` comme `sst-probe` ; `tools/fetch-sst.sh` étendu au dépôt 80386 (`.gitignore`) | Le seul oracle silicium du bloc |
-| D0.6 | Script de mesure : emplacements `ops_386`/`ops_386_0f` posés contre la table C | Le compteur « N / 1 024 » de chaque commit, comme pour A |
+| D0.5 ✅ | `sst386-probe` (lecteur MOO, révocation, `--target`, `--baseline`) et `tools/fetch-sst386.sh`. Base oracle `sst386-baseline.tsv` : **1 189 372 / 1 413 471** ; C# 423 569 (s'arrête en nommant ce qui manque). ~~345 228 cas hors carte~~ : carte plate portée à **16 Mo** en D2, base oracle régénérée (plus aucun cas hors carte). Pièges : eip capturé après le HLT final (attendu − 1) ; EFLAGS en clair (`h_flags_rebuild`) | Le seul oracle silicium du bloc |
+| D0.6 ✅ | `tools/ops386-table.py` (ce que PCem attend) et `iXtal26.Diff ops-count` (ce que la table C# vivante porte) — fait avec D0.2 | Le compteur « N / 1 024 » de chaque commit, comme pour A |
 
 **Porte de D0** : les boot-diffs 8088 et 286 inchangés à l'unité ; `sst386-probe` tourne
 et rend un rouge **nommé** sur chaque fichier (aucun handler 32 bits n'existe encore) ;
 le fuzzeur `Core386` rend 100 % vert quand il est restreint au quadrant 0 sans `66`/`67`.
 
-### D1 — Le décodage 32 bits
+### D1 — Le décodage 32 bits  ✅ *fait : `ops_386` 602/1024 ; SST 386 C# 464 946, 351 formes sur 941 identiques à l'oracle, aucune au-dessus*
 
 `x86_ops_prefix.h` (168) : `op_66`, `op_67`, les préfixes FS et GS. Dans `386_common.h`
 (280) et `x86.h` (333) : `fetch_ea_32` (SIB, `disp32`), `geteal`/`seteal`, `getr32`,
 `fastreadl`. **Rien ne s'exécute encore en 32 bits**, mais un `66 90` ou un `67 8B 00`
 décode, et le fuzzeur le voit.
 
-### D2 — Les familles déjà connues, en formes `_l` et `_a32`
+### D2 — Les familles déjà connues, en formes `_l` et `_a32`  ✅ *fait : `ops_386` 1024/1024 ; REP 32 bits ; carte 16 Mo ; SST 386 C# identique à l'oracle sur 799 formes sur 941, toutes celles hors 0F*
 
 Un en-tête par commit, dans l'ordre de A4 à A11. Chaque handler 16 bits est déjà relu,
 donc la différence est mécanique, **sauf** là où la largeur change la sémantique :
@@ -142,6 +142,8 @@ vert sur leurs fichiers, **aux formes déviantes recensées près** ; boot-diffs
 | D3.4 | `LFS`/`LGS`/`LSS`, `PUSH`/`POP FS`/`GS`, `IMUL r, r/m` (`0F AF`) | dans `x86_ops_misc.h` / `x86_ops_stack.h` / `x86_ops_mul.h` |
 | D3.5 | `x86_ops_atomic.h` (322) et les 486 de `x86_ops_misc.h` | `CMPXCHG`, `XADD`, `BSWAP`, `CPUID`, `INVD`/`WBINVD`, **avec leur garde `is486`** ; vérifiés illégaux sur un 386, exercés en G6 |
 
+✅ *D3 fait : `ops_386_0f` 984/1024 (restent les 40 de D4) ; corpus SST 386 : C# identique à l'oracle sur 941 formes sur 941.*
+
 **Jalon visible à la fin de D3** : le jeu d'instructions 386 complet en mode réel. Le
 corpus `v1_ex_real_mode` doit être vert au recensement des déviations près.
 
@@ -150,6 +152,14 @@ corpus `v1_ex_real_mode` doit être vert au recensement des déviations près.
 `x86_ops_mov_ctrl.h` (275) : `MOV CRx`/`DRx`/`TRx`. Les formes `_l` de `0F 00` et de
 `0F 01`. `LOADALL386` (`0F 07`). `x86_ops_pmode.h` (519), ses formes 32 bits.
 **Oracle** : le fuzzeur. Le corpus SST ne teste pas l'entrée en mode protégé.
+
+✅ *D4 fait : `ops_386_0f` 1024/1024, `ops_386` et `ops_386_0f` pleines (2048/2048). Fuzzeur :
+mode `--0f XX` (préfixes 66/67 tirés, CR0/CR3/DR6/DR7 tirés, bloc LOADALL386 tenu en
+ES:EDI), vert sur les onze seconds octets, graines 1 et 7. **Ce qu'il ne voit pas** : en
+mode réel, les formes 32 bits de `0F 00`, LAR et LSL s'arrêtent à NOTRM (INT 6), et la
+branche #GP de `MOV CRx/DRx/TRx` n'est jamais prise — pm-check 386, en D5. La lecture de CR2
+et de DR0-DR5 ne voit que zéro (h_setsys386 ne les pose pas). PG reste nul partout : avec
+PG, la pagination de PCem indexe la RAM sans borne et l'oracle tombe (segfault mesuré).*
 
 ### D5 — Le mode protégé 32 bits
 
@@ -161,6 +171,34 @@ corpus `v1_ex_real_mode` doit être vert au recensement des déviations près.
 plus le fuzzeur en état protégé. **Pas de silicium.** Les écritures en table se
 transcrivent à l'œil, et le commit le dit.
 
+**Recompte (27/09, à `ba39935`), par script sur `x86seg.c` et `x86seg.cs`** — lignes vives
+= hors vides, commentaires et `pclog` ; « sites » = lignes qui lisent `is32`, `stack32`,
+`use32`, `& 0x40` ou `VM_FLAG`.
+
+| Fonction | C (lignes vives, sites) | C# | Écart |
+|---|---|---|---|
+| `loadcscall` `:864-1318` | 358, 12 | transcrite (M20), 10 | les 2 sites en trop sont dans le bloc `/* */` de `:966-975` — **rien à écrire** |
+| `pmoderetf` `:1320-1624` | 244, 13 | transcrite, 11 | 2 `pclog` — **rien à écrire** |
+| `pmodeint` `:1626-2007` | 309, 9 | transcrite, 9 | — |
+| `pmodeiret` `:2009-2391` | 316, 13 | transcrite, 13 | — |
+| `loadcsjmp` `:567-802` | 199, 7 | transcrite, 5 | bloc `/* */` de `:644-653` — rien |
+| `loadseg` `:271-446` | 140, 4 | transcrite, 2 | **`:428-429` omis** : `set_stack32(0)` sur SS en V86 → **D7** |
+| `loadcs`, branche protégée `:457-…` | 93 | `pc.fatal` | appelée par `x86_doabrt:110` et `386.c:238`, `:269` en mode réel seulement (branches `else` de `msw & 1`), et par `taskswitch286` (`:2541`, sous `VM_FLAG`) → avec **taskswitch286** |
+| `taskswitch286` `:2393-2849` | 362, 2 | `pc.fatal` | **à écrire**, seul vrai code neuf de D5 ; appelée par `loadcsjmp:767`, `loadcscall:1289`, `pmodeint:1997`, `pmodeiret:2075` |
+
+Les branches 32 bits de loadcscall/pmoderetf/pmodeint/pmodeiret **existent déjà** : écrites
+en M20, elles n'ont jamais tourné avec `is32`, `stack32` ou `use32` non nuls. D5 est donc
+d'abord un travail d'**oracle** (pm-check 386) qui les exerce, puis `taskswitch286`.
+
+✅ *D5 fait : `pm-check --core 386` (76 cas, attentes à la main sur l'état de l'oracle,
+76/0/0), `pm-fuzz` (le fuzzeur en mode protégé, état par LOADALL386), puis `taskswitch286`
+(TSS 286 et 386) — pm-check 286 passe de 66/0/2 à 68/0/0. En chemin, trois défauts du C#
+trouvés par l'oracle : `x86_int` sautait 70 cycles à chaque exception en mode protégé (286
+compris) ; 44 sites ignoraient `check_io_perm` (D2) ; `ClearSegResidue` oubliait six
+globales. Vus chez PCem, reproduits : CALL par porte de tâche → #GP (le type 5 n'est pas
+aiguillé) ; CALL sur TSS empile le retour sur la pile de la NOUVELLE tâche ; une TSS 16 bits
+pose les moitiés hautes des registres à FFFF.*
+
 ### D6 — La pagination
 
 `mem.c` : `flushmmucache`, `flushmmucache_nopc`, `flushmmucache_cr3` (93-188),
@@ -171,10 +209,28 @@ paginées d'`addreadlookup`/`addwritelookup` et de `readmem*l`/`writemem*l`, `pa
 **Oracle** : la sonde dédiée décrite plus haut (`page-check`) ; et, **mesure obligatoire**,
 la vitesse hôte du 8088 avant et après, puisque `readmembl` y passe.
 
+✅ *D6 fait : `page-check` (7a8175e, avant le code) puis `mmutranslatereal`, `flushmmucache_cr3`
+transcrit (ce n'est plus un alias de `flushmmucache` : il ne remet pas `pccache`), les
+branches `cr0 >> 31` des six accès et de `getpccache`. page-check vert 3 × 200 000
+traductions ; pm-check 386 : onze cas paginés (bits A/D, #PF et code d'erreur, accès à
+cheval, CPL3, cache de traduction gardé jusqu'au MOV CR3, fetch vers une page absente),
+87/0/0. Omis, nommés : `mmutranslate_noabrt` (dynarec), `flushmmucache_nopc` (chipsets 486+),
+`mem_flush_write_page`, `mmu_invalidate` (486). Inobservable : le `ram` que `getpccache`
+rend sur faute de fetch — `fastreadl` teste `abrt` avant de le lire.*
+
 ### D7 — Le mode virtuel 8086
 
 Les branches `VM_FLAG` d'`x86seg.cs` (déjà écrites, jamais exercées), et `IOPL` sur
 `CLI`/`STI`/`PUSHF`/`POPF`/`INT`/`IRET`. **Oracle** : `pm-check` en V86.
+
+✅ *D7 fait : la seule ligne manquante, `x86seg.c:428-429` (`set_stack32(0)` sur SS en V86),
+omise au temps du XT — et PORTANTE : sans elle, toute entrée en V86 depuis une pile 32 bits
+diverge sur stack32 (contrôle négatif : 19 rouges). pm-check 386 : dix-neuf cas V86 entrés
+par un VRAI IRETD (pmodeiret charge les segments), attentes à la main — segments V86, INT
+vers l'anneau 0 (9 dwords, DS/ES/FS/GS remis à zéro), #GP sous IOPL < 3 de CLI, STI, PUSHF,
+POPF, PUSHFD, POPFD, INT3, INTO, IN par le bitmap d'E/S, HLT, MOV CR0 ; LAR → INT 6 ; retour
+par IRETD de l'anneau 0 : 106/0/0. pm-fuzz tire un départ V86 une fois sur cinq. Les
+branches VME/PVI (CR4) restent mortes sur un 386.*
 
 ---
 

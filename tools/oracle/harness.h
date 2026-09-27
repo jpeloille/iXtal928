@@ -56,7 +56,10 @@ enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
  * `is386 ? exec386 : AT ? exec386 : execx86` (pc.c:478-487). Un 286 est donc « AT sans
  * is386 », et h_set_core() ne fait que mémoriser le choix pour que h_reset() le
  * réapplique — resetx86() branche sur AT (808x.c:680). */
-enum { H_CORE_8088 = 0, H_CORE_286 = 1 };
+/* H_CORE_386 depuis G2 etape D0.2 : le MEME exec386, mais sur une machine dont la table
+ * porte un 386 — cpu_set() pose is386, les temps du 386 et x86_setopcodes(ops_386, …).
+ * La machine est l'ami386 (ROM_AMI386SX), la premiere de G3. */
+enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2 };
 void h_set_core(int core);
 int h_get_core(void);
 
@@ -145,6 +148,21 @@ typedef struct h_state {
         uint32_t use32;
         int32_t  stack32;
         int32_t  cpl_override;
+
+        /* cr4 ET LES HUIT REGISTRES DE DEBOGAGE, ajoutes en G2 etape D0.1, avant le
+         * premier handler 386 qui les ecrit : MOV CRx et MOV DRx (x86_ops_mov_ctrl.h:
+         * 134, :187, :209, :221). Meme doctrine que le cache descripteur : ils entrent
+         * CONSTANTS, a zero des deux cotes, et le cablage se verifie pendant qu'il est
+         * trivial. cr4 est remis par resetx86 (808x.c:677) ; dr[] ne l'est par RIEN,
+         * PCem n'amorcant qu'une fois par processus — h_seg_clear_residue le remet,
+         * comme cr2 et cr3 ; ClearSegResidue cote C#.
+         * Les registres de test TR6/TR7 n'ont pas de stockage chez PCem : MOV TRx ne
+         * fait que journaliser (x86_ops_mov_ctrl.h:227-275). Rien a ajouter.
+         *
+         * `eflags` n'a PAS a s'elargir : c'est deja le MOT HAUT d'EFLAGS
+         * (x86.h:113, VM_FLAG = 0x0002 « In EFLAGS »), donc RF et VM y sont. */
+        uint32_t cr4;
+        uint32_t dr[8];
 
         /* LES DRAPEAUX PARESSEUX (x86.h:65-68), ajoutés en A2.1.
          *
@@ -316,6 +334,26 @@ void h_setregs(const uint16_t r[H_R_COUNT]);
 
 /* Relit les 14 mêmes registres. */
 void h_getregs(uint16_t r[H_R_COUNT]);
+
+/* G2, D0.4 — CE QUE h_setregs NE POSE PAS SUR UN 386, à appeler APRÈS lui : les moitiés
+ * hautes des huit registres généraux (ordre de cpu_state.regs : EAX ECX EDX EBX ESP EBP
+ * ESI EDI), le mot haut d'EFLAGS (VM, RF — x86.h:113) et les sélecteurs de FS et GS,
+ * chargés par loadseg comme les quatre autres. (Pas `gs` : x86.h:143 en fait une macro.) Le fuzzeur du cœur 386 les tire au
+ * hasard ; les laisser à zéro rendrait invisible un handler 16 bits qui écrase la
+ * moitié haute. */
+void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16_t gs_sel);
+
+/* G2, D0.5 — les registres système qu'un cas SingleStepTests/80386 pose (RG32 : cr0, cr3,
+ * dr6, dr7). cr0 est cpu_state.CR0.l, msw en est le mot bas (x86.h). */
+void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7);
+
+/* G2, D6 — page-check : un appel de mmutranslatereal dans un contexte posé (harness.c),
+ * et mmu_perm, hors de h_state. */
+uint32_t h_mmutranslate(uint32_t addr, int rw, int cpl, int cpl_ovr, int abrt_in);
+int h_mmu_perm(void);
+
+/* G2, D0.5 — flags_rebuild(), pour la sonde SST 386 (harness_386.c). */
+void h_flags_rebuild(void);
 
 /* Exécute exactement une instruction et rend le nombre de cycles consommés.
  * Le budget est réarmé à l'intérieur : execx86() boucle tant que cycles > 0,
@@ -547,7 +585,14 @@ uint8_t *h_ram(void);
  * h_state ne change pas de taille. */
 /* 20 depuis M21 : h_mouse_poll s'ajoute au contrat ; COM1, COM2 et la souris serie
  * Microsoft entrent dans l'oracle. Le vecteur ne change pas de taille. */
-#define H_ABI_VERSION 20
+/* 21 depuis G2 etape D0.1 : cr4 et dr[8] entrent dans h_state. Le vecteur change de
+ * TAILLE. */
+/* 22 depuis G2 etape D0.2 : h_set_core accepte H_CORE_386. Le vecteur ne change pas de
+ * taille. */
+/* 23 depuis G2 etape D0.4 : h_setregs386 s'ajoute au contrat. */
+/* 24 depuis G2 etape D0.5 : h_setsys386 et h_flags_rebuild s'ajoutent au contrat. */
+/* 25 depuis G2 etape D6 : h_mmutranslate et h_mmu_perm (page-check). h_state ne change pas. */
+#define H_ABI_VERSION 25
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

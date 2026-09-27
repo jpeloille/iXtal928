@@ -3,12 +3,11 @@
 //
 // ORACLE: pcem-dev/src/cpu/x86seg.c  (plages dans oracle.tsv)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — les branches MODE RÉEL, plus LES FONDATIONS DU MODE PROTÉGÉ
-//         depuis le bloc C étape 4 : les cinq leveurs d'exception, x86abort,
-//         set_stack32, set_use32, do_seg_load, do_seg_v86_init, check_seg_valid,
-//         PUSHW / PUSHL / POPW / POPL. Restent à écrire : loadseg et loadcsjmp en
-//         mode protégé (étape 5), pmodeint et pmodeiret (6), pmoderetf et
-//         loadcscall (7), taskswitch286 (8). Voir PLAN-286.md.
+// STATUS: partial — le mode réel, et le mode protégé du 286 et du 386 : loadseg,
+//         loadcsjmp, loadcscall, pmoderetf, pmodeint, pmodeiret (M20), taskswitch286
+//         pour les TSS 286 et 386 (G2 D5), le V86 de loadseg (G2 D7). Restent : la
+//         branche protégée de loadcs (x86seg.c:457-565, sans appelant atteignable —
+//         voir taskswitch286), sysenter/sysexit et la queue SMM. Voir PLAN-386.md.
 //
 // x86seg.c est partagé entre le cœur 8088 et le cœur 386 : 808x.c l'appelle pour
 // loadcs/loadseg, et sur un XT `msw & 1` vaut toujours 0, donc seules les
@@ -277,8 +276,10 @@ internal static partial class x86seg_c
                 codegen_flat_ds = 0;
         if (s == cpu_state.seg_ss)
                 codegen_flat_ss = 0;
-        // omitted: `if (s == seg_ss && (eflags & VM_FLAG)) set_stack32(0);`
-        //          VM_FLAG est inatteignable sur un XT (mode virtuel 8086 = 386+).
+        // pcem: x86seg.c:428-429 — G2, D7. En V86, charger SS repasse la pile en 16 bits :
+        // un SS chargé depuis l'anneau 0 sur une pile 32 bits laisserait sinon stack32 à 1.
+        if (s == cpu_state.seg_ss && (cpu_state.eflags & VM_FLAG) != 0)
+                set_stack32(0);
 
         if (s == cpu_state.seg_ds)
         {
@@ -718,6 +719,8 @@ internal static partial class x86seg_c
                                 }
                                 break;
 
+                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
+                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 cpu_state.pc = old_pc;
@@ -1830,9 +1833,489 @@ internal static partial class x86seg_c
     /// correspondant de l'IDT dans pmodeint. Le POST de l'IBM AT n'en emprunte aucune :
     /// pas de descripteur de type 9 dans sa GDT, pas de porte de type 5 dans son IDT.
     /// Echoue bruyamment en attendant, meme doctrine que ses voisines.</summary>
+    // pcem: x86seg.c:2393-2849 — taskswitch286, les TSS 286 ET 386. G2, D5.
+    //
+    // UN CHANGEMENT DE TÂCHE SAUVE TOUT L'ÉTAT DANS LA TSS COURANTE, marque la nouvelle
+    // OCCUPÉE (bit 1 du type, 0x200 dans le mot 2), et recharge tout depuis elle. CALL et
+    // INT y écrivent le LIEN ARRIÈRE (le sélecteur de l'ancienne tâche, offset 0) et
+    // posent NT ; IRET suit ce lien en sens inverse et libère l'ancienne. JMP libère
+    // l'ancienne sans lien.
+    //
+    // CE SONT DES ÉCRITURES EN TABLE QU'AUCUN COMPTEUR NE SURVEILLE À PART : le journal
+    // d'écritures et le hachage de RAM de pm-check les comparent, rien d'autre. Transcrit
+    // à l'œil, ligne à ligne, comme le plan le prévoit.
+    //
+    // DEUX ÉCARTS DE PCem, transcrits tels quels :
+    //   - le bit « occupé » de la NOUVELLE TSS est cherché dans la LDT si `tr.seg & 4` —
+    //     le sélecteur de l'ANCIENNE tâche — et non `seg & 4` (sans effet : une TSS est
+    //     toujours dans la GDT, et TR aussi) ;
+    //   - une TSS 16 bits charge les registres généraux avec `| 0xFFFF0000` : leurs
+    //     moitiés hautes deviennent FFFF au lieu d'être conservées.
+    //
+    // loadcs n'y est appelé que sous VM_FLAG, où sa branche mode réel s'applique : sa
+    // branche mode protégé (x86seg.c:457-565) reste donc sans appelant atteignable.
     internal static void taskswitch286(uint16_t seg, uint16_t[] segdat, int is32)
-        => pc.fatal($"taskswitch286 (seg {seg:X4}, is32 {is32}) : x86seg.c n'est pas " +
-                    "encore transcrit jusque-la (bloc C etape 8)\n");
+    {
+        uint32_t @base;
+        uint32_t limit;
+        uint32_t templ;
+        uint16_t tempw;
+
+        uint32_t new_cr3 = 0;
+        uint16_t new_es, new_cs, new_ss, new_ds, new_fs, new_gs;
+        uint16_t new_ldt;
+
+        uint32_t new_eax, new_ebx, new_ecx, new_edx, new_esp, new_ebp, new_esi, new_edi, new_pc, new_flags;
+
+        uint32_t addr;
+
+        var segdat2 = new uint16_t[4];
+        int DPL2() => (segdat2[2] >> 13) & 3;
+
+        @base = (uint32_t)(segdat[1] | ((segdat[2] & 0xFF) << 16));
+        limit = segdat[0];
+        if (is386 != 0)
+        {
+                @base |= (uint32_t)((segdat[3] >> 8) << 24);
+                limit |= (uint32_t)((segdat[3] & 0xF) << 16);
+        }
+
+        if (is32 != 0)
+        {
+                if (limit < 103)
+                {
+                        // omitted: pclog("32-bit TSS ... limit less than 103") — sortie pure.
+                        x86ts(null!, seg);
+                        return;
+                }
+
+                if (optype == JMP || optype == CALL || optype == OPTYPE_INT)
+                {
+                        // pcem bug, reproduced: PB-42 — la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // COURANTE, même quand c'est le descripteur de `seg` qu'on modifie.
+                        if ((tr.seg & 4) != 0)
+                                tempw = readmemw(ldt.@base, (uint32_t)((seg & ~7) + 4));
+                        else
+                                tempw = readmemw(gdt.@base, (uint32_t)((seg & ~7) + 4));
+                        if (cpu_state.abrt != 0)
+                                return;
+                        tempw |= 0x200;
+                        if ((tr.seg & 4) != 0)
+                                writememw(ldt.@base, (uint32_t)((seg & ~7) + 4), tempw);
+                        else
+                                writememw(gdt.@base, (uint32_t)((seg & ~7) + 4), tempw);
+                }
+                if (cpu_state.abrt != 0)
+                        return;
+
+                if (optype == IRET)
+                        cpu_state.flags &= unchecked((uint16_t)~NT_FLAG);
+
+                x86_flags.flags_rebuild();
+                writememl(tr.@base, 0x1C, cr3);
+                writememl(tr.@base, 0x20, cpu_state.pc);
+                writememl(tr.@base, 0x24, (uint32_t)(cpu_state.flags | (cpu_state.eflags << 16)));
+
+                writememl(tr.@base, 0x28, EAX);
+                writememl(tr.@base, 0x2C, ECX);
+                writememl(tr.@base, 0x30, EDX);
+                writememl(tr.@base, 0x34, EBX);
+                writememl(tr.@base, 0x38, ESP);
+                writememl(tr.@base, 0x3C, EBP);
+                writememl(tr.@base, 0x40, ESI);
+                writememl(tr.@base, 0x44, EDI);
+
+                writememl(tr.@base, 0x48, ES);
+                writememl(tr.@base, 0x4C, CS);
+                writememl(tr.@base, 0x50, SS);
+                writememl(tr.@base, 0x54, DS);
+                writememl(tr.@base, 0x58, FS);
+                writememl(tr.@base, 0x5C, GS);
+
+                if (optype == JMP || optype == IRET)
+                {
+                        // verbatim : la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // COURANTE, même quand c'est le descripteur de `tr.seg` qu'on modifie.
+                        if ((tr.seg & 4) != 0)
+                                tempw = readmemw(ldt.@base, (uint32_t)((tr.seg & ~7) + 4));
+                        else
+                                tempw = readmemw(gdt.@base, (uint32_t)((tr.seg & ~7) + 4));
+                        if (cpu_state.abrt != 0)
+                                return;
+                        tempw &= unchecked((uint16_t)~0x200);
+                        if ((tr.seg & 4) != 0)
+                                writememw(ldt.@base, (uint32_t)((tr.seg & ~7) + 4), tempw);
+                        else
+                                writememw(gdt.@base, (uint32_t)((tr.seg & ~7) + 4), tempw);
+                }
+                if (cpu_state.abrt != 0)
+                        return;
+
+                if (optype == OPTYPE_INT || optype == CALL)
+                {
+                        writememl(@base, 0, tr.seg);
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+
+                new_cr3 = readmeml(@base, 0x1C);
+                new_pc = readmeml(@base, 0x20);
+                new_flags = readmeml(@base, 0x24);
+                if (optype == OPTYPE_INT || optype == CALL)
+                        new_flags |= NT_FLAG;
+
+                new_eax = readmeml(@base, 0x28);
+                new_ecx = readmeml(@base, 0x2C);
+                new_edx = readmeml(@base, 0x30);
+                new_ebx = readmeml(@base, 0x34);
+                new_esp = readmeml(@base, 0x38);
+                new_ebp = readmeml(@base, 0x3C);
+                new_esi = readmeml(@base, 0x40);
+                new_edi = readmeml(@base, 0x44);
+
+                new_es = readmemw(@base, 0x48);
+                new_cs = readmemw(@base, 0x4C);
+                new_ss = readmemw(@base, 0x50);
+                new_ds = readmemw(@base, 0x54);
+                new_fs = readmemw(@base, 0x58);
+                new_gs = readmemw(@base, 0x5C);
+                new_ldt = readmemw(@base, 0x60);
+
+                cr0 |= 8;
+
+                cr3 = new_cr3;
+                Memory.mem.flushmmucache();
+
+                cpu_state.pc = new_pc;
+                cpu_state.flags = (uint16_t)new_flags;
+                cpu_state.eflags = (uint16_t)(new_flags >> 16);
+                x86_flags.flags_extract();
+
+                ldt.seg = new_ldt;
+                templ = (uint32_t)(ldt.seg & ~7) + gdt.@base;
+                ldt.limit = readmemw(0, templ);
+                if ((readmemb(0, templ + 6) & 0x80) != 0)
+                {
+                        ldt.limit <<= 12;
+                        ldt.limit |= 0xFFF;
+                }
+                ldt.@base = (uint32_t)((readmemw(0, templ + 2)) | (readmemb(0, templ + 4) << 16) | (readmemb(0, templ + 7) << 24));
+
+                if ((cpu_state.eflags & VM_FLAG) != 0)
+                {
+                        loadcs(new_cs);
+                        set_use32(0);
+                        cpu_cur_status |= CPU_STATUS_V86;
+                }
+                else
+                {
+                        if ((new_cs & ~3) == 0)
+                        {
+                                // omitted: pclog("TS loading null CS") — sortie pure.
+                                x86ts(null!, 0);
+                                return;
+                        }
+                        addr = (uint32_t)(new_cs & ~7);
+                        if ((new_cs & 4) != 0)
+                        {
+                                if (addr >= ldt.limit)
+                                {
+                                        // omitted: pclog("Bigger than LDT limit ... TS") — sortie pure.
+                                        x86ts(null!, (uint16_t)(new_cs & ~3));
+                                        return;
+                                }
+                                addr += ldt.@base;
+                        }
+                        else
+                        {
+                                if (addr >= gdt.limit)
+                                {
+                                        // omitted: pclog("Bigger than GDT limit ... TS") — sortie pure.
+                                        x86ts(null!, (uint16_t)(new_cs & ~3));
+                                        return;
+                                }
+                                addr += gdt.@base;
+                        }
+                        segdat2[0] = readmemw(0, addr);
+                        segdat2[1] = readmemw(0, addr + 2);
+                        segdat2[2] = readmemw(0, addr + 4);
+                        segdat2[3] = readmemw(0, addr + 6);
+                        if ((segdat2[2] & 0x8000) == 0)
+                        {
+                                // omitted: pclog("TS loading CS not present") — sortie pure.
+                                x86np("TS loading CS not present\n", (uint16_t)(new_cs & 0xfffc));
+                                return;
+                        }
+                        switch (segdat2[2] & 0x1F00)
+                        {
+                        case 0x1800:
+                        case 0x1900:
+                        case 0x1A00:
+                        case 0x1B00: /*Non-conforming*/
+                                if ((new_cs & 3) != DPL2())
+                                {
+                                        // omitted: pclog("TS load CS non-conforming RPL != DPL") — sortie pure.
+                                        x86ts(null!, (uint16_t)(new_cs & ~3));
+                                        return;
+                                }
+                                break;
+                        case 0x1C00:
+                        case 0x1D00:
+                        case 0x1E00:
+                        case 0x1F00: /*Conforming*/
+                                if ((new_cs & 3) < DPL2())
+                                {
+                                        // omitted: pclog("TS load CS non-conforming RPL < DPL") — sortie pure.
+                                        x86ts(null!, (uint16_t)(new_cs & ~3));
+                                        return;
+                                }
+                                break;
+                        default:
+                                // omitted: pclog("TS load CS not code segment") — sortie pure.
+                                x86ts(null!, (uint16_t)(new_cs & ~3));
+                                return;
+                        }
+
+                        CS = new_cs;
+                        do_seg_load(cpu_state.seg_cs, segdat2);
+                        if (CPL == 3 && oldcpl != 3)
+                                Memory.mem.flushmmucache_cr3();
+                        oldcpl = CPL;
+
+                        set_use32(segdat2[3] & 0x40);
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_V86);
+                }
+
+                EAX = new_eax;
+                ECX = new_ecx;
+                EDX = new_edx;
+                EBX = new_ebx;
+                ESP = new_esp;
+                EBP = new_ebp;
+                ESI = new_esi;
+                EDI = new_edi;
+
+                // omitted: les `if (output) pclog("Load ...")` — sorties pures.
+                loadseg(new_es, cpu_state.seg_es);
+                loadseg(new_ss, cpu_state.seg_ss);
+                loadseg(new_ds, cpu_state.seg_ds);
+                loadseg(new_fs, cpu_state.seg_fs);
+                loadseg(new_gs, cpu_state.seg_gs);
+        }
+        else
+        {
+                if (limit < 43)
+                {
+                        // omitted: pclog("16-bit TSS ... limit less than 43") — sortie pure.
+                        x86ts(null!, seg);
+                        return;
+                }
+
+                if (optype == JMP || optype == CALL || optype == OPTYPE_INT)
+                {
+                        // pcem bug, reproduced: PB-42 — la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // COURANTE, même quand c'est le descripteur de `seg` qu'on modifie.
+                        if ((tr.seg & 4) != 0)
+                                tempw = readmemw(ldt.@base, (uint32_t)((seg & ~7) + 4));
+                        else
+                                tempw = readmemw(gdt.@base, (uint32_t)((seg & ~7) + 4));
+                        if (cpu_state.abrt != 0)
+                                return;
+                        tempw |= 0x200;
+                        if ((tr.seg & 4) != 0)
+                                writememw(ldt.@base, (uint32_t)((seg & ~7) + 4), tempw);
+                        else
+                                writememw(gdt.@base, (uint32_t)((seg & ~7) + 4), tempw);
+                }
+                if (cpu_state.abrt != 0)
+                        return;
+
+                if (optype == IRET)
+                        cpu_state.flags &= unchecked((uint16_t)~NT_FLAG);
+
+                x86_flags.flags_rebuild();
+                writememw(tr.@base, 0x0E, (uint16_t)cpu_state.pc);
+                writememw(tr.@base, 0x10, cpu_state.flags);
+
+                writememw(tr.@base, 0x12, AX);
+                writememw(tr.@base, 0x14, CX);
+                writememw(tr.@base, 0x16, DX);
+                writememw(tr.@base, 0x18, BX);
+                writememw(tr.@base, 0x1A, SP);
+                writememw(tr.@base, 0x1C, BP);
+                writememw(tr.@base, 0x1E, SI);
+                writememw(tr.@base, 0x20, DI);
+
+                writememw(tr.@base, 0x22, ES);
+                writememw(tr.@base, 0x24, CS);
+                writememw(tr.@base, 0x26, SS);
+                writememw(tr.@base, 0x28, DS);
+
+                if (optype == JMP || optype == IRET)
+                {
+                        // verbatim : la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // COURANTE, même quand c'est le descripteur de `tr.seg` qu'on modifie.
+                        if ((tr.seg & 4) != 0)
+                                tempw = readmemw(ldt.@base, (uint32_t)((tr.seg & ~7) + 4));
+                        else
+                                tempw = readmemw(gdt.@base, (uint32_t)((tr.seg & ~7) + 4));
+                        if (cpu_state.abrt != 0)
+                                return;
+                        tempw &= unchecked((uint16_t)~0x200);
+                        if ((tr.seg & 4) != 0)
+                                writememw(ldt.@base, (uint32_t)((tr.seg & ~7) + 4), tempw);
+                        else
+                                writememw(gdt.@base, (uint32_t)((tr.seg & ~7) + 4), tempw);
+                }
+                if (cpu_state.abrt != 0)
+                        return;
+
+                if (optype == OPTYPE_INT || optype == CALL)
+                {
+                        writememw(@base, 0, tr.seg);
+                        if (cpu_state.abrt != 0)
+                                return;
+                }
+
+                new_pc = readmemw(@base, 0x0E);
+                new_flags = readmemw(@base, 0x10);
+                if (optype == OPTYPE_INT || optype == CALL)
+                        new_flags |= NT_FLAG;
+
+                new_eax = readmemw(@base, 0x12);
+                new_ecx = readmemw(@base, 0x14);
+                new_edx = readmemw(@base, 0x16);
+                new_ebx = readmemw(@base, 0x18);
+                new_esp = readmemw(@base, 0x1A);
+                new_ebp = readmemw(@base, 0x1C);
+                new_esi = readmemw(@base, 0x1E);
+                new_edi = readmemw(@base, 0x20);
+
+                new_es = readmemw(@base, 0x22);
+                new_cs = readmemw(@base, 0x24);
+                new_ss = readmemw(@base, 0x26);
+                new_ds = readmemw(@base, 0x28);
+                new_ldt = readmemw(@base, 0x2A);
+
+                msw |= 8;
+
+                cpu_state.pc = new_pc;
+                cpu_state.flags = (uint16_t)new_flags;
+                x86_flags.flags_extract();
+
+                ldt.seg = new_ldt;
+                templ = (uint32_t)(ldt.seg & ~7) + gdt.@base;
+                ldt.limit = readmemw(0, templ);
+                ldt.@base = (uint32_t)((readmemw(0, templ + 2)) | (readmemb(0, templ + 4) << 16));
+                if (is386 != 0)
+                {
+                        if ((readmemb(0, templ + 6) & 0x80) != 0)
+                        {
+                                ldt.limit <<= 12;
+                                ldt.limit |= 0xFFF;
+                        }
+                        ldt.@base |= (uint32_t)(readmemb(0, templ + 7) << 24);
+                }
+
+                if ((new_cs & ~3) == 0)
+                {
+                        // omitted: pclog("TS loading null CS") — sortie pure.
+                        x86ts(null!, 0);
+                        return;
+                }
+                addr = (uint32_t)(new_cs & ~7);
+                if ((new_cs & 4) != 0)
+                {
+                        if (addr >= ldt.limit)
+                        {
+                                // omitted: pclog("Bigger than LDT limit ... TS") — sortie pure.
+                                x86ts(null!, (uint16_t)(new_cs & ~3));
+                                return;
+                        }
+                        addr += ldt.@base;
+                }
+                else
+                {
+                        if (addr >= gdt.limit)
+                        {
+                                // omitted: pclog("Bigger than GDT limit ... TS") — sortie pure.
+                                x86ts(null!, (uint16_t)(new_cs & ~3));
+                                return;
+                        }
+                        addr += gdt.@base;
+                }
+                segdat2[0] = readmemw(0, addr);
+                segdat2[1] = readmemw(0, addr + 2);
+                segdat2[2] = readmemw(0, addr + 4);
+                segdat2[3] = readmemw(0, addr + 6);
+                if ((segdat2[2] & 0x8000) == 0)
+                {
+                        // omitted: pclog("TS loading CS not present") — sortie pure.
+                        x86np("TS loading CS not present\n", (uint16_t)(new_cs & 0xfffc));
+                        return;
+                }
+                switch (segdat2[2] & 0x1F00)
+                {
+                case 0x1800:
+                case 0x1900:
+                case 0x1A00:
+                case 0x1B00: /*Non-conforming*/
+                        if ((new_cs & 3) != DPL2())
+                        {
+                                // omitted: pclog("TS load CS non-conforming RPL != DPL") — sortie pure.
+                                x86ts(null!, (uint16_t)(new_cs & ~3));
+                                return;
+                        }
+                        break;
+                case 0x1C00:
+                case 0x1D00:
+                case 0x1E00:
+                case 0x1F00: /*Conforming*/
+                        if ((new_cs & 3) < DPL2())
+                        {
+                                // omitted: pclog("TS load CS non-conforming RPL < DPL") — sortie pure.
+                                x86ts(null!, (uint16_t)(new_cs & ~3));
+                                return;
+                        }
+                        break;
+                default:
+                        // omitted: pclog("TS load CS not code segment") — sortie pure.
+                        x86ts(null!, (uint16_t)(new_cs & ~3));
+                        return;
+                }
+
+                CS = new_cs;
+                do_seg_load(cpu_state.seg_cs, segdat2);
+                if (CPL == 3 && oldcpl != 3)
+                        Memory.mem.flushmmucache_cr3();
+                oldcpl = CPL;
+                set_use32(0);
+
+                // pcem bug, reproduced: PB-41 — `| 0xFFFF0000`, les moitiés hautes à FFFF (voir l'en-tête).
+                EAX = new_eax | 0xFFFF0000;
+                ECX = new_ecx | 0xFFFF0000;
+                EDX = new_edx | 0xFFFF0000;
+                EBX = new_ebx | 0xFFFF0000;
+                ESP = new_esp | 0xFFFF0000;
+                EBP = new_ebp | 0xFFFF0000;
+                ESI = new_esi | 0xFFFF0000;
+                EDI = new_edi | 0xFFFF0000;
+
+                loadseg(new_es, cpu_state.seg_es);
+                loadseg(new_ss, cpu_state.seg_ss);
+                loadseg(new_ds, cpu_state.seg_ds);
+                if (is386 != 0)
+                {
+                        loadseg(0, cpu_state.seg_fs);
+                        loadseg(0, cpu_state.seg_gs);
+                }
+        }
+
+        tr.seg = seg;
+        tr.@base = @base;
+        tr.limit = limit;
+        tr.access = (uint8_t)(segdat[2] >> 8);
+    }
 
     // pcem: x86seg.c — loadcsjmp, la BRANCHE MODE RÉEL seulement (les 19 dernières
     // lignes des 236 de la fonction).
@@ -2051,6 +2534,8 @@ internal static partial class x86seg_c
                                 cycles -= cpu_c.timing_jmp_pm_gate;
                                 break;
 
+                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
+                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 // LE PC REVIENT A old_pc, ET C'EST POUR CA QUE loadcsjmp LE

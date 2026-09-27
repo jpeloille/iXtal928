@@ -71,8 +71,7 @@ public static class VgaProbe
             return 2;
         }
 
-        var core = (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0
-                ? Oracle.Core286 : Oracle.Core8088;
+        var core = Oracle.CoreForModel(Models.model_c.models[Models.model_c.model]);
         Console.WriteLine($"Sonde VGA — ORACLE SEUL : machine {model}, carte {card}, {pc.cfg_mem_size} Ko, " +
                           $"{slices} tranches" + (fda is null ? "" : $", A: = {fda}") + "\n");
 

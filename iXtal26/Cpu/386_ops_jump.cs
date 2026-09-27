@@ -101,6 +101,86 @@ internal static partial class _386
         }
     }
 
+    /// <summary>G2, D3 — les formes longues de opJ(condition) (x86_ops_jump.h:37-72) :
+    /// `_w` (déplacement 16 bits, pc masqué à 64 Ko) et `_l` (32 bits), dans la table 0F
+    /// aux emplacements 80-8F, `_w` aux quadrants 0 et 2, `_l` aux 1 et 3.</summary>
+    private static void PoserSautsLongs386()
+    {
+        for (var n = 0; n < 16; n++)
+        {
+                var cond = conditions[n];
+
+                // pcem: x86_ops_jump.h — opJ##condition##_w
+                OpFn w = fetchdat =>
+                {
+                        int16_t offset = (int16_t)(uint16_t)fetchdat; cpu_state.pc += 2;   // (int16_t)getwordf()
+                        CLOCK_CYCLES(cpu_c.timing_bnt);
+                        if (cond())
+                        {
+                                cpu_state.pc += (uint32_t)offset;
+                                cpu_state.pc &= 0xffff;
+                                CLOCK_CYCLES_ALWAYS(cpu_c.timing_bt);
+                                CPU_BLOCK_END();
+                                PREFETCH_RUN(cpu_c.timing_bt + cpu_c.timing_bnt, 3, -1, 0, 0, 0, 0, 0);
+                                PREFETCH_FLUSH();
+                                return 1;
+                        }
+                        PREFETCH_RUN(cpu_c.timing_bnt, 3, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+
+                // pcem: x86_ops_jump.h — opJ##condition##_l
+                OpFn l = fetchdat =>
+                {
+                        uint32_t offset = getlong();
+                        if (cpu_state.abrt != 0)
+                                return 1;
+                        CLOCK_CYCLES(cpu_c.timing_bnt);
+                        if (cond())
+                        {
+                                cpu_state.pc += offset;
+                                CLOCK_CYCLES_ALWAYS(cpu_c.timing_bt);
+                                CPU_BLOCK_END();
+                                PREFETCH_RUN(cpu_c.timing_bt + cpu_c.timing_bnt, 5, -1, 0, 0, 0, 0, 0);
+                                PREFETCH_FLUSH();
+                                return 1;
+                        }
+                        PREFETCH_RUN(cpu_c.timing_bnt, 5, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+
+                ops_386_0f[0x080 + n] = w;
+                ops_386_0f[0x280 + n] = w;
+                ops_386_0f[0x180 + n] = l;
+                ops_386_0f[0x380 + n] = l;
+
+                // pcem: x86_ops_set.h:3-19 — opSET##condition##_a16 et _a32. Pas de
+                // PREFETCH_RUN dans la macro : transcrit tel quel.
+                OpFn set16 = fetchdat =>
+                {
+                        if (fetch_ea_16(fetchdat)) return 1;
+                        if (cpu_mod != 3)
+                                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                        seteab((uint8_t)(cond() ? 1 : 0));
+                        CLOCK_CYCLES(4);
+                        return cpu_state.abrt;
+                };
+                OpFn set32 = fetchdat =>
+                {
+                        if (fetch_ea_32(fetchdat)) return 1;
+                        if (cpu_mod != 3)
+                                if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                        seteab((uint8_t)(cond() ? 1 : 0));
+                        CLOCK_CYCLES(4);
+                        return cpu_state.abrt;
+                };
+                ops_386_0f[0x090 + n] = set16;
+                ops_386_0f[0x190 + n] = set16;
+                ops_386_0f[0x290 + n] = set32;
+                ops_386_0f[0x390 + n] = set32;
+        }
+    }
+
     // ------------------------------------------------------------ les boucles
 
     /// <summary>pcem: x86_ops_jump.h — opLOOPNE_w (:93-106), opLOOPE_w (:122-135)
@@ -298,5 +378,187 @@ internal static partial class _386
         ops_286[0xE9] = opJMP_r16;
         ops_286[0xEA] = opJMP_far_a16;
         ops_286[0xEB] = opJMP_r8;
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_jump.h ----
+
+    // pcem: x86_ops_jump.h:270
+    private static int opCALL_r32(uint32_t fetchdat)
+    {
+        int32_t addr = (int32_t)getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        PUSH_L(cpu_state.pc);
+        cpu_state.pc += (uint32_t)addr;
+        CPU_BLOCK_END();
+        CLOCK_CYCLES((is486 != 0) ? 3 : 7);
+        PREFETCH_RUN(7, 5, -1, 0, 0, 0, 1, 0);
+        PREFETCH_FLUSH();
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:182
+    private static int opJECXZ(uint32_t fetchdat)
+    {
+        int8_t offset = (int8_t)fetchdat; cpu_state.pc++;
+        CLOCK_CYCLES(5);
+        if ((ECX) == 0) {
+                cpu_state.pc += (uint32_t)offset;
+                if ((cpu_state.op32 & 0x100) == 0)
+                        cpu_state.pc &= 0xffff;
+                CLOCK_CYCLES(4);
+                CPU_BLOCK_END();
+                PREFETCH_RUN(9, 2, -1, 0, 0, 0, 0, 0);
+                PREFETCH_FLUSH();
+                return 1;
+        }
+        PREFETCH_RUN(5, 2, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:245
+    private static int opJMP_far_a32(uint32_t fetchdat)
+    {
+        uint32_t addr = getlong();
+        uint16_t seg = getword();
+        if (cpu_state.abrt != 0)
+                return 1;
+        uint32_t old_pc = cpu_state.pc;
+        cpu_state.pc = addr;
+        x86seg_c.loadcsjmp(seg, old_pc);
+        CPU_BLOCK_END();
+        PREFETCH_RUN(11, 7, -1, 0, 0, 0, 0, 0);
+        PREFETCH_FLUSH();
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:220
+    private static int opJMP_r32(uint32_t fetchdat)
+    {
+        int32_t offset = (int32_t)getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.pc += (uint32_t)offset;
+        CPU_BLOCK_END();
+        CLOCK_CYCLES((is486 != 0) ? 3 : 7);
+        PREFETCH_RUN(7, 5, -1, 0, 0, 0, 0, 0);
+        PREFETCH_FLUSH();
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:119
+    private static int opLOOPE_l(uint32_t fetchdat)
+    {
+        int8_t offset = (int8_t)fetchdat; cpu_state.pc++;
+        ECX--;
+        CLOCK_CYCLES((is486 != 0) ? 7 : 11);
+        PREFETCH_RUN(11, 2, -1, 0, 0, 0, 0, 0);
+        if ((ECX) != 0 && (ZF_SET()) != 0) {
+                cpu_state.pc += (uint32_t)offset;
+                if ((cpu_state.op32 & 0x100) == 0)
+                        cpu_state.pc &= 0xffff;
+                CPU_BLOCK_END();
+                PREFETCH_FLUSH();
+                return 1;
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:88
+    private static int opLOOPNE_l(uint32_t fetchdat)
+    {
+        int8_t offset = (int8_t)fetchdat; cpu_state.pc++;
+        ECX--;
+        CLOCK_CYCLES((is486 != 0) ? 7 : 11);
+        PREFETCH_RUN(11, 2, -1, 0, 0, 0, 0, 0);
+        if ((ECX) != 0 && (ZF_SET()) == 0) {
+                cpu_state.pc += (uint32_t)offset;
+                if ((cpu_state.op32 & 0x100) == 0)
+                        cpu_state.pc &= 0xffff;
+                CPU_BLOCK_END();
+                PREFETCH_FLUSH();
+                return 1;
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:150
+    private static int opLOOP_l(uint32_t fetchdat)
+    {
+        int8_t offset = (int8_t)fetchdat; cpu_state.pc++;
+        ECX--;
+        CLOCK_CYCLES((is486 != 0) ? 7 : 11);
+        PREFETCH_RUN(11, 2, -1, 0, 0, 0, 0, 0);
+        if ((ECX) != 0) {
+                cpu_state.pc += (uint32_t)offset;
+                if ((cpu_state.op32 & 0x100) == 0)
+                        cpu_state.pc &= 0xffff;
+                CPU_BLOCK_END();
+                PREFETCH_FLUSH();
+                return 1;
+        }
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:297
+    private static int opRET_l(uint32_t fetchdat)
+    {
+        uint32_t ret;
+
+        ret = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.pc = ret;
+        CPU_BLOCK_END();
+
+        CLOCK_CYCLES((is486 != 0) ? 5 : 10);
+        PREFETCH_RUN(10, 1, -1, 0, 1, 0, 0, 0);
+        PREFETCH_FLUSH();
+        return 0;
+    }
+
+    // pcem: x86_ops_jump.h:331
+    private static int opRET_l_imm(uint32_t fetchdat)
+    {
+        uint16_t offset = (uint16_t)fetchdat; cpu_state.pc += 2;
+        uint32_t ret;
+
+        ret = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+        if ((stack32) != 0)
+                ESP += offset;
+        else
+                SP += offset;
+        cpu_state.pc = ret;
+        CPU_BLOCK_END();
+
+        CLOCK_CYCLES((is486 != 0) ? 5 : 10);
+        PREFETCH_RUN(10, 5, -1, 0, 1, 0, 0, 0);
+        PREFETCH_FLUSH();
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_jump_386()
+    {
+        ops_386[0x1C2] = opRET_l_imm;
+        ops_386[0x1C3] = opRET_l;
+        ops_386[0x1E8] = opCALL_r32;
+        ops_386[0x1E9] = opJMP_r32;
+        ops_386[0x1EA] = opJMP_far_a32;
+        ops_386[0x2E0] = opLOOPNE_l;
+        ops_386[0x2E1] = opLOOPE_l;
+        ops_386[0x2E2] = opLOOP_l;
+        ops_386[0x2E3] = opJECXZ;
+        ops_386[0x3C2] = opRET_l_imm;
+        ops_386[0x3C3] = opRET_l;
+        ops_386[0x3E0] = opLOOPNE_l;
+        ops_386[0x3E1] = opLOOPE_l;
+        ops_386[0x3E2] = opLOOP_l;
+        ops_386[0x3E3] = opJECXZ;
+        ops_386[0x3E8] = opCALL_r32;
+        ops_386[0x3E9] = opJMP_r32;
+        ops_386[0x3EA] = opJMP_far_a32;
     }
 }

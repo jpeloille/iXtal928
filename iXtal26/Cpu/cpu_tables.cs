@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/cpu/cpu_tables.c  (cpus_8088 :31-39, cpus_286 :68-77, cpus_ibmat :84-88)
+// ORACLE: pcem-dev/src/cpu/cpu_tables.c  (cpus_8088 :31-39, cpus_286 :68-77, cpus_ibmat :84-88,
+//         cpus_i386SX :109-115)
 //         + includes/public/pcem/cpu.h:12-27 (CPU)
-// STATUS: partial — trois tables sur trente-trois, celles que les quatre machines du
-//         dépôt référencent (model.c:777, :782, :989, :1109). FPU omis.
+// STATUS: partial — quatre tables sur trente-trois, celles que les cinq machines du
+//         dépôt référencent (model.c:777, :782, :989, :1109, :1241). FPU omis.
 
 namespace iXtal26.Cpu;
 
@@ -98,11 +99,26 @@ internal static class cpu_tables
             new("", -1, 0, 0, 0),
     };
 
-    // omitted: les trente autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
-    //   (cpu_tables.c:41-67), cpus_super286tr (:79-83), et de cpus_ibmxt286 à
-    //   cpus_VIA_100MHz (:90-667). Aucune machine du dépôt ne les référence.
+    // pcem: cpu_tables.c:109-115 — G2, D0.2 : la table Intel de l'ami386, seule machine
+    // 386 du dépôt, que le fuzzeur du cœur 386 fait tourner par cpu_set().
+    internal static readonly CPU[] cpus_i386SX =
+    {
+            /*i386SX*/
+            new("i386SX/16", CPU_386SX, 0, 16000000, 1, 0, 0x2308, 0, 0, 0, 3, 3, 3, 3, 2),
+            new("i386SX/20", CPU_386SX, 1, 20000000, 1, 0, 0x2308, 0, 0, 0, 4, 4, 3, 3, 3),
+            new("i386SX/25", CPU_386SX, 2, 25000000, 1, 0, 0x2308, 0, 0, 0, 4, 4, 3, 3, 3),
+            new("i386SX/33", CPU_386SX, 3, 33333333, 1, 0, 0x2308, 0, 0, 0, 6, 6, 3, 3, 4),
+            new("", -1, 0, 0, 0),
+    };
+
+    // omitted: les vingt-neuf autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
+    //   (cpu_tables.c:41-67), cpus_super286tr (:79-83), cpus_ibmxt286 à cpus_ps2_m30_286
+    //   (:90-107), et de cpus_i386DX à cpus_VIA_100MHz (:117-667). Aucune machine du
+    //   dépôt ne les référence ; cpus_Am386SX et cpus_486SLC, que m_ami386 propose
+    //   aussi, sont omis avec elle (model.cs).
     // omitted: les cinq tables FPU (cpu_tables.c:25-29), avec le champ `fpus`.
 
     private const int CPU_8088 = cpu_c.CPU_8088;
     private const int CPU_286 = cpu_c.CPU_286;
+    private const int CPU_386SX = cpu_c.CPU_386SX;
 }

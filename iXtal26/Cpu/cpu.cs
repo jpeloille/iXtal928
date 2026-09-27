@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/cpu/cpu.c + includes/private/cpu/cpu.h
-// STATUS: partial — cpu_set() réduit aux deux familles que les tables du dépôt
-//         portent, le 8088 et le 286 (M16) ; cpu_update_waitstates() entier ;
-//         cpu_get_speed() et cpu_set_turbo(). Tout ce qui concerne le 386 et au-delà — tables d'opcodes
-//         32 bits, dynarec, FPU, MSR, Cyrix — est omis, bloc par bloc, sur place.
+// STATUS: partial — cpu_set() réduit aux familles que les tables du dépôt portent :
+//         8088, 286 (M16), 386SX (G2, D0.2 — table ops_386 et temps) ;
+//         cpu_update_waitstates() entier ; cpu_get_speed() et cpu_set_turbo(). Le
+//         486 et au-delà, dynarec, FPU, MSR, Cyrix sont omis, bloc par bloc, sur place.
 //
 // L'oracle lie cpu.c (tools/oracle/Makefile) et fait tourner le VRAI cpu_set() de
 // PCem depuis M16 : ce fichier est donc vérifié contre lui par l'empreinte CPU de
@@ -109,6 +109,14 @@ internal static partial class cpu_c
     // pcem: cpu.c:20 — présence d'un coprocesseur, posée par cpu_set() depuis fpu_type.
     // Le PPI du 5150 la rapporte au BIOS via les interrupteurs DIP (port 0x62).
     internal static int hasfpu = 0;
+
+    // pcem: cpu.h:121, :127-128 et cpu.c:12 — la seule caractéristique que lit l'arbre
+    // porté : MOV CRx (G2, D4) n'accepte CR4 que si elle est présente. cpu_set() ne pose
+    // cpu_features qu'au 486 et au-delà (cpu.c:484 et suivantes) ; sur un 386 elle reste
+    // à zéro, et CR4 est un registre inexistant.
+    internal const int CPU_FEATURE_CR4 = 1 << 3;
+    internal static uint32_t cpu_features;
+    internal static int cpu_has_feature(int feature) => (int)(cpu_features & (uint32_t)feature);
 
     // pcem: cpu.c:2050-2063 — le bit turbo du port 0x61 sur les clones XT, et le
     // cpu_set_turbo(1) de fin de resetpchard (pc.c:439). keyboard_xt.cs ne l'appelle que
@@ -238,9 +246,13 @@ internal static partial class cpu_c
         // omitted: io_sethandler / io_removehandler(0x0022, cyrix_*) (cpu.c:223-226) —
         //   cpu_iscyrix vaut 0 sur les deux familles, et io_init() vient de vider la
         //   table (pc.c:362) : le removehandler ne retire rien.
-        // omitted: x86_setopcodes(ops_386, …) et les tables REPE, REPNE, 3DNOW
-        //   (cpu.c:231-237) — ops_386 n'est pas porté ; la branche CPU_286 ci-dessous
-        //   pose la table du 286, et les deux REP sont câblées (386_ops_rep.cs:915).
+        // pcem: cpu.c:231 — G2, D0.2. INCONDITIONNEL chez PCem, et la branche CPU_286
+        // ci-dessous le REMPLACE par la table du 286 : c'est ce geste, et non un test
+        // is386, qui donne au 386 et au 486 leur table. Sur un 8088 elle est posée sans
+        // être lue — execx86 n'aiguille pas par elle.
+        _386.x86_setopcodes(_386.ops_386, _386.ops_386_0f);
+        // omitted: x86_opcodes_REPE / _REPNE / _3DNOW (cpu.c:232-237) — les deux REP sont
+        //   câblées une fois pour toutes (386_ops_rep.cs:915), 3DNOW est de l'ère K6.
         // omitted: les seize tables dynarec (cpu.c:239-273) et codegen_timing_set (:274)
         //   — src/codegen/ n'est pas porté, cpu_use_dynarec vaut 0.
 
@@ -258,8 +270,14 @@ internal static partial class cpu_c
                 _386.x86_opcodes_dd_a16 = _386.ops_nofpu_a16;
                 _386.x86_opcodes_de_a16 = _386.ops_nofpu_a16;
                 _386.x86_opcodes_df_a16 = _386.ops_nofpu_a16;
-                // omitted: les huit x86_opcodes_*_a32 — l'adressage 32 bits n'existe
-                //   ni sur le 8088 ni sur le 286.
+                _386.x86_opcodes_d8_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_d9_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_da_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_db_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_dc_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_dd_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_de_a32 = _386.ops_nofpu_a32;
+                _386.x86_opcodes_df_a32 = _386.ops_nofpu_a32;
         }
 
         // omitted: memset(&msr, 0, sizeof(msr)) (cpu.c:312) — les MSR du Pentium.
@@ -305,8 +323,40 @@ internal static partial class cpu_c
                 timing_jmp_pm_gate = 38;
                 break;
 
-        // omitted: les cas CPU_386SX à CPU_CYRIX_III (cpu.c:355-1126) — aucune table du
-        //   dépôt ne porte ces types.
+        // pcem: cpu.c:355-384 — G2, D0.2 : la table de l'ami386.
+        case CPU_386SX:
+                timing_rr = 2;     /*register dest - register src*/
+                timing_rm = 6;     /*register dest - memory src*/
+                timing_mr = 7;     /*memory dest   - register src*/
+                timing_mm = 6;     /*memory dest   - memory src*/
+                timing_rml = 8;    /*register dest - memory src long*/
+                timing_mrl = 11;   /*memory dest   - register src long*/
+                timing_mml = 10;   /*memory dest   - memory src*/
+                timing_bt = 7 - 3; /*branch taken*/
+                timing_bnt = 3;    /*branch not taken*/
+                timing_int = 0;
+                timing_int_rm = 37;
+                timing_int_v86 = 59;
+                timing_int_pm = 99;
+                timing_int_pm_outer = 119;
+                timing_iret_rm = 22;
+                timing_iret_v86 = 60;
+                timing_iret_pm = 38;
+                timing_iret_pm_outer = 82;
+                timing_call_rm = 17;
+                timing_call_pm = 34;
+                timing_call_pm_gate = 52;
+                timing_call_pm_gate_inner = 86;
+                timing_retf_rm = 18;
+                timing_retf_pm = 32;
+                timing_retf_pm_outer = 68;
+                timing_jmp_rm = 12;
+                timing_jmp_pm = 27;
+                timing_jmp_pm_gate = 45;
+                break;
+
+        // omitted: les cas CPU_386DX à CPU_CYRIX_III (cpu.c:386-1126) — aucune table du
+        //   dépôt ne porte ces types ; CPU_386DX viendra avec l'ami386dx (G3).
 
         default:
                 pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");
@@ -365,4 +415,9 @@ internal static partial class cpu_c
         if (cpu_s.rspeed <= 8000000)
                 cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
     }
+
+    // pcem: cpu.c:1155 — cpu_CPUID. Lu par opCPUID seulement si CPUID != 0, c'est-à-dire
+    // à partir du 486 (cpu_set, cpuid_model) : il échoue en se nommant d'ici G6.
+    internal static void cpu_CPUID()
+        => pc.fatal("not implemented: cpu.c:1155 — cpu_CPUID (486, bloc G6)\n");
 }

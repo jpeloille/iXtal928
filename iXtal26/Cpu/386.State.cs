@@ -19,15 +19,27 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
-    /// <summary>L'indice, dans cpus_286, du processeur que Reset286() configure — le
-    /// `--cpu N` de `fuzz --core 286`. Pendant de h_set_cpu() côté oracle ; 0, le 286/6,
-    /// par défaut.</summary>
+    /// <summary>L'indice, dans la table de la machine, du processeur que Reset286() ou
+    /// Reset386() configure — le `--cpu N` de `fuzz --core 286|386`. Pendant de
+    /// h_set_cpu() côté oracle ; 0 par défaut (286/6, i386SX/16).</summary>
     internal static int FuzzCpu;
 
     /// <summary>Pendant de h_reset() avec h_core == H_CORE_286.</summary>
-    internal static void Reset286()
+    internal static void Reset286() => ResetExec386("ami286");
+
+    /// <summary>Pendant de h_reset() avec h_core == H_CORE_386 (G2, D0.2) : le MÊME
+    /// exec386, sur l'ami386 — cpu_set() y lit cpus_i386SX, pose is386 et la table
+    /// ops_386. `FuzzCpu` est alors l'indice dans cpus_i386SX.</summary>
+    internal static void Reset386() => ResetExec386("ami386");
+
+    /// <summary>Le corps commun : seule la machine distingue le 286 du 386, comme
+    /// h_reset() côté oracle, qui ne choisit que `model` selon h_core.</summary>
+    private static void ResetExec386(string machine)
     {
-        _808x.FlatMap286();
+        if (machine == "ami386")
+                _808x.FlatMap386();
+        else
+                _808x.FlatMap286();
 
         // LES COMPTEURS ET L'ÉTAT DE TEMPS, avant resetx86 comme h_reset les remet.
         //
@@ -48,11 +60,11 @@ internal static partial class _386
         cpu_c.hasfpu = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
-        // LE VRAI cpu_set(), sur la table de l'ami286 (M16, étape 6) — pendant exact de
+        // LE VRAI cpu_set(), sur la table de la machine (M16, étape 6) — pendant exact de
         // h_reset() côté oracle. Il remplace cpu_config_286(), qui en recopiait les valeurs
         // pour cpus_286[0] : les mêmes à l'indice 0, et `fuzz --core 286 --cpu N` exerce
         // désormais les autres entrées. resetx86() lit la table par cpu_update_waitstates().
-        Models.model_c.model = Models.model_c.model_get_model_from_internal_name("ami286");
+        Models.model_c.model = Models.model_c.model_get_model_from_internal_name(machine);
         cpu_c.cpu_manufacturer = 0;
         cpu_c.cpu = FuzzCpu;
         cpu_c.cpu_set();
@@ -137,6 +149,7 @@ internal static partial class _386
         // c'est FLAGS_UNKNOWN, « aucun drapeau paresseux en attente ».
         cr2 = 0;
         cr3 = 0;
+        Array.Clear(dr);
         cpl_override = 0;
         cpu_state.flags_op = 0;
         cpu_state.flags_res = 0;
@@ -146,6 +159,18 @@ internal static partial class _386
         cpu_state.eaaddr = 0;
         cpu_state.ssegs = 0;
         cpu_state.abrt = 0;
+
+        // LES SIX GLOBALES DU MODE PROTÉGÉ, pendant de h_seg_clear_residue (harness.c,
+        // C7a). Elles manquaient ici : invisible tant que seul boot-diff l'appelait, sur
+        // des machines qui n'entrent jamais en mode protégé. pm-fuzz (G2 D5) enchaîne les
+        // itérations dans un processus : mesuré, `intgatesize : oracle 0, C# 32` au pas 0
+        // de l'itération qui suit un pmodeint.
+        abrt_error = 0;
+        x86seg_c.intgatesize = 0;
+        cgate16 = 0;
+        optype = 0;
+        oldcpl = 0;
+        cpu_cur_status = 0;
     }
 
     /// <summary>Les neuf champs d'un x86seg à zéro. Pour les descripteurs que

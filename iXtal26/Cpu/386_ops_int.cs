@@ -101,8 +101,8 @@ internal static partial class _386
         return 0;
     }
 
-    // omitted: opINT1 (x86_ops_int.h:16-27) — l'opcode F1, que la table donne à
-    //   opLOCK sur un 286. Verifie dans la .so : ops_286[0xF1] nomme opLOCK.
+    // opINT1 (x86_ops_int.h:16-27), l'opcode F1, suit plus bas depuis G2 D2 : ops_286[0xF1]
+    //   nomme opLOCK, ops_386[0xF1] opINT1.
 
     /// <summary>pcem: CC, CD, CE — relevés sur ops_286[] par gdb.</summary>
     private static void PoserGroupeInterruptions()
@@ -110,5 +110,31 @@ internal static partial class _386
         ops_286[0xCC] = opINT3;
         ops_286[0xCD] = opINT;
         ops_286[0xCE] = opINTO;
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_int.h ----
+
+    // pcem: x86_ops_int.h:16
+    private static int opINT1(uint32_t fetchdat)
+    {
+        int cycles_old = cycles;
+        if ((cr0 & 1) != 0 && (cpu_state.eflags & VM_FLAG) != 0 && IOPL != 3)
+        {
+                x86seg_c.x86gpf("", 0);
+                return 1;
+        }
+        x86_int_sw(1);
+        CLOCK_CYCLES((is486 != 0) ? 44 : 59);
+        PREFETCH_RUN(cycles_old - cycles, 1, -1, 0, 0, 0, 0, 0);
+        return 1;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_int_386()
+    {
+        ops_386[0x0F1] = opINT1;
+        ops_386[0x1F1] = opINT1;
+        ops_386[0x2F1] = opINT1;
+        ops_386[0x3F1] = opINT1;
     }
 }

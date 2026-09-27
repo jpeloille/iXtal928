@@ -115,4 +115,207 @@ internal static partial class _386
         ops_286[0x87] = opXCHG_w_a16;
         PoserXchgAccumulateur();
     }
+
+    /// <summary>pcem: x86_ops_xchg.h:222-230 — opBSWAP(reg), sur les huit registres (G2,
+    /// D3). SANS garde is486 chez PCem : un 386 l'exécute. Transcrit tel quel.</summary>
+    private static void PoserBSWAP386()
+    {
+        for (var n = 0; n < 8; n++)
+        {
+                var r = n;
+                OpFn bswap = fetchdat =>
+                {
+                        uint32_t reg = cpu_state.regs[r].l;
+                        cpu_state.regs[r].l = (reg >> 24) | ((reg >> 8) & 0xff00) | ((reg << 8) & 0xff0000) | ((reg << 24) & 0xff000000);
+                        CLOCK_CYCLES(1);
+                        PREFETCH_RUN(1, 1, -1, 0, 0, 0, 0, 0);
+                        return 0;
+                };
+                for (var q = 0; q < 0x400; q += 0x100)
+                        ops_386_0f[q | (0xC8 + r)] = bswap;
+        }
+    }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_xchg.h ----
+
+    // pcem: x86_ops_xchg.h:205
+    private static int opXCHG_EAX_EBP(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = EBP;
+        EBP = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:165
+    private static int opXCHG_EAX_EBX(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = EBX;
+        EBX = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:173
+    private static int opXCHG_EAX_ECX(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = ECX;
+        ECX = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:197
+    private static int opXCHG_EAX_EDI(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = EDI;
+        EDI = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:181
+    private static int opXCHG_EAX_EDX(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = EDX;
+        EDX = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:189
+    private static int opXCHG_EAX_ESI(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = ESI;
+        ESI = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:213
+    private static int opXCHG_EAX_ESP(uint32_t fetchdat)
+    {
+        uint32_t temp = EAX;
+        EAX = ESP;
+        ESP = temp;
+        CLOCK_CYCLES(3);
+        PREFETCH_RUN(3, 1, -1, 0, 0, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:20
+    private static int opXCHG_b_a32(uint32_t fetchdat)
+    {
+        uint8_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteab();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteab((uint8_t)(getr8(cpu_reg)));
+        if (cpu_state.abrt != 0)
+                return 1;
+        setr8(cpu_reg, temp);
+        CLOCK_CYCLES((cpu_mod == 3) ? 3 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 3 : 5, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:73
+    private static int opXCHG_l_a16(uint32_t fetchdat)
+    {
+        uint32_t temp;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteal(cpu_state.regs[cpu_reg].l);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = temp;
+        CLOCK_CYCLES((cpu_mod == 3) ? 3 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 3 : 5, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:90
+    private static int opXCHG_l_a32(uint32_t fetchdat)
+    {
+        uint32_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteal();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteal(cpu_state.regs[cpu_reg].l);
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].l = temp;
+        CLOCK_CYCLES((cpu_mod == 3) ? 3 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 3 : 5, 2, (int)fetchdat, 0, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 1);
+        return 0;
+    }
+
+    // pcem: x86_ops_xchg.h:55
+    private static int opXCHG_w_a32(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        temp = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+        seteaw((uint16_t)(cpu_state.regs[cpu_reg].w));
+        if (cpu_state.abrt != 0)
+                return 1;
+        cpu_state.regs[cpu_reg].w = temp;
+        CLOCK_CYCLES((cpu_mod == 3) ? 3 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 3 : 5, 2, (int)fetchdat, (cpu_mod == 3) ? 0 : 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_xchg_386()
+    {
+        ops_386[0x187] = opXCHG_l_a16;
+        ops_386[0x191] = opXCHG_EAX_ECX;
+        ops_386[0x192] = opXCHG_EAX_EDX;
+        ops_386[0x193] = opXCHG_EAX_EBX;
+        ops_386[0x194] = opXCHG_EAX_ESP;
+        ops_386[0x195] = opXCHG_EAX_EBP;
+        ops_386[0x196] = opXCHG_EAX_ESI;
+        ops_386[0x197] = opXCHG_EAX_EDI;
+        ops_386[0x286] = opXCHG_b_a32;
+        ops_386[0x287] = opXCHG_w_a32;
+        ops_386[0x386] = opXCHG_b_a32;
+        ops_386[0x387] = opXCHG_l_a32;
+        ops_386[0x391] = opXCHG_EAX_ECX;
+        ops_386[0x392] = opXCHG_EAX_EDX;
+        ops_386[0x393] = opXCHG_EAX_EBX;
+        ops_386[0x394] = opXCHG_EAX_ESP;
+        ops_386[0x395] = opXCHG_EAX_EBP;
+        ops_386[0x396] = opXCHG_EAX_ESI;
+        ops_386[0x397] = opXCHG_EAX_EDI;
+    }
 }

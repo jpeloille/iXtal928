@@ -30,6 +30,10 @@ vectors/*
 !vectors/sst/
 vectors/sst/*
 !vectors/sst/MANIFEST.sha256
+# Vecteurs SingleStepTests 80386 (G2, D0.5) — 576 Mo, récupérés par tools/fetch-sst386.sh.
+!vectors/sst386/
+vectors/sst386/*
+!vectors/sst386/MANIFEST.sha256
 
 # Artefacts de l'oracle C
 tools/oracle/*.so

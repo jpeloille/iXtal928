@@ -60,6 +60,21 @@ internal static partial class _386
     internal static readonly OpFn[] ops_286 = BuildEmpty();
     internal static readonly OpFn[] ops_286_0f = BuildEmpty();
 
+    // -----------------------------------------------------------------------
+    // La table du 386 (pcem: 386_ops.h:11775 — `OpFn OP_TABLE(386)[1024]`) et sa
+    // seconde (:1235 — `OP_TABLE(386_0f)`), G2 étape D0.2. Le 486 les emprunte aussi
+    // (cpu.c:231) : ses instructions propres y sont, gardées par `if (!is486)`.
+    //
+    // ICI LES QUATRE QUADRANTS SONT DISTINCTS : op32 vaut use32 | les préfixes 66/67,
+    // et un 386 a les deux. Elles se remplissent en DEUX temps : la part partagée avec
+    // le 286 — même nom de handler, donc même fonction C — est posée par le fichier
+    // GÉNÉRÉ 386_ops_table386.cs ; le reste demeure opNonTranscrit jusqu'à son étape.
+    // Jamais par recopie de ops_286 : 66, 67, POPF, IRET y sont autres, et une recopie
+    // les aurait laissés au 286 sans qu'aucun côté ne proteste.
+    // -----------------------------------------------------------------------
+    internal static readonly OpFn[] ops_386 = BuildEmpty();
+    internal static readonly OpFn[] ops_386_0f = BuildEmpty();
+
     private static OpFn[] BuildEmpty()
     {
         var t = new OpFn[1024];
@@ -115,6 +130,47 @@ internal static partial class _386
         for (var q = 1; q < 4; q++)
                 for (var i = 0; i < 256; i++)
                         ops_286[(q << 8) | i] = ops_286[i];
+
+        // APRÈS la table du 286 et ses recopies : la part partagée s'y lit.
+        PoserTable386Partagee();
+        PoserPrefixes386();
+        PoserBSWAP386();
+        PoserSHxD386();
+        PoserBTx386();
+        PoserSautsLongs386();
+        PoserGroupe_misc_0f_386();
+        PoserGroupe_mov_seg_0f_386();
+        PoserGroupe_mul_0f_386();
+        PoserGroupe_atomic_0f_386();
+        PoserGroupe_movx_0f_386();
+        PoserGroupe_bitscan_0f_386();
+        PoserGroupe_bit_0f_386();
+        PoserRep386();
+        PoserPile386();
+        PoserIncDec386();
+        PoserLsel386();
+        PoserOp0F386();
+        PoserGroupeArith386();
+        PoserGroupe_fpu_386();
+        PoserGroupe_arith_386();
+        PoserGroupe_string_386();
+        PoserGroupe_stack_386();
+        PoserGroupe_shift_386();
+        PoserGroupe_pmode_386();
+        PoserGroupe_mul_386();
+        PoserGroupe_misc_386();
+        PoserGroupe_jump_386();
+        PoserGroupe_inc_dec_386();
+        PoserGroupe_int_386();
+        PoserGroupe_call_386();
+        PoserGroupe_ret_386();
+        PoserGroupe_io_386();
+        PoserGroupe_flag_386();
+        PoserGroupe_xchg_386();
+        PoserGroupeMovSeg386();
+        PoserGroupeMov386();
+        PoserGroupe_pmode_0f_386();
+        PoserGroupe_mov_ctrl_0f_386();
     }
 
     /// <summary>L'entrée par défaut de la table : elle ÉCHOUE, et elle nomme
@@ -138,15 +194,19 @@ internal static partial class _386
         if (op == 0x0F)
         {
                 var op2 = fastreadb(cs + cpu_state.oldpc + 1);
-                pc.fatal($"opcode 0F {op2:X2} non transcrit (la table a DEUX octets " +
-                         $"du 286 est vide : six handlers, bloc C du plan) " +
-                         $"a {CS:X4}:{cpu_state.oldpc:X4}\n");
+                pc.fatal($"opcode 0F {op2:X2} non transcrit ({NomTable()}_0f, op32 " +
+                         $"0x{cpu_state.op32:X3}) a {CS:X4}:{cpu_state.oldpc:X4}\n");
                 return 0;
         }
-        pc.fatal($"opcode {op:X2} non transcrit (la table a un octet devrait etre " +
-                 $"pleine depuis A11) a {CS:X4}:{cpu_state.oldpc:X4}\n");
+        // G2 : sur un 386, la table a un octet n'est PAS pleine — 450 emplacements y
+        // attendent leur étape (PLAN-386.md). Le quadrant op32 dit laquelle des quatre
+        // formes manque : 0x100 opérande 32 bits, 0x200 adresse 32 bits.
+        pc.fatal($"opcode {op:X2} non transcrit ({NomTable()}, op32 0x{cpu_state.op32:X3}) " +
+                 $"a {CS:X4}:{cpu_state.oldpc:X4}\n");
         return 0;
     }
+
+    private static string NomTable() => ReferenceEquals(x86_opcodes, ops_386) ? "ops_386" : "ops_286";
 
     // -----------------------------------------------------------------------
     // pcem: 386_dynarec.c:210-225 — les macros de temps de l'INTERPRÉTEUR.

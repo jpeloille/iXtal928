@@ -289,7 +289,7 @@ internal static partial class _386
         cpu_state.pc++;
         if (cpu_state.abrt != 0)
                 return 1;
-        ops_286[(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8); // G2 : ops_286 en dur ici, invisible sur un 286 ; PCem lit x86_opcodes (x86_ops_stack.h:595)
 
         return 1;
     }
@@ -421,5 +421,412 @@ internal static partial class _386
         ops_286[0x07] = PopSeg(cpu_state.seg_es);
         ops_286[0x1F] = PopSeg(cpu_state.seg_ds);
         ops_286[0x17] = opPOP_SS_w;
+    }
+
+    /// <summary>G2, D2 — PUSH_L_OP / POP_L_OP (x86_ops_stack.h:11-18, :27-34) sur les
+    /// huit registres, et les formes `_l` de PUSH_SEG_OPS / POP_SEG_OPS (:519-560) :
+    /// ES, CS, SS, DS ici, FS et GS dans la table 0F.</summary>
+    private static void PoserPile386()
+    {
+        for (var n = 0; n < 8; n++)
+        {
+                var reg = n;
+
+                // pcem: x86_ops_stack.h:11-18 — op##PUSH_##reg (32 bits)
+                OpFn push = fetchdat =>
+                {
+                        PUSH_L(cpu_state.regs[reg].l);
+                        CLOCK_CYCLES(is486 != 0 ? 1 : 2);
+                        PREFETCH_RUN(2, 1, -1, 0, 0, 0, 1, 0);
+                        return cpu_state.abrt;
+                };
+                // pcem: x86_ops_stack.h:27-34 — op##POP_##reg (32 bits)
+                OpFn pop = fetchdat =>
+                {
+                        cpu_state.regs[reg].l = POP_L();
+                        CLOCK_CYCLES(is486 != 0 ? 1 : 4);
+                        PREFETCH_RUN(4, 1, -1, 0, 1, 0, 0, 0);
+                        return cpu_state.abrt;
+                };
+                ops_386[0x150 + reg] = push;
+                ops_386[0x350 + reg] = push;
+                ops_386[0x158 + reg] = pop;
+                ops_386[0x358 + reg] = pop;
+        }
+
+        foreach (var q in new[] { 0x100, 0x300 })
+        {
+                ops_386[q | 0x06] = PushSegL(() => ES);
+                ops_386[q | 0x0E] = PushSegL(() => CS);
+                ops_386[q | 0x16] = PushSegL(() => SS);
+                ops_386[q | 0x1E] = PushSegL(() => DS);
+                ops_386[q | 0x07] = PopSegL(cpu_state.seg_es);
+                ops_386[q | 0x1F] = PopSegL(cpu_state.seg_ds);
+        }
+        foreach (var q in new[] { 0x000, 0x200 })
+        {
+                ops_386_0f[q | 0xA0] = PushSeg(() => FS);
+                ops_386_0f[q | 0xA1] = PopSeg(cpu_state.seg_fs);
+                ops_386_0f[q | 0xA8] = PushSeg(() => GS);
+                ops_386_0f[q | 0xA9] = PopSeg(cpu_state.seg_gs);
+        }
+        foreach (var q in new[] { 0x100, 0x300 })
+        {
+                ops_386_0f[q | 0xA0] = PushSegL(() => FS);
+                ops_386_0f[q | 0xA1] = PopSegL(cpu_state.seg_fs);
+                ops_386_0f[q | 0xA8] = PushSegL(() => GS);
+                ops_386_0f[q | 0xA9] = PopSegL(cpu_state.seg_gs);
+        }
+    }
+
+    // pcem: x86_ops_stack.h:526-531 — opPUSH_##seg##_l
+    private static OpFn PushSegL(Func<uint16_t> seg) => fetchdat =>
+    {
+        PUSH_L(seg());
+        CLOCK_CYCLES(2);
+        PREFETCH_RUN(2, 1, -1, 0, 0, 0, 1, 0);
+        return cpu_state.abrt;
+    };
+
+    // pcem: x86_ops_stack.h:547-559 — opPOP_##seg##_l
+    private static OpFn PopSegL(x86seg realseg) => fetchdat =>
+    {
+        uint32_t temp_seg;
+        uint32_t temp_esp = ESP;
+        temp_seg = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg((uint16_t)(temp_seg & 0xffff), realseg);
+        if (cpu_state.abrt != 0)
+                ESP = temp_esp;
+        CLOCK_CYCLES(is486 != 0 ? 3 : 7);
+        PREFETCH_RUN(is486 != 0 ? 3 : 7, 1, -1, 0, 0, 1, 0, 0);
+        return cpu_state.abrt;
+    };
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_stack.h ----
+
+    // pcem: x86_ops_stack.h:430
+    private static int opENTER_l(uint32_t fetchdat)
+    {
+        uint16_t offset = (uint16_t)fetchdat; cpu_state.pc += 2;
+        int count = (int)((fetchdat >> 16) & 0xff);
+        cpu_state.pc++;
+        uint32_t tempEBP = EBP, tempESP = ESP, frame_ptr;
+        int reads = 0, writes = 1, instr_cycles = 0;
+
+        PUSH_L(EBP);
+        if (cpu_state.abrt != 0)
+                return 1;
+        frame_ptr = ESP;
+
+        if (count > 0) {
+                while ((--count) != 0) {
+                        uint32_t templ;
+
+                        EBP -= 4;
+                        templ = readmeml(ss, EBP);
+                        if (cpu_state.abrt != 0) {
+                                ESP = tempESP;
+                                EBP = tempEBP;
+                                return 1;
+                        }
+                        PUSH_L(templ);
+                        if (cpu_state.abrt != 0) {
+                                ESP = tempESP;
+                                EBP = tempEBP;
+                                return 1;
+                        }
+                        CLOCK_CYCLES((is486 != 0) ? 3 : 4);
+                        reads++;
+                        writes++;
+                        instr_cycles += (is486 != 0) ? 3 : 4;
+                }
+                PUSH_L(frame_ptr);
+                if (cpu_state.abrt != 0) {
+                        ESP = tempESP;
+                        EBP = tempEBP;
+                        return 1;
+                }
+                CLOCK_CYCLES((is486 != 0) ? 3 : 5);
+                writes++;
+                instr_cycles += (is486 != 0) ? 3 : 5;
+        }
+        EBP = frame_ptr;
+
+        if ((stack32) != 0)
+                ESP -= offset;
+        else
+                SP -= offset;
+        CLOCK_CYCLES((is486 != 0) ? 14 : 10);
+        instr_cycles += (is486 != 0) ? 14 : 10;
+        PREFETCH_RUN(instr_cycles, 3, -1, reads, 0, writes, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_stack.h:502
+    private static int opLEAVE_l(uint32_t fetchdat)
+    {
+        uint32_t tempESP = ESP;
+        uint32_t temp;
+
+        ESP = EBP;
+        temp = POP_L();
+        if (cpu_state.abrt != 0) {
+                ESP = tempESP;
+                return 1;
+        }
+        EBP = temp;
+
+        CLOCK_CYCLES(4);
+        PREFETCH_RUN(4, 1, -1, 0, 1, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_stack.h:180
+    private static int opPOPA_l(uint32_t fetchdat)
+    {
+        if ((stack32) != 0) {
+                EDI = readmeml(ss, ESP);
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ESI = readmeml(ss, (uint32_t)(ESP + 4));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EBP = readmeml(ss, (uint32_t)(ESP + 8));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EBX = readmeml(ss, (uint32_t)(ESP + 16));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EDX = readmeml(ss, (uint32_t)(ESP + 20));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ECX = readmeml(ss, (uint32_t)(ESP + 24));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EAX = readmeml(ss, (uint32_t)(ESP + 28));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ESP += 32;
+        } else {
+                EDI = readmeml(ss, (uint32_t)(((SP)&0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ESI = readmeml(ss, (uint32_t)(((SP + 4) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EBP = readmeml(ss, (uint32_t)(((SP + 8) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EBX = readmeml(ss, (uint32_t)(((SP + 16) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EDX = readmeml(ss, (uint32_t)(((SP + 20) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                ECX = readmeml(ss, (uint32_t)(((SP + 24) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                EAX = readmeml(ss, (uint32_t)(((SP + 28) & 0xFFFF)));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                SP += 32;
+        }
+        CLOCK_CYCLES((is486 != 0) ? 9 : 24);
+        PREFETCH_RUN(24, 1, -1, 0, 7, 0, 0, 0);
+        return 0;
+    }
+
+    // pcem: x86_ops_stack.h:324
+    private static int opPOPL_a16(uint32_t fetchdat)
+    {
+        uint32_t temp;
+
+        temp = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        seteal(temp);
+        if (cpu_state.abrt != 0) {
+                if ((stack32) != 0)
+                        ESP -= 4;
+                else
+                        SP -= 4;
+        }
+
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 6);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 4 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 4 : 5, 2, (int)fetchdat, 0, 1, 0, (cpu_mod == 3) ? 0 : 1, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_stack.h:349
+    private static int opPOPL_a32(uint32_t fetchdat)
+    {
+        uint32_t temp;
+
+        temp = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        seteal(temp);
+        if (cpu_state.abrt != 0) {
+                if ((stack32) != 0)
+                        ESP -= 4;
+                else
+                        SP -= 4;
+        }
+
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 6);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 4 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 4 : 5, 2, (int)fetchdat, 0, 1, 0, (cpu_mod == 3) ? 0 : 1, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_stack.h:298
+    private static int opPOPW_a32(uint32_t fetchdat)
+    {
+        uint16_t temp;
+
+        temp = POP_W();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        seteaw((uint16_t)(temp));
+        if (cpu_state.abrt != 0) {
+                if ((stack32) != 0)
+                        ESP -= 2;
+                else
+                        SP -= 2;
+        }
+
+        if (is486 != 0)
+                CLOCK_CYCLES((cpu_mod == 3) ? 1 : 6);
+        else
+                CLOCK_CYCLES((cpu_mod == 3) ? 4 : 5);
+        PREFETCH_RUN((cpu_mod == 3) ? 4 : 5, 2, (int)fetchdat, 1, 0, (cpu_mod == 3) ? 0 : 1, 0, 1);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_stack.h:599
+    private static int opPOP_SS_l(uint32_t fetchdat)
+    {
+        uint32_t temp_seg;
+        uint32_t temp_esp = ESP;
+        temp_seg = POP_L();
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86seg_c.loadseg((uint16_t)(temp_seg & 0xffff), cpu_state.seg_ss);
+        if (cpu_state.abrt != 0) {
+                ESP = temp_esp;
+                return 1;
+        }
+        CLOCK_CYCLES(is486 != 0 ? 3 : 7);
+        PREFETCH_RUN(is486 != 0 ? 3 : 7, 1, -1, 0, 0, 1, 0, 0);
+
+        cpu_state.oldpc = cpu_state.pc;
+        cpu_state.op32 = use32;
+        cpu_state.ssegs = 0;
+        cpu_state.ea_seg = cpu_state.seg_ds;
+        fetchdat = fastreadl(x86.cs + cpu_state.pc);
+        cpu_state.pc++;
+        if (cpu_state.abrt != 0)
+                return 1;
+        x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+
+        return 1;
+    }
+
+    // pcem: x86_ops_stack.h:99
+    private static int opPUSHA_l(uint32_t fetchdat)
+    {
+        if ((stack32) != 0) {
+                writememl(ss, (uint32_t)(ESP - 4), EAX);
+                writememl(ss, (uint32_t)(ESP - 8), ECX);
+                writememl(ss, (uint32_t)(ESP - 12), EDX);
+                writememl(ss, (uint32_t)(ESP - 16), EBX);
+                writememl(ss, (uint32_t)(ESP - 20), ESP);
+                writememl(ss, (uint32_t)(ESP - 24), EBP);
+                writememl(ss, (uint32_t)(ESP - 28), ESI);
+                writememl(ss, (uint32_t)(ESP - 32), EDI);
+                if (cpu_state.abrt == 0)
+                        ESP -= 32;
+        } else {
+                writememl(ss, (uint32_t)(((SP - 4) & 0xFFFF)), EAX);
+                writememl(ss, (uint32_t)(((SP - 8) & 0xFFFF)), ECX);
+                writememl(ss, (uint32_t)(((SP - 12) & 0xFFFF)), EDX);
+                writememl(ss, (uint32_t)(((SP - 16) & 0xFFFF)), EBX);
+                writememl(ss, (uint32_t)(((SP - 20) & 0xFFFF)), ESP);
+                writememl(ss, (uint32_t)(((SP - 24) & 0xFFFF)), EBP);
+                writememl(ss, (uint32_t)(((SP - 28) & 0xFFFF)), ESI);
+                writememl(ss, (uint32_t)(((SP - 32) & 0xFFFF)), EDI);
+                if (cpu_state.abrt == 0)
+                        SP -= 32;
+        }
+        CLOCK_CYCLES((is486 != 0) ? 11 : 18);
+        PREFETCH_RUN(18, 1, -1, 0, 0, 0, 8, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_stack.h:261
+    private static int opPUSH_imm_bl(uint32_t fetchdat)
+    {
+        uint32_t templ = (uint8_t)fetchdat; cpu_state.pc++;
+
+        if ((templ & 0x80) != 0)
+                templ |= 0xFFFFFF00;
+        PUSH_L(templ);
+
+        CLOCK_CYCLES(2);
+        PREFETCH_RUN(2, 2, -1, 0, 0, 0, 1, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_stack.h:240
+    private static int opPUSH_imm_l(uint32_t fetchdat)
+    {
+        uint32_t val = getlong();
+        if (cpu_state.abrt != 0)
+                return 1;
+        PUSH_L(val);
+        CLOCK_CYCLES(2);
+        PREFETCH_RUN(2, 3, -1, 0, 0, 0, 1, 0);
+        return cpu_state.abrt;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_stack_386()
+    {
+        ops_386[0x117] = opPOP_SS_l;
+        ops_386[0x160] = opPUSHA_l;
+        ops_386[0x161] = opPOPA_l;
+        ops_386[0x168] = opPUSH_imm_l;
+        ops_386[0x16A] = opPUSH_imm_bl;
+        ops_386[0x18F] = opPOPL_a16;
+        ops_386[0x1C8] = opENTER_l;
+        ops_386[0x1C9] = opLEAVE_l;
+        ops_386[0x28F] = opPOPW_a32;
+        ops_386[0x317] = opPOP_SS_l;
+        ops_386[0x360] = opPUSHA_l;
+        ops_386[0x361] = opPOPA_l;
+        ops_386[0x368] = opPUSH_imm_l;
+        ops_386[0x36A] = opPUSH_imm_bl;
+        ops_386[0x38F] = opPOPL_a32;
+        ops_386[0x3C8] = opENTER_l;
+        ops_386[0x3C9] = opLEAVE_l;
     }
 }

@@ -222,6 +222,131 @@ cette commande.
 
 ---
 
+### PB-39 — Un CALL ou un JMP par porte de tâche lève #GP au lieu de changer de tâche
+
+`x86seg.c:1284-1296` (loadcscall) et `:761-779` (loadcsjmp) :
+
+```c
+case 0x100: /*286 Task gate*/
+case 0x900: /*386 Task gate*/
+        ...
+        taskswitch286(seg, segdat, segdat[2] & 0x800);
+```
+
+Les types 1 et 9, commentés « Task gate », sont en réalité les **TSS disponibles** (286 et
+386) — un CALL ou un JMP directement sur une TSS, que ces deux lignes traitent bien. La vraie
+**porte de tâche** est le type 5 (`0x500`) : aucun `case` ne la nomme, et elle tombe dans le
+`default` — « Bad CALL special descriptor » puis `x86gpf(NULL, seg & ~3)` (CALL), ou
+« Bad JMP CS » puis `x86gpf(NULL, 0)` (JMP). `pmodeint` (`:1963`) et `pmodeiret`, eux,
+suivent bien une porte de tâche.
+
+*Effet* : un programme qui change de tâche par `CALL FAR` ou `JMP FAR` sur une porte de
+tâche reçoit un #GP. Changer de tâche par INT, par IRET avec NT, ou par CALL/JMP directement
+sur la TSS fonctionne.
+*Trouvé par* : pm-check --core 386, G2 D5 — le cas « CALL FAR porte de tâche » partait en
+#GP des deux côtés ; relecture de loadcscall ensuite.
+*Reproduit* : `Cpu/x86seg.cs`, loadcscall et loadcsjmp, marqueur `PB-39` ; épinglé par
+l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
+
+### PB-40 — CALL FAR sur une TSS empile l'adresse de retour sur la pile de la NOUVELLE tâche
+
+`x86_ops_call.h:51-76`, la macro `CALL_FAR_l` (et `CALL_FAR_w`, même forme) :
+
+```c
+if (msw & 1)
+        loadcscall(new_seg, old_pc);
+...
+PUSH_L(old_cs);
+PUSH_L(old_pc);
+```
+
+Les deux empilements viennent APRÈS `loadcscall`, qui a déjà changé de tâche quand la cible
+est une TSS : ESP, SS et CS sont ceux de la nouvelle tâche. L'adresse de retour atterrit donc
+sur la pile de la tâche appelée — là où un 386 n'empile rien, le lien arrière de la TSS
+tenant lieu de retour.
+
+*Effet* : après `CALL FAR` sur une TSS, l'ESP de la nouvelle tâche vaut ESP chargé − 8 (−4 en
+16 bits), et deux mots ont été écrits sous sa pile. Mesuré : ESP 0x6FF8 au lieu de 0x7000.
+*Trouvé par* : pm-check --core 386, G2 D5 — l'attente écrite à la main (0x7000) ne tenait
+pas ; relecture de la macro.
+*Reproduit* : `Cpu/386_ops_call.cs`, CALL_FAR_l / CALL_FAR_w, transcrits tels quels ;
+épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
+
+### PB-41 — Une TSS 16 bits pose les moitiés hautes des registres généraux à FFFF
+
+`x86seg.c:2817-2824`, branche 16 bits de `taskswitch286` :
+
+```c
+EAX = new_eax | 0xFFFF0000;
+ECX = new_ecx | 0xFFFF0000;
+...
+EDI = new_edi | 0xFFFF0000;
+```
+
+Un changement de tâche vers une TSS 286 ne devrait toucher que les seize bits bas des
+registres ; PCem force les seize hauts à 1. La branche 32 bits (`:2612-2619`) charge les
+registres entiers, sans masque.
+
+*Effet* : sur un 386, entrer dans une tâche 286 met EAX…EDI à `0xFFFFxxxx`. Sur un 286,
+invisible — les moitiés hautes n'y existent pas pour le programme — mais le vecteur d'état
+les compare.
+*Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
+*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaire `verbatim` ; épinglé par l'attente
+du cas « JMP FAR TSS 286 depuis un 386 » (EAX 0xFFFF1111).
+
+### PB-43 — MOV CRx, DRx et TRx décodent le champ `mod` comme une adresse
+
+`x86_ops_mov_ctrl.h:9`, `:43`, `:78`, `:90`, `:105`, `:157`, `:208`, `:220`, `:233`,
+`:245`, `:258`, `:269` : chaque handler commence par `fetch_ea_16` ou `fetch_ea_32`, puis
+lit `cpu_rm` comme un registre.
+
+Sur un 386 le champ `mod` de ces instructions est **ignoré** : l'opérande est toujours un
+registre. Ici, quand `mod ≠ 3`, fetch_ea décode une adresse effective — consomme ses octets
+de déplacement (et le SIB en 32 bits) et avance `pc` d'autant.
+
+*Effet* : `0F 20 05 …` (mod 0, rm 5) avance de quatre octets de trop en 32 bits ; les octets
+suivants sont sautés. Aucun code réel n'écrit ces formes, mais un octet ModRM quelconque y
+mène.
+*Trouvé par* : relecture pendant la transcription, G2 D4.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, en-tête (« LE CHAMP mod … EST IGNORÉ PAR LE
+SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare des deux côtés.
+
+### PB-44 — Les formes a32 de MOV DRx,r et MOV TRx,r décodent en 16 bits
+
+`x86_ops_mov_ctrl.h:220` (`opMOV_DRx_r_a32`) et `:269` (`opMOV_TRx_r_a32`) appellent
+`fetch_ea_16`, alors que les huit autres formes `_a32` de l'en-tête appellent `fetch_ea_32` ;
+le `PREFETCH_RUN` qui suit passe bien `ea32 = 1`.
+
+*Effet* : conjugué à PB-43, un `67 0F 23` ou `67 0F 26` à `mod ≠ 3` décode une adresse
+16 bits (pas de SIB, déplacement de 16 bits) au lieu de 32 : `pc` avance d'une autre longueur.
+Invisible avec `mod = 3`, la seule forme d'usage.
+*Trouvé par* : relecture pendant la transcription, G2 D4.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, commentaires `verbatim` des deux handlers.
+
+### PB-45 — IDIV octet étend AX par des zéros au lieu du signe
+
+`808x.c:3614`, groupe F6 /7 :
+
+```c
+case 0x38: /*IDIV AL,b*/
+        tempws = (int)AX;
+```
+
+AX est un `uint16_t` : la conversion en `int` le complète par des zéros. Un dividende négatif
+(AX ≥ 0x8000) est donc divisé comme un grand positif. La forme mot (`:3743`, F7 /7) lit
+`(DX << 16) | AX` et signe correctement.
+
+*Effet* : quotient et reste faux pour tout dividende négatif sans débordement. Mesuré sur
+SingleStepTests/8088, forme `F6.7` (hors ligne de base, vecteurs en `/tmp`) : 1 169 / 9 696
+côté oracle ET côté C#. Sur les 9 372 cas sans préfixe REP, un modèle Python du C reproduit
+exactement les 1 169 : **1 143 échecs viennent du signe perdu** (dividende négatif, pas de
+débordement) ; environ 7 000 viennent d'un débordement de quotient que PCem ne détecte pas —
+sur le silicium, #DE — comme pour DIV (famille déjà recensée en § M5.0 de `VERIFICATION.md`,
+sans entrée PB) ; 32 cas à diviseur nul échouent pour une cause non instruite. `F7.7` n'est
+pas touché par le signe.
+*Trouvé par* : audit du 26/09 (D4), mesuré en G2.
+*Reproduit* : `Cpu/808x.cs`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -430,6 +555,32 @@ qui s'arrête, vide ses tampons par `fflush(NULL)` et le dit sur place. Même fa
 `h_pad_ram` et `PB-24` — ce qui diverge est la gestion mémoire manuelle, pas un
 comportement émulé. VERIFICATION.md § M13.
 
+
+### PB-46 — AAM 0 divise par zéro : SIGFPE
+
+`808x.c:3280-3286` :
+
+```c
+case 0xD4: /*AAM*/
+        tempws = FETCH();
+        AH = AL / tempws;
+        AL %= tempws;
+```
+
+Aucune garde : un octet immédiat nul est une division entière par zéro, comportement indéfini
+en C, SIGFPE sur un hôte x86. Le cœur 286/386 ne tombe pas, mais pour une autre raison :
+`x86_ops_bcd.h:31-32` remplace une base nulle par 10 — ni plantage, ni INT 0.
+
+*Effet* : un programme invité qui exécute `D4 00` fait **tomber PCem** (mesuré : « Floating
+point exception », code 136). Un 8088 lève INT 0 — SingleStepTests/8088, forme `D4`, 47 cas :
+SP − 6, IP poussé après l'instruction, AX inchangé.
+*Trouvé par* : audit du 26/09 (D3).
+*NON reproduit*, exception assumée comme PB-24 : un oracle qui meurt n'a rien à reproduire.
+`Cpu/808x.cs`, marqueur `// pcem bug, not reproduced: PB-46` : garde vers le chemin de l'erreur
+de division, celui de DIV par zéro (F6 /6), 83 cycles, marquée `DEVIATION`. Mesuré : le C#
+ne tombe plus (il levait `DivideByZeroException`, code 134). Les 47 cas `AAM 0` restent
+**non gagnés** : le silicium pousse des drapeaux déjà recalculés (octet bas 0x46 — ZF et PF
+posés, SF, AF et CF effacés), le C#, comme le chemin de DIV, les pousse inchangés.
 
 ## C. Incohérences sans conséquence observable
 
@@ -785,9 +936,29 @@ PAS ENCORE confrontée à l'oracle.
 
 ---
 
+### PB-42 — Le bit « occupé » de la nouvelle TSS est cherché dans la table de l'ancienne
+
+`x86seg.c:2429-2440` et `:2649-2660`, `taskswitch286` :
+
+```c
+if (tr.seg & 4)
+        tempw = readmemw(ldt.base, (seg & ~7) + 4);
+else
+        tempw = readmemw(gdt.base, (seg & ~7) + 4);
+```
+
+Le descripteur modifié est celui de `seg`, la NOUVELLE TSS, mais la table (LDT ou GDT) est
+choisie d'après `tr.seg & 4`, le sélecteur de l'ANCIENNE. Les blocs qui libèrent l'ancienne
+(`:2471-2482`, `:2688-2699`) testent, eux, le bon sélecteur.
+
+*Effet* : aucun en pratique — une TSS vit toujours dans la GDT, et TR ne peut désigner que la
+GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
+*Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
+*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaires `verbatim`.
+
 ## Portée de ce registre
 
-Ces **trente-huit** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-six** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -797,12 +968,17 @@ audit systématique de PCem** :
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
 | Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
 | Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
-| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38 |
+| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38, PB-41 à PB-44 |
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
+| pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
+| Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45, PB-46 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
-cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre.
+lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
+cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
+G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
+forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
+ce registre ne garde que ce qui a été lu à la ligne de C.
 
 Deux frontières ont bougé et le disaient mal :
 

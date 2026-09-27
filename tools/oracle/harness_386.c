@@ -41,3 +41,8 @@ void h_prefetch_reset(void) {
         prefetch_bytes = 0;
         prefetch_prefixes = 0;
 }
+
+/* G2, D0.5 — materialise les drapeaux paresseux, pour la sonde SST 386 seule : son
+ * corpus donne EFLAGS en clair, et flags est perime entre deux reconstructions. Le
+ * fuzzeur, lui, compare la representation paresseuse et ne l'appelle PAS. */
+void h_flags_rebuild(void) { flags_rebuild(); }

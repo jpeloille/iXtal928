@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/includes/private/cpu/x86_ops_pmode.h  (op0F01_common :352-485,
-//         op0F01_286 :504-508, op0F00_a16 :337-342, opLAR :56-113, opLSL :116-172)
+//         op0F01_w/l_a16/a32 :483-502, op0F01_286 :504-508, op0F00_a16/a32 :337-350,
+//         opLAR :56-114, opLSL :116-174)
 //         et pcem-dev/includes/private/cpu/x86_ops_misc.h  (opCLTS :796-806,
-//         opLOADALL :827-881)
+//         opLOADALL :827-881, set_segment_limit, loadall_load_segment et
+//         opLOADALL386 :885-974)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — les six emplacements de ops_286_0f, complets pour ce qu'un
-//         286 EN MODE RÉEL atteint. Les corps de op0F00_common, opLAR et opLSL
-//         ne sont pas transcrits : leur première instruction est NOTRM, donc en
-//         mode réel ils lèvent INT 6 et s'arrêtent là. Ils arriveront avec le
-//         bloc C.
+// STATUS: partial — les six emplacements de ops_286_0f, et depuis G2 D4 les
+//         formes 32 bits de 0F 00 à 0F 03 et LOADALL386 (0F 07) de ops_386_0f.
+//         Reste omis : INVLPG (486).
 //
 // LA SECONDE TABLE, ET LA PORTE DU MODE PROTÉGÉ.
 //
@@ -164,8 +164,9 @@ internal static partial class _386
                 break;
 
         // omitted: le cas 0x38 (INVLPG) — garde par `if (is486)`, et sans ce
-        //   garde il tombe dans le `default`. Sur un 286 c'est donc un opcode
-        //   illegal, ce que la branche ci-dessous produit.
+        //   garde il tombe dans le `default`. Sur un 286 comme sur un 386 c'est donc
+        //   un opcode illegal, ce que la branche ci-dessous produit. Il arrive avec
+        //   mmu_invalidate, au 486 (G6) et apres la pagination (D6).
 
         default:
                 cpu_state.pc -= 3;
@@ -278,21 +279,28 @@ internal static partial class _386
     }
 
 
-    // pcem: x86_ops_pmode.h:56-113 — opLAR(w_a16, fetch_ea_16, 0, 0), la seule forme que
-    // ops_286_0f référence (relevé dans la .so, voir x86seg.cs). M20 : Windows 3.x en
-    // mode standard valide ses sélecteurs avec. Vérifié par pm-check.
-    // omitted: les formes w_a32, l_a16, l_a32 (x86_ops_pmode.h:113) — 386.
+    // pcem: x86_ops_pmode.h:56-114 — la macro opLAR(name, fetch_ea, is32, ea32), et ses
+    // quatre instances. M20 : Windows 3.x en mode standard valide ses sélecteurs avec la
+    // forme w_a16, la seule que ops_286_0f référence. G2, D4 : les trois autres. Vérifié
+    // par pm-check pour la w_a16 ; les formes 32 bits n'atteignent que NOTRM en mode réel.
     //
     // LE VERDICT EST DANS ZF, ET LAR NE FAUTE PAS SUR UN MAUVAIS SÉLECTEUR : il efface ZF
     // et rend. Le type n'est refusé que pour 0, 8, A et D (réservés), et le privilège
     // n'est vérifié que hors code conforme.
-    private static int opLAR_w_a16(uint32_t fetchdat)
+    //
+    // LA FORME 32 BITS LIT UN MOT DOUBLE ET GARDE 0xFFFF00 : les octets 5 et 6 du
+    // descripteur, droits d'accès ET quartet haut de la limite avec G, D/B et AVL. La forme
+    // 16 bits s'arrête à l'octet d'accès.
+    //
+    // DEVIATION: la macro devient une méthode ; `fetch_ea` se choisit par `ea32`, ce que
+    // font les quatre instances.
+    private static int opLAR(uint32_t fetchdat, int is32, int ea32)
     {
         int valid;
         uint16_t sel, desc = 0;
 
         if (NOTRM()) return 1;
-        fetch_ea_16(fetchdat);
+        if (ea32 != 0 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
         if (cpu_mod != 3)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
 
@@ -334,28 +342,41 @@ internal static partial class _386
         {
                 cpu_state.flags |= Z_FLAG;
                 cpl_override = 1;
-                cpu_state.regs[cpu_reg].w =
-                        (uint16_t)(readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4)) & 0xff00);
+                if (is32 != 0)
+                        cpu_state.regs[cpu_reg].l =
+                                readmeml(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4)) & 0xffff00;
+                else
+                        cpu_state.regs[cpu_reg].w =
+                                (uint16_t)(readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 4)) & 0xff00);
                 cpl_override = 0;
         }
         CLOCK_CYCLES(11);
-        PREFETCH_RUN(11, 2, (int)fetchdat, 2, 0, 0, 0, 0);
+        PREFETCH_RUN(11, 2, (int)fetchdat, 2, 0, 0, 0, ea32);
         return cpu_state.abrt;
     }
 
-    // pcem: x86_ops_pmode.h:116-172 — opLSL(w_a16, fetch_ea_16, 0, 0), même relevé.
-    // omitted: les formes w_a32, l_a16, l_a32 (x86_ops_pmode.h:171-172) — 386.
+    // pcem: x86_ops_pmode.h:114 — les quatre instances de opLAR.
+    private static int opLAR_w_a16(uint32_t fetchdat) => opLAR(fetchdat, 0, 0);
+    private static int opLAR_w_a32(uint32_t fetchdat) => opLAR(fetchdat, 0, 1);
+    private static int opLAR_l_a16(uint32_t fetchdat) => opLAR(fetchdat, 1, 0);
+    private static int opLAR_l_a32(uint32_t fetchdat) => opLAR(fetchdat, 1, 1);
+
+    // pcem: x86_ops_pmode.h:116-174 — la macro opLSL, même traitement que opLAR.
     //
     // PLUS PERMISSIF QUE LAR SUR LES TYPES : il refuse toute porte (`(desc & 0x1400) ==
     // 0x400`) et les types 0 et A, mais accepte un TSS ou une LDT — dont la limite a un
     // sens. Et sa variable s'appelle `rpl` là où elle lit un DPL : le nom est de PCem.
-    private static int opLSL_w_a16(uint32_t fetchdat)
+    //
+    // LA FORME 32 BITS REND LA LIMITE EN OCTETS, granularité appliquée : les vingt bits
+    // bruts, décalés de 12 et complétés par 0xFFF quand G est posé. La forme 16 bits
+    // rend le mot bas brut, sans G.
+    private static int opLSL(uint32_t fetchdat, int is32, int ea32)
     {
         int valid;
         uint16_t sel, desc = 0;
 
         if (NOTRM()) return 1;
-        fetch_ea_16(fetchdat);
+        if (ea32 != 0 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
         if (cpu_mod != 3)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
 
@@ -391,13 +412,31 @@ internal static partial class _386
         {
                 cpu_state.flags |= Z_FLAG;
                 cpl_override = 1;
-                cpu_state.regs[cpu_reg].w = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7)));
+                if (is32 != 0)
+                {
+                        cpu_state.regs[cpu_reg].l = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7)));
+                        cpu_state.regs[cpu_reg].l |=
+                                (uint32_t)((readmemb(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 6)) & 0xF) << 16);
+                        if ((readmemb(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7) + 6)) & 0x80) != 0)
+                        {
+                                cpu_state.regs[cpu_reg].l <<= 12;
+                                cpu_state.regs[cpu_reg].l |= 0xFFF;
+                        }
+                }
+                else
+                        cpu_state.regs[cpu_reg].w = readmemw(0, (uint32_t)(((sel & 4) != 0 ? ldt.@base : gdt.@base) + (sel & ~7)));
                 cpl_override = 0;
         }
         CLOCK_CYCLES(10);
-        PREFETCH_RUN(10, 2, (int)fetchdat, 4, 0, 0, 0, 0);
+        PREFETCH_RUN(10, 2, (int)fetchdat, 4, 0, 0, 0, ea32);
         return cpu_state.abrt;
     }
+
+    // pcem: x86_ops_pmode.h:173-174 — les quatre instances de opLSL.
+    private static int opLSL_w_a16(uint32_t fetchdat) => opLSL(fetchdat, 0, 0);
+    private static int opLSL_w_a32(uint32_t fetchdat) => opLSL(fetchdat, 0, 1);
+    private static int opLSL_l_a16(uint32_t fetchdat) => opLSL(fetchdat, 1, 0);
+    private static int opLSL_l_a32(uint32_t fetchdat) => opLSL(fetchdat, 1, 1);
 
     /// <summary>pcem: x86_ops_pmode.h:176-336 — op0F00_common : SLDT, STR, LLDT, LTR,
     /// VERR, VERW, aiguillés par le champ `reg` du ModRM.
@@ -620,12 +659,210 @@ internal static partial class _386
     private static int op0F00_a16(uint32_t fetchdat)
     {
         if (NOTRM()) return 1;
-        fetch_ea_16(fetchdat);
+        if (fetch_ea_16(fetchdat)) return 1;
         return op0F00_common(fetchdat, 0);
     }
 
-    // omitted: opLOADALL386 (x86_ops_misc.h:882-...) — c'est la forme 386, et
-    //   la table donne opLOADALL a un 286. Verifie dans la .so.
+    // ---- G2, D4 : les formes 32 bits de 0F 00 et 0F 01, et LOADALL386 ----
+
+    // pcem: x86_ops_pmode.h:344-350
+    private static int op0F00_a32(uint32_t fetchdat)
+    {
+        if (NOTRM()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        return op0F00_common(fetchdat, 1);
+    }
+
+    // pcem: x86_ops_pmode.h:483-502 — les quatre formes 386 de op0F01_common.
+    //
+    // is286 NUL : SGDT et SIDT rendent la base telle quelle, sans forcer l'octet haut
+    // à 0xFF. is32 garde les 32 bits de base chargés par LGDT/LIDT ; sans lui, 24.
+    // L'écriture de SGDT/SIDT, elle, fait toujours quatre octets, quelle que soit la
+    // taille d'opérande — `writememl` sans condition (x86_ops_pmode.h:364).
+    private static int op0F01_w_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+
+        if (op0F01_common(fetchdat, 0, 0, 0)) return 1;
+        return cpu_state.abrt;
+    }
+
+    private static int op0F01_w_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+
+        if (op0F01_common(fetchdat, 0, 0, 1)) return 1;
+        return cpu_state.abrt;
+    }
+
+    private static int op0F01_l_a16(uint32_t fetchdat)
+    {
+        if (fetch_ea_16(fetchdat)) return 1;
+
+        if (op0F01_common(fetchdat, 1, 0, 0)) return 1;
+        return cpu_state.abrt;
+    }
+
+    private static int op0F01_l_a32(uint32_t fetchdat)
+    {
+        if (fetch_ea_32(fetchdat)) return 1;
+
+        if (op0F01_common(fetchdat, 1, 0, 1)) return 1;
+        return cpu_state.abrt;
+    }
+
+    // pcem: x86_ops_misc.h:885-894 — set_segment_limit.
+    //
+    // LE TEST D'EXPANSION VERS LE BAS N'EST VRAI QUE POUR UN SEGMENT DE DONNÉES dont le
+    // bit E est posé : `(access & 0x18) == 0x10` exige S = 1 et un type donnée. Tout le
+    // reste — code, système, données ordinaires — prend la branche [0, limit].
+    private static void set_segment_limit(x86seg s, uint8_t segdat3)
+    {
+        if ((s.access & 0x18) != 0x10 || (s.access & (1 << 2)) == 0) /*expand-down*/
+        {
+                s.limit_high = s.limit;
+                s.limit_low = 0;
+        }
+        else
+        {
+                s.limit_high = (segdat3 & 0x40) != 0 ? 0xffffffff : 0xffff;
+                s.limit_low = s.limit + 1;
+        }
+    }
+
+    // pcem: x86_ops_misc.h:896-928 — loadall_load_segment.
+    //
+    // UN DESCRIPTEUR DE DOUZE OCTETS, et non le format de la GDT : un mot double
+    // d'attributs (accès en 15:8, segdat3 en 23:16), puis la base et la limite en clair,
+    // déjà en octets. Rien n'est relu dans une table.
+    //
+    // use32 ET stack32 SONT REPOSÉS À CHAQUE APPEL, pas seulement pour CS et SS :
+    // cpu_cur_status est recalculé des deux globales sur les dix segments. Le résultat
+    // final est le même, le coût est de PCem.
+    //
+    // DEVIATION: `s == &cpu_state.seg_cs` devient ReferenceEquals — x86seg est une
+    //   classe, la comparaison d'adresses se dit ainsi.
+    private static void loadall_load_segment(uint32_t addr, x86seg s)
+    {
+        uint32_t attrib = readmeml(0, addr);
+        uint32_t segdat3 = (attrib >> 16) & 0xff;
+        s.access = (uint8_t)((attrib >> 8) & 0xff);
+        s.@base = readmeml(0, addr + 4);
+        s.limit = readmeml(0, addr + 8);
+
+        if (ReferenceEquals(s, cpu_state.seg_cs))
+                use32 = (segdat3 & 0x40) != 0 ? 0x300u : 0;
+        if (ReferenceEquals(s, cpu_state.seg_ss))
+                stack32 = (segdat3 & 0x40) != 0 ? 1 : 0;
+
+        cpu_cur_status &= unchecked((uint16_t)~(CPU_STATUS_USE32 | CPU_STATUS_STACK32));
+        if (use32 != 0)
+                cpu_cur_status |= CPU_STATUS_USE32;
+        if (stack32 != 0)
+                cpu_cur_status |= CPU_STATUS_STACK32;
+
+        set_segment_limit(s, (uint8_t)segdat3);
+
+        if (ReferenceEquals(s, cpu_state.seg_ds))
+        {
+                if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATDS);
+                else
+                        cpu_cur_status |= CPU_STATUS_NOTFLATDS;
+        }
+        if (ReferenceEquals(s, cpu_state.seg_ss))
+        {
+                if (s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xffffffff)
+                        cpu_cur_status &= unchecked((uint16_t)~CPU_STATUS_NOTFLATSS);
+                else
+                        cpu_cur_status |= CPU_STATUS_NOTFLATSS;
+        }
+    }
+
+    // pcem: x86_ops_misc.h:930-974 — opLOADALL386.
+    //
+    // LE LOADALL DU 386 N'EST PAS CELUI DU 286 : autre opcode (0F 07 et non 0F 05), et
+    // le bloc n'est plus à l'adresse fixe 0x800 mais en ES:EDI — 0xCC octets. Il
+    // recharge CR0, EFLAGS, EIP, les huit registres généraux, DR6 et DR7, les six
+    // sélecteurs et, par loadall_load_segment, les dix caches de descripteur.
+    //
+    // AUCUNE GARDE DE PRIVILÈGE, là où opLOADALL teste `CPL && (cr0 & 1)`. Et CR0 est
+    // écrit directement : ni flushmmucache, ni mise à jour de CPU_STATUS_PMODE — le
+    // bit PE chargé ne se voit dans cpu_cur_status qu'au prochain chargement qui le
+    // recalcule. Transcrit tel quel.
+    //
+    // PAS DE PREFETCH_RUN, seulement CLOCK_CYCLES(350).
+    private static int opLOADALL386(uint32_t fetchdat)
+    {
+        uint32_t la_addr = es + EDI;
+
+        cr0 = readmeml(0, la_addr);
+        cpu_state.flags = readmemw(0, la_addr + 4);
+        cpu_state.eflags = readmemw(0, la_addr + 6);
+        flags_extract();
+        cpu_state.pc = readmeml(0, la_addr + 8);
+        EDI = readmeml(0, la_addr + 0xC);
+        ESI = readmeml(0, la_addr + 0x10);
+        EBP = readmeml(0, la_addr + 0x14);
+        ESP = readmeml(0, la_addr + 0x18);
+        EBX = readmeml(0, la_addr + 0x1C);
+        EDX = readmeml(0, la_addr + 0x20);
+        ECX = readmeml(0, la_addr + 0x24);
+        EAX = readmeml(0, la_addr + 0x28);
+        dr[6] = readmeml(0, la_addr + 0x2C);
+        dr[7] = readmeml(0, la_addr + 0x30);
+        tr.seg = readmemw(0, la_addr + 0x34);
+        ldt.seg = readmemw(0, la_addr + 0x38);
+        GS = readmemw(0, la_addr + 0x3C);
+        FS = readmemw(0, la_addr + 0x40);
+        DS = readmemw(0, la_addr + 0x44);
+        SS = readmemw(0, la_addr + 0x48);
+        CS = readmemw(0, la_addr + 0x4C);
+        ES = readmemw(0, la_addr + 0x50);
+
+        loadall_load_segment(la_addr + 0x54, tr);
+        loadall_load_segment(la_addr + 0x60, idt);
+        loadall_load_segment(la_addr + 0x6c, gdt);
+        loadall_load_segment(la_addr + 0x78, ldt);
+        loadall_load_segment(la_addr + 0x84, cpu_state.seg_gs);
+        loadall_load_segment(la_addr + 0x90, cpu_state.seg_fs);
+        loadall_load_segment(la_addr + 0x9c, cpu_state.seg_ds);
+        loadall_load_segment(la_addr + 0xa8, cpu_state.seg_ss);
+        loadall_load_segment(la_addr + 0xb4, cpu_state.seg_cs);
+        loadall_load_segment(la_addr + 0xc0, cpu_state.seg_es);
+
+        if (CPL == 3 && oldcpl != 3)
+                Memory.mem.flushmmucache_cr3();
+        oldcpl = CPL;
+
+        CLOCK_CYCLES(350);
+        return 0;
+    }
+
+    /// <summary>pcem: 386_ops.h — OP_TABLE(386_0f), emplacements 00 à 03 et 07 des
+    /// quatre quadrants. 0F 00 n'a qu'une forme par taille d'adresse ; 0F 01, LAR et
+    /// LSL en ont quatre. 0F 07 est LOADALL386 partout.</summary>
+    private static void PoserGroupe_pmode_0f_386()
+    {
+        ops_386_0f[0x200] = op0F00_a32;
+        ops_386_0f[0x300] = op0F00_a32;
+
+        ops_386_0f[0x001] = op0F01_w_a16;
+        ops_386_0f[0x101] = op0F01_l_a16;
+        ops_386_0f[0x201] = op0F01_w_a32;
+        ops_386_0f[0x301] = op0F01_l_a32;
+
+        ops_386_0f[0x102] = opLAR_l_a16;
+        ops_386_0f[0x202] = opLAR_w_a32;
+        ops_386_0f[0x302] = opLAR_l_a32;
+
+        ops_386_0f[0x103] = opLSL_l_a16;
+        ops_386_0f[0x203] = opLSL_w_a32;
+        ops_386_0f[0x303] = opLSL_l_a32;
+
+        for (var q = 0; q < 4; q++)
+                ops_386_0f[(q << 8) | 0x07] = opLOADALL386;
+    }
 
     /// <summary>pcem: les six entrées non-ILLEGAL de ops_286_0f, relevées par
     /// gdb : 00, 01, 02, 03, 05, 06. Tout le reste de la table est ILLEGAL.</summary>

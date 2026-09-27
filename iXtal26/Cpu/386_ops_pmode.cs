@@ -87,4 +87,42 @@ internal static partial class _386
     {
         ops_286[0x63] = opARPL_a16;
     }
+
+    // ---- G2, D2 : les formes 32 bits (_l, _a32) de x86_ops_pmode.h ----
+
+    // pcem: x86_ops_pmode.h:29
+    private static int opARPL_a32(uint32_t fetchdat)
+    {
+        uint16_t temp_seg;
+
+        if (NOTRM()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (cpu_mod != 3)
+                if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        // omitted: pclog — sortie de diagnostic.
+        temp_seg = geteaw();
+        if (cpu_state.abrt != 0)
+                return 1;
+
+        flags_rebuild();
+        if ((temp_seg & 3) < (cpu_state.regs[cpu_reg].w & 3)) {
+                temp_seg = (uint16_t)((temp_seg & 0xfffc) | (cpu_state.regs[cpu_reg].w & 3));
+                seteaw((uint16_t)(temp_seg));
+                if (cpu_state.abrt != 0)
+                        return 1;
+                cpu_state.flags |= Z_FLAG;
+        } else
+                cpu_state.flags &= unchecked((uint16_t)~(Z_FLAG));
+
+        CLOCK_CYCLES(is486 != 0 ? 9 : 20);
+        PREFETCH_RUN(is486 != 0 ? 9 : 20, 2, (int)fetchdat, 1, 0, 1, 0, 1);
+        return 0;
+    }
+
+    // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
+    private static void PoserGroupe_pmode_386()
+    {
+        ops_386[0x263] = opARPL_a32;
+        ops_386[0x363] = opARPL_a32;
+    }
 }

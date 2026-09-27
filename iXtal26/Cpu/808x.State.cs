@@ -38,21 +38,37 @@ internal static partial class _808x
     /// le vrai mem.c. Pendant exact de h_flat_map() (tools/oracle/harness.c) — les
     /// deux cœurs doivent partir de la MÊME carte mémoire, sinon le diff compare
     /// deux machines.</summary>
-    private static void FlatMap()
+    /// <summary>Pendant de h_flat_map(). `kb` : 1 024 pour le 8088 et le 286, 16 384
+    /// pour le 386 (G2, D2) — voir h_ram_top() côté oracle.</summary>
+    private static void FlatMap(int kb = 1024)
     {
-        mem.mem_size = 1024; // 1 Mo : l'espace complet du 8088
+        // Pendant du chemin court de h_flat_map (G2, D3) : la carte de 16 Mo n'est
+        // allouée qu'une fois ; si mem.ram est encore celle qu'elle a posée, on la remet
+        // à zéro et on vide le cache de traduction. Une machine amorcée (initpc) a
+        // réalloué mem.ram, donc ReferenceEquals échoue et le chemin complet reprend.
+        if (kb == 16384 && ReferenceEquals(mem.ram, flatRam) && mem.mem_size == kb)
+        {
+                Array.Clear(mem.ram);
+                mem.resetreadlookup();
+                return;
+        }
+        mem.mem_size = kb;
         if (!mem_inited)
         {
                 mem.mem_init();
                 mem_inited = true;
         }
         mem.mem_alloc();
-        mem.mem_set_mem_state(0x000000, 0x100000, mem.MEM_READ_INTERNAL | mem.MEM_WRITE_INTERNAL);
-        mem.mem_mapping_add(h_flat_mapping, 0x000000, 0x100000,
+        var top = (uint32_t)kb * 1024;
+        mem.mem_set_mem_state(0x000000, top, mem.MEM_READ_INTERNAL | mem.MEM_WRITE_INTERNAL);
+        mem.mem_mapping_add(h_flat_mapping, 0x000000, top,
                             mem.mem_read_ram, mem.mem_read_ramw, mem.mem_read_raml,
                             mem.mem_write_ram, mem.mem_write_ramw, mem.mem_write_raml,
                             mem.ram, 0, mem.MEM_MAPPING_INTERNAL, null);
+        flatRam = kb == 16384 ? mem.ram : null;
     }
+
+    private static byte[]? flatRam;
 
     private static readonly mem_mapping_t h_flat_mapping = new();
 
@@ -60,6 +76,9 @@ internal static partial class _808x
     /// quand h_core vaut H_CORE_286 : c'est la MÊME fonction côté C, d'où l'appel
     /// à FlatMap() ici plutôt qu'une copie.</summary>
     internal static void FlatMap286() => FlatMap();
+
+    /// <summary>La carte de 16 Mo du cœur 386 (G2, D2).</summary>
+    internal static void FlatMap386() => FlatMap(16384);
 
     internal static void Reset()
     {
@@ -179,6 +198,18 @@ internal static partial class _808x
         FETCHCLEAR();
     }
 
+    /// <summary>Pendant de h_setregs386 (G2, D0.4), à appeler après SetRegs : moitiés
+    /// hautes des registres généraux dans l'ordre de cpu_state.regs, mot haut d'EFLAGS,
+    /// sélecteurs de FS et GS.</summary>
+    internal static void SetRegs386(ushort[] hi, ushort eflags, ushort fs, ushort gs)
+    {
+        for (var i = 0; i < 8; i++)
+                cpu_state.regs[i].l = (cpu_state.regs[i].l & 0xffff) | ((uint32_t)hi[i] << 16);
+        cpu_state.eflags = eflags;
+        x86seg_c.loadseg(fs, cpu_state.seg_fs);
+        x86seg_c.loadseg(gs, cpu_state.seg_gs);
+    }
+
     internal static void GetRegs(ushort[] r)
     {
         r[(int)R.AX] = cpu_state.regs[0].w;
@@ -242,6 +273,9 @@ internal static partial class _808x
         s.use32 = x86.use32;
         s.stack32 = x86.stack32;
         s.cpl_override = x86.cpl_override;
+        s.cr4 = x86.cr4;
+        for (var i = 0; i < 8; i++)
+                s.dr[i] = x86.dr[i];
 
         // Les quatre drapeaux paresseux, LUS et non matérialisés : appeler un
         // flags_rebuild() ici rendrait la représentation paresseuse invisible à toutes
