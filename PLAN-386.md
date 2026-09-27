@@ -171,6 +171,25 @@ PG, la pagination de PCem indexe la RAM sans borne et l'oracle tombe (segfault m
 plus le fuzzeur en état protégé. **Pas de silicium.** Les écritures en table se
 transcrivent à l'œil, et le commit le dit.
 
+**Recompte (27/09, à `ba39935`), par script sur `x86seg.c` et `x86seg.cs`** — lignes vives
+= hors vides, commentaires et `pclog` ; « sites » = lignes qui lisent `is32`, `stack32`,
+`use32`, `& 0x40` ou `VM_FLAG`.
+
+| Fonction | C (lignes vives, sites) | C# | Écart |
+|---|---|---|---|
+| `loadcscall` `:864-1318` | 358, 12 | transcrite (M20), 10 | les 2 sites en trop sont dans le bloc `/* */` de `:966-975` — **rien à écrire** |
+| `pmoderetf` `:1320-1624` | 244, 13 | transcrite, 11 | 2 `pclog` — **rien à écrire** |
+| `pmodeint` `:1626-2007` | 309, 9 | transcrite, 9 | — |
+| `pmodeiret` `:2009-2391` | 316, 13 | transcrite, 13 | — |
+| `loadcsjmp` `:567-802` | 199, 7 | transcrite, 5 | bloc `/* */` de `:644-653` — rien |
+| `loadseg` `:271-446` | 140, 4 | transcrite, 2 | **`:428-429` omis** : `set_stack32(0)` sur SS en V86 → **D7** |
+| `loadcs`, branche protégée `:457-…` | 93 | `pc.fatal` | appelée par `x86_doabrt:110` et `386.c:238`, `:269` en mode réel seulement (branches `else` de `msw & 1`), et par `taskswitch286` (`:2541`, sous `VM_FLAG`) → avec **taskswitch286** |
+| `taskswitch286` `:2393-2849` | 362, 2 | `pc.fatal` | **à écrire**, seul vrai code neuf de D5 ; appelée par `loadcsjmp:767`, `loadcscall:1289`, `pmodeint:1997`, `pmodeiret:2075` |
+
+Les branches 32 bits de loadcscall/pmoderetf/pmodeint/pmodeiret **existent déjà** : écrites
+en M20, elles n'ont jamais tourné avec `is32`, `stack32` ou `use32` non nuls. D5 est donc
+d'abord un travail d'**oracle** (pm-check 386) qui les exerce, puis `taskswitch286`.
+
 ### D6 — La pagination
 
 `mem.c` : `flushmmucache`, `flushmmucache_nopc`, `flushmmucache_cr3` (93-188),

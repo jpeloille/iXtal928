@@ -168,7 +168,13 @@ switch (args[0])
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
     case "pm-check":
-        return PmCheck.Run(args.Length >= 3 && args[1] == "--case" ? int.Parse(args[2]) : -1);
+    {
+        // G2, D5 — `--core 386` : le banc du 386 (PmCheck386), le 286 restant le défaut.
+        var core386 = args.Length >= 3 && args[1] == "--core" && args[2] == "386";
+        var k = core386 ? 3 : 1;
+        var only = args.Length >= k + 2 && args[k] == "--case" ? int.Parse(args[k + 1]) : -1;
+        return core386 ? PmCheck386.Run(only) : PmCheck.Run(only);
+    }
 
     // M16 — le balayage des tables de CPU : chaque entrée de chaque machine, amorcée
     // des deux côtés, l'empreinte CPU confrontée champ par champ. Le seul témoin
