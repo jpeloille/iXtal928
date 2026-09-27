@@ -246,9 +246,8 @@ internal static partial class _386
         return 0;
     }
 
-    // omitted: opPUSHFD (:117-135), opPOPF (:165-212) et opPOPFD (:213-...) —
-    //   les formes 386 et 486. C'est la TABLE qui choisit : ops_286[0x9C] nomme
-    //   opPUSHF et ops_286[0x9D] opPOPF_286.
+    // opPUSHFD, opPOPF et opPOPFD, les formes 386, suivent plus bas depuis G2 D2 : ops_286[0x9D]
+    //   nomme opPOPF_286, ops_386 opPOPF — c'est la TABLE qui choisit.
 
     /// <summary>pcem: 9C, 9D, 9E, 9F, F5, F8-FD — relevés sur ops_286[] par gdb.
     /// L'ordre de F8-FD est CLC, STC, CLI, STI, CLD, STD : les paires

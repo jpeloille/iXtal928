@@ -38,6 +38,25 @@ public static class PmCheck386
     // 4 premiers Mo, U/S, R/W et P posés (7) ; un cas retouche ses entrées par Tweak.
     private const uint Pd = DataBase + 0x2000, Pt = DataBase + 0x3000;
     private static uint PteDe(uint lineaire) => Pt + (lineaire >> 12) * 4;
+
+    // D7 — L'ENTRÉE EN V86 EST UN VRAI IRETD depuis l'anneau 0 (pmodeiret, x86seg.c:2087-2141) :
+    // c'est lui qui charge les six segments à la façon V86, et non LOADALL386. Le code V86
+    // vit en 2100:0010 (linéaire CodeBase + 0x1010), juste après l'IRETD ; sa pile en
+    // 4000:E000 (StackBase + 0xE000) ; DS = ES = 3000 (DataBase).
+    private const ushort V86Cs = 0x2100, V86Ss = 0x4000, V86Ds = 0x3000;
+    private const uint V86Ip = 0x10, V86Sp = 0xE000;
+    private static byte[] AvecEntreeV86(byte[] code)
+    {
+        var b = new byte[V86Ip + code.Length];
+        Array.Fill(b, (byte)0x90);
+        b[0] = 0xCF;                                             // IRETD (code 32 bits)
+        Array.Copy(code, 0, b, V86Ip, code.Length);
+        return b;
+    }
+    private static uint[] CadreV86(int iopl) =>
+        [V86Ip, V86Cs, 0x00020002u | ((uint)iopl << 12), V86Sp, V86Ss, V86Ds, V86Ds, 0x5000, 0x6000];
+    // FS ET GS NON NULS À DESSEIN : nuls, la remise à zéro que pmodeint leur fait en quittant
+    // le V86 (x86seg.c) serait invisible — mesuré, le contrôle négatif passait vert.
     private const int GdtEntries = 23;
 
     // Sélecteurs. « 32 » : bit D/B posé dans l'octet 6.
@@ -68,6 +87,7 @@ public static class PmCheck386
         public uint[]? Regs;                           // fuzzeur : EAX..EDI, ordre de cpu_state
         public bool Fuzz;                              // fuzzeur : la TSS de TR est occupée
         public bool Paging;                            // D6 : PG posé, carte identité des 4 premiers Mo
+        public int V86 = -1;                           // D7 : IOPL d'entrée en V86 (par IRETD), -1 sinon
     }
 
     public static int Run(int only = -1)
@@ -196,7 +216,9 @@ public static class PmCheck386
         poke(stackBase + EspDepart, L(parms));
         if (c.StackDwords is not null) poke(stackBase + EspDepart, L(c.StackDwords));
 
-        poke((ring3 ? Code3Base : CodeBase) + 0x1000, c.Code);
+        poke((ring3 ? Code3Base : CodeBase) + 0x1000, c.V86 >= 0 ? AvecEntreeV86(c.Code) : c.Code);
+        if (c.V86 >= 0)
+            poke(stackBase + EspDepart, L(CadreV86(c.V86)));
         // DS:0000 : un pointeur lointain 16:32 ; DS:0010 : des sélecteurs pour les formes
         // mémoire de LAR/LSL/VERR ; DS:0020 : un pseudo-descripteur pour LGDT/LIDT.
         poke(DataBase, L(0x0100, SelTarget32));
@@ -305,13 +327,14 @@ public static class PmCheck386
         var a = HState.Create();
         var b = HState.Create();
         var pre = c.Paging ? 2 : 0;                             // le préambule de CR3
+        var etapes = c.Steps + (c.V86 >= 0 ? 1 : 0);            // l'IRETD d'entrée en V86
         if (Environment.GetEnvironmentVariable("PMFUZZ_TRACE") is not null)
         {
             Oracle.h_getstate(out a);
             Console.WriteLine($"    avant : noint {a.noint} inhlt {a.inhlt} takeint {a.takeint} abrt {a.abrt} cur {a.cur_status:X} " +
                               $"flags {a.flags:X4} eflags {a.eflags:X4} cr0 {a.cr0:X} idt {a.sys_base[(int)Sys.IDT]:X}/{a.sys_limit[(int)Sys.IDT]:X}");
         }
-        for (var s = 0; s <= c.Steps + pre; s++)
+        for (var s = 0; s <= etapes + pre; s++)
         {
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -378,6 +401,7 @@ public static class PmCheck386
         var st = seed == 0 ? 0x9E3779B97F4A7C15UL : seed;
         uint Next() { st ^= st << 13; st ^= st >> 7; st ^= st << 17; return (uint)(st >> 32); }
         var parDepart = new int[4];
+        var parV86 = 0;
         var arrets = 0;
         for (var it = 0; it < iterations; it++)
         {
@@ -401,11 +425,13 @@ public static class PmCheck386
             var regs = new uint[8];
             for (var i = 0; i < 8; i++)
                 regs[i] = (Next() & 3) == 0 ? (Next() & 0xFF) : Next();
-            var depart = (Depart)(Next() & 3);
-            parDepart[(int)depart]++;
+            var v86 = Next() % 5 == 0;
+            var depart = v86 ? Depart.Ring0_32 : (Depart)(Next() & 3);
+            if (v86) parV86++; else parDepart[(int)depart]++;
             var c = new Case
             {
                 Name = $"itération {it}", Start = depart, Code = code, Regs = regs, Fuzz = true,
+                V86 = v86 ? (int)(Next() & 3) : -1,
                 Flags = (ushort)((Next() & 0x7FD5) | 0x0002),
             };
             if (Environment.GetEnvironmentVariable("PMFUZZ_FROM") is { } fr && it < int.Parse(fr))
@@ -425,7 +451,7 @@ public static class PmCheck386
             return 1;
         }
         Console.WriteLine($"\nVert : {iterations} instructions en mode protégé, zéro divergence " +
-                          $"(départs 0/16 {parDepart[0]}, 0/32 {parDepart[1]}, 3/16 {parDepart[2]}, 3/32 {parDepart[3]}).");
+                          $"(départs 0/16 {parDepart[0]}, 0/32 {parDepart[1]}, 3/16 {parDepart[2]}, 3/32 {parDepart[3]}, V86 {parV86}).");
         return arrets;
     }
 
@@ -654,6 +680,47 @@ public static class PmCheck386
         l.Add(new() { Name = "PG : MOV CR0 efface PG, puis lecture physique", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
                       Eax = 0x11, Code = [0x0F, 0x22, 0xC0, 0x8B, 0x0B], Steps = 2, Tweak = Donnees,
                       Expect = a => Att((a.cr0 >> 31) == 0 && a.regs[1] == 0x11112222, $"CR0 0x{a.cr0:X8}, ECX 0x{a.regs[1]:X8}") });
+
+        // --- D7 : le mode virtuel 8086. Entrée par IRETD (pas 1), puis le code testé.
+        static string? EnV86(HState a) =>
+            Att((a.eflags & 2) != 0, $"EFLAGS haut 0x{a.eflags:X4}, VM attendu")
+            ?? Att((a.seg_access[(int)Seg.CS] >> 5 & 3) == 3, "CPL attendu 3");
+        static string? FauteDepuisV86(HState a, uint poussé) =>
+            Cs(a, SelCode32, 0x300) ?? Pile(a, SelStack32, Esp0 - poussé)
+            ?? Att((a.eflags & 2) == 0, "VM encore posé")
+            ?? Att(a.seg_sel[(int)Seg.DS] == 0 && a.seg_sel[(int)Seg.ES] == 0 && a.seg_sel[(int)Seg.FS] == 0
+                   && a.seg_sel[(int)Seg.GS] == 0, "DS/ES/FS/GS non remis à zéro");
+        l.Add(new() { Name = "V86 : IRETD d'entrée (segments V86, stack32 à 0)", Start = Depart.Ring0_32, V86 = 3, Code = [0x90],
+                      Expect = a => EnV86(a) ?? Cs(a, V86Cs, 0) ?? Pile(a, V86Ss, V86Sp)
+                                    ?? Att(a.seg_base[(int)Seg.GS] == 0x60000, $"base GS 0x{a.seg_base[(int)Seg.GS]:X8}")
+                                    ?? Att(a.stack32 == 0, $"stack32 {a.stack32} (x86seg.c:428-429)")
+                                    ?? Att(a.seg_base[(int)Seg.CS] == 0x21000, $"base CS 0x{a.seg_base[(int)Seg.CS]:X8}") });
+        l.Add(new() { Name = "V86 : MOV AX,1234 ; MOV DS,AX", Start = Depart.Ring0_32, V86 = 3, Code = [0xB8, 0x34, 0x12, 0x8E, 0xD8], Steps = 2,
+                      Expect = a => EnV86(a) ?? Att(a.seg_base[(int)Seg.DS] == 0x12340, $"base DS 0x{a.seg_base[(int)Seg.DS]:X8}") });
+        l.Add(new() { Name = "V86 : INT 1Fh, IOPL 3 -> anneau 0 (9 dwords)", Start = Depart.Ring0_32, V86 = 3, Code = [0xCD, 0x1F],
+                      Expect = a => FauteDepuisV86(a, 36) });
+        l.Add(new() { Name = "V86 : INT 1Fh, IOPL 0 -> #GP (10 dwords)", Start = Depart.Ring0_32, V86 = 0, Code = [0xCD, 0x1F],
+                      Expect = a => FauteDepuisV86(a, 40) });
+        l.Add(new() { Name = "V86 : INT 1Fh puis IRETD de l'anneau 0 vers V86", Start = Depart.Ring0_32, V86 = 3, Code = [0xCD, 0x1F], Steps = 2,
+                      Tweak = p => p(CodeBase + 0xE000, [0xCF]),
+                      Expect = a => EnV86(a) ?? Cs(a, V86Cs, 0) ?? Att(a.pc == V86Ip + 2, $"IP 0x{a.pc:X}")
+                                    ?? Att(a.seg_sel[(int)Seg.DS] == V86Ds, $"DS {a.seg_sel[(int)Seg.DS]:X4}") });
+        foreach (var (code, quoi) in new (byte[], string)[]
+                 { ([0xFA], "CLI"), ([0xFB], "STI"), ([0x9C], "PUSHF"), ([0x9D], "POPF"), ([0x66, 0x9D], "POPFD"),
+                   ([0x66, 0x9C], "PUSHFD"), ([0xCC], "INT3"), ([0xCE], "INTO") })
+            l.Add(new() { Name = $"V86 : {quoi}, IOPL 0 -> #GP", Start = Depart.Ring0_32, V86 = 0, Code = code,
+                          Expect = a => FauteDepuisV86(a, 40) });
+        l.Add(new() { Name = "V86 : CLI, IOPL 3 -> permis", Start = Depart.Ring0_32, V86 = 3, Code = [0xFA],
+                      Expect = a => EnV86(a) ?? Att((a.flags & 0x200) == 0, "IF encore posé") });
+        l.Add(new() { Name = "V86 : PUSHF, IOPL 3 -> SP - 2", Start = Depart.Ring0_32, V86 = 3, Code = [0x9C],
+                      Expect = a => EnV86(a) ?? Pile(a, V86Ss, V86Sp - 2) });
+        l.Add(new() { Name = "V86 : IN AL,DX, bitmap d'E/S hors limite -> #GP", Start = Depart.Ring0_32, V86 = 3, Code = [0xEC],
+                      Expect = a => FauteDepuisV86(a, 40) });
+        l.Add(new() { Name = "V86 : HLT -> #GP", Start = Depart.Ring0_32, V86 = 3, Code = [0xF4], Expect = a => FauteDepuisV86(a, 40) });
+        l.Add(new() { Name = "V86 : MOV EAX,CR0 -> #GP", Start = Depart.Ring0_32, V86 = 3, Code = [0x0F, 0x20, 0xC0],
+                      Expect = a => FauteDepuisV86(a, 40) });
+        l.Add(new() { Name = "V86 : LAR -> INT 6 (NOTRM)", Start = Depart.Ring0_32, V86 = 3, Code = [0x0F, 0x02, 0xC3],
+                      Expect = a => FauteDepuisV86(a, 36) });
 
         l.Add(new() { Name = "SMSW AX en mode protégé (386 : | 0xFF00)", Start = Depart.Ring0_32, Code = [0x66, 0x0F, 0x01, 0xE0],
                       Expect = a => Att((a.regs[0] & 0xFFFF) == 0xFF11, $"AX 0x{a.regs[0] & 0xFFFF:X4}") });

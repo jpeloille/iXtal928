@@ -5,9 +5,9 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — le mode réel, et le mode protégé du 286 et du 386 : loadseg,
 //         loadcsjmp, loadcscall, pmoderetf, pmodeint, pmodeiret (M20), taskswitch286
-//         pour les TSS 286 et 386 (G2 D5). Restent : la branche protégée de loadcs
-//         (x86seg.c:457-565, sans appelant atteignable — voir taskswitch286), le V86
-//         de loadseg (:428-429, D7), sysenter/sysexit et la queue SMM. Voir PLAN-386.md.
+//         pour les TSS 286 et 386 (G2 D5), le V86 de loadseg (G2 D7). Restent : la
+//         branche protégée de loadcs (x86seg.c:457-565, sans appelant atteignable —
+//         voir taskswitch286), sysenter/sysexit et la queue SMM. Voir PLAN-386.md.
 //
 // x86seg.c est partagé entre le cœur 8088 et le cœur 386 : 808x.c l'appelle pour
 // loadcs/loadseg, et sur un XT `msw & 1` vaut toujours 0, donc seules les
@@ -276,8 +276,10 @@ internal static partial class x86seg_c
                 codegen_flat_ds = 0;
         if (s == cpu_state.seg_ss)
                 codegen_flat_ss = 0;
-        // omitted: `if (s == seg_ss && (eflags & VM_FLAG)) set_stack32(0);`
-        //          VM_FLAG est inatteignable sur un XT (mode virtuel 8086 = 386+).
+        // pcem: x86seg.c:428-429 — G2, D7. En V86, charger SS repasse la pile en 16 bits :
+        // un SS chargé depuis l'anneau 0 sur une pile 32 bits laisserait sinon stack32 à 1.
+        if (s == cpu_state.seg_ss && (cpu_state.eflags & VM_FLAG) != 0)
+                set_stack32(0);
 
         if (s == cpu_state.seg_ds)
         {

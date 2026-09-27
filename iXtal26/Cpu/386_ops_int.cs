@@ -101,8 +101,8 @@ internal static partial class _386
         return 0;
     }
 
-    // omitted: opINT1 (x86_ops_int.h:16-27) — l'opcode F1, que la table donne à
-    //   opLOCK sur un 286. Verifie dans la .so : ops_286[0xF1] nomme opLOCK.
+    // opINT1 (x86_ops_int.h:16-27), l'opcode F1, suit plus bas depuis G2 D2 : ops_286[0xF1]
+    //   nomme opLOCK, ops_386[0xF1] opINT1.
 
     /// <summary>pcem: CC, CD, CE — relevés sur ops_286[] par gdb.</summary>
     private static void PoserGroupeInterruptions()

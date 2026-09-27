@@ -145,10 +145,8 @@ internal static partial class _386
         return cpu_state.abrt;
     }
 
-    // omitted: RETF_a32, opRETF_a32, opRETF_a32_imm — op32 nul sur un 286.
-    // omitted: opIRET (x86_ops_ret.h:128-190) et opIRETD (:191-...) — ce sont les
-    //   formes 386 et 486, et c'est la TABLE qui choisit : ops_286[0xCF] nomme
-    //   opIRET_286.
+    // Les formes 386 (RETF_a32, opIRET, opIRETD) suivent plus bas, depuis G2 D2 : ops_286[0xCF]
+    //   nomme opIRET_286, ops_386 les autres — c'est la TABLE qui choisit.
 
     /// <summary>pcem: CA, CB, CF — relevés sur ops_286[] par gdb.</summary>
     private static void PoserGroupeRetour()

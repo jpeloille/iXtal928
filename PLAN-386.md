@@ -223,6 +223,15 @@ rend sur faute de fetch — `fastreadl` teste `abrt` avant de le lire.*
 Les branches `VM_FLAG` d'`x86seg.cs` (déjà écrites, jamais exercées), et `IOPL` sur
 `CLI`/`STI`/`PUSHF`/`POPF`/`INT`/`IRET`. **Oracle** : `pm-check` en V86.
 
+✅ *D7 fait : la seule ligne manquante, `x86seg.c:428-429` (`set_stack32(0)` sur SS en V86),
+omise au temps du XT — et PORTANTE : sans elle, toute entrée en V86 depuis une pile 32 bits
+diverge sur stack32 (contrôle négatif : 19 rouges). pm-check 386 : dix-neuf cas V86 entrés
+par un VRAI IRETD (pmodeiret charge les segments), attentes à la main — segments V86, INT
+vers l'anneau 0 (9 dwords, DS/ES/FS/GS remis à zéro), #GP sous IOPL < 3 de CLI, STI, PUSHF,
+POPF, PUSHFD, POPFD, INT3, INTO, IN par le bitmap d'E/S, HLT, MOV CR0 ; LAR → INT 6 ; retour
+par IRETD de l'anneau 0 : 106/0/0. pm-fuzz tire un départ V86 une fois sur cinq. Les
+branches VME/PVI (CR4) restent mortes sur un 386.*
+
 ---
 
 ## Porte de sortie de G2
