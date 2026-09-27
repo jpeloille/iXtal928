@@ -209,6 +209,15 @@ paginées d'`addreadlookup`/`addwritelookup` et de `readmem*l`/`writemem*l`, `pa
 **Oracle** : la sonde dédiée décrite plus haut (`page-check`) ; et, **mesure obligatoire**,
 la vitesse hôte du 8088 avant et après, puisque `readmembl` y passe.
 
+✅ *D6 fait : `page-check` (7a8175e, avant le code) puis `mmutranslatereal`, `flushmmucache_cr3`
+transcrit (ce n'est plus un alias de `flushmmucache` : il ne remet pas `pccache`), les
+branches `cr0 >> 31` des six accès et de `getpccache`. page-check vert 3 × 200 000
+traductions ; pm-check 386 : onze cas paginés (bits A/D, #PF et code d'erreur, accès à
+cheval, CPL3, cache de traduction gardé jusqu'au MOV CR3, fetch vers une page absente),
+87/0/0. Omis, nommés : `mmutranslate_noabrt` (dynarec), `flushmmucache_nopc` (chipsets 486+),
+`mem_flush_write_page`, `mmu_invalidate` (486). Inobservable : le `ram` que `getpccache`
+rend sur faute de fetch — `fastreadl` teste `abrt` avant de le lire.*
+
 ### D7 — Le mode virtuel 8086
 
 Les branches `VM_FLAG` d'`x86seg.cs` (déjà écrites, jamais exercées), et `IOPL` sur

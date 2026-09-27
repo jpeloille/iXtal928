@@ -32,6 +32,12 @@ public static class PmCheck386
     private const uint CodeBase = 0x20000, DataBase = 0x30000, StackBase = 0x40000;
     private const uint TargetBase = 0x50000, Code3Base = 0x60000, Stack3Base = 0x70000;
     private const uint Bloc = 0x800;
+
+    // D6 — le répertoire et la table de pages vivent DANS DS (base DataBase), pour que le
+    // code testé puisse les réécrire : DS:2000 et DS:3000. La table fait l'identité des
+    // 4 premiers Mo, U/S, R/W et P posés (7) ; un cas retouche ses entrées par Tweak.
+    private const uint Pd = DataBase + 0x2000, Pt = DataBase + 0x3000;
+    private static uint PteDe(uint lineaire) => Pt + (lineaire >> 12) * 4;
     private const int GdtEntries = 23;
 
     // Sélecteurs. « 32 » : bit D/B posé dans l'octet 6.
@@ -61,6 +67,7 @@ public static class PmCheck386
         public Func<HState, string?>? Expect;          // sur l'état final de l'oracle
         public uint[]? Regs;                           // fuzzeur : EAX..EDI, ordre de cpu_state
         public bool Fuzz;                              // fuzzeur : la TSS de TR est occupée
+        public bool Paging;                            // D6 : PG posé, carte identité des 4 premiers Mo
     }
 
     public static int Run(int only = -1)
@@ -196,6 +203,14 @@ public static class PmCheck386
         poke(DataBase + 0x10, W(SelDataG));
         poke(DataBase + 0x20, [0xFF, 0x00, 0x00, 0x10, 0x00, 0x00]);
 
+        if (c.Paging)
+        {
+            poke(Pd, L(Pt | 7));
+            var t = new uint[1024];
+            for (uint i = 0; i < 1024; i++) t[i] = (i << 12) | 7;
+            poke(Pt, L(t));
+        }
+
         c.Tweak?.Invoke(poke);
 
         // Le bloc de LOADALL386 (x86_ops_misc.h:930-974).
@@ -216,7 +231,7 @@ public static class PmCheck386
             Depart.Ring3_16 => SelCode3_16, _ => SelCode3_32,
         };
         ushort ssSel = ring3 ? (cs32 ? SelStack3_32 : SelStack3_16) : (ss32 ? SelStack32 : SelStack16);
-        Bd(0x00, 0x00000011);                                   // CR0 : PE, ET ; PG nul
+        Bd(0x00, c.Paging ? 0x80000011u : 0x00000011u);         // CR0 : PE, ET ; PG pour D6
         Bw(0x04, c.Flags);                                      // FLAGS
         Bw(0x06, 0x0000);                                       // EFLAGS haut
         Bd(0x08, 0x1000);                                       // EIP
@@ -247,7 +262,12 @@ public static class PmCheck386
         Seg(0xC0, DataBase, 0xFFFF, 0x93, 0);                    // ES
         poke(Bloc, b);
 
-        poke(0x7C00, [0x0F, 0x07]);                              // LOADALL386
+        // LOADALL386 ne charge pas CR3 : en D6, deux instructions de mode réel le posent
+        // d'abord — MOV EAX,Pd ; MOV CR3,EAX.
+        if (c.Paging)
+            poke(0x7C00, [0x66, 0xB8, .. L(Pd), 0x0F, 0x22, 0xD8, 0x0F, 0x07]);
+        else
+            poke(0x7C00, [0x0F, 0x07]);                          // LOADALL386
     }
 
     private static string RunCase(Case c)
@@ -284,13 +304,14 @@ public static class PmCheck386
 
         var a = HState.Create();
         var b = HState.Create();
+        var pre = c.Paging ? 2 : 0;                             // le préambule de CR3
         if (Environment.GetEnvironmentVariable("PMFUZZ_TRACE") is not null)
         {
             Oracle.h_getstate(out a);
             Console.WriteLine($"    avant : noint {a.noint} inhlt {a.inhlt} takeint {a.takeint} abrt {a.abrt} cur {a.cur_status:X} " +
                               $"flags {a.flags:X4} eflags {a.eflags:X4} cr0 {a.cr0:X} idt {a.sys_base[(int)Sys.IDT]:X}/{a.sys_limit[(int)Sys.IDT]:X}");
         }
-        for (var s = 0; s <= c.Steps; s++)
+        for (var s = 0; s <= c.Steps + pre; s++)
         {
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -309,7 +330,7 @@ public static class PmCheck386
             var d = Fuzzer.Compare(a, b, cycC, cycS) ?? Fuzzer.CmpWrites() ?? Fuzzer.CmpRam();
             if (d is not null)
                 return $"ROUGE au pas {s} : {d}";
-            if (s == 0)
+            if (s == pre)
             {
                 // Le banc lui-même : LOADALL386 a-t-il posé l'état voulu ?
                 var cs32 = Est32(c.Start);
@@ -324,6 +345,8 @@ public static class PmCheck386
     }
 
     private static string? Att(bool ok, string quoi) => ok ? null : quoi;
+    private static uint MemO(uint addr) =>
+        (uint)(Oracle.ReadByte(addr) | (Oracle.ReadByte(addr + 1) << 8) | (Oracle.ReadByte(addr + 2) << 16) | (Oracle.ReadByte(addr + 3) << 24));
     private static string? Pile(HState a, ushort ss, uint esp) =>
         Att(a.seg_sel[(int)Seg.SS] == ss && a.regs[4] == esp,
             $"SS:ESP {a.seg_sel[(int)Seg.SS]:X4}:{a.regs[4]:X8}, attendu {ss:X4}:{esp:X8}");
@@ -583,6 +606,55 @@ public static class PmCheck386
         l.Add(new() { Name = "66 LGDT [EBX] : base tronquée à 24 bits", Start = Depart.Ring0_32, Ebx = 0x20, Code = [0x66, 0x0F, 0x01, 0x13],
                       Tweak = p => p(DataBase + 0x20, [0xFF, 0x00, 0x00, 0x10, 0x00, 0x01]),
                       Expect = a => Att(a.sys_base[(int)Sys.GDT] == 0x00001000, $"GDT base 0x{a.sys_base[(int)Sys.GDT]:X8}") });
+        // --- D6 : la pagination, par instructions. DS:5000 = linéaire 0x35000, DS:6000 = 0x36000.
+        static byte[] Dw(uint v) => [(byte)v, (byte)(v >> 8), (byte)(v >> 16), (byte)(v >> 24)];
+        void Donnees(Action<uint, byte[]> p) { p(0x35000, Dw(0x11112222)); p(0x36000, Dw(0x33334444)); }
+        l.Add(new() { Name = "PG : lecture, bits A posés dans le PDE et le PTE", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
+                      Code = [0x8B, 0x03], Tweak = Donnees,
+                      Expect = a => Att(a.regs[0] == 0x11112222, $"EAX 0x{a.regs[0]:X8}")
+                                    ?? Att((MemO(PteDe(0x35000)) & 0x60) == 0x20, $"PTE 0x{MemO(PteDe(0x35000)):X8}")
+                                    ?? Att((MemO(Pd) & 0x20) != 0, $"PDE 0x{MemO(Pd):X8}") });
+        l.Add(new() { Name = "PG : écriture, bit D posé", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000, Eax = 0xCAFEBABE,
+                      Code = [0x89, 0x03], Tweak = Donnees,
+                      Expect = a => Att((MemO(PteDe(0x35000)) & 0x60) == 0x60, $"PTE 0x{MemO(PteDe(0x35000)):X8}")
+                                    ?? Att(MemO(0x35000) == 0xCAFEBABE, "donnée non écrite") });
+        l.Add(new() { Name = "PG : page absente -> #PF, cr2 et code d'erreur", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
+                      Code = [0x8B, 0x03], Tweak = p => p(PteDe(0x35000), Dw(0x35006)),
+                      Expect = a => Att(a.cr2 == 0x35000, $"cr2 0x{a.cr2:X8}") ?? Cs(a, SelCode32, 0x300)
+                                    ?? Pile(a, SelStack32, EspDepart - 16) ?? Att(MemO(StackBase + EspDepart - 16) == 0, "code d'erreur") });
+        l.Add(new() { Name = "PG : dword à cheval, seconde page absente -> #PF", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5FFE,
+                      Code = [0x8B, 0x03], Tweak = p => p(PteDe(0x36000), Dw(0x36006)),
+                      Expect = a => Att(a.cr2 == 0x36001, $"cr2 0x{a.cr2:X8}") ?? Pile(a, SelStack32, EspDepart - 16) });
+        l.Add(new() { Name = "PG : mot à cheval, écriture, les deux pages", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5FFF, Eax = 0xBEEF,
+                      Code = [0x66, 0x89, 0x03], Tweak = Donnees,
+                      Expect = a => Att((MemO(PteDe(0x35000)) & 0x40) != 0 && (MemO(PteDe(0x36000)) & 0x40) != 0, "bits D") });
+        l.Add(new() { Name = "PG : CPL3 sur une page superviseur -> #PF 5", Start = Depart.Ring3_32, Paging = true, Ebx = 0x5000,
+                      Code = [0x8B, 0x03], Tweak = p => p(PteDe(0x35000), Dw(0x35003)),
+                      Expect = a => Att(a.cr2 == 0x35000, $"cr2 0x{a.cr2:X8}") ?? Pile(a, SelStack32, Esp0 - 24)
+                                    ?? Att(MemO(StackBase + Esp0 - 24) == 5, $"code d'erreur {MemO(StackBase + Esp0 - 24)}") });
+        l.Add(new() { Name = "PG : CPL3 écrit une page en lecture seule -> #PF 7", Start = Depart.Ring3_32, Paging = true, Ebx = 0x5000,
+                      Code = [0x89, 0x03], Tweak = p => p(PteDe(0x35000), Dw(0x35005)),
+                      Expect = a => Att(MemO(StackBase + Esp0 - 24) == 7, $"code d'erreur {MemO(StackBase + Esp0 - 24)}") });
+        l.Add(new() { Name = "PG : CPL0 écrit une page en lecture seule (WP nul) — permis", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
+                      Eax = 0x0BADF00D, Code = [0x89, 0x03], Tweak = p => p(PteDe(0x35000), Dw(0x35005)),
+                      Expect = a => Att(MemO(0x35000) == 0x0BADF00D, "donnée non écrite") });
+        // LE CACHE DE TRADUCTION : un PTE réécrit SANS vidage garde l'ancienne traduction
+        // (readlookup2), jusqu'au MOV CR3 qui vide. MOV EAX,[EBX] ; MOV [PTE],0x36007 ;
+        // MOV ECX,[EBX] (ancien) ; MOV CR3,EDX ; MOV EDX,[EBX] (nouveau).
+        l.Add(new() { Name = "PG : PTE réécrit sans vidage, puis MOV CR3", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
+                      Code = [0x8B, 0x03, 0xC7, 0x05, .. Dw(0x3000 + 0x35 * 4), .. Dw(0x36007), 0x8B, 0x0B,
+                              0xBA, .. Dw(Pd), 0x0F, 0x22, 0xDA, 0x8B, 0x13],
+                      Steps = 6, Tweak = Donnees,
+                      Expect = a => Att(a.regs[1] == 0x11112222, $"ECX 0x{a.regs[1]:X8} (traduction en cache attendue)")
+                                    ?? Att(a.regs[2] == 0x33334444, $"EDX 0x{a.regs[2]:X8} (nouvelle traduction attendue)") });
+        l.Add(new() { Name = "PG : fetch à cheval vers une page absente -> #PF", Start = Depart.Ring0_32, Paging = true,
+                      Code = [0xE9, .. Dw(0x1FFE - 0x1005)],        // JMP vers 88:1FFE, linéaire 0x21FFE
+                      Steps = 2, Tweak = p => { p(0x21FFE, [0xB8, 0x78]); p(PteDe(0x22000), Dw(0x22006)); },
+                      Expect = a => Att(a.cr2 >= 0x22000 && a.cr2 <= 0x22003, $"cr2 0x{a.cr2:X8}") ?? Cs(a, SelCode32, 0x300) });
+        l.Add(new() { Name = "PG : MOV CR0 efface PG, puis lecture physique", Start = Depart.Ring0_32, Paging = true, Ebx = 0x5000,
+                      Eax = 0x11, Code = [0x0F, 0x22, 0xC0, 0x8B, 0x0B], Steps = 2, Tweak = Donnees,
+                      Expect = a => Att((a.cr0 >> 31) == 0 && a.regs[1] == 0x11112222, $"CR0 0x{a.cr0:X8}, ECX 0x{a.regs[1]:X8}") });
+
         l.Add(new() { Name = "SMSW AX en mode protégé (386 : | 0xFF00)", Start = Depart.Ring0_32, Code = [0x66, 0x0F, 0x01, 0xE0],
                       Expect = a => Att((a.regs[0] & 0xFFFF) == 0xFF11, $"AX 0x{a.regs[0] & 0xFFFF:X4}") });
         return l;
