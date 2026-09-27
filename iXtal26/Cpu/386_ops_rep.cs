@@ -972,10 +972,10 @@ internal static partial class _386
                 uint32_t temp;
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
-                check_io_perm((uint16_t)(DX + 2));
-                check_io_perm((uint16_t)(DX + 3));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (check_io_perm((uint16_t)(DX + 2))) return 1;
+                if (check_io_perm((uint16_t)(DX + 3))) return 1;
                 temp = io.inl(DX);
                 writememl(es, DI, temp);
                 if (cpu_state.abrt != 0)
@@ -1011,10 +1011,10 @@ internal static partial class _386
                 temp = readmeml(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
-                check_io_perm((uint16_t)(DX + 2));
-                check_io_perm((uint16_t)(DX + 3));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (check_io_perm((uint16_t)(DX + 2))) return 1;
+                if (check_io_perm((uint16_t)(DX + 3))) return 1;
                 io.outl(DX, temp);
                 if ((cpu_state.flags & D_FLAG) != 0)
                         SI -= 4;
@@ -1161,7 +1161,7 @@ internal static partial class _386
                 uint8_t temp;
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
-                check_io_perm(DX);
+                if (check_io_perm(DX)) return 1;
                 temp = io.inb(DX);
                 writememb(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1195,8 +1195,8 @@ internal static partial class _386
                 uint16_t temp;
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
                 temp = io.inw(DX);
                 writememw(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1230,10 +1230,10 @@ internal static partial class _386
                 uint32_t temp;
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
-                check_io_perm((uint16_t)(DX + 2));
-                check_io_perm((uint16_t)(DX + 3));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (check_io_perm((uint16_t)(DX + 2))) return 1;
+                if (check_io_perm((uint16_t)(DX + 3))) return 1;
                 temp = io.inl(DX);
                 writememl(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1269,7 +1269,7 @@ internal static partial class _386
                 temp = readmemb(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
-                check_io_perm(DX);
+                if (check_io_perm(DX)) return 1;
                 io.outb(DX, temp);
                 if ((cpu_state.flags & D_FLAG) != 0)
                         ESI--;
@@ -1301,8 +1301,8 @@ internal static partial class _386
                 temp = readmemw(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
                 io.outw(DX, temp);
                 if ((cpu_state.flags & D_FLAG) != 0)
                         ESI -= 2;
@@ -1334,10 +1334,10 @@ internal static partial class _386
                 temp = readmeml(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
-                check_io_perm(DX);
-                check_io_perm((uint16_t)(DX + 1));
-                check_io_perm((uint16_t)(DX + 2));
-                check_io_perm((uint16_t)(DX + 3));
+                if (check_io_perm(DX)) return 1;
+                if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (check_io_perm((uint16_t)(DX + 2))) return 1;
+                if (check_io_perm((uint16_t)(DX + 3))) return 1;
                 io.outl(DX, temp);
                 if ((cpu_state.flags & D_FLAG) != 0)
                         ESI -= 4;

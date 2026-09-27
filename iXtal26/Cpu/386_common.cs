@@ -618,9 +618,15 @@ internal static partial class _386_common
         _386.flags_rebuild();
         cpu_state.pc = cpu_state.oldpc;
         // pmodeint EST transcrit depuis 3942f70 : ce site etait un fatal().
+        //
+        // LE `cycles -= 70` DE LA FIN VAUT POUR LES DEUX BRANCHES (386_common.c:44-76). Un
+        // `return` nu ici le sautait à chaque exception en mode protégé — 286 compris — et
+        // aucun cas de pm-check 286 ne levait d'INT 6. Trouvé par pm-fuzz (G2 D5), mesure :
+        // `C6 2F`, #UD depuis CPL3, oracle 333 cycles, C# 263.
         if ((msw & 1) != 0)
         {
                 x86seg_c.pmodeint(num, 0);
+                cycles -= 70;
                 return;
         }
 

@@ -659,7 +659,7 @@ internal static partial class _386
     private static int op0F00_a16(uint32_t fetchdat)
     {
         if (NOTRM()) return 1;
-        fetch_ea_16(fetchdat);
+        if (fetch_ea_16(fetchdat)) return 1;
         return op0F00_common(fetchdat, 0);
     }
 
