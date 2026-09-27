@@ -719,6 +719,8 @@ internal static partial class x86seg_c
                                 }
                                 break;
 
+                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
+                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 cpu_state.pc = old_pc;
@@ -1889,7 +1891,7 @@ internal static partial class x86seg_c
 
                 if (optype == JMP || optype == CALL || optype == OPTYPE_INT)
                 {
-                        // verbatim : la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // pcem bug, reproduced: PB-42 — la table est choisie par `tr.seg & 4`, celle de la TSS
                         // COURANTE, même quand c'est le descripteur de `seg` qu'on modifie.
                         if ((tr.seg & 4) != 0)
                                 tempw = readmemw(ldt.@base, (uint32_t)((seg & ~7) + 4));
@@ -2111,7 +2113,7 @@ internal static partial class x86seg_c
 
                 if (optype == JMP || optype == CALL || optype == OPTYPE_INT)
                 {
-                        // verbatim : la table est choisie par `tr.seg & 4`, celle de la TSS
+                        // pcem bug, reproduced: PB-42 — la table est choisie par `tr.seg & 4`, celle de la TSS
                         // COURANTE, même quand c'est le descripteur de `seg` qu'on modifie.
                         if ((tr.seg & 4) != 0)
                                 tempw = readmemw(ldt.@base, (uint32_t)((seg & ~7) + 4));
@@ -2289,7 +2291,7 @@ internal static partial class x86seg_c
                 oldcpl = CPL;
                 set_use32(0);
 
-                // verbatim : `| 0xFFFF0000`, les moitiés hautes à FFFF (voir l'en-tête).
+                // pcem bug, reproduced: PB-41 — `| 0xFFFF0000`, les moitiés hautes à FFFF (voir l'en-tête).
                 EAX = new_eax | 0xFFFF0000;
                 ECX = new_ecx | 0xFFFF0000;
                 EDX = new_edx | 0xFFFF0000;
@@ -2532,6 +2534,8 @@ internal static partial class x86seg_c
                                 cycles -= cpu_c.timing_jmp_pm_gate;
                                 break;
 
+                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
+                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 // LE PC REVIENT A old_pc, ET C'EST POUR CA QUE loadcsjmp LE

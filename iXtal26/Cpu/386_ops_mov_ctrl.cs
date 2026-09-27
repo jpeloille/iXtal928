@@ -44,6 +44,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         switch (cpu_reg)
         {
@@ -85,6 +86,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_32(fetchdat)) return 1;
         switch (cpu_reg)
         {
@@ -129,6 +131,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = dr[cpu_reg];
         CLOCK_CYCLES(6);
@@ -145,6 +148,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_32(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = dr[cpu_reg];
         CLOCK_CYCLES(6);
@@ -173,6 +177,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         switch (cpu_reg)
         {
@@ -231,6 +236,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_32(fetchdat)) return 1;
         switch (cpu_reg)
         {
@@ -287,6 +293,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         dr[cpu_reg] = cpu_state.regs[cpu_rm].l;
         CLOCK_CYCLES(6);
@@ -303,8 +310,9 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // verbatim : la forme a32 de PCem décode en fetch_ea_16 (:220), mais passe
-        // ea32 = 1 à PREFETCH_RUN. Muet quand mod = 3, la forme d'usage.
+        // pcem bug, reproduced: PB-44 — la forme a32 décode en fetch_ea_16 (:220), mais
+        //   passe ea32 = 1 à PREFETCH_RUN. Muet quand mod = 3, la forme d'usage.
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         dr[cpu_reg] = cpu_state.regs[cpu_rm].l;
         CLOCK_CYCLES(6);
@@ -321,6 +329,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = 0;
         CLOCK_CYCLES(6);
@@ -337,6 +346,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_32(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = 0;
         CLOCK_CYCLES(6);
@@ -353,6 +363,7 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 0);
@@ -368,7 +379,8 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // verbatim : fetch_ea_16 dans la forme a32 (:269), comme MOV DRx,r.
+        // pcem bug, reproduced: PB-44 — fetch_ea_16 dans la forme a32 (:269), comme MOV DRx,r.
+        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
         if (fetch_ea_16(fetchdat)) return 1;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 1);

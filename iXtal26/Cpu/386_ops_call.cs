@@ -53,6 +53,8 @@ internal static partial class _386
         optype = CALL;
         cgate16 = cgate32 = 0;
         if ((msw & 1) != 0)
+                // pcem bug, reproduced: PB-40 — les empilements du retour suivent loadcscall : sur
+                //   une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
                 x86seg_c.loadcscall(new_seg, old_pc);
         else
         {
@@ -116,6 +118,8 @@ internal static partial class _386
         optype = CALL;
         cgate16 = cgate32 = 0;
         if ((msw & 1) != 0)
+                // pcem bug, reproduced: PB-40 — les empilements du retour suivent loadcscall : sur
+                //   une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
                 x86seg_c.loadcscall(new_seg, old_pc);
         else
         {
