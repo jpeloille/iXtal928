@@ -3172,6 +3172,30 @@ startrep:
 
                 case 0xD4: /*AAM*/
                         tempws = FETCH();
+                        // pcem bug, not reproduced: PB-46 — AAM 0 divise par zéro : le C tombe
+                        //   (SIGFPE, 808x.c:3282, mesuré rc 136) et le C# levait une
+                        //   DivideByZeroException qui abattait l'hôte (rc 134). Un 8088 lève
+                        //   INT 0 — SingleStepTests/8088, forme D4 : SP − 6, IP poussé APRÈS
+                        //   l'instruction, AX inchangé. Garde vers le chemin de l'erreur de
+                        //   division, le même que DIV par zéro juste au-dessus (F6 /6).
+                        //
+                        // DEVIATION: l'oracle n'a pas de comportement à reproduire ici — il
+                        //   meurt. Le coût, 83 cycles, est celui d'AAM ; aucun oracle ne le
+                        //   départage (SST ne compare pas les cycles).
+                        if (tempws == 0)
+                        {
+                                writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
+                                writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
+                                writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
+                                SP -= 6;
+                                cpu_state.flags &= unchecked((uint16_t)~I_FLAG);
+                                cpu_state.flags &= unchecked((uint16_t)~T_FLAG);
+                                cpu_state.pc = readmemw(0, 0);
+                                x86seg_c.loadcs(readmemw(0, 2));
+                                FETCHCLEAR();
+                                cycles -= 83;
+                                break;
+                        }
                         AH = (uint8_t)(AL / tempws);
                         AL %= (uint8_t)tempws;
                         setznp16(AX);
@@ -3445,6 +3469,9 @@ startrep:
                                 cycles -= 80;
                                 break;
                         case 0x38: /*IDIV AL,b*/
+                                // pcem bug, reproduced: PB-45 — `(int)AX` étend AX par des ZÉROS
+                                //   (808x.c:3614) : un dividende négatif est lu comme un grand
+                                //   positif. La forme mot, elle, signe (DX << 16 | AX).
                                 tempws = (int)AX;
                                 if (temp != 0)
                                 {

@@ -245,7 +245,7 @@ tâche reçoit un #GP. Changer de tâche par INT, par IRET avec NT, ou par CALL/
 sur la TSS fonctionne.
 *Trouvé par* : pm-check --core 386, G2 D5 — le cas « CALL FAR porte de tâche » partait en
 #GP des deux côtés ; relecture de loadcscall ensuite.
-*Reproduit* : `Cpu/x86seg.cs`, loadcscall et loadcsjmp, transcrits tels quels ; épinglé par
+*Reproduit* : `Cpu/x86seg.cs`, loadcscall et loadcsjmp, marqueur `PB-39` ; épinglé par
 l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
 
 ### PB-40 — CALL FAR sur une TSS empile l'adresse de retour sur la pile de la NOUVELLE tâche
@@ -322,6 +322,30 @@ le `PREFETCH_RUN` qui suit passe bien `ea32 = 1`.
 Invisible avec `mod = 3`, la seule forme d'usage.
 *Trouvé par* : relecture pendant la transcription, G2 D4.
 *Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, commentaires `verbatim` des deux handlers.
+
+### PB-45 — IDIV octet étend AX par des zéros au lieu du signe
+
+`808x.c:3614`, groupe F6 /7 :
+
+```c
+case 0x38: /*IDIV AL,b*/
+        tempws = (int)AX;
+```
+
+AX est un `uint16_t` : la conversion en `int` le complète par des zéros. Un dividende négatif
+(AX ≥ 0x8000) est donc divisé comme un grand positif. La forme mot (`:3743`, F7 /7) lit
+`(DX << 16) | AX` et signe correctement.
+
+*Effet* : quotient et reste faux pour tout dividende négatif sans débordement. Mesuré sur
+SingleStepTests/8088, forme `F6.7` (hors ligne de base, vecteurs en `/tmp`) : 1 169 / 9 696
+côté oracle ET côté C#. Sur les 9 372 cas sans préfixe REP, un modèle Python du C reproduit
+exactement les 1 169 : **1 143 échecs viennent du signe perdu** (dividende négatif, pas de
+débordement) ; environ 7 000 viennent d'un débordement de quotient que PCem ne détecte pas —
+sur le silicium, #DE — comme pour DIV (famille déjà recensée en § M5.0 de `VERIFICATION.md`,
+sans entrée PB) ; 32 cas à diviseur nul échouent pour une cause non instruite. `F7.7` n'est
+pas touché par le signe.
+*Trouvé par* : audit du 26/09 (D4), mesuré en G2.
+*Reproduit* : `Cpu/808x.cs`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
 
 ## B. Comportement indéfini en C
 
@@ -531,6 +555,32 @@ qui s'arrête, vide ses tampons par `fflush(NULL)` et le dit sur place. Même fa
 `h_pad_ram` et `PB-24` — ce qui diverge est la gestion mémoire manuelle, pas un
 comportement émulé. VERIFICATION.md § M13.
 
+
+### PB-46 — AAM 0 divise par zéro : SIGFPE
+
+`808x.c:3280-3286` :
+
+```c
+case 0xD4: /*AAM*/
+        tempws = FETCH();
+        AH = AL / tempws;
+        AL %= tempws;
+```
+
+Aucune garde : un octet immédiat nul est une division entière par zéro, comportement indéfini
+en C, SIGFPE sur un hôte x86. Le cœur 286/386 ne tombe pas, mais pour une autre raison :
+`x86_ops_bcd.h:31-32` remplace une base nulle par 10 — ni plantage, ni INT 0.
+
+*Effet* : un programme invité qui exécute `D4 00` fait **tomber PCem** (mesuré : « Floating
+point exception », code 136). Un 8088 lève INT 0 — SingleStepTests/8088, forme `D4`, 47 cas :
+SP − 6, IP poussé après l'instruction, AX inchangé.
+*Trouvé par* : audit du 26/09 (D3).
+*NON reproduit*, exception assumée comme PB-24 : un oracle qui meurt n'a rien à reproduire.
+`Cpu/808x.cs`, marqueur `// pcem bug, not reproduced: PB-46` : garde vers le chemin de l'erreur
+de division, celui de DIV par zéro (F6 /6), 83 cycles, marquée `DEVIATION`. Mesuré : le C#
+ne tombe plus (il levait `DivideByZeroException`, code 134). Les 47 cas `AAM 0` restent
+**non gagnés** : le silicium pousse des drapeaux déjà recalculés (octet bas 0x46 — ZF et PF
+posés, SF, AF et CF effacés), le C#, comme le chemin de DIV, les pousse inchangés.
 
 ## C. Incohérences sans conséquence observable
 
@@ -908,7 +958,7 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 
 ## Portée de ce registre
 
-Ces **quarante-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-six** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -921,6 +971,7 @@ audit systématique de PCem** :
 | Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38, PB-41 à PB-44 |
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
 | pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
+| Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45, PB-46 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
