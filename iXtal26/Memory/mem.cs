@@ -172,8 +172,17 @@ internal static partial class mem
     // omitted: pages / page_lookup / byte_dirty_mask / byte_code_present_mask —
     //   suivi de pages sales du dynarec. Conséquence marquée plus bas : le chemin
     //   d'écriture est simplifié au lieu d'être transcrit.
-    // omitted: mmutranslate_read/write, mmutranslatereal — pagination 386.
-    //   `cr0 >> 31` vaut toujours 0 sur un 8088.
+    // omitted: mmutranslate_read/write — pagination 386. `cr0 >> 31` vaut toujours 0
+    //   sur un 8088.
+
+    /// <summary>pcem: mem.c:220-317 — mmutranslatereal. G2, D6 : la sonde page-check
+    /// (tools/iXtal26.Diff) l'appelle AVANT qu'elle soit écrite, et elle doit s'arrêter
+    /// en se nommant plutôt que rendre une adresse fausse.</summary>
+    internal static uint32_t mmutranslatereal(uint32_t addr, int rw)
+    {
+        pc.fatal("not implemented: mem.c:220-317 — mmutranslatereal (G2, D6)\n");
+        return 0xFFFFFFFF;
+    }
     // omitted: mem_remap_top, ram_remapped_mapping — la remise en correspondance des
     //   384 Ko du haut, propre au chipset de l'AT. Bloc B3.
 

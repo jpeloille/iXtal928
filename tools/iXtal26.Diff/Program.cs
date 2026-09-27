@@ -19,6 +19,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
     Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
     Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
+    Console.WriteLine("  page-check [--iter N] [--seed N] [--renew N] [--oracle]");
+    Console.WriteLine("      mmutranslatereal confronté des deux côtés, tables de pages tirées en RAM");
     Console.WriteLine("      386 en mode protégé : état par LOADALL386, une instruction tirée par itération");
     Console.WriteLine("       [--rounds N] [--instr N] [--seed N] [-v] [--ram-per-instr]");
     Console.WriteLine("      Diff différentiel : le cœur C# contre l'oracle C, état complet");
@@ -169,6 +171,25 @@ switch (args[0])
         return Core286Check.Run();
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
+    // G2, D6 — la sonde de la pagination (PageCheck).
+    case "page-check":
+    {
+        var it = 200000;
+        ulong sd = 1;
+        var renew = 5000;
+        var oracleOnly = false;
+        for (var i = 1; i < args.Length; i++)
+            switch (args[i])
+            {
+                case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
+                case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                case "--renew" when i + 1 < args.Length: renew = int.Parse(args[++i]); break;
+                case "--oracle": oracleOnly = true; break;
+                default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
+            }
+        return PageCheck.Run(it, sd, renew, oracleOnly);
+    }
+
     // G2, D5 — le fuzzeur en mode protégé du 386 (PmCheck386.Fuzz).
     case "pm-fuzz":
     {

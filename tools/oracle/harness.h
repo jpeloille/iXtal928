@@ -347,6 +347,11 @@ void h_setregs386(const uint16_t hi[8], uint16_t eflags, uint16_t fs_sel, uint16
  * dr6, dr7). cr0 est cpu_state.CR0.l, msw en est le mot bas (x86.h). */
 void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7);
 
+/* G2, D6 — page-check : un appel de mmutranslatereal dans un contexte posé (harness.c),
+ * et mmu_perm, hors de h_state. */
+uint32_t h_mmutranslate(uint32_t addr, int rw, int cpl, int cpl_ovr, int abrt_in);
+int h_mmu_perm(void);
+
 /* G2, D0.5 — flags_rebuild(), pour la sonde SST 386 (harness_386.c). */
 void h_flags_rebuild(void);
 
@@ -586,7 +591,8 @@ uint8_t *h_ram(void);
  * taille. */
 /* 23 depuis G2 etape D0.4 : h_setregs386 s'ajoute au contrat. */
 /* 24 depuis G2 etape D0.5 : h_setsys386 et h_flags_rebuild s'ajoutent au contrat. */
-#define H_ABI_VERSION 24
+/* 25 depuis G2 etape D6 : h_mmutranslate et h_mmu_perm (page-check). h_state ne change pas. */
+#define H_ABI_VERSION 25
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

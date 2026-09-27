@@ -581,6 +581,26 @@ void h_setsys386(uint32_t cr0_val, uint32_t cr3_val, uint32_t dr6, uint32_t dr7)
         dr[7] = dr7;
 }
 
+/* G2, D6 — page-check : UN appel de mmutranslatereal (mem.c:220-317) dans un contexte que
+ * l'appelant pose. CPL se lit dans seg_cs.access (x86.h), d'où l'écriture de ses bits 5-6 ;
+ * cpl_override et abrt sont posés tels quels — abrt non nul exerce le retour anticipé de
+ * la première ligne. abrt_error est remis à zéro pour que seule CET appel le pose.
+ * cr0 (WP, bit 16) et cr3 se posent par h_setsys386 ; les tables, par h_load. */
+uint32_t h_mmutranslate(uint32_t addr, int rw, int cpl, int cpl_ovr, int abrt_in) {
+        uint32_t r;
+
+        cpu_state.seg_cs.access = (cpu_state.seg_cs.access & ~0x60) | ((cpl & 3) << 5);
+        cpl_override = cpl_ovr;
+        cpu_state.abrt = abrt_in;
+        abrt_error = 0;
+        r = mmutranslatereal(addr, rw);
+        cpl_override = 0;
+        return r;
+}
+
+/* G2, D6 — mmu_perm (mem.c:59), que mmutranslatereal pose et que h_state ne porte pas. */
+int h_mmu_perm(void) { return mmu_perm; }
+
 void h_getregs(uint16_t r[H_R_COUNT]) {
         r[H_R_AX] = cpu_state.regs[0].w;
         r[H_R_BX] = cpu_state.regs[3].w;
