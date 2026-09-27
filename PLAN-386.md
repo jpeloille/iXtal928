@@ -190,6 +190,15 @@ Les branches 32 bits de loadcscall/pmoderetf/pmodeint/pmodeiret **existent déj�
 en M20, elles n'ont jamais tourné avec `is32`, `stack32` ou `use32` non nuls. D5 est donc
 d'abord un travail d'**oracle** (pm-check 386) qui les exerce, puis `taskswitch286`.
 
+✅ *D5 fait : `pm-check --core 386` (76 cas, attentes à la main sur l'état de l'oracle,
+76/0/0), `pm-fuzz` (le fuzzeur en mode protégé, état par LOADALL386), puis `taskswitch286`
+(TSS 286 et 386) — pm-check 286 passe de 66/0/2 à 68/0/0. En chemin, trois défauts du C#
+trouvés par l'oracle : `x86_int` sautait 70 cycles à chaque exception en mode protégé (286
+compris) ; 44 sites ignoraient `check_io_perm` (D2) ; `ClearSegResidue` oubliait six
+globales. Vus chez PCem, reproduits : CALL par porte de tâche → #GP (le type 5 n'est pas
+aiguillé) ; CALL sur TSS empile le retour sur la pile de la NOUVELLE tâche ; une TSS 16 bits
+pose les moitiés hautes des registres à FFFF.*
+
 ### D6 — La pagination
 
 `mem.c` : `flushmmucache`, `flushmmucache_nopc`, `flushmmucache_cr3` (93-188),

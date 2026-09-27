@@ -28,18 +28,18 @@ namespace iXtal26.Diff;
 
 public static class PmCheck386
 {
-    private const uint Gdt = 0x1000, Ldt = 0x2000, Idt = 0x3000, Tss = 0x4000, Tss2 = 0x4100;
+    private const uint Gdt = 0x1000, Ldt = 0x2000, Idt = 0x3000, Tss = 0x4000, Tss2 = 0x4100, Tss286 = 0x4200;
     private const uint CodeBase = 0x20000, DataBase = 0x30000, StackBase = 0x40000;
     private const uint TargetBase = 0x50000, Code3Base = 0x60000, Stack3Base = 0x70000;
     private const uint Bloc = 0x800;
-    private const int GdtEntries = 22;
+    private const int GdtEntries = 23;
 
     // Sélecteurs. « 32 » : bit D/B posé dans l'octet 6.
     private const ushort SelCode16 = 0x08, SelData = 0x10, SelStack16 = 0x18, SelTarget32 = 0x20,
         SelConform32 = 0x28, SelCode3_32 = 0x33, SelStack3_32 = 0x3B, SelGate3 = 0x43, SelGate0 = 0x48,
         SelTss = 0x50, SelNotPresent = 0x58, SelDataAsCode = 0x60, SelLdtDesc = 0x68, SelTaskGate = 0x70,
         SelTss2 = 0x78, SelStack32 = 0x80, SelCode32 = 0x88, SelDataG = 0x90, SelTarget16 = 0x98,
-        SelCode3_16 = 0xA3, SelStack3_16 = 0xAB;
+        SelCode3_16 = 0xA3, SelStack3_16 = 0xAB, SelTss286 = 0xB0;
 
     private const uint Esp0 = 0x8000;                // ESP0 de la TSS 386
     private const uint EspDepart = 0xFF60;           // sous les paramètres
@@ -60,7 +60,7 @@ public static class PmCheck386
         public Action<Action<uint, byte[]>>? Tweak;
         public Func<HState, string?>? Expect;          // sur l'état final de l'oracle
         public uint[]? Regs;                           // fuzzeur : EAX..EDI, ordre de cpu_state
-        public bool Fuzz;                              // fuzzeur : aucun chemin vers taskswitch286
+        public bool Fuzz;                              // fuzzeur : la TSS de TR est occupée
     }
 
     public static int Run(int only = -1)
@@ -143,8 +143,8 @@ public static class PmCheck386
         g[0x38 >> 3] = Desc(0xFFFF, Stack3Base, 0xF2, 0x40);         // pile 32 DPL3
         g[0x40 >> 3] = Gate(0x0100, SelTarget32, c.GateDwords, 0xEC); // porte d'appel 386 DPL3
         g[0x48 >> 3] = Gate(0x0100, SelTarget32, 0, 0x8C);           // porte d'appel 386 DPL0
-        // En fuzz, la TSS de TR est OCCUPÉE (0x8B) : un CALL ou JMP tiré sur elle prend le
-        // #GP du `default` de loadcscall au lieu de taskswitch286, pas encore écrit.
+        // En fuzz, la TSS de TR est OCCUPÉE (0x8B), comme sur un vrai processeur qui l'a
+        // chargée : un CALL ou JMP tiré sur elle prend le #GP du `default` de loadcscall.
         g[0x50 >> 3] = Desc(0x67, Tss, (byte)(c.Fuzz ? 0x8B : 0x89)); // TSS 386
         g[0x58 >> 3] = Desc(0xFFFF, TargetBase, 0x1A, 0x40);         // code NON présent
         g[0x60 >> 3] = Desc(0xFFFF, DataBase, 0x92);                 // données (cible de CALL : #GP)
@@ -157,11 +157,7 @@ public static class PmCheck386
         g[0x98 >> 3] = Desc(0xFFFF, TargetBase, 0x9A);               // code 16 DPL0, cible
         g[0xA0 >> 3] = Desc(0xFFFF, Code3Base, 0xFA);                // code 16 DPL3
         g[0xA8 >> 3] = Desc(0xFFFF, Stack3Base, 0xF2);               // pile 16 DPL3
-        if (c.Fuzz)
-        {
-            g[0x70 >> 3] = new byte[8];                               // ni porte de tâche
-            g[0x78 >> 3] = new byte[8];                               // ni TSS n°2
-        }
+        g[0xB0 >> 3] = Desc(0x2B, Tss286, 0x81);                     // TSS 286 disponible
         for (var i = 0; i < g.Length; i++) poke(Gdt + (uint)(8 * i), g[i]);
 
         poke(Ldt + 8, Desc(0xFFFF, TargetBase, 0xFA, 0x40));         // LDT idx 1 : code 32 DPL3
@@ -181,6 +177,9 @@ public static class PmCheck386
         P(0x28, L(0x11111111, 0x22222222, 0x33333333, 0x44444444, 0x7000, 0x55555555, 0x66666666, 0x77777777));
         P(0x48, L(SelData, SelTarget32, SelStack32, SelData, SelData, SelData, SelLdtDesc));
         poke(Tss2, t2);
+        // TSS 286 : IP +0x0E, FLAGS +0x10, AX..DI +0x12, ES CS SS DS +0x22, LDT +0x2A.
+        poke(Tss286, W(0, 0, 0, 0, 0, 0, 0, 0x0100, 0x0002, 0x1111, 0x2222, 0x3333, 0x4444, 0x7000,
+                        0x5555, 0x6666, 0x7777, SelData, SelTarget16, SelStack16, SelData, SelLdtDesc));
 
         // Pile de départ : paramètres reconnaissables, puis ce que le cas y pose.
         var ring3 = EstRing3(c.Start);
@@ -339,8 +338,8 @@ public static class PmCheck386
 
     /// <summary>G2, D5 — LE FUZZEUR EN MODE PROTÉGÉ. Chaque itération construit l'état par
     /// LOADALL386 comme un cas du banc, anneau et taille de code tirés, registres et FLAGS
-    /// tirés (NT effacé : IRET prendrait le lien arrière vers taskswitch286), puis exécute
-    /// UNE instruction tirée et compare tout.
+    /// tirés, NT compris (IRET suit alors le lien arrière de la TSS, taskswitch286), puis
+    /// exécute UNE instruction tirée et compare tout.
     ///
     /// PG N'EST JAMAIS POSÉ : `0F 22` (MOV CRx,r) et `0F 07` (LOADALL386) sont réécrits en
     /// `0F 20`, derrière les préfixes. Avec PG, l'oracle tombe (voir Fuzzer.SeedSys386).
@@ -384,7 +383,7 @@ public static class PmCheck386
             var c = new Case
             {
                 Name = $"itération {it}", Start = depart, Code = code, Regs = regs, Fuzz = true,
-                Flags = (ushort)((Next() & 0x3FD5 & ~0x4000) | 0x0002),
+                Flags = (ushort)((Next() & 0x7FD5) | 0x0002),
             };
             if (Environment.GetEnvironmentVariable("PMFUZZ_FROM") is { } fr && it < int.Parse(fr))
                 continue;
@@ -494,18 +493,37 @@ public static class PmCheck386
         l.Add(new() { Name = "CALL FAR porte 386 depuis CPL3 16 bits", Start = Depart.Ring3_16, GateDwords = 2,
                       Code = Far16(0x9A, SelGate3, 0), Expect = a => Pile(a, SelStack32, Esp0 - 24) });
 
-        // --- changement de tâche 386 (taskswitch286) : ARRÊT attendu tant qu'il n'est pas écrit ---
-        l.Add(new() { Name = "CALL FAR TSS 386 (taskswitch286)", Start = Depart.Ring0_32, Code = Far32(0x9A, SelTss2, 0) });
-        l.Add(new() { Name = "JMP FAR TSS 386 (taskswitch286)", Start = Depart.Ring0_32, Code = Far32(0xEA, SelTss2, 0) });
+        // --- changement de tâche 386 (taskswitch286) ---
+        // Attente commune : TR = TSS n°2, CS:EIP et EAX lus dans elle, TS posé dans CR0.
+        static string? Tache(HState a, uint esp, bool nt) =>
+            Att(a.sys_sel[(int)Sys.TR] == SelTss2, $"TR {a.sys_sel[(int)Sys.TR]:X4}")
+            ?? Cs(a, SelTarget32, 0x300) ?? Pile(a, SelStack32, esp)
+            ?? Att(a.regs[0] == 0x11111111, $"EAX 0x{a.regs[0]:X8}")
+            ?? Att((a.cr0 & 8) != 0, $"CR0 0x{a.cr0:X8} sans TS")
+            ?? Att(((a.flags & 0x4000) != 0) == nt, $"FLAGS 0x{a.flags:X4}, NT attendu {nt}");
+        // CALL : ESP 0x6FF8 et non 0x7000. CALL_FAR_l (x86_ops_call.h:51-76) empile l'adresse
+        // de retour APRÈS loadcscall, donc sur la pile de la NOUVELLE tâche. Le 386 ne le
+        // fait pas ; PCem si, et le C# le reproduit.
+        l.Add(new() { Name = "CALL FAR TSS 386 (taskswitch286)", Start = Depart.Ring0_32, Code = Far32(0x9A, SelTss2, 0),
+                      Expect = a => Tache(a, 0x6FF8, true) });
+        // TSS 286 depuis un 386 : la branche 16 bits, et son `| 0xFFFF0000` (x86seg.c:2800).
+        l.Add(new() { Name = "JMP FAR TSS 286 depuis un 386 (moitiés hautes à FFFF)", Start = Depart.Ring0_32,
+                      Code = Far32(0xEA, SelTss286, 0),
+                      Expect = a => Att(a.sys_sel[(int)Sys.TR] == SelTss286, $"TR {a.sys_sel[(int)Sys.TR]:X4}")
+                                    ?? Cs(a, SelTarget16, 0) ?? Pile(a, SelStack16, 0xFFFF7000)
+                                    ?? Att(a.regs[0] == 0xFFFF1111, $"EAX 0x{a.regs[0]:X8}")
+                                    ?? Att(a.seg_sel[(int)Seg.FS] == 0 && a.seg_sel[(int)Seg.GS] == 0, "FS/GS non nuls") });
+        l.Add(new() { Name = "JMP FAR TSS 386 (taskswitch286)", Start = Depart.Ring0_32, Code = Far32(0xEA, SelTss2, 0),
+                      Expect = a => Tache(a, 0x7000, false) });
         // PCem NE CHANGE PAS DE TÂCHE PAR UN CALL SUR PORTE DE TÂCHE : loadcscall aiguille les
         // types 1 et 9 (TSS disponibles, commentés « Task gate » à x86seg.c:1284-1285) vers
         // taskswitch286, et le vrai type 5 tombe dans `default` — #GP. Transcrit tel quel.
         l.Add(new() { Name = "CALL FAR porte de tâche -> #GP (PCem : type 5 non géré)", Start = Depart.Ring0_32,
                       Code = Far32(0x9A, SelTaskGate, 0), Expect = a => Pile(a, SelStack32, EspDepart - 16) });
         l.Add(new() { Name = "INT 1Eh par porte de tâche -> TSS 386 (pmodeint)", Start = Depart.Ring0_32, Code = [0xCD, 0x1E],
-                      Tweak = p => p(Idt + 0x1E * 8, Gate(0, SelTss2, 0, 0x85)) });
+                      Tweak = p => p(Idt + 0x1E * 8, Gate(0, SelTss2, 0, 0x85)), Expect = a => Tache(a, 0x7000, true) });
         l.Add(new() { Name = "IRETD avec NT -> lien arrière (pmodeiret)", Start = Depart.Ring0_32, Code = [0xCF],
-                      Flags = 0x4002, Tweak = p => p(Tss, W(SelTss2)) });
+                      Flags = 0x4002, Tweak = p => p(Tss, W(SelTss2)), Expect = a => Tache(a, 0x7000, false) });
 
         // --- D4, angles morts : MOV CRx/DRx/TRx depuis CPL3 -> #GP ---
         foreach (var (code, what) in new (byte[], string)[]
