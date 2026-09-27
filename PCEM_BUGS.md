@@ -222,6 +222,107 @@ cette commande.
 
 ---
 
+### PB-39 — Un CALL ou un JMP par porte de tâche lève #GP au lieu de changer de tâche
+
+`x86seg.c:1284-1296` (loadcscall) et `:761-779` (loadcsjmp) :
+
+```c
+case 0x100: /*286 Task gate*/
+case 0x900: /*386 Task gate*/
+        ...
+        taskswitch286(seg, segdat, segdat[2] & 0x800);
+```
+
+Les types 1 et 9, commentés « Task gate », sont en réalité les **TSS disponibles** (286 et
+386) — un CALL ou un JMP directement sur une TSS, que ces deux lignes traitent bien. La vraie
+**porte de tâche** est le type 5 (`0x500`) : aucun `case` ne la nomme, et elle tombe dans le
+`default` — « Bad CALL special descriptor » puis `x86gpf(NULL, seg & ~3)` (CALL), ou
+« Bad JMP CS » puis `x86gpf(NULL, 0)` (JMP). `pmodeint` (`:1963`) et `pmodeiret`, eux,
+suivent bien une porte de tâche.
+
+*Effet* : un programme qui change de tâche par `CALL FAR` ou `JMP FAR` sur une porte de
+tâche reçoit un #GP. Changer de tâche par INT, par IRET avec NT, ou par CALL/JMP directement
+sur la TSS fonctionne.
+*Trouvé par* : pm-check --core 386, G2 D5 — le cas « CALL FAR porte de tâche » partait en
+#GP des deux côtés ; relecture de loadcscall ensuite.
+*Reproduit* : `Cpu/x86seg.cs`, loadcscall et loadcsjmp, transcrits tels quels ; épinglé par
+l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
+
+### PB-40 — CALL FAR sur une TSS empile l'adresse de retour sur la pile de la NOUVELLE tâche
+
+`x86_ops_call.h:51-76`, la macro `CALL_FAR_l` (et `CALL_FAR_w`, même forme) :
+
+```c
+if (msw & 1)
+        loadcscall(new_seg, old_pc);
+...
+PUSH_L(old_cs);
+PUSH_L(old_pc);
+```
+
+Les deux empilements viennent APRÈS `loadcscall`, qui a déjà changé de tâche quand la cible
+est une TSS : ESP, SS et CS sont ceux de la nouvelle tâche. L'adresse de retour atterrit donc
+sur la pile de la tâche appelée — là où un 386 n'empile rien, le lien arrière de la TSS
+tenant lieu de retour.
+
+*Effet* : après `CALL FAR` sur une TSS, l'ESP de la nouvelle tâche vaut ESP chargé − 8 (−4 en
+16 bits), et deux mots ont été écrits sous sa pile. Mesuré : ESP 0x6FF8 au lieu de 0x7000.
+*Trouvé par* : pm-check --core 386, G2 D5 — l'attente écrite à la main (0x7000) ne tenait
+pas ; relecture de la macro.
+*Reproduit* : `Cpu/386_ops_call.cs`, CALL_FAR_l / CALL_FAR_w, transcrits tels quels ;
+épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
+
+### PB-41 — Une TSS 16 bits pose les moitiés hautes des registres généraux à FFFF
+
+`x86seg.c:2817-2824`, branche 16 bits de `taskswitch286` :
+
+```c
+EAX = new_eax | 0xFFFF0000;
+ECX = new_ecx | 0xFFFF0000;
+...
+EDI = new_edi | 0xFFFF0000;
+```
+
+Un changement de tâche vers une TSS 286 ne devrait toucher que les seize bits bas des
+registres ; PCem force les seize hauts à 1. La branche 32 bits (`:2612-2619`) charge les
+registres entiers, sans masque.
+
+*Effet* : sur un 386, entrer dans une tâche 286 met EAX…EDI à `0xFFFFxxxx`. Sur un 286,
+invisible — les moitiés hautes n'y existent pas pour le programme — mais le vecteur d'état
+les compare.
+*Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
+*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaire `verbatim` ; épinglé par l'attente
+du cas « JMP FAR TSS 286 depuis un 386 » (EAX 0xFFFF1111).
+
+### PB-43 — MOV CRx, DRx et TRx décodent le champ `mod` comme une adresse
+
+`x86_ops_mov_ctrl.h:9`, `:43`, `:78`, `:90`, `:105`, `:157`, `:208`, `:220`, `:233`,
+`:245`, `:258`, `:269` : chaque handler commence par `fetch_ea_16` ou `fetch_ea_32`, puis
+lit `cpu_rm` comme un registre.
+
+Sur un 386 le champ `mod` de ces instructions est **ignoré** : l'opérande est toujours un
+registre. Ici, quand `mod ≠ 3`, fetch_ea décode une adresse effective — consomme ses octets
+de déplacement (et le SIB en 32 bits) et avance `pc` d'autant.
+
+*Effet* : `0F 20 05 …` (mod 0, rm 5) avance de quatre octets de trop en 32 bits ; les octets
+suivants sont sautés. Aucun code réel n'écrit ces formes, mais un octet ModRM quelconque y
+mène.
+*Trouvé par* : relecture pendant la transcription, G2 D4.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, en-tête (« LE CHAMP mod … EST IGNORÉ PAR LE
+SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare des deux côtés.
+
+### PB-44 — Les formes a32 de MOV DRx,r et MOV TRx,r décodent en 16 bits
+
+`x86_ops_mov_ctrl.h:220` (`opMOV_DRx_r_a32`) et `:269` (`opMOV_TRx_r_a32`) appellent
+`fetch_ea_16`, alors que les huit autres formes `_a32` de l'en-tête appellent `fetch_ea_32` ;
+le `PREFETCH_RUN` qui suit passe bien `ea32 = 1`.
+
+*Effet* : conjugué à PB-43, un `67 0F 23` ou `67 0F 26` à `mod ≠ 3` décode une adresse
+16 bits (pas de SIB, déplacement de 16 bits) au lieu de 32 : `pc` avance d'une autre longueur.
+Invisible avec `mod = 3`, la seule forme d'usage.
+*Trouvé par* : relecture pendant la transcription, G2 D4.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, commentaires `verbatim` des deux handlers.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -785,9 +886,29 @@ PAS ENCORE confrontée à l'oracle.
 
 ---
 
+### PB-42 — Le bit « occupé » de la nouvelle TSS est cherché dans la table de l'ancienne
+
+`x86seg.c:2429-2440` et `:2649-2660`, `taskswitch286` :
+
+```c
+if (tr.seg & 4)
+        tempw = readmemw(ldt.base, (seg & ~7) + 4);
+else
+        tempw = readmemw(gdt.base, (seg & ~7) + 4);
+```
+
+Le descripteur modifié est celui de `seg`, la NOUVELLE TSS, mais la table (LDT ou GDT) est
+choisie d'après `tr.seg & 4`, le sélecteur de l'ANCIENNE. Les blocs qui libèrent l'ancienne
+(`:2471-2482`, `:2688-2699`) testent, eux, le bon sélecteur.
+
+*Effet* : aucun en pratique — une TSS vit toujours dans la GDT, et TR ne peut désigner que la
+GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
+*Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
+*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaires `verbatim`.
+
 ## Portée de ce registre
 
-Ces **trente-huit** défauts sont ce que les trois oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -797,12 +918,16 @@ audit systématique de PCem** :
 | Mesure ciblée (fréquence absolue, imputation par opcode) | PB-03 |
 | Exécution : l'émulateur s'arrête, ou la machine fait une chose fausse à l'écran | PB-21, PB-31, PB-33 |
 | Désassemblage d'une ROM de BIOS, croisé avec une table de PCem | PB-34 |
-| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38 |
+| Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38, PB-41 à PB-44 |
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
+| pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : les cœurs 286/386/486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
-cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre.
+lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
+cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
+G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
+forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
+ce registre ne garde que ce qui a été lu à la ligne de C.
 
 Deux frontières ont bougé et le disaient mal :
 
