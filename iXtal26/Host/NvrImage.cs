@@ -108,10 +108,11 @@ internal static class NvrImage
     /// <param name="memSize">mem_size du .cfg, en Ko.</param>
     /// <param name="driveA">drive_a_type du .cfg, numérotation PCem.</param>
     /// <param name="driveB">drive_b_type du .cfg, numérotation PCem.</param>
-    /// <param name="hddType">Type de disque dur du BIOS, 1 à 46, ou 0 pour aucun.</param>
+    /// <param name="hddType">Type de disque dur du BIOS pour C:, 1 à 46, ou 0 pour aucun.</param>
     /// <param name="displayBits">Bits 5-4 de l'octet 0x14, déjà décalés.</param>
+    /// <param name="hddTypeD">Même chose pour D:.</param>
     internal static void Amend(uint8_t[] cmos, int memSize, int driveA, int driveB,
-                              int hddType, int displayBits)
+                              int hddType, int displayBits, int hddTypeD = 0)
     {
         // pcem: amic206.bin:0xad08 et :0xad0e — le SETUP met ces deux-là à zéro avant de
         // redémarrer. 0x0E est l'octet de DIAGNOSTIC, et c'est lui le vecteur entre la
@@ -131,30 +132,18 @@ internal static class NvrImage
         // Quartet haut = A:, quartet bas = B:.
         cmos[0x10] = (uint8_t)((FloppyNibble(driveA) << 4) | FloppyNibble(driveB));
 
-        // LE QUARTET BAS RESTE À ZÉRO, ET CE N'EST PAS UN OUBLI. mfm_init charge les deux
-        // unités et le registre de commande fait fatal("Command on non-present drive")
-        // (mfm_at.cs) si le BIOS en adresse une qui n'a pas de fichier. Déclarer un D:
-        // sans hdd_fn tuerait l'émulateur pendant le POST.
+        // Quartet haut de 0x12 = C:, quartet bas = D:. 0x0F dans un quartet veut dire
+        // « type >= 16, le vrai numéro est dans l'octet étendu » : 0x19 pour C:, 0x1A pour
+        // D:. Mesuré dans la ROM AMI : C: en 0xA875-0xA886 (`cmp al,0Eh / jne`, lecture de
+        // 0x19, `cmp al,2Eh / ja` qui rejette au-delà du type 47) ; D: en 0xA8AA-0xA8C4,
+        // même suite sur `and ax,0Fh` et `mov al,9Ah` — 0x1A, bit NMI posé.
         //
-        // 0x0F dans le quartet veut dire « type >= 16, le vrai numéro est en 0x19 » —
-        // mesuré dans la ROM AMI, 0xA875-0xA886 : `cmp al,0Eh / jne` sur l'index, puis
-        // lecture de 0x19, puis `cmp al,2Eh / ja` qui rejette au-delà du type 47.
-        if (hddType <= 0)
-        {
-                cmos[0x12] = 0;
-                cmos[0x19] = 0;
-        }
-        else if (hddType < 15)
-        {
-                cmos[0x12] = (uint8_t)(hddType << 4);
-                cmos[0x19] = 0;
-        }
-        else
-        {
-                cmos[0x12] = 0xF0;
-                cmos[0x19] = (uint8_t)hddType;
-        }
-        cmos[0x1A] = 0; // type étendu de D:, sans objet
+        // D: N'EST DÉCLARÉ QUE S'IL A UN FICHIER. mfm_init charge les deux unités et le
+        // registre de commande fait fatal("Command on non-present drive") (mfm_at.cs) si
+        // le BIOS en adresse une qui n'en a pas : l'appelant passe 0 sans hdd_fn.
+        (int nibbleC, cmos[0x19]) = HardDiskNibble(hddType);
+        (int nibbleD, cmos[0x1A]) = HardDiskNibble(hddTypeD);
+        cmos[0x12] = (uint8_t)((nibbleC << 4) | nibbleD);
 
         // Octet d'équipement. Bits 7-6 : nombre de lecteurs moins un. Bits 5-4 :
         // l'affichage. Bit 2 : clavier. Bit 0 : au moins un lecteur de disquette.
@@ -198,6 +187,11 @@ internal static class NvrImage
         cmos[0x2F] = (uint8_t)(sum & 0xFF);
     }
 
+    /// <summary>Quartet de 0x12 et octet étendu pour un type : 0 = aucun, 1-14 dans le
+    /// quartet, 15 et plus derrière 0x0F.</summary>
+    private static (int Nibble, uint8_t Extended) HardDiskNibble(int type) =>
+        type <= 0 ? (0, (uint8_t)0) : type < 15 ? (type, (uint8_t)0) : (0x0F, (uint8_t)type);
+
     /// <summary>
     /// --make-nvr : lit un fichier de configuration, amende le CMOS de référence de sa
     /// machine, et écrit le fichier de session.
@@ -238,6 +232,14 @@ internal static class NvrImage
         var spt = config.config_get_int(config.CFG_MACHINE, null, "hdc_sectors", 0);
         var hddType = (cyl > 0 && heads > 0 && spt > 0) ? HddImage.TypeFor(cyl, heads, spt) : 0;
 
+        // D:, mêmes règles, et seulement avec un fichier : voir Amend.
+        var cylD = config.config_get_int(config.CFG_MACHINE, null, "hdd_cylinders", 0);
+        var headsD = config.config_get_int(config.CFG_MACHINE, null, "hdd_heads", 0);
+        var sptD = config.config_get_int(config.CFG_MACHINE, null, "hdd_sectors", 0);
+        var fnD = config.config_get_string(config.CFG_MACHINE, null, "hdd_fn", "");
+        var hddTypeD = (fnD.Length > 0 && cylD > 0 && headsD > 0 && sptD > 0)
+                       ? HddImage.TypeFor(cylD, headsD, sptD) : 0;
+
         var refName = modelName switch
         {
                 "ami286" => "ami286.nvr",
@@ -273,7 +275,7 @@ internal static class NvrImage
         var displayBits = gfx == "cga" ? DisplayCga80 : DisplayOwnRom;
 
         var before = Checksum(cmos);
-        Amend(cmos, memSize, driveA, driveB, hddType, displayBits);
+        Amend(cmos, memSize, driveA, driveB, hddType, displayBits, hddTypeD);
         var after = Checksum(cmos);
 
         File.WriteAllBytes(outPath, cmos);
@@ -282,8 +284,9 @@ internal static class NvrImage
         Console.WriteLine($"  machine        {modelName}");
         Console.WriteLine($"  mémoire        {memSize} Ko, dont {(memSize > 1024 ? memSize - 1024 : 0)} au-delà de 1 Mo");
         Console.WriteLine($"  lecteurs       0x10 = {cmos[0x10]:X2}  (A: type PCem {driveA}, B: type PCem {driveB})");
-        Console.WriteLine($"  disque dur     0x12 = {cmos[0x12]:X2}, 0x19 = {cmos[0x19]:X2}" +
-                          (hddType > 0 ? $"  (type {hddType}, {cyl}x{heads}x{spt})" : "  (aucun)"));
+        Console.WriteLine($"  disque dur     0x12 = {cmos[0x12]:X2}, 0x19 = {cmos[0x19]:X2}, 0x1A = {cmos[0x1A]:X2}" +
+                          $"  (C: {(hddType > 0 ? $"type {hddType}, {cyl}x{heads}x{spt}" : "aucun")}" +
+                          $" ; D: {(hddTypeD > 0 ? $"type {hddTypeD}, {cylD}x{headsD}x{sptD}" : "aucun")})");
         Console.WriteLine($"  équipement     0x14 = {cmos[0x14]:X2}  (affichage {displayBits:X2}, carte « {gfx} »)");
         Console.WriteLine($"  somme          0x{before:X4} -> 0x{after:X4}, en 0x2E/0x2F");
 
