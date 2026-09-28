@@ -2,7 +2,8 @@
 
 `nvrfopen` (`nvr.c:33-54`) compose « nvr/<config>.<machine>.nvr » en premier, et retombe
 sur « nvr/default/<machine>.nvr » en LECTURE SEULE — le CMOS de reference qu'un emulateur
-peut livrer. Les deux fichiers de `default/` sont ceux de PCem, bit pour bit.
+peut livrer. Les trois fichiers de `default/` sont ceux de PCem (`pcem-dev/nvr/`), bit pour bit :
+`at.nvr`, `ami286.nvr`, et `ami386.nvr` depuis G3.1 (somme 0x10-0x2D = 0x022C, meme disposition).
 
 CE REPERTOIRE DOIT EXISTER : nvrfopen rend NULL en ecriture si le chemin manque, et
 savenvr ne verifie pas (PB-33). PCem livre le sien pour la meme raison.
@@ -22,7 +23,7 @@ en sont le produit. Verifiee par trois voies independantes.
 
 | voie | ou | ce qu'elle montre |
 |---|---|---|
-| Les fichiers livres | `default/ami286.nvr` → 0x0AB6 · `default/at.nvr` → 0x00E5 | les deux concordent, gros-boutiste |
+| Les fichiers livres | `default/ami286.nvr` → 0x0AB6 · `default/at.nvr` → 0x00E5 · `default/ami386.nvr` → 0x022C | les trois concordent, gros-boutiste |
 | IBM AT, verification | `62x0820`+`62x0821` entrelaces, `0x06fe-0x0727` | `mov cl,90h` / `mov ch,0AEh` : de 0x10 inclus a 0x2E exclu ; `or bx,bx / jz` rejette la somme nulle |
 | AMI 286, **ecriture** | `amic206.bin:0xacd0-0xad11` | le SETUP ecrit 0x10-0x3F sauf 0x32, resomme 0x10-0x2D, pose 0x2E puis 0x2F, met **0x0E et 0x0F a zero**, puis saute a F000:FFF0 |
 
