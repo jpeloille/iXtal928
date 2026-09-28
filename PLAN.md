@@ -17,25 +17,22 @@ boot-diffs à l'unité, `selftest`, zéro avertissement, fuzzeur). Le cœur rest
 l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les entrées
 `CPU_SUPPORTS_DYNAREC` des tables ne changent rien à l'exécution.
 
-## Où on en est — 26 septembre 2026, commit `a0cc3de`
+## Où on en est — 29 septembre 2026, commit `3723463`
 
 ```
-8088 ✅ ── 286 ✅ ──▶ [ICI] ── G1 8086 ── G2 cœur 386 ── G3 ── G4 ── G5 ── G6 DX2-66 ── G7 ── G8
+8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ──▶ [ICI] G4 x87 ── G5 ── G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
 ```
 
-- **Derrière** : les générations 8088 et 286, jusqu'à M21 (Windows 3.1 en mode standard,
-  souris série). Depuis, deux commits d'hôte, hors des blocs G : `Program.cs` réécrit en
-  `Host/CommandLine/` (`b8e33a5`), puis le choix du contrôleur de disque dur sur l'AT et
-  `--timer-check --model` réparé (`a0cc3de`).
-- **Ouvert, sans bloquer G** : le reliquat du 286, `PLAN-286.md` § « Tâches à couvrir ».
-  Rien n'y est coché.
-- **Aucun bloc G n'est commencé.** La reconnaissance de G2 est faite : `PLAN-386.md`.
-  - 450 emplacements neufs dans `ops_386`, 318 dans `ops_386_0f` ;
-  - corpus SingleStepTests 80386 trouvé (mode réel) ;
-  - découpage D0 à D7.
-
-  Le prochain pas est **D0, l'outillage**. G1 (8086) peut passer avant : il est petit et
-  indépendant.
+- **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
+  `PLAN-386.md`, fusionné en `d7e9f5b`) ; **G3**, l'ami386 (Headland) et l'ami386dx
+  (OPTi 495), boot-diffs verts et Windows 3.1 en mode 386 étendu (`PLAN-G3.md`, `ab00595`) ;
+  les défauts D1 à D6 de l'audit du 26/09 (`iXtal26/Docs/audit-performance-2026-09-26.md`).
+- **Ouvert, sans bloquer G** : le reliquat du 286, `PLAN-286.md` § « Tâches à couvrir » —
+  les tâches 3 (`taskswitch286`, G2 D5) et 4 (le CMOS de l'AT, G3.0) y sont faites, pas
+  encore cochées.
+- **G4, le plan est posé** : `PLAN-G4.md`, étapes G4.0 à G4.7, décisions de Julien tranchées
+  le 29/09. Le prochain pas est **G4.0, l'outillage** ; rien n'est commencé. G1 (8086) reste
+  petit et indépendant.
 
 ## Les générations
 
@@ -44,8 +41,8 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 | 8088 | ✅ | IBM PC 5150, XT 5160 | — |
 | 8086 | ☐ | Olivetti M24 ou Amstrad PC1512 | `cpus_8086`, la machine |
 | 80286 | ✅ | IBM AT 5170, ami286 (NEAT) | reliquat : `PLAN-286.md` § « Tâches à couvrir » |
-| 80386SX | ☐ | `ami386` (Headland) | le cœur 386, le chipset |
-| 80386DX | ☐ | `ami386dx` (OPTi 495) | le chipset |
+| 80386SX | ✅ | `ami386` (Headland) | le 387 : G4, plan posé (`PLAN-G4.md`) |
+| 80386DX | ✅ | `ami386dx` (OPTi 495) | le 387 : G4, plan posé (`PLAN-G4.md`) |
 | 80486SX/DX/DX2 | ☐ | **`ami486` (ALi 1429) + `i486DX2/66`** | x87, IDE, chemins `is486`, le chipset |
 
 ## Ce qui existe déjà, et qui servira
@@ -106,7 +103,7 @@ Les deux ROM sont dans `roms/`.
 **Porte** : boot-diff à l'unité, puis `--boot` jusqu'à l'invite DOS. Windows 3.1 en mode
 386 étendu est le test d'intégration de G2 : V86, pagination, commutation de tâches.
 
-### G4 — Le x87
+### G4 — Le x87  *(plan posé : `PLAN-G4.md`)*
 
 `x87.c` (97), `x87_timings.c` (297), `x87_ops.h` (1 116), `x87_ops_arith.h` (452),
 `x87_ops_loadstore.h` (576), `x87_ops_misc.h` (927) : **≈ 3 460 lignes**. Indispensable
