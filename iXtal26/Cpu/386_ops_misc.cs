@@ -387,6 +387,13 @@ internal static partial class _386
                 break;
         case 0x38: /*IDIV AX,w*/
                 tempws = (int)((DX << 16) | AX);
+                // pcem bug, not reproduced: PB-47 — INT_MIN / -1 : SIGFPE en C, OverflowException
+                //   en .NET. Le quotient déborde : #DE, comme la branche else ci-dessous.
+                if (tempws == int.MinValue && (uint16_t)dst == 0xFFFF)
+                {
+                        x86_int(0);
+                        return 1;
+                }
                 if (dst != 0)
                         tempws2 = tempws / (int)((int16_t)dst);
                 temps16 = (int16_t)(tempws2 & 0xffff);
@@ -940,6 +947,13 @@ internal static partial class _386
                 break;
         case 0x38: /*IDIV AX,w*/
                 tempws = (int)((DX << 16) | AX);
+                // pcem bug, not reproduced: PB-47 — INT_MIN / -1 : SIGFPE en C, OverflowException
+                //   en .NET. Le quotient déborde : #DE, comme la branche else ci-dessous.
+                if (tempws == int.MinValue && (uint16_t)dst == 0xFFFF)
+                {
+                        x86_int(0);
+                        return 1;
+                }
                 if (dst != 0)
                         tempws2 = tempws / (int)((int16_t)dst);
                 temps16 = (int16_t)(tempws2 & 0xffff);

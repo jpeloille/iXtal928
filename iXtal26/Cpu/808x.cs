@@ -3577,7 +3577,14 @@ startrep:
                                 break;
                         case 0x38: /*IDIV AX,w*/
                                 tempws = (int)((DX << 16) | AX);
-                                if (tempw != 0)
+                                // pcem bug, not reproduced: PB-47 — DX:AX = 0x80000000 divisé par
+                                //   0xFFFF (-1) : le C divise INT_MIN par -1 (SIGFPE, comportement
+                                //   indéfini) et .NET lève OverflowException, qui abattait l'hôte.
+                                //   Le quotient ne tient pas en 16 bits : un 8088 lève INT 0. La
+                                //   garde prend le chemin de la division par zéro ci-dessous.
+                                //
+                                // DEVIATION: l'oracle meurt ; 165 cycles, ceux d'IDIV mot.
+                                if (tempw != 0 && !(tempws == int.MinValue && tempw == 0xFFFF))
                                 {
                                         tempw2 = (uint16_t)(tempws % (int)((int16_t)tempw));
                                         DX = tempw2;

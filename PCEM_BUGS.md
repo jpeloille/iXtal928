@@ -582,6 +582,34 @@ ne tombe plus (il levait `DivideByZeroException`, code 134). Les 47 cas `AAM 0` 
 **non gagnés** : le silicium pousse des drapeaux déjà recalculés (octet bas 0x46 — ZF et PF
 posés, SF, AF et CF effacés), le C#, comme le chemin de DIV, les pousse inchangés.
 
+### PB-47 — IDIV divise INT_MIN par -1 : SIGFPE
+
+`808x.c:3743` (F7 /7, 8088), `x86_ops_misc.h:361` et `:473` (F7 /7 en `_w`, 286/386) et
+`386_common.c:210-226` (`idivl`, F7 /7 en `_l`) :
+
+```c
+tempws = (int)((DX << 16) | AX);
+...
+tempws2 = tempws / (int)((int16_t)dst);
+```
+
+Avec `DX:AX = 0x80000000` et un diviseur `0xFFFF` (-1), le C divise `INT_MIN` par -1 :
+comportement indéfini, SIGFPE sur un hôte x86. Même chose en 32 bits dans `idivl` avec
+`EDX:EAX = 0x8000000000000000` et -1. Le 286/386 teste pourtant le débordement du quotient,
+mais **après** la division, trop tard.
+
+*Effet* : un programme invité fait **tomber PCem**. Le C# levait `OverflowException`, qui
+abattait l'hôte (code 134, mesuré sur les trois formes). Le quotient, +2³¹ ou +2⁶³, ne tient
+pas dans la destination : le silicium lève #DE.
+*Trouvé par* : audit du 26/09 (D2).
+*NON reproduit*, exception assumée comme PB-24 et PB-46 : un oracle qui meurt n'a rien à
+reproduire. Marqueurs `// pcem bug, not reproduced: PB-47` : `Cpu/808x.cs` (garde vers le
+chemin de la division par zéro, 165 cycles, marquée `DEVIATION`), `Cpu/386_ops_misc.cs` (deux
+sites `_w`, `x86_int(0)` comme la branche de débordement) et `Cpu/386_common.cs` (`idivl`).
+Mesuré par un pas C# seul : les trois formes prennent INT 0 (IVT[0], SP − 6) ; un IDIV
+ordinaire (-100 / -1) est inchangé. Aucun oracle ne départage : l'oracle meurt, et aucun
+cas SST ne tombe sur ces valeurs.
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -958,7 +986,7 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 
 ## Portée de ce registre
 
-Ces **quarante-six** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -971,7 +999,7 @@ audit systématique de PCem** :
 | Relecture ligne à ligne pendant la transcription | les autres : PB-02, PB-04 à PB-06, PB-08 à PB-20, PB-22 à PB-30, PB-32, PB-35, PB-37, PB-38, PB-41 à PB-44 |
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
 | pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
-| Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45, PB-46 |
+| Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45 à PB-47 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

@@ -723,8 +723,6 @@ internal static partial class _386_common
         return 0;
     }
 
-    // PCEM : num = INT64_MIN et val = -1 est une division indéfinie en C (SIGFPE sur
-    // x86-64) ; .NET y lève OverflowException. Transcrit tel quel, écart consigné.
     internal static int idivl(int32_t val)
     {
         if (val == 0)
@@ -733,6 +731,14 @@ internal static partial class _386_common
                 return 1;
         }
         int64_t num = (int64_t)((((uint64_t)EDX) << 32) | EAX);
+        // pcem bug, not reproduced: PB-47 — num = INT64_MIN et val = -1 : division indéfinie
+        //   en C (SIGFPE sur x86-64), OverflowException en .NET. Le quotient ne tient pas en
+        //   32 bits : #DE, comme le test de débordement ci-dessous.
+        if (num == long.MinValue && val == -1)
+        {
+                x86_int(0);
+                return 1;
+        }
         int64_t quo = num / val;
         int32_t rem = (int32_t)(num % val);
         int32_t quo32 = (int32_t)(quo & 0xFFFFFFFF);
