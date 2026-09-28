@@ -108,8 +108,8 @@ public sealed class SdlHost : IDisposable
     private ulong _lastPresentMs;
     private int _presentsSkipped;
 
-    // Départ du coût du chemin de blit, en tops de Stopwatch : ConsumeBlit (recopie
-    // ligne à ligne + UpdateTexture) d'un côté, Render (RenderPresent, donc l'attente
+    // Départ du coût du chemin de blit, en tops de Stopwatch : ConsumeBlit (UpdateTexture
+    // des lignes [y1,y2) prises directement dans Buffer32) d'un côté, Render (RenderPresent, donc l'attente
     // du compositeur) de l'autre. Les 9,49 s mur contre 5,42 s user d'un amorçage sans
     // frein se partagent entre ces deux-là, et rien ne disait lequel payait.
     private long _copyTicks;
@@ -163,9 +163,6 @@ public sealed class SdlHost : IDisposable
     private bool _disposed;
     private bool _running;
 
-    // Image visible, recopiée ligne à ligne depuis Buffer32 ; allouée au premier blit
-    // et réallouée seulement si la géométrie grandit.
-    private uint[] _screen = [];
     private int _frameWidth;
     private int _frameHeight;
 
@@ -718,7 +715,7 @@ public sealed class SdlHost : IDisposable
         // que le banc (headless) ne peut pas poser puisqu'il n'installe aucun crochet.
         if (!_headless && _blitsUploaded > 0)
             Console.WriteLine(
-                $"chemin blit: recopie+UpdateTexture {_copyTicks / (double)Stopwatch.Frequency * 1000:0} ms, " +
+                $"chemin blit: UpdateTexture {_copyTicks / (double)Stopwatch.Frequency * 1000:0} ms, " +
                 $"RenderPresent {_presentTicks / (double)Stopwatch.Frequency * 1000:0} ms " +
                 $"sur {_blitsUploaded} images");
 
@@ -990,29 +987,50 @@ public sealed class SdlHost : IDisposable
         // le double de la texture. SDL.UpdateTexture rend alors TRUE en lisant hors
         // du tampon source. On borne des deux côtés plutôt que de faire confiance à
         // une valeur que la machine émulée contrôle entièrement.
-        if (w > video.Stride)
-            w = video.Stride;
-        if (y2 > TextureHeight)
-            y2 = TextureHeight;
+        //
+        // Audit du 26/09, D6 : la borne était `w > Stride`, alors qu'une ligne se lit à
+        // partir de x. Avec x > 0 la copie débordait sur la ligne suivante, ou hors de
+        // Buffer32 sur la dernière.
+        if (x < 0 || x >= video.Stride)
+            return;
+        if (x + w > video.Stride)
+            w = video.Stride - x;
         if (h > TextureHeight)
             h = TextureHeight;
 
-        var rows = h > y2 ? h : y2;
-        if (_screen.Length < w * rows)
-            _screen = new uint[w * rows];
-
-        var source = video.Buffer32;
-
-        for (var yy = y1 < 0 ? 0 : y1; yy < y2; yy++)
+        // Audit D6 et P7 : on ne remonte QUE les lignes [y1,y2), comme PCem
+        // (set_updated_size(0, y1, w, y2 - y1), wx-sdl2-video.c:187), et directement depuis
+        // Buffer32, avec son pas. L'ancienne version recopiait [y1,y2) dans un tampon de
+        // pas w puis envoyait les lignes 0..h entières : hors de [y1,y2), une image
+        // précédente — à un autre pas si w avait changé — ou une bande noire. La texture,
+        // elle, persiste d'une image à l'autre, comme `screen` chez PCem.
+        //
+        // Le CGA passe y = cga->firstline - 4 (vid_cga.cs:494), qui peut être négatif :
+        // les lignes hors de Buffer32 sont écartées, comme par le test de PCem.
+        var first = Math.Max(Math.Max(y1, 0), -y);
+        // Et pas au-delà de h : ces lignes ne sont pas montrées (Render lit 0..h), et la
+        // ligne h reçoit le liseré noir de ClearTextureBorder.
+        var last = Math.Min(Math.Min(Math.Min(y2, h), TextureHeight), video.Height - y);
+        if (first < last)
         {
-            var line = y + yy;
+            var rows = last - first;
+            var rect = new SDL.Rect { X = 0, Y = first, W = w, H = rows };
 
-            // Le CGA passe y = cga->firstline - 4 (vid_cga.cs:494), qui peut être
-            // négatif : sans cette garde on lirait hors de Buffer32.
-            if (line < 0 || line >= video.Height)
-                continue;
+            // SDL3-CS n'expose pas de surcharge générique : seul ReadOnlySpan<byte> existe.
+            // AsBytes réinterprète le tableau sans copie et sans bloc unsafe. La tranche
+            // couvre rows pas entiers, sauf si elle sortait de Buffer32 : elle s'arrête alors
+            // au dernier pixel utile ((rows - 1) pas, puis w), qui y est toujours.
+            var start = ((y + first) * video.Stride) + x;
+            var length = Math.Min(rows * video.Stride, video.Buffer32.Length - start);
+            ReadOnlySpan<uint> pixels = video.Buffer32.AsSpan(start, length);
 
-            Array.Copy(source, (line * video.Stride) + x, _screen, yy * w, w);
+            if (SDL.UpdateTexture(_texture, in rect, MemoryMarshal.AsBytes(pixels), video.Stride * 4))
+                _blitsUploaded++;
+            else
+            {
+                _updateFailures++;
+                Console.Error.WriteLine($"SDL.UpdateTexture a echoue : {SDL.GetError()}");
+            }
         }
 
         // Le filtrage linéaire lit aussi le texel qui borde la trame : ce qu'un mode plus
@@ -1023,22 +1041,6 @@ public sealed class SdlHost : IDisposable
 
         _frameWidth = w;
         _frameHeight = h;
-
-        var rect = new SDL.Rect { X = 0, Y = 0, W = w, H = h };
-
-        // SDL3-CS n'expose pas de surcharge générique : seul ReadOnlySpan<byte> existe.
-        // AsBytes réinterprète le tableau sans copie et sans bloc unsafe.
-        ReadOnlySpan<uint> pixels = _screen.AsSpan(0, w * h);
-
-        if (SDL.UpdateTexture(_texture, in rect, MemoryMarshal.AsBytes(pixels), w * 4))
-        {
-            _blitsUploaded++;
-        }
-        else
-        {
-            _updateFailures++;
-            Console.Error.WriteLine($"SDL.UpdateTexture a echoue : {SDL.GetError()}");
-        }
     }
 
     private void ClearTextureBorder(int w, int h)
