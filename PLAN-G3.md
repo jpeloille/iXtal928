@@ -104,6 +104,32 @@ lecture faussée au-delà de 3 Mo → divergence à 358 514 ; remap allumé à l
 Reste l'étape 2 (le CMOS `ami386.nvr`) et la porte `--boot` : le POST s'arrête sur
 « CMOS system options not set ».*
 
+*Fait ensuite : le CMOS (`c47658a`), la référence de PCem et `loadnvr` qui l'ignorait côté
+C#. `--boot` (ATTENTION : `--config` APRÈS `--boot`, sinon il est ignoré et c'est le 5150
+qui démarre — le « 131 » de sa cassette le trahit) : DOS 2.00 jusqu'à `A>` ; puis, sur une
+copie du disque 286 de Julien et un CMOS `--make-nvr` (4 Mo, Trident 8900D, type 46),
+HIMEM + SMARTDRV jusqu'à `C:\>`.*
+
+*Windows 3.1 en mode 386 étendu, C# seul : le Windows du disque avait été installé sur le 286
+(ni `WIN386.EXE` ni pilotes `*.386`) et démarrait en mode standard. SETUP rejoué sans fenêtre
+sur l'ami386 (`IBM_Windows_3-11`, mise à jour Express de `C:\WINDOWS`) :*
+
+```
+--boot roms 40000 --config <ami386 4 Mo tvga8900d mfm_at type 46> --settle 3000
+  --type "@A:disk01.img" --type "q.setup" --type "" ×4 --type "@wait 20000"
+  --type "@A:disk02.img" --type "" --type "@wait 30000"
+  --type "@A:disk03.img" --type "" --type "@wait 30000"
+  --type "Julien" --type "@wait 5000" --type "" --type "@wait 20000"
+  puis pour k = 3..7 : --type "@A:disk0k.img" --type "" --type "@wait 40000"
+  --type "@wait 30000" --type "@A:" --type "zin" --type "@wait 30000"
+```
+
+*(le dernier Entrée de la boucle choisit « Reboot » ; AZERTY : `q.setup` = `a:setup`, `zin`
+= `win`). Le Gestionnaire de programmes s'ouvre avec **CR0 = 8000FF11** (PG et PE) sur
+60 000 tranches, dont ~9 % s'achèvent en V86 : pagination et V86, donc le mode 386 étendu.
+Mesuré par une instrumentation jetable de `BootTest.cs`, retirée. Au passage, le SETUP a
+fait tomber l'hôte sur le défaut D1 de l'audit (`wlog_n` enroulé) : corrigé à part.*
+
 ### G3.2 — L'ami386dx : OPTi 495
 
 1. `cpus_i386DX` (`cpu_tables.c`, table Intel seule, comme l'ami386), `m_ami386dx` des deux

@@ -241,6 +241,7 @@ internal static class NvrImage
         var refName = modelName switch
         {
                 "ami286" => "ami286.nvr",
+                "ami386" => "ami386.nvr",
                 "ibmat" => "at.nvr",
                 _ => "",
         };
@@ -248,7 +249,7 @@ internal static class NvrImage
         if (refName.Length == 0)
         {
                 Console.Error.WriteLine($"--make-nvr : la machine « {modelName} » n'a pas de CMOS.");
-                Console.Error.WriteLine("Seules ibmat et ami286 en ont un : les deux machines à 8088 n'en portent pas.");
+                Console.Error.WriteLine("Seules ibmat, ami286 et ami386 en ont un : les deux machines à 8088 n'en portent pas.");
                 return 2;
         }
 
