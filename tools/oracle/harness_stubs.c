@@ -867,12 +867,27 @@ static MODEL h_model_ami386 = {
         .ram_granularity = 128,
 };
 
+/* G3.2 — m_ami386dx (model.c:1340-1349), la table Intel SEULE comme pour l'ami386 :
+ * cpus_Am386DX et cpus_486DLC omis des deux cotes. RAM en Mo (AT, granularite < 128 :
+ * pc.c:695-700). */
+static MODEL h_model_ami386dx = {
+        .name = "[386DX] AMI 386DX clone",
+        .id = ROM_AMI386DX_OPTI495,
+        .internal_name = "ami386dx",
+        .cpu = {{"Intel", cpus_i386DX}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        .min_ram = 1,
+        .max_ram = 256,
+        .ram_granularity = 1,
+};
+
 void h_models_init(void) {
         models[ROM_IBMPC] = &h_model_ibmpc;
         models[ROM_IBMXT] = &h_model_ibmxt;
         models[ROM_IBMAT] = &h_model_ibmat;
         models[ROM_AMI286] = &h_model_ami286;
         models[ROM_AMI386SX] = &h_model_ami386;
+        models[ROM_AMI386DX_OPTI495] = &h_model_ami386dx;
 }
 
 /* --- processeur (M16) -------------------------------------------------------

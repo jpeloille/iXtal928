@@ -147,6 +147,15 @@ internal static partial class mem_bios
                     f.Close();
                     return 1;
 
+            // pcem: mem_bios.c:359-365 — L'AMI 386DX (G3.2), chipset OPTi 82C495.
+            case ROM_AMI386DX_OPTI495: /*This uses the OPTi 82C495 chipset*/
+                    f = romfopen("ami386dx/opt495sx.ami", "rb");
+                    if (f == null)
+                            break;
+                    romfread(rom, 0, 65536, 1, f);
+                    f.Close();
+                    return 1;
+
             // pcem: mem_bios.c:288-304 — L'IBM AT, ET SES DEUX ROM SONT ENTRELACÉES.
             //
             // Un AT a un bus de DONNÉES de seize bits, et IBM l'a câblé avec deux

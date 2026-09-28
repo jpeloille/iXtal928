@@ -231,6 +231,7 @@ void keyboard_at_init(void);
 void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
 void neat_init(void); /* neat.h — G3.0, le chipset de l'ami286. */
 void headland_init(void); /* headland.h — G3.1, le chipset de l'ami386. */
+void opti495_init(void); /* opti495.h — G3.2, le chipset de l'ami386dx. */
 
 /* intgatesize est le SEUL des sept globaux de C7a qu'aucun en-tete ne declare : c'est
  * un `int intgatesize;` nu a x86seg.c:32, sans extern nulle part dans l'arbre — les six
@@ -363,6 +364,19 @@ static void h_pad_ram(void) {
          * harnais ne depasse jamais cette borne. */
         if (ram_low_mapping.size)
                 mem_mapping_set_exec(&ram_low_mapping, ram);
+        /* G3.2 — ET LES DEUX AUTRES, des qu'une machine amorcee depasse 768 Ko. La phrase
+         * « le harnais ne depasse jamais cette borne » est tombee avec les machines 386 a
+         * 4 Mo : mem_alloc pose ram_mid_mapping (exec = ram + 0xa0000) au-dela de 768 Ko et
+         * ram_high_mapping (ram + 0x100000) au-dela de 1 Mo (mem.c:1406-1421), et h_pad_ram
+         * les laissait pointer dans le bloc libere. Invisible sur l'ami386 : Headland les
+         * desactive et pose ses propres mappages apres ce rebasage. Mesure sur l'ami386dx
+         * (OPTi 495, 4 Mo) : le BIOS ombre F0000 en RAM, et le premier fetch dans
+         * ram_mid_mapping (F000:3350) faisait SIGSEGV dans fastreadl. Memes conditions que
+         * mem_alloc. */
+        if (mem_size > 768)
+                mem_mapping_set_exec(&ram_mid_mapping, ram + 0xa0000);
+        if (mem_size > 1024)
+                mem_mapping_set_exec(&ram_high_mapping, ram + 0x100000);
 
         resetreadlookup();
 }
@@ -1186,6 +1200,9 @@ int h_boot(const char *romspath) {
                 /* G3.1 — at_headland_init (model.c:482-485) : at_init puis le chipset. */
                 if (romset == ROM_AMI386SX)
                         headland_init();
+                /* G3.2 — at_opti495_init (model.c:492-495). */
+                if (romset == ROM_AMI386DX_OPTI495)
+                        opti495_init();
                 /* omitted: device_add(&gameport_device) — le port jeu n'est pas
                    lie, et le cote C# ne le transcrit pas. */
         } else {

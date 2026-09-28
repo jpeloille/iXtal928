@@ -277,7 +277,8 @@ internal sealed class SdlSetup
     private void BuildMemoryList()
     {
         var mdl = Models.model_c.models[Models.model_c.model];
-        int n = ((mdl.max_ram - mdl.min_ram) / mdl.ram_granularity) + 1;
+        var (minKb, maxKb, stepKb) = pc.ram_bounds_kb(mdl);
+        int n = ((maxKb - minKb) / stepKb) + 1;
 
         _pickTitle = " Memoire";
         _pickLabels = new string[n];
@@ -285,7 +286,7 @@ internal sealed class SdlSetup
 
         for (int i = 0; i < n; i++)
         {
-            int kb = mdl.min_ram + (i * mdl.ram_granularity);
+            int kb = minKb + (i * stepKb);
 
             _pickLabels[i] = $"   {kb} Ko";
             _pickValues[i] = kb.ToString();
@@ -516,11 +517,10 @@ internal sealed class SdlSetup
                 if (!pc.check_mem_size(pc.cfg_mem_size))
                 {
                     var mdl = Models.model_c.models[Models.model_c.model];
-                    int kb = mdl.min_ram +
-                             (((pc.cfg_mem_size - mdl.min_ram) / mdl.ram_granularity) *
-                              mdl.ram_granularity);
+                    var (minKb, maxKb, stepKb) = pc.ram_bounds_kb(mdl);
+                    int kb = minKb + (((pc.cfg_mem_size - minKb) / stepKb) * stepKb);
 
-                    pc.cfg_mem_size = Math.Clamp(kb, mdl.min_ram, mdl.max_ram);
+                    pc.cfg_mem_size = Math.Clamp(kb, minKb, maxKb);
                     _message = $"memoire ramenee a {pc.cfg_mem_size} Ko pour cette machine.";
                 }
 

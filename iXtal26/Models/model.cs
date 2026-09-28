@@ -202,6 +202,13 @@ internal static partial class model_c
         headland.headland_init();
     }
 
+    // pcem: model.c:492-495 — at_opti495_init : at_init puis le chipset (G3.2).
+    internal static void at_opti495_init()
+    {
+        at_init();
+        opti495.opti495_init();
+    }
+
     // pcem: model.c:452-455 — at_neat_init : at_init puis le chipset.
     internal static void at_neat_init()
     {
@@ -281,6 +288,26 @@ internal static partial class model_c
         init = at_headland_init,
     };
 
+    // pcem: model.c:1340-1349 — LE CLONE AMI 386DX (G3.2), chipset OPTi 82C495.
+    //
+    // PIÈGE D'UNITÉS : min_ram, max_ram et ram_granularity y sont en Mo, et non en Ko —
+    // PCem le décide sur « MODEL_AT et granularité < 128 » (pc.c:695-700). pc.cs convertit.
+    //
+    // omitted: {"AMD", cpus_Am386DX} et {"Cyrix", cpus_486DLC} (model.c:1343) — la table
+    //   Intel seule, des deux côtés, comme pour l'ami386.
+    internal static readonly MODEL m_ami386dx = new MODEL
+    {
+        name = "[386DX] AMI 386DX clone",
+        id = pc.ROM_AMI386DX_OPTI495,
+        internal_name = "ami386dx",
+        cpu = [new("Intel", Cpu.cpu_tables.cpus_i386DX), new("", null), new("", null), new(), new()],
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        min_ram = 1,
+        max_ram = 256,
+        ram_granularity = 1,
+        init = at_opti495_init,
+    };
+
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
     // model_init_builtin (model.c:1625-1746). Cinq entrées sur les 97 de PCem.
     //
@@ -291,7 +318,7 @@ internal static partial class model_c
     // l'insérer ailleurs qu'à la fin décalerait les indices de celles qui suivent et
     // changerait la machine par défaut sans qu'une seule porte ne rougisse. m_ibmat
     // est entrée ainsi, puis m_ami286 derrière elle — d'où l'ordre ci-dessous.
-    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386 };
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386, m_ami386dx };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;

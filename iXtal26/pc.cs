@@ -95,6 +95,8 @@ internal static partial class pc
     // G2, D0.2 : l'ami386, dont le cœur 386 a besoin pour que cpu_set() lise un 386.
     // Valeur lue par le compilateur sur ibm.h (43), pas comptée à la main.
     internal const int ROM_AMI386SX = 43;
+    // G3.2 : l'ami386dx, valeur lue par le compilateur sur ibm.h (58).
+    internal const int ROM_AMI386DX_OPTI495 = 58;
     internal const int ROM_IBMXT286 = 66;  // hors cible, présent pour les gardes
     internal const int ROM_T3100E = 70;    // hors cible, présent pour les gardes  // hors cible, présent pour les gardes (fdc.c:98, :628)
 
@@ -276,6 +278,17 @@ internal static partial class pc
     }
 
     /// <summary>
+    /// pcem: pc.c:695-700 — les bornes RAM d'une machine, en Ko. PCem y cache un piège
+    /// d'unités : min_ram, max_ram et ram_granularity sont en Ko, SAUF pour un AT à
+    /// granularité inférieure à 128, où ils sont en Mo. Vivant depuis l'ami386dx (G3.2).
+    /// </summary>
+    internal static (int minKb, int maxKb, int stepKb) ram_bounds_kb(Models.MODEL mdl)
+    {
+        var unit = ((mdl.flags & Models.model_c.MODEL_AT) != 0 && mdl.ram_granularity < 128) ? 1024 : 1;
+        return (mdl.min_ram * unit, mdl.max_ram * unit, mdl.ram_granularity * unit);
+    }
+
+    /// <summary>
     /// Contrôle une taille mémoire contre les bornes de la machine COURANTE. Rend false
     /// sans rien écrire dans cfg_mem_size : à la différence de la clé de configuration,
     /// qui retombe sur un défaut, une valeur tapée en ligne de commande est explicite —
@@ -284,13 +297,13 @@ internal static partial class pc
     internal static bool check_mem_size(int kb)
     {
         var mdl = Models.model_c.models[Models.model_c.model];
-        if (kb >= mdl.min_ram && kb <= mdl.max_ram
-            && (kb - mdl.min_ram) % mdl.ram_granularity == 0)
+        var (minKb, maxKb, stepKb) = ram_bounds_kb(mdl);
+        if (kb >= minKb && kb <= maxKb && (kb - minKb) % stepKb == 0)
                 return true;
 
         Console.Error.WriteLine(
             $"mem_size = {kb} : hors des bornes de « {mdl.internal_name} ». Attendu de " +
-            $"{mdl.min_ram} à {mdl.max_ram} Ko par pas de {mdl.ram_granularity}.");
+            $"{minKb} à {maxKb} Ko par pas de {stepKb}.");
         return false;
     }
 
@@ -358,14 +371,18 @@ internal static partial class pc
         // par personne — une table à une seule entrée est une constante, et c'est la
         // deuxième machine qui les rend vivants.
         var mdl = Models.model_c.models[Models.model_c.model];
-        if (cfg_mem_size < mdl.min_ram || cfg_mem_size > mdl.max_ram
-            || (cfg_mem_size - mdl.min_ram) % mdl.ram_granularity != 0)
+        // G3.2 : le piège d'unités ci-dessus devient vivant avec l'ami386dx, en Mo.
+        var (minKb, maxKb, stepKb) = ram_bounds_kb(mdl);
+        if (cfg_mem_size < minKb || cfg_mem_size > maxKb
+            || (cfg_mem_size - minKb) % stepKb != 0)
         {
                 Console.Error.WriteLine(
                     $"mem_size = {cfg_mem_size} : hors des bornes de « {mdl.internal_name} ». " +
-                    $"Attendu de {mdl.min_ram} à {mdl.max_ram} Ko par pas de " +
-                    $"{mdl.ram_granularity}. On garde {mdl.max_ram}.");
-                cfg_mem_size = mdl.max_ram;
+                    $"Attendu de {minKb} à {maxKb} Ko par pas de " +
+                    $"{stepKb}. On garde {(cfg_mem_size < minKb ? minKb : maxKb)}.");
+                // Sous le minimum, le minimum, comme PCem (pc.c:695-700) : le 640 Ko par
+                // défaut ferait sinon de l'ami386dx une machine à 256 Mo.
+                cfg_mem_size = cfg_mem_size < minKb ? minKb : maxKb;
         }
 
         // pcem: pc.c:776-777. Le type gouverne max_track et les drapeaux de densité

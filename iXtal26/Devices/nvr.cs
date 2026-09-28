@@ -5,7 +5,7 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — le MC146818 en entier, nvrfopen comprise, et les DEUX
 //         branches de loadnvr. Des `switch (romset)` de loadnvr (:233-543) et
-//         savenvr (:544-783) ne restent que ROM_IBMAT, ROM_AMI286 et ROM_AMI386SX (G3.1) : les 550
+//         savenvr (:544-783) ne restent que ROM_IBMAT, ROM_AMI286, ROM_AMI386SX (G3.1) et ROM_AMI386DX_OPTI495 (G3.2) : les 550
 //         lignes qu'ils font sont un nom de fichier par machine, sur une
 //         trentaine de machines absentes. Voir le registre des omissions.
 //
@@ -399,6 +399,11 @@ internal static class nvr
                 f = nvrfopen("ami386.nvr", "rb");
                 nvrmask = 127;
                 break;
+        // pcem: nvr.c:420-423 — G3.2, l'ami386dx.
+        case pc.ROM_AMI386DX_OPTI495:
+                f = nvrfopen("ami386dx_opti495.nvr", "rb");
+                nvrmask = 127;
+                break;
         // omitted: les trente autres cas (nvr.c:238-523) — meme geste, autre nom de
         //   fichier ; voir le registre des omissions.
         default:
@@ -465,6 +470,10 @@ internal static class nvr
         // pcem: nvr.c:652-654 — G3.1, l'ami386.
         case pc.ROM_AMI386SX:
                 f = nvrfopen("ami386.nvr", "wb");
+                break;
+        // pcem: nvr.c:694-696 — G3.2, l'ami386dx.
+        case pc.ROM_AMI386DX_OPTI495:
+                f = nvrfopen("ami386dx_opti495.nvr", "wb");
                 break;
         // omitted: les trente autres cas (nvr.c:548-767), dont celui de ROM_IBMXT286 qui
         //   ouvre DEUX fichiers et fuit le premier (nvr.c:571-573) — machine absente de

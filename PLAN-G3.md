@@ -137,6 +137,26 @@ fait tomber l'hôte sur le défaut D1 de l'audit (`wlog_n` enroulé) : corrigé 
 2. `opti495.c` (302 lignes) : oracle puis C#.
 3. Porte : la même que G3.1.
 
+*Fait (G3.2) : `opti495.c` (302 lignes, dont 43 de code) lié à l'oracle et transcrit,
+`cpus_i386DX` et le `case CPU_386DX` de `cpu_set` (seuls `rml`, `mrl`, `mml` diffèrent du
+386SX : bus 32 bits), `m_ami386dx`, sa ROM `ami386dx/opt495sx.ami`, son CMOS de référence
+(`pcem-dev/nvr/ami386dx_opti495.nvr`, somme 0x0461, même règle), `loadnvr`/`savenvr`.
+Le piège d'unités de PCem est devenu vivant : RAM en Mo pour un AT à granularité < 128
+(`pc.c:695-700`) — `pc.ram_bounds_kb`, utilisé par la configuration, `--ram` et le SETUP.*
+
+*Un défaut du HARNAIS, trouvé ici : `h_pad_ram` réallouait `ram` mais ne rebasait que
+`ram_low_mapping` ; `ram_mid_mapping` et `ram_high_mapping` pointaient dans le bloc libéré
+dès 768 Ko. Invisible sur l'ami386 (Headland les remplace), SIGSEGV sur l'ami386dx à 4 Mo
+dès que l'OPTi ombre F0000 (premier fetch en F000:3350). Rebasés comme dans `mem_alloc`.*
+
+*`boot-diff` ami386dx à 4 Mo : vert, 43 268 682 instructions (30 s) ; avec DOS, 28 886 794
+(20 s). Contrôles négatifs : ombrage F0000 inversé → divergence à l'instruction 1 860 ;
+`timing_rml` du 386DX à 8 → empreinte CPU divergente. `--boot` : l'écran AMI annonce
+« 80386DX », « 64KB CACHE MEMORY », DOS jusqu'à `A>`. Windows 3.1 installé de même (la
+séquence de G3.1, mais le DX va plus vite : éjecter A: AVANT l'Entrée qui choisit
+« Reboot », après la disquette 5) : CR0.PG sur 60 000 tranches, ~10 % en V86 — mode 386
+étendu.*
+
 ## Ce que je ne sais pas encore
 
 - ~~**La cause exacte de l'écart CMOS de l'AT**~~ : **vérifiée** en G3.0 (`19eddda`), c'était bien le chemin — l'oracle composait `nvrfopen` sur deux chaînes vides.

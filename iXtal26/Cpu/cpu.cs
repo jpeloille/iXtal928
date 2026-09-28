@@ -142,8 +142,8 @@ internal static partial class cpu_c
     }
 
     // omitted: cpu_get_turbo() et cpu_set_nonturbo_divider() (cpu.c:2065, :2073-2080) —
-    //   leurs seuls appelants sont des chipsets de clones (scat, opti495, t1000…) que le
-    //   dépôt ne porte pas.
+    //   leur seul appelant hors de cpu.c est scat.c (:905, :1083), que le dépôt ne porte
+    //   pas.
 
     // pcem: cpu.c:2067-2071
     //
@@ -355,8 +355,41 @@ internal static partial class cpu_c
                 timing_jmp_pm_gate = 45;
                 break;
 
-        // omitted: les cas CPU_386DX à CPU_CYRIX_III (cpu.c:386-1126) — aucune table du
-        //   dépôt ne porte ces types ; CPU_386DX viendra avec l'ami386dx (G3).
+        // pcem: cpu.c:386-415 — G3.2 : la table de l'ami386dx. Ne diffère du 386SX que par
+        // les accès 32 bits (rml, mrl, mml), que son bus de 32 bits fait en un cycle.
+        case CPU_386DX:
+                timing_rr = 2;     /*register dest - register src*/
+                timing_rm = 6;     /*register dest - memory src*/
+                timing_mr = 7;     /*memory dest   - register src*/
+                timing_mm = 6;     /*memory dest   - memory src*/
+                timing_rml = 6;    /*register dest - memory src long*/
+                timing_mrl = 7;    /*memory dest   - register src long*/
+                timing_mml = 6;    /*memory dest   - memory src*/
+                timing_bt = 7 - 3; /*branch taken*/
+                timing_bnt = 3;    /*branch not taken*/
+                timing_int = 0;
+                timing_int_rm = 37;
+                timing_int_v86 = 59;
+                timing_int_pm = 99;
+                timing_int_pm_outer = 119;
+                timing_iret_rm = 22;
+                timing_iret_v86 = 60;
+                timing_iret_pm = 38;
+                timing_iret_pm_outer = 82;
+                timing_call_rm = 17;
+                timing_call_pm = 34;
+                timing_call_pm_gate = 52;
+                timing_call_pm_gate_inner = 86;
+                timing_retf_rm = 18;
+                timing_retf_pm = 32;
+                timing_retf_pm_outer = 68;
+                timing_jmp_rm = 12;
+                timing_jmp_pm = 27;
+                timing_jmp_pm_gate = 45;
+                break;
+
+        // omitted: les cas CPU_486SLC à CPU_CYRIX_III (cpu.c:417-1126) — aucune table du
+        //   dépôt ne porte ces types.
 
         default:
                 pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");

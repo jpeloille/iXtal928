@@ -111,9 +111,20 @@ internal static class cpu_tables
             new("", -1, 0, 0, 0),
     };
 
-    // omitted: les vingt-neuf autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
+    // pcem: cpu_tables.c:117-123 — G3.2 : la table Intel de l'ami386dx.
+    internal static readonly CPU[] cpus_i386DX =
+    {
+            /*i386DX*/
+            new("i386DX/16", CPU_386DX, 0, 16000000, 1, 0, 0x0308, 0, 0, 0, 3, 3, 3, 3, 2),
+            new("i386DX/20", CPU_386DX, 1, 20000000, 1, 0, 0x0308, 0, 0, 0, 4, 4, 3, 3, 3),
+            new("i386DX/25", CPU_386DX, 2, 25000000, 1, 0, 0x0308, 0, 0, 0, 4, 4, 3, 3, 3),
+            new("i386DX/33", CPU_386DX, 3, 33333333, 1, 0, 0x0308, 0, 0, 0, 6, 6, 3, 3, 4),
+            new("", -1, 0, 0, 0),
+    };
+
+    // omitted: les vingt-huit autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
     //   (cpu_tables.c:41-67), cpus_super286tr (:79-83), cpus_ibmxt286 à cpus_ps2_m30_286
-    //   (:90-107), et de cpus_i386DX à cpus_VIA_100MHz (:117-667). Aucune machine du
+    //   (:90-107), et de cpus_acer à cpus_VIA_100MHz (:125-667). Aucune machine du
     //   dépôt ne les référence ; cpus_Am386SX et cpus_486SLC, que m_ami386 propose
     //   aussi, sont omis avec elle (model.cs).
     // omitted: les cinq tables FPU (cpu_tables.c:25-29), avec le champ `fpus`.
@@ -121,4 +132,5 @@ internal static class cpu_tables
     private const int CPU_8088 = cpu_c.CPU_8088;
     private const int CPU_286 = cpu_c.CPU_286;
     private const int CPU_386SX = cpu_c.CPU_386SX;
+    private const int CPU_386DX = cpu_c.CPU_386DX;
 }
