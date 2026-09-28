@@ -34,6 +34,7 @@
  * ------------------------------------------------------------------------------
  */
 
+#include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -76,7 +77,10 @@ void h_wlog_note(uint32_t addr, uint8_t val) {
                 h_wlog_addr[h_wlog_n] = addr;
                 h_wlog_val[h_wlog_n] = val;
         }
-        h_wlog_n++; /* continue de compter au-dela, pour que le depassement se voie */
+        /* continue de compter au-dela, pour que le depassement se voie ; sature a INT_MAX
+         * (audit D1) : enroule, h_wlog_n devenait negatif et passait le test ci-dessus. */
+        if (h_wlog_n != INT_MAX)
+                h_wlog_n++;
 }
 
 void h_wlog_reset(void) { h_wlog_n = 0; }

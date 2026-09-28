@@ -1328,7 +1328,15 @@ internal static partial class mem
                 wlog_addr[wlog_n] = addr;
                 wlog_val[wlog_n] = val;
         }
-        wlog_n++;
+        // Audit du 26/09, D1 : le compteur n'est remis à zéro que par le harnais. Hors de
+        // lui (--boot, la fenêtre), il croissait sans borne et passait négatif après 2³¹
+        // écritures lentes ; le test ci-dessus laissait alors passer un indice négatif —
+        // IndexOutOfRangeException, l'émulateur tombait. Mesuré en G3.1 : pendant le SETUP
+        // de Windows 3.1 sur l'ami386, dont Headland rend lente toute écriture de données.
+        // Saturé plutôt qu'enroulé : au-delà de WLOG_MAX il reste « plus que le journal »,
+        // ce que le fuzzeur lit pour voir le dépassement.
+        if (wlog_n != int.MaxValue)
+                wlog_n++;
     }
 
     internal static void wlog_reset() => wlog_n = 0;
