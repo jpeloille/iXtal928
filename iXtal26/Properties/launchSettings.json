@@ -31,6 +31,10 @@
     "iXtal26 (286, Trident 8900D, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-286.cfg"
+    },
+    "iXtal26 (386DX, Trident 9000B, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-386.cfg"
     }
   }
 }
