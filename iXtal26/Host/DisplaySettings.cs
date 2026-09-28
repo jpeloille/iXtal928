@@ -47,8 +47,8 @@ internal readonly record struct MonitorProfile(
 /// `scale_mode` est la clé de PCem, avec son sens (0 plus proche voisin, 1 linéaire,
 /// défaut 1 : wx-sdl2-video.c:29, wx-sdl2-video-renderer.c:20).
 ///
-/// DEVIATION: les clés `monitor`, `crt`, `fill_percent`, `visible_fraction`, `pixel_mm`
-///   et `host_diagonal` n'existent pas chez PCem. Elles vivent dans la section [SDL2] où
+/// DEVIATION: les clés `monitor`, `crt`, `fill_percent`, `visible_fraction`, `pixel_mm`,
+///   `host_diagonal` et `speaker` n'existent pas chez PCem. Elles vivent dans la section [SDL2] où
 ///   PCem range son `scale` (wx-sdl2.c:249), mais ne réutilisent pas `scale` : chez PCem
 ///   c'est un indice 0,5× … 2,5× de la trame, ici la surface est celle d'un moniteur,
 ///   quelle que soit la trame.
@@ -107,6 +107,11 @@ internal sealed class DisplaySettings
     internal bool Smooth { get; set; } = true;
 
     internal double VisibleFraction { get; set; } = DefaultVisibleFraction;
+
+    /// <summary>Haut-parleur : réglage d'usine (le cône du 5150, SpeakerModel) ou son
+    /// fidèle (le signal complet, tel que le mixeur le rend). Réglage de sortie comme les
+    /// autres : l'hôte seul l'applique, le tampon du mixeur n'en sait rien.</summary>
+    internal bool FactorySpeaker { get; set; } = true;
 
     /// <summary>Taille d'un pixel hôte forcée, en mm. Zéro : déduite par ResolvePixelMm.</summary>
     internal double PixelMm { get; set; }
@@ -235,6 +240,9 @@ internal sealed class DisplaySettings
         FillPercent = Math.Clamp(config.config_get_int(config.CFG_MACHINE, Section, "fill_percent", FillPercent),
                                  MinFillPercent, MaxFillPercent);
 
+        FactorySpeaker = config.config_get_string(config.CFG_MACHINE, Section, "speaker",
+                                                  FactorySpeaker ? "usine" : "fidele") != "fidele";
+
         float fraction = config.config_get_float(config.CFG_MACHINE, Section, "visible_fraction",
                                                  (float)VisibleFraction);
         if (fraction is > 0.5f and <= 1f)
@@ -282,6 +290,7 @@ internal sealed class DisplaySettings
         config.config_set_int(config.CFG_MACHINE, Section, "scale_mode", Smooth ? 1 : 0);
         config.config_set_int(config.CFG_MACHINE, Section, "fill_percent", FillPercent);
         config.config_set_float(config.CFG_MACHINE, Section, "visible_fraction", (float)VisibleFraction);
+        config.config_set_string(config.CFG_MACHINE, Section, "speaker", FactorySpeaker ? "usine" : "fidele");
 
         if (PixelMm > 0)
             config.config_set_float(config.CFG_MACHINE, Section, "pixel_mm", (float)PixelMm);

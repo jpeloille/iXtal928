@@ -55,6 +55,8 @@ internal static class Launcher
                 return (ExitCode)SdlMenu.SelfCheck(paths.resolve_roms_path(options.RomDirectory));
             case "--fat-check":
                 return (ExitCode)FatImage.SelfCheck();
+            case "--speaker-check":
+                return (ExitCode)SpeakerModel.SelfCheck(cursor.HasNext ? cursor.TakeNext() : null);
             case "--floppy-a" or "--floppy-b":
                 return MountFloppy(argument, cursor);
             case "--hdd" or "--hdd-d":

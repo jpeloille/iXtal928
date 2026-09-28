@@ -4,6 +4,9 @@ Tout ce qui suit est de l'**hôte** : la fenêtre, le renderer, des textures sup
 Rien n'écrit dans `video.Buffer32`. Les oracles (`--boot`, boot-diff, empreintes de
 framebuffer) restent aveugles à ce plan, et c'est voulu.
 
+Les choix retenus, écran et son, sont consignés dans
+[choix-restitution-ecran-et-son.md](choix-restitution-ecran-et-son.md).
+
 ## Fait (26/09/2026)
 
 - **NEC MultiSync 3V (auto derrière une VGA/Trident)** — 14" visibles, 284,5 × 213,4 mm ;

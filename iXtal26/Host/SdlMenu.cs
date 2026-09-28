@@ -98,6 +98,7 @@ internal sealed class SdlMenu
         ("Lignes CRT", MainItem.Scanlines),
         ("Filtrage", MainItem.Filter),
         ("Taille d'image", MainItem.Fill),
+        ("Haut-parleur", MainItem.Speaker),
         ("Reset materiel (temps reel)", MainItem.HardReset),
         ("Reset materiel + turbo", MainItem.HardResetTurbo),
         ("Ctrl+Alt+Suppr (redemarrage a chaud)", MainItem.Cad),
@@ -107,7 +108,7 @@ internal sealed class SdlMenu
     private enum MainItem
     {
         InsertA, InsertB, EjectA, EjectB, CreateBlank, CreateFat, PutFile, CreateBlankHdd,
-        Monitor, Scanlines, Filter, Fill, HardReset, HardResetTurbo, Cad, Quit,
+        Monitor, Scanlines, Filter, Fill, Speaker, HardReset, HardResetTurbo, Cad, Quit,
     }
 
     // pcem: wx-createdisc.cc:22-29 — réduit aux quatre formats que le lecteur 5,25" DD du
@@ -377,6 +378,11 @@ internal sealed class SdlMenu
                 _message = "filtrage " + _display.Save();
                 return MenuAction.DisplayChanged;
 
+            case MainItem.Speaker:
+                _display.FactorySpeaker = !_display.FactorySpeaker;
+                _message = "haut-parleur " + _display.Save();
+                return MenuAction.DisplayChanged;
+
             case MainItem.InsertA:
                 OpenPick(0);
                 return MenuAction.None;
@@ -450,7 +456,7 @@ internal sealed class SdlMenu
         return MenuAction.DisplayChanged;
     }
 
-    /// <summary>Libellé de l'écran principal : les deux entrées d'affichage portent leur
+    /// <summary>Libellé de l'écran principal : les entrées de réglage portent leur
     /// valeur courante, les autres leur texte fixe.</summary>
     private string MainLabel(string label, MainItem item) => item switch
     {
@@ -465,6 +471,7 @@ internal sealed class SdlMenu
         MainItem.Fill => _display.Effective() == CrtMonitor.Integer
                          ? $"{label} : sans objet (pixels entiers)"
                          : $"{label} : {_display.FillPercent} %",
+        MainItem.Speaker => _display.FactorySpeaker ? $"{label} : reglage d'usine" : $"{label} : son fidele",
         _ => label,
     };
 

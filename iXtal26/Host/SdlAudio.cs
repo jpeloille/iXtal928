@@ -45,6 +45,22 @@ internal sealed class SdlAudio : IDisposable
     /// turbo, qui déroule ~14 s émulées par seconde murale.</summary>
     internal bool Muted { get; set; }
 
+    private readonly SpeakerModel _speaker = new();
+    private bool _factorySpeaker;
+
+    /// <summary>Le cône du 5150 (SpeakerModel) entre le mixeur et SDL. Basculer remet
+    /// ses filtres à zéro : l'état d'une chaîne coupée ne vaut plus rien.</summary>
+    internal bool FactorySpeaker
+    {
+        get => _factorySpeaker;
+        set
+        {
+            if (value != _factorySpeaker)
+                _speaker.Reset();
+            _factorySpeaker = value;
+        }
+    }
+
     /// <summary>
     /// Pendant d'inital() (soundopenal.c:86). Rend false sans bruit fatal : une
     /// sortie audio absente n'est pas une panne de 5150, la machine doit tourner
@@ -113,12 +129,27 @@ internal sealed class SdlAudio : IDisposable
         // soundopenal.c:184-191 — écrêtage int32 -> int16. L'accumulation se fait en
         // int32 pour que plusieurs cartes puissent sommer sans saturer trop tôt ; le
         // 5150 n'en a qu'une, mais le point de coupe reste celui de PCem.
-        for (var c = 0; c < samples; c++)
+        //
+        // DEVIATION: en réglage d'usine, le canal gauche passe par SpeakerModel et le
+        //   résultat va sur les deux canaux : le haut-parleur est mono (sound_speaker.c:46
+        //   duplique déjà). buf, le tampon du mixeur, n'est pas modifié.
+        if (FactorySpeaker)
         {
-            var v = buf[c];
-            _buf16[c] = v < -32768 ? (int16_t)(-32768)
-                      : v > 32767 ? (int16_t)32767
-                      : (int16_t)v;
+            for (var c = 0; c < samples; c += 2)
+            {
+                var v = Math.Round(_speaker.Process(buf[c]));
+                _buf16[c] = _buf16[c + 1] = (int16_t)Math.Clamp(v, -32768, 32767);
+            }
+        }
+        else
+        {
+            for (var c = 0; c < samples; c++)
+            {
+                var v = buf[c];
+                _buf16[c] = v < -32768 ? (int16_t)(-32768)
+                          : v > 32767 ? (int16_t)32767
+                          : (int16_t)v;
+            }
         }
 
         SDL.PutAudioStreamData(_stream, System.Runtime.InteropServices.MemoryMarshal.AsBytes(

@@ -138,6 +138,10 @@ internal static class UsageText
                                la FAT d'une disquette réellement formatée par DOS 2.00,
                                le secteur d'amorce, et l'invariant de géométrie — les
                                deux branches d'img_load doivent lire la même chose
+          --speaker-check [DOSSIER]
+                               auto-contrôle du haut-parleur « réglage d'usine » : le
+                               bip du POST mesuré avant et après le modèle du cône.
+                               Avec DOSSIER, y écrit les deux versions en WAV
           --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER] [--cpu N]
                         [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]
                         [--charge repos|ram]

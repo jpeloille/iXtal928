@@ -404,6 +404,24 @@ le bon nombre de secteurs, et DOS la lit de travers en silence. Il porte aussi l
 de géométrie, qui ne peut se mesurer qu'en chargeant vraiment une image par les deux
 branches d'img_load.
 
+### `--speaker-check`
+
+Le haut-parleur « réglage d'usine » (`Host/SpeakerModel.cs`) ne passe par aucun oracle :
+il agit après le mixeur, sur ce que l'hôte envoie à SDL. Sans cet auto-contrôle, rien ne
+dirait qu'il fait ce qu'il annonce. Il synthétise le bip du POST tel que le mixeur le rend
+(carré 0 / 0x1400, diviseur 1331, 896 Hz), mesure les harmoniques 1, 3, 5 et 7 avant et
+après, et vérifie que la fondamentale baisse par rapport à la troisième harmonique sans
+que le signal atteigne la pleine échelle. Avec un dossier, il y écrit les deux versions
+en WAV, pour l'écoute.
+
+Pourquoi le modèle existe : le carré exact, restitué en entier par un casque, paraît
+rond. Le cône de 57 mm du 5150, sans baffle, dans un châssis métallique, ne rendait
+presque pas la fondamentale grave, résonnait dans le médium et saturait. Les
+coefficients (passe-haut 350 Hz, crête 2,8 kHz, passe-bas 8 kHz, gain 2,5, saturation
+douce) ont été posés à l'estime ; ils sont à ajuster à l'oreille, ou mieux, sur un
+enregistrement de machine réelle. Le menu hôte bascule entre « réglage d'usine » et
+« son fidèle » (le signal complet) ; la clé `speaker` de la section `[SDL2]` le retient.
+
 ## Sorties console en un bloc
 
 L'aide, la liste des types de disque et celle des formats de disquette s'écrivent en un

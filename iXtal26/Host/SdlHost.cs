@@ -341,6 +341,7 @@ public sealed class SdlHost : IDisposable
         if (audio.Init())
         {
             _audio = audio;
+            _audio.FactorySpeaker = _display.FactorySpeaker;
             Sound.sound.sound_give_buffer_func = _audio.GiveBuffer;
         }
         else
@@ -862,14 +863,17 @@ public sealed class SdlHost : IDisposable
             ResizeWindow();
     }
 
-    /// <summary>Filtrage et taille de fenêtre selon _display. Appelée au démarrage et à
-    /// chaque changement fait dans le menu.</summary>
+    /// <summary>Filtrage, haut-parleur et taille de fenêtre selon _display. Appelée au
+    /// démarrage et à chaque changement fait dans le menu.</summary>
     private void ApplyDisplay()
     {
         // Pixels entiers : le plus proche voisin garde le 8x8 net. Moniteur : le facteur
         // n'est pas entier ; le linéaire évite des colonnes d'épaisseurs inégales, et le
         // flou qu'il apporte est celui du faisceau. « Filtrage : net » le refuse.
         SDL.SetTextureScaleMode(_texture, CurrentScaleMode());
+
+        if (_audio is not null)
+            _audio.FactorySpeaker = _display.FactorySpeaker;
 
         int nativeW = 0, nativeH = 0;
         uint display = SDL.GetDisplayForWindow(_window);
