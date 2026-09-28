@@ -195,6 +195,13 @@ internal static partial class model_c
         at_init();
     }
 
+    // pcem: model.c:482-485 — at_headland_init : at_init puis le chipset (G3.1).
+    internal static void at_headland_init()
+    {
+        at_init();
+        headland.headland_init();
+    }
+
     // pcem: model.c:452-455 — at_neat_init : at_init puis le chipset.
     internal static void at_neat_init()
     {
@@ -256,11 +263,8 @@ internal static partial class model_c
     // Le cœur 386 a besoin d'un cpu_set() qui lise un 386, et cpu_set() lit
     // models[model] : il faut donc la machine dans la table, des deux côtés (l'oracle la
     // déclare dans harness_stubs.c). Mais son init, at_headland_init (model.c:482-485),
-    // attend le chipset Headland, qui est le bloc G3 de PLAN.md.
-    //
-    // D'OÙ `init = null`, et c'est un REFUS, pas un oubli : initpc (pc.cs) refuse
-    // bruyamment une machine sans init, comme h_boot côté oracle. Elle reste visible dans
-    // --setup et --model (choix de Julien) : la choisir dit pourquoi elle ne démarre pas.
+    // attend le chipset Headland, qui est le bloc G3 de PLAN.md. En G3.1, le chipset
+    // (headland.cs) et at_headland_init sont transcrits, et l'oracle lie headland.c.
     //
     // omitted: {"AMD", cpus_Am386SX} et {"Cyrix", cpus_486SLC} (model.c:1241) — la table
     //   Intel seule, des deux côtés, pour que le fuzzeur compare le même processeur.
@@ -274,7 +278,7 @@ internal static partial class model_c
         min_ram = 512,
         max_ram = 16384,
         ram_granularity = 128,
-        init = null,
+        init = at_headland_init,
     };
 
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis

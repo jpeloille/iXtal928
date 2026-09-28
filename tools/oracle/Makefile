@@ -68,6 +68,7 @@ SRC := harness.c \
        $(PCEM)/src/keyboard/keyboard_at.c \
        $(PCEM)/src/devices/nvr.c \
        $(PCEM)/src/models/neat.c \
+       $(PCEM)/src/models/headland.c \
        $(PCEM)/src/rtc.c \
        $(PCEM)/src/video/vid_cga.c \
        $(PCEM)/src/video/vid_vga.c \

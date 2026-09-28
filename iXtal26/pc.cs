@@ -565,14 +565,14 @@ internal static partial class pc
         if (!check_cpu())
             return false;
 
-        // G2, D0.2 : une machine de la table dont l'init n'est pas transcrite — l'ami386,
-        // présente pour que le cœur 386 ait un cpu_set(), attend son chipset Headland
-        // (G3). REFUS BRUYANT, comme h_boot côté oracle, plutôt qu'une demi-machine.
+        // G2, D0.2 : une machine de la table dont l'init n'est pas transcrite (l'ami386
+        // jusqu'à G3.1, où Headland l'a rendue amorçable). REFUS BRUYANT, comme h_boot
+        // côté oracle, plutôt qu'une demi-machine.
         if (Models.model_c.models[Models.model_c.model].init is null)
         {
             Console.Error.WriteLine(
                 $"La machine « {Models.model_c.models[Models.model_c.model].internal_name} » n'est pas " +
-                "encore amorçable : son chipset n'est pas transcrit (Headland, bloc G3 de PLAN.md).");
+                "encore amorçable : son chipset n'est pas transcrit (PLAN.md).");
             return false;
         }
 

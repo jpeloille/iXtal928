@@ -94,6 +94,16 @@ devoir changer (ABI).
    l'invite DOS ; puis Windows 3.1 en mode 386 étendu — le test d'intégration de G2 (V86,
    pagination, commutation de tâches).
 
+*Fait (G3.1, étapes 1 et 3) : `headland.c` lié à l'oracle, `headland.cs` relu contre le C
+(aucun écart de comportement ; citations de lignes corrigées, entrée `oracle.tsv` ajoutée),
+`at_headland_init`, la ROM `ami386/ami386.bin`. **`boot-diff --model ami386` : vert,
+42 177 361 instructions à 640 Ko et 42 160 293 à 4 Mo (30 s)**. Le BIOS laisse le remap
+éteint (`headland_regs_cr[0] = 4` à l'init, jamais réécrit) ; la mémoire étendue passe
+par les gestionnaires Headland, ~1,6 M d'accès au-delà du Mo en 30 s. Contrôles négatifs :
+lecture faussée au-delà de 3 Mo → divergence à 358 514 ; remap allumé à l'init → 358 588.
+Reste l'étape 2 (le CMOS `ami386.nvr`) et la porte `--boot` : le POST s'arrête sur
+« CMOS system options not set ».*
+
 ### G3.2 — L'ami386dx : OPTi 495
 
 1. `cpus_i386DX` (`cpu_tables.c`, table Intel seule, comme l'ami386), `m_ami386dx` des deux
@@ -103,7 +113,7 @@ devoir changer (ABI).
 
 ## Ce que je ne sais pas encore
 
-- **La cause exacte de l'écart CMOS de l'AT** : hypothèse de chemin, non vérifiée.
+- ~~**La cause exacte de l'écart CMOS de l'AT**~~ : **vérifiée** en G3.0 (`19eddda`), c'était bien le chemin — l'oracle composait `nvrfopen` sur deux chaînes vides.
 - **Si le BIOS AMI 386 range son CMOS comme l'AMI 286** (somme 0x10-0x2D en 16 bits) : à lire
   dans `ami386.bin` avant de fabriquer `ami386.nvr`.
 - **La taille mémoire à retenir** pour l'ami386 : `get_headland_addr` et `headland_mem_conf_cr0`

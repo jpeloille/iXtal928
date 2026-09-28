@@ -230,6 +230,7 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
 void keyboard_at_init(void);
 void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
 void neat_init(void); /* neat.h — G3.0, le chipset de l'ami286. */
+void headland_init(void); /* headland.h — G3.1, le chipset de l'ami386. */
 
 /* intgatesize est le SEUL des sept globaux de C7a qu'aucun en-tete ne declare : c'est
  * un `int intgatesize;` nu a x86seg.c:32, sans extern nulle part dans l'arbre — les six
@@ -1111,13 +1112,6 @@ int h_boot(const char *romspath) {
          * dans la table : les deux doivent dire la même machine. */
         h_models_init();
         model = romset;
-        /* G2, D0.2 : l'ami386 est dans models[] pour que cpu_set() et le fuzzeur aient un
-         * 386, mais son init (at_headland_init, model.c:482-485) n'est pas liee. Refus
-         * BRUYANT, comme le C# (model.cs), plutot qu'une demi-machine qui amorcerait. */
-        if (romset == ROM_AMI386SX) {
-                fprintf(stderr, "h_boot : ami386 — le chipset Headland n'est pas lie a l'oracle (G3)\n");
-                return 0;
-        }
         if (!h_cpu_table_ok()) {
                 fprintf(stderr, "h_boot : cpu %d (fabricant %d) hors de la table du romset %d\n",
                         h_cpu_index, h_cpu_manu, romset);
@@ -1189,6 +1183,9 @@ int h_boot(const char *romspath) {
                  * l'oracle non : les deux cotes n'amorcaient pas le meme ami286. */
                 if (romset == ROM_AMI286)
                         neat_init();
+                /* G3.1 — at_headland_init (model.c:482-485) : at_init puis le chipset. */
+                if (romset == ROM_AMI386SX)
+                        headland_init();
                 /* omitted: device_add(&gameport_device) — le port jeu n'est pas
                    lie, et le cote C# ne le transcrit pas. */
         } else {

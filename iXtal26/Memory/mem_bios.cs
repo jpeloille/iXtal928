@@ -135,6 +135,18 @@ internal static partial class mem_bios
                     //   l'a mis en commentaire lui-même.
                     return 1;
 
+            // pcem: mem_bios.c:350-357 — L'AMI 386SX (G3.1) : une ROM de 64 Ko d'un seul
+            // tenant, comme l'AMI 286.
+            case ROM_AMI386SX:
+                    // omitted: `//f=romfopen("at386/at386.bin","rb");` (:351) — en commentaire
+                    //   dans PCem.
+                    f = romfopen("ami386/ami386.bin", "rb");
+                    if (f == null)
+                            break;
+                    romfread(rom, 0, 65536, 1, f);
+                    f.Close();
+                    return 1;
+
             // pcem: mem_bios.c:288-304 — L'IBM AT, ET SES DEUX ROM SONT ENTRELACÉES.
             //
             // Un AT a un bus de DONNÉES de seize bits, et IBM l'a câblé avec deux
