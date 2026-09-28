@@ -44,7 +44,8 @@ public static class Oracle
     // 23 en G2, D0.4 : h_setregs386.
     // 24 en G2, D0.5 : h_setsys386 et h_flags_rebuild.
     // 25 en G2, D6 : h_mmutranslate et h_mmu_perm, pour page-check. h_state ne change pas.
-    public const int AbiVersion = 25;
+    // 26 en G3.0 : h_set_nvr_paths — l'oracle lit le même CMOS que le C#.
+    public const int AbiVersion = 26;
 
     static Oracle()
     {
@@ -64,6 +65,18 @@ public static class Oracle
                 $"libixtal26oracle.so introuvable. Construire l'oracle : (cd tools/oracle && make)\n" +
                 $"Cherché dans :\n  {string.Join("\n  ", Candidates())}");
         });
+
+        // G3.0 — LE CMOS DES DEUX CÔTÉS, poussé UNE fois pour tous les outils (boot-diff,
+        // vga-probe, at-probe, cpu-config-check, bench…) : les deux chemins vivent dans des
+        // tableaux statiques de la .so qu'aucun reset du harnais ne touche. Même résolution
+        // que initpc (pc.cs:538-543). Sans elle, l'oracle composait ses chemins sur deux
+        // chaînes vides et lisait un CMOS à 0xFF là où le C# lisait nvr/default/*.nvr —
+        // mesuré : boot-diff --model ibmat divergeait à l'instruction 50, IN AL,71h.
+        h_set_nvr_paths(
+                PluginApi.config.append_slash(
+                        PluginApi.paths.resolve_roms_path("nvr") is { Length: > 0 } nvr ? nvr : "nvr", 512),
+                PluginApi.config.append_slash(
+                        PluginApi.paths.resolve_roms_path("nvr/default") is { Length: > 0 } d ? d : "nvr/default", 512));
     }
 
     /// <summary>Adresse d'un symbole GLOBAL de la .so, hors contrat h_*.
@@ -216,6 +229,7 @@ public static class Oracle
     // il n'a pas de models[] à indexer. Côté C# le romset dérive du nom via
     // loadconfig ; ici on pousse la valeur déjà résolue. À appeler avant h_boot.
     [DllImport(Lib)] public static extern void h_set_romset(int r);
+    [DllImport(Lib, CharSet = CharSet.Ansi)] public static extern void h_set_nvr_paths(string nvr, string nvrDefault);
 
     // M11 — de quoi TAPER dans l'oracle, et donc de quoi mettre le chemin d'écriture
     // du contrôleur sous comparaison. h_rawinputkey écrit dans le même tableau que la

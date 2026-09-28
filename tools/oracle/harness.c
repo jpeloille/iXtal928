@@ -229,6 +229,7 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
  * keyboard_xt_init juste au-dessus. */
 void keyboard_at_init(void);
 void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
+void neat_init(void); /* neat.h — G3.0, le chipset de l'ami286. */
 
 /* intgatesize est le SEUL des sept globaux de C7a qu'aucun en-tete ne declare : c'est
  * un `int intgatesize;` nu a x86seg.c:32, sans extern nulle part dans l'arbre — les six
@@ -1183,6 +1184,11 @@ int h_boot(const char *romspath) {
                 device_add(&nvr_device);
                 pic2_init();
                 nmi_mask = 0;
+                /* G3.0 — le chipset de la machine, comme model.c le chaine apres at_init :
+                 * at_neat_init (model.c:452-455). Le C# l'appelait deja (model.cs:199) et
+                 * l'oracle non : les deux cotes n'amorcaient pas le meme ami286. */
+                if (romset == ROM_AMI286)
+                        neat_init();
                 /* omitted: device_add(&gameport_device) — le port jeu n'est pas
                    lie, et le cote C# ne le transcrit pas. */
         } else {
@@ -1391,6 +1397,24 @@ void h_set_bpb_disable(int v) { bpb_disable = v; }
  * loadbios() le lit depuis l'interieur. */
 extern int romset;
 void h_set_romset(int r) { romset = r; }
+
+/* G3.0 — les deux chemins que nvrfopen compose (nvr.c:33-54), POUSSES par l'appelant.
+ *
+ * Ils etaient VIDES : nvr_path et nvr_default_path sont des globales de paths.c, non lie,
+ * que harness_stubs.c definit sans jamais les remplir. nvrfopen cherchait donc « /.at.nvr »
+ * puis « at.nvr » dans le repertoire courant, ne trouvait rien, et loadnvr prenait la
+ * branche « pas de fichier » : 0xFF partout. Le C#, lui, les resout dans initpc
+ * (pc.cs:538-543) et lit nvr/default/at.nvr. Mesure : boot-diff --model ibmat divergeait a
+ * l'instruction 50, IN AL,71h en F000:0169, oracle 0xFF, C# 0x00. Meme chaine des deux
+ * cotes, poussee AVANT h_boot : la resolution appartient au C#, l'oracle la recoit. */
+extern char nvr_path[512];         /* harness_stubs.c:736-737 */
+extern char nvr_default_path[512];
+void h_set_nvr_paths(const char *nvr, const char *nvr_default) {
+        strncpy(nvr_path, nvr ? nvr : "", sizeof(nvr_path) - 1);
+        nvr_path[sizeof(nvr_path) - 1] = 0;
+        strncpy(nvr_default_path, nvr_default ? nvr_default : "", sizeof(nvr_default_path) - 1);
+        nvr_default_path[sizeof(nvr_default_path) - 1] = 0;
+}
 
 /* --- vidéo (M15) ------------------------------------------------------------
  *

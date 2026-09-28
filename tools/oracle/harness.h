@@ -458,6 +458,8 @@ void h_set_bpb_disable(int v);
  * l'outil de diff pousse ici la valeur déjà résolue. Même doctrine que
  * h_set_mem_size : une seule lecture de la configuration, deux poussées. */
 void h_set_romset(int r);
+/* G3.0 — les chemins du CMOS (nvr.c:33-54), identiques a ceux du C#. */
+void h_set_nvr_paths(const char *nvr, const char *nvr_default);
 
 /* --- processeur (M16) -------------------------------------------------------
  * Le fabricant et l'INDICE dans la table de CPU de la machine, pendant des clés
@@ -592,7 +594,8 @@ uint8_t *h_ram(void);
 /* 23 depuis G2 etape D0.4 : h_setregs386 s'ajoute au contrat. */
 /* 24 depuis G2 etape D0.5 : h_setsys386 et h_flags_rebuild s'ajoutent au contrat. */
 /* 25 depuis G2 etape D6 : h_mmutranslate et h_mmu_perm (page-check). h_state ne change pas. */
-#define H_ABI_VERSION 25
+/* 26 depuis G3.0 : h_set_nvr_paths. h_state ne change pas. */
+#define H_ABI_VERSION 26
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
