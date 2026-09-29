@@ -24,6 +24,11 @@ internal static partial class _386
     /// h_set_cpu() côté oracle ; 0 par défaut (286/6, i386SX/16).</summary>
     internal static int FuzzCpu;
 
+    /// <summary>Le coprocesseur (FPU_*, cpu.h:72) que Reset(), Reset286() et Reset386()
+    /// donnent à cpu_set() — pendant de h_set_fpu() côté oracle (G4.0). FPU_NONE par
+    /// défaut.</summary>
+    internal static int FuzzFpu;
+
     /// <summary>Pendant de h_reset() avec h_core == H_CORE_286.</summary>
     internal static void Reset286() => ResetExec386("ami286");
 
@@ -50,6 +55,7 @@ internal static partial class _386
         // neuf autres compteurs de stubs) divergeraient dès la première instruction.
         // La panne se lirait comme un défaut de handler. Elle n'en serait pas un.
         _808x.ResetCounters();
+        _808x.ClearFpuResidue();
 
         // AT = 1 : c'est LUI qui aiguille vers exec386 chez PCem (pc.c:484), et
         // resetx86() branche dessus pour le vecteur de reset et rammask.
@@ -58,6 +64,7 @@ internal static partial class _386
         is486 = 0;
         _808x.is8086 = 0;
         cpu_c.hasfpu = 0;
+        cpu_c.fpu_type = FuzzFpu; // G4.0 — pendant de h_set_fpu
         AMSTRAD = TANDY = PCI = MCA = 0;
 
         // LE VRAI cpu_set(), sur la table de la machine (M16, étape 6) — pendant exact de
@@ -171,6 +178,8 @@ internal static partial class _386
         optype = 0;
         oldcpl = 0;
         cpu_cur_status = 0;
+
+        _808x.ClearFpuResidue(); // G4.0 — pendant de l'appel dans h_seg_clear_residue
     }
 
     /// <summary>Les neuf champs d'un x86seg à zéro. Pour les descripteurs que

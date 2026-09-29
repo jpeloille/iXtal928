@@ -347,6 +347,52 @@ pas touché par le signe.
 *Trouvé par* : audit du 26/09 (D4), mesuré en G2.
 *Reproduit* : `Cpu/808x.cs`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
 
+### PB-48 — Le mode d'arrondi du x87 ne s'applique qu'à FADD avec opérande mémoire
+
+`x87_ops_arith.h:12-16`, dans la seule branche `opFADD##name` du macro `opFPU` :
+
+```c
+if ((cpu_state.npxc >> 10) & 3)
+        fesetround(rounding_modes[(cpu_state.npxc >> 10) & 3]);
+ST(0) += use_var;
+if ((cpu_state.npxc >> 10) & 3)
+        fesetround(FE_TONEAREST);
+```
+
+Les champs RC de `npxc` (bits 10-11) ne sont lus que là. Les autres branches du même macro —
+FSUB, FSUBR, FMUL, FDIV, FDIVR (`:48-112`) — calculent sans `fesetround`, donc au plus près,
+et de même les formes registre de FADD (`opFADD`, `opFADDr`, `opFADDP`, `:122-152`) et toutes
+celles de FSUB/FMUL/FDIV (`:239-397`). Le macro engendre le défaut pour les quatre types
+d'opérande (m32, m64, m16int, m32int, `:114-120`), et `8087.h:86` l'inclut aussi : le 8087 en
+hérite.
+
+*Effet* : sous un mode d'arrondi dirigé (vers −∞, +∞ ou zéro), FADD mémoire arrondit selon
+le mode et toute autre opération au plus près. Sur le silicium, les six opérations suivent
+RC. Un logiciel d'arithmétique d'intervalles, ou une bibliothèque qui règle RC pour une
+conversion, obtient des bornes fausses d'un ulp.
+
+*Mesuré* : `iXtal26.Diff x87-parity` (G4.0), le VRAI handler exécuté par l'oracle seul —
+fpu = 387, cœur 386, `DC /r [disp16]`, ST0 et l'opérande m64 tirés parmi les normaux de
+2^−60 à 2^60, npxc = 0x033F | RC << 10 — confronté à l'arrondi dirigé exact (TwoSum/FMA).
+`x87-parity 2000000`, 31 250 cas par combinaison opération × mode (dirigé exact / au plus
+près) :
+
+| | au plus près | vers −∞ | vers +∞ | vers zéro |
+|---|---|---|---|---|
+| FADD m64 (`DC /0`) | 31 250 / 0 | 31 250 / 0 | 31 250 / 0 | 31 250 / 0 |
+| FSUB m64 (`DC /4`) | 31 250 / 0 | 16 024 / 15 226 | 16 086 / 15 164 | 15 914 / 15 336 |
+| FMUL m64 (`DC /1`) | 31 250 / 0 | 15 685 / 15 565 | 15 639 / 15 611 | 15 571 / 15 679 |
+| FDIV m64 (`DC /6`) | 31 250 / 0 | 15 601 / 15 649 | 15 571 / 15 679 | 15 637 / 15 613 |
+
+Aucun cas « autre » : chaque résultat est soit l'arrondi dirigé exact, soit l'arrondi au
+plus près — ils coïncident quand l'erreur tombe déjà du côté du mode, d'où ~50/50. La même
+mesure sur le motif hors du handler (`h_fpu_arith`, mêmes drapeaux -O2 sans
+`-frounding-math`) rend 100 % d'arrondi dirigé exact pour les quatre opérations (625 000 cas par combinaison) : GCC honore
+bien `fesetround`, le défaut est dans l'endroit où PCem l'appelle.
+*Trouvé par* : mesure de parité de G4.0 (`PLAN-G4.md`), confirmée à la ligne de C.
+*Reproduit* : pas encore — G4.3 transcrira l'arrondi dirigé sur les seuls FADD mémoire, au
+plus près partout ailleurs (décision n° 3 de `PLAN-G4.md`).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -986,7 +1032,7 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 
 ## Portée de ce registre
 
-Ces **quarante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1000,6 +1046,7 @@ audit systématique de PCem** :
 | Relecture contradictoire par agents, puis démonstration au diff | PB-36 |
 | pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
 | Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45 à PB-47 |
+| Mesure de parité du x87 contre le vrai handler, puis lecture du C (G4.0) | PB-48 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

@@ -66,6 +66,7 @@ internal static class CpuConfigCheck
                 Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
                 Oracle.h_set_romset(pc.romset);
                 Oracle.h_set_cpu(cpu_c.cpu_manufacturer, cpu_c.cpu);
+                Oracle.h_set_fpu(cpu_c.fpu_type);
                 Oracle.h_set_core(core);
                 Oracle.h_set_gfxcard(pc.gfxcard);
                 Oracle.h_set_hdd_controller("");

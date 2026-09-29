@@ -84,6 +84,7 @@ internal static partial class _808x
     {
         FlatMap();
         ResetCounters();
+        ClearFpuResidue();
 
         // Configuration machine, posée AVANT resetx86() : celle-ci branche sur
         // AT, is486 et is386 pour choisir le vecteur de reset et rammask.
@@ -91,6 +92,10 @@ internal static partial class _808x
         is386 = 0;
         is486 = 0;
         is8086 = 0; // 8088 : file de préfetch de 4 octets, pas 6
+        cpu_c.hasfpu = 0;
+        // G4.0 — ÉCRIT, et non plus un zéro implicite : cpu_set() en tire hasfpu. Pendant
+        // de h_set_fpu côté oracle.
+        cpu_c.fpu_type = _386.FuzzFpu;
         cpu_16bitbus = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
@@ -208,6 +213,41 @@ internal static partial class _808x
         cpu_state.eflags = eflags;
         x86seg_c.loadseg(fs, cpu_state.seg_fs);
         x86seg_c.loadseg(gs, cpu_state.seg_gs);
+    }
+
+    /// <summary>Pendant de h_setfpu (G4.0) : l'état x87 que le fuzzeur tire, ST en bits
+    /// bruts.</summary>
+    internal static void SetFpu(ulong[] st, ulong[] mm, ushort[] mmW4, byte[] tag, int top,
+                                ushort npxs, ushort npxc)
+    {
+        for (var i = 0; i < 8; i++)
+        {
+                cpu_state.ST[i] = BitConverter.Int64BitsToDouble((long)st[i]);
+                cpu_state.MM[i].q = mm[i];
+                cpu_state.MM_w4[i] = mmW4[i];
+                cpu_state.tag[i] = tag[i];
+        }
+        cpu_state.TOP = top;
+        cpu_state.npxs = npxs;
+        cpu_state.npxc = npxc;
+    }
+
+    /// <summary>Pendant de h_fpu_clear_residue (harness.c, G4.0). DEVIATION du harnais,
+    /// pas du cœur : x87_reset() est vide (x87.c:97) et resetx86 ne touche pas l'état du
+    /// x87 — chez PCem il vaut le zéro de .bss à la mise sous tension. Le fuzzeur amorce à
+    /// chaque itération : sans ce nettoyage, l'itération N+1 hériterait de l'état tiré à N.</summary>
+    internal static void ClearFpuResidue()
+    {
+        Array.Clear(cpu_state.tag);
+        cpu_state.TOP = 0;
+        cpu_state.ismmx = 0;
+        cpu_state.npxs = 0;
+        cpu_state.npxc = 0;
+        Array.Clear(cpu_state.ST);
+        Array.Clear(cpu_state.MM_w4);
+        Array.Clear(cpu_state.MM);
+        x86.x87_pc_off = x86.x87_op_off = 0;
+        x86.x87_pc_seg = x86.x87_op_seg = 0;
     }
 
     internal static void GetRegs(ushort[] r)
@@ -338,6 +378,25 @@ internal static partial class _808x
         s.optype = x86.optype;
         s.oldcpl = x86.oldcpl;
         s.cur_status = x86.cpu_cur_status;
+
+        // G4.0 — le x87, ST en bits bruts (voir HState.cs).
+        for (var i = 0; i < 8; i++)
+        {
+                s.fpu_st[i] = (uint64_t)BitConverter.DoubleToInt64Bits(cpu_state.ST[i]);
+                s.fpu_mm[i] = cpu_state.MM[i].q;
+                s.fpu_mm_w4[i] = cpu_state.MM_w4[i];
+                s.fpu_tag[i] = cpu_state.tag[i];
+        }
+        s.fpu_top = cpu_state.TOP;
+        s.npxs = cpu_state.npxs;
+        s.npxc = cpu_state.npxc;
+        s.x87_pc_off = x86.x87_pc_off;
+        s.x87_op_off = x86.x87_op_off;
+        s.x87_pc_seg = x86.x87_pc_seg;
+        s.x87_op_seg = x86.x87_op_seg;
+        s.ismmx = cpu_state.ismmx;
+        s.fpu_type = cpu_c.fpu_type;
+        s.hasfpu = cpu_c.hasfpu;
 
         s.ins = ins_count;
     }

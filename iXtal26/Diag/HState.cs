@@ -165,6 +165,24 @@ public struct HState
     public ushort cur_status;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)] public ushort[] _pad2;
 
+    // LE x87 (G4.0, ABI 27), dans le MEME ORDRE et aux MEMES TYPES que harness.h. ST en
+    // BITS BRUTS : deux NaN ne sont pas égaux en double, et 0 égale -0. MM[].q et MM_w4
+    // sont de l'état x87 (TAG_UINT64, FSAVE/FRSTOR). Constants tant que hasfpu est nul.
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public ulong[] fpu_st;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public ulong[] fpu_mm;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public ushort[] fpu_mm_w4;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public byte[] fpu_tag;
+    public int fpu_top;
+    public ushort npxs;
+    public ushort npxc;
+    public uint x87_pc_off;
+    public uint x87_op_off;
+    public ushort x87_pc_seg;
+    public ushort x87_op_seg;
+    public int ismmx;
+    public int fpu_type;
+    public int hasfpu;
+
     public ulong ins;
 
     /// <summary>Alloue les tableaux de longueur fixe. Nécessaire avant remplissage
@@ -194,5 +212,9 @@ public struct HState
         prefetchqueue = new byte[6],
         _pad = new byte[2],
         _pad2 = new ushort[3],
+        fpu_st = new ulong[8],
+        fpu_mm = new ulong[8],
+        fpu_mm_w4 = new ushort[8],
+        fpu_tag = new byte[8],
     };
 }

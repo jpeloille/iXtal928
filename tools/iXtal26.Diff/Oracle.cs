@@ -45,7 +45,9 @@ public static class Oracle
     // 24 en G2, D0.5 : h_setsys386 et h_flags_rebuild.
     // 25 en G2, D6 : h_mmutranslate et h_mmu_perm, pour page-check. h_state ne change pas.
     // 26 en G3.0 : h_set_nvr_paths — l'oracle lit le même CMOS que le C#.
-    public const int AbiVersion = 26;
+    // 27 en G4.0 : l'état x87 entre dans h_state (le vecteur change de TAILLE) ; h_set_fpu,
+    // h_setfpu et les sondes de parité h_libm, h_conv, h_fpu_arith s'ajoutent.
+    public const int AbiVersion = 27;
 
     static Oracle()
     {
@@ -271,6 +273,15 @@ public static class Oracle
     // CpuFingerprint.Csharp().
     public const int CpuFpN = 48;
     [DllImport(Lib)] public static extern void h_set_cpu(int manu, int n);
+    // G4.0 — le coprocesseur (FPU_*, cpu.h:72), avant h_reset ou h_boot ; et l'état x87
+    // tiré par le fuzzeur, ST en bits bruts.
+    [DllImport(Lib)] public static extern void h_set_fpu(int type);
+    [DllImport(Lib)] public static extern void h_setfpu(ulong[] st, ulong[] mm, ushort[] mmW4, byte[] tag,
+                                                        int top, ushort npxs, ushort npxc);
+    // G4.0 — les sondes de parité de harness_x87.c (voir X87Parity.cs).
+    [DllImport(Lib)] public static extern ulong h_libm(int n, ulong a, ulong b);
+    [DllImport(Lib)] public static extern ulong h_conv(int n, ulong a);
+    [DllImport(Lib)] public static extern ulong h_fpu_arith(int op, int mode, ulong a, ulong b);
     [DllImport(Lib)] public static extern int h_slice_budget();
     [DllImport(Lib)] internal static extern void h_cpu_fingerprint([Out] ulong[] o);
     [DllImport(Lib)] internal static extern void h_vga_probe([Out] ulong[] o);

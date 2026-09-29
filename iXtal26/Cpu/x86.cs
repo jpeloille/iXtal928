@@ -3,8 +3,8 @@
 //
 // ORACLE: pcem-dev/includes/private/cpu/x86.h  (lignes 1-245)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — palier (a) seulement. Les champs 8087/MMX/SMM/32 bits sont
-//         omis, cf. le registre des omissions de TRANSCRIPTION.md.
+// STATUS: partial — palier (a) seulement. Les champs MMX/SMM/32 bits sont omis, cf. le
+//         registre des omissions de TRANSCRIPTION.md ; l'état du x87 est entré en G4.0.
 //
 // Types du CPU et couche de macros. x86.h aplatit cpu_state en #define pour que
 // 4 000 lignes puissent écrire `cycles -= 3;` ou `AL = 0x42;`. On reproduit cet
@@ -102,8 +102,28 @@ internal sealed class cpu_state_t
     internal uint32_t flags_res;
     internal uint32_t flags_op1, flags_op2;
 
-    // omitted: ST/TOP/tag/npxs/npxc/MM/MM_w4/ismmx — 8087 et MMX.
+    // pcem: x86.h:61, :73, :79, :89-97 — L'ÉTAT DU x87, dé-omis en G4.0 : du STOCKAGE
+    // seulement, qu'aucun handler n'écrit encore (op_nofpu n'en touche rien). Il entre
+    // avant le premier handler pour que le vecteur d'état vérifie le câblage des deux
+    // côtés pendant qu'il est constant — même doctrine que les drapeaux paresseux.
+    // ST est un double chez PCem, pas un réel de 80 bits : un double C# le porte au bit près.
+    internal readonly uint8_t[] tag = new uint8_t[8];
+    internal int TOP;
+    internal int8_t ismmx;
+    internal uint16_t npxs, npxc;
+    internal readonly double[] ST = new double[8];
+    internal readonly uint16_t[] MM_w4 = new uint16_t[8];
+    internal readonly MMX_REG[] MM = new MMX_REG[8];
+
     // omitted: smi_pending, cpu_recomp_ins, old_fp_control & co.
+}
+
+// pcem: x86.h:46-56 — l'union MMX_REG, réduite à `.q` : c'est la seule forme que le x87
+// lit (x87_ops.h:40-50, :152-176, l'entier exact de FILD/FISTP 64 bits sous TAG_UINT64).
+// Les vues l/w/b sont celles de MMX, hors de portée (PLAN-G4.md).
+internal struct MMX_REG
+{
+    internal uint64_t q;
 }
 
 internal static partial class x86
@@ -111,6 +131,12 @@ internal static partial class x86
     // cpu_state vit dans Cpu/386_common.cs, comme en C (386_common.c:6), et
     // arrive ici par `using static`. Global de PCem, global ici : voir
     // TRANSCRIPTION.md sur pourquoi il n'y a pas de struct d'instance.
+
+    // pcem: x87.c:22-23 (déclarées x87.h:8-9) — le pointeur d'instruction et d'opérande
+    // du dernier ESC. Posées ici en G4.0, avec l'état du x87 ; elles suivront x87.c
+    // quand il sera transcrit (G4.1).
+    internal static uint32_t x87_pc_off, x87_op_off;
+    internal static uint16_t x87_pc_seg, x87_op_seg;
 
     // ---- pcem: x86.h:122-143 — l'aplatissement en macros ------------------
     // Chacune est une propriété ref : `cycles -= 3;` compile et mute le champ.

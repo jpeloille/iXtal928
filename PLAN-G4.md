@@ -77,10 +77,12 @@ Porte : fuzzeur 386 en mode réel, `fpu=387`, opcodes D9/DB/DD/DF mémoire.
 
 ### G4.3 — L'arithmétique
 
-`x87_ops_arith.h`, et l'arrondi dirigé : la sémantique de `fesetround` réécrite en C#
-(décision n° 3). Elle **remplace** côté C# le `fesetround` C de PCem
-(`x87_ops_arith.h:12-16`), qui reste tel quel dans l'oracle. Porte : fuzzeur D8/DA/DC/DE,
-les quatre modes d'arrondi tirés.
+`x87_ops_arith.h`, et l'arrondi dirigé TEL QUE PCem l'applique (décision n° 3, PB-48) : la
+sémantique de `fesetround` réécrite en C# sur les **seuls** `opFADD` mémoire (m32, m64,
+m16int, m32int, `x87_ops_arith.h:12-16`), au plus près partout ailleurs — FSUB, FSUBR, FMUL,
+FDIV, FDIVR et les formes registre (`:122-152`, `:239-397`). Elle remplace côté C# le
+`fesetround` C, qui reste tel quel dans l'oracle. Porte : fuzzeur D8/DA/DC/DE, les quatre
+modes d'arrondi tirés.
 
 ### G4.4 — Le reste, transcendantes exceptées
 
@@ -108,7 +110,8 @@ scientifique sous WIN87EM.
 
 ## La vérification
 
-- **Oracle** : PCem seul. SingleStepTests n'a pas de jeu x87, à confirmer en G4.0 ; un corpus
+- **Oracle** : PCem seul. SingleStepTests n'a pas de jeu x87 — vérifié en G4.0 : vingt-deux
+  dépôts, aucun x87 ni 8087, et aucune forme D8-DF dans nos deux lignes de base ; un corpus
   silicium ne départagerait de toute façon rien contre un modèle à 53 bits.
 - **Fuzzeur** : état FPU bit pour bit, cycles compris (`x87_timings`).
 - **pm-check** : #NM, FSAVE/FRSTOR en mode protégé.
@@ -118,17 +121,20 @@ scientifique sous WIN87EM.
 
 ## Les risques
 
-1. **L'arrondi dirigé.** PCem encadre les opérations de `fesetround`
-   (`x87_ops_arith.h:12-16`) ; .NET n'a pas d'équivalent. Côté oracle, GCC -O2 sans
-   `-frounding-math` peut ignorer le mode : mesuré en G4.0.
-2. **La libm.** Sur Linux, CoreCLR délègue a priori `Math.Sin/Cos/Tan/Atan2/Log/Pow` à la libm
-   C, donc à la glibc de l'oracle. À **prouver** au bit près en G4.0. `sqrt` et `fabs` sont
-   exacts en IEEE.
+1. **L'arrondi dirigé.** PCem n'encadre de `fesetround` que les FADD mémoire
+   (`x87_ops_arith.h:12-16`, PB-48) ; .NET n'a pas d'équivalent. Mesuré en G4.0
+   (`x87-parity`) : GCC -O2 sans `-frounding-math` honore le mode, et le vrai handler
+   l'applique à FADD seul.
+2. **La libm.** Mesuré en G4.0 contre la .so de l'oracle : `Math.*` rend les bits de la glibc
+   sur 10⁷ tirages par fonction, expressions de `x87_ops_misc.h` verbatim comprises. Parité
+   liée à la glibc de l'hôte : à remesurer si l'oracle change de machine.
 3. **Les conversions.** Depuis .NET 9, `(long)double` **sature** ; `cvttsd2si` rend
-   `0x8000000000000000` sur NaN et hors bornes. `x87_fround` et les FIST y passent : une aide
-   qui rend « l'entier indéfini ». Le piège de `(uint64_t)` est déjà nommé dans `PLAN.md`.
-4. **Les défauts de PCem à reproduire (R8).** Relevés en reconnaissance, à lire à la ligne
-   puis consigner à partir de PB-48 :
+   `0x8000000000000000` sur NaN et hors bornes. Mesuré en G4.0 contre `h_conv` : le cast
+   .NET s'écarte ~1,2 M fois sur 10⁷, les aides de `X87Parity.cs` (`CvtI64`, `CvtU64` — test
+   `>=`, un NaN prend la branche directe —, `CvtI32`) jamais. Elles entrent dans le cœur en
+   G4.2, marquées `// DEVIATION:`.
+4. **Les défauts de PCem à reproduire (R8).** PB-48 (l'arrondi, ci-dessus) est inscrit.
+   Relevés en reconnaissance, à lire à la ligne puis consigner à partir de PB-49 :
    - précision de 53 bits au lieu de 64 ;
    - `x87_ld80` tronque l'exposant (`& 0x3ff`, `:101-102`) et écrase les dénormaux ;
    - `x87_st80` et le zéro (commentaires « Elvira », « Ca-cyber ») ;
@@ -144,12 +150,16 @@ scientifique sous WIN87EM.
 1. **`fpu=none` par défaut partout.** Les lignes de base ne bougent pas. Un **287** sur le
    profil Rider 286 / 8900D, un **387** sur le profil Rider 386DX/33.
 2. **Le 8087 est inclus**, en G4.6.
-3. **Les modes d'arrondi sont émulés en C#, dès G4.3** : la sémantique de `fesetround`
-   réécrite de C vers C# (TwoSum/FMA puis `Math.BitIncrement` / `BitDecrement`, exact pour
-   + − × ÷ √), marquée `// DEVIATION:`. **Aucun P/Invoke de `fesetround`, à aucun moment** —
-   il toucherait le MXCSR que le JIT partage.
+3. **Les modes d'arrondi sont émulés en C#, dès G4.3, COMME PCem LES APPLIQUE** (précisé le
+   29/09 après la mesure de G4.0 : « on reproduit comme PCem pour le moment, et on trace
+   les bugs ») : arrondi dirigé sur les seuls `opFADD` mémoire m32/m64/m16int/m32int, au plus
+   près ailleurs — PB-48. La sémantique de `fesetround` est réécrite de C vers C# (TwoSum/FMA
+   puis `Math.BitIncrement` / `BitDecrement`), marquée `// DEVIATION:`. **Aucun P/Invoke de
+   `fesetround`, à aucun moment** — il toucherait le MXCSR que le JIT partage. Tout autre
+   défaut de PCem relevé en G4 : même traitement, reproduit et inscrit (PB-nn).
 4. **Si G4.0 mesure un écart de libm** : P/Invoke direct vers la libm, marqué
-   `// DEVIATION:`, pour garder la parité avec l'oracle.
+   `// DEVIATION:`, pour garder la parité avec l'oracle. **Mesuré : aucun écart** — `Math.*`
+   suffit, pas de P/Invoke.
 5. **Le 287XL est inclus** (temps du 387, `cpu.c:1144-1145`).
 6. **Les témoins** : QBASIC et MSD (DOS 5), Windows 3.1 (Calculatrice, WIN87EM). **Le banc**
    (CHECKIT, Landmark ou une fractale) reste **ouvert** : Julien le fournira.
@@ -157,8 +167,9 @@ scientifique sous WIN87EM.
 
 ## Ce que je ne sais pas encore
 
-- Si `Math.*` et la glibc rendent les mêmes bits (G4.0).
-- Si `fesetround` agit vraiment dans l'oracle compilé en -O2 (G4.0).
+- ~~Si `Math.*` et la glibc rendent les mêmes bits~~ : **oui**, mesuré en G4.0.
+- ~~Si `fesetround` agit vraiment dans l'oracle compilé en -O2~~ : **oui**, mais PCem ne
+  l'appelle que pour FADD mémoire (PB-48).
 - Combien de handlers et de sites `fesetround` la macro `opFPU` engendre : à compter après
   expansion (`gcc -E`), comme `ops386-table.py` pour G2.
 - Si un BIOS AMI 286 ou 386 sonde le coprocesseur par F0h/F1h — ce qui le ferait diverger

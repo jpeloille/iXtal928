@@ -70,6 +70,14 @@ static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386
 
 int h_get_core(void) { return h_core; }
 
+/* G4.0 — le coprocesseur que h_reset et h_boot donnent à cpu_set(), pendant de la clé
+ * `fpu` (pc.c:655-656). FPU_NONE par défaut : les chiffres de régression ne bougent pas. */
+static int h_fpu_type = 0;
+
+void h_set_fpu(int type) {
+        h_fpu_type = type;
+}
+
 /* Le cœur lui-même. Chemin explicite plutôt qu'un -I : on veut que la ligne dise
  * ce qu'elle fait. Doit venir après harness.h et avant tout code ci-dessous. */
 #include "../../pcem-dev/src/cpu/808x.c"
@@ -416,6 +424,38 @@ static void h_flat_map(void) {
         h_flat_ram = (h_core == H_CORE_386) ? ram : NULL;
 }
 
+/* G4.0 — L'ÉTAT x87 QUE RIEN NE REMET. x87_reset() est vide (x87.c:97) et resetx86 ne
+ * touche ni ST, ni tag, ni TOP, ni npxs, ni npxc : chez PCem ils valent le zéro de .bss
+ * à la mise sous tension et gardent ensuite ce qu'on y a mis. DEVIATION du harnais,
+ * comme h_seg_clear_residue : le fuzzeur amorce à chaque itération, et sans ce nettoyage
+ * l'itération N+1 hériterait de l'état tiré à N. Zéro, la valeur d'un premier amorçage.
+ * Pendant de ClearFpuResidue côté C#. */
+static void h_fpu_clear_residue(void) {
+        memset(cpu_state.tag, 0, sizeof(cpu_state.tag));
+        cpu_state.TOP = 0;
+        cpu_state.ismmx = 0;
+        cpu_state.npxs = 0;
+        cpu_state.npxc = 0;
+        memset(cpu_state.ST, 0, sizeof(cpu_state.ST));
+        memset(cpu_state.MM_w4, 0, sizeof(cpu_state.MM_w4));
+        memset(cpu_state.MM, 0, sizeof(cpu_state.MM));
+        x87_pc_off = x87_op_off = 0;
+        x87_pc_seg = x87_op_seg = 0;
+}
+
+void h_setfpu(const uint64_t st[8], const uint64_t mm[8], const uint16_t mm_w4[8],
+              const uint8_t tag[8], int top, uint16_t npxs, uint16_t npxc) {
+        for (int i = 0; i < 8; i++) {
+                memcpy(&cpu_state.ST[i], &st[i], sizeof(double));
+                cpu_state.MM[i].q = mm[i];
+                cpu_state.MM_w4[i] = mm_w4[i];
+                cpu_state.tag[i] = tag[i];
+        }
+        cpu_state.TOP = top;
+        cpu_state.npxs = npxs;
+        cpu_state.npxc = npxc;
+}
+
 static uint64_t h_ins_count;
 
 uint32_t h_abi_version(void) {
@@ -435,6 +475,7 @@ void h_reset(void) {
         h_stub_counters_reset();
         h_wlog_reset();
         h_ins_count = 0;
+        h_fpu_clear_residue();
 
         /* Configuration machine : IBM XT, Intel 8088.
          * Posée avant resetx86() parce que celle-ci branche sur AT, is486 et
@@ -444,6 +485,9 @@ void h_reset(void) {
         is486 = 0;
         is8086 = 0; /* 8088 : file de préfetch de 4 octets, pas 6 */
         hasfpu = 0;
+        /* G4.0 — ÉCRIT, et non plus un zéro de .bss : cpu_set() en tire hasfpu (cpu.c:184).
+         * Pendant de FuzzFpu côté C#. */
+        fpu_type = h_fpu_type;
         cpu_16bitbus = 0;
         AMSTRAD = TANDY = PCI = MCA = 0;
 
@@ -837,6 +881,8 @@ void h_seg_clear_residue(void) {
         optype = 0;
         oldcpl = 0;
         cpu_cur_status = 0;
+
+        h_fpu_clear_residue();
 }
 
 
@@ -949,6 +995,24 @@ void h_getstate(h_state *out) {
         out->optype = optype;
         out->oldcpl = oldcpl;
         out->cur_status = cpu_cur_status;
+
+        /* G4.0 — le x87, ST en bits bruts (voir harness.h). */
+        for (int i = 0; i < 8; i++) {
+                memcpy(&out->fpu_st[i], &cpu_state.ST[i], sizeof(double));
+                out->fpu_mm[i] = cpu_state.MM[i].q;
+                out->fpu_mm_w4[i] = cpu_state.MM_w4[i];
+                out->fpu_tag[i] = cpu_state.tag[i];
+        }
+        out->fpu_top = cpu_state.TOP;
+        out->npxs = cpu_state.npxs;
+        out->npxc = cpu_state.npxc;
+        out->x87_pc_off = x87_pc_off;
+        out->x87_op_off = x87_op_off;
+        out->x87_pc_seg = x87_pc_seg;
+        out->x87_op_seg = x87_op_seg;
+        out->ismmx = cpu_state.ismmx;
+        out->fpu_type = fpu_type;
+        out->hasfpu = hasfpu;
 
         out->ins = h_ins_count;
 }
@@ -1133,6 +1197,7 @@ int h_boot(const char *romspath) {
         }
         cpu_manufacturer = h_cpu_manu;
         cpu = h_cpu_index;
+        fpu_type = h_fpu_type; /* G4.0 — pc.c:656, la clé `fpu`, poussée par h_set_fpu */
         cpu_set();
         if ((cpu_s->cpu_type >= CPU_386SX ? H_CORE_386 : cpu_s->cpu_type == CPU_286 ? H_CORE_286 : H_CORE_8088)
             != h_core) {

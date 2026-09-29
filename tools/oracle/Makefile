@@ -45,6 +45,7 @@ SRC := harness.c \
        harness_fetch.c \
        harness_386.c \
        harness_tvga.c \
+       harness_x87.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
        $(PCEM)/src/cpu/x87_timings.c \

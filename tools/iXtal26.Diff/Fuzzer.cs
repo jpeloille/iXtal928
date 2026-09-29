@@ -98,6 +98,7 @@ public static class Fuzzer
                           $"{iterations} itérations, graine {seed}");
 
         var rng = new Lcg(seed);
+        var fpuRng = new Lcg(seed ^ FpuSalt);
         var a = HState.Create();
         var b = HState.Create();
         var regs = new ushort[(int)R.COUNT];
@@ -251,6 +252,23 @@ public static class Fuzzer
             else if (op is 0xC0 or 0xC1)
                 code[1 + TailleModRM16(code[1])] |= 1;
 
+            // AAM 0 FAIT MOURIR L'ORACLE 8088 (PB-46) : `808x.c` divise par l'immédiat sans le
+            // tester, SIGFPE, et l'oracle vit dans le processus du diff. Mesuré en G4.0 : le
+            // tir des 256 opcodes, graine 1, tombait avant la fin des 100 000 itérations,
+            // arbre d'avant G4.0 compris. Le chemin 286/386 teste `!base` et lève #DE : il
+            // n'est pas touché. On n'interdit que la VALEUR fautive, pas l'opcode — sur le
+            // modèle du compte non nul ci-dessus : l'immédiat nul devient 1, les 255 autres
+            // restent tels que tirés. D4 s'exécute en tête, ou derrière un préfixe enchaîné.
+            // Seules les recettes --seed 8088 qui tiraient `D4 00` changent (VERIFICATION.md
+            // § G4.0) ; aucun octet n'est tiré en plus, la suite du générateur ne bouge pas.
+            if (core == Oracle.Core8088)
+            {
+                if (code[0] == 0xD4 && code[1] == 0)
+                    code[1] = 1;
+                else if (EnchaineSurLaSuivante(code[0]) && code[1] == 0xD4 && code[2] == 0)
+                    code[2] = 1;
+            }
+
             // G2, D4 — le second octet est tiré ici, APRÈS les réécritures du chemin à un
             // octet : aucune ne touche un 0x0F (ni préfixe, ni ModRM porté), et le tampon
             // est de toute façon réécrit en entier.
@@ -292,6 +310,9 @@ public static class Fuzzer
                 if (op2 == 0x07)
                     PoserBlocLoadall386(ref rng, (uint)(regs[(int)R.ES] << 4) + regs[(int)R.DI]);
             }
+
+            if (FpuState)
+                SeedFpu(ref fpuRng);
 
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -508,6 +529,7 @@ public static class Fuzzer
                           $"{rounds} rondes x {instrPerRound} instructions, graine {seed}");
 
         var rng = new Lcg(seed);
+        var fpuRng = new Lcg(seed ^ FpuSalt);
         var a = HState.Create(); // oracle C
         var b = HState.Create(); // C#
         var regs = new ushort[(int)R.COUNT];
@@ -571,6 +593,8 @@ public static class Fuzzer
             _808x.SetRegs(regs);
             if (core == Oracle.Core386)
                 Seed386(ref rng);
+            if (FpuState)
+                SeedFpu(ref fpuRng);
 
             for (var n = 0; n < instrPerRound; n++)
             {
@@ -618,12 +642,14 @@ public static class Fuzzer
     /* 32 d'origine, + 7 champs de cache descripteur par segment, + 9 champs par
      * descripteur système, + les 6 registres de contrôle, + les 4 drapeaux paresseux,
      * + les 7 globaux du mode protégé de C7a — abrt_error, intgatesize, cgate16,
-     * cgate32, optype, oldcpl, cur_status, + cr4 et dr[] de G2 D0.1.
+     * cgate32, optype, oldcpl, cur_status, + cr4 et dr[] de G2 D0.1, + les quatorze du x87
+     * de G4.0 : ST, MM, MM_w4, tag (tableaux), TOP, npxs, npxc, x87_pc_off, x87_op_off,
+     * x87_pc_seg, x87_op_seg, ismmx, fpu_type, hasfpu.
      * Compté en formes de champ, pas en entrées de tableau : la boucle en couvre 6, la
      * suivante 4. Tenu À LA MAIN par doctrine : une réflexion sur HState rendrait ce
      * nombre juste sans garantir qu'un Chk() existe pour chaque champ, ce qui est
      * précisément ce qu'on veut savoir. */
-    private const int FieldCount = 69;
+    private const int FieldCount = 83;
 
     /// <summary>G2, D0.4 — ce qu'un 386 a de plus qu'un 286, tiré au hasard et posé des
     /// DEUX côtés après SetRegs : les moitiés hautes des huit registres généraux, FS et
@@ -643,6 +669,60 @@ public static class Fuzzer
         var gs = rng.Next16();
         Oracle.h_setregs386(hi, 0, fs, gs);
         _808x.SetRegs386(hi, 0, fs, gs);
+    }
+
+    /// <summary>G4.0 — `--fpu-state` : un état x87 tiré et posé des DEUX côtés à chaque
+    /// itération. Son générateur est À PART (graine ^ FpuSalt) : la suite principale ne
+    /// bouge pas, donc une recette `--seed` d'avant G4.0 rejoue les mêmes instructions,
+    /// avec ou sans l'option.</summary>
+    internal static bool FpuState;
+    private const ulong FpuSalt = 0x8087_0287_0387_0487UL;
+
+    // Les valeurs où un x87 se trompe : zéros signés, infinis, NaN silencieux et
+    // signalants, charges de NaN, dénormaux, bornes des conversions entières (2^15, 2^31,
+    // 2^63, 2^64), milieux d'arrondi (0,5 ; 1,5 ; 2,5), et la plus grande valeur finie.
+    private static readonly ulong[] FpuSpecial =
+    [
+        0x0000000000000000, 0x8000000000000000, 0x7FF0000000000000, 0xFFF0000000000000,
+        0x7FF8000000000000, 0xFFF8000000000000, 0x7FF0000000000001, 0x7FF4000000000000,
+        0x7FFFFFFFFFFFFFFF, 0x0000000000000001, 0x800FFFFFFFFFFFFF, 0x0010000000000000,
+        0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0xBFF0000000000000, 0x3FE0000000000000,
+        0x3FF8000000000000, 0x4004000000000000, 0x40E0000000000000, 0xC0E0000000000000,
+        0x41E0000000000000, 0xC1E0000000000000, 0x43E0000000000000, 0xC3E0000000000000,
+        0x43F0000000000000, 0x400921FB54442D18,
+    ];
+
+    private static readonly ulong[] SeedSt = new ulong[8], SeedMm = new ulong[8];
+    private static readonly ushort[] SeedMmW4 = new ushort[8];
+    private static readonly byte[] SeedTag = new byte[8];
+
+    private static ulong Next64(ref Lcg r) => ((ulong)r.Next() << 32) | r.Next();
+
+    /// <summary>La pile vide, pleine ou partielle ; ST spéciaux, entiers ou bruts ; tags
+    /// VALID, EMPTY ou VALID|UINT64 (FILD 64 bits, x87.h:30) ; npxc avec ses deux bits
+    /// d'arrondi, sa précision et ses masques, tous tirés.</summary>
+    private static void SeedFpu(ref Lcg r)
+    {
+        var top = (int)(r.Next() & 7);
+        var depth = (r.Next() % 3) switch { 0 => 0, 1 => 8, _ => 1 + (int)(r.Next() % 7) };
+        Array.Clear(SeedTag);
+        for (var k = 0; k < depth; k++)
+            SeedTag[(top + k) & 7] = (r.Next() & 7) == 0 ? (byte)0x81 : (byte)0x01;
+        for (var i = 0; i < 8; i++)
+        {
+            SeedSt[i] = (r.Next() % 3) switch
+            {
+                0 => FpuSpecial[r.Next() % (uint)FpuSpecial.Length],
+                1 => (ulong)BitConverter.DoubleToInt64Bits((int)r.Next() >> (int)(r.Next() & 31)),
+                _ => Next64(ref r),
+            };
+            SeedMm[i] = Next64(ref r);
+            SeedMmW4[i] = (r.Next() & 3) == 0 ? (ushort)0x5555 : (ushort)r.Next();
+        }
+        var npxs = (ushort)r.Next();
+        var npxc = (ushort)r.Next();
+        Oracle.h_setfpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, npxc);
+        _808x.SetFpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, npxc);
     }
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;
@@ -724,6 +804,20 @@ public static class Fuzzer
             if (a.dr[i] != b.dr[i])
                 return $"dr{i} : oracle 0x{a.dr[i]:X8}, C# 0x{b.dr[i]:X8}";
 
+        // G4.0 — le x87, ST en BITS BRUTS : deux NaN de charges différentes, ou 0 et -0,
+        // sont des états différents, et une comparaison de doubles les confondrait.
+        for (var i = 0; i < 8; i++)
+        {
+            if (a.fpu_st[i] != b.fpu_st[i])
+                return $"ST[{i}] : oracle 0x{a.fpu_st[i]:X16}, C# 0x{b.fpu_st[i]:X16}";
+            if (a.fpu_mm[i] != b.fpu_mm[i])
+                return $"MM[{i}].q : oracle 0x{a.fpu_mm[i]:X16}, C# 0x{b.fpu_mm[i]:X16}";
+            if (a.fpu_mm_w4[i] != b.fpu_mm_w4[i])
+                return $"MM_w4[{i}] : oracle 0x{a.fpu_mm_w4[i]:X4}, C# 0x{b.fpu_mm_w4[i]:X4}";
+            if (a.fpu_tag[i] != b.fpu_tag[i])
+                return $"tag[{i}] : oracle 0x{a.fpu_tag[i]:X2}, C# 0x{b.fpu_tag[i]:X2}";
+        }
+
         return Chk("cr0", a.cr0, b.cr0)
             ?? Chk("cr2", a.cr2, b.cr2)
             ?? Chk("cr3", a.cr3, b.cr3)
@@ -800,6 +894,16 @@ public static class Fuzzer
             ?? Chk("optype", a.optype, b.optype)
             ?? Chk("oldcpl", a.oldcpl, b.oldcpl)
             ?? Chk("cur_status", a.cur_status, b.cur_status)
+            ?? Chk("TOP", a.fpu_top, b.fpu_top)
+            ?? Chk("npxs", a.npxs, b.npxs)
+            ?? Chk("npxc", a.npxc, b.npxc)
+            ?? Chk("x87_pc_off", a.x87_pc_off, b.x87_pc_off)
+            ?? Chk("x87_op_off", a.x87_op_off, b.x87_op_off)
+            ?? Chk("x87_pc_seg", a.x87_pc_seg, b.x87_pc_seg)
+            ?? Chk("x87_op_seg", a.x87_op_seg, b.x87_op_seg)
+            ?? Chk("ismmx", a.ismmx, b.ismmx)
+            ?? Chk("fpu_type", a.fpu_type, b.fpu_type)
+            ?? Chk("hasfpu", a.hasfpu, b.hasfpu)
             ?? Chk("n_fatal", a.n_fatal, b.n_fatal)
             ?? Chk("ins", a.ins, b.ins);
         // La RAM n'est PAS hachée ici : 1 Mo par côté et par instruction, soit

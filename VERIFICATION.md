@@ -3912,3 +3912,67 @@ Taux de réussite de l'oracle (et du C#) par forme, d'après `sst386-baseline.ts
 **M mémoire** — 7 forme(s) : `669C` 0.0 %, `66F7.6` 96.8 %, `66F7.7` 95.7 %, `F6.6` 97.0 %, `F6.7` 95.8 %, `F7.6` 96.4 %, `F7.7` 95.7 %
 
 **R registres** — 285 forme(s) : `00` 99.5 %, `02` 97.4 %, `03` 97.0 %, `06` 96.6 %, `07` 96.3 %, `0B` 96.9 %, `0E` 96.7 %, `0FA0` 97.7 %, `0FA1` 97.2 %, `0FA8` 97.6 %, `0FA9` 97.3 %, `0FB2` 97.1 %, `0FB4` 97.0 %, `0FB5` 97.0 %, `0FB6` 97.3 %, `0FB7` 96.8 %, `0FBE` 97.3 %, `0FBF` 2.7 %, `16` 96.7 %, `17` 96.4 %, `18` 99.5 %, `1A` 97.4 %, `1B` 97.1 %, `1E` 96.6 %, `1F` 96.4 %, `20` 99.5 %, `22` 97.3 %, `23` 96.9 %, `28` 99.5 %, `2A` 97.3 %, `2B` 97.0 %, `2F` 95.6 %, `30` 99.5 %, `32` 97.2 %, `33` 96.9 %, `37` 91.6 %, `3F` 93.2 %, `50` 97.0 %, `51` 97.0 %, `52` 96.8 %, `53` 96.8 %, `54` 96.7 %, `55` 96.7 %, `56` 96.6 %, `57` 96.7 %, `58` 96.5 %, `59` 96.5 %, `5A` 96.4 %, `5B` 96.4 %, `5C` 96.3 %, `5D` 96.5 %, `5E` 96.5 %, `5F` 96.5 %, `60` 97.4 %, `61` 96.6 %, `62` 87.2 %, `6603` 96.9 %, `6606` 96.6 %, `6607` 96.3 %, `660B` 96.8 %, `660E` 96.7 %, `660F80` 99.8 %, `660F82` 99.8 %, `660F84` 99.8 %, `660F86` 99.8 %, `660F88` 99.8 %, `660F8A` 99.8 %, `660F8D` 99.8 %, `660F8E` 99.8 %, `660FA0` 97.7 %, `660FA1` 97.2 %, `660FA8` 97.6 %, `660FA9` 97.3 %, `660FB2` 97.0 %, `660FB4` 97.0 %, `660FB5` 97.0 %, `660FB6` 97.3 %, `660FB7` 96.8 %, `660FBE` 97.3 %, `660FBF` 96.8 %, `6616` 96.7 %, `6617` 96.4 %, `661B` 97.0 %, `661E` 96.6 %, `661F` 96.4 %, `6623` 96.8 %, `662B` 96.8 %, `6633` 96.8 %, `6650` 97.0 %, `6651` 97.0 %, `6652` 96.8 %, `6653` 96.8 %, `6654` 96.7 %, `6655` 96.7 %, `6656` 96.6 %, `6657` 96.7 %, `6658` 93.0 %, `6659` 92.9 %, `665A` 93.0 %, `665B` 93.0 %, `665C` 92.7 %, `665D` 92.8 %, `665E` 92.9 %, `665F` 92.9 %, `6660` 97.1 %, `6661` 4.5 %, `6662` 87.6 %, `6668` 96.6 %, `6669` 96.9 %, `666A` 96.6 %, `666B` 97.0 %, `666D` 70.8 %, `666F` 71.0 %, `6687` 99.4 %, `668B` 97.4 %, `668D` 97.7 %, `668F` 89.4 %, `669A` 97.3 %, `66A1` 97.8 %, `66A5` 73.8 %, `66A7` 78.8 %, `66AB` 77.8 %, `66AD` 76.7 %, `66AF` 84.0 %, `66C2` 87.8 %, `66C3` 88.0 %, `66C4` 96.8 %, `66C5` 96.8 %, `66C8` 1.3 %, `66C9` 7.9 %, `66CA` 88.8 %, `66CB` 88.2 %, `66E5` 99.0 %, `66F7.4` 96.8 %, `66F7.5` 96.8 %, `6702` 81.7 %, `670FB2` 76.8 %, `670FB4` 76.8 %, `670FB5` 76.8 %, `670FB6` 81.7 %, `670FB7` 80.9 %, `670FBE` 81.8 %, `670FBF` 2.3 %, `6712` 79.1 %, `671A` 81.6 %, `671B` 80.9 %, `6722` 82.0 %, `6723` 81.0 %, `672A` 81.6 %, `6732` 81.5 %, `6762` 47.9 %, `67660FB2` 76.8 %, `67660FB4` 76.7 %, `67660FB5` 76.8 %, `67660FB6` 81.7 %, `67660FB7` 80.9 %, `67660FBE` 81.8 %, `67660FBF` 81.0 %, `67661B` 80.9 %, `676623` 80.8 %, `676662` 50.2 %, `676669` 81.8 %, `67666B` 81.6 %, `67666D` 72.7 %, `67666F` 73.3 %, `676687` 81.1 %, `676689` 93.9 %, `67668B` 94.0 %, `67668D` 97.1 %, `67668F` 76.6 %, `6766A1` 99.2 %, `6766A5` 82.2 %, `6766A7` 87.4 %, `6766AB` 78.9 %, `6766AD` 77.8 %, `6766AF` 84.5 %, `6766C4` 76.7 %, `6766C5` 76.8 %, `6766F7.4` 81.8 %, `6766F7.5` 81.8 %, `6766F7.6` 87.9 %, `6766F7.7` 85.2 %, `6769` 81.7 %, `676B` 81.8 %, `676C` 76.2 %, `676D` 72.8 %, `676E` 76.1 %, `676F` 73.2 %, `6786` 82.1 %, `6787` 81.1 %, `6788` 94.0 %, `6789` 93.9 %, `678A` 94.1 %, `678B` 94.0 %, `678D` 97.1 %, `678F` 79.6 %, `67A0` 97.9 %, `67A1` 98.1 %, `67A4` 82.0 %, `67A5` 82.1 %, `67A6` 87.4 %, `67A7` 87.4 %, `67AA` 82.3 %, `67AB` 78.9 %, `67AC` 80.9 %, `67AD` 77.9 %, `67AE` 89.0 %, `67AF` 84.6 %, `67C4` 76.7 %, `67C5` 76.8 %, `67D7` 97.8 %, `67F6.4` 82.7 %, `67F6.5` 82.7 %, `67F6.6` 87.6 %, `67F6.7` 83.8 %, `67F7.4` 81.9 %, `67F7.5` 81.9 %, `67F7.6` 87.5 %, `67F7.7` 82.8 %, `68` 96.6 %, `69` 97.0 %, `6A` 96.6 %, `6B` 97.0 %, `6C` 74.0 %, `6D` 70.8 %, `6E` 73.8 %, `6F` 70.7 %, `80.0` 99.6 %, `80.1` 99.6 %, `80.3` 99.6 %, `80.4` 99.6 %, `80.5` 99.6 %, `80.6` 99.6 %, `82.0` 99.6 %, `82.1` 99.6 %, `82.3` 99.6 %, `82.4` 99.6 %, `82.5` 99.6 %, `82.6` 99.6 %, `86` 99.5 %, `87` 99.5 %, `8A` 97.4 %, `8B` 97.4 %, `8D` 97.7 %, `8F` 93.3 %, `9A` 97.3 %, `9C` 97.9 %, `9D` 97.2 %, `A0` 97.5 %, `A1` 97.8 %, `A4` 80.6 %, `A5` 74.0 %, `A6` 86.9 %, `A7` 79.0 %, `AA` 80.0 %, `AB` 77.8 %, `AC` 80.0 %, `AD` 76.8 %, `AE` 88.1 %, `AF` 84.2 %, `C2` 96.7 %, `C3` 96.8 %, `C4` 96.8 %, `C5` 96.8 %, `C8` 12.4 %, `C9` 93.7 %, `CA` 93.2 %, `CB` 93.2 %, `CC` 98.0 %, `CD` 97.5 %, `CF` 97.4 %, `D6` 99.0 %, `D7` 97.4 %, `E5` 99.8 %, `F6.2` 99.4 %, `F6.3` 99.4 %, `F6.4` 97.3 %, `F6.5` 97.3 %, `F7.4` 96.9 %, `F7.5` 96.9 %, `FE.0` 99.4 %, `FE.1` 99.4 %, `FF.2` 96.8 %, `FF.3` 96.2 %, `FF.6` 97.0 %
+
+## G4.0 — L'outillage du x87, avant toute ligne de x87
+
+Le 29/09, sur l'arbre 8444530. Plan : `PLAN-G4.md` § G4.0.
+
+**ABI 27.** `h_state` porte l'état du x87 — ST en bits bruts, `MM[].q`, `MM_w4`, tags, TOP,
+`npxs`, `npxc`, `x87_pc/op_*`, `ismmx`, `fpu_type`, `hasfpu` : 616 → 800 octets, sans padding
+implicite (`ins` en 792). `h_set_fpu` écrit `fpu_type` avant `cpu_set()` dans `h_reset` et
+`h_boot` ; `FuzzFpu` et `BootDiff` en sont les pendants C#. `h_fpu_clear_residue` /
+`ClearFpuResidue` : DEVIATION du harnais, `x87_reset()` est vide (`x87.c:97`). Côté C#, l'état
+entre dans `cpu_state` comme stockage ; aucun handler ne l'écrit. Comparés : 69 → 83 formes
+de champ. Contrôles négatifs, retirés : `SetFpu` omis côté C# → `ST[0]` diverge à
+l'itération 0 ; TOP faussé à la capture → `TOP` à l'itération 0.
+
+**Le fuzzeur 8088 et AAM 0.** Le tir des 256 opcodes (`fuzz --mode single --iter 100000`,
+graine 1) faisait mourir l'oracle de SIGFPE, arbre d'avant G4.0 compris : AAM 0, PB-46, dans
+le processus du diff. Sonde par opcode, 30 000 itérations : D4 tombe sur le 8088 seul ; D4
+sur 286 et 386, F6 sur 8088 et 286, verts. Correctif, accord de Julien : sur le cœur 8088,
+l'immédiat nul de D4 devient 1 (en tête, ou derrière un préfixe enchaîné). **Les recettes
+`--seed` 8088 qui tiraient `D4 00` changent** ; aucune autre, la suite du générateur ne
+bougeant pas. Le mode flux n'est pas touché (l'immédiat y est l'opcode de remplissage).
+
+**`--fpu-state`.** Un état x87 tiré et posé des deux côtés à chaque itération — pile vide,
+pleine ou partielle ; ST spéciaux, entiers ou bruts ; tags `VALID|UINT64` ; `npxc` entier —
+par un générateur À PART (graine ^ sel) : sans l'option, les tirages sont ceux d'avant.
+
+**Les portes**, même série sur le binaire figé de 8444530 (avec le seul correctif D4 pour les
+fuzzeurs) et sur G4.0 :
+
+| porte | 8444530 | G4.0 |
+|---|---|---|
+| build | 0 avertissement | 0 avertissement ; `harness*.c` sans avertissement |
+| `selftest` ; `check-oracle` | — | vert ; 0 dérive (empreintes du harnais mises à jour) |
+| ABI | 26, 616 octets | 27, 800 octets |
+| ops-count | 2048 / 2048 | 2048 / 2048 |
+| boot-diff roms 6000 / `--model ibmxt` / `--cpu 3` | 25 457 272 / 23 442 235 / 52 936 825 | identiques |
+| boot-diff ibmat / ami286 / ami386 (3000) | 4 723 826 / 5 207 508 / 4 368 893 | identiques |
+| boot-diff ami386 4 Mo / ami386dx 4 Mo | 4 352 635 / 4 437 104 | identiques |
+| boot-diff DOS, XT cfg, ami386dx + DOS ; sondes VGA en vga, 8900D, 9000B, ibmat vga | verts, 86/86 | identiques, trame pour trame |
+| fuzz 8088 100 000, 286 80 000, 386 80 000 graines 1 et 7, 386 `--0f` 40 000 | verts | sorties identiques octet pour octet |
+| fuzz 8088 flux 1 500 × 200 | 300 000, 69 champs | 300 000, 83 champs |
+| fuzz `--fpu-state` 8088 100 000 / 286 80 000 / 386 80 000 / 8088 flux 300 000 | — | verts |
+| page-check ; pm-fuzz 20 000 ; core286-check ; pm-check ; pm-check 386 | verts ; 68/0/0 ; 106/0/0 | identiques |
+| cpu-config-check ; config-check | 21 + 4 ; vert | identiques |
+
+Hors portes, préexistant : le fuzzeur 386 en mode FLUX sur les 256 opcodes tombe (SIGSEGV,
+rc=139, 8444530 compris), le 286 en flux aussi (abort, rc=134). Non instruit.
+
+**Les trois mesures** (`x87-parity`, contre la .so) :
+
+- **libm** — 10⁷ tirages par fonction, bits bruts, petite et grande plages : sin, cos, tan,
+  atan2, log, pow, sqrt, fmod, floor, ceil, et F2XM1, FYL2X, FYL2XP1, FSCALE verbatim :
+  **0 écart**, charges de NaN comprises. `Math.*` suffit (décision n° 4).
+- **conversions** — 10⁷ : le cast .NET s'écarte 1 186 960 fois en `(int64_t)`, 4 728 939 en
+  `(uint64_t)`, 1 630 456 en `(int32_t)`, 1 628 159 en `(int16_t)` ; les aides cvttsd2si de
+  `X87Parity.cs`, **0**. `(uint64_t)` : GCC teste `d >= 2^63`, un NaN prend la branche
+  directe et rend 0x8000000000000000 — le premier modèle, en `<`, se trompait sur lui.
+- **fesetround** — hors du handler (`h_fpu_arith`, -O2 sans `-frounding-math`), 625 000 cas
+  par combinaison : **100 % d'arrondi dirigé exact**, GCC honore le mode. Dans le VRAI
+  handler (oracle seul, 387, `DC /r m64`), 31 250 cas par combinaison : **FADD seul suit
+  RC** ; FSUB, FMUL, FDIV restent au plus près, ~50/50 avec l'exact. PB-48.
+
+SingleStepTests n'a pas de corpus x87 : vingt-deux dépôts, aucun, et aucune forme D8-DF
+dans `sst-baseline.tsv` ni `sst386-baseline.tsv`.

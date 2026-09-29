@@ -289,6 +289,37 @@ typedef struct h_state {
                                   champ que le C laisse tranquille ». */
         uint16_t _pad2[3];
 
+        /* --- LE x87, depuis G4.0 (ABI 27) -----------------------------------
+         *
+         * Ils entrent AVANT le premier handler x87, et CONSTANTS tant que hasfpu est nul
+         * — op_nofpu n'en touche aucun (x87_ops.h:278-295). Même doctrine que cr4 et dr[]
+         * en G2 D0.1 : le câblage se vérifie pendant qu'il est trivial.
+         *
+         * ST[] en BITS BRUTS et non en double : un NaN n'est pas égal à lui-même, et une
+         * comparaison de doubles verrait deux NaN de charges différentes, ou 0 et -0,
+         * comme égaux ou différents à contresens. PCem garde ST en double (x86.h:93) : un
+         * uint64 le porte au bit près.
+         *
+         * MM[].q et MM_w4[] sont de l'état x87, pas seulement MMX : FILD/FISTP 64 bits y
+         * gardent l'entier exact (TAG_UINT64, x87.h:30), et FSAVE/FRSTOR les lisent
+         * (x87_ops.h:152-176). x87_pc_* et x87_op_* sont des globales de x87.c:22-23.
+         * fpu_type et hasfpu sont comparés : c'est h_set_fpu qui les pose, des deux côtés,
+         * et plus un zéro implicite. */
+        uint64_t fpu_st[8];
+        uint64_t fpu_mm[8];
+        uint16_t fpu_mm_w4[8];
+        uint8_t  fpu_tag[8];
+        int32_t  fpu_top;
+        uint16_t npxs;
+        uint16_t npxc;
+        uint32_t x87_pc_off;
+        uint32_t x87_op_off;
+        uint16_t x87_pc_seg;
+        uint16_t x87_op_seg;
+        int32_t  ismmx;
+        int32_t  fpu_type;
+        int32_t  hasfpu;
+
         /* --- divers ------------------------------------------------------- */
         uint64_t ins;                 /* instructions exécutées depuis h_reset */
 } h_state;
@@ -478,6 +509,37 @@ int h_slice_budget(void);
 #define H_CPU_FP_N 48
 void h_cpu_fingerprint(uint64_t *out);
 
+/* --- x87 (G4.0) -------------------------------------------------------------
+ * Le coprocesseur, valeur de l'énumération FPU_* (cpu.h:72) : 0 = aucun, 1 = 8087,
+ * 2 = 287, 3 = 287XL, 4 = 387, 5 = intégré. Pendant de la clé `fpu` (pc.c:655-656).
+ * À appeler AVANT h_reset ou h_boot : cpu_set() en tire hasfpu (cpu.c:184) et choisit
+ * les tables d'échappement (:276-300). Sans appel : 0. PCem ne le pose jamais hors de
+ * loadconfig — c'est ce geste explicite qui remplace le zéro implicite. */
+void h_set_fpu(int type);
+
+/* Pose l'état x87 (pour le fuzzeur) : ST en bits bruts, MM[].q, MM_w4, tags, TOP, mot
+ * d'état et mot de contrôle. x87_pc_* et x87_op_* restent tels que h_reset les a mis. */
+void h_setfpu(const uint64_t st[8], const uint64_t mm[8], const uint16_t mm_w4[8],
+              const uint8_t tag[8], int top, uint16_t npxs, uint16_t npxc);
+
+/* Sondes de PARITÉ de G4.0 — hors du cœur, compilées avec les MÊMES drapeaux que lui.
+ *
+ * h_libm : la fonction n de la libm, ou l'une des expressions de x87_ops_misc.h
+ * verbatim (H_LIBM_*). Rend les bits du résultat.
+ * h_conv : les conversions que x87_ops_*.h écrivent en C, sur un double : (int64_t),
+ * (uint64_t), (int32_t), (int16_t). Rend les bits du résultat, étendus à 64.
+ * h_fpu_arith : une opération sous fesetround, dans une unité compilée comme 386.c
+ * (-O2, sans -frounding-math) — la question de G4.0 est de savoir si GCC honore le mode.
+ * Ce n'est PAS le chemin de l'oracle : celui-là se mesure par h_step, sur le vrai
+ * handler (voir X87Parity.cs). */
+enum { H_LIBM_SIN, H_LIBM_COS, H_LIBM_TAN, H_LIBM_ATAN2, H_LIBM_LOG, H_LIBM_POW, H_LIBM_SQRT,
+       H_LIBM_FMOD, H_LIBM_FLOOR, H_LIBM_CEIL, H_LIBM_F2XM1, H_LIBM_FYL2X, H_LIBM_FYL2XP1,
+       H_LIBM_FSCALE, H_LIBM_COUNT };
+uint64_t h_libm(int n, uint64_t a, uint64_t b);
+enum { H_CONV_I64, H_CONV_U64, H_CONV_I32, H_CONV_I16, H_CONV_COUNT };
+uint64_t h_conv(int n, uint64_t a);
+uint64_t h_fpu_arith(int op, int mode, uint64_t a, uint64_t b);
+
 /* --- vidéo (M15) ------------------------------------------------------------
  * La carte, valeur de l'énumération GFX_* (ibm.h:274-318) : 0 = CGA, 13 = VGA,
  * 4 = Trident 8900D, 42 = Trident 9000B (M19).
@@ -595,7 +657,9 @@ uint8_t *h_ram(void);
 /* 24 depuis G2 etape D0.5 : h_setsys386 et h_flags_rebuild s'ajoutent au contrat. */
 /* 25 depuis G2 etape D6 : h_mmutranslate et h_mmu_perm (page-check). h_state ne change pas. */
 /* 26 depuis G3.0 : h_set_nvr_paths. h_state ne change pas. */
-#define H_ABI_VERSION 26
+/* 27 depuis G4.0 : l'état x87 entre dans h_state (le vecteur change de TAILLE) ;
+ * h_set_fpu, h_setfpu et les sondes de parité h_libm, h_conv, h_fpu_arith s'ajoutent. */
+#define H_ABI_VERSION 27
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

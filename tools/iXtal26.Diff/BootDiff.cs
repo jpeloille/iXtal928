@@ -73,6 +73,9 @@ public static class BootDiff
             Cpu.cpu_c.cpu_manufacturer = 0;
             Cpu.cpu_c.cpu = cpuN;
         }
+        // G4.0 — le coprocesseur, ÉCRIT des deux côtés : ici, puis h_set_fpu. Aucun
+        // aujourd'hui ; la clé `fpu` de la configuration arrive en G4.1.
+        Cpu.cpu_c.fpu_type = Cpu.cpu_c.FPU_NONE;
         if (!pc.check_cpu())
             return 2;
 
@@ -170,6 +173,7 @@ public static class BootDiff
         // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
         // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
         Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
+        Oracle.h_set_fpu(Cpu.cpu_c.fpu_type);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
         // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
         // compte.
@@ -625,6 +629,7 @@ public static class BootDiff
         // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
         // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
         Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
+        Oracle.h_set_fpu(Cpu.cpu_c.fpu_type);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
         // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
         // compte.
@@ -829,6 +834,7 @@ public static class BootDiff
         // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
         // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
         Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
+        Oracle.h_set_fpu(Cpu.cpu_c.fpu_type);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
         // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
         // compte.
@@ -948,6 +954,7 @@ public static class BootDiff
         // M16 — le processeur, comme le romset : poussé avant h_boot, qui fait tourner
         // le vrai cpu_set() avec lui. Sans lui l'oracle prend l'entrée 0 de la table.
         Oracle.h_set_cpu(Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu);
+        Oracle.h_set_fpu(Cpu.cpu_c.fpu_type);
         // LES DEUX CÔTÉS DOIVENT CHOISIR LE MÊME CŒUR, et avant h_boot : celui-ci
         // inline l'init de l'AT selon h_core, et h_runpc aiguille dessus, donc l'ordre
         // compte.

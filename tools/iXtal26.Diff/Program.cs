@@ -18,6 +18,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
     Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
+    Console.WriteLine("       [--fpu-state]   (G4.0 : état x87 tiré et posé des deux côtés)");
     Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
     Console.WriteLine("  page-check [--iter N] [--seed N] [--renew N] [--oracle]");
     Console.WriteLine("      mmutranslatereal confronté des deux côtés, tables de pages tirées en RAM");
@@ -111,6 +112,11 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  ops-count [--missing]");
     Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
     Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
+    Console.WriteLine();
+    Console.WriteLine("  x87-parity [N=10000000]");
+    Console.WriteLine("      G4.0 : Math.* contre la libm de l'oracle, conversions double -> entier");
+    Console.WriteLine("      contre cvttsd2si, et l'arrondi dirigé exact contre fesetround — hors");
+    Console.WriteLine("      du handler, puis dans le vrai FADD/FSUB/FMUL/FDIV de PCem (oracle seul).");
     Console.WriteLine();
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
@@ -516,6 +522,11 @@ switch (args[0])
         return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs);
     }
 
+    case "x87-parity":
+        // G4.0 — les trois mesures de parité du x87 (PLAN-G4.md) : libm, conversions,
+        // fesetround. `x87-parity [N]`, N tirages par mesure.
+        return X87Parity.Run(args.Length > 1 ? long.Parse(args[1]) : 10_000_000);
+
     case "fuzz":
     {
         var ops = new List<byte>();
@@ -578,6 +589,8 @@ switch (args[0])
                 case "--0f" when i + 1 < args.Length:
                     second0F.Add(Convert.ToByte(args[++i], 16)); break;
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
+                // G4.0 — un état x87 tiré des deux côtés à chaque itération (générateur à part).
+                case "--fpu-state": Fuzzer.FpuState = true; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;
