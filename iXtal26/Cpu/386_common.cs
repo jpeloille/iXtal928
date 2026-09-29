@@ -214,8 +214,34 @@ internal static partial class _386_common
                           (mem.ram[i + 2] << 16) | (mem.ram[i + 3] << 24));
     }
 
-    // omitted: readmemq et writememq — toujours aucun appelant. Ils arriveront
-    //   avec le groupe qui les emploie, pas avant.
+    /// <summary>pcem: 386_common.h:16-19 — readmemq, G4.2 : FILD/FISTP 64 bits, FLD/FST m64.
+    /// Même structure que readmeml, alignement sur HUIT octets.</summary>
+    internal static uint64_t readmemq(uint32_t s, uint32_t a)
+    {
+        var addr = s + a;
+        if (mem.readlookup2[addr >> 12] == -1 || (addr & 7) != 0)
+                return mem.readmemql(addr);
+        var i = unchecked(mem.readlookup2[addr >> 12] + (int)addr);
+        return (uint64_t)ReadL(mem.ram, i) | ((uint64_t)ReadL(mem.ram, i + 4) << 32);
+    }
+
+    /// <summary>pcem: 386_common.h:36-40 — writememq, G4.2.</summary>
+    internal static void writememq(uint32_t s, uint32_t a, uint64_t v)
+    {
+        var addr = s + a;
+        if (mem.writelookup2[addr >> 12] == -1 || (addr & 7) != 0)
+        {
+                mem.writememql(addr, v);
+                return;
+        }
+        var i = unchecked(mem.writelookup2[addr >> 12] + (int)addr);
+        for (var k = 0; k < 8; k++)
+                mem.ram[i + k] = (byte)(v >> (8 * k));
+    }
+
+    // pcem: 386_common.c:32 — compté par FP_ENTER à chaque instruction x87 ; aucun lecteur
+    //   hors des statistiques de PCem. Gardé : c'est une écriture que le C fait. G4.2.
+    internal static int fpucount = 0;
 
     // -----------------------------------------------------------------------
     // L'ADRESSE EFFECTIVE (pcem: 386_dynarec.c:85-130).
@@ -438,6 +464,14 @@ internal static partial class _386_common
         else
                 cpu_state.regs[cpu_rm].w = v;
     }
+
+    // pcem: 386_common.h:204 et :222 — G4.2. geteaq passe par la macro readmemq ;
+    //   seteaq appelle writememql DIRECTEMENT, sans le raccourci de writememq — c'est le C.
+    //   Ni l'une ni l'autre ne regarde cpu_mod ni eal_r/eal_w : le x87 ne les emploie
+    //   qu'avec une opérande mémoire.
+    internal static uint64_t geteaq() => readmemq(easeg, cpu_state.eaaddr);
+
+    internal static void seteaq(uint64_t v) => mem.writememql(easeg + cpu_state.eaaddr, v);
 
     // pcem: 386_common.h:196-201 et :242-249 — G2, D2 : les formes 32 bits.
     internal static uint32_t geteal()

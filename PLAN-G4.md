@@ -70,7 +70,7 @@ Porte : `check-oracle.sh` à zéro dérive, tous les boot-diffs inchangés à l'
 `cpu_set` (tables et temps). Porte : boot-diffs à l'unité en `fpu=none` ; empreinte CPU
 identique en `fpu=287` et `fpu=387`.
 
-### G4.2 — Chargements et stockages
+### G4.2 — Chargements et stockages  ✅ *fait, VERIFICATION.md § G4.2*
 
 `x87_ops_loadstore.h`, `x87_ld80` / `x87_st80`, `x87_fround`, FBLD/FBSTP (`fmod`, `floor`).
 Porte : fuzzeur 386 en mode réel, `fpu=387`, opcodes D9/DB/DD/DF mémoire.
@@ -134,7 +134,8 @@ scientifique sous WIN87EM.
    `>=`, un NaN prend la branche directe —, `CvtI32`) jamais. Elles entrent dans le cœur en
    G4.2, marquées `// DEVIATION:`.
 4. **Les défauts de PCem à reproduire (R8).** PB-48 (l'arrondi, ci-dessus) est inscrit.
-   Relevés en reconnaissance, à lire à la ligne puis consigner à partir de PB-49 :
+   Relevés en reconnaissance, à lire à la ligne puis consigner (PB-52 à PB-56 inscrits en
+   G4.2 : FBLD, tempc, CHECK_WRITE, x87_ld80, x87_st80) :
    - précision de 53 bits au lieu de 64 ;
    - `x87_ld80` tronque l'exposant (`& 0x3ff`, `:101-102`) et écrase les dénormaux ;
    - `x87_st80` et le zéro (commentaires « Elvira », « Ca-cyber ») ;

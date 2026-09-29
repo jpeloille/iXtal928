@@ -893,6 +893,121 @@ internal static partial class mem
         }
     }
 
+    /// <summary>pcem: mem.c:670-702 — readmemql, G4.2. PAS d'enveloppe côté oracle (le
+    /// harnais n'enroule que les formes b/w/l) : ses appels internes à readmemll vont au
+    /// corps, comme ici.</summary>
+    internal static uint64_t readmemql(uint32_t addr)
+    {
+        mem_mapping_t? map;
+
+        mem_logical_addr = addr;
+
+        if ((addr & 7) != 0)
+        {
+                x86.cycles -= cpu_c.timing_misaligned;
+                if ((addr & 0xFFF) > 0xFF8)
+                {
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 0) == 0xffffffff)
+                                        return 0xffffffff;
+                                if (mmutranslatereal(addr + 7, 0) == 0xffffffff)
+                                        return 0xffffffff;
+                        }
+                        return readmemll(addr) | ((uint64_t)readmemll(addr + 4) << 32);
+                }
+                else if (readlookup2[addr >> 12] != -1)
+                {
+                        var i = unchecked(readlookup2[addr >> 12] + (int)addr);
+                        uint64_t v = 0;
+                        for (var k = 7; k >= 0; k--)
+                                v = (v << 8) | ram[i + k];
+                        return v;
+                }
+        }
+
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 0);
+                if (addr == 0xFFFFFFFF)
+                        return 0xFFFFFFFF;
+        }
+
+        addr &= rammask;
+
+        map = read_mapping[addr >> 14];
+        if (map != null && map.read_l != null)
+                return map.read_l(addr, map.p) | ((uint64_t)map.read_l(addr + 4, map.p) << 32);
+
+        return readmemll(addr) | ((uint64_t)readmemll(addr + 4) << 32);
+    }
+
+    /// <summary>pcem: mem.c:704-761 — writememql, G4.2. Pas d'enveloppe côté oracle : ni
+    /// compteur ni journal, et son chemin à cheval appelle le CORPS de writememll
+    /// (__real_writememll), comme l'appel interne à mem.c échappe à --wrap.</summary>
+    internal static void writememql(uint32_t addr, uint64_t val)
+    {
+        mem_mapping_t? map;
+
+        mem_logical_addr = addr;
+
+        if ((addr & 7) != 0)
+        {
+                x86.cycles -= cpu_c.timing_misaligned;
+                if ((addr & 0xFFF) > 0xFF8)
+                {
+                        if ((cr0 >> 31) != 0)
+                        {
+                                if (mmutranslatereal(addr, 1) == 0xffffffff)
+                                        return;
+                                if (mmutranslatereal(addr + 7, 1) == 0xffffffff)
+                                        return;
+                        }
+                        __real_writememll(addr, (uint32_t)val);
+                        __real_writememll(addr + 4, (uint32_t)(val >> 32));
+                        return;
+                }
+                else if (writelookup2[addr >> 12] != -1)
+                {
+                        var i = unchecked(writelookup2[addr >> 12] + (int)addr);
+                        for (var k = 0; k < 8; k++)
+                                ram[i + k] = (byte)(val >> (8 * k));
+                        return;
+                }
+        }
+        // omitted: page_lookup[] — dynarec.
+        if ((cr0 >> 31) != 0)
+        {
+                addr = mmutranslatereal(addr, 1);
+                if (addr == 0xFFFFFFFF)
+                        return;
+        }
+
+        addr &= rammask;
+
+        map = write_mapping[addr >> 14];
+        if (map != null)
+        {
+                if (map.write_l != null)
+                {
+                        map.write_l(addr, (uint32_t)val, map.p);
+                        map.write_l(addr + 4, (uint32_t)(val >> 32), map.p);
+                }
+                else if (map.write_w != null)
+                {
+                        map.write_w(addr, (uint16_t)val, map.p);
+                        map.write_w(addr + 2, (uint16_t)(val >> 16), map.p);
+                        map.write_w(addr + 4, (uint16_t)(val >> 32), map.p);
+                        map.write_w(addr + 6, (uint16_t)(val >> 48), map.p);
+                }
+                else if (map.write_b != null)
+                {
+                        for (var k = 0; k < 8; k++)
+                                map.write_b(addr + (uint32_t)k, (uint8_t)(val >> (8 * k)), map.p);
+                }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Handlers RAM / BIOS (pcem: mem.c:827-1030)
     // -----------------------------------------------------------------------

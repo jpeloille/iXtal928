@@ -167,6 +167,19 @@ public static class Fuzzer
             //
             // Le remplissage RAM a 0x90 ne protege qu'AU-DELA du tampon ; a
             // l'interieur les octets sont aleatoires.
+            // G4.2 — `--x87 mem` : pour D9, DB, DD et DF, un ModRM MÉMOIRE dont le `reg` désigne
+            // une rangée transcrite (chargements, stockages, ILLEGAL — TableFpu, x87_ops.cs).
+            // Dérivé des bits DÉJÀ tirés, sans consommer le générateur : mod 3 devient mod 0-2,
+            // `reg` est ramené dans la liste de l'opcode.
+            if (X87Mem && X87MemRegs(op) is { } rangees)
+            {
+                var mod = code[1] >> 6;
+                if (mod == 3)
+                    mod = code[1] & 1;
+                var reg = rangees[((code[1] >> 3) & 7) % rangees.Length];
+                code[1] = (byte)((mod << 6) | (reg << 3) | (code[1] & 7));
+            }
+
             if ((op == 0x8E && ((code[1] >> 3) & 7) == 2) || (op >= 0xD8 && op <= 0xDF))
             {
                 // LE TIRAGE DOIT EXCLURE LES INSTRUCTIONS A COUT NUL ELLES-MEMES,
@@ -209,6 +222,17 @@ public static class Fuzzer
                 if (EnchaineSurLaSuivante(inner) || inner is 0x66 or 0x67)
                     inner = 0xB8;                    // MOV AX,imm16 : repli sûr
                 code[1] = inner;
+            }
+
+            // G4.2 — `--x87 mem` derrière un préfixe de taille : `66 D9 /r`, `67 DD /r`… — l'ESC
+            // est en 1, son ModRM en 2 ; même règle, pour atteindre les formes a32 (67).
+            if (X87Mem && code[0] is 0x66 or 0x67 && X87MemRegs(code[1]) is { } rangees2)
+            {
+                var mod = code[2] >> 6;
+                if (mod == 3)
+                    mod = code[2] & 1;
+                var reg = rangees2[((code[2] >> 3) & 7) % rangees2.Length];
+                code[2] = (byte)((mod << 6) | (reg << 3) | (code[2] & 7));
             }
 
             // Cas AUTO-RÉFÉRENTIEL, une fois sur huit.
@@ -346,7 +370,7 @@ public static class Fuzzer
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
 
-            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites();
+            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem ? CmpEa(a) : null);
             if (diff is null)
                 continue;
 
@@ -743,6 +767,44 @@ public static class Fuzzer
         var npxc = (ushort)r.Next();
         Oracle.h_setfpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, npxc);
         _808x.SetFpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, npxc);
+    }
+
+    /// <summary>G4.2 — `--x87 mem` : les rangées `reg` de chaque table d'échappement que G4.2
+    /// transcrit, ou null. D9 : FLD, ILLEGAL, FST, FSTP m32 ; DB : FILD, FIST, FISTP m32,
+    /// FLD, FSTP m80, trois ILLEGAL ; DD : FLD, FST, FSTP m64, deux ILLEGAL ; DF : FILD, FIST,
+    /// FISTP m16, FILD, FISTP m64, FBSTP, deux ILLEGAL — dont /4, FBLD (PB-52).</summary>
+    internal static bool X87Mem;
+
+    private static int[]? X87MemRegs(byte op) => op switch
+    {
+        0xD9 => [0, 1, 2, 3],
+        0xDB => [0, 1, 2, 3, 4, 5, 6, 7],
+        0xDD => [0, 1, 2, 3, 5],
+        0xDF => [0, 1, 2, 3, 4, 5, 6, 7],
+        _ => null,
+    };
+
+    /// <summary>G4.2 — les seize octets à l'adresse effective, des deux côtés. Le journal
+    /// d'écritures ne voit pas writememql (FST, FSTP, FISTP m64) : ni l'oracle ni le C#
+    /// n'enveloppent la forme 64 bits.</summary>
+    private static string? CmpEa(in HState a)
+    {
+        if (a.ea_seg_idx < 0)
+            return null;
+        var lin = (a.seg_base[a.ea_seg_idx] + a.eaaddr) & mem.rammask;
+        // Au-delà de la RAM plate du fuzzeur (1 Mo sur le 286, où l'EA peut viser la HMA) : rien
+        // à comparer, et h_read ne doit pas lire hors de son tableau.
+        if (lin + 16 > (uint)mem.mem_size * 1024u)
+            return null;
+        var o = new byte[16];
+        Oracle.h_read(lin, o, 16);
+        for (var k = 0; k < 16; k++)
+        {
+            var c = mem.ram[lin + (uint)k];
+            if (o[k] != c)
+                return $"RAM à l'EA {lin + (uint)k:X6} : oracle 0x{o[k]:X2}, C# 0x{c:X2}";
+        }
+        return null;
     }
 
     private static bool IsSegPrefix(byte b) => b is 0x26 or 0x2E or 0x36 or 0x3E;

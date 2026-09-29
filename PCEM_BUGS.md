@@ -430,6 +430,72 @@ lecture du code dit la même chose ; ce n'est pas mesuré.
 *Reproduit* : le C# transcrit la boucle et `fastreadl` sans contrôle, comme PCem ; rien
 d'imposé.
 
+### PB-52 — FBLD n'existe pas : DF /4 est FPU_ILLEGAL
+
+`x87_ops.h:884-893` (et `:923-932` en a32) : la rangée `/4` de `fpu_df_a16` porte
+`ILLEGAL`, c'est-à-dire `FPU_ILLEGAL_a16` (`:297-302`) — décoder l'adresse effective, compter
+`timing_rr`, et rien d'autre. `x87_ops_*.h` ne contient aucun `opFBLD` ; `x87_timings_t`
+n'a même pas de champ `fbld` utilisé (il en a un, `x87_timings.h:7`, que personne ne lit).
+
+*Effet* : FBLD (chargement d'un décimal compacté de 10 octets) ne charge rien : la pile x87
+ne bouge pas, TOP ne descend pas, et le programme continue avec le registre du dessus
+inchangé. Le silicium pousse la valeur décimale. FBSTP, lui, existe (`:141-200`).
+*Trouvé par* : transcription de G4.2, en posant les rangées mémoire de DF.
+*Reproduit* : `Cpu/x87_ops.cs`, `TableFpu`, rangée `/4` de DF à `FPU_ILLEGAL` ; commentaire
+PB-52. Le fuzzeur G4.2 (`--x87 mem`) tire DF /4 et le confronte à l'oracle.
+
+### PB-54 — Seul FSTP m64 contrôle la limite du segment ; FST m64 et les autres stockages non
+
+`x87_ops_loadstore.h:454-485` : `opFSTPd_a16` et `_a32` appellent
+`CHECK_WRITE(cpu_state.ea_seg, cpu_state.eaaddr, cpu_state.eaaddr + 7)` — lève #GP si les huit
+octets sortent de la limite. Aucun autre stockage x87 ne le fait : ni `opFSTd` (`:429-452`),
+le même stockage sans dépilement, ni FST/FSTP m32, FIST/FISTP, FSTP m80, FBSTP.
+
+*Effet* : à l'offset 0xFFF9 d'un segment de 64 Ko, FSTP m64 lève #GP, FST m64 écrit — au-delà
+de la limite, sans faute. Sur le silicium, les deux lèvent #GP.
+*Trouvé par* : lecture ligne à ligne en G4.2.
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, verbatim — seuls les deux `opFSTPd` portent
+`CHECK_WRITE`.
+
+### PB-55 — x87_ld80 replie l'exposant modulo 1024 et écrase les dénormaux
+
+`x87_ops.h:86-115`, le chargement d'un réel de 80 bits en double :
+
+```c
+int64_t exp64 = (((test.begin & 0x7fff) - BIAS80));
+int64_t blah = ((exp64 > 0) ? exp64 : -exp64) & 0x3ff;
+int64_t exp64final = ((exp64 > 0) ? blah : -blah) + BIAS64;
+…
+if (test.eind.ll & 0x400)
+        mant64++;
+test.eind.ll = (sign << 63) | (exp64final << 52) | mant64;
+```
+
+Trois écarts : (1) un exposant hors de la plage du double n'est ni saturé (±∞) ni aplati
+(0) mais REPLIÉ par `& 0x3ff` — 2^1024 devient 2^0, 2^2000 devient 2^976 ; (2) un exposant
+80 bits nul (dénormal ou pseudo-dénormal) donne un exposant double nul, mantisse conservée :
+un dénormal double sans rapport ; (3) l'arrondi ajoute 1 à la mantisse sur le bit 10 et la
+recolle par OU : une mantisse pleine qui déborde met 1 dans le bit 0 de l'exposant par OU au
+lieu de l'incrémenter. Le bit entier explicite (bit 63) est ignoré : les « unnormals » se
+lisent comme des normaux.
+*Effet* : FLD m80 et FRSTOR rendent des valeurs fausses hors de la plage du double.
+*Trouvé par* : lecture ligne à ligne en G4.2.
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_ld80`, verbatim. Le fuzzeur G4.2 le confronte à l'oracle
+(DB /5) ; contrôle négatif : sans `& 0x3ff`, divergence à l'itération 3.
+
+### PB-56 — x87_st80 écrit un double dénormal comme un normal, et 53 bits de précision seulement
+
+`x87_ops.h:117-150`. Pour tout `d != 0` qui n'est ni infini ni NaN, le bit entier explicite
+est posé et l'exposant rebiaisé (`exp80final += BIAS80 - BIAS64`) — y compris quand
+l'exposant double est nul, c'est-à-dire pour un dénormal : celui-ci s'écrit comme le normal
+2^(−1023) × 1,mantisse, faux d'un facteur jusqu'à 2. Et PCem ne garde ST qu'en double
+(`x86.h:93`) : les onze bits bas de la mantisse 80 bits sont toujours nuls en écriture, et
+perdus en lecture (PB-55). Toute l'arithmétique x87 est à 53 bits, pas à 64.
+*Effet* : FSTP m80, FSAVE, FSTENV rendent des octets que le silicium n'écrirait pas pour les
+dénormaux ; les calculs en précision étendue perdent onze bits.
+*Trouvé par* : lecture ligne à ligne en G4.2 ; la précision était relevée dès PLAN-G4.md.
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_st80`, verbatim ; ST est un `double[]` (`x86.cs`).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1109,9 +1175,21 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 *Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
 *Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaires `verbatim`.
 
+### PB-53 — FBSTP écrit la globale `tempc` des drapeaux
+
+`x87_ops_loadstore.h:152-164` : `uint8_t tempc` est déclaré DANS la boucle ; après elle,
+`tempc = (uint8_t)floor(fmod(tempd, 10.0));` et `tempc |= 0x80;` ne peuvent donc pas viser
+cette locale — ils écrivent la globale `int tempc` de `x86_flags.h:3`, celle qu'ADC et SBB
+lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est en portée.
+*Effet* : aucun observable — ADC et SBB reposent `tempc` avant de le lire. L'octet de signe
+écrit en mémoire est juste, lu depuis cette globale.
+*Trouvé par* : transcription de G4.2 (la variable de l'écriture finale n'existait pas).
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16/_a32`, `x86_flags.tempc`, marqueur
+`// pcem bug, reproduced: PB-53`.
+
 ## Portée de ce registre
 
-Ces **cinquante et un** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cinquante-six** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1128,6 +1206,7 @@ audit systématique de PCem** :
 | Mesure de parité du x87 contre le vrai handler, puis lecture du C (G4.0) | PB-48 |
 | Fuzzer différentiel en mode flux, balayage par opcode, désassemblage de l'oracle | PB-49 |
 | Instruction de PB-49 : trace pas à pas d'un flux de préfixes, build Debug | PB-50, PB-51 |
+| Transcription et lecture ligne à ligne de G4.2 (chargements et stockages x87) | PB-52 à PB-56 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

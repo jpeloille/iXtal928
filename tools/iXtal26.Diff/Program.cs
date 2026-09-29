@@ -19,6 +19,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  fuzz [--op XX ...] [--mode single|stream] [--iter N] [--core 286|386 [--cpu N]]");
     Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
     Console.WriteLine("       [--fpu-state]   (G4.0 : état x87 tiré et posé des deux côtés)");
+    Console.WriteLine("       [--fpu 8087|287|287xl|387] [--x87 mem]   (G4.2 : coprocesseur ; ESC mémoire transcrits)");
     Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
     Console.WriteLine("  page-check [--iter N] [--seed N] [--renew N] [--oracle]");
     Console.WriteLine("      mmutranslatereal confronté des deux côtés, tables de pages tirées en RAM");
@@ -599,6 +600,17 @@ switch (args[0])
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 // G4.0 — un état x87 tiré des deux côtés à chaque itération (générateur à part).
                 case "--fpu-state": Fuzzer.FpuState = true; break;
+                // G4.2 — le coprocesseur des deux côtés (FPU_* : 1 = 8087, 2 = 287, 3 = 287XL,
+                // 4 = 387), posé avant chaque reset : h_set_fpu, _386.FuzzFpu.
+                case "--fpu" when i + 1 < args.Length:
+                {
+                    var f = args[++i] switch { "8087" => 1, "287" => 2, "287xl" => 3, "387" => 4, var v => int.Parse(v) };
+                    Oracle.h_set_fpu(f);
+                    iXtal26.Cpu._386.FuzzFpu = f;
+                    break;
+                }
+                // G4.2 — ModRM mémoire, rangées transcrites de D9, DB, DD, DF.
+                case "--x87" when i + 1 < args.Length && args[i + 1] == "mem": i++; Fuzzer.X87Mem = true; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;

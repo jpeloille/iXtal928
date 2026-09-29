@@ -4086,3 +4086,51 @@ single, flux 8088, 286 et 386 sur 256 opcodes, `--0f`, `--fpu-state`, page-check
 core286-check, pm-check 286 et 386, config-check, popss-check — **46 journaux sur 46
 identiques hors durées** ; cpu-config-check vert, élargi. Build 0 avertissement, selftest,
 check-oracle 0 dérive (112 fichiers : x87.cs et x87_timings.cs entrent au manifeste).
+
+## G4.2 — Les chargements et les stockages du x87
+
+Le 29/09, sur 17c241f. Plan : `PLAN-G4.md` § G4.2.
+
+**Transcrit.** `Cpu/x87_ops_loadstore.cs` : les trente-quatre handlers de
+`x87_ops_loadstore.h`, a16 et a32, transcrits PAR RÈGLES (FP_ENTER, fetch_ea, gardes en
+`if (…) return 1;` ; conversions par cvttsd2si ; `fplog` omis). `Cpu/x87_ops.cs` : ST,
+FP_ENTER, x87_push, x87_pop, x87_fround, x87_ld80, x87_st80, FPU_ILLEGAL, les unions x87_ts /
+x87_td, les aides CvtI64 / CvtU64 / CvtI32 (DEVIATION, mesurées en G4.0), et `TableFpu`, qui
+pose les rangées mémoire de chargement, de stockage et ILLEGAL de D9, DB, DD, DF. `readmemq`,
+`writememq`, `geteaq`, `seteaq` (386_common.h:16-40, :204, :222), `readmemql` et `writememql`
+(mem.c:670-761, sans enveloppe comme dans l'oracle), `fpucount`.
+
+**Une erreur de transcription, trouvée par le fuzzeur et corrigée.** FPU_ILLEGAL passait la
+globale `x86.rmdat` à PREFETCH_RUN ; x86.h:197 fait `#define fetchdat rmdat`, et le `rmdat` du
+handler est son PARAMÈTRE. Divergence `prefetch_bytes : oracle 0, C# 1` sur `66 DB 65 92`.
+
+**La porte** : `fuzz --fpu 387|287 --x87 mem --fpu-state` — le coprocesseur des deux côtés,
+un ModRM mémoire dont le `reg` désigne une rangée transcrite (dérivé des bits tirés, sans
+consommer le générateur), aussi derrière 66 et 67 pour les formes a32, et les seize octets à
+l'adresse effective comparés à chaque pas (writememql n'est journalisé d'aucun côté).
+
+| porte | résultat |
+|---|---|
+| 386, 387, D9/DB/DD/DF + 66/67, graine 1, 80 000 | vert, zéro divergence |
+| 386, 387, idem, graine 7, 80 000 | vert, zéro divergence |
+| 286, 287, D9/DB/DD/DF, 80 000 | vert, zéro divergence — les temps du 287 confrontés |
+
+Contrôles négatifs, retirés : le cast .NET au lieu de cvttsd2si dans x87_fround → divergence
+à l'itération 143 (`DF 5C`, FISTP m16) ; sans le `& 0x3ff` de x87_ld80 → itération 3 (`DB 2D`,
+FLD m80) ; le signe 0x40 au lieu de 0x80 dans FBSTP → itération 17 (`DF 35`) ; seteaq
+faussé d'un bit → itération 5, `RAM à l'EA 103E65` (`DD 12`, FST m64). Le `(byte)` .NET au
+lieu de CvtI32 dans FBSTP ne mord pas : sur `floor(fmod(x, 10))`, NaN et ±∞ rendent 0 des
+deux façons.
+
+**Les défauts de PCem rencontrés**, reproduits : PB-52 (FBLD n'existe pas, DF /4 est
+FPU_ILLEGAL), PB-53 (FBSTP écrit la globale `tempc`), PB-54 (seul FSTP m64 contrôle la
+limite), PB-55 (x87_ld80 replie l'exposant, écrase les dénormaux), PB-56 (x87_st80 et les
+dénormaux ; 53 bits de précision).
+
+**Non couvert** : le mode flux avec coprocesseur (le remplissage donne des ModRM de mode
+registre, G4.3 et G4.4) ; le mode protégé (pm-fuzz ne tire pas d'ESC).
+
+**Les portes**, comparées aux journaux de 17c241f : **47 journaux sur 47 identiques hors
+durées** (25 boot-diffs fpu=none, fuzzeurs single et flux 8088/286/386, `--0f`,
+`--fpu-state`, page-check, pm-fuzz, core286-check, pm-check 286 et 386, cpu-config-check,
+config-check, popss-check). Build 0 avertissement, selftest, check-oracle 0 dérive (114).

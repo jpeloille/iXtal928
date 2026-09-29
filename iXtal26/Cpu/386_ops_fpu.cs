@@ -107,8 +107,9 @@ internal static partial class _386
     //   depuis G4.1, les seize tables ops_fpu_* existent et s'arretent bruyamment.
 
     // G4.1 — LES SEIZE TABLES ops_fpu_* (x87_ops.h:310-1040), que cpu_set() pose quand
-    // hasfpu est vrai (cpu.c:276-292). Leurs handlers arrivent de G4.2 à G4.5 ; d'ici là
-    // chaque emplacement s'arrête BRUYAMMENT au lieu d'exécuter, pour qu'un 287 ou un 387
+    // hasfpu est vrai (cpu.c:276-292). Leurs handlers arrivent de G4.2 à G4.5 — G4.2 pose les
+    // rangées mémoire de chargement et de stockage de D9, DB, DD, DF (TableFpu, x87_ops.cs) ;
+    // d'ici là chaque autre emplacement s'arrête BRUYAMMENT au lieu d'exécuter, pour qu'un 287 ou un 387
     // déclaré ne se comporte jamais comme « pas de coprocesseur » en silence. D8 et DC ont
     // 32 emplacements (`[(fetchdat >> 3) & 0x1f]`), les six autres 256. Les tables `_686_`
     // (FCMOV, FCOMI) sont hors portée (PLAN-G4.md).
@@ -126,13 +127,13 @@ internal static partial class _386
     }
 
     internal static readonly OpFn[] ops_fpu_d8_a16 = X87NonTranscrit(32), ops_fpu_d8_a32 = X87NonTranscrit(32);
-    internal static readonly OpFn[] ops_fpu_d9_a16 = X87NonTranscrit(256), ops_fpu_d9_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_d9_a16 = TableFpu(0xD9, false), ops_fpu_d9_a32 = TableFpu(0xD9, true);
     internal static readonly OpFn[] ops_fpu_da_a16 = X87NonTranscrit(256), ops_fpu_da_a32 = X87NonTranscrit(256);
-    internal static readonly OpFn[] ops_fpu_db_a16 = X87NonTranscrit(256), ops_fpu_db_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_db_a16 = TableFpu(0xDB, false), ops_fpu_db_a32 = TableFpu(0xDB, true);
     internal static readonly OpFn[] ops_fpu_dc_a16 = X87NonTranscrit(32), ops_fpu_dc_a32 = X87NonTranscrit(32);
-    internal static readonly OpFn[] ops_fpu_dd_a16 = X87NonTranscrit(256), ops_fpu_dd_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_dd_a16 = TableFpu(0xDD, false), ops_fpu_dd_a32 = TableFpu(0xDD, true);
     internal static readonly OpFn[] ops_fpu_de_a16 = X87NonTranscrit(256), ops_fpu_de_a32 = X87NonTranscrit(256);
-    internal static readonly OpFn[] ops_fpu_df_a16 = X87NonTranscrit(256), ops_fpu_df_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_df_a16 = TableFpu(0xDF, false), ops_fpu_df_a32 = TableFpu(0xDF, true);
 
     /// <summary>pcem: 9B et D8-DF — relevés sur ops_286[] par gdb.</summary>
     private static void PoserGroupeFPU()
