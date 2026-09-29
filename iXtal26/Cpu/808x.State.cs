@@ -246,8 +246,8 @@ internal static partial class _808x
         Array.Clear(cpu_state.ST);
         Array.Clear(cpu_state.MM_w4);
         Array.Clear(cpu_state.MM);
-        x86.x87_pc_off = x86.x87_op_off = 0;
-        x86.x87_pc_seg = x86.x87_op_seg = 0;
+        x87_c.x87_pc_off = x87_c.x87_op_off = 0;
+        x87_c.x87_pc_seg = x87_c.x87_op_seg = 0;
     }
 
     internal static void GetRegs(ushort[] r)
@@ -390,10 +390,10 @@ internal static partial class _808x
         s.fpu_top = cpu_state.TOP;
         s.npxs = cpu_state.npxs;
         s.npxc = cpu_state.npxc;
-        s.x87_pc_off = x86.x87_pc_off;
-        s.x87_op_off = x86.x87_op_off;
-        s.x87_pc_seg = x86.x87_pc_seg;
-        s.x87_op_seg = x86.x87_op_seg;
+        s.x87_pc_off = x87_c.x87_pc_off;
+        s.x87_op_off = x87_c.x87_op_off;
+        s.x87_pc_seg = x87_c.x87_pc_seg;
+        s.x87_op_seg = x87_c.x87_op_seg;
         s.ismmx = cpu_state.ismmx;
         s.fpu_type = cpu_c.fpu_type;
         s.hasfpu = cpu_c.hasfpu;

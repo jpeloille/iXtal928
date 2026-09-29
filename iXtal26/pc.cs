@@ -181,6 +181,15 @@ internal static partial class pc
     // doivent obtenir le défaut — c'est-à-dire aucune carte.
     internal static string cfg_hdd_controller = "";
 
+    // pcem: pc.c:655 — la clé `fpu`, internal_name du coprocesseur (« none », « 8087 »,
+    // « 287 », « 287xl », « 387 »). G4.1. Défaut « none », celui de PCem.
+    // DEVIATION: PCem la résout aussitôt contre la machine et le CPU du fichier (pc.c:656).
+    //   Ici --model et --cpu peuvent s'appliquer APRÈS le fichier : la chaîne est gardée, et
+    //   initpc la résout contre la machine FINALE, après check_cpu — même raison que
+    //   l'indice de CPU. Un nom absent de la table de la machine donne son entrée 0,
+    //   « none », comme fpu_get_type.
+    internal static string cfg_fpu = "none";
+
     /// <summary>
     /// pcem: pc.c:643-652. Choisit la machine par son internal_name et en déduit le
     /// romset. Partagé par la clé `model` du fichier et par l'option --model : les deux
@@ -331,11 +340,12 @@ internal static partial class pc
         // `cpu = 5` est un 286/20 sur l'ami286 et n'existe pas dans la table cpus_ibmat de PCem. La validité
         // ne se juge donc que contre la machine FINALE — --model s'applique après ce
         // fichier — et c'est check_cpu(), appelé par initpc, qui la juge.
-        // omitted: fpu (pc.c:655-656), cpu_use_dynarec (:657), cpu_waitstates (:658) —
-        //   aucune machine du dépôt n'a de coprocesseur, le dynarec n'est pas porté, et
-        //   l'override d'états d'attente n'a pas de machine qui le demande.
+        // omitted: cpu_use_dynarec (pc.c:657), cpu_waitstates (:658) — le dynarec n'est
+        //   pas porté, et l'override d'états d'attente n'a pas de machine qui le demande.
         cpu_c.cpu_manufacturer = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cpu_manufacturer", 0);
         cpu_c.cpu = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cpu", 0);
+        // pcem: pc.c:655 — G4.1 ; la résolution (:656) est dans initpc, voir cfg_fpu.
+        cfg_fpu = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "fpu", "none");
 
         // pcem: pc.c:660-664 — la clé porte l'internal_name de la carte ; absente, "" et
         // donc la CGA.
@@ -581,6 +591,9 @@ internal static partial class pc
         // outils Diff — refusent de la même façon. Voir check_cpu.
         if (!check_cpu())
             return false;
+
+        // pcem: pc.c:656 — G4.1 : la clé `fpu` résolue contre la machine et le CPU finaux.
+        cpu_c.fpu_type = cpu_c.fpu_get_type(Models.model_c.model, cpu_c.cpu_manufacturer, cpu_c.cpu, cfg_fpu);
 
         // G2, D0.2 : une machine de la table dont l'init n'est pas transcrite (l'ami386
         // jusqu'à G3.1, où Headland l'a rendue amorçable). REFUS BRUYANT, comme h_boot

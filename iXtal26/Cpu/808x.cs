@@ -1135,6 +1135,11 @@ startrep:
     // timer_target : c'est un simple `cycles += cycs; while (cycles > 0)`, et la
     // synchronisation des timers se fait par instruction via clockhardware().
     // -----------------------------------------------------------------------
+    /// <summary>G4.1 — l'ESC d'un 8088 quand la clé `fpu` déclare un 8087 : arrêt bruyant
+    /// jusqu'à G4.6, qui transcrira `ops_808x_fpu_*` (8087.h, 808x.c:3304-3366).</summary>
+    private static void Esc8087NonTranscrit()
+        => pc.fatal("not implemented: 808x.c:3304-3366 — l'ESC du 8087 (G4.6)\n");
+
     internal static void execx86(int cycs)
     {
         // DEVIATION: alias de prologue. RyuJIT refuse tout inlining dans cette méthode
@@ -3221,37 +3226,47 @@ startrep:
                 case 0xd8:
                         fetchea();
                         // omitted: le bloc `if (hasfpu)` — ops_808x_fpu_d8_a16[rmdat >> 3](rmdat),
-                        //   encadré d'une sauvegarde/restauration de cpu_state.pc. L'état 8087
-                        //   est hors portage (registre des omissions) et hasfpu vaut 0 sur XT :
-                        //   le bloc ne s'exécute jamais. Idem 0xd9 à 0xdf.
+                        //   encadré d'une sauvegarde/restauration de cpu_state.pc (808x.c:3304-3366).
+                        //   Le 8087 arrive en G4.6 (PLAN-G4.md). Depuis G4.1 la clé `fpu` peut
+                        //   déclarer un 8087 : l'omission ne doit plus être SILENCIEUSE, sans quoi
+                        //   la machine se comporterait comme « pas de coprocesseur » — arrêt
+                        //   bruyant, idem 0xd9 à 0xdf.
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xd9:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_d9_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xda:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_da_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xdb:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_db_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xdc:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_dc_a16[rmdat >> 3](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xdd:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_dd_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xde:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_de_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
                 case 0xdf:
                         fetchea();
                         // omitted: bloc `if (hasfpu)` — ops_808x_fpu_df_a16[rmdat](rmdat).
+                        if (cpu_c.hasfpu != 0) Esc8087NonTranscrit();
                         break;
 
                 case 0xE0: /*LOOPNE*/

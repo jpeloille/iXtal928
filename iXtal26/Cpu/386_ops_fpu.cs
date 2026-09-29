@@ -102,9 +102,37 @@ internal static partial class _386
     }
 
     // omitted: les huit opESCAPE_*_a32 — op32 nul sur un 286.
-    // omitted: tout x87_ops.h au-dela d'op_nofpu_a16 — le coprocesseur lui-meme,
-    //   ses quatre-vingts handlers et sa pile de registres. Un 287 est un
-    //   composant OPTIONNEL de l'AT 5170 ; Reset286 pose hasfpu = 0.
+    // omitted: les handlers de x87_ops.h au-dela d'op_nofpu_a16 — le coprocesseur
+    //   lui-meme, ses quatre-vingts handlers. Ils arrivent de G4.2 a G4.5 (PLAN-G4.md) ;
+    //   depuis G4.1, les seize tables ops_fpu_* existent et s'arretent bruyamment.
+
+    // G4.1 — LES SEIZE TABLES ops_fpu_* (x87_ops.h:310-1040), que cpu_set() pose quand
+    // hasfpu est vrai (cpu.c:276-292). Leurs handlers arrivent de G4.2 à G4.5 ; d'ici là
+    // chaque emplacement s'arrête BRUYAMMENT au lieu d'exécuter, pour qu'un 287 ou un 387
+    // déclaré ne se comporte jamais comme « pas de coprocesseur » en silence. D8 et DC ont
+    // 32 emplacements (`[(fetchdat >> 3) & 0x1f]`), les six autres 256. Les tables `_686_`
+    // (FCMOV, FCOMI) sont hors portée (PLAN-G4.md).
+    private static int opX87NonTranscrit(uint32_t fetchdat)
+    {
+        pc.fatal($"not implemented: x87_ops.h — handler x87 non transcrit (G4.2 à G4.5), ESC ModRM {fetchdat & 0xff:X2}\n");
+        return 1;
+    }
+
+    private static OpFn[] X87NonTranscrit(int n)
+    {
+        var t = new OpFn[n];
+        Array.Fill(t, opX87NonTranscrit);
+        return t;
+    }
+
+    internal static readonly OpFn[] ops_fpu_d8_a16 = X87NonTranscrit(32), ops_fpu_d8_a32 = X87NonTranscrit(32);
+    internal static readonly OpFn[] ops_fpu_d9_a16 = X87NonTranscrit(256), ops_fpu_d9_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_da_a16 = X87NonTranscrit(256), ops_fpu_da_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_db_a16 = X87NonTranscrit(256), ops_fpu_db_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_dc_a16 = X87NonTranscrit(32), ops_fpu_dc_a32 = X87NonTranscrit(32);
+    internal static readonly OpFn[] ops_fpu_dd_a16 = X87NonTranscrit(256), ops_fpu_dd_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_de_a16 = X87NonTranscrit(256), ops_fpu_de_a32 = X87NonTranscrit(256);
+    internal static readonly OpFn[] ops_fpu_df_a16 = X87NonTranscrit(256), ops_fpu_df_a32 = X87NonTranscrit(256);
 
     /// <summary>pcem: 9B et D8-DF — relevés sur ops_286[] par gdb.</summary>
     private static void PoserGroupeFPU()

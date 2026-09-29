@@ -4050,3 +4050,39 @@ cpu-config-check, config-check, `popss-check` — **47 journaux sur 47 identique
 durées**. Build 0 avertissement, selftest, check-oracle 0 dérive. **En Debug**, verts : les
 flux de 64, 65, 66, 67, F0, F2, F3, `26 64`, `2E 66` sur le 386, de 26 et F3 sur le 286, et le
 flux 386 complet, 1 500 × 200, 256 opcodes, 300 000 instructions.
+
+## G4.1 — L'état et la plomberie du x87
+
+Le 29/09, sur c6e0095. Plan : `PLAN-G4.md` § G4.1. Aucun handler x87 réel : c'est G4.2.
+
+**Transcrit.** `Cpu/x87_timings.cs` : le struct `x87_timings_t` (72 int, Sequential) et les
+quatre tables 8087, 287, 387, 486, verbatim (`(a + b) / 2` en division entière). `Cpu/x87.cs` :
+`x87_pc_*` (déplacées de x86.cs), `x87_gettag`, `x87_settag`, `x87_reset` (vide chez PCem),
+les constantes C0-C3, TAG_*, X87_ROUNDING_*. `Cpu/cpu_tables.cs` : le struct FPU, les cinq
+tables `fpus_*`, et le champ `fpus` rendu à CPU, à sa place dans l'ordre du C. `Cpu/cpu.cs` :
+FPU_* au complet, `fpu_get_type`, `fpu_get_internal_name`, la branche `hasfpu` de cpu_set
+(les seize tables `ops_fpu_*`) et le `switch (fpu_type)` des temps (cpu.c:1132-1152).
+
+**Provisoire, et bruyant.** Les seize tables `ops_fpu_*` existent, chacun de leurs emplacements
+s'arrête (`opX87NonTranscrit`) jusqu'à G4.5 ; l'ESC du 8088 s'arrête quand un 8087 est déclaré
+(G4.6). Un coprocesseur déclaré ne se comporte donc jamais comme « pas de coprocesseur » en
+silence.
+
+**La clé `fpu`.** Lue par `loadconfig` (pc.c:655, défaut « none »), résolue par `initpc`
+contre la machine et le CPU FINAUX, après `check_cpu` (DEVIATION : `--model` et `--cpu`
+s'appliquent après le fichier) ; écrite par le SETUP (pc.c:875). BootDiff la résout de même
+et la pousse par `h_set_fpu`.
+
+**L'empreinte CPU** gagne deux champs, des deux côtés : `fpu_type` et la FNV des 72 champs de
+`x87_timings`. `cpu-config-check` balaye désormais, pour chaque entrée de CPU, chacun des
+coprocesseurs de sa liste, et l'ami386 et l'ami386dx en plus des quatre machines d'avant :
+**67 configurations identiques, 6 refus concordants** (21 + 4 avant) — 8087 sur le 5150 et le
+XT, 287 et 287XL sur l'IBM AT et l'ami286, 387 sur l'ami386 et l'ami386dx. Contrôle négatif,
+retiré : la table du 387 donnée au 287 côté C# → « FNV des 72 champs de x87_timings » diverge
+sur chaque entrée 287.
+
+**Les portes**, comparées aux journaux de c6e0095 : 25 boot-diffs, fuzzeurs 8088/286/386
+single, flux 8088, 286 et 386 sur 256 opcodes, `--0f`, `--fpu-state`, page-check, pm-fuzz,
+core286-check, pm-check 286 et 386, config-check, popss-check — **46 journaux sur 46
+identiques hors durées** ; cpu-config-check vert, élargi. Build 0 avertissement, selftest,
+check-oracle 0 dérive (112 fichiers : x87.cs et x87_timings.cs entrent au manifeste).

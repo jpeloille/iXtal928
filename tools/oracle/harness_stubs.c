@@ -43,6 +43,7 @@
 
 #include "ibm.h"
 #include "cpu.h"
+#include "x87_timings.h"
 #include "mem.h"
 #include "pic.h"
 #include "timer.h"
@@ -1007,6 +1008,18 @@ void h_cpu_fingerprint(uint64_t *out) {
         out[i++] = (uint64_t)(int64_t)cpu;
         out[i++] = (uint64_t)(int64_t)cpu_manufacturer;
         out[i++] = (uint64_t)(int64_t)(cpu_s ? cpu_s->rspeed : 0);
+        /* G4.1 — le coprocesseur, et la table de temps que cpu_set() a copiée selon lui
+         * (cpu.c:1132-1152) : ses 72 int, dans l'ordre du struct, en FNV. */
+        out[i++] = (uint64_t)(int64_t)fpu_type;
+        {
+                const int *x = (const int *)&x87_timings;
+                uint64_t h = 1469598103934665603ULL;
+                for (size_t k = 0; k < sizeof(x87_timings) / sizeof(int); k++) {
+                        h ^= (uint32_t)x[k];
+                        h *= 1099511628211ULL;
+                }
+                out[i++] = h;
+        }
         while (i < H_CPU_FP_N)
                 out[i++] = 0;
 }

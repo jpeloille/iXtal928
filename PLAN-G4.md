@@ -51,7 +51,7 @@ Réglé par la clé `fpu` de la configuration, comme PCem. Défaut `none` : déc
 
 ## Les étapes
 
-### G4.0 — L'outillage, avant toute ligne de x87
+### G4.0 — L'outillage, avant toute ligne de x87  ✅ *fait (d774bc2), VERIFICATION.md § G4.0*
 
 1. `h_state` expose `ST[8]` en **bits bruts** (uint64 : NaN, signes, zéros négatifs), `tag[8]`,
    `TOP`, `npxs`, `npxc`, `x87_pc/op_off/seg` (ABI 27). `h_set_fpu(type)` pose `fpu_type` et
@@ -64,7 +64,7 @@ Réglé par la clé `fpu` de la configuration, comme PCem. Défaut `none` : déc
 
 Porte : `check-oracle.sh` à zéro dérive, tous les boot-diffs inchangés à l'unité.
 
-### G4.1 — L'état et la plomberie (`fpu=none` : rien ne bouge)
+### G4.1 — L'état et la plomberie (`fpu=none` : rien ne bouge)  ✅ *fait, VERIFICATION.md § G4.1*
 
 État dans `x86.cs`, `x87.cs` (tags), `x87_timings.cs`, `fpus_*`, `fpu_get_type`, clé `fpu`,
 `cpu_set` (tables et temps). Porte : boot-diffs à l'unité en `fpu=none` ; empreinte CPU

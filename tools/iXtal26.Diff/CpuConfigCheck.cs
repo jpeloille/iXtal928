@@ -34,7 +34,8 @@ internal static class CpuConfigCheck
         var refusals = 0;
         var failures = 0;
 
-        string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286"];
+        // G4.1 : l'ami386 et l'ami386dx entrent au balayage — ce sont eux qui proposent le 387.
+        string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286", "ami386", "ami386dx"];
         if (reverse)
             Array.Reverse(order);
 
@@ -54,10 +55,17 @@ internal static class CpuConfigCheck
             // L'indice n, un cran après la dernière entrée, est la sentinelle : les deux
             // côtés doivent le refuser, et c'est vérifié comme le reste.
             for (var c = 0; c <= n; c++)
+            // G4.1 — et, pour chaque entrée, CHACUN des coprocesseurs de sa liste (fpus,
+            // cpu_tables.c:25-29) : la clé `fpu` passe par pc.cfg_fpu, qu'initpc résout ; l'oracle
+            // reçoit le même type par h_set_fpu. La sentinelle, elle, n'a pas de liste.
+            for (var f = 0; c == n ? f == 0 : table[c].fpus![f].internal_name != null; f++)
             {
                 cpu_c.cpu_manufacturer = 0;
                 cpu_c.cpu = c;
-                var label = c < n ? $"{name,-7} cpu = {c}  {table[c].name,-10}" : $"{name,-7} cpu = {c}  (hors table)";
+                pc.cfg_fpu = c < n ? table[c].fpus![f].internal_name! : "none";
+                cpu_c.fpu_type = c < n ? table[c].fpus![f].type : cpu_c.FPU_NONE;
+                var label = c < n ? $"{name,-8} cpu = {c}  {table[c].name,-10} fpu = {pc.cfg_fpu,-5}"
+                                  : $"{name,-8} cpu = {c}  (hors table)";
 
                 Oracle.h_set_discfn(0, "");
                 Oracle.h_set_discfn(1, "");
@@ -117,6 +125,7 @@ internal static class CpuConfigCheck
             }
         }
 
+        pc.cfg_fpu = "none"; // ne rien laisser fuir vers l'appelant
         Console.WriteLine();
         if (failures > 0)
         {

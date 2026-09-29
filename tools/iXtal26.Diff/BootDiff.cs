@@ -73,11 +73,12 @@ public static class BootDiff
             Cpu.cpu_c.cpu_manufacturer = 0;
             Cpu.cpu_c.cpu = cpuN;
         }
-        // G4.0 — le coprocesseur, ÉCRIT des deux côtés : ici, puis h_set_fpu. Aucun
-        // aujourd'hui ; la clé `fpu` de la configuration arrive en G4.1.
-        Cpu.cpu_c.fpu_type = Cpu.cpu_c.FPU_NONE;
         if (!pc.check_cpu())
             return 2;
+        // G4.1 — le coprocesseur, résolu UNE fois comme initpc le fera (pc.c:656, la clé
+        // `fpu` contre la machine et le CPU finaux), puis poussé à l'oracle par h_set_fpu.
+        Cpu.cpu_c.fpu_type = Cpu.cpu_c.fpu_get_type(Models.model_c.model, Cpu.cpu_c.cpu_manufacturer,
+                                                    Cpu.cpu_c.cpu, pc.cfg_fpu);
 
         // La MACHINE en tête : depuis M10 le dépôt en a deux, et un diff qui ne dit pas
         // laquelle il compare laisse croire qu'il n'y en a qu'une.

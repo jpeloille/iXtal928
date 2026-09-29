@@ -780,6 +780,10 @@ internal sealed class SdlSetup
         // l'écran pour le choisir : le registre omet le sélecteur, pas la clé.
         config.config_set_int(config.CFG_MACHINE, null, "cpu_manufacturer", Cpu.cpu_c.cpu_manufacturer);
         config.config_set_int(config.CFG_MACHINE, null, "cpu", Cpu.cpu_c.cpu);
+        // pcem: pc.c:875 — G4.1 : sans elle, une machine enregistrée perdait son coprocesseur.
+        config.config_set_string(config.CFG_MACHINE, null, "fpu",
+                                 Cpu.cpu_c.fpu_get_internal_name(Models.model_c.model, Cpu.cpu_c.cpu_manufacturer,
+                                                                 Cpu.cpu_c.cpu, Cpu.cpu_c.fpu_type)!);
         config.config_set_int(config.CFG_MACHINE, null, "mem_size", pc.cfg_mem_size);
         // pcem: pc.c:879
         config.config_set_string(config.CFG_MACHINE, null, "gfxcard",

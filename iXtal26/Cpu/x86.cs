@@ -132,12 +132,6 @@ internal static partial class x86
     // arrive ici par `using static`. Global de PCem, global ici : voir
     // TRANSCRIPTION.md sur pourquoi il n'y a pas de struct d'instance.
 
-    // pcem: x87.c:22-23 (déclarées x87.h:8-9) — le pointeur d'instruction et d'opérande
-    // du dernier ESC. Posées ici en G4.0, avec l'état du x87 ; elles suivront x87.c
-    // quand il sera transcrit (G4.1).
-    internal static uint32_t x87_pc_off, x87_op_off;
-    internal static uint16_t x87_pc_seg, x87_op_seg;
-
     // ---- pcem: x86.h:122-143 — l'aplatissement en macros ------------------
     // Chacune est une propriété ref : `cycles -= 3;` compile et mute le champ.
 

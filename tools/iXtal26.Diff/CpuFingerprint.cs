@@ -30,6 +30,7 @@ internal static class CpuFingerprint
         "video_timing_read_b", "video_timing_read_w", "video_timing_read_l",
         "video_timing_write_b", "video_timing_write_w", "video_timing_write_l",
         "mem_size", "cpu", "cpu_manufacturer", "rspeed de cpu_s",
+        "fpu_type", "FNV des 72 champs de x87_timings",
     ];
 
     /// <summary>Le vecteur côté C#, dans l'ordre de h_cpu_fingerprint().</summary>
@@ -94,6 +95,18 @@ internal static class CpuFingerprint
         o[i++] = I(cpu_c.cpu);
         o[i++] = I(cpu_c.cpu_manufacturer);
         o[i++] = I(cpu_c.cpu_s?.rspeed ?? 0);
+        // G4.1 — le coprocesseur et sa table de temps, comme h_cpu_fingerprint : les 72 int
+        // du struct (Sequential) dans leur ordre, en FNV.
+        o[i++] = I(cpu_c.fpu_type);
+        var x87 = System.Runtime.InteropServices.MemoryMarshal.Cast<x87_timings_t, int>(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref x87_timings_c.x87_timings, 1));
+        var hx = 1469598103934665603UL;
+        foreach (var v in x87)
+        {
+            hx ^= (uint)v;
+            hx = unchecked(hx * 1099511628211UL);
+        }
+        o[i++] = hx;
         return o;
     }
 

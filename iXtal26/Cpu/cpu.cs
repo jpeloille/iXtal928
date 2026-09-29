@@ -4,8 +4,10 @@
 // ORACLE: pcem-dev/src/cpu/cpu.c + includes/private/cpu/cpu.h
 // STATUS: partial — cpu_set() réduit aux familles que les tables du dépôt portent :
 //         8088, 286 (M16), 386SX (G2, D0.2 — table ops_386 et temps) ;
-//         cpu_update_waitstates() entier ; cpu_get_speed() et cpu_set_turbo(). Le
-//         486 et au-delà, dynarec, FPU, MSR, Cyrix sont omis, bloc par bloc, sur place.
+//         cpu_update_waitstates() entier ; cpu_get_speed() et cpu_set_turbo() ; depuis
+//         G4.1, fpu_get_type, fpu_get_internal_name, les tables d'échappement du x87
+//         (provisoires, voir 386_ops_fpu.cs) et le choix de la table de temps. Le 486 et
+//         au-delà, dynarec, MSR, Cyrix sont omis, bloc par bloc, sur place.
 //
 // L'oracle lie cpu.c (tools/oracle/Makefile) et fait tourner le VRAI cpu_set() de
 // PCem depuis M16 : ce fichier est donc vérifié contre lui par l'empreinte CPU de
@@ -53,12 +55,54 @@ internal static partial class cpu_c
     // defaut, donc MANU_INTEL, et c'est ce que cpu_set() pose pour les deux familles.
     internal const int MANU_INTEL = 0;
 
-    // pcem: cpu.h:72 — enum { FPU_NONE, … }.
+    // pcem: cpu.h:72 — enum { FPU_NONE, FPU_8087, FPU_287, FPU_287XL, FPU_387, FPU_BUILTIN }.
     internal const int FPU_NONE = 0;
+    internal const int FPU_8087 = 1;
+    internal const int FPU_287 = 2;
+    internal const int FPU_287XL = 3;
+    internal const int FPU_387 = 4;
+    internal const int FPU_BUILTIN = 5;
 
-    // pcem: cpu.c:11 — posé par loadconfig depuis la clé `fpu` chez PCem (pc.c:655-656),
-    // clé que ce dépôt ne lit pas : il reste FPU_NONE, donc hasfpu vaut 0.
+    // pcem: cpu.c:11 — posé par loadconfig depuis la clé `fpu` (pc.c:655-656, pc.cs depuis
+    // G4.1) : `none` par défaut, donc FPU_NONE et hasfpu nul.
     internal static int fpu_type;
+
+    // pcem: cpu.c:128-138
+    internal static int fpu_get_type(int model, int manu, int cpu, string internal_name)
+    {
+        var cpu_s = model_c.models[model].cpu[manu].cpus![cpu];
+        var fpus = cpu_s.fpus!;
+        var fpu_type = fpus[0].type;
+        var c = 0;
+
+        while (fpus[c].internal_name != null)
+        {
+                if (internal_name == fpus[c].internal_name)
+                        fpu_type = fpus[c].type;
+                c++;
+        }
+
+        return fpu_type;
+    }
+
+    // pcem: cpu.c:140-152
+    internal static string? fpu_get_internal_name(int model, int manu, int cpu, int type)
+    {
+        var cpu_s = model_c.models[model].cpu[manu].cpus![cpu];
+        var fpus = cpu_s.fpus!;
+        var c = 0;
+
+        while (fpus[c].internal_name != null)
+        {
+                if (fpus[c].type == type)
+                        return fpus[c].internal_name;
+                c++;
+        }
+
+        return fpus[0].internal_name;
+    }
+
+    // omitted: fpu_get_name_from_index et fpu_get_type_from_index (cpu.c:154-170) — la liste de l'interface wx/qt.
 
     // pcem: cpu.c:14-15
     private static int cpu_turbo_speed, cpu_nonturbo_speed;
@@ -258,7 +302,24 @@ internal static partial class cpu_c
 
         if (hasfpu != 0)
         {
-                pc.fatal("not implemented: cpu.c:276-292 — tables d'échappement FPU (ops_fpu_*)\n");
+                // G4.1 — les tables sont posées ; leurs handlers s'arrêtent bruyamment
+                // jusqu'à G4.5 (386_ops_fpu.cs, opX87NonTranscrit).
+                _386.x86_opcodes_d8_a16 = _386.ops_fpu_d8_a16;
+                _386.x86_opcodes_d8_a32 = _386.ops_fpu_d8_a32;
+                _386.x86_opcodes_d9_a16 = _386.ops_fpu_d9_a16;
+                _386.x86_opcodes_d9_a32 = _386.ops_fpu_d9_a32;
+                _386.x86_opcodes_da_a16 = _386.ops_fpu_da_a16;
+                _386.x86_opcodes_da_a32 = _386.ops_fpu_da_a32;
+                _386.x86_opcodes_db_a16 = _386.ops_fpu_db_a16;
+                _386.x86_opcodes_db_a32 = _386.ops_fpu_db_a32;
+                _386.x86_opcodes_dc_a16 = _386.ops_fpu_dc_a16;
+                _386.x86_opcodes_dc_a32 = _386.ops_fpu_dc_a32;
+                _386.x86_opcodes_dd_a16 = _386.ops_fpu_dd_a16;
+                _386.x86_opcodes_dd_a32 = _386.ops_fpu_dd_a32;
+                _386.x86_opcodes_de_a16 = _386.ops_fpu_de_a16;
+                _386.x86_opcodes_de_a32 = _386.ops_fpu_de_a32;
+                _386.x86_opcodes_df_a16 = _386.ops_fpu_df_a16;
+                _386.x86_opcodes_df_a32 = _386.ops_fpu_df_a32;
         }
         else
         {
@@ -396,8 +457,29 @@ internal static partial class cpu_c
                 break;
         }
 
-        // omitted: switch (fpu_type) (cpu.c:1132-1152) — les tables de temps x87 ;
-        //   fpu_type vaut FPU_NONE, dont le cas est un `break`.
+        // pcem: cpu.c:1132-1152 — G4.1.
+        switch (fpu_type)
+        {
+        case FPU_NONE:
+                break;
+
+        case FPU_8087:
+                x87_timings_c.x87_timings = x87_timings_c.x87_timings_8087;
+                break;
+
+        case FPU_287:
+                x87_timings_c.x87_timings = x87_timings_c.x87_timings_287;
+                break;
+
+        case FPU_287XL:
+        case FPU_387:
+                x87_timings_c.x87_timings = x87_timings_c.x87_timings_387;
+                break;
+
+        default:
+                x87_timings_c.x87_timings = x87_timings_c.x87_timings_486;
+                break;
+        }
     }
 
     // pcem: cpu.c:2010-2048

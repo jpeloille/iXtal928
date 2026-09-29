@@ -30,9 +30,10 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 - **Ouvert, sans bloquer G** : le reliquat du 286, `PLAN-286.md` § « Tâches à couvrir » —
   les tâches 3 (`taskswitch286`, G2 D5) et 4 (le CMOS de l'AT, G3.0) y sont faites, pas
   encore cochées.
-- **G4, le plan est posé** : `PLAN-G4.md`, étapes G4.0 à G4.7, décisions de Julien tranchées
-  le 29/09. Le prochain pas est **G4.0, l'outillage** ; rien n'est commencé. G1 (8086) reste
-  petit et indépendant.
+- **G4, en cours** : `PLAN-G4.md`. G4.0 (l'outillage, ABI 27) et G4.1 (l'état, les tables de
+  temps, la clé `fpu`) sont faits ; en chemin, PB-48 à PB-51 et le trampoline des préfixes.
+  Le prochain pas est **G4.2, chargements et stockages**. G1 (8086) reste petit et
+  indépendant.
 
 ## Les générations
 
