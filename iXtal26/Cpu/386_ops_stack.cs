@@ -256,6 +256,21 @@ internal static partial class _386
         return cpu_state.abrt;
     };
 
+    // PB-49 — L'OMBRE DE SS, EN RÉCURSION. POP SS et MOV SS exécutent l'instruction
+    // suivante en APPELANT son handler (x86_ops_stack.h:595, :621 ; x86_ops_mov_seg.h:190,
+    // :233), suivi d'un `return 1` : pas un appel terminal, la pile grandit d'une trame par
+    // chargement de SS enchaîné. Le cœur 386 ne fait pas boucler IP en mode réel : une RAM
+    // remplie de 0x17 est une chaîne de la taille de la RAM. Mesuré (`popss-check`, pile de
+    // 8 Mo) : l'oracle et le C# verbatim restent identiques jusqu'à 100 000 chargements
+    // enchaînés au moins, et tombent vers 200 000 — PCem par débordement de pile, le C# par
+    // StackOverflow .NET, qui ne se rattrape pas. Non reproduit, comme PB-46 et PB-47 : la
+    // chaîne est bornée. En deçà de la borne, identique à l'oracle ; au-delà, le chargement
+    // de SS rend la main sans ombre et exec386 reprend l'instruction suivante — un écart
+    // avec l'oracle, là où lui survit encore, pour des chaînes qu'aucun logiciel n'écrit.
+    // La profondeur est commune aux quatre sites : une chaîne peut mêler POP SS et MOV SS.
+    internal const int SS_SHADOW_MAX = 1024;
+    internal static int ss_shadow_depth;
+
     // pcem: x86_ops_stack.h:573-598 — opPOP_SS_w.
     //
     // CELUI-LÀ N'EST PAS UNE INSTANCE DE LA MACRO, et c'est le seul opcode de tout
@@ -281,6 +296,11 @@ internal static partial class _386
         CLOCK_CYCLES(is486 != 0 ? 3 : 7);
         PREFETCH_RUN(is486 != 0 ? 3 : 7, 1, -1, 0, 0, 1, 0, 0);
 
+        // pcem bug, not reproduced: PB-49 — l'ombre de SS est bornée à SS_SHADOW_MAX chargements
+        //   enchaînés ; au-delà, l'instruction suivante est laissée à la boucle d'exec386.
+        if (ss_shadow_depth >= SS_SHADOW_MAX)
+                return 1;
+
         cpu_state.oldpc = cpu_state.pc;
         cpu_state.op32 = use32;
         cpu_state.ssegs = 0;
@@ -289,7 +309,9 @@ internal static partial class _386
         cpu_state.pc++;
         if (cpu_state.abrt != 0)
                 return 1;
+        ss_shadow_depth++;
         x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8); // G2 : ops_286 en dur ici, invisible sur un 286 ; PCem lit x86_opcodes (x86_ops_stack.h:595)
+        ss_shadow_depth--;
 
         return 1;
     }
@@ -738,6 +760,11 @@ internal static partial class _386
         CLOCK_CYCLES(is486 != 0 ? 3 : 7);
         PREFETCH_RUN(is486 != 0 ? 3 : 7, 1, -1, 0, 0, 1, 0, 0);
 
+        // pcem bug, not reproduced: PB-49 — l'ombre de SS est bornée à SS_SHADOW_MAX chargements
+        //   enchaînés ; au-delà, l'instruction suivante est laissée à la boucle d'exec386.
+        if (ss_shadow_depth >= SS_SHADOW_MAX)
+                return 1;
+
         cpu_state.oldpc = cpu_state.pc;
         cpu_state.op32 = use32;
         cpu_state.ssegs = 0;
@@ -746,7 +773,9 @@ internal static partial class _386
         cpu_state.pc++;
         if (cpu_state.abrt != 0)
                 return 1;
+        ss_shadow_depth++;
         x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        ss_shadow_depth--;
 
         return 1;
     }

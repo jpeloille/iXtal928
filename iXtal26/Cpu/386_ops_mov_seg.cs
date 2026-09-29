@@ -108,6 +108,9 @@ internal static partial class _386
                 x86seg_c.loadseg(new_seg, cpu_state.seg_ss);
                 if (cpu_state.abrt != 0)
                         return 1;
+                // pcem bug, not reproduced: PB-49 — l'ombre de SS est bornée (386_ops_stack.cs).
+                if (ss_shadow_depth >= SS_SHADOW_MAX)
+                        return 1;
                 cpu_state.oldpc = cpu_state.pc;
                 cpu_state.op32 = use32;
                 cpu_state.ssegs = 0;
@@ -116,7 +119,9 @@ internal static partial class _386
                 cpu_state.pc++;
                 if (cpu_state.abrt != 0)
                         return 1;
+                ss_shadow_depth++;
                 x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                ss_shadow_depth--;
                 return 1;
         // PAS de `case 0x08` : MOV CS, r/m n'existe pas, le switch tombe a
         // travers en silence. Voir l'en-tete.
@@ -433,6 +438,9 @@ internal static partial class _386
                 x86seg_c.loadseg(new_seg, cpu_state.seg_ss);
                 if (cpu_state.abrt != 0)
                         return 1;
+                // pcem bug, not reproduced: PB-49 — l'ombre de SS est bornée (386_ops_stack.cs).
+                if (ss_shadow_depth >= SS_SHADOW_MAX)
+                        return 1;
                 cpu_state.oldpc = cpu_state.pc;
                 cpu_state.op32 = use32;
                 cpu_state.ssegs = 0;
@@ -441,7 +449,9 @@ internal static partial class _386
                 cpu_state.pc++;
                 if (cpu_state.abrt != 0)
                         return 1;
+                ss_shadow_depth++;
                 x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                ss_shadow_depth--;
                 return 1;
         case 0x20: /*FS*/
                 x86seg_c.loadseg(new_seg, cpu_state.seg_fs);

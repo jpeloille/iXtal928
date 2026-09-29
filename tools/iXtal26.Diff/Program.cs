@@ -113,6 +113,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
     Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
     Console.WriteLine();
+    Console.WriteLine("  popss-check");
+    Console.WriteLine("      PB-49 : chaînes de POP SS / MOV SS, identiques à l'oracle jusqu'à la borne,");
+    Console.WriteLine("      bornées au-delà, et un segment plein de 0x17 sans plantage (C# seul).");
+    Console.WriteLine();
     Console.WriteLine("  x87-parity [N=10000000]");
     Console.WriteLine("      G4.0 : Math.* contre la libm de l'oracle, conversions double -> entier");
     Console.WriteLine("      contre cvttsd2si, et l'arrondi dirigé exact contre fesetround — hors");
@@ -521,6 +525,10 @@ switch (args[0])
 
         return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs);
     }
+
+    case "popss-check":
+        // PB-49 — la borne de l'ombre de SS : identique à l'oracle en deçà, bornée au-delà.
+        return PopSsCheck.Run();
 
     case "x87-parity":
         // G4.0 — les trois mesures de parité du x87 (PLAN-G4.md) : libm, conversions,

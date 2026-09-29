@@ -3976,3 +3976,50 @@ rc=139, 8444530 compris), le 286 en flux aussi (abort, rc=134). Non instruit.
 
 SingleStepTests n'a pas de corpus x87 : vingt-deux dépôts, aucun, et aucune forme D8-DF
 dans `sst-baseline.tsv` ni `sst386-baseline.tsv`.
+
+## PB-49 — L'ombre de SS, bornée ; le fuzzeur en flux du 286 et du 386 enfin vert
+
+Le 29/09, sur d774bc2. Le fuzzeur en flux sur les 256 opcodes tombait sur le 286 (abort,
+rc=134) et le 386 (SIGSEGV, rc=139), arbre d'avant G4.0 compris.
+
+**La cause** (PB-49) : POP SS et MOV SS exécutent la suivante en appelant son handler, sans
+appel terminal (`call opPOP_SS_l.part.0` puis `add $8,%rsp` au désassemblage de l'oracle) ;
+une RAM remplie de 0x17 est une récursion de la taille de la RAM, IP ne bouclant pas en mode
+réel. Balayage des 256 opcodes seuls en flux, 4 × 200 : seul 0x17 tombe, 286 et 386 ; le
+8088 non (`noint`). Recette : `fuzz --core 286|386 --rounds 1 --instr 1 --op 17`. Après le
+premier correctif, le 386 tombait encore à la ronde 1139 de la graine 1 : `17 65 17 65…`, le
+préfixe GS saute sur le POP SS suivant, qui le rappelle.
+
+**Mesuré** : des chaînes de N POP SS puis un NOP, oracle et C# sans borne, restent identiques
+jusqu'à N = 100 000 au moins et tombent à N = 200 000 (pile de 8 Mo). L'hôte n'a qu'un fil.
+
+**Les correctifs**, accord de Julien :
+- le C# borne la chaîne à `SS_SHADOW_MAX` = 1 024 chargements enchaînés, profondeur commune
+  aux quatre sites (POP SS w/l, MOV SS a16/a32), `// pcem bug, not reproduced: PB-49` ;
+- `Fuzzer.Run`, flux, cœurs exec386 : derrière un remplissage 0x17, l'opcode intercalé ne
+  peut être ni un octet qui enchaîne (`EnchaineSurLaSuivante`) ni 8E (`8E 17` = MOV SS,[BX]) ;
+  derrière un préfixe de segment, ni 0x17. Le 8088 n'est pas touché.
+
+**`popss-check`**, nouvelle porte : POP SS, MOV SS,AX, les deux mêlés, POP SS + préfixe GS,
+sur 286 et 386, N = 1, 2, 100, 1 023, 1 024 : **identique à l'oracle** ; N = 1 025 et 4 096 :
+sans plantage, écart attendu là où la chaîne recourt aux cycles (POP SS : le pas s'arrête au
+1 025ᵉ ; MOV SS ne compte aucun cycle, `x86_ops_mov_seg.h:190` rendant avant CLOCK_CYCLES, et
+la boucle d'exec386 reprend la chaîne ITÉRATIVEMENT dans le même pas — identique à l'oracle) ;
+RAM entière remplie de 0x17, C# seul : 200 pas de 1 025 POP SS, sans plantage ni boucle.
+Contrôle négatif, retiré : sans la borne, ce dernier cas fait tomber le C#.
+
+**Les portes**, comparées aux journaux de d774bc2 : 25 boot-diffs, fuzzeurs 8088/286/386
+single et flux 8088, `--0f`, `--fpu-state`, page-check, pm-fuzz, core286-check, pm-check 286
+et 386, cpu-config-check, config-check — **43 journaux sur 43 identiques hors durées**.
+Nouveaux verts : **fuzz 286 en flux** et **fuzz 386 en flux**, 1 500 × 200, 256 opcodes,
+300 000 instructions chacun ; `popss-check`. Build 0 avertissement, selftest, check-oracle 0
+dérive.
+
+**Reste ouvert, instruit, non corrigé** : une RAM remplie de préfixes (64, 66, 67, F0, F2,
+F3, ou `26 64`) forme sur le 386 une seule « instruction » d'environ 1,7 million de préfixes
+(3 428 108 cycles au premier pas, IP 000F0002 : la fin du Mo rempli). Oracle et C# en
+Release identiques, sans plantage ni boucle — parce que les deux font du préfixe un saut
+terminal : GCC (`jmp *%rax`) et RyuJIT, qui n'y est pas tenu. **En Debug, le C# tombe**
+(StackOverflow dans `PrefixeSegment`, `fuzz --core 386 --rounds 1 --instr 3 --op 64`). Le
+silicium lève #GP au-delà de 15 octets par instruction (10 sur le 286) et au-delà de la
+limite de CS en mode réel : PCem ne fait ni l'un ni l'autre.

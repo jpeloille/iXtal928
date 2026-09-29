@@ -656,6 +656,48 @@ Mesuré par un pas C# seul : les trois formes prennent INT 0 (IVT[0], SP − 6) 
 ordinaire (-100 / -1) est inchangé. Aucun oracle ne départage : l'oracle meurt, et aucun
 cas SST ne tombe sur ces valeurs.
 
+### PB-49 — L'ombre de SS est une récursion : une suite de POP SS ou MOV SS épuise la pile
+
+`x86_ops_stack.h:573-624` (`opPOP_SS_w`, `opPOP_SS_l`) et `x86_ops_mov_seg.h:178-190`,
+`:221-233` (branche SS de `opMOV_seg_w_a16`, `_a32`). Après le chargement de SS, le handler
+exécute l'instruction suivante lui-même — l'ombre d'interruption — en APPELANT son handler :
+
+```c
+x86_opcodes[(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+return 1;
+```
+
+Ce n'est pas un appel terminal : le désassemblage de l'oracle (-O2) montre `opPOP_SS_w`
+appelant `opPOP_SS_l.part.0` (`call`, puis `add $8,%rsp`), qui saute au handler suivant. Une
+trame par chargement de SS enchaîné. Les préfixes de segment ont la même forme
+(`x86_ops_prefix.h:96-165`) mais écrite `return x86_opcodes[…](…)`, et GCC en fait un vrai
+saut (`jmp *%rax`, mesuré sur `opES_w_a16`) : eux ne font pas grandir la pile. Le cœur 386
+ne fait pas boucler IP en mode réel : une RAM remplie de 0x17 est une chaîne de la taille de
+la RAM. Un préfixe intercalé ne la casse pas : dans `17 65 17 65…` (POP SS, préfixe GS), le
+préfixe saute sur le POP SS suivant, qui le rappelle — une trame par paire, et l'oracle tombe
+de même (fuzzeur 386 en flux, graine 1, ronde 1139). Tout octet qui enchaîne sur la suivante
+(préfixes de segment, 66, 67, F0-F3) forme la chaîne avec POP SS ou MOV SS.
+
+*Effet* : un invité qui enchaîne des chargements de SS fait tomber l'hôte — débordement de
+pile, SIGSEGV ou abort selon l'endroit où elle casse. Mesuré : `fuzz --core 286|386 --rounds
+1 --instr 1 --op 17` (RAM remplie de 0x17) tombe au premier pas, l'oracle d'abord (la pile
+.NET s'arrête dans `Oracle.h_step`) ; des chaînes de N POP SS suivies d'un NOP restent
+identiques des deux côtés jusqu'à N = 100 000 au moins, et tombent à N = 200 000 (pile de
+8 Mo). Le 8088 n'est pas touché : `808x.c` pose `noint` au lieu de récurser. Sur le
+silicium, rien ne tombe ; Intel ne garantit l'inhibition que pour le PREMIER chargement de SS
+d'une suite.
+*Trouvé par* : le fuzzeur en mode flux sur les 256 opcodes, 286 et 386, dont un balayage
+opcode par opcode a isolé 0x17 ; confirmé à la ligne de C et au désassemblage.
+*NON reproduit*, exception assumée comme PB-46 et PB-47 : la chaîne est bornée à
+`_386.SS_SHADOW_MAX` = 1 024 chargements enchaînés (`Cpu/386_ops_stack.cs`, profondeur
+commune aux quatre sites) ; au-delà, le chargement de SS rend la main sans ombre et exec386
+reprend l'instruction suivante. Marqueurs `// pcem bug, not reproduced: PB-49` :
+`Cpu/386_ops_stack.cs` (POP SS w et l), `Cpu/386_ops_mov_seg.cs` (MOV SS a16 et a32).
+`iXtal26.Diff popss-check` : identique à l'oracle jusqu'à 1 024 chargements (POP SS, MOV SS,
+mêlés ; 286 et 386) ; au-delà, écart ATTENDU, là où l'oracle survit encore ; RAM entière
+remplie de 0x17, C# seul : 200 pas de 1 025 POP SS, sans plantage ni boucle. Sans la borne,
+le même test fait tomber le C#.
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -1032,7 +1074,7 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 
 ## Portée de ce registre
 
-Ces **quarante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **quarante-neuf** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1047,6 +1089,7 @@ audit systématique de PCem** :
 | pm-check --core 386 : une attente écrite à la main que l'oracle ne tenait pas (G2 D5) | PB-39, PB-40 |
 | Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45 à PB-47 |
 | Mesure de parité du x87 contre le vrai handler, puis lecture du C (G4.0) | PB-48 |
+| Fuzzer différentiel en mode flux, balayage par opcode, désassemblage de l'oracle | PB-49 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

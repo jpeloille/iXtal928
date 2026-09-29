@@ -553,12 +553,32 @@ public static class Fuzzer
             // On alterne donc le préfixe avec un opcode réel. Le chemin de
             // préfixe reste exercé — c'est même le seul endroit du mode flux qui
             // le fasse — et la ronde termine.
+            //
+            // POP SS (0x17) TOMBE SOUS LA MÊME RÈGLE (PB-49) : il exécute la suivante en
+            // APPELANT son handler, et un flux uniforme de 0x17 est une récursion sans fin —
+            // l'oracle meurt de débordement de pile au premier pas, 286 et 386. L'alternance
+            // la borne à un cran. 8E est exclu de l'opcode intercalé derrière 0x17 : `8E 17`
+            // est MOV SS,[BX], qui enchaîne lui aussi, et `17 8E 17 8E…` referait la chaîne.
+            // Seules changent les rondes dont le remplissage est 0x17 : elles tombaient toutes.
+            // Cœurs exec386 seulement : le 808x pose `noint` au lieu de récurser, et le flux
+            // 8088 de 0x17 était vert — ses recettes ne bougent pas.
             var inner = fill;
-            if (IsSegPrefix(fill))
+            if (IsSegPrefix(fill) || (fill == 0x17 && Oracle.Exec386(core)))
             {
-                for (var guard = 0; guard < 16 && IsSegPrefix(inner); guard++)
+                // Sur exec386, 0x17 est aussi refusé derrière un préfixe : `26 17 26 17…` fait
+                // sauter le préfixe sur POP SS, qui rappelle le préfixe — la même chaîne. Et
+                // derrière un remplissage 0x17, TOUT octet qui enchaîne sur la suivante est
+                // refusé, pas seulement les quatre préfixes de segment : `17 65 17 65…` (POP SS,
+                // préfixe GS) tombait à la ronde 1139 de la graine 1 — le préfixe saute sur le
+                // POP SS suivant, qui le rappelle. EnchaineSurLaSuivante couvre 17, les six
+                // préfixes de segment, 66, 67 et F0-F3 ; 8E en plus (`8E 17` = MOV SS,[BX]).
+                var x386 = Oracle.Exec386(core);
+                bool Refus(byte b) => IsSegPrefix(b)
+                                      || (x386 && (b == 0x17
+                                                   || (fill == 0x17 && (EnchaineSurLaSuivante(b) || b == 0x8E))));
+                for (var guard = 0; guard < 16 && Refus(inner); guard++)
                     inner = opcodes[rng.Next() % (uint)opcodes.Length];
-                if (IsSegPrefix(inner))
+                if (Refus(inner))
                     inner = 0x90;                    // NOP : repli sûr
             }
 
