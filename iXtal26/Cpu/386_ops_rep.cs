@@ -85,8 +85,8 @@ internal static partial class _386
         CLOCK_CYCLES(2);
         PREFETCH_PREFIX();
         if (table[(fetchdat & 0xff) | cpu_state.op32] != null)
-                return table[(fetchdat & 0xff) | cpu_state.op32]!(fetchdat >> 8);
-        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                return TailCall(table[(fetchdat & 0xff) | cpu_state.op32]!, fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
     };
 
     internal static readonly OpFn?[] ops_REPE = new OpFn?[1024];
@@ -119,8 +119,8 @@ internal static partial class _386
         PREFETCH_PREFIX();
 
         if (table[(fetchdat & 0xff) | quadrant] != null)
-                return table[(fetchdat & 0xff) | quadrant]!(fetchdat >> 8);
-        return x86_opcodes![(fetchdat & 0xff) | quadrant](fetchdat >> 8);
+                return TailCall(table[(fetchdat & 0xff) | quadrant]!, fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | quadrant], fetchdat >> 8);
     };
 
     /// <summary>pcem: x86_ops_prefix.h:112-140 — op_66_REPE / op_67_REPE et
@@ -149,8 +149,8 @@ internal static partial class _386
         CLOCK_CYCLES(2);
         PREFETCH_PREFIX();
         if (table[(fetchdat & 0xff) | cpu_state.op32] != null)
-                return table[(fetchdat & 0xff) | cpu_state.op32]!(fetchdat >> 8);
-        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                return TailCall(table[(fetchdat & 0xff) | cpu_state.op32]!, fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
     };
 
     // pcem: x86_ops_rep.h — opREP_INSB_a16. UN SEUL TOUR par appel.

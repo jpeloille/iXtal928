@@ -26,6 +26,8 @@
 // pour décider s'il doit remettre ea_seg à SS quand le mode d'adressage le
 // demande (les formes en BP). Sans lui, un `ES: MOV [BP], AX` écrirait dans SS.
 
+using System.Runtime.CompilerServices;
+
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
 
@@ -33,6 +35,42 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // LE TRAMPOLINE DES PRÉFIXES (PB-50). Un préfixe rend ce que rend le handler qu'il
+    // aiguille : `return x86_opcodes[…](fetchdat >> 8)`, un APPEL TERMINAL. GCC en fait un
+    // saut (`jmp *%rax`, mesuré dans l'oracle) ; C# ne le garantit pas — RyuJIT le fait en
+    // Release, pas en Debug. Or PCem ne borne pas la longueur d'une instruction : une RAM
+    // remplie de préfixes est UNE instruction d'environ 1,7 million d'octets, et le C# Debug
+    // y tombait par StackOverflow (`fuzz --core 386 --rounds 1 --instr 3 --op 64`).
+    // DEVIATION: le préfixe ne s'appelle pas lui-même : il range le handler suivant et son
+    //   fetchdat, et rend TAIL ; Dispatch, à chaque site qui aiguille un opcode depuis la
+    //   boucle ou l'ombre de SS, appelle le handler rangé tant qu'on lui rend TAIL. Rien ne
+    //   s'exécute entre le `return` du préfixe et l'appel : même handler, même fetchdat, même
+    //   valeur rendue, même ordre — au bit près l'appel terminal de PCem, sans pile.
+    private const int TAIL = int.MinValue;
+    private static OpFn? tail_fn;
+    private static uint32_t tail_fetchdat;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int TailCall(OpFn fn, uint32_t fetchdat)
+    {
+        tail_fn = fn;
+        tail_fetchdat = fetchdat;
+        return TAIL;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int Dispatch(OpFn fn, uint32_t fetchdat)
+    {
+        var r = fn(fetchdat);
+        while (r == TAIL)
+        {
+                var f = tail_fn!;
+                tail_fn = null;
+                r = f(tail_fetchdat);
+        }
+        return r;
+    }
+
     /// <summary>pcem: x86_ops_prefix.h:3-18 — op_seg(name, seg, …), forme
     /// `_w_a16`.
     ///
@@ -58,8 +96,8 @@ internal static partial class _386
         PREFETCH_PREFIX();
 
         if (x86_opcodes![(fetchdat & 0xff) | quadrant] != null)
-                return x86_opcodes[(fetchdat & 0xff) | quadrant](fetchdat >> 8);
-        return x86_opcodes[(fetchdat & 0xff) | quadrant](fetchdat >> 8);
+                return TailCall(x86_opcodes[(fetchdat & 0xff) | quadrant], fetchdat >> 8);
+        return TailCall(x86_opcodes[(fetchdat & 0xff) | quadrant], fetchdat >> 8);
     };
 
     // pcem: x86_ops_prefix.h:86-97 — G2, D1.
@@ -73,7 +111,7 @@ internal static partial class _386
         cpu_state.op32 = ((use32 & 0x100) ^ 0x100) | (cpu_state.op32 & 0x200);
         CLOCK_CYCLES(2);
         PREFETCH_PREFIX();
-        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
     }
 
     // pcem: x86_ops_prefix.h:98-109 — G2, D1.
@@ -87,7 +125,7 @@ internal static partial class _386
         cpu_state.op32 = ((use32 & 0x200) ^ 0x200) | (cpu_state.op32 & 0x100);
         CLOCK_CYCLES(2);
         PREFETCH_PREFIX();
-        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
     }
 
     /// <summary>G2, D1 — les préfixes du 386 dans ops_386 (386_ops.h, OP_TABLE(386)) :
@@ -156,7 +194,7 @@ internal static partial class _386
 
         CLOCK_CYCLES(4);
         PREFETCH_PREFIX();
-        return x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        return TailCall(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
     }
 
     // omitted: les variantes `_l`, `_a32`, `_REPE` et `_REPNE` d'op_seg — op32

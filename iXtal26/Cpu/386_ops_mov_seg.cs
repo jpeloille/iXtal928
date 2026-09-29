@@ -120,7 +120,7 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 ss_shadow_depth++;
-                x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                Dispatch(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
                 ss_shadow_depth--;
                 return 1;
         // PAS de `case 0x08` : MOV CS, r/m n'existe pas, le switch tombe a
@@ -450,7 +450,7 @@ internal static partial class _386
                 if (cpu_state.abrt != 0)
                         return 1;
                 ss_shadow_depth++;
-                x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+                Dispatch(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
                 ss_shadow_depth--;
                 return 1;
         case 0x20: /*FS*/

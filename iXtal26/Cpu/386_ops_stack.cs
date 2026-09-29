@@ -310,7 +310,7 @@ internal static partial class _386
         if (cpu_state.abrt != 0)
                 return 1;
         ss_shadow_depth++;
-        x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8); // G2 : ops_286 en dur ici, invisible sur un 286 ; PCem lit x86_opcodes (x86_ops_stack.h:595)
+        Dispatch(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8); // G2 : ops_286 en dur ici, invisible sur un 286 ; PCem lit x86_opcodes (x86_ops_stack.h:595). Trampoline : 386_ops_prefix.cs
         ss_shadow_depth--;
 
         return 1;
@@ -774,7 +774,7 @@ internal static partial class _386
         if (cpu_state.abrt != 0)
                 return 1;
         ss_shadow_depth++;
-        x86_opcodes![(fetchdat & 0xff) | cpu_state.op32](fetchdat >> 8);
+        Dispatch(x86_opcodes![(fetchdat & 0xff) | cpu_state.op32], fetchdat >> 8);
         ss_shadow_depth--;
 
         return 1;

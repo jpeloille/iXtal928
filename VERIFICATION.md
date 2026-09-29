@@ -4023,3 +4023,30 @@ terminal : GCC (`jmp *%rax`) et RyuJIT, qui n'y est pas tenu. **En Debug, le C# 
 (StackOverflow dans `PrefixeSegment`, `fuzz --core 386 --rounds 1 --instr 3 --op 64`). Le
 silicium lève #GP au-delà de 15 octets par instruction (10 sur le 286) et au-delà de la
 limite de CS en mode réel : PCem ne fait ni l'un ni l'autre.
+
+## PB-50, PB-51 — Le trampoline des préfixes ; le C# Debug ne tombe plus
+
+Le 29/09, sur 6c91331. Instruit à la suite de PB-49 : une RAM remplie de préfixes (64, 65, 66,
+67, F0, F2, F3, ou `26 64` alternés) forme sur le 386 UNE instruction d'environ 1,7 million
+de préfixes — 3 428 108 cycles au premier pas, IP 000F0002. Pas de boucle sans fin : IP ne
+boucle pas en mode réel (PB-51), la chaîne s'arrête à la fin du Mo rempli. PCem ne limite pas
+la longueur d'une instruction (PB-50 ; le silicium lève #GP au seizième octet, onzième sur le
+286). Oracle et C# Release identiques — les deux font du préfixe un saut, GCC par
+`jmp *%rax`, RyuJIT parce qu'il le veut bien. **Le C# Debug tombait** : StackOverflow dans
+`PrefixeSegment`, `fuzz --core 386 --rounds 1 --instr 3 --op 64`.
+
+**Le correctif**, accord de Julien : un trampoline (`Cpu/386_ops_prefix.cs`, `// DEVIATION:`).
+Les préfixes — op_seg et ses formes REPE/REPNE, 66, 67, `PrefixeTaille`, REPE, REPNE,
+LOCK — rendent `TailCall(handler, fetchdat)` au lieu d'appeler ; `Dispatch` appelle le handler
+rangé tant qu'on lui rend TAIL, aux trois sites qui aiguillent depuis l'extérieur d'un préfixe :
+la boucle d'exec386, POP SS (w, l) et MOV SS (a16, a32). Même handler, même fetchdat, même
+valeur rendue, rien d'exécuté entre les deux : l'appel terminal de PCem, sans pile. Les
+échappements 0F et x87 restent des appels directs — un cran, leurs handlers n'enchaînent pas.
+
+**Les portes**, comparées aux journaux de 6c91331 et de la série précédente : 25 boot-diffs,
+fuzzeurs 8088/286/386 single, flux 8088, 286 et 386 sur les 256 opcodes, `--0f`,
+`--fpu-state` (single et flux 8088), page-check, pm-fuzz, core286-check, pm-check 286 et 386,
+cpu-config-check, config-check, `popss-check` — **47 journaux sur 47 identiques hors
+durées**. Build 0 avertissement, selftest, check-oracle 0 dérive. **En Debug**, verts : les
+flux de 64, 65, 66, 67, F0, F2, F3, `26 64`, `2E 66` sur le 386, de 26 et F3 sur le 286, et le
+flux 386 complet, 1 500 × 200, 256 opcodes, 300 000 instructions.

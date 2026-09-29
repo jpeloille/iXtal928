@@ -393,6 +393,43 @@ bien `fesetround`, le défaut est dans l'endroit où PCem l'appelle.
 *Reproduit* : pas encore — G4.3 transcrira l'arrondi dirigé sur les seuls FADD mémoire, au
 plus près partout ailleurs (décision n° 3 de `PLAN-G4.md`).
 
+### PB-50 — Aucune limite de longueur d'instruction : les préfixes s'enchaînent sans fin
+
+`x86_ops_prefix.h:3-165` (op_seg et ses variantes, `op_66`, `op_67` et leurs formes REPE et
+REPNE), `x86_ops_rep.h:741-764` (REPNE, REPE), `x86_ops_misc.h:701-712` (LOCK). Chaque préfixe
+compte ses cycles puis aiguille l'octet suivant — `return x86_opcodes[…](fetchdat >> 8)` —
+sans compter les octets déjà lus. Le silicium lève #GP(0) quand une instruction dépasse
+15 octets sur le 386 (10 sur le 286). PCem n'a pas de compteur.
+
+*Effet* : une suite de préfixes de n'importe quelle longueur forme UNE instruction. Mesuré
+(G4.0, `fuzz --core 386 --rounds 1 --instr 3 --op 64`, RAM remplie de 64) : le premier pas
+exécute environ 1,7 million de préfixes, 3 428 108 cycles, jusqu'à IP 000F0002 — la fin du Mo
+rempli, puisque IP ne boucle pas non plus (PB-51) ; mêmes résultats pour 65, 66, 67, F0, F2,
+F3 et `26 64` alternés. Le silicium aurait levé #GP au seizième octet.
+*Trouvé par* : l'instruction de PB-49 (préfixes intercalés dans une chaîne de POP SS).
+*Reproduit* : le C# ne compte pas non plus. Mais le préfixe de PCem est un appel terminal
+que GCC compile en saut (`jmp *%rax`) ; C# ne garantit pas l'appel terminal, et le C# Debug
+tombait par StackOverflow sur la recette ci-dessus. Le C# aiguille donc par un trampoline
+(`TailCall` / `Dispatch`, `Cpu/386_ops_prefix.cs`, `// DEVIATION:`) : même handler, même
+fetchdat, même valeur rendue, sans pile — au bit près l'appel terminal de PCem.
+
+### PB-51 — Le fetch d'instruction ne contrôle pas la limite de CS
+
+La boucle d'exec386 (`386_dynarec.c`, l'interpréteur) et `fastreadl`/`getpccache`
+(`386_common.h:100-145`) lisent `cs + cpu_state.pc` sans comparer `pc` à
+`cpu_state.seg_cs.limit` : `grep limit` ne rend, dans ces deux fichiers, que des
+commentaires. En mode réel, la limite de CS vaut 0xFFFF : sur le silicium, un fetch au-delà
+lève #GP (INT 0Dh) — IP ne continue pas dans le segment suivant.
+
+*Effet* : IP franchit 0xFFFF et l'exécution se poursuit linéairement dans la RAM. Mesuré
+(G4.0) : après une suite de préfixes commencée en 1000:0xxx, IP vaut 000F0002 — CS:IP
+pointe 0x100002, au-delà du Mo. Même famille que les formes E2 de `VERIFICATION.md` § G2,
+où PCem ne contrôle pas la limite des adresses effectives en mode réel. En mode protégé, la
+lecture du code dit la même chose ; ce n'est pas mesuré.
+*Trouvé par* : la trace de PB-50.
+*Reproduit* : le C# transcrit la boucle et `fastreadl` sans contrôle, comme PCem ; rien
+d'imposé.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1074,7 +1111,7 @@ GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
 
 ## Portée de ce registre
 
-Ces **quarante-neuf** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cinquante et un** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1090,6 +1127,7 @@ audit systématique de PCem** :
 | Audit du code du 26/09, puis mesure (SST 8088, exécution) | PB-45 à PB-47 |
 | Mesure de parité du x87 contre le vrai handler, puis lecture du C (G4.0) | PB-48 |
 | Fuzzer différentiel en mode flux, balayage par opcode, désassemblage de l'oracle | PB-49 |
+| Instruction de PB-49 : trace pas à pas d'un flux de préfixes, build Debug | PB-50, PB-51 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

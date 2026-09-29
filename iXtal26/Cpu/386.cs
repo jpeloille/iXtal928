@@ -377,7 +377,7 @@ internal static partial class _386
                                 // omitted: le bloc `if (output == 3) pclog(...)` —
                                 //   trace de débogage, sortie pure.
                                 cpu_state.pc++;
-                                x86_opcodes![(opcode | cpu_state.op32) & 0x3ff](rmdat);
+                                Dispatch(x86_opcodes![(opcode | cpu_state.op32) & 0x3ff], rmdat); // DEVIATION: le trampoline des préfixes (386_ops_prefix.cs)
                                 if (x86_was_reset != 0)
                                         break;
                         }
