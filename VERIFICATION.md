@@ -4374,3 +4374,50 @@ sur 72 identiques hors durées**, sauf `x87-cases`, élargi (2 647 → 2 649, le
 PB-70) ; sept boot-diffs nouveaux, verts (ibmat 287 et 287XL, ami286 287, ami386 387, ami386dx
 387 seul, avec PC DOS 2.00, et jusqu'au bout du POST). `config-check` inchangé avec la clé
 `fpu` dans les deux configurations. Build 0 avertissement, selftest, check-oracle 0 dérive (120).
+
+## G5.0 — L'oracle lit enfin un disque AT : mfm_at.c et ide.c liés
+
+Le 1er octobre 2026, sur 226b3d8. Plan : `PLAN-G5.md` § G5.0.
+
+**Le trou.** Depuis M13, les profils 286 et 386 tournent sur `mfm_at` (type 46, 156 Mo) sans
+qu'aucun boot-diff ait jamais vu ce disque : l'oracle ne liait pas `mfm_at.c`, et
+`h_set_hdd_controller("mfm_at")` n'y montait rien, en silence.
+
+**L'oracle.** `mfm_at.c` et `ide.c` entrent au Makefile ; `harness.c` monte `mfm_at` et `ide`
+(celle-ci avec `cdrom_channel = zip_channel = -1`, la configuration PCem « Hard drive » sur les
+quatre lecteurs, wx-config.c:891) et appelle `resetide()` à la place de pc.c:395. ABI 28 :
+changement par le comportement. `harness_stubs.c` rend `hdd_controller_current_is_ide`
+(« ide » seul, des cartes liées), le pilote CD de l'hôte `atapi` sous sa forme nulle, et des
+`atapi_*` / `scsi_bus_atapi_init` qui s'arrêtent bruyamment — ATAPI est hors G5.
+
+**La décision n° 3 tranchée à la lecture.** Les `atapi->stop()` du rappel de reset
+(ide.c:796-812) sont atteints sans ATAPI — pour tout lecteur absent —, mais `atapi` n'est
+JAMAIS nul chez PCem : pc.c:293 appelle toujours `cdrom_null_open`, qui pose un pilote dont
+`stop` est vide (cdrom-null.c:19, :50-51). Ce n'est pas un défaut de PCem, et il n'y a rien à
+contourner : l'oracle reçoit ce même pilote nul, le C# n'a rien à transcrire. Arbre vendoré
+intact (check-oracle 0 dérive).
+
+**L'outil.** KeyScript gagne le suffixe « ^ » — une ligne tapée SANS Entrée —, commun à
+`--boot` et au boot-diff : sortir de FDISK exige un Échap seul, l'Entrée qui suivait choisissant
+aussitôt l'option par défaut du menu d'arrivée.
+
+**Les portes**, dans un répertoire isolé (/tmp/g5w : CMOS type 46 fabriqué par `--make-nvr`,
+copie du disque 286 de l'utilisateur sans `KEYB FR`, image vierge de 156 Mo) :
+
+| boot-diff ami286 + mfm_at | instructions identiques | disque |
+|---|---|---|
+| C: 286 amorcé, `MD G5`, `COPY AUTOEXEC.BAT G5`, `DIR G5` | 172 276 548 | C: identique, 2 552 octets écrits |
+| C: + D: vierge : FDISK (disque 2, partition primaire, sortie), redémarrage, `FORMAT D: /S`, `DIR D:` | 234 087 348 | D: identique, 101 776 octets écrits |
+
+Premier disque AT jamais comparé à l'oracle : vert du premier coup. L'arc a d'abord été
+calibré en C# seul (`--boot`, 7 s), puis transposé — une tranche de boot-diff vaut environ un
+cinquième de tranche `--boot`.
+
+L'arc est versionné : `tools/diskarc/fdisk-format-d.keys`. Rejoué deux fois sur l'instantané de
+la série : 233 566 322 instructions les deux fois (une passe manuelle antérieure, sur un CMOS de
+session différent, en comptait 234 087 348 — les deux côtés restent identiques à chaque passe).
+
+**La série**, comparée aux journaux de d6ca254 : **79 journaux sur 79 identiques hors durées**
+(la ligne d'ABI passe de 27 à 28), et les deux portes nouvelles vertes. Selftest vert,
+check-oracle 0 dérive (harness.c, harness.h, harness_stubs.c : empreintes rafraîchies après
+édition délibérée).

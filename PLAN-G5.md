@@ -44,7 +44,7 @@ deux côtés, marqué `// DEVIATION:` côté C# et posé par le harnais côté o
 
 ## Les étapes
 
-### G5.0 — L'oracle d'abord : `mfm_at.c` et `ide.c` liés
+### G5.0 — L'oracle d'abord : `mfm_at.c` et `ide.c` liés  ✅ *fait, VERIFICATION.md § G5.0*
 
 `mfm_at.c` et `ide.c` dans le Makefile ; souches retirées (`ide_fn`) ou ajoutées (`atapi`,
 `scsi_bus_atapi_init`, `scsi_cd`, `scsi_zip`, `hdd_controller_current_is_ide` —
@@ -78,8 +78,8 @@ Windows 3.1 depuis C:. Les images de l'utilisateur ne sont touchées qu'en copie
 ## Les défauts de PCem déjà relevés (à lire à la ligne, puis inscrire)
 
 1. `ide_irq_update` (`:139-142`) teste le bit 0x40 de pic2 (IRQ 14) pour LES DEUX canaux.
-2. Le rappel de reset (`:796-812`) appelle `atapi->stop()` même pour un lecteur `IDE_NONE` :
-   pointeur nul si `atapi` n'est pas posé — ce qui sera le cas sans ATAPI.
+2. ~~Le rappel de reset (`:796-812`) appelle `atapi->stop()` même pour un lecteur `IDE_NONE`~~ :
+   lu en G5.0, `atapi` est toujours le pilote nul de `cdrom-null.c` — pas un défaut.
 3. READ/WRITE MULTIPLE avec `blocksize == 0` (`:462`, `:488`) : `fatal()`, l'invité peut
    arrêter l'émulateur.
 4. `WIN_FORMAT` (`:1018`) formate depuis `ide_get_sector()`, qui retranche 1 au secteur : un
@@ -107,7 +107,9 @@ Déjà inscrit : PB-29 (`ide_fn[4]` contre `[7]`).
 1. **Périmètre** : ATA disque dur seul, ATAPI / SFF-8038i / XT-IDE hors G5 ? *(proposé : oui)*
 2. **G5.0 avant l'IDE** : lier `mfm_at.c` à l'oracle et vérifier enfin le disque des profils
    286/386 ? *(proposé : oui — c'est le seul disque AT en usage)*
-3. **`atapi->stop()` sur pointeur nul** : reproduire le plantage (R8), ou le contourner en
+3. *(Tranchée à la lecture en G5.0 : `atapi` n'est jamais nul chez PCem — pc.c:293 pose
+   toujours le pilote nul, dont `stop` est vide. Pas de défaut, rien à contourner.)*
+   **`atapi->stop()` sur pointeur nul** : reproduire le plantage (R8), ou le contourner en
    DEVIATION quand `cdrom_channel = -1` ? *(proposé : lire d'abord si le chemin est atteint
    sans ATAPI ; s'il l'est, le reproduire côté oracle rend l'oracle inutilisable — DEVIATION
    des deux côtés, inscrite)*

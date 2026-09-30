@@ -591,6 +591,7 @@ void h_closepc(void);
  * 17 secteurs par piste et l'un des quatre couples (306,4) (612,4) (615,4)
  * (306,8), faute de quoi l'unité est présentée comme type 0 et le POST diverge. */
 void h_set_hdd(int drive, const char *fn, int spt, int hpc, int tracks);
+/* Le nom INTERNE : "mfm_xebec", "dtc5150x", "mfm_at" depuis G5.0, ou rien. */
 void h_set_hdd_controller(const char *name);
 
 /* Sonde disquette — H_DISC_PROBE_N globales de disc.c et fdc.c, dans l'ordre de
@@ -659,7 +660,10 @@ uint8_t *h_ram(void);
 /* 26 depuis G3.0 : h_set_nvr_paths. h_state ne change pas. */
 /* 27 depuis G4.0 : l'état x87 entre dans h_state (le vecteur change de TAILLE) ;
  * h_set_fpu, h_setfpu et les sondes de parité h_libm, h_conv, h_fpu_arith s'ajoutent. */
-#define H_ABI_VERSION 27
+/* 28 depuis G5.0 : h_set_hdd_controller("mfm_at") monte le Fixed Disk Adapter de l'AT
+ * (mfm_at.c, enfin lié) — changement PAR LE COMPORTEMENT : un .so périmé accepterait le nom
+ * et ne monterait rien. h_state ne change pas. */
+#define H_ABI_VERSION 28
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

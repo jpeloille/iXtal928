@@ -114,6 +114,18 @@ public static class KeyScript
         }
     }
 
+    /// <summary>
+    /// G5.0 — une ligne terminée par « ^ » est tapée SANS Entrée. Il en faut une pour sortir
+    /// de FDISK : Échap y remonte d'un menu, et l'Entrée qui suivait choisissait aussitôt
+    /// l'option par défaut du menu d'arrivée — on n'en sortait jamais. « ^ » n'est pas une
+    /// touche mappée : aucune ligne existante ne le portait.
+    /// </summary>
+    public const char NoEnter = '^';
+
+    /// <summary>Les touches d'une ligne : son texte, puis Entrée sauf suffixe « ^ ».</summary>
+    public static string Keys(string line) =>
+        line.Length > 0 && line[^1] == NoEnter ? line[..^1] : line + "\n";
+
     /// <summary>Un changement d'état de touche, à une tranche donnée.</summary>
     public readonly struct Event
     {
@@ -148,7 +160,7 @@ public static class KeyScript
 
         foreach (var line in lines)
         {
-            foreach (var ch in line + "\n")
+            foreach (var ch in Keys(line))
             {
                 var idx = IndexFor(ch, out var shift);
                 if (idx < 0)

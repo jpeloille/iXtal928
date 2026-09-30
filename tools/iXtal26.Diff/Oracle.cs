@@ -47,7 +47,8 @@ public static class Oracle
     // 26 en G3.0 : h_set_nvr_paths — l'oracle lit le même CMOS que le C#.
     // 27 en G4.0 : l'état x87 entre dans h_state (le vecteur change de TAILLE) ; h_set_fpu,
     // h_setfpu et les sondes de parité h_libm, h_conv, h_fpu_arith s'ajoutent.
-    public const int AbiVersion = 27;
+    // 28 en G5.0 : « mfm_at » monte enfin une carte côté oracle (comportement, pas forme).
+    public const int AbiVersion = 28;
 
     static Oracle()
     {

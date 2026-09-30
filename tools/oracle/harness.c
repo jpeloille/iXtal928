@@ -258,6 +258,10 @@ extern char hdd_controller_name[16];
 extern char ide_fn[7][512];
 extern device_t mfm_xebec_device;
 extern device_t dtc_5150x_device;
+extern device_t mfm_at_device;     /* G5.0 */
+extern device_t ide_device;        /* G5.0 */
+extern int cdrom_channel, zip_channel;
+void resetide(void);
 
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
  * préprocesseur ne connaît pas l'accès à un membre : `out->cycles` deviendrait
@@ -1325,6 +1329,18 @@ int h_boot(const char *romspath) {
                 device_add(&mfm_xebec_device);
         else if (!strcmp(hdd_controller_name, "dtc5150x"))
                 device_add(&dtc_5150x_device);
+        /* G5.0 — le Fixed Disk Adapter de l'AT, que les profils 286 et 386 emploient depuis
+           M13 sans qu'aucun boot-diff l'ait jamais vu : mfm_at.c n'était pas lié. */
+        else if (!strcmp(hdd_controller_name, "mfm_at"))
+                device_add(&mfm_at_device);
+        else if (!strcmp(hdd_controller_name, "ide")) {
+                /* G5.0 — pc.c:703-705 lit cdrom_channel (défaut 2) et zip_channel (-1). Sans
+                   ATAPI (PLAN-G5.md, décision n° 1), le canal 2 est un disque dur : la
+                   configuration PCem « Hard drive » sur les quatre lecteurs (wx-config.c:891). */
+                cdrom_channel = -1;
+                zip_channel = -1;
+                device_add(&ide_device);
+        }
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient
@@ -1370,6 +1386,12 @@ int h_boot(const char *romspath) {
          *
          * Corrige une affirmation de B1a : nvr.cs disait « l'oracle n'appelle pas
          * loadnvr du tout », et c'etait vrai — ca ne l'est plus. */
+        /* pc.c:395 — resetide(), entre pc_reset et loadnvr. Elle charge les images des quatre
+           lecteurs IDE si la carte est « ide » (ide.c:278), et ne fait sinon que refermer
+           des fichiers jamais ouverts. Celle de pc.c:290 (initpc) ouvre les mêmes images, que
+           celle-ci referme puis rouvre (ide.c:268-290) : l'effet net est le sien seul. */
+        resetide();
+
         loadnvr();
 
         /* pc.c:407 — inerte (aucun cache n'est actif), transcrit des deux côtés pour que

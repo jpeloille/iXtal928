@@ -85,6 +85,8 @@ SRC := harness.c \
        $(PCEM)/src/disc/disc_img.c \
        $(PCEM)/src/disc/disc_sector.c \
        $(PCEM)/src/mfm/mfm_xebec.c \
+       $(PCEM)/src/mfm/mfm_at.c \
+       $(PCEM)/src/ide/ide.c \
        $(PCEM)/src/hdd/hdd_file.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
@@ -131,7 +133,7 @@ LDFLAGS += $(WRAPFLAGS_BOTH)
 LDFLAGS += -Wl,--no-undefined
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/devices $(PCEM)/src/mouse
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

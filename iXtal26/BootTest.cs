@@ -123,10 +123,8 @@ public static class BootTest
 
         Console.WriteLine($"\n--- frappe de « {text} » puis Entrée ---");
 
-        foreach (var ch in text)
+        foreach (var ch in KeyScript.Keys(text))
             PressKey(ch);
-
-        PressKey('\n');
 
         // Laisser l'application traiter la ligne. La cadence vit dans KeyScript,
         // partagée avec boot-diff : deux frappes différentes ne se comparent pas.
