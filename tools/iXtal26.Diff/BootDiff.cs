@@ -154,12 +154,19 @@ public static class BootDiff
         // l'oracle pendant que le C# lisait le même fichier. Inerte tant que D: n'a
         // pas d'image — d'où le « Cannot open file '' » bénin — mais c'est le défaut
         // même qu'on vient de fermer pour A:, B: et C:, en attente d'un second disque.
-        var discC = Disc.hdd_c.ide_fn[0].Length == 0 ? null : Disc.hdd_c.ide_fn[0];
-        var discD = Disc.hdd_c.ide_fn[1].Length == 0 ? null : Disc.hdd_c.ide_fn[1];
-        var oracleC = CopyForSide(discC, "oracle-c");
-        var csharpC = CopyForSide(discC, "csharp-c");
-        var oracleD = CopyForSide(discD, "oracle-d");
-        var csharpD = CopyForSide(discD, "csharp-d");
+        // G5.2 — E: et F: aussi, les deux lecteurs du canal IDE secondaire : même règle,
+        // une copie par côté, sans quoi le C# écrivait dans l'image source et l'oracle ne
+        // voyait pas le disque.
+        const int NHd = 4;
+        var discHd = new string?[NHd];
+        var oracleHd = new string?[NHd];
+        var csharpHd = new string?[NHd];
+        for (var hd = 0; hd < NHd; hd++)
+        {
+            discHd[hd] = Disc.hdd_c.ide_fn[hd].Length == 0 ? null : Disc.hdd_c.ide_fn[hd];
+            oracleHd[hd] = CopyForSide(discHd[hd], $"oracle-{(char)('c' + hd)}");
+            csharpHd[hd] = CopyForSide(discHd[hd], $"csharp-{(char)('c' + hd)}");
+        }
 
         Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
                           (discA is null ? "" : $", A: = {discA}") +
@@ -185,10 +192,9 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
-        Oracle.h_set_hdd(0, oracleC ?? "", Disc.hdd_c.hdc[0].spt,
-                         Disc.hdd_c.hdc[0].hpc, Disc.hdd_c.hdc[0].tracks);
-        Oracle.h_set_hdd(1, oracleD ?? "", Disc.hdd_c.hdc[1].spt,
-                         Disc.hdd_c.hdc[1].hpc, Disc.hdd_c.hdc[1].tracks);
+        for (var hd = 0; hd < NHd; hd++)
+            Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
+                             Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0)
         {
             Console.Error.WriteLine($"L'oracle n'a pas pu charger le BIOS depuis « {romsPath} ».");
@@ -200,7 +206,7 @@ public static class BootDiff
         var cpuFpOracle = CpuFingerprint.Oracle_();
         if (LockstepEvery > 0)
             return Lockstep(romsPath, slices, script, types, typeAt, typeSettle, oraclePath, cpuFpOracle,
-                            csharpA, csharpB, csharpC, csharpD);
+                            csharpA, csharpB, csharpHd);
         if (Oracle.h_trace_open(oraclePath) == 0)
         {
             Console.Error.WriteLine($"Impossible d'écrire {oraclePath}.");
@@ -278,8 +284,8 @@ public static class BootDiff
         Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = csharpA ?? "";
         Floppy.fdd_c.discfns[1] = csharpB ?? "";
-        Disc.hdd_c.ide_fn[0] = csharpC ?? "";
-        Disc.hdd_c.ide_fn[1] = csharpD ?? "";
+        for (var hd = 0; hd < NHd; hd++)
+            Disc.hdd_c.ide_fn[hd] = csharpHd[hd] ?? "";
         if (!pc.initpc(romsPath))
             return 1;
 
@@ -377,8 +383,10 @@ public static class BootDiff
             return vgaVerdict
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
-                 | CompareImages(discC, oracleC, csharpC, "C: (disque dur)")
-                 | CompareImages(discD, oracleD, csharpD, "D: (disque dur)");
+                 | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
+                 | CompareImages(discHd[1], oracleHd[1], csharpHd[1], "D: (disque dur)")
+                 | CompareImages(discHd[2], oracleHd[2], csharpHd[2], "E: (disque dur)")
+                 | CompareImages(discHd[3], oracleHd[3], csharpHd[3], "F: (disque dur)");
         }
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");
@@ -534,7 +542,7 @@ public static class BootDiff
 
     private static int Lockstep(string romsPath, int slices, List<KeyScript.Event> script,
                                 IReadOnlyList<string>? types, int typeAt, int typeSettle, string oraclePath,
-                                ulong[] cpuFpOracle, string? a, string? b, string? c, string? d)
+                                ulong[] cpuFpOracle, string? a, string? b, string?[] hdFn)
     {
         // La MÊME boucle tracée que la phase 1 côté oracle : la trace est écrite puis jetée.
         if (Oracle.h_trace_open(oraclePath) == 0)
@@ -544,8 +552,8 @@ public static class BootDiff
         Cpu._386.ClearSegResidue();
         Floppy.fdd_c.discfns[0] = a ?? "";
         Floppy.fdd_c.discfns[1] = b ?? "";
-        Disc.hdd_c.ide_fn[0] = c ?? "";
-        Disc.hdd_c.ide_fn[1] = d ?? "";
+        for (var hd = 0; hd < hdFn.Length; hd++)
+            Disc.hdd_c.ide_fn[hd] = hdFn[hd] ?? "";
         if (!pc.initpc(romsPath))
             return 1;
         if (CpuFingerprint.Compare(cpuFpOracle, CpuFingerprint.Csharp()) != 0)
@@ -641,7 +649,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
-        for (var hd = 0; hd < 2; hd++)
+        for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
@@ -846,7 +854,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
-        for (var hd = 0; hd < 2; hd++)
+        for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
@@ -966,7 +974,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
-        for (var hd = 0; hd < 2; hd++)
+        for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;

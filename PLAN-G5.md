@@ -62,7 +62,7 @@ SETUP (`SdlSetup.cs`), `DriveMounter.cs` et `MachineOverrides.cs` le proposent.
 réamorçage sur C: — images identiques octet par octet, instructions identiques ; idem ami386dx ;
 le fuzzeur et toutes les séries existantes inchangés (l'IDE n'est posé nulle part par défaut).
 
-### G5.2 — Deux disques, deux canaux, et ce qui reste
+### G5.2 — Deux disques, deux canaux, et ce qui reste  ✅ *fait, VERIFICATION.md § G5.2*
 
 C: et D: sur le canal primaire, puis un disque sur le secondaire (IRQ 15 — voir PB ci-dessous) ;
 READ/WRITE MULTIPLE, SET MULTIPLE, IDENTIFY, VERIFY, FORMAT, SPECIFY, les erreurs (secteur

@@ -4464,3 +4464,34 @@ harnais, de mon fait : un nettoyage de /tmp pendant la passe (`find -mmin +20`, 
 absent (rc = 134). Rejouée seule sur le même instantané : verte, journal identique à celui
 de G4.7. Règle depuis : aucun nettoyage de /tmp pendant une série. Selftest, check-oracle
 0 dérive (122 : `Ide/ide.cs` entre au manifeste).
+
+## G5.2 — Les deux canaux, dirigés : l'ide-check
+
+Le 1er octobre 2026, sur 5df27b5. Plan : `PLAN-G5.md` § G5.2.
+
+**L'outil.** Le harnais n'expose pas les ports : les commandes ATA sont donc écrites par
+L'INVITÉ. `tools/idecheck/idecheck.py` assemble IDECHK.COM (637 octets, désassemblage vérifié) —
+un interprète d'une table de 353 octets : écrire un registre, attendre BUSY puis DRQ, lire ou
+écrire N mots, relever les sept registres, choisir le canal, écrire 0x3F6/0x376. Il est saisi
+dans DEBUG par KeyScript (`idecheck.keys`), écrit sur C:, lancé sous boot-diff. `BootDiff`
+copie désormais E: et F: par côté, les pousse à l'oracle et compare leurs images — sans quoi
+le C# écrivait dans l'image source et l'oracle ne voyait pas le disque.
+
+**Ce qu'il tire.** Canal primaire, C: en lecture seule : IDENTIFY, SET MULTIPLE MODE 4, READ
+MULTIPLE LBA 0 × 8, READ CHS qui change de tête, VERIFY × 5 (PB-74 : le compte reste 5), CHECK
+POWER MODE, SETIDLE, une commande inconnue, SET FEATURES (ABRT tous trois), l'esclave absent
+(état 00, commande ignorée). Canal secondaire, E: vierge (IRQ 15) : IDENTIFY, WRITE LBA 100 × 2
+et relecture, SET MULTIPLE MODE 2, WRITE MULTIPLE LBA 200 × 4 et READ MULTIPLE en relecture,
+FORMAT d'une piste, SPECIFY, DIAGNOSTICS, RECALIBRATE, le reset logiciel par 0x376, la sélection
+pendant un reset (PB-72), une commande avec nIEN, puis la réactivation — qui passe par
+`ide_irq_update` et son masque d'IRQ 14 (PB-71). READ/WRITE MULTIPLE sans taille de bloc ne sont
+pas tirés : PCem s'y arrête (PB-73), des deux côtés.
+
+**La porte** : boot-diff ami286 + `ide`, C: 286 et E: vierge — **189 962 423 instructions
+identiques**, C: identique (889 octets écrits : IDECHK.COM), E: identique (3 064 octets).
+Contrôle négatif, retiré : un VERIFY qui remet `secount` à zéro → divergence à l'instruction
+185 819 674.
+
+**La série**, sur un instantané de G5.2 et comparée aux journaux de 5df27b5 : **84 journaux
+sur 84 identiques hors durées** (`bd-pcdos-cga` comparé à celui de 72ec467, le journal de
+5df27b5 étant celui de l'incident), et l'ide-check nouveau, vert. Selftest, check-oracle 0 dérive.
