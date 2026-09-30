@@ -42,12 +42,12 @@ internal static partial class _386
 {
     // pcem: x87_ops.h:11 — ST(x), le registre x de la pile, relatif à TOP.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref double ST(int x) => ref cpu_state.ST[(cpu_state.TOP + x) & 7];
+    internal static ref double ST(int x) => ref cpu_state.ST[(cpu_state.TOP + x) & 7];
 
     // pcem: x87_ops.h:264-272 — FP_ENTER. #NM (INT 7) si CR0.EM ou CR0.TS ; rend vrai quand
     //   le handler doit sortir, comme fetch_ea_16 et les gardes SEG_CHECK_*.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool FP_ENTER()
+    internal static bool FP_ENTER()
     {
         if ((cr0 & 0xc) != 0)
         {
@@ -59,7 +59,7 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:34-38
-    private static void x87_push(double i)
+    internal static void x87_push(double i)
     {
         cpu_state.TOP--;
         cpu_state.ST[cpu_state.TOP & 7] = i;
@@ -67,7 +67,7 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:53-58
-    private static double x87_pop()
+    internal static double x87_pop()
     {
         double t = cpu_state.ST[cpu_state.TOP & 7];
         cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_EMPTY;
@@ -76,10 +76,10 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:15
-    private const uint16_t FPCW_DISI = 1 << 7;
+    internal const uint16_t FPCW_DISI = 1 << 7;
 
     // pcem: x87_ops.h:40-51 — G4.4 (FLDLN2). Pousse des BITS, pas une valeur.
-    private static void x87_push_u64(uint64_t i)
+    internal static void x87_push_u64(uint64_t i)
     {
         cpu_state.TOP--;
         cpu_state.ST[cpu_state.TOP & 7] = BitConverter.UInt64BitsToDouble(i);
@@ -132,7 +132,7 @@ internal static partial class _386
     }
 
     // `*(uint64_t *)cpu_state.tag == 0x0101010101010101ull` (x87_ops_misc.h:141) : huit TAG_VALID.
-    private static bool TagsTousValides()
+    internal static bool TagsTousValides()
     {
         for (var c = 0; c < 8; c++)
                 if (cpu_state.tag[c] != 0x01)
@@ -166,7 +166,7 @@ internal static partial class _386
     internal static int CvtI32(double d) => Sse2.ConvertToInt32WithTruncation(Vector128.CreateScalar(d));
 
     // pcem: x87_ops.h:60-83
-    private static int64_t x87_fround(double b)
+    internal static int64_t x87_fround(double b)
     {
         int64_t a, c;
 
@@ -193,8 +193,8 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:84-85
-    private const int BIAS80 = 16383;
-    private const int BIAS64 = 1023;
+    internal const int BIAS80 = 16383;
+    internal const int BIAS64 = 1023;
 
     // pcem: x87_ops.h:86-115 — le réel 80 bits en mémoire, ramené à un double. Trois lectures
     //   dans l'ordre du C, sans test d'abandon entre elles.
@@ -257,13 +257,13 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:13 — le bit ZE du mot d'état, et son masque au même rang dans npxc.
-    private const uint16_t STATUS_ZERODIVIDE = 4;
+    internal const uint16_t STATUS_ZERODIVIDE = 4;
 
     // pcem: x87_ops.h:17-30 — x87_div. SEULE exception que PCem modélise : le diviseur nul.
     //   Masquée (npxc bit 2), le quotient IEEE (±∞ ou NaN) ; démasquée, IRQ13 et le handler
     //   sort AUSSITÔT par `return 1` — sans poser le tag ni compter ses cycles (PB-59).
     //   Rend vrai quand le handler doit sortir, comme les gardes.
-    private static bool x87_div(ref double dst, double src1, double src2)
+    internal static bool x87_div(ref double dst, double src1, double src2)
     {
         if (((double)src2) == 0.0)
         {
@@ -289,7 +289,7 @@ internal static partial class _386
     //   a < b → C0, a == b → C3 (+0 et −0 égaux), non ordonnés (un NaN) → C3|C2|C0, a > b → 0.
     //   fcompp et fucompp ne diffèrent que par l'exception levée, que fclex et le masque
     //   effacent. Le fuzzeur de G4.3 le confronte à l'oracle, NaN et zéros signés tirés.
-    private static uint16_t x87_compare(double a, double b)
+    internal static uint16_t x87_compare(double a, double b)
     {
         if (double.IsNaN(a) || double.IsNaN(b))
                 return x87_c.C0 | x87_c.C2 | x87_c.C3;
@@ -300,7 +300,7 @@ internal static partial class _386
         return 0;
     }
 
-    private static uint16_t x87_ucompare(double a, double b) => x87_compare(a, b);
+    internal static uint16_t x87_ucompare(double a, double b) => x87_compare(a, b);
 
     // QUEL NaN GAGNE (PB-60). `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
     // silencieux, quand les deux en sont ; l'addition et la multiplication étant commutatives,
@@ -309,14 +309,14 @@ internal static partial class _386
     // l'oracle. Hors NaN, l'ordre est indifférent (et ∞ − ∞ rend le NaN par défaut des deux
     // côtés). La soustraction et la division ne sont pas concernées : leur ordre est fixé.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double X87Quiet(double d) => BitConverter.UInt64BitsToDouble(BitConverter.DoubleToUInt64Bits(d) | 0x0008000000000000UL);
+    internal static double X87Quiet(double d) => BitConverter.UInt64BitsToDouble(BitConverter.DoubleToUInt64Bits(d) | 0x0008000000000000UL);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double X87AddSd(double first, double second)
+    internal static double X87AddSd(double first, double second)
         => double.IsNaN(first) ? X87Quiet(first) : double.IsNaN(second) ? X87Quiet(second) : first + second;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double X87MulSd(double first, double second)
+    internal static double X87MulSd(double first, double second)
         => double.IsNaN(first) ? X87Quiet(first) : double.IsNaN(second) ? X87Quiet(second) : first * second;
 
     // L'ARRONDI DIRIGÉ DE FADD MÉMOIRE (x87_ops_arith.h:12-16), décision n° 3 réduite par PB-48.
@@ -330,7 +330,7 @@ internal static partial class _386
     //   fesetround de l'oracle (x87-parity (a), 100 %), et confronté au vrai handler en G4.3.
     //   Appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près (PB-48).
     // `a` est l'opérande que GCC met en premier — la mémoire, mesuré (PB-60) — pour les NaN.
-    private static double x87_fadd_dirige(double a, double b, int rc)
+    internal static double x87_fadd_dirige(double a, double b, int rc)
     {
         double r = a + b;
         if (double.IsNaN(r))

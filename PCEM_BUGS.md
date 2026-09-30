@@ -674,6 +674,21 @@ teste FSIN pour distinguer 287 et 387 le trouve partout.
 *Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 ; `x87-cases` : les huit sur dix-neuf
 bornes × quatre ST(1) ; contrôles négatifs : FPTAN qui pose C2 → 76 cas divergents.
 
+### PB-69 — Sur un PC ou un XT, l'exception du 8087 se perd : IRQ13 sans second PIC, pas de NMI
+
+`x87_ops.h:17-30`, `x87_div` : une division par zéro non masquée appelle `picint(1 << 13)`,
+seule interruption que PCem lève pour le coprocesseur — recompilée telle quelle pour le 8087
+(`8087.h:86`). `pic.c:298-311`, `picint` : hors AT (et hors Xi8088), `num > 0xFF` ne tombe dans
+aucune branche — la demande est jetée. Sur le silicium, le 8087 du PC et du XT signale par
+**NMI** (sortie INT du 8087 vers la logique NMI, masquée par le port A0h), pas par IRQ13.
+*Effet* : sur un 5150 ou un XT, un FDIV par zéro avec ZE démasqué ne produit rien : ni NMI, ni
+IRQ ; seul `npxs` porte ZE, et le handler rend 1, valeur que le 808x ignore
+(`808x.c:3304-3366`). Un gestionnaire d'exceptions flottantes (INT 2 chaîné par un runtime
+Microsoft ou Borland) n'est jamais appelé.
+*Trouvé par* : transcription de G4.6, lecture de `picint`.
+*Reproduit* : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
+les deux instanciations) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs`.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1388,6 +1403,7 @@ audit systématique de PCem** :
 | Transcription de G4.3 (PB-57 à PB-59) ; fuzzeur G4.3 puis désassemblage de l'oracle (PB-60) | PB-57 à PB-60 |
 | Transcription de G4.4 (x87_ops_misc.h), vérifiée par x87-cases | PB-61 à PB-67 |
 | Transcription de G4.5 (les transcendantes) | PB-68 |
+| Transcription de G4.6 (le 8087), lecture de `picint` | PB-69 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

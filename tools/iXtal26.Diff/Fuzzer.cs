@@ -381,7 +381,7 @@ public static class Fuzzer
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
 
-            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a) : null);
+            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a, core) : null);
             if (diff is null)
                 continue;
 
@@ -817,11 +817,20 @@ public static class Fuzzer
     /// <summary>G4.2 — les seize octets à l'adresse effective, des deux côtés. Le journal
     /// d'écritures ne voit pas writememql (FST, FSTP, FISTP m64) : ni l'oracle ni le C#
     /// n'enveloppent la forme 64 bits.</summary>
-    private static string? CmpEa(in HState a)
+    private static string? CmpEa(in HState a, int core)
     {
-        if (a.ea_seg_idx < 0)
+        // G4.6 — le 808x ne pose pas cpu_state.ea_seg : fetchea (808x.c) calcule `easeg`, une base
+        // linéaire, et ses écritures rapides (writelookup2) échappent au journal. Sans cette
+        // branche, un FSTP m64 du 8087 n'était comparé NULLE PART — contre-épreuve de G4.6 :
+        // writememq faussé, fuzzeur vert. La base est celle du côté C# ; `eaaddr` est déjà
+        // comparé à l'oracle par Compare.
+        uint lin;
+        if (a.ea_seg_idx >= 0)
+            lin = (a.seg_base[a.ea_seg_idx] + a.eaaddr) & mem.rammask;
+        else if (core == Oracle.Core8088)
+            lin = (x86.easeg + (a.eaaddr & 0xffff)) & mem.rammask;
+        else
             return null;
-        var lin = (a.seg_base[a.ea_seg_idx] + a.eaaddr) & mem.rammask;
         // Au-delà de la RAM plate du fuzzeur (1 Mo sur le 286, où l'EA peut viser la HMA) : rien
         // à comparer, et h_read ne doit pas lire hors de son tableau.
         // 112 octets : FSAVE en écrit 94 (16 bits) ou 108 (32 bits), au-delà des 64 entrées du

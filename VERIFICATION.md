@@ -4253,3 +4253,61 @@ qui n'ont ni FSIN ni FCOS).
 
 **La série**, comparée aux journaux de f847fee : tous identiques hors durées sauf x87-cases,
 élargi (2 039 → 2 647). Build 0 avertissement, selftest, check-oracle 0 dérive (117).
+
+## G4.6 — Le 8087
+
+Le 30/09, sur ea6c332. Plan : `PLAN-G4.md` § G4.6.
+
+**Transcrit.** 8087.h ne porte aucune instruction : c'est un jeu de macros qui fait recompiler
+TOUT x87_ops.h dans l'unité du 808x (`8087.h:86`). Même geste ici, en deux parties.
+`Cpu/x87_8087.cs` porte le contexte : FP_ENTER réduit à `fpucount++` (X8087, pas de #NM),
+fetch_ea / SEG_CHECK / CHECK_WRITE / PREFETCH_RUN vides, CLOCK_CYCLES sur `cycles`, readmeml /
+readmemq / writememl / writememq par le readmemw / writememw du 808x — bus 8 bits, memcycs,
+offset de 16 bits qui boucle dans le segment —, writememb_8087, geteal / geteaq / seteal /
+seteaq qui font fatal() en mode registre, et les aides mémoire de x87_ops.h (x87_ld80,
+x87_st80, x87_st_fsave, x87_ld_frstor, x87_stmmx, FPU_ILLEGAL) réinstanciées.
+`Cpu/x87_ops_808x.cs` est GÉNÉRÉ : le corps des trois fichiers de handlers du 386 recopié
+dans `_808x`, où chaque primitive de contexte se résout d'abord — comme le C, où 8087.h les
+redéfinit avant l'#include ; les aides sans mémoire (pile, conversions, arrondi dirigé,
+comparaisons, x87_div) viennent de `_386`, rendues `internal`. Vérifié à la liste : aucun
+appel de la copie ne se résout vers une primitive mémoire de `_386_common`.
+`Cpu/x87_ops_808x_tables.cs` : les huit tables a16 sous `OP_TABLE = ops_808x_` (8087.h:7),
+générées verbatim. Les huit ESC de `808x.c:3304-3366` appellent la table et restituent
+`pc` (tronqué à 16 bits, comme le `uint16_t save_pc` du C). SW1 du XT (keyboard_xt.c:161,
+:199) était transcrit depuis G4.1.
+
+**Un trou de l'outil, trouvé par un contrôle négatif et bouché.** writememq faussé (le mot
+haut pris à `>> 40`) laissait le fuzzeur 8088 VERT : le 808x ne pose pas `cpu_state.ea_seg`,
+donc `CmpEa` ne comparait rien, et ses écritures rapides (writelookup2) échappent au journal.
+`CmpEa` prend désormais, sur le 8088, la base `easeg` du côté C# (`eaaddr` est déjà comparé).
+Même contrôle après : divergence à l'itération 41 (`DF BF`, FISTP m64).
+
+**Les portes.**
+
+| porte | résultat |
+|---|---|
+| fuzz 8088 + 8087, `--x87 all`, D8-DF, graine 1, 100 000 | vert, zéro divergence |
+| idem, graine 7, 100 000 | vert, zéro divergence |
+| flux 8088 + 8087, D8-DF, 300 000 | vert, 83 champs |
+| flux 8088 + 8087, 255 opcodes (D4 exclu, PB-46), `--fpu-state`, 300 000 | vert |
+| boot-diff ibmxt + 8087, ROM seule (6 000) et PC DOS 2.00 (7 000) | vert |
+| boot-diff ibmpc + 8087, ROM seule (6 000) et PC DOS 2.00 (7 000) | vert |
+
+Les quatre boot-diffs rendent le MÊME nombre d'instructions que sans coprocesseur (23 442 235,
+22 086 862, 25 457 272, 26 750 652) : ni le BIOS du 5150 et du 5160 ni PC DOS 2.00 n'exécutent
+d'ESC ; ils ne voient du 8087 que le bit de SW1. Sonde, retirée : `fpu_type = 1` résolu des
+deux côtés. Le 8087 n'est donc exercé que par le fuzzeur — les témoins sont en G4.7.
+
+Contrôles négatifs, retirés : CLOCK_CYCLES vide → divergence à l'itération 0 ; writememq
+faussé → itération 41 (après le correctif de CmpEa) ; readmemw qui permute un bit d'adresse
+→ itération 7 516 (`DD 05`, FLD m64). Un `pc++` avant la restitution ne mord pas, et c'est
+attendu : la restitution l'efface — les handlers du 8087 ne touchent pas `pc`.
+
+**Le défaut de PCem** : PB-69 (hors AT, `picint(1 << 13)` est jeté : l'exception du 8087 ne
+produit ni IRQ ni NMI).
+
+**La série**, sur un instantané construit avant toute ligne de G4.7 et comparée aux journaux
+de ea6c332 : **65 journaux sur 65 identiques hors durées**, et les huit portes nouvelles
+vertes (quatre boot-diffs 8087, fuzz 8088 + 8087 graines 1 et 7, deux flux). Build 0
+avertissement, selftest, check-oracle 0 dérive (120 : x87_8087.cs, x87_ops_808x.cs et
+x87_ops_808x_tables.cs entrent au manifeste).

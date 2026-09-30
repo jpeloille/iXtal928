@@ -95,7 +95,7 @@ CR0.EM/TS (`FP_ENTER`) sous `pm-check`.
 F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS. Porte : fuzzeur au bit près, avec
 la libm retenue par la mesure de G4.0 (décision n° 4).
 
-### G4.6 — Le 8087
+### G4.6 — Le 8087  ✅ *fait, VERIFICATION.md § G4.6*
 
 `8087.h`, les huit blocs `if (hasfpu)` de `808x.c:3304-3366` (sauvegarde et restitution de
 `pc`), SW1 du XT. Porte : fuzzeur 8088 en `fpu=8087`, puis `boot-diff --model xt` avec 8087.
