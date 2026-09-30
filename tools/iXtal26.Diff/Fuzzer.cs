@@ -381,7 +381,7 @@ public static class Fuzzer
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
 
-            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 ? CmpEa(a) : null);
+            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a) : null);
             if (diff is null)
                 continue;
 
@@ -788,6 +788,9 @@ public static class Fuzzer
 
     /// <summary>G4.4 — `--x87 g44`, voir RunSingle.</summary>
     internal static bool X87G44;
+
+    /// <summary>G4.5 — `--x87 all` : tout D8-DF, sans filtre ; l'EA comparée sur 112 octets.</summary>
+    internal static bool X87All;
 
     // D9 F0-F3, F9, FB, FE, FF : F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS.
     private static readonly Dictionary<byte, byte> X87Voisin = new()

@@ -3,9 +3,9 @@
 //
 // ORACLE: pcem-dev/includes/private/cpu/x87_ops_misc.h  (lignes 1-906)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
-// STATUS: partial — G4.4 : tout x87_ops_misc.h SAUF les huit transcendantes (F2XM1, FYL2X,
-//         FYL2XP1, FPTAN, FPATAN, FSINCOS, FSIN, FCOS : G4.5, souches dans x87_ops_tables.cs)
-//         et FCMOV (:907-926, tables 686). La pile, les constantes, FCHS, FABS, FTST, FXAM,
+// STATUS: partial — G4.4 et G4.5 : tout x87_ops_misc.h sauf FCMOV (:907-926, tables 686).
+//         Les huit transcendantes (G4.5) passent par Math.*, dont la parité au bit avec la
+//         glibc de l'oracle est mesurée (x87-parity, G4.0) — expressions de PCem comprises. La pile, les constantes, FCHS, FABS, FTST, FXAM,
 //         FSTSW, FSTCW, FLDCW, FNINIT, FNCLEX, FDISI, FENI, FSTENV, FLDENV, FSAVE, FRSTOR en
 //         16 et 32 bits, mode réel et protégé, FPREM, FPREM1, FSQRT, FRNDINT, FSCALE.
 //
@@ -15,7 +15,7 @@
 // c'est le C, sans autre effet. Défauts de PCem reproduits : PB-61 (FNSTSW AX sans TOP), PB-62
 // (x87_pc_* et x87_op_* jamais posés ; dispositions de FSAVE et FSTENV incomplètes), PB-63
 // (FXAM), PB-64 (FTST), PB-65 (FPREM, FPREM1), PB-66 (FLDLN2), PB-67 (FST registre et
-// TAG_UINT64).
+// TAG_UINT64), PB-68 (C2 et les transcendantes).
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
@@ -606,6 +606,68 @@ internal static partial class _386
             return 0;
     }
 
+    // pcem: x87_ops_misc.h:554-563
+    private static int opF2XM1(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(0) = Math.Pow(2.0, ST(0)) - 1.0;
+            cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+            CLOCK_CYCLES(x87_timings_c.x87_timings.f2xm1);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:565-575
+    private static int opFYL2X(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(1) = ST(1) * (Math.Log(ST(0)) / Math.Log(2.0));
+            cpu_state.tag[(cpu_state.TOP + 1) & 7] = x87_c.TAG_VALID;
+            x87_pop();
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2x);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:577-587
+    private static int opFYL2XP1(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(1) = ST(1) * (Math.Log(ST(0) + 1.0) / Math.Log(2.0));
+            cpu_state.tag[(cpu_state.TOP + 1) & 7] = x87_c.TAG_VALID;
+            x87_pop();
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2xp1);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:589-600
+    private static int opFPTAN(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(0) = Math.Tan(ST(0));
+            cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+            x87_push(1.0);
+            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
+            cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fptan);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:602-612
+    private static int opFPATAN(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(1) = Math.Atan2(ST(1), ST(0));
+            cpu_state.tag[(cpu_state.TOP + 1) & 7] = x87_c.TAG_VALID;
+            x87_pop();
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fpatan);
+            return 0;
+    }
+
     // pcem: x87_ops_misc.h:614-622
     private static int opFDECSTP(uint32_t fetchdat)
     {
@@ -681,6 +743,23 @@ internal static partial class _386
             return 0;
     }
 
+    // pcem: x87_ops_misc.h:688-701
+    private static int opFSINCOS(uint32_t fetchdat)
+    {
+            double td;
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            td = ST(0);
+            ST(0) = Math.Sin(td);
+            cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+            x87_push(Math.Cos(td));
+            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
+            cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fsincos);
+            return 0;
+    }
+
     // pcem: x87_ops_misc.h:703-714
     private static int opFRNDINT(uint32_t fetchdat)
     {
@@ -703,6 +782,34 @@ internal static partial class _386
                     ST(0) = ST(0) * Math.Pow(2.0, (double)temp64);
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fscale);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:730-740
+    private static int opFSIN(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(0) = Math.Sin(ST(0));
+            cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
+            cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
+            return 0;
+    }
+
+    // pcem: x87_ops_misc.h:742-752
+    private static int opFCOS(uint32_t fetchdat)
+    {
+            if (FP_ENTER()) return 1;
+            cpu_state.pc++;
+            ST(0) = Math.Cos(ST(0));
+            cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
+            cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+            CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
             return 0;
     }
 

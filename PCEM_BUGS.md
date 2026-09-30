@@ -656,6 +656,24 @@ ce registre physique, pas la valeur chargée.
 *Trouvé par* : transcription de G4.4.
 *Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-67. `x87-cases` : `FST ST1 ; FINCSTP ; FISTP m64`.
 
+### PB-68 — Les transcendantes : la libm de l'hôte, sans bornes ni C2
+
+`x87_ops_misc.h:554-753` : F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS appellent
+`pow`, `log`, `tan`, `atan2`, `sin`, `cos` de la libm de l'hôte, en double. Trois écarts avec le
+silicium : (1) FPTAN, FSIN, FCOS, FSINCOS effacent toujours C2 — la borne |x| < 2^63, au-delà
+de laquelle le 387 laisse l'opérande et pose C2 (« réduction incomplète »), n'existe pas : la
+libm réduit tout argument ; (2) aucun domaine n'est vérifié — F2XM1 hors de [−1, 1], FYL2X d'un
+négatif (NaN par `log`), FPTAN, FSIN, FCOS sur 8087 et 287, qui n'ont ni FSIN, ni FCOS, ni
+FSINCOS (le 8087 limite aussi FPTAN à [0, π/4]) — tout est calculé ; (3) la précision est
+celle de la libm en double, pas celle du microcode sur 64 bits. Les résultats dépendent donc de
+la glibc de l'hôte de PCem (parité mesurée en G4.0 : Math.* de .NET rend les mêmes bits sur
+cet hôte).
+*Effet* : une boucle de réduction d'argument pilotée par C2 ne boucle jamais ; un programme qui
+teste FSIN pour distinguer 287 et 387 le trouve partout.
+*Trouvé par* : transcription de G4.5.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 ; `x87-cases` : les huit sur dix-neuf
+bornes × quatre ST(1) ; contrôles négatifs : FPTAN qui pose C2 → 76 cas divergents.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1349,7 +1367,7 @@ lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est e
 
 ## Portée de ce registre
 
-Ces **soixante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **soixante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1369,6 +1387,7 @@ audit systématique de PCem** :
 | Transcription et lecture ligne à ligne de G4.2 (chargements et stockages x87) | PB-52 à PB-56 |
 | Transcription de G4.3 (PB-57 à PB-59) ; fuzzeur G4.3 puis désassemblage de l'oracle (PB-60) | PB-57 à PB-60 |
 | Transcription de G4.4 (x87_ops_misc.h), vérifiée par x87-cases | PB-61 à PB-67 |
+| Transcription de G4.5 (les transcendantes) | PB-68 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

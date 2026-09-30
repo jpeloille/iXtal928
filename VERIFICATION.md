@@ -4227,3 +4227,29 @@ TAG_UINT64).
 **La série**, comparée aux journaux de a5be5be : tous identiques hors durées, sauf
 `x87-cases`, élargi (1 825 → 2 039 cas). Build 0 avertissement, selftest, check-oracle 0
 dérive (117).
+
+## G4.5 — Les transcendantes
+
+Le 30/09, sur f847fee. Plan : `PLAN-G4.md` § G4.5.
+
+**Transcrit.** F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS (x87_ops_misc.h:554-753),
+générés depuis le C comme le reste de x87_ops_misc.cs ; `pow`, `log`, `tan`, `atan2`, `sin`, `cos`
+deviennent Math.*, dont la parité au bit avec la glibc de l'oracle est mesurée depuis G4.0
+(10⁷ tirages par fonction, expressions verbatim comprises). Décision n° 4 : pas de P/Invoke.
+Les seize tables n'ont plus AUCUNE souche : 175 handlers distincts, tous transcrits.
+
+**Les portes.** Fuzzeur `--x87 all` (D8 à DF sans filtre, EA sur 112 octets) : 386 + 387 +
+66/67 graines 1 et 7, 286 + 287, 80 000 chacun, verts ; flux 386 + 387 D8-DF, 300 000, vert ;
+pm-fuzz `--fpu 387` sur les huit ESC, transcendantes comprises, 20 000, vert. `x87-cases` +
+les huit sur dix-neuf bornes (0, ±0,5, ±1, 2, ±π, ±10²⁰, 9,3·10¹⁸, 10³⁰⁰, ±∞, NaN, dénormaux,
+−3) × quatre ST(1) : 2 647 cas, verts.
+
+Contrôles négatifs, retirés : FSINCOS dans l'ordre inverse → 64 cas ; FPTAN qui pose C2 → 76 ;
+FYL2X par Math.Log2 → 2 cas, au dernier bit (`0x…DDF8` contre `0x…DDF7`) — la formule
+`log(x) / log(2)` de PCem n'est PAS log2 ; F2XM1 par `exp(x ln 2) − 1` → 8 cas.
+
+**Le défaut de PCem** : PB-68 (la libm de l'hôte, sans borne 2^63 ni C2, et sur 8087 et 287
+qui n'ont ni FSIN ni FCOS).
+
+**La série**, comparée aux journaux de f847fee : tous identiques hors durées sauf x87-cases,
+élargi (2 039 → 2 647). Build 0 avertissement, selftest, check-oracle 0 dérive (117).

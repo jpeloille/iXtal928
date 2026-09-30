@@ -438,14 +438,13 @@ public static class PmCheck386
             else
                 code[n] = opcodes[Next() % (uint)opcodes.Length];
             SansPagination(code);
-            // G4.4 — avec un coprocesseur (pm-fuzz --fpu) : les transcendantes de D9, souches
-            // jusqu'à G4.5, écartées comme dans le fuzzeur ; et CR0.EM ou CR0.TS une fois sur
-            // quatre, pour #NM (FP_ENTER) en mode protégé. Sans --fpu, aucun tirage de plus :
-            // les recettes d'avant ne bougent pas.
+            // G4.4 — avec un coprocesseur (pm-fuzz --fpu) : CR0.EM ou CR0.TS une fois sur
+            // quatre, pour #NM (FP_ENTER) en mode protégé. Sans --fpu, aucun tirage de plus : les
+            // recettes d'avant ne bougent pas. (G4.4 écartait les transcendantes, souches jusqu'à
+            // G4.5 ; elles sont transcrites, et tirées.)
             uint cr0Bits = 0;
             if (_386.FuzzFpu != 0)
             {
-                Fuzzer.X87SansTranscendante(code, n);
                 if ((Next() & 3) == 0)
                     cr0Bits = (Next() & 1) != 0 ? 4u : 8u;
             }

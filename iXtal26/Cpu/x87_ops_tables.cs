@@ -498,12 +498,4 @@ internal static partial class _386
     ];
 
     // ---- Souches : nommés par les tables, pas encore transcrits (G4.4, G4.5) ----
-    private static int opF2XM1(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFYL2X(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFPTAN(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFPATAN(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFYL2XP1(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFSINCOS(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFSIN(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
-    private static int opFCOS(uint32_t fetchdat) => opX87NonTranscrit(fetchdat);
 }

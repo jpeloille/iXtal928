@@ -149,6 +149,20 @@ internal static class X87Cases
             bad += Cas2($"#NM cr0 {cr0:X2}, {c[0]:X2} {c[1]:X2}", c, [B(1.0), B(2.0)], [1, 1], 0, 0, 0x037F, cr0, 1);
         }
 
+        // ---- G4.5 : les transcendantes aux bornes ----------------------------------------
+        double[] bt = [0.0, -0.0, 0.5, -0.5, 1.0, -1.0, 2.0, Math.PI, -Math.PI, 1e20, -1e20, 9.3e18, 1e300,
+                       double.PositiveInfinity, double.NegativeInfinity, double.NaN, Eps, -Eps, -3.0];
+        (string, byte[])[] trans = [("F2XM1", [0xD9, 0xF0]), ("FYL2X", [0xD9, 0xF1]), ("FPTAN", [0xD9, 0xF2]),
+                                    ("FPATAN", [0xD9, 0xF3]), ("FYL2XP1", [0xD9, 0xF9]), ("FSINCOS", [0xD9, 0xFB]),
+                                    ("FSIN", [0xD9, 0xFE]), ("FCOS", [0xD9, 0xFF])];
+        foreach (var (nom, c) in trans)
+        foreach (var x in bt)
+        foreach (var y in new[] { 1.0, -2.5, 0.0, double.NaN })
+        {
+            n++;
+            bad += Cas2($"{nom} ST0 {x:R}, ST1 {y:R}", c, [B(x), B(y)], [1, 1], 0, 1, 0x037F, 0x10, 1, npxs: 0x0400);
+        }
+
         Console.WriteLine(bad == 0 ? $"Vert : {n} cas dirigés, identiques à l'oracle."
                                    : $"\n{bad} cas divergents sur {n}.");
         return bad == 0 ? 0 : 1;

@@ -630,6 +630,8 @@ switch (args[0])
                 case "--x87" when i + 1 < args.Length && args[i + 1] == "mem": i++; Fuzzer.X87Mem = true; break;
                 // G4.4 — D9/DB/DD/DF, rangées mémoire ET registre ; les transcendantes (souches) écartées.
                 case "--x87" when i + 1 < args.Length && args[i + 1] == "g44": i++; Fuzzer.X87G44 = true; break;
+                // G4.5 — tout D8-DF est transcrit : aucune rangée écartée, EA comparée.
+                case "--x87" when i + 1 < args.Length && args[i + 1] == "all": i++; Fuzzer.X87All = true; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;

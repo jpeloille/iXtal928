@@ -90,7 +90,7 @@ modes d'arrondi tirés.
 32 bits, mode réel et protégé** (`TAG_UINT64`, `MM_w4`), FXCH, FPREM, FSCALE, FSQRT ; #NM par
 CR0.EM/TS (`FP_ENTER`) sous `pm-check`.
 
-### G4.5 — Les transcendantes
+### G4.5 — Les transcendantes  ✅ *fait, VERIFICATION.md § G4.5*
 
 F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS. Porte : fuzzeur au bit près, avec
 la libm retenue par la mesure de G4.0 (décision n° 4).
