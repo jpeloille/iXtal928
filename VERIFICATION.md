@@ -4311,3 +4311,66 @@ de ea6c332 : **65 journaux sur 65 identiques hors durées**, et les huit portes 
 vertes (quatre boot-diffs 8087, fuzz 8088 + 8087 graines 1 et 7, deux flux). Build 0
 avertissement, selftest, check-oracle 0 dérive (120 : x87_8087.cs, x87_ops_808x.cs et
 x87_ops_808x_tables.cs entrent au manifeste).
+
+## G4.7 — Les machines et les témoins
+
+Le 30/09, sur le commit de G4.6. Plan : `PLAN-G4.md` § G4.7.
+
+**Les machines.** `fpu = 287` dans `ixtal26-286.cfg` (profil Rider « 286, Trident 8900D »),
+`fpu = 387` dans `ixtal26-386.cfg` (profil « 386DX, Trident 9000B ») — décision n° 1 ; `none`
+partout ailleurs, lignes de base inchangées. `--make-nvr` pose le bit 1 de l'octet 0x14 quand
+la clé en déclare un. Mesuré : les deux BIOS AMI détectent le coprocesseur SEULS — avec un
+CMOS dont le bit 1 est à zéro (celui de session de l'utilisateur, ou la référence de PCem), le
+POST affiche « Numeric Processor : Present » sans plainte. Le bit est donc informatif ici, et
+les CMOS de session existants n'ont pas à être refaits.
+
+**Les boot-diffs**, tous verts : ibmat en 287 et en 287XL, ami286 en 287 (3 000) ; ami386 et
+ami386dx en 387 (3 000), ami386dx en 387 avec PC DOS 2.00 (2 000) et jusqu'au bout du POST
+(25 000 tranches, 36 077 215 instructions). L'ibmat (4 723 848 contre 4 723 826) et l'ami286
+(5 207 135 contre 5 207 508) changent de trajectoire : leur BIOS sonde le 287 et bifurque. Les
+deux 386 gardent le même compte : la sonde s'exécute à nombre d'instructions égal, ESC compris.
+
+**Les témoins**, iXtal26 seul (`--boot`), sur des COPIES des disques de l'utilisateur
+(`os/286-HDD-C.img`, `os/386-HDD-C.img`) dont l'AUTOEXEC.BAT est réécrit sans `KEYB FR` —
+KeyScript tape en QWERTY — et un binaire, un `nvr/` et des CMOS isolés dans /tmp : ni les
+disques ni les CMOS de session ne sont touchés. `--boot` gagne pour cela `@shot FICHIER`
+(l'écran en PPM), les touches `@` et `=`, et une ligne `x87 : fpucount = N` après chaque
+frappe quand un coprocesseur est déclaré.
+
+| témoin | 286/16 + 287 | 386DX/33 + 387 | sans FPU (les deux) |
+|---|---|---|---|
+| POST AMI | « Numeric Processor : Present » | idem | « None » |
+| INT 11h, 0040:0010 | 0463 (bit 1) | 0463 | 0461 |
+| MSD /S (Windows 3.1) | « 80286/80387 » — PB-70 | « 80386/80387 » | « 80286 », « 80386 » |
+| QBASIC `PRINT SIN(1), ATN(1)*4, SQR(2)` | .841471 3.141593 1.414214 | idem | idem |
+| Windows 3.1, Calculatrice, `2 sqrt` | 1.414213562373 ; fpucount 184 → 2 917 | 1.414213562373 ; 5 → 487 | 1.414213562373 (WIN87EM émule) |
+| X87BANC.COM | **297 tics** | **98 tics** | « PAS DE FPU » |
+
+MSD exécute vingt instructions x87 pour sa détection (fpucount 2 → 22) ; la Calculatrice passe
+par WIN87EM jusqu'au coprocesseur. **QBASIC n'exerce PAS le x87** : fpucount ne bouge pas
+d'une unité pendant un programme de calcul, avec ou sans 387. Désassemblé (QBASIC.EXE de
+DOS 5, offset 0x2BD63) : `mov byte [4],0` pose à zéro le drapeau « 8087 présent » de la
+bibliothèque, et chaque FNINIT est gardé par `cmp byte [4],0 / je`. QBASIC 1.1 calcule donc
+toujours par son émulateur ; ses résultats justes ne prouvent rien du coprocesseur, et le
+banc QBASIC prévu (décision n° 6, option A) ne pouvait montrer aucun écart : 11,37 s avec et
+sans 387, S identique au dernier chiffre. D'où la décision n° 6 révisée.
+
+**Le banc.** `tools/x87banc/x87banc.py` assemble X87BANC.COM (168 octets, listing annoté,
+désassemblage vérifié par objdump) et écrit `x87banc.keys` : `DEBUG`, onze lignes `E`, `N
+B:X87BANC.COM`, `R CX`, `A8`, `W`, `Q`. La machine fabrique elle-même son .COM sur une
+disquette 360 Ko insérée en B: (`@B:`), puis `B:X87BANC`. Détection par SMSW (CR0.EM) puis
+FNINIT / FNSTSW ; 4 × 65 535 tours de FLD m64, FPTAN, FDIVP, FSQRT, FMUL m64, FSTP m64 —
+communs au 287 et au 387, 0,5 dans le domaine du FPTAN du 287 ; chronomètre INT 1Ah. Rejoué :
+sortie identique à l'octet près. Le 386DX/33 + 387 est trois fois plus rapide que le 286/16 +
+287 (98 contre 297 tics) ; sans coprocesseur, « PAS DE FPU » et retour propre à DOS.
+
+**Le défaut de PCem** : PB-70 (le bit IC n'est jamais lu : le 287 compare l'infini en affine).
+Reproduit : `x87-cases` + deux cas (FNINIT ; 1/0 ; FLD ST ; FCHS ; FCOMPP ; FNSTSW, en 287 et
+en 387) — l'oracle rend C0 sans C3 sur les deux. Contrôle négatif, retiré : un x87_compare
+projectif sur le 287 → `npxs : oracle 0x0104, C# 0x4004`.
+
+**La série**, sur un instantané de G4.7 et comparée aux journaux de 3e76e9f : **72 journaux
+sur 72 identiques hors durées**, sauf `x87-cases`, élargi (2 647 → 2 649, les deux cas de
+PB-70) ; sept boot-diffs nouveaux, verts (ibmat 287 et 287XL, ami286 287, ami386 387, ami386dx
+387 seul, avec PC DOS 2.00, et jusqu'au bout du POST). `config-check` inchangé avec la clé
+`fpu` dans les deux configurations. Build 0 avertissement, selftest, check-oracle 0 dérive (120).

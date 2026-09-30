@@ -111,8 +111,10 @@ internal static class NvrImage
     /// <param name="hddType">Type de disque dur du BIOS pour C:, 1 à 46, ou 0 pour aucun.</param>
     /// <param name="displayBits">Bits 5-4 de l'octet 0x14, déjà décalés.</param>
     /// <param name="hddTypeD">Même chose pour D:.</param>
+    /// <param name="coprocessor">Un coprocesseur est déclaré (clé `fpu` autre que « none ») :
+    /// bit 1 de 0x14.</param>
     internal static void Amend(uint8_t[] cmos, int memSize, int driveA, int driveB,
-                              int hddType, int displayBits, int hddTypeD = 0)
+                              int hddType, int displayBits, int hddTypeD = 0, bool coprocessor = false)
     {
         // pcem: amic206.bin:0xad08 et :0xad0e — le SETUP met ces deux-là à zéro avant de
         // redémarrer. 0x0E est l'octet de DIAGNOSTIC, et c'est lui le vecteur entre la
@@ -146,10 +148,13 @@ internal static class NvrImage
         cmos[0x12] = (uint8_t)((nibbleC << 4) | nibbleD);
 
         // Octet d'équipement. Bits 7-6 : nombre de lecteurs moins un. Bits 5-4 :
-        // l'affichage. Bit 2 : clavier. Bit 0 : au moins un lecteur de disquette.
-        // Bit 1 (coprocesseur) reste à zéro — ce dépôt n'a pas de 287.
+        // l'affichage. Bit 2 : clavier. Bit 1 : coprocesseur (G4.7), posé si la clé
+        // `fpu` en déclare un — le SETUP de la ROM le tient de la même question. Bit 0 : au
+        // moins un lecteur de disquette.
         var drives = (driveA != 0 ? 1 : 0) + (driveB != 0 ? 1 : 0);
         var equip = (uint8_t)(displayBits | 0x04);
+        if (coprocessor)
+                equip |= 0x02;
         if (drives > 0)
                 equip |= (uint8_t)(0x01 | ((drives - 1) << 6));
         cmos[0x14] = equip;
@@ -222,6 +227,10 @@ internal static class NvrImage
         var driveA = config.config_get_int(config.CFG_MACHINE, null, "drive_a_type", 0);
         var driveB = config.config_get_int(config.CFG_MACHINE, null, "drive_b_type", 0);
         var gfx = config.config_get_string(config.CFG_MACHINE, null, "gfxcard", "cga");
+        // G4.7 — la clé de pc.c:655, défaut « none ». Le nom seul suffit ici : c'est initpc qui
+        // la juge contre la machine (fpu_get_type), et une valeur refusée y est signalée.
+        var fpu = config.config_get_string(config.CFG_MACHINE, null, "fpu", "none");
+        var coprocessor = fpu != "none";
 
         // Le type de disque se DÉDUIT de la géométrie du .cfg, il ne se déclare pas :
         // c'est la même géométrie que le contrôleur verra, donc les deux ne peuvent pas
@@ -275,7 +284,7 @@ internal static class NvrImage
         var displayBits = gfx == "cga" ? DisplayCga80 : DisplayOwnRom;
 
         var before = Checksum(cmos);
-        Amend(cmos, memSize, driveA, driveB, hddType, displayBits, hddTypeD);
+        Amend(cmos, memSize, driveA, driveB, hddType, displayBits, hddTypeD, coprocessor);
         var after = Checksum(cmos);
 
         File.WriteAllBytes(outPath, cmos);
@@ -287,7 +296,7 @@ internal static class NvrImage
         Console.WriteLine($"  disque dur     0x12 = {cmos[0x12]:X2}, 0x19 = {cmos[0x19]:X2}, 0x1A = {cmos[0x1A]:X2}" +
                           $"  (C: {(hddType > 0 ? $"type {hddType}, {cyl}x{heads}x{spt}" : "aucun")}" +
                           $" ; D: {(hddTypeD > 0 ? $"type {hddTypeD}, {cylD}x{headsD}x{sptD}" : "aucun")})");
-        Console.WriteLine($"  équipement     0x14 = {cmos[0x14]:X2}  (affichage {displayBits:X2}, carte « {gfx} »)");
+        Console.WriteLine($"  équipement     0x14 = {cmos[0x14]:X2}  (affichage {displayBits:X2}, carte « {gfx} », coprocesseur « {fpu} »)");
         Console.WriteLine($"  somme          0x{before:X4} -> 0x{after:X4}, en 0x2E/0x2F");
 
         // La somme nulle est rejetée par les deux BIOS : le dire ici plutôt que de

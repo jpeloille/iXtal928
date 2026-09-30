@@ -18,6 +18,7 @@ namespace iXtal26.Diff;
 
 internal static class X87Cases
 {
+    private const int FPU_287 = 2;
     private const int FPU_387 = 4;
 
     private static ulong B(double d) => BitConverter.DoubleToUInt64Bits(d);
@@ -163,6 +164,18 @@ internal static class X87Cases
             bad += Cas2($"{nom} ST0 {x:R}, ST1 {y:R}", c, [B(x), B(y)], [1, 1], 0, 1, 0x037F, 0x10, 1, npxs: 0x0400);
         }
 
+        // ---- G4.7 : le test de génération 287 / 387 par l'infini (PB-70) ---------------------
+        // FNINIT ; FLD1 ; FLDZ ; FDIVP (+inf, ZE masqué) ; FLD ST ; FCHS ; FCOMPP ; FNSTSW [0100].
+        // Sur le silicium, le 287 après FNINIT est en infini projectif : +inf = -inf, C3 posé.
+        // PCem ne lit jamais le bit IC : C3 reste à zéro sur les deux — ce que MSD lit « 80387 ».
+        foreach (var (nom, f) in new[] { ("287", FPU_287), ("387", FPU_387) })
+        {
+            n++;
+            bad += Cas2($"infini projectif ou affine, {nom}",
+                        [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xC0, 0xD9, 0xE0, 0xDE, 0xD9, 0xDD, 0x3E, 0x00, 0x01],
+                        [], [], 0, 0, 0x037F, 0x10, 8, fpu: f);
+        }
+
         Console.WriteLine(bad == 0 ? $"Vert : {n} cas dirigés, identiques à l'oracle."
                                    : $"\n{bad} cas divergents sur {n}.");
         return bad == 0 ? 0 : 1;
@@ -177,7 +190,7 @@ internal static class X87Cases
     /// TOP), leurs tags, MM[TOP].q, TOP, npxs, npxc, CR0 ; `pas` instructions des deux côtés,
     /// l'état complet, le journal et les 112 octets en [DS:0100] comparés après chacune.</summary>
     private static int Cas2(string nom, byte[] code, ulong[] st, byte[] tags, ulong mm0, int top, ushort npxc, uint cr0,
-                            int pas, ushort npxs = 0)
+                            int pas, ushort npxs = 0, int fpu = FPU_387)
     {
         var c = new byte[Math.Max(16, code.Length + 8)];
         Array.Fill(c, (byte)0x90);
@@ -200,8 +213,8 @@ internal static class X87Cases
         }
         Mm[top & 7] = mm0;
 
-        Oracle.h_set_fpu(FPU_387);
-        _386.FuzzFpu = FPU_387;
+        Oracle.h_set_fpu(fpu);
+        _386.FuzzFpu = fpu;
         Oracle.h_set_core(Oracle.Core386);
         Oracle.h_reset();
         Oracle.h_fill_ram(0x90);

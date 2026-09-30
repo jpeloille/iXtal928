@@ -3,6 +3,8 @@
 > Écrit le 29 septembre 2026, au commit `3723463` (G3 fait). Bloc G4 de `PLAN.md`.
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions de Julien sont tranchées en fin de fichier.
+>
+> **G4 est fait** (1er octobre 2026) : G4.0 à G4.7, VERIFICATION.md § G4.0 à § G4.7 ; PB-48 à PB-70.
 
 ## Où on en est
 
@@ -100,13 +102,15 @@ la libm retenue par la mesure de G4.0 (décision n° 4).
 `8087.h`, les huit blocs `if (hasfpu)` de `808x.c:3304-3366` (sauvegarde et restitution de
 `pc`), SW1 du XT. Porte : fuzzeur 8088 en `fpu=8087`, puis `boot-diff --model xt` avec 8087.
 
-### G4.7 — Les machines et les témoins
+### G4.7 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § G4.7*
 
 `fpu` dans les configurations et les deux profils Rider (décision n° 1) ; octet CMOS 0x14
 bit 1 posé par `--make-nvr`. Boot-diffs ibmat et ami286 en 287, ami386 et ami386dx en 387.
 Témoins `--boot` (décision n° 6) : POST et `INT 11h` bit 1 ; MSD de DOS 5, « Math
 Coprocessor » ; QBASIC `PRINT SIN(1), ATN(1)*4, SQR(2)` ; Windows 3.1, Calculatrice
 scientifique sous WIN87EM.
+Le banc : `tools/x87banc/` (décision n° 6 révisée), 287 sur l'ami286 contre 387 sur
+l'ami386dx, et le message sans FPU.
 
 ## La vérification
 
@@ -162,8 +166,16 @@ scientifique sous WIN87EM.
    `// DEVIATION:`, pour garder la parité avec l'oracle. **Mesuré : aucun écart** — `Math.*`
    suffit, pas de P/Invoke.
 5. **Le 287XL est inclus** (temps du 387, `cpu.c:1144-1145`).
-6. **Les témoins** : QBASIC et MSD (DOS 5), Windows 3.1 (Calculatrice, WIN87EM). **Le banc**
-   (CHECKIT, Landmark ou une fractale) reste **ouvert** : Julien le fournira.
+6. **Les témoins** : QBASIC et MSD (DOS 5), Windows 3.1 (Calculatrice, WIN87EM). **Le banc**,
+   révisé deux fois. Le 30/09, option A : un banc QBASIC écrit par nous (boucle à la
+   Whetstone chronométrée par TIMER, tapée par KeyScript), pas de CHECKIT, Landmark ni
+   FRACTINT. **Abandonné le même jour** : QBASIC 1.1 force à zéro son drapeau « 8087
+   présent » et n'exécute aucun ESC (VERIFICATION.md § G4.7). **Décision révisée** : un petit
+   .COM écrit par nous en octets x87, saisi par KeyScript dans DEBUG.EXE puis exécuté —
+   détection FNINIT/FNSTSW (« PAS DE FPU » et sortie propre sinon), boucle fixe
+   d'instructions communes au 287 et au 387 (FPTAN, FSQRT, FMUL, FDIV ; ni FSIN ni FCOS),
+   chronométrage par INT 1Ah, nombre de tics affiché ; rejouable à l'identique. Source et
+   lignes KeyScript versionnées : `tools/x87banc/`.
 7. **Ce fichier** : `PLAN-G4.md`.
 
 ## Ce que je ne sais pas encore

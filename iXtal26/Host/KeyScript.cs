@@ -106,6 +106,10 @@ public static class KeyScript
         // chemin d'écriture sans fenêtre (VERIFICATION.md § M8.1).
         case ':': shift = true; return SDL.Scancode.Semicolon;
         case '/': return SDL.Scancode.Slash;
+        // G4.7 — la Calculatrice de Windows 3.1 : « @ » est sa racine carrée, « = » son
+        // égal. Disposition US, celle que SYSTEM.INI déclare sur les disques de ce dépôt.
+        case '@': shift = true; return SDL.Scancode.Alpha2;
+        case '=': return SDL.Scancode.Equals;
         default: return SDL.Scancode.Unknown;
         }
     }

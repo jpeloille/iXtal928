@@ -17,10 +17,10 @@ boot-diffs à l'unité, `selftest`, zéro avertissement, fuzzeur). Le cœur rest
 l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les entrées
 `CPU_SUPPORTS_DYNAREC` des tables ne changent rien à l'exécution.
 
-## Où on en est — 29 septembre 2026, commit `3723463`
+## Où on en est — 1er octobre 2026, après G4
 
 ```
-8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ──▶ [ICI] G4 x87 ── G5 ── G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
+8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ──▶ [ICI] G5 IDE ── G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -30,10 +30,12 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 - **Ouvert, sans bloquer G** : le reliquat du 286, `PLAN-286.md` § « Tâches à couvrir » —
   les tâches 3 (`taskswitch286`, G2 D5) et 4 (le CMOS de l'AT, G3.0) y sont faites, pas
   encore cochées.
-- **G4, en cours** : `PLAN-G4.md`. G4.0 (l'outillage, ABI 27) et G4.1 (l'état, les tables de
-  temps, la clé `fpu`) sont faits ; en chemin, PB-48 à PB-51 et le trampoline des préfixes.
-  Le prochain pas est **G4.2, chargements et stockages**. G1 (8086) reste petit et
-  indépendant.
+- **G4, fait** : `PLAN-G4.md`, G4.0 à G4.7 (VERIFICATION.md § G4.0 à § G4.7). Le x87 de
+  PCem entier — 8087, 287, 287XL, 387 —, transcendantes comprises, vérifié au fuzzeur bit pour
+  bit ; `fpu = 287` sur le profil 286, `fpu = 387` sur le profil 386DX ; témoins MSD,
+  Windows 3.1 (Calculatrice) et un banc x87 à nous (`tools/x87banc/`). En chemin, PB-48 à
+  PB-70, le trampoline des préfixes et la borne de POP SS.
+- **G5, plan proposé** : `PLAN-G5.md`, à valider. G1 (8086) reste petit et indépendant.
 
 ## Les générations
 
@@ -42,9 +44,9 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 | 8088 | ✅ | IBM PC 5150, XT 5160 | — |
 | 8086 | ☐ | Olivetti M24 ou Amstrad PC1512 | `cpus_8086`, la machine |
 | 80286 | ✅ | IBM AT 5170, ami286 (NEAT) | reliquat : `PLAN-286.md` § « Tâches à couvrir » |
-| 80386SX | ✅ | `ami386` (Headland) | le 387 : G4, plan posé (`PLAN-G4.md`) |
-| 80386DX | ✅ | `ami386dx` (OPTi 495) | le 387 : G4, plan posé (`PLAN-G4.md`) |
-| 80486SX/DX/DX2 | ☐ | **`ami486` (ALi 1429) + `i486DX2/66`** | x87, IDE, chemins `is486`, le chipset |
+| 80386SX | ✅ | `ami386` (Headland) | — (387 : G4 ✅) |
+| 80386DX | ✅ | `ami386dx` (OPTi 495) | — (387 : G4 ✅) |
+| 80486SX/DX/DX2 | ☐ | **`ami486` (ALi 1429) + `i486DX2/66`** | IDE, chemins `is486`, le chipset (x87 : G4 ✅) |
 
 ## Ce qui existe déjà, et qui servira
 
@@ -104,7 +106,7 @@ Les deux ROM sont dans `roms/`.
 **Porte** : boot-diff à l'unité, puis `--boot` jusqu'à l'invite DOS. Windows 3.1 en mode
 386 étendu est le test d'intégration de G2 : V86, pagination, commutation de tâches.
 
-### G4 — Le x87  *(plan posé : `PLAN-G4.md`)*
+### G4 — Le x87  ✅ *(`PLAN-G4.md`, fait le 1er octobre 2026)*
 
 `x87.c` (97), `x87_timings.c` (297), `x87_ops.h` (1 116), `x87_ops_arith.h` (452),
 `x87_ops_loadstore.h` (576), `x87_ops_misc.h` (927) : **≈ 3 460 lignes**. Indispensable
@@ -115,7 +117,7 @@ au 486DX, dont le coprocesseur est intégré (`fpus_builtin`). Il ouvre aussi le
 rend pas la même chose sous GCC et sous .NET 9+ ; transcrire `(uint64_t)(int64_t)x`.
 Le fuzzeur doit comparer les registres x87 bit pour bit, NaN et dénormaux compris.
 
-### G5 — L'IDE
+### G5 — L'IDE  *(plan proposé : `PLAN-G5.md`)*
 
 `ide/ide.c`, 1 222 lignes. `ami486` le requiert (`MODEL_HAS_IDE`). C'est aussi la fin
 des trois plafonds du disque MFM (type 46).

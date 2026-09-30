@@ -103,6 +103,14 @@ public static class BootTest
                               (Disc.disc.drive_empty[drive] != 0 ? " — REFUSÉ par disc_load ---" : " ---"));
             return;
         }
+        // G4.7 — « @shot FICHIER » : l'image de l'écran, en PPM, sans rien taper. Le vidage
+        // texte ne dit rien d'un écran graphique (Windows) ; le rectangle est celui que
+        // svga_doblit présente, xsize × ysize en haut à gauche de Buffer32.
+        if (text.StartsWith("@shot ", StringComparison.Ordinal))
+        {
+            WritePpm(text[6..]);
+            return;
+        }
         if (text.StartsWith("@wait ", StringComparison.Ordinal))
         {
             var n = int.Parse(text[6..]);
@@ -126,6 +134,10 @@ public static class BootTest
             pc.runpc();
 
         DumpTextScreen();
+        // G4.7 — le témoin qu'un programme exerce VRAIMENT le coprocesseur : QBASIC 1.1 rend
+        // SIN(1) juste sans jamais exécuter un ESC. FP_ENTER compte chaque instruction x87.
+        if (Cpu.cpu_c.hasfpu != 0)
+            Console.WriteLine($"  x87 : fpucount = {_386_common.fpucount} depuis le reset");
     }
 
     private static void PressKey(char ch)
@@ -168,6 +180,28 @@ public static class BootTest
             for (var i = 0; i < KeyScript.SlicesPerStep; i++)
                 pc.runpc();
         }
+    }
+
+    private static void WritePpm(string path)
+    {
+        var b = Video.video.Buffer32;
+        int w = Video.video.xsize, h = Video.video.ysize, stride = Video.video.Stride;
+        using var f = File.Create(path);
+        var head = System.Text.Encoding.ASCII.GetBytes($"P6\n{w} {h}\n255\n");
+        f.Write(head);
+        var row = new byte[w * 3];
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var px = b[y * stride + x];
+                row[x * 3] = (byte)(px >> 16);
+                row[x * 3 + 1] = (byte)(px >> 8);
+                row[x * 3 + 2] = (byte)px;
+            }
+            f.Write(row);
+        }
+        Console.WriteLine($"\n--- écran {w}x{h} écrit dans {path} ---");
     }
 
     /// <summary>Le framebuffer, lui, est rempli par cga_poll — un chemin

@@ -689,6 +689,18 @@ Microsoft ou Borland) n'est jamais appelé.
 *Reproduit* : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
 les deux instanciations) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs`.
 
+### PB-70 — Le contrôle de l'infini est ignoré : le 287 compare en affine, comme un 387
+
+Le bit 12 du mot de contrôle (IC, infini projectif ou affine) n'est lu nulle part dans
+`x87_ops*.h` ni `x87.c` ; `opFINIT` (`x87_ops_misc.h:49-60`) pose 0x037F sur le 287 comme sur le
+387. Sur le silicium, le 8087 et le 287 démarrent en projectif (+∞ = −∞) ; `x87_compare`
+(`x87_ops.h`) rend toujours +∞ > −∞.
+*Effet* : le test classique de génération (FINIT ; 1/0 ; FCHS ; FCOMPP) conclut au 387. Mesuré
+en G4.7 : MSD de Windows 3.1, sur l'AMI 286 avec `fpu = 287`, affiche « 80286/80387 ».
+*Trouvé par* : témoin MSD de G4.7, puis lecture du C.
+*Reproduit* : par la transcription, `Cpu/x87_ops_misc.cs` (opFINIT) et `Cpu/x87_ops.cs`
+(x87_compare), inchangés ; témoin MSD.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1404,6 +1416,7 @@ audit systématique de PCem** :
 | Transcription de G4.4 (x87_ops_misc.h), vérifiée par x87-cases | PB-61 à PB-67 |
 | Transcription de G4.5 (les transcendantes) | PB-68 |
 | Transcription de G4.6 (le 8087), lecture de `picint` | PB-69 |
+| Témoin MSD de G4.7, puis lecture du C | PB-70 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
