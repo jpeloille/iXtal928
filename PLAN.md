@@ -159,6 +159,10 @@ diff d'instructions est aveugle au son : il faudra une sonde d'échantillons, co
   déjà transcrit.
 - Le reliquat du 286 : `PLAN-286.md` § « Tâches à couvrir ». `taskswitch286` y est
   rattaché à G2.
+- **Hors plan, relevé en G4** : le harnais de `pm-fuzz` laisse fuir une IRQ d'une itération
+  à la suivante (l'IRQ13 d'un x87 démasqué, vue comme « BANC FAUX »). Contournée en G4.4 —
+  `npxc = 0x037F` posé à chaque cas sous `--fpu` —, pas corrigée : l'état du PIC n'est pas
+  remis à zéro entre deux cas.
 
 ## L'ordre
 
