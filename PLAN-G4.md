@@ -75,7 +75,7 @@ identique en `fpu=287` et `fpu=387`.
 `x87_ops_loadstore.h`, `x87_ld80` / `x87_st80`, `x87_fround`, FBLD/FBSTP (`fmod`, `floor`).
 Porte : fuzzeur 386 en mode réel, `fpu=387`, opcodes D9/DB/DD/DF mémoire.
 
-### G4.3 — L'arithmétique
+### G4.3 — L'arithmétique  ✅ *fait, VERIFICATION.md § G4.3*
 
 `x87_ops_arith.h`, et l'arrondi dirigé TEL QUE PCem l'applique (décision n° 3, PB-48) : la
 sémantique de `fesetround` réécrite en C# sur les **seuls** `opFADD` mémoire (m32, m64,

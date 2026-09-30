@@ -4134,3 +4134,50 @@ registre, G4.3 et G4.4) ; le mode protégé (pm-fuzz ne tire pas d'ESC).
 durées** (25 boot-diffs fpu=none, fuzzeurs single et flux 8088/286/386, `--0f`,
 `--fpu-state`, page-check, pm-fuzz, core286-check, pm-check 286 et 386, cpu-config-check,
 config-check, popss-check). Build 0 avertissement, selftest, check-oracle 0 dérive (114).
+
+## G4.3 — L'arithmétique du x87
+
+Le 30/09, sur 9023016. Plan : `PLAN-G4.md` § G4.3.
+
+**Compté avant d'écrire.** `gcc -E` de l'unité 386_dynarec.c de l'oracle (harness_386.c) :
+x87_ops_arith.h engendre **92 handlers** — 64 formes mémoire (la macro opFPU : FADD, FCOM,
+FCOMP, FDIV, FDIVR, FMUL, FSUB, FSUBR × s, d, iw, il × a16, a32) et 28 formes registre — et
+**16 appels fesetround**, les huit opFADD mémoire × 2 : PB-48, à la ligne. FCOMI, FCOMIP,
+FUCOMI, FUCOMIP ne sont que dans les tables `_686_` : 88 handlers transcrits.
+
+**Transcrit, par génération depuis le C.** `Cpu/x87_ops_arith.cs` : la macro expansée pour
+ses huit instanciations, puis les formes registre ; x87_div devient `if (x87_div(ref …))
+return 1;`. `Cpu/x87_ops_tables.cs` : les seize tables non 686 de x87_ops.h (:310-1040),
+emplacement par emplacement, `ILLEGAL` résolu selon le #define ; 51 handlers encore absents
+(FLDENV, FSAVE, FXCH, FLD1, les transcendantes…) y sont des souches à leur nom (G4.4, G4.5).
+Le TableFpu de G4.2 disparaît. `Cpu/x87_ops.cs` gagne x87_div, x87_compare / x87_ucompare
+(DEVIATION : l'asm `fcompp` hôte de PCem, rendu par sa sémantique) et x87_fadd_dirige
+(DEVIATION : l'arrondi dirigé des seuls FADD mémoire, TwoSum, débordement, zéro exact).
+
+**Le NaN qui survit** (PB-60). Le fuzzeur a divergé sur `DC C5`, deux NaN en entrée :
+`ST[5] : oracle 0x7FF8000000000000, C# 0x7FFFFFFFFFFFFFFF`. addsd et mulsd rendent le premier
+opérande NaN ; GCC a choisi l'ordre handler par handler. `x87-nan-order` le mesure sur l'oracle
+(table dans PB-60) ; X87AddSd / X87MulSd imposent la règle SSE dans l'ordre mesuré.
+
+**Les portes.**
+
+| porte | résultat |
+|---|---|
+| 386 + 387, D8/DA/DC/DE mémoire et registre + 66/67, graines 1 et 7, 80 000 | verts |
+| 286 + 287, D8/DA/DC/DE, 80 000 | vert, temps du 287 confrontés |
+| 386 + 387, flux D8/DA/DC/DE (ModRM de mode registre), 1 500 × 200 | vert, 300 000 |
+| `x87-cases` : FADD m64 et m32 sur toutes les paires de 18 bornes × 4 modes, FCOMPP / FCOM / FUCOMPP sur les zéros signés et NaN, FDIV par ±0 masquée et démasquée | vert, 1 825 cas |
+| portes de G4.2 (D9/DB/DD/DF mémoire, 387 et 287) | vertes, identiques |
+
+Contrôles négatifs, retirés : l'arrondi dirigé appliqué AUSSI à FMUL mémoire → divergence à
+l'itération 22 (`DA 4E`) ; x87_compare sans test de NaN → itération 67 (`npxs`) ; l'ordre
+PB-60 d'opFADD inversé → itération 46 159 ; la branche démasquée de x87_div neutralisée →
+itération 104 (`cycles : oracle 8, C# 89`) ; sans le contournement de FCOMPP → `x87-cases`,
+`npxs : oracle 0x0100, C# 0x4000` ; sans la règle du zéro exact vers le bas → 15 cas.
+
+**Les défauts de PCem** : PB-57 (FCOM registre et les NaN), PB-58 (FCOMPP, −0 contre +0),
+PB-59 (ZE seule ; démasquée, l'instruction s'évapore), PB-60 (le NaN propagé).
+
+**La série**, comparée aux journaux de 9023016 : **50 journaux sur 50 identiques hors
+durées** (25 boot-diffs fpu=none, fuzzeurs existants, portes de G4.2, checks, popss-check).
+Build 0 avertissement, selftest, check-oracle 0 dérive (116).

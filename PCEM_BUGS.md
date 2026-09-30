@@ -496,6 +496,85 @@ dénormaux ; les calculs en précision étendue perdent onze bits.
 *Trouvé par* : lecture ligne à ligne en G4.2 ; la précision était relevée dès PLAN-G4.md.
 *Reproduit* : `Cpu/x87_ops.cs`, `x87_st80`, verbatim ; ST est un `double[]` (`x86.cs`).
 
+### PB-57 — FCOM en forme registre compare avec `==` et `<` : un NaN rend « plus grand »
+
+`x87_ops_arith.h:154-166`, `opFCOM` (D8 D0+i) — la seule comparaison qui n'appelle pas
+x87_compare :
+
+```c
+if (ST(0) == ST(fetchdat & 7))
+        cpu_state.npxs |= C3;
+else if (ST(0) < ST(fetchdat & 7))
+        cpu_state.npxs |= C0;
+```
+
+Avec un NaN, les deux tests sont faux : C3 = C2 = C0 = 0, « ST(0) > ST(i) ». Le silicium, et
+FCOMP registre, FCOMPP, FCOM mémoire chez PCem même, rendent « non ordonné » (C3 = C2 = C0 =
+1). Et FCOM registre compte `x87_timings.fadd`, FCOMP et FCOMPP aussi, pas `fcom`.
+*Effet* : un programme qui teste C2 après FCOM ST(i) sur un NaN le croit comparable.
+*Trouvé par* : transcription de G4.3.
+*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOM`, marqueur PB-57. `x87-cases` le confronte à
+l'oracle (NaN contre 1) ; contrôle négatif : x87_compare sans son test de NaN → divergence
+`npxs` à l'itération 67 du fuzzeur G4.3.
+
+### PB-58 — FCOMPP : −0 contre +0 rend « plus petit », un contournement de détection
+
+`x87_ops_arith.h:180-195`, `opFCOMPP` (DE D9) :
+
+```c
+if (*(uint64_t *)&ST(0) == ((uint64_t)1 << 63) && *(uint64_t *)&ST(1) == 0)
+        cpu_state.npxs |= C0; /*Nasty hack to fix 80387 detection*/
+```
+
+ST(0) = −0 et ST(1) = +0 rendent C0, « plus petit » ; le silicium rend C3, « égal ». Le
+commentaire dit pourquoi : une routine de détection distingue 287 et 387 par le signe de
+l'infini projectif, et PCem, qui n'a pas le mode projectif, force le résultat attendu.
+*Effet* : toute comparaison −0 / +0 par FCOMPP, et elle seule, rend « plus petit ».
+*Trouvé par* : transcription de G4.3.
+*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOMPP`, marqueur PB-58. `x87-cases` : FCOMPP (−0,
++0) identique à l'oracle ; sans le contournement, `npxs : oracle 0x0100, C# 0x4000`.
+
+### PB-59 — Seule la division par zéro lève une exception ; démasquée, l'instruction s'évapore
+
+`x87_ops.h:17-30`, la macro x87_div, et `:32`, `x87_checkexceptions() {}` vide. ZE est la
+seule exception que PCem modélise : ni IE (∞ − ∞, 0 × ∞, NaN signalants, pile vide ou
+pleine), ni DE, ni OE, ni UE, ni PE — aucun de ces bits de npxs n'est jamais posé. Et quand
+ZE est démasquée, x87_div fait `picint(1 << 13)` puis `return 1` : le handler sort sans
+écrire la destination, sans poser le tag, sans compter ses cycles — et sans poser ES ni B
+dans npxs. Sur un XT, `picint(1 << 13)` vise un second PIC qui n'existe pas (le 8087 y passe
+par la NMI), G4.6.
+*Effet* : un programme qui démasque les exceptions n'en voit qu'une, et pour la division par
+zéro l'instruction ne compte aucun cycle. Mesuré (contrôle négatif de G4.3, la branche
+démasquée neutralisée) : `D8 F5` (FDIV), `cycles consommés : oracle 8, C# 89` — les 8 sont
+ceux du décodage.
+*Trouvé par* : transcription de G4.3 ; relevé en reconnaissance (PLAN-G4.md).
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_div`. `x87-cases` : 1 / ±0, ZE masquée et démasquée.
+
+### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
+
+PCem calcule en double avec SSE : `addsd` et `mulsd` rendent le PREMIER opérande NaN (rendu
+silencieux) quand les deux en sont. L'addition et la multiplication étant commutatives, GCC
+place les opérandes à sa guise ; le NaN qui survit dépend donc de l'allocation de registres
+de chaque handler, pas du x87. Le silicium, lui, garde le NaN de plus grande mantisse.
+Mesuré sur l'oracle (`x87-nan-order`, ST(0) = NaN A, l'autre opérande = NaN B) :
+
+| handler | C | premier opérande SSE (le NaN qui survit) |
+|---|---|---|
+| opFADD (D8 C0+i) | `ST(0) = ST(0) + ST(i)` | ST(i) |
+| opFADDr (DC C0+i) | `ST(i) = ST(i) + ST(0)` | ST(0) |
+| opFADDP (DE C0+i) | `ST(i) = ST(i) + ST(0)` | ST(i) |
+| opFMUL (D8 C8+i) | `ST(0) = ST(0) * ST(i)` | ST(i) |
+| opFMULr, opFMULP | `ST(i) = ST(0) * ST(i)` | ST(0) |
+| FADD, FMUL mémoire (au plus près ou dirigé) | `ST(0) += m`, `ST(0) *= m` | la mémoire |
+
+*Effet* : quel NaN sort de NaN + NaN n'est ni celui du silicium ni constant d'un handler à
+l'autre ; il changerait avec le compilateur de PCem.
+*Trouvé par* : le fuzzeur G4.3 (`DC C5` : `ST[5] : oracle 0x7FF8…, C# 0x7FFF…`), puis le
+désassemblage de l'oracle et la mesure.
+*Reproduit* : `Cpu/x87_ops.cs`, `X87AddSd` / `X87MulSd`, la règle SSE avec un ordre explicite,
+et vingt-deux sites de `Cpu/x87_ops_arith.cs` marqués PB-60. Contrôle négatif : l'ordre de
+opFADD inversé → divergence à l'itération 46 159.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1189,7 +1268,7 @@ lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est e
 
 ## Portée de ce registre
 
-Ces **cinquante-six** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **soixante** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1207,6 +1286,7 @@ audit systématique de PCem** :
 | Fuzzer différentiel en mode flux, balayage par opcode, désassemblage de l'oracle | PB-49 |
 | Instruction de PB-49 : trace pas à pas d'un flux de préfixes, build Debug | PB-50, PB-51 |
 | Transcription et lecture ligne à ligne de G4.2 (chargements et stockages x87) | PB-52 à PB-56 |
+| Transcription de G4.3 (PB-57 à PB-59) ; fuzzeur G4.3 puis désassemblage de l'oracle (PB-60) | PB-57 à PB-60 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

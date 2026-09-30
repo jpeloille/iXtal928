@@ -5,10 +5,9 @@
 //         297-308, 322-1040 pour la disposition des tables)
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — G4.2 : les aides des chargements et stockages (ST, x87_push, x87_pop,
-//         x87_fround, x87_ld80, x87_st80, FP_ENTER), FPU_ILLEGAL, et les rangées MÉMOIRE de
-//         D9, DB, DD et DF qui portent un handler de x87_ops_loadstore.h. Le reste des tables
-//         (les rangées de mode registre, FLDENV, FLDCW, FSTENV, FSTCW, FRSTOR, FSAVE, FSTSW,
-//         et D8, DA, DC, DE entières) reste en opX87NonTranscrit jusqu'à G4.3-G4.5.
+//         x87_fround, x87_ld80, x87_st80, FP_ENTER), FPU_ILLEGAL ; G4.3 : x87_div,
+//         x87_compare, x87_ucompare, et l'arrondi dirigé de FADD mémoire (PB-48). Les tables
+//         sont dans x87_ops_tables.cs.
 //
 // PCem garde ST en DOUBLE (x86.h:93) : le format 80 bits n'existe qu'aux frontières mémoire,
 // x87_ld80 et x87_st80, qui le convertissent À LEUR FAÇON — exposant replié modulo 1024,
@@ -192,6 +191,109 @@ internal static partial class _386
         writememw(easeg, cpu_state.eaaddr + 8, (uint16_t)begin);
     }
 
+    // pcem: x87_ops.h:13 — le bit ZE du mot d'état, et son masque au même rang dans npxc.
+    private const uint16_t STATUS_ZERODIVIDE = 4;
+
+    // pcem: x87_ops.h:17-30 — x87_div. SEULE exception que PCem modélise : le diviseur nul.
+    //   Masquée (npxc bit 2), le quotient IEEE (±∞ ou NaN) ; démasquée, IRQ13 et le handler
+    //   sort AUSSITÔT par `return 1` — sans poser le tag ni compter ses cycles (PB-59).
+    //   Rend vrai quand le handler doit sortir, comme les gardes.
+    private static bool x87_div(ref double dst, double src1, double src2)
+    {
+        if (((double)src2) == 0.0)
+        {
+                cpu_state.npxs |= STATUS_ZERODIVIDE;
+                if ((cpu_state.npxc & STATUS_ZERODIVIDE) != 0)
+                        dst = src1 / (double)src2;
+                else
+                {
+                        // omitted: pclog("FPU : divide by zero\n") — sortie pure.
+                        Models.pic.picint(1 << 13);
+                        return true;
+                }
+        }
+        else
+                dst = src1 / (double)src2;
+        return false;
+    }
+
+    // pcem: x87_ops.h:189-217 et :219-247 — x87_compare et x87_ucompare.
+    // DEVIATION: sur amd64, PCem compare en exécutant `fldl ; fldl ; fclex ; fcompp ; fnstsw`
+    //   sur le x87 de l'HÔTE (asm en ligne), puis masque C0|C2|C3. Le C# n'a pas de x87 ; il
+    //   rend ce que ce fcompp rend : deux doubles chargés sans perte, comparés exactement —
+    //   a < b → C0, a == b → C3 (+0 et −0 égaux), non ordonnés (un NaN) → C3|C2|C0, a > b → 0.
+    //   fcompp et fucompp ne diffèrent que par l'exception levée, que fclex et le masque
+    //   effacent. Le fuzzeur de G4.3 le confronte à l'oracle, NaN et zéros signés tirés.
+    private static uint16_t x87_compare(double a, double b)
+    {
+        if (double.IsNaN(a) || double.IsNaN(b))
+                return x87_c.C0 | x87_c.C2 | x87_c.C3;
+        if (a < b)
+                return x87_c.C0;
+        if (a == b)
+                return x87_c.C3;
+        return 0;
+    }
+
+    private static uint16_t x87_ucompare(double a, double b) => x87_compare(a, b);
+
+    // QUEL NaN GAGNE (PB-60). `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
+    // silencieux, quand les deux en sont ; l'addition et la multiplication étant commutatives,
+    // GCC a choisi l'ordre handler par handler, et RyuJIT n'y est pas tenu. Ces deux aides
+    // imposent la règle SSE avec un ordre EXPLICITE, celui que `x87-nan-order` a mesuré sur
+    // l'oracle. Hors NaN, l'ordre est indifférent (et ∞ − ∞ rend le NaN par défaut des deux
+    // côtés). La soustraction et la division ne sont pas concernées : leur ordre est fixé.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double X87Quiet(double d) => BitConverter.UInt64BitsToDouble(BitConverter.DoubleToUInt64Bits(d) | 0x0008000000000000UL);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double X87AddSd(double first, double second)
+        => double.IsNaN(first) ? X87Quiet(first) : double.IsNaN(second) ? X87Quiet(second) : first + second;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double X87MulSd(double first, double second)
+        => double.IsNaN(first) ? X87Quiet(first) : double.IsNaN(second) ? X87Quiet(second) : first * second;
+
+    // L'ARRONDI DIRIGÉ DE FADD MÉMOIRE (x87_ops_arith.h:12-16), décision n° 3 réduite par PB-48.
+    // DEVIATION: PCem encadre `ST(0) += use_var` de fesetround(RC) … fesetround(FE_TONEAREST) ;
+    //   .NET n'a pas d'équivalent, et toucher MXCSR par P/Invoke atteindrait le JIT. La somme
+    //   est donc arrondie au plus près, puis corrigée d'un ulp selon le signe de son erreur
+    //   EXACTE (TwoSum, exact pour deux doubles finis sans débordement), avec les trois cas que
+    //   l'erreur ne dit pas : le débordement (vers le bas ou vers zéro, le plus grand fini au
+    //   lieu de ±∞), les opérandes infinis ou NaN (le résultat ne dépend pas du mode), et le
+    //   signe d'un zéro exact (−0 vers le bas, sauf +0 + +0). Mesuré en G4.0 contre le
+    //   fesetround de l'oracle (x87-parity (a), 100 %), et confronté au vrai handler en G4.3.
+    //   Appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près (PB-48).
+    // `a` est l'opérande que GCC met en premier — la mémoire, mesuré (PB-60) — pour les NaN.
+    private static double x87_fadd_dirige(double a, double b, int rc)
+    {
+        double r = a + b;
+        if (double.IsNaN(r))
+                return X87AddSd(a, b);
+        if (double.IsInfinity(r))
+        {
+                if (double.IsInfinity(a) || double.IsInfinity(b))
+                        return r;
+                if (rc == 3 || (rc == 1 && r > 0) || (rc == 2 && r < 0))
+                        return r > 0 ? double.MaxValue : -double.MaxValue;
+                return r;
+        }
+        double bb = r - a;
+        double err = (a - (r - bb)) + (b - bb);
+        if (err == 0)
+        {
+                if (r == 0 && rc == 1 && !(double.IsPositive(a) && a == 0 && double.IsPositive(b) && b == 0))
+                        return -0.0;
+                return r;
+        }
+        return rc switch
+        {
+            1 => err < 0 ? Math.BitDecrement(r) : r,
+            2 => err > 0 ? Math.BitIncrement(r) : r,
+            _ => (r > 0 && err < 0) ? Math.BitDecrement(r) : (r < 0 && err > 0) ? Math.BitIncrement(r) : r,
+        };
+    }
+
     // pcem: x87_ops.h:297-308 — FPU_ILLEGAL : décode l'adresse effective, compte timing_rr, ne
     //   fait rien. C'est aussi ce que PCem met sous DF /4, FBLD (PB-52).
     //   Le `rmdat` de PREFETCH_RUN est le PARAMÈTRE : x86.h:197 fait `#define fetchdat rmdat`,
@@ -214,45 +316,7 @@ internal static partial class _386
         return 0;
     }
 
-    // ---- La disposition des tables (x87_ops.h:322-1040) -----------------------------
-    //
-    // D9, DB, DD et DF ont 256 emplacements indexés par l'octet ModRM entier : trois blocs de
-    // 64 pour mod = 0, 1, 2 (une rangée de huit par champ `reg`, le même handler pour les huit
-    // `rm`), puis 64 pour mod = 3. G4.2 pose les rangées mémoire dont le handler est un
-    // chargement ou un stockage (x87_ops_loadstore.h) ou ILLEGAL ; les autres restent en
-    // opX87NonTranscrit. `null` dans une rangée : pas encore transcrit.
+    // La disposition des tables (x87_ops.h:310-1040) est dans x87_ops_tables.cs, générée
+    // verbatim depuis le C en G4.3 ; G4.2 la construisait rangée par rangée (TableFpu).
 
-    /// <summary>La table d'échappement `op` (0xD8 à 0xDF) pour la taille d'adresse donnée.
-    /// D8 et DC ont 32 emplacements, `[(fetchdat >> 3) &amp; 0x1f]`.</summary>
-    private static OpFn[] TableFpu(int op, bool a32)
-    {
-        var t = X87NonTranscrit(op is 0xD8 or 0xDC ? 32 : 256);
-        OpFn ill = a32 ? FPU_ILLEGAL_a32 : FPU_ILLEGAL_a16;
-        OpFn?[]? rangees = op switch
-        {
-            // pcem: x87_ops.h:322 (a16), :360 (a32)
-            0xD9 => [a32 ? opFLDs_a32 : opFLDs_a16, ill, a32 ? opFSTs_a32 : opFSTs_a16,
-                     a32 ? opFSTPs_a32 : opFSTPs_a16, null, null, null, null],
-            // pcem: x87_ops.h:557 (a16), :596 (a32)
-            0xDB => [a32 ? opFILDil_a32 : opFILDil_a16, ill, a32 ? opFISTil_a32 : opFISTil_a16,
-                     a32 ? opFISTPil_a32 : opFISTPil_a16, ill, a32 ? opFLDe_a32 : opFLDe_a16, ill,
-                     a32 ? opFSTPe_a32 : opFSTPe_a16],
-            // pcem: x87_ops.h:726 (a16), :765 (a32)
-            0xDD => [a32 ? opFLDd_a32 : opFLDd_a16, ill, a32 ? opFSTd_a32 : opFSTd_a16,
-                     a32 ? opFSTPd_a32 : opFSTPd_a16, null, ill, null, null],
-            // pcem: x87_ops.h:884 (a16), :923 (a32) — /4, FBLD, est ILLEGAL (PB-52).
-            0xDF => [a32 ? opFILDiw_a32 : opFILDiw_a16, ill, a32 ? opFISTiw_a32 : opFISTiw_a16,
-                     a32 ? opFISTPiw_a32 : opFISTPiw_a16, ill, a32 ? opFILDiq_a32 : opFILDiq_a16,
-                     a32 ? FBSTP_a32 : FBSTP_a16, a32 ? FISTPiq_a32 : FISTPiq_a16],
-            _ => null,
-        };
-        if (rangees is null)
-                return t;
-        for (var mod = 0; mod < 3; mod++)
-        for (var reg = 0; reg < 8; reg++)
-        for (var rm = 0; rm < 8; rm++)
-                if (rangees[reg] is { } h)
-                        t[(mod << 6) | (reg << 3) | rm] = h;
-        return t;
-    }
 }

@@ -531,6 +531,15 @@ switch (args[0])
         // PB-49 — la borne de l'ombre de SS : identique à l'oracle en deçà, bornée au-delà.
         return PopSsCheck.Run();
 
+    case "x87-cases":
+        // G4.3 — les cas dirigés du x87 : zéros signés, NaN, division par zéro, bords de
+        // l'arrondi dirigé de FADD mémoire.
+        return X87Cases.Run();
+
+    case "x87-nan-order":
+        // G4.3 — lequel des deux NaN chaque handler commutatif de l'oracle propage.
+        return X87Parity.NanOrder();
+
     case "x87-parity":
         // G4.0 — les trois mesures de parité du x87 (PLAN-G4.md) : libm, conversions,
         // fesetround. `x87-parity [N]`, N tirages par mesure.

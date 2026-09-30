@@ -197,6 +197,64 @@ internal static class X87Parity
         return 0;
     }
 
+    /// <summary>G4.3 — QUEL NaN GAGNE. `addsd` et `mulsd` propagent le NaN de leur PREMIER
+    /// opérande quand les deux en sont ; l'addition et la multiplication étant commutatives,
+    /// GCC choisit l'ordre handler par handler (allocation de registres). L'oracle seul, deux
+    /// NaN de charges distinctes : ST(0) = A, l'autre opérande (ST(1) ou la mémoire) = B ; rend
+    /// « ST0 » ou « autre » pour chaque handler commutatif, et pour FADD mémoire en mode
+    /// d'arrondi dirigé (l'autre chemin du C).</summary>
+    public static int NanOrder()
+    {
+        Oracle.CheckAbi();
+        const ulong A = 0x7FF8000000000AAAUL, B = 0x7FF8000000000BBBUL;
+        const uint Bf = 0x7FC00BBBu;
+        // (nom, octets, opérande mémoire m32 / m64 / aucun, RC)
+        (string nom, byte[] code, int mem, int rc)[] cas =
+        [
+            ("opFADD   D8 C1", [0xD8, 0xC1], 0, 0), ("opFADDr  DC C1", [0xDC, 0xC1], 0, 0),
+            ("opFADDP  DE C1", [0xDE, 0xC1], 0, 0), ("opFMUL   D8 C9", [0xD8, 0xC9], 0, 0),
+            ("opFMULr  DC C9", [0xDC, 0xC9], 0, 0), ("opFMULP  DE C9", [0xDE, 0xC9], 0, 0),
+            ("opFADDs  D8 /0", [0xD8, 0x06, 0x00, 0x01], 32, 0), ("opFADDd  DC /0", [0xDC, 0x06, 0x00, 0x01], 64, 0),
+            ("opFMULs  D8 /1", [0xD8, 0x0E, 0x00, 0x01], 32, 0), ("opFMULd  DC /1", [0xDC, 0x0E, 0x00, 0x01], 64, 0),
+            ("opFADDs  D8 /0, RC bas", [0xD8, 0x06, 0x00, 0x01], 32, 1), ("opFADDd  DC /0, RC bas", [0xDC, 0x06, 0x00, 0x01], 64, 1),
+        ];
+        foreach (var (nom, code, m, rc) in cas)
+        {
+            Oracle.h_set_fpu(FPU_387);
+            Oracle.h_set_core(Oracle.Core386);
+            Oracle.h_reset();
+            Oracle.h_fill_ram(0x90);
+            Array.Clear(Regs);
+            Regs[(int)R.CS] = 0x2000;
+            Regs[(int)R.DS] = 0x3000;
+            Regs[(int)R.SS] = 0x4000;
+            Regs[(int)R.SP] = 0xFFF0;
+            var c = new byte[8];
+            Array.Fill(c, (byte)0x90);
+            Array.Copy(code, c, code.Length);
+            Oracle.h_load(0x20000, c, 8);
+            var op = new byte[8];
+            if (m == 32) BitConverter.TryWriteBytes(op, Bf); else BitConverter.TryWriteBytes(op, B);
+            Oracle.h_load(0x30100, op, 8);
+            Oracle.h_setregs(Regs);
+            Array.Clear(St);
+            Array.Clear(Tag);
+            St[0] = A;
+            St[1] = B;
+            Tag[0] = Tag[1] = 1;
+            Oracle.h_setfpu(St, Mm, MmW4, Tag, 0, 0, (ushort)(0x033F | (rc << 10)));
+            Oracle.h_step();
+            Oracle.h_getstate(out var s);
+            // Le résultat est dans ST(0) sauf pour les formes r et P, qui écrivent ST(1).
+            var dest = nom.StartsWith("opFADDr") || nom.StartsWith("opFMULr") || nom.StartsWith("opFADDP") || nom.StartsWith("opFMULP") ? 1 : 0;
+            var v = s.fpu_st[dest];
+            var qui = (v & 0xFFF) == 0xAAA ? "ST0" : (v & 0xFFF) == 0xBBB || (v & 0x7FFFFFFFFFF) >> 29 == 0xBBB ? "autre" : $"? {v:X16}";
+            Console.WriteLine($"  {nom,-26} gagnant : {qui,-6} ({v:X16})");
+        }
+        Oracle.h_set_fpu(0);
+        return 0;
+    }
+
     // Des finis normaux de plage modérée : l'erreur d'arrondi y est exacte par TwoSum/FMA,
     // et aucun résultat ne déborde ni ne devient dénormal.
     private static double Finite()
