@@ -701,6 +701,43 @@ en G4.7 : MSD de Windows 3.1, sur l'AMI 286 avec `fpu = 287`, affiche « 80286/8
 *Reproduit* : par la transcription, `Cpu/x87_ops_misc.cs` (opFINIT) et `Cpu/x87_ops.cs`
 (x87_compare), inchangés ; témoin MSD.
 
+### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
+
+`ide.c:138-143`, `ide_irq_update` : le test `(pic2.pend | pic2.ins) & 0x40` vise l'IRQ 14 (bit 6
+du PIC esclave) pour LES DEUX canaux ; le secondaire lève et baisse pourtant l'IRQ 15 (0x80).
+*Effet* : sur le canal secondaire, une interruption en attente sur l'IRQ 14 (canal primaire)
+fait baisser l'IRQ 15, et une IRQ 15 en service ne l'empêche pas d'être relevée.
+*Trouvé par* : reconnaissance de G5, lecture du C.
+*Reproduit* : `Ide/ide.cs`, `ide_irq_update`, marqueur PB-71.
+
+### PB-72 — Sélectionner un lecteur pendant un reset perd la tête et le mode LBA de l'écriture
+
+`ide.c:401-420` : une écriture en 0x1F6 qui change de lecteur alors qu'un reset est en cours
+termine le reset et REND LA MAIN, avant les lignes `:425-431` qui retiennent la tête, le bit LBA
+et les quatre bits hauts de l'adresse LBA.
+*Effet* : ces champs gardent leur valeur d'avant — zéro, remis par le reset —, quel que soit
+l'octet écrit.
+*Trouvé par* : reconnaissance de G5.
+*Reproduit* : `Ide/ide.cs`, `writeide`, marqueur PB-72.
+
+### PB-73 — READ MULTIPLE et WRITE MULTIPLE sans SET MULTIPLE MODE arrêtent l'émulateur
+
+`ide.c:461-463`, `:487-489` : `blocksize` nul (aucun SET MULTIPLE MODE reçu) → `fatal()`. Le
+disque réel rend ABRT.
+*Effet* : un pilote qui envoie C4h ou C5h sans avoir fixé la taille de bloc — ou un invité
+malveillant — arrête PCem.
+*Trouvé par* : reconnaissance de G5.
+*Reproduit* : `Ide/ide.cs`, `writeide`, marqueurs PB-73 ; même arrêt des deux côtés.
+
+### PB-74 — VERIFY ne vérifie qu'un secteur et laisse les registres en place
+
+`ide.c:1000-1012` : le rappel de VERIFY (40h, 41h) rend READY au premier passage, sans
+décompter `secount` ni avancer l'adresse.
+*Effet* : une vérification de N secteurs est vue comme réussie après un seul, et le registre
+de compte rend N au lieu de 0.
+*Trouvé par* : reconnaissance de G5.
+*Reproduit* : `Ide/ide.cs`, `callbackide`, marqueur PB-74.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1417,6 +1454,7 @@ audit systématique de PCem** :
 | Transcription de G4.5 (les transcendantes) | PB-68 |
 | Transcription de G4.6 (le 8087), lecture de `picint` | PB-69 |
 | Témoin MSD de G4.7, puis lecture du C | PB-70 |
+| Reconnaissance et transcription de G5 (ide.c) | PB-71 à PB-74 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

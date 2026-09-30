@@ -53,7 +53,7 @@ deux côtés, marqué `// DEVIATION:` côté C# et posé par le harnais côté o
 FDISK puis FORMAT C: /S sous oracle (méthode de M11/M12 : une copie d'image par côté,
 comparées octet par octet après `h_closepc`). Toutes les séries de G4 identiques.
 
-### G5.1 — `ide.c`, disque dur seul
+### G5.1 — `ide.c`, disque dur seul  ✅ *fait, VERIFICATION.md § G5.1*
 
 Transcription de `ide.c` et `ide.h`, `resetide`, `ide_pri_enable` / `ide_sec_enable`,
 `ide_init`, les timers ; `HardDiskControllers.cs` gagne « ide » ; `pc.cs` le branche ; le

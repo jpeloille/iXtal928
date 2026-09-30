@@ -420,18 +420,33 @@ internal static partial class pc
         cfg_hdd_controller = PluginApi.config.config_get_string(
             PluginApi.config.CFG_MACHINE, null, "hdd_controller", "");
 
+        // pcem: pc.c:703-705 — cdrom_channel (défaut 2) et zip_channel (défaut -1).
+        //
+        // DEVIATION: le défaut est -1 (Ide/ide.cs) ; ATAPI est hors G5. Une configuration
+        //   qui DEMANDE un lecteur de CD-ROM ou de ZIP sur un canal IDE est refusée ici,
+        //   bruyamment, plutôt que de monter un disque dur à sa place.
+        int cd = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cdrom_channel", -1);
+        int zip = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "zip_channel", -1);
+        if (cd >= 0 || zip >= 0)
+        {
+                Console.Error.WriteLine("cdrom_channel / zip_channel : ATAPI n'est pas transcrit (PLAN-G5.md, " +
+                                        "décision n° 1) ; retirer la clé, ou la poser à -1.");
+                return false;
+        }
+
         // pcem: pc.c:719-734 — géométrie et image des disques C: et D:.
         //
         // LES PRÉFIXES SONT DES LETTRES DE LECTEUR DOS : hdc_ = C:, hdd_ = D:. Le
         // Fixed Disk Adapter en gère deux (mfm_xebec.c:733, boucle sur d ∈ {0,1}),
         // d'où ces deux-là et pas plus.
         //
-        // omitted: hde_*, hdf_*, hdg_*, hdh_*, hdi_* (pc.c:735-774) — les cinq autres
-        //   disques, qui appartiennent aux contrôleurs IDE et SCSI, hors périmètre.
-        //   PCem déroule le bloc sept fois plutôt que de boucler ; on en garde deux.
-        for (int d = 0; d < 2; d++)
+        // G5.1 — et E:, F: (pc.c:735-748) : les deux lecteurs du canal IDE secondaire.
+        // omitted: hdg_*, hdh_*, hdi_* (pc.c:749-774) — les trois derniers, qui
+        //   n'appartiennent qu'aux contrôleurs SCSI, hors périmètre. PCem déroule le bloc
+        //   sept fois plutôt que de boucler ; on en garde quatre.
+        for (int d = 0; d < 4; d++)
         {
-                string pfx = d == 0 ? "hdc" : "hdd";
+                string pfx = "hd" + (char)('c' + d);
                 Disc.hdd_c.hdc[d].spt = PluginApi.config.config_get_int(
                     PluginApi.config.CFG_MACHINE, null, $"{pfx}_sectors", 0);
                 Disc.hdd_c.hdc[d].hpc = PluginApi.config.config_get_int(
@@ -711,10 +726,17 @@ internal static partial class pc
                 PluginApi.device.device_add(Mfm.mfm_xebec.dtc_5150x_device);
         else if (cfg_hdd_controller == "mfm_at")
                 PluginApi.device.device_add(Mfm.mfm_at.mfm_at_device);
+        // G5.1 — l'IDE standard (hdd.c:155), disque dur seul.
+        else if (cfg_hdd_controller == "ide")
+                PluginApi.device.device_add(Ide.ide.ide_device);
 
         pc_reset();
 
-        // omitted: resetide() (pc.c:395) — contrôleurs IDE, au registre des omissions.
+        // pcem: pc.c:395 — resetide(). Elle charge les images des quatre lecteurs IDE si la
+        // carte est « ide » (ide.c:278), et ne fait sinon que refermer des fichiers jamais
+        // ouverts. Celle de pc.c:290 (initpc) ouvre les mêmes images, que celle-ci referme
+        // puis rouvre : l'effet net est le sien seul, et l'oracle ne garde que celle-ci.
+        Ide.ide.resetide();
 
         // pcem: pc.c:397 — loadnvr(). Lit « nvr/.<machine>.nvr », sinon le CMOS de
         // référence « nvr/default/<machine>.nvr ». SANS AUCUN DES DEUX il pose 0xFF

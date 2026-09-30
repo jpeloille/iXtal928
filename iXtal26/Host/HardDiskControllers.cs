@@ -16,7 +16,9 @@
 // mfm_at.c:533) n'est proposée que sur une machine MODEL_AT. Le Xebec et le DTC, cartes
 // ISA 8 bits sans drapeau, sont proposés partout — un AT peut les recevoir.
 //
-// omitted: les treize autres entrées du registre (ESDI, IDE, XTIDE, SCSI) — aucune n'est
+// G5.1 — « ide », l'IDE standard (hdd.c:155), DEVICE_AT (ide.c:1222) : disque dur seul.
+//
+// omitted: les douze autres entrées du registre (ESDI, XTIDE, SCSI) — aucune n'est
 //   transcrite.
 
 namespace iXtal26.Host;
@@ -30,6 +32,7 @@ internal static class HardDiskControllers
         new("mfm_xebec", "IBM Fixed Disk Adapter", false),
         new("dtc5150x", "DTC 5150X", false),
         new("mfm_at", "IBM AT Fixed Disk Adapter", true),
+        new("ide", "IDE standard", true),
     ];
 
     internal static bool CurrentMachineIsAt =>

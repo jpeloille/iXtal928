@@ -4421,3 +4421,46 @@ session différent, en comptait 234 087 348 — les deux côtés restent identiq
 (la ligne d'ABI passe de 27 à 28), et les deux portes nouvelles vertes. Selftest vert,
 check-oracle 0 dérive (harness.c, harness.h, harness_stubs.c : empreintes rafraîchies après
 édition délibérée).
+
+## G5.1 — L'IDE, disque dur seul
+
+Le 1er octobre 2026, sur 72ec467. Plan : `PLAN-G5.md` § G5.1.
+
+**Transcrit.** `Ide/ide.cs` : `ide.c` en entier pour le disque dur ATA — IDENTIFY, READ et
+WRITE (simples et MULTIPLE), VERIFY, FORMAT, SPECIFY, SEEK, RECALIBRATE, DIAGNOSTICS, CHECK
+POWER MODE, SET MULTIPLE MODE, le reset logiciel par 0x3F6, les deux canaux (0x1F0/0x3F6
+IRQ 14, 0x170/0x376 IRQ 15), les quatre lecteurs, l'adressage LBA. Omis, bruyamment : ATAPI
+(`fatal` si un disque dur reçoit WIN_PACKETCMD, comme l'oracle) ; le bus master n'est pas
+branché (pointeurs nuls, DMA sans effet — chez PCem aussi sur toute machine ISA).
+`IDE.buffer` est rendu en octets, comme dans mfm_at.cs. DEVIATION : `cdrom_channel` vaut -1
+(ATAPI hors G5), et `loadconfig` refuse une clé `cdrom_channel` ou `zip_channel` positive.
+`pc.cs` monte « ide » et appelle `resetide()` (pc.c:395) ; `loadconfig` lit désormais aussi
+hde_ et hdf_ (E:, F:, canal secondaire). `HardDiskControllers` propose « ide » sur un AT — le
+SETUP et `--hdd-controller` le montrent d'office.
+
+**Les défauts de PCem** : PB-71 (le secondaire teste l'IRQ 14), PB-72 (sélection pendant un
+reset), PB-73 (READ/WRITE MULTIPLE sans taille de bloc : `fatal`), PB-74 (VERIFY d'un seul
+secteur).
+
+**Les portes.**
+
+| boot-diff, contrôleur `ide` | instructions identiques | disque |
+|---|---|---|
+| ami286, C: 286, MD / COPY / DIR | 172 283 037 | C: identique, 2 552 octets écrits |
+| ami286, C: + D: vierge (esclave primaire), FDISK + FORMAT D: /S | 233 559 631 | D: identique, 101 776 octets |
+| ami386dx, C: 386, MD / COPY / DIR | 181 109 300 | C: identique, 7 589 octets |
+
+Le BIOS AMI pilote l'IDE comme le MFM : même type 46 au CMOS, même INT 13h. Contrôles
+négatifs, retirés : IDE_TIME à 11 µs → divergence à l'instruction 2 220 883 ; le passage de
+tête de `ide_next_sector` décalé d'un cran → vert sur MD/COPY (aucune écriture ne franchit de
+tête), rouge sur l'arc FORMAT (instruction 162 734 306). Auto-tests de l'hôte (`--setup-check`,
+`--menu-check`, `--fat-check`) verts.
+
+**La série**, sur un instantané de G5.1 et comparée aux journaux de 72ec467 : **81 journaux
+sur 81 identiques hors durées**, et les trois portes IDE ci-dessus vertes. Un incident de
+harnais, de mon fait : un nettoyage de /tmp pendant la passe (`find -mmin +20`, alors que
+`File.Copy` conserve la date de la source) a supprimé la copie de disquette de
+`bd-pcdos-cga` en cours ; l'amorçage était vert, CompareImages est tombé sur le fichier
+absent (rc = 134). Rejouée seule sur le même instantané : verte, journal identique à celui
+de G4.7. Règle depuis : aucun nettoyage de /tmp pendant une série. Selftest, check-oracle
+0 dérive (122 : `Ide/ide.cs` entre au manifeste).
