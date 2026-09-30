@@ -84,7 +84,7 @@ FDIV, FDIVR et les formes registre (`:122-152`, `:239-397`). Elle remplace côt�
 `fesetround` C, qui reste tel quel dans l'oracle. Porte : fuzzeur D8/DA/DC/DE, les quatre
 modes d'arrondi tirés.
 
-### G4.4 — Le reste, transcendantes exceptées
+### G4.4 — Le reste, transcendantes exceptées  ✅ *fait, VERIFICATION.md § G4.4*
 
 `x87_ops_misc.h` : pile, contrôle et état, FNINIT, FSTENV/FLDENV, **FSAVE/FRSTOR en 16 et
 32 bits, mode réel et protégé** (`TAG_UINT64`, `MM_w4`), FXCH, FPREM, FSCALE, FSQRT ; #NM par

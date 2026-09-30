@@ -575,6 +575,87 @@ désassemblage de l'oracle et la mesure.
 et vingt-deux sites de `Cpu/x87_ops_arith.cs` marqués PB-60. Contrôle négatif : l'ordre de
 opFADD inversé → divergence à l'itération 46 159.
 
+### PB-61 — FNSTSW AX rend npxs sans TOP
+
+`x87_ops_misc.h:24-32`, `opFSTSW_AX` (DF E0) : `AX = cpu_state.npxs;`. PCem garde TOP à part
+(`cpu_state.TOP`) ; les bits 11-13 de npxs ne sont remis à jour que par FSAVE et FSTENV
+(`:168`, `:828`). La forme mémoire, `opFSTSW_a16/_a32` (`:369-388`), compose bien
+`(npxs & 0xC7FF) | ((TOP & 7) << 11)` ; la forme AX, non.
+*Effet* : FNSTSW AX rend un TOP périmé — celui du dernier FSAVE ou FSTENV, ou 0. Un code qui
+lit la profondeur de pile par FNSTSW AX, comme beaucoup de détections de coprocesseur, se
+trompe dès qu'un push a eu lieu.
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-61. `x87-cases` : FNSTSW AX et FSTSW m16,
+TOP 0, 3, 6, npxs 0x3800.
+
+### PB-62 — Le pointeur d'instruction et d'opérande x87 n'est jamais mémorisé
+
+`x87.c:22-23` définit `x87_pc_off`, `x87_op_off`, `x87_pc_seg`, `x87_op_seg` ; aucune ligne de
+PCem ne les écrit (`grep` sur `src/` et `includes/`, hors codegen). FSAVE (`x87_ops_misc.h:166-353`)
+et FSTENV (`:826-869`) les écrivent donc toujours à zéro, là où le silicium range l'adresse et
+l'opcode du dernier ESC, et celle de son opérande. Et les dispositions sont partielles : en
+16 bits réel, les mots +8 et +12 (sélecteur de code, opcode ; sélecteur de données) ne sont
+pas écrits — l'ancien contenu reste ; en 32 bits réel, ni +16, ni les bits de poids fort de
++12. FSAVE met aussi npxc à 0x37F même pour un 8087, là où FNINIT met 0x3FF.
+*Effet* : un gestionnaire d'exception x87 qui lit l'adresse fautive dans l'image FSAVE lit 0 ;
+une image FSAVE réécrite puis relue garde des octets de l'image précédente.
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, verbatim ; `x87-cases` fait l'aller-retour FSAVE / FRSTOR
+et FSTENV / FLDENV en 16 et 32 bits, réel et PE, et compare les 112 octets.
+
+### PB-63 — FXAM ne connaît que trois classes
+
+`x87_ops_misc.h:465-481`, `opFXAM` : vide (C3 | C0), zéro (C3), et tout le reste « normal »
+(C2) — NaN, infinis et dénormaux compris ; C1 vaut `ST(0) < 0.0`, donc 0 pour −0 et pour un
+NaN négatif. Le silicium distingue NaN (C0), infini (C2 | C0), dénormal (C3 | C2) et rend le
+signe dans C1 pour toutes les classes.
+*Effet* : un code qui teste « infini » ou « NaN » par FXAM ne les voit jamais.
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-63. `x87-cases` : FXAM sur onze classes, tag
+VALID et EMPTY.
+
+### PB-64 — FTST : un NaN rend « plus grand »
+
+`x87_ops_misc.h:451-463`, `opFTST` : `==` et `<` contre 0.0, comme opFCOM (PB-57). Un NaN rend
+C3 = C2 = C0 = 0 au lieu de « non ordonné ».
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-64. `x87-cases` : FTST sur les classes.
+
+### PB-65 — FPREM tronque en un pas ; FPREM1 est FPREM
+
+`x87_ops_misc.h:634-675` : `temp64 = (int64_t)(ST(0) / ST(1)); ST(0) = ST(0) - ST(1) * temp64;`,
+pour les deux. Trois écarts : le quotient passe par un double, donc faux au-delà de 2^53 et
+« entier indéfini » (0x8000000000000000) au-delà de 2^63 — le reste devient alors absurde ; la
+réduction partielle du silicium (au plus 2^63 par pas, C2 = 1 « incomplet ») n'existe pas, C2
+n'est jamais posé ; FPREM1 (le reste IEEE, quotient arrondi au plus près) est identique à FPREM
+(tronqué), temps mis à part.
+*Effet* : les réductions d'arguments (sin, cos maison) sur de grandes valeurs rendent n'importe
+quoi ; une boucle `FPREM ; FNSTSW ; SAHF ; JP` s'arrête toujours au premier tour.
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-65, la conversion par CvtI64 (cvttsd2si, G4.0).
+`x87-cases` : FPREM, FPREM1, FSCALE sur neuf couples de bornes (grands quotients, diviseur
+nul, infinis, NaN).
+
+### PB-66 — FLDLN2 est d'un ulp trop grand
+
+`x87_ops_misc.h:533-541` : `x87_push_u64(0x3fe62e42fefa39f0ull)`. Le double le plus proche de
+ln 2 est 0x3FE62E42FEFA39EF (0,6931471805599453, ce que rend aussi `log(2.0)`) ; PCem pousse
+0x…39F0 (0,6931471805599454). Mesuré en décimal à 60 chiffres : écarts 2,3·10⁻¹⁷ et 8,8·10⁻¹⁷.
+Les quatre autres constantes (FLDL2T, FLDL2E, FLDPI, FLDLG2) sont les doubles les plus
+proches. Aucune ne suit RC (le 387 arrondit ses constantes selon RC).
+*Trouvé par* : transcription de G4.4, vérifié en décimal.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-66. `x87-cases` : les sept constantes.
+
+### PB-67 — FST et FSTP registre copient le tag TAG_UINT64, pas l'entier qu'il désigne
+
+`x87_ops_misc.h:76-97`, `opFST` / `opFSTP` (DD D0+i, DD D8+i) : `ST(i) = ST(0)` et le tag copié —
+TAG_UINT64 compris —, mais pas `MM[TOP].q`, l'entier exact que ce tag annonce (x87.h:30). FLD
+registre (`:390-405`) et FXCH (`:407-427`) le recopient, eux.
+*Effet* : après `FILD m64 ; FST ST(1)`, un FISTP m64 de ST(1) écrit le `MM[].q` qui traînait dans
+ce registre physique, pas la valeur chargée.
+*Trouvé par* : transcription de G4.4.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-67. `x87-cases` : `FST ST1 ; FINCSTP ; FISTP m64`.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1268,7 +1349,7 @@ lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est e
 
 ## Portée de ce registre
 
-Ces **soixante** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **soixante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1287,6 +1368,7 @@ audit systématique de PCem** :
 | Instruction de PB-49 : trace pas à pas d'un flux de préfixes, build Debug | PB-50, PB-51 |
 | Transcription et lecture ligne à ligne de G4.2 (chargements et stockages x87) | PB-52 à PB-56 |
 | Transcription de G4.3 (PB-57 à PB-59) ; fuzzeur G4.3 puis désassemblage de l'oracle (PB-60) | PB-57 à PB-60 |
+| Transcription de G4.4 (x87_ops_misc.h), vérifiée par x87-cases | PB-61 à PB-67 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

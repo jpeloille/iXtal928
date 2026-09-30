@@ -4181,3 +4181,49 @@ PB-59 (ZE seule ; démasquée, l'instruction s'évapore), PB-60 (le NaN propagé
 **La série**, comparée aux journaux de 9023016 : **50 journaux sur 50 identiques hors
 durées** (25 boot-diffs fpu=none, fuzzeurs existants, portes de G4.2, checks, popss-check).
 Build 0 avertissement, selftest, check-oracle 0 dérive (116).
+
+## G4.4 — Le reste du x87, transcendantes exceptées
+
+Le 30/09, sur a5be5be. Plan : `PLAN-G4.md` § G4.4.
+
+**Transcrit, par génération depuis le C.** `Cpu/x87_ops_misc.cs` : quarante-sept fonctions de
+x87_ops_misc.h — pile (FLD, FXCH, FFREE, FST, FSTP registre), constantes, FCHS, FABS, FTST,
+FXAM, FSTSW (mémoire et AX), FSTCW, FLDCW, FNINIT, FNCLEX, FDISI, FENI, FSTENV, FLDENV,
+FSAVE, FRSTOR (16 et 32 bits, réel et protégé, TAG_UINT64, MM_w4, le « Horrible hack » d'ismmx),
+FPREM, FPREM1, FSQRT, FRNDINT, FSCALE, FDECSTP, FINCSTP. `codegen_set_rounding_mode` omis (le
+dynarec, souche vide dans l'oracle). `Cpu/x87_ops.cs` : x87_push_u64, x87_st_fsave,
+x87_ld_frstor (conversion NON signée de MM[].q, corrigée avant tout test), x87_stmmx. Les huit
+transcendantes restent des souches (G4.5).
+
+**Un défaut du harnais, trouvé ici.** pm-fuzz avec ESC tombait en « BANC FAUX » à l'itération 15
+(graine 1) : un FDIV par zéro à l'itération 13, ZE démasquée (npxc vaut 0 après le reset),
+levait IRQ13 (PB-59), que ni h_reset ni Reset386 ne retirent du PIC ; LOADALL386 posait IF à
+l'itération suivante et l'interruption partait. Correctif étroit : avec `--fpu`, pm-fuzz pose
+npxc = 0x037F (FNINIT) à chaque cas, des deux côtés. La fuite d'IRQ d'une itération à l'autre
+reste, pour les autres fuzzeurs, un défaut du harnais noté, pas corrigé.
+
+**Les portes.**
+
+| porte | résultat |
+|---|---|
+| 386 + 387, `--x87 g44` D9/DB/DD/DF mémoire et registre + 66/67, graines 1 et 7, 80 000 | verts |
+| 286 + 287, idem, 80 000 | vert |
+| 386 + 387, flux D9/DB/DD/DF, 1 500 × 200 | vert, 300 000 |
+| pm-fuzz `--fpu 387`, les huit ESC, CR0.EM/TS une fois sur quatre (#NM), 20 000 | vert, cinq départs |
+| `x87-cases` : + FXAM/FTST/FCHS/FABS sur onze classes, FRNDINT × 4 modes, FPREM/FPREM1/FSCALE aux bornes, FNSTSW AX et FSTSW m16 (TOP 0, 3, 6), les sept constantes, FNINIT, FNCLEX, FFREE, FST/FSTP registre, FSAVE/FRSTOR et FSTENV/FLDENV et FSTCW/FLDCW en 16 et 32 bits, réel et PE, #NM par EM, TS, EM+TS sur les huit tables | vert, 2 039 cas |
+
+`--x87 g44` écarte les huit transcendantes de D9 (F0-F3, F9, FB, FE, FF) par une table fixe ;
+la comparaison à l'EA couvre 112 octets (l'image FSAVE dépasse les 64 entrées du journal).
+
+Contrôles négatifs, retirés : FNSTSW AX qui compose TOP → `regs[0]`, TOP 0 et 3 ; FXAM qui
+reconnaît l'infini → `npxs` sur ±∞ ; FSAVE 16 bits réel qui écrit +8 → `[DS:0108]` ;
+FP_ENTER qui ignore TS → les cycles de #NM ; FST registre qui recopie MM[].q → `MM[1].q`.
+
+**Les défauts de PCem** : PB-61 (FNSTSW AX sans TOP), PB-62 (x87_pc_* jamais posés,
+dispositions de FSAVE et FSTENV partielles), PB-63 (FXAM à trois classes), PB-64 (FTST et les
+NaN), PB-65 (FPREM tronqué, FPREM1 = FPREM), PB-66 (FLDLN2 d'un ulp), PB-67 (FST registre et
+TAG_UINT64).
+
+**La série**, comparée aux journaux de a5be5be : tous identiques hors durées, sauf
+`x87-cases`, élargi (1 825 → 2 039 cas). Build 0 avertissement, selftest, check-oracle 0
+dérive (117).

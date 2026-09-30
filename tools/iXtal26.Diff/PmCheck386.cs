@@ -77,6 +77,7 @@ public static class PmCheck386
         public Depart Start;
         public bool Stack32In16;                       // Ring0_16 avec SS 32 bits
         public byte[] Code = [];
+        public uint Cr0Bits;                           // G4.4 : EM (4) ou TS (8), ajoutés au CR0 du banc
         public int GateDwords;
         public uint Eax, Ebx;
         public ushort Flags = 0x0002;
@@ -253,7 +254,7 @@ public static class PmCheck386
             Depart.Ring3_16 => SelCode3_16, _ => SelCode3_32,
         };
         ushort ssSel = ring3 ? (cs32 ? SelStack3_32 : SelStack3_16) : (ss32 ? SelStack32 : SelStack16);
-        Bd(0x00, c.Paging ? 0x80000011u : 0x00000011u);         // CR0 : PE, ET ; PG pour D6
+        Bd(0x00, (c.Paging ? 0x80000011u : 0x00000011u) | c.Cr0Bits); // CR0 : PE, ET ; PG pour D6 ; EM/TS (G4.4)
         Bw(0x04, c.Flags);                                      // FLAGS
         Bw(0x06, 0x0000);                                       // EFLAGS haut
         Bd(0x08, 0x1000);                                       // EIP
@@ -306,6 +307,21 @@ public static class PmCheck386
         // mode réel au lieu d'exécuter LOADALL386 — des deux côtés, d'où le contrôle du pas 0.
         Oracle.h_seg_clear_residue();
         _386.ClearSegResidue();
+
+        // G4.4 — avec un coprocesseur : npxc = 0x037F, l'état de FNINIT, toutes exceptions
+        // masquées, des deux côtés. Sans lui npxc vaut 0 après le reset (x87_reset est vide), ZE
+        // est démasquée, et un FDIV par zéro lève IRQ13 (PB-59) — que ni h_reset ni Reset386 ne
+        // retirent du PIC : elle était délivrée À L'ITÉRATION SUIVANTE, dès que LOADALL pose IF
+        // (mesuré : graine 1, itération 15, « BANC FAUX »). La ZE démasquée reste couverte par
+        // x87-cases.
+        if (_386.FuzzFpu != 0)
+        {
+            ulong[] st = new ulong[8], mm = new ulong[8];
+            ushort[] w4 = new ushort[8];
+            byte[] tag = new byte[8];
+            Oracle.h_setfpu(st, mm, w4, tag, 0, 0, 0x037F);
+            _808x.SetFpu(st, mm, w4, tag, 0, 0, 0x037F);
+        }
 
         Build(c, (addr, bytes) =>
         {
@@ -422,6 +438,17 @@ public static class PmCheck386
             else
                 code[n] = opcodes[Next() % (uint)opcodes.Length];
             SansPagination(code);
+            // G4.4 — avec un coprocesseur (pm-fuzz --fpu) : les transcendantes de D9, souches
+            // jusqu'à G4.5, écartées comme dans le fuzzeur ; et CR0.EM ou CR0.TS une fois sur
+            // quatre, pour #NM (FP_ENTER) en mode protégé. Sans --fpu, aucun tirage de plus :
+            // les recettes d'avant ne bougent pas.
+            uint cr0Bits = 0;
+            if (_386.FuzzFpu != 0)
+            {
+                Fuzzer.X87SansTranscendante(code, n);
+                if ((Next() & 3) == 0)
+                    cr0Bits = (Next() & 1) != 0 ? 4u : 8u;
+            }
             var regs = new uint[8];
             for (var i = 0; i < 8; i++)
                 regs[i] = (Next() & 3) == 0 ? (Next() & 0xFF) : Next();
@@ -430,7 +457,7 @@ public static class PmCheck386
             if (v86) parV86++; else parDepart[(int)depart]++;
             var c = new Case
             {
-                Name = $"itération {it}", Start = depart, Code = code, Regs = regs, Fuzz = true,
+                Name = $"itération {it}", Start = depart, Code = code, Regs = regs, Fuzz = true, Cr0Bits = cr0Bits,
                 V86 = v86 ? (int)(Next() & 3) : -1,
                 Flags = (ushort)((Next() & 0x7FD5) | 0x0002),
             };
@@ -438,7 +465,7 @@ public static class PmCheck386
                 continue;
             var r = RunCase(c);
             if (Environment.GetEnvironmentVariable("PMFUZZ_TRACE") is { } tr && it >= int.Parse(tr))
-                Console.WriteLine($"  [{it}] {depart} {string.Join(" ", code.Select(x => x.ToString("X2")))} FL {c.Flags:X4} -> {r}");
+                Console.WriteLine($"  [{it}] {depart} {string.Join(" ", code.Select(x => x.ToString("X2")))} FL {c.Flags:X4} CR0+{c.Cr0Bits:X} -> {r}");
             if (r.StartsWith("vert", StringComparison.Ordinal))
                 continue;
             Console.WriteLine($"\n{(r.StartsWith("ARRÊT", StringComparison.Ordinal) ? "ARRET" : "DIVERGENCE")} itération {it}, départ {depart}");

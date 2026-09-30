@@ -75,6 +75,71 @@ internal static partial class _386
         return t;
     }
 
+    // pcem: x87_ops.h:15
+    private const uint16_t FPCW_DISI = 1 << 7;
+
+    // pcem: x87_ops.h:40-51 — G4.4 (FLDLN2). Pousse des BITS, pas une valeur.
+    private static void x87_push_u64(uint64_t i)
+    {
+        cpu_state.TOP--;
+        cpu_state.ST[cpu_state.TOP & 7] = BitConverter.UInt64BitsToDouble(i);
+        cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
+    }
+
+    // pcem: x87_ops.h:152-161 — G4.4 (FSAVE). Un registre qui porte l'entier exact de FILD
+    //   64 bits (TAG_UINT64) s'écrit comme cet entier suivi de 0x5555, pas comme un réel.
+    private static void x87_st_fsave(int reg)
+    {
+        reg = (cpu_state.TOP + reg) & 7;
+
+        if ((cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
+        {
+                writememl(easeg, cpu_state.eaaddr, (uint32_t)(cpu_state.MM[reg].q & 0xffffffff));
+                writememl(easeg, cpu_state.eaaddr + 4, (uint32_t)(cpu_state.MM[reg].q >> 32));
+                writememw(easeg, cpu_state.eaaddr + 8, 0x5555);
+        }
+        else
+                x87_st80(cpu_state.ST[reg]);
+    }
+
+    // pcem: x87_ops.h:163-175 — G4.4 (FRSTOR). Le marqueur 0x5555 n'est cru que si le tag,
+    //   déjà rechargé par x87_settag, dit TAG_UINT64 ; sinon, un réel de 80 bits (PB-55).
+    private static void x87_ld_frstor(int reg)
+    {
+        reg = (cpu_state.TOP + reg) & 7;
+
+        cpu_state.MM[reg].q = readmemq(easeg, cpu_state.eaaddr);
+        cpu_state.MM_w4[reg] = readmemw(easeg, cpu_state.eaaddr + 8);
+
+        if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
+        {
+                cpu_state.ST[reg] = (double)cpu_state.MM[reg].q; // uint64_t -> double, NON signé
+        }
+        else
+        {
+                cpu_state.tag[reg] &= unchecked((uint8_t)~x87_c.TAG_UINT64);
+                cpu_state.ST[reg] = x87_ld80();
+        }
+    }
+
+    // pcem: x87_ops.h:183-187 — G4.4 (FSAVE en mode MMX). MMX_REG réduite à .q : l[0], l[1]
+    //   sont ses moitiés basse et haute.
+    private static void x87_stmmx(MMX_REG r)
+    {
+        writememl(easeg, cpu_state.eaaddr, (uint32_t)r.q);
+        writememl(easeg, cpu_state.eaaddr + 4, (uint32_t)(r.q >> 32));
+        writememw(easeg, cpu_state.eaaddr + 8, 0xffff);
+    }
+
+    // `*(uint64_t *)cpu_state.tag == 0x0101010101010101ull` (x87_ops_misc.h:141) : huit TAG_VALID.
+    private static bool TagsTousValides()
+    {
+        for (var c = 0; c < 8; c++)
+                if (cpu_state.tag[c] != 0x01)
+                        return false;
+        return true;
+    }
+
     // ---- Les conversions double -> entier ---------------------------------------------
     //
     // DEVIATION: C convertit par `(int64_t)d`, `(int32_t)d`, `(uint8_t)d` — de l'UB hors

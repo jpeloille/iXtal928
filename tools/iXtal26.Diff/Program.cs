@@ -215,6 +215,14 @@ switch (args[0])
                 case "--0f" when i + 1 < args.Length: sec.Add(Convert.ToByte(args[++i], 16)); break;
                 case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
                 case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                // G4.4 — le coprocesseur des deux côtés, pour FSAVE/FRSTOR et #NM en mode protégé.
+                case "--fpu" when i + 1 < args.Length:
+                {
+                    var f = args[++i] switch { "287" => 2, "287xl" => 3, "387" => 4, var v => int.Parse(v) };
+                    Oracle.h_set_fpu(f);
+                    iXtal26.Cpu._386.FuzzFpu = f;
+                    break;
+                }
                 default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
             }
         if (ops.Count == 0 && sec.Count == 0)
@@ -620,6 +628,8 @@ switch (args[0])
                 }
                 // G4.2 — ModRM mémoire, rangées transcrites de D9, DB, DD, DF.
                 case "--x87" when i + 1 < args.Length && args[i + 1] == "mem": i++; Fuzzer.X87Mem = true; break;
+                // G4.4 — D9/DB/DD/DF, rangées mémoire ET registre ; les transcendantes (souches) écartées.
+                case "--x87" when i + 1 < args.Length && args[i + 1] == "g44": i++; Fuzzer.X87G44 = true; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;

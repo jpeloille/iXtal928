@@ -224,6 +224,17 @@ public static class Fuzzer
                 code[1] = inner;
             }
 
+            // G4.4 — `--x87 g44` : tout D9/DB/DD/DF est transcrit sauf les huit transcendantes de
+            // D9 en mode registre, encore des souches (G4.5). Leur ModRM est remplacé par un voisin
+            // transcrit, par une table fixe : aucun tirage de plus. APRÈS la réécriture du préfixe
+            // enchaîné, qui place l'ESC en position 1.
+            if (X87G44)
+            {
+                X87SansTranscendante(code, 0);
+                if (code[0] is 0x66 or 0x67)
+                    X87SansTranscendante(code, 1);
+            }
+
             // G4.2 — `--x87 mem` derrière un préfixe de taille : `66 D9 /r`, `67 DD /r`… — l'ESC
             // est en 1, son ModRM en 2 ; même règle, pour atteindre les formes a32 (67).
             if (X87Mem && code[0] is 0x66 or 0x67 && X87MemRegs(code[1]) is { } rangees2)
@@ -370,7 +381,7 @@ public static class Fuzzer
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
 
-            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem ? CmpEa(a) : null);
+            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 ? CmpEa(a) : null);
             if (diff is null)
                 continue;
 
@@ -775,6 +786,22 @@ public static class Fuzzer
     /// FISTP m16, FILD, FISTP m64, FBSTP, deux ILLEGAL — dont /4, FBLD (PB-52).</summary>
     internal static bool X87Mem;
 
+    /// <summary>G4.4 — `--x87 g44`, voir RunSingle.</summary>
+    internal static bool X87G44;
+
+    // D9 F0-F3, F9, FB, FE, FF : F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS.
+    private static readonly Dictionary<byte, byte> X87Voisin = new()
+    {
+        [0xF0] = 0xF4, [0xF1] = 0xF5, [0xF2] = 0xF6, [0xF3] = 0xF7,
+        [0xF9] = 0xFA, [0xFB] = 0xFC, [0xFE] = 0xFD, [0xFF] = 0xF8,
+    };
+
+    internal static void X87SansTranscendante(byte[] code, int k)
+    {
+        if (code[k] == 0xD9 && X87Voisin.TryGetValue(code[k + 1], out var v))
+            code[k + 1] = v;
+    }
+
     private static int[]? X87MemRegs(byte op) => op switch
     {
         0xD9 => [0, 1, 2, 3],
@@ -794,11 +821,14 @@ public static class Fuzzer
         var lin = (a.seg_base[a.ea_seg_idx] + a.eaaddr) & mem.rammask;
         // Au-delà de la RAM plate du fuzzeur (1 Mo sur le 286, où l'EA peut viser la HMA) : rien
         // à comparer, et h_read ne doit pas lire hors de son tableau.
-        if (lin + 16 > (uint)mem.mem_size * 1024u)
+        // 112 octets : FSAVE en écrit 94 (16 bits) ou 108 (32 bits), au-delà des 64 entrées du
+        // journal d'écritures.
+        const int n = 112;
+        if (lin + n > (uint)mem.mem_size * 1024u)
             return null;
-        var o = new byte[16];
-        Oracle.h_read(lin, o, 16);
-        for (var k = 0; k < 16; k++)
+        var o = new byte[n];
+        Oracle.h_read(lin, o, n);
+        for (var k = 0; k < n; k++)
         {
             var c = mem.ram[lin + (uint)k];
             if (o[k] != c)
