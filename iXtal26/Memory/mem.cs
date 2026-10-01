@@ -184,16 +184,19 @@ internal static partial class mem
     // _mem_exec, la carte d'exécution de 16 Ko, SANS passer par les mappages ni par le
     // journal d'écritures : c'est ainsi que les bits A et D se posent.
     //
-    // DEVIATION: le C déréférence _mem_exec[addr >> 14] sans le tester, et tombe (segfault
-    //   mesuré à D4) quand cr3 ou un PDE sort de la RAM. Ici un arrêt qui se nomme.
+    // Le C déréférence _mem_exec[addr >> 14] sans le tester, et TOMBE (segfault, mesuré à D4,
+    // puis par le fuzzeur du 486, PB-78) quand cr3 ou une entrée de répertoire sort de la RAM :
+    // l'invité arrête l'émulateur en activant la pagination sur une table qui n'existe pas.
+    // pcem bug, not reproduced: PB-79
+    // DEVIATION: R9 (TRANSCRIPTION.md) — une lecture de table hors RAM rend 0xFFFFFFFF, ce que
+    //   le bus ISA rend sur une adresse sans mémoire ; une écriture y est ignorée. L'accès
+    //   continue avec cette entrée, aberrante mais présente. L'oracle n'y va jamais (le
+    //   fuzzeur écarte ces chemins) ; `r9-mmu` prouve la survie, en C# seul.
     private static uint32_t mmu_readl(uint32_t addr)
     {
         var p = _mem_exec[addr >> 14];
         if (p == null)
-        {
-                pc.fatal($"mmu_readl hors de _mem_exec : {addr:X8} (le C y déréférence NULL)\n");
-                return 0;
-        }
+                return 0xFFFFFFFF;
         var i = unchecked(_mem_exec_off[addr >> 14] + (int)(addr & 0x3fff));
         return (uint32_t)(p[i] | (p[i + 1] << 8) | (p[i + 2] << 16) | (p[i + 3] << 24));
     }
@@ -201,11 +204,9 @@ internal static partial class mem
     private static void mmu_writel(uint32_t addr, uint32_t val)
     {
         var p = _mem_exec[addr >> 14];
+        // pcem bug, not reproduced: PB-79 — voir mmu_readl.
         if (p == null)
-        {
-                pc.fatal($"mmu_writel hors de _mem_exec : {addr:X8} (le C y déréférence NULL)\n");
                 return;
-        }
         var i = unchecked(_mem_exec_off[addr >> 14] + (int)(addr & 0x3fff));
         p[i] = (uint8_t)val;
         p[i + 1] = (uint8_t)(val >> 8);

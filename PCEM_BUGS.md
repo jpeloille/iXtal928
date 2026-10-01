@@ -783,6 +783,19 @@ avec PG et un CR3 quelconque — voir PB-79.
 *Reproduit* : par la transcription (la table du 386 est partagée). Le fuzzeur du cœur 486 ne
 tire plus `0F 07` au hasard (`Fuzzer.cs`, G6.1) : il ferait tomber l'oracle (PB-79).
 
+### PB-79 — Une table de pages hors RAM fait tomber l'émulateur
+
+`mem.c:216-218` : `mmu_readl` et `mmu_writel` déréférencent `_mem_exec[addr >> 14]`, nul pour
+toute adresse sans mémoire. `mmutranslatereal` (`:220-317`) et `mmutranslate_noabrt`
+(`:319-345`) y lisent le répertoire en `cr3 & ~0xFFF` et la table en `PDE & ~0xFFF`, sans borne.
+*Effet* : un invité qui active la pagination avec un CR3 ou une entrée de répertoire hors de la
+mémoire installée arrête PCem (segfault). Mesuré : D4 (MOV CR0 avec PG tiré), puis le fuzzeur du
+486 par un LOADALL386 tiré au hasard (PB-78).
+*Trouvé par* : G2 D4, puis G6.1.
+*Non reproduit* (R9) : `Memory/mem.cs`, marqueurs `pcem bug, not reproduced: PB-79` — une
+lecture de table hors RAM rend 0xFFFFFFFF (bus ouvert), une écriture y est ignorée. Le fuzzeur
+écarte ce chemin côté oracle ; `r9-mmu` (C# seul) prouve la survie sur le 386 et le 486.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1501,7 +1514,7 @@ audit systématique de PCem** :
 | Témoin MSD de G4.7, puis lecture du C | PB-70 |
 | Reconnaissance et transcription de G5 (ide.c) | PB-71 à PB-74 |
 | Inventaire de la règle R9 (l'invité ne tue pas l'hôte) | PB-75, PB-76 |
-| Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77, PB-78 |
+| Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77 à PB-79 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

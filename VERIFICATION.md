@@ -4619,3 +4619,23 @@ encore son chipset.
 **La série** (parallèle, 78 minutes), comparée aux journaux de 1bf071c : **85 journaux sur 85
 identiques hors durées** (la ligne d'ABI passe de 28 à 29), et les dix portes 486 nouvelles
 vertes. Selftest, check-oracle 0 dérive.
+
+## G6.2 — Le mode protégé du 486 ; PB-79 sous R9
+
+Le 1er octobre 2026, sur b28b93e. Plan : `PLAN-G6.md` § G6.2 (INVLPG est entré avec G6.1).
+
+**PB-79, non reproduit (R9).** `mmu_readl` / `mmu_writel` de PCem déréférencent `_mem_exec`
+hors RAM : un invité qui pagine sur une table inexistante arrête l'émulateur. Le C# s'y arrêtait
+par `fatal` ; il rend désormais 0xFFFFFFFF en lecture (bus ouvert) et ignore l'écriture — sur le
+386 comme sur le 486, qui partagent mem.cs. Ces deux fonctions n'ont pas d'autre appelant que la
+traduction de page. `r9-mmu` (C# seul) : pagination active, CR3 à FFFFF000, 7F000000 et
+01000000, un MOV qui lit puis écrit — les six cas survivent ; contrôle : le mem.cs de b28b93e
+s'arrête sur les six (« mmu_readl hors de _mem_exec »).
+
+**Les portes du mode protégé, en 486** (`--core 486` ajouté à page-check, pm-check, pm-fuzz) :
+page-check 200 000 traductions, pm-check 106 cas sur 106, pm-fuzz 20 000 (cinq départs, V86
+compris), pm-fuzz x87 sur les huit ESC 20 000 — tous verts.
+
+**La série** (parallèle, 80 minutes), comparée aux journaux de b28b93e : **95 journaux sur 95
+identiques hors durées**, et les cinq portes nouvelles vertes (page-check, pm-check, pm-fuzz et
+pm-fuzz x87 en 486 ; `r9-mmu`). Selftest, check-oracle 0 dérive.

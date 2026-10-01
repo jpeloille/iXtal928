@@ -293,12 +293,16 @@ public static class PmCheck386
             poke(0x7C00, [0x0F, 0x07]);                          // LOADALL386
     }
 
+    /// <summary>G6.2 — `--core 486` : le banc et pm-fuzz sur l'ami486. Le décor se pose par
+    /// LOADALL386, que PCem exécute aussi sur un 486 (PB-78) — sur un bloc tenu.</summary>
+    internal static bool Core486;
+
     private static string RunCase(Case c)
     {
-        Oracle.h_set_core(Oracle.Core386);
+        Oracle.h_set_core(Core486 ? Oracle.Core486 : Oracle.Core386);
         Oracle.h_reset();
         Oracle.h_fill_ram(0x90);
-        _386.Reset386();
+        if (Core486) _386.Reset486(); else _386.Reset386();
         mem.fill_ram(0x90);
         // CE QUE NI h_reset NI Reset386 NE REMETTENT : abrt, les globales C7a, limit_raw,
         // checked. Le banc s'en passait (un processus par cas) ; le fuzzeur enchaîne les

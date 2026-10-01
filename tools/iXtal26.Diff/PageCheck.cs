@@ -37,6 +37,9 @@ public static class PageCheck
 {
     private const int Pool = 16;
 
+    /// <summary>G6.2 — `--core 486` : la même traduction sur l'ami486 (cpus_i486).</summary>
+    internal static bool Core486;
+
     public static int Run(int iterations, ulong seed, int renew, bool oracleOnly)
     {
         Oracle.CheckAbi();
@@ -45,11 +48,11 @@ public static class PageCheck
         var st = seed == 0 ? 0x9E3779B97F4A7C15UL : seed;
         uint Next() { st ^= st << 13; st ^= st >> 7; st ^= st << 17; return (uint)(st >> 32); }
 
-        Oracle.h_set_core(Oracle.Core386);
+        Oracle.h_set_core(Core486 ? Oracle.Core486 : Oracle.Core386);
         Oracle.h_reset();
         Oracle.h_fill_ram(0x90);
         Oracle.h_seg_clear_residue();
-        _386.Reset386();
+        if (Core486) _386.Reset486(); else _386.Reset386();
         mem.fill_ram(0x90);
         _386.ClearSegResidue();
 

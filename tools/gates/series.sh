@@ -107,3 +107,9 @@ run pm-check pm-check
 run pm-check-386 pm-check --core 386
 run cpu-config-check cpu-config-check roms
 run config-check config-check
+# G6.2 — le mode protégé et la pagination du 486 ; R9 : la survie à une table hors RAM (C# seul).
+run page-check-486 page-check --core 486
+run pm-check-486 pm-check --core 486
+run pm-fuzz-486 pm-fuzz --core 486 --iter 20000
+run x87-pm-fuzz-486 pm-fuzz --core 486 --fpu 387 --iter 20000 --op D8 --op D9 --op DA --op DB --op DC --op DD --op DE --op DF
+run r9-mmu r9-mmu

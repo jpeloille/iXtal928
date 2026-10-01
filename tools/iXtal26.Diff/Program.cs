@@ -183,6 +183,9 @@ switch (args[0])
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
     // G2, D6 — la sonde de la pagination (PageCheck).
+    // G6.2 — R9 : la survie à une table de pages hors RAM (PB-79), en C# seul.
+    case "r9-mmu":
+        return R9Mmu.Run();
     case "page-check":
     {
         var it = 200000;
@@ -196,6 +199,7 @@ switch (args[0])
                 case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
                 case "--renew" when i + 1 < args.Length: renew = int.Parse(args[++i]); break;
                 case "--oracle": oracleOnly = true; break;
+                case "--core" when i + 1 < args.Length && args[i + 1] == "486": i++; PageCheck.Core486 = true; break;
                 default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
             }
         return PageCheck.Run(it, sd, renew, oracleOnly);
@@ -223,6 +227,7 @@ switch (args[0])
                     iXtal26.Cpu._386.FuzzFpu = f;
                     break;
                 }
+                case "--core" when i + 1 < args.Length && args[i + 1] == "486": i++; PmCheck386.Core486 = true; break;
                 default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
             }
         if (ops.Count == 0 && sec.Count == 0)
@@ -233,7 +238,9 @@ switch (args[0])
     case "pm-check":
     {
         // G2, D5 — `--core 386` : le banc du 386 (PmCheck386), le 286 restant le défaut.
-        var core386 = args.Length >= 3 && args[1] == "--core" && args[2] == "386";
+        var core386 = args.Length >= 3 && args[1] == "--core" && args[2] is "386" or "486";
+        // G6.2 — `--core 486` : le banc du 386 sur l'ami486.
+        PmCheck386.Core486 = core386 && args[2] == "486";
         var k = core386 ? 3 : 1;
         var only = args.Length >= k + 2 && args[k] == "--case" ? int.Parse(args[k + 1]) : -1;
         return core386 ? PmCheck386.Run(only) : PmCheck.Run(only);

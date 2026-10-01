@@ -55,7 +55,7 @@ empreintes identiques ; fuzzeur `--core 486` single et flux sur les 256 opcodes 
 propres au 486 (08, 09, 01/7, A2, B0/B1, C0/C1, C8-CF), graines 1 et 7 ; x87 `--x87 all` avec le
 x87 intégré ; pm-fuzz et pm-check en 486.
 
-### G6.2 — INVLPG et le reste du mode protégé 486
+### G6.2 — INVLPG et le reste du mode protégé 486  ✅ *fait, VERIFICATION.md § G6.2*
 
 `0F 01 /7` (`x86_ops_pmode.h:447-458`), `mmu_invalidate` (`mem.c:349-352`), CR0.WP, la
 lecture de CR0 et SMSW (ET). **Porte** : page-check et pm-check en 486, contrôles négatifs.
