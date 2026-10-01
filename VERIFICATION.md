@@ -4701,3 +4701,39 @@ La porte ide-check de l'ami486 : **202 649 589 instructions identiques**, C: et 
 **La série** (parallèle, 80 minutes), comparée aux journaux de a293168 : **101 journaux sur 101
 identiques hors durées**, et les deux portes IDE de l'ami486 nouvelles, vertes. Selftest,
 check-oracle 0 dérive.
+
+## G7.0 — Le socle SVGA : la fenêtre linéaire, le rendu 32 bpp
+
+Le 1er octobre 2026, sur b069c1f. Plan : `PLAN-G7.md` § G7.0 (feu vert pour G7.0 à G7.2 ; G7.3,
+l'accélérateur S3, attend la décision de l'utilisateur).
+
+**Transcrit.** `svga_write_linear` et `svga_read_linear` (vid_svga.c:1137-1441) — le corps du
+switch d'écriture est celui de `svga_write` à la ligne près (vérifié par diff), seule la tête
+change : pas de banque, pas de `addr &= ~3` en chain4 ; la lecture calcule ses verrous depuis
+l'adresse non bancaire et, en chain4 compact, ne les charge pas (PB-80) — et leurs formes 16 et
+32 bits (`:1573-1658`). Les corps des rendus 32 bpp (vid_svga_render.c:791-854), jusqu'ici
+`fatal()`. Aucune carte du dépôt n'installe encore de fenêtre linéaire.
+
+**La porte : `svga-linear-check`**, un banc dirigé qui appelle les six accès linéaires DES DEUX
+CÔTÉS (P/Invoke sur les fonctions de la .so) sur une VGA du 5150 amorcée à l'identique — au pas
+commun du boot-diff : l'oracle trace, le C# avance instruction par instruction ; une tranche de
+`pc.runpc()` n'est PAS le pendant d'une de `h_runpc` (mesuré : la sonde divergeait sur `vc`).
+50 000 opérations tirées : écritures et lectures 8/16/32 bits à des adresses de 512 Ko,
+entremêlées d'écritures aux registres GDC 0-8 et séquenceur 2 et 4 ; chaque valeur lue est
+comparée, et la sonde VGA (VRAM, verrous, registres) toutes les 1 000 opérations. **Vert.**
+Contrôle négatif, retiré : le plan de lecture du chain4 décalé d'un cran → divergence à
+l'opération 134 (`svga_read_linear(224F9)`, oracle 07, C# 00). Limite : la VGA n'a ni
+`packed_chain4` ni `fb_only`, donc ni les chemins « fast » ni PB-80 ; la GD5429 (G7.1) les
+atteindra. Le rendu 32 bpp attend la S3.
+
+**La série** (instantané figé, 10 travaux, 106 portes, comparée à g64 par nom, durées ôtées) :
+105 identiques à g64, plus `svga-linear-check` verte. **Un rouge, expliqué et antérieur à
+G7.0** : `bd-pcdos-vga` (5150 + VGA, PC-DOS 2.0) diverge à l'instruction 1 078 553, F000:E36A —
+l'oracle lit 508C en C600:0000, le C# 0000. Rejouée seule deux fois, puis dix fois en
+parallèle : verte. Cause : `vid_vga.c:107` charge `ibm_vga.bin` à partir de 0x2000 dans une
+allocation de 32 Ko — 24 Ko lus, 8 Ko de tas en C6000-C7FFF (`rom.c:60-62`, classe PB-24) — et
+le balayage des ROM d'extension du 5150 lit C600:0000 (DX = C600). `MALLOC_PERTURB_=85` rend la
+divergence déterministe sur l'instantané G7.0 (même instruction, oracle AAAA). G7.0 ne touche
+ni l'oracle, ni `rom.c`, ni `vid_vga.c` : le défaut date de M15. Correction en G7.1 (une
+enveloppe de `rom_init` dans l'oracle, PB-24 élargi). Commit sur ce constat, accord du pair :
+on ne rejoue pas une série aux dés.

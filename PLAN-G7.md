@@ -28,7 +28,7 @@ Aucune des cartes CL ni S3 n'est `DEVICE_PCI` : toutes se montent sur l'ami486.
 
 ## Les étapes
 
-### G7.0 — Le socle : la fenêtre linéaire 16/32 bits, le rendu 32 bpp
+### G7.0 — Le socle : la fenêtre linéaire 16/32 bits, le rendu 32 bpp  ✅ *fait, VERIFICATION.md § G7.0*
 
 `svga_*w_linear`, `svga_*l_linear` (`vid_svga.c:1573-1658`) et les corps 32 bpp. Aucune carte
 existante ne les atteint : la porte est l'identité de toutes les séries, plus un banc dirigé

@@ -432,7 +432,7 @@ public static class BootDiff
     /// Sur un 8088 il n'y a qu'un pas : execx86 n'a pas de boucle interne bornée par
     /// cycle_period, donc _808x.Step() vaut pour les deux phases — et c'est pourquoi le
     /// défaut n'existait pas avant l'AT.</summary>
-    private static int PasCsharpTrace()
+    internal static int PasCsharpTrace()
         => Oracle.Exec386(CoeurDuModele()) ? Cpu._386.Step286Trace() : _808x.Step();
 
     private static int CoeurDuModele()

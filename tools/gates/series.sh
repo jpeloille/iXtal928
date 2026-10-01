@@ -118,3 +118,5 @@ run pm-check-486 pm-check --core 486
 run pm-fuzz-486 pm-fuzz --core 486 --iter 20000
 run x87-pm-fuzz-486 pm-fuzz --core 486 --fpu 387 --iter 20000 --op D8 --op D9 --op DA --op DB --op DC --op DD --op DE --op DF
 run r9-mmu r9-mmu
+# G7.0 — la fenêtre linéaire du socle SVGA, appelée des deux côtés sur une VGA amorcée.
+run svga-linear-check svga-linear-check --iter 50000

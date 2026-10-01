@@ -183,6 +183,20 @@ switch (args[0])
 
     // M20 — le mode protégé du 286, état construit par LOADALL des deux côtés.
     // G2, D6 — la sonde de la pagination (PageCheck).
+    // G7.0 — la fenêtre linéaire du socle SVGA, appelée des deux côtés.
+    case "svga-linear-check":
+    {
+        var it = 50000;
+        ulong sd = 1;
+        for (var i = 1; i < args.Length; i++)
+            switch (args[i])
+            {
+                case "--iter" when i + 1 < args.Length: it = int.Parse(args[++i]); break;
+                case "--seed" when i + 1 < args.Length: sd = ulong.Parse(args[++i]); break;
+                default: Console.Error.WriteLine($"Option inconnue : {args[i]}"); return 2;
+            }
+        return SvgaLinearCheck.Run("roms", it, sd);
+    }
     // G6.2 — R9 : la survie à une table de pages hors RAM (PB-79), en C# seul.
     case "r9-mmu":
         return R9Mmu.Run();

@@ -796,6 +796,17 @@ mémoire installée arrête PCem (segfault). Mesuré : D4 (MOV CR0 avec PG tiré
 lecture de table hors RAM rend 0xFFFFFFFF (bus ouvert), une écriture y est ignorée. Le fuzzeur
 écarte ce chemin côté oracle ; `r9-mmu` (C# seul) prouve la survie sur le 386 et le 486.
 
+### PB-80 — La lecture linéaire en chain4 compact ne charge pas les verrous
+
+`vid_svga.c:1391-1395`, `svga_read_linear` : en chain4 compact (`packed_chain4`) ou en
+`fb_only`, la fonction rend l'octet et sort ; la forme par banque, `svga_read`, charge d'abord
+les quatre verrous depuis `addr & ~3` (`:1085-1089`).
+*Effet* : une écriture en mode 1 (copie des verrous) par la fenêtre linéaire, après une lecture
+linéaire, recopie les verrous d'une lecture antérieure, pas ceux de l'octet lu.
+*Trouvé par* : diff des deux formes, G7.0.
+*Reproduit* : `Video/vid_svga.cs`, `svga_read_linear`, marqueur PB-80. Atteint par les cartes
+de G7 (la VGA d'IBM ne pose ni `packed_chain4` ni `fb_only`).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1515,6 +1526,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de G5 (ide.c) | PB-71 à PB-74 |
 | Inventaire de la règle R9 (l'invité ne tue pas l'hôte) | PB-75, PB-76 |
 | Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77 à PB-79 |
+| Transcription de la fenêtre linéaire SVGA (G7.0) | PB-80 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

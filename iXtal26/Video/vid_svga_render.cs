@@ -4,7 +4,7 @@
 // ORACLE: pcem-dev/src/video/vid_svga_render.c + includes/private/video/vid_svga_render_remap.h
 // STATUS: partial — le remappage d'adresse du CRTC, et les rendus que svga_recalctimings
 //         choisit pour une VGA ou une Trident : vide, texte 40 et 80, 2, 4, 8, 15, 16 et
-//         24 bpp. Les rendus 32 bpp sont des fatal() : aucune carte du dépôt n'y va.
+//         24 bpp, et le 32 bpp depuis G7.0 (S3).
 
 using System.Runtime.CompilerServices;
 using static iXtal26.Video.video;
@@ -933,13 +933,88 @@ internal static partial class vid_svga_render
         }
     }
 
-    // omitted: les corps de svga_render_32bpp_lowres / _highres (vid_svga_render.c:791-854).
-    //   svga_recalctimings ne les choisit que pour bpp = 32, et aucune carte du dépôt ne le
-    //   pose : le TKD8001 de la 8900D s'arrête à 24 bpp (vid_tkd8001_ramdac.c:20-29). Les
-    //   FONCTIONS restent, parce que svga_recalctimings les nomme (vid_svga.c:391-414) :
-    //   un corps fatal() rend leur atteinte bruyante (R6).
-    internal static void svga_render_32bpp_lowres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:791");
-    internal static void svga_render_32bpp_highres(svga_t svga) => pc.fatal("not implemented: vid_svga_render.c:825");
+    // pcem: vid_svga_render.c:791-821 — G7.0 : le 32 bpp, pour les cartes de G7 (S3 Trio64).
+    // La branche « remap » lit la VRAM SANS le masque d'affichage (`vram[addr]`, :813), là où
+    // la forme haute résolution le pose (:846) : transcrit tel quel.
+    internal static void svga_render_32bpp_lowres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - (svga.scrollcache & 6)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x++)
+                        {
+                                uint32_t dat = vram_l(svga, (svga.ma + (uint32_t)(x << 2)) & svga.vram_display_mask);
+                                Buffer32[p++] = dat & 0xffffff;
+                                Buffer32[p++] = dat & 0xffffff;
+                        }
+                        svga.ma += (uint32_t)(x * 4);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x++)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr);
+                                Buffer32[p++] = dat & 0xffffff;
+                                Buffer32[p++] = dat & 0xffffff;
+                                svga.ma += 4;
+                        }
+                }
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
+
+    /*72%
+      91%*/
+    // pcem: vid_svga_render.c:825-854 — G7.0.
+    internal static void svga_render_32bpp_highres(svga_t svga)
+    {
+        uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
+
+        if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
+        {
+                int x;
+                int offset = (8 - ((svga.scrollcache & 6) >> 1)) + 24;
+                int p = svga.displine * Stride + offset;
+
+                if (svga.firstline_draw == 2000)
+                        svga.firstline_draw = svga.displine;
+                svga.lastline_draw = svga.displine;
+
+                if (svga.remap_required == 0)
+                {
+                        for (x = 0; x <= svga.hdisp; x++)
+                        {
+                                uint32_t dat = vram_l(svga, (svga.ma + (uint32_t)(x << 2)) & svga.vram_display_mask);
+                                Buffer32[p++] = dat & 0xffffff;
+                        }
+                        svga.ma += (uint32_t)(x * 4);
+                }
+                else
+                {
+                        for (x = 0; x <= svga.hdisp; x++)
+                        {
+                                uint32_t addr = svga.remap_func(svga, svga.ma);
+                                uint32_t dat = vram_l(svga, addr & svga.vram_display_mask);
+                                Buffer32[p++] = dat & 0xffffff;
+                                svga.ma += 4;
+                        }
+                }
+
+                svga.ma &= svga.vram_display_mask;
+        }
+    }
 
     // omitted: svga_render_ABGR8888_highres et svga_render_RGBA8888_highres
     //   (vid_svga_render.c:856-916) — rendus du RAMDAC ATI 68860 (vid_ati68860_ramdac.c:
