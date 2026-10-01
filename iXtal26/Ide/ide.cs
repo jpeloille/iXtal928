@@ -564,11 +564,16 @@ internal static class ide
                         return;
 
                 case WIN_READ_MULTIPLE:
-                        // UN BLOCSIZE NUL ARRÊTE L'ÉMULATEUR : l'invité peut envoyer READ
-                        // MULTIPLE avant tout SET MULTIPLE MODE, et PCem appelle fatal().
-                        // pcem bug, reproduced: PB-73
+                        // UN BLOCSIZE NUL ARRÊTE PCem : l'invité peut envoyer READ MULTIPLE
+                        // avant tout SET MULTIPLE MODE, et PCem appelle fatal().
+                        // pcem bug, not reproduced: PB-73
+                        // DEVIATION: ABRT, comme le disque réel — règle de TRANSCRIPTION.md,
+                        //   l'invité ne tue pas l'hôte.
                         if (ide.blocksize == 0 && (ide.type != IDE_CDROM))
-                                fatal("READ_MULTIPLE - blocksize = 0\n");
+                        {
+                                MultipleSansBloc(ide);
+                                return;
+                        }
                         ide.blockcount = 0;
                         goto case WIN_READ;
 
@@ -581,9 +586,12 @@ internal static class ide
                         return;
 
                 case WIN_WRITE_MULTIPLE:
-                        // pcem bug, reproduced: PB-73
+                        // pcem bug, not reproduced: PB-73
                         if (ide.blocksize == 0 && (ide.type != IDE_CDROM))
-                                fatal("Write_MULTIPLE - blocksize = 0\n");
+                        {
+                                MultipleSansBloc(ide);
+                                return;
+                        }
                         ide.blockcount = 0;
                         goto case WIN_WRITE;
 
@@ -669,6 +677,16 @@ internal static class ide
                 return;
         }
         //        fatal("Bad IDE write %04X %02X\n", addr, val);
+    }
+
+    // DEVIATION: PB-73 — READ ou WRITE MULTIPLE sans taille de bloc : ce que fait le disque
+    //   réel, ABRT, dans la forme du `default:` de writeide (ide.c:577-583).
+    private static void MultipleSansBloc(IDE ide)
+    {
+        ide.command = 0;
+        ide.atastat = READY_STAT | ERR_STAT | DSC_STAT;
+        ide.error = ABRT_ERR;
+        ide_irq_raise(ide);
     }
 
     // pcem: ide.c:607-720

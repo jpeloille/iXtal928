@@ -727,7 +727,10 @@ disque réel rend ABRT.
 *Effet* : un pilote qui envoie C4h ou C5h sans avoir fixé la taille de bloc — ou un invité
 malveillant — arrête PCem.
 *Trouvé par* : reconnaissance de G5.
-*Reproduit* : `Ide/ide.cs`, `writeide`, marqueurs PB-73 ; même arrêt des deux côtés.
+*Non reproduit* (R9, TRANSCRIPTION.md : l'invité ne tue pas l'hôte) : `Ide/ide.cs`, `writeide`,
+marqueurs `pcem bug, not reproduced: PB-73` — ABRT (ERR, erreur 04h, IRQ), comme le disque réel.
+Les outils n'envoient jamais ce chemin à l'oracle ; la survie est prouvée en C# seul
+(`tools/idecheck/`, variante `--survie`, VERIFICATION.md § R9).
 
 ### PB-74 — VERIFY ne vérifie qu'un secteur et laisse les registres en place
 
@@ -737,6 +740,25 @@ décompter `secount` ni avancer l'adresse.
 de compte rend N au lieu de 0.
 *Trouvé par* : reconnaissance de G5.
 *Reproduit* : `Ide/ide.cs`, `callbackide`, marqueur PB-74.
+
+### PB-75 — Une commande à l'unité 1 absente arrête l'émulateur (Fixed Disk Adapter de l'AT)
+
+`mfm_at.c:193-194` : si l'unité sélectionnée par 0x1F6 n'a pas d'image, l'écriture du registre de
+commande appelle `fatal("Command on non-present drive")`.
+*Effet* : un utilitaire qui sonde le second disque (FDISK, un diagnostic) sur une machine qui n'en
+a qu'un arrête PCem.
+*Trouvé par* : inventaire de la règle R9.
+*Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueur `pcem bug, not reproduced: PB-75` — la commande
+est refusée : ERR, erreur ABRT, IRQ 14.
+
+### PB-76 — READ LONG et WRITE LONG (avec ECC) arrêtent l'émulateur
+
+`mfm_at.c:224-225`, `:237-238` : les commandes 22h-23h et 32h-33h (bit ECC) appellent `fatal()`.
+Le WD1003 réel transfère alors 512 octets plus 4 octets d'ECC ; ni PCem ni iXtal26 ne le modélisent.
+*Effet* : un utilitaire de bas niveau qui lit les ECC arrête PCem.
+*Trouvé par* : inventaire de la règle R9.
+*Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueurs `pcem bug, not reproduced: PB-76` — ERR,
+erreur ABRT, IRQ 14 : le comportement sûr le plus proche.
 
 ## B. Comportement indéfini en C
 
@@ -1455,6 +1477,7 @@ audit systématique de PCem** :
 | Transcription de G4.6 (le 8087), lecture de `picint` | PB-69 |
 | Témoin MSD de G4.7, puis lecture du C | PB-70 |
 | Reconnaissance et transcription de G5 (ide.c) | PB-71 à PB-74 |
+| Inventaire de la règle R9 (l'invité ne tue pas l'hôte) | PB-75, PB-76 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

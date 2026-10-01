@@ -18,7 +18,7 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   (a) l'en-tête : deux lignes SPDX + quatre lignes `// ORACLE:` ;
   (b) les commentaires de PCem, *vivants*, verbatim ;
   (c) une ligne de provenance par fonction, `// pcem: src/cpu/808x.c:1271-1301` ;
-  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:`, `// CS0165:` ;
+  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:` / `not reproduced:` (R9), `// CS0165:` ;
   (e) dans `Floppy/` et `Disc/` seulement, un bloc `// noms:` en en-tête : une ligne par
   identifiant, **sans phrase**, 40 lignes au plus. Deux colonnes — l'identifiant, ce
   qu'il désigne — et **trois dès qu'un nom est modifié** : nom PCem, nom iXtal26, ce
@@ -78,6 +78,13 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
 - **R8 — verbes interdits** jusqu'à M4 dans un commit ou un commentaire : *improve,
   optimise, clean up, simplify, refactor*. Si le C est faux, on transcrit la fausseté et
   on la marque `// pcem bug, reproduced:`.
+- **R9 — l'invité ne tue pas l'hôte** (1er octobre 2026, décision de Julien). Un défaut de PCem
+  par lequel le code invité arrête, plante ou fige l'émulateur (`fatal()`, SIGFPE, SIGSEGV,
+  récursion sans borne) n'est PAS reproduit : le comportement du matériel s'il est connu, le
+  plus sûr sinon, `// pcem bug, not reproduced: PB-nn` + `// DEVIATION:`, et l'entrée PB le dit.
+  Identité stricte partout où l'oracle survit ; l'oracle vendoré n'est jamais touché — les
+  outils l'écartent de ces chemins, un test ciblé en C# seul prouve la survie. Hors R9 : les
+  arrêts « non transcrit » d'iXtal et les défauts sans arrêt de l'hôte, qui restent reproduits.
 
 ### Portée
 

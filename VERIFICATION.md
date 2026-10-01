@@ -4495,3 +4495,39 @@ Contrôle négatif, retiré : un VERIFY qui remet `secount` à zéro → diverge
 **La série**, sur un instantané de G5.2 et comparée aux journaux de 5df27b5 : **84 journaux
 sur 84 identiques hors durées** (`bd-pcdos-cga` comparé à celui de 72ec467, le journal de
 5df27b5 étant celui de l'incident), et l'ide-check nouveau, vert. Selftest, check-oracle 0 dérive.
+
+## R9 — L'invité ne tue pas l'hôte : PB-73, PB-75, PB-76
+
+Le 1er octobre 2026, sur 4a15131. Règle de Julien, inscrite dans TRANSCRIPTION.md (R9).
+
+**L'inventaire** des 74 défauts du registre et des `fatal()` de PCem transcrits. Déjà non
+reproduits : PB-46, PB-47 (SIGFPE), PB-49 (récursion de POP SS). Restent reproduits, hors R9 :
+PB-50 (1,7 million de préfixes dans un pas, mais l'hôte survit et le pas se termine), PB-26/27
+(chaînes fausses, gel du Xebec sans arrêt de l'hôte), PB-31/33 (atteints par l'hôte, pas par
+l'invité). Traités ici : PB-73 (IDE, READ/WRITE MULTIPLE sans taille de bloc → ABRT, comme le
+disque réel), PB-75 (mfm_at, commande à l'unité 1 absente → ERR, ABRT, IRQ 14), PB-76 (mfm_at,
+READ LONG / WRITE LONG → ABRT ; le vrai transfert avec ECC n'est modélisé ni ici ni chez PCem).
+Reportés au hors plan de PLAN.md : les dix-sept `fatal()` de protocole du Xebec, et les accès
+mémoire du 8087 en mod = 3.
+
+**Le test de survie**, en C# seul (`--boot`), puisque l'oracle s'arrête sur ces chemins et que
+les séries ne les lui envoient jamais : `tools/idecheck/idecheck.py --survie` assemble SURVIE.COM
+(386 octets) — C4h et C5h sans SET MULTIPLE MODE, une commande à l'unité 1 absente, 22h, 32h —
+saisi dans DEBUG et lancé sur l'ami286, contrôleur `ide` puis `mfm_at`. Les deux terminent :
+
+| relevé (état, erreur) | ide | mfm_at |
+|---|---|---|
+| READ MULTIPLE sans bloc | 51 04 (ABRT) | 51 04 (commande inconnue) |
+| WRITE MULTIPLE sans bloc | 51 04 | 51 04 |
+| commande à l'unité 1 absente | 00 FF (IDE_NONE, ignorée) | 01 04 (PB-75) |
+| READ LONG | 51 04 (inconnue) | 51 04 (PB-76) |
+| WRITE LONG | 51 04 | 51 04 |
+
+Contrôle : le même test sur un binaire d'avant R9 (G4.7) meurt — « iXtal26 FATAL: Command on
+non-present drive », rc 134.
+
+**La série** — la première EN PARALLÈLE (dix portes à la fois, les plus longues d'abord, chaque
+porte disque dans son propre répertoire ; le .tsv reconstruit dans l'ordre canonique) : 62
+minutes contre 192 en séquentiel, et **85 journaux sur 85 identiques** à ceux de 4a15131 hors
+durées, mêmes codes de retour dans le même ordre. Aucune porte n'envoie les chemins de R9 à
+l'oracle. Selftest, check-oracle 0 dérive.

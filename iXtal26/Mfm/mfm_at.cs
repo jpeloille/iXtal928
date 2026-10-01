@@ -275,8 +275,19 @@ internal static class mfm_at
                 // ide_fn[1], et si le CMOS déclare un type pour D: alors que le .cfg
                 // n'a pas de hdd_fn, le BIOS adresse une unité dont hdd_file.f est nul.
                 // Le quartet bas du CMOS 0x12 doit rester à zéro.
+                // PCem s'arrête ici par fatal() : un utilitaire qui sonde l'unité 1 absente
+                // arrête l'émulateur (PB-75). Règle de TRANSCRIPTION.md : l'invité ne tue pas
+                // l'hôte.
+                // pcem bug, not reproduced: PB-75
+                // DEVIATION: la commande est refusée — ERR, erreur ABRT, IRQ 14 —, le
+                //   comportement sûr le plus proche d'un contrôleur sans unité 1.
                 if (mfm.drives[mfm.drive_sel].hdd_file.f == null)
-                        fatal("Command on non-present drive\n");
+                {
+                        mfm.error = ERR_ABRT;
+                        mfm.status = STAT_ERR;
+                        mfm_irq_raise(mfm);
+                        return;
+                }
 
                 mfm_irq_lower(mfm);
                 mfm.command = val;
@@ -307,8 +318,17 @@ internal static class mfm_at
                         case CMD_READ + 3:
                                 // omitted: pclog("Read %i sectors ...") — commenté.
                                 mfm.command &= unchecked((uint8_t)~3);
+                                // pcem bug, not reproduced: PB-76
+                                // DEVIATION: READ LONG (avec ECC) est refusé — ERR, erreur
+                                //   ABRT, IRQ — au lieu du fatal() de PCem ; le vrai transfert
+                                //   de 512 + 4 octets d'ECC n'est modélisé ni ici ni chez PCem.
                                 if ((val & 2) != 0)
-                                        fatal("Read with ECC\n");
+                                {
+                                        mfm.error = ERR_ABRT;
+                                        mfm.status = STAT_READY | STAT_DSC | STAT_ERR;
+                                        mfm_irq_raise(mfm);
+                                        break;
+                                }
                                 mfm.status = STAT_BUSY;
                                 timer_set_delay_u64(mfm.callback_timer, 200 * IDE_TIME);
                                 break;
@@ -319,8 +339,17 @@ internal static class mfm_at
                         case CMD_WRITE + 3:
                                 // omitted: pclog("Write %i sectors ...") — commenté.
                                 mfm.command &= unchecked((uint8_t)~3);
+                                // pcem bug, not reproduced: PB-76
+                                // DEVIATION: WRITE LONG (avec ECC) est refusé — ERR, erreur
+                                //   ABRT, IRQ — au lieu du fatal() de PCem ; le vrai transfert
+                                //   de 512 + 4 octets d'ECC n'est modélisé ni ici ni chez PCem.
                                 if ((val & 2) != 0)
-                                        fatal("Write with ECC\n");
+                                {
+                                        mfm.error = ERR_ABRT;
+                                        mfm.status = STAT_READY | STAT_DSC | STAT_ERR;
+                                        mfm_irq_raise(mfm);
+                                        break;
+                                }
                                 mfm.status = STAT_DRQ | STAT_DSC; // | STAT_BUSY;
                                 mfm.pos = 0;
                                 break;

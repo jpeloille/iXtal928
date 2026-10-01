@@ -163,6 +163,11 @@ diff d'instructions est aveugle au son : il faudra une sonde d'échantillons, co
   à la suivante (l'IRQ13 d'un x87 démasqué, vue comme « BANC FAUX »). Contournée en G4.4 —
   `npxc = 0x037F` posé à chaque cas sous `--fpu` —, pas corrigée : l'état du PIC n'est pas
   remis à zéro entre deux cas.
+- **Hors plan, règle R9** (TRANSCRIPTION.md) : (a) les dix-sept `fatal()` de protocole de
+  `mfm_xebec.c` (état inattendu, commande inconnue, « no DMA ») — l'invité peut arrêter
+  l'émulateur ; à traiter selon R9 après lecture de la documentation Xebec / IBM (l'octet d'état
+  d'erreur de la carte). (b) Les accès `geteal`, `geteaq`, `seteal`, `seteaq` du 8087 en mod = 3
+  (`8087.h:37-58`, `fatal`) : prouver qu'aucune table ne les atteint, ou appliquer R9.
 
 ## L'ordre
 

@@ -20,6 +20,7 @@
 #   python3 tools/idecheck/idecheck.py            écrit idecheck.keys, affiche le listing
 #   python3 tools/idecheck/idecheck.py --com F    écrit aussi le .COM (objdump -D -b binary
 #                                                 -mi8086 --adjust-vma=0x100 F)
+#   python3 tools/idecheck/idecheck.py --survie   la variante R9, survie.keys (C# seul)
 
 import os
 import struct
@@ -242,6 +243,25 @@ S += OUT(6, 0xA0) + WAIT + REC
 S += CTL(0x02) + OUT(7, 0xE5) + WAIT + REC + CTL(0x00)           # nIEN : pas d'IRQ
 S += [0]
 
+# ---- --survie : la règle R9 (TRANSCRIPTION.md), en C# SEUL -----------------------------------
+# Les trois chemins où PCem appelle fatal() sur une commande de l'invité, et qu'iXtal26 refuse
+# (ABRT) au lieu de s'arrêter. Jamais envoyé à l'oracle, qui s'y arrêterait : `--boot` seul. Le
+# même programme sert aux deux contrôleurs de l'AT, sur C: au canal primaire :
+#   - READ MULTIPLE, WRITE MULTIPLE sans SET MULTIPLE MODE : PB-73 (ide) ; commande inconnue
+#     du mfm_at, ABRT de toute façon ;
+#   - une commande à l'unité 1 absente : PB-75 (mfm_at) ; ignorée par l'IDE (IDE_NONE) ;
+#   - READ LONG (22h) et WRITE LONG (32h) : PB-76 (mfm_at) ; commandes inconnues de l'IDE, ABRT.
+SURVIE = '--survie' in sys.argv
+if SURVIE:
+    S = []
+    S += BASE(0x1F0) + OUT(6, 0xA0) + WAIT + REC
+    S += regs(0xE0, 0, 0, 0, 2) + OUT(7, 0xC4) + WAIT + REC     # READ MULTIPLE sans bloc
+    S += regs(0xE0, 0, 0, 0, 2) + OUT(7, 0xC5) + WAIT + REC     # WRITE MULTIPLE sans bloc
+    S += OUT(6, 0xB0) + OUT(7, 0x20) + WAIT + REC + OUT(6, 0xA0) + WAIT + REC   # unité 1 absente
+    S += regs(0xA0, 1, 0, 0, 1) + OUT(7, 0x22) + WAIT + REC     # READ LONG
+    S += regs(0xA0, 1, 0, 0, 1) + OUT(7, 0x32) + WAIT + REC     # WRITE LONG
+    S += [0]
+
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))
 ins('sum', 'dw 0', 2, lambda L, a: [0, 0])
 ins('crlf', "db 13,10,'$'", 3, lambda L, a: [13, 10, 0x24])
@@ -270,7 +290,8 @@ def keys(code):
     lines = ['DEBUG']
     for i in range(0, len(code), 16):
         lines.append(f'E {ORG + i:X} ' + ' '.join(f'{b:02X}' for b in code[i:i + 16]))
-    lines += ['N IDECHK.COM', 'R CX', f'{len(code):X}', 'W', 'Q', 'IDECHK']
+    nom = 'SURVIE' if SURVIE else 'IDECHK'
+    lines += [f'N {nom}.COM', 'R CX', f'{len(code):X}', 'W', 'Q', nom]
     return lines
 
 
@@ -279,7 +300,7 @@ if __name__ == '__main__':
     print('\n'.join(listing))
     print(f'\n{len(code)} octets, script {len(S)} octets')
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, 'idecheck.keys'), 'w') as f:
+    with open(os.path.join(here, 'survie.keys' if SURVIE else 'idecheck.keys'), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
         with open(sys.argv[sys.argv.index('--com') + 1], 'wb') as f:
