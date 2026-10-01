@@ -666,6 +666,8 @@ internal static partial class pc
         // Je l'avais mis ici ; voir VERIFICATION.md § M4.0.
 
         resetpchard();
+        // pcem: pc.c:317 — G6.3, la fin d'initpc (après le fullspeed() que ce dépôt n'a pas).
+        Models.ali1429.ali1429_reset();
         return true;
     }
 
@@ -752,6 +754,9 @@ internal static partial class pc
         // lève. Trouvé par le premier boot-diff AT qui franchissait le mode protégé.
         // L'oracle l'appelle maintenant au même point (harness.c).
         Devices.nvr.loadnvr();
+
+        // pcem: pc.c:403 — G6.3, le troisième ali1429_reset, après loadnvr.
+        Models.ali1429.ali1429_reset();
 
         // pcem: pc.c:407. Inerte : rien dans l'arbre porté n'active l'un ou l'autre cache,
         // et cpu_set() les a lus à zéro. Transcrit pour que cpu_update_waitstates() ne
@@ -851,7 +856,10 @@ internal static partial class pc
         else
                 Models.pit.setpitclock(14318184.0f);
 
-        // omitted: ali1429_reset() (pc.c:190) et le video_init() commenté (pc.c:192).
+        // pcem: pc.c:191 — G6.3. Sur TOUTE machine, comme le C : les registres de l'ALi 1429
+        // à 0xFF ; ses ports ne sont posés que sur l'ami486 (ali1429_init).
+        Models.ali1429.ali1429_reset();
+        // omitted: le video_init() commenté (pc.c:192).
     }
 
     /// <summary>

@@ -404,6 +404,11 @@ internal static class nvr
                 f = nvrfopen("ami386dx_opti495.nvr", "rb");
                 nvrmask = 127;
                 break;
+        // pcem: nvr.c:368-371 — G6.3, l'ami486.
+        case pc.ROM_AMI486:
+                f = nvrfopen("ami486.nvr", "rb");
+                nvrmask = 127;
+                break;
         // omitted: les trente autres cas (nvr.c:238-523) — meme geste, autre nom de
         //   fichier ; voir le registre des omissions.
         default:
@@ -474,6 +479,10 @@ internal static class nvr
         // pcem: nvr.c:694-696 — G3.2, l'ami386dx.
         case pc.ROM_AMI386DX_OPTI495:
                 f = nvrfopen("ami386dx_opti495.nvr", "wb");
+                break;
+        // pcem: nvr.c:655-657 — G6.3, l'ami486.
+        case pc.ROM_AMI486:
+                f = nvrfopen("ami486.nvr", "wb");
                 break;
         // omitted: les trente autres cas (nvr.c:548-767), dont celui de ROM_IBMXT286 qui
         //   ouvre DEUX fichiers et fuit le premier (nvr.c:571-573) — machine absente de

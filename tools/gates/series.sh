@@ -39,6 +39,8 @@ run bd-ami386-387 boot-diff roms 3000 --config $C/ami386-387.cfg
 run bd-ami386dx-387 boot-diff roms 3000 --config $C/ami386dx-387.cfg
 run bd-ami386dx-387-dos boot-diff roms 2000 --config $C/ami386dx-387.cfg --fda $DOS
 run bd-ami386dx-387-post boot-diff roms 25000 --config $C/ami386dx-387.cfg
+run bd-ami486-dx2 boot-diff roms 3000 --config $C/ami486-dx2.cfg
+run bd-ami486-dx2-post boot-diff roms 40000 --config $C/ami486-dx2.cfg
 run fuzz8088 fuzz --mode single --iter 100000 $ALL
 run fuzz8088-stream fuzz --rounds 1500 --instr 200 $ALL
 run fuzz286 fuzz --core 286 --mode single --iter 80000 $ALL

@@ -3,7 +3,8 @@
 `nvrfopen` (`nvr.c:33-54`) compose « nvr/<config>.<machine>.nvr » en premier, et retombe
 sur « nvr/default/<machine>.nvr » en LECTURE SEULE — le CMOS de reference qu'un emulateur
 peut livrer. Les trois fichiers de `default/` sont ceux de PCem (`pcem-dev/nvr/`), bit pour bit :
-`at.nvr`, `ami286.nvr`, et `ami386.nvr` depuis G3.1 (somme 0x10-0x2D = 0x022C, meme disposition).
+`at.nvr`, `ami286.nvr`, et `ami386.nvr` depuis G3.1 (somme 0x10-0x2D = 0x022C, meme disposition),
+`ami386dx_opti495.nvr` depuis G3.2 et `ami486.nvr` depuis G6.3.
 
 CE REPERTOIRE DOIT EXISTER : nvrfopen rend NULL en ecriture si le chemin manque, et
 savenvr ne verifie pas (PB-33). PCem livre le sien pour la meme raison.

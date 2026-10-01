@@ -33,11 +33,12 @@ internal static class CpuConfigCheck
         var identical = 0;
         var refusals = 0;
         var failures = 0;
+        var skipped = 0;
 
         // G4.1 : l'ami386 et l'ami386dx entrent au balayage — ce sont eux qui proposent le 387.
-        // L'ami486 entre en G6.3, avec son BIOS et son chipset : ce balayage AMORCE chaque
-        // machine. Jusque-là ses entrées sont confrontées par le fuzzeur (--core 486 --cpu N).
-        string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286", "ami386", "ami386dx"];
+        // G6.3 : l'ami486 EN DERNIER — cpu_features n'est jamais remis à zéro par cpu_set
+        // (PB-77) : l'ordre des entrées décide de ce qu'un i486 hérite d'un iDX4. Fixé ici.
+        string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286", "ami386", "ami386dx", "ami486"];
         if (reverse)
             Array.Reverse(order);
 
@@ -68,6 +69,15 @@ internal static class CpuConfigCheck
                 cpu_c.fpu_type = c < n ? table[c].fpus![f].type : cpu_c.FPU_NONE;
                 var label = c < n ? $"{name,-8} cpu = {c}  {table[c].name,-10} fpu = {pc.cfg_fpu,-5}"
                                   : $"{name,-8} cpu = {c}  (hors table)";
+
+                // G6.3 — les Pentium OverDrive de cpus_i486 : leur cas de cpu_set n'est pas
+                // transcrit (cpu.cs, `default: fatal`). Sautés, et dit — pas comptés verts.
+                if (c < n && table[c].cpu_type == cpu_c.CPU_PENTIUM)
+                {
+                        Console.WriteLine($"  {label} : non transcrit (CPU_PENTIUM), sauté");
+                        skipped++;
+                        continue;
+                }
 
                 Oracle.h_set_discfn(0, "");
                 Oracle.h_set_discfn(1, "");
@@ -135,7 +145,7 @@ internal static class CpuConfigCheck
             return 1;
         }
 
-        Console.WriteLine($"Vert : {identical} configurations identiques, {refusals} refus concordants.");
+        Console.WriteLine($"Vert : {identical} configurations identiques, {refusals} refus concordants" + (skipped > 0 ? $", {skipped} entrée(s) non transcrite(s) sautée(s)." : "."));
         return 0;
     }
 }

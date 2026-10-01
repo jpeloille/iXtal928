@@ -4639,3 +4639,32 @@ compris), pm-fuzz x87 sur les huit ESC 20 000 — tous verts.
 **La série** (parallèle, 80 minutes), comparée aux journaux de b28b93e : **95 journaux sur 95
 identiques hors durées**, et les cinq portes nouvelles vertes (page-check, pm-check, pm-fuzz et
 pm-fuzz x87 en 486 ; `r9-mmu`). Selftest, check-oracle 0 dérive.
+
+## G6.3 — L'ami486 : ALi 1429, BIOS, CMOS ; la cadence du DX2/66
+
+Le 1er octobre 2026, sur c673ca6. Plan : `PLAN-G6.md` § G6.3.
+
+**Transcrit.** `Models/ali1429.cs` (ali1429.c entier : ports 0x22/0x23, ombrage de C0000h-FFFFFh
+par blocs de 32 Ko selon les registres 0x13 et 0x14) ; `at_ali1429_init` ; les trois
+`ali1429_reset` de pc.c (:191, :317, :403), sur toute machine comme le C ; le chargement de
+`ami486/ami486.bin` (mem_bios.c:569-576) ; les cas `ROM_AMI486` de loadnvr / savenvr ; le CMOS
+de référence de PCem, `nvr/default/ami486.nvr`, et `--make-nvr` pour l'ami486. L'oracle lie
+`ali1429.c`, appelle `ali1429_init` dans h_boot et les trois resets aux points miroirs.
+
+**Les portes.**
+- boot-diff ami486 + i486DX2/66 : 3 000 tranches, 5 433 745 instructions ; jusqu'au POST
+  complet, 40 000 tranches, **73 097 655 instructions identiques**, sonde VGA identique.
+- `cpu-config-check` avec l'ami486 en dernier (PB-77 : l'ordre décide de ce que `cpu_features`
+  hérite) : **80 configurations identiques**, 7 refus concordants ; les deux Pentium OverDrive
+  de cpus_i486 sont sautés et le disent (leur cas de cpu_set n'est pas transcrit).
+- `--timer-check 60` sur l'ami486 DX2/66, CMOS fabriqué : **66,663 MHz invités, −58,69 ppm**
+  (l'écart du 286 de M16) ; rapport invité / contractuel 1,000058 ; l'hôte tient le DX2/66 avec
+  une marge de 2,9 (28,3 MIPS invités).
+- Témoin `--boot` : « AMIBIOS (C)1993 », « Main Processor : 486DX or 487SX », « Numeric
+  Processor : Present », 3 072 Ko étendus. Sans CMOS fait pour lui (la référence de PCem), le POST
+  s'arrête sur « CMOS memory size mismatch » : c'est ce CMOS-là qui le dit, pas le C#.
+
+**La série** (parallèle, 82 minutes), comparée aux journaux de c673ca6 : **99 journaux sur 100
+identiques hors durées** — `cpu-config-check` élargi à l'ami486 (67 → 80 identiques, deux
+entrées sautées) — et les deux boot-diffs de l'ami486 nouveaux, verts. Selftest, check-oracle
+0 dérive (123 : `Models/ali1429.cs` entre au manifeste).

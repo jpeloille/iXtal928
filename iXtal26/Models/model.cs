@@ -209,12 +209,11 @@ internal static partial class model_c
         opti495.opti495_init();
     }
 
-    // pcem: model.c:502-505 — at_ali1429_init : at_init puis le chipset ALi 1429, qui entre
-    // en G6.3 (PLAN-G6.md). D'ici là, amorcer l'ami486 s'arrête en se nommant.
+    // pcem: model.c:502-505 — at_ali1429_init : at_init puis le chipset ALi 1429 (G6.3).
     internal static void at_ali1429_init()
     {
         at_init();
-        pc.fatal("not implemented: ali1429.c — le chipset de l'ami486 entre en G6.3 (PLAN-G6.md)\n");
+        ali1429.ali1429_init();
     }
 
     // pcem: model.c:452-455 — at_neat_init : at_init puis le chipset.

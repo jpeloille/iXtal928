@@ -243,6 +243,8 @@ void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. 
 void neat_init(void); /* neat.h — G3.0, le chipset de l'ami286. */
 void headland_init(void); /* headland.h — G3.1, le chipset de l'ami386. */
 void opti495_init(void); /* opti495.h — G3.2, le chipset de l'ami386dx. */
+void ali1429_init(void);  /* ali1429.h — G6.3, le chipset de l'ami486. */
+void ali1429_reset(void);
 
 /* intgatesize est le SEUL des sept globaux de C7a qu'aucun en-tete ne declare : c'est
  * un `int intgatesize;` nu a x86seg.c:32, sans extern nulle part dans l'arbre — les six
@@ -1277,6 +1279,9 @@ int h_boot(const char *romspath) {
                 /* G3.2 — at_opti495_init (model.c:492-495). */
                 if (romset == ROM_AMI386DX_OPTI495)
                         opti495_init();
+                /* G6.3 — at_ali1429_init (model.c:502-505). */
+                if (romset == ROM_AMI486)
+                        ali1429_init();
                 /* omitted: device_add(&gameport_device) — le port jeu n'est pas
                    lie, et le cote C# ne le transcrit pas. */
         } else {
@@ -1373,6 +1378,7 @@ int h_boot(const char *romspath) {
                 setpitclock(models[model]->cpu[cpu_manufacturer].cpus[cpu].rspeed);
         else
                 setpitclock(14318184.0);
+        ali1429_reset();             /* pc.c:191 — G6.3, sur toute machine comme le C */
 
         /* pc.c:397 — loadnvr(), ET ELLE MANQUAIT. Le harnais l'omettait, ce qui
          * laissait le CMOS a ZERO au lieu de la branche « pas de fichier » de
@@ -1398,6 +1404,7 @@ int h_boot(const char *romspath) {
         resetide();
 
         loadnvr();
+        ali1429_reset();             /* pc.c:403 — G6.3 */
 
         /* pc.c:407 — inerte (aucun cache n'est actif), transcrit des deux côtés pour que
          * cpu_update_waitstates() ne repose sur aucun zéro implicite. */
@@ -1421,6 +1428,7 @@ int h_boot(const char *romspath) {
         ins = 0;
         insc = 0;
         h_ins_count = 0;
+        ali1429_reset();             /* pc.c:317 — G6.3, la fin d'initpc */
         return 1;
 }
 

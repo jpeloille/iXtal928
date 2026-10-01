@@ -60,7 +60,7 @@ x87 intégré ; pm-fuzz et pm-check en 486.
 `0F 01 /7` (`x86_ops_pmode.h:447-458`), `mmu_invalidate` (`mem.c:349-352`), CR0.WP, la
 lecture de CR0 et SMSW (ET). **Porte** : page-check et pm-check en 486, contrôles négatifs.
 
-### G6.3 — L'ami486 : `ali1429.c` et la machine
+### G6.3 — L'ami486 : `ali1429.c` et la machine  ✅ *fait, VERIFICATION.md § G6.3*
 
 `ali1429.c` (ports 0x22/0x23, ombrage C0000-FFFFF par blocs de 32 Ko, registres 0x13/0x14),
 `ali1429_reset()` aux trois points de `pc.c` (`:191`, `:317`, `:403` — omis aujourd'hui,

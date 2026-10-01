@@ -156,6 +156,16 @@ internal static partial class mem_bios
                     f.Close();
                     return 1;
 
+            // pcem: mem_bios.c:569-576 — G6.3, l'AMI 486 (ALi 1429). Le `is486=1` y est commenté.
+            case pc.ROM_AMI486:
+                    f = romfopen("ami486/ami486.bin", "rb");
+                    if (f == null)
+                            break;
+                    romfread(rom, 0, 65536, 1, f);
+                    f.Close();
+                    // is486=1;
+                    return 1;
+
             // pcem: mem_bios.c:288-304 — L'IBM AT, ET SES DEUX ROM SONT ENTRELACÉES.
             //
             // Un AT a un bus de DONNÉES de seize bits, et IBM l'a câblé avec deux
