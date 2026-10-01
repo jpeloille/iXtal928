@@ -157,8 +157,23 @@ d'image par côté, comparée octet par octet).
 
 ### G8 — Le son  *(en dernier)*
 
-AdLib (OPL) puis Sound Blaster (`sound_sb.c`, `sound_sb_dsp.c`). **Réserve** :
-`sound_dbopl.cc` est du C++, il faut vérifier comment l'oracle le lie avant d'écrire. Le
+**La carte : la Sound Blaster Pro v2** (décision utilisateur du 02/10) — `sb_pro_v2_init`
+(`sound_sb.c:998`), `sb_pro_v2_device` (`:1345`). Elle porte :
+
+- l'**OPL3** (`opl3_init`, `sound_opl.c:130`), 18 voix en stéréo, aux ports 2x0-2x3, 2x8-2x9
+  et 388h-38Bh (`sound_sb.c:1017-1019`) : l'AdLib est couverte par la même puce ;
+- le **DSP SBPRO2** (`sb_dsp_init(…, SBPRO2, …)`, `sound_sb_dsp.c`), 8 bits stéréo ;
+- le **mélangeur CT1345** (`sb_ct1345_mixer_*`, ports 2x4-2x5, `:1020`).
+
+Configuration (`sb_pro_v2_config`, `:1230`) : adresse 220h ou 240h (défaut 220h), IRQ 2, 5, 7
+ou 10 (défaut 7), DMA 8 bits 1 ou 3 (défaut 1), émulateur OPL `opl_emu` (défaut DBOPL, ou
+NukedOPL — lequel transcrire, à trancher au plan de G8).
+
+L'**AdLib seule** (OPL2, `adlib_device`) est maintenue si elle ne coûte qu'un device de plus.
+Toujours ni AdLib Gold ni EMU8K ; les Sound Blaster 1.x, 2.0 et 16 ne sont pas visées.
+
+**Réserves.** L'OPL est du C++ — `sound_dbopl.cc` lie `src/dosbox/dbopl.cpp` et
+`src/dosbox/nukedopl.cpp` — : il faut vérifier comment l'oracle le lie avant d'écrire. Le
 diff d'instructions est aveugle au son : il faudra une sonde d'échantillons, comme en M9.
 
 ### Transverse, au fil de l'eau
