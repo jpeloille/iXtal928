@@ -276,6 +276,14 @@ internal static partial class video
         timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
     };
 
+    // pcem: video.c:99-100
+    internal static readonly VIDEO_CARD v_cl_gd5429 = new VIDEO_CARD
+    {
+        name = "Cirrus Logic CL-GD5429", internal_name = "cl_gd5429", device = vid_cl5429.gd5429_device, legacy_id = pc.GFX_CL_GD5429,
+        flags = VIDEO_FLAG_TYPE_SPECIAL,
+        timing = new video_timings_t { type = VIDEO_BUS, write_b = 4, write_w = 4, write_l = 8, read_b = 10, read_w = 10, read_l = 20 },
+    };
+
     // pcem: video.c:177-178
     internal static readonly VIDEO_CARD v_tvga8900d = new VIDEO_CARD
     {
@@ -303,15 +311,15 @@ internal static partial class video
     // pcem: plugin-api/device.c:17 et video.c:1301-1354 — le registre, rempli par
     // video_init_builtin dans l'ordre de ses pcem_add_video.
     //
-    // DEVIATION: quatre entrées au lieu des quarante-neuf que video_init_builtin enregistre
+    // DEVIATION: cinq entrées au lieu des quarante-neuf que video_init_builtin enregistre
     //   (cinquante pcem_add_video, dont v_pgc sous USE_EXPERIMENTAL_PGC), dans l'ordre RELATIF de PCem
-    //   (v_cga en :1312, v_tvga8900d en :1345, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
+    //   (v_cga en :1312, v_cl_gd5429 en :1314, v_tvga8900d en :1345, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
     //   (model.cs) plutôt que par pcem_add_video. Les INDICES diffèrent donc de ceux de
     //   PCem — v_cga y est à 10 — mais aucun indice ne sort de ce fichier : la
     //   configuration écrit l'internal_name, et gfxcard porte l'identifiant HÉRITÉ
     //   (GFX_*), que video_old_to_new traduit. La sentinelle NULL de fin de liste est
     //   la longueur du tableau.
-    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_tvga8900d, v_tvga9000b, v_vga };
+    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_cl_gd5429, v_tvga8900d, v_tvga9000b, v_vga };
 
     // pcem: video.c:215-223
     internal static int video_card_available(int card)

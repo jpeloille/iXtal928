@@ -1035,7 +1035,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des dix-neuf contrôles sont des non-régressions nées d'une relecture : la
+    /// Deux des vingt et un contrôles sont des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -1123,6 +1123,20 @@ internal sealed class SdlSetup
         }
         Check("la choisir pose gfxcard = GFX_TVGA", pc.gfxcard == pc.GFX_TVGA,
               $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
+        st._screen = Screen.Main;
+
+        // G7.1 — la Cirrus GD5429, 5429.vbi à la racine des ROM.
+        st.Activate(Item.Video);
+        int gd5429 = Array.IndexOf(st._pickValues, "cl_gd5429");
+        Check("la Cirrus GD5429 est proposée quand 5429.vbi est là", gd5429 >= 0,
+              $"{st._pickLabels.Length} carte(s) : {string.Join(",", st._pickValues)}");
+        if (gd5429 >= 0)
+        {
+            st._pickIndex = gd5429;
+            st.ApplyPick();
+        }
+        Check("la choisir pose gfxcard = GFX_CL_GD5429", pc.gfxcard == pc.GFX_CL_GD5429,
+              $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
         pc.gfxcard = gfxBefore;
         st._screen = Screen.Main;
 
@@ -1194,7 +1208,7 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les dix-neuf contrôles passent."
+            ? "Vert : les vingt et un contrôles passent."
             : $"{fail} contrôle(s) en échec.");
 
         return fail == 0 ? 0 : 1;

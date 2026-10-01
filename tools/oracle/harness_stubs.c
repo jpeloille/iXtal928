@@ -66,6 +66,7 @@
 #include "scsi_cd.h"
 #include "scsi_zip.h"
 
+#include "flash/rom.h"   /* G7.1 — rom_t, pour __wrap_rom_init */
 #include "harness.h"
 
 /* --- journal d'ecritures --------------------------------------------------
@@ -174,6 +175,37 @@ int romset = 0; /* ROM_IBMPC */
  * fonctions ; les trente-huit autres sont des données, que cpu.c fournit aux mêmes
  * valeurs — sauf cpu_busspeed et isa_cycles, que le vrai cpu_set() pose désormais. */
 void __wrap_cpu_set_edx(void) { }
+
+/* G7.1 — DÉVIATION DE L'ORACLE (pas d'iXtal26), même arbitrage que h_pad_ram et PB-24.
+ * rom_init (rom.c:60-62) alloue `size` par malloc et ignore le retour de fread : ce que le
+ * fichier ne fournit pas reste du TAS, lisible par l'invité. Pour la VGA d'IBM
+ * (vid_vga.c:107 : 32 Ko alloués, lus à partir de 0x2000 d'un fichier de 32 Ko), ce sont
+ * les 8 Ko de C6000-C7FFF — et le balayage des ROM d'extension du 5150 lit C600:0000. Le
+ * plus souvent du tas neuf, donc zéro ; une fois, mesuré en série, 8C 50 : boot-diff rouge.
+ * Le C# alloue un tableau CLR (rom.cs), donc zéro. On met ici la queue à zéro APRÈS le vrai
+ * rom_init : l'oracle cesse de tirer aux dés, le PCem vendoré reste intact. */
+extern int __real_rom_init(rom_t *rom, char *fn, uint32_t address, int size, int mask, int file_offset,
+                           uint32_t flags);
+int __wrap_rom_init(rom_t *rom, char *fn, uint32_t address, int size, int mask, int file_offset, uint32_t flags) {
+        long len, loaded;
+        FILE *f;
+        int ret = __real_rom_init(rom, fn, address, size, mask, file_offset, flags);
+
+        if (ret != 0)
+                return ret;
+        f = romfopen(fn, "rb");
+        if (!f)
+                return ret;
+        fseek(f, 0, SEEK_END);
+        len = ftell(f);
+        fclose(f);
+        loaded = len - file_offset;
+        if (loaded < 0)
+                loaded = 0;
+        if (loaded < size)
+                memset(rom->rom + loaded, 0, size - loaded);
+        return ret;
+}
 
 
 /* Cassette : pas de lecteur, l'entrée reste basse. */
@@ -477,6 +509,7 @@ static const h_video_card_t h_video_cards[] = {
         {GFX_CGA, VIDEO_FLAG_TYPE_CGA, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
         {GFX_TVGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 3, 3, 6, 8, 8, 12}},
         {GFX_TVGA9000B, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 7, 7, 12, 7, 7, 12}},
+        {GFX_CL_GD5429, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_BUS, 4, 4, 8, 10, 10, 20}},   /* G7.1, video.c:99-100 */
         {GFX_VGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
 };
 static const h_video_card_t *h_video_card(int card) {
@@ -1085,4 +1118,23 @@ void h_cpu_fingerprint(uint64_t *out) {
         out[i++] = (uint64_t)(int64_t)has_vlb;
         while (i < H_CPU_FP_N)
                 out[i++] = 0;
+}
+
+/* --- G7.1 : ce que vid_cl5429.c réclame du bus PCI et du MCA --------------------------
+ *
+ * Inatteignable sur les machines du dépôt : pci_add / pci_add_specific sous `PCI && type >=
+ * CL_TYPE_GD5430` (vid_cl5429.c:2022-2027), PCI valant 0 ; mca_add pour la seule IBM GD5428
+ * MCA (:2050), non montée. bus/pci.c et bus/mca.c ne sont pas liés : arrêt bruyant. */
+int pci_add(uint8_t (*read)(int func, int addr, void *priv), void (*write)(int func, int addr, uint8_t val, void *priv),
+            void *priv) {
+        fatal("pci_add : bus PCI non lie a l'oracle (G7)\n");
+        return -1;
+}
+void pci_add_specific(int card, uint8_t (*read)(int func, int addr, void *priv),
+                      void (*write)(int func, int addr, uint8_t val, void *priv), void *priv) {
+        fatal("pci_add_specific : bus PCI non lie a l'oracle (G7)\n");
+}
+void mca_add(uint8_t (*read)(int addr, void *priv), void (*write)(int addr, uint8_t val, void *priv), void (*reset)(void *priv),
+             void *priv) {
+        fatal("mca_add : bus MCA non lie a l'oracle (G7)\n");
 }

@@ -3010,7 +3010,10 @@ Parti de la demande *« ajoute le nécessaire pour avoir du VGA »*. PCem porte 
 trois fichiers : `vid_vga.c` (170 lignes), la carte elle-même, et le socle générique de toutes
 ses SVGA, `vid_svga.c` (1 682) et `vid_svga_render.c` (916). La ROM est au dépôt :
 `roms/ibm_vga.bin`, 32 Ko dont PCem mappe 24 Ko en C0000 à partir de l'offset 0x2000 — et
-l'en-tête déclare exactement 48 × 512 octets, donc le balayage des ROM ne lit rien au-delà.
+l'en-tête déclare exactement 48 × 512 octets. *Corrigé en G7.1 :* « donc le balayage des ROM
+ne lit rien au-delà » était FAUX. L'allocation fait 32 Ko, les 8 derniers (C6000-C7FFF) sont
+du tas, et le balayage du 5150 lit C600:0000, le bloc qui suit les 24 Ko déclarés. PB-24
+élargi, § G7.0 (le rouge) et § G7.1 (le correctif de l'oracle).
 
 ### L'ordre : l'oracle d'abord (`4f56525`)
 
@@ -4737,3 +4740,57 @@ divergence déterministe sur l'instantané G7.0 (même instruction, oracle AAAA)
 ni l'oracle, ni `rom.c`, ni `vid_vga.c` : le défaut date de M15. Correction en G7.1 (une
 enveloppe de `rom_init` dans l'oracle, PB-24 élargi). Commit sur ce constat, accord du pair :
 on ne rejoue pas une série aux dés.
+
+## G7.1 — La Cirrus Logic GD5429 ; la ROM VGA de l'oracle ; PB-81, PB-82
+
+Le 1er octobre 2026, sur 62c401e. Plan : `PLAN-G7.md` § G7.1 (décision n° 1 : la GD5429 seule).
+
+**Transcrit.** `vid_cl5429.c` pour `gd5429_device` (`Video/vid_cl5429.cs`) : `gd5429_t`, les
+ports (séquenceur et GDC étendus, DAC caché par 3C6), les deux banques (GR9/GRA), les fenêtres
+— banque, linéaire, MMIO en B8000 —, `gd5429_recalctimings`, le curseur matériel, les modes
+d'écriture étendus 4 et 5, les verrous de 8 octets, l'adressage X8, le blitter, `cl_init` ;
+`mem_mapping_set_handler` (`mem.c:1177-1190`). Omis : MCA, PCI, les dix autres cartes de la
+famille. Le registre `VIDEO_CARD` gagne `v_cl_gd5429` (`video.c:99-100`, temps VLB 4/4/8,
+10/10/20), `pc.GFX_CL_GD5429` = 19, et l'écran de construction la propose (deux contrôles de
+`--setup-check`, vingt et un en tout).
+
+**L'oracle.** `harness_cl5429.c` inclut `vid_cl5429.c` (la `gd5429_t` est privée), sur le patron
+de `harness_tvga.c` ; `h_boot` monte `gd5429_device` ; souches fatales `pci_add`,
+`pci_add_specific`, `mca_add`. **La sonde VGA passe de 86 à 102 champs** : seize de la carte —
+type, banques, masques, DAC caché, `lfb_base`, `mmio_vram_overlap`, SR10/SR11, verrous
+étendus — et le curseur matériel. ABI 30. Contrôle négatif, retiré : `type` faussé d'une unité
+côté C# → « gd5429.type oracle 3 | C# 4 », la sonde voit bien la carte.
+
+**Les boot-diffs** (`--gfxcard cl_gd5429`) :
+
+| Machine | Tranches | Instructions | Sonde |
+|---|---:|---:|---|
+| ami486, i486DX2/66 (VLB) | 3 000 | 5 462 861 | 102 identiques |
+| ami486, POST complet | 40 000 | 73 130 516 | 102 identiques |
+| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 5 285 528 | 102 identiques |
+| ami486, DOS sur IDE, `VER` et `DIR` | 100 000 | 183 847 196 | 102 identiques |
+
+**PB-80, le jumeau.** `gd5429_read_linear` sort sans charger les verrous en chain4 compact
+(`vid_cl5429.c:1183-1187`), et la forme par banque y passe : reproduit, marqué.
+
+**R9 : PB-81 et PB-82, non reproduits.** La lecture du motif du blitter ajoute jusqu'à 127
+octets APRÈS le masque de la source (`:1415-1424`) ; les modes 4 et 5 sans X8 écrivent jusqu'à
+`addr + 7` sur une adresse alignée sur 4 (`:851-871`, `:911-931`). Hors du tableau `vram` :
+lecture ou écriture du tas en C, exception en C#. Index masqués par `vram_mask`, DEVIATION.
+**`r9-cl5429`** (C# seul) : BitBLT en motif, source 1FFFF8, 8 et 16 bpp ; modes 4 et 5,
+GRB = 04, écriture au dernier mot de la VRAM — quatre survies. Contrôle négatif, retiré : sans
+les gardes, quatre `IndexOutOfRangeException`.
+
+**La ROM VGA de l'oracle** (le rouge de § G7.0). `__wrap_rom_init` (`harness_stubs.c`,
+`WRAP_BOTH`) met à zéro ce que le fichier ROM n'a pas fourni : la VGA d'IBM (8 Ko en
+C6000-C7FFF), le Xebec et le DTC de PB-24. Avant : `MALLOC_PERTURB_=85` fait diverger
+`bd-pcdos-vga` à l'instruction 1 078 553 (oracle AAAA) ; après : vert. PB-24 élargi, note de
+M15 corrigée.
+
+**La série**, sur un instantané de G7.1, **sous `MALLOC_PERTURB_=85`** (chaque `malloc` de
+l'oracle rendu plein d'un motif non nul : une dépendance au tas y devient un rouge certain),
+comparée à g70 par nom, durées ôtées : 110 portes, **toutes vertes**. Les 105 anciennes sont
+identiques à g70, à deux écarts attendus près : l'ABI (29 → 30) et la sonde (« 86 champs » →
+« 102 champs »). `bd-pcdos-vga`, rouge en g70, est verte. Les cinq nouvelles portes sont vertes
+(les quatre boot-diffs du tableau, `r9-cl5429`). Aucune autre dépendance au tas : la ROM VGA
+était la seule. Build 0 avertissement, selftest, check-oracle 0 dérive.

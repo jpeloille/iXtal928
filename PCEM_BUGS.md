@@ -806,6 +806,41 @@ linéaire, recopie les verrous d'une lecture antérieure, pas ceux de l'octet lu
 *Trouvé par* : diff des deux formes, G7.0.
 *Reproduit* : `Video/vid_svga.cs`, `svga_read_linear`, marqueur PB-80. Atteint par les cartes
 de G7 (la VGA d'IBM ne pose ni `packed_chain4` ni `fb_only`).
+*G7.1* : la GD5429 porte le même défaut dans sa propre lecture, `gd5429_read_linear`
+(`vid_cl5429.c:1183-1187`), et sa forme par banque, `gd5429_read` (`:741-748`), y passe aussi :
+chez elle, ni la banque ni la fenêtre linéaire ne chargent les verrous en chain4 compact.
+Reproduit, `Video/vid_cl5429.cs`, même marqueur.
+
+### PB-81 — La lecture du motif du blitter de la GD5429 sort de la VRAM
+
+`vid_cl5429.c:1415-1424`, `gd5429_start_blit`, source en motif (`blt.mode & 0xc0` = 0x40) :
+l'adresse source est masquée PUIS augmentée de `y_count << 3` + `x_count & 7` (jusqu'à 63 en
+8 bpp, 127 en 16 ; le cas 32 bpp, 255, n'est pas atteignable sur la GD5429, dont la profondeur
+tient en un bit, `:1710-1713`). Une source programmée dans les derniers octets de la VRAM fait
+lire au-delà du tableau `svga->vram`.
+*Effet* : comportement indéfini — lecture du tas après la VRAM ; en C#, une exception qui
+abattrait l'hôte. Le silicium reboucle sur sa mémoire.
+*Trouvé par* : relecture de la transcription, G7.1.
+*NON reproduit* (R9) : `Video/vid_cl5429.cs`, marqueur `pcem bug, not reproduced: PB-81`,
+`DEVIATION` — l'index complet est masqué une seconde fois par `vram_mask`. Identique à PCem
+tant que la source ne touche pas le haut de la VRAM ; l'oracle n'y est pas conduit.
+`iXtal26.Diff r9-cl5429` (C# seul) : BitBLT en motif, source en 1FFFF8, 8 et 16 bpp — survit ;
+sans la garde, `IndexOutOfRangeException` (mesuré).
+
+### PB-82 — Les modes d'écriture 4 et 5 de la GD5429 écrivent après la VRAM
+
+`vid_cl5429.c:851-871` (mode 4) et `:911-931` (mode 5), branches sans « 16 bits étendus » :
+huit octets sont écrits de `addr + 0` à `addr + 7` après un seul masquage par `vram_mask`
+(`:809`). Avec l'adressage X8 l'adresse est alignée sur 8 ; sans lui (`GRB_WRITEMODE_EXT`
+seul), elle ne l'est que sur 4 (`addr <<= 2`, `:804`), voire pas du tout en chain4 (`:795`).
+*Effet* : comportement indéfini — jusqu'à sept octets écrits dans le tas après la VRAM ; en
+C#, une exception qui abattrait l'hôte.
+*Trouvé par* : relecture de la transcription, G7.1.
+*NON reproduit* (R9) : `Video/vid_cl5429.cs`, marqueurs `pcem bug, not reproduced: PB-82`,
+`DEVIATION` — chaque octet des deux branches est masqué par `vram_mask`. Les branches 16 bits
+(adresse alignée sur 16) sont inchangées. L'oracle n'y est pas conduit. `r9-cl5429` : modes 4
+et 5, GRB = 04, écriture au dernier mot de la VRAM — survit ; sans la garde,
+`IndexOutOfRangeException` (mesuré).
 
 ## B. Comportement indéfini en C
 
@@ -968,6 +1003,15 @@ un accès explicite de l'invité au-delà pour voir le tas.
 **zéro**. Ce n'est pas un comportement dont être le pendant fidèle : c'est de l'UB, et
 trois exécutions donnent trois valeurs. Même arbitrage que `h_pad_ram` — un oracle qui
 tire aux dés n'est pas un oracle. Voir le registre des omissions de `TRANSCRIPTION.md`.
+*G7.1 — un troisième appel, qui mordait.* `vid_vga.c:107` : `rom_init(…, 0x8000, 0x7fff,
+0x2000, …)` sur `ibm_vga.bin`, 32 Ko lus À PARTIR de 0x2000 — 24 Ko chargés, **8 Ko de tas**
+en C6000-C7FFF. Ici l'en-tête n'atténue rien : le balayage des ROM d'extension du 5150 lit
+C600:0000, juste après les 24 Ko déclarés. Le tas y est le plus souvent nul ; une fois, en
+série (G7.0, `bd-pcdos-vga`), il valait 8C 50 — divergence à l'instruction 1 078 553.
+`MALLOC_PERTURB_=85` la rend déterministe (oracle AAAA, C# 0000). L'oracle enveloppe
+désormais `rom_init` (`--wrap`, `harness_stubs.c`) et met à zéro ce que le fichier n'a pas
+fourni : les trois appels — Xebec, DTC, VGA — sont déterministes et égaux au C#. Le PCem
+vendoré reste intact ; l'arbitrage est inchangé, il est seulement appliqué AUSSI à l'oracle.
 
 
 ### PB-31 — `cga_close` libère un `mem_mapping_t` encore chaîné, et `closepc()` le traverse
@@ -1527,9 +1571,10 @@ audit systématique de PCem** :
 | Inventaire de la règle R9 (l'invité ne tue pas l'hôte) | PB-75, PB-76 |
 | Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77 à PB-79 |
 | Transcription de la fenêtre linéaire SVGA (G7.0) | PB-80 |
+| Transcription de la GD5429 (G7.1) | PB-81, PB-82 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les
+lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident et la GD5429, les
 cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :

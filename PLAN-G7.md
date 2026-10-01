@@ -34,7 +34,7 @@ Aucune des cartes CL ni S3 n'est `DEVICE_PCI` : toutes se montent sur l'ami486.
 existante ne les atteint : la porte est l'identité de toutes les séries, plus un banc dirigé
 (écritures par la fenêtre, comparées à l'oracle).
 
-### G7.1 — Cirrus Logic GD5429
+### G7.1 — Cirrus Logic GD5429  ✅ *fait, VERIFICATION.md § G7.1 ; PB-81, PB-82*
 
 `vid_cl5429.c` pour la GD5429 seule (décision n° 1), banques, chemin étendu, fenêtre linéaire,
 curseur, rendus ; l'oracle l'inclut dans un `harness_cl5429.c` (patron de `harness_tvga.c` : le
@@ -50,7 +50,8 @@ avec un pilote Cirrus si l'image en porte un (décision n° 4).
 
 ### G7.3 — S3 (selon la décision n° 2)
 
-`vid_s3.c` pour la carte retenue, l'accélérateur rendu SYNCHRONE des deux côtés (décision n° 3),
+`vid_s3.c` pour la carte retenue, l'accélérateur rendu SYNCHRONE des deux côtés (décision n° 3,
+utilisateur, 01/10),
 `pci_clear_irq(-1)` sous R9 ou reproduit selon ce qu'il fait réellement (à mesurer d'abord).
 **Porte** : boot-diff, sonde, banc d'accélération dirigé.
 
@@ -86,7 +87,12 @@ existe un sur les disques, Windows 3.1 en 640 × 480 × 256 et plus.
    de frais (GD5428, GD5426 PS/1, AVGA2) ?
 2. **S3** : quelle carte ? *(proposé : la Trio64 Phoenix, `86c764x1.bin`, 1/2/4 Mo — la plus
    courante en VLB/PCI de la période ; la Vision864 tire en plus le SDAC)*
-3. **L'accélérateur S3 synchrone** des deux côtés, en DEVIATION inscrite ? *(proposé : oui)*
+3. **L'accélérateur S3 synchrone** des deux côtés, en DEVIATION inscrite — **décision
+   utilisateur du 01/10 : oui**, option (a). Oracle : `harness_s3.c`, souche de
+   `thread_create`, `--wrap` de `thread_set_event` qui vide la FIFO par la boucle de
+   `fifo_thread` recopiée ; le PCem vendoré reste intact. C# : la même chose. DEVIATION
+   inscrite des deux côtés, qui nomme l'effet observable : la carte n'est jamais « occupée »
+   et la FIFO ne se remplit jamais. G7.3 débloqué.
 4. **Pilotes Windows** : les images de l'utilisateur portent-elles un pilote Cirrus ou S3 ? Sinon,
    le témoin Windows reste en VGA, et le banc dirigé fait foi.
 5. **Profils Rider** : la GD5429 sur le profil ami486 (proposé), la carte S3 sur un second profil ?

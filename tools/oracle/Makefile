@@ -45,6 +45,7 @@ SRC := harness.c \
        harness_fetch.c \
        harness_386.c \
        harness_tvga.c \
+       harness_cl5429.c \
        harness_x87.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
@@ -122,7 +123,9 @@ LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 # M16, étape 6 : cpu_update_waitstates SORT à son tour — models[] est peuplé par h_boot
 # et h_reset, et le vrai remet le préfetch au coût de la RAM à chaque reset, comme PCem.
 # Reste cpu_set_edx, DEVIATION déclarée des deux côtés.
-WRAP_BOTH := cpu_set_edx
+# G7.1 : rom_init, qui met à zéro la queue d'une ROM plus courte que son allocation (le
+# tas que PCem y laisse, PB-24 ; la VGA d'IBM en C6000-C7FFF). Voir harness_stubs.c.
+WRAP_BOTH := cpu_set_edx rom_init
 WRAPFLAGS_BOTH := $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP_BOTH))
 LDFLAGS += $(WRAPFLAGS_BOTH)
 

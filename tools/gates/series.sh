@@ -120,3 +120,10 @@ run x87-pm-fuzz-486 pm-fuzz --core 486 --fpu 387 --iter 20000 --op D8 --op D9 --
 run r9-mmu r9-mmu
 # G7.0 — la fenêtre linéaire du socle SVGA, appelée des deux côtés sur une VGA amorcée.
 run svga-linear-check svga-linear-check --iter 50000
+# G7.1 — la Cirrus GD5429 : ami486 (VLB) jusqu'au bout du POST puis DOS sur IDE, ami386dx
+# (ISA, has_vlb = 0) ; R9 : la survie aux index hors VRAM (PB-81, PB-82), C# seul.
+run bd-ami486-gd5429 boot-diff roms 3000 --config $C/ami486-dx2.cfg --gfxcard cl_gd5429
+run bd-ami486-gd5429-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxcard cl_gd5429
+run bd-ami386dx-gd5429 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard cl_gd5429
+runw bd-ami486-gd5429-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 --type "VER" --type "DIR"
+run r9-cl5429 r9-cl5429

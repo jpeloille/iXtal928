@@ -1279,6 +1279,21 @@ internal static partial class mem
         mem_mapping_recalc(mapping.@base, mapping.size);
     }
 
+    // pcem: mem.c:1177-1190 — G7.1, pour la GD5429 (cl_init et le blitter).
+    internal static void mem_mapping_set_handler(mem_mapping_t mapping, mem_read_b_fn? read_b, mem_read_w_fn? read_w,
+                                                 mem_read_l_fn? read_l, mem_write_b_fn? write_b,
+                                                 mem_write_w_fn? write_w, mem_write_l_fn? write_l)
+    {
+        mapping.read_b = read_b;
+        mapping.read_w = read_w;
+        mapping.read_l = read_l;
+        mapping.write_b = write_b;
+        mapping.write_w = write_w;
+        mapping.write_l = write_l;
+
+        mem_mapping_recalc(mapping.@base, mapping.size);
+    }
+
     // pcem: mem.c:1192-1203
     internal static void mem_mapping_set_addr(mem_mapping_t mapping, uint32_t @base, uint32_t size)
     {

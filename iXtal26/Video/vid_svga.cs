@@ -2125,6 +2125,7 @@ internal static partial class vid_svga
         o[f++] = (uint64_t)(long)svga.lowres;
         o[f++] = (uint64_t)(long)svga.hdisp_time;
         o[f++] = BitConverter.DoubleToUInt64Bits(svga.clock);
+        var cl = f + 11;
         // Les onze champs de la Trident : sa tvga_t et son RAMDAC. Zéro pour une autre
         // carte — svga.p n'est une tvga_t que si la carte en est une.
         if (svga.p is tvga_t tvga)
@@ -2140,6 +2141,29 @@ internal static partial class vid_svga
                 o[f++] = tvga.vram_mask;
                 o[f++] = (uint64_t)(long)tvga.ramdac.state;
                 o[f++] = tvga.ramdac.ctrl;
+        }
+        // G7.1 — les seize champs de la GD5429 (h_cl5429_probe), après les onze de la
+        // Trident ; zéro pour une autre carte.
+        if (svga.p is gd5429_t gd5429)
+        {
+                f = cl;
+                o[f++] = (uint64_t)(long)gd5429.type;
+                o[f++] = gd5429.bank[0];
+                o[f++] = gd5429.bank[1];
+                o[f++] = gd5429.mask;
+                o[f++] = gd5429.vram_mask;
+                o[f++] = gd5429.hidden_dac_reg;
+                o[f++] = (uint64_t)(long)gd5429.dac_3c6_count;
+                o[f++] = gd5429.lfb_base;
+                o[f++] = (uint64_t)(long)gd5429.mmio_vram_overlap;
+                o[f++] = gd5429.sr10_read;
+                o[f++] = gd5429.sr11_read;
+                o[f++] = gd5429.latch_ext[0] | ((uint64_t)gd5429.latch_ext[1] << 8) |
+                         ((uint64_t)gd5429.latch_ext[2] << 16) | ((uint64_t)gd5429.latch_ext[3] << 24);
+                o[f++] = (uint64_t)(long)svga.hwcursor.ena;
+                o[f++] = (uint64_t)(long)svga.hwcursor.x;
+                o[f++] = (uint64_t)(long)svga.hwcursor.y;
+                o[f++] = svga.hwcursor.addr;
         }
     }
 

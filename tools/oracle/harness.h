@@ -553,7 +553,7 @@ void h_set_gfxcard(int g);
 /* Sonde VGA — H_VGA_PROBE_N champs dans l'ordre de Video.vid_svga.Probe() côté C#.
  * Tout à zéro sans carte svga. Hachages FNV-1a pour les tableaux (VRAM, registres,
  * palettes, buffer32), valeurs brutes pour les scalaires. */
-#define H_VGA_PROBE_N 86   /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 */
+#define H_VGA_PROBE_N 102  /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 ; +16 de la GD5429 à G7.1 */
 void h_vga_probe(uint64_t *out);
 
 /* M21 — injecte un mouvement de souris (mickeys x, y, z, boutons), pendant de mouse_poll. */
@@ -667,7 +667,8 @@ uint8_t *h_ram(void);
  * (mfm_at.c, enfin lié) — changement PAR LE COMPORTEMENT : un .so périmé accepterait le nom
  * et ne monterait rien. h_state ne change pas. */
 /* 29 depuis G6.0 : h_set_core accepte H_CORE_486 (l'ami486, cpus_i486 seule). */
-#define H_ABI_VERSION 29
+/* 30 depuis G7.1 : la GD5429 (gfxcard 19), et la sonde VGA passe de 86 à 102 champs. */
+#define H_ABI_VERSION 30
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

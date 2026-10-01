@@ -313,7 +313,9 @@ void h_mouse_poll(int x, int y, int z, int b) {
 /* M19 — les deux Trident (vid_tvga.h), compilées par harness_tvga.c qui inclut
  * vid_tvga.c pour en lire la tvga_t privée. */
 #include "vid_tvga.h"
+#include "vid_cl5429.h"   /* G7.1 — gd5429_device, compilée par harness_cl5429.c */
 void h_tvga_probe(svga_t *svga, uint64_t *out);
+void h_cl5429_probe(svga_t *svga, uint64_t *out); /* harness_cl5429.c, G7.1 */
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1306,7 +1308,7 @@ int h_boot(const char *romspath) {
          * video_cards[video_old_to_new(gfxcard)]->device designe (video.c:96, :191).
          * Les deux cotes ajoutent donc la MEME carte de la MEME facon -- ce qui est
          * tout ce que l'oracle doit garantir. */
-        if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B) {
+        if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B || gfxcard == GFX_CL_GD5429) {
                 svga_t *svga;
 
                 /* M19 : les deux Trident, video.c:177-181. */
@@ -1314,6 +1316,9 @@ int h_boot(const char *romspath) {
                         device_add(&tvga8900d_device);
                 else if (gfxcard == GFX_TVGA9000B)
                         device_add(&tvga9000b_device);
+                /* G7.1 — video.c:99-100, la GD5429. */
+                else if (gfxcard == GFX_CL_GD5429)
+                        device_add(&gd5429_device);
                 else
                         device_add(&vga_device);
                 /* DEVIATION de l'ORACLE (pas d'iXtal26) : svga_init alloue la VRAM et
@@ -1643,6 +1648,7 @@ void h_vga_probe(uint64_t *out) {
         out[f++] = (uint64_t)(int64_t)svga->hdisp_time;
         memcpy(&out[f++], &svga->clock, sizeof(uint64_t));
         h_tvga_probe(svga, &out[f]);
+        h_cl5429_probe(svga, &out[f + 11]);   /* G7.1 */
 }
 
 /* Pointeur direct sur la VRAM de l'oracle, NULL sans carte svga : la sonde VGA y lit

@@ -42,6 +42,11 @@ public static class VgaProbe
         "ma_latch", "interlace", "lowres", "hdisp_time", "clock(bits)",
         "tvga.id", "tvga.oldmode", "tvga.3d8", "tvga.3d9", "tvga.oldctrl1", "tvga.oldctrl2",
         "tvga.newctrl2", "tvga.vram_size", "tvga.vram_mask", "ramdac.state", "ramdac.ctrl",
+        // G7.1 — la gd5429_t, puis le curseur matériel.
+        "gd5429.type", "gd5429.bank[0]", "gd5429.bank[1]", "gd5429.mask", "gd5429.vram_mask",
+        "gd5429.hidden_dac_reg", "gd5429.dac_3c6_count", "gd5429.lfb_base",
+        "gd5429.mmio_vram_overlap", "gd5429.sr10_read", "gd5429.sr11_read", "gd5429.latch_ext",
+        "hwcursor.ena", "hwcursor.x", "hwcursor.y", "hwcursor.addr",
     ];
 
     // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du
@@ -51,6 +56,7 @@ public static class VgaProbe
         "vga" => Oracle.GFX_VGA,
         "tvga8900d" => Oracle.GFX_TVGA,
         "tvga9000b" => Oracle.GFX_TVGA9000B,
+        "cl_gd5429" => Oracle.GFX_CL_GD5429,
         _ => -1,
     };
 
