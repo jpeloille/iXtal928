@@ -4551,3 +4551,25 @@ reporté à G6, où la machine entre.
 Aucun code ne change à G5.3 (une séquence de frappe et des documents) : l'état est celui de
 2053035, dont la série est verte. Les témoins ont tourné sur le binaire de G5.2 ; R9 ne touche
 aucun chemin qu'ils empruntent.
+
+## Outillage des séries — `tools/gates/`, la recette de /tmp/g5w
+
+Le 1er octobre 2026, sur 5909349. La liste des portes (`series.sh`, ordre canonique, sans les
+anciennes gardes « depuis quelle étape »), le lanceur parallèle (`par.sh`, `REPO` et `WORK`
+paramétrés, plus rien de `/tmp` en dur) et les configurations des portes (`cfg/`) entrent au
+dépôt, avec la RECETTE de l'espace des portes disque (`g5w-recipe.sh`, `fatpatch.py`) et ses
+empreintes (`g5w.sha256`) — pas les images, qui restent dans `os/`.
+
+**Une référence refaite.** L'ancien /tmp/g5w n'était pas reproductible : sa copie de C:
+descendait d'une copie que les témoins Windows de G4.7 avaient écrite. La recette repart de
+`os/286-HDD-C.img` et `os/386-HDD-C.img` ; deux fabrications donnent les mêmes empreintes. La
+série de preuve (parallèle, 62 minutes) : **81 journaux identiques** à ceux de 2053035 (aux
+chemins des configurations près, `/tmp/g4/` devenu `tools/gates/cfg/`), mêmes codes de retour
+dans le même ordre ; les quatre portes qui amorcent C: restent vertes avec un autre contenu
+écrit — MD/COPY 2 527 octets au lieu de 2 552 (ami286, mfm_at et ide), ide-check 885 au lieu
+de 889, ami386dx 181 109 674 instructions au lieu de 181 109 300 et 7 920 octets au lieu de
+7 589. Ce sont désormais les références.
+
+TRANSCRIPTION.md revient sous son plafond (215 lignes pour 240) : l'historique de R3 va dans
+`iXtal26/Docs/doctrine-historique.md`, les « Faits vérifiés » dans
+`iXtal26/Docs/faits-verifies.md`, inchangés ; aucune règle ne quitte le fichier.

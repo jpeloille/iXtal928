@@ -1,0 +1,15 @@
+model = ami286
+cpu = 4
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 2
+gfxcard = tvga8900d
+hdd_controller = ide
+hdc_cylinders = 1224
+hdc_heads = 15
+hdc_sectors = 17
+hdc_fn = @WORK@/c286.img
+hde_cylinders = 1224
+hde_heads = 15
+hde_sectors = 17
+hde_fn = @WORK@/vierge46.img

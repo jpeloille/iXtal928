@@ -42,23 +42,13 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 240 lignes — 200 jusqu'à M6.1,
-  puis 220, puis 225 à M12 pour payer les cinq entrées du disque dur au registre des
-  omissions : une famille de périphériques entière y entrait d'un coup. **Puis 240 au
-  jalon 286**, et pour la même raison qu'à M12 : `x86seg.c` entre d'un bloc au bloc C —
-  deux mille lignes vives, dont `loadcsjmp`, `loadcscall`, `pmoderetf`, `pmodeint`,
-  `pmodeiret` et `taskswitch286` — et le mode protégé est le premier domaine de ce dépôt
-  dont **le seul oracle est PCem lui-même**, sans SingleStepTests ni amorçage
-  indépendant pour le départager. Ce qu'on y omet doit donc être écrit plus
-  précisément, pas moins : une omission qu'aucun oracle ne peut contredire ne tient que
-  par sa justification. Le fichier était à 225/225 exactement quand B1b s'est terminé,
-  et B3 n'avait plus une ligne. Le relèvement
-  s'inscrit ici, à chaque fois : un plafond qui bouge sans trace ne plafonne plus. Deux registres de
-  **constats** en sont exemptés, parce que le plafond vise la prose de conception et pas
-  les faits mesurés : `VERIFICATION.md` (ce que les oracles ont montré) et
-  `PCEM_BUGS.md` (les défauts trouvés dans PCem lui-même, identifiants `PB-nn`, cités
-  par les marqueurs `// pcem bug, reproduced:` du code). Les données volumineuses vont
-  dans des fichiers générés (`sst-baseline.tsv`, `oracle.tsv`), jamais ici.
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 240 lignes. Un relèvement
+  s'inscrit, avec sa raison : un plafond qui bouge sans trace ne plafonne plus (historique :
+  `iXtal26/Docs/doctrine-historique.md`). Exemptés, parce que ce sont des **constats** et non
+  de la prose de conception : `VERIFICATION.md` (ce que les oracles ont montré) et
+  `PCEM_BUGS.md` (les défauts de PCem, `PB-nn`, cités par les marqueurs `// pcem bug, …` du
+  code). Les données volumineuses vont dans des fichiers générés (`sst-baseline.tsv`,
+  `oracle.tsv`), jamais ici.
 - **R4 — zéro abstraction.** Pas d'`interface`, `abstract class`, générique, LINQ,
   `record`, `async`, DI, méthode d'extension. Le C du palier (a) n'en contient aucun.
   Les sept C#-ismes autorisés sont une liste close :
@@ -221,31 +211,5 @@ optimisation) · `nextcyc` (porté d'une itération de boucle à l'autre).
 
 ## Faits vérifiés qui contredisent l'intuition
 
-Chacun a été vérifié dans l'arbre, pas déduit.
-
-1. **`808x.c` n'utilise ni `_mem_exec` ni `getpccache`** (`grep -c` → 0). Il passe par
-   `readlookup2`/`writelookup2`, granularité **4 Ko**, sentinelle `-1`. Et
-   `addreadlookup` facture **`cycles -= 9`** (`mem.c:378`).
-2. **`memcycs` n'est pas uniforme.** Lecture : `if (a != (cs + cpu_state.pc)) memcycs += 4;`
-   (`:62`). `readmembf`, la variante de préfetch, ne facture **rien** (`:69-75`). Écriture :
-   inconditionnel (`:98`). Mots : `+= (8 >> is8086)`, même garde.
-3. **`execx86` n'est pas borné par `timer_target`** (contrairement à `exec386`, `386.c:163`).
-   C'est `cycles += cycs; while (cycles > 0)` (`:1222`), avec `clockhardware()` appelé par
-   instruction (`:3939`) et six fois dans `rep()`. TSC en virgule fixe 32:32 :
-   `tsc_frac += (uint64_t)diff * xt_cpu_multi` (`:893-904`).
-4. **`setpitclock` écrit onze globales**, pas neuf (`pit.c:37-59`), puis diffuse
-   `video_updatetiming()` et `device_speed_changed()`. C'est le domaine d'horloge partagé,
-   et c'est ce qui interdit un refactor « struct d'instance ».
-5. **Les décalages par CL sont des boucles par comptage** (`:2984, 3138`), pas des
-   décalages larges — donc pas de divergence C-UB / masquage C#. Ça reviendra au palier (b).
-6. **La sémantique multi-thread de PCem sous Linux n'existe pas.** `thread_reset_event`
-   est vide (`thread-pthread.c:46`), `thread_wait_event` n'a pas de boucle de prédicat.
-   Le handshake de `video.c:1132-1144` dégénère en attente active sur un `int` non
-   atomique. Il n'y a pas de fidélité à préserver : iXtal26 est mono-thread.
-7. **Une propriété `ref` n'est un `#define` qu'en deçà de ~922 locales par méthode.**
-   RyuJIT refuse *tout* inlining — `AggressiveInlining` compris — dès que
-   `lvaCount ≥ 0,9 × JitMaxLocalsToTrack` (`fginline.cpp`), et les temporaires du switch
-   de `execx86` (un par `x -= n` sur un byref) y arrivent avant le premier candidat :
-   1 507 `call` dans le Tier1, dont 898 vers des accesseurs d'une ligne. D'où la 7e
-   entrée de R4. `JitDisasmSummary` ne le montre pas (« Tier1 »), seul `JitDisasm` le
-   montre ; la porte G2 n'avait vérifié que la compilation. VERIFICATION.md § M5.
+Déplacés le 1er octobre 2026 dans `iXtal26/Docs/faits-verifies.md` — des constats, pas des
+règles (R3).
