@@ -131,3 +131,13 @@ run r9-cl5429 r9-cl5429
 mapfile -t BLK < tools/bltbanc/bltbanc.keys
 BL=(); for l in "${BLK[@]}"; do BL+=(--type "$l"); done
 runw bd-ami486-gd5429-blt c486.nvr ami486 boot-diff roms 60000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 --type-settle 600 "${BL[@]}" --type "^" --type "^" --type "^"
+# G7.3 — la S3 Trio64 Phoenix, accélérateur synchrone (décision n° 3) : ami486 jusqu'au POST
+# puis DOS sur IDE, ami386dx ; le banc S3BANC ; R9 : PB-84 à PB-86, C# seul.
+run bd-ami486-trio64 boot-diff roms 3000 --config $C/ami486-dx2.cfg --gfxcard px_trio64
+run bd-ami486-trio64-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxcard px_trio64
+run bd-ami386dx-trio64 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard px_trio64
+runw bd-ami486-trio64-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard px_trio64 --type-at 60000 --type "VER" --type "DIR"
+mapfile -t S3K < tools/s3banc/s3banc.keys
+S3B=(); for l in "${S3K[@]}"; do S3B+=(--type "$l"); done
+runw bd-ami486-trio64-accel c486.nvr ami486 boot-diff roms 60000 --config ami486-ide.cfg --gfxcard px_trio64 --type-at 60000 --type-settle 600 "${S3B[@]}" --type "^" --type "^" --type "^"
+run r9-s3 r9-s3

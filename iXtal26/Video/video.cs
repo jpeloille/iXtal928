@@ -284,6 +284,14 @@ internal static partial class video
         timing = new video_timings_t { type = VIDEO_BUS, write_b = 4, write_w = 4, write_l = 8, read_b = 10, read_w = 10, read_l = 20 },
     };
 
+    // pcem: video.c:164-166
+    internal static readonly VIDEO_CARD v_px_trio64 = new VIDEO_CARD
+    {
+        name = "Phoenix S3 Trio64", internal_name = "px_trio64", device = vid_s3.s3_phoenix_trio64_device, legacy_id = pc.GFX_PHOENIX_TRIO64,
+        flags = VIDEO_FLAG_TYPE_SPECIAL,
+        timing = new video_timings_t { type = VIDEO_BUS, write_b = 3, write_w = 2, write_l = 4, read_b = 25, read_w = 25, read_l = 40 },
+    };
+
     // pcem: video.c:177-178
     internal static readonly VIDEO_CARD v_tvga8900d = new VIDEO_CARD
     {
@@ -311,15 +319,15 @@ internal static partial class video
     // pcem: plugin-api/device.c:17 et video.c:1301-1354 — le registre, rempli par
     // video_init_builtin dans l'ordre de ses pcem_add_video.
     //
-    // DEVIATION: cinq entrées au lieu des quarante-neuf que video_init_builtin enregistre
+    // DEVIATION: six entrées au lieu des quarante-neuf que video_init_builtin enregistre
     //   (cinquante pcem_add_video, dont v_pgc sous USE_EXPERIMENTAL_PGC), dans l'ordre RELATIF de PCem
-    //   (v_cga en :1312, v_cl_gd5429 en :1314, v_tvga8900d en :1345, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
+    //   (v_cga en :1312, v_cl_gd5429 en :1314, v_px_trio64 en :1340, v_tvga8900d en :1345, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
     //   (model.cs) plutôt que par pcem_add_video. Les INDICES diffèrent donc de ceux de
     //   PCem — v_cga y est à 10 — mais aucun indice ne sort de ce fichier : la
     //   configuration écrit l'internal_name, et gfxcard porte l'identifiant HÉRITÉ
     //   (GFX_*), que video_old_to_new traduit. La sentinelle NULL de fin de liste est
     //   la longueur du tableau.
-    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_cl_gd5429, v_tvga8900d, v_tvga9000b, v_vga };
+    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_cl_gd5429, v_px_trio64, v_tvga8900d, v_tvga9000b, v_vga };
 
     // pcem: video.c:215-223
     internal static int video_card_available(int card)

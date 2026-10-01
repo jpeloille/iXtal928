@@ -46,6 +46,7 @@ SRC := harness.c \
        harness_386.c \
        harness_tvga.c \
        harness_cl5429.c \
+       harness_s3.c \
        harness_x87.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
@@ -79,6 +80,7 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_svga.c \
        $(PCEM)/src/video/vid_svga_render.c \
        $(PCEM)/src/video/vid_tkd8001_ramdac.c \
+       $(PCEM)/src/video/vid_sdac_ramdac.c \
        $(PCEM)/src/models/serial.c \
        $(PCEM)/src/mouse/mouse_serial.c \
        $(PCEM)/src/floppy/fdc.c \

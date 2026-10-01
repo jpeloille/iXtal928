@@ -47,6 +47,13 @@ public static class VgaProbe
         "gd5429.hidden_dac_reg", "gd5429.dac_3c6_count", "gd5429.lfb_base",
         "gd5429.mmio_vram_overlap", "gd5429.sr10_read", "gd5429.sr11_read", "gd5429.latch_ext",
         "hwcursor.ena", "hwcursor.x", "hwcursor.y", "hwcursor.addr",
+        // G7.3 — la s3_t (h_s3_probe).
+        "s3.chip", "s3.id|id_ext|id_ext_pci", "s3.bank", "s3.ma_ext", "s3.width", "s3.bpp",
+        "s3.linear_base", "s3.linear_size", "s3.subsys_cntl|stat|accel.subsys_cntl|advfunc",
+        "accel.cmd|short_stroke|multifunc_cntl", "accel.cur_x|cur_y|cur_x2|cur_y2",
+        "accel.frgd|bkgd_color", "accel.wrt|rd_mask", "accel.mixes|color_cmp", "accel.cx|cy",
+        "accel.sx|sy", "accel.dx|dy", "fifo_write|read_idx", "blitter_busy|force_busy",
+        "hwc_fg|bg_col",
     ];
 
     // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du
@@ -57,6 +64,7 @@ public static class VgaProbe
         "tvga8900d" => Oracle.GFX_TVGA,
         "tvga9000b" => Oracle.GFX_TVGA9000B,
         "cl_gd5429" => Oracle.GFX_CL_GD5429,
+        "px_trio64" => Oracle.GFX_PHOENIX_TRIO64,
         _ => -1,
     };
 

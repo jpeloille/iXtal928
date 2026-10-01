@@ -50,7 +50,8 @@ public static class Oracle
     // 28 en G5.0 : « mfm_at » monte enfin une carte côté oracle (comportement, pas forme).
     // 29 en G6.0 : h_set_core accepte le 486 (l'ami486).
     // 30 en G7.1 : la GD5429 (gfxcard 19) ; la sonde VGA passe de 86 à 102 champs.
-    public const int AbiVersion = 30;
+    // 31 en G7.3 : la Trio64 Phoenix (gfxcard 22) ; la sonde VGA passe de 102 à 122 champs.
+    public const int AbiVersion = 31;
 
     static Oracle()
     {
@@ -269,8 +270,9 @@ public static class Oracle
     public const int GFX_TVGA = 4;        // ibm.h:280, la 8900D
     public const int GFX_VGA = 13;
     public const int GFX_CL_GD5429 = 19;  // ibm.h:295
+    public const int GFX_PHOENIX_TRIO64 = 22;  // ibm.h:298
     public const int GFX_TVGA9000B = 42;  // ibm.h:318
-    public const int VgaProbeN = 102;
+    public const int VgaProbeN = 122;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
     [DllImport(Lib)] public static extern void h_mouse_poll(int x, int y, int z, int b);
 

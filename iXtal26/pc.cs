@@ -114,13 +114,14 @@ internal static partial class pc
     internal static int gfxcard;
 
     // pcem: ibm.h:274-318 — les valeurs de l'énumération GFX_* que ce dépôt lit.
-    // GFX_VGA vaut 13, GFX_TVGA 4, GFX_CL_GD5429 19, GFX_TVGA9000B 42 : leur place dans l'énumération,
+    // GFX_VGA vaut 13, GFX_TVGA 4, GFX_CL_GD5429 19, GFX_PHOENIX_TRIO64 22, GFX_TVGA9000B 42 : leur place dans l'énumération,
     // pas un choix.
     internal const int GFX_BUILTIN = -1;
     internal const int GFX_CGA = 0;
     internal const int GFX_TVGA = 4; /*Using Trident TVGA8900D BIOS*/
     internal const int GFX_VGA = 13;
     internal const int GFX_CL_GD5429 = 19; /*Cirrus Logic CL-GD5429*/
+    internal const int GFX_PHOENIX_TRIO64 = 22; /*S3 764/Trio64 (Phoenix)*/
     internal const int GFX_TVGA9000B = 42; /*Trident TVGA9000B*/
 
     // pcem: pc.c:78 — témoin d'activité disque, lu par la barre d'état de l'hôte.

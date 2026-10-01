@@ -87,7 +87,29 @@ internal static class R9Cl5429
                 Gr(0x0b, 0);
             });
 
-        Console.WriteLine(bad == 0 ? "\nVert : iXtal26 survit au motif du blitter et aux modes 4/5 en haut de VRAM (PB-81, PB-82, R9)."
+        // G7.3 — PB-84 et PB-85 : en entrelacé, chaque ligne du curseur ajoute line_offset ; logé
+        // dans les 256 derniers octets (SR13 = 3F, 32 × 32), il sort de la VRAM. Tracé en x = 2040
+        // sur la dernière ligne de buffer32 : l'écriture sort du tableau.
+        foreach (var sr12 in new[] { 0x00, 0x04 })
+            Essai($"PB-84/85, curseur {(sr12 != 0 ? 64 : 32)} lignes, entrelacé, haut de VRAM, dernière ligne", () =>
+            {
+                svga.seqregs[0x12] = (byte)sr12;
+                svga.interlace = 1;
+                svga.hwcursor_oddeven = 1;
+                svga.hwcursor_latch.x = 2040;
+                svga.hwcursor_latch.xoff = 0;
+                for (var l = 0; l < 64; l++)
+                {
+                        if (l == 0)
+                                svga.hwcursor_latch.addr = svga.vram_mask + 1 - 0x100;
+                        vid_cl5429.gd5429_hwcursor_draw(svga, video.Height - 1);
+                }
+                svga.interlace = 0;
+                svga.hwcursor_oddeven = 0;
+                svga.seqregs[0x12] = 0;
+            });
+
+        Console.WriteLine(bad == 0 ? "\nVert : iXtal26 survit au motif du blitter, aux modes 4/5 en haut de VRAM et au curseur hors VRAM et hors buffer32 (PB-81, PB-82, PB-84, PB-85, R9)."
                                    : $"\n{bad} arrêt(s) : R9 n'est pas tenue.");
         return bad == 0 ? 0 : 1;
     }

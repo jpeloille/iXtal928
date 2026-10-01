@@ -510,6 +510,7 @@ static const h_video_card_t h_video_cards[] = {
         {GFX_TVGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 3, 3, 6, 8, 8, 12}},
         {GFX_TVGA9000B, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 7, 7, 12, 7, 7, 12}},
         {GFX_CL_GD5429, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_BUS, 4, 4, 8, 10, 10, 20}},   /* G7.1, video.c:99-100 */
+        {GFX_PHOENIX_TRIO64, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_BUS, 3, 2, 4, 25, 25, 40}},   /* G7.3, video.c:164-166 */
         {GFX_VGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
 };
 static const h_video_card_t *h_video_card(int card) {
@@ -1127,6 +1128,10 @@ void h_cpu_fingerprint(uint64_t *out) {
  * MCA (:2050), non montée. bus/pci.c et bus/mca.c ne sont pas liés : arrêt bruyant. */
 int pci_add(uint8_t (*read)(int func, int addr, void *priv), void (*write)(int func, int addr, uint8_t val, void *priv),
             void *priv) {
+        /* G7.3 : s3_init l'appelle SANS condition (vid_s3.c:2936). pcem: pci.c:189-190 — sans
+         * PCI, -1. Avec PCI, ce bus n'est pas lié : arrêt bruyant. */
+        if (!PCI)
+                return -1;
         fatal("pci_add : bus PCI non lie a l'oracle (G7)\n");
         return -1;
 }

@@ -48,7 +48,7 @@ puis ami386dx (ISA, `has_vlb` = 0) pour la branche non VLB.
 DEBUG, comme X87BANC et l'ide-check) qui programme des BitBLT, sous boot-diff ; puis Windows 3.1
 avec un pilote Cirrus si l'image en porte un (décision n° 4).
 
-### G7.3 — S3 (selon la décision n° 2)
+### G7.3 — S3 (selon la décision n° 2)  ✅ *fait, VERIFICATION.md § G7.3 ; PB-83 à PB-86*
 
 `vid_s3.c` pour la carte retenue, l'accélérateur rendu SYNCHRONE des deux côtés (décision n° 3,
 utilisateur, 01/10),

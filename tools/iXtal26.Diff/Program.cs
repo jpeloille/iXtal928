@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -92,7 +92,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      l'exécution de la table // noms: de fdc.cs. L'oracle n'y participe pas,");
     Console.WriteLine("      son instance `fdc` étant static dans fdc.c.");
     Console.WriteLine();
-    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE] [--gfxcard vga|tvga8900d|tvga9000b|cl_gd5429]");
+    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE] [--gfxcard vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64]");
     Console.WriteLine("      Amorce l'ORACLE SEUL avec une carte VGA et imprime la sonde de la");
     Console.WriteLine("      carte et l'écran texte lu dans sa VRAM brute. Le pendant de la sonde");
     Console.WriteLine("      AT de B2 : l'oracle doit savoir faire tourner la VGA avant qu'une");
@@ -203,6 +203,9 @@ switch (args[0])
     // G7.1 — R9 : la survie aux index hors VRAM de la GD5429 (PB-81, PB-82), en C# seul.
     case "r9-cl5429":
         return R9Cl5429.Run("roms");
+    // G7.3 — R9 : la survie au curseur et à la pente de polygone de la Trio64 (PB-84 à PB-86).
+    case "r9-s3":
+        return R9S3.Run("roms");
     case "page-check":
     {
         var it = 200000;

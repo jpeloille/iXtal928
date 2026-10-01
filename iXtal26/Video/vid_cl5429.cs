@@ -721,19 +721,24 @@ internal static partial class vid_cl5429
         if (svga.interlace != 0 && svga.hwcursor_oddeven != 0)
                 svga.hwcursor_latch.addr += (uint32_t)line_offset;
 
+        // pcem bug, not reproduced: PB-84 — DEVIATION : en entrelacé, line_offset s'ajoute à chaque
+        // ligne et le curseur logé en haut de la VRAM en sort (lecture du tas en C, exception en C#).
+        // Les index sont masqués par vram_mask (R9). PB-85 : l'écriture hors de buffer32 est sautée.
         if ((svga.seqregs[0x12] & 0x04) != 0)
         {
                 for (x = 0; x < 64; x += 8)
                 {
-                        dat[0] = svga.vram[svga.hwcursor_latch.addr];
-                        dat[1] = svga.vram[svga.hwcursor_latch.addr + 8];
+                        dat[0] = svga.vram[svga.hwcursor_latch.addr & svga.vram_mask];
+                        dat[1] = svga.vram[(svga.hwcursor_latch.addr + 8) & svga.vram_mask];
                         for (xx = 0; xx < 8; xx++)
                         {
                                 if (offset >= svga.hwcursor_latch.x)
                                 {
                                         if ((dat[1] & 0x80) != 0)
+                                        if ((uint)(displine * Stride + offset + 32) < (uint)Buffer32.Length) // PB-85
                                                 Buffer32[displine * Stride + offset + 32] = 0;
                                         if ((dat[0] & 0x80) != 0)
+                                        if ((uint)(displine * Stride + offset + 32) < (uint)Buffer32.Length) // PB-85
                                                 Buffer32[displine * Stride + offset + 32] ^= 0xffffff;
                                 }
 
@@ -749,15 +754,17 @@ internal static partial class vid_cl5429
         {
                 for (x = 0; x < 32; x += 8)
                 {
-                        dat[0] = svga.vram[svga.hwcursor_latch.addr];
-                        dat[1] = svga.vram[svga.hwcursor_latch.addr + 0x80];
+                        dat[0] = svga.vram[svga.hwcursor_latch.addr & svga.vram_mask];
+                        dat[1] = svga.vram[(svga.hwcursor_latch.addr + 0x80) & svga.vram_mask];
                         for (xx = 0; xx < 8; xx++)
                         {
                                 if (offset >= svga.hwcursor_latch.x)
                                 {
                                         if ((dat[1] & 0x80) != 0)
+                                        if ((uint)(displine * Stride + offset + 32) < (uint)Buffer32.Length) // PB-85
                                                 Buffer32[displine * Stride + offset + 32] = 0;
                                         if ((dat[0] & 0x80) != 0)
+                                        if ((uint)(displine * Stride + offset + 32) < (uint)Buffer32.Length) // PB-85
                                                 Buffer32[displine * Stride + offset + 32] ^= 0xffffff;
                                 }
 

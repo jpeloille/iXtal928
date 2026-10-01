@@ -2165,6 +2165,33 @@ internal static partial class vid_svga
                 o[f++] = (uint64_t)(long)svga.hwcursor.y;
                 o[f++] = svga.hwcursor.addr;
         }
+        // G7.3 — les vingt champs de la Trio64 (h_s3_probe), après les seize de la GD5429.
+        if (svga.p is s3_t s3)
+        {
+                f = cl + 16;
+                o[f++] = (uint64_t)(long)s3.chip;
+                o[f++] = s3.id | ((uint64_t)s3.id_ext << 8) | ((uint64_t)s3.id_ext_pci << 16);
+                o[f++] = s3.bank;
+                o[f++] = s3.ma_ext;
+                o[f++] = (uint64_t)(long)s3.width;
+                o[f++] = (uint64_t)(long)s3.bpp;
+                o[f++] = s3.linear_base;
+                o[f++] = s3.linear_size;
+                o[f++] = s3.subsys_cntl | ((uint64_t)s3.subsys_stat << 8) | ((uint64_t)s3.accel.subsys_cntl << 16) |
+                         ((uint64_t)s3.accel.advfunc_cntl << 24);
+                o[f++] = s3.accel.cmd | ((uint64_t)s3.accel.short_stroke << 16) | ((uint64_t)s3.accel.multifunc_cntl << 32);
+                o[f++] = s3.accel.cur_x | ((uint64_t)s3.accel.cur_y << 16) | ((uint64_t)s3.accel.cur_x2 << 32) |
+                         ((uint64_t)s3.accel.cur_y2 << 48);
+                o[f++] = s3.accel.frgd_color | ((uint64_t)s3.accel.bkgd_color << 32);
+                o[f++] = s3.accel.wrt_mask | ((uint64_t)s3.accel.rd_mask << 32);
+                o[f++] = s3.accel.frgd_mix | ((uint64_t)s3.accel.bkgd_mix << 8) | ((uint64_t)s3.accel.color_cmp << 32);
+                o[f++] = (uint32_t)s3.accel.cx | ((uint64_t)(uint32_t)s3.accel.cy << 32);
+                o[f++] = (uint32_t)s3.accel.sx | ((uint64_t)(uint32_t)s3.accel.sy << 32);
+                o[f++] = (uint32_t)s3.accel.dx | ((uint64_t)(uint32_t)s3.accel.dy << 32);
+                o[f++] = (uint32_t)s3.fifo_write_idx | ((uint64_t)(uint32_t)s3.fifo_read_idx << 32);
+                o[f++] = (uint64_t)(long)s3.blitter_busy | ((uint64_t)(uint32_t)s3.force_busy << 32);
+                o[f++] = s3.hwc_fg_col | ((uint64_t)s3.hwc_bg_col << 32);
+        }
     }
 
     // FNV-1a 64 bits, le h_fnv de harness.c.

@@ -4829,3 +4829,69 @@ pilote Cirrus sur les images) : le banc fait foi.
 **La série**, sur un instantané de G7.2, sous `MALLOC_PERTURB_=85`, comparée à g71 par nom,
 durées ôtées : 111 portes, toutes vertes ; les 110 journaux anciens identiques, la nouvelle
 `bd-ami486-gd5429-blt` verte (261 046 800 instructions, 1 460 octets écrits sur C:).
+
+## G7.3 — La S3 Trio64 Phoenix, accélérateur synchrone ; PB-83 à PB-86
+
+Le 2 octobre 2026, sur 80e8906. Plan : `PLAN-G7.md` § G7.3 ; décisions n° 2 (la Trio64 Phoenix,
+`86c764x1.bin`) et n° 3 (l'accélérateur synchrone des deux côtés, utilisateur, 01/10).
+
+**Transcrit.** `vid_s3.c` pour `s3_phoenix_trio64_device` (`Video/vid_s3.cs`) : `s3_t`, les
+ports et le CRTC étendu (déverrouillage CR38/CR39, banques CR35/CR51/CR6A), `s3_recalctimings`,
+`s3_updatemapping` (banque, fenêtre linéaire, MMIO en A0000), l'horloge de la Trio64, le
+curseur matériel, les registres de l'accélérateur par port et par MMIO (`packed_mmio`), et
+l'accélérateur 2D entier (`s3_accel_start` : lignes, rectangles, BitBLT, motif, polygones).
+Omis : Vision864, 9FX, Trio32, le SDAC (que la Trio64 n'appelle pas). `v_px_trio64` au
+registre (`video.c:164-166`, temps VLB 3/2/4, 25/25/40), `pc.GFX_PHOENIX_TRIO64` = 22, proposée
+par l'écran de construction (vingt-trois contrôles de `--setup-check`).
+
+**L'accélérateur synchrone** (DEVIATION des deux côtés). PCem le fait tourner dans un thread
+(`fifo_thread`, `vid_s3.c:840-887`), nourri par `s3_queue`. Côté oracle, `harness_s3.c` inclut
+`vid_s3.c` et DÉFINIT les souches de `thread.h` — ni la bibliothèque de threads ni `pci.c`
+ne sont liées, il n'y a pas de `__real` à envelopper — : `thread_set_event(wake_fifo_thread)`
+vide la FIFO sur-le-champ par le corps recopié de la boucle de `fifo_thread`. Côté C#,
+`s3_fifo_drain`, le même corps. Effet observable : la carte n'est jamais vue « occupée » et la
+FIFO ne se remplit jamais — `s3_queue` réveille à moins de 8 entrées (`:911-912`), donc à
+chaque entrée. `timer_read` (statistiques de l'hôte) est omis.
+
+**PB-83, mesuré** : sans PCI, `pci_add` rend -1 (`pci.c:189-190`), et `s3_update_irqs`
+(`vid_s3.c:161-166`) appelle `pci_set_irq` / `pci_clear_irq(-1)` à chaque trame : lecture de
+`pci_irq_routing[-1]` et, s'il est non nul, écriture de `pci_irq_active[-1]`. R9 : aucune IRQ,
+rien d'écrit, des deux côtés (souches vides de l'oracle, branches vides du C#). La souche
+`pci_add` de l'oracle rend -1 sans PCI, comme le vrai.
+
+**PB-84 à PB-86, R9**, relevés à la relecture du brouillon : le curseur lu hors VRAM (S3 : adresse
+non masquée ; GD5429 : en entrelacé), le curseur écrit après `buffer32` à la dernière ligne (les
+deux cartes), la pente d'un polygone INT_MIN / -1 (SIGFPE chez PCem). **`r9-s3`** et
+**`r9-cl5429`** élargi : survit ; contrôle négatif, gardes retirées : quatre arrêts
+(`IndexOutOfRangeException` ×3, `OverflowException`).
+
+**L'oracle.** `h_s3_probe` : **la sonde passe de 102 à 122 champs** (vingt de la `s3_t` : puce,
+identifiants, banque, `ma_ext`, largeur, bpp, fenêtre linéaire, statuts, commande, positions,
+couleurs, masques, mélanges, compteurs internes, indices de la FIFO, `blitter_busy` et
+`force_busy`, couleurs du curseur). ABI 31. Lié : `vid_sdac_ramdac.c` (référencé, non appelé) ;
+`timer_read` souché en arrêt bruyant.
+
+**Les boot-diffs** (`--gfxcard px_trio64`) :
+
+| Machine | Tranches | Instructions | Sonde |
+|---|---:|---:|---|
+| ami486, i486DX2/66 (VLB) | 3 000 | 5 443 326 | 122 identiques |
+| ami486, POST complet | 40 000 | 73 108 330 | 122 identiques |
+| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 5 272 247 | 122 identiques |
+| ami486, DOS sur IDE, `VER` et `DIR` | 100 000 | 183 816 380 | 122 identiques |
+
+**Le banc S3BANC** (`tools/s3banc/s3banc.py`, 1 493 octets, sur le patron de BLTBANC), porte
+`bd-ami486-trio64-accel` : VESA 101h, registres déverrouillés, CR40 ; rectangles sous les seize
+mélanges ; BitBLT avant et arrière ; motif 8 × 8 ; lignes radiales dans les huit directions ;
+données du CPU par E2E8 en couleur et en expansion monochrome ; sélection par la mémoire
+d'affichage ; ciseaux ; un rectangle en MMIO (CR53) ; relevés du statut et sommes de VRAM.
+**Vert** : 313 940 329 instructions, sonde 122 champs identiques. **Le banc fait ce qu'il dit** :
+une trace temporaire de `s3_accel_start` compte 34 commandes — les 31 du script, toutes
+présentes, et trois 40B3 du BIOS au changement de mode. **Contrôle négatif**, retiré avec la
+trace : le mélange 7 (`dest = src`) faussé d'un bit → divergence à l'instruction 309 530 138.
+
+**La série**, sur un instantané de G7.3, sous `MALLOC_PERTURB_=85`, comparée à g72 par nom,
+durées ôtées : 117 portes, **toutes vertes**. Les 111 anciennes identiques à g72, aux écarts
+attendus près — ABI 30 → 31, « 102 champs » → « 122 champs », `r9-cl5429` élargi au curseur ;
+les six nouvelles vertes (les quatre boot-diffs du tableau, le banc, `r9-s3`). Build 0
+avertissement, selftest, check-oracle 0 dérive (129), `--setup-check` vingt-trois contrôles.

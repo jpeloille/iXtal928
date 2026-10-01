@@ -1035,7 +1035,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des vingt et un contrôles sont des non-régressions nées d'une relecture : la
+    /// Deux des vingt-trois contrôles sont des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -1137,6 +1137,20 @@ internal sealed class SdlSetup
         }
         Check("la choisir pose gfxcard = GFX_CL_GD5429", pc.gfxcard == pc.GFX_CL_GD5429,
               $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
+        st._screen = Screen.Main;
+
+        // G7.3 — la S3 Trio64 Phoenix, 86c764x1.bin à la racine des ROM.
+        st.Activate(Item.Video);
+        int trio64 = Array.IndexOf(st._pickValues, "px_trio64");
+        Check("la Trio64 Phoenix est proposée quand 86c764x1.bin est là", trio64 >= 0,
+              $"{st._pickLabels.Length} carte(s) : {string.Join(",", st._pickValues)}");
+        if (trio64 >= 0)
+        {
+            st._pickIndex = trio64;
+            st.ApplyPick();
+        }
+        Check("la choisir pose gfxcard = GFX_PHOENIX_TRIO64", pc.gfxcard == pc.GFX_PHOENIX_TRIO64,
+              $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
         pc.gfxcard = gfxBefore;
         st._screen = Screen.Main;
 
@@ -1208,7 +1222,7 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les vingt et un contrôles passent."
+            ? "Vert : les vingt-trois contrôles passent."
             : $"{fail} contrôle(s) en échec.");
 
         return fail == 0 ? 0 : 1;

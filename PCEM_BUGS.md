@@ -842,6 +842,55 @@ C#, une exception qui abattrait l'hôte.
 et 5, GRB = 04, écriture au dernier mot de la VRAM — survit ; sans la garde,
 `IndexOutOfRangeException` (mesuré).
 
+### PB-83 — Sans PCI, la S3 lève et baisse son IRQ dans `pci_irq_routing[-1]`
+
+`vid_s3.c:2936` : `s3->card = pci_add(…)` sans condition ; sans PCI, `pci_add` rend -1
+(`pci.c:189-190`). Puis `s3_update_irqs` (`vid_s3.c:161-166`), à chaque trame (`s3_vblank_start`)
+et à chaque fin de FIFO, appelle `pci_set_irq` / `pci_clear_irq(-1, PCI_INTA)`, qui lisent
+`pci_irq_routing[-1]` et, s'il est non nul, ÉCRIVENT `pci_irq_active[-1]` et lèvent une IRQ
+calculée sur ce qu'ils ont lu (`pci.c:128-148`).
+*Effet* : lecture, et écriture possible, d'un global voisin de l'hôte — selon l'édition de liens.
+*Trouvé par* : lecture, G7 (« les défauts déjà relevés », n° 1) ; mesuré à la ligne en G7.3.
+*NON reproduit* (R9) : sur une carte VLB sans PCI, l'IRQ n'est câblée nulle part. Oracle :
+`harness_s3.c` définit `pci_set_irq` / `pci_clear_irq` vides ; C# : `Video/vid_s3.cs`,
+`s3_update_irqs`, marqueur `pcem bug, not reproduced: PB-83`. Aucune IRQ, rien d'écrit.
+
+### PB-84 — Le curseur matériel lit hors de la VRAM
+
+S3 : `vid_s3.c:2682-2683`, `s3_hwcursor_draw` indexe `vram[dword_remap(addr) + 0..3]` sans
+masque ; l'adresse vient de CR4C/CR4D (jusqu'à 4 Mo) et croît de 16 à 32 octets par ligne.
+GD5429 : `vid_cl5429.c:646-697`, l'adresse est masquée à sa pose (`:165-174`), mais en entrelacé
+chaque ligne ajoute `line_offset` en plus, et un curseur logé dans les derniers octets de la
+VRAM (SR13 = 3F) en sort.
+*Effet* : lecture du tas après la VRAM ; en C#, une exception qui abattrait l'hôte.
+*Trouvé par* : relecture de la transcription, G7.3.
+*NON reproduit* (R9) : `Video/vid_s3.cs`, `Video/vid_cl5429.cs`, marqueurs PB-84, DEVIATION —
+chaque index est masqué par `vram_mask`. `r9-s3`, `r9-cl5429` : survit ; sans la garde,
+`IndexOutOfRangeException` (mesuré).
+
+### PB-85 — Le curseur matériel écrit après la fin de `buffer32`
+
+`vid_s3.c:2687-2689`, `vid_cl5429.c:663-684` : `((uint32_t *)buffer32->line[displine])[offset
++ 32]`, `offset` allant jusqu'à x + 64 (x sur 11 bits). Au-delà de 2 048, l'écriture déborde sur
+la ligne suivante — reproduit, c'est le même tableau — et, à la dernière ligne, après la fin de
+`buffer32`.
+*Effet* : écriture dans le tas ; en C#, une exception.
+*Trouvé par* : relecture de la transcription, G7.3.
+*NON reproduit* (R9) : marqueurs PB-85 dans les deux fichiers, DEVIATION — hors du tableau,
+rien n'est écrit. `r9-s3`, `r9-cl5429` : curseur en x = 2040 sur la dernière ligne, survit.
+
+### PB-86 — La pente d'un polygone S3 divise INT_MIN par -1
+
+`vid_s3.c:1651` et `:1669`, `polygon_setup` : `(end_x - start_x) / (end_y - start_y)`, les
+abscisses décalées de 20 bits ; `destx_distp` = -2048 depuis x = 0 donne INT_MIN, et une hauteur
+de -1 suffit.
+*Effet* : SIGFPE, PCem tombe (comme PB-47) ; en C#, `OverflowException`.
+*Trouvé par* : relecture de la transcription, G7.3.
+*NON reproduit* (R9) : `Video/vid_s3.cs`, marqueurs PB-86, DEVIATION — pour un diviseur de -1,
+le quotient est pris replié (`-(end_x - start_x)`, INT_MIN pour INT_MIN), identique à PCem
+partout ailleurs. `r9-s3` : survit, `poly_dx1` = `poly_dx2` = 80000000 ; sans la garde,
+`OverflowException` (mesuré).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1572,9 +1621,10 @@ audit systématique de PCem** :
 | Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77 à PB-79 |
 | Transcription de la fenêtre linéaire SVGA (G7.0) | PB-80 |
 | Transcription de la GD5429 (G7.1) | PB-81, PB-82 |
+| Transcription de la Trio64 (G7.3) | PB-83 à PB-86 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident et la GD5429, les
+lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les
 cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
