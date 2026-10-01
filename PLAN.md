@@ -17,10 +17,10 @@ boot-diffs à l'unité, `selftest`, zéro avertissement, fuzzeur). Le cœur rest
 l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les entrées
 `CPU_SUPPORTS_DYNAREC` des tables ne changent rien à l'exécution.
 
-## Où on en est — 1er octobre 2026, après G4
+## Où on en est — 1er octobre 2026, après G5
 
 ```
-8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ──▶ [ICI] G5 IDE ── G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
+8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ── G5 IDE ✅ ──▶ [ICI] G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -35,7 +35,11 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
   bit ; `fpu = 287` sur le profil 286, `fpu = 387` sur le profil 386DX ; témoins MSD,
   Windows 3.1 (Calculatrice) et un banc x87 à nous (`tools/x87banc/`). En chemin, PB-48 à
   PB-70, le trampoline des préfixes et la borne de POP SS.
-- **G5, plan proposé** : `PLAN-G5.md`, à valider. G1 (8086) reste petit et indépendant.
+- **G5, fait** : `PLAN-G5.md`, G5.0 à G5.3. L'oracle lit enfin un disque AT (`mfm_at.c`,
+  `ide.c` liés) ; l'IDE disque dur transcrit, deux canaux, vérifié par boot-diffs d'écriture
+  (FDISK, FORMAT) et un ide-check dirigé ; témoins CHKDSK, Windows 3.1, DOS 5 installé sur un
+  disque IDE vierge. Règle R9 (l'invité ne tue pas l'hôte), PB-71 à PB-76. Séries parallèles.
+- **G6, plan proposé** : `PLAN-G6.md`, à valider. G1 (8086) reste petit et indépendant.
 
 ## Les générations
 
@@ -117,14 +121,14 @@ au 486DX, dont le coprocesseur est intégré (`fpus_builtin`). Il ouvre aussi le
 rend pas la même chose sous GCC et sous .NET 9+ ; transcrire `(uint64_t)(int64_t)x`.
 Le fuzzeur doit comparer les registres x87 bit pour bit, NaN et dénormaux compris.
 
-### G5 — L'IDE  *(plan proposé : `PLAN-G5.md`)*
+### G5 — L'IDE  ✅ *(`PLAN-G5.md`, fait le 1er octobre 2026)*
 
 `ide/ide.c`, 1 222 lignes. `ami486` le requiert (`MODEL_HAS_IDE`). C'est aussi la fin
 des trois plafonds du disque MFM (type 46).
 **Oracle** : le chemin d'écriture de M11 et M12 (FDISK et FORMAT C: sous oracle, une copie
 d'image par côté, comparée octet par octet).
 
-### G6 — Le 486, et l'ultime machine
+### G6 — Le 486, et l'ultime machine  *(plan proposé : `PLAN-G6.md`)*
 
 - les chemins `is486` : cycles, `BSWAP`, `CMPXCHG`, `XADD`, `INVLPG`, bits de CR0 et de
   CR4 propres au 486 ;

@@ -3,6 +3,8 @@
 > Écrit le 30 septembre 2026, après G4 (x87). Bloc G5 de `PLAN.md`.
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
+>
+> **G5 est fait** (1er octobre 2026) : G5.0 à G5.3, VERIFICATION.md § G5.0 à § G5.3 et § R9 ; PB-71 à PB-76.
 
 ## Où on en est
 
@@ -69,7 +71,7 @@ READ/WRITE MULTIPLE, SET MULTIPLE, IDENTIFY, VERIFY, FORMAT, SPECIFY, les erreur
 hors disque, disque absent). **Porte** : un `ide-check` dirigé (commandes ATA écrites dans les
 ports, comme `x87-cases` pour le coprocesseur), plus un boot-diff à deux disques.
 
-### G5.3 — Les machines et les témoins
+### G5.3 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § G5.3*
 
 `hdd_controller = ide` pour l'ami486 (G6) par défaut ; profils Rider inchangés (MFM) sauf
 décision contraire. Témoins `--boot` : DOS 5 installé sur un disque IDE vierge, `CHKDSK`,

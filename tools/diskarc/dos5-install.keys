@@ -1,0 +1,16 @@
+
+
+
+
+@wait 4000
+
+@wait 6000
+@A:/tmp/g5w/dos5-2.img
+
+@wait 6000
+@A:/tmp/g5w/dos5-3.img
+
+@wait 6000
+@A:
+
+@wait 5000

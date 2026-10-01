@@ -4531,3 +4531,23 @@ porte disque dans son propre répertoire ; le .tsv reconstruit dans l'ordre cano
 minutes contre 192 en séquentiel, et **85 journaux sur 85 identiques** à ceux de 4a15131 hors
 durées, mêmes codes de retour dans le même ordre. Aucune porte n'envoie les chemins de R9 à
 l'oracle. Selftest, check-oracle 0 dérive.
+
+## G5.3 — Les témoins de l'IDE
+
+Le 1er octobre 2026. Plan : `PLAN-G5.md` § G5.3. iXtal26 seul (`--boot`), sur des copies
+(/tmp/g5w), contrôleur `ide`, CMOS type 46 de `--make-nvr`.
+
+| témoin | résultat |
+|---|---|
+| ami286, disque 286 de l'utilisateur, `CHKDSK C:` | 32 980 992 octets, 623 fichiers, aucune erreur |
+| ami286, `WIN` | Windows 3.1, Gestionnaire de programmes |
+| ami386dx, disque 386, `CHKDSK C:` puis `WIN` | idem : CHKDSK sans erreur, Gestionnaire de programmes (mode de Windows non relevé) |
+| ami286, disque VIERGE de 156 Mo + disquettes MS-DOS 5 | SETUP partitionne, redémarre, formate, copie les trois disquettes ; la machine amorce ensuite sur C: jusqu'au DOS Shell |
+
+La séquence de l'installation est versionnée : `tools/diskarc/dos5-install.keys`.
+Les profils Rider restent en `mfm_at` (décision n° 4) ; « ide » par défaut sur l'ami486 est
+reporté à G6, où la machine entre.
+
+Aucun code ne change à G5.3 (une séquence de frappe et des documents) : l'état est celui de
+2053035, dont la série est verte. Les témoins ont tourné sur le binaire de G5.2 ; R9 ne touche
+aucun chemin qu'ils empruntent.
