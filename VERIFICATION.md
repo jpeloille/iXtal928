@@ -4895,3 +4895,56 @@ durées ôtées : 117 portes, **toutes vertes**. Les 111 anciennes identiques à
 attendus près — ABI 30 → 31, « 102 champs » → « 122 champs », `r9-cl5429` élargi au curseur ;
 les six nouvelles vertes (les quatre boot-diffs du tableau, le banc, `r9-s3`). Build 0
 avertissement, selftest, check-oracle 0 dérive (129), `--setup-check` vingt-trois contrôles.
+
+## G7.4 — Les machines et les témoins ; G7 fait
+
+Le 2 octobre 2026, sur f727e2c. Plan : `PLAN-G7.md` § G7.4, décisions n° 4 et n° 5.
+
+**Les profils** (décision n° 5). `ixtal26-486.cfg` passe de la Trident 9000B à la Cirrus GD5429 :
+profil Rider « iXtal26 (486DX2/66, IDE, Cirrus GD5429, sans turbo) ». Nouveau
+`ixtal26-486-s3.cfg`, la même machine avec la Trio64 Phoenix : profil « iXtal26 (486DX2/66, IDE,
+S3 Trio64, sans turbo) ». Même disque, même CMOS : `--make-nvr` fabrique un CMOS identique pour
+les deux cartes et identique à celui de G6 (l'octet d'équipement ne voit que « VGA ») — le
+`nvr/.ami486.nvr` de session reste valable. `--setup-check` : vingt-trois contrôles.
+
+**KeyScript** gagne trois touches pour le SETUP DOS de Windows : `\` (disposition US), Haut et
+Bas, écrites `\x18` et `\x19` (les flèches de la page de code 437). Aucune touche existante ne
+change.
+
+**Les témoins** (`--boot`, C# seul, dans /tmp/g7w : binaire isolé, copie du disque 386 sans
+`KEYB FR`, CMOS fabriqué ; copies des sept disquettes IBM Windows 3.11) :
+
+| témoin | ami486 + GD5429 | ami486 + Trio64 |
+|---|---|---|
+| BIOS de la carte au POST | (passé avant la tranche 250) | « Phoenix S3 TRIO64 Enhanced VGA BIOS. Version 1.5-07 EDO » |
+| POST AMI | « 486DX or 487SX », « Display Type : VGA/PGA/EGA » | idem |
+| `VER` | MS-DOS Version 5.00 | idem |
+| `MSD /S` | « Video: VGA, Cirrus » | « Video: VGA, Phoenix » |
+| `MODE CO40`, `MODE CO80` | 40 colonnes, puis 80 | idem |
+| Windows 3.1, `VGA.DRV` | Gestionnaire de programmes, 640 × 480 | idem |
+| Windows 3.1, **Super VGA 640 × 480 × 256** (`SVGA256.DRV`, VESA) | **Gestionnaire de programmes** | **« An error occured while trying to initialize the video adapter »** |
+
+**Décision n° 4, corrigée.** Sa prémisse — « aucun pilote Cirrus ou S3 sur les images, seul
+VGA.DRV » — était fausse : la disquette 2 de l'IBM Windows 3.11 (`os/IBM_Windows_3-11/disk02.img`)
+porte `SUPERVGA.DR_` et `SVGA256.DR_`, les pilotes Super VGA génériques par le BIOS VESA. Sur une
+COPIE du disque, le SETUP DOS de Windows (`CD WINDOWS`, `SETUP`, sept fois Haut, Entrée, trente
+fois Haut, sept fois Bas : « Super VGA 640x480 256 colors ») installe `SVGA256.DRV` depuis la
+disquette 2, puis les polices des disquettes 3 et 5, et écrit `display.drv=svga256.drv`. Le SETUP
+avertit d'un `SETUP.INF` de version différente de son `SETUP.EXE` : l'état du disque de
+l'utilisateur, pas un défaut.
+
+**Sous boot-diff** (90 000 tranches, `WIN` tapé à 60 000, disque Super VGA) :
+- GD5429 : **164 276 782 instructions identiques**, sonde 122 champs identiques — framebuffer en
+  256 couleurs compris.
+- Trio64 : **164 899 485 instructions identiques**, sonde identique, et l'ORACLE affiche le même
+  message : l'échec de SVGA256 sur la Trio64 Phoenix est le comportement de PCem, reproduit à
+  l'identique. Consigné comme constat, non corrigé (hors périmètre ; à instruire si l'on veut
+  un jour un pilote VESA sur la S3 : le BIOS Phoenix ou le VESA de PCem).
+
+Les originaux ne sont pas touchés : `sha256sum -c os/os.sha256` vert (les deux images PC-DOS
+2.0 qu'il couvre) ; les disquettes Windows gardent leur date de 2020, `386-HDD-C.img` celle du
+29/09, et la copie de la disquette 2 est restée identique à l'original après le SETUP.
+
+**La série**, sur un instantané de G7.4, sous `MALLOC_PERTURB_=85` : 117 portes, toutes vertes,
+les 117 journaux identiques à g73 (durées ôtées). Les trois touches de KeyScript ne changent
+aucune frappe existante.

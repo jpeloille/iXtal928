@@ -3,6 +3,8 @@
 > Écrit le 1er octobre 2026, après G6 (l'ami486). Bloc G7 de `PLAN.md`.
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
+>
+> **G7 est fait** (2 octobre 2026) : G7.0 à G7.4, VERIFICATION.md § G7.0 à § G7.4 ; PB-80 à PB-86.
 
 ## Où on en est
 
@@ -55,7 +57,7 @@ utilisateur, 01/10),
 `pci_clear_irq(-1)` sous R9 ou reproduit selon ce qu'il fait réellement (à mesurer d'abord).
 **Porte** : boot-diff, sonde, banc d'accélération dirigé.
 
-### G7.4 — Les machines et les témoins
+### G7.4 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § G7.4 ; G7 fait*
 
 Profils Rider (décision n° 5) ; témoins : POST et mode texte, `MODE`, un programme VESA s'il en
 existe un sur les disques, Windows 3.1 en 640 × 480 × 256 et plus.
@@ -94,5 +96,7 @@ existe un sur les disques, Windows 3.1 en 640 × 480 × 256 et plus.
    inscrite des deux côtés, qui nomme l'effet observable : la carte n'est jamais « occupée »
    et la FIFO ne se remplit jamais. G7.3 débloqué.
 4. **Pilotes Windows** : les images de l'utilisateur portent-elles un pilote Cirrus ou S3 ? Sinon,
-   le témoin Windows reste en VGA, et le banc dirigé fait foi.
+   le témoin Windows reste en VGA, et le banc dirigé fait foi. *G7.4 : ni Cirrus ni S3, mais
+   la disquette 2 de l'IBM Windows 3.11 porte SVGA256 et SUPERVGA (VESA) ; témoin Super VGA
+   640 × 480 × 256 passé sur des copies, accord du pair (VERIFICATION.md § G7.4).*
 5. **Profils Rider** : la GD5429 sur le profil ami486 (proposé), la carte S3 sur un second profil ?

@@ -110,6 +110,12 @@ public static class KeyScript
         // égal. Disposition US, celle que SYSTEM.INI déclare sur les disques de ce dépôt.
         case '@': shift = true; return SDL.Scancode.Alpha2;
         case '=': return SDL.Scancode.Equals;
+        // G7.4 — le SETUP DOS de Windows 3.1, pour changer de pilote d'affichage : ses listes se
+        // parcourent aux flèches, et ses chemins portent « \ ». Haut et Bas s'écrivent \x18 et
+        // \x19, les flèches de la page de code 437 ; la barre oblique inverse, en disposition US.
+        case '\\': return SDL.Scancode.Backslash;
+        case '\u0018': return SDL.Scancode.Up;
+        case '\u0019': return SDL.Scancode.Down;
         default: return SDL.Scancode.Unknown;
         }
     }

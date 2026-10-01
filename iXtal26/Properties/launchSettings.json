@@ -36,9 +36,13 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-386.cfg"
     },
-    "iXtal26 (486DX2/66, IDE, Trident 9000B, sans turbo)": {
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486.cfg"
+    },
+    "iXtal26 (486DX2/66, IDE, S3 Trio64, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-s3.cfg"
     }
   }
 }
