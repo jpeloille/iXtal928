@@ -1,0 +1,12 @@
+model = ami486
+cpu = 10
+fpu = builtin
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 2
+gfxcard = tvga9000b
+hdd_controller = ide
+hdc_cylinders = 1224
+hdc_heads = 15
+hdc_sectors = 17
+hdc_fn = @WORK@/c386.img

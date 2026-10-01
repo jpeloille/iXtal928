@@ -3,6 +3,8 @@
 > Écrit le 1er octobre 2026, après G5 (IDE). Bloc G6 de `PLAN.md`.
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
+>
+> **G6 est fait** (1er octobre 2026) : G6.0 à G6.4, VERIFICATION.md § G6.0–G6.1 à § G6.4 ; PB-77 à PB-79.
 
 ## Où on en est
 
@@ -70,7 +72,7 @@ lecture de CR0 et SMSW (ET). **Porte** : page-check et pm-check en 486, contrôl
 i486DX2/66 jusqu'au bout du POST, puis `--timer-check --model ami486` (la cadence, comme en
 M16), `cpu-config-check` sur l'ami486.
 
-### G6.4 — La machine complète et les témoins
+### G6.4 — La machine complète et les témoins  ✅ *fait, VERIFICATION.md § G6.4*
 
 `hdd_controller = ide` par défaut sur l'ami486 (décision n° 4 de G5) ; un profil Rider
 « ami486, DX2/66 » (décision n° 3) ; boot-diff avec disque IDE (écriture, FDISK + FORMAT,

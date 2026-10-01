@@ -61,7 +61,12 @@ internal static class HardDiskControllers
     /// nommé un. Sur un AT, c'est mfm_at : le BIOS de l'AT a son INT 13h pour disque dur
     /// et attend la carte en 0x1F0 ; le Xebec y tournerait, mais ce n'est pas la machine.
     /// </summary>
-    internal static string DefaultForCurrentMachine => CurrentMachineIsAt ? "mfm_at" : "mfm_xebec";
+    /// <para>G6.4 — l'ami486 prend l'IDE (décision n° 4 de PLAN-G5.md) : sa carte mère PCem porte
+    /// MODEL_HAS_IDE, et le DX2/66 est la machine de l'IDE. Les autres AT gardent mfm_at, qui
+    /// est le disque de leurs profils.</para>
+    internal static string DefaultForCurrentMachine =>
+        Models.model_c.models[Models.model_c.model].internal_name == "ami486" ? "ide"
+        : CurrentMachineIsAt ? "mfm_at" : "mfm_xebec";
 
     internal static string AvailableNames()
     {

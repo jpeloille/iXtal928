@@ -4668,3 +4668,36 @@ de référence de PCem, `nvr/default/ami486.nvr`, et `--make-nvr` pour l'ami486.
 identiques hors durées** — `cpu-config-check` élargi à l'ami486 (67 → 80 identiques, deux
 entrées sautées) — et les deux boot-diffs de l'ami486 nouveaux, verts. Selftest, check-oracle
 0 dérive (123 : `Models/ali1429.cs` entre au manifeste).
+
+## G6.4 — La machine complète et les témoins ; G6 fait
+
+Le 1er octobre 2026, sur a293168. Plan : `PLAN-G6.md` § G6.4.
+
+**La machine.** L'IDE devient le contrôleur par défaut de l'ami486 (`HardDiskControllers`,
+décision n° 4 de PLAN-G5.md) ; les autres AT gardent `mfm_at`. Profil Rider « iXtal26 (486DX2/66,
+IDE, Trident 9000B, sans turbo) » sur `ixtal26-486.cfg` (décision n° 3) — i486DX2/66, `fpu =
+builtin`, 4 Mo, IDE type 46 sur `os/486-HDD-C.img`. Ce fichier-là et le CMOS de session ne sont
+PAS fabriqués par le dépôt : la configuration dit comment (copier un disque, `--make-nvr`). Sur
+une copie, le profil amorce jusqu'à `C:\>`.
+
+**Les portes nouvelles** (recette : `c486.nvr`, empreintes refaites) : boot-diff ami486 DX2/66
++ IDE, MD / COPY / DIR sur le disque 386 — **183 802 720 instructions identiques**, C: identique
+(7 920 octets écrits) — et l'ide-check sur les deux canaux de l'ami486.
+
+**Les témoins** (`--boot`, copies dans /tmp/g6w, CMOS fabriqué) :
+
+| témoin | ami486 + i486DX2/66, IDE |
+|---|---|
+| POST AMI 1993 | « 486DX or 487SX », « Numeric Processor : Present », 3 072 Ko étendus |
+| MSD /S | « Computer: American Megatrend, 486DX » |
+| CHKDSK C: | 32 980 992 octets, sans erreur |
+| Windows 3.1, `WIN /3` (386 étendu forcé) | Gestionnaire de programmes |
+| X87BANC.COM | **31 tics** — contre 98 (386DX/33 + 387) et 297 (286/16 + 287) |
+| `--timer-check 60` | 66,663 MHz, −58,69 ppm, marge 2,9 en temps réel |
+
+La porte ide-check de l'ami486 : **202 649 589 instructions identiques**, C: et E: identiques
+(3 064 octets écrits sur E:).
+
+**La série** (parallèle, 80 minutes), comparée aux journaux de a293168 : **101 journaux sur 101
+identiques hors durées**, et les deux portes IDE de l'ami486 nouvelles, vertes. Selftest,
+check-oracle 0 dérive.

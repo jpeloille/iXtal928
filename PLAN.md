@@ -17,10 +17,10 @@ boot-diffs à l'unité, `selftest`, zéro avertissement, fuzzeur). Le cœur rest
 l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les entrées
 `CPU_SUPPORTS_DYNAREC` des tables ne changent rien à l'exécution.
 
-## Où on en est — 1er octobre 2026, après G5
+## Où on en est — 1er octobre 2026, après G6
 
 ```
-8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ── G5 IDE ✅ ──▶ [ICI] G6 DX2-66 ── G7 ── G8   (G1 8086 ☐)
+8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ── G5 IDE ✅ ── G6 DX2-66 ✅ ──▶ [ICI] G7 ── G8   (G1 8086 ☐)
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -39,7 +39,11 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
   `ide.c` liés) ; l'IDE disque dur transcrit, deux canaux, vérifié par boot-diffs d'écriture
   (FDISK, FORMAT) et un ide-check dirigé ; témoins CHKDSK, Windows 3.1, DOS 5 installé sur un
   disque IDE vierge. Règle R9 (l'invité ne tue pas l'hôte), PB-71 à PB-76. Séries parallèles.
-- **G6, plan proposé** : `PLAN-G6.md`, à valider. G1 (8086) reste petit et indépendant.
+- **G6, fait** : `PLAN-G6.md`, G6.0 à G6.4. **La machine finale tourne** : ami486 (ALi 1429)
+  + i486DX2/66, x87 intégré, IDE ; Intel seul (décision du 01/10). Cœur 486 au fuzzeur, boot-diffs
+  POST complet et écriture IDE, cadence 66,663 MHz ; témoins MSD, Windows 3.1 en 386 étendu,
+  X87BANC. PB-77 à PB-79 (PB-79 sous R9). Profil Rider ami486.
+- **G7, plan proposé** : `PLAN-G7.md`, à valider. G1 (8086) reste petit et indépendant.
 
 ## Les générations
 
@@ -50,7 +54,7 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 | 80286 | ✅ | IBM AT 5170, ami286 (NEAT) | reliquat : `PLAN-286.md` § « Tâches à couvrir » |
 | 80386SX | ✅ | `ami386` (Headland) | — (387 : G4 ✅) |
 | 80386DX | ✅ | `ami386dx` (OPTi 495) | — (387 : G4 ✅) |
-| 80486SX/DX/DX2 | ☐ | **`ami486` (ALi 1429) + `i486DX2/66`** | IDE, chemins `is486`, le chipset (x87 : G4 ✅) |
+| 80486SX/DX/DX2 | ✅ | **`ami486` (ALi 1429) + `i486DX2/66`** | — (Intel seul ; Am486, Cx486 omis) |
 
 ## Ce qui existe déjà, et qui servira
 
@@ -128,7 +132,7 @@ des trois plafonds du disque MFM (type 46).
 **Oracle** : le chemin d'écriture de M11 et M12 (FDISK et FORMAT C: sous oracle, une copie
 d'image par côté, comparée octet par octet).
 
-### G6 — Le 486, et l'ultime machine  *(plan proposé : `PLAN-G6.md`)*
+### G6 — Le 486, et l'ultime machine  ✅ *(`PLAN-G6.md`, fait le 1er octobre 2026)*
 
 - les chemins `is486` : cycles, `BSWAP`, `CMPXCHG`, `XADD`, `INVLPG`, bits de CR0 et de
   CR4 propres au 486 ;

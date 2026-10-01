@@ -85,6 +85,9 @@ runw bd-ami286-ide-ecriture c.nvr ami286 boot-diff roms 100000 --config ami286-i
 runw bd-ami286-ide-fdisk cd.nvr ami286 boot-diff roms 60000 --config ami286-ide-cd.cfg --type-at 60000 --type-settle 1500 "${A[@]}"
 runw bd-ami286-ide-check c.nvr ami286 boot-diff roms 60000 --config ami286-ide-e.cfg --type-at 60000 --type-settle 600 "${B[@]}" --type "^" --type "^" --type "^"
 runw bd-ami386dx-ide-ecriture c386.nvr ami386dx_opti495 boot-diff roms 100000 --config ami386dx-ide.cfg --type-at 60000 --type "MD G5" --type "COPY AUTOEXEC.BAT G5" --type "DIR G5"
+# G6.4 — l'ami486 DX2/66 en IDE : écriture sur C:, puis l'ide-check sur les deux canaux.
+runw bd-ami486-ide-ecriture c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --type-at 60000 --type "MD G5" --type "COPY AUTOEXEC.BAT G5" --type "DIR G5"
+runw bd-ami486-ide-check c486.nvr ami486 boot-diff roms 60000 --config ami486-ide-e.cfg --type-at 60000 --type-settle 600 "${B[@]}" --type "^" --type "^" --type "^"
 E87="--fpu-state --op D8 --op D9 --op DA --op DB --op DC --op DD --op DE --op DF"
 run x87-8088-s1 fuzz --mode single --iter 100000 --seed 1 --fpu 8087 --x87 all $E87
 run x87-8088-s7 fuzz --mode single --iter 100000 --seed 7 --fpu 8087 --x87 all $E87
