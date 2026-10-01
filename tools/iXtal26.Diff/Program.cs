@@ -586,6 +586,7 @@ switch (args[0])
                     {
                         "286" => Oracle.Core286,
                         "386" => Oracle.Core386,
+                        "486" => Oracle.Core486,
                         _ => Oracle.Core8088,
                     };
                     break;
@@ -597,7 +598,8 @@ switch (args[0])
                     // G2 : la table est celle du cœur — cpus_286 ou cpus_i386SX. --core doit
                     // donc précéder --cpu.
                     var n = int.Parse(args[++i]);
-                    var table = fuzzCore == Oracle.Core386
+                    var table = fuzzCore == Oracle.Core486 ? iXtal26.Cpu._386.Table486()
+                        : fuzzCore == Oracle.Core386
                         ? iXtal26.Cpu.cpu_tables.cpus_i386SX : iXtal26.Cpu.cpu_tables.cpus_286;
                     var count = 0;
                     while (table[count].cpu_type != -1)
@@ -642,9 +644,9 @@ switch (args[0])
         // des 256 opcodes qui n'a pas de `case` et tombe donc dans `default:`.
         if (second0F.Count > 0)
         {
-            if (!single || fuzzCore != Oracle.Core386 || ops.Count > 0)
+            if (!single || fuzzCore < Oracle.Core386 || ops.Count > 0)
             {
-                Console.Error.WriteLine("--0f : seulement avec --core 386 --mode single, et sans --op.");
+                Console.Error.WriteLine("--0f : seulement avec --core 386 ou 486 --mode single, et sans --op.");
                 return 2;
             }
             ops.Add(0x0F);

@@ -57,14 +57,17 @@ void h_prefetch_reset(void);
 static int h_core = H_CORE_8088;
 
 void h_set_core(int core) {
-        h_core = (core == H_CORE_286 || core == H_CORE_386) ? core : H_CORE_8088;
+        h_core = (core == H_CORE_286 || core == H_CORE_386 || core == H_CORE_486) ? core : H_CORE_8088;
 }
 
 /* LE 286 ET LE 386 EMPRUNTENT LE MEME exec386 (pc.c:478-487), et c'est ce predicat — pas
  * `h_core == H_CORE_286` — qui aiguille. G2, D0.2 : les dix sites qui testaient le 286
  * seul, relevés par grep, le lisent tous ; un seul oublié renvoyait le 386 vers
  * execx86 sans rien dire. Seul le CHOIX DE LA MACHINE distingue encore les deux. */
-static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386; }
+static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386 || h_core == H_CORE_486; }
+
+/* G6.0 — la carte plate de 16 Mo est celle du 386 ET du 486 : même exec386, même espace. */
+static int h_flat16(void) { return h_core == H_CORE_386 || h_core == H_CORE_486; }
 
 
 
@@ -410,12 +413,12 @@ static uint32_t h_ram_top(void) { return (uint32_t)mem_size * 1024u; }
 static uint8_t *h_flat_ram;
 
 static void h_flat_map(void) {
-        if (h_core == H_CORE_386 && h_flat_ram && ram == h_flat_ram && mem_size == 16384) {
+        if (h_flat16() && h_flat_ram && ram == h_flat_ram && mem_size == 16384) {
                 memset(ram, 0, h_ram_top() + 4);
                 resetreadlookup();
                 return;
         }
-        mem_size = (h_core == H_CORE_386) ? 16384 : 1024; /* Ko */
+        mem_size = h_flat16() ? 16384 : 1024; /* Ko */
         if (!h_mem_inited) {
                 mem_init();
                 h_mem_inited = 1;
@@ -425,7 +428,7 @@ static void h_flat_map(void) {
         mem_set_mem_state(0x000000, h_ram_top(), MEM_READ_INTERNAL | MEM_WRITE_INTERNAL);
         mem_mapping_add(&h_flat_mapping, 0x000000, h_ram_top(), mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
-        h_flat_ram = (h_core == H_CORE_386) ? ram : NULL;
+        h_flat_ram = h_flat16() ? ram : NULL;
 }
 
 /* G4.0 — L'ÉTAT x87 QUE RIEN NE REMET. x87_reset() est vide (x87.c:97) et resetx86 ne
@@ -502,7 +505,8 @@ void h_reset(void) {
          * de la machine : il faut une machine, même ici. Pendant exact de _808x.Reset()
          * et de _386.Reset286() côté C#. */
         h_models_init();
-        model = (h_core == H_CORE_386) ? ROM_AMI386SX : (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
+        model = (h_core == H_CORE_486) ? ROM_AMI486 : (h_core == H_CORE_386) ? ROM_AMI386SX
+                : (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
         cpu_manufacturer = 0;
         cpu = h_exec386() ? h_cpu_index : 0;
         if (!h_cpu_index_ok(model, cpu)) {
@@ -1203,7 +1207,8 @@ int h_boot(const char *romspath) {
         cpu = h_cpu_index;
         fpu_type = h_fpu_type; /* G4.0 — pc.c:656, la clé `fpu`, poussée par h_set_fpu */
         cpu_set();
-        if ((cpu_s->cpu_type >= CPU_386SX ? H_CORE_386 : cpu_s->cpu_type == CPU_286 ? H_CORE_286 : H_CORE_8088)
+        if ((cpu_s->cpu_type >= CPU_i486SX ? H_CORE_486 : cpu_s->cpu_type >= CPU_386SX ? H_CORE_386
+             : cpu_s->cpu_type == CPU_286 ? H_CORE_286 : H_CORE_8088)
             != h_core) {
                 fprintf(stderr, "h_boot : la table du romset %d (cpu_type %d) contredit le coeur %d\n",
                         romset, cpu_s->cpu_type, h_core);

@@ -88,6 +88,17 @@ run x87-8088-s1 fuzz --mode single --iter 100000 --seed 1 --fpu 8087 --x87 all $
 run x87-8088-s7 fuzz --mode single --iter 100000 --seed 7 --fpu 8087 --x87 all $E87
 run x87-8088-flux fuzz --rounds 1500 --instr 200 --fpu 8087 $E87
 run x87-8088-flux-tout fuzz --rounds 1500 --instr 200 --fpu 8087 --fpu-state $FPUX
+# G6 — le cœur 486 (ami486, cpus_i486) : défaut i486SX/16, --cpu 10 = i486DX2/66, 12 = iDX4/100.
+run fuzz486-s1 fuzz --core 486 --mode single --iter 80000 --seed 1 $ALL
+run fuzz486-s7 fuzz --core 486 --mode single --iter 80000 --seed 7 $ALL
+run fuzz486-dx2 fuzz --core 486 --cpu 10 --mode single --iter 80000 --seed 3 $ALL
+run fuzz486-dx4 fuzz --core 486 --cpu 12 --mode single --iter 80000 --seed 5 $ALL
+run fuzz486-stream fuzz --core 486 --rounds 1500 --instr 200 $ALL
+run fuzz486-dx2-stream fuzz --core 486 --cpu 10 --rounds 1500 --instr 200 $ALL
+run fuzz486-0f fuzz --core 486 --mode single --iter 40000 --0f 08 --0f 09 --0f 01 --0f A2 --0f B0 --0f B1 --0f C0 --0f C1 --0f C8 --0f C9 --0f CA --0f CB --0f CC --0f CD --0f CE --0f CF
+run fuzz486-dx4-0f fuzz --core 486 --cpu 12 --mode single --iter 40000 --0f A2 --0f 20 --0f 22 --0f 01
+run x87-486-dx2 fuzz --core 486 --cpu 10 --mode single --iter 80000 --seed 1 $T87 --op 66 --op 67
+run x87-486-dx2-flux fuzz --core 486 --cpu 10 --rounds 1500 --instr 200 $T87
 run fuzz386-0f fuzz --core 386 --mode single --iter 40000 $ALL0F
 run page-check page-check
 run pm-fuzz pm-fuzz --iter 20000

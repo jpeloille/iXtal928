@@ -209,6 +209,14 @@ internal static partial class model_c
         opti495.opti495_init();
     }
 
+    // pcem: model.c:502-505 — at_ali1429_init : at_init puis le chipset ALi 1429, qui entre
+    // en G6.3 (PLAN-G6.md). D'ici là, amorcer l'ami486 s'arrête en se nommant.
+    internal static void at_ali1429_init()
+    {
+        at_init();
+        pc.fatal("not implemented: ali1429.c — le chipset de l'ami486 entre en G6.3 (PLAN-G6.md)\n");
+    }
+
     // pcem: model.c:452-455 — at_neat_init : at_init puis le chipset.
     internal static void at_neat_init()
     {
@@ -308,6 +316,21 @@ internal static partial class model_c
         init = at_opti495_init,
     };
 
+    // pcem: model.c:1412-1421 — G6.1 : la table Intel SEULE ; cpus_Am486 et cpus_Cx486 omis
+    // (décision de Julien, 1er octobre 2026), comme côté oracle (harness_stubs.c).
+    internal static readonly MODEL m_ami486 = new MODEL
+    {
+        name = "[486] AMI 486 clone",
+        id = pc.ROM_AMI486,
+        internal_name = "ami486",
+        cpu = [new("Intel", Cpu.cpu_tables.cpus_i486), new("", null), new("", null), new(), new()],
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        min_ram = 1,
+        max_ram = 256,
+        ram_granularity = 1,
+        init = at_ali1429_init,
+    };
+
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
     // model_init_builtin (model.c:1625-1746). Cinq entrées sur les 97 de PCem.
     //
@@ -318,7 +341,7 @@ internal static partial class model_c
     // l'insérer ailleurs qu'à la fin décalerait les indices de celles qui suivent et
     // changerait la machine par défaut sans qu'une seule porte ne rougisse. m_ibmat
     // est entrée ainsi, puis m_ami286 derrière elle — d'où l'ordre ci-dessous.
-    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386, m_ami386dx };
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386, m_ami386dx, m_ami486 };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;

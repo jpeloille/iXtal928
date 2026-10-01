@@ -59,7 +59,10 @@ enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
 /* H_CORE_386 depuis G2 etape D0.2 : le MEME exec386, mais sur une machine dont la table
  * porte un 386 — cpu_set() pose is386, les temps du 386 et x86_setopcodes(ops_386, …).
  * La machine est l'ami386 (ROM_AMI386SX), la premiere de G3. */
-enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2 };
+/* H_CORE_486 depuis G6.0 : encore le MEME exec386 — PCem n'a pas de table d'opcodes 486,
+ * tout est `if (is486)` dans les handlers du 386 (cpu.c:231) — sur l'ami486 (ROM_AMI486),
+ * avec la carte plate de 16 Mo du 386. Seule la machine, donc la table de cpu_set, change. */
+enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2, H_CORE_486 = 3 };
 void h_set_core(int core);
 int h_get_core(void);
 
@@ -663,7 +666,8 @@ uint8_t *h_ram(void);
 /* 28 depuis G5.0 : h_set_hdd_controller("mfm_at") monte le Fixed Disk Adapter de l'AT
  * (mfm_at.c, enfin lié) — changement PAR LE COMPORTEMENT : un .so périmé accepterait le nom
  * et ne monterait rien. h_state ne change pas. */
-#define H_ABI_VERSION 28
+/* 29 depuis G6.0 : h_set_core accepte H_CORE_486 (l'ami486, cpus_i486 seule). */
+#define H_ABI_VERSION 29
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -97,6 +97,8 @@ internal static partial class pc
     internal const int ROM_AMI386SX = 43;
     // G3.2 : l'ami386dx, valeur lue par le compilateur sur ibm.h (58).
     internal const int ROM_AMI386DX_OPTI495 = 58;
+    // G6.1 : l'ami486, valeur relevée sur l'énum de ibm.h (46).
+    internal const int ROM_AMI486 = 46;
     internal const int ROM_IBMXT286 = 66;  // hors cible, présent pour les gardes
     internal const int ROM_T3100E = 70;    // hors cible, présent pour les gardes  // hors cible, présent pour les gardes (fdc.c:98, :628)
 

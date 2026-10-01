@@ -35,6 +35,8 @@ internal static class CpuConfigCheck
         var failures = 0;
 
         // G4.1 : l'ami386 et l'ami386dx entrent au balayage — ce sont eux qui proposent le 387.
+        // L'ami486 entre en G6.3, avec son BIOS et son chipset : ce balayage AMORCE chaque
+        // machine. Jusque-là ses entrées sont confrontées par le fuzzeur (--core 486 --cpu N).
         string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286", "ami386", "ami386dx"];
         if (reverse)
             Array.Reverse(order);

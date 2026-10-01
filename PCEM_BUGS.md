@@ -760,6 +760,29 @@ Le WD1003 réel transfère alors 512 octets plus 4 octets d'ECC ; ni PCem ni iXt
 *Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueurs `pcem bug, not reproduced: PB-76` — ERR,
 erreur ABRT, IRQ 14 : le comportement sûr le plus proche.
 
+### PB-77 — `cpu_features` n'est jamais remis à zéro : un i486 hérite de CR4 et VME d'un iDX4
+
+`cpu.c:483-485` pose `cpu_features = CPU_FEATURE_CR4 | CPU_FEATURE_VME` pour l'iDX4 (puis retombe
+dans le cas i486) ; aucune ligne de `cpu_set` ne remet `cpu_features` à zéro (`cpu_CR4_mask`, lui,
+l'est, `:316`). Changer de processeur dans la même session garde donc les caractéristiques du
+précédent. Au passage, `cpu_CR4_mask = CR4_VME | CR4_PVI | CR4_VME` (`:485`) nomme VME deux fois.
+*Effet* : après un iDX4, un i486DX accepte MOV CR4 — que le vrai i486DX refuse —, avec un masque
+nul : CR4 reste à zéro. Le harnais rejoue `cpu_set` dans le même processus : l'ordre des entrées
+d'un balayage décide de ce qu'elles héritent.
+*Trouvé par* : reconnaissance de G6.
+*Reproduit* : `Cpu/cpu.cs`, `cpu_set`, marqueur PB-77 ; l'empreinte CPU compare `cpu_features`.
+
+### PB-78 — LOADALL386 s'exécute sur un 486
+
+PCem n'a pas de table d'opcodes 486 : `cpu_set` pose `ops_386` pour tout processeur (`cpu.c:231`),
+et `0F 07` y est `opLOADALL386` (`x86_ops_misc.h:931-973`), sans garde `is486`. Le 486 réel n'a
+plus de LOADALL : #UD.
+*Effet* : un 486 émulé charge l'état entier depuis ES:EDI ; un bloc non préparé y pose un CR0
+avec PG et un CR3 quelconque — voir PB-79.
+*Trouvé par* : fuzzeur du cœur 486 (G6.1), graine 1.
+*Reproduit* : par la transcription (la table du 386 est partagée). Le fuzzeur du cœur 486 ne
+tire plus `0F 07` au hasard (`Fuzzer.cs`, G6.1) : il ferait tomber l'oracle (PB-79).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1478,6 +1501,7 @@ audit systématique de PCem** :
 | Témoin MSD de G4.7, puis lecture du C | PB-70 |
 | Reconnaissance et transcription de G5 (ide.c) | PB-71 à PB-74 |
 | Inventaire de la règle R9 (l'invité ne tue pas l'hôte) | PB-75, PB-76 |
+| Reconnaissance et fuzzeur du cœur 486 (G6) | PB-77, PB-78 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le cœur 486, le dynarec, les cartes vidéo autres que la CGA, la VGA et les deux Trident, les

@@ -37,11 +37,29 @@ internal static partial class _386
     /// ops_386. `FuzzCpu` est alors l'indice dans cpus_i386SX.</summary>
     internal static void Reset386() => ResetExec386("ami386");
 
+    /// <summary>Pendant de h_reset() avec h_core == H_CORE_486 (G6.0) : toujours exec386 —
+    /// PCem n'a pas de table d'opcodes 486 —, sur l'ami486, carte plate de 16 Mo comme le
+    /// 386. `FuzzCpu` est l'indice dans cpus_i486.</summary>
+    internal static void Reset486()
+    {
+        if (Models.model_c.model_get_model_from_internal_name("ami486") < 0)
+                pc.fatal("not implemented: l'ami486 et cpus_i486 entrent en G6.1 (PLAN-G6.md)\n");
+        ResetExec386("ami486");
+    }
+
+    /// <summary>La table de CPU de l'ami486 (cpus_i486), ou une table vide sans elle.</summary>
+    internal static CPU[] Table486()
+    {
+        int m = Models.model_c.model_get_model_from_internal_name("ami486");
+        return m < 0 ? [new CPU("", -1, null, 0, 0, 0)]
+                     : Models.model_c.models[m].cpu[0].cpus!;
+    }
+
     /// <summary>Le corps commun : seule la machine distingue le 286 du 386, comme
     /// h_reset() côté oracle, qui ne choisit que `model` selon h_core.</summary>
     private static void ResetExec386(string machine)
     {
-        if (machine == "ami386")
+        if (machine is "ami386" or "ami486")
                 _808x.FlatMap386();
         else
                 _808x.FlatMap286();

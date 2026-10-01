@@ -31,6 +31,7 @@ internal static class CpuFingerprint
         "video_timing_write_b", "video_timing_write_w", "video_timing_write_l",
         "mem_size", "cpu", "cpu_manufacturer", "rspeed de cpu_s",
         "fpu_type", "FNV des 72 champs de x87_timings",
+        "CPUID", "cpu_features", "cpu_CR4_mask", "cpu_multi", "has_vlb",
     ];
 
     /// <summary>Le vecteur côté C#, dans l'ordre de h_cpu_fingerprint().</summary>
@@ -107,6 +108,12 @@ internal static class CpuFingerprint
             hx = unchecked(hx * 1099511628211UL);
         }
         o[i++] = hx;
+        // G6.1 — les cinq champs du 486, comme h_cpu_fingerprint.
+        o[i++] = I(x86.CPUID);
+        o[i++] = cpu_c.cpu_features;
+        o[i++] = x86.cpu_CR4_mask;
+        o[i++] = I(cpu_c.cpu_multi);
+        o[i++] = I(cpu_c.has_vlb);
         return o;
     }
 

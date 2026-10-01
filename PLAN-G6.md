@@ -36,7 +36,7 @@ mémoire 12/12, cache 6/6.
 
 ## Les étapes
 
-### G6.0 — L'outillage : un cœur « 486 » pour le fuzzeur
+### G6.0 — L'outillage : un cœur « 486 » pour le fuzzeur  ✅ *fait avec G6.1, VERIFICATION.md § G6.0–G6.1*
 
 Le harnais ne connaît que `H_CORE_286` et `H_CORE_386` (`harness.c:59-61`), et `h_reset`
 fige `ROM_AMI386SX` pour le 386 (`:505`). Il faut `H_CORE_486` (machine `ami486`, `cpu_set`
@@ -46,12 +46,11 @@ sur l'entrée choisie), `--core 486` et `--cpu` sur `cpus_i486` dans `iXtal26.Di
 **Porte** : toutes les séries existantes identiques ; le cœur 486 refuse bruyamment tant que
 G6.1 n'a pas transcrit ses tables (pas de vert muet).
 
-### G6.1 — Les tables et `cpu_set`
+### G6.1 — Les tables et `cpu_set`  ✅ *fait, VERIFICATION.md § G6.0–G6.1 (INVLPG compris)*
 
-`cpus_i486` (et, selon la décision n° 1, `cpus_Am486`, `cpus_Cx486`) ; les constantes ; les
-cas i486 / Am486 / Cx486 / iDX4 de `cpu_set` (`cpu.c:483-584`), `CPUID`, `cpu_multi`,
-`has_vlb`, `cpu_CR4_mask` ; `cpu_CPUID` pour les entrées qui ont un `cpuid_model` (iDX4, Am486
-rapides). **Porte** : `cpu-config-check` élargi à chaque entrée 486 et à son `fpus_builtin`,
+`cpus_i486` seule (décision n° 1) ; les constantes ; les cas i486 / iDX4 de `cpu_set`
+(`cpu.c:483-517`), `CPUID`, `cpu_multi`, `has_vlb`, `cpu_CR4_mask` ; `cpu_CPUID` pour l'iDX4,
+seul à avoir un `cpuid_model`. **Porte** : `cpu-config-check` élargi à chaque entrée 486 et à son `fpus_builtin`,
 empreintes identiques ; fuzzeur `--core 486` single et flux sur les 256 opcodes et les `0F`
 propres au 486 (08, 09, 01/7, A2, B0/B1, C0/C1, C8-CF), graines 1 et 7 ; x87 `--x87 all` avec le
 x87 intégré ; pm-fuzz et pm-check en 486.
@@ -114,9 +113,9 @@ X87BANC.COM (x87 intégré contre 387). **Porte** : séries complètes, témoins
 
 ## Les décisions à trancher
 
-1. **Les processeurs** : i486 seul (SX, DX, DX2, DX4), ou aussi `cpus_Am486` et `cpus_Cx486` ?
-   *(proposé : les trois tables — elles ne coûtent que des entrées et des cas de `cpu_set` ; le
-   Cyrix ajoute le port 0x22 de configuration et `cyrix_id`, à marquer s'il est reporté)*
+1. **Les processeurs** : **Intel seul, décision de l'utilisateur du 01/10** — `cpus_i486` (SX,
+   DX, DX2, DX4/iDX4) et ses cas de `cpu_set` ; ni `cpus_Am486` ni `cpus_Cx486`, marqués
+   `// omitted:` à leur place.
 2. **Le cœur du fuzzeur** : `H_CORE_486` distinct, sur l'ami486 *(proposé : oui, G6.0)*.
 3. **Le profil Rider** : un nouveau profil « ami486, i486DX2/66, IDE, Trident 9000B », les
    deux profils actuels inchangés ? *(proposé : oui ; la carte VLB viendra en G7)*

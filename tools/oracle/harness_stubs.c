@@ -922,6 +922,21 @@ static MODEL h_model_ami386dx = {
         .ram_granularity = 1,
 };
 
+/* G6.0 — m_ami486 (model.c:1412-1421), la table Intel SEULE : cpus_Am486 et cpus_Cx486
+ * omis des deux côtés (décision de Julien, 1er octobre 2026). Son init n'est pas liée
+ * avant G6.3 (ali1429.c) : h_boot la refuse. Elle sert à cpu_set() et au fuzzeur du coeur
+ * 486 (h_reset, H_CORE_486). */
+static MODEL h_model_ami486 = {
+        .name = "[486] AMI 486 clone",
+        .id = ROM_AMI486,
+        .internal_name = "ami486",
+        .cpu = {{"Intel", cpus_i486}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
+        .min_ram = 1,
+        .max_ram = 256,
+        .ram_granularity = 1,
+};
+
 void h_models_init(void) {
         models[ROM_IBMPC] = &h_model_ibmpc;
         models[ROM_IBMXT] = &h_model_ibmxt;
@@ -929,6 +944,7 @@ void h_models_init(void) {
         models[ROM_AMI286] = &h_model_ami286;
         models[ROM_AMI386SX] = &h_model_ami386;
         models[ROM_AMI386DX_OPTI495] = &h_model_ami386dx;
+        models[ROM_AMI486] = &h_model_ami486;
 }
 
 /* --- processeur (M16) -------------------------------------------------------
@@ -1060,6 +1076,13 @@ void h_cpu_fingerprint(uint64_t *out) {
                 }
                 out[i++] = h;
         }
+        /* G6.1 — ce que cpu_set pose pour un 486 : CPUID (cpuid_model), cpu_features (jamais
+         * remis à zéro — PB-77), cpu_CR4_mask, cpu_multi, has_vlb. */
+        out[i++] = (uint64_t)(int64_t)CPUID;
+        out[i++] = (uint64_t)cpu_features;
+        out[i++] = (uint64_t)cpu_CR4_mask;
+        out[i++] = (uint64_t)(int64_t)cpu_multi;
+        out[i++] = (uint64_t)(int64_t)has_vlb;
         while (i < H_CPU_FP_N)
                 out[i++] = 0;
 }

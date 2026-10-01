@@ -4573,3 +4573,49 @@ de 889, ami386dx 181 109 674 instructions au lieu de 181 109 300 et 7 920 octets
 TRANSCRIPTION.md revient sous son plafond (215 lignes pour 240) : l'historique de R3 va dans
 `iXtal26/Docs/doctrine-historique.md`, les « Faits vérifiés » dans
 `iXtal26/Docs/faits-verifies.md`, inchangés ; aucune règle ne quitte le fichier.
+
+## G6.0–G6.1 — Le cœur 486 : H_CORE_486, cpus_i486, cpu_set ; INVLPG
+
+Le 1er octobre 2026, sur 1bf071c. Plan : `PLAN-G6.md` § G6.0, § G6.1 (et INVLPG, avancé de
+§ G6.2). **Un seul commit pour deux étapes**, et c'est une nécessité : le cœur 486 du fuzzeur
+(G6.0) n'a pas d'existence sans `cpus_i486` et la machine `ami486` (G6.1) — PCem n'ayant pas de
+table d'opcodes 486, « le cœur 486 » n'est qu'exec386 sur une autre table de CPU. Décision n° 1 :
+**Intel seul** (décision de Julien du 01/10) — ni `cpus_Am486` ni `cpus_Cx486`, marqués
+`// omitted:` à leur place dans cpu.c et cpu_tables.c.
+
+**L'oracle** : `H_CORE_486` (ABI 29), la carte plate de 16 Mo du 386, `h_model_ami486` (table
+Intel seule, init refusée par h_boot jusqu'à G6.3). **Le C#** : `cpus_i486` (treize 486 et deux
+Pentium OverDrive), les cas i486 / iDX4 de `cpu_set` (iDX4 retombant dans i486, comme le C),
+`CPUID`, `cpu_multi`, `has_vlb`, `cpu_CR4_mask`, `cpu_CPUID` de l'i486DX et de l'iDX4, la machine
+`m_ami486` (init `at_ali1429_init` : arrêt « non transcrit » jusqu'à G6.3), INVLPG
+(`0F 01 /7`, x86_ops_pmode.h:463-472) et `mmu_invalidate`. **L'outil** : `--core 486`,
+`Reset486`, l'empreinte CPU élargie de cinq champs (CPUID, cpu_features, cpu_CR4_mask, cpu_multi,
+has_vlb).
+
+**Un défaut de transcription, trouvé par le fuzzeur et corrigé** : `readmemwl` et `writememwl`
+omettaient `cycles -= timing_misaligned` (« nul sur un 8088 », vrai jusqu'au 386) — 3 cycles par
+accès mal aligné sur un 486. Divergence `01 47 12` (ADD m16 à DS:A143), oracle 29 cycles, C# 23.
+
+**Deux chutes de l'oracle, et pourquoi le fuzzeur évite désormais `0F 07` sur le 486** : PCem
+exécute LOADALL386 sur un 486 (table partagée, PB-78) ; tiré au hasard, il charge un CR0 avec PG
+et un CR3 quelconque, et la traduction de page déréférence `_mem_exec` hors RAM — segfault
+(graine 1, itération 2 588 ; puis `DB E7 0F 07`, un ESC à coût nul qui fait exécuter l'octet
+suivant). Le fuzzeur du cœur 486 remplace tout `0F 07` de son tampon par `0F 06` ; celui du 386
+garde son tirage. Le défaut de fond — une table de pages hors RAM fait tomber PCem — relève de
+R9 : PB-79, en G6.2.
+
+**Les portes.** Les treize entrées Intel ont une empreinte identique des deux côtés, cinq
+champs 486 compris ; les deux Pentium OverDrive s'arrêtent « non transcrit » (cpu_set). Fuzzeur
+`--core 486`, tous verts : 256 opcodes graines 1 et 7 (i486SX/16), i486DX2/66 et iDX4/100
+(80 000 chacun), flux i486SX et DX2 (300 000), les `0F` propres au 486 (08, 09, 01, A2, B0/B1,
+C0/C1, C8-CF ; 40 000), l'iDX4 sur CPUID et MOV CRx, le x87 intégré du DX2 (`--x87 all`,
+single et flux). Contrôle négatif, retiré : `timing_bt` du 486 faussé → « CONFIGURATION CPU
+DIVERGENTE : FNV des 28 timing_* » dès le reset.
+
+**Les défauts de PCem** : PB-77 (`cpu_features` jamais remis à zéro), PB-78 (LOADALL386 sur 486).
+`cpu-config-check` n'entre l'ami486 qu'en G6.3 : il AMORCE chaque machine, et l'ami486 n'a pas
+encore son chipset.
+
+**La série** (parallèle, 78 minutes), comparée aux journaux de 1bf071c : **85 journaux sur 85
+identiques hors durées** (la ligne d'ABI passe de 28 à 29), et les dix portes 486 nouvelles
+vertes. Selftest, check-oracle 0 dérive.

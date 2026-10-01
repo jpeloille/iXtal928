@@ -38,15 +38,18 @@ internal static partial class cpu_c
     /*486 class CPUs*/
     internal const int CPU_i486SX = 7;
     internal const int CPU_Cx486S = 9;
+    internal const int CPU_i486DX = 10;  // G6.1
     internal const int CPU_Cx486DX = 12;
+    internal const int CPU_iDX4 = 13;    // G6.1
     internal const int CPU_Cx5x86 = 14;
 
     /*586 class CPUs*/
+    internal const int CPU_PENTIUM = 17; // G6.1 — les Pentium OverDrive de cpus_i486
     internal const int CPU_Cx6x86 = 19;
     internal const int CPU_Cx6x86MX = 20;
     internal const int CPU_Cx6x86L = 21;
     internal const int CPU_CxGX1 = 22;
-    // omitted: les dix-huit autres types (CPU_Am486SX … CPU_CYRIX_III, cpu.h:24-50, hors ceux ci-dessus) —
+    // omitted: les treize autres types (CPU_WINCHIP … CPU_CYRIX_III, cpu.h:24-50, hors ceux ci-dessus) —
     //   aucune table du dépôt ne les porte, et aucune expression transcrite ne les nomme.
 
     // pcem: cpu.h:6 et cpu.h:52 — le FABRICANT, et il n'est pas decoratif :
@@ -159,6 +162,20 @@ internal static partial class cpu_c
     // cpu_features qu'au 486 et au-delà (cpu.c:484 et suivantes) ; sur un 386 elle reste
     // à zéro, et CR4 est un registre inexistant.
     internal const int CPU_FEATURE_CR4 = 1 << 3;
+    internal const int CPU_FEATURE_VME = 1 << 4; // pcem: cpu.h:122 — G6.1, l'iDX4
+
+    // pcem: cpu.h:137-138 — drapeaux des tables (dynarec seulement : aucun lecteur ici).
+    internal const int CPU_SUPPORTS_DYNAREC = 1;
+    internal const int CPU_REQUIRES_DYNAREC = 2;
+
+    // pcem: cpu.c:68-69 — les bits d'EDX de CPUID que lisent les 486.
+    private const uint32_t CPUID_FPU = 1 << 0;
+    private const uint32_t CPUID_VME = 1 << 1;
+
+    // pcem: cpu.c — G6.1. cpu_multi : le multiplicateur du 486 (DX2, DX4) ; has_vlb : le bus
+    // local VESA, que la carte VLB de G7 lira (vid_cl5429.c:420).
+    internal static int cpu_multi;
+    internal static int has_vlb;
     internal static uint32_t cpu_features;
     internal static int cpu_has_feature(int feature) => (int)(cpu_features & (uint32_t)feature);
 
@@ -251,8 +268,8 @@ internal static partial class cpu_c
 
         cpu_s = model_c.models[model_c.model].cpu[cpu_manufacturer].cpus![cpu];
 
-        // omitted: CPUID et cpuspeed (cpu.c:179-180) — CPUID n'a de lecteur qu'à partir
-        //   du 486 (opCPUID), et cpuspeed n'est lu que par saveconfig (pc.c:882).
+        x86.CPUID = (int)cpu_s.cpuid_model;
+        // omitted: cpuspeed (cpu.c:180) — n'est lu que par saveconfig (pc.c:882).
         _808x.is8086 = (cpu_s.cpu_type > CPU_8088) ? 1 : 0;
         x86.is386 = (cpu_s.cpu_type >= CPU_386SX) ? 1 : 0;
         x86.is486 = (cpu_s.cpu_type >= CPU_i486SX) || (cpu_s.cpu_type == CPU_486SLC || cpu_s.cpu_type == CPU_486DLC) ? 1 : 0;
@@ -264,8 +281,9 @@ internal static partial class cpu_c
         x86.cpu_16bitbus = (cpu_s.cpu_type == CPU_286 || cpu_s.cpu_type == CPU_386SX || cpu_s.cpu_type == CPU_486SLC) ? 1 : 0;
         if (cpu_s.multi != 0)
                 cpu_busspeed = cpu_s.rspeed / cpu_s.multi;
-        // omitted: cpu_multi, ccr0 à ccr6 et has_vlb (cpu.c:192-194) — lus seulement par
-        //   les Cyrix, le bus VLB et le calcul de la cadence du 486 : aucun lecteur ici.
+        cpu_multi = cpu_s.multi;
+        // omitted: ccr0 à ccr6 (cpu.c:193) — les registres de configuration Cyrix (Intel seul).
+        has_vlb = (cpu_s.cpu_type >= CPU_i486SX) && (cpu_s.cpu_type <= CPU_Cx5x86) ? 1 : 0;
 
         cpu_turbo_speed = cpu_s.rspeed;
         if (cpu_s.cpu_type < CPU_286)
@@ -344,7 +362,7 @@ internal static partial class cpu_c
         // omitted: memset(&msr, 0, sizeof(msr)) (cpu.c:312) — les MSR du Pentium.
         timing_misaligned = 0;
         cpu_cyrix_alignment = 0;
-        // omitted: cpu_CR4_mask = 0 (cpu.c:316) — CR4 n'existe pas avant le 486.
+        x86.cpu_CR4_mask = 0;
 
         switch (cpu_s.cpu_type)
         {
@@ -449,8 +467,56 @@ internal static partial class cpu_c
                 timing_jmp_pm_gate = 45;
                 break;
 
-        // omitted: les cas CPU_486SLC à CPU_CYRIX_III (cpu.c:417-1126) — aucune table du
-        //   dépôt ne porte ces types.
+        // omitted: CPU_486SLC, CPU_486DLC (cpu.c:417-482) — cpus_486SLC / cpus_486DLC, que
+        //   l'ami386 et l'ami386dx proposent, sont omises avec leurs fabricants (model.cs).
+
+        // pcem: cpu.c:483-485 — l'iDX4 pose CR4/VME puis RETOMBE dans les i486 (pas de
+        // break). cpu_features n'est remis à zéro nulle part dans cpu_set : un i486 choisi
+        // après un iDX4 garde CR4 et VME.
+        // pcem bug, reproduced: PB-77
+        case CPU_iDX4:
+                cpu_features = CPU_FEATURE_CR4 | CPU_FEATURE_VME;
+                x86.cpu_CR4_mask = x86.CR4_VME | x86.CR4_PVI | x86.CR4_VME;
+                goto case CPU_i486SX;
+        // pcem: cpu.c:486-517
+        case CPU_i486SX:
+        case CPU_i486DX:
+                timing_rr = 1; /*register dest - register src*/
+                timing_rm = 2; /*register dest - memory src*/
+                timing_mr = 3; /*memory dest   - register src*/
+                timing_mm = 3;
+                timing_rml = 2; /*register dest - memory src long*/
+                timing_mrl = 3; /*memory dest   - register src long*/
+                timing_mml = 3;
+                timing_bt = 3 - 1; /*branch taken*/
+                timing_bnt = 1;    /*branch not taken*/
+                timing_int = 4;
+                timing_int_rm = 26;
+                timing_int_v86 = 82;
+                timing_int_pm = 44;
+                timing_int_pm_outer = 71;
+                timing_iret_rm = 15;
+                timing_iret_v86 = 36; /*unknown*/
+                timing_iret_pm = 20;
+                timing_iret_pm_outer = 36;
+                timing_call_rm = 18;
+                timing_call_pm = 20;
+                timing_call_pm_gate = 35;
+                timing_call_pm_gate_inner = 69;
+                timing_retf_rm = 13;
+                timing_retf_pm = 17;
+                timing_retf_pm_outer = 35;
+                timing_jmp_rm = 17;
+                timing_jmp_pm = 19;
+                timing_jmp_pm_gate = 32;
+                timing_misaligned = 3;
+                break;
+
+        // omitted: CPU_Am486SX, CPU_Am486DX (cpu.c:519-551) — Intel seul (décision de Julien,
+        //   1er octobre 2026, PLAN-G6.md n° 1) : cpus_Am486 n'est pas transcrite.
+        // omitted: CPU_Cx486S à CPU_CYRIX_III (cpu.c:553-1126) — Intel seul (décision n° 1) pour
+        //   les Cyrix, et des 586 et au-delà pour les autres. Les Pentium OverDrive de
+        //   cpus_i486 tombent dans le default : arrêt « non transcrit », pas de vert muet.
 
         default:
                 pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");
@@ -531,8 +597,54 @@ internal static partial class cpu_c
                 cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
     }
 
-    // pcem: cpu.c:1155 — cpu_CPUID. Lu par opCPUID seulement si CPUID != 0, c'est-à-dire
-    // à partir du 486 (cpu_set, cpuid_model) : il échoue en se nommant d'ici G6.
+    // pcem: cpu.c:1155-1184 — cpu_CPUID, les 486 d'Intel. Lu par opCPUID seulement si
+    // CPUID != 0 : l'iDX4 (cpuid_model).
     internal static void cpu_CPUID()
-        => pc.fatal("not implemented: cpu.c:1155 — cpu_CPUID (486, bloc G6)\n");
+    {
+        switch (model_c.models[model_c.model].cpu[cpu_manufacturer].cpus![cpu].cpu_type)
+        {
+        case CPU_i486DX:
+                if (x86.EAX == 0)
+                {
+                        x86.EAX = 0x00000001;
+                        x86.EBX = 0x756e6547;
+                        x86.EDX = 0x49656e69;
+                        x86.ECX = 0x6c65746e;
+                }
+                else if (x86.EAX == 1)
+                {
+                        x86.EAX = (uint32_t)x86.CPUID;
+                        x86.EBX = x86.ECX = 0;
+                        x86.EDX = CPUID_FPU; /*FPU*/
+                }
+                else
+                        x86.EAX = x86.EBX = x86.ECX = x86.EDX = 0;
+                break;
+
+        case CPU_iDX4:
+                if (x86.EAX == 0)
+                {
+                        x86.EAX = 0x00000001;
+                        x86.EBX = 0x756e6547;
+                        x86.EDX = 0x49656e69;
+                        x86.ECX = 0x6c65746e;
+                }
+                else if (x86.EAX == 1)
+                {
+                        x86.EAX = (uint32_t)x86.CPUID;
+                        x86.EBX = x86.ECX = 0;
+                        x86.EDX = CPUID_FPU | CPUID_VME;
+                }
+                else
+                        x86.EAX = x86.EBX = x86.ECX = x86.EDX = 0;
+                break;
+
+        // omitted: CPU_Am486SX, CPU_Am486DX (cpu.c:1185-1211) — Intel seul (décision n° 1).
+        // omitted: CPU_WINCHIP à CPU_CYRIX_III (cpu.c:1212-1736) — 586 et au-delà, dont le
+        //   Pentium OverDrive de cpus_i486, que cpu_set arrête déjà.
+        default:
+                pc.fatal("not implemented: cpu.c:1211 — cpu_CPUID au-delà du 486\n");
+                break;
+        }
+    }
 }

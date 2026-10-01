@@ -117,7 +117,9 @@ public static class Fuzzer
             Oracle.h_set_core(core);
             Oracle.h_reset();
             Oracle.h_fill_ram(0x90);
-            if (core == Oracle.Core386)
+            if (core == Oracle.Core486)
+                _386.Reset486();
+            else if (core == Oracle.Core386)
                 _386.Reset386();
             else if (core == Oracle.Core286)
                 _386.Reset286();
@@ -223,6 +225,19 @@ public static class Fuzzer
                     inner = 0xB8;                    // MOV AX,imm16 : repli sûr
                 code[1] = inner;
             }
+
+            // G6.1 — LOADALL386 (0F 07) SUR LE CŒUR 486, tiré au hasard : PCem l'exécute — le 486
+            // partage ops_386 —, il lit 0xCC octets non tenus, charge un CR0 avec PG et un CR3
+            // quelconque, et la traduction de page déréférence _mem_exec hors RAM : l'oracle
+            // tombe (segfault, mesuré : graine 1, itération 2 588, `0F 07 6B E6…`). Le vrai 486
+            // n'a pas de LOADALL. Remplacé par un voisin fixe, sans tirage de plus ; le cœur 386
+            // garde son tirage (ses séries de référence n'y passent pas). PARTOUT dans le tampon,
+            // pas seulement en tête : un ESC à coût nul fait exécuter l'octet d'après (mesuré :
+            // `DB E7 0F 07`, graine 1, i486DX2/66, itération 4 060).
+            if (core == Oracle.Core486 && second0F is null)
+                for (var k = 0; k + 1 < code.Length; k++)
+                    if (code[k] == 0x0F && code[k + 1] == 0x07)
+                        code[k + 1] = 0x06; // CLTS
 
             // G4.4 — `--x87 g44` : tout D9/DB/DD/DF est transcrit sauf les huit transcendantes de
             // D9 en mode registre, encore des souches (G4.5). Leur ModRM est remplacé par un voisin
@@ -337,7 +352,7 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
-            if (core == Oracle.Core386)
+            if (core >= Oracle.Core386)
                 Seed386(ref rng, ediHautNul: op2 == 0x07 && second0F is not null, sansPG: rmSansPG);
             if (second0F is not null)
             {
@@ -619,7 +634,9 @@ public static class Fuzzer
 
             Oracle.h_set_core(core);
             Oracle.h_reset();
-            if (core == Oracle.Core386)
+            if (core == Oracle.Core486)
+                _386.Reset486();
+            else if (core == Oracle.Core386)
                 _386.Reset386();
             else if (core == Oracle.Core286)
                 _386.Reset286();
@@ -646,7 +663,7 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
-            if (core == Oracle.Core386)
+            if (core >= Oracle.Core386)
                 Seed386(ref rng);
             if (FpuState)
                 SeedFpu(ref fpuRng);

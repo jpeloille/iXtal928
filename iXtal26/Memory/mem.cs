@@ -301,7 +301,13 @@ internal static partial class mem
 
     // omitted: mmutranslate_noabrt (mem.c:319-345) — son seul appelant est get_phys
     //   (mem.h:146-180), du dynarec.
-    // omitted: mmu_invalidate (mem.c:347-350) — INVLPG, 486 (G6).
+    // pcem: mem.c:349-352 — G6.1, INVLPG : la page seule n'est PAS invalidée (ligne
+    // commentée chez PCem), tout le cache de traduction l'est.
+    internal static void mmu_invalidate(uint32_t addr)
+    {
+        //        readlookup2[addr >> 12] = writelookup2[addr >> 12] = 0xFFFFFFFF;
+        flushmmucache_cr3();
+    }
     // omitted: flushmmucache_nopc (mem.c:136-150) — appelé par les chipsets 486 et
     //   Pentium (vl82c480, i430*, i440*, cs8230, mvp3), aucun porté.
     // omitted: mem_flush_write_page (mem.c:189-211) — sans appelant hors du dynarec.
@@ -624,7 +630,9 @@ internal static partial class mem
 
         if ((addr & 1) != 0)
         {
-                // omitted: `cycles -= timing_misaligned` — nul sur un 8088.
+                // pcem: mem.c:490-491 — G6.1 : nul jusqu'au 386, 3 cycles sur un 486.
+                if (cpu_c.cpu_cyrix_alignment == 0 || (addr & 7) == 7)
+                        x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFE)
                 {
                         // À CHEVAL SUR DEUX PAGES : les deux sont traduites AVANT toute
@@ -682,6 +690,9 @@ internal static partial class mem
 
         if ((addr & 1) != 0)
         {
+                // pcem: mem.c:530-531 — G6.1 : nul jusqu'au 386, 3 cycles sur un 486.
+                if (cpu_c.cpu_cyrix_alignment == 0 || (addr & 7) == 7)
+                        x86.cycles -= cpu_c.timing_misaligned;
                 if ((addr & 0xFFF) > 0xFFE)
                 {
                         if ((cr0 >> 31) != 0)

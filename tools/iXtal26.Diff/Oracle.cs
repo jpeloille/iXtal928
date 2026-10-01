@@ -48,7 +48,8 @@ public static class Oracle
     // 27 en G4.0 : l'état x87 entre dans h_state (le vecteur change de TAILLE) ; h_set_fpu,
     // h_setfpu et les sondes de parité h_libm, h_conv, h_fpu_arith s'ajoutent.
     // 28 en G5.0 : « mfm_at » monte enfin une carte côté oracle (comportement, pas forme).
-    public const int AbiVersion = 28;
+    // 29 en G6.0 : h_set_core accepte le 486 (l'ami486).
+    public const int AbiVersion = 29;
 
     static Oracle()
     {
@@ -136,17 +137,20 @@ public static class Oracle
     public const int Core286 = 1;
     // G2, D0.2 : 2 = 386, le MÊME exec386 sur l'ami386 (ops_386, is386, temps du 386).
     public const int Core386 = 2;
+    // G6.0 : 3 = 486, toujours exec386 — PCem n'a pas de table d'opcodes 486 — sur l'ami486.
+    public const int Core486 = 3;
 
     /// <summary>Le 286 et le 386 empruntent le même exec386 : c'est ce prédicat, pas
     /// `core == Core286`, qui choisit Step286 contre _808x.Step — pendant de
     /// h_exec386() côté oracle.</summary>
-    public static bool Exec386(int core) => core is Core286 or Core386;
+    public static bool Exec386(int core) => core is Core286 or Core386 or Core486;
 
     /// <summary>Le cœur d'une machine : 8088 hors AT ; sur un AT, le type de la
     /// première entrée de sa table de CPU. Un seul endroit, pour BootDiff, VgaProbe et
     /// CpuConfigCheck, qui le recopiaient chacun sur MODEL_AT seul.</summary>
     internal static int CoreForModel(iXtal26.Models.MODEL m)
         => (m.flags & iXtal26.Models.model_c.MODEL_AT) == 0 ? Core8088
+         : m.cpu[0].cpus![0].cpu_type >= iXtal26.Cpu.cpu_c.CPU_i486SX ? Core486
          : m.cpu[0].cpus![0].cpu_type >= iXtal26.Cpu.cpu_c.CPU_386SX ? Core386 : Core286;
     [DllImport(Lib)] public static extern void h_set_core(int core);
     [DllImport(Lib)] public static extern void h_prefetch_reset();

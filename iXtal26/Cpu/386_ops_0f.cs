@@ -10,7 +10,7 @@
 // SHA256: voir oracle.tsv ; vérifier avec tools/check-oracle.sh
 // STATUS: partial — les six emplacements de ops_286_0f, et depuis G2 D4 les
 //         formes 32 bits de 0F 00 à 0F 03 et LOADALL386 (0F 07) de ops_386_0f.
-//         Reste omis : INVLPG (486).
+//         INVLPG (486) depuis G6.1.
 //
 // LA SECONDE TABLE, ET LA PORTE DU MODE PROTÉGÉ.
 //
@@ -163,10 +163,25 @@ internal static partial class _386
                 PREFETCH_RUN(2, 2, (int)rmdat, 0, 0, (cpu_mod == 3) ? 0 : 1, 0, ea32);
                 break;
 
-        // omitted: le cas 0x38 (INVLPG) — garde par `if (is486)`, et sans ce
-        //   garde il tombe dans le `default`. Sur un 286 comme sur un 386 c'est donc
-        //   un opcode illegal, ce que la branche ci-dessous produit. Il arrive avec
-        //   mmu_invalidate, au 486 (G6) et apres la pagination (D6).
+        // pcem: x86_ops_pmode.h:463-472 — G6.1. Hors 486 il RETOMBE dans le default (pas de
+        // break hors du `if`) : un opcode illégal sur 286 et 386. La base est celle de DS,
+        // pas du segment effectif ; mmu_invalidate vidant tout, c'est sans effet.
+        case 0x38: /*INVLPG*/
+                if (is486 != 0)
+                {
+                        if ((CPL != 0 || (cpu_state.eflags & VM_FLAG) != 0) && (cr0 & 1) != 0)
+                        {
+                                // omitted: pclog("Invalid INVLPG!\n").
+                                x86seg_c.x86gpf("", 0);
+                                break;
+                        }
+                        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return true;
+                        Memory.mem.mmu_invalidate(ds + cpu_state.eaaddr);
+                        CLOCK_CYCLES(12);
+                        PREFETCH_RUN(12, 2, (int)rmdat, 0, 0, 0, 0, ea32);
+                        break;
+                }
+                goto default;
 
         default:
                 cpu_state.pc -= 3;

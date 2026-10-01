@@ -149,6 +149,30 @@ internal static class cpu_tables
             new("", -1, null, 0, 0, 0),
     };
 
+    // pcem: cpu_tables.c:167-189 — G6.1 — la table Intel de l'ami486 ; les Pentium OverDrive y restent, cpu_set les arrête (non transcrits).
+    internal static readonly CPU[] cpus_i486 =
+    {
+            /*i486*/
+            new("i486SX/16", CPU_i486SX, fpus_none, 0, 16000000, 1, 16000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 3, 3, 3, 3, 2),
+            new("i486SX/20", CPU_i486SX, fpus_none, 1, 20000000, 1, 20000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+            new("i486SX/25", CPU_i486SX, fpus_none, 2, 25000000, 1, 25000000, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+            new("i486SX/33", CPU_i486SX, fpus_none, 3, 33333333, 1, 33333333, 0x42a, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 6, 6, 3, 3, 4),
+            new("i486SX2/50", CPU_i486SX, fpus_none, 5, 50000000, 2, 25000000, 0x45b, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+            new("i486DX/25", CPU_i486DX, fpus_builtin, 2, 25000000, 1, 25000000, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 4, 4, 3, 3, 3),
+            new("i486DX/33", CPU_i486DX, fpus_builtin, 3, 33333333, 1, 33333333, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 6, 6, 3, 3, 4),
+            new("i486DX/50", CPU_i486DX, fpus_builtin, 5, 50000000, 1, 25000000, 0x404, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 4, 4, 6),
+            new("i486DX2/40", CPU_i486DX, fpus_builtin, 4, 40000000, 2, 20000000, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+            new("i486DX2/50", CPU_i486DX, fpus_builtin, 5, 50000000, 2, 25000000, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 8, 8, 6, 6, 2 * 3),
+            new("i486DX2/66", CPU_i486DX, fpus_builtin, 6, 66666666, 2, 33333333, 0x430, 0, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 12, 12, 6, 6, 2 * 4),
+            new("iDX4/75", CPU_iDX4, fpus_builtin, 7, 75000000, 3, 25000000, 0x481, 0x481, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 12, 12, 9, 9, 3 * 3), /*CPUID available on DX4, >= 75 MHz*/
+            new("iDX4/100", CPU_iDX4, fpus_builtin, 10, 100000000, 3, 33333333, 0x481, 0x481, 0, cpu_c.CPU_SUPPORTS_DYNAREC, 18, 18, 9, 9, 3 * 4), /*Is on some real Intel DX2s, limit here is pretty arbitary*/
+            new("Pentium OverDrive/63", CPU_PENTIUM, fpus_builtin, 6, 62500000, 3, 25000000, 0x1531, 0x1531, 0, cpu_c.CPU_SUPPORTS_DYNAREC | cpu_c.CPU_REQUIRES_DYNAREC, 10, 10, 7, 7, (5 * 3) / 2),
+            new("Pentium OverDrive/83", CPU_PENTIUM, fpus_builtin, 8, 83333333, 3, 33333333, 0x1532, 0x1532, 0, cpu_c.CPU_SUPPORTS_DYNAREC | cpu_c.CPU_REQUIRES_DYNAREC, 15, 15, 8, 8, (5 * 4) / 2),
+            new("", -1, null, 0, 0, 0),
+    };
+
+    // omitted: cpus_Am486 et cpus_Cx486 (cpu_tables.c:191-247) — Intel seul (décision de Julien,
+    //   1er octobre 2026, PLAN-G6.md n° 1).
     // omitted: les vingt-huit autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
     //   (cpu_tables.c:41-67), cpus_super286tr (:79-83), cpus_ibmxt286 à cpus_ps2_m30_286
     //   (:90-107), et de cpus_acer à cpus_VIA_100MHz (:125-667). Aucune machine du
@@ -158,6 +182,10 @@ internal static class cpu_tables
     private const int CPU_286 = cpu_c.CPU_286;
     private const int CPU_386SX = cpu_c.CPU_386SX;
     private const int CPU_386DX = cpu_c.CPU_386DX;
+    private const int CPU_i486SX = cpu_c.CPU_i486SX;
+    private const int CPU_i486DX = cpu_c.CPU_i486DX;
+    private const int CPU_iDX4 = cpu_c.CPU_iDX4;
+    private const int CPU_PENTIUM = cpu_c.CPU_PENTIUM;
     private const int FPU_NONE = cpu_c.FPU_NONE;
     private const int FPU_8087 = cpu_c.FPU_8087;
     private const int FPU_287 = cpu_c.FPU_287;
