@@ -127,3 +127,7 @@ run bd-ami486-gd5429-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxc
 run bd-ami386dx-gd5429 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard cl_gd5429
 runw bd-ami486-gd5429-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 --type "VER" --type "DIR"
 run r9-cl5429 r9-cl5429
+# G7.2 — le blitter de la GD5429 : BLTBANC.COM saisi dans DEBUG, écrit sur C:, lancé.
+mapfile -t BLK < tools/bltbanc/bltbanc.keys
+BL=(); for l in "${BLK[@]}"; do BL+=(--type "$l"); done
+runw bd-ami486-gd5429-blt c486.nvr ami486 boot-diff roms 60000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 --type-settle 600 "${BL[@]}" --type "^" --type "^" --type "^"

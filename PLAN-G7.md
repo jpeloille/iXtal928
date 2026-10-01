@@ -42,7 +42,7 @@ curseur, rendus ; l'oracle l'inclut dans un `harness_cl5429.c` (patron de `harne
 ami486 + GD5429 jusqu'au POST et à DOS, sonde vidéo étendue (registres CL, banques, curseur) ;
 puis ami386dx (ISA, `has_vlb` = 0) pour la branche non VLB.
 
-### G7.2 — Le blitter de la GD5429
+### G7.2 — Le blitter de la GD5429  ✅ *fait, VERIFICATION.md § G7.2*
 
 `gd5429_start_blit` et son MMIO (`:1302-1805`). **Porte** : un banc dirigé (un .COM saisi dans
 DEBUG, comme X87BANC et l'ide-check) qui programme des BitBLT, sous boot-diff ; puis Windows 3.1

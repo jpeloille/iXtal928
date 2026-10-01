@@ -4794,3 +4794,38 @@ identiques à g70, à deux écarts attendus près : l'ABI (29 → 30) et la sond
 « 102 champs »). `bd-pcdos-vga`, rouge en g70, est verte. Les cinq nouvelles portes sont vertes
 (les quatre boot-diffs du tableau, `r9-cl5429`). Aucune autre dépendance au tas : la ROM VGA
 était la seule. Build 0 avertissement, selftest, check-oracle 0 dérive.
+
+## G7.2 — Le blitter de la GD5429 : le banc dirigé BLTBANC
+
+Le 1er octobre 2026, sur ee101d5. Plan : `PLAN-G7.md` § G7.2.
+
+Le blitter (`gd5429_start_blit`, `vid_cl5429.c:1302-1599`) et son MMIO (`:1600-1805`) sont
+transcrits depuis G7.1, mais aucun BIOS ne les atteint : il faut un programme qui les programme.
+**`tools/bltbanc/bltbanc.py`** assemble BLTBANC.COM (1 101 octets, listing annoté, désassemblage
+vérifié par objdump), un interprète sur le patron d'IDECHK : écrire un registre, appeler
+l'INT 10h, remplir la VRAM par une banque, programmer un BitBLT (dix-sept valeurs GR20-GR32,
+puis GR31 = 02), alimenter un BitBLT « source système » par des mots en A000, attendre la fin
+(GR31 bit 0), relire la VRAM en somme tournante, écrire en MMIO (B8000), relire ou modifier un
+registre. Saisi dans DEBUG par KeyScript, écrit sur C:, lancé ; porte `bd-ami486-gd5429-blt`.
+
+Le script, en 640 × 480 × 256 (mode 5Fh du BIOS Cirrus), pas de 640 : copie avant et arrière ;
+motif 8 × 8 ; expansion de couleur, transparente ; motif en expansion ; les seize ROP du switch
+(`:1466-1526`) ; le masque de début de ligne (GR2F) ; 16 bpp (copie, motif, expansion) ;
+source système, copie et expansion ; un BitBLT entier programmé en MMIO (SR17 bit 2) ; puis
+six sommes de la VRAM touchée. La sonde de fin compare la VRAM entière, les registres de la
+carte et le framebuffer en 256 couleurs.
+
+**Résultat** : vert, 261 046 800 instructions, sonde 102 champs identiques ; 1 460 octets écrits
+sur C: (le .COM). **Le banc fait ce qu'il dit** : une trace temporaire de `gd5429_start_blit`
+côté C# compte 29 BitBLT — mode 00 dix-neuf fois (seize ROP, la copie, le masque, le MMIO),
+01, 04, 10, 40, 50, 80, 84, 88, 90, C0 une fois chacun. **Contrôle négatif**, retiré avec la
+trace : la ROP 0x0D (`dst = src`) faussée d'un bit côté C# → divergence à l'instruction
+256 679 589, dans les relectures.
+
+Limite : la sonde ne lit pas l'état interne du blitter (`blt.*`) ; elle en voit les effets
+(VRAM) et le CPU en lit le statut (GR31). Le témoin Windows reste en VGA (décision n° 4 : aucun
+pilote Cirrus sur les images) : le banc fait foi.
+
+**La série**, sur un instantané de G7.2, sous `MALLOC_PERTURB_=85`, comparée à g71 par nom,
+durées ôtées : 111 portes, toutes vertes ; les 110 journaux anciens identiques, la nouvelle
+`bd-ami486-gd5429-blt` verte (261 046 800 instructions, 1 460 octets écrits sur C:).
