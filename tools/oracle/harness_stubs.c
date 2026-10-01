@@ -971,6 +971,31 @@ static MODEL h_model_ami486 = {
         .ram_granularity = 1,
 };
 
+/* G1.0 — les deux machines 8086 (model.c:885-894, :948-957), pour cpu_set() et le fuzzeur
+ * du coeur 8086 (h_reset, H_CORE_8086). Leurs inits ne sont pas liées avant G1.1 et G1.2 :
+ * h_boot les refuse. */
+static MODEL h_model_pc1512 = {
+        .name = "[8086] Amstrad PC1512",
+        .id = ROM_PC1512,
+        .internal_name = "pc1512",
+        .cpu = {{"", cpus_pc1512}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_FIXED | MODEL_AMSTRAD,
+        .min_ram = 512,
+        .max_ram = 640,
+        .ram_granularity = 128,
+};
+
+static MODEL h_model_olim24 = {
+        .name = "[8086] Olivetti M24",
+        .id = ROM_OLIM24,
+        .internal_name = "olivetti_m24",
+        .cpu = {{"", cpus_8086}, {"", NULL}, {"", NULL}},
+        .flags = MODEL_GFX_FIXED | MODEL_OLIM24,
+        .min_ram = 128,
+        .max_ram = 640,
+        .ram_granularity = 128,
+};
+
 void h_models_init(void) {
         models[ROM_IBMPC] = &h_model_ibmpc;
         models[ROM_IBMXT] = &h_model_ibmxt;
@@ -979,6 +1004,8 @@ void h_models_init(void) {
         models[ROM_AMI386SX] = &h_model_ami386;
         models[ROM_AMI386DX_OPTI495] = &h_model_ami386dx;
         models[ROM_AMI486] = &h_model_ami486;
+        models[ROM_PC1512] = &h_model_pc1512;
+        models[ROM_OLIM24] = &h_model_olim24;
 }
 
 /* --- processeur (M16) -------------------------------------------------------

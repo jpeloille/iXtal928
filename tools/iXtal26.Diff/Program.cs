@@ -614,6 +614,7 @@ switch (args[0])
                         "286" => Oracle.Core286,
                         "386" => Oracle.Core386,
                         "486" => Oracle.Core486,
+                        "8086" => Oracle.Core8086,
                         _ => Oracle.Core8088,
                     };
                     break;
@@ -626,6 +627,7 @@ switch (args[0])
                     // donc précéder --cpu.
                     var n = int.Parse(args[++i]);
                     var table = fuzzCore == Oracle.Core486 ? iXtal26.Cpu._386.Table486()
+                        : fuzzCore == Oracle.Core8086 ? iXtal26.Cpu.cpu_tables.cpus_8086
                         : fuzzCore == Oracle.Core386
                         ? iXtal26.Cpu.cpu_tables.cpus_i386SX : iXtal26.Cpu.cpu_tables.cpus_286;
                     var count = 0;
@@ -671,7 +673,7 @@ switch (args[0])
         // des 256 opcodes qui n'a pas de `case` et tombe donc dans `default:`.
         if (second0F.Count > 0)
         {
-            if (!single || fuzzCore < Oracle.Core386 || ops.Count > 0)
+            if (!single || !Oracle.Is386Class(fuzzCore) || ops.Count > 0)
             {
                 Console.Error.WriteLine("--0f : seulement avec --core 386 ou 486 --mode single, et sans --op.");
                 return 2;

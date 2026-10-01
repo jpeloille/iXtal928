@@ -330,8 +330,35 @@ internal static partial class model_c
         init = at_ali1429_init,
     };
 
+    // pcem: model.c:885-894 — G1.0 : la table de CPU seule ; `init` (ams_init) et `device`
+    // (ams1512_device) entrent en G1.2. Sans init, initpc la refuse bruyamment.
+    internal static readonly MODEL m_pc1512 = new MODEL
+    {
+        name = "[8086] Amstrad PC1512",
+        id = pc.ROM_PC1512,
+        internal_name = "pc1512",
+        cpu = [new("", Cpu.cpu_tables.cpus_pc1512), new("", null), new("", null), new(), new()],
+        flags = MODEL_GFX_FIXED | MODEL_AMSTRAD,
+        min_ram = 512,
+        max_ram = 640,
+        ram_granularity = 128,
+    };
+
+    // pcem: model.c:948-957 — G1.0 : la table de CPU seule ; `init` (olim24_init) entre en G1.1.
+    internal static readonly MODEL m_olivetti_m24 = new MODEL
+    {
+        name = "[8086] Olivetti M24",
+        id = pc.ROM_OLIM24,
+        internal_name = "olivetti_m24",
+        cpu = [new("", Cpu.cpu_tables.cpus_8086), new("", null), new("", null), new(), new()],
+        flags = MODEL_GFX_FIXED | MODEL_OLIM24,
+        min_ram = 128,
+        max_ram = 640,
+        ram_granularity = 128,
+    };
+
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
-    // model_init_builtin (model.c:1625-1746). Cinq entrées sur les 97 de PCem.
+    // model_init_builtin (model.c:1625-1746). Neuf entrées sur les 97 de PCem.
     //
     // L'ORDRE COMPTE : `model` vaut 0 sans configuration, donc la première entrée est
     // la machine par défaut. Toute mesure de VERIFICATION.md suppose le 5150 ; déplacer
@@ -340,7 +367,8 @@ internal static partial class model_c
     // l'insérer ailleurs qu'à la fin décalerait les indices de celles qui suivent et
     // changerait la machine par défaut sans qu'une seule porte ne rougisse. m_ibmat
     // est entrée ainsi, puis m_ami286 derrière elle — d'où l'ordre ci-dessous.
-    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386, m_ami386dx, m_ami486 };
+    internal static readonly MODEL[] models = { m_ibmpc, m_ibmxt, m_ibmat, m_ami286, m_ami386, m_ami386dx, m_ami486,
+                                                m_pc1512, m_olivetti_m24 };
 
     // pcem: ibm.h — l'indice de la machine courante.
     internal static int model = 0;

@@ -123,6 +123,8 @@ public static class Fuzzer
                 _386.Reset386();
             else if (core == Oracle.Core286)
                 _386.Reset286();
+            else if (core == Oracle.Core8086)
+                _808x.Reset8086();
             else
                 _808x.Reset();
             if (!ConfigChecked && !CheckCpuConfig())
@@ -311,7 +313,7 @@ public static class Fuzzer
             // restent tels que tirés. D4 s'exécute en tête, ou derrière un préfixe enchaîné.
             // Seules les recettes --seed 8088 qui tiraient `D4 00` changent (VERIFICATION.md
             // § G4.0) ; aucun octet n'est tiré en plus, la suite du générateur ne bouge pas.
-            if (core == Oracle.Core8088)
+            if (!Oracle.Exec386(core))
             {
                 if (code[0] == 0xD4 && code[1] == 0)
                     code[1] = 1;
@@ -352,7 +354,7 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
-            if (core >= Oracle.Core386)
+            if (Oracle.Is386Class(core))
                 Seed386(ref rng, ediHautNul: op2 == 0x07 && second0F is not null, sansPG: rmSansPG);
             if (second0F is not null)
             {
@@ -640,6 +642,8 @@ public static class Fuzzer
                 _386.Reset386();
             else if (core == Oracle.Core286)
                 _386.Reset286();
+            else if (core == Oracle.Core8086)
+                _808x.Reset8086();
             else
                 _808x.Reset();
             if (!ConfigChecked && !CheckCpuConfig())
@@ -663,7 +667,7 @@ public static class Fuzzer
 
             Oracle.h_setregs(regs);
             _808x.SetRegs(regs);
-            if (core >= Oracle.Core386)
+            if (Oracle.Is386Class(core))
                 Seed386(ref rng);
             if (FpuState)
                 SeedFpu(ref fpuRng);
@@ -844,7 +848,7 @@ public static class Fuzzer
         uint lin;
         if (a.ea_seg_idx >= 0)
             lin = (a.seg_base[a.ea_seg_idx] + a.eaaddr) & mem.rammask;
-        else if (core == Oracle.Core8088)
+        else if (!Oracle.Exec386(core))
             lin = (x86.easeg + (a.eaaddr & 0xffff)) & mem.rammask;
         else
             return null;

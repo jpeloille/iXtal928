@@ -176,7 +176,11 @@ internal static partial class _808x
                 prefetchpc = (uint16_t)cpu_state.pc;
                 if (is8086 != 0 && (cpu_state.pc & 1) != 0)
                 {
-                        prefetchqueue[0] = readmembf(cs + prefetchpc);
+                        // pcem: 808x.c:150 — `cs + cpu_state.pc`, PAS prefetchpc : au repli de l'IP
+                        // (pc = 0x10001, non masqué avant la fin de l'instruction) PCem lit 64 Ko plus
+                        // loin. Corrigé en G1.0 : la transcription de M1 lisait cs + prefetchpc, ce que
+                        // le 8088 n'atteint jamais (is8086) — le fuzzeur 8086 l'a vu (PB-87).
+                        prefetchqueue[0] = readmembf(cs + cpu_state.pc);
                         prefetchpc++;
                         prefetchw++;
                 }

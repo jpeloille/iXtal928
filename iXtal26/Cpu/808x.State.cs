@@ -80,7 +80,14 @@ internal static partial class _808x
     /// <summary>La carte de 16 Mo du cœur 386 (G2, D2).</summary>
     internal static void FlatMap386() => FlatMap(16384);
 
-    internal static void Reset()
+    internal static void Reset() => Reset(8088);
+
+    /// <summary>G1.0 — pendant de h_reset() avec h_core == H_CORE_8086 : le MÊME execx86, sur
+    /// l'Olivetti M24 (cpus_8086) ; cpu_set() y pose is8086. `_386.FuzzCpu` est l'indice
+    /// dans cpus_8086, xt_cpu_multi suit la vitesse de l'entrée.</summary>
+    internal static void Reset8086() => Reset(8086);
+
+    private static void Reset(int core)
     {
         FlatMap();
         ResetCounters();
@@ -103,14 +110,18 @@ internal static partial class _808x
         // côté oracle. Ce chemin n'amorce aucune machine, mais resetx86() appelle
         // cpu_update_waitstates(), qui lit la table de la machine : il faut donc une
         // machine et une entrée. Celles du 5150, la seule que ce chemin ait jamais servie.
-        Models.model_c.model = 0;
+        Models.model_c.model = core == 8086 ? Models.model_c.model_get_model_from_internal_name("olivetti_m24") : 0;
         cpu_c.cpu_manufacturer = 0;
-        cpu_c.cpu = 0;
+        cpu_c.cpu = core == 8086 ? _386.FuzzCpu : 0;
         cpu_c.cpu_set();
 
         // pcem: pit.c:52 — tops de l'oscillateur maître (14,318 MHz) par cycle
         // CPU, en 32:32, pour un 8088 à 4 772 728 Hz (cpu_tables.c:33).
         xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) / 4772728.0);
+        // G1.0 — le 8086 : la vitesse de l'entrée, comme setpitclock() la reçoit (pc.cs:857).
+        if (core == 8086)
+                xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1UL << 32)) /
+                                          (double)Models.model_c.models[Models.model_c.model].cpu[0].cpus![cpu_c.cpu].rspeed);
 
         timer.tsc = 0;
         timer.timer_target = 0x7FFFFFFF;

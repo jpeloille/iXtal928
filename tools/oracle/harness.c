@@ -57,7 +57,8 @@ void h_prefetch_reset(void);
 static int h_core = H_CORE_8088;
 
 void h_set_core(int core) {
-        h_core = (core == H_CORE_286 || core == H_CORE_386 || core == H_CORE_486) ? core : H_CORE_8088;
+        h_core = (core == H_CORE_286 || core == H_CORE_386 || core == H_CORE_486 || core == H_CORE_8086) ? core
+                                                                                                    : H_CORE_8088;
 }
 
 /* LE 286 ET LE 386 EMPRUNTENT LE MEME exec386 (pc.c:478-487), et c'est ce predicat — pas
@@ -511,10 +512,12 @@ void h_reset(void) {
          * de la machine : il faut une machine, même ici. Pendant exact de _808x.Reset()
          * et de _386.Reset286() côté C#. */
         h_models_init();
+        /* G1.0 — H_CORE_8086 : le MEME execx86, sur l'Olivetti M24 (cpus_8086) ; cpu_set()
+         * y pose is8086 (cpu.c:181), donc la file de 6 octets et les mots sans pénalité. */
         model = (h_core == H_CORE_486) ? ROM_AMI486 : (h_core == H_CORE_386) ? ROM_AMI386SX
-                : (h_core == H_CORE_286) ? ROM_AMI286 : ROM_IBMPC;
+                : (h_core == H_CORE_286) ? ROM_AMI286 : (h_core == H_CORE_8086) ? ROM_OLIM24 : ROM_IBMPC;
         cpu_manufacturer = 0;
-        cpu = h_exec386() ? h_cpu_index : 0;
+        cpu = (h_exec386() || h_core == H_CORE_8086) ? h_cpu_index : 0;
         if (!h_cpu_index_ok(model, cpu)) {
                 fprintf(stderr, "h_reset : cpu %d hors de la table du romset %d, 0 à la place\n", cpu, model);
                 cpu = 0;
@@ -527,6 +530,10 @@ void h_reset(void) {
          * Valeur reprise de setpitclock() (models/pit.c:52) pour un 8088 à
          * 4 772 728 Hz — cpus_8088[0].rspeed, cpu_tables.c:33. */
         xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1ull << 32)) / 4772728.0);
+        /* G1.0 — le 8086 : la vitesse de l'entrée, comme setpitclock() la reçoit (pc.c:857). */
+        if (h_core == H_CORE_8086)
+                xt_cpu_multi = (uint64_t)((14318184.0 * (double)(1ull << 32)) /
+                                          (double)models[model]->cpu[0].cpus[cpu].rspeed);
 
         tsc = 0;
         timer_target = 0x7FFFFFFF;
@@ -1218,6 +1225,13 @@ int h_boot(const char *romspath) {
             != h_core) {
                 fprintf(stderr, "h_boot : la table du romset %d (cpu_type %d) contredit le coeur %d\n",
                         romset, cpu_s->cpu_type, h_core);
+                return 0;
+        }
+        /* G1.0 — les deux machines 8086 sont dans models[] pour cpu_set() et le fuzzeur, mais
+         * leur matériel (vidéo, clavier, ports) n'entre qu'en G1.1 et G1.2 : refus bruyant,
+         * comme le C# (initpc, init nulle), plutôt qu'un XT qui exécuterait leur BIOS. */
+        if (romset == ROM_OLIM24 || romset == ROM_PC1512) {
+                fprintf(stderr, "h_boot : romset %d (8086) pas encore amorçable (PLAN-G1.md)\n", romset);
                 return 0;
         }
 

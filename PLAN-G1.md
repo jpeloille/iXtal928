@@ -4,6 +4,10 @@
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
 > **Les deux machines**, décision de l'utilisateur (PLAN.md, G1).
+>
+> **Validé** le 2 octobre 2026 (orchestrateur, sous mandat) : décisions n° 2 à n° 6 telles que
+> proposées ; défauts 1 et 2 sous R9, 3 et 6c en déviation de l'oracle, 4, 5, 6a et 6b
+> reproduits ; `pc1512.nvr` fabriqué dans `nvr/default/`.
 
 ## Où on en est
 
@@ -46,12 +50,13 @@ L'horloge du CMOS ne pose pas de problème : `time_get` lit l'horloge interne é
 
 ## Les étapes
 
-### G1.0 — Les tables 8086 et le fuzzeur 8086
+### G1.0 — Les tables 8086 et le fuzzeur 8086  ✅ *fait, VERIFICATION.md § G1.0*
 
 `cpus_8086`, `cpus_pc1512` ; les trois remises à zéro d'`is8086` respectent `cpu_set` ; l'oracle
 gagne `h_model_olim24` et `h_model_pc1512` (modèles de la table, init NULL comme les autres) et
 `--model olivetti_m24` / `--cpu N` au fuzzeur sur le cœur 8088 (`CPU_8086` y mène déjà,
-`harness.c:1215-1221`). **Porte** : `cpu-config-check` élargi aux deux machines (sept entrées) ;
+`harness.c:1215-1221`). **Porte** : `cpu-config-check` dans les deux ordres (les deux machines y entrent avec leur
+amorçage, en G1.1 et G1.2 : le balayage amorce chaque machine des deux côtés) ;
 fuzzeur 8086 single et flux sur les 256 opcodes, graines 1 et 7, x87 8087 compris
 (`fpus_8088`) ; toutes les séries existantes identiques — le 8088 ne doit pas bouger d'un cycle.
 

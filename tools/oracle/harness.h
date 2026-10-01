@@ -62,7 +62,9 @@ enum { H_SYS_GDT = 0, H_SYS_LDT, H_SYS_IDT, H_SYS_TR, H_SYS_COUNT };
 /* H_CORE_486 depuis G6.0 : encore le MEME exec386 — PCem n'a pas de table d'opcodes 486,
  * tout est `if (is486)` dans les handlers du 386 (cpu.c:231) — sur l'ami486 (ROM_AMI486),
  * avec la carte plate de 16 Mo du 386. Seule la machine, donc la table de cpu_set, change. */
-enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2, H_CORE_486 = 3 };
+/* H_CORE_8086 depuis G1.0 : le MEME execx86 que le 8088, sur l'Olivetti M24 (cpus_8086) —
+ * cpu_set() pose is8086. Fuzzeur seulement : h_boot mène une machine 8086 par H_CORE_8088. */
+enum { H_CORE_8088 = 0, H_CORE_286 = 1, H_CORE_386 = 2, H_CORE_486 = 3, H_CORE_8086 = 4 };
 void h_set_core(int core);
 int h_get_core(void);
 
@@ -669,7 +671,8 @@ uint8_t *h_ram(void);
 /* 29 depuis G6.0 : h_set_core accepte H_CORE_486 (l'ami486, cpus_i486 seule). */
 /* 30 depuis G7.1 : la GD5429 (gfxcard 19), et la sonde VGA passe de 86 à 102 champs. */
 /* 31 depuis G7.3 : la Trio64 Phoenix (gfxcard 22), et la sonde VGA passe de 102 à 122 champs. */
-#define H_ABI_VERSION 31
+/* 32 depuis G1.0 : h_set_core accepte H_CORE_8086 (l'Olivetti M24, cpus_8086). */
+#define H_ABI_VERSION 32
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

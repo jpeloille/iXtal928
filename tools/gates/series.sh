@@ -141,3 +141,12 @@ mapfile -t S3K < tools/s3banc/s3banc.keys
 S3B=(); for l in "${S3K[@]}"; do S3B+=(--type "$l"); done
 runw bd-ami486-trio64-accel c486.nvr ami486 boot-diff roms 60000 --config ami486-ide.cfg --gfxcard px_trio64 --type-at 60000 --type-settle 600 "${S3B[@]}" --type "^" --type "^" --type "^"
 run r9-s3 r9-s3
+# G1.0 — le 8086 (le MÊME execx86, is8086 posé par cpu_set sur l'Olivetti M24) ; le balayage
+# des tables de CPU dans l'autre ordre (risque n° 1 de PLAN-G1.md : le 8088 ne doit pas bouger).
+run cpu-config-check-inverse cpu-config-check roms --inverse
+run fuzz8086-s1 fuzz --core 8086 --mode single --iter 80000 --seed 1 $ALL
+run fuzz8086-s7 fuzz --core 8086 --mode single --iter 80000 --seed 7 $ALL
+run fuzz8086-16-s3 fuzz --core 8086 --cpu 5 --mode single --iter 80000 --seed 3 $ALL
+run fuzz8086-stream fuzz --core 8086 --rounds 1500 --instr 200 $ALL
+run x87-8086-s1 fuzz --core 8086 --mode single --iter 100000 --seed 1 --fpu 8087 --x87 all $E87
+run x87-8086-flux fuzz --core 8086 --rounds 1500 --instr 200 --fpu 8087 $E87

@@ -51,7 +51,8 @@ public static class Oracle
     // 29 en G6.0 : h_set_core accepte le 486 (l'ami486).
     // 30 en G7.1 : la GD5429 (gfxcard 19) ; la sonde VGA passe de 86 à 102 champs.
     // 31 en G7.3 : la Trio64 Phoenix (gfxcard 22) ; la sonde VGA passe de 102 à 122 champs.
-    public const int AbiVersion = 31;
+    // 32 en G1.0 : h_set_core accepte le 8086 (l'Olivetti M24, cpus_8086).
+    public const int AbiVersion = 32;
 
     static Oracle()
     {
@@ -141,11 +142,18 @@ public static class Oracle
     public const int Core386 = 2;
     // G6.0 : 3 = 486, toujours exec386 — PCem n'a pas de table d'opcodes 486 — sur l'ami486.
     public const int Core486 = 3;
+    // G1.0 : 4 = 8086, le MÊME execx86 que le 8088, sur l'Olivetti M24 (cpus_8086) — fuzzeur
+    // seulement ; une machine 8086 s'amorce par Core8088 (CoreForModel), cpu_set y pose is8086.
+    public const int Core8086 = 4;
 
     /// <summary>Le 286 et le 386 empruntent le même exec386 : c'est ce prédicat, pas
     /// `core == Core286`, qui choisit Step286 contre _808x.Step — pendant de
     /// h_exec386() côté oracle.</summary>
     public static bool Exec386(int core) => core is Core286 or Core386 or Core486;
+
+    /// <summary>G1.0 — le cœur a-t-il l'état 32 bits du 386 (Seed386, --0f) ? Un prédicat et
+    /// non `core >= Core386` : Core8086 vaut 4, plus que Core386, et n'est qu'un execx86.</summary>
+    public static bool Is386Class(int core) => core is Core386 or Core486;
 
     /// <summary>Le cœur d'une machine : 8088 hors AT ; sur un AT, le type de la
     /// première entrée de sa table de CPU. Un seul endroit, pour BootDiff, VgaProbe et

@@ -103,6 +103,27 @@ internal static class cpu_tables
             new("", -1, null, 0, 0, 0),
     };
 
+    // pcem: cpu_tables.c:53-61 — G1.0 : l'Olivetti M24.
+    internal static readonly CPU[] cpus_8086 =
+    {
+            /*8086 standard*/
+            new("8086/7.16", CPU_8086, fpus_8088, 1, 14318184 / 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("8086/8", CPU_8086, fpus_8088, 1, 8000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("8086/9.54", CPU_8086, fpus_8088, 1, 4772728 * 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("8086/10", CPU_8086, fpus_8088, 2, 10000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("8086/12", CPU_8086, fpus_8088, 3, 12000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("8086/16", CPU_8086, fpus_8088, 4, 16000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2),
+            new("", -1, null, 0, 0, 0),
+    };
+
+    // pcem: cpu_tables.c:63-66 — G1.0 : l'Amstrad PC1512.
+    internal static readonly CPU[] cpus_pc1512 =
+    {
+            /*8086 Amstrad*/
+            new("8086/8", CPU_8086, fpus_8088, 1, 8000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+            new("", -1, null, 0, 0, 0),
+    };
+
     // pcem: cpu_tables.c:68-77
     internal static readonly CPU[] cpus_286 =
     {
@@ -173,12 +194,12 @@ internal static class cpu_tables
 
     // omitted: cpus_Am486 et cpus_Cx486 (cpu_tables.c:191-247) — Intel seul (décision de Julien,
     //   1er octobre 2026, PLAN-G6.md n° 1).
-    // omitted: les vingt-huit autres tables — cpus_pcjr, cpus_europc, cpus_8086, cpus_pc1512
-    //   (cpu_tables.c:41-67), cpus_super286tr (:79-83), cpus_ibmxt286 à cpus_ps2_m30_286
+    // omitted: les vingt-six autres tables — cpus_pcjr, cpus_europc (cpu_tables.c:41-51), cpus_super286tr (:79-83), cpus_ibmxt286 à cpus_ps2_m30_286
     //   (:90-107), et de cpus_acer à cpus_VIA_100MHz (:125-667). Aucune machine du
     //   dépôt ne les référence ; cpus_Am386SX et cpus_486SLC, que m_ami386 propose
     //   aussi, sont omis avec elle (model.cs).
     private const int CPU_8088 = cpu_c.CPU_8088;
+    private const int CPU_8086 = cpu_c.CPU_8086;
     private const int CPU_286 = cpu_c.CPU_286;
     private const int CPU_386SX = cpu_c.CPU_386SX;
     private const int CPU_386DX = cpu_c.CPU_386DX;

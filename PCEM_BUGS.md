@@ -891,6 +891,20 @@ le quotient est pris replié (`-(end_x - start_x)`, INT_MIN pour INT_MIN), ident
 partout ailleurs. `r9-s3` : survit, `poly_dx1` = `poly_dx2` = 80000000 ; sans la garde,
 `OverflowException` (mesuré).
 
+### PB-87 — Au repli de l'IP, le préfetch du 8086 lit 64 Ko plus loin
+
+`808x.c:146-153`, `FETCH`, file vide : `prefetchpc = cpu_state.pc = cpu_state.pc + 1`, puis, sur
+un 8086 et un `pc` impair, `prefetchqueue[0] = readmembf(cs + cpu_state.pc)`. `cpu_state.pc` est
+sur 32 bits et n'est masqué qu'en fin d'instruction (`:3910`) : une instruction qui commence en
+FFFFh et lit un second octet porte `pc` à 0x10001, et le préfetch lit `cs + 0x10001` — 64 Ko au-delà
+du segment — là où le vrai 8086 lit `cs + 1` (`prefetchpc`, sur 16 bits, vaut bien 1).
+*Effet* : au repli de l'IP, l'octet mis en file vient d'ailleurs ; sur un remplissage uniforme,
+l'instruction suivante se décode et se chronomètre autrement.
+*Trouvé par* : le fuzzeur 8086 en flux (G1.0, graine 1, ronde 325 : `FF FF` en FFFF:FFFF puis
+FFFF:0001, 13 cycles contre 4). **La transcription de M1 lisait `cs + prefetchpc`** — le geste du
+vrai 8086, pas celui de PCem —, et le 8088 n'atteignait jamais cette branche (`is8086`).
+*Reproduit* : `Cpu/808x.cs`, `FETCH`, `cs + cpu_state.pc`, marqueur PB-87.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1622,6 +1636,7 @@ audit systématique de PCem** :
 | Transcription de la fenêtre linéaire SVGA (G7.0) | PB-80 |
 | Transcription de la GD5429 (G7.1) | PB-81, PB-82 |
 | Transcription de la Trio64 (G7.3) | PB-83 à PB-86 |
+| Le fuzzeur 8086 (G1.0) | PB-87 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

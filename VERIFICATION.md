@@ -4948,3 +4948,42 @@ Les originaux ne sont pas touchés : `sha256sum -c os/os.sha256` vert (les deux 
 **La série**, sur un instantané de G7.4, sous `MALLOC_PERTURB_=85` : 117 portes, toutes vertes,
 les 117 journaux identiques à g73 (durées ôtées). Les trois touches de KeyScript ne changent
 aucune frappe existante.
+
+## G1.0 — Les tables 8086 et le fuzzeur 8086 ; PB-87
+
+Le 2 octobre 2026, sur 038bc41. Plan : `PLAN-G1.md` § G1.0 (validé sous mandat).
+
+**Le cœur 8086 était déjà transcrit** (M1) : PCem n'en a pas de distinct, `cpu_set` pose
+`is8086` et `808x.c` branche dessus (file de 6 octets, mots sans pénalité). Manquaient les
+tables : `cpus_8086` (`cpu_tables.c:53-61`) et `cpus_pc1512` (`:63-66`), et les deux machines
+dans la table des modèles (`m_pc1512`, `m_olivetti_m24`, `model.c:885-894`, `:948-957`), sans
+init jusqu'à G1.1 et G1.2 — refus bruyant des deux côtés (`initpc`, et un refus explicite dans
+`h_boot`). Les remises à zéro d'`is8086` du harnais précèdent le vrai `cpu_set`, qui le repose :
+elles n'écrasent rien.
+
+**Le fuzzeur 8086** : `--core 8086` (ABI 32), le MÊME `execx86` sur l'Olivetti M24 —
+`h_reset` et `_808x.Reset8086()` font tourner `cpu_set` sur `cpus_8086[--cpu]`, `xt_cpu_multi`
+suit la vitesse de l'entrée. Les comparaisons numériques de cœur de l'outil (`core >=
+Core386`, qui aurait donné au 8086 — valeur 4 — l'état d'un 386) deviennent des prédicats
+(`Is386Class`, `Exec386`). Contrôle négatif, retiré : la file du 8086 ramenée à 5 octets côté
+C# → divergence à la première instruction en 8086, 8088 vert.
+
+**PB-87, trouvé par le fuzzeur 8086 en flux** (graine 1, ronde 325) : au repli de l'IP, le
+préfetch du 8086 lit `cs + cpu_state.pc` (`808x.c:150`), `pc` valant alors 0x10001, non masqué.
+La transcription de M1 lisait `cs + prefetchpc` — le geste du vrai 8086 —, branche que le 8088
+n'atteint pas. Localisé par une trace temporaire de l'état du préfetch des deux côtés
+(`prefetchw`, `fetchcycles`, `fetchclocks`, `prefetchpc`), retirée : l'oracle remplissait la file
+de cinq octets et comptait 13 cycles, le C# un octet et 4. Corrigé, reproduit ; le flux 8086
+complet (1 500 × 200) est vert. La première série de G1.0, lancée avant le correctif, a été
+arrêtée et relancée sur un instantané corrigé.
+
+**Les portes** : `cpu-config-check --inverse` (le balayage dans l'autre ordre, risque n° 1) ;
+fuzzeur 8086 single (graines 1 et 7, et 8086/16 graine 3), flux, x87 8087 single et flux.
+
+**La série**, sur un instantané de G1.0 construit dans un worktree de HEAD (pour exclure G1.1,
+déjà en cours dans le dépôt), sous `MALLOC_PERTURB_=85` : 124 portes, **toutes vertes** ; les
+sept nouvelles vertes. Comparée à g74 : identique, sauf l'ABI (31 → 32) et les sept boot-diffs
+de l'ami386dx (+53 à +548 instructions, identiques des deux côtés). **Cause, mesurée** : dans le
+dépôt, ces portes lisent le CMOS de session `nvr/.ami386dx_opti495.nvr` de l'utilisateur ; le
+worktree ne l'a pas et retombe sur `nvr/default/`. L'instantané de G7.4 rejoué depuis le worktree
+donne le même compte que G1.0 (4 437 159 pour `bd-ami386dx-4m`) : l'environnement, pas le code.
