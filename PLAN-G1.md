@@ -60,7 +60,7 @@ amorçage, en G1.1 et G1.2 : le balayage amorce chaque machine des deux côtés)
 fuzzeur 8086 single et flux sur les 256 opcodes, graines 1 et 7, x87 8087 compris
 (`fpus_8088`) ; toutes les séries existantes identiques — le 8088 ne doit pas bouger d'un cycle.
 
-### G1.1 — L'Olivetti M24
+### G1.1 — L'Olivetti M24  ✅ *fait, VERIFICATION.md § G1.1 ; PB-88, PB-89*
 
 `olivetti_m24.c`, `keyboard_olim24.c` (clavier et souris), `vid_olivetti_m24.c`, le cas
 `ROM_OLIM24` de `loadbios`, `m_olivetti_m24`, la branche M24 de `h_boot` (pas de

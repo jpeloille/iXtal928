@@ -38,7 +38,9 @@ internal static class CpuConfigCheck
         // G4.1 : l'ami386 et l'ami386dx entrent au balayage — ce sont eux qui proposent le 387.
         // G6.3 : l'ami486 EN DERNIER — cpu_features n'est jamais remis à zéro par cpu_set
         // (PB-77) : l'ordre des entrées décide de ce qu'un i486 hérite d'un iDX4. Fixé ici.
-        string[] order = ["ibmpc", "ibmxt", "ibmat", "ami286", "ami386", "ami386dx", "ami486"];
+        // G1.1 — l'Olivetti M24 (cpus_8086) après les deux 8088 : cpu_set y pose is8086, et le balayage
+        // inverse prouve qu'il ne fuit pas vers le 5150 (PLAN-G1.md, risque n° 1).
+        string[] order = ["ibmpc", "ibmxt", "olivetti_m24", "ibmat", "ami286", "ami386", "ami386dx", "ami486"];
         if (reverse)
             Array.Reverse(order);
 

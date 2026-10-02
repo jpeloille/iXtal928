@@ -2039,7 +2039,10 @@ internal static partial class vid_svga
 
         Array.Clear(o);
         if (svga == null)
+        {
+                ProbeM24(o);   // G1.1 — la M24, si elle est montée (champ 0 = 2)
                 return;
+        }
 
         var pal = new uint8_t[256 * 3];
         for (c = 0; c < 256; c++)
@@ -2192,6 +2195,39 @@ internal static partial class vid_svga
                 o[f++] = (uint64_t)(long)s3.blitter_busy | ((uint64_t)(uint32_t)s3.force_busy << 32);
                 o[f++] = s3.hwc_fg_col | ((uint64_t)s3.hwc_bg_col << 32);
         }
+    }
+
+    // G1.1 — les vingt et un champs de la M24 (h_m24_probe), à partir de l'offset 122. Pas de
+    // framebuffer : l'oracle ne charge pas fontdatm (pixels seulement).
+    private static void ProbeM24(uint64_t[] o)
+    {
+        var m24 = vid_olivetti_m24.m24_pri;
+        int f = 122;
+
+        if (m24 == null)
+                return;
+        o[0] = 2;
+        o[f++] = Fnv(m24.crtc);
+        o[f++] = (uint64_t)(long)m24.crtcreg;
+        o[f++] = Fnv(m24.vram.AsSpan(0, 0x8000));
+        o[f++] = Fnv(m24.charbuffer);
+        o[f++] = m24.ctrl;
+        o[f++] = m24.@base;
+        o[f++] = m24.cgamode | ((uint64_t)m24.cgacol << 8) | ((uint64_t)m24.stat << 16);
+        o[f++] = (uint64_t)(long)m24.linepos;
+        o[f++] = (uint64_t)(long)m24.displine;
+        o[f++] = (uint64_t)(long)m24.sc;
+        o[f++] = (uint64_t)(long)m24.vc;
+        o[f++] = (uint32_t)m24.con | ((uint64_t)(uint32_t)m24.coff << 32);
+        o[f++] = (uint32_t)m24.cursoron | ((uint64_t)(uint32_t)m24.blink << 32);
+        o[f++] = (uint32_t)m24.vsynctime | ((uint64_t)(uint32_t)m24.vadj << 32);
+        o[f++] = (uint64_t)(long)m24.lineff;
+        o[f++] = m24.ma | ((uint64_t)m24.maback << 16);
+        o[f++] = (uint64_t)(long)m24.dispon;
+        o[f++] = m24.dispontime;
+        o[f++] = m24.dispofftime;
+        o[f++] = m24.timer.ts_integer | ((uint64_t)m24.timer.ts_frac << 32);
+        o[f++] = (uint32_t)m24.firstline | ((uint64_t)(uint32_t)m24.lastline << 32);
     }
 
     // FNV-1a 64 bits, le h_fnv de harness.c.

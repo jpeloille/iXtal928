@@ -54,6 +54,11 @@ public static class VgaProbe
         "accel.frgd|bkgd_color", "accel.wrt|rd_mask", "accel.mixes|color_cmp", "accel.cx|cy",
         "accel.sx|sy", "accel.dx|dy", "fifo_write|read_idx", "blitter_busy|force_busy",
         "hwc_fg|bg_col",
+        // G1.1 — la m24_t (h_m24_probe), quand aucune svga n'est montée (champ 0 = 2).
+        "#m24.crtc", "m24.crtcreg", "#m24.vram", "#m24.charbuffer", "m24.ctrl", "m24.base",
+        "m24.cgamode|cgacol|stat", "m24.linepos", "m24.displine", "m24.sc", "m24.vc", "m24.con|coff",
+        "m24.cursoron|blink", "m24.vsynctime|vadj", "m24.lineff", "m24.ma|maback", "m24.dispon",
+        "m24.dispontime", "m24.dispofftime", "m24.timer", "m24.firstline|lastline",
     ];
 
     // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du

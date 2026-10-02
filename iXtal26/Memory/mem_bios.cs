@@ -234,7 +234,28 @@ internal static partial class mem_bios
                     // du XT est DANS xt.rom, qui couvre les 64 Ko de F000:0000 d'un
                     // bloc. biosmask vaut 0xffff pour les deux machines.
 
-            // omitted: les 100 autres cas de `romset` (mem_bios.c:74-165, 182-542,
+            // pcem: mem_bios.c:234-245 — G1.1 : l'Olivetti M24, deux ROM de 8 Ko entrelacées dans
+            // les 16 derniers Ko. Sa police est celle du MDA (mda.rom), chargée plus haut.
+            case ROM_OLIM24:
+                    f = romfopen("olivetti_m24/olivetti_m24_version_1.43_low.bin", "rb");
+                    ff = romfopen("olivetti_m24/olivetti_m24_version_1.43_high.bin", "rb");
+                    // DEVIATION: le descripteur ouvert seul est fermé, comme pour ROM_IBMAT.
+                    if (f == null || ff == null)
+                    {
+                            f?.Close();
+                            ff?.Close();
+                            break;
+                    }
+                    for (var c = 0x0000; c < 0x4000; c += 2)
+                    {
+                            rom[c + 0xc000] = (uint8_t)f.ReadByte();
+                            rom[c + 0xc001] = (uint8_t)ff.ReadByte();
+                    }
+                    ff.Close();
+                    f.Close();
+                    return 1;
+
+            // omitted: les 99 autres cas de `romset` (mem_bios.c:74-165, 182-233, 246-542,
             //   553-1277), de ROM_PC1512 à ROM_GA686BX — machines hors cible.
             }
             printf("Failed to load ROM!\n");

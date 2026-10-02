@@ -241,6 +241,7 @@ void keyboard_xt_init(void);   /* déclaré dans models/model.c chez PCem */
  * keyboard_xt_init juste au-dessus. */
 void keyboard_at_init(void);
 void loadnvr(void); /* nvr.h — declare la, comme les quatre symboles de l'AT. */
+extern uint8_t nvrram[128]; /* nvr.h:16 — G1.1 */
 void neat_init(void); /* neat.h — G3.0, le chipset de l'ami286. */
 void headland_init(void); /* headland.h — G3.1, le chipset de l'ami386. */
 void opti495_init(void); /* opti495.h — G3.2, le chipset de l'ami386dx. */
@@ -319,6 +320,13 @@ void h_tvga_probe(svga_t *svga, uint64_t *out);
 void h_cl5429_probe(svga_t *svga, uint64_t *out); /* harness_cl5429.c, G7.1 */
 #include "vid_s3.h"       /* G7.3 — s3_phoenix_trio64_device, compilée par harness_s3.c */
 void h_s3_probe(svga_t *svga, uint64_t *out);     /* harness_s3.c, G7.3 */
+#include "olivetti_m24.h"     /* G1.1 — l'Olivetti M24 */
+#include "keyboard_olim24.h"
+#include "gameport.h"
+#include "vid_olivetti_m24.h" /* m24_device, compilée par harness_m24.c */
+void h_m24_attach(void);      /* harness_m24.c */
+void h_m24_probe(uint64_t *out);
+void h_m24_forget(void);
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1230,7 +1238,7 @@ int h_boot(const char *romspath) {
         /* G1.0 — les deux machines 8086 sont dans models[] pour cpu_set() et le fuzzeur, mais
          * leur matériel (vidéo, clavier, ports) n'entre qu'en G1.1 et G1.2 : refus bruyant,
          * comme le C# (initpc, init nulle), plutôt qu'un XT qui exécuterait leur BIOS. */
-        if (romset == ROM_OLIM24 || romset == ROM_PC1512) {
+        if (romset == ROM_PC1512) {
                 fprintf(stderr, "h_boot : romset %d (8086) pas encore amorçable (PLAN-G1.md)\n", romset);
                 return 0;
         }
@@ -1276,7 +1284,17 @@ int h_boot(const char *romspath) {
         serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
-        if (h_exec386()) {
+        if (romset == ROM_OLIM24) {
+                /* G1.1 — olim24_init (model.c:292-300), après common_init et mem_add_bios :
+                 * PAS de rafraîchissement mémoire (le canal 1 du PIT reste nul, contrairement à
+                 * xt_init, model.c:205), le clavier propre de la M24, le CMOS, les ports 66h/67h,
+                 * le masque NMI, la manette (sans manette branchée, décision n° 2). */
+                keyboard_olim24_init();
+                device_add(&nvr_device);
+                olivetti_m24_init();
+                nmi_init();
+                device_add(&gameport_device);
+        } else if (h_exec386()) {
                 /* models[] et `model` sont posés plus haut, avant cpu_set() (M16) :
                  * nvr.c les déréférence à chaque écriture CMOS. */
                 AT = 1;
@@ -1324,7 +1342,12 @@ int h_boot(const char *romspath) {
          * video_cards[video_old_to_new(gfxcard)]->device designe (video.c:96, :191).
          * Les deux cotes ajoutent donc la MEME carte de la MEME facon -- ce qui est
          * tout ce que l'oracle doit garantir. */
-        if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B || gfxcard == GFX_CL_GD5429 ||
+        /* G1.1 — video.c:800-802 : la M24 a SA vidéo, choisie par le romset, gfxcard ignoré. */
+        h_m24_forget();
+        if (romset == ROM_OLIM24) {
+                device_add(&m24_device);
+                h_m24_attach();
+        } else if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B || gfxcard == GFX_CL_GD5429 ||
             gfxcard == GFX_PHOENIX_TRIO64) {
                 svga_t *svga;
 
@@ -1428,6 +1451,11 @@ int h_boot(const char *romspath) {
            celle-ci referme puis rouvre (ide.c:268-290) : l'effet net est le sien seul. */
         resetide();
 
+        /* G1.1 — DÉVIATION DE L'ORACLE (PLAN-G1.md, défaut 6c) : loadnvr n'a pas de cas pour la
+         * M24 (nvr.c:521-522, `default: return`) ; nvrram garde ce qu'un amorçage précédent du
+         * processus y a laissé — la phase 2 du boot-diff, celui de la phase 1. Zéro, comme le C#. */
+        if (romset == ROM_OLIM24)
+                memset(nvrram, 0, sizeof(nvrram));
         loadnvr();
         ali1429_reset();             /* pc.c:403 — G6.3 */
 
@@ -1583,8 +1611,10 @@ void h_vga_probe(uint64_t *out) {
         int f = 0, c;
 
         memset(out, 0, H_VGA_PROBE_N * sizeof(uint64_t));
-        if (!svga)
+        if (!svga) {
+                h_m24_probe(out);   /* G1.1 — la M24, si elle est montée (champ 0 = 2) */
                 return;
+        }
 
         /* pallook en petit-boutiste explicite : le C# hache les mêmes octets. */
         for (c = 0; c < 512; c++)

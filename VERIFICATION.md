@@ -4987,3 +4987,50 @@ de l'ami386dx (+53 à +548 instructions, identiques des deux côtés). **Cause, 
 dépôt, ces portes lisent le CMOS de session `nvr/.ami386dx_opti495.nvr` de l'utilisateur ; le
 worktree ne l'a pas et retombe sur `nvr/default/`. L'instantané de G7.4 rejoué depuis le worktree
 donne le même compte que G1.0 (4 437 159 pour `bd-ami386dx-4m`) : l'environnement, pas le code.
+
+## G1.1 — L'Olivetti M24 ; PB-88, PB-89
+
+Le 2 octobre 2026, sur 2a8a49f. Plan : `PLAN-G1.md` § G1.1.
+
+**Transcrit.** `olivetti_m24.c` (ports 66h/67h), `keyboard_olim24.c` (le clavier et la souris
+de la M24, par la file du clavier ; files sans contrôle de débordement et bornes mortes de la
+souris reproduites), `vid_olivetti_m24.c` (la CGA 640 × 400 de la M24, 32 Ko, police MDA),
+`gameport.c` et `joystick_standard.c` (sans manette branchée, décision n° 2). Intégration :
+`olim24_init` (`model.c:292-300` : pas de rafraîchissement mémoire, clavier propre, CMOS, ports,
+NMI, manette), le cas `ROM_OLIM24` de `loadbios` (`mem_bios.c:234-245`), la vidéo par le romset
+(`video_card_getdevice`, `video_init`, `video_updatetiming` — `timing_m24` —, `video_is_*` :
+gfxcard peut valoir `GFX_BUILTIN` sur une machine à vidéo fixe, le romset passe donc avant la
+lecture de la carte), le CMOS sans cas dans `loadnvr`.
+
+**L'oracle.** `harness_m24.c` inclut `vid_olivetti_m24.c` ; `h_boot` suit `olim24_init` et monte
+`m24_device` par le romset ; `video_updatetiming` prend les temps de la M24 et du PC1512 par le
+romset ; `fontdatm` défini (pixels seulement). Deux déviations de l'oracle, comme `svga_init` :
+la VRAM de la M24 effacée (défaut 3), `nvrram` mis à zéro avant `loadnvr` pour la M24 (défaut 6c,
+le C# fait de même). **La sonde passe à 143 champs** (ABI 33) : vingt et un de la `m24_t`
+(CRTC, VRAM, `charbuffer`, registres, compteurs, temps), le champ 0 valant 2 ; contrôle négatif
+(`ctrl` faussé d'une unité côté C#) mordant.
+
+**PB-88, R9** : `charbuffer[256]` recopié jusqu'à l'index 509 (R1 non masqué) — PCem écrase les
+champs qui suivent, `pc_timer_t` compris ; le C# saute l'écriture, rend 0 à la lecture.
+**PB-89, reproduit** : la bordure déborde sur la ligne suivante de `buffer32` — jamais hors du
+tableau (`displine` < 720) : le défaut n° 2 de PLAN-G1.md n'est pas un R9 pour la M24, les gardes
+du brouillon ont été retirées et le code est verbatim.
+
+**Les boot-diffs** (`--model olivetti_m24`, 8086/7,16) :
+
+| Arc | Tranches | Instructions | Sonde M24 |
+|---|---:|---:|---|
+| POST | 3 000 | 16 463 895 | 143 identiques |
+| PC-DOS 2.00 en disquette | 7 000 | 35 343 172 | 143 identiques |
+| date, heure, `DIR` au clavier de la M24 | 9 000 | 45 217 532 | 143 identiques |
+
+`cpu-config-check` : la M24 entre au balayage après les deux 8088, six vitesses × {sans, 8087},
+identiques dans les deux ordres (`is8086` est dans l'empreinte). Témoin `--boot` (sur copie) :
+« Resident Diagnostics Rev 1.43 », « CPU (i8086) Pass », « 640 kb RAM Pass », « RT Clock Pass »,
+PC-DOS 2.00, `DIR`.
+
+**La série**, sous `MALLOC_PERTURB_=85`, avec les portes isolées des CMOS de session (081b197),
+comparée à g10b : 127 portes, **toutes vertes**. Les 124 anciennes identiques, aux écarts attendus
+près — ABI 32 → 33, « 122 champs » → « 143 champs », `cpu-config-check` dans les deux ordres
+élargi à la M24 (80 → 92 configurations identiques, 7 → 8 refus concordants) ; les trois
+boot-diffs de la M24 nouveaux, verts. Build 0 avertissement, selftest, check-oracle 0 dérive (138).

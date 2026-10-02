@@ -472,8 +472,12 @@ public static class BootDiff
             return 1;
         }
 
-        Console.WriteLine($"Sonde VGA : {VgaProbe.Fields.Length} champs identiques — VRAM, registres, " +
-                          $"palettes et framebuffer ; {o[Array.IndexOf(VgaProbe.Fields, "frames")]} trames tracées.");
+        if (o[0] == 2)
+            Console.WriteLine($"Sonde M24 : {VgaProbe.Fields.Length} champs identiques — registres, VRAM et " +
+                              "charbuffer de la vidéo de l'Olivetti M24.");
+        else
+            Console.WriteLine($"Sonde VGA : {VgaProbe.Fields.Length} champs identiques — VRAM, registres, " +
+                              $"palettes et framebuffer ; {o[Array.IndexOf(VgaProbe.Fields, "frames")]} trames tracées.");
         return 0;
     }
 

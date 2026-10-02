@@ -187,6 +187,10 @@ internal static partial class video
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int ISA_CYCLES(int x) => x * cpu_c.isa_cycles;
 
+    // pcem: video.c:200 — G1.1 : la M24.
+    private static readonly video_timings_t timing_m24 = new video_timings_t
+        { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 };
+
     // pcem: video.c:598-749
     internal static void video_updatetiming()
     {
@@ -195,13 +199,19 @@ internal static partial class video
                 video_timings_t timing;
                 int new_gfxcard = 0;
 
-                new_gfxcard = video_old_to_new(pc.gfxcard);
-                timing = video_cards[new_gfxcard].timing;
-
-                // omitted: le switch (romset) (video.c:607-718) — des tables de
-                //   remplacement (timing_dram, timing_pc1512, timing_vga…) pour des
-                //   machines à vidéo intégrée. Branches NON prises : aucun des quatre
-                //   romsets du dépôt n'y a d'étiquette.
+                // pcem: video.c:603-718 — G1.1 : le switch (romset) des machines à vidéo intégrée,
+                // réduit à la M24 (:629-630). DEVIATION : il passe AVANT la lecture de la carte —
+                // la même valeur finale ; mais gfxcard peut valoir GFX_BUILTIN (-1) sur une machine
+                // à vidéo fixe, où le C ne fait que FORMER &video_cards[-1] et le C# lèverait.
+                // omitted: les autres étiquettes (timing_dram, timing_pc1640, timing_vga…), machines
+                //   hors dépôt.
+                if (pc.romset == pc.ROM_OLIM24)
+                        timing = timing_m24;
+                else
+                {
+                        new_gfxcard = video_old_to_new(pc.gfxcard);
+                        timing = video_cards[new_gfxcard].timing;
+                }
 
                 if (timing.type == VIDEO_ISA)
                 {
@@ -353,11 +363,15 @@ internal static partial class video
     }
 
     // pcem: video.c:234-338
-    // omitted: le switch sur romset (video.c:235-336) — trente-trois étiquettes de
-    //   romset pour les cartes intégrées de machines dont aucune n'est au dépôt ; les
-    //   quatre romsets du dépôt tombent tous dans le `return` final.
+    // omitted: le switch sur romset (video.c:235-336), sauf la M24 (G1.1, :264-265) —
+    //   trente-deux étiquettes de romset pour les cartes intégrées de machines hors dépôt.
     internal static PluginApi.device_t? video_card_getdevice(int card, int romset)
     {
+        switch (romset)
+        {
+        case pc.ROM_OLIM24:
+                return vid_olivetti_m24.m24_device;
+        }
         return video_cards[card].device;
     }
 
@@ -422,18 +436,26 @@ internal static partial class video
     //   Le PPI du XT les lit pour composer les interrupteurs DIP (keyboard_xt.cs), le
     //   8042 de l'AT pour son port d'entrée (keyboard_at.cs). L'oracle rend les mêmes
     //   réponses depuis gfxcard (harness_stubs.c).
+    // G1.1 — la M24 : MDA non, CGA oui, EGA/VGA non (video.c:433, :470, :512), avant toute
+    //   lecture de la carte — gfxcard peut y valoir GFX_BUILTIN.
     internal static int video_is_mda()
     {
+        if (pc.romset == pc.ROM_OLIM24)
+                return 0;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_MDA ? 1 : 0;
     }
 
     internal static int video_is_cga()
     {
+        if (pc.romset == pc.ROM_OLIM24)
+                return 1;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_CGA ? 1 : 0;
     }
 
     internal static int video_is_ega_vga()
     {
+        if (pc.romset == pc.ROM_OLIM24)
+                return 0;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_SPECIAL ? 1 : 0;
     }
 
@@ -446,6 +468,13 @@ internal static partial class video
         //   SPC6033P, Acer 386, AMA932J, PS/1, PS/2, T3100e, T1000, PC425X, PB410A,
         //   PB570, PB520R, CBM SL386SX25 : aucune n'est au dépôt, et les quatre romsets
         //   qui y sont tombent tous dans la ligne qui suit.
+        // pcem: video.c:800-802 — G1.1 : la M24 a SA vidéo, gfxcard ignoré.
+        switch (pc.romset)
+        {
+        case pc.ROM_OLIM24:
+                PluginApi.device.device_add(vid_olivetti_m24.m24_device);
+                return;
+        }
         PluginApi.device.device_add(video_cards[video_old_to_new(pc.gfxcard)].device!);
     }
 

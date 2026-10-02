@@ -905,6 +905,31 @@ FFFF:0001, 13 cycles contre 4). **La transcription de M1 lisait `cs + prefetchpc
 vrai 8086, pas celui de PCem —, et le 8088 n'atteignait jamais cette branche (`is8086`).
 *Reproduit* : `Cpu/808x.cs`, `FETCH`, `cs + cpu_state.pc`, marqueur PB-87.
 
+### PB-88 — La M24 recopie jusqu'à 510 octets dans une `charbuffer` de 256
+
+`vid_olivetti_m24.c:414-415`, `m24_poll` : `for (x = 0; x < (crtc[1] << 1); x++)
+charbuffer[x] = …`, et `:171-172` la relit jusqu'à `(crtc[1] << 1) + 1`. Le registre R1 du CRTC
+n'est pas masqué (`crtcmask[1] = 0xff`, `:41`) : l'index monte à 509 dans un tableau de 256
+(`:19`).
+*Effet* : PCem écrit 253 octets au-delà, dans les champs qui suivent `charbuffer` dans `m24_t`
+(`ctrl`, `base`, `cgamode`… jusqu'au `pc_timer_t` de la carte, pointeurs de rappel et de
+chaînage compris) : l'invité peut faire tomber l'émulateur. En C#, une exception.
+*Trouvé par* : reconnaissance de G1 (PLAN-G1.md, défaut n° 1).
+*NON reproduit* (R9) : `Video/vid_olivetti_m24.cs`, marqueurs PB-88, DEVIATION — une écriture
+au-delà de 255 est sautée, une lecture rend 0. Identique à PCem tant que R1 ≤ 128 (les modes
+du BIOS : 40 et 80 colonnes).
+
+### PB-89 — La bordure de la M24 déborde sur la ligne suivante de `buffer32`
+
+`vid_olivetti_m24.c:154-166`, `:218-231`, `:258-259`, `:279` : l'abscisse `c + (crtc[1] << 4) +
+8` atteint 4 095 pour une ligne de 2 048 points. Les lignes de `buffer32` sont contiguës
+(`wx-sdl2-video.c:59-69`) : l'écriture tombe sur la ligne suivante, jamais hors du tableau —
+`displine` reste sous 720.
+*Effet* : des points de bordure sur la ligne d'en dessous, avec un R1 hors des modes du BIOS.
+*Trouvé par* : reconnaissance de G1 (défaut n° 2) ; la relecture a montré qu'il ne sort pas du
+tableau, donc pas de R9 pour la M24.
+*Reproduit* : `Video/vid_olivetti_m24.cs`, marqueur PB-89 (le même tableau plat).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1637,6 +1662,7 @@ audit systématique de PCem** :
 | Transcription de la GD5429 (G7.1) | PB-81, PB-82 |
 | Transcription de la Trio64 (G7.3) | PB-83 à PB-86 |
 | Le fuzzeur 8086 (G1.0) | PB-87 |
+| Reconnaissance et transcription de l'Olivetti M24 (G1.1) | PB-88, PB-89 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

@@ -47,6 +47,14 @@ SRC := harness.c \
        harness_tvga.c \
        harness_cl5429.c \
        harness_s3.c \
+       harness_m24.c \
+       $(PCEM)/src/models/olivetti_m24.c \
+       $(PCEM)/src/keyboard/keyboard_olim24.c \
+       $(PCEM)/src/joystick/gameport.c \
+       $(PCEM)/src/joystick/joystick_standard.c \
+       $(PCEM)/src/joystick/joystick_ch_flightstick_pro.c \
+       $(PCEM)/src/joystick/joystick_sw_pad.c \
+       $(PCEM)/src/joystick/joystick_tm_fcs.c \
        harness_x87.c \
        $(PCEM)/src/cpu/x86seg.c \
        $(PCEM)/src/cpu/x87.c \
@@ -139,7 +147,7 @@ LDFLAGS += $(WRAPFLAGS_BOTH)
 LDFLAGS += -Wl,--no-undefined
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

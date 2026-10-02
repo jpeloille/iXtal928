@@ -448,6 +448,9 @@ int xsize = 1, ysize = 1;
 uint32_t cgapal[16];
 void cgapal_rebuild(int display_type, int contrast) { (void)display_type; (void)contrast; }
 uint8_t fontdat[2048][8];
+/* G1.1 — video.c:921, la police 8 × 16 du MDA que la vidéo de la M24 lit (vid_olivetti_m24.c) :
+ * pixels seulement, comme fontdat ; la sonde de la M24 ne compare pas le framebuffer. */
+uint8_t fontdatm[2048][16];
 /* video.c:925-926 — lues par svga_render_text_80_ksc5601 SEULEMENT, rendu des cartes
  * coréennes que la VGA n'installe jamais (svga_recalctimings ne le choisit pas).
  * Définies pour l'édition de liens, à zéro, et jamais lues. */
@@ -525,7 +528,17 @@ void video_updatetiming(void) {
         if (video_speed == -1) {
                 const video_timings_t *timing;
 
-                timing = &h_video_card(gfxcard)->timing;
+                /* G1.1 — video.c:606-711, le switch sur romset : les machines à vidéo fixe
+                 * imposent leurs temps, quel que soit gfxcard. Les deux du dépôt. */
+                static const video_timings_t h_timing_pc1512 = {VIDEO_BUS, 0, 0, 0, 0, 0, 0};    /* video.c:197 */
+                static const video_timings_t h_timing_m24 = {VIDEO_ISA, 8, 16, 32, 8, 16, 32};   /* video.c:200 */
+
+                if (romset == ROM_PC1512)
+                        timing = &h_timing_pc1512;
+                else if (romset == ROM_OLIM24)
+                        timing = &h_timing_m24;
+                else
+                        timing = &h_video_card(gfxcard)->timing;
 
                 if (timing->type == VIDEO_ISA) {
                         video_timing_read_b = ISA_CYCLES(timing->read_b);
@@ -1170,3 +1183,11 @@ void mca_add(uint8_t (*read)(int addr, void *priv), void (*write)(int addr, uint
              void *priv) {
         fatal("mca_add : bus MCA non lie a l'oracle (G7)\n");
 }
+
+/* --- G1.1 : la manette, sans manette branchée (PLAN-G1.md, décision n° 2) ------------------
+ * gameport.c lit l'état des manettes de l'HÔTE (plat-joystick.h:39, :57), que l'interface de
+ * PCem définit (wx-ui/wx-sdl2-joystick.c:10-12). Ici, aucune manette : tout à zéro, comme
+ * côté C#. */
+#include "plat-joystick.h"
+joystick_t joystick_state[MAX_JOYSTICKS];
+plat_joystick_t plat_joystick_state[MAX_PLAT_JOYSTICKS];

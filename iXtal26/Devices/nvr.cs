@@ -409,7 +409,14 @@ internal static class nvr
                 f = nvrfopen("ami486.nvr", "rb");
                 nvrmask = 127;
                 break;
-        // omitted: les trente autres cas (nvr.c:238-523) — meme geste, autre nom de
+        // pcem: nvr.c:521-522 — G1.1, l'Olivetti M24 : pas de cas, `default: return` — nvrram n'est
+        // ni lu ni rempli. DEVIATION (PLAN-G1.md, défaut 6c), des deux côtés : il est mis à zéro.
+        // Chez PCem il garde ce qu'un amorçage précédent du processus y a laissé ; l'oracle fait
+        // le même memset (harness.c).
+        case pc.ROM_OLIM24:
+                Array.Clear(nvrram);
+                return;
+        // omitted: les vingt-neuf autres cas (nvr.c:238-523) — meme geste, autre nom de
         //   fichier ; voir le registre des omissions.
         default:
                 f = null;

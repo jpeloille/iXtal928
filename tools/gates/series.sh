@@ -150,3 +150,7 @@ run fuzz8086-16-s3 fuzz --core 8086 --cpu 5 --mode single --iter 80000 --seed 3 
 run fuzz8086-stream fuzz --core 8086 --rounds 1500 --instr 200 $ALL
 run x87-8086-s1 fuzz --core 8086 --mode single --iter 100000 --seed 1 --fpu 8087 --x87 all $E87
 run x87-8086-flux fuzz --core 8086 --rounds 1500 --instr 200 --fpu 8087 $E87
+# G1.1 — l'Olivetti M24 : POST, PC-DOS 2.00 en disquette, son clavier (date, heure, DIR).
+run bd-m24 boot-diff roms 3000 --model olivetti_m24
+run bd-m24-dos boot-diff roms 7000 --model olivetti_m24 --fda $DOS
+run bd-m24-dir boot-diff roms 9000 --model olivetti_m24 --fda $DOS --type-at 7000 --type "" --type "" --type "DIR"

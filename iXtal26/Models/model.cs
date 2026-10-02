@@ -344,7 +344,7 @@ internal static partial class model_c
         ram_granularity = 128,
     };
 
-    // pcem: model.c:948-957 — G1.0 : la table de CPU seule ; `init` (olim24_init) entre en G1.1.
+    // pcem: model.c:948-957 — G1.0 : la table de CPU ; G1.1 : olim24_init.
     internal static readonly MODEL m_olivetti_m24 = new MODEL
     {
         name = "[8086] Olivetti M24",
@@ -355,6 +355,7 @@ internal static partial class model_c
         min_ram = 128,
         max_ram = 640,
         ram_granularity = 128,
+        init = olim24_init,
     };
 
     // pcem: models[] (device.c:16), peuplé par pcem_add_model (device.c:221) depuis
@@ -428,6 +429,19 @@ internal static partial class model_c
         // omitted: device_add(&gameport_device) — port jeu, hors périmètre.
         // omitted: device_add(&cassette_device) — port cassette du 5150 ; le BIOS
         //   le teste mais n'échoue pas en son absence (il bascule sur BASIC).
+    }
+
+    // pcem: model.c:292-300 — G1.1 : l'Olivetti M24. PAS de rafraîchissement mémoire : le canal 1
+    // du PIT reste sur pit_null_timer, contrairement à xt_init (:205).
+    internal static void olim24_init()
+    {
+        common_init();
+        mem.mem_add_bios();
+        Keyboard.keyboard_olim24.keyboard_olim24_init();
+        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        olivetti_m24.olivetti_m24_init();
+        nmi.nmi_init();
+        PluginApi.device.device_add(Joystick.gameport.gameport_device);
     }
 
     // pcem: model.c:686-694
