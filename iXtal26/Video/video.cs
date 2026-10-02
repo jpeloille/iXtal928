@@ -187,6 +187,11 @@ internal static partial class video
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int ISA_CYCLES(int x) => x * cpu_c.isa_cycles;
 
+    // pcem: video.c:197 — G1.2 : le PC1512 ; son pilote facture lui-même ses attentes
+    // (`cycles -= 12`, vid_pc1512.c), d'où des zéros.
+    private static readonly video_timings_t timing_pc1512 = new video_timings_t
+        { type = VIDEO_BUS, write_b = 0, write_w = 0, write_l = 0, read_b = 0, read_w = 0, read_l = 0 };
+
     // pcem: video.c:200 — G1.1 : la M24.
     private static readonly video_timings_t timing_m24 = new video_timings_t
         { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 };
@@ -205,7 +210,9 @@ internal static partial class video
                 // à vidéo fixe, où le C ne fait que FORMER &video_cards[-1] et le C# lèverait.
                 // omitted: les autres étiquettes (timing_dram, timing_pc1640, timing_vga…), machines
                 //   hors dépôt.
-                if (pc.romset == pc.ROM_OLIM24)
+                if (pc.romset == pc.ROM_PC1512)
+                        timing = timing_pc1512;       // video.c:614-615, G1.2
+                else if (pc.romset == pc.ROM_OLIM24)
                         timing = timing_m24;
                 else
                 {
@@ -369,6 +376,8 @@ internal static partial class video
     {
         switch (romset)
         {
+        case pc.ROM_PC1512:
+                return vid_pc1512.pc1512_device;   // video.c:246-247, G1.2
         case pc.ROM_OLIM24:
                 return vid_olivetti_m24.m24_device;
         }
@@ -436,25 +445,25 @@ internal static partial class video
     //   Le PPI du XT les lit pour composer les interrupteurs DIP (keyboard_xt.cs), le
     //   8042 de l'AT pour son port d'entrée (keyboard_at.cs). L'oracle rend les mêmes
     //   réponses depuis gfxcard (harness_stubs.c).
-    // G1.1 — la M24 : MDA non, CGA oui, EGA/VGA non (video.c:433, :470, :512), avant toute
+    // G1.1, G1.2 — la M24 et le PC1512 : MDA non, CGA oui, EGA/VGA non (video.c:432-433, :469-470, :509-512), avant toute
     //   lecture de la carte — gfxcard peut y valoir GFX_BUILTIN.
     internal static int video_is_mda()
     {
-        if (pc.romset == pc.ROM_OLIM24)
+        if (pc.romset == pc.ROM_OLIM24 || pc.romset == pc.ROM_PC1512)
                 return 0;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_MDA ? 1 : 0;
     }
 
     internal static int video_is_cga()
     {
-        if (pc.romset == pc.ROM_OLIM24)
+        if (pc.romset == pc.ROM_OLIM24 || pc.romset == pc.ROM_PC1512)
                 return 1;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_CGA ? 1 : 0;
     }
 
     internal static int video_is_ega_vga()
     {
-        if (pc.romset == pc.ROM_OLIM24)
+        if (pc.romset == pc.ROM_OLIM24 || pc.romset == pc.ROM_PC1512)
                 return 0;
         return (video_cards[video_old_to_new(pc.gfxcard)].flags & VIDEO_FLAG_TYPE_MASK) == VIDEO_FLAG_TYPE_SPECIAL ? 1 : 0;
     }
@@ -471,6 +480,9 @@ internal static partial class video
         // pcem: video.c:800-802 — G1.1 : la M24 a SA vidéo, gfxcard ignoré.
         switch (pc.romset)
         {
+        case pc.ROM_PC1512:
+                PluginApi.device.device_add(vid_pc1512.pc1512_device);   // video.c:775-777, G1.2
+                return;
         case pc.ROM_OLIM24:
                 PluginApi.device.device_add(vid_olivetti_m24.m24_device);
                 return;

@@ -59,6 +59,12 @@ public static class VgaProbe
         "m24.cgamode|cgacol|stat", "m24.linepos", "m24.displine", "m24.sc", "m24.vc", "m24.con|coff",
         "m24.cursoron|blink", "m24.vsynctime|vadj", "m24.lineff", "m24.ma|maback", "m24.dispon",
         "m24.dispontime", "m24.dispofftime", "m24.timer", "m24.firstline|lastline",
+        // G1.2 — la pc1512_t (h_pc1512_probe), quand aucune svga n'est montée (champ 0 = 3).
+        "#pc1512.crtc", "pc1512.crtcreg", "#pc1512.vram", "pc1512.cgacol|cgamode|stat",
+        "pc1512.plane_write|read|border", "pc1512.fontbase", "pc1512.linepos", "pc1512.displine",
+        "pc1512.sc", "pc1512.vc", "pc1512.cgadispon", "pc1512.con|coff", "pc1512.cursoron|cgablink",
+        "pc1512.vsynctime|vadj", "pc1512.ma|maback", "pc1512.dispon|blink", "pc1512.dispontime",
+        "pc1512.dispofftime", "pc1512.timer", "pc1512.firstline|lastline",
     ];
 
     // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du

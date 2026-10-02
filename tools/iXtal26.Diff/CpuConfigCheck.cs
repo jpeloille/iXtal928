@@ -40,7 +40,8 @@ internal static class CpuConfigCheck
         // (PB-77) : l'ordre des entrées décide de ce qu'un i486 hérite d'un iDX4. Fixé ici.
         // G1.1 — l'Olivetti M24 (cpus_8086) après les deux 8088 : cpu_set y pose is8086, et le balayage
         // inverse prouve qu'il ne fuit pas vers le 5150 (PLAN-G1.md, risque n° 1).
-        string[] order = ["ibmpc", "ibmxt", "olivetti_m24", "ibmat", "ami286", "ami386", "ami386dx", "ami486"];
+        // G1.2 — l'Amstrad PC1512 (cpus_pc1512) derrière la M24.
+        string[] order = ["ibmpc", "ibmxt", "olivetti_m24", "pc1512", "ibmat", "ami286", "ami386", "ami386dx", "ami486"];
         if (reverse)
             Array.Reverse(order);
 

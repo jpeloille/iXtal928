@@ -53,7 +53,8 @@ public static class Oracle
     // 31 en G7.3 : la Trio64 Phoenix (gfxcard 22) ; la sonde VGA passe de 102 à 122 champs.
     // 32 en G1.0 : h_set_core accepte le 8086 (l'Olivetti M24, cpus_8086).
     // 33 en G1.1 : l'Olivetti M24 s'amorce ; la sonde VGA passe de 122 à 143 champs (la M24).
-    public const int AbiVersion = 33;
+    // 34 en G1.2 : l'Amstrad PC1512 s'amorce ; la sonde VGA passe à 163 champs (le PC1512).
+    public const int AbiVersion = 34;
 
     static Oracle()
     {
@@ -281,7 +282,7 @@ public static class Oracle
     public const int GFX_CL_GD5429 = 19;  // ibm.h:295
     public const int GFX_PHOENIX_TRIO64 = 22;  // ibm.h:298
     public const int GFX_TVGA9000B = 42;  // ibm.h:318
-    public const int VgaProbeN = 143;
+    public const int VgaProbeN = 163;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
     [DllImport(Lib)] public static extern void h_mouse_poll(int x, int y, int z, int b);
 

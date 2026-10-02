@@ -69,7 +69,7 @@ L'oracle lie les trois fichiers ; `mouse.c` si `keyboard_olim24.c` l'exige. Sond
 (registres et `vram` de la M24, sa `charbuffer`). **Porte** : boot-diff M24 jusqu'au bout du POST,
 puis PC-DOS 2.00 sur disquette ; `cpu-config-check` sur la M24.
 
-### G1.2 — L'Amstrad PC1512
+### G1.2 — L'Amstrad PC1512  ✅ *fait, VERIFICATION.md § G1.2*
 
 `amstrad.c`, `keyboard_amstrad.c`, `vid_pc1512.c`, le cas `ROM_PC1512` (police comprise), le
 champ `device` de `MODEL` et `ams1512_device`, `AMSTRAD`, `lpt1_remove`, le CMOS `pc1512.nvr`

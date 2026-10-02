@@ -472,7 +472,10 @@ public static class BootDiff
             return 1;
         }
 
-        if (o[0] == 2)
+        if (o[0] == 3)
+            Console.WriteLine($"Sonde PC1512 : {VgaProbe.Fields.Length} champs identiques — registres et VRAM " +
+                              "de la vidéo de l'Amstrad PC1512.");
+        else if (o[0] == 2)
             Console.WriteLine($"Sonde M24 : {VgaProbe.Fields.Length} champs identiques — registres, VRAM et " +
                               "charbuffer de la vidéo de l'Olivetti M24.");
         else

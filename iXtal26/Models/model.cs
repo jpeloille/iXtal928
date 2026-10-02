@@ -41,8 +41,6 @@ internal struct MODEL_cpu
 }
 
 // pcem: includes/public/pcem/devices.h:69-82, RÉDUIT.
-// omitted: `device` — le device_t de configuration par machine (PCjr, Amstrad,
-//   Xi8088) ; les quatre machines du dépôt le laissent à NULL.
 internal sealed class MODEL
 {
     internal string name = "";
@@ -62,6 +60,10 @@ internal sealed class MODEL
     internal int min_ram, max_ram;
     internal int ram_granularity;
     internal model_init_fn? init;
+
+    // pcem: devices.h:81 — G1.2 : le device_t de configuration de la machine (l'Amstrad
+    // PC1512 : ams1512_device, la langue), que model_init ajoute après l'init.
+    internal PluginApi.device_t? device;
 }
 
 // DEVIATION: PCem a le fichier model.c ET le global `int model` (l'indice courant).
@@ -330,8 +332,7 @@ internal static partial class model_c
         init = at_ali1429_init,
     };
 
-    // pcem: model.c:885-894 — G1.0 : la table de CPU seule ; `init` (ams_init) et `device`
-    // (ams1512_device) entrent en G1.2. Sans init, initpc la refuse bruyamment.
+    // pcem: model.c:885-894 — G1.0 : la table de CPU ; G1.2 : ams_init et ams1512_device.
     internal static readonly MODEL m_pc1512 = new MODEL
     {
         name = "[8086] Amstrad PC1512",
@@ -342,6 +343,8 @@ internal static partial class model_c
         min_ram = 512,
         max_ram = 640,
         ram_granularity = 128,
+        init = ams_init,
+        device = amstrad.ams1512_device,
     };
 
     // pcem: model.c:948-957 — G1.0 : la table de CPU ; G1.1 : olim24_init.
@@ -444,6 +447,22 @@ internal static partial class model_c
         PluginApi.device.device_add(Joystick.gameport.gameport_device);
     }
 
+    // pcem: model.c:259-270 — G1.2 : l'Amstrad PC1512.
+    // omitted: lpt1_remove() (:263) — un io_removehandler des ports 378h-37Ah de lpt1, que
+    //   lpt_init n'a pas posés : common_init ne l'appelle pas, des deux côtés (model.cs:414).
+    internal static void ams_init()
+    {
+        Cpu.x86.AMSTRAD = 1;
+        common_init();
+        mem.mem_add_bios();
+        amstrad.amstrad_init();
+        Keyboard.keyboard_amstrad.keyboard_amstrad_init();
+        PluginApi.device.device_add(Devices.nvr.nvr_device);
+        nmi.nmi_init();
+        Floppy.fdc_c.fdc_set_dskchg_activelow();
+        PluginApi.device.device_add(Joystick.gameport.gameport_device);
+    }
+
     // pcem: model.c:686-694
     internal static void model_init()
     {
@@ -457,7 +476,8 @@ internal static partial class model_c
 
         // mem_size est posé par initpc, avant mem_alloc (voir pc.cs).
         models[model].init?.Invoke();
-        // omitted: device_add(models[model]->device) (model.c:693) — m_ibmpc n'a pas
-        //   de device_t de configuration.
+        // pcem: model.c:692-693 — G1.2.
+        if (models[model].device != null)
+                PluginApi.device.device_add(models[model].device!);
     }
 }

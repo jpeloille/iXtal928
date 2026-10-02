@@ -234,6 +234,28 @@ internal static partial class mem_bios
                     // du XT est DANS xt.rom, qui couvre les 64 Ko de F000:0000 d'un
                     // bloc. biosmask vaut 0xffff pour les deux machines.
 
+            // pcem: mem_bios.c:74-86 — G1.2 : l'Amstrad PC1512, deux ROM de 8 Ko entrelacées dans
+            // les 16 derniers Ko, et sa police propre (40078.ic127), chargée au format CGA.
+            case ROM_PC1512:
+                    f = romfopen("pc1512/40043.v1", "rb");
+                    ff = romfopen("pc1512/40044.v1", "rb");
+                    // DEVIATION: le descripteur ouvert seul est fermé, comme pour ROM_IBMAT.
+                    if (f == null || ff == null)
+                    {
+                            f?.Close();
+                            ff?.Close();
+                            break;
+                    }
+                    for (var c = 0xC000; c < 0x10000; c += 2)
+                    {
+                            rom[c] = (uint8_t)f.ReadByte();
+                            rom[c + 1] = (uint8_t)ff.ReadByte();
+                    }
+                    ff.Close();
+                    f.Close();
+                    loadfont("pc1512/40078.ic127", FONT_CGA);
+                    return 1;
+
             // pcem: mem_bios.c:234-245 — G1.1 : l'Olivetti M24, deux ROM de 8 Ko entrelacées dans
             // les 16 derniers Ko. Sa police est celle du MDA (mda.rom), chargée plus haut.
             case ROM_OLIM24:
@@ -255,8 +277,8 @@ internal static partial class mem_bios
                     f.Close();
                     return 1;
 
-            // omitted: les 99 autres cas de `romset` (mem_bios.c:74-165, 182-233, 246-542,
-            //   553-1277), de ROM_PC1512 à ROM_GA686BX — machines hors cible.
+            // omitted: les 98 autres cas de `romset` (mem_bios.c:87-165, 182-233, 246-542,
+            //   553-1277), de ROM_PC1640 à ROM_GA686BX — machines hors cible.
             }
             printf("Failed to load ROM!\n");
             // pcem bug, reproduced: `f` n'est pas remis à NULL par le fclose de la

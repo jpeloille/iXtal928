@@ -5034,3 +5034,46 @@ comparée à g10b : 127 portes, **toutes vertes**. Les 124 anciennes identiques,
 près — ABI 32 → 33, « 122 champs » → « 143 champs », `cpu-config-check` dans les deux ordres
 élargi à la M24 (80 → 92 configurations identiques, 7 → 8 refus concordants) ; les trois
 boot-diffs de la M24 nouveaux, verts. Build 0 avertissement, selftest, check-oracle 0 dérive (138).
+
+## G1.2 — L'Amstrad PC1512
+
+Le 2 octobre 2026, sur 870e7ac. Plan : `PLAN-G1.md` § G1.2.
+
+**Transcrit.** `amstrad.c` pour le PC1512 (ports 66h — le reset logiciel —, 78h/7Ah de la souris,
+378h-37Ah, DEADh ; `ams1512_device` et sa langue, défaut 7, décision n° 4), `keyboard_amstrad.c`
+(le PPI de l'Amstrad, 60h-65h, file sans contrôle reproduite), `vid_pc1512.c` entier (la CGA du
+PC1512 et son mode plan 640 × 200 × 16 : 3DDh masque d'écriture, 3DEh plan lu, 3DFh bordure,
+64 Ko). De `lpt.c`, `lpt1_read`/`lpt1_write` sans périphérique (`Lpt/lpt.cs`), recopiées dans
+l'oracle. Intégration : le champ `device` de MODEL et sa pose par `model_init`
+(`model.c:692-693`), `ams_init` (`:259-270`), le cas `ROM_PC1512` de `loadbios` (ROM entrelacée et
+police `40078.ic127`), la vidéo par le romset (`timing_pc1512` à zéro : le pilote facture
+`cycles -= 12` lui-même), `pc1512.nvr` dans `loadnvr`/`savenvr`.
+
+**Le CMOS de référence** : `--make-nvr` ne sait amender que la disposition des AT ; le PC1512 a
+la sienne. `nvr/default/pc1512.nvr` est le CMOS que PCem livre (`pcem-dev/nvr/pc1512.nvr`),
+copié tel quel.
+
+**L'oracle** : `harness_pc1512.c` inclut `vid_pc1512.c` (sonde, VRAM effacée — déviation de
+l'oracle) ; `h_boot` suit `ams_init` puis ajoute `ams1512_device`, monte `pc1512_device` par le
+romset. **La sonde passe à 163 champs** (ABI 34) : vingt de la `pc1512_t` (CRTC, VRAM des quatre
+plans, registres du mode plan, compteurs, temps), le champ 0 valant 3.
+
+**Les boot-diffs** (`--model pc1512`, 8086/8) : POST, 3 000 tranches, 21 702 355 instructions,
+sonde identique. **Le banc P1512** (`tools/pc1512banc/pc1512banc.py`, 340 octets, instructions
+8086 seules), saisi dans DEBUG depuis la disquette supplémentaire de PC-DOS 2.00 en B: : mode 6,
+plans effacés, un motif par plan, deux masques combinés (05h, 0Ah), bordure, relecture des
+quatre plans et du plan masqué (3DEh à 07h → 3), trois lectures de 3DAh (le bit 0 bascule) —
+**210 736 512 instructions identiques**, sonde identique, B: identique (517 octets écrits).
+Contrôle négatif, retiré : l'écriture du plan 2 faussée d'un bit côté C# → divergence dès
+l'instruction 49 873, en plein POST — le BIOS teste sa VRAM en mode plan.
+
+**Témoin** (`--boot`, copies dans /tmp/g1w) : « AMSTRAD PC 640k (V1) », « (c)1986 AMSTRAD Consumer
+Electronics plc », PC-DOS 2.00, `DIR` ; le banc en 16 couleurs, bordure magenta. **Constat** :
+l'écran d'accueil date « 17 December 19F7 » — identique à l'oracle (VRAM comprise) : le CMOS de
+référence de PCem, lu tel quel.
+
+**La série**, sous `MALLOC_PERTURB_=85`, portes isolées, comparée à g11 : 130 portes, **toutes
+vertes**. Les 126 anciennes identiques, aux écarts attendus près — ABI 33 → 34, « 143 champs » →
+« 163 champs », `cpu-config-check` dans les deux ordres élargi au PC1512 (92 → 94 configurations,
+8 → 9 refus) ; les quatre portes du PC1512 nouvelles, vertes (POST, PC-DOS 2.00, clavier, banc
+du mode plan). Build 0 avertissement, selftest, check-oracle 0 dérive (146), `--setup-check`.

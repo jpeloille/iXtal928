@@ -154,3 +154,11 @@ run x87-8086-flux fuzz --core 8086 --rounds 1500 --instr 200 --fpu 8087 $E87
 run bd-m24 boot-diff roms 3000 --model olivetti_m24
 run bd-m24-dos boot-diff roms 7000 --model olivetti_m24 --fda $DOS
 run bd-m24-dir boot-diff roms 9000 --model olivetti_m24 --fda $DOS --type-at 7000 --type "" --type "" --type "DIR"
+# G1.2 — l'Amstrad PC1512 : POST, PC-DOS 2.00, son clavier ; le mode plan 640 × 200 × 16 par
+# P1512.COM, saisi dans DEBUG (disquette supplémentaire en B:).
+run bd-pc1512 boot-diff roms 3000 --model pc1512
+run bd-pc1512-dos boot-diff roms 7000 --model pc1512 --fda $DOS
+run bd-pc1512-dir boot-diff roms 9000 --model pc1512 --fda $DOS --type-at 7000 --type "" --type "" --type "DIR"
+mapfile -t P1K < tools/pc1512banc/pc1512banc.keys
+P1B=(); for l in "${P1K[@]}"; do P1B+=(--type "$l"); done
+run bd-pc1512-plan boot-diff roms 9000 --model pc1512 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${P1B[@]}" --type "^" --type "^"

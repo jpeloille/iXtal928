@@ -387,6 +387,10 @@ internal static class nvr
         // somme de controle a chaque ecriture.
         switch (pc.romset)
         {
+        // pcem: nvr.c:239-241 — G1.2, l'Amstrad PC1512 (nvrmask 63).
+        case pc.ROM_PC1512:
+                f = nvrfopen("pc1512.nvr", "rb");
+                break;
         case pc.ROM_IBMAT:
                 f = nvrfopen("at.nvr", "rb");
                 break;
@@ -473,6 +477,10 @@ internal static class nvr
 
         switch (oldromset)
         {
+        // pcem: nvr.c:547-549 — G1.2, l'Amstrad PC1512.
+        case pc.ROM_PC1512:
+                f = nvrfopen("pc1512.nvr", "wb");
+                break;
         case pc.ROM_IBMAT:
                 f = nvrfopen("at.nvr", "wb");
                 break;

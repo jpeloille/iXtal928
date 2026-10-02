@@ -929,6 +929,9 @@ du BIOS : 40 et 80 colonnes).
 *Trouvé par* : reconnaissance de G1 (défaut n° 2) ; la relecture a montré qu'il ne sort pas du
 tableau, donc pas de R9 pour la M24.
 *Reproduit* : `Video/vid_olivetti_m24.cs`, marqueur PB-89 (le même tableau plat).
+*G1.2* : le PC1512 fait de même (`vid_pc1512.c:182-193`, `:317-319`), `displine` revenant à 0
+au-delà de 360 (`:326-327`) et de 262 (`:369`) : jamais hors du tableau non plus. Reproduit,
+`Video/vid_pc1512.cs`.
 
 ## B. Comportement indéfini en C
 
@@ -1663,6 +1666,7 @@ audit systématique de PCem** :
 | Transcription de la Trio64 (G7.3) | PB-83 à PB-86 |
 | Le fuzzeur 8086 (G1.0) | PB-87 |
 | Reconnaissance et transcription de l'Olivetti M24 (G1.1) | PB-88, PB-89 |
+| L'Amstrad PC1512 (G1.2) | PB-89 élargi |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

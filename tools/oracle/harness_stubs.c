@@ -146,7 +146,7 @@ void h_stub_counters_reset(void) {
 
 int AMSTRAD = 0, AT = 0, PCI = 0, TANDY = 0, MCA = 0;
 int insc = 0;
-int amstrad_latch = 0;
+/* amstrad_latch : défini par amstrad.c depuis G1.2 (amstrad.c:14). */
 int romset = 0; /* ROM_IBMPC */
 
 
@@ -1191,3 +1191,39 @@ void mca_add(uint8_t (*read)(int addr, void *priv), void (*write)(int addr, uint
 #include "plat-joystick.h"
 joystick_t joystick_state[MAX_JOYSTICKS];
 plat_joystick_t plat_joystick_state[MAX_PLAT_JOYSTICKS];
+
+/* --- G1.2 : le port parallèle, pour amstrad.c (378h-37Ah) --------------------------------
+ * lpt.c n'est pas lié : il tire le registre des périphériques parallèles (DAC, DSS, Epson
+ * LX-810). Voici lpt1_write et lpt1_read RECOPIÉES (lpt.c:63-79, :106-118), SANS
+ * périphérique branché — lpt1_device NULL, l_none, le défaut de PCem (lpt.c:41-55) —, comme
+ * côté C# (Lpt/lpt.cs). lpt_init reste omis des deux côtés. */
+static uint8_t h_lpt1_dat, h_lpt1_ctrl;
+
+void lpt1_write(uint16_t port, uint8_t val, void *priv) {
+        (void)priv;
+        switch (port & 3) {
+        case 0:
+                h_lpt1_dat = val;
+                break;
+        case 2:
+                h_lpt1_ctrl = val;
+                break;
+        }
+}
+
+uint8_t lpt1_read(uint16_t port, void *priv) {
+        (void)priv;
+        switch (port & 3) {
+        case 0:
+                return h_lpt1_dat;
+        case 1:
+                return 0;
+        case 2:
+                return h_lpt1_ctrl;
+        }
+        return 0xff;
+}
+
+/* lpt.c:166 — lpt2_remove_ams : un io_removehandler des gestionnaires de lpt2 en
+ * 379h-37Ah, que lpt_init (non appelé) n'a jamais posés : sans effet. Omis côté C# (amstrad.cs). */
+void lpt2_remove_ams(void) { }

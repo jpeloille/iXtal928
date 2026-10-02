@@ -327,6 +327,12 @@ void h_s3_probe(svga_t *svga, uint64_t *out);     /* harness_s3.c, G7.3 */
 void h_m24_attach(void);      /* harness_m24.c */
 void h_m24_probe(uint64_t *out);
 void h_m24_forget(void);
+#include "amstrad.h"          /* G1.2 — l'Amstrad PC1512 */
+#include "keyboard_amstrad.h"
+#include "vid_pc1512.h"       /* pc1512_device, compilée par harness_pc1512.c */
+void h_pc1512_attach(void);   /* harness_pc1512.c */
+void h_pc1512_probe(uint64_t *out);
+void h_pc1512_forget(void);
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1238,10 +1244,6 @@ int h_boot(const char *romspath) {
         /* G1.0 — les deux machines 8086 sont dans models[] pour cpu_set() et le fuzzeur, mais
          * leur matériel (vidéo, clavier, ports) n'entre qu'en G1.1 et G1.2 : refus bruyant,
          * comme le C# (initpc, init nulle), plutôt qu'un XT qui exécuterait leur BIOS. */
-        if (romset == ROM_PC1512) {
-                fprintf(stderr, "h_boot : romset %d (8086) pas encore amorçable (PLAN-G1.md)\n", romset);
-                return 0;
-        }
 
         mem_alloc();
         h_pad_ram();
@@ -1275,6 +1277,9 @@ int h_boot(const char *romspath) {
          * M16 des deux cotes : un 8088 amorce apres un AT dans le meme processus
          * gardait AT = 1. Pendant de model_init() cote C# (model.cs). */
         AMSTRAD = AT = PCI = TANDY = MCA = 0;
+        /* G1.2 — ams_init (model.c:259-270) pose AMSTRAD AVANT common_init. */
+        if (romset == ROM_PC1512)
+                AMSTRAD = 1;
         dma_init();
         fdc_add();                   /* model.c:194 */
         pic_init();
@@ -1284,7 +1289,19 @@ int h_boot(const char *romspath) {
         serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
-        if (romset == ROM_OLIM24) {
+        if (romset == ROM_PC1512) {
+                /* G1.2 — ams_init (model.c:259-270), après common_init et mem_add_bios. PAS de
+                 * rafraîchissement mémoire, comme la M24. lpt1_remove (:263) omis, des deux
+                 * côtés : lpt_init n'a rien posé. Puis model_init ajoute le device de la machine
+                 * (model.c:692-693), ams1512_device, la langue. */
+                amstrad_init();
+                keyboard_amstrad_init();
+                device_add(&nvr_device);
+                nmi_init();
+                fdc_set_dskchg_activelow();
+                device_add(&gameport_device);
+                device_add(&ams1512_device);
+        } else if (romset == ROM_OLIM24) {
                 /* G1.1 — olim24_init (model.c:292-300), après common_init et mem_add_bios :
                  * PAS de rafraîchissement mémoire (le canal 1 du PIT reste nul, contrairement à
                  * xt_init, model.c:205), le clavier propre de la M24, le CMOS, les ports 66h/67h,
@@ -1344,7 +1361,12 @@ int h_boot(const char *romspath) {
          * tout ce que l'oracle doit garantir. */
         /* G1.1 — video.c:800-802 : la M24 a SA vidéo, choisie par le romset, gfxcard ignoré. */
         h_m24_forget();
-        if (romset == ROM_OLIM24) {
+        h_pc1512_forget();
+        /* G1.2 — video.c:775-777 : le PC1512 a SA vidéo, choisie par le romset. */
+        if (romset == ROM_PC1512) {
+                device_add(&pc1512_device);
+                h_pc1512_attach();
+        } else if (romset == ROM_OLIM24) {
                 device_add(&m24_device);
                 h_m24_attach();
         } else if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B || gfxcard == GFX_CL_GD5429 ||
@@ -1613,6 +1635,7 @@ void h_vga_probe(uint64_t *out) {
         memset(out, 0, H_VGA_PROBE_N * sizeof(uint64_t));
         if (!svga) {
                 h_m24_probe(out);   /* G1.1 — la M24, si elle est montée (champ 0 = 2) */
+                h_pc1512_probe(out); /* G1.2 — le PC1512 (champ 0 = 3) */
                 return;
         }
 

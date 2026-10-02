@@ -48,6 +48,9 @@ SRC := harness.c \
        harness_cl5429.c \
        harness_s3.c \
        harness_m24.c \
+       harness_pc1512.c \
+       $(PCEM)/src/models/amstrad.c \
+       $(PCEM)/src/keyboard/keyboard_amstrad.c \
        $(PCEM)/src/models/olivetti_m24.c \
        $(PCEM)/src/keyboard/keyboard_olim24.c \
        $(PCEM)/src/joystick/gameport.c \
