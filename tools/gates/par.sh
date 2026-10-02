@@ -4,7 +4,7 @@
 # Joue la série de tools/gates/series.sh EN PARALLÈLE. Chaque porte devient un petit script
 # (numéroté dans l'ordre canonique), puis xargs -P les lance, les plus longues d'abord (durées
 # de la référence). Les portes disque tournent chacune dans $WORK/par/NOM (CMOS et
-# configurations copiés). Le .tsv est reconstruit à la fin dans l'ordre canonique, un journal
+# configurations copiés), les autres dans $WORK/run/NOM (CMOS de nvr/default/ seulement). Le .tsv est reconstruit à la fin dans l'ordre canonique, un journal
 # par porte à côté de lui : SORTIE-NOM.txt.
 #
 # DLL doit être une COPIE FIGÉE (avec libixtal26oracle.so à côté) : on ne joue jamais une série
@@ -20,11 +20,18 @@ D="${OUT%.tsv}.par"; rm -rf "$D"; mkdir -p "$D/g" "$D/r"
 LOGP="${OUT%.tsv}"
 N=0
 emit() { local f; N=$((N+1)); f=$(printf '%s/g/%03d-%s.sh' "$D" $N "$1"); cat > "$f"; }
-run() { local name=$1; shift
+# run : une porte « dépôt ». Elle tourne dans $WORK/run/NOM, où chaque entrée du dépôt est un
+# lien, SAUF nvr/ : une copie de nvr/default/ seulement. Aucune porte ne lit donc un CMOS de
+# session de l'utilisateur (nvr/.MACHINE.nvr), qu'il peut modifier à tout moment en se servant de
+# l'émulateur — mesuré en G1.0 : les boot-diffs de l'ami386dx en dépendaient.
+run() { local name=$1; shift; local W="$WORK/run/$name"
   emit "$name" <<G
 #!/usr/bin/env bash
 t0=\$SECONDS
-res=\$(cd $(printf %q "$REPO") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
+rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr")
+for e in $(printf %q "$REPO")/*; do [ "\$(basename "\$e")" = nvr ] || ln -s "\$e" $(printf %q "$W")/; done
+cp -r $(printf %q "$REPO/nvr/default") $(printf %q "$W/nvr/")
+res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
 printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | tail -1)" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
 echo "\$res" > $(printf %q "$LOGP-$name.txt")
 G
