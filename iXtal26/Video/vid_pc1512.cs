@@ -600,14 +600,16 @@ internal static partial class vid_pc1512
     }
 
     // pcem: vid_pc1512.c:466-480
-    // omitted: `.description` et `.selection` (vid_pc1512.c:467-478) — device_config_t
-    //   (device.cs:42-48) ne porte plus ces champs. display_type n'a pas de .default_int
+    // omitted: `.description` (vid_pc1512.c:467-478) ; `.selection` est transcrit (G8.3,
+    //   device_get_config_int y valide la valeur du .cfg). display_type n'a pas de .default_int
     //   chez PCem : 0, c'est-à-dire DISPLAY_RGB (PC-CM) ; l'autre choix est DISPLAY_WHITE
     //   (PC-MM). codepage : 3 US English (défaut), 1 Danish, 0 Greek.
     internal static device_config_t[] pc1512_config =
     [
-        new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = 0 },
-        new device_config_t { name = "codepage", type = CONFIG_SELECTION, default_int = 3 },
+        new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = 0,
+            selection = [new() { description = "PC-CM (Colour)", value = DISPLAY_RGB }, new() { description = "PC-MM (Monochrome)", value = DISPLAY_WHITE }] },
+        new device_config_t { name = "codepage", type = CONFIG_SELECTION, default_int = 3,
+            selection = [new() { description = "US English", value = 3 }, new() { description = "Danish", value = 1 }, new() { description = "Greek", value = 0 }] },
         new device_config_t { type = -1 },
     ];
 

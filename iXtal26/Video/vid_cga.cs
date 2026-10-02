@@ -612,15 +612,16 @@ internal static partial class vid_cga
     }
 
     // pcem: vid_cga.c:454-475
-    // omitted: `.description` et `.selection` de chaque entrée (vid_cga.c:456-472) —
-    //   device_config_t (device.cs:42-48) ne porte plus ces champs, le 5150 n'ayant
-    //   pas de dialogue de configuration. Les quatre valeurs que
-    //   device_get_config_int rend restent celles de PCem : display_type =
-    //   DISPLAY_RGB, composite_type = COMPOSITE_OLD, snow_enabled = 1, contrast = 0.
+    // omitted: `.description` de chaque entrée (vid_cga.c:456-474). `.selection` est
+    //   transcrit (G8.3) : device_get_config_int y valide la valeur d'une section [CGA] du
+    //   .cfg. Sans section, les défauts de PCem : display_type = DISPLAY_RGB,
+    //   composite_type = COMPOSITE_OLD, snow_enabled = 1, contrast = 0.
     internal static device_config_t[] cga_config =
     [
-        new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = DISPLAY_RGB },
-        new device_config_t { name = "composite_type", type = CONFIG_SELECTION, default_int = COMPOSITE_OLD },
+        new device_config_t { name = "display_type", type = CONFIG_SELECTION, default_int = DISPLAY_RGB,
+            selection = [new() { description = "RGB", value = DISPLAY_RGB }, new() { description = "RGB (no brown)", value = DISPLAY_RGB_NO_BROWN }, new() { description = "Green Monochrome", value = DISPLAY_GREEN }, new() { description = "Amber Monochrome", value = DISPLAY_AMBER }, new() { description = "White Monochrome", value = DISPLAY_WHITE }, new() { description = "Composite", value = DISPLAY_COMPOSITE }] },
+        new device_config_t { name = "composite_type", type = CONFIG_SELECTION, default_int = COMPOSITE_OLD,
+            selection = [new() { description = "Old", value = COMPOSITE_OLD }, new() { description = "New", value = COMPOSITE_NEW }] },
         new device_config_t { name = "snow_enabled", type = CONFIG_BINARY, default_int = 1 },
         new device_config_t { name = "contrast", type = CONFIG_BINARY, default_int = 0 },
         new device_config_t { type = -1 },

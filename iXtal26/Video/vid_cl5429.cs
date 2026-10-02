@@ -2132,11 +2132,12 @@ internal static partial class vid_cl5429
 
     // omitted: avga2_config (vid_cl5429.c:2102-2108) — configuration de l'AVGA2, absente.
     // pcem: vid_cl5429.c:2110-2116
-    // omitted: `.description` et `.selection` (vid_cl5429.c:2112, :2114) — device_config_t
-    //   (device.cs:43-52) ne porte pas ces champs ; config_get_int rend le défaut, 2 Mo.
+    // omitted: `.description` (vid_cl5429.c:2112) ; `.selection` (:2114) est transcrit (G8.3) :
+    //   sans section [Cirrus Logic GD5429] dans le .cfg, le défaut, 2 Mo.
     internal static device_config_t[] gd5429_config =
     [
-        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2 },
+        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2,
+            selection = [new() { description = "1 MB", value = 1 }, new() { description = "2 MB", value = 2 }] },
         new device_config_t { type = -1 },
     ];
     // omitted: gd5434_config (vid_cl5429.c:2117-2123) — configuration du GD5434, absent.

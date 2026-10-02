@@ -342,7 +342,7 @@ internal static partial class sound_sb
         o[f++] = (uint32_t)d.sb_read_wp | ((uint64_t)(uint32_t)d.sb_read_rp << 32);
         o[f++] = Fnv(d.sb_read_data);
         o[f++] = (uint32_t)d.sb_data_stat | ((uint64_t)(uint32_t)d.sb_irqnum << 32);
-        o[f++] = d.sbe2 | ((uint64_t)(uint32_t)d.sbe2count << 8);
+        o[f++] = d.sbe2 | ((uint64_t)(uint32_t)d.sbe2count << 8) | ((uint64_t)d.sb_addr << 48);
         o[f++] = (uint16_t)d.sbdat | ((uint64_t)(uint32_t)d.sbdat2 << 32);
         o[f++] = (uint16_t)d.sbdatl | ((uint64_t)(uint16_t)d.sbdatr << 16) | ((uint64_t)d.sbref << 32) | ((uint64_t)(uint8_t)d.sbstep << 40);
         o[f++] = (uint32_t)d.sbdacpos | ((uint64_t)(uint32_t)d.sbleftright << 32);
@@ -382,6 +382,15 @@ internal static partial class sound_sb
 
         uint16_t addr = (uint16_t)device_get_config_int("addr");
         sb.opl_emu = device_get_config_int("opl_emu");
+        // DEVIATION: (G8.3) NukedOPL est omis (sound_dbopl.cs) ; une section de device qui
+        //   demande opl_emu = 1 (OPL_NUKED) aurait chez PCem le son de NukedOPL. Ici, le DBOPL,
+        //   dit sur la sortie d'erreur, plutôt qu'un mélange des deux (le gain de sound_sb.c:102-103 suit
+        //   opl_emu).
+        if (sb.opl_emu != OPL_DBOPL)
+        {
+                Console.Error.WriteLine($"iXtal26 : opl_emu = {sb.opl_emu} — NukedOPL n'est pas transcrit, DBOPL à sa place.");
+                sb.opl_emu = OPL_DBOPL;
+        }
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SBPRO2, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
@@ -427,15 +436,18 @@ internal static partial class sound_sb
 
     // omitted: sb_config, sb2_config, sb_mcv_config, sb_pro_v1_config (sound_sb.c:1134-1228).
 
-    // pcem: sound_sb.c:1230-1259. Les listes `selection` (libellés et valeurs offertes : 220h/240h,
-    //   IRQ 2/5/7/10, DMA 1/3, DBOPL/NukedOPL) appartiennent au dialogue de configuration, omis
-    //   par device.cs ; restent le nom, le type et la valeur par défaut.
+    // pcem: sound_sb.c:1230-1259. omitted: `.description`. Les listes `selection` (G8.3) :
+    //   device_get_config_int y valide la valeur de la section [Sound Blaster Pro v2] du .cfg.
     internal static readonly device_config_t[] sb_pro_v2_config =
     [
-        new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220 },
-        new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7 },
-        new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1 },
-        new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL },
+        new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+            selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 }] },
+        new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+            selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 }, new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+        new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+            selection = [new() { description = "DMA 1", value = 1 }, new() { description = "DMA 3", value = 3 }] },
+        new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
+            selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
         new device_config_t { type = -1 },
     ];
 

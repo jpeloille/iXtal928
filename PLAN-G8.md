@@ -70,7 +70,7 @@ DSP, sortie directe (0x10), DMA 8 bits simple et automatique (0x14, 0x1C, 0x48),
 (mélangeur), vitesse (0x40), pause et reprise (0xD0/0xD4), ADPCM 4 bits, lecture du mélangeur,
 IRQ — sous boot-diff, `sound_hash` et l'état du DSP comparés.
 
-### G8.3 — Les machines et les témoins
+### G8.3 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § G8.3*
 
 La carte sur les profils (décision n° 5) ; témoins `--boot` : la détection par un programme DOS
 s'il en existe un sur les disques, Windows 3.1 avec un pilote Sound Blaster s'il y en a un, et

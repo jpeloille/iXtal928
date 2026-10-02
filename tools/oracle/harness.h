@@ -679,7 +679,8 @@ uint8_t *h_ram(void);
 /* 35 depuis G8.0 : h_opl_tables — DBOPL compilé en C++ (harness_dbopl.cpp). */
 /* 36 depuis G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (H_SOUND_PROBE_N champs). */
 /* 37 depuis G8.2 : la SB Pro v2 (sndcard sbprov2), la sonde du son passe de 21 à 41 champs. */
-#define H_ABI_VERSION 37
+/* 38 depuis G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg). */
+#define H_ABI_VERSION 38
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

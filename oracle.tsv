@@ -12,7 +12,7 @@
 # survit : tout le reste est de la documentation, et la documentation pourrit.
 csharp_path	c_path	c_sha256	c_lines	status	note
 iXtal26/Cpu/386_common.cs	pcem-dev/src/cpu/386_common.c	778aef5be04f3a28daffe4095e979770a6d94fd3a1e7b713767cbff781b20696	6-37	partial	cpu_state et nmi_enable ; x86_int au palier (b)
-iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	4d6dbf7db0f65f99f558df1cf3cd39b43f02ff8682f8293263d8a0425f7fe466	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
+iXtal26/Cpu/808x.State.cs	tools/oracle/harness.c	916babe83f03a65313a73a85561e579800d043cf8e9def6fd2ef0b2ce20400b1	-	host	porte de diagnostic ; pendant de h_reset/h_step/h_run/h_getstate
 iXtal26/Cpu/808x.cs	pcem-dev/src/cpu/808x.c	ce5d51cad4356ab7deee49eae607c07055e89b1d7c048037cd18e407fcb3dd16	36-3996	partial	M1.4 : jeu d'instructions 8088 COMPLET (256 opcodes) + rep()
 iXtal26/Cpu/cpu.cs	pcem-dev/src/cpu/cpu.c	abdcaebcb6938fb88770ddab69651892cedcdb312293a4c22e7b3c1e81d7311d	11-12,14-15,17,20,82-83,85-89,93-96,114,128-152,170-415,1128-1152,2010-2063,2067-2071	partial	cpu_set reduit au 8088, au 286, au 386SX et au 386DX (G3.2) (G2 D0.2 : x86_setopcodes(ops_386) et les temps), cpu_update_waitstates, cpu_set_turbo et cpu_get_speed entiers ; cpu_features (G2 D4)
 iXtal26/Cpu/cpu.cs	pcem-dev/includes/private/cpu/cpu.h	d8d5621bc5640d132a0ef586a8a48ecc5466ee0fd3df4101e4bb2692a1944124	6,10-23,25,28,30,37-40,52,72,121,127-128	partial	les constantes CPU_* que nomment les tables et les expressions de cpu_set ; MANU_INTEL, FPU_NONE ; CPU_FEATURE_CR4 et cpu_has_feature (G2 D4)
@@ -35,8 +35,8 @@ iXtal26/Cpu/x86seg.cs	pcem-dev/src/cpu/x86seg.c	b03f578455a8ecb4e61ffaf533401b5b
 iXtal26/Devices/nvr.cs	pcem-dev/src/devices/nvr.c	b969db50e5fe43c81408802ed677626335306780ea0722774c80740ed32187bd	18-783	partial	B1a + nvrfopen, loadnvr et savenvr REELS, reduits aux deux machines a 286 et a l'ami386 (G3.1) et a l'ami386dx (G3.2) ; les trente autres cas du switch au registre ; G1.1 : la M24 (pas de cas, nvrram mis à zéro : déviation 6c des deux côtés) ; G1.2 : pc1512.nvr (loadnvr, savenvr)
 iXtal26/rtc.cs	pcem-dev/src/rtc.c	8ded99fe0d6dee1e10448927f189fa53fa2df739a5321fe76ac550e371970a7c	17-222	partial	B1 : l'horloge interne du MC146818 ; time_internal_sync lit l'horloge de l'hote
 iXtal26/Devices/cassette.cs	pcem-dev/src/devices/cassette.c	c6fff8e080086c90d9193b802ce5c026d093605aeaa9609a2c37ccf130cddc99	-	partial	interface seule
-iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	eaaee30b51141328f23c077d83f584fe42d28c20305df42fa57071eadebe818c	-	host	compteurs d'appels des stubs
-iXtal26/Diag/HState.cs	tools/oracle/harness.h	ff08ab7449416db9b152b82ea7c4bd6942dd785842466afd23b86944cacba7a6	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
+iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	964dcaf324face5665ab2f52cab69bb68cfa254b8ec9315926aa67c5c53c83ba	-	host	compteurs d'appels des stubs
+iXtal26/Diag/HState.cs	tools/oracle/harness.h	f0f6666e36dd0c800b74a946ba8e3e8f0755b6827d12be5a43dfc2c9db03d6a8	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
 iXtal26/Disc/disc.cs	pcem-dev/src/disc/disc.c	444b2958bdf57de9c513ebb801462d6d0dbeb78835376407b9436e20d26f37b0	1-269	partial	M6 : chargeur FDI omis de la table loaders[]
 iXtal26/Disc/disc_img.cs	pcem-dev/src/disc/disc_img.c	261ef2ed0fac464a51747d80df093f750bad3c986732493b202c5fd761f31592	1-439	transcribed	M6 : stdio en FileStream, tableaux XDF en escalier
 iXtal26/Disc/disc_sector.cs	pcem-dev/src/disc/disc_sector.c	9cca61beaac22d748e89aba73e725b6024065dcb4647d2cad5a02e5375fa5c49	1-373	transcribed	M6 : uint8_t *data -> (tampon, offset)
@@ -73,7 +73,7 @@ iXtal26/Models/ali1429.cs	pcem-dev/src/models/ali1429.c	4b6f4e666da943e695658372
 iXtal26/Models/olivetti_m24.cs	pcem-dev/src/models/olivetti_m24.c	da2ec208b5e84800ff7021267fc54987fa69baa665646e19d4595a672a0da6c5	1-15	transcribed	G1.1 : les ports 66h et 67h
 iXtal26/Models/nmi.cs	pcem-dev/src/models/nmi.c	010a827b5c25f798704650f423ee58531fd24028430d15a10f2c0ebb04a0ab20	-	partial	nmi_mask seul
 iXtal26/Models/pic.cs	pcem-dev/src/models/pic.c	66771852f6eaab0b51357b0b7c72622c3dda636c9f975fbd86425993cb7993dd	-	partial	le 8259 entier, pic et pic2 ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « reel a M3 »
-iXtal26/PluginApi/config.cs	pcem-dev/src/plugin-api/config.c	1b21c07f5fcf41ed68e0b3d963d4a79f388ef4a4ac8a40aef25b5b5127bdd9be	7-11,71-125,127-219,226-428,431-456	partial	moteur de configuration ; omis config_dump, config_new, add_config_callback
+iXtal26/PluginApi/config.cs	pcem-dev/src/plugin-api/config.c	1b21c07f5fcf41ed68e0b3d963d4a79f388ef4a4ac8a40aef25b5b5127bdd9be	7-11,71-125,127-219,226-428,431-456	partial	moteur de configuration ; omis config_dump, config_new, add_config_callback ; G8.3 : machine_named_entries (outillage) recopie les sections de device dans l'oracle
 iXtal26/Program.cs	-	-	-	host	point d'entrée, arguments
 iXtal26/Sound/dbopl.cs	pcem-dev/src/dosbox/dbopl.cpp	3f1718e541207d5929f1d64e06fd0ba52be43a11fa42efcf1b20bda82cf77a0c	1-1494	deviated	G8.0-G8.1 : DBOPL en WAVE_TABLEMUL (tables vérifiées par opl-tables-check) ; pointeurs de fonctions membres en énumérations, offsets en indices, sorties en (tableau, décalage) ; WAVE_HANDLER/TABLELOG et Handler omis
 iXtal26/Sound/dbopl.cs	pcem-dev/includes/private/dosbox/dbopl.h	6f0eb0776d94e62298e2413d421e3f56d1ce58fe1b938bea67837c02973fb77a	-	deviated	G8.1 : Operator, Channel, Chip, SynthMode
@@ -97,7 +97,7 @@ iXtal26/Cpu/386_ops_mov.cs	pcem-dev/includes/private/cpu/x86_ops_mov.h	859ba6974
 iXtal26/Cpu/386.cs	pcem-dev/src/cpu/386.c	2bcd7829774e2530579c6a162ed6d6a85bb86a2bd18d872d76a79af35c5cbccb	153-295	partial	exec386 + x86_doabrt en entier (mode reel ET protege) ; 386.c:1-152 est du code mort, duplique dans 386_dynarec.c:30-154
 iXtal26/Cpu/386_ops_table386.cs	pcem-dev/includes/private/cpu/386_ops.h	f9aac49b5640541d3f42da7af058e174132a5f81db115a2eb45a2b69c2d639d1	1235-2288,11775-12828	partial	GENERE par tools/ops386-table.py : la part de OP_TABLE(386) et OP_TABLE(386_0f) partagee avec le 286 (574 + 706 emplacements) ; le reste opNonTranscrit
 iXtal26/Cpu/386_common.cs	pcem-dev/includes/private/cpu/386_common.h	d85f59792b485347a9d1787a3b83986df75e53973e918ae98d576759e317b858	8-40,58-92,100-176,180-236	partial	chemin de fetch, acces par adresse effective, gardes ; x86_int et x86illegal depuis 386_common.c
-iXtal26/Cpu/386.State.cs	tools/oracle/harness.c	4d6dbf7db0f65f99f558df1cf3cd39b43f02ff8682f8293263d8a0425f7fe466	-	host	porte de diagnostic du coeur 286 ; pendant de h_set_core / h_reset / h_step286
+iXtal26/Cpu/386.State.cs	tools/oracle/harness.c	916babe83f03a65313a73a85561e579800d043cf8e9def6fd2ef0b2ce20400b1	-	host	porte de diagnostic du coeur 286 ; pendant de h_set_core / h_reset / h_step286
 iXtal26/Cpu/386_ops_stack.cs	pcem-dev/includes/private/cpu/x86_ops_stack.h	05ae05449dc5b4feb9ad9368f0cd5fd820d62f15c1eaffce032caed5df64aecd	3-626	partial	A4 puis A6 : les 30 emplacements de pile atteignables sur un 286, ENTER et LEAVE compris ; formes _l et _a32 omises
 iXtal26/Cpu/386_ops_jump.cs	pcem-dev/includes/private/cpu/x86_ops_jump.h	ee9d7513a4a33885a518172d6caa05e3407505e4bd33f115eaed64bdefc94c1c	3-351	partial	A5 : les 26 emplacements de saut atteignables sur un 286, CALL et RET proches compris ; formes _l et _a32 omises
 iXtal26/Cpu/386_ops_call.cs	pcem-dev/includes/private/cpu/x86_ops_call.h	1e7c1fb1beaa88f718d7800a40e294cffdb0e14687ed78bfcac4a9a68a33be7f	3-251	partial	A6 : CALL far et le groupe FF ; formes _l et _a32 omises
@@ -150,7 +150,7 @@ iXtal26/Keyboard/keyboard_olim24.cs	pcem-dev/src/keyboard/keyboard_olim24.c	7234
 iXtal26/Keyboard/keyboard_olim24.cs	pcem-dev/includes/private/keyboard/keyboard_olim24.h	3fc1fe3809afcc9015d0b6bce439c58ef5df781337966a37857851e617ebf76d	-	transcribed	G1.1 : déclarations
 iXtal26/Keyboard/keyboard_xt.cs	pcem-dev/src/keyboard/keyboard_xt.c	49f440efe0e41f08ad0e471210d6997b0dce744b05cb757b3b885316868ab9f5	-	partial	le PPI du XT et sa file de 16 scancodes ; t1000_syskey, tandy_eeprom_read et les pclog omis
 iXtal26/Flash/rom.cs	pcem-dev/src/flash/rom.c	1336cb86979d5a7640b4faa0f4081422417e07d904efb0596f22b60cb49f2346	1-114	transcribed	les shims stdio vivent ici faute de fichier hote qui les porte
-iXtal26/PluginApi/device.cs	pcem-dev/src/plugin-api/device.c	d37e77e60bec8bd431e04fd68aabca5b6169a2be5ac476b5dc4ec8113fe2db21	-	partial	device_t et le cycle de vie des peripheriques ; les six registres de cartes enfichables omis
+iXtal26/PluginApi/device.cs	pcem-dev/src/plugin-api/device.c	d37e77e60bec8bd431e04fd68aabca5b6169a2be5ac476b5dc4ec8113fe2db21	-	partial	device_t et le cycle de vie des peripheriques ; les six registres de cartes enfichables omis ; G8.3 : device_get_config_int/string lisent la section du device (config.cs), comme PCem ; device_config_selection_t transcrit, valeur hors liste → défaut averti (DEVIATION, PB-93)
 iXtal26/PluginApi/paths.cs	pcem-dev/src/plugin-api/paths.c	3d658f55954f12f83c7369b38fa2cb478ea5a5a3ba69e2c405ba204c7a941856	-	partial	chemins de ROM + les trois chemins du CMOS ; configs/, logs/, screenshots/, plugins/ omis
 iXtal26/Disc/disc_img_probe.cs	-	-	-	host	sonde d'image de disquette ; aucun pendant dans PCem ni dans le harnais
 

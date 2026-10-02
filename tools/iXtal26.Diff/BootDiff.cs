@@ -29,6 +29,16 @@ namespace iXtal26.Diff;
 
 public static class BootDiff
 {
+    /// <summary>G8.3 — les sections de device du .cfg chargé (PluginApi/config.cs), recopiées
+    /// dans l'oracle avant h_boot : device_get_config_int/string y lisent alors les mêmes
+    /// valeurs. Sans section, les deux côtés rendent le défaut du device.</summary>
+    private static void PousserConfigDevices()
+    {
+        Oracle.h_clear_device_config();
+        foreach (var (head, name, data) in iXtal26.PluginApi.config.machine_named_entries())
+            Oracle.h_set_device_config(head, name, data);
+    }
+
     /// <param name="discA">Image de disquette du lecteur A, ou null : la MÊME image
     /// est montée des deux côtés, avant l'amorçage, comme pc.c le fait depuis argv
     /// (pc.c:231) — c'est la seule façon de comparer un amorçage DOS.</param>
@@ -52,6 +62,10 @@ public static class BootDiff
     /// que CompareImages signale.</param>
     /// <summary>G8.1 — `--sndcard NOM` (none, adlib), appliqué après --config.</summary>
     internal static string? SndcardOverride;
+    /// <summary>G8.3 — `--expect-sb ADDR,IRQ,DMA` (ADDR en hexadécimal) : la porte exige que la
+    /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
+    /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
+    internal static string? ExpectSb;
 
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
                           string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
@@ -198,6 +212,7 @@ public static class BootDiff
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
+        PousserConfigDevices();
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -668,6 +683,7 @@ public static class BootDiff
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
+        PousserConfigDevices();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -846,7 +862,7 @@ public static class BootDiff
         "opl1.addr", "opl1.status", "opl1.status_mask", "opl1.timer_ctrl", "opl1.timer[0]", "opl1.timer[1]",
         // G8.2 — le DSP et le mélangeur de la SB Pro v2 (h_sb_probe).
         "dsp.sb_8_length|autolen", "dsp.8_format|autoinit|pause|enable", "dsp.8_output|dmanum|speaker|muted",
-        "dsp.sb_pausetime", "dsp.read_wp|rp", "#dsp.sb_read_data", "dsp.data_stat|irqnum", "dsp.sbe2|sbe2count",
+        "dsp.sb_pausetime", "dsp.read_wp|rp", "#dsp.sb_read_data", "dsp.data_stat|irqnum", "dsp.sbe2|sbe2count|sb_addr",
         "dsp.sbdat|sbdat2", "dsp.sbdatl|r|sbref|sbstep", "dsp.sbdacpos|sbleftright", "dsp.sbreset|readdat|command|test",
         "dsp.sb_timeo|timei", "dsp.sblatcho", "dsp.output_timer", "dsp.stereo|wb_full", "dsp.busy_count|pos",
         "#mixer.regs", "sb.pos", "mixer.master_l|r",
@@ -889,7 +905,21 @@ public static class BootDiff
             return 1;
         }
         Console.WriteLine($"Sonde du son : {SoundFields.Length} champs identiques — échantillons ({o[8]:X16}), haut-parleur, OPL, DSP.");
-        return 0;
+        if (Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current) != "sbprov2")
+            return ExpectSb is null ? 0 : FauteSb("pas de SB montée");
+        var sb = $"{o[28] >> 48:X}h, IRQ {o[27] >> 32}, DMA {(o[23] >> 8) & 0xff}";
+        Console.WriteLine($"Sound Blaster des deux côtés : {sb}.");
+        if (ExpectSb is null)
+            return 0;
+        var e = ExpectSb.Split(',');
+        var attendu = $"{Convert.ToInt32(e[0], 16):X}h, IRQ {int.Parse(e[1])}, DMA {int.Parse(e[2])}";
+        return attendu == sb ? 0 : FauteSb($"attendu {attendu}");
+
+        static int FauteSb(string m)
+        {
+            Console.Error.WriteLine($"Sound Blaster : {m} (--expect-sb {ExpectSb}).");
+            return 1;
+        }
     }
 
     private static readonly string[] SpeakerFields =
@@ -931,6 +961,7 @@ public static class BootDiff
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
+        PousserConfigDevices();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -1052,6 +1083,7 @@ public static class BootDiff
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
+        PousserConfigDevices();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);

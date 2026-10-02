@@ -5210,3 +5210,59 @@ divergent (1 champ sur 41).
 AdLib, passée de 21 à 41 champs avec la même empreinte d'échantillons ; les trois nouvelles vertes
 (`bd-pc-sbpro`, `bd-ami486-sbpro`, `bd-pc-sbpro-banc`). Build 0 avertissement, selftest,
 check-oracle 0 dérive (157).
+
+## G8.3 — Les sections de device, la SB Pro v2 sur les profils, les témoins
+
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.3 ; décisions de l'orchestrateur du 02/10 (option a,
+puis option i).
+
+**Les sections de device du .cfg.** L'IRQ 5 de la décision n° 5 n'avait pas de chemin :
+`device_get_config_int/string` rendaient toujours le défaut, des deux côtés. Elles lisent
+maintenant la section qui porte le nom du device, comme PCem (`device.c:94-116`) : en C# par
+`PluginApi/config.cs` (la DEVIATION de `device.cs` tombe) ; dans l'oracle, où `config.c` n'est
+pas lié, par une table que remplit `h_set_device_config` (ABI 38) — iXtal26.Diff y recopie, avant
+chaque amorçage, les sections du `--config` chargé. Les listes `selection` (`devices.h:22-25`)
+sont transcrites pour les sept tables de configuration du dépôt, et **une valeur hors liste prend
+le défaut, avec un avertissement** (section, clé, valeur rejetée, défaut retenu) — DEVIATION
+« comme l'interface de PCem l'impose » : son dialogue n'offre que la liste, et une valeur écrite
+à la main peut indexer hors des tableaux (PB-93 : la SB à DMA 9 ou à FFFEh ; huit valeurs de
+`memory` sur douze essayées pour la TVGA8900D, la GD5429 et la Trio64 arrêtaient l'hôte). L'oracle
+n'est pas touché ; ces valeurs restent hors des portes.
+
+**Les portes.** `bd-ami486-sbpro-irq5` : l'ami486 + SB Pro v2 avec la section des profils
+(`addr = 544`, `irq = 5`, `dma = 1`), et `--expect-sb 220,5,1`, qui exige ces valeurs lues dans la
+sonde du son DES DEUX CÔTÉS (l'adresse y entre, champ `sbe2|sbe2count|sb_addr`) : vert.
+`bd-ami486-sbpro` exige désormais le défaut, 220h, IRQ 7, DMA 1. **Contrôles négatifs**, retirés :
+la section absente sous `--expect-sb 220,5,1` → « attendu 220h, IRQ 5, DMA 1 », rouge ; la section
+donnée au C# seul (oracle privé de `h_set_device_config`) → instructions identiques, sonde
+divergente sur `data_stat|irqnum` (IRQ 7 contre 5). `r9-sbcfg`, en C# seul, 19 essais : clé
+inconnue et section d'un device absent ignorées ; 240h/IRQ 10/DMA 3 (dans la liste) pris ; IRQ 3
+→ 7 averti ; non numérique → défaut, `0x3` lu 3 (`%i`) ; DMA 9, IRQ 99, base FFFEh → défauts
+avertis ; `opl_emu = 1` → DBOPL (NukedOPL omis, dit sur la sortie d'erreur) ; les douze valeurs
+`memory` hors liste → défaut averti (deux avertissements pour la Trio64, qui lit la clé deux
+fois), puis 400 tranches d'amorçage — tout survit ; sans la validation, dix essais s'arrêtaient
+(mesuré).
+
+**Les profils.** `ixtal26-486.cfg`, `ixtal26-486-s3.cfg`, `ixtal26-386.cfg` (ami386dx) :
+`sndcard = sbprov2` et la section `[Sound Blaster Pro v2]` à 220h, IRQ 5, DMA 1 ; côté DOS,
+`SET BLASTER=A220 I5 D1 T4`. Aucune porte ne lit ces fichiers.
+
+**Le témoin Windows** (C# seul, `--boot`, dans `/tmp` : copie du disque 486 de l'utilisateur,
+profil 486-s3, `KEYB FR` retiré, CMOS copié ; rien n'est écrit dans `os/` ni `nvr/`). Le pilote
+Sound Blaster 1.5 de Windows 3.11 (`SNDBLST2.DRV`, disquette 4 ; `VSBD.386`, disquette 5) est
+décompressé par `EXPAND` dans l'invité ; `SYSTEM.INI` de la copie reçoit `wave=sndblst2.drv`,
+`device=vsbd.386` et `[sndblst.drv] port=220 int=5`. Une commande de script `@son` (BootTest)
+imprime l'état de la carte. **À l'IRQ 5** : Program Manager sans message, et le DSP laissé par le
+son de démarrage (CHIMES.WAV) — DMA 8 bits automatique de 2 048 octets, constante de temps D3h
+(22 kHz), haut-parleur allumé, pause (D0h) en fin de son. **Contrôle négatif**, la carte à
+l'IRQ 7 et Windows réglé sur 5 : le pilote envoie F2h (le test d'interruption), l'IRQ reste en
+attente, rien n'est joué, et Windows affiche « Sound Blaster — A configuration or hardware
+problem has occurred ». **Témoin audible** : non consigné — la session n'a pas d'oreille ; à
+écouter par l'utilisateur (ce même son de démarrage, pilote installé, profil 486-s3).
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g82 : 140 portes,
+**toutes vertes** ; identique à g82 hors ABI (37 → 38) et hors la nouvelle ligne « Sound Blaster
+des deux côtés : 220h, IRQ 7, DMA 1 » des trois portes SB (instructions et empreintes inchangées) ;
+les deux nouvelles vertes (`bd-ami486-sbpro-irq5`, 5 433 745 instructions, IRQ 5 lue des deux
+côtés ; `r9-sbcfg`). Rien ne bouge pour les cartes et profils existants. Build 0 avertissement,
+selftest, check-oracle 0 dérive (157).

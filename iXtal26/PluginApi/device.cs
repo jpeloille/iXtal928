@@ -39,16 +39,25 @@ internal delegate void sound_speed_changed_t();
 //   `max_len` est conservé à sa place dans la signature.
 internal delegate void device_add_status_info_fn(StringBuilder s, int max_len, object p);
 
+// pcem: devices.h:22-25
+internal sealed class device_config_selection_t
+{
+    internal string description = "";
+    internal int value;
+}
+
 // pcem: devices.h:27-34
-// omitted: `description` (libellé du dialogue de configuration) et `selection[30]`
-//   / device_config_selection_t (devices.h:22-25) — le PC 5150 n'a pas de dialogue
-//   de configuration. Restent les champs lus par device_get_config_int/string.
+// omitted: `description` (libellé du dialogue de configuration).
+// DEVIATION: `selection[30]`, tableau fixe terminé par une description vide, devient un
+//   tableau à sa taille, sans terminateur. Depuis G8.3 il sert à device_get_config_int
+//   (valeur hors liste → défaut, voir plus bas) ; null : la clé n'a pas de liste.
 internal sealed class device_config_t
 {
     internal string name = "";
     internal int type;
     internal string default_string = "";
     internal int default_int;
+    internal device_config_selection_t[]? selection;
 }
 
 // pcem: devices.h:36-46
@@ -148,14 +157,13 @@ internal static partial class device
         Console.Error.Write("iXtal26 FATAL: " + format);
     }
 
-    // DEVIATION: config.c n'est pas transcrit — le PC 5150 n'a ni fichier .cfg ni
-    //   dialogue de configuration. Ces deux fonctions rendent donc toujours `def`,
-    //   ce que config.c:285-291 et 324-330 font déjà quand la section ou l'entrée
-    //   manque, c'est-à-dire toujours ici.
-    // omitted: la lecture du fichier .cfg (config.c) et CFG_GLOBAL.
-    private static int config_get_int(int is_global, string head, string name, int def) => def;
+    // pcem: device.c:99 et :114 — la section du .cfg qui porte le nom du device (G8.3). Le
+    //   moteur est config.cs : sans section ni entrée, il rend `def` (config.c:285-291).
+    private static int config_get_int(int is_global, string head, string name, int def)
+        => iXtal26.PluginApi.config.config_get_int(is_global, head, name, def);
 
-    private static string config_get_string(int is_global, string head, string name, string def) => def;
+    private static string config_get_string(int is_global, string head, string name, string def)
+        => iXtal26.PluginApi.config.config_get_string(is_global, head, name, def);
 
     // pcem: device.c:30
     internal static void device_init() { Array.Clear(devices); }
@@ -254,11 +262,37 @@ internal static partial class device
         while (config[i].type != -1)
         {
             if (string.CompareOrdinal(s, config[i].name) == 0)
-                return config_get_int(CFG_MACHINE, current_device.name, s, config[i].default_int);
+                return config_hors_liste(config[i],
+                                         config_get_int(CFG_MACHINE, current_device.name, s, config[i].default_int));
 
             i++;
         }
         return 0;
+    }
+
+    // DEVIATION: valeur de configuration hors liste → défaut, comme l'interface de PCem
+    //   l'impose. Le dialogue de PCem (wx-deviceconfig.cc:40-60) n'offre, pour une clé
+    //   CONFIG_SELECTION, que les valeurs de sa liste `selection`, et pour une clé
+    //   CONFIG_BINARY qu'une case à cocher (0 ou 1) ; une autre valeur n'existe que par un .cfg
+    //   édité à la main, et PCem la prend telle quelle (device.c:99) — jusqu'à indexer hors de
+    //   ses tableaux (PB-93). Ici, le défaut du device, et un avertissement sur la sortie
+    //   d'erreur : section, clé, valeur rejetée, défaut retenu. L'oracle n'est pas touché ; les
+    //   portes n'y mènent pas, r9-sbcfg le prouve en C# seul.
+    private static int config_hors_liste(device_config_t c, int val)
+    {
+        bool dans_liste;
+        if (c.type == CONFIG_BINARY)
+                dans_liste = val == 0 || val == 1;
+        else if (c.type == CONFIG_SELECTION && c.selection != null)
+                dans_liste = Array.Exists(c.selection, x => x.value == val);
+        else
+                return val;
+        if (dans_liste)
+                return val;
+        string brut = config_get_string(CFG_MACHINE, current_device.name, c.name, "");
+        Console.Error.WriteLine($"iXtal26 : [{current_device.name}] {c.name} = {brut.Trim()} hors de la liste " +
+                                $"de PCem — défaut {c.default_int} retenu.");
+        return c.default_int;
     }
 
     // pcem: device.c:106-116

@@ -194,12 +194,12 @@ internal static partial class amstrad
     }
 
     // pcem: amstrad.c:160-173
-    // omitted: `.description` et `.selection` (amstrad.c:161-171) — device_config_t
-    //   (device.cs:42-48) ne porte plus ces champs. Valeurs offertes par PCem : 7 English,
-    //   6 German, 5 French, 4 Spanish, 3 Danish, 2 Swedish, 1 Italian, 0 Diagnostic mode.
+    // omitted: `.description` (amstrad.c:161-171) ; `.selection` est transcrit (G8.3,
+    //   device_get_config_int y valide la valeur du .cfg).
     internal static device_config_t[] ams1512_config =
     [
-        new device_config_t { name = "language", type = CONFIG_SELECTION, default_int = 7 },
+        new device_config_t { name = "language", type = CONFIG_SELECTION, default_int = 7,
+            selection = [new() { description = "English", value = 7 }, new() { description = "German", value = 6 }, new() { description = "French", value = 5 }, new() { description = "Spanish", value = 4 }, new() { description = "Danish", value = 3 }, new() { description = "Swedish", value = 2 }, new() { description = "Italian", value = 1 }, new() { description = "Diagnostic mode", value = 0 }] },
         new device_config_t { type = -1 },
     ];
 

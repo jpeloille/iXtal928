@@ -1277,6 +1277,26 @@ mêlés ; 286 et 386) ; au-delà, écart ATTENDU, là où l'oracle survit encore
 remplie de 0x17, C# seul : 200 pas de 1 025 POP SS, sans plantage ni boucle. Sans la borne,
 le même test fait tomber le C#.
 
+### PB-93 — Une valeur de configuration hors liste indexe hors des tableaux (SB, cartes SVGA)
+
+`device.c:94-104` rend telle quelle la valeur d'une section de device du .cfg. L'interface de
+PCem n'offre que les valeurs de la liste `selection` (`wx-deviceconfig.cc:49-60`) ; un .cfg
+écrit à la main en offre d'autres, et certaines sortent des tableaux. La SB avec `dma = 9` :
+`dma_channel_read` / `_write` prennent `&dma[9]` (`dma.c:499`, `:569`, huit canaux) au premier
+transfert ; avec `addr = 65534` : `io_sethandler` indexe `port_inb[base + c]` au-delà de FFFFh
+(`io.c:45`) dès le montage. Les cartes SVGA avec une clé `memory` hors liste : TVGA8900D 0, 3,
+-1 ; GD5429 0, 255, -1 ; Trio64 64, -1 — VRAM de taille nulle, masque incohérent ou taille
+négative, lus ou écrits hors du tableau dès l'amorçage du BIOS vidéo.
+*Effet* : comportement indéfini en C ; en C#, huit des douze cas vidéo et les deux cas SB
+s'arrêtaient sur `IndexOutOfRangeException` ou `OverflowException` (mesuré, G8.3).
+*Trouvé par* : la vérification des sections de device, G8.3 (`r9-sbcfg`).
+*Non reproduit* : `PluginApi/device.cs`, `config_hors_liste` — DEVIATION « valeur de
+configuration hors liste → défaut, comme l'interface de PCem l'impose », avec un avertissement
+sur la sortie d'erreur (section, clé, valeur rejetée, défaut retenu). Les listes `selection` sont
+transcrites pour les sept tables de configuration du dépôt. Prix assumé : une valeur hors liste
+mais sans danger (la SB à l'IRQ 3) prend aussi le défaut. L'oracle n'est pas touché ; ces valeurs
+restent hors des portes, prouvées en C# seul.
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -1698,6 +1718,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de l'Olivetti M24 (G1.1) | PB-88, PB-89 |
 | L'Amstrad PC1512 (G1.2) | PB-89 élargi |
 | Reconnaissance et transcription de la Sound Blaster Pro v2 (G8.2) | PB-90 à PB-92 |
+| La vérification des sections de device du .cfg (G8.3) | PB-93 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

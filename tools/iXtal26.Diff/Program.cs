@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--expect-sb ADDR,IRQ,DMA] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -203,6 +203,9 @@ switch (args[0])
     // G7.1 — R9 : la survie aux index hors VRAM de la GD5429 (PB-81, PB-82), en C# seul.
     case "r9-cl5429":
         return R9Cl5429.Run("roms");
+    // G8.3 — R9 : les sections de device du .cfg, valeurs hors liste et hors tableaux (PB-93).
+    case "r9-sbcfg":
+        return R9SbCfg.Run("roms");
     // G7.3 — R9 : la survie au curseur et à la pente de polygone de la Trio64 (PB-84 à PB-86).
     case "r9-s3":
         return R9S3.Run("roms");
@@ -393,6 +396,7 @@ switch (args[0])
                 case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
                 // G8.1, G8.2 — la carte son (internal_name : none, adlib, sbprov2), même précédence.
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
+                case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 // M16 — l'indice dans la table de CPU de la machine, appliqué APRÈS
                 // --model : `--cpu 3` est un 8088/10 sur l'ibmpc, un 286/12 sur l'ami286.
                 case "--cpu" when i + 1 < args.Length: BootDiff.CpuOverride = int.Parse(args[++i]); break;

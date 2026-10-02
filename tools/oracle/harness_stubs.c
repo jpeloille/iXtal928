@@ -675,14 +675,55 @@ void put_backslash(char *s) {
                 strcat(s, "/");
 }
 
+/* G8.3 — les sections de device du .cfg. config.c n'est pas lié ; le C# lit le fichier
+ * (PluginApi/config.cs) et iXtal26.Diff recopie ici chaque entrée d'une section nommée par
+ * h_set_device_config. config_get_int/string y cherchent (section, clé) comme find_section et
+ * find_entry (config.c:226-267) : absente, le défaut (config.c:285-291, 324-330). */
+#define H_DEVCFG_MAX 64
+static struct {
+        char head[256], name[256], data[256];
+} h_devcfg[H_DEVCFG_MAX];
+static int h_devcfg_n;
+
+void h_clear_device_config(void) {
+        h_devcfg_n = 0;
+}
+
+void h_set_device_config(const char *head, const char *name, const char *data) {
+        if (h_devcfg_n >= H_DEVCFG_MAX)
+                fatal("h_set_device_config : plus de %d entrées\n", H_DEVCFG_MAX);
+        strncpy(h_devcfg[h_devcfg_n].head, head, 255);
+        strncpy(h_devcfg[h_devcfg_n].name, name, 255);
+        strncpy(h_devcfg[h_devcfg_n].data, data, 255);
+        h_devcfg_n++;
+}
+
+static char *h_devcfg_find(int is_global, char *head, char *name) {
+        int c;
+        if (is_global || !head)
+                return NULL;
+        for (c = 0; c < h_devcfg_n; c++)
+                if (!strcmp(h_devcfg[c].head, head) && !strcmp(h_devcfg[c].name, name))
+                        return h_devcfg[c].data;
+        return NULL;
+}
+
 int config_get_int(int is_global, char *head, char *name, int def) {
-        (void)is_global; (void)head; (void)name;
-        return def;
+        char *data = h_devcfg_find(is_global, head, name);
+        int value;
+
+        if (!data)
+                return def;
+        /* config.c:293 ne teste pas le retour de sscanf (valeur indéterminée) : le défaut,
+         * comme PluginApi/config.cs. */
+        if (sscanf(data, "%i", &value) != 1)
+                return def;
+        return value;
 }
 
 char *config_get_string(int is_global, char *head, char *name, char *def) {
-        (void)is_global; (void)head; (void)name;
-        return def;
+        char *data = h_devcfg_find(is_global, head, name);
+        return data ? data : def;
 }
 
 /* --- journalisation -------------------------------------------------------

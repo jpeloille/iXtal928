@@ -3477,11 +3477,12 @@ internal static partial class vid_s3
     // omitted: s3_phoenix_trio32_config (vid_s3.c:3084-3092) — G7 décision n° 2 : la Trio64 Phoenix seule
 
     // pcem: vid_s3.c:3094-3102
-    // omitted: `.description` et `.selection` (vid_s3.c:3096-3100) — device_config_t
-    //   (device.cs:43-52) ne porte pas ces champs ; config_get_int rend le défaut, 2 Mo.
+    // omitted: `.description` (vid_s3.c:3096) ; `.selection` (:3097-3100) est transcrit (G8.3) :
+    //   sans section [Phoenix S3 Trio64] dans le .cfg, le défaut, 2 Mo.
     internal static device_config_t[] s3_phoenix_trio64_config =
     [
-        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2 },
+        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 2,
+            selection = [new() { description = "1 MB", value = 1 }, new() { description = "2 MB", value = 2 }, new() { description = "4 MB", value = 4 }] },
         new device_config_t { type = -1 },
     ];
 

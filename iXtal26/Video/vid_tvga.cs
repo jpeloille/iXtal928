@@ -453,12 +453,12 @@ internal static partial class vid_tvga
     }
 
     // pcem: vid_tvga.c:401-410
-    // omitted: `.description` et `.selection` (vid_tvga.c:402-408) — device_config_t
-    //   (device.cs:43-52) ne porte pas ces champs, et config_get_int rend le défaut
-    //   (device.cs:156) : la 8900D a donc toujours 1024 Ko, comme l'oracle.
+    // omitted: `.description` (vid_tvga.c:402) ; `.selection` (:404-408) est transcrit (G8.3) :
+    //   sans section [Trident TVGA 8900D] dans le .cfg, le défaut, 1024 Ko.
     internal static device_config_t[] tvga_config =
     [
-        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 1024 },
+        new device_config_t { name = "memory", type = CONFIG_SELECTION, default_int = 1024,
+            selection = [new() { description = "256 kB", value = 256 }, new() { description = "512 kB", value = 512 }, new() { description = "1 MB", value = 1024 }] },
         new device_config_t { type = -1 },
     ];
 

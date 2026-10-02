@@ -57,7 +57,8 @@ public static class Oracle
     // 35 en G8.0 : h_opl_tables (DBOPL, compilé en C++).
     // 36 en G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (21 champs).
     // 37 en G8.2 : la SB Pro v2 (sbprov2) ; la sonde du son passe à 41 champs (DSP, mélangeur).
-    public const int AbiVersion = 37;
+    // 38 en G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg).
+    public const int AbiVersion = 38;
 
     static Oracle()
     {
@@ -276,6 +277,9 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_speaker_probe([Out] ulong[] o);
     // G8.1 — la carte son (internal_name) et la sonde du son : haut-parleur, puis les deux OPL.
     [DllImport(Lib)] internal static extern void h_set_sndcard(string name);
+    // G8.3 — les sections de device du .cfg, que config_get_int/string de l'oracle consultent.
+    [DllImport(Lib)] internal static extern void h_clear_device_config();
+    [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
     [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
     public const int SoundProbeN = 41;
 

@@ -175,7 +175,13 @@ run bd-pc-adlib-banc boot-diff roms 10000 --sndcard adlib --fda $DOS --fdb os/pc
 # (reset et version, sortie directe, DMA simple et automatique, vitesse, pause, mélangeur, stéréo,
 # filtre, ADPCM 4 bits, OPL3) saisi dans DEBUG, sous boot-diff, sonde du son.
 run bd-pc-sbpro boot-diff roms 3000 --sndcard sbprov2
-run bd-ami486-sbpro boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sbprov2
+run bd-ami486-sbpro boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sbprov2 --expect-sb 220,7,1
 mapfile -t SBK < tools/sbbanc/sbbanc.keys
 SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
 run bd-pc-sbpro-banc boot-diff roms 11000 --sndcard sbprov2 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${SBB[@]}" --type "^" --type "^"
+# G8.3 — les sections de device du .cfg, lues des deux côtés (device.c:94-104 ; h_set_device_config) :
+# l'ami486 + SB Pro v2 des profils, 220h, IRQ 5, DMA 1, exigés par --expect-sb (sans section,
+# bd-ami486-sbpro ci-dessus exige le défaut, IRQ 7). r9-sbcfg, en C# seul : clés inconnues, valeurs
+# hors liste → défaut averti (PB-93 : SB et les trois cartes SVGA), opl_emu = 1.
+run bd-ami486-sbpro-irq5 boot-diff roms 3000 --config $C/ami486-sbpro-irq5.cfg --expect-sb 220,5,1
+run r9-sbcfg r9-sbcfg

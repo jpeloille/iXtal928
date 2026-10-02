@@ -1824,7 +1824,7 @@ static void h_sb_probe(uint64_t *o) {
         *o++ = (uint32_t)d->sb_read_wp | ((uint64_t)(uint32_t)d->sb_read_rp << 32);
         *o++ = h_sb_fnv(d->sb_read_data, sizeof(d->sb_read_data));
         *o++ = (uint32_t)d->sb_data_stat | ((uint64_t)(uint32_t)d->sb_irqnum << 32);
-        *o++ = d->sbe2 | ((uint64_t)(uint32_t)d->sbe2count << 8);
+        *o++ = d->sbe2 | ((uint64_t)(uint32_t)d->sbe2count << 8) | ((uint64_t)d->sb_addr << 48);
         *o++ = (uint16_t)d->sbdat | ((uint64_t)(uint32_t)d->sbdat2 << 32);
         *o++ = (uint16_t)d->sbdatl | ((uint64_t)(uint16_t)d->sbdatr << 16) | ((uint64_t)d->sbref << 32) | ((uint64_t)(uint8_t)d->sbstep << 40);
         *o++ = (uint32_t)d->sbdacpos | ((uint64_t)(uint32_t)d->sbleftright << 32);

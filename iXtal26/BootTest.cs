@@ -111,6 +111,25 @@ public static class BootTest
             WritePpm(text[6..]);
             return;
         }
+        // G8.3 — « @son » : l'état de la carte son, sans rien taper. Le témoin qu'un logiciel
+        // (le pilote Sound Blaster de Windows) a parlé au DSP : empreinte des échantillons mixés,
+        // dernière commande, DMA 8 bits, IRQ et mélangeur.
+        if (text == "@son")
+        {
+            Console.WriteLine($"\n--- son : carte {Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current)}, " +
+                              $"sound_hash {Sound.sound.sound_hash:X16}, sound_pos_global {Sound.sound.sound_pos_global} ---");
+            if (Sound.sound_sb.sb_pri is { } sb)
+            {
+                var d = sb.dsp;
+                Console.WriteLine($"  DSP {d.sb_addr:X}h IRQ {d.sb_irqnum} DMA {d.sb_8_dmanum} : commande {d.sb_command:X2}, " +
+                                  $"8 bits enable {d.sb_8_enable} autoinit {d.sb_8_autoinit} length {d.sb_8_length} " +
+                                  $"autolen {d.sb_8_autolen} pause {d.sb_8_pause}, haut-parleur {d.sb_speaker}, " +
+                                  $"IRQ 8 bits en attente {d.sb_irq8}, temps {d.sb_timeo:X}");
+                Console.WriteLine($"  mélangeur : maître {sb.mixer_sbpro.master_l}/{sb.mixer_sbpro.master_r}, " +
+                                  $"voix {sb.mixer_sbpro.voice_l}/{sb.mixer_sbpro.voice_r}, FM {sb.mixer_sbpro.fm_l}/{sb.mixer_sbpro.fm_r}");
+            }
+            return;
+        }
         if (text.StartsWith("@wait ", StringComparison.Ordinal))
         {
             var n = int.Parse(text[6..]);

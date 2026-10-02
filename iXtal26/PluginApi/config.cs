@@ -250,6 +250,21 @@ internal static partial class config
         }
     }
 
+    // iXtal26 (outillage, sans pendant C) — G8.3 : les entrées des sections NOMMÉES du tiers
+    // machine, dans l'ordre du fichier. iXtal26.Diff les recopie dans l'oracle
+    // (h_set_device_config), où config.c n'est pas lié : les deux côtés lisent alors les
+    // mêmes sections de device.
+    internal static IEnumerable<(string head, string name, string data)> machine_named_entries()
+    {
+        for (section_t? sec = machine_config_head; sec != null; sec = sec.next)
+        {
+                if (sec.name.Length == 0)
+                        continue;
+                for (entry_t? e = sec.entry_head; e != null; e = e.next)
+                        yield return (sec.name, e.name, e.data);
+        }
+    }
+
     // pcem: config.c:226-242 — `name == NULL` désigne la section anonyme.
     private static section_t? find_section(string? name, int is_global)
     {
