@@ -51,6 +51,8 @@ SRC := harness.c \
        harness_pc1512.c \
        $(PCEM)/src/sound/sound_opl.c \
        $(PCEM)/src/sound/sound_adlib.c \
+       $(PCEM)/src/sound/sound_sb.c \
+       $(PCEM)/src/sound/sound_sb_dsp.c \
        $(PCEM)/src/models/amstrad.c \
        $(PCEM)/src/keyboard/keyboard_amstrad.c \
        $(PCEM)/src/models/olivetti_m24.c \

@@ -933,6 +933,36 @@ tableau, donc pas de R9 pour la M24.
 au-delà de 360 (`:326-327`) et de 262 (`:369`) : jamais hors du tableau non plus. Reproduit,
 `Video/vid_pc1512.cs`.
 
+### PB-90 — Le drapeau `DMA_OVER` entre dans l'échantillon ADPCM
+
+`sound_sb_dsp.c:943`, `:984`, `:1019`, `pollsb` : `sbdat2 = sb_8_read_dma(dsp)`, et
+`dma_channel_read` rend `octet | DMA_OVER` (0x10000, `dma.h:9`, `dma.c:564`) au dernier octet du
+bloc. `sbdat2` garde le drapeau : en ADPCM 4 bits, `sbdat2 >> 4` vaut 0x1000 + quartet, `tempi`
+sature à 63 (`:925-926`) ; en 2,6 bits, `sbdat2 >> 5` sature à 39.
+*Effet* : le dernier quartet de chaque bloc ADPCM saute de `scaleMap4[63]` (ou `scaleMap26[39]`)
+au lieu de son pas : un clic par bloc. En 2 bits, le `& 3` (`:999`) le masque.
+*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 2).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-90.
+
+### PB-91 — L'ADPCM 2 bits ne finit jamais
+
+`sound_sb_dsp.c:1016-1020` : au contraire de l'ADPCM 4 bits (`:944`) et 2,6 bits (`:985`), la
+branche `ADPCM_2` lit l'octet suivant sans décrémenter `sb_8_length`.
+*Effet* : les commandes 0x16/0x17 (ADPCM 2 bits, simple) jouent sans fin la mémoire que le DMA
+rend, sans IRQ de fin ; 0x1F (automatique) ne recharge jamais. Un programme qui attend l'IRQ
+attend toujours.
+*Trouvé par* : reconnaissance de G8 (défaut n° 1).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-91.
+
+### PB-92 — L'IRQ 10 de la Sound Blaster se perd sur une machine sans second PIC
+
+`sound_sb.c` propose l'IRQ 10 à la configuration des cartes 8 bits (SB, SB Pro…), sans regarder
+la machine. `sb_irq` (`sound_sb_dsp.c:107-114`) appelle `picint(1 << 10)` ; sans `AT`,
+`picint` (`pic.c:302-308`) n'accepte que `num <= 0xff` : l'interruption est jetée.
+*Effet* : sur un PC ou un XT réglé à l'IRQ 10, la carte ne signale jamais rien, sans message.
+*Trouvé par* : reconnaissance de G8 (défaut n° 3).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1667,10 +1697,11 @@ audit systématique de PCem** :
 | Le fuzzeur 8086 (G1.0) | PB-87 |
 | Reconnaissance et transcription de l'Olivetti M24 (G1.1) | PB-88, PB-89 |
 | L'Amstrad PC1512 (G1.2) | PB-89 élargi |
+| Reconnaissance et transcription de la Sound Blaster Pro v2 (G8.2) | PB-90 à PB-92 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les
-cartes son, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
+cartes son autres que l'AdLib et la SB Pro v2, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
 ce registre ne garde que ce qui a été lu à la ligne de C.

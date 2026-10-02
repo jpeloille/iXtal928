@@ -171,3 +171,11 @@ run bd-ami486-adlib boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard adl
 mapfile -t OPK < tools/oplbanc/oplbanc.keys
 OPB=(); for l in "${OPK[@]}"; do OPB+=(--type "$l"); done
 run bd-pc-adlib-banc boot-diff roms 10000 --sndcard adlib --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${OPB[@]}" --type "^" --type "^"
+# G8.2 — le DSP SBPRO2 et le CT1345 : le 5150 et l'ami486 avec la SB Pro v2 ; le banc SBBANC
+# (reset et version, sortie directe, DMA simple et automatique, vitesse, pause, mélangeur, stéréo,
+# filtre, ADPCM 4 bits, OPL3) saisi dans DEBUG, sous boot-diff, sonde du son.
+run bd-pc-sbpro boot-diff roms 3000 --sndcard sbprov2
+run bd-ami486-sbpro boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sbprov2
+mapfile -t SBK < tools/sbbanc/sbbanc.keys
+SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
+run bd-pc-sbpro-banc boot-diff roms 11000 --sndcard sbprov2 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${SBB[@]}" --type "^" --type "^"

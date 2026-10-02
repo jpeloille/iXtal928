@@ -5172,3 +5172,41 @@ que le diff d'instructions ne voit pas.
 **toutes vertes**, identiques à g80 hors ABI (35 → 36) ; les trois nouvelles vertes
 (`bd-pc-adlib`, `bd-ami486-adlib`, `bd-pc-adlib-banc`). Build 0 avertissement, selftest,
 check-oracle 0 dérive (152).
+
+## G8.2 — Le DSP SBPRO2, le CT1345 et la Sound Blaster Pro v2
+
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.2.
+
+**Transcrit.** `sound_sb_dsp.c` tel que la SB Pro v2 l'atteint (`sb_type == SBPRO2`, DMA 8 bits :
+reset, commandes, ports, `pollsb`, `sb_poll_i`, sortie directe, ADPCM 4, 2,6 et 2 bits ; le 16 bits,
+le SB16/AWE et l'Aztech omis, chaque garde `sb_type >= SB16` laissée telle quelle), `sound_sb.c`
+réduit à la SB Pro v2 (`sb_get_buffer_sbpro`, le mélangeur CT1345, `sb_pro_v2_init`, sa
+configuration et son device) et le filtre `sb_iir` de `filters.h` en `float`, son état statique
+traversant les amorçages comme en C (décision n° 4). `sound_set_cd_volume` des deux côtés ; le
+registre `SOUND_CARD` gagne `sbprov2`. Trois défauts reproduits et inscrits : PB-90 (`DMA_OVER`
+dans l'échantillon ADPCM), PB-91 (l'ADPCM 2 bits ne finit jamais), PB-92 (l'IRQ 10 perdue sans
+second PIC).
+
+**L'oracle.** `sound_sb.c` et `sound_sb_dsp.c` liés ; souches fatales pour l'EMU8000 et le MPU-401
+(inatteignables sur la SB Pro v2), `GAMEBLASTER` à 0. La sonde du son passe à 41 champs : aux 21 de
+G8.1 s'ajoutent les 20 du DSP et du mélangeur (état du DSP, longueurs et positions DMA, IRQ,
+stéréo, registres du CT1345, échantillons courants). ABI 37.
+
+**Les boot-diffs** : 5150 + SB Pro v2, 13 122 609 instructions ; ami486 + SB Pro v2, 5 433 745 (CMOS de nvr/default/, porte isolée) ;
+sondes du son identiques. **Le banc SBBANC** (`tools/sbbanc/sbbanc.py`, 963 octets, instructions
+8086 seules), saisi dans DEBUG sur le 5150 : reset et version du DSP, haut-parleur (D1h, D3h), 64
+échantillons en sortie directe (10h), constante de temps (40h), DMA simple (14h) et automatique
+(48h, 1Ch), pause, reprise et sortie (D0h, D4h, DAh), stéréo et relecture du mélangeur, filtre de
+sortie coupé (0Eh = 20h) puis remis par le reset du mélangeur, ADPCM 4 bits (75h), l'OPL3 de la
+carte (mode OPL3, notes dans les deux banques) — **220 778 728 instructions identiques, sonde du
+son identique** (le filtre `sb_iir`, actif après le reset, a donc rendu les mêmes `float` des deux
+côtés). Les relevés, lus en C# seul : reset AAh, version 3.02, mélangeur FFh, DDh, 02h, 00h,
+volume maître EEh après le reset. **Contrôle négatif**, retiré : un échantillon DMA 8 bits mono
+faussé côté C# (`^ 0x81` au lieu de `^ 0x80`) → instructions identiques, `sound_hash` seul
+divergent (1 champ sur 41).
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g81 : 138 portes,
+**toutes vertes**, identiques à g81 hors ABI (36 → 37) et hors la ligne de sonde des deux portes
+AdLib, passée de 21 à 41 champs avec la même empreinte d'échantillons ; les trois nouvelles vertes
+(`bd-pc-sbpro`, `bd-ami486-sbpro`, `bd-pc-sbpro-banc`). Build 0 avertissement, selftest,
+check-oracle 0 dérive (157).

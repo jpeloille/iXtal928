@@ -556,8 +556,8 @@ void h_set_gfxcard(int g);
  * Tout à zéro sans carte svga. Hachages FNV-1a pour les tableaux (VRAM, registres,
  * palettes, buffer32), valeurs brutes pour les scalaires. */
 #define H_VGA_PROBE_N 163
-/* G8.1 — la sonde du son : 9 du haut-parleur, 6 par OPL (×2). */
-#define H_SOUND_PROBE_N 21  /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 ; +16 de la GD5429 à G7.1 ; +20 de la Trio64 à G7.3 ; +21 de la M24 à G1.1 ; +20 du PC1512 à G1.2 */
+/* G8.1 — la sonde du son : 9 du haut-parleur, 6 par OPL (×2) ; G8.2 : +20 du DSP et du mélangeur. */
+#define H_SOUND_PROBE_N 41  /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 ; +16 de la GD5429 à G7.1 ; +20 de la Trio64 à G7.3 ; +21 de la M24 à G1.1 ; +20 du PC1512 à G1.2 */
 void h_vga_probe(uint64_t *out);
 
 /* M21 — injecte un mouvement de souris (mickeys x, y, z, boutons), pendant de mouse_poll. */
@@ -678,7 +678,8 @@ uint8_t *h_ram(void);
 /* 34 depuis G1.2 : l'Amstrad PC1512 s'amorce (romset 11), et la sonde VGA passe de 143 à 163 champs (20 du PC1512, champ 0 = 3). */
 /* 35 depuis G8.0 : h_opl_tables — DBOPL compilé en C++ (harness_dbopl.cpp). */
 /* 36 depuis G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (H_SOUND_PROBE_N champs). */
-#define H_ABI_VERSION 36
+/* 37 depuis G8.2 : la SB Pro v2 (sndcard sbprov2), la sonde du son passe de 21 à 41 champs. */
+#define H_ABI_VERSION 37
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

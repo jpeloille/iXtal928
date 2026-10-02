@@ -169,8 +169,8 @@ internal static partial class sound
     }
 
     // pcem: sound.c:36-37, :44 — G8.1 : le registre SOUND_CARD.
-    // DEVIATION: deux entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
-    //   sc_none, sc_adlib ; la SB Pro v2 en G8.2 —, en tableau fixe comme video_cards (video.cs).
+    // DEVIATION: trois entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
+    //   sc_none, sc_adlib, sc_sbprov2 —, en tableau fixe comme video_cards (video.cs).
     //   La configuration écrit l'internal_name : aucun indice ne sort de ce fichier.
     internal sealed class SOUND_CARD
     {
@@ -181,8 +181,20 @@ internal static partial class sound
 
     internal static readonly SOUND_CARD sc_none = new() { name = "None", internal_name = "none", device = null };
     internal static readonly SOUND_CARD sc_adlib = new() { name = "Adlib", internal_name = "adlib", device = sound_adlib.adlib_device };
+    // pcem: sound.c:44 — G8.2.
+    internal static readonly SOUND_CARD sc_sbprov2 = new() { name = "Sound Blaster Pro v2", internal_name = "sbprov2", device = sound_sb.sb_pro_v2_device };
 
-    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib };
+    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sbprov2 };
+
+    // pcem: sound.c:123 — G8.2 : lus par le seul fil CD (omis) ; posés par le mélangeur CT1345.
+    private static uint cd_vol_l, cd_vol_r;
+
+    // pcem: sound.c:138-141
+    internal static void sound_set_cd_volume(uint vol_l, uint vol_r)
+    {
+        cd_vol_l = vol_l;
+        cd_vol_r = vol_r;
+    }
 
     // pcem: sound.c:33
     internal static int sound_card_current = 0;

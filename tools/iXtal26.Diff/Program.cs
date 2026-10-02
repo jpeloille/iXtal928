@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -391,7 +391,7 @@ switch (args[0])
                 case "--model" when i + 1 < args.Length: model = args[++i]; break;
                 // M15 — la carte vidéo, avec la même précédence que --model.
                 case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
-                // G8.1 — la carte son (internal_name : none, adlib), même précédence.
+                // G8.1, G8.2 — la carte son (internal_name : none, adlib, sbprov2), même précédence.
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
                 // M16 — l'indice dans la table de CPU de la machine, appliqué APRÈS
                 // --model : `--cpu 3` est un 8088/10 sur l'ibmpc, un 286/12 sur l'ami286.

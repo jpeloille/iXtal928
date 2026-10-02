@@ -62,7 +62,7 @@ boot-diff 5150 + AdLib et ami486 + AdLib jusqu'au DOS, sonde du son identique ; 
 (.COM saisi dans DEBUG) : la détection AdLib (minuteries 1 et 2, lecture de 388h), des notes sur
 les neuf voix, le mode OPL3 — sous boot-diff, `sound_hash` comparé.
 
-### G8.2 — Le DSP et la SB Pro v2
+### G8.2 — Le DSP et la SB Pro v2  ✅ *fait, VERIFICATION.md § G8.2*
 
 `sound_sb_dsp.c` (SBPRO2, 8 bits), le CT1345, `sb_pro_v2_device` ; `sound_set_cd_volume` des deux
 côtés. **Porte** : boot-diff avec la carte jusqu'au DOS ; un banc dirigé : reset et version du

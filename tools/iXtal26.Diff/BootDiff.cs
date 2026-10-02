@@ -844,6 +844,12 @@ public static class BootDiff
         "speaker_pos", "sound_pos_global", "sound_hash",
         "opl0.addr", "opl0.status", "opl0.status_mask", "opl0.timer_ctrl", "opl0.timer[0]", "opl0.timer[1]",
         "opl1.addr", "opl1.status", "opl1.status_mask", "opl1.timer_ctrl", "opl1.timer[0]", "opl1.timer[1]",
+        // G8.2 — le DSP et le mélangeur de la SB Pro v2 (h_sb_probe).
+        "dsp.sb_8_length|autolen", "dsp.8_format|autoinit|pause|enable", "dsp.8_output|dmanum|speaker|muted",
+        "dsp.sb_pausetime", "dsp.read_wp|rp", "#dsp.sb_read_data", "dsp.data_stat|irqnum", "dsp.sbe2|sbe2count",
+        "dsp.sbdat|sbdat2", "dsp.sbdatl|r|sbref|sbstep", "dsp.sbdacpos|sbleftright", "dsp.sbreset|readdat|command|test",
+        "dsp.sb_timeo|timei", "dsp.sblatcho", "dsp.output_timer", "dsp.stereo|wb_full", "dsp.busy_count|pos",
+        "#mixer.regs", "sb.pos", "mixer.master_l|r",
     };
 
     private static ulong[] SoundProbeCsharp()
@@ -854,6 +860,7 @@ public static class BootDiff
         Array.Copy(sp, o, 9);
         Sound.sound_dbopl.ProbeState(0, o, 9);
         Sound.sound_dbopl.ProbeState(1, o, 15);
+        Sound.sound_sb.ProbeSb(o, 21);
         return o;
     }
 
@@ -881,7 +888,7 @@ public static class BootDiff
             Console.Error.WriteLine("Sonde du son : empreinte restée à sa graine — aucun bloc produit, l'accord ne prouve rien.");
             return 1;
         }
-        Console.WriteLine($"Sonde du son : {SoundFields.Length} champs identiques — échantillons ({o[8]:X16}), haut-parleur, OPL.");
+        Console.WriteLine($"Sonde du son : {SoundFields.Length} champs identiques — échantillons ({o[8]:X16}), haut-parleur, OPL, DSP.");
         return 0;
     }
 

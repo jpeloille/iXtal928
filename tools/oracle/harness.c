@@ -210,6 +210,13 @@ void sound_poll(void *priv) {
 }
 
 /* sound.c:258 */
+/* sound.c:123, :138-141 — G8.2 : le mélangeur CT1345 l'appelle ; lu par le seul fil CD (omis). */
+static unsigned int cd_vol_l, cd_vol_r;
+void sound_set_cd_volume(unsigned int vol_l, unsigned int vol_r) {
+        cd_vol_l = vol_l;
+        cd_vol_r = vol_r;
+}
+
 void sound_speed_changed(void) { sound_poll_latch = (uint64_t)((double)TIMER_USEC * (1000000.0 / 48000.0)); }
 
 /* sound.c:260-268. L'allocation d'outbuffer est hissée de sound_init()
@@ -334,6 +341,13 @@ void h_pc1512_attach(void);   /* harness_pc1512.c */
 void h_pc1512_probe(uint64_t *out);
 void h_pc1512_forget(void);
 #include "sound_adlib.h"      /* G8.1 — l'AdLib */
+/* G8.2 — la Sound Blaster Pro v2, dans l'ordre d'inclusion de sound_sb.c (:1-12) : sb_t embarque
+ * opl_t, emu8k_t et mpu401_uart_t. */
+#include "sound.h"
+#include "sound_emu8k.h"
+#include "sound_mpu401_uart.h"
+#include "sound_opl.h"
+#include "sound_sb.h"
 void h_opl_reset(void);       /* harness_dbopl.cpp */
 static char h_sndcard_name[32]; /* h_set_sndcard, plus bas */
 extern int gfxcard;
@@ -1408,6 +1422,8 @@ int h_boot(const char *romspath) {
         /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. */
         if (!strcmp(h_sndcard_name, "adlib"))
                 device_add(&adlib_device);
+        else if (!strcmp(h_sndcard_name, "sbprov2"))
+                device_add(&sb_pro_v2_device);
 
         /* pc.c:392 — hdd_controller_init(hdd_controller_name), reduit. APRES
            mem_alloc() : celui-ci detruit toute la liste de mappages, et une carte a
@@ -1774,11 +1790,61 @@ void h_set_sndcard(const char *name) {
  * puis l'état des deux OPL (harness_dbopl.cpp). H_SOUND_PROBE_N champs. */
 void h_opl_state(int nr, uint64_t *out);
 void h_speaker_probe(uint64_t *out);
+/* G8.2 — les vingt champs du DSP et du mélangeur de la SB Pro v2, dans l'ordre de
+ * Sound.sound_sb.ProbeSb() côté C#. La carte est retrouvée dans le registre des devices. */
+extern device_t *devices[];
+extern void *device_priv[];
+static uint64_t h_sb_fnv(const uint8_t *p, size_t n) {
+        uint64_t hash = 1469598103934665603ULL;
+        for (size_t i = 0; i < n; i++) {
+                hash ^= p[i];
+                hash *= 1099511628211ULL;
+        }
+        return hash;
+}
+static void h_sb_probe(uint64_t *o) {
+        sb_t *sb = NULL;
+        sb_dsp_t *d;
+        int c;
+
+        for (c = 0; c < DEV_MAX; c++)
+                if (devices[c] == &sb_pro_v2_device) {
+                        sb = (sb_t *)device_priv[c];
+                        break;
+                }
+        if (!sb)
+                return;
+        d = &sb->dsp;
+        *o++ = (uint32_t)d->sb_8_length | ((uint64_t)(uint32_t)d->sb_8_autolen << 32);
+        *o++ = (uint8_t)d->sb_8_format | ((uint64_t)(uint8_t)d->sb_8_autoinit << 8) | ((uint64_t)(uint8_t)d->sb_8_pause << 16) |
+               ((uint64_t)(uint8_t)d->sb_8_enable << 24);
+        *o++ = (uint8_t)d->sb_8_output | ((uint64_t)(uint8_t)d->sb_8_dmanum << 8) | ((uint64_t)(uint8_t)d->sb_speaker << 16) |
+               ((uint64_t)(uint8_t)d->muted << 24);
+        *o++ = (uint64_t)(int64_t)d->sb_pausetime;
+        *o++ = (uint32_t)d->sb_read_wp | ((uint64_t)(uint32_t)d->sb_read_rp << 32);
+        *o++ = h_sb_fnv(d->sb_read_data, sizeof(d->sb_read_data));
+        *o++ = (uint32_t)d->sb_data_stat | ((uint64_t)(uint32_t)d->sb_irqnum << 32);
+        *o++ = d->sbe2 | ((uint64_t)(uint32_t)d->sbe2count << 8);
+        *o++ = (uint16_t)d->sbdat | ((uint64_t)(uint32_t)d->sbdat2 << 32);
+        *o++ = (uint16_t)d->sbdatl | ((uint64_t)(uint16_t)d->sbdatr << 16) | ((uint64_t)d->sbref << 32) | ((uint64_t)(uint8_t)d->sbstep << 40);
+        *o++ = (uint32_t)d->sbdacpos | ((uint64_t)(uint32_t)d->sbleftright << 32);
+        *o++ = (uint8_t)d->sbreset | ((uint64_t)d->sbreaddat << 8) | ((uint64_t)d->sb_command << 16) | ((uint64_t)d->sb_test << 24);
+        *o++ = (uint32_t)d->sb_timeo | ((uint64_t)(uint32_t)d->sb_timei << 32);
+        *o++ = d->sblatcho;
+        *o++ = d->output_timer.ts_integer | ((uint64_t)d->output_timer.ts_frac << 32);
+        *o++ = (uint32_t)d->stereo | ((uint64_t)(uint32_t)d->wb_full << 32);
+        *o++ = (uint32_t)d->busy_count | ((uint64_t)(uint32_t)d->pos << 32);
+        *o++ = h_sb_fnv(sb->mixer_sbpro.regs, sizeof(sb->mixer_sbpro.regs));
+        *o++ = (uint32_t)sb->pos;
+        *o++ = (uint32_t)sb->mixer_sbpro.master_l | ((uint64_t)(uint32_t)sb->mixer_sbpro.master_r << 32);
+}
+
 void h_sound_probe(uint64_t *out) {
         memset(out, 0, H_SOUND_PROBE_N * sizeof(uint64_t));
         h_speaker_probe(out);
         h_opl_state(0, out + 9);
         h_opl_state(1, out + 15);
+        h_sb_probe(out + 21);       /* G8.2 */
 }
 
 void h_set_hdd_controller(const char *name) {

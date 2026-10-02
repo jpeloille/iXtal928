@@ -1227,3 +1227,16 @@ uint8_t lpt1_read(uint16_t port, void *priv) {
 /* lpt.c:166 — lpt2_remove_ams : un io_removehandler des gestionnaires de lpt2 en
  * 379h-37Ah, que lpt_init (non appelé) n'a jamais posés : sans effet. Omis côté C# (amstrad.cs). */
 void lpt2_remove_ams(void) { }
+
+/* --- G8.2 : ce que sound_sb.c et sound_sb_dsp.c réclament pour les AUTRES cartes ---------------
+ * L'EMU8000 (AWE32), le MPU-401 (SB16), le WSS de l'Aztech : inatteignables sur une SB Pro v2.
+ * Arrêt bruyant. GAMEBLASTER : pc.c:76 (non lié), lu par sb_add_status_info seulement. */
+#include "sound.h"
+#include "sound_emu8k.h"
+#include "sound_mpu401_uart.h"
+int GAMEBLASTER = 0;
+void emu8k_init(emu8k_t *emu8k, uint16_t emu_addr, int onboard_ram) { (void)emu8k; (void)emu_addr; (void)onboard_ram; fatal("emu8k_init : EMU8000 non lie (G8)\n"); }
+void emu8k_close(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_close : EMU8000 non lie (G8)\n"); }
+void emu8k_update(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_update : EMU8000 non lie (G8)\n"); }
+void mpu401_uart_init(mpu401_uart_t *mpu, uint16_t addr, int irq, int is_aztech) { (void)mpu; (void)addr; (void)irq; (void)is_aztech; fatal("mpu401_uart_init : MPU-401 non lie (G8)\n"); }
+void azt2316a_enable_wss(uint8_t enable, void *p) { (void)enable; (void)p; fatal("azt2316a_enable_wss : Aztech non lie (G8)\n"); }
