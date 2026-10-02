@@ -5,6 +5,8 @@
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
 > **Les deux machines**, décision de l'utilisateur (PLAN.md, G1).
 >
+> **G1 est fait** (2 octobre 2026) : G1.0 à G1.3, VERIFICATION.md § G1.0 à § G1.3 ; PB-87 à PB-89.
+>
 > **Validé** le 2 octobre 2026 (orchestrateur, sous mandat) : décisions n° 2 à n° 6 telles que
 > proposées ; défauts 1 et 2 sous R9, 3 et 6c en déviation de l'oracle, 4, 5, 6a et 6b
 > reproduits ; `pc1512.nvr` fabriqué dans `nvr/default/`.
@@ -77,7 +79,7 @@ champ `device` de `MODEL` et `ams1512_device`, `AMSTRAD`, `lpt1_remove`, le CMOS
 `pcem-dev/nvr/`). **Porte** : boot-diff PC1512 jusqu'au POST et PC-DOS 2.00 ; le mode plan
 640 × 200 × 16 par un petit banc dirigé (écritures 3DDh/3DEh) sous boot-diff.
 
-### G1.3 — Les machines et les témoins
+### G1.3 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § G1.3 ; G1 fait*
 
 Profils Rider (décision n° 5) ; témoins `--boot` sur copies dans /tmp : POST des deux BIOS,
 PC-DOS 2.00, la souris, le mode plan du PC1512 ; le disque dur XT (`8088-HDD-C.img`, contrôleur

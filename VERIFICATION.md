@@ -5077,3 +5077,34 @@ vertes**. Les 126 anciennes identiques, aux écarts attendus près — ABI 33 �
 « 163 champs », `cpu-config-check` dans les deux ordres élargi au PC1512 (92 → 94 configurations,
 8 → 9 refus) ; les quatre portes du PC1512 nouvelles, vertes (POST, PC-DOS 2.00, clavier, banc
 du mode plan). Build 0 avertissement, selftest, check-oracle 0 dérive (146), `--setup-check`.
+
+## G1.3 — Les machines et les témoins ; G1 fait
+
+Le 2 octobre 2026, sur 8851e43. Plan : `PLAN-G1.md` § G1.3, décisions n° 3, n° 5 et n° 6.
+
+**Les profils** (décision n° 5) : `ixtal26-m24.cfg` (8086/7,16, 640 Ko, deux 360 Ko, PC-DOS 2.00
+en A:) et `ixtal26-pc1512.cfg` (8086/8, de même), profils Rider « Olivetti M24 » et « Amstrad
+PC1512 ». Pas de CMOS à fabriquer : la M24 n'en lit aucun, le PC1512 part de
+`nvr/default/pc1512.nvr`.
+
+**Les souris** (décision n° 3) : la clé `mouse_type` est lue (`pc.c:784`) et écrite (`pc.c:932`,
+par l'écran de construction) ; `mouse_list` garde les indices de PCem — 0 la série Microsoft,
+4 l'Amstrad, 5 la M24 —, les places 1 à 3 (Mouse Systems, PS/2) restent nulles. Un indice sans
+souris transcrite, qui ferait déréférencer NULL à PCem, est refusé et ramené à 0, avec un
+message (DEVIATION). Les profils posent 5 et 4. **Limite** : le chemin de l'hôte (`mouse_poll`
+depuis SDL) est celui de la souris série (M21) ; aucun témoin sans fenêtre n'en exerce le
+mouvement — `--boot` n'a pas d'entrée souris. Les portes gardent `mouse_type` = 0, comme
+l'oracle.
+
+**Les témoins** (`--boot`, copies dans /tmp/g1w) : les deux profils amorcent PC-DOS 2.00
+(`VER`), souris de la machine montée ; `mouse_type = 2` est refusé. **Le disque dur XT**
+(décision n° 6, témoin seulement) : `8088-HDD-C.img` (306 × 4 × 17, une des quatre géométries du
+Xebec) avec `mfm_xebec` — la M24 voit la ROM (« Optional ROM at C800:0000 »), mais ni elle ni le
+PC1512 n'amorcent sur le disque, et PC-DOS 2.00 en disquette ne voit pas C:. **Constat, pas un
+défaut de transcription** : sous boot-diff, 26 927 452 (M24) et 37 865 560 (PC1512) instructions
+identiques, sondes identiques — l'oracle fait de même. Comportement de PCem, consigné.
+
+Les originaux ne sont pas touchés : `sha256sum -c os/os.sha256` vert.
+
+**La série**, sous `MALLOC_PERTURB_=85`, portes isolées, comparée à g12 : 130 portes, **toutes
+vertes**, journaux identiques (durées ôtées) — les portes gardent `mouse_type` = 0.

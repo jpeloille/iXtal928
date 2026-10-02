@@ -800,6 +800,8 @@ internal sealed class SdlSetup
                                  HddImage.ConfigPath(Floppy.fdd_c.discfns[1], imagesRoot));
 
         config.config_set_string(config.CFG_MACHINE, null, "hdd_controller", pc.cfg_hdd_controller);
+        // pcem: pc.c:932 — G1.3.
+        config.config_set_int(config.CFG_MACHINE, null, "mouse_type", Mouse.mouse.mouse_type);
 
         for (int d = 0; d < 2; d++)
         {

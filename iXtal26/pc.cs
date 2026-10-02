@@ -464,6 +464,18 @@ internal static partial class pc
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
 
+        // pcem: pc.c:784 — G1.3 : la souris. DEVIATION : un indice sans souris transcrite
+        //   (Mouse Systems, PS/2) ferait déréférencer NULL à PCem ; refusé ici, la série
+        //   Microsoft à la place, et dit.
+        Mouse.mouse.mouse_type = PluginApi.config.config_get_int(
+            PluginApi.config.CFG_MACHINE, null, "mouse_type", 0);
+        if ((uint)Mouse.mouse.mouse_type > 5 || Mouse.mouse.mouse_get_name(Mouse.mouse.mouse_type) is null)
+        {
+                Console.Error.WriteLine($"mouse_type = {Mouse.mouse.mouse_type} : souris non transcrite, " +
+                                        "la souris série Microsoft (0) à la place.");
+                Mouse.mouse.mouse_type = 0;
+        }
+
         return true;
     }
 

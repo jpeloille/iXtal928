@@ -43,6 +43,14 @@
     "iXtal26 (486DX2/66, IDE, S3 Trio64, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486-s3.cfg"
+    },
+    "iXtal26 (Olivetti M24, 8086, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-m24.cfg"
+    },
+    "iXtal26 (Amstrad PC1512, 8086, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-pc1512.cfg"
     }
   }
 }
