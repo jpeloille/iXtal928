@@ -8,8 +8,9 @@
 
 Réunir les composants qui permettent de recréer n'importe quel PC des années 80 et 90 bâti
 sur un **8088, 8086, 80286, 80386 (SX/DX) ou 80486 (SX/DX)**. La dernière machine de la
-série est un **486 DX2-66 sur carte VLB**. **Pas de Pentium, pas de Windows 95** : tout ce
-que PCem porte au-delà (`CPU_SUPPORTS_DYNAREC`, codegen, PCI, i430…) reste hors du dépôt.
+série est un **486 DX2-66 sur carte VLB**. **Pas de Pentium** — OverDrive compris : Intel seul,
+8088 → 486 DX4 (décision utilisateur du 03/10) —, **pas de Windows 95** : tout ce que PCem porte
+au-delà (`CPU_SUPPORTS_DYNAREC`, codegen, PCI, i430…) reste hors du dépôt.
 
 La doctrine ne change pas d'une génération à l'autre : l'oracle d'abord, la transcription
 ensuite, chaque commit passe la séquence de portes (`check-oracle.sh` à zéro dérive,
@@ -170,11 +171,91 @@ ou 10 (défaut 7), DMA 8 bits 1 ou 3 (défaut 1), émulateur OPL `opl_emu` (déf
 NukedOPL — lequel transcrire, à trancher au plan de G8).
 
 L'**AdLib seule** (OPL2, `adlib_device`) est maintenue si elle ne coûte qu'un device de plus.
-Toujours ni AdLib Gold ni EMU8K ; les Sound Blaster 1.x, 2.0 et 16 ne sont pas visées.
+Ni AdLib Gold ni EMU8K en G8 ; les Sound Blaster 1.x, 2.0, Pro v1, 16 et AWE32 (EMU8K) sont
+renvoyées à G12 (décision utilisateur du 03/10).
 
 **Réserves.** L'OPL est du C++ — `sound_dbopl.cc` lie `src/dosbox/dbopl.cpp` et
 `src/dosbox/nukedopl.cpp` — : il faut vérifier comment l'oracle le lie avant d'écrire. Le
 diff d'instructions est aveugle au son : il faudra une sonde d'échantillons, comme en M9.
+
+### G9 — Vidéo, complément  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+Dans cet ordre :
+
+1. **MDA** : `vid_mda.c` (303 lignes) — vérifiée sur le 5150 et le XT.
+2. **Hercules** : `vid_hercules.c` (365) — vérifiée sur le 5150 et le XT.
+3. **EGA** : `vid_ega.c` (1 123), ROM `ibm_6277356_ega_card_u44_27128.bin` — vérifiée sur
+   286 et 386.
+4. **Tseng ET4000AX** : `vid_et4000.c` (630), `et4000_device`, ROM `et4000.bin` — vérifiée
+   jusqu'à Windows en 256 couleurs.
+
+**Hors G9** : InColor, PGC, Plantronics, Sigma, Wyse, Compaq CGA, les variantes coréennes,
+Paradise, Cirrus 5428/5430/5434, Trio32/9FX, et tout ce qui est PCI (Voodoo, Banshee,
+Millennium, Mach64).
+
+### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+- **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
+  `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
+  bloc cdrom de `pc.c`, omis aujourd'hui (`pc.cs`). **Images seulement** (ISO, CUE/BIN) : le
+  lecteur physique de l'hôte (`cdrom-ioctl-*`) est omis, pour le déterminisme. Le plus gros
+  morceau ; reconnaissance à faire.
+- **(b) La manette sur les AT** : `gameport_device` sur `at_init` (omis dans `model.cs`), les
+  types de manette (`joystick/*.c`, au moins 2 et 4 boutons) et `joystick_poll` vers l'hôte
+  (omis dans `pc.cs`).
+- **(c) Le port parallèle LPT1** : `lpt.c` (172), `lpt1_device_init` (omis dans `pc.cs`).
+- **(d) Le XTIDE, version XT seulement** : `xtide.c` (121, sur l'`ide.c` de G5),
+  `xtide_device`, ROM `ide_xt.bin` — un disque dur amorçable pour les 8088/8086, en
+  particulier la M24 et le PC1512, où le Xebec n'amorce pas (constat de G1). Les variantes
+  XTIDE AT et PS/1 sont exclues.
+- **La souris PS/2** (`PLAN-PS2.md`, en cours le 03/10) en fait partie de fait.
+- **Exclus** : les Pentium OverDrive — Intel seul, 8088 → 486 DX4 ; pas de Pentium (décision
+  utilisateur du 03/10). Présents dans `cpus_i486`, ils restent sautés par `cpu-config-check` et
+  refusés bruyamment si on les choisit.
+
+### G11 — SCSI  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+Une seule carte, l'**Adaptec AHA-1542C** : `scsi_aha1540.c` (2 299), ROM
+`adaptec_aha1542c_bios_534201-00.bin`, avec `scsi_hd.c` (788, les disques SCSI). Le CD-ROM et le
+ZIP en SCSI réutilisent `scsi_cd.c` et `scsi_zip.c` de G10. **Exclus** : BusLogic, IBM SCSI,
+Longshine, Rancho, Trantor (53C400), l'ESDI et le XTIDE autre que XT.
+La carte est ISA 16 bits : refusée avec avertissement sur les machines 8088/8086, comme en G8.3.
+
+### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+SB 1.0, SB 1.5, SB 2.0, SB Pro v1, SB 16 et SB AWE32 (`sound_sb.c`, `sound_sb_dsp.c`, déjà en
+partie transcrits en G8).
+
+- **AWE32** = EMU8K (`sound_emu8k.c`, 2 237, ROM `awe32.raw`) : c'est la levée de l'exclusion
+  « ni EMU8K » de G8.
+- **SB 16** : DMA 16 bits et mélangeur CT1745 ; le MPU-401 UART (`sound_mpu401_uart.c`) s'il
+  le tire.
+- **Exclues** : SB MCV et SB Pro MCV (`DEVICE_MCA` — aucune machine MCA dans iXtal) ; l'AdLib
+  Gold reste exclue.
+- La SB 16 et l'AWE32 sont des cartes ISA 16 bits : refusées avec avertissement sur les machines
+  8088/8086, comme en G8.3.
+
+### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 03/10 :
+
+1. **Section A, les 51 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89), disques
+   (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 — PS2.0).
+2. **Section B, les 8 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21.
+3. **Section C, 19 entrées sans effet observable** : nettoyage seulement, sans changement de
+   comportement.
+
+Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93) sont déjà réglés.
+
+**Principe, à confirmer au plan de G13** : chaque correction se fait derrière une option « mode
+matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` devient `pcem bug, fixed
+in hardware mode: PB-nn`. Le mode PCem reste celui des portes : l'oracle et toutes les séries
+restent intacts. Le mode matériel se vérifie contre la documentation Intel, le corpus SST (8088 et
+386 réels) et des bancs dirigés.
+
+**Ordre proposé** : l'UC et le x87 d'abord (33 PB), puis les disques, la vidéo, le son, la carte
+mère et la souris, puis la section B, puis la section C.
 
 ### Transverse, au fil de l'eau
 
@@ -203,6 +284,15 @@ G5  IDE
 G6  486 + ami486 + DX2-66   ← l'ultime machine
 G7  Cirrus 5429, S3
 G8  son
+PS2 souris PS/2   ← en cours le 03/10, puis arrêt
+G9  MDA, Hercules, EGA, ET4000          ┐
+G10 CD-ROM/ZIP ATAPI, manette AT, LPT1, │ décision utilisateur du 03/10 ;
+    XTIDE (XT)                          │ chacun attend un feu vert
+G11 SCSI : AHA-1542C                    │
+G12 les autres Sound Blaster, AWE32     │
+G13 défauts de PCem, « mode matériel »  │
+G14 nommer les puces (Ics/)             │
+G15 normaliser le C#, 0 % de perte      ┘
 ```
 
 G4 et G5 ne dépendent pas de G2 : on peut les intercaler si le cœur 386 s'enlise. Le x87
@@ -224,9 +314,10 @@ se vérifie au fuzzeur en mode réel, l'IDE sur un AT 286 déjà vert.
 Les chiffres de `PLAN-286.md` § « Ce qui ne doit pas bouger » : boot-diffs 8088 en CGA,
 VGA et 8900D, sonde VGA 86/86, à l'unité, à chaque commit, pour toutes les générations.
 
-## Après G8 — nommer les puces
+## G14 — Nommer les puces  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
-Seulement quand tout ce qui précède est vert : plus aucun fichier PCem ne reste à transcrire.
+Après G13, seulement quand tout ce qui précède est vert : plus aucun fichier PCem ne reste à
+transcrire.
 
 Les modules qui modélisent une puce prennent le nom de la puce, dans un répertoire `Ics/` :
 `pic` → `Intel8259A`, `pit` → `Intel8253`, `dma` → `Intel8237`, le CRTC → `Motorola6845`,
@@ -237,6 +328,58 @@ et ainsi de suite. Les cartes (CGA, FDC, VGA…) restent des *devices*.
 - **Comment** : renommage mécanique (refactor Rider), table `// noms:` en tête de chaque
   fichier, comme dans `Floppy/` et `Disc/`. Vérifier d'abord si le harnais ou les sondes
   (`h_state`, sst-probe, boot-diff) désignent des champs par leur nom.
-- **Portes** : boot-diffs, SST et fuzzeur identiques à l'unité — seuls des noms changent.
-- **Ce qui ne change pas** : les classes restent statiques. Passer en instances est un
-  autre levier, à mesurer séparément.
+- **Porte** : toutes les séries identiques à l'unité (boot-diffs, SST, fuzzeur) — seuls des
+  noms changent ; et le banc de performance de G15 contre sa référence d'origine.
+- **Ce qui ne change pas** : les classes restent statiques. Le passage en instances est
+  **abandonné** (décision utilisateur du 03/10, voir G15) — il n'est plus « à mesurer
+  séparément ».
+
+## G15 — Normaliser le C#  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+Après G14.
+
+- **Contenu** : les conventions .NET (PascalCase, `private` explicite, `enum` au lieu des
+  constantes `int`), `.editorconfig` et analyseurs, nettoyage (code mort, `using`,
+  avertissements). **Les commentaires restent en français** (décision utilisateur).
+- **Conservés** : les marqueurs `// pcem: fichier.c:ligne` et `// pcem bug … PB-nn`.
+- **« Ce qui coûte, on ne le fait pas, et on démontre que ça coûte »** (décision utilisateur
+  du 03/10) :
+  1. **Interdit dans les chemins chauds** (cœurs UC et x87, mémoire, aiguillage des opcodes,
+     minuteries, rendu vidéo, mixage du son) : les classes statiques passées en instances ;
+     LINQ, les fermetures (lambdas qui capturent), les allocations dans les boucles (`new`,
+     boxing, `string`, `params`) ; les interfaces et les méthodes virtuelles. Le « levier
+     instances » est donc abandonné.
+  2. **Démontré** : en ouverture de G15, un banc BenchmarkDotNet versionné (`tools/perfbanc/`)
+     mesure chaque construction interdite contre sa forme retenue, sur un vrai chemin d'iXtal
+     (`readmemb` statique contre instance, boucle `for` contre LINQ, appel direct contre
+     interface ou `virtual`, sans allocation contre avec). Les chiffres sont consignés dans
+     VERIFICATION.md : c'est la justification écrite de la règle.
+  3. **Signalé** : si possible, un analyseur ou une règle `.editorconfig` relève ces
+     constructions dans les dossiers des chemins chauds ; sinon, une revue par `grep` dans la
+     porte de G15.
+- **Performance : 0 % de perte** (décision utilisateur — les pertes se cumulent) :
+  - avant G14, une **référence figée** : un banc BenchmarkDotNet sur les chemins chauds (décodage
+    8088, 286, 386, 486 ; accès mémoire ; rendu vidéo ; son) et les instructions par seconde de
+    chaque machine ;
+  - à chaque commit de G14 et de G15, la mesure se fait contre **cette référence d'origine**,
+    jamais contre le commit précédent, pour que rien ne se cumule ;
+  - toute régression statistiquement significative (intervalle de confiance de BenchmarkDotNet)
+    se corrige ou s'annule avant le commit.
+- **Porte** : toutes les séries identiques à l'unité, plus le banc de performance.
+
+## Annexe — Les outils de G14/G15  *(décision utilisateur du 03/10)*
+
+Des outils gratuits, en ligne de commande. **Rien n'est installé avant G15**, et chaque
+installation demandera l'accord de l'utilisateur au moment venu.
+
+| Outil | Usage |
+|---|---|
+| **BenchmarkDotNet** (NuGet) | La référence de performance figée avant G14 et les comparaisons à chaque commit (intervalles de confiance) ; la démonstration du coût des constructions interdites. |
+| **`DOTNET_JitDisasm`** (intégré à .NET, rien à installer) | Vérifier le code machine produit : inlining, aucun appel virtuel, code identique après renommage. C'est la preuve directe du 0 %. |
+| **Microsoft.CodeAnalysis.BannedApiAnalyzers** (NuGet) | Interdire à la compilation LINQ et les API bannies dans les dossiers des chemins chauds. |
+| **Un analyseur d'allocations**, par exemple ClrHeapAllocationAnalyzer (NuGet) | Les allocations cachées : boxing, fermetures, `params`. |
+| **ReSharper Command Line Tools** (`jb inspectcode`, gratuit) | Les inspections JetBrains sans interface, dans la porte de G15. |
+| **dotnet-counters** et **dotnet-trace** (outils .NET gratuits) | Le GC et les allocations pendant un amorçage complet. |
+
+Note : dotTrace et dotMemory (JetBrains, payants, parfois intégrés à Rider) servent à
+l'exploration manuelle par l'utilisateur ; ils ne sont pas requis par les portes de G15.

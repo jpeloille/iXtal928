@@ -73,11 +73,12 @@ internal static class CpuConfigCheck
                 var label = c < n ? $"{name,-8} cpu = {c}  {table[c].name,-10} fpu = {pc.cfg_fpu,-5}"
                                   : $"{name,-8} cpu = {c}  (hors table)";
 
-                // G6.3 — les Pentium OverDrive de cpus_i486 : leur cas de cpu_set n'est pas
-                // transcrit (cpu.cs, `default: fatal`). Sautés, et dit — pas comptés verts.
+                // G6.3 — les Pentium OverDrive de cpus_i486 : exclus (Intel seul, 8088 → 486 DX4,
+                // décision utilisateur du 03/10) ; cpu_set les arrête (cpu.cs, `default: fatal`).
+                // Sautés, et dit — pas comptés verts.
                 if (c < n && table[c].cpu_type == cpu_c.CPU_PENTIUM)
                 {
-                        Console.WriteLine($"  {label} : non transcrit (CPU_PENTIUM), sauté");
+                        Console.WriteLine($"  {label} : exclu (CPU_PENTIUM, décision utilisateur), sauté");
                         skipped++;
                         continue;
                 }

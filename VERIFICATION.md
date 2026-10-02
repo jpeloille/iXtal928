@@ -4592,8 +4592,8 @@ table d'opcodes 486, « le cœur 486 » n'est qu'exec386 sur une autre table de 
 
 **L'oracle** : `H_CORE_486` (ABI 29), la carte plate de 16 Mo du 386, `h_model_ami486` (table
 Intel seule, init refusée par h_boot jusqu'à G6.3). **Le C#** : `cpus_i486` (treize 486 et deux
-Pentium OverDrive), les cas i486 / iDX4 de `cpu_set` (iDX4 retombant dans i486, comme le C),
-`CPUID`, `cpu_multi`, `has_vlb`, `cpu_CR4_mask`, `cpu_CPUID` de l'i486DX et de l'iDX4, la machine
+Pentium OverDrive, exclus — décision utilisateur du 03/10), les cas i486 / iDX4 de `cpu_set`
+(iDX4 retombant dans i486, comme le C), `CPUID`, `cpu_multi`, `has_vlb`, `cpu_CR4_mask`, `cpu_CPUID` de l'i486DX et de l'iDX4, la machine
 `m_ami486` (init `at_ali1429_init` : arrêt « non transcrit » jusqu'à G6.3), INVLPG
 (`0F 01 /7`, x86_ops_pmode.h:463-472) et `mmu_invalidate`. **L'outil** : `--core 486`,
 `Reset486`, l'empreinte CPU élargie de cinq champs (CPUID, cpu_features, cpu_CR4_mask, cpu_multi,
@@ -4612,8 +4612,8 @@ garde son tirage. Le défaut de fond — une table de pages hors RAM fait tomber
 R9 : PB-79, en G6.2.
 
 **Les portes.** Les treize entrées Intel ont une empreinte identique des deux côtés, cinq
-champs 486 compris ; les deux Pentium OverDrive s'arrêtent « non transcrit » (cpu_set). Fuzzeur
-`--core 486`, tous verts : 256 opcodes graines 1 et 7 (i486SX/16), i486DX2/66 et iDX4/100
+champs 486 compris ; les deux Pentium OverDrive s'arrêtent (cpu_set) — exclus, décision
+utilisateur du 03/10. Fuzzeur `--core 486`, tous verts : 256 opcodes graines 1 et 7 (i486SX/16), i486DX2/66 et iDX4/100
 (80 000 chacun), flux i486SX et DX2 (300 000), les `0F` propres au 486 (08, 09, 01, A2, B0/B1,
 C0/C1, C8-CF ; 40 000), l'iDX4 sur CPUID et MOV CRx, le x87 intégré du DX2 (`--x87 all`,
 single et flux). Contrôle négatif, retiré : `timing_bt` du 486 faussé → « CONFIGURATION CPU
@@ -4663,7 +4663,7 @@ de référence de PCem, `nvr/default/ami486.nvr`, et `--make-nvr` pour l'ami486.
   complet, 40 000 tranches, **73 097 655 instructions identiques**, sonde VGA identique.
 - `cpu-config-check` avec l'ami486 en dernier (PB-77 : l'ordre décide de ce que `cpu_features`
   hérite) : **80 configurations identiques**, 7 refus concordants ; les deux Pentium OverDrive
-  de cpus_i486 sont sautés et le disent (leur cas de cpu_set n'est pas transcrit).
+  de cpus_i486 sont sautés et le disent (exclus, décision utilisateur du 03/10 ; cpu_set les arrête).
 - `--timer-check 60` sur l'ami486 DX2/66, CMOS fabriqué : **66,663 MHz invités, −58,69 ppm**
   (l'écart du 286 de M16) ; rapport invité / contractuel 1,000058 ; l'hôte tient le DX2/66 avec
   une marge de 2,9 (28,3 MIPS invités).

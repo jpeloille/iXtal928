@@ -170,7 +170,7 @@ internal static class cpu_tables
             new("", -1, null, 0, 0, 0),
     };
 
-    // pcem: cpu_tables.c:167-189 — G6.1 — la table Intel de l'ami486 ; les Pentium OverDrive y restent, cpu_set les arrête (non transcrits).
+    // pcem: cpu_tables.c:167-189 — G6.1 — la table Intel de l'ami486 ; les Pentium OverDrive y restent, cpu_set les arrête (exclus, décision utilisateur du 03/10).
     internal static readonly CPU[] cpus_i486 =
     {
             /*i486*/

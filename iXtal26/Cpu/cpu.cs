@@ -44,7 +44,7 @@ internal static partial class cpu_c
     internal const int CPU_Cx5x86 = 14;
 
     /*586 class CPUs*/
-    internal const int CPU_PENTIUM = 17; // G6.1 — les Pentium OverDrive de cpus_i486
+    internal const int CPU_PENTIUM = 17; // G6.1 — les Pentium OverDrive de cpus_i486 (exclus, décision utilisateur du 03/10)
     internal const int CPU_Cx6x86 = 19;
     internal const int CPU_Cx6x86MX = 20;
     internal const int CPU_Cx6x86L = 21;
@@ -516,7 +516,8 @@ internal static partial class cpu_c
         //   1er octobre 2026, PLAN-G6.md n° 1) : cpus_Am486 n'est pas transcrite.
         // omitted: CPU_Cx486S à CPU_CYRIX_III (cpu.c:553-1126) — Intel seul (décision n° 1) pour
         //   les Cyrix, et des 586 et au-delà pour les autres. Les Pentium OverDrive de
-        //   cpus_i486 tombent dans le default : arrêt « non transcrit », pas de vert muet.
+        //   cpus_i486 sont exclus (Intel seul, 8088 → 486 DX4, décision utilisateur du 03/10) :
+        //   ils tombent dans le default, arrêt bruyant, pas de vert muet.
 
         default:
                 pc.fatal($"cpu_set : unknown CPU type {cpu_s.cpu_type}\n");
@@ -641,7 +642,7 @@ internal static partial class cpu_c
 
         // omitted: CPU_Am486SX, CPU_Am486DX (cpu.c:1185-1211) — Intel seul (décision n° 1).
         // omitted: CPU_WINCHIP à CPU_CYRIX_III (cpu.c:1212-1736) — 586 et au-delà, dont le
-        //   Pentium OverDrive de cpus_i486, que cpu_set arrête déjà.
+        //   Pentium OverDrive de cpus_i486 — exclus (décision utilisateur du 03/10), que cpu_set arrête déjà.
         default:
                 pc.fatal("not implemented: cpu.c:1211 — cpu_CPUID au-delà du 486\n");
                 break;
