@@ -36,7 +36,7 @@ iXtal26/Devices/nvr.cs	pcem-dev/src/devices/nvr.c	b969db50e5fe43c81408802ed67762
 iXtal26/rtc.cs	pcem-dev/src/rtc.c	8ded99fe0d6dee1e10448927f189fa53fa2df739a5321fe76ac550e371970a7c	17-222	partial	B1 : l'horloge interne du MC146818 ; time_internal_sync lit l'horloge de l'hote
 iXtal26/Devices/cassette.cs	pcem-dev/src/devices/cassette.c	c6fff8e080086c90d9193b802ce5c026d093605aeaa9609a2c37ccf130cddc99	-	partial	interface seule
 iXtal26/Diag/Counters.cs	tools/oracle/harness_stubs.c	7c7a87c3f7c2c4e241d425f1f0c4d407a4bca7ae656e37997fd2f3fac16cdb74	-	host	compteurs d'appels des stubs
-iXtal26/Diag/HState.cs	tools/oracle/harness.h	bef6c8d1a3f535530a860ea8d9c6c55de7b2b07ca48e6d4da54915a32d8683fe	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
+iXtal26/Diag/HState.cs	tools/oracle/harness.h	03083927fbe81cef2fe02d9ab476d5ea81a5989b957d7dc5ea29179ea942f79d	-	host	vecteur d'etat diffe ; doit rester binairement identique a struct h_state
 iXtal26/Disc/disc.cs	pcem-dev/src/disc/disc.c	444b2958bdf57de9c513ebb801462d6d0dbeb78835376407b9436e20d26f37b0	1-269	partial	M6 : chargeur FDI omis de la table loaders[]
 iXtal26/Disc/disc_img.cs	pcem-dev/src/disc/disc_img.c	261ef2ed0fac464a51747d80df093f750bad3c986732493b202c5fd761f31592	1-439	transcribed	M6 : stdio en FileStream, tableaux XDF en escalier
 iXtal26/Disc/disc_sector.cs	pcem-dev/src/disc/disc_sector.c	9cca61beaac22d748e89aba73e725b6024065dcb4647d2cad5a02e5375fa5c49	1-373	transcribed	M6 : uint8_t *data -> (tampon, offset)
@@ -75,6 +75,7 @@ iXtal26/Models/nmi.cs	pcem-dev/src/models/nmi.c	010a827b5c25f798704650f423ee5853
 iXtal26/Models/pic.cs	pcem-dev/src/models/pic.c	66771852f6eaab0b51357b0b7c72622c3dda636c9f975fbd86425993cb7993dd	-	partial	le 8259 entier, pic et pic2 ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « reel a M3 »
 iXtal26/PluginApi/config.cs	pcem-dev/src/plugin-api/config.c	1b21c07f5fcf41ed68e0b3d963d4a79f388ef4a4ac8a40aef25b5b5127bdd9be	7-11,71-125,127-219,226-428,431-456	partial	moteur de configuration ; omis config_dump, config_new, add_config_callback
 iXtal26/Program.cs	-	-	-	host	point d'entrée, arguments
+iXtal26/Sound/dbopl.cs	pcem-dev/src/dosbox/dbopl.cpp	3f1718e541207d5929f1d64e06fd0ba52be43a11fa42efcf1b20bda82cf77a0c	43-50,78-108,151-176,1310-1392	partial	G8.0 : les tables de DBOPL et InitTables en WAVE_TABLEMUL (pow, sin) ; ChanOffsetTable/OpOffsetTable et la puce entrent en G8.1
 iXtal26/Sound/sound.cs	pcem-dev/src/sound/sound.c	03d85227ac6e2f541046c7bb1c0232dff757bf5d3a37d764764df29027351a92	108-136,199-268	partial	mixeur seul : ni cartes son, ni fil CD
 iXtal26/Sound/sound_speaker.cs	pcem-dev/src/sound/sound_speaker.c	40958678cf1e3089ad7f6938e5334030331393f5c48a3fb50bbfa42a5da1ef7d	5-55	transcribed	
 iXtal26/io.cs	pcem-dev/src/io.c	14767211926517cb81dc27a8656a1ad0ab2e0f253a6fc7d344040f1700ebca21	-	partial	io_init/sethandler/removehandler et in*/out* ; cette ligne hachait harness_stubs.c depuis M1, sa note disant « src/io.c a M2 »
@@ -155,6 +156,7 @@ iXtal26/Video/vid_svga.cs	tools/oracle/harness_cl5429.c	32df6a8383f2f9f682209375
 iXtal26/Video/vid_svga.cs	tools/oracle/harness_s3.c	f128c3daac03780344365014c4cfcef5e6f660e8f195be4e1ace27fa949e652f	-	host	sonde VGA, vingt champs de la s3_t (G7.3) ; harness_s3.c inclut vid_s3.c, souche les threads (FIFO vidée en synchrone) et pci_set_irq/pci_clear_irq (PB-83)
 iXtal26/Video/vid_svga.cs	tools/oracle/harness_m24.c	528624f524cd5bf4f75600e8cb2e656f6b2daa19f03efac64e6e7dac9714e3cd	-	host	sonde de la M24 (vingt et un champs, G1.1) ; harness_m24.c inclut vid_olivetti_m24.c et efface sa VRAM (déviation de l'oracle)
 iXtal26/Video/vid_svga.cs	tools/oracle/harness_pc1512.c	7be38ed3aad03371c08135e227b5f85105cc2339f40d9b5ad3bdc9ba459ed6c6	-	host	sonde du PC1512 (vingt champs, G1.2) ; harness_pc1512.c inclut vid_pc1512.c et efface sa VRAM (déviation de l'oracle)
+iXtal26/Sound/dbopl.cs	tools/oracle/harness_dbopl.cpp	44397e0740d2f67f6b467ac5be4bda2bf4d7e1a19f722d236d7bf31ed59682a7	-	host	G8.0 : opl-tables-check ; harness_dbopl.cpp inclut dbopl.cpp (C++) et rend ses tables (h_opl_tables)
 iXtal26/Models/serial.cs	pcem-dev/src/models/serial.c	313f50a33cb7485b5f7f84bbb08d410a8e4e7fcac151601eac6a6bf868e4fd99	1-256	transcribed	M21 : le 8250 de COM1 et COM2
 iXtal26/Models/serial.cs	pcem-dev/includes/private/models/serial.h	26d7a691a7b0a98bd3ec23078552864f03fd5768ea928462b4e166f987a469c4	1-43	transcribed	M21 : SERIAL en classe
 iXtal26/Mouse/mouse_serial.cs	pcem-dev/src/mouse/mouse_serial.c	a3bd0f05ddc669d67daff631006e0d407796554a2f93b025c9acb237484baab4	1-94	transcribed	M21 : la souris serie Microsoft, poignee de main M sur RTS

@@ -5108,3 +5108,25 @@ Les originaux ne sont pas touchés : `sha256sum -c os/os.sha256` vert.
 
 **La série**, sous `MALLOC_PERTURB_=85`, portes isolées, comparée à g12 : 130 portes, **toutes
 vertes**, journaux identiques (durées ôtées) — les portes gardent `mouse_type` = 0.
+
+## G8.0 — L'outillage du son : le C++ dans l'oracle, les tables de DBOPL
+
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.0, validé sous mandat (décisions n° 2 à n° 5) ; la
+carte, la Sound Blaster Pro v2, décision utilisateur du 02/10 ; l'OPL, DBOPL, décision de
+l'orchestrateur sous mandat.
+
+**Le C++ dans l'oracle.** Le Makefile compile désormais du C++ (`g++`, mêmes `-I`, mêmes
+drapeaux) et lie la `.so` par `$(CXX)` ; `harness_dbopl.cpp` inclut `src/dosbox/dbopl.cpp`, dont
+les tables sont `static` au fichier, et rend `MulTable`, `WaveTable`, `KslTable`, `TremoloTable`
+(`h_opl_tables`, ABI 35). `bench`, qui ne lit ni l'OPL ni le DSP, reste en C seul.
+
+**La porte `opl-tables-check`.** `InitTables` (`dbopl.cpp:1311-1464`, mode `WAVE_TABLEMUL`)
+calcule `MulTable` et `WaveTable` par `pow(2.0, …)` et `sin(…)` de la libm de l'hôte : glibc
+côté oracle, .NET côté C# (`Sound/dbopl.cs`, les tables et `InitTables`). **Les quatre tables
+sont identiques, 4 660 entrées** : la décision n° 3 (une table figée tirée de glibc en cas
+d'écart) n'a pas lieu de s'appliquer — mesuré d'abord, comme convenu. Contrôle négatif, retiré :
+le coefficient du sinus faussé (4084 → 4083) → 1 476 entrées divergentes.
+
+**La série**, sur un instantané de G8.0 construit dans un worktree de HEAD (oracle reconstruit de
+zéro : le Makefile ne suit pas les en-têtes), sous `MALLOC_PERTURB_=85` : 131 portes, **toutes
+vertes**, identiques à g13 hors ABI (34 → 35) ; `opl-tables-check` nouvelle, verte.

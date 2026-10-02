@@ -162,3 +162,5 @@ run bd-pc1512-dir boot-diff roms 9000 --model pc1512 --fda $DOS --type-at 7000 -
 mapfile -t P1K < tools/pc1512banc/pc1512banc.keys
 P1B=(); for l in "${P1K[@]}"; do P1B+=(--type "$l"); done
 run bd-pc1512-plan boot-diff roms 9000 --model pc1512 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${P1B[@]}" --type "^" --type "^"
+# G8.0 — les tables de DBOPL (pow, sin de la libm), oracle (C++) contre C#.
+run opl-tables-check opl-tables-check

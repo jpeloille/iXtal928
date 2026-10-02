@@ -54,7 +54,8 @@ public static class Oracle
     // 32 en G1.0 : h_set_core accepte le 8086 (l'Olivetti M24, cpus_8086).
     // 33 en G1.1 : l'Olivetti M24 s'amorce ; la sonde VGA passe de 122 à 143 champs (la M24).
     // 34 en G1.2 : l'Amstrad PC1512 s'amorce ; la sonde VGA passe à 163 champs (le PC1512).
-    public const int AbiVersion = 34;
+    // 35 en G8.0 : h_opl_tables (DBOPL, compilé en C++).
+    public const int AbiVersion = 35;
 
     static Oracle()
     {

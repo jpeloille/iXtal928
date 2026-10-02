@@ -46,7 +46,7 @@ mélangeur. Les **échantillons**, eux, ne sont vus que par `sound_hash`.
 
 ## Les étapes
 
-### G8.0 — L'outillage : le C++ dans l'oracle, les tables de DBOPL
+### G8.0 — L'outillage : le C++ dans l'oracle, les tables de DBOPL  ✅ *fait, VERIFICATION.md § G8.0*
 
 Le Makefile compile `sound_dbopl.cc`, `dbopl.cpp` (et lie par `g++`) ; souches NukedOPL. Une
 porte **`opl-tables-check`** : `InitTables` des deux côtés, les tables `MulTable`, `WaveTable`

@@ -674,7 +674,8 @@ uint8_t *h_ram(void);
 /* 32 depuis G1.0 : h_set_core accepte H_CORE_8086 (l'Olivetti M24, cpus_8086). */
 /* 33 depuis G1.1 : l'Olivetti M24 s'amorce (romset 9), et la sonde VGA passe de 122 à 143 champs (21 de la M24, champ 0 = 2). */
 /* 34 depuis G1.2 : l'Amstrad PC1512 s'amorce (romset 11), et la sonde VGA passe de 143 à 163 champs (20 du PC1512, champ 0 = 3). */
-#define H_ABI_VERSION 34
+/* 35 depuis G8.0 : h_opl_tables — DBOPL compilé en C++ (harness_dbopl.cpp). */
+#define H_ABI_VERSION 35
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

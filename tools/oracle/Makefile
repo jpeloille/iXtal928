@@ -149,7 +149,14 @@ LDFLAGS += $(WRAPFLAGS_BOTH)
 # l'a revele. On exige donc la resolution complete des le .so.
 LDFLAGS += -Wl,--no-undefined
 
-OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o)))
+# G8.0 — le C++ : DBOPL (src/dosbox/dbopl.cpp, inclus par harness_dbopl.cpp). Mêmes -I, mêmes
+# drapeaux ; le lien de la .so passe par $(CXX), qui tire libstdc++ (les constructeurs statiques
+# de sound_dbopl.cc, G8.1). bench, qui ne lit ni l'OPL ni le DSP, reste en C seul.
+CXX      := g++
+CXXFLAGS := $(CFLAGS)
+CXXSRC   := harness_dbopl.cpp
+
+OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o))) $(addprefix $(BUILD)/,$(notdir $(CXXSRC:.cpp=.o)))
 vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick
 
 # --- bench : la référence « C de production » ---------------------------------
@@ -173,11 +180,14 @@ BENCH_OBJ   := $(addprefix $(BUILD)/lto/,$(notdir $(BENCH_SRC:.c=.o)))
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 	@echo "oracle : $@ construit."
 
 $(BUILD)/%.o: %.c | $(BUILD)
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+$(BUILD)/%.o: %.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(BUILD):
 	@mkdir -p $(BUILD)
