@@ -3952,13 +3952,17 @@ fuzzeurs) et sur G4.0 :
 | ops-count | 2048 / 2048 | 2048 / 2048 |
 | boot-diff roms 6000 / `--model ibmxt` / `--cpu 3` | 25 457 272 / 23 442 235 / 52 936 825 | identiques |
 | boot-diff ibmat / ami286 / ami386 (3000) | 4 723 826 / 5 207 508 / 4 368 893 | identiques |
-| boot-diff ami386 4 Mo / ami386dx 4 Mo | 4 352 635 / 4 437 104 | identiques |
+| boot-diff ami386 4 Mo / ami386dx 4 Mo | 4 352 635 / 4 437 159 ¹ | identiques |
 | boot-diff DOS, XT cfg, ami386dx + DOS ; sondes VGA en vga, 8900D, 9000B, ibmat vga | verts, 86/86 | identiques, trame pour trame |
 | fuzz 8088 100 000, 286 80 000, 386 80 000 graines 1 et 7, 386 `--0f` 40 000 | verts | sorties identiques octet pour octet |
 | fuzz 8088 flux 1 500 × 200 | 300 000, 69 champs | 300 000, 83 champs |
 | fuzz `--fpu-state` 8088 100 000 / 286 80 000 / 386 80 000 / 8088 flux 300 000 | — | verts |
 | page-check ; pm-fuzz 20 000 ; core286-check ; pm-check ; pm-check 386 | verts ; 68/0/0 ; 106/0/0 | identiques |
 | cpu-config-check ; config-check | 21 + 4 ; vert | identiques |
+
+¹ Remesuré le 3 octobre 2026 en porte isolée (CMOS de `nvr/default/`), au commit d774bc2 :
+4 437 104, d'abord consigné, venait d'un lancement qui lisait le CMOS de session de l'utilisateur
+(voir § G1.0). Instructions identiques des deux côtés dans les deux cas.
 
 Hors portes, préexistant : le fuzzeur 386 en mode FLUX sur les 256 opcodes tombe (SIGSEGV,
 rc=139, 8444530 compris), le 286 en flux aussi (abort, rc=134). Non instruit.
@@ -4767,8 +4771,12 @@ côté C# → « gd5429.type oracle 3 | C# 4 », la sonde voit bien la carte.
 |---|---:|---:|---|
 | ami486, i486DX2/66 (VLB) | 3 000 | 5 462 861 | 102 identiques |
 | ami486, POST complet | 40 000 | 73 130 516 | 102 identiques |
-| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 5 285 528 | 102 identiques |
+| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 4 980 606 ¹ | 102 identiques |
 | ami486, DOS sur IDE, `VER` et `DIR` | 100 000 | 183 847 196 | 102 identiques |
+
+¹ Remesuré le 3 octobre 2026 en porte isolée (CMOS de `nvr/default/`), au commit ee101d5 :
+5 285 528, d'abord consigné, venait d'un lancement qui lisait le CMOS de session de l'utilisateur
+(voir § G1.0). Instructions identiques des deux côtés dans les deux cas.
 
 **PB-80, le jumeau.** `gd5429_read_linear` sort sans charger les verrous en chain4 compact
 (`vid_cl5429.c:1183-1187`), et la forme par banque y passe : reproduit, marqué.
@@ -4877,8 +4885,12 @@ couleurs, masques, mélanges, compteurs internes, indices de la FIFO, `blitter_b
 |---|---:|---:|---|
 | ami486, i486DX2/66 (VLB) | 3 000 | 5 443 326 | 122 identiques |
 | ami486, POST complet | 40 000 | 73 108 330 | 122 identiques |
-| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 5 272 247 | 122 identiques |
+| ami386dx (ISA, `has_vlb` = 0) | 3 000 | 4 989 579 ¹ | 122 identiques |
 | ami486, DOS sur IDE, `VER` et `DIR` | 100 000 | 183 816 380 | 122 identiques |
+
+¹ Remesuré le 3 octobre 2026 en porte isolée (CMOS de `nvr/default/`), au commit f727e2c :
+5 272 247, d'abord consigné, venait d'un lancement qui lisait le CMOS de session de l'utilisateur
+(voir § G1.0). Instructions identiques des deux côtés dans les deux cas.
 
 **Le banc S3BANC** (`tools/s3banc/s3banc.py`, 1 493 octets, sur le patron de BLTBANC), porte
 `bd-ami486-trio64-accel` : VESA 101h, registres déverrouillés, CR40 ; rectangles sous les seize
@@ -5158,7 +5170,7 @@ est montée) : les neuf champs du haut-parleur, `sound_hash` compris — l'empre
 échantillons mixés (M9) —, et l'état des deux OPL (adresse, état, masque, contrôle, périodes). Une
 empreinte restée à sa graine est un échec : deux silences ne prouvent rien.
 
-**Les boot-diffs** : 5150 + AdLib, 13 122 609 instructions ; ami486 + AdLib, 5 140 843 ; sondes
+**Les boot-diffs** : 5150 + AdLib, 13 122 609 instructions ; ami486 + AdLib, 5 433 745 ¹ ; sondes
 du son identiques. **Le banc OPLBANC** (`tools/oplbanc/oplbanc.py`, 587 octets, instructions 8086
 seules), saisi dans DEBUG sur le 5150 : la détection AdLib (minuterie 1 à FFh, état relu, minuterie 2,
 masque, remise à zéro de l'IRQ), un instrument et neuf notes tenues, le mode rythme et ses cinq
@@ -5167,6 +5179,10 @@ relevés, lus en C# seul : 06h, C6h, 06h, A6h — la détection d'une AdLib réu
 négatif**, retiré : l'échantillon d'un opérateur faussé d'une unité côté C# → les instructions
 restent identiques (le CPU ne lit pas les échantillons) et `sound_hash` diverge : la sonde voit ce
 que le diff d'instructions ne voit pas.
+
+¹ Remesuré le 3 octobre 2026 en porte isolée (CMOS de `nvr/default/`), au commit a0f0b71 :
+5 140 843, d'abord consigné, venait d'un lancement qui lisait le CMOS de session de l'utilisateur
+(voir § G1.0). Instructions identiques des deux côtés dans les deux cas.
 
 **La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g80 : 134 portes,
 **toutes vertes**, identiques à g80 hors ABI (35 → 36) ; les trois nouvelles vertes
@@ -5266,3 +5282,21 @@ des deux côtés : 220h, IRQ 7, DMA 1 » des trois portes SB (instructions et em
 les deux nouvelles vertes (`bd-ami486-sbpro-irq5`, 5 433 745 instructions, IRQ 5 lue des deux
 côtés ; `r9-sbcfg`). Rien ne bouge pour les cartes et profils existants. Build 0 avertissement,
 selftest, check-oracle 0 dérive (157).
+
+## G8 — Correctifs du 3 octobre : des chiffres remesurés, un avertissement dédoublonné
+
+**Les chiffres.** Quatre décomptes consignés venaient d'un lancement qui lisait le CMOS de session
+de l'utilisateur (`nvr/.ami386dx_opti495.nvr`, `nvr/.ami486.nvr`). Chacun a été remesuré au commit
+qui l'avait consigné, dans un worktree dont `nvr/` ne contient que `nvr/default/` : § G4.0
+(4 437 104 → 4 437 159), § G7.1 (5 285 528 → 4 980 606), § G7.3 (5 272 247 → 4 989 579), § G8.1
+(5 140 843 → 5 433 745) — chacun corrigé avec une note. Les autres décomptes ami486 de G6 et G7
+concordent avec les portes isolées ; le 181 109 300 de § G5 vient d'une porte disque à CMOS copié,
+déjà isolée, et § G5 le remplace lui-même.
+
+**L'avertissement.** La Trio64 lit `memory` deux fois (`vid_s3.c:2881`, `:3008`) : l'avertissement
+« hors liste » n'est plus dit qu'une fois par clé et par initialisation du device. La lecture ne
+change pas (mêmes appels, même valeur rendue) ; `r9-sbcfg` attend désormais un avertissement.
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g83 : 140 portes,
+toutes vertes, journaux identiques sauf celui de `r9-sbcfg` (un avertissement Trio64 au lieu de
+deux).

@@ -278,6 +278,8 @@ internal static partial class device
     //   ses tableaux (PB-93). Ici, le défaut du device, et un avertissement sur la sortie
     //   d'erreur : section, clé, valeur rejetée, défaut retenu. L'oracle n'est pas touché ; les
     //   portes n'y mènent pas, r9-sbcfg le prouve en C# seul.
+    private static readonly HashSet<string> config_hors_liste_avertis = new();
+
     private static int config_hors_liste(device_config_t c, int val)
     {
         bool dans_liste;
@@ -290,6 +292,11 @@ internal static partial class device
         if (dans_liste)
                 return val;
         string brut = config_get_string(CFG_MACHINE, current_device.name, c.name, "");
+        // Un device peut lire deux fois la même clé (la Trio64 lit `memory` à vid_s3.c:2881 et
+        //   :3008) : la valeur rendue est la même à chaque lecture, l'avertissement n'est dit
+        //   qu'une fois par initialisation.
+        if (!config_hors_liste_avertis.Add(c.name))
+                return c.default_int;
         Console.Error.WriteLine($"iXtal26 : [{current_device.name}] {c.name} = {brut.Trim()} hors de la liste " +
                                 $"de PCem — défaut {c.default_int} retenu.");
         return c.default_int;
@@ -328,6 +335,9 @@ internal static partial class device
 
         current_device = d;
         current_device_name = d.name;
+        // iXtal26 (sans pendant C) : les avertissements « hors liste » valent pour cette
+        //   initialisation-ci (voir config_hors_liste).
+        config_hors_liste_avertis.Clear();
 
         if (d.init != null)
         {

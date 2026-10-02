@@ -52,12 +52,12 @@ internal static class R9SbCfg
             }, () => Sound.sound_sb.sb_pri is { } sb ? $"{sb.dsp.sb_addr:X}h, IRQ {sb.dsp.sb_irqnum}, DMA {sb.dsp.sb_8_dmanum}" : "-");
 
         // Les cartes SVGA : memory hors liste → le défaut (1024 Ko, 2 Mo, 2 Mo). La Trio64 lit la
-        // clé deux fois (vid_s3.c:2881 et :3008) : deux avertissements.
+        // clé deux fois (vid_s3.c:2881 et :3008), mais n'est avertie qu'une fois.
         var videos = new (string gfx, string device, string[] valeurs, uint vram, int avertis)[]
         {
             ("tvga8900d", "Trident TVGA 8900D", ["0", "3", "4096", "-1"], 1024u << 10, 1),
             ("cl_gd5429", "Cirrus Logic GD5429", ["0", "3", "255", "-1"], 2u << 20, 1),
-            ("px_trio64", "Phoenix S3 Trio64", ["0", "3", "64", "-1"], 2u << 20, 2),
+            ("px_trio64", "Phoenix S3 Trio64", ["0", "3", "64", "-1"], 2u << 20, 1),
         };
         foreach (var (gfx, device, valeurs, vram, avertis) in videos)
             foreach (var v in valeurs)
