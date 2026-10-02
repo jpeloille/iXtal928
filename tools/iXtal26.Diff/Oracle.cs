@@ -55,7 +55,8 @@ public static class Oracle
     // 33 en G1.1 : l'Olivetti M24 s'amorce ; la sonde VGA passe de 122 à 143 champs (la M24).
     // 34 en G1.2 : l'Amstrad PC1512 s'amorce ; la sonde VGA passe à 163 champs (le PC1512).
     // 35 en G8.0 : h_opl_tables (DBOPL, compilé en C++).
-    public const int AbiVersion = 35;
+    // 36 en G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (21 champs).
+    public const int AbiVersion = 36;
 
     static Oracle()
     {
@@ -272,6 +273,10 @@ public static class Oracle
     // Sound.sound_speaker.Probe(). Le neuvième champ est l'empreinte du son
     // produit — la seule voix du chemin audio dans le diff.
     [DllImport(Lib)] internal static extern void h_speaker_probe([Out] ulong[] o);
+    // G8.1 — la carte son (internal_name) et la sonde du son : haut-parleur, puis les deux OPL.
+    [DllImport(Lib)] internal static extern void h_set_sndcard(string name);
+    [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
+    public const int SoundProbeN = 21;
 
     // M15 — vidéo. La carte (GFX_CGA = 0, GFX_VGA = 13, ibm.h:274-289), à poser avant
     // h_boot ; la sonde VGA, pendant de Video.vid_svga.Probe() ; et la VRAM brute,

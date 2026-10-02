@@ -236,6 +236,22 @@ internal static partial class pc
     /// que par initpc, APRÈS la configuration. Une ROM absente le dit alors par le pclog
     /// de rom_init (« ROM image not found : ibm_vga.bin »), comme chez PCem.
     /// </summary>
+    /// <summary>G8.1 — pose la carte son par son internal_name (clé sndcard), comme setgfxcard la
+    /// carte vidéo. PCem rend 0 (aucune) pour un nom inconnu (sound.c:90-100) ; on refuse en citant
+    /// ce qui existe, sauf pour le nom vide, qui vaut « aucune ».</summary>
+    internal static bool setsndcard(string name)
+    {
+        if (name.Length > 0 && Array.FindIndex(Sound.sound.sound_cards, k => k.internal_name == name) < 0)
+        {
+                Console.Error.WriteLine($"sndcard = « {name} » : carte son inconnue. Connues :");
+                foreach (var k in Sound.sound.sound_cards)
+                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+                return false;
+        }
+        Sound.sound.sound_card_current = Sound.sound.sound_card_get_from_internal_name(name);
+        return true;
+    }
+
     internal static bool setgfxcard(string name)
     {
         int c;
@@ -357,6 +373,9 @@ internal static partial class pc
                 return false;
         // pcem: pc.c:665
         Video.video.video_speed = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "video_speed", -1);
+        // pcem: pc.c:666-670 — G8.1 : la carte son, par son internal_name ; inconnue ou vide : 0, aucune.
+        if (!setsndcard(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "sndcard", "")))
+                return false;
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
         // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
@@ -695,6 +714,11 @@ internal static partial class pc
         PluginApi.device.device_close_all();
         PluginApi.device.device_init();
 
+        // G8.1 — DEVIATION (PLAN-G8.md, défaut n° 4) : l'état statique des deux OPL repart de zéro à
+        // chaque amorçage, des deux côtés (h_opl_reset côté oracle) ; chez PCem, il traverse.
+        Sound.sound_dbopl.opl_clear_state_for_oracle_parity(0);
+        Sound.sound_dbopl.opl_clear_state_for_oracle_parity(1);
+
         // pcem: pc.c:361 — AVANT speaker_init() : sound_reset() remet
         // sound_handlers_num à 0 et effacerait l'enregistrement du handler.
         Sound.sound.sound_reset();
@@ -716,6 +740,9 @@ internal static partial class pc
         Mouse.mouse.mouse_emu_init();
         Video.video.video_init();
         Sound.sound_speaker.speaker_init();   // pc.c:375
+        // omitted: lpt1_device_init() (pc.c:376) — pas de périphérique parallèle.
+        // pcem: pc.c:383 — G8.1 : la carte son.
+        Sound.sound.sound_card_init();
 
         // pcem: pc.c:392 — hdd_controller_init(hdd_controller_name).
         //

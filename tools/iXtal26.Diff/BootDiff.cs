@@ -50,6 +50,9 @@ public static class BootDiff
     /// Entrée. Le défaut suffit à un DIR ; un FORMAT en demande des milliers, et
     /// sans cela la comparaison d'images trouve une image INCHANGÉE — accord vide
     /// que CompareImages signale.</param>
+    /// <summary>G8.1 — `--sndcard NOM` (none, adlib), appliqué après --config.</summary>
+    internal static string? SndcardOverride;
+
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
                           string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
                           int typeSettle = KeyScript.SlicesAfterLine, string? model = null,
@@ -65,6 +68,8 @@ public static class BootDiff
         if (model is not null && !pc.setmodel(model))
             return 2;
         if (gfxcard is not null && !pc.setgfxcard(gfxcard))
+            return 2;
+        if (SndcardOverride is not null && !pc.setsndcard(SndcardOverride))
             return 2;
         // M16 — le processeur, APRÈS --model : l'indice ne vaut que dans la table de la
         // machine finale, et check_cpu (appelé par initpc) le juge contre elle.
@@ -192,6 +197,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -235,6 +241,9 @@ public static class BootDiff
         // carte — autant relever les deux au même point de leur histoire.
         var vgaOracle = new ulong[Oracle.VgaProbeN];
         Oracle.h_vga_probe(vgaOracle);
+        // G8.1 — la sonde du son, au même point de l'histoire.
+        var sndOracle = new ulong[Oracle.SoundProbeN];
+        Oracle.h_sound_probe(sndOracle);
 
         // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
         // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
@@ -332,6 +341,7 @@ public static class BootDiff
 
         var vgaCsharp = new ulong[Oracle.VgaProbeN];
         Video.vid_svga.Probe(vgaCsharp);
+        var sndCsharp = SoundProbeCsharp();
         // La carte, retenue AVANT closepc : device_close_all passe par vga_close, qui
         // remet svga_pri à nul. Sans cette référence, l'écran de fin se lisait par
         // mem_readb_phys — donc par svga_read — sous un en-tête « CGA ».
@@ -381,6 +391,7 @@ public static class BootDiff
             // `|` qui la rend exécutable. Bitwise et non `||` : les quatre lignes
             // doivent s'imprimer, y compris après la première divergence.
             return vgaVerdict
+                 | CompareSound(sndOracle, sndCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
@@ -656,6 +667,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -823,6 +835,56 @@ public static class BootDiff
         }
     }
 
+    // G8.1 — LA SONDE DU SON en fin de boot-diff, quand une carte son est montée : le diff
+    // d'instructions voit ce que le logiciel LIT (388h, les ports du DSP), RIEN des échantillons.
+    // sound_hash (M9) les résume tous, haut-parleur compris ; l'état des OPL dit où chercher.
+    private static readonly string[] SoundFields =
+    {
+        "speaker_gated", "speaker_enable", "was_speaker_enable", "speakon", "speakval", "ppispeakon",
+        "speaker_pos", "sound_pos_global", "sound_hash",
+        "opl0.addr", "opl0.status", "opl0.status_mask", "opl0.timer_ctrl", "opl0.timer[0]", "opl0.timer[1]",
+        "opl1.addr", "opl1.status", "opl1.status_mask", "opl1.timer_ctrl", "opl1.timer[0]", "opl1.timer[1]",
+    };
+
+    private static ulong[] SoundProbeCsharp()
+    {
+        var o = new ulong[Oracle.SoundProbeN];
+        var sp = new ulong[9];
+        Sound.sound_speaker.Probe(sp);
+        Array.Copy(sp, o, 9);
+        Sound.sound_dbopl.ProbeState(0, o, 9);
+        Sound.sound_dbopl.ProbeState(1, o, 15);
+        return o;
+    }
+
+    /// <summary>Rend 0 si aucune carte son n'est montée ou si les deux sondes concordent — et 1
+    /// si l'empreinte est restée à sa graine : deux silences ne prouvent rien.</summary>
+    private static int CompareSound(ulong[] o, ulong[] c)
+    {
+        if (Sound.sound.sound_card_current == 0)
+            return 0;
+        var bad = 0;
+        for (var f = 0; f < SoundFields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  SON {SoundFields[f],-20} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde du son : {bad} champ(s) divergent(s) sur {SoundFields.Length}.");
+            return 1;
+        }
+        if (o[8] == HashSeed)
+        {
+            Console.Error.WriteLine("Sonde du son : empreinte restée à sa graine — aucun bloc produit, l'accord ne prouve rien.");
+            return 1;
+        }
+        Console.WriteLine($"Sonde du son : {SoundFields.Length} champs identiques — échantillons ({o[8]:X16}), haut-parleur, OPL.");
+        return 0;
+    }
+
     private static readonly string[] SpeakerFields =
     {
         "speaker_gated", "speaker_enable", "was_speaker_enable", "speakon", "speakval", "ppispeakon",
@@ -861,6 +923,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -981,6 +1044,7 @@ public static class BootDiff
         // device_add. Sans elle l'oracle monte une CGA pendant que le C# monte une VGA.
         Oracle.h_set_gfxcard(pc.gfxcard);
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
+        Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);

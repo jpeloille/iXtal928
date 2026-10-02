@@ -53,7 +53,7 @@ porte **`opl-tables-check`** : `InitTables` des deux côtés, les tables `MulTab
 (et les autres tables d'`InitTables`) comparées octet à octet. **Porte** : la table identique,
 toutes les séries identiques. Si la libm diverge, décision n° 3.
 
-### G8.1 — L'OPL : `sound_opl.c`, `sound_dbopl.cc`, `dbopl.cpp` ; l'AdLib
+### G8.1 — L'OPL : `sound_opl.c`, `sound_dbopl.cc`, `dbopl.cpp` ; l'AdLib  ✅ *fait, VERIFICATION.md § G8.1*
 
 Transcription de l'OPL3 par DBOPL et de l'AdLib (`adlib_device`, `sound_adlib.c`, un device) ; la
 clé `sndcard` et le registre `SOUND_CARD` réduit (comme `VIDEO_CARD`). La sonde du son gagne

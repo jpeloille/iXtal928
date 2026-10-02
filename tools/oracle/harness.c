@@ -333,6 +333,9 @@ void h_m24_forget(void);
 void h_pc1512_attach(void);   /* harness_pc1512.c */
 void h_pc1512_probe(uint64_t *out);
 void h_pc1512_forget(void);
+#include "sound_adlib.h"      /* G8.1 — l'AdLib */
+void h_opl_reset(void);       /* harness_dbopl.cpp */
+static char h_sndcard_name[32]; /* h_set_sndcard, plus bas */
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1208,6 +1211,7 @@ int h_boot(const char *romspath) {
         timer_reset();
         device_close_all();
         device_init();
+        h_opl_reset();               /* G8.1 — déviation de l'oracle : opl[] repart de zéro */
         sound_reset();               /* pc.c:361 — AVANT speaker_init : il remet
                                         sound_handlers_num à 0 et effacerait
                                         l'enregistrement du handler. */
@@ -1401,6 +1405,9 @@ int h_boot(const char *romspath) {
         } else
                 device_add(&cga_device);
         speaker_init();              /* pc.c:375, juste après video_init() */
+        /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. */
+        if (!strcmp(h_sndcard_name, "adlib"))
+                device_add(&adlib_device);
 
         /* pc.c:392 — hdd_controller_init(hdd_controller_name), reduit. APRES
            mem_alloc() : celui-ci detruit toute la liste de mappages, et une carte a
@@ -1755,6 +1762,25 @@ void h_set_hdd(int drive, const char *fn, int spt, int hpc, int tracks) {
 }
 
 /* Le nom INTERNE de la carte : "mfm_xebec", "dtc5150x", ou rien. */
+/* G8.1 — la carte son, par son internal_name (pc.c:666-670 : la clé sndcard). Le registre
+ * SOUND_CARD n'est pas lié (sound.c) : h_boot monte la carte nommée, après speaker_init comme
+ * sound_card_init (pc.c:383). Vide ou « none » : aucune. */
+void h_set_sndcard(const char *name) {
+        strncpy(h_sndcard_name, name ? name : "", sizeof(h_sndcard_name) - 1);
+        h_sndcard_name[sizeof(h_sndcard_name) - 1] = 0;
+}
+
+/* La sonde du son (G8.1) : les neuf champs du haut-parleur (h_speaker_probe, sound_hash compris),
+ * puis l'état des deux OPL (harness_dbopl.cpp). H_SOUND_PROBE_N champs. */
+void h_opl_state(int nr, uint64_t *out);
+void h_speaker_probe(uint64_t *out);
+void h_sound_probe(uint64_t *out) {
+        memset(out, 0, H_SOUND_PROBE_N * sizeof(uint64_t));
+        h_speaker_probe(out);
+        h_opl_state(0, out + 9);
+        h_opl_state(1, out + 15);
+}
+
 void h_set_hdd_controller(const char *name) {
         strncpy(hdd_controller_name, name ? name : "", sizeof(hdd_controller_name) - 1);
         hdd_controller_name[sizeof(hdd_controller_name) - 1] = 0;

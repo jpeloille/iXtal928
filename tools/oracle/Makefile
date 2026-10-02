@@ -49,6 +49,8 @@ SRC := harness.c \
        harness_s3.c \
        harness_m24.c \
        harness_pc1512.c \
+       $(PCEM)/src/sound/sound_opl.c \
+       $(PCEM)/src/sound/sound_adlib.c \
        $(PCEM)/src/models/amstrad.c \
        $(PCEM)/src/keyboard/keyboard_amstrad.c \
        $(PCEM)/src/models/olivetti_m24.c \
@@ -157,7 +159,7 @@ CXXFLAGS := $(CFLAGS)
 CXXSRC   := harness_dbopl.cpp
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o))) $(addprefix $(BUILD)/,$(notdir $(CXXSRC:.cpp=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick
+vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

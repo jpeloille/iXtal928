@@ -4,8 +4,8 @@
 // ORACLE: pcem-dev/src/sound/sound.c
 // STATUS: partial — le mixeur et son chronomètre à 48 kHz : sound_add_handler,
 //         sound_update_buf_length, sound_poll, sound_speed_changed, sound_reset,
-//         sound_init. Omis : le fil CD (sound.c:120-124, 143-197) et le registre
-//         SOUND_CARD (sound.c:31-105).
+//         sound_init ; G8.1 : le registre SOUND_CARD réduit (sound.c:31-105). Omis : le fil CD
+//         (sound.c:120-124, 143-197).
 
 // CS8602 : `sound_handlers[c].get_buffer` est un pointeur de fonction que le C
 // laisse à NULL jusqu'à sound_add_handler (sound.c:212). Les entrées 0 à
@@ -166,5 +166,52 @@ internal static partial class sound
 
         // omitted: sound_set_cd_volume(), ioctl_audio_stop(), image_audio_stop()
         //   (sound.c:265-267) — CD, hors périmètre.
+    }
+
+    // pcem: sound.c:36-37, :44 — G8.1 : le registre SOUND_CARD.
+    // DEVIATION: deux entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
+    //   sc_none, sc_adlib ; la SB Pro v2 en G8.2 —, en tableau fixe comme video_cards (video.cs).
+    //   La configuration écrit l'internal_name : aucun indice ne sort de ce fichier.
+    internal sealed class SOUND_CARD
+    {
+        internal string name = "";
+        internal string internal_name = "";
+        internal PluginApi.device_t? device;
+    }
+
+    internal static readonly SOUND_CARD sc_none = new() { name = "None", internal_name = "none", device = null };
+    internal static readonly SOUND_CARD sc_adlib = new() { name = "Adlib", internal_name = "adlib", device = sound_adlib.adlib_device };
+
+    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib };
+
+    // pcem: sound.c:33
+    internal static int sound_card_current = 0;
+    // pcem: sound.c:34
+    private static int sound_card_last = 0;
+
+    // pcem: sound.c:90-100 — la boucle s'arrête à la sentinelle NULL : ici, la longueur du tableau.
+    internal static int sound_card_get_from_internal_name(string s)
+    {
+        int c = 0;
+
+        while (c < sound_cards.Length)
+        {
+                if (sound_cards[c].internal_name == s)
+                        return c;
+                c++;
+        }
+
+        return 0;
+    }
+
+    // pcem: sound.c:84-88
+    internal static string sound_card_get_internal_name(int card) => sound_cards[card].internal_name;
+
+    // pcem: sound.c:102-106
+    internal static void sound_card_init()
+    {
+        if (sound_cards[sound_card_current].device != null)
+                PluginApi.device.device_add(sound_cards[sound_card_current].device!);
+        sound_card_last = sound_card_current;
     }
 }

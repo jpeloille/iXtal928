@@ -5130,3 +5130,45 @@ le coefficient du sinus faussé (4084 → 4083) → 1 476 entrées divergentes.
 **La série**, sur un instantané de G8.0 construit dans un worktree de HEAD (oracle reconstruit de
 zéro : le Makefile ne suit pas les en-têtes), sous `MALLOC_PERTURB_=85` : 131 portes, **toutes
 vertes**, identiques à g13 hors ABI (34 → 35) ; `opl-tables-check` nouvelle, verte.
+
+## G8.1 — L'OPL par DBOPL et l'AdLib
+
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.1.
+
+**Transcrit.** DBOPL entier en mode `WAVE_TABLEMUL` (`Sound/dbopl.cs` : Operator, Channel, Chip,
+`Setup`) — les pointeurs de fonctions membres deviennent des énumérations, `ChanOffsetTable` et
+`OpOffsetTable` (des offsets d'octets tirés de la disposition du C++) des indices, les sorties
+des couples (tableau, décalage) : DEVIATIONS inscrites, équivalence des tables d'offsets
+démontrée registre par registre ; `sound_dbopl.cc` (l'`opl[2]`, NukedOPL omis — `opl_emu` figé à
+DBOPL), `sound_opl.c` (ports et minuteries ; chaque lecture coûte `isa_timing * 8` cycles),
+`sound_adlib.c` (l'AdLib, OPL2 sur deux puces, décision n° 2). Le registre `SOUND_CARD` réduit
+(`none`, `adlib`), la clé `sndcard` (`pc.c:666-670`), `sound_card_init` après `speaker_init`
+(`pc.c:383`). Avant intégration, le brouillon de DBOPL a été confronté au vrai `dbopl.cpp` compilé
+à part : 20 000 itérations d'écritures aléatoires de registres et de générations, OPL2 et OPL3,
+deux graines, hachages d'échantillons identiques.
+
+**L'oracle.** `sound_opl.c` et `sound_adlib.c` liés ; `harness_dbopl.cpp` inclut aussi
+`sound_dbopl.cc` ; quatre souches fatales pour NukedOPL, inatteignables. `h_boot` monte la carte
+nommée par `h_set_sndcard` après `speaker_init`. **Déviation de l'oracle (défaut n° 4)** : `opl[]`
+est statique et traverse les amorçages d'un processus — `h_opl_reset` reconstruit la puce et
+remet le reste à zéro à chaque amorçage ; le C# fait de même. ABI 36.
+
+**La sonde du son en fin de boot-diff** (`h_sound_probe`, 21 champs, comparée dès qu'une carte son
+est montée) : les neuf champs du haut-parleur, `sound_hash` compris — l'empreinte FNV de TOUS les
+échantillons mixés (M9) —, et l'état des deux OPL (adresse, état, masque, contrôle, périodes). Une
+empreinte restée à sa graine est un échec : deux silences ne prouvent rien.
+
+**Les boot-diffs** : 5150 + AdLib, 13 122 609 instructions ; ami486 + AdLib, 5 140 843 ; sondes
+du son identiques. **Le banc OPLBANC** (`tools/oplbanc/oplbanc.py`, 587 octets, instructions 8086
+seules), saisi dans DEBUG sur le 5150 : la détection AdLib (minuterie 1 à FFh, état relu, minuterie 2,
+masque, remise à zéro de l'IRQ), un instrument et neuf notes tenues, le mode rythme et ses cinq
+percussions, relâchement — **152 918 358 instructions identiques, sonde du son identique**. Les
+relevés, lus en C# seul : 06h, C6h, 06h, A6h — la détection d'une AdLib réussit. **Contrôle
+négatif**, retiré : l'échantillon d'un opérateur faussé d'une unité côté C# → les instructions
+restent identiques (le CPU ne lit pas les échantillons) et `sound_hash` diverge : la sonde voit ce
+que le diff d'instructions ne voit pas.
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g80 : 134 portes,
+**toutes vertes**, identiques à g80 hors ABI (35 → 36) ; les trois nouvelles vertes
+(`bd-pc-adlib`, `bd-ami486-adlib`, `bd-pc-adlib-banc`). Build 0 avertissement, selftest,
+check-oracle 0 dérive (152).
