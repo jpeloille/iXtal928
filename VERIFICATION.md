@@ -5300,3 +5300,72 @@ change pas (mêmes appels, même valeur rendue) ; `r9-sbcfg` attend désormais u
 **La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g83 : 140 portes,
 toutes vertes, journaux identiques sauf celui de `r9-sbcfg` (un avertissement Trio64 au lieu de
 deux).
+
+## PS2.0 — La souris PS/2 par le 8042 ; PB-94, PB-95
+
+Le 3 octobre 2026. Plan : `PLAN-PS2.md` § PS2.0 (validé par l'orchestrateur le 03/10).
+
+**Transcrit.** `mouse_ps2.c` entier (`Mouse/mouse_ps2.cs`) : la souris PS/2 à deux boutons et
+l'Intellimouse (places 2 et 3 de `mouse_list`, aux indices de PCem), la branche du PC5086 omise.
+`mouse_scan` rejoint son fichier (la DEVIATION de `keyboard_at.cs` tombe). **DEVIATION :
+`MODEL_PS2` ajouté aux trois AMI 386/486** (ami386, ami386dx, ami486), dont le BIOS porte la
+« Mouse Support Option » ; chez PCem le drapeau ne sert qu'à l'interface (`wx-config.c:64`), donc
+l'oracle monte la même souris sans écart. Sur une machine sans `MODEL_PS2` (ami286, ibmat…), une
+souris PS/2 est refusée avec un avertissement et la souris série prend sa place
+(`pc.mouse_type_selon_machine`). Deux défauts reproduits : PB-94 (aucune réponse aux commandes
+inconnues, F6h…), PB-95 (E9h code le bouton du milieu en 3).
+
+**L'oracle.** `mouse.c` et `mouse_msystems.c` liés : la souris est celle de `mouse_type`
+(`h_set_mouse_type`), montée par `mouse_emu_init` comme `pc.c:373` ; `harness_ps2.c` inclut
+`mouse_ps2.c` (structure privée) et retient la souris montée par un renommage le temps de
+l'inclusion de `keyboard_at_set_mouse` — le texte vendoré n'est pas touché ; souche fatale
+`upc_set_mouse`. `h_mouse_poll` pose `mouse_buttons` puis appelle `mouse_poll`. **La sonde de la
+souris** (9 champs : `mouse_scan`, la file du 8042, l'état de `mouse_ps2_t`, le knock) est
+comparée en fin de boot-diff dès qu'une souris PS/2 est montée. ABI 39.
+
+**L'injection.** `--mouse-type N` et `--mouse-at TRANCHE:dx,dy,dz,b` (répétable) : le mouvement
+est injecté EN FIN de tranche, des deux côtés, là où `runpc` appellerait `pollmouse`. C'est la
+première porte du dépôt qui fasse bouger une souris des deux côtés (`h_mouse_poll` existait
+depuis M21 sans appelant).
+
+**Le banc PS2BANC** (`tools/ps2banc/ps2banc.py`, 524 octets, instructions 8086 seules), saisi
+dans DEBUG sur l'ami386dx (CMOS `f386.nvr`, sans disque dur), clavier coupé et IRQ 12 masquée :
+il parle au 8042 directement et relève, pour chaque lecture, l'état puis la donnée (EEh si rien
+ne vient). Sous boot-diff, mouvements injectés, bouton du milieu tenu dès la tranche 45 560 :
+- **souris à 2 boutons** : 72 011 910 instructions identiques, sonde identique. Relevés : test du
+  port 00h ; reset FAh AAh 00h ; identifiant 00h ; résolution et cadence acquittées ; E9h
+  10h 02h 64h (échelle 2:1) ; **F6h sans réponse (PB-94)** ; flux activé, paquets
+  08h 03h 02h, puis le gros mouvement 28h 28h E7h ; EBh ; **E9h 23h (PB-95 : activée + bouton du
+  milieu codé 3)** ; le knock ignoré (identifiant 00h).
+- **Intellimouse** : 72 012 638 instructions identiques, sonde identique. Après le knock,
+  identifiant **03h**, paquets à 4 octets (0Ch 03h 02h 00h : bouton du milieu en bit 2), EBh 04h.
+**Contrôle négatif**, retiré : PB-95 « corrigé » côté C# seul (`temp |= 4`) → première divergence
+à l'instruction 67 871 907.
+
+**Les autres portes.** `bd-ami486-ps2` (3 000 tranches) et `bd-ami486-ps2-post` (POST complet) :
+la souris montée, sonde identique ; `bd-ami286-ps2-refus` : refus averti, la série à sa place,
+vert, compte de la porte `bd-ami286`.
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g84 : 145 portes,
+**toutes vertes** ; les cinq nouvelles vertes (`bd-ami486-ps2`, `bd-ami486-ps2-post` — 73 097 655
+instructions, le compte du POST sans souris : le BIOS ne touche pas la souris au POST avec le CMOS
+de référence —, `bd-ami286-ps2-refus`, `bd-ami386dx-ps2-banc-2` et `-3`). Écarts à g84 : l'ABI
+(38 → 39) ; le message des Pentium OverDrive dans `cpu-config-check` et `-inverse` (commit doc
+2af7e87) ; et **sept portes disque, cause : disque de l'utilisateur modifié, 03/10 09:12**.
+`os/386-HDD-C.img` a changé ; la recette `g5w` en tire un autre `c386.img` (empreinte réécrite,
+`g5w.sha256`), que les sept portes amorcent (`ami386dx-ide.cfg`, `ami486-ide.cfg`,
+`ami486-ide-e.cfg`). Toutes vertes, instructions identiques des deux côtés ; les comptes :
+
+| Porte | g84 | g85 | Octets écrits sur C: |
+|---|---:|---:|---|
+| `bd-ami386dx-ide-ecriture` | 181 109 674 | 181 109 525 | 7920 → 8149 |
+| `bd-ami486-ide-ecriture` | 183 802 720 | 183 803 652 | 7920 → 8149 |
+| `bd-ami486-ide-check` | 202 649 589 | 202 651 525 | 1021 → 1031 |
+| `bd-ami486-gd5429-dos` | 183 847 196 | 183 848 146 | — |
+| `bd-ami486-gd5429-blt` | 261 046 800 | 261 046 649 | 1460 → 1526 |
+| `bd-ami486-trio64-dos` | 183 816 380 | 183 815 808 | — |
+| `bd-ami486-trio64-accel` | 313 940 329 | 313 942 154 | 1511 → 1535 |
+
+**Preuve de la cause** : les sept portes rejouées avec l'instantané d'AVANT PS2.0 (celui de g84,
+ABI 38) sur le nouveau `c386.img` rendent des journaux identiques octet pour octet à ceux de g85 —
+c'est le disque, pas le code. Build 0 avertissement, selftest, check-oracle 0 dérive (159).

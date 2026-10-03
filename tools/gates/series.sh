@@ -185,3 +185,17 @@ run bd-pc-sbpro-banc boot-diff roms 11000 --sndcard sbprov2 --fda $DOS --fdb os/
 # hors liste → défaut averti (PB-93 : SB et les trois cartes SVGA), opl_emu = 1.
 run bd-ami486-sbpro-irq5 boot-diff roms 3000 --config $C/ami486-sbpro-irq5.cfg --expect-sb 220,5,1
 run r9-sbcfg r9-sbcfg
+# PS2.0 — la souris PS/2 (mouse_ps2.c) par le 8042 : l'ami486 avec la souris (3 000 tranches et
+# POST complet) ; le refus averti sur l'ami286 (pas de MODEL_PS2 : la série à sa place) ; le banc
+# PS2BANC saisi dans DEBUG sur l'ami386dx (CMOS f386.nvr), mouvements injectés par --mouse-at,
+# bouton du milieu tenu dès 45 560 (PB-95), en souris à 2 boutons puis en Intellimouse.
+run bd-ami486-ps2 boot-diff roms 3000 --config $C/ami486-dx2.cfg --mouse-type 2
+run bd-ami486-ps2-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --mouse-type 2
+run bd-ami286-ps2-refus boot-diff roms 3000 --model ami286 --mouse-type 2
+mapfile -t P2K < tools/ps2banc/ps2banc.keys
+P2B=(); for l in "${P2K[@]}"; do P2B+=(--type "$l"); done
+P2M=(); for t in $(seq 45500 30 46400); do b=0; [ $t -ge 45560 ] && b=4; P2M+=(--mouse-at "$t:3,-2,0,$b"); done
+P2M+=(--mouse-at "45560:40,25,-1,4")
+for mt in 2 3; do
+  runw bd-ami386dx-ps2-banc-$mt f386.nvr ami386dx_opti495 boot-diff roms 48500 --config ami386dx-fd.cfg --mouse-type $mt --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${P2B[@]}" "${P2M[@]}"
+done

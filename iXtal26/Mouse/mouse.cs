@@ -33,13 +33,13 @@ internal static partial class mouse
     internal const int MOUSE_TYPE_3BUTTON = 1 << 31;
 
     // pcem: mouse.c:9-15
-    // DEVIATION: trois entrées sur six, AUX INDICES DE PCEM — la valeur de la clé mouse_type
+    // DEVIATION: cinq entrées sur six, AUX INDICES DE PCEM — la valeur de la clé mouse_type
     //   est un indice dans cette table. 0 : la souris série Microsoft, le défaut (pc.c:784) ;
-    //   G1.3 : 4, l'Amstrad (amstrad.c), et 5, l'Olivetti M24 (keyboard_olim24.c). Omises
-    //   (places nulles) : 1, Mouse Systems ; 2 et 3, les PS/2 à 2 et 3 boutons — un 8042 à
-    //   souris que ce dépôt n'a pas. L'oracle n'amorce que la série (harness.c, M21) : les
-    //   portes gardent mouse_type = 0.
-    private static readonly mouse_t?[] mouse_list = { mouse_serial.mouse_serial_microsoft, null, null, null,
+    //   PS2.0 : 2 et 3, les PS/2 à 2 boutons et Intellimouse (mouse_ps2.c) ; G1.3 : 4,
+    //   l'Amstrad (amstrad.c), et 5, l'Olivetti M24 (keyboard_olim24.c). Omise (place
+    //   nulle) : 1, Mouse Systems.
+    private static readonly mouse_t?[] mouse_list = { mouse_serial.mouse_serial_microsoft, null,
+                                                      mouse_ps2.mouse_ps2_2_button, mouse_ps2.mouse_intellimouse,
                                                       Models.amstrad.mouse_amstrad,
                                                       Keyboard.keyboard_olim24.mouse_olim24, null };
 

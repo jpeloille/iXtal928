@@ -58,7 +58,8 @@ public static class Oracle
     // 36 en G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (21 champs).
     // 37 en G8.2 : la SB Pro v2 (sbprov2) ; la sonde du son passe à 41 champs (DSP, mélangeur).
     // 38 en G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg).
-    public const int AbiVersion = 38;
+    // 39 en PS2.0 : h_set_mouse_type, h_mouse_probe ; h_mouse_poll pose mouse_buttons.
+    public const int AbiVersion = 39;
 
     static Oracle()
     {
@@ -296,6 +297,10 @@ public static class Oracle
     public const int VgaProbeN = 163;
     [DllImport(Lib)] public static extern void h_set_gfxcard(int g);
     [DllImport(Lib)] public static extern void h_mouse_poll(int x, int y, int z, int b);
+    // PS2.0 — la souris de mouse_list (mouse.c lié), et la sonde de la souris PS/2.
+    [DllImport(Lib)] internal static extern void h_set_mouse_type(int t);
+    [DllImport(Lib)] internal static extern void h_mouse_probe([Out] ulong[] o);
+    public const int MouseProbeN = 9;
 
     // M16 — le processeur : fabricant et INDICE dans la table de la machine, à poser
     // avant h_boot, qui fait tourner le vrai cpu_set() de PCem avec eux ; le budget de

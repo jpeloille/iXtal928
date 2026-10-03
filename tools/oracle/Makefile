@@ -49,6 +49,7 @@ SRC := harness.c \
        harness_s3.c \
        harness_m24.c \
        harness_pc1512.c \
+       harness_ps2.c \
        $(PCEM)/src/sound/sound_opl.c \
        $(PCEM)/src/sound/sound_adlib.c \
        $(PCEM)/src/sound/sound_sb.c \
@@ -98,6 +99,8 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_sdac_ramdac.c \
        $(PCEM)/src/models/serial.c \
        $(PCEM)/src/mouse/mouse_serial.c \
+       $(PCEM)/src/mouse/mouse.c \
+       $(PCEM)/src/mouse/mouse_msystems.c \
        $(PCEM)/src/floppy/fdc.c \
        $(PCEM)/src/floppy/fdd.c \
        $(PCEM)/src/disc/disc.c \

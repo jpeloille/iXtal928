@@ -311,13 +311,19 @@ extern device_t vga_device;
 /* M21 — le port serie et la souris serie Microsoft (serial.c, mouse_serial.c). */
 #include "serial.h"
 #include "mouse.h"
-extern mouse_t mouse_serial_microsoft;
-static void *h_mouse_p;
-/* Pendant de mouse_poll (mouse.c:33-36) : le harnais n'a pas de souris hote ; cet
- * appel injecte des mickeys pour qu'un diff exerce le chemin de reception. */
+/* PS2.0 — mouse.c est lié (le registre mouse_list, mouse_emu_init, mouse_poll) : la souris
+ * montée est celle de mouse_type, posé par h_set_mouse_type avant h_boot (pc.c:784). La
+ * globale de l'hôte que lisent les souris (plat-mouse.h ; wx-sdl2-mouse.c n'est pas lié). */
+int mouse_buttons;
+void h_set_mouse_type(int t) { mouse_type = t; }
+void h_ps2_forget(void);                /* harness_ps2.c */
+void h_mouse_probe(uint64_t *o);        /* harness_ps2.c */
+/* Pendant de pollmouse (pc.c:110-121), au mouvement près : le harnais n'a pas de souris
+ * hôte ; cet appel injecte des mickeys et l'état des boutons, comme mouse_poll_host puis
+ * mouse_get_mickeys les rendraient, pour qu'un diff exerce le chemin de réception. */
 void h_mouse_poll(int x, int y, int z, int b) {
-        if (h_mouse_p)
-                mouse_serial_microsoft.poll(x, y, z, b, h_mouse_p);
+        mouse_buttons = b;
+        mouse_poll(x, y, z, b);
 }
 /* M19 — les deux Trident (vid_tvga.h), compilées par harness_tvga.c qui inclut
  * vid_tvga.c pour en lire la tvga_t privée. */
@@ -1361,11 +1367,10 @@ int h_boot(const char *romspath) {
                 nmi_init();
         }
 
-        /* mouse_emu_init(), pc.c:373 — M21. mouse.c n'est pas lie (ses cinq autres
-         * souris tirent amstrad.c, keyboard_olim24.c...) : le registre est reduit, comme
-         * cote C#, a mouse_list[0] — la souris serie Microsoft, mouse_type = 0 par
-         * defaut (pc.c:784). */
-        h_mouse_p = mouse_serial_microsoft.init();
+        /* mouse_emu_init(), pc.c:373 — M21, puis PS2.0 : mouse.c est lié, la souris est celle
+         * de mouse_type (0, la série Microsoft, par défaut, pc.c:784). */
+        h_ps2_forget();
+        mouse_emu_init();
 
         /* video_init(), pc.c:374. On appelle directement device_add plutot que
          * video_init() : le switch sur romset de video.c:761-914 n'a de cas pour

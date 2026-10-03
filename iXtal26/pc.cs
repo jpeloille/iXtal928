@@ -484,7 +484,7 @@ internal static partial class pc
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
 
         // pcem: pc.c:784 — G1.3 : la souris. DEVIATION : un indice sans souris transcrite
-        //   (Mouse Systems, PS/2) ferait déréférencer NULL à PCem ; refusé ici, la série
+        //   (Mouse Systems) ferait déréférencer NULL à PCem ; refusé ici, la série
         //   Microsoft à la place, et dit.
         Mouse.mouse.mouse_type = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "mouse_type", 0);
@@ -494,8 +494,24 @@ internal static partial class pc
                                         "la souris série Microsoft (0) à la place.");
                 Mouse.mouse.mouse_type = 0;
         }
+        mouse_type_selon_machine();
 
         return true;
+    }
+
+    /// <summary>PS2.0 — une souris PS/2 sur une machine sans MODEL_PS2 : l'interface de PCem ne
+    /// la propose pas (wx-config.c:64). DEVIATION (PLAN-PS2.md, décision n° 4) : refusée, la
+    /// souris série Microsoft à la place, et dit — comme une valeur de configuration hors liste
+    /// (G8.3). Appelée après tout ce qui pose mouse_type (clé du .cfg, --mouse-type).</summary>
+    internal static void mouse_type_selon_machine()
+    {
+        if ((Mouse.mouse.mouse_get_type(Mouse.mouse.mouse_type) & Mouse.mouse.MOUSE_TYPE_IF_MASK) == Mouse.mouse.MOUSE_TYPE_PS2 &&
+            (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_PS2) == 0)
+        {
+                Console.Error.WriteLine($"mouse_type = {Mouse.mouse.mouse_type} : souris PS/2 refusée sur " +
+                                        $"{Models.model_c.model_get_internal_name()} (pas de MODEL_PS2), la souris série Microsoft (0) à la place.");
+                Mouse.mouse.mouse_type = 0;
+        }
     }
 
     /// <summary>
@@ -737,6 +753,9 @@ internal static partial class pc
 
         Models.model_c.model_init();
         // pcem: pc.c:373 — M21 : la souris série Microsoft sur COM1 (mouse_type = 0).
+        // iXtal26 (outillage) — PS2.0 : la sonde ne doit pas lire une souris PS/2 d'un amorçage
+        //   précédent (pendant de h_ps2_forget côté oracle).
+        Mouse.mouse_ps2.Probe = null;
         Mouse.mouse.mouse_emu_init();
         Video.video.video_init();
         Sound.sound_speaker.speaker_init();   // pc.c:375

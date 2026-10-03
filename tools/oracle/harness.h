@@ -680,7 +680,8 @@ uint8_t *h_ram(void);
 /* 36 depuis G8.1 : h_set_sndcard, h_opl_reset, h_sound_probe (H_SOUND_PROBE_N champs). */
 /* 37 depuis G8.2 : la SB Pro v2 (sndcard sbprov2), la sonde du son passe de 21 à 41 champs. */
 /* 38 depuis G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg). */
-#define H_ABI_VERSION 38
+/* 39 depuis PS2.0 : h_set_mouse_type, h_mouse_probe (la souris PS/2) ; h_mouse_poll pose mouse_buttons. */
+#define H_ABI_VERSION 39
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

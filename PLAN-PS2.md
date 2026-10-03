@@ -70,7 +70,7 @@ et place dans la file (`< 13`), déplacements bornés à [-256, 255].
 
 ## Les étapes
 
-### PS2.0 — `mouse_ps2.c`, des deux côtés ; l'injection de la souris dans le boot-diff
+### PS2.0 — `mouse_ps2.c`, des deux côtés ; l'injection de la souris dans le boot-diff  ✅ *fait, VERIFICATION.md § PS2.0*
 
 Transcription de `mouse_ps2.c` (`Mouse/mouse_ps2.cs`), les places 2 et 3 du registre ;
 `mouse_scan` rejoint son fichier (la DEVIATION de `keyboard_at.cs` tombe). Oracle : `mouse_ps2.c`

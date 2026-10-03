@@ -32,6 +32,25 @@ public static class BootDiff
     /// <summary>G8.3 — les sections de device du .cfg chargé (PluginApi/config.cs), recopiées
     /// dans l'oracle avant h_boot : device_get_config_int/string y lisent alors les mêmes
     /// valeurs. Sans section, les deux côtés rendent le défaut du device.</summary>
+    /// <summary>PS2.0 — les mouvements de --mouse-at prévus en fin de la tranche `s`, côté oracle.</summary>
+    private static void SourisOracle(int s)
+    {
+        foreach (var m in MouseEvents)
+            if (m.slice == s)
+                Oracle.h_mouse_poll(m.x, m.y, m.z, m.b);
+    }
+
+    /// <summary>PS2.0 — les mêmes, côté C# : pollmouse (pc.c:110-121) au mouvement près.</summary>
+    private static void SourisCsharp(int s)
+    {
+        foreach (var m in MouseEvents)
+            if (m.slice == s)
+            {
+                Mouse.mouse.mouse_buttons = m.b;
+                Mouse.mouse.mouse_poll(m.x, m.y, m.z, m.b);
+            }
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -66,6 +85,14 @@ public static class BootDiff
     /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
     /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
     internal static string? ExpectSb;
+    /// <summary>PS2.0 — `--mouse-type N` (l'indice de mouse_list, pc.c:784), appliqué après
+    /// --config et --model, puis jugé contre la machine (pas de PS/2 sans MODEL_PS2).</summary>
+    internal static int? MouseTypeOverride;
+    /// <summary>PS2.0 — `--mouse-at TRANCHE:dx,dy,dz,b`, répétable : un mouvement injecté EN FIN
+    /// de tranche, des deux côtés (h_mouse_poll ; mouse_buttons = b puis mouse_poll), là où
+    /// runpc appellerait pollmouse. Aucun des deux côtés du boot-diff ne sonde la souris hôte
+    /// entre deux : seuls ces mouvements existent.</summary>
+    internal static readonly List<(int slice, int x, int y, int z, int b)> MouseEvents = new();
 
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
                           string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
@@ -85,6 +112,16 @@ public static class BootDiff
             return 2;
         if (SndcardOverride is not null && !pc.setsndcard(SndcardOverride))
             return 2;
+        if (MouseTypeOverride is { } mt)
+        {
+            if ((uint)mt > 5 || Mouse.mouse.mouse_get_name(mt) is null)
+            {
+                Console.Error.WriteLine($"--mouse-type {mt} : souris non transcrite.");
+                return 2;
+            }
+            Mouse.mouse.mouse_type = mt;
+        }
+        pc.mouse_type_selon_machine();
         // M16 — le processeur, APRÈS --model : l'indice ne vaut que dans la table de la
         // machine finale, et check_cpu (appelé par initpc) le juge contre elle.
         if (CpuOverride is { } cpuN)
@@ -213,6 +250,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -247,6 +285,7 @@ public static class BootDiff
             // pc.c:490-491 — runpc() appelle keyboard_poll_host puis keyboard_process
             // APRÈS execx86. h_runpc ne le fait pas ; on le fait ici, au même point.
             Oracle.h_kbd_process();
+            SourisOracle(i);
         }
         Oracle.h_trace_close();
         Oracle.h_closepc();
@@ -259,6 +298,9 @@ public static class BootDiff
         // G8.1 — la sonde du son, au même point de l'histoire.
         var sndOracle = new ulong[Oracle.SoundProbeN];
         Oracle.h_sound_probe(sndOracle);
+        // PS2.0 — la sonde de la souris PS/2, au même point.
+        var ps2Oracle = new ulong[Oracle.MouseProbeN];
+        Oracle.h_mouse_probe(ps2Oracle);
 
         // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
         // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
@@ -352,11 +394,14 @@ public static class BootDiff
 
             Keyboard.keyboard.keyboard_poll_host();
             Keyboard.keyboard.keyboard_process();
+            SourisCsharp(s);
         }
 
         var vgaCsharp = new ulong[Oracle.VgaProbeN];
         Video.vid_svga.Probe(vgaCsharp);
         var sndCsharp = SoundProbeCsharp();
+        var ps2Csharp = new ulong[Oracle.MouseProbeN];
+        Mouse.mouse_ps2.ProbeState(ps2Csharp);
         // La carte, retenue AVANT closepc : device_close_all passe par vga_close, qui
         // remet svga_pri à nul. Sans cette référence, l'écran de fin se lisait par
         // mem_readb_phys — donc par svga_read — sous un en-tête « CGA ».
@@ -407,6 +452,7 @@ public static class BootDiff
             // doivent s'imprimer, y compris après la première divergence.
             return vgaVerdict
                  | CompareSound(sndOracle, sndCsharp)
+                 | CompareMouse(ps2Oracle, ps2Csharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
@@ -616,6 +662,7 @@ public static class BootDiff
             }
             Oracle.h_runpc();
             Oracle.h_kbd_process();
+            SourisOracle(s);
             var budget = Cpu.cpu_c.cpu_get_speed() / 100;
             while (budget > 0)
             {
@@ -624,6 +671,7 @@ public static class BootDiff
             }
             Keyboard.keyboard.keyboard_poll_host();
             Keyboard.keyboard.keyboard_process();
+            SourisCsharp(s);
 
             Oracle.h_getstate(out sa);
             _808x.GetState(ref sb);
@@ -684,6 +732,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -922,6 +971,42 @@ public static class BootDiff
         }
     }
 
+    // PS2.0 — LA SONDE DE LA SOURIS PS/2, quand mouse_type en désigne une : le diff
+    // d'instructions voit ce que l'invité LIT du 8042 ; l'état interne de la souris (mode,
+    // résolution, cumuls de déplacement, knock Intellimouse) n'y passe pas tout entier.
+    private static readonly string[] MouseFields =
+    {
+        "mouse_scan|montée", "queue start|end", "#mouse_queue", "mode|flags|res|rate", "command|cd",
+        "x|y", "z|b", "intellimouse|mode", "#last_data",
+    };
+
+    private static int CompareMouse(ulong[] o, ulong[] c)
+    {
+        if ((Mouse.mouse.mouse_get_type(Mouse.mouse.mouse_type) & Mouse.mouse.MOUSE_TYPE_IF_MASK) != Mouse.mouse.MOUSE_TYPE_PS2)
+            return 0;
+        var bad = 0;
+        for (var f = 0; f < MouseFields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  SOURIS {MouseFields[f],-20} oracle {o[f]:X16} | C# {c[f]:X16}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde de la souris : {bad} champ(s) divergent(s) sur {MouseFields.Length}.");
+            return 1;
+        }
+        if ((o[0] >> 32) == 0)
+        {
+            Console.Error.WriteLine("Sonde de la souris : aucune souris PS/2 montée des deux côtés.");
+            return 1;
+        }
+        Console.WriteLine($"Sonde de la souris : {MouseFields.Length} champs identiques — souris PS/2 " +
+                          $"(type {Mouse.mouse.mouse_type}), file du 8042 {o[1] & 0xffffffff}/{o[1] >> 32}, mouse_scan {o[0] & 0xffffffff}.");
+        return 0;
+    }
+
     private static readonly string[] SpeakerFields =
     {
         "speaker_gated", "speaker_enable", "was_speaker_enable", "speakon", "speakval", "ppispeakon",
@@ -962,6 +1047,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -1084,6 +1170,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);

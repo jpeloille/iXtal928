@@ -963,6 +963,31 @@ la machine. `sb_irq` (`sound_sb_dsp.c:107-114`) appelle `picint(1 << 10)` ; sans
 *Trouvé par* : reconnaissance de G8 (défaut n° 3).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
 
+### PB-94 — La souris PS/2 ne répond pas aux commandes qu'elle ne connaît pas
+
+`mouse_ps2.c:60-146`, `mouse_ps2_write` : le `switch` des commandes ne traite que E6h à E9h, EBh,
+F2h à F5h et FFh ; le `default`, qui appelait `fatal()`, est commenté (`:144-145`). Une autre
+commande — F6h (valeurs par défaut), EAh (mode flux), F0h (mode distant), EEh (écho), ECh, EDh —
+est retenue dans `command` et ne reçoit RIEN, pas même l'accusé FAh que la vraie souris rend à
+toute commande. `MOUSE_REMOTE` et `MOUSE_ECHO` (`:12`) ne sont jamais posés.
+*Effet* : un pilote qui envoie F6h ou F0h attend son accusé jusqu'à son délai, puis conclut à
+une souris absente ou en panne.
+*Trouvé par* : reconnaissance de PS2 (PLAN-PS2.md, défaut n° 1).
+*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-94 ; le banc PS2BANC le montre (F6h → rien, EEh
+au relevé).
+
+### PB-95 — L'état de la souris PS/2 code le bouton du milieu comme gauche et droit
+
+`mouse_ps2.c:83-84`, commande E9h (état) : `if (mouse_buttons & 4) temp |= 3;` — les bits 0 et 1
+(gauche et droit), là où l'octet d'état porte le bouton du milieu en bit 2 (le paquet de flux,
+`:199-200`, et EBh, `:102-103`, le posent bien en bit 2, et seulement pour une souris à trois
+boutons).
+*Effet* : un pilote qui lit l'état voit les deux boutons latéraux enfoncés quand on presse celui
+du milieu.
+*Trouvé par* : reconnaissance de PS2 (défaut n° 2).
+*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-95 ; le banc PS2BANC, bouton du milieu tenu, le
+montre à E9h.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1719,6 +1744,7 @@ audit systématique de PCem** :
 | L'Amstrad PC1512 (G1.2) | PB-89 élargi |
 | Reconnaissance et transcription de la Sound Blaster Pro v2 (G8.2) | PB-90 à PB-92 |
 | La vérification des sections de device du .cfg (G8.3) | PB-93 |
+| Reconnaissance et transcription de la souris PS/2 (PS2.0) | PB-94, PB-95 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

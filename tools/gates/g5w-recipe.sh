@@ -8,8 +8,8 @@
 #                        (KeyScript tape en QWERTY) ;
 #   vierge46.img       : 156 Mo de zéros, type 46 ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
-#   c.nvr, cd.nvr, c386.nvr, c486.nvr : CMOS fabriqués par --make-nvr (type 46 en C:, en C: et D: ;
-#                        ami386dx ; ami486, G6.4) ;
+#   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
+#                        en C: et D: ; ami386dx ; ami486, G6.4 ; ami386dx sans disque, PS2.0) ;
 #   nvr/default        : les CMOS de référence de PCem.
 # Puis les empreintes sont comparées à tools/gates/g5w.sha256. Un écart veut dire que les
 # disques de os/ ont changé (on s'en sert : ce sont les disques des profils Rider) — les
@@ -35,7 +35,8 @@ dotnet "$BIN" --make-nvr ami286-mfm.cfg c.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami286-cd.cfg cd.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami386dx-ide.cfg c386.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami486-ide.cfg c486.nvr --force > /dev/null   # G6.4
-( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr ) > "$WORK/empreintes"
+dotnet "$BIN" --make-nvr ami386dx-fd.cfg f386.nvr --force > /dev/null   # PS2.0
+( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi

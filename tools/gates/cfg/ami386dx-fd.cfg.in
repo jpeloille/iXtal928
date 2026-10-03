@@ -1,0 +1,6 @@
+# PS2.0 — l'ami386dx de bd-ami386dx-4m, sans disque dur, deux lecteurs (A: 1,44 Mo, B: 1,2 Mo) :
+# le CMOS f386.nvr que g5w-recipe.sh en tire laisse le POST aller au DOS de la disquette.
+model = ami386dx
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 2

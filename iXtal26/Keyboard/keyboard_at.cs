@@ -41,6 +41,7 @@ using static iXtal26.Keyboard.keyboard;
 using static iXtal26.Memory.mem;
 using static iXtal26.Models.pic;
 using static iXtal26.Models.pit;
+using static iXtal26.Mouse.mouse_ps2;
 using static iXtal26.Sound.sound_speaker;
 using static iXtal26.Video.video;
 using static iXtal26.io;
@@ -151,12 +152,7 @@ internal static partial class keyboard_at
     internal static readonly uint8_t[] mouse_queue = new uint8_t[16];
     internal static int mouse_queue_start = 0, mouse_queue_end = 0;
 
-    // DEVIATION: mouse_scan appartient a mouse_ps2.c:10, que ce depot ne transcrit
-    //   pas — aucune machine du depot n'a de souris. keyboard_at.h le declare `extern`
-    //   et le 8042 est son seul lecteur ici, donc il vit dans ce fichier. L'ORACLE FAIT
-    //   LE MEME GESTE : harness_stubs.c:686 est litteralement `int mouse_scan;`, parce
-    //   que mouse_ps2.c n'est pas lie de ce cote non plus. Pendant exact, pas raccourci.
-    internal static int mouse_scan;
+    // mouse_scan vit dans Mouse/mouse_ps2.cs (mouse_ps2.c:10), depuis PS2.0.
 
     // pcem: keyboard_at.c:92-149 — LE POLL, ET SON ORDRE DE PRIORITE EST LA SPEC.
     //

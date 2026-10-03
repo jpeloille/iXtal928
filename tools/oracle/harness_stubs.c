@@ -869,7 +869,6 @@ int ramdisk_load_file(ramdisk_t *ramdisk, FILE *fp) { return -1; }
 char nvr_path[512];
 char nvr_default_path[512];
 char config_name[256];
-int mouse_scan;
 
 #define H_STUB_NVR(nom)                                                                                                                  void nom(void) { h_fatal_stub(#nom); }
 
@@ -1281,3 +1280,7 @@ void emu8k_close(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_close : EMU8000 non
 void emu8k_update(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_update : EMU8000 non lie (G8)\n"); }
 void mpu401_uart_init(mpu401_uart_t *mpu, uint16_t addr, int irq, int is_aztech) { (void)mpu; (void)addr; (void)irq; (void)is_aztech; fatal("mpu401_uart_init : MPU-401 non lie (G8)\n"); }
 void azt2316a_enable_wss(uint8_t enable, void *p) { (void)enable; (void)p; fatal("azt2316a_enable_wss : Aztech non lie (G8)\n"); }
+
+/* PS2.0 — mouse_ps2.c:224-225 : la souris du PC5086 passe par son super-E/S (f82c710_upc.c),
+ * non lié — la machine n'est pas dans le dépôt. */
+void upc_set_mouse(void (*mouse_write)(uint8_t val, void *p), void *p) { (void)mouse_write; (void)p; fatal("upc_set_mouse : PC5086 non lie (PS2.0)\n"); }
