@@ -5445,3 +5445,40 @@ toutes vertes, identiques hors ABI (39 → 40) ; les cinq nouvelles vertes (`bd-
 `bd-pcdos-mda`, `bd-xt-mda`, `bd-xtdos-mda`, `bd-ibmat-mda`). Build 0 avertissement, selftest,
 check-oracle 0 dérive (162). Dans ce commit aussi : la phrase sur les ROM PS/2 corrigée (§ PS2.1,
 PLAN-PS2.md, PLAN.md).
+
+## Incident du 3 octobre 2026 — une écriture dans `os/pcdos20/pcdos20s.img`
+
+**Ce qui s'est passé.** Le 03/10 à 18:48, pour lire les relevés du banc HERCBANC (G9.1), j'ai
+lancé `iXtal26 --boot` en C# seul depuis un bac à sable `/tmp` dont TOUTES les entrées étaient des
+liens vers le dépôt, `os/` compris. `--boot --floppy-b` montait l'image elle-même, sans copie : la
+commande `W` de DEBUG a écrit `HERCBANC.COM` (597 octets) dans la vraie disquette supplémentaire
+de PC-DOS 2.00 — entrée de répertoire 14, clusters 183-184, les deux FAT. Empreinte : avant
+`097874f22f436cc4…` (`os/os.sha256`), après `7c20269ced9ba0c7…`.
+
+**La décision de l'utilisateur** (03/10) : l'image reste telle quelle, avec `HERCBANC.COM` ;
+l'image « fonctionnellement restaurée » préparée dans `/tmp` (entrée 14 et FAT remises à zéro ; la
+restauration exacte est impossible, le contenu d'origine des deux secteurs réécrits étant
+inconnu) n'y est pas copiée. `os/os.sha256` n'est pas modifié (pas d'accord pour le faire).
+
+**Les portes.** Les cinq qui lisent cette disquette en B: prennent de nouveaux comptes :
+
+| Porte | Avant (g90) | Après (image modifiée) |
+|---|---:|---:|
+| `bd-pc1512-plan` | 210 736 512 | 210 739 693 |
+| `bd-pc-adlib-banc` | 152 918 358 | 152 910 597 |
+| `bd-pc-sbpro-banc` | 220 778 728 | 220 772 537 |
+| `bd-ami386dx-ps2-banc-2` | 72 011 910 | 72 012 018 |
+| `bd-ami386dx-ps2-banc-3` | 72 012 638 | 72 012 598 |
+
+**Preuve de la cause** : ces cinq portes, rejouées avec l'instantané de g90 sur l'image actuelle,
+rendent des journaux identiques à ceux de g91 ; et le banc OPLBANC rejoué sur l'image
+fonctionnellement restaurée retrouve le compte de g90 (152 918 358) — c'est le disque, pas le
+code. Toutes restent vertes, instructions identiques des deux côtés.
+
+**La prévention** (accordée le 03/10) : `--boot` monte des COPIES temporaires de ses disquettes et
+disques, et les échanges `@A:`/`@B:` de son script aussi (`Host/CommandLine/BootImageCopies.cs`) ;
+`--in-place` rend l'écriture en place, et aucun outil du dépôt ne s'en sert — l'usage normal de
+l'émulateur ne change pas. Vérifié : la saisie de HERCBANC rejouée en `--boot` laisse l'image
+source intacte (empreinte inchangée), le banc écrivant sur la copie. `tools/gates/par.sh` ne lie
+plus `os/` ni `nvr/` dans les répertoires des portes : `nvr/default/` et `os/pcdos20/` y sont
+copiés. Mes bacs à sable de `/tmp` ne lient plus que `roms/`.

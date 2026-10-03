@@ -98,7 +98,11 @@ public static class BootTest
                 Console.WriteLine($"\n--- {text[1]}: éjecté ---");
                 return;
             }
-            Disc.disc.disc_load(drive, text[3..]);
+            // G9.1 — sur une copie, comme les images montées par --boot (BootImageCopies).
+            var fn = Host.CommandLine.BootImageCopies.Enabled
+                ? Host.CommandLine.BootImageCopies.Copy(text[3..], drive == 0 ? "a" : "b")
+                : text[3..];
+            Disc.disc.disc_load(drive, fn);
             Console.WriteLine($"\n--- {text[1]}: {text[3..]} inséré" +
                               (Disc.disc.drive_empty[drive] != 0 ? " — REFUSÉ par disc_load ---" : " ---"));
             return;

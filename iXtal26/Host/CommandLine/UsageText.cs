@@ -91,6 +91,9 @@ internal static class UsageText
               --hdd IMG        après --boot : monte un disque dur, comme l'option
                                principale. --hdd-type N et --hdd-controller NOM la
                                complètent
+              --in-place       après --boot : écrit dans les images elles-mêmes. Sans lui,
+                               --boot monte des COPIES temporaires de ses disquettes et
+                               disques (G9.1) ; aucun outil du dépôt ne s'en sert
               --type TEXTE     après --boot : tape TEXTE puis Entrée dans la machine,
                                et revide l'écran. Répétable, dans l'ordre. C'est la
                                seule vérification du chemin clavier qui ne dépende

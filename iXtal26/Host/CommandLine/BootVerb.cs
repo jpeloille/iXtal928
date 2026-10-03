@@ -24,10 +24,18 @@ internal static class BootVerb
         var typedLines = new List<string>();
         var machine = new MachineOverrides();
         var settleSlices = KeyScript.SlicesAfterLine;
+        var inPlace = false;
 
         while (cursor.NextIsOption)
         {
             var option = cursor.TakeNext();
+
+            // G9.1 — sans argument, avant le test « attend un argument » des autres options.
+            if (option == "--in-place")
+            {
+                inPlace = true;
+                continue;
+            }
 
             if (!cursor.HasNext)
                 return Failure.Usage($"{option} attend un argument.");
@@ -81,6 +89,13 @@ internal static class BootVerb
         if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardDiskController() ||
             !machine.TryMountHardDisks())
             return ExitCode.UsageError;
+
+        // G9.1 (prévention, après l'incident du 03/10) : --boot travaille sur des COPIES de ses
+        //   images, comme boot-diff — l'invité y écrit sans toucher aux images de l'utilisateur.
+        //   --in-place rend l'écriture en place ; aucun outil du dépôt ne s'en sert.
+        BootImageCopies.Enabled = !inPlace;
+        if (!inPlace)
+            BootImageCopies.CopyMountedImages();
 
         return (ExitCode)BootTest.Run(paths.resolve_roms_path(romDirectory), sliceCount, typedLines, settleSlices);
     }

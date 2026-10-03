@@ -21,16 +21,19 @@ LOGP="${OUT%.tsv}"
 N=0
 emit() { local f; N=$((N+1)); f=$(printf '%s/g/%03d-%s.sh' "$D" $N "$1"); cat > "$f"; }
 # run : une porte « dépôt ». Elle tourne dans $WORK/run/NOM, où chaque entrée du dépôt est un
-# lien, SAUF nvr/ : une copie de nvr/default/ seulement. Aucune porte ne lit donc un CMOS de
+# lien, SAUF nvr/ et os/ : une copie de nvr/default/ et de os/pcdos20/ seulement (G9.1, après
+# l'incident du 03/10 : aucun bac à sable ne lie plus les répertoires de l'utilisateur ; boot-diff
+# copie de toute façon ses images avant de les monter). Aucune porte ne lit donc un CMOS de
 # session de l'utilisateur (nvr/.MACHINE.nvr), qu'il peut modifier à tout moment en se servant de
 # l'émulateur — mesuré en G1.0 : les boot-diffs de l'ami386dx en dépendaient.
 run() { local name=$1; shift; local W="$WORK/run/$name"
   emit "$name" <<G
 #!/usr/bin/env bash
 t0=\$SECONDS
-rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr")
-for e in $(printf %q "$REPO")/*; do [ "\$(basename "\$e")" = nvr ] || ln -s "\$e" $(printf %q "$W")/; done
+rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr") $(printf %q "$W/os")
+for e in $(printf %q "$REPO")/*; do case "\$(basename "\$e")" in nvr|os) ;; *) ln -s "\$e" $(printf %q "$W")/;; esac; done
 cp -r $(printf %q "$REPO/nvr/default") $(printf %q "$W/nvr/")
+cp -r $(printf %q "$REPO/os/pcdos20") $(printf %q "$W/os/")
 res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
 printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | tail -1)" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
 echo "\$res" > $(printf %q "$LOGP-$name.txt")
