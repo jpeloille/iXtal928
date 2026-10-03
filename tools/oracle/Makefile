@@ -51,6 +51,7 @@ SRC := harness.c \
        harness_pc1512.c \
        harness_mda.c \
        harness_hercules.c \
+       harness_ega.c \
        harness_ps2.c \
        $(PCEM)/src/sound/sound_opl.c \
        $(PCEM)/src/sound/sound_adlib.c \

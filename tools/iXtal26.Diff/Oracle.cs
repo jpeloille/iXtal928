@@ -61,7 +61,8 @@ public static class Oracle
     // 39 en PS2.0 : h_set_mouse_type, h_mouse_probe ; h_mouse_poll pose mouse_buttons.
     // 40 en G9.0 : la MDA et sa sonde (champ 0 = 4).
     // 41 en G9.1 : l'Hercules et sa sonde (champ 0 = 5).
-    public const int AbiVersion = 41;
+    // 42 en G9.2 : l'EGA et sa sonde (champ 0 = 6).
+    public const int AbiVersion = 42;
 
     static Oracle()
     {

@@ -1005,6 +1005,25 @@ au-delà.
 *G9.1* : l'Hercules fait de même (`vid_hercules.c:89`, `:54-60`, `:137-138`) ; reproduit,
 `Video/vid_hercules.cs`. Le banc HERCBANC relit les douze registres du mode graphique.
 
+### PB-99 — L'EGA de PCem a des traits de la VGA, et trompe le test de son BIOS
+
+`vid_ega.c` :
+- l'attribut 10h bit 7 et l'attribut 14h composent la palette (`:39-42`), et l'attribut 10h
+  bit 5 la fenêtre de défilement (`:613`) — des registres de la VGA ;
+- CR11 bit 7 protège CR0-CR7 en écriture (`:128`) — idem ;
+- tous les registres se relisent (`:152-179`), là où l'EGA est presque toute en écriture seule
+  (CR10/CR11 rendent le crayon optique) : un logiciel qui distingue l'EGA de la VGA en relisant un
+  registre se trompe ;
+- `3DAh` : `stat ^= 0x30` à chaque lecture (`:182`, « Fools IBM EGA video BIOS self-test ») au
+  lieu des broches vidéo ;
+- le texte n'est redessiné que sur `fullchange` (`:559`) : un curseur, une police (SR3) ou un
+  attribut 10h changés n'apparaissent qu'au prochain rafraîchissement complet ;
+- la mémoire configurée (64 ou 128 Ko) ne borne que le processeur (`vram_limit`) ; le rendu lit
+  au-delà (`:345-347`, `:406-408`, `:478-480`) des octets qu'une carte plus petite n'a pas.
+*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défaut n° 6).
+*Reproduit* : `Video/vid_ega.cs`, marqueurs PB-99. Le banc EGABANC relit le CRTC et l'attribut 10h,
+et voit 3DAh basculer ses bits 4-5.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1643,7 +1662,7 @@ l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 96
 instructions — avec la nouvelle.
 
 *G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs`. L'Hercules
-(`vid_hercules.c:110-119`, G9.1, reproduit) ; l'EGA (`vid_ega.c:236-249`) suivra en G9.2.
+(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits.
 
 ### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
 
@@ -1789,6 +1808,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de la souris PS/2 (PS2.0) | PB-94, PB-95 |
 | Reconnaissance et transcription de la MDA (G9.0) | PB-96, PB-97, PB-36 élargi |
 | Transcription de l'Hercules (G9.1) | PB-98 ; PB-36, PB-96, PB-97 élargis |
+| Transcription de l'EGA (G9.2) | PB-99 ; PB-36 élargi |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

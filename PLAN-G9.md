@@ -110,7 +110,7 @@ le 6845 du mode 720×348), écrit les deux pages et relit 3BA — sonde comparé
 Windows 3.11 et `HERCULES.DRV` (disquette 2) sur un AT avec l'Hercules, par le SETUP DOS dans
 une copie `/tmp` d'un disque de l'utilisateur.
 
-### G9.2 — L'EGA
+### G9.2 — L'EGA  ✅ *fait, VERIFICATION.md § G9.2*
 
 `vid_ega.c` (la ROM, 64/128/256 Ko, les moniteurs) ; sonde EGA (registres, palette, VRAM, trame).
 **Portes** : boot-diffs 5150, XT, IBM AT, ami286, ami386 ; le POST, le DOS, un banc des modes

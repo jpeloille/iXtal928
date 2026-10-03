@@ -120,6 +120,7 @@ internal static partial class pc
     internal const int GFX_CGA = 0;
     internal const int GFX_MDA = 1; /* G9.0 */
     internal const int GFX_HERCULES = 2; /* G9.1 */
+    internal const int GFX_EGA = 3; /* G9.2 — Using IBM EGA BIOS */
     internal const int GFX_TVGA = 4; /*Using Trident TVGA8900D BIOS*/
     internal const int GFX_VGA = 13;
     internal const int GFX_CL_GD5429 = 19; /*Cirrus Logic CL-GD5429*/

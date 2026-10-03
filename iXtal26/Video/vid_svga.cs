@@ -2044,6 +2044,7 @@ internal static partial class vid_svga
                 ProbePc1512(o);   // G1.2 — le PC1512, si il est monté (champ 0 = 3)
                 ProbeMda(o);      // G9.0 — la MDA, si elle est montée (champ 0 = 4)
                 ProbeHercules(o); // G9.1 — l'Hercules, si elle est montée (champ 0 = 5)
+                ProbeEga(o);      // G9.2 — l'EGA, si elle est montée (champ 0 = 6)
                 return;
         }
 
@@ -2198,6 +2199,50 @@ internal static partial class vid_svga
                 o[f++] = (uint64_t)(long)s3.blitter_busy | ((uint64_t)(uint32_t)s3.force_busy << 32);
                 o[f++] = s3.hwc_fg_col | ((uint64_t)s3.hwc_bg_col << 32);
         }
+    }
+
+    // G9.2 — les trente champs de l'EGA (h_ega_probe), aux places de la M24 et du PC1512 (offset
+    // 122 ; aucune des trois ne se monte avec une autre).
+    private static void ProbeEga(uint64_t[] o)
+    {
+        var e = vid_ega.Probe;
+        int f = 122;
+        static uint64_t I(long x) => (uint32_t)x;
+
+        if (e == null)
+                return;
+        o[0] = 6;
+        o[f++] = Fnv(e.vram.AsSpan(0, 0x40000));
+        o[f++] = Fnv(e.crtc);
+        o[f++] = Fnv(e.gdcreg);
+        o[f++] = Fnv(e.attrregs);
+        o[f++] = Fnv(e.seqregs);
+        o[f++] = Fnv(e.egapal);
+        o[f++] = e.crtcreg | (I(e.gdcaddr) << 8) | (I(e.attraddr) << 16) | (I(e.attrff) << 24) | (I(e.seqaddr) << 32);
+        o[f++] = e.miscout | (I(e.vidclock) << 8) | ((uint64_t)e.stat << 16) | ((uint64_t)e.scrblank << 24) | (I(e.vres) << 32);
+        o[f++] = e.la | ((uint64_t)e.lb << 8) | ((uint64_t)e.lc << 16) | ((uint64_t)e.ld << 24);
+        o[f++] = e.colourcompare | ((uint64_t)e.colournocare << 8) | (I(e.readmode) << 16) | (I(e.writemode) << 24) |
+                 (I(e.readplane) << 32) | (I(e.chain2_read) << 40) | (I(e.chain2_write) << 48) | ((uint64_t)e.writemask << 56);
+        o[f++] = I(e.charseta) | (I(e.charsetb) << 32);
+        o[f++] = I(e.vtotal) | (I(e.dispend) << 32);
+        o[f++] = I(e.vsyncstart) | (I(e.split) << 32);
+        o[f++] = I(e.hdisp) | (I(e.rowoffset) << 32);
+        o[f++] = e.dispontime;
+        o[f++] = e.dispofftime;
+        o[f++] = e.timer.ts_integer | ((uint64_t)e.timer.ts_frac << 32);
+        o[f++] = I(e.dispon);
+        o[f++] = I(e.ma) | (I(e.maback) << 32);
+        o[f++] = I(e.ca);
+        o[f++] = I(e.vc) | (I(e.sc) << 32);
+        o[f++] = I(e.linepos) | (I(e.vslines) << 32);
+        o[f++] = I(e.con) | (I(e.cursoron) << 32);
+        o[f++] = I(e.blink) | (I(e.scrollcache) << 32);
+        o[f++] = I(e.firstline) | (I(e.lastline) << 32);
+        o[f++] = I(e.displine);
+        o[f++] = I(e.vrammask) | (I(e.vram_limit) << 32);
+        o[f++] = I(e.video_res_x) | (I(e.video_res_y) << 32);
+        o[f++] = I(e.video_bpp) | (I(e.frames) << 32);
+        o[f++] = I(vid_ega.egaswitchread) | (I(vid_ega.egaswitches) << 32);
     }
 
     // G9.1 — les dix-sept champs de l'Hercules (h_hercules_probe), aux places de la M24 : ceux de la

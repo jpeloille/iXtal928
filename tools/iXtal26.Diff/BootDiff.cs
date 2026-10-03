@@ -563,7 +563,10 @@ public static class BootDiff
             return 1;
         }
 
-        if (o[0] == 5)
+        if (o[0] == 6)
+            Console.WriteLine($"Sonde EGA : {VgaProbe.Fields.Length} champs identiques — VRAM de 256 Ko, " +
+                              "registres, palette et balayage de l'EGA (aux places de la M24).");
+        else if (o[0] == 5)
             Console.WriteLine($"Sonde Hercules : {VgaProbe.Fields.Length} champs identiques — registres, VRAM " +
                               "de 64 Ko et balayage de l'Hercules (aux places de la M24).");
         else if (o[0] == 4)

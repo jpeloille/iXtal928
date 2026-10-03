@@ -5521,3 +5521,44 @@ de zéro : 156 portes, **toutes vertes** ; comparée à g90 : ABI (40 → 41), l
 `bd-ibmat-hercules`, `bd-pc-herc-banc`), et les cinq portes de la disquette B: recomptées par
 l'incident (section précédente) ; rien d'autre. Build 0 avertissement, selftest, check-oracle 0
 dérive (165).
+
+## G9.2 — L'EGA d'IBM ; PB-99, PB-36 élargi
+
+Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.2.
+
+**Transcrit.** `vid_ega.c` entier (`Video/vid_ega.cs`) : la ROM (`ibm_6277356_ega_card_u44_27128.bin`,
+fenêtre de 32 Ko, octets renversés au besoin), les ports 3A0-3DF (3Bx/3Dx échangés selon 3C2 bit
+0), A0000 sur 128 Ko remappé par GDC6, quatre plans de 64 Ko, le texte, le 16 couleurs (deux
+résolutions) et le 4 couleurs, la configuration `memory` (64/128/256 Ko) et `monitor_type`. Les
+deux `switch` logiques d'`ega_write`, identiques, en une fonction (DEVIATION) ; les `printf`/`pclog`
+de journal omis. `egaswitchread`, statique jamais remis à zéro chez PCem, est remis à zéro à
+chaque amorçage des deux côtés (PLAN-G9.md, décision n° 4). Défauts : **PB-99** (les traits de la
+VGA, les registres relisibles, le `^ 0x30` de 3DAh, le texte redessiné sur `fullchange`, la mémoire
+configurée qui ne borne que le processeur), **PB-36** élargi.
+
+**L'oracle.** `harness_ega.c` inclut `vid_ega.c`, `printf` éteint le temps de l'inclusion
+(déviation de sortie seulement : trois lignes à chaque écriture du CRTC noieraient les journaux) :
+la carte montée pour `GFX_EGA`, sa VRAM de 256 Ko effacée et `egaswitchread` remis à zéro à
+l'amorçage, sa sonde au genre 6 (trente champs) aux places de la M24. ABI 42.
+
+**Les boot-diffs** : 5150 (24 723 116 instructions), 5150 + DOS (26 784 812), XT (22 707 084),
+IBM AT (4 810 379), ami286 (5 507 964), ami386 (4 566 392) — sondes identiques ; `--boot` sur le 5150
+jusqu'au `DIR` de PC-DOS 2.00. **Le banc EGABANC** (`tools/egabanc/egabanc.py`, 766 octets,
+instructions 8086 seules), saisi dans DEBUG sur le 5150 : modes 0Dh, 0Eh, 10h et 04h par INT 10h ;
+plans, set/reset, rotation et XOR, masque de bits, modes d'écriture 1 et 2, lecture en mode 1 et
+plan lu ; le CRTC et l'attribut 10h relus ; 3DAh échantillonné — **186 020 638 instructions
+identiques, sonde identique** sur la disquette B: actuelle. Les relevés, lus en C# seul : 81h tourné de 3 rend 30h ; set/reset
+FF/00/FF/00 par plan ; XOR sur les verrous CFh ; le mode 2 couleur 5 FF/00/FF/00 ; le CRTC du mode
+04h relu 37h, 27h… ; 3DAh bascule ses bits 4-5 (PB-99). **Contrôle négatif**, retiré : `^ 0x20`
+au lieu de `^ 0x30` à 3DAh côté C# → première divergence à l'instruction 850 646.
+
+**Le témoin Windows** (C# seul, `--boot` sur copies — disque 486, disquettes 1, 2, 3, 5) : le SETUP
+DOS de Windows 3.11, affichage « EGA » ; **Program Manager en 640×350**, en mode 386 étendu (`WIN`)
+comme en mode standard (`WIN /S`). Yeager Air Combat (`os/yeager.img`, sur copie) : essayé, non
+concluant — le programme passe en 40 colonnes puis attend, sans interaction possible au script.
+
+**La série** (g92), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g91b :
+164 portes, **toutes vertes**, identiques hors ABI (41 → 42) ; les huit nouvelles vertes
+(`bd-pc-ega`, `bd-pcdos-ega`, `bd-xt-ega`, `bd-xtdos-ega` — 22 251 996 —, `bd-ibmat-ega`,
+`bd-ami286-ega`, `bd-ami386-ega`, `bd-pc-ega-banc`). Build 0 avertissement, selftest,
+check-oracle 0 dérive (168).

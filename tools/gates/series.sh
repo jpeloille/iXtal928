@@ -13,7 +13,7 @@ FPUX=$(for i in $(seq 0 255); do case $i in 212) ;; *) printf -- '--op %02X ' $i
 ALL0F=$(for i in $(seq 0 255); do printf -- '--0f %02X ' $i; done)
 run abi abi
 run ops-count ops-count
-for g in cga vga tvga8900d tvga9000b mda hercules; do
+for g in cga vga tvga8900d tvga9000b mda hercules ega; do
   run bd-pc-$g boot-diff roms 6000 --gfxcard $g
   run bd-pcdos-$g boot-diff roms 7000 --fda $DOS --gfxcard $g
   run bd-xt-$g boot-diff roms 6000 --model ibmxt --gfxcard $g
@@ -210,3 +210,13 @@ run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
 mapfile -t HBK < tools/hercbanc/hercbanc.keys
 HBB=(); for l in "${HBK[@]}"; do HBB+=(--type "$l"); done
 run bd-pc-herc-banc boot-diff roms 11000 --gfxcard hercules --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${HBB[@]}" --type "^" --type "^"
+# G9.2 — l'EGA d'IBM : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT,
+# l'ami286, l'ami386 ; le banc EGABANC (modes 0Dh, 0Eh, 10h, 04h ; plans, set/reset, rotation,
+# fonctions logiques, masque de bits, modes d'écriture 0-2, lecture en mode 1) saisi dans DEBUG sur
+# le 5150.
+run bd-ibmat-ega boot-diff roms 3000 --model ibmat --gfxcard ega
+run bd-ami286-ega boot-diff roms 3000 --model ami286 --gfxcard ega
+run bd-ami386-ega boot-diff roms 3000 --model ami386 --gfxcard ega
+mapfile -t EBK < tools/egabanc/egabanc.keys
+EBB=(); for l in "${EBK[@]}"; do EBB+=(--type "$l"); done
+run bd-pc-ega-banc boot-diff roms 11000 --gfxcard ega --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${EBB[@]}" --type "^" --type "^"

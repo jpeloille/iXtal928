@@ -683,7 +683,8 @@ uint8_t *h_ram(void);
 /* 39 depuis PS2.0 : h_set_mouse_type, h_mouse_probe (la souris PS/2) ; h_mouse_poll pose mouse_buttons. */
 /* 40 depuis G9.0 : la MDA (gfxcard GFX_MDA) et sa sonde (champ 0 = 4, places de la M24). */
 /* 41 depuis G9.1 : l'Hercules (GFX_HERCULES) et sa sonde (champ 0 = 5). */
-#define H_ABI_VERSION 41
+/* 42 depuis G9.2 : l'EGA (GFX_EGA) et sa sonde (champ 0 = 6). */
+#define H_ABI_VERSION 42
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son
