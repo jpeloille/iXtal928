@@ -344,11 +344,15 @@ void h_m24_forget(void);
 #include "keyboard_amstrad.h"
 #include "vid_pc1512.h"       /* pc1512_device, compilée par harness_pc1512.c */
 #include "vid_mda.h"          /* G9.0 — mda_device, compilée par harness_mda.c */
+#include "vid_hercules.h"     /* G9.1 — hercules_device, compilée par harness_hercules.c */
 void h_pc1512_attach(void);   /* harness_pc1512.c */
 void h_pc1512_probe(uint64_t *out);
 void h_mda_attach(void);       /* harness_mda.c — G9.0 */
 void h_mda_probe(uint64_t *out);
 void h_mda_forget(void);
+void h_hercules_attach(void);  /* harness_hercules.c — G9.1 */
+void h_hercules_probe(uint64_t *out);
+void h_hercules_forget(void);
 void h_pc1512_forget(void);
 #include "sound_adlib.h"      /* G8.1 — l'AdLib */
 /* G8.2 — la Sound Blaster Pro v2, dans l'ordre d'inclusion de sound_sb.c (:1-12) : sb_t embarque
@@ -1390,6 +1394,7 @@ int h_boot(const char *romspath) {
         h_m24_forget();
         h_pc1512_forget();
         h_mda_forget();
+        h_hercules_forget();
         /* G1.2 — video.c:775-777 : le PC1512 a SA vidéo, choisie par le romset. */
         if (romset == ROM_PC1512) {
                 device_add(&pc1512_device);
@@ -1426,6 +1431,10 @@ int h_boot(const char *romspath) {
                 svga = svga_get_pri();
                 memset(svga->vram, 0, svga->vram_max);
                 memset(svga->changedvram, 0, 0x1000000 >> 12);
+        } else if (gfxcard == GFX_HERCULES) {
+                /* G9.1 — video.c:120-121, l'Hercules. */
+                device_add(&hercules_device);
+                h_hercules_attach();
         } else if (gfxcard == GFX_MDA) {
                 /* G9.0 — video.c:140, la MDA. */
                 device_add(&mda_device);
@@ -1674,6 +1683,7 @@ void h_vga_probe(uint64_t *out) {
                 h_m24_probe(out);   /* G1.1 — la M24, si elle est montée (champ 0 = 2) */
                 h_pc1512_probe(out); /* G1.2 — le PC1512 (champ 0 = 3) */
                 h_mda_probe(out);   /* G9.0 — la MDA (champ 0 = 4) */
+                h_hercules_probe(out); /* G9.1 — l'Hercules (champ 0 = 5) */
                 return;
         }
 

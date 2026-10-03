@@ -5482,3 +5482,42 @@ l'émulateur ne change pas. Vérifié : la saisie de HERCBANC rejouée en `--boo
 source intacte (empreinte inchangée), le banc écrivant sur la copie. `tools/gates/par.sh` ne lie
 plus `os/` ni `nvr/` dans les répertoires des portes : `nvr/default/` et `os/pcdos20/` y sont
 copiés. Mes bacs à sable de `/tmp` ne lient plus que `roms/`.
+
+## G9.1 — L'Hercules ; PB-98, PB-36, PB-96, PB-97 élargis
+
+Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.1.
+
+**Transcrit.** `vid_hercules.c` entier (`Video/vid_hercules.cs`) : la MDA plus le graphique
+720×348 en deux pages de 32 Ko (3BFh bit 0 l'autorise, bit 1 ouvre B8000 : projection de 64 Ko),
+64 Ko de VRAM, l'état 3BAh dont le bit 7 suit le retour vertical. Comme chez PCem, deux fichiers et
+deux `mdacols` statiques. `v_hercules` au registre (`GFX_HERCULES`) ; `--make-nvr` écrit le
+monochrome. Défauts : PB-36, PB-96, PB-97 élargis ; **PB-98** (pas de `mem_mapping_remove` à la
+fermeture — sans conséquence, `mem_alloc` vide la liste à l'amorçage suivant).
+
+**L'oracle.** `harness_hercules.c` inclut `vid_hercules.c` : la carte montée pour
+`GFX_HERCULES`, sa VRAM de 64 Ko effacée à l'amorçage (décision n° 4), sa sonde au genre 5 aux
+places de la M24 (`ctrl2` avec `ctrl` et `stat`). ABI 41.
+
+**Les boot-diffs** : 5150 (25 436 674 instructions), 5150 + DOS (26 605 433), XT (23 428 198),
+IBM AT (5 054 627) — les comptes de la MDA, le BIOS ne distinguant pas les deux cartes ; sondes
+identiques. **Le banc HERCBANC** (`tools/hercbanc/hercbanc.py`, 597 octets, instructions 8086
+seules), saisi dans DEBUG sur le 5150 : 3BFh, 3B8h, les douze registres du 6845 du mode
+720×348, deux pages de 32 Ko remplies de motifs, relectures, 3BAh échantillonné, retour au
+texte — **156 511 696 instructions identiques, sonde identique** sur la disquette B: actuelle
+(156 505 176 sur l'image d'avant l'incident du 03/10, ci-dessus). Les relevés, lus en C# seul :
+le bit 7 de 3BAh bascule en texte comme en graphique ; les pages relues comme écrites (00 01 FF ;
+AA CB 73) ; le 6845 relu entier, 35 2D 2E 07 5B 02 57 57 02 03 00 00 (PB-97) ; B800 rend FFh une
+fois la seconde page fermée. **Contrôle négatif**, retiré : le bit 7 de 3BAh décalé côté C# →
+première divergence à l'instruction 932 130.
+
+**Le témoin Windows** (C# seul, `--boot`, copie `/tmp` du disque 486 et des disquettes
+d'installation, `KEYB FR` retiré, CMOS copié) : le SETUP DOS de Windows 3.11, affichage « Hercules Monochrome », disquettes 1, 2, 3 et 5
+de l'IBM Windows 3.11 insérées à la demande (copies) ; puis `WIN` : **Program Manager en
+720×348 sur l'Hercules** (capture). Rien n'est écrit dans `os/` ni `nvr/`.
+
+**La série** (g91b, après le commit de prévention), sous `MALLOC_PERTURB_=85`, oracle reconstruit
+de zéro : 156 portes, **toutes vertes** ; comparée à g90 : ABI (40 → 41), les six nouvelles vertes
+(`bd-pc-hercules`, `bd-pcdos-hercules`, `bd-xt-hercules`, `bd-xtdos-hercules`,
+`bd-ibmat-hercules`, `bd-pc-herc-banc`), et les cinq portes de la disquette B: recomptées par
+l'incident (section précédente) ; rien d'autre. Build 0 avertissement, selftest, check-oracle 0
+dérive (165).

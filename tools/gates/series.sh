@@ -13,7 +13,7 @@ FPUX=$(for i in $(seq 0 255); do case $i in 212) ;; *) printf -- '--op %02X ' $i
 ALL0F=$(for i in $(seq 0 255); do printf -- '--0f %02X ' $i; done)
 run abi abi
 run ops-count ops-count
-for g in cga vga tvga8900d tvga9000b mda; do
+for g in cga vga tvga8900d tvga9000b mda hercules; do
   run bd-pc-$g boot-diff roms 6000 --gfxcard $g
   run bd-pcdos-$g boot-diff roms 7000 --fda $DOS --gfxcard $g
   run bd-xt-$g boot-diff roms 6000 --model ibmxt --gfxcard $g
@@ -204,3 +204,9 @@ for mt in 2 3; do
 done
 # G9.0 — la MDA : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT.
 run bd-ibmat-mda boot-diff roms 3000 --model ibmat --gfxcard mda
+# G9.1 — l'Hercules : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT ; le
+# banc HERCBANC (graphique 720×348, deux pages, 3BAh, le 6845 relu) saisi dans DEBUG sur le 5150.
+run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
+mapfile -t HBK < tools/hercbanc/hercbanc.keys
+HBB=(); for l in "${HBK[@]}"; do HBB+=(--type "$l"); done
+run bd-pc-herc-banc boot-diff roms 11000 --gfxcard hercules --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${HBB[@]}" --type "^" --type "^"

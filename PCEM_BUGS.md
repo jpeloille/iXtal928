@@ -1002,6 +1002,8 @@ le logiciel devient un autre. `:99-100` : en entrelacé, `sc = (sc << 1) & 7` pe
 au-delà.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 3 et 4).
 *Reproduit* : `Video/vid_mda.cs`, marqueurs PB-97.
+*G9.1* : l'Hercules fait de même (`vid_hercules.c:89`, `:54-60`, `:137-138`) ; reproduit,
+`Video/vid_hercules.cs`. Le banc HERCBANC relit les douze registres du mode graphique.
 
 ## B. Comportement indéfini en C
 
@@ -1347,6 +1349,7 @@ du suivant.
 *Trouvé par* : reconnaissance de G9 (défaut n° 2).
 *Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
+*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat.
 
 ## C. Incohérences sans conséquence observable
 
@@ -1640,7 +1643,7 @@ l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 96
 instructions — avec la nouvelle.
 
 *G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs`. L'Hercules
-(`vid_hercules.c:110-119`) et l'EGA (`vid_ega.c:236-249`) suivront en G9.1 et G9.2.
+(`vid_hercules.c:110-119`, G9.1, reproduit) ; l'EGA (`vid_ega.c:236-249`) suivra en G9.2.
 
 ### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
 
@@ -1737,6 +1740,16 @@ lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est e
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16/_a32`, `x86_flags.tempc`, marqueur
 `// pcem bug, reproduced: PB-53`.
 
+### PB-98 — L'Hercules ne retire pas sa projection mémoire à la fermeture
+
+`vid_hercules.c:341-346`, `hercules_close` : `free(hercules)` sans `mem_mapping_remove` (la MDA,
+`vid_mda.c:282`, la retire). La projection reste dans la liste de `mem.c`, pointant sur une
+mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la liste
+(`mem.c:1373`) ; rien ne la parcourt entre-temps.
+*Effet* : aucun observable.
+*Trouvé par* : la lecture de G9.1.
+*Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (la projection reste, l'objet vivant sous GC).
+
 ## Portée de ce registre
 
 Ces **soixante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
@@ -1775,6 +1788,7 @@ audit systématique de PCem** :
 | La vérification des sections de device du .cfg (G8.3) | PB-93 |
 | Reconnaissance et transcription de la souris PS/2 (PS2.0) | PB-94, PB-95 |
 | Reconnaissance et transcription de la MDA (G9.0) | PB-96, PB-97, PB-36 élargi |
+| Transcription de l'Hercules (G9.1) | PB-98 ; PB-36, PB-96, PB-97 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

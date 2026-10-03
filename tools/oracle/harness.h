@@ -682,7 +682,8 @@ uint8_t *h_ram(void);
 /* 38 depuis G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg). */
 /* 39 depuis PS2.0 : h_set_mouse_type, h_mouse_probe (la souris PS/2) ; h_mouse_poll pose mouse_buttons. */
 /* 40 depuis G9.0 : la MDA (gfxcard GFX_MDA) et sa sonde (champ 0 = 4, places de la M24). */
-#define H_ABI_VERSION 40
+/* 41 depuis G9.1 : l'Hercules (GFX_HERCULES) et sa sonde (champ 0 = 5). */
+#define H_ABI_VERSION 41
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -510,6 +510,7 @@ typedef struct h_video_card_t {
 } h_video_card_t;
 static const h_video_card_t h_video_cards[] = {
         {GFX_CGA, VIDEO_FLAG_TYPE_CGA, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},
+        {GFX_HERCULES, VIDEO_FLAG_TYPE_MDA, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},   /* G9.1, video.c:120-121 */
         {GFX_MDA, VIDEO_FLAG_TYPE_MDA, {VIDEO_ISA, 8, 16, 32, 8, 16, 32}},   /* G9.0, video.c:140 */
         {GFX_TVGA, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 3, 3, 6, 8, 8, 12}},
         {GFX_TVGA9000B, VIDEO_FLAG_TYPE_SPECIAL, {VIDEO_ISA, 7, 7, 12, 7, 7, 12}},

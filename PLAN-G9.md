@@ -102,7 +102,7 @@ boot-diffs 5150 et XT, POST et DOS (la boucle `for g in …` de la série gagne 
 avec la MDA ; un contrôle négatif. La correction de la phrase sur les ROM PS/2 (VERIFICATION
 § PS2.1, PLAN-PS2.md) entre dans ce commit.
 
-### G9.1 — L'Hercules
+### G9.1 — L'Hercules  ✅ *fait, VERIFICATION.md § G9.1*
 
 `vid_hercules.c` (le code commun à la MDA reste deux fichiers, comme chez PCem). **Portes** :
 boot-diffs 5150/XT ; un banc HERCBANC (.COM saisi dans DEBUG) qui passe en graphique (3BF, 3B8,
