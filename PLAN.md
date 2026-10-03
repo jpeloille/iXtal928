@@ -292,7 +292,9 @@ G11 SCSI : AHA-1542C                    │
 G12 les autres Sound Blaster, AWE32     │
 G13 défauts de PCem, « mode matériel »  │
 G14 nommer les puces (Ics/)             │
-G15 normaliser le C#, 0 % de perte      ┘
+G15 normaliser le C#, 0 % de perte      │
+G16 robustesse et confort               │
+G17 usage avancé, publication           ┘
 ```
 
 G4 et G5 ne dépendent pas de G2 : on peut les intercaler si le cœur 386 s'enlise. Le x87
@@ -366,6 +368,38 @@ Après G14.
   - toute régression statistiquement significative (intervalle de confiance de BenchmarkDotNet)
     se corrige ou s'annule avant le commit.
 - **Porte** : toutes les séries identiques à l'unité, plus le banc de performance.
+
+## G16 — Robustesse et confort  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+- Les défauts hors plan qui gênent l'usage : la triple faute (`386_common.cs:675`, arrêt « non
+  transcrit »), l'erreur 104 de l'AT, le Flush des images disque (`img_writeback`).
+- Un lanceur et une configuration graphiques : créer une machine, choisir les cartes, créer un
+  disque dur vierge de la taille choisie.
+- Changer de disquette, de CD ou de ZIP pendant que la machine tourne, depuis un menu.
+- Le clavier AZERTY bien traduit ; la capture et le relâchement de la souris.
+- Le plein écran, la mise à l'échelle et la correction du rapport largeur/hauteur (CGA/EGA
+  640×200).
+- Une copie de référence **figée** des disques de l'utilisateur pour les portes (hors `/tmp`,
+  empreinte versionnée), pour que ses usages ne fassent plus dériver `g5w`.
+
+Le reste du hors plan — les `fatal()` du Xebec (R9), le 8087 en mod=3, la fuite d'IRQ de
+`pm-fuzz`, les sondes, le reliquat du 286, la dette de documentation — peut y être rattaché ou
+rester hors plan.
+
+## G17 — Usage avancé  *(décision utilisateur du 03/10 ; attend un feu vert)*
+
+- La sortie MIDI vers l'hôte (FluidSynth et une banque de sons, MT-32 émulé), pour le MPU-401 de
+  G12.
+- Un son sans craquements : latence réglable, synchronisation sous charge.
+- Les sauvegardes d'état (ni PCem ni 86Box ne les ont ; le déterminisme les facilite).
+- Les images VHD et les formats de disquette courants.
+- La vitesse mesurée sur une machine modeste (pas de dynarec prévu pour le 486).
+- Des tests de stabilité de longue durée.
+- La publication : versions Windows, Linux et macOS, installateur, documentation utilisateur en
+  anglais, et la licence (GPL v2 comme PCem ; les ROM ne sont pas redistribuées).
+
+**Options, non décidées** (à trancher par l'utilisateur au plan de G17) : le réseau NE2000 avec
+accès à l'hôte, l'impression LPT vers un fichier ou un PDF, un débogueur intégré.
 
 ## Annexe — Les outils de G14/G15  *(décision utilisateur du 03/10)*
 
