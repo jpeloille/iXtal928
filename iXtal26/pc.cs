@@ -499,17 +499,21 @@ internal static partial class pc
         return true;
     }
 
-    /// <summary>PS2.0 — une souris PS/2 sur une machine sans MODEL_PS2 : l'interface de PCem ne
-    /// la propose pas (wx-config.c:64). DEVIATION (PLAN-PS2.md, décision n° 4) : refusée, la
-    /// souris série Microsoft à la place, et dit — comme une valeur de configuration hors liste
-    /// (G8.3). Appelée après tout ce qui pose mouse_type (clé du .cfg, --mouse-type).</summary>
+    /// <summary>PS2.0, PS2.1 — une souris PS/2 (ou l'Intellimouse) sur une machine sans MODEL_PS2 :
+    /// l'interface de PCem ne la propose pas (wx-config.c:64), et aucune machine du dépôt n'a ce
+    /// drapeau — leurs BIOS AMI ne rendent pas les services INT 15h C2h (mesuré, VERIFICATION.md
+    /// § PS2.1 ; décision utilisateur du 03/10). DEVIATION : refusée, avec un avertissement, la
+    /// souris série Microsoft à la place, comme une valeur hors liste (G8.3). Appelée après tout
+    /// ce qui pose mouse_type (clé du .cfg). Seul l'outil de vérification passe outre
+    /// (iXtal26.Diff --force-ps2), jamais un .cfg.</summary>
     internal static void mouse_type_selon_machine()
     {
         if ((Mouse.mouse.mouse_get_type(Mouse.mouse.mouse_type) & Mouse.mouse.MOUSE_TYPE_IF_MASK) == Mouse.mouse.MOUSE_TYPE_PS2 &&
             (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_PS2) == 0)
         {
-                Console.Error.WriteLine($"mouse_type = {Mouse.mouse.mouse_type} : souris PS/2 refusée sur " +
-                                        $"{Models.model_c.model_get_internal_name()} (pas de MODEL_PS2), la souris série Microsoft (0) à la place.");
+                Console.Error.WriteLine($"iXtal26 : {Models.model_c.model_get_internal_name()} n'a pas de souris PS/2 (pas de MODEL_PS2) — " +
+                                        $"mouse_type = {Mouse.mouse.mouse_type} (« {Mouse.mouse.mouse_get_name(Mouse.mouse.mouse_type)} ») refusée, " +
+                                        "la souris série Microsoft (0) à la place.");
                 Mouse.mouse.mouse_type = 0;
         }
     }

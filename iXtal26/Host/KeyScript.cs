@@ -116,6 +116,13 @@ public static class KeyScript
         case '\\': return SDL.Scancode.Backslash;
         case '\u0018': return SDL.Scancode.Up;
         case '\u0019': return SDL.Scancode.Down;
+        // PS2.1 — le setup du BIOS AMI, pour activer la « Mouse Support Option » : Suppr pour y
+        // entrer pendant le POST, Page préc. et Page suiv. pour changer une valeur, F10 pour
+        // enregistrer. Écrits \x7f, \x0b, \x0c et \x10.
+        case '\u007f': return SDL.Scancode.Delete;
+        case '\u000b': return SDL.Scancode.Pageup;
+        case '\u000c': return SDL.Scancode.Pagedown;
+        case '\u0010': return SDL.Scancode.F10;
         default: return SDL.Scancode.Unknown;
         }
     }

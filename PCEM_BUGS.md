@@ -975,6 +975,8 @@ une souris absente ou en panne.
 *Trouvé par* : reconnaissance de PS2 (PLAN-PS2.md, défaut n° 1).
 *Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-94 ; le banc PS2BANC le montre (F6h → rien, EEh
 au relevé).
+*PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
+utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
 ### PB-95 — L'état de la souris PS/2 code le bouton du milieu comme gauche et droit
 
@@ -987,6 +989,8 @@ du milieu.
 *Trouvé par* : reconnaissance de PS2 (défaut n° 2).
 *Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-95 ; le banc PS2BANC, bouton du milieu tenu, le
 montre à E9h.
+*PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
+utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
 ## B. Comportement indéfini en C
 

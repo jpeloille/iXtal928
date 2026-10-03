@@ -130,6 +130,20 @@ public static class BootTest
             }
             return;
         }
+        // PS2.1 — « @souris dx,dy,b » : un mouvement de la souris de l'hôte, sans fenêtre. Les
+        // mickeys et les boutons sont posés là où mouse_poll_host les poserait (wx-sdl2-mouse.c) ;
+        // pollmouse (pc.c:110-121), dans runpc, les livre à la souris montée — le vrai chemin.
+        if (text.StartsWith("@souris ", StringComparison.Ordinal))
+        {
+            var v = text[8..].Split(',');
+            Mouse.mouse.mouse_x += int.Parse(v[0]);
+            Mouse.mouse.mouse_y += int.Parse(v[1]);
+            Mouse.mouse.mouse_buttons = int.Parse(v[2]);
+            for (var i = 0; i < 4; i++)
+                pc.runpc();
+            Console.WriteLine($"\n--- souris : {v[0]},{v[1]}, boutons {v[2]} ---");
+            return;
+        }
         if (text.StartsWith("@wait ", StringComparison.Ordinal))
         {
             var n = int.Parse(text[6..]);

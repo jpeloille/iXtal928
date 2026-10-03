@@ -290,11 +290,7 @@ internal static partial class model_c
         id = pc.ROM_AMI386SX,
         internal_name = "ami386",
         cpu = [new("Intel", Cpu.cpu_tables.cpus_i386SX), new("", null), new("", null), new(), new()],
-        // DEVIATION: MODEL_PS2 ajouté là où le BIOS porte l'option (« Mouse Support Option »
-        //   du setup AMI ; PLAN-PS2.md, décision n° 1). PCem ne le pose pas (model.c), et son
-        //   interface refuse alors la souris PS/2 (wx-config.c:64). Le drapeau ne sert QU'À ce
-        //   choix : l'oracle monte la même souris, sans écart de comportement.
-        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_PS2 | MODEL_HAS_IDE,
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
         min_ram = 512,
         max_ram = 16384,
         ram_granularity = 128,
@@ -314,11 +310,7 @@ internal static partial class model_c
         id = pc.ROM_AMI386DX_OPTI495,
         internal_name = "ami386dx",
         cpu = [new("Intel", Cpu.cpu_tables.cpus_i386DX), new("", null), new("", null), new(), new()],
-        // DEVIATION: MODEL_PS2 ajouté là où le BIOS porte l'option (« Mouse Support Option »
-        //   du setup AMI ; PLAN-PS2.md, décision n° 1). PCem ne le pose pas (model.c), et son
-        //   interface refuse alors la souris PS/2 (wx-config.c:64). Le drapeau ne sert QU'À ce
-        //   choix : l'oracle monte la même souris, sans écart de comportement.
-        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_PS2 | MODEL_HAS_IDE,
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
         min_ram = 1,
         max_ram = 256,
         ram_granularity = 1,
@@ -333,11 +325,7 @@ internal static partial class model_c
         id = pc.ROM_AMI486,
         internal_name = "ami486",
         cpu = [new("Intel", Cpu.cpu_tables.cpus_i486), new("", null), new("", null), new(), new()],
-        // DEVIATION: MODEL_PS2 ajouté là où le BIOS porte l'option (« Mouse Support Option »
-        //   du setup AMI ; PLAN-PS2.md, décision n° 1). PCem ne le pose pas (model.c), et son
-        //   interface refuse alors la souris PS/2 (wx-config.c:64). Le drapeau ne sert QU'À ce
-        //   choix : l'oracle monte la même souris, sans écart de comportement.
-        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_PS2 | MODEL_HAS_IDE,
+        flags = MODEL_GFX_NONE | MODEL_AT | MODEL_HAS_IDE,
         min_ram = 1,
         max_ram = 256,
         ram_granularity = 1,

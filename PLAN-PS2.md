@@ -83,7 +83,7 @@ A8h, D4h FFh (AAh 00h), F2h, E8h/F3h, E9h, F4h puis des paquets nés de mouvemen
 F5h, le knock Intellimouse (type 3 : F2h → 03h, paquets à 4 octets), une commande sans réponse
 (défaut n° 1), A7h — sous boot-diff, sonde de la souris comparée ; contrôle négatif.
 
-### PS2.1 — Les machines et les témoins
+### PS2.1 — Les machines et les témoins  ✅ *fait, VERIFICATION.md § PS2.1 — décision n° 1 renversée*
 
 La souris sur les profils retenus (décision n° 1) ; INT 15h C2h mesuré ; témoins `--boot` dans
 `/tmp` : `C:\UTILS\MOUSE.COM` (pilote Microsoft, sur le disque 486) qui doit dire « PS/2 », puis
@@ -98,6 +98,13 @@ souris série à sa place, `MOUSE.COM` ne trouve pas de souris PS/2.
 - **L'injection** : la première porte du dépôt qui fasse bouger une souris des deux côtés.
 
 ## Les décisions à trancher
+
+> **Issue (03/10)** : PS/2 transcrite et vérifiée ; **non offerte** — aucune machine du dépôt n'a
+> de BIOS PS/2 (INT 15h C2h → AH = 86h, CF = 1 sur l'ami386dx et l'ami486 ; aucune option de
+> setup). Décision utilisateur du 03/10 : retour à la règle de PCem, `MODEL_PS2` retiré, refus
+> averti ; le banc PS2BANC reste dans la série par `--force-ps2`, porte de vérification. La
+> décision n° 1 ci-dessous, d'abord validée, est donc renversée ; n° 2 et n° 4 tiennent ; n° 3 :
+> les profils restent en souris série.
 
 1. **Les machines.** *(proposé : la souris PS/2 offerte aux trois AMI 386/486 — ami386, ami386dx,
    ami486 —, DEVIATION « MODEL_PS2 ajouté là où le BIOS porte l'option de souris », écart assumé à

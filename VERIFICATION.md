@@ -5369,3 +5369,45 @@ de référence —, `bd-ami286-ps2-refus`, `bd-ami386dx-ps2-banc-2` et `-3`). É
 **Preuve de la cause** : les sept portes rejouées avec l'instantané d'AVANT PS2.0 (celui de g84,
 ABI 38) sur le nouveau `c386.img` rendent des journaux identiques octet pour octet à ceux de g85 —
 c'est le disque, pas le code. Build 0 avertissement, selftest, check-oracle 0 dérive (159).
+
+## PS2.1 — La souris PS/2 n'est pas offerte : les BIOS du dépôt ne la gèrent pas
+
+Le 3 octobre 2026. Plan : `PLAN-PS2.md` § PS2.1. **Décision utilisateur du 03/10** : retour à la
+règle de PCem (option b).
+
+**Les mesures**, en C# seul, sur des copies dans `/tmp` (le disque 486 de l'utilisateur sans
+`KEYB FR`, son CMOS copié ; l'ami386dx sur la disquette de PC-DOS 2.00, CMOS fabriqué) :
+- **INT 15h C2h** (services souris PS/2 du BIOS), appelée par DEBUG : C205h (initialiser, paquets
+  de 3 octets) et C204h rendent **AH = 86h, CF = 1** — « fonction non gérée » — sur l'**ami486**
+  et sur l'**ami386dx**.
+- **Le setup AMI**, parcouru au clavier par KeyScript (Suppr, Page préc./suiv., F10 ajoutés) :
+  ni ADVANCED CMOS SETUP ni ADVANCED CHIPSET SETUP ne portent de « Mouse Support Option ». La
+  chaîne est dans la ROM, l'option n'est pas offerte : rien à activer.
+- **`C:\UTILS\MOUSE.COM`** (Microsoft 8.20), souris PS/2 montée : « Driver not installed --
+  Microsoft Mouse not found ».
+- **Windows 3.11** (profil 486-s3), souris PS/2, trois mouvements injectés par la nouvelle commande
+  `@souris dx,dy,b` de `--boot` (les mickeys posés là où l'hôte les pose, livrés par `pollmouse`) :
+  **l'écran ne change pas d'un pixel**. **Contrôle**, la souris série à sa place : le pointeur
+  quitte sa position. L'injection marche ; c'est le BIOS qui manque.
+
+**La décision et ce qu'elle change.** `MODEL_PS2` retiré des trois AMI 386/486 : la DEVIATION de
+PS2.0 tombe, et PCem a raison de ne pas poser le drapeau. Une souris PS/2 ou l'Intellimouse
+demandée sur une machine sans `MODEL_PS2` est **refusée avec un avertissement** (machine, souris
+demandée, repli sur la série), comme une valeur hors liste (G8.3). Le code de la souris
+(`mouse_ps2.cs`, la sonde, l'injection, PS2BANC) **reste** : vérifié contre l'oracle, il servira à
+une machine qui aura `MODEL_PS2`. Pour garder cette preuve, le banc passe par **`--force-ps2`**,
+option d'iXtal26.Diff seule — **porte de vérification, pas une machine offerte** : ni un `.cfg` ni
+le SETUP ne peuvent la poser. Les profils restent en souris série.
+
+**Les portes.** `bd-ami486-ps2-refus`, `bd-ami386dx-im-refus`, `bd-ami286-ps2-refus` : le refus
+averti et le repli sur la série, exigés par `--expect-mouse-type 0` (contrôle négatif retiré :
+`--expect-mouse-type 2` → « Souris retenue : 0, attendu 2 », rouge). `bd-ami386dx-ps2-banc-2`
+et `-3` : PS2BANC par `--force-ps2`, inchangé depuis PS2.0.
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g85 : 145 portes,
+**toutes vertes**. Retirées : `bd-ami486-ps2` et `bd-ami486-ps2-post` (des montages que plus
+aucune machine n'offre) ; nouvelles : `bd-ami486-ps2-refus` (5 433 745 instructions) et
+`bd-ami386dx-im-refus` (4 437 159), les comptes des mêmes machines sans souris PS/2. Journaux
+identiques à g85 hors les lignes nouvelles : l'avertissement reformulé et « Souris retenue : 0 »
+de `bd-ami286-ps2-refus`, la ligne `--force-ps2` des deux bancs (72 011 910 et 72 012 638
+instructions, inchangées). Build 0 avertissement, selftest, check-oracle 0 dérive (159).

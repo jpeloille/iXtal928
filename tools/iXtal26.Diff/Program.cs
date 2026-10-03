@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N] [--mouse-at T:dx,dy,dz,b] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -398,6 +398,9 @@ switch (args[0])
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
+                // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).
+                case "--force-ps2": BootDiff.ForcePs2 = true; break;
+                case "--expect-mouse-type" when i + 1 < args.Length: BootDiff.ExpectMouseType = int.Parse(args[++i]); break;
                 case "--mouse-at" when i + 1 < args.Length:
                 {
                     // TRANCHE:dx,dy,dz,b

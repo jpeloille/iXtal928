@@ -88,6 +88,14 @@ public static class BootDiff
     /// <summary>PS2.0 — `--mouse-type N` (l'indice de mouse_list, pc.c:784), appliqué après
     /// --config et --model, puis jugé contre la machine (pas de PS/2 sans MODEL_PS2).</summary>
     internal static int? MouseTypeOverride;
+    /// <summary>PS2.1 — `--force-ps2` : PORTE DE VÉRIFICATION, PAS UNE MACHINE OFFERTE. Monte la
+    /// souris de --mouse-type sans le refus des machines sans MODEL_PS2 (aucune du dépôt n'en a,
+    /// décision utilisateur du 03/10), pour garder le banc PS2BANC — la transcription de
+    /// mouse_ps2.c contre l'oracle — dans la série. Ni un .cfg ni le SETUP ne peuvent le poser.</summary>
+    internal static bool ForcePs2;
+    /// <summary>PS2.1 — `--expect-mouse-type N` : la porte exige que la souris retenue après le
+    /// jugement de la machine soit N (le repli sur la série d'un refus, par exemple).</summary>
+    internal static int? ExpectMouseType;
     /// <summary>PS2.0 — `--mouse-at TRANCHE:dx,dy,dz,b`, répétable : un mouvement injecté EN FIN
     /// de tranche, des deux côtés (h_mouse_poll ; mouse_buttons = b puis mouse_poll), là où
     /// runpc appellerait pollmouse. Aucun des deux côtés du boot-diff ne sonde la souris hôte
@@ -121,7 +129,18 @@ public static class BootDiff
             }
             Mouse.mouse.mouse_type = mt;
         }
-        pc.mouse_type_selon_machine();
+        if (ForcePs2)
+            Console.WriteLine($"  --force-ps2 : porte de vérification — souris {Mouse.mouse.mouse_type} montée sur " +
+                              $"{Models.model_c.model_get_internal_name()} sans MODEL_PS2 ; pas une machine offerte.");
+        else
+            pc.mouse_type_selon_machine();
+        if (ExpectMouseType is { } em && Mouse.mouse.mouse_type != em)
+        {
+            Console.Error.WriteLine($"Souris retenue : {Mouse.mouse.mouse_type}, attendu {em} (--expect-mouse-type).");
+            return 1;
+        }
+        if (ExpectMouseType is not null)
+            Console.WriteLine($"Souris retenue : {Mouse.mouse.mouse_type} (« {Mouse.mouse.mouse_get_name(Mouse.mouse.mouse_type)} »), comme attendu.");
         // M16 — le processeur, APRÈS --model : l'indice ne vaut que dans la table de la
         // machine finale, et check_cpu (appelé par initpc) le juge contre elle.
         if (CpuOverride is { } cpuN)

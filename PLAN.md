@@ -208,7 +208,8 @@ Millennium, Mach64).
   `xtide_device`, ROM `ide_xt.bin` — un disque dur amorçable pour les 8088/8086, en
   particulier la M24 et le PC1512, où le Xebec n'amorce pas (constat de G1). Les variantes
   XTIDE AT et PS/1 sont exclues.
-- **La souris PS/2** (`PLAN-PS2.md`, en cours le 03/10) en fait partie de fait.
+- **La souris PS/2** (`PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune machine du
+  dépôt n'a de BIOS PS/2 (décision utilisateur du 03/10).
 - **Exclus** : les Pentium OverDrive — Intel seul, 8088 → 486 DX4 ; pas de Pentium (décision
   utilisateur du 03/10). Présents dans `cpus_i486`, ils restent sautés par `cpu-config-check` et
   refusés bruyamment si on les choisit.
@@ -259,8 +260,8 @@ mère et la souris, puis la section B, puis la section C.
 
 ### Transverse, au fil de l'eau
 
-- La **souris PS/2** (`mouse_ps2`), attendue sur les 386 et 486 : elle passe par le 8042
-  déjà transcrit.
+- La **souris PS/2** (`mouse_ps2`, `PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune
+  machine du dépôt n'a de BIOS PS/2 (décision utilisateur du 03/10).
 - Le reliquat du 286 : `PLAN-286.md` § « Tâches à couvrir ». `taskswitch286` y est
   rattaché à G2.
 - **Hors plan, relevé en G4** : le harnais de `pm-fuzz` laisse fuir une IRQ d'une itération
@@ -284,7 +285,7 @@ G5  IDE
 G6  486 + ami486 + DX2-66   ← l'ultime machine
 G7  Cirrus 5429, S3
 G8  son
-PS2 souris PS/2   ← en cours le 03/10, puis arrêt
+PS2 souris PS/2   ← transcrite, non offerte (03/10) ; puis arrêt
 G9  MDA, Hercules, EGA, ET4000          ┐
 G10 CD-ROM/ZIP ATAPI, manette AT, LPT1, │ décision utilisateur du 03/10 ;
     XTIDE (XT)                          │ chacun attend un feu vert
