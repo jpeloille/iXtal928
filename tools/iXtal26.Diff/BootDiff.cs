@@ -563,7 +563,10 @@ public static class BootDiff
             return 1;
         }
 
-        if (o[0] == 3)
+        if (o[0] == 4)
+            Console.WriteLine($"Sonde MDA : {VgaProbe.Fields.Length} champs identiques — registres, VRAM et " +
+                              "balayage de la MDA (aux places de la M24).");
+        else if (o[0] == 3)
             Console.WriteLine($"Sonde PC1512 : {VgaProbe.Fields.Length} champs identiques — registres et VRAM " +
                               "de la vidéo de l'Amstrad PC1512.");
         else if (o[0] == 2)

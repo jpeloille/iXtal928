@@ -5395,7 +5395,9 @@ PS2.0 tombe, et PCem a raison de ne pas poser le drapeau. Une souris PS/2 ou l'I
 demandée sur une machine sans `MODEL_PS2` est **refusée avec un avertissement** (machine, souris
 demandée, repli sur la série), comme une valeur hors liste (G8.3). Le code de la souris
 (`mouse_ps2.cs`, la sonde, l'injection, PS2BANC) **reste** : vérifié contre l'oracle, il servira à
-une machine qui aura `MODEL_PS2`. Pour garder cette preuve, le banc passe par **`--force-ps2`**,
+une machine qui aura `MODEL_PS2`. *Correction du 03/10* : aucune machine TRANSCRITE n'a de BIOS
+PS/2 ; des machines PCem à BIOS PS/2 ont leur ROM dans `roms/` (p. ex. PB410A, IBM PS/1 2133,
+Acer 386), non transcrites. Pour garder cette preuve, le banc passe par **`--force-ps2`**,
 option d'iXtal26.Diff seule — **porte de vérification, pas une machine offerte** : ni un `.cfg` ni
 le SETUP ne peuvent la poser. Les profils restent en souris série.
 
@@ -5411,3 +5413,35 @@ aucune machine n'offre) ; nouvelles : `bd-ami486-ps2-refus` (5 433 745 instructi
 identiques à g85 hors les lignes nouvelles : l'avertissement reformulé et « Souris retenue : 0 »
 de `bd-ami286-ps2-refus`, la ligne `--force-ps2` des deux bancs (72 011 910 et 72 012 638
 instructions, inchangées). Build 0 avertissement, selftest, check-oracle 0 dérive (159).
+
+## G9.0 — La MDA ; PB-96, PB-97, PB-36 élargi
+
+Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.0 (validé par l'orchestrateur le 03/10).
+
+**Transcrit.** `vid_mda.c` entier (`Video/vid_mda.cs`) : le 6845 aux ports 3B0-3BF, 4 Ko de VRAM
+vus en B0000 sur 32 Ko, le texte 80×25 en caractères de 9 points, `mdacols` (à plat), la
+configuration `display_type` (vert, ambre, blanc ; défaut blanc). `v_mda` entre au registre
+`VIDEO_CARD` (`GFX_MDA`), à sa place relative de PCem. `--make-nvr` écrit le monochrome (30h)
+pour la MDA. Le texte de `--boot` se lit en B000 quand la carte est monochrome. Défauts
+reproduits : **PB-96** (la police lue au-delà de 16 lignes, `fontdatm` lu à plat en C# — un accès
+`[chr, sc]` lèverait), **PB-97** (le 6845 sans masques, le correctif « Turbo XT » du curseur,
+l'entrelacé qui perd les lignes 8 et au-delà), **PB-36** élargi (le temps « hors affichage »
+négatif, sans arrêt de l'hôte).
+
+**L'oracle.** `harness_mda.c` inclut `vid_mda.c` (structure privée) : `h_boot` monte la MDA pour
+`GFX_MDA` ; sa VRAM (`malloc` sans effacement, `:239`) est effacée à l'amorçage — déviation de
+l'oracle, comme `svga_init` et la M24 (PLAN-G9.md, décision n° 4). La sonde de fin de boot-diff
+prend le genre 4 et dix-sept champs aux places de la M24 (les deux ne se montent jamais
+ensemble). ABI 40.
+
+**Les boot-diffs** : 5150 (25 436 674 instructions), 5150 + DOS (26 605 433), XT (23 428 198),
+XT + DOS (22 010 615), IBM AT (5 054 627) — sondes identiques. `--boot` sur le 5150 : octet
+d'équipement 047Dh (bits 4-5 : monochrome), trame 720×350, `DIR` de PC-DOS 2.00 lu en B000.
+**Contrôle négatif**, retiré : 3BAh rendu `stat | 0xE0` côté C# → première divergence à
+l'instruction 924 954.
+
+**La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g86 : 150 portes,
+toutes vertes, identiques hors ABI (39 → 40) ; les cinq nouvelles vertes (`bd-pc-mda`,
+`bd-pcdos-mda`, `bd-xt-mda`, `bd-xtdos-mda`, `bd-ibmat-mda`). Build 0 avertissement, selftest,
+check-oracle 0 dérive (162). Dans ce commit aussi : la phrase sur les ROM PS/2 corrigée (§ PS2.1,
+PLAN-PS2.md, PLAN.md).

@@ -992,6 +992,17 @@ montre à E9h.
 *PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
 utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
+### PB-97 — Le 6845 de la MDA n'a pas de masques, et réécrit le curseur d'un BIOS
+
+`vid_mda.c:28`, `:55` : chaque registre du 6845 s'écrit en entier et se relit, là où la vraie
+puce rend R0-R13 en écriture seule et masque R4, R6, R7 sur 7 bits. Un logiciel qui relit le
+CRTC pour reconnaître la carte voit autre chose que sur le vrai matériel. `:29-34` : si R10 = 6
+et R11 = 7, PCem les réécrit en Bh/Ch (« Fix for Generic Turbo XT BIOS ») — un curseur choisi par
+le logiciel devient un autre. `:99-100` : en entrelacé, `sc = (sc << 1) & 7` perd les lignes 8 et
+au-delà.
+*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 3 et 4).
+*Reproduit* : `Video/vid_mda.cs`, marqueurs PB-97.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1326,6 +1337,17 @@ transcrites pour les sept tables de configuration du dépôt. Prix assumé : une
 mais sans danger (la SB à l'IRQ 3) prend aussi le défaut. L'oracle n'est pas touché ; ces valeurs
 restent hors des portes, prouvées en C# seul.
 
+### PB-96 — La police monochrome lue au-delà de ses 16 lignes
+
+`vid_mda.c:119`, `:122` : `fontdatm[chr][mda->sc]` avec `sc` jusqu'à 31 (`sc &= 31`, `:160`,
+`:223`), dans un `fontdatm[2048][16]` (`video.c:921`). La lecture sort de la ligne du caractère et
+tombe dans les lignes du caractère suivant — jamais hors du tableau (`chr` ≤ 255).
+*Effet* : avec R9 > 15 (des cellules de plus de 16 lignes), le bas d'un caractère montre le haut
+du suivant.
+*Trouvé par* : reconnaissance de G9 (défaut n° 2).
+*Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` — l'accès se fait à plat (`chr * 16 + sc`),
+l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -1617,6 +1639,9 @@ pose CR00 = 2Dh sous CR01 = 4Fh et lit `3DAh` 8 192 fois fait rougir le diff d'a
 l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 969 642
 instructions — avec la nouvelle.
 
+*G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs`. L'Hercules
+(`vid_hercules.c:110-119`) et l'EGA (`vid_ega.c:236-249`) suivront en G9.1 et G9.2.
+
 ### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
 
 `vid_svga_render.c:707-718`, la branche sans remappage :
@@ -1749,6 +1774,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de la Sound Blaster Pro v2 (G8.2) | PB-90 à PB-92 |
 | La vérification des sections de device du .cfg (G8.3) | PB-93 |
 | Reconnaissance et transcription de la souris PS/2 (PS2.0) | PB-94, PB-95 |
+| Reconnaissance et transcription de la MDA (G9.0) | PB-96, PB-97, PB-36 élargi |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les

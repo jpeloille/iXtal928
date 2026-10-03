@@ -208,8 +208,9 @@ Millennium, Mach64).
   `xtide_device`, ROM `ide_xt.bin` — un disque dur amorçable pour les 8088/8086, en
   particulier la M24 et le PC1512, où le Xebec n'amorce pas (constat de G1). Les variantes
   XTIDE AT et PS/1 sont exclues.
-- **La souris PS/2** (`PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune machine du
-  dépôt n'a de BIOS PS/2 (décision utilisateur du 03/10).
+- **La souris PS/2** (`PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune machine
+  transcrite n'a de BIOS PS/2 (décision utilisateur du 03/10) ; des machines PCem à BIOS PS/2 ont
+  leur ROM dans `roms/` (p. ex. PB410A), non transcrites.
 - **Exclus** : les Pentium OverDrive — Intel seul, 8088 → 486 DX4 ; pas de Pentium (décision
   utilisateur du 03/10). Présents dans `cpus_i486`, ils restent sautés par `cpu-config-check` et
   refusés bruyamment si on les choisit.
@@ -261,7 +262,8 @@ mère et la souris, puis la section B, puis la section C.
 ### Transverse, au fil de l'eau
 
 - La **souris PS/2** (`mouse_ps2`, `PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune
-  machine du dépôt n'a de BIOS PS/2 (décision utilisateur du 03/10).
+  machine transcrite n'a de BIOS PS/2 (décision utilisateur du 03/10) ; des machines PCem à BIOS
+  PS/2 ont leur ROM dans `roms/` (p. ex. PB410A), non transcrites.
 - Le reliquat du 286 : `PLAN-286.md` § « Tâches à couvrir ». `taskswitch286` y est
   rattaché à G2.
 - **Hors plan, relevé en G4** : le harnais de `pm-fuzz` laisse fuir une IRQ d'une itération

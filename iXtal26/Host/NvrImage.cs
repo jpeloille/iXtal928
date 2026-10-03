@@ -282,7 +282,9 @@ internal static class NvrImage
                 return 1;
         }
 
-        var displayBits = gfx == "cga" ? DisplayCga80 : DisplayOwnRom;
+        // G9.0 — la MDA (et l'Hercules, G9.1) : 80x25 monochrome, 30h. Sa ROM ? Aucune : l'INT 10h
+        //   reste celui du BIOS, comme pour la CGA.
+        var displayBits = gfx == "cga" ? DisplayCga80 : gfx is "mda" or "hercules" ? DisplayMda : DisplayOwnRom;
 
         var before = Checksum(cmos);
         Amend(cmos, memSize, driveA, driveB, hddType, displayBits, hddTypeD, coprocessor);

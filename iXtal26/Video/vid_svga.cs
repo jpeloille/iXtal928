@@ -2042,6 +2042,7 @@ internal static partial class vid_svga
         {
                 ProbeM24(o);   // G1.1 — la M24, si elle est montée (champ 0 = 2)
                 ProbePc1512(o);   // G1.2 — le PC1512, si il est monté (champ 0 = 3)
+                ProbeMda(o);      // G9.0 — la MDA, si elle est montée (champ 0 = 4)
                 return;
         }
 
@@ -2196,6 +2197,35 @@ internal static partial class vid_svga
                 o[f++] = (uint64_t)(long)s3.blitter_busy | ((uint64_t)(uint32_t)s3.force_busy << 32);
                 o[f++] = s3.hwc_fg_col | ((uint64_t)s3.hwc_bg_col << 32);
         }
+    }
+
+    // G9.0 — les dix-sept champs de la MDA (h_mda_probe), aux places de la M24 (offset 122 ; les
+    // deux ne se montent jamais ensemble). Pas de framebuffer : l'oracle ne charge pas fontdatm.
+    private static void ProbeMda(uint64_t[] o)
+    {
+        var m = vid_mda.Probe;
+        int f = 122;
+
+        if (m == null)
+                return;
+        o[0] = 4;
+        o[f++] = Fnv(m.crtc);
+        o[f++] = (uint64_t)(long)m.crtcreg;
+        o[f++] = Fnv(m.vram.AsSpan(0, 0x1000));
+        o[f++] = m.ctrl | ((uint64_t)m.stat << 8);
+        o[f++] = (uint64_t)(long)m.linepos;
+        o[f++] = (uint64_t)(long)m.displine;
+        o[f++] = (uint64_t)(long)m.sc;
+        o[f++] = (uint64_t)(long)m.vc;
+        o[f++] = (uint32_t)m.con | ((uint64_t)(uint32_t)m.coff << 32);
+        o[f++] = (uint32_t)m.cursoron | ((uint64_t)(uint32_t)m.blink << 32);
+        o[f++] = (uint32_t)m.vsynctime | ((uint64_t)(uint32_t)m.vadj << 32);
+        o[f++] = m.ma | ((uint64_t)m.maback << 16);
+        o[f++] = (uint64_t)(long)m.dispon;
+        o[f++] = m.dispontime;
+        o[f++] = m.dispofftime;
+        o[f++] = m.timer.ts_integer | ((uint64_t)m.timer.ts_frac << 32);
+        o[f++] = (uint32_t)m.firstline | ((uint64_t)(uint32_t)m.lastline << 32);
     }
 
     // G1.1 — les vingt et un champs de la M24 (h_m24_probe), à partir de l'offset 122. Pas de

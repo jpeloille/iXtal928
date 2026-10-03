@@ -59,7 +59,8 @@ public static class Oracle
     // 37 en G8.2 : la SB Pro v2 (sbprov2) ; la sonde du son passe à 41 champs (DSP, mélangeur).
     // 38 en G8.3 : h_clear_device_config, h_set_device_config (les sections de device du .cfg).
     // 39 en PS2.0 : h_set_mouse_type, h_mouse_probe ; h_mouse_poll pose mouse_buttons.
-    public const int AbiVersion = 39;
+    // 40 en G9.0 : la MDA et sa sonde (champ 0 = 4).
+    public const int AbiVersion = 40;
 
     static Oracle()
     {

@@ -782,8 +782,8 @@ internal static partial class keyboard_at
         keyboard_at_.output_port = 0xcf;
         // omitted: la branche `romset == ROM_XI8088` (:816-817), qui inverse 0xb0/0xf0.
         //
-        // input_port EST LE DIP DE LA CARTE VIDEO. video_is_mda() rend 0 dans ce depot,
-        // comme le stub de l'oracle (harness_stubs.c:502), donc 0xB0 — « pas un MDA ».
+        // input_port EST LE DIP DE LA CARTE VIDEO : 0xF0 pour une MDA (G9.0), 0xB0 sinon —
+        // l'oracle rend la meme reponse depuis gfxcard (harness_stubs.c, h_video_cards[]).
         keyboard_at_.input_port = (uint8_t)(video_is_mda() != 0 ? 0xf0 : 0xb0);
         keyboard_at_.out_new = -1;
         keyboard_at_.out_delayed = -1;

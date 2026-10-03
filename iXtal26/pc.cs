@@ -118,6 +118,7 @@ internal static partial class pc
     // pas un choix.
     internal const int GFX_BUILTIN = -1;
     internal const int GFX_CGA = 0;
+    internal const int GFX_MDA = 1; /* G9.0 */
     internal const int GFX_TVGA = 4; /*Using Trident TVGA8900D BIOS*/
     internal const int GFX_VGA = 13;
     internal const int GFX_CL_GD5429 = 19; /*Cirrus Logic CL-GD5429*/

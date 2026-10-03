@@ -309,14 +309,17 @@ public static class BootTest
             return;
         }
 
-        Console.WriteLine("\n--- écran texte CGA (B800:0000, 80x25) ---");
+        // G9.0 — la MDA (et l'Hercules) : la VRAM est en B000.
+        var mono = Video.video.video_is_mda() != 0;
+        uint32_t seg = mono ? 0xB0000u : 0xB8000u;
+        Console.WriteLine(mono ? "\n--- écran texte MDA (B000:0000, 80x25) ---" : "\n--- écran texte CGA (B800:0000, 80x25) ---");
         var blank = 0;
         for (var y = 0; y < 25; y++)
         {
             var line = new char[80];
             for (var x = 0; x < 80; x++)
             {
-                var c = mem.mem_readb_phys((uint32_t)(0xB8000 + (y * 80 + x) * 2));
+                var c = mem.mem_readb_phys((uint32_t)(seg + (y * 80 + x) * 2));
                 line[x] = c is >= 0x20 and < 0x7F ? (char)c : ' ';
             }
 

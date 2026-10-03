@@ -99,9 +99,10 @@ souris série à sa place, `MOUSE.COM` ne trouve pas de souris PS/2.
 
 ## Les décisions à trancher
 
-> **Issue (03/10)** : PS/2 transcrite et vérifiée ; **non offerte** — aucune machine du dépôt n'a
-> de BIOS PS/2 (INT 15h C2h → AH = 86h, CF = 1 sur l'ami386dx et l'ami486 ; aucune option de
-> setup). Décision utilisateur du 03/10 : retour à la règle de PCem, `MODEL_PS2` retiré, refus
+> **Issue (03/10)** : PS/2 transcrite et vérifiée ; **non offerte** — aucune machine transcrite
+> n'a de BIOS PS/2 (INT 15h C2h → AH = 86h, CF = 1 sur l'ami386dx et l'ami486 ; aucune option de
+> setup) ; des machines PCem à BIOS PS/2 ont leur ROM dans `roms/` (p. ex. PB410A), non
+> transcrites (correction du 03/10). Décision utilisateur du 03/10 : retour à la règle de PCem, `MODEL_PS2` retiré, refus
 > averti ; le banc PS2BANC reste dans la série par `--force-ps2`, porte de vérification. La
 > décision n° 1 ci-dessous, d'abord validée, est donc renversée ; n° 2 et n° 4 tiennent ; n° 3 :
 > les profils restent en souris série.
