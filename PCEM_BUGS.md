@@ -1024,6 +1024,22 @@ au-delà.
 *Reproduit* : `Video/vid_ega.cs`, marqueurs PB-99. Le banc EGABANC relit le CRTC et l'attribut 10h,
 et voit 3DAh basculer ses bits 4-5.
 
+### PB-100 — La Tseng ET4000AX de PCem et son RAMDAC
+
+`vid_et4000.c` :
+- `crtc_mask` (`:34-37`) efface CR38-CR3F, CR3F compris : le bit de débordement de `htotal` que
+  `et4000_recalctimings` lit (`:399`) est toujours nul ;
+- un CR13 nul vaut 256 (`:397-398`) ;
+- la fenêtre linéaire de 128 Ko (`banked_mask = 0x1ffff`, `:72-75`) n'est posée que sur une
+  transition non nul → nul de GDC6 ; `svga_init` laisse `banked_mask` à 0 ;
+- pas de séquence KEY (3BFh/3D8h) : les registres étendus sont toujours ouverts ; SR7 se relit
+  avec le bit 2 forcé (`:269-270`).
+`vid_unk_ramdac.c` : FFh écrit une fois le RAMDAC armé ne touche pas le registre de commande et
+tombe dans `svga_out` (le masque des pixels, `:24`) ; le décodage des profondeurs rend 32 bits
+(`:27-61`), que le SC1502x n'a pas.
+*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10).
+*Reproduit* : `Video/vid_et4000.cs`, `Video/vid_unk_ramdac.cs`, marqueurs PB-100.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1809,9 +1825,10 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de la MDA (G9.0) | PB-96, PB-97, PB-36 élargi |
 | Transcription de l'Hercules (G9.1) | PB-98 ; PB-36, PB-96, PB-97 élargis |
 | Transcription de l'EGA (G9.2) | PB-99 ; PB-36 élargi |
+| Transcription de la Tseng ET4000AX (G9.3) | PB-100 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la VGA, les deux Trident, la GD5429 et la Trio64, les
+lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
 cartes son autres que l'AdLib et la SB Pro v2, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :

@@ -62,7 +62,8 @@ public static class Oracle
     // 40 en G9.0 : la MDA et sa sonde (champ 0 = 4).
     // 41 en G9.1 : l'Hercules et sa sonde (champ 0 = 5).
     // 42 en G9.2 : l'EGA et sa sonde (champ 0 = 6).
-    public const int AbiVersion = 42;
+    // 43 en G9.3 : la Tseng ET4000AX.
+    public const int AbiVersion = 43;
 
     static Oracle()
     {

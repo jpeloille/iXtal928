@@ -293,6 +293,14 @@ internal static partial class video
         timing = new video_timings_t { type = VIDEO_ISA, write_b = 8, write_w = 16, write_l = 32, read_b = 8, read_w = 16, read_l = 32 },
     };
 
+    // pcem: video.c:189-190 — G9.3.
+    internal static readonly VIDEO_CARD v_et4000ax = new VIDEO_CARD
+    {
+        name = "Tseng ET4000AX", internal_name = "et4000ax", device = vid_et4000.et4000_device, legacy_id = pc.GFX_ET4000,
+        flags = VIDEO_FLAG_TYPE_SPECIAL,
+        timing = new video_timings_t { type = VIDEO_ISA, write_b = 3, write_w = 3, write_l = 6, read_b = 5, read_w = 5, read_l = 10 },
+    };
+
     // pcem: video.c:119 — G9.2.
     internal static readonly VIDEO_CARD v_ega = new VIDEO_CARD
     {
@@ -360,15 +368,15 @@ internal static partial class video
     // pcem: plugin-api/device.c:17 et video.c:1301-1354 — le registre, rempli par
     // video_init_builtin dans l'ordre de ses pcem_add_video.
     //
-    // DEVIATION: neuf entrées au lieu des quarante-neuf que video_init_builtin enregistre
+    // DEVIATION: dix entrées au lieu des quarante-neuf que video_init_builtin enregistre
     //   (cinquante pcem_add_video, dont v_pgc sous USE_EXPERIMENTAL_PGC), dans l'ordre RELATIF de PCem
-    //   (v_cga en :1312, v_cl_gd5429 en :1314, v_ega en :1321, v_hercules en :1322, v_mda en :1329, v_px_trio64 en :1340, v_tvga8900d en :1345, v_tvga9000b en :1346, v_vga en :1351), et en tableau fixe comme models[]
+    //   (v_cga en :1312, v_cl_gd5429 en :1314, v_ega en :1321, v_hercules en :1322, v_mda en :1329, v_px_trio64 en :1340, v_tvga8900d en :1345, v_tvga9000b en :1346, v_et4000ax en :1350, v_vga en :1351), et en tableau fixe comme models[]
     //   (model.cs) plutôt que par pcem_add_video. Les INDICES diffèrent donc de ceux de
     //   PCem — v_cga y est à 10 — mais aucun indice ne sort de ce fichier : la
     //   configuration écrit l'internal_name, et gfxcard porte l'identifiant HÉRITÉ
     //   (GFX_*), que video_old_to_new traduit. La sentinelle NULL de fin de liste est
     //   la longueur du tableau.
-    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_cl_gd5429, v_ega, v_hercules, v_mda, v_px_trio64, v_tvga8900d, v_tvga9000b, v_vga };
+    internal static readonly VIDEO_CARD[] video_cards = { v_cga, v_cl_gd5429, v_ega, v_hercules, v_mda, v_px_trio64, v_tvga8900d, v_tvga9000b, v_et4000ax, v_vga };
 
     // pcem: video.c:215-223
     internal static int video_card_available(int card)

@@ -100,6 +100,8 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_svga_render.c \
        $(PCEM)/src/video/vid_tkd8001_ramdac.c \
        $(PCEM)/src/video/vid_sdac_ramdac.c \
+       $(PCEM)/src/video/vid_et4000.c \
+       $(PCEM)/src/video/vid_unk_ramdac.c \
        $(PCEM)/src/models/serial.c \
        $(PCEM)/src/mouse/mouse_serial.c \
        $(PCEM)/src/mouse/mouse.c \

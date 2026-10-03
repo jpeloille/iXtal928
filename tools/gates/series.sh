@@ -220,3 +220,13 @@ run bd-ami386-ega boot-diff roms 3000 --model ami386 --gfxcard ega
 mapfile -t EBK < tools/egabanc/egabanc.keys
 EBB=(); for l in "${EBK[@]}"; do EBB+=(--type "$l"); done
 run bd-pc-ega-banc boot-diff roms 11000 --gfxcard ega --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${EBB[@]}" --type "^" --type "^"
+# G9.3 — la Tseng ET4000AX (carte ISA) : l'ami286 et l'ami386dx (sans VLB), l'ami486 (POST court et
+# complet) ; le banc ET4BANC (modes Tseng 2Eh et 30h, banques de 3CDh, RAMDAC SC1502x, CR33-CR35)
+# saisi dans DEBUG sur l'ami386dx (CMOS f386.nvr). Le BIOS de la carte ne rend pas VESA (mesuré).
+run bd-ami286-et4000 boot-diff roms 3000 --model ami286 --gfxcard et4000ax
+run bd-ami386dx-et4000 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard et4000ax
+run bd-ami486-et4000 boot-diff roms 3000 --config $C/ami486-dx2.cfg --gfxcard et4000ax
+run bd-ami486-et4000-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxcard et4000ax
+mapfile -t T4K < tools/et4banc/et4banc.keys
+T4B=(); for l in "${T4K[@]}"; do T4B+=(--type "$l"); done
+runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${T4B[@]}" --type "^" --type "^"

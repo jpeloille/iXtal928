@@ -118,7 +118,7 @@ graphiques (0Dh, 0Eh, 10h ; modes d'écriture 0-2, plans, rotation) ; un contrô
 **Témoins** : Windows 3.11 en `EGA.DRV` (disquette 2) sur un 286/386 ; Yeager Air Combat
 (`os/yeager.img`) s'il tourne en EGA.
 
-### G9.3 — La Tseng ET4000AX et son RAMDAC
+### G9.3 — La Tseng ET4000AX et son RAMDAC  ✅ *fait, VERIFICATION.md § G9.3*
 
 `vid_et4000.c` (`et4000_device` seul) et `vid_unk_ramdac.c` ; sonde SVGA + champs ET4000 (banques,
 CR3x, RAMDAC). **Portes** : boot-diffs ami386dx/ami486 (POST, DOS) ; un banc des modes 256

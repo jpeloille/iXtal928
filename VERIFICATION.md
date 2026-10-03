@@ -5562,3 +5562,42 @@ concluant — le programme passe en 40 colonnes puis attend, sans interaction po
 (`bd-pc-ega`, `bd-pcdos-ega`, `bd-xt-ega`, `bd-xtdos-ega` — 22 251 996 —, `bd-ibmat-ega`,
 `bd-ami286-ega`, `bd-ami386-ega`, `bd-pc-ega-banc`). Build 0 avertissement, selftest,
 check-oracle 0 dérive (168).
+
+## G9.3 — La Tseng ET4000AX et son RAMDAC ; PB-100
+
+Le 4 octobre 2026. Plan : `PLAN-G9.md` § G9.3.
+
+**Transcrit.** `vid_et4000.c`, `et4000_device` seul (`Video/vid_et4000.cs`) : le socle SVGA, 1 Mo
+fixe, la ROM `et4000.bin`, les banques de 3CDh (lecture et écriture séparées), les registres
+étendus du CRTC (CR33-CR35, `crtc_mask`), les horloges ; les variantes coréennes (Trigem, Kasan)
+omises et marquées. `vid_unk_ramdac.c` entier (`Video/vid_unk_ramdac.cs`), le SC1502x HiColor.
+`v_et4000ax` au registre (`GFX_ET4000`, ISA 3/3/6 5/5/10). Défauts reproduits : **PB-100** (le
+masque qui efface CR3F, CR13 nul à 256, la fenêtre de 128 Ko sur transition seulement, pas de
+séquence KEY, SR7 relu avec le bit 2 ; FFh armé et le 32 bits du RAMDAC).
+
+**L'oracle.** `vid_et4000.c` et `vid_unk_ramdac.c` liés tels quels ; l'ET4000 se monte dans la
+branche SVGA de `h_boot` (VRAM et `changedvram` effacées comme pour les autres) ; la sonde SVGA
+(163 champs) la couvre, banques comprises. ABI 43.
+
+**Le BIOS VESA, mesuré** (PLAN-G9.md, décision n° 3) : sous DEBUG, sur une copie du disque 486,
+INT 10h 4F00h, 4F01h et 4F02h laissent AX inchangé et le tampon vide — `et4000.bin` ne rend pas
+les services VESA (l'ET4000AX d'époque passait par un TSR). Constat : `SVGA256.DRV` est sans objet ;
+le témoin 256 couleurs est le banc ci-dessous, et Windows tourne en VGA. Limite dite.
+
+**Les boot-diffs** : ami286 (4 779 882 instructions), ami386dx (4 988 028), ami486 (5 462 454),
+ami486 POST complet (73 127 239) — sondes SVGA identiques. **Le banc ET4BANC**
+(`tools/et4banc/et4banc.py`, 490 octets, instructions 8086 seules), saisi dans DEBUG sur
+l'ami386dx (ISA, sans VLB ; CMOS `f386.nvr`) : modes Tseng 2Eh (640×480) et 30h (800×600) en
+256 couleurs par INT 10h, écritures et lectures par les banques de 3CDh, CR13 et CR33-CR35 relus,
+le RAMDAC armé, relu (00h), passé en HiColor (relu A0h) et rendu, SR7 relu (FCh, bit 2 forcé) —
+**79 189 392 instructions identiques, sonde identique**. **Contrôles négatifs**, retirés :
+SR7 sans son bit 2 forcé, ou 3CDh relu faux, côté C# → premières divergences aux instructions
+40 332 et 40 366 (ami486, POST court).
+
+**Le témoin Windows** (C# seul, `--boot` sur copies du disque 386 et de son CMOS, profil 386 :
+ami386dx sans VLB) : Windows 3.11 en `VGA.DRV` sur l'ET4000, **Program Manager en 640×480**.
+
+**La série** (g93), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g92 :
+169 portes, **toutes vertes**, identiques hors ABI (42 → 43) ; les cinq nouvelles vertes
+(`bd-ami286-et4000`, `bd-ami386dx-et4000`, `bd-ami486-et4000`, `bd-ami486-et4000-post`,
+`bd-ami386dx-et4-banc`). Build 0 avertissement, selftest, check-oracle 0 dérive (172).

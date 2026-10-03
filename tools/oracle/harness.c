@@ -347,6 +347,7 @@ void h_m24_forget(void);
 #include "vid_hercules.h"     /* G9.1 — hercules_device, compilée par harness_hercules.c */
 #include "rom.h"
 #include "vid_ega.h"          /* G9.2 — ega_device, compilée par harness_ega.c */
+#include "vid_et4000.h"       /* G9.3 — et4000_device, vid_et4000.c lié */
 void h_pc1512_attach(void);   /* harness_pc1512.c */
 void h_pc1512_probe(uint64_t *out);
 void h_mda_attach(void);       /* harness_mda.c — G9.0 */
@@ -1409,7 +1410,7 @@ int h_boot(const char *romspath) {
                 device_add(&m24_device);
                 h_m24_attach();
         } else if (gfxcard == GFX_VGA || gfxcard == GFX_TVGA || gfxcard == GFX_TVGA9000B || gfxcard == GFX_CL_GD5429 ||
-            gfxcard == GFX_PHOENIX_TRIO64) {
+            gfxcard == GFX_PHOENIX_TRIO64 || gfxcard == GFX_ET4000) {
                 svga_t *svga;
 
                 /* M19 : les deux Trident, video.c:177-181. */
@@ -1423,6 +1424,9 @@ int h_boot(const char *romspath) {
                 /* G7.3 — video.c:164-166, la Trio64 Phoenix. */
                 else if (gfxcard == GFX_PHOENIX_TRIO64)
                         device_add(&s3_phoenix_trio64_device);
+                /* G9.3 — video.c:189-190, la Tseng ET4000AX (vid_et4000.c lié). */
+                else if (gfxcard == GFX_ET4000)
+                        device_add(&et4000_device);
                 else
                         device_add(&vga_device);
                 /* DEVIATION de l'ORACLE (pas d'iXtal26) : svga_init alloue la VRAM et
