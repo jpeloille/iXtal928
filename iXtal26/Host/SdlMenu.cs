@@ -1757,6 +1757,45 @@ internal sealed class SdlMenu
             Directory.Delete(scratch, recursive: true);
         }
 
+        // Plan qualité du 04/10, § 1c — le moniteur automatique et le signal, carte par carte. La
+        // MDA, l'Hercules et l'EGA prenaient le 3V et leur signal se lisait comme celui de la CGA
+        // (15,70 kHz) : « hors plage » à la place de l'image. Chaque carte est montée sur un XT,
+        // sans fenêtre, le temps que le BIOS pose son mode texte ; les bornes de fréquence sont
+        // celles de PCem (la MDA et l'Hercules à 20,74 kHz, l'EGA à 21,85 kHz).
+        Console.WriteLine();
+        Console.WriteLine("Le moniteur automatique et le signal, carte par carte (XT, 1 500 tranches) :");
+
+        (string Card, CrtMonitor Expected, double MinKHz, double MaxKHz)[] cards =
+        [
+            ("cga", CrtMonitor.Generic14, 15.0, 16.0),
+            ("mda", CrtMonitor.Generic14, 18.0, 21.0),
+            ("hercules", CrtMonitor.Generic14, 18.0, 21.0),
+            ("ega", CrtMonitor.Generic14, 15.0, 22.0),
+            ("vga", CrtMonitor.Nec3V, 31.0, 32.0),
+        ];
+
+        foreach ((string card, CrtMonitor expected, double minKHz, double maxKHz) in cards)
+        {
+            if (!pc.setmodel("ibmxt") || !pc.setgfxcard(card) || !pc.initpc(romsPath))
+            {
+                Check($"{card} : la machine se monte", false, "echec");
+                continue;
+            }
+
+            for (int s = 0; s < 1500; s++)
+                pc.runpc();
+
+            var display = new DisplaySettings();
+            CrtMonitor monitor = display.Effective();
+            (double kHz, double hz) = SdlHost.SignalTiming();
+            MonitorProfile profile = DisplaySettings.Profile(monitor, display.VisibleFraction);
+            bool shown = profile.IsGeneric || profile.Accepts(kHz, hz);
+            Check($"{card} : auto -> {DisplaySettings.Describe(expected)}, image affichee",
+                  monitor == expected && kHz >= minKHz && kHz <= maxKHz && shown,
+                  $"{DisplaySettings.Describe(monitor)}, {kHz:0.00} kHz / {hz:0.00} Hz" + (shown ? "" : ", HORS PLAGE"));
+            pc.closepc();
+        }
+
         Console.WriteLine();
         Console.WriteLine(fail == 0 ? "Vert : tous les contrôles passent."
                                     : $"{fail} contrôle(s) en échec.");

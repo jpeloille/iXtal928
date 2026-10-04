@@ -30,7 +30,7 @@ commentaires. Précédence : défauts, puis `.cfg`, puis ligne de commande.
 | Choix | Retenu | Pourquoi |
 |---|---|---|
 | Surface | Toute trame remplit la surface 4:3 **visible** du tube, quelle que soit la résolution de l'invité | Un moniteur d'époque étale toute trame sur le même verre. La fenêtre ne suit plus les changements de mode de l'invité |
-| Moniteur par défaut | `auto` : NEC MultiSync 3V derrière une VGA ou une Trident, générique 14" derrière la CGA | Le 3V ne synchronise ni la CGA (15,7 kHz) ni l'EGA (21,8 kHz) |
+| Moniteur par défaut | `auto` : NEC MultiSync 3V derrière une carte de la famille VGA, générique 14" derrière la CGA, la MDA, l'Hercules et l'EGA (correctif du 04/10) | Le 3V ne synchronise ni la CGA (15,7 kHz), ni la MDA et l'Hercules (18,4 kHz ; 20,7 chez PCem), ni l'EGA (21,8 kHz) |
 | NEC MultiSync 3V | JC-1535VMA, 1994 : 15" annoncés, 14" visibles (284,5 × 213,4 mm), 31-50 kHz, 55-90 Hz | Fiche crtdatabase.com. Les plages sont **respectées** : hors plage, écran noir et message, comme le vrai (au démarrage de la 9000B, 39,5 kHz / 154 Hz) |
 | Génériques | 14, 15 et 17", 93 % de la diagonale visible, sans limite de fréquence | 0,93 est le ratio des NEC MultiSync (clé `visible_fraction`) |
 | Taille réelle | Pixel hôte déduit de `--host-diagonal` et de la résolution native ; `--pixel-mm` l'emporte ; repli 0,2331 mm (27" en 2560 × 1440) | SDL3 ne donne pas la taille physique de la dalle |

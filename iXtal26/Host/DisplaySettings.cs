@@ -8,8 +8,9 @@ using iXtal26.PluginApi;
 
 namespace iXtal26.Host;
 
-/// <summary>Moniteur simulé. Auto : le NEC MultiSync 3V derrière une carte VGA ou
-/// Trident, un générique 14" derrière la CGA, que le 3V ne sait pas synchroniser.
+/// <summary>Moniteur simulé. Auto : le NEC MultiSync 3V derrière une carte de la famille
+/// VGA, un générique 14" derrière la CGA, la MDA, l'Hercules, l'EGA et la vidéo intégrée de
+/// la M24 et du PC1512, que le 3V ne sait pas synchroniser (toutes balayent sous 31 kHz).
 /// Integer : pas de moniteur, pixels entiers.</summary>
 internal enum CrtMonitor
 {
@@ -142,8 +143,16 @@ internal sealed class DisplaySettings
     internal string? OutOfRange { get; set; }
 
     /// <summary>Le moniteur effectif pour la carte vidéo configurée.</summary>
-    internal CrtMonitor Effective() =>
-        Resolve(Monitor, Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)) != "cga");
+    internal CrtMonitor Effective() => Resolve(Monitor, VgaClassCard());
+
+    /// <summary>La carte configurée est de la famille VGA (VGA, Trident, Cirrus, S3, Tseng) : la
+    /// seule que le 3V sache synchroniser. Lue sur la carte CONFIGURÉE et non sur svga_pri, parce
+    /// que l'écran de construction dimensionne la fenêtre avant initpc. video_is_ega_vga rend
+    /// 0 pour la MDA, l'Hercules, la CGA et la vidéo intégrée de la M24 et du PC1512 ; l'EGA,
+    /// qu'il compte avec la VGA, en est retirée par son nom.</summary>
+    internal static bool VgaClassCard() =>
+        Video.video.video_is_ega_vga() != 0 &&
+        Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)) != "ega";
 
     /// <summary>Auto résolu : le 3V s'il peut afficher la carte, sinon un générique 14".</summary>
     internal static CrtMonitor Resolve(CrtMonitor monitor, bool vgaClassCard) =>

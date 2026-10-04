@@ -70,8 +70,9 @@ internal static class UsageText
           --monitor T          moniteur simulé. nec3v : NEC MultiSync 3V (14" visibles,
                                31-50 kHz, 55-90 Hz ; hors plage, écran noir) ; 14, 15,
                                17 : génériques, 93 % visibles, acceptent tout ; auto
-                               (défaut) : le 3V derrière une VGA ou Trident, un 14"
-                               derrière la CGA ; entier : pixels entiers, sans moniteur.
+                               (défaut) : le 3V derrière une carte de la famille VGA, un
+                               14" derrière la CGA, la MDA, l'Hercules et l'EGA ;
+                               entier : pixels entiers, sans moniteur.
                                Toute trame remplit la surface 4:3 du tube, à taille réelle
           --fill PCT           part du tube couverte par l'image, de 70 à 100 (défaut 90) :
                                les molettes H-SIZE/V-SIZE. Sans effet en pixels entiers

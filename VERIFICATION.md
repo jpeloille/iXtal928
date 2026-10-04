@@ -5703,3 +5703,45 @@ avant de lancer) fait un commit à part, avant G10.1.
 23 359 475 · 22 048 650 ; 8900D 25 259 648 · 26 929 485 · 23 344 188 · 22 440 523, sonde VGA
 163/163. Sous l'interrupteur, les quatorze anciens chiffres reviennent à l'unité. Build 0
 avertissement, selftest, check-oracle 0 dérive (181), `--setup-check` vingt-trois contrôles.
+
+## L'hôte : le moniteur automatique de la MDA, de l'Hercules et de l'EGA
+
+Le 4 octobre 2026. Plan qualité du 04/10, § 1c : un défaut de G9, côté hôte, qui ne touche
+aucune porte.
+
+**Mesuré d'abord.** Sans fenêtre (`--headless --verbose`, puis le pilote vidéo SDL factice,
+`SDL_VIDEO_DRIVER=dummy`, qui fait tourner le rendu sans rien afficher), XT, 300 et
+1 500 tranches. La CGA prend le générique 14", 15,70 kHz. **La MDA, l'Hercules et l'EGA
+prennent le NEC 3V, avec un signal lu à 15,70 kHz / 59,92 Hz : « HORS PLAGE (15.7 kHz /
+60 Hz) »**, le panneau noir à la place de l'image. Deux causes : Auto prenait le 3V pour toute
+carte autre que `cga` (`DisplaySettings.Effective`, écrit avant G9), et `SignalTiming` rendait
+en dur le balayage de la CGA pour toute carte sans SVGA.
+
+**Le correctif.**
+- Auto ne prend le 3V que pour une carte de la famille VGA. La carte est lue dans sa
+  configuration (`video_is_ega_vga`, l'EGA retirée par son nom), et non sur `svga_pri` comme
+  le prévoyait le plan : l'écran de construction dimensionne la fenêtre avant `initpc`, quand
+  `svga_pri` est encore nul.
+- `SignalTiming` lit le balayage de l'EGA (`dispontime`, `dispofftime`, `vtotal`) et celui de
+  la MDA et de l'Hercules, dont le 6845 compte la trame en rangées : (R4 + 1) × (R9 + 1) + R5,
+  comme `mda_poll` et `hercules_poll`.
+
+**Après** : la MDA et l'Hercules prennent le générique 14", à 20,74 kHz / 56,04 Hz (le rythme de
+PCem, qui compte des caractères de 8 points : `MDACONST` = 16,257 MHz / 8, là où la vraie MDA,
+à 9 points, balaye à 18,43 kHz / 50 Hz). L'EGA prend le générique 14" à 21,85 kHz / 59,87 Hz ;
+la VGA garde le 3V, à 31,16 kHz / 69,39 Hz ; la CGA ne change pas. Plus de « hors plage ».
+
+**Le contrôle**, dans `--menu-check`, à côté des contrôles du moniteur qui y étaient déjà : la
+CGA, la MDA, l'Hercules, l'EGA et la VGA montées tour à tour sur un XT, 1 500 tranches sans
+fenêtre ; pour chacune, le moniteur d'Auto, la fréquence dans ses bornes et l'image affichée.
+**69 contrôles verts**, dont ces cinq. **Contrôles négatifs**, sur des copies hors du dépôt :
+l'ancien choix d'Auto rougit la MDA, l'Hercules et l'EGA (3V, « HORS PLAGE ») ; l'ancien signal
+en dur rougit la MDA et l'Hercules (15,70 kHz hors de leurs bornes). L'EGA y reste verte, car
+15,70 kHz est un balayage légitime de ses modes de 200 lignes.
+
+**Aucune porte touchée** : ni `series.sh`, ni `par.sh`, ni l'outil de diff n'appellent l'hôte.
+Les boot-diffs XT de la CGA, de la MDA, de l'Hercules, de l'EGA et de la VGA, rejoués, rendent
+les comptes de g100 (23 442 019, 23 427 804, 23 427 804, 22 706 803, 23 359 475). Build 0
+avertissement, selftest, check-oracle 0 dérive (181), ABI 44, `--setup-check` vingt-trois
+contrôles. Reste l'œil de l'utilisateur : l'image en fenêtre, sur une MDA, une Hercules et une
+EGA.

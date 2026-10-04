@@ -896,24 +896,44 @@ public sealed class SdlHost : IDisposable
 
     /// <summary>
     /// Fréquences du signal que la carte émet : ligne = dispontime + dispofftime, en
-    /// unités de timer (TIMER_USEC par µs), trame = ligne × vtotal. La CGA n'a pas
-    /// d'accès statique à son état : elle balaye à 14,318 MHz / 912 = 15,70 kHz, 262
-    /// lignes, 59,92 Hz, et aucun programme de l'époque n'en sortait.
+    /// unités de timer (TIMER_USEC par µs), trame = ligne × lignes par trame. La SVGA et
+    /// l'EGA tiennent leur vtotal ; la MDA et l'Hercules, un 6845, comptent la trame en
+    /// rangées (Lignes6845). La CGA n'a pas d'accès statique à son état : elle balaye à
+    /// 14,318 MHz / 912 = 15,70 kHz, 262 lignes, 59,92 Hz, et aucun programme de l'époque
+    /// n'en sortait. Interne pour l'auto-contrôle du menu (--menu-check).
     /// </summary>
-    private static (double HorizontalKHz, double VerticalHz) SignalTiming()
+    internal static (double HorizontalKHz, double VerticalHz) SignalTiming()
     {
-        var svga = vid_svga.svga_get_pri();
+        if (vid_svga.svga_get_pri() is { } svga)
+            return Frequencies(svga.dispontime + (double)svga.dispofftime, svga.vtotal);
 
-        if (svga is null)
-            return (15.70, 59.92);
+        if (vid_ega.Probe is { } ega)
+            return Frequencies(ega.dispontime + (double)ega.dispofftime, ega.vtotal);
 
-        double line = svga.dispontime + (double)svga.dispofftime;
+        if (vid_mda.Probe is { } mda)
+            return Frequencies(mda.dispontime + (double)mda.dispofftime, Lignes6845(mda.crtc));
 
+        if (vid_hercules.Probe is { } hercules)
+            return Frequencies(hercules.dispontime + (double)hercules.dispofftime, Lignes6845(hercules.crtc));
+
+        return (15.70, 59.92);
+    }
+
+    /// <summary>Lignes d'une trame de 6845, comme mda_poll et hercules_poll les comptent :
+    /// R4 + 1 rangées de R9 + 1 lignes (la moitié en mode entrelacé vidéo, R8 = 3), plus R5.</summary>
+    private static int Lignes6845(uint8_t[] crtc)
+    {
+        int rowLines = ((crtc[8] & 3) == 3 ? crtc[9] >> 1 : crtc[9]) + 1;
+        return (crtc[4] + 1) * rowLines + crtc[5];
+    }
+
+    private static (double HorizontalKHz, double VerticalHz) Frequencies(double line, int linesPerFrame)
+    {
         if (line <= 0 || timer.TIMER_USEC == 0)
             return (0, 0);
 
         double horizontalHz = 1e6 * timer.TIMER_USEC / line;
-        return (horizontalHz / 1000.0, svga.vtotal > 0 ? horizontalHz / svga.vtotal : 0);
+        return (horizontalHz / 1000.0, linesPerFrame > 0 ? horizontalHz / linesPerFrame : 0);
     }
 
     /// <summary>
