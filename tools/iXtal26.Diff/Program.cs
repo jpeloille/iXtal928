@@ -249,6 +249,12 @@ switch (args[0])
     // G8.0 — les tables de DBOPL (pow, sin), oracle contre C#.
     case "opl-tables-check":
         return OplTablesCheck.Run();
+    // G10.3 — le moteur d'images de CD, oracle contre C#, sur les images d'isogen (DOSSIER : déjà écrites).
+    case "cdimage-check":
+        return CdImageCheck.Run(args.Length > 1 ? args[1] : null);
+    // G10.3 — R9 : les feuilles CUE qui font tomber PCem, en C# seul.
+    case "r9-cue":
+        return R9Cue.Run(args.Length > 1 ? args[1] : null);
     case "page-check":
     {
         var it = 200000;

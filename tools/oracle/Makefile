@@ -118,7 +118,8 @@ SRC := harness.c \
        $(PCEM)/src/mfm/mfm_at.c \
        $(PCEM)/src/ide/ide.c \
        $(PCEM)/src/ide/xtide.c \
-       $(PCEM)/src/hdd/hdd_file.c
+       $(PCEM)/src/hdd/hdd_file.c \
+       $(PCEM)/src/cdrom/cdrom-null.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal
 # d'écritures SANS modifier l'arbre vendoré. Voir harness_wrap.c.
@@ -172,10 +173,18 @@ LDFLAGS += -Wl,--no-undefined
 # de sound_dbopl.cc, G8.1). bench, qui ne lit ni l'OPL ni le DSP, reste en C seul.
 CXX      := g++
 CXXFLAGS := $(CFLAGS)
-CXXSRC   := harness_dbopl.cpp
+CXXSRC   := harness_dbopl.cpp harness_cdrom.cpp
+
+# G10.3 — le moteur d'images de CD (harness_cdrom.cpp inclut cdrom_image.cpp et cdrom-image.cc). Leur
+# comportement indéfini rendu déterministe (décision n° 2 de G10.3, 04/10) : les variables
+# automatiques non initialisées à zéro, sur ce SEUL objet ; et tout new[] par __wrap__Znam, un calloc
+# (harness_cdrom.cpp) — aucun autre objet ne référence _Znam (nm -u, VERIFICATION.md § G10.3). La .so
+# seule : bench ne lie pas le C++.
+$(BUILD)/harness_cdrom.o: CXXFLAGS += -ftrivial-auto-var-init=zero
+LDFLAGS += -Wl,--wrap=_Znam
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o))) $(addprefix $(BUILD)/,$(notdir $(CXXSRC:.cpp=.o)))
-vpath %.c . $(PCEM)/src/lpt $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound
+vpath %.c . $(PCEM)/src/lpt $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound $(PCEM)/src/cdrom
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

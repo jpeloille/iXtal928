@@ -48,3 +48,9 @@ descripteur : une série tuée garde la machine tant qu'une de ses portes tourne
 `KEYB FR`, CMOS de type 46, et depuis G10.2 le disque amorçable du XTIDE, partitionné et formaté
 par émulation en C# seul, `xtide-format.keys`) et vérifie ses empreintes contre `g5w.sha256` ; `cfg/` porte les
 configurations des portes (`*.cfg.in` : gabarits de l'espace disque).
+
+Les portes du CD (G10.3, `cdimage-check` et `r9-cue`) n'ont pas d'espace préparé : chacune écrit
+les images d'isogen (`tools/isogen/isogen.py`) dans un répertoire de son `TMPDIR`, les vérifie
+contre `tools/isogen/isogen.sha256` — un générateur qui dérive rougit la porte —, et les efface en
+sortant, signaux compris (SIGKILL excepté). Parmi elles, une image CREUSE de 2,5 Go : 64 Kio seulement
+comptent au quota, ce qu'isogen vérifie par une sonde avant de l'écrire.

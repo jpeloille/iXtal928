@@ -64,20 +64,29 @@ dans les quatre fichiers, plus deux arrêts provoqués par la configuration.
 6. **Par la configuration** (traitement de PB-93 : hors liste → défaut, avec un avertissement) :
    `cd_speed = 0` pose `cur_speed` à 0 (`scsi_cd.c:227-228`), puis divise par lui (`:1081`,
    `:1170`) ; `joystick_type` hors borne indexe hors de `joystick_list` (`gameport.c:27`, `:132`).
+7. **Par une feuille CUE** (relevé en G10.3, PB-110) : une piste qui précède tout FILE a un fichier
+   nul — lue, elle fait tomber l'hôte (`cdrom_image.cpp:183`) ; suivie d'une piste d'un autre
+   fichier, `AddTrack` tombe pendant `image_open` (`:427`). Et un chemin d'image de 1 024 octets
+   ou plus déborde `image_path` (`cdrom-image.cc:465`), par la clé `cdrom_path` de G10.4.
 
 Chaque site reçoit son traitement, R9 ou PB-93, et un **test de survie en C# seul** qui rougit si
-l'on retire sa garde : `r9-atapi` (G10.4), `r9-zip` (G10.6), `r9-cdcfg` (G10.4, `cd_speed`), et le
-`joystick_type` hors borne en G10.1.
+l'on retire sa garde : `r9-atapi` (G10.4), `r9-zip` (G10.6), `r9-cdcfg` (G10.4, `cd_speed`), le
+`joystick_type` hors borne en G10.1, et `r9-cue` (G10.3, fait : les deux gardes de la feuille).
 
 **Observables, à reproduire** : READ CAPACITY rend la fin + 1 (`cdrom-image.cc:475`) ; GET EVENT
 STATUS toujours « NEW_MEDIA » (`scsi_cd.c:582-598`) ; MODE SELECT (`:756`) ; le format de READ TOC
 pris dans `cdb[9] >> 6` (`:1013`), la TOC brute sans lead-out ; `playaudio` et `image_seek` décalés
 de 150 secteurs (`cdrom-image.cc:83`, `:138`) ; l'échec collant d'un `ifstream` (`failbit`) ;
-READ CD brut sur piste cuite qui laisse des données périmées.
+READ CD brut sur piste cuite qui laisse des données périmées. *G10.3* : au niveau du moteur, la
+capacité fin + 1, la TOC brute sans lead-out ni `b[0..1]`, le tampon intact d'une lecture brute
+sur piste cuite, l'échec collant (PB-109), et `image_close` qui laisse la table et la capacité sont
+reproduits et comparés des deux côtés ; leur effet sur l'invité se lira en G10.4.
 
 **Comportement indéfini, sans arrêt** : `ReadSectors` qui copie un tampon non initialisé après un
 échec (`cdrom_image.cpp:145`) ; `image_getcurrentsubchannel` qui écrit des champs non initialisés
-(`cdrom-image.cc:208-249`). Déterministes côté C# (zéros), à effacer côté oracle.
+(`cdrom-image.cc:208-249`). Déterministes côté C# (zéros), à effacer côté oracle. *Fait en G10.3*
+(PB-111, décision n° 12) : zéro des deux côtés, l'oracle rendu déterministe plutôt que la
+comparaison masquée ; la liste complète des sites est dans le registre.
 
 **État statique qui traverse les amorçages** : `old_cdrom_drive`, `image_changed`,
 `cdrom_capacity`, `image_cd_*`, `cd_data`, `zip_data`, `mode_pages_in`, `page_flags`, l'état
@@ -122,14 +131,19 @@ axes par 201h et lit les boutons, mouvements injectés ; contrôle négatif.
 `os/8088-HDD-C.img` dans `$WORK`, recette `g5w`). **Témoin** : la M24 et le PC1512 amorcent enfin
 un disque dur (le Xebec ne le faisait pas, constat de G1).
 
-### G10.3 — Le moteur d'images CD, ISO
+### G10.3 — Le moteur d'images CD : ISO et CUE/BIN  ✅ *fait, VERIFICATION.md § G10.3*
 
-`cdrom_image.cpp` (BinaryFile, `LoadIsoFile`, `CanReadPVD`, pistes, `ReadSector(s)`),
-`cdrom-image.cc` côté données, `cdrom-null.c`. L'oracle compile `harness_cdrom.cpp` (en C++, comme
-DBOPL) qui les inclut. **Un générateur d'images** versionné, `tools/isogen/` (ISO 9660 minimal,
-déterministe, en Python ; aucun outil n'est installé sur l'hôte) : ISO à 2048, 2352 et mode 2.
-**Porte** : `cdimage-check`, le moteur appelé des deux côtés sur ces images (TOC, capacité,
-secteurs).
+*Redécoupé le 04/10 (décision n° 1 amendée).* Le moteur entier : `cdrom_image.cpp` (BinaryFile,
+`LoadIsoFile`, `CanReadPVD`, la feuille CUE et `AddTrack`, les pistes, `ReadSector(s)`),
+`cdrom-image.cc` entier (les données, et le lecteur audio et son rappel appelés comme des fonctions
+pures), `cdrom-null.c`. L'oracle compile `harness_cdrom.cpp` (en C++, comme DBOPL) qui les inclut.
+**Un générateur d'images** versionné, `tools/isogen/` (ISO 9660 minimal, déterministe, en Python ;
+aucun outil n'est installé sur l'hôte) : ISO à 2048, 2352, mode 2 (2352 et 2336), High Sierra,
+images tronquées ou sans PVD, une image creuse de 2,5 Go ; des feuilles CUE (données et audio,
+plusieurs fichiers, prégaps, les trois formats de données, CRLF et guillemets, onze refus).
+**Portes** : `cdimage-check`, le moteur appelé des deux côtés sur ces images, l'état comparé après
+chaque appel (TOC, capacité, secteurs, sous-canal, rappel audio, pistes, l'état de chaque
+ifstream) ; `r9-cue`, la survie aux feuilles qui font tomber PCem, en C# seul.
 
 ### G10.4 — L'ATAPI : le CD-ROM sur l'IDE
 
@@ -140,12 +154,13 @@ vide et chargé ; un banc ATAPIBANC qui parle ATAPI directement aux ports (IDENT
 INQUIRY, TEST UNIT READY, READ CAPACITY, READ(10) du PVD, READ TOC, MODE SENSE, REQUEST SENSE).
 **Témoin** : décision n° 5.
 
-### G10.5 — CUE/BIN et l'audio CD
+### G10.5 — L'audio CD dans la machine
 
-`LoadCueSheet` et les pistes multiples ; `playaudio`, pause, sous-canal ; le chemin CD de
-`sound.c` (volume et canal ATAPI, `cd_vol` de la carte son). **Porte** : `cdimage-check` sur un
-CUE/BIN généré (une piste de données, deux pistes audio) ; ATAPIBANC étendu (PLAY AUDIO, READ
-SUBCHANNEL, PAUSE) ; l'empreinte des échantillons CD dans la sonde du son.
+*Redécoupé le 04/10 (décision n° 1 amendée) : le CUE/BIN, les pistes multiples, `playaudio`, la
+pause et le sous-canal sont entrés en G10.3, au niveau du moteur.* Reste la machine : l'appel du
+rappel audio à l'échéance de `sound_poll` (décision n° 7), le chemin CD de `sound.c` (volume et
+canal ATAPI, `cd_vol` de la carte son). **Porte** : ATAPIBANC étendu (PLAY AUDIO, READ SUBCHANNEL,
+PAUSE) sur un CUE/BIN d'isogen ; l'empreinte des échantillons CD dans la sonde du son.
 
 ### G10.6 — Le ZIP
 
@@ -156,7 +171,12 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
 ## Les décisions
 
 1. **L'ordre** : LPT1 et port jeu → manette → XTIDE → images CD → ATAPI CD → CUE/BIN et audio → ZIP,
-   les petits morceaux d'abord. *(validé sous mandat, 04/10)*
+   les petits morceaux d'abord. *(validé sous mandat, 04/10)* **Amendé le 04/10 (sous mandat, à la
+   reconnaissance de G10.3)** : le moteur d'images entier passe en G10.3 — ISO et CUE/BIN, pistes de
+   données et audio, le lecteur audio en fonctions pures. `SetDevice` essaie la feuille CUE avant
+   l'ISO (`cdrom_image.cpp:82-85`) : le parseur est sur le chemin de toute ISO ; et le `scsi_cd.c`
+   de G10.4 appelle les dix-neuf entrées d'`image_atapi`, le lecteur audio compris. G10.5 devient
+   l'audio CD dans la machine.
 2. **Le port jeu et LPT1 sur toutes les machines XT et AT**, comme PCem (`model.c:195`, `:208`,
    `:344`) : c'est le matériel de ces machines. Un seul recompte du POST, en G10.0, prouvé par
    l'interrupteur « LPT et port jeu hors service ». *(validé par l'utilisateur, 04/10)*
@@ -183,6 +203,18 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
     garde -1, la DEVIATION existante : aucun CD par défaut, c'est le profil ou le `.cfg` qui pose le
     lecteur (le canal 2 percuterait l'E: des portes ide-check et changerait le POST de tout ami486).
     *(validé par l'utilisateur, 04/10)*
+11. **L'image de plus de 2 Gio** (PB-107) : prouvée par une image CREUSE de 2,5 Go, écrite en tmpfs
+    après une sonde qui vérifie que les trous ne comptent pas au quota (`quotactl_fd`), effacée sur
+    tous les chemins (fin de porte, `ProcessExit`, SIGTERM, SIGINT, SIGHUP, SIGQUIT). *(validé sous
+    mandat, 04/10)*
+12. **L'indéfini, côté oracle** (PB-111) : l'oracle rendu déterministe plutôt que la comparaison
+    masquée — `-ftrivial-auto-var-init=zero` sur `harness_cdrom.cpp` SEUL, et `--wrap=_Znam` (un
+    `new[]` à zéro), qu'aucun autre objet ne référence (`nm -u`), la série restant identique à g105.
+    Conséquence inscrite : PLAY AUDIO en MSF sur une piste de données joue. *(validé sous mandat,
+    04/10)*
+13. **Une feuille CUE est une donnée de l'utilisateur**, comme un .cfg : ses plantages (PB-110)
+    prennent la règle R9, DEVIATION « pcem bug, not reproduced », et la survie `r9-cue`. *(validé
+    sous mandat, 04/10)*
 
 ## Les risques
 
@@ -222,6 +254,18 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
 - **L'outil (GR.4)** : `make bench`, le banc C de l'oracle, ne se lie plus depuis G8 :
   `h_opl_reset` y manque (`harness.c`, `h_boot`), `harness_dbopl.cpp` étant hors de `BENCH_SRC`
   (`tools/oracle/Makefile`). Constaté le 04/10, identique à `08d0d2f`.
+- **G10.3** : le moteur est prouvé hors machine — aucun invité ne le lit encore (G10.4). Les
+  numéros de TRACK et d'INDEX des feuilles d'isogen sont tous à deux chiffres avec un zéro de tête :
+  l'extraction d'un entier de `num_get` n'est exercée ni au-delà de 9, ni en débordement (les
+  MSF, par `sscanf`, le sont jusqu'à 72) ; la campagne de feuilles malformées reste en GR.2. Un FILE
+  qui désigne un RÉPERTOIRE diverge (ifstream l'ouvre sous Linux, FileStream le refuse), comme un
+  nom de fichier qui n'est pas de l'UTF-8 valide : non couverts. Le repli de `FRAMES_TO_MSF` sur
+  un octet (au-delà de 255 minutes, plus de 99 pistes) n'est pas exercé. Des sites de PB-111, la
+  porte n'atteint que ceux de la pile qui comptent (`pvd[]`, `attr`, le sous-canal) et le tas de
+  `ReadSectors` : `index` d'un INDEX sans numéro, et `min`/`sec`/`fr` d'un MSF malformé, ne sont lus
+  que par une feuille aussitôt refusée. Les secteurs bruts d'isogen ont EDC et ECC à zéro. L'état statique du pilote n'est pas encore remis à
+  zéro à l'amorçage : `image_clear_state_for_oracle_parity` et `h_cd_reset` existent, l'amorçage les
+  appellera en G10.4.
 - **ATAPI et ZIP** (G10.4, G10.6) : les bancs couvrent une dizaine de commandes sur une trentaine ;
   pas de sonde de l'état ATAPI ; un seul témoin, ATAPIBANC, faute de pilote DOS (décision n° 5).
 - **L'audio CD** (G10.5) : le rappel synchrone n'est pas le fil de PCem ; la cadence avec des lectures

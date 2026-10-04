@@ -6148,3 +6148,140 @@ Le nouveau `@wait N` de KeyScript ne change aucune porte existante : aucune ne t
 
 Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
 (186), ABI 48.
+
+## G10.3 — Le moteur d'images CD : ISO et CUE/BIN ; PB-106 à PB-112
+
+Le 4 octobre 2026. Plan : `PLAN-G10.md` § G10.3, redécoupé à la reconnaissance (décision n° 1
+amendée, le moteur entier en G10.3), et les décisions n° 11 à 13 du même jour, prises par le pilote
+sous mandat.
+
+**Transcrit.** `cdrom_image.cpp` entier, le moteur de DOSBox (`Cdrom/cdrom_image.cs`) : BinaryFile,
+les pistes, l'ISO (`LoadIsoFile`, `CanReadPVD`), la feuille CUE (`LoadCueSheet`, `AddTrack` et ses
+lecteurs), la lecture (`ReadSector`, `ReadSectors`). Omis : cinq méthodes qu'aucun code de PCem
+n'appelle (`GetUPC`, `GetMediaTrayStatus`, `LoadUnloadMedia`, `InitNewMedia`, `HasDataTrack`), la
+classe abstraite, le `dirname` de Win32. `cdrom-image.cc` entier, le pilote ATAPI des images
+(`Cdrom/cdrom-image.cs`) : son état, les données, le lecteur audio et son rappel, appelés comme des
+fonctions pures (leur appel par le son est G10.5). `cdrom-null.c` (`Cdrom/cdrom-null.cs`). Le type
+`ATAPI` et le pointeur `atapi` (`Ide/ide_atapi.cs`), les deux globales du lecteur
+(`Cdrom/cdrom-ioctl.cs`), `CDROM_IMAGE` (`ide.cs`).
+
+**L'ifstream modélisé.** Le moteur lit ses fichiers par des `ifstream`, et ses feuilles par des
+`istringstream`. Le C# en reproduit les bits d'état d'après la libstdc++ de gcc 15 qui compile
+l'oracle (`istream.tcc`, `sstream.tcc`, `locale_facets.tcc`, `istream.cc`) : sentinelles, `seekg`
+qui n'efface que `eofbit`, `read` court qui pose `eofbit` et `failbit`, `tellg` sous sentinelle,
+`getline` à 511 octets (une ligne de 511 caractères passe, de 512 non), l'extraction d'un entier
+de `num_get`, le `sscanf` de la glibc, le `dirname` de la glibc. Les chemins lus dans une feuille
+restent des octets jusqu'au système de fichiers (UTF-8 valide).
+
+**L'oracle.** `harness_cdrom.cpp` inclut les deux fichiers C++, comme DBOPL : leur état est
+`static`. `#define private public` autour de `cdrom.h` seul, les en-têtes standard inclus avant,
+pour relever la table des pistes et l'état de chaque ifstream. `cdrom-null.c` est compilé, les deux
+globales du lecteur sont définies dans le harnais (`cdrom-ioctl-linux.c` n'est pas lié), ABI 49.
+Rien n'est branché à l'amorçage : c'est G10.4.
+
+**L'indéfini (PB-111, décision n° 12).** Rendu déterministe des deux côtés, à zéro. Le C#
+initialise. L'oracle compile `harness_cdrom.cpp`, et lui seul, avec `-ftrivial-auto-var-init=zero`,
+et prend tout `new[]` d'un `calloc` par `-Wl,--wrap=_Znam`. Le relevé `nm -u` sur les 83 objets de
+l'oracle construit : seul `harness_cdrom.o` référence `_Znam` (et `_Znwm`, qui n'est pas
+enveloppé) ; aucun autre objet ne référence ni l'un ni l'autre — le seul `new` de DBOPL est un `new`
+de placement, sans symbole. La `.so` n'importe plus `_Znam`, sa référence va à `__wrap__Znam`. Les
+deux options sont nécessaires, mesuré : sans le `new[]` enveloppé, sous `MALLOC_PERTURB_=85`, les
+secteurs non lus valent AAh (158 écarts) ; sans `-ftrivial-auto-var-init=zero`, `attr`
+d'`image_playaudio` hérite de la pile un 14h et PLAY AUDIO y est refusé comme une piste de données
+(31 écarts). Conséquence inscrite : PLAY AUDIO en MSF sur une piste de données joue (la position
+encore compactée tombe hors des pistes, `attr` vaut 0).
+
+**isogen** (`tools/isogen/isogen.py`), Python et sa bibliothèque standard, aucun outil de CD n'étant
+installé. Un volume ISO 9660 niveau 1 de 32 secteurs — PVD, terminateur, tables de chemins L et M,
+racine, `README.TXT`, `DATA.BIN` (10 000 octets), `SUBDIR/NESTED.TXT` —, que `file` reconnaît
+(« ISO 9660 CD-ROM filesystem data 'IXTAL_G10_3' », et « High Sierra » pour la variante). Ses
+déclinaisons : 2048, 2352 mode 1, 2352 mode 2, 2336 mode 2, High Sierra, avec une queue de
+100 octets, avec du texte dans la zone système (les deux rejets du parseur CUE), vide, sans PVD,
+coupée sept octets après le début du PVD, et creuse de 2,5 Go. Les secteurs bruts portent la
+synchronisation, l'en-tête en BCD et le sous-en-tête ; EDC et ECC à zéro. Puis dix-neuf feuilles
+CUE et leurs BIN : données et audio dans un fichier (INDEX 00 et INDEX 01, PREGAP hors du
+fichier), un fichier par piste (INDEX 00 en 00:00:00, un dernier secteur incomplet), les trois
+formats de données, CRLF, minuscules, guillemets avec espace et nom sans guillemets, barre oblique
+inverse, les commandes ignorées et CATALOG, une ligne de 511 caractères, un INDEX qui recule ; onze
+refus ; et les deux feuilles R9. Deux exécutions écrivent les mêmes octets (36 fichiers) ;
+`isogen.sha256` les fixe. L'image creuse : une sonde de 64 Mio vérifie d'abord, par
+`quotactl_fd`, que le système de fichiers fait des trous et que le quota ne les compte pas ; elle
+coûte 65 536 octets au quota.
+
+**Les portes.** `cdimage-check` et `r9-cue` écrivent elles-mêmes les images dans leur `TMPDIR`, les
+vérifient contre `isogen.sha256` et les effacent en sortant. Éprouvé :
+- un `isogen.sha256` faussé d'un octet : rouge (« le générateur a dérivé »), rien ne reste ;
+- douze arrêts par signal — SIGTERM, SIGINT, SIGHUP et SIGQUIT, à 0,4, 0,9 et 1,4 s — : rien ne
+  reste. Avant les gestionnaires `PosixSignalRegistration`, un SIGTERM laissait le répertoire,
+  l'image creuse comprise : sous Linux, .NET ne lève pas `ProcessExit` sur SIGTERM.
+
+`cdimage-check` ouvre chaque image des deux côtés, puis appelle chaque entrée de la table `atapi`
+sur des tampons préremplis du même motif. Il appelle aussi le rappel audio, par 8 820 échantillons
+comme `sound_cd_thread`. Après chaque appel, l'état entier est comparé :
+- `cdrom`, la table posée, `image_changed`, la capacité, le lecteur audio, `cd_buffer` haché ;
+- chaque piste : `number`, `track_number`, `attr`, `start`, `length`, `skip`, `sectorSize`,
+  `mode2`, le fichier, l'état de son ifstream ;
+- `image_path` et `mcn`.
+
+Pour chaque image montée, la batterie :
+- la TOC (192 combinaisons), la TOC de session, la TOC brute ;
+- les secteurs, dans les pistes puis aux bords, à 0, 1, 2 et 3 secteurs, et en brut ;
+- le sous-canal en LBA et en MSF ;
+- chaque piste jouée, mise en pause, reprise et déplacée, puis jouée jusqu'au bout ;
+- la fermeture, et toutes les entrées après elle.
+
+34 cas : 9 ISO montées, 5 refusées (dont 2336 et un répertoire), 6 feuilles montées, 11 refusées, les
+suites d'ouvertures (`image_changed`, `medium_changed`, `cdrom_drive`, l'échec d'`image_open` qui
+laisse la table et la capacité), le lecteur sans disque, les constats. **Vert : 4 900 appels et
+4 970 états identiques**, en 2 s, génération comprise. Les huit constats, sur ces valeurs :
+- la capacité est la fin + 1 (33 pour 32 secteurs) ;
+- la TOC brute n'a qu'une entrée par piste, sans lead-out ;
+- PB-106, deux fois : l'image 2336 est refusée, et la piste MODE2/2336 de `formats.cue` rend le PVD
+  à partir de son 16e octet ;
+- PB-107 : l'image creuse prend une longueur de -786 432 secteurs, et rien ne s'y lit ;
+- PB-108 : la piste 2 de `multi.cue` rend le secteur 0 de son fichier, son prégap ;
+- PB-109, deux fois : l'image coupée est montée avec une longueur 0, et le dernier secteur,
+  incomplet, de la piste 3 de `multi.cue` rend le fichier illisible.
+
+`r9-cue` (C# seul) : la feuille sans FILE est montée, comme chez PCem, et ses lectures échouent sans
+tomber — READ, READ CD brut, le rappel audio ; la feuille dont une piste précède le premier FILE est
+refusée. Vert.
+
+**Contrôles négatifs.** Chaque faute est posée dans une copie des sources, construite à part, la
+porte jouée sur les images d'isogen sous `MALLOC_PERTURB_=85` :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| PB-106 corrigé dans `CanReadPVD` (+8 en 2336) | `cdimage-check` | rouge : l'image 2336 montée en C# |
+| PB-106 corrigé dans `ReadSector` | `cdimage-check` | rouge : `formats.cue`, secteur 48 |
+| PB-107 : la taille bornée au lieu de tronquée | `cdimage-check` | rouge : la capacité de l'image creuse |
+| PB-108 : `prestart >= 0` | `cdimage-check` | rouge : 5 cas |
+| PB-109 : `failbit` effacé par `seekg` | `cdimage-check` | rouge : 5 cas, dont l'image coupée |
+| `getline` à 512 au lieu de 511 | `cdimage-check` | rouge : la ligne de 512 acceptée |
+| le PREGAP oublié dans `AddTrack` | `cdimage-check` | rouge : `mixte.cue`, capacité 98 au lieu de 248 |
+| les guillemets mal ôtés | `cdimage-check` | rouge : 9 cas |
+| `dirname` qui rend « . » | `cdimage-check` | rouge : 9 cas |
+| la capacité sans le + 1 | `cdimage-check` | rouge : 17 cas |
+| `image_close` qui remet la capacité à zéro | `cdimage-check` | rouge : 17 cas |
+| la TOC brute avec le lead-out | `cdimage-check` | rouge : 16 cas |
+| `medium_changed` sans la mise à jour d'`old_cdrom_drive` | `cdimage-check` | rouge : les suites |
+| le rappel audio qui compte deux mots de moins par secteur | `cdimage-check` | rouge : 4 cas |
+| le sous-canal en pause qui rend 11h au lieu de 12h | `cdimage-check` | rouge : 4 cas |
+| la garde R9 de `ReadSector` retirée | `r9-cue` | rouge : NullReferenceException |
+| la garde R9 d'`AddTrack` retirée | `r9-cue` | rouge : NullReferenceException |
+| l'oracle sans `--wrap=_Znam` | `cdimage-check` | rouge : 16 cas, AAh contre 00h |
+| l'oracle sans `-ftrivial-auto-var-init=zero` | `cdimage-check` | rouge : `ok-ligne511.cue`, 31 écarts |
+
+Deux contrôles ont d'abord manqué leur but, corrigés avant ce relevé. Le sous-canal en pause
+restait vert : une lecture de 20 secteurs finissait avant la pause, qui n'avait plus d'effet ; la
+lecture dure maintenant 200 secteurs. Les guillemets et `dirname` faisaient avorter la porte (un
+côté monte, l'autre non) ; elle rougit maintenant en le disant.
+
+**Les défauts.** PB-106 (le mode 2 à 2 336 octets, +24 au lieu de +8), PB-107 (plus de 2 Gio),
+PB-108 (INDEX 00 en 00:00:00), PB-109 (l'échec collant) : reproduits. PB-110 (deux plantages par
+une feuille CUE, et `image_path` sans borne) : R9, non reproduit, survie `r9-cue`. PB-111
+(l'indéfini) : zéro des deux côtés. PB-112 (des fichiers laissés ouverts) : sans effet. Aucun
+autre chemin du parseur ne déréférence un fichier nul : `ClearTracks` et la branche FILE en
+échec ne font que `delete` d'un pointeur nul ou d'un fichier qu'aucune piste ne tient.
+
+**Ce que G10.3 laisse** : PLAN-G10.md, « Les risques », § G10.3.

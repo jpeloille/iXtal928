@@ -127,6 +127,9 @@ internal static class ide
     internal const int IDE_HDD = 1;
     internal const int IDE_CDROM = 2;
 
+    // pcem: ide.h:43 — la valeur de cdrom_drive qui désigne une image (cdrom-image.cc:461, pc.c:297).
+    internal const int CDROM_IMAGE = 200;
+
     // pcem: ide.c:81-85
     private readonly record struct IDE_HDD_EMU(int romset, string model, int tracks, int hpc, int spt);
 

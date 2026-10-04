@@ -278,3 +278,10 @@ runw bd-xt-xtide-format c.nvr aucune boot-diff roms 8000 --config xt-xtide.cfg -
 for m in ibmpc:pc ibmxt:xt olivetti_m24:m24 pc1512:pc1512; do
   runw bd-${m#*:}-xtide-boot c.nvr aucune boot-diff roms 8000 --config xt-xtide-dos.cfg --model ${m%:*} --type-at 8000 --type-settle 300 --type "" --type "" --type "VER" --type "DIR" --type "MD G10" --type "COPY COMMAND.COM G10" --type "DIR G10"
 done
+# G10.3 — le moteur d'images de CD (cdrom_image.cpp, cdrom-image.cc, cdrom-null.c), hors machine. Les
+# deux portes écrivent elles-mêmes les images d'isogen dans le TMPDIR de la série, les vérifient contre
+# tools/isogen/isogen.sha256 et les effacent en sortant, l'image creuse de 2,5 Go comprise (PB-107).
+# cdimage-check : les deux côtés appel par appel, état comparé après chacun ; r9-cue : les deux feuilles
+# CUE qui font tomber PCem, en C# seul.
+run cdimage-check cdimage-check
+run r9-cue r9-cue

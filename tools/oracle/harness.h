@@ -582,6 +582,20 @@ void h_mouse_poll(int x, int y, int z, int b);
 void h_set_joystick_type(int t);
 void h_joy_set(int n, int nr, int x, int y, int z, uint32_t boutons, int pov);
 
+/* G10.3 — le moteur d'images de CD, appelé hors de toute machine (harness_cdrom.cpp, porte
+ * cdimage-check). h_cd_reset remet à zéro l'état du pilote et pose atapi à NULL ; h_cd_fin le rend
+ * au harnais. h_cd_call appelle l'entrée op de la table atapi (rangs de ide_atapi.h:8-26) sur
+ * buf + off. h_cd_state : 12 scalaires et 10 entiers par piste, image_path et mcn. */
+void h_cd_reset(void);
+void h_cd_fin(void);
+int h_cd_open(const char *path);
+void h_cd_close(void);
+void h_cd_null_open(void);
+void h_cd_set_drive(int drive, int old);
+int64_t h_cd_call(int op, int64_t a, int64_t b, int64_t c, int64_t d, uint8_t *buf, int off);
+void h_cd_audio_callback(int16_t *out, int len);
+int h_cd_state(int64_t *v, int max, char *path, int pathmax, char *mcn, int mcnmax);
+
 /* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
 uint8_t *h_vga_vram(void);
 
@@ -710,7 +724,9 @@ uint8_t *h_ram(void);
 /* 46 depuis le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp. */
 /* 47 depuis G10.1 : h_set_joystick_type, h_joy_set (la manette). */
 /* 48 depuis G10.2 : le XTIDE (hdd_controller « xtide », xtide.c lié). */
-#define H_ABI_VERSION 48
+/* 49 depuis G10.3 : le moteur d'images de CD (harness_cdrom.cpp) — h_cd_reset, h_cd_fin, h_cd_open,
+ * h_cd_close, h_cd_null_open, h_cd_set_drive, h_cd_call, h_cd_audio_callback, h_cd_state. */
+#define H_ABI_VERSION 49
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -1100,6 +1100,83 @@ injectent l'état de la manette émulée.
 telle quelle, comme chez PCem. *Correction proposée pour le mode matériel de G13* : par défaut
 `POV_X | d` et `POV_Y | d`, le chapeau d de la manette de l'hôte.
 
+### PB-106 — Le mode 2 à 2 336 octets est lu 16 octets trop loin
+
+`cdrom_image.cpp:237-238` (`CanReadPVD`) et `:180-181` (`ReadSector`) : `if (mode2) seek += 24` —
+juste pour un secteur brut de 2 352 octets en mode 2 (12 de synchronisation, 4 d'en-tête, 8 de
+sous-en-tête), faux pour un secteur de 2 336 octets, qui commence au sous-en-tête : ses données
+sont à +8.
+*Effet* : une image MODE2/2336 n'est jamais reconnue (`LoadIsoFile` cherche le PVD 16 octets trop
+loin) ; une piste MODE2/2336 d'une feuille CUE se lit 16 octets trop loin — son secteur 16 rend le
+PVD à partir de son 16e octet. Mesuré par `cdimage-check` (constats, `iso-2336-mode2.bin`,
+`formats.cue`).
+*Trouvé par* : reconnaissance de G10.3.
+*Reproduit* : `Cdrom/cdrom_image.cs`, `CanReadPVD` et `ReadSector`, marqueurs PB-106. Contrôles
+négatifs : chacun des deux décalages corrigé (+8) rougit la porte.
+
+### PB-107 — Une image de plus de 2 Gio prend une longueur tronquée
+
+`cdrom_image.cpp:63-69` : `getLength` rend `(int)file->tellg()`. Au-delà de 2 Gio, la longueur
+devient négative (jusqu'à 4 Gio), puis se réduit modulo 4 Gio ; `LoadIsoFile` en tire la longueur
+de la piste (`:217`), et le lead-out avec elle.
+*Effet* : une ISO de DVD. Entre 2 et 4 Gio, aucun secteur ne se lit (la piste 1 va de 0 à un
+lead-out négatif, `GetTrack` ne la trouve jamais) et la capacité est aberrante : 385 025 secteurs
+pour 2 684 354 560 octets, mesuré par `cdimage-check` sur une image creuse (`creuse-2g5.iso`).
+Au-delà de 4 Gio, seul le reste modulo 4 Gio est vu : un DVD de 4,7 Go apparaîtrait de 405 Mo
+(calculé, non mesuré).
+*Trouvé par* : reconnaissance de G10.3.
+*Reproduit* : `Cdrom/cdrom_image.cs`, `getLength`, marqueur PB-107. Contrôle négatif : la taille
+bornée au lieu de tronquée rougit la porte.
+
+### PB-108 — INDEX 00 en 00:00:00 ne compte pas
+
+`cdrom_image.cpp:398-403` : `AddTrack` ne retranche le prégap que si `prestart > 0`. Quand une
+piste change de fichier (`:426-436`), son début dans le fichier est `skip * sectorSize` : avec
+INDEX 00 en 00:00:00, `skip` vaut 0, et la position d'INDEX 01 dans le fichier est oubliée.
+*Effet* : la disposition courante des feuilles à plusieurs fichiers — chaque fichier commence par
+son prégap, INDEX 00 00:00:00, puis INDEX 01 — lit chaque piste en avance de la longueur de son
+prégap : le secteur de son INDEX 01 rend le premier secteur du fichier. Mesuré par
+`cdimage-check` (`multi.cue` : la piste 2, INDEX 01 au secteur 5 de son fichier, rend le
+secteur 0). À l'écoute (G10.5), chaque piste jouerait d'abord son prégap.
+*Trouvé par* : transcription de G10.3.
+*Reproduit* : `Cdrom/cdrom_image.cs`, `AddTrack`, marqueur PB-108. Contrôle négatif :
+`prestart >= 0` rougit la porte.
+
+### PB-109 — Un échec de lecture colle au fichier
+
+`cdrom_image.cpp:57-61` : `BinaryFile::read` fait `seekg` puis `read`, et rend `!fail()`. Un `read`
+qui atteint la fin du fichier pose `eofbit` et `failbit` ; `seekg` n'efface que `eofbit` (C++11),
+et sa sentinelle refuse ensuite un flux en échec : toute lecture suivante du fichier échoue, sur
+toutes les pistes qui le partagent, jusqu'à sa fermeture.
+*Effet* : une feuille dont le dernier secteur est incomplet (`AddTrack` en compte un de plus,
+« padding », `:429-430`) : lire ce secteur, ou un prégap au-delà de la fin du fichier, rend le
+fichier illisible jusqu'à la réouverture de l'image — mesuré par `cdimage-check` (`multi.cue`, la
+piste 3). Et une image coupée sept octets après le début du PVD est montée avec une longueur 0 :
+`getLength` rend -1 sous `failbit` (`:66-67`, constat de `tronque-pvd.iso`).
+*Trouvé par* : reconnaissance de G10.3 (PLAN-G10.md, « l'échec collant »).
+*Reproduit* : `Cdrom/cdrom_image.cs`, l'ifstream modélisé d'après la libstdc++ de gcc 15 (bits
+d'état et sentinelles). Contrôle négatif : `failbit` effacé par `seekg` rougit la porte.
+
+### PB-110 — Une feuille CUE dont des pistes précèdent tout FILE fait tomber l'émulateur
+
+`cdrom_image.cpp:183` : `ReadSector` appelle `tracks[track].file->read` sans regarder le
+fichier, nul pour une piste qui précède tout FILE. `:427` : `AddTrack`, devant une piste d'un
+autre fichier que la précédente, appelle `prev.file->getLength()`, nul si la précédente précède
+tout FILE. Le parseur n'a pas d'autre chemin vers un fichier nul : `ClearTracks` (`:550-551`) et
+la branche FILE en échec (`:358-361`) ne font que `delete`, d'un pointeur nul ou d'un fichier
+qu'aucune piste ne tient. Et `cdrom-image.cc:465` : `strcpy(image_path, fn)` dans
+`char image_path[1024]`, sans borne.
+*Effet* : une feuille dont les pistes n'ont aucun FILE est montée, puis le premier secteur lu
+dans l'une d'elles — READ, READ CD brut ou le rappel audio — fait tomber l'hôte ; une piste avant
+le premier FILE suivie d'une piste qui en a un le fait tomber pendant `image_open`. Un chemin
+d'image de 1 024 octets ou plus déborde `image_path`. La feuille et le chemin sont des données de
+l'utilisateur, comme un .cfg.
+*Trouvé par* : transcription de G10.3.
+*Non reproduit* (R9, décision n° 4 de G10.3) : `Cdrom/cdrom_image.cs`, marqueurs `pcem bug, not
+reproduced` — la lecture échoue, la feuille fautive est refusée ; `r9-cue` (C# seul) rougit en
+nommant l'exception si l'on retire une garde. `image_path` est une chaîne C# ; la borne viendra
+avec la clé `cdrom_path`, en G10.4. L'oracle ne reçoit jamais ces feuilles.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1468,6 +1545,27 @@ du suivant.
 *Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
 *G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat.
+
+### PB-111 — Le moteur d'images de CD lit de l'indéterminé
+
+Des variables automatiques lues sans avoir été écrites, et un tampon du tas copié sans l'avoir
+été : `pvd[]` de `CanReadPVD` après une lecture courte (`cdrom_image.cpp:233-242`) ; le tampon
+`new[]` de `ReadSectors`, copié entier après un échec (`:136`, `:145`) ; `index` d'une ligne INDEX
+sans numéro (`:330-331`) ; `min`, `sec` et `fr` quand `sscanf` s'arrête (`:519-521`) ; `attr`
+d'`image_is_track_audio` et d'`image_playaudio` quand `GetTrack` rend -1 (`cdrom-image.cc:69-74`,
+`:81-84`) ; les champs du sous-canal hors des pistes (`:207-249`).
+*Effet* : comportement indéfini en C, et qui change l'issue. Mesuré par `cdimage-check` sur
+l'oracle compilé SANS `-ftrivial-auto-var-init=zero` : dans `ok-ligne511.cue`, `attr`
+d'`image_playaudio` hérite de la pile un 14h laissé par un appel précédent — PLAY AUDIO hors de
+toute piste y est refusé comme une piste de données (« Can't play data track »), là où le même
+appel joue ailleurs ; 31 écarts. Sans le `new[]` enveloppé, sous `MALLOC_PERTURB_=85`, les secteurs
+non lus valent AAh ; 158 écarts. Chez PCem, l'issue dépend de ce qu'un appel précédent a laissé.
+*Trouvé par* : reconnaissance de G10.3.
+*Rendu déterministe, des deux côtés* (décision n° 2 de G10.3) : zéro partout. Le C# initialise ;
+l'oracle compile `harness_cdrom.cpp` avec `-ftrivial-auto-var-init=zero` et prend tout `new[]`
+d'un `calloc` (`--wrap=_Znam`, que seul cet objet référence, `nm -u`). Conséquence inscrite : PLAY
+AUDIO en MSF teste la piste sur la position encore compactée (`cdrom-image.cc:83`), hors de toute
+piste, donc `attr` vaut 0 — la lecture part, même sur une piste de données.
 
 ## C. Incohérences sans conséquence observable
 
@@ -1871,9 +1969,19 @@ mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la 
 la projection de sa ROM, en C8000, reste dans la liste jusqu'au `mem_alloc` suivant (le Xebec, lui,
 la retire, `mfm_xebec.c:766-774`). Reproduit dans `Ide/xtide.cs`, marqueur PB-98.
 
+### PB-112 — Des fichiers d'image laissés ouverts
+
+`cdrom_image.cpp:214` : `LoadIsoFile` refuse une image sans libérer son `BinaryFile` ; une feuille
+refusée après des FILE laisse ceux de ses pistes, que `LoadIsoFile` oublie par `tracks.clear()`
+(`:187`) ; `image_open` remplace `cdrom` sans le libérer (`cdrom-image.cc:467`).
+*Effet* : aucun observable — des descripteurs ouverts jusqu'à la fin du processus.
+*Trouvé par* : transcription de G10.3.
+*Reproduit* : les objets sont lâchés et le GC les finalise ; `FileShare.ReadWrite | Delete`, sans
+verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, Windows compris.
+
 ## Portée de ce registre
 
-Ces **cent cinq** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent douze** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1916,6 +2024,7 @@ audit systématique de PCem** :
 | La mesure du correctif « hors plage » de l'hôte (plan qualité, § 1c) | PB-102 |
 | Reconnaissance et transcription de la manette (G10.1) | PB-103 à PB-105 ; PB-93 élargi |
 | Transcription du XTIDE (G10.2) | PB-98 élargi |
+| Reconnaissance et transcription du moteur d'images de CD (G10.3) | PB-106 à PB-112 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
