@@ -5967,3 +5967,109 @@ privilèges sur cette machine :
 Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
 (181). Constaté en passant, hors de ce commit : le banc C (`make bench`) ne se lie plus à
 `08d0d2f`, `h_opl_reset` y manquant (`harness_dbopl.cpp` n'est pas dans ses sources).
+
+## G10.1 — La manette ; PB-103, PB-104, PB-105
+
+Le 4 octobre 2026. Plan : `PLAN-G10.md` § G10.1, et les décisions du pilote du même jour : l'hôte
+entre dans G10.1 (Q1) ; le chapeau par défaut sur (d, d) est reproduit et inscrit, sans DEVIATION
+(Q2, PB-104) ; PB-103 montré sous porte ; la note sur `sw_close`, sans action.
+
+**Transcrit.** Les trois manettes qui manquaient à `joystick_list` depuis G1.1 :
+- la CH Flightstick Pro (`joystick_ch_flightstick_pro.c`, 74 lignes) : trois axes, quatre boutons,
+  et un chapeau que la manette code en combinaisons de boutons ;
+- la SideWinder (`joystick_sw_pad.c`, 205 lignes) : une manette NUMÉRIQUE. Ses paquets passent bit
+  à bit sur les lignes de boutons, en mode A et B alternés, jusqu'à quatre manettes en chaîne, avec
+  un paquet d'identification ;
+- la ThrustMaster FCS (`joystick_tm_fcs.c`, 74 lignes) : le chapeau codé en résistance sur l'axe 3.
+
+`joystick_list` passe à sept types, comme chez PCem ; l'oracle liait déjà les trois fichiers depuis
+G10.0. La clé `joystick_type` et la section `[Joysticks]` du .cfg sont lues (`pc.c:783-805`), et
+l'écran de construction les écrit (`pc.c:931-955`). L'hôte transcrit `wx-sdl2-joystick.c` par SDL3
+(`Host/SdlJoystick.cs`) : `joystick_init` à l'ouverture de la fenêtre, `joystick_poll` à chaque
+tranche (`pc.c:493`), `joystick_close` à la fin.
+
+**Les défauts.**
+- PB-103, reproduit : la CH et la TM n'ont pas de haut-gauche, 315° ne tombe dans aucun de leurs
+  intervalles.
+- PB-104, reproduit, propre à l'hôte : sans correspondance explicite, le chapeau se calcule sur
+  (axe d, axe d). Sa correction est proposée pour le mode matériel de G13.
+- PB-105, non reproduit, sans action : `sw_close` libère la SideWinder sans retirer ses
+  chronomètres.
+- PB-93 élargi. `joystick_type` hors des sept types est ramené au type 0, avec un avertissement.
+  Les numéros de `[Joysticks]` hors borne sont ramenés à leur défaut, avec un avertissement (R9).
+  Au-delà de huit manettes de l'hôte, seules les huit premières sont lues.
+
+**L'outil de vérification.** `--joystick-type N` refuse un type inconnu, retour 2 (« --joystick-type
+9 : type de manette inconnu (0 à 6). »). `--joy-at TRANCHE[/N]:x,y,boutons[,z[,chapeau]]` pose l'état
+de la manette N en fin de tranche, des deux côtés (`h_joy_set`, ABI 47), là où `runpc` appellerait
+`joystick_poll` ; une forme fausse est refusée, retour 2. L'oracle reçoit aussi le type et l'état des
+quatre manettes au sortir de la configuration, et chaque amorçage du boot-diff, phase 1 comme
+phase 2, en repart des deux côtés.
+
+**Les portes.** Le banc JOYBANC (`tools/joybanc`), 209 octets saisis dans DEBUG sur le 5150, fait
+douze tours. Chaque tour :
+- chronomètre les quatre axes par 201h, les boutons lus à l'armement ;
+- fait une rafale de 128 lectures, dont il garde la somme et le nombre de changements : les paquets
+  de la SideWinder ;
+- sonde le paquet d'identification : une seconde écriture, 4 + 3 × tour boucles après la chute de
+  l'axe 0, balaie la fenêtre de 60 à 100 µs de `joystick_sw_pad.c:122` ;
+- attend environ 0,47 s.
+
+Douze états sont injectés des deux côtés, un par tour, au milieu de l'attente qui le précède : les
+axes aux bornes et au centre, les boutons un à un puis ensemble, le chapeau dans les huit directions
+et au repos, dont 315° deux fois. Les manettes 1 à 3 arrivent en route : le second manche du type 0,
+et les paquets à plusieurs manettes de la SideWinder. Sept portes, `bd-pc-joy-std-banc`, `-4b`,
+`-6b`, `-8b`, `-ch`, `-sw` et `-tm`, toutes vertes. À l'écran :
+- la CH lit le tour 5 (315°) FFh, comme le tour 0 au repos : PB-103 ;
+- la TM compte l'axe 3 du tour 5 à 0Fh, comme celui du tour 3 à 180° : PB-103 ;
+- la sonde de la SideWinder passe de 5 ou 6 changements (paquets de données) à 31 ou 32 aux tours 3
+  à 5 (paquets d'identification) ; les paquets à plusieurs manettes suivent dès le tour 6.
+
+`r9-joycfg`, en C# seul, charge six .cfg sur un 5150 amorcé, puis conduit le port :
+- `joystick_type` 7, 99 et -1 sont ramenés au type 0 et avertis, 6 est gardé ;
+- `joystick_1_nr = 9` est averti ;
+- trois correspondances de la CH hors borne sont averties ;
+- tout survit.
+
+`trace-hash-check` entre dans la série (décision du pilote, l'accélération du 4 octobre).
+
+**Contrôles négatifs.** Chaque faute est posée dans une copie des sources, sa porte jouée, puis la
+faute retirée :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| constante de temps des axes (`* 11` → `* 12`, `gameport_time`) | `bd-pc-joy-ch-banc` | diverge à l'instruction 58 025 839 |
+| bouton 2 de la CH (20h au lieu de 40h) | `bd-pc-joy-ch-banc` | diverge à 58 828 611 |
+| PB-103 « corrigé » sur la TM (`<= 315`) | `bd-pc-joy-tm-banc` | diverge à 58 695 191 |
+| parité de la SideWinder (4000h → 2000h) | `bd-pc-joy-sw-banc` | diverge à 58 158 970 |
+| garde de `joystick_type` retirée | `r9-joycfg` | s'arrête : NullReferenceException pour 7 (le NULL terminal), IndexOutOfRangeException pour 99 |
+| garde des correspondances retirée | `--joystick-check` | échoue, puis IndexOutOfRangeException (retour 134) |
+
+**L'hôte.** `iXtal26 --joystick-check` branche une manette virtuelle de SDL3, sans fenêtre ni
+matériel. Ses seize contrôles sont verts :
+- la CH lit ses trois axes et ses boutons ;
+- le haut-gauche donne 315°, la droite 90°, le repos -1 ;
+- PB-104 : correspondances par défaut (0, 0), 135° pour le manche à droite (le chapeau étant en
+  haut), 315° à gauche ;
+- une correspondance explicite marche (axe 0 ← axe 2, bouton 0 ← bouton 15) ;
+- R9 : cinq numéros hors borne ramenés au défaut et avertis, la lecture qui tient,
+  `joystick_0_nr` à 9 et à -3 ramené à 0, puis plus de manette (axes à 0, chapeau à -1).
+
+Non exercé ici : l'hôte en fenêtre avec une vraie manette.
+
+**La série** (g104), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, en mémoire, avec
+le verrou machine :
+182 portes en 3 166 s (52 min 46 s), toutes vertes. Comparée à g103, journal entier — pour les trois
+portes dont g103 citait le chemin du worktree, son rejeu g103r ; pour `r9-mmu`, son rejeu isolé avec
+la DLL corrigée (§ L'accélération des portes) :
+- 171 portes identiques ;
+- deux écarts admis : l'ABI (46 → 47), et la ligne « écrit : » de `config-check`, dont le chemin
+  suit le `TMPDIR` de la série ;
+- les neuf nouvelles, vertes : les sept JOYBANC (de 13 à 24 s chacune), `r9-joycfg` et
+  `trace-hash-check`.
+
+Les écrans de JOYBANC de la série sont ceux des essais à la main, au caractère près. Le répertoire
+de la série a été effacé à la fin.
+
+Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
+(185), ABI 47.

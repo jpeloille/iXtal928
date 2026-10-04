@@ -577,6 +577,11 @@ void h_vga_probe(uint64_t *out);
 /* M21 — injecte un mouvement de souris (mickeys x, y, z, boutons), pendant de mouse_poll. */
 void h_mouse_poll(int x, int y, int z, int b);
 
+/* G10.1 — le type de manette, avant h_boot ; l'état de la manette n (0 à 3) : plat_joystick_nr
+ * (0 : débranchée), axes 0 à 2, les 32 boutons en masque, chapeau 0 (-1 : au repos). */
+void h_set_joystick_type(int t);
+void h_joy_set(int n, int nr, int x, int y, int z, uint32_t boutons, int pov);
+
 /* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
 uint8_t *h_vga_vram(void);
 
@@ -703,7 +708,8 @@ uint8_t *h_ram(void);
  * h_set_lpt_jeu_hors_service (l'interrupteur de preuve). */
 /* 45 depuis le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace. */
 /* 46 depuis le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp. */
-#define H_ABI_VERSION 46
+/* 47 depuis G10.1 : h_set_joystick_type, h_joy_set (la manette). */
+#define H_ABI_VERSION 47
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -800,8 +800,11 @@ internal sealed class SdlSetup
                                  HddImage.ConfigPath(Floppy.fdd_c.discfns[1], imagesRoot));
 
         config.config_set_string(config.CFG_MACHINE, null, "hdd_controller", pc.cfg_hdd_controller);
+        // pcem: pc.c:931 — G10.1.
+        config.config_set_int(config.CFG_MACHINE, null, "joystick_type", Joystick.gameport.joystick_type);
         // pcem: pc.c:932 — G1.3.
         config.config_set_int(config.CFG_MACHINE, null, "mouse_type", Mouse.mouse.mouse_type);
+        SaveJoysticks();
 
         for (int d = 0; d < 2; d++)
         {
@@ -820,6 +823,32 @@ internal sealed class SdlSetup
         ConfigPath = path;
 
         _message = $"enregistree : configs/{Path.GetFileName(path)}";
+    }
+
+    /// <summary>pcem: pc.c:934-955 — G10.1 : la section [Joysticks], pendant de pc.load_joysticks.</summary>
+    private static void SaveJoysticks()
+    {
+        int c, d;
+
+        for (c = 0; c < Joystick.gameport.joystick_get_max_joysticks(Joystick.gameport.joystick_type); c++)
+        {
+            Joystick.joystick_t js = Joystick.plat_joystick.joystick_state[c];
+
+            config.config_set_int(config.CFG_MACHINE, "Joysticks", $"joystick_{c}_nr", js.plat_joystick_nr);
+
+            if (js.plat_joystick_nr != 0)
+            {
+                for (d = 0; d < Joystick.gameport.joystick_get_axis_count(Joystick.gameport.joystick_type); d++)
+                    config.config_set_int(config.CFG_MACHINE, "Joysticks", $"joystick_{c}_axis_{d}", js.axis_mapping[d]);
+                for (d = 0; d < Joystick.gameport.joystick_get_button_count(Joystick.gameport.joystick_type); d++)
+                    config.config_set_int(config.CFG_MACHINE, "Joysticks", $"joystick_{c}_button_{d}", js.button_mapping[d]);
+                for (d = 0; d < Joystick.gameport.joystick_get_pov_count(Joystick.gameport.joystick_type); d++)
+                {
+                    config.config_set_int(config.CFG_MACHINE, "Joysticks", $"joystick_{c}_pov_{d}_x", js.pov_mapping[d, 0]);
+                    config.config_set_int(config.CFG_MACHINE, "Joysticks", $"joystick_{c}_pov_{d}_y", js.pov_mapping[d, 1]);
+                }
+            }
+        }
     }
 
     // --- chemins ---------------------------------------------------------------------

@@ -85,7 +85,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   La profondeur qui manque est renvoyée au bloc GR, ci-dessous.
 - **G10, en cours** : `PLAN-G10.md`, feu vert du 04/10, arrêt après son bilan. G10.0 est fait :
   LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, la Sound Source et les Covox sur
-  LPT1 (PB-101).
+  LPT1 (PB-101). G10.1 aussi : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105).
 - **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -245,10 +245,11 @@ Millennium, Mach64).
 
 ### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(feu vert du 04/10 ; en cours, `PLAN-G10.md`)*
 
-**G10.0 est fait** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, comme PCem, en
-un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox (VERIFICATION.md
-§ G10.0). Restent la manette (G10.1), le XTIDE (G10.2), les images CD (G10.3), l'ATAPI (G10.4),
-le CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
+**G10.0 et G10.1 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, comme
+PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox (VERIFICATION.md
+§ G10.0) ; la manette, ses sept types, la section [Joysticks] et `joystick_poll` par SDL3
+(VERIFICATION.md § G10.1). Restent le XTIDE (G10.2), les images CD (G10.3), l'ATAPI (G10.4), le
+CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
 
 - **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
   `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
@@ -256,8 +257,8 @@ le CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
   lecteur physique de l'hôte (`cdrom-ioctl-*`) est omis, pour le déterminisme. Le plus gros
   morceau ; reconnaissance à faire.
 - **(b) La manette sur les AT** : `gameport_device` sur `at_init` (fait en G10.0, sur `xt_init`
-  aussi), les types de manette (`joystick/*.c`, au moins 2 et 4 boutons) et `joystick_poll` vers
-  l'hôte (omis dans `pc.cs` ; G10.1).
+  aussi), les types de manette (`joystick/*.c`, les sept) et `joystick_poll` vers l'hôte — fait en
+  G10.1.
 - **(c) Le port parallèle LPT1** : `lpt.c` (172), `lpt1_device_init` — fait en G10.0, LPT2 et la
   Sound Source et les Covox compris.
 - **(d) Le XTIDE, version XT seulement** : `xtide.c` (121, sur l'`ide.c` de G5),
@@ -301,10 +302,11 @@ partie transcrits en G8).
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
 après G10.0 :
 
-1. **Section A, les 56 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+1. **Section A, les 58 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
    78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
    100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 —
-   PS2.0), ports (101 — G10.0).
+   PS2.0), ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
+   matériel — G10.1).
 2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
 3. **Section C, 20 entrées sans effet observable** : nettoyage seulement, sans changement de
    comportement.

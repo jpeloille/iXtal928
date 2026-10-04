@@ -142,6 +142,10 @@ internal static class UsageText
                                la FAT d'une disquette réellement formatée par DOS 2.00,
                                le secteur d'amorce, et l'invariant de géométrie — les
                                deux branches d'img_load doivent lire la même chose
+          --joystick-check     auto-contrôle de la manette de l'hôte, sans matériel : une
+                               manette virtuelle de SDL3, lue et mise en correspondance
+                               comme par la section [Joysticks] du .cfg ; les numéros
+                               hors borne ramenés au défaut (R9)
           --speaker-check [DOSSIER]
                                auto-contrôle du haut-parleur « réglage d'usine » : le
                                bip du POST mesuré avant et après le modèle du cône.

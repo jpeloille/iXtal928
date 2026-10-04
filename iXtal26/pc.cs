@@ -511,6 +511,20 @@ internal static partial class pc
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
 
+        // pcem: pc.c:783 — G10.1 : le type de manette.
+        // pcem bug, not reproduced: PB-93 — DEVIATION : hors des sept types, PCem indexe hors de
+        //   joystick_list (gameport.c:27, :132 ; pc.c:786) ; ramené au type 0, avec un avertissement.
+        Joystick.gameport.joystick_type = PluginApi.config.config_get_int(
+            PluginApi.config.CFG_MACHINE, null, "joystick_type", 0);
+        if ((uint)Joystick.gameport.joystick_type >= (uint)Joystick.gameport.joystick_type_count())
+        {
+                Console.Error.WriteLine($"joystick_type = {Joystick.gameport.joystick_type} : hors des " +
+                                        $"{Joystick.gameport.joystick_type_count()} types de manette (0 à " +
+                                        $"{Joystick.gameport.joystick_type_count() - 1}), le type 0 " +
+                                        $"(« {Joystick.gameport.joystick_get_name(0)} ») à la place.");
+                Joystick.gameport.joystick_type = 0;
+        }
+
         // pcem: pc.c:784 — G1.3 : la souris. DEVIATION : un indice sans souris transcrite
         //   (Mouse Systems) ferait déréférencer NULL à PCem ; refusé ici, la série
         //   Microsoft à la place, et dit.
@@ -524,7 +538,75 @@ internal static partial class pc
         }
         mouse_type_selon_machine();
 
+        load_joysticks();
+
         return true;
+    }
+
+    /// <summary>pcem: pc.c:786-805 — G10.1 : la section [Joysticks], une entrée par manette du type :
+    /// le numéro de la manette de l'hôte (1 à 8, 0 : aucune), puis, si elle est branchée, la
+    /// correspondance de chaque axe, bouton et chapeau.
+    ///
+    /// pcem bug, not reproduced: PB-93 (R9) — joystick_poll indexe ces numéros sans borne
+    ///   (wx-sdl2-joystick.c:95 axis[mapping], :122 plat_joystick_state[nr - 1], :128 b[mapping]),
+    ///   de quoi faire tomber l'émulateur. Hors borne, chacun est ramené à son défaut (celui de
+    ///   PCem : 0 pour le numéro, l'indice pour une correspondance), avec un avertissement.
+    ///   Un axe peut viser un chapeau (POV_X, POV_Y, plat-joystick.h:42-43) : l'indice du chapeau est
+    ///   alors masqué (`& 3`, wx-sdl2-joystick.c:65, :80), toute valeur est sûre.
+    ///
+    /// pcem bug, reproduced: PB-104 — le défaut des correspondances du chapeau est l'indice d EN X
+    ///   COMME EN Y (pc.c:801, :803), sans POV_X ni POV_Y : sans configuration explicite, le chapeau
+    ///   se calcule sur (axe d, axe d).</summary>
+    internal static void load_joysticks()
+    {
+        int c, d;
+
+        for (c = 0; c < Joystick.gameport.joystick_get_max_joysticks(Joystick.gameport.joystick_type); c++)
+        {
+                Joystick.joystick_t js = Joystick.plat_joystick.joystick_state[c];
+                string s = $"joystick_{c}_nr";
+                js.plat_joystick_nr = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, 0);
+                if ((uint)js.plat_joystick_nr > Joystick.plat_joystick.MAX_PLAT_JOYSTICKS)
+                {
+                        Console.Error.WriteLine($"[Joysticks] {s} = {js.plat_joystick_nr} : hors des manettes de l'hôte " +
+                                                $"(1 à {Joystick.plat_joystick.MAX_PLAT_JOYSTICKS}, 0 : aucune), aucune à la place.");
+                        js.plat_joystick_nr = 0;
+                }
+
+                if (js.plat_joystick_nr != 0)
+                {
+                        for (d = 0; d < Joystick.gameport.joystick_get_axis_count(Joystick.gameport.joystick_type); d++)
+                        {
+                                s = $"joystick_{c}_axis_{d}";
+                                js.axis_mapping[d] = joystick_mapping(s, PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, d), d, true);
+                        }
+                        for (d = 0; d < Joystick.gameport.joystick_get_button_count(Joystick.gameport.joystick_type); d++)
+                        {
+                                s = $"joystick_{c}_button_{d}";
+                                js.button_mapping[d] = joystick_mapping(s, PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, d), d, false);
+                        }
+                        for (d = 0; d < Joystick.gameport.joystick_get_pov_count(Joystick.gameport.joystick_type); d++)
+                        {
+                                s = $"joystick_{c}_pov_{d}_x";
+                                js.pov_mapping[d, 0] = joystick_mapping(s, PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, d), d, true);
+                                s = $"joystick_{c}_pov_{d}_y";
+                                js.pov_mapping[d, 1] = joystick_mapping(s, PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, d), d, true);
+                        }
+                }
+        }
+    }
+
+    /// <summary>R9 (load_joysticks) : une correspondance d'axe (ou de chapeau) vise un des huit axes
+    /// de la manette de l'hôte, ou un chapeau par POV_X/POV_Y ; une correspondance de bouton, un
+    /// des 32 boutons. Hors borne : le défaut, avec un avertissement.</summary>
+    internal static int joystick_mapping(string key, int m, int defaut, bool axe)
+    {
+        if (axe ? (m & (Joystick.plat_joystick.POV_X | Joystick.plat_joystick.POV_Y)) != 0 || (uint)m < 8 : (uint)m < 32)
+                return m;
+        Console.Error.WriteLine($"[Joysticks] {key} = {m} : hors " +
+                                (axe ? "des huit axes de la manette de l'hôte (ni POV_X ni POV_Y)" : "des 32 boutons de la manette de l'hôte") +
+                                $", {defaut} à la place.");
+        return defaut;
     }
 
     /// <summary>PS2.0, PS2.1 — une souris PS/2 (ou l'Intellimouse) sur une machine sans MODEL_PS2 :
@@ -993,7 +1075,8 @@ internal static partial class pc
         Keyboard.keyboard.keyboard_poll_host();
         Keyboard.keyboard.keyboard_process();
         pollmouse();
-        // omitted: joystick_poll() — hors périmètre.
+        // pcem: pc.c:493 — G10.1 : la manette de l'hôte (Host/SdlJoystick.cs) ; nul hors de l'hôte.
+        Joystick.plat_joystick.joystick_poll?.Invoke();
 
         Video.video.endblit();
 

@@ -302,6 +302,8 @@ public sealed class SdlHost : IDisposable
         // les pixels de la dalle, pas des points que le compositeur agrandirait ensuite.
         // Sans lui, notre mise à l'échelle et celle du système se cumulaient : flou.
         SdlMouse.Init(_window);
+        // pcem: wx-sdl2.c:476 — G10.1 : les manettes de l'hôte, après la vidéo.
+        SdlJoystick.Init();
 
         // DEVIATION: PCem laisse la vsync À ZÉRO par défaut (video_vsync = 0,
         //   wx-sdl2-video.c:30) et n'en fait qu'une option de menu. La forcer ici
@@ -1378,6 +1380,7 @@ public sealed class SdlHost : IDisposable
 
         if (_sdlInitialised)
         {
+            SdlJoystick.Close(); // G10.1 (wx-sdl2-joystick.c:54-61)
             SDL.Quit();
             _sdlInitialised = false;
         }

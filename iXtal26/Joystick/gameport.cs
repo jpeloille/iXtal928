@@ -4,12 +4,12 @@
 // ORACLE: pcem-dev/src/joystick/gameport.c + pcem-dev/src/joystick/joystick_standard.c
 //         + includes/private/joystick/gameport.h, joystick_standard.h
 //         + includes/private/plat-joystick.h (joystick_t, joystick_state)
-// STATUS: partial — gameport.c en entier (gameport_t, gameport_time, gameport_write,
+// STATUS: transcribed — gameport.c en entier (gameport_t, gameport_time, gameport_write,
 //         gameport_read, gameport_timer_over, gameport_init(_common), gameport_201_init,
 //         gameport_update_joystick_type, gameport_close, les deux device_t, les
-//         joystick_get_*) et joystick_standard.c en entier (les quatre joystick_if_t).
-//         Omis : joystick_ch_flightstick_pro, joystick_sw_pad, joystick_tm_fcs
-//         (G1, décision n° 2 : port jeu SANS manette, joystick_type = 0).
+//         joystick_get_*, joystick_list et ses sept types) et joystick_standard.c en entier
+//         (les quatre joystick_if_t). Les trois autres types (G10.1) : joystick_ch_flightstick_pro.cs,
+//         joystick_sw_pad.cs, joystick_tm_fcs.cs.
 //
 // SANS MANETTE, CE QUE VOIT L'INVITÉ. joystick_state reste à zéro (aucun
 // plat_joystick_nr), donc JOYSTICK_PRESENT(n) est faux pour tout n :
@@ -17,6 +17,8 @@
 // pour les quatre axes, et gameport_time DÉSARME chaque chronomètre au lieu de le
 // lancer. Une écriture en 0x201 pose donc les quatre bits d'axe (state |= 0x0f),
 // que plus rien ne retombe : la lecture rend 0xff, comme PCem sans manette branchée.
+// Une manette se branche par la section [Joysticks] du .cfg et joystick_poll (l'hôte,
+// Host/SdlJoystick.cs), ou par l'injection de l'outil de vérification (--joy-at).
 
 // CS8981 : `gameport` n'a que des minuscules ASCII — le nom de l'unité C, comme ide.cs et rom.cs.
 #pragma warning disable CS8981
@@ -100,19 +102,23 @@ internal sealed class gameport_t
 // joystick_standard.c.
 internal static partial class plat_joystick
 {
-    // pcem: plat-joystick.h:56-57, wx-sdl2-joystick.c:10
-    // DEVIATION: aucune manette hôte (G1, décision n° 2). PCem remplit ce tableau
-    //   depuis la configuration (pc.c:788, plat_joystick_nr) et SDL (joystick_poll) ;
-    //   ici il reste à zéro pour toujours : plat_joystick_nr = 0 partout, donc
-    //   JOYSTICK_PRESENT(n) est faux — exactement l'état de PCem sans manette
-    //   configurée. Rien ne l'écrit.
+    // pcem: plat-joystick.h:56-57, wx-sdl2-joystick.c:10 — rempli par loadconfig (pc.c:786-805 :
+    //   plat_joystick_nr et les correspondances) et par joystick_poll (l'hôte), ou par l'injection
+    //   de l'outil de vérification (iXtal26.Diff --joy-at), qui pose directement axes, boutons et
+    //   chapeau des deux côtés.
     internal const int MAX_JOYSTICKS = 4;
     internal static readonly joystick_t[] joystick_state = { new(), new(), new(), new() };
 
-    // omitted: plat_joystick_state[MAX_PLAT_JOYSTICKS] et joysticks_present
-    //   (plat-joystick.h:39-40) — lus seulement par joystick_poll (côté hôte) et par
-    //   un commentaire de gameport.c:73 ; ni gameport.c ni joystick_standard.c n'y
-    //   touchent.
+    // pcem: plat-joystick.h:42-43 — une correspondance d'axe peut viser l'axe X ou Y d'un chapeau.
+    internal const int POV_X = unchecked((int)0x80000000);
+    internal const int POV_Y = 0x40000000;
+
+    // pcem: plat-joystick.h:37
+    internal const int MAX_PLAT_JOYSTICKS = 8;
+
+    // pcem: pc.c:493 — joystick_poll(), posé par l'hôte (Host/SdlJoystick.cs, wx-sdl2-joystick.c).
+    //   Nul hors de l'hôte : l'outil de vérification et les tests n'interrogent aucune manette.
+    internal static Action? joystick_poll;
 
     // pcem: plat-joystick.h:59
     internal static bool JOYSTICK_PRESENT(int n) => joystick_state[n].plat_joystick_nr != 0;
@@ -352,12 +358,14 @@ internal static partial class gameport
     {
         joystick_standard_c.joystick_standard, joystick_standard_c.joystick_standard_4button,
         joystick_standard_c.joystick_standard_6button, joystick_standard_c.joystick_standard_8button,
-        // omitted: &joystick_ch_flightstick_pro, &joystick_sw_pad, &joystick_tm_fcs
-        //   (joystick_ch_flightstick_pro.c, joystick_sw_pad.c, joystick_tm_fcs.c) —
-        //   G1, décision n° 2 : aucune manette ; joystick_type reste 0. Le NULL
-        //   terminal passe de l'index 7 à l'index 4.
-        null,
+        joystick_ch_flightstick_pro_c.joystick_ch_flightstick_pro, joystick_sw_pad_c.joystick_sw_pad,
+        joystick_tm_fcs_c.joystick_tm_fcs, null,
     };
+
+    /// <summary>iXtal26 — le nombre de types de joystick_list (sept), sans le NULL terminal : la
+    /// borne de joystick_type, que PCem ne vérifie pas (PB-93, pc.cs loadconfig ; iXtal26.Diff
+    /// --joystick-type).</summary>
+    internal static int joystick_type_count() => joystick_list.Length - 1;
 
     // pcem: gameport.c:21-25
     internal static string? joystick_get_name(int joystick)

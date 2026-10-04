@@ -242,3 +242,27 @@ for d in dss lpt_dac lpt_dac_stereo; do
   run bd-pc-lpt-$d-banc boot-diff roms 11000 --lpt1 $d --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${LPB[@]}" --type "^" --type "^"
 done
 run bd-ami486-lpt-dac-stereo boot-diff roms 3000 --config $C/ami486-dx2.cfg --lpt1 lpt_dac_stereo
+# G10.1 — la manette : les sept types de joystick_list (gameport.c:17-19), chacun sous le banc
+# JOYBANC (tools/joybanc) saisi dans DEBUG sur le 5150 : douze tours, chacun chronométrant les
+# quatre axes par 201h (boutons à l'armement), une rafale de lectures (les paquets de la SideWinder)
+# et une sonde du paquet d'identification ; douze états injectés des deux côtés par --joy-at, un
+# par tour, au milieu de l'attente qui précède, dont le chapeau à 315° (PB-103 : la CH le lit
+# centré, la TM en bas) ; les manettes 1 à 3 en route (le second manche du type 0, les paquets à
+# plusieurs manettes de la SideWinder). r9-joycfg, en C# seul : joystick_type et [Joysticks] hors
+# borne, ramenés au défaut et avertis (PB-93, R9). trace-hash-check : le hachage plié de la trace
+# contre l'ancien, en C et en C# (l'accélération du 4 octobre).
+mapfile -t JOK < tools/joybanc/joybanc.keys
+JOB=(); for l in "${JOK[@]}"; do JOB+=(--type "$l"); done
+JOE=("0,0,0,0,-1" "-32768,-32768,1,-32768,0" "32767,32767,2,32767,90" "-16384,16384,4,0,180" "16384,-16384,8,0,270"
+     "0,0,0,0,315" "1000,-1000,15,5000,45" "-20000,20000,0x30,-5000,135" "30000,-30000,0xC0,0,225" "0,0,0x300,0,-1"
+     "-32768,32767,0x3FF,0,315" "0,0,0,0,-1")
+JOA=(); for r in "${!JOE[@]}"; do JOA+=(--joy-at "$((18840 + 55 * r)):${JOE[$r]}"); done
+JOA+=(--joy-at "$((18840 + 55 * 3))/1:5000,-5000,3" --joy-at "$((18840 + 55 * 6))/1:-25000,25000,1")
+JOA+=(--joy-at "$((18840 + 55 * 9))/1:32767,-32768,2" --joy-at "$((18840 + 55 * 6))/2:100,200,0x10")
+JOA+=(--joy-at "$((18840 + 55 * 8))/3:-100,-200,0x200")
+JON=(std 4b 6b 8b ch sw tm)
+for t in 0 1 2 3 4 5 6; do
+  run bd-pc-joy-${JON[$t]}-banc boot-diff roms 20000 --joystick-type $t --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 150 --type "" --type "" "${JOB[@]}" "${JOA[@]}"
+done
+run r9-joycfg r9-joycfg
+run trace-hash-check trace-hash-check

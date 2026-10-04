@@ -1068,6 +1068,38 @@ lit 20,74 kHz (mesuré, VERIFICATION.md, § L'hôte : le moniteur automatique).
 *Trouvé par* : la mesure du correctif « hors plage » de l'hôte (plan qualité du 04/10, § 1c).
 *Reproduit* : `Video/vid_mda.cs`, `Video/vid_hercules.cs`, marqueurs PB-102.
 
+### PB-103 — La CH Flightstick Pro et la TM FCS n'ont pas de haut-gauche
+
+`joystick_ch_flightstick_pro.c:26-33` lit le chapeau par quatre intervalles : `pov > 315 || pov <
+45` (en haut), puis `[45, 135)`, `[135, 225)` et `[225, 315)`. 315° exactement — le haut-gauche
+d'un chapeau à huit directions, l'angle que `joystick_poll` calcule pour `SDL_HAT_LEFTUP`
+(`wx-sdl2-joystick.c:136-142`) — ne tombe dans aucun, et le chapeau se lit au repos.
+`joystick_tm_fcs.c:46-54`, mêmes bornes : 315° tombe sur le `return 0` final, qui est le code du
+chapeau en bas (`:50-51`).
+*Effet* (mesuré, JOYBANC) : poussé en haut à gauche, le chapeau de la CH est lu au repos (FFh, comme
+au tour sans chapeau) et celui de la TM en bas (l'axe 3 compté comme à 180°).
+*Trouvé par* : reconnaissance de G10.1.
+*Reproduit* : `Joystick/joystick_ch_flightstick_pro.cs`, `Joystick/joystick_tm_fcs.cs`, marqueurs
+PB-103 ; montré par `bd-pc-joy-ch-banc` et `bd-pc-joy-tm-banc` (tours 5 et 10, le chapeau injecté à
+315°). Contrôle négatif : la borne de la TM corrigée (`<= 315`) fait rougir `bd-pc-joy-tm-banc`.
+
+### PB-104 — Sans correspondance explicite, le chapeau se calcule sur un axe contre lui-même
+
+`pc.c:800-803` : le défaut des clés `joystick_N_pov_D_x` et `_y` est `d`, l'indice du chapeau, en X
+comme en Y, sans `POV_X` ni `POV_Y` (`plat-joystick.h:42-43`). `joystick_get_axis`
+(`wx-sdl2-joystick.c:63-95`) lit alors l'AXE d de la manette de l'hôte, pas son chapeau d, pour X
+comme pour Y : le chapeau émulé se calcule sur (axe d, axe d), au mieux une diagonale, et le chapeau
+de la manette de l'hôte est ignoré.
+*Effet* (mesuré, `iXtal26 --joystick-check`, une manette virtuelle de SDL3) : sans correspondance
+du chapeau dans le .cfg, le manche poussé à droite lit 135° (le chapeau étant en haut), à gauche
+315°, là où PB-103 tombe. Avec `POV_X|0` et `POV_Y|0` explicites, le chapeau est lu juste (90° à
+droite, 315° en haut à gauche). Propre à l'hôte : l'oracle n'a pas de manette hôte, et les portes
+injectent l'état de la manette émulée.
+*Trouvé par* : reconnaissance de G10.1.
+*Reproduit* : `pc.cs`, `load_joysticks`, marqueur PB-104 ; une valeur explicite du .cfg est lue
+telle quelle, comme chez PCem. *Correction proposée pour le mode matériel de G13* : par défaut
+`POV_X | d` et `POV_Y | d`, le chapeau d de la manette de l'hôte.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1401,6 +1433,29 @@ sur la sortie d'erreur (section, clé, valeur rejetée, défaut retenu). Les lis
 transcrites pour les sept tables de configuration du dépôt. Prix assumé : une valeur hors liste
 mais sans danger (la SB à l'IRQ 3) prend aussi le défaut. L'oracle n'est pas touché ; ces valeurs
 restent hors des portes, prouvées en C# seul.
+*G10.1, la manette* : `joystick_type` hors des sept types (`pc.c:783`, puis
+`joystick_get_max_joysticks`, `:786`, `gameport.c:27` ; `gameport_init_common`, `:132`) —
+`joystick_list[7]` est le NULL terminal, au-delà on sort du tableau. Ramené au type 0 avec un
+avertissement (`pc.cs`), prouvé par `r9-joycfg` (sans la garde : NullReferenceException pour 7,
+IndexOutOfRangeException pour 99, mesuré). Et la section [Joysticks], R9 côté hôte :
+`joystick_N_nr` hors de 0 à 8 (`plat_joystick_state[nr - 1]`, `wx-sdl2-joystick.c:122`), une
+correspondance d'axe ou de chapeau hors des huit axes sans `POV_X` ni `POV_Y` (`axis[mapping]`,
+`:95`), une correspondance de bouton hors des 32 (`b[mapping]`, `:128`) : chacune ramenée à son
+défaut, avec un avertissement (`pc.cs`, `load_joysticks`), prouvé par `iXtal26 --joystick-check`
+(sans la garde : IndexOutOfRangeException, mesuré). Et plus de huit manettes branchées à l'hôte
+débordent `sdl_joy[8]` (`:22-23`, `:34`) : les huit premières seulement (`Host/SdlJoystick.cs`).
+
+### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
+
+`joystick_sw_pad.c:81-85` : `free(sw)`, alors que ses deux chronomètres (`poll_timer` et
+`trigger_timer`, posés par `timer_add`, `:75-76`) restent dans la liste de `timer.c`. Atteignable
+par un changement de type de manette à chaud depuis l'interface (`gameport_update_joystick_type`,
+`gameport.c:140-148`) : les chronomètres battent alors sur une mémoire libérée.
+*Effet* : comportement indéfini en C, hors d'atteinte de l'invité.
+*Trouvé par* : transcription de G10.1.
+*Non reproduit* : `Joystick/joystick_sw_pad.cs`, `sw_close` — sans objet sous GC, l'objet restant
+vivant tant que ses chronomètres le tiennent, et iXtal n'a pas de changement de type à chaud. Sans
+action.
 
 ### PB-96 — La police monochrome lue au-delà de ses 16 lignes
 
@@ -1815,7 +1870,7 @@ mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la 
 
 ## Portée de ce registre
 
-Ces **soixante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent cinq** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -1856,6 +1911,7 @@ audit systématique de PCem** :
 | Transcription de la Tseng ET4000AX (G9.3) | PB-100 |
 | Transcription de LPT1, de la DSS et des Covox (G10.0) | PB-101 |
 | La mesure du correctif « hors plage » de l'hôte (plan qualité, § 1c) | PB-102 |
+| Reconnaissance et transcription de la manette (G10.1) | PB-103 à PB-105 ; PB-93 élargi |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

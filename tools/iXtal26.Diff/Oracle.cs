@@ -75,7 +75,8 @@ public static class Oracle
     //   h_set_lpt_jeu_hors_service.
     // 45 le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace.
     // 46 le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp.
-    public const int AbiVersion = 46;
+    // 47 en G10.1 : h_set_joystick_type, h_joy_set (la manette).
+    public const int AbiVersion = 47;
 
     static Oracle()
     {
@@ -336,6 +337,10 @@ public static class Oracle
     // PS2.0 — la souris de mouse_list (mouse.c lié), et la sonde de la souris PS/2.
     [DllImport(Lib)] internal static extern void h_set_mouse_type(int t);
     [DllImport(Lib)] internal static extern void h_mouse_probe([Out] ulong[] o);
+    // G10.1 — la manette : le type, avant h_boot ; l'état de la manette n (branchée si nr ≠ 0,
+    // axes 0 à 2, les 32 boutons en masque, chapeau 0), en fin de tranche.
+    [DllImport(Lib)] internal static extern void h_set_joystick_type(int t);
+    [DllImport(Lib)] internal static extern void h_joy_set(int n, int nr, int x, int y, int z, uint boutons, int pov);
     public const int MouseProbeN = 9;
 
     // M16 — le processeur : fabricant et INDICE dans la table de la machine, à poser

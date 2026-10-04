@@ -326,6 +326,27 @@ void h_mouse_poll(int x, int y, int z, int b) {
         mouse_buttons = b;
         mouse_poll(x, y, z, b);
 }
+/* G10.1 — la manette. joystick_type, posé avant h_boot (pc.c:783), choisit l'interface que
+ * gameport_init_common branche (gameport.c:132) ; l'outil le borne (--joystick-type refuse un type
+ * inconnu, retour 2 ; la clé du .cfg est ramenée au type 0, PB-93). h_joy_set : l'état d'une
+ * manette émulée — branchée si nr ≠ 0 (JOYSTICK_PRESENT), axes 0 à 2, les 32 boutons en masque,
+ * chapeau 0 — posé EN FIN de tranche, là où runpc appellerait joystick_poll (pc.c:493) : le
+ * harnais n'a pas de manette hôte. Les deux côtés reçoivent les mêmes valeurs (--joy-at). */
+#include "gameport.h"
+#include "plat-joystick.h"
+void h_set_joystick_type(int t) { joystick_type = t; }
+void h_joy_set(int n, int nr, int x, int y, int z, uint32_t boutons, int pov) {
+        joystick_t *js = &joystick_state[n & (MAX_JOYSTICKS - 1)];
+        int b;
+
+        js->plat_joystick_nr = nr;
+        js->axis[0] = x;
+        js->axis[1] = y;
+        js->axis[2] = z;
+        for (b = 0; b < 32; b++)
+                js->button[b] = (boutons >> b) & 1;
+        js->pov[0] = pov;
+}
 /* M19 — les deux Trident (vid_tvga.h), compilées par harness_tvga.c qui inclut
  * vid_tvga.c pour en lire la tvga_t privée. */
 #include "vid_tvga.h"

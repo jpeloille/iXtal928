@@ -51,6 +51,90 @@ public static class BootDiff
             }
     }
 
+    /// <summary>G10.1 — lit `TRANCHE[/N]:x,y,boutons[,z[,chapeau]]` (--joy-at) dans JoyEvents ;
+    /// faux sur une forme fausse. Le chapeau vaut -1 (au repos) s'il est omis, z vaut 0.</summary>
+    internal static bool AjouterJoyAt(string spec)
+    {
+        var parts = spec.Split(':', 2);
+        if (parts.Length != 2)
+            return false;
+        var tn = parts[0].Split('/', 2);
+        var v = parts[1].Split(',');
+        if (!int.TryParse(tn[0], out var tranche) || tranche < 0 || v.Length is < 3 or > 5)
+            return false;
+        var n = 0;
+        if (tn.Length == 2 && (!int.TryParse(tn[1], out n) || (uint)n >= (uint)Joystick.plat_joystick.MAX_JOYSTICKS))
+            return false;
+        int x, y, z = 0, pov = -1;
+        int boutons;
+        try
+        {
+            boutons = Convert.ToInt32(v[2], v[2].StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16 : 10);
+        }
+        catch (Exception e) when (e is FormatException or OverflowException)
+        {
+            return false;
+        }
+        if (!int.TryParse(v[0], out x) || !int.TryParse(v[1], out y) ||
+            (v.Length > 3 && !int.TryParse(v[3], out z)) || (v.Length > 4 && !int.TryParse(v[4], out pov)))
+            return false;
+        JoyEvents.Add((tranche, n, x, y, boutons, z, pov));
+        return true;
+    }
+
+    /// <summary>G10.1 — les états de --joy-at prévus en fin de la tranche `s`, côté oracle.</summary>
+    private static void ManetteOracle(int s)
+    {
+        foreach (var j in JoyEvents)
+            if (j.slice == s)
+                Oracle.h_joy_set(j.n, 1, j.x, j.y, j.z, unchecked((uint)j.b), j.pov);
+    }
+
+    /// <summary>G10.1 — les mêmes, côté C# : joystick_state comme h_joy_set le pose.</summary>
+    private static void ManetteCsharp(int s)
+    {
+        foreach (var j in JoyEvents)
+            if (j.slice == s)
+            {
+                var js = Joystick.plat_joystick.joystick_state[j.n];
+                js.plat_joystick_nr = 1;
+                js.axis[0] = j.x;
+                js.axis[1] = j.y;
+                js.axis[2] = j.z;
+                for (var b = 0; b < 32; b++)
+                    js.button[b] = (j.b >> b) & 1;
+                js.pov[0] = j.pov;
+            }
+    }
+
+    /// <summary>G10.1 — l'état des quatre manettes au sortir de la configuration (le type, et la
+    /// section [Joysticks] du .cfg), pris au premier amorçage. Chaque amorçage, phase 1 comme
+    /// phase 2, en repart des deux côtés : --joy-at le modifie en route, et ni h_boot ni initpc ne
+    /// le remettent (c'est l'état de l'hôte chez PCem).</summary>
+    private static (int nr, int[] axis, int[] button, int[] pov)[]? manettesInitiales;
+
+    private static void PousserManettes()
+    {
+        manettesInitiales ??= Joystick.plat_joystick.joystick_state
+            .Select(js => (js.plat_joystick_nr, (int[])js.axis.Clone(), (int[])js.button.Clone(), (int[])js.pov.Clone()))
+            .ToArray();
+        Oracle.h_set_joystick_type(Joystick.gameport.joystick_type);
+        for (var c = 0; c < Joystick.plat_joystick.MAX_JOYSTICKS; c++)
+        {
+            var (nr, axis, button, pov) = manettesInitiales[c];
+            var js = Joystick.plat_joystick.joystick_state[c];
+            js.plat_joystick_nr = nr;
+            axis.CopyTo(js.axis, 0);
+            button.CopyTo(js.button, 0);
+            pov.CopyTo(js.pov, 0);
+            var masque = 0u;
+            for (var b = 0; b < 32; b++)
+                if (button[b] != 0)
+                    masque |= 1u << b;
+            Oracle.h_joy_set(c, nr, axis[0], axis[1], axis[2], masque, pov[0]);
+        }
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -103,6 +187,14 @@ public static class BootDiff
     /// runpc appellerait pollmouse. Aucun des deux côtés du boot-diff ne sonde la souris hôte
     /// entre deux : seuls ces mouvements existent.</summary>
     internal static readonly List<(int slice, int x, int y, int z, int b)> MouseEvents = new();
+    /// <summary>G10.1 — `--joystick-type N` : le type de manette, des deux côtés (0 à 6 ; un type
+    /// inconnu refusé, retour 2). Sans lui, celui du .cfg, ramené au type 0 hors borne (PB-93).</summary>
+    internal static int? JoystickTypeOverride;
+    /// <summary>G10.1 — `--joy-at TRANCHE[/N]:x,y,boutons[,z[,chapeau]]`, répétable : l'état de la
+    /// manette N (0 par défaut) posé EN FIN de tranche, des deux côtés (h_joy_set), là où runpc
+    /// appellerait joystick_poll : branchée, axes 0 à 2, les boutons en masque, chapeau 0 (-1, le
+    /// défaut : au repos). Aucun des deux côtés du boot-diff ne lit de manette hôte.</summary>
+    internal static readonly List<(int slice, int n, int x, int y, int b, int z, int pov)> JoyEvents = new();
 
     public static int Run(string romsPath, int slices, string? discA = null, string? configPath = null,
                           string? discB = null, IReadOnlyList<string>? types = null, int typeAt = 0,
@@ -145,6 +237,17 @@ public static class BootDiff
         }
         if (ExpectMouseType is not null)
             Console.WriteLine($"Souris retenue : {Mouse.mouse.mouse_type} (« {Mouse.mouse.mouse_get_name(Mouse.mouse.mouse_type)} »), comme attendu.");
+        if (JoystickTypeOverride is { } jt)
+        {
+            if ((uint)jt >= (uint)Joystick.gameport.joystick_type_count())
+            {
+                Console.Error.WriteLine($"--joystick-type {jt} : type de manette inconnu (0 à " +
+                                        $"{Joystick.gameport.joystick_type_count() - 1}).");
+                return 2;
+            }
+            Joystick.gameport.joystick_type = jt;
+            Console.WriteLine($"  Manette : type {jt} (« {Joystick.gameport.joystick_get_name(jt)} »).");
+        }
         // M16 — le processeur, APRÈS --model : l'indice ne vaut que dans la table de la
         // machine finale, et check_cpu (appelé par initpc) le juge contre elle.
         if (CpuOverride is { } cpuN)
@@ -276,6 +379,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserManettes();
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -311,6 +415,7 @@ public static class BootDiff
             // APRÈS execx86. h_runpc ne le fait pas ; on le fait ici, au même point.
             Oracle.h_kbd_process();
             SourisOracle(i);
+            ManetteOracle(i);
         }
         Oracle.h_trace_close();
         Oracle.h_closepc();
@@ -426,6 +531,7 @@ public static class BootDiff
             Keyboard.keyboard.keyboard_poll_host();
             Keyboard.keyboard.keyboard_process();
             SourisCsharp(s);
+            ManetteCsharp(s);
         }
 
         var vgaCsharp = new ulong[Oracle.VgaProbeN];
@@ -767,6 +873,7 @@ public static class BootDiff
             Oracle.h_runpc();
             Oracle.h_kbd_process();
             SourisOracle(s);
+            ManetteOracle(s);
             var budget = Cpu.cpu_c.cpu_get_speed() / 100;
             while (budget > 0)
             {
@@ -776,6 +883,7 @@ public static class BootDiff
             Keyboard.keyboard.keyboard_poll_host();
             Keyboard.keyboard.keyboard_process();
             SourisCsharp(s);
+            ManetteCsharp(s);
 
             Oracle.h_getstate(out sa);
             _808x.GetState(ref sb);
@@ -838,6 +946,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -1227,6 +1336,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
@@ -1351,6 +1461,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);

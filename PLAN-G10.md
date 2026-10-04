@@ -105,7 +105,7 @@ comparaison du son serait coupée. **Porte** : un banc LPTBANC (écritures de do
 lectures d'état, la file de la Sound Source remplie ; le Covox et la Sound Source sous la sonde du
 son), avec chacun des trois périphériques ; contrôles négatifs (DSS faussée, nom faux).
 
-### G10.1 — La manette
+### G10.1 — La manette  ✅ *fait, VERIFICATION.md § G10.1*
 
 Les types de manette (CH Flightstick Pro, SideWinder, TM FCS en plus des quatre standard),
 `joystick_poll` vers l'hôte (SDL) ; dans iXtal26.Diff, `--joystick-type N` et
@@ -206,6 +206,16 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   l'évite fait un commit « outils: » à part, avant G10.1.
 - **Le risque du recompte** : une porte qui changerait pour une autre raison que LPT et le port jeu
   serait masquée par le recompte ; l'interrupteur la démasque (il doit rendre g93 à l'identique).
+- **G10.1** : le banc JOYBANC compte ses tours au calendrier des injections (un état par tour,
+  tranche 18 840 + 55 × tour) : si son temps change, un tour peut lire l'état voisin — la porte
+  reste juste, les deux côtés recevant les mêmes états, mais la démonstration de PB-103 à l'écran
+  se décale. La manette de l'hôte (`Host/SdlJoystick.cs`) n'a pas d'oracle : elle est vérifiée par
+  `--joystick-check` sur une manette virtuelle de SDL3, sans matériel réel. Aucun témoin réel (un
+  jeu DOS, un test de manette). Pas d'écran de réglage des manettes : la section [Joysticks] du
+  .cfg seulement. PB-104 reste reproduit jusqu'au mode matériel de G13.
+- **L'outil (GR.4)** : `make bench`, le banc C de l'oracle, ne se lie plus depuis G8 :
+  `h_opl_reset` y manque (`harness.c`, `h_boot`), `harness_dbopl.cpp` étant hors de `BENCH_SRC`
+  (`tools/oracle/Makefile`). Constaté le 04/10, identique à `08d0d2f`.
 - **ATAPI et ZIP** (G10.4, G10.6) : les bancs couvrent une dizaine de commandes sur une trentaine ;
   pas de sonde de l'état ATAPI ; un seul témoin, ATAPIBANC, faute de pilote DOS (décision n° 5).
 - **L'audio CD** (G10.5) : le rappel synchrone n'est pas le fil de PCem ; la cadence avec des lectures

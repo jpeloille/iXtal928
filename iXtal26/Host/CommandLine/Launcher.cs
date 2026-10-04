@@ -57,6 +57,8 @@ internal static class Launcher
                 return (ExitCode)FatImage.SelfCheck();
             case "--speaker-check":
                 return (ExitCode)SpeakerModel.SelfCheck(cursor.HasNext ? cursor.TakeNext() : null);
+            case "--joystick-check":
+                return (ExitCode)SdlJoystick.SelfCheck();
             case "--floppy-a" or "--floppy-b":
                 return MountFloppy(argument, cursor);
             case "--hdd" or "--hdd-d":

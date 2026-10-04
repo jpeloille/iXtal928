@@ -422,6 +422,19 @@ douce) ont été posés à l'estime ; ils sont à ajuster à l'oreille, ou mieux
 enregistrement de machine réelle. Le menu hôte bascule entre « réglage d'usine » et
 « son fidèle » (le signal complet) ; la clé `speaker` de la section `[SDL2]` le retient.
 
+### `--joystick-check`
+
+La manette de l'hôte (`Host/SdlJoystick.cs`, G10.1) ne passe par aucun oracle : l'oracle n'a pas
+de manette hôte, et les portes injectent l'état de la manette émulée. Sans cet auto-contrôle, rien
+n'exécuterait la lecture SDL ni la correspondance de la section `[Joysticks]`, sauf une vraie
+manette branchée. Il branche une manette VIRTUELLE de SDL3 (six axes, seize boutons, un chapeau),
+la fait lire par `joystick_init` et `joystick_poll` comme une vraie, pose des sections
+`[Joysticks]` dans l'arbre de configuration, et vérifie : les axes, les boutons et le chapeau lus ;
+une correspondance explicite (axe et bouton déplacés, chapeau par `POV_X`/`POV_Y`) ; le défaut du
+chapeau sur (axe d, axe d), reproduit (PB-104) ; l'angle de 315° du haut-gauche, celui où PB-103
+tombe ; et les numéros hors borne ramenés au défaut avec un avertissement, sans que la lecture
+tombe (R9, PB-93). Sans fenêtre et sans matériel.
+
 ## Sorties console en un bloc
 
 L'aide, la liste des types de disque et celle des formats de disquette s'écrivent en un

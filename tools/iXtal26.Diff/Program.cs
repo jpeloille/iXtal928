@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -240,6 +240,9 @@ switch (args[0])
     // G8.3 — R9 : les sections de device du .cfg, valeurs hors liste et hors tableaux (PB-93).
     case "r9-sbcfg":
         return R9SbCfg.Run("roms");
+    // G10.1 — la clé joystick_type (PB-93) et les numéros de [Joysticks] (R9) hors borne, en C# seul.
+    case "r9-joycfg":
+        return R9JoyCfg.Run("roms");
     // G7.3 — R9 : la survie au curseur et à la pente de polygone de la Trio64 (PB-84 à PB-86).
     case "r9-s3":
         return R9S3.Run("roms");
@@ -444,6 +447,24 @@ switch (args[0])
                     BootDiff.MouseEvents.Add((int.Parse(spec[0]), v[0], v[1], v[2], v[3]));
                     break;
                 }
+                // G10.1 — la manette : son type (un type inconnu refusé, retour 2), et ses états
+                // injectés des deux côtés en fin de tranche.
+                case "--joystick-type" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], out var joyType))
+                    {
+                        Console.Error.WriteLine($"--joystick-type {args[i]} : type de manette inconnu.");
+                        return 2;
+                    }
+                    BootDiff.JoystickTypeOverride = joyType;
+                    break;
+                case "--joy-at" when i + 1 < args.Length:
+                    if (!BootDiff.AjouterJoyAt(args[++i]))
+                    {
+                        Console.Error.WriteLine($"--joy-at {args[i]} : attendu TRANCHE[/N]:x,y,boutons[,z[,chapeau]], " +
+                                                "N de 0 à 3, les boutons en masque (décimal ou 0x…).");
+                        return 2;
+                    }
+                    break;
                 // M16 — l'indice dans la table de CPU de la machine, appliqué APRÈS
                 // --model : `--cpu 3` est un 8088/10 sur l'ibmpc, un 286/12 sur l'ami286.
                 case "--cpu" when i + 1 < args.Length: BootDiff.CpuOverride = int.Parse(args[++i]); break;

@@ -1245,9 +1245,10 @@ void mca_add(uint8_t (*read)(int addr, void *priv), void (*write)(int addr, uint
         fatal("mca_add : bus MCA non lie a l'oracle (G7)\n");
 }
 
-/* --- G1.1 : la manette, sans manette branchée (PLAN-G1.md, décision n° 2) ------------------
+/* --- G1.1 : la manette ------------------------------------------------------------------------
  * gameport.c lit l'état des manettes de l'HÔTE (plat-joystick.h:39, :57), que l'interface de
- * PCem définit (wx-ui/wx-sdl2-joystick.c:10-12). Ici, aucune manette : tout à zéro, comme
+ * PCem définit (wx-ui/wx-sdl2-joystick.c:10-12). Ici, aucune manette hôte : plat_joystick_state
+ * reste à zéro ; joystick_state aussi, sauf ce qu'y pose h_joy_set (G10.1, --joy-at), comme
  * côté C#. */
 #include "plat-joystick.h"
 joystick_t joystick_state[MAX_JOYSTICKS];
