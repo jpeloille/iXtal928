@@ -336,6 +336,7 @@ void h_s3_probe(svga_t *svga, uint64_t *out);     /* harness_s3.c, G7.3 */
 #include "olivetti_m24.h"     /* G1.1 — l'Olivetti M24 */
 #include "keyboard_olim24.h"
 #include "gameport.h"
+#include "lpt.h"           /* G10.0 */
 #include "vid_olivetti_m24.h" /* m24_device, compilée par harness_m24.c */
 void h_m24_attach(void);      /* harness_m24.c */
 void h_m24_probe(uint64_t *out);
@@ -370,6 +371,7 @@ void h_pc1512_forget(void);
 #include "sound_sb.h"
 void h_opl_reset(void);       /* harness_dbopl.cpp */
 static char h_sndcard_name[32]; /* h_set_sndcard, plus bas */
+static int h_lpt_jeu_hors_service; /* h_set_lpt_jeu_hors_service, plus bas (G10.0) */
 extern int gfxcard;
 void initvideo(void);
 extern void h_set_verbose(int v);
@@ -1294,8 +1296,7 @@ int h_boot(const char *romspath) {
          *
          * LES DEUX PARTAGENT common_init() — dma_init, fdc_add, pic_init,
          * pit_init — et divergent ensuite. Le harnais inline common_init plutot
-         * que de l'appeler : lpt_init, serial1_init et serial2_init ne sont pas
-         * lies, et le cote C# ne les transcrit pas davantage.
+         * que de l'appeler (lpt_init depuis G10.0, les deux UART depuis M21).
          *
          * CE QUI SEPARE UN AT D'UN XT tient en six lignes, et chacune compte :
          *   - AT = 1, qui aiguille resetx86 vers le vecteur du 286 ET rammask ;
@@ -1320,18 +1321,21 @@ int h_boot(const char *romspath) {
                 AMSTRAD = 1;
         dma_init();
         fdc_add();                   /* model.c:194 */
+        if (!h_lpt_jeu_hors_service)
+                lpt_init();          /* model.c:195 — G10.0 : LPT1 (378h) et LPT2 (278h) */
         pic_init();
         pit_init();
-        /* model.c:198-199 — M21 : les deux UART, COM1 et COM2. lpt_init reste dehors. */
+        /* model.c:198-199 — M21 : les deux UART, COM1 et COM2. */
         serial1_init(0x3f8, 4, 1);
         serial2_init(0x2f8, 3, 1);
         mem_add_bios();
 
         if (romset == ROM_PC1512) {
                 /* G1.2 — ams_init (model.c:259-270), après common_init et mem_add_bios. PAS de
-                 * rafraîchissement mémoire, comme la M24. lpt1_remove (:263) omis, des deux
-                 * côtés : lpt_init n'a rien posé. Puis model_init ajoute le device de la machine
-                 * (model.c:692-693), ams1512_device, la langue. */
+                 * rafraîchissement mémoire, comme la M24 ; lpt1_remove (:263, G10.0). Puis
+                 * model_init ajoute le device de la machine (model.c:692-693), ams1512_device,
+                 * la langue. */
+                lpt1_remove();
                 amstrad_init();
                 keyboard_amstrad_init();
                 device_add(&nvr_device);
@@ -1358,6 +1362,9 @@ int h_boot(const char *romspath) {
                 keyboard_at_init();
                 device_add(&nvr_device);
                 pic2_init();
+                /* model.c:344 — G10.0 : le port jeu, sur tous les AT, avant le chipset. */
+                if (!h_lpt_jeu_hors_service)
+                        device_add(&gameport_device);
                 nmi_mask = 0;
                 /* G3.0 — le chipset de la machine, comme model.c le chaine apres at_init :
                  * at_neat_init (model.c:452-455). Le C# l'appelait deja (model.cs:199) et
@@ -1373,12 +1380,13 @@ int h_boot(const char *romspath) {
                 /* G6.3 — at_ali1429_init (model.c:502-505). */
                 if (romset == ROM_AMI486)
                         ali1429_init();
-                /* omitted: device_add(&gameport_device) — le port jeu n'est pas
-                   lie, et le cote C# ne le transcrit pas. */
         } else {
                 pit_set_out_func(&pit, 1, pit_refresh_timer_xt);
                 keyboard_xt_init();
                 nmi_init();
+                /* model.c:208 — G10.0 : le port jeu, sur tous les XT. */
+                if (!h_lpt_jeu_hors_service)
+                        device_add(&gameport_device);
         }
 
         /* mouse_emu_init(), pc.c:373 — M21, puis PS2.0 : mouse.c est lié, la souris est celle
@@ -1456,6 +1464,7 @@ int h_boot(const char *romspath) {
         } else
                 device_add(&cga_device);
         speaker_init();              /* pc.c:375, juste après video_init() */
+        lpt1_device_init();          /* pc.c:376 — G10.0 : lpt1_device_name (h_set_lpt1_device) */
         /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. */
         if (!strcmp(h_sndcard_name, "adlib"))
                 device_add(&adlib_device);
@@ -1824,6 +1833,22 @@ void h_set_hdd(int drive, const char *fn, int spt, int hpc, int tracks) {
 void h_set_sndcard(const char *name) {
         strncpy(h_sndcard_name, name ? name : "", sizeof(h_sndcard_name) - 1);
         h_sndcard_name[sizeof(h_sndcard_name) - 1] = 0;
+}
+
+/* G10.0 — le périphérique de LPT1, par son internal_name (pc.c:810-818 : la clé lpt1_device) ;
+ * lpt1_device_init (pc.c:376) le monte dans h_boot. Le registre est rempli une fois. */
+/* G10.0 — OUTIL DE PREUVE, pendant de model_c.lpt_jeu_hors_service côté C# : non nul, h_boot ne
+ * pose ni LPT1/LPT2 (lpt_init) ni le port jeu de xt_init/at_init — les machines d'avant G10.0. */
+void h_set_lpt_jeu_hors_service(int on) { h_lpt_jeu_hors_service = on; }
+
+void h_set_lpt1_device(const char *name) {
+        static int h_lpt_builtin;
+        if (!h_lpt_builtin) {
+                lpt_init_builtin();
+                h_lpt_builtin = 1;
+        }
+        strncpy(lpt1_device_name, name ? name : "", sizeof(lpt1_device_name) - 1);
+        lpt1_device_name[sizeof(lpt1_device_name) - 1] = 0;
 }
 
 /* La sonde du son (G8.1) : les neuf champs du haut-parleur (h_speaker_probe, sound_hash compris),

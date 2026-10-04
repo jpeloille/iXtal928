@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -126,6 +126,18 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
+}
+
+// G10.0 — OUTIL DE PREUVE, jamais une machine offerte : « LPT et port jeu hors service », des deux
+// côtés (model_c.lpt_jeu_hors_service, h_set_lpt_jeu_hors_service). Les machines d'avant G10.0 : la
+// série jouée ainsi doit rendre EXACTEMENT les comptes de g93. L'option vaut pour toute commande ;
+// la variable d'environnement sert à jouer la série entière sans toucher series.sh.
+if (Environment.GetEnvironmentVariable("IXTAL26_LPT_JEU_HORS_SERVICE") == "1" || args.Contains("--lpt-jeu-hors-service"))
+{
+    args = args.Where(a => a != "--lpt-jeu-hors-service").ToArray();
+    iXtal26.Models.model_c.lpt_jeu_hors_service = true;
+    Oracle.h_set_lpt_jeu_hors_service(1);
+    Console.WriteLine("  --lpt-jeu-hors-service : OUTIL DE PREUVE — ni LPT1/LPT2 ni port jeu de xt_init/at_init, des deux côtés.");
 }
 
 switch (args[0])
@@ -396,6 +408,7 @@ switch (args[0])
                 case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
                 // G8.1, G8.2 — la carte son (internal_name : none, adlib, sbprov2), même précédence.
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
+                case "--lpt1" when i + 1 < args.Length: BootDiff.Lpt1Override = args[++i]; break;
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
                 // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).

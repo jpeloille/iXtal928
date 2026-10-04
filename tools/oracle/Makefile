@@ -102,6 +102,9 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_sdac_ramdac.c \
        $(PCEM)/src/video/vid_et4000.c \
        $(PCEM)/src/video/vid_unk_ramdac.c \
+       $(PCEM)/src/lpt/lpt.c \
+       $(PCEM)/src/lpt/lpt_dac.c \
+       $(PCEM)/src/lpt/lpt_dss.c \
        $(PCEM)/src/models/serial.c \
        $(PCEM)/src/mouse/mouse_serial.c \
        $(PCEM)/src/mouse/mouse.c \
@@ -169,7 +172,7 @@ CXXFLAGS := $(CFLAGS)
 CXXSRC   := harness_dbopl.cpp
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o))) $(addprefix $(BUILD)/,$(notdir $(CXXSRC:.cpp=.o)))
-vpath %.c . $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound
+vpath %.c . $(PCEM)/src/lpt $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

@@ -170,9 +170,10 @@ internal static partial class amstrad
     // pcem: amstrad.c:143-153
     internal static void amstrad_init()
     {
-        // omitted: lpt2_remove_ams() (amstrad.c:144, lpt.c:166) — io_removehandler de
-        //   lpt2_read/lpt2_write sur 0x379-0x37a. lpt_init (lpt.c:141-144) ne les pose
-        //   qu'en 0x278 : chez PCem aussi, ce retrait ne trouve rien et ne fait rien.
+        // pcem: amstrad.c:144 — G10.0 : lpt_init (common_init) pose désormais lpt2 en 278h ; ce
+        //   retrait vise 379h-37Ah, où lpt2 n'est pas : il ne trouve rien, chez PCem aussi.
+        // pcem bug, reproduced: PB-101 — le PC1512 garde le LPT2 de lpt_init à 278h.
+        Lpt.lpt.lpt2_remove_ams();
 
         io_sethandler(0x0078, 0x0001, amstrad_mouse_read, null, null, amstrad_mouse_write, null, null, null);
         io_sethandler(0x007a, 0x0001, amstrad_mouse_read, null, null, amstrad_mouse_write, null, null, null);

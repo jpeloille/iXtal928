@@ -324,12 +324,22 @@ sont couvertes par aucun compteur** :
 ## Ce qui ne doit pas bouger
 
 Les chiffres des boot-diffs, à l'unité, à chaque commit. Ils ont changé en M21
-(`adfc7a9`), parce que le POST sonde désormais COM1 et COM2 :
+(`adfc7a9`), parce que le POST sonde désormais COM1 et COM2, puis en G10.0, parce qu'il
+trouve aussi LPT1, LPT2 et le port jeu :
+
+```
+CGA   25 456 706 · 26 741 084 · 23 442 019 · 19 496 738 · 22 071 887 · --cpu 3 52 936 259
+VGA   25 265 742 · 26 548 848 · 23 359 475 · 22 048 650
+8900D 25 259 648 · 26 929 485 · 23 344 188 · 22 440 523   (sonde VGA 163/163)
+```
+
+De M21 à G9.3, et toujours sous l'interrupteur de G10.0 (`--lpt-jeu-hors-service`), qui les
+rend à l'unité :
 
 ```
 CGA   25 457 272 · 26 750 652 · 23 442 235 · 19 511 753 · 22 086 862 · --cpu 3 52 936 825
 VGA   25 266 197 · 26 535 071 · 23 359 863 · 22 029 350
-8900D 25 261 156 · 26 920 758 · 23 346 144 · 22 419 298   (sonde VGA 86/86)
+8900D 25 261 156 · 26 920 758 · 23 346 144 · 22 419 298
 ```
 
 Avant M21 : `25 457 269 · 26 750 702 · 23 442 234 · 19 511 811 · 22 086 920`.

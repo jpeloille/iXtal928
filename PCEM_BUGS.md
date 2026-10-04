@@ -1040,6 +1040,18 @@ tombe dans `svga_out` (le masque des pixels, `:24`) ; le décodage des profondeu
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10).
 *Reproduit* : `Video/vid_et4000.cs`, `Video/vid_unk_ramdac.cs`, marqueurs PB-100.
 
+### PB-101 — `lpt2_remove_ams` ne retire rien
+
+`lpt.c:166` : `io_removehandler(0x0379, 0x0002, lpt2_read, …, lpt2_write, …)`. Les gestionnaires
+de LPT2 sont à 278h (`lpt_init`, `:144`) : aucun n'est à 379h-37Ah, et l'appel, le premier
+d'`amstrad_init` (`amstrad.c:144`), ne fait rien. Le PC1512 garde donc le LPT2 de `lpt_init` à
+278h, ses registres de données et de contrôle relus. `ams_init` retire LPT1 (`model.c:263`), et
+`amstrad.c:149` repose 378h-37Ah sur ses propres gestionnaires.
+*Effet* (déduit à la lecture, non mesuré) : le PC1512 émulé a un second port parallèle, à 278h,
+que la machine réelle n'a pas ; un logiciel qui sonde 278h le trouve.
+*Trouvé par* : transcription de G10.0.
+*Reproduit* : `Lpt/lpt.cs`, `Models/amstrad.cs`, marqueurs PB-101.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1826,6 +1838,7 @@ audit systématique de PCem** :
 | Transcription de l'Hercules (G9.1) | PB-98 ; PB-36, PB-96, PB-97 élargis |
 | Transcription de l'EGA (G9.2) | PB-99 ; PB-36 élargi |
 | Transcription de la Tseng ET4000AX (G9.3) | PB-100 |
+| Transcription de LPT1, de la DSS et des Covox (G10.0) | PB-101 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

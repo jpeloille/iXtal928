@@ -5601,3 +5601,99 @@ ami386dx sans VLB) : Windows 3.11 en `VGA.DRV` sur l'ET4000, **Program Manager e
 169 portes, **toutes vertes**, identiques hors ABI (42 → 43) ; les cinq nouvelles vertes
 (`bd-ami286-et4000`, `bd-ami386dx-et4000`, `bd-ami486-et4000`, `bd-ami486-et4000-post`,
 `bd-ami386dx-et4-banc`). Build 0 avertissement, selftest, check-oracle 0 dérive (172).
+
+## G10.0 — LPT1, LPT2 et le port jeu : le seul recompte du POST ; PB-101
+
+Le 4 octobre 2026. Plan : `PLAN-G10.md` § G10.0.
+
+**Transcrit.** `lpt.c` entier (`Lpt/lpt.cs`) : LPT1 et son périphérique, LPT2, le registre
+`lpt_devices` (none, `dss`, `lpt_dac`, `lpt_dac_stereo`), rempli une fois par processus ;
+l'Epson LX-810, derrière `USE_EXPERIMENTAL_PRINTER` éteint, omis. `lpt_dss.c` (`Lpt/lpt_dss.cs`,
+la Disney Sound Source : une file de 16 octets vidée à 7 kHz, que le bit 6 de 379h dit pleine) et
+`lpt_dac.c` (`Lpt/lpt_dac.cs`, le Covox, mono et stéréo), avec `dss_iir` et `dac_iir` de
+`filters.h`, dont l'état statique traverse les amorçages comme celui de `sb_iir` (G8). Branchés
+comme chez PCem, sur toutes les machines : `lpt_init` dans `common_init` (LPT1 en 378h, LPT2 en
+278h), `gameport_device` dans `xt_init` et `at_init`, `lpt1_device_init` dans `resetpchard`,
+`lpt1_device_close` dans `closepc` ; sur le PC1512, `lpt1_remove` dans `ams_init` et
+`lpt2_remove_ams` dans `amstrad_init`. Défaut reproduit : **PB-101** (`lpt2_remove_ams` vise
+379h : le PC1512 garde un LPT2 à 278h).
+
+**La configuration.** La clé `lpt1_device` et l'option `--lpt1` d'iXtal26.Diff. DEVIATION : un
+nom inconnu est refusé, retour 2, avec la liste des quatre noms connus, comme `--sndcard` ; PCem
+le prendrait pour « aucun », et la comparaison du son serait coupée sans bruit. Mesuré :
+`--lpt1 dsss` → 2 ; `lpt1_device = covox` dans un `.cfg` → 2 ; `lpt1_device = lpt_dac` → vert
+(408 579 instructions). La sonde du son compare aussi quand un DAC est sur LPT1 sans carte son.
+
+**L'oracle.** `lpt.c`, `lpt_dac.c` et `lpt_dss.c` liés tels quels ; les copies de
+`lpt1_write`/`lpt1_read` (G1.2) et la souche de `lpt2_remove_ams` quittent `harness_stubs.c` ;
+`h_boot` pose `lpt_init`, le port jeu et `lpt1_device_init` aux places de PCem ;
+`h_set_lpt1_device`, `h_set_lpt_jeu_hors_service`. ABI 44.
+
+**L'interrupteur, preuve du recompte.** `--lpt-jeu-hors-service`, ou
+`IXTAL26_LPT_JEU_HORS_SERVICE=1` pour une série entière, des deux côtés
+(`model_c.lpt_jeu_hors_service`, `h_set_lpt_jeu_hors_service`) : ni LPT1/LPT2 ni port jeu, les
+machines d'avant G10.0. Un outil de preuve, jamais une machine offerte.
+
+**Le banc LPTBANC** (`tools/lptbanc/lptbanc.py`, 481 octets dont un script de 214, instructions
+8086 seules), saisi dans DEBUG sur le 5150 (PC DOS 2.00) et joué avec chacun des trois
+périphériques. Il relit la BDA (`0040:0008` = 0378 0278 0000, octet d'équipement 94h : deux
+imprimantes, le port jeu, deux COM), écrit et relit 378h/37Ah et 278h/27Ah, envoie une rafale de
+24 octets qui remplit la file de la Sound Source (379h = 40h), lit mille fois 379h pendant sa
+vidange (OU 40h, ET 00h), puis envoie une rampe de 256 échantillons et des écritures qui
+alternent le canal par le bit 0 de 37Ah. **136 557 261 instructions identiques, sonde du son
+identique (41 champs)**, pour les trois. Sous l'interrupteur : BDA vide, octet d'équipement 04h,
+379h lu FFh ; 136 554 654 instructions identiques. Et l'ami486 amorcé avec le Covox stéréo :
+5 433 965 instructions, sondes VGA et du son identiques.
+
+**Contrôles négatifs**, côté C#, retirés ensuite :
+- **la file de la DSS dite pleine à 15** au lieu de 16 (`dss_read_status`). **Le premier banc
+  restait vert** (41 champs identiques) : il lisait 379h file pleine, puis vide, jamais à 15.
+  D'où les mille lectures de 379h. Le banc rougit alors à l'instruction 132 103 671. Une copie
+  instrumentée, hors du dépôt, nomme cette divergence : la deuxième lecture de 379h (`in al,dx`
+  en 0600:0175), la file à 15, AL = 40h côté C# contre 00h chez PCem. **Seul le diff
+  d'instructions la voit** : l'écart dure une vidange, ≈ 143 µs, puis les relevés OU et ET se
+  rejoignent ; l'écran et la sonde du son restent identiques. La phase 2 répond « les états
+  concordent » parce qu'elle ne rejoue ni `--type` ni `--fdb` (§ M15) : ce message accuse le
+  hachage à tort ; inscrit au registre de GR (PLAN-G10.md, « Les risques ») ;
+- **le Covox à ×41h** au lieu de ×40h (`dac_update`, canal gauche) : instructions identiques,
+  mais la sonde du son rougit (`sound_hash`, 1 champ sur 41) ;
+- **le canal du Covox stéréo pris au bit 1** de 37Ah au lieu du bit 0 (`dac_write_ctrl`) : de
+  même, la sonde du son rougit (`sound_hash`, 1 champ sur 41) ;
+- **un nom faux** : retour 2, ci-dessus.
+
+**Les séries**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, deux séries de 9 voies
+jouées ensemble, comparées à g93 journal par journal, journal entier :
+- **g100i, sous l'interrupteur : les 169 portes de g93 identiques à g93**, à la ligne qui
+  annonce l'interrupteur et à l'ABI (43 → 44) près ; les quatre nouvelles vertes
+  (`bd-pc-lpt-dss-banc`, `bd-pc-lpt-lpt_dac-banc`, `bd-pc-lpt-lpt_dac_stereo-banc`,
+  `bd-ami486-lpt-dac-stereo`) ;
+- **g100, la série normale : 173 portes vertes.** 72 identiques à g93 (fuzzeurs, x87, outils) ;
+  97 qui n'en diffèrent que par des nombres, toutes des amorçages : le compte d'instructions,
+  l'empreinte des échantillons de la sonde du son, et le numéro de série de volume que FORMAT
+  tire de la date et de l'heure. C'est le recompte du POST, puisque g100i rend ces 97 portes à
+  g93 à l'identique.
+
+**L'incident : le quota de `/tmp` dépassé.** `/tmp` est un tmpfs de 31 Go monté avec
+`usrquota`. Chaque boot-diff y écrit la trace de l'oracle, 8 octets par instruction, jusqu'à
+2,1 Go ; dix-huit voies tournaient, et 10,6 Go de fichiers laissés par des processus tués y
+restaient. Le quota a été atteint vers 13 h 43, puis encore vers 14 h 07. Effets relevés :
+« Disk quota exceeded » à la copie d'une image (`BootDiff.cs:544`), des `.cfg` copiés vides (la
+machine retombe au 5150, l'oracle ne trace rien), un CMOS tronqué (`EndOfStreamException` dans
+`loadnvr`), des journaux vides, et des traces d'oracle tronquées ou trouées par des `fwrite`
+refusés (168 967 680 et 169 544 704 instructions, deux multiples exacts de 4 096 octets). **Jamais
+un faux vert** : chaque porte touchée a fini rouge, arrêtée, ou avec un journal différent de g93.
+Les fichiers des processus morts ont été effacés pendant la série (ceux-là seuls), et les portes
+touchées rejouées une à une sur disque (`/var/tmp`, `TMPDIR` sur disque, un espace fabriqué par
+`g5w-recipe.sh` et conforme à ses empreintes, la même DLL figée) : 18 sous l'interrupteur, 15 en
+normal, toutes vertes et conformes. Contrôle explicite des 142 portes finies après 13 h 43 dans
+chaque série : sous l'interrupteur, 124 identiques à g93 telles quelles et 18 rejouées
+identiques ; en normal, 43 identiques et 84 au recompte près telles quelles, 2 identiques et 13
+au recompte près rejouées. L'outillage qui l'évite (un `TMPDIR` par série sur disque, `fwrite`
+testé et la trace dite tronquée, la trace effacée sur tous les chemins, l'espace libre vérifié
+avant de lancer) fait un commit à part, avant G10.1.
+
+**« Ce qui ne doit pas bouger » rebasé** (`PLAN-286.md`) : CGA 25 456 706 · 26 741 084 ·
+23 442 019 · 19 496 738 · 22 071 887 · `--cpu 3` 52 936 259 ; VGA 25 265 742 · 26 548 848 ·
+23 359 475 · 22 048 650 ; 8900D 25 259 648 · 26 929 485 · 23 344 188 · 22 440 523, sonde VGA
+163/163. Sous l'interrupteur, les quatorze anciens chiffres reviennent à l'unité. Build 0
+avertissement, selftest, check-oracle 0 dérive (181), `--setup-check` vingt-trois contrôles.

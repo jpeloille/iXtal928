@@ -175,9 +175,10 @@ internal static partial class model_c
         Keyboard.keyboard_at.keyboard_at_init();
         PluginApi.device.device_add(Devices.nvr.nvr_device);
         pic.pic2_init();
+        // pcem: model.c:344 — G10.0 : le port jeu, sur tous les AT.
+        if (!lpt_jeu_hors_service)
+                PluginApi.device.device_add(Joystick.gameport.gameport_device);
         Cpu._808x.nmi_mask = 0;
-        // omitted: device_add(&gameport_device) — port jeu, hors périmètre, et
-        //   l'oracle ne le lie pas davantage (harness.c le dit sur place).
         // omitted: nmi_init() — c'est le XT qui l'appelle, pas l'AT : sur un AT le
         //   masque de NMI est le bit 7 du port 0x70, tenu par writenvr.
     }
@@ -409,12 +410,21 @@ internal static partial class model_c
     //   (model.c:140-190) — registre de machines et config par machine, sans objet
     //   avec une seule entrée sans device_t.
 
+    // iXtal26 — G10.0, OUTIL DE PREUVE, jamais une machine offerte : « LPT et port jeu hors
+    // service ». Vrai, common_init ne pose pas LPT1/LPT2 et xt_init/at_init n'ajoutent pas le port
+    // jeu : les machines d'avant G10.0, dont la série doit rendre EXACTEMENT les comptes (g93).
+    // Posé par iXtal26.Diff (--lpt-jeu-hors-service, ou IXTAL26_LPT_JEU_HORS_SERVICE=1), et du
+    // côté de l'oracle par h_set_lpt_jeu_hors_service.
+    internal static bool lpt_jeu_hors_service;
+
     // pcem: model.c:192-200
     internal static void common_init()
     {
         dma.dma_init();
         Floppy.fdc_c.fdc_add();
-        // omitted: lpt_init() — port parallèle, hors périmètre.
+        // pcem: model.c:195 — G10.0 : LPT1 (378h) et LPT2 (278h), sur toutes les machines.
+        if (!lpt_jeu_hors_service)
+                Lpt.lpt.lpt_init();
         pic.pic_init();
         pit.pit_init();
         serial.serial1_init(0x3f8, 4, 1);
@@ -429,7 +439,9 @@ internal static partial class model_c
         pit.pit_set_out_func(pit.pit_, 1, pit.pit_refresh_timer_xt);
         Keyboard.keyboard_xt.keyboard_xt_init();
         nmi.nmi_init();
-        // omitted: device_add(&gameport_device) — port jeu, hors périmètre.
+        // pcem: model.c:208 — G10.0 : le port jeu, sur tous les XT.
+        if (!lpt_jeu_hors_service)
+                PluginApi.device.device_add(Joystick.gameport.gameport_device);
         // omitted: device_add(&cassette_device) — port cassette du 5150 ; le BIOS
         //   le teste mais n'échoue pas en son absence (il bascule sur BASIC).
     }
@@ -448,13 +460,13 @@ internal static partial class model_c
     }
 
     // pcem: model.c:259-270 — G1.2 : l'Amstrad PC1512.
-    // omitted: lpt1_remove() (:263) — un io_removehandler des ports 378h-37Ah de lpt1, que
-    //   lpt_init n'a pas posés : common_init ne l'appelle pas, des deux côtés (model.cs:414).
     internal static void ams_init()
     {
         Cpu.x86.AMSTRAD = 1;
         common_init();
         mem.mem_add_bios();
+        // pcem: model.c:263 — G10.0 : LPT1 retiré ; amstrad.c tient 378h-37Ah lui-même.
+        Lpt.lpt.lpt1_remove();
         amstrad.amstrad_init();
         Keyboard.keyboard_amstrad.keyboard_amstrad_init();
         PluginApi.device.device_add(Devices.nvr.nvr_device);

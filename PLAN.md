@@ -317,7 +317,9 @@ se vérifie au fuzzeur en mode réel, l'IDE sur un AT 286 déjà vert.
 ## Ce qui ne doit pas bouger
 
 Les chiffres de `PLAN-286.md` § « Ce qui ne doit pas bouger » : boot-diffs 8088 en CGA,
-VGA et 8900D, sonde VGA 86/86, à l'unité, à chaque commit, pour toutes les générations.
+VGA et 8900D, sonde VGA 163/163, à l'unité, à chaque commit, pour toutes les générations.
+Rebasés en G10.0, parce que le POST trouve désormais LPT1, LPT2 et le port jeu. L'interrupteur
+« LPT et port jeu hors service » (`--lpt-jeu-hors-service`) rend les anciens chiffres à l'unité.
 
 ## G14 — Nommer les puces  *(décision utilisateur du 03/10 ; attend un feu vert)*
 

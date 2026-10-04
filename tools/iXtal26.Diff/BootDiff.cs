@@ -81,6 +81,8 @@ public static class BootDiff
     /// que CompareImages signale.</param>
     /// <summary>G8.1 — `--sndcard NOM` (none, adlib), appliqué après --config.</summary>
     internal static string? SndcardOverride;
+    /// <summary>G10.0 — `--lpt1 NOM` (none, dss, lpt_dac, lpt_dac_stereo), appliqué après --config.</summary>
+    internal static string? Lpt1Override;
     /// <summary>G8.3 — `--expect-sb ADDR,IRQ,DMA` (ADDR en hexadécimal) : la porte exige que la
     /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
     /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
@@ -119,6 +121,8 @@ public static class BootDiff
         if (gfxcard is not null && !pc.setgfxcard(gfxcard))
             return 2;
         if (SndcardOverride is not null && !pc.setsndcard(SndcardOverride))
+            return 2;
+        if (Lpt1Override is not null && !pc.setlpt1device(Lpt1Override))
             return 2;
         if (MouseTypeOverride is { } mt)
         {
@@ -269,6 +273,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
@@ -760,6 +765,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -961,7 +967,8 @@ public static class BootDiff
     /// si l'empreinte est restée à sa graine : deux silences ne prouvent rien.</summary>
     private static int CompareSound(ulong[] o, ulong[] c)
     {
-        if (Sound.sound.sound_card_current == 0)
+        // G10.0 — ou un DAC sur LPT1 (Sound Source, Covox) : il verse au mixeur comme une carte.
+        if (Sound.sound.sound_card_current == 0 && Lpt.lpt.lpt1_device_name is not ("dss" or "lpt_dac" or "lpt_dac_stereo"))
             return 0;
         var bad = 0;
         for (var f = 0; f < SoundFields.Length; f++)
@@ -1075,6 +1082,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -1198,6 +1206,7 @@ public static class BootDiff
         Oracle.h_set_hdd_controller(pc.cfg_hdd_controller);
         Oracle.h_set_sndcard(Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         PousserConfigDevices();
+        Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,

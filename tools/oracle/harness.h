@@ -685,7 +685,9 @@ uint8_t *h_ram(void);
 /* 41 depuis G9.1 : l'Hercules (GFX_HERCULES) et sa sonde (champ 0 = 5). */
 /* 42 depuis G9.2 : l'EGA (GFX_EGA) et sa sonde (champ 0 = 6). */
 /* 43 depuis G9.3 : la Tseng ET4000AX (GFX_ET4000), sondée comme les svga. */
-#define H_ABI_VERSION 43
+/* 44 depuis G10.0 : LPT1/LPT2 posés (lpt_init), le port jeu sur xt_init/at_init, h_set_lpt1_device,
+ * h_set_lpt_jeu_hors_service (l'interrupteur de preuve). */
+#define H_ABI_VERSION 44
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

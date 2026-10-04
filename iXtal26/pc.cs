@@ -256,6 +256,24 @@ internal static partial class pc
         return true;
     }
 
+    /// <summary>G10.0 — pose le périphérique de LPT1 par son internal_name (clé lpt1_device), comme
+    /// setsndcard la carte son. PCem garde le nom tel quel (pc.c:810-818) et lpt1_device_init le
+    /// prend pour « aucun » s'il est inconnu (lpt.c:41-55) ; on refuse en citant ce qui existe, sauf
+    /// pour le nom vide, qui vaut « aucun ».</summary>
+    internal static bool setlpt1device(string name)
+    {
+        if (name.Length > 0 && Lpt.lpt.lpt_device_get_from_internal_name(name) == 0 && name != "none")
+        {
+                Console.Error.WriteLine($"lpt1_device = « {name} » : périphérique de LPT1 inconnu. Connus :");
+                for (int c = 0; Lpt.lpt.lpt_device_get_internal_name(c) is { } n; c++)
+                        Console.Error.WriteLine($"  {n}  ({Lpt.lpt.lpt_device_get_name(c)})");
+                return false;
+        }
+        Lpt.lpt.lpt1_device_name = name;
+        Lpt.lpt.lpt1_current = Lpt.lpt.lpt_device_get_from_internal_name(name);
+        return true;
+    }
+
     internal static bool setgfxcard(string name)
     {
         int c;
@@ -482,6 +500,12 @@ internal static partial class pc
                     PluginApi.config.CFG_MACHINE, null, $"{pfx}_cylinders", 0);
                 Disc.hdd_c.ide_fn[d] = config_get_hdd_fn($"{pfx}_fn");
         }
+
+        // pcem: pc.c:810-818 — G10.0 : le périphérique de LPT1 (none, dss, lpt_dac, lpt_dac_stereo).
+        // DEVIATION: un nom inconnu est refusé (setlpt1device), comme sndcard ; PCem le prend pour
+        //   « aucun » sans rien dire, et une faute de frappe couperait la comparaison du son.
+        if (!setlpt1device(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "lpt1_device", "")))
+                return false;
 
         // pcem: pc.c:778
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
@@ -767,7 +791,8 @@ internal static partial class pc
         Mouse.mouse.mouse_emu_init();
         Video.video.video_init();
         Sound.sound_speaker.speaker_init();   // pc.c:375
-        // omitted: lpt1_device_init() (pc.c:376) — pas de périphérique parallèle.
+        // pcem: pc.c:376 — G10.0 : le périphérique de LPT1 (lpt1_device, clé lpt1_device).
+        Lpt.lpt.lpt1_device_init();
         // pcem: pc.c:383 — G8.1 : la carte son.
         Sound.sound.sound_card_init();
 
@@ -877,10 +902,11 @@ internal static partial class pc
     internal static void closepc()
     {
         // omitted: codegen_close(), atapi->exit(), dumppic(), dumpregs(), closevideo(),
-        //   lpt1_device_close(), mouse_emu_close(), zip_eject() (pc.c:577-591) —
-        //   dynarec, ATAPI, LPT, souris, ZIP : hors périmètre 5150.
+        //   mouse_emu_close(), zip_eject() (pc.c:577-591) — dynarec, ATAPI, souris, ZIP.
         Disc.disc.disc_close(0);
         Disc.disc.disc_close(1);
+        // pcem: pc.c:588 — G10.0.
+        Lpt.lpt.lpt1_device_close();
         PluginApi.device.device_close_all();
     }
 

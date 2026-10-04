@@ -230,3 +230,15 @@ run bd-ami486-et4000-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxc
 mapfile -t T4K < tools/et4banc/et4banc.keys
 T4B=(); for l in "${T4K[@]}"; do T4B+=(--type "$l"); done
 runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${T4B[@]}" --type "^" --type "^"
+# G10.0 — LPT1 et LPT2 (lpt.c) posés sur toutes les machines par common_init, comme chez PCem ;
+# LPT1 porte un périphérique (pc.c:810-818, lpt1_device) : la Disney Sound Source (lpt_dss.c), le
+# Covox (lpt_dac.c) et le Covox stéréo, chacun sous le banc LPTBANC (BDA des ports, registres de
+# 378h/37Ah et 278h/27Ah, statut 379h, salve de 24 octets dans la FIFO de la DSS écoutée pendant
+# sa vidange, rampe de 256 échantillons, canal alterné par 37Ah bit 0) saisi dans DEBUG, sonde du
+# son ; l'ami486 avec le Covox stéréo à l'amorçage.
+mapfile -t LPK < tools/lptbanc/lptbanc.keys
+LPB=(); for l in "${LPK[@]}"; do LPB+=(--type "$l"); done
+for d in dss lpt_dac lpt_dac_stereo; do
+  run bd-pc-lpt-$d-banc boot-diff roms 11000 --lpt1 $d --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${LPB[@]}" --type "^" --type "^"
+done
+run bd-ami486-lpt-dac-stereo boot-diff roms 3000 --config $C/ami486-dx2.cfg --lpt1 lpt_dac_stereo

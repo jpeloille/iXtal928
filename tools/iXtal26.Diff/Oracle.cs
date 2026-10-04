@@ -63,7 +63,9 @@ public static class Oracle
     // 41 en G9.1 : l'Hercules et sa sonde (champ 0 = 5).
     // 42 en G9.2 : l'EGA et sa sonde (champ 0 = 6).
     // 43 en G9.3 : la Tseng ET4000AX.
-    public const int AbiVersion = 43;
+    // 44 en G10.0 : LPT1/LPT2 posés, le port jeu sur xt_init/at_init, h_set_lpt1_device,
+    //   h_set_lpt_jeu_hors_service.
+    public const int AbiVersion = 44;
 
     static Oracle()
     {
@@ -282,6 +284,9 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_speaker_probe([Out] ulong[] o);
     // G8.1 — la carte son (internal_name) et la sonde du son : haut-parleur, puis les deux OPL.
     [DllImport(Lib)] internal static extern void h_set_sndcard(string name);
+    // G10.0 — le périphérique de LPT1 (internal_name : none, dss, lpt_dac, lpt_dac_stereo).
+    [DllImport(Lib)] internal static extern void h_set_lpt1_device(string name);
+    [DllImport(Lib)] internal static extern void h_set_lpt_jeu_hors_service(int on);
     // G8.3 — les sections de device du .cfg, que config_get_int/string de l'oracle consultent.
     [DllImport(Lib)] internal static extern void h_clear_device_config();
     [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
