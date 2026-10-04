@@ -108,6 +108,7 @@ internal static partial class _386
 
         _808x.resetx86();
         _808x.ResetTimingState();
+        _808x.FigerGarde(); // l'accélération du 4 octobre : la garde de la carte de 1 Mo, après resetx86
     }
 
     /// <summary>Une instruction exactement. Pendant de h_step286().

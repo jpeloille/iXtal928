@@ -316,6 +316,10 @@ public static class BootDiff
         Oracle.h_closepc();
         if (TraceTronquee(oraclePath))
             return 3;
+        // L'accélération du 4 octobre — IXTAL26_TRACE_COPIE=CHEMIN : une copie de la trace de
+        // l'oracle, pour le cmp d'une trace avant et après le pliage du hachage (outil de preuve).
+        if (Environment.GetEnvironmentVariable("IXTAL26_TRACE_COPIE") is { Length: > 0 } copie)
+            File.Copy(oraclePath, copie, overwrite: true);
 
         // La sonde VGA de l'oracle, prise MAINTENANT : son état ne bouge plus jusqu'à la
         // phase 2, mais le relevé côté C# doit se faire avant pc.closepc(), qui ferme la
@@ -949,27 +953,99 @@ public static class BootDiff
 
     internal static bool SansTsc;
 
+    /// <summary>L'accélération du 4 octobre — le hachage PLIÉ, la même valeur au bit près que
+    /// l'ancien Mix octet par octet (TraceHashRef, gardée comme référence). Un champ de 16 bits
+    /// élargi par des zéros a ses six octets hauts nuls : la multiplication du second octet et les
+    /// six des octets nuls se regroupent en une par P^7, celle de pc (32 bits) en une par P^5
+    /// (modulo 2^64). L'égalité repose sur la LARGEUR des types : M16 prend un ushort, M32 un
+    /// uint, et un champ élargi un jour ne compilerait plus. Pendant exact de h_trace_hash
+    /// (harness.c) ; IXTAL26_FNV_REF=1 choisit la référence des deux côtés ; trace-hash-check les
+    /// compare, en C et en C#.</summary>
     internal static ulong TraceHash()
     {
-        ulong h = 1469598103934665603UL;
-        void Mix(ulong x)
-        {
-            for (var i = 0; i < 8; i++)
-            {
-                h ^= (x >> (i * 8)) & 0xff;
-                h *= 1099511628211UL;
-            }
-        }
         var st = _386_common.cpu_state;
-        Mix(st.seg_cs.seg);
-        Mix(st.pc);
-        for (var i = 0; i < 8; i++) Mix(st.regs[i].w);
-        Mix(st.seg_ds.seg);
-        Mix(st.seg_es.seg);
-        Mix(st.seg_ss.seg);
-        Mix(st.flags);
-        if (!SansTsc)
-                Mix(timer.tsc);
+        return FnvRef
+            ? TraceHashRef(st.seg_cs.seg, st.pc, st.regs, st.seg_ds.seg, st.seg_es.seg, st.seg_ss.seg, st.flags,
+                           timer.tsc, SansTsc)
+            : TraceHashOf(st.seg_cs.seg, st.pc, st.regs, st.seg_ds.seg, st.seg_es.seg, st.seg_ss.seg, st.flags,
+                          timer.tsc, SansTsc);
+    }
+
+    private static readonly bool FnvRef = Environment.GetEnvironmentVariable("IXTAL26_FNV_REF") == "1";
+
+    internal const ulong FnvBase = 1469598103934665603UL;
+    internal const ulong FnvP = 1099511628211UL;
+    internal const ulong FnvP5 = unchecked(FnvP * FnvP * FnvP * FnvP * FnvP);
+    internal const ulong FnvP7 = unchecked(FnvP5 * FnvP * FnvP);
+
+    private static ulong M16(ulong h, ushort v)
+    {
+        h ^= (ulong)(v & 0xff);
+        h *= FnvP;
+        h ^= (ulong)(v >> 8);
+        return h * FnvP7;
+    }
+
+    private static ulong M32(ulong h, uint v)
+    {
+        h ^= v & 0xff;
+        h *= FnvP;
+        h ^= (v >> 8) & 0xff;
+        h *= FnvP;
+        h ^= (v >> 16) & 0xff;
+        h *= FnvP;
+        h ^= v >> 24;
+        return h * FnvP5;
+    }
+
+    private static ulong M64(ulong h, ulong v)
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            h ^= (v >> (i * 8)) & 0xff;
+            h *= FnvP;
+        }
+        return h;
+    }
+
+    internal static ulong TraceHashOf(ushort cs, uint pc, x86reg[] regs, ushort ds, ushort es, ushort ss,
+                                      ushort flags, ulong tsc, bool sansTsc)
+    {
+        var h = M16(FnvBase, cs);
+        h = M32(h, pc);
+        for (var i = 0; i < 8; i++)
+            h = M16(h, regs[i].w);
+        h = M16(h, ds);
+        h = M16(h, es);
+        h = M16(h, ss);
+        h = M16(h, flags);
+        return sansTsc ? h : M64(h, tsc);
+    }
+
+    /// <summary>L'ancien hachage, octet par octet sur chaque champ élargi à 64 bits : la
+    /// référence du pliage.</summary>
+    internal static ulong TraceHashRef(ushort cs, uint pc, x86reg[] regs, ushort ds, ushort es, ushort ss,
+                                       ushort flags, ulong tsc, bool sansTsc)
+    {
+        var h = FnvBase;
+        h = MixRef(h, cs);
+        h = MixRef(h, pc);
+        for (var i = 0; i < 8; i++)
+            h = MixRef(h, regs[i].w);
+        h = MixRef(h, ds);
+        h = MixRef(h, es);
+        h = MixRef(h, ss);
+        h = MixRef(h, flags);
+        return sansTsc ? h : MixRef(h, tsc);
+    }
+
+    private static ulong MixRef(ulong h, ulong x)
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            h ^= (x >> (i * 8)) & 0xff;
+            h *= FnvP;
+        }
         return h;
     }
     private static readonly string[] PitFields =

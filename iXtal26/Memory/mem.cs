@@ -1156,11 +1156,21 @@ internal static partial class mem
         }
     }
 
+    // iXtal26 — l'accélération du 4 octobre : la garde de la carte courte de 1 Mo (FlatMap,
+    // 808x.State.cs). mem_recalc compte les passages par mem_mapping_recalc, mem_set_mem_state et
+    // mem_alloc, les seuls à écrire read_mapping, write_mapping, _mem_exec et _mem_state : un
+    // compte inchangé prouve que ces tables n'ont pas bougé. Outil, sans effet sur l'émulation.
+    internal static long mem_recalc;
+    internal static int mem_a20_state_garde => mem_a20_state;
+    internal static mem_mapping_t mem_base_mapping => base_mapping;
+
     // pcem: mem.c:1081-1124
     private static void mem_mapping_recalc(uint64_t @base, uint64_t size)
     {
         uint64_t c;
         mem_mapping_t? mapping = base_mapping.next;
+
+        mem_recalc++; // iXtal26 — la garde, ci-dessus
 
         if (size == 0)
                 return;
@@ -1334,6 +1344,7 @@ internal static partial class mem
     internal static void mem_set_mem_state(uint32_t @base, uint32_t size, int state)
     {
         uint32_t c;
+        mem_recalc++; // iXtal26 — la garde de la carte courte (mem_mapping_recalc)
         for (c = 0; c < size; c += 0x4000)
                 _mem_state[(c + @base) >> 14] = (uint8_t)state;
 
@@ -1371,6 +1382,7 @@ internal static partial class mem
     // pcem: mem.c:1340-1400, réduit au 5150 (pas de RAM au-delà de 640 Ko)
     internal static void mem_alloc()
     {
+        mem_recalc++; // iXtal26 — la garde de la carte courte (mem_mapping_recalc)
         // Quatre octets de marge : les accès 16/32 bits lisent ram[i+1..i+3]. En C
         // un accès à cheval sur la fin lit la mémoire adjacente ; ici il lèverait.
         ram = new byte[mem_size * 1024 + 4];

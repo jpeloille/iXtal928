@@ -39,6 +39,11 @@ signaux compris (SIGKILL excepté).
 touche pas l'émulateur (l'outillage, la documentation, l'hôte). La série entière se joue une fois
 par étape qui change l'émulateur.
 
+Une série à la fois sur la machine : `par.sh` prend un verrou `flock` sur
+`/var/tmp/ixtal-par/.verrou-machine` avant d'examiner l'espace, et le garde jusqu'à la fin. Une
+seconde série attend son tour (« en attente du verrou machine »). Les portes héritent du
+descripteur : une série tuée garde la machine tant qu'une de ses portes tourne encore.
+
 `g5w-recipe.sh` fabrique `/tmp/g5w` depuis les disques de `os/` (copies, AUTOEXEC sans
 `KEYB FR`, CMOS de type 46) et vérifie ses empreintes contre `g5w.sha256` ; `cfg/` porte les
 configurations des portes (`*.cfg.in` : gabarits de l'espace disque).

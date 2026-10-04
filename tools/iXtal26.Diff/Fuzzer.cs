@@ -697,12 +697,13 @@ public static class Fuzzer
             // Comparaison mémoire en fin de ronde. Une divergence ici n'indique
             // pas QUELLE instruction l'a causée — mais elle est rare, et le rejeu
             // de la ronde avec --ram-per-instr la localise.
-            var ramC = Oracle.h_ram_hash();
-            var ramS = _808x.RamHash();
-            if (ramC != ramS)
+            // L'accélération du 4 octobre : la comparaison octet par octet de CmpRam, au lieu de deux
+            // FNV de 16 Mo ; le message garde les deux FNV.
+            var ramDiff = CmpRam();
+            if (ramDiff is not null)
             {
                 Console.WriteLine($"\nDIVERGENCE MÉMOIRE en fin de ronde {round}");
-                Console.WriteLine($"  oracle {ramC:X16}, C# {ramS:X16}");
+                Console.WriteLine($"  {ramDiff}");
                 Console.WriteLine($"  Localiser : --seed {seed} --rounds {round + 1} --ram-per-instr");
                 return 1;
             }
@@ -1076,11 +1077,43 @@ public static class Fuzzer
         return null;
     }
 
+    /// <summary>L'accélération du 4 octobre — les deux RAM comparées OCTET PAR OCTET (h_ram_cmp, la
+    /// RAM C# épinglée par le marshalling, sans copie), au lieu de deux FNV de 16 Mo : environ
+    /// 12 ms par côté et par pas, 90 % de pm-fuzz. Exactement mem_size × 1 024 octets, après avoir
+    /// vérifié que les deux mem_size sont égaux ; h_ram est relue à chaque appel. La détection est
+    /// au moins celle du hachage : tout écart qu'il voyait, la comparaison le voit, et en plus ses
+    /// collisions. Le message garde les deux FNV et nomme le premier octet différent.
+    /// IXTAL26_FAUTE_RAM=DÉCALAGE (hexadécimal, ou « fin » pour le dernier octet), le contrôle
+    /// négatif : un octet de la RAM C# inversé avant la première comparaison.</summary>
     internal static string? CmpRam()
     {
-        var ha = Oracle.h_ram_hash();
-        var hb = _808x.RamHash();
-        return ha == hb ? null : $"RAM : oracle {ha:X16}, C# {hb:X16}";
+        var kb = Oracle.h_mem_size();
+        if (kb != mem.mem_size)
+            return $"RAM : mem_size oracle {kb} Ko, C# {mem.mem_size} Ko";
+        var n = (uint)kb * 1024u;
+        if (n > (uint)mem.ram.Length)
+            return $"RAM : {n} octets à comparer, la RAM C# n'en a que {mem.ram.Length}";
+        FauteRam(n);
+        var off = Oracle.h_ram_cmp(mem.ram, n, out var octet);
+        if (off == -1)
+            return null;
+        if (off == -2)
+            return $"RAM : {n} octets à comparer, au-delà de la RAM de l'oracle";
+        return $"RAM : oracle {Oracle.h_ram_hash():X16}, C# {_808x.RamHash():X16} — premier octet différent en " +
+               $"{off:X6} (oracle {octet:X2}, C# {mem.ram[off]:X2})";
+    }
+
+    private static readonly string? FauteRamSpec = Environment.GetEnvironmentVariable("IXTAL26_FAUTE_RAM");
+    private static bool fauteRamFaite;
+
+    private static void FauteRam(uint n)
+    {
+        if (FauteRamSpec is null || fauteRamFaite)
+            return;
+        fauteRamFaite = true;
+        var off = FauteRamSpec == "fin" ? n - 1 : Convert.ToUInt32(FauteRamSpec, 16);
+        mem.ram[off] ^= 0xFF;
+        Console.WriteLine($"  IXTAL26_FAUTE_RAM : octet {off:X6} de la RAM C# inversé (contrôle négatif)");
     }
     /// <summary>État architectural des deux côtés, côte à côte. Le message de
     /// divergence ne nomme que le PREMIER champ qui diffère ; pour savoir d'où il

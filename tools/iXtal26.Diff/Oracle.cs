@@ -16,6 +16,14 @@ using iXtal26.Diag;
 
 namespace iXtal26.Diff;
 
+/// <summary>L'accélération du 4 octobre : vrai dès que la classe Oracle est initialisée, donc la .so
+/// chargée et ses chemins de CMOS posés. Hors de la classe, pour que la lire n'initialise pas Oracle :
+/// la vérification de sortie (Program.cs) n'interroge l'oracle que s'il a servi.</summary>
+internal static class OracleEtat
+{
+    internal static bool Charge;
+}
+
 public static class Oracle
 {
     internal const string Lib = "ixtal26oracle";
@@ -66,7 +74,8 @@ public static class Oracle
     // 44 en G10.0 : LPT1/LPT2 posés, le port jeu sur xt_init/at_init, h_set_lpt1_device,
     //   h_set_lpt_jeu_hors_service.
     // 45 le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace.
-    public const int AbiVersion = 45;
+    // 46 le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp.
+    public const int AbiVersion = 46;
 
     static Oracle()
     {
@@ -98,6 +107,7 @@ public static class Oracle
                         PluginApi.paths.resolve_roms_path("nvr") is { Length: > 0 } nvr ? nvr : "nvr", 512),
                 PluginApi.config.append_slash(
                         PluginApi.paths.resolve_roms_path("nvr/default") is { Length: > 0 } d ? d : "nvr/default", 512));
+        OracleEtat.Charge = true;
     }
 
     /// <summary>Adresse d'un symbole GLOBAL de la .so, hors contrat h_*.
@@ -202,6 +212,20 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_trace_close();
     // Le premier errno d'une écriture refusée de la trace, 0 si tout est passé (après h_trace_close).
     [DllImport(Lib)] public static extern int h_trace_errno();
+    // L'accélération du 4 octobre. Le hachage de trace d'un état donné, plié (ref = 0) ou par
+    // l'ancien MIX (ref = 1) : trace-hash-check.
+    [DllImport(Lib)] public static extern ulong h_trace_hash_value(int @ref, ushort cs, uint pc, ushort[] regs,
+                                                                    ushort ds, ushort es, ushort ss, ushort flags,
+                                                                    ulong tsc, int notsc);
+    // À la sortie : un dernier vidage des tables de traduction par l'anneau, puis leur balayage ;
+    // le nombre d'écarts, -1 si le processus n'a pris aucune remise courte.
+    [DllImport(Lib)] public static extern int h_raz_fin();
+    // La RAM comparée octet par octet : mem_size de l'oracle, puis -1 si les n premiers octets
+    // sont égaux, -2 si n dépasse la RAM de l'oracle, et sinon le premier décalage différent,
+    // l'octet de l'oracle à ce décalage dans `octet`. Le tableau C# est épinglé par le
+    // marshalling, sans copie.
+    [DllImport(Lib)] public static extern int h_mem_size();
+    [DllImport(Lib)] public static extern long h_ram_cmp(byte[] autre, uint n, out byte octet);
     [DllImport(Lib)] public static extern void h_wlog_reset();
     [DllImport(Lib)] public static extern int h_wlog_count();
     [DllImport(Lib)] public static extern uint h_wlog_get_addr(int i);

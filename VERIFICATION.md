@@ -5801,3 +5801,169 @@ et deux écarts admis, l'ABI (44 → 45) et la ligne « écrit : » de `config-c
 suit le `TMPDIR` de la série. Le répertoire de la série effacé à la fin. Une série entière, g101,
 lancée sur disque puis arrêtée à la demande de l'utilisateur, a servi de mesure. Build 0
 avertissement, selftest, check-oracle 0 dérive (181).
+
+## L'accélération des portes
+
+Le 4 octobre 2026, décision de l'utilisateur, avant la série de G10.1. Cinq points, chacun prouvé
+équivalent à l'ancien chemin ; rien de `pcem-dev/` n'est touché, et l'émulateur non plus : `mem.cs`
+gagne un compteur d'outillage, sans effet sur l'émulation. ABI 46. Écartés de ce commit : les pages
+sales, le découpage des campagnes, le hachage par blocs, les drapeaux d'oracle, PGO et R2R.
+
+**(1) La RAM comparée octet par octet.** `CmpRam` (pm-fuzz, pm-check, page-check, popss-check, et la
+fin de ronde des flux) comparait deux FNV de `mem_size` Ko, 16 Mo sur le 386 : environ 12 ms par côté
+et par pas, 90 % de pm-fuzz. `h_ram_cmp` compare maintenant la RAM C#, épinglée par le marshalling
+sans copie, à celle de l'oracle, relue à chaque appel : exactement `mem_size` × 1 024 octets, après
+avoir vérifié que les deux `mem_size` sont égaux et que la RAM C# est assez longue. Une égalité
+octet par octet implique celle des FNV, et les collisions disparaissent : la détection est au moins
+celle du hachage. Le message de divergence garde les deux FNV et nomme le premier octet différent,
+avec ses deux valeurs. `h_ram_hash`, `RamHash` et `Bench.cs` sont inchangés. Contrôles négatifs
+(`IXTAL26_FAUTE_RAM`, un octet de la RAM C# inversé) : pm-fuzz rouge à l'octet 001000 comme au
+dernier, « premier octet différent en FFFFFF (oracle 00, C# FF) » ; le flux 386 rouge en fin de
+ronde.
+
+**(2) La carte de 1 Mo, allouée une seule fois, sous garde.** Sur le 8088, le 8086 et le 286, la
+remise refaisait `mem_alloc` et `h_pad_ram` à chaque itération : une quarantaine de Mo écrits côté
+oracle pour 1 Mo de carte, un `new byte[]` et les tables côté C#. Comme la carte de 16 Mo depuis
+G2 D3 : si la RAM est encore celle de la dernière carte complète, elle est remise à zéro et les
+tables de traduction sont vidées (3). Une GARDE, des deux côtés, se fige au bout de la remise qui a
+pris le chemin complet, `resetx86` compris, et se compare à l'entrée de chaque remise suivante :
+`mem_size`, `rammask`, `mem_a20_key`, `mem_a20_alt`, et la liste des mappages (nœud, base, taille,
+drapeaux, `enable`, `exec`, `p` et les six gestionnaires). Côté C#, elle garde en plus
+`mem_a20_state` et `mem_recalc`, le compte des passages par `mem_mapping_recalc`,
+`mem_set_mem_state` et `mem_alloc`, les seuls à écrire `read_mapping`, `write_mapping`, `_mem_exec`
+et `_mem_state`. Côté oracle, `_mem_state`, `mem_a20_state` et `base_mapping` sont statiques dans
+`mem.c`. La garde y compte donc, par `--wrap`, les appels à `mem_set_mem_state` et à
+`mem_mapping_remove` venus d'ailleurs que de `mem.c`. Elle parcourt la liste depuis
+`ram_low_mapping`, le premier mappage que pose `mem_alloc` après avoir vidé `base_mapping`
+(`mem.c:1373`, `:1404`). Au moindre écart, le chemin complet est repris, et la remise le dit sur
+stderr (« carte courte (…) : la garde a bougé, chemin complet repris (N) »). `h_boot` invalide la
+carte, et `IXTAL26_CARTE_COURTE=0` force le chemin complet.
+
+La limite de la garde de l'oracle, dite : elle ne lit pas `mem_a20_state`. Une suite qui change
+`mem_a20_key`, recalcule l'A20, puis rend l'ancienne valeur sans recalcul lui échapperait. Le C# la
+verrait, prendrait le chemin complet, et les deux côtés divergeraient : la porte rougirait. Jamais
+un faux vert.
+
+Deux défauts de la première version, mesurés et corrigés avant la série :
+- la garde se figeait à la fin de la carte, et `resetx86` pose `rammask` juste après
+  (`808x.c:683-687`) : un repli par côté, à la seconde remise de chaque processus, et deux lignes
+  de plus dans chaque journal ;
+- le parcours de l'oracle remontait `prev` depuis `h_flat_mapping`, et `mem_mapping_add` ne pose
+  jamais `prev` (`mem.c:1125-1153`) : il ne voyait qu'un mappage sur les quatre.
+
+Contrôle négatif : `IXTAL26_FAUTE_GARDE=N` change `p` de `ram_low_mapping` à la N-ième tentative
+(`mem_read_ram` l'ignore). Sur le 286, le 8088 et le 8086, chaque côté fait exactement un repli,
+et le journal, ces deux lignes ôtées, est identique à celui du témoin.
+
+**(3) Les tables de traduction vidées par leurs anneaux.** La remise courte appelait
+`resetreadlookup` : 24 Mo de memset côté oracle, 2 × 4 Mo côté C#. `h_flush_lookup` et
+`FlushLookup` en rendent les effets EXACTS (`mem.c:77-91`) : le corps de `flushmmucache_nopc`, plus
+les deux index et `pccache`, sans `mmuflush`, ni `pccache2`, ni `codegen_flush`. Seules les entrées
+inscrites dans les deux anneaux de 256 peuvent différer de la sentinelle : `addreadlookup` et
+`addwritelookup` sont les seuls à en poser, et chacun remet d'abord à la sentinelle l'entrée qu'il
+évince (`mem.c:370-373`, `:398-402`).
+
+Mesuré en relisant : `resetx86` refait un `resetreadlookup` complet, des deux côtés (`808x.c:694`,
+`808x.cs`), juste après la carte. Ce commit retire donc un des deux remplissages par remise, pas les
+deux. Un vidage faux serait effacé par `resetx86` avant la première instruction : seul un balayage
+fait DANS la remise, entre le vidage et `resetx86`, peut le voir. C'est là qu'il a lieu :
+- à la première remise courte, puis à une sur 256 ;
+- à la sortie de tout processus qui en a pris une, par un dernier vidage puis le balayage, des deux
+  côtés (`ProcessExit`, `h_raz_fin`) ; toutes les portes en profitent, sans toucher à leurs
+  boucles ;
+- à toutes les remises sous `IXTAL26_VERIF_RAZ=1`.
+
+Un écart rend 3, même à une porte qui a dit « Vert ». Une première version balayait à la dernière
+itération, après `resetx86` : elle ne prouvait rien, et a été remplacée.
+
+Contrôles négatifs, tous rendant 3 :
+- `IXTAL26_FAUTE_ANNEAU`, aux remises (l'emplacement 0 de l'anneau de lecture oublié) : rouge sur
+  le 386, le 486, le 286 et le 8088, côté oracle seul (`=oracle`), côté C# seul (`=cs`) ou des deux
+  côtés (`=1`) ;
+- `=fin`, à la sortie (une entrée de `readlookup2` posée hors de l'anneau) : « REMISE COURTE
+  FAUSSE à la sortie — oracle : 1 écart(s) ; C# : 1 écart(s) » sur fuzz386, fuzz286 et le flux
+  8088, et « oracle : aucune remise courte ; C# : 1 écart(s) » sur `r9-mmu`, porte C# seule.
+
+**(4) Le hachage de la trace, plié.** `h_trace_note` et `TraceHash` hachaient chaque champ élargi
+à 64 bits octet par octet. Un champ de 16 bits élargi par des zéros a ses six octets hauts nuls, et
+`h ^= 0` ne fait rien. La multiplication du second octet et les six des octets nuls se regroupent
+donc en une seule par P⁷, et pour `pc` (32 bits) en une par P⁵, modulo 2⁶⁴ : la même valeur, au bit
+près. Des `_Static_assert` gardent les largeurs des champs et les deux constantes (C#, `M16` et
+`M32` typés). L'ancienne fonction reste la référence (`h_trace_hash_ref`, `TraceHashRef`) ;
+`IXTAL26_FNV_REF=1` la choisit des deux côtés. Preuves :
+- `trace-hash-check` (nouvelle commande) : 100 millions d'états tirés, un sur deux sans tsc, un sur
+  seize aux valeurs extrêmes ; les quatre valeurs (référence et pliée, en C et en C#) sont égales ;
+- `cmp` de la trace de l'oracle du boot-diff CGA du 5150 (25 456 706 instructions, 203 Mo, copiée
+  par `IXTAL26_TRACE_COPIE`), pliée contre référence : identiques, avec et sans `--no-tsc`.
+
+**(5) Une série à la fois.** `par.sh` prend un verrou `flock` sur
+`/var/tmp/ixtal-par/.verrou-machine` avant de vider son répertoire et d'examiner l'espace, et le
+garde jusqu'à la fin ; les portes héritent du descripteur. Mesuré pendant g103 : une seconde série
+(`PORTES=abi`) affiche « par.sh : en attente du verrou machine (une autre série tourne)… » et
+attend, sans rien créer.
+
+**Les preuves d'équivalence.**
+Sur la version finale, sous `MALLOC_PERTURB_=85` comme la série, chacune comparée à g100 journal
+entier, et toutes identiques :
+- sous `IXTAL26_VERIF_RAZ=1`, avec un balayage à chaque remise : fuzz386-s1, fuzz486-s1, fuzz8088
+  et fuzz286 en mode simple, pm-fuzz, pm-fuzz-486, page-check et page-check-486 ;
+- sous `IXTAL26_CARTE_COURTE=0`, avec le chemin complet forcé : fuzz8088, fuzz8086-s1, fuzz286 et
+  x87-286-s1 (`--fpu 287`). Les mêmes portes sur le chemin court, dans g103, sont identiques aussi ;
+  avec et sans la carte courte, le 8088, le 8086 et le 286, x87 compris, rendent le même journal.
+
+**La série** (g103), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, `TMPDIR` et
+`WORK` en mémoire :
+173 portes en 3 317 s (55 min 17 s). 172 vertes. `r9-mmu` rouge, retour 3, par la vérification de
+sortie elle-même : cette porte, C# seule, ne remet que la carte du C#, et l'oracle, qui n'en avait
+pris aucune, répondait -1 (« rien à vérifier »), que le crochet prenait pour un écart. Il chargeait
+aussi l'oracle à la sortie d'une porte qui ne s'en sert pas (mesuré par `LD_DEBUG=libs` : deux
+chargements avant, aucun après). Corrigé : chaque côté ne vérifie que s'il a pris une remise courte,
+et l'oracle n'est interrogé que s'il a été chargé (`OracleEtat.Charge`). Seule `iXtal26.Diff.dll`
+change ; l'oracle et l'hôte restent identiques octet par octet à ceux de la série. Les quatre portes
+C# seules (`r9-mmu`, `r9-cl5429`, `r9-s3`, `r9-sbcfg`) ont été rejouées isolément avec la DLL
+corrigée : vertes, journaux identiques à g100. La vérification de sortie mord toujours, `r9-mmu`
+comprise (« oracle : aucune remise courte ; C# : 1 écart(s) »).
+
+Comparée à g100, journal entier (à son rejeu sur disque pour les quinze portes que le quota avait
+touchées) :
+- 167 portes identiques ;
+- deux écarts admis : l'ABI (44 → 46), et la ligne « écrit : » de `config-check`, dont le chemin
+  suit le `TMPDIR` de la série ;
+- trois portes vertes qui ne diffèrent que par le chemin absolu des disquettes :
+  `bd-ami386dx-ps2-banc-2`, `bd-ami386dx-ps2-banc-3` et `bd-ami386dx-et4-banc`. `series.sh` leur
+  passe `$REPO/os/pcdos20/…`, et la série tournait depuis le worktree. Rejouées avec `REPO` sur le
+  dépôt principal et la même DLL figée : identiques à g100.
+
+Aucune ligne « carte courte » dans les 173 journaux : la garde n'a jamais replié.
+
+**Les durées.**
+La série : 3 317 s, contre 5 673 s pour g93 (1,71×). La somme des durées des 169 portes communes
+passe de 56 713 s à 32 806 s (1,73×).
+
+Porte par porte, à dix de front, une durée peut varier du simple au double selon le cœur qui échoit à
+la voie, performant ou efficace. x87-8088-s7 y fait 1,0×, quand x87-8088-s1, la même porte à une
+graine près, fait 2,3×.
+
+Mesuré donc aussi en isolé, une exécution à la fois : l'ancienne DLL (`08d0d2f`) contre la
+nouvelle, itérations réduites, sous `MALLOC_PERTURB_=85`, journaux identiques deux à deux :
+
+| Porte | Gain |
+|---|---|
+| 8088, 8086, 286, x87 du 8088 | 2,5× à 2,6× |
+| 386 et 486 en mode simple | 1,6× à 1,7× |
+| pm-fuzz | 10,8× |
+| flux 386 | 4,5× |
+| boot-diff CGA du 5150 | 2,1× |
+| `bd-ami486-trio64-post` | 1,16× |
+
+`bd-ami486-trio64-post` faisait 0,9× dans la série : c'était du bruit de charge.
+
+Ce qui reste par itération du mode simple, estimé sur les volumes écrits, `perf` étant refusé sans
+privilèges sur cette machine :
+- le `resetreadlookup` de `resetx86`, des deux côtés (24 Mo côté oracle, 8 Mo côté C#) ;
+- sur le 386 et le 486, la remise à zéro des 16 Mo de RAM, des deux côtés. Les pages sales, qui la
+  réduiraient, sont hors de ce commit.
+
+Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
+(181). Constaté en passant, hors de ce commit : le banc C (`make bench`) ne se lie plus à
+`08d0d2f`, `h_opl_reset` y manquant (`harness_dbopl.cpp` n'est pas dans ses sources).

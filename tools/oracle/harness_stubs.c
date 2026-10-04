@@ -176,6 +176,23 @@ int romset = 0; /* ROM_IBMPC */
  * valeurs — sauf cpu_busspeed et isa_cycles, que le vrai cpu_set() pose désormais. */
 void __wrap_cpu_set_edx(void) { }
 
+/* L'accélération du 4 octobre — la garde de la carte de 1 Mo (h_flat_map, harness.c) compte les
+ * appels à mem_set_mem_state et à mem_mapping_remove venus d'ailleurs que de mem.c. _mem_state et
+ * base_mapping y sont statiques, et le harnais ne les relit pas sans toucher l'arbre vendoré : la
+ * garde parcourt la liste depuis ram_low_mapping, et ne verrait pas qu'on ôte celui-là. Ici, et non
+ * dans harness_wrap.c, parce que harness.c, que bench lie aussi, lit le compteur. */
+uint64_t h_mem_etats;
+extern void __real_mem_set_mem_state(uint32_t base, uint32_t size, int state);
+void __wrap_mem_set_mem_state(uint32_t base, uint32_t size, int state) {
+        h_mem_etats++;
+        __real_mem_set_mem_state(base, size, state);
+}
+extern void __real_mem_mapping_remove(mem_mapping_t *mapping);
+void __wrap_mem_mapping_remove(mem_mapping_t *mapping) {
+        h_mem_etats++;
+        __real_mem_mapping_remove(mapping);
+}
+
 /* G7.1 — DÉVIATION DE L'ORACLE (pas d'iXtal26), même arbitrage que h_pad_ram et PB-24.
  * rom_init (rom.c:60-62) alloue `size` par malloc et ignore le retour de fread : ce que le
  * fichier ne fournit pas reste du TAS, lisible par l'invité. Pour la VGA d'IBM

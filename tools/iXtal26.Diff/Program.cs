@@ -140,6 +140,23 @@ if (Environment.GetEnvironmentVariable("IXTAL26_LPT_JEU_HORS_SERVICE") == "1" ||
     Console.WriteLine("  --lpt-jeu-hors-service : OUTIL DE PREUVE — ni LPT1/LPT2 ni port jeu de xt_init/at_init, des deux côtés.");
 }
 
+// L'accélération du 4 octobre — la DERNIÈRE remise de toutes les portes : à la sortie, chaque côté
+// qui a pris une remise courte de la carte plate fait un dernier vidage de ses tables de traduction
+// par l'anneau, puis leur balayage (FinRaz, h_raz_fin). -1 : aucune remise courte de ce côté, rien
+// à vérifier — les portes C# seules (r9-mmu) n'en prennent jamais côté oracle. L'oracle n'est
+// interrogé que s'il a servi : la question ne le charge pas. Un écart fait rendre 3, même à une
+// porte qui a dit « Vert ». Rien n'est écrit quand tout est juste.
+AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+{
+    var ecartsCs = iXtal26.Cpu._808x.FinRaz();
+    var ecartsOracle = OracleEtat.Charge ? Oracle.h_raz_fin() : -1;
+    if (ecartsCs <= 0 && ecartsOracle <= 0)
+        return;
+    static string Cote(int e) => e < 0 ? "aucune remise courte" : $"{e} écart(s)";
+    Console.Error.WriteLine($"REMISE COURTE FAUSSE à la sortie — oracle : {Cote(ecartsOracle)} ; C# : {Cote(ecartsCs)}.");
+    Environment.ExitCode = 3;
+};
+
 switch (args[0])
 {
     // G2, D0.5 — le corpus SingleStepTests/80386, oracle silicium du cœur 386.
@@ -175,6 +192,11 @@ switch (args[0])
         Oracle.CheckAbi();
         Console.WriteLine($"ABI {Oracle.h_abi_version()} OK, h_state = {Oracle.h_state_size()} octets.");
         return 0;
+
+    // L'accélération du 4 octobre — le hachage plié de la trace contre l'ancien, en C et en C#.
+    case "trace-hash-check":
+        Oracle.CheckAbi();
+        return TraceHashCheck.Run(args.Length > 1 ? long.Parse(args[1]) : 10_000_000);
 
     // A2.2a — le chemin de fetch de exec386, mis sous oracle AVANT d'ecrire la
     // boucle. Une erreur de biais d'une page y est silencieuse : elle rend des

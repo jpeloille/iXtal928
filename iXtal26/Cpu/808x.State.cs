@@ -49,8 +49,26 @@ internal static partial class _808x
         if (kb == 16384 && ReferenceEquals(mem.ram, flatRam) && mem.mem_size == kb)
         {
                 Array.Clear(mem.ram);
-                mem.resetreadlookup();
+                FlushLookup();
+                RazPeutEtre();
                 return;
+        }
+        // L'accélération du 4 octobre — la carte de 1 Mo allouée une seule fois, sous garde : pendant
+        // de h_flat_map et h_garde_lire (harness.c). IXTAL26_CARTE_COURTE=0 : toujours le chemin complet.
+        if (kb == 1024 && CarteCourte && ReferenceEquals(mem.ram, flatRam1) && mem.mem_size == kb)
+        {
+                if (FauteGarde > 0 && ++tentatives1 == FauteGarde)
+                        mem.mem_mapping_set_p(mem.ram_low_mapping, fauteGardeCible);
+                LireGarde(gardeLue);
+                if (gardeLue.Egale(garde1))
+                {
+                        Array.Clear(mem.ram);
+                        FlushLookup();
+                        RazPeutEtre();
+                        return;
+                }
+                reprises1++;
+                Console.Error.WriteLine($"carte courte (C#) : la garde a bougé, chemin complet repris ({reprises1})");
         }
         mem.mem_size = kb;
         if (!mem_inited)
@@ -66,9 +84,197 @@ internal static partial class _808x
                             mem.mem_write_ram, mem.mem_write_ramw, mem.mem_write_raml,
                             mem.ram, 0, mem.MEM_MAPPING_INTERNAL, null);
         flatRam = kb == 16384 ? mem.ram : null;
+        flatRam1 = kb == 1024 ? mem.ram : null;
+        gardeAFiger = flatRam1 is not null;
+    }
+
+    /// <summary>Au bout de Reset et de _386.ResetExec386 : la garde de la carte de 1 Mo se fige sur
+    /// la remise ENTIÈRE qui a pris le chemin complet — resetx86 pose rammask après la carte.
+    /// Pendant de h_garde_figer (harness.c).</summary>
+    internal static void FigerGarde()
+    {
+        if (!gardeAFiger)
+                return;
+        LireGarde(garde1);
+        gardeAFiger = false;
     }
 
     private static byte[]? flatRam;
+
+    // ---------------------------------------------------------------------------------------
+    // L'ACCÉLÉRATION DU 4 OCTOBRE (VERIFICATION.md, § L'accélération des portes). Pendant de
+    // h_flush_lookup, h_raz_balayer et de la garde de la carte de 1 Mo (harness.c).
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[]? flatRam1;
+    private static bool gardeAFiger;
+    private static long reprises1;
+    private static readonly bool CarteCourte = Environment.GetEnvironmentVariable("IXTAL26_CARTE_COURTE") != "0";
+    private static readonly string? FauteAnneau = Environment.GetEnvironmentVariable("IXTAL26_FAUTE_ANNEAU");
+    private static readonly bool VerifRaz = Environment.GetEnvironmentVariable("IXTAL26_VERIF_RAZ") == "1";
+    private static long razN;
+
+    // IXTAL26_FAUTE_GARDE=N, le contrôle négatif de la garde : à la N-ième remise de 1 Mo qui tente
+    // le chemin court, `p` de ram_low_mapping change (mem_read_ram l'ignore), et la garde doit le
+    // voir. Pendant de h_faute_garde_peut_etre (harness.c).
+    private static readonly long FauteGarde =
+        long.TryParse(Environment.GetEnvironmentVariable("IXTAL26_FAUTE_GARDE"), out var n) ? n : 0;
+    private static long tentatives1;
+    private static readonly object fauteGardeCible = new();
+
+    /// <summary>Les effets EXACTS de mem.resetreadlookup (mem.c:77-91), sans remplir 2 × 4 Mo : seules
+    /// les entrées inscrites dans les deux anneaux de 256 peuvent différer de la sentinelle, car
+    /// addreadlookup et addwritelookup (mem.cs) sont les seuls à en poser, et chacun remet d'abord à
+    /// la sentinelle l'entrée qu'il évince. IXTAL26_FAUTE_ANNEAU, le contrôle négatif : aux remises,
+    /// l'emplacement 0 de l'anneau de lecture est oublié, des deux côtés (=1) ou du seul C# (=cs), et
+    /// le balayage doit le voir ; à la sortie (=fin), voir FinRaz.</summary>
+    private static void FlushLookup()
+    {
+        int c;
+        var faute = FauteAnneau is "1" or "cs";
+        for (c = 0; c < 256; c++)
+        {
+                if (mem.readlookup[c] != unchecked((int)0xFFFFFFFF) && !(faute && c == 0))
+                {
+                        mem.readlookup2[mem.readlookup[c]] = -1;
+                        mem.readlookup[c] = unchecked((int)0xFFFFFFFF);
+                }
+                if (mem.writelookup[c] != unchecked((int)0xFFFFFFFF))
+                {
+                        mem.writelookup2[mem.writelookup[c]] = -1;
+                        mem.writelookup[c] = unchecked((int)0xFFFFFFFF);
+                }
+        }
+        mem.readlnext = 0;
+        mem.writelnext = 0;
+        pccache = 0xFFFFFFFF;
+    }
+
+    /// <summary>Les écarts des tables de traduction à celles que laisse resetreadlookup, l'ancien
+    /// chemin.</summary>
+    private static int EcartsRaz()
+    {
+        var bad = 0;
+        foreach (var v in mem.readlookup2)
+                bad += v != -1 ? 1 : 0;
+        foreach (var v in mem.writelookup2)
+                bad += v != -1 ? 1 : 0;
+        for (var c = 0; c < 256; c++)
+        {
+                bad += mem.readlookup[c] != unchecked((int)0xFFFFFFFF) ? 1 : 0;
+                bad += mem.writelookup[c] != unchecked((int)0xFFFFFFFF) ? 1 : 0;
+        }
+        bad += mem.readlnext != 0 || mem.writelnext != 0 || pccache != 0xFFFFFFFF ? 1 : 0;
+        return bad;
+    }
+
+    /// <summary>Le balayage, DANS la remise, entre le vidage et resetx86 — qui refait un
+    /// resetreadlookup complet (808x.cs, resetx86) : après lui, il ne prouverait rien. Un écart
+    /// arrête le processus, retour 3. Pendant de h_raz_balayer (harness.c).</summary>
+    private static void BalayerRaz()
+    {
+        var bad = EcartsRaz();
+        if (bad == 0)
+                return;
+        Console.Error.WriteLine($"REMISE COURTE FAUSSE (C#) : {bad} écart(s) dans les tables de traduction, remise {razN}.");
+        Environment.Exit(3);
+    }
+
+    /// <summary>La DERNIÈRE remise de toutes les portes, sans toucher à leurs boucles : à la sortie
+    /// du processus (iXtal26.Diff, ProcessExit), un dernier vidage par l'anneau, sur les tables que
+    /// la dernière itération a laissées, puis le balayage. Rend le nombre d'écarts ; -1 si le
+    /// processus n'a pris aucune remise courte. IXTAL26_FAUTE_ANNEAU=fin : une entrée de
+    /// readlookup2 posée HORS de l'anneau — ce que le vidage court suppose impossible —, que le
+    /// balayage doit voir. Pendant de h_raz_fin (harness.c).</summary>
+    internal static int FinRaz()
+    {
+        if (razN == 0)
+                return -1;
+        if (FauteAnneau is "fin")
+                mem.readlookup2[0x12345] = 0;
+        FlushLookup();
+        return EcartsRaz();
+    }
+
+    /// <summary>Toutes les remises sous IXTAL26_VERIF_RAZ=1 ; une sur 256 sinon, la première
+    /// comprise.</summary>
+    private static void RazPeutEtre()
+    {
+        if (VerifRaz || (razN & 255) == 0)
+                BalayerRaz();
+        razN++;
+    }
+
+    /// <summary>Un mappage tel que la garde le fige : le nœud, ses bornes, ses drapeaux, son
+    /// pointeur d'exécution et ses sept références, comparés par identité.</summary>
+    private struct Cliche
+    {
+        internal mem_mapping_t Noeud;
+        internal uint Base, Taille, Drapeaux;
+        internal int Enable, ExecOffset;
+        internal byte[]? Exec;
+        internal object? P;
+        internal Delegate? Rb, Rw, Rl, Wb, Ww, Wl;
+
+        internal readonly bool Egal(in Cliche o) =>
+            ReferenceEquals(Noeud, o.Noeud) && Base == o.Base && Taille == o.Taille && Drapeaux == o.Drapeaux &&
+            Enable == o.Enable && ExecOffset == o.ExecOffset && ReferenceEquals(Exec, o.Exec) &&
+            ReferenceEquals(P, o.P) && ReferenceEquals(Rb, o.Rb) && ReferenceEquals(Rw, o.Rw) &&
+            ReferenceEquals(Rl, o.Rl) && ReferenceEquals(Wb, o.Wb) && ReferenceEquals(Ww, o.Ww) &&
+            ReferenceEquals(Wl, o.Wl);
+    }
+
+    /// <summary>La garde de la carte de 1 Mo : mem_size, rammask, l'état A20 (key, alt, state), la
+    /// liste des mappages parcourue en entier depuis base_mapping, et mem.mem_recalc, qui compte
+    /// tout ce qui écrit read_mapping, write_mapping, _mem_exec et _mem_state. Figée par FigerGarde
+    /// au bout de la remise qui a pris le chemin complet. Plus large que celle de l'oracle, qui ne
+    /// voit ni _mem_state ni mem_a20_state, statiques dans mem.c.</summary>
+    private sealed class Garde
+    {
+        internal int MemSize, A20Key, A20Alt, A20State, N;
+        internal uint RamMask;
+        internal long Recalc;
+        internal Cliche[] M = new Cliche[32];
+
+        internal bool Egale(Garde o)
+        {
+            if (N > M.Length || MemSize != o.MemSize || RamMask != o.RamMask || A20Key != o.A20Key ||
+                A20Alt != o.A20Alt || A20State != o.A20State || Recalc != o.Recalc || N != o.N)
+                return false;
+            for (var i = 0; i < N; i++)
+                if (!M[i].Egal(o.M[i]))
+                    return false;
+            return true;
+        }
+    }
+
+    private static readonly Garde garde1 = new();
+    private static readonly Garde gardeLue = new();
+
+    private static void LireGarde(Garde g)
+    {
+        g.MemSize = mem.mem_size;
+        g.RamMask = mem.rammask;
+        g.A20Key = mem.mem_a20_key;
+        g.A20Alt = mem.mem_a20_alt;
+        g.A20State = mem.mem_a20_state_garde;
+        g.Recalc = mem.mem_recalc;
+        g.N = 0;
+        for (var m = mem.mem_base_mapping; m is not null; m = m.next)
+        {
+            if (g.N == g.M.Length)
+            {
+                g.N = g.M.Length + 1; // trop long : jamais égale, le chemin complet
+                return;
+            }
+            g.M[g.N++] = new Cliche
+            {
+                Noeud = m, Base = m.@base, Taille = m.size, Drapeaux = m.flags, Enable = m.enable,
+                ExecOffset = m.exec_offset, Exec = m.exec, P = m.p,
+                Rb = m.read_b, Rw = m.read_w, Rl = m.read_l, Wb = m.write_b, Ww = m.write_w, Wl = m.write_l,
+            };
+        }
+    }
 
     private static readonly mem_mapping_t h_flat_mapping = new();
 
@@ -128,6 +334,7 @@ internal static partial class _808x
 
         resetx86();
         ResetTimingState();
+        FigerGarde(); // l'accélération du 4 octobre : la garde de la carte de 1 Mo, après resetx86
     }
 
     /// <summary>Compteurs de diagnostic. Pendant de h_reset():2-4 et du haut de

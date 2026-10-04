@@ -27,6 +27,11 @@
 #          § G10.0). En dessous, la série est refusée, retour 3.
 #   PORTES : des noms de portes, séparés par des espaces ; seules celles-là sont jouées (une
 #          validation ciblée). Un nom inconnu refuse la série, retour 2.
+#
+# Une série à la fois sur la machine : un verrou flock sur /var/tmp/ixtal-par/.verrou-machine,
+# pris avant l'examen de l'espace et gardé jusqu'à la fin. Une seconde série attend, sous le
+# message « en attente du verrou machine ». Le descripteur passe aux portes : une série tuée
+# garde la machine tant qu'une de ses portes tourne encore.
 set -u
 DLL=$1; OUT=$2; P=${3:-10}; REF=${4:-}
 REPO=${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
@@ -104,6 +109,16 @@ for f in "$D"/g/*.sh; do n=$(basename "$f" .sh); n=${n#*-}
   s=""; [ -n "$REF" ] && s=$(awk -F'\t' -v n="$n" '$1==n {gsub("s","",$3); print $3}' "$REF")
   echo "${s:-9999} $f"; done | sort -rn | cut -d' ' -f2 > "$D/ordre"
 [ -n "${DRY:-}" ] && exit 0
+# Le verrou machine (l'accélération du 4 octobre) : deux séries de front se disputent les vingt
+# processeurs et le quota de /tmp. Il est pris avant de vider le répertoire de la série et
+# d'examiner l'espace, et ne se rend qu'à la sortie.
+mkdir -p /var/tmp/ixtal-par
+exec 9> /var/tmp/ixtal-par/.verrou-machine
+if ! flock -n 9; then
+  echo "par.sh : en attente du verrou machine (une autre série tourne)…" >&2
+  flock 9
+  echo "par.sh : verrou machine obtenu." >&2
+fi
 # Le répertoire n'est créé, et vidé, qu'au moment de lancer : un refus n'en laisse pas de vide.
 mkdir -p "$T"
 [ $PROPRE = 1 ] && find "$T" -mindepth 1 -delete

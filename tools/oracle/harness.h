@@ -441,6 +441,17 @@ void h_trace_close(void);
 /* Le premier errno d'une écriture refusée de la trace (fwrite, ou le vidage de fclose), 0 si
  * tout est passé ; à lire après h_trace_close(). Ajouté le 04/10 (ABI 45). */
 int h_trace_errno(void);
+/* L'accélération du 4 octobre (ABI 46). h_trace_hash_value : le hachage d'un état donné, plié
+ * (ref = 0) ou par l'ancien MIX octet par octet (ref = 1), pour trace-hash-check. h_raz_fin : à la
+ * sortie du processus, un dernier vidage des tables de traduction par l'anneau et leur balayage ;
+ * rend le nombre d'écarts, -1 sans remise courte. h_mem_size et h_ram_cmp : la RAM comparée octet
+ * par octet (-1 égale ; -2 si n dépasse la RAM de l'oracle ; sinon le premier décalage différent,
+ * et l'octet de l'oracle à ce décalage dans *octet). */
+uint64_t h_trace_hash_value(int ref, uint16_t sel_cs, uint32_t pc, const uint16_t *regs, uint16_t sel_ds,
+                            uint16_t sel_es, uint16_t sel_ss, uint16_t flags, uint64_t t, int notsc);
+int32_t h_raz_fin(void);
+int h_mem_size(void);
+int64_t h_ram_cmp(const uint8_t *autre, uint32_t n, uint8_t *octet);
 
 /* Sonde PIT — 19 champs du canal t, dans l'ordre de Models.pit.Probe() côté C#.
  * `pit` est une globale de pit.c et le harnais est lié avec : on lit l'arbre
@@ -691,7 +702,8 @@ uint8_t *h_ram(void);
 /* 44 depuis G10.0 : LPT1/LPT2 posés (lpt_init), le port jeu sur xt_init/at_init, h_set_lpt1_device,
  * h_set_lpt_jeu_hors_service (l'interrupteur de preuve). */
 /* 45 depuis le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace. */
-#define H_ABI_VERSION 45
+/* 46 depuis le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp. */
+#define H_ABI_VERSION 46
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

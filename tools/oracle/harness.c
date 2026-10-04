@@ -473,11 +473,211 @@ static uint32_t h_ram_top(void) { return (uint32_t)mem_size * 1024u; }
  * cote C# (FlatMap), meme etat final des deux cotes — une RAM nulle, la carte plate. */
 static uint8_t *h_flat_ram;
 
+/* L'ACCÉLÉRATION DU 4 OCTOBRE (VERIFICATION.md, § L'accélération des portes). Deux remises
+ * courtes de la carte plate, chacune vérifiée, et rien de pcem-dev/ n'est touché.
+ *
+ * h_flush_lookup : les effets EXACTS de resetreadlookup (mem.c:77-91), sans ses 24 Mo de memset.
+ * Seules les entrées inscrites dans les deux anneaux de 256 (readlookup[], writelookup[]) peuvent
+ * différer de la sentinelle : addreadlookup et addwritelookup (mem.c:354-418) sont les seuls à en
+ * poser, et chacun remet d'abord à la sentinelle l'entrée qu'il évince (mem.c:370-373, :398-402).
+ * Le corps est celui de flushmmucache_nopc (mem.c:141-154), plus les deux index et pccache, comme
+ * resetreadlookup ; ni mmuflush, ni pccache2, ni codegen_flush, que resetreadlookup ne touche
+ * pas. IXTAL26_FAUTE_ANNEAU, le contrôle négatif : aux remises, l'emplacement 0 de l'anneau de
+ * lecture est oublié, des deux côtés (=1) ou d'un seul (=oracle, =cs), et le balayage doit le
+ * voir ; à la sortie (=fin, des deux côtés), une entrée de readlookup2 est posée HORS de
+ * l'anneau — ce que le vidage court suppose impossible —, et le balayage de h_raz_fin doit la
+ * voir. */
+static int h_faute_anneau = -1; /* 1 : aux remises ; 2 : à la sortie */
+
+static int h_faute_anneau_lire(void) {
+        if (h_faute_anneau < 0) {
+                const char *e = getenv("IXTAL26_FAUTE_ANNEAU");
+                h_faute_anneau = !e ? 0 : (!strcmp(e, "1") || !strcmp(e, "oracle")) ? 1 : !strcmp(e, "fin") ? 2 : 0;
+        }
+        return h_faute_anneau;
+}
+
+static void h_flush_lookup(void) {
+        int c, faute = h_faute_anneau_lire() == 1;
+
+        for (c = 0; c < 256; c++) {
+                if ((uint32_t)readlookup[c] != 0xFFFFFFFF && !(faute && c == 0)) {
+                        readlookup2[readlookup[c]] = (uintptr_t)-1;
+                        readlookup[c] = 0xFFFFFFFF;
+                }
+                if ((uint32_t)writelookup[c] != 0xFFFFFFFF) {
+                        page_lookup[writelookup[c]] = NULL;
+                        writelookup2[writelookup[c]] = (uintptr_t)-1;
+                        writelookup[c] = 0xFFFFFFFF;
+                }
+        }
+        readlnext = 0;
+        writelnext = 0;
+        pccache = 0xFFFFFFFF;
+}
+
+/* Le balayage : après une remise courte, les tables doivent être EXACTEMENT celles que laisse le
+ * memset de resetreadlookup — l'ancien chemin. Il se fait DANS la remise, entre le vidage et
+ * resetx86 : resetx86 refait un resetreadlookup complet (808x.c:694), et un balayage après lui ne
+ * prouverait rien. Toutes les remises sous IXTAL26_VERIF_RAZ=1 ; une sur 256 sinon, la première
+ * comprise. Un écart arrête le processus, retour 3 : la porte ne peut pas finir verte sur des
+ * tables fausses. La dernière : h_raz_fin, à la sortie. */
+static int h_verif_raz = -1;
+static uint64_t h_raz_n;
+
+static uint32_t h_raz_ecarts(void) {
+        uint32_t c, bad = 0;
+
+        for (c = 0; c < 1024 * 1024; c++) {
+                bad += readlookup2[c] != (uintptr_t)-1;
+                bad += writelookup2[c] != (uintptr_t)-1;
+                bad += page_lookup[c] != NULL;
+        }
+        for (c = 0; c < 256; c++) {
+                bad += (uint32_t)readlookup[c] != 0xFFFFFFFF;
+                bad += (uint32_t)writelookup[c] != 0xFFFFFFFF;
+        }
+        bad += readlnext != 0 || writelnext != 0 || pccache != 0xFFFFFFFF;
+        return bad;
+}
+
+static void h_raz_balayer(void) {
+        uint32_t bad = h_raz_ecarts();
+
+        if (bad) {
+                fprintf(stderr, "REMISE COURTE FAUSSE (oracle) : %u écart(s) dans les tables de traduction, remise %llu.\n",
+                        bad, (unsigned long long)h_raz_n);
+                fflush(stderr);
+                exit(3);
+        }
+}
+
+static void h_raz_peut_etre(void) {
+        if (h_verif_raz < 0) {
+                const char *e = getenv("IXTAL26_VERIF_RAZ");
+                h_verif_raz = e && !strcmp(e, "1");
+        }
+        if (h_verif_raz || (h_raz_n & 255) == 0)
+                h_raz_balayer();
+        h_raz_n++;
+}
+
+/* La DERNIÈRE remise de toutes les portes, sans toucher à leurs boucles : à la sortie du processus
+ * (iXtal26.Diff, ProcessExit), un dernier vidage par l'anneau, sur les tables que la dernière
+ * itération a laissées, puis le balayage. Rend le nombre d'écarts ; -1 si le processus n'a pris
+ * aucune remise courte (rien à vérifier). */
+int32_t h_raz_fin(void) {
+        if (!h_raz_n)
+                return -1;
+        if (h_faute_anneau_lire() == 2)
+                readlookup2[0x12345] = 0; /* IXTAL26_FAUTE_ANNEAU=fin : une entrée hors de l'anneau */
+        h_flush_lookup();
+        return (int32_t)h_raz_ecarts();
+}
+
+/* LA CARTE DE 1 Mo, ALLOUÉE UNE SEULE FOIS pour le 8088, le 8086 et le 286, comme celle de 16 Mo, et
+ * sous GARDE. Le chemin complet refaisait à chaque itération mem_alloc (mem.c:1340-1434 : la RAM,
+ * pages[], page_lookup, les tables de mappage, l'A20) et h_pad_ram (calloc, memcpy et
+ * resetreadlookup) : une quarantaine de Mo écrits pour 1 Mo de carte. La garde : mem_size, rammask,
+ * mem_a20_key et mem_a20_alt, la liste des mappages (nœud, base, taille, drapeaux, enable, exec, p
+ * et les six gestionnaires), et le compte des appels à mem_set_mem_state et à mem_mapping_remove
+ * venus d'ailleurs que de mem.c (h_mem_etats, harness_stubs.c). Elle se FIGE À LA FIN DE LA REMISE
+ * qui a pris le chemin complet (h_garde_figer, appelée au bout de h_reset) — resetx86 pose rammask
+ * après la carte —, et se compare à l'entrée de chaque remise suivante : la configuration mémoire
+ * que la dernière remise complète a laissée n'a pas bougé depuis. La liste se parcourt depuis
+ * ram_low_mapping, le premier mappage après base_mapping, que mem_alloc vide (mem.c:1373, :1404) :
+ * base_mapping est statique (mem.c:31), et mem_mapping_add ne pose jamais `prev` (mem.c:1125-1153).
+ * _mem_state et mem_a20_state, statiques aussi, ne se relisent pas sans toucher l'arbre vendoré ; le
+ * C# garde en plus mem_a20_state, _mem_state et les tables dérivées (mem_recalc). Le moindre écart
+ * reprend le chemin complet, et le dit (une ligne sur stderr). IXTAL26_CARTE_COURTE=0 : toujours le
+ * chemin complet, pour la preuve d'équivalence. */
+#define H_GARDE_MAX 32
+/* Sans octet de bourrage (9 × 8 + 4 × 4, puis 8 + 4 + 5 × 4) : le memcmp de deux gardes ne compare
+ * que des champs écrits. */
+typedef struct {
+        uintptr_t node, exec, p, rb, rw, rl, wb, ww, wl;
+        uint32_t base, size, flags;
+        int enable;
+} h_garde_mappage;
+
+typedef struct {
+        uint64_t etats;
+        uint32_t rammask;
+        int mem_size, a20_key, a20_alt, n, rembourrage;
+        h_garde_mappage m[H_GARDE_MAX];
+} h_garde;
+_Static_assert(sizeof(h_garde_mappage) == 88 && sizeof(h_garde) == 32 + 88 * H_GARDE_MAX, "garde sans bourrage");
+
+extern uint64_t h_mem_etats;
+static h_garde h_garde1;
+static uint8_t *h_flat_ram1;
+static uint64_t h_reprises1;
+static int h_carte_courte = -1;
+static int h_garde_a_figer;
+
+/* IXTAL26_FAUTE_GARDE=N, le contrôle négatif de la garde : à la N-ième remise de 1 Mo qui tente le
+ * chemin court, `p` de ram_low_mapping change (mem_read_ram l'ignore, et mem_mapping_set_p ne
+ * recalcule rien), et la garde doit le voir : une ligne de repli, le chemin complet, le même
+ * résultat. Pendant de FauteGarde côté C#. */
+static long h_faute_garde = -1;
+static uint64_t h_tentatives1;
+static int h_faute_garde_cible;
+
+static void h_faute_garde_peut_etre(void) {
+        if (h_faute_garde < 0) {
+                const char *e = getenv("IXTAL26_FAUTE_GARDE");
+                h_faute_garde = e ? atol(e) : 0;
+        }
+        if (h_faute_garde > 0 && ++h_tentatives1 == (uint64_t)h_faute_garde)
+                mem_mapping_set_p(&ram_low_mapping, &h_faute_garde_cible);
+}
+
+static void h_garde_lire(h_garde *g) {
+        mem_mapping_t *m;
+
+        memset(g, 0, sizeof(*g));
+        g->mem_size = mem_size;
+        g->rammask = rammask;
+        g->a20_key = mem_a20_key;
+        g->a20_alt = mem_a20_alt;
+        g->etats = h_mem_etats;
+        for (m = &ram_low_mapping; m; m = m->next) {
+                if (g->n == H_GARDE_MAX) {
+                        g->n = H_GARDE_MAX + 1; /* trop long : jamais égal, le chemin complet */
+                        return;
+                }
+                g->m[g->n++] = (h_garde_mappage){(uintptr_t)m, (uintptr_t)m->exec, (uintptr_t)m->p,
+                                                 (uintptr_t)m->read_b, (uintptr_t)m->read_w, (uintptr_t)m->read_l,
+                                                 (uintptr_t)m->write_b, (uintptr_t)m->write_w, (uintptr_t)m->write_l,
+                                                 m->base, m->size, m->flags, m->enable};
+        }
+}
+
 static void h_flat_map(void) {
         if (h_flat16() && h_flat_ram && ram == h_flat_ram && mem_size == 16384) {
                 memset(ram, 0, h_ram_top() + 4);
-                resetreadlookup();
+                h_flush_lookup();
+                h_raz_peut_etre();
                 return;
+        }
+        if (h_carte_courte < 0) {
+                const char *e = getenv("IXTAL26_CARTE_COURTE");
+                h_carte_courte = !(e && !strcmp(e, "0"));
+        }
+        if (!h_flat16() && h_carte_courte && h_flat_ram1 && ram == h_flat_ram1 && mem_size == 1024) {
+                h_garde g;
+
+                h_faute_garde_peut_etre();
+                h_garde_lire(&g);
+                if (g.n <= H_GARDE_MAX && !memcmp(&g, &h_garde1, sizeof(g))) {
+                        memset(ram, 0, h_ram_top() + 4);
+                        h_flush_lookup();
+                        h_raz_peut_etre();
+                        return;
+                }
+                h_reprises1++;
+                fprintf(stderr, "carte courte (oracle) : la garde a bougé, chemin complet repris (%llu)\n",
+                        (unsigned long long)h_reprises1);
         }
         mem_size = h_flat16() ? 16384 : 1024; /* Ko */
         if (!h_mem_inited) {
@@ -490,6 +690,37 @@ static void h_flat_map(void) {
         mem_mapping_add(&h_flat_mapping, 0x000000, h_ram_top(), mem_read_ram, mem_read_ramw, mem_read_raml,
                         mem_write_ram, mem_write_ramw, mem_write_raml, ram, MEM_MAPPING_INTERNAL, NULL);
         h_flat_ram = h_flat16() ? ram : NULL;
+        h_flat_ram1 = h_flat16() ? NULL : ram;
+        h_garde_a_figer = h_flat_ram1 != NULL;
+}
+
+/* Au bout de h_reset : la garde de la carte de 1 Mo se fige sur la remise ENTIÈRE qui a pris le
+ * chemin complet. Pendant de _808x.FigerGarde côté C#. */
+static void h_garde_figer(void) {
+        if (!h_garde_a_figer)
+                return;
+        h_garde_lire(&h_garde1);
+        h_garde_a_figer = 0;
+}
+
+/* La RAM comparée OCTET PAR OCTET (pm-fuzz, pm-check, flux…) au lieu de deux FNV de 16 Mo :
+ * `autre` est la RAM du C#, épinglée par le marshalling, sans copie ; `ram` est relue à chaque
+ * appel. Rend -1 si les n premiers octets sont égaux, -2 si n dépasse la RAM de l'oracle, et sinon
+ * le premier décalage différent, l'octet de l'oracle à ce décalage dans *octet. h_mem_size :
+ * mem_size, que le C# compare au sien d'abord. */
+int h_mem_size(void) { return mem_size; }
+
+int64_t h_ram_cmp(const uint8_t *autre, uint32_t n, uint8_t *octet) {
+        uint32_t i;
+
+        if (n > (uint32_t)mem_size * 1024u)
+                return -2;
+        if (!memcmp(ram, autre, n))
+                return -1;
+        for (i = 0; ram[i] == autre[i]; i++)
+                ;
+        *octet = ram[i];
+        return i;
 }
 
 /* G4.0 — L'ÉTAT x87 QUE RIEN NE REMET. x87_reset() est vide (x87.c:97) et resetx86 ne
@@ -614,6 +845,9 @@ void h_reset(void) {
         cpu_state._cycles = 0;
         ins = 0;
         insc = 0;
+
+        /* L'accélération du 4 octobre : la garde de la carte de 1 Mo, figée après resetx86. */
+        h_garde_figer();
 }
 
 void h_load(uint32_t addr, const uint8_t *buf, uint32_t len) {
@@ -1159,8 +1393,70 @@ int h_trace_errno(void) { return h_trace_err; }
 static int h_trace_notsc = 0;
 void h_set_trace_notsc(int on) { h_trace_notsc = on ? 1 : 0; }
 
-static void h_trace_note(void) {
-        uint64_t h = 1469598103934665603ULL;
+/* LE HACHAGE DE LA TRACE, PLIÉ (l'accélération du 4 octobre). h_trace_hash_ref est l'ancien MIX,
+ * un FNV-1a octet par octet sur chaque champ élargi à 64 bits ; il reste la RÉFÉRENCE, comparée
+ * au hachage plié par trace-hash-check (iXtal26.Diff), et le choix de la trace sous
+ * IXTAL26_FNV_REF=1, pour le cmp d'une trace avant et après. Le pliage rend la MÊME valeur au bit
+ * près : un champ de 16 bits élargi par des zéros a ses six octets hauts nuls, et pour un octet
+ * nul h ^= 0 ne fait rien ; la multiplication du second octet et les six des octets nuls se
+ * regroupent donc en une par P^7, et pour pc (32 bits) en une par P^5 (modulo 2^64, la
+ * multiplication est associative). L'égalité repose sur la LARGEUR des
+ * types, que les _Static_assert gardent : si un champ s'élargit un jour, la compilation tombe au
+ * lieu que le pliage devienne faux en silence, et de la même façon des deux côtés. */
+#define H_FNV_BASE 1469598103934665603ULL
+#define H_FNV_P    1099511628211ULL
+#define H_FNV_P5   (H_FNV_P * H_FNV_P * H_FNV_P * H_FNV_P * H_FNV_P)
+#define H_FNV_P7   (H_FNV_P5 * H_FNV_P * H_FNV_P)
+_Static_assert(H_FNV_P5 == 913917546033277539ULL, "P^5 modulo 2^64");
+_Static_assert(H_FNV_P7 == 14218562807570617051ULL, "P^7 modulo 2^64");
+_Static_assert(sizeof(cpu_state.seg_cs.seg) == 2, "le pliage suppose CS sur 16 bits");
+_Static_assert(sizeof(cpu_state.pc) == 4, "le pliage suppose pc sur 32 bits");
+_Static_assert(sizeof(cpu_state.regs[0].w) == 2, "le pliage suppose regs[].w sur 16 bits");
+_Static_assert(sizeof(cpu_state.flags) == 2, "le pliage suppose flags sur 16 bits");
+_Static_assert(sizeof(tsc) == 8, "tsc reste sur 64 bits, haché en entier");
+
+static inline uint64_t h_fnv16(uint64_t h, uint16_t v) {
+        h ^= v & 0xff;
+        h *= H_FNV_P;
+        h ^= v >> 8;
+        return h * H_FNV_P7;
+}
+
+static inline uint64_t h_fnv32(uint64_t h, uint32_t v) {
+        h ^= v & 0xff;
+        h *= H_FNV_P;
+        h ^= (v >> 8) & 0xff;
+        h *= H_FNV_P;
+        h ^= (v >> 16) & 0xff;
+        h *= H_FNV_P;
+        h ^= v >> 24;
+        return h * H_FNV_P5;
+}
+
+static inline uint64_t h_fnv64(uint64_t h, uint64_t v) {
+        for (int i = 0; i < 8; i++) {
+                h ^= (v >> (i * 8)) & 0xff;
+                h *= H_FNV_P;
+        }
+        return h;
+}
+
+static uint64_t h_trace_hash(uint16_t sel_cs, uint32_t pc, const uint16_t *regs, uint16_t sel_ds, uint16_t sel_es, uint16_t sel_ss,
+                             uint16_t flags, uint64_t t, int notsc) {
+        uint64_t h = h_fnv16(H_FNV_BASE, sel_cs);
+        h = h_fnv32(h, pc);
+        for (int i = 0; i < 8; i++)
+                h = h_fnv16(h, regs[i]);
+        h = h_fnv16(h, sel_ds);
+        h = h_fnv16(h, sel_es);
+        h = h_fnv16(h, sel_ss);
+        h = h_fnv16(h, flags);
+        return notsc ? h : h_fnv64(h, t);
+}
+
+static uint64_t h_trace_hash_ref(uint16_t sel_cs, uint32_t pc, const uint16_t *regs, uint16_t sel_ds, uint16_t sel_es,
+                                 uint16_t sel_ss, uint16_t flags, uint64_t t, int notsc) {
+        uint64_t h = H_FNV_BASE;
 #define MIX(v)                                                                                                           \
         do {                                                                                                             \
                 uint64_t _x = (uint64_t)(v);                                                                             \
@@ -1169,17 +1465,44 @@ static void h_trace_note(void) {
                         h *= 1099511628211ULL;                                                                           \
                 }                                                                                                        \
         } while (0)
-        MIX(cpu_state.seg_cs.seg);
-        MIX(cpu_state.pc);
+        MIX(sel_cs);
+        MIX(pc);
         for (int i = 0; i < 8; i++)
-                MIX(cpu_state.regs[i].w);
-        MIX(cpu_state.seg_ds.seg);
-        MIX(cpu_state.seg_es.seg);
-        MIX(cpu_state.seg_ss.seg);
-        MIX(cpu_state.flags);
-        if (!h_trace_notsc)
-                MIX(tsc);
+                MIX(regs[i]);
+        MIX(sel_ds);
+        MIX(sel_es);
+        MIX(sel_ss);
+        MIX(flags);
+        if (!notsc)
+                MIX(t);
 #undef MIX
+        return h;
+}
+
+/* Le hachage d'un état donné, plié ou de référence : le banc d'égalité de trace-hash-check. */
+uint64_t h_trace_hash_value(int ref, uint16_t sel_cs, uint32_t pc, const uint16_t *regs, uint16_t sel_ds, uint16_t sel_es,
+                            uint16_t sel_ss, uint16_t flags, uint64_t t, int notsc) {
+        return ref ? h_trace_hash_ref(sel_cs, pc, regs, sel_ds, sel_es, sel_ss, flags, t, notsc)
+                   : h_trace_hash(sel_cs, pc, regs, sel_ds, sel_es, sel_ss, flags, t, notsc);
+}
+
+static int h_trace_ref = -1; /* IXTAL26_FNV_REF=1 : la trace par l'ancien MIX, lu une fois */
+
+static void h_trace_note(void) {
+        uint16_t regs[8];
+        uint64_t h;
+
+        for (int i = 0; i < 8; i++)
+                regs[i] = cpu_state.regs[i].w;
+        if (h_trace_ref < 0) {
+                const char *e = getenv("IXTAL26_FNV_REF");
+                h_trace_ref = e && !strcmp(e, "1");
+        }
+        h = h_trace_ref ? h_trace_hash_ref(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
+                                           cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc,
+                                           h_trace_notsc)
+                        : h_trace_hash(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
+                                       cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc, h_trace_notsc);
         if (fwrite(&h, sizeof(h), 1, h_trace_fp) != 1 && !h_trace_err)
                 h_trace_err = errno ? errno : EIO;
 }
@@ -1204,6 +1527,7 @@ extern int bpb_disable;
 
 int h_boot(const char *romspath) {
         h_flat_ram = NULL; /* voir h_flat_map : la machine refait ses mappages */
+        h_flat_ram1 = NULL; /* la carte de 1 Mo aussi (l'accélération du 4 octobre) */
         h_set_roms_path(romspath);
 
         /* AVANT tout le reste. h_boot() ne passe PAS par h_reset() — il appelle

@@ -153,7 +153,9 @@ LDFLAGS += $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP))
 # Reste cpu_set_edx, DEVIATION déclarée des deux côtés.
 # G7.1 : rom_init, qui met à zéro la queue d'une ROM plus courte que son allocation (le
 # tas que PCem y laisse, PB-24 ; la VGA d'IBM en C6000-C7FFF). Voir harness_stubs.c.
-WRAP_BOTH := cpu_set_edx rom_init
+# L'accélération du 4 octobre : mem_set_mem_state et mem_mapping_remove, comptés pour la garde
+# de la carte de 1 Mo (h_flat_map) ; l'original est appelé tel quel.
+WRAP_BOTH := cpu_set_edx rom_init mem_set_mem_state mem_mapping_remove
 WRAPFLAGS_BOTH := $(patsubst %,-Wl$(comma)--wrap=%,$(WRAP_BOTH))
 LDFLAGS += $(WRAPFLAGS_BOTH)
 
