@@ -438,6 +438,9 @@ void h_runpc(void);
  * de la ligne formatée, donc utilisable sur des millions d'instructions. */
 int h_trace_open(const char *path);
 void h_trace_close(void);
+/* Le premier errno d'une écriture refusée de la trace (fwrite, ou le vidage de fclose), 0 si
+ * tout est passé ; à lire après h_trace_close(). Ajouté le 04/10 (ABI 45). */
+int h_trace_errno(void);
 
 /* Sonde PIT — 19 champs du canal t, dans l'ordre de Models.pit.Probe() côté C#.
  * `pit` est une globale de pit.c et le harnais est lié avec : on lit l'arbre
@@ -687,7 +690,8 @@ uint8_t *h_ram(void);
 /* 43 depuis G9.3 : la Tseng ET4000AX (GFX_ET4000), sondée comme les svga. */
 /* 44 depuis G10.0 : LPT1/LPT2 posés (lpt_init), le port jeu sur xt_init/at_init, h_set_lpt1_device,
  * h_set_lpt_jeu_hors_service (l'interrupteur de preuve). */
-#define H_ABI_VERSION 44
+/* 45 depuis le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace. */
+#define H_ABI_VERSION 45
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

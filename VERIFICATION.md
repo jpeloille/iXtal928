@@ -5745,3 +5745,59 @@ les comptes de g100 (23 442 019, 23 427 804, 23 427 804, 22 706 803, 23 359 475)
 avertissement, selftest, check-oracle 0 dérive (181), ABI 44, `--setup-check` vingt-trois
 contrôles. Reste l'œil de l'utilisateur : l'image en fenêtre, sur une MDA, une Hercules et une
 EGA.
+
+## Les outils : la série sous le quota, la trace tronquée dite, la trace toujours effacée
+
+Le 4 octobre 2026, après l'incident du quota de `/tmp` (§ G10.0). Quatre points, plus une
+validation ciblée.
+
+**Mesuré d'abord : le quota.** `/tmp` est un tmpfs de 33,05 Go monté `usrquota` ; lu par
+`quotactl_fd`, la limite dure de l'utilisateur est de 26,44 Go, 80 % du tmpfs, dont 5,54 Go déjà
+pris : 20,90 Go de libres, là où `df` en annonce 27,51. **Et le disque contre la mémoire** :
+`bd-ami286-ide-check`, deux exécutions ensemble, la même DLL, seul le `TMPDIR` changeant
+(`/var/tmp` contre le tmpfs) : 130 s de part et d'autre, journaux identiques au rejeu de g100. Les
+220 s de la même porte dans une série de dix voies venaient de la charge, pas du disque.
+
+**(a) Un `TMPDIR` par série, en mémoire.** `par.sh` pose `TMPDIR=/tmp/ixtal-par/NOM`
+(`TMPDIR_SERIE` pour le changer ; le disque, `/var/tmp/ixtal-par/NOM`, se demande
+explicitement). Le répertoire est vidé au départ et effacé à la fin si toutes les portes sont
+vertes, gardé sinon. Ce ménage ne vaut que pour un répertoire résolu (`realpath`) juste sous
+`/tmp/ixtal-par/` ou `/var/tmp/ixtal-par/` : vérifié avec un fichier témoin, `/tmp`, un chemin en
+`..` ou un `TMPDIR_SERIE` fourni ailleurs ne sont jamais vidés.
+
+**(d) L'espace libre, quota compris.** Avant de lancer, `par.sh` exige 1,5 Go libres par voie
+(`ESPACE_MIN_GO`), 15 pour dix voies, l'espace libre étant celui de `statvfs` borné par le
+quota de l'utilisateur. En dessous, la série est refusée, retour 3, sans laisser de répertoire.
+Contrôle négatif : « 20 Go libres pour /tmp/ixtal-par/g, quota compris ; il en faut 100000
+(ESPACE_MIN_GO) ; série refusée. » Le seuil laisse une marge sous le quota : la plus grosse trace
+fait 2,5 Go, mais les fuzzeurs n'en écrivent pas, et un dépassement n'est plus un faux rouge
+(b, c).
+
+**(b) La trace tronquée, dite.** Le harnais retient le premier errno d'un `fwrite` de
+`h_trace_note` ou du `fclose` final, et l'expose (`h_trace_errno`, ABI 45). boot-diff dit alors
+« TRACE TRONQUÉE, disque plein ? », ne compare rien et rend 3, ni vert ni rouge : un défaut de
+l'outil. Contrôle négatif : `ulimit -f` à 100 Mo, SIGXFSZ ignoré, sur le boot-diff CGA du 5150
+(203 Mo de trace) : « L'oracle n'a pas pu écrire sa trace (File too large, errno 27) : rien n'est
+comparé. », retour 3, la trace effacée.
+
+**(c) La trace effacée sur tous les chemins.** `DeleteOnClose` l'effaçait déjà à la fin
+ordinaire, et même sur l'exception du CMOS vide de l'incident (mesuré). Mais un SIGTERM —
+`timeout`, une série qu'on arrête — laissait ses 203 Mo, avec la DLL de G10.0, et `ProcessExit`
+n'est pas levé sur ce signal (mesuré). La trace est maintenant effacée sur `ProcessExit`,
+`UnhandledException`, et par `PosixSignalRegistration` sur SIGTERM, SIGINT et SIGHUP, qui laisse
+ensuite le signal faire son effet : 0 trace restante après SIGTERM et SIGINT. Seul SIGKILL y
+échappe, et le ménage de départ de `par.sh` le rattrape. `svga-linear-check` en profite aussi.
+
+**`PORTES`.** `par.sh` ne joue que les portes nommées, une validation ciblée ; un nom inconnu
+refuse la série, retour 2 (« porte inconnue : bd-xt-mdx »).
+
+**La validation**, ciblée, par la règle de l'utilisateur du 04/10 : la série entière une fois par
+étape qui change l'émulateur ; pour l'outillage, un sous-ensemble court. g102, par `par.sh`, huit
+voies, `TMPDIR` et `WORK` en mémoire, `MALLOC_PERTURB_=85`, oracle reconstruit de zéro :
+`abi`, `bd-pc-cga`, `bd-xt-mda`, `bd-ami286-ide-check`, `bd-ami486-gd5429-dos`,
+`bd-pc-lpt-dss-banc`, `config-check` et `x87-8088-flux`, toutes vertes en 8 min 32 s, comparées
+à g100 (à son rejeu pour les deux portes touchées par le quota), journal entier : six identiques,
+et deux écarts admis, l'ABI (44 → 45) et la ligne « écrit : » de `config-check`, dont le chemin
+suit le `TMPDIR` de la série. Le répertoire de la série effacé à la fin. Une série entière, g101,
+lancée sur disque puis arrêtée à la demande de l'utilisateur, a servi de mesure. Build 0
+avertissement, selftest, check-oracle 0 dérive (181).

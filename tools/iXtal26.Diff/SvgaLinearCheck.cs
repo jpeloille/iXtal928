@@ -53,6 +53,7 @@ internal static class SvgaLinearCheck
         // sur le même budget. Une tranche de pc.runpc() côté C# n'est PAS le pendant d'une
         // tranche de h_runpc : mesuré, la sonde VGA divergeait sur `vc` dès l'amorçage.
         var trace = Path.Combine(Path.GetTempPath(), $"ixtal-svga-linear-{Environment.ProcessId}.bin");
+        BootDiff.TraceTemporaire(trace);
         if (Oracle.h_trace_open(trace) == 0)
             return 1;
         Cpu._808x.ResetDiagState();

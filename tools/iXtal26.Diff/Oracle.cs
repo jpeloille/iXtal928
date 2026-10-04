@@ -65,7 +65,8 @@ public static class Oracle
     // 43 en G9.3 : la Tseng ET4000AX.
     // 44 en G10.0 : LPT1/LPT2 posés, le port jeu sur xt_init/at_init, h_set_lpt1_device,
     //   h_set_lpt_jeu_hors_service.
-    public const int AbiVersion = 44;
+    // 45 le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace.
+    public const int AbiVersion = 45;
 
     static Oracle()
     {
@@ -199,6 +200,8 @@ public static class Oracle
     [DllImport(Lib)] public static extern void h_runpc();
     [DllImport(Lib)] public static extern int h_trace_open([MarshalAs(UnmanagedType.LPStr)] string path);
     [DllImport(Lib)] public static extern void h_trace_close();
+    // Le premier errno d'une écriture refusée de la trace, 0 si tout est passé (après h_trace_close).
+    [DllImport(Lib)] public static extern int h_trace_errno();
     [DllImport(Lib)] public static extern void h_wlog_reset();
     [DllImport(Lib)] public static extern int h_wlog_count();
     [DllImport(Lib)] public static extern uint h_wlog_get_addr(int i);

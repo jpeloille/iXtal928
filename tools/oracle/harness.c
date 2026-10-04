@@ -28,6 +28,7 @@
  * ------------------------------------------------------------------------------
  */
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -1097,18 +1098,29 @@ void h_getstate(h_state *out) {
 
 static FILE *h_trace_fp = NULL;
 
+/* Le premier errno d'une écriture refusée de la trace — fwrite dans h_trace_note, ou le vidage
+ * final de fclose —, 0 si tout est passé. L'incident du 4 octobre (VERIFICATION.md § G10.0) : le
+ * quota de /tmp atteint, la trace sortait tronquée ou trouée d'un bloc de 4 096 octets, et le diff
+ * la lisait quand même — « ÉCART DE LONGUEUR » ou « PREMIÈRE DIVERGENCE » fabriqués par le disque.
+ * Le C# le lit par h_trace_errno() après h_trace_close(), et le dit au lieu de comparer. */
+static int h_trace_err = 0;
+
 int h_trace_open(const char *path) {
         h_trace_close();
+        h_trace_err = 0;
         h_trace_fp = fopen(path, "wb");
         return h_trace_fp != NULL;
 }
 
 void h_trace_close(void) {
         if (h_trace_fp) {
-                fclose(h_trace_fp);
+                if (fclose(h_trace_fp) != 0 && !h_trace_err)
+                        h_trace_err = errno ? errno : EIO;
                 h_trace_fp = NULL;
         }
 }
+
+int h_trace_errno(void) { return h_trace_err; }
 
 /* Une ligne d'état par instruction, réduite à 8 octets. On hache ce que le C#
  * peut reproduire exactement : l'état architectural et le temps.
@@ -1168,7 +1180,8 @@ static void h_trace_note(void) {
         if (!h_trace_notsc)
                 MIX(tsc);
 #undef MIX
-        fwrite(&h, sizeof(h), 1, h_trace_fp);
+        if (fwrite(&h, sizeof(h), 1, h_trace_fp) != 1 && !h_trace_err)
+                h_trace_err = errno ? errno : EIO;
 }
 
 /* Crochets que la couche UI de PCem installe au démarrage (wx-sdl2.c:450) et

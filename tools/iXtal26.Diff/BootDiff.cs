@@ -180,6 +180,7 @@ public static class BootDiff
         // n'existe pas. Rejouées en série, les deux portes rendent leur chiffre exact.
         var oraclePath = Path.Combine(Path.GetTempPath(),
                                       $"ixtal-boot-oracle-{Environment.ProcessId}.bin");
+        TraceTemporaire(oraclePath);
 
         // LE CALENDRIER DE FRAPPE, construit UNE fois et rejoué à l'identique des deux
         // côtés. Purement arithmétique : il ne dépend d'aucun état de la machine, donc
@@ -313,6 +314,8 @@ public static class BootDiff
         }
         Oracle.h_trace_close();
         Oracle.h_closepc();
+        if (TraceTronquee(oraclePath))
+            return 3;
 
         // La sonde VGA de l'oracle, prise MAINTENANT : son état ne bouge plus jusqu'à la
         // phase 2, mais le relevé côté C# doit se faire avant pc.closepc(), qui ferme la
@@ -533,6 +536,70 @@ public static class BootDiff
 
     private static int CoeurDuModele()
         => Oracle.CoreForModel(Models.model_c.models[Models.model_c.model]);
+
+    /// <summary>L'incident du 4 octobre (VERIFICATION.md § G10.0) — l'oracle n'a pas pu écrire toute
+    /// sa trace : fwrite ou fclose refusés, disque plein ou quota. La comparer fabriquerait un faux
+    /// rouge, « ÉCART DE LONGUEUR » sur une trace tronquée, « PREMIÈRE DIVERGENCE » sur une trace
+    /// trouée d'un bloc. Le dit, efface la trace, et rend vrai : Run rend alors 3, ni vert ni rouge,
+    /// un défaut de l'outil et pas de la transcription.</summary>
+    private static bool TraceTronquee(string oraclePath)
+    {
+        var err = Oracle.h_trace_errno();
+        if (err == 0)
+            return false;
+        Console.WriteLine("TRACE TRONQUÉE, disque plein ? L'oracle n'a pas pu écrire sa trace " +
+                          $"({System.Runtime.InteropServices.Marshal.GetPInvokeErrorMessage(err)}, errno {err}) : " +
+                          "rien n'est comparé.");
+        File.Delete(oraclePath);
+        return true;
+    }
+
+    /// <summary>La trace de l'oracle est effacée sur TOUS les chemins de sortie. Les sorties
+    /// ordinaires l'effaçaient déjà (DeleteOnClose, Lockstep) ; un retour anticipé, une exception
+    /// non rattrapée ou un signal la laissaient derrière elle, 8 octets par instruction — mesuré :
+    /// un SIGTERM (timeout, une série qu'on arrête) laissait les 203 Mo du boot-diff CGA du 5150.
+    /// ProcessExit et UnhandledException la rattrapent, et SIGTERM, SIGINT et SIGHUP par leur
+    /// propre enregistrement, qui laisse ensuite le signal faire son effet (ProcessExit n'est pas
+    /// levé sur SIGTERM, mesuré aussi). Seul un SIGKILL y échappe : par.sh vide alors le TMPDIR
+    /// de la série au départ suivant. Aussi pour la trace de svga-linear-check.</summary>
+    internal static void TraceTemporaire(string path)
+    {
+        _traceTemporaire = path;
+        if (_effaceurPose)
+            return;
+        _effaceurPose = true;
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => EffacerTraceTemporaire();
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => EffacerTraceTemporaire();
+        _signaux =
+        [
+            System.Runtime.InteropServices.PosixSignalRegistration.Create(
+                System.Runtime.InteropServices.PosixSignal.SIGTERM, _ => EffacerTraceTemporaire()),
+            System.Runtime.InteropServices.PosixSignalRegistration.Create(
+                System.Runtime.InteropServices.PosixSignal.SIGINT, _ => EffacerTraceTemporaire()),
+            System.Runtime.InteropServices.PosixSignalRegistration.Create(
+                System.Runtime.InteropServices.PosixSignal.SIGHUP, _ => EffacerTraceTemporaire()),
+        ];
+    }
+
+    private static string? _traceTemporaire;
+    private static bool _effaceurPose;
+    // Gardés vivants : un enregistrement ramassé par le GC se désinscrit.
+    private static System.Runtime.InteropServices.PosixSignalRegistration[]? _signaux;
+
+    private static void EffacerTraceTemporaire()
+    {
+        try
+        {
+            if (_traceTemporaire is { } p)
+                File.Delete(p);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 
     private static string? CopyForSide(string? src, string tag)
     {
