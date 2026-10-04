@@ -5483,6 +5483,12 @@ source intacte (empreinte inchangée), le banc écrivant sur la copie. `tools/ga
 plus `os/` ni `nvr/` dans les répertoires des portes : `nvr/default/` et `os/pcdos20/` y sont
 copiés. Mes bacs à sable de `/tmp` ne lient plus que `roms/`.
 
+**Les empreintes de `os/`, le 4 octobre** (accord de l'utilisateur du 04/10, pour une seule mise
+à jour) : `os/os.sha256` porte désormais l'empreinte de chacun des 153 fichiers de `os/`, en
+chemins relatifs triés. `pcdos20s.img` y prend celle d'après l'incident, `7c20269ced9ba0c7…`, et
+`pcdos20b.img` garde la sienne. `cd os && sha256sum -c os.sha256` : 153 OK. Rien d'autre n'est
+écrit dans `os/`, et ce fichier reste le seul que git y suit.
+
 ## G9.1 — L'Hercules ; PB-98, PB-36, PB-96, PB-97 élargis
 
 Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.1.
