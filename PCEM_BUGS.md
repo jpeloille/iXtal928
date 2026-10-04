@@ -1052,6 +1052,22 @@ que la machine réelle n'a pas ; un logiciel qui sonde 278h le trouve.
 *Trouvé par* : transcription de G10.0.
 *Reproduit* : `Lpt/lpt.cs`, `Models/amstrad.cs`, marqueurs PB-101.
 
+### PB-102 — La MDA et l'Hercules balayent avec un caractère de 8 points
+
+`pit.c:42` : `MDACONST = clock / 2032125.0`, soit un caractère de 16,257 MHz / 8 ;
+`mda_recalctimings` (`vid_mda.c:79-80`) et `hercules_recalctimings` (`vid_hercules.c:115-116`)
+en multiplient R0 + 1 et R1. La vraie MDA dessine des caractères de 9 points. PCem le sait pour
+l'EGA, qui prend `MDACONST * (9.0 / 8.0)` en mode 9 points (`vid_ega.c:231`), mais pas pour la
+MDA ni pour l'Hercules. En mode texte (R0 = 61h, 98 caractères par ligne, 370 lignes), la trame
+tourne à 20,74 kHz et 56,04 Hz au lieu de 18,43 kHz et 50 Hz. En mode graphique, le 6845 de
+l'Hercules compte des unités de 16 points avec le même pas : R0 = 35h donne 37,6 kHz et 102 Hz
+(déduit à la lecture, non mesuré).
+*Effet* : la MDA et l'Hercules tournent 12,5 % trop vite en mode texte (le retour de trame lu en
+3BAh, le clignotement du curseur), deux fois trop vite en graphique ; le moniteur simulé de l'hôte
+lit 20,74 kHz (mesuré, VERIFICATION.md, § L'hôte : le moniteur automatique).
+*Trouvé par* : la mesure du correctif « hors plage » de l'hôte (plan qualité du 04/10, § 1c).
+*Reproduit* : `Video/vid_mda.cs`, `Video/vid_hercules.cs`, marqueurs PB-102.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1839,6 +1855,7 @@ audit systématique de PCem** :
 | Transcription de l'EGA (G9.2) | PB-99 ; PB-36 élargi |
 | Transcription de la Tseng ET4000AX (G9.3) | PB-100 |
 | Transcription de LPT1, de la DSS et des Covox (G10.0) | PB-101 |
+| La mesure du correctif « hors plage » de l'hôte (plan qualité, § 1c) | PB-102 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

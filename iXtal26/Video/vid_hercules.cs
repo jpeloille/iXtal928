@@ -151,6 +151,8 @@ internal static class vid_hercules
         _dispofftime = disptime - _dispontime;
         _dispontime *= pit.MDACONST;
         _dispofftime *= pit.MDACONST;
+        // pcem bug, reproduced: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
+        //   l'Hercules en dessine 9 en texte, et son unité en fait 16 en graphique.
         // pcem bug, reproduced: PB-36 — la conversion d'un double négatif de la CGA et de la MDA
         //   (G9.1, PB-36 élargi).
         hercules.dispontime = unchecked((uint64_t)(int64_t)_dispontime);

@@ -149,6 +149,8 @@ internal static class vid_mda
         _dispofftime = disptime - _dispontime;
         _dispontime *= pit.MDACONST;
         _dispofftime *= pit.MDACONST;
+        // pcem bug, reproduced: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
+        //   la MDA en dessine 9 : 20,74 kHz au lieu de 18,43.
         // pcem bug, reproduced: PB-36 — même conversion d'un double négatif qu'à
         //   cga_recalctimings, dès que R1 dépasse R0 + 1 (G9.0, PB-36 élargi).
         mda.dispontime = unchecked((uint64_t)(int64_t)_dispontime);

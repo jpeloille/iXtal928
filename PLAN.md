@@ -301,10 +301,10 @@ partie transcrits en G8).
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
 après G10.0 :
 
-1. **Section A, les 55 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+1. **Section A, les 56 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
    78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
-   100), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 — PS2.0),
-   ports (101 — G10.0).
+   100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 —
+   PS2.0), ports (101 — G10.0).
 2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
 3. **Section C, 20 entrées sans effet observable** : nettoyage seulement, sans changement de
    comportement.
