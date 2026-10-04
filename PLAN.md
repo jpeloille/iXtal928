@@ -2,7 +2,8 @@
 
 > Écrit le 26 septembre 2026, au commit `f1f45da` (après M21). Les tailles sont des
 > `wc -l` sur `pcem-dev/`, les modèles et les tables CPU sont relevés dans `model.c` et
-> `cpu_tables.c` le même jour. Le détail du jalon 286 est dans `PLAN-286.md`.
+> `cpu_tables.c` le même jour. Le détail du jalon 286 est dans `PLAN-286.md`. Remis à jour le
+> 4 octobre 2026, au commit `9bc8bf5` (G10.0 fait), relu contre `git log` et `VERIFICATION.md`.
 
 ## Le but, et sa borne
 
@@ -18,10 +19,32 @@ boot-diffs à l'unité, `selftest`, zéro avertissement, fuzzeur). Le cœur rest
 l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les entrées
 `CPU_SUPPORTS_DYNAREC` des tables ne changent rien à l'exécution.
 
-## Où on en est — 1er octobre 2026, après G6
+## Ce qu'un bloc livre  *(règle du 04/10)*
+
+La référence est ce que G1 à G8 ont livré ; G9 et G10 en sont restés en deçà, et le bloc GR les y
+ramène. À partir de G11, chaque bloc livre :
+
+1. **Un plan complet** : « Où on en est », les étapes, les défauts relevés, « La vérification »,
+   « Les risques », les décisions marquées *(validé)*, puis l'en-tête « Gx est fait ».
+2. **Une clôture, « les machines et les témoins ; Gx fait »** : les profils `.cfg` et
+   `launchSettings.json` ; les contrôles de `--setup-check` ; un tableau de témoins tirés de vrais
+   logiciels (POST, `VER`, `MSD /S`, `MODE`, CHKDSK, Windows avec le pilote) ; le comportement
+   surprenant rejoué sous boot-diff ; la preuve que les originaux sont intacts.
+3. **Une sonde qui voit ce que le diff ne voit pas** (VRAM, palettes, pixels, état d'un
+   périphérique), et la preuve qu'elle mord : une panne injectée la rougit elle-même.
+4. **Une couverture établie**, comme pour la vidéo en M15, M19 et G7 : des bancs qui finissent
+   dans le mode testé, une couverture comptée ou tracée, une relecture contradictoire des chemins
+   non exercés.
+5. **Des configurations validées** : une valeur hors liste est ramenée au défaut ou refusée, avec
+   un avertissement, et une porte `r9-*` le prouve.
+
+G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
+
+## Où on en est — 4 octobre 2026, G10 en cours
 
 ```
-8088 ✅ ── 286 ✅ ── G2 cœur 386 ✅ ── G3 ✅ ── G4 x87 ✅ ── G5 IDE ✅ ── G6 DX2-66 ✅ ──▶ [ICI] G7 ── G8   (G1 8086 ☐)
+8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
+     ──▶ [ICI] G10 ── G11 ── G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -44,14 +67,33 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
   + i486DX2/66, x87 intégré, IDE ; Intel seul (décision du 01/10). Cœur 486 au fuzzeur, boot-diffs
   POST complet et écriture IDE, cadence 66,663 MHz ; témoins MSD, Windows 3.1 en 386 étendu,
   X87BANC. PB-77 à PB-79 (PB-79 sous R9). Profil Rider ami486.
-- **G7, plan proposé** : `PLAN-G7.md`, à valider. G1 (8086) reste petit et indépendant.
+- **G7, fait** : `PLAN-G7.md`, G7.0 à G7.4. Le socle SVGA (fenêtre linéaire, rendu 32 bpp),
+  la Cirrus Logic GD5429 et son blitter (banc BLTBANC), la S3 Trio64 Phoenix, dont
+  l'accélérateur est rendu synchrone des deux côtés (DEVIATION, décision du 01/10) ; profils et
+  témoins Windows. PB-80 à PB-86.
+- **G1, fait** : `PLAN-G1.md`, G1.0 à G1.3. Les tables 8086 et leur fuzzeur, l'Olivetti M24 et
+  l'Amstrad PC1512, les deux machines (décision du 01/10), avec leur vidéo et leurs souris ;
+  profils. PB-87 à PB-89.
+- **G8, fait** : `PLAN-G8.md`, G8.0 à G8.3. L'OPL par DBOPL, l'AdLib, et la Sound Blaster Pro v2
+  (DSP SBPRO2, mélangeur CT1345) ; les sections de device du `.cfg` ; profils et témoins.
+  PB-90 à PB-93.
+- **PS2, transcrite, non offerte** : `PLAN-PS2.md`, PS2.0 et PS2.1. La souris PS/2 et
+  l'Intellimouse par le 8042, vérifiées, puis refusées : aucun BIOS du dépôt ne les gère
+  (décision du 03/10). PB-94, PB-95.
+- **G9, fait** : `PLAN-G9.md`, G9.0 à G9.3. La MDA, l'Hercules, l'EGA et la Tseng ET4000AX, sous
+  boot-diff ; témoins Windows 3.11 en Hercules, en EGA et, sur l'ET4000, en VGA. PB-96 à PB-100.
+  La profondeur qui manque est renvoyée au bloc GR, ci-dessous.
+- **G10, en cours** : `PLAN-G10.md`, feu vert du 04/10, arrêt après son bilan. G10.0 est fait :
+  LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, la Sound Source et les Covox sur
+  LPT1 (PB-101).
+- **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
 
 | Génération | État | Machine cible | Ce qui manque |
 |---|---|---|---|
 | 8088 | ✅ | IBM PC 5150, XT 5160 | — |
-| 8086 | ☐ | Olivetti M24 ou Amstrad PC1512 | `cpus_8086`, la machine |
+| 8086 | ✅ | Olivetti M24, Amstrad PC1512 | — |
 | 80286 | ✅ | IBM AT 5170, ami286 (NEAT) | reliquat : `PLAN-286.md` § « Tâches à couvrir » |
 | 80386SX | ✅ | `ami386` (Headland) | — (387 : G4 ✅) |
 | 80386DX | ✅ | `ami386dx` (OPTi 495) | — (387 : G4 ✅) |
@@ -70,13 +112,13 @@ l'**interpréteur** `exec386` : le dynarec de PCem n'est pas transcrit, et les e
 
 ## Les blocs, dans l'ordre de dépendance
 
-### G1 — Le 8086  *(petit)*
+### G1 — Le 8086  ✅ *(`PLAN-G1.md`, fait le 2 octobre 2026)*
 
 Porter `cpus_8086` (`cpu_tables.c`) et une machine. Dans `roms/`, on trouve
 `olivetti_m24` et `pc1512`, mais pas la ROM du Compaq Deskpro 8086 : le choix est donc entre
 l'**Olivetti M24** et l'**Amstrad PC1512**. Chacune apporte son propre matériel (vidéo M24,
 vidéo et souris Amstrad), à inventorier avant de choisir.
-**Oracle** : boot-diff, comme le 5150.
+**Oracle** : boot-diff, comme le 5150. **Tranché** : les deux machines (décision du 01/10).
 
 ### G2 — Le cœur 386  *(le plus gros bloc du projet)*
 
@@ -145,18 +187,19 @@ d'image par côté, comparée octet par octet).
 
 **Machine finale** : **ami486 + i486DX2/66**, x87 intégré, IDE, VLB.
 
-### G7 — La vidéo
+### G7 — La vidéo  ✅ *(`PLAN-G7.md`, fait le 2 octobre 2026)*
 
 1. **Cirrus Logic GD5429** : `vid_cl5429.c` (2 201 lignes, qui porte aussi les GD5402 à
    GD5434), avec la branche VLB (`has_vlb`). ROM `5429.vbi` présente.
 2. **S3** : `vid_s3.c` (3 142 lignes). **PCem n'a ni 86C805 ni 86C928**, seulement
    Vision864 (Paradise Bahamas 64), Trio32 et Trio64. Le plus proche d'un 486 VLB est le
    **Vision864**, mais sa ROM `bahamas64.bin` n'est pas dans `roms/`. Les ROM Trio64 y sont
-   (`s3_764.bin`, `86c764x1.bin`). **À trancher par Julien** au moment du bloc.
+   (`s3_764.bin`, `86c764x1.bin`). **Tranché** : la Trio64 (décision du 01/10), son accélérateur
+   rendu synchrone des deux côtés (DEVIATION).
 
 **Oracle** : sonde VGA de fin de boot-diff, comme pour M15 et M19.
 
-### G8 — Le son  *(en dernier)*
+### G8 — Le son  ✅ *(`PLAN-G8.md`, fait le 2 octobre 2026)*
 
 **La carte : la Sound Blaster Pro v2** (décision utilisateur du 02/10) — `sb_pro_v2_init`
 (`sound_sb.c:998`), `sb_pro_v2_device` (`:1345`). Elle porte :
@@ -168,7 +211,7 @@ d'image par côté, comparée octet par octet).
 
 Configuration (`sb_pro_v2_config`, `:1230`) : adresse 220h ou 240h (défaut 220h), IRQ 2, 5, 7
 ou 10 (défaut 7), DMA 8 bits 1 ou 3 (défaut 1), émulateur OPL `opl_emu` (défaut DBOPL, ou
-NukedOPL — lequel transcrire, à trancher au plan de G8).
+NukedOPL). **Tranché** : DBOPL (G8.1).
 
 L'**AdLib seule** (OPL2, `adlib_device`) est maintenue si elle ne coûte qu'un device de plus.
 Ni AdLib Gold ni EMU8K en G8 ; les Sound Blaster 1.x, 2.0, Pro v1, 16 et AWE32 (EMU8K) sont
@@ -178,7 +221,7 @@ renvoyées à G12 (décision utilisateur du 03/10).
 `src/dosbox/nukedopl.cpp` — : il faut vérifier comment l'oracle le lie avant d'écrire. Le
 diff d'instructions est aveugle au son : il faudra une sonde d'échantillons, comme en M9.
 
-### G9 — Vidéo, complément  *(décision utilisateur du 03/10 ; attend un feu vert)*
+### G9 — Vidéo, complément  ✅ *(`PLAN-G9.md`, fait le 4 octobre 2026)*
 
 Dans cet ordre :
 
@@ -189,21 +232,34 @@ Dans cet ordre :
 4. **Tseng ET4000AX** : `vid_et4000.c` (630), `et4000_device`, ROM `et4000.bin` — vérifiée
    jusqu'à Windows en 256 couleurs.
 
+**Ce qui a été tenu.** Les quatre cartes sous boot-diff sur leurs machines ; un banc dirigé
+pour l'Hercules, l'EGA et l'ET4000. Windows 3.11 tourne en Hercules (720×348) et en EGA
+(640×350). Sur l'ET4000, le 256 couleurs est vu par le banc ET4BANC, mais Windows tourne en VGA :
+la ROM `et4000.bin` ne rend pas les services VESA (mesuré, VERIFICATION.md § G9.3). C'est une
+limite dite, pas un défaut. Ce qui manque en profondeur (les pixels des cartes non SVGA, les
+bancs qui finissent dans le mode testé, la clôture) est renvoyé au bloc GR.
+
 **Hors G9** : InColor, PGC, Plantronics, Sigma, Wyse, Compaq CGA, les variantes coréennes,
 Paradise, Cirrus 5428/5430/5434, Trio32/9FX, et tout ce qui est PCI (Voodoo, Banshee,
 Millennium, Mach64).
 
-### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(décision utilisateur du 03/10 ; attend un feu vert)*
+### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(feu vert du 04/10 ; en cours, `PLAN-G10.md`)*
+
+**G10.0 est fait** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, comme PCem, en
+un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox (VERIFICATION.md
+§ G10.0). Restent la manette (G10.1), le XTIDE (G10.2), les images CD (G10.3), l'ATAPI (G10.4),
+le CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
 
 - **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
   `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
   bloc cdrom de `pc.c`, omis aujourd'hui (`pc.cs`). **Images seulement** (ISO, CUE/BIN) : le
   lecteur physique de l'hôte (`cdrom-ioctl-*`) est omis, pour le déterminisme. Le plus gros
   morceau ; reconnaissance à faire.
-- **(b) La manette sur les AT** : `gameport_device` sur `at_init` (omis dans `model.cs`), les
-  types de manette (`joystick/*.c`, au moins 2 et 4 boutons) et `joystick_poll` vers l'hôte
-  (omis dans `pc.cs`).
-- **(c) Le port parallèle LPT1** : `lpt.c` (172), `lpt1_device_init` (omis dans `pc.cs`).
+- **(b) La manette sur les AT** : `gameport_device` sur `at_init` (fait en G10.0, sur `xt_init`
+  aussi), les types de manette (`joystick/*.c`, au moins 2 et 4 boutons) et `joystick_poll` vers
+  l'hôte (omis dans `pc.cs` ; G10.1).
+- **(c) Le port parallèle LPT1** : `lpt.c` (172), `lpt1_device_init` — fait en G10.0, LPT2 et la
+  Sound Source et les Covox compris.
 - **(d) Le XTIDE, version XT seulement** : `xtide.c` (121, sur l'`ide.c` de G5),
   `xtide_device`, ROM `ide_xt.bin` — un disque dur amorçable pour les 8088/8086, en
   particulier la M24 et le PC1512, où le Xebec n'amorce pas (constat de G1). Les variantes
@@ -221,7 +277,9 @@ Une seule carte, l'**Adaptec AHA-1542C** : `scsi_aha1540.c` (2 299), ROM
 `adaptec_aha1542c_bios_534201-00.bin`, avec `scsi_hd.c` (788, les disques SCSI). Le CD-ROM et le
 ZIP en SCSI réutilisent `scsi_cd.c` et `scsi_zip.c` de G10. **Exclus** : BusLogic, IBM SCSI,
 Longshine, Rancho, Trantor (53C400), l'ESDI et le XTIDE autre que XT.
-La carte est ISA 16 bits : refusée avec avertissement sur les machines 8088/8086, comme en G8.3.
+La carte est ISA 16 bits : elle doit être refusée avec avertissement sur les machines 8088/8086.
+Cette règle n'existe encore nulle part dans le code (G8.3 n'a rien refusé) : elle s'écrit avec la
+première carte ISA 16 bits, en G11 ou en G12.
 
 ### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
@@ -234,18 +292,21 @@ partie transcrits en G8).
   le tire.
 - **Exclues** : SB MCV et SB Pro MCV (`DEVICE_MCA` — aucune machine MCA dans iXtal) ; l'AdLib
   Gold reste exclue.
-- La SB 16 et l'AWE32 sont des cartes ISA 16 bits : refusées avec avertissement sur les machines
-  8088/8086, comme en G8.3.
+- La SB 16 et l'AWE32 sont des cartes ISA 16 bits : elles doivent être refusées avec
+  avertissement sur les machines 8088/8086, par la règle à écrire avec la première carte ISA
+  16 bits (voir G11).
 
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
-Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 03/10 :
+Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
+après G10.0 :
 
-1. **Section A, les 51 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
-   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89), disques
-   (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 — PS2.0).
-2. **Section B, les 8 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21.
-3. **Section C, 19 entrées sans effet observable** : nettoyage seulement, sans changement de
+1. **Section A, les 55 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
+   100), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 — PS2.0),
+   ports (101 — G10.0).
+2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
+3. **Section C, 20 entrées sans effet observable** : nettoyage seulement, sans changement de
    comportement.
 
 Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93) sont déjà réglés.
@@ -256,8 +317,8 @@ in hardware mode: PB-nn`. Le mode PCem reste celui des portes : l'oracle et tout
 restent intacts. Le mode matériel se vérifie contre la documentation Intel, le corpus SST (8088 et
 386 réels) et des bancs dirigés.
 
-**Ordre proposé** : l'UC et le x87 d'abord (33 PB), puis les disques, la vidéo, le son, la carte
-mère et la souris, puis la section B, puis la section C.
+**Ordre proposé** : l'UC et le x87 d'abord (32 PB, le 486 compris), puis les disques, la vidéo,
+le son, la carte mère, la souris et les ports, puis la section B, puis la section C.
 
 ### Transverse, au fil de l'eau
 
@@ -279,21 +340,21 @@ mère et la souris, puis la section B, puis la section C.
 ## L'ordre
 
 ```
-G1  8086          ← petit, indépendant ; peut aussi venir plus tard
-G2  cœur 386      ← le verrou de tout ce qui suit
-G3  ami386, ami386dx
-G4  x87
-G5  IDE
-G6  486 + ami486 + DX2-66   ← l'ultime machine
-G7  Cirrus 5429, S3
-G8  son
-PS2 souris PS/2   ← transcrite, non offerte (03/10) ; puis arrêt
-G9  MDA, Hercules, EGA, ET4000          ┐
-G10 CD-ROM/ZIP ATAPI, manette AT, LPT1, │ décision utilisateur du 03/10 ;
-    XTIDE (XT)                          │ chacun attend un feu vert
-G11 SCSI : AHA-1542C                    │
-G12 les autres Sound Blaster, AWE32     │
-G13 défauts de PCem, « mode matériel »  │
+G1  8086                     ✅ l'Olivetti M24 et l'Amstrad PC1512
+G2  cœur 386                 ✅
+G3  ami386, ami386dx         ✅
+G4  x87                      ✅
+G5  IDE                      ✅
+G6  486 + ami486 + DX2-66    ✅ l'ultime machine
+G7  Cirrus 5429, S3 Trio64   ✅
+G8  son                      ✅
+PS2 souris PS/2              ✅ transcrite, non offerte (03/10)
+G9  MDA, Hercules, EGA, ET4000   ✅
+G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ← en cours, feu vert du 04/10
+G11 SCSI : AHA-1542C                    ┐
+G12 les autres Sound Blaster, AWE32     │ décisions utilisateur du 03/10
+G13 défauts de PCem, « mode matériel »  │ (GR : du 04/10) ;
+GR  reprise de G9 et G10, en profondeur │ chacun attend un feu vert
 G14 nommer les puces (Ics/)             │
 G15 normaliser le C#, 0 % de perte      │
 G16 robustesse et confort               │
@@ -307,12 +368,11 @@ se vérifie au fuzzeur en mode réel, l'IDE sur un AT 286 déjà vert.
 
 - ~~**Si un corpus SingleStepTests 80386 existe.**~~ **Oui**, pour le mode réel seulement.
   Le mode protégé, la pagination et le V86 n'ont que PCem pour oracle (`PLAN-386.md`).
-- **Le coût réel de G2.** Nombre de handlers et de lignes vives à mesurer par script,
-  comme pour `PLAN-286.md`, avant d'annoncer une taille.
-- **Le S3 exact** : Vision864 sans ROM aujourd'hui, ou Trio64.
-- **La machine 8086** : M24 ou PC1512, selon le matériel propre qu'elles tirent.
-- **Le cache interne du 486** : ce que PCem en modélise en mode interprété, à lire
-  avant G6.
+- ~~**Le coût réel de G2.**~~ G2 est fait (`PLAN-386.md`, D0 à D7).
+- ~~**Le S3 exact**~~ : la Trio64 (G7, décision du 01/10).
+- ~~**La machine 8086**~~ : les deux, la M24 et le PC1512 (G1, décision du 01/10).
+- ~~**Le cache interne du 486**~~ : lu en G6 ; PCem n'en modélise que des temps, pas des
+  fonctions (`cpu_cache_int_enabled`, `cpu_update_waitstates`) — `PLAN-G6.md`, « Les risques ».
 
 ## Ce qui ne doit pas bouger
 
@@ -321,9 +381,58 @@ VGA et 8900D, sonde VGA 163/163, à l'unité, à chaque commit, pour toutes les 
 Rebasés en G10.0, parce que le POST trouve désormais LPT1, LPT2 et le port jeu. L'interrupteur
 « LPT et port jeu hors service » (`--lpt-jeu-hors-service`) rend les anciens chiffres à l'unité.
 
+## GR — La reprise de G9 et G10, en profondeur  *(décision utilisateur du 04/10 ; attend un feu vert)*
+
+Après G13 et avant la référence de performance figée de G14. D'ici là, G9 et G10 restent en
+l'état. GR les porte au niveau de « Ce qu'un bloc livre » ; chaque étape de G10 y ajoute ce
+qu'elle laisse (`PLAN-G10.md`, « Les risques »).
+
+- **GR.0 — Les pixels, pour toutes les cartes non SVGA** : CGA, MDA, Hercules, EGA, M24, PC1512
+  (décision du 04/10). L'oracle reçoit les vraies polices et la vraie palette CGA : `loadfont` et
+  `cgapal_rebuild` recopiés verbatim de `video.c:930` et `:1162` dans le harnais, le PCem vendoré
+  restant intact. Les sondes de ces cartes hachent l'image (`buffer32`), et `pallook` pour l'EGA ;
+  leurs champs sont nommés dans `VgaProbe.Fields`, et le message vert compte les champs remplis.
+  Une panne injectée par carte rougit un champ de sonde.
+- **GR.1 — La profondeur de G9.** L'EGA à 64 Ko et sur moniteur mono (l'échange 3Bx/3Dx) sous
+  boot-diff, `display_type` en ambre. Les bancs : MDABANC (le 6845, l'entrelacé, le registre 9
+  au-delà de 15 pour PB-96, le correctif « Turbo XT » de PB-97) ; EGABANC étendu à AND et OR ;
+  ET4BANC qui finit en 256 couleurs, puis un banc qui finit en HiColor ; pour PB-100, le FFh armé
+  et les 32 bits du RAMDAC ; le 1024×768 si la ROM l'offre. L'état `et4000_t` sondé, le
+  boot-diff DOS de l'ET4000 sur l'ami486, sa ROM essayée sur 8088 en oracle seul. Couverture
+  comptée des cinq fichiers et relecture contradictoire, citations `// pcem:` comprises.
+- **GR.2 — La profondeur de G10.** ATAPIBANC piloté par une table : la trentaine de commandes de
+  `scsi_cd.c`, leurs cas limites, et le compte de chaque commande atteinte. ZIPBANC de 3 à
+  23 commandes. Une sonde de l'état ATAPI et ZIP, et de la file de la DSS et du DAC. Une campagne
+  de CUE générés et malformés pour `cdimage-check` ; un fichier connu lu de bout en bout dans l'ISO
+  générée ; ATAPIBANC aussi sur l'ami286 et l'ami386dx. Couverture comptée et relecture
+  contradictoire.
+- **GR.3 — Les deux clôtures.** Les quatre profils de G9 (XT + Hercules, 286 + EGA, 386DX +
+  ET4000AX, 5150 + MDA, décision du 04/10), puis le CD, LPT et la manette sur les profils 486,
+  chacun avec `launchSettings.json`. `--setup-check` étendu, l'écran SETUP compris ; `--make-nvr`
+  pour chaque carte. Les témoins : POST, `VER`, `MSD /S` (la vidéo, « LPT Ports », « Game
+  Adapter »), `MODE`, QBASIC `STICK` et `STRIG` avec `--joy-at` sous boot-diff, `ECHO >PRN`, les
+  outils XTIDE de `roms/xtide/`, le XTIDE de la M24 et du PC1512 sous boot-diff, Windows sous
+  boot-diff, pixels compris, avec `HERCULES.DRV` et `EGA.DRV`. L'écoute du Covox, de la DSS et
+  de l'audio CD par l'utilisateur ; la marge de `--timer-check` avec les lectures CD.
+- **GR.4 — La dette partagée avec G1, G7 et G8.** La M24 et le PC1512 ignorent `gfxcard` sans le
+  dire, et l'écran SETUP leur offre toutes les cartes. `VENDORED.md`, `roms/roms.sha256` et
+  `THIRD_PARTY_NOTICES.md:36` à mettre à jour avant G17 (les ROM de G7 et de G9, l'OPL de
+  DOSBox). Les registres : TRANSCRIPTION.md (la ligne `VIDEO_CARD`, `mouse_ps2.c`) ;
+  PCEM_BUGS.md (le champ *Effet* de PB-97, 99 et 100, PB-98 étendu à l'EGA, les totaux). Les
+  en-têtes et commentaires périmés (`video.cs:5-8` et `:67-73`, `device.cs:132-133`, les listes
+  de cartes de `UsageText` et du README). L'outil : le vidage `--boot` de l'EGA ; la phase 2 de
+  boot-diff, qui ne rejoue ni `--type` ni `--fdb` et accuse alors le hachage de trace à tort
+  (G10.0).
+- **GR.5 — Les documents.** VERIFICATION.md § GR, avec ses tableaux et une partie « ce que ce
+  vert ne dit pas » ; l'en-tête « est fait » de PLAN-G8, G9 et G10, et « Les risques » pour
+  PLAN-G9.
+
+**Porte** : toutes les portes vidéo vertes, pixels compris, et une panne qui rougit chaque sonde ;
+les tableaux de couverture ; les constats de la relecture corrigés ; les témoins.
+
 ## G14 — Nommer les puces  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
-Après G13, seulement quand tout ce qui précède est vert : plus aucun fichier PCem ne reste à
+Après GR, seulement quand tout ce qui précède est vert : plus aucun fichier PCem ne reste à
 transcrire.
 
 Les modules qui modélisent une puce prennent le nom de la puce, dans un répertoire `Ics/` :
