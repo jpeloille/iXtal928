@@ -408,9 +408,10 @@ internal static class ide
         cur_ide[1] = 2;
     }
 
-    // pcem: hdd.c:125 via hdd.c:66-78 — des cartes transcrites, seule « ide » porte is_ide
-    // (hdd.c:155) ; xtide, xtide_at et xtide_ps1 aussi, mais ne sont pas transcrites.
-    internal static bool hdd_controller_current_is_ide() => hdd_c.hdd_controller_name == "ide";
+    // pcem: hdd.c:125 via hdd.c:66-78 — des cartes transcrites, « ide » (hdd.c:155) et, depuis
+    // G10.2, « xtide » (hdd.c:156) portent is_ide ; xtide_at et xtide_ps1 aussi, mais ne sont pas
+    // transcrites.
+    internal static bool hdd_controller_current_is_ide() => hdd_c.hdd_controller_name is "ide" or "xtide";
 
     // pcem: ide.c:306 — compteur mort, déclaré et jamais lu.
     // omitted: `int idetimes`.

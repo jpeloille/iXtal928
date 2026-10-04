@@ -85,7 +85,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   La profondeur qui manque est renvoyée au bloc GR, ci-dessous.
 - **G10, en cours** : `PLAN-G10.md`, feu vert du 04/10, arrêt après son bilan. G10.0 est fait :
   LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, la Sound Source et les Covox sur
-  LPT1 (PB-101). G10.1 aussi : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105).
+  LPT1 (PB-101). G10.1 aussi : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105). Et
+  G10.2 : le XTIDE en version XT ; le 5150, le XT, la M24 et le PC1512 amorcent un disque dur.
 - **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -245,11 +246,12 @@ Millennium, Mach64).
 
 ### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(feu vert du 04/10 ; en cours, `PLAN-G10.md`)*
 
-**G10.0 et G10.1 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, comme
-PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox (VERIFICATION.md
-§ G10.0) ; la manette, ses sept types, la section [Joysticks] et `joystick_poll` par SDL3
-(VERIFICATION.md § G10.1). Restent le XTIDE (G10.2), les images CD (G10.3), l'ATAPI (G10.4), le
-CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
+**G10.0, G10.1 et G10.2 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
+comme PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox
+(VERIFICATION.md § G10.0) ; la manette, ses sept types, la section [Joysticks] et `joystick_poll`
+par SDL3 (§ G10.1) ; le XTIDE en version XT, sur lequel le 5150, le XT, la M24 et le PC1512
+amorcent un disque dur (§ G10.2). Restent les images CD (G10.3), l'ATAPI (G10.4), le CUE/BIN et
+l'audio CD (G10.5), le ZIP (G10.6).
 
 - **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
   `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
@@ -264,7 +266,9 @@ CUE/BIN et l'audio CD (G10.5), le ZIP (G10.6).
 - **(d) Le XTIDE, version XT seulement** : `xtide.c` (121, sur l'`ide.c` de G5),
   `xtide_device`, ROM `ide_xt.bin` — un disque dur amorçable pour les 8088/8086, en
   particulier la M24 et le PC1512, où le Xebec n'amorce pas (constat de G1). Les variantes
-  XTIDE AT et PS/1 sont exclues.
+  XTIDE AT et PS/1 sont exclues. **Fait en G10.2.** Le constat de G1 portait sur une image
+  vierge : `8088-HDD-C.img` n'a ni partition ni système ; le Xebec n'a pas été réessayé sur un
+  disque amorçable.
 - **La souris PS/2** (`PLAN-PS2.md`) : transcrite et vérifiée ; non offerte, aucune machine
   transcrite n'a de BIOS PS/2 (décision utilisateur du 03/10) ; des machines PCem à BIOS PS/2 ont
   leur ROM dans `roms/` (p. ex. PB410A), non transcrites.

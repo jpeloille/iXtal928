@@ -151,8 +151,8 @@ POST qui diverge, et xebec_set_switches se contente d'un warning() que personne 
 
 ### `--hdd-controller NOM`
 
-Choisit le contrôleur de disque dur parmi ceux de la machine : `mfm_xebec` et `dtc5150x`
-partout, et `mfm_at` sur les seules machines AT. C'est le filtre DEVICE_AT/MODEL_AT de
+Choisit le contrôleur de disque dur parmi ceux de la machine : `mfm_xebec`, `dtc5150x` et
+`xtide` (le XTIDE, G10.2) partout, `mfm_at` et `ide` (G5) sur les seules machines AT. C'est le filtre DEVICE_AT/MODEL_AT de
 PCem (wx-config.c:237-242), et la liste est celle de l'écran de construction
 (`Host/HardDiskControllers.cs`). Un nom inconnu, ou absent de la machine, est refusé en
 listant ceux qui existent. L'option s'applique après `--config` et `--model`, comme

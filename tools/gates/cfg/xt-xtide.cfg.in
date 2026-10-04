@@ -1,0 +1,11 @@
+# G10.2 — le XT et le XTIDE (xtide.c), disque C: VIERGE de 306 × 4 × 17 (copie de
+# os/8088-HDD-C.img, g5w-recipe.sh) : la porte bd-xt-xtide-format y joue FDISK puis FORMAT C:/S.
+model = ibmxt
+mem_size = 640
+drive_a_type = 1
+drive_b_type = 1
+hdd_controller = xtide
+hdc_sectors = 17
+hdc_heads = 4
+hdc_cylinders = 306
+hdc_fn = @WORK@/c8088.img

@@ -6073,3 +6073,78 @@ de la série a été effacé à la fin.
 
 Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
 (185), ABI 47.
+
+## G10.2 — Le XTIDE (XT) : le 5150, le XT, la M24 et le PC1512 amorcent un disque dur
+
+Le 4 octobre 2026. Plan : `PLAN-G10.md` § G10.2, et la décision du pilote du même jour sur l'image
+vierge (préparation par la recette, preuve par une porte).
+
+**Transcrit.** `xtide.c` : `xtide_device`, la version XT (`Ide/xtide.cs`). C'est une carte 8 bits
+qui porte l'IDE de G5. Ses registres de tâche sont en 300h-307h et son contrôle en 30Eh. Le mot de
+données passe en deux octets, l'octet haut par le verrou de 308h, écrit avant l'octet bas et lu
+après. Les ports IDE standard sont retirés. La ROM `ide_xt.bin` est le XTIDE Universal BIOS (XT)
+v2.0.0 β3, en C800. `xtide_at` et `xtide_ps1` sont omis (PLAN.md). La branche « xtide » est
+ajoutée des deux côtés à `hdd_controller_init` et au prédicat `is_ide`, de quoi faire charger les
+images au `resetide` (`hdd.c:156`). L'oracle lie `xtide.c`, ABI 48. L'écran de construction et
+`--hdd-controller` proposent le XTIDE sur toutes les machines : sans `DEVICE_AT`, comme chez PCem.
+
+**L'image.** `os/8088-HDD-C.img` (306 × 4 × 17) est entièrement à zéro, sans partition ni système.
+C'est aussi pourquoi le témoin de G1 n'amorçait pas avec le Xebec ; ce dernier n'a pas été
+réessayé. Mesuré, en C# seul, sur des copies :
+- FDISK, puis le réamorçage : le XTIDE BIOS prend C: avant A:, et s'arrête sur « Missing
+  operating system », le secteur d'amorce étant vide ;
+- A: se choisit par la touche « a » de son menu. Le « A » tapé avec Maj y est ignoré ;
+- puis FORMAT C:/S ;
+- un disque amorçable démarre sur C:, même avec une disquette en A:.
+
+La recette g5w copie l'image en `c8088.img`, qui n'est que lue. Elle en tire `c8088dos.img` PAR
+ÉMULATION, en C# seul (`iXtal26 --boot --in-place`, sur des copies du WORK, avec une copie de la
+disquette PC-DOS 2.00 en A:), par le script `tools/gates/xtide-format.keys` : FDISK, « a »,
+FORMAT C:/S, DIR C:. KeyScript connaît désormais `@wait N`, que `--boot` honorait déjà : le même
+script donne le même calendrier à `--boot` et à boot-diff. `g5w.sha256` gagne les deux entrées
+(`--fix` limité à l'ajout, contrôlé par `git diff` : les empreintes existantes inchangées). Une
+recette normale sur un WORK neuf rend les mêmes empreintes : la préparation est reproductible.
+`os/` n'est jamais écrit ; l'empreinte de `8088-HDD-C.img` reste celle d'`os.sha256`.
+
+**L'égalité qui rend l'image légitime.** `c8088dos.img` de la recette est égale OCTET PAR OCTET aux
+images C: de fin de `bd-xt-xtide-format`, côté oracle comme côté C# (sha256 3aa1e5ff…,
+vérifiée par `cmp`). La séquence qui la produit est donc prouvée des deux côtés.
+
+**Les portes.**
+- `bd-xt-xtide-format` : le XT, le XTIDE, le disque vierge et la disquette DOS, tout le script
+  sous boot-diff. 55 822 590 instructions identiques ; image C: identique des deux côtés, 33 982
+  octets écrits (le MBR, les FAT, le répertoire, IBMBIO, IBMDOS, COMMAND).
+- `bd-pc-xtide-boot`, `bd-xt-xtide-boot`, `bd-m24-xtide-boot` et `bd-pc1512-xtide-boot` : la
+  machine amorce `c8088dos.img` sans disquette (« Booting C »), puis VER, DIR, MD G10, COPY
+  COMMAND.COM G10, DIR G10. Toutes vertes, 14 682 octets écrits chacune. Ce sont aussi les
+  témoins de la M24 et du PC1512, qui amorcent enfin un disque dur. De 8 à 15 s par porte.
+
+**Contrôles négatifs.** Chaque faute est posée dans une copie des sources, construite à part, sa
+porte jouée :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| l'octet haut du verrou faussé (`data_high ^ 1` à la lecture de 300h) | `bd-xt-xtide-boot` | diverge à l'instruction 11 400 990 |
+| 302h et 303h échangés à l'écriture | `bd-xt-xtide-boot` | diverge à 11 940 967 |
+| le prédicat `is_ide` privé de « xtide » côté C# (aucune image chargée) | `bd-xt-xtide-format` | diverge à 11 400 088 |
+
+Le même échange de 302h et 303h, à la LECTURE seulement, reste vert : le XTIDE BIOS écrit ces
+registres sans les relire. Aucune porte n'exerce cette relecture (PLAN-G10.md, « Les risques »).
+
+**Les défauts.** PB-98 élargi : `xtide_close` libère sans `rom_deinit`, la projection de la ROM
+reste jusqu'au `mem_alloc` suivant. Sans effet observable ; le Xebec, lui, retire la sienne.
+Aucun site R9 dans `xtide.c`. Le « A » majuscule refusé est un trait du XTIDE BIOS, pas de PCem.
+
+**La série** (g105), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, en mémoire, avec
+le verrou machine :
+187 portes en 3 149 s (52 min 29 s), toutes vertes. Comparée à g104, journal entier :
+- 180 portes identiques ;
+- deux écarts admis : l'ABI (47 → 48), et la ligne « écrit : » de `config-check`, dont le chemin
+  suit le `TMPDIR` de la série ;
+- les cinq nouvelles, vertes, aux mêmes comptes d'instructions que l'essai ciblé :
+  `bd-xt-xtide-format` (27 s) et les quatre `bd-*-xtide-boot` (de 8 à 14 s).
+
+Le nouveau `@wait N` de KeyScript ne change aucune porte existante : aucune ne tape `@wait`.
+
+Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive
+(186), ABI 48.

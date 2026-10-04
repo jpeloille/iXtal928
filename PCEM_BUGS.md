@@ -1867,6 +1867,9 @@ mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la 
 *Effet* : aucun observable.
 *Trouvé par* : la lecture de G9.1.
 *Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (la projection reste, l'objet vivant sous GC).
+*G10.2* : le XTIDE aussi. `xtide_close` (`xtide.c:106-110`) fait `free(xtide)` sans `rom_deinit` :
+la projection de sa ROM, en C8000, reste dans la liste jusqu'au `mem_alloc` suivant (le Xebec, lui,
+la retire, `mfm_xebec.c:766-774`). Reproduit dans `Ide/xtide.cs`, marqueur PB-98.
 
 ## Portée de ce registre
 
@@ -1912,6 +1915,7 @@ audit systématique de PCem** :
 | Transcription de LPT1, de la DSS et des Covox (G10.0) | PB-101 |
 | La mesure du correctif « hors plage » de l'hôte (plan qualité, § 1c) | PB-102 |
 | Reconnaissance et transcription de la manette (G10.1) | PB-103 à PB-105 ; PB-93 élargi |
+| Transcription du XTIDE (G10.2) | PB-98 élargi |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

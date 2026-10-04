@@ -709,7 +709,8 @@ uint8_t *h_ram(void);
 /* 45 depuis le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace. */
 /* 46 depuis le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp. */
 /* 47 depuis G10.1 : h_set_joystick_type, h_joy_set (la manette). */
-#define H_ABI_VERSION 47
+/* 48 depuis G10.2 : le XTIDE (hdd_controller « xtide », xtide.c lié). */
+#define H_ABI_VERSION 48
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

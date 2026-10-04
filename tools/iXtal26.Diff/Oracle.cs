@@ -76,7 +76,8 @@ public static class Oracle
     // 45 le 04/10 (outils) : h_trace_errno, l'écriture refusée de la trace.
     // 46 le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp.
     // 47 en G10.1 : h_set_joystick_type, h_joy_set (la manette).
-    public const int AbiVersion = 47;
+    // 48 en G10.2 : le XTIDE (hdd_controller « xtide », xtide.c lié).
+    public const int AbiVersion = 48;
 
     static Oracle()
     {

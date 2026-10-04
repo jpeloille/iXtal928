@@ -805,8 +805,9 @@ char hdd_controller_name[16];
 /* --- G5.0 : ce que ide.c reclame hors du disque dur ATA ----------------------
  *
  * hdd_controller_current_is_ide (hdd.c:125) consulte le registre des seize
- * HDD_CONTROLLER, qu'on ne lie pas. Des cartes que l'oracle peut monter, seule « ide »
- * a is_ide (hdd.c:155) ; xtide, xtide_at, xtide_ps1 l'ont aussi mais ne sont pas liees.
+ * HDD_CONTROLLER, qu'on ne lie pas. Des cartes que l'oracle peut monter, « ide » et, depuis
+ * G10.2, « xtide » ont is_ide (hdd.c:155-156) ; xtide_at et xtide_ps1 l'ont aussi, mais leur
+ * init n'est jamais appelée (xtide.c est lié pour xtide_device seul).
  *
  * ATAPI est hors G5 (PLAN-G5.md, decision n° 1) : ni ide_atapi.c, ni scsi_cd.c, ni
  * scsi_zip.c. Le harnais pose cdrom_channel = -1 — la configuration PCem ou le canal 2
@@ -818,7 +819,7 @@ char hdd_controller_name[16];
  * defaut de lecteur (pc.c:293, cdrom-null.c:50-51). Le rappel de reset appelle son
  * stop() meme pour un lecteur absent (ide.c:796-812) : c'est le null_stop vide de
  * cdrom-null.c:19, reproduit ici — pas un pointeur nul. */
-int hdd_controller_current_is_ide(void) { return !strcmp(hdd_controller_name, "ide"); }
+int hdd_controller_current_is_ide(void) { return !strcmp(hdd_controller_name, "ide") || !strcmp(hdd_controller_name, "xtide"); }
 
 static void h_null_stop(void) { }
 static ATAPI h_null_atapi = { .stop = h_null_stop };

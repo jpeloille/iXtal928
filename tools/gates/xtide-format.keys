@@ -1,0 +1,24 @@
+
+@wait 280
+
+@wait 580
+FDISK
+@wait 780
+
+@wait 280
+
+@wait 580
+ ^
+@wait 670
+a^
+@wait 1980
+
+@wait 280
+
+@wait 580
+FORMAT C:/S
+@wait 780
+Y
+@wait 2980
+DIR C:
+@wait 780

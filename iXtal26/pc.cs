@@ -908,6 +908,9 @@ internal static partial class pc
         // G5.1 — l'IDE standard (hdd.c:155), disque dur seul.
         else if (cfg_hdd_controller == "ide")
                 PluginApi.device.device_add(Ide.ide.ide_device);
+        // G10.2 — le XTIDE, version XT (hdd.c:156) : l'IDE de G5 derrière une carte 8 bits.
+        else if (cfg_hdd_controller == "xtide")
+                PluginApi.device.device_add(Ide.xtide.xtide_device);
 
         pc_reset();
 

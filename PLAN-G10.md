@@ -115,7 +115,7 @@ lui-même est entré en G10.0. La clé `joystick_type` hors borne indexe hors de
 `--joystick-type` refuse un type inconnu (retour 2). **Porte** : un banc JOYBANC qui chronomètre les
 axes par 201h et lit les boutons, mouvements injectés ; contrôle négatif.
 
-### G10.2 — Le XTIDE (XT)
+### G10.2 — Le XTIDE (XT)  ✅ *fait, VERIFICATION.md § G10.2*
 
 `xtide_device` sur l'`ide.c` de G5, ROM `ide_xt.bin` en C8000 ; `hdd_controller = xtide`.
 **Porte** : boot-diffs 5150 et XT amorçant un disque dur par le XTIDE (copie de
@@ -213,6 +213,12 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   `--joystick-check` sur une manette virtuelle de SDL3, sans matériel réel. Aucun témoin réel (un
   jeu DOS, un test de manette). Pas d'écran de réglage des manettes : la section [Joysticks] du
   .cfg seulement. PB-104 reste reproduit jusqu'au mode matériel de G13.
+- **G10.2** : `os/8088-HDD-C.img` était vierge. La recette g5w en tire par émulation, en C# seul,
+  le disque amorçable des portes (`c8088dos.img`), égal octet par octet à celui que
+  `bd-xt-xtide-format` écrit des deux côtés — tant que le script et ses tranches restent
+  communs (`xtide-format.keys`). Le choix de A: après FDISK passe par la touche « a » du menu du
+  XTIDE BIOS (le « A » avec Maj y est ignoré). La relecture de 302h et 303h n'est exercée par
+  aucune porte (le XTIDE BIOS ne les relit pas). Aucun profil n'a de disque dur XTIDE.
 - **L'outil (GR.4)** : `make bench`, le banc C de l'oracle, ne se lie plus depuis G8 :
   `h_opl_reset` y manque (`harness.c`, `h_boot`), `harness_dbopl.cpp` étant hors de `BENCH_SRC`
   (`tools/oracle/Makefile`). Constaté le 04/10, identique à `08d0d2f`.

@@ -7,6 +7,12 @@
 #   c286.img, c386.img : os/286-HDD-C.img et os/386-HDD-C.img, AUTOEXEC.BAT sans KEYB FR
 #                        (KeyScript tape en QWERTY) ;
 #   vierge46.img       : 156 Mo de zéros, type 46 ;
+#   c8088.img          : os/8088-HDD-C.img, VIERGE (306 × 4 × 17), lue seulement (G10.2) ;
+#   c8088dos.img       : c8088.img partitionnée et formatée PAR ÉMULATION, en C# seul (iXtal26
+#                        --boot --in-place, xtide-format.keys : FDISK, « a » au menu du XTIDE,
+#                        FORMAT C:/S), avec une copie de la disquette PC-DOS 2.00 en A: ; égale
+#                        octet par octet à l'image C: que bd-xt-xtide-format écrit des deux côtés,
+#                        par le même script aux mêmes tranches (VERIFICATION.md § G10.2) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
 #                        en C: et D: ; ami386dx ; ami486, G6.4 ; ami386dx sans disque, PS2.0) ;
@@ -29,6 +35,9 @@ for m in 286 386; do
   python3 "$G/fatpatch.py" "$WORK/c$m.img" AUTOEXEC.BAT "$G/autoexec-sans-keyb.bat"
 done
 truncate -s 159805440 "$WORK/vierge46.img"
+cp "$REPO/os/8088-HDD-C.img" "$WORK/c8088.img"                   # G10.2
+cp "$WORK/c8088.img" "$WORK/c8088dos.img"
+cp "$REPO/os/pcdos20/pcdos20b.img" "$WORK/pcdos20b-xtide.img"
 for t in "$G"/cfg/*.cfg.in; do sed "s|@WORK@|$WORK|g" "$t" > "$WORK/$(basename "$t" .in)"; done
 cd "$WORK"
 dotnet "$BIN" --make-nvr ami286-mfm.cfg c.nvr --force > /dev/null
@@ -36,7 +45,10 @@ dotnet "$BIN" --make-nvr ami286-cd.cfg cd.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami386dx-ide.cfg c386.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami486-ide.cfg c486.nvr --force > /dev/null   # G6.4
 dotnet "$BIN" --make-nvr ami386dx-fd.cfg f386.nvr --force > /dev/null   # PS2.0
-( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr ) > "$WORK/empreintes"
+# G10.2 — le disque amorçable du XTIDE, en C# seul, sur les copies du WORK (le journal reste là).
+mapfile -t XF < "$G/xtide-format.keys"; XT=(); for l in "${XF[@]}"; do XT+=(--type "$l"); done
+dotnet "$BIN" --boot "$REPO/roms" 8000 --config xt-xtide-prep.cfg --in-place --settle 20 "${XT[@]}" > xtide-prep.log
+( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img c8088dos.img ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi

@@ -266,3 +266,15 @@ for t in 0 1 2 3 4 5 6; do
 done
 run r9-joycfg r9-joycfg
 run trace-hash-check trace-hash-check
+# G10.2 — le XTIDE (xtide.c, la version XT) : l'IDE de G5 derrière une carte 8 bits, sa ROM (XTIDE
+# Universal BIOS v2.0.0 β3) en C800. bd-xt-xtide-format : le disque VIERGE (c8088.img, copie de
+# os/8088-HDD-C.img) partitionné par FDISK, la machine réamorcée sur A: par la touche « a » du
+# menu du XTIDE, puis FORMAT C:/S et DIR C: — le script (xtide-format.keys) dont la recette g5w
+# tire c8088dos.img en C# seul, aux mêmes tranches. bd-*-xtide-boot : le 5150, le XT, la M24 et le
+# PC1512 amorcent c8088dos.img sans disquette, puis VER, DIR et une écriture (MD, COPY).
+mapfile -t XFK < tools/gates/xtide-format.keys
+XF=(); for l in "${XFK[@]}"; do XF+=(--type "$l"); done
+runw bd-xt-xtide-format c.nvr aucune boot-diff roms 8000 --config xt-xtide.cfg --fda "$REPO/$DOS" --type-at 8000 --type-settle 20 "${XF[@]}"
+for m in ibmpc:pc ibmxt:xt olivetti_m24:m24 pc1512:pc1512; do
+  runw bd-${m#*:}-xtide-boot c.nvr aucune boot-diff roms 8000 --config xt-xtide-dos.cfg --model ${m%:*} --type-at 8000 --type-settle 300 --type "" --type "" --type "VER" --type "DIR" --type "MD G10" --type "COPY COMMAND.COM G10" --type "DIR G10"
+done

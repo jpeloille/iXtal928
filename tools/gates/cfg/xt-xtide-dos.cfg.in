@@ -1,0 +1,12 @@
+# G10.2 — le XTIDE et le disque C: AMORÇABLE que la recette g5w tire de c8088.img en C# seul
+# (xtide-format.keys), égal à celui que bd-xt-xtide-format écrit des deux côtés. Les portes
+# bd-*-xtide-boot y amorcent le 5150, le XT, la M24 et le PC1512 (--model), sans disquette.
+model = ibmxt
+mem_size = 640
+drive_a_type = 1
+drive_b_type = 1
+hdd_controller = xtide
+hdc_sectors = 17
+hdc_heads = 4
+hdc_cylinders = 306
+hdc_fn = @WORK@/c8088dos.img

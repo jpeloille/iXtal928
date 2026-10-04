@@ -117,6 +117,7 @@ SRC := harness.c \
        $(PCEM)/src/mfm/mfm_xebec.c \
        $(PCEM)/src/mfm/mfm_at.c \
        $(PCEM)/src/ide/ide.c \
+       $(PCEM)/src/ide/xtide.c \
        $(PCEM)/src/hdd/hdd_file.c
 
 # Interposition sur les fonctions de PCem pour y poser compteurs et journal

@@ -45,5 +45,6 @@ seconde série attend son tour (« en attente du verrou machine »). Les portes 
 descripteur : une série tuée garde la machine tant qu'une de ses portes tourne encore.
 
 `g5w-recipe.sh` fabrique `/tmp/g5w` depuis les disques de `os/` (copies, AUTOEXEC sans
-`KEYB FR`, CMOS de type 46) et vérifie ses empreintes contre `g5w.sha256` ; `cfg/` porte les
+`KEYB FR`, CMOS de type 46, et depuis G10.2 le disque amorçable du XTIDE, partitionné et formaté
+par émulation en C# seul, `xtide-format.keys`) et vérifie ses empreintes contre `g5w.sha256` ; `cfg/` porte les
 configurations des portes (`*.cfg.in` : gabarits de l'espace disque).

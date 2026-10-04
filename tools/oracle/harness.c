@@ -275,6 +275,7 @@ extern device_t mfm_xebec_device;
 extern device_t dtc_5150x_device;
 extern device_t mfm_at_device;     /* G5.0 */
 extern device_t ide_device;        /* G5.0 */
+extern device_t xtide_device;      /* G10.2 */
 extern int cdrom_channel, zip_channel;
 void resetide(void);
 
@@ -1847,6 +1848,13 @@ int h_boot(const char *romspath) {
                 cdrom_channel = -1;
                 zip_channel = -1;
                 device_add(&ide_device);
+        }
+        /* G10.2 — le XTIDE, version XT (hdd.c:156) : xtide_init ajoute lui-même ide_device ; mêmes
+           canaux sans ATAPI que « ide ». */
+        else if (!strcmp(hdd_controller_name, "xtide")) {
+                cdrom_channel = -1;
+                zip_channel = -1;
+                device_add(&xtide_device);
         }
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler

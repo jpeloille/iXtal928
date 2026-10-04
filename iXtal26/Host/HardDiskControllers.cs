@@ -33,6 +33,8 @@ internal static class HardDiskControllers
         new("dtc5150x", "DTC 5150X", false),
         new("mfm_at", "IBM AT Fixed Disk Adapter", true),
         new("ide", "IDE standard", true),
+        // G10.2 — sans DEVICE_AT (xtide.c:118) : proposé sur toutes les machines, comme chez PCem.
+        new("xtide", "XTIDE", false),
     ];
 
     internal static bool CurrentMachineIsAt =>

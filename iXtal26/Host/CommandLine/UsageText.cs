@@ -106,8 +106,8 @@ internal static class UsageText
                                sur un AT, mfm_xebec ailleurs) si rien n'en a nommé, et
                                l'emporte sur les clés hdc_*/hdd_*
           --hdd-controller NOM contrôleur de disque dur : mfm_xebec (IBM Fixed Disk
-                               Adapter), dtc5150x (DTC 5150X), ou mfm_at (IBM AT, sur
-                               les seules machines AT). Même précédence que --gfxcard :
+                               Adapter), dtc5150x (DTC 5150X), xtide (XTIDE), ou mfm_at
+                               et ide (sur les seules machines AT). Même précédence que --gfxcard :
                                l'emporte sur la clé hdd_controller
           --hdd-type N         force le type de disque de C: quand sa taille en désigne
                                plusieurs — 21 307 392 octets, c'est le type 13 (306x8)

@@ -135,6 +135,9 @@ public static class KeyScript
     /// </summary>
     public const char NoEnter = '^';
 
+    /// <summary>G10.2 — « @wait N » : une attente de N tranches, sans frappe (Build, et BootTest).</summary>
+    public const string WaitPrefix = "@wait ";
+
     /// <summary>Les touches d'une ligne : son texte, puis Entrée sauf suffixe « ^ ».</summary>
     public static string Keys(string line) =>
         line.Length > 0 && line[^1] == NoEnter ? line[..^1] : line + "\n";
@@ -173,6 +176,15 @@ public static class KeyScript
 
         foreach (var line in lines)
         {
+            // G10.2 — « @wait N » : N tranches sans frappe ni délai, comme --boot les déroule
+            // (BootTest) ; un même script donne ainsi le même calendrier aux deux, et la recette
+            // g5w peut tirer en C# seul l'image qu'une porte prouve des deux côtés.
+            if (line.StartsWith(WaitPrefix, StringComparison.Ordinal) && int.TryParse(line[WaitPrefix.Length..], out var wait))
+            {
+                slice += wait;
+                continue;
+            }
+
             foreach (var ch in Keys(line))
             {
                 var idx = IndexFor(ch, out var shift);

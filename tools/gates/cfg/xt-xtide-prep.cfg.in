@@ -1,0 +1,12 @@
+# G10.2 — la préparation de c8088dos.img par la recette g5w (iXtal26 --boot --in-place, C# seul) :
+# la copie vierge c8088.img, et une COPIE de la disquette PC-DOS 2.00 en A:, tout dans le WORK.
+model = ibmxt
+mem_size = 640
+drive_a_type = 1
+drive_b_type = 1
+disc_a = @WORK@/pcdos20b-xtide.img
+hdd_controller = xtide
+hdc_sectors = 17
+hdc_heads = 4
+hdc_cylinders = 306
+hdc_fn = @WORK@/c8088dos.img
