@@ -202,6 +202,8 @@ internal static partial class pc
     //   chaque amorçage, parce que le bloc CD peut ramener cdrom_drive à -1 (image absente).
     internal static int cfg_cdrom_drive = -1;
     internal static string cfg_cdrom_path = "";
+    // G10.6 — zip_path : l'image du lecteur ZIP (DEVIATION, voir loadconfig).
+    internal static string cfg_zip_path = "";
 
     /// <summary>
     /// pcem: pc.c:643-652. Choisit la machine par son internal_name et en déduit le
@@ -521,8 +523,8 @@ internal static partial class pc
 
         // pcem: pc.c:703-705 — cdrom_channel (défaut 2) et zip_channel (défaut -1).
         // DEVIATION: le défaut de cdrom_channel est -1 (décision n° 10 de PLAN-G10.md ; Ide/ide.cs) ; hors de -1
-        //   à 3, les quatre unités IDE, il est ramené à -1 avec un avertissement (traitement de PB-93 ; 4 à 6
-        //   désigneront des identifiants SCSI en G11). Le ZIP vient en G10.6 : zip_channel est refusé d'ici là.
+        //   à 3, les quatre unités IDE, l'un et l'autre sont ramenés à -1 avec un avertissement (traitement de
+        //   PB-93 ; 4 à 6 désigneront des identifiants SCSI en G11).
         int cd = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cdrom_channel", -1);
         int zip = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "zip_channel", -1);
         if (cd < -1 || cd > 3)
@@ -532,12 +534,18 @@ internal static partial class pc
                 cd = -1;
         }
         Ide.ide.cdrom_channel = cd;
-        if (zip >= 0)
+        if (zip < -1 || zip > 3)
         {
-                Console.Error.WriteLine("zip_channel : le lecteur ZIP n'est pas encore transcrit (PLAN-G10.md, G10.6) ; " +
-                                        "retirer la clé, ou la poser à -1.");
-                return false;
+                Console.Error.WriteLine($"zip_channel = {zip} : hors des quatre unités IDE (0 à 3, -1 : aucun " +
+                                        "lecteur) ; aucun lecteur ZIP à la place.");
+                zip = -1;
         }
+        Ide.ide.zip_channel = zip;
+
+        // G10.6 — DEVIATION (décision n° 6 de PLAN-G10.md) : zip_path, l'image du lecteur ZIP. PCem n'a pas de clé :
+        //   l'image ne se charge que par l'interface (wx-sdl2.c:776, zip_load), machine lancée. Ici elle se charge
+        //   à la fin d'initpc, au même point des deux côtés ; un reset matériel la perd, comme chez PCem.
+        cfg_zip_path = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "zip_path", "");
 
         // pcem: pc.c:707-711 — G10.4 : cdrom_path, copié dans image_path.
         // pcem bug, not reproduced: PB-110 — strcpy dans image_path[1024], sans borne : un chemin de 1 024 octets
@@ -923,6 +931,7 @@ internal static partial class pc
 
         // G10.4 — avertissements sans effet sur la machine : PCem ne dit rien.
         cdrom_avertissements();
+        zip_avertissements();   // G10.6
 
         // iXtal26 (outillage) — ORACLE PARITY : l'état du pilote d'images et les deux globales du lecteur
         //   repartent de zéro à chaque amorçage, des deux côtés (h_boot) ; la configuration est reposée.
@@ -947,6 +956,12 @@ internal static partial class pc
                 Cdrom.cdrom_null.cdrom_null_reset();
         else
                 Cdrom.cdrom_image.image_reset();
+
+        // G10.6 — DEVIATION (décision n° 6 de PLAN-G10.md) : le disque du lecteur ZIP, que PCem ne charge que par
+        //   son interface (wx-sdl2.c:776), machine lancée. Ici après le dernier resetide de l'amorçage, comme
+        //   l'utilisateur le ferait ; sans lecteur ZIP (zip_data nul), zip_load ne fait rien.
+        if (cfg_zip_path.Length != 0)
+                Scsi.scsi_zip_c.zip_load(cfg_zip_path);
         return true;
     }
 
@@ -998,6 +1013,28 @@ internal static partial class pc
 
     // G10.4 — deux configurations que PCem accepte sans rien dire : un cdrom_channel sans contrôleur IDE (resetide
     //   ne fait rien, ide.c:278), et le CD sur le canal d'un disque configuré (le CD gagne, ide.c:282-290).
+    // G10.6 — avertissements sans effet, comme pour le CD : PCem ne dit rien.
+    private static void zip_avertissements()
+    {
+        int zip = Ide.ide.zip_channel;
+
+        if (zip < 0)
+        {
+            if (cfg_zip_path.Length != 0)
+                Console.Error.WriteLine($"zip_path = « {cfg_zip_path} » : aucun lecteur ZIP (zip_channel = -1) ; image ignorée.");
+            return;
+        }
+        if (cfg_hdd_controller is not ("ide" or "xtide"))
+            Console.Error.WriteLine($"zip_channel = {zip} : aucun contrôleur IDE (hdd_controller = « {cfg_hdd_controller} ») ; " +
+                                    "pas de lecteur ZIP.");
+        else if (zip == Ide.ide.cdrom_channel)
+            Console.Error.WriteLine($"zip_channel = {zip} : l'unité est déjà celle du lecteur de CD-ROM, qui la garde, " +
+                                    "comme chez PCem (ide.c:282-287).");
+        else if (Disc.hdd_c.ide_fn[zip].Length != 0)
+            Console.Error.WriteLine($"zip_channel = {zip} : le lecteur ZIP prend la place du disque « {Disc.hdd_c.ide_fn[zip]} », " +
+                                    "comme chez PCem.");
+    }
+
     private static void cdrom_avertissements()
     {
         int cd = Ide.ide.cdrom_channel;
@@ -1173,8 +1210,8 @@ internal static partial class pc
     /// </summary>
     internal static void closepc()
     {
-        // omitted: codegen_close(), dumppic(), dumpregs(), closevideo(), mouse_emu_close(), zip_eject()
-        //   (pc.c:577-591) — dynarec, sorties de diagnostic, souris, ZIP.
+        // omitted: codegen_close(), dumppic(), dumpregs(), closevideo(), mouse_emu_close()
+        //   (pc.c:577-590) — dynarec, sorties de diagnostic, souris.
         // pcem: pc.c:578 — G10.4 : null_exit ou image_exit, vides.
         Ide.ide_atapi.atapi!.exit();
         Disc.disc.disc_close(0);
@@ -1182,6 +1219,8 @@ internal static partial class pc
         // pcem: pc.c:588 — G10.0.
         Lpt.lpt.lpt1_device_close();
         PluginApi.device.device_close_all();
+        // pcem: pc.c:591 — G10.6.
+        Scsi.scsi_zip_c.zip_eject();
     }
 
     // pcem: pc.c — remise à zéro du CPU et des périphériques sensibles au reset.

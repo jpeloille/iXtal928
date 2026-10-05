@@ -602,6 +602,7 @@ int h_cd_state(int64_t *v, int max, char *path, int pathmax, char *mcn, int mcnm
  * chacun. h_ide_type : le type de l'unité d (0 rien, 1 disque, 2 CD) ; h_cd_driver : le pilote posé
  * (0 aucun, 1 le lecteur vide, 2 l'image). */
 void h_set_cdrom(int drive, int channel, const char *path, int speed, const char *model);
+void h_set_zip(int channel, const char *path);   /* G10.6 */
 int h_ide_type(int d);
 int h_cd_driver(void);
 
@@ -739,7 +740,8 @@ uint8_t *h_ram(void);
  * h_set_cdrom, h_ide_type, h_cd_driver ; h_boot pose le pilote CD (pc.c:291-313, :411-433). */
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
-#define H_ABI_VERSION 51
+/* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
+#define H_ABI_VERSION 52
 #define H_CD_SOUND_PROBE_N 6
 void h_cd_sound_probe(uint64_t *out);
 uint32_t h_abi_version(void);

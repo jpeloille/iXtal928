@@ -141,7 +141,12 @@ public static class BootDiff
     {
         Oracle.h_set_cdrom(pc.cfg_cdrom_drive, Ide.ide.cdrom_channel, pc.cfg_cdrom_path, Scsi.scsi_cd_c.cd_speed,
                            Scsi.scsi_cd_c.cd_model_to_config(Scsi.scsi_cd_c.cd_model));
+        // G10.6 — le lecteur ZIP : son unité et l'image de l'oracle (sa copie, posée par Run ; sinon zip_path).
+        Oracle.h_set_zip(Ide.ide.zip_channel, ZipOracle ?? pc.cfg_zip_path);
     }
+
+    /// <summary>G10.6 — la copie de l'image ZIP donnée à l'oracle par Run : l'invité y écrit.</summary>
+    private static string? ZipOracle;
 
     /// <summary>G10.4 — `--expect-cd` : l'unité et le pilote de chaque côté, relevés avant closepc (ide_close
     /// remet les unités à IDE_NONE côté C#). Rend 0 si conforme ou sans exigence.</summary>
@@ -423,6 +428,12 @@ public static class BootDiff
             csharpHd[hd] = CopyForSide(discHd[hd], $"csharp-{(char)('c' + hd)}");
         }
 
+        // G10.6 — L'IMAGE ZIP suit la même règle : une copie par côté, l'invité y écrit (zip_path).
+        var discZip = pc.cfg_zip_path.Length == 0 ? null : pc.cfg_zip_path;
+        var oracleZip = CopyForSide(discZip, "oracle-zip");
+        var csharpZip = CopyForSide(discZip, "csharp-zip");
+        ZipOracle = oracleZip;
+
         Console.WriteLine($"Amorçage de l'oracle C ({slices} tranches" +
                           (discA is null ? "" : $", A: = {discA}") +
                           (discB is null ? "" : $", B: = {discB}") + ")…");
@@ -567,6 +578,8 @@ public static class BootDiff
         Floppy.fdd_c.discfns[1] = csharpB ?? "";
         for (var hd = 0; hd < NHd; hd++)
             Disc.hdd_c.ide_fn[hd] = csharpHd[hd] ?? "";
+        if (csharpZip is not null)
+            pc.cfg_zip_path = csharpZip;
         if (!pc.initpc(romsPath))
             return 1;
 
@@ -681,7 +694,8 @@ public static class BootDiff
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
                  | CompareImages(discHd[1], oracleHd[1], csharpHd[1], "D: (disque dur)")
                  | CompareImages(discHd[2], oracleHd[2], csharpHd[2], "E: (disque dur)")
-                 | CompareImages(discHd[3], oracleHd[3], csharpHd[3], "F: (disque dur)");
+                 | CompareImages(discHd[3], oracleHd[3], csharpHd[3], "F: (disque dur)")
+                 | CompareImages(discZip, oracleZip, csharpZip, "ZIP");
         }
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");

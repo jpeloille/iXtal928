@@ -1325,6 +1325,42 @@ relative 00:02:08 au lieu de 00:00:08, et en LBA 207 et 165 au lieu de 57 et 15.
 *Reproduit* : `Cdrom/cdrom-image.cs`, marqueurs PB-123 ; comparé des deux côtés par
 `cdimage-check` et par `bd-ami486-atapi-audio`.
 
+### PB-125 — Le lecteur ZIP écrit et lit hors de ses tampons, et hors de l'image
+
+`scsi_zip.c:209` : `scsi_add_data` écrit `data_in[data_pos_write++]` sans borne ; READ(6) ou READ(10) de plus
+de 512 secteurs déborde les 256 Ko de `data_in`, dans `data_out` puis hors de la structure. `:979` :
+`scsi_zip_read` lit `data_in` sans borne ; une lecture de longueur nulle ne finit jamais (PB-126), et
+l'invité qui insiste lit hors de la structure. `:985-990` : `scsi_zip_write` écrit `data_out[262 144]`
+puis `fatal("Exceeded data_out buffer size\n")` ; `:222-224` : `scsi_get_data` lit au-delà puis
+`fatal("scsi_get_data beyond buffer limits\n")` — WRITE de plus de 512 secteurs. Et `hdd_file.c:174-212`
+: un secteur au-delà de la fin de l'image (offset > sectors) donne un `transfer_sectors` négatif, une
+taille énorme pour `fread` et `fwrite`, qui débordent `buf` ; un LBA de 2^31 ou plus, que le ZIP prend de
+l'invité sur 32 bits, donne un offset négatif : `fseeko64` échoue et la lecture ou l'écriture part de la
+position courante, avec la même taille.
+*Effet* : un pilote ou un programme qui envoie un READ, un WRITE ou un secteur hors de l'image fait
+tomber l'émulateur, ou écrit n'importe où dans l'image.
+*Trouvé par* : reconnaissance de G10.6.
+*NON reproduit* (R9) : `DEVIATION` dans `Scsi/scsi_zip.cs` — l'octet au-delà d'un tampon est compté,
+pas gardé, et se relit nul — et dans `Disc/hdd_file.cs` — hors de l'image ou à un offset négatif, rien
+n'est lu ni écrit, le retour est 1. Survie : `r9-zip`, sept essais, chaque garde atteinte.
+
+### PB-126 — Le lecteur ZIP : la capacité, la fin du disque, l'éjection et les phases sans fin
+
+`scsi_zip.c:607-619` : READ CAPACITY rend le nombre de blocs, 196 608, au lieu du dernier LBA, 196 607.
+`hdd_file.c:174-180` : le secteur 196 608, juste après la fin, se lit sans erreur : `transfer_sectors`
+vaut 0, rien n'est lu, et `buf` garde le dernier secteur lu. `:885-891` : START STOP UNIT éjecte le disque
+quand START et LOEJ valent 0 (« arrêter le moteur ») et le garde quand LOEJ vaut 1 (« éjecter ») — à
+rebours de la norme, d'après le commentaire de PCem pour les pilotes Iomega de Windows 9x. `:165-177` :
+chaque `resetide` alloue un `scsi_zip_data` neuf, `disc_loaded = 0` : un reset matériel perd le disque.
+Une lecture de longueur nulle (READ(10) d'un compte 0) entre en phase de données sans fin
+(`scsi_zip_read_complete`, `:993-996`, compare des positions que la première lecture désaccorde) ; MODE
+SELECT(6) de longueur 0 de même en phase sortante (`:860-870`, `scsi.c:157-161`).
+*Effet* : un pilote qui lit la capacité voit un secteur de trop, et qui le lit reçoit l'ancien
+contenu ; une éjection à la norme n'éjecte pas ; un reset matériel vide le lecteur ; une commande de
+longueur nulle ne finit pas.
+*Trouvé par* : reconnaissance de G10.6 ; montré par ZIPBANC.
+*Reproduit* : `Scsi/scsi_zip.cs`, marqueurs PB-126 ; comparé des deux côtés par `bd-ami486-zip-banc`.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -2162,9 +2198,17 @@ fermer — rien n'est fermé.
 *Reproduit* : l'ancien objet est lâché, le GC le reprend ; `scsi_bus_close`, le bus des cartes
 SCSI, est omis jusqu'à G11.
 
+### PB-127 — Huit fatal() que rien n'atteint dans le lecteur ZIP
+
+`scsi_zip.c:659`, `:663`, `:713`, `:717` testent un retour -1 ou 0x100 de `scsi_add_data`, qui rend
+toujours 0 ; `:771`, `:776`, `:832`, `:837` les mêmes de `scsi_get_data`, qui rend un octet.
+*Effet* : aucun.
+*Trouvé par* : transcription de G10.6.
+*Reproduit* : les huit tests sont transcrits avec leur `fatal()`.
+
 ## Portée de ce registre
 
-Ces **cent vingt-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent vingt-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2210,6 +2254,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription du moteur d'images de CD (G10.3) | PB-106 à PB-112 |
 | Reconnaissance et transcription de l'ATAPI (G10.4) | PB-113 à PB-122 ; PB-93, PB-110 élargis |
 | Reconnaissance de l'audio CD dans la machine (G10.5) | PB-123, PB-124 |
+| Reconnaissance et transcription du lecteur ZIP (G10.6) | PB-125 à PB-127 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

@@ -261,6 +261,9 @@ switch (args[0])
     // G10.4 — les clés du lecteur de CD-ROM (PB-93, PB-110, PB-116), en C# seul.
     case "r9-cdcfg":
         return R9CdCfg.Run("roms", args.Length > 1 ? args[1] : null);
+    // G10.6 — R9 : les sites où PCem déborde ou s'arrête dans le lecteur ZIP (PB-125), en C# seul.
+    case "r9-zip":
+        return R9Zip.Run("roms");
     case "page-check":
     {
         var it = 200000;

@@ -158,6 +158,15 @@ PCem (wx-config.c:237-242), et la liste est celle de l'écran de construction
 listant ceux qui existent. L'option s'applique après `--config` et `--model`, comme
 `--gfxcard`, et l'emporte sur la clé `hdd_controller`.
 
+### `--zip IMG`
+
+Charge l'image du lecteur ZIP 100 (G10.6), un fichier de 100 663 296 octets exactement
+(`scsi_zip.c:115-118` refuse toute autre taille), à la fin de l'amorçage, sur le lecteur que
+la clé `zip_channel` pose sur une unité IDE (0 à 3). PCem n'a ni clé ni option : il ne
+charge le disque que par son interface, la machine lancée (`wx-sdl2.c:776`) ; iXtal ajoute
+la clé `zip_path` et cette option, qui l'emporte sur elle (décision n° 6 de PLAN-G10). Un
+reset matériel perd le disque, comme chez PCem.
+
 ### `--hdd-type N`, `--hdd-d-type N`
 
 Tranchent une taille ambiguë. PCem n'a pas besoin de cela : son hd_file montre la

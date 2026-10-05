@@ -6579,3 +6579,78 @@ chacun seul, sous le même verrou. Build 0 avertissement (hôte et outil de diff
 `--no-incremental`), selftest, check-oracle 0 dérive (200, harnais réancré), ABI 51.
 
 **Ce que G10.5 laisse** : PLAN-G10.md, « Les risques », § L'audio CD.
+
+## G10.6 — Le lecteur ZIP 100 sur l'IDE ; PB-125 à PB-127
+
+Le 5 octobre 2026. Plan : `PLAN-G10.md` § G10.6 et la décision n° 6.
+
+**Transcrit.** `scsi_zip.c` en entier (`Scsi/scsi_zip.cs`) : `zip_load`, `zip_eject`, `zip_loaded`, les
+commandes (TEST UNIT READY, REQUEST SENSE, INQUIRY, READ CAPACITY, READ FORMAT CAPACITIES, MODE SENSE(6)
+et (10), MODE SELECT(6), READ(6) et (10), WRITE(6), (10) et WRITE AND VERIFY, VERIFY, FORMAT, START STOP
+UNIT, SEEK, REZERO, RESERVE, RELEASE, SEND DIAGNOSTIC, IOMEGA SENSE, IOMEGA EJECT), IDENTIFY PACKET et
+SET FEATURES, la table `scsi_zip` ; 814 lignes vives pour les 812 du C. Branché par `ide.c:285-287` sur
+l'unité de `zip_channel` (de -1 à 3, hors de là ramené à -1 avec un avertissement, comme `cdrom_channel`) ;
+`pc.c:591`, `zip_eject` à la fermeture ; `pc.c:893`, `zip_channel` enregistré par l'écran de construction.
+L'oracle lie `scsi_zip.c` (la souche de G10.4 part) ; `h_set_zip`, ABI 52.
+
+**La décision n° 6, appliquée.** PCem n'a pas de clé pour le disque : il ne le charge que par son
+interface, la machine lancée (`wx-sdl2.c:776`). iXtal ajoute la clé `zip_path` et l'option `--zip IMG`
+(DEVIATION) ; le disque se charge à la fin d'initpc, après le dernier `resetide`, au même point des deux
+côtés (`pc.cs`, `h_boot`). Un reset matériel le perd, comme chez PCem (PB-126). boot-diff donne à chaque côté
+sa copie de l'image, comme aux disques durs, et compare les deux copies à la fin.
+
+**R9 (PB-125).** `scsi_zip.c:209`, `:979`, `:222-224` et `:985-990` : les tampons de 256 Ko débordés par
+READ ou WRITE de plus de 512 secteurs, ou par une lecture de longueur nulle qui ne finit pas ; l'octet
+au-delà est compté, pas gardé, et se relit nul. `hdd_file.c:179` et `:212`, dans `Disc/hdd_file.cs`, que
+l'IDE partage : un secteur au-delà de la fin de l'image ou un offset négatif — rien n'est lu ni écrit, le
+retour est 1 ; l'IDE n'y passe jamais (ses portes, inchangées, le confirment). `r9-zip`, en C# seul, sept
+essais sur un ami486 amorcé, le ZIP chargé d'une image vierge écrite dans le TMPDIR : READ(10) de 600
+secteurs (`:209`, 307 200 octets lus, GOOD) ; READ(10) de longueur nulle, 300 000 octets lus par l'invité
+(`:979`), puis la reprise par DEVICE RESET ; WRITE(10) de 600 secteurs (`:990`, `:224`) ; READ(10) du
+secteur 196 609 et du LBA 80000000h (`hdd_file.c:179`) ; WRITE(10) du secteur 196 610 (`:212`, l'image à sa
+taille). Chaque garde atteinte ; les huit `fatal()` que rien n'atteint (PB-127) sont transcrits tels quels.
+
+**Le banc ZIPBANC** (`atapibanc.py --zip`, 2 467 octets dont un script de 2 042) : l'interprète
+d'ATAPIBANC, sans l'opération d'attente d'ATAPIAUD ; ATAPIBNC.COM et ATAPIAUD.COM restent octet pour
+octet ceux de G10.4 et G10.5. Sur l'ami486, le ZIP en maître secondaire, `zip100.img` (100 663 296 octets
+nuls, `truncate` de la recette g5w, une ligne ajoutée à `g5w.sha256`) : la signature, IDENTIFY PACKET
+(« IOMEGA ZIP 100 ATAPI »), TEST UNIT READY (UNIT ATTENTION, le disque chargé ; puis GOOD), REQUEST SENSE,
+INQUIRY, READ CAPACITY (196 608, PB-126), READ FORMAT CAPACITIES, MODE SENSE(6) de toutes les pages, MODE
+SENSE(10) de la page 2Fh, puis de la page 08h (refusé), IOMEGA SENSE de la page 2, WRITE(10) du secteur
+100 et WRITE(6) du secteur 101 (deux motifs de 512 octets), READ(10) des deux, READ(6) du secteur 101,
+READ(10) du secteur 0 et du secteur 196 608 (PB-126 : le tampon d'avant, GOOD), VERIFY, SEEK, REZERO, SEND
+DIAGNOSTIC (autotest GOOD, autre refusé), RESERVE, RELEASE, TEST UNIT READY sur la LUN 1 (refusé, 25h), un
+code inconnu, START STOP UNIT avec LOEJ = 1 (n'éjecte pas, PB-126 : TEST UNIT READY rend GOOD), puis avec
+START = LOEJ = 0 (éjecte : NOT READY, puis 02/3Ah).
+
+**Les portes.**
+- `bd-ami486-zip-banc` : 439 645 867 instructions identiques ; C: identique (2 561 octets écrits par
+  DEBUG) ; l'image ZIP identique des deux côtés, 1 020 octets écrits par l'invité (les deux secteurs, moins
+  les octets nuls de leurs motifs) ; sonde VGA identique.
+- `r9-zip` : sept essais, tout survit.
+- `r9-cdcfg`, mis à jour : la décision n° 18 levée, `zip_channel = 1` n'est plus refusé ; à sa place,
+  `zip_channel = 9` (ramené à -1, averti) et le ZIP sur l'unité du CD (le CD la garde, averti).
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| READ CAPACITY rend 196 607 (PB-126 « corrigé ») | `bd-ami486-zip-banc` | rouge à l'instruction 435 237 401 |
+| START STOP UNIT éjecte sur LOEJ = 1 (PB-126 « corrigé ») | `bd-ami486-zip-banc` | rouge à 435 308 443 |
+| `scsi_zip_write` fausse chaque octet reçu | `bd-ami486-zip-banc` | rouge à 435 245 094, à la relecture |
+| `zip_load` retiré de la fin d'initpc, côté C# | `bd-ami486-zip-banc` | rouge à 435 235 502 |
+| la garde de `hdd_file.c:179` retirée | `r9-zip` | rouge : ArgumentOutOfRangeException (secteur 196 609), IOException (offset négatif) |
+| la garde de `scsi_zip.c:209` retirée | `r9-zip` | rouge : IndexOutOfRangeException |
+
+**La série** : g109, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, en mémoire, avec le
+verrou machine, la DLL et le lanceur figés, le WORK refait par la recette (empreintes conformes) : 198
+portes en 53 min 41 s, comparées journal par journal à g108 : 190 identiques, les deux nouvelles vertes,
+`abi` (52 au lieu de 51), `cdimage-check`, `config-check`, `r9-atapi` et `r9-cue` (les seuls chemins du
+TMPDIR et la ligne d'isogen), et `r9-cdcfg`, rouge, qui vérifiait encore le refus de `zip_channel` levé par
+G10.6. Le test mis à jour, l'outil seul reconstruit — `iXtal26.dll` et l'oracle identiques à ceux de g109 —,
+g109b rejoue `abi`, `cdimage-check`, `r9-zip`, `r9-atapi` et `r9-cdcfg` : verts. Un premier lancement de g109
+avait été refusé par `par.sh` (14 Go libres sous le quota de `/tmp`, 15 exigés) : les copies des contrôles
+négatifs effacées, la série est repartie. Build 0 avertissement (hôte Debug et Release, outil de diff),
+selftest, check-oracle 0 dérive (201, `scsi_zip.cs` ajouté, harnais réancré), ABI 52.
+
+**Ce que G10.6 laisse** : PLAN-G10.md, « Les risques », § Le ZIP.

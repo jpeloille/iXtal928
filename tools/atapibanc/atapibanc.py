@@ -41,6 +41,8 @@ ORG = 0x100
 # et le script de l'audio CD sur mixte.cue d'isogen. Sans lui, ATAPIBNC.COM reste octet pour octet celui
 # de G10.4.
 AUDIO = '--audio' in sys.argv
+# G10.6 — `--zip` : ZIPBANC.COM, le même interprète (sans l'op 14), et le script du lecteur ZIP 100.
+ZIP = '--zip' in sys.argv
 
 
 def w(v):
@@ -376,6 +378,54 @@ if AUDIO:
     S += PACKET(CDB(0x4E))                                        # STOP PLAY/SCAN
     S += PACKET(SUBQ(0), 16)
     S += [0]
+elif ZIP:
+    # G10.6 — le lecteur ZIP 100 en maître secondaire (zip_channel = 2), zip100.img de la recette g5w (100 663 296
+    # octets nuls). Les deux secteurs écrits (100 par WRITE(10), 101 par WRITE(6)) sont relus, et l'image est
+    # comparée des deux côtés en fin de porte.
+    SECT100 = [(i * 7 + 3) & 0xFF for i in range(512)]
+    SECT101 = [(i * 13 + 0x5A) & 0xFF for i in range(512)]
+
+    def PACKET_OUT512(cdb, donnees, limite=0xFFFE):
+        """Un paquet suivi d'une phase de données sortante de 512 octets : deux op 13 (255 mots, puis 1), le
+        compte de l'op 13 tenant dans un octet."""
+        assert len(donnees) == 512
+        return (OUT(1, 0) + OUT(4, limite & 0xFF) + OUT(5, limite >> 8) + OUT(7, 0xA0) + WDRQ + [12, 2]
+                + [10] + cdb + [13, 255] + donnees[:510] + [13, 1] + donnees[510:] + [11, 0] + REC)
+
+    S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                  # la signature : 01 01 14 EB
+    S += OUT(7, 0xA1) + WDRQ + RDS(256, 96) + REC                 # IDENTIFY PACKET DEVICE : « IOMEGA ZIP 100 ATAPI »
+    S += PACKET(TUR)                                              # UNIT ATTENTION (le disque chargé)
+    S += PACKET(SENSE, 18)                                        # 06, 28h
+    S += PACKET(TUR)                                              # GOOD
+    S += PACKET(CDB(0x12, 0, 0, 0, 36), 36)                       # INQUIRY
+    S += PACKET(CDB(0x25), 8)                                     # READ CAPACITY : 196 608 (PB-126)
+    S += PACKET(CDB(0x23, 0, 0, 0, 0, 0, 0, 0, 20), 20)           # READ FORMAT CAPACITIES
+    S += PACKET(CDB(0x1A, 0, 0x3F, 0, 0xFF), 24)                  # MODE SENSE(6), toutes les pages
+    S += PACKET(CDB(0x5A, 0, 0x2F, 0, 0, 0, 0, 0, 0x20), 16)      # MODE SENSE(10), page 2Fh
+    S += PACKET(CDB(0x5A, 0, 0x08, 0, 0, 0, 0, 0, 0x20))          # MODE SENSE(10), page 08h : refusé
+    S += PACKET(SENSE, 18)                                        # ILLEGAL REQUEST, 24h
+    S += PACKET(CDB(0x06, 0, 2, 0, 0x40), 24)                     # IOMEGA SENSE, page 2 (protection : 0)
+    S += PACKET_OUT512(CDB(0x2A, 0, 0, 0, 0, 100, 0, 0, 1), SECT100)              # WRITE(10), LBA 100
+    S += PACKET_OUT512(CDB(0x0A, 0, 0, 101, 1), SECT101)                           # WRITE(6), LBA 101
+    S += PACKET(READ10(100, 2), 16)                               # READ(10) des deux secteurs écrits
+    S += PACKET(CDB(0x08, 0, 0, 101, 1), 8)                       # READ(6) du secteur 101
+    S += PACKET(READ10(0, 1), 8)                                  # le secteur 0 : nul
+    S += PACKET(READ10(196608, 1), 8)                             # au-delà de la fin : le tampon d'avant (PB-126)
+    S += PACKET(CDB(0x2F, 0, 0, 0, 0, 100, 0, 0, 2))              # VERIFY(10)
+    S += PACKET(CDB(0x2B, 0, 0, 0, 0, 100))                       # SEEK(10)
+    S += PACKET(CDB(0x01))                                        # REZERO UNIT
+    S += PACKET(CDB(0x1D, 4))                                     # SEND DIAGNOSTIC, autotest : GOOD
+    S += PACKET(CDB(0x1D, 0))                                     # SEND DIAGNOSTIC, autre : refusé
+    S += PACKET(CDB(0x16)) + PACKET(CDB(0x17))                    # RESERVE, RELEASE
+    S += PACKET(CDB(0x00, 0x20))                                  # TEST UNIT READY sur la LUN 1 : refusé
+    S += PACKET(SENSE, 18)                                        # ILLEGAL REQUEST, 25h
+    S += PACKET(CDB(0xD8))                                        # un code inconnu
+    S += PACKET(CDB(0x1B, 0, 0, 0, 2))                            # START STOP UNIT, LOEJ = 1 : n'éjecte pas (PB-126)
+    S += PACKET(TUR)                                              # GOOD
+    S += PACKET(CDB(0x1B, 0, 0, 0, 0))                            # START STOP UNIT, START = LOEJ = 0 : éjecte
+    S += PACKET(TUR)                                              # NOT READY
+    S += PACKET(SENSE, 18)                                        # 02, 3Ah
+    S += [0]
 else:
   S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                    # la signature : 01 01 14 EB
   S += OUT(7, 0xEC) + WAIT + REC                                    # IDENTIFY DEVICE : ABRT
@@ -432,7 +482,7 @@ def assemble():
     return bytes(out), listing
 
 
-NOM = 'ATAPIAUD' if AUDIO else 'ATAPIBNC'
+NOM = 'ATAPIAUD' if AUDIO else 'ZIPBANC' if ZIP else 'ATAPIBNC'
 
 
 def keys(code):
@@ -448,7 +498,7 @@ if __name__ == '__main__':
     print('\n'.join(listing))
     print(f'\n{len(code)} octets, script {len(S)} octets')
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, 'atapibanc-audio.keys' if AUDIO else 'atapibanc.keys'), 'w') as f:
+    with open(os.path.join(here, 'atapibanc-audio.keys' if AUDIO else 'zipbanc.keys' if ZIP else 'atapibanc.keys'), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
         with open(sys.argv[sys.argv.index('--com') + 1], 'wb') as f:

@@ -79,6 +79,11 @@ internal static class Launcher
                     return Failure.Usage("--hdd-controller attend un nom de contrôleur de disque dur.");
                 options.Machine.HardDiskController = cursor.TakeNext();
                 return KeepParsing;
+            case "--zip":
+                if (!cursor.HasNext)
+                    return Failure.Usage("--zip attend le chemin d'une image ZIP de 100 663 296 octets.");
+                options.Machine.ZipImage = cursor.TakeNext();
+                return KeepParsing;
             case "--gfxcard":
                 if (!cursor.HasNext)
                     return Failure.Usage("--gfxcard attend un nom de carte vidéo.");
@@ -277,6 +282,7 @@ internal static class Launcher
             return false;
 
         machine.ApplyFloppyDriveTypes();
+        machine.ApplyZipImage();
         return machine.TryMountHardDisks();
     }
 

@@ -3,7 +3,7 @@
 //
 // ORACLE: pcem-dev/src/ide/ide.c  (ide.h : includes/private/ide/ide.h)
 // STATUS: partial — G5.1 : le contrôleur ATA, disque dur seul. G10.4 (PLAN-G10.md) : les crochets
-//         ATAPI, le lecteur de CD-ROM sur un canal (cdrom_channel) ; le ZIP (zip_channel) est G10.6.
+//         ATAPI, le lecteur de CD-ROM sur un canal (cdrom_channel) ; G10.6 : le ZIP (zip_channel).
 //         Le bus master (SFF-8038i) n'est pas branché : ses pointeurs restent nuls,
 //         comme chez PCem sur toute machine sans PIIX.
 //
@@ -150,7 +150,7 @@ internal static class ide
     // DEVIATION: -1, et non 2 (PLAN-G10.md, décision n° 10) : aucun lecteur de CD par défaut, c'est
     //   la clé `cdrom_channel` du .cfg qui le pose ; -1 est la configuration PCem où les quatre
     //   lecteurs sont déclarés « Hard drive » (wx-config.c:891). L'oracle reçoit la même valeur
-    //   (h_set_cdrom). zip_channel reste refusé par loadconfig jusqu'à G10.6 (pc.cs).
+    //   (h_set_cdrom). G10.6 : zip_channel, posé par loadconfig (pc.cs) et par h_set_zip.
     internal static int cdrom_channel = -1;
     internal static int zip_channel = -1;
 
@@ -407,9 +407,8 @@ internal static class ide
                         }
                         else if (zip_channel == d)
                         {
-                                // omitted: le ZIP de ide.c:285-287 (scsi_zip), G10.6 — inatteignable :
-                                //   loadconfig refuse zip_channel.
-                                fatal("ZIP non transcrit (G10.6) : zip_channel\n");
+                                ide_drives[d].type = IDE_CDROM;
+                                scsi_bus_atapi_init(ide_drives[d].atapi.bus, scsi_zip_c.scsi_zip, d, ide_drives[d].atapi);
                         }
                         else
                         {

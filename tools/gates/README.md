@@ -69,3 +69,9 @@ pistes audio), que la recette écrit aussi dans le WORK avec `mixte.bin`. ATAPIA
 est monté, ce que reçoit `givealbuffer_cd` (empreinte, blocs, échantillons non nuls) et les volumes CD
 de la carte. `--expect-cd-son` exige des échantillons non nuls des deux côtés : sans lui, un CD resté
 muet des deux côtés laisserait la porte verte.
+
+Le lecteur ZIP (G10.6) : `bd-ami486-zip-banc` monte `zip100.img`, un disque vierge de 100 663 296
+octets que la recette écrit dans le WORK, sur l'unité IDE 2 (`zip_channel`), chargé à la fin de
+l'amorçage (`zip_path`). L'image est copiée par côté, comme les disques durs : ZIPBANC
+(`atapibanc.py --zip`) y écrit deux secteurs, et boot-diff compare les deux copies à la fin. `r9-zip`,
+en C# seul, écrit sa propre image vierge dans le TMPDIR.

@@ -15,6 +15,7 @@
 #                        par le même script aux mêmes tranches (VERIFICATION.md § G10.2) ;
 #   iso-2048.iso       : l'ISO de 32 secteurs d'isogen (tools/isogen), le disque des portes du CD (G10.4) ;
 #   mixte.cue, mixte.bin : la feuille d'isogen, une piste de données et deux pistes audio (G10.5) ;
+#   zip100.img         : un disque ZIP 100 vierge, 100 663 296 octets nuls (G10.6) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
 #                        en C: et D: ; ami386dx ; ami486, G6.4 ; ami386dx sans disque, PS2.0) ;
@@ -41,6 +42,7 @@ cp "$REPO/os/8088-HDD-C.img" "$WORK/c8088.img"                   # G10.2
 cp "$WORK/c8088.img" "$WORK/c8088dos.img"
 cp "$REPO/os/pcdos20/pcdos20b.img" "$WORK/pcdos20b-xtide.img"
 python3 "$REPO/tools/isogen/isogen.py" "$WORK" iso-2048.iso mixte.cue mixte.bin > /dev/null   # G10.4, G10.5
+truncate -s 100663296 "$WORK/zip100.img"                         # G10.6
 for t in "$G"/cfg/*.cfg.in; do sed "s|@WORK@|$WORK|g" "$t" > "$WORK/$(basename "$t" .in)"; done
 cd "$WORK"
 dotnet "$BIN" --make-nvr ami286-mfm.cfg c.nvr --force > /dev/null
@@ -51,7 +53,7 @@ dotnet "$BIN" --make-nvr ami386dx-fd.cfg f386.nvr --force > /dev/null   # PS2.0
 # G10.2 — le disque amorçable du XTIDE, en C# seul, sur les copies du WORK (le journal reste là).
 mapfile -t XF < "$G/xtide-format.keys"; XT=(); for l in "${XF[@]}"; do XT+=(--type "$l"); done
 dotnet "$BIN" --boot "$REPO/roms" 8000 --config xt-xtide-prep.cfg --in-place --settle 20 "${XT[@]}" > xtide-prep.log
-( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img c8088dos.img iso-2048.iso mixte.cue mixte.bin ) > "$WORK/empreintes"
+( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img c8088dos.img iso-2048.iso mixte.cue mixte.bin zip100.img ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi

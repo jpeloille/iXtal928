@@ -27,6 +27,9 @@ internal sealed class MachineOverrides
 
     public string? HardDiskController { get; set; }
 
+    // G10.6 — --zip IMG : l'image du lecteur ZIP (la clé zip_path, DEVIATION de pc.cs).
+    public string? ZipImage { get; set; }
+
     public bool DescribesMachine =>
         Model is not null || ProcessorIndex is not null || MemoryKilobytes is not null ||
         floppyDriveTypes[0] is not null || floppyDriveTypes[1] is not null ||
@@ -74,6 +77,12 @@ internal sealed class MachineOverrides
             $"({model_c.models[model_c.model].name}).");
         Console.Error.WriteLine($"Disponibles : {HardDiskControllers.AvailableNames()}.");
         return false;
+    }
+
+    public void ApplyZipImage()
+    {
+        if (ZipImage is not null)
+            pc.cfg_zip_path = ZipImage;
     }
 
     public bool TryApplyMemorySize()

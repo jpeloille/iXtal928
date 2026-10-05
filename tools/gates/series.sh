@@ -310,5 +310,16 @@ runw bd-ami486-atapi-banc-vide c486.nvr ami486 boot-diff roms 60000 --config ami
 mapfile -t AAK < tools/atapibanc/atapibanc-audio.keys
 AAB=(); for l in "${AAK[@]}"; do AAB+=(--type "$l"); done
 runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-audio.cfg --type-at 60000 --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image --expect-cd-son
+# G10.6 — le lecteur ZIP 100 (scsi_zip.c) en maître secondaire de l'ami486 (zip_channel = 2), zip100.img de la
+# recette g5w, chargé à la fin de l'amorçage (zip_path, DEVIATION). ZIPBANC (atapibanc.py --zip) : la signature,
+# IDENTIFY PACKET, TEST UNIT READY (UNIT ATTENTION puis GOOD), INQUIRY, READ CAPACITY (PB-126), READ FORMAT
+# CAPACITIES, MODE SENSE, IOMEGA SENSE, WRITE(10) et WRITE(6) d'un secteur relus par READ(10) et READ(6), le secteur
+# 196 608 (PB-126), VERIFY, SEEK, REZERO, SEND DIAGNOSTIC, RESERVE, RELEASE, une LUN non nulle, un code inconnu,
+# START STOP UNIT (PB-126) ; l'image ZIP comparée des deux côtés. r9-zip, en C# seul : les sites où PCem s'arrête ou
+# déborde (PB-125).
+mapfile -t ZBK < tools/atapibanc/zipbanc.keys
+ZBB=(); for l in "${ZBK[@]}"; do ZBB+=(--type "$l"); done
+runw bd-ami486-zip-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-zip.cfg --type-at 60000 --type-settle 600 "${ZBB[@]}" --type "^" --type "^" --type "^"
+run r9-zip r9-zip
 run r9-atapi r9-atapi
 run r9-cdcfg r9-cdcfg

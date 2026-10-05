@@ -109,6 +109,10 @@ internal static class UsageText
                                Adapter), dtc5150x (DTC 5150X), xtide (XTIDE), ou mfm_at
                                et ide (sur les seules machines AT). Même précédence que --gfxcard :
                                l'emporte sur la clé hdd_controller
+          --zip IMG            charge l'image du lecteur ZIP (100 663 296 octets) à la fin
+                               de l'amorçage ; le lecteur est sur l'unité IDE de la clé
+                               zip_channel. L'emporte sur la clé zip_path. Un reset
+                               matériel la perd, comme chez PCem
           --hdd-type N         force le type de disque de C: quand sa taille en désigne
                                plusieurs — 21 307 392 octets, c'est le type 13 (306x8)
                                ou le type 16 (612x4). --hdd-d-type N : le disque D:

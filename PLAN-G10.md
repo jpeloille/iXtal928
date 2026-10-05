@@ -165,7 +165,7 @@ rappel audio à l'échéance de `sound_poll` (décision n° 7), le chemin CD de 
 canal ATAPI, `cd_vol` de la carte son). **Porte** : ATAPIBANC étendu (PLAY AUDIO, READ SUBCHANNEL,
 PAUSE) sur un CUE/BIN d'isogen ; l'empreinte des échantillons CD dans la sonde du son.
 
-### G10.6 — Le ZIP
+### G10.6 — Le ZIP  ✅ *fait, VERIFICATION.md § G10.6*
 
 `scsi_zip.c` sur le `hdd_file.cs` existant ; R9 n° 4. **Porte** : boot-diff ami486 avec un ZIP
 (image de 100 663 296 octets, fabriquée dans `$WORK`) ; un banc ZIPBANC (READ/WRITE(10), les
@@ -237,7 +237,7 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
     `cdrom_channel` hors de -1 à 3 : avertis, ramenés au lecteur vide ou à -1 ; l'image illisible au
     démarrage, R9 : le lecteur vide, avertie, survie `r9-cdcfg` ; le CD sur le canal d'un disque, un
     canal sans contrôleur IDE : avertis seulement. *(validé, 05/10)*
-18. **Le ZIP attend G10.6** : `zip_channel` reste refusé, retour 2. *(validé, 05/10)*
+18. **Le ZIP attend G10.6** : `zip_channel` reste refusé, retour 2. *(validé, 05/10 ; levé en G10.6 : `zip_channel` de -1 à 3, hors de là ramené à -1 avec un avertissement, comme `cdrom_channel`)*
 19. **La remise à zéro par amorçage**, des deux côtés : les ponts ATAPI des quatre unités et l'état
     du pilote d'images ; côté oracle, `ide.c` inclus par `harness_ide.c` pour atteindre la struct
     IDE — à la condition que `check-oracle` reste sans dérive et que la série soit identique à la
@@ -322,3 +322,7 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   deux côtés, le CT1345 n'est pas réglé par le banc) ; ni SEEK, ni PLAY AUDIO au-delà d'une piste, ni
   lecture de données pendant la lecture audio. La voie hôte (le second flux SDL à 44,1 kHz) n'est
   exercée par aucune porte : ni oreille, ni mesure.
+- **Le ZIP** (G10.6) : une porte et un banc ; ni FORMAT (100 Mo écrits), ni WRITE AND VERIFY, ni MODE
+  SELECT(6), ni un disque en lecture seule, ni IOMEGA EJECT, ni le ZIP en esclave, ni la perte au reset
+  matériel ne passent sous l'oracle. La garde de `hdd_file.cs` vaut aussi pour l'IDE, qui ne l'atteint pas.
+  ZIPBANC saisit 162 lignes dans DEBUG : 17 minutes, la plus longue porte de disque de la série.

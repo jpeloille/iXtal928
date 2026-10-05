@@ -12,7 +12,8 @@
 //   - cdrom_drive ni -1 ni 200 : le lecteur physique de l'hôte, exclu ; le lecteur vide ;
 //   - une image présente mais illisible : le lecteur vide (PB-116, R9 : PCem laisse atapi nul, et le premier
 //     reset IDE le déréférence, ide.c:802, :812) ;
-//   - cdrom_channel hors de -1 à 3 : aucun lecteur ; zip_channel : refusé jusqu'à G10.6 ;
+//   - cdrom_channel hors de -1 à 3 : aucun lecteur ; zip_channel de même depuis G10.6 (refusé avant), et le ZIP
+//     sur l'unité du CD : le CD la garde, averti ;
 //   - deux avertissements sans effet : le CD sur le canal d'un disque, un cdrom_channel sans contrôleur IDE.
 // Chaque essai amorce un ami486, compte les avertissements de la sortie d'erreur, vérifie ce qui a été retenu,
 // puis conduit le canal secondaire : un reset logiciel (376h, SRST — le rappel de reset appelle atapi->stop()),
@@ -63,7 +64,12 @@ internal static class R9CdCfg
                          () => Ide.ide.ide_drives[0].type == Ide.ide.IDE_CDROM ? null : "le CD devait prendre l'unité 0, comme chez PCem");
             bad += Essai(romsPath, n++, "un cdrom_channel sans contrôleur IDE", "hdd_controller = mfm_at\ncdrom_channel = 2\n", 1,
                          () => Ide.ide.ide_drives[2].type == Ide.ide.IDE_NONE ? null : "aucun lecteur attendu");
-            bad += Refus(romsPath, n++, "zip_channel = 1", "hdd_controller = ide\nzip_channel = 1\n", "le lecteur ZIP n'est pas encore transcrit");
+            // G10.6 — la décision n° 18 levée : zip_channel est reçu de -1 à 3 ; hors de là, ramené à -1, averti.
+            bad += Essai(romsPath, n++, "zip_channel = 9", "hdd_controller = ide\nzip_channel = 9\n", 1,
+                         () => Ide.ide.zip_channel == -1 ? null : $"zip_channel devait revenir à -1 : {Ide.ide.zip_channel}");
+            bad += Essai(romsPath, n++, "le ZIP sur l'unité du CD", "hdd_controller = ide\ncdrom_channel = 2\nzip_channel = 2\n", 1,
+                         () => Ide.ide.ide_drives[2].type == Ide.ide.IDE_CDROM && scsi_zip_c.zip_data is null
+                             ? null : "le CD devait garder l'unité 2, sans lecteur ZIP");
         }
         finally
         {

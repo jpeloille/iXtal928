@@ -120,6 +120,7 @@ SRC := harness.c \
        $(PCEM)/src/ide/ide_atapi.c \
        $(PCEM)/src/scsi/scsi.c \
        $(PCEM)/src/scsi/scsi_cd.c \
+       $(PCEM)/src/scsi/scsi_zip.c \
        $(PCEM)/src/ide/xtide.c \
        $(PCEM)/src/hdd/hdd_file.c \
        $(PCEM)/src/cdrom/cdrom-null.c

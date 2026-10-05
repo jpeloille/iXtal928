@@ -174,6 +174,17 @@ internal static partial class hdd_file
                             transfer_sectors = hdd.sectors - offset;
                     addr = (long)offset * 512;
 
+                    // pcem bug, not reproduced: PB-125 — au-delà de la fin (offset > sectors), transfer_sectors est
+                    //   négatif et fread reçoit une taille énorme (:179) ; un offset négatif (un LBA de 2^31 ou plus,
+                    //   que le ZIP prend de l'invité) fait échouer fseeko64 et lit depuis la position courante. Les deux
+                    //   écrivent au-delà de buffer.
+                    // DEVIATION: rien n'est lu, buffer garde son contenu ; le retour est 1, comme une lecture tronquée.
+                    if (offset < 0 || transfer_sectors < 0)
+                    {
+                            Diag.R9.Garde("hdd_file.c:179");
+                            return 1;
+                    }
+
                     hdd.f.Seek(addr, SeekOrigin.Begin);
                     hdd.f.ReadAtLeast(buffer.AsSpan(0, transfer_sectors * 512),
                                       transfer_sectors * 512, false);
@@ -200,6 +211,15 @@ internal static partial class hdd_file
                     if ((hdd.sectors - offset) < transfer_sectors)
                             transfer_sectors = hdd.sectors - offset;
                     addr = (long)offset * 512;
+
+                    // pcem bug, not reproduced: PB-125 — au-delà de la fin, fwrite reçoit une taille énorme et lit
+                    //   au-delà de buffer (:212) ; un offset négatif écrit à la position courante du fichier.
+                    // DEVIATION: rien n'est écrit ; le retour est 1, comme une écriture tronquée.
+                    if (offset < 0 || transfer_sectors < 0)
+                    {
+                            Diag.R9.Garde("hdd_file.c:212");
+                            return 1;
+                    }
 
                     hdd.f.Seek(addr, SeekOrigin.Begin);
                     hdd.f.Write(buffer, 0, transfer_sectors * 512);

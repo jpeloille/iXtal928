@@ -401,6 +401,12 @@ void h_cd_initpc_fin(void);
 void h_cd_exit(void);
 void h_atapi_reset(void);
 static int h_cdrom_channel = -1;
+/* G10.6 — le lecteur ZIP (h_set_zip) : son unité IDE (zip_channel, pc.c:705) et son image, que h_boot charge à
+ * la fin de l'amorçage comme pc.cs (zip_path, DEVIATION de la décision n° 6 de PLAN-G10). */
+static int h_zip_channel = -1;
+static char h_zip_path[1024];
+void zip_load(char *fn);   /* scsi_zip.c:105 */
+void zip_eject(void);      /* scsi_zip.c:141 */
 
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
  * préprocesseur ne connaît pas l'accès à un membre : `out->cycles` deviendrait
@@ -1725,9 +1731,9 @@ int h_boot(const char *romspath) {
         fdd_set_type(0, h_drive_type[0]);
         fdd_set_type(1, h_drive_type[1]);
 
-        /* G10.4 — pc.c:703-705, comme loadconfig : le canal du CD (h_set_cdrom) ; le ZIP est G10.6. */
+        /* G10.4, G10.6 — pc.c:703-705, comme loadconfig : les unités du CD (h_set_cdrom) et du ZIP (h_set_zip). */
         cdrom_channel = h_cdrom_channel;
-        zip_channel = -1;
+        zip_channel = h_zip_channel;
         /* G10.4 — l'état du pilote CD repart de zéro (ORACLE PARITY, comme initpc côté C#), puis le bloc
          * CD d'initpc (pc.c:291-313) pose `atapi`. */
         h_cd_boot_raz();
@@ -2067,6 +2073,10 @@ int h_boot(const char *romspath) {
         h_ins_count = 0;
         ali1429_reset();             /* pc.c:317 — G6.3, la fin d'initpc */
         h_cd_initpc_fin();           /* pc.c:321-333 — G10.4, le reset du pilote CD */
+        /* G10.6 — DEVIATION (décision n° 6) : le disque du ZIP, que PCem ne charge que par son interface, chargé
+         * après le dernier resetide de l'amorçage, au même point que pc.cs ; sans lecteur, zip_load ne fait rien. */
+        if (h_zip_path[0])
+                zip_load(h_zip_path);
         return 1;
 }
 
@@ -2482,7 +2492,14 @@ void h_closepc(void) {
         h_cd_exit();                 /* pc.c:578 — G10.4 */
         disc_close(0);
         disc_close(1);
+        zip_eject();                 /* pc.c:591 — G10.6 */
         fflush(NULL);
+}
+
+/* G10.6 — le lecteur ZIP : zip_channel (pc.c:705) et l'image (zip_path, la clé d'iXtal). */
+void h_set_zip(int channel, const char *path) {
+        h_zip_channel = channel;
+        snprintf(h_zip_path, sizeof(h_zip_path), "%s", path ? path : "");
 }
 
 /* G10.4 — le lecteur de CD-ROM, comme loadconfig (pc.c:702-711, :780-781). */

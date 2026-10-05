@@ -828,6 +828,9 @@ internal sealed class SdlSetup
         config.config_set_string(config.CFG_MACHINE, null, "cdrom_path", Cdrom.cdrom_image.image_path);
         config.config_set_int(config.CFG_MACHINE, null, "cd_speed", Scsi.scsi_cd_c.cd_speed);
         config.config_set_string(config.CFG_MACHINE, null, "cd_model", Scsi.scsi_cd_c.cd_model_to_config(Scsi.scsi_cd_c.cd_model));
+        // pcem: pc.c:893 — G10.6 : zip_channel ; et zip_path, la clé d'iXtal (DEVIATION, pc.cs loadconfig).
+        config.config_set_int(config.CFG_MACHINE, null, "zip_channel", Ide.ide.zip_channel);
+        config.config_set_string(config.CFG_MACHINE, null, "zip_path", pc.cfg_zip_path);
 
         config.config_save(config.CFG_MACHINE, path);
         ConfigPath = path;

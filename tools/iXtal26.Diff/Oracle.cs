@@ -81,7 +81,8 @@ public static class Oracle
     // 50 en G10.4 : l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c liés ; ide.c inclus) — h_set_cdrom, h_ide_type,
     //   h_cd_driver ; h_boot pose le pilote CD.
     // 51 en G10.5 : l'audio CD dans la machine — h_cd_sound_probe ; h_boot remet le fil CD à zéro.
-    public const int AbiVersion = 51;
+    // 52 en G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip.
+    public const int AbiVersion = 52;
 
     static Oracle()
     {
@@ -318,6 +319,8 @@ public static class Oracle
     // G8.1 — la carte son (internal_name) et la sonde du son : haut-parleur, puis les deux OPL.
     [DllImport(Lib)] internal static extern void h_set_sndcard(string name);
     // G10.0 — le périphérique de LPT1 (internal_name : none, dss, lpt_dac, lpt_dac_stereo).
+    // G10.6 — le lecteur ZIP : zip_channel et l'image (zip_path).
+    [DllImport(Lib)] internal static extern void h_set_zip(int channel, string path);
     [DllImport(Lib)] internal static extern void h_set_lpt1_device(string name);
     [DllImport(Lib)] internal static extern void h_set_lpt_jeu_hors_service(int on);
     // G8.3 — les sections de device du .cfg, que config_get_int/string de l'oracle consultent.
