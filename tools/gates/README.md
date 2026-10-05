@@ -87,3 +87,9 @@ L'Adaptec AHA-1542C (G11) : les portes `bd-*-aha-*` montent la carte et ses disq
 toute garde R9 côté C# : la suite d'un `fatal()` de l'oracle n'est pas comparable. `bd-ami486-aha-banc`
 tape AHABANC (`tools/ahabanc`, GNU as) dans DEBUG ; la carte y écrit `nvr/.aha1542c.nvr` (22h), dans le
 répertoire de la porte. `r9-aha` et `r9-scsihd`, en C# seul, écrivent leurs disques vierges dans le TMPDIR.
+
+Les Sound Blaster de G12 : les portes `bd-pc-sb*` et `bd-ami486-sb*` montent la carte par `--sndcard` ou par la
+section du device d'un .cfg de `cfg/` (`mixaddr` de la SB 2.0). La sonde du son lit, pour toute SB, le type du
+DSP, le mélangeur de la carte et le volume CD qu'elle pose ; `--expect-sb` exige la carte des deux côtés.
+SBBANC a un script par carte (`sbbanc.py --carte`, `sbbanc-CARTE.keys`), saisi dans DEBUG sur le 5150 ;
+`sbbanc.keys` reste celui de la Pro v2.

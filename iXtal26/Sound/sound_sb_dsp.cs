@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/sound/sound_sb_dsp.c + includes/private/sound/sound_sb_dsp.h
-// STATUS: partial — le DSP tel que la Sound Blaster Pro v2 l'atteint (sb_type == SBPRO2,
+// STATUS: partial — le DSP tel que les Sound Blaster 1.0 à Pro v2 l'atteignent (sb_type de SB1 à SBPRO2 : les
+//         gardes de version, recopiées dès G8, suffisent aux DSP 1.05, 2.00, 2.01 et 3.00 de G12.0 ;
 //         sb_subtype == SB_SUBTYPE_DEFAULT, DMA 8 bits) : sb_dsp_t, les tables (sbe2dat,
 //         sb_commands, sb_dsp_versions, scaleMap*/adjustMap*), sb_irq, sb_irqc, sb_dsp_reset,
 //         sb_doreset, sb_dsp_speed_changed, sb_add_data, sb_start_dma, sb_start_dma_i,
@@ -82,7 +83,10 @@ internal sealed class sb_dsp_t
 
     internal readonly uint8_t[] sb_asp_regs = new uint8_t[256];
 
-    // omitted: sbenable, sb_enable_i (sound_sb_dsp.h:63) — aucun lecteur ni écrivain dans le C.
+    // omitted: sbenable, sb_enable_i (sound_sb_dsp.h:63). sb_enable_i est lu par sb_get_buffer_sb16 et
+    //   sb_get_buffer_emu8k (sound_sb.c:180, :272) et n'est écrit nulle part : il revient avec la SB 16 (G12.1).
+    //   sbenable n'a ni lecteur ni écrivain.
+    // pcem bug, reproduced: PB-148 — rien ne remplit record_buffer : l'entrée rend du silence.
 
     internal readonly pc_timer_t output_timer = new pc_timer_t(), input_timer = new pc_timer_t();
 
@@ -395,6 +399,8 @@ internal static partial class sound_sb_dsp
         case 0x1F: /*2-bit ADPCM autoinit output*/
                 if (dsp.sb_type < SB15)
                         break;
+                // pcem bug, reproduced: PB-146 — sb_commands[0x1F] vaut 0 : sb_data[0..1] sont les octets de la
+                //   commande précédente.
                 sb_start_dma(dsp, 1, 1, ADPCM_2, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -417,6 +423,7 @@ internal static partial class sound_sb_dsp
         case 0x2C: /*8-bit autoinit DMA input*/
                 if (dsp.sb_type < SB15)
                         break;
+                // pcem bug, reproduced: PB-146 — sb_commands[0x2C] vaut 0, comme pour 1Fh.
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x40: /*Set time constant*/
@@ -465,6 +472,7 @@ internal static partial class sound_sb_dsp
         case 0x7D: /*4-bit ADPCM autoinit output*/
                 if (dsp.sb_type < SB15)
                         break;
+                // pcem bug, reproduced: PB-146 — sb_commands[0x7D] vaut 0, comme pour 1Fh.
                 sb_start_dma(dsp, 1, 1, ADPCM_4, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -472,6 +480,7 @@ internal static partial class sound_sb_dsp
         case 0x7F: /*2.6-bit ADPCM autoinit output*/
                 if (dsp.sb_type < SB15)
                         break;
+                // pcem bug, reproduced: PB-146 — sb_commands[0x7F] vaut 0, comme pour 1Fh.
                 sb_start_dma(dsp, 1, 1, ADPCM_26, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -560,6 +569,7 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_pause = 1;
                 break;
         case 0xD1: /*Speaker on*/
+                // pcem bug, reproduced: PB-147 — sur la SB 1.0, D1h et D3h mettent le DMA en pause.
                 if (dsp.sb_type < SB15)
                         dsp.sb_8_pause = 1;
                 else if (dsp.sb_type < SB16)

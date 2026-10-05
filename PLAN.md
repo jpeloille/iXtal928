@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 5 octobre 2026, G11 fait ; G12 en cours
+## Où on en est — 6 octobre 2026, G11 fait ; G12 en cours
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -308,7 +308,7 @@ La carte est ISA 16 bits : elle est refusée avec avertissement sur les machines
 est écrite en G11 (`pc.check_hdd_controller`, décision n° 3 de `PLAN-G11.md`), pour toutes les cartes
 de disque DEVICE_AT ; G12 l'étend aux cartes son.
 
-### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; attend un feu vert)*
+### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; feu vert du 05/10, en cours : `PLAN-G12.md`)*
 
 SB 1.0, SB 1.5, SB 2.0, SB Pro v1, SB 16 et SB AWE32 (`sound_sb.c`, `sound_sb_dsp.c`, déjà en
 partie transcrits en G8).

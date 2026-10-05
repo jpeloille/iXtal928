@@ -1390,6 +1390,9 @@ public static class BootDiff
         "dsp.sbdat|sbdat2", "dsp.sbdatl|r|sbref|sbstep", "dsp.sbdacpos|sbleftright", "dsp.sbreset|readdat|command|test",
         "dsp.sb_timeo|timei", "dsp.sblatcho", "dsp.output_timer", "dsp.stereo|wb_full", "dsp.busy_count|pos",
         "#mixer.regs", "sb.pos", "mixer.master_l|r",
+        // G12.0 — toutes les SB : le type du DSP, le mélangeur de la carte (0 aucun, 1 CT1335, 2 CT1345) et son index ;
+        //   le volume CD que la carte pose (sound_set_cd_volume) ; les voix et l'OPL du mélangeur.
+        "dsp.sb_type|mixer|index", "cd_vol_l|r", "mixer.voice_l|r", "mixer.fm_l|r",
     };
 
     private static ulong[] SoundProbeCsharp()
@@ -1430,7 +1433,8 @@ public static class BootDiff
             return 1;
         }
         Console.WriteLine($"Sonde du son : {SoundFields.Length} champs identiques — échantillons ({o[8]:X16}), haut-parleur, OPL, DSP.");
-        if (Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current) != "sbprov2")
+        // G12.0 — toute carte Sound Blaster (sb, sb1.5, sb2.0, sbprov1, sbprov2) ; l'AdLib n'en est pas une.
+        if (!Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current).StartsWith("sb", StringComparison.Ordinal))
             return ExpectSb is null ? 0 : FauteSb("pas de SB montée");
         var sb = $"{o[28] >> 48:X}h, IRQ {o[27] >> 32}, DMA {(o[23] >> 8) & 0xff}";
         Console.WriteLine($"Sound Blaster des deux côtés : {sb}.");

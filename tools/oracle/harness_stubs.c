@@ -1238,7 +1238,8 @@ plat_joystick_t plat_joystick_state[MAX_PLAT_JOYSTICKS];
 
 /* --- G8.2 : ce que sound_sb.c et sound_sb_dsp.c réclament pour les AUTRES cartes ---------------
  * L'EMU8000 (AWE32), le MPU-401 (SB16), le WSS de l'Aztech : inatteignables sur une SB Pro v2.
- * Arrêt bruyant. GAMEBLASTER : pc.c:76 (non lié), lu par sb_add_status_info seulement. */
+ * Arrêt bruyant. GAMEBLASTER : pc.c:76 (non lié) ; lu par sb_2_init (sound_sb.c:955 : à 0, l'OPL2 de la SB 2.0 se
+ * répète en 2x0-2x1, G12.0), toujours 0 comme le C# (pc.GAMEBLASTER, le CMS n'étant pas transcrit). */
 #include "sound.h"
 #include "sound_emu8k.h"
 #include "sound_mpu401_uart.h"

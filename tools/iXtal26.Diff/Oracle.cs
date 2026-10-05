@@ -83,7 +83,8 @@ public static class Oracle
     // 51 en G10.5 : l'audio CD dans la machine — h_cd_sound_probe ; h_boot remet le fil CD à zéro.
     // 52 en G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip.
     // 53 en G11.0 : l'AHA-1542C et ses disques (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) — h_aha_probe.
-    public const int AbiVersion = 53;
+    // 54 en G12.0 : les SB 1.0, 1.5, 2.0 et Pro v1 ; la sonde du son passe de 41 à 45 champs.
+    public const int AbiVersion = 54;
 
     static Oracle()
     {
@@ -328,7 +329,7 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_clear_device_config();
     [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
     [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
-    public const int SoundProbeN = 41;
+    public const int SoundProbeN = 45;
     // G10.5 — la sonde du CD : cd_pos, cd_vol_l, cd_vol_r, l'empreinte des échantillons, les blocs, les non nuls.
     [DllImport(Lib)] internal static extern void h_cd_sound_probe([Out] ulong[] o);
     public const int CdSoundProbeN = 6;

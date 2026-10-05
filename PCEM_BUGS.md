@@ -962,6 +962,8 @@ la machine. `sb_irq` (`sound_sb_dsp.c:107-114`) appelle `picint(1 << 10)` ; sans
 *Effet* : sur un PC ou un XT réglé à l'IRQ 10, la carte ne signale jamais rien, sans message.
 *Trouvé par* : reconnaissance de G8 (défaut n° 3).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
+*G12.0* : la SB Pro v1 propose aussi l'IRQ 10 (`sound_sb.c:1220`) ; les SB 1.0, 1.5 et 2.0 ne la proposent
+pas (`:1149-1153`, `:1179-1183`).
 
 ### PB-94 — La souris PS/2 ne répond pas aux commandes qu'elle ne connaît pas
 
@@ -1550,6 +1552,49 @@ direction du transfert est ignorée.
 *Trouvé par* : reconnaissance de G11.
 *Reproduit* : `Scsi/scsi_aha1540.cs`.
 
+### PB-145 — La SB 2.0 rend l'audio CD presque muet ; le reset d'un mélangeur met le CD au minimum
+
+`sound_sb.c:952` : `sb_2_init` appelle `sb_ct1335_mixer_reset` même quand `mixaddr` vaut 0. Le reset
+(`:341-347`) met le registre du CD (08h) à 0, et `:363-369` posent `sound_set_cd_volume(8230 × 164 / 65535,
+…)`, soit 20 sur 65 535. Sans mélangeur, l'invité n'a aucun port pour le relever. Avec mélangeur, le CD reste
+au minimum tant que l'invité n'écrit pas 08h. Le CT1345 fait de même : 81 sur 65 535 au reset (`:413-416`,
+28h = 0), le volume que mesure ATAPIAUD en G10.5.
+*Effet* : sur une machine équipée d'une SB 2.0 sans option CD, l'audio CD (G10.5) est à −70 dB ; avec une
+SB 1.0 ou 1.5, qui n'ont pas de mélangeur, il reste à 65 535.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
+*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-145. La sonde du son compare le volume CD de la carte (G12.0).
+
+### PB-146 — 1Fh, 2Ch, 7Dh et 7Fh prennent les paramètres de la commande précédente
+
+`sound_sb_dsp.c:45-54` : `sb_commands` vaut 0 pour 1Fh, 2Ch, 7Dh et 7Fh, qui s'exécutent donc dès l'octet de
+commande, sans paramètre. Mais elles lisent `sb_data[0]` et `sb_data[1]` (`:355`, `:377`, `:431`, `:438`) :
+ce sont les octets de la commande précédente. Le DSP réel prend la longueur du bloc dans 48h.
+*Effet* : le premier bloc de ces transferts automatiques (ADPCM 2, 4 et 2,6 bits, entrée 8 bits) a une
+longueur fausse, d'où une IRQ trop tôt ou trop tard ; les suivants rechargent `sb_8_autolen` (`:1038`). La
+SB Pro v2 de G8 l'atteint déjà, comme les SB 1.5, 2.0 et Pro v1.
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 ; SBBANC passe 7Dh après 48h 7Fh 01h.
+
+### PB-147 — Sur la SB 1.0, « haut-parleur actif » met le DMA en pause
+
+`sound_sb_dsp.c:530-531`, `:537-538` : sur un DSP antérieur à la 1.5 (`sb_type < SB15`), D1h (haut-parleur
+actif) et D3h (haut-parleur coupé) posent `sb_8_pause = 1` au lieu de toucher le son ; `sb_start_dma` remet
+la pause à zéro (`:207`). Sur les autres DSP, D1h et D3h règlent `muted`.
+*Effet* : un D1h envoyé après le lancement d'un DMA suspend la lecture jusqu'à D4h ; D3h ne coupe pas le
+son. Le comportement du DSP 1.05 réel reste à confronter (G13).
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-147 ; SBBANC envoie D1h après 14h sur la SB 1.0.
+
+### PB-148 — L'enregistrement rend toujours du silence
+
+`sound_sb_dsp.h:63` : `sb_enable_i` n'est écrit nulle part, et seuls `sb_get_buffer_sb16` et
+`sb_get_buffer_emu8k` remplissent `record_buffer`, sous cette condition (`sound_sb.c:180`, `:272`). Sur les
+SB 1.0 à Pro v2, rien ne le remplit ; `sb_start_dma_i` le vide à chaque entrée (`sound_sb_dsp.c:282`). A0h et
+A8h (l'entrée mono ou stéréo de la Pro) ne font rien (`:468-473`, TODO).
+*Effet* : toute entrée DMA ou directe (20h, 24h, 2Ch, 98h, 99h) rend du silence : 80h en 8 bits non signé.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-148.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1902,6 +1947,9 @@ douze entrées, `:492-496`, `:510-514`) : refusé, retour 2, comme `lpt1_device`
 `--cd-model`). `cdrom_channel` hors de -1 à 3 et `cdrom_drive` ni -1 ni 200 (un lecteur physique,
 exclu) sont ramenés à -1, avec un avertissement. Prouvé par `r9-cdcfg` (sans la garde :
 DivideByZeroException, IndexOutOfRangeException, NullReferenceException, mesuré).
+*G12.0, les SB 1.0, 1.5, 2.0 et Pro v1* : leurs trois tables (`sound_sb.c:1134-1228`) reçoivent leurs listes
+`selection` ; `mixaddr` de la 2.0 (0, 250h, 260h) comme `addr` peut indexer au-delà de FFFFh (`io.c:45`). Hors
+liste : le défaut, averti, prouvé par `r9-sbcfg` (six essais de plus).
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
 
@@ -2415,7 +2463,7 @@ READ_MESSAGE), `:1807`, `:1828`, `:2047` (une phase, un REQ ou un message que `s
 
 ## Portée de ce registre
 
-Ces **cent quarante-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent quarante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2463,10 +2511,11 @@ audit systématique de PCem** :
 | Reconnaissance de l'audio CD dans la machine (G10.5) | PB-123, PB-124 |
 | Reconnaissance et transcription du lecteur ZIP (G10.6) | PB-125 à PB-127 |
 | Reconnaissance (lecture puis contre-lecture) et transcription de l'AHA-1542C et de `scsi_hd` (G11) | PB-128 à PB-144 ; PB-121, PB-125 élargis |
+| Reconnaissance (lecture puis contre-lecture) et transcription des SB 1.0, 1.5, 2.0 et Pro v1 (G12.0) | PB-145 à PB-148 ; PB-92, PB-93 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
-cartes son autres que l'AdLib et la SB Pro v2, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4) et les images VHD restent hors de ce registre. Le cœur 386, lu en
+cartes son autres que l'AdLib et les SB 1.0 à Pro v2, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4, `scsi_hd.c` et la 1542C, lus en G11) et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
 ce registre ne garde que ce qui a été lu à la ligne de C.

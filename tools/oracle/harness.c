@@ -1964,11 +1964,25 @@ int h_boot(const char *romspath) {
                 device_add(&cga_device);
         speaker_init();              /* pc.c:375, juste après video_init() */
         lpt1_device_init();          /* pc.c:376 — G10.0 : lpt1_device_name (h_set_lpt1_device) */
-        /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. */
+        /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. G12.0 : les SB 1.0, 1.5, 2.0 et
+           Pro v1 ; un nom inconnu arrête l'amorçage, bruyamment (il ne montait rien, sans un mot : une porte dont le
+           POST ne touche pas la carte restait verte à vide). */
         if (!strcmp(h_sndcard_name, "adlib"))
                 device_add(&adlib_device);
+        else if (!strcmp(h_sndcard_name, "sb"))
+                device_add(&sb_1_device);
+        else if (!strcmp(h_sndcard_name, "sb1.5"))
+                device_add(&sb_15_device);
+        else if (!strcmp(h_sndcard_name, "sb2.0"))
+                device_add(&sb_2_device);
+        else if (!strcmp(h_sndcard_name, "sbprov1"))
+                device_add(&sb_pro_v1_device);
         else if (!strcmp(h_sndcard_name, "sbprov2"))
                 device_add(&sb_pro_v2_device);
+        else if (h_sndcard_name[0] && strcmp(h_sndcard_name, "none")) {
+                fatal("h_boot : carte son inconnue « %s »\n", h_sndcard_name);
+                return 0;
+        }
 
         /* pc.c:392 — hdd_controller_init(hdd_controller_name), reduit. APRES
            mem_alloc() : celui-ci detruit toute la liste de mappages, et une carte a
@@ -2364,7 +2378,9 @@ void h_set_lpt1_device(const char *name) {
 void h_opl_state(int nr, uint64_t *out);
 void h_speaker_probe(uint64_t *out);
 /* G8.2 — les vingt champs du DSP et du mélangeur de la SB Pro v2, dans l'ordre de
- * Sound.sound_sb.ProbeSb() côté C#. La carte est retrouvée dans le registre des devices. */
+ * Sound.sound_sb.ProbeSb() côté C#. La carte est retrouvée dans le registre des devices.
+ * G12.0 — n'importe quelle SB ; le mélangeur de sa carte (sound_sb.h:94-98, une union : on lit le membre que le
+ * type du DSP désigne) ; quatre champs de plus : le type, le volume CD que la carte a posé, les voix et l'OPL. */
 extern device_t *devices[];
 extern void *device_priv[];
 static uint64_t h_sb_fnv(const uint8_t *p, size_t n) {
@@ -2375,19 +2391,50 @@ static uint64_t h_sb_fnv(const uint8_t *p, size_t n) {
         }
         return hash;
 }
+/* Pendant de Sound.sound_sb.MixerKind : 0 aucun (SB 1.0, 1.5), 1 CT1335 (2.0), 2 CT1345 (Pro), 3 CT1745 (16, AWE32). */
+static int h_sb_mixer_kind(int sb_type) {
+        if (sb_type == SB2)
+                return 1;
+        if (sb_type == SBPRO || sb_type == SBPRO2)
+                return 2;
+        if (sb_type >= SB16)
+                return 3;
+        return 0;
+}
 static void h_sb_probe(uint64_t *o) {
         sb_t *sb = NULL;
         sb_dsp_t *d;
-        int c;
+        int c, kind;
+        const uint8_t *regs = NULL;
+        uint8_t index = 0;
+        int32_t ml = 0, mr = 0, vl = 0, vr = 0, fl = 0, fr = 0;
 
         for (c = 0; c < DEV_MAX; c++)
-                if (devices[c] == &sb_pro_v2_device) {
+                if (devices[c] == &sb_1_device || devices[c] == &sb_15_device || devices[c] == &sb_2_device ||
+                    devices[c] == &sb_pro_v1_device || devices[c] == &sb_pro_v2_device) {
                         sb = (sb_t *)device_priv[c];
                         break;
                 }
         if (!sb)
                 return;
         d = &sb->dsp;
+        kind = h_sb_mixer_kind(d->sb_type);
+        if (kind == 1) {
+                regs = sb->mixer_sb2.regs;
+                index = sb->mixer_sb2.index;
+                ml = mr = sb->mixer_sb2.master;
+                vl = vr = sb->mixer_sb2.voice;
+                fl = fr = sb->mixer_sb2.fm;
+        } else if (kind == 2) {
+                regs = sb->mixer_sbpro.regs;
+                index = sb->mixer_sbpro.index;
+                ml = sb->mixer_sbpro.master_l;
+                mr = sb->mixer_sbpro.master_r;
+                vl = sb->mixer_sbpro.voice_l;
+                vr = sb->mixer_sbpro.voice_r;
+                fl = sb->mixer_sbpro.fm_l;
+                fr = sb->mixer_sbpro.fm_r;
+        }
         *o++ = (uint32_t)d->sb_8_length | ((uint64_t)(uint32_t)d->sb_8_autolen << 32);
         *o++ = (uint8_t)d->sb_8_format | ((uint64_t)(uint8_t)d->sb_8_autoinit << 8) | ((uint64_t)(uint8_t)d->sb_8_pause << 16) |
                ((uint64_t)(uint8_t)d->sb_8_enable << 24);
@@ -2407,9 +2454,14 @@ static void h_sb_probe(uint64_t *o) {
         *o++ = d->output_timer.ts_integer | ((uint64_t)d->output_timer.ts_frac << 32);
         *o++ = (uint32_t)d->stereo | ((uint64_t)(uint32_t)d->wb_full << 32);
         *o++ = (uint32_t)d->busy_count | ((uint64_t)(uint32_t)d->pos << 32);
-        *o++ = h_sb_fnv(sb->mixer_sbpro.regs, sizeof(sb->mixer_sbpro.regs));
+        *o++ = regs ? h_sb_fnv(regs, 256) : 0;
         *o++ = (uint32_t)sb->pos;
-        *o++ = (uint32_t)sb->mixer_sbpro.master_l | ((uint64_t)(uint32_t)sb->mixer_sbpro.master_r << 32);
+        *o++ = (uint32_t)ml | ((uint64_t)(uint32_t)mr << 32);
+        /* G12.0 */
+        *o++ = (uint8_t)d->sb_type | ((uint64_t)(uint8_t)kind << 8) | ((uint64_t)index << 16);
+        *o++ = cd_vol_l | ((uint64_t)cd_vol_r << 32);
+        *o++ = (uint32_t)vl | ((uint64_t)(uint32_t)vr << 32);
+        *o++ = (uint32_t)fl | ((uint64_t)(uint32_t)fr << 32);
 }
 
 void h_sound_probe(uint64_t *out) {

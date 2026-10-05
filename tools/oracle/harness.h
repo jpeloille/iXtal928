@@ -570,8 +570,9 @@ void h_set_gfxcard(int g);
  * Tout à zéro sans carte svga. Hachages FNV-1a pour les tableaux (VRAM, registres,
  * palettes, buffer32), valeurs brutes pour les scalaires. */
 #define H_VGA_PROBE_N 163
-/* G8.1 — la sonde du son : 9 du haut-parleur, 6 par OPL (×2) ; G8.2 : +20 du DSP et du mélangeur. */
-#define H_SOUND_PROBE_N 41  /* 64 à M15 ; +11 champs svga et +11 de la tvga_t à M19 ; +16 de la GD5429 à G7.1 ; +20 de la Trio64 à G7.3 ; +21 de la M24 à G1.1 ; +20 du PC1512 à G1.2 */
+/* G8.1 — la sonde du son : 9 du haut-parleur, 6 par OPL (×2) ; G8.2 : +20 du DSP et du mélangeur ; G12.0 : +4 (le
+ * type du DSP et son mélangeur, le volume CD de la carte, les voix, l'OPL), pour toutes les SB. */
+#define H_SOUND_PROBE_N 45
 void h_vga_probe(uint64_t *out);
 
 /* M21 — injecte un mouvement de souris (mickeys x, y, z, boutons), pendant de mouse_poll. */
@@ -741,11 +742,13 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 53
+#define H_ABI_VERSION 54
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
 #define H_AHA_PROBE_N 140
+/* 54 (G12.0) : les SB 1.0, 1.5, 2.0 et Pro v1 (h_set_sndcard sb, sb1.5, sb2.0, sbprov1 ; un nom inconnu arrête
+ * h_boot) ; la sonde du son passe de 41 à 45 champs. */
 void h_aha_probe(uint64_t *o);
 void h_cd_sound_probe(uint64_t *out);
 uint32_t h_abi_version(void);

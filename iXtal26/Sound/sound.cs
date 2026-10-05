@@ -181,10 +181,11 @@ internal static partial class sound
         Cdrom.cdrom_image.image_audio_stop();
     }
 
-    // pcem: sound.c:36-37, :44 — G8.1 : le registre SOUND_CARD.
-    // DEVIATION: trois entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
-    //   sc_none, sc_adlib, sc_sbprov2 —, en tableau fixe comme video_cards (video.cs).
-    //   La configuration écrit l'internal_name : aucun indice ne sort de ce fichier.
+    // pcem: sound.c:36-37, :39-40, :42-44 — G8.1 : le registre SOUND_CARD.
+    // DEVIATION: sept entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
+    //   sc_none, sc_adlib, puis (G12.0) les SB 1.0, 1.5, 2.0 et Pro v1, et la Pro v2 de G8 —, en tableau fixe
+    //   comme video_cards (video.cs). La configuration écrit l'internal_name : aucun indice ne sort de ce fichier.
+    //   Omis : adlib_mca, sbmcv et sbpromcv (MCA), adlibgold et les cartes d'après (PLAN.md, G12).
     internal sealed class SOUND_CARD
     {
         internal string name = "";
@@ -194,13 +195,19 @@ internal static partial class sound
 
     internal static readonly SOUND_CARD sc_none = new() { name = "None", internal_name = "none", device = null };
     internal static readonly SOUND_CARD sc_adlib = new() { name = "Adlib", internal_name = "adlib", device = sound_adlib.adlib_device };
+    // pcem: sound.c:39-40, :42-43 — G12.0.
+    internal static readonly SOUND_CARD sc_sb = new() { name = "Sound Blaster 1.0", internal_name = "sb", device = sound_sb.sb_1_device };
+    internal static readonly SOUND_CARD sc_sb1_5 = new() { name = "Sound Blaster 1.5", internal_name = "sb1.5", device = sound_sb.sb_15_device };
+    internal static readonly SOUND_CARD sc_sb2_0 = new() { name = "Sound Blaster 2.0", internal_name = "sb2.0", device = sound_sb.sb_2_device };
+    internal static readonly SOUND_CARD sc_sbprov1 = new() { name = "Sound Blaster Pro v1", internal_name = "sbprov1", device = sound_sb.sb_pro_v1_device };
     // pcem: sound.c:44 — G8.2.
     internal static readonly SOUND_CARD sc_sbprov2 = new() { name = "Sound Blaster Pro v2", internal_name = "sbprov2", device = sound_sb.sb_pro_v2_device };
 
-    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sbprov2 };
+    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sb, sc_sb1_5, sc_sb2_0, sc_sbprov1, sc_sbprov2 };
 
-    // pcem: sound.c:124 — G8.2 : posés par le mélangeur CT1345 ; G10.5 : lus par le fil CD.
-    private static uint cd_vol_l, cd_vol_r;
+    // pcem: sound.c:124 — G8.2 : posés par le mélangeur CT1345 ; G10.5 : lus par le fil CD ; G12.0 : lus aussi par
+    //   la sonde du son (sound_sb.ProbeSb), le volume CD que la carte pose.
+    internal static uint cd_vol_l, cd_vol_r;
 
     // pcem: sound.c:138-141
     internal static void sound_set_cd_volume(uint vol_l, uint vol_r)

@@ -188,6 +188,11 @@ internal static partial class pc
     // doivent obtenir le défaut — c'est-à-dire aucune carte.
     internal static string cfg_hdd_controller = "";
 
+    // pcem: pc.c:76 — `GAMEBLASTER`, lu par sb_2_init (sound_sb.c:955 : sans lui, l'OPL2 de la SB 2.0 se répète en
+    //   2x0-2x1) et par resetpchard (pc.c:386 : le CMS). G12.0 : le CMS (sound_cms.c) n'est pas transcrit
+    //   (PLAN-G12.md, décisions n° 1 et 3) ; la valeur reste 0, quelle que soit la clé `gameblaster`.
+    internal static readonly int GAMEBLASTER = 0;
+
     // pcem: pc.c:655 — la clé `fpu`, internal_name du coprocesseur (« none », « 8087 »,
     // « 287 », « 287xl », « 387 »). G4.1. Défaut « none », celui de PCem.
     // DEVIATION: PCem la résout aussitôt contre la machine et le CPU du fichier (pc.c:656).
@@ -446,6 +451,12 @@ internal static partial class pc
         // pcem: pc.c:666-670 — G8.1 : la carte son, par son internal_name ; inconnue ou vide : 0, aucune.
         if (!setsndcard(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "sndcard", "")))
                 return false;
+        // pcem: pc.c:638 — G12.0 : la clé `gameblaster`. DEVIATION (configuration) : le CMS n'est pas transcrit ;
+        //   à 1, la clé est refusée avec un avertissement, et GAMEBLASTER reste 0 (le miroir de l'OPL2 de la
+        //   SB 2.0 posé, aucun CMS). Chez PCem, le CMS serait monté et le miroir retiré.
+        if (PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "gameblaster", 0) != 0)
+                Console.Error.WriteLine("gameblaster : le Game Blaster (CMS, sound_cms.c) n'est pas transcrit ; clé ignorée, " +
+                                        "aucun CMS.");
 
         // pcem: pc.c:694 — `config_get_int(CFG_MACHINE, NULL, "mem_size", 4096)`.
         // DEVIATION: le défaut de PCem est 4096 Ko, celui d'une machine 486. Ici c'est
@@ -1160,6 +1171,8 @@ internal static partial class pc
         Lpt.lpt.lpt1_device_init();
         // pcem: pc.c:383 — G8.1 : la carte son.
         Sound.sound.sound_card_init();
+        // omitted: gus_device, cms_device (GAMEBLASTER vaut 0), ssi2001_device, voodoo_device (pc.c:384-391) —
+        //   hors du dépôt (PLAN.md).
 
         // pcem: pc.c:392 — hdd_controller_init(hdd_controller_name).
         //

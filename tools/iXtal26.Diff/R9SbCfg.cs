@@ -13,7 +13,10 @@
 //     opl_emu = 1 (NukedOPL, dans la liste mais omis : DBOPL) ; le DSP est ensuite conduit par
 //     ses ports, un DMA 8 bits simple compris ;
 //   - les trois cartes SVGA, clé memory hors liste (PB-93 : les douze cas, dont huit arrêtaient
-//     l'hôte) : → défaut, averti, puis 400 tranches d'amorçage (le BIOS vidéo sonde sa VRAM).
+//     l'hôte) : → défaut, averti, puis 400 tranches d'amorçage (le BIOS vidéo sonde sa VRAM) ;
+//   - G12.0 : les SB 1.0, 1.5, 2.0 et Pro v1 (sb_config, sb2_config, sb_pro_v1_config) : valeurs dans et
+//     hors de leurs listes, le mélangeur de la 2.0 trouvé à son adresse (son index relu) ou absent, et la clé
+//     gameblaster (le CMS n'est pas transcrit : refusée, avertie, le miroir de l'OPL2 en 2x0 posé).
 // Le verdict d'un essai : les valeurs retenues, l'avertissement attendu (ou son absence), et la
 // survie ; sinon l'exception nommée.
 
@@ -51,6 +54,33 @@ internal static class R9SbCfg
                 return null;
             }, () => Sound.sound_sb.sb_pri is { } sb ? $"{sb.dsp.sb_addr:X}h, IRQ {sb.dsp.sb_irqnum}, DMA {sb.dsp.sb_8_dmanum}" : "-");
 
+        // G12.0 — les quatre cartes 8 bits. « mixaddr » : l'adresse où l'index écrit se relit (le CT1335 en
+        //   mixaddr + 4), « - » sans mélangeur à chercher, 0 quand ni 254h ni 264h ne répondent.
+        var g12 = new (string carte, string device, string nom, string section, string attendu, int avertis)[]
+        {
+            ("sb", "Sound Blaster v1.0", "SB 1.0 : 210h, IRQ 3, DMA 3", "addr = 528\nirq = 3\ndma = 3\n", "210h, IRQ 3, DMA 3, mixaddr -", 0),
+            ("sb", "Sound Blaster v1.0", "SB 1.0 : IRQ 10, DMA 2 hors liste", "irq = 10\ndma = 2\n", "220h, IRQ 7, DMA 1, mixaddr -", 2),
+            ("sb1.5", "Sound Blaster v1.5", "SB 1.5 : base 270h hors liste", "addr = 624\n", "220h, IRQ 7, DMA 1, mixaddr -", 1),
+            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : le mélangeur en 260h", "mixaddr = 608\n", "220h, IRQ 7, DMA 1, mixaddr 260h", 0),
+            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : mixaddr 270h hors liste", "mixaddr = 624\n", "220h, IRQ 7, DMA 1, mixaddr 0", 1),
+            ("sbprov1", "Sound Blaster Pro v1", "Pro v1 : IRQ 10, base 260h hors liste", "irq = 10\naddr = 608\n", "220h, IRQ 10, DMA 1, mixaddr -", 1),
+        };
+        foreach (var (carte, device, nom, section, attendu, avertis) in g12)
+            bad += Essai(romsPath, nom, $"gfxcard = tvga9000b\nsndcard = {carte}\n\n[{device}]\n{section}", avertis, n++, () =>
+            {
+                var sb = Sound.sound_sb.sb_pri;
+                if (sb is null)
+                    return "pas de SB après initpc";
+                var d = sb.dsp;
+                var lu = $"{d.sb_addr:X}h, IRQ {d.sb_irqnum}, DMA {d.sb_8_dmanum}, mixaddr {MixAddr(carte)}";
+                Conduire(d);
+                return lu == attendu ? null : $"ATTENDU {attendu}";
+            }, () => Sound.sound_sb.sb_pri is { } sb ? $"{sb.dsp.sb_addr:X}h, IRQ {sb.dsp.sb_irqnum}, DMA {sb.dsp.sb_8_dmanum}, mixaddr {MixAddr(carte)}" : "-");
+        // La clé gameblaster : refusée, avertie ; l'OPL2 de la SB 2.0 se relit en 220h comme en 228h (le miroir).
+        bad += Essai(romsPath, "gameblaster = 1 (CMS non transcrit)", "gfxcard = tvga9000b\nsndcard = sb2.0\ngameblaster = 1\n", 0, n++, () =>
+            io.inb(0x220) == io.inb(0x228) ? null : "ATTENDU le miroir de l'OPL2 en 220h",
+            () => $"OPL2 en 220h {io.inb(0x220):X2}h, en 228h {io.inb(0x228):X2}h", "Game Blaster");
+
         // Les cartes SVGA : memory hors liste → le défaut (1024 Ko, 2 Mo, 2 Mo). La Trio64 lit la
         // clé deux fois (vid_s3.c:2881 et :3008), mais n'est avertie qu'une fois.
         var videos = new (string gfx, string device, string[] valeurs, uint vram, int avertis)[]
@@ -77,7 +107,7 @@ internal static class R9SbCfg
     /// <summary>Un essai : écrit le .cfg, amorce en captant la sortie d'erreur, compte les
     /// avertissements « hors de la liste », puis `verif` (null : conforme). Rend 0 ou 1.</summary>
     private static int Essai(string romsPath, string nom, string corps, int avertis, int n,
-                             Func<string?> verif, Func<string> valeurs)
+                             Func<string?> verif, Func<string> valeurs, string? avertissement = null)
     {
         var cfg = Path.Combine(Path.GetTempPath(), $"r9-sbcfg-{Environment.ProcessId}-{n}.cfg");
         File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\n" + corps);
@@ -99,6 +129,11 @@ internal static class R9SbCfg
                 Console.WriteLine($"    {l.Trim()}");
             if (faute is null && lignes.Count != avertis)
                 faute = $"{lignes.Count} avertissement(s), ATTENDU {avertis}";
+            // G12.0 — un avertissement nommé (la clé gameblaster), hors des « hors de la liste ».
+            if (faute is null && avertissement is not null && !capte.ToString().Contains(avertissement))
+                faute = $"pas d'avertissement « {avertissement} »";
+            else if (avertissement is not null)
+                Console.WriteLine($"    {capte.ToString().Split('\n').First(l => l.Contains(avertissement)).Trim()}");
             Console.WriteLine($"  {nom} : survit — {valeurs()}{(faute is null ? "" : $" ; {faute}")}");
             return faute is null ? 0 : 1;
         }
@@ -113,6 +148,21 @@ internal static class R9SbCfg
             Console.SetError(err);
             File.Delete(cfg);
         }
+    }
+
+    /// <summary>G12.0 — où répond le CT1335 de la SB 2.0 : l'index écrit en mixaddr + 4 s'y relit ; « - » pour
+    /// une autre carte, 0 si ni 254h ni 264h ne le rendent.</summary>
+    private static string MixAddr(string carte)
+    {
+        if (carte != "sb2.0")
+            return "-";
+        foreach (ushort m in new ushort[] { 0x250, 0x260 })
+        {
+            io.outb((ushort)(m + 4), 0x0a);
+            if (io.inb((ushort)(m + 4)) == 0x0a)
+                return $"{m:X}h";
+        }
+        return "0";
     }
 
     /// <summary>Reset du DSP, constante de temps, DMA 8 bits simple (14h) de 256 octets, sortie

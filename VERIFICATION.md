@@ -6868,3 +6868,71 @@ toutes les portes AHA (dont `-temoins`, `-banc`, `r9-aha` et `r9-scsihd`, venues
 et sept témoins hors AHA. 29 portes vertes en 6 minutes. Hors AHA, les journaux sont identiques à ceux de g109
 et g110, aux chemins temporaires près. Les portes AHA changent de compte, et c'est attendu : la recette finale
 a refait le disque de DOS et les CMOS, et `aha-format.keys` gagne EXPAND.
+
+## G12.0 — Les SB 1.0, 1.5, 2.0 et Pro v1 ; PB-145 à PB-148
+
+Le 6 octobre 2026. Plan : `PLAN-G12.md` § G12.0, décisions n° 1 à 3 et 20 à 22 (prises sous le mandat « en totale
+autonomie » du 05/10).
+
+**Transcrit.**
+- `sound_sb.c` : `sb_get_buffer_sb2` et `sb_get_buffer_sb2_mixer` (`:38-85`), le CT1335 (`:333-398`),
+  `sb_1_init`, `sb_15_init`, `sb_2_init` et `sb_pro_v1_init` (`:867-996`, sans la MCV), `sb_config`,
+  `sb2_config` et `sb_pro_v1_config`, leurs quatre devices.
+- L'union des mélangeurs devient des champs distincts (décision n° 2).
+- `sound.c` : quatre entrées du registre, à leur place relative.
+- `GAMEBLASTER` vaut 0 ; la clé `gameblaster` à 1 est refusée avec un avertissement (décision n° 3).
+- Le DSP n'a aucun code neuf : les DSP 1.05, 2.00, 2.01 et 3.00 passent par les gardes de version recopiées
+  dès G8.
+
+**L'oracle.**
+- `h_boot` monte les quatre cartes. Un nom inconnu l'arrête (`fatal()`, retour 0) ; il ne montait rien, sans un
+  mot.
+- `h_sb_probe` trouve n'importe quelle SB, et lit le mélangeur que le type du DSP désigne dans l'union du C.
+- La sonde du son gagne quatre champs : le type du DSP et son mélangeur, le volume CD que la carte a posé, les
+  voix, l'OPL. Elle passe de 41 à 45 champs ; ABI 54.
+
+**Les portes.**
+- `bd-pc-sb1`, `bd-pc-sb15`, `bd-pc-sb20`, `bd-pc-sbpro1` : le 5150 et la carte, 13 122 609 instructions
+  identiques, la sonde identique. Le POST ne touche pas la carte.
+- `bd-ami486-sb20-mix` (le CT1335 en 250h) et `bd-ami486-sbpro1` : 5 433 965 instructions identiques,
+  `--expect-sb 220,7,1` lu des deux côtés.
+- SBBANC, un script par carte, saisi dans DEBUG sur le 5150 (PC-DOS 2.00) :
+
+| Carte | Instructions identiques | Version lue | Ce que le banc relit encore |
+|---|---:|---|---|
+| SB 1.0 | 212 577 528 | 1.05 | l'état de l'OPL2 en 388h et 228h |
+| SB 1.5 | 212 578 426 | 2.00 | idem |
+| SB 2.0 | 223 504 602 | 2.01 | idem, l'OPL2 joué aussi par son miroir en 220h |
+| SB 2.0 et son CT1335 | 235 609 794 | 2.01 | 0Eh, 0Ah, 06h, 04h ; FFh pour l'index 01h et pour 0Ch ; 08h et 06h après le reset |
+| SB Pro v1 | 246 167 261 | 3.00 | FFh, DDh, 02h, 00h, FFh (le CT1345, l'index 01h compris) ; EEh après le reset ; les deux OPL2 |
+
+  Chaque banc passe aussi 1Ch et 7Dh (1.5 et plus), 91h (2.0 et plus), 7Dh après 48h 7Fh 01h (PB-146), et D1h
+  après le lancement d'un DMA (la pause de la SB 1.0, PB-147). La sonde du son est identique, son empreinte
+  sortie de la graine.
+- `r9-sbcfg` gagne sept essais : six pour les trois configurations neuves, dans et hors de leurs listes, où le
+  mélangeur de la 2.0 se relit à 260h ou disparaît ; un pour la clé `gameblaster`, avertie, l'OPL2 relu en 220h
+  comme en 228h.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| le reset du CT1335 sans `sound_set_cd_volume` | `bd-pc-sb20` | trace verte (13 122 609 instructions), sonde rouge : `cd_vol_l\|r`, oracle 20 et 20, C# 65 535 et 65 535 |
+| l'index du CT1335 rangé `^ 1` dans `regs[01h]`, que l'invité ne relit pas | `bd-ami486-sb20-mix` | trace verte, sonde rouge (`#mixer.regs`) |
+| la garde de 91h à `< SB15` au lieu de `< SB2` | `bd-pc-sb15-banc` | rouge à l'instruction 209 316 735 |
+
+**La série.** g112 : 220 portes vertes en 58 minutes, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro.
+Elle compte quinze portes de plus que g110 : les quatre de G11.2, passées en g111, et les onze de G12.0. Le reste
+se lit verdict par verdict contre g110 :
+- les dix traces que le quota de /tmp tronquait sont vertes ;
+- les six portes de l'AHA que g111 avait recomptées gardent ses comptes ;
+- la porte `abi` lit 54 ;
+- la sonde du son compte 45 champs au lieu de 41, et ses empreintes n'ont pas bougé.
+
+**L'état commité est celui que g112 a validé.** G12.1 et G12.2 avaient été entamés dans le même arbre avant le
+commit de G12.0. L'état de G12.0 a donc été reconstitué dans un worktree tiré de G11, en rejouant les éditions de
+G12.0 depuis le journal de la session. Trois vérifications le confirment :
+- ses 178 sources C# ont les empreintes SHA-256 que les PDB de la construction figée de g112 enregistrent ;
+- l'oracle qui en est construit, les chemins ramenés à ceux du dépôt (`-ffile-prefix-map`), est identique octet
+  pour octet à celui de g112 ;
+- `tools/gates` est identique à la copie figée de la série.

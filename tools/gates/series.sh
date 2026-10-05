@@ -185,6 +185,24 @@ run bd-pc-sbpro-banc boot-diff roms 11000 --sndcard sbprov2 --fda $DOS --fdb os/
 # hors liste → défaut averti (PB-93 : SB et les trois cartes SVGA), opl_emu = 1.
 run bd-ami486-sbpro-irq5 boot-diff roms 3000 --config $C/ami486-sbpro-irq5.cfg --expect-sb 220,5,1
 run r9-sbcfg r9-sbcfg
+# G12.0 — les SB 1.0, 1.5, 2.0 et Pro v1 (sound_sb.c : sb_1_init à sb_pro_v1_init, le CT1335) : le 5150 et la carte,
+# l'ami486 avec la 2.0 et son mélangeur en 250h, et la Pro v1, sous --expect-sb ; le banc SBBANC par carte
+# (sbbanc.py --carte : les commandes que garde la version du DSP, les paramètres périmés de 7Dh, D1h après le
+# lancement d'un DMA, le mélangeur de la carte, l'OPL2 et son miroir, les deux OPL2 de la Pro v1), sonde du son.
+run bd-pc-sb1 boot-diff roms 3000 --sndcard sb
+run bd-pc-sb15 boot-diff roms 3000 --sndcard sb1.5
+run bd-pc-sb20 boot-diff roms 3000 --sndcard sb2.0
+run bd-pc-sbpro1 boot-diff roms 3000 --sndcard sbprov1
+run bd-ami486-sb20-mix boot-diff roms 3000 --config $C/ami486-sb20-mix.cfg --expect-sb 220,7,1
+run bd-ami486-sbpro1 boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sbprov1 --expect-sb 220,7,1
+for SBC in sb1:sb sb15:sb1.5 sb20:sb2.0 sbpro1:sbprov1; do
+  mapfile -t SBK < tools/sbbanc/sbbanc-${SBC%%:*}.keys
+  SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
+  run bd-pc-${SBC%%:*}-banc boot-diff roms 11000 --sndcard ${SBC#*:} --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${SBB[@]}" --type "^" --type "^"
+done
+mapfile -t SBK < tools/sbbanc/sbbanc-sb20mix.keys
+SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
+run bd-pc-sb20mix-banc boot-diff roms 11000 --config $C/pc-sb20-mix.cfg --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${SBB[@]}" --type "^" --type "^"
 # PS2.0, PS2.1 — la souris PS/2 (mouse_ps2.c) par le 8042. Aucune machine du dépôt n'a MODEL_PS2
 # (leurs BIOS AMI ne rendent pas INT 15h C2h ; décision utilisateur du 03/10, VERIFICATION.md
 # § PS2.1) : la souris PS/2 et l'Intellimouse demandées sont refusées, la série à leur place —

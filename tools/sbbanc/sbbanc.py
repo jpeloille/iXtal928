@@ -14,9 +14,18 @@
 # physique du tampon (CS × 16 + déplacement). Instructions 8086 seules ; saisi dans DEBUG
 # (disquette supplémentaire de PC-DOS 2.00 en B:), écrit sur B:, lancé sous boot-diff.
 #
+# G12.0 — le même interprète, un script par carte (`--carte`) : la SB 1.0 (sb1), la 1.5 (sb15), la 2.0 sans
+# mélangeur (sb20) et avec son CT1335 en 250h (sb20mix), la Pro v1 (sbpro1). Ces scripts passent les commandes que
+# garde la version du DSP (1Ch, 7Dh : 1.5 et plus ; 91h : 2.0 et plus), les paramètres périmés de 7Dh (PB-146),
+# D1h après le lancement d'un DMA (la pause de la SB 1.0, PB-147), le mélangeur de la carte (CT1335 : l'index
+# 01h et un registre inconnu se relisent FFh ; CT1345), et l'OPL de la carte : l'OPL2 en 2x8h et 388h, son miroir
+# en 2x0h sur la 2.0, les deux OPL2 gauche et droite de la Pro v1. Le script de la Pro v2 (le défaut) est celui
+# de G8, inchangé.
+#
 # Usage :
-#   python3 tools/sbbanc/sbbanc.py           écrit sbbanc.keys, affiche le listing
-#   python3 tools/sbbanc/sbbanc.py --com F   écrit aussi le .COM
+#   python3 tools/sbbanc/sbbanc.py                 écrit sbbanc.keys (la Pro v2), affiche le listing
+#   python3 tools/sbbanc/sbbanc.py --carte C       écrit sbbanc-C.keys (sb1, sb15, sb20, sb20mix, sbpro1)
+#   python3 tools/sbbanc/sbbanc.py ... --com F     écrit aussi le .COM
 
 import os
 import struct
@@ -240,39 +249,104 @@ def REGR(port, idx): return [9] + w(port) + [idx]
 
 
 BUF = 4096
-S = []
-# -- le tampon : une dent de scie, puis des octets ADPCM
-S += FILL(0, 2048, 0x80, 0x07) + FILL(2048, 1024, 0x40, 0x0D) + FILL(3072, 1024, 0x5A, 0x31)
-# -- reset du DSP (226h : 1 puis 0), l'octet AAh attendu ; version (E1h) : 3.02
-S += OUTB(0x226, 1) + WAIT(1) + OUTB(0x226, 0) + DSPR + DSPW(0xE1) + DSPR + DSPR
-S += DSPW(0xD1)                                      # haut-parleur
-# -- sortie directe (10h), 64 échantillons
-for k in range(64):
-    S += DSPW(0x10, (k * 9) & 0xFF)
-# -- constante de temps (40h) : A5h ≈ 11 kHz ; DMA simple 8 bits (14h), 2 048 octets
-S += DSPW(0x40, 0xA5) + DMA(0x49, 0, 2048) + DSPW(0x14, 0xFF, 0x07) + WAIT(3) + INB(0x22E)
-# -- DMA automatique : taille de bloc (48h), 14h en boucle (1Ch), pause (D0h), reprise (D4h),
-#    sortie de l'automatique (DAh)
-S += DMA(0x59, 0, 2048) + DSPW(0x48, 0xFF, 0x03) + DSPW(0x1C) + WAIT(2) + INB(0x22E)
-S += DSPW(0xD0) + WAIT(1) + DSPW(0xD4) + WAIT(2) + INB(0x22E) + DSPW(0xDA) + WAIT(2) + INB(0x22E)
-# -- le mélangeur CT1345 : stéréo (0Eh bit 1), volumes, relus
-S += REGW(0x224, 0x22, 0xFF) + REGW(0x224, 0x04, 0xDD) + REGW(0x224, 0x26, 0x99) + REGW(0x224, 0x0E, 0x02)
-S += REGR(0x224, 0x22) + REGR(0x224, 0x04) + REGR(0x224, 0x0E) + REGR(0x224, 0x0C)
-S += DSPW(0x40, 0xD3) + DMA(0x49, 2048, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
-S += REGW(0x224, 0x0E, 0x20)                         # mono, filtre de sortie coupé
-S += DSPW(0x40, 0xA5) + DMA(0x49, 0, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
-S += REGW(0x224, 0x00, 0x00) + REGR(0x224, 0x22)     # reset du mélangeur
-# -- ADPCM 4 bits avec octet de référence (75h), 1 024 octets
-S += DMA(0x49, 3072, 1024) + DSPW(0x75, 0xFF, 0x03) + WAIT(3) + INB(0x22E)
-# -- l'OPL3 de la carte : mode OPL3 (105h = 1, banque haute par 222h/223h), une note sur chaque banque
-S += REGW(0x222, 0x05, 0x01) + REGW(0x220, 0x01, 0x20)
-for port in (0x220, 0x222):
-    S += REGW(port, 0x20, 0x21) + REGW(port, 0x23, 0x01) + REGW(port, 0x40, 0x10) + REGW(port, 0x43, 0x00)
-    S += REGW(port, 0x60, 0xF2) + REGW(port, 0x63, 0xF4) + REGW(port, 0x80, 0x54) + REGW(port, 0x83, 0x56)
-    S += REGW(port, 0xC0, 0x36) + REGW(port, 0xA0, 0x98) + REGW(port, 0xB0, 0x31)
-S += WAIT(3) + REGW(0x220, 0xB0, 0x11) + REGW(0x222, 0xB0, 0x11) + INB(0x388) + INB(0x220)
-S += DSPW(0xD3) + DSPW(0xD8) + DSPR                  # haut-parleur coupé, son état
-S += [0]
+
+
+def script_sbpro2():
+    """Le script de G8.2, la SB Pro v2 : inchangé."""
+    S = []
+    # -- le tampon : une dent de scie, puis des octets ADPCM
+    S += FILL(0, 2048, 0x80, 0x07) + FILL(2048, 1024, 0x40, 0x0D) + FILL(3072, 1024, 0x5A, 0x31)
+    # -- reset du DSP (226h : 1 puis 0), l'octet AAh attendu ; version (E1h) : 3.02
+    S += OUTB(0x226, 1) + WAIT(1) + OUTB(0x226, 0) + DSPR + DSPW(0xE1) + DSPR + DSPR
+    S += DSPW(0xD1)                                      # haut-parleur
+    # -- sortie directe (10h), 64 échantillons
+    for k in range(64):
+        S += DSPW(0x10, (k * 9) & 0xFF)
+    # -- constante de temps (40h) : A5h ≈ 11 kHz ; DMA simple 8 bits (14h), 2 048 octets
+    S += DSPW(0x40, 0xA5) + DMA(0x49, 0, 2048) + DSPW(0x14, 0xFF, 0x07) + WAIT(3) + INB(0x22E)
+    # -- DMA automatique : taille de bloc (48h), 14h en boucle (1Ch), pause (D0h), reprise (D4h),
+    #    sortie de l'automatique (DAh)
+    S += DMA(0x59, 0, 2048) + DSPW(0x48, 0xFF, 0x03) + DSPW(0x1C) + WAIT(2) + INB(0x22E)
+    S += DSPW(0xD0) + WAIT(1) + DSPW(0xD4) + WAIT(2) + INB(0x22E) + DSPW(0xDA) + WAIT(2) + INB(0x22E)
+    # -- le mélangeur CT1345 : stéréo (0Eh bit 1), volumes, relus
+    S += REGW(0x224, 0x22, 0xFF) + REGW(0x224, 0x04, 0xDD) + REGW(0x224, 0x26, 0x99) + REGW(0x224, 0x0E, 0x02)
+    S += REGR(0x224, 0x22) + REGR(0x224, 0x04) + REGR(0x224, 0x0E) + REGR(0x224, 0x0C)
+    S += DSPW(0x40, 0xD3) + DMA(0x49, 2048, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
+    S += REGW(0x224, 0x0E, 0x20)                         # mono, filtre de sortie coupé
+    S += DSPW(0x40, 0xA5) + DMA(0x49, 0, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
+    S += REGW(0x224, 0x00, 0x00) + REGR(0x224, 0x22)     # reset du mélangeur
+    # -- ADPCM 4 bits avec octet de référence (75h), 1 024 octets
+    S += DMA(0x49, 3072, 1024) + DSPW(0x75, 0xFF, 0x03) + WAIT(3) + INB(0x22E)
+    # -- l'OPL3 de la carte : mode OPL3 (105h = 1, banque haute par 222h/223h), une note sur chaque banque
+    S += REGW(0x222, 0x05, 0x01) + REGW(0x220, 0x01, 0x20)
+    for port in (0x220, 0x222):
+        S += REGW(port, 0x20, 0x21) + REGW(port, 0x23, 0x01) + REGW(port, 0x40, 0x10) + REGW(port, 0x43, 0x00)
+        S += REGW(port, 0x60, 0xF2) + REGW(port, 0x63, 0xF4) + REGW(port, 0x80, 0x54) + REGW(port, 0x83, 0x56)
+        S += REGW(port, 0xC0, 0x36) + REGW(port, 0xA0, 0x98) + REGW(port, 0xB0, 0x31)
+    S += WAIT(3) + REGW(0x220, 0xB0, 0x11) + REGW(0x222, 0xB0, 0x11) + INB(0x388) + INB(0x220)
+    S += DSPW(0xD3) + DSPW(0xD8) + DSPR                  # haut-parleur coupé, son état
+    S += [0]
+    return S
+
+def script_g12(carte):
+    """G12.0 — les SB 1.0, 1.5, 2.0 (sans et avec mélangeur) et Pro v1."""
+    pro = carte == 'sbpro1'
+    S = []
+    S += FILL(0, 2048, 0x80, 0x07) + FILL(2048, 1024, 0x40, 0x0D) + FILL(3072, 1024, 0x5A, 0x31)
+    # -- reset, AAh ; version (E1h) : 1.05, 2.00, 2.01 ou 3.00
+    S += OUTB(0x226, 1) + WAIT(1) + OUTB(0x226, 0) + DSPR + DSPW(0xE1) + DSPR + DSPR
+    S += DSPW(0xD1)
+    for k in range(64):
+        S += DSPW(0x10, (k * 11) & 0xFF)
+    # -- DMA simple (14h), 2 048 octets
+    S += DSPW(0x40, 0xA5) + DMA(0x49, 0, 2048) + DSPW(0x14, 0xFF, 0x07) + WAIT(3) + INB(0x22E)
+    # -- D1h APRÈS le lancement : la SB 1.0 met le DMA en pause (PB-147) ; D4h reprend
+    S += DMA(0x49, 0, 2048) + DSPW(0x14, 0xFF, 0x07) + DSPW(0xD1) + WAIT(1) + INB(0x22E) + DSPW(0xD4) + WAIT(3)
+    S += INB(0x22E)
+    # -- l'automatique : 48h, 1Ch (1.5 et plus), D0h, D4h, DAh
+    S += DMA(0x59, 0, 2048) + DSPW(0x48, 0xFF, 0x03) + DSPW(0x1C) + WAIT(2) + INB(0x22E)
+    S += DSPW(0xD0) + WAIT(1) + DSPW(0xD4) + WAIT(2) + INB(0x22E) + DSPW(0xDA) + WAIT(2) + INB(0x22E)
+    # -- la grande vitesse : 48h puis 91h (2.0 et plus)
+    S += DSPW(0x40, 0xE9) + DMA(0x49, 0, 1024) + DSPW(0x48, 0xFF, 0x03) + DSPW(0x91) + WAIT(2) + INB(0x22E)
+    # -- PB-146 : 7Dh (ADPCM 4 bits automatique, 1.5 et plus) prend les octets de la commande précédente, 48h 7Fh 01h
+    S += DSPW(0x40, 0xA5) + DMA(0x59, 3072, 1024) + DSPW(0x48, 0x7F, 0x01) + DSPW(0x7D) + WAIT(2) + INB(0x22E)
+    S += DSPW(0xDA) + WAIT(2) + INB(0x22E)
+    # -- ADPCM 4 bits avec référence (75h)
+    S += DMA(0x49, 3072, 1024) + DSPW(0x75, 0xFF, 0x03) + WAIT(3) + INB(0x22E)
+    # -- le mélangeur
+    if pro:
+        S += REGW(0x224, 0x22, 0xFF) + REGW(0x224, 0x04, 0xDD) + REGW(0x224, 0x26, 0x99) + REGW(0x224, 0x0E, 0x02)
+        S += REGR(0x224, 0x22) + REGR(0x224, 0x04) + REGR(0x224, 0x0E) + REGR(0x224, 0x0C) + REGR(0x224, 0x01)
+        S += DSPW(0x40, 0xD3) + DMA(0x49, 2048, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
+        S += REGW(0x224, 0x0E, 0x20) + REGW(0x224, 0x00, 0x00) + REGR(0x224, 0x22)
+    elif carte == 'sb20mix':
+        S += REGW(0x254, 0x02, 0x0E) + REGW(0x254, 0x06, 0x0A) + REGW(0x254, 0x08, 0x06) + REGW(0x254, 0x0A, 0x04)
+        S += REGR(0x254, 0x02) + REGR(0x254, 0x06) + REGR(0x254, 0x08) + REGR(0x254, 0x0A) + REGR(0x254, 0x01)
+        S += REGR(0x254, 0x0C)
+        S += DSPW(0x40, 0xD3) + DMA(0x49, 2048, 1024) + DSPW(0x14, 0xFF, 0x03) + WAIT(2) + INB(0x22E)
+        S += REGW(0x254, 0x00, 0x00) + REGR(0x254, 0x02) + REGR(0x254, 0x0A)
+    # -- l'OPL : une note par puce
+    ports = (0x220, 0x222, 0x228) if pro else (0x228, 0x220) if carte.startswith('sb20') else (0x228,)
+    for port in ports:
+        S += REGW(port, 0x20, 0x21) + REGW(port, 0x23, 0x01) + REGW(port, 0x40, 0x10) + REGW(port, 0x43, 0x00)
+        S += REGW(port, 0x60, 0xF2) + REGW(port, 0x63, 0xF4) + REGW(port, 0x80, 0x54) + REGW(port, 0x83, 0x56)
+        S += REGW(port, 0xC0, 0x36) + REGW(port, 0xA0, 0x98 - (port & 0xF)) + REGW(port, 0xB0, 0x31)
+    S += WAIT(3)
+    for port in ports:
+        S += REGW(port, 0xB0, 0x11)
+    # -- les minuteries de l'OPL par 388h, la détection des jeux : l'état relu
+    S += REGW(0x388, 0x04, 0x60) + REGW(0x388, 0x04, 0x80) + INB(0x388) + REGW(0x388, 0x02, 0xFF)
+    S += REGW(0x388, 0x04, 0x21) + WAIT(1) + INB(0x388) + REGW(0x388, 0x04, 0x60) + REGW(0x388, 0x04, 0x80)
+    S += INB(0x388) + INB(0x228)
+    S += DSPW(0xD3) + DSPW(0xD8) + DSPR
+    S += [0]
+    return S
+
+
+CARTES = ('sb1', 'sb15', 'sb20', 'sb20mix', 'sbpro1')
+CARTE = sys.argv[sys.argv.index('--carte') + 1] if '--carte' in sys.argv else 'sbpro2'
+assert CARTE in CARTES + ('sbpro2',), CARTE
+S = script_sbpro2() if CARTE == 'sbpro2' else script_g12(CARTE)
 
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))
 ins('crlf', "db 13,10,'$'", 3, lambda L, a: [13, 10, 0x24])
@@ -311,7 +385,8 @@ if __name__ == '__main__':
     print('\n'.join(listing))
     print(f'\n{len(code)} octets, script {len(S)} octets')
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, 'sbbanc.keys'), 'w') as f:
+    nom = 'sbbanc.keys' if CARTE == 'sbpro2' else f'sbbanc-{CARTE}.keys'
+    with open(os.path.join(here, nom), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
         with open(sys.argv[sys.argv.index('--com') + 1], 'wb') as f:
