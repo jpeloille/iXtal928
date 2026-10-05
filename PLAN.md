@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 5 octobre 2026, G10 fait ; G11 attend un feu vert
+## Où on en est — 5 octobre 2026, G11 fait ; G12 en cours
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ── G10 ✅ ──▶ [ICI] G11 ── G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ── G11 ✅ ──▶ [ICI] G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -95,7 +95,15 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   (PB-125 à PB-127).
   Sans la clôture de « Ce qu'un bloc livre » (profils, témoins, couverture comptée) : elle revient au
   bloc GR (GR.2, GR.3), avec ce que chaque étape a laissé (`PLAN-G10.md`, « Les risques »).
-- **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
+- **G11, fait le 5 octobre 2026** : `PLAN-G11.md`, feu vert du 05/10 (« en totale autonomie »).
+  L'Adaptec AHA-1542C et ses disques SCSI, sous l'oracle et sous une sonde de 140 champs : le POST
+  de sa ROM, FDISK et FORMAT, DOS 5 amorcé sur l'ami486, l'ami386dx et l'ami286 ; le banc AHABANC
+  (un programme qui parle à la carte comme un pilote ASPI) ; r9-aha et r9-scsihd. La règle ISA
+  16 bits est écrite : une carte DEVICE_AT n'est pas montée sur un 8088 ou un 8086. Livré avec sa
+  clôture : le profil `ixtal26-486-scsi.cfg`, `--setup-check`, les témoins (VER, MEM, CHKDSK, MSD).
+  PB-128 à PB-144.
+- **G12 à G17** attendent chacun un feu vert (G12 l'a reçu le 05/10, avec G11) ; **GR**, la reprise
+  de G9 et G10, vient après G13.
 
 ## Les générations
 
@@ -290,15 +298,15 @@ ZIP 100 sur l'IDE, `zip_channel` et `zip_path` (DEVIATION), prouvé par ZIPBANC 
   utilisateur du 03/10). Présents dans `cpus_i486`, ils restent sautés par `cpu-config-check` et
   refusés bruyamment si on les choisit.
 
-### G11 — SCSI  *(décision utilisateur du 03/10 ; attend un feu vert)*
+### G11 — SCSI  ✅ *(`PLAN-G11.md`, fait le 5 octobre 2026)*
 
 Une seule carte, l'**Adaptec AHA-1542C** : `scsi_aha1540.c` (2 299), ROM
 `adaptec_aha1542c_bios_534201-00.bin`, avec `scsi_hd.c` (788, les disques SCSI). Le CD-ROM et le
 ZIP en SCSI réutilisent `scsi_cd.c` et `scsi_zip.c` de G10. **Exclus** : BusLogic, IBM SCSI,
 Longshine, Rancho, Trantor (53C400), l'ESDI et le XTIDE autre que XT.
-La carte est ISA 16 bits : elle doit être refusée avec avertissement sur les machines 8088/8086.
-Cette règle n'existe encore nulle part dans le code (G8.3 n'a rien refusé) : elle s'écrit avec la
-première carte ISA 16 bits, en G11 ou en G12.
+La carte est ISA 16 bits : elle est refusée avec avertissement sur les machines 8088/8086. La règle
+est écrite en G11 (`pc.check_hdd_controller`, décision n° 3 de `PLAN-G11.md`), pour toutes les cartes
+de disque DEVICE_AT ; G12 l'étend aux cartes son.
 
 ### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
@@ -312,25 +320,25 @@ partie transcrits en G8).
 - **Exclues** : SB MCV et SB Pro MCV (`DEVICE_MCA` — aucune machine MCA dans iXtal) ; l'AdLib
   Gold reste exclue.
 - La SB 16 et l'AWE32 sont des cartes ISA 16 bits : elles doivent être refusées avec
-  avertissement sur les machines 8088/8086, par la règle à écrire avec la première carte ISA
-  16 bits (voir G11).
+  avertissement sur les machines 8088/8086, par la règle écrite en G11.
 
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
-après G10.0 :
+après G10.0, mis à jour le 05/10 après G11 :
 
-1. **Section A, les 64 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+1. **Section A, les 78 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
    78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
    100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 —
    PS2.0), ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
    matériel — G10.1), images CD (106, 107, 108, 109 — G10.3 ; 122 — G10.4 ; 123 — G10.5), lecteur
-   de CD (117 à 120 — G10.4), lecteur ZIP (126 — G10.6).
+   de CD (117 à 120 — G10.4), lecteur ZIP (126 — G10.6), SCSI (129 à 133, 136 à 144 — G11).
 2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
-3. **Section C, 22 entrées sans effet observable** : nettoyage seulement, sans changement de
-   comportement.
+3. **Section C, 23 entrées sans effet observable** : nettoyage seulement, sans changement de
+   comportement (dont 134, G11).
 
-Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 124, 125) sont déjà réglés.
+Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 124, 125, 128, 135) sont déjà
+réglés.
 
 **Principe, à confirmer au plan de G13** : chaque correction se fait derrière une option « mode
 matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` devient `pcem bug, fixed

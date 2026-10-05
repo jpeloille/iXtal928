@@ -360,7 +360,12 @@ internal static partial class pc
                 n++;
 
         if (cpus is not null && cpu_c.cpu >= 0 && cpu_c.cpu < n)
+        {
+                // G11.0 — la machine finale juge aussi la carte de disque : mêmes points d'appel, avant
+                //   toute poussée vers l'oracle.
+                check_hdd_controller();
                 return true;
+        }
 
         Console.Error.WriteLine(cpus is null
             ? $"cpu_manufacturer = {manu} : « {mdl.internal_name} » n'a pas de processeur de ce fabricant. Connu : 0."
@@ -569,10 +574,9 @@ internal static partial class pc
         // d'où ces deux-là et pas plus.
         //
         // G5.1 — et E:, F: (pc.c:735-748) : les deux lecteurs du canal IDE secondaire.
-        // omitted: hdg_*, hdh_*, hdi_* (pc.c:749-774) — les trois derniers, qui
-        //   n'appartiennent qu'aux contrôleurs SCSI, hors périmètre. PCem déroule le bloc
-        //   sept fois plutôt que de boucler ; on en garde quatre.
-        for (int d = 0; d < 4; d++)
+        // G11.0 — et G:, H:, I: (pc.c:749-774) : les ID SCSI 4 à 6 de l'AHA-1542C. PCem déroule le bloc
+        //   sept fois plutôt que de boucler.
+        for (int d = 0; d < 7; d++)
         {
                 string pfx = "hd" + (char)('c' + d);
                 Disc.hdd_c.hdc[d].spt = PluginApi.config.config_get_int(
@@ -1011,6 +1015,66 @@ internal static partial class pc
         }
     }
 
+    /// <summary>
+    /// G11.0 — la carte de disque dur contre la machine FINALE (décisions n° 2 à 4 et n° 11 de PLAN-G11.md).
+    ///
+    /// DEVIATION (configuration) : PCem ne filtre que dans son écran (wx-config.c:237-247). Une carte DEVICE_AT —
+    ///   l'ISA 16 bits — sur une machine sans MODEL_AT (8088, 8086) exécuterait sa ROM au POST, des instructions
+    ///   286 comprises, et son IRQ haute n'existerait pas ; une carte sans sa ROM fait lire au POST une fenêtre
+    ///   sans tableau (scsi_aha1540.c:2083 : SIGSEGV chez PCem). Ici : un avertissement, et aucune carte.
+    ///   Sous l'AHA-1542C, ni CD ni ZIP sur le bus SCSI (décision n° 2) : -1, averti.
+    /// </summary>
+    internal static void check_hdd_controller()
+    {
+        if (Host.HardDiskControllers.Find(cfg_hdd_controller) is { } k)
+        {
+            if (k.RequiresAtMachine && !Host.HardDiskControllers.CurrentMachineIsAt)
+            {
+                Diag.R9.Garde("wx-config.c:237");
+                Console.Error.WriteLine($"hdd_controller = {cfg_hdd_controller} : carte ISA 16 bits, refusée sur " +
+                                        $"« {Models.model_c.model_get_internal_name()} » (8088/8086) ; aucune carte de disque dur.");
+                cfg_hdd_controller = "";
+            }
+            else if (PluginApi.paths.num_roms_paths > 0 && !Host.HardDiskControllers.RomPresent(k))
+            {
+                Diag.R9.Garde("scsi_aha1540.c:2083");
+                Console.Error.WriteLine($"hdd_controller = {cfg_hdd_controller} : ROM « {k.Rom} » absente ; aucune carte " +
+                                        "de disque dur.");
+                cfg_hdd_controller = "";
+            }
+        }
+        if (cfg_hdd_controller == "aha1542c")
+        {
+            if (Ide.ide.cdrom_channel != -1)
+                Console.Error.WriteLine($"cdrom_channel = {Ide.ide.cdrom_channel} : pas de CD-ROM sur le bus SCSI de " +
+                                        "l'AHA-1542C ; aucun lecteur de CD-ROM.");
+            if (Ide.ide.zip_channel != -1)
+                Console.Error.WriteLine($"zip_channel = {Ide.ide.zip_channel} : pas de ZIP sur le bus SCSI de " +
+                                        "l'AHA-1542C ; aucun lecteur ZIP.");
+            Ide.ide.cdrom_channel = Ide.ide.zip_channel = -1;
+        }
+        else
+        {
+            for (int d = 4; d < 7; d++)
+            {
+                if (Disc.hdd_c.ide_fn[d].Length != 0)
+                    Console.Error.WriteLine($"hd{(char)('c' + d)}_fn = « {Disc.hdd_c.ide_fn[d]} » : l'ID SCSI {d}, sans " +
+                                            "carte SCSI ; image ignorée.");
+            }
+        }
+        if (cfg_hdd_controller == "aha1542c")
+        {
+            for (int d = 0; d < 7; d++)
+            {
+                var h = Disc.hdd_c.hdc[d];
+                if (Disc.hdd_c.ide_fn[d].Length != 0 && (long)h.spt * h.hpc * h.tracks is <= 0 or > int.MaxValue)
+                    Console.Error.WriteLine($"hd{(char)('c' + d)}_fn = « {Disc.hdd_c.ide_fn[d]} » : géométrie {h.tracks}×" +
+                                            $"{h.hpc}×{h.spt}, une capacité nulle ou hors des 2^31 secteurs ; le disque " +
+                                            "SCSI sera vu vide ou faux (PCem ne dit rien).");
+            }
+        }
+    }
+
     // G10.4 — deux configurations que PCem accepte sans rien dire : un cdrom_channel sans contrôleur IDE (resetide
     //   ne fait rien, ide.c:278), et le CD sur le canal d'un disque configuré (le CD gagne, ide.c:282-290).
     // G10.6 — avertissements sans effet, comme pour le CD : PCem ne dit rien.
@@ -1130,6 +1194,9 @@ internal static partial class pc
         // G10.2 — le XTIDE, version XT (hdd.c:156) : l'IDE de G5 derrière une carte 8 bits.
         else if (cfg_hdd_controller == "xtide")
                 PluginApi.device.device_add(Ide.xtide.xtide_device);
+        // G11.0 — l'Adaptec AHA-1542C (hdd.c:159) et son bus SCSI ; check_hdd_controller l'a jugée.
+        else if (cfg_hdd_controller == "aha1542c")
+                PluginApi.device.device_add(Scsi.scsi_aha1540.scsi_aha1542c_device);
 
         pc_reset();
 
@@ -1221,6 +1288,9 @@ internal static partial class pc
         PluginApi.device.device_close_all();
         // pcem: pc.c:591 — G10.6.
         Scsi.scsi_zip_c.zip_eject();
+        // G11.0 — DEVIATION (hôte, décision n° 7 de PLAN-G11.md) : l'exit() de PCem vide les FILE* restés ouverts
+        //   (scsi_bus_close ne ferme rien, PB-121) ; h_closepc fait fflush(NULL). Ici, le registre de hdd_file.
+        Disc.hdd_file.fflush_tous();
     }
 
     // pcem: pc.c — remise à zéro du CPU et des périphériques sensibles au reset.

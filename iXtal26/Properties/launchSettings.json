@@ -44,6 +44,10 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486-s3.cfg"
     },
+    "iXtal26 (486DX2/66, SCSI AHA-1542C, Cirrus GD5429, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-scsi.cfg"
+    },
     "iXtal26 (Olivetti M24, 8086, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-m24.cfg"

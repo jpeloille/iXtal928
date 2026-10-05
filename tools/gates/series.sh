@@ -323,3 +323,37 @@ runw bd-ami486-zip-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-zip
 run r9-zip r9-zip
 run r9-atapi r9-atapi
 run r9-cdcfg r9-cdcfg
+# G11 — l'Adaptec AHA-1542C (scsi_aha1540.c) et ses disques (scsi_hd.c), sous la sonde de la carte (--expect-aha :
+# les trois machines d'états, les mailbox, le CCB, l'EEPROM, la RAM d'ombre, le bus, chaque disque ; et aucun
+# fatal() de l'oracle). bd-ami486-aha-post : le POST de la ROM v1.01, un disque vierge à l'ID 0. -format : FDISK,
+# FORMAT C:/S, DEBUG.EXE décompressé par EXPAND (la disquette 3 en B:), DIR, MD depuis la disquette DOS 5
+# (aha-format.keys, le script dont la recette g5w tire scsic.img) ;
+# l'image C: comparée, la dernière écriture prouvant le vidage de closepc (décision n° 7). -boot : DOS 5 amorcé
+# depuis le disque SCSI par l'INT 13h de la ROM, sur les trois machines AT ; -c8 : la carte en 330h, sa ROM en
+# C8000h (la section du device). bd-ibmxt-aha-refus : la règle ISA 16 bits, la carte refusée des deux côtés.
+runw bd-ami486-aha-post aha486.nvr ami486 boot-diff roms 6000 --config ami486-aha-vierge.cfg --expect-aha
+mapfile -t AFK < tools/gates/aha-format.keys
+AFB=(); for l in "${AFK[@]}"; do AFB+=(--type "$l"); done
+runw bd-ami486-aha-format aha486.nvr ami486 boot-diff roms 2500 --config ami486-aha-vierge.cfg --fda "$WORK/dos5-1.img" --fdb "$WORK/dos5-3.img" --type-at 2500 --type-settle 20 "${AFB[@]}" --expect-aha
+AHB=(--type-at 3000 --type-settle 300 --type "" --type "" --type "VER" --type "DIR C:" --type "MD C:\G11" --type "DIR C:" --expect-aha)
+runw bd-ami486-aha-boot aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha.cfg "${AHB[@]}"
+runw bd-ami386dx-aha-boot aha386.nvr ami386dx_opti495 boot-diff roms 3000 --config ami386dx-aha.cfg "${AHB[@]}"
+runw bd-ami286-aha-boot aha286.nvr ami286 boot-diff roms 3000 --config ami286-aha.cfg "${AHB[@]}"
+runw bd-ami486-aha-c8 aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha-c8.cfg "${AHB[@]}"
+run bd-ibmxt-aha-refus boot-diff roms 3000 --model ibmxt --hdd-controller aha1542c
+# G11.3 — les témoins, sous l'oracle : DOS 5 amorcé du disque SCSI, VER, MEM, CHKDSK C:, et MSD /S (la disquette 3
+# de Windows 3.11 en B:), qui voit le disque C:.
+runw bd-ami486-aha-temoins aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha.cfg --fdb "$WORK/win3-3.img" --type-at 3000 --type-settle 600 --type "" --type "" --type "VER" --type "MEM" --type "CHKDSK C:" --type "@wait 1500" --type "B:MSD /S" --type "@wait 3000" --expect-aha
+# G11.2 — AHABANC (tools/ahabanc, ahabanc.S) : un programme qui parle à la carte comme un pilote ASPI, saisi dans
+# DEBUG : les commandes d'hôte (dont une invalide, RETURN SETUP DATA de 44 octets, l'EEPROM, le canal 2, les
+# interrupteurs), trente-six CCB de mailbox sur les disques des ID 0 et 1 (INQUIRY, EVPD, READ CAPACITY, READ et
+# WRITE (6) et (10), le secteur de la capacité, MODE SENSE et MODE SELECT, le sense retenu, le LUN fantôme, l'ID 5
+# vide, la CDB courte et la CDB vide, les commandes simulées, le résidu, la dispersion, un READ de 600 secteurs
+# au-delà de data_in), les commandes BIOS 03h qui achèvent un CCB périmé, ABORT, 22h au-delà de params. Chaque
+# octet rendu ou écrit par la carte relu par le programme ; l'image D: (l'ID 1) comparée. r9-aha et r9-scsihd,
+# en C# seul : les sites où PCem s'arrête ou déborde (PB-135, PB-128), et les configurations ramenées.
+mapfile -t AHK < tools/ahabanc/ahabanc.keys
+AHBB=(); for l in "${AHK[@]}"; do AHBB+=(--type "$l"); done
+runw bd-ami486-aha-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AHBB[@]}" --type "@wait 1500" --expect-aha
+run r9-aha r9-aha
+run r9-scsihd r9-scsihd

@@ -387,6 +387,7 @@ extern device_t dtc_5150x_device;
 extern device_t mfm_at_device;     /* G5.0 */
 extern device_t ide_device;        /* G5.0 */
 extern device_t xtide_device;      /* G10.2 */
+extern device_t scsi_aha1542c_device; /* G11.0, harness_aha.c */
 extern int cdrom_channel, zip_channel;
 void resetide(void);
 /* G10.4 — le lecteur de CD-ROM (scsi_cd.c, harness_cdrom.cpp, harness_ide.c). */
@@ -1986,6 +1987,9 @@ int h_boot(const char *romspath) {
         /* G10.2 — le XTIDE, version XT (hdd.c:156) : xtide_init ajoute lui-même ide_device. */
         else if (!strcmp(hdd_controller_name, "xtide"))
                 device_add(&xtide_device);
+        /* G11.0 — l'Adaptec AHA-1542C (hdd.c:159) ; la configuration du C# l'a jugée (check_hdd_controller). */
+        else if (!strcmp(hdd_controller_name, "aha1542c"))
+                device_add(&scsi_aha1542c_device);
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient

@@ -1,0 +1,14 @@
+# G11 — l'Adaptec AHA-1542C (hdd_controller aha1542c), un disque SCSI de 20 Mio à l'ID 0 (C:) : 64 têtes ×
+# 32 secteurs × 20 cylindres, la géométrie de la ROM (jusqu'à 1 Go). Le CMOS (--make-nvr) n'a aucun disque :
+# l'INT 13h vient de la ROM de la carte.
+model = ami386dx
+cpu = 3
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 5
+gfxcard = tvga9000b
+hdd_controller = aha1542c
+hdc_cylinders = 20
+hdc_heads = 64
+hdc_sectors = 32
+hdc_fn = @WORK@/scsic.img

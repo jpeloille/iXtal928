@@ -4,7 +4,8 @@
 // ORACLE: pcem-dev/src/scsi/scsi.c  (scsi.h : includes/private/scsi/scsi.h)
 // STATUS: partial — G10.4 (PLAN-G10.md) : le bus SCSI que le pont ATAPI fait parler (scsi_bus_update,
 //         scsi_bus_read, scsi_bus_match, scsi_bus_kick, scsi_bus_atapi_init, scsi_bus_reset), et les
-//         types et constantes de scsi.h. Le bus des cartes SCSI (scsi_bus_init, scsi_bus_close) est G11.
+//         types et constantes de scsi.h. G11.0 (PLAN-G11.md) : le bus des cartes SCSI, scsi_bus_init et
+//         scsi_bus_close.
 //
 // DEVIATION (R9, PB-113) : les deux fatal() du bus (:85, :264) le remettent au repos (scsi_bus_reset) ;
 //   le pont voit alors BSY tomber et abandonne la commande (Ide/ide_atapi.cs, atapi_abort).
@@ -501,7 +502,49 @@ internal static class scsi
         bus.is_atapi = 1;
     }
 
-    // omitted: scsi_bus_init et scsi_bus_close (scsi.c:304-336) — le bus des cartes SCSI, G11.
+    // pcem: scsi.c:304-324 — G11.0 : le bus des cartes SCSI (scsi_aha1540.c:2149). dev_id et state ne sont pas
+    //   posés : 0, comme le memset du struct de la carte (scsi_aha1540.c:2124).
+    internal static void scsi_bus_init(scsi_bus_t bus)
+    {
+        int c;
+
+        Array.Clear(bus.devices);
+        Array.Clear(bus.device_data);
+
+        for (c = 0; c < 7; c++)
+        {
+                if (ide.cdrom_channel == c)
+                        bus.devices[c] = scsi_cd_c.scsi_cd;
+                else if (ide.zip_channel == c)
+                        bus.devices[c] = scsi_zip_c.scsi_zip;
+                else
+                        bus.devices[c] = scsi_hd_c.scsi_hd;
+
+                bus.device_data[c] = bus.devices[c]!.init(bus, c);
+                if (bus.device_data[c] is null)
+                        bus.devices[c] = null;
+        }
+
+        bus.is_atapi = 0;
+    }
+
+    // pcem: scsi.c:326-336
+    // pcem bug, reproduced: PB-121 — les tableaux sont effacés AVANT la boucle, qui ne trouve donc rien : aucun
+    //   périphérique n'est fermé, et le fichier d'un disque reste ouvert avec son tampon (vidé par closepc,
+    //   hdd_file.fflush_tous).
+    internal static void scsi_bus_close(scsi_bus_t bus)
+    {
+        int c;
+
+        Array.Clear(bus.devices);
+        Array.Clear(bus.device_data);
+
+        for (c = 0; c < 8; c++)
+        {
+                if (bus.device_data[c] is not null)
+                        bus.devices[c]!.close(bus.device_data[c]!);
+        }
+    }
 
     // pcem: scsi.c:338-352
     internal static void scsi_bus_reset(scsi_bus_t bus)

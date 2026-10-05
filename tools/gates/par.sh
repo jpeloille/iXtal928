@@ -96,7 +96,7 @@ rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr"); ln -s $(printf %q "$RE
 cp -r $(printf %q "$WORK/nvr/default") $(printf %q "$W/nvr/"); cp $(printf %q "$WORK")/*.cfg $(printf %q "$W/")
 cp $(printf %q "$WORK/$nvr") $(printf %q "$W/nvr/.$dest.nvr")
 res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
-printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | grep -E 'Vert|DIVERG|TRONQUÉE|Image [CDEF]' | tr '\n' ' ')" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
+printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | grep -E 'Vert|DIVERG|TRONQUÉE|Image [C-I]' | tr '\n' ' ')" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
 echo "\$res" > $(printf %q "$LOGP-$name.txt")
 G
 }

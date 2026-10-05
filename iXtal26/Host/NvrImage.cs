@@ -249,6 +249,11 @@ internal static class NvrImage
         var hddTypeD = (fnD.Length > 0 && cylD > 0 && headsD > 0 && sptD > 0)
                        ? HddImage.TypeFor(cylD, headsD, sptD) : 0;
 
+        // G11.0 — sous une carte SCSI, les disques ne sont pas ceux du BIOS de la carte mère : type 0, sinon le POST
+        //   cherche un contrôleur MFM ou IDE qui n'existe pas. L'INT 13h vient de la ROM de la carte.
+        if (config.config_get_string(config.CFG_MACHINE, null, "hdd_controller", "") == "aha1542c")
+                hddType = hddTypeD = 0;
+
         var refName = modelName switch
         {
                 "ami286" => "ami286.nvr",

@@ -75,3 +75,15 @@ octets que la recette écrit dans le WORK, sur l'unité IDE 2 (`zip_channel`), c
 l'amorçage (`zip_path`). L'image est copiée par côté, comme les disques durs : ZIPBANC
 (`atapibanc.py --zip`) y écrit deux secteurs, et boot-diff compare les deux copies à la fin. `r9-zip`,
 en C# seul, écrit sa propre image vierge dans le TMPDIR.
+
+L'Adaptec AHA-1542C (G11) : les portes `bd-*-aha-*` montent la carte et ses disques SCSI aux ID 0 et 1
+(clés `hdc_` et `hdd_`). La recette prépare quatre familles de fichiers :
+- les disquettes de DOS 5 et de Windows 3.11 (`dos5-1.img`, `dos5-3.img`, `win3-3.img`) ;
+- un disque vierge de 20 Mio (`scsi20.img`) ;
+- le disque de DOS (`scsic.img`), tiré par émulation du script de `bd-ami486-aha-format` (`aha-format.keys`) ;
+- les CMOS sans disque des trois machines (`aha*.nvr`).
+
+`--expect-aha` exige la carte des deux côtés. Sa sonde (140 champs) refuse tout `fatal()` de l'oracle et
+toute garde R9 côté C# : la suite d'un `fatal()` de l'oracle n'est pas comparable. `bd-ami486-aha-banc`
+tape AHABANC (`tools/ahabanc`, GNU as) dans DEBUG ; la carte y écrit `nvr/.aha1542c.nvr` (22h), dans le
+répertoire de la porte. `r9-aha` et `r9-scsihd`, en C# seul, écrivent leurs disques vierges dans le TMPDIR.

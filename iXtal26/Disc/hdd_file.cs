@@ -67,18 +67,38 @@ internal static partial class hdd_file
             enoent = false;
             try
             {
-                    return mode switch
+                    // G11.0 — FileShare.ReadWrite | Delete : après un reset matériel, le flux d'un disque SCSI reste
+                    //   ouvert (PB-121) pendant que le même fichier est rouvert, comme deux FILE* de la libc.
+                    FileStream f = mode switch
                     {
-                            "rb" => new FileStream(s, FileMode.Open, FileAccess.Read),
-                            "wb+" => new FileStream(s, FileMode.Create, FileAccess.ReadWrite),
-                            _ => new FileStream(s, FileMode.Open, FileAccess.ReadWrite),
+                            "rb" => new FileStream(s, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete),
+                            "wb+" => new FileStream(s, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete),
+                            _ => new FileStream(s, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete),
                     };
+                    flux_ouverts.Insert(0, f);
+                    return f;
             }
             catch (FileNotFoundException) { enoent = true; return null; }
             catch (DirectoryNotFoundException) { enoent = true; return null; }
             catch (IOException) { return null; }
             catch (UnauthorizedAccessException) { return null; }
             catch (ArgumentException) { return null; }
+    }
+
+    // DEVIATION (hôte, décision n° 7 de PLAN-G11.md) : le pendant de l'exit() de PCem et du fflush(NULL)
+    //   d'h_closepc (harness.c). scsi_bus_close ne ferme rien (PB-121) : le FILE* d'un disque SCSI reste ouvert, et
+    //   la libc vide son tampon à la sortie. Un FileStream, lui, n'est jamais vidé à la sortie du processus, et
+    //   son finaliseur le viderait à un instant quelconque. Ce registre FORT tient tous les flux ouverts, le plus
+    //   récent en tête comme _IO_list_all de la glibc ; closepc les vide dans cet ordre, puis les ferme.
+    private static readonly List<FileStream> flux_ouverts = new();
+
+    internal static void fflush_tous()
+    {
+            foreach (FileStream f in flux_ouverts)
+                    f.Flush();
+            foreach (FileStream f in flux_ouverts)
+                    f.Close();
+            flux_ouverts.Clear();
     }
 
     // omitted: is_ramdisk_file (hdd_file.c:12-24) — teste les extensions .rdimg
@@ -152,7 +172,10 @@ internal static partial class hdd_file
                     // omitted: les branches VHD (mvhd_close) et ramdisk
                     //   (ramdisk_free) de :155-159.
                     if (hdd.img_type == hdd_img_type.HDD_IMG_RAW)
+                    {
+                            flux_ouverts.Remove(hdd.f);
                             hdd.f.Close();
+                    }
             }
             hdd.img_type = hdd_img_type.HDD_IMG_RAW;
             hdd.f = null;

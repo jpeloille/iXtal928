@@ -74,7 +74,8 @@ internal static class scsi_zip_c
 
     internal const int ZIP_SECTORS = 96 * 2048;
 
-    private static readonly uint64_t RW_DELAY = TIMER_USEC * 500;
+    // Une propriété, comme la macro : TIMER_USEC suit la vitesse de la machine amorcée (setpitclock).
+    private static uint64_t RW_DELAY => TIMER_USEC * 500;
 
     private const uint8_t SCSI_IOMEGA_SENSE = 0x06;
     private const uint8_t SCSI_IOMEGA_EJECT = 0x0d; /*ATAPI only?*/

@@ -106,8 +106,9 @@ internal static class UsageText
                                sur un AT, mfm_xebec ailleurs) si rien n'en a nommé, et
                                l'emporte sur les clés hdc_*/hdd_*
           --hdd-controller NOM contrôleur de disque dur : mfm_xebec (IBM Fixed Disk
-                               Adapter), dtc5150x (DTC 5150X), xtide (XTIDE), ou mfm_at
-                               et ide (sur les seules machines AT). Même précédence que --gfxcard :
+                               Adapter), dtc5150x (DTC 5150X), xtide (XTIDE), ou mfm_at,
+                               ide et aha1542c (l'Adaptec AHA-1542C, SCSI) sur les seules
+                               machines AT. Même précédence que --gfxcard :
                                l'emporte sur la clé hdd_controller
           --zip IMG            charge l'image du lecteur ZIP (100 663 296 octets) à la fin
                                de l'amorçage ; le lecteur est sur l'unité IDE de la clé

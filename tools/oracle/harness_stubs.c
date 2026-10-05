@@ -812,11 +812,9 @@ char hdd_controller_name[16];
  * G10.4 : ide_atapi.c, scsi.c et scsi_cd.c sont liés, ide.c inclus par harness_ide.c ; les souches ATAPI
  * de G5 et le pilote CD du harnais (h_null_atapi) sont partis : `atapi` est celui d'ide_atapi.c, que
  * h_boot pose comme le bloc CD de pc.c (cdrom_null_open ou image_open, harness_cdrom.cpp). G10.6 : scsi_zip.c
- * est lié. Reste une table de périphérique SCSI, que le lien réclame et qu'aucune machine n'atteint : scsi_hd
- * (scsi_bus_init, scsi.c:316 — le bus des cartes SCSI, G11). */
+ * est lié. G11.0 : scsi_hd.c est inclus par harness_aha.c, avec scsi_aha1540.c ; la souche scsi_hd est partie. */
 int hdd_controller_current_is_ide(void) { return !strcmp(hdd_controller_name, "ide") || !strcmp(hdd_controller_name, "xtide"); }
 
-scsi_device_t scsi_hd;
 
 /* logging.c:99 — pclog, error et fatal etaient deja la, pas warning.
  * xebec_set_switches l'appelle sur une geometrie non supportee. */

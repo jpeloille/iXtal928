@@ -117,6 +117,7 @@ SRC := harness.c \
        $(PCEM)/src/mfm/mfm_xebec.c \
        $(PCEM)/src/mfm/mfm_at.c \
        harness_ide.c \
+       harness_aha.c \
        $(PCEM)/src/ide/ide_atapi.c \
        $(PCEM)/src/scsi/scsi.c \
        $(PCEM)/src/scsi/scsi_cd.c \

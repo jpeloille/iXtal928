@@ -264,6 +264,10 @@ switch (args[0])
     // G10.6 — R9 : les sites où PCem déborde ou s'arrête dans le lecteur ZIP (PB-125), en C# seul.
     case "r9-zip":
         return R9Zip.Run("roms");
+    case "r9-aha":
+        return R9Aha.Run("roms", false);
+    case "r9-scsihd":
+        return R9Aha.Run("roms", true);
     case "page-check":
     {
         var it = 200000;
@@ -448,6 +452,7 @@ switch (args[0])
                 case "--gfxcard" when i + 1 < args.Length: gfx = args[++i]; break;
                 // G8.1, G8.2 — la carte son (internal_name : none, adlib, sbprov2), même précédence.
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
+                case "--hdd-controller" when i + 1 < args.Length: BootDiff.HddControllerOverride = args[++i]; break;
                 case "--lpt1" when i + 1 < args.Length: BootDiff.Lpt1Override = args[++i]; break;
                 // G10.4 — le modèle du lecteur de CD-ROM (un nom inconnu refusé, retour 2), et l'exigence d'un
                 // lecteur sur une unité IDE, avec son pilote (vide, image).
@@ -463,6 +468,7 @@ switch (args[0])
                     break;
                 // G10.5 — la sonde du CD doit avoir vu du son (des échantillons non nuls), des deux côtés.
                 case "--expect-cd-son": BootDiff.ExpectCdSon = true; break;
+                case "--expect-aha": BootDiff.ExpectAha = true; break;
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
                 // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).

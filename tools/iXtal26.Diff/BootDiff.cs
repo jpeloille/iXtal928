@@ -199,6 +199,73 @@ public static class BootDiff
         return 0;
     }
 
+    private static readonly string[] AhaFields =
+    [
+        "monte", "status", "isr", "cmd_state", "ccb_state", "scsi_state", "bios_cmd_st", "command", "mbc", "mba",
+        "mba_i", "mbo_req", "cur_mbo", "cur_mbo_bios", "cur_mbi", "bios_mbc", "bios_mba", "bios_mbo_req",
+        "bios_inited", "mbo_irq_ena", "ccb.addr", "ccb.from_mb", "ccb.status", "ccb.sense", "ccb.target",
+        "ccb.data_len", "ccb.data_ptr", "cdb.idx", "cdb.len", "cdb.data_idx", "cdb.data_len", "cdb.data_ptr",
+        "cdb.last_st", "result_pos", "result_len", "data_in", "reg3_idx", "host_id", "dma", "irq", "shadow",
+        "bios_bank", "dipsw", "rom_base", "e_d", "to", "bon", "boff", "atbs", "mbu", "mblt", "eeprom", "shadow_ram",
+        "int_buffer", "dma_buffer", "bus.state", "bus.dev_id", "bus.out", "bus.in", "bus.cmd_pos",
+        "bus.clear_req", "bus.chg_delay", "bus.req_delay",
+    ];
+
+    private static string AhaChamp(int f) => f < AhaFields.Length ? AhaFields[f]
+        : $"ID{(f - AhaFields.Length) / 11}." + new[] { "monte", "cmd_pos", "addr", "len", "pos_lu", "pos_ecrit",
+                                                         "recus", "requis", "sense", "buf", "io" }[(f - AhaFields.Length) % 11];
+
+    /// <summary>G11.0 — la sonde de l'AHA-1542C et de ses disques SCSI, quand la carte est montée d'un côté : les
+    /// trois machines d'états, les mailbox, le CCB, la CDB, l'EEPROM, la RAM d'ombre, int_buffer, le bus et
+    /// l'état de chaque disque. L'oracle ne doit avoir rendu aucun fatal() : sa suite y est inexploitable
+    /// (PLAN-G11.md). Sous --expect-aha, la carte doit être montée des deux côtés.</summary>
+    private static int CompareAha(ulong[] o, ulong[] c, ulong nFatalOracle)
+    {
+        if (o[0] == 0 && c[0] == 0)
+        {
+            if (!ExpectAha)
+                return 0;
+            Console.Error.WriteLine("Sonde de l'AHA-1542C : aucune carte, d'aucun côté (--expect-aha).");
+            return 1;
+        }
+        var bad = 0;
+        for (var f = 0; f < Oracle.AhaProbeN; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  AHA {AhaChamp(f),-14} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (Diag.R9.Resume() is { Length: > 0 } r9)
+        {
+            Console.Error.WriteLine($"Sonde de l'AHA-1542C : des gardes R9 atteintes côté C# ({r9}) — l'oracle s'y arrêterait.");
+            return 1;
+        }
+        if (nFatalOracle != 0)
+        {
+            Console.Error.WriteLine($"Sonde de l'AHA-1542C : l'oracle a rendu {nFatalOracle} fatal() — sa suite n'est pas comparable.");
+            return 1;
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde de l'AHA-1542C : {bad} champ(s) divergent(s) sur {Oracle.AhaProbeN}.");
+            return 1;
+        }
+        var disques = 0;
+        for (var d = 0; d < 7; d++)
+            disques += (int)o[AhaFields.Length + d * 11];
+        Console.WriteLine($"Sonde de l'AHA-1542C : {Oracle.AhaProbeN} champs identiques — {disques} disque(s), " +
+                          $"IRQ {o[39]}, DMA {o[38]}, ID {o[37]}, interrupteurs {o[42]}, ROM en {o[43]:X5}h, EEPROM {o[51]:X16}.");
+        // Les commandes reçues par la carte, côté C# (scsi_aha1540.commandes_vues) : ce que l'invité a demandé.
+        var vues = Scsi.scsi_aha1540.commandes_vues;
+        Console.WriteLine("  commandes reçues : " + string.Join(" ", Enumerable.Range(0, 256).Where(k => vues[k] != 0)
+                                                                   .Select(k => $"{k:X2}h×{vues[k]}")));
+        return 0;
+    }
+
+    /// <summary>G11.0 — `--expect-aha` : la carte doit être montée des deux côtés.</summary>
+    internal static bool ExpectAha;
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -229,6 +296,8 @@ public static class BootDiff
     /// que CompareImages signale.</param>
     /// <summary>G8.1 — `--sndcard NOM` (none, adlib), appliqué après --config.</summary>
     internal static string? SndcardOverride;
+    /// <summary>G11.0 — `--hdd-controller NOM`, appliqué après --config et --model, jugé par check_hdd_controller.</summary>
+    internal static string? HddControllerOverride;
     /// <summary>G10.0 — `--lpt1 NOM` (none, dss, lpt_dac, lpt_dac_stereo), appliqué après --config.</summary>
     internal static string? Lpt1Override;
     /// <summary>G10.4 — `--cd-model NOM` (un nom de configuration de scsi_cd.c, pcemcd par défaut ; un nom
@@ -332,6 +401,11 @@ public static class BootDiff
             Cpu.cpu_c.cpu_manufacturer = 0;
             Cpu.cpu_c.cpu = cpuN;
         }
+        // G11.0 — la carte de disque dur, puis le contrôle de la machine finale (check_cpu → check_hdd_controller) :
+        //   les ROM d'abord, pour juger la présence de celle de la carte AVANT de pousser quoi que ce soit à l'oracle.
+        if (HddControllerOverride is not null)
+            pc.cfg_hdd_controller = HddControllerOverride;
+        iXtal26.PluginApi.paths.set_roms_paths(romsPath);
         if (!pc.check_cpu())
             return 2;
         // G4.1 — le coprocesseur, résolu UNE fois comme initpc le fera (pc.c:656, la clé
@@ -417,7 +491,8 @@ public static class BootDiff
         // G5.2 — E: et F: aussi, les deux lecteurs du canal IDE secondaire : même règle,
         // une copie par côté, sans quoi le C# écrivait dans l'image source et l'oracle ne
         // voyait pas le disque.
-        const int NHd = 4;
+        // G11.0 — G:, H:, I: : les ID SCSI 4 à 6 de l'AHA-1542C, même règle.
+        const int NHd = 7;
         var discHd = new string?[NHd];
         var oracleHd = new string?[NHd];
         var csharpHd = new string?[NHd];
@@ -504,6 +579,8 @@ public static class BootDiff
         // G10.4 — le lecteur de CD-ROM de l'oracle, relevé pour --expect-cd.
         var canalCd = ExpectCd is null ? 0 : int.Parse(ExpectCd.Split(',')[0]);
         var cdOracle = ExpectCd is null ? (0, 0) : (Oracle.h_ide_type(canalCd), Oracle.h_cd_driver());
+        Oracle.h_getstate(out var stFin);
+        var nFatalOracle = stFin.n_fatal;
         Oracle.h_trace_close();
         Oracle.h_closepc();
         if (TraceTronquee(oraclePath))
@@ -527,6 +604,9 @@ public static class BootDiff
         // PS2.0 — la sonde de la souris PS/2, au même point.
         var ps2Oracle = new ulong[Oracle.MouseProbeN];
         Oracle.h_mouse_probe(ps2Oracle);
+        // G11.0 — la sonde de l'AHA-1542C, au même point (h_closepc ne ferme pas les périphériques).
+        var ahaOracle = new ulong[Oracle.AhaProbeN];
+        Oracle.h_aha_probe(ahaOracle);
 
         // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
         // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
@@ -580,6 +660,8 @@ public static class BootDiff
             Disc.hdd_c.ide_fn[hd] = csharpHd[hd] ?? "";
         if (csharpZip is not null)
             pc.cfg_zip_path = csharpZip;
+        // G11.0 — les gardes R9 atteintes pendant la course C# (la sonde de l'AHA-1542C les exige nulles).
+        Diag.R9.Raz();
         if (!pc.initpc(romsPath))
             return 1;
 
@@ -633,6 +715,8 @@ public static class BootDiff
         Sound.sound.CdSoundProbe(cdSndCsharp);
         var ps2Csharp = new ulong[Oracle.MouseProbeN];
         Mouse.mouse_ps2.ProbeState(ps2Csharp);
+        var ahaCsharp = new ulong[Oracle.AhaProbeN];
+        Scsi.scsi_aha1540.Probe(ahaCsharp);
         var cdCsharp = ExpectCd is null ? (0, 0)
             : (Ide.ide.ide_drives[canalCd].type,
                Ide.ide_atapi.atapi is null ? 0 : Ide.ide_atapi.atapi == Cdrom.cdrom_image.image_atapi ? 2 : 1);
@@ -689,12 +773,16 @@ public static class BootDiff
                  | CompareMouse(ps2Oracle, ps2Csharp)
                  | CompareCd(cdOracle, cdCsharp)
                  | CompareCdSound(cdSndOracle, cdSndCsharp)
+                 | CompareAha(ahaOracle, ahaCsharp, nFatalOracle)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
                  | CompareImages(discHd[1], oracleHd[1], csharpHd[1], "D: (disque dur)")
                  | CompareImages(discHd[2], oracleHd[2], csharpHd[2], "E: (disque dur)")
                  | CompareImages(discHd[3], oracleHd[3], csharpHd[3], "F: (disque dur)")
+                 | CompareImages(discHd[4], oracleHd[4], csharpHd[4], "G: (disque dur)")
+                 | CompareImages(discHd[5], oracleHd[5], csharpHd[5], "H: (disque dur)")
+                 | CompareImages(discHd[6], oracleHd[6], csharpHd[6], "I: (disque dur)")
                  | CompareImages(discZip, oracleZip, csharpZip, "ZIP");
         }
 
@@ -1048,7 +1136,7 @@ public static class BootDiff
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         PousserCdrom();
         PousserManettes();
-        for (var hd = 0; hd < 4; hd++)
+        for (var hd = 0; hd < 7; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
@@ -1439,7 +1527,7 @@ public static class BootDiff
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         PousserCdrom();
         PousserManettes();
-        for (var hd = 0; hd < 4; hd++)
+        for (var hd = 0; hd < 7; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
@@ -1565,7 +1653,7 @@ public static class BootDiff
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         PousserCdrom();
         PousserManettes();
-        for (var hd = 0; hd < 4; hd++)
+        for (var hd = 0; hd < 7; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;

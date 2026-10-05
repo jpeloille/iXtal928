@@ -1,0 +1,25 @@
+FDISK
+@wait 600
+
+
+@wait 300
+
+@wait 300
+
+@wait 3500
+FORMAT C:/S
+@wait 800
+Y
+@wait 3000
+
+@wait 1500
+B:EXPAND A:DEBUG.EX_ C:\DEBUG.EXE
+@wait 900
+B:EXPAND A:MEM.EX_ C:\MEM.EXE
+@wait 900
+B:EXPAND B:CHKDSK.EX_ C:\CHKDSK.EXE
+@wait 900
+DIR C:
+@wait 600
+MD C:\TEMOIN
+@wait 300

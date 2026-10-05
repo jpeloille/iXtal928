@@ -18,14 +18,20 @@
 //
 // G5.1 — « ide », l'IDE standard (hdd.c:155), DEVICE_AT (ide.c:1222) : disque dur seul.
 //
-// omitted: les douze autres entrées du registre (ESDI, XTIDE, SCSI) — aucune n'est
-//   transcrite.
+// G11.0 — « aha1542c », l'Adaptec AHA-1542C (hdd.c:159), DEVICE_AT (scsi_aha1540.c:2283), et sa ROM
+// (scsi_aha1542c_available, :2201). LA RÈGLE ISA 16 BITS (PLAN-G11.md, décision n° 3) : DEVICE_AT, sur ces
+// cartes, c'est le bus de 16 bits ; une carte ainsi marquée n'est pas montée sur une machine sans MODEL_AT
+// (8088, 8086), ni une carte dont la ROM manque. PCem ne filtre que dans son écran ; ici, pc.check_hdd_controller
+// l'applique à la machine finale, par toutes les entrées (.cfg, --model, --hdd-controller).
+//
+// omitted: les onze autres entrées du registre (ESDI, XTIDE AT et PS/1, les autres cartes SCSI) — exclues
+//   (PLAN.md, G11).
 
 namespace iXtal26.Host;
 
 internal static class HardDiskControllers
 {
-    internal readonly record struct Controller(string InternalName, string Label, bool RequiresAtMachine);
+    internal readonly record struct Controller(string InternalName, string Label, bool RequiresAtMachine, string? Rom = null);
 
     internal static readonly Controller[] All =
     [
@@ -35,13 +41,29 @@ internal static class HardDiskControllers
         new("ide", "IDE standard", true),
         // G10.2 — sans DEVICE_AT (xtide.c:118) : proposé sur toutes les machines, comme chez PCem.
         new("xtide", "XTIDE", false),
+        new("aha1542c", "Adaptec AHA-1542C (SCSI)", true, "adaptec_aha1542c_bios_534201-00.bin"),
     ];
+
+    /// <summary>L'entrée d'un nom interne, ou null.</summary>
+    internal static Controller? Find(string internalName)
+    {
+        foreach (var controller in All)
+        {
+            if (controller.InternalName == internalName)
+                return controller;
+        }
+
+        return null;
+    }
+
+    internal static bool RomPresent(Controller controller) =>
+        controller.Rom is null || Flash.rom.rom_present(controller.Rom) != 0;
 
     internal static bool CurrentMachineIsAt =>
         (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_AT) != 0;
 
     internal static bool IsAvailable(Controller controller) =>
-        !controller.RequiresAtMachine || CurrentMachineIsAt;
+        (!controller.RequiresAtMachine || CurrentMachineIsAt) && RomPresent(controller);
 
     /// <summary>« » (aucun) est toujours disponible ; un nom inconnu ne l'est jamais.</summary>
     internal static bool IsAvailable(string internalName)

@@ -1215,6 +1215,9 @@ internal sealed class SdlSetup
               $"{string.Join(",", st._pickValues)}");
         Check("le Xebec reste proposé sur l'IBM AT", Array.IndexOf(st._pickValues, "mfm_xebec") >= 0,
               $"{string.Join(",", st._pickValues)}");
+        // G11.3 — l'Adaptec AHA-1542C, carte ISA 16 bits : sur un AT seulement, et sa ROM présente.
+        Check("aha1542c est proposé sur l'IBM AT", Array.IndexOf(st._pickValues, "aha1542c") >= 0,
+              $"{string.Join(",", st._pickValues)}");
         if (mfmAt >= 0)
         {
             st._pickIndex = mfmAt;
@@ -1231,6 +1234,8 @@ internal sealed class SdlSetup
 
         st.Activate(Item.Controller);
         Check("mfm_at est absent de la liste du XT", Array.IndexOf(st._pickValues, "mfm_at") < 0,
+              $"{string.Join(",", st._pickValues)}");
+        Check("aha1542c est absent de la liste du XT (règle ISA 16 bits)", Array.IndexOf(st._pickValues, "aha1542c") < 0,
               $"{string.Join(",", st._pickValues)}");
         st._screen = Screen.Main;
 

@@ -6654,3 +6654,217 @@ négatifs effacées, la série est repartie. Build 0 avertissement (hôte Debug 
 selftest, check-oracle 0 dérive (201, `scsi_zip.cs` ajouté, harnais réancré), ABI 52.
 
 **Ce que G10.6 laisse** : PLAN-G10.md, « Les risques », § Le ZIP.
+
+## G11.0 — L'Adaptec AHA-1542C et ses disques SCSI, sous l'oracle ; PB-128 à PB-144
+
+Le 5 octobre 2026. Plan : `PLAN-G11.md` § G11.0, décisions n° 1 à 14 (prises sous le mandat « en totale
+autonomie » du 05/10).
+
+**Transcrit.**
+- `scsi_hd.c` en entier (`Scsi/scsi_hd.cs`), 567 lignes vives pour 574. Les deux tampons sont un seul
+  tableau de 2 × 256 Ko (décision n° 9).
+- `scsi_aha1540.c`, la 1542C seule (`Scsi/scsi_aha1540.cs`), 1 502 lignes vives pour 1 772 :
+  - sont omis la BT-545S (155 lignes vives), `MB_FORMAT_8` (mort sur la 1542C, `:650-655`) et les `pclog` ;
+  - les trois machines d'états, la fenêtre de 16 Ko (deux banques, les interrupteurs en 3F7Eh et 3F7Fh, la RAM
+    d'ombre) et l'EEPROM par `nvrfopen` ;
+  - 22h lit au-delà de `params[64]` par `param_lu`, qui modélise la disposition du struct (PB-136, décision
+    n° 8).
+- `scsi.c:304-336` : `scsi_bus_init` et `scsi_bus_close`, ce dernier reproduit en no-op (PB-121).
+- `mem.c:773-791` : `mem_readw_phys` et `mem_readl_phys`.
+- `pc.c:749-774` : `hdg_*` à `hdi_*`.
+- `nvr/default/aha1542c.nvr` : la copie de celle de PCem (ID 7, DMA 7, IRQ 10).
+
+**L'oracle.**
+- `harness_aha.c` inclut `scsi_aha1540.c` et `scsi_hd.c`, sur le patron de `harness_ide.c`, et porte
+  `h_aha_probe`. La souche `scsi_hd` est partie.
+- `h_boot` monte `aha1542c`. ABI 53.
+
+**La règle ISA 16 bits et la ROM absente** (décisions n° 3 et 4). `pc.check_hdd_controller`, appelé par
+`check_cpu` (donc avant toute poussée vers l'oracle), refuse avec un avertissement :
+- une carte DEVICE_AT (`mfm_at`, `ide`, `aha1542c`) sur une machine sans MODEL_AT ;
+- une carte dont la ROM manque.
+
+Sous `aha1542c`, `cdrom_channel` et `zip_channel` sont ramenés à -1 (décision n° 2).
+
+`boot-diff` gagne `--hdd-controller`. Les sept lecteurs y passent par une copie par côté, et les images G: à
+I: sont comparées ; `runw` relève « Image [C-I] ».
+
+**Le vidage hôte des disques** (décision n° 7). `hdd_file` tient un registre fort de ses flux ;
+`closepc` les vide, du plus récent au plus ancien, puis les ferme. FileShare passe à ReadWrite | Delete.
+
+Le contrôle négatif ne mord que si la porte finit sur une écriture. La première version de `aha-format.keys`
+finissait sur une lecture, et le retirer la laissait verte : le `Seek` de la lecture suivante vide le tampon,
+en C# comme dans la glibc. La porte finit donc sur `MD C:\TEMOIN`. Sans le vidage, l'image C: diverge d'un
+octet en 0xE27A (oracle 3E, C# 00).
+
+**La sonde de la carte** (`--expect-aha`, 140 champs) :
+- les trois machines d'états, les mailbox, le CCB et la CDB ;
+- la configuration : l'ID, le DMA, l'IRQ, les interrupteurs, la base de la fenêtre de ROM ;
+- les empreintes de l'EEPROM, de la RAM d'ombre, d'`int_buffer` et du tampon du canal 2 ;
+- le bus ;
+- pour chaque ID, l'état du disque et l'empreinte de ses tampons.
+
+Elle exige aussi qu'aucun `fatal()` de l'oracle ni aucune garde R9 côté C# n'ait été atteint. Elle mord :
+avec un octet d'EEPROM changé côté C# seul (en C0h, hors des 32 que la ROM relit), la trace reste verte
+(7 446 115 instructions) et la sonde rougit sur `eeprom`.
+
+**Les mesures** (en C# seul, puis sous l'oracle).
+
+La ROM v1.01 émet au POST les commandes 04h, 23h ×2, 24h ×2, 25h, 29h et 82h ×16. Elle n'émet ni 22h, ni 03h,
+ni 26h/27h : les bancs de la ROM ne servent qu'à SCSISelect. DOS, FDISK et FORMAT ne passent que par 82h, la
+mailbox BIOS (82h ×701 dans `bd-ami486-aha-format` : FDISK, FORMAT, EXPAND, DIR et MD).
+
+Les sites R9 des commandes BIOS 03h (`:799`, `:841`, `:883`, `:980`), la traduction CHS de PB-144 et le sense
+écrit à `ccb.addr` (PB-137) ne sont donc atteints que par un programme qui parle à la carte.
+
+Le reset à chaud du redémarrage de FDISK refait le POST de la carte (04h ×2, 23h ×4…) sans la remettre à zéro.
+
+## G11.1 — Les disques SCSI : formatage et amorçage sur trois machines
+
+**La recette g5w** (ajouts seulement ; les quatorze empreintes existantes inchangées). Elle ajoute huit fichiers :
+- `dos5-1.img` : la disquette 1 de MS-DOS 5.0, son AUTOEXEC.BAT ramené à « @echo off » par `fatpatch.py
+  --disquette` ;
+- `dos5-3.img` (EXPAND) et `win3-3.img` (MSD) ;
+- `scsi20.img` : 20 Mio vierges, 64 × 32 × 20 ;
+- `aha486.nvr`, `aha386.nvr`, `aha286.nvr` : les CMOS sans disque (`--make-nvr` pose le type 0 sous une
+  carte SCSI).
+
+`scsic.img` est `scsi20.img` préparé PAR ÉMULATION, en C# seul, par `aha-format.keys`, le script de
+`bd-ami486-aha-format` :
+- FDISK, puis le redémarrage, puis FORMAT C:/S ;
+- DEBUG, MEM et CHKDSK décompressés par EXPAND ;
+- DIR, puis MD.
+
+La recette est reproductible : deux passages, mêmes empreintes. L'horloge vient du CMOS fabriqué, pas de
+l'hôte. KeyScript gagne « _ » et « > » ; aucune porte existante ne les tapait.
+
+**Les portes** (série ciblée, puis g110) :
+- `bd-ami486-aha-post` : la bannière de la ROM, « SCSI ID #0 - PCem SCSI_HD - Drive C: (80h) », « BIOS
+  Installed Successfully! ».
+- `bd-ami486-aha-format` : 49 842 124 instructions identiques ; l'image C: identique, 172 753 octets écrits
+  par l'invité.
+- `bd-ami486-aha-boot`, `bd-ami386dx-aha-boot`, `bd-ami286-aha-boot` : MS-DOS 5.00 amorcé du disque SCSI
+  par l'INT 13h de la ROM, VER, DIR, MD ; l'image identique.
+- `bd-ami486-aha-c8` : la carte en 330h, sa ROM en C8000h. La sonde lit 0 pour les interrupteurs et C8000h
+  pour la ROM, contre 1 et DC000h par défaut.
+- `bd-ibmxt-aha-refus` : le XT refuse la carte, avec l'avertissement, des deux côtés.
+
+## G11.2 — AHABANC, r9-aha, r9-scsihd
+
+**AHABANC** (`tools/ahabanc/ahabanc.S`, 1 884 octets, assemblé par GNU as en mode 16 bits) est saisi dans
+DEBUG, écrit sur C:, puis lancé. Il parle à la carte comme un pilote ASPI. Le disque de DOS est à l'ID 0, lu
+seulement ; un disque vierge est à l'ID 1, et lui seul est écrit. L'ordre est imposé (en-tête du source).
+
+1. **Les commandes d'hôte.**
+   - La signature « ADAP ».
+   - 04h, 0Bh, 0Ah.
+   - 0Dh de 44 octets (PB-140).
+   - 1Fh, 23h, 28h, 06h à 09h, 05h, 00h.
+   - Une commande invalide (40h : INVDCMD).
+   - 1Ah et 1Bh : l'aller-retour des 64 octets du canal 2.
+   - Les interrupteurs (01h, FFh).
+   - MAILBOX INIT : deux MBO, deux MBI.
+2. **Trente-six CCB de mailbox.**
+   - INQUIRY, dont EVPD.
+   - READ CAPACITY.
+   - READ(10) de huit secteurs ; le motif écrit, puis relu.
+   - Le LBA de la capacité, qui rend le dernier secteur ÉCRIT (PB-129).
+   - READ(6) et WRITE(6).
+   - MODE SENSE des pages 3Fh, 00h et 04h ; MODE SELECT.
+   - Un code inconnu sans sense, TEST UNIT READY, puis REQUEST SENSE : 05/25h retenu (PB-131).
+   - Le LUN dans le CCB seul (PB-133).
+   - L'ID 5, vide (statut d'hôte 11h).
+   - La CDB de 9 octets et la CDB vide (PB-143).
+   - FORMAT UNIT, SEND DIAGNOSTIC, RESERVE, RELEASE, SEEK, START STOP, VERIFY, REZERO, PREVENT.
+   - Le résidu, et la dispersion avec résidu.
+   - READ(10) de 600 secteurs vers 1 Mo : `data_in` déborde dans `data_out` sans dommage (décision n° 9).
+3. **Les commandes BIOS 03h.**
+   - 00h et 01h.
+   - 08h, qui achève le CCB périmé (PB-138).
+   - 09h ; 05h, refusée.
+   - 02h : le LBA 1 pour le secteur 1 (PB-144).
+   - 15h.
+   - 02h encore : son sense, écrit à `ccb.addr + 12h + 10`, périmé (PB-137).
+4. **La fin.**
+   - ABORT à l'emplacement 1, qui efface le code du MBI 0 (PB-139).
+   - 22h : 224 octets à partir de 32, lus au-delà de `params` (PB-136), puis relus par 23h.
+
+Chaque octet que la carte rend ou écrit est relu dans un registre et sommé ; la somme s'affiche, D7AA.
+
+L'EEPROM programmée garde intacts ses 32 premiers octets, les seuls persistés. Le fichier `nvr/.aha1542c.nvr`
+que l'oracle écrit est donc celui que le C# relit à son amorçage, et aucun répertoire `nvr` par côté n'est
+nécessaire (amende la décision n° 10).
+
+`bd-ami486-aha-banc` : 185 132 389 instructions identiques. La sonde est identique, l'EEPROM à
+3655F32F4D3F1DBD. C: (1 392 octets écrits par DEBUG) et D: (4 591 octets écrits par le banc) sont identiques.
+Aucun `fatal()`, aucune garde R9.
+
+**r9-aha** (C# seul, dix essais, chacun sur une machine neuve). Le POST s'arrête sur « Press F1 » avant le
+balayage des ROM d'extension, et l'outil conduit la carte par ses ports.
+- `:679` : les sept commandes, INVDCMD.
+- `:530` : un CCB d'opcode 1, statut d'hôte 16h, MBI 04.
+- `:1743` : TEST UNIT READY déclaré sur 10 octets, le CCB achevé.
+- `:980` : 15h sur l'ID 5 vide, après le sense d'un CCB de mailbox.
+- `:799`, `:841`, `:883` : 02h, 03h, 04h sur l'ID 5 vide, après un CHECK CONDITION ; l'erreur 20h.
+- La ROM absente (`:2083`) et la carte sur un XT (`wx-config.c:237`) : aucune carte.
+- La configuration : `cdrom_channel` et `zip_channel` ramenés à -1 ; `addr` et `bios_addr` hors liste ramenés
+  aux défauts ; `hdg_fn` sans géométrie monté de capacité 0, comme chez PCem, et averti.
+
+**r9-scsihd** (cinq essais).
+- READ(10) de 1 100 secteurs (`:87`, puis `:717`).
+- READ(10) de compte 0 sur un CCB de 600 000 octets (`:717` ; le bus perdu, PB-132).
+- WRITE(10) de 600 secteurs (`:728`, puis `:101`).
+- MODE SELECT(6) de longueur 0 sur un CCB de 300 000 octets.
+- Le LBA 80000000h (`hdd_file.c:179`).
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| un octet d'EEPROM changé côté C# seul | `boot-diff` de la carte seule | trace verte, sonde rouge (`eeprom`) |
+| le vidage de `closepc` retiré | `bd-ami486-aha-format` | image C: rouge (0xE27A) |
+| `param_lu` rend 0 au-delà de `result_len` (PB-136 « corrigé ») | `bd-ami486-aha-banc` | rouge à l'instruction 180 980 310 (la relecture de 23h) |
+| ABORT en `c * 4` (PB-139 « corrigé ») | `bd-ami486-aha-banc` | rouge à l'instruction 180 980 107 |
+| la CDB courte non complétée (PB-143 « corrigé ») | `bd-ami486-aha-banc` | rouge à l'instruction 180 961 479 |
+| le sense du CCB de mailbox dans le CCB (PB-137 « corrigé ») | `bd-ami486-aha-banc` | rouge à l'instruction 180 957 192 |
+| la garde de `:679` remplacée par le `fatal()` de PCem | `r9-aha` | rouge : InvalidOperationException « Bad AHA154x command 0c » |
+| la garde de `scsi_hd.c:87` retirée | `r9-scsihd` | rouge : IndexOutOfRangeException |
+
+## G11.3 — La clôture : les machines et les témoins ; G11 fait
+
+**Le profil** : `ixtal26-486-scsi.cfg`, l'ami486 de `ixtal26-486.cfg` (GD5429, SB Pro v2) avec un disque
+SCSI de 100 Mo sur l'AHA-1542C, et sa ligne dans `launchSettings.json`. Son en-tête dit les trois étapes :
+- `--create-hdd 203,16,63` ;
+- `--make-nvr`, le CMOS partagé avec le profil IDE ;
+- DOS depuis la disquette 1.
+
+Essayé dans un répertoire temporaire : la carte s'annonce et voit le disque de 100 Mo à l'ID 0.
+
+**L'écran de construction** propose `aha1542c` sur un AT seulement : la liste de `HardDiskControllers`, avec
+la ROM présente. `--setup-check` en gagne deux contrôles (proposée sur l'IBM AT, absente du XT) : vingt-trois
+contrôles verts.
+
+**Les témoins**, sous l'oracle (`bd-ami486-aha-temoins`) :
+
+| Logiciel | Ce qu'il voit |
+|---|---|
+| la ROM v1.01 | « Adaptec AHA-1540C/1542C BIOS v1.01 », « Press <Ctrl><A> for SCSISelect(TM) Utility! », « SCSI ID #0 - PCem SCSI_HD - Drive C: (80h) », « BIOS Installed Successfully! » |
+| FDISK, FORMAT C:/S (MS-DOS 5.0) | la partition primaire de 20 Mio, « Formatting 19.98M », « System transferred », 20 895 744 octets |
+| le redémarrage de FDISK | un reset à chaud : la ROM refait son POST, la carte n'est pas remise à zéro, DOS repart de A: |
+| EXPAND | DEBUG.EXE, MEM.EXE, CHKDSK.EXE décompressés sur le disque SCSI |
+| VER | « MS-DOS Version 5.00 », sur l'ami486, l'ami386dx et l'ami286 |
+| MEM | 655 360 octets de mémoire conventionnelle, 593 264 libres |
+| CHKDSK C: | 20 690 944 octets libres, 10 203 unités d'allocation |
+| MSD /S (Windows 3.11) | « Disk Drives: A: B: C: », « OS Version: MS-DOS Version 5.00 » |
+| DEBUG + AHABANC | la somme D7AA, identique des deux côtés |
+
+**Les originaux** : `os.sha256` et `g5w.sha256`. `os/` est conforme à `os.sha256`. Les quatorze anciennes empreintes
+de g5w sont inchangées, et les huit nouvelles ne font qu'ajouter.
+
+**La série.** g110 : 205 portes en 56 minutes sur dix voies, 195 vertes. Les dix autres se sont arrêtées sur une
+trace tronquée par le quota de /tmp : des bancs AHABANC et des contrôles négatifs tournaient à côté, contre la
+règle d'une série seule sur la machine. g111, une série ciblée sur la recette et la DLL finales : ces dix portes,
+toutes les portes AHA (dont `-temoins`, `-banc`, `r9-aha` et `r9-scsihd`, venues après le départ de g110), `abi`
+et sept témoins hors AHA. 29 portes vertes en 6 minutes. Hors AHA, les journaux sont identiques à ceux de g109
+et g110, aux chemins temporaires près. Les portes AHA changent de compte, et c'est attendu : la recette finale
+a refait le disque de DOS et les CMOS, et `aha-format.keys` gagne EXPAND.

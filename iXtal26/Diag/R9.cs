@@ -20,4 +20,7 @@ internal static class R9
     internal static int Compte(string site) => Atteints.GetValueOrDefault(site);
 
     internal static void Raz() => Atteints.Clear();
+
+    /// <summary>Les sites atteints, « site×n » ; vide si aucun.</summary>
+    internal static string Resume() => string.Join(" ", Atteints.Select(k => $"{k.Key}×{k.Value}"));
 }

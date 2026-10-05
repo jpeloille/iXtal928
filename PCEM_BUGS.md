@@ -1343,6 +1343,10 @@ tomber l'émulateur, ou écrit n'importe où dans l'image.
 *NON reproduit* (R9) : `DEVIATION` dans `Scsi/scsi_zip.cs` — l'octet au-delà d'un tampon est compté,
 pas gardé, et se relit nul — et dans `Disc/hdd_file.cs` — hors de l'image ou à un offset négatif, rien
 n'est lu ni écrit, le retour est 1. Survie : `r9-zip`, sept essais, chaque garde atteinte.
+*Amendé en G11* : sous la glibc, `hdd_file.c` avec un `transfer_sectors` négatif ne plante pas toujours —
+`fread` rend EFAULT sans rien lire ; `fwrite` pousse jusqu'à 4 Ko du struct au-delà de la capacité ; un offset
+négatif à `transfer_sectors` = 1 lit ou écrit à la position courante du `FILE`. Ces cas dépendent de la libc et
+ne se transcrivent pas : la garde reste, et ils sont tenus hors des portes comparées.
 
 ### PB-126 — Le lecteur ZIP : la capacité, la fin du disque, l'éjection et les phases sans fin
 
@@ -1360,6 +1364,191 @@ contenu ; une éjection à la norme n'éjecte pas ; un reset matériel vide le l
 longueur nulle ne finit pas.
 *Trouvé par* : reconnaissance de G10.6 ; montré par ZIPBANC.
 *Reproduit* : `Scsi/scsi_zip.cs`, marqueurs PB-126 ; comparé des deux côtés par `bd-ami486-zip-banc`.
+
+### PB-128 — Le disque SCSI écrit et lit hors de ses tampons
+
+`scsi_hd.c:87` : `scsi_add_data` écrit `data_in[data_pos_write++]` sans borne. Un READ(10) de plus de 512
+secteurs (jusqu'à 65 535, `:505`) déborde les 256 Ko de `data_in` dans `data_out` : de 513 à 1 024 secteurs, sans
+dommage, l'invité relisant les bonnes données (`:717`) ; au-delà de 2 × 256 Ko, le bourrage, `data_pos_read`,
+`data_pos_write` (qui s'écrase lui-même), `hdd.f`, le chronomètre, puis le tas. `:717` : `scsi_hd_read` lit
+`data_in` sans borne ; une phase DATA IN vide (READ(10) de compte 0, allocation 0, PB-132) fait lire l'AHA
+jusqu'à la longueur de son CCB, 16 Mo, au-delà du struct. `:723-728` : `scsi_hd_write` écrit `data_out[262 144]`
+(le bourrage) puis `fatal("Exceeded data_out buffer size\n")` ; `:99-102` : `scsi_get_data` de même.
+*Effet* : un pilote ASPI qui lit plus de 1 024 secteurs d'un coup, ou une phase vide, fait tomber l'émulateur.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit jusqu'à 2 × 256 Ko* : `data_in` et `data_out` en un tableau contigu (décision n° 9 de PLAN-G11.md).
+*NON reproduit au-delà* (R9) : l'octet est compté, pas gardé, et se relit nul (`Scsi/scsi_hd.cs`, `:87`, `:717`,
+`:101`, `:728`). Survie : `r9-scsihd`.
+
+### PB-129 — Le disque SCSI annonce un secteur de trop, et le lit sans erreur
+
+`scsi_hd.c:426-437` : READ CAPACITY rend `hdd.sectors` au lieu du dernier LBA. `hdd_file.c:173-180` : ce
+secteur se lit sans erreur, `transfer_sectors` vaut 0, rien n'est lu, et `buf` — commun à la lecture et à
+l'écriture (`:467`, `:521`, `:583`, `:636`) — garde le dernier secteur lu OU ÉCRIT ; statut GOOD. Aucune
+commande ne vérifie le LBA (ni READ, ni WRITE, ni VERIFY : pas de 05/21h).
+*Effet* : un pilote voit un secteur de plus ; le lire rend un contenu périmé. La traduction de la ROM
+(64 × 32) ne l'atteint pas sur une capacité multiple de 2 048.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_hd.cs`.
+
+### PB-130 — MODE SENSE du disque SCSI : en-tête, descripteur, bourrage, géométrie fixe
+
+`scsi_hd.c:314-327` : l'en-tête vaut 00 00 08 00, le 08h dans l'octet du paramètre propre au périphérique, la
+longueur du descripteur à 0 alors que 8 octets de descripteur suivent (`sectors >> 24` dans l'octet de
+densité, un nombre de blocs sur 24 bits). `:410-412` : `for (; len >= 0; len--) add_data_len(0)` décrémente
+`len` pendant que `i` monte : min(i0, L) + ⌈(L − i0)/2⌉ octets au lieu de L (L = 255 : 134 octets pour la
+page 00h, 146 pour 03h, 04h ou 30h, 170 pour 3Fh). `:329-389` : géométrie fixe (256 secteurs par piste, 4 096
+cylindres, 64 têtes), page 30h « PCEM ». PC et DBD ignorés ; une page inconnue rend GOOD.
+*Effet* : un utilitaire qui lit les pages de mode lit des zéros pour des pages et une géométrie sans
+rapport avec READ CAPACITY.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_hd.cs`.
+
+### PB-131 — REQUEST SENSE, INQUIRY et les refus du disque SCSI
+
+`scsi_hd.c:148-186` : sense fixe de 18 octets à longueur additionnelle 0 (`:160`), sans bit Valid ; le format
+descripteur choisi par `cdb[1]` bit 0 ; la sense n'est effacée que par REQUEST SENSE (`:182`) et persiste
+d'une commande à l'autre. `:188-305` : INQUIRY de 96 octets, version 0, longueur additionnelle 0, CmdQue
+annoncé, EVPD ignoré. `:107-112`, `:692-708` : tous les refus portent 05/25h (LOGICAL UNIT NOT SUPPORTED), un
+code inconnu compris. `:656-675` : FORMAT UNIT, MODE SELECT et VERIFY sont simulés (rien n'est effacé ni lu).
+*Effet* : une erreur ancienne se relit plus tard ; un pilote prend un code inconnu pour un problème de LUN ;
+un formatage de bas niveau est instantané et garde les données.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_hd.cs`.
+
+### PB-132 — Une phase vide fige le bus SCSI, et aucun reset de la carte ne le libère
+
+`scsi_hd.c:150`, `:189`, `:312`, `:505` avec `scsi.c:241` et `:731-735` : READ(10) de compte 0, REQUEST
+SENSE, INQUIRY ou MODE SENSE(6) d'allocation 0 entrent en DATA IN, et la première lecture rend
+`read_complete` faux pour toujours ; MODE SELECT(6) de longueur 0 de même en DATA OUT. L'AHA lit ou écrit
+jusqu'à la fin du CCB, puis fait le va-et-vient NEXT_PHASE ↔ READ_DATA à chaque échéance
+(`scsi_aha1540.c:1832-1910`). Même blocage quand la cible a plus de données que le CCB. Et les resets de
+la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas le bus : aucun appel à `scsi_bus_reset` dans
+`scsi_aha1540.c`. La cible reste BSY ; toute sélection suivante, vers n'importe quel ID, échoue
+(`wait_for_bus`, `:1721`) ; si elle était en phase de commande, la CDB suivante va à l'ANCIEN disque.
+*Effet* : la commande ne finit jamais, et tous les disques SCSI disparaissent jusqu'au reset matériel du PC.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_hd.cs`, `Scsi/scsi_aha1540.cs` ; hors des portes comparées (les bancs n'y mènent
+pas), montré par `r9-scsihd`.
+
+### PB-133 — Le LUN du CCB n'atteint jamais le disque
+
+`scsi_aha1540.c:422`, `:440` : le LUN est lu dans le CCB, mais il n'y a ni phase MESSAGE OUT ni message
+IDENTIFY ; seul le sense automatique le pose dans la CDB (`:1603`). `scsi_hd.c:131` ne connaît le LUN que
+par `cdb[1]` bits 5-7.
+*Effet* : un pilote qui ne met le LUN que dans le CCB voit le disque répondre sur ses huit LUN.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, `Scsi/scsi_hd.cs`.
+
+### PB-135 — L'AHA-1542C s'arrête sur une commande de l'invité ; la configuration la fait tomber
+
+`scsi_aha1540.c` : `:530` (CCB d'opcode autre que 0, 2, 3 ou 4), `:679` (les commandes 0Ch, 1Ch, 1Dh,
+1Eh, 20h, 21h, 2Ah), `:799`, `:841`, `:883` (commande BIOS 03h, sous-fonctions 02h, 03h, 04h, sur un statut
+cible non nul, ou périmé : PB-138), `:980` (sous-fonction 15h sur une cible non disque, ou sur un ID vide après
+le sense d'un CCB de mailbox, qui laisse 70h dans `int_buffer`), `:1743` (une CDB plus longue que son
+groupe, `scsi.c:21`) : `fatal()`. La configuration : la carte sans sa ROM (`rom_init` rend -1, la fenêtre
+lit `bios_rom.rom` nul au POST, `:2083`) ; la carte sur un 8088 ou un 8086, que seul l'écran de PCem filtre
+(`wx-config.c:237-247`) — sa ROM s'exécute au balayage (instructions 286), son IRQ haute n'existe pas.
+*Effet* : un programme qui parle à la carte, ou un .cfg, arrête ou fait tomber l'émulateur.
+*Trouvé par* : reconnaissance de G11.
+*NON reproduit* (R9, décision n° 5 de PLAN-G11.md) : la commande finit en erreur — `:679` et `:980` en
+INVDCMD, `:799`, `:841`, `:883` en code 20h, `:530` au statut d'hôte 16h, `:1743` en suivant la phase de la
+cible ; la ROM absente et la règle ISA 16 bits refusent la carte avec un avertissement
+(`pc.check_hdd_controller`). Survie : `r9-aha`, `ahacfg`.
+
+### PB-136 — PROGRAM EEPROM (22h) lit au-delà de ses paramètres
+
+`scsi_aha1540.c:1166-1168` : `params[c + 3]` pour `c < params[1]`, jusqu'à 255 : au-delà de `params[64]`,
+le struct — `result_pos`, `result_len` (petit-boutien), puis `result[]` jusqu'à `result[185]` (vérifié sur le
+code de gcc 15.2 -O2). Seuls 32 octets sont persistés (`:2114`). L'IRQ peut changer avec une interruption en
+attente : `set_irq` et IRST visent la nouvelle ligne, l'ancienne reste levée.
+*Effet* : une EEPROM programmée avec des octets de l'état interne de la carte ; une interruption collée.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md).
+
+### PB-137 — Le sense automatique : inconditionnel, inversé, et écrit au hasard
+
+`scsi_aha1540.c:1535-1622` : un REQUEST SENSE suit CHAQUE commande, même GOOD, sauf si l'octet 3 du CCB
+vaut 1 ; son octet de contrôle vaut 14 (`:1610`). Sa destination est inversée (`:1613-1616`) : un CCB de
+mailbox l'envoie dans `int_buffer` et jamais dans le CCB ; une commande BIOS 03h l'envoie à
+`ccb.addr + 12h + longueur de CDB`, avec `ccb.addr` PÉRIMÉ — 0 à la mise sous tension, soit la table des
+vecteurs (INT 07h à 0Ah).
+*Effet* : un pilote ne trouve jamais le sense dans son CCB ; une commande BIOS directe peut écraser les
+vecteurs de l'horloge et du clavier.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-138 — Les commandes BIOS 03h achèvent un CCB périmé, et réussissent à faux
+
+`scsi_aha1540.c:765-1013` : les sous-fonctions 02h, 03h, 04h et 08h ne posent ni `from_mailbox` ni
+`current_mbo` (seule 15h remet `from_mailbox` à 0, `:974`). Après un CCB de mailbox, leur achèvement écrit dans
+l'ANCIEN CCB (`+0Eh`, `+0Fh`), libère son MBO — un START que le pilote vient d'y poser est perdu — et poste un
+MBI. Et sur une cible absente, la sélection ratée (`:1488-1526`) ne touche ni `ccb.status` ni `int_buffer` :
+02h, 03h, 04h réussissent si le statut périmé vaut 0 ; 08h et 15h rendent quatre octets périmés.
+*Effet* : des achèvements fantômes ; un disque absent « lu » sans erreur.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-139 — ABORT efface le mauvais emplacement, et n'interrompt rien
+
+`scsi_aha1540.c:1411` : en mailbox de 4 octets, l'action est effacée en `mba + c * 8` au lieu de `c * 4` :
+un START à l'emplacement 2c est perdu, ou, au-delà de `mbc`, un code de MBI. `:1406-1428` : ABORT poste un
+MBI « aborted » pour l'adresse donnée, que le CCB soit en cours, fini ou jamais lancé ; l'emplacement reste
+ABORT et chaque 02h suivant en reposte un.
+*Effet* : deux MBI pour un CCB ; des CCB affamés.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-140 — RETURN SETUP DATA est tronqué à 20 octets
+
+`scsi_aha1540.c:1138-1140` : `result_len = MIN(params[0], 20)`, puis les octets suivants mis à zéro : la
+somme A3h C2h et l'adresse de la mailbox BIOS (`:1130-1134`) ne sortent jamais.
+*Effet* : un utilitaire lit une configuration incomplète.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-141 — Les mailbox : le compte des 02h, le balayage BIOS, le MBI non vérifié
+
+`scsi_aha1540.c:732`, `:1376-1405` : `mbo_req` compte les 02h et chaque balayage reprend à l'emplacement 0 ; ni
+HRST, ni SRST, ni 01h ne le remettent à zéro, ni `bios_mbo_req`, ni `bios_mbo_inited`. `:1432-1455` : le
+balayage de la mailbox BIOS n'est gardé ni par l'état du CCB ni par STATUS_INIT : il écrase le CCB normal pris
+à la même échéance. `:1500-1503`, `:1565-1571`, `:1654-1659` : le MBI est écrit sans vérifier qu'il est
+libre. `:717-728` : MAILBOX INIT accepte un compte nul.
+*Effet* : après un reset du pilote, des CCB partent sans 02h ; des CCB perdus ; des achèvements écrasés.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-142 — La machine des commandes est réentrante, et part de zéro
+
+`scsi_aha1540.c:316-326` : `process_cmd` est appelé dans l'OUT de la commande, dans tous les états : en
+RESET, il achève l'autotest sur le champ et l'octet est perdu ; en CMD_IN_PROGRESS, l'octet reste dans CDF et
+devient une nouvelle commande ; en SEND_RESULT, l'OUT pousse lui-même l'octet suivant. `:2133` : `status`
+vaut 0 à la mise sous tension — ni INIT ni IDLE tant qu'il n'y a pas eu de reset.
+*Effet* : un pilote qui écrit trop tôt perd un octet ou lance une commande ; la carte non initialisée
+répond « prête » à la mailbox.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-143 — Une CDB courte est complétée de zéros
+
+`scsi_aha1540.c:1799-1804` : si le CCB déclare une CDB plus courte que son groupe (`scsi.c:21`), la carte, en
+NEXT_PHASE, envoie un zéro par échéance tant que la cible reste en phase de commande. Une longueur 0 exécute
+TEST UNIT READY ; un READ(10) déclaré sur 6 octets s'exécute avec un LBA et une longueur tronqués.
+*Effet* : une commande différente de celle du pilote s'exécute.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
+
+### PB-144 — La 1542C de PCem : traduction, adresses et EEPROM
+
+`scsi_aha1540.c:773`, `:815`, `:857` : la commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur
+(la ROM v1.01 ne s'en sert pas : elle passe par 82h). `:425-433`, `:1857`, `:1935` : les adresses ne bouclent
+pas à 24 bits. `:2101-2104`, `:2155-2157`, `:261-266` : sans EEPROM, ID 0, DMA 0, IRQ 9 ; une IRQ de code 7
+vaut 16, et `picint((uint16_t)(1 << 16))` ne lève rien. `:1703-1711`, `:1052-1074`, `:417` : l'ID de l'hôte
+n'est pas exclu de la sélection ; délai de sélection, temps de bus et vitesse sont rangés sans effet ; la
+direction du transfert est ignorée.
+*Effet* : sans conséquence pour la ROM ; un pilote qui les emploie voit une carte qui ne les tient pas.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : `Scsi/scsi_aha1540.cs`.
 
 ## B. Comportement indéfini en C
 
@@ -2193,10 +2382,16 @@ verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, W
 `scsi_cd_data_t` neuf (512 Ko, `scsi_cd.c:621`) sans fermer celui de l'amorçage précédent.
 `scsi.c:329-335` : `scsi_bus_close` vide `devices` et `device_data` avant la boucle qui devait les
 fermer — rien n'est fermé.
-*Effet* : aucun observable, 512 Ko perdus par amorçage.
-*Trouvé par* : transcription de G10.4.
-*Reproduit* : l'ancien objet est lâché, le GC le reprend ; `scsi_bus_close`, le bus des cartes
-SCSI, est omis jusqu'à G11.
+*Effet* : aucun observable pour un lecteur de CD, 512 Ko perdus par amorçage. **Élargi en G11** : pour un
+disque SCSI, le `FILE*` reste ouvert avec son tampon stdio ; la libc le vide à `exit()` (et l'oracle à
+`h_closepc`, `fflush(NULL)`). Après un reset matériel, le nouveau `FILE*` relit le dernier secteur écrit tel
+qu'il était sur le disque, et à la sortie le tampon orphelin, vidé en dernier (`_IO_list_all`), écrase ce qui a
+été écrit depuis.
+*Trouvé par* : transcription de G10.4 ; reconnaissance de G11.
+*Reproduit* : l'ancien objet est lâché ; `scsi_bus_close` est transcrit tel quel (G11.0). Un `FileStream`, lui,
+n'est pas vidé à la sortie du processus : `hdd_file` tient un registre de ses flux, que `closepc` vide du plus
+récent au plus ancien, puis ferme (DEVIATION hôte, décision n° 7 de PLAN-G11.md) ; sans lui,
+`bd-ami486-aha-format` rougit (VERIFICATION.md § G11.0).
 
 ### PB-127 — Huit fatal() que rien n'atteint dans le lecteur ZIP
 
@@ -2206,9 +2401,21 @@ toujours 0 ; `:771`, `:776`, `:832`, `:837` les mêmes de `scsi_get_data`, qui r
 *Trouvé par* : transcription de G10.6.
 *Reproduit* : les huit tests sont transcrits avec leur `fatal()`.
 
+### PB-134 — Vingt-deux fatal() que rien n'atteint dans le SCSI
+
+`scsi_hd.c:476`, `:480`, `:529`, `:533`, `:580`, `:585`, `:633`, `:638` testent un retour -1 ou 0x100 de
+`scsi_add_data` ou de `scsi_get_data`, qui rendent 0 ou un octet. `scsi_aha1540.c:1741`, `:1773`, `:1842`,
+`:1920`, `:1994`, `:2025` (BSY tombé : il ne tombe qu'après l'ACK du message, que la carte ne fait qu'en
+READ_MESSAGE), `:1807`, `:1828`, `:2047` (une phase, un REQ ou un message que `scsi_hd` ne rend pas), `:1016`,
+`:1337`, `:1367`, `:1691`, `:2055` (des invariants d'état ; `:1337` n'est atteint, dans l'oracle, qu'après
+`:679`, PB-135).
+*Effet* : aucun.
+*Trouvé par* : reconnaissance de G11.
+*Reproduit* : les sites sont transcrits avec leur `fatal()`.
+
 ## Portée de ce registre
 
-Ces **cent vingt-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent quarante-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2255,6 +2462,7 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de l'ATAPI (G10.4) | PB-113 à PB-122 ; PB-93, PB-110 élargis |
 | Reconnaissance de l'audio CD dans la machine (G10.5) | PB-123, PB-124 |
 | Reconnaissance et transcription du lecteur ZIP (G10.6) | PB-125 à PB-127 |
+| Reconnaissance (lecture puis contre-lecture) et transcription de l'AHA-1542C et de `scsi_hd` (G11) | PB-128 à PB-144 ; PB-121, PB-125 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

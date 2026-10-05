@@ -82,7 +82,8 @@ public static class Oracle
     //   h_cd_driver ; h_boot pose le pilote CD.
     // 51 en G10.5 : l'audio CD dans la machine — h_cd_sound_probe ; h_boot remet le fil CD à zéro.
     // 52 en G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip.
-    public const int AbiVersion = 52;
+    // 53 en G11.0 : l'AHA-1542C et ses disques (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) — h_aha_probe.
+    public const int AbiVersion = 53;
 
     static Oracle()
     {
@@ -331,6 +332,9 @@ public static class Oracle
     // G10.5 — la sonde du CD : cd_pos, cd_vol_l, cd_vol_r, l'empreinte des échantillons, les blocs, les non nuls.
     [DllImport(Lib)] internal static extern void h_cd_sound_probe([Out] ulong[] o);
     public const int CdSoundProbeN = 6;
+    // G11.0 — la sonde de l'AHA-1542C et de ses disques SCSI (harness_aha.c, Scsi/scsi_aha1540.cs Probe).
+    [DllImport(Lib)] internal static extern void h_aha_probe([Out] ulong[] o);
+    public const int AhaProbeN = 140;
 
     // M15 — vidéo. La carte (GFX_CGA = 0, GFX_VGA = 13, ibm.h:274-289), à poser avant
     // h_boot ; la sonde VGA, pendant de Video.vid_svga.Probe() ; et la VRAM brute,

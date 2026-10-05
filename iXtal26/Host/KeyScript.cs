@@ -123,6 +123,10 @@ public static class KeyScript
         case '\u000b': return SDL.Scancode.Pageup;
         case '\u000c': return SDL.Scancode.Pagedown;
         case '\u0010': return SDL.Scancode.F10;
+        // G11 — « _ » pour les fichiers compressés des disquettes de DOS 5 (DEBUG.EX_, que la recette g5w
+        //   décompresse par EXPAND), « > » pour une redirection. Disposition US.
+        case '_': shift = true; return SDL.Scancode.Minus;
+        case '>': shift = true; return SDL.Scancode.Period;
         default: return SDL.Scancode.Unknown;
         }
     }

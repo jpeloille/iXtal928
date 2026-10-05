@@ -152,11 +152,16 @@ POST qui diverge, et xebec_set_switches se contente d'un warning() que personne 
 ### `--hdd-controller NOM`
 
 Choisit le contrôleur de disque dur parmi ceux de la machine : `mfm_xebec`, `dtc5150x` et
-`xtide` (le XTIDE, G10.2) partout, `mfm_at` et `ide` (G5) sur les seules machines AT. C'est le filtre DEVICE_AT/MODEL_AT de
-PCem (wx-config.c:237-242), et la liste est celle de l'écran de construction
-(`Host/HardDiskControllers.cs`). Un nom inconnu, ou absent de la machine, est refusé en
+`xtide` (le XTIDE, G10.2) partout, `mfm_at` et `ide` (G5) et `aha1542c` (l'Adaptec AHA-1542C, G11) sur les
+seules machines AT. C'est le filtre DEVICE_AT/MODEL_AT de PCem (wx-config.c:237-242), et la liste est celle de
+l'écran de construction (`Host/HardDiskControllers.cs`). Un nom inconnu, ou absent de la machine, est refusé en
 listant ceux qui existent. L'option s'applique après `--config` et `--model`, comme
 `--gfxcard`, et l'emporte sur la clé `hdd_controller`.
+
+Depuis G11, la même règle vaut pour un .cfg : une carte ISA 16 bits (`mfm_at`, `ide`, `aha1542c`) sur une
+machine sans MODEL_AT (8088, 8086), ou une carte dont la ROM manque, n'est pas montée, avec un avertissement
+(`pc.check_hdd_controller`, PLAN-G11.md, décisions n° 3 et 4). Sous `aha1542c`, `cdrom_channel` et `zip_channel`
+sont ramenés à -1 (décision n° 2) ; les disques des ID 0 à 6 sont les clés `hdc_` à `hdi_`.
 
 ### `--zip IMG`
 

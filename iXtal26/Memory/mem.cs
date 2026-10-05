@@ -1102,6 +1102,35 @@ internal static partial class mem
         return 0xff;
     }
 
+    // pcem: mem.c:773-781 — G11.0, pour la mailbox de l'AHA-1542C (scsi_aha1540.c:1383, :1437).
+    internal static uint16_t mem_readw_phys(uint32_t addr)
+    {
+        mem_mapping_t? map = read_mapping[addr >> 14];
+
+        mem_logical_addr = 0xffffffff;
+
+        if (map != null && map.read_w != null)
+                return map.read_w(addr, map.p);
+
+        return (uint16_t)(mem_readb_phys(addr) | (mem_readb_phys(addr + 1) << 8));
+    }
+
+    // pcem: mem.c:783-791
+    internal static uint32_t mem_readl_phys(uint32_t addr)
+    {
+        mem_mapping_t? map = read_mapping[addr >> 14];
+
+        mem_logical_addr = 0xffffffff;
+
+        if (map != null && map.read_l != null)
+                return map.read_l(addr, map.p);
+
+        return (uint32_t)(mem_readw_phys(addr) | (mem_readw_phys(addr + 2) << 16));
+    }
+
+    // omitted: mem_writew_phys et mem_writel_phys (mem.c:802-825) — leurs seuls appelants sont les branches
+    //   MB_FORMAT_8 de scsi_aha1540.c, mortes sur la 1542C (PLAN-G11.md, décision n° 1).
+
     internal static void mem_writeb_phys(uint32_t addr, uint8_t val)
     {
         mem_mapping_t? map = write_mapping[addr >> 14];

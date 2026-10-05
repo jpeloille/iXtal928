@@ -80,7 +80,7 @@ internal static class nvr
     /// `nvr_default_path` vaut « nvr/default/ » et `fn` s'y ajoute tel quel.
     /// config_name n'est jamais affecté dans ce dépôt (config.cs:54), donc --config
     /// ne change PAS le nom du CMOS, contrairement à PCem.</summary>
-    private static FileStream? nvrfopen(string fn, string mode)
+    internal static FileStream? nvrfopen(string fn, string mode)
     {
         string s;
         FileStream? f;
