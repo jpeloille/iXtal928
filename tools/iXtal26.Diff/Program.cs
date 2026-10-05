@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sbprov2] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA] [--cd-model NOM] [--expect-cd CANAL,vide|image] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -255,6 +255,12 @@ switch (args[0])
     // G10.3 — R9 : les feuilles CUE qui font tomber PCem, en C# seul.
     case "r9-cue":
         return R9Cue.Run(args.Length > 1 ? args[1] : null);
+    // G10.4 — R9 : les sites où PCem s'arrête dans le pont ATAPI, le bus et le lecteur de CD (PB-113 à PB-115).
+    case "r9-atapi":
+        return R9Atapi.Run("roms", args.Length > 1 ? args[1] : null);
+    // G10.4 — les clés du lecteur de CD-ROM (PB-93, PB-110, PB-116), en C# seul.
+    case "r9-cdcfg":
+        return R9CdCfg.Run("roms", args.Length > 1 ? args[1] : null);
     case "page-check":
     {
         var it = 200000;
@@ -440,6 +446,18 @@ switch (args[0])
                 // G8.1, G8.2 — la carte son (internal_name : none, adlib, sbprov2), même précédence.
                 case "--sndcard" when i + 1 < args.Length: BootDiff.SndcardOverride = args[++i]; break;
                 case "--lpt1" when i + 1 < args.Length: BootDiff.Lpt1Override = args[++i]; break;
+                // G10.4 — le modèle du lecteur de CD-ROM (un nom inconnu refusé, retour 2), et l'exigence d'un
+                // lecteur sur une unité IDE, avec son pilote (vide, image).
+                case "--cd-model" when i + 1 < args.Length: BootDiff.CdModelOverride = args[++i]; break;
+                case "--expect-cd" when i + 1 < args.Length:
+                    BootDiff.ExpectCd = args[++i];
+                    if (BootDiff.ExpectCd.Split(',') is not [var canal, "vide" or "image"] || !int.TryParse(canal, out var u) ||
+                        u is < 0 or > 3)
+                    {
+                        Console.Error.WriteLine($"--expect-cd {BootDiff.ExpectCd} : attendu CANAL,PILOTE (CANAL de 0 à 3, PILOTE vide ou image).");
+                        return 2;
+                    }
+                    break;
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
                 // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).

@@ -135,6 +135,34 @@ public static class BootDiff
         }
     }
 
+    /// <summary>G10.4 — le lecteur de CD-ROM, comme loadconfig le pose (pc.c:702-711, :780-781) : la configuration
+    /// (cdrom_drive, cdrom_path), le canal, la vitesse et le modèle, tous validés côté C#.</summary>
+    private static void PousserCdrom()
+    {
+        Oracle.h_set_cdrom(pc.cfg_cdrom_drive, Ide.ide.cdrom_channel, pc.cfg_cdrom_path, Scsi.scsi_cd_c.cd_speed,
+                           Scsi.scsi_cd_c.cd_model_to_config(Scsi.scsi_cd_c.cd_model));
+    }
+
+    /// <summary>G10.4 — `--expect-cd` : l'unité et le pilote de chaque côté, relevés avant closepc (ide_close
+    /// remet les unités à IDE_NONE côté C#). Rend 0 si conforme ou sans exigence.</summary>
+    private static int CompareCd((int type, int pilote) o, (int type, int pilote) c)
+    {
+        if (ExpectCd is null)
+            return 0;
+        var e = ExpectCd.Split(',');
+        var pilote = e[1] == "image" ? 2 : 1;
+        string Dit((int type, int pilote) v) =>
+            $"unité {(v.type == 2 ? "CD-ROM" : v.type == 1 ? "disque" : "vide")}, pilote {(v.pilote == 2 ? "image" : v.pilote == 1 ? "vide" : "aucun")}";
+        if (o != (2, pilote) || c != (2, pilote))
+        {
+            Console.Error.WriteLine($"Lecteur de CD-ROM : oracle {Dit(o)}, C# {Dit(c)} ; attendu sur l'unité {e[0]} le pilote {e[1]} " +
+                                    $"(--expect-cd {ExpectCd}).");
+            return 1;
+        }
+        Console.WriteLine($"Lecteur de CD-ROM des deux côtés : unité IDE {e[0]}, pilote {e[1]}.");
+        return 0;
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -167,6 +195,13 @@ public static class BootDiff
     internal static string? SndcardOverride;
     /// <summary>G10.0 — `--lpt1 NOM` (none, dss, lpt_dac, lpt_dac_stereo), appliqué après --config.</summary>
     internal static string? Lpt1Override;
+    /// <summary>G10.4 — `--cd-model NOM` (un nom de configuration de scsi_cd.c, pcemcd par défaut ; un nom
+    /// inconnu refusé, retour 2, comme la clé cd_model), appliqué après --config.</summary>
+    internal static string? CdModelOverride;
+    /// <summary>G10.4 — `--expect-cd CANAL,PILOTE` (PILOTE : vide ou image) : la porte exige, des deux côtés,
+    /// un lecteur de CD-ROM sur l'unité IDE CANAL et ce pilote posé — sans quoi un lecteur perdu des deux
+    /// côtés laisserait le boot-diff vert.</summary>
+    internal static string? ExpectCd;
     /// <summary>G8.3 — `--expect-sb ADDR,IRQ,DMA` (ADDR en hexadécimal) : la porte exige que la
     /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
     /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
@@ -215,6 +250,8 @@ public static class BootDiff
         if (SndcardOverride is not null && !pc.setsndcard(SndcardOverride))
             return 2;
         if (Lpt1Override is not null && !pc.setlpt1device(Lpt1Override))
+            return 2;
+        if (CdModelOverride is not null && !pc.setcdmodel(CdModelOverride))
             return 2;
         if (MouseTypeOverride is { } mt)
         {
@@ -379,6 +416,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserCdrom();
         PousserManettes();
         for (var hd = 0; hd < NHd; hd++)
             Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
@@ -417,6 +455,9 @@ public static class BootDiff
             SourisOracle(i);
             ManetteOracle(i);
         }
+        // G10.4 — le lecteur de CD-ROM de l'oracle, relevé pour --expect-cd.
+        var canalCd = ExpectCd is null ? 0 : int.Parse(ExpectCd.Split(',')[0]);
+        var cdOracle = ExpectCd is null ? (0, 0) : (Oracle.h_ide_type(canalCd), Oracle.h_cd_driver());
         Oracle.h_trace_close();
         Oracle.h_closepc();
         if (TraceTronquee(oraclePath))
@@ -539,6 +580,9 @@ public static class BootDiff
         var sndCsharp = SoundProbeCsharp();
         var ps2Csharp = new ulong[Oracle.MouseProbeN];
         Mouse.mouse_ps2.ProbeState(ps2Csharp);
+        var cdCsharp = ExpectCd is null ? (0, 0)
+            : (Ide.ide.ide_drives[canalCd].type,
+               Ide.ide_atapi.atapi is null ? 0 : Ide.ide_atapi.atapi == Cdrom.cdrom_image.image_atapi ? 2 : 1);
         // La carte, retenue AVANT closepc : device_close_all passe par vga_close, qui
         // remet svga_pri à nul. Sans cette référence, l'écran de fin se lisait par
         // mem_readb_phys — donc par svga_read — sous un en-tête « CGA ».
@@ -590,6 +634,7 @@ public static class BootDiff
             return vgaVerdict
                  | CompareSound(sndOracle, sndCsharp)
                  | CompareMouse(ps2Oracle, ps2Csharp)
+                 | CompareCd(cdOracle, cdCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
@@ -946,6 +991,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserCdrom();
         PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -1336,6 +1382,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserCdrom();
         PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
@@ -1461,6 +1508,7 @@ public static class BootDiff
         PousserConfigDevices();
         Oracle.h_set_lpt1_device(Lpt.lpt.lpt1_device_name);
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
+        PousserCdrom();
         PousserManettes();
         for (var hd = 0; hd < 4; hd++)
             Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,

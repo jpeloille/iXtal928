@@ -32,7 +32,8 @@
 //   dynarec, waitstates, carte son, CD-ROM, ZIP, LPT, souris, joystick, réseau
 //   (wx-config.c, pages 0 à 7). Les proposer serait proposer des machines qui
 //   n'existent pas dans ce dépôt. La CARTE VIDÉO, elle, est proposée depuis M15 : deux
-//   cartes y sont transcrites, la CGA et la VGA.
+//   cartes y sont transcrites, la CGA et la VGA. Les clés du CD-ROM (G10.4) sont
+//   enregistrées sans ligne à l'écran (GR.3, G16).
 
 using iXtal26.PluginApi;
 using SDL3;
@@ -818,6 +819,15 @@ internal sealed class SdlSetup
         }
 
         config.config_set_int(config.CFG_MACHINE, null, "bpb_disable", Disc.disc_img.bpb_disable);
+
+        // pcem: pc.c:888-890, :928-929 — G10.4 : le lecteur de CD-ROM, pour qu'une machine enregistrée le garde ;
+        //   pas de ligne à l'écran (le registre omet le sélecteur, pas les clés). cdrom_device_path (:891) : le
+        //   lecteur physique, exclu.
+        config.config_set_int(config.CFG_MACHINE, null, "cdrom_drive", Cdrom.cdrom_ioctl.cdrom_drive);
+        config.config_set_int(config.CFG_MACHINE, null, "cdrom_channel", Ide.ide.cdrom_channel);
+        config.config_set_string(config.CFG_MACHINE, null, "cdrom_path", Cdrom.cdrom_image.image_path);
+        config.config_set_int(config.CFG_MACHINE, null, "cd_speed", Scsi.scsi_cd_c.cd_speed);
+        config.config_set_string(config.CFG_MACHINE, null, "cd_model", Scsi.scsi_cd_c.cd_model_to_config(Scsi.scsi_cd_c.cd_model));
 
         config.config_save(config.CFG_MACHINE, path);
         ConfigPath = path;

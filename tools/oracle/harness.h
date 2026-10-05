@@ -596,6 +596,15 @@ int64_t h_cd_call(int op, int64_t a, int64_t b, int64_t c, int64_t d, uint8_t *b
 void h_cd_audio_callback(int16_t *out, int len);
 int h_cd_state(int64_t *v, int max, char *path, int pathmax, char *mcn, int mcnmax);
 
+/* G10.4 — le lecteur de CD-ROM de la machine, posé avant h_boot comme loadconfig le pose (pc.c:702-711,
+ * :780-781) : cdrom_drive (-1 ou CDROM_IMAGE), cdrom_channel (-1 à 3), cdrom_path (moins de 1 024 octets),
+ * cd_speed (l'une des dix-huit vitesses), cd_model (un nom de configuration de la table) — le C# a validé
+ * chacun. h_ide_type : le type de l'unité d (0 rien, 1 disque, 2 CD) ; h_cd_driver : le pilote posé
+ * (0 aucun, 1 le lecteur vide, 2 l'image). */
+void h_set_cdrom(int drive, int channel, const char *path, int speed, const char *model);
+int h_ide_type(int d);
+int h_cd_driver(void);
+
 /* La VRAM de la carte svga, NULL sans carte. Lue sans passer par svga_read. */
 uint8_t *h_vga_vram(void);
 
@@ -726,7 +735,9 @@ uint8_t *h_ram(void);
 /* 48 depuis G10.2 : le XTIDE (hdd_controller « xtide », xtide.c lié). */
 /* 49 depuis G10.3 : le moteur d'images de CD (harness_cdrom.cpp) — h_cd_reset, h_cd_fin, h_cd_open,
  * h_cd_close, h_cd_null_open, h_cd_set_drive, h_cd_call, h_cd_audio_callback, h_cd_state. */
-#define H_ABI_VERSION 49
+/* 50 depuis G10.4 : l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c liés ; ide.c inclus par harness_ide.c) —
+ * h_set_cdrom, h_ide_type, h_cd_driver ; h_boot pose le pilote CD (pc.c:291-313, :411-433). */
+#define H_ABI_VERSION 50
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

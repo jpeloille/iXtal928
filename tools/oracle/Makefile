@@ -116,7 +116,10 @@ SRC := harness.c \
        $(PCEM)/src/disc/disc_sector.c \
        $(PCEM)/src/mfm/mfm_xebec.c \
        $(PCEM)/src/mfm/mfm_at.c \
-       $(PCEM)/src/ide/ide.c \
+       harness_ide.c \
+       $(PCEM)/src/ide/ide_atapi.c \
+       $(PCEM)/src/scsi/scsi.c \
+       $(PCEM)/src/scsi/scsi_cd.c \
        $(PCEM)/src/ide/xtide.c \
        $(PCEM)/src/hdd/hdd_file.c \
        $(PCEM)/src/cdrom/cdrom-null.c
@@ -184,7 +187,7 @@ $(BUILD)/harness_cdrom.o: CXXFLAGS += -ftrivial-auto-var-init=zero
 LDFLAGS += -Wl,--wrap=_Znam
 
 OBJ := $(addprefix $(BUILD)/,$(notdir $(SRC:.c=.o))) $(addprefix $(BUILD)/,$(notdir $(CXXSRC:.cpp=.o)))
-vpath %.c . $(PCEM)/src/lpt $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound $(PCEM)/src/cdrom
+vpath %.c . $(PCEM)/src/lpt $(PCEM)/src/video $(PCEM)/src/cpu $(PCEM)/src/keyboard $(PCEM)/src/memory $(PCEM)/src $(PCEM)/src/models $(PCEM)/src/plugin-api $(PCEM)/src/flash $(PCEM)/src/floppy $(PCEM)/src/disc $(PCEM)/src/mfm $(PCEM)/src/hdd $(PCEM)/src/ide $(PCEM)/src/scsi $(PCEM)/src/devices $(PCEM)/src/mouse $(PCEM)/src/joystick $(PCEM)/src/sound $(PCEM)/src/cdrom
 
 # --- bench : la référence « C de production » ---------------------------------
 # Un EXÉCUTABLE, pas la .so : mêmes sources SAUF harness_wrap.c, SANS -Wl,--wrap

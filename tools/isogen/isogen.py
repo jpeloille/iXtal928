@@ -31,7 +31,9 @@
 # est la moitié de la sonde, que des trous comptés dépasseraient en entier.
 #
 # Usage :
-#   python3 tools/isogen/isogen.py DOSSIER   écrit les images dans DOSSIER, qui doit exister
+#   python3 tools/isogen/isogen.py DOSSIER          écrit les images dans DOSSIER, qui doit exister
+#   python3 tools/isogen/isogen.py DOSSIER NOM…     n'écrit que les images nommées (G10.4 : la recette g5w
+#                                                   y prend iso-2048.iso) ; un nom inconnu est refusé
 
 import ctypes
 import os
@@ -240,7 +242,15 @@ def ecrire_creuse(dossier, nom, tete, taille):
 
 # --- les images ---------------------------------------------------------------------------------
 
+# Les images demandées (G10.4) ; vide : toutes.
+SEULES = set(sys.argv[2:])
+ECRITES = set()
+
+
 def ecrire(dossier, nom, contenu):
+    if SEULES and nom not in SEULES:
+        return
+    ECRITES.add(nom)
     chemin = os.path.join(dossier, nom)
     os.makedirs(os.path.dirname(chemin), exist_ok=True)
     with open(chemin, 'wb') as f:
@@ -254,8 +264,8 @@ def cue(*lignes, fin='\n', derniere=True):
 
 
 def main():
-    if len(sys.argv) != 2 or not os.path.isdir(sys.argv[1]):
-        sys.exit('usage : isogen.py DOSSIER   (un répertoire existant)')
+    if len(sys.argv) < 2 or not os.path.isdir(sys.argv[1]):
+        sys.exit('usage : isogen.py DOSSIER [NOM…]   (un répertoire existant ; NOM : une image à écrire seule)')
     d = sys.argv[1]
 
     s = volume()
@@ -386,6 +396,12 @@ def main():
                                       '  INDEX 01 00:00:10'))
     ecrire(d, 'r9-piste-avant-file.cue', cue('TRACK 01 AUDIO', '  INDEX 01 00:00:00', 'FILE "mixte.bin" BINARY',
                                              '  TRACK 02 AUDIO', '  INDEX 01 00:00:00'))
+
+    if SEULES:
+        if SEULES - ECRITES:
+            sys.exit(f'isogen : image(s) inconnue(s) : {", ".join(sorted(SEULES - ECRITES))}')
+        print(f'isogen : {", ".join(sorted(ECRITES))} écrite(s) dans {d}.')
+        return
 
     # PB-107 : 0xA0000000 octets, au-delà de 2 Gio ; le descripteur annonce 1 310 720 secteurs.
     creuse = 0xA0000000

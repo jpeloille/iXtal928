@@ -88,6 +88,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   LPT1 (PB-101). G10.1 aussi : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105). Et
   G10.2 : le XTIDE en version XT ; le 5150, le XT, la M24 et le PC1512 amorcent un disque dur.
   G10.3 : le moteur d'images CD entier, ISO et CUE/BIN, prouvé hors machine (PB-106 à PB-112).
+  G10.4 : l'ATAPI, le CD-ROM sur l'IDE, prouvé par le banc ATAPIBANC (PB-113 à PB-122).
 - **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -247,14 +248,15 @@ Millennium, Mach64).
 
 ### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(feu vert du 04/10 ; en cours, `PLAN-G10.md`)*
 
-**G10.0 à G10.3 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
+**G10.0 à G10.4 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
 comme PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox
 (VERIFICATION.md § G10.0) ; la manette, ses sept types, la section [Joysticks] et `joystick_poll`
 par SDL3 (§ G10.1) ; le XTIDE en version XT, sur lequel le 5150, le XT, la M24 et le PC1512
 amorcent un disque dur (§ G10.2) ; le moteur d'images CD entier, ISO et CUE/BIN, pistes de données
-et audio, prouvé des deux côtés hors machine sur les images d'isogen, PB-106 à PB-112 (§ G10.3).
-Restent l'ATAPI (G10.4), l'audio CD dans la machine (G10.5), le ZIP (G10.6) — découpage amendé
-le 04/10 (PLAN-G10.md, décision n° 1).
+et audio, prouvé des deux côtés hors machine sur les images d'isogen, PB-106 à PB-112 (§ G10.3) ;
+l'ATAPI, le pont, le bus et le lecteur de CD-ROM sur l'IDE, ses cinq clés, et le banc ATAPIBANC
+qui lui parle par les ports sous DOS, PB-113 à PB-122 (§ G10.4). Restent l'audio CD dans la
+machine (G10.5), le ZIP (G10.6) — découpage amendé le 04/10 (PLAN-G10.md, décision n° 1).
 
 - **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
   `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
@@ -313,7 +315,8 @@ après G10.0 :
    78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
    100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 —
    PS2.0), ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
-   matériel — G10.1), images CD (106, 107, 108, 109 — G10.3).
+   matériel — G10.1), images CD (106, 107, 108, 109 — G10.3 ; 122 — G10.4), lecteur de CD
+   (117 à 120 — G10.4).
 2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
 3. **Section C, 21 entrées sans effet observable** : nettoyage seulement, sans changement de
    comportement.

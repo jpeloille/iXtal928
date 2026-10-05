@@ -77,7 +77,7 @@ enum {
         H_CD_EXIT
 };
 
-static ATAPI *h_cd_harnais;     /* h_null_atapi (harness_stubs.c), rendu par h_cd_fin */
+static ATAPI *h_cd_harnais;     /* `atapi` au premier h_cd_reset, rendu par h_cd_fin */
 static int h_cd_garde;
 static ATAPI *h_cd_nulle;       /* la table que pose cdrom_null_open (static dans cdrom-null.c) */
 
@@ -122,6 +122,82 @@ void h_cd_set_drive(int drive, int old) {
 }
 
 void h_cd_audio_callback(int16_t *out, int len) { image_audio_callback(out, len); }
+
+/* G10.4 — l'amorçage (PLAN-G10.md). La configuration du lecteur, posée par h_set_cdrom (harness.c) avant
+ * h_boot : cdrom_drive (pc.c:702) et cdrom_path (pc.c:707-711), bornée à 1 023 octets par le C#. */
+static int h_cdrom_drive_cfg = -1;
+static char h_cdrom_path_cfg[1024];
+
+void h_cd_config(int drive, const char *path) {
+        h_cdrom_drive_cfg = drive;
+        snprintf(h_cdrom_path_cfg, sizeof(h_cdrom_path_cfg), "%s", path ? path : "");
+}
+
+/* ORACLE PARITY, pendant de la remise à zéro d'initpc côté C# (pc.cs) : l'état statique du pilote et les deux
+ * globales du lecteur repartent de zéro à chaque amorçage, la configuration reposée, atapi nul comme au
+ * lancement de PCem (ide_atapi.c:26). */
+void h_cd_boot_raz(void) {
+        image_close();
+        image_changed = 0;
+        cdrom_capacity = 0;
+        image_cd_state = CD_STOPPED;
+        image_cd_pos = image_cd_end = 0;
+        memset(cd_buffer, 0, sizeof(cd_buffer));
+        cd_buflen = 0;
+        cdrom_drive = h_cdrom_drive_cfg;
+        old_cdrom_drive = 0;
+        strcpy(image_path, h_cdrom_path_cfg);
+        atapi = NULL;
+}
+
+void cdrom_null_reset(void);
+
+/* pc.c:297-312 (__unix) — la branche CDROM_IMAGE. ioctl_set_drive (:312) : le lecteur physique, que la
+ * configuration écarte (pc.cs). Une image illisible laisse atapi tel quel, comme chez PCem ; le C# s'en écarte
+ * (PB-116), et aucune porte ne la donne à l'oracle. */
+static void h_cd_image(void) {
+        if (cdrom_drive == CDROM_IMAGE) {
+                FILE *ff = fopen(image_path, "rb");
+                if (ff) {
+                        fclose(ff);
+                        image_open(image_path);
+                } else {
+                        cdrom_drive = -1;
+                        cdrom_null_open(cdrom_drive);
+                }
+        }
+}
+
+/* pc.c:291-313 — le bloc CD d'initpc. */
+void h_cd_initpc(void) {
+        if (cdrom_drive == -1)
+                cdrom_null_open(cdrom_drive);
+        else
+                h_cd_image();
+}
+
+/* pc.c:411-433 — le bloc CD de resetpchard. */
+void h_cd_resetpchard(void) {
+        image_close();
+        if (cdrom_drive == -1)
+                cdrom_null_reset();
+        else
+                h_cd_image();
+}
+
+/* pc.c:321-333 — le reset du pilote, à la fin d'initpc ; vide des deux sorts. */
+void h_cd_initpc_fin(void) {
+        if (cdrom_drive == -1)
+                cdrom_null_reset();
+        else
+                image_reset();
+}
+
+/* pc.c:578 — atapi->exit(), dans closepc. */
+void h_cd_exit(void) { atapi->exit(); }
+
+/* Le pilote posé, pour --expect-cd : 0 aucun, 1 le lecteur vide (cdrom-null.c), 2 l'image. */
+int h_cd_driver(void) { return !atapi ? 0 : atapi == &image_atapi ? 2 : 1; }
 
 /* Une entrée de la table atapi ; buf + off est le tampon. INT64_MIN si atapi est nul. */
 int64_t h_cd_call(int op, int64_t a, int64_t b, int64_t c, int64_t d, uint8_t *buf, int off) {

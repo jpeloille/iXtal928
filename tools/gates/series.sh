@@ -285,3 +285,20 @@ done
 # CUE qui font tomber PCem, en C# seul.
 run cdimage-check cdimage-check
 run r9-cue r9-cue
+# G10.4 — l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c) : le CD-ROM en maître secondaire de l'ami486
+# (cdrom_channel = 2). bd-ami486-cd-vide et -iso : le POST entier, lecteur vide puis chargé de
+# iso-2048.iso d'isogen (recette g5w), CR-587-B à 4x ; --expect-cd exige le lecteur et son pilote des
+# deux côtés — le BIOS ne touche jamais le canal secondaire (mesuré), le diff d'instructions ne le
+# verrait pas perdu. ATAPIBANC (tools/atapibanc) saisi dans DEBUG sur C: et lancé, lecteur chargé
+# puis vide : signature, IDENTIFY PACKET, TEST UNIT READY, REQUEST SENSE, INQUIRY, READ CAPACITY
+# (PB-117), READ(10) du PVD et de quatre blocs DRQ, le secteur 32 refusé, READ TOC, MODE SENSE,
+# GET EVENT STATUS (PB-118), un code inconnu. r9-atapi et r9-cdcfg, en C# seul : les sites où PCem
+# s'arrête (PB-113 à PB-116) et les clés du lecteur (PB-93, PB-110).
+runw bd-ami486-cd-vide c.nvr aucune boot-diff roms 40000 --config ami486-cd-vide.cfg --expect-cd 2,vide
+runw bd-ami486-cd-iso c.nvr aucune boot-diff roms 40000 --config ami486-cd-iso.cfg --expect-cd 2,image
+mapfile -t ABK < tools/atapibanc/atapibanc.keys
+ABB=(); for l in "${ABK[@]}"; do ABB+=(--type "$l"); done
+runw bd-ami486-atapi-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image
+runw bd-ami486-atapi-banc-vide c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-vide.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,vide
+run r9-atapi r9-atapi
+run r9-cdcfg r9-cdcfg

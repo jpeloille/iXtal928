@@ -1174,8 +1174,136 @@ l'utilisateur, comme un .cfg.
 *Trouvé par* : transcription de G10.3.
 *Non reproduit* (R9, décision n° 4 de G10.3) : `Cdrom/cdrom_image.cs`, marqueurs `pcem bug, not
 reproduced` — la lecture échoue, la feuille fautive est refusée ; `r9-cue` (C# seul) rougit en
-nommant l'exception si l'on retire une garde. `image_path` est une chaîne C# ; la borne viendra
-avec la clé `cdrom_path`, en G10.4. L'oracle ne reçoit jamais ces feuilles.
+nommant l'exception si l'on retire une garde. `image_path` est une chaîne C#. L'oracle ne reçoit
+jamais ces feuilles.
+*G10.4, la clé `cdrom_path`* (`pc.c:707-711`, `strcpy` dans le même `image_path`) : au-delà de
+1 023 octets, le chemin est écarté avec un avertissement et le lecteur reste vide (`pc.cs`), prouvé
+par `r9-cdcfg`.
+
+### PB-113 — Le pont ATAPI s'arrête sur dix-neuf fatal(), dont un à la portée de l'invité
+
+`ide_atapi.c` : dix-sept `fatal()` vivants — la sélection (`:102`, `:106`, `:110`) et la machine
+d'états du paquet (`:157`, `:159`, `:164`, `:173`, `:205`, `:221`, `:281`, `:296`, `:299`, `:324`,
+`:346`, `:362`, `:416`, `:453`) — et deux dans `scsi.c` (`:85`, `:264`). `atapi_command_start`
+suppose le bus au repos ; or DEVICE RESET (08h), la reprise ordinaire d'un pilote ATAPI, ne remet
+pas le pont à zéro (`ide.c:820-830` n'appelle pas `atapi_reset`), et un PACKET envoyé pendant une
+phase en cours trouve le bus occupé.
+*Effet* : un pilote qui abandonne un transfert, ou qui reprend par DEVICE RESET puis renvoie un
+PACKET, fait tomber l'hôte en `:110` (mesuré par `r9-atapi`, la garde retirée). Les dix-huit autres
+sites — `:102` et `:106` dans la sélection, les quatorze de la machine d'états, les deux de `scsi.c`
+— vérifient l'accord du pont et de `scsi_cd`, deux codes déterministes : aucune séquence de
+l'invité ne les atteint (relecture, VERIFICATION.md § G10.4).
+*Trouvé par* : reconnaissance de G10.4.
+*Non reproduit* (R9, décision n° 14 de PLAN-G10.md) : `Ide/ide_atapi.cs` et `Scsi/scsi.cs`,
+marqueurs `pcem bug, not reproduced: PB-113`. La sélection abandonne la transaction en cours
+(`scsi_bus_reset`, qui remet aussi le lecteur) et reprend, comme un vrai lecteur ; un second échec
+finit la commande en erreur. Les quatorze sites de la machine d'états finissent la commande par
+`atapi_abort` (le pont et le bus au repos, ERR et ABRT, phase d'état, IRQ) ; les deux du bus le
+remettent au repos, et le pont abandonne à son tour. DEVICE RESET garde l'état du pont de PCem.
+Survie : `r9-atapi`, site par site, par un scénario de l'invité ou un état forgé.
+
+### PB-114 — Un PACKET en DMA, sans bus master, appelle un pointeur nul
+
+`ide_atapi.c:473`, `:482` : les états RETRY_READ_DMA et RETRY_WRITE_DMA appellent
+`ide_bus_master_read_data` et `ide_bus_master_write_data` sans les tester. Sans bus master (aucune
+machine du dépôt n'a de contrôleur PCI), les deux sont nuls, et `:246-248`, `:395-397` mènent à ces
+états dès qu'un PACKET porte le bit DMA (registre de fonctions, bit 0).
+*Effet* : un pilote qui tente le DMA fait tomber l'hôte au premier transfert.
+*Trouvé par* : reconnaissance de G10.4.
+*Non reproduit* (R9, décision n° 15) : les deux états réarment leur chronomètre, comme si le DMA
+n'avait pas eu lieu — l'invité attend, l'émulateur vit (BSY indéfini, comme WIN_READ_DMA côté
+disque, `ide.c:884`). `r9-atapi` : le lecteur reste BSY, puis DEVICE RESET le rend.
+
+### PB-115 — Le lecteur de CD s'arrête, ou lit et écrit hors de ses tampons
+
+`scsi_cd.c:992-993` : MECHANISM STATUS de longueur d'allocation nulle, `fatal()`. `:1576-1581` :
+`data_out[262 144]` est écrit, hors du tableau, avant le `fatal()` ; un MODE SELECT de longueur 0
+(PB-119) y mène. `:1560-1571` : après un remplissage raté (un READ qui atteint la fin du disque)
+ou un `bytes_expected` débordé (`cdlen × 2048` ou `× 2352`, `:1057`, `:1149`), `scsi_cd_read`
+passe la fin de `data_in` : `data_out`, les champs du struct, puis hors de l'allocation.
+`:1186-1187` : READ(12) de 2^31 secteurs ou plus rend `cdlen` négatif, et `readsector` reçoit un
+compte négatif (`new[]` démesuré).
+*Effet* : chacune fait tomber l'hôte, à la portée de tout invité.
+*Trouvé par* : reconnaissance de G10.4.
+*Non reproduit* (R9, décision n° 16) : MECHANISM STATUS de longueur 0 rend GOOD sans données ;
+au-delà de `data_out`, l'octet est compté sans être gardé ; à la fin de `data_in` (262 144
+octets), le transfert s'arrête — un dernier octet nul, puis CHECK CONDITION, ILLEGAL REQUEST /
+LBA OUT OF RANGE —, et en deçà les octets périmés de PCem sont rendus ; un compte négatif est un
+échec de lecture. Marqueurs PB-115, survie `r9-atapi`.
+
+### PB-116 — Une image illisible au démarrage laisse le pilote CD nul
+
+`pc.c:297-301` (initpc) : avec `cdrom_drive = 200` et une image que `fopen` ouvre mais
+qu'`image_open` refuse (vide, sans PVD, un répertoire), `atapi` n'est jamais posé et reste NULL
+(`ide_atapi.c:26`). Le premier reset d'un canal IDE appelle `atapi->stop()` (`ide.c:796-812`),
+même pour un emplacement vide.
+*Effet* : avec un contrôleur IDE, l'hôte tombe au premier reset d'un canal — qu'un lecteur de CD
+soit monté ou non.
+*Trouvé par* : reconnaissance de G10.4.
+*Non reproduit* (R9, décision n° 17) : `pc.cs`, `cdrom_image_open` — le lecteur reste vide, comme
+pour une image absente (`pc.c:302-305`), avec un avertissement. `r9-cdcfg` (vide.iso, sans-pvd.iso,
+un répertoire ; sans la garde, NullReferenceException).
+
+### PB-117 — READ CAPACITY rend le nombre de blocs plus un
+
+`scsi_cd.c:1534-1543` rend `atapi->size()`, la capacité de l'image, qu'`image_open` pose à la fin
+plus un (`cdrom-image.cc:475`, constat de G10.3). READ CAPACITY attend l'adresse du dernier bloc :
+31 pour une image de 32 secteurs ; PCem rend 33.
+*Effet* : un pilote qui lit le dernier bloc annoncé reçoit CHECK CONDITION, ILLEGAL REQUEST / LBA
+OUT OF RANGE. ATAPIBANC le montre : READ CAPACITY rend 33, et READ(10) du secteur 32 est refusé.
+*Trouvé par* : reconnaissance de G10.3 (le moteur), lu chez l'invité en G10.4.
+*Reproduit* : `Scsi/scsi_cd.cs`, marqueur PB-117. Contrôle négatif : la capacité moins un rougit
+ATAPIBANC.
+
+### PB-118 — GET EVENT STATUS NOTIFICATION annonce toujours un nouveau disque
+
+`scsi_cd.c:579-606` (`atapi_event_status`) lit `buffer[4]` et `buffer[5]` avant de les écrire ; or
+`scsi_cd_start_command` les a mis à zéro (`:1606`) : « disque présent », « nouveau disque »
+(MEC_NEW_MEDIA) et `atapi->load()` à chaque appel. La longueur de l'en-tête est un `uint16_t` de
+l'hôte (`:1336`), petit-boutiste là où MMC veut l'ordre réseau ; la longueur d'allocation est lue sur
+trois octets, l'octet de contrôle compris (`:1274`).
+*Effet* : un pilote qui sonde le lecteur par GESN y voit un disque neuf à chaque appel — même un
+lecteur vide —, et lit la longueur 4 comme 1 024. ATAPIBANC, deux appels : `04 00 04 10 02 02 00 00`
+les deux fois, lecteur chargé comme vide.
+*Trouvé par* : reconnaissance de G10.4 (PLAN-G10.md, « toujours NEW_MEDIA »).
+*Reproduit* : marqueurs PB-118. Contrôle négatif : la longueur en ordre réseau rougit ATAPIBANC.
+
+### PB-119 — MODE SELECT lit son en-tête de travers et ne finit pas à longueur nulle
+
+`scsi_cd.c:755-757` : `cdrom_mode_select` prend la longueur des données du mode (octets 0 et 1)
+pour celle du descripteur de bloc, et compte huit octets d'en-tête même en MODE SELECT(6)
+(`prefix_len` est posé, jamais lu). `:1250-1263` : de longueur 0, `bytes_required` vaut 0 et
+`scsi_cd_write_complete` ne devient jamais vrai : la phase de données ne finit pas (DRQ, compte
+d'octets 0, puis FFFEh), chaque mot écrit en demandant d'autres.
+*Effet* : une page envoyée par MODE SELECT est lue au mauvais endroit ; un MODE SELECT vide laisse
+le lecteur en phase de données, jusqu'au reset — et mène à PB-115.
+*Trouvé par* : reconnaissance de G10.4.
+*Reproduit* : marqueurs PB-119. ATAPIBANC le montre : MODE SELECT(10) de la page audio est relu à
+l'identique par MODE SENSE(10) ; MODE SELECT(6) de la même page prend ses vingt octets, puis est
+refusé (ILLEGAL REQUEST, 24h) : la page est cherchée quatre octets trop loin. La longueur 0, par
+`r9-atapi`.
+
+### PB-120 — La TOC brute n'a ni lead-out ni longueur
+
+`scsi_cd.c:1026-1028` et `cdrom-image.cc:383-425` : READ TOC au format 2 ne rend qu'une entrée par
+piste — ni les points A0h, A1h, A2h, ni le lead-out —, et la longueur, `data_in[0..1]`, reste à
+zéro.
+*Effet* : un pilote qui lit la TOC brute y trouve une longueur nulle et aucune fin de disque.
+*Trouvé par* : reconnaissance de G10.3 (le moteur), lu au niveau de la commande en G10.4.
+*Reproduit* : marqueur PB-120 ; le moteur est comparé des deux côtés par `cdimage-check`. ATAPIBANC
+ne lit pas la TOC brute (PLAN-G10.md, « Les risques »).
+
+### PB-122 — Le lead-out de la TOC n'a ni ADR ni contrôle
+
+`dosbox/cdrom_image.cpp:223` (l'ISO) et `:385` (la feuille CUE) : la piste du lead-out reçoit
+`attr = 0`, que `image_readtoc` recopie dans l'octet ADR/contrôle de son descripteur
+(`cdrom-image.cc:309`). Un vrai lecteur y met ADR 1 et le contrôle de la dernière piste : 14h pour
+un disque de données.
+*Effet* : READ TOC rend `00 00 AA 00` en tête du descripteur du lead-out, aux formats LBA et MSF.
+Seule son adresse sert aux pilotes connus.
+*Trouvé par* : les relevés d'ATAPIBANC, G10.4.
+*Reproduit* : `Cdrom/cdrom_image.cs`, marqueurs PB-122 ; le moteur est comparé des deux côtés par
+`cdimage-check`, la commande par ATAPIBANC.
 
 ## B. Comportement indéfini en C
 
@@ -1521,6 +1649,14 @@ correspondance d'axe ou de chapeau hors des huit axes sans `POV_X` ni `POV_Y` (`
 défaut, avec un avertissement (`pc.cs`, `load_joysticks`), prouvé par `iXtal26 --joystick-check`
 (sans la garde : IndexOutOfRangeException, mesuré). Et plus de huit manettes branchées à l'hôte
 débordent `sdl_joy[8]` (`:22-23`, `:34`) : les huit premières seulement (`Host/SdlJoystick.cs`).
+*G10.4, le lecteur de CD-ROM* : `cd_speed` hors des dix-huit vitesses (`pc.c:780`) — à 0,
+`cur_speed` vaut 0 (`scsi_cd.c:227-228`) et la première lecture divise par lui (`:1081`, `:1170`)
+— est ramenée à 24 avec un avertissement, une vitesse sans danger (5, -5) aussi. Un `cd_model`
+absent de la table fait lire `cd_models[12]`, un au-delà de la table (`MAX_CD_MODEL` vaut 12 pour
+douze entrées, `:492-496`, `:510-514`) : refusé, retour 2, comme `lpt1_device` (la clé et
+`--cd-model`). `cdrom_channel` hors de -1 à 3 et `cdrom_drive` ni -1 ni 200 (un lecteur physique,
+exclu) sont ramenés à -1, avec un avertissement. Prouvé par `r9-cdcfg` (sans la garde :
+DivideByZeroException, IndexOutOfRangeException, NullReferenceException, mesuré).
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
 
@@ -1979,9 +2115,20 @@ refusée après des FILE laisse ceux de ses pistes, que `LoadIsoFile` oublie par
 *Reproduit* : les objets sont lâchés et le GC les finalise ; `FileShare.ReadWrite | Delete`, sans
 verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, Windows compris.
 
+### PB-121 — Le lecteur de l'amorçage précédent n'est jamais fermé
+
+`ide.c:282-284` : chaque `resetide` appelle `scsi_bus_atapi_init`, qui alloue un
+`scsi_cd_data_t` neuf (512 Ko, `scsi_cd.c:621`) sans fermer celui de l'amorçage précédent.
+`scsi.c:329-335` : `scsi_bus_close` vide `devices` et `device_data` avant la boucle qui devait les
+fermer — rien n'est fermé.
+*Effet* : aucun observable, 512 Ko perdus par amorçage.
+*Trouvé par* : transcription de G10.4.
+*Reproduit* : l'ancien objet est lâché, le GC le reprend ; `scsi_bus_close`, le bus des cartes
+SCSI, est omis jusqu'à G11.
+
 ## Portée de ce registre
 
-Ces **cent douze** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent vingt-deux** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2025,10 +2172,11 @@ audit systématique de PCem** :
 | Reconnaissance et transcription de la manette (G10.1) | PB-103 à PB-105 ; PB-93 élargi |
 | Transcription du XTIDE (G10.2) | PB-98 élargi |
 | Reconnaissance et transcription du moteur d'images de CD (G10.3) | PB-106 à PB-112 |
+| Reconnaissance et transcription de l'ATAPI (G10.4) | PB-113 à PB-122 ; PB-93, PB-110 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
-cartes son autres que l'AdLib et la SB Pro v2, l'IDE, le SCSI et les images VHD restent hors de ce registre. Le cœur 386, lu en
+cartes son autres que l'AdLib et la SB Pro v2, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4) et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
 ce registre ne garde que ce qui a été lu à la ligne de C.

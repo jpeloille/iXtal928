@@ -389,6 +389,8 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // leadout track
         track.number = 2;
         track.track_number = 0xAA;
+        // pcem bug, reproduced: PB-122 — le lead-out sans ADR ni contrôle : READ TOC rend 00 dans son
+        //   descripteur, où un vrai lecteur met ADR 1 et le contrôle de la dernière piste (14h, données).
         track.attr = 0;
         track.start = track.length;
         track.length = 0;
@@ -575,6 +577,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // add leadout track
         track.number++;
         track.track_number = 0xAA;
+        // pcem bug, reproduced: PB-122 — comme LoadIsoFile : le lead-out sans ADR ni contrôle.
         track.attr = 0;//sync with load iso
         track.start = 0;
         track.length = 0;

@@ -54,3 +54,11 @@ les images d'isogen (`tools/isogen/isogen.py`) dans un répertoire de son `TMPDI
 contre `tools/isogen/isogen.sha256` — un générateur qui dérive rougit la porte —, et les efface en
 sortant, signaux compris (SIGKILL excepté). Parmi elles, une image CREUSE de 2,5 Go : 64 Kio seulement
 comptent au quota, ce qu'isogen vérifie par une sonde avant de l'écrire.
+
+Les portes de l'ATAPI (G10.4) montent le lecteur sur l'unité IDE 2 de l'ami486. Leur disque est
+`iso-2048.iso` d'isogen, que la recette g5w écrit dans le WORK (`isogen.py DOSSIER iso-2048.iso`,
+l'image seule) et dont `g5w.sha256` garde l'empreinte ; elle n'est jamais écrite, donc pas copiée
+par côté. Le BIOS de l'ami486 ne touche pas le canal secondaire : `--expect-cd CANAL,vide|image`
+exige le lecteur et son pilote des deux côtés, sans quoi un lecteur perdu des deux côtés laisserait
+le boot-diff vert. Le banc ATAPIBANC (`tools/atapibanc`) parle ATAPI aux ports sous DOS ;
+`r9-atapi` et `r9-cdcfg`, en C# seul, écrivent les images d'isogen comme `r9-cue`.

@@ -77,7 +77,10 @@ public static class Oracle
     // 46 le 04/10 (l'accélération) : h_trace_hash_value, h_raz_fin, h_mem_size, h_ram_cmp.
     // 47 en G10.1 : h_set_joystick_type, h_joy_set (la manette).
     // 48 en G10.2 : le XTIDE (hdd_controller « xtide », xtide.c lié).
-    public const int AbiVersion = 49;
+    // 49 en G10.3 : le moteur d'images de CD (harness_cdrom.cpp, les h_cd_* de CdImageCheck).
+    // 50 en G10.4 : l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c liés ; ide.c inclus) — h_set_cdrom, h_ide_type,
+    //   h_cd_driver ; h_boot pose le pilote CD.
+    public const int AbiVersion = 50;
 
     static Oracle()
     {
@@ -341,6 +344,13 @@ public static class Oracle
     // G10.1 — la manette : le type, avant h_boot ; l'état de la manette n (branchée si nr ≠ 0,
     // axes 0 à 2, les 32 boutons en masque, chapeau 0), en fin de tranche.
     [DllImport(Lib)] internal static extern void h_set_joystick_type(int t);
+    // G10.4 — le lecteur de CD-ROM, avant h_boot (cdrom_drive, cdrom_channel, cdrom_path, cd_speed, cd_model) ;
+    // le type d'une unité IDE (0 rien, 1 disque, 2 CD) et le pilote CD posé (0 aucun, 1 vide, 2 image).
+    [DllImport(Lib)] internal static extern void h_set_cdrom(int drive, int channel,
+                                                             [MarshalAs(UnmanagedType.LPUTF8Str)] string path, int speed,
+                                                             [MarshalAs(UnmanagedType.LPUTF8Str)] string model);
+    [DllImport(Lib)] internal static extern int h_ide_type(int d);
+    [DllImport(Lib)] internal static extern int h_cd_driver();
     [DllImport(Lib)] internal static extern void h_joy_set(int n, int nr, int x, int y, int z, uint boutons, int pov);
     public const int MouseProbeN = 9;
 

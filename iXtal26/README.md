@@ -339,7 +339,7 @@ mode existe pour que deux exécutions traversent les mêmes états.
 | `BootTest.cs`         | Amorçage console : BDA, écran texte CGA, état du framebuffer   |
 
 Tout le reste (`Cpu/`, `Memory/`, `Models/`, `Video/`, `Keyboard/`, `Floppy/`, `Disc/`, `Mfm/`, `Sound/`,
-`Ide/`, `Cdrom/`, `Joystick/`, `Lpt/`, `Mouse/`, `Devices/`, `Flash/`, `PluginApi/`,
+`Ide/`, `Cdrom/`, `Scsi/`, `Joystick/`, `Lpt/`, `Mouse/`, `Devices/`, `Flash/`, `PluginApi/`,
 `pc.cs`, `io.cs`, `timer.cs`, `ppi.cs`) est du code **transcrit** : identifiants et commentaires anglais de
 PCem conservés, une ligne `// pcem:` par fonction. Les règles sont dans
 `../TRANSCRIPTION.md`, la correspondance fichier à fichier dans `../oracle.tsv`.

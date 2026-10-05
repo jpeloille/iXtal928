@@ -800,7 +800,7 @@ void pclog_end(void) { }
  * `switches` differents -- divergence des le premier `in 0x322`. */
 PcemHDC hdc[7];
 char hdd_controller_name[16];
-/* G5.0 — ide_fn est desormais defini par src/ide/ide.c, lie. */
+/* G5.0 — ide_fn est desormais defini par src/ide/ide.c (inclus par harness_ide.c depuis G10.4). */
 
 /* --- G5.0 : ce que ide.c reclame hors du disque dur ATA ----------------------
  *
@@ -809,34 +809,16 @@ char hdd_controller_name[16];
  * G10.2, « xtide » ont is_ide (hdd.c:155-156) ; xtide_at et xtide_ps1 l'ont aussi, mais leur
  * init n'est jamais appelée (xtide.c est lié pour xtide_device seul).
  *
- * ATAPI est hors G5 (PLAN-G5.md, decision n° 1) : ni ide_atapi.c, ni scsi_cd.c, ni
- * scsi_zip.c. Le harnais pose cdrom_channel = -1 — la configuration PCem ou le canal 2
- * est declare « Hard drive » (wx-config.c:891). Les atapi_* ne sont alors atteints que
- * si l'invite envoie WIN_PACKETCMD a un disque dur (ide.c:311, :735) : arret bruyant,
- * jamais un vert muet. Le C# fait de meme.
- *
- * `atapi` est le pilote CD de l'hote ; PCem le pose TOUJOURS, cdrom_null_open a
- * defaut de lecteur (pc.c:293, cdrom-null.c:50-51). Le rappel de reset appelle son
- * stop() meme pour un lecteur absent (ide.c:796-812) : c'est le null_stop vide de
- * cdrom-null.c:19, reproduit ici — pas un pointeur nul. */
+ * G10.4 : ide_atapi.c, scsi.c et scsi_cd.c sont liés, ide.c inclus par harness_ide.c ; les souches ATAPI
+ * de G5 et le pilote CD du harnais (h_null_atapi) sont partis : `atapi` est celui d'ide_atapi.c, que
+ * h_boot pose comme le bloc CD de pc.c (cdrom_null_open ou image_open, harness_cdrom.cpp). Restent deux
+ * tables de périphérique SCSI, que le lien réclame et qu'aucune machine n'atteint : scsi_zip (resetide,
+ * ide.c:287 ; zip_channel vaut -1, le ZIP est G10.6) et scsi_hd (scsi_bus_init, scsi.c:316 — le bus des
+ * cartes SCSI, G11). */
 int hdd_controller_current_is_ide(void) { return !strcmp(hdd_controller_name, "ide") || !strcmp(hdd_controller_name, "xtide"); }
 
-static void h_null_stop(void) { }
-static ATAPI h_null_atapi = { .stop = h_null_stop };
-ATAPI *atapi = &h_null_atapi;
-
-scsi_device_t scsi_cd;
 scsi_device_t scsi_zip;
-void scsi_bus_atapi_init(scsi_bus_t *bus, scsi_device_t *device, int id, atapi_device_t *atapi_dev) {
-        fatal("ATAPI non lie a l'oracle (G5) : scsi_bus_atapi_init\n");
-}
-void atapi_data_write(atapi_device_t *atapi_dev, uint16_t val) { fatal("ATAPI non lie a l'oracle (G5) : atapi_data_write\n"); }
-uint16_t atapi_data_read(atapi_device_t *atapi_dev) { fatal("ATAPI non lie a l'oracle (G5) : atapi_data_read\n"); return 0; }
-void atapi_command_start(atapi_device_t *a, uint8_t features) { fatal("ATAPI non lie a l'oracle (G5) : atapi_command_start\n"); }
-uint8_t atapi_read_iir(atapi_device_t *atapi_dev) { fatal("ATAPI non lie a l'oracle (G5) : atapi_read_iir\n"); return 0; }
-uint8_t atapi_read_drq(atapi_device_t *atapi_dev) { fatal("ATAPI non lie a l'oracle (G5) : atapi_read_drq\n"); return 0; }
-void atapi_process_packet(atapi_device_t *atapi_dev) { fatal("ATAPI non lie a l'oracle (G5) : atapi_process_packet\n"); }
-void atapi_reset(atapi_device_t *atapi_dev) { fatal("ATAPI non lie a l'oracle (G5) : atapi_reset\n"); }
+scsi_device_t scsi_hd;
 
 /* logging.c:99 — pclog, error et fatal etaient deja la, pas warning.
  * xebec_set_switches l'appelle sur une geometrie non supportee. */

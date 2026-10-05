@@ -4963,7 +4963,7 @@ aucune frappe existante.
 
 ## G1.0 — Les tables 8086 et le fuzzeur 8086 ; PB-87
 
-Le 2 octobre 2026, sur 038bc41. Plan : `PLAN-G1.md` § G1.0 (validé sous mandat).
+Le 2 octobre 2026, sur 038bc41. Plan : `PLAN-G1.md` § G1.0 (validé).
 
 **Le cœur 8086 était déjà transcrit** (M1) : PCem n'en a pas de distinct, `cpu_set` pose
 `is8086` et `808x.c` branche dessus (file de 6 octets, mots sans pénalité). Manquaient les
@@ -5123,9 +5123,8 @@ vertes**, journaux identiques (durées ôtées) — les portes gardent `mouse_ty
 
 ## G8.0 — L'outillage du son : le C++ dans l'oracle, les tables de DBOPL
 
-Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.0, validé sous mandat (décisions n° 2 à n° 5) ; la
-carte, la Sound Blaster Pro v2, décision utilisateur du 02/10 ; l'OPL, DBOPL, décision de
-l'orchestrateur sous mandat.
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.0, validé (décisions n° 2 à n° 5) ; la carte, la
+Sound Blaster Pro v2, décision utilisateur du 02/10 ; l'OPL, DBOPL, décision du même jour.
 
 **Le C++ dans l'oracle.** Le Makefile compile désormais du C++ (`g++`, mêmes `-I`, mêmes
 drapeaux) et lie la `.so` par `$(CXX)` ; `harness_dbopl.cpp` inclut `src/dosbox/dbopl.cpp`, dont
@@ -5229,8 +5228,7 @@ check-oracle 0 dérive (157).
 
 ## G8.3 — Les sections de device, la SB Pro v2 sur les profils, les témoins
 
-Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.3 ; décisions de l'orchestrateur du 02/10 (option a,
-puis option i).
+Le 2 octobre 2026. Plan : `PLAN-G8.md` § G8.3 ; décisions du 02/10 (option a, puis option i).
 
 **Les sections de device du .cfg.** L'IRQ 5 de la décision n° 5 n'avait pas de chemin :
 `device_get_config_int/string` rendaient toujours le défaut, des deux côtés. Elles lisent
@@ -5273,7 +5271,7 @@ son de démarrage (CHIMES.WAV) — DMA 8 bits automatique de 2 048 octets, const
 (22 kHz), haut-parleur allumé, pause (D0h) en fin de son. **Contrôle négatif**, la carte à
 l'IRQ 7 et Windows réglé sur 5 : le pilote envoie F2h (le test d'interruption), l'IRQ reste en
 attente, rien n'est joué, et Windows affiche « Sound Blaster — A configuration or hardware
-problem has occurred ». **Témoin audible** : non consigné — la session n'a pas d'oreille ; à
+problem has occurred ». **Témoin audible** : non consigné, faute d'écoute ; à
 écouter par l'utilisateur (ce même son de démarrage, pilote installé, profil 486-s3).
 
 **La série**, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, comparée à g82 : 140 portes,
@@ -5303,7 +5301,7 @@ deux).
 
 ## PS2.0 — La souris PS/2 par le 8042 ; PB-94, PB-95
 
-Le 3 octobre 2026. Plan : `PLAN-PS2.md` § PS2.0 (validé par l'orchestrateur le 03/10).
+Le 3 octobre 2026. Plan : `PLAN-PS2.md` § PS2.0 (validé le 03/10).
 
 **Transcrit.** `mouse_ps2.c` entier (`Mouse/mouse_ps2.cs`) : la souris PS/2 à deux boutons et
 l'Intellimouse (places 2 et 3 de `mouse_list`, aux indices de PCem), la branche du PC5086 omise.
@@ -5416,7 +5414,7 @@ instructions, inchangées). Build 0 avertissement, selftest, check-oracle 0 dér
 
 ## G9.0 — La MDA ; PB-96, PB-97, PB-36 élargi
 
-Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.0 (validé par l'orchestrateur le 03/10).
+Le 3 octobre 2026. Plan : `PLAN-G9.md` § G9.0 (validé le 03/10).
 
 **Transcrit.** `vid_mda.c` entier (`Video/vid_mda.cs`) : le 6845 aux ports 3B0-3BF, 4 Ko de VRAM
 vus en B0000 sur 32 Ko, le texte 80×25 en caractères de 9 points, `mdacols` (à plat), la
@@ -6031,7 +6029,7 @@ et les paquets à plusieurs manettes de la SideWinder. Sept portes, `bd-pc-joy-s
 - trois correspondances de la CH hors borne sont averties ;
 - tout survit.
 
-`trace-hash-check` entre dans la série (décision du pilote, l'accélération du 4 octobre).
+`trace-hash-check` entre dans la série (décision de l'accélération du 4 octobre).
 
 **Contrôles négatifs.** Chaque faute est posée dans une copie des sources, sa porte jouée, puis la
 faute retirée :
@@ -6152,8 +6150,7 @@ Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, chec
 ## G10.3 — Le moteur d'images CD : ISO et CUE/BIN ; PB-106 à PB-112
 
 Le 4 octobre 2026. Plan : `PLAN-G10.md` § G10.3, redécoupé à la reconnaissance (décision n° 1
-amendée, le moteur entier en G10.3), et les décisions n° 11 à 13 du même jour, prises par le pilote
-sous mandat.
+amendée, le moteur entier en G10.3), et les décisions n° 11 à 13 du même jour.
 
 **Transcrit.** `cdrom_image.cpp` entier, le moteur de DOSBox (`Cdrom/cdrom_image.cs`) : BinaryFile,
 les pistes, l'ISO (`LoadIsoFile`, `CanReadPVD`), la feuille CUE (`LoadCueSheet`, `AddTrack` et ses
@@ -6285,3 +6282,222 @@ autre chemin du parseur ne déréférence un fichier nul : `ClearTracks` et la b
 échec ne font que `delete` d'un pointeur nul ou d'un fichier qu'aucune piste ne tient.
 
 **Ce que G10.3 laisse** : PLAN-G10.md, « Les risques », § G10.3.
+
+## G10.4 — L'ATAPI : le CD-ROM sur l'IDE ; PB-113 à PB-122
+
+Le 5 octobre 2026. Plan : `PLAN-G10.md` § G10.4, et les décisions n° 14 à 21 du même jour.
+
+**Mesuré d'abord : le BIOS de l'ami486 ne touche jamais le canal secondaire.** Une copie jetable du
+C#, hors du dépôt, compte les accès du canal 1 (`readide`, `writeide`, `readidew`, `writeidew`, donc
+170h-177h et 376h). Aucun, ni au POST sans disque (contrôleur IDE, CMOS par défaut, 40 000 tranches,
+jusqu'à « HDD controller failure »), ni pendant l'amorçage de DOS 5 depuis C: (60 000 tranches,
+jusqu'à l'invite). Le BIOS AMI du 04/04/93 de la carte ALi 1429 ne gère que le canal primaire ; deux
+routines d'index et de données en 170h-171h figurent dans sa ROM, qu'aucun appel direct n'atteint.
+Les boot-diffs du POST ne prouvent donc que la présence inerte du lecteur ; ATAPIBANC porte la preuve.
+
+**Transcrit.**
+- `scsi.c` (`Scsi/scsi.cs`) : le bus que parle le pont (`scsi_bus_update`, `scsi_bus_read`,
+  `scsi_bus_match`, `scsi_bus_kick`, `scsi_bus_atapi_init`, `scsi_bus_reset`), et les types et
+  constantes de `scsi.h`. `scsi_bus_init` et `scsi_bus_close`, le bus des cartes SCSI, attendent G11.
+- `ide_atapi.c` entier (`Ide/ide_atapi.cs`) : `atapi_device_t`, les données dans les deux sens, la
+  sélection, IIR et DRQ, la machine d'états du paquet, le reset. Les pointeurs `atastat`, `error`
+  et `cylinder` sont ceux de l'IDE propriétaire, lus par lui (DEVIATION de forme).
+- `scsi_cd.c` entier (`Scsi/scsi_cd.cs`) : les douze modèles, les dix-huit vitesses, le minutage
+  (12 000 µs par secteur à 1x, des recherches linéaires au-delà de 2 000 secteurs), les commandes,
+  MODE SENSE et MODE SELECT, IDENTIFY PACKET et SET FEATURES.
+- Les crochets d'`ide.c` : les données (`:311`, `:735`), le PACKET (`:567-574`), l'IIR en 172h et le
+  statut du CD en 177h et 376h (`:643-708`), les quatre `atapi->stop()` du reset et `atapi_reset`
+  (`:794-812`), IDENTIFY PACKET, SET FEATURES et le PACKET dans le rappel (`:1050-1118`), resetide
+  (`:282-298`).
+- `pc.c` : les clés `cdrom_drive`, `cdrom_channel`, `cdrom_path`, `cd_speed` et `cd_model`
+  (`:702-711`, `:780-781`), le bloc CD d'initpc (`:291-313`, `:321-333`) et de resetpchard
+  (`:411-433`), `atapi->exit()` dans closepc (`:578`). L'écran de construction enregistre les cinq
+  clés (`:888-890`, `:928-929`), sans ligne à l'écran.
+- `Diag/R9.cs` : chaque garde R9 se signale par son site ; les portes `r9-*` exigent que le site
+  visé ait été atteint.
+
+**L'oracle.** `ide_atapi.c`, `scsi.c` et `scsi_cd.c` liés ; `ide.c` inclus par `harness_ide.c`
+(décision n° 19), qui remet les ponts à zéro à chaque amorçage (`h_atapi_reset`) ; les souches
+ATAPI de G5 et le pilote CD du harnais (`h_null_atapi`) retirés, `scsi_zip` et `scsi_hd` restent en
+souche. Le canal du CD, forcé à -1 pour « ide » et « xtide », vient maintenant du C# : `h_set_cdrom`
+pose les cinq clés avant `h_boot`, qui fait le bloc CD d'initpc et de resetpchard aux places de PCem
+(`harness_cdrom.cpp`). `h_ide_type` et `h_cd_driver` servent `--expect-cd`. ABI 50. `check-oracle` :
+200 fichiers vérifiés, 0 dérive. La preuve que l'inclusion d'`ide.c` ne change rien est la série
+(plus bas) ; avant elle, `bd-ami286-ide-check` et `bd-pc-xtide-boot`, rejoués, rendent les journaux
+de g106 à l'identique.
+
+**La configuration** (décision n° 17), `r9-cdcfg`, en C# seul, dix-huit essais sur un ami486 amorcé,
+le canal secondaire conduit ensuite (un reset logiciel par 376h, dont le rappel appelle
+`atapi->stop()`, puis TEST UNIT READY et READ(10)) :
+- `cd_speed` 0, -5 et 5 : 24, averti ; à 0, sans la garde, DivideByZeroException à la lecture ;
+- `cd_model = xyz` : refusé, retour 2, avec les douze noms (et `--cd-model`) ; sans la garde,
+  IndexOutOfRangeException — `cd_models[12]` ;
+- `cdrom_path` de 1 500 octets : écarté, averti, le lecteur vide (PB-110) ;
+- `cdrom_drive` 0, 5 et -7 : averti, le lecteur vide ; sans la garde, NullReferenceException au
+  premier reset du canal ;
+- une image illisible (`vide.iso`, `sans-pvd.iso`, un répertoire, que `fopen` ouvre comme sous la
+  glibc) : le lecteur vide, averti, la garde de `pc.c:299` atteinte (PB-116) ; sans elle,
+  NullReferenceException au premier reset du canal ;
+- `cdrom_channel` 9 et -3 : averti, aucun lecteur ; sans la garde, à 9, IndexOutOfRangeException,
+  dans l'avertissement d'iXtal (`ide_fn[9]`) : PCem ne fait que comparer le canal ;
+- le CD sur le canal d'un disque configuré et `cdrom_channel` sans contrôleur IDE : avertis, sans
+  effet sur la machine ; `zip_channel = 1` : refusé.
+
+**Les sites R9 du pont, du bus et du lecteur** (décisions n° 14 à 16), `r9-atapi`, en C# seul,
+vingt-sept essais. Les scénarios de l'invité conduisent les ports de l'unité IDE 2 sur un ami486
+amorcé, une machine neuve par scénario, nIEN posé, le lecteur chargé de `iso-2048.iso` ; les états
+forgés posent l'état du pont et du bus, ou remplacent la lecture du bus (`bus_lu_force`) quand
+`scsi.c` ne produit pas de lui-même la suite voulue. Chaque essai exige sa garde atteinte et aucune
+exception ; chaque garde, rendue au `fatal()` ou à l'appel de PCem dans une copie des sources, rougit
+la porte en nommant l'exception :
+
+| Site | Chez PCem | Atteint par | Chez iXtal | La garde retirée |
+|---|---|---|---|---|
+| `ide_atapi.c:110` | `fatal()`, la sélection | l'invité : DEVICE RESET (08h) en pleine lecture, puis un PACKET ; un PACKET pendant la phase de données | la transaction abandonnée, la sélection reprise ; TEST UNIT READY finit | InvalidOperationException, aux deux, et aux reprises de `:473`, `:482`, `:1581` |
+| `:102`, `:106` | `fatal()`, la sélection | forgé : BSY qui tombe à la première, à la seconde lecture | idem | InvalidOperationException |
+| (second échec) | — | forgé : le bus sans périphérique | `atapi_abort` | InvalidOperationException |
+| `:157`, `:159`, `:164`, `:173`, `:205`, `:221`, `:281`, `:296`, `:299`, `:324`, `:346`, `:362`, `:416`, `:453` | `fatal()`, la machine d'états | forgé : chacun dans son état du pont (`:205` par la lecture remplacée) | `atapi_abort` : ERR, ABRT, IIR 3, le pont au repos | InvalidOperationException, chacun seul |
+| `:473`, `:482` | appel d'un pointeur nul | l'invité : READ(10), MODE SELECT(10) avec le bit DMA | réarmé : BSY, puis DEVICE RESET rend le lecteur | NullReferenceException |
+| `scsi.c:85`, `:264` | `fatal()` | forgé : ATN en sélection ; une phase C/D seule | le bus au repos | InvalidOperationException |
+| `scsi_cd.c:993` | `fatal()` | l'invité : MECHANISM STATUS de longueur 0 | GOOD, aucune donnée | InvalidOperationException |
+| `:1581` | `data_out[262 144]` écrit, puis `fatal()` | l'invité : MODE SELECT(10) de longueur 0, puis des mots écrits (position forgée à 262 142, au lieu de 128 Ki mots) | l'octet compté, pas gardé | IndexOutOfRangeException |
+| `:1565` | lecture hors de `data_in` | l'invité : READ(10) de 200 secteurs depuis le LBA 0 | le transfert arrêté : 294 913 octets, puis CHECK CONDITION, erreur 54h | IndexOutOfRangeException |
+| `:1187` | `readsector` d'un compte négatif | l'invité : READ(12) d'un compte négatif, choisi pour une attente courte | échec de lecture, erreur 54h | OverflowException |
+
+La frontière de `:1565` est la fin de `data_in`, 262 144 octets : au-delà, le C lit hors du
+tableau — `data_out`, les champs du struct, puis hors de l'allocation, où il tombe. En deçà, les
+octets périmés de `data_in` sont rendus comme chez PCem : dans l'essai, les secteurs 0 à 31 sont lus
+en deux remplissages, le troisième (32 à 47) échoue, et `data_in` est relu de 32 768 à 262 143 avant
+l'octet nul de la garde.
+
+Vingt-cinq sites de PCem : les dix-neuf de PB-113 (dix-sept dans `ide_atapi.c`, deux dans `scsi.c`),
+les deux de PB-114, quatre de PB-115 ; et le second échec de la sélection, propre à iXtal. Les
+contrôles négatifs couvrent les vingt-cinq. Chacun des vingt-deux sites qui ont leur propre garde
+rougit seul quand on la retire : un essai sur vingt-sept, le sien. La garde de la sélection, commune
+à `:102`, `:106` et `:110`, a quatre contrôles :
+- rendue au `fatal()` : huit essais rouges, les deux de `:110`, `:102`, `:106`, le second échec, et
+  les reprises de `:473`, `:482` et `:1581`, qui repassent par la sélection ;
+- la sélection non reprise, la commande abandonnée dès le premier échec : les mêmes huit ;
+- l'abandon au troisième échec seulement : le second échec seul (« deux échecs en :102 attendus ») ;
+- plus d'abandon : la porte ne finit plus, l'essai du second échec boucle (tuée au bout de 60 s).
+
+Aucun site gardé ne reste sans contrôle qui le fasse rougir ; les gardes de `r9-cdcfg` non plus
+(plus bas, les contrôles négatifs).
+
+**Le banc ATAPIBANC** (`tools/atapibanc/atapibanc.py`, 1 178 octets dont un script de 753), sur
+le patron d'IDECHK : un interprète 8086 saisi dans DEBUG sur l'ami486 (DOS 5 de `c386.img`, CMOS
+`c486.nvr`), écrit sur C: (ATAPIBNC.COM) et lancé, le lecteur en maître secondaire, IRQ permises. Chaque
+paquet passe en PIO : la limite du compte d'octets en 174h-175h, A0h, l'IIR relevé quand le lecteur
+lève DRQ, le paquet en six mots, puis la phase de données — entrante bloc DRQ par bloc DRQ (le
+compte relu en 174h-175h, l'IIR de chaque bloc en OU), ou sortante (`rep outsw`) —, puis les sept
+registres. Le script : la signature (172h-175h : 01 01 14 EB) ; IDENTIFY DEVICE refusé ; IDENTIFY
+PACKET DEVICE (les 96 premiers octets gardés) ; TEST UNIT READY, puis REQUEST SENSE, puis TEST UNIT
+READY ; INQUIRY ; READ CAPACITY ; READ(10) du PVD ; READ(10) de quatre secteurs sous une limite de
+2 048 octets ; READ(10) du secteur 31, puis du secteur 32 ; REQUEST SENSE ; READ TOC en LBA et en
+MSF ; MODE SENSE(10) des pages 2Ah et 3Fh ; MODE SELECT(10) de la page audio, relue par MODE
+SENSE(10) ; MODE SELECT(6) ; REQUEST SENSE ; GET EVENT STATUS NOTIFICATION deux fois ; un code
+inconnu (D8h) ; REQUEST SENSE. Ce que les relevés montrent, identiques des deux côtés :
+- la signature, 01 01 14 EB ; IDENTIFY DEVICE refusé (ABRT) ; IDENTIFY PACKET DEVICE : 85C0h (ATAPI,
+  CD-ROM, amovible), « MATSHITA CR-587-B », microcode « 7S13 » (le lecteur vide : « PCemCD », « v1.0 ») ;
+- l'IIR de chaque paquet : 01 quand le lecteur demande le paquet, 02 à chaque bloc de données, 03 à la
+  fin ;
+- TEST UNIT READY : UNIT ATTENTION (erreur 6Ch ; REQUEST SENSE : 06, 28h), puis GOOD ; le lecteur vide :
+  NOT READY les deux fois (24h ; 02, 3Ah) ;
+- INQUIRY : 05 80 00 21, « MATSHITA », « CR-587 », « 7S13 » ;
+- READ CAPACITY : 00000021h et 2 048, trente-trois secteurs pour trente-deux (PB-117) ;
+- READ(10) : le PVD, 01 « CD001 » 01 et « IXTAL26 » ; quatre secteurs sous une limite de 2 048 octets,
+  quatre blocs DRQ, 8 192 octets ; le secteur 31 (nul dans l'image), un bloc ; le secteur 32 refusé,
+  ILLEGAL REQUEST, 21h (LBA OUT OF RANGE) ;
+- READ TOC : la piste 1, de données (14h), en 0 et 00:02:00 ; le lead-out en 32 et 00:02:32, son octet
+  ADR/contrôle à 0 (PB-122) ;
+- MODE SENSE(10) : la page 2Ah à 4x (02C0h ; le lecteur vide, à 24x : 1080h) ; toutes les pages,
+  60 octets ;
+- MODE SELECT(10) de la page 0Eh, ses 24 octets envoyés, relue à l'identique par MODE SENSE(10) ;
+  MODE SELECT(6), ses 20 octets pris, puis ILLEGAL REQUEST, 24h (PB-119) ;
+- GET EVENT STATUS NOTIFICATION : 04 00 04 10 02 02 00 00 deux fois, le lecteur chargé comme vide
+  (PB-118) ;
+- D8h : ILLEGAL REQUEST, 20h.
+
+Le lecteur vide finit READ CAPACITY, les lectures et READ TOC en NOT READY ; le reste est identique au
+lecteur chargé. L'écran final de la porte ne montre que la fin des relevés (667 octets, 603 pour le
+lecteur vide) : ils ont été lus en entier une fois, hors porte, par l'hôte C# seul (`--boot`), le banc
+lancé sous DEBUG et arrêté avant sa sortie (`G 25F`, puis `D`) ; leur fin y est celle de l'écran de la
+porte, octet pour octet.
+
+**Les portes.**
+- `bd-ami486-cd-vide` et `bd-ami486-cd-iso` : le POST entier (40 000 tranches), le lecteur vide puis
+  chargé, CR-587-B à 4x ; 73 098 870 instructions identiques chacune — le même compte, le BIOS ne
+  touchant pas le lecteur —, sonde VGA identique, `--expect-cd` conforme.
+- `bd-ami486-atapi-banc` : 271 524 464 instructions identiques ; C: identique des deux côtés,
+  1 537 octets changés par l'invité (ATAPIBNC.COM écrit par DEBUG). `bd-ami486-atapi-banc-vide`,
+  le lecteur vide (PCemCD à 24x) : 271 525 808 instructions identiques.
+- `r9-atapi`, vingt-sept essais, et `r9-cdcfg`, dix-huit : verts, C# seul, trois secondes chacune.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part ; les portes du banc
+arrêtées à leur première divergence (la phase 2 ne rejoue pas la frappe, GR.4) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| l'IIR échangé : les bits C/D et I/O intervertis (`ide_atapi.cs`, lecture de 172h) | `bd-ami486-atapi-banc` | rouge à l'instruction 267 112 478 |
+| INQUIRY : l'octet 3 à 22h au lieu de 21h (`scsi_cd.cs`) | `bd-ami486-atapi-banc` | rouge à 267 113 486 |
+| READ CAPACITY sans le + 1 de PB-117 (`scsi_cd.cs`) | `bd-ami486-atapi-banc` | rouge à 267 114 936 |
+| GET EVENT STATUS : sa longueur en grand-boutiste, PB-118 « corrigé » (`scsi_cd.cs`) | `bd-ami486-atapi-banc` | rouge à 267 173 342 |
+| `SECTOR_TIME` à 13 333 au lieu de 12 000, le minutage des lectures (`scsi_cd.cs`) | `bd-ami486-atapi-banc` | rouge à 267 115 114 |
+| le bit SERVICE du statut du lecteur oublié (`ide.cs`, lecture de 177h) | `bd-ami486-atapi-banc` | rouge à 267 110 902 |
+| NOT READY avec ASC 28h au lieu de 3Ah, le lecteur vide (`scsi_cd.cs`) | `bd-ami486-atapi-banc-vide` | rouge à 267 138 078 |
+| la phase DATA OUT : chaque octet reçu faussé (`scsi_cd_write`) | `bd-ami486-atapi-banc` | rouge à 267 128 744 |
+| `resetide` qui ignore le lecteur, côté C# | `bd-ami486-cd-iso` | instructions identiques (le BIOS ne voit pas le lecteur) ; `--expect-cd` rouge : « oracle unité CD-ROM, C# unité vide » |
+| chacune des vingt-deux gardes isolées ; celle de la sélection, de quatre façons | `r9-atapi` | rouge, le site nommé (ci-dessus) |
+| les gardes de `cd_speed` (à 0), `cd_model`, de l'image illisible et de `cdrom_drive` | `r9-cdcfg` | rouge : DivideByZeroException, IndexOutOfRangeException, NullReferenceException (trois essais), NullReferenceException (trois) |
+| la borne de `cdrom_path` | `r9-cdcfg` | rouge : l'avertissement manque (C# survit sans elle, sa chaîne n'a pas de borne) |
+| la borne de `cdrom_channel` | `r9-cdcfg` | rouge : à 9, IndexOutOfRangeException ; à -3, le canal n'est plus ramené à -1 |
+| le refus de `zip_channel` ; chacun des deux avertissements sans effet | `r9-cdcfg` | rouge : le .cfg accepté ; l'avertissement manque |
+
+Trois contrôles ont d'abord manqué leur but, corrigés avant ce relevé :
+- **l'IIR échangé restait vert** : le banc ne lisait 172h qu'en fin de commande, où C/D et I/O
+  valent 1 tous deux. Il le lit maintenant quand le lecteur demande le paquet (C/D = 1) et à chaque
+  bloc de données (I/O = 1) ;
+- **`cd_speed = 0` rougissait sans nommer l'exception** : `r9-cdcfg` vérifiait la vitesse retenue
+  avant de lire ; il lit d'abord, et la division par zéro se montre. Deux contrôles finissaient en
+  arrêt du processus (code 134), `closepc` levant dans un `finally` sur une machine sans pilote : la
+  machine n'est plus refermée après un arrêt ;
+- **une garde retirée faisait rougir en cascade** les scénarios suivants de `r9-atapi`, qui
+  héritaient d'une machine cassée : chaque scénario de l'invité amorce maintenant sa machine.
+
+Et une lacune trouvée en relisant, avant le relevé : aucune porte ne comparait le chemin d'écriture
+(les états WRITE du pont, la phase DATA OUT du bus, `scsi_cd_write`, `cdrom_mode_select`). D'où le
+MODE SELECT du banc, et la faute de `scsi_cd_write` ci-dessus.
+
+Les contrôles de R9 ont été rejoués sur les sources finales, chacun dans un bac à sable comme `run`
+de `par.sh` (`nvr/` et `os/` copiés) et sous `MALLOC_PERTURB_=85`. Un premier rejeu, lancé à deux,
+partageait son TMPDIR : l'un effaçait les images d'isogen de l'autre, et `:453` rougissait trois
+essais, deux scénarios trouvant le lecteur vide. Rejoué seul, avec un TMPDIR à lui : un essai, le
+sien. Chaque rejeu a depuis le sien.
+
+**La série** (g107), sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, en mémoire, avec
+le verrou machine, la DLL et le lanceur figés, le WORK refait par la recette (empreintes conformes) :
+195 portes en 54 min 11 s, comparées journal par journal à g106, la série de G10.3 : 183 identiques,
+les six nouvelles vertes, aucune manquante, et six écarts :
+- `abi` : 50 au lieu de 49 ;
+- `config-check` : la ligne « écrit : », qui suit le TMPDIR de la série ;
+- `cdimage-check` et `r9-cue` : la seule ligne d'isogen. Sa forme vient du commit de G10.3, postérieur
+  au tour de g106, et ses nombres suivent le quota ;
+- `bd-ami286-ide-ecriture` et `bd-pc-sbpro-banc` : arrêtées par le quota de `/tmp` (« TRACE TRONQUÉE
+  … Disk quota exceeded », retour 3), rien de comparé. La série était partie avec 15,27 Go libres,
+  au-dessus des 15 qu'exige `par.sh` pour dix voies. Les copies d'images restent dans son TMPDIR
+  jusqu'à la fin (5,5 Go), et les deux bancs ATAPI y ajoutent chacun une trace de 2 Go.
+
+g107 jouait l'avant-dernier banc, 974 octets, l'IIR lu en fin de commande seulement : 246 051 334 et
+246 052 041 instructions identiques. Puis deux validations ciblées (`PORTES=`), sous le verrou, le
+WORK de g107 :
+- g107b, avec la DLL de g107 (quatre voies, 11 min 22 s) : les deux portes arrêtées par le quota,
+  vertes, journaux identiques à g106 ; et les deux portes du banc final, vertes (ci-dessus) ;
+- g107c, avec la DLL finale : seuls des commentaires ont changé, les marqueurs de PB-122.
+  `cdimage-check` et les deux bancs ATAPI verts, aux mêmes comptes (271 524 464 et 271 525 808
+  instructions). La DLL de g107 et la DLL finale ne diffèrent que de 72 octets, les identifiants de
+  build : c'est l'écart que produit, au même chemin de build, l'ajout des seuls commentaires de PB-122.
+
+Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, check-oracle 0 dérive (200),
+ABI 50, `--setup-check` vingt-trois contrôles, `--menu-check` soixante-neuf.
+
+**Ce que G10.4 laisse** : PLAN-G10.md, « Les risques », § G10.4.

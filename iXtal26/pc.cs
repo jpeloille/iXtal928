@@ -14,7 +14,6 @@
 //   Il CESSE de l'etre des qu'un second resetpchard tourne sur un 8042 deja
 //   interroge, keyboard_at.cs incrementant les deux bits bas de input_port a chaque
 //   commande 0xC0.
-// omitted: image_close() (:411) et le bloc cdrom — lecteur de CD-ROM, hors cible.
 // omitted: mem_set_704kb() (:370-371) — garde `!AT && max_ram <= 768`, fausse pour les
 //   trois machines du depot. NOTE : le C teste `AT` AVANT que model_init() ne le pose,
 //   donc sur un changement de machine a chaud il lit le AT de la PRECEDENTE. Defaut
@@ -198,6 +197,12 @@ internal static partial class pc
     //   « none », comme fpu_get_type.
     internal static string cfg_fpu = "none";
 
+    // pcem: pc.c:702, :707-711 — G10.4 : cdrom_drive et cdrom_path tels que la configuration les donne.
+    //   loadconfig pose aussi les globales de PCem (cdrom_drive, image_path) ; initpc les en repose à
+    //   chaque amorçage, parce que le bloc CD peut ramener cdrom_drive à -1 (image absente).
+    internal static int cfg_cdrom_drive = -1;
+    internal static string cfg_cdrom_path = "";
+
     /// <summary>
     /// pcem: pc.c:643-652. Choisit la machine par son internal_name et en déduit le
     /// romset. Partagé par la clé `model` du fichier et par l'option --model : les deux
@@ -272,6 +277,42 @@ internal static partial class pc
         Lpt.lpt.lpt1_device_name = name;
         Lpt.lpt.lpt1_current = Lpt.lpt.lpt_device_get_from_internal_name(name);
         return true;
+    }
+
+    // G10.4 — la clé cd_model (pc.c:781) et l'option --cd-model d'iXtal26.Diff : le nom de configuration
+    // d'un des douze modèles (scsi_cd.c:251-455).
+    // pcem bug, not reproduced: PB-93 — un nom absent de la table fait lire cd_models[12], hors de la table
+    //   (MAX_CD_MODEL vaut 12 pour douze entrées, scsi_cd.c:492-496, :510-514).
+    // DEVIATION: refusé, retour 2, avec la liste, comme lpt1_device.
+    internal static bool setcdmodel(string name)
+    {
+        int c;
+
+        for (c = 0; c < Scsi.scsi_cd_c.cd_models.Length; c++)
+        {
+                if (Scsi.scsi_cd_c.cd_get_config_model(c) == name)
+                        break;
+        }
+        if (c == Scsi.scsi_cd_c.cd_models.Length)
+        {
+                Console.Error.WriteLine($"cd_model = « {name} » : modèle de lecteur de CD-ROM inconnu. Connus :");
+                for (c = 0; c < Scsi.scsi_cd_c.cd_models.Length; c++)
+                        Console.Error.WriteLine($"  {Scsi.scsi_cd_c.cd_get_config_model(c)}  ({Scsi.scsi_cd_c.cd_get_model(c)})");
+                return false;
+        }
+        Scsi.scsi_cd_c.cd_model = Scsi.scsi_cd_c.cd_model_from_config(name);
+        return true;
+    }
+
+    // G10.4 — la vitesse est-elle l'une des dix-huit de cd_speeds[] ?
+    private static bool cd_speed_connue(int speed)
+    {
+        for (int c = 0; c < Scsi.scsi_cd_c.cd_speeds.Length; c++)
+        {
+                if (Scsi.scsi_cd_c.cd_speeds[c].speed == speed)
+                        return true;
+        }
+        return false;
     }
 
     internal static bool setgfxcard(string name)
@@ -465,19 +506,53 @@ internal static partial class pc
         cfg_hdd_controller = PluginApi.config.config_get_string(
             PluginApi.config.CFG_MACHINE, null, "hdd_controller", "");
 
+        // pcem: pc.c:702 — G10.4 : cdrom_drive, défaut 0.
+        // DEVIATION: défaut -1 (aucun disque), et seuls -1 et CDROM_IMAGE (200) sont reçus : 0, le défaut de
+        //   PCem, comme tout autre numéro, désigne un lecteur physique de l'hôte, exclu (PLAN.md : des images
+        //   seulement). Averti, le lecteur reste vide.
+        cfg_cdrom_drive = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cdrom_drive", -1);
+        if (cfg_cdrom_drive != -1 && cfg_cdrom_drive != Ide.ide.CDROM_IMAGE)
+        {
+                Console.Error.WriteLine($"cdrom_drive = {cfg_cdrom_drive} : lecteur physique de l'hôte, non offert " +
+                                        $"(-1 : aucun disque ; {Ide.ide.CDROM_IMAGE} : l'image de cdrom_path) ; lecteur vide.");
+                cfg_cdrom_drive = -1;
+        }
+        Cdrom.cdrom_ioctl.cdrom_drive = cfg_cdrom_drive;
+
         // pcem: pc.c:703-705 — cdrom_channel (défaut 2) et zip_channel (défaut -1).
-        //
-        // DEVIATION: le défaut est -1 (Ide/ide.cs) ; ATAPI est hors G5. Une configuration
-        //   qui DEMANDE un lecteur de CD-ROM ou de ZIP sur un canal IDE est refusée ici,
-        //   bruyamment, plutôt que de monter un disque dur à sa place.
+        // DEVIATION: le défaut de cdrom_channel est -1 (décision n° 10 de PLAN-G10.md ; Ide/ide.cs) ; hors de -1
+        //   à 3, les quatre unités IDE, il est ramené à -1 avec un avertissement (traitement de PB-93 ; 4 à 6
+        //   désigneront des identifiants SCSI en G11). Le ZIP vient en G10.6 : zip_channel est refusé d'ici là.
         int cd = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cdrom_channel", -1);
         int zip = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "zip_channel", -1);
-        if (cd >= 0 || zip >= 0)
+        if (cd < -1 || cd > 3)
         {
-                Console.Error.WriteLine("cdrom_channel / zip_channel : ATAPI n'est pas transcrit (PLAN-G5.md, " +
-                                        "décision n° 1) ; retirer la clé, ou la poser à -1.");
+                Console.Error.WriteLine($"cdrom_channel = {cd} : hors des quatre unités IDE (0 à 3, -1 : aucun " +
+                                        "lecteur) ; aucun lecteur de CD-ROM à la place.");
+                cd = -1;
+        }
+        Ide.ide.cdrom_channel = cd;
+        if (zip >= 0)
+        {
+                Console.Error.WriteLine("zip_channel : le lecteur ZIP n'est pas encore transcrit (PLAN-G10.md, G10.6) ; " +
+                                        "retirer la clé, ou la poser à -1.");
                 return false;
         }
+
+        // pcem: pc.c:707-711 — G10.4 : cdrom_path, copié dans image_path.
+        // pcem bug, not reproduced: PB-110 — strcpy dans image_path[1024], sans borne : un chemin de 1 024 octets
+        //   ou plus déborde le tableau.
+        // DEVIATION: averti, le chemin est écarté et le lecteur reste vide (le chemin que PCem prend pour une
+        //   image absente, pc.c:297-305).
+        cfg_cdrom_path = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "cdrom_path", "");
+        if (System.Text.Encoding.UTF8.GetByteCount(cfg_cdrom_path) >= 1024)
+        {
+                Console.Error.WriteLine($"cdrom_path : {System.Text.Encoding.UTF8.GetByteCount(cfg_cdrom_path)} octets, " +
+                                        "au-delà des 1 023 que PCem tient (image_path[1024]) ; lecteur vide.");
+                cfg_cdrom_path = "";
+        }
+        Cdrom.cdrom_image.image_path = cfg_cdrom_path;
+        // omitted: cdrom_device_path (pc.c:713-717) — le lecteur physique de l'hôte, exclu.
 
         // pcem: pc.c:719-734 — géométrie et image des disques C: et D:.
         //
@@ -510,6 +585,24 @@ internal static partial class pc
         // pcem: pc.c:778
         Disc.disc_img.bpb_disable = PluginApi.config.config_get_int(
             PluginApi.config.CFG_MACHINE, null, "bpb_disable", 0);
+
+        // pcem: pc.c:780 — G10.4 : la vitesse du lecteur de CD-ROM, défaut 24.
+        // pcem bug, not reproduced: PB-93 — cd_speed = 0 pose cur_speed à 0 (scsi_cd.c:227-228), puis la
+        //   première lecture divise par lui (:1081, :1170).
+        // DEVIATION: hors des dix-huit vitesses de cd_speeds[] (scsi_cd.c:204-208), ramenée à 24 avec un
+        //   avertissement, comme l'interface de PCem l'impose ; une vitesse hors liste sans danger (5) aussi.
+        Scsi.scsi_cd_c.cd_speed = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "cd_speed", 24);
+        if (!cd_speed_connue(Scsi.scsi_cd_c.cd_speed))
+        {
+                Console.Error.WriteLine($"cd_speed = {Scsi.scsi_cd_c.cd_speed} : hors des vitesses du lecteur " +
+                                        "(1, 2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 36, 40, 44, 48, 52, 56, 72) ; 24 à la place.");
+                Scsi.scsi_cd_c.cd_speed = 24;
+        }
+        // pcem: pc.c:781 — G10.4 : le modèle, par son nom de configuration ; défaut « pcemcd ». Refusé s'il est
+        //   inconnu (setcdmodel).
+        if (!setcdmodel(PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "cd_model",
+                                                           Scsi.scsi_cd_c.cd_get_config_model(0))))
+                return false;
 
         // pcem: pc.c:783 — G10.1 : le type de manette.
         // pcem bug, not reproduced: PB-93 — DEVIATION : hors des sept types, PCem indexe hors de
@@ -828,10 +921,94 @@ internal static partial class pc
         // à pc_reset() (pc.c:184-187), donc APRÈS model_init() et ses pit_init().
         // Je l'avais mis ici ; voir VERIFICATION.md § M4.0.
 
+        // G10.4 — avertissements sans effet sur la machine : PCem ne dit rien.
+        cdrom_avertissements();
+
+        // iXtal26 (outillage) — ORACLE PARITY : l'état du pilote d'images et les deux globales du lecteur
+        //   repartent de zéro à chaque amorçage, des deux côtés (h_boot) ; la configuration est reposée.
+        Cdrom.cdrom_image.image_clear_state_for_oracle_parity();
+        Cdrom.cdrom_ioctl.cdrom_drive = cfg_cdrom_drive;
+        Cdrom.cdrom_ioctl.old_cdrom_drive = 0;
+        Cdrom.cdrom_image.image_path = cfg_cdrom_path;
+        Ide.ide_atapi.atapi = null;
+        // pcem: pc.c:291-313 — G10.4 : le pilote du lecteur de CD-ROM, `atapi`.
+        if (Cdrom.cdrom_ioctl.cdrom_drive == -1)
+                Cdrom.cdrom_null.cdrom_null_open(Cdrom.cdrom_ioctl.cdrom_drive);
+        else
+                cdrom_image_open();
+
         resetpchard();
         // pcem: pc.c:317 — G6.3, la fin d'initpc (après le fullspeed() que ce dépôt n'a pas).
         Models.ali1429.ali1429_reset();
+
+        // pcem: pc.c:321-333 — G10.4 : le reset du pilote, vide des deux sorts (cdrom-null.c:48, cdrom-image.cc:445).
+        if (Cdrom.cdrom_ioctl.cdrom_drive == -1)
+                Cdrom.cdrom_null.cdrom_null_reset();
+        else
+                Cdrom.cdrom_image.image_reset();
         return true;
+    }
+
+    // pcem: pc.c:297-312, :418-433 — la branche CDROM_IMAGE du bloc CD, sous __unix : l'image de image_path
+    //   si fopen l'ouvre, sinon le lecteur vide. omitted: ioctl_set_drive et ioctl_reset (:311-312, :430-432) —
+    //   le lecteur physique, que loadconfig écarte.
+    // pcem bug, not reproduced: PB-116 — une image présente mais illisible (vide, sans PVD, un répertoire) :
+    //   image_open échoue sans poser `atapi`, NULL au premier amorçage, et le premier reset IDE fait tomber
+    //   l'hôte sur atapi->stop() (ide.c:802, :812), même sans lecteur sur un canal.
+    // DEVIATION: le lecteur reste vide, comme pour une image absente, avec un avertissement.
+    private static void cdrom_image_open()
+    {
+        if (Cdrom.cdrom_ioctl.cdrom_drive != Ide.ide.CDROM_IMAGE)
+                return;
+        if (fopen_rb(Cdrom.cdrom_image.image_path))
+        {
+                if (Cdrom.cdrom_image.image_open(Cdrom.cdrom_image.image_path) != 0 && Ide.ide_atapi.atapi is null)
+                {
+                        Diag.R9.Garde("pc.c:299");
+                        Console.Error.WriteLine($"cdrom_path = « {Cdrom.cdrom_image.image_path} » : image illisible " +
+                                                "(ni ISO ni feuille CUE) ; lecteur vide.");
+                        Cdrom.cdrom_ioctl.cdrom_drive = -1;
+                        Cdrom.cdrom_null.cdrom_null_open(Cdrom.cdrom_ioctl.cdrom_drive);
+                }
+        }
+        else
+        {
+                Cdrom.cdrom_ioctl.cdrom_drive = -1;
+                Cdrom.cdrom_null.cdrom_null_open(Cdrom.cdrom_ioctl.cdrom_drive);
+        }
+    }
+
+    // `FILE *ff = fopen(image_path, "rb")` (pc.c:298) : ouvrable en lecture — un répertoire aussi, comme sous la
+    //   glibc (open en O_RDONLY) ; image_open le refuse ensuite.
+    private static bool fopen_rb(string path)
+    {
+        if (Directory.Exists(path))
+            return true;
+        try
+        {
+            using var f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    // G10.4 — deux configurations que PCem accepte sans rien dire : un cdrom_channel sans contrôleur IDE (resetide
+    //   ne fait rien, ide.c:278), et le CD sur le canal d'un disque configuré (le CD gagne, ide.c:282-290).
+    private static void cdrom_avertissements()
+    {
+        int cd = Ide.ide.cdrom_channel;
+
+        if (cd < 0)
+            return;
+        if (cfg_hdd_controller is not ("ide" or "xtide"))
+            Console.Error.WriteLine($"cdrom_channel = {cd} : aucun contrôleur IDE (hdd_controller = « {cfg_hdd_controller} ») ; " +
+                                    "pas de lecteur de CD-ROM.");
+        else if (Disc.hdd_c.ide_fn[cd].Length != 0)
+            Console.Error.WriteLine($"cdrom_channel = {cd} : le lecteur de CD-ROM prend la place du disque « {Disc.hdd_c.ide_fn[cd]} », " +
+                                    "comme chez PCem.");
     }
 
     /// <summary>
@@ -843,6 +1020,10 @@ internal static partial class pc
         timer.timer_reset();
         PluginApi.device.device_close_all();
         PluginApi.device.device_init();
+
+        // G10.4 — DEVIATION, ORACLE PARITY (pendant de h_atapi_reset) : le pont ATAPI des quatre unités repart
+        //   de zéro à chaque amorçage ; chez PCem, son état traverse resetide et resetpchard.
+        Ide.ide_atapi.atapi_clear_state_for_oracle_parity();
 
         // G8.1 — DEVIATION (PLAN-G8.md, défaut n° 4) : l'état statique des deux OPL repart de zéro à
         // chaque amorçage, des deux côtés (h_opl_reset côté oracle) ; chez PCem, il traverse.
@@ -941,7 +1122,12 @@ internal static partial class pc
         // repose sur aucun zéro implicite.
         cpu_c.cpu_cache_int_enabled = cpu_c.cpu_cache_ext_enabled = 0;
 
-        // omitted: image_close() et le bloc cdrom (pc.c:411-433) — voir l'en-tête.
+        // pcem: pc.c:411-433 — G10.4 : l'image refermée, puis rouverte.
+        Cdrom.cdrom_image.image_close();
+        if (Cdrom.cdrom_ioctl.cdrom_drive == -1)
+                Cdrom.cdrom_null.cdrom_null_reset();
+        else
+                cdrom_image_open();
         // omitted: sound_update_buf_length() (:438) — n'était pas marqué. Il recalcule la
         //   longueur du tampon son depuis la configuration audio, que resetpchard ne change
         //   pas ici, et sound_poll le rappelle à chaque bloc (sound.cs).
@@ -986,8 +1172,10 @@ internal static partial class pc
     /// </summary>
     internal static void closepc()
     {
-        // omitted: codegen_close(), atapi->exit(), dumppic(), dumpregs(), closevideo(),
-        //   mouse_emu_close(), zip_eject() (pc.c:577-591) — dynarec, ATAPI, souris, ZIP.
+        // omitted: codegen_close(), dumppic(), dumpregs(), closevideo(), mouse_emu_close(), zip_eject()
+        //   (pc.c:577-591) — dynarec, sorties de diagnostic, souris, ZIP.
+        // pcem: pc.c:578 — G10.4 : null_exit ou image_exit, vides.
+        Ide.ide_atapi.atapi!.exit();
         Disc.disc.disc_close(0);
         Disc.disc.disc_close(1);
         // pcem: pc.c:588 — G10.0.

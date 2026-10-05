@@ -278,6 +278,18 @@ extern device_t ide_device;        /* G5.0 */
 extern device_t xtide_device;      /* G10.2 */
 extern int cdrom_channel, zip_channel;
 void resetide(void);
+/* G10.4 — le lecteur de CD-ROM (scsi_cd.c, harness_cdrom.cpp, harness_ide.c). */
+extern int cd_speed;
+extern char *cd_model;
+char *cd_model_from_config(char *config);
+void h_cd_config(int drive, const char *path);
+void h_cd_boot_raz(void);
+void h_cd_initpc(void);
+void h_cd_resetpchard(void);
+void h_cd_initpc_fin(void);
+void h_cd_exit(void);
+void h_atapi_reset(void);
+static int h_cdrom_channel = -1;
 
 /* x86.h:122 définit `cycles` comme une macro vers cpu_state._cycles. Le
  * préprocesseur ne connaît pas l'accès à un membre : `out->cycles` deviendrait
@@ -1602,10 +1614,19 @@ int h_boot(const char *romspath) {
         fdd_set_type(0, h_drive_type[0]);
         fdd_set_type(1, h_drive_type[1]);
 
+        /* G10.4 — pc.c:703-705, comme loadconfig : le canal du CD (h_set_cdrom) ; le ZIP est G10.6. */
+        cdrom_channel = h_cdrom_channel;
+        zip_channel = -1;
+        /* G10.4 — l'état du pilote CD repart de zéro (ORACLE PARITY, comme initpc côté C#), puis le bloc
+         * CD d'initpc (pc.c:291-313) pose `atapi`. */
+        h_cd_boot_raz();
+        h_cd_initpc();
+
         /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */
         timer_reset();
         device_close_all();
         device_init();
+        h_atapi_reset();             /* G10.4 — déviation de l'oracle : les ponts ATAPI repartent de zéro */
         h_opl_reset();               /* G8.1 — déviation de l'oracle : opl[] repart de zéro */
         sound_reset();               /* pc.c:361 — AVANT speaker_init : il remet
                                         sound_handlers_num à 0 et effacerait
@@ -1841,21 +1862,12 @@ int h_boot(const char *romspath) {
            M13 sans qu'aucun boot-diff l'ait jamais vu : mfm_at.c n'était pas lié. */
         else if (!strcmp(hdd_controller_name, "mfm_at"))
                 device_add(&mfm_at_device);
-        else if (!strcmp(hdd_controller_name, "ide")) {
-                /* G5.0 — pc.c:703-705 lit cdrom_channel (défaut 2) et zip_channel (-1). Sans
-                   ATAPI (PLAN-G5.md, décision n° 1), le canal 2 est un disque dur : la
-                   configuration PCem « Hard drive » sur les quatre lecteurs (wx-config.c:891). */
-                cdrom_channel = -1;
-                zip_channel = -1;
+        /* G5.0, G10.4 — cdrom_channel et zip_channel sont posés plus haut, comme loadconfig (pc.c:703-705). */
+        else if (!strcmp(hdd_controller_name, "ide"))
                 device_add(&ide_device);
-        }
-        /* G10.2 — le XTIDE, version XT (hdd.c:156) : xtide_init ajoute lui-même ide_device ; mêmes
-           canaux sans ATAPI que « ide ». */
-        else if (!strcmp(hdd_controller_name, "xtide")) {
-                cdrom_channel = -1;
-                zip_channel = -1;
+        /* G10.2 — le XTIDE, version XT (hdd.c:156) : xtide_init ajoute lui-même ide_device. */
+        else if (!strcmp(hdd_controller_name, "xtide"))
                 device_add(&xtide_device);
-        }
 
         /* pc_reset(), pc.c:176. timer_reset() y est COMMENTÉ (pc.c:178) : l'appeler
            ici invalide (magic = 0) tous les chronomètres que model_init() vient
@@ -1920,6 +1932,9 @@ int h_boot(const char *romspath) {
          * cpu_update_waitstates() ne repose sur aucun zéro implicite. */
         cpu_cache_int_enabled = cpu_cache_ext_enabled = 0;
 
+        /* pc.c:411-433 — G10.4 : l'image refermée, puis rouverte. */
+        h_cd_resetpchard();
+
         /* pc.c:439 — le VRAI depuis le levier A de M16, inerte : cpu_set() a posé
          * cpu_turbo à 1. Pendant de pc.resetpchard côté C#. */
         cpu_set_turbo(1);
@@ -1939,6 +1954,7 @@ int h_boot(const char *romspath) {
         insc = 0;
         h_ins_count = 0;
         ali1429_reset();             /* pc.c:317 — G6.3, la fin d'initpc */
+        h_cd_initpc_fin();           /* pc.c:321-333 — G10.4, le reset du pilote CD */
         return 1;
 }
 
@@ -2351,9 +2367,18 @@ void h_kbd_process(void) {
  *   octets soient sur le disque des deux cotes, et fflush(NULL) le garantit : il vide
  *   TOUS les flux ouverts en ecriture du processus, disque dur compris. */
 void h_closepc(void) {
+        h_cd_exit();                 /* pc.c:578 — G10.4 */
         disc_close(0);
         disc_close(1);
         fflush(NULL);
+}
+
+/* G10.4 — le lecteur de CD-ROM, comme loadconfig (pc.c:702-711, :780-781). */
+void h_set_cdrom(int drive, int channel, const char *path, int speed, const char *model) {
+        h_cd_config(drive, path);
+        h_cdrom_channel = channel;
+        cd_speed = speed;
+        cd_model = cd_model_from_config((char *)model);
 }
 
 void h_set_discfn(int drive, const char *fn) {

@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/ide/ide.c  (ide.h : includes/private/ide/ide.h)
-// STATUS: partial — G5.1 : le contrôleur ATA, disque dur seul. ATAPI omis (PLAN-G5.md,
-//         décision n° 1) : aucun lecteur n'est jamais IDE_CDROM ici, et les appels atapi_*
-//         que seul un disque dur ne peut atteindre que par WIN_PACKETCMD s'arrêtent
-//         bruyamment. Le bus master (SFF-8038i) n'est pas branché : ses pointeurs restent nuls,
+// STATUS: partial — G5.1 : le contrôleur ATA, disque dur seul. G10.4 (PLAN-G10.md) : les crochets
+//         ATAPI, le lecteur de CD-ROM sur un canal (cdrom_channel) ; le ZIP (zip_channel) est G10.6.
+//         Le bus master (SFF-8038i) n'est pas branché : ses pointeurs restent nuls,
 //         comme chez PCem sur toute machine sans PIIX.
 //
 // L'HÉRITIER DE mfm_at.cs. Même jeu de registres (0x1F0-0x1F7, 0x3F6), même IRQ 14 sur le
@@ -26,6 +25,9 @@
 
 using iXtal26.Disc;
 using iXtal26.PluginApi;
+using iXtal26.Scsi;
+using static iXtal26.Ide.ide_atapi;
+using static iXtal26.Scsi.scsi;
 using static iXtal26.PluginApi.device;
 using static iXtal26.Models.pic;
 using static iXtal26.io;
@@ -64,8 +66,7 @@ internal sealed class IDE
     internal int do_initial_read;
     internal int sector_pos;
     internal hdd_file_t hdd_file = new();
-    // omitted: `atapi_device_t atapi` — ATAPI hors G5. Ses cinq pointeurs posés par
-    //   resetide (ide.c:294-298) n'ont pas de lecteur ici.
+    internal atapi_device_t atapi = new();
 
     internal uint16_t W(int i) => (uint16_t)(buffer[i * 2] | (buffer[i * 2 + 1] << 8));
 
@@ -117,9 +118,19 @@ internal static class ide
     internal const uint8_t READY_STAT = 0x40;
     internal const uint8_t BUSY_STAT = 0x80;
     internal const uint8_t ABRT_ERR = 0x04; /* Command aborted */
+    internal const uint8_t MCR_ERR = 0x08;  /* Media change request */
+
+    // pcem: ide.h:59-65
+    internal const uint8_t FEATURE_SET_TRANSFER_MODE = 0x03;
+    internal const uint8_t FEATURE_ENABLE_IRQ_OVERLAPPED = 0x5d;
+    internal const uint8_t FEATURE_ENABLE_IRQ_SERVICE = 0x5e;
+    internal const uint8_t FEATURE_DISABLE_REVERT = 0x66;
+    internal const uint8_t FEATURE_ENABLE_REVERT = 0xcc;
+    internal const uint8_t FEATURE_DISABLE_IRQ_OVERLAPPED = 0xdd;
+    internal const uint8_t FEATURE_DISABLE_IRQ_SERVICE = 0xde;
 
     /** Evaluate to non-zero if the currently selected drive is an ATAPI device */
-    // pcem: ide.c:51 — toujours faux ici : sans ATAPI, aucun lecteur n'est IDE_CDROM.
+    // pcem: ide.c:51 — le ZIP aussi est IDE_CDROM chez PCem (ide.c:286).
     private static bool IDE_DRIVE_IS_CDROM(IDE ide) => ide.type == IDE_CDROM;
 
     // pcem: ide.c:53
@@ -136,10 +147,10 @@ internal static class ide
     // pcem: ide.c:87-88 — cdrom_channel = 2 chez PCem : le maître secondaire devient un
     // lecteur de CD-ROM ATAPI (resetide, ide.c:282-284).
     //
-    // DEVIATION: -1, et non 2. ATAPI est hors G5 (PLAN-G5.md, décision n° 1) ; -1 est la
-    //   configuration PCem où les quatre lecteurs sont déclarés « Hard drive »
-    //   (wx-config.c:891). L'oracle pose la même valeur (harness.c). loadconfig refuse
-    //   une clé `cdrom_channel` qui demanderait un lecteur de CD (pc.cs).
+    // DEVIATION: -1, et non 2 (PLAN-G10.md, décision n° 10) : aucun lecteur de CD par défaut, c'est
+    //   la clé `cdrom_channel` du .cfg qui le pose ; -1 est la configuration PCem où les quatre
+    //   lecteurs sont déclarés « Hard drive » (wx-config.c:891). L'oracle reçoit la même valeur
+    //   (h_set_cdrom). zip_channel reste refusé par loadconfig jusqu'à G10.6 (pc.cs).
     internal static int cdrom_channel = -1;
     internal static int zip_channel = -1;
 
@@ -228,7 +239,7 @@ internal static class ide
      */
     // pcem: ide.c:153-164 — `str` est un `char *` sur le tampon de mots ; ici l'indice
     // d'octet de départ dans IDE.buffer.
-    private static void ide_padstr(uint8_t[] str, int str_off, string src, int len)
+    internal static void ide_padstr(uint8_t[] str, int str_off, string src, int len)
     {
         int i, v;
         int s = 0;
@@ -389,12 +400,16 @@ internal static class ide
                 {
                         ide_drives[d].drive = d;
 
-                        if (cdrom_channel == d || zip_channel == d)
+                        if (cdrom_channel == d)
                         {
-                                // omitted: le lecteur ATAPI de ide.c:282-287
-                                //   (scsi_bus_atapi_init sur scsi_cd ou scsi_zip) — hors
-                                //   G5. Inatteignable : loadconfig refuse ces canaux.
-                                fatal("ATAPI non transcrit (G5) : cdrom_channel / zip_channel\n");
+                                ide_drives[d].type = IDE_CDROM;
+                                scsi_bus_atapi_init(ide_drives[d].atapi.bus, scsi_cd_c.scsi_cd, d, ide_drives[d].atapi);
+                        }
+                        else if (zip_channel == d)
+                        {
+                                // omitted: le ZIP de ide.c:285-287 (scsi_zip), G10.6 — inatteignable :
+                                //   loadconfig refuse zip_channel.
+                                fatal("ZIP non transcrit (G10.6) : zip_channel\n");
                         }
                         else
                         {
@@ -403,7 +418,10 @@ internal static class ide
 
                         ide_set_signature(ide_drives[d]);
 
-                        // omitted: les cinq pointeurs de ide_drives[d].atapi (ide.c:294-298).
+                        ide_drives[d].atapi.ide = ide_drives[d];
+                        ide_drives[d].atapi.board = (d & 2) != 0 ? 1 : 0;
+                        // DEVIATION: atastat, error et cylinder (ide.c:296-298) — le pont les lit par `ide`
+                        //   (Ide/ide_atapi.cs, en-tête).
                 }
         }
 
@@ -426,9 +444,7 @@ internal static class ide
 
         if (ide.command == WIN_PACKETCMD)
         {
-                // omitted: atapi_data_write (ide.c:311) — ATAPI hors G5. Un disque dur
-                //   n'y arrive qu'avec WIN_PACKETCMD : arrêt bruyant, comme l'oracle.
-                fatal("ATAPI non transcrit (G5) : atapi_data_write\n");
+                atapi_data_write(ide.atapi, val);
         }
         else
         {
@@ -646,12 +662,13 @@ internal static class ide
                         return;
 
                 case WIN_PACKETCMD: /* ATAPI Packet */
-                        // omitted: atapi_command_start (ide.c:568-569) — gardé par
-                        //   `ide->type == IDE_CDROM`, jamais vrai ici.
+                        if (ide.type == IDE_CDROM)
+                                atapi_command_start(ide.atapi, (uint8_t)ide.cylprecomp);
+
                         ide.atastat = BUSY_STAT;
                         timer_set_delay_u64(ide_timer[ide_board], IDE_TIME);
 
-                        // omitted: `ide->atapi.bus_state = 0` (ide.c:574) — champ ATAPI.
+                        ide.atapi.bus_state = 0;
                         return;
 
                 case 0xF0:
@@ -717,8 +734,10 @@ internal static class ide
                 break;
 
         case 0x1F2: /* Sector count */
-                // omitted: atapi_read_iir (ide.c:643-644) — gardé par IDE_CDROM.
-                temp = (uint8_t)ide.secount;
+                if (ide.type == IDE_CDROM && ide.command == WIN_PACKETCMD)
+                        temp = atapi_read_iir(ide.atapi);
+                else
+                        temp = (uint8_t)ide.secount;
                 break;
 
         case 0x1F3: /* Sector */
@@ -744,9 +763,21 @@ internal static class ide
                         break;
                 }
                 ide_irq_lower(ide);
-                // omitted: la branche IDE_CDROM de ide.c:674-683 (SERVICE_STAT,
-                //   atapi_read_drq) — jamais prise ici.
-                temp = ide.atastat;
+                if (ide.type == IDE_CDROM)
+                {
+                        temp = (uint8_t)((ide.atastat & ~DSC_STAT) | (ide.service != 0 ? SERVICE_STAT : 0));
+                        if (ide.command == WIN_PACKETCMD)
+                        {
+                                if (atapi_read_drq(ide.atapi) != 0)
+                                        temp |= DRQ_STAT;
+                                else
+                                        temp &= unchecked((uint8_t)~DRQ_STAT);
+                        }
+                }
+                else
+                {
+                        temp = ide.atastat;
+                }
                 break;
 
         case 0x3F6: /* Alternate Status */
@@ -755,8 +786,21 @@ internal static class ide
                         temp = 0;
                         break;
                 }
-                // omitted: la branche IDE_CDROM de ide.c:699-708.
-                temp = ide.atastat;
+                if (ide.type == IDE_CDROM)
+                {
+                        temp = (uint8_t)((ide.atastat & ~DSC_STAT) | (ide.service != 0 ? SERVICE_STAT : 0));
+                        if (ide.command == WIN_PACKETCMD)
+                        {
+                                if (atapi_read_drq(ide.atapi) != 0)
+                                        temp |= DRQ_STAT;
+                                else
+                                        temp &= unchecked((uint8_t)~DRQ_STAT);
+                        }
+                }
+                else
+                {
+                        temp = ide.atastat;
+                }
                 break;
         }
         return temp;
@@ -771,9 +815,7 @@ internal static class ide
 
         if (ide.command == WIN_PACKETCMD)
         {
-                // omitted: atapi_data_read (ide.c:735) — voir writeidew.
-                fatal("ATAPI non transcrit (G5) : atapi_data_read\n");
-                return 0;
+                temp = atapi_data_read(ide.atapi);
         }
         else
         {
@@ -817,6 +859,7 @@ internal static class ide
     {
         IDE ide = ide_drives[cur_ide[ide_board]];
         IDE ide_other = ide_drives[cur_ide[ide_board] ^ 1];
+        atapi_device_t atapi_dev = ide.atapi;
 
         ext_ide = ide;
         if (ide.command == 0x30)
@@ -830,30 +873,31 @@ internal static class ide
                 ide.head = ide_other.head = 0;
                 ide.cylinder = ide_other.cylinder = 0;
                 ide.reset = ide_other.reset = 0;
-                // Les quatre `atapi->stop()` de ide.c:796-812 visent le pilote CD de l'hôte,
-                // que PCem pose TOUJOURS (cdrom_null_open, pc.c:293) : sans lecteur, c'est
-                // null_stop, vide (cdrom-null.c:19). Pas de pointeur nul, rien à transcrire.
+                // `atapi` est le pilote CD de l'hôte, que le bloc CD d'initpc pose toujours (pc.cs) :
+                // null_stop ou image_stop, même pour un emplacement vide.
                 if (IDE_DRIVE_IS_CDROM(ide))
                 {
                         ide.cylinder = 0xEB14;
-                        // omitted: atapi->stop() ; atapi_reset(&ide->atapi) — IDE_CDROM.
+                        ide_atapi.atapi!.stop();
+                        atapi_reset(ide.atapi);
                 }
                 if (ide.type == IDE_NONE)
                 {
                         ide.cylinder = 0xFFFF;
                         ide.error = 0xff;
-                        // omitted: atapi->stop() — null_stop, vide.
+                        ide_atapi.atapi!.stop();
                 }
                 if (IDE_DRIVE_IS_CDROM(ide_other))
                 {
                         ide_other.cylinder = 0xEB14;
-                        // omitted: atapi->stop() ; atapi_reset(&ide_other->atapi) — IDE_CDROM.
+                        ide_atapi.atapi!.stop();
+                        atapi_reset(ide_other.atapi);
                 }
                 if (ide_other.type == IDE_NONE)
                 {
                         ide_other.cylinder = 0xFFFF;
                         ide_other.error = 0xff;
-                        // omitted: atapi->stop() — null_stop, vide.
+                        ide_atapi.atapi!.stop();
                 }
                 return;
         }
@@ -1117,7 +1161,16 @@ internal static class ide
                 return;
 
         case WIN_PIDENTIFY: /* Identify Packet Device */
-                // omitted: la branche IDE_CDROM de ide.c:1050-1059 (atapi_identify).
+                if (IDE_DRIVE_IS_CDROM(ide))
+                {
+                        atapi_dev.bus.devices[0]!.atapi_identify!(ide.buffer, atapi_dev.bus.device_data[0]!);
+
+                        ide.pos = 0;
+                        ide.error = 0;
+                        ide.atastat = DRQ_STAT | READY_STAT | DSC_STAT;
+                        ide_irq_raise(ide);
+                        return;
+                }
                 goto abort_cmd;
 
         case WIN_SET_MULTIPLE_MODE:
@@ -1159,8 +1212,12 @@ internal static class ide
                 if (!IDE_DRIVE_IS_CDROM(ide))
                         goto abort_cmd;
 
-                // omitted: atapi_set_feature (ide.c:1099-1103) — IDE_CDROM seulement.
-                goto abort_cmd;
+                if (atapi_dev.bus.devices[0]!.atapi_set_feature!((uint8_t)ide.cylprecomp, (uint8_t)ide.secount,
+                                                                  atapi_dev.bus.device_data[0]!) == 0)
+                        goto abort_cmd;
+                ide.atastat = READY_STAT | DSC_STAT;
+                ide_irq_raise(ide);
+                return;
 
         case WIN_CHECK_POWER_MODE:
                 if (ide.type == IDE_NONE)
@@ -1176,7 +1233,8 @@ internal static class ide
                 if (!IDE_DRIVE_IS_CDROM(ide))
                         goto abort_cmd;
 
-                // omitted: atapi_process_packet (ide.c:1118) — IDE_CDROM seulement.
+                atapi_process_packet(atapi_dev);
+
                 return;
         }
 

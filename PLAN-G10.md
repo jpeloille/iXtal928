@@ -145,14 +145,17 @@ plusieurs fichiers, prégaps, les trois formats de données, CRLF et guillemets,
 chaque appel (TOC, capacité, secteurs, sous-canal, rappel audio, pistes, l'état de chaque
 ifstream) ; `r9-cue`, la survie aux feuilles qui font tomber PCem, en C# seul.
 
-### G10.4 — L'ATAPI : le CD-ROM sur l'IDE
+### G10.4 — L'ATAPI : le CD-ROM sur l'IDE  ✅ *fait, VERIFICATION.md § G10.4*
 
 `scsi.c`, `ide_atapi.c`, les crochets d'`ide.c`, `scsi_cd.c` ; les clés `cdrom_drive`,
 `cdrom_path`, `cdrom_channel`, `cd_speed`, `cd_model` ; le refus de `pc.cs:450-460` levé. R9 n° 1,
 2, 3, 5. **Porte** : boot-diffs ami486 avec un lecteur CD (canal secondaire, `cdrom_channel = 2`)
 vide et chargé ; un banc ATAPIBANC qui parle ATAPI directement aux ports (IDENTIFY PACKET,
 INQUIRY, TEST UNIT READY, READ CAPACITY, READ(10) du PVD, READ TOC, MODE SENSE, REQUEST SENSE).
-**Témoin** : décision n° 5.
+**Témoin** : décision n° 5. *Reconnaissance du 05/10* : le BIOS de l'ami486 ne touche jamais le
+canal secondaire (mesuré : aucun accès à 170h-177h ni 376h, au POST comme à l'amorçage de DOS) ; les
+boot-diffs du POST ne prouvent que la présence inerte du lecteur et l'absence de régression, et
+`--expect-cd` exige le lecteur des deux côtés ; ATAPIBANC porte la preuve. Décisions n° 14 à 21.
 
 ### G10.5 — L'audio CD dans la machine
 
@@ -171,8 +174,8 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
 ## Les décisions
 
 1. **L'ordre** : LPT1 et port jeu → manette → XTIDE → images CD → ATAPI CD → CUE/BIN et audio → ZIP,
-   les petits morceaux d'abord. *(validé sous mandat, 04/10)* **Amendé le 04/10 (sous mandat, à la
-   reconnaissance de G10.3)** : le moteur d'images entier passe en G10.3 — ISO et CUE/BIN, pistes de
+   les petits morceaux d'abord. *(validé, 04/10)* **Amendé le 04/10 (à la reconnaissance de
+   G10.3)** : le moteur d'images entier passe en G10.3 — ISO et CUE/BIN, pistes de
    données et audio, le lecteur audio en fonctions pures. `SetDevice` essaie la feuille CUE avant
    l'ISO (`cdrom_image.cpp:82-85`) : le parseur est sur le chemin de toute ISO ; et le `scsi_cd.c`
    de G10.4 appelle les dix-neuf entrées d'`image_atapi`, le lecteur audio compris. G10.5 devient
@@ -183,7 +186,7 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
 3. **Les périphériques LPT** : none (défaut), DSS, Covox, Covox stéréo, ceux du registre de PCem ;
    l'impression vers un fichier reste en option de G17. *(validé par l'utilisateur, 04/10)*
 4. **Les manettes** : les quatre types standard plus CH Flightstick Pro, SideWinder, TM FCS (353
-   lignes). *(validé sous mandat, 04/10)*
+   lignes). *(validé, 04/10)*
 5. **Le témoin CD-ROM** : ATAPIBANC seul, qui parle ATAPI directement aux ports ; pas de témoin
    DOS, rien à demander à l'utilisateur. La limite est dite, comme en G9.3 : aucun pilote ATAPI DOS
    (OAKCDROM.SYS, VIDE-CDD.SYS) ni MSCDEX / SHSUCDX sur ses disques. *(validé par l'utilisateur,
@@ -191,11 +194,11 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
 6. **L'image ZIP** : PCem n'a pas de clé de configuration (elle ne se charge que par l'interface,
    `wx-sdl2.c:776`) et la perd à chaque réinitialisation matérielle (`scsi_zip.c:165-177`)
    : une clé `zip_path` et une option `--zip IMG`, DEVIATION ; la perte au reset reproduite.
-   *(validé sous mandat, 04/10)*
+   *(validé, 04/10)*
 7. **L'audio CD** : le fil de PCem n'est pas déterministe : le rappel `image_audio_callback` est
    appelé de façon synchrone à l'échéance de `sound_poll`, DEVIATION inscrite, des deux côtés ; la
    sortie reste la voie hôte séparée de PCem, `givealbuffer_cd`, hachée par la sonde du son.
-   *(validé sous mandat, 04/10)*
+   *(validé, 04/10)*
 8. **Les ZIP et CD en écriture** : les portes travaillent sur des copies (`$WORK`), jamais sur une
    image de l'utilisateur. *(acquis, 07bdb5b)*
 9. **Ce fichier** : `PLAN-G10.md`, commité avec G10.0. *(validé, 04/10)*
@@ -205,16 +208,45 @@ erreurs, l'éjection) ; l'image comparée des deux côtés après écriture.
     *(validé par l'utilisateur, 04/10)*
 11. **L'image de plus de 2 Gio** (PB-107) : prouvée par une image CREUSE de 2,5 Go, écrite en tmpfs
     après une sonde qui vérifie que les trous ne comptent pas au quota (`quotactl_fd`), effacée sur
-    tous les chemins (fin de porte, `ProcessExit`, SIGTERM, SIGINT, SIGHUP, SIGQUIT). *(validé sous
-    mandat, 04/10)*
+    tous les chemins (fin de porte, `ProcessExit`, SIGTERM, SIGINT, SIGHUP, SIGQUIT).
+    *(validé, 04/10)*
 12. **L'indéfini, côté oracle** (PB-111) : l'oracle rendu déterministe plutôt que la comparaison
     masquée — `-ftrivial-auto-var-init=zero` sur `harness_cdrom.cpp` SEUL, et `--wrap=_Znam` (un
     `new[]` à zéro), qu'aucun autre objet ne référence (`nm -u`), la série restant identique à g105.
-    Conséquence inscrite : PLAY AUDIO en MSF sur une piste de données joue. *(validé sous mandat,
-    04/10)*
+    Conséquence inscrite : PLAY AUDIO en MSF sur une piste de données joue. *(validé, 04/10)*
 13. **Une feuille CUE est une donnée de l'utilisateur**, comme un .cfg : ses plantages (PB-110)
-    prennent la règle R9, DEVIATION « pcem bug, not reproduced », et la survie `r9-cue`. *(validé
-    sous mandat, 04/10)*
+    prennent la règle R9, DEVIATION « pcem bug, not reproduced », et la survie `r9-cue`.
+    *(validé, 04/10)*
+14. **Les dix-neuf `fatal()` du pont et du bus** (PB-113). La sélection (`ide_atapi.c:102`, `:106`,
+    `:110`), qu'un PACKET pendant une phase en cours atteint — après DEVICE RESET, qui ne remet pas
+    le pont —, abandonne la transaction (`scsi_bus_reset`) et reprend, comme un vrai lecteur. Les
+    quatorze de la machine d'états et les deux de `scsi.c`, que l'invité n'atteint pas, finissent la
+    commande par `atapi_abort` (ERR, ABRT, phase d'état, IRQ) : `scsi.c` sert aussi le ZIP (G10.6) et
+    le SCSI (G11). Chaque site nommé et exercé par `r9-atapi`, par un scénario de l'invité ou un état
+    forgé ; pas d'`atapi_reset` ajouté à DEVICE RESET. *(validé, 05/10)*
+15. **Le DMA sans bus master** (PB-114) : RETRY_*_DMA réarme son chronomètre ; l'invité attend,
+    l'émulateur vit — BSY indéfini, comme WIN_READ_DMA côté disque. *(validé, 05/10)*
+16. **Le lecteur hors de ses tampons** (PB-115) : MECHANISM STATUS de longueur 0 rend GOOD sans
+    données ; au-delà de `data_out`, l'octet est compté, pas gardé ; à la fin de `data_in`, le
+    transfert s'arrête (CHECK CONDITION, ILLEGAL REQUEST / LBA OUT OF RANGE), en deçà les octets
+    périmés de PCem rendus ; un compte négatif à `readsector`, un échec de lecture.
+    *(validé, 05/10)*
+17. **La configuration du lecteur** (PB-93, PB-110, PB-116) : `cd_speed` hors des dix-huit vitesses,
+    24 averti ; `cd_model` inconnu refusé, retour 2, la clé comme `--cd-model` ; `cdrom_path` de
+    1 024 octets ou plus, `cdrom_drive` ni -1 ni 200 (le lecteur physique, exclu ; défaut -1),
+    `cdrom_channel` hors de -1 à 3 : avertis, ramenés au lecteur vide ou à -1 ; l'image illisible au
+    démarrage, R9 : le lecteur vide, avertie, survie `r9-cdcfg` ; le CD sur le canal d'un disque, un
+    canal sans contrôleur IDE : avertis seulement. *(validé, 05/10)*
+18. **Le ZIP attend G10.6** : `zip_channel` reste refusé, retour 2. *(validé, 05/10)*
+19. **La remise à zéro par amorçage**, des deux côtés : les ponts ATAPI des quatre unités et l'état
+    du pilote d'images ; côté oracle, `ide.c` inclus par `harness_ide.c` pour atteindre la struct
+    IDE — à la condition que `check-oracle` reste sans dérive et que la série soit identique à la
+    précédente sur toutes les portes existantes. *(validé, 05/10)*
+20. **L'ISO des portes** : `iso-2048.iso` d'isogen (32 secteurs), écrite par la recette g5w dans le
+    WORK, sans copie par côté (jamais écrite) ; `g5w.sha256` gagne sa ligne, et elle seule.
+    *(validé, 05/10)*
+21. **L'écran de construction** enregistre les cinq clés (`pc.c:888-890`, `:928-929`) sans ligne à
+    l'écran ; les profils attendent GR.3. *(validé, 05/10)*
 
 ## Les risques
 
@@ -268,5 +300,21 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   appellera en G10.4.
 - **ATAPI et ZIP** (G10.4, G10.6) : les bancs couvrent une dizaine de commandes sur une trentaine ;
   pas de sonde de l'état ATAPI ; un seul témoin, ATAPIBANC, faute de pilote DOS (décision n° 5).
+- **G10.4** : le BIOS de l'ami486 ne touche jamais le canal secondaire : `bd-ami486-cd-vide` et
+  `-iso` ne prouvent que la présence inerte du lecteur et l'absence de régression (`--expect-cd`
+  exige le lecteur des deux côtés, puisque le diff d'instructions ne verrait pas sa perte ; un
+  contrôle négatif le montre). ATAPIBANC passe, toujours en PIO et IRQ permises, des commandes de
+  lecture et d'état et deux MODE SELECT — la phase de données sortante, et PB-119 sur MODE
+  SELECT(6) ; la longueur 0 ne l'est que par `r9-atapi`. Ni READ CD, ni READ TOC brute (PB-120),
+  ni PLAY AUDIO (G10.5), ni SET SPEED, SEEK, READ SUBCHANNEL, READ HEADER, READ DISC INFORMATION,
+  START/STOP, PAUSE ; ni l'unité esclave d'un canal à CD, ni le CD sur le XTIDE d'un XT (accepté
+  comme chez PCem, non exercé), ni nIEN. Les dix-huit sites de PB-113 que l'invité n'atteint pas le
+  sont par des états forgés ; leur sortie — `atapi_abort` pour les quatorze de la machine d'états, la
+  sélection reprise pour `:102` et `:106`, le bus remis au repos pour les deux de `scsi.c` — n'a pas
+  de pendant chez PCem, qui s'arrête. La boucle de
+  READ_DATA (`ide_atapi.c:355-384`) tournerait sans fin sur un bus en phase de données sans REQ ni
+  délai en cours — état que `scsi.c` ne produit pas ; non gardée. `scsi_cd_init` seul (le bus des
+  cartes SCSI) n'est appelé par rien avant G11. Aucun témoin réel : ni pilote ATAPI DOS ni MSCDEX
+  sur les disques de l'utilisateur (décision n° 5).
 - **L'audio CD** (G10.5) : le rappel synchrone n'est pas le fil de PCem ; la cadence avec des lectures
   CD sur le fil d'émulation n'est pas mesurée.

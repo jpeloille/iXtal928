@@ -1,0 +1,7 @@
+model = ami486
+cpu = 10
+mem_size = 4096
+gfxcard = tvga9000b
+hdd_controller = ide
+cdrom_channel = 2
+cdrom_drive = -1
