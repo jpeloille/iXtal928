@@ -1,5 +1,10 @@
 # G10 — Le 486 complet : LPT1, la manette, le XTIDE, le CD-ROM et le ZIP ; le plan, sur reconnaissance
 
+> **G10 est fait** (5 octobre 2026) : G10.0 `1f0551c`, G10.1 `8267c0f`, G10.2 `ba76d5a`, G10.3 `a9634b4`,
+> G10.4 `3af530b`, G10.5 `62e4a02`, G10.6 `34268db` ; VERIFICATION.md §§ G10.0 à G10.6 ; PB-101 et
+> PB-103 à PB-127. Sans la clôture de « Ce qu'un bloc livre » (PLAN.md) : profils, témoins réels et
+> couverture comptée reviennent au bloc GR (GR.2, GR.3), avec « Les risques » ci-dessous.
+
 > Écrit le 4 octobre 2026, après G9. Bloc G10 de `PLAN.md` (décision utilisateur du 03/10, feu vert
 > du 04/10). Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré. Les
 > décisions sont en fin de fichier, toutes validées le 04/10. Remis d'aplomb le même jour selon le

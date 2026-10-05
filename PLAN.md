@@ -3,7 +3,7 @@
 > Écrit le 26 septembre 2026, au commit `f1f45da` (après M21). Les tailles sont des
 > `wc -l` sur `pcem-dev/`, les modèles et les tables CPU sont relevés dans `model.c` et
 > `cpu_tables.c` le même jour. Le détail du jalon 286 est dans `PLAN-286.md`. Remis à jour le
-> 4 octobre 2026, au commit `9bc8bf5` (G10.0 fait), relu contre `git log` et `VERIFICATION.md`.
+> 5 octobre 2026, au commit `34268db` (G10 fait), relu contre `git log` et `VERIFICATION.md`.
 
 ## Le but, et sa borne
 
@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 4 octobre 2026, G10 en cours
+## Où on en est — 5 octobre 2026, G10 fait ; G11 attend un feu vert
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ──▶ [ICI] G10 ── G11 ── G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ──▶ [ICI] G11 ── G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -83,9 +83,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 - **G9, fait** : `PLAN-G9.md`, G9.0 à G9.3. La MDA, l'Hercules, l'EGA et la Tseng ET4000AX, sous
   boot-diff ; témoins Windows 3.11 en Hercules, en EGA et, sur l'ET4000, en VGA. PB-96 à PB-100.
   La profondeur qui manque est renvoyée au bloc GR, ci-dessous.
-- **G10, en cours** : `PLAN-G10.md`, feu vert du 04/10, arrêt après son bilan. G10.0 est fait :
+- **G10, fait le 5 octobre 2026** : `PLAN-G10.md`, feu vert du 04/10. G10.0 :
   LPT1, LPT2 et le port jeu sur toutes les machines XT et AT, la Sound Source et les Covox sur
-  LPT1 (PB-101). G10.1 aussi : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105). Et
+  LPT1 (PB-101). G10.1 : la manette, ses sept types et l'hôte SDL3 (PB-103 à PB-105).
   G10.2 : le XTIDE en version XT ; le 5150, le XT, la M24 et le PC1512 amorcent un disque dur.
   G10.3 : le moteur d'images CD entier, ISO et CUE/BIN, prouvé hors machine (PB-106 à PB-112).
   G10.4 : l'ATAPI, le CD-ROM sur l'IDE, prouvé par le banc ATAPIBANC (PB-113 à PB-122).
@@ -93,6 +93,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   et la sonde du CD (PB-123, PB-124).
   G10.6 : le lecteur ZIP 100 sur l'IDE, prouvé par ZIPBANC, l'image comparée des deux côtés
   (PB-125 à PB-127).
+  Sans la clôture de « Ce qu'un bloc livre » (profils, témoins, couverture comptée) : elle revient au
+  bloc GR (GR.2, GR.3), avec ce que chaque étape a laissé (`PLAN-G10.md`, « Les risques »).
 - **G11 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -250,9 +252,9 @@ bancs qui finissent dans le mode testé, la clôture) est renvoyé au bloc GR.
 Paradise, Cirrus 5428/5430/5434, Trio32/9FX, et tout ce qui est PCI (Voodoo, Banshee,
 Millennium, Mach64).
 
-### G10 — Le 486 complet : ce qui manque à la machine du quotidien  *(feu vert du 04/10 ; en cours, `PLAN-G10.md`)*
+### G10 — Le 486 complet : ce qui manque à la machine du quotidien  ✅ *(`PLAN-G10.md`, fait le 5 octobre 2026 ; sa clôture revient à GR)*
 
-**G10.0 à G10.6 sont faits** : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
+**G10 est fait** (G10.0 à G10.6) : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
 comme PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox
 (VERIFICATION.md § G10.0) ; la manette, ses sept types, la section [Joysticks] et `joystick_poll`
 par SDL3 (§ G10.1) ; le XTIDE en version XT, sur lequel le 5150, le XT, la M24 et le PC1512
@@ -263,7 +265,7 @@ qui lui parle par les ports sous DOS, PB-113 à PB-122 (§ G10.4) ; l'audio CD d
 fil CD de `sound.c` à l'échéance de `sound_poll`, la page audio et le volume CD de la carte, la
 voie hôte à 44,1 kHz, prouvé par ATAPIAUD et la sonde du CD, PB-123 et PB-124 (§ G10.5) ; le lecteur
 ZIP 100 sur l'IDE, `zip_channel` et `zip_path` (DEVIATION), prouvé par ZIPBANC et `r9-zip`, PB-125
-à PB-127 (§ G10.6). Reste le bilan de G10.
+à PB-127 (§ G10.6). La clôture (profils, témoins, couverture) revient au bloc GR.
 
 - **(a) CD-ROM et ZIP en ATAPI sur l'IDE** : `ide_atapi.c` (500), `scsi.c` (352),
   `scsi_cd.c` (1 707), `scsi_zip.c` (1 111), `cdrom-image.cc` (500, du C++ comme DBOPL), et le
@@ -369,7 +371,7 @@ G7  Cirrus 5429, S3 Trio64   ✅
 G8  son                      ✅
 PS2 souris PS/2              ✅ transcrite, non offerte (03/10)
 G9  MDA, Hercules, EGA, ET4000   ✅
-G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ← en cours, feu vert du 04/10
+G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ✅ le 486 complet (clôture : GR)
 G11 SCSI : AHA-1542C                    ┐
 G12 les autres Sound Blaster, AWE32     │ décisions utilisateur du 03/10
 G13 défauts de PCem, « mode matériel »  │ (GR : du 04/10) ;
