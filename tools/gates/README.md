@@ -62,3 +62,10 @@ par côté. Le BIOS de l'ami486 ne touche pas le canal secondaire : `--expect-cd
 exige le lecteur et son pilote des deux côtés, sans quoi un lecteur perdu des deux côtés laisserait
 le boot-diff vert. Le banc ATAPIBANC (`tools/atapibanc`) parle ATAPI aux ports sous DOS ;
 `r9-atapi` et `r9-cdcfg`, en C# seul, écrivent les images d'isogen comme `r9-cue`.
+
+L'audio CD (G10.5) : `bd-ami486-atapi-audio` monte `mixte.cue` d'isogen (une piste de données, deux
+pistes audio), que la recette écrit aussi dans le WORK avec `mixte.bin`. ATAPIAUD
+(`atapibanc.py --audio`) y joue les deux pistes ; la sonde du CD de boot-diff compare, quand un lecteur
+est monté, ce que reçoit `givealbuffer_cd` (empreinte, blocs, échantillons non nuls) et les volumes CD
+de la carte. `--expect-cd-son` exige des échantillons non nuls des deux côtés : sans lui, un CD resté
+muet des deux côtés laisserait la porte verte.

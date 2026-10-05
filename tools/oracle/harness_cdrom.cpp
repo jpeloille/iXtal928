@@ -122,6 +122,7 @@ void h_cd_set_drive(int drive, int old) {
 }
 
 void h_cd_audio_callback(int16_t *out, int len) { image_audio_callback(out, len); }
+void h_cd_audio_stop(void) { image_audio_stop(); }   /* G10.5 — sound_reset (sound.c:267) */
 
 /* G10.4 — l'amorçage (PLAN-G10.md). La configuration du lecteur, posée par h_set_cdrom (harness.c) avant
  * h_boot : cdrom_drive (pc.c:702) et cdrom_path (pc.c:707-711), bornée à 1 023 octets par le C#. */

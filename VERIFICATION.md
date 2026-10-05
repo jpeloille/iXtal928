@@ -6501,3 +6501,81 @@ Build 0 avertissement (hôte et outil de diff, Debug et Release), selftest, chec
 ABI 50, `--setup-check` vingt-trois contrôles, `--menu-check` soixante-neuf.
 
 **Ce que G10.4 laisse** : PLAN-G10.md, « Les risques », § G10.4.
+
+## G10.5 — L'audio CD dans la machine ; PB-123, PB-124
+
+Le 5 octobre 2026. Plan : `PLAN-G10.md` § G10.5 et la décision n° 7.
+
+**Transcrit.** Le fil CD de `sound.c` (`:121`, `:143-197`, `:217-225`), son corps seul : à
+l'échéance de `sound_poll`, tous les `CD_BUFLEN × 48000 / CD_FREQ` = 4 800 appels (100 ms), le
+tampon de 4 410 trames stéréo est rempli par `image_audio_callback`, réglé par le volume et la
+sélection de canaux de la page audio (`atapi_get_cd_volume`, `atapi_get_cd_channel`, la page 0Eh
+de `scsi_cd.c`), puis par le volume CD de la carte son (`sound_set_cd_volume`, que le CT1345 de la
+SB Pro v2 pose), écrêté, et rendu à `givealbuffer_cd`. `sound_reset` remet le volume CD au maximum
+et arrête la lecture (`:265`, `:267`). `ioctl_audio_callback` et `ioctl_audio_stop`, le lecteur
+physique de l'hôte, restent exclus. Côté hôte, `givealbuffer_cd` (`soundopenal.c:210-266`) devient un
+second flux SDL3 à 44,1 kHz sur le même périphérique (`Host/SdlAudio.cs`), avec la contre-pression de
+quatre blocs du premier.
+
+**La décision n° 7, appliquée.** Chez PCem, `thread_set_event(sound_cd_event)` réveille un fil
+dont la cadence dépend de l'ordonnanceur de l'hôte, et qui lit l'image et l'état du lecteur sans
+verrou, en même temps que le fil d'émulation (PB-124, non reproduit). Ici le corps du fil s'exécute
+sur-le-champ, dans le fil d'émulation, à l'échéance, des deux côtés (`DEVIATION` dans
+`Sound/sound.cs` et `tools/oracle/harness.c`). `cd_pos`, que PCem ne remet à zéro qu'au chargement
+du programme, repart de zéro à chaque amorçage de l'outil, des deux côtés (ORACLE PARITY, comme
+l'état du pilote d'images en G10.3). L'oracle n'appelle pas `image_audio_stop` directement : la
+fonction est en C++ dans `harness_cdrom.cpp`, qui l'expose par `h_cd_audio_stop`.
+
+**La sonde du CD.** `givealbuffer_cd` est, des deux côtés, précédé d'une empreinte FNV-1a des
+échantillons reçus, d'un compte de blocs et d'un compte d'échantillons non nuls. boot-diff compare,
+quand un lecteur est monté, six champs : `cd_pos`, les deux volumes CD de la carte, l'empreinte, les
+blocs, les non nuls. `--expect-cd-son` exige des échantillons non nuls des deux côtés. La sonde est
+une ligne à part : les journaux des portes sans lecteur ne changent pas, et la sonde du son garde
+ses quarante et un champs. ABI 51 (`h_cd_sound_probe`).
+
+**Le banc ATAPIAUD** (`atapibanc.py --audio`, 1 126 octets dont un script de 667) : l'interprète
+d'ATAPIBANC, plus une opération qui attend N tops de l'horloge du BIOS (0040:006Ch), le temps que le
+lecteur joue ; sans `--audio`, ATAPIBNC.COM reste octet pour octet celui de G10.4. Sur `mixte.cue`
+d'isogen (une piste de données de 32 secteurs, la piste 2 audio en LBA 42 sur 30 secteurs, la piste
+3 en LBA 222 après un PREGAP de 150), que la recette g5w écrit dans le WORK avec `mixte.bin`
+(`g5w.sha256` : deux lignes ajoutées), la SB Pro v2 montée : la signature, TEST UNIT READY deux
+fois, READ TOC en LBA et en MSF, PLAY AUDIO(10) de la piste de données (refusé, ILLEGAL REQUEST),
+PLAY AUDIO(10) de la piste 2 à son adresse LBA (rien ne joue, PB-123), MODE SELECT(10) de la page
+audio (canaux croisés, volumes 80h et 40h), PLAY AUDIO MSF de la piste 2, PAUSE, RESUME, PLAY
+AUDIO(12) de la piste 3 à l'adresse plus 150 (refusé, PB-123), STOP, et READ SUB-CHANNEL entre
+chaque. Ce que l'écran final montre, identique des deux côtés : huit secteurs après le début de la
+piste 2, l'état 11h (lecture), piste 2, index 1, position absolue 00:02:50 et relative 00:02:08
+(PB-123 : 00:00:08 sur un vrai lecteur) ; après PAUSE, 12h à la même position ; après RESUME, 11h,
+en LBA 207 et 165 (PB-123 : 57 et 15) ; la piste finie, 13h en 222 et 180 ; PLAY AUDIO(12) refusé
+(état 51h, erreur 54h) ; après STOP, 13h.
+
+**Les portes.**
+- `bd-ami486-atapi-audio` : 265 762 349 instructions identiques ; sonde du CD identique, 14 461
+  blocs, 32 720 échantillons non nuls, volumes CD 81/81 — ceux du CT1345 au reset, que le banc ne
+  règle pas ; sonde du son, Sound Blaster, lecteur (`--expect-cd 2,image`) et C: identiques.
+- `bd-ami486-cd-iso` et `bd-ami486-cd-vide`, rejouées : 73 098 870 instructions, les comptes de g107 ;
+  sonde du CD identique, 4 000 blocs, aucun échantillon non nul, volumes 65535/65535.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| la sélection de canaux : le canal gauche pris au bit 2 au lieu du bit 1 (`Sound/sound.cs`) | `bd-ami486-atapi-audio` | rouge : instructions identiques, la sonde du CD diverge (empreinte ; 33 513 échantillons non nuls au lieu de 32 720) |
+| le volume ATAPI divisé par 256 au lieu de 255 | `bd-ami486-atapi-audio` | rouge : l'empreinte, et 32 718 non nuls au lieu de 32 720 |
+| la cadence du fil : une échéance tous les 4 801 appels au lieu de 4 800 | `bd-ami486-atapi-audio` | rouge : `cd_pos` 94 au lieu de 152, 14 458 blocs au lieu de 14 461, l'empreinte |
+| `sound_reset` sans `sound_set_cd_volume(65535, 65535)` | `bd-ami486-cd-iso` | rouge : volumes CD 0/0 au lieu de 65535/65535 |
+| `--expect-cd-son` sur une porte qui ne joue rien | `bd-ami486-cd-iso` | rouge : « 4000 bloc(s), 0 échantillon(s) non nul(s) — aucun son du CD » |
+
+**La série** : g108, sous `MALLOC_PERTURB_=85`, oracle reconstruit de zéro, dix voies, en mémoire, avec le verrou
+machine, la DLL et le lanceur figés, le WORK refait par la recette (empreintes conformes) : 196 portes
+vertes en 56 min 53 s, comparées journal par journal à g107 (g107b pour les deux portes que le quota
+avait arrêtées, g107c pour les deux bancs ATAPI finals) : 185 identiques, la nouvelle verte, et dix
+écarts, tous attendus : `abi` (51 au lieu de 50) ; `config-check` (la ligne « écrit : », qui suit le
+TMPDIR de la série) ; `cdimage-check`, `r9-cue`, `r9-atapi` et `r9-cdcfg` (la ligne d'isogen et les
+chemins du TMPDIR) ; et les quatre portes qui montent un lecteur, `bd-ami486-cd-vide`, `-cd-iso`,
+`-atapi-banc` et `-atapi-banc-vide`, qui ne gagnent que la ligne « Sonde du CD », leurs comptes
+d'instructions inchangés. Les quatre premiers contrôles négatifs ont été joués avant et après la série,
+chacun seul, sous le même verrou. Build 0 avertissement (hôte et outil de diff, Release,
+`--no-incremental`), selftest, check-oracle 0 dérive (200, harnais réancré), ABI 51.
+
+**Ce que G10.5 laisse** : PLAN-G10.md, « Les risques », § L'audio CD.

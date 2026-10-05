@@ -184,12 +184,25 @@ static void h_sound_mix_hash(void) {
         }
 }
 
+/* G10.5 — le fil CD, plus bas : son corps à chaque échéance, en synchrone (décision n° 7). */
+static void h_sound_cd_tick(void);
+void h_sound_cd_raz(void);
+void h_cd_audio_stop(void);                       /* harness_cdrom.cpp : image_audio_stop() */
+void h_cd_audio_callback(int16_t *out, int len);  /* harness_cdrom.cpp : image_audio_callback() */
+static int cd_pos = 0;   /* sound.c:217 */
+
 /* sound.c:218-256 */
 void sound_poll(void *priv) {
         timer_advance_u64(&sound_poll_timer, sound_poll_latch);
 
-        /* omitted: cd_pos et thread_set_event(sound_cd_event) (sound.c:221-225) —
-           fil CD, hors périmètre 5150. */
+        /* sound.c:221-225. DEVIATION (décision n° 7 de PLAN-G10) : thread_set_event(sound_cd_event)
+         * réveille chez PCem un fil, dont la cadence dépend de l'ordonnanceur de l'hôte ; ici le corps du
+         * fil s'exécute sur-le-champ, à l'échéance, des deux côtés. */
+        cd_pos++;
+        if (cd_pos == (CD_BUFLEN * 48000) / CD_FREQ) {
+                cd_pos = 0;
+                h_sound_cd_tick();
+        }
 
         sound_pos_global++;
         if (sound_pos_global == sound_buf_len_al) {
@@ -218,6 +231,103 @@ void sound_set_cd_volume(unsigned int vol_l, unsigned int vol_r) {
         cd_vol_r = vol_r;
 }
 
+/* G10.5 — le fil CD (sound.c:121, :143-197), son corps seul, appelé par sound_poll à chaque échéance.
+ * givealbuffer_cd (soundopenal.c, la voie hôte du CD) est remplacé par une empreinte FNV-1a des
+ * échantillons qu'il recevrait, et un compte de blocs : la sonde du CD (h_cd_sound_probe), lue au même
+ * point des deux côtés. */
+uint32_t atapi_get_cd_volume(int channel);   /* scsi_cd.c:812 */
+uint32_t atapi_get_cd_channel(int channel);  /* scsi_cd.c:807 */
+static int16_t cd_buffer[CD_BUFLEN * 2];     /* sound.c:121 */
+static uint64_t h_cd_snd_hash = 1469598103934665603ULL;
+static uint64_t h_cd_snd_blocks;
+static uint64_t h_cd_snd_nonzero;   /* les échantillons non nuls : un CD qui a joué */
+
+void givealbuffer_cd(int16_t *buf) {
+        int c;
+        for (c = 0; c < CD_BUFLEN * 2; c++) {
+                h_cd_snd_hash ^= (uint64_t)(uint16_t)buf[c];
+                h_cd_snd_hash *= 1099511628211ULL;
+                if (buf[c])
+                        h_cd_snd_nonzero++;
+        }
+        h_cd_snd_blocks++;
+}
+
+/* sound.c:143-197, la boucle du fil sans son attente (thread_wait_event, thread_reset_event). */
+static void h_sound_cd_tick(void) {
+        int c;
+
+        memset(cd_buffer, 0, CD_BUFLEN * 2 * 2);
+        /* omitted: ioctl_audio_callback(cd_buffer, CD_BUFLEN * 2) (sound.c:150) — le lecteur physique, exclu. */
+        h_cd_audio_callback(cd_buffer, CD_BUFLEN * 2);
+        if (soundon) {
+                int32_t atapi_vol_l = atapi_get_cd_volume(0);
+                int32_t atapi_vol_r = atapi_get_cd_volume(1);
+                int channel_select[2];
+
+                channel_select[0] = atapi_get_cd_channel(0);
+                channel_select[1] = atapi_get_cd_channel(1);
+
+                for (c = 0; c < CD_BUFLEN * 2; c += 2) {
+                        int32_t cd_buffer_temp[2] = {0, 0};
+
+                        /*First, adjust input from drive according to ATAPI volume.*/
+                        cd_buffer[c] = ((int32_t)cd_buffer[c] * atapi_vol_l) / 255;
+                        cd_buffer[c + 1] = ((int32_t)cd_buffer[c + 1] * atapi_vol_r) / 255;
+
+                        /*Apply ATAPI channel select*/
+                        if (channel_select[0] & 1)
+                                cd_buffer_temp[0] += cd_buffer[c];
+                        if (channel_select[0] & 2)
+                                cd_buffer_temp[1] += cd_buffer[c];
+                        if (channel_select[1] & 1)
+                                cd_buffer_temp[0] += cd_buffer[c + 1];
+                        if (channel_select[1] & 2)
+                                cd_buffer_temp[1] += cd_buffer[c + 1];
+
+                        /*Apply sound card CD volume*/
+                        cd_buffer_temp[0] = (cd_buffer_temp[0] * (int)cd_vol_l) / 65535;
+                        cd_buffer_temp[1] = (cd_buffer_temp[1] * (int)cd_vol_r) / 65535;
+
+                        if (cd_buffer_temp[0] > 32767)
+                                cd_buffer_temp[0] = 32767;
+                        if (cd_buffer_temp[0] < -32768)
+                                cd_buffer_temp[0] = -32768;
+                        if (cd_buffer_temp[1] > 32767)
+                                cd_buffer_temp[1] = 32767;
+                        if (cd_buffer_temp[1] < -32768)
+                                cd_buffer_temp[1] = -32768;
+
+                        cd_buffer[c] = cd_buffer_temp[0];
+                        cd_buffer[c + 1] = cd_buffer_temp[1];
+                }
+
+                givealbuffer_cd(cd_buffer);
+        }
+}
+
+/* ORACLE PARITY — à chaque amorçage (h_boot), comme le lancement de PCem : cd_pos et le tampon à zéro,
+ * l'empreinte à sa graine. PCem ne remet pas cd_pos à zéro au reset matériel ; il ne le fait qu'une fois,
+ * au chargement du programme. Pendant côté C# : sound.sound_cd_raz. */
+void h_sound_cd_raz(void) {
+        cd_pos = 0;
+        memset(cd_buffer, 0, sizeof(cd_buffer));
+        h_cd_snd_hash = 1469598103934665603ULL;
+        h_cd_snd_blocks = 0;
+        h_cd_snd_nonzero = 0;
+}
+
+/* La sonde du CD (H_CD_SOUND_PROBE_N champs) : cd_pos, les deux volumes de la carte, l'empreinte des
+ * échantillons, le nombre de blocs, le nombre d'échantillons non nuls. */
+void h_cd_sound_probe(uint64_t *out) {
+        out[0] = (uint64_t)cd_pos;
+        out[1] = cd_vol_l;
+        out[2] = cd_vol_r;
+        out[3] = h_cd_snd_hash;
+        out[4] = h_cd_snd_blocks;
+        out[5] = h_cd_snd_nonzero;
+}
+
 void sound_speed_changed(void) { sound_poll_latch = (uint64_t)((double)TIMER_USEC * (1000000.0 / 48000.0)); }
 
 /* sound.c:260-268. L'allocation d'outbuffer est hissée de sound_init()
@@ -234,8 +344,9 @@ void sound_reset(void) {
 
         sound_handlers_num = 0;
 
-        /* omitted: sound_set_cd_volume(), ioctl_audio_stop(), image_audio_stop()
-           (sound.c:265-267) — CD, hors périmètre. */
+        sound_set_cd_volume(65535, 65535);   /* sound.c:265 */
+        /* omitted: ioctl_audio_stop() (sound.c:266) — le lecteur physique de l'hôte, exclu (PLAN.md). */
+        h_cd_audio_stop();                   /* sound.c:267, image_audio_stop() (harness_cdrom.cpp) */
 }
 
 /* L'étage hôte de PCem (soundopenal.c:143). Muet ici : voir le niveau (b). */
@@ -1620,6 +1731,7 @@ int h_boot(const char *romspath) {
         /* G10.4 — l'état du pilote CD repart de zéro (ORACLE PARITY, comme initpc côté C#), puis le bloc
          * CD d'initpc (pc.c:291-313) pose `atapi`. */
         h_cd_boot_raz();
+        h_sound_cd_raz();            /* G10.5 — le fil CD (ORACLE PARITY) */
         h_cd_initpc();
 
         /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */

@@ -31,6 +31,16 @@ internal sealed class SdlAudio : IDisposable
     private const int QueueDepthBlocks = 4;
 
     private IntPtr _stream;
+
+    // G10.5 — soundopenal.c:100-132 : la seconde source d'OpenAL, source[1], celle du CD, à CD_FREQ (44,1 kHz)
+    //   et quatre tampons de CD_BUFLEN trames stéréo (buffers_cd). En SDL3, un second flux sur le même
+    //   périphérique : SDL mélange les deux, comme OpenAL mélangeait ses deux sources.
+    private IntPtr _cdStream;
+
+    /// <summary>Blocs CD déposés, et jetés faute de place (soundopenal.c:237 : rien n'est déposé sans tampon
+    /// libre).</summary>
+    internal int CdBlocksQueued { get; private set; }
+    internal int CdBlocksDropped { get; private set; }
     private int16_t[] _buf16 = new int16_t[Sound.sound.MAXSOUNDBUFLEN * Channels];
 
     /// <summary>Blocs jetés faute de place dans la file. Sans compteur, la perte
@@ -88,8 +98,52 @@ internal sealed class SdlAudio : IDisposable
             return false;
         }
 
+        // G10.5 — la source du CD (soundopenal.c:104-132). Son échec ne coupe pas le reste : la machine joue
+        //   sans le CD, comme sans le son si le premier flux manque.
+        var cdSpec = new SDL.AudioSpec
+        {
+            Format = SDL.AudioFormat.AudioS16LE,
+            Channels = Channels,
+            Freq = Sound.sound.CD_FREQ,
+        };
+        _cdStream = SDL.OpenAudioDeviceStream(SDL.AudioDeviceDefaultPlayback, in cdSpec, null, IntPtr.Zero);
+        if (_cdStream != IntPtr.Zero && !SDL.ResumeAudioStreamDevice(_cdStream))
+        {
+            SDL.DestroyAudioStream(_cdStream);
+            _cdStream = IntPtr.Zero;
+        }
+
         ApplyGain();
         return true;
+    }
+
+    /// <summary>
+    /// Pendant de givealbuffer_cd (soundopenal.c:210-266). Branché sur Sound.sound.sound_give_cd_buffer_func :
+    /// CD_BUFLEN trames stéréo (100 ms à 44,1 kHz), une fois par échéance du fil CD. Même contre-pression que
+    /// GiveBuffer : quatre blocs au plus en file (buffers_cd), le bloc jeté sinon.
+    /// </summary>
+    internal void GiveCdBuffer(int16_t[] buf)
+    {
+        if (_cdStream == IntPtr.Zero)
+            return;
+
+        var samples = Sound.sound.CD_BUFLEN * Channels;
+
+        if (Muted)
+        {
+            CdBlocksDropped++;
+            return;
+        }
+
+        if (SDL.GetAudioStreamQueued(_cdStream) >= QueueDepthBlocks * samples * sizeof(int16_t))
+        {
+            CdBlocksDropped++;
+            return;
+        }
+
+        SDL.PutAudioStreamData(_cdStream, System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            buf.AsSpan(0, samples)), samples * sizeof(int16_t));
+        CdBlocksQueued++;
     }
 
     /// <summary>
@@ -165,11 +219,20 @@ internal sealed class SdlAudio : IDisposable
     private void ApplyGain()
     {
         SDL.SetAudioStreamGain(_stream, MathF.Pow(10f, Sound.sound.sound_gain / 20f));
+        // soundopenal.c:239-241 — le même gain pour le CD.
+        if (_cdStream != IntPtr.Zero)
+            SDL.SetAudioStreamGain(_cdStream, MathF.Pow(10f, Sound.sound.sound_gain / 20f));
     }
 
     /// <summary>Pendant de closeal (soundopenal.c:70).</summary>
     public void Dispose()
     {
+        if (_cdStream != IntPtr.Zero)
+        {
+            SDL.DestroyAudioStream(_cdStream);
+            _cdStream = IntPtr.Zero;
+        }
+
         if (_stream == IntPtr.Zero)
             return;
 

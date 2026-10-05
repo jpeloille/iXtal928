@@ -345,6 +345,7 @@ public sealed class SdlHost : IDisposable
             _audio = audio;
             _audio.FactorySpeaker = _display.FactorySpeaker;
             Sound.sound.sound_give_buffer_func = _audio.GiveBuffer;
+            Sound.sound.sound_give_cd_buffer_func = _audio.GiveCdBuffer;   // G10.5 — givealbuffer_cd
         }
         else
         {
@@ -1334,6 +1335,7 @@ public sealed class SdlHost : IDisposable
         // Même raison : le cœur garderait un délégué vers un flux détruit, et le
         // prochain sound_poll déposerait dans un IntPtr libéré.
         Sound.sound.sound_give_buffer_func = null;
+        Sound.sound.sound_give_cd_buffer_func = null;   // G10.5
         _audio?.Dispose();
         _audio = null;
 

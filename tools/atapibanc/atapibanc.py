@@ -37,6 +37,11 @@ import sys
 
 ORG = 0x100
 
+# G10.5 — `--audio` : ATAPIAUD.COM, le même interprète avec l'op 14 (attendre N tops de l'horloge du BIOS),
+# et le script de l'audio CD sur mixte.cue d'isogen. Sans lui, ATAPIBNC.COM reste octet pour octet celui
+# de G10.4.
+AUDIO = '--audio' in sys.argv
+
 
 def w(v):
     return list(struct.pack('<H', v & 0xFFFF))
@@ -201,7 +206,8 @@ nxt()
 # op 13 : la phase de données sortante — N mots du script, écrits au port de données si le lecteur lève
 # DRQ (rep outsw), sautés sinon
 ins('op13', 'cmp al,13', 2, lambda L, a: [0x3C, 0x0D])
-ins(None, 'jne done', 2, lambda L, a: [0x75, rel8(L, a + 2, 'done')])
+FIN13 = 'op14' if AUDIO else 'done'
+ins(None, f'jne {FIN13}', 2, lambda L, a: [0x75, rel8(L, a + 2, FIN13)])
 ins(None, 'lodsb                ; N', 1, lambda L, a: [0xAC])
 ins(None, 'xor ah,ah', 2, lambda L, a: [0x30, 0xE4])
 ins(None, 'mov cx,ax', 2, lambda L, a: [0x89, 0xC1])
@@ -216,6 +222,25 @@ nxt()
 ins('s13', 'shl cx,1', 2, lambda L, a: [0xD1, 0xE1])
 ins(None, 'add si,cx', 2, lambda L, a: [0x01, 0xCE])
 nxt()
+
+# op 14 (G10.5, ATAPIAUD.COM seul) : attendre N tops de l'horloge du BIOS (0040:006Ch, 18,2 par seconde),
+# le temps que le lecteur joue
+if AUDIO:
+    ins('op14', 'cmp al,14', 2, lambda L, a: [0x3C, 0x0E])
+    ins(None, 'jne done', 2, lambda L, a: [0x75, rel8(L, a + 2, 'done')])
+    ins(None, 'lodsb                ; N', 1, lambda L, a: [0xAC])
+    ins(None, 'xor ah,ah', 2, lambda L, a: [0x30, 0xE4])
+    ins(None, 'mov cx,ax', 2, lambda L, a: [0x89, 0xC1])
+    ins(None, 'push es', 1, lambda L, a: [0x06])
+    ins(None, 'mov ax,40h', 3, lambda L, a: [0xB8, 0x40, 0x00])
+    ins(None, 'mov es,ax', 2, lambda L, a: [0x8E, 0xC0])
+    ins(None, 'mov dx,[es:6Ch]', 5, lambda L, a: [0x26, 0x8B, 0x16, 0x6C, 0x00])
+    ins('t14', 'mov ax,[es:6Ch]', 4, lambda L, a: [0x26, 0xA1, 0x6C, 0x00])
+    ins(None, 'sub ax,dx', 2, lambda L, a: [0x29, 0xD0])
+    ins(None, 'cmp ax,cx', 2, lambda L, a: [0x39, 0xC8])
+    ins(None, 'jb t14', 2, lambda L, a: [0x72, rel8(L, a + 2, 't14')])
+    ins(None, 'pop es', 1, lambda L, a: [0x07])
+    nxt()
 
 # op 0 (et tout inconnu) : afficher les relevés, seize octets par ligne, puis sortir
 ins('done', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
@@ -311,33 +336,73 @@ def READ10(lba, n):
     return CDB(0x28, 0, (lba >> 24) & 0xFF, (lba >> 16) & 0xFF, (lba >> 8) & 0xFF, lba & 0xFF, 0, n >> 8, n & 0xFF)
 
 
+def WAITT(n): return [14, n]
+
+
+def SUBQ(msf):
+    """READ SUB-CHANNEL, format 1 (position courante), données SUBQ : l'état audio, la piste, l'index et
+    les deux positions, absolue et relative, en LBA ou en MSF."""
+    return CDB(0x42, 2 if msf else 0, 0x40, 1, 0, 0, 0, 0, 16)
+
+
 S = []
-S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                      # la signature : 01 01 14 EB
-S += OUT(7, 0xEC) + WAIT + REC                                    # IDENTIFY DEVICE : ABRT
-S += OUT(7, 0xA1) + WDRQ + RDS(256, 96) + REC                     # IDENTIFY PACKET DEVICE (modèle : 54-93)
-S += PACKET(TUR)                                                  # UNIT ATTENTION (vide : NOT READY)
-S += PACKET(SENSE, 18)
-S += PACKET(TUR)                                                  # GOOD
-S += PACKET(CDB(0x12, 0, 0, 0, 36), 36)                           # INQUIRY
-S += PACKET(CDB(0x25), 8)                                         # READ CAPACITY (PB-117)
-S += PACKET(READ10(16, 1), 16)                                    # le PVD : 01 « CD001 » 01
-S += PACKET(READ10(20, 4), 0, 0x0800)                             # quatre blocs DRQ de 2 048 octets
-S += PACKET(READ10(31, 1))                                        # le dernier secteur de l'image
-S += PACKET(READ10(32, 1))                                        # celui que READ CAPACITY annonce : refusé
-S += PACKET(SENSE, 18)                                            # ILLEGAL REQUEST, LBA OUT OF RANGE
-S += PACKET(CDB(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 20)             # READ TOC, LBA
-S += PACKET(CDB(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 20)             # READ TOC, MSF
-S += PACKET(CDB(0x5A, 0, 0x2A, 0, 0, 0, 0, 0, 0x40), 28)          # MODE SENSE(10), page 2Ah
-S += PACKET(CDB(0x5A, 0, 0x3F, 0, 0, 0, 0, 0, 0x80))              # MODE SENSE(10), toutes les pages
-S += PACKET_OUT(CDB(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), [0] * 8 + PAGE_0E)   # MODE SELECT(10), la page audio
-S += PACKET(CDB(0x5A, 0, 0x0E, 0, 0, 0, 0, 0, 0x20), 24)          # MODE SENSE(10), page 0Eh : relue
-S += PACKET_OUT(CDB(0x15, 0x10, 0, 0, 20), [0] * 4 + PAGE_0E)     # MODE SELECT(6) : en-tête de 8 lu (PB-119)
-S += PACKET(SENSE, 18)
-S += PACKET(CDB(0x4A, 1, 0, 0, 0x10, 0, 0, 0, 8), 8)              # GET EVENT STATUS NOTIFICATION (PB-118)
-S += PACKET(CDB(0x4A, 1, 0, 0, 0x10, 0, 0, 0, 8), 8)              # encore : toujours NEW_MEDIA
-S += PACKET(CDB(0xD8))                                            # un code inconnu : ILLEGAL REQUEST
-S += PACKET(SENSE, 18)
-S += [0]
+if AUDIO:
+    # G10.5 — l'audio CD sur mixte.cue (isogen) : une piste de données de 32 secteurs (LBA 0), la piste 2
+    # audio en LBA 42 (30 secteurs), la piste 3 audio en LBA 222 (25 secteurs, après un PREGAP de 150).
+    # PCem prend la position d'un PLAY AUDIO comme celle du lecteur, décalée de 150 (cdrom-image.cc:95-110).
+    PAGE_0E_AUDIO = [0x0E, 0x0E, 0x05, 0x04, 0x00, 0x80, 0x00, 75,
+                     0x02, 0x80, 0x01, 0x40, 0, 0, 0, 0]   # les deux canaux croisés, volumes 80h et 40h
+    S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                  # la signature
+    S += PACKET(TUR)                                              # UNIT ATTENTION
+    S += PACKET(TUR)                                              # GOOD
+    S += PACKET(CDB(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 36)         # READ TOC, LBA : trois pistes et le lead-out
+    S += PACKET(CDB(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 36)         # READ TOC, MSF
+    S += PACKET(CDB(0x45, 0, 0, 0, 0, 0, 0, 0, 10))               # PLAY AUDIO(10) de la piste de données : refusé
+    S += PACKET(SENSE, 18)                                        # ILLEGAL REQUEST, 64h
+    S += PACKET(CDB(0x45, 0, 0, 0, 0, 42, 0, 0, 30))              # PLAY AUDIO(10) de la piste 2, LBA 42 : rien
+    S += WAITT(3) + PACKET(SUBQ(0), 16)                           #   ne joue (42 < 150, et la fin 72 < 150)
+    S += PACKET_OUT(CDB(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), [0] * 8 + PAGE_0E_AUDIO)   # la page audio
+    S += PACKET(CDB(0x47, 0, 0, 0, 2, 42, 0, 2, 72))              # PLAY AUDIO MSF, 00:02:42 à 00:02:72 : la piste 2
+    S += WAITT(2) + PACKET(SUBQ(1), 16)                           # en train de jouer (11h)
+    S += PACKET(CDB(0x4B, 0, 0, 0, 0, 0, 0, 0, 0))                # PAUSE
+    S += PACKET(SUBQ(1), 16)                                      # en pause (12h)
+    S += WAITT(2)
+    S += PACKET(CDB(0x4B, 0, 0, 0, 0, 0, 0, 0, 1))                # RESUME
+    S += WAITT(3) + PACKET(SUBQ(0), 16)
+    S += WAITT(6) + PACKET(SUBQ(0), 16)                           # la piste 2 finie (13h)
+    S += PACKET(CDB(0xA5, 0, 0, 0, 1, 116, 0, 0, 0, 25))          # PLAY AUDIO(12), 372 = 222 + 150 : refusé, le
+                                                                  #   contrôle prend l'adresse sans décalage (PB-123)
+    S += WAITT(3) + PACKET(SUBQ(1), 16)
+    S += PACKET(CDB(0x4E))                                        # STOP PLAY/SCAN
+    S += PACKET(SUBQ(0), 16)
+    S += [0]
+else:
+  S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                    # la signature : 01 01 14 EB
+  S += OUT(7, 0xEC) + WAIT + REC                                    # IDENTIFY DEVICE : ABRT
+  S += OUT(7, 0xA1) + WDRQ + RDS(256, 96) + REC                     # IDENTIFY PACKET DEVICE (modèle : 54-93)
+  S += PACKET(TUR)                                                  # UNIT ATTENTION (vide : NOT READY)
+  S += PACKET(SENSE, 18)
+  S += PACKET(TUR)                                                  # GOOD
+  S += PACKET(CDB(0x12, 0, 0, 0, 36), 36)                           # INQUIRY
+  S += PACKET(CDB(0x25), 8)                                         # READ CAPACITY (PB-117)
+  S += PACKET(READ10(16, 1), 16)                                    # le PVD : 01 « CD001 » 01
+  S += PACKET(READ10(20, 4), 0, 0x0800)                             # quatre blocs DRQ de 2 048 octets
+  S += PACKET(READ10(31, 1))                                        # le dernier secteur de l'image
+  S += PACKET(READ10(32, 1))                                        # celui que READ CAPACITY annonce : refusé
+  S += PACKET(SENSE, 18)                                            # ILLEGAL REQUEST, LBA OUT OF RANGE
+  S += PACKET(CDB(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 20)             # READ TOC, LBA
+  S += PACKET(CDB(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 20)             # READ TOC, MSF
+  S += PACKET(CDB(0x5A, 0, 0x2A, 0, 0, 0, 0, 0, 0x40), 28)          # MODE SENSE(10), page 2Ah
+  S += PACKET(CDB(0x5A, 0, 0x3F, 0, 0, 0, 0, 0, 0x80))              # MODE SENSE(10), toutes les pages
+  S += PACKET_OUT(CDB(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), [0] * 8 + PAGE_0E)   # MODE SELECT(10), la page audio
+  S += PACKET(CDB(0x5A, 0, 0x0E, 0, 0, 0, 0, 0, 0x20), 24)          # MODE SENSE(10), page 0Eh : relue
+  S += PACKET_OUT(CDB(0x15, 0x10, 0, 0, 20), [0] * 4 + PAGE_0E)     # MODE SELECT(6) : en-tête de 8 lu (PB-119)
+  S += PACKET(SENSE, 18)
+  S += PACKET(CDB(0x4A, 1, 0, 0, 0x10, 0, 0, 0, 8), 8)              # GET EVENT STATUS NOTIFICATION (PB-118)
+  S += PACKET(CDB(0x4A, 1, 0, 0, 0x10, 0, 0, 0, 8), 8)              # encore : toujours NEW_MEDIA
+  S += PACKET(CDB(0xD8))                                            # un code inconnu : ILLEGAL REQUEST
+  S += PACKET(SENSE, 18)
+  S += [0]
 
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))
 ins('sum', 'dw 0', 2, lambda L, a: [0, 0])
@@ -367,11 +432,14 @@ def assemble():
     return bytes(out), listing
 
 
+NOM = 'ATAPIAUD' if AUDIO else 'ATAPIBNC'
+
+
 def keys(code):
     lines = ['DEBUG']
     for i in range(0, len(code), 16):
         lines.append(f'E {ORG + i:X} ' + ' '.join(f'{b:02X}' for b in code[i:i + 16]))
-    lines += ['N ATAPIBNC.COM', 'R CX', f'{len(code):X}', 'W', 'Q', 'ATAPIBNC']
+    lines += [f'N {NOM}.COM', 'R CX', f'{len(code):X}', 'W', 'Q', NOM]
     return lines
 
 
@@ -380,7 +448,7 @@ if __name__ == '__main__':
     print('\n'.join(listing))
     print(f'\n{len(code)} octets, script {len(S)} octets')
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, 'atapibanc.keys'), 'w') as f:
+    with open(os.path.join(here, 'atapibanc-audio.keys' if AUDIO else 'atapibanc.keys'), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
         with open(sys.argv[sys.argv.index('--com') + 1], 'wb') as f:

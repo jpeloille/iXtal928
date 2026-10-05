@@ -300,5 +300,15 @@ mapfile -t ABK < tools/atapibanc/atapibanc.keys
 ABB=(); for l in "${ABK[@]}"; do ABB+=(--type "$l"); done
 runw bd-ami486-atapi-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image
 runw bd-ami486-atapi-banc-vide c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-vide.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,vide
+# G10.5 — l'audio CD dans la machine : le fil CD de sound.c à l'échéance de sound_poll (décision n° 7),
+# givealbuffer_cd comparé par la sonde du CD. ATAPIAUD (atapibanc.py --audio) sur mixte.cue d'isogen,
+# la SB Pro v2 montée (le volume CD du CT1345) : READ TOC, PLAY AUDIO sur la piste de données (refusé),
+# PLAY AUDIO(10) en LBA 42 (rien ne joue : la position prise décalée de 150), la page audio (canaux
+# croisés, volumes 80h et 40h), PLAY AUDIO MSF de la piste 2, PAUSE, RESUME, PLAY AUDIO(12) de la piste 3
+# à l'adresse plus 150 (refusé, PB-123), STOP, READ SUB-CHANNEL entre chaque ; --expect-cd-son exige des
+# échantillons non nuls des deux côtés.
+mapfile -t AAK < tools/atapibanc/atapibanc-audio.keys
+AAB=(); for l in "${AAK[@]}"; do AAB+=(--type "$l"); done
+runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-audio.cfg --type-at 60000 --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image --expect-cd-son
 run r9-atapi r9-atapi
 run r9-cdcfg r9-cdcfg

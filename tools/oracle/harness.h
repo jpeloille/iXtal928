@@ -737,7 +737,11 @@ uint8_t *h_ram(void);
  * h_cd_close, h_cd_null_open, h_cd_set_drive, h_cd_call, h_cd_audio_callback, h_cd_state. */
 /* 50 depuis G10.4 : l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c liés ; ide.c inclus par harness_ide.c) —
  * h_set_cdrom, h_ide_type, h_cd_driver ; h_boot pose le pilote CD (pc.c:291-313, :411-433). */
-#define H_ABI_VERSION 50
+/* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
+ * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
+#define H_ABI_VERSION 51
+#define H_CD_SOUND_PROBE_N 6
+void h_cd_sound_probe(uint64_t *out);
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -157,7 +157,7 @@ canal secondaire (mesuré : aucun accès à 170h-177h ni 376h, au POST comme à 
 boot-diffs du POST ne prouvent que la présence inerte du lecteur et l'absence de régression, et
 `--expect-cd` exige le lecteur des deux côtés ; ATAPIBANC porte la preuve. Décisions n° 14 à 21.
 
-### G10.5 — L'audio CD dans la machine
+### G10.5 — L'audio CD dans la machine  ✅ *fait, VERIFICATION.md § G10.5*
 
 *Redécoupé le 04/10 (décision n° 1 amendée) : le CUE/BIN, les pistes multiples, `playaudio`, la
 pause et le sous-canal sont entrés en G10.3, au niveau du moteur.* Reste la machine : l'appel du
@@ -316,5 +316,9 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   délai en cours — état que `scsi.c` ne produit pas ; non gardée. `scsi_cd_init` seul (le bus des
   cartes SCSI) n'est appelé par rien avant G11. Aucun témoin réel : ni pilote ATAPI DOS ni MSCDEX
   sur les disques de l'utilisateur (décision n° 5).
-- **L'audio CD** (G10.5) : le rappel synchrone n'est pas le fil de PCem ; la cadence avec des lectures
-  CD sur le fil d'émulation n'est pas mesurée.
+- **L'audio CD** (G10.5) : le rappel synchrone n'est pas le fil de PCem (PB-124, non reproduit) ;
+  la cadence avec des lectures CD sur le fil d'émulation n'est pas mesurée. Une seule porte joue du
+  son, ATAPIAUD : deux pistes, une page audio, la SB Pro v2 au volume CD de son reset (81/65535 des
+  deux côtés, le CT1345 n'est pas réglé par le banc) ; ni SEEK, ni PLAY AUDIO au-delà d'une piste, ni
+  lecture de données pendant la lecture audio. La voie hôte (le second flux SDL à 44,1 kHz) n'est
+  exercée par aucune porte : ni oreille, ni mesure.

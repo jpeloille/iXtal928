@@ -163,6 +163,37 @@ public static class BootDiff
         return 0;
     }
 
+    private static readonly string[] CdSoundFields = { "cd_pos", "cd_vol_l", "cd_vol_r", "cd_hash", "blocs", "non_nuls" };
+
+    /// <summary>G10.5 — la sonde du CD (le fil CD de sound.c, givealbuffer_cd), quand un lecteur est monté :
+    /// cd_pos, les deux volumes CD de la carte, l'empreinte des échantillons, les blocs, les non nuls. Rend
+    /// 0 sans lecteur ou si tout concorde (et, sous --expect-cd-son, si du son a été produit).</summary>
+    private static int CompareCdSound(ulong[] o, ulong[] c)
+    {
+        if (Ide.ide.cdrom_channel < 0 && !ExpectCdSon)
+            return 0;
+        var bad = 0;
+        for (var f = 0; f < CdSoundFields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  CD {CdSoundFields[f],-10} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde du CD : {bad} champ(s) divergent(s) sur {CdSoundFields.Length}.");
+            return 1;
+        }
+        if (ExpectCdSon && (o[4] == 0 || o[5] == 0))
+        {
+            Console.Error.WriteLine($"Sonde du CD : {o[4]} bloc(s), {o[5]} échantillon(s) non nul(s) — aucun son du CD, l'accord ne prouve rien (--expect-cd-son).");
+            return 1;
+        }
+        Console.WriteLine($"Sonde du CD : {CdSoundFields.Length} champs identiques — {o[4]} blocs, {o[5]} échantillons non nuls ({o[3]:X16}), volumes {o[1]}/{o[2]}.");
+        return 0;
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -202,6 +233,10 @@ public static class BootDiff
     /// un lecteur de CD-ROM sur l'unité IDE CANAL et ce pilote posé — sans quoi un lecteur perdu des deux
     /// côtés laisserait le boot-diff vert.</summary>
     internal static string? ExpectCd;
+
+    /// <summary>G10.5 — `--expect-cd-son` : la sonde du CD doit compter des échantillons non nuls, des deux
+    /// côtés. Sans elle, un CD resté muet des deux côtés resterait vert.</summary>
+    internal static bool ExpectCdSon;
     /// <summary>G8.3 — `--expect-sb ADDR,IRQ,DMA` (ADDR en hexadécimal) : la porte exige que la
     /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
     /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
@@ -475,6 +510,9 @@ public static class BootDiff
         // G8.1 — la sonde du son, au même point de l'histoire.
         var sndOracle = new ulong[Oracle.SoundProbeN];
         Oracle.h_sound_probe(sndOracle);
+        // G10.5 — la sonde du CD, au même point.
+        var cdSndOracle = new ulong[Oracle.CdSoundProbeN];
+        Oracle.h_cd_sound_probe(cdSndOracle);
         // PS2.0 — la sonde de la souris PS/2, au même point.
         var ps2Oracle = new ulong[Oracle.MouseProbeN];
         Oracle.h_mouse_probe(ps2Oracle);
@@ -578,6 +616,8 @@ public static class BootDiff
         var vgaCsharp = new ulong[Oracle.VgaProbeN];
         Video.vid_svga.Probe(vgaCsharp);
         var sndCsharp = SoundProbeCsharp();
+        var cdSndCsharp = new ulong[Oracle.CdSoundProbeN];
+        Sound.sound.CdSoundProbe(cdSndCsharp);
         var ps2Csharp = new ulong[Oracle.MouseProbeN];
         Mouse.mouse_ps2.ProbeState(ps2Csharp);
         var cdCsharp = ExpectCd is null ? (0, 0)
@@ -635,6 +675,7 @@ public static class BootDiff
                  | CompareSound(sndOracle, sndCsharp)
                  | CompareMouse(ps2Oracle, ps2Csharp)
                  | CompareCd(cdOracle, cdCsharp)
+                 | CompareCdSound(cdSndOracle, cdSndCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")

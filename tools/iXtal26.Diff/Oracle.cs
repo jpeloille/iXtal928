@@ -80,7 +80,8 @@ public static class Oracle
     // 49 en G10.3 : le moteur d'images de CD (harness_cdrom.cpp, les h_cd_* de CdImageCheck).
     // 50 en G10.4 : l'ATAPI (ide_atapi.c, scsi.c, scsi_cd.c liés ; ide.c inclus) — h_set_cdrom, h_ide_type,
     //   h_cd_driver ; h_boot pose le pilote CD.
-    public const int AbiVersion = 50;
+    // 51 en G10.5 : l'audio CD dans la machine — h_cd_sound_probe ; h_boot remet le fil CD à zéro.
+    public const int AbiVersion = 51;
 
     static Oracle()
     {
@@ -324,6 +325,9 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
     [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
     public const int SoundProbeN = 41;
+    // G10.5 — la sonde du CD : cd_pos, cd_vol_l, cd_vol_r, l'empreinte des échantillons, les blocs, les non nuls.
+    [DllImport(Lib)] internal static extern void h_cd_sound_probe([Out] ulong[] o);
+    public const int CdSoundProbeN = 6;
 
     // M15 — vidéo. La carte (GFX_CGA = 0, GFX_VGA = 13, ibm.h:274-289), à poser avant
     // h_boot ; la sonde VGA, pendant de Video.vid_svga.Probe() ; et la VRAM brute,

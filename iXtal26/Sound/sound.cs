@@ -4,8 +4,8 @@
 // ORACLE: pcem-dev/src/sound/sound.c
 // STATUS: partial — le mixeur et son chronomètre à 48 kHz : sound_add_handler,
 //         sound_update_buf_length, sound_poll, sound_speed_changed, sound_reset,
-//         sound_init ; G8.1 : le registre SOUND_CARD réduit (sound.c:31-105). Omis : le fil CD
-//         (sound.c:120-124, 143-197).
+//         sound_init ; G8.1 : le registre SOUND_CARD réduit (sound.c:31-105). G10.5 : le fil CD
+//         (sound.c:120-124, 143-197), son corps appelé à l'échéance de sound_poll (DEVIATION, plus bas).
 
 // CS8602 : `sound_handlers[c].get_buffer` est un pointeur de fonction que le C
 // laisse à NULL jusqu'à sound_add_handler (sound.c:212). Les entrées 0 à
@@ -26,6 +26,10 @@ internal delegate void sound_get_buffer_t(int32_t[] buffer, int len, object? p);
 // wxWidgets est devenue Host/SdlMenu.cs. Non branché, sound_poll tourne et ne
 // sort rien — c'est --headless, --boot et le diff d'amorçage.
 internal delegate void sound_give_buffer_t(int32_t[] buf);
+
+// pcem: soundopenal.c — void givealbuffer_cd(int16_t *buf), la voie hôte du CD (G10.5) : CD_BUFLEN * 2
+//   échantillons stéréo à 44,1 kHz. Branchée par Host/SdlAudio.cs.
+internal delegate void sound_give_cd_buffer_t(int16_t[] buf);
 
 internal static partial class sound
 {
@@ -100,7 +104,8 @@ internal static partial class sound
         // omitted: initalmain(0, NULL) et inital() (sound.c:202-203) — l'étage
         //   OpenAL, remplacé par Host/SdlAudio.cs.
         // omitted: malloc(outbuffer) (sound.c:205) — hissé au champ, voir plus haut.
-        // omitted: sound_cd_event / sound_cd_thread (sound.c:207-208) — fil CD.
+        // omitted: sound_cd_event / sound_cd_thread (sound.c:207-208) — le fil lui-même : son corps est
+        //   sound_cd_tick, appelé par sound_poll (G10.5).
     }
 
     // pcem: sound.c:211-215
@@ -126,8 +131,15 @@ internal static partial class sound
     {
         timer_advance_u64(sound_poll_timer, sound_poll_latch);
 
-        // omitted: cd_pos et thread_set_event(sound_cd_event) (sound.c:221-225) —
-        //   fil CD, hors périmètre 5150.
+        // pcem: sound.c:221-225. DEVIATION (décision n° 7 de PLAN-G10) : thread_set_event(sound_cd_event)
+        //   réveille chez PCem un fil, dont la cadence dépend de l'ordonnanceur de l'hôte ; ici le corps du
+        //   fil s'exécute sur-le-champ, à l'échéance, des deux côtés (harness.c, h_sound_cd_tick).
+        cd_pos++;
+        if (cd_pos == (CD_BUFLEN * 48000) / CD_FREQ)
+        {
+                cd_pos = 0;
+                sound_cd_tick();
+        }
 
         sound_pos_global++;
         if (sound_pos_global == sound_buf_len_al)
@@ -164,8 +176,9 @@ internal static partial class sound
 
         sound_handlers_num = 0;
 
-        // omitted: sound_set_cd_volume(), ioctl_audio_stop(), image_audio_stop()
-        //   (sound.c:265-267) — CD, hors périmètre.
+        sound_set_cd_volume(65535, 65535);
+        // omitted: ioctl_audio_stop() (sound.c:266) — le lecteur physique de l'hôte, exclu (PLAN.md).
+        Cdrom.cdrom_image.image_audio_stop();
     }
 
     // pcem: sound.c:36-37, :44 — G8.1 : le registre SOUND_CARD.
@@ -186,7 +199,7 @@ internal static partial class sound
 
     internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sbprov2 };
 
-    // pcem: sound.c:123 — G8.2 : lus par le seul fil CD (omis) ; posés par le mélangeur CT1345.
+    // pcem: sound.c:124 — G8.2 : posés par le mélangeur CT1345 ; G10.5 : lus par le fil CD.
     private static uint cd_vol_l, cd_vol_r;
 
     // pcem: sound.c:138-141
@@ -194,6 +207,119 @@ internal static partial class sound
     {
         cd_vol_l = vol_l;
         cd_vol_r = vol_r;
+    }
+
+    // pcem: sound.h:18-19
+    internal const int CD_FREQ = 44100;
+    internal const int CD_BUFLEN = CD_FREQ / 10;
+
+    // pcem: sound.c:121
+    private static readonly int16_t[] cd_buffer = new int16_t[CD_BUFLEN * 2];
+
+    // pcem: sound.c:217
+    private static int cd_pos = 0;
+
+    // iXtal26 — la voie hôte du CD (givealbuffer_cd), comme sound_give_buffer_func pour givealbuffer.
+    internal static sound_give_cd_buffer_t? sound_give_cd_buffer_func;
+
+    // iXtal26 (outillage) — la sonde du CD, pendant de h_cd_snd_hash et h_cd_snd_blocks (harness.c) :
+    //   l'empreinte FNV-1a des échantillons que reçoit givealbuffer_cd, et le nombre de blocs.
+    internal static uint64_t cd_sound_hash = 1469598103934665603UL;
+    internal static uint64_t cd_sound_blocks;
+    internal static uint64_t cd_sound_nonzero;
+
+    // pcem: soundopenal.c — givealbuffer_cd, la frontière hôte du CD ; l'empreinte prise avant elle.
+    private static void givealbuffer_cd(int16_t[] buf)
+    {
+        int c;
+        for (c = 0; c < CD_BUFLEN * 2; c++)
+        {
+                cd_sound_hash ^= (uint64_t)(uint16_t)buf[c];
+                cd_sound_hash *= 1099511628211UL;
+                if (buf[c] != 0)
+                        cd_sound_nonzero++;
+        }
+        cd_sound_blocks++;
+        sound_give_cd_buffer_func?.Invoke(buf);
+    }
+
+    // pcem: sound.c:143-197 — la boucle du fil CD sans son attente (thread_wait_event, thread_reset_event).
+    private static void sound_cd_tick()
+    {
+        int c;
+
+        Array.Clear(cd_buffer);
+        // omitted: ioctl_audio_callback(cd_buffer, CD_BUFLEN * 2) (sound.c:150) — le lecteur physique, exclu.
+        Cdrom.cdrom_image.image_audio_callback(cd_buffer, CD_BUFLEN * 2);
+        if (soundon != 0)
+        {
+                int32_t atapi_vol_l = (int32_t)Scsi.scsi_cd_c.atapi_get_cd_volume(0);
+                int32_t atapi_vol_r = (int32_t)Scsi.scsi_cd_c.atapi_get_cd_volume(1);
+                Span<int> channel_select = stackalloc int[2];
+
+                channel_select[0] = (int)Scsi.scsi_cd_c.atapi_get_cd_channel(0);
+                channel_select[1] = (int)Scsi.scsi_cd_c.atapi_get_cd_channel(1);
+
+                for (c = 0; c < CD_BUFLEN * 2; c += 2)
+                {
+                        int32_t cd_buffer_temp0 = 0, cd_buffer_temp1 = 0;
+
+                        /*First, adjust input from drive according to ATAPI volume.*/
+                        cd_buffer[c] = (int16_t)(((int32_t)cd_buffer[c] * atapi_vol_l) / 255);
+                        cd_buffer[c + 1] = (int16_t)(((int32_t)cd_buffer[c + 1] * atapi_vol_r) / 255);
+
+                        /*Apply ATAPI channel select*/
+                        if ((channel_select[0] & 1) != 0)
+                                cd_buffer_temp0 += cd_buffer[c];
+                        if ((channel_select[0] & 2) != 0)
+                                cd_buffer_temp1 += cd_buffer[c];
+                        if ((channel_select[1] & 1) != 0)
+                                cd_buffer_temp0 += cd_buffer[c + 1];
+                        if ((channel_select[1] & 2) != 0)
+                                cd_buffer_temp1 += cd_buffer[c + 1];
+
+                        /*Apply sound card CD volume*/
+                        cd_buffer_temp0 = (cd_buffer_temp0 * (int)cd_vol_l) / 65535;
+                        cd_buffer_temp1 = (cd_buffer_temp1 * (int)cd_vol_r) / 65535;
+
+                        if (cd_buffer_temp0 > 32767)
+                                cd_buffer_temp0 = 32767;
+                        if (cd_buffer_temp0 < -32768)
+                                cd_buffer_temp0 = -32768;
+                        if (cd_buffer_temp1 > 32767)
+                                cd_buffer_temp1 = 32767;
+                        if (cd_buffer_temp1 < -32768)
+                                cd_buffer_temp1 = -32768;
+
+                        cd_buffer[c] = (int16_t)cd_buffer_temp0;
+                        cd_buffer[c + 1] = (int16_t)cd_buffer_temp1;
+                }
+
+                givealbuffer_cd(cd_buffer);
+        }
+    }
+
+    // iXtal26 (outillage) — ORACLE PARITY, pendant de h_sound_cd_raz (harness.c) : à chaque amorçage, comme
+    //   le lancement de PCem, cd_pos et le tampon à zéro, l'empreinte à sa graine. PCem ne remet pas cd_pos
+    //   à zéro au reset matériel, seulement au chargement du programme.
+    internal static void sound_cd_raz()
+    {
+        cd_pos = 0;
+        Array.Clear(cd_buffer);
+        cd_sound_hash = 1469598103934665603UL;
+        cd_sound_blocks = 0;
+        cd_sound_nonzero = 0;
+    }
+
+    // iXtal26 (outillage) — la sonde du CD, pendant de h_cd_sound_probe (harness.c).
+    internal static void CdSoundProbe(ulong[] o)
+    {
+        o[0] = (ulong)cd_pos;
+        o[1] = cd_vol_l;
+        o[2] = cd_vol_r;
+        o[3] = cd_sound_hash;
+        o[4] = cd_sound_blocks;
+        o[5] = cd_sound_nonzero;
     }
 
     // pcem: sound.c:33

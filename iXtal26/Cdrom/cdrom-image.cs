@@ -157,6 +157,8 @@ internal static class cdrom_image
         }
         else
             len += pos;
+        // pcem bug, reproduced: PB-123 — en LBA, l'adresse rangée telle quelle dans une position qui compte
+        //   les 150 secteurs de l'amorce : la piste joue 150 secteurs trop tôt, ou rien.
         image_cd_pos = pos; // + 150;
         image_cd_end = len; // + 150;
         image_cd_state = CD_PLAYING;
@@ -197,6 +199,7 @@ internal static class cdrom_image
     {
         if (cdrom is null)
             return;
+        // pcem bug, reproduced: PB-123 — l'adresse LBA rangée comme une position du lecteur.
         image_cd_pos = pos;
         image_cd_state = CD_STOPPED;
     }

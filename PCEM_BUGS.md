@@ -1305,6 +1305,26 @@ Seule son adresse sert aux pilotes connus.
 *Reproduit* : `Cdrom/cdrom_image.cs`, marqueurs PB-122 ; le moteur est comparé des deux côtés par
 `cdimage-check`, la commande par ATAPIBANC.
 
+### PB-123 — L'audio CD en LBA confond l'adresse et la position du lecteur, à 150 secteurs près
+
+`cdrom-image.cc:95-110` : en LBA, `image_playaudio` range l'adresse reçue telle quelle dans
+`image_cd_pos` et la fin dans `image_cd_end`, alors que ces deux positions comptent les 150
+secteurs de l'amorce (`image_audio_callback` lit `image_cd_pos - 150`, `:36`) ; une position sous
+150 est ramenée à 150. `image_seek` (`:138`) range de même une adresse LBA comme une position.
+Mais `image_is_track_audio` (`:58-75`), que `scsi_cd.c:1375-1376` consulte avant de jouer, prend
+l'adresse LBA sans décalage. Et READ SUB-CHANNEL (`cdrom-image.cc:200-249`) rend des positions
+où `GetAudioSub` a ajouté 150 (`dosbox/cdrom_image.cpp:121-122`) : juste pour la position absolue en
+MSF, fausse pour la position absolue en LBA et pour la position relative, en LBA comme en MSF.
+*Effet* : en LBA, aucune adresse ne joue la bonne piste. L'adresse de READ TOC passe le contrôle
+mais joue 150 secteurs trop tôt, ou rien : la piste 2 de `mixte.cue` (LBA 42, 30 secteurs) part
+de 150 et finit à 72 — rien ne joue. L'adresse plus 150 tombe hors de toute piste et le contrôle
+la refuse (PLAY AUDIO(12) en 372, pour la piste 3 en 222 : ILLEGAL REQUEST). Seul PLAY AUDIO MSF
+joue juste. READ SUB-CHANNEL rend, huit secteurs après le début de la piste 2, la position
+relative 00:02:08 au lieu de 00:00:08, et en LBA 207 et 165 au lieu de 57 et 15.
+*Trouvé par* : reconnaissance de G10.3, au niveau du moteur ; montré par ATAPIAUD en G10.5.
+*Reproduit* : `Cdrom/cdrom-image.cs`, marqueurs PB-123 ; comparé des deux côtés par
+`cdimage-check` et par `bd-ami486-atapi-audio`.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1702,6 +1722,22 @@ l'oracle compile `harness_cdrom.cpp` avec `-ftrivial-auto-var-init=zero` et pren
 d'un `calloc` (`--wrap=_Znam`, que seul cet objet référence, `nm -u`). Conséquence inscrite : PLAY
 AUDIO en MSF teste la piste sur la position encore compactée (`cdrom-image.cc:83`), hors de toute
 piste, donc `attr` vaut 0 — la lecture part, même sur une piste de données.
+
+### PB-124 — Le fil CD lit l'image sans verrou, en même temps que le fil d'émulation
+
+`sound.c:143-197` : le fil CD, réveillé par `sound_poll` (`:221-225`), appelle
+`image_audio_callback`, qui lit l'image par l'`ifstream` du moteur (`cdrom-image.cc:36`) et avance
+`image_cd_pos` — pendant que le fil d'émulation lit le même `ifstream` pour les commandes ATAPI
+(READ, READ TOC, READ SUB-CHANNEL) et réécrit `image_cd_pos` et `image_cd_state` (PLAY, PAUSE,
+STOP). Aucun verrou. Il lit aussi les pages de mode de `scsi_cd.c` (`atapi_get_cd_volume`,
+`atapi_get_cd_channel`) et les volumes de la carte son pendant qu'ils changent.
+*Effet* : une course au sens du C11, donc un comportement indéfini ; en pratique, une lecture de
+données pendant la lecture audio peut déplacer la position de l'autre, et la cadence du fil
+dépend de l'ordonnanceur de l'hôte : deux exécutions ne rendent pas le même son.
+*Trouvé par* : reconnaissance de G10.5.
+*NON reproduit — divergence assumée* (décision n° 7 de PLAN-G10, `DEVIATION` dans `Sound/sound.cs`
+et `tools/oracle/harness.c`) : le corps du fil s'exécute sur-le-champ, à l'échéance de
+`sound_poll`, dans le fil d'émulation, des deux côtés.
 
 ## C. Incohérences sans conséquence observable
 
@@ -2128,7 +2164,7 @@ SCSI, est omis jusqu'à G11.
 
 ## Portée de ce registre
 
-Ces **cent vingt-deux** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent vingt-quatre** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2173,6 +2209,7 @@ audit systématique de PCem** :
 | Transcription du XTIDE (G10.2) | PB-98 élargi |
 | Reconnaissance et transcription du moteur d'images de CD (G10.3) | PB-106 à PB-112 |
 | Reconnaissance et transcription de l'ATAPI (G10.4) | PB-113 à PB-122 ; PB-93, PB-110 élargis |
+| Reconnaissance de l'audio CD dans la machine (G10.5) | PB-123, PB-124 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

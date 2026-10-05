@@ -927,6 +927,7 @@ internal static partial class pc
         // iXtal26 (outillage) — ORACLE PARITY : l'état du pilote d'images et les deux globales du lecteur
         //   repartent de zéro à chaque amorçage, des deux côtés (h_boot) ; la configuration est reposée.
         Cdrom.cdrom_image.image_clear_state_for_oracle_parity();
+        Sound.sound.sound_cd_raz();   // G10.5 — le fil CD, pendant de h_sound_cd_raz (harness.c)
         Cdrom.cdrom_ioctl.cdrom_drive = cfg_cdrom_drive;
         Cdrom.cdrom_ioctl.old_cdrom_drive = 0;
         Cdrom.cdrom_image.image_path = cfg_cdrom_path;
