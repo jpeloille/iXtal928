@@ -78,6 +78,40 @@ internal static partial class dma
     //          protocole PS/2, lus par les seuls handlers omis
     // omitted: dma_ps2_run (dma.c:37, 637-718) — PS/2
 
+    // G12.1 (outillage) — la sonde du DMA, pendant de h_dma_probe (harness_dma.c, qui inclut dma.c pour lire ses
+    //   `static`) : le masque, l'état, les bascules, les commandes, les registres bruts et les huit canaux. Le DMA
+    //   16 bits (canaux 4 à 7) n'est sous l'oracle que depuis la SB 16 (PLAN-G12.md, décision n° 17).
+    internal const int ProbeN = 29;
+
+    internal static void ProbeState(ulong[] o)
+    {
+        int f = 0;
+        o[f++] = dma_m | ((ulong)dma_stat << 8) | ((ulong)dma_stat_rq << 16) | ((ulong)dma_command << 24) | ((ulong)dma16_command << 32);
+        o[f++] = (uint)dma_wp | ((ulong)(uint)dma16_wp << 32);
+        o[f++] = Fnv(dmaregs);
+        o[f++] = Fnv(dma16regs);
+        o[f++] = Fnv(dmapages);
+        for (int c = 0; c < 8; c++)
+        {
+            var d = dma_[c];
+            o[f++] = d.ab | ((ulong)d.ac << 32);
+            o[f++] = d.cb | ((ulong)(uint)d.cc << 32);
+            o[f++] = d.mode | ((ulong)d.page << 8) | ((ulong)(uint8_t)d.size << 16) | ((ulong)(uint8_t)d.wp << 24) | ((ulong)d.m << 32) |
+                     ((ulong)d.stat << 40) | ((ulong)d.stat_rq << 48) | ((ulong)d.command << 56);
+        }
+    }
+
+    private static ulong Fnv(ReadOnlySpan<uint8_t> p)
+    {
+        ulong hash = 1469598103934665603UL;
+        foreach (var b in p)
+        {
+            hash ^= b;
+            hash *= 1099511628211UL;
+        }
+        return hash;
+    }
+
     // pcem: dma.c:39-55
     internal static void dma_reset()
     {
@@ -275,6 +309,7 @@ internal static partial class dma
                 dma_stat &= unchecked((uint8_t)~0xf0);
                 return temp;
         }
+        // pcem bug, reproduced: PB-157 — DAh, DCh, DEh : le dernier octet écrit ; le masque ne se relit pas.
         return dma16regs[addr & 0xf];
     }
 
@@ -322,6 +357,7 @@ internal static partial class dma
                 return;
 
         case 8: /*Control register*/
+                // pcem bug, reproduced: PB-157 — la commande du 8237 haut n'est pas rangée : dma16_command reste à 0.
                 return;
 
         case 0xa: /*Mask*/

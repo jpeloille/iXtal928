@@ -93,3 +93,7 @@ section du device d'un .cfg de `cfg/` (`mixaddr` de la SB 2.0). La sonde du son 
 DSP, le mélangeur de la carte et le volume CD qu'elle pose ; `--expect-sb` exige la carte des deux côtés.
 SBBANC a un script par carte (`sbbanc.py --carte`, `sbbanc-CARTE.keys`), saisi dans DEBUG sur le 5150 ;
 `sbbanc.keys` reste celui de la Pro v2.
+La SB 16 (G12.1) : `bd-ami486-sb16` exige aussi le DMA 16 bits (`--expect-sb 220,7,1,5`), et la sonde du DMA
+(`h_dma_probe`, 29 champs) est comparée dès qu'une SB est montée. SB16BANC (`tools/sb16banc`, GNU as) est saisi
+dans DEBUG sur l'ami486, DOS 5 amorcé du disque SCSI de G11 (`ami486-sb16-banc.cfg`, `scsic.img`) ;
+`sb16-filter-check` compare les coefficients du FIR, `r9-sb16` est en C# seul.

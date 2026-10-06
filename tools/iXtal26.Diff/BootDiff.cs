@@ -313,7 +313,8 @@ public static class BootDiff
     internal static bool ExpectCdSon;
     /// <summary>G8.3 — `--expect-sb ADDR,IRQ,DMA` (ADDR en hexadécimal) : la porte exige que la
     /// SB des deux côtés soit à ces valeurs, lues par la sonde — preuve que la section de device
-    /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut.</summary>
+    /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut. G12.1 :
+    /// `ADDR,IRQ,DMA,DMA16` pour la SB 16, le DMA 16 bits lu dans l'état final.</summary>
     internal static string? ExpectSb;
     /// <summary>PS2.0 — `--mouse-type N` (l'indice de mouse_list, pc.c:784), appliqué après
     /// --config et --model, puis jugé contre la machine (pas de PS/2 sans MODEL_PS2).</summary>
@@ -607,6 +608,9 @@ public static class BootDiff
         // G11.0 — la sonde de l'AHA-1542C, au même point (h_closepc ne ferme pas les périphériques).
         var ahaOracle = new ulong[Oracle.AhaProbeN];
         Oracle.h_aha_probe(ahaOracle);
+        // G12.1 — la sonde du DMA, au même point.
+        var dmaOracle = new ulong[Oracle.DmaProbeN];
+        Oracle.h_dma_probe(dmaOracle);
 
         // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
         // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
@@ -717,6 +721,8 @@ public static class BootDiff
         Mouse.mouse_ps2.ProbeState(ps2Csharp);
         var ahaCsharp = new ulong[Oracle.AhaProbeN];
         Scsi.scsi_aha1540.Probe(ahaCsharp);
+        var dmaCsharp = new ulong[Oracle.DmaProbeN];
+        Models.dma.ProbeState(dmaCsharp);
         var cdCsharp = ExpectCd is null ? (0, 0)
             : (Ide.ide.ide_drives[canalCd].type,
                Ide.ide_atapi.atapi is null ? 0 : Ide.ide_atapi.atapi == Cdrom.cdrom_image.image_atapi ? 2 : 1);
@@ -774,6 +780,7 @@ public static class BootDiff
                  | CompareCd(cdOracle, cdCsharp)
                  | CompareCdSound(cdSndOracle, cdSndCsharp)
                  | CompareAha(ahaOracle, ahaCsharp, nFatalOracle)
+                 | CompareDma(dmaOracle, dmaCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")
@@ -1393,6 +1400,11 @@ public static class BootDiff
         // G12.0 — toutes les SB : le type du DSP, le mélangeur de la carte (0 aucun, 1 CT1335, 2 CT1345) et son index ;
         //   le volume CD que la carte pose (sound_set_cd_volume) ; les voix et l'OPL du mélangeur.
         "dsp.sb_type|mixer|index", "cd_vol_l|r", "mixer.voice_l|r", "mixer.fm_l|r",
+        // G12.1 — le DSP 16 bits, le CT1745 (sans speaker, PB-152), le MPU-401 et la sortie MIDI.
+        "dsp.sb_16_length|autolen", "dsp.16_format|autoinit|pause|enable|output|dmanum", "dsp.irq8|irq16|sb_freq",
+        "dsp.sblatchi", "dsp.input_timer", "dsp.asp_data_len|record_pos_read", "dsp.record_pos_write", "#dsp.sb_asp_regs",
+        "#low_fir_sb16_coef", "#dsp.record_buffer", "ct1745.bass|treble|gains", "ct1745.selectors|mic", "ct1745.cd_l|r",
+        "ct1745.line_l|r", "mpu.status|rx|uart|addr|irq", "midi.count", "midi.hash",
     };
 
     private static ulong[] SoundProbeCsharp()
@@ -1437,18 +1449,55 @@ public static class BootDiff
         if (!Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current).StartsWith("sb", StringComparison.Ordinal))
             return ExpectSb is null ? 0 : FauteSb("pas de SB montée");
         var sb = $"{o[28] >> 48:X}h, IRQ {o[27] >> 32}, DMA {(o[23] >> 8) & 0xff}";
-        Console.WriteLine($"Sound Blaster des deux côtés : {sb}.");
+        // G12.1 — le DMA 16 bits de la SB 16, lu dans l'état final (80h et 81h le changent).
+        var dsp16 = (o[41] & 0xff) >= 7 ? $", DMA 16 bits {(o[46] >> 40) & 0xff}" : "";
+        Console.WriteLine($"Sound Blaster des deux côtés : {sb}{dsp16}.");
         if (ExpectSb is null)
             return 0;
         var e = ExpectSb.Split(',');
-        var attendu = $"{Convert.ToInt32(e[0], 16):X}h, IRQ {int.Parse(e[1])}, DMA {int.Parse(e[2])}";
-        return attendu == sb ? 0 : FauteSb($"attendu {attendu}");
+        var attendu = $"{Convert.ToInt32(e[0], 16):X}h, IRQ {int.Parse(e[1])}, DMA {int.Parse(e[2])}" +
+                      (e.Length > 3 ? $", DMA 16 bits {int.Parse(e[3])}" : "");
+        return attendu == sb + (e.Length > 3 ? dsp16 : "") ? 0 : FauteSb($"attendu {attendu}");
 
         static int FauteSb(string m)
         {
             Console.Error.WriteLine($"Sound Blaster : {m} (--expect-sb {ExpectSb}).");
             return 1;
         }
+    }
+
+    private static readonly string[] DmaFields = BuildDmaFields();
+
+    private static string[] BuildDmaFields()
+    {
+        var f = new List<string> { "m|stat|stat_rq|cmd|cmd16", "wp|wp16", "#dmaregs", "#dma16regs", "#dmapages" };
+        for (var c = 0; c < 8; c++)
+            f.AddRange([$"dma[{c}].ab|ac", $"dma[{c}].cb|cc", $"dma[{c}].mode|page|size|wp|m|stat|rq|cmd"]);
+        return [.. f];
+    }
+
+    /// <summary>G12.1 — la sonde du DMA, quand une Sound Blaster est montée : le masque, l'état, les bascules, les
+    /// commandes, les registres bruts et les huit canaux du 8237 (le DMA 16 bits de la SB 16 n'est sous l'oracle que
+    /// par elle). Rend 0 sans SB ou si tout concorde.</summary>
+    private static int CompareDma(ulong[] o, ulong[] c)
+    {
+        if (!Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current).StartsWith("sb", StringComparison.Ordinal))
+            return 0;
+        var bad = 0;
+        for (var f = 0; f < DmaFields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  DMA {DmaFields[f],-28} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde du DMA : {bad} champ(s) divergent(s) sur {DmaFields.Length}.");
+            return 1;
+        }
+        Console.WriteLine($"Sonde du DMA : {DmaFields.Length} champs identiques — le 8237 et ses huit canaux.");
+        return 0;
     }
 
     // PS2.0 — LA SONDE DE LA SOURIS PS/2, quand mouse_type en désigne une : le diff

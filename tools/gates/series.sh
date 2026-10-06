@@ -203,6 +203,19 @@ done
 mapfile -t SBK < tools/sbbanc/sbbanc-sb20mix.keys
 SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
 run bd-pc-sb20mix-banc boot-diff roms 11000 --config $C/pc-sb20-mix.cfg --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${SBB[@]}" --type "^" --type "^"
+# G12.1 — la SB 16 (le DSP 16 bits, le CT1745, le MPU-401, le FIR) : le POST de l'ami486 sous --expect-sb (le DMA 16
+# bits compris) et la sonde du DMA ; le refus sur l'XT (la règle ISA 16 bits) ; les 51 coefficients du FIR, oracle
+# contre C#, pour 1 à 65 535 Hz et les 256 constantes de 40h ; SB16BANC (tools/sb16banc, GNU as) saisi dans DEBUG,
+# DOS 5 amorcé du disque SCSI de G11 : le DSP 4.05 et l'ASP, le CT1745, le MPU-401, le DMA 8 et 16 bits, la
+# tonalité adverse (PB-155), l'enregistrement stéréo au-delà de FFFEh (PB-151). r9-sb16, en C# seul : la
+# fréquence 0 (PB-150), le refus sur les quatre machines 8 bits, deux survies.
+run bd-ami486-sb16 boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sb16 --expect-sb 220,7,1,5
+run bd-ibmxt-sb16-refus boot-diff roms 3000 --model ibmxt --sndcard sb16
+run sb16-filter-check sb16-filter-check
+mapfile -t S16K < tools/sb16banc/sb16banc.keys
+S16B=(); for l in "${S16K[@]}"; do S16B+=(--type "$l"); done
+runw bd-ami486-sb16-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${S16B[@]}" --type "@wait 3000" --expect-aha --expect-sb 220,7,1,5
+run r9-sb16 r9-sb16
 # PS2.0, PS2.1 — la souris PS/2 (mouse_ps2.c) par le 8042. Aucune machine du dépôt n'a MODEL_PS2
 # (leurs BIOS AMI ne rendent pas INT 15h C2h ; décision utilisateur du 03/10, VERIFICATION.md
 # § PS2.1) : la souris PS/2 et l'Intellimouse demandées sont refusées, la série à leur place —

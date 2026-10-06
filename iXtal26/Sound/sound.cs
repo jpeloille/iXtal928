@@ -182,8 +182,8 @@ internal static partial class sound
     }
 
     // pcem: sound.c:36-37, :39-40, :42-44 — G8.1 : le registre SOUND_CARD.
-    // DEVIATION: sept entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
-    //   sc_none, sc_adlib, puis (G12.0) les SB 1.0, 1.5, 2.0 et Pro v1, et la Pro v2 de G8 —, en tableau fixe
+    // DEVIATION: huit entrées sur vingt, dans l'ordre RELATIF de sound_init_builtin (sound.c:270-291) —
+    //   sc_none, sc_adlib, puis (G12.0) les SB 1.0, 1.5, 2.0 et Pro v1, la Pro v2 de G8, et la 16 (G12.1) —, en tableau fixe
     //   comme video_cards (video.cs). La configuration écrit l'internal_name : aucun indice ne sort de ce fichier.
     //   Omis : adlib_mca, sbmcv et sbpromcv (MCA), adlibgold et les cartes d'après (PLAN.md, G12).
     internal sealed class SOUND_CARD
@@ -202,8 +202,10 @@ internal static partial class sound
     internal static readonly SOUND_CARD sc_sbprov1 = new() { name = "Sound Blaster Pro v1", internal_name = "sbprov1", device = sound_sb.sb_pro_v1_device };
     // pcem: sound.c:44 — G8.2.
     internal static readonly SOUND_CARD sc_sbprov2 = new() { name = "Sound Blaster Pro v2", internal_name = "sbprov2", device = sound_sb.sb_pro_v2_device };
+    // pcem: sound.c:46 — G12.1. Une carte ISA 16 bits (Host/SoundCards.cs, pc.check_sndcard).
+    internal static readonly SOUND_CARD sc_sb16 = new() { name = "Sound Blaster 16", internal_name = "sb16", device = sound_sb.sb_16_device };
 
-    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sb, sc_sb1_5, sc_sb2_0, sc_sbprov1, sc_sbprov2 };
+    internal static readonly SOUND_CARD[] sound_cards = { sc_none, sc_adlib, sc_sb, sc_sb1_5, sc_sb2_0, sc_sbprov1, sc_sbprov2, sc_sb16 };
 
     // pcem: sound.c:124 — G8.2 : posés par le mélangeur CT1345 ; G10.5 : lus par le fil CD ; G12.0 : lus aussi par
     //   la sonde du son (sound_sb.ProbeSb), le volume CD que la carte pose.

@@ -84,7 +84,8 @@ public static class Oracle
     // 52 en G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip.
     // 53 en G11.0 : l'AHA-1542C et ses disques (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) — h_aha_probe.
     // 54 en G12.0 : les SB 1.0, 1.5, 2.0 et Pro v1 ; la sonde du son passe de 41 à 45 champs.
-    public const int AbiVersion = 54;
+    // 55 en G12.1 : la SB 16 (le MPU-401 lié, dma.c inclus) ; la sonde du son à 62 champs, h_dma_probe, h_sb16_filter.
+    public const int AbiVersion = 55;
 
     static Oracle()
     {
@@ -329,7 +330,11 @@ public static class Oracle
     [DllImport(Lib)] internal static extern void h_clear_device_config();
     [DllImport(Lib)] internal static extern void h_set_device_config(string head, string name, string data);
     [DllImport(Lib)] internal static extern void h_sound_probe([Out] ulong[] o);
-    public const int SoundProbeN = 45;
+    public const int SoundProbeN = 62;
+    // G12.1 — la sonde du DMA (harness_dma.c, Models/dma.cs ProbeState) ; le FIR de la SB 16 par sb_exec_command.
+    [DllImport(Lib)] internal static extern void h_dma_probe([Out] ulong[] o);
+    public const int DmaProbeN = 29;
+    [DllImport(Lib)] internal static extern void h_sb16_filter(int cmd, int val, [Out] float[] o);
     // G10.5 — la sonde du CD : cd_pos, cd_vol_l, cd_vol_r, l'empreinte des échantillons, les blocs, les non nuls.
     [DllImport(Lib)] internal static extern void h_cd_sound_probe([Out] ulong[] o);
     public const int CdSoundProbeN = 6;

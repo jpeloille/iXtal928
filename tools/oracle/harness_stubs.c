@@ -1237,9 +1237,9 @@ plat_joystick_t plat_joystick_state[MAX_PLAT_JOYSTICKS];
  * copies de lpt1_write/read et la souche de lpt2_remove_ams n'ont plus lieu d'être. */
 
 /* --- G8.2 : ce que sound_sb.c et sound_sb_dsp.c réclament pour les AUTRES cartes ---------------
- * L'EMU8000 (AWE32), le MPU-401 (SB16), le WSS de l'Aztech : inatteignables sur une SB Pro v2.
- * Arrêt bruyant. GAMEBLASTER : pc.c:76 (non lié) ; lu par sb_2_init (sound_sb.c:955 : à 0, l'OPL2 de la SB 2.0 se
- * répète en 2x0-2x1, G12.0), toujours 0 comme le C# (pc.GAMEBLASTER, le CMS n'étant pas transcrit). */
+ * L'EMU8000 (AWE32), le WSS de l'Aztech : inatteignables. Arrêt bruyant. Le MPU-401 est lié depuis G12.1
+ * (sound_mpu401_uart.c). GAMEBLASTER : pc.c:76 (non lié) ; lu par sb_2_init (sound_sb.c:955 : à 0, l'OPL2 de la
+ * SB 2.0 se répète en 2x0-2x1, G12.0), toujours 0 comme le C# (pc.GAMEBLASTER, le CMS n'étant pas transcrit). */
 #include "sound.h"
 #include "sound_emu8k.h"
 #include "sound_mpu401_uart.h"
@@ -1247,7 +1247,20 @@ int GAMEBLASTER = 0;
 void emu8k_init(emu8k_t *emu8k, uint16_t emu_addr, int onboard_ram) { (void)emu8k; (void)emu_addr; (void)onboard_ram; fatal("emu8k_init : EMU8000 non lie (G8)\n"); }
 void emu8k_close(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_close : EMU8000 non lie (G8)\n"); }
 void emu8k_update(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_update : EMU8000 non lie (G8)\n"); }
-void mpu401_uart_init(mpu401_uart_t *mpu, uint16_t addr, int irq, int is_aztech) { (void)mpu; (void)addr; (void)irq; (void)is_aztech; fatal("mpu401_uart_init : MPU-401 non lie (G8)\n"); }
+/* G12.1 — midi_write (plat-midi.h:5), la frontière de l'hôte : le build Linux de PCem prend sdl2-midi.c, où elle est
+ * vide. Ici, le compte et l'empreinte FNV-1a des octets, lus par la sonde du son ; pendant de
+ * Sound.sound_mpu401_uart.midi_write. -Wl,--no-undefined l'exige dès que sound_mpu401_uart.c est lié. ORACLE PARITY :
+ * h_midi_raz, à chaque amorçage (h_boot), comme midi_raz côté C# (pc.initpc). */
+uint64_t h_midi_hash = 1469598103934665603ULL, h_midi_count;
+void h_midi_raz(void) {
+        h_midi_hash = 1469598103934665603ULL;
+        h_midi_count = 0;
+}
+void midi_write(uint8_t val) {
+        h_midi_hash ^= val;
+        h_midi_hash *= 1099511628211ULL;
+        h_midi_count++;
+}
 void azt2316a_enable_wss(uint8_t enable, void *p) { (void)enable; (void)p; fatal("azt2316a_enable_wss : Aztech non lie (G8)\n"); }
 
 /* PS2.0 — mouse_ps2.c:224-225 : la souris du PC5086 passe par son super-E/S (f82c710_upc.c),

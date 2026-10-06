@@ -169,7 +169,8 @@ et leurs tests sont en C# seul.
   - `bd-ami486-sb16`, sous `--expect-sb 220,7,1,5` ; `bd-ibmxt-sb16-refus`.
   - `sb16-filter-check` : les 51 coefficients comparés bit à bit, pour 1 à 65 535 Hz et les 256 constantes
     de 40h.
-  - SB16BANC (GNU as, saisi dans DEBUG sur l'ami486) : E1h, E3h, les commandes de l'ASP, 41h/42h, B0h-CFh dans
+  - SB16BANC (GNU as, saisi dans DEBUG sur l'ami486, DOS 5 amorcé du disque SCSI de G11 : 3 000 tranches, là où le
+    disque IDE de l'utilisateur en demande 60 000) : E1h, E3h, les commandes de l'ASP, 41h/42h, B0h-CFh dans
     tous leurs modes, D5h/D6h/D9h/DAh, l'acquit en 2xFh, 80h/81h/82h, le 8237 haut en incrément et en
     décrément, simple et automatique, à la frontière des 128 Ko, l'enregistrement stéréo au-delà de FFFEh,
     3Bh = C0h, le MPU (FFh, 3Fh, des notes), et une tonalité adverse : 41h FFFFh, une salve pleine échelle aux
@@ -257,7 +258,9 @@ et leurs tests sont en C# seul.
    souche de l'oracle est obligatoire (`-Wl,--no-undefined`). La sortie MIDI vers l'hôte revient à G17.
    *(validé sous mandat, 06/10)*
 9. **3Bh** : un indice borné, `pcem bug, not reproduced`, garde R9 `sound_sb.c:655` ; `speaker` hors de la
-   sonde. L'oracle survit à la lecture : 3Bh peut entrer dans un banc. *(validé sous mandat, 06/10)*
+   sonde. L'oracle survit à la lecture : 3Bh peut entrer dans un banc. *(validé sous mandat, 06/10 ; amendé à
+   l'exécution : SANS garde R9, puisque PCem ne s'y arrête pas — une lecture sans lecteur, PB-152, section B. Une
+   garde ferait rougir la sonde de l'AHA-1542C, qui n'en admet aucune, sous SB16BANC)*
 10. **La fréquence 0** de 41h/42h est ramenée à 1 Hz, en C# seul (DEVIATION, garde R9
     `sound_sb_dsp.c:393`). Le reste de la commande est gardé : `sb_timeo` = 257, aucune division par zéro dans
     `sb_dsp_speed_changed`, des coefficients finis. Aucune porte comparée n'envoie 0. *(validé sous mandat,

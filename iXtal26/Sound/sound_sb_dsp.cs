@@ -10,12 +10,12 @@
 //         sb_8_read_dma, sb_8_write_dma, sb_dsp_setirq, sb_dsp_setdma8, sb_exec_command,
 //         sb_write, sb_read, sb_wb_clear, sb_dsp_init, sb_dsp_setaddr, sb_dsp_set_stereo,
 //         pollsb, sb_poll_i, sb_dsp_update, sb_dsp_close.
-//         Omis : tout ce que garde `sb_type >= SB16` (DMA 16 bits, recalc_sb16_filter et
-//         low_fir_sb16_coef, commandes 0x41/0x42, 0xB0-0xCF, 0xD5/0xD6/0xD9, 0xE3,
-//         0x0E/0x0F/0xF9, 0x08 non Aztech, 0x01 ASP), les corps Aztech (IS_AZTECH), le
-//         débogage SB_DSP_RECORD_DEBUG / SB_TEST_RECORDING_SAW (#ifdef éteints) et
-//         sb_dsp_add_status_info (:1273-1326, hôte). Chaque condition qui coûte peu est
-//         gardée telle quelle : elle vaut faux sur la SBPRO2, le comportement est le même.
+//         G12.1 : la SB 16 (sb_type == SB16) — le DMA 16 bits, recalc_sb16_filter et low_fir_sb16_coef,
+//         sb16_copyright, sb_16_read_dma, sb_16_write_dma, sb_dsp_setdma16, les commandes 0x01, 0x41/0x42,
+//         0xB0-0xCF, 0xD5/0xD6/0xD9, 0xE3, 0x08, 0x0E/0x0F et 0xF9, les branches 16 bits de pollsb et de
+//         sb_poll_i ; sb_enable_i rétabli.
+//         Omis : les corps Aztech (IS_AZTECH), le débogage SB_DSP_RECORD_DEBUG / SB_TEST_RECORDING_SAW
+//         (#ifdef éteints) et sb_dsp_add_status_info (:1273-1326, hôte).
 
 // CS8600 : `(sb_dsp_t)priv` part du `object` des delegates d'io.cs et de timer.cs, comme
 // à sound_opl.cs. CS8602 : même raison, à la déréférence qui suit.
@@ -40,9 +40,7 @@ internal sealed class sb_dsp_t
 
     internal int sb_8_length, sb_8_format, sb_8_autoinit, sb_8_pause, sb_8_enable, sb_8_autolen, sb_8_output;
     internal int sb_8_dmanum;
-    // Les champs 16 bits ne sont écrits que par du code omis (sb_type >= SB16) ; l'initialiseur
-    // `= 0` est le memset de sb_pro_v2_init (sound_sb.c:1006) et tait CS0649.
-    internal int sb_16_length = 0, sb_16_format = 0, sb_16_autoinit = 0, sb_16_pause, sb_16_enable, sb_16_autolen = 0, sb_16_output = 0;
+    internal int sb_16_length, sb_16_format, sb_16_autoinit, sb_16_pause, sb_16_enable, sb_16_autolen, sb_16_output;
     internal int sb_16_dmanum;
     internal int sb_pausetime;
 
@@ -83,10 +81,11 @@ internal sealed class sb_dsp_t
 
     internal readonly uint8_t[] sb_asp_regs = new uint8_t[256];
 
-    // omitted: sbenable, sb_enable_i (sound_sb_dsp.h:63). sb_enable_i est lu par sb_get_buffer_sb16 et
-    //   sb_get_buffer_emu8k (sound_sb.c:180, :272) et n'est écrit nulle part : il revient avec la SB 16 (G12.1).
-    //   sbenable n'a ni lecteur ni écrivain.
+    // pcem: sound_sb_dsp.h:63 — G12.1 : sb_enable_i, lu par sb_get_buffer_sb16 et sb_get_buffer_emu8k
+    //   (sound_sb.c:180, :272), n'est écrit nulle part : il vaut toujours 0 (l'initialiseur tait CS0649).
     // pcem bug, reproduced: PB-148 — rien ne remplit record_buffer : l'entrée rend du silence.
+    // omitted: sbenable — ni lecteur ni écrivain.
+    internal int sb_enable_i = 0;
 
     internal readonly pc_timer_t output_timer = new pc_timer_t(), input_timer = new pc_timer_t();
 
@@ -152,7 +151,8 @@ internal static partial class sound_sb_dsp
         3,  3,  3,  3,  3,  0,  0,  -1, 0,  0,  0,  0,  -1, 0,  0,  0,  -1, -1, -1, -1, -1, 1,  0,  1,  0,  1,  -1, -1, 0,
         0,  -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,  -1, -1, -1, -1, -1, -1, 1,  2,  -1, -1, -1, -1, 0};
 
-    // omitted: sb16_copyright (sound_sb_dsp.c:56) — lu par la seule commande 0xE3 (SB16).
+    // pcem: sound_sb_dsp.c:56 — G12.1 : 44 caractères ; 0xE3 les rend, puis un 0.
+    private const string sb16_copyright = "COPYRIGHT (C) CREATIVE TECHNOLOGY LTD, 1992.";
 
     // pcem: sound_sb_dsp.c:57
     internal static readonly uint16_t[] sb_dsp_versions = {0, 0, 0x105, 0x200, 0x201, 0x300, 0x302, 0x405, 0x40d};
@@ -179,12 +179,49 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:73
     private static readonly uint8_t[] adjustMap2 = {0, 4, 0, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 0, 252, 0};
 
-    // omitted: low_fir_sb16_coef, sinc, recalc_sb16_filter (sound_sb_dsp.c:75-105). Seul lecteur de
-    //   low_fir_sb16_coef : low_fir_sb16 (filters.h:274-293), appelé par sb_get_buffer_sb16 et
-    //   sb_get_buffer_emu8k (sound_sb.c:150-151, :242-243), jamais par sb_get_buffer_sbpro. Les
-    //   appels de :386 et :401 sont gardés par sb_type >= SB16 ; celui de sb_dsp_init (:838) est
-    //   inconditionnel mais n'écrit que ce tableau (sin/cos, sans autre effet) : sur la SBPRO2,
-    //   rien de ce qu'il calcule n'est lu.
+    // pcem: filters.h:270 — #define SB16_NCoef 51
+    internal const int SB16_NCoef = 51;
+
+    // pcem: sound_sb_dsp.c:75 — global, lu par low_fir_sb16 (filters.h:274-295), donc par sb_get_buffer_sb16 et
+    //   sb_get_buffer_emu8k. sb_dsp_init le recalcule pour TOUTES les cartes (:838) ; seules la SB 16 et l'AWE32
+    //   le lisent.
+    internal static readonly float[] low_fir_sb16_coef = new float[SB16_NCoef];
+
+    // pcem: sound_sb_dsp.c:77 — sin de la libm, comme Math.Sin (la glibc des deux côtés, PLAN-G12.md décision
+    //   n° 13 ; sb16-filter-check compare les 51 coefficients bit à bit).
+    private static double sinc(double x) { return Math.Sin(Math.PI * x) / (Math.PI * x); }
+
+    // pcem: sound_sb_dsp.c:79-105 — l'ordre d'évaluation du C, à la lettre : fC en float depuis un calcul en
+    //   double ; la fenêtre et le sinus cardinal en double, le produit rangé en float ; le gain sommé en float,
+    //   dans l'ordre ; chaque coefficient divisé en float. Le NaN de sinc(0), à n = 25, est écrasé par 1.0.
+    internal static void recalc_sb16_filter(int playback_freq)
+    {
+        /*Cutoff frequency = playback / 2*/
+        float fC = (float)(((double)(float)playback_freq / 2.0) / 48000.0);
+        float gain;
+        int n;
+
+        for (n = 0; n < SB16_NCoef; n++) {
+                /*Blackman window*/
+                double w = 0.42 - (0.5 * Math.Cos((2.0 * n * Math.PI) / (double)(SB16_NCoef - 1))) +
+                           (0.08 * Math.Cos((4.0 * n * Math.PI) / (double)(SB16_NCoef - 1)));
+                /*Sinc filter*/
+                double h = sinc(2.0 * fC * ((double)n - ((double)(SB16_NCoef - 1) / 2.0)));
+
+                /*Create windowed-sinc filter*/
+                low_fir_sb16_coef[n] = (float)(w * h);
+        }
+
+        low_fir_sb16_coef[(SB16_NCoef - 1) / 2] = 1.0f;
+
+        gain = 0.0f;
+        for (n = 0; n < SB16_NCoef; n++)
+                gain += low_fir_sb16_coef[n];
+
+        /*Normalise filter, to produce unity gain*/
+        for (n = 0; n < SB16_NCoef; n++)
+                low_fir_sb16_coef[n] /= gain;
+    }
 
     // pcem: sound_sb_dsp.c:107-114
     internal static void sb_irq(sb_dsp_t dsp, int irq8)
@@ -265,20 +302,20 @@ internal static partial class sound_sb_dsp
     }
 
     // pcem: sound_sb_dsp.c:180-190. `TIMER_USEC * (1000000.0f / (float)x)` : uint64_t * float,
-    //   calculé en float (TIMER_USEC converti en float), puis tronqué vers uint64_t. Branche
-    //   >= 256 inatteignable sur la SBPRO2 : sb_timeo n'y vaut que sb_data[0] (0x40) ou 256-22
-    //   (0x20), toujours < 256 — les commandes 0x41/0x42 qui posent 256 + freq sont SB16.
+    //   calculé en float (TIMER_USEC converti en float), puis tronqué vers uint64_t. La branche >= 256 est
+    //   celle de 41h/42h (G12.1, sb_timeo = 256 + freq) ; freq n'y vaut jamais 0 (PB-150), aucune division
+    //   par zéro.
     internal static void sb_dsp_speed_changed(sb_dsp_t dsp)
     {
         if (dsp.sb_timeo < 256)
                 dsp.sblatcho = TIMER_USEC * (uint64_t)(256 - dsp.sb_timeo);
         else
-                dsp.sblatcho = (uint64_t)((float)TIMER_USEC * (1000000.0f / (float)(dsp.sb_timeo - 256)));
+                dsp.sblatcho = Cpu._386.CvtU64((double)((float)TIMER_USEC * (1000000.0f / (float)(dsp.sb_timeo - 256))));
 
         if (dsp.sb_timei < 256)
                 dsp.sblatchi = TIMER_USEC * (uint64_t)(256 - dsp.sb_timei);
         else
-                dsp.sblatchi = (uint64_t)((float)TIMER_USEC * (1000000.0f / (float)(dsp.sb_timei - 256)));
+                dsp.sblatchi = Cpu._386.CvtU64((double)((float)TIMER_USEC * (1000000.0f / (float)(dsp.sb_timei - 256))));
     }
 
     // pcem: sound_sb_dsp.c:192-195
@@ -312,7 +349,17 @@ internal static partial class sound_sb_dsp
                 dsp.sbdacpos = 0;
                 //                pclog("Start 8-bit DMA addr %06X len %04X\n",dma.ac[1]+(dma.page[1]<<16),len);
         } else {
-                // omitted: :218-228 — DMA 16 bits, appelé des seules commandes 0xB0-0xB7 (SB16).
+                dsp.sb_16_length = len;
+                dsp.sb_16_format = format;
+                dsp.sb_16_autoinit = autoinit;
+                dsp.sb_16_pause = 0;
+                dsp.sb_16_enable = 1;
+                if (dsp.sb_8_enable != 0 && dsp.sb_8_output != 0)
+                        dsp.sb_8_enable = 0;
+                dsp.sb_16_output = 1;
+                if (timer_is_enabled(dsp.output_timer) == 0)
+                        timer_set_delay_u64(dsp.output_timer, dsp.sblatcho);
+                //                pclog("Start 16-bit DMA addr %06X len %04X\n",dma16.ac[1]+(dma16.page[1]<<16),len);
         }
     }
 
@@ -333,7 +380,18 @@ internal static partial class sound_sb_dsp
                         timer_set_delay_u64(dsp.input_timer, dsp.sblatchi);
                 //                pclog("Start 8-bit input DMA addr %06X len %04X\n",dma.ac[1]+(dma.page[1]<<16),len);
         } else {
-                // omitted: :258-280 — DMA 16 bits, appelé des seules commandes 0xB8-0xBF (SB16).
+                // omitted: SB_TEST_RECORDING_SAW (:258-269) — #ifdef éteint.
+                dsp.sb_16_length = len;
+                dsp.sb_16_format = format;
+                dsp.sb_16_autoinit = autoinit;
+                dsp.sb_16_pause = 0;
+                dsp.sb_16_enable = 1;
+                if (dsp.sb_8_enable != 0 && dsp.sb_8_output == 0)
+                        dsp.sb_8_enable = 0;
+                dsp.sb_16_output = 0;
+                if (timer_is_enabled(dsp.input_timer) == 0)
+                        timer_set_delay_u64(dsp.input_timer, dsp.sblatchi);
+                //                pclog("Start 16-bit input DMA addr %06X len %04X\n",dma16.ac[1]+(dma16.page[1]<<16),len);
         }
         Array.Clear(dsp.record_buffer);
 
@@ -348,7 +406,16 @@ internal static partial class sound_sb_dsp
         dma_channel_write(dsp.sb_8_dmanum, val);
         // omitted: SB_DSP_RECORD_DEBUG (:295-299) — #ifdef éteint.
     }
-    // omitted: sb_16_read_dma, sb_16_write_dma (sound_sb_dsp.c:301-310) — DMA 16 bits (SB16).
+    // pcem: sound_sb_dsp.c:301 — G12.1.
+    internal static int sb_16_read_dma(sb_dsp_t dsp) { return dma_channel_read(dsp.sb_16_dmanum); }
+    // pcem: sound_sb_dsp.c:302-310 — G12.1. Le paramètre est un uint16_t : `record_buffer[i] ^ 0x8000` y est
+    //   tronqué par l'appelant.
+    internal static int sb_16_write_dma(sb_dsp_t dsp, uint16_t val)
+    {
+        int ret = dma_channel_write(dsp.sb_16_dmanum, val);
+        // omitted: SB_DSP_RECORD_DEBUG (:304-308) — #ifdef éteint.
+        return ret == DMA_NODATA ? 1 : 0;
+    }
 
     // pcem: sound_sb_dsp.c:312
     internal static void sb_dsp_setirq(sb_dsp_t dsp, int irq) { dsp.sb_irqnum = irq; }
@@ -356,7 +423,9 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:314
     internal static void sb_dsp_setdma8(sb_dsp_t dsp, int dma) { dsp.sb_8_dmanum = dma; }
 
-    // omitted: sb_dsp_setdma16 (sound_sb_dsp.c:316) — appelé du seul sb_16_init / sb_awe32_init.
+    // pcem: sound_sb_dsp.c:316 — G12.1 : appelé par le seul registre 81h du CT1745 (sound_sb.c:631-635) ; les init
+    //   n'y touchent pas (TODO :1059, :1084), le défaut est celui de sb_dsp_init (5).
+    internal static void sb_dsp_setdma16(sb_dsp_t dsp, int dma) { dsp.sb_16_dmanum = dma; }
 
     // pcem: sound_sb_dsp.c:317-715
     internal static void sb_exec_command(sb_dsp_t dsp)
@@ -367,7 +436,7 @@ internal static partial class sound_sb_dsp
         case 0x01: /*???*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :324 — asp_data_len (SB16). Le 0 de la réponse est posé par sb_write (:739-740).
+                dsp.asp_data_len = dsp.sb_data[0] + (dsp.sb_data[1] << 8) + 1;
                 break;
         case 0x03: /*ASP status*/
                 sb_add_data(dsp, 0);
@@ -432,15 +501,36 @@ internal static partial class sound_sb_dsp
                 temp = 256 - dsp.sb_data[0];
                 temp = 1000000 / temp;
                 //                pclog("Sample rate - %ihz (%i)\n",temp, dsp->sblatcho);
-                // omitted: :385-386 — `if (sb_freq != temp && sb_type >= SB16) recalc_sb16_filter(temp)`,
-                //   faux sur la SBPRO2 (voir l'omission de recalc_sb16_filter).
+                if (dsp.sb_freq != temp && dsp.sb_type >= SB16)
+                        recalc_sb16_filter(temp);
                 dsp.sb_freq = temp;
                 break;
         case 0x41: /*Set output sampling rate*/
         case 0x42: /*Set input sampling rate*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :393-401 — SB16.
+                {
+                // pcem: sound_sb_dsp.c:393-401 — G12.1. L'octet FORT vient en premier. `TIMER_USEC * (1000000.0f /
+                //   (float)f)` : uint64_t par float, en float ; la conversion vers uint64_t est celle de GCC (CvtU64).
+                // pcem bug, not reproduced: PB-150 — la fréquence 0 rend sblatcho nul en C (ulong.MaxValue en .NET) :
+                //   l'échéance ne recule plus et timer_process boucle sans fin dès qu'une minuterie du DSP tourne
+                //   (R9). DEVIATION (PLAN-G12.md, décision n° 10) : 0 est ramené à 1 Hz, le reste de la commande
+                //   gardé (sb_timeo 257, des coefficients finis).
+                int freq = dsp.sb_data[1] + (dsp.sb_data[0] << 8);
+                if (freq == 0) {
+                        Diag.R9.Garde("sound_sb_dsp.c:393");
+                        freq = 1;
+                }
+                dsp.sblatcho = Cpu._386.CvtU64((double)((float)TIMER_USEC * (1000000.0f / (float)freq)));
+                //                pclog("Sample rate - %ihz (%i)\n",dsp->sb_data[1]+(dsp->sb_data[0]<<8), dsp->sblatcho);
+                temp = dsp.sb_freq;
+                dsp.sb_freq = freq;
+                dsp.sb_timeo = 256 + dsp.sb_freq;
+                dsp.sblatchi = dsp.sblatcho;
+                dsp.sb_timei = dsp.sb_timeo;
+                if (dsp.sb_freq != temp && dsp.sb_type >= SB16)
+                        recalc_sb16_filter(dsp.sb_freq);
+                }
                 break;
         case 0x48: /*Set DSP block transfer size*/
                 dsp.sb_8_autolen = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
@@ -527,7 +617,9 @@ internal static partial class sound_sb_dsp
         case 0xB7: /*16-bit DMA output*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :484-485 — SB16.
+                // pcem bug, reproduced: PB-149 — l'octet de mode (sb_data[0]) n'est pas masqué.
+                sb_start_dma(dsp, 0, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
+                dsp.sb_16_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
         case 0xB8:
         case 0xB9:
@@ -539,7 +631,8 @@ internal static partial class sound_sb_dsp
         case 0xBF: /*16-bit DMA input*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :497-498 — SB16.
+                sb_start_dma_i(dsp, 0, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
+                dsp.sb_16_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
         case 0xC0:
         case 0xC1:
@@ -551,7 +644,9 @@ internal static partial class sound_sb_dsp
         case 0xC7: /*8-bit DMA output*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :510-511 — SB16.
+                // pcem bug, reproduced: PB-149 — 01h à 03h prennent le chemin ADPCM, sur un sbdat2 et un sbref périmés.
+                sb_start_dma(dsp, 1, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
+                dsp.sb_8_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
         case 0xC8:
         case 0xC9:
@@ -563,7 +658,8 @@ internal static partial class sound_sb_dsp
         case 0xCF: /*8-bit DMA input*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :523-524 — SB16.
+                sb_start_dma_i(dsp, 1, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
+                dsp.sb_8_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
         case 0xD0: /*Pause 8-bit DMA*/
                 dsp.sb_8_pause = 1;
@@ -589,12 +685,12 @@ internal static partial class sound_sb_dsp
         case 0xD5: /*Pause 16-bit DMA*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :549 — SB16.
+                dsp.sb_16_pause = 1;
                 break;
         case 0xD6: /*Continue 16-bit DMA*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :554 — SB16.
+                dsp.sb_16_pause = 0;
                 break;
         case 0xD8: /*Get speaker status*/
                 sb_add_data(dsp, (uint8_t)(dsp.sb_speaker != 0 ? 0xff : 0));
@@ -602,7 +698,7 @@ internal static partial class sound_sb_dsp
         case 0xD9: /*Exit 16-bit auto-init mode*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :562 — SB16.
+                dsp.sb_16_autoinit = 0;
                 break;
         case 0xDA: /*Exit 8-bit auto-init mode*/
                 dsp.sb_8_autoinit = 0;
@@ -629,7 +725,10 @@ internal static partial class sound_sb_dsp
         case 0xE3: /*DSP copyright*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :595-598 — SB16.
+                c = 0;
+                while (c < sb16_copyright.Length)
+                        sb_add_data(dsp, (uint8_t)sb16_copyright[c++]);
+                sb_add_data(dsp, 0);
                 break;
         case 0xE4: /*Write test register*/
                 dsp.sb_test = dsp.sb_data[0];
@@ -658,17 +757,20 @@ internal static partial class sound_sb_dsp
                 }
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :650 — SB16.
+                sb_add_data(dsp, 0x18);
                 break;
         case 0x0E: /*ASP set register*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :655 — SB16.
+                dsp.sb_asp_regs[dsp.sb_data[0]] = dsp.sb_data[1];
+                //                pclog("ASP write reg %02X %02X\n", sb_data[0], sb_data[1]);
                 break;
         case 0x0F: /*ASP get register*/
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :662 — SB16.
+                //                sb_add_data(0);
+                sb_add_data(dsp, dsp.sb_asp_regs[dsp.sb_data[0]]);
+                //                pclog("ASP read reg %02X %02X\n", sb_data[0], sb_asp_regs[sb_data[0]]);
                 break;
         case 0xF8:
                 if (dsp.sb_type >= SB16)
@@ -678,7 +780,15 @@ internal static partial class sound_sb_dsp
         case 0xF9:
                 if (dsp.sb_type < SB16)
                         break;
-                // omitted: :673-680 — SB16 ; le C tombe ensuite dans `case 0x04: case 0x05: break`.
+                if (dsp.sb_data[0] == 0x0e)
+                        sb_add_data(dsp, 0xff);
+                else if (dsp.sb_data[0] == 0x0f)
+                        sb_add_data(dsp, 0x07);
+                else if (dsp.sb_data[0] == 0x37)
+                        sb_add_data(dsp, 0x38);
+                else
+                        sb_add_data(dsp, 0x00);
+                // Le C tombe ensuite dans `case 0x04: case 0x05: break;` (:681-683) : un break.
                 break;
         case 0x04:
         case 0x05:
@@ -817,8 +927,7 @@ internal static partial class sound_sb_dsp
 
         /*Initialise SB16 filter to same cutoff as 8-bit SBs (3.2 kHz). This will be recalculated when
           a set frequency command is sent.*/
-        // omitted: recalc_sb16_filter(3200 * 2) (:838) — n'écrit que low_fir_sb16_coef, que rien
-        //   ne lit sur la SBPRO2 (voir l'omission de :75-105).
+        recalc_sb16_filter(3200 * 2);
     }
 
     // pcem: sound_sb_dsp.c:841-850
@@ -1043,9 +1152,61 @@ internal static partial class sound_sb_dsp
                 }
         }
         if (dsp.sb_16_enable != 0 && dsp.sb_16_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_16_output != 0) {
-                // omitted: :1047-1097 — sortie DMA 16 bits. sb_16_enable n'est posé que par
-                //   sb_start_dma(dma8 = 0), appelé des seules commandes 0xB0-0xB7 (SB16) : toujours
-                //   nul sur la SBPRO2.
+                // pcem: sound_sb_dsp.c:1047-1097 — G12.1. `data | DMA_OVER` (0x10000) disparaît à la conversion en
+                //   int16_t de sbdatl et sbdatr : pas de pendant 16 bits à PB-90.
+                Span<int> data = stackalloc int[2];
+
+                sb_dsp_update(dsp);
+
+                switch (dsp.sb_16_format) {
+                case 0x00: /*Mono unsigned*/
+                        data[0] = sb_16_read_dma(dsp);
+                        if (data[0] == DMA_NODATA)
+                                break;
+                        dsp.sbdatl = dsp.sbdatr = (int16_t)(data[0] ^ 0x8000);
+                        dsp.sb_16_length--;
+                        break;
+                case 0x10: /*Mono signed*/
+                        data[0] = sb_16_read_dma(dsp);
+                        if (data[0] == DMA_NODATA)
+                                break;
+                        dsp.sbdatl = dsp.sbdatr = (int16_t)data[0];
+                        dsp.sb_16_length--;
+                        break;
+                case 0x20: /*Stereo unsigned*/
+                        data[0] = sb_16_read_dma(dsp);
+                        data[1] = sb_16_read_dma(dsp);
+                        if (data[0] == DMA_NODATA || data[1] == DMA_NODATA)
+                                break;
+                        dsp.sbdatl = (int16_t)(data[0] ^ 0x8000);
+                        dsp.sbdatr = (int16_t)(data[1] ^ 0x8000);
+                        dsp.sb_16_length -= 2;
+                        break;
+                case 0x30: /*Stereo signed*/
+                        data[0] = sb_16_read_dma(dsp);
+                        data[1] = sb_16_read_dma(dsp);
+                        if (data[0] == DMA_NODATA || data[1] == DMA_NODATA)
+                                break;
+                        dsp.sbdatl = (int16_t)data[0];
+                        dsp.sbdatr = (int16_t)data[1];
+                        dsp.sb_16_length -= 2;
+                        break;
+                        //                        default:
+                        //                                fatal("Unrecognised SB 16-bit format %02X\n",sb_16_format);
+                // pcem bug, reproduced: PB-149 — un format hors de 00/10/20/30 n'a pas de case : la longueur ne
+                //   bouge plus, aucune IRQ.
+                }
+
+                if (dsp.sb_16_length < 0) {
+                        //                        pclog("16DMA over %i\n",dsp->sb_16_autoinit);
+                        if (dsp.sb_16_autoinit != 0)
+                                dsp.sb_16_length = dsp.sb_16_autolen;
+                        else {
+                                dsp.sb_16_enable = 0;
+                                timer_disable(dsp.output_timer);
+                        }
+                        sb_irq(dsp, 0);
+                }
         }
         if (dsp.sb_pausetime > -1) {
                 dsp.sb_pausetime--;
@@ -1082,21 +1243,19 @@ internal static partial class sound_sb_dsp
                         dsp.record_pos_read += 2;
                         dsp.record_pos_read &= 0xFFFF;
                         break;
-                // Les formats stéréo lisent record_buffer[record_pos_read + 1], soit l'indice 0xFFFF
-                //   (hors du tableau de 0xFFFF) quand record_pos_read vaut 0xFFFE — PLAN-G8.md, défaut
-                //   n° 6. Inatteignable sur la SBPRO2 : en entrée, sb_8_format n'y est posé que par
-                //   sb_start_dma_i(…, format = 0, …) (0x24, 0x2C, 0x98, 0x99) ; 0x20/0x30 viennent des
-                //   seules commandes 0xC8-0xCF (SB16).
+                // Les formats stéréo lisent record_buffer[record_pos_read + 1], soit l'indice 0xFFFF quand
+                //   record_pos_read vaut 0xFFFE : record_lu (PB-151). Atteints par les commandes 0xC8-0xCF de la
+                //   SB 16 (G12.1) : sur la SBPRO2, sb_8_format ne vaut en entrée que 0 (0x24, 0x2C, 0x98, 0x99).
                 case 0x20: /*Stereo unsigned*/
                         sb_8_write_dma(dsp, (uint8_t)((dsp.record_buffer[dsp.record_pos_read] >> 8) ^ 0x80));
-                        sb_8_write_dma(dsp, (uint8_t)((dsp.record_buffer[dsp.record_pos_read + 1] >> 8) ^ 0x80));
+                        sb_8_write_dma(dsp, (uint8_t)((record_lu(dsp, dsp.record_pos_read + 1) >> 8) ^ 0x80));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
                         dsp.record_pos_read &= 0xFFFF;
                         break;
                 case 0x30: /*Stereo signed*/
                         sb_8_write_dma(dsp, (uint8_t)(dsp.record_buffer[dsp.record_pos_read] >> 8));
-                        sb_8_write_dma(dsp, (uint8_t)(dsp.record_buffer[dsp.record_pos_read + 1] >> 8));
+                        sb_8_write_dma(dsp, (uint8_t)(record_lu(dsp, dsp.record_pos_read + 1) >> 8));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
                         dsp.record_pos_read &= 0xFFFF;
@@ -1118,8 +1277,54 @@ internal static partial class sound_sb_dsp
                 processed = 1;
         }
         if (dsp.sb_16_enable != 0 && dsp.sb_16_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_16_output == 0) {
-                // omitted: :1180-1244 — entrée DMA 16 bits (sb_16_enable toujours nul sur la SBPRO2,
-                //   voir pollsb).
+                // pcem: sound_sb_dsp.c:1180-1246 — G12.1. Le `return` sur DMA_NODATA saute aussi `processed = 1` et
+                //   l'avance du mode direct (:1248-1251), comme en C.
+                // omitted: SB_TEST_RECORDING_SAW (:1181-1198) — #ifdef éteint ; la branche #else suit.
+                switch (dsp.sb_16_format) {
+                case 0x00: /*Unsigned mono. As the manual says, only the left channel is recorded*/
+                        if (sb_16_write_dma(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                                return;
+                        dsp.sb_16_length--;
+                        dsp.record_pos_read += 2;
+                        dsp.record_pos_read &= 0xFFFF;
+                        break;
+                case 0x10: /*Signed mono. As the manual says, only the left channel is recorded*/
+                        if (sb_16_write_dma(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                                return;
+                        dsp.sb_16_length--;
+                        dsp.record_pos_read += 2;
+                        dsp.record_pos_read &= 0xFFFF;
+                        break;
+                case 0x20: /*Unsigned stereo*/
+                        if (sb_16_write_dma(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                                return;
+                        sb_16_write_dma(dsp, (uint16_t)(record_lu(dsp, dsp.record_pos_read + 1) ^ 0x8000));
+                        dsp.sb_16_length -= 2;
+                        dsp.record_pos_read += 2;
+                        dsp.record_pos_read &= 0xFFFF;
+                        break;
+                case 0x30: /*Signed stereo*/
+                        if (sb_16_write_dma(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                                return;
+                        sb_16_write_dma(dsp, (uint16_t)record_lu(dsp, dsp.record_pos_read + 1));
+                        dsp.sb_16_length -= 2;
+                        dsp.record_pos_read += 2;
+                        dsp.record_pos_read &= 0xFFFF;
+                        break;
+                        //                        default:
+                        //                                fatal("Unrecognised SB 16-bit input format %02X\n",sb_16_format);
+                }
+
+                if (dsp.sb_16_length < 0) {
+                        //                        pclog("16iDMA over %i\n",sb_16_autoinit);
+                        if (dsp.sb_16_autoinit != 0)
+                                dsp.sb_16_length = dsp.sb_16_autolen;
+                        else {
+                                dsp.sb_16_enable = 0;
+                                timer_disable(dsp.input_timer);
+                        }
+                        sb_irq(dsp, 0);
+                }
                 processed = 1;
         }
         // Assume this is direct mode
@@ -1128,6 +1333,11 @@ internal static partial class sound_sb_dsp
                 dsp.record_pos_read &= 0xFFFF;
         }
     }
+
+    // pcem bug, reproduced: PB-151 — record_buffer[0xFFFF] lit un élément au-delà du tableau de 0xFFFF : dans la
+    //   disposition du C, buffer[0], un échantillon de SORTIE (sound_sb_dsp.h:82-83, int16_t sans bourrage ;
+    //   l'assertion statique de harness.c le fige). Seuls les formats stéréo d'entrée l'atteignent.
+    private static int16_t record_lu(sb_dsp_t dsp, int i) => i < 0xFFFF ? dsp.record_buffer[i] : dsp.buffer[i - 0xFFFF];
 
     // pcem: sound_sb_dsp.c:1254-1263
     internal static void sb_dsp_update(sb_dsp_t dsp)

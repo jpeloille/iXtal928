@@ -6936,3 +6936,69 @@ G12.0 depuis le journal de la session. Trois vérifications le confirment :
 - l'oracle qui en est construit, les chemins ramenés à ceux du dépôt (`-ffile-prefix-map`), est identique octet
   pour octet à celui de g112 ;
 - `tools/gates` est identique à la copie figée de la série.
+
+## G12.1 — La Sound Blaster 16 ; PB-149 à PB-157
+
+Le 6 octobre 2026. Plan : `PLAN-G12.md` § G12.1, décisions n° 4, 6 à 12, 14, 16 et 17 (prises sous le mandat
+« en totale autonomie » du 05/10).
+
+**Transcrit.**
+- `sound_sb.c` : `sb_get_buffer_sb16` (`:127-208`), avec l'aide de conversion du C (`Cpu._386.CvtI32`) ; le CT1745
+  (`:533-785`), la borne de 3Bh sans garde (décision n° 9) ; `sb_16_init`, sa configuration et son device.
+- `sound_sb_dsp.c` : le DSP 4.05, ses branches 16 bits (`sb_start_dma`, `sb_start_dma_i`, `pollsb`, `sb_poll_i`),
+  B0h à CFh, 41h et 42h (la fréquence 0 ramenée à 1 Hz, R9), D5h, D6h, D9h, l'ASP ; le FIR (`recalc_sb16_filter`,
+  `:79-105`) dans l'ordre exact du C ; l'alias de `record_buffer` (PB-151).
+- `sound_mpu401_uart.c` : le MPU-401 en UART, et l'empreinte de ses octets MIDI.
+- `dma.c` passe sous l'oracle (`harness_dma.c`), et sa sonde compare le 8237 et ses huit canaux.
+- La règle ISA 16 bits (décision n° 4) : `Host/SoundCards.cs` et `check_sndcard` refusent la SB 16 sur les machines
+  sans MODEL_AT, avec un avertissement.
+
+**L'oracle.** ABI 55 : le MPU-401 lié, `dma.c` inclus ; la sonde du son passe à 62 champs (le DSP 16 bits, le
+CT1745, le MPU-401) ; `h_dma_probe` (29 champs) ; `h_sb16_filter`.
+
+**Les portes.**
+- `bd-ami486-sb16` : le POST de l'ami486, 5 433 965 instructions identiques, `--expect-sb 220,7,1,5` lu des deux
+  côtés, la sonde du DMA identique.
+- `bd-ibmxt-sb16-refus` : la carte refusée, avertie, 11 518 603 instructions identiques.
+- `sb16-filter-check` : les 51 coefficients du FIR pour 41h de 1 à 65 535 Hz et pour les 256 constantes de 40h,
+  soit 65 791 jeux, identiques au bit près — cos et sin de .NET rendent ici ce que rend glibc.
+- SB16BANC (`tools/sb16banc`, GNU as), saisi dans DEBUG sur l'ami486, DOS 5 amorcé du disque SCSI de G11
+  (`bd-ami486-sb16-banc`) : 144 407 582 instructions identiques, la sonde du son, du DMA et de l'AHA identiques.
+- `r9-sb16`, en C# seul : onze essais. Trois fois la fréquence 0 (PB-150), la garde atteinte, la machine qui rend
+  la main. Cinq refus sur les machines 8 bits. Trois survies sans garde : 3Bh = C0h et l'entrée stéréo au-delà de
+  FFFEh, en 8 et en 16 bits.
+
+**Ce que les contrôles négatifs ont trouvé.** Les trois négatifs prévus contre SB16BANC — l'aide de conversion
+remplacée par le transtypage .NET, l'alias rendu nul, `ac + 1` au lieu de `ac + 2` dans le 8237 haut — sont
+d'abord restés verts : le banc ne mordait pas. Une copie instrumentée l'a expliqué.
+- **Le DMA 16 bits transférait des octets.** `pc_reset` omettait `dma_reset()` (`pc.c:179`) depuis M1.4, des
+  deux côtés : le C# (« hors périmètre 5150 minimal ») et la réplique de l'oracle. Les canaux 4 à 7 gardaient donc
+  `size = 0` (`dma.c:53`). Le canal 5 rendait FFh, 7Fh, FFh, les octets des mots du tampon ; l'alias lisait
+  `buffer[0] = 127`, dont l'octet haut vaut celui de la faute. `dma_reset()` est rétabli des deux côtés, à sa
+  place.
+- **La salve signée au hasard n'atteint pas le débordement du FIR** (PB-155) : il faut que les signes retombent
+  sur ceux des coefficients. Sur un modèle du filtre, un carré presque alterné (la phase avance de 32 000 sur
+  65 536 par trame) passe 2^31 / 32 767 de 1,34 fois à 65 535 Hz et de 1,5 fois à 83 333 Hz. Le banc le joue
+  désormais.
+- Le banc lui-même, avant sa première porte : deux libellés lus comme des mots, `offset` manquant ; corrigé.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| un ulp sur le gain du FIR | `sb16-filter-check` | rouge : 2 983 380 coefficients divergent sur les 65 791 jeux |
+| `regs[43h]` écrit, que l'invité ne relit pas | `bd-ami486-sb16` | trace verte, sonde rouge (`#mixer.regs`) |
+| la garde de la fréquence 0 retirée | `r9-sb16` | l'hôte fige : arrêté par `timeout`, code 124 |
+| l'aide de conversion remplacée par le transtypage .NET | `bd-ami486-sb16-banc` | trace verte (144 407 582 instructions), sonde rouge : l'empreinte des échantillons (`sound_hash`) |
+| l'alias rendu nul | `bd-ami486-sb16-banc` | rouge à l'instruction 136 926 343 |
+| `ac + 1` au lieu de `ac + 2` dans le 8237 haut | `bd-ami486-sb16-banc` | rouge à l'instruction 136 926 343 : la sortie 16 bits fautive passe par l'alias dans l'enregistrement |
+
+**La série.** g124 tourne sur le worktree de G12.1, l'état commité, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit
+de zéro : 225 portes, 223 vertes en 58 minutes. Deux traces ont été tronquées au départ par le quota de /tmp
+(`bd-ami486-trio64-accel`, `bd-ami486-zip-banc`) ; rejouées seules (g124b), elles sont vertes, avec les comptes de
+g112. Verdict par verdict contre g112 :
+- `dma_reset` ne change rien aux portes existantes, comptes d'instructions et empreintes compris ;
+- la porte `abi` lit 55 ;
+- la sonde du son compte 62 champs, et ses empreintes n'ont pas bougé ;
+- les portes des SB gagnent la ligne de la sonde du DMA ;
+- cinq portes sont neuves.

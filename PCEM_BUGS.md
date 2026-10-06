@@ -1558,7 +1558,8 @@ direction du transfert est ignorée.
 (`:341-347`) met le registre du CD (08h) à 0, et `:363-369` posent `sound_set_cd_volume(8230 × 164 / 65535,
 …)`, soit 20 sur 65 535. Sans mélangeur, l'invité n'a aucun port pour le relever. Avec mélangeur, le CD reste
 au minimum tant que l'invité n'écrit pas 08h. Le CT1345 fait de même : 81 sur 65 535 au reset (`:413-416`,
-28h = 0), le volume que mesure ATAPIAUD en G10.5.
+28h = 0), le volume que mesure ATAPIAUD en G10.5 ; le CT1745 de la SB 16, 12 sur 65 535 (`:557-558`, 36h et
+37h = 0, G12.1).
 *Effet* : sur une machine équipée d'une SB 2.0 sans option CD, l'audio CD (G10.5) est à −70 dB ; avec une
 SB 1.0 ou 1.5, qui n'ont pas de mélangeur, il reste à 65 535.
 *Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
@@ -1594,6 +1595,83 @@ A8h (l'entrée mono ou stéréo de la Pro) ne font rien (`:468-473`, TODO).
 *Effet* : toute entrée DMA ou directe (20h, 24h, 2Ch, 98h, 99h) rend du silence : 80h en 8 bits non signé.
 *Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-148.
+*G12.1* : la SB 16 aussi : le bloc de `sb_enable_i` (`sound_sb.c:180-197`) ne s'exécute jamais.
+
+### PB-149 — L'octet de mode de B0h à CFh n'est pas masqué
+
+`sound_sb_dsp.c:484`, `:497`, `:510`, `:523` : les commandes 8 et 16 bits du DSP 4.xx passent `sb_data[0]`, l'octet
+de mode, tel quel comme format. En 8 bits, 01h à 03h prennent le chemin ADPCM (`:918-1030`) sur un `sbdat2` et un
+`sbref` périmés ; toute autre valeur que 00h, 10h, 20h et 30h n'a pas de `case` (`:866-1034`, `:1051-1086`) : la
+longueur ne bouge plus, aucune IRQ ne vient.
+*Effet* : un octet de mode aux bits réservés posés (les bits 0 à 3 ou 6 et 7) fige le transfert, sans fin ni IRQ.
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-149 ; SB16BANC passe C0h en mode 01h.
+
+### PB-150 — La fréquence 0 de 41h et 42h fige l'hôte
+
+`sound_sb_dsp.c:393` : `(uint64_t)(TIMER_USEC * (1000000.0f / 0.0f))` vaut 0 en C (mesuré, `-O2` sans `-march`),
+`ulong.MaxValue` en .NET. 42h recopie la valeur dans `sblatchi` (`:398`). `pollsb` se réarme alors à la même date
+(`timer_advance_u64`, `:858`), et `timer_process` (`timer.c:130-144`) le rappelle sans fin dès que la minuterie de
+sortie tourne (un DMA lancé, une pause par 80h) ; de même `sb_poll_i` (`:1114`) quand l'entrée tourne (20h l'arme
+pour toujours). Même cause par `sb_dsp_speed_changed` (`:184`, `:189`) quand `sb_timeo` vaut 256. Les
+coefficients du FIR deviennent NaN si `sb_freq` n'était pas nul.
+*Effet* : un programme qui envoie 41h 00h 00h pendant un transfert fige l'émulateur ; le processeur invité ne
+reprend jamais la main.
+*Trouvé par* : reconnaissance de G12 (lectures des cartes et du DSP, mesure dans un bac à sable).
+*NON reproduit* (R9) : la fréquence 0 est ramenée à 1 Hz, le reste de la commande gardé (`Sound/sound_sb_dsp.cs`,
+garde `sound_sb_dsp.c:393` ; décision n° 10 de PLAN-G12.md). Aucune porte comparée n'envoie 0. Survie : `r9-sb16`.
+
+### PB-153 — Le CT1745 : 80h, 81h, 82h, 0Ah, 01h, la stéréo et la sélection d'entrée
+
+`sound_sb.c:611-636` : 80h et 81h appliquent les bits dans l'ordre, le dernier posé gagne, et un 0 ne change rien ;
+la traduction des requêtes 16 bits vers le canal 8 bits, que PCem documente (`:728-734`), n'existe pas. `:770` : 82h
+est rendu dans un `uint8_t`, le `| 0x4000` disparaît, et le bit du MPU (4) n'est jamais posé. `:601` : 0Ah
+(le micro de la Pro) est recopié en 3Ah par `0Ah × 3 + 10`, tronqué à 8 bits ; `:695` le relit par `(3Ah − 10) / 3`,
+juste pour 0Ah ≤ 51h, et FDh après un reset. 01h n'est pas tenu (`:540-546`) et se relit FFh. 0Eh (la stéréo de la
+Pro) n'est pas branché sur le DSP. `:143-148` : la sélection d'entrée MIDI se lit `a ? out_l : ((0 + b) ? out_r :
+0)`. Ni IRQ ni DMA dans la configuration de la SB 16 (TODO `:1059`) : les défauts de `sb_dsp_init`, IRQ 7, DMA 1 et
+DMA 16 bits 5 (`sound_sb_dsp.c:826-828`), contre l'IRQ 5 des cartes d'usine.
+*Effet* : un pilote qui lit 82h pour reconnaître son IRQ ne voit jamais le MPU ; un réglage du micro au-delà de 51h
+se relit faux ; un jeu réglé par BLASTER=… I5, sans outil Creative qui écrive 80h, n'a pas d'IRQ.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
+*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-153 ; SB16BANC les relit.
+
+### PB-154 — Le MPU-401 de la SB 16 : 330h fixe, sans IRQ, en UART seul
+
+`sound_sb.c:1066` : `mpu401_uart_init(&sb->mpu, 0x330, -1, 0)` — l'adresse est fixe et l'IRQ vaut -1
+(`sound_mpu401_uart.c:12-13` ne lève donc rien). Seuls FFh et 3Fh sont des commandes (`:21-45`) ; toute autre est
+ignorée, sans ACK. FFh rend l'ACK FEh même en mode UART (`:26`), contre la note de Roland que le code cite ; aucune
+entrée MIDI, la donnée relue reste l'ACK périmé.
+*Effet* : un test d'IRQ du MPU échoue ; un pilote qui attend l'absence d'ACK après FFh en mode UART lit un FEh.
+*Trouvé par* : reconnaissance de G12 (contre-lectures).
+*Reproduit* : `Sound/sound_mpu401_uart.cs`, marqueur PB-154 ; SB16BANC passe FFh, 3Fh et ACh.
+
+### PB-155 — Le FIR de la SB 16 dépasse le gain unité au-delà de 34,7 kHz, et la conversion déborde
+
+`sound_sb_dsp.c:79-105` : `recalc_sb16_filter` coupe à la moitié de la fréquence de lecture, ramenée à 48 kHz ;
+au-delà de 48 kHz, la coupure passe au-dessus de la fréquence de Nyquist de la sortie. Σ|coef| dépasse 2,0 à partir
+de 34 736 Hz par 41h (2,67 à 65 535 Hz) et de 37 037 Hz par 40h (3,0 à 83 333 Hz, E5h à F5h). Un signal pleine
+échelle dont les signes suivent ceux des coefficients déborde alors `(int32_t)(low_fir_sb16(…) × voice)`
+(`sound_sb.c:150-151`) : `cvttss2si` rend INT_MIN, même pour un dépassement positif.
+*Effet* : sur une SB 16 réglée au-delà de 34,7 kHz, des claquements pleins négatifs sur les sons forts et aigus ;
+et le repliement au-delà de 48 kHz.
+*Trouvé par* : reconnaissance de G12 (contre-lecture, balayage du filtre dans un bac à sable).
+Au-delà de 48 kHz, |H| atteint 2,0002 sur la bande où les copies du filtre se recouvrent ; une salve signée au
+hasard n'y suffit pas, un carré presque alterné, oui : rééchantillonné à 48 kHz, il retombe par endroits sur les
+signes des coefficients (sortie mesurée sur un modèle du filtre : 1,34 fois 2^31 à 65 535 Hz, 1,5 fois à 83 333 Hz).
+*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-155, par l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET
+saturerait. SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
+
+### PB-157 — Le 8237 haut : la commande, l'état des requêtes, les registres relus
+
+`dma.c:389-390` : l'écriture du registre de commande du 8237 haut (D0h) ne fait rien, `dma16_command` reste à 0
+(celui du bas est rangé, `:124-126`). `dma_stat_rq` n'est lu que par le PS/2 (`:198-204`) : sur l'ISA, les bits de
+requête ne remontent jamais. `dma16_read` rend, pour DAh, DCh et DEh, le dernier octet écrit (`dma16regs`, `:345`) ;
+le registre de masque ne se relit donc pas, en DEh comme en 0Fh.
+*Effet* : un programme qui désactive le 8237 haut par sa commande (bit 2) n'y arrive pas ; la relecture du masque
+rend autre chose que le masque.
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP et du DMA).
+*Reproduit* : `Models/dma.cs` (transcrit dès B3) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA compare l'état.
 
 ## B. Comportement indéfini en C
 
@@ -1950,6 +2028,40 @@ DivideByZeroException, IndexOutOfRangeException, NullReferenceException, mesuré
 *G12.0, les SB 1.0, 1.5, 2.0 et Pro v1* : leurs trois tables (`sound_sb.c:1134-1228`) reçoivent leurs listes
 `selection` ; `mixaddr` de la 2.0 (0, 250h, 260h) comme `addr` peut indexer au-delà de FFFFh (`io.c:45`). Hors
 liste : le défaut, averti, prouvé par `r9-sbcfg` (six essais de plus).
+
+### PB-151 — L'entrée stéréo lit un élément au-delà de `record_buffer`
+
+`sound_sb_dsp.c:1150`, `:1157`, `:1217`, `:1225` : les formats stéréo d'entrée lisent
+`record_buffer[record_pos_read + 1]`, et `record_pos_read` monte jusqu'à FFFEh dans un tableau de FFFFh éléments
+(`sound_sb_dsp.h:82`). Ce compteur n'est remis à zéro que par le reset du DSP (`:144`) ; il avance à chaque tic
+de l'entrée, le mode direct compris (`:1248-1251`). Atteint sur la SB 16 par C8h-CFh et B8h-BFh en stéréo.
+*Effet* : en C, la lecture tombe sur `buffer[0]`, le premier échantillon de SORTIE du bloc en cours (la
+disposition est mesurée : `int16_t`, sans bourrage) ; une fois tous les 32 768 couples, l'enregistrement reçoit un
+échantillon de la lecture.
+*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 6), atteint en G12.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `record_lu`, marqueurs PB-151 ; une assertion statique de `harness.c` fige
+la disposition. SB16BANC enregistre au-delà de FFFEh, une sortie en cours.
+
+### PB-152 — Le registre 3Bh du CT1745 indexe hors de sa table
+
+`sound_sb.c:655` : `speaker = sb_att_2dbstep_5bits[regs[0x3B] * 3 + 22]` lit sans `>> 6` : dès que 3Bh vaut 04h
+ou plus, l'indice va jusqu'à 787 dans une table de 32. Le calcul est refait à chaque écriture de donnée du
+mélangeur, celle de 3Bh comprise (`:639-669`). `speaker` n'est lu nulle part (TODO `:667`).
+*Effet* : en C, une lecture dans `.rodata`, sans conséquence observable ; en C#, une exception à la première
+écriture d'un volume de haut-parleur (C0h, la valeur que posent les pilotes).
+*Trouvé par* : reconnaissance de G12 (lectures des cartes et du DSP).
+*NON reproduit* : l'indice borné (`Sound/sound_sb.cs`, marqueur PB-152) ; rien d'observable ne change, `speaker`
+reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16BANC écrit 3Bh = C0h sous l'oracle.
+
+### PB-156 — `len × sb_freq` déborde l'entier signé
+
+`sound_sb.c:202`, `:325` : `record_pos_write += ((len * sb->dsp.sb_freq) / 48000) * 2`. Avec 40h FFh,
+`sb_freq` vaut 1 000 000 et `len` 2 400 : 2,4 × 10^9, au-delà de 2^31.
+*Effet* : comportement indéfini, que GCC compile en `imul` qui enveloppe ; sans effet audible, l'enregistrement
+étant muet (PB-148).
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
+*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-156, par l'arithmétique enveloppante du C#
+(`CheckForOverflowUnderflow` faux).
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
 
@@ -2463,7 +2575,7 @@ READ_MESSAGE), `:1807`, `:1828`, `:2047` (une phase, un REQ ou un message que `s
 
 ## Portée de ce registre
 
-Ces **cent quarante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent cinquante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2512,10 +2624,11 @@ audit systématique de PCem** :
 | Reconnaissance et transcription du lecteur ZIP (G10.6) | PB-125 à PB-127 |
 | Reconnaissance (lecture puis contre-lecture) et transcription de l'AHA-1542C et de `scsi_hd` (G11) | PB-128 à PB-144 ; PB-121, PB-125 élargis |
 | Reconnaissance (lecture puis contre-lecture) et transcription des SB 1.0, 1.5, 2.0 et Pro v1 (G12.0) | PB-145 à PB-148 ; PB-92, PB-93 élargis |
+| Reconnaissance (lecture puis contre-lecture) et transcription de la SB 16 (G12.1) | PB-149 à PB-157 ; PB-145, PB-148 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
-cartes son autres que l'AdLib et les SB 1.0 à Pro v2, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4, `scsi_hd.c` et la 1542C, lus en G11) et les images VHD restent hors de ce registre. Le cœur 386, lu en
+cartes son autres que l'AdLib et les SB 1.0 à 16, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4, `scsi_hd.c` et la 1542C, lus en G11) et les images VHD restent hors de ce registre. Le cœur 386, lu en
 G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
 forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
 ce registre ne garde que ce qui a été lu à la ligne de C.

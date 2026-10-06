@@ -29,6 +29,7 @@
  */
 
 #include <errno.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -187,6 +188,7 @@ static void h_sound_mix_hash(void) {
 /* G10.5 — le fil CD, plus bas : son corps à chaque échéance, en synchrone (décision n° 7). */
 static void h_sound_cd_tick(void);
 void h_sound_cd_raz(void);
+void h_midi_raz(void);   /* G12.1 — harness_stubs.c */
 void h_cd_audio_stop(void);                       /* harness_cdrom.cpp : image_audio_stop() */
 void h_cd_audio_callback(int16_t *out, int len);  /* harness_cdrom.cpp : image_audio_callback() */
 static int cd_pos = 0;   /* sound.c:217 */
@@ -1739,6 +1741,7 @@ int h_boot(const char *romspath) {
          * CD d'initpc (pc.c:291-313) pose `atapi`. */
         h_cd_boot_raz();
         h_sound_cd_raz();            /* G10.5 — le fil CD (ORACLE PARITY) */
+        h_midi_raz();                /* G12.1 — l'empreinte MIDI (ORACLE PARITY), pendant de midi_raz côté C# */
         h_cd_initpc();
 
         /* resetpchard() réduit, miroir de pc.resetpchard() côté C# (pc.c:353) */
@@ -1979,6 +1982,9 @@ int h_boot(const char *romspath) {
                 device_add(&sb_pro_v1_device);
         else if (!strcmp(h_sndcard_name, "sbprov2"))
                 device_add(&sb_pro_v2_device);
+        /* G12.1 — la SB 16 ; la règle ISA 16 bits est jugée côté C# (pc.check_sndcard) avant la poussée. */
+        else if (!strcmp(h_sndcard_name, "sb16"))
+                device_add(&sb_16_device);
         else if (h_sndcard_name[0] && strcmp(h_sndcard_name, "none")) {
                 fatal("h_boot : carte son inconnue « %s »\n", h_sndcard_name);
                 return 0;
@@ -2010,6 +2016,7 @@ int h_boot(const char *romspath) {
            d'enregistrer, et la machine tourne sans PIT. setpitclock() appartient
            bien à pc_reset (pc.c:184-187), donc APRÈS pit_init. */
         resetx86();
+        dma_reset();                 /* pc.c:179 — G12.1 : omis depuis M1.4, les canaux 4 à 7 restaient à size = 0 */
         fdc_reset();                 /* pc.c:180 */
         pic_reset();
         serial_reset();              /* pc.c:182, M21 */
@@ -2391,6 +2398,14 @@ static uint64_t h_sb_fnv(const uint8_t *p, size_t n) {
         }
         return hash;
 }
+/* G12.1 — record_buffer[0xFFFF] (sound_sb_dsp.c:1150, :1157, :1217, :1225) lit buffer[0] : la disposition que
+ * reproduit record_lu côté C# (PB-151), figée ici. */
+_Static_assert(offsetof(sb_dsp_t, buffer) == offsetof(sb_dsp_t, record_buffer) + 0xFFFF * sizeof(int16_t),
+               "record_buffer suivi de buffer, sans bourrage");
+/* G12.1 — l'empreinte MIDI (harness_stubs.c) ; les coefficients du FIR de la SB 16 (sound_sb_dsp.c:75, déclarés
+ * par filters.h, que l'on n'inclut pas pour ses fonctions `static inline`). */
+extern uint64_t h_midi_hash, h_midi_count;
+extern float low_fir_sb16_coef[51];
 /* Pendant de Sound.sound_sb.MixerKind : 0 aucun (SB 1.0, 1.5), 1 CT1335 (2.0), 2 CT1345 (Pro), 3 CT1745 (16, AWE32). */
 static int h_sb_mixer_kind(int sb_type) {
         if (sb_type == SB2)
@@ -2411,7 +2426,7 @@ static void h_sb_probe(uint64_t *o) {
 
         for (c = 0; c < DEV_MAX; c++)
                 if (devices[c] == &sb_1_device || devices[c] == &sb_15_device || devices[c] == &sb_2_device ||
-                    devices[c] == &sb_pro_v1_device || devices[c] == &sb_pro_v2_device) {
+                    devices[c] == &sb_pro_v1_device || devices[c] == &sb_pro_v2_device || devices[c] == &sb_16_device) {
                         sb = (sb_t *)device_priv[c];
                         break;
                 }
@@ -2434,6 +2449,15 @@ static void h_sb_probe(uint64_t *o) {
                 vr = sb->mixer_sbpro.voice_r;
                 fl = sb->mixer_sbpro.fm_l;
                 fr = sb->mixer_sbpro.fm_r;
+        } else if (kind == 3) {
+                regs = sb->mixer_sb16.regs;
+                index = sb->mixer_sb16.index;
+                ml = sb->mixer_sb16.master_l;
+                mr = sb->mixer_sb16.master_r;
+                vl = sb->mixer_sb16.voice_l;
+                vr = sb->mixer_sb16.voice_r;
+                fl = sb->mixer_sb16.fm_l;
+                fr = sb->mixer_sb16.fm_r;
         }
         *o++ = (uint32_t)d->sb_8_length | ((uint64_t)(uint32_t)d->sb_8_autolen << 32);
         *o++ = (uint8_t)d->sb_8_format | ((uint64_t)(uint8_t)d->sb_8_autoinit << 8) | ((uint64_t)(uint8_t)d->sb_8_pause << 16) |
@@ -2462,6 +2486,58 @@ static void h_sb_probe(uint64_t *o) {
         *o++ = cd_vol_l | ((uint64_t)cd_vol_r << 32);
         *o++ = (uint32_t)vl | ((uint64_t)(uint32_t)vr << 32);
         *o++ = (uint32_t)fl | ((uint64_t)(uint32_t)fr << 32);
+        /* G12.1 — le DSP 16 bits. */
+        *o++ = (uint32_t)d->sb_16_length | ((uint64_t)(uint32_t)d->sb_16_autolen << 32);
+        *o++ = (uint8_t)d->sb_16_format | ((uint64_t)(uint8_t)d->sb_16_autoinit << 8) | ((uint64_t)(uint8_t)d->sb_16_pause << 16) |
+               ((uint64_t)(uint8_t)d->sb_16_enable << 24) | ((uint64_t)(uint8_t)d->sb_16_output << 32) |
+               ((uint64_t)(uint8_t)d->sb_16_dmanum << 40);
+        *o++ = (uint8_t)d->sb_irq8 | ((uint64_t)(uint8_t)d->sb_irq16 << 8) | ((uint64_t)(uint32_t)d->sb_freq << 32);
+        *o++ = d->sblatchi;
+        *o++ = d->input_timer.ts_integer | ((uint64_t)d->input_timer.ts_frac << 32);
+        *o++ = (uint32_t)d->asp_data_len | ((uint64_t)(uint32_t)d->record_pos_read << 32);
+        *o++ = (uint32_t)d->record_pos_write;
+        *o++ = h_sb_fnv(d->sb_asp_regs, sizeof(d->sb_asp_regs));
+        *o++ = h_sb_fnv((const uint8_t *)low_fir_sb16_coef, sizeof(low_fir_sb16_coef));
+        *o++ = h_sb_fnv((const uint8_t *)d->record_buffer, sizeof(d->record_buffer));
+        /* G12.1 — le CT1745 (zéro pour les autres mélangeurs) ; `speaker` n'y entre pas (PB-152). */
+        if (kind == 3) {
+                sb_ct1745_mixer_t *m = &sb->mixer_sb16;
+                *o++ = (uint8_t)m->bass_l | ((uint64_t)(uint8_t)m->bass_r << 8) | ((uint64_t)(uint8_t)m->treble_l << 16) |
+                       ((uint64_t)(uint8_t)m->treble_r << 24) | ((uint64_t)(uint8_t)m->input_gain_L << 32) |
+                       ((uint64_t)(uint8_t)m->input_gain_R << 40) | ((uint64_t)(uint8_t)m->output_gain_L << 48) |
+                       ((uint64_t)(uint8_t)m->output_gain_R << 56);
+                *o++ = (uint16_t)m->output_selector | ((uint64_t)(uint16_t)m->input_selector_left << 16) |
+                       ((uint64_t)(uint16_t)m->input_selector_right << 32) | ((uint64_t)(uint16_t)m->mic << 48);
+                *o++ = (uint32_t)m->cd_l | ((uint64_t)(uint32_t)m->cd_r << 32);
+                *o++ = (uint32_t)m->line_l | ((uint64_t)(uint32_t)m->line_r << 32);
+        } else
+                o += 4;
+        /* G12.1 — le MPU-401 (zéro, par le memset, hors de la SB 16 et de l'AWE32) et la sortie MIDI. */
+        *o++ = sb->mpu.status | ((uint64_t)sb->mpu.rx_data << 8) | ((uint64_t)(uint8_t)sb->mpu.uart_mode << 16) |
+               ((uint64_t)sb->mpu.addr << 32) | ((uint64_t)(uint8_t)sb->mpu.irq << 48);
+        *o++ = h_midi_count;
+        *o++ = h_midi_hash;
+}
+
+/* G12.1 — sb16-filter-check : les 51 coefficients du FIR de la SB 16 (low_fir_sb16_coef), calculés par le vrai
+ * recalc_sb16_filter (static, sound_sb_dsp.c:79-105) à travers sb_exec_command (non static), sur un DSP de brouillon
+ * de type SB16 : 41h et sa fréquence (l'octet fort d'abord), ou 40h et sa constante de temps. sb_freq vaut -1, pour
+ * que le calcul ait lieu (:385, :400). Jamais une fréquence 0 (R9, PB-150). */
+void sb_exec_command(sb_dsp_t *dsp);
+void h_sb16_filter(int cmd, int val, float *out) {
+        static sb_dsp_t d;
+
+        memset(&d, 0, sizeof(d));
+        d.sb_type = SB16;
+        d.sb_freq = -1;
+        d.sb_command = cmd;
+        if (cmd == 0x41) {
+                d.sb_data[0] = val >> 8;
+                d.sb_data[1] = val & 0xff;
+        } else
+                d.sb_data[0] = val;
+        sb_exec_command(&d);
+        memcpy(out, low_fir_sb16_coef, sizeof(low_fir_sb16_coef));
 }
 
 void h_sound_probe(uint64_t *out) {

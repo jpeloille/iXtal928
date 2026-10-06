@@ -367,8 +367,9 @@ internal static partial class pc
         if (cpus is not null && cpu_c.cpu >= 0 && cpu_c.cpu < n)
         {
                 // G11.0 — la machine finale juge aussi la carte de disque : mêmes points d'appel, avant
-                //   toute poussée vers l'oracle.
+                //   toute poussée vers l'oracle. G12.1 : et la carte son.
                 check_hdd_controller();
+                check_sndcard();
                 return true;
         }
 
@@ -952,6 +953,7 @@ internal static partial class pc
         //   repartent de zéro à chaque amorçage, des deux côtés (h_boot) ; la configuration est reposée.
         Cdrom.cdrom_image.image_clear_state_for_oracle_parity();
         Sound.sound.sound_cd_raz();   // G10.5 — le fil CD, pendant de h_sound_cd_raz (harness.c)
+        Sound.sound_mpu401_uart.midi_raz();   // G12.1 — l'empreinte MIDI, pendant de h_midi_raz (harness_stubs.c)
         Cdrom.cdrom_ioctl.cdrom_drive = cfg_cdrom_drive;
         Cdrom.cdrom_ioctl.old_cdrom_drive = 0;
         Cdrom.cdrom_image.image_path = cfg_cdrom_path;
@@ -1084,6 +1086,32 @@ internal static partial class pc
                                             "SCSI sera vu vide ou faux (PCem ne dit rien).");
             }
         }
+    }
+
+    /// <summary>
+    /// G12.1 — la carte son contre la machine FINALE, comme check_hdd_controller (PLAN-G12.md, décision n° 4).
+    ///
+    /// DEVIATION (configuration) : PCem ne filtre ses cartes son que dans son écran, par le MCA et la ROM
+    ///   (wx-config.c:190-193). Une carte ISA 16 bits (la SB 16, l'AWE32 : drapeaux 0, sound_sb.c:1349-1352) sur une
+    ///   machine sans MODEL_AT n'aurait ni DMA 16 bits ni IRQ haute. Ici : un avertissement, et aucune carte son.
+    ///   Le MPU-401 de la SB 16 est fixe en 330h (sound_sb.c:1066) : une AHA-1542C réglée en 330h partagerait ses
+    ///   ports (io.c:106-109, les lectures en ET) ; PCem les monte toutes deux, comme le vrai matériel, et on avertit.
+    /// </summary>
+    internal static void check_sndcard()
+    {
+        var name = Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current);
+        if (!Host.SoundCards.IsAvailable(name))
+        {
+            Diag.R9.Garde("sound_sb.c:1349");
+            Console.Error.WriteLine($"sndcard = {name} : carte ISA 16 bits, refusée sur « {Models.model_c.model_get_internal_name()} » " +
+                                    "(8088/8086) ; aucune carte son.");
+            Sound.sound.sound_card_current = 0;
+            return;
+        }
+        if (Host.SoundCards.RequiresAtMachine(name) && cfg_hdd_controller == "aha1542c" &&
+            PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, Scsi.scsi_aha1540.scsi_aha1542c_device.name, "addr", 0x334) == 0x330)
+            Console.Error.WriteLine($"sndcard = {name} : le MPU-401 de la carte est fixe en 330h, où l'AHA-1542C est réglée ; " +
+                                    "les deux partagent les ports 330h et 331h (PCem ne dit rien).");
     }
 
     // G10.4 — deux configurations que PCem accepte sans rien dire : un cdrom_channel sans contrôleur IDE (resetide
@@ -1310,8 +1338,10 @@ internal static partial class pc
     internal static void pc_reset()
     {
         _808x.resetx86();
-        // omitted: dma_reset(), nvr_recalc() — hors périmètre 5150 minimal ; dma et
-        //   pic sont réarmés par leurs propres *_init().
+        // pcem: pc.c:179 — G12.1. Omis depuis M1.4 (« hors périmètre 5150 minimal »), des deux côtés : les canaux 4
+        //   à 7 gardaient size = 0 (dma.c:53), et le DMA 16 bits de la SB 16 transférait des octets (SB16BANC, ses
+        //   contrôles négatifs verts ; VERIFICATION.md § G12.1). nvr_recalc() n'existe pas en v18.
+        Models.dma.dma_reset();
         Floppy.fdc_c.fdc_reset();
         Models.pic.pic_reset();
         // pcem: pc.c:182 — M21.
