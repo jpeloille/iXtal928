@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 6 octobre 2026, G11 fait ; G12 en cours
+## Où on en est — 6 octobre 2026, G12 fait
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ── G10 ✅ ── G11 ✅ ──▶ [ICI] G12 ── G13 ── GR ── G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ── G11 ✅ ── G12 ✅ ──▶ [ICI] G13 ── GR ── G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -102,8 +102,16 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   16 bits est écrite : une carte DEVICE_AT n'est pas montée sur un 8088 ou un 8086. Livré avec sa
   clôture : le profil `ixtal26-486-scsi.cfg`, `--setup-check`, les témoins (VER, MEM, CHKDSK, MSD).
   PB-128 à PB-144.
-- **G12 à G17** attendent chacun un feu vert (G12 l'a reçu le 05/10, avec G11) ; **GR**, la reprise
-  de G9 et G10, vient après G13.
+- **G12, fait le 6 octobre 2026** : `PLAN-G12.md`, feu vert du 05/10, avec G11. Les Sound Blaster 1.0,
+  1.5, 2.0 et Pro v1 (le CT1335), la Sound Blaster 16 (le DSP 16 bits, le CT1745, le MPU-401, le FIR)
+  et l'AWE32 et son EMU8000, sous l'oracle : les sondes du son (62 champs), du DMA (29) et de
+  l'EMU8000 (72) ; les bancs SBBANC par carte, SB16BANC et AWEBANC ; le FIR, les tables et les noyaux
+  comparés au bit près. En chemin, `dma_reset()`, omis des deux côtés depuis M1.4, est rétabli. La
+  règle ISA 16 bits s'étend au son : la SB 16 et l'AWE32 refusées sur les machines 8 bits, l'AWE32
+  aussi sans sa ROM. Livré avec sa clôture : les profils `ixtal26-486-sb16.cfg` et `-awe32.cfg`,
+  l'écran de construction et `--setup-check`, les témoins (TEST-SBP sous l'oracle, Windows 3.11 et ses
+  pilotes SNDBLST). PB-145 à PB-167.
+- **G13 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
 
@@ -308,7 +316,7 @@ La carte est ISA 16 bits : elle est refusée avec avertissement sur les machines
 est écrite en G11 (`pc.check_hdd_controller`, décision n° 3 de `PLAN-G11.md`), pour toutes les cartes
 de disque DEVICE_AT ; G12 l'étend aux cartes son.
 
-### G12 — Les autres Sound Blaster (ISA)  *(décision utilisateur du 03/10 ; feu vert du 05/10, en cours : `PLAN-G12.md`)*
+### G12 — Les autres Sound Blaster (ISA)  ✅ *(`PLAN-G12.md`, fait le 6 octobre 2026)*
 
 SB 1.0, SB 1.5, SB 2.0, SB Pro v1, SB 16 et SB AWE32 (`sound_sb.c`, `sound_sb_dsp.c`, déjà en
 partie transcrits en G8).
@@ -325,20 +333,24 @@ partie transcrits en G8).
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; attend un feu vert)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
-après G10.0, mis à jour le 05/10 après G11 :
+après G10.0, mis à jour le 05/10 après G11, puis refaits le 06/10 après G12, entrée par entrée (le
+total écrit au 05/10, 78, ne suivait plus sa liste, qui en comptait 83 ; la liste des non-reproduits
+omettait 105, 110 et 113 à 116) :
 
-1. **Section A, les 78 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
-   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06), vidéo (04, 80, 89, 97, 99,
-   100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91, 92), souris (94, 95 —
-   PS2.0), ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
+1. **Section A, les 96 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
+   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06 ; 157, le 8237 haut — G12.1),
+   vidéo (04, 80, 89, 97, 99, 100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91,
+   92 ; 145 à 149, 153 à 155, 165 — G12), EMU8000 (158 à 160 — G12.2), souris (94, 95 — PS2.0),
+   ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
    matériel — G10.1), images CD (106, 107, 108, 109 — G10.3 ; 122 — G10.4 ; 123 — G10.5), lecteur
    de CD (117 à 120 — G10.4), lecteur ZIP (126 — G10.6), SCSI (129 à 133, 136 à 144 — G11).
-2. **Section B, les 9 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96.
-3. **Section C, 23 entrées sans effet observable** : nettoyage seulement, sans changement de
-   comportement (dont 134, G11).
+2. **Section B, les 14 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96 ; 151, 156, 162, 163,
+   164 (G12).
+3. **Section C, 24 entrées sans effet observable** : nettoyage seulement, sans changement de
+   comportement (dont 134, G11 ; 167, G12).
 
-Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 124, 125, 128, 135) sont déjà
-réglés.
+Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 105, 110, 113 à 116, 124,
+125, 128, 135, 150, 152, 161, 166) sont déjà réglés.
 
 **Principe, à confirmer au plan de G13** : chaque correction se fait derrière une option « mode
 matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` devient `pcem bug, fixed
@@ -380,11 +392,11 @@ G8  son                      ✅
 PS2 souris PS/2              ✅ transcrite, non offerte (03/10)
 G9  MDA, Hercules, EGA, ET4000   ✅
 G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ✅ le 486 complet (clôture : GR)
-G11 SCSI : AHA-1542C                    ┐
-G12 les autres Sound Blaster, AWE32     │ décisions utilisateur du 03/10
-G13 défauts de PCem, « mode matériel »  │ (GR : du 04/10) ;
-GR  reprise de G9 et G10, en profondeur │ chacun attend un feu vert
-G14 nommer les puces (Ics/)             │
+G11 SCSI : AHA-1542C                    ✅
+G12 les autres Sound Blaster, AWE32     ✅
+G13 défauts de PCem, « mode matériel »  ┐ décisions utilisateur du 03/10
+GR  reprise de G9 et G10, en profondeur │ (GR : du 04/10) ;
+G14 nommer les puces (Ics/)             │ chacun attend un feu vert
 G15 normaliser le C#, 0 % de perte      │
 G16 robustesse et confort               │
 G17 usage avancé, publication           ┘
@@ -446,12 +458,12 @@ qu'elle laisse (`PLAN-G10.md`, « Les risques »).
 - **GR.4 — La dette partagée avec G1, G7 et G8.** La M24 et le PC1512 ignorent `gfxcard` sans le
   dire, et l'écran SETUP leur offre toutes les cartes. `VENDORED.md`, `roms/roms.sha256` et
   `THIRD_PARTY_NOTICES.md:36` à mettre à jour avant G17 (les ROM de G7 et de G9, l'OPL de
-  DOSBox). Les registres : TRANSCRIPTION.md (la ligne `VIDEO_CARD`, `mouse_ps2.c`) ;
-  PCEM_BUGS.md (le champ *Effet* de PB-97, 99 et 100, PB-98 étendu à l'EGA, les totaux). Les
-  en-têtes et commentaires périmés (`video.cs:5-8` et `:67-73`, `device.cs:132-133`, les listes
-  de cartes de `UsageText` et du README). L'outil : le vidage `--boot` de l'EGA ; la phase 2 de
-  boot-diff, qui ne rejoue ni `--type` ni `--fdb` et accuse alors le hachage de trace à tort
-  (G10.0).
+  DOSBox ; G12 : `awe32.raw`, dont `BootDiff.cs` fige déjà l'empreinte). Les registres :
+  TRANSCRIPTION.md (la ligne `VIDEO_CARD`, `mouse_ps2.c`) ; PCEM_BUGS.md (le champ *Effet* de PB-97,
+  99 et 100, PB-98 étendu à l'EGA, les totaux). Les en-têtes et commentaires périmés (`video.cs:5-8`
+  et `:67-73`, `device.cs:132-133`, les listes de cartes de `UsageText` et du README). L'outil : le
+  vidage `--boot` de l'EGA ; la phase 2 de boot-diff, qui ne rejoue ni `--type` ni `--fdb` et accuse
+  alors le hachage de trace à tort (G10.0).
 - **GR.5 — Les documents.** VERIFICATION.md § GR, avec ses tableaux et une partie « ce que ce
   vert ne dit pas » ; l'en-tête « est fait » de PLAN-G8, G9 et G10, et « Les risques » pour
   PLAN-G9.

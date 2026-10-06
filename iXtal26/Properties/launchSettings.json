@@ -48,6 +48,14 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486-scsi.cfg"
     },
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, Sound Blaster 16, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-sb16.cfg"
+    },
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, Sound Blaster AWE32, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-awe32.cfg"
+    },
     "iXtal26 (Olivetti M24, 8086, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-m24.cfg"

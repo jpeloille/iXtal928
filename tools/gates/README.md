@@ -103,3 +103,5 @@ dite et `roms/awe32.raw` à l'empreinte des mesures ; la sonde de l'EMU8000 (72 
 AWE32 est montée. AWEBANC (`tools/awebanc`, GNU as) suit le patron de SB16BANC (`ami486-awe32-banc.cfg`) ;
 `emu8k-tables-check` compare les tables d'`emu8k_init`, `emu8k-kernel-check` les noyaux de la réverbération, du
 chorus et du volume sur des états fabriqués des deux côtés ; `r9-emu8k` et `r9-awecfg` sont en C# seul.
+Les témoins de G12.3 : `bd-ami486-sbpro2-testsbp`, `-sbpro1-`, `-sb16-` et `-awe32-testsbp` tapent TEST-SBP.EXE
+(`sbpro2-1.img` de la recette, en B:) sur la configuration de SB16BANC, la carte posée par `--sndcard`.

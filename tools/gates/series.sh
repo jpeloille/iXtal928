@@ -234,6 +234,19 @@ AWB=(); for l in "${AWK[@]}"; do AWB+=(--type "$l"); done
 runw bd-ami486-awe32-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-awe32-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AWB[@]}" --type "@wait 3000" --expect-aha --expect-sb 220,7,1,5 --expect-emu 620,512
 run r9-emu8k r9-emu8k
 run r9-awecfg r9-awecfg
+# G12.3 — les témoins, sous l'oracle : TEST-SBP.EXE 1.91 (la disquette 1 de la SB Pro v2, sbpro2-1.img de la recette
+# g5w, en B:), DOS 5 amorcé du disque SCSI de G11. Sur la Pro v2 et la Pro v1 : la détection (220h, l'IRQ 5 essayée
+# puis la 7, le DMA 1, la version du DSP), puis le menu entier — la musique FM à deux et à quatre opérateurs, le son
+# numérisé (14h) — et Échap. Sur la 16 et l'AWE32, le programme trouve 220h puis s'arrête sur « Error code: 0100 ».
+TSP=(--type "B:" --type "TEST-SBP" --type "@wait 300")
+for i in 1 2 3 4 5 6 7; do TSP+=(--type "" --type "@wait 300"); done
+TSP+=(--type "" --type "@wait 1500" --type $'\x19' --type "@wait 4000" --type $'\x19' --type "@wait 1500" --type $'\x1b' --type "@wait 300")
+TS16=(--type "B:" --type "TEST-SBP" --type "@wait 300")
+for i in 1 2 3 4; do TS16+=(--type "" --type "@wait 300"); done
+runw bd-ami486-sbpro2-testsbp aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --sndcard sbprov2 --fdb "$WORK/sbpro2-1.img" --type-at 3000 --type-settle 40 --type "" --type "" "${TSP[@]}" --expect-aha --expect-sb 220,7,1
+runw bd-ami486-sbpro1-testsbp aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --sndcard sbprov1 --fdb "$WORK/sbpro2-1.img" --type-at 3000 --type-settle 40 --type "" --type "" "${TSP[@]}" --expect-aha --expect-sb 220,7,1
+runw bd-ami486-sb16-testsbp aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --fdb "$WORK/sbpro2-1.img" --type-at 3000 --type-settle 40 --type "" --type "" "${TS16[@]}" --expect-aha --expect-sb 220,7,1,5
+runw bd-ami486-awe32-testsbp aha486.nvr ami486 boot-diff roms 3000 --config ami486-awe32-banc.cfg --fdb "$WORK/sbpro2-1.img" --type-at 3000 --type-settle 40 --type "" --type "" "${TS16[@]}" --expect-aha --expect-sb 220,7,1,5 --expect-emu 620,512
 # PS2.0, PS2.1 — la souris PS/2 (mouse_ps2.c) par le 8042. Aucune machine du dépôt n'a MODEL_PS2
 # (leurs BIOS AMI ne rendent pas INT 15h C2h ; décision utilisateur du 03/10, VERIFICATION.md
 # § PS2.1) : la souris PS/2 et l'Intellimouse demandées sont refusées, la série à leur place —

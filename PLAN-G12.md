@@ -1,5 +1,7 @@
 # G12 — Les autres Sound Blaster : 1.0, 1.5, 2.0, Pro v1, 16 et AWE32 ; le plan, sur reconnaissance
 
+> **G12 est fait** (6 octobre 2026) : G12.0 à G12.3, VERIFICATION.md §§ G12.0 à G12.3 ; PB-145 à PB-167.
+
 > Écrit le 6 octobre 2026. Bloc G12 de `PLAN.md` (décision utilisateur du 03/10). Feu vert le 05/10, avec
 > G11, « en totale autonomie » : les décisions de la fin de fichier sont prises sous ce mandat, chacune datée.
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré. Reconnaissance : trois
@@ -123,7 +125,7 @@ et leurs tests sont en C# seul.
 
 ## Les étapes
 
-### G12.0 — Le socle, et les quatre cartes 8 bits : SB 1.0, 1.5, 2.0 et Pro v1
+### G12.0 — Le socle, et les quatre cartes 8 bits : SB 1.0, 1.5, 2.0 et Pro v1  ✅ *fait, VERIFICATION.md § G12.0*
 
 - **Le registre** gagne `sc_sb`, `sc_sb1_5`, `sc_sb2_0` et `sc_sbprov1`, à leur place relative
   (`sound.c:270-291`).
@@ -147,7 +149,7 @@ et leurs tests sont en C# seul.
 - **Contrôles négatifs** : le reset du CT1335 sans `sound_set_cd_volume` ; une garde de version déplacée ; un
   octet du mélangeur changé côté C# seul (la sonde mord).
 
-### G12.1 — La Sound Blaster 16
+### G12.1 — La Sound Blaster 16  ✅ *fait, VERIFICATION.md § G12.1*
 
 - **La règle ISA 16 bits pour le son** : `pc.check_sndcard`, appelé par `check_cpu` à côté de
   `check_hdd_controller`, sur une table hôte (`Host/SoundCards.cs`, `RequiresAtMachine`) (décision n° 4).
@@ -179,7 +181,7 @@ et leurs tests sont en C# seul.
 - **Contrôles négatifs** : l'aide de conversion remplacée par le transtypage .NET ; l'alias rendu nul ; un ulp
   sur le gain du FIR ; `ac + 1` au lieu de `ac + 2` dans le 8237 haut ; la sonde mord.
 
-### G12.2 — L'AWE32 et l'EMU8000
+### G12.2 — L'AWE32 et l'EMU8000  ✅ *fait, VERIFICATION.md § G12.2*
 
 - **`Sound/sound_emu8k.cs`** : les régions vivantes de `sound_emu8k.c` et `.h`, les unions en structures à
   disposition explicite, la mémoire en un seul tableau (décision n° 15). L'aide de conversion aux six sites de
@@ -203,7 +205,7 @@ et leurs tests sont en C# seul.
 - **Contrôles négatifs** : `>> 8` dans `emu8k_inb` ; la conversion .NET dans un peigne ; une voix permutée dans
   la sonde.
 
-### G12.3 — La clôture : les machines et les témoins ; G12 fait
+### G12.3 — La clôture : les machines et les témoins ; G12 fait  ✅ *fait, VERIFICATION.md § G12.3*
 
 - **Les profils** : `ixtal26-486-sb16.cfg` et `ixtal26-486-awe32.cfg`, et leurs lignes dans
   `launchSettings.json`.
@@ -216,7 +218,12 @@ et leurs tests sont en C# seul.
   - les voix numérisées de Chuck Yeager's Air Combat (`os/yeager.img`) ;
   - le comportement surprenant rejoué sous boot-diff : la SB 2.0 sans mélangeur et son CD muet, la pause de
     D1h sur la 1.0.
-- **Les originaux intacts** : `os.sha256`, `g5w.sha256`.
+
+  *(À l'exécution : TEST-SBP devient quatre portes de la série, `bd-ami486-*-testsbp`. Sur la 16 et l'AWE32, il
+  s'arrête après la détection sur « Error code: 0100 », des deux côtés. Windows est mené en C# seul, comme en G8.
+  Yeager s'arrête sur sa question de sécurité, tirée d'un manuel que nous n'avons pas. Le comportement
+  surprenant est déjà rejoué à chaque série par deux portes de G12.0, `bd-pc-sb20` et `bd-pc-sb1-banc`.)*
+- **Les originaux intacts** : `os.sha256`, `g5w.sha256` (ajout seulement : `sbpro2-1.img`).
 - **La série complète.**
 
 ## La vérification

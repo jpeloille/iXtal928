@@ -6,7 +6,7 @@
 //         + wx-config.c:658-675 (choix de la machine), :742-753 (mémoire, bornée et
 //         granulée par le modèle), :773-792 (types de lecteurs), :2038-2120 (assigner
 //         une image de disque dur existante), :139-161 (la carte vidéo, filtrée par
-//         video_card_available)
+//         video_card_available), :190-193 (la carte son, filtrée par sound_card_available)
 // STATUS: host
 //
 // CONSTRUIRE LA MACHINE AVANT DE LA LANCER.
@@ -29,10 +29,11 @@
 //   d'un mécanisme délicat. L'écran liste os/, ce qui est la demande — « issu de ma
 //   liste disponible » — et --floppy-a / --hdd prennent un chemin quelconque.
 // omitted: tout ce que la boîte de PCem règle et que ces machines n'ont pas — CPU, FPU,
-//   dynarec, waitstates, carte son, CD-ROM, ZIP, LPT, souris, joystick, réseau
+//   dynarec, waitstates, CD-ROM, ZIP, LPT, souris, joystick, réseau
 //   (wx-config.c, pages 0 à 7). Les proposer serait proposer des machines qui
 //   n'existent pas dans ce dépôt. La CARTE VIDÉO, elle, est proposée depuis M15 : deux
-//   cartes y sont transcrites, la CGA et la VGA. Les clés du CD-ROM (G10.4) sont
+//   cartes y sont transcrites, la CGA et la VGA. La CARTE SON l'est depuis G12.3, filtrée
+//   par Host/SoundCards (PLAN-G12.md, décision n° 18). Les clés du CD-ROM (G10.4) sont
 //   enregistrées sans ligne à l'écran (GR.3, G16).
 
 using iXtal26.PluginApi;
@@ -45,7 +46,7 @@ internal sealed class SdlSetup
     /// <summary>Les lignes que l'écran principal propose, dans l'ordre d'affichage.</summary>
     private enum Item
     {
-        Model, Memory, Video, FloppyA, FloppyB, Controller, DiskC, DiskD, Load, Save, Start,
+        Model, Memory, Video, Sound, FloppyA, FloppyB, Controller, DiskC, DiskD, Load, Save, Start,
     }
 
     private enum Screen { Main, Pick, CreateHdd }
@@ -61,7 +62,7 @@ internal sealed class SdlSetup
 
     private static readonly Item[] MainItems =
     [
-        Item.Model, Item.Memory, Item.Video, Item.FloppyA, Item.FloppyB, Item.Controller,
+        Item.Model, Item.Memory, Item.Video, Item.Sound, Item.FloppyA, Item.FloppyB, Item.Controller,
         Item.DiskC, Item.DiskD, Item.Load, Item.Save, Item.Start,
     ];
 
@@ -230,6 +231,7 @@ internal sealed class SdlSetup
             case Item.Model: BuildModelList(); break;
             case Item.Memory: BuildMemoryList(); break;
             case Item.Video: BuildVideoList(); break;
+            case Item.Sound: BuildSoundList(); break;
             case Item.FloppyA or Item.FloppyB: BuildImageList(item); break;
             case Item.Controller: BuildControllerList(); break;
             case Item.DiskC or Item.DiskD: BuildImageList(item); break;
@@ -329,6 +331,36 @@ internal sealed class SdlSetup
         }
 
         _pickTitle = " Carte video";
+        _pickLabels = labels.ToArray();
+        _pickValues = values.ToArray();
+    }
+
+    /// <summary>
+    /// pcem: wx-config.c:190-193 — les cartes son du registre que sound_card_available déclare présentes (l'AWE32 et
+    /// sa ROM), et G12.3 : filtrées aussi par la règle ISA 16 bits de Host/SoundCards, la même que pc.check_sndcard
+    /// applique au démarrage (PLAN-G12.md, décisions n° 4, 5 et 18). Les chemins de ROM sont posés ici, comme pour
+    /// la carte vidéo.
+    /// </summary>
+    private void BuildSoundList()
+    {
+        var labels = new List<string>();
+        var values = new List<string>();
+
+        paths.set_roms_paths(_romsPath);
+
+        foreach (var card in Sound.sound.sound_cards)
+        {
+            if (!SoundCards.IsAvailable(card.internal_name))
+                continue;
+
+            labels.Add($"   {card.name}");
+            values.Add(card.internal_name);
+
+            if (card.internal_name == Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current))
+                _pickIndex = labels.Count - 1;
+        }
+
+        _pickTitle = " Carte son";
         _pickLabels = labels.ToArray();
         _pickValues = values.ToArray();
     }
@@ -527,6 +559,7 @@ internal sealed class SdlSetup
 
                 ClampCpu();
                 ClampController();
+                ClampSound();
                 break;
 
             case Item.Memory:
@@ -536,6 +569,11 @@ internal sealed class SdlSetup
             case Item.Video:
                 // La liste vient du registre lui-même : setgfxcard ne peut pas refuser.
                 pc.setgfxcard(value);
+                break;
+
+            case Item.Sound:
+                // De même : la liste vient du registre, setsndcard ne peut pas refuser.
+                pc.setsndcard(value);
                 break;
 
             case Item.FloppyA:
@@ -590,6 +628,24 @@ internal sealed class SdlSetup
 
         string replacement = pc.cfg_hdd_controller.Length == 0 ? "aucun" : pc.cfg_hdd_controller;
         string note = $"{previous} absent de cette machine : controleur {replacement}.";
+
+        _message = _message.Length == 0 ? note : $"{_message} {note}";
+    }
+
+    /// <summary>
+    /// G12.3 — après un changement de modèle, la carte son peut ne plus être admise : la SB 16 et l'AWE32 quittent
+    /// la liste sur une machine sans MODEL_AT. Comme pc.check_sndcard au démarrage : aucune carte son, et on le dit.
+    /// </summary>
+    private void ClampSound()
+    {
+        string current = Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current);
+
+        if (SoundCards.IsAvailable(current))
+            return;
+
+        pc.setsndcard("");
+
+        string note = $"{current} absente de cette machine : aucune carte son.";
 
         _message = _message.Length == 0 ? note : $"{_message} {note}";
     }
@@ -789,6 +845,9 @@ internal sealed class SdlSetup
         // pcem: pc.c:879
         config.config_set_string(config.CFG_MACHINE, null, "gfxcard",
                                  Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)));
+        // pcem: pc.c:881 — G12.3 : sans elle, une machine enregistrée perdait sa carte son.
+        config.config_set_string(config.CFG_MACHINE, null, "sndcard",
+                                 Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
         config.config_set_int(config.CFG_MACHINE, null, "drive_a_type", pc.cfg_drive_type[0]);
         config.config_set_int(config.CFG_MACHINE, null, "drive_b_type", pc.cfg_drive_type[1]);
 
@@ -1010,6 +1069,9 @@ internal sealed class SdlSetup
             case Item.Video:
                 return Field("Video", Video.video.video_card_getname(Video.video.video_old_to_new(pc.gfxcard)));
 
+            case Item.Sound:
+                return Field("Son", Sound.sound.sound_cards[Sound.sound.sound_card_current].name);
+
             case Item.FloppyA:
                 return Field("Lecteur A:", ShortName(Floppy.fdd_c.discfns[0], "(vide)"));
 
@@ -1089,12 +1151,13 @@ internal sealed class SdlSetup
     internal static int SelfCheck(string romsPath)
     {
         var st = new SdlSetup(IntPtr.Zero, IntPtr.Zero, romsPath);
-        int fail = 0;
+        int fail = 0, total = 0;
 
         void Check(string what, bool ok, string got)
         {
             Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] {what} : {got}");
 
+            total++;
             if (!ok)
                     fail++;
         }
@@ -1242,6 +1305,82 @@ internal sealed class SdlSetup
         pc.setmodel(Models.model_c.models[modelBefore].internal_name);
         pc.cfg_hdd_controller = controllerBefore;
 
+        // G12.3 — la carte son : la règle ISA 16 bits et la ROM de l'AWE32 (PLAN-G12.md, décisions n° 4, 5 et 18).
+        Console.WriteLine();
+        Console.WriteLine("Carte son, filtrée sur la machine et sur la ROM de l'AWE32 :");
+
+        int soundBefore = Sound.sound.sound_card_current;
+        string awe = Path.Combine(paths.resolve_roms_path(romsPath) is { Length: > 0 } r ? r : romsPath, "awe32.raw");
+        // La taille se lit sur le fichier ouvert, comme dans Host/SoundCards (romfopen) : FileInfo.Length rendrait
+        // celle d'un lien symbolique, pas celle de sa cible (les ROM d'un worktree sont des liens).
+        bool romAwe;
+        try
+        {
+            using var fs = File.OpenRead(awe);
+            romAwe = fs.Length == 1024 * 1024;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            romAwe = false;
+        }
+
+        st.Activate(Item.Model);
+        st._pickIndex = Array.IndexOf(st._pickValues, "ami486");
+        st.ApplyPick();
+
+        st.Activate(Item.Sound);
+        Check("la SB 16 est proposée sur l'ami486", Array.IndexOf(st._pickValues, "sb16") >= 0,
+              $"{string.Join(",", st._pickValues)}");
+        int aweIndex = Array.IndexOf(st._pickValues, "sbawe32");
+        Check(romAwe ? "l'AWE32 est proposée sur l'ami486, roms/awe32.raw présente"
+                     : "l'AWE32 est absente de l'ami486, roms/awe32.raw manquante", (aweIndex >= 0) == romAwe,
+              $"{string.Join(",", st._pickValues)}");
+        st._pickIndex = Math.Max(Array.IndexOf(st._pickValues, romAwe ? "sbawe32" : "sb16"), 0);
+        st.ApplyPick();
+        string choisie = romAwe ? "sbawe32" : "sb16";
+        Check($"la choisir pose sndcard = {choisie}",
+              Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current) == choisie,
+              $"ligne « {MainLine(Item.Sound).Trim()} »");
+
+        st.Activate(Item.Model);
+        st._pickIndex = Array.IndexOf(st._pickValues, "ibmxt");
+        st.ApplyPick();
+        Check("passer au XT ramène la carte son à aucune, et le dit", Sound.sound.sound_card_current == 0 &&
+              st._message.Contains("aucune carte son"), $"ligne « {MainLine(Item.Sound).Trim()} », message « {st._message} »");
+
+        st.Activate(Item.Sound);
+        Check("la SB 16 et l'AWE32 sont absentes du XT (règle ISA 16 bits)",
+              Array.IndexOf(st._pickValues, "sb16") < 0 && Array.IndexOf(st._pickValues, "sbawe32") < 0,
+              $"{string.Join(",", st._pickValues)}");
+        Check("la SB Pro v2 reste proposée sur le XT", Array.IndexOf(st._pickValues, "sbprov2") >= 0,
+              $"{string.Join(",", st._pickValues)}");
+        st._screen = Screen.Main;
+
+        // Sans la ROM : un chemin de ROM où tout est là sauf awe32.raw.
+        string sansRom = Path.Combine(Path.GetTempPath(), $"setup-check-roms-{Environment.ProcessId}");
+        try
+        {
+            string reel = paths.resolve_roms_path(romsPath) is { Length: > 0 } rr ? rr : romsPath;
+            Directory.CreateDirectory(sansRom);
+            foreach (var f in Directory.EnumerateFileSystemEntries(reel))
+                if (Path.GetFileName(f) != "awe32.raw")
+                    File.CreateSymbolicLink(Path.Combine(sansRom, Path.GetFileName(f)), Path.GetFullPath(f));
+            var st2 = new SdlSetup(IntPtr.Zero, IntPtr.Zero, sansRom);
+            pc.setmodel("ami486");
+            st2.Activate(Item.Sound);
+            Check("sans roms/awe32.raw, l'AWE32 est absente de l'ami486, la SB 16 proposée",
+                  Array.IndexOf(st2._pickValues, "sbawe32") < 0 && Array.IndexOf(st2._pickValues, "sb16") >= 0,
+                  $"{string.Join(",", st2._pickValues)}");
+        }
+        finally
+        {
+            Directory.Delete(sansRom, true);
+            paths.set_roms_paths(romsPath);
+        }
+
+        pc.setmodel(Models.model_c.models[modelBefore].internal_name);
+        Sound.sound.sound_card_current = soundBefore;
+
         Console.WriteLine();
         Console.WriteLine("Chemin clavier de l'écran principal :");
 
@@ -1271,8 +1410,8 @@ internal sealed class SdlSetup
 
         Console.WriteLine();
         Console.WriteLine(fail == 0
-            ? "Vert : les vingt-trois contrôles passent."
-            : $"{fail} contrôle(s) en échec.");
+            ? $"Vert : les {total} contrôles passent."
+            : $"{fail} contrôle(s) en échec sur {total}.");
 
         return fail == 0 ? 0 : 1;
     }

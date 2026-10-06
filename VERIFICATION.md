@@ -7071,3 +7071,70 @@ de zéro : 234 portes, 224 vertes en 58 minutes. Dix traces ont été tronquées
 sur la machine : à dix voies, les bancs longs dépassent désormais le quota à eux seuls. Rejouées seules sur trois
 voies (g125b), elles sont vertes, avec les comptes de g124. Verdict par verdict contre g124 : la porte `abi` lit 56,
 neuf portes sont neuves, et rien d'autre ne change.
+
+## G12.3 — La clôture : les machines et les témoins ; G12 fait
+
+**Les profils** : `ixtal26-486-sb16.cfg` et `ixtal26-486-awe32.cfg`, l'ami486 de `ixtal26-486.cfg` (le disque IDE,
+la GD5429) avec la SB 16 ou l'AWE32, et leurs lignes dans `launchSettings.json`. Ils partagent le disque et le CMOS
+de `ixtal26-486.cfg`. Leurs en-têtes disent la ligne BLASTER (`A220 I7 D1 H5 P330 T6`, `E620` pour l'AWE32), l'IRQ 7
+que rien ne règle (PB-153) et la ROM de l'AWE32 à fournir (PB-166).
+
+**L'écran de construction** propose la carte son, filtrée par `Host/SoundCards` (décision n° 18) : la liste du
+registre, moins les cartes ISA 16 bits sur une machine sans MODEL_AT et moins l'AWE32 sans sa ROM. Après un
+changement de modèle, une carte qui n'est plus admise revient à « aucune », et l'écran le dit. La machine
+enregistrée garde sa carte (`sndcard`, `pc.c:881`), ce qu'elle ne faisait pas. `--setup-check` gagne sept contrôles :
+- la SB 16 et l'AWE32 proposées sur l'ami486, et la choisir pose `sndcard` ;
+- le passage au XT ramène la carte à « aucune » et le dit ; la SB 16 et l'AWE32 sont absentes de la liste du XT,
+  la Pro v2 y reste ;
+- sans `awe32.raw`, l'AWE32 est absente de la liste de l'ami486, la SB 16 y reste.
+Le message final compte désormais ses contrôles au lieu d'un nombre écrit en dur : 32 verts. Le contrôle de la ROM
+de l'AWE32 lit la taille sur le fichier ouvert, comme `Host/SoundCards` : par `FileInfo.Length`, il mesurait le
+lien et non sa cible, et il échouait dans un worktree dont les ROM sont des liens.
+
+**Les témoins.**
+- **TEST-SBP.EXE 1.91**, la disquette 1 de la SB Pro v2 (`sbpro2-1.img`, ajoutée à la recette g5w), lancé en B:
+  sous DOS 5 amorcé du disque SCSI de G11, sur la configuration de SB16BANC, la carte posée par `--sndcard`.
+  Quatre portes de la série, sous l'oracle, les sondes du son, du DMA et de l'AHA-1542C identiques :
+
+| Porte | Instructions identiques | Ce que fait le programme |
+|---|---:|---|
+| `bd-ami486-sbpro2-testsbp` | 36 919 568 | 220h ; l'IRQ 5 essayée, puis la 7 ; le DMA 1 ; le DSP 3.02 ; la musique FM à deux et à quatre opérateurs ; le son numérisé ; Échap |
+| `bd-ami486-sbpro1-testsbp` | 36 920 629 | de même, avec le DSP 3.00 |
+| `bd-ami486-sb16-testsbp` | 13 649 911 | 220h, puis « Error Found — Error code: 0100 » à l'entrée du test d'interruption, et le retour à DOS |
+| `bd-ami486-awe32-testsbp` | 13 649 911 | de même ; l'EMU8000 et ses 72 champs identiques |
+
+  En C# seul (`--boot`, `@son`), le son numérisé de TEST-SBP est un DMA 8 bits simple (14h), de 4 679 octets sur la
+  Pro v2 et de 4 694 sur la Pro v1, à la constante D2h (21,7 kHz), haut-parleur allumé. La disquette ne documente
+  pas le code 0100 : TEST-SBP est le test de la SB Pro, et la SB 16 et l'AWE32 ne l'achèvent pas, des deux côtés.
+- **Windows 3.11**, en C# seul (`--boot`), comme en G8 : une copie du disque 486 de l'utilisateur, `KEYB FR`
+  retiré, le CMOS copié, la S3 Trio64 en 1024×768. Le `SYSTEM.INI` de la copie reçoit le pilote de Microsoft,
+  `VSBD.386` et l'IRQ 7 ; les pilotes sont décompressés par EXPAND dans l'invité, depuis des copies des
+  disquettes 4 et 5. Après le son de démarrage (CHIMES.WAV) :
+
+| Carte | Pilote | Ce que le DSP a reçu |
+|---|---|---|
+| SB 1.0 | SNDBLST.DRV | un DMA 8 bits simple (14h), la constante D3h (22 kHz), le haut-parleur allumé ; pas de mélangeur |
+| SB 2.0 | SNDBLST2.DRV | le DMA 8 bits automatique de 2 048 octets, D3h, la pause de D0h en fin de son ; le CT1335 |
+| SB 16 | SNDBLST2.DRV | de même ; le CT1745, et le DSP 16 bits au repos, sa fréquence tirée de la constante (22 222 Hz) |
+
+  Program Manager s'ouvre sans message, et l'écran est identique au pixel près sur les trois cartes.
+- **Chuck Yeager's Air Combat 1.1** (`os/yeager.img`, sur copie), sur la Pro v2, DOS 5 du disque SCSI : le
+  programme pose d'emblée sa question de sécurité, tirée de son manuel (« What is the height in feet of the
+  P-47D? »). Une réponse essayée, 14, est refusée, et une autre question suit (la vitesse du FW-190A-8). Aucun
+  DMA n'a encore été lancé vers le DSP. Sans le manuel, ce témoin s'arrête là, comme en G8.
+- **Le comportement surprenant** est déjà rejoué sous boot-diff, à chaque série, par deux portes de G12.0 :
+  `bd-pc-sb20`, dont la sonde compare le volume CD que pose la SB 2.0 sans mélangeur (20 sur 65 535, PB-145 ; le
+  contrôle négatif de § G12.0 la fait rougir), et `bd-pc-sb1-banc`, où SBBANC envoie D1h après le lancement d'un
+  DMA sur la SB 1.0 (la pause, PB-147).
+- **La limite** (décision n° 21) : aucun logiciel SB 16 ni AWE32 sur les disques de l'utilisateur. Le DSP 4.xx et
+  l'EMU8000 n'ont pour preuves que SB16BANC, AWEBANC et les contrôles de l'oracle ; TEST-SBP n'en montre que le
+  refus.
+
+**Les originaux.** `os/os.sha256` : les 153 images vérifiées, aucune n'a changé. `g5w.sha256` : la recette,
+rejouée dans un espace neuf, rend les 22 empreintes de G12.2 à l'identique, plus celle de `sbpro2-1.img`
+(`93956ab2…`), la seule ligne ajoutée.
+
+**La série.** g126 tourne sur le worktree de G12.3, l'état commité, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit
+de zéro, dans un espace des portes neuf (la recette de G12.3), son `TMPDIR` sur le disque (`/var/tmp/ixtal-par/g126`) :
+238 portes, toutes vertes, en 58 minutes, aucune trace tronquée. Verdict par verdict contre g125 et g125b : les
+quatre portes de TEST-SBP sont neuves, et rien d'autre ne change.

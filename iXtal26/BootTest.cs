@@ -129,8 +129,33 @@ public static class BootTest
                                   $"8 bits enable {d.sb_8_enable} autoinit {d.sb_8_autoinit} length {d.sb_8_length} " +
                                   $"autolen {d.sb_8_autolen} pause {d.sb_8_pause}, haut-parleur {d.sb_speaker}, " +
                                   $"IRQ 8 bits en attente {d.sb_irq8}, temps {d.sb_timeo:X}");
-                Console.WriteLine($"  mélangeur : maître {sb.mixer_sbpro.master_l}/{sb.mixer_sbpro.master_r}, " +
-                                  $"voix {sb.mixer_sbpro.voice_l}/{sb.mixer_sbpro.voice_r}, FM {sb.mixer_sbpro.fm_l}/{sb.mixer_sbpro.fm_r}");
+                // G12.3 — le mélangeur de la carte (MixerKind), le DSP 16 bits et l'EMU8000.
+                switch (Sound.sound_sb.MixerKind(d.sb_type))
+                {
+                    case 1:
+                        Console.WriteLine($"  mélangeur CT1335 : maître {sb.mixer_sb2.master}, voix {sb.mixer_sb2.voice}, FM {sb.mixer_sb2.fm}");
+                        break;
+                    case 2:
+                        Console.WriteLine($"  mélangeur CT1345 : maître {sb.mixer_sbpro.master_l}/{sb.mixer_sbpro.master_r}, " +
+                                          $"voix {sb.mixer_sbpro.voice_l}/{sb.mixer_sbpro.voice_r}, FM {sb.mixer_sbpro.fm_l}/{sb.mixer_sbpro.fm_r}");
+                        break;
+                    case 3:
+                        Console.WriteLine($"  mélangeur CT1745 : maître {sb.mixer_sb16.master_l}/{sb.mixer_sb16.master_r}, " +
+                                          $"voix {sb.mixer_sb16.voice_l}/{sb.mixer_sb16.voice_r}, FM {sb.mixer_sb16.fm_l}/{sb.mixer_sb16.fm_r}");
+                        Console.WriteLine($"  DSP 16 bits : DMA {d.sb_16_dmanum}, enable {d.sb_16_enable} autoinit {d.sb_16_autoinit} " +
+                                          $"length {d.sb_16_length} autolen {d.sb_16_autolen}, IRQ 16 bits en attente {d.sb_irq16}, " +
+                                          $"fréquence {d.sb_freq}");
+                        break;
+                    default:
+                        Console.WriteLine("  sans mélangeur");
+                        break;
+                }
+                if (sb.emu8k is { } e)
+                {
+                    var actives = e.voice.Count(v => v.cvcf_u.cvcf_curr_volume != 0);
+                    Console.WriteLine($"  EMU8000 : WC {e.wc}, voix sonnantes {actives}, hwcf {e.hwcf1:X2}/{e.hwcf2:X2}/{e.hwcf3:X2}, " +
+                                      $"RAM {(e.ram_end_addr - 0x200000) >> 9} Ko");
+                }
             }
             return;
         }
