@@ -183,7 +183,7 @@ moitiés hautes d'une TSS de 16 bits, les bits exacts des transcendantes, le bus
 Une série entière par étape qui change l'émulateur, une seule à la fois ; un sous-ensemble ciblé sinon ; un commit par
 étape dès sa série verte. Estimation : une vingtaine de séries entières pour tout G13.
 
-### G13.0 — Ce qui n'attend pas : R9 et les fichiers de l'utilisateur, dans les deux modes
+### G13.0 — Ce qui n'attend pas : R9 et les fichiers de l'utilisateur, dans les deux modes  ✅ *fait, VERIFICATION.md § G13.0*
 
 - PB-09 : le `charbuffer` de 512 octets ; `r9-cga` (R1 = 129, 200 et 255 ; 3D8h = 01h puis 29h) et `r9-m24`.
 - PB-17 et ses deux voisins : la lecture bornée (99 840 octets par piste au plus) ou l'image refusée avec un

@@ -35,7 +35,11 @@ namespace iXtal26.Disc;
 internal sealed class img_t
 {
     internal FileStream? f;
-    internal uint8_t[][] track_data = { new uint8_t[20 * 1024], new uint8_t[20 * 1024] };
+    // pcem bug, not reproduced: PB-17 — DEVIATION (R9, G13.0) : 195 × 512 octets par face au lieu de 20 Ko
+    //   (disc_img.c:9). img_seek lit sectors × sector_size octets, sector_size forcé à 512 ; une BPB admise annonce
+    //   au plus 25 000 octets par piste, en secteurs d'au moins 128 octets : 195 secteurs. Au-delà de 20 Ko (dès 41
+    //   secteurs, les XDF à densité étendue comprises), PCem écrit hors du tableau et le C# levait à l'insertion.
+    internal uint8_t[][] track_data = { new uint8_t[195 * 512], new uint8_t[195 * 512] };
     internal int sectors, tracks, sides;
     internal int sector_size;
     internal int rate;
@@ -48,6 +52,10 @@ internal static partial class disc_img
 {
     // pcem: disc_img.c:7-16
     private static img_t[] img = { new(), new() };
+
+    // DEVIATION (hôte, G13.0) : le filet des images (Host/FiletImages.cs) pousse ce qu'img_writeback a écrit sans
+    //   Flush, quand le processus finit sans passer par closepc.
+    internal static void img_vider_tampon(int drive) => img[drive].f?.Flush();
 
     // pcem: disc_img.c:18-20
     // DEVIATION: tableaux en escalier plutôt que rectangulaires, pour qu'add_to_map
@@ -231,7 +239,10 @@ internal static partial class disc_img
         img[drive].f.Seek(0x1A, SeekOrigin.Begin);
         bpb_sides = (uint8_t)img[drive].f.ReadByte();
 
-        img[drive].f.Seek(-1, SeekOrigin.End);
+        // DEVIATION: fseek(f, -1, SEEK_END) échoue sur un fichier vide et laisse la position à 0 ; Seek lèverait
+        //   (G13.0 : une faute de transcription, PCem survit).
+        if (img[drive].f.Length > 0)
+                img[drive].f.Seek(-1, SeekOrigin.End);
         size = (int)img[drive].f.Position + 1;
 
         img[drive].sides = 2;
@@ -239,7 +250,12 @@ internal static partial class disc_img
 
         // omitted: pclog("BPB reports %i sides and %i bytes per sector\n", ...) — sortie pure
 
-        if (bpb_disable != 0 || (bpb_sides < 1) || (bpb_sides > 2) || (bpb_bps < 128) || (bpb_bps > 2048))
+        // pcem bug, not reproduced: PB-168 — DEVIATION (R9, G13.0) : une BPB par ailleurs valide qui annonce 0 secteur
+        //   par piste fait diviser par zéro (disc_img.c:219, SIGFPE) ; elle est traitée comme une BPB fantaisiste, la
+        //   géométrie déduite de la taille du fichier.
+        if (bpb_disable == 0 && bpb_sides >= 1 && bpb_sides <= 2 && bpb_bps >= 128 && bpb_bps <= 2048 && bpb_sectors == 0)
+                Diag.R9.Garde("disc_img.c:219");
+        if (bpb_disable != 0 || (bpb_sides < 1) || (bpb_sides > 2) || (bpb_bps < 128) || (bpb_bps > 2048) || bpb_sectors == 0)
         {
                 /* The BPB is giving us a wacky number of sides and/or bytes per sector, therefore it is most probably
                    not a BPB at all, so we have to guess the parameters from file size. */
@@ -451,8 +467,7 @@ internal static partial class disc_img
         // omitted: pclog("Disk seeked to track %i\n", track) — sortie pure
         disc_track[drive] = track;
 
-        // pcem bug, reproduced: PB-17 — track_data fait 20 Ko, une piste XDF ED en
-        //   demande 23 552 ; le C déborde, le C# lève.
+        // pcem bug, not reproduced: PB-17 — track_data fait 195 × 512 octets par face (R9).
         if (img[drive].sides == 2)
         {
                 img[drive].f.Seek(track * img[drive].sectors * img[drive].sector_size * 2, SeekOrigin.Begin);

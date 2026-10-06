@@ -419,3 +419,13 @@ AHBB=(); for l in "${AHK[@]}"; do AHBB+=(--type "$l"); done
 runw bd-ami486-aha-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AHBB[@]}" --type "@wait 1500" --expect-aha
 run r9-aha r9-aha
 run r9-scsihd r9-scsihd
+# G13.0 — ce qui n'attendait pas G13 (PLAN-G13.md), en C# seul. r9-cga et r9-m24 : R1 au-delà de 128 en 80 colonnes
+# (PB-09, le tampon de la CGA à 512 octets ; PB-88, la garde de la M24 atteinte). r9-disquette : une piste de plus de
+# 20 Ko (PB-17), une BPB à 0 secteur par piste (PB-168), un fichier vide. reset-scsi-check : l'image SCSI à travers un
+# reset matériel (PB-121). r9-filet : savenvr sans nvr/ (PB-33), puis, dans un processus à part, un plantage injecté
+# après l'écriture d'un secteur du disque dur de l'XT, contre une sortie normale (le filet des images).
+run r9-cga r9-cga
+run r9-m24 r9-m24
+run r9-disquette r9-disquette
+run reset-scsi-check reset-scsi-check
+run r9-filet r9-filet

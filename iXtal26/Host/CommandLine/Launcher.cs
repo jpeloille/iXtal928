@@ -16,6 +16,7 @@ internal static class Launcher
 
     public static ExitCode Run(string[] arguments)
     {
+        FiletImages.Poser();
         var cursor = new ArgumentCursor(arguments);
         var options = new MachineRunOptions();
 

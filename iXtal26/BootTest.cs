@@ -46,6 +46,11 @@ public static class BootTest
             foreach (var type in types)
                 TypeAndDump(type, settle);
 
+        // G13.0 — la panne qu'injecte r9-filet : une exception que rien ne rattrape, juste après la frappe, avant
+        // savenvr et closepc. Elle prouve le filet des images (Host/FiletImages.cs).
+        if (Environment.GetEnvironmentVariable("IXTAL26_FAUTE_PLANTAGE") == "1")
+            throw new InvalidOperationException("IXTAL26_FAUTE_PLANTAGE : panne injectée après la frappe");
+
         // pc.c:584-585, par closepc(). Ajouté à M13 : --boot ÉCRIT sur les images — le
         // README donne « --settle 4500 --type "FORMAT B:" » comme recette — et cette
         // fonction rendait sans jamais fermer, laissant le vidage des tampons au hasard

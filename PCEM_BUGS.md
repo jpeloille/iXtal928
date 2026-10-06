@@ -1756,6 +1756,26 @@ filtre la carte par sa ROM (`wx-config.c:190-193`).
 1 048 576 octets, avec un avertissement (`pc.cs`, garde `sound_emu8k.c:2019` ; décision n° 5 de PLAN-G12.md).
 L'oracle refuse bruyamment de la monter. Survie : `r9-awecfg`.
 
+### PB-121 — Le lecteur de l'amorçage précédent n'est jamais fermé
+
+`ide.c:282-284` : chaque `resetide` appelle `scsi_bus_atapi_init`, qui alloue un
+`scsi_cd_data_t` neuf (512 Ko, `scsi_cd.c:621`) sans fermer celui de l'amorçage précédent.
+`scsi.c:329-335` : `scsi_bus_close` vide `devices` et `device_data` avant la boucle qui devait les
+fermer — rien n'est fermé.
+*Effet* : aucun observable pour un lecteur de CD, 512 Ko perdus par amorçage. **Élargi en G11** : pour un
+disque SCSI, le `FILE*` reste ouvert avec son tampon stdio ; la libc le vide à `exit()` (et l'oracle à
+`h_closepc`, `fflush(NULL)`). Après un reset matériel, le nouveau `FILE*` relit le dernier secteur écrit tel
+qu'il était sur le disque, et à la sortie le tampon orphelin, vidé en dernier (`_IO_list_all`), écrase ce qui a
+été écrit depuis.
+*Trouvé par* : transcription de G10.4 ; reconnaissance de G11.
+*NON reproduit* pour l'image (hôte, G13.0) : `hdd_file` vide un flux encore ouvert sur la même image avant de la
+rouvrir (`Disc/hdd_file.cs`, marqueur PB-121) ; la machine neuve relit l'image à jour, et le vieux tampon, vide,
+n'écrase plus rien à la sortie. Le flux n'est pas fermé (une image montée deux fois garde ses deux flux, comme deux
+`FILE*`), `scsi_bus_close` reste transcrit tel quel et l'ancien objet est lâché. `reset-scsi-check` le prouve.
+Passé de la section C à la section A en G13.0 : l'image de l'utilisateur perdait des écritures, dans l'usage
+courant (le profil `ixtal26-486-scsi.cfg`, puis « Reset materiel » au menu). Le registre de `hdd_file`, que
+`closepc` vide du plus récent au plus ancien puis ferme (DEVIATION hôte, décision n° 7 de PLAN-G11.md), demeure.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -1800,9 +1820,12 @@ palier (a), qui enregistre moins de dix devices.
 `cga->crtc[1] << 1`, et `crtcmask[1] = 0xff` laisse `crtc[1]` monter à 255 — donc la
 borne à 510. Même borne à la relecture 80 colonnes (`vid_cga.c:157-158`).
 
-*Effet* : un programme invité qui écrit plus de 128 dans le registre 1 du CRTC écrase en
-silence les champs voisins de `cga_t`. Le BIOS du 5150 pose 40 ou 80.
-*Reproduit* : `Video/vid_cga.cs:538`.
+*Effet* : un programme invité qui écrit plus de 128 dans le registre 1 du CRTC, en mode texte 80 colonnes,
+écrase en silence les champs voisins de `cga_t`, puis, au-delà de 134, le tas. Le BIOS du 5150 pose 40 ou 80.
+*NON reproduit* (R9, G13.0) : `charbuffer` fait 512 octets (`Video/vid_cga.cs`, marqueur PB-09) — ce que lit la
+carte, qui n'a pas de tampon de ligne, et identique à PCem tant qu'il survit (R1 = 129 et 130). Le C# levait
+`IndexOutOfRangeException`, que rien ne rattrapait : un `OUT` de l'invité arrêtait l'émulateur, et les dernières
+écritures des images se perdaient. `r9-cga` le prouve (R1 = 129, 200 et 255).
 
 ### PB-10 — Double `fclose` dans `loadbios`
 
@@ -1837,9 +1860,12 @@ face : pour les XDF à densité étendue (`bpb_sectors` 46 ou 48, `:269-273`) c'
 23 552 ou 24 576 octets, soit un débordement de 3 à 4 Ko dans la face suivante puis
 dans `img[1]`.
 
-*Effet* : corruption mémoire à la première lecture de piste d'une image XDF ED.
-*Reproduit* : non reproductible — `fread` sur un `Span` borné lève en C#. Marqué
-`Disc/disc_img.cs`, `img_seek`.
+*Effet* : corruption mémoire à la première lecture de piste d'une image de plus de 40 secteurs par piste
+(`sector_size` est forcé à 512, `:158`) : une XDF à densité étendue, ou 41 secteurs de 128 octets lus par 512.
+*NON reproduit* (R9, G13.0) : `track_data` fait 195 × 512 octets par face (`Disc/disc_img.cs`, marqueur PB-17) ;
+une BPB admise annonce au plus 25 000 octets par piste, en secteurs d'au moins 128 octets. Le C# levait
+`ArgumentOutOfRangeException` à l'insertion, au démarrage comme au menu ; ces images se lisent désormais entières.
+`r9-disquette` le prouve.
 
 ### PB-18 — `disc_load` copie `discfns[drive]` sur lui-même
 
@@ -2261,6 +2287,17 @@ d'au plus `attack_amount >> 5`.
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
 identique (décision n° 15 de PLAN-G12.md). Ce n'est pas un site R9.
 
+### PB-168 — Une BPB à 0 secteur par piste fait diviser par zéro
+
+`disc_img.c:219` : `img[drive].tracks = bpb_total / (bpb_sides * bpb_sectors)`, dans la branche où la BPB est jugée
+valide — `:162` ne teste que les faces et la taille des secteurs. Une BPB qui annonce 0 secteur par piste divise par
+zéro.
+*Effet* : PCem meurt de SIGFPE à l'insertion de l'image, au démarrage comme au menu ; le C# levait
+`DivideByZeroException`.
+*Trouvé par* : contre-lecture du stockage, reconnaissance de G13.
+*NON reproduit* (R9, G13.0) : une telle BPB est traitée comme une BPB fantaisiste, la géométrie déduite de la taille
+du fichier (`Disc/disc_img.cs`, marqueur PB-168, garde `disc_img.c:219`). `r9-disquette` le prouve.
+
 ## C. Incohérences sans conséquence observable
 
 ### PB-11 — `readmemw` compare un offset 16 bits à une adresse linéaire 20 bits
@@ -2426,7 +2463,7 @@ d'erreur d'un côté seulement.
 
 ### PB-33 — `savenvr` écrit dans un fichier qu'il n'a pas vérifié avoir ouvert
 
-`nvr.c:770-772`, la queue commune de `savenvr` après son `switch (oldromset)` :
+`nvr.c:780-781`, la queue commune de `savenvr` après son `switch (oldromset)` :
 
 ```c
         fwrite(nvrram, 128, 1, f);
@@ -2444,11 +2481,11 @@ l'échec était *attendu* — simplement pas propagé.
 
 *Effet* : plantage à la sortie de l'émulateur, après que la session a tourné normalement.
 Le CMOS de la session est perdu, ce qui est la conséquence la moins grave.
-*Reproduit* : `Devices/nvr.cs`, marqueur `// pcem bug, reproduced: PB-33`. Le
-`NullReferenceException` de C# est le pendant du déréférencement de NULL du C. **Mesuré
-dans ce dépôt** : le premier amorçage après l'écriture de `savenvr`, avec un `nvr/`
-encore absent, a levé exactement là — c'est ce qui a fait créer le répertoire et son
-`README.md`.
+*NON reproduit* (hôte, G13.0) : `savenvr` dit que le CMOS n'est pas écrit et rend la main (`Devices/nvr.cs`,
+marqueur PB-33). Il passe AVANT `closepc`, le seul endroit qui vide les images : l'exception faisait aussi perdre
+les dernières écritures de l'invité. `r9-filet` le prouve. Avant G13.0, **mesuré dans ce dépôt** : le premier
+amorçage après l'écriture de `savenvr`, avec un `nvr/` encore absent, a levé exactement là — c'est ce qui a fait
+créer le répertoire et son `README.md`.
 
 ### PB-34 — Le type de disque 39 de la boîte de configuration ne correspond à aucun BIOS
 
@@ -2673,23 +2710,6 @@ refusée après des FILE laisse ceux de ses pistes, que `LoadIsoFile` oublie par
 *Reproduit* : les objets sont lâchés et le GC les finalise ; `FileShare.ReadWrite | Delete`, sans
 verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, Windows compris.
 
-### PB-121 — Le lecteur de l'amorçage précédent n'est jamais fermé
-
-`ide.c:282-284` : chaque `resetide` appelle `scsi_bus_atapi_init`, qui alloue un
-`scsi_cd_data_t` neuf (512 Ko, `scsi_cd.c:621`) sans fermer celui de l'amorçage précédent.
-`scsi.c:329-335` : `scsi_bus_close` vide `devices` et `device_data` avant la boucle qui devait les
-fermer — rien n'est fermé.
-*Effet* : aucun observable pour un lecteur de CD, 512 Ko perdus par amorçage. **Élargi en G11** : pour un
-disque SCSI, le `FILE*` reste ouvert avec son tampon stdio ; la libc le vide à `exit()` (et l'oracle à
-`h_closepc`, `fflush(NULL)`). Après un reset matériel, le nouveau `FILE*` relit le dernier secteur écrit tel
-qu'il était sur le disque, et à la sortie le tampon orphelin, vidé en dernier (`_IO_list_all`), écrase ce qui a
-été écrit depuis.
-*Trouvé par* : transcription de G10.4 ; reconnaissance de G11.
-*Reproduit* : l'ancien objet est lâché ; `scsi_bus_close` est transcrit tel quel (G11.0). Un `FileStream`, lui,
-n'est pas vidé à la sortie du processus : `hdd_file` tient un registre de ses flux, que `closepc` vide du plus
-récent au plus ancien, puis ferme (DEVIATION hôte, décision n° 7 de PLAN-G11.md) ; sans lui,
-`bd-ami486-aha-format` rougit (VERIFICATION.md § G11.0).
-
 ### PB-127 — Huit fatal() que rien n'atteint dans le lecteur ZIP
 
 `scsi_zip.c:659`, `:663`, `:713`, `:717` testent un retour -1 ou 0x100 de `scsi_add_data`, qui rend
@@ -2720,7 +2740,7 @@ ramasse-miettes rend avec la carte.
 
 ## Portée de ce registre
 
-Ces **cent soixante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent soixante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |

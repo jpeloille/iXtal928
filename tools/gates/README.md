@@ -106,3 +106,7 @@ AWE32 est montée. AWEBANC (`tools/awebanc`, GNU as) suit le patron de SB16BANC 
 chorus et du volume sur des états fabriqués des deux côtés ; `r9-emu8k` et `r9-awecfg` sont en C# seul.
 Les témoins de G12.3 : `bd-ami486-sbpro2-testsbp`, `-sbpro1-`, `-sb16-` et `-awe32-testsbp` tapent TEST-SBP.EXE
 (`sbpro2-1.img` de la recette, en B:) sur la configuration de SB16BANC, la carte posée par `--sndcard`.
+Les portes de G13.0 sont en C# seul. `r9-filet` lance iXtal26 (`iXtal26.dll`, à côté de la DLL de l'outil) dans
+deux processus, et injecte au second une panne par `IXTAL26_FAUTE_PLANTAGE=1`, qui lève une exception non rattrapée
+après la frappe : le filet des images vide les tampons et sort en 70, sans passer par le gestionnaire de plantages du
+système.

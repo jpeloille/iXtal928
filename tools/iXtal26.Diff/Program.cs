@@ -286,6 +286,20 @@ switch (args[0])
         return R9Aha.Run("roms", false);
     case "r9-scsihd":
         return R9Aha.Run("roms", true);
+    // G13.0 — R9 : R1 au-delà de 128 en 80 colonnes sur la CGA (PB-09) et sur la M24 (PB-88), en C# seul.
+    case "r9-cga":
+        return R9Cga.RunCga("roms");
+    case "r9-m24":
+        return R9Cga.RunM24("roms");
+    // G13.0 — R9 : les images de disquette qui arrêtaient l'hôte (PB-17, PB-168, le fichier vide), en C# seul.
+    case "r9-disquette":
+        return R9Disquette.Run("roms");
+    // G13.0 — l'image d'un disque SCSI à travers un reset matériel (PB-121), en C# seul.
+    case "reset-scsi-check":
+        return ResetScsiCheck.Run("roms");
+    // G13.0 — le filet des images (Host/FiletImages.cs), de bout en bout : un plantage injecté contre une sortie normale.
+    case "r9-filet":
+        return R9Filet.Run("roms");
     case "page-check":
     {
         var it = 200000;

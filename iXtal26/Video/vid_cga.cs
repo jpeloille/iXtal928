@@ -60,7 +60,12 @@ internal sealed class cga_t
 
     internal uint8_t[] vram = [];
 
-    internal uint8_t[] charbuffer = new uint8_t[256];
+    // pcem bug, not reproduced: PB-09 — DEVIATION (R9, G13.0) : 512 octets au lieu de 256 (vid_cga.h:31).
+    //   crtcmask[1] = 0xff laisse R1 monter à 255, donc les indices de la copie et de la relecture 80 colonnes
+    //   (vid_cga.c:406, :157-158) jusqu'à 509 : au-delà de R1 = 128, PCem écrit hors du tableau et le C# levait.
+    //   La carte n'a pas de tampon de ligne et lit son tampon d'affichage : les octets au-delà de 256 sont ceux
+    //   qu'elle lit. Identique à PCem tant qu'il survit (R1 = 129 et 130).
+    internal uint8_t[] charbuffer = new uint8_t[512];
 
     internal int revision;
     internal int composite;
@@ -545,12 +550,8 @@ internal static partial class vid_cga
                         cga.cgastat &= unchecked((uint8_t)~1);
                 if ((cga.sc == (cga.crtc[10] & 31) || ((cga.crtc[8] & 3) == 3 && cga.sc == ((cga.crtc[10] & 31) >> 1))))
                         cga.con = 1;
-                // pcem bug, reproduced: charbuffer fait 256 octets (vid_cga.h:31) et la
-                //   borne `cga->crtc[1] << 1` que crtcmask[1] = 0xff laisse monter à 510
-                //   vaut ici (vid_cga.c:405) comme à la relecture 80 colonnes
-                //   (vid_cga.c:157-158). Au-delà de crtc[1] = 128 le C déborde en silence
-                //   sur les champs voisins de cga_t ; le C# lève. Le BIOS du 5150 pose
-                //   40 ou 80.
+                // pcem bug, not reproduced: PB-09 — la borne `cga->crtc[1] << 1` monte à 510 (vid_cga.c:405) ;
+                //   charbuffer fait 512 octets (R9).
                 if (cga.cgadispon != 0 && (cga.cgamode & 1) != 0)
                 {
                         for (x = 0; x < (cga.crtc[1] << 1); x++)

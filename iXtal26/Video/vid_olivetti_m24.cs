@@ -549,6 +549,8 @@ internal static partial class vid_olivetti_m24
                         for (x = 0; x < (m24.crtc[1] << 1); x++)
                                 if (x < 256)
                                         m24.charbuffer[x] = m24.vram[(((m24.ma << 1) + x) & 0x3fff) + m24.@base];
+                                else
+                                        Diag.R9.Garde("vid_olivetti_m24.c:415");
                 }
         }
     }

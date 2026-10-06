@@ -335,9 +335,9 @@ partie transcrits en G8).
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; feu vert du 06/10, en cours : `PLAN-G13.md`)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
-après G10.0, mis à jour le 05/10 après G11, puis refaits le 06/10 après G12, entrée par entrée (le
-total écrit au 05/10, 78, ne suivait plus sa liste, qui en comptait 83 ; la liste des non-reproduits
-omettait 105, 110 et 113 à 116) :
+après G10.0, mis à jour le 05/10 après G11, puis refaits le 06/10 après G12 et le 07/10 après G13.0,
+entrée par entrée (le total écrit au 05/10, 78, ne suivait plus sa liste, qui en comptait 83 ; la liste des
+non-reproduits omettait 105, 110 et 113 à 116) :
 
 1. **Section A, les 96 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
    78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06 ; 157, le 8237 haut — G12.1),
@@ -346,13 +346,14 @@ omettait 105, 110 et 113 à 116) :
    ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
    matériel — G10.1), images CD (106, 107, 108, 109 — G10.3 ; 122 — G10.4 ; 123 — G10.5), lecteur
    de CD (117 à 120 — G10.4), lecteur ZIP (126 — G10.6), SCSI (129 à 133, 136 à 144 — G11).
-2. **Section B, les 14 PB reproduits** : 07, 08, 09, 10, 16, 17, 18, 21, 96 ; 151, 156, 162, 163,
-   164 (G12).
-3. **Section C, 24 entrées sans effet observable** : nettoyage seulement, sans changement de
+2. **Section B, les 11 PB reproduits** : 08, 10, 16, 18, 21, 96 ; 151, 156, 162, 163, 164 (G12).
+   PB-07 n'est pas reproduit mais neutralisé (un zéro des deux côtés) ; son entrée le dira en G13.1.
+3. **Section C, 22 entrées sans effet observable** : nettoyage seulement, sans changement de
    comportement (dont 134, G11 ; 167, G12).
 
 Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 105, 110, 113 à 116, 124,
-125, 128, 135, 150, 152, 161, 166) sont déjà réglés.
+125, 128, 135, 150, 152, 161, 166 ; et en G13.0, dans les deux modes, 09, 17 et 168 sous R9, 33 et
+121 côté hôte) sont déjà réglés.
 
 **Principe, à confirmer au plan de G13** : chaque correction se fait derrière une option « mode
 matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` devient `pcem bug, fixed

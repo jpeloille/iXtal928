@@ -507,14 +507,18 @@ internal static class nvr
                 return;
         }
 
-        // pcem bug, reproduced: PB-33 — le C fait `fwrite(nvrram, 128, 1, f)` SANS
-        //   verifier f, alors que nvrfopen rend NULL en ecriture des que le chemin
-        //   n'existe pas : un repertoire nvr/ absent suffit. Le C dereference alors NULL.
-        //   Reproduit tel quel — le NullReferenceException de C# est le pendant du
-        //   segfault du C, et corriger l'oracle, ce n'est plus un oracle.
+        // pcem bug, not reproduced: PB-33 — DEVIATION (hôte, G13.0) : le C fait `fwrite(nvrram, 128, 1, f)` sans
+        //   vérifier f, et un répertoire nvr/ absent lui fait déréférencer NULL. savenvr passe AVANT closepc, seul
+        //   endroit qui vide les images : l'exception perdait les dernières écritures de l'invité. Ici le CMOS n'est
+        //   pas écrit, on le dit, et la sortie continue.
+        if (f == null)
+        {
+                Console.Error.WriteLine("savenvr : le CMOS n'est pas enregistré, le fichier ne s'ouvre pas (répertoire nvr/ absent ?).");
+                return;
+        }
         // pcem: `fwrite(nvrram, 128, 1, f)` — de la libc, donc le flux directement.
-        f!.Write(nvrram, 0, 128);
-        f!.Close();
+        f.Write(nvrram, 0, 128);
+        f.Close();
     }
 
     // pcem: nvr.c:784-794

@@ -67,6 +67,16 @@ internal static partial class hdd_file
             enoent = false;
             try
             {
+                    // pcem bug, not reproduced: PB-121 — DEVIATION (hôte, G13.0) : un flux encore ouvert sur la même image
+                    //   (le disque SCSI d'avant un reset matériel, que scsi_bus_close ne ferme pas) est VIDÉ avant la
+                    //   réouverture. Sans cela la machine neuve relit l'image d'avant ses dernières écritures, et le vieux
+                    //   tampon, vidé le dernier à la sortie, écrase ce qui a été écrit depuis. Il n'est pas fermé : une même
+                    //   image montée deux fois garde ses deux flux, comme deux FILE* de la libc. Un nom vide lève ici
+                    //   ArgumentException, rattrapée plus bas comme celle du FileStream.
+                    string plein = Path.GetFullPath(s);
+                    foreach (FileStream g in flux_ouverts)
+                            if (g.Name == plein)
+                                    g.Flush();
                     // G11.0 — FileShare.ReadWrite | Delete : après un reset matériel, le flux d'un disque SCSI reste
                     //   ouvert (PB-121) pendant que le même fichier est rouvert, comme deux FILE* de la libc.
                     FileStream f = mode switch

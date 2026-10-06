@@ -7158,3 +7158,69 @@ passe de 33 396 à 33 776 s (+1,1 %, dans l'écart que donne le placement des vo
 `bd-ami486-sb16-banc` et `bd-ami486-sbpro2-testsbp` : `/var/tmp/ixtal-par/t127` est créé et rempli pendant la série
 (les traces de l'oracle, les copies d'images), puis effacé à la fin ; six portes vertes en quatre minutes, les
 verdicts identiques à g126.
+
+## G13.0 — Ce qui n'attendait pas : R9 et les fichiers de l'utilisateur ; PB-168
+
+Le 7 octobre 2026. Plan : `PLAN-G13.md` § G13.0, décision n° 2 (validée le 07/10). Quatre défauts touchaient l'hôte ou
+les fichiers de l'utilisateur dès le mode PCem ; ils sont corrigés dans les deux modes, hors du mode matériel, qui
+n'existe pas encore.
+
+**Corrigé.**
+- **PB-09** (R9) : le `charbuffer` de la CGA fait 512 octets (`Video/vid_cga.cs`). Un `OUT` de l'invité qui pose
+  R1 ≥ 129 en 80 colonnes levait `IndexOutOfRangeException` dans `cga_poll`, et rien ne la rattrapait. La carte lit
+  son tampon d'affichage ; c'est identique à PCem tant qu'il survit (R1 = 129 et 130), et rien ne s'ajoute au chemin
+  chaud.
+- **PB-88** : la garde de la M24 se signale à `Diag.R9` (`vid_olivetti_m24.c:415`), pour le `r9-m24` qui manquait.
+- **PB-17** (R9) : `track_data` fait 195 × 512 octets par face (`Disc/disc_img.cs`). Les images de plus de 40
+  secteurs par piste — une XDF à densité étendue, ou 41 secteurs de 128 octets lus par 512 — levaient
+  `ArgumentOutOfRangeException` à l'insertion ; elles se lisent désormais entières.
+- **PB-168** (R9, neuf) : une BPB à 0 secteur par piste faisait diviser par zéro (`disc_img.c:219`) ; elle est
+  traitée comme une BPB fantaisiste, et la garde se signale.
+- **Le fichier vide**, une faute de transcription et non un défaut de PCem : `fseek(f, -1, SEEK_END)` échoue en C et
+  laisse la position à 0, là où `Seek` levait. Corrigé aux deux sites (`Disc/disc.cs`, `Disc/disc_img.cs`).
+- **PB-121** (hôte) : `hdd_file` vide un flux encore ouvert sur la même image avant de la rouvrir. Après un reset
+  matériel avec un disque SCSI, la machine neuve relisait l'image d'avant ses dernières écritures, et le vieux tampon,
+  vidé le dernier à la sortie, écrasait ce qui avait été écrit depuis. Le flux n'est pas fermé : une image montée deux
+  fois garde ses deux flux. PB-121 passe de la section C à la section A. Une première version calculait le chemin
+  complet hors du `try` : `Path.GetFullPath` lève sur le nom vide d'un disque non monté, et `reset-scsi-check` l'a vu
+  avant toute série.
+- **PB-33** (hôte) : `savenvr` dit que le CMOS n'est pas écrit et rend la main quand `nvr/` manque ; il levait avant
+  `closepc`, le seul endroit qui vide les images.
+- **Le filet des images** (`Host/FiletImages.cs`, posé par le lanceur) : sur une exception non rattrapée ou un signal
+  de fin, il vide les tampons des images — les disques durs, les disquettes, le ZIP — sans rien exécuter de
+  l'émulateur. Sur une exception, il l'écrit sur la sortie d'erreur et sort en 70, au lieu de laisser le runtime
+  avorter : l'avortement passait par apport, qui garde un rapport de plusieurs dizaines de Mo par plantage.
+
+**Les portes**, toutes en C# seul :
+- `r9-cga` : R1 = 129, 200 et 255, 3D8h = 01h puis 29h, 4 000 appels de `cga_poll` : survit, et lit 2, 144 puis 254
+  octets au-delà de 256.
+- `r9-m24` : R1 = 129, 200 et 255 : survit, la garde atteinte 2 400, 220 752 et 382 016 fois.
+- `r9-disquette` : une XDF à densité étendue (46 secteurs), 41 secteurs de 128 octets, une BPB à 0 secteur (la garde
+  atteinte), un fichier vide : survit.
+- `reset-scsi-check` : l'ami486, l'AHA-1542C, un disque vierge à l'ID 0. « A » au secteur 100, un reset matériel ; la
+  machine neuve relit « A », écrit « B » ; après `closepc`, l'image garde « B ».
+- `r9-filet` : PB-33 (`savenvr` sans `nvr/`, sur le CMOS de l'AT) ; puis deux séances `--boot` de l'XT, un disque dur
+  vierge de 10 Mo, PC-DOS 2.00 en A: et DEBUG en B: : un secteur de « A » écrit par l'INT 13h en LBA 0. La séance
+  normale rend 0, la séance plantée (`IXTAL26_FAUTE_PLANTAGE=1`) rend 70, et les deux disques sont identiques, le
+  secteur compris. Une disquette n'aurait rien prouvé : `img_writeback` écrit des pistes entières, plus grandes que
+  le tampon de 4 Ko du `FileStream`, qui partent aussitôt ; un premier essai sur la disquette restait vert sans le
+  filet.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| `charbuffer` ramené à 256 octets | `r9-cga` | rouge : `IndexOutOfRangeException` aux six essais |
+| la garde de la M24 desserrée (`x < 512`) | `r9-m24` | rouge : `IndexOutOfRangeException` |
+| `track_data` ramené à 20 Ko | `r9-disquette` | rouge : `ArgumentOutOfRangeException` aux deux images |
+| la BPB à 0 secteur non écartée | `r9-disquette` | rouge : `DivideByZeroException` |
+| le `Seek` rétabli sur le fichier vide | `r9-disquette` | rouge : `IOException` |
+| le flux d'avant non vidé | `reset-scsi-check` | rouge : la machine neuve relit des zéros, l'image finit avec « A » |
+| le filet retiré du lanceur | `r9-filet` | rouge : les disques diffèrent de 512 octets, le secteur écrit perdu |
+| le test de `savenvr` retiré | `r9-filet` | rouge : `NullReferenceException` |
+
+**La série.** g128 tourne sur le worktree de G13.0 (c00bfb3 et ses vingt fichiers), l'état commité, sous
+`MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro, son `TMPDIR` sur le disque par défaut : 243 portes, toutes vertes,
+en 55 minutes. Les journaux de g126 ayant été effacés, la référence g127 a été rejouée sur c00bfb3, le code de g126 :
+238 portes vertes en 63 minutes. Verdict par verdict, les 238 portes communes sont identiques, et cinq sont neuves.
+Aucun rapport de plantage n'a été laissé dans `/var/crash`.

@@ -131,7 +131,10 @@ internal static partial class disc
         f = fopen(fn, "rb");
         if (f == null)
                 return;
-        f.Seek(-1, SeekOrigin.End);
+        // DEVIATION: fseek(f, -1, SEEK_END) échoue sur un fichier vide et laisse la position à 0 ; Seek lèverait
+        //   (G13.0 : une faute de transcription, PCem survit).
+        if (f.Length > 0)
+                f.Seek(-1, SeekOrigin.End);
         size = (int)f.Position + 1;
         f.Close();
         while (loaders[c].ext != null)
