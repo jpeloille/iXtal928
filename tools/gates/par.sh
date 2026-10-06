@@ -12,14 +12,16 @@
 #   REPO : la racine du dépôt (défaut : déduite de l'emplacement de par.sh ; à poser quand on
 #          joue une copie figée de par.sh, hors du dépôt).
 #   WORK : l'espace des portes disque, fabriqué par g5w-recipe.sh (défaut /tmp/g5w).
-#   TMPDIR_SERIE : le TMPDIR des portes, un par série (défaut : /tmp/ixtal-par/NOM, NOM étant la
-#          sortie sans .tsv : en mémoire, sur le tmpfs). Chaque boot-diff y écrit la trace de
-#          l'oracle, huit octets par instruction, jusqu'à 2,5 Go, et ses copies d'images. Le disque
-#          (/var/tmp/ixtal-par/NOM) se demande explicitement ; mesuré, il ne coûte rien
-#          (VERIFICATION.md, § Les outils). Le répertoire est vidé au départ, et effacé à la fin si
-#          toutes les portes sont vertes ; gardé sinon, pour la relecture. Ce ménage ne vaut QUE pour
-#          un répertoire juste sous /tmp/ixtal-par/ ou /var/tmp/ixtal-par/ : un TMPDIR_SERIE fourni
-#          ailleurs (/tmp lui-même, partagé avec d'autres sessions) n'est jamais vidé.
+#   TMPDIR_SERIE : le TMPDIR des portes, un par série (défaut : /var/tmp/ixtal-par/NOM, NOM étant la
+#          sortie sans .tsv : sur le disque). Chaque boot-diff y écrit la trace de l'oracle, huit
+#          octets par instruction, jusqu'à 2,5 Go, et ses copies d'images. Le disque est le défaut
+#          depuis le 6 octobre : à dix voies, les bancs longs dépassaient à eux seuls le quota du
+#          tmpfs ; mesuré, il ne coûte rien (VERIFICATION.md, § Les outils). La mémoire
+#          (/tmp/ixtal-par/NOM) se demande explicitement. Le répertoire est vidé au départ, et
+#          effacé à la fin si toutes les portes sont vertes ; gardé sinon, pour la relecture. Ce
+#          ménage ne vaut QUE pour un répertoire juste sous /tmp/ixtal-par/ ou /var/tmp/ixtal-par/ :
+#          un TMPDIR_SERIE fourni ailleurs (/tmp lui-même, partagé avec d'autres sessions) n'est
+#          jamais vidé.
 #   ESPACE_MIN_GO : l'espace libre exigé avant de lancer, en Go (défaut : 1,5 par voie, 15 pour
 #          dix). L'espace libre est celui de df, BORNÉ PAR LE QUOTA de l'utilisateur, que df ne
 #          montre pas : /tmp est un tmpfs à quota par utilisateur, 80 % de sa taille, lu par
@@ -38,7 +40,7 @@ REPO=${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 WORK=${WORK:-/tmp/g5w}
 D="${OUT%.tsv}.par"; rm -rf "$D"; mkdir -p "$D/g" "$D/r"
 LOGP="${OUT%.tsv}"
-T=${TMPDIR_SERIE:-/tmp/ixtal-par/$(basename "$LOGP")}
+T=${TMPDIR_SERIE:-/var/tmp/ixtal-par/$(basename "$LOGP")}
 # Le ménage ne touche QUE le répertoire propre à la série, résolu (realpath : ni « .. » ni lien
 # pour en sortir) et juste sous /tmp/ixtal-par/ ou /var/tmp/ixtal-par/ : jamais /tmp lui-même,
 # partagé avec d'autres sessions, ni un TMPDIR_SERIE fourni ailleurs par l'appelant.

@@ -20,13 +20,14 @@ Pendant une série : ne pas éditer `series.sh` ni `par.sh` (bash les lit au fil
 pas toucher `/tmp/g5w` ni le `TMPDIR` de la série (les copies d'images du boot-diff, qui gardent
 la date de leur source — un nettoyage par âge les efface en pleine porte).
 
-Le `TMPDIR` des portes est un répertoire par série, EN MÉMOIRE : `/tmp/ixtal-par/NOM` par défaut,
-sur le tmpfs (`TMPDIR_SERIE` pour le changer ; le disque, `/var/tmp/ixtal-par/NOM`, se demande
-explicitement — mesuré, il ne coûte rien de plus). Chaque boot-diff y écrit la trace de
-l'oracle, huit octets par instruction, jusqu'à 2,5 Go, et ses copies d'images. `par.sh` exige
-d'abord 1,5 Go libres par voie, 15 pour dix (`ESPACE_MIN_GO`), libres AU SENS DU QUOTA :
-`/tmp` est un tmpfs à quota par utilisateur, 80 % de sa taille, que `df` ne montre pas et que
-`par.sh` lit par `quotactl_fd`. Il refuse la série en dessous (retour 3), vide ce répertoire au
+Le `TMPDIR` des portes est un répertoire par série, SUR LE DISQUE : `/var/tmp/ixtal-par/NOM` par
+défaut depuis le 6 octobre (`TMPDIR_SERIE` pour le changer ; la mémoire, `/tmp/ixtal-par/NOM`, se
+demande explicitement). À dix voies, les bancs longs dépassaient à eux seuls le quota du tmpfs
+(g125 : dix traces tronquées, rien d'autre sur la machine) ; le disque, mesuré le 4 octobre, ne
+coûte rien de plus. Chaque boot-diff y écrit la trace de l'oracle, huit octets par instruction,
+jusqu'à 2,5 Go, et ses copies d'images. `par.sh` exige d'abord 1,5 Go libres par voie, 15 pour dix
+(`ESPACE_MIN_GO`), libres AU SENS DU QUOTA quand il y en a un : `/tmp` est un tmpfs à quota par
+utilisateur, 80 % de sa taille, que `df` ne montre pas et que `par.sh` lit par `quotactl_fd`. Il refuse la série en dessous (retour 3), vide ce répertoire au
 départ, et l'efface à la fin si toutes les portes sont vertes ; sinon il le garde pour la
 relecture. Ce ménage ne vaut que pour un répertoire juste sous `/tmp/ixtal-par/` ou
 `/var/tmp/ixtal-par/` : un `TMPDIR_SERIE` fourni ailleurs n'est jamais vidé. L'incident du

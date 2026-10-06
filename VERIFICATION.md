@@ -7138,3 +7138,23 @@ rejouée dans un espace neuf, rend les 22 empreintes de G12.2 à l'identique, pl
 de zéro, dans un espace des portes neuf (la recette de G12.3), son `TMPDIR` sur le disque (`/var/tmp/ixtal-par/g126`) :
 238 portes, toutes vertes, en 58 minutes, aucune trace tronquée. Verdict par verdict contre g125 et g125b : les
 quatre portes de TEST-SBP sont neuves, et rien d'autre ne change.
+
+## Les outils : le TMPDIR des séries sur le disque
+
+Le 6 octobre 2026, décision de l'utilisateur, après G12. `par.sh` pose désormais `TMPDIR=/var/tmp/ixtal-par/NOM`
+par défaut, au lieu de `/tmp/ixtal-par/NOM` ; la mémoire se demande par `TMPDIR_SERIE`. Le ménage, le verrou machine
+et l'examen de l'espace ne changent pas.
+
+**Pourquoi.** À dix voies, les bancs longs dépassent désormais à eux seuls le quota du tmpfs : g125 a perdu dix traces
+(« TRACE TRONQUÉE ») sans rien d'autre sur la machine, après g110 et g124, où un travail lancé à côté en avait
+tronqué.
+
+**Mesuré : le disque ne coûte rien.** g126, la série entière de G12.3, jouée sur `/var/tmp/ixtal-par/g126`, dure
+58 minutes, comme g125 sur le tmpfs. Sur les 224 portes communes, hors les dix tronquées de g125, la somme des durées
+passe de 33 396 à 33 776 s (+1,1 %, dans l'écart que donne le placement des voies), et aucune écriture n'attend
+(`Writeback` à 0, aucune attente d'entrée-sortie, relevé en pleine série).
+
+**La validation ciblée.** t127, sans `TMPDIR_SERIE`, `PORTES` = `abi`, `ops-count`, `bd-pc-cga`, `bd-ami486-sb16`,
+`bd-ami486-sb16-banc` et `bd-ami486-sbpro2-testsbp` : `/var/tmp/ixtal-par/t127` est créé et rempli pendant la série
+(les traces de l'oracle, les copies d'images), puis effacé à la fin ; six portes vertes en quatre minutes, les
+verdicts identiques à g126.
