@@ -1,0 +1,16 @@
+# G12.2 — AWEBANC : l'ami486 et la Sound Blaster AWE32 (220h, IRQ 7, DMA 1, DMA 16 bits 5 ; l'EMU8000 en 620h,
+# 512 Ko de RAM ; le MPU-401 en 330h), DOS 5 amorcé du disque SCSI de G11 (scsic.img, l'AHA-1542C en 334h) :
+# le patron d'ami486-sb16-banc.cfg.in. Le CMOS est celui de l'AHA (aha486.nvr, sans disque).
+model = ami486
+cpu = 10
+fpu = builtin
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 5
+gfxcard = tvga9000b
+sndcard = sbawe32
+hdd_controller = aha1542c
+hdc_cylinders = 20
+hdc_heads = 64
+hdc_sectors = 32
+hdc_fn = @WORK@/scsic.img

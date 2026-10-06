@@ -1629,22 +1629,23 @@ est rendu dans un `uint8_t`, le `| 0x4000` disparaît, et le bit du MPU (4) n'es
 (le micro de la Pro) est recopié en 3Ah par `0Ah × 3 + 10`, tronqué à 8 bits ; `:695` le relit par `(3Ah − 10) / 3`,
 juste pour 0Ah ≤ 51h, et FDh après un reset. 01h n'est pas tenu (`:540-546`) et se relit FFh. 0Eh (la stéréo de la
 Pro) n'est pas branché sur le DSP. `:143-148` : la sélection d'entrée MIDI se lit `a ? out_l : ((0 + b) ? out_r :
-0)`. Ni IRQ ni DMA dans la configuration de la SB 16 (TODO `:1059`) : les défauts de `sb_dsp_init`, IRQ 7, DMA 1 et
+0)`. Ni IRQ ni DMA dans la configuration de la SB 16 et de l'AWE32 (TODO `:1059`, `:1084`) : les défauts de `sb_dsp_init`, IRQ 7, DMA 1 et
 DMA 16 bits 5 (`sound_sb_dsp.c:826-828`), contre l'IRQ 5 des cartes d'usine.
 *Effet* : un pilote qui lit 82h pour reconnaître son IRQ ne voit jamais le MPU ; un réglage du micro au-delà de 51h
 se relit faux ; un jeu réglé par BLASTER=… I5, sans outil Creative qui écrive 80h, n'a pas d'IRQ.
 *Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
 *Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-153 ; SB16BANC les relit.
 
-### PB-154 — Le MPU-401 de la SB 16 : 330h fixe, sans IRQ, en UART seul
+### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, en UART seul
 
-`sound_sb.c:1066` : `mpu401_uart_init(&sb->mpu, 0x330, -1, 0)` — l'adresse est fixe et l'IRQ vaut -1
+`sound_sb.c:1066` (l'AWE32 : `:1091`) : `mpu401_uart_init(&sb->mpu, 0x330, -1, 0)` — l'adresse est fixe et l'IRQ vaut -1
 (`sound_mpu401_uart.c:12-13` ne lève donc rien). Seuls FFh et 3Fh sont des commandes (`:21-45`) ; toute autre est
 ignorée, sans ACK. FFh rend l'ACK FEh même en mode UART (`:26`), contre la note de Roland que le code cite ; aucune
 entrée MIDI, la donnée relue reste l'ACK périmé.
 *Effet* : un test d'IRQ du MPU échoue ; un pilote qui attend l'absence d'ACK après FFh en mode UART lit un FEh.
 *Trouvé par* : reconnaissance de G12 (contre-lectures).
 *Reproduit* : `Sound/sound_mpu401_uart.cs`, marqueur PB-154 ; SB16BANC passe FFh, 3Fh et ACh.
+*G12.2* : l'AWE32 monte le même MPU, au même endroit.
 
 ### PB-155 — Le FIR de la SB 16 dépasse le gain unité au-delà de 34,7 kHz, et la conversion déborde
 
@@ -1672,6 +1673,88 @@ le registre de masque ne se relit donc pas, en DEh comme en 0Fh.
 rend autre chose que le masque.
 *Trouvé par* : reconnaissance de G12 (contre-lecture du DSP et du DMA).
 *Reproduit* : `Models/dma.cs` (transcrit dès B3) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA compare l'état.
+
+### PB-158 — L'EMU8000 lu et écrit par octet ; WC figé entre deux écritures
+
+`sound_emu8k.c:1408-1409` : `emu8k_inb` rend, pour un port impair, `emu8k_inw(addr & ~1) >> 1` — les bits 1 à 8 du
+mot, et non son octet haut. `:1416-1419` : `emu8k_outb` écrit chaque octet comme un mot entier, `val << 8` au port
+impair (l'octet bas du registre est perdu, TODO `:1414-1415`), `val` au port pair (l'octet haut mis à zéro). Chaque
+octet est un accès complet : les effets de bord d'`emu8k_inw` (SMLD et SMRD avancent, le compteur du pointeur
+monte, les bits de la DRAM s'effacent) et d'`emu8k_outw` (un mot téléversé, SMALW avancé) ont lieu à chaque
+octet. Et `emu8k_inw` (`:342-716`) n'appelle jamais `emu8k_update`, qui ne tourne qu'aux écritures (`:724`) et à
+chaque tampon (`sound_sb.c:221`) : WC (`:651`, avancé à `:2006`), CPF, CVCF et CCCA relus restent figés, puis
+sautent d'un tampon (TODO `:647-649`).
+*Effet* : un programme qui détecte la carte par octets (Impulse Tracker, d'après PCem) lit des valeurs décalées ;
+une attente par WC, sans écriture, dure jusqu'au tampon suivant ; un traqueur qui suit CCCA le voit par bonds.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D1 à D3).
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-158 ; AWEBANC lit par octets aux ports pairs et impairs,
+écrit deux octets par SMLD, et relit WC deux fois sans écriture entre.
+
+### PB-159 — Les bits plein et vide de la DRAM sont invisibles ; SMARW n'est pas masqué
+
+`sound_emu8k.c:1136`, `:1140`, `:1150` : les écritures A22h des canaux 20, 21 et 26 posent `dmareadbit` ou
+`dmawritebit` à 8000h, OU-és à la valeur de 32 bits relue (`:621`, `:626`, `:631`, `:636`). Mais READ16 rend, en
+A22h, le mot HAUT (`(var) >> 16`, `:213`) : le bit 15 tombe, le drapeau n'apparaît jamais, et sa remise à zéro
+agit à vide. `:1152` : `smarw++` sans le masque de 24 bits que gardent SMALW (`:894`), SMALR (`:560`) et SMARR
+(`:644`) ; l'écriture, masquée à `:329`, ne déborde pas.
+*Effet* : un programme qui attend « non plein » passe ; un programme qui attendrait le bit à 1 bouclerait sans fin,
+côté invité. Au-delà de FFFFFFh, SMARW relu montre ses bits 24 et suivants.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D6 et D7).
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-159 ; AWEBANC relit SMALR et SMARW en A22h après leurs
+écritures.
+
+### PB-160 — L'EMU8000 de PCem : enveloppes, rustines et approximations
+
+Ce que PCem assume ou rate dans la synthèse (`sound_emu8k.c`) :
+- **les enveloppes** : au bout du maintien, celle de modulation passe en RAMP_UP alors qu'elle est au sommet
+  (`:1843-1847`) — `:1862` la pose au palier au tic suivant, sans décroissance de hauteur ni de filtre ; relâchée
+  pendant le délai, l'attaque ou le maintien, elle prend `env_mod_hertz_to_octave[v >> 9] << 9` (`:1069`) quand
+  l'attaque prend `>> 5` et `<< 5` (`:1831`) : un saut au relâchement ; les délais, maintiens et retards de LFO
+  sont décomptés sur la valeur programmée (`:1757-1760`, `:1782`, `:1821-1824`, `:1844`, `:1870-1879`), et une
+  note redéclenchée sans réécrire ces registres n'en a plus (le « bug on delay » du TODO `:1061`) ; une attaque à
+  0 vaut « jamais », la voix se tait (`:1004-1005`, `:1255-1256`, TODO `:1008-1014`) ;
+- **les rustines** : l'écriture d'IFATN ignorée sous cinq conditions (`:1326-1331`, pour Impulse Tracker), hwcf3
+  forcé à 4 au premier allumage d'un moteur d'enveloppe (`:989-994`, pour Doom), l'octet haut du pointeur tiré
+  d'un compteur de 80h à 9Fh (`:710-711`), les pas d'initialisation repérés par `init1[0] = 03FFh` (`:912`, `:957`,
+  `:1099`, `:1109`, `:1160`, `:1220`) ;
+- **les approximations** : l'interpolation cubique au lieu des trois points de l'AWE, un échantillon plus tard
+  (`:290-317`) ; un chorus et une réverbération « workalike » (`:1422`, `:1537`) ; un égaliseur vide
+  (`:1587-1589`), les registres d'aigus et de graves sans effet ; la hauteur et la coupure posées à leur cible à
+  chaque échantillon (`:1969`, `:1971`), le volume glissant de 400h par échantillon (`:1591-1602`) ;
+- **la sortie** : en cubique non filtré, `dat × cvcf_curr_volume` (`:1734`) déborde l'int32 quand |dat| passe
+  32 768 (jusqu'à 40 960 par le dépassement de l'interpolateur) et que le volume approche 65 535 — un claquement
+  au lieu d'un écrêtage ; le filtre, lui, borne à ±32 767 (`:1699-1703`) ;
+- **l'intégration** : la sortie de 44,1 kHz est portée à 48 kHz par répétition, sans interpolation
+  (`sound_sb.c:226`) : du repliement.
+*Effet* : des timbres autres que ceux de l'AWE32, dits tels par PCem ; des redéclenchements sans délai ; des notes
+muettes à l'attaque 0 ; une carte non initialisée qui sonne.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D4, D5, D8, D11 à D15).
+*Reproduit* : `Sound/sound_emu8k.cs` et `Sound/sound_sb.cs`, marqueurs PB-160. AWEBANC redéclenche une note
+sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact.
+
+### PB-165 — L'AWE32 est un DSP de type SB16 + 1 : 08h n'a plus de paramètre
+
+`sound_sb.c:1073-1095` : `sb_awe32_init` monte le DSP en type SB16 + 1 = 8, la version 4.13 (`sound_sb_dsp.c:57`) —
+numériquement SADGOLD (`ibm.h:359-360`). Les tests `>= SB16` le comptent comme une SB 16 ; le seul `== SB16`,
+dans `sb_doreset` (`sound_sb_dsp.c:168-171`), l'exclut : `sb_commands[8]` y vaut -1 au lieu de 1. 08h (la version
+de l'ASP) s'exécute alors dès l'octet de commande, rend 18h, et son paramètre est pris pour une commande.
+*Effet* : un pilote qui envoie 08h suivi d'un paramètre voit ce paramètre exécuté comme une commande (E1h rend la
+version, d'autres lancent un transfert) ; à confronter au vrai DSP 4.13 (G13).
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D15).
+*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-165 ; AWEBANC envoie 08h E1h et lit 18h, 04h, 0Dh.
+
+### PB-166 — L'AWE32 sans sa ROM arrête PCem ; une ROM courte laisse de l'indéterminé
+
+`sound.c:102-106` : `sound_card_init` monte la carte sans tester `device_available` ; `emu8k_init` s'arrête alors
+sur `fatal("AWE32.RAW not found")` (`sound_emu8k.c:2019`) — dans l'oracle, `fatal()` rend la main, et `fread` sur
+NULL (`:2022`) le fait tomber. Une ROM de moins de 1 Mio laisse le reste du tampon de `malloc` (`:2021-2022`) non
+initialisé : l'EMU8000 lit de l'indéterminé, différent d'une exécution à l'autre. Seule l'interface de PCem
+filtre la carte par sa ROM (`wx-config.c:190-193`).
+*Effet* : un .cfg qui demande l'AWE32 sans `roms/awe32.raw` arrête l'émulateur au démarrage.
+*Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
+*NON reproduit* (R9) : `check_sndcard` refuse l'AWE32 sans sa ROM, ou avec une ROM d'une autre taille que
+1 048 576 octets, avec un avertissement (`pc.cs`, garde `sound_emu8k.c:2019` ; décision n° 5 de PLAN-G12.md).
+L'oracle refuse bruyamment de la monter. Survie : `r9-awecfg`.
 
 ## B. Comportement indéfini en C
 
@@ -2028,6 +2111,10 @@ DivideByZeroException, IndexOutOfRangeException, NullReferenceException, mesuré
 *G12.0, les SB 1.0, 1.5, 2.0 et Pro v1* : leurs trois tables (`sound_sb.c:1134-1228`) reçoivent leurs listes
 `selection` ; `mixaddr` de la 2.0 (0, 250h, 260h) comme `addr` peut indexer au-delà de FFFFh (`io.c:45`). Hors
 liste : le défaut, averti, prouvé par `r9-sbcfg` (six essais de plus).
+*G12.2, l'AWE32* : `emu_addr` (620h à 680h) et `onboard_ram` (0, 512, 2 048, 8 192 et 28 672 Ko) reçoivent leurs
+listes (`sound_sb.c:1304-1323`). Hors liste, `emu_addr` près de FFFFh indexerait au-delà (`io.c:45`), et
+`onboard_ram` négatif ferait un `malloc` nul suivi d'un `memset` (`sound_emu8k.c:2046-2047`). Le défaut, averti,
+prouvé par `r9-awecfg`.
 
 ### PB-151 — L'entrée stéréo lit un élément au-delà de `record_buffer`
 
@@ -2123,6 +2210,56 @@ dépend de l'ordonnanceur de l'hôte : deux exécutions ne rendent pas le même 
 *NON reproduit — divergence assumée* (décision n° 7 de PLAN-G10, `DEVIATION` dans `Sound/sound.cs`
 et `tools/oracle/harness.c`) : le corps du fil s'exécute sur-le-champ, à l'échéance de
 `sound_poll`, dans le fil d'émulation, des deux côtés.
+
+### PB-161 — La réverbération de l'EMU8000 déborde ses tampons
+
+`sound_emu8k.c:1162-1174` : le quartet haut d'init2 canal 14h fixe `multip = quartet + 18`, et les tailles
+`multip × 242` pour la réflexion 5, `(multip + 1) × 242` pour les queues (le canal 16h pour la queue droite quand
+la réverbération est liée). L'en-tête prévoit au plus 32 × 242 = 7 744 (`MAX_REFL_SIZE`, `sound_emu8k.h:109-110`) ;
+Eh donne 33 × 242 aux queues, Fh 33 × 242 à la réflexion et 34 × 242 aux queues : le « + 1 » des queues est oublié.
+*Effet* : en silence, le peigne s'effondre sans tomber ; avec du signal, `emu8k_reverb_comb_work` et
+`emu8k_reverb_tail_work` écrivent au-delà de leur tableau, dans les peignes voisins, puis dans `sb_t` et le tas.
+*Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000, contre-lecture D10).
+*NON reproduit* (R9) : des tampons de 34 × 242 = 8 228 entrées, qui tiennent la taille demandée, et une garde aux
+quatre affectations (`Sound/sound_emu8k.cs`, gardes `sound_emu8k.c:1164`, `:1165`, `:1167`, `:1173` ; décision n° 15
+de PLAN-G12.md). La sonde ne hache que les 7 744 premières entrées. Aucune porte comparée n'y va : AWEBANC s'arrête au
+quartet Dh, la dernière taille qui tienne. Survie : `r9-emu8k`, chaque garde atteinte, les entrées au-delà de
+7 744 écrites.
+
+### PB-162 — Le chorus droit lit sous son tampon, et prend la fraction du gauche
+
+`sound_emu8k.c:1453-1468` : la position de lecture du canal droit retranche le délai central, le décalage droit
+(`hwcf4 & 1FFFFFh` en 1/256 d'échantillon, `:1102-1103`) et le LFO ; un seul repli de 16 384 (`:1457-1465`). Aux
+réglages extrêmes (le délai 1FFFh, la profondeur FFh, hwcf4 1FFFFFh), l'indice reste négatif jusqu'à −8 158 :
+`chorus_right_buffer[-n]` lit dans `chorus_left_buffer`, qui le précède dans la structure. Et le canal droit
+interpole avec la fraction du canal GAUCHE (`:1435`, réemployée à `:1468`).
+*Effet* : du signal gauche fuit à droite aux réglages extrêmes ; l'interpolation droite est décalée.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D9).
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite — la
+contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
+`emu8k-kernel-check` le passe sur des états fabriqués.
+
+### PB-163 — Les conversions de la réverbération débordent l'int32
+
+`sound_emu8k.c:1489`, `:1491`, `:1498`, `:1505`, `:1506`, `:1533` : les peignes, les diffuseurs et l'amortisseur
+calculent en float (`int × float`) et rendent le résultat à un `int32_t`. Hors bornes, la conversion est un
+comportement indéfini ; GCC sur x86-64 émet `cvttss2si`, qui rend INT_MIN, même pour un dépassement positif.
+`:1505` calcule de plus `-in`, qui déborde pour INT_MIN.
+*Effet* : une réverbération saturée claque à pleine amplitude négative au lieu de saturer.
+*Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-163, par l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET
+saturerait. Aucun invité n'y arrive en temps de porte : `emu8k-kernel-check` compare les sept noyaux sur des états
+fabriqués, des milliers de sorties à INT_MIN comprises.
+
+### PB-164 — L'attaque de l'enveloppe de modulation lit au-delà de sa table
+
+`sound_emu8k.c:1830-1831` : `value_amp_hz` reçoit l'incrément de l'attaque AVANT d'être borné à 1 << 21 (`:1832-1834`),
+et `env_mod_hertz_to_octave[value_amp_hz >> 5]` est lu entre les deux : l'indice dépasse la table de 65 537 entrées
+d'au plus `attack_amount >> 5`.
+*Effet* : une lecture hors table, aussitôt écrasée par `value_db_oct = 1 << 21` (`:1834`) ; rien d'observable.
+*Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
+identique (décision n° 15 de PLAN-G12.md). Ce n'est pas un site R9.
 
 ## C. Incohérences sans conséquence observable
 
@@ -2573,9 +2710,17 @@ READ_MESSAGE), `:1807`, `:1828`, `:2047` (une phase, un REQ ou un message que `s
 *Trouvé par* : reconnaissance de G11.
 *Reproduit* : les sites sont transcrits avec leur `fatal()`.
 
+### PB-167 — `emu8k_close` ne libère pas le bloc vide
+
+`sound_emu8k.c:2031` alloue le bloc vide (128 Kio) ; `emu8k_close` (`:2234-2237`) libère la ROM et la RAM, pas lui.
+*Effet* : une fuite de 128 Kio à chaque fermeture de l'AWE32 ; rien pour l'invité.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D18).
+*Reproduit* : sans objet — `emu8k_t.mem` porte la ROM, le bloc vide et la RAM d'un seul tableau, que le
+ramasse-miettes rend avec la carte.
+
 ## Portée de ce registre
 
-Ces **cent cinquante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **cent soixante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2625,6 +2770,7 @@ audit systématique de PCem** :
 | Reconnaissance (lecture puis contre-lecture) et transcription de l'AHA-1542C et de `scsi_hd` (G11) | PB-128 à PB-144 ; PB-121, PB-125 élargis |
 | Reconnaissance (lecture puis contre-lecture) et transcription des SB 1.0, 1.5, 2.0 et Pro v1 (G12.0) | PB-145 à PB-148 ; PB-92, PB-93 élargis |
 | Reconnaissance (lecture puis contre-lecture) et transcription de la SB 16 (G12.1) | PB-149 à PB-157 ; PB-145, PB-148 élargis |
+| Reconnaissance (lecture puis contre-lecture) et transcription de l'AWE32 et de l'EMU8000 (G12.2) | PB-158 à PB-167 ; PB-93, PB-153, PB-154 élargis |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

@@ -31,7 +31,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine();
     Console.WriteLine("  boot-diff [CHEMIN_ROMS] [TRANCHES] [--fda IMAGE] [--fdb IMAGE]");
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
-    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sb|sb1.5|sb2.0|sbprov1|sbprov2|sb16] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA[,DMA16]] [--cd-model NOM] [--expect-cd CANAL,vide|image] [--expect-cd-son] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
+    Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sb|sb1.5|sb2.0|sbprov1|sbprov2|sb16|sbawe32] [--expect-emu ADDR,RAM] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA[,DMA16]] [--cd-model NOM] [--expect-cd CANAL,vide|image] [--expect-cd-son] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
@@ -255,6 +255,18 @@ switch (args[0])
     // G12.1 — R9 : la fréquence 0 de la SB 16 (PB-150), la règle ISA 16 bits, deux survies, en C# seul.
     case "r9-sb16":
         return R9Sb16.Run("roms");
+    // G12.2 — les tables de l'EMU8000 (exp2, pow, log10, log2, exp, sin), oracle contre C#, au bit près.
+    case "emu8k-tables-check":
+        return EmuTablesCheck.Run("roms");
+    // G12.2 — les noyaux de l'EMU8000 (réverbération, chorus, volume) sur des états fabriqués, oracle contre C#.
+    case "emu8k-kernel-check":
+        return EmuKernelCheck.Run("roms");
+    // G12.2 — R9 : la réverbération de l'EMU8000 au-delà de ses tampons (PB-161), en C# seul.
+    case "r9-emu8k":
+        return R9Awe.RunEmu8k("roms");
+    // G12.2 — R9 : l'AWE32 sans sa ROM, sur l'ibmxt, et ses clés hors liste (PB-93), en C# seul.
+    case "r9-awecfg":
+        return R9Awe.RunCfg("roms");
     // G10.3 — le moteur d'images de CD, oracle contre C#, sur les images d'isogen (DOSSIER : déjà écrites).
     case "cdimage-check":
         return CdImageCheck.Run(args.Length > 1 ? args[1] : null);
@@ -475,6 +487,13 @@ switch (args[0])
                 // G10.5 — la sonde du CD doit avoir vu du son (des échantillons non nuls), des deux côtés.
                 case "--expect-cd-son": BootDiff.ExpectCdSon = true; break;
                 case "--expect-aha": BootDiff.ExpectAha = true; break;
+                // G12.2 — l'AWE32 des deux côtés, sa RAM en Ko, la ROM des mesures.
+                case "--expect-emu" when i + 1 < args.Length:
+                {
+                    var v = args[++i].Split(',');
+                    BootDiff.ExpectEmu = (Convert.ToInt32(v[0], 16), int.Parse(v[1]));
+                    break;
+                }
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
                 // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).

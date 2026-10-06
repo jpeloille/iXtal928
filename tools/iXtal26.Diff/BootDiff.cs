@@ -266,6 +266,82 @@ public static class BootDiff
     /// <summary>G11.0 — `--expect-aha` : la carte doit être montée des deux côtés.</summary>
     internal static bool ExpectAha;
 
+    /// <summary>G12.2 — `--expect-emu ADDR,RAM` : l'AWE32 doit être montée des deux côtés, l'EMU8000 en ADDR (hexadécimal),
+    /// sa RAM de RAM Ko, et roms/awe32.raw doit être la ROM des mesures (sha256) : sans elle, check_sndcard refuserait la
+    /// carte des deux côtés, et la porte serait verte à vide.</summary>
+    internal static (int Addr, int Ram)? ExpectEmu;
+
+    // La ROM de l'AWE32 des mesures (VERIFICATION.md § G12.2) : 1 048 576 octets, une image AWE-DUMP.
+    private const string Awe32Sha256 = "4e143b94f758734f594ded78f4e5115635975c16fa37fabeae0baa4938ca710e";
+
+    private static readonly string[] EmuFields = BuildEmuFields();
+
+    private static string[] BuildEmuFields()
+    {
+        var f = new List<string>
+        {
+            "monte|cur_reg|cur_voice|adresse", "hwcf1|2|3", "hwcf4|5", "hwcf6|7", "smalr|smarr", "smalw|smarw", "smld|smrd|wc|id",
+            "#init1-4", "ram_end_addr|pos", "out_l|r", "random_helper|dmareadbit|dmawritebit", "#mem", "chorus.write|feedback",
+            "chorus.delay_central", "chorus.lfodepth", "chorus.offset_right", "chorus.lfo_inc", "chorus.lfo_pos",
+            "#chorus.buffers", "#chorus_in", "reverb.out_mix|amp|type|in_amp", "#reverb_in", "#buffer",
+        };
+        for (var c = 0; c < 6; c++)
+            f.Add($"#reflections[{c}]");
+        for (var c = 0; c < 8; c++)
+            f.Add($"#allpass[{c}]");
+        f.AddRange(["#tailL", "#tailR", "#damper"]);
+        for (var c = 0; c < 32; c++)
+            f.Add($"#voice[{c}]");
+        return [.. f];
+    }
+
+    /// <summary>G12.2 — la sonde de l'EMU8000 quand l'AWE32 est montée d'un côté : l'état de la puce, la mémoire entière
+    /// (la ROM, le bloc vide, la RAM), le chorus, la réverbération, les trente-deux canaux. Sous --expect-emu, la carte
+    /// doit être montée des deux côtés, la RAM de la taille dite, la ROM celle des mesures.</summary>
+    private static int CompareEmu(ulong[] o, ulong[] c)
+    {
+        if (o[0] == 0 && c[0] == 0)
+        {
+            if (ExpectEmu is null)
+                return 0;
+            Console.Error.WriteLine("Sonde de l'EMU8000 : aucune AWE32, d'aucun côté (--expect-emu).");
+            return 1;
+        }
+        var bad = 0;
+        for (var f = 0; f < EmuFields.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  EMU {EmuFields[f],-34} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde de l'EMU8000 : {bad} champ(s) divergent(s) sur {EmuFields.Length}.");
+            return 1;
+        }
+        var addr = (int)((o[0] >> 24) & 0xffff);
+        var ram = (int)(((o[8] & 0xffffffff) - 0x200000) >> 9);
+        Console.WriteLine($"Sonde de l'EMU8000 : {EmuFields.Length} champs identiques — en {addr:X}h, RAM {ram} Ko, hwcf " +
+                          $"{o[1] & 0xffff:X2}/{(o[1] >> 16) & 0xffff:X2}/{(o[1] >> 32) & 0xffff:X2}, mémoire {o[11]:X16}.");
+        if (ExpectEmu is not { } attendu)
+            return 0;
+        if (addr != attendu.Addr || ram != attendu.Ram)
+        {
+            Console.Error.WriteLine($"EMU8000 : en {addr:X}h avec {ram} Ko de RAM, attendu {attendu.Addr:X}h et {attendu.Ram} Ko " +
+                                    "(--expect-emu).");
+            return 1;
+        }
+        using var rom = Flash.rom.romfopen("awe32.raw", "rb");
+        var sha = rom is null ? "absente" : Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(rom));
+        if (sha != Awe32Sha256)
+        {
+            Console.Error.WriteLine($"EMU8000 : roms/awe32.raw {sha}, attendu {Awe32Sha256} (--expect-emu).");
+            return 1;
+        }
+        return 0;
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -611,6 +687,9 @@ public static class BootDiff
         // G12.1 — la sonde du DMA, au même point.
         var dmaOracle = new ulong[Oracle.DmaProbeN];
         Oracle.h_dma_probe(dmaOracle);
+        // G12.2 — la sonde de l'EMU8000, au même point.
+        var emuOracle = new ulong[Oracle.Emu8kProbeN];
+        Oracle.h_emu8k_probe(emuOracle);
 
         // LUE EN FLUX, et plus d'un bloc. File.ReadAllBytes plafonne à 2 Go, et l'indice
         // `n * 8` en int débordait au même endroit : aucune campagne ne pouvait dépasser
@@ -723,6 +802,8 @@ public static class BootDiff
         Scsi.scsi_aha1540.Probe(ahaCsharp);
         var dmaCsharp = new ulong[Oracle.DmaProbeN];
         Models.dma.ProbeState(dmaCsharp);
+        var emuCsharp = new ulong[Oracle.Emu8kProbeN];
+        Sound.sound_emu8k.Probe(emuCsharp);
         var cdCsharp = ExpectCd is null ? (0, 0)
             : (Ide.ide.ide_drives[canalCd].type,
                Ide.ide_atapi.atapi is null ? 0 : Ide.ide_atapi.atapi == Cdrom.cdrom_image.image_atapi ? 2 : 1);
@@ -781,6 +862,7 @@ public static class BootDiff
                  | CompareCdSound(cdSndOracle, cdSndCsharp)
                  | CompareAha(ahaOracle, ahaCsharp, nFatalOracle)
                  | CompareDma(dmaOracle, dmaCsharp)
+                 | CompareEmu(emuOracle, emuCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")

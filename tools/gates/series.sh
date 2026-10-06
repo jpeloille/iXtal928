@@ -216,6 +216,24 @@ mapfile -t S16K < tools/sb16banc/sb16banc.keys
 S16B=(); for l in "${S16K[@]}"; do S16B+=(--type "$l"); done
 runw bd-ami486-sb16-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${S16B[@]}" --type "@wait 3000" --expect-aha --expect-sb 220,7,1,5
 run r9-sb16 r9-sb16
+# G12.2 — l'AWE32 et son EMU8000 : les onze tables d'emu8k_init et la ROM chargée, oracle contre C#, au bit près ;
+# les sept noyaux (peigne, diffuseur, queue, amortisseur, chorus, réverbération, volume) sur des états fabriqués ;
+# le POST de l'ami486 sous --expect-emu (la puce en 620h, sa RAM à la taille dite, la ROM des mesures exigée), à
+# 512 Ko, sans RAM et à 28 Mo ; le refus sur l'XT ; AWEBANC (tools/awebanc, GNU as) saisi dans DEBUG, DOS 5 amorcé
+# du disque SCSI de G11 : la détection, l'initialisation, la DRAM et son repli, la ROM, des notes, le chorus et la
+# réverbération, un chorus extrême (PB-162). r9-emu8k et r9-awecfg, en C# seul : la réverbération au-delà de ses
+# tampons (PB-161) ; la ROM absente ou courte, l'XT, les clés hors liste (PB-93).
+run emu8k-tables-check emu8k-tables-check
+run emu8k-kernel-check emu8k-kernel-check
+run bd-ami486-awe32 boot-diff roms 3000 --config $C/ami486-dx2.cfg --sndcard sbawe32 --expect-sb 220,7,1,5 --expect-emu 620,512
+run bd-ami486-awe32-ram0 boot-diff roms 3000 --config $C/ami486-awe32-ram0.cfg --expect-sb 220,7,1,5 --expect-emu 620,0
+run bd-ami486-awe32-ram28 boot-diff roms 3000 --config $C/ami486-awe32-ram28.cfg --expect-sb 220,7,1,5 --expect-emu 620,28672
+run bd-ibmxt-awe32-refus boot-diff roms 3000 --model ibmxt --sndcard sbawe32
+mapfile -t AWK < tools/awebanc/awebanc.keys
+AWB=(); for l in "${AWK[@]}"; do AWB+=(--type "$l"); done
+runw bd-ami486-awe32-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-awe32-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AWB[@]}" --type "@wait 3000" --expect-aha --expect-sb 220,7,1,5 --expect-emu 620,512
+run r9-emu8k r9-emu8k
+run r9-awecfg r9-awecfg
 # PS2.0, PS2.1 — la souris PS/2 (mouse_ps2.c) par le 8042. Aucune machine du dépôt n'a MODEL_PS2
 # (leurs BIOS AMI ne rendent pas INT 15h C2h ; décision utilisateur du 03/10, VERIFICATION.md
 # § PS2.1) : la souris PS/2 et l'Intellimouse demandées sont refusées, la série à leur place —

@@ -1100,11 +1100,21 @@ internal static partial class pc
     internal static void check_sndcard()
     {
         var name = Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current);
-        if (!Host.SoundCards.IsAvailable(name))
+        if (Host.SoundCards.RequiresAtMachine(name) && !Host.HardDiskControllers.CurrentMachineIsAt)
         {
             Diag.R9.Garde("sound_sb.c:1349");
             Console.Error.WriteLine($"sndcard = {name} : carte ISA 16 bits, refusée sur « {Models.model_c.model_get_internal_name()} » " +
                                     "(8088/8086) ; aucune carte son.");
+            Sound.sound.sound_card_current = 0;
+            return;
+        }
+        // G12.2 — la ROM de l'AWE32 (PLAN-G12.md, décision n° 5). PCem tombe : sound_card_init ne teste pas
+        //   device_available (sound.c:102-106), et emu8k_init s'arrête sur fatal (sound_emu8k.c:2019).
+        if (PluginApi.paths.num_roms_paths > 0 && !Host.SoundCards.RomOk(name))
+        {
+            Diag.R9.Garde("sound_emu8k.c:2019");
+            Console.Error.WriteLine($"sndcard = {name} : ROM « awe32.raw » absente, ou d'une autre taille que 1 048 576 octets ; " +
+                                    "aucune carte son.");
             Sound.sound.sound_card_current = 0;
             return;
         }

@@ -104,7 +104,6 @@ internal sealed class sb_ct1745_mixer_t
 // DEVIATION: (G12.0, PLAN-G12.md décision n° 2) l'union des mélangeurs (:94-98) devient des champs
 //   distincts. Aucun lecteur ne croise ses membres : chaque carte n'écrit et ne lit que le sien
 //   (dsp->parent ne sert qu'à l'Aztech, sound_sb_dsp.c:688-691, exclu).
-// omitted: emu8k_t emu8k (:100) — l'AWE32 (G12.2).
 internal sealed class sb_t
 {
     internal readonly opl_t opl = new opl_t();
@@ -114,6 +113,9 @@ internal sealed class sb_t
     internal readonly sb_ct1745_mixer_t mixer_sb16 = new sb_ct1745_mixer_t();
     // pcem: sound_sb.h:99 — G12.1 : le MPU-401 de la SB 16 et de l'AWE32.
     internal readonly mpu401_uart_t mpu = new mpu401_uart_t();
+    // pcem: sound_sb.h:100 — G12.2. DEVIATION de forme : alloué pour l'AWE32 seule (sb_awe32_init), là où le C
+    //   l'embarque dans toute SB (sizeof(sb_t) = 917 592 octets) ; PLAN-G12.md, décision n° 15.
+    internal emu8k_t? emu8k;
 
     internal int pos;
 
@@ -498,7 +500,114 @@ internal static partial class sound_sb
                 dsp.buffer[i - 0xFFFF] = v;
     }
 
-    // omitted: sb_get_buffer_emu8k (sound_sb.c:214-331) — l'AWE32 (G12.2).
+    // pcem: sound_sb.c:214-331 — G12.2, l'AWE32 : sb_get_buffer_sb16, plus l'EMU8000, rééchantillonné de 44,1 à 48 kHz
+    //   par répétition (:226). Les gains de l'OPL sont `>> 15` puis `>> 16` (:228-229), l'inverse de la SB 16 : on ne
+    //   factorise pas.
+    // pcem bug, reproduced: PB-160 — le rééchantillonnage par répétition, sans interpolation (repliement).
+    internal static void sb_get_buffer_emu8k(int32_t[] buffer, int len, object? p)
+    {
+        sb_t sb = (sb_t)p;
+        sb_ct1745_mixer_t mixer = sb.mixer_sb16;
+        emu8k_t emu = sb.emu8k!;
+
+        int c;
+
+        opl3_update2(sb.opl);
+        sound_emu8k.emu8k_update(emu);
+        sb_dsp_update(sb.dsp);
+        int dsp_rec_pos = sb.dsp.record_pos_write;
+        for (c = 0; c < len * 2; c += 2) {
+                int32_t out_l, out_r, in_l, in_r;
+                int c_emu8k = (((c / 2) * 44100) / 48000) * 2;
+
+                out_l = ((((sb.opl.buffer[c] * mixer.fm_l) >> 15) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 16);
+                out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 15) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 16);
+
+                out_l += ((emu.buffer[c_emu8k] * mixer.fm_l) >> 15);
+                out_r += ((emu.buffer[c_emu8k + 1] * mixer.fm_r) >> 15);
+
+                /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion  */
+                // pcem bug, reproduced: PB-153 — la sélection d'entrée MIDI mal parenthésée.
+                in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
+                                                                              : 0;
+                in_r = (mixer.input_selector_right & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
+                                                                               : 0;
+
+                // pcem bug, reproduced: PB-155 — la conversion du C (cvttss2si), comme à sb_get_buffer_sb16.
+                out_l += (Cpu._386.CvtI32((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
+                out_r += (Cpu._386.CvtI32((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
+
+                out_l = (out_l * mixer.master_l) >> 15;
+                out_r = (out_r * mixer.master_r) >> 15;
+
+                if (mixer.bass_l != 8 || mixer.bass_r != 8 || mixer.treble_l != 8 || mixer.treble_r != 8) {
+                        /* This is not exactly how one does bass/treble controls, but the end result is like it. A better
+                         * implementation would reduce the cpu usage */
+                        if (mixer.bass_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(low_iir(0, (float)out_l) * sb_bass_treble_4bits[mixer.bass_l]));
+                        if (mixer.bass_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(low_iir(1, (float)out_r) * sb_bass_treble_4bits[mixer.bass_r]));
+                        if (mixer.treble_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(high_iir(0, (float)out_l) * sb_bass_treble_4bits[mixer.treble_l]));
+                        if (mixer.treble_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(high_iir(1, (float)out_r) * sb_bass_treble_4bits[mixer.treble_r]));
+                        if (mixer.bass_l < 8)
+                                out_l = Cpu._386.CvtI32((double)(out_l * sb_bass_treble_4bits[mixer.bass_l] +
+                                                  low_cut_iir(0, (float)out_l) * (1.0f - sb_bass_treble_4bits[mixer.bass_l])));
+                        if (mixer.bass_r < 8)
+                                out_r = Cpu._386.CvtI32((double)(out_r * sb_bass_treble_4bits[mixer.bass_r] +
+                                                  low_cut_iir(1, (float)out_r) * (1.0f - sb_bass_treble_4bits[mixer.bass_r])));
+                        if (mixer.treble_l < 8)
+                                out_l = Cpu._386.CvtI32((double)(out_l * sb_bass_treble_4bits[mixer.treble_l] +
+                                                  high_cut_iir(0, (float)out_l) * (1.0f - sb_bass_treble_4bits[mixer.treble_l])));
+                        if (mixer.treble_r < 8)
+                                out_r = Cpu._386.CvtI32((double)(out_r * sb_bass_treble_4bits[mixer.treble_r] +
+                                                  high_cut_iir(1, (float)out_r) * (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
+                }
+                // pcem bug, reproduced: PB-148 — sb_enable_i n'est jamais écrit : ce bloc ne s'exécute pas.
+                if (sb.dsp.sb_enable_i != 0) {
+                        //                      in_l += (mixer->input_selector_left&INPUT_CD_L) ?
+                        //                      audio_cd_buffer[cd_read_pos+c_emu8k] : 0 + (mixer->input_selector_left&INPUT_CD_R)
+                        //                      ? audio_cd_buffer[cd_read_pos+c_emu8k+1] : 0; in_r +=
+                        //                      (mixer->input_selector_right&INPUT_CD_L) ? audio_cd_buffer[cd_read_pos+c_emu8k]: 0
+                        //                      + (mixer->input_selector_right&INPUT_CD_R) ?
+                        //                      audio_cd_buffer[cd_read_pos+c_emu8k+1] : 0;
+
+                        int c_record = dsp_rec_pos;
+                        c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
+                        // omitted: SB_DSP_RECORD_DEBUG (:282-290) — #ifdef éteint.
+                        in_l <<= mixer.input_gain_L;
+                        in_r <<= mixer.input_gain_R;
+                        // Clip signal
+                        if (in_l < -32768)
+                                in_l = -32768;
+                        else if (in_l > 32767)
+                                in_l = 32767;
+
+                        if (in_r < -32768)
+                                in_r = -32768;
+                        else if (in_r > 32767)
+                                in_r = 32767;
+                        record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
+                        record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
+                        // omitted: SB_DSP_RECORD_DEBUG (:305-312) — #ifdef éteint.
+                }
+
+                buffer[c] += (out_l << mixer.output_gain_L);
+                buffer[c + 1] += (out_r << mixer.output_gain_R);
+        }
+        // omitted: SB_DSP_RECORD_DEBUG (:318-323) — #ifdef éteint.
+
+        // pcem bug, reproduced: PB-156 — `len * sb_freq` déborde après 40h FFh, enveloppé comme en C.
+        sb.dsp.record_pos_write += ((len * sb.dsp.sb_freq) / 48000) * 2;
+        sb.dsp.record_pos_write &= 0xFFFF;
+        sb.pos = 0;
+        sb.opl.pos = 0;
+        sb.dsp.pos = 0;
+        emu.pos = 0;
+    }
 
     // pcem: sound_sb.c:333-371 — G12.0. Le mélangeur est remis à zéro par sb_2_init MÊME sans mixaddr
     //   (:952) : sound_set_cd_volume(20, 20), master 4 << 1 (8230) par le CD au minimum (164) — l'audio
@@ -1299,7 +1408,46 @@ internal static partial class sound_sb
         return sb;
     }
 
-    // omitted: sb_awe32_available, sb_awe32_init (sound_sb.c:1071-1095) — l'AWE32 (G12.2).
+    // pcem: sound_sb.c:1071 — G12.2. Lu par device_available (device.c:46-52), donc par pc.check_sndcard ; PCem ne le
+    //   lit que dans son écran (sound_card_init ne le teste pas, sound.c:102-106).
+    internal static int sb_awe32_available() { return Flash.rom.rom_present("awe32.raw"); }
+
+    // pcem: sound_sb.c:1073-1095 — G12.2, l'AWE32. Le DSP 4.13 (le type SB16 + 1) ; ni IRQ ni DMA dans la configuration
+    //   (TODO :1084) ; le MPU-401 fixe en 330h, sans IRQ ; l'EMU8000 en emu_addr, +400h et +800h.
+    internal static object? sb_awe32_init()
+    {
+        sb_t sb = new sb_t();
+        sb_pri = sb;
+        int onboard_ram = device_get_config_int("onboard_ram");
+        // pcem: sound_sb.c:1076 — memset(sb, 0, sizeof(sb_t)) ; `new` zéro-initialise.
+
+        uint16_t addr = (uint16_t)device_get_config_int("addr");
+        uint16_t emu_addr = (uint16_t)device_get_config_int("emu_addr");
+        sb.opl_emu = device_get_config_int("opl_emu");
+        // DEVIATION: (G8.3) NukedOPL est omis, comme pour la Pro v2 (sb_pro_v2_init).
+        if (sb.opl_emu != OPL_DBOPL)
+        {
+                Console.Error.WriteLine($"iXtal26 : opl_emu = {sb.opl_emu} — NukedOPL n'est pas transcrit, DBOPL à sa place.");
+                sb.opl_emu = OPL_DBOPL;
+        }
+        opl3_init(sb.opl, sb.opl_emu);
+        // pcem bug, reproduced: PB-165 — le type SB16 + 1 : `sb_type == SB16` (sb_doreset, sound_sb_dsp.c:168) exclut l'AWE32,
+        //   et 08h y garde la longueur -1.
+        sb_dsp_init(sb.dsp, SB16 + 1, SB_SUBTYPE_DEFAULT, sb);
+        sb_dsp_setaddr(sb.dsp, addr);
+        // TODO: irq and dma options too?
+        sb_ct1745_mixer_reset(sb);
+        io_sethandler(addr, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
+        io_sethandler((uint16_t)(addr + 8), 0x0002, opl3_read, null, null, opl3_write, null, null, sb.opl);
+        io_sethandler(0x0388, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
+        io_sethandler((uint16_t)(addr + 4), 0x0002, sb_ct1745_mixer_read, null, null, sb_ct1745_mixer_write, null, null, sb);
+        sound_add_handler(sb_get_buffer_emu8k, sb);
+        sound_mpu401_uart.mpu401_uart_init(sb.mpu, 0x330, -1, 0);
+        sb.emu8k = new emu8k_t();
+        sound_emu8k.emu8k_init(sb.emu8k, emu_addr, onboard_ram);
+
+        return sb;
+    }
 
     // pcem: sound_sb.c:1097-1112
     internal static void sb_close(object p)
@@ -1313,7 +1461,15 @@ internal static partial class sound_sb
         // omitted: free(sb) (:1111) — libération manuelle, sans objet sous GC.
     }
 
-    // omitted: sb_awe32_close (sound_sb.c:1114-1120) — AWE32.
+    // pcem: sound_sb.c:1114-1120 — G12.2.
+    internal static void sb_awe32_close(object p)
+    {
+        sb_t sb = (sb_t)p;
+
+        sound_emu8k.emu8k_close(sb.emu8k!);
+
+        sb_close(sb);
+    }
 
     // pcem: sound_sb.c:1122-1126
     internal static void sb_speed_changed(object p)
@@ -1399,7 +1555,24 @@ internal static partial class sound_sb
         new device_config_t { type = -1 },
     ];
 
-    // omitted: sb_awe32_config (sound_sb.c:1294-1333) — l'AWE32 (G12.2).
+    // pcem: sound_sb.c:1294-1333 — G12.2, l'AWE32. « None » (0) est une vraie entrée de onboard_ram ; 28 Mo vaut 28 672.
+    internal static readonly device_config_t[] sb_awe32_config =
+    [
+        new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
+            selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 },
+                         new() { description = "0x260", value = 0x260 }, new() { description = "0x280", value = 0x280 }] },
+        new device_config_t { name = "emu_addr", type = CONFIG_SELECTION, default_int = 0x620,
+            selection = [new() { description = "0x620", value = 0x620 }, new() { description = "0x640", value = 0x640 },
+                         new() { description = "0x660", value = 0x660 }, new() { description = "0x680", value = 0x680 }] },
+        new device_config_t { name = "midi", type = CONFIG_MIDI, default_int = 0 },
+        new device_config_t { name = "onboard_ram", type = CONFIG_SELECTION, default_int = 512,
+            selection = [new() { description = "None", value = 0 }, new() { description = "512 KB", value = 512 },
+                         new() { description = "2 MB", value = 2048 }, new() { description = "8 MB", value = 8192 },
+                         new() { description = "28 MB", value = 28 * 1024 }] },
+        new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
+            selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
+        new device_config_t { type = -1 },
+    ];
 
     // pcem: sound_sb.c:1335-1346 — G12.0 : les SB 1.0, 1.5, 2.0 et Pro v1, à côté de la Pro v2 de G8.
     // DEVIATION: add_status_info à null au lieu de sb_add_status_info — texte d'état de l'hôte,
@@ -1423,5 +1596,8 @@ internal static partial class sound_sb
     internal static readonly device_t sb_16_device = new device_t("Sound Blaster 16", 0, sb_16_init, sb_close, null,
                                                                   sb_speed_changed, null, null, sb_16_config);
 
-    // omitted: sb_awe32_device (sound_sb.c:1351-1352) — l'AWE32 (G12.2).
+    // pcem: sound_sb.c:1351-1352 — G12.2. available = sb_awe32_available, gardé : pc.check_sndcard le lit.
+    internal static readonly device_t sb_awe32_device = new device_t("Sound Blaster AWE32", 0, sb_awe32_init, sb_awe32_close,
+                                                                     sb_awe32_available, sb_speed_changed, null, null,
+                                                                     sb_awe32_config);
 }

@@ -7002,3 +7002,72 @@ g112. Verdict par verdict contre g112 :
 - la sonde du son compte 62 champs, et ses empreintes n'ont pas bougé ;
 - les portes des SB gagnent la ligne de la sonde du DMA ;
 - cinq portes sont neuves.
+
+## G12.2 — L'AWE32 et l'EMU8000 ; PB-158 à PB-167
+
+Le 6 octobre 2026. Plan : `PLAN-G12.md` § G12.2, décisions n° 5, 12 à 16 (prises sous le mandat « en totale
+autonomie » du 05/10).
+
+**Transcrit.**
+- `sound_emu8k.c` et `.h` : les régions vivantes, environ 1 300 et 380 lignes. Les unions en structures à
+  disposition explicite ; la ROM, le bloc vide et la RAM en un seul tableau (décision n° 15). Les enveloppes, les
+  LFO, le filtre MOOG, l'interpolation cubique, le chorus et la réverbération, `emu8k_init` et ses onze tables.
+- La conversion du C aux six sites de la réverbération (PB-163). Le chorus droit sous son tampon, par un tableau
+  commun (PB-162). Les tampons de la réverbération de 8 228 entrées et leurs quatre gardes R9 (PB-161). La borne
+  de `:1831` (PB-164).
+- `sound_sb.c` : `sb_get_buffer_emu8k` (`:214-331`), `sb_awe32_available`, `sb_awe32_init` (le DSP de type
+  SB16 + 1, PB-165), `sb_awe32_close`, sa configuration et son device ; `sound.c`, l'entrée du registre.
+- `check_sndcard` refuse l'AWE32 sans `roms/awe32.raw`, ou avec une ROM d'une autre taille que 1 Mio
+  (décision n° 5, PB-166).
+
+**L'oracle.** ABI 56 : `harness_emu8k.c` inclut `sound_emu8k.c` (ses tables et `random_helper` sont `static`) ;
+les souches de l'EMU8000 partent ; `h_boot` monte l'AWE32, et la refuse bruyamment sans sa ROM. Trois entrées :
+- `h_emu8k_probe`, 72 champs : l'état de la puce et son adresse (le premier port de ses gestionnaires), la mémoire
+  entière, le chorus, les dix-sept peignes, les trente-deux canaux ;
+- `h_emu8k_tables`, les tables du vrai `emu8k_init` ;
+- `h_emu8k_kernel`, les noyaux sur des états fabriqués.
+`--expect-emu ADDR,RAM` exige la carte des deux côtés, l'EMU8000 à son adresse, sa RAM à la taille dite, et la ROM
+des mesures (sha256 `4e143b94…ca710e`, une image AWE-DUMP que PCem recale).
+
+**Les portes.**
+- `emu8k-tables-check` : les onze tables identiques au bit près (410 243 entrées), la ROM chargée identique
+  (B37E3B4358ED766A). exp2, pow, log10, log2, exp, log, sin et sqrt de .NET rendent ici ce que rend glibc ;
+  `Math.Pow(2, x)` tient lieu d'exp2.
+- `emu8k-kernel-check` : le peigne, le diffuseur, la queue, l'amortisseur, le chorus, la réverbération entière et
+  la pente du volume, chacun sur 48 états fabriqués des deux côtés par le même générateur, 4 096 pas par état :
+  identiques. Les états vont jusqu'aux bornes de l'int32, les réglages restent ceux que les registres posent. Des
+  milliers de sorties tombent à INT_MIN : 8 917 au peigne, 22 648 au diffuseur, 18 685 à la queue, 7 473 à
+  l'amortisseur.
+- `bd-ami486-awe32`, `-ram0` et `-ram28` : le POST de l'ami486, 5 433 965 instructions identiques, l'EMU8000 en
+  620h avec 512, 0 et 28 672 Ko de RAM, ses 72 champs identiques.
+- `bd-ibmxt-awe32-refus` : la carte refusée, avertie, 11 518 603 instructions identiques.
+- AWEBANC (`tools/awebanc`, GNU as), saisi dans DEBUG sur l'ami486, DOS 5 amorcé du disque SCSI de G11
+  (`bd-ami486-awe32-banc`) : 182 526 486 instructions identiques, les sondes identiques (le son, le DMA, l'AHA,
+  l'EMU8000 et ses 72 champs). Le banc passe :
+  - le DSP 4.13 et 08h sans paramètre ;
+  - la détection, par mots et par octets ;
+  - l'initialisation et les effets, la réverbération au quartet Dh ;
+  - la DRAM : son repli au-delà de 512 Ko, SMALR, SMARW, des octets ;
+  - la ROM ;
+  - trois notes, dont une redéclenchée ;
+  - les rustines d'IFATN et de hwcf3 ;
+  - un chorus extrême, puis la réverbération liée.
+- `r9-emu8k`, en C# seul : quatre essais, un par garde de la réverbération, chacun avec du signal, les entrées
+  au-delà de 7 744 écrites. Et une survie sans garde, au quartet Dh.
+- `r9-awecfg`, en C# seul, huit essais : la ROM absente, la ROM courte et l'XT, chacun refusé, averti, sa garde
+  atteinte ; puis cinq sections, dans et hors des listes de `emu_addr` et de `onboard_ram` (PB-93).
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| `>> 8` au lieu de `>> 1` dans `emu8k_inb` | `bd-ami486-awe32-banc` | rouge : la trace diverge à l'instruction 174 330 872, sur les 182 526 486 du banc |
+| le transtypage .NET dans le peigne | `emu8k-kernel-check` | rouge : 22 états du peigne sur 48 divergent (198 sorties à INT_MIN au lieu de 307, pour la première graine), et la réverbération entière sur ses 48 |
+| les canaux 0 et 1 permutés dans la sonde | `bd-ami486-awe32-banc` | rouge : la trace reste identique, mais la sonde de l'EMU8000 diverge sur 2 champs de 72, `voice[0]` et `voice[1]` échangés |
+| les tampons de la réverbération à 32 × 242, la taille du C | `r9-emu8k` | rouge : les quatre essais gardés s'arrêtent sur IndexOutOfRangeException |
+
+**La série.** g125 tourne sur le worktree de G12.2, l'état commité, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit
+de zéro : 234 portes, 224 vertes en 58 minutes. Dix traces ont été tronquées par le quota de /tmp, sans rien d'autre
+sur la machine : à dix voies, les bancs longs dépassent désormais le quota à eux seuls. Rejouées seules sur trois
+voies (g125b), elles sont vertes, avec les comptes de g124. Verdict par verdict contre g124 : la porte `abi` lit 56,
+neuf portes sont neuves, et rien d'autre ne change.

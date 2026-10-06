@@ -1237,16 +1237,13 @@ plat_joystick_t plat_joystick_state[MAX_PLAT_JOYSTICKS];
  * copies de lpt1_write/read et la souche de lpt2_remove_ams n'ont plus lieu d'être. */
 
 /* --- G8.2 : ce que sound_sb.c et sound_sb_dsp.c réclament pour les AUTRES cartes ---------------
- * L'EMU8000 (AWE32), le WSS de l'Aztech : inatteignables. Arrêt bruyant. Le MPU-401 est lié depuis G12.1
- * (sound_mpu401_uart.c). GAMEBLASTER : pc.c:76 (non lié) ; lu par sb_2_init (sound_sb.c:955 : à 0, l'OPL2 de la
+ * Le WSS de l'Aztech : inatteignable. Arrêt bruyant. Le MPU-401 est lié depuis G12.1 (sound_mpu401_uart.c), l'EMU8000
+ * depuis G12.2 (harness_emu8k.c). GAMEBLASTER : pc.c:76 (non lié) ; lu par sb_2_init (sound_sb.c:955 : à 0, l'OPL2 de la
  * SB 2.0 se répète en 2x0-2x1, G12.0), toujours 0 comme le C# (pc.GAMEBLASTER, le CMS n'étant pas transcrit). */
 #include "sound.h"
 #include "sound_emu8k.h"
 #include "sound_mpu401_uart.h"
 int GAMEBLASTER = 0;
-void emu8k_init(emu8k_t *emu8k, uint16_t emu_addr, int onboard_ram) { (void)emu8k; (void)emu_addr; (void)onboard_ram; fatal("emu8k_init : EMU8000 non lie (G8)\n"); }
-void emu8k_close(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_close : EMU8000 non lie (G8)\n"); }
-void emu8k_update(emu8k_t *emu8k) { (void)emu8k; fatal("emu8k_update : EMU8000 non lie (G8)\n"); }
 /* G12.1 — midi_write (plat-midi.h:5), la frontière de l'hôte : le build Linux de PCem prend sdl2-midi.c, où elle est
  * vide. Ici, le compte et l'empreinte FNV-1a des octets, lus par la sonde du son ; pendant de
  * Sound.sound_mpu401_uart.midi_write. -Wl,--no-undefined l'exige dès que sound_mpu401_uart.c est lié. ORACLE PARITY :

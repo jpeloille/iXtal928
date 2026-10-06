@@ -97,3 +97,9 @@ La SB 16 (G12.1) : `bd-ami486-sb16` exige aussi le DMA 16 bits (`--expect-sb 220
 (`h_dma_probe`, 29 champs) est comparée dès qu'une SB est montée. SB16BANC (`tools/sb16banc`, GNU as) est saisi
 dans DEBUG sur l'ami486, DOS 5 amorcé du disque SCSI de G11 (`ami486-sb16-banc.cfg`, `scsic.img`) ;
 `sb16-filter-check` compare les coefficients du FIR, `r9-sb16` est en C# seul.
+L'AWE32 (G12.2) : `bd-ami486-awe32`, `-ram0` et `-ram28` passent sous `--expect-emu ADDR,RAM`, qui exige la carte
+des deux côtés, l'EMU8000 à son adresse (le premier port de ses gestionnaires, lu par la sonde), sa RAM à la taille
+dite et `roms/awe32.raw` à l'empreinte des mesures ; la sonde de l'EMU8000 (72 champs) est comparée dès qu'une
+AWE32 est montée. AWEBANC (`tools/awebanc`, GNU as) suit le patron de SB16BANC (`ami486-awe32-banc.cfg`) ;
+`emu8k-tables-check` compare les tables d'`emu8k_init`, `emu8k-kernel-check` les noyaux de la réverbération, du
+chorus et du volume sur des états fabriqués des deux côtés ; `r9-emu8k` et `r9-awecfg` sont en C# seul.

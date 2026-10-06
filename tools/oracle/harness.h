@@ -743,7 +743,7 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 55
+#define H_ABI_VERSION 56
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
@@ -755,6 +755,15 @@ uint8_t *h_ram(void);
 #define H_DMA_PROBE_N 29
 void h_dma_probe(uint64_t *o);
 void h_sb16_filter(int cmd, int val, float *out);
+/* 56 (G12.2) : l'AWE32 et l'EMU8000 (sound_emu8k.c inclus par harness_emu8k.c) — h_emu8k_probe (H_EMU8K_PROBE_N
+ * champs, l'adresse de la puce comprise), h_emu8k_tables (les tables de emu8k_init), h_emu8k_kernel (les noyaux sur
+ * des états fabriqués) ; h_boot monte « sbawe32 », refusée sans sa ROM. */
+#define H_EMU8K_PROBE_N 72
+void h_emu8k_probe(uint64_t *o);
+int h_emu8k_tables(const char *romspath, int64_t *freq, int32_t *atten, int32_t *voldb, int32_t *ampdb, int32_t *hzoct,
+                   int32_t *attack, int32_t *lfo, int64_t *lfospeed, double *chor, int32_t *filt, float *cubic,
+                   uint64_t *rom);
+void h_emu8k_kernel(int kind, uint64_t seed, uint64_t *o);
 void h_aha_probe(uint64_t *o);
 void h_cd_sound_probe(uint64_t *out);
 uint32_t h_abi_version(void);

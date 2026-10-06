@@ -1985,6 +1985,15 @@ int h_boot(const char *romspath) {
         /* G12.1 — la SB 16 ; la règle ISA 16 bits est jugée côté C# (pc.check_sndcard) avant la poussée. */
         else if (!strcmp(h_sndcard_name, "sb16"))
                 device_add(&sb_16_device);
+        /* G12.2 — l'AWE32. Sans awe32.raw, emu8k_init ferait fatal() (sound_emu8k.c:2019), qui rend la main ici, puis
+           fread sur NULL : SIGSEGV. Le C# la refuse avant (pc.check_sndcard) ; ici, défense en profondeur, bruyante. */
+        else if (!strcmp(h_sndcard_name, "sbawe32")) {
+                if (!sb_awe32_device.available()) {
+                        fatal("h_boot : sbawe32 sans awe32.raw\n");
+                        return 0;
+                }
+                device_add(&sb_awe32_device);
+        }
         else if (h_sndcard_name[0] && strcmp(h_sndcard_name, "none")) {
                 fatal("h_boot : carte son inconnue « %s »\n", h_sndcard_name);
                 return 0;
@@ -2426,7 +2435,8 @@ static void h_sb_probe(uint64_t *o) {
 
         for (c = 0; c < DEV_MAX; c++)
                 if (devices[c] == &sb_1_device || devices[c] == &sb_15_device || devices[c] == &sb_2_device ||
-                    devices[c] == &sb_pro_v1_device || devices[c] == &sb_pro_v2_device || devices[c] == &sb_16_device) {
+                    devices[c] == &sb_pro_v1_device || devices[c] == &sb_pro_v2_device || devices[c] == &sb_16_device ||
+                    devices[c] == &sb_awe32_device) {
                         sb = (sb_t *)device_priv[c];
                         break;
                 }

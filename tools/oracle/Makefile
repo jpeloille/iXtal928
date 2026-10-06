@@ -38,7 +38,8 @@ LDLIBS  := -lm
 
 # harness.c fait #include "808x.c" — 808x.c n'est donc PAS compilé séparément,
 # sans quoi chaque symbole serait défini deux fois. Voir l'en-tête de harness.c.
-# Même chose pour 386_dynarec.c (harness_386.c) et vid_tvga.c (harness_tvga.c, M19), et dma.c (harness_dma.c, G12.1).
+# Même chose pour 386_dynarec.c (harness_386.c) et vid_tvga.c (harness_tvga.c, M19), dma.c (harness_dma.c, G12.1) et
+# sound_emu8k.c (harness_emu8k.c, G12.2).
 SRC := harness.c \
        harness_stubs.c \
        harness_wrap.c \
@@ -58,6 +59,7 @@ SRC := harness.c \
        $(PCEM)/src/sound/sound_sb.c \
        $(PCEM)/src/sound/sound_sb_dsp.c \
        $(PCEM)/src/sound/sound_mpu401_uart.c \
+       harness_emu8k.c \
        $(PCEM)/src/models/amstrad.c \
        $(PCEM)/src/keyboard/keyboard_amstrad.c \
        $(PCEM)/src/models/olivetti_m24.c \
