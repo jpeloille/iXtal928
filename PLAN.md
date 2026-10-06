@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 6 octobre 2026, G12 fait
+## Où on en est — 7 octobre 2026, G12 fait ; G13 en cours
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -111,7 +111,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   aussi sans sa ROM. Livré avec sa clôture : les profils `ixtal26-486-sb16.cfg` et `-awe32.cfg`,
   l'écran de construction et `--setup-check`, les témoins (TEST-SBP sous l'oracle, Windows 3.11 et ses
   pilotes SNDBLST). PB-145 à PB-167.
-- **G13 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
+- **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; ses décisions validées le 07/10 (les n° 3, 6 et 14
+  restent à trancher avant G13.2). G13.0 d'abord : R9 et les fichiers de l'utilisateur, dans les deux modes.
+- **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
 
@@ -330,7 +332,7 @@ partie transcrits en G8).
 - La SB 16 et l'AWE32 sont des cartes ISA 16 bits : elles doivent être refusées avec
   avertissement sur les machines 8088/8086, par la règle écrite en G11.
 
-### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; attend un feu vert)*
+### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; feu vert du 06/10, en cours : `PLAN-G13.md`)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
 après G10.0, mis à jour le 05/10 après G11, puis refaits le 06/10 après G12, entrée par entrée (le
