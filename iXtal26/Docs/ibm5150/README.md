@@ -78,9 +78,9 @@ Ils suivent le matériel, en partant du 8088.
 | N° | Chapitre | État |
 |---|---|---|
 | 00 | La machine : la carte mère, les plans de la mémoire et des E/S, les IRQ, le DMA, les horloges | à écrire |
-| 01 | Le 8088 : l'architecture, la file d'attente, les cycles de bus | à écrire |
+| 01 | Le 8088 : l'architecture, la file d'attente, les cycles de bus, le reset | écrit, contre-lu |
 | 02 | Le 8088 : les instructions, avec la table des 256 opcodes et des groupes | à écrire |
-| 03 | Le 8088 : les interruptions, le pas à pas, le reset | à écrire |
+| 03 | Le 8088 : les interruptions et le pas à pas | à écrire |
 | 04 | L'horloge : le 8284A, et le temps de l'émulateur | à écrire |
 | 05 | Le bus : le 8288, le canal d'E/S, le décodage des ports | à écrire |
 | 06 | La mémoire : la RAM, la parité, la ROM, le plan mémoire | à écrire |
