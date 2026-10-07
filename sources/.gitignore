@@ -1,0 +1,8 @@
+# Les manuels d'Intel, d'IBM, de NEC, de Motorola et de National sont sous copyright :
+# jamais commités, même règle que roms/ et os/. Seuls ce fichier et le manifeste le sont ;
+# les PDF se récupèrent par tools/fetch-sources.sh.
+#
+# La règle vit ici et non dans le .gitignore de la racine : le dossier se suffit à lui-même.
+*
+!.gitignore
+!MANIFEST.tsv
