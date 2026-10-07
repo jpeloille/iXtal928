@@ -30,6 +30,8 @@ internal sealed class MachineOverrides
     // G10.6 — --zip IMG : l'image du lecteur ZIP (la clé zip_path, DEVIATION de pc.cs).
     public string? ZipImage { get; set; }
 
+    public string? HardwareMode { get; set; }
+
     public bool DescribesMachine =>
         Model is not null || ProcessorIndex is not null || MemoryKilobytes is not null ||
         floppyDriveTypes[0] is not null || floppyDriveTypes[1] is not null ||
@@ -78,6 +80,8 @@ internal sealed class MachineOverrides
         Console.Error.WriteLine($"Disponibles : {HardDiskControllers.AvailableNames()}.");
         return false;
     }
+
+    public bool TryApplyHardwareMode() => HardwareMode is null || ModeMateriel.Demander(HardwareMode, "--hardware-mode");
 
     public void ApplyZipImage()
     {

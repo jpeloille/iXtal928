@@ -139,6 +139,10 @@ internal static class R9Filet
             psi.ArgumentList.Add("--type");
             psi.ArgumentList.Add(t);
         }
+        // G13 — les séances jouent le mode de ce processus : sans cela, la porte lancée en mode matériel n'éprouverait
+        //   que le mode PCem.
+        psi.ArgumentList.Add("--hardware-mode");
+        psi.ArgumentList.Add(ModeMateriel.ListeDemandee);
         psi.Environment.Remove("IXTAL26_FAUTE_PLANTAGE");
         if (plantage)
             psi.Environment["IXTAL26_FAUTE_PLANTAGE"] = "1";

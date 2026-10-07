@@ -1,0 +1,6 @@
+# PB-01 sous DEBUG de PC-DOS 2.00, sur l'XT (G13.2) : STC, MOV AL,9, ADC AL,6, DAA. 09h + 06h + 1 = 10h, et la retenue
+# du bit 3 vaut 1 (AF est la retenue du bit 3, retenue entrante comprise : SDM vol. 1, § 3.4.3.1 ; SST 8088 v2).
+# PCem oublie la retenue entrante dans AF : AF = 0, et DAA laisse 10h. Le 8088 pose AF, et DAA rend 16h.
+-G=100
+pcem: AX=0010
+materiel: AX=0016

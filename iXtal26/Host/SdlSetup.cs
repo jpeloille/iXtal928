@@ -46,7 +46,7 @@ internal sealed class SdlSetup
     /// <summary>Les lignes que l'écran principal propose, dans l'ordre d'affichage.</summary>
     private enum Item
     {
-        Model, Memory, Video, Sound, FloppyA, FloppyB, Controller, DiskC, DiskD, Load, Save, Start,
+        Model, Memory, Video, Sound, FloppyA, FloppyB, Controller, DiskC, DiskD, Mode, Load, Save, Start,
     }
 
     private enum Screen { Main, Pick, CreateHdd }
@@ -63,7 +63,7 @@ internal sealed class SdlSetup
     private static readonly Item[] MainItems =
     [
         Item.Model, Item.Memory, Item.Video, Item.Sound, Item.FloppyA, Item.FloppyB, Item.Controller,
-        Item.DiskC, Item.DiskD, Item.Load, Item.Save, Item.Start,
+        Item.DiskC, Item.DiskD, Item.Mode, Item.Load, Item.Save, Item.Start,
     ];
 
     private readonly IntPtr _window;
@@ -237,6 +237,7 @@ internal sealed class SdlSetup
             case Item.DiskC or Item.DiskD: BuildImageList(item); break;
             case Item.Load: BuildConfigList(); break;
             case Item.Save: SaveMachine(); return;
+            case Item.Mode: BasculerMode(); return;
             default: return;
         }
 
@@ -806,9 +807,20 @@ internal sealed class SdlSetup
     ///   d'éditeur de texte, et en ajouter un pour cela seul serait cher. Renommer le
     ///   fichier hors de l'émulateur revient au même.
     /// </summary>
-    private void SaveMachine()
+    /// <summary>
+    /// G13 — la ligne « Mode » : Entrée bascule entre le mode PCem et le mode matériel (toutes les corrections). Elle
+    /// montre la DEMANDE, que le gel copiera au démarrage de la machine ; une machine déjà lancée a figé le sien, et la
+    /// bascule est alors refusée : le mode se choisit au lancement.
+    /// </summary>
+    private void BasculerMode()
     {
-        string root = ConfigsRoot();
+        if (!ModeMateriel.Basculer())
+            _message = "le mode se choisit au lancement : il est fige pour cette session.";
+    }
+
+    private void SaveMachine(string? configsRoot = null)
+    {
+        string root = configsRoot ?? ConfigsRoot();
 
         try
         {
@@ -890,6 +902,9 @@ internal sealed class SdlSetup
         // pcem: pc.c:893 — G10.6 : zip_channel ; et zip_path, la clé d'iXtal (DEVIATION, pc.cs loadconfig).
         config.config_set_int(config.CFG_MACHINE, null, "zip_channel", Ide.ide.zip_channel);
         config.config_set_string(config.CFG_MACHINE, null, "zip_path", pc.cfg_zip_path);
+        // G13 — hardware_mode, la clé d'iXtal (DEVIATION, pc.cs loadconfig) : 1 si la ligne « Mode » demande le mode
+        //   matériel. Une demande partielle de la ligne de commande s'enregistre comme le mode matériel entier.
+        config.config_set_int(config.CFG_MACHINE, null, "hardware_mode", ModeMateriel.Actif ? 1 : 0);
 
         config.config_save(config.CFG_MACHINE, path);
         ConfigPath = path;
@@ -1087,6 +1102,9 @@ internal sealed class SdlSetup
 
             case Item.DiskD:
                 return Field("Disque D:", DiskSummary(1));
+
+            case Item.Mode:
+                return Field("Mode", ModeMateriel.Description);
 
             case Item.Load:
                 return "   Charger une machine enregistree...";
@@ -1380,6 +1398,37 @@ internal sealed class SdlSetup
 
         pc.setmodel(Models.model_c.models[modelBefore].internal_name);
         Sound.sound.sound_card_current = soundBefore;
+
+        Console.WriteLine();
+        Console.WriteLine("Le mode (G13) :");
+
+        int iMode = Array.IndexOf(MainItems, Item.Mode);
+        Check("la ligne « Mode » existe et vaut PCem par défaut",
+              iMode >= 0 && MainLine(Item.Mode).Contains("PCem"), $"ligne « {MainLine(Item.Mode).Trim()} »");
+        st._mainIndex = iMode;
+        st.HandleMain(SDL.Scancode.Return, out _);
+        Check("Entrée la bascule en mode matériel", ModeMateriel.Actif && MainLine(Item.Mode).Contains("materiel"),
+              $"ligne « {MainLine(Item.Mode).Trim()} »");
+        string configs = Path.Combine(Path.GetTempPath(), $"setup-check-{Environment.ProcessId}");
+        try
+        {
+            Directory.CreateDirectory(configs);
+            st.SaveMachine(configs);
+            string saved = Path.Combine(configs, "machine.cfg");
+            bool cle = File.Exists(saved) && File.ReadAllLines(saved).Any(l => l.Replace(" ", "") == "hardware_mode=1");
+            st.HandleMain(SDL.Scancode.Return, out _);
+            bool rebascule = !ModeMateriel.Actif && MainLine(Item.Mode).Contains("PCem");
+            bool recharge = pc.loadconfig(saved) && ModeMateriel.Actif;
+            Check("enregistrer écrit hardware_mode = 1, Entrée rebascule, recharger rend le mode matériel",
+                  cle && rebascule && recharge, $"clé {cle}, rebascule {rebascule}, rechargé {recharge}");
+        }
+        finally
+        {
+            Directory.Delete(configs, true);
+        }
+        st.HandleMain(SDL.Scancode.Return, out _);
+        Check("l'écran n'a pas figé le mode, et le laisse en mode PCem", !ModeMateriel.Fige && !ModeMateriel.Actif,
+              $"figé {ModeMateriel.Fige}, ligne « {MainLine(Item.Mode).Trim()} »");
 
         Console.WriteLine();
         Console.WriteLine("Chemin clavier de l'écran principal :");

@@ -25,6 +25,8 @@ public static class BootTest
                             int settle = KeyScript.SlicesAfterLine)
     {
         if (!pc.initpc(roms)) return 1;
+        if (ModeMateriel.Actif || !ModeMateriel.Fige)
+            Console.WriteLine($"mode {ModeMateriel.Description}{(ModeMateriel.Fige ? "" : " — non figé par initpc")}");
         Console.WriteLine($"initpc OK — reset CS:IP = {x86.CS:X4}:{_386_common.cpu_state.pc:X4}");
         Console.WriteLine($"octets au vecteur de reset : " +
             string.Join(" ", Enumerable.Range(0,5).Select(i => mem.readmembl((uint)(0xFFFF0+i)).ToString("X2"))));

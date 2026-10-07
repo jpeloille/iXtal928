@@ -564,6 +564,13 @@ internal static partial class pc
         //   à la fin d'initpc, au même point des deux côtés ; un reset matériel la perd, comme chez PCem.
         cfg_zip_path = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "zip_path", "");
 
+        // G13 — DEVIATION (décision n° 4 de PLAN-G13.md) : hardware_mode, le mode matériel. PCem n'a pas de clé, et ignore
+        //   celles qu'il ne connaît pas. Absente, elle ne demande rien : la ligne de commande, l'écran de construction ou
+        //   la machine précédente décident ; présente après le gel, elle ne peut que confirmer le mode.
+        int hardware_mode = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "hardware_mode", int.MinValue);
+        if (hardware_mode != int.MinValue && !ModeMateriel.DemanderParCle(hardware_mode))
+                return false;
+
         // pcem: pc.c:707-711 — G10.4 : cdrom_path, copié dans image_path.
         // pcem bug, not reproduced: PB-110 — strcpy dans image_path[1024], sans borne : un chemin de 1 024 octets
         //   ou plus déborde le tableau.
@@ -838,6 +845,9 @@ internal static partial class pc
     /// </summary>
     internal static bool initpc(string romsPath)
     {
+        // DEVIATION: G13 — le mode matériel se fige ici, avant le premier cœur (ModeMateriel ; R10 de TRANSCRIPTION.md).
+        ModeMateriel.Figer();
+
         // pcem: wx-sdl2.c:450 — l'IHM pose ce crochet AVANT initpc, et device.c:68
         // l'appelle sans le tester. Il est posé ici, donc pour TOUS les points
         // d'entrée : --headless, --boot, --timer-check et BootDiff n'ont pas

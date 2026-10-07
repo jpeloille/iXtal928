@@ -69,6 +69,8 @@
              assembly ; InternalsVisibleTo est la porte de service. -->
         <InternalsVisibleTo Include="iXtal26.Diff"/>
         <InternalsVisibleTo Include="iXtal26.Sst"/>
+        <!-- Le banc BenchmarkDotNet (tools/perfbanc) : ses copies de handler appellent les mêmes aides internes que l'original. -->
+        <InternalsVisibleTo Include="iXtal26.PerfBanc"/>
         <!-- iXtal26.Bench retiré : ce projet n'a jamais existé. Bench.cs a atterri
              dans tools/iXtal26.Diff, déjà couvert par la ligne ci-dessus. Une porte
              ouverte sur un assembly inexistant ne protège rien et laisse croire à un

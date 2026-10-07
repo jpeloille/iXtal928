@@ -135,7 +135,8 @@ internal static class TimerCheck
         var machine = model_c.models[model_c.model];
         var is5150 = machine.id == pc.ROM_IBMPC;
 
-        Console.WriteLine($"=== CONTRÔLE DE FRÉQUENCE ABSOLUE — {machine.name} ===\n");
+        Console.WriteLine($"=== CONTRÔLE DE FRÉQUENCE ABSOLUE — {machine.name}" +
+                          $"{(ModeMateriel.Actif ? $" — mode {ModeMateriel.Description}" : "")} ===\n");
 
         Console.WriteLine($"--- domaine d'horloge (posé par setpitclock({_clock:F0}), pc.c:184-187) ---");
         Console.WriteLine($"  cœur          = {(x86.AT != 0 ? "286 (exec386) : 1 tsc par cycle CPU" : "808x (execx86) : xt_cpu_multi tsc par cycle CPU")}");

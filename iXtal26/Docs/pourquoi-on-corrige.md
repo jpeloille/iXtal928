@@ -91,3 +91,25 @@ comportements que seul l'émulateur avait : planter, ou perdre des données.
 
 Rien n'a changé dans son comportement : elle était déjà corrigée depuis G1. G13.0 n'a ajouté que le test qui le
 prouve, `r9-m24`.
+
+## G13.2 — le mode matériel, et son pilote
+
+*Le 7 octobre 2026, écrite avec le commit de G13.2 ; `PLAN-G13.md` § G13.2, `VERIFICATION.md` § G13.2.*
+
+À partir d'ici, les corrections changent ce que fait la machine émulée, et elles ne valent qu'en mode matériel : le
+mode PCem, le défaut, reproduit toujours les défauts de PCem, parce que PCem reste l'oracle des portes. Le mode
+matériel se demande au lancement (`--hardware-mode`, la clé `hardware_mode`, la ligne « Mode » de l'écran de
+construction).
+
+### PB-01 — l'AF d'ADC et de SBB du 8088 (mode matériel)
+
+- **Le vrai PC.** AF est la retenue du bit 3 vers le bit 4, retenue entrante comprise : ADC additionne trois termes,
+  SBB en soustrait trois, et le drapeau suit l'opération entière. C'est la définition d'Intel, et c'est ce que le
+  corpus SingleStepTests a mesuré sur un vrai 8088. Avec CF = 1, AL = 09h, `ADC AL,06h` donne 10h et pose AF ; le
+  `DAA` qui suit corrige alors en 16h, la bonne somme décimale de 9 et 6 plus la retenue.
+- **L'émulateur.** PCem calcule AF comme pour ADD, sans la retenue entrante : la retenue du bit 3 lui échappe quand
+  elle ne vient que d'elle. AF reste à 0, et le `DAA` laisse 10h. Une addition BCD sur plusieurs octets, faite par
+  ADC puis DAA, rend un chiffre faux ; environ 3 à 4 % des ADC et SBB du corpus diffèrent du 8088, toujours sur ce
+  seul bit.
+- **La correction.** En mode matériel, AF devient le bit 4 de `a ^ b ^ résultat`, la formule qui vaut pour ADC comme
+  pour SBB. Rien d'autre ne bouge : le contrôle de fuite le prouve contre PCem, instruction par instruction.

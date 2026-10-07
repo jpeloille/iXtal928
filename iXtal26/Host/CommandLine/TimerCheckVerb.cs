@@ -57,6 +57,9 @@ internal static class TimerCheckVerb
                     if (!DriveMounter.TryMountFloppy(option == "--floppy-a" ? 0 : 1, value))
                         return ExitCode.UsageError;
                     break;
+                case "--hardware-mode":
+                    machine.HardwareMode = value;
+                    break;
                 case "--boot-slices":
                     if (!int.TryParse(value, out bootSlices) || bootSlices <= 0)
                         return Failure.Usage("--boot-slices attend un nombre de tranches entier positif.");
@@ -70,7 +73,7 @@ internal static class TimerCheckVerb
             }
         }
 
-        if (!machine.TryApplyMachineAndCheckProcessor())
+        if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardwareMode())
             return ExitCode.UsageError;
 
         return (ExitCode)TimerCheck.Run(paths.resolve_roms_path(romDirectory), emulatedSeconds, bootSlices,

@@ -89,9 +89,58 @@ public static class Fuzzer
 
     /// <param name="second0F">G2, D4 — non nul : chaque itération tire `0F xx`, xx pris
     /// dans cette liste, précédé d'un préfixe 66, 67, des deux ou d'aucun. Voir Poser0F.</param>
+    /// <summary>G13.2 — le contrôle de fuite (PLAN-G13.md, § La vérification). Sous --hardware-mode, le côté C# corrige
+    /// les défauts demandés ; toute divergence avec l'oracle doit tomber dans le périmètre déclaré de ces corrections
+    /// (FUITE sinon), et au moins une doit s'y produire (NON ATTEINT sinon). La correction ne touche donc rien d'autre,
+    /// ce que SST ne voit pas hors de ses formes. Mode simple seulement : chaque instruction part du même état des
+    /// deux côtés.</summary>
+    internal static bool Fuite;
+
+    /// <summary>Le périmètre déclaré : l'instruction (préfixes passés) et l'état qui seul peut différer, par correction.
+    /// PB-01 : ADC et SBB (10 à 15, 18 à 1D ; 80 à 83 /2 et /3), et le seul bit AF (0x10), dans les drapeaux et dans
+    /// leur image empilée. Rend null dans le périmètre, la raison sinon.</summary>
+    private static string? HorsDuPerimetre(byte[] code, in HState a, in HState b, int cycA, int cycB)
+    {
+        var i = 0;
+        while (i < code.Length - 1 && code[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0xF0 or 0xF2 or 0xF3)
+            i++;
+        var op = code[i];
+        var reg = i + 1 < code.Length ? (code[i + 1] >> 3) & 7 : -1;
+        if (materiel.pb_01 && (op is (>= 0x10 and <= 0x15) or (>= 0x18 and <= 0x1D) ||
+                               op is >= 0x80 and <= 0x83 && reg is 2 or 3))
+        {
+            var c = b;
+            c.flags = (ushort)((b.flags & ~0x10) | (a.flags & 0x10));
+            var reste = Compare(a, c, cycA, cycB) ?? EcrituresHorsAf(a, b);
+            return reste is null ? null : $"PB-01, au-delà d'AF : {reste}";
+        }
+        return $"0x{op:X2} n'est dans le périmètre d'aucune correction demandée";
+    }
+
+    /// <summary>Les écritures de l'instruction, où seul peut différer l'octet bas des drapeaux empilés après elle (le
+    /// pas à pas de TF les pousse), et seulement par AF : la correction vue sur la pile.</summary>
+    private static string? EcrituresHorsAf(in HState a, in HState b)
+    {
+        var nC = Oracle.h_wlog_count();
+        var nS = mem.wlog_n;
+        if (nC != nS)
+            return $"nombre d'écritures : oracle {nC}, C# {nS}";
+        for (var i = 0; i < Math.Min(nC, mem.WLOG_MAX); i++)
+        {
+            if (Oracle.h_wlog_get_addr(i) != mem.wlog_addr[i])
+                return $"écriture {i} adresse : oracle 0x{Oracle.h_wlog_get_addr(i):X5}, C# 0x{mem.wlog_addr[i]:X5}";
+            var vo = Oracle.h_wlog_get_val(i);
+            var vc = mem.wlog_val[i];
+            if (vo != vc && !((vo ^ vc) == 0x10 && vo == (byte)a.flags && vc == (byte)b.flags))
+                return $"écriture {i} en 0x{mem.wlog_addr[i]:X5} : oracle 0x{vo:X2}, C# 0x{vc:X2}";
+        }
+        return null;
+    }
+
     public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core,
                                 byte[]? second0F = null)
     {
+        var dansLePerimetre = 0;
         Oracle.CheckAbi();
         Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
                           $"{string.Join(",", opcodes.Select(o => $"0x{o:X2}"))}, " +
@@ -401,8 +450,16 @@ public static class Fuzzer
             var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a, core) : null);
             if (diff is null)
                 continue;
+            string? hors = null;
+            if (Fuite && (hors = HorsDuPerimetre(code, a, b, cycC, cycS)) is null)
+            {
+                dansLePerimetre++;
+                continue;
+            }
+            if (hors is not null)
+                diff += $"\n  {hors}";
 
-            Console.WriteLine($"\nDIVERGENCE itération {it}");
+            Console.WriteLine($"\n{(Fuite ? "FUITE" : "DIVERGENCE")} itération {it}");
             Console.WriteLine($"  opcode 0x{op:X2}, octets {string.Join(" ", code.Select(x => x.ToString("X2")))}");
             Console.WriteLine($"  CS:IP {regs[(int)R.CS]:X4}:{regs[(int)R.IP]:X4}  " +
                               $"AX {regs[(int)R.AX]:X4} BX {regs[(int)R.BX]:X4} " +
@@ -415,7 +472,19 @@ public static class Fuzzer
             return 1;
         }
 
-        Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
+        if (Fuite)
+        {
+            if (dansLePerimetre == 0)
+            {
+                Console.WriteLine($"\nNON ATTEINT : {iterations} instructions, aucune divergence dans le périmètre du mode " +
+                                  $"{ModeMateriel.Description} : la correction n'a pas été exercée, le contrôle ne prouve rien.");
+                return 1;
+            }
+            Console.WriteLine($"\nVert : contrôle de fuite, {iterations} instructions ; {dansLePerimetre} divergences, toutes " +
+                              $"dans le périmètre du mode {ModeMateriel.Description}, aucune ailleurs.");
+        }
+        else
+            Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
         foreach (var (op, n) in perOpcode.OrderBy(kv => kv.Key))
             Console.WriteLine($"    0x{op:X2} : {n} tirages");
         foreach (var (op2, n) in per0F.OrderBy(kv => kv.Key))

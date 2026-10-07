@@ -72,6 +72,13 @@ dotnet_diagnostic.IDE0044.severity = none   # rendre readonly — interdit (cf. 
 dotnet_diagnostic.IDE0051.severity = none   # membre privé inutilisé
 dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
 
+# G13 — le mode matériel : la classe figée `materiel` et ses champs `pb_nn` ont la forme des marqueurs (PB-nn) et de
+# la garde que R2 retire du décompte, `if (materiel.pb_nn)`. G14 et G15 les renommeront avec le reste.
+[**/Materiel/materiel.cs]
+dotnet_diagnostic.CS8981.severity = none
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none
+
 [**/{io,timer,pc,ppi}.cs]
 dotnet_diagnostic.CS8981.severity = none
 dotnet_diagnostic.IDE1006.severity = none

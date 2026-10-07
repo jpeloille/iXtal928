@@ -37,7 +37,9 @@ fetch() { # <nom de fichier>
 case "${1:-}" in
 --verify)
     [ -f "$MANIFEST" ] || { echo "pas de manifeste"; exit 2; }
-    (cd "$DIR" && sha256sum -c ../MANIFEST.sha256) || exit 1
+    # Le manifeste se lit depuis la racine, pas par « .. » : $DIR peut être un lien vers les
+    # vecteurs d'un autre arbre (un worktree), et « .. » mènerait alors à SON manifeste.
+    (cd "$DIR" && sha256sum -c -) < "$MANIFEST" || exit 1
     exit 0
     ;;
 --all)
@@ -69,4 +71,4 @@ esac
 
 # Le manifeste reflète toujours ce qui est présent sur le disque.
 (cd "$DIR" && sha256sum ./*.json.gz metadata.json 2>/dev/null | sed 's| \./| |' | sort -k2) > "$MANIFEST"
-echo "manifeste : $(wc -l < "$MANIFEST") entrees, $(du -sh "$DIR" | cut -f1) sur le disque."
+echo "manifeste : $(wc -l < "$MANIFEST") entrees, $(du -sh "$DIR/" | cut -f1) sur le disque."

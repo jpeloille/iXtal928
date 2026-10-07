@@ -591,9 +591,12 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & 0x80) == 0 && ((a ^ c) & 0x80) != 0)
                 cpu_state.flags |= V_FLAG;
-        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:786).
-        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
-                cpu_state.flags |= A_FLAG;
+        // pcem bug, fixed in hardware mode: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:786).
+        if (materiel.pb_01)
+                af_materiel(a, b, c);
+        else
+                if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                        cpu_state.flags |= A_FLAG;
     }
 
     private static void setadd16(uint16_t a, uint16_t b)
@@ -629,9 +632,12 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & 0x8000) == 0 && ((a ^ c) & 0x8000) != 0)
                 cpu_state.flags |= V_FLAG;
-        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:817).
-        if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
-                cpu_state.flags |= A_FLAG;
+        // pcem bug, fixed in hardware mode: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:817).
+        if (materiel.pb_01)
+                af_materiel(a, b, c);
+        else
+                if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
+                        cpu_state.flags |= A_FLAG;
     }
 
     // pcem: 808x.c:821-884
@@ -668,9 +674,12 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & (a ^ c) & 0x80) != 0)
                 cpu_state.flags |= V_FLAG;
-        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:849).
-        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
-                cpu_state.flags |= A_FLAG;
+        // pcem bug, fixed in hardware mode: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:849).
+        if (materiel.pb_01)
+                af_materiel(a, b, c);
+        else
+                if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                        cpu_state.flags |= A_FLAG;
     }
 
     private static void setsub16(uint16_t a, uint16_t b)
@@ -708,9 +717,12 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & (a ^ c) & 0x8000) != 0)
                 cpu_state.flags |= V_FLAG;
-        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:882).
-        if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
-                cpu_state.flags |= A_FLAG;
+        // pcem bug, fixed in hardware mode: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:882).
+        if (materiel.pb_01)
+                af_materiel(a, b, c);
+        else
+                if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
+                        cpu_state.flags |= A_FLAG;
     }
 
     // ===== rep() : instructions de chaîne (808x.c:908-1215) =====

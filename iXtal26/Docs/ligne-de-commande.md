@@ -172,6 +172,20 @@ charge le disque que par son interface, la machine lancée (`wx-sdl2.c:776`) ; i
 la clé `zip_path` et cette option, qui l'emporte sur elle (décision n° 6 de PLAN-G10). Un
 reset matériel perd le disque, comme chez PCem.
 
+### `--hardware-mode LISTE`
+
+Le mode matériel (G13, `PLAN-G13.md`) : les défauts de PCem que LISTE nomme sont corrigés d'après la documentation du
+vrai matériel, au lieu d'être reproduits (`PCEM_BUGS.md`, champ *Corrigé en mode matériel*). LISTE est obligatoire :
+`tout`, `aucun`, des domaines (`processeur`, `x87`, `stockage`, `video`, `son`, `carte-mere`) ou des `PB-nn`, séparés
+par des virgules ; un nom inconnu, ou un PB que le mode ne corrige pas, est refusé. L'option l'emporte sur la clé
+`hardware_mode` du .cfg (0 ou 1 ; une autre valeur vaut 0, avec un avertissement), propre à iXtal comme `zip_path` :
+`--hardware-mode aucun` rend le mode PCem par-dessus un fichier qui demande le mode matériel. Une clé absente ne
+demande rien. Le mode se choisit au lancement : il se fige avant le premier cœur, en tête d'initpc, et une demande qui
+le changerait ensuite est refusée (le gel rend gratuit le mode PCem : le JIT plie chaque garde en constante). Valable
+aussi après `--boot` et `--timer-check`, qui le disent dans leur bannière ; la barre de titre l'affiche (« materiel »,
+sans accent, comme le reste du titre). Le mode PCem reste le défaut, et celui des portes : aucune variable
+d'environnement ne pose le mode.
+
 ### `--hdd-type N`, `--hdd-d-type N`
 
 Tranchent une taille ambiguë. PCem n'a pas besoin de cela : son hd_file montre la

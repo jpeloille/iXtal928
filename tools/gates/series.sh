@@ -433,3 +433,29 @@ run r9-filet r9-filet
 # entrée ; chaque défaut reproduit des sections A et B a ses sites, sa source, son cas qui discrimine et son champ G13 ;
 # aucun marqueur ne contredit le statut de son entrée.
 run recensement recensement
+# G13.2 — le mode matériel (PLAN-G13.md, R10) : son mécanisme, puis le pilote PB-01, l'AF d'ADC et de SBB du 8088.
+# materiel-mode : les refus (l'oracle est PCem), la clé hardware_mode, --hardware-mode, le gel. materiel-cas : le cas qui
+# discrimine PB-01, la valeur de PCem en mode PCem, celle du 8088 en mode matériel. banc-pb01 : le même défaut sous DEBUG
+# de PC-DOS 2.00 (STC, MOV AL,9, ADC AL,6, DAA : AX=0010 contre AX=0016), chaque mode joué deux fois, le déterminisme.
+# fuite-pb01 : le fuzzeur, PB-01 seul corrigé ; toute divergence avec l'oracle tombe dans son périmètre (AF d'ADC et de
+# SBB, et son image empilée), et au moins une s'y produit.
+run materiel-mode materiel-mode
+run materiel-cas-pb01 materiel-cas PB-01
+run materiel-cas-pb01-materiel --hardware-mode PB-01 materiel-cas PB-01
+run banc-pb01 banc tools/gates/bancs/pb01-debug.attendus -- --boot roms 8000 --model ibmxt --floppy-a $DOS \
+  --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type '' --type '' --type B:DEBUG --type 'A 100' --type STC \
+  --type 'MOV AL,9' --type 'ADC AL,6' --type DAA --type 'INT 3' --type '' --type G=100 --type Q
+run banc-pb01-materiel --hardware-mode PB-01 banc tools/gates/bancs/pb01-debug.attendus -- --boot roms 8000 \
+  --model ibmxt --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type '' --type '' --type B:DEBUG \
+  --type 'A 100' --type STC --type 'MOV AL,9' --type 'ADC AL,6' --type DAA --type 'INT 3' --type '' --type G=100 \
+  --type Q
+run fuite-pb01 --hardware-mode PB-01 fuzz --mode single --iter 100000 $ALL --fuite
+# G13.2 — SingleStepTests, le silicium, en C# seul : le 8088 (AMD D8088) et le 8086 (Intel), 103 formes chacun, corpus
+# récupérés par tools/fetch-sst.sh et fetch-sst8086.sh dans vectors/ (gitignoré, décision n° 5) ; une forme dont les
+# vecteurs manquent rend la porte rouge. En mode PCem, le C# rend les lignes de base de l'oracle à l'identique ; en
+# mode matériel, PB-01 corrigé, celles du mode, où les douze formes d'ADC et de SBB passent entières.
+run sst8088 sst-probe --target csharp --limit 10000 --attendu sst-baseline.tsv
+run sst8088-materiel --hardware-mode PB-01 sst-probe --target csharp --limit 10000 --attendu sst-baseline-materiel.tsv
+run sst8086 sst-probe --cpu 8086 --target csharp --limit 10000 --attendu sst8086-baseline.tsv
+run sst8086-materiel --hardware-mode PB-01 sst-probe --cpu 8086 --target csharp --limit 10000 \
+  --attendu sst8086-baseline-materiel.tsv

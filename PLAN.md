@@ -113,7 +113,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   pilotes SNDBLST). PB-145 à PB-167.
 - **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; toutes ses décisions validées le 07/10. G13.0 fait : R9
   et les fichiers de l'utilisateur, dans les deux modes. G13.1 fait : le registre, 257 défauts, chaque marqueur
-  numéroté, la porte `recensement`. Prochaine étape : G13.2, le mécanisme et le pilote PB-01.
+  numéroté, la porte `recensement`. G13.2 fait : le mode matériel, son mécanisme et son pilote PB-01, contre
+  le silicium (SingleStepTests du 8088 et du 8086). Prochaine étape : G13.3, le 8088 et le 8086.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

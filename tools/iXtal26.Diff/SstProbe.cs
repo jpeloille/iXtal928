@@ -23,6 +23,11 @@
 // Ce qui est comparé : registres, flags (masqués), mémoire. PAS les cycles ni la
 // file de préfetch — le modèle de temps de PCem lui est propre et ne coïncide pas
 // avec les traces SST (cf. TRANSCRIPTION.md).
+//
+// G13.2 — `--cpu 8086` : le corpus SingleStepTests/8086 (v1, Intel P80C86A-2), même format,
+// joué sur le MÊME execx86 avec is8086, des deux côtés (h_set_core(Core8086), Reset8086). Le
+// corpus dit son processeur (metadata.json, « cpu ») : jouer l'un sur le cœur de l'autre est
+// refusé, au lieu d'écrire en silence une ligne de base qui ne mesure rien.
 
 using System.IO.Compression;
 using System.Text.Json;
@@ -67,6 +72,14 @@ public sealed record SstCase
     public JsonElement cycles { get; init; }
     public string? hash { get; init; }
     public int idx { get; init; }
+
+    // Le corpus 8086 v1 garde les noms d'avant la v1.2.0 du 8088 : test_num pour idx, test_hash pour
+    // hash (CHANGELOG du 8088). Sans eux, chaque premier échec du 8086 serait étiqueté [0].
+    public int? test_num { get; init; }
+    public string? test_hash { get; init; }
+
+    /// <summary>Le numéro du cas dans son fichier, sous l'un ou l'autre nom.</summary>
+    internal int Index => test_num ?? idx;
 }
 
 public static class SstProbe
@@ -77,14 +90,36 @@ public static class SstProbe
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
+    /// <param name="cpu8086">G13.2 — le cœur 8086 (is8086, sur l'Olivetti M24) au lieu du 8088 : le
+    /// corpus SingleStepTests/8086.</param>
+    /// <param name="attenduPath">G13.2 — la ligne de base à reproduire à l'identique, forme par forme : la porte rend 1
+    /// sur le moindre écart, et sur une forme dont les vecteurs manquent.</param>
     public static int Run(string vectorsDir, string[] opcodes, int limit, string? baselinePath = null,
-                          bool target808xCs = false)
+                          bool target808xCs = false, bool cpu8086 = false, string? attenduPath = null)
     {
+        // G13.2 — en mode matériel, le C# corrige : la ligne de base de l'oracle (sst-baseline.tsv, ce que PCem fait
+        // passer) ne s'écrit pas, celle du mode va dans un fichier à part (sst-baseline-materiel.tsv).
+        if (ModeMateriel.Actif && baselinePath is not null && !Path.GetFileName(baselinePath).Contains("materiel"))
+        {
+            Console.Error.WriteLine($"sst-probe : en mode matériel, la ligne de base va dans un fichier « …-materiel.tsv » ; " +
+                                    $"{baselinePath} est celle de l'oracle, refusé.");
+            return 2;
+        }
         Oracle.CheckAbi();
         Console.WriteLine($"Sonde SST — cible : {(target808xCs ? "cœur C#" : "oracle C")} " +
-                          $"(ABI {Oracle.h_abi_version()}, h_state {Oracle.h_state_size()} o)\n");
+                          $"(ABI {Oracle.h_abi_version()}, h_state {Oracle.h_state_size()} o)" +
+                          (cpu8086 ? ", cœur 8086" : "") + "\n");
 
-        var masks = LoadFlagMasks(Path.Combine(vectorsDir, "metadata.json"));
+        var metadata = Path.Combine(vectorsDir, "metadata.json");
+        var cpu = cpu8086 ? "8086" : "8088";
+        if (ReadCorpusCpu(metadata) is { } corpusCpu && corpusCpu != cpu)
+        {
+            Console.Error.WriteLine($"Corpus du {corpusCpu} ({metadata}), sonde sur le cœur {cpu} : refusé" +
+                                    (corpusCpu == "8086" ? " — il manque --cpu 8086." : "."));
+            return 2;
+        }
+
+        var masks = LoadFlagMasks(metadata);
         var grand = (total: 0, passMasked: 0, passRaw: 0);
         var baseline = new List<string>();
 
@@ -101,7 +136,7 @@ public static class SstProbe
             var n = limit > 0 ? Math.Min(limit, cases.Count) : cases.Count;
             ushort mask = masks.GetValueOrDefault(op, (ushort)0xFFFF);
 
-            int passMasked = 0, passRaw = 0, skippedPrefix = 0, run = 0;
+            int passMasked = 0, passRaw = 0, skippedPrefix = 0, skippedAam0 = 0, run = 0;
             var firstFailures = new List<string>();
 
             for (var i = 0; i < n; i++)
@@ -119,20 +154,29 @@ public static class SstProbe
                     skippedPrefix++;
                     continue;
                 }
+                // G13.2 — AAM 0 (D4 00) tue l'oracle d'un SIGFPE (PB-46 : la division par zéro du C) ; le
+                // C# prend l'INT 0 de son chemin R9. Écarté des deux cibles, pour la même raison que REP :
+                // ces cas ne se jouent qu'en C# seul (PB-180).
+                if (IsAam0(cases[i].bytes))
+                {
+                    skippedAam0++;
+                    continue;
+                }
                 run++;
 
-                var (okMasked, okRaw, why) = RunCase(cases[i], mask, target808xCs);
+                var (okMasked, okRaw, why) = RunCase(cases[i], mask, target808xCs, cpu8086);
                 if (okMasked) passMasked++;
                 if (okRaw) passRaw++;
                 if (!okMasked && firstFailures.Count < 3)
-                    firstFailures.Add($"      [{cases[i].idx}] {cases[i].name}: {why}");
+                    firstFailures.Add($"      [{cases[i].Index}] {cases[i].name}: {why}");
             }
 
             var denom = run > 0 ? run : n;
             var pct = 100.0 * passMasked / denom;
             Console.WriteLine($"  {op} : {passMasked}/{denom} ({pct:F2} %) avec masque 0x{mask:X4}" +
                               (mask != 0xFFFF ? $" ; {passRaw}/{denom} sans masque" : "") +
-                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas REP écartés (rep() en M1.9)" : ""));
+                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas REP écartés (rep() en M1.9)" : "") +
+                              (skippedAam0 > 0 ? $" — {skippedAam0} cas AAM 0 écartés (PB-46)" : ""));
             foreach (var f in firstFailures)
                 Console.WriteLine(f);
 
@@ -150,9 +194,24 @@ public static class SstProbe
             // Le critère pour le C# n'est pas « 100 % de SST » mais « reproduire ce
             // fichier à l'identique ». Généré, jamais édité à la main.
             using var w = new StreamWriter(baselinePath);
-            w.WriteLine("# Généré par : iXtal26.Diff sst-probe --baseline");
-            w.WriteLine($"# Oracle : PCem v18, 808x.c — ABI {Oracle.h_abi_version()}");
-            w.WriteLine("# Le C# doit reproduire la colonne 'passe' à l'identique, pas la maximiser.");
+            if (ModeMateriel.Actif)
+            {
+                // G13.2 — la ligne de base du mode matériel : le C# seul, les corrections demandées.
+                w.WriteLine($"# Généré par : iXtal26.Diff --hardware-mode {ModeMateriel.ListeDemandee} sst-probe" +
+                            $"{(cpu8086 ? " --cpu 8086" : "")} --target csharp --baseline");
+                w.WriteLine($"# Mode matériel, {ModeMateriel.ListeDemandee} : le C# seul, sans oracle (R10).");
+                w.WriteLine("# Contre la ligne de base de l'oracle, seules les formes que les corrections visent montent.");
+            }
+            else
+            {
+                w.WriteLine(cpu8086
+                    ? "# Généré par : iXtal26.Diff sst-probe --cpu 8086 --baseline"
+                    : "# Généré par : iXtal26.Diff sst-probe --baseline");
+                w.WriteLine(cpu8086
+                    ? $"# Oracle : PCem v18, 808x.c, is8086 (Olivetti M24) — ABI {Oracle.h_abi_version()}"
+                    : $"# Oracle : PCem v18, 808x.c — ABI {Oracle.h_abi_version()}");
+                w.WriteLine("# Le C# doit reproduire la colonne 'passe' à l'identique, pas la maximiser.");
+            }
             w.WriteLine("forme\tcas\tpasse\tmasque\tpremier_echec");
             foreach (var line in baseline)
                 w.WriteLine(line);
@@ -167,6 +226,8 @@ public static class SstProbe
 
         var rate = 100.0 * grand.passMasked / grand.total;
         Console.WriteLine($"\nTotal : {grand.passMasked}/{grand.total} ({rate:F2} %)");
+        if (attenduPath is not null)
+            return Comparer(attenduPath, baseline);
         Console.WriteLine(rate switch
         {
             >= 99.0 => "Verdict : PCem suit le silicium. Le harnais SST complet vaut l'investissement.",
@@ -179,11 +240,50 @@ public static class SstProbe
         return 0;
     }
 
-    private static (bool okMasked, bool okRaw, string why) RunCase(SstCase c, ushort mask, bool csharp)
+    /// <summary>G13.2 — la porte : les lignes rendues contre celles du fichier attendu, forme par forme.</summary>
+    private static int Comparer(string attenduPath, List<string> rendu)
+    {
+        if (!File.Exists(attenduPath))
+        {
+            Console.WriteLine($"\n{attenduPath} introuvable.");
+            return 2;
+        }
+        var attendu = File.ReadLines(attenduPath).Where(l => l.Length > 0 && !l.StartsWith('#') && !l.StartsWith("forme\t"))
+                          .ToDictionary(l => l.Split('\t')[0]);
+        var obtenu = rendu.ToDictionary(l => l.Split('\t')[0]);
+        var ecarts = 0;
+        foreach (var (forme, ligne) in attendu)
+        {
+            if (!obtenu.TryGetValue(forme, out var o))
+            {
+                ecarts++;
+                Console.WriteLine($"  {forme} : attendue, pas jouée (vecteurs absents ?)");
+            }
+            else if (o != ligne)
+            {
+                ecarts++;
+                Console.WriteLine($"  {forme} : attendu « {ligne} »\n      {new string(' ', forme.Length)}   rendu « {o} »");
+            }
+        }
+        foreach (var forme in obtenu.Keys.Where(f => !attendu.ContainsKey(f)))
+        {
+            ecarts++;
+            Console.WriteLine($"  {forme} : jouée, absente de {attenduPath}");
+        }
+        Console.WriteLine(ecarts == 0
+            ? $"\nVert : {Path.GetFileName(attenduPath)} reproduite à l'identique, {attendu.Count} formes."
+            : $"\n{ecarts} écart(s) contre {Path.GetFileName(attenduPath)}.");
+        return ecarts == 0 ? 0 : 1;
+    }
+
+    private static (bool okMasked, bool okRaw, string why) RunCase(SstCase c, ushort mask, bool csharp,
+                                                                   bool cpu8086)
     {
         if (csharp)
-                return RunCaseCsharp(c, mask);
+                return RunCaseCsharp(c, mask, cpu8086);
 
+        // Le cœur, posé avant h_reset : c'est h_reset qui en tire la machine (le 5150 ou la M24).
+        Oracle.h_set_core(cpu8086 ? Oracle.Core8086 : Oracle.Core8088);
         Oracle.h_reset();
 
         // SST : « all bytes fetched after the initial instruction bytes are set
@@ -243,12 +343,13 @@ public static class SstProbe
     /// ici mais pas sous le fuzzer, c'est la MISE EN PLACE qui diffère, pas le
     /// cœur.
     /// </summary>
-    internal static string? DiffCase(SstCase c)
+    internal static string? DiffCase(SstCase c, bool cpu8086 = false)
     {
         var a = HState.Create();
         var b = HState.Create();
         var init = ToVector(c.initial.regs, null);
 
+        Oracle.h_set_core(cpu8086 ? Oracle.Core8086 : Oracle.Core8088);
         Oracle.h_reset();
         Oracle.h_fill_ram(0x90);
         if (c.initial.ram is not null)
@@ -258,7 +359,10 @@ public static class SstProbe
         var cycC = Oracle.h_step();
         Oracle.h_getstate(out a);
 
-        _808x.Reset();
+        if (cpu8086)
+                _808x.Reset8086();
+        else
+                _808x.Reset();
         mem.fill_ram(0x90);
         if (c.initial.ram is not null)
                 foreach (var pair in c.initial.ram)
@@ -276,9 +380,12 @@ public static class SstProbe
     /// l'identique la colonne `passe` de sst-baseline.tsv. Un écart dans un sens
     /// comme dans l'autre est une divergence de transcription.
     /// </summary>
-    private static (bool okMasked, bool okRaw, string why) RunCaseCsharp(SstCase c, ushort mask)
+    private static (bool okMasked, bool okRaw, string why) RunCaseCsharp(SstCase c, ushort mask, bool cpu8086)
     {
-        _808x.Reset();
+        if (cpu8086)
+                _808x.Reset8086();
+        else
+                _808x.Reset();
         mem.fill_ram(0x90);
 
         if (c.initial.ram is not null)
@@ -331,6 +438,15 @@ public static class SstProbe
     /// REPE, qui dépendent de rep() — M1.9.</summary>
     private static bool IsUnimplementedPrefix(byte b) => b is 0xF2 or 0xF3;
 
+    /// <summary>AAM d'immédiat nul, derrière ses préfixes éventuels (segment, LOCK, REP).</summary>
+    internal static bool IsAam0(int[] bytes)
+    {
+        var i = 0;
+        while (i < bytes.Length && bytes[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0xF0 or 0xF1 or 0xF2 or 0xF3)
+            i++;
+        return i + 1 < bytes.Length && bytes[i] == 0xD4 && bytes[i + 1] == 0;
+    }
+
     /// <summary>Convertit un objet regs SST en vecteur de 14, en retombant sur
     /// <paramref name="base_"/> pour les champs absents (final est un delta).</summary>
     private static ushort[] ToVector(SstRegs r, ushort[]? base_)
@@ -354,6 +470,17 @@ public static class SstProbe
     }
 
     internal static List<SstCase> LoadPublic(string gzPath) => Load(gzPath);
+
+    /// <summary>Le processeur que le corpus déclare (metadata.json, « cpu » : 8088 ou 8086), ou null.</summary>
+    private static string? ReadCorpusCpu(string metadataPath)
+    {
+        if (!File.Exists(metadataPath))
+            return null;
+        using var doc = JsonDocument.Parse(File.ReadAllText(metadataPath));
+        return doc.RootElement.TryGetProperty("cpu", out var c) && c.ValueKind == JsonValueKind.String
+            ? c.GetString()
+            : null;
+    }
 
     private static List<SstCase> Load(string gzPath)
     {

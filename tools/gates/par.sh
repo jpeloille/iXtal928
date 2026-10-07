@@ -36,6 +36,18 @@
 # garde la machine tant qu'une de ses portes tourne encore.
 set -u
 DLL=$1; OUT=$2; P=${3:-10}; REF=${4:-}
+# G13 — la défense du mode (PLAN-G13.md, § Le mécanisme) : par.sh transmet tout son environnement aux portes. Une
+# variable IXTAL26_* que le dépôt ne connaît pas, ou une variable qui change la compilation du JIT (les listings du mode
+# matériel en posent), ferait jouer la série dans un autre régime sans que rien ne le dise : la série est refusée,
+# retour 2. Le mode matériel ne passe jamais par l'environnement, seulement par --hardware-mode, en clair dans series.sh.
+for v in $(compgen -e); do
+  case "$v" in
+    IXTAL26_CARTE_COURTE|IXTAL26_FAUTE_ANNEAU|IXTAL26_FAUTE_GARDE|IXTAL26_FAUTE_PLANTAGE|IXTAL26_FAUTE_RAM|\
+    IXTAL26_FNV_REF|IXTAL26_LPT_JEU_HORS_SERVICE|IXTAL26_TRACE_COPIE|IXTAL26_VERIF_RAZ) ;;
+    IXTAL26_*|DOTNET_Jit*|DOTNET_JIT*|DOTNET_TieredCompilation*|DOTNET_TieredPGO|DOTNET_TC_*|DOTNET_ReadyToRun*)
+      echo "par.sh : $v changerait le régime des portes sans le dire ; série refusée." >&2; exit 2 ;;
+  esac
+done
 REPO=${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 WORK=${WORK:-/tmp/g5w}
 D="${OUT%.tsv}.par"; rm -rf "$D"; mkdir -p "$D/g" "$D/r"

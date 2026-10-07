@@ -34,6 +34,15 @@ vectors/sst/*
 !vectors/sst386/
 vectors/sst386/*
 !vectors/sst386/MANIFEST.sha256
+# Vecteurs SingleStepTests 8086 (G13.2) — 59 Mo pour les 103 formes du manifeste, récupérés par
+# tools/fetch-sst8086.sh.
+!vectors/sst8086/
+vectors/sst8086/*
+!vectors/sst8086/MANIFEST.sha256
+# Vecteurs SingleStepTests 80286 (G13.2) — 312 Mo, récupérés par tools/fetch-sst286.sh.
+!vectors/sst286/
+vectors/sst286/*
+!vectors/sst286/MANIFEST.sha256
 
 # Artefacts de l'oracle C
 tools/oracle/*.so

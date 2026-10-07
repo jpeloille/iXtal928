@@ -207,7 +207,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **Vérification** : un sous-ensemble ciblé (seuls des commentaires changent : construction sans avertissement, R2,
   `check-oracle`, les générateurs rejoués) ; la porte du recensement.
 
-### G13.2 — Le mécanisme, et un PB pilote
+### G13.2 — Le mécanisme, et un PB pilote  ✅ *fait, VERIFICATION.md § G13.2*
 
 - M0, avant toute garde. Puis la classe, le gel, les refus, la clé, l'option, l'écran (`--setup-check`), la barre de
   titre, la liste d'acceptation, la défense de `par.sh`, la sonde du mode, l'exécuteur de bancs en C# seul, R10 et
@@ -240,6 +240,8 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 
 ### G13.5 — Le 286, le 386 et le 486
 
+- Avant les corrections : la carte plate de 16 Mo du cœur 286, des deux côtés (`h_flat16`, `FlatMap286`) ; 17 % du
+  corpus SST du 286 tombe aujourd'hui hors de sa carte de 1 Mo (VERIFICATION.md § G13.2).
 - Le décodage et la longueur (PB-43 avec PB-44, PB-50, PB-78 ; LOCK → #UD, gardé par UC, puisque le 286 partage
   `opLOCK` ; MOVSX r16) ; le fetch borné (PB-51 : chaque lecture d'instruction, en mode matériel) ; le mode protégé
   selon la documentation (PB-39, PB-40, PB-32 ; LTR contrôlé) ; les familles du 386 inscrites (l'AF d'ADC, BT*, AAA et

@@ -1,5 +1,5 @@
 # Généré par : iXtal26.Diff sst-probe --baseline
-# Oracle : PCem v18, 808x.c — ABI 7
+# Oracle : PCem v18, 808x.c — ABI 56
 # Le C# doit reproduire la colonne 'passe' à l'identique, pas la maximiser.
 forme	cas	passe	masque	premier_echec
 00	10000	10000	0xFFFF	
@@ -75,14 +75,33 @@ forme	cas	passe	masque	premier_echec
 88	10000	10000	0xFFFF	
 90	10000	10000	0xFFFF	
 A4	1483	1483	0xFFFF	
+AC	1455	1009	0xFFFF	[6] es rep lodsb: AX = 0x3E57, attendu 0x3E78
 AD	1515	1004	0xFFFF	[0] es rep lodsw: AX = 0x94BE, attendu 0xC65C
 C7	10000	10000	0xFFFF	
 D0.4	10000	10000	0xFFEF	
 D0.6	10000	32	0xF72A	[0] setmo byte [ss:bp-3D75h]: mem[0xB0443] = 0x54, attendu 0xFF
+D1.2	10000	10000	0xFFFF	
+D1.3	10000	10000	0xFFFF	
+D1.6	10000	0	0xF72A	[0] setmo dx: DX = 0xD71C, attendu 0xFFFF
+D2.2	5000	5000	0xFFFF	
+D2.3	5000	5000	0xFFFF	
 D2.4	5000	2648	0xFFEF	[0] shl byte [ds:si+41h], cl: flags = 0xFC56, attendu 0xF446 (diff masqué 0x0800)
+D2.5	5000	2635	0xFFEF	[1] shr byte [cs:bp+si-15ECh], cl: flags = 0xFC56, attendu 0xF446 (diff masqué 0x0800)
+D2.6	5000	174	0xF72A	[0] setmoc byte [ss:bp+di+12h], cl: mem[0x0F46B] = 0x00, attendu 0xFF
+D2.7	5000	1593	0xFFEF	[0] sar byte [es:si], cl: flags = 0xFC96, attendu 0xF487 (diff masqué 0x0801)
+D3.2	5000	2627	0xFFFF	[1] rcl word [ds:bx], cl: flags = 0xFC92, attendu 0xF493 (diff masqué 0x0801)
+D3.3	5000	2555	0xFFFF	[0] rcr word [ss:si-34h], cl: flags = 0xF016, attendu 0xF017 (diff masqué 0x0001)
+D3.4	5000	2598	0xFFEF	[4] shl word [es:bp+si+55h], cl: flags = 0xF417, attendu 0xFC07 (diff masqué 0x0800)
+D3.5	5000	2597	0xFFEF	[1] shr sp, cl: flags = 0xFC56, attendu 0xF446 (diff masqué 0x0800)
+D3.6	5000	155	0xF72A	[0] setmoc cx, cl: CX = 0x0000, attendu 0xFFFF
+D3.7	5000	1740	0xFFEF	[0] sar word [ss:bp+2106h], cl: flags = 0xF893, attendu 0xF083 (diff masqué 0x0800)
+D4	9953	8415	0xF7EE	[10] aam CCh: flags = 0xF007, attendu 0xF086 (diff masqué 0x0080)
+D5	10000	5131	0xF7EE	[0] aad E2h: flags = 0xF407, attendu 0xFC96 (diff masqué 0x0080)
 E8	10000	10000	0xFFFF	
 F6.4	10000	10000	0xFF2B	
 F6.6	10000	4802	0xF72A	[2] div byte [ss:bp+di+64h]: AX = 0x0AE6, attendu 0x8ED2
+F6.7	9696	1169	0xF72A	[1] idiv byte [ds:bx+si+14h]: AX = 0x124C, attendu 0x494E
 F7.4	10000	10000	0xFF2B	
 F7.6	10000	4905	0xF72A	[2] div word [ss:bx+20B4h]: AX = 0xBE2B, attendu 0x82B9
+F7.7	9674	2243	0xF72A	[0] idiv ax: AX = 0x1E58, attendu 0xCBA9
 FF.0	10000	10000	0xFFFF	

@@ -114,3 +114,12 @@ système.
 La porte de G13.1, `recensement`, lit `PCEM_BUGS.md` et les sources de `iXtal26/` depuis son répertoire de travail,
 où les entrées du dépôt sont des liens : elle tient le registre et les marqueurs d'accord. Chaque marqueur porte sur
 sa ligne le numéro de son entrée, et un renvoi à un autre défaut va sur la ligne suivante.
+
+Les portes de G13.2 éprouvent le mode matériel. Il ne passe jamais par l'environnement : une porte qui le prend le
+demande en clair, `--hardware-mode LISTE` en tête de ses arguments, et `par.sh` refuse de partir si une variable
+`IXTAL26_*` inconnue, ou une variable qui change la compilation du JIT (`DOTNET_Jit*`, `DOTNET_Tiered*`,
+`DOTNET_ReadyToRun*`), est posée. `banc` lance iXtal26 (`--boot`) deux fois dans le mode de la porte et compare la
+sortie à un fichier d'attendus de `tools/gates/bancs/` ; `fuite-pb01` est le fuzzeur en contrôle de fuite (`--fuite`).
+Les portes `sst8088` et `sst8086` (et leur pendant `-materiel`) lisent les corpus SingleStepTests de `vectors/`, que
+git ignore : `tools/fetch-sst.sh` et `tools/fetch-sst8086.sh` les récupèrent d'après leur manifeste, `--verify` les
+contrôle. Sous `--attendu`, une forme du fichier dont les vecteurs manquent rend la porte rouge, jamais muette.

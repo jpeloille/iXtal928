@@ -6,8 +6,15 @@ transcription. Un défaut de transcription se corrige ; un défaut de PCem se
 oracle (règle R8 de `TRANSCRIPTION.md`).
 
 Chaque entrée porte un identifiant stable `PB-nn`, cite le C fautif à la ligne, et
-indique où iXtal26 le reproduit. Les sites de reproduction portent tous le marqueur
+indique où iXtal26 le reproduit. Les sites de reproduction portent le marqueur
 `// pcem bug, reproduced:` — `grep -rn "pcem bug" --include=*.cs iXtal26/` les liste.
+
+Depuis G13.2, le mode matériel corrige à côté (R10 de `TRANSCRIPTION.md`) : un défaut qu'il
+corrige reste reproduit en mode PCem, ses sites passent à `// pcem bug, fixed in hardware
+mode:`, et son entrée reçoit le champ *Corrigé en mode matériel* : où, comment, et ce qui le
+prouve. La porte `recensement` tient d'accord les marqueurs, ce champ et la table des
+corrections (`iXtal26/Materiel/ModeMateriel.cs`). Le décompte des deux marqueurs dit
+l'avancement de G13.
 
 Depuis G13.1, chaque marqueur porte sur sa ligne le numéro de son entrée, et un renvoi à un
 autre défaut va sur la ligne suivante. La porte `recensement` le vérifie, et qu'aucun défaut
@@ -22,8 +29,8 @@ modes. Les sources y sont citées sous un nom court (« 387 PRM », « guide de 
 leurs références complètes sont dans les rapports de `iXtal26/Docs/G13-reconnaissance/`,
 à leur section des sources.
 
-Ce fichier est un registre de **constats**, comme `VERIFICATION.md` : le plafond de
-200 lignes de R3 vise la prose de conception, pas les faits mesurés.
+Ce fichier est un registre de **constats**, comme `VERIFICATION.md` : le plafond de R3
+vise la prose de conception, pas les faits mesurés.
 
 Version de référence : PCem v18 tel que vendoré, ancré par empreinte dans
 `VENDORED.md`. Les numéros de ligne s'y rapportent.
@@ -60,8 +67,16 @@ pour SBB : 0 écart sur les 131 072 triplets de 8 bits, là où PCem se trompe s
 10 000 en mode PCem, 10 000 attendus). Banc : CF = 1, AL = 09h, `ADC AL,06h` → AF = 0 (PCem), 1
 (8088), puis `DAA` → 10h contre 16h.
 *G13* : (a) — le pilote de G13.2 ; chemin tiède, un appel par ADC ou SBB et non par instruction.
-*Reproduit* : `Cpu/808x.cs:594` (setadc8), `:632` (setadc16), `:671` (setsbc8), `:711` (setsbc16),
-marqueurs `PB-01`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `setadc8`, `setadc16`, `setsbc8` et `setsbc16`, marqueurs
+`fixed in hardware mode: PB-01`.
+*Corrigé en mode matériel* (G13.2, le pilote) : chaque site garde la ligne de PCem et appelle, sous
+`if (materiel.pb_01)`, `af_materiel` (`Cpu/808x.Materiel.cs`) : le bit 4 de `a ^ b ^ résultat`. `materiel-cas PB-01`
+rend AF = 0 et DAA 10h en mode PCem, AF = 1 et DAA 16h en mode matériel, la correction comptée quatre fois par la
+sonde ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : les douze formes
+passent entières au 8088 (10 000 sur 10 000 chacune, contre 95,2 à 97,2 % en mode PCem), et au 8086 toutes sauf un
+cas de la forme `18`, qui est PB-87 ; aucune autre forme ne bouge (`sst-baseline-materiel.tsv`,
+`sst8086-baseline-materiel.tsv`). Le contrôle de fuite contre l'oracle : sur 100 000 instructions des 256 opcodes,
+339 divergences, toutes dans son périmètre.
 
 ### PB-02 — Les rotations 16 bits par CL écrasent le carry sortant par le carry entrant
 

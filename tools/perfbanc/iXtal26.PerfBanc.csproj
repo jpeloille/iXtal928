@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>iXtal26.PerfBanc</AssemblyName>
+        <RootNamespace>iXtal26.PerfBanc</RootNamespace>
+
+        <!-- Outillage, pas code transcrit : warnings pleins, comme iXtal26.Diff. -->
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+        <!-- Le MÊME réglage que iXtal26.csproj, pour la même raison que iXtal26.Diff : mesurer
+             le code que le produit exécute, compilé une seule fois et optimisé d'emblée.
+             BenchmarkDotNet lance chaque banc dans un processus enfant qu'il génère ; le job y
+             pose donc aussi DOTNET_TieredCompilation=0 (Program.cs). -->
+        <TieredCompilation>false</TieredCompilation>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Le cœur mesuré. Ses internes s'ouvrent par InternalsVisibleTo (iXtal26.csproj). -->
+        <ProjectReference Include="../../iXtal26/iXtal26.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Installé avec l'accord de l'utilisateur (4 octobre 2026), en avance sur G15. -->
+        <PackageReference Include="BenchmarkDotNet" Version="0.15.8"/>
+    </ItemGroup>
+
+</Project>

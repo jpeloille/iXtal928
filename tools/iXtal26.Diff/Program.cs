@@ -8,10 +8,11 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("Usage : iXtal26.Diff <commande> [options]");
     Console.WriteLine();
     Console.WriteLine("  sst-probe [--vectors DIR] [--op XX ...] [--limit N] [--baseline FICHIER]");
-    Console.WriteLine("            [--target oracle|csharp]");
+    Console.WriteLine("            [--target oracle|csharp] [--cpu 8088|8086]");
     Console.WriteLine("      Sonde SingleStepTests : passe les vecteurs à l'oracle C et");
     Console.WriteLine("      rapporte le taux de réussite. Porte de M0 — décide si le");
-    Console.WriteLine("      harnais xunit complet vaut d'être construit.");
+    Console.WriteLine("      harnais xunit complet vaut d'être construit. --cpu 8086 : le corpus");
+    Console.WriteLine("      SingleStepTests/8086 (vectors/sst8086/v1) sur le cœur 8086.");
     Console.WriteLine();
     Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
@@ -110,6 +111,11 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      Sonde SingleStepTests/80386 (386EX, mode réel, format MOO) : l'état final");
     Console.WriteLine("      de chaque cas contre le silicium. --baseline ÉCRIT la ligne de base.");
     Console.WriteLine();
+    Console.WriteLine("  sst286-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp]");
+    Console.WriteLine("               [--baseline FICHIER]");
+    Console.WriteLine("      La même sonde sur SingleStepTests/80286 (Harris 80C286, mode réel, MOO),");
+    Console.WriteLine("      sur le cœur 286.");
+    Console.WriteLine();
     Console.WriteLine("  ops-count [--missing]");
     Console.WriteLine("      Compte les emplacements posés de ops_386 et ops_386_0f, par quadrant");
     Console.WriteLine("      op32 — la table vivante, pas les sources. --missing liste les trous.");
@@ -126,6 +132,28 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("  abi");
     Console.WriteLine("      Vérifie le contrat binaire avec libixtal26oracle.so.");
     return args.Length == 0 ? 2 : 0;
+}
+
+// G13 — le mode matériel (PLAN-G13.md ; R10 de TRANSCRIPTION.md) : --hardware-mode LISTE, en tête, avant la commande,
+// la liste obligatoire (tout, aucun, des domaines, des PB-nn). L'oracle est PCem : seules les commandes de la liste
+// d'acceptation le prennent (ModeOutils) ; les autres rendent 2. Le mode se fige juste avant l'aiguillage, comme en tête
+// d'initpc et des remises des harnais. Aucune variable d'environnement ne le pose : par.sh les transmet toutes.
+if (args[0] == "--hardware-mode")
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("--hardware-mode attend une liste (tout, aucun, des domaines, des PB-nn), puis une commande.");
+        return 2;
+    }
+    if (!iXtal26.ModeMateriel.Demander(args[1], "--hardware-mode"))
+        return 2;
+    args = args[2..];
+    if (iXtal26.ModeMateriel.Actif && !ModeOutils.Accepte(args, out var raison))
+    {
+        Console.Error.WriteLine($"{args[0]} : {raison} ; le mode matériel y est refusé.");
+        return 2;
+    }
+    Console.WriteLine($"  --hardware-mode : mode {iXtal26.ModeMateriel.Description}.");
 }
 
 // G10.0 — OUTIL DE PREUVE, jamais une machine offerte : « LPT et port jeu hors service », des deux
@@ -157,12 +185,17 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     Environment.ExitCode = 3;
 };
 
+iXtal26.ModeMateriel.Figer();
+
 switch (args[0])
 {
     // G2, D0.5 — le corpus SingleStepTests/80386, oracle silicium du cœur 386.
     case "sst386-probe":
+    // G13.2 — le corpus SingleStepTests/80286 par la même sonde, sur le cœur 286.
+    case "sst286-probe":
     {
-        var vectors = "vectors/sst386";
+        var cpu286 = args[0] == "sst286-probe";
+        var vectors = cpu286 ? "vectors/sst286" : "vectors/sst386";
         var forms = new List<string>();
         var limit = 0;
         var csharp = false;
@@ -181,7 +214,7 @@ switch (args[0])
                     return 2;
             }
         }
-        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline);
+        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline, cpu286);
     }
 
     // G2, D0.6 — ce que la table du 386 porte réellement, lue vivante.
@@ -303,6 +336,13 @@ switch (args[0])
     // G13.1 — le registre des défauts de PCem contre les marqueurs du code : chaque marqueur porte son numéro.
     case "recensement":
         return Recensement.Run();
+    // G13.2 — le mode matériel : ses refus, sa clé, sa ligne de commande ; puis le cas qui discrimine une correction.
+    case "materiel-mode":
+        return MaterielMode.Run();
+    case "materiel-cas":
+        return MaterielCas.Run(args.Skip(1).ToArray());
+    case "banc":
+        return Banc.Run(args.Skip(1).ToArray());
     case "page-check":
     {
         var it = 200000;
@@ -665,32 +705,51 @@ switch (args[0])
     case "sst-diff":
     {
         // Rejoue des cas SST sur les DEUX cœurs et compare l'état complet.
-        var vectors = "vectors/sst/v2";
-        var op = args.Length > 1 ? args[1] : "00";
-        var n = args.Length > 2 ? int.Parse(args[2]) : 20;
+        // G13.2 — `--cpu 8086` : le corpus SingleStepTests/8086, sur le cœur 8086.
+        var rest = args.Skip(1).ToList();
+        var cpu8086 = false;
+        var k = rest.IndexOf("--cpu");
+        if (k >= 0 && k + 1 < rest.Count)
+        {
+            cpu8086 = rest[k + 1] == "8086";
+            rest.RemoveRange(k, 2);
+        }
+        var vectors = cpu8086 ? "vectors/sst8086/v1" : "vectors/sst/v2";
+        var op = rest.Count > 0 ? rest[0] : "00";
+        var n = rest.Count > 1 ? int.Parse(rest[1]) : 20;
         Oracle.CheckAbi();
         var cases = SstProbe.LoadPublic(Path.Combine(vectors, $"{op}.json.gz"));
         var bad = 0;
+        var aam0 = 0;
         for (var i = 0; i < Math.Min(n, cases.Count); i++)
         {
-            var d = SstProbe.DiffCase(cases[i]);
+            // AAM 0 tue l'oracle (PB-46) : écarté, comme par sst-probe.
+            if (SstProbe.IsAam0(cases[i].bytes))
+            {
+                aam0++;
+                continue;
+            }
+            var d = SstProbe.DiffCase(cases[i], cpu8086);
             if (d is null) continue;
-            Console.WriteLine($"[{cases[i].idx}] {cases[i].name} : {d}");
+            Console.WriteLine($"[{cases[i].Index}] {cases[i].name} : {d}");
             if (++bad >= 5) break;
         }
         Console.WriteLine(bad == 0
-            ? $"Les deux cœurs sont d'accord sur {Math.Min(n, cases.Count)} cas."
+            ? $"Les deux cœurs sont d'accord sur {Math.Min(n, cases.Count) - aam0} cas" +
+              (aam0 > 0 ? $" ({aam0} cas AAM 0 écartés)." : ".")
             : $"{bad} divergence(s) coeur-a-coeur.");
         return bad == 0 ? 0 : 1;
     }
 
     case "sst-probe":
     {
-        var vectors = "vectors/sst/v2";
+        string? vectors = null;
         var ops = new List<string>();
         var limit = 0;
         string? baseline = null;
+        string? attendu = null;
         var targetCs = false;
+        var cpu8086 = false;
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -700,20 +759,32 @@ switch (args[0])
                 case "--op" when i + 1 < args.Length: ops.Add(args[++i]); break;
                 case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
                 case "--baseline" when i + 1 < args.Length: baseline = args[++i]; break;
+                // G13.2 — la ligne de base à reproduire à l'identique : la porte (SstProbe.Run).
+                case "--attendu" when i + 1 < args.Length: attendu = args[++i]; break;
                 case "--target" when i + 1 < args.Length: targetCs = args[++i] == "csharp"; break;
+                // G13.2 — le corpus SingleStepTests/8086, sur le cœur 8086 (SstProbe.cs).
+                case "--cpu" when i + 1 < args.Length && args[i + 1] is "8088" or "8086":
+                    cpu8086 = args[++i] == "8086";
+                    break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;
             }
         }
+        vectors ??= cpu8086 ? "vectors/sst8086/v1" : "vectors/sst/v2";
 
+        // Sous --attendu, les formes sont celles du fichier : une forme dont les vecteurs manquent rougit la porte au
+        // lieu de disparaître du compte.
+        if (ops.Count == 0 && attendu is not null && File.Exists(attendu))
+            ops.AddRange(File.ReadLines(attendu).Where(l => l.Length > 0 && !l.StartsWith('#') && !l.StartsWith("forme\t"))
+                                                .Select(l => l.Split('\t')[0]));
         if (ops.Count == 0)
             ops.AddRange(Directory.Exists(vectors)
                 ? Directory.GetFiles(vectors, "*.json.gz").Select(f =>
                     Path.GetFileName(f).Replace(".json.gz", "")).Order()
                 : []);
 
-        return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs);
+        return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs, cpu8086, attendu);
     }
 
     case "popss-check":
@@ -802,6 +873,8 @@ switch (args[0])
                 case "--iter" when i + 1 < args.Length: iterations = int.Parse(args[++i]); break;
                 // G4.0 — un état x87 tiré des deux côtés à chaque itération (générateur à part).
                 case "--fpu-state": Fuzzer.FpuState = true; break;
+                // G13.2 — le contrôle de fuite du mode matériel (Fuzzer.Fuite).
+                case "--fuite": Fuzzer.Fuite = true; break;
                 // G4.2 — le coprocesseur des deux côtés (FPU_* : 1 = 8087, 2 = 287, 3 = 287XL,
                 // 4 = 387), posé avant chaque reset : h_set_fpu, _386.FuzzFpu.
                 case "--fpu" when i + 1 < args.Length:
@@ -837,6 +910,12 @@ switch (args[0])
 
         if (ops.Count == 0)
             ops.Add(0xCE);
+
+        if (Fuzzer.Fuite && (!single || !iXtal26.ModeMateriel.Actif))
+        {
+            Console.Error.WriteLine("--fuite : sous --hardware-mode, en mode simple (--mode single) seulement.");
+            return 2;
+        }
 
         return single
             ? Fuzzer.RunSingle(ops.ToArray(), iterations, seed, verbose, fuzzCore,

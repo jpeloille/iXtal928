@@ -425,7 +425,12 @@ public static class BootDiff
         Oracle.CheckAbi();
 
         if (configPath is not null && !pc.loadconfig(configPath))
+        {
+            // G13 — la clé hardware_mode a refusé de changer le mode figé : l'oracle est PCem.
+            if (PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "hardware_mode", 0) != 0)
+                Console.Error.WriteLine($"boot-diff : {configPath} demande le mode matériel ; l'oracle est PCem, refusé.");
             return 2;
+        }
 
         // APRÈS --config, comme dans le programme principal : la ligne de commande
         // l'emporte sur le fichier, quel que soit l'ordre de frappe.

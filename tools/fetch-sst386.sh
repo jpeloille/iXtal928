@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # G2, D0.5 — récupère les vecteurs SingleStepTests 80386 (386EX, mode réel, format MOO)
-# dans vectors/sst386/v1_ex_real_mode/, avec la liste de révocation.
+# dans vectors/sst386/v1_ex_real_mode/, avec la liste de révocation ; G13.2, avec 80386.csv, la
+# table des opcodes du corpus, dont sst386-probe lit la colonne f_umask (les drapeaux indéfinis).
 #
 # 941 fichiers, ~576 Mo, .gitignored. Seul vectors/sst386/MANIFEST.sha256 est commité,
 # comme pour le corpus 8088 : un corpus qui change en amont doit casser, pas déplacer
@@ -52,7 +53,7 @@ case "${1:-}" in
     [ -f "$MANIFEST" ] || { echo "pas de manifeste ; utiliser --all ou nommer des formes"; exit 2; }
     while read -r _ name; do
         case "$name" in
-            revocation_list.txt) ;;
+            revocation_list.txt | 80386.csv) ;;
             *) fetch "$SUB/${name#$SUB/}" "vectors/sst386/$name" ;;
         esac
     done < "$MANIFEST"
@@ -64,7 +65,8 @@ esac
 
 rm -f vectors/sst386/revocation_list.txt
 fetch revocation_list.txt vectors/sst386/revocation_list.txt
+fetch 80386.csv vectors/sst386/80386.csv
 
 # Le manifeste reflète toujours ce qui est présent sur le disque.
-(cd vectors/sst386 && sha256sum revocation_list.txt $SUB/*.MOO.gz 2>/dev/null | sort -k2) > "$MANIFEST"
-echo "manifeste : $(wc -l < "$MANIFEST") entrees, $(du -sh "$DIR" | cut -f1) sur le disque."
+(cd vectors/sst386 && sha256sum 80386.csv revocation_list.txt $SUB/*.MOO.gz 2>/dev/null | sort -k2) > "$MANIFEST"
+echo "manifeste : $(wc -l < "$MANIFEST") entrees, $(du -sh "$DIR/" | cut -f1) sur le disque."

@@ -35,7 +35,8 @@ public sealed class SdlHost : IDisposable
     /// l'utilisateur lit ; ce n'est pas l'endroit où défendre la typographie.
     /// </summary>
     private static string WindowTitle() =>
-        $"iXtal26 - {Models.model_c.models[Models.model_c.model].name}";
+        $"iXtal26 - {Models.model_c.models[Models.model_c.model].name}" +
+        (ModeMateriel.Actif ? $" - {ModeMateriel.Description}" : "");
 
     /// <summary>Repli tant que le CGA n'a pas appelé updatewindowsize : 656 x (200 * 2 + 16).</summary>
     private const int DefaultWindowWidth = 656;

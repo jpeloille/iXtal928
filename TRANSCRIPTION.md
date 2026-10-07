@@ -1,6 +1,6 @@
 # Transcription PCem → C#
 
-Seul fichier de prose du dépôt. Plafond : 240 lignes, voir R3. On l'amende quand une *règle*
+Seul fichier de prose du dépôt. Plafond : 260 lignes, voir R3. On l'amende quand une *règle*
 change, jamais pour expliquer une ligne de code. Le projet précédent
 (`~/RiderProjects/Retro/IXtal`) s'est arrêté à `NOP` après 1 490 lignes dont ~1 100 de
 commentaires de conception : les règles ci-dessous sont les anticorps de ce mode d'échec,
@@ -18,7 +18,8 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   (a) l'en-tête : deux lignes SPDX + quatre lignes `// ORACLE:` ;
   (b) les commentaires de PCem, *vivants*, verbatim ;
   (c) une ligne de provenance par fonction, `// pcem: src/cpu/808x.c:1271-1301` ;
-  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:` / `not reproduced:` (R9), `// CS0165:` ;
+  (d) `// omitted:`, `// DEVIATION:`, `// pcem bug, reproduced:` / `not reproduced:` (R9) /
+  `fixed in hardware mode:` (R10), `// CS0165:` ;
   (e) dans `Floppy/` et `Disc/` seulement, un bloc `// noms:` en en-tête : une ligne par
   identifiant, **sans phrase**, 40 lignes au plus. Deux colonnes — l'identifiant, ce
   qu'il désigne — et **trois dès qu'un nom est modifié** : nom PCem, nom iXtal26, ce
@@ -37,12 +38,15 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   incompatibles ont cohabité dans une même reconnaissance du bloc C, donnant 195 et 389
   lignes vives pour le même corps :
   `grep -vE '^\s*(//|/\*|\*/|\*|$)' F | grep -vE '^\s*[{}();]+\s*$' | wc -l`.
+  Depuis G13, un filtre de plus avant le compte retire les seules gardes du mode matériel
+  (R10) : `grep -vE '^\s*(else\s+)?if \(!?materiel\.pb_[0-9]+\)\s*$'`.
   **Les lignes « accolade seule » sont exclues du décompte des deux côtés.** PCem est en
   K&R, le C# du dépôt en Allman : chaque bloc coûte mécaniquement +1 ligne, sans qu'une
   seule instruction ait été ajoutée. Mesuré sur `timer.cs` : 1,27 brut, **1,09** hors
   accolades. Sans cet ajustement R2 déclencherait sur la mise en forme, ce qui le
   rendrait ignorable — et un garde-fou qu'on ignore ne garde plus rien.
-- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 240 lignes. Un relèvement
+- **R3 — un seul fichier de prose, plafonné.** Celui-ci, 260 lignes (240 jusqu'à G13.2,
+  relevé pour R10 : décision n° 15 de `PLAN-G13.md`). Un relèvement
   s'inscrit, avec sa raison : un plafond qui bouge sans trace ne plafonne plus (historique :
   `iXtal26/Docs/doctrine-historique.md`). Exemptés, parce que ce sont des **constats** et non
   de la prose de conception : `VERIFICATION.md` (ce que les oracles ont montré) et
@@ -67,7 +71,8 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   rapport de couverture.
 - **R8 — verbes interdits** jusqu'à M4 dans un commit ou un commentaire : *improve,
   optimise, clean up, simplify, refactor*. Si le C est faux, on transcrit la fausseté et
-  on la marque `// pcem bug, reproduced:`.
+  on la marque `// pcem bug, reproduced:` ; le mode matériel la corrige à côté, sans la
+  retirer (R10).
 - **R9 — l'invité ne tue pas l'hôte** (1er octobre 2026, décision de Julien). Un défaut de PCem
   par lequel le code invité arrête, plante ou fige l'émulateur (`fatal()`, SIGFPE, SIGSEGV,
   récursion sans borne) n'est PAS reproduit : le comportement du matériel s'il est connu, le
@@ -75,6 +80,19 @@ Les **mesures** (résultats de portes, divergences, injections de panne) vont da
   Identité stricte partout où l'oracle survit ; l'oracle vendoré n'est jamais touché — les
   outils l'écartent de ces chemins, un test ciblé en C# seul prouve la survie. Hors R9 : les
   arrêts « non transcrit » d'iXtal et les défauts sans arrêt de l'hôte, qui restent reproduits.
+- **R10 — le mode matériel** (G13, décision de Julien du 7 octobre 2026). Un défaut de PCem
+  reproduit (`PB-nn`, sections A et B de `PCEM_BUGS.md`) se corrige À CÔTÉ, jamais à la place :
+  la ligne fausse reste transcrite, et le mode PCem — le défaut, celui des portes — l'exécute.
+  La correction est gardée par un champ figé avant le premier cœur, lu directement par une
+  garde seule sur sa ligne (`if (materiel.pb_nn)`), que le JIT plie : le mode PCem ne coûte
+  rien, les listings du JIT le prouvent (`tools/listings-jit.sh`). Le site prend `// pcem bug,
+  fixed in hardware mode: PB-nn` ; l'entrée PB nomme la source, le cas qui discrimine et la
+  panne qui le rougit, dans son champ *Corrigé en mode matériel*. Le code propre au mode va
+  dans un `*.Materiel.cs` (`STATUS: materiel`) : son marqueur tient lieu de provenance (R1 c),
+  R2 et R6 ne s'y appliquent pas, son vérificateur est le cas qui discrimine, en C# seul. Dans
+  un fichier généré, la garde passe par le générateur. L'oracle n'a pas de mode matériel : un
+  outil qui le compare refuse le mode (retour 2), hors le contrôle de fuite déclaré. Le code
+  du mode reste déterministe, sans fonction de l'hôte à résultat variable, sans arrêt (R9).
 
 ### Portée
 
@@ -82,8 +100,9 @@ Le code **transcrit** (`Cpu/`, `Memory/`, `Models/`, `Keyboard/`, `Video/`, `Plu
 `Floppy/`, `Disc/`, `io.cs`, `timer.cs`, `pc.cs`, `ppi.cs`) garde les identifiants et commentaires anglais de
 PCem ; `.editorconfig` y neutralise les règles de style qui réécriraient une ligne.
 
-Le code **hôte**, neuf (`Host/`, `Program.cs`), suit les conventions C# normales et reste
-commenté en français. `TreatWarningsAsErrors` est plein partout ; sur les fichiers
+Le code **hôte**, neuf (`Host/`, `Materiel/`, `Program.cs`), suit les conventions C#
+normales et reste commenté en français ; un `*.Materiel.cs` rangé dans un répertoire
+transcrit suit R10. `TreatWarningsAsErrors` est plein partout ; sur les fichiers
 transcrits, les avertissements du compilateur se neutralisent par `#pragma warning
 disable` **énumérés et commentés**, jamais en bloc.
 

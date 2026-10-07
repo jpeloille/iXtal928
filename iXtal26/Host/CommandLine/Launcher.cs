@@ -80,6 +80,11 @@ internal static class Launcher
                     return Failure.Usage("--hdd-controller attend un nom de contrôleur de disque dur.");
                 options.Machine.HardDiskController = cursor.TakeNext();
                 return KeepParsing;
+            case "--hardware-mode":
+                if (!cursor.HasNext)
+                    return Failure.Usage("--hardware-mode attend une liste : tout, aucun, des domaines ou des PB-nn.");
+                options.Machine.HardwareMode = cursor.TakeNext();
+                return KeepParsing;
             case "--zip":
                 if (!cursor.HasNext)
                     return Failure.Usage("--zip attend le chemin d'une image ZIP de 100 663 296 octets.");
@@ -284,7 +289,7 @@ internal static class Launcher
 
         machine.ApplyFloppyDriveTypes();
         machine.ApplyZipImage();
-        return machine.TryMountHardDisks();
+        return machine.TryApplyHardwareMode() && machine.TryMountHardDisks();
     }
 
     private static void PrintMachineSummary(string? configurationPath)
@@ -292,6 +297,7 @@ internal static class Launcher
         Console.WriteLine($"machine : {model_c.models[model_c.model].name}, " +
                           $"mem_size = {pc.cfg_mem_size} Ko, " +
                           $"lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
-                          (configurationPath is null ? " (défauts)" : $" ({configurationPath})"));
+                          (configurationPath is null ? " (défauts)" : $" ({configurationPath})") +
+                          (ModeMateriel.Actif ? $", mode {ModeMateriel.Description}" : ""));
     }
 }

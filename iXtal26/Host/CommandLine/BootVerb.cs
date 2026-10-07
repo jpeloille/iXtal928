@@ -73,6 +73,9 @@ internal static class BootVerb
                         return Failure.Usage("--hdd-type attend un type de disque du BIOS, de 1 à 46.");
                     machine.ForceHardDiskType(0, biosType);
                     break;
+                case "--hardware-mode":
+                    machine.HardwareMode = value;
+                    break;
                 case "--settle":
                     if (!int.TryParse(value, out settleSlices) || settleSlices < 0)
                         return Failure.Usage("--settle attend un entier positif.");
@@ -87,7 +90,7 @@ internal static class BootVerb
         }
 
         if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardDiskController() ||
-            !machine.TryMountHardDisks())
+            !machine.TryMountHardDisks() || !machine.TryApplyHardwareMode())
             return ExitCode.UsageError;
 
         // G9.1 (prévention, après l'incident du 03/10) : --boot travaille sur des COPIES de ses

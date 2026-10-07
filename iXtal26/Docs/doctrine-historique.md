@@ -23,3 +23,7 @@ R3 renvoie ici.
   `PCEM_BUGS.md` (les défauts trouvés dans PCem lui-même, identifiants `PB-nn`, cités
   par les marqueurs `// pcem bug, reproduced:` du code). Les données volumineuses vont
   dans des fichiers générés (`sst-baseline.tsv`, `oracle.tsv`), jamais ici.
+
+**Puis 260 en G13.2** (7 octobre 2026) : R10, le mode matériel, et ses amendements de R1, R2, R3 et
+R8, avec la Portée (décision n° 15 de `PLAN-G13.md`, validée le 07/10). Le fichier était à 218
+lignes ; R10 seule en prend treize.

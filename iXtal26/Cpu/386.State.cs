@@ -59,6 +59,8 @@ internal static partial class _386
     /// h_reset() côté oracle, qui ne choisit que `model` selon h_core.</summary>
     private static void ResetExec386(string machine)
     {
+        // G13 — un cœur démarre ici sans initpc : le mode matériel se fige avant lui (ModeMateriel).
+        ModeMateriel.Figer();
         if (machine is "ami386" or "ami486")
                 _808x.FlatMap386();
         else

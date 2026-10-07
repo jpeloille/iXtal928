@@ -295,6 +295,8 @@ internal static partial class _808x
 
     private static void Reset(int core)
     {
+        // G13 — un cœur démarre ici sans initpc : le mode matériel se fige avant lui (ModeMateriel).
+        ModeMateriel.Figer();
         FlatMap();
         ResetCounters();
         ClearFpuResidue();

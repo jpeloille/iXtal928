@@ -7298,3 +7298,122 @@ un seul littéral changé. `check-oracle` : 0 dérive. La construction : aucun a
 **Le sous-ensemble ciblé.** Seuls des commentaires changeant, pas de série entière : sur le worktree de l'état
 commité (15c2f2e et ses 71 fichiers), l'oracle reconstruit de zéro, `par.sh` joue `recensement`, `abi` et
 `ops-count` dans leurs bacs à sable : les trois vertes.
+
+## G13.2 — Le mode matériel : le mécanisme, et son pilote PB-01
+
+Le 7 octobre 2026. Plan : `PLAN-G13.md` § G13.2 ; décisions n° 3 à 7 et 15, validées le 07/10. Le mode PCem reste le
+défaut, et celui des portes ; le mode matériel corrige À CÔTÉ (R10 de `TRANSCRIPTION.md`, neuve).
+
+**Le mécanisme.**
+- `iXtal26/Materiel/` : `materiel`, un champ figé par correction et rien d'autre, son constructeur statique explicite ;
+  `ModeMateriel`, la demande, la table des corrections et de leurs domaines, le gel et la sonde (un compteur par
+  correction, incrémenté dans le seul code du mode). Le gel a lieu en tête d'`initpc` (une ligne `DEVIATION`), dans
+  les deux remises des harnais (`_808x.Reset`, `ResetExec386` : les cinq remises) et en tête d'`iXtal26.Diff`. Après
+  lui, une demande qui change le mode est refusée ; une demande qui ne change rien passe.
+- La demande : la clé `hardware_mode` (`pc.loadconfig`, `DEVIATION` ; absente, elle ne demande rien ; hors de 0 et 1,
+  le mode PCem avec un avertissement) ; `--hardware-mode LISTE` au lanceur, sous `--boot` et sous `--timer-check`
+  (`tout`, `aucun`, des domaines, des `PB-nn`) ; la ligne « Mode » de l'écran de construction, que `SaveMachine`
+  enregistre. La barre de titre et les bannières disent le mode ; `--boot` dit aussi un mode qu'`initpc` n'aurait pas
+  figé.
+- Les outils : `iXtal26.Diff --hardware-mode LISTE COMMANDE`, devant une liste d'acceptation (`ModeOutils`) : les
+  commandes en C# seul, `sst-probe`, `sst386-probe` et `sst286-probe` sous `--target csharp`, `bench --side csharp`,
+  le fuzzeur sous `--fuite`. Toute autre commande rend 2 ; boot-diff rend 2 sur un .cfg qui demande le mode. `par.sh`
+  refuse de partir sur une variable `IXTAL26_*` inconnue ou une variable du JIT. `r9-filet` transmet le mode à ses
+  séances.
+- Le recensement : le marqueur `fixed in hardware mode`, le champ *Corrigé en mode matériel* et la table des
+  corrections doivent nommer les mêmes défauts, sans site resté `reproduced` ; aucune configuration lue par une porte
+  ne porte la clé (42 lues).
+- R10 et ses amendements (R1, R2, R8, la Portée), R3 relevé à 260 lignes : `TRANSCRIPTION.md` passe de 218 à 237.
+
+**Le pilote, PB-01** (l'AF d'ADC et de SBB du 8088 et du 8086). Les quatre sites de `808x.cs` gardent la ligne de
+PCem et appellent sous `if (materiel.pb_01)` `af_materiel` (`Cpu/808x.Materiel.cs`) : le bit 4 de `a ^ b ^ résultat`.
+- `materiel-cas PB-01`, en C# seul : en mode PCem AF = 0 et `ADC AL,06h` puis `DAA` rend 10h, la sonde à zéro ; en
+  mode matériel AF = 1 et 16h, la correction comptée quatre fois (un cas par fonction).
+- `banc`, l'exécuteur de bancs en C# seul : PB-01 sous DEBUG de PC-DOS 2.00 sur l'XT (STC, MOV AL,9, ADC AL,6, DAA),
+  `AX=0010` en mode PCem, `AX=0016` en mode matériel ; chaque mode joué deux fois, les sorties identiques une fois
+  effacé le numéro de processus des copies temporaires.
+- `fuite-pb01`, le contrôle de fuite : le fuzzeur, PB-01 seul corrigé, contre l'oracle. Sur 100 000 instructions des
+  256 opcodes, 339 divergences, toutes dans le périmètre de PB-01, aucune ailleurs (9 min 14 s) ; sur les seules
+  formes d'ADC et de SBB, 5 707 sur 100 000. Une première version du périmètre ne voyait que les drapeaux : la fuite
+  signalée à l'itération 66 était un ADC sous TF, dont le pas à pas empile l'image des drapeaux, différente du même
+  bit AF. Le périmètre la comprend désormais, et seulement par AF.
+- SST, le silicium, en C# seul : les douze formes d'ADC et de SBB passent entières au 8088 (10 000 sur 10 000, contre
+  95,2 à 97,2 % en mode PCem ; 854 945 → 859 265 cas sur 943 776), et au 8086 onze à 2 000 sur 2 000, la forme `18` à
+  1 999 : son cas restant, [1058], est PB-87. Aucune autre forme ne bouge. `sst-baseline-materiel.tsv` et
+  `sst8086-baseline-materiel.tsv` le figent ; les portes `sst8088-materiel` et `sst8086-materiel` le tiennent.
+
+**Le mode PCem ne coûte rien.** `tools/listings-jit.sh` capture les listings du JIT (`DOTNET_JitDisasm='*'`,
+`JitDisasmDiffable`, Release, sans paliers) de cinq scénarios — PC-DOS et DEBUG sur l'XT, le 5150 et son 8087,
+l'IBM AT et son 287, l'ami386dx et son 387, l'ami486 —, chacun dans un bac à sable. M0 est la capture de 860f2b1 :
+989 méthodes, aucune en MinOpts. Deux exécutions du même binaire donnaient deux listings (selon l'adresse de ses
+champs statiques, le JIT les atteint par un adressage relatif ou par une adresse absolue) : les scénarios tournent
+sans randomisation des adresses (`setarch -R`), et trois captures de M0 sont alors identiques. M2, l'état de G13.2
+contre M0 : les quatre méthodes gardées (`setadc8`, `setadc16`, `setsbc8`, `setsbc16`) ont le même code machine à
+l'octet près ; six méthodes froides changent, toutes expliquées (`initpc` et `loadconfig`, le gel et la clé ;
+`BootTest.Run`, `BootVerb.Run`, `Launcher.ApplyArgument`, l'option et la bannière ; une méthode de
+`MachineOverrides`, dont la classe a un champ de plus) ; sept apparaissent, celles du mécanisme. Une première
+version appelait le mode dans `TryApplyMachineAndCheckProcessor` : `--boot` ne l'inlinait plus, l'ordre des
+compilations changeait, et sept méthodes froides qu'aucune ligne n'avait touchées (dont `loadcs`) changeaient de
+listing, par des chaînes allouées plus tard. L'appel déplacé, elles ont retrouvé leur code de M0.
+
+**M1, le coût d'une garde** (`tools/perfbanc`, commité ici, décision n° 6 ; `GardePb01`, BenchmarkDotNet 0.15.8, la
+machine au repos) : `setadc8` en mode PCem, quatre copies par le même délégué. Sans garde 4,918 ns par appel ; la garde
+figée 4,920 ns (rapport 1,00) ; un champ modifiable 4,830 ns (0,98) ; un champ figé trop tard, la méthode compilée
+avant le gel, 4,779 ns (0,97) ; les intervalles de quelques millièmes de ns. La garde figée coûte exactement la
+fonction sans garde. Les deux formes qui lisent vraiment le champ ne coûtent pas plus — elles sortent même plus vite, par
+un placement du code différent : à cette échelle, une lecture et un saut bien prédit ne se mesurent pas, et le
+placement pèse plus qu'eux. La preuve du 0 % reste celle des listings (M2), où seule la forme figée est identique au
+code machine près.
+
+**Les vecteurs SST** (décision n° 5). Les corpus SingleStepTests du 8088 (AMD D8088 : les 84 formes du manifeste, et
+19 de plus, celles que les champs *Cas qui discrimine* du registre nomment : `D1.2` à `D3.7`, `D4`, `D5`, `AC`,
+`F6.7`, `F7.7`), du 8086 (Intel P80C86A-2, les mêmes 103 formes), du 386 (386EX en mode réel, 941 formes) et du 286
+(Harris N80C286-12 en mode réel, 326 formes) : 1,235 Go récupérés en 21 min par `curl`, sans installation, vérifiés
+par leurs manifestes, gardés dans `vectors/` (gitignoré) pour les étapes suivantes. Les lignes de base, ce que
+l'oracle fait passer :
+- `sst-baseline.tsv` : 103 formes, 854 945 cas réussis sur 943 776 ; les 84 lignes d'avant identiques à l'octet,
+  l'en-tête portant l'ABI du jour (56). AAM 0 tue l'oracle (PB-46, SIGFPE) : ses cas sont écartés des deux cibles,
+  comme les REP (47 au 8088, 12 au 8086), et ne se jugent qu'en C# seul.
+- `sst8086-baseline.tsv`, neuve (`sst-probe --cpu 8086`) : 185 430 sur 204 343. Ce corpus exerce PB-87 (cinq cas à
+  cheval sur FFFFh, aucun au 8088), et confirme sur un silicium Intel les écarts du 8088, hors l'OF des décalages par
+  CL, qu'il masque.
+- `sst386-baseline.tsv` : le masque des drapeaux indéfinis du corpus, désormais appliqué (`f_umask` de `80386.csv`,
+  qui manquait aux 60 formes `0F`, et les drapeaux empilés d'une exception) : 1 474 250 → 1 555 116 cas réussis sur
+  1 758 699 ; 742 formes déviantes avant comme après, et l'ancien verdict recalculé rend l'ancienne ligne.
+- `sst286-baseline.tsv`, neuve : le lecteur du corpus (`Moo.cs`) lit enfin `REGS` et `RMSK`. 1 202 039 réussis sur
+  1 223 678 cas joués ; 254 319 (17,2 %) tombent hors de la carte de 1 Mo du cœur 286 et se comptent à part (la carte
+  de 16 Mo est inscrite en G13.5) ; `metadata.json` et le masque des fichiers se contredisent sur 55 formes, et la
+  sonde applique leur union.
+Le C# reproduit les quatre lignes de base à l'identique (le 8088 et le 8086 à l'octet ; le 386 et le 286, la ligne
+« Cible » exceptée), et `sst-diff` ne trouve aucune divergence d'état sur les 19 formes neuves du 8088 ni sur les 103
+du 8086.
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| les quatre gardes inversées | `materiel-cas PB-01` | rouge : 4 échecs, la valeur du 8088 en mode PCem |
+| le gel retiré d'`initpc` | `materiel-mode` | rouge : `--boot` dit le mode non figé |
+| la liste d'acceptation ouverte | `materiel-mode` | rouge : boot-diff, le fuzzeur et sst-probe ne refusent plus |
+| une correction qui fuit (CF retourné en plus d'AF) | `fuite-pb01` | rouge : FUITE dès la première instruction |
+| un site de PB-01 resté `reproduced` | `recensement` | rouge |
+| le champ *Corrigé en mode matériel* retiré | `recensement` | rouge |
+| la clé `hardware_mode` ignorée | `materiel-mode` | rouge : 4 échecs |
+| la sonde retirée de la correction | `materiel-cas PB-01` en mode matériel | rouge : la correction n'a pas servi |
+| la correction coupée par le masque (`--attendu materiel` en mode PCem) | `materiel-cas PB-01` | rouge, sans construction à part |
+
+Les auto-contrôles de l'émulateur passent : `--setup-check` (36, dont les quatre du mode : la ligne, la bascule,
+l'enregistrement et le rechargement de la clé, l'écran qui ne fige pas le mode), `--menu-check`, `--joystick-check`,
+`--fat-check`.
+
+**R10, le contrôle mécanique.** Sous `git diff -w`, aucune ligne vivante de PCem n'est retirée ni modifiée dans les
+fichiers transcrits : `808x.cs` ne gagne que les quatre gardes, leurs appels et leurs `else`, `pc.cs` la clé et le gel.
+
+**La série.** g129 tourne sur le worktree de G13.2 (860f2b1 et ses 64 fichiers, les corpus SST liés), l'état commité,
+sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 254 portes, toutes vertes, en 63 minutes. Contre g128 (la
+série de G13.0 ; G13.1 n'avait changé que des commentaires, la DLL identique), les 243 portes communes rendent les
+mêmes verdicts ; onze sont neuves, `recensement` (G13.1) et les dix de G13.2. Le rapport de plantage trouvé ensuite
+dans `/var/crash` venait d'une sonde SST de 20 h 40, l'oracle tué par AAM 0 (PB-46, SIGFPE) avant que le filtre soit
+posé : effacé. Pendant la série, deux commits de documentation du 5150 (`83c0b94`, `28997c3`) sont arrivés sur master ;
+ils n'ajoutent que des fichiers neufs, qu'aucune porte ne lit (`iXtal26/Docs/ibm5150/`, `sources/`, deux scripts),
+et G13.2 se pose sur eux sans chevauchement ; `recensement`, rejoué sur cet état final, est vert.
