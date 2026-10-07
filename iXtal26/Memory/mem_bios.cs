@@ -281,7 +281,7 @@ internal static partial class mem_bios
             //   553-1277), de ROM_PC1640 à ROM_GA686BX — machines hors cible.
             }
             printf("Failed to load ROM!\n");
-            // pcem bug, reproduced: `f` n'est pas remis à NULL par le fclose de la
+            // pcem bug, reproduced: PB-10 — `f` n'est pas remis à NULL par le fclose de la
             //   ligne 549 ; ce fclose-ci est donc un double fclose. Stream.Close()
             //   étant idempotent, la faute n'a pas de conséquence ici.
             if (f != null)

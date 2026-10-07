@@ -28,7 +28,7 @@ internal static partial class _386_common
     // -----------------------------------------------------------------------
     // Le chemin de FETCH (pcem: 386_common.c:36-37 et 386_common.h:100-176).
     //
-    // exec386 fait `fastreadl(cs + pc)` à CHAQUE instruction (386.c:176) : c'est
+    // exec386 fait `fastreadl(cs + pc)` à CHAQUE instruction (386.c:178) : c'est
     // le chemin d'instruction inconditionnel, mode réel compris. Rien ici n'est
     // propre à la pagination ni au dynarec.
     //
@@ -512,6 +512,10 @@ internal static partial class _386_common
     // zéros. Comme fetch_ea_16, elles rendent `true` quand le handler doit sortir.
     // -----------------------------------------------------------------------
 
+    // pcem bug, reproduced: PB-189 — SEG_CHECK_READ et SEG_CHECK_WRITE ne testent que le segment nul,
+    //   et ce sont les seules gardes de la plupart des handlers (CHECK_READ, CHECK_WRITE et CHECK_WRITE_REP ne
+    //   servent qu'aux MOV de x86_ops_mov.h, à x86_ops_misc.h:50, à six REP et au FSTP m64) : en mode réel,
+    //   un opérande qui sort de la limite (adresse a32 au-delà de FFFFh, mot à cheval sur FFFFh) ne lève rien.
     internal static bool SEG_CHECK_READ(x86seg seg)
     {
         if (seg.@base == 0xffffffff)
@@ -557,6 +561,8 @@ internal static partial class _386_common
     // pcem: 386_common.h:160-176. Le pc avance AVANT la lecture, et la lecture se
     // fait à l'adresse d'avant : c'est ce qui permet aux handlers de relire leurs
     // propres octets d'immédiat après coup.
+    // pcem bug, reproduced: PB-51 — getbyte, getword et getlong lisent `cs + pc` sans contrôle de la limite
+    //   de CS, comme la lecture d'opcode (386.cs) : une instruction à cheval sur la limite ne lève rien.
     internal static uint8_t getbyte()
     {
         cpu_state.pc++;

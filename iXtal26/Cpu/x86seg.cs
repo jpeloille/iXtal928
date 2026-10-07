@@ -721,6 +721,8 @@ internal static partial class x86seg_c
 
                         // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
                         //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
+                        // pcem bug, reproduced: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
+                        //   (≥ CPL et ≥ RPL), ni sa présence, ni TI = 0 : une TSS de la LDT passe (x86seg.c:888).
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 cpu_state.pc = old_pc;
@@ -1090,6 +1092,8 @@ internal static partial class x86seg_c
                 return;
         }
         addr = (uint32_t)(num << 3);
+        // pcem bug, reproduced: PB-192 — `addr >= limit` (x86seg.c:1648) accepte une porte dont les huit
+        //   octets dépassent la limite de l'IDT ; Intel teste `addr + 7` contre la limite.
         if (addr >= idt.limit)
         {
                 // LA TRIPLE FAUTE EST UN RESET, ET C'EST LE SILICIUM. Si le vecteur 8
@@ -1112,7 +1116,7 @@ internal static partial class x86seg_c
                 }
                 else
                 {
-                        // pcem bug, reproduced: PB-32 — precedence d'operateurs. Le C ecrit
+                        // pcem bug, reproduced: PB-32 — precedence d'operateurs. Le C ecrit (x86seg.c:1660)
                         //   `(num * 8) + 2 + (soft) ? 0 : 1`, et `+` lie plus fort que `?:` :
                         //   la condition est `((num*8) + 2 + soft)`, toujours non nulle, donc
                         //   le code d'erreur vaut TOUJOURS 0. Le `(num*8)+2` voulu n'est
@@ -1136,6 +1140,8 @@ internal static partial class x86seg_c
                 return;
         oaddr = addr;
 
+        // pcem bug, reproduced: PB-192 — le code d'erreur `(num * 8) + 2` n'a jamais EXT (bit 0), même
+        //   quand l'événement est externe (interruption matérielle ou exception, soft == 0).
         if ((segdat[2] & 0x1F00) == 0)
         {
                 // x86gpf_expected ET PAS x86gpf : le commentaire de PCem le dit — ca se
@@ -1409,6 +1415,8 @@ internal static partial class x86seg_c
                 break;
 
         case 0x500: /*Task gate*/
+                // pcem bug, reproduced: PB-191 — la porte de tâche de l'IDT accepte une TSS de la LDT
+                //   (`seg & 4`) et ne vérifie pas que le descripteur est une TSS disponible (type 1 ou 9).
                 seg = segdat[1];
                 addr = (uint32_t)(seg & ~7);
                 if ((seg & 4) != 0)
@@ -1829,8 +1837,8 @@ internal static partial class x86seg_c
     /// <summary>pcem: x86seg.c:2393-2748 — LE CHANGEMENT DE TACHE, etape 8 du bloc C.
     ///
     /// Dernier de la sequence, et pour une raison mesuree : ses seuls appelants sont les
-    /// portes de TACHE — type 0x100 et 0x900 dans loadcsjmp et loadcscall, et le bit
-    /// correspondant de l'IDT dans pmodeint. Le POST de l'IBM AT n'en emprunte aucune :
+    /// TSS — types 0x100 et 0x900 dans loadcsjmp et loadcscall, que PCem nomme « Task gate »
+    /// (PB-39) — et la porte de tache (0x500) de l'IDT dans pmodeint. Le POST de l'IBM AT n'en emprunte aucune :
     /// pas de descripteur de type 9 dans sa GDT, pas de porte de type 5 dans son IDT.
     /// Echoue bruyamment en attendant, meme doctrine que ses voisines.</summary>
     // pcem: x86seg.c:2393-2849 — taskswitch286, les TSS 286 ET 386. G2, D5.
@@ -1846,11 +1854,12 @@ internal static partial class x86seg_c
     // à l'œil, ligne à ligne, comme le plan le prévoit.
     //
     // DEUX ÉCARTS DE PCem, transcrits tels quels :
-    //   - le bit « occupé » de la NOUVELLE TSS est cherché dans la LDT si `tr.seg & 4` —
-    //     le sélecteur de l'ANCIENNE tâche — et non `seg & 4` (sans effet : une TSS est
-    //     toujours dans la GDT, et TR aussi) ;
-    //   - une TSS 16 bits charge les registres généraux avec `| 0xFFFF0000` : leurs
-    //     moitiés hautes deviennent FFFF au lieu d'être conservées.
+    //   - PB-42 : le bit « occupé » de la NOUVELLE TSS est cherché dans la LDT si
+    //     `tr.seg & 4` — le sélecteur de l'ANCIENNE tâche — et non `seg & 4` (sans effet :
+    //     une TSS est toujours dans la GDT, et TR aussi) ;
+    //   - PB-41 : une TSS 16 bits charge les registres généraux avec `| 0xFFFF0000` : leurs
+    //     moitiés hautes deviennent FFFF. Intel les dit « modifiées et non maintenues »
+    //     (SDM vol. 3A, § 7.6) sans en donner la valeur ; Bochs pose FFFF lui aussi.
     //
     // loadcs n'y est appelé que sous VM_FLAG, où sa branche mode réel s'applique : sa
     // branche mode protégé (x86seg.c:457-565) reste donc sans appelant atteignable.
@@ -2323,8 +2332,8 @@ internal static partial class x86seg_c
     // CE COMMENTAIRE DISAIT « n'est pas transcrite. Elle échoue BRUYAMMENT » ET
     // C'ÉTAIT PÉRIMÉ depuis dcb8960 : la branche mode protégé est juste en dessous,
     // avec son descripteur lu dans la GDT ou la LDT, ses tests CPL/DPL, son segment
-    // conforme, sa porte d'appel et sa porte de tâche. Seule celle-ci appelle encore
-    // un stub, taskswitch286, et elle le fait en le nommant.
+    // conforme, sa porte d'appel et sa voie TSS (« Task gate » chez PCem, PB-39). Seule
+    // celle-ci appelait encore un stub, taskswitch286, et elle le faisait en le nommant.
     //
     // Relevé par une reconnaissance en lecture seule, pas par une porte : aucun test
     // ne vérifie qu'un commentaire dit vrai. C'est la quatrième ligne de statut de
@@ -2536,6 +2545,8 @@ internal static partial class x86seg_c
 
                         // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
                         //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
+                        // pcem bug, reproduced: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
+                        //   (≥ CPL et ≥ RPL), ni sa présence, ni TI = 0 : une TSS de la LDT passe (x86seg.c:582).
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
                                 // LE PC REVIENT A old_pc, ET C'EST POUR CA QUE loadcsjmp LE

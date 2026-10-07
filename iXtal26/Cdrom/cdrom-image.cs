@@ -14,8 +14,9 @@
 // -ftrivial-auto-var-init=zero) : là où une piste manque, GetAudioTrackInfo et GetAudioSub n'écrivent
 // rien et le C lit des variables automatiques non initialisées — attr d'is_track_audio et de
 // playaudio, les champs de getcurrentsubchannel (:208-249). Zéro ici. Conséquence inscrite : PLAY AUDIO
-// en MSF teste la piste sur la position encore compactée (:83), hors de toute piste, donc attr vaut 0 —
-// la lecture part, même sur une piste de données.
+// en MSF teste la piste sur la position encore compactée (:83) ; hors de toute piste, attr vaut 0 et la
+// lecture part. Le moteur appelé seul (cdimage-check) joue ainsi une piste de données ; l'invité, non :
+// scsi_cd consulte d'abord is_track_audio, qui convertit le MSF.
 //
 // ÉTAT STATIQUE : tout ce qui précède traverse les ouvertures et les amorçages chez PCem ;
 // image_clear_state_for_oracle_parity le remet à zéro, pendant de h_cd_reset (harness_cdrom.cpp).
@@ -109,9 +110,12 @@ internal static class cdrom_image
             int m = (int)((pos >> 16) & 0xff);
             int s = (int)((pos >> 8) & 0xff);
             int f = (int)(pos & 0xff);
+            // pcem bug, reproduced: PB-215 — MSF_TO_FRAMES garde les 150 secteurs de l'amorce (cdrom.h:64) :
+            //   la piste est jugée 150 secteurs plus loin.
             pos = unchecked((uint32_t)MSF_TO_FRAMES(m, s, f));
         }
 
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
         // DEVIATION: attr non initialisé en C quand GetTrack rend -1 ; zéro (en-tête).
         uint8_t attr = 0;
         TMSF tmsf = default;
@@ -127,10 +131,13 @@ internal static class cdrom_image
         if (cdrom is null)
             return;
         int number = 0;
-        // DEVIATION: attr non initialisé en C quand GetTrack rend -1 — dont toute demande en MSF ; zéro
-        //   (en-tête) : la lecture part.
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
+        // DEVIATION: attr non initialisé en C quand GetTrack rend -1 — une demande en MSF dont la valeur
+        //   compactée tombe hors des pistes ; zéro (en-tête) : la lecture part.
         uint8_t attr = 0;
         TMSF tmsf = default;
+        // pcem bug, reproduced: PB-214 — en MSF, la piste est cherchée à la valeur compactée m × 65 536 +
+        //   s × 256 + f, avant la conversion : si elle tombe dans une piste de données, la lecture s'annule en silence.
         cdrom.GetAudioTrackInfo(cdrom.GetTrack(unchecked((int)pos)), ref number, ref tmsf, ref attr);
         if (attr == DATA_TRACK)
         {
@@ -280,6 +287,7 @@ internal static class cdrom_image
         uint32_t cdpos = image_cd_pos;
         if (cdpos >= 150)
             cdpos -= 150;
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
         // DEVIATION: hors des pistes, GetAudioSub n'écrit rien et b[] reçoit l'indéterminé ; zéro (en-tête).
         TMSF relPos = default, absPos = default;
         uint8_t attr = 0, track = 0, index = 0;
@@ -315,6 +323,7 @@ internal static class cdrom_image
             b[o + pos] = 0;
             pos += 4;
         }
+        // pcem bug, reproduced: PB-123 — en LBA, l'adresse absolue et la relative gardent les 150 de GetAudioSub.
         else
         {
             uint32_t dat = unchecked((uint32_t)MSFtoLBA(absPos.min, absPos.sec, absPos.fr));
@@ -468,6 +477,7 @@ internal static class cdrom_image
     }
 
     // pcem: cdrom-image.cc:383-425 — de first_track à last_track : sans le lead-out, et sans b[0] ni b[1].
+    // pcem bug, reproduced: PB-120 — ni les points A0h, A1h, A2h, ni le lead-out, ni la longueur (b[0], b[1]).
     private static int image_readtoc_raw(uint8_t[] b, int o, int maxlen)
     {
         if (cdrom is null)
@@ -572,7 +582,7 @@ internal static class cdrom_image
         //   cdrom_path, en G10.4, la posera.
         image_path = fn;
 
-        // L'objet d'avant, s'il y en a un, n'est pas libéré (PB-112 ; le GC s'en charge).
+        // pcem bug, reproduced: PB-112 — l'objet d'avant, s'il y en a un, n'est pas libéré (le GC s'en charge).
         cdrom = new CDROM_Interface_Image();
         if (!cdrom.SetDevice(fn, 0))
         {
@@ -582,6 +592,7 @@ internal static class cdrom_image
         image_cd_state = CD_STOPPED;
         image_cd_pos = 0;
         cd_buflen = 0;
+        // pcem bug, reproduced: PB-117 — le début du lead-out plus un : READ CAPACITY rend cette capacité telle quelle.
         cdrom_capacity = unchecked((uint32_t)(image_get_last_block(0, 0, 4096, 0) + 1));
         ide_atapi.atapi = image_atapi;
         return 0;

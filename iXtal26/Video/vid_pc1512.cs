@@ -67,6 +67,8 @@ internal sealed class pc1512_t
 internal static partial class vid_pc1512
 {
     // pcem: vid_pc1512.c:45-46
+    // pcem bug, reproduced: PB-230 — R16 et R17 s'écrivent (masque FFh), comme sur la CGA ; un 6845 les
+    //   tient en lecture seule.
     private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
                                                          0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -129,6 +131,7 @@ internal static partial class vid_pc1512
         switch (addr)
         {
         case 0x3d4:
+                // pcem bug, reproduced: PB-230 — l'index se relit, et R0-R13 aussi (3D5h), comme sur la CGA.
                 return (uint8_t)pc1512.crtcreg;
         case 0x3d5:
                 return pc1512.crtc[pc1512.crtcreg];
@@ -225,7 +228,7 @@ internal static partial class vid_pc1512
                         pc1512.lastline = pc1512.displine;
                         for (c = 0; c < 8; c++)
                         {
-                                // pcem bug, reproduced: PB-89 (comme la M24) — crtc[1] n'est pas masqué
+                                // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué
                                 //   (crtcmask[1] = 0xff) ; l'abscisse c + (crtc[1] << 4) + 8 monte à 4 095
                                 //   et déborde sur la ligne suivante de buffer32 (lignes contiguës,
                                 //   wx-sdl2-video.c:59-69, ici le même tableau plat). Jamais hors du
@@ -313,6 +316,9 @@ internal static partial class vid_pc1512
                                         {
                                                 cols[1] = cgapal[attr & 15];
                                                 cols[0] = cgapal[(attr >> 4) & 7];
+                                                // pcem bug, reproduced: PB-232 — en 40 colonnes, le
+                                                //   clignotement n'exempte pas la cellule du curseur (:237),
+                                                //   comme il le fait en 80 colonnes (:205).
                                                 if ((pc1512.blink & 16) != 0 && (attr & 0x80) != 0)
                                                         cols[1] = cols[0];
                                         }
@@ -421,7 +427,7 @@ internal static partial class vid_pc1512
                 else
                 {
                         cols[0] = cgapal[((pc1512.cgamode & 0x12) == 0x12) ? 0 : (pc1512.cgacol & 15)];
-                        // pcem bug, reproduced: PB-89 (comme la M24) — x2 = (crtc[1] << 4) + 16 monte à
+                        // pcem bug, reproduced: PB-89 — comme la M24 : x2 = (crtc[1] << 4) + 16 monte à
                         //   4 096 : hline déborde sur la ligne suivante, jamais hors du tableau
                         //   (displine < 360).
                         if ((pc1512.cgamode & 1) != 0)
@@ -479,6 +485,8 @@ internal static partial class vid_pc1512
                         {
                                 pc1512.vc = 0;
                                 pc1512.vadj = 6;
+                                // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
+                                //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
                                 if ((pc1512.crtc[10] & 0x60) == 0x20)
                                         pc1512.cursoron = 0;
                                 else

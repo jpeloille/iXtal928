@@ -267,6 +267,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:261-264 — picint prend un uint16_t : l'IRQ 16 (EEPROM à 7) donne 0 (PB-144).
+    // pcem bug, reproduced: PB-144 — un code d'IRQ 7 donne l'IRQ 16 : picint((uint16_t)(1 << 16)) ne lève rien.
     private static void set_irq(aha154x_t scsi, uint8_t val)
     {
         picint((uint16_t)(1 << scsi.irq));
@@ -397,6 +398,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:407-533
+    // pcem bug, reproduced: PB-253 — le CCB lu en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_cdb(aha154x_t scsi)
     {
         int c;
@@ -408,6 +410,8 @@ internal static class scsi_aha1540
         case CCB_INITIATOR:
         case CCB_INITIATOR_RESIDUAL:
                 temp = mem_readb_phys(scsi.ccb.addr + 0x01);
+                // pcem bug, reproduced: PB-144 — les bits 3 et 4, rangés, jamais lus : ni contrôle de longueur
+                //   (12h), ni « aucun transfert » s'ils sont posés tous deux. Le sens, lui, est conforme à la carte.
                 scsi.ccb.transfer_dir = (temp >> 3) & 3;
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
                 scsi.ccb.req_sense_len = mem_readb_phys(scsi.ccb.addr + 0x03);
@@ -416,6 +420,7 @@ internal static class scsi_aha1540
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
+                // pcem bug, reproduced: PB-144 — ccb.addr + n sans bouclage à 24 bits (:425-433).
                 scsi.ccb.data_len = (uint32_t)(mem_readb_phys(scsi.ccb.addr + 0x06) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x05) << 8) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x04) << 16));
@@ -442,6 +447,7 @@ internal static class scsi_aha1540
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
                 scsi.ccb.req_sense_len = mem_readb_phys(scsi.ccb.addr + 0x03);
 
+                // pcem bug, reproduced: PB-133 — de même pour un CCB à liste de dispersion.
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
@@ -514,6 +520,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:535-1369
+    // pcem bug, reproduced: PB-253 — 03h, 1Ah et 1Bh en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_cmd(aha154x_t scsi)
     {
         uint32_t addr = 0;
@@ -662,6 +669,7 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_MAILBOX_INITIALIZATION:
+                        // pcem bug, reproduced: PB-141 — un compte nul accepté (la carte rend INVDCMD).
                         scsi.mbc = scsi.@params[0];
                         scsi.mba = (uint32_t)(scsi.@params[3] | (scsi.@params[2] << 8) | (scsi.@params[1] << 16));
                         scsi.mba_i = scsi.mba + (uint32_t)(scsi.mbc * 4);
@@ -673,6 +681,8 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_START_SCSI_COMMAND:
+                        // pcem bug, reproduced: PB-141 — un balayage compté par 02h ; ni HRST, ni SRST, ni 01h
+                        //   ne remettent ce compte à zéro.
                         scsi.mbo_req++;
                         scsi.cmd_state = CMD_STATE_IDLE;
                         /*Don't send IRQ until we actually start processing a mailbox*/
@@ -680,7 +690,7 @@ internal static class scsi_aha1540
 
                 case COMMAND_START_BIOS_COMMAND:
                         // pcem bug, reproduced: PB-138 — ni from_mailbox ni current_mbo posés (sauf 15h) ; ccb.status et
-                        //   int_buffer périmés après une sélection ratée. PB-144 : le secteur sans -1 (:773).
+                        //   int_buffer périmés après une sélection ratée.
                         if (scsi.ccb_state != CCB_STATE_IDLE)
                                 break;
                         if (scsi.@params[0] >= 0x16)
@@ -716,6 +726,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
+                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:773).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_READ_10;
@@ -764,6 +775,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
+                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:815).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_WRITE_10;
@@ -812,6 +824,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
+                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:857).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_VERIFY_10;
@@ -980,6 +993,7 @@ internal static class scsi_aha1540
                                                 break;
 
                                         default:
+                                                // pcem bug, reproduced: PB-134 — état jamais posé (:1016).
                                                 pc.fatal($"Get Disk Type state {scsi.bios_cmd_state}\n");
                                                 break;
                                         }
@@ -1010,6 +1024,7 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_SET_SELECTION_TIMEOUT:
+                        // pcem bug, reproduced: PB-144 — délai de sélection, temps de bus, vitesse : sans effet.
                         scsi.e_d = scsi.@params[0];
                         scsi.to = (uint16_t)((scsi.@params[1] << 8) | scsi.@params[2]);
                         set_irq(scsi, ISR_HACC);
@@ -1125,6 +1140,8 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_ADAPTEC_RETURN_EEPROM_DATA:
+                        // pcem bug, reproduced: PB-218 — l'octet 0 est ignoré (1 : la configuration ;
+                        //   0 : les options d'usine) : la configuration est toujours rendue.
                         for (c = 0; c < scsi.@params[1]; c++)
                         {
                                 scsi.result[c] = scsi.eeprom[(scsi.@params[2] + c) & 0xff];
@@ -1185,6 +1202,8 @@ internal static class scsi_aha1540
                 // omitted: COMMAND_BUSLOGIC_81 à COMMAND_BUSLOGIC_SET_CCB_FORMAT (:1255-1334) — refusées en IDLE.
 
                 default:
+                        // pcem bug, reproduced: PB-134 — PCem n'y vient qu'après :679 (:1337), que le C# refuse ici :
+                        //   le refus de PB-135.
                         pc.fatal($"Bad AHA154x command in progress {scsi.command:x2}\n");
                         break;
                 }
@@ -1219,12 +1238,14 @@ internal static class scsi_aha1540
                 break;
 
         default:
+                // pcem bug, reproduced: PB-134 — un état que la machine ne pose jamais (:1367).
                 pc.fatal($"Unknown state {scsi.cmd_state}\n");
                 break;
         }
     }
 
     // pcem: scsi_aha1540.c:1371-1693
+    // pcem bug, reproduced: PB-253 — mailbox, CCB et MBI en maître de bus : canal DMA, masque, 8237 ignorés.
     private static void process_ccb(aha154x_t scsi)
     {
         int c;
@@ -1232,6 +1253,7 @@ internal static class scsi_aha1540
         switch (scsi.ccb_state)
         {
         case CCB_STATE_IDLE:
+                // pcem bug, reproduced: PB-141 — un balayage par 02h compté, toujours depuis l'emplacement 0.
                 if ((scsi.status & STATUS_INIT) == 0 && scsi.mbo_req != 0)
                 {
                         for (c = 0; c < scsi.mbc; c++)
@@ -1339,6 +1361,7 @@ internal static class scsi_aha1540
         case CCB_STATE_WAIT_COMMAND:
                 if (scsi.scsi_state == SCSI_STATE_SELECT_FAILED)
                 {
+                        // pcem bug, reproduced: PB-138 — commande BIOS, cible absente : ni ccb.status ni int_buffer.
                         if (scsi.ccb.from_mailbox != 0)
                         {
                                 mem_writeb_phys(scsi.ccb.addr + 0xe, HOST_STATUS_SELECTION_TIME_OUT);
@@ -1352,6 +1375,7 @@ internal static class scsi_aha1540
                                 {
                                         mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
+                                        // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1500-1503).
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE_WITH_ERROR);
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 1, (uint8_t)(scsi.ccb.addr >> 16));
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 2, (uint8_t)(scsi.ccb.addr >> 8));
@@ -1376,6 +1400,7 @@ internal static class scsi_aha1540
                         break; /*Wait until SCSI state machine has completed command*/
                 scsi.ccb.status = scsi.cdb.last_status;
                 scsi.ccb.bytes_transferred = scsi.cdb.bytes_transferred;
+                // pcem bug, reproduced: PB-137 — le sense automatique suit toute commande, même GOOD.
                 scsi.ccb_state = CCB_STATE_SEND_REQUEST_SENSE;
                 break;
 
@@ -1409,6 +1434,7 @@ internal static class scsi_aha1540
                                 {
                                         mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
+                                        // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1565-1571).
                                         if (scsi.ccb.status == STATUS_GOOD)
                                                 mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE);
                                         else
@@ -1487,6 +1513,7 @@ internal static class scsi_aha1540
                         {
                                 mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
+                                // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1654-1659).
                                 if (scsi.ccb.status == STATUS_GOOD)
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE);
                                 else
@@ -1510,12 +1537,14 @@ internal static class scsi_aha1540
                 break;
 
         default:
+                // pcem bug, reproduced: PB-134 — un état que la machine ne pose jamais (:1691).
                 pc.fatal($"Unknown CCB_state {scsi.ccb_state}\n");
                 break;
         }
     }
 
     // pcem: scsi_aha1540.c:1695-2057
+    // pcem bug, reproduced: PB-253 — les données en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_scsi(aha154x_t scsi)
     {
         int c;
@@ -1528,6 +1557,7 @@ internal static class scsi_aha1540
 
         case SCSI_STATE_SELECT:
                 scsi.cdb.last_status = 0;
+                // pcem bug, reproduced: PB-144 — l'ID de l'hôte n'est pas exclu : seul un ID au-delà de 6 est refusé.
                 scsi_bus_update(scsi.bus, BUS_SEL | BUS_SETDATA(1 << scsi.ccb.target_id));
                 if ((scsi_bus_read(scsi.bus) & BUS_BSY) == 0 || scsi.ccb.target_id > 6)
                 {
@@ -1564,6 +1594,7 @@ internal static class scsi_aha1540
                         {
                                 int bus_state = scsi_bus_read(scsi.bus);
 
+                                // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1741).
                                 if ((bus_state & BUS_BSY) == 0)
                                         pc.fatal("SEND_COMMAND - dropped BSY\n");
                                 if ((bus_state & (BUS_IO | BUS_CD | BUS_MSG)) != BUS_CD)
@@ -1600,6 +1631,7 @@ internal static class scsi_aha1540
                 {
                         int bus_state = scsi_bus_read(scsi.bus);
 
+                        // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1773).
                         if ((bus_state & BUS_BSY) == 0)
                                 pc.fatal("NEXT_PHASE - dropped BSY waiting\n");
 
@@ -1633,6 +1665,7 @@ internal static class scsi_aha1540
                                         break;
 
                                 default:
+                                        // pcem bug, reproduced: PB-134 — une phase que le disque ne pose pas (:1807).
                                         pc.fatal($" Bad new phase {bus_state:x}\n");
                                         break;
                                 }
@@ -1653,6 +1686,7 @@ internal static class scsi_aha1540
                                 break;
                         }
 
+                        // pcem bug, reproduced: PB-134 — après le message, la cible ne demande plus rien (:1828).
                         if ((bus_state & BUS_REQ) != 0)
                                 pc.fatal("END_PHASE - unexpected REQ\n");
                 }
@@ -1668,6 +1702,7 @@ internal static class scsi_aha1540
                         {
                                 int bus_state = scsi_bus_read(scsi.bus);
 
+                                // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1842).
                                 if ((bus_state & BUS_BSY) == 0)
                                         pc.fatal("READ_DATA - dropped BSY waiting\n");
 
@@ -1682,6 +1717,7 @@ internal static class scsi_aha1540
                                         uint8_t data = (uint8_t)BUS_GETDATA(bus_state);
                                         int bus_out = 0;
 
+                                        // pcem bug, reproduced: PB-144 — adresse sans bouclage à 24 bits (:1857).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 scsi.int_buffer[scsi.cdb.data_idx] = data;
                                         else
@@ -1697,6 +1733,8 @@ internal static class scsi_aha1540
 
                         bytes_transferred++;
                 }
+                // pcem bug, reproduced: PB-132 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                //   DATA IN : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {
                         if (scsi.cdb.scatter_gather != 0)
@@ -1739,6 +1777,7 @@ internal static class scsi_aha1540
                         {
                                 int bus_state = scsi_bus_read(scsi.bus);
 
+                                // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1920).
                                 if ((bus_state & BUS_BSY) == 0)
                                         pc.fatal("WRITE_DATA - dropped BSY waiting\n");
 
@@ -1753,6 +1792,7 @@ internal static class scsi_aha1540
                                         uint8_t data;
                                         int bus_out;
 
+                                        // pcem bug, reproduced: PB-144 — adresse sans bouclage à 24 bits (:1935).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 data = scsi.int_buffer[scsi.cdb.data_idx];
                                         else
@@ -1769,6 +1809,8 @@ internal static class scsi_aha1540
 
                         bytes_transferred++;
                 }
+                // pcem bug, reproduced: PB-132 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                //   DATA OUT : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {
                         if (scsi.cdb.scatter_gather != 0)
@@ -1807,6 +1849,7 @@ internal static class scsi_aha1540
                 {
                         int bus_state = scsi_bus_read(scsi.bus);
 
+                        // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1994).
                         if ((bus_state & BUS_BSY) == 0)
                                 pc.fatal("READ_STATUS - dropped BSY waiting\n");
 
@@ -1839,6 +1882,7 @@ internal static class scsi_aha1540
                 {
                         int bus_state = scsi_bus_read(scsi.bus);
 
+                        // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:2025).
                         if ((bus_state & BUS_BSY) == 0)
                                 pc.fatal("READ_MESSAGE - dropped BSY waiting\n");
 
@@ -1863,6 +1907,7 @@ internal static class scsi_aha1540
                                         break;
 
                                 default:
+                                        // pcem bug, reproduced: PB-134 — seul COMMAND COMPLETE arrive ici (:2047).
                                         pc.fatal($"READ_MESSAGE - unknown message {msg:x2}\n");
                                         break;
                                 }
@@ -1872,6 +1917,7 @@ internal static class scsi_aha1540
                 break;
 
         default:
+                // pcem bug, reproduced: PB-134 — un état que la machine ne pose jamais (:2055).
                 pc.fatal($"Unknown SCSI_state {scsi.scsi_state}\n");
                 break;
         }
@@ -1967,6 +2013,7 @@ internal static class scsi_aha1540
         mem_mapping_add(scsi.mapping, addr, 0x4000, aha1542c_read, null, null, aha1542c_write, null, null, scsi.bios_rom.rom,
                         0, 0, scsi);
 
+        // pcem bug, reproduced: PB-142 — état 0 à la mise sous tension : ni STST, ni INIT, ni IDLE avant un reset.
         scsi.status = 0;
         scsi.cmd_state = CMD_STATE_IDLE;
         scsi.ccb_state = CCB_STATE_IDLE;
@@ -1989,6 +2036,7 @@ internal static class scsi_aha1540
 
         aha1542c_eeprom_load(scsi, "aha1542c.nvr");
 
+        // pcem bug, reproduced: PB-144 — sans EEPROM, des zéros : ID 0, DMA 0, IRQ 9 ; l'usine dit ID 7, DMA 5, IRQ 11.
         scsi.host_id = scsi.eeprom[0] & 7;
         scsi.dma = (scsi.eeprom[1] >> 4) & 7;
         scsi.irq = (scsi.eeprom[1] & 7) + 9;

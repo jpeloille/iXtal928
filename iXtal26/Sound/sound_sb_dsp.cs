@@ -140,6 +140,8 @@ internal static partial class sound_sb_dsp
 
     // pcem: sound_sb_dsp.c:45-54 — global MUTABLE (sb_doreset l'écrit) : il traverse les
     // amorçages d'un processus comme chez PCem.
+    // pcem bug, reproduced: PB-240 — 30h à 38h (la MIDI de la SB) valent -1 : 38h s'exécute seule, et l'octet
+    //   MIDI qui la suit est pris pour une commande ; 34h à 37h (le mode UART) n'ont pas de case.
     internal static readonly int[] sb_commands = new int[256] {
         -1, 2,  -1, -1, 1,  2,  -1, 0,  1,  -1, -1, -1, -1, -1, 2,  1,  1,  -1, -1, -1, 2,  -1, 2,  2,  -1, -1, -1, -1, 0,
         -1, -1, 0,  0,  -1, -1, -1, 2,  -1, -1, -1, -1, -1, -1, -1, 0,  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -233,7 +235,8 @@ internal static partial class sound_sb_dsp
                 dsp.sb_irq16 = 1;
         // pcem bug, reproduced: PB-92 — l'IRQ 10 que propose la configuration (sound_sb.c) tombe,
         //   sur une machine sans second PIC, dans le `num <= 0xff` de picint (pic.c:302-308) :
-        //   perdue, sans un mot.
+        //   perdue, sans un mot. Comme sur la carte : l'IRQ 10 n'est que sur la rallonge de 36
+        //   broches de l'AT (D3, AT TR p. 1-21), absente d'un PC ou d'un XT.
         picint((uint16_t)(1 << dsp.sb_irqnum));
     }
     // pcem: sound_sb_dsp.c:115-121
@@ -254,6 +257,9 @@ internal static partial class sound_sb_dsp
 
         dsp.sb_command = 0;
 
+        // pcem bug, reproduced: PB-236 — le reset remet le DSP à froid : bloc 07FFh, constante 9Ch, sortie
+        //   coupée (2.02, 3.02 ; le bloc en 4.xx aussi). PCem pose FFFFh et garde la constante et `muted`, que rien ne
+        //   pose non plus au démarrage.
         dsp.sb_8_length = 0xffff;
         dsp.sb_8_autolen = 0xffff;
 
@@ -289,6 +295,8 @@ internal static partial class sound_sb_dsp
         if (IS_AZTECH(dsp)) {
                 // omitted: sb_commands[8] = 1 ; sb_commands[9] = 1 (:165-166) — Aztech.
         } else {
+                // pcem bug, reproduced: PB-165 — 08h attend un paramètre sur la SB 16 ; le DSP 4.05 n'en lit aucun,
+                //   comme 4.04 à 4.16 et comme l'AWE32 de PCem (type SB16 + 1), qui prend -1.
                 if (dsp.sb_type == SB16)
                         sb_commands[8] = 1;
                 else
@@ -333,6 +341,8 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:201-230
     internal static void sb_start_dma(sb_dsp_t dsp, int dma8, int autoinit, uint8_t format, int len)
     {
+        // pcem bug, reproduced: PB-239 — la commande relance sur-le-champ ; pendant un automatique, le DSP
+        //   finit d'abord le bloc en cours (le 2.02 aussi pendant un simple cycle ; le 4.05 jette l'octet de mode).
         dsp.sb_pausetime = -1;
         if (dma8 != 0) {
                 dsp.sb_8_length = len;
@@ -469,7 +479,7 @@ internal static partial class sound_sb_dsp
                 if (dsp.sb_type < SB15)
                         break;
                 // pcem bug, reproduced: PB-146 — sb_commands[0x1F] vaut 0 : sb_data[0..1] sont les octets de la
-                //   commande précédente.
+                //   commande précédente, et non la taille de 48h ; l'octet de référence n'est pas lu.
                 sb_start_dma(dsp, 1, 1, ADPCM_2, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -496,6 +506,8 @@ internal static partial class sound_sb_dsp
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x40: /*Set time constant*/
+                // pcem bug, reproduced: PB-155 — sur la SB 16, 1 000 000 / (256 - c), jusqu'à 1 MHz ; le DSP 4.05 borne
+                //   la constante à EBh, puis la traduit par sa table en registre de fréquence.
                 dsp.sb_timei = dsp.sb_timeo = dsp.sb_data[0];
                 dsp.sblatcho = dsp.sblatchi = TIMER_USEC * (uint64_t)(256 - dsp.sb_data[0]);
                 temp = 256 - dsp.sb_data[0];
@@ -512,6 +524,8 @@ internal static partial class sound_sb_dsp
                 {
                 // pcem: sound_sb_dsp.c:393-401 — G12.1. L'octet FORT vient en premier. `TIMER_USEC * (1000000.0f /
                 //   (float)f)` : uint64_t par float, en float ; la conversion vers uint64_t est celle de GCC (CvtU64).
+                // pcem bug, reproduced: PB-155 — la fréquence reste libre, de 1 à 65 535 Hz ; le DSP 4.05 la quantifie
+                //   en un registre de 8 bits (≈ 23 × f / 4096) : FFh dès l'octet fort B1h, 1Ch sous 13h.
                 // pcem bug, not reproduced: PB-150 — la fréquence 0 rend sblatcho nul en C (ulong.MaxValue en .NET) :
                 //   l'échéance ne recule plus et timer_process boucle sans fin dès qu'une minuterie du DSP tourne
                 //   (R9). DEVIATION (PLAN-G12.md, décision n° 10) : 0 est ramené à 1 Hz, le reste de la commande
@@ -533,6 +547,8 @@ internal static partial class sound_sb_dsp
                 }
                 break;
         case 0x48: /*Set DSP block transfer size*/
+                // pcem bug, reproduced: PB-242 — sans garde de version : le guide ne donne 48h qu'à partir du
+                //   DSP 2.00 ; ce qu'en fait le 1.05 est inconnu.
                 dsp.sb_8_autolen = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
                 break;
         case 0x75: /*4-bit ADPCM output with reference*/
@@ -542,6 +558,7 @@ internal static partial class sound_sb_dsp
                 goto case 0x74;
         case 0x74: /*4-bit ADPCM output*/
                 sb_start_dma(dsp, 1, 0, ADPCM_4, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
+                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 if (dsp.sb_command == 0x75)
@@ -554,6 +571,7 @@ internal static partial class sound_sb_dsp
                 goto case 0x76;
         case 0x76: /*2.6-bit ADPCM output*/
                 sb_start_dma(dsp, 1, 0, ADPCM_26, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
+                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 if (dsp.sb_command == 0x77)
@@ -562,16 +580,20 @@ internal static partial class sound_sb_dsp
         case 0x7D: /*4-bit ADPCM autoinit output*/
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x7D] vaut 0, comme pour 1Fh.
+                // pcem bug, reproduced: PB-146 — sb_commands[0x7D] vaut 0, comme pour 1Fh : ni la taille de 48h ni
+                //   l'octet de référence.
                 sb_start_dma(dsp, 1, 1, ADPCM_4, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
+                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 break;
         case 0x7F: /*2.6-bit ADPCM autoinit output*/
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x7F] vaut 0, comme pour 1Fh.
+                // pcem bug, reproduced: PB-146 — sb_commands[0x7F] vaut 0, comme pour 1Fh : ni la taille de 48h ni
+                //   l'octet de référence.
                 sb_start_dma(dsp, 1, 1, ADPCM_26, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
+                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 break;
@@ -584,6 +606,8 @@ internal static partial class sound_sb_dsp
         case 0x90: /*High speed 8-bit autoinit DMA output*/
                 if (dsp.sb_type < SB2)
                         break;
+                // pcem bug, reproduced: PB-241 — la grande vitesse n'arrête pas les commandes : le DSP 2.01 à
+                //   3.xx n'en prend plus jusqu'au reset (ou la fin d'un 91h), qui restaure alors l'état antérieur.
                 sb_start_dma(dsp, 1, 1, 0, dsp.sb_8_autolen);
                 break;
         case 0x91: /*High speed 8-bit single cycle DMA output*/
@@ -594,6 +618,7 @@ internal static partial class sound_sb_dsp
         case 0x98: /*High speed 8-bit autoinit DMA input*/
                 if (dsp.sb_type < SB2)
                         break;
+                // pcem bug, reproduced: PB-241 — de même à l'entrée (98h, 99h).
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_8_autolen);
                 break;
         case 0x99: /*High speed 8-bit single cycle DMA input*/
@@ -603,6 +628,8 @@ internal static partial class sound_sb_dsp
                 break;
         case 0xA0: /*Set input mode to mono*/
         case 0xA8: /*Set input mode to stereo*/
+                // pcem bug, reproduced: PB-148 — A0h et A8h ne font rien, et la garde admet la 2.0 (DSP 2.01) quand le
+                //   guide les réserve au 3.xx.
                 if (dsp.sb_type < SB2 || dsp.sb_type > SBPRO2)
                         break;
                 // TODO: Implement. 3.xx-only command.
@@ -631,6 +658,8 @@ internal static partial class sound_sb_dsp
         case 0xBF: /*16-bit DMA input*/
                 if (dsp.sb_type < SB16)
                         break;
+                // pcem bug, reproduced: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
+                //   sb_poll_i n'a pas de case, ni fin ni IRQ.
                 sb_start_dma_i(dsp, 0, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_16_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
@@ -658,6 +687,8 @@ internal static partial class sound_sb_dsp
         case 0xCF: /*8-bit DMA input*/
                 if (dsp.sb_type < SB16)
                         break;
+                // pcem bug, reproduced: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
+                //   sb_poll_i n'a pas de case, ni fin ni IRQ.
                 sb_start_dma_i(dsp, 1, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_8_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
@@ -665,7 +696,9 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_pause = 1;
                 break;
         case 0xD1: /*Speaker on*/
-                // pcem bug, reproduced: PB-147 — sur la SB 1.0, D1h et D3h mettent le DMA en pause.
+                // pcem bug, reproduced: PB-147 — sur la SB 1.0, D1h et D3h ne font que la pause du DMA, celle du guide
+                //   (p. 6-25) : la sortie n'est ni reliée ni coupée.
+                // pcem bug, reproduced: PB-244 — sur-le-champ ; le guide donne jusqu'à 112 ms.
                 if (dsp.sb_type < SB15)
                         dsp.sb_8_pause = 1;
                 else if (dsp.sb_type < SB16)
@@ -673,6 +706,8 @@ internal static partial class sound_sb_dsp
                 dsp.sb_speaker = 1;
                 break;
         case 0xD3: /*Speaker off*/
+                // pcem bug, reproduced: PB-147 — sur la SB 1.0, la pause seule : D3h ne coupe pas le son.
+                // pcem bug, reproduced: PB-244 — sur-le-champ ; le guide donne jusqu'à 220 ms.
                 if (dsp.sb_type < SB15)
                         dsp.sb_8_pause = 1;
                 else if (dsp.sb_type < SB16)
@@ -693,6 +728,8 @@ internal static partial class sound_sb_dsp
                 dsp.sb_16_pause = 0;
                 break;
         case 0xD8: /*Get speaker status*/
+                // pcem bug, reproduced: PB-242 — sans garde de version : le guide ne donne D8h qu'à partir du
+                //   DSP 2.00 ; ce qu'en fait le 1.05 est inconnu.
                 sb_add_data(dsp, (uint8_t)(dsp.sb_speaker != 0 ? 0xff : 0));
                 break;
         case 0xD9: /*Exit 16-bit auto-init mode*/
@@ -757,6 +794,8 @@ internal static partial class sound_sb_dsp
                 }
                 if (dsp.sb_type < SB16)
                         break;
+                // pcem bug, reproduced: PB-165 — 18h ; le DSP 4.xx rend le port 82h de son bus X, inconnu sans la puce
+                //   (FFh sur une ViBRA 16 sans ASP, 10h avec, selon DOSBox-X).
                 sb_add_data(dsp, 0x18);
                 break;
         case 0x0E: /*ASP set register*/
@@ -799,6 +838,7 @@ internal static partial class sound_sb_dsp
                 }
                 break;
         case 0x38: /*TODO: AZTECH MIDI-related? */
+                // pcem bug, reproduced: PB-240 — 38h (« Send MIDI data ») ne fait rien.
                 break;
                 //                default:
                 //                fatal("Exec bad SB command %02X\n",dsp->sb_command);
@@ -810,6 +850,8 @@ internal static partial class sound_sb_dsp
     {
         sb_dsp_t dsp = (sb_dsp_t)priv;
         //        pclog("sb_write : Write soundblaster %04X %02X %04X:%04X %02X\n",a,v,CS,pc,dsp->sb_command);
+        // pcem bug, reproduced: PB-243 — avant la SB 16, 2x7h et 2xDh répètent 2x6h et 2xCh (DOSBox-X, mesuré
+        //   sur une SB 2.0 et une Pro) ; ici, ils ne font rien.
         switch (a & 0xF) {
         case 6: /*Reset*/
                 if ((v & 1) == 0 && (dsp.sbreset & 1) != 0) {
@@ -856,6 +898,8 @@ internal static partial class sound_sb_dsp
     {
         sb_dsp_t dsp = (sb_dsp_t)priv;
         //        pclog("sb_read : Read soundblaster %04X %04X:%04X\n",a,CS,pc);
+        // pcem bug, reproduced: PB-243 — avant la SB 16, 2x7h, 2xBh, 2xDh et 2xFh répètent 2x6h, 2xAh, 2xCh et
+        //   2xEh ; ici, les trois premiers rendent 0, et 2xFh acquitte l'IRQ 16 bits sur toutes les cartes.
         switch (a & 0xf) {
         case 0xA: /*Read data*/
                 dsp.sbreaddat = dsp.sb_read_data[dsp.sb_read_rp];
@@ -884,6 +928,8 @@ internal static partial class sound_sb_dsp
                 else
                         return 0x7F;
         case 0xE: /*Read data ready*/
+                // pcem bug, reproduced: PB-238 — 2xEh n'acquitte que l'IRQ 8 bits (et SB-MIDI) ; ici, l'IRQ
+                //   16 bits aussi, et la ligne que partagent les sources retombe au PIC.
                 picintc((uint16_t)(1 << dsp.sb_irqnum));
                 dsp.sb_irq8 = dsp.sb_irq16 = 0;
                 // Only bit 7 is defined but aztech diagnostics fail if the others are set. Keep the original behavior to not
@@ -1039,9 +1085,11 @@ internal static partial class sound_sb_dsp
                         dsp.sbdacpos++;
                         if (dsp.sbdacpos >= 2) {
                                 dsp.sbdacpos = 0;
-                                // pcem bug, reproduced: PB-90 — au dernier octet du bloc, dma_channel_read
+                                // pcem bug, reproduced: PB-90 — à l'octet qui finit le compte du 8237, dma_channel_read
                                 //   rend `octet | DMA_OVER` (0x10000) : sbdat2 >> 4 vaut alors 0x1000 + quartet,
                                 //   tempi sature à 63 et l'échantillon suivant saute de scaleMap4[63].
+                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
+                                //   DSP attend l'octet (les chemins PCM, eux, sautent le tic).
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                                 dsp.sb_8_length--;
                         }
@@ -1083,8 +1131,10 @@ internal static partial class sound_sb_dsp
                         dsp.sbdacpos++;
                         if (dsp.sbdacpos >= 3) {
                                 dsp.sbdacpos = 0;
-                                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` au dernier octet :
+                                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` au terme du compte du 8237 :
                                 //   sbdat2 >> 5 vaut 0x800 + ..., tempi sature à 39.
+                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
+                                //   DSP attend l'octet.
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                                 dsp.sb_8_length--;
                         }
@@ -1124,6 +1174,8 @@ internal static partial class sound_sb_dsp
                                 //   (cf. ADPCM_4 :944, ADPCM_26 :985) : 0x16/0x17 ne finissent jamais, sans IRQ ;
                                 //   0x1F ne recharge jamais. Et DMA_OVER entre dans sbdat2 comme à :943/:984 (PB-90 ;
                                 //   masqué ici par le `& 3` de :999, sans effet audible).
+                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé ; le DSP attend
+                                //   l'octet.
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                         }
 
@@ -1141,6 +1193,8 @@ internal static partial class sound_sb_dsp
                         // fatal("Unrecognised SB 8-bit format %02X\n",sb_8_format);
                 }
 
+                // pcem bug, reproduced: PB-234 — en ADPCM, le bloc finit à la lecture de son dernier octet,
+                //   avant de le jouer (en simple cycle, jamais) ; le DSP 2.02 lève l'IRQ après son dernier échantillon.
                 if (dsp.sb_8_length < 0) {
                         if (dsp.sb_8_autoinit != 0)
                                 dsp.sb_8_length = dsp.sb_8_autolen;
@@ -1248,6 +1302,7 @@ internal static partial class sound_sb_dsp
                 //   SB 16 (G12.1) : sur la SBPRO2, sb_8_format ne vaut en entrée que 0 (0x24, 0x2C, 0x98, 0x99).
                 case 0x20: /*Stereo unsigned*/
                         sb_8_write_dma(dsp, (uint8_t)((dsp.record_buffer[dsp.record_pos_read] >> 8) ^ 0x80));
+                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_8_write_dma(dsp, (uint8_t)((record_lu(dsp, dsp.record_pos_read + 1) >> 8) ^ 0x80));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1255,6 +1310,7 @@ internal static partial class sound_sb_dsp
                         break;
                 case 0x30: /*Stereo signed*/
                         sb_8_write_dma(dsp, (uint8_t)(dsp.record_buffer[dsp.record_pos_read] >> 8));
+                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_8_write_dma(dsp, (uint8_t)(record_lu(dsp, dsp.record_pos_read + 1) >> 8));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1298,6 +1354,7 @@ internal static partial class sound_sb_dsp
                 case 0x20: /*Unsigned stereo*/
                         if (sb_16_write_dma(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
                                 return;
+                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_16_write_dma(dsp, (uint16_t)(record_lu(dsp, dsp.record_pos_read + 1) ^ 0x8000));
                         dsp.sb_16_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1306,6 +1363,7 @@ internal static partial class sound_sb_dsp
                 case 0x30: /*Signed stereo*/
                         if (sb_16_write_dma(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
                                 return;
+                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_16_write_dma(dsp, (uint16_t)record_lu(dsp, dsp.record_pos_read + 1));
                         dsp.sb_16_length -= 2;
                         dsp.record_pos_read += 2;

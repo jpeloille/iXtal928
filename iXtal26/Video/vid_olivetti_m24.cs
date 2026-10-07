@@ -60,6 +60,8 @@ internal sealed class m24_t
 internal static partial class vid_olivetti_m24
 {
     // pcem: vid_olivetti_m24.c:41-42
+    // pcem bug, reproduced: PB-230 — R16 et R17 s'écrivent (masque FFh), comme sur la CGA ; un 6845 les
+    //   tient en lecture seule.
     private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
                                                          0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -105,6 +107,7 @@ internal static partial class vid_olivetti_m24
         switch (addr)
         {
         case 0x3d4:
+                // pcem bug, reproduced: PB-230 — l'index se relit, et R0-R13 aussi (3D5h), comme sur la CGA.
                 return (uint8_t)m24.crtcreg;
         case 0x3d5:
                 return m24.crtc[m24.crtcreg];
@@ -193,7 +196,9 @@ internal static partial class vid_olivetti_m24
                                 // pcem bug, reproduced: PB-89 — crtc[1] n'est pas masqué (crtcmask[1] = 0xff) ;
                                 //   l'abscisse c + (crtc[1] << 4) + 8 monte à 4 095 et déborde sur la ligne
                                 //   suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69, ici le même
-                                //   tableau plat). Jamais hors du tableau : displine < 720.
+                                //   tableau plat). Jamais hors du tableau : displine < 720. De même les boucles de
+                                //   40 colonnes et du graphique (vid_olivetti_m24.c:218-231, :258-259, :279) et
+                                //   hline (:287-289).
                                 if ((m24.cgamode & 0x12) == 0x12)
                                 {
                                         Buffer32[m24.displine * Stride + c] = cgapal[0];
@@ -281,6 +286,9 @@ internal static partial class vid_olivetti_m24
                                         {
                                                 cols[1] = cgapal[attr & 15];
                                                 cols[0] = cgapal[(attr >> 4) & 7];
+                                                // pcem bug, reproduced: PB-232 — en 40 colonnes, le
+                                                //   clignotement n'exempte pas la cellule du curseur (:209),
+                                                //   comme il le fait en 80 colonnes (:177).
                                                 if ((m24.blink & 16) != 0 && (attr & 0x80) != 0)
                                                         cols[1] = cols[0];
                                         }
@@ -465,6 +473,8 @@ internal static partial class vid_olivetti_m24
                                                 m24.dispon = 1;
                                         if (m24.vadj == 0)
                                                 m24.ma = m24.maback = (uint16_t)((m24.crtc[13] | (m24.crtc[12] << 8)) & 0x3fff);
+                                        // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de
+                                        //   curseur) est traité ; 10 et 11 font aussi clignoter le 6845 lui-même.
                                         if ((m24.crtc[10] & 0x60) == 0x20)
                                                 m24.cursoron = 0;
                                         else

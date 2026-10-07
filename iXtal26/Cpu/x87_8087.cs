@@ -51,6 +51,8 @@ internal static partial class _808x
 
     // Le readmemw du 808x prend un offset de 16 bits (808x.c) : le C tronque en silence
     // l'`eaaddr + 8` de x87_ld80, et l'offset boucle dans le segment. Même geste ici.
+    // pcem bug, reproduced: PB-201 — les LECTURES bouclent dans le segment ; le 8087 incrémente l'adresse
+    //   physique de 20 bits, comme le font ici les écritures (writememw du 808x, writememb_8087), sans repli.
     private static uint16_t readmemw(uint32_t s, uint32_t a) => readmemw(s, (uint16_t)a);
 
     // pcem: 8087.h:19-23
@@ -118,6 +120,8 @@ internal static partial class _808x
         ll |= (uint64_t)readmeml(easeg, cpu_state.eaaddr + 4) << 32;
         int16_t begin = (int16_t)readmemw(easeg, cpu_state.eaaddr + 8);
 
+        // pcem bug, reproduced: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
+        //   retenue de l'arrondi collée par OU dans l'exposant, bit entier ignoré.
         int64_t exp64 = (((begin & 0x7fff) - BIAS80));
         int64_t blah = ((exp64 > 0) ? exp64 : -exp64) & 0x3ff;
         int64_t exp64final = ((exp64 > 0) ? blah : -blah) + BIAS64;
@@ -148,6 +152,8 @@ internal static partial class _808x
         int64_t mant80 = (int64_t)(ll & (0x000fffffffffffff));
         uint64_t mant80final = (uint64_t)(mant80 << 11);
 
+        // pcem bug, reproduced: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
+        //   2^-1023 × 1,f) ; les onze bits bas de la mantisse sont toujours nuls : ST n'a que 53 bits.
         if (exp80final == 0x7ff) /*Infinity / Nan*/
         {
                 exp80final = 0x7fff;
@@ -173,6 +179,8 @@ internal static partial class _808x
     {
         reg = (cpu_state.TOP + reg) & 7;
 
+        // pcem bug, reproduced: PB-199 — un registre TAG_UINT64 s'écrit en entier suivi de 0x5555,
+        //   pas en réel de 80 bits.
         if ((cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
                 writememl(easeg, cpu_state.eaaddr, (uint32_t)(cpu_state.MM[reg].q & 0xffffffff));
@@ -191,6 +199,8 @@ internal static partial class _808x
         cpu_state.MM[reg].q = readmemq(easeg, cpu_state.eaaddr);
         cpu_state.MM_w4[reg] = readmemw(easeg, cpu_state.eaaddr + 8);
 
+        // pcem bug, reproduced: PB-199 — une image qui finit par 0x5555 sous une étiquette 10 est relue
+        //   comme un entier de 64 bits, pas comme un réel de 80 bits.
         if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
                 cpu_state.ST[reg] = (double)cpu_state.MM[reg].q; // uint64_t -> double, NON signé

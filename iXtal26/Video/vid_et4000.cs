@@ -45,8 +45,9 @@ internal sealed class et4000_t
 internal static class vid_et4000
 {
     // pcem: vid_et4000.c:34-37
-    // pcem bug, reproduced: PB-100 — le masque efface CR38-CR3F, CR3F compris : le bit 0 de CR3F
-    //   (débordement de htotal), que et4000_recalctimings lit (:399), est toujours nul.
+    // pcem bug, reproduced: PB-100 — CR30 et CR31, que l'ET4000AX n'a pas (data book Tseng, table 4.3-2),
+    //   s'écrivent et se relisent. CR38-CR3F effacés, CR3F compris : fidèle à l'AX, qui n'a pas CR3F ; le
+    //   débordement de htotal que et4000_recalctimings y lit (:399) est celui de la W32.
     private static readonly uint8_t[] crtc_mask = new uint8_t[0x40]
     {
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -68,6 +69,8 @@ internal static class vid_et4000
 
         //        pclog("ET4000 out %04X %02X\n", addr, val);
 
+        // pcem bug, reproduced: PB-100 — pas de KEY (03h en 3BFh, puis A0h en 3D8h ou 3B8h) : ce qu'il garde
+        //   s'écrit toujours (CRTC au-delà de 18h hors 33h et 35h, TS6, TS7, ATC 16h, 3CDh avant la première pose).
         switch (addr)
         {
         case 0x3C6:
@@ -105,6 +108,8 @@ internal static class vid_et4000
                 svga.crtcreg = (uint8_t)(val & 0x3f);
                 return;
         case 0x3D5:
+                // pcem bug, reproduced: PB-227 — CR11 bit 7 ne protège que CR0-CR7 ; le data book protège
+                //   aussi CR35 (table 4.3-2).
                 if ((svga.crtcreg < 7) && (svga.crtc[0x11] & 0x80) != 0)
                         return;
                 if ((svga.crtcreg == 7) && (svga.crtc[0x11] & 0x80) != 0)
@@ -136,11 +141,13 @@ internal static class vid_et4000
 
         //        if (addr != 0x3da) pclog("IN ET4000 %04X\n", addr);
 
-        // pcem bug, reproduced: PB-100 — pas de séquence KEY (3BFh/3D8h) : les registres étendus
-        //   sont toujours ouverts.
+        // pcem bug, reproduced: PB-100 — pas de séquence KEY (3BFh/3D8h) : ce qu'elle garde en lecture
+        //   (Input Status 0 bits 5-6, 3CAh bit 7) reste toujours ouvert.
         switch (addr)
         {
         case 0x3C5:
+                // pcem bug, reproduced: PB-100 — SR7 se relit bit 2 forcé (:270-271). « Set to 1 (always) »
+                //   (data book, TS 7) règle l'écriture ; la valeur relue par la puce n'est pas documentée.
                 if ((svga.seqaddr & 0xf) == 7)
                         return (uint8_t)(svga.seqregs[svga.seqaddr & 0xf] | 4);
                 break;
@@ -158,6 +165,8 @@ internal static class vid_et4000
         case 0x3D5:
                 return svga.crtc[svga.crtcreg];
         }
+        // pcem bug, reproduced: PB-226 — 3DAh passe au socle (vid_svga.c:262-269) : bit 7 toujours
+        //   nul, bits 4-5 basculés ; l'ET4000 met en 7 le complément du retour vertical et en 4-5 la vidéo d'AR12.
         return svga_in(addr, svga);
     }
 

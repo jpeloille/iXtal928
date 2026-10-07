@@ -2,7 +2,7 @@
 
 > Écrit le 6 octobre 2026. Bloc G13 de `PLAN.md` (décision utilisateur du 03/10). Feu vert le 06/10, « commence par
 > le plan ». **Les décisions de la fin du fichier sont validées par l'utilisateur le 07/10** (« d'accord avec les
-> propositions, commence par G13.0 puis attends pour G13.1 »), sauf les n° 3, 6 et 14, à trancher avant G13.2. Chaque constat cite la ligne
+> propositions, commence par G13.0 puis attends pour G13.1 ») ; les n° 3, 6 et 14 le sont aussi, le même jour. Chaque constat cite la ligne
 > de C qui le fonde, sur `pcem-dev/` tel que vendoré, et chaque vrai comportement sa source. Reconnaissance : six
 > lectures par domaine (le processeur, le x87, le stockage, la vidéo, le son, la carte mère) et une sur le mécanisme,
 > chacune suivie d'une contre-lecture qui l'a corrigée ; on retient ici les contre-lectures. Les quatorze rapports sont
@@ -196,7 +196,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   (une copie, un reset, une recopie, la sortie : l'image garde la seconde copie) ; la série entière, identique à g126
   hors les portes neuves (aucune porte n'atteint ces chemins).
 
-### G13.1 — Le registre et le recensement (aucun comportement ne change)
+### G13.1 — Le registre et le recensement (aucun comportement ne change)  ✅ *fait, VERIFICATION.md § G13.1*
 
 - Une seule méthode de recensement : le numéro `PB-nn` sur la ligne du marqueur. Les 29 PB sans numéro le reçoivent,
   les sept sans marqueur en reçoivent un ; dans les fichiers générés, par leurs générateurs, rejoués à l'octet près.
@@ -311,13 +311,13 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
    de l'hôte (vider les images sur toute sortie anormale, `savenvr` sans exception), qui protègent les fichiers de
    l'utilisateur sans relever de R9. *Validé le 07/10 : les quatre.*
 3. **Le nom** : `hardware_mode` et `--hardware-mode`, l'anglais des clés de PCem et de `zip_path` ; ou `materiel`.
-   *Ouvert, à trancher avant G13.2.*
+   *Validé le 07/10 : `hardware_mode` et `--hardware-mode`.*
 4. **Le mécanisme** : des `static readonly` figés et des tables recopiées, un interrupteur pour l'utilisateur et un
    masque par PB pour les outils ; la clé dans le `.cfg`, que boot-diff refuse. *Validé le 07/10.*
 5. **Les données extérieures** : récupérer les vecteurs SST (les formes manquantes du 8088, le corpus du 386, celui du
    8086 ; celui du 286 après réparation du lecteur). Des données de test publiques, sans installation. *Validé le 07/10.*
 6. **Le banc `tools/perfbanc/`**, non commité, avec la ligne `InternalsVisibleTo` d'`iXtal26.csproj` : le commiter en
-   G13.2 pour M1. *Ouvert, à trancher avant G13.2.*
+   G13.2 pour M1. *Validé le 07/10 : oui, commité en G13.2.*
 7. **La règle du 0 %** : elle vaut pour le mode PCem pendant G13, prouvée par les listings contre M0 ; le mode
    matériel garde une marge supérieure à 1 au `--timer-check`. *Validé le 07/10.*
 8. **Les sources** : les micrologiciels désassemblés des DSP et les octets des ROM du dépôt comptent comme
@@ -336,7 +336,8 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 13. **L'état au reset en mode matériel** : l'état documenté (le haut-parleur coupé, les volumes de reset de Creative,
     l'EMU8000 muet tant qu'un pilote ne l'a pas initialisé), et non celui que laissent les utilitaires. *Validé le 07/10.*
 14. **Les comportements inconnus** restent reproduits. As-tu du matériel réel pour mesurer (8087, 287, 387, un 386,
-    une SB, un 8237…) ? Une mesure trancherait une vingtaine de points. *Ouvert.*
+    une SB, un 8237…) ? Une mesure trancherait une vingtaine de points. *Réponse du 07/10 : aucun matériel ; les
+    comportements inconnus restent reproduits.*
 15. **`TRANSCRIPTION.md`** : un relèvement inscrit de R3, de 240 à 260 lignes, pour R10 et ses amendements. *Validé le 07/10.*
 16. **Les rapports de reconnaissance** : commités avec ce plan, dans `iXtal26/Docs/G13-reconnaissance/`. *Validé le 07/10.*
 

@@ -62,6 +62,8 @@ internal static partial class _386
     internal static int Dispatch(OpFn fn, uint32_t fetchdat)
     {
         var r = fn(fetchdat);
+        // pcem bug, reproduced: PB-50 — aucun compte des octets d'instruction : la boucle suit une suite de
+        //   préfixes sans fin, là où le 386 et le 486 lèvent #GP(0) au-delà de 15 octets, le 286 au-delà de 10.
         while (r == TAIL)
         {
                 var f = tail_fn!;
@@ -190,6 +192,9 @@ internal static partial class _386
                 return 0;
         cpu_state.pc++;
 
+        // pcem bug, reproduced: PB-182 — seul LOCK NOP est refusé : le 386 lève #UD devant toute
+        //   instruction hors de sa liste, et devant une forme registre (386 PRM § 14.7, point 9). La table
+        //   du 286 partage ce handler, dont le vrai comportement y est inconnu.
         if (ILLEGAL_ON((fetchdat & 0xff) == 0x90)) return 0;
 
         CLOCK_CYCLES(4);

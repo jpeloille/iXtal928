@@ -111,8 +111,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   aussi sans sa ROM. Livré avec sa clôture : les profils `ixtal26-486-sb16.cfg` et `-awe32.cfg`,
   l'écran de construction et `--setup-check`, les témoins (TEST-SBP sous l'oracle, Windows 3.11 et ses
   pilotes SNDBLST). PB-145 à PB-167.
-- **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; ses décisions validées le 07/10 (les n° 3, 6 et 14
-  restent à trancher avant G13.2). G13.0 d'abord : R9 et les fichiers de l'utilisateur, dans les deux modes.
+- **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; toutes ses décisions validées le 07/10. G13.0 fait : R9
+  et les fichiers de l'utilisateur, dans les deux modes. G13.1 fait : le registre, 257 défauts, chaque marqueur
+  numéroté, la porte `recensement`. Prochaine étape : G13.2, le mécanisme et le pilote PB-01.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -334,28 +335,22 @@ partie transcrits en G8).
 
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; feu vert du 06/10, en cours : `PLAN-G13.md`)*
 
-Pour qu'iXtal soit fidèle au vrai matériel. Comptes relevés dans `PCEM_BUGS.md` le 04/10,
-après G10.0, mis à jour le 05/10 après G11, puis refaits le 06/10 après G12 et le 07/10 après G13.0,
-entrée par entrée (le total écrit au 05/10, 78, ne suivait plus sa liste, qui en comptait 83 ; la liste des
-non-reproduits omettait 105, 110 et 113 à 116) :
+Pour qu'iXtal soit fidèle au vrai matériel. Comptes refaits le 07/10 après G13.1, sur `PCEM_BUGS.md` (257
+défauts ; la porte `recensement` tient le registre et les marqueurs d'accord) :
 
-1. **Section A, les 96 PB reproduits**, par groupe : UC (01, 02, 39, 40, 41, 43, 44, 45, 50, 51,
-   78, 87), 486 (77), x87 (48, 52, 54 à 70), carte mère (03, 05, 06 ; 157, le 8237 haut — G12.1),
-   vidéo (04, 80, 89, 97, 99, 100, 102), disques (14, 22, 23, 25, 28, 71, 72, 74), son (90, 91,
-   92 ; 145 à 149, 153 à 155, 165 — G12), EMU8000 (158 à 160 — G12.2), souris (94, 95 — PS2.0),
-   ports (101 — G10.0), manette (103 ; 104, de l'hôte, sa correction proposée pour le mode
-   matériel — G10.1), images CD (106, 107, 108, 109 — G10.3 ; 122 — G10.4 ; 123 — G10.5), lecteur
-   de CD (117 à 120 — G10.4), lecteur ZIP (126 — G10.6), SCSI (129 à 133, 136 à 144 — G11).
-2. **Section B, les 11 PB reproduits** : 08, 10, 16, 18, 21, 96 ; 151, 156, 162, 163, 164 (G12).
-   PB-07 n'est pas reproduit mais neutralisé (un zéro des deux côtés) ; son entrée le dira en G13.1.
-3. **Section C, 22 entrées sans effet observable** : nettoyage seulement, sans changement de
-   comportement (dont 134, G11 ; 167, G12).
+1. **Section A, 209 entrées** : 187 reproduites, 2 en partie (121, 128), 20 non reproduites, déjà corrigées dans
+   les deux modes (R9). Leur classement pour G13 : 138 corrigeables et vérifiables (a), 28 à vérification faible
+   (b), 12 au vrai comportement inconnu, laissées reproduites (c), 6 à ne pas corriger (d), 4 mixtes (153, 154,
+   158, 160), PB-128 à trancher (la question Q12 de la reconnaissance : le repli R9 du mode matériel).
+2. **Section B, 26 entrées** : 10 reproduites (08, 10, 16, 21, 96 ; 151, 156, 162, 163, 164) ; 16 non
+   reproduites, dont PB-07, neutralisé (un zéro des deux côtés). Classement : (a) 4, (b) 3, (d) 6, 13 hors du mode.
+3. **Section C, 22 entrées sans effet observable** : nettoyage seulement. PB-32, 35 et 37 sont passés en section A
+   en G13.1 : leur effet est observable.
 
-Les non-reproduits (24, 31, 46, 47, 49, 73, 75, 76, 79, 81 à 86, 88, 93, 105, 110, 113 à 116, 124,
-125, 128, 135, 150, 152, 161, 166 ; et en G13.0, dans les deux modes, 09, 17 et 168 sous R9, 33 et
-121 côté hôte) sont déjà réglés.
+Les 89 défauts inscrits en G13.1, PB-169 à PB-257, viennent des six lectures de la reconnaissance et de leurs
+contre-lectures : le processeur 25, le x87 20, le stockage 6, la vidéo 14, le son 11, la carte mère 13.
 
-**Principe, à confirmer au plan de G13** : chaque correction se fait derrière une option « mode
+**Principe, confirmé au plan de G13 (07/10)** : chaque correction se fait derrière une option « mode
 matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` devient `pcem bug, fixed
 in hardware mode: PB-nn`. Le mode PCem reste celui des portes : l'oracle et toutes les séries
 restent intacts. Le mode matériel se vérifie contre la documentation Intel, le corpus SST (8088 et

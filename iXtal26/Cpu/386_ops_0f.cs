@@ -567,6 +567,9 @@ internal static partial class _386
                 sel = geteaw();
                 if (cpu_state.abrt != 0)
                         return 1;
+                // pcem bug, reproduced: PB-190 — LTR ne contrôle rien : ni le bit TI (le descripteur est
+                //   lu dans la GDT, et tr.seg garde TI), ni la limite de la GDT, ni le type (une TSS disponible),
+                //   ni la présence ; le 386 lève #GP(sélecteur) ou #NP(sélecteur) (386 PRM, page LTR ; § 7.2).
                 addr = (uint32_t)(sel & ~7) + gdt.@base;
                 limit = (uint32_t)(readmemw(0, addr) + ((readmemb(0, addr + 6) & 0xf) << 16));
                 @base = (uint32_t)(readmemw(0, addr + 2) | (readmemb(0, addr + 4) << 16)
@@ -809,6 +812,10 @@ internal static partial class _386
     // PAS DE PREFETCH_RUN, seulement CLOCK_CYCLES(350).
     private static int opLOADALL386(uint32_t fetchdat)
     {
+        // pcem bug, reproduced: PB-78 — aucune garde is486 : la table du 386 sert aussi au 486 (cpu.c:231),
+        //   qui charge ici tout l'état au lieu de lever #UD ; INVD, WBINVD, CMPXCHG et XADD ont, eux, leur garde.
+        // pcem bug, reproduced: PB-193 — aucun contrôle de privilège : en mode protégé, hors du niveau
+        //   0, le 386 lève l'exception 13 (R. Collins) ; opLOADALL, celui du 286, teste `CPL && (cr0 & 1)`.
         uint32_t la_addr = es + EDI;
 
         cr0 = readmeml(0, la_addr);

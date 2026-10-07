@@ -429,3 +429,7 @@ run r9-m24 r9-m24
 run r9-disquette r9-disquette
 run reset-scsi-check reset-scsi-check
 run r9-filet r9-filet
+# G13.1 — le recensement : PCEM_BUGS.md contre les marqueurs du code. Chaque marqueur porte son numéro, qui a son
+# entrée ; chaque défaut reproduit des sections A et B a ses sites, sa source, son cas qui discrimine et son champ G13 ;
+# aucun marqueur ne contredit le statut de son entrée.
+run recensement recensement

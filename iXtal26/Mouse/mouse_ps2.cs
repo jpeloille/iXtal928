@@ -110,12 +110,12 @@ internal static class mouse_ps2
                 case 0xe9: /*Status request*/
                         keyboard_at_adddata_mouse(0xfa);
                         temp = mouse.flags;
+                        // pcem bug, reproduced: PB-95 — la disposition du paquet (gauche en bit 0, droit en bit 1),
+                        //   et le milieu en 3 ; l'octet d'état d'IBM met le gauche en bit 2, le droit en bit 0.
                         if ((mouse_buttons & 1) != 0)
                                 temp |= 1;
                         if ((mouse_buttons & 2) != 0)
                                 temp |= 2;
-                        // pcem bug, reproduced: PB-95 — le bouton du milieu pose 3 (gauche et
-                        //   droit), pas le bit 2 de l'octet d'état.
                         if ((mouse_buttons & 4) != 0)
                                 temp |= 3;
                         keyboard_at_adddata_mouse(temp);

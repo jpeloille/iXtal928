@@ -7,7 +7,7 @@
 // DEVIATIONS (R9, PB-125) : data_in et data_out débordés (:209, :222-224, :979, :985-990) — l'octet au-delà
 //   du tampon est compté, pas gardé, et se relit nul. Le secteur hors de l'image va au garde de hdd_file.cs.
 // Reproduits : PB-126 (READ CAPACITY, le secteur 196 608, START STOP UNIT, la perte au reset, les phases
-//   de longueur nulle).
+//   de longueur nulle) ; les huit fatal() inatteignables de PB-127.
 
 // CS8981 : `scsi_zip_c` porte le nom de l'unité C, que le membre `scsi_zip` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -221,6 +221,8 @@ internal static class scsi_zip_c
     {
         scsi_zip_data data = new();
 
+        // pcem bug, reproduced: PB-126 — chaque resetide alloue un lecteur neuf, sans disque :
+        //   un reset matériel perd le disque.
         data.disc_loaded = 0;
 
         data.hd_id = id;
@@ -759,6 +761,7 @@ internal static class scsi_zip_c
                         {
                                 int ret = scsi_add_data(data.buf[data.sector_pos], data);
 
+                                // pcem bug, reproduced: PB-127 — scsi_add_data rend 0 : jamais ces deux fatal().
                                 if (ret == -1)
                                 {
                                         pc.fatal("scsi_add_data -1\n");
@@ -817,6 +820,7 @@ internal static class scsi_zip_c
                         {
                                 int ret = scsi_add_data(data.buf[data.sector_pos], data);
 
+                                // pcem bug, reproduced: PB-127 — scsi_add_data rend 0 : jamais ces deux fatal().
                                 if (ret == -1)
                                 {
                                         pc.fatal("scsi_add_data -1\n");
@@ -882,6 +886,7 @@ internal static class scsi_zip_c
                         {
                                 int ret = scsi_get_data(data);
 
+                                // pcem bug, reproduced: PB-127 — scsi_get_data rend un octet : jamais ces deux fatal().
                                 if (ret == -1)
                                 {
                                         pc.fatal("scsi_get_data -1\n");
@@ -949,6 +954,7 @@ internal static class scsi_zip_c
                         {
                                 int ret = scsi_get_data(data);
 
+                                // pcem bug, reproduced: PB-127 — scsi_get_data rend un octet : jamais ces deux fatal().
                                 if (ret == -1)
                                 {
                                         pc.fatal("scsi_get_data -1\n");
@@ -1143,6 +1149,8 @@ internal static class scsi_zip_c
     }
 
     // pcem: scsi_zip.c:993-996
+    // pcem bug, reproduced: PB-126 — une lecture de longueur nulle : l'octet lu à l'entrée en DATA IN (scsi.c:241)
+    //   désaccorde les deux positions, et la phase ne finit plus.
     private static int scsi_zip_read_complete(object p)
     {
         scsi_zip_data data = (scsi_zip_data)p;

@@ -13,8 +13,8 @@
 // mesurée (x87-parity) ; les unions x87_td et x87_ts gardent leur nom. Les conversions
 // entier -> double et double <-> float sont celles du C (cvtsi2sd, cvtsd2ss, cvtss2sd).
 //
-// Deux défauts de PCem sont reproduits ici : FBLD n'existe pas (DF /4 est FPU_ILLEGAL,
-// PB-52, dans la table) ; FBSTP écrit la globale `tempc` des drapeaux en sortie (PB-53).
+// Les défauts de PCem reproduits ici portent leur marqueur sur place (PB-48, PB-53, PB-54 et des
+// voisins inscrits en G13) ; FBLD n'existe pas (DF /4 est FPU_ILLEGAL, PB-52, dans la table).
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
@@ -60,9 +60,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -75,9 +77,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -90,9 +94,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -108,9 +114,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -163,6 +171,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -196,6 +206,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -228,6 +240,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             if ((cpu_state.tag[cpu_state.TOP & 7] & x87_c.TAG_UINT64) != 0)
                     temp64 = (int64_t)cpu_state.MM[cpu_state.TOP & 7].q;
             else
@@ -247,6 +260,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             if ((cpu_state.tag[cpu_state.TOP & 7] & x87_c.TAG_UINT64) != 0)
                     temp64 = (int64_t)cpu_state.MM[cpu_state.TOP & 7].q;
             else
@@ -296,9 +310,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -311,9 +327,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -326,9 +344,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -344,9 +364,11 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -391,6 +413,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             x87_st80(ST(0));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -405,6 +428,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             x87_st80(ST(0));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -423,6 +447,7 @@ internal static partial class _386
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -438,6 +463,7 @@ internal static partial class _386
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -450,6 +476,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             t.d = ST(0);
             seteaq(t.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_64);
@@ -463,6 +490,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             t.d = ST(0);
             seteaq(t.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_64);
@@ -476,6 +504,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
             if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 7)) return 1;
             t.d = ST(0);
             seteaq(t.i);
@@ -493,6 +522,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
             if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 7)) return 1;
             t.d = ST(0);
             seteaq(t.i);
@@ -513,6 +543,7 @@ internal static partial class _386
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;
@@ -528,6 +559,7 @@ internal static partial class _386
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;
@@ -540,6 +572,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -553,6 +587,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -566,6 +602,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -582,6 +620,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)

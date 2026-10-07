@@ -12,7 +12,7 @@
 // PCem garde ST en DOUBLE (x86.h:93) : le format 80 bits n'existe qu'aux frontières mémoire,
 // x87_ld80 et x87_st80, qui le convertissent À LEUR FAÇON — exposant replié modulo 1024,
 // dénormaux écrasés, arrondi de la mantisse par le bit 10 qui peut déborder dans l'exposant
-// (PB-52). Un double C# les reproduit au bit près.
+// (PB-55). Un double C# les reproduit au bit près.
 
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
@@ -92,6 +92,8 @@ internal static partial class _386
     {
         reg = (cpu_state.TOP + reg) & 7;
 
+        // pcem bug, reproduced: PB-199 — un registre TAG_UINT64 s'écrit en entier suivi de 0x5555,
+        //   pas en réel de 80 bits.
         if ((cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
                 writememl(easeg, cpu_state.eaaddr, (uint32_t)(cpu_state.MM[reg].q & 0xffffffff));
@@ -111,6 +113,8 @@ internal static partial class _386
         cpu_state.MM[reg].q = readmemq(easeg, cpu_state.eaaddr);
         cpu_state.MM_w4[reg] = readmemw(easeg, cpu_state.eaaddr + 8);
 
+        // pcem bug, reproduced: PB-199 — une image qui finit par 0x5555 sous une étiquette 10 est relue
+        //   comme un entier de 64 bits, pas comme un réel de 80 bits.
         if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
                 cpu_state.ST[reg] = (double)cpu_state.MM[reg].q; // uint64_t -> double, NON signé
@@ -204,6 +208,8 @@ internal static partial class _386
         ll |= (uint64_t)readmeml(easeg, cpu_state.eaaddr + 4) << 32;
         int16_t begin = (int16_t)readmemw(easeg, cpu_state.eaaddr + 8);
 
+        // pcem bug, reproduced: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
+        //   retenue de l'arrondi collée par OU dans l'exposant, bit entier ignoré.
         int64_t exp64 = (((begin & 0x7fff) - BIAS80));
         int64_t blah = ((exp64 > 0) ? exp64 : -exp64) & 0x3ff;
         int64_t exp64final = ((exp64 > 0) ? blah : -blah) + BIAS64;
@@ -234,6 +240,8 @@ internal static partial class _386
         int64_t mant80 = (int64_t)(ll & (0x000fffffffffffff));
         uint64_t mant80final = (uint64_t)(mant80 << 11);
 
+        // pcem bug, reproduced: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
+        //   2^-1023 × 1,f) ; les onze bits bas de la mantisse sont toujours nuls : ST n'a que 53 bits.
         if (exp80final == 0x7ff) /*Infinity / Nan*/
         {
                 exp80final = 0x7fff;
@@ -265,6 +273,8 @@ internal static partial class _386
     //   Rend vrai quand le handler doit sortir, comme les gardes.
     internal static bool x87_div(ref double dst, double src1, double src2)
     {
+        // pcem bug, reproduced: PB-59 — la seule exception modélisée ; démasquée, le handler sort sans tag ni
+        //   cycles, sans ES ni B.
         if (((double)src2) == 0.0)
         {
                 cpu_state.npxs |= STATUS_ZERODIVIDE;
@@ -273,6 +283,7 @@ internal static partial class _386
                 else
                 {
                         // omitted: pclog("FPU : divide by zero\n") — sortie pure.
+                        // pcem bug, reproduced: PB-69 — IRQ13 seulement : hors AT, picint jette la demande.
                         Models.pic.picint(1 << 13);
                         return true;
                 }
@@ -291,6 +302,8 @@ internal static partial class _386
     //   effacent. Le fuzzeur de G4.3 le confronte à l'oracle, NaN et zéros signés tirés.
     internal static uint16_t x87_compare(double a, double b)
     {
+        // pcem bug, reproduced: PB-70 — affine toujours : IC (bit 12 de npxc) n'est lu nulle part, +∞ > −∞ même
+        //   sur le 8087 et le 287.
         if (double.IsNaN(a) || double.IsNaN(b))
                 return x87_c.C0 | x87_c.C2 | x87_c.C3;
         if (a < b)
@@ -302,7 +315,7 @@ internal static partial class _386
 
     internal static uint16_t x87_ucompare(double a, double b) => x87_compare(a, b);
 
-    // QUEL NaN GAGNE (PB-60). `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
+    // pcem bug, reproduced: PB-60 — QUEL NaN GAGNE. `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
     // silencieux, quand les deux en sont ; l'addition et la multiplication étant commutatives,
     // GCC a choisi l'ordre handler par handler, et RyuJIT n'y est pas tenu. Ces deux aides
     // imposent la règle SSE avec un ordre EXPLICITE, celui que `x87-nan-order` a mesuré sur
@@ -328,8 +341,8 @@ internal static partial class _386
     //   lieu de ±∞), les opérandes infinis ou NaN (le résultat ne dépend pas du mode), et le
     //   signe d'un zéro exact (−0 vers le bas, sauf +0 + +0). Mesuré en G4.0 contre le
     //   fesetround de l'oracle (x87-parity (a), 100 %), et confronté au vrai handler en G4.3.
-    //   Appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près (PB-48).
-    // `a` est l'opérande que GCC met en premier — la mémoire, mesuré (PB-60) — pour les NaN.
+    // pcem bug, reproduced: PB-48 — appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près.
+    // pcem bug, reproduced: PB-60 — `a` est l'opérande que GCC met en premier, la mémoire (mesuré) : son NaN survit.
     internal static double x87_fadd_dirige(double a, double b, int rc)
     {
         double r = a + b;

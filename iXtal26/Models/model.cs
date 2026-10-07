@@ -452,6 +452,8 @@ internal static partial class model_c
     {
         common_init();
         mem.mem_add_bios();
+        // pcem bug, reproduced: PB-256 — pas de pit_set_out_func(&pit, 1, pit_refresh_timer_xt), comme
+        //   xt_init (model.c:205) : le canal 0 du DMA ne rafraîchit jamais, l'UC ne perd aucun cycle.
         Keyboard.keyboard_olim24.keyboard_olim24_init();
         PluginApi.device.device_add(Devices.nvr.nvr_device);
         olivetti_m24.olivetti_m24_init();
@@ -465,6 +467,8 @@ internal static partial class model_c
         Cpu.x86.AMSTRAD = 1;
         common_init();
         mem.mem_add_bios();
+        // pcem bug, reproduced: PB-256 — pas de pit_set_out_func(&pit, 1, pit_refresh_timer_xt), comme
+        //   xt_init (model.c:205) : le canal 0 du DMA ne rafraîchit jamais, l'UC ne perd aucun cycle.
         // pcem: model.c:263 — G10.0 : LPT1 retiré ; amstrad.c tient 378h-37Ah lui-même.
         Lpt.lpt.lpt1_remove();
         amstrad.amstrad_init();

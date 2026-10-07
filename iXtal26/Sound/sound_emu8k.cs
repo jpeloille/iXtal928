@@ -454,6 +454,8 @@ internal static class sound_emu8k
 
     // pcem: sound_emu8k.c:301-326. Les quatre produits int × float et leur somme en float, dans l'ordre du C, puis la
     //   conversion du C vers int32_t.
+    // pcem bug, reproduced: PB-160 — une interpolation cubique, et non celle à trois points de l'AWE, que nul ne
+    //   publie.
     private static int32_t EMU8K_READ_INTERP_CUBIC(emu8k_t emu8k, uint32_t int_addr, uint16_t fract)
     {
         /*Since there are four floats in the table for each fraction, the position is 16byte aligned. */
@@ -571,6 +573,8 @@ internal static class sound_emu8k
                         }
 
                                 /*The EMU8000 PGM describes the return values of these registers as 'a VLSI error'*/
+                        // pcem bug, reproduced: PB-160 — HWCF1 à HWCF3 relus par une permutation fixe de leurs bits ;
+                        //   le guide les dit illisibles (p. 14, p. 21), sans la valeur lue.
                         case 29: /*Configuration Word 1*/
                                 return (uint16_t)((emu8k.hwcf1 & 0xfe) | (emu8k.hwcf3 & 0x01));
                         case 30: /*Configuration Word 2*/
@@ -717,6 +721,8 @@ internal static class sound_emu8k
                  * of the MS byte to determine that it really is an AWE32.
                  * cubic player has a similar code, where it waits until value & 0x1000 is nonzero, and then waits again until it
                  * changes to zero.*/
+                // pcem bug, reproduced: PB-160 — l'octet haut tiré d'un compteur de 80h à 9Fh ; « random (actually a
+                //   VLSI test register) » selon le guide (p. 7).
                 random_helper = (random_helper + 1) & 0x1F;
                 return (uint16_t)(((0x80 | random_helper) << 8) | (emu8k.cur_reg << 5) | emu8k.cur_voice);
         }
@@ -849,6 +855,7 @@ internal static class sound_emu8k
 
                 case 2:
                         emu8k.init1[emu8k.cur_voice] = val;
+                        // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                         /* Skip if in first/second initialization step */
                         if (emu8k.init1[0] != 0x03FF) {
                                 switch (emu8k.cur_voice) {
@@ -894,6 +901,7 @@ internal static class sound_emu8k
 
                 case 3:
                         emu8k.init3[emu8k.cur_voice] = val;
+                        // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                         /* Skip if in first/second initialization step */
                         if (emu8k.init1[0] != 0x03FF) {
                                 switch (emu8k.cur_voice) {
@@ -1029,6 +1037,7 @@ internal static class sound_emu8k
                         switch (emu8k.cur_voice) {
                         case 9:
                                 WRITE16(addr, ref emu8k.hwcf4, val);
+                                // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                                 /* Skip if in first/second initialization step */
                                 if (emu8k.init1[0] != 0x03FF) {
                                         /*(1/256th of a 44Khz sample) */
@@ -1039,6 +1048,7 @@ internal static class sound_emu8k
                                 return;
                         case 10:
                                 WRITE16(addr, ref emu8k.hwcf5, val);
+                                // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                                 /* Skip if in first/second initialization step */
                                 if (emu8k.init1[0] != 0x03FF) {
                                         /* The scale of this value is unknown. I've taken it as milliHz.
@@ -1088,6 +1098,7 @@ internal static class sound_emu8k
 
                 case 2:
                         emu8k.init2[emu8k.cur_voice] = val;
+                        // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                         /* Skip if in first/second initialization step */
                         if (emu8k.init1[0] != 0x03FF) {
                                 switch (emu8k.cur_voice) {
@@ -1158,6 +1169,7 @@ internal static class sound_emu8k
 
                 case 3:
                         emu8k.init4[emu8k.cur_voice] = val;
+                        // pcem bug, reproduced: PB-160 — le pas d'initialisation deviné par init1[0] = 03FFh.
                         /* Skip if in first/second initialization step */
                         if (emu8k.init1[0] != 0x03FF) {
                                 switch (emu8k.cur_voice) {
@@ -1195,6 +1207,7 @@ internal static class sound_emu8k
                                 if (vol_env.delay_samples != 0) {
                                         vol_env.state = ENV_DELAY;
                                 } else if (vol_env.attack_amount_amp_hz == 0) {
+                                        // pcem bug, reproduced: PB-160 — l'attaque 0 est « jamais » : la voix se tait.
                                         vol_env.state = ENV_STOPPED;
                                 } else {
                                         vol_env.state = ENV_ATTACK;
@@ -1361,6 +1374,8 @@ internal static class sound_emu8k
     // pcem: sound_emu8k.c:1422-1481. Le tampon droit est chorus_buffer[EMU8K_LFOCHORUS_SIZE + i] (voir le type).
     // pcem bug, reproduced: PB-162 — le canal droit interpole avec la fraction du canal gauche, et, aux réglages
     //   extrêmes, lit sous son tampon, dans le gauche.
+    // pcem bug, reproduced: PB-160 — un chorus « workalike » (le TODO ci-dessus) : le microcode de l'AWE n'est pas
+    //   publié.
     internal static void emu8k_work_chorus(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff, emu8k_chorus_eng_t engine, int count)
     {
         int pos;
@@ -1424,7 +1439,9 @@ internal static class sound_emu8k
         }
     }
 
-    // pcem: sound_emu8k.c:1483-1499. Les produits int × float en float ; la conversion du C (PB-163).
+    // pcem: sound_emu8k.c:1483-1499. Les produits int × float en float ; la conversion du C.
+    // pcem bug, reproduced: PB-163 — la conversion float → int32_t du C (cvttss2si, par CvtI32) : hors bornes,
+    //   INT_MIN, même pour un dépassement positif ; .NET saturerait.
     internal static int32_t emu8k_reverb_comb_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
 
@@ -1445,6 +1462,7 @@ internal static class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1501-1514. `-in` déborde pour INT_MIN, comme en C.
+    // pcem bug, reproduced: PB-163 — les deux conversions du C (CvtI32), et `-in` qui déborde pour INT_MIN.
     internal static int32_t emu8k_reverb_diffuser_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
 
@@ -1480,6 +1498,7 @@ internal static class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1531-1535
+    // pcem bug, reproduced: PB-163 — la conversion du C (CvtI32) : INT_MIN hors bornes.
     internal static int32_t emu8k_reverb_damper_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
         /* apply lowpass */
@@ -1489,6 +1508,8 @@ internal static class sound_emu8k
 
     /* TODO: This is not a correct emulation, just a workalike implementation. */
     // pcem: sound_emu8k.c:1537-1586
+    // pcem bug, reproduced: PB-160 — une réverbération « workalike » (le TODO ci-dessus) : le microcode de l'AWE n'est
+    //   pas publié.
     internal static void emu8k_work_reverb(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff, emu8k_reverb_eng_t engine, int count)
     {
         int pos;
@@ -1548,6 +1569,8 @@ internal static class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1591-1602
+    // pcem bug, reproduced: PB-160 — le volume glisse de 400h par échantillon vers sa cible : une règle de PCem, que
+    //   le guide ne décrit pas.
     internal static int32_t emu8k_vol_slide(emu8k_slide_t slide, int32_t target)
     {
         if (slide.last < target) {
@@ -1884,6 +1907,8 @@ internal static class sound_emu8k
                         }
 
                         /* TODO: How and when are the target and current values updated */
+                        // pcem bug, reproduced: PB-160 — la hauteur et la coupure posées à leur cible à chaque
+                        //   échantillon, le volume par emu8k_vol_slide : le guide ne le décrit pas.
                         emu_voice.cpf_u.cpf_curr_pitch = emu_voice.ptrx_u.ptrx_pit_target;
                         emu_voice.cvcf_u.cvcf_curr_volume = (uint16_t)emu8k_vol_slide(emu_voice.volumeslide, emu_voice.vtft_u.vtft_vol_target);
                         emu_voice.cvcf_u.cvcf_curr_filt_ctoff = emu_voice.vtft_u.vtft_filter_target;

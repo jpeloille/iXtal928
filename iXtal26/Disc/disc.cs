@@ -94,6 +94,7 @@ internal static partial class disc
 
     internal static int curdrive = 0;
 
+    // pcem bug, reproduced: PB-20 — defaultwriteprot, fdc_ready, motorspin et fdc_indexcount, ci-dessous : morts.
     internal static int defaultwriteprot = 0;
 
     internal static int fdc_ready;
@@ -146,7 +147,8 @@ internal static partial class disc
                         loaders[c].load(drive, fn);
                         drive_empty[drive] = 0;
                         disc_changed[drive] = 1;
-                        // pcem bug, reproduced: PB-18 — strcpy sur lui-même quand fn EST discfns[drive] (pc.c:367).
+                        // pcem bug, not reproduced: PB-18 — sans objet en C# : une affectation de référence, là où le C
+                        //   recopie la chaîne sur elle-même (strcpy, source et destination confondues, pc.c:367-368).
                         discfns[drive] = fn;
                         fdd_disc_changed(drive);
                         return;
@@ -293,6 +295,7 @@ internal static partial class disc
     internal static void disc_init() { disc_reset(); }
 
     // pcem: disc.c:205
+    // pcem bug, reproduced: PB-20 — oldtrack : son seul usage est le bloc ddnoise_seek commenté (disc.c:210-213).
     internal static int[] oldtrack = { 0, 0 };
     // pcem: disc.c:206-214
     internal static void disc_seek(int drive, int track)

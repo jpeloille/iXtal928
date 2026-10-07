@@ -284,10 +284,9 @@ internal static partial class keyboard_olim24
                         mouse.x = -127;
                 if (mouse.x > 127)
                         mouse.x = 127;
-                // pcem bug, reproduced: borne morte (keyboard_olim24.c:251-252) — x vient
-                //   d'être ramené dans [-127, 127], le test ne peut plus être vrai. Le
-                //   codage signe-amplitude visé n'a jamais lieu : l'octet envoyé ligne 277
-                //   est le complément à deux de x.
+                // pcem bug, reproduced: PB-245 — borne morte (keyboard_olim24.c:251-252) : x vient
+                //   d'être ramené dans [-127, 127], le test ne peut plus être vrai. Le codage signe-amplitude
+                //   visé n'a jamais lieu : l'octet envoyé (keyboard_olim24.c:262) est le complément à deux de x.
                 if (mouse.x < -127)
                         mouse.x = 0x80 | ((-mouse.x) & 0x7f);
 
@@ -295,7 +294,7 @@ internal static partial class keyboard_olim24
                         mouse.y = -127;
                 if (mouse.y > 127)
                         mouse.y = 127;
-                // pcem bug, reproduced: même borne morte pour y (keyboard_olim24.c:258-259).
+                // pcem bug, reproduced: PB-245 — même borne morte pour y (keyboard_olim24.c:258-259).
                 if (mouse.y < -127)
                         mouse.y = 0x80 | ((-mouse.y) & 0x7f);
 

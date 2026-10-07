@@ -8,7 +8,10 @@ for f in ['x87_ops_loadstore.cs','x87_ops_arith.cs','x87_ops_misc.cs']:
     t=open(R+'iXtal26/Cpu/'+f,encoding='utf-8').read()
     a=t.index('internal static partial class _386\n{')+len('internal static partial class _386\n{')
     b=t.rstrip().rindex('}')
-    bodies.append('    // ======== depuis %s ========\n'%f + t[a:b].rstrip('\n'))
+    # G13.1 — PB-54 est sans objet sur le 8087 (pas de limite de segment, CHECK_WRITE vide) : ses
+    # marqueurs, d'une ligne chacun, ne sont pas recopiés.
+    corps='\n'.join(x for x in t[a:b].rstrip('\n').split('\n') if '// pcem bug, reproduced: PB-54 ' not in x)
+    bodies.append('    // ======== depuis %s ========\n'%f + corps)
 body='\n\n'.join(bodies)
 hdr="""// SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
@@ -24,6 +27,7 @@ hdr="""// SPDX-FileCopyrightText: 2026 Julien Peloille
 // x87_st80 et les aides de FSAVE — se résout d'abord dans _808x (x87_8087.cs, 808x.cs), comme
 // le C, où 8087.h les redéfinit avant l'#include ; le reste vient de _386 (`using static`).
 // Ne pas éditer à la main : régénérer après toute modification des trois fichiers sources.
+// Les marqueurs de PB-54 n'y sont pas recopiés : le 8087 n'a pas de limite (CHECK_WRITE vide).
 
 using static iXtal26.Cpu._386;
 using static iXtal26.Cpu._386_common;
@@ -65,11 +69,26 @@ namespace iXtal26.Cpu;
 
 internal static partial class _808x
 {"""]
+# G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md) : (table, premier indice de la rangée de
+# huit) -> lignes posées au-dessus de la rangée. Ces tables ne servent qu'au 8087.
+B='// pcem bug, reproduced: '
+M52=B+'PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
+MARQ={('fpu_df',0x20):[M52], ('fpu_df',0x60):[M52], ('fpu_df',0xa0):[M52],
+      ('fpu_df',0xc0):[B+'PB-210 — DF C0-DF (FFREEP et les alias FXCH7, FSTP8, FSTP9) : ILLEGAL.'],
+      ('fpu_df',0xe0):[B+'PB-200 — DF E0 (FNSTSW AX, une instruction du 287) écrit AX sur le 8087.'],
+      ('fpu_dd',0xc8):[B+'PB-210 — DD C8-CF (FXCH4, alias non documenté de FXCH) : ILLEGAL.'],
+      ('fpu_de',0xd0):[B+'PB-210 — DE D0-D7 (FCOMP5, alias non documenté de FCOMP) : ILLEGAL.'],
+      ('fpu_dd',0xe0):[B+'PB-209 — FUCOM et FUCOMP (DD E0-EF), du 387, s\'exécutent sur le 8087.'],
+      ('fpu_da',0xe8):[B+'PB-209 — FUCOMPP (DA E9), du 387, s\'exécute sur le 8087.'],
+      ('fpu_d9',0xf0):[B+'PB-194 — D9 F4 (FXTRACT) est ILLEGAL : la pile ne bouge pas.',
+                       B+'PB-209 — FPREM1 (D9 F5), du 387, s\'exécute sur le 8087.'],
+      ('fpu_d9',0xf8):[B+'PB-68 — FSINCOS, FSIN et FCOS (D9 FB, FE, FF), du 387, s\'exécutent sur le 8087.']}
 for name,n,a,b,ents in tables:
     L.append('    // pcem: x87_ops.h:%d-%d, OP_TABLE(%s) sous 8087.h'%(a,b,name))
     L.append('    internal static readonly OpFn[] ops_808x_%s =' % name)
     L.append('    [')
     for k in range(0,n,8):
+        for c in MARQ.get((name[:6],k),[]): L.append('        '+c)
         L.append('        '+' '.join(e+',' for e in ents[k:k+8]))
     L.append('    ];'); L.append('')
 L[-1]='}'

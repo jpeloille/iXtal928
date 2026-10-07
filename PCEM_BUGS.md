@@ -9,6 +9,19 @@ Chaque entrée porte un identifiant stable `PB-nn`, cite le C fautif à la ligne
 indique où iXtal26 le reproduit. Les sites de reproduction portent tous le marqueur
 `// pcem bug, reproduced:` — `grep -rn "pcem bug" --include=*.cs iXtal26/` les liste.
 
+Depuis G13.1, chaque marqueur porte sur sa ligne le numéro de son entrée, et un renvoi à un
+autre défaut va sur la ligne suivante. La porte `recensement` le vérifie, et qu'aucun défaut
+reproduit des sections A et B ne manque de site, sauf une absence (« *Reproduit* : par
+absence »). Chaque entrée des sections A et B porte trois champs, juste avant son statut :
+*Source*, le vrai comportement et sa source primaire, avec son niveau (documenté, déduit,
+inconnu) ; *Cas qui discrimine*, l'état d'entrée et les deux valeurs, celle de PCem et celle
+du matériel ; *G13*, le classement de `PLAN-G13.md` — (a) corrigeable et vérifiable,
+(b) corrigeable, vérification faible, (c) vrai comportement inconnu, laissé reproduit,
+(d) à ne pas corriger —, ou « hors du mode » pour une entrée déjà corrigée dans les deux
+modes. Les sources y sont citées sous un nom court (« 387 PRM », « guide de Creative ») ;
+leurs références complètes sont dans les rapports de `iXtal26/Docs/G13-reconnaissance/`,
+à leur section des sources.
+
 Ce fichier est un registre de **constats**, comme `VERIFICATION.md` : le plafond de
 200 lignes de R3 vise la prose de conception, pas les faits mesurés.
 
@@ -21,7 +34,8 @@ Version de référence : PCem v18 tel que vendoré, ancré par empreinte dans
 
 ### PB-01 — Le drapeau auxiliaire d'ADC et SBB ignore la retenue entrante
 
-`808x.c:778` `setadc8`, `:809` `setadc16`, `:841` `setsbc8`, `:873` `setsbc16`
+`808x.c:786` `setadc8`, `:817` `setadc16`, `:849` `setsbc8`, `:882` `setsbc16` (les tests d'AF ;
+les fonctions commencent en `:778`, `:809`, `:841` et `:873`)
 
 La somme `c = a + b + tempc` sert bien à Z, N, P, C et V. Mais AF est calculé
 
@@ -29,19 +43,29 @@ La somme `c = a + b + tempc` sert bien à Z, N, P, C et V. Mais AF est calculé
 if (((a & 0xF) + (b & 0xF)) & 0x10)
 ```
 
-**ligne identique à celle de `setadd8`** (`:758`) : `tempc` est oublié. `0x0F + 0x00`
+**ligne identique à celle de `setadd8`** (`:766`) : `tempc` est oublié. `0x0F + 0x00`
 avec retenue entrante vaut `0x10` et doit poser AF ; PCem calcule `0xF + 0x0 = 0xF` et
 ne le pose pas.
 
 *Effet* : AF faux sur ADC/SBB dès que la somme des quartets bas vaut `0xF` et qu'il y a
-une retenue entrante. Observable à travers DAA, DAS, AAA et AAS.
+une retenue entrante. Observable à travers DAA, DAS, AAA et AAS : `09h + 06h` avec CF = 1
+donne AF = 0, et le DAA qui suit rend 10h au lieu de 16h. Le 8086 (M24, PC1512) passe par le
+même `808x.c`. Le cœur 286/386/486 a un défaut voisin, d'une autre formule (PB-181).
 *Trouvé par* : SingleStepTests — ~3 à 4 % de divergence sur les opcodes ADC/SBB,
 **toujours sur le seul bit 0x0010**.
-*Reproduit* : `Cpu/808x.cs:554, 591, 629, 667`.
+*Source* : AF est la retenue (l'emprunt) du bit 3, retenue entrante comprise : documenté (SDM vol. 1,
+§ 3.4.3.1) et mesuré (SST 8088 v2, AMD D8088). `(a ^ b ^ résultat) & 0x10` le rend pour ADC comme
+pour SBB : 0 écart sur les 131 072 triplets de 8 bits, là où PCem se trompe sur 4 096.
+*Cas qui discrimine* : SST 8088, formes `10`–`15` et `18`–`1D`, au manifeste (9 515 à 9 719 sur
+10 000 en mode PCem, 10 000 attendus). Banc : CF = 1, AL = 09h, `ADC AL,06h` → AF = 0 (PCem), 1
+(8088), puis `DAA` → 10h contre 16h.
+*G13* : (a) — le pilote de G13.2 ; chemin tiède, un appel par ADC ou SBB et non par instruction.
+*Reproduit* : `Cpu/808x.cs:594` (setadc8), `:632` (setadc16), `:671` (setsbc8), `:711` (setsbc16),
+marqueurs `PB-01`.
 
-### PB-02 — Les rotations 16 bits écrasent le carry sortant par le carry entrant
+### PB-02 — Les rotations 16 bits par CL écrasent le carry sortant par le carry entrant
 
-`808x.c:2887` `RCL w,1`, `:2903` `RCR w,1`, `:3173` `RCL w,CL`, `:3195` `RCR w,CL`
+`808x.c:3184-3187` `RCL w,CL` (le `case` commence en `:3173`), `:3207-3210` `RCR w,CL` (`:3195`)
 
 Dans la boucle, `templ` (resp. `tempw2`) retient le carry **avant** rotation. Après la
 boucle :
@@ -58,8 +82,19 @@ Le pendant octet `RCR b,CL` porte **exactement ces quatre lignes commentées**
 (`808x.c:3059-3060`) : l'auteur les a identifiées comme fausses et retirées là, sans le
 faire dans les variantes 16 bits.
 
-*Effet* : CF faux après toute rotation avec retenue sur opérande mot.
-*Reproduit* : `Cpu/808x.cs:2989` et `:3017`.
+**Corrigé en G13.1** : l'entrée citait aussi `RCL w,1` (`:2887`) et `RCR w,1` (`:2903`), qui
+sont sains ; seules les formes par CL ont le défaut (D1-uc § 3, D1-contre C13).
+
+*Effet* : CF faux après RCL ou RCR mot par CL, environ une fois sur deux pour un compte non
+nul ; l'OF de RCL, calculé ensuite depuis ce CF, est faux aussi. Le cœur 386 n'a pas ce défaut.
+*Source* : CF reçoit le dernier bit sorti : documenté (386 PRM, page RCL/RCR/ROL/ROR, « RCL shifts
+the carry flag into the bottom bit and shifts the top bit into the carry flag », à chaque pas) ;
+SST 8088 v2 ne masque aucun drapeau sur `D3.2` et `D3.3` (`metadata.json`).
+*Cas qui discrimine* : SST 8088 `D3.2`, `D3.3`, hors manifeste (prédit ~51 % en mode PCem) ; témoins
+inchangés `D2.2`, `D2.3`, `D1.2`, `D1.3`. Banc : AX = 8000h, CF = 0, CL = 1, `RCL AX,CL` → CF = 0
+(PCem), 1 (8088) ; AX = 0001h, CF = 0, CL = 1, `RCR AX,CL` → CF = 0 (PCem), 1 (8088).
+*G13* : (a) — sauter les deux blocs de quatre lignes sous la garde ; vérifiable par SST.
+*Reproduit* : `Cpu/808x.cs:3112` (RCL w,CL) et `:3140` (RCR w,CL), marqueurs `PB-02`.
 
 ### PB-03 — `clockhardware()` perd les cycles de rafraîchissement DRAM
 
@@ -85,16 +120,28 @@ cycles sont débités **après** que `diff` a été pris, et l'instruction suiva
 *Effet* : l'horloge de la machine invitée retarde par rapport à son propre compte de
 cycles. **Dépendant de la charge** : 0,006 % à l'invite BASIC, **1,90 %** pendant le test
 mémoire du POST. La durée d'amorçage n'est PAS affectée — ces cycles sont bien débités du
-budget, ils manquent seulement au TSC.
+budget, ils manquent seulement au TSC. **Le 5150 et l'XT seulement** : seul `xt_init` branche le rafraîchissement
+sur la DMA (`model.c:205`) ; sur la M24 et le PC1512, le défaut ne mord que pendant une DMA de périphérique (la
+disquette), un effet faible et non mesuré (contre-lecture de G13).
 *Trouvé par* : le contrôle de fréquence absolue (`--timer-check`), qui donne 18,205424 Hz
 contre 18,206512 attendus, soit −59,79 ppm. Budget d'erreur refermé exactement :
-−5,87 ppm de PB-11 plus −53,9 ppm d'ici.
+−5,87 ppm de la troncature `cpu_get_speed() / 100` (`pc.c:473` : 47 727 cycles par tranche au lieu de 47 727,28 ;
+`TimerCheck.cs:76-81`, `VERIFICATION.md` § M4.6) plus −53,9 ppm d'ici. Cette troncature est un rythme de l'hôte, que
+l'invité ne voit pas ; l'imputation à PB-11, depuis la création du registre, était fausse (contre-lecture de G13).
 *Attribué par mesure, pas par lecture* : sur 2 M d'instructions, celles **sans** appel à
 `timer_process` perdent **0 cycle sur 16,1 M** ; **100,000 %** de la perte est sur celles
 qui en ont un, à **1,051 cycle par appel**. Par opcode : `LOOP` 0,80 cycle/exécution
 (son `FETCHCLEAR` met `prefetchw` à 0 et désactive la sortie anticipée de
 `FETCHCOMPLETE`), `STOSB` 0,13, `MOV` 0,13, `XOR` 0,07.
-*Reproduit* : `Cpu/808x.cs:270`. Détail dans `VERIFICATION.md` § M4.6.
+*Source* : IBM PC TR 6025008 p. 2-3, l'UC à 4,77 MHz, le tiers d'un quartz de 14,31818 MHz ; p. 2-22, le 8253-5
+cadencé à 1,19 MHz (le douzième du même quartz). Documenté ; qu'un cycle volé par le rafraîchissement s'écoule aussi
+pour le PIT, donc pour le TSC, en est déduit.
+*Cas qui discrimine* : `--timer-check` sur le 5150 : PCem, des cycles « consommés mais JAMAIS portés au tsc »
+(1,051 par appel de `timer_process`) et, pendant le test mémoire, un Δtsc de 140 457,5 par tranche ; le matériel,
+aucun, et un Δtsc de trois fois les cycles consommés (143 181,8 attendus).
+*G13* : (a) — le 5150 et l'XT seulement ; avec PB-257, dont les cycles fantômes iraient sinon au TSC.
+*Reproduit* : `Cpu/808x.cs`, `clockhardware`, marqueur PB-03 (posé en G13.1 par le domaine du processeur). Détail
+dans `VERIFICATION.md` § M4.6.
 
 ### PB-04 — Le CGA lit le champ `drawcursor` au lieu de la locale
 
@@ -106,8 +153,16 @@ qui en ont un, à **1,051 cycle par appel**. Par opcode : `LOOP` 0,80 cycle/exé
 une condition toujours vraie.
 
 *Effet* : la suppression du clignotement s'applique aussi sur la cellule du curseur, là
-où la locale l'en aurait exclue.
-*Reproduit* : `Video/vid_cga.cs:249`.
+où la locale l'en aurait exclue. Sur les lignes du curseur, un caractère clignotant (attribut bit 7, 3D8h bit 5)
+perd son avant-plan pendant la phase éteinte, et le curseur, une inversion (PB-222), n'y montre qu'un pavé uni.
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), CGA, schéma feuille 1 (p. 28) : +ALPHA DOTS = NOR(-CURSOR
+BLINK, -CURSOR DLY) OR (+CHG DOTS AND (-BLINK OR NAND(-CURSOR DLY, +ENABLE BLINK, +AT7))) — documenté : sur ses
+lignes, la cellule du curseur n'est jamais éteinte par le clignotement, quelle que soit la phase du curseur.
+*Cas qui discrimine* : CGA, mode 3, 3D8h = 29h, caractère 41h d'attribut 87h sous le curseur (R10-R11 = 06h-07h), trame
+où `cgablink & 8` ≠ 0 (le curseur de PCem allumé) : lignes 6-7 de la cellule, PCem peint un pavé uni cgapal[15] ;
+l'exemption `(ma == ca) && con` y laisse le glyphe, inversé (cgapal[8] sur cgapal[15]).
+*G13* : (a) — exemption `(ma == ca) && con`, sans `cursoron`, la locale ne suffisant plus avec PB-223.
+*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-04 (`:272` en 80 colonnes, `:324` en 40).
 
 ### PB-05 — `pic.c:369` efface le mauvais bit de `pend`
 
@@ -118,19 +173,35 @@ pic.ins |= (1 << 2);                    /* Cascade IRQ */
 ```
 
 `c` est l'indice d'IRQ de l'esclave (0-7) ; la ligne l'applique au `pend` du **maître**.
-La ligne sœur `:365` vise correctement `pic2.pend`, et `:370-371` visent bien la
+La ligne sœur `:364` vise correctement `pic2.pend`, et `:370-371` visent bien la
 cascade 2.
 
-*Effet* : acquitter une IRQ de l'esclave efface une IRQ du maître sans rapport.
-*Reproduit* : `Models/pic.cs:433`.
+*Effet* : acquitter une IRQ de l'esclave efface une IRQ du maître sans rapport : l'IRQ 8 + c efface l'IRQ c qui
+attend (l'IRQ 0 contre l'IRQ 8 de la RTC, l'IRQ 1 contre l'IRQ 9, l'IRQ 5 contre l'IRQ 13…), sauf pour c = 2 :
+l'IRQ 10 vise la cascade, que `pic_updatepending` recalcule (déduit, non mesuré). Avec PB-246, un top
+d'horloge se perd quand l'IRQ 0 et l'IRQ 8 attendent au même acquittement.
+*Source* : 8259A (231468-003) p. 7, « Interrupt Sequence » : à l'INTA, « the highest priority ISR bit is set and the
+corresponding IRR bit is reset » ; rien d'autre ne bouge dans l'IRR du maître. Documenté.
+*Cas qui discrimine* : PICBANC (à écrire), ibmat, CLI : IRQ 0 et IRQ 8 (la RTC en périodique) en attente, IRR maître
+05h et esclave 01h (OCW3 0Ah) ; STI. PCem sert 70h et perd l'IRQ 0 (l'IRR maître relu 00h) ; PB-05 seul corrigé,
+70h puis 08h ; avec PB-246, 08h puis 70h.
+*G13* : (a) — dans un 8259A selon la fiche, avec PB-246 et PB-247 ; PB-06 et PB-13 y sont absorbés.
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-05 (`:447`).
 
 ### PB-06 — `pic.c:39` écrit `pic.mask2` dans le bloc `pic2`
 
 Entouré de `pic2.icw = 0`, `pic2.mask = 0xFF`, `pic2.pend = pic2.ins = 0`, on lit
 `pic.mask2 = 0;`.
 
-*Effet* : `pic2.mask2` n'est jamais réinitialisé par `pic_reset()`.
-*Reproduit* : `Models/pic.cs:70`.
+*Effet* : `pic2.mask2` n'est jamais réinitialisé par `pic_reset()`. Aucun observable (contre-lecture de G13) : l'ICW1
+que le POST envoie à l'esclave remet `mask2` à zéro (`pic.c:214-221`) avant tout démasquage, et la remise à zéro du
+seul processeur (le 8042, `softresetx86`) ne passe pas par `pic_reset`.
+*Source* : 8259A p. 2, table 1 : aucune broche de remise à zéro ; seul ICW1 initialise (p. 9-10), et l'état à la
+mise sous tension n'est pas défini. Documenté.
+*Cas qui discrimine* : aucun — seule une sonde du PIC (`pic2.mask2` après un `pic_reset` pendant une IRQ de
+l'esclave) le verrait.
+*G13* : (d) — sans effet observable, et `pic_reset` modélise une mise sous tension, où toute valeur se vaut ; en C.
+*Reproduit* : `Models/pic.cs`, `pic_reset`, marqueur PB-06 (`:72`).
 
 ### PB-14 — `disc_set_rate` : le cas 1 retombe dans le cas 2
 
@@ -148,9 +219,17 @@ Pas de `break` après le `switch` interne : pour `rate == 1` (300 kbps, lecteur 
 lisant une 360 Ko), `disc_period` est posé à 26, 16 ou 4 puis **écrasé par 32**. Les cas
 0, 2 et 3 sont bien terminés ; seul celui-ci ne l'est pas.
 
-*Effet* : la cadence de `disc_poll` est celle du 250 kbps quel que soit `drvden` sous
-`rate == 1`. Sans conséquence sur le 5150, dont le contrôleur ne connaît que `rate == 2`
-(`fdc.c:98`).
+*Effet* : la cadence de `disc_poll` est celle du 250 kbps quel que soit `drvden` sous `rate == 1`. Sans conséquence
+sur le 5150, dont le contrôleur ne connaît que `rate == 2` (`fdc.c:98`), ni sur l'XT, la M24 et le PC1512. Sur un
+AT, en revanche, le B: 1,2 Mo de tous les profils lit une 360 Ko à 300 kbit/s : chaque octet y dure 32 µs au lieu de
+26,7, et chaque tour apparent de la piste 20 % de trop ; les données restent justes (reconnaissance de G13).
+*Source* : documenté — IBM PC AT Technical Reference (1502494, mars 1984), « Fixed Disk and Diskette Drive
+Adapter », § *Data Rates* (« three data rates: 250,000, 300,000 and 500,000 bits per second »), et le listing du
+BIOS (« 01: 300 KBS ») : 300 kbit/s, soit 26,67 µs par octet.
+*Cas qui discrimine* : ami286, image 360 Ko en B: (lecteur 1,2 Mo), CCR (3F7h) = 01h, READ DATA d'un secteur :
+l'écart entre deux appels de `disc_poll` vaut 32 µs chez PCem, 26,67 µs (80/3) sur le matériel — PCem écrit 26 pour
+ce débit, l'arrondi est à trancher.
+*G13* : (a).
 *Reproduit* : `Disc/disc.cs`, `goto case 2` marqué.
 
 ### PB-22 — `CMD_FORMAT_TRACK` ne réinitialise pas `sector`, et formate donc à côté
@@ -159,16 +238,22 @@ lisant une 360 Ko), `disc_period` est posé à 26, 16 ou 4 puis **écrasé par 3
 `xebec->sector = xebec->command[2] & 0x1f` — `CMD_VERIFY_SECTORS` (`:340`),
 `CMD_READ_SECTORS` (`:395`), `CMD_WRITE_SECTORS` (`:486`). `CMD_FORMAT_TRACK`, non.
 
-Or `xebec_get_sector` (`:236-270`) fait entrer `sector` dans le calcul d'adresse au même
-titre que le cylindre et la tête. Le formatage démarre donc au secteur **laissé par la
-commande précédente** : il déborde sur la piste suivante et laisse intact le début de la
-piste visée. Et si le résidu est ≥ 17, le test de borne de `:260` fait échouer la commande
-en `ERR_ILLEGAL_SECTOR_ADDRESS`.
+Or `xebec_get_sector` (`:241-269`) fait entrer `sector` dans le calcul d'adresse au même titre que le cylindre et la
+tête. Le formatage démarre donc au secteur **laissé par la commande précédente** : il déborde sur la piste suivante
+et laisse intact le début de la piste visée. Et si le résidu est ≥ 17, le test de borne de `:260` fait échouer la
+commande en `ERR_ILLEGAL_SECTOR_ADDRESS`.
 
 *Effet* : latent sous PC DOS 2.00, qui fait précéder chaque `FORMAT TRACK` d'un accès
 laissant `sector` à 0 — le `FORMAT C: /S` de § M12 produit une image octet pour octet
 identique des deux côtés. Un pilote qui enchaînerait deux formatages sans accès
 intermédiaire, lui, formaterait la mauvaise piste.
+*Source* : documenté — IBM Fixed Disk Adapter (Hardware Reference Library, 6361503), *Programming Considerations*,
+DCB, p. 7 et p. 10-11 : FORMAT TRACK (classe 0, opcode 06h) porte l'unité et la tête (octet 1), les bits hauts du
+cylindre et un secteur à zéro (octet 2), le cylindre (octet 3) : la piste désignée est formatée depuis son début.
+*Cas qui discrimine* : XT à Xebec (320h-323h), disque de type 16 initialisé par le BIOS : READ SECTORS d'un secteur
+en (c, h, 5) — le secteur courant passe à 6 —, puis FORMAT TRACK (c, h) : PCem formate les secteurs 6 à 16 de (c, h)
+et 0 à 5 de (c, h + 1) ; la carte, les 17 secteurs de (c, h), et (c, h + 1) reste intact.
+*G13* : (a).
 *Reproduit* : `Mfm/mfm_xebec.cs`, l'absence d'affectation est conservée et marquée.
 
 ### PB-23 — Le bit d'unité de l'octet de fin est toujours nul
@@ -187,26 +272,38 @@ jamais 1 rend donc **toujours 0**. L'intention était `command[1] & 0x20`.
 (`:322`) — le même bit, reconstruit proprement, trente lignes plus bas.
 *Effet* : l'octet de fin ne signale jamais que la commande visait l'unité D. Sans
 conséquence sur un XT à un seul disque, ce qui est la configuration historique.
+*Source* : documenté — IBM Fixed Disk Adapter, *Status Register*, p. 3 : bit 1 « an error has occurred », bit 5
+« the logical unit number of the drive ».
+*Cas qui discrimine* : TEST DRIVE READY (00h) vers l'unité 1 (octet 1 = 20h), unité D présente : octet de fin 00h
+chez PCem, 20h sur la carte ; unité D absente : 02h contre 22h.
+*G13* : (a) — sans effet pour le BIOS d'IBM, qui ne lit que le bit 1.
 *Reproduit* : `Mfm/mfm_xebec.cs`.
 
 ### PB-25 — La borne des têtes est testée avec `>` au lieu de `>=`
 
-`mfm_xebec.c:250` et `:255`. Les têtes sont numérotées **depuis 0**, donc `head == hpc`
-est déjà hors du disque ; avec `>`, elle passe le filtre et le calcul d'adresse de `:265`
-vise une piste entière au-delà du cylindre demandé, **en silence**.
+`mfm_xebec.c:250` et `:255`. Les têtes sont numérotées **depuis 0**, donc `head == hpc` est déjà hors du disque ;
+avec `>`, elle passe le filtre et le calcul d'adresse de `:266` vise une piste entière au-delà du cylindre demandé,
+**en silence**.
 
-*Preuve interne* : le test des secteurs, cinq lignes plus bas (`:260`), écrit bien
-`>= 17`. Les deux bornes sont dans la même fonction, écrites dans la même minute, l'une
-juste et l'autre fausse.
-*Effet* : une lecture ou une écriture sur la tête `hpc` atteint des données valides mais
-**d'ailleurs**. `mfm_at.c:113` porte exactement le même défaut : ancêtre commun.
-*Reproduit* : `Mfm/mfm_xebec.cs`.
+*Preuve interne* : le test des secteurs, dix lignes plus bas (`:260`), écrit bien `>= 17`. Les deux bornes sont dans
+la même fonction, écrites dans la même minute, l'une juste et l'autre fausse.
+*Effet* : une lecture ou une écriture sur la tête `hpc` atteint des données valides mais **d'ailleurs**.
+`mfm_at.c:113` et `:121` portent exactement le même défaut : ancêtre commun.
+*Source* : Xebec : IBM Fixed Disk Adapter, p. 6, erreur 21h « Illegal Disk Address » (« an address that is beyond
+the maximum range ») — documenté pour le code, déduit pour la tête hors géométrie. AT (WD1003) : une tête absente ne
+présente aucun champ ID, d'où IDNF (10h), que `mfm_at` rend pour tout refus d'adresse — déduit.
+*Cas qui discrimine* : Xebec : INIT DRIVE PARAMS à n têtes, READ SECTORS à la tête n : PCem lit (c + 1, 0, s), octet
+de fin 00h ; la carte, 02h et le sense 21h. AT : SET PARAMETERS à n têtes (n < 16), READ SECTORS (20h) à la tête n :
+PCem lit (c + 1, 0, s) sans erreur ; le contrôleur, ERR et l'erreur 10h (IDNF).
+*G13* : (a).
+*Reproduit* : `Mfm/mfm_xebec.cs` et `Mfm/mfm_at.cs`, `mfm_get_sector`, quatre marqueurs PB-25 — les deux de l'AT
+posés en G13.1, qui n'en avaient pas (D3-contre, C6).
 
 ### PB-28 — `CMD_DTC_GET_DRIVE_PARAMS` répond une géométrie inventée sur une unité absente
 
-`mfm_xebec.c:651-666`. Quatre commandes touchent à une unité qui peut ne pas exister ;
-trois testent `drive->hdd_file.f` et répondent `ERR_NOT_READY` (`:299`, `:305`, `:560`,
-`:733`). Celle-ci, non — elle lit directement la géométrie :
+`mfm_xebec.c:651-666`. Quatre commandes touchent à une unité qui peut ne pas exister ; trois testent
+`drive->hdd_file.f` et répondent `ERR_NOT_READY` (`:299`, `:305`, `:560` ; `xebec_set_switches`, `:733`, saute aussi
+l'unité absente). Celle-ci, non — elle lit directement la géométrie :
 
 ```c
 xebec->data[2] = drive->hdd_file.hpc - 1;
@@ -217,10 +314,13 @@ têtes annoncées.
 
 *Effet* : propre au DTC 5150X, carte qui n'est pas celle du jalon. Le Xebec d'IBM n'a pas
 cette commande.
+*Source* : inconnu — commande propre au DTC 5150X, aucune documentation trouvée ; ERR_NOT_READY (04h), comme les
+commandes qui testent l'unité, est plausible. À mesurer.
+*Cas qui discrimine* : DTC 5150X à un seul disque, FBh vers l'unité 1 : PCem rend `00 11 FF 00` (0 cylindre, 17
+secteurs, 256 têtes) et l'octet de fin 00h ; le vrai DTC : à mesurer (04h ?). Si sa ROM émet FBh au POST, le tracer
+en C# seul dit si l'effet est atteint.
+*G13* : (c) — aucune documentation du DTC 5150X : à mesurer sur la carte.
 *Reproduit* : `Mfm/mfm_xebec.cs` — le fichier porte les deux cartes, on transcrit les deux.
-
-
----
 
 ### PB-39 — Un CALL ou un JMP par porte de tâche lève #GP au lieu de changer de tâche
 
@@ -236,21 +336,34 @@ case 0x900: /*386 Task gate*/
 Les types 1 et 9, commentés « Task gate », sont en réalité les **TSS disponibles** (286 et
 386) — un CALL ou un JMP directement sur une TSS, que ces deux lignes traitent bien. La vraie
 **porte de tâche** est le type 5 (`0x500`) : aucun `case` ne la nomme, et elle tombe dans le
-`default` — « Bad CALL special descriptor » puis `x86gpf(NULL, seg & ~3)` (CALL), ou
-« Bad JMP CS » puis `x86gpf(NULL, 0)` (JMP). `pmodeint` (`:1963`) et `pmodeiret`, eux,
-suivent bien une porte de tâche.
+`default` — « Bad CALL special descriptor » puis `x86gpf(NULL, seg & ~3)` (CALL, `:1293-1296`),
+ou « Bad JMP CS » puis `x86gpf(NULL, 0)` (JMP, `:775-779`). `pmodeint` (`:1963`) et `pmodeiret`,
+eux, suivent bien une porte de tâche ; mais la porte de `pmodeint` accepte une TSS de la LDT et
+n'en vérifie pas le type (PB-191) : ce n'est pas un modèle complet de la correction.
+
+Le JMP de tâche efface NT (`:768`) : c'est ce qu'écrit le 386 PRM (§ 7.6, Table 7-2), là où le
+SDM (vol. 3A, Table 7-2) le prend dans la nouvelle TSS. Contradiction des manuels, pas un défaut
+de PCem (D1-contre K1) : reproduit, sans entrée.
 
 *Effet* : un programme qui change de tâche par `CALL FAR` ou `JMP FAR` sur une porte de
 tâche reçoit un #GP. Changer de tâche par INT, par IRET avec NT, ou par CALL/JMP directement
 sur la TSS fonctionne.
 *Trouvé par* : pm-check --core 386, G2 D5 — le cas « CALL FAR porte de tâche » partait en
 #GP des deux côtés ; relecture de loadcscall ensuite.
-*Reproduit* : `Cpu/x86seg.cs`, loadcscall et loadcsjmp, marqueur `PB-39` ; épinglé par
-l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
+*Source* : documenté — « a JMP or CALL instruction can refer either to a TSS descriptor or to a task
+gate » (386 PRM § 7.5) et les branches TASK-GATE des pages CALL et JMP. Leurs exceptions se
+contredisent : #TS (page CALL) ou #GP (page JMP, et SDM) pour DPL, TI, limite, TSS occupée ; #NP commun.
+*Cas qui discrimine* : pm-check, cœur 386, CPL 0 : `CALL FAR` vers une porte de tâche (type 5) qui
+désigne une TSS 386 disponible → #GP(sélecteur de la porte) (PCem) ; commutation, lien arrière, NT = 1,
+TSS occupée (386). `JMP FAR` : #GP(0) contre une commutation sans lien.
+*G13* : (a) pour le chemin nominal ; (b) pour les codes d'erreur, que les manuels contredisent (K2).
+*Reproduit* : `Cpu/x86seg.cs:722` (loadcscall) et `:2546` (loadcsjmp), marqueurs `PB-39` ; épinglé
+par l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
 
 ### PB-40 — CALL FAR sur une TSS empile l'adresse de retour sur la pile de la NOUVELLE tâche
 
-`x86_ops_call.h:51-76`, la macro `CALL_FAR_l` (et `CALL_FAR_w`, même forme) :
+`x86_ops_call.h:51-96`, la macro `CALL_FAR_l` (et `CALL_FAR_w`, `:3-49`, même forme ; appelées
+en `:110`, `:128`, `:199`, `:315`, `:432`, `:550`) :
 
 ```c
 if (msw & 1)
@@ -266,11 +379,18 @@ sur la pile de la tâche appelée — là où un 386 n'empile rien, le lien arri
 tenant lieu de retour.
 
 *Effet* : après `CALL FAR` sur une TSS, l'ESP de la nouvelle tâche vaut ESP chargé − 8 (−4 en
-16 bits), et deux mots ont été écrits sous sa pile. Mesuré : ESP 0x6FF8 au lieu de 0x7000.
+16 bits), et deux mots ont été écrits sous sa pile. Mesuré : ESP 0x6FF8 au lieu de 0x7000. Si
+cette pile est invalide, l'abandon remet `CS = old_cs` dans l'état de la nouvelle tâche.
 *Trouvé par* : pm-check --core 386, G2 D5 — l'attente écrite à la main (0x7000) ne tenait
 pas ; relecture de la macro.
-*Reproduit* : `Cpu/386_ops_call.cs`, CALL_FAR_l / CALL_FAR_w, transcrits tels quels ;
-épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
+*Source* : documenté — un CALL vers une tâche n'empile rien : le lien arrière de la nouvelle TSS reçoit
+le sélecteur de l'ancienne, NT est posé, le retour se fait par IRET (386 PRM § 7.6, Table 7-2 ;
+branches TASK-GATE et TASK-STATE-SEGMENT de la page CALL).
+*Cas qui discrimine* : pm-check « CALL FAR TSS 386 » : ESP de la nouvelle tâche 0x6FF8 et deux mots
+écrits sous 0x7000 (PCem) ; ESP 0x7000, rien d'écrit (386).
+*G13* : (a) — un drapeau « commutation faite », posé par la voie TSS et par la porte (PB-39).
+*Reproduit* : `Cpu/386_ops_call.cs:56` (CALL_FAR_w) et `:121` (CALL_FAR_l), marqueurs `PB-40`,
+transcrits tels quels ; épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
 
 ### PB-41 — Une TSS 16 bits pose les moitiés hautes des registres généraux à FFFF
 
@@ -283,16 +403,28 @@ ECX = new_ecx | 0xFFFF0000;
 EDI = new_edi | 0xFFFF0000;
 ```
 
-Un changement de tâche vers une TSS 286 ne devrait toucher que les seize bits bas des
-registres ; PCem force les seize hauts à 1. La branche 32 bits (`:2612-2619`) charge les
-registres entiers, sans masque.
+La branche 32 bits (`:2612-2619`) charge les registres entiers, sans masque. Pour la branche
+16 bits, Intel ne garantit pas les moitiés hautes : « When the general-purpose registers are
+loaded or saved from a 16-bit TSS, the upper 16 bits of the registers are modified and not
+maintained » (SDM vol. 3A, § 7.6). La valeur n'est pas dite. Bochs (`cpu/tasking.cc`) pose
+0xFFFF lui aussi, sans dire d'où il le tient. PCem et Bochs mettent de plus FS et GS à nul
+(`x86seg.c:2835-2838`).
 
-*Effet* : sur un 386, entrer dans une tâche 286 met EAX…EDI à `0xFFFFxxxx`. Sur un 286,
-invisible — les moitiés hautes n'y existent pas pour le programme — mais le vecteur d'état
-les compare.
+**Corrigé en G13.1** : l'entrée disait qu'un changement de tâche vers une TSS 286 « ne devrait
+toucher que les seize bits bas des registres » ; c'est contraire à Intel (D1-contre C15).
+
+*Effet* : sur un 386, entrer dans une tâche 286 met EAX…EDI à `0xFFFFxxxx`, une valeur
+qu'Intel ne fixe pas. Sur un 286, invisible — les moitiés hautes n'y existent pas pour le
+programme — mais le vecteur d'état les compare.
 *Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
-*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaire `verbatim` ; épinglé par l'attente
-du cas « JMP FAR TSS 286 depuis un 386 » (EAX 0xFFFF1111).
+*Source* : inconnu — Intel : moitiés hautes « modified and not maintained » (SDM vol. 3A, § 7.6), sans
+valeur ; Bochs : 0xFFFF, sans source. À mesurer sur un 386DX : EAX = 12345678h, JMP vers une TSS 286
+dont AX vaut 1111h, puis lire EAX dans la nouvelle tâche.
+*Cas qui discrimine* : pm-check « JMP FAR TSS 286 depuis un 386 » : EAX = 0xFFFF1111 (PCem) ; la
+valeur du silicium n'est pas connue.
+*G13* : (c) — valeur réelle inconnue, et garder les moitiés hautes contredirait Intel : reproduit.
+*Reproduit* : `Cpu/x86seg.cs:2303`, taskswitch286, marqueur `PB-41` (l'en-tête de la fonction le
+dit) ; épinglé par l'attente du cas « JMP FAR TSS 286 depuis un 386 » (EAX 0xFFFF1111).
 
 ### PB-43 — MOV CRx, DRx et TRx décodent le champ `mod` comme une adresse
 
@@ -308,8 +440,17 @@ de déplacement (et le SIB en 32 bits) et avance `pc` d'autant.
 suivants sont sautés. Aucun code réel n'écrit ces formes, mais un octet ModRM quelconque y
 mène.
 *Trouvé par* : relecture pendant la transcription, G2 D4.
-*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, en-tête (« LE CHAMP mod … EST IGNORÉ PAR LE
-SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare des deux côtés.
+*Source* : « The 2 bits in the mod field are ignored » (SDM vol. 2, MOV vers et depuis les registres
+de contrôle, et de débogage) : documenté pour l'IA-32 ; le 386 PRM (page MOV — Move to/from Special
+Registers) dit seulement « always 11 ». Pour le 386 et le 486, et pour les TRx : déduit.
+*Cas qui discrimine* : banc dirigé, mode réel sur un 386 : `0F 20 06` puis `40 40 F4` → PCem lit un
+déplacement de 16 bits (4040h) et saute les deux INC AX ; le 386 fait une instruction de 3 octets
+(ESI = CR0) et AX gagne 2. Le fuzzeur `--0f 20…26` en mode matériel ne divergera que sur ces formes.
+*G13* : (b) — vrai comportement déduit pour le 386 et le 486 ; aucun corpus (`0F 20`–`0F 26` absents
+de SST 386).
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, les douze handlers, marqueurs `PB-43` (`:47`, `:89`, `:134`,
+`:151`, `:180`, `:239`, `:296`, `:315`, `:332`, `:349`, `:366`, `:383`) ; l'en-tête le dit (« LE CHAMP
+mod … EST IGNORÉ PAR LE SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare des deux côtés.
 
 ### PB-44 — Les formes a32 de MOV DRx,r et MOV TRx,r décodent en 16 bits
 
@@ -321,7 +462,13 @@ le `PREFETCH_RUN` qui suit passe bien `ea32 = 1`.
 16 bits (pas de SIB, déplacement de 16 bits) au lieu de 32 : `pc` avance d'une autre longueur.
 Invisible avec `mod = 3`, la seule forme d'usage.
 *Trouvé par* : relecture pendant la transcription, G2 D4.
-*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, commentaires `verbatim` des deux handlers.
+*Source* : celle de PB-43 — `mod` ignoré, quelle que soit la taille d'adresse : déduit.
+*Cas qui discrimine* : `67 0F 23 85` et un déplacement : PCem lit 16 bits (6 octets), une forme a32
+corrigée seule en lirait 32 (8 octets), le 386 aucun (4 octets). Invisible pour `mod = 3`.
+*G13* : (d) — corrigé seul, il décoderait encore une adresse, d'une autre longueur, aussi fausse ; la
+correction de PB-43 le rend inobservable.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs:313` (MOV DRx,r a32) et `:382` (MOV TRx,r a32), marqueurs
+`PB-44`.
 
 ### PB-45 — IDIV octet étend AX par des zéros au lieu du signe
 
@@ -333,19 +480,27 @@ case 0x38: /*IDIV AL,b*/
 ```
 
 AX est un `uint16_t` : la conversion en `int` le complète par des zéros. Un dividende négatif
-(AX ≥ 0x8000) est donc divisé comme un grand positif. La forme mot (`:3743`, F7 /7) lit
+(AX ≥ 0x8000) est donc divisé comme un grand positif. La forme mot (`:3744`, F7 /7) lit
 `(DX << 16) | AX` et signe correctement.
 
 *Effet* : quotient et reste faux pour tout dividende négatif sans débordement. Mesuré sur
 SingleStepTests/8088, forme `F6.7` (hors ligne de base, vecteurs en `/tmp`) : 1 169 / 9 696
-côté oracle ET côté C#. Sur les 9 372 cas sans préfixe REP, un modèle Python du C reproduit
+côté oracle ET côté C# (9 696 joués : la sonde écarte les cas qui commencent par REP,
+D1-contre K9). Sur les 9 372 cas sans préfixe REP, un modèle Python du C reproduit
 exactement les 1 169 : **1 143 échecs viennent du signe perdu** (dividende négatif, pas de
 débordement) ; environ 7 000 viennent d'un débordement de quotient que PCem ne détecte pas —
-sur le silicium, #DE — comme pour DIV (famille déjà recensée en § M5.0 de `VERIFICATION.md`,
-sans entrée PB) ; 32 cas à diviseur nul échouent pour une cause non instruite. `F7.7` n'est
-pas touché par le signe.
+sur le silicium, #DE — comme pour DIV (PB-169) ; 32 cas à diviseur nul échouent,
+vraisemblablement sur les drapeaux que l'INT 0 empile (PB-180 ; déduit, D1-contre K6).
+`F7.7` n'est pas touché par le signe.
 *Trouvé par* : audit du 26/09 (D4), mesuré en G2.
-*Reproduit* : `Cpu/808x.cs`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
+*Source* : le dividende d'IDIV octet est AX, signé : documenté (386 PRM, page IDIV) ; sur le 8088 un
+quotient hors capacité, 80h compris, lève l'interruption 0 (pages DIV et IDIV ; § 14.7, point 11), et
+un REP devant IDIV inverse le signe du quotient (README SST 8088, mesuré).
+*Cas qui discrimine* : SST 8088 `F6.7` (masque 0xF72A). Banc : AX = FFF7h (−9), BL = 02h, `IDIV BL`
+→ AL = FBh, AH = 01h (PCem, qui divise 65 527) ; AL = FCh (−4), AH = FFh (−1) sur le 8088.
+*G13* : (a) conditionnel — le signe seul gagne 1 143 cas sûrs ; le reste de `F6.7` attend PB-169,
+PB-180, PB-177 (REP après un préfixe) et la levée du filtre REP de la sonde.
+*Reproduit* : `Cpu/808x.cs:3569`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
 
 ### PB-48 — Le mode d'arrondi du x87 ne s'applique qu'à FADD avec opérande mémoire
 
@@ -359,12 +514,14 @@ if ((cpu_state.npxc >> 10) & 3)
         fesetround(FE_TONEAREST);
 ```
 
-Les champs RC de `npxc` (bits 10-11) ne sont lus que là. Les autres branches du même macro —
+Les champs RC de `npxc` (bits 10-11) ne sont lus, en arithmétique, que là ; hors de l'arithmétique, seul
+`x87_fround` les lit (`x87_ops.h:63`), pour FIST, FISTP et FRNDINT. Les autres branches du même macro —
 FSUB, FSUBR, FMUL, FDIV, FDIVR (`:48-112`) — calculent sans `fesetround`, donc au plus près,
 et de même les formes registre de FADD (`opFADD`, `opFADDr`, `opFADDP`, `:122-152`) et toutes
 celles de FSUB/FMUL/FDIV (`:239-397`). Le macro engendre le défaut pour les quatre types
 d'opérande (m32, m64, m16int, m32int, `:114-120`), et `8087.h:86` l'inclut aussi : le 8087 en
-hérite.
+hérite. Le stockage FST et FSTP m32 ignore RC lui aussi : `ts.s = (float)ST(0)` (`x87_ops_loadstore.h:527`,
+`:539`, `:552`, `:567`) est la conversion de l'hôte, au plus près (contre-lecture de G13, D2-contre K18).
 
 *Effet* : sous un mode d'arrondi dirigé (vers −∞, +∞ ou zéro), FADD mémoire arrondit selon
 le mode et toute autre opération au plus près. Sur le silicium, les six opérations suivent
@@ -390,8 +547,18 @@ mesure sur le motif hors du handler (`h_fpu_arith`, mêmes drapeaux -O2 sans
 `-frounding-math`) rend 100 % d'arrondi dirigé exact pour les quatre opérations (625 000 cas par combinaison) : GCC honore
 bien `fesetround`, le défaut est dans l'endroit où PCem l'appelle.
 *Trouvé par* : mesure de parité de G4.0 (`PLAN-G4.md`), confirmée à la ligne de C.
-*Reproduit* : pas encore — G4.3 transcrira l'arrondi dirigé sur les seuls FADD mémoire, au
-plus près partout ailleurs (décision n° 3 de `PLAN-G4.md`).
+*Source* : IEEE 754-1985 § 4 (toute opération arrondie selon le mode) ; SDM vol. 1 § 8.1.5.3 (RC) et vol. 2, FST/FSTP
+(un stockage en m32 ou m64 arrondi selon RC) ; 387 PRM ch. 2 ; Numerics Supplement (1980), « Rounding Control » : le
+8087 et le 287 aussi — documenté.
+*Cas qui discrimine* : mot de contrôle 0A7Fh (53 bits, vers +∞) : FLD1 ; FDIV m64 = 3,0 ; FSTP m64 → PCem
+3FD5555555555555, silicium 3FD5555555555556 ; sous 077Fh (64 bits, vers −∞) : FLD1 ; FDIV m64 = 3,0 ; FST m32 →
+PCem 3EAAAAABh, silicium 3EAAAAAAh.
+*G13* : (a) — avec le noyau (point de décision n° 10) ; en double, juste pour une opération isolée rangée (K4).
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_fadd_dirige` — l'arrondi dirigé de PCem rendu par TwoSum (DEVIATION de G4.3),
+appelé par les seuls opFADD mémoire ; les huit blocs FADD mémoire de `Cpu/x87_ops_arith.cs` (générés par
+`tools/x87gen/gen43.py`) ; FST et FSTP m32 de `Cpu/x87_ops_loadstore.cs` ; leurs copies de `Cpu/x87_ops_808x.cs` ;
+marqueurs PB-48. `x87-cases` : les bords de l'arrondi dirigé de FADD mémoire. (Ce champ disait « pas encore —
+G4.3 transcrira… » : G4.3 l'a fait, D2-contre K11.)
 
 ### PB-50 — Aucune limite de longueur d'instruction : les préfixes s'enchaînent sans fin
 
@@ -407,7 +574,16 @@ exécute environ 1,7 million de préfixes, 3 428 108 cycles, jusqu'à IP 000F000
 rempli, puisque IP ne boucle pas non plus (PB-51) ; mêmes résultats pour 65, 66, 67, F0, F2,
 F3 et `26 64` alternés. Le silicium aurait levé #GP au seizième octet.
 *Trouvé par* : l'instruction de PB-49 (préfixes intercalés dans une chaîne de POP SS).
-*Reproduit* : le C# ne compte pas non plus. Mais le préfixe de PCem est un appel terminal
+*Source* : documenté — 386 : 15 octets, exception 13 (386 PRM § 14.7, point 6) ; 286 : 10 octets,
+exception 13 (errata Intel « 80286 ARPL and Overlength Instructions », 15 octobre 1984) ; 486 : 15,
+#GP (déduit, SDM) ; 8088/8086 : aucune limite (§ 14.7, point 6). Le README SST 80386 (10, #6) contredit Intel.
+*Cas qui discrimine* : banc, mode réel, 386 : quatorze `26` puis `90` (15 octets) passent des deux
+côtés ; quinze `26` puis `90` → NOP exécuté (PCem), INT 0Dh (386). Sur le 286, au-delà de 10 octets ;
+le corpus SST 80286 en a vraisemblablement, une fois `Moo.cs` étendu aux UC 16 bits.
+*G13* : (a) — le compte des préfixes dans `Dispatch` suffit au cas pathologique ; l'exactitude au
+seuil (préfixes sous la limite, corps au-delà) demande un décodeur de longueur.
+*Reproduit* : le C# ne compte pas non plus (`Cpu/386_ops_prefix.cs:65`, `Dispatch`, marqueur
+`PB-50`). Mais le préfixe de PCem est un appel terminal
 que GCC compile en saut (`jmp *%rax`) ; C# ne garantit pas l'appel terminal, et le C# Debug
 tombait par StackOverflow sur la recette ci-dessus. Le C# aiguille donc par un trampoline
 (`TailCall` / `Dispatch`, `Cpu/386_ops_prefix.cs`, `// DEVIATION:`) : même handler, même
@@ -415,47 +591,86 @@ fetchdat, même valeur rendue, sans pile — au bit près l'appel terminal de PC
 
 ### PB-51 — Le fetch d'instruction ne contrôle pas la limite de CS
 
-La boucle d'exec386 (`386_dynarec.c`, l'interpréteur) et `fastreadl`/`getpccache`
-(`386_common.h:100-145`) lisent `cs + cpu_state.pc` sans comparer `pc` à
-`cpu_state.seg_cs.limit` : `grep limit` ne rend, dans ces deux fichiers, que des
-commentaires. En mode réel, la limite de CS vaut 0xFFFF : sur le silicium, un fetch au-delà
-lève #GP (INT 0Dh) — IP ne continue pas dans le segment suivant.
+La boucle d'exec386 (`386.c:153`, lecture d'opcode en `:178`), `fastreadb`, `fastreadw` et
+`fastreadl` (`386_common.h:100-149`), puis `getbyte`, `getword` et `getlong` (`:160-173`) lisent
+`cs + cpu_state.pc` sans comparer `pc` à `cpu_state.seg_cs.limit` : `grep limit` ne rend rien dans
+`386.c`, et dans `386_common.h` que les gardes des données (`CHECK_READ`, `CHECK_WRITE`,
+`CHECK_WRITE_REP`, `:74-92`), qu'aucune lecture d'instruction n'appelle. En mode réel, la limite
+de CS vaut 0xFFFF : sur le silicium, un fetch au-delà lève #GP (INT 0Dh) — IP ne continue pas
+dans le segment suivant.
+
+**Corrigé en G13.1** : l'entrée plaçait la boucle dans `386_dynarec.c` ; l'interpréteur que lie
+l'oracle (`tools/oracle/Makefile:77`) et que transcrit `386.cs` est `386.c` (D1-contre K10).
 
 *Effet* : IP franchit 0xFFFF et l'exécution se poursuit linéairement dans la RAM. Mesuré
 (G4.0) : après une suite de préfixes commencée en 1000:0xxx, IP vaut 000F0002 — CS:IP
 pointe 0x100002, au-delà du Mo. Même famille que les formes E2 de `VERIFICATION.md` § G2,
 où PCem ne contrôle pas la limite des adresses effectives en mode réel. En mode protégé, la
-lecture du code dit la même chose ; ce n'est pas mesuré.
+lecture du code dit la même chose ; ce n'est pas mesuré. Sur un PC, INT 0Dh est le vecteur de
+l'IRQ 5 : le gestionnaire du BIOS revient à l'offset 0, seul un IP de 16 bits étant empilé ; le
+vrai PC « semble » donc replier, là où PCem exécute ce qui suit (déduit).
 *Trouvé par* : la trace de PB-50.
-*Reproduit* : le C# transcrit la boucle et `fastreadl` sans contrôle, comme PCem ; rien
-d'imposé.
+*Source* : documenté pour le 386 : « On the 80386, the processor raises exception 13 in such a case »
+(386 PRM § 14.7, point 8) ; en mode protégé, « Instruction pointer must be within code-segment limit
+ELSE #GP(0) » (pages CALL, JMP). Le 286 en mode réel : déduit (OS/2 Museum, M. Necasek, 29/10/2022).
+*Cas qui discrimine* : banc, mode réel, 386 : un NOP en CS:FFFFh → PCem exécute l'octet de CS + 10000h ;
+le 386 lève INT 0Dh, IP empilé 0000h (OS/2 Museum). Une instruction de 3 octets en FFFEh : #GP aussi.
+En mode protégé, CS de limite 0FFFh. Cas SST 286 et 386 en bord de segment : à compter.
+*G13* : (a) — chemin chaud : un test par instruction (`pc` contre la limite), ou par octet lu près de
+la limite pour l'instruction à cheval ; le coût est à mesurer.
+*Reproduit* : `Cpu/386.cs:369` (la lecture d'opcode d'exec386) et `Cpu/386_common.cs:564` (getbyte,
+getword, getlong), marqueurs `PB-51` : sans contrôle, comme PCem.
 
 ### PB-52 — FBLD n'existe pas : DF /4 est FPU_ILLEGAL
 
-`x87_ops.h:884-893` (et `:923-932` en a32) : la rangée `/4` de `fpu_df_a16` porte
-`ILLEGAL`, c'est-à-dire `FPU_ILLEGAL_a16` (`:297-302`) — décoder l'adresse effective, compter
-`timing_rr`, et rien d'autre. `x87_ops_*.h` ne contient aucun `opFBLD` ; `x87_timings_t`
+`x87_ops.h:884-920` (et `:923-959` en a32) : les rangées `/4` de `fpu_df_a16` (`:889`, `:898`, `:907` ; en a32
+`:928`, `:937`, `:946`) portent `ILLEGAL`, c'est-à-dire `FPU_ILLEGAL_a16` (`:297-302`) — décoder l'adresse effective,
+compter `timing_rr`, et rien d'autre. `x87_ops_*.h` ne contient aucun `opFBLD` ; `x87_timings_t`
 n'a même pas de champ `fbld` utilisé (il en a un, `x87_timings.h:7`, que personne ne lit).
 
 *Effet* : FBLD (chargement d'un décimal compacté de 10 octets) ne charge rien : la pile x87
 ne bouge pas, TOP ne descend pas, et le programme continue avec le registre du dessus
-inchangé. Le silicium pousse la valeur décimale. FBSTP, lui, existe (`:141-200`).
+inchangé. Le silicium pousse la valeur décimale. FBSTP, lui, existe (`x87_ops_loadstore.h:141-200`). Un témoin
+réel : 86Box v4.2 a corrigé « issues with Lotus 1-2-3 and other applications due to missing FBLD FPU instruction »
+(D2-contre A8).
 *Trouvé par* : transcription de G4.2, en posant les rangées mémoire de DF.
-*Reproduit* : `Cpu/x87_ops.cs`, `TableFpu`, rangée `/4` de DF à `FPU_ILLEGAL` ; commentaire
-PB-52. Le fuzzeur G4.2 (`--x87 mem`) tire DF /4 et le confronte à l'oracle.
+*Source* : SDM vol. 2, FBLD (dix-huit chiffres et un signe convertis sans erreur d'arrondi, poussés ; −0 gardé ;
+chiffres A à F : « undefined ») ; 387 PRM ch. 4 ; Numerics Supplement (1980) — documenté ; la valeur rendue pour un
+BCD invalide : inconnue, à mesurer.
+*Cas qui discrimine* : FNINIT ; FLDZ ; FBLD m80 = 45 23 01 00 00 00 00 00 00 80 (−12 345) ; FSTP m64 → PCem
+0000000000000000 (le zéro de FLDZ, resté au sommet), silicium C0C81C8000000000.
+*G13* : (a) — un gestionnaire neuf, avec le noyau (en double, exact jusqu'à 2^53) ; chiffres invalides : (c).
+*Reproduit* : `Cpu/x87_ops_tables.cs`, `Table_fpu_df_a16` et `Table_fpu_df_a32`, rangées /4 à `FPU_ILLEGAL_a16`/`_a32`
+(générées par `tools/x87gen/gentab.py`), et `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16` (`gen46.py`) ;
+marqueurs PB-52. (Ce champ citait `Cpu/x87_ops.cs`, `TableFpu`, disparue en G4.3 : D2-contre K11.) Le fuzzeur G4.2
+(`--x87 mem`) tire DF /4 et le confronte à l'oracle.
 
 ### PB-54 — Seul FSTP m64 contrôle la limite du segment ; FST m64 et les autres stockages non
 
 `x87_ops_loadstore.h:454-485` : `opFSTPd_a16` et `_a32` appellent
-`CHECK_WRITE(cpu_state.ea_seg, cpu_state.eaaddr, cpu_state.eaaddr + 7)` — lève #GP si les huit
+`CHECK_WRITE(cpu_state.ea_seg, cpu_state.eaaddr, cpu_state.eaaddr + 7)` (`:459`, `:475`) — lève #GP si les huit
 octets sortent de la limite. Aucun autre stockage x87 ne le fait : ni `opFSTd` (`:429-452`),
-le même stockage sans dépilement, ni FST/FSTP m32, FIST/FISTP, FSTP m80, FBSTP.
+le même stockage sans dépilement, ni FST/FSTP m32, FIST/FISTP, FSTP m80, FBSTP, ni FSAVE, FSTENV,
+FSTSW m16 et FSTCW (`x87_ops_misc.h`). Les chargements n'ont pas de `CHECK_READ` non plus : `x87_ops*.h` n'en
+contient aucun. Et `SEG_CHECK_WRITE` ne teste que le sélecteur nul (`386_common.h:66-72`), là où `CHECK_WRITE`
+teste aussi le droit d'écriture et le segment de code (`:81-86`) : un stockage x87 dans un segment en lecture seule
+ne faute pas, hors FSTP m64 (D2-contre A4-i).
 
 *Effet* : à l'offset 0xFFF9 d'un segment de 64 Ko, FSTP m64 lève #GP, FST m64 écrit — au-delà
-de la limite, sans faute. Sur le silicium, les deux lèvent #GP.
+de la limite, sans faute. Sur le silicium, les deux fautent, mais un opérande à cheval sur la limite, comme celui-ci,
+lève l'exception 13 ou l'INT 9 sur le 386, #GP ou l'abandon sur le 486, selon la source ; seul un opérande qui commence
+hors de la limite lève #GP partout (D2-contre K20-e, f ; cette entrée disait « les deux lèvent #GP »).
 *Trouvé par* : lecture ligne à ligne en G4.2.
-*Reproduit* : `Cpu/x87_ops_loadstore.cs`, verbatim — seuls les deux `opFSTPd` portent
-`CHECK_WRITE`.
+*Source* : 287 PRM § 9.6.3 p. 9-10 (INT 9) ; 80386 PRM § 9.8.9 et § 14.7 ; 387 PRM annexe D, item 7 (INT 13 si
+l'opérande commence hors limite, INT 9 si un mot suivant en sort) ; 486 : SDM vol. 3 (2016) § 22.18.6.12 contre
+vol. 3A ch. 6, i486 PRM § 9.9.9 contre § 25.1 ; SDM vol. 2 (#GP, segment non inscriptible) — documenté, contradictoire.
+*Cas qui discrimine* : mode protégé (386 + 387 ou 486), DS de limite 0FFFh : FST m64 [1000h] → PCem écrit huit octets
+à base + 1000h, silicium #GP(0) sans écrire ; DS en lecture seule : FST m32 [0] → PCem écrit, silicium #GP(0).
+*G13* : (b) — hors limite dès le début, et droits : (a) ; à cheval : (b) ; tous les accès mémoire : avec le noyau.
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, verbatim — seuls les deux `opFSTPd` portent `CHECK_WRITE` ; marqueurs PB-54
+sur ces deux lignes et après le `SEG_CHECK_WRITE` de chacun des vingt autres stockages, et (par `gen44.py`) de FSAVE,
+FSTENV, FSTSW m16 et FSTCW dans `Cpu/x87_ops_misc.cs`. Aucun dans `Cpu/x87_ops_808x.cs` : `gen46.py` les écarte, le
+8087 n'a pas de limite de segment (`CHECK_WRITE` vide, `Cpu/x87_8087.cs`).
 
 ### PB-55 — x87_ld80 replie l'exposant modulo 1024 et écrase les dénormaux
 
@@ -480,8 +695,15 @@ lieu de l'incrémenter. Le bit entier explicite (bit 63) est ignoré : les « un
 lisent comme des normaux.
 *Effet* : FLD m80 et FRSTOR rendent des valeurs fausses hors de la plage du double.
 *Trouvé par* : lecture ligne à ligne en G4.2.
-*Reproduit* : `Cpu/x87_ops.cs`, `x87_ld80`, verbatim. Le fuzzeur G4.2 le confronte à l'oracle
-(DB /5) ; contrôle négatif : sans `& 0x3ff`, divergence à l'itération 3.
+*Source* : SDM vol. 2, FLD (un m80 est chargé sans conversion ; ni #IA ni #D pour un m80) ; 387 PRM annexe C
+(formats non pris en charge : IE à l'usage) ; Numerics Supplement (1980) tables S-25 et S-26 (8087, 287) — documenté.
+*Cas qui discrimine* : FLD m80 (significande 8000000000000000h, exposant 43FFh : 2^1024) ; FSTP m80 → PCem
+3FFFh 8000000000000000h (1,0), silicium 43FFh 8000000000000000h, inchangé.
+*G13* : (a) — avec le noyau, ou dès « A+ » (un stockage de 80 bits suffit, D2-contre K6) ; en double : partiel.
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_ld80`, verbatim, et sa seconde copie de `Cpu/x87_8087.cs` (l'unité du 808x) ;
+marqueurs PB-55 ; FLD m80 (`opFLDe_*`) et FRSTOR (`x87_ld_frstor`) l'appellent. L'en-tête de `x87_ops.cs` attribuait
+ce défaut à PB-52 : corrigé. Le fuzzeur G4.2 le confronte à l'oracle (DB /5) ; contrôle négatif : sans `& 0x3ff`,
+divergence à l'itération 3.
 
 ### PB-56 — x87_st80 écrit un double dénormal comme un normal, et 53 bits de précision seulement
 
@@ -494,7 +716,14 @@ perdus en lecture (PB-55). Toute l'arithmétique x87 est à 53 bits, pas à 64.
 *Effet* : FSTP m80, FSAVE, FSTENV rendent des octets que le silicium n'écrirait pas pour les
 dénormaux ; les calculs en précision étendue perdent onze bits.
 *Trouvé par* : lecture ligne à ligne en G4.2 ; la précision était relevée dès PLAN-G4.md.
-*Reproduit* : `Cpu/x87_ops.cs`, `x87_st80`, verbatim ; ST est un `double[]` (`x86.cs`).
+*Source* : SDM vol. 1 § 8.1.2 (registres de 80 bits) et § 8.1.5.2 (PC : 24, 53 ou 64 bits pour FADD, FSUB(R), FMUL,
+FDIV(R), FSQRT) ; SDM vol. 2, FINIT (037Fh, PC = 64 bits) ; 387 PRM ; Numerics Supplement (1980) fig. S-7 — documenté.
+*Cas qui discrimine* : FLD m64 = 0000000000000001 (2^−1074) ; FSTP m80 → PCem 3C00h 8000000000000800h, silicium
+3BCDh 8000000000000000h ; FNINIT ; FLD1 ; FDIV m64 = 3,0 ; FSTP m80 → PCem 3FFDh AAAAAAAAAAAAA800h, silicium
+3FFDh AAAAAAAAAAAAAAABh.
+*G13* : (a) — avec le noyau seulement ; en double, le codage des dénormaux, pas la précision (D2-contre K5).
+*Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st80`, verbatim, marqueurs PB-56 ; ST est un `double[]`
+(`Cpu/x86.cs`, hors du domaine du x87, sans marqueur).
 
 ### PB-57 — FCOM en forme registre compare avec `==` et `<` : un NaN rend « plus grand »
 
@@ -510,16 +739,22 @@ else if (ST(0) < ST(fetchdat & 7))
 
 Avec un NaN, les deux tests sont faux : C3 = C2 = C0 = 0, « ST(0) > ST(i) ». Le silicium, et
 FCOMP registre, FCOMPP, FCOM mémoire chez PCem même, rendent « non ordonné » (C3 = C2 = C0 =
-1). Et FCOM registre compte `x87_timings.fadd`, FCOMP et FCOMPP aussi, pas `fcom`.
+1). Et FCOM registre compte `x87_timings.fadd`, FCOMP et FCOMPP aussi, pas `fcom` (`:164`, `:176`, `:193`).
 *Effet* : un programme qui teste C2 après FCOM ST(i) sur un NaN le croit comparable.
 *Trouvé par* : transcription de G4.3.
-*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOM`, marqueur PB-57. `x87-cases` le confronte à
-l'oracle (NaN contre 1) ; contrôle négatif : x87_compare sans son test de NaN → divergence
-`npxs` à l'itération 67 du fuzzeur G4.3.
+*Source* : SDM vol. 2, FCOM/FCOMP/FCOMPP (non ordonné : C3 C2 C0 = 111 ; « C1 Set to 0 » ; #IA pour tout NaN) ; 387 PRM
+annexe C ; 287 PRM table 2-6 p. 2-10 et Numerics Supplement (1980), fiche du 8087 table 3 (C3 = C0 = 1, C2 et C1
+« X ») — documenté ; le C2 effectif du 8087 et du 287 : inconnu.
+*Cas qui discrimine* : ST(0) = 7FF8000000000000, ST(1) = 1,0 ; FCOM ST(1) (D8 D1) ; FSTSW m16 → PCem C3 = C2 = C0 = 0,
+IE = 0, silicium (387 et suivants) C3 = C2 = C0 = 1, IE = 1 ; cycles : `fadd` (28 sur le 387) contre `fcom` (24).
+*G13* : (a) — G13.6, les PB à peu de gestionnaires (les comparaisons) ; C2 du 8087 et du 287 : (c).
+*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOM`, marqueur PB-57 (généré par `gen43.py`), et sa copie de
+`Cpu/x87_ops_808x.cs`. `x87-cases` le confronte à l'oracle (NaN contre 1) ; contrôle négatif : x87_compare sans son
+test de NaN → divergence `npxs` à l'itération 67 du fuzzeur G4.3.
 
 ### PB-58 — FCOMPP : −0 contre +0 rend « plus petit », un contournement de détection
 
-`x87_ops_arith.h:180-195`, `opFCOMPP` (DE D9) :
+`x87_ops_arith.h:180-195`, `opFCOMPP` (DE D9), le contournement en `:186-187` :
 
 ```c
 if (*(uint64_t *)&ST(0) == ((uint64_t)1 << 63) && *(uint64_t *)&ST(1) == 0)
@@ -529,10 +764,19 @@ if (*(uint64_t *)&ST(0) == ((uint64_t)1 << 63) && *(uint64_t *)&ST(1) == 0)
 ST(0) = −0 et ST(1) = +0 rendent C0, « plus petit » ; le silicium rend C3, « égal ». Le
 commentaire dit pourquoi : une routine de détection distingue 287 et 387 par le signe de
 l'infini projectif, et PCem, qui n'a pas le mode projectif, force le résultat attendu.
+Le contournement ne se déclenche pourtant que sur les motifs exacts (−0, +0) ; la détection classique (FNINIT ; 1/0 ;
+FLD ST ; FCHS ; FCOMPP) compare ±∞, et des zéros n'y apparaissent que si 1/0 n'a pas été écrit — ZE démasquée, x87_div
+sort sans écrire (PB-59), par exemple avec le `npxc = 0` qu'un `x87_reset` vide laisse. Hypothèse à instruire avant de
+corriger (D2-contre A6).
 *Effet* : toute comparaison −0 / +0 par FCOMPP, et elle seule, rend « plus petit ».
 *Trouvé par* : transcription de G4.3.
-*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOMPP`, marqueur PB-58. `x87-cases` : FCOMPP (−0,
-+0) identique à l'oracle ; sans le contournement, `npxs : oracle 0x0100, C# 0x4000`.
+*Source* : IEEE 754-1985 § 5.7 (« comparisons shall ignore the sign of zero (so +0 = −0) ») ; SDM vol. 2, FCOM/FCOMP/
+FCOMPP (±0 égaux : C3) — documenté.
+*Cas qui discrimine* : FLDZ ; FLDZ ; FCHS (ST(0) = −0, ST(1) = +0) ; FCOMPP ; FSTSW m16 → PCem 0100h (C0), silicium
+4000h (C3).
+*G13* : (a) — G13.6, avec la part « comparaisons » de PB-70, après l'hypothèse A6 instruite.
+*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOMPP`, marqueur PB-58, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` :
+FCOMPP (−0, +0) identique à l'oracle ; sans le contournement, `npxs : oracle 0x0100, C# 0x4000`.
 
 ### PB-59 — Seule la division par zéro lève une exception ; démasquée, l'instruction s'évapore
 
@@ -542,13 +786,22 @@ pleine), ni DE, ni OE, ni UE, ni PE — aucun de ces bits de npxs n'est jamais p
 ZE est démasquée, x87_div fait `picint(1 << 13)` puis `return 1` : le handler sort sans
 écrire la destination, sans poser le tag, sans compter ses cycles — et sans poser ES ni B
 dans npxs. Sur un XT, `picint(1 << 13)` vise un second PIC qui n'existe pas (le 8087 y passe
-par la NMI), G4.6.
+par la NMI), G4.6. FLD m32 ou m64 d'un dénormal ne pose pas DE non plus ; démasquée, le silicium empile quand même la
+valeur, un cas que l'acheminement traitera à part (D2-contre A4-h).
 *Effet* : un programme qui démasque les exceptions n'en voit qu'une, et pour la division par
 zéro l'instruction ne compte aucun cycle. Mesuré (contrôle négatif de G4.3, la branche
 démasquée neutralisée) : `D8 F5` (FDIV), `cycles consommés : oracle 8, C# 89` — les 8 sont
 ceux du décodage.
 *Trouvé par* : transcription de G4.3 ; relevé en reconnaissance (PLAN-G4.md).
-*Reproduit* : `Cpu/x87_ops.cs`, `x87_div`. `x87-cases` : 1 / ±0, ZE masquée et démasquée.
+*Source* : SDM vol. 1 § 8.4 et § 8.5 (les six exceptions, réponses masquées et démasquées ; § 8.5.5, petitesse après
+arrondi) ; 387 PRM ch. 3 et annexe C (8087, 287) ; AP-578 § 2.1 à 2.3.1, SDM vol. 3 (2016) § 22.18.6.14 (#MF) —
+documenté ; les cycles d'une instruction démasquée : déduit.
+*Cas qui discrimine* : FNINIT ; FLD1 ; FCHS ; FSQRT ; FSTSW m16 → PCem 3800h, silicium 3801h (IE) ; IF = 0, FNINIT ;
+FLDCW 037Bh ; FLD1 ; FLDZ ; FDIVP ; FNSTSW m16 → PCem 3004h, silicium (387) B084h (ZE, ES, B) ; FLD m64 =
+0000000000000001 → DE : PCem 0, silicium 1.
+*G13* : (b) — drapeaux masqués : (a), avec le noyau ; ZE et son acheminement : G13.6 ; OE, UE démasquées : (b).
+*Reproduit* : `Cpu/x87_ops.cs`, `x87_div`, partagé par les deux instanciations, marqueur PB-59 ; `x87_checkexceptions`,
+jamais appelée, n'est pas transcrite. `x87-cases` : 1 / ±0, ZE masquée et démasquée.
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 
@@ -571,22 +824,34 @@ Mesuré sur l'oracle (`x87-nan-order`, ST(0) = NaN A, l'autre opérande = NaN B)
 l'autre ; il changerait avec le compilateur de PCem.
 *Trouvé par* : le fuzzeur G4.3 (`DC C5` : `ST[5] : oracle 0x7FF8…, C# 0x7FFF…`), puis le
 désassemblage de l'oracle et la mesure.
-*Reproduit* : `Cpu/x87_ops.cs`, `X87AddSd` / `X87MulSd`, la règle SSE avec un ordre explicite,
-et vingt-deux sites de `Cpu/x87_ops_arith.cs` marqués PB-60. Contrôle négatif : l'ordre de
-opFADD inversé → divergence à l'itération 46 159.
+*Source* : SDM vol. 1 table 4-7, « Rules for Generating QNaNs » (deux NaN : le plus grand significande ; SNaN et QNaN :
+le QNaN ; NaN et nombre : le NaN) ; Numerics Supplement (1980), « NANs » (8087 et 287 : le NaN de plus grande valeur
+absolue) — documenté ; deux significandes égaux de signes contraires : inconnu.
+*Cas qui discrimine* : ST(0) = 7FF8000000000001, ST(5) = 7FF8000000000002 ; DC C5 (FADD ST(5), ST(0)) → PCem ST(5) =
+7FF8000000000001, silicium 7FF8000000000002.
+*G13* : (a) — avec le noyau ; en double, exact hors des charges de FLD m80 (K4) ; significandes égaux : (c).
+*Reproduit* : `Cpu/x87_ops.cs`, `X87AddSd` / `X87MulSd`, la règle SSE avec un ordre explicite, et `x87_fadd_dirige` (la
+mémoire en premier) ; vingt-deux sites de `Cpu/x87_ops_arith.cs` (générés par `gen43.py`) et leurs copies de
+`Cpu/x87_ops_808x.cs` ; marqueurs PB-60 sur la ligne au-dessus de chaque site, les fins de ligne `// PB-60 : …`
+restant. Contrôle négatif : l'ordre de opFADD inversé → divergence à l'itération 46 159.
 
 ### PB-61 — FNSTSW AX rend npxs sans TOP
 
 `x87_ops_misc.h:24-32`, `opFSTSW_AX` (DF E0) : `AX = cpu_state.npxs;`. PCem garde TOP à part
 (`cpu_state.TOP`) ; les bits 11-13 de npxs ne sont remis à jour que par FSAVE et FSTENV
-(`:168`, `:828`). La forme mémoire, `opFSTSW_a16/_a32` (`:369-388`), compose bien
+(`:170`, `:830`). La forme mémoire, `opFSTSW_a16/_a32` (`:369-388`), compose bien
 `(npxs & 0xC7FF) | ((TOP & 7) << 11)` ; la forme AX, non.
 *Effet* : FNSTSW AX rend un TOP périmé — celui du dernier FSAVE ou FSTENV, ou 0. Un code qui
 lit la profondeur de pile par FNSTSW AX, comme beaucoup de détections de coprocesseur, se
 trompe dès qu'un push a eu lieu.
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-61. `x87-cases` : FNSTSW AX et FSTSW m16,
-TOP 0, 3, 6, npxs 0x3800.
+*Source* : SDM vol. 2, FSTSW/FNSTSW (AX reçoit le mot d'état entier, TOP compris) ; 287 PRM (FSTSW AX, « a special 80287
+instruction ») — documenté.
+*Cas qui discrimine* : FNINIT ; FLD1 ; FLD1 ; FLD1 (TOP = 5) ; FNSTSW AX → PCem AX = 0000h, silicium 2800h ; FSTSW m16
+rend 2800h des deux côtés.
+*G13* : (a) — G13.6, le premier des PB à peu de gestionnaires (le pilote du x87) ; DF E0 sur le 8087 : PB-200.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFSTSW_AX`, marqueur PB-61 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs`. `x87-cases` : FNSTSW AX et FSTSW m16, TOP 0, 3, 6, npxs 0x3800.
 
 ### PB-62 — Le pointeur d'instruction et d'opérande x87 n'est jamais mémorisé
 
@@ -596,12 +861,23 @@ et FSTENV (`:826-869`) les écrivent donc toujours à zéro, là où le silicium
 l'opcode du dernier ESC, et celle de son opérande. Et les dispositions sont partielles : en
 16 bits réel, les mots +8 et +12 (sélecteur de code, opcode ; sélecteur de données) ne sont
 pas écrits — l'ancien contenu reste ; en 32 bits réel, ni +16, ni les bits de poids fort de
-+12. FSAVE met aussi npxc à 0x37F même pour un 8087, là où FNINIT met 0x3FF.
++12. FSAVE met aussi npxc à 0x37F même pour un 8087, là où FNINIT met 0x3FF. FRSTOR et FLDENV (`:99-150`, `:754-778`)
+ne relisent pas ces champs. La disposition se choisit par `cr0 & 1` (`:101`, `:172`, `:758`, `:832`), alors que le
+287, qui ne voit pas le mode du 286, suit FSETPM (déduit), dont PCem fait un FNOP (DB E4, `x87_ops.h:589`)
+(D2-contre A5).
 *Effet* : un gestionnaire d'exception x87 qui lit l'adresse fautive dans l'image FSAVE lit 0 ;
 une image FSAVE réécrite puis relue garde des octets de l'image précédente.
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, verbatim ; `x87-cases` fait l'aller-retour FSAVE / FRSTOR
-et FSTENV / FLDENV en 16 et 32 bits, réel et PE, et compare les 112 octets.
+*Source* : SDM vol. 1 § 8.1.8 (dernière instruction non de contrôle) et § 8.1.10 (les quatre dispositions) ; SDM vol. 3
+(2016) § 22.18.6.5 et § 22.18.7.16 ; SDM vol. 2, FINIT (le 387 garde les pointeurs, le 486 les efface : D2-contre
+K20-d) ; Numerics Supplement (1980) fig. S-9 — documenté ; 287 et FSETPM : déduit ; contrôle sur le 8087 : inconnu.
+*Cas qui discrimine* : 386 + 387, mode réel 16 bits : en 1234:0010, FLD m64 [0200h] (DS = 2000h) ; FNSTENV m → PCem
++6 = 0000h, +10 = 0000h, +8 et +12 inchangés ; silicium +6 = 2350h, +8 = 1506h, +10 = 0200h, +12 = 2000h.
+*G13* : (a) — 387, 486 ; 287 avec FSETPM ; 8087 : (c) ; touche chaque ESC : avec le noyau, après la décision n° 10.
+*Reproduit* : `Cpu/x87.cs` (les quatre globales, déclarées et jamais écrites) ; `Cpu/x87_ops_misc.cs`, FSTOR, FSAVE,
+FLDENV, FSTENV (générés par `gen44.py`), et leurs copies de `Cpu/x87_ops_808x.cs` ; la rangée DB E0 de
+`Cpu/x87_ops_tables.cs` (FSETPM) ; marqueurs PB-62. `x87-cases` fait l'aller-retour FSAVE / FRSTOR et FSTENV / FLDENV
+en 16 et 32 bits, réel et PE, et compare les 112 octets.
 
 ### PB-63 — FXAM ne connaît que trois classes
 
@@ -611,15 +887,27 @@ NaN négatif. Le silicium distingue NaN (C0), infini (C2 | C0), dénormal (C3 | 
 signe dans C1 pour toutes les classes.
 *Effet* : un code qui teste « infini » ou « NaN » par FXAM ne les voit jamais.
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-63. `x87-cases` : FXAM sur onze classes, tag
-VALID et EMPTY.
+*Source* : SDM vol. 2, FXAM (C3 C2 C0 : 000 non pris en charge, 001 NaN, 010 normal, 011 infini, 100 zéro, 101 vide,
+110 dénormal ; C1 = signe) ; Numerics Supplement (1980) table S-13 (seize codes du 8087 et du 287) ; 387 PRM annexe C
+(jamais 1101 ni 1111) — documenté ; le code « vide » que rendent le 8087 et le 287 : inconnu.
+*Cas qui discrimine* : FXAM ; FSTSW m16, en C3 C2 C1 C0 : ST(0) = +∞ → PCem 0100, silicium 0101 ; ST(0) =
+FFF8000000000000 → PCem 0100, silicium 0011 ; ST(0) = −0 → PCem 1000, silicium 1010.
+*G13* : (a) — G13.6, les PB à peu de gestionnaires ; codes « vide » du 8087 et du 287 : (c).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFXAM`, marqueur PB-63, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FXAM
+sur onze classes, tag VALID et EMPTY.
 
 ### PB-64 — FTST : un NaN rend « plus grand »
 
 `x87_ops_misc.h:451-463`, `opFTST` : `==` et `<` contre 0.0, comme opFCOM (PB-57). Un NaN rend
 C3 = C2 = C0 = 0 au lieu de « non ordonné ».
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-64. `x87-cases` : FTST sur les classes.
+*Source* : SDM vol. 2, FTST (non ordonné : C3 C2 C0 = 111, #IA ; « C1 Set to 0 ») ; Numerics Supplement (1980), fiche du
+8087 table 3 et table S-27 (8087 et 287 : un NaN, et ∞ en projectif, « not comparable », IE) — documenté.
+*Cas qui discrimine* : ST(0) = 7FF8000000000000 ; FTST ; FSTSW m16 → PCem C3 = C2 = C0 = 0, IE = 0, silicium C3 = C2 =
+C0 = 1, IE = 1.
+*G13* : (a) — G13.6, les PB à peu de gestionnaires (IE avec PB-59, ∞ projectif avec PB-70).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFTST`, marqueur PB-64, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FTST
+sur les classes.
 
 ### PB-65 — FPREM tronque en un pas ; FPREM1 est FPREM
 
@@ -628,13 +916,21 @@ pour les deux. Trois écarts : le quotient passe par un double, donc faux au-del
 « entier indéfini » (0x8000000000000000) au-delà de 2^63 — le reste devient alors absurde ; la
 réduction partielle du silicium (au plus 2^63 par pas, C2 = 1 « incomplet ») n'existe pas, C2
 n'est jamais posé ; FPREM1 (le reste IEEE, quotient arrondi au plus près) est identique à FPREM
-(tronqué), temps mis à part.
+(tronqué), temps mis à part. Et la division qui donne le quotient est arrondie au plus près avant d'être tronquée
+(`:640`) : dès que ST(0)/ST(1) s'arrondit à l'entier supérieur, le reste est faux même pour un petit quotient
+(D2-contre K13).
 *Effet* : les réductions d'arguments (sin, cos maison) sur de grandes valeurs rendent n'importe
-quoi ; une boucle `FPREM ; FNSTSW ; SAHF ; JP` s'arrête toujours au premier tour.
+quoi ; une boucle `FPREM ; FNSTSW ; SAHF ; JP` s'arrête toujours au premier tour ; FPREM(1,0 ; 0,1) rend 0.
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-65, la conversion par CvtI64 (cvttsd2si, G4.0).
-`x87-cases` : FPREM, FPREM1, FSCALE sur neuf couples de bornes (grands quotients, diviseur
-nul, infinis, NaN).
+*Source* : SDM vol. 2, FPREM et FPREM1 (reste exact ; quotient tronqué ou au pair ; réduction partielle et C2 = 1
+au-delà de 63 d'écart d'exposants) ; SDM vol. 3 (2016) § 22.18.2.1 (C0, C1, C3 à 0 après une réduction incomplète sur
+387+, intacts sur 8087/287) ; 287 PRM p. 2-8 — documenté ; le N des pas partiels du 387 et du 486 : inconnu.
+*Cas qui discrimine* : ST(0) = 1,0, ST(1) = 0,1 (3FB999999999999A) ; FPREM → PCem ST(0) = 0 et C3 C1 C0 = 100 (Q = 10),
+silicium 3FB9999999999996 et C3 C1 C0 = 010 (Q = 9) ; ST(0) = 2^100, ST(1) = 3,0 → C2 : PCem 0, silicium 1.
+*G13* : (a) — avec le noyau (le reste exact) ; N des pas partiels : (c) ; quotient du 287 : (b).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFPREM` et `opFPREM1`, marqueurs PB-65, et leurs copies de
+`Cpu/x87_ops_808x.cs` ; la conversion par CvtI64 (cvttsd2si, G4.0). `x87-cases` : FPREM, FPREM1, FSCALE sur neuf couples
+de bornes (grands quotients, diviseur nul, infinis, NaN).
 
 ### PB-66 — FLDLN2 est d'un ulp trop grand
 
@@ -642,9 +938,18 @@ nul, infinis, NaN).
 ln 2 est 0x3FE62E42FEFA39EF (0,6931471805599453, ce que rend aussi `log(2.0)`) ; PCem pousse
 0x…39F0 (0,6931471805599454). Mesuré en décimal à 60 chiffres : écarts 2,3·10⁻¹⁷ et 8,8·10⁻¹⁷.
 Les quatre autres constantes (FLDL2T, FLDL2E, FLDPI, FLDLG2) sont les doubles les plus
-proches. Aucune ne suit RC (le 387 arrondit ses constantes selon RC).
+proches. Aucune ne suit RC (le 387 arrondit ses constantes selon RC). Pour le 8087 et le 287, Intel se contredit :
+l'annexe C du 387 PRM (§ C.4, p. C-5) contre quatre textes (387 PRM § 4.7 p. 4-20, i486 PRM § 17.6, Pentium vol. 3
+§ 23.3.4, SDM vol. 2) qui leur donnent la valeur au plus près (D2-contre K20-a).
 *Trouvé par* : transcription de G4.4, vérifié en décimal.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-66. `x87-cases` : les sept constantes.
+*Source* : SDM vol. 2, FLD1…FLDZ (constantes de 64 bits arrondies selon RC ; au plus près, celles du 8087 et du 287) ;
+387 PRM § 4.7 ; ln 2 calculé exactement (D2 annexe B, recalculé par D2-contre C8) — documenté pour le 387 et le 486 ;
+8087 et 287 : au plus près, quatre textes contre un (déduit).
+*Cas qui discrimine* : FLDLN2 ; FSTP m64 → PCem 3FE62E42FEFA39F0, silicium (au plus près, vers −∞ ou vers zéro)
+3FE62E42FEFA39EF ; FLDLG2 sous RC vers −∞ (077Fh) ; FSTP m64 → PCem 3FD34413509F79FF, silicium 3FD34413509F79FE.
+*G13* : (a) pour le 387 et le 486 — G13.6, les PB à peu de gestionnaires ; 8087 et 287 : (b), la valeur au plus près.
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFLDLN2`, marqueur PB-66, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : les
+sept constantes.
 
 ### PB-67 — FST et FSTP registre copient le tag TAG_UINT64, pas l'entier qu'il désigne
 
@@ -654,11 +959,17 @@ registre (`:390-405`) et FXCH (`:407-427`) le recopient, eux.
 *Effet* : après `FILD m64 ; FST ST(1)`, un FISTP m64 de ST(1) écrit le `MM[].q` qui traînait dans
 ce registre physique, pas la valeur chargée.
 *Trouvé par* : transcription de G4.4.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueur PB-67. `x87-cases` : `FST ST1 ; FINCSTP ; FISTP m64`.
+*Source* : SDM vol. 1 § 8.1.2 et § 8.2 (registres de 80 bits : tout entier de 64 bits y est exact) ; SDM vol. 2, FST
+(ST(i) ← ST(0)) — documenté.
+*Cas qui discrimine* : FNINIT ; FILD m64 = 5 ; FILD m64 = 2^53 + 1 ; FST ST(1) ; FINCSTP ; FISTP m64 → PCem
+0000000000000005, silicium 0020000000000001.
+*G13* : (a) — G13.6, les PB à peu de gestionnaires (en double, recopier MM[].q ; avec le noyau, la rustine disparaît).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFST` et `opFSTP`, marqueurs PB-67, et leurs copies de `Cpu/x87_ops_808x.cs`.
+`x87-cases` : `FST ST1 ; FINCSTP ; FISTP m64`.
 
 ### PB-68 — Les transcendantes : la libm de l'hôte, sans bornes ni C2
 
-`x87_ops_misc.h:554-753` : F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS appellent
+`x87_ops_misc.h:554-612`, `:688-701`, `:730-752` : F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS appellent
 `pow`, `log`, `tan`, `atan2`, `sin`, `cos` de la libm de l'hôte, en double. Trois écarts avec le
 silicium : (1) FPTAN, FSIN, FCOS, FSINCOS effacent toujours C2 — la borne |x| < 2^63, au-delà
 de laquelle le 387 laisse l'opérande et pose C2 (« réduction incomplète »), n'existe pas : la
@@ -667,12 +978,22 @@ négatif (NaN par `log`), FPTAN, FSIN, FCOS sur 8087 et 287, qui n'ont ni FSIN, 
 FSINCOS (le 8087 limite aussi FPTAN à [0, π/4]) — tout est calculé ; (3) la précision est
 celle de la libm en double, pas celle du microcode sur 64 bits. Les résultats dépendent donc de
 la glibc de l'hôte de PCem (parité mesurée en G4.0 : Math.* de .NET rend les mêmes bits sur
-cet hôte).
+cet hôte). Et `pow(2.0, x) - 1.0`, `log(x + 1.0)` (`:559`, `:582`) perdent toute précision relative pour |x|
+petit, la raison d'être de F2XM1 et de FYL2XP1 (D2-contre K14). Les temps de FSIN, FCOS et FSINCOS valent 0 sur le
+8087 et le 287 (`x87_timings.c:61-62`, `:135-136`).
 *Effet* : une boucle de réduction d'argument pilotée par C2 ne boucle jamais ; un programme qui
 teste FSIN pour distinguer 287 et 387 le trouve partout.
 *Trouvé par* : transcription de G4.5.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 ; `x87-cases` : les huit sur dix-neuf
-bornes × quatre ST(1) ; contrôles négatifs : FPTAN qui pose C2 → 76 cas divergents.
+*Source* : 387 PRM table 2-1, ch. 2 et § 4.6.4 p. 4-17 (|x| ≥ 2^63 : C2 = 1, opérande inchangé ; FPTAN pousse 1,0) ;
+SDM vol. 2 (domaines de F2XM1, FYL2X, FYL2XP1) ; 287 PRM p. 2-12 et 2-13 (FPTAN en rapport, domaines) ; 387 PRM annexe C
+(ni FSIN, ni FCOS, ni FSINCOS sur 8087 et 287) — documenté ; bits exacts du 387 et du 486 : inconnus.
+*Cas qui discrimine* : FLD m64 = 2^64 (43F0000000000000) ; FSIN ; FSTSW m16 → PCem C2 = 0, ST(0) = 3F982A353118793D,
+silicium (387 et suivants) C2 = 1, ST(0) inchangé ; F2XM1 de 10^−20 → PCem 0, silicium ≈ 6,93·10^−21.
+*G13* : (b) — domaines, C2, le 1 de FPTAN : (a) ; précision : (b), sans les noyaux de Bochs (K3) ; bits exacts : (c).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 (FPTAN, FSINCOS, FSIN, FCOS) ; les rangées D9 F8 des tables
+(`Cpu/x87_ops_tables.cs`, `Cpu/x87_ops_808x_tables.cs`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-68 ;
+copies de `Cpu/x87_ops_808x.cs`. `x87-cases` : les huit sur dix-neuf bornes × quatre ST(1) ; contrôles négatifs :
+FPTAN qui pose C2 → 76 cas divergents.
 
 ### PB-69 — Sur un PC ou un XT, l'exception du 8087 se perd : IRQ13 sans second PIC, pas de NMI
 
@@ -681,25 +1002,40 @@ seule interruption que PCem lève pour le coprocesseur — recompilée telle que
 (`8087.h:86`). `pic.c:298-311`, `picint` : hors AT (et hors Xi8088), `num > 0xFF` ne tombe dans
 aucune branche — la demande est jetée. Sur le silicium, le 8087 du PC et du XT signale par
 **NMI** (sortie INT du 8087 vers la logique NMI, masquée par le port A0h), pas par IRQ13.
+Le chemin NMI du 8088 existe et ne sert jamais (rien ne pose `nmi = 1` sur le 8088) ; la NMI y est un niveau réarmé
+par IRET, quand le silicium la prend sur un front (déduit ; D2-contre A7, C15).
 *Effet* : sur un 5150 ou un XT, un FDIV par zéro avec ZE démasqué ne produit rien : ni NMI, ni
 IRQ ; seul `npxs` porte ZE, et le handler rend 1, valeur que le 808x ignore
 (`808x.c:3304-3366`). Un gestionnaire d'exceptions flottantes (INT 2 chaîné par un runtime
 Microsoft ou Borland) n'est jamais appelé.
 *Trouvé par* : transcription de G4.6, lecture de `picint`.
+*Source* : AP-578 § 2.1 p. 5 (la sortie INT du 8087 va à la NMI du PC) ; IBM BIOS Interface Technical Reference (1987 :
+« An 8087 math coprocessor error … drives the NMI ») ; PC XT Technical Reference (port A0h) ; Numerics Supplement
+(1980) fig. S-7, p. S-19 (IEM) — documenté ; le rôle du commutateur SW1 : déduit (OS/2 Museum).
+*Cas qui discrimine* : XT + 8087, port A0h = 80h, INT 2 accroché : FNINIT ; FLDCW 037Bh (ZE démasquée, IEM = 0) ; FLD1 ;
+FLDZ ; FDIVP → PCem : ni NMI ni IRQ (la demande est jetée), silicium : le gestionnaire d'INT 2 s'exécute ; A0h = 00h :
+rien des deux côtés.
+*G13* : (a) — G13.6, l'acheminement, avec ZE seule ; SW1 : déduit ; la NMI sur front (D2-contre A7).
 *Reproduit* : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
-les deux instanciations) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs`.
+les deux instanciations, marqueur PB-69) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs` (`case 0xd8`).
 
 ### PB-70 — Le contrôle de l'infini est ignoré : le 287 compare en affine, comme un 387
 
 Le bit 12 du mot de contrôle (IC, infini projectif ou affine) n'est lu nulle part dans
-`x87_ops*.h` ni `x87.c` ; `opFINIT` (`x87_ops_misc.h:49-60`) pose 0x037F sur le 287 comme sur le
-387. Sur le silicium, le 8087 et le 287 démarrent en projectif (+∞ = −∞) ; `x87_compare`
-(`x87_ops.h`) rend toujours +∞ > −∞.
+`x87_ops*.h` ni `x87.c` ; `opFINIT` (`x87_ops_misc.h:49-64`, mot de contrôle en `:52-55`) pose 0x037F sur le 287
+comme sur le 387. Sur le silicium, le 8087 et le 287 démarrent en projectif (+∞ = −∞) ; `x87_compare`
+(`x87_ops.h:189-218`) rend toujours +∞ > −∞.
 *Effet* : le test classique de génération (FINIT ; 1/0 ; FCHS ; FCOMPP) conclut au 387. Mesuré
 en G4.7 : MSD de Windows 3.1, sur l'AMI 286 avec `fpu = 287`, affiche « 80286/80387 ».
 *Trouvé par* : témoin MSD de G4.7, puis lecture du C.
-*Reproduit* : par la transcription, `Cpu/x87_ops_misc.cs` (opFINIT) et `Cpu/x87_ops.cs`
-(x87_compare), inchangés ; témoin MSD.
+*Source* : Numerics Supplement (1980) p. S-18 et table S-27 p. S-72 (projectif par défaut ; ∞ = ∞ ; ∞ contre un fini,
+FTST(∞), ∞ ± ∞, FSQRT(+∞) : IE) ; 287 PRM fig. 1-10 ; 387 PRM annexe C § C.3 et SDM vol. 3 (2016) § 22.18.3 (387 et
+486 : affine seul) — documenté ; le 287XL suit le 387 : déduit (Juffa ; fiche 290376 non consultée).
+*Cas qui discrimine* : 286 + 287 : FNINIT ; FLD1 ; FLDZ ; FDIVP (+∞) ; FLD ST(0) ; FCHS ; FCOMPP ; FSTSW m16 → PCem
+C3 C2 C0 = 001 (−∞ < +∞, « 387 »), silicium 100 (+∞ = −∞ en projectif, « 287 ») ; MSD : « 80287 ».
+*G13* : (a) — G13.6, la part « comparaisons » (avec PB-57, 58, 64) ; ∞ ± ∞, √+∞ : avec le noyau ; 287XL : déduit.
+*Reproduit* : par la transcription, `Cpu/x87_ops.cs` (`x87_compare`) et `Cpu/x87_ops_misc.cs` (`opFINIT`, généré par
+`gen44.py`, et sa copie de `Cpu/x87_ops_808x.cs`), marqueurs PB-70 ; témoin MSD.
 
 ### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
 
@@ -708,6 +1044,13 @@ du PIC esclave) pour LES DEUX canaux ; le secondaire lève et baisse pourtant l'
 *Effet* : sur le canal secondaire, une interruption en attente sur l'IRQ 14 (canal primaire)
 fait baisser l'IRQ 15, et une IRQ 15 en service ne l'empêche pas d'être relevée.
 *Trouvé par* : reconnaissance de G5, lecture du C.
+*Source* : documenté — ATA-1 (X3T9.2 791D r4, 17 mars 1993) § 6.3.10, INTRQ ne dépend que de l'unité choisie du
+canal ; preuve interne : `ide_irq_raise` et `ide_irq_lower` visent l'IRQ 15 pour le canal secondaire
+(`ide.c:118-136`). Le PC87415 de D3-stockage, une puce PCI, est une preuve faible (D3-contre, K12).
+*Cas qui discrimine* : un lecteur sur le canal secondaire (`cdrom_channel` = 2) a levé l'IRQ 15 (`irqstat` = 1, nIEN
+= 0), une IRQ 14 est en attente : une écriture de 176h efface chez PCem le bit 7 de `pic2.pend` (l'IRQ 15 perdue) ;
+le matériel le garde.
+*G13* : (a) — à traiter avec PB-216, même fonction.
 *Reproduit* : `Ide/ide.cs`, `ide_irq_update`, marqueur PB-71.
 
 ### PB-72 — Sélectionner un lecteur pendant un reset perd la tête et le mode LBA de l'écriture
@@ -718,6 +1061,13 @@ et les quatre bits hauts de l'adresse LBA.
 *Effet* : ces champs gardent leur valeur d'avant — zéro, remis par le reset —, quel que soit
 l'octet écrit.
 *Trouvé par* : reconnaissance de G5.
+*Source* : inconnu — ATA-1 r4 § 7.2.13 (« The host should not access the Command Block Register when BSY=1 ») ne dit
+rien de l'unité ; ATA-3 r7b se contredit, « a write to a command block register by the host shall be ignored » (le
+registre d'état) contre « the results are indeterminant » (les registres de commande). À mesurer (1993-1994).
+*Cas qui discrimine* : SRST posé puis retiré en 3F6h (BSY), puis 1F6h = F5h (unité 1, LBA, tête 5) avant la fin du
+chronomètre : PCem choisit l'unité 1, finit le reset sur-le-champ et laisse la tête à 0 et le mode CHS ; le
+matériel : inconnu (selon la première lecture d'ATA-3, l'écriture est ignorée et BSY tient jusqu'au bout).
+*G13* : (c) — ATA-1 ne définit rien et ATA-3 se contredit : (b) au mieux, par décision.
 *Reproduit* : `Ide/ide.cs`, `writeide`, marqueur PB-72.
 
 ### PB-73 — READ MULTIPLE et WRITE MULTIPLE sans SET MULTIPLE MODE arrêtent l'émulateur
@@ -727,6 +1077,7 @@ disque réel rend ABRT.
 *Effet* : un pilote qui envoie C4h ou C5h sans avoir fixé la taille de bloc — ou un invité
 malveillant — arrête PCem.
 *Trouvé par* : reconnaissance de G5.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, TRANSCRIPTION.md : l'invité ne tue pas l'hôte) : `Ide/ide.cs`, `writeide`,
 marqueurs `pcem bug, not reproduced: PB-73` — ABRT (ERR, erreur 04h, IRQ), comme le disque réel.
 Les outils n'envoient jamais ce chemin à l'oracle ; la survie est prouvée en C# seul
@@ -739,6 +1090,13 @@ décompter `secount` ni avancer l'adresse.
 *Effet* : une vérification de N secteurs est vue comme réussie après un seul, et le registre
 de compte rend N au lieu de 0.
 *Trouvé par* : reconnaissance de G5.
+*Source* : documenté sous ATA-1 — ATA-1 r4 § 9.19 (« the Command Block Registers contain the cylinder, head, and
+sector number of the last sector verified » ; en erreur, le secteur fautif et « the number of sectors not yet
+verified ») et § 7.2.11 (compte nul en fin normale). ATA-3 r7b § 7.19 ne requiert aucune sortie.
+*Cas qui discrimine* : VERIFY (40h) de 5 secteurs depuis C/H/S 0/0/1 : PCem rend READY, compte 5, secteur 1 ;
+ATA-1 : compte 0, secteur 5. VERIFY qui franchit la fin du disque : PCem, READY sans erreur ; ATA-1 : ERR, IDNF,
+l'adresse du premier secteur fautif et le compte restant.
+*G13* : (a), sous ATA-1.
 *Reproduit* : `Ide/ide.cs`, `callbackide`, marqueur PB-74.
 
 ### PB-75 — Une commande à l'unité 1 absente arrête l'émulateur (Fixed Disk Adapter de l'AT)
@@ -748,6 +1106,7 @@ commande appelle `fatal("Command on non-present drive")`.
 *Effet* : un utilitaire qui sonde le second disque (FDISK, un diagnostic) sur une machine qui n'en
 a qu'un arrête PCem.
 *Trouvé par* : inventaire de la règle R9.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueur `pcem bug, not reproduced: PB-75` — la commande
 est refusée : ERR, erreur ABRT, IRQ 14.
 
@@ -757,6 +1116,7 @@ est refusée : ERR, erreur ABRT, IRQ 14.
 Le WD1003 réel transfère alors 512 octets plus 4 octets d'ECC ; ni PCem ni iXtal26 ne le modélisent.
 *Effet* : un utilitaire de bas niveau qui lit les ECC arrête PCem.
 *Trouvé par* : inventaire de la règle R9.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueurs `pcem bug, not reproduced: PB-76` — ERR,
 erreur ABRT, IRQ 14 : le comportement sûr le plus proche.
 
@@ -768,20 +1128,36 @@ l'est, `:316`). Changer de processeur dans la même session garde donc les carac
 précédent. Au passage, `cpu_CR4_mask = CR4_VME | CR4_PVI | CR4_VME` (`:485`) nomme VME deux fois.
 *Effet* : après un iDX4, un i486DX accepte MOV CR4 — que le vrai i486DX refuse —, avec un masque
 nul : CR4 reste à zéro. Le harnais rejoue `cpu_set` dans le même processus : l'ordre des entrées
-d'un balayage décide de ce qu'elles héritent.
+d'un balayage décide de ce qu'elles héritent. Dans iXtal, aucun effet pour l'invité : l'écran de
+construction ne propose pas de processeur (`SdlSetup.cs:31`) et `resetpchard` rejoue la même UC.
 *Trouvé par* : reconnaissance de G6.
-*Reproduit* : `Cpu/cpu.cs`, `cpu_set`, marqueur PB-77 ; l'empreinte CPU compare `cpu_features`.
+*Source* : « Control register CR4 was introduced in the Pentium processor » (SDM vol. 3B, ch. 22,
+p. 22-17) : documenté ; MOV CR4 sur un i486DX est donc #UD (déduit : registre inexistant).
+*Cas qui discrimine* : `cpu-config-check`, C# seul : `cpu_set(iDX4)` puis `cpu_set(i486DX)` →
+`cpu_features` = CR4 | VME et MOV CR4 accepté (PCem) ; #UD sur un i486DX. Rien que l'invité voie.
+*G13* : (d) — aucun effet pour l'invité, l'UC étant fixée par processus : outillage seulement
+(D1-contre C20, K12).
+*Reproduit* : `Cpu/cpu.cs:476`, `cpu_set`, marqueur `PB-77` ; l'empreinte CPU compare `cpu_features`.
 
 ### PB-78 — LOADALL386 s'exécute sur un 486
 
 PCem n'a pas de table d'opcodes 486 : `cpu_set` pose `ops_386` pour tout processeur (`cpu.c:231`),
-et `0F 07` y est `opLOADALL386` (`x86_ops_misc.h:931-973`), sans garde `is486`. Le 486 réel n'a
-plus de LOADALL : #UD.
+et `0F 07` y est `opLOADALL386` (`x86_ops_misc.h:930-974`), sans garde `is486`. Le 486 réel n'a
+plus de LOADALL : #UD. Les instructions propres au 486 ont, elles, leur garde `!is486` (INVD,
+WBINVD, CMPXCHG, XADD : `x86_ops_misc.h:808-825`, `x86_ops_atomic.h`).
 *Effet* : un 486 émulé charge l'état entier depuis ES:EDI ; un bloc non préparé y pose un CR0
 avec PG et un CR3 quelconque — voir PB-79.
 *Trouvé par* : fuzzeur du cœur 486 (G6.1), graine 1.
-*Reproduit* : par la transcription (la table du 386 est partagée). Le fuzzeur du cœur 486 ne
-tire plus `0F 07` au hasard (`Fuzzer.cs`, G6.1) : il ferait tomber l'oracle (PB-79).
+*Source* : « First of all, the 486 does not have a LOADALL instruction » (R. Collins, *The LOADALL
+Instruction*, rcollins.org) : source secondaire ; l'opcode est absent de la carte du 486, d'où #UD
+(déduit).
+*Cas qui discrimine* : banc dirigé : `0F 07` sur l'ami486, ES:EDI sur un bloc préparé → état chargé
+(PCem) ; INT 6 (486). Sur l'ami386, LOADALL inchangé.
+*G13* : (b) — vrai comportement déduit, sans mesure ; la garde se pose dans le handler, pas dans la
+table générée.
+*Reproduit* : par la transcription (la table du 386 est partagée), `Cpu/386_ops_0f.cs:815`,
+opLOADALL386, marqueur `PB-78`. Le fuzzeur du cœur 486 ne tire plus `0F 07` au hasard
+(`Fuzzer.cs`, G6.1) : il ferait tomber l'oracle (PB-79).
 
 ### PB-79 — Une table de pages hors RAM fait tomber l'émulateur
 
@@ -792,6 +1168,7 @@ toute adresse sans mémoire. `mmutranslatereal` (`:220-317`) et `mmutranslate_no
 mémoire installée arrête PCem (segfault). Mesuré : D4 (MOV CR0 avec PG tiré), puis le fuzzeur du
 486 par un LOADALL386 tiré au hasard (PB-78).
 *Trouvé par* : G2 D4, puis G6.1.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9) : `Memory/mem.cs`, marqueurs `pcem bug, not reproduced: PB-79` — une
 lecture de table hors RAM rend 0xFFFFFFFF (bus ouvert), une écriture y est ignorée. Le fuzzeur
 écarte ce chemin côté oracle ; `r9-mmu` (C# seul) prouve la survie sur le 386 et le 486.
@@ -802,14 +1179,25 @@ lecture de table hors RAM rend 0xFFFFFFFF (bus ouvert), une écriture y est igno
 `fb_only`, la fonction rend l'octet et sort ; la forme par banque, `svga_read`, charge d'abord
 les quatre verrous depuis `addr & ~3` (`:1085-1089`).
 *Effet* : une écriture en mode 1 (copie des verrous) par la fenêtre linéaire, après une lecture
-linéaire, recopie les verrous d'une lecture antérieure, pas ceux de l'octet lu.
+linéaire, recopie les verrous d'une lecture antérieure, pas ceux de l'octet lu. De même toute écriture qui combine
+les verrous : les modes 0 et 2 sous un masque de bits ou une fonction logique, et le mode 3.
 *Trouvé par* : diff des deux formes, G7.0.
-*Reproduit* : `Video/vid_svga.cs`, `svga_read_linear`, marqueur PB-80. Atteint par les cartes
-de G7 (la VGA d'IBM ne pose ni `packed_chain4` ni `fb_only`).
+*Source* : Cirrus Logic, *CL-GD542X Technical Reference Manual* (janvier 1994), § 6.27, p. 6-34 (CR22) : « These
+latches are loaded whenever display memory is read by the CPU », sans exception pour le mode compact — documenté ;
+les quatre octets de `addr & ~3`, déduit de la forme par banque ; les verrous de huit octets (GRB, p. 9-32), hors cas.
+*Cas qui discrimine* : GD5429, SR7 bit 0 = 1, SR4 bit 3 = 1, verrous nuls, VRAM[8h..Bh] = 55h 66h 77h 88h : lecture
+d'octet en A000:0008, puis GR5 = 41h (mode d'écriture 1) et écriture d'octet en A000:0010 : VRAM[10h] vaut 00h chez
+PCem, 55h sur la GD542x.
+*G13* : (a) — documenté ; CR22, que PCem ne modélise pas (`vid_cl5429.c:463-489`), en ferait la sonde en mode matériel.
+*Reproduit* : `Video/vid_svga.cs`, `svga_read_linear`, marqueur PB-80 (`:1714`). Atteint par la seule GD5429 : sa
+fenêtre linéaire (`gd5429_readb_linear`, `vid_cl5429.c:1276-1283`) et ses lectures de mot et de double mot quand
+`fast` est nul (`:749-771`, `:1284-1300`). La VGA d'IBM, la Trio64 et les Trident ne posent ni `packed_chain4` ni
+`fb_only` ; l'ET4000 pose `packed_chain4`, mais n'a pas de fenêtre linéaire chez PCem. Les lectures du chemin `fast`,
+qui sautent aussi les verrous, l'ET4000 comprise : PB-221.
 *G7.1* : la GD5429 porte le même défaut dans sa propre lecture, `gd5429_read_linear`
 (`vid_cl5429.c:1183-1187`), et sa forme par banque, `gd5429_read` (`:741-748`), y passe aussi :
 chez elle, ni la banque ni la fenêtre linéaire ne chargent les verrous en chain4 compact.
-Reproduit, `Video/vid_cl5429.cs`, même marqueur.
+Reproduit, `Video/vid_cl5429.cs`, même marqueur (`:1322`).
 
 ### PB-81 — La lecture du motif du blitter de la GD5429 sort de la VRAM
 
@@ -821,6 +1209,7 @@ lire au-delà du tableau `svga->vram`.
 *Effet* : comportement indéfini — lecture du tas après la VRAM ; en C#, une exception qui
 abattrait l'hôte. Le silicium reboucle sur sa mémoire.
 *Trouvé par* : relecture de la transcription, G7.1.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `Video/vid_cl5429.cs`, marqueur `pcem bug, not reproduced: PB-81`,
 `DEVIATION` — l'index complet est masqué une seconde fois par `vram_mask`. Identique à PCem
 tant que la source ne touche pas le haut de la VRAM ; l'oracle n'y est pas conduit.
@@ -836,6 +1225,7 @@ seul), elle ne l'est que sur 4 (`addr <<= 2`, `:804`), voire pas du tout en chai
 *Effet* : comportement indéfini — jusqu'à sept octets écrits dans le tas après la VRAM ; en
 C#, une exception qui abattrait l'hôte.
 *Trouvé par* : relecture de la transcription, G7.1.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `Video/vid_cl5429.cs`, marqueurs `pcem bug, not reproduced: PB-82`,
 `DEVIATION` — chaque octet des deux branches est masqué par `vram_mask`. Les branches 16 bits
 (adresse alignée sur 16) sont inchangées. L'oracle n'y est pas conduit. `r9-cl5429` : modes 4
@@ -851,6 +1241,7 @@ et à chaque fin de FIFO, appelle `pci_set_irq` / `pci_clear_irq(-1, PCI_INTA)`,
 calculée sur ce qu'ils ont lu (`pci.c:128-148`).
 *Effet* : lecture, et écriture possible, d'un global voisin de l'hôte — selon l'édition de liens.
 *Trouvé par* : lecture, G7 (« les défauts déjà relevés », n° 1) ; mesuré à la ligne en G7.3.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : sur une carte VLB sans PCI, l'IRQ n'est câblée nulle part. Oracle :
 `harness_s3.c` définit `pci_set_irq` / `pci_clear_irq` vides ; C# : `Video/vid_s3.cs`,
 `s3_update_irqs`, marqueur `pcem bug, not reproduced: PB-83`. Aucune IRQ, rien d'écrit.
@@ -864,6 +1255,7 @@ chaque ligne ajoute `line_offset` en plus, et un curseur logé dans les derniers
 VRAM (SR13 = 3F) en sort.
 *Effet* : lecture du tas après la VRAM ; en C#, une exception qui abattrait l'hôte.
 *Trouvé par* : relecture de la transcription, G7.3.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `Video/vid_s3.cs`, `Video/vid_cl5429.cs`, marqueurs PB-84, DEVIATION —
 chaque index est masqué par `vram_mask`. `r9-s3`, `r9-cl5429` : survit ; sans la garde,
 `IndexOutOfRangeException` (mesuré).
@@ -876,6 +1268,7 @@ la ligne suivante — reproduit, c'est le même tableau — et, à la dernière 
 `buffer32`.
 *Effet* : écriture dans le tas ; en C#, une exception.
 *Trouvé par* : relecture de la transcription, G7.3.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : marqueurs PB-85 dans les deux fichiers, DEVIATION — hors du tableau,
 rien n'est écrit. `r9-s3`, `r9-cl5429` : curseur en x = 2040 sur la dernière ligne, survit.
 
@@ -886,24 +1279,42 @@ abscisses décalées de 20 bits ; `destx_distp` = -2048 depuis x = 0 donne INT_M
 de -1 suffit.
 *Effet* : SIGFPE, PCem tombe (comme PB-47) ; en C#, `OverflowException`.
 *Trouvé par* : relecture de la transcription, G7.3.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `Video/vid_s3.cs`, marqueurs PB-86, DEVIATION — pour un diviseur de -1,
 le quotient est pris replié (`-(end_x - start_x)`, INT_MIN pour INT_MIN), identique à PCem
 partout ailleurs. `r9-s3` : survit, `poly_dx1` = `poly_dx2` = 80000000 ; sans la garde,
 `OverflowException` (mesuré).
 
-### PB-87 — Au repli de l'IP, le préfetch du 8086 lit 64 Ko plus loin
+### PB-87 — Au repli de l'IP, la lecture d'instruction du 8088 et du 8086 se fait 64 Ko plus loin
 
-`808x.c:146-153`, `FETCH`, file vide : `prefetchpc = cpu_state.pc = cpu_state.pc + 1`, puis, sur
-un 8086 et un `pc` impair, `prefetchqueue[0] = readmembf(cs + cpu_state.pc)`. `cpu_state.pc` est
-sur 32 bits et n'est masqué qu'en fin d'instruction (`:3910`) : une instruction qui commence en
-FFFFh et lit un second octet porte `pc` à 0x10001, et le préfetch lit `cs + 0x10001` — 64 Ko au-delà
-du segment — là où le vrai 8086 lit `cs + 1` (`prefetchpc`, sur 16 bits, vaut bien 1).
-*Effet* : au repli de l'IP, l'octet mis en file vient d'ailleurs ; sur un remplissage uniforme,
-l'instruction suivante se décode et se chronomètre autrement.
+`808x.c:145-153`, `FETCH`, file vide : `temp = readmembf(cs + cpu_state.pc)` (`:145`), puis
+`prefetchpc = cpu_state.pc = cpu_state.pc + 1` et, sur un 8086 et un `pc` impair,
+`prefetchqueue[0] = readmembf(cs + cpu_state.pc)` (`:150`). `cpu_state.pc` est sur 32 bits et
+n'est masqué qu'en fin d'instruction (`:3910`) : une instruction qui commence en FFFFh porte `pc` à
+0x10000, puis 0x10001, et les deux lectures se font à `cs + 0x10000` et au-delà — 64 Ko après le
+début du segment — là où le vrai processeur lit à l'offset 0 (`prefetchpc`, sur 16 bits, vaut
+bien 0, puis 1).
+
+**Élargi en G13.1** (D1-contre C14) : la lecture principale (`:145`), sans garde `is8086`, a le
+même défaut, sur le 8088 comme sur le 8086 ; la lecture de `:150` n'a lieu que juste après elle et
+ne se trompe jamais seule. Les remplissages de `FETCHADD` (`:184`, `:191`) et de `FETCHCOMPLETE`
+(`:215`, `:221`) passent par `prefetchpc` et sont justes.
+
+*Effet* : quand une instruction est à cheval sur FFFFh et que la file est vide (après tout saut,
+`FETCHCLEAR` la vide, `:242-243`), ses octets d'après FFFFh viennent d'ailleurs ; l'instruction se
+décode et se chronomètre autrement. Rare dans du code réel.
 *Trouvé par* : le fuzzeur 8086 en flux (G1.0, graine 1, ronde 325 : `FF FF` en FFFF:FFFF puis
 FFFF:0001, 13 cycles contre 4). **La transcription de M1 lisait `cs + prefetchpc`** — le geste du
 vrai 8086, pas celui de PCem —, et le 8088 n'atteignait jamais cette branche (`is8086`).
-*Reproduit* : `Cpu/808x.cs`, `FETCH`, `cs + cpu_state.pc`, marqueur PB-87.
+*Source* : documenté — « On the 8086, if sequential execution of instructions proceeds past offset
+65,535, the processor fetches the next instruction byte from offset 0 of the same segment » (386 PRM
+§ 14.7, point 8).
+*Cas qui discrimine* : banc C# seul, 8088 et 8086 : `JMP FAR 1000:FFFF` (file vide) sur `B0` (MOV
+AL,imm8) en 1FFFFh, 11h en 10000h, 22h en 20000h → AL = 22h (PCem), 11h (8088). SST n'exerce
+vraisemblablement pas ce repli (D1-contre C18) ; le fuzzeur 8086 en flux sert de contrôle de fuite.
+*G13* : (a), priorité basse — `FETCH` est le site le plus chaud du cœur 8088, et le cas est rare.
+*Reproduit* : `Cpu/808x.cs:182` (la lecture principale, `808x.c:145`) et `:190` (le préfetch du
+8086, `808x.c:150`), `FETCH`, marqueurs `PB-87`.
 
 ### PB-88 — La M24 recopie jusqu'à 510 octets dans une `charbuffer` de 256
 
@@ -915,34 +1326,64 @@ n'est pas masqué (`crtcmask[1] = 0xff`, `:41`) : l'index monte à 509 dans un t
 (`ctrl`, `base`, `cgamode`… jusqu'au `pc_timer_t` de la carte, pointeurs de rappel et de
 chaînage compris) : l'invité peut faire tomber l'émulateur. En C#, une exception.
 *Trouvé par* : reconnaissance de G1 (PLAN-G1.md, défaut n° 1).
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `Video/vid_olivetti_m24.cs`, marqueurs PB-88, DEVIATION — une écriture
 au-delà de 255 est sautée, une lecture rend 0. Identique à PCem tant que R1 ≤ 128 (les modes
 du BIOS : 40 et 80 colonnes).
 
 ### PB-89 — La bordure de la M24 déborde sur la ligne suivante de `buffer32`
 
-`vid_olivetti_m24.c:154-166`, `:218-231`, `:258-259`, `:279` : l'abscisse `c + (crtc[1] << 4) +
+`vid_olivetti_m24.c:154-166`, `:218-231`, `:258-259`, `:279`, `hline` `:287-289` : l'abscisse `c + (crtc[1] << 4) +
 8` atteint 4 095 pour une ligne de 2 048 points. Les lignes de `buffer32` sont contiguës
 (`wx-sdl2-video.c:59-69`) : l'écriture tombe sur la ligne suivante, jamais hors du tableau —
 `displine` reste sous 720.
 *Effet* : des points de bordure sur la ligne d'en dessous, avec un R1 hors des modes du BIOS.
 *Trouvé par* : reconnaissance de G1 (défaut n° 2) ; la relecture a montré qu'il ne sort pas du
 tableau, donc pas de R9 pour la M24.
-*Reproduit* : `Video/vid_olivetti_m24.cs`, marqueur PB-89 (le même tableau plat).
+*Source* : data sheet MC6845 (Motorola) : « Any 8-bit number may be programmed as long as the contents of R0 are
+greater than the contents of R1 » — documenté ; au-delà, ce qui dépasse la ligne balayée tombe dans le retour de ligne,
+rien de la ligne n ne s'affiche en n + 1 : déduit ; l'image réelle avec R1 > R0, qui dépend du moniteur : inconnue.
+*Cas qui discrimine* : M24, 3D8h = 09h (80 colonnes), R1 = FFh, la ligne n + 1 de `Buffer32` remplie d'un motif :
+après le rendu de la ligne n, PCem a écrit la bordure en `Buffer32[(n + 1) × 2 048 + 0..7]` ; la carte n'y touche pas.
+*G13* : (b) — le comportement réel n'est que déduit : un test borne la ligne, sans image de référence.
+*Reproduit* : `Video/vid_olivetti_m24.cs`, marqueur PB-89 (`:196`, le même tableau plat).
 *G1.2* : le PC1512 fait de même (`vid_pc1512.c:182-193`, `:317-319`), `displine` revenant à 0
 au-delà de 360 (`:326-327`) et de 262 (`:369`) : jamais hors du tableau non plus. Reproduit,
-`Video/vid_pc1512.cs`.
+`Video/vid_pc1512.cs` (`:231`, `:430`).
+*G13.1* : la CGA, la MDA, l'Hercules et l'EGA aussi. La CGA déborde dès que R1 dépasse 127 (254 en 80 colonnes) : la
+bordure (`vid_cga.c:147-153`), les boucles de 40 colonnes et du graphique (`:188-270`), `hline` (`:275`, `:277`) et la
+conversion de fin de ligne (`:280-294`). La MDA : `(x * 9) + c` monte à 2 294 quand R1 dépasse 227
+(`vid_mda.c:114-130`). L'Hercules : 2 294 en texte (`vid_hercules.c:167-185`), 4 079 en graphique quand R1 dépasse
+128 (`:155`). L'EGA borne son texte par `& 2047` (`vid_ega.c:291-320`), pas ses rendus graphiques ni l'écran éteint,
+qui suivent CR01 : jusqu'à 4 143 (`:358-381`, `:425-453`), 2 087 (`:497-517`) et 4 639 (`:542-554`). Jamais hors du
+tableau : `displine` reste sous 360 (CGA), 500 (MDA, Hercules) et 502 (EGA). Reproduits, marqueurs PB-89 :
+`Video/vid_cga.cs:244`, `Video/vid_mda.cs:195`, `Video/vid_hercules.cs:198`, `Video/vid_ega.cs:476`, `:528`, `:593`,
+`:676`.
 
 ### PB-90 — Le drapeau `DMA_OVER` entre dans l'échantillon ADPCM
 
 `sound_sb_dsp.c:943`, `:984`, `:1019`, `pollsb` : `sbdat2 = sb_8_read_dma(dsp)`, et
-`dma_channel_read` rend `octet | DMA_OVER` (0x10000, `dma.h:9`, `dma.c:564`) au dernier octet du
-bloc. `sbdat2` garde le drapeau : en ADPCM 4 bits, `sbdat2 >> 4` vaut 0x1000 + quartet, `tempi`
-sature à 63 (`:925-926`) ; en 2,6 bits, `sbdat2 >> 5` sature à 39.
-*Effet* : le dernier quartet de chaque bloc ADPCM saute de `scaleMap4[63]` (ou `scaleMap26[39]`)
-au lieu de son pas : un clic par bloc. En 2 bits, le `& 3` (`:999`) le masque.
-*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 2).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-90.
+`dma_channel_read` rend `octet | DMA_OVER` (0x10000, `dma.h:9`, `dma.c:564`) à l'octet qui fait passer sous zéro le
+compte du 8237 — son terme de comptage, et non le dernier octet du bloc du DSP (corrigé en G13). `sbdat2` garde le
+drapeau : en ADPCM 4 bits, `sbdat2 >> 4` vaut 0x1000 + quartet, `tempi` sature à 63 (`:925-926`) ; en 2,6 bits,
+`sbdat2 >> 5` sature à 39. Les commandes 74h à 77h, 7Dh et 7Fh rangent de même leur premier octet (`:412`, `:423`,
+`:432`, `:439`), si le compte du 8237 finit sur lui.
+*Effet* : le premier échantillon décodé de l'octet marqué saute de `scaleMap4[63]` = −60 (ou `scaleMap26[39]` = −35)
+au lieu de son pas, et la suite du flux garde l'écart, l'ADPCM étant différentiel : un saut à chaque terme du 8237 qui
+tombe dans un flux qui continue — à chaque tour du tampon du 8237 en automatique, au milieu du bloc en simple cycle.
+Quand le compte du 8237 égale le bloc, l'octet marqué est le dernier lu, que PCem ne décode pas (PB-234) : pas
+de saut, un octet perdu. En 2 bits (16h, 17h et 1Fh, `:342`, `:356` ; `pollsb`, `:1019`), le `& 3` (`:999`) le masque.
+*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 2) ; précisé en G13 (reconnaissance D5, contre-lecture K11).
+*Source* : le terme de comptage sort sur la broche EOP du 8237A, distincte des données (Intel, fiche 8237A, 231466-005,
+tableau 1, p. 2 ; T/C, broche B27 du bus, IBM AT TR p. 1-20) ; le DSP lit l'octet seul et le décode (micrologiciel 2.02,
+`vector_dma_dac_adpcm4`, `sbv202.asm:445-530`). Documenté ; `DMA_OVER` n'est qu'une convention interne de PCem.
+*Cas qui discrimine* : SB 2.0, canal 1 du 8237 en automatique sur 4 octets (80h, 00h, 00h, 00h) ; 75h 07h 00h : au
+premier échantillon du 4e octet lu, le terme du 8237, PCem fait passer `sbref` de 80h à 44h et la sortie de 0 à C400h
+(−15 360) jusqu'à la fin du bloc ; sans le drapeau, `sbref` reste à 80h et la sortie à 0.
+*G13* : (a) — documenté (la fiche du 8237A, le micrologiciel), et le cas se joue en C# seul.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-90 : les deux lectures ADPCM de `pollsb` (4 et 2,6 bits) et les
+lectures de `sbdat2` de 74h/75h, 76h/77h, 7Dh et 7Fh. La lecture 2 bits de `pollsb` porte PB-91 ; celles de 16h/17h et
+de 1Fh, sans effet, n'ont pas de marqueur.
 
 ### PB-91 — L'ADPCM 2 bits ne finit jamais
 
@@ -952,18 +1393,37 @@ branche `ADPCM_2` lit l'octet suivant sans décrémenter `sb_8_length`.
 rend, sans IRQ de fin ; 0x1F (automatique) ne recharge jamais. Un programme qui attend l'IRQ
 attend toujours.
 *Trouvé par* : reconnaissance de G8 (défaut n° 1).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-91.
+*Source* : guide de Creative, p. 6-7 (PDF 92) : 16h et 17h prennent « the number of bytes to transfer less 1 » ; le DSP
+2.02 décrémente le compte à chaque octet lu (`vector_dma_dac_adpcm2`, `sbv202.asm:343-440`, `X01a2`, `X01a4`), puis lève
+l'IRQ (`X0159`) ou recharge le bloc de 48h en automatique (`X016e`). Documenté deux fois.
+*Cas qui discrimine* : SB 2.0, canal 1 du 8237 en simple cycle sur 4 octets ; 16h 03h 00h : la carte lève l'IRQ 8 bits
+après 4 octets pris au 8237 ; PCem jamais (`sb_8_length` reste à 2, `sb_8_enable` à 1). En automatique (48h 03h 00h,
+puis 1Fh), la carte recharge `sb_8_autolen` tous les 4 octets ; PCem jamais.
+*G13* : (a) — documenté ; l'instant de l'IRQ se combine avec la fin de bloc du 2.02 (PB-234).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueur PB-91.
 
 ### PB-92 — L'IRQ 10 de la Sound Blaster se perd sur une machine sans second PIC
 
-`sound_sb.c` propose l'IRQ 10 à la configuration des cartes 8 bits (SB, SB Pro…), sans regarder
-la machine. `sb_irq` (`sound_sb_dsp.c:107-114`) appelle `picint(1 << 10)` ; sans `AT`,
-`picint` (`pic.c:302-308`) n'accepte que `num <= 0xff` : l'interruption est jetée.
-*Effet* : sur un PC ou un XT réglé à l'IRQ 10, la carte ne signale jamais rien, sans message.
-*Trouvé par* : reconnaissance de G8 (défaut n° 3).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
-*G12.0* : la SB Pro v1 propose aussi l'IRQ 10 (`sound_sb.c:1220`) ; les SB 1.0, 1.5 et 2.0 ne la proposent
-pas (`:1149-1153`, `:1179-1183`).
+`sound_sb.c` propose l'IRQ 10 à la configuration des SB Pro v1 et v2 (`:1220`, `:1242`), sans regarder la machine.
+`sb_irq` (`sound_sb_dsp.c:107-114`) appelle `picint(1 << 10)` ; sans `AT`, `picint` (`pic.c:302-308`) n'accepte que
+`num <= 0xff` : l'interruption est jetée. C'est aussi ce que fait la carte (refondé en G13) : l'IRQ 10 n'existe que sur
+la rallonge de 36 broches de l'AT, qu'un emplacement de PC ou d'XT n'a pas. La reconnaissance de G13 l'appuyait sur DOS
+Days, qui dit le contraire (la rallonge de la CT1330 « not wired to anything ») ; stason.org (fiche TULARC) et Wikipédia
+la disent reliée à l'IRQ 10 et au DMA 0 (sources secondaires). Si DOS Days avait raison, l'IRQ 10 ne marcherait sur
+aucune machine : c'est PCem sur AT qui aurait tort, pas sur un PC.
+*Effet* : sur un PC ou un XT réglé à l'IRQ 10, la carte ne signale jamais rien, sans message — comme la vraie carte ;
+seule la configuration, qui offre un réglage sans effet sur ces machines, est en cause.
+*Trouvé par* : reconnaissance de G8 (défaut n° 3) ; refondé en G13 sur le brochage (contre-lecture K1).
+*Source* : IBM, *Technical Reference, Personal Computer AT* (mars 1984), p. 1-21 (I/O Channel, D-Side : D3 = IRQ10,
+D8 et D9 = −DACK0 et DRQ0) et p. 9-3 (« Adapters designed to make use of the 36-pin connector are not compatible with
+the rest of the IBM Personal Computers »). Documenté pour le bus ; le câblage de la CT1330, sources secondaires.
+*Cas qui discrimine* : aucun sur un PC ou un XT, où la carte et PCem perdent l'IRQ 10. Sur un AT, si la CT1330 ne
+câblait pas sa rallonge, F2h à l'IRQ 10 lèverait l'IRQ chez PCem et rien sur la carte : à relever sur une CT1330.
+*G13* : (d) — fidèle sur un PC et un XT ; la part (c), le câblage de l'IRQ 10 sur la CT1330, ne touche que l'AT. Au
+plus, un avertissement de configuration de l'hôte.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_irq`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
+*G12.0* : la SB Pro v1 propose aussi l'IRQ 10 (`sound_sb.c:1220`) ; les SB 1.0, 1.5 et 2.0 ne la proposent pas
+(`:1149-1153`, `:1179-1183`).
 
 ### PB-94 — La souris PS/2 ne répond pas aux commandes qu'elle ne connaît pas
 
@@ -975,22 +1435,35 @@ toute commande. `MOUSE_REMOTE` et `MOUSE_ECHO` (`:12`) ne sont jamais posés.
 *Effet* : un pilote qui envoie F6h ou F0h attend son accusé jusqu'à son délai, puis conclut à
 une souris absente ou en panne.
 *Trouvé par* : reconnaissance de PS2 (PLAN-PS2.md, défaut n° 1).
-*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-94 ; le banc PS2BANC le montre (F6h → rien, EEh
+*Source* : Chapweske, « The PS/2 Mouse Interface », 2001, et Brouwer, « The PS/2 mouse » (secondaires) : FAh à toute
+commande valide, FEh puis FCh à une invalide ; F6h, F0h, EAh, EEh et ECh. IBM 15F0306 p. 2-97 ne décrit que l'état
+posé par INT 15h C2h (désactivée, 100/s, 4 points/mm, 1:1). Documenté (secondaire).
+*Cas qui discrimine* : PS2BANC sous `--force-ps2`, F6h par D4h : PCem ne rend rien (le tampon de sortie reste vide
+jusqu'au délai du pilote) ; la souris rend FAh, puis E9h donne FAh 00h 02h 64h.
+*G13* : (b) — les attendus ne reposent que sur des sources secondaires ; une vraie souris PS/2 les fixerait.
+*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-94 (`:90`) ; le banc PS2BANC le montre (F6h → rien, EEh
 au relevé).
 *PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
 utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
-### PB-95 — L'état de la souris PS/2 code le bouton du milieu comme gauche et droit
+### PB-95 — L'octet d'état de la souris PS/2 (E9h) place mal les trois boutons
 
-`mouse_ps2.c:83-84`, commande E9h (état) : `if (mouse_buttons & 4) temp |= 3;` — les bits 0 et 1
-(gauche et droit), là où l'octet d'état porte le bouton du milieu en bit 2 (le paquet de flux,
-`:199-200`, et EBh, `:102-103`, le posent bien en bit 2, et seulement pour une souris à trois
-boutons).
-*Effet* : un pilote qui lit l'état voit les deux boutons latéraux enfoncés quand on presse celui
-du milieu.
-*Trouvé par* : reconnaissance de PS2 (défaut n° 2).
-*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-95 ; le banc PS2BANC, bouton du milieu tenu, le
-montre à E9h.
+`mouse_ps2.c:79-84`, commande E9h (état) : `mouse_buttons & 1` pose le bit 0, `& 2` le bit 1, et `& 4` pose `|= 3`.
+PCem y reprend la disposition du paquet de flux (`:195-200`) et d'EBh (`:98-103`) — le gauche en bit 0, le droit en
+bit 1, le milieu en bit 2 pour une souris à trois boutons —, et code le milieu par les bits 0 et 1. Or l'octet
+d'état d'IBM met le gauche en bit 2, le droit en bit 0, et réserve le bit 1. Cette entrée disait que l'état porte le
+milieu en bit 2 : c'est faux (contre-lecture de G13, la source ci-dessous).
+*Effet* : un pilote qui lit l'état voit le gauche comme le droit, le droit comme le bit réservé (le milieu d'une
+souris à trois boutons), et le milieu comme le droit et le milieu ensemble.
+*Trouvé par* : reconnaissance de PS2 (défaut n° 2) ; la disposition, par la reconnaissance de G13.
+*Source* : IBM 15F0306, INT 15h C2h AL = 06h BH = 00h, « Status byte 1 », p. 2-97 : bit 6 distant, 5 activée, 4
+échelle 2:1, 2 gauche, 1 réservé, 0 droit ; de même l'ABIOS (p. 6-118) et le TR du Model 25 (84X0672, p. 5-48).
+Documenté ; que l'octet brut d'E9h soit le même est déduit (le BIOS relaie les trois octets d'E9h).
+*Cas qui discrimine* : PS2BANC sous `--force-ps2`, souris activée (F4h), E9h : gauche tenu, PCem 21h et IBM 24h ;
+droit tenu, 22h et 21h ; milieu tenu sur une souris à deux boutons, 23h et 20h.
+*G13* : (a) — avec PB-94 (le bit 6 suit le mode distant) ; le `temp |= 4` de PS2.0 n'en est pas l'attendu.
+*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-95 (`:113`) ; le banc PS2BANC, bouton du milieu tenu, le
+montre à E9h (23h).
 *PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
 utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
@@ -1003,44 +1476,88 @@ et R11 = 7, PCem les réécrit en Bh/Ch (« Fix for Generic Turbo XT BIOS ») �
 le logiciel devient un autre. `:99-100` : en entrelacé, `sc = (sc << 1) & 7` perd les lignes 8 et
 au-delà.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 3 et 4).
-*Reproduit* : `Video/vid_mda.cs`, marqueurs PB-97.
+*Source* : data sheet MC6845 (Motorola), table des registres : R4, R6, R7, R10 sur 7 bits, R5, R9, R11 sur 5, R8 sur 6,
+R0-R13 non relisibles, l'entrelacé « sync and video » ; IBM PC TR 6025008 (1981), listing du BIOS : SET_CTYPE envoie CX
+tel quel à R10-R11 (M16) — documenté ; la valeur que rend un registre en écriture seule : inconnue.
+*Cas qui discrimine* : MDA, R10 = 06h puis R11 = 07h : PCem 0Bh-0Ch, le 6845 06h-07h ; R4 = 99h : PCem 99h, le 6845
+19h ; R8 = 03h et R9 = 0Dh : PCem ne dessine que les rangées 0, 2, 4 et 6 de la police, en boucle ; le 6845, les
+rangées 2k + trame, de 0 à 13 (déduit).
+*G13* : (a), (b), (c) — (a) les masques et le Turbo XT ; (b) l'entrelacé ; (c) la valeur relue, inconnue sans mesure.
+*Reproduit* : `Video/vid_mda.cs`, marqueurs PB-97 (`:88`, l'écriture et le Turbo XT ; `:182`, l'entrelacé).
 *G9.1* : l'Hercules fait de même (`vid_hercules.c:89`, `:54-60`, `:137-138`) ; reproduit,
-`Video/vid_hercules.cs`. Le banc HERCBANC relit les douze registres du mode graphique.
+`Video/vid_hercules.cs` (`:80`, `:186`). Le banc HERCBANC relit les douze registres du mode graphique.
+*G13.1* : la table de masques du mode matériel se tire du data sheet, pas de `crtcmask` de la CGA, qui laisse R16-R17
+inscriptibles (PB-230). La CGA, la M24 et le PC1512 relisent aussi R0-R13 : PB-230. Le curseur 0607h
+tombe à mi-cellule sur une vraie MDA : le BIOS d'IBM le recopie tel quel (VIDEO_PARMS donne 0B0Ch au seul mode 7).
 
 ### PB-99 — L'EGA de PCem a des traits de la VGA, et trompe le test de son BIOS
 
 `vid_ega.c` :
-- l'attribut 10h bit 7 et l'attribut 14h composent la palette (`:39-42`), et l'attribut 10h
+- (1) l'attribut 10h bit 7 et l'attribut 14h composent la palette (`:39-42`), et l'attribut 10h
   bit 5 la fenêtre de défilement (`:613`) — des registres de la VGA ;
-- CR11 bit 7 protège CR0-CR7 en écriture (`:128`) — idem ;
-- tous les registres se relisent (`:152-179`), là où l'EGA est presque toute en écriture seule
+- (2) CR11 bit 7 protège CR0-CR7 en écriture (`:128`) — idem ;
+- (3) tous les registres se relisent (`:152-179`), là où l'EGA est presque toute en écriture seule
   (CR10/CR11 rendent le crayon optique) : un logiciel qui distingue l'EGA de la VGA en relisant un
   registre se trompe ;
-- `3DAh` : `stat ^= 0x30` à chaque lecture (`:182`, « Fools IBM EGA video BIOS self-test ») au
+- (4) `3DAh` : `stat ^= 0x30` à chaque lecture (`:182`, « Fools IBM EGA video BIOS self-test ») au
   lieu des broches vidéo ;
-- le texte n'est redessiné que sur `fullchange` (`:559`) : un curseur, une police (SR3) ou un
+- (5) le texte n'est redessiné que sur `fullchange` (`:559`) : un curseur, une police (SR3) ou un
   attribut 10h changés n'apparaissent qu'au prochain rafraîchissement complet ;
-- la mémoire configurée (64 ou 128 Ko) ne borne que le processeur (`vram_limit`) ; le rendu lit
-  au-delà (`:345-347`, `:406-408`, `:478-480`) des octets qu'une carte plus petite n'a pas.
-*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défaut n° 6).
-*Reproduit* : `Video/vid_ega.cs`, marqueurs PB-99. Le banc EGABANC relit le CRTC et l'attribut 10h,
-et voit 3DAh basculer ses bits 4-5.
+- (6) la mémoire configurée (64 ou 128 Ko) borne le processeur (`vram_limit`) et le rendu (`vrammask`, `:263-264`,
+  `:324`, `:337`, `:1056-1057`), mais les substitutions de rangée de CR17 s'appliquent après le masque (`:344-347`,
+  `:405-408`, `:477-480`) : avec 64 Ko, le seul bit 0x10000 (CR17 bit 1 = 0) lit des octets que la carte n'a pas, et
+  aucun mode du BIOS d'IBM ne pose ce bit à 0 (déduit). La police du texte, lue sans masque (`:287`), sort de même
+  dès que SR3 choisit une table au-delà de la mémoire (relu en G13.1) ;
+- (7) CR07 bits 5-7 et CR09 bit 6 lus comme les bits 9 de la VGA (`vtotal`, `dispend`, `vsyncstart`, `split`,
+  `:200-219`), et CR0A bit 5 qui éteint le curseur (`:619`) — des registres de la VGA, inscrits en G13.1.
+*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défaut n° 6) ; (6) resserré et (7) ajouté par la reconnaissance de
+G13 (D4-contre, § 2 n° 6 ; D4-video, § PB-99).
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), EGA : 10h bits 4-7, 07h bits 6-7, 09h et 0Ah bits 5-7, 11h
+bits 6-7 « Not Used » ; écriture seule hors 0Ch-0Fh (pp. 30-37, 56-61) ; 3DAh bits 4-5, deux sorties vidéo choisies par
+12h (pp. 15-17, 60), que POD14 teste (pp. 113-114) — documenté ; (5), (6) : déduits ; la valeur relue : inconnue.
+*Cas qui discrimine* : (1) AC00 = 01h, AC14 = 0Fh, AC10 = 80h : PCem egapal[0] = F1h, l'EGA 01h ; (2) CR11 = 80h puis
+CR01 = 27h : PCem garde l'ancien CR01, l'EGA prend 27h ; (7) CR07 = 20h, CR06 = 70h : PCem `vtotal` = 271h, l'EGA 71h.
+*G13* : (a), (b), (c) — (a) (1), (2), (5), (7) ; (b) (4), un modèle neuf du faisceau, et (6) ; (c) la valeur de (3).
+*Reproduit* : `Video/vid_ega.cs`, marqueurs PB-99 : `:139` (10h bit 7 et 14h), `:237` (CR11), `:264` (la relecture),
+`:302` (3DAh), `:322` (les bits 9), `:418` (la police), `:703` (`fullchange`), `:770` (10h bit 5), `:779` (CR0A bit 5),
+`:1205` (la mémoire). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
 
 ### PB-100 — La Tseng ET4000AX de PCem et son RAMDAC
 
 `vid_et4000.c` :
-- `crtc_mask` (`:34-37`) efface CR38-CR3F, CR3F compris : le bit de débordement de `htotal` que
-  `et4000_recalctimings` lit (`:399`) est toujours nul ;
+- `crtc_mask` (`:34-37`) efface CR19-CR2F et CR38-CR3F : c'est fidèle à l'AX, dont la table 4.3-2 du data book n'a
+  que les index 00h-18h et 32h-37h — CR3F, dont `et4000_recalctimings` lit le débordement de `htotal` (`:399`), est un
+  registre de la W32, et ce point n'est pas un défaut. Mais CR30 et CR31, absents de l'AX, restent inscriptibles et se
+  relisent ;
 - un CR13 nul vaut 256 (`:397-398`) ;
 - la fenêtre linéaire de 128 Ko (`banked_mask = 0x1ffff`, `:72-75`) n'est posée que sur une
-  transition non nul → nul de GDC6 ; `svga_init` laisse `banked_mask` à 0 ;
-- pas de séquence KEY (3BFh/3D8h) : les registres étendus sont toujours ouverts ; SR7 se relit
-  avec le bit 2 forcé (`:269-270`).
+  transition non nul → nul de GDC6 ; `svga_init` laisse `banked_mask` à 0. Le masque nul ne se voit pas : `svga_out`
+  ne change la carte que si GDC6 bits 2-3 changent, et le BIOS pose un mode avant tout accès ; le data book déconseille
+  la carte de 128 Ko en modes étendus (pp. 85, 150-151), dont l'effet sur les segments de 3CDh n'est pas documenté ;
+- pas de séquence KEY (03h en 3BFh, puis A0h en 3D8h ou 3B8h, p. 102) : ce qu'elle garde reste ouvert — les écritures
+  du CRTC au-delà de 18h hors 33h et 35h (p. 111), CR36-CR37 (pp. 136-137), TS 6 et TS 7 (p. 142), l'ATC 16h (p. 158),
+  3CDh avant la première pose (p. 144), et la lecture de l'Input Status 0 bits 5-6 (p. 102) et du bit 7 de 3CAh
+  (p. 104). Le retrait du KEY n'est décrit nulle part dans le data book ;
+- SR7 se relit avec le bit 2 forcé (`:269-271`). « Set to 1 (always) » (p. 142) décrit un registre en lecture-écriture :
+  une consigne de programmation, pas un bit câblé ; PCem ne force pas non plus le bit 4 que la même page donne en
+  révision E. La valeur relue est inconnue.
 `vid_unk_ramdac.c` : FFh écrit une fois le RAMDAC armé ne touche pas le registre de commande et
-tombe dans `svga_out` (le masque des pixels, `:24`) ; le décodage des profondeurs rend 32 bits
-(`:27-61`), que le SC1502x n'a pas.
-*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10).
-*Reproduit* : `Video/vid_et4000.cs`, `Video/vid_unk_ramdac.cs`, marqueurs PB-100.
+tombe dans `svga_out` (le masque des pixels, `:24`) ; chez Sierra, l'écriture va au registre de commande sans
+exception, et FFh y pose D4, l'ERPF, avec le code réservé 111 (tables 3 et 10). Le décodage des profondeurs
+(`:27-61`) tire 24 ou 32 bits de D5, qui choisit chez Sierra les fronts d'horloge (modes 1a/1b, 3a/3b), et invente un
+décodage du code réservé 111 (`:45-58`). Les modes à 4 octets par point existent (3a et 3b, le quatrième octet jeté,
+table 2), mais par le registre de repack, l'étendu 10h, que l'ERPF ouvre.
+*Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10) ; CR3F, SR7, le KEY et la Sierra repris par la
+reconnaissance de G13 (D4-video, § PB-100 ; D4-contre, § 2 n° 7 à 11).
+*Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), pp. 85, 102-104, 111, 123, 136-137, 142, 144,
+150-151, 158 — documenté, hors le retrait du KEY (inconnu) ; Sierra, data sheet *SC15025/SC15026*, tables 2, 3, 9 et
+10, pp. 3-83 à 3-91 — documenté ; la puce exacte de la carte modélisée (« SC1502x ») : inconnue.
+*Cas qui discrimine* : CR13 = 00h : PCem `rowoffset` = 256, l'ET4000 0, la même rangée répétée ; sans KEY, CR36 = 5Ah :
+PCem l'écrit, l'ET4000 l'ignore ; FFh écrit une fois armé : PCem garde le registre de commande, la Sierra y prend FFh.
+*G13* : (b), (c), (d) — (b) CR13, 128 Ko, le KEY posé ; (c) son retrait, SR7, FFh, 24/32 bits, CR30-31 ; (d) CR3F.
+*Reproduit* : `Video/vid_et4000.cs`, marqueurs PB-100 : `:48` (le masque), `:72` (le KEY, en écriture), `:95` (la
+fenêtre de 128 Ko), `:144` (le KEY, en lecture), `:149` (SR7), `:187` (CR13) ; `Video/vid_unk_ramdac.cs:39` (FFh et
+les profondeurs).
 
 ### PB-101 — `lpt2_remove_ams` ne retire rien
 
@@ -1049,10 +1566,19 @@ de LPT2 sont à 278h (`lpt_init`, `:144`) : aucun n'est à 379h-37Ah, et l'appel
 d'`amstrad_init` (`amstrad.c:144`), ne fait rien. Le PC1512 garde donc le LPT2 de `lpt_init` à
 278h, ses registres de données et de contrôle relus. `ams_init` retire LPT1 (`model.c:263`), et
 `amstrad.c:149` repose 378h-37Ah sur ses propres gestionnaires.
-*Effet* (déduit à la lecture, non mesuré) : le PC1512 émulé a un second port parallèle, à 278h,
-que la machine réelle n'a pas ; un logiciel qui sonde 278h le trouve.
+*Effet* : le PC1512 émulé a un second port parallèle, à 278h, que la machine réelle n'a pas ; un
+logiciel qui sonde 278h le trouve. Son BIOS le trouve aussi (contre-lecture de G13, la ROM v1 40043/40044) : il
+sonde 3BCh puis 278h par AAh et 55h sur le registre de données (`F000:C8D6-C8FA`), et `lpt2_read` rend `lpt2_dat`
+(`lpt.c:130-139`) : la sonde réussit, d'où 0278h en 0040:000A et une imprimante de plus en 0040:0011 (déduit de la
+ROM, à mesurer par LPTBANC).
 *Trouvé par* : transcription de G10.0.
-*Reproduit* : `Lpt/lpt.cs`, `Models/amstrad.cs`, marqueurs PB-101.
+*Source* : Amstrad, PC1512 Technical Reference Manual, section 1, § 1.3, 1.4 (« 278 - 27F External Printer Port »,
+sur une carte d'extension) et 1.10 : un seul port parallèle intégré, en 378h-37Ah. Documenté ; sans carte, 278h ne
+répond pas (FFh, la valeur d'un port sans gestionnaire ; déduit).
+*Cas qui discrimine* : LPTBANC sur le PC1512 : PCem, 0040:000A = 0278h et 278h relu AAh après OUT 278h,AAh ; le
+PC1512, 0040:000A = 0000h et 278h relu FFh.
+*G13* : (a) — `lpt2_remove()` (278h) au lieu de `lpt2_remove_ams()` dans `amstrad_init`.
+*Reproduit* : `Lpt/lpt.cs` (`:258`), `Models/amstrad.cs` (`:175`), marqueurs PB-101.
 
 ### PB-102 — La MDA et l'Hercules balayent avec un caractère de 8 points
 
@@ -1068,7 +1594,14 @@ l'Hercules compte des unités de 16 points avec le même pas : R0 = 35h donne 37
 3BAh, le clignotement du curseur), deux fois trop vite en graphique ; le moniteur simulé de l'hôte
 lit 20,74 kHz (mesuré, VERIFICATION.md, § L'hôte : le moniteur automatique).
 *Trouvé par* : la mesure du correctif « hors plage » de l'hôte (plan qualité du 04/10, § 1c).
-*Reproduit* : `Video/vid_mda.cs`, `Video/vid_hercules.cs`, marqueurs PB-102.
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), MDA : caractère de 9 points, moniteur de 18 kHz (p. 2),
+oscillateur de 16,257 MHz (schéma feuille 3, p. 21) ; Hercules, *GB101 Owner's Manual* : 0,5625 µs par caractère en
+texte, 1 µs en graphique (p. 10) — documenté ; l'horloge de 16 MHz de l'Hercules, déduite de ces temps.
+*Cas qui discrimine* : MDA, mode 7 (R0 = 61h, R4 = 19h, R5 = 06h, R9 = 0Dh) : PCem, ligne de 48,23 µs et trame de
+17,84 ms ; IBM, 54,25 µs (18,43 kHz) et 20,07 ms (49,8 Hz). Hercules en graphique (R0 = 35h, R4 = 5Bh, R5 = 02h,
+R9 = 03h) : PCem 26,57 µs par ligne, la GB101 54 µs (18,52 kHz, 50,05 Hz).
+*G13* : (a) — documenté ; un commutateur propre, `--menu-check` resserré, l'Hercules recalculé aussi sur 3B8h et 3BFh.
+*Reproduit* : `Video/vid_mda.cs`, `Video/vid_hercules.cs`, marqueurs PB-102 (`vid_mda.cs:157`, `vid_hercules.cs:159`).
 
 ### PB-103 — La CH Flightstick Pro et la TM FCS n'ont pas de haut-gauche
 
@@ -1081,7 +1614,13 @@ chapeau en bas (`:50-51`).
 *Effet* (mesuré, JOYBANC) : poussé en haut à gauche, le chapeau de la CH est lu au repos (FFh, comme
 au tour sans chapeau) et celui de la TM en bas (l'axe 3 compté comme à 180°).
 *Trouvé par* : reconnaissance de G10.1.
-*Reproduit* : `Joystick/joystick_ch_flightstick_pro.cs`, `Joystick/joystick_tm_fcs.cs`, marqueurs
+*Source* : Nerdly Pleasures, « Three Flight Simulator Joysticks for DOS », 2014 (secondaire) : la CH code son chapeau
+par quatre combinaisons de boutons ; le vrai chapeau n'a que quatre directions (déduit). 315° vient de l'hôte : ce
+qu'il donne est une convention, sans vérité matérielle.
+*Cas qui discrimine* : JOYBANC, tours 5 et 10, chapeau injecté à 315° : PCem, la CH au repos et la TM à 0 (en bas) ;
+« haut » (`>= 315`), les boutons 1 à 4 et −32768 ; « gauche » (le précédent `<= 315`), les boutons 1 et 2 et 16384.
+*G13* : (a) — sur une convention à trancher (« haut » ou « gauche ») ; du périphérique, sous l'interrupteur seul.
+*Reproduit* : `Joystick/joystick_ch_flightstick_pro.cs` (`:26`), `Joystick/joystick_tm_fcs.cs` (`:47`), marqueurs
 PB-103 ; montré par `bd-pc-joy-ch-banc` et `bd-pc-joy-tm-banc` (tours 5 et 10, le chapeau injecté à
 315°). Contrôle négatif : la borne de la TM corrigée (`<= 315`) fait rougir `bd-pc-joy-tm-banc`.
 
@@ -1098,9 +1637,15 @@ du chapeau dans le .cfg, le manche poussé à droite lit 135° (le chapeau étan
 droite, 315° en haut à gauche). Propre à l'hôte : l'oracle n'a pas de manette hôte, et les portes
 injectent l'état de la manette émulée.
 *Trouvé par* : reconnaissance de G10.1.
-*Reproduit* : `pc.cs`, `load_joysticks`, marqueur PB-104 ; une valeur explicite du .cfg est lue
-telle quelle, comme chez PCem. *Correction proposée pour le mode matériel de G13* : par défaut
-`POV_X | d` et `POV_Y | d`, le chapeau d de la manette de l'hôte.
+*Source* : sans objet matériel — une correspondance de l'hôte, que l'oracle n'exécute jamais (`pc.c:790` exige une
+manette d'hôte) ; la valeur attendue, le chapeau de la manette (`POV_X | d`, `POV_Y | d`), est une convention.
+*Cas qui discrimine* : `--joystick-check`, cas 2 (aucune correspondance au .cfg) : PCem, le manche à droite et le
+chapeau en haut lisent 135°, le manche à gauche 315° ; avec `POV_X | d` et `POV_Y | d`, 0° et −1.
+*G13* : (d) — défaut de l'hôte sans pendant matériel, qui ne protège ni fichier ni hôte : laissé (décision n° 9).
+*Reproduit* : `pc.cs`, `load_joysticks`, marqueurs PB-104 (`:674`, l'en-tête ; `:707`, les deux défauts) ; une
+valeur explicite du .cfg est lue telle quelle, comme chez PCem. *Correction envisagée avant G13* : par défaut
+`POV_X | d` et `POV_Y | d`, le chapeau d de la manette de l'hôte. La contre-lecture de G13 l'a sortie du mode
+matériel (aucune vérité matérielle), et la décision n° 9 de `PLAN-G13.md` la laisse dans les deux modes.
 
 ### PB-106 — Le mode 2 à 2 336 octets est lu 16 octets trop loin
 
@@ -1113,6 +1658,13 @@ loin) ; une piste MODE2/2336 d'une feuille CUE se lit 16 octets trop loin — so
 PVD à partir de son 16e octet. Mesuré par `cdimage-check` (constats, `iso-2336-mode2.bin`,
 `formats.cue`).
 *Trouvé par* : reconnaissance de G10.3.
+*Source* : documenté — SFF-8020i r2.6 (22 janvier 1996), Figure 11 : un secteur XA mode 2 forme 1 porte 12 octets de
+synchronisation, 4 d'en-tête et 8 de sous-en-tête avant ses 2 048 octets de données ; sans synchronisation ni
+en-tête (2 336 octets), les données sont à +8. Figure non revérifiée en contre-lecture.
+*Cas qui discrimine* : `iso-2336-mode2.bin` (isogen) : PCem refuse l'image ; le matériel la lit, et son secteur 16
+rend `01 « CD001 » 01`. `formats.cue`, la piste MODE2/2336 : son secteur 16 commence chez PCem au 16e octet du PVD,
+sur le matériel à son octet 0.
+*G13* : (a).
 *Reproduit* : `Cdrom/cdrom_image.cs`, `CanReadPVD` et `ReadSector`, marqueurs PB-106. Contrôles
 négatifs : chacun des deux décalages corrigé (+8) rougit la porte.
 
@@ -1127,6 +1679,11 @@ pour 2 684 354 560 octets, mesuré par `cdimage-check` sur une image creuse (`cr
 Au-delà de 4 Gio, seul le reste modulo 4 Gio est vu : un DVD de 4,7 Go apparaîtrait de 405 Mo
 (calculé, non mesuré).
 *Trouvé par* : reconnaissance de G10.3.
+*Source* : déduit — aucun CD ne dépasse la plage MSF (99:59:74, environ 880 Mo) ; une image de plus de 2 Gio est un
+DVD, qu'un lecteur de CD-ROM refuse (« incompatible medium »). Aucune norme ne décrit une image de fichier.
+*Cas qui discrimine* : `creuse-2g5.iso` (2 684 354 560 octets) : PCem monte 385 025 secteurs et n'en lit aucun ;
+attendu : l'image refusée avec un avertissement, le lecteur vide (comme PB-116) ; une image de 700 Mo, inchangée.
+*G13* : (b) — une correction d'hôte plus que de fidélité, sans vrai comportement documenté.
 *Reproduit* : `Cdrom/cdrom_image.cs`, `getLength`, marqueur PB-107. Contrôle négatif : la taille
 bornée au lieu de tronquée rougit la porte.
 
@@ -1141,6 +1698,12 @@ prégap : le secteur de son INDEX 01 rend le premier secteur du fichier. Mesuré
 `cdimage-check` (`multi.cue` : la piste 2, INDEX 01 au secteur 5 de son fichier, rend le
 secteur 0). À l'écoute (G10.5), chaque piste jouerait d'abord son prégap.
 *Trouvé par* : transcription de G10.3.
+*Source* : documenté par le format — CDRWIN User's Guide (Golden Hawk Technology), annexe A, repris par libodraw,
+*CUE sheet format* § 5.6 — INDEX 00 marque le prégap, INDEX 01 le début de la piste, positions relatives au FILE ;
+la TOC rend INDEX 01 (SFF-8020i § 10.8.19). Format non revérifié en contre-lecture.
+*Cas qui discrimine* : `multi.cue`, la piste 2 dans son propre fichier (INDEX 00 en 00:00:00, INDEX 01 au secteur
+5) : READ du premier secteur de la piste 2 rend chez PCem le secteur 0 du fichier, sur le matériel le secteur 5.
+*G13* : (a).
 *Reproduit* : `Cdrom/cdrom_image.cs`, `AddTrack`, marqueur PB-108. Contrôle négatif :
 `prestart >= 0` rougit la porte.
 
@@ -1156,8 +1719,15 @@ fichier illisible jusqu'à la réouverture de l'image — mesuré par `cdimage-c
 piste 3). Et une image coupée sept octets après le début du PVD est montée avec une longueur 0 :
 `getLength` rend -1 sous `failbit` (`:66-67`, constat de `tronque-pvd.iso`).
 *Trouvé par* : reconnaissance de G10.3 (PLAN-G10.md, « l'échec collant »).
-*Reproduit* : `Cdrom/cdrom_image.cs`, l'ifstream modélisé d'après la libstdc++ de gcc 15 (bits
-d'état et sentinelles). Contrôle négatif : `failbit` effacé par `seekg` rougit la porte.
+*Source* : déduit — un état de la libstdc++, sans analogue matériel ; un vrai lecteur qui échoue sur un secteur lit
+le suivant. Aucune norme ne décrit une image de fichier.
+*Cas qui discrimine* : `multi.cue`, la piste 3 (dernier secteur incomplet) : après la lecture de ce secteur, PCem
+refuse toute relecture de la piste 3 ; attendu : elle réussit. `tronque-pvd.iso` : PCem monte une longueur 0 ;
+attendu : la longueur réelle.
+*G13* : (a).
+*Reproduit* : `Cdrom/cdrom_image.cs`, l'ifstream modélisé d'après la libstdc++ de gcc 15 (bits d'état et
+sentinelles) ; marqueurs PB-109 sur `read` et `getLength`, posés en G13.1 (seul l'en-tête le nommait, D3-contre,
+C8). Contrôle négatif : `failbit` effacé par `seekg` rougit la porte.
 
 ### PB-110 — Une feuille CUE dont des pistes précèdent tout FILE fait tomber l'émulateur
 
@@ -1174,6 +1744,7 @@ le premier FILE suivie d'une piste qui en a un le fait tomber pendant `image_ope
 d'image de 1 024 octets ou plus déborde `image_path`. La feuille et le chemin sont des données de
 l'utilisateur, comme un .cfg.
 *Trouvé par* : transcription de G10.3.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, décision n° 4 de G10.3) : `Cdrom/cdrom_image.cs`, marqueurs `pcem bug, not
 reproduced` — la lecture échoue, la feuille fautive est refusée ; `r9-cue` (C# seul) rougit en
 nommant l'exception si l'on retire une garde. `image_path` est une chaîne C#. L'oracle ne reçoit
@@ -1196,6 +1767,7 @@ sites — `:102` et `:106` dans la sélection, les quatorze de la machine d'éta
 — vérifient l'accord du pont et de `scsi_cd`, deux codes déterministes : aucune séquence de
 l'invité ne les atteint (relecture, VERIFICATION.md § G10.4).
 *Trouvé par* : reconnaissance de G10.4.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, décision n° 14 de PLAN-G10.md) : `Ide/ide_atapi.cs` et `Scsi/scsi.cs`,
 marqueurs `pcem bug, not reproduced: PB-113`. La sélection abandonne la transaction en cours
 (`scsi_bus_reset`, qui remet aussi le lecteur) et reprend, comme un vrai lecteur ; un second échec
@@ -1212,6 +1784,7 @@ machine du dépôt n'a de contrôleur PCI), les deux sont nuls, et `:246-248`, `
 états dès qu'un PACKET porte le bit DMA (registre de fonctions, bit 0).
 *Effet* : un pilote qui tente le DMA fait tomber l'hôte au premier transfert.
 *Trouvé par* : reconnaissance de G10.4.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, décision n° 15) : les deux états réarment leur chronomètre, comme si le DMA
 n'avait pas eu lieu — l'invité attend, l'émulateur vit (BSY indéfini, comme WIN_READ_DMA côté
 disque, `ide.c:884`). `r9-atapi` : le lecteur reste BSY, puis DEVICE RESET le rend.
@@ -1227,6 +1800,7 @@ passe la fin de `data_in` : `data_out`, les champs du struct, puis hors de l'all
 compte négatif (`new[]` démesuré).
 *Effet* : chacune fait tomber l'hôte, à la portée de tout invité.
 *Trouvé par* : reconnaissance de G10.4.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, décision n° 16) : MECHANISM STATUS de longueur 0 rend GOOD sans données ;
 au-delà de `data_out`, l'octet est compté sans être gardé ; à la fin de `data_in` (262 144
 octets), le transfert s'arrête — un dernier octet nul, puis CHECK CONDITION, ILLEGAL REQUEST /
@@ -1242,6 +1816,7 @@ même pour un emplacement vide.
 *Effet* : avec un contrôleur IDE, l'hôte tombe au premier reset d'un canal — qu'un lecteur de CD
 soit monté ou non.
 *Trouvé par* : reconnaissance de G10.4.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9, décision n° 17) : `pc.cs`, `cdrom_image_open` — le lecteur reste vide, comme
 pour une image absente (`pc.c:302-305`), avec un avertissement. `r9-cdcfg` (vide.iso, sans-pvd.iso,
 un répertoire ; sans la garde, NullReferenceException).
@@ -1254,8 +1829,14 @@ plus un (`cdrom-image.cc:475`, constat de G10.3). READ CAPACITY attend l'adresse
 *Effet* : un pilote qui lit le dernier bloc annoncé reçoit CHECK CONDITION, ILLEGAL REQUEST / LBA
 OUT OF RANGE. ATAPIBANC le montre : READ CAPACITY rend 33, et READ(10) du secteur 32 est refusé.
 *Trouvé par* : reconnaissance de G10.3 (le moteur), lu chez l'invité en G10.4.
-*Reproduit* : `Scsi/scsi_cd.cs`, marqueur PB-117. Contrôle négatif : la capacité moins un rougit
-ATAPIBANC.
+*Source* : documenté — SFF-8020i r2.6, modèle CD-ROM, note sur READ CD-ROM CAPACITY (« returns the logical block
+address of the last block prior to the lead-out area ») ; SCSI-2 § 9.2.7 (non revérifié en contre-lecture).
+*Cas qui discrimine* : ATAPIBANC, image de 32 secteurs : READ CAPACITY rend 00000021h (33) chez PCem, 0000001Fh (31)
+sur le matériel, 2 048 octets par bloc ; READ(10) du LBA 31 : GOOD des deux côtés.
+*G13* : (a).
+*Reproduit* : `Scsi/scsi_cd.cs`, READ CAPACITY, et `Cdrom/cdrom-image.cs`, `image_open` (la capacité plus un),
+marqueurs PB-117. Contrôle négatif : la capacité moins un rougit ATAPIBANC ; la valeur juste est la capacité moins
+deux, 31 (D3-contre, C10).
 
 ### PB-118 — GET EVENT STATUS NOTIFICATION annonce toujours un nouveau disque
 
@@ -1268,7 +1849,14 @@ trois octets, l'octet de contrôle compris (`:1274`).
 lecteur vide —, et lit la longueur 4 comme 1 024. ATAPIBANC, deux appels : `04 00 04 10 02 02 00 00`
 les deux fois, lecteur chargé comme vide.
 *Trouvé par* : reconnaissance de G10.4 (PLAN-G10.md, « toujours NEW_MEDIA »).
-*Reproduit* : marqueurs PB-118. Contrôle négatif : la longueur en ordre réseau rougit ATAPIBANC.
+*Source* : SFF-8020i r2.6, Table 37 : 4Ah n'y est pas (documenté), d'où 05/20h en 1996 (déduit). MMC-2
+(T10/97-108r0) § 9.1.2 : longueur 0006h en ordre réseau, un événement rapporté une fois, 05/24h si IMMED = 0,
+filtrage par classe, sans UNIT ATTENTION (documenté). Référence à choisir (Q5 de D3-stockage).
+*Cas qui discrimine* : deux GESN (polled, classe média), disque chargé : PCem `04 00 04 10 02 02 00 00` les deux
+fois ; MMC-2 `00 06 04 10 02 02 00 00` puis `00 06 04 10 00 02 00 00` ; lecteur vide : PCem inchangé, MMC-2
+`00 06 04 10 00 00 00 00` ; SFF-8020i : CHECK CONDITION, 05/20h.
+*G13* : (b) — corrigeable, mais la référence (SFF-8020i ou MMC-2) n'est pas tranchée.
+*Reproduit* : `Scsi/scsi_cd.cs`, marqueurs PB-118. Contrôle négatif : la longueur en ordre réseau rougit ATAPIBANC.
 
 ### PB-119 — MODE SELECT lit son en-tête de travers et ne finit pas à longueur nulle
 
@@ -1280,20 +1868,35 @@ d'octets 0, puis FFFEh), chaque mot écrit en demandant d'autres.
 *Effet* : une page envoyée par MODE SELECT est lue au mauvais endroit ; un MODE SELECT vide laisse
 le lecteur en phase de données, jusqu'au reset — et mène à PB-115.
 *Trouvé par* : reconnaissance de G10.4.
-*Reproduit* : marqueurs PB-119. ATAPIBANC le montre : MODE SELECT(10) de la page audio est relu à
-l'identique par MODE SENSE(10) ; MODE SELECT(6) de la même page prend ses vingt octets, puis est
-refusé (ILLEGAL REQUEST, 24h) : la page est cherchée quatre octets trop loin. La longueur 0, par
-`r9-atapi`.
+*Source* : documenté — SFF-8020i r2.6 § 10.8.4 (« A parameter list length of zero indicates that no data shall be
+transferred » ; une liste qui tronque l'en-tête ou une page : 05/1Ah) ; SCSI-2 Tables 91 et 92 (en-tête(6) de 4
+octets, en-tête(10) de 8). MODE SELECT(6) relève de Q5 de D3-stockage.
+*Cas qui discrimine* : ATAPIBANC : MODE SELECT(6) de la page audio 0Eh : PCem cherche la page quatre octets trop
+loin et refuse (05/24h) ; le matériel l'accepte, et MODE SENSE la relit. MODE SELECT(10) de longueur 0 : PCem reste
+en phase de données (DRQ, compte 0 puis FFFEh) ; le matériel rend GOOD sans transfert.
+*G13* : (a).
+*Reproduit* : `Scsi/scsi_cd.cs`, marqueurs PB-119. ATAPIBANC le montre : MODE SELECT(10) de la page audio est relu à
+l'identique par MODE SENSE(10) ; MODE SELECT(6) de la même page prend ses vingt octets, puis est refusé (ILLEGAL
+REQUEST, 24h) : la page est cherchée quatre octets trop loin. La longueur 0, par `r9-atapi`.
 
 ### PB-120 — La TOC brute n'a ni lead-out ni longueur
 
-`scsi_cd.c:1026-1028` et `cdrom-image.cc:383-425` : READ TOC au format 2 ne rend qu'une entrée par
-piste — ni les points A0h, A1h, A2h, ni le lead-out —, et la longueur, `data_in[0..1]`, reste à
-zéro.
+`scsi_cd.c:1026-1028` et `cdrom-image.cc:383-425` : READ TOC au format 2 ne rend qu'une entrée par piste — ni les
+points A0h, A1h, A2h, ni le lead-out —, et la longueur, `data_in[0..1]`, reste à zéro. Chaque entrée porte en outre
+le numéro de piste dans l'octet de session et 0 dans POINT (`cdrom-image.cc:412-415`), là où le format 10b attend la
+session, puis la piste en POINT (relevé en G13.1, lu au code).
 *Effet* : un pilote qui lit la TOC brute y trouve une longueur nulle et aucune fin de disque.
 *Trouvé par* : reconnaissance de G10.3 (le moteur), lu au niveau de la commande en G10.4.
-*Reproduit* : marqueur PB-120 ; le moteur est comparé des deux côtés par `cdimage-check`. ATAPIBANC
-ne lit pas la TOC brute (PLAN-G10.md, « Les risques »).
+*Source* : documenté — SFF-8020i r2.6 § 10.8.19, format 10b — « the drive will support Q Subcode Point field values
+of A0h, A1h, A2h », et « The first TOC entries shall be the A0, A1, A2h pointers » ; Table 131 (le « Disc Type
+Byte » : 00h, 10h, 20h) ; la longueur des données renseignée.
+*Cas qui discrimine* : READ TOC format 2 de `iso-2048.iso` (une piste de données, 32 secteurs) : PCem rend
+`00 00 01 01` et `01 14 00 00 00 00 00 00 00 02 00` ; le matériel `00 2E 01 01`, puis A0h (piste 1, type 00h), A1h
+(piste 1), A2h (00:02:32) et `01 14 00 01 00 00 00 00 00 02 00`.
+*G13* : (a).
+*Reproduit* : `Scsi/scsi_cd.cs` (READ TOC) et `Cdrom/cdrom-image.cs` (`image_readtoc_raw`), marqueurs PB-120 ; le
+moteur est comparé des deux côtés par `cdimage-check`. ATAPIBANC ne lit pas la TOC brute (PLAN-G10.md, « Les
+risques »).
 
 ### PB-122 — Le lead-out de la TOC n'a ni ADR ni contrôle
 
@@ -1304,6 +1907,12 @@ un disque de données.
 *Effet* : READ TOC rend `00 00 AA 00` en tête du descripteur du lead-out, aux formats LBA et MSF.
 Seule son adresse sert aux pilotes connus.
 *Trouvé par* : les relevés d'ATAPIBANC, G10.4.
+*Source* : SFF-8020i r2.6 § 10.8.19 (« The ADR field gives the type of information encoded in the Q sub-channel of
+the block where this TOC entry was found ») et Table 131 : le point A2h, entrée Q du lead-in, porte ADR 1 et le
+contrôle 4 ou 6 d'un disque de données — ADR 1 documenté, le contrôle de la dernière piste déduit.
+*Cas qui discrimine* : ATAPIBANC, READ TOC (format 0, LBA) de `iso-2048.iso` : le descripteur du lead-out vaut
+`00 00 AA 00 00 00 00 20` chez PCem, `00 14 AA 00 00 00 00 20` sur le matériel.
+*G13* : (a).
 *Reproduit* : `Cdrom/cdrom_image.cs`, marqueurs PB-122 ; le moteur est comparé des deux côtés par
 `cdimage-check`, la commande par ATAPIBANC.
 
@@ -1317,15 +1926,24 @@ Mais `image_is_track_audio` (`:58-75`), que `scsi_cd.c:1375-1376` consulte avant
 l'adresse LBA sans décalage. Et READ SUB-CHANNEL (`cdrom-image.cc:200-249`) rend des positions
 où `GetAudioSub` a ajouté 150 (`dosbox/cdrom_image.cpp:121-122`) : juste pour la position absolue en
 MSF, fausse pour la position absolue en LBA et pour la position relative, en LBA comme en MSF.
-*Effet* : en LBA, aucune adresse ne joue la bonne piste. L'adresse de READ TOC passe le contrôle
-mais joue 150 secteurs trop tôt, ou rien : la piste 2 de `mixte.cue` (LBA 42, 30 secteurs) part
-de 150 et finit à 72 — rien ne joue. L'adresse plus 150 tombe hors de toute piste et le contrôle
-la refuse (PLAY AUDIO(12) en 372, pour la piste 3 en 222 : ILLEGAL REQUEST). Seul PLAY AUDIO MSF
-joue juste. READ SUB-CHANNEL rend, huit secteurs après le début de la piste 2, la position
-relative 00:02:08 au lieu de 00:00:08, et en LBA 207 et 165 au lieu de 57 et 15.
+*Effet* : en LBA, aucune adresse ne joue la bonne piste. L'adresse de READ TOC passe le contrôle mais joue 150
+secteurs trop tôt, ou rien : la piste 2 de `mixte.cue` (LBA 42, 30 secteurs) part de 150 et finit à 72 — rien ne
+joue. L'adresse plus 150 tombe hors de toute piste et le contrôle la refuse (PLAY AUDIO(12) en 372, pour la piste 3
+en 222 : ILLEGAL REQUEST). Seul PLAY AUDIO MSF joue à la bonne position ; ses deux contrôles de piste ont leurs
+propres défauts (PB-214, PB-215). READ SUB-CHANNEL rend, huit secteurs après le début de la piste 2,
+la position relative 00:02:08 au lieu de 00:00:08, et, après RESUME, en LBA 207 et 165 au lieu de 57 et 15
+(`VERIFICATION.md` § G10.5).
 *Trouvé par* : reconnaissance de G10.3, au niveau du moteur ; montré par ATAPIAUD en G10.5.
-*Reproduit* : `Cdrom/cdrom-image.cs`, marqueurs PB-123 ; comparé des deux côtés par
-`cdimage-check` et par `bd-ami486-atapi-audio`.
+*Source* : documenté — SFF-8020i r2.6 § 10.8.8 (« PLAY AUDIO commands with a starting LBA address of 0000 0000h
+shall begin the audio play operation at 00m 02s 00f ») et § 10.8.18, Table 115 (l'adresse absolue, et la relative au
+début de la piste). PLAY AUDIO(12) manque à la Table 37 : il relève de Q5 de D3-stockage (D3-contre, K17).
+*Cas qui discrimine* : `mixte.cue`, piste 2 audio en LBA 42 (30 secteurs) : PLAY AUDIO(10) depuis 42 : PCem part de
+150 et s'arrête à 72, rien ne joue ; le matériel joue depuis 00:02:42. READ SUB-CHANNEL huit secteurs plus loin :
+relatif 00:02:08 chez PCem, 00:00:08 ; en LBA, quinze secteurs plus loin : 207 et 165 chez PCem, 57 et 15.
+*G13* : (a) pour le LBA et le sous-canal ; PLAY AUDIO(12) selon Q5 de D3-stockage.
+*Reproduit* : `Cdrom/cdrom-image.cs` (`image_playaudio`, `image_seek`, le sous-canal en LBA) et
+`Cdrom/cdrom_image.cs` (`GetAudioSub`), marqueurs PB-123 ; comparé des deux côtés par `cdimage-check` et par
+`bd-ami486-atapi-audio`.
 
 ### PB-125 — Le lecteur ZIP écrit et lit hors de ses tampons, et hors de l'image
 
@@ -1342,6 +1960,7 @@ position courante, avec la même taille.
 *Effet* : un pilote ou un programme qui envoie un READ, un WRITE ou un secteur hors de l'image fait
 tomber l'émulateur, ou écrit n'importe où dans l'image.
 *Trouvé par* : reconnaissance de G10.6.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `DEVIATION` dans `Scsi/scsi_zip.cs` — l'octet au-delà d'un tampon est compté,
 pas gardé, et se relit nul — et dans `Disc/hdd_file.cs` — hors de l'image ou à un offset négatif, rien
 n'est lu ni écrit, le retour est 1. Survie : `r9-zip`, sept essais, chaque garde atteinte.
@@ -1365,6 +1984,13 @@ SELECT(6) de longueur 0 de même en phase sortante (`:860-870`, `scsi.c:157-161`
 contenu ; une éjection à la norme n'éjecte pas ; un reset matériel vide le lecteur ; une commande de
 longueur nulle ne finit pas.
 *Trouvé par* : reconnaissance de G10.6 ; montré par ZIPBANC.
+*Source* : documenté — INF-8070i r1.2, Table 41 (« the last valid LBA ») ; SCSI-2 § 9.1.2 (hors capacité : 05/21h),
+§ 9.2.6 et § 8.2.8 (longueur nulle : ni transfert ni erreur). Le disque gardé au reset, puis 06/29h (Table 61) :
+déduit. START STOP UNIT : la norme éjecte sur LoEj 1 / Start 0 (Table 59) ; le ZIP d'Iomega : inconnu.
+*Cas qui discrimine* : ZIPBANC, disque de 196 608 secteurs : READ CAPACITY 196 608 chez PCem, 196 607 sur le
+matériel ; READ(10) du LBA 196 608 : GOOD et l'ancien tampon, contre 05/21h ; READ(10) de compte 0 : une phase sans
+fin, contre GOOD ; reset matériel puis TEST UNIT READY : lecteur vide, contre 06/29h puis GOOD.
+*G13* : (a), START STOP UNIT (c) — inconnu sur le lecteur d'Iomega : à mesurer sur un ZIP 100 ATAPI.
 *Reproduit* : `Scsi/scsi_zip.cs`, marqueurs PB-126 ; comparé des deux côtés par `bd-ami486-zip-banc`.
 
 ### PB-128 — Le disque SCSI écrit et lit hors de ses tampons
@@ -1378,7 +2004,15 @@ jusqu'à la longueur de son CCB, 16 Mo, au-delà du struct. `:723-728` : `scsi_h
 (le bourrage) puis `fatal("Exceeded data_out buffer size\n")` ; `:99-102` : `scsi_get_data` de même.
 *Effet* : un pilote ASPI qui lit plus de 1 024 secteurs d'un coup, ou une phase vide, fait tomber l'émulateur.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit jusqu'à 2 × 256 Ko* : `data_in` et `data_out` en un tableau contigu (décision n° 9 de PLAN-G11.md).
+*Source* : documenté — SCSI-2 § 9.2.6, READ(10) transfère la longueur demandée (jusqu'à 65 535 blocs) ; l'AHA-1540C
+transfère ce que la cible rend, dans la limite du CCB (TR, CCB). Rien de matériel ne borne à 512 Ko.
+*Cas qui discrimine* : CCB READ(10) de 2 048 secteurs depuis le LBA 0, disque d'au moins 2 048 secteurs : iXtal (la
+garde R9) rend les 1 024 premiers justes, puis des zéros ; PCem écrit hors du struct ; le matériel rend les 2 048
+secteurs.
+*G13* : à trancher — corrigeable (servir le transfert par morceaux au-delà de 512 Ko), hors de la liste de G13.7 :
+le repli R9 du mode matériel est la question Q12 de D3-stockage, ouverte.
+*Reproduit jusqu'à 2 × 256 Ko* : `data_in` et `data_out` en un tableau contigu (décision n° 9 de PLAN-G11.md),
+marqueur PB-128 sur `io`.
 *NON reproduit au-delà* (R9) : l'octet est compté, pas gardé, et se relit nul (`Scsi/scsi_hd.cs`, `:87`, `:717`,
 `:101`, `:728`). Survie : `r9-scsihd`.
 
@@ -1391,7 +2025,13 @@ commande ne vérifie le LBA (ni READ, ni WRITE, ni VERIFY : pas de 05/21h).
 *Effet* : un pilote voit un secteur de plus ; le lire rend un contenu périmé. La traduction de la ROM
 (64 × 32) ne l'atteint pas sur une capacité multiple de 2 048.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_hd.cs`.
+*Source* : documenté — SCSI-2 § 9.2.7 (READ CAPACITY : l'adresse du dernier bloc), § 9.1.2 (hors capacité : CHECK
+CONDITION), ASC 21h, LOGICAL BLOCK ADDRESS OUT OF RANGE (§ 8.2.14) — sections non revérifiées en contre-lecture.
+*Cas qui discrimine* : disque de n secteurs (40 960, celui d'`aha-format`) : READ CAPACITY rend n chez PCem, n − 1
+sur le matériel ; READ(10) du LBA n : GOOD et le dernier secteur lu ou écrit, contre CHECK CONDITION, sense 05/21h.
+*G13* : (a) ; l'UNIT ATTENTION de la mise sous tension (§ 7.9) touchera les témoins (D3-contre, A10).
+*Reproduit* : `Scsi/scsi_hd.cs`, READ CAPACITY, READ(6), READ(10), WRITE(6) et WRITE(10), marqueurs PB-129 posés en
+G13.1 (seul l'en-tête le nommait, D3-contre, C8).
 
 ### PB-130 — MODE SENSE du disque SCSI : en-tête, descripteur, bourrage, géométrie fixe
 
@@ -1404,7 +2044,14 @@ cylindres, 64 têtes), page 30h « PCEM ». PC et DBD ignorés ; une page inconn
 *Effet* : un utilitaire qui lit les pages de mode lit des zéros pour des pages et une géométrie sans
 rapport avec READ CAPACITY.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_hd.cs`.
+*Source* : documenté — SCSI-2 § 8.3.3, Tables 91 (en-tête(6), longueur du descripteur = 8) et 93 (densité, blocs sur
+3 octets, longueur de bloc) ; § 9.3.3 (paramètre propre : WP et DPOFUA) ; § 8.2.10 (DBD, PC) ; une page inconnue :
+05/24h. Non revérifié en contre-lecture. La géométrie d'un disque virtuel est un choix.
+*Cas qui discrimine* : MODE SENSE(6), page 03h, allocation 255, disque de 40 960 secteurs : PCem rend 146 octets,
+en-tête `91 00 08 00` ; le matériel 36 (4 + 8 + 24), en-tête `23 00 00 08` ; DBD = 1 : le descripteur reste chez
+PCem ; page 05h : GOOD contre 05/24h.
+*G13* : (a) — la géométrie : un choix, pas une inconnue.
+*Reproduit* : `Scsi/scsi_hd.cs`, MODE SENSE(6) (l'en-tête, les pages, le bourrage), marqueurs PB-130 posés en G13.1.
 
 ### PB-131 — REQUEST SENSE, INQUIRY et les refus du disque SCSI
 
@@ -1416,22 +2063,37 @@ code inconnu compris. `:656-675` : FORMAT UNIT, MODE SELECT et VERIFY sont simul
 *Effet* : une erreur ancienne se relit plus tard ; un pilote prend un code inconnu pour un problème de LUN ;
 un formatage de bas niveau est instantané et garde les données.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_hd.cs`.
+*Source* : documenté — SCSI-2 § 8.2.14, Table 65 (longueur additionnelle n − 7, soit 10 ; le bit Valid) ; § 7.6
+(effacé par la commande suivante) ; § 8.2.5.1, Tables 45 et 48 (version 2, longueur n − 4, CmdQue à 0) ; 05/20h pour
+un code inconnu, 05/25h pour un LUN (§ 7.5.3). FORMAT UNIT : le sort des données, propre au fabricant — inconnu.
+*Cas qui discrimine* : un code inconnu (0Eh), TEST UNIT READY, REQUEST SENSE : 05/25h chez PCem, 00/00h sur le
+matériel (05/20h si REQUEST SENSE suit le code) ; INQUIRY de 96 octets : `00 00 00 02 00 00 00 02` chez PCem,
+`00 00 02 02 5B 00 00 00` ; REQUEST SENSE : longueur additionnelle 00h contre 0Ah.
+*G13* : (a), FORMAT UNIT (c) — le sort des données est propre au fabricant : laissé simulé.
+*Reproduit* : `Scsi/scsi_hd.cs` (`scsi_hd_illegal`, REQUEST SENSE, INQUIRY, VERIFY, MODE SELECT, FORMAT UNIT),
+marqueurs PB-131 posés en G13.1.
 
 ### PB-132 — Une phase vide fige le bus SCSI, et aucun reset de la carte ne le libère
 
-`scsi_hd.c:150`, `:189`, `:312`, `:505` avec `scsi.c:241` et `:731-735` : READ(10) de compte 0, REQUEST
-SENSE, INQUIRY ou MODE SENSE(6) d'allocation 0 entrent en DATA IN, et la première lecture rend
-`read_complete` faux pour toujours ; MODE SELECT(6) de longueur 0 de même en DATA OUT. L'AHA lit ou écrit
-jusqu'à la fin du CCB, puis fait le va-et-vient NEXT_PHASE ↔ READ_DATA à chaque échéance
-(`scsi_aha1540.c:1832-1910`). Même blocage quand la cible a plus de données que le CCB. Et les resets de
-la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas le bus : aucun appel à `scsi_bus_reset` dans
-`scsi_aha1540.c`. La cible reste BSY ; toute sélection suivante, vers n'importe quel ID, échoue
-(`wait_for_bus`, `:1721`) ; si elle était en phase de commande, la CDB suivante va à l'ANCIEN disque.
+`scsi_hd.c:150`, `:189`, `:312`, `:505` avec `scsi.c:241` et `scsi_hd.c:731-735` : READ(10) de compte 0, REQUEST
+SENSE, INQUIRY ou MODE SENSE(6) d'allocation 0 entrent en DATA IN, et la première lecture rend `read_complete` faux
+pour toujours ; MODE SELECT(6) de longueur 0 de même en DATA OUT. L'AHA lit ou écrit jusqu'à la fin du CCB, puis
+fait le va-et-vient NEXT_PHASE ↔ READ_DATA à chaque échéance (`scsi_aha1540.c:1832-1910`). Même blocage quand la
+cible a plus de données que le CCB. Et les resets de la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas
+le bus : aucun appel à `scsi_bus_reset` dans `scsi_aha1540.c`. La cible reste BSY ; toute sélection suivante, vers
+n'importe quel ID, échoue (`wait_for_bus`, `:1721`) ; si elle était en phase de commande, la CDB suivante va à
+l'ANCIEN disque.
 *Effet* : la commande ne finit jamais, et tous les disques SCSI disparaissent jusqu'au reset matériel du PC.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_hd.cs`, `Scsi/scsi_aha1540.cs` ; hors des portes comparées (les bancs n'y mènent
-pas), montré par `r9-scsihd`.
+*Source* : documenté — SCSI-2 §§ 7.2.4, 7.2.6, 8.2.8, 9.2.6 (longueur nulle : aucun transfert, la cible passe au
+statut) ; AHA-1540C TR, port de contrôle : HRST reset le bus et la carte ; SCRST, reset « soft », laisse continuer
+les opérations ; statut d'hôte 12h (« more data than was allocated »). Un CCB en vol sous SCRST : inconnu.
+*Cas qui discrimine* : CCB READ(10) de compte 0 : PCem ne poste aucun MBI et fait la navette ; le matériel rend GOOD
+sans données. Cible bloquée à dessein, puis HRST et un CCB vers l'ID 0 : 11h (sélection) chez PCem ; sur le
+matériel, le bus libéré, UNIT ATTENTION puis GOOD.
+*G13* : (a) côté cible et pour HRST ; le CCB en vol sous SCRST (c) — son sort après le reset du bus est inconnu.
+*Reproduit* : `Scsi/scsi_hd.cs`, `Scsi/scsi.cs` et `Scsi/scsi_aha1540.cs`, marqueurs PB-132 ; hors des portes
+comparées (les bancs n'y mènent pas), montré par `r9-scsihd`.
 
 ### PB-133 — Le LUN du CCB n'atteint jamais le disque
 
@@ -1440,7 +2102,14 @@ IDENTIFY ; seul le sense automatique le pose dans la CDB (`:1603`). `scsi_hd.c:1
 par `cdb[1]` bits 5-7.
 *Effet* : un pilote qui ne met le LUN que dans le CCB voit le disque répondre sur ses huit LUN.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, `Scsi/scsi_hd.cs`.
+*Source* : documenté — AHA-1540C TR, CCB octet 1 (le LUN passe par IDENTIFY ; « The LUN field in the SCSI Command
+Descriptor Block (CDB) is expected to be zero ») ; SCSI-2 § 7.2.2, § 8.2.5.1 (LUN non supporté : INQUIRY rend 7Fh),
+§ 7.5.3 (les autres commandes : 05/25h).
+*Cas qui discrimine* : CCB vers l'ID 0, LUN 1 dans le CCB et 0 dans la CDB : INQUIRY rend 00h (un disque) chez PCem,
+7Fh sur le matériel ; TEST UNIT READY : GOOD contre CHECK CONDITION, sense 05/25h.
+*G13* : (a).
+*Reproduit* : `Scsi/scsi_aha1540.cs`, `Scsi/scsi_hd.cs`, marqueurs PB-133 (les deux formes de CCB ; le test du LUN
+du disque).
 
 ### PB-135 — L'AHA-1542C s'arrête sur une commande de l'invité ; la configuration la fait tomber
 
@@ -1453,6 +2122,7 @@ lit `bios_rom.rom` nul au POST, `:2083`) ; la carte sur un 8088 ou un 8086, que 
 (`wx-config.c:237-247`) — sa ROM s'exécute au balayage (instructions 286), son IRQ haute n'existe pas.
 *Effet* : un programme qui parle à la carte, ou un .cfg, arrête ou fait tomber l'émulateur.
 *Trouvé par* : reconnaissance de G11.
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9, décision n° 5 de PLAN-G11.md) : la commande finit en erreur — `:679` et `:980` en
 INVDCMD, `:799`, `:841`, `:883` en code 20h, `:530` au statut d'hôte 16h, `:1743` en suivant la phase de la
 cible ; la ROM absente et la règle ISA 16 bits refusent la carte avec un avertissement
@@ -1466,7 +2136,14 @@ code de gcc 15.2 -O2). Seuls 32 octets sont persistés (`:2114`). L'IRQ peut cha
 attente : `set_irq` et IRST visent la nouvelle ligne, l'ancienne reste levée.
 *Effet* : une EEPROM programmée avec des octets de l'état interne de la carte ; une interruption collée.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md).
+*Source* : AHA-1540C TR, *Set EEPROM* (22h) : octet 0 réservé, octet 1 le nombre, octet 2 le décalage, « One to 32
+bytes of data » — documenté dans les bornes, mais le TR se contredit (« 31 minus the offset value ») ; au-delà de 32
+octets : inconnu. L'ancienne IRQ relâchée quand la configuration change : déduit.
+*Cas qui discrimine* : 22h de 4 octets au décalage 8, puis 23h : les mêmes 4 octets des deux côtés ; 22h qui change
+l'IRQ avec une interruption en attente : l'ancienne ligne reste levée chez PCem, retombe sur la carte ; 224 octets
+depuis 32 (AHABANC) : l'état interne chez PCem, inconnu sur la carte.
+*G13* : (b), hors bornes (c) — le TR est ambigu : à mesurer sur une 1542C.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md), marqueur PB-136.
 
 ### PB-137 — Le sense automatique : inconditionnel, inversé, et écrit au hasard
 
@@ -1478,7 +2155,14 @@ vecteurs (INT 07h à 0Ah).
 *Effet* : un pilote ne trouve jamais le sense dans son CCB ; une commande BIOS directe peut écraser les
 vecteurs de l'horloge et du clavier.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : documenté — AHA-1540C TR, CCB octet 3 — le sense automatique suit un CHECK CONDITION ; 00h : 14 octets,
+01h : aucun, 08h à FFh : la longueur ; rangé à la fin du CCB (octets 18 + m à 18 + m + n). L'octet de contrôle de la
+CDB à 0 : déduit. La commande 03h, interface du BIOS : inconnu (l'intention lisible est l'inverse de PCem).
+*Cas qui discrimine* : un CCB qui finit GOOD : PCem envoie un REQUEST SENSE au disque, le matériel aucun ; un CCB en
+CHECK CONDITION, octet 3 = 12h : PCem range le sense dans `int_buffer`, le matériel 18 octets en CCB + 12h + m ;
+octet 3 = 01h : aucun sense, des deux côtés.
+*G13* : (a) pour la mailbox ; (b) pour 03h, interface privée.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-137 (l'entrée inconditionnelle, la CDB et sa destination).
 
 ### PB-138 — Les commandes BIOS 03h achèvent un CCB périmé, et réussissent à faux
 
@@ -1489,7 +2173,14 @@ MBI. Et sur une cible absente, la sélection ratée (`:1488-1526`) ne touche ni 
 02h, 03h, 04h réussissent si le statut périmé vaut 0 ; 08h et 15h rendent quatre octets périmés.
 *Effet* : des achèvements fantômes ; un disque absent « lu » sans erreur.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : AHA-1540C TR : la commande 03h est « reserved for use by the Adaptec host adapter BIOS », ses codes sont
+inconnus ; qu'elle n'achève pas un CCB de la mailbox, et qu'une cible absente échoue — déduit (chapitre 6 : « 80h
+Time-out. Host adapter or device not responding to BIOS »).
+*Cas qui discrimine* : un CCB de mailbox achevé, puis 03h/08h : PCem écrit dans l'ancien CCB (+0Eh, +0Fh), libère
+son MBO et poste un MBI ; attendu : l'ancien CCB intact, aucun MBI. 03h/02h vers l'ID 5 vide après un succès : PCem
+rend 00h ; attendu : 80h.
+*G13* : (b) — attendus déduits : l'interface est privée.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-138 (la commande 03h, la sélection ratée).
 
 ### PB-139 — ABORT efface le mauvais emplacement, et n'interrompt rien
 
@@ -1499,7 +2190,14 @@ MBI « aborted » pour l'adresse donnée, que le CCB soit en cours, fini ou jama
 ABORT et chaque 02h suivant en reposte un.
 *Effet* : deux MBI pour un CCB ; des CCB affamés.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : documenté — AHA-1540C TR, MBO (« After the MBO has been examined … the host adapter sets the MBO command
+byte back to zero ») et MBI : 02h « CCB aborted by host », 03h « Aborted CCB not found … It is likely that the CCB
+was already presented to the host ».
+*Cas qui discrimine* : mailbox de 4 octets, ABORT à l'emplacement 1 pour un CCB déjà achevé : PCem efface l'octet 8
+(l'emplacement 2), poste un MBI « aborted » (02h), puis un autre à chaque commande 02h ; la carte efface
+l'emplacement 1 et poste un seul MBI 03h.
+*G13* : (a) — l'abandon d'un CCB en vol dépend du temps : son attendu est le plus fragile.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-139.
 
 ### PB-140 — RETURN SETUP DATA est tronqué à 20 octets
 
@@ -1507,7 +2205,14 @@ ABORT et chaque 02h suivant en reposte un.
 somme A3h C2h et l'adresse de la mailbox BIOS (`:1130-1134`) ne sortent jamais.
 *Effet* : un utilitaire lit une configuration incomplète.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : documenté — AHA-1540C TR, *Return Setup Data* (0Dh) — octets 00h à 2Bh (25h le réessai, 26h les
+interrupteurs avec en bit 7 « EEPROM read data », 27h-28h la somme, 29h-2Bh la mailbox du BIOS), 2Ch-FFh à zéro ;
+« A value of zero is accepted and 256 bytes are returned ».
+*Cas qui discrimine* : 0Dh de 44 octets : PCem rend 20 octets puis 24 zéros ; la carte les 44, dont 26h (les
+interrupteurs, 0 chez PCem), A3h C2h en 27h-28h et la mailbox du BIOS en 29h-2Bh. 0Dh de 0 : aucun octet chez PCem,
+256 sur la carte.
+*G13* : (a).
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-140.
 
 ### PB-141 — Les mailbox : le compte des 02h, le balayage BIOS, le MBI non vérifié
 
@@ -1518,7 +2223,14 @@ balayage de la mailbox BIOS n'est gardé ni par l'état du CCB ni par STATUS_INI
 libre. `:717-728` : MAILBOX INIT accepte un compte nul.
 *Effet* : après un reset du pilote, des CCB partent sans 02h ; des CCB perdus ; des achèvements écrasés.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : documenté — AHA-1540C TR — 01h : compte nul, INVDCMD et HACC ; 02h : le balayage dure « until all MBO
+entries have been serviced » ; MBO : tourniquet depuis « the entry after the last MBO entry that was processed » ;
+MBI : un emplacement libre ; HRST et SRST exigent une nouvelle init. La mailbox du BIOS face à la normale : inconnu.
+*Cas qui discrimine* : 01h de compte 0 : HACC seul chez PCem, INVDCMD et HACC sur la carte ; deux CCB postés, un
+seul 02h : un seul part, contre les deux ; un MBI encore occupé : écrasé, contre l'attente ; HRST puis 02h sans
+01h : compté sans rien dire (le CCB part au 01h suivant), contre INVDCMD.
+*G13* : (a), la mailbox du BIOS (b) — son rapport à la mailbox normale n'est pas documenté.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-141 (01h, 02h, les deux balayages, les trois écritures du MBI).
 
 ### PB-142 — La machine des commandes est réentrante, et part de zéro
 
@@ -1529,7 +2241,13 @@ vaut 0 à la mise sous tension — ni INIT ni IDLE tant qu'il n'y a pas eu de re
 *Effet* : un pilote qui écrit trop tôt perd un octet ou lance une commande ; la carte non initialisée
 répond « prête » à la mailbox.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : documenté pour la mise sous tension — AHA-1540C TR, *Hard Reset Operations* — STST pendant l'autotest,
+puis INIT et IDLE. Les octets hors protocole : manuel de l'AHA-1540A/1542A (1989) § 4.2.2, « likely to be
+interpreted as invalid, although they may instead cause the execution of valid commands » — inconnu au détail.
+*Cas qui discrimine* : lecture du port d'état juste après l'init de la carte : 00h chez PCem ; STST, puis INIT |
+IDLE sur la carte. La réentrance (un octet écrit pendant l'autotest ou l'envoi d'un résultat) : à mesurer.
+*G13* : (a) pour la mise sous tension ; la réentrance (c) — inconnue état par état : à mesurer sur une 1542C.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-142 (l'OUT de commande, l'état à l'init).
 
 ### PB-143 — Une CDB courte est complétée de zéros
 
@@ -1538,63 +2256,133 @@ NEXT_PHASE, envoie un zéro par échéance tant que la cible reste en phase de c
 TEST UNIT READY ; un READ(10) déclaré sur 6 octets s'exécute avec un LBA et une longueur tronqués.
 *Effet* : une commande différente de celle du pilote s'exécute.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : inconnu. Candidats du TR, déduits et non affirmés pour ce cas : 14h « Target Bus Phase Sequence Failure »
+(une phase de commande au-delà de la CDB, avec un reset du bus), 1Ah « Invalid CCB » (une longueur nulle).
+*Cas qui discrimine* : à mesurer sur une 1542C : READ(10) déclaré sur 6 octets — PCem complète de zéros et lit avec
+un LBA et une longueur tronqués ; déclaré sur 0 octet — PCem exécute TEST UNIT READY ; la carte : 14h ou 1Ah ?
+*G13* : (c) — rien ne documente ce cas : à mesurer sur la carte.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-143.
 
 ### PB-144 — La 1542C de PCem : traduction, adresses et EEPROM
 
-`scsi_aha1540.c:773`, `:815`, `:857` : la commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur
-(la ROM v1.01 ne s'en sert pas : elle passe par 82h). `:425-433`, `:1857`, `:1935` : les adresses ne bouclent
-pas à 24 bits. `:2101-2104`, `:2155-2157`, `:261-266` : sans EEPROM, ID 0, DMA 0, IRQ 9 ; une IRQ de code 7
-vaut 16, et `picint((uint16_t)(1 << 16))` ne lève rien. `:1703-1711`, `:1052-1074`, `:417` : l'ID de l'hôte
-n'est pas exclu de la sélection ; délai de sélection, temps de bus et vitesse sont rangés sans effet ; la
-direction du transfert est ignorée.
-*Effet* : sans conséquence pour la ROM ; un pilote qui les emploie voit une carte qui ne les tient pas.
+`scsi_aha1540.c:773`, `:815`, `:857` : la commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur (la ROM
+v1.01 ne s'en sert pas : elle passe par 82h). `:425-433`, `:1857`, `:1935` : les adresses ne bouclent pas à 24 bits.
+`:2101-2104`, `:2155-2157`, `:261-266` : sans EEPROM, ID 0, DMA 0, IRQ 9 ; une IRQ de code 7 vaut 16, et
+`picint((uint16_t)(1 << 16))` ne lève rien. `:1703-1711`, `:1052-1074`, `:417` : l'ID de l'hôte n'est pas exclu de
+la sélection ; délai de sélection, temps de bus et vitesse sont rangés sans effet ; les bits de sens du CCB sont
+rangés sans être lus : le sens vient de la commande, ce qui est conforme à la carte (AHA-1540C TR, CCB octet 1 ;
+D3-contre, C11), mais le contrôle de longueur qu'ils arment (statut d'hôte 12h) et « aucun transfert » quand les
+deux sont posés manquent.
+*Effet* : sans conséquence pour la ROM ; un pilote qui les emploie voit une carte qui ne les tient pas. Le cas
+« sans EEPROM » ne survient que sans `nvr/default/aha1542c.nvr`, l'EEPROM de référence de PCem (ID 7, DMA 7, IRQ
+10), qu'iXtal livre.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : `Scsi/scsi_aha1540.cs`.
+*Source* : AHA-1540C TR, CCB octet 1 (le sens vient de la commande ; « If both bits are set … no data transfer ») et
+réglages d'usine (ID 7, DMA 5, IRQ 11, 330h, DC000h) — documentés ; le −1 du secteur, les 24 bits, l'ID de l'hôte
+exclu — déduits ; l'IRQ de code 7 — inconnu (SCSISelect ne propose que 9, 10, 11, 12, 14 et 15).
+*Cas qui discrimine* : CCB READ de 4 secteurs, longueur 512, bit 3 posé : PCem bloque (PB-132), la carte rend 12h ;
+sans EEPROM ni référence : ID 0, DMA 0, IRQ 9 chez PCem, ID 7, DMA 5, IRQ 11 ; 03h/02h au secteur 1 : LBA 1 chez
+PCem, LBA 0.
+*G13* : (b), mixte : longueur et usine (a), CHS et 24 bits (b), IRQ de code 7 (c), temps (d, hors G13).
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-144 posés en G13.1 (seuls des commentaires le nommaient).
 
-### PB-145 — La SB 2.0 rend l'audio CD presque muet ; le reset d'un mélangeur met le CD au minimum
+### PB-145 — La SB 2.0 sans mélangeur rend l'audio CD presque muet
 
-`sound_sb.c:952` : `sb_2_init` appelle `sb_ct1335_mixer_reset` même quand `mixaddr` vaut 0. Le reset
-(`:341-347`) met le registre du CD (08h) à 0, et `:363-369` posent `sound_set_cd_volume(8230 × 164 / 65535,
-…)`, soit 20 sur 65 535. Sans mélangeur, l'invité n'a aucun port pour le relever. Avec mélangeur, le CD reste
-au minimum tant que l'invité n'écrit pas 08h. Le CT1345 fait de même : 81 sur 65 535 au reset (`:413-416`,
-28h = 0), le volume que mesure ATAPIAUD en G10.5 ; le CT1745 de la SB 16, 12 sur 65 535 (`:557-558`, 36h et
-37h = 0, G12.1).
+`sound_sb.c:952` : `sb_2_init` appelle `sb_ct1335_mixer_reset` même quand `mixaddr` vaut 0. Le reset (`:341-347`) met le
+registre du CD (08h) à 0, et `:363-369` posent `sound_set_cd_volume(8230 × 164 / 65535, …)`, soit 20 sur 65 535. Sans
+mélangeur, l'invité n'a aucun port pour le relever. Avec mélangeur, le CD au minimum après un reset est la valeur que
+Creative documente pour les trois mélangeurs, et PCem y est fidèle (corrigé en G13) : CT1335 08h et CT1345 28h,
+« Default is 0 ⇒ −46 dB » (guide de Creative, p. 4-5 et 4-9) ; CT1745 36h et 37h, « Default is 0 ⇒ −62 dB » (p. 4-16).
+Le CT1345 en donne 81 sur 65 535 (`:413-417`, 28h = 0, le volume que mesure ATAPIAUD en G10.5), le CT1745 12 sur 65 535
+(`:557-558`, 36h et 37h = 0, G12.1) : tous deux avec un volume général relevé à 0 dB (PB-237), et 20 et 2 au
+général du guide.
 *Effet* : sur une machine équipée d'une SB 2.0 sans option CD, l'audio CD (G10.5) est à −70 dB ; avec une
 SB 1.0 ou 1.5, qui n'ont pas de mélangeur, il reste à 65 535.
-*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
-*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-145. La sonde du son compare le volume CD de la carte (G12.0).
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs) ; le minimum d'un mélangeur rétabli
+comme fidèle en G13 (reconnaissance D5, contre-lecture C3).
+*Source* : le CT1335 n'équipe que la « Sound Blaster 2.0 CD Interface card » (guide de Creative, p. 4-1 et 4-4, PDF 59
+et 62) : documenté. Une SB 2.0 simple n'a rien qui règle un volume CD ; le laisser à 65 535, comme pour la SB 1.0 et la
+1.5, est déduit : le volume CD est une grandeur du modèle de PCem, pas de la carte.
+*Cas qui discrimine* : SB 2.0, `mixaddr` = 0 : après `sb_2_init`, `sound.cd_vol_l` et `cd_vol_r` valent 20 chez PCem,
+65 535 sans mélangeur, comme sur la SB 1.0. Témoin : avec `mixaddr` = 250h, 08h relu 00h et 20 dans les deux modes.
+*G13* : (a) — la SB 2.0 sans mélangeur seule, un choix de modèle déduit ; le minimum après le reset d'un mélangeur,
+fidèle.
+*Reproduit* : `Sound/sound_sb.cs`, `sb_2_init`, marqueur PB-145. La sonde du son compare le volume CD de la carte
+(G12.0). Les marqueurs PB-145 du CT1335 et du CT1745 sont retirés en G13 : leur minimum est celui du guide.
 
 ### PB-146 — 1Fh, 2Ch, 7Dh et 7Fh prennent les paramètres de la commande précédente
 
 `sound_sb_dsp.c:45-54` : `sb_commands` vaut 0 pour 1Fh, 2Ch, 7Dh et 7Fh, qui s'exécutent donc dès l'octet de
 commande, sans paramètre. Mais elles lisent `sb_data[0]` et `sb_data[1]` (`:355`, `:377`, `:431`, `:438`) :
 ce sont les octets de la commande précédente. Le DSP réel prend la longueur du bloc dans 48h.
+Élargi en G13 : 1Fh, 7Dh et 7Fh sont « with reference byte » ; le DSP lit d'abord un octet de référence, au lancement
+seulement. PCem ne le lit pas (`:352-358`, `:428-441`) : le premier octet est décodé comme une donnée, et `sbref` et
+`sbstep` gardent leurs valeurs d'avant.
 *Effet* : le premier bloc de ces transferts automatiques (ADPCM 2, 4 et 2,6 bits, entrée 8 bits) a une
 longueur fausse, d'où une IRQ trop tôt ou trop tard ; les suivants rechargent `sb_8_autolen` (`:1038`). La
-SB Pro v2 de G8 l'atteint déjà, comme les SB 1.5, 2.0 et Pro v1.
-*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 ; SBBANC passe 7Dh après 48h 7Fh 01h.
+SB Pro v2 de G8 l'atteint déjà, comme les SB 1.5, 2.0 et Pro v1. En ADPCM, le flux part d'une référence fausse.
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP) ; l'octet de référence, reconnaissance de G13 (D5, N1 ;
+contre-lecture C7).
+*Source* : guide de Creative, p. 6-8 (1Ch : une IRQ par bloc « of size set by command 48h »), p. 6-9, 6-10, 6-18, 6-19
+(sans paramètre ; « with reference byte »), p. 6-16 (48h) ; micrologiciel 2.02, `sbv202.asm:1612-1616` et `:1395-1398`
+(le compte pris à `dma_blk_len`), `:1659-1672` (la référence) ; 4.05, `v405-8k_e51aff23.asm:2603-2614`, `:2708-2717`.
+*Cas qui discrimine* : SB 2.0, 8237 en automatique sur 1000h octets : 48h 7Fh 01h, 40h A5h, puis 7Dh : PCem lève la
+première IRQ après 1A6h octets pris au 8237 ; PB-146 seul corrigé, après 180h ; avec l'octet de référence et la fin de
+bloc du 2.02 (PB-234), après 181h (contre-lecture K6). Le premier octet : référence sur la carte, donnée chez
+PCem.
+*G13* : (a) — documenté deux fois ; l'attendu dépend des corrections retenues ensemble et doit le dire.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 (1Fh, 2Ch, 7Dh, 7Fh) ; SBBANC passe 7Dh après 48h 7Fh 01h, ce
+qui ne distingue pas les deux comportements (les octets « périmés » y sont la taille du bloc) : il faut intercaler une
+commande à paramètre.
 
-### PB-147 — Sur la SB 1.0, « haut-parleur actif » met le DMA en pause
+### PB-147 — Sur la SB 1.0, D3h met le DMA en pause sans couper le son
 
-`sound_sb_dsp.c:530-531`, `:537-538` : sur un DSP antérieur à la 1.5 (`sb_type < SB15`), D1h (haut-parleur
-actif) et D3h (haut-parleur coupé) posent `sb_8_pause = 1` au lieu de toucher le son ; `sb_start_dma` remet
-la pause à zéro (`:207`). Sur les autres DSP, D1h et D3h règlent `muted`.
-*Effet* : un D1h envoyé après le lancement d'un DMA suspend la lecture jusqu'à D4h ; D3h ne coupe pas le
-son. Le comportement du DSP 1.05 réel reste à confronter (G13).
-*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-147 ; SBBANC envoie D1h après 14h sur la SB 1.0.
+`sound_sb_dsp.c:530-531`, `:537-538` : sur un DSP antérieur à la 1.5 (`sb_type < SB15`), D1h (haut-parleur actif) et D3h
+(haut-parleur coupé) posent `sb_8_pause = 1` au lieu de toucher le son ; `sb_start_dma` remet la pause à zéro (`:207`).
+Sur les DSP 2.00 à 3.02, D1h et D3h règlent `muted` ; sur la SB 16, aucun des deux, comme le 4.xx (guide de Creative,
+p. 6-25, note 2). Corrigé en G13 : la pause est écrite par Creative — « On version 1.xx, the DSP will pause the DMA
+transfer after executing this command », pour D1h et pour D3h (p. 6-25 et 6-26, PDF 110-111) — et PCem y est fidèle. Le
+défaut est l'autre moitié : D1h et D3h relient et coupent aussi la sortie du CNA, sur toutes les versions (« The speaker
+here refers to the connection of the digitized sound output to the amplifier input », p. 6-25 ; « Available » coche
+1.xx), et sur la SB 1.0 PCem n'y touche pas.
+*Effet* : sur la SB 1.0, D3h ne coupe pas le son ; un D1h ou un D3h envoyé après le lancement d'un DMA le suspend
+jusqu'à D4h, comme sur la carte.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes) ; la pause rétablie comme fidèle en G13 (reconnaissance
+D5, contre-lecture C1).
+*Source* : guide de Creative, p. 6-25 et 6-26 : la pause du 1.xx et la fonction des deux commandes, documentées ; les
+micrologiciels 2.02 et 3.02 commandent la broche de coupure (`sbv202.asm:1827-1866`, `v302_4k_4701c5fc.asm:1413-1430`) :
+déduit pour le 1.05, dont aucune image n'est publiée.
+*Cas qui discrimine* : SB 1.0, canal 1 du 8237 en simple cycle sur 100h octets à 00h : D3h, 14h FFh 00h, D4h :
+`dsp.buffer` reçoit 8000h (−32 768) chez PCem, 0 sur la carte ; D1h, puis de même : non nul des deux côtés. D8h
+n'existe pas sur le 1.xx : l'essai ne l'emploie pas.
+*G13* : (a) pour la coupure, documentée (déduite pour le 1.05) ; (d) pour la pause, fidèle.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-147 (D1h, D3h) ; SBBANC envoie D1h après 14h sur la SB 1.0.
 
 ### PB-148 — L'enregistrement rend toujours du silence
 
 `sound_sb_dsp.h:63` : `sb_enable_i` n'est écrit nulle part, et seuls `sb_get_buffer_sb16` et
 `sb_get_buffer_emu8k` remplissent `record_buffer`, sous cette condition (`sound_sb.c:180`, `:272`). Sur les
 SB 1.0 à Pro v2, rien ne le remplit ; `sb_start_dma_i` le vide à chaque entrée (`sound_sb_dsp.c:282`). A0h et
-A8h (l'entrée mono ou stéréo de la Pro) ne font rien (`:468-473`, TODO).
-*Effet* : toute entrée DMA ou directe (20h, 24h, 2Ch, 98h, 99h) rend du silence : 80h en 8 bits non signé.
-*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueur PB-148.
+A8h (l'entrée mono ou stéréo de la Pro) ne font rien (`:468-473`, TODO), et leur garde admet la SB 2.0 (DSP 2.01,
+`:470`) quand le guide les réserve au 3.xx (G13).
+Ce que la carte enregistre est documenté (G13) : le CT1745 mène la MIDI (l'OPL), la ligne, le CD et le micro au
+mélangeur d'entrée, qui additionne les interrupteurs fermés de 3Dh et 3Eh ; en mono, le seul mélangeur gauche (« samples
+will only be taken from the left input mixer ») ; la commande automatique de gain du micro est active par défaut (43h).
+Le CT1345 prend une source, micro, CD ou ligne (0Ch), par un filtre passe-bas de 3,2 ou 8,8 kHz actif par défaut. Les
+SB 1.x et 2.0 n'ont que le micro (déduit).
+*Effet* : toute entrée DMA ou directe (20h, 24h, 2Ch, 98h, 99h) rend du silence : 80h en 8 bits non signé. C'est juste
+pour le micro et la ligne, faute d'entrée de l'hôte ; faux pour l'OPL et le CD, que la SB 16 et la Pro enregistrent.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes) ; complété en G13 (reconnaissance D5 ; contre-lecture
+K15, A9).
+*Source* : guide de Creative, fig. 4-5 (p. 4-14), p. 4-16 (3Dh, 3Eh, le mono), p. 4-17 (3Fh à 43h), p. 4-8 (le 0Ch du
+CT1345), p. 6-22 (A0h, A8h : DSP 3.xx). Documenté pour les chemins, les sélecteurs, les coupures et les gains ; les
+réponses exactes des filtres et de la commande de gain ne le sont pas.
+*Cas qui discrimine* : SB 16, 3Dh = 3Eh = 60h (la MIDI seule), une note de l'OPL tenue, puis C8h 20h FFh 00h (entrée
+8 bits stéréo, 256 octets) : tous à 80h chez PCem ; sur la carte, non tous à 80h, et corrélés à `sb.opl.buffer`. Le
+micro et la ligne : 80h des deux côtés.
+*G13* : (b) — les chemins sont documentés, pas les fonctions de transfert exactes.
+*Reproduit* : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; A0h et A8h), `Sound/sound_sb.cs` (`sb_get_buffer_sbpro` ; les
+blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`), marqueurs PB-148.
 *G12.1* : la SB 16 aussi : le bloc de `sb_enable_i` (`sound_sb.c:180-197`) ne s'exécute jamais.
 
 ### PB-149 — L'octet de mode de B0h à CFh n'est pas masqué
@@ -1602,10 +2390,21 @@ A8h (l'entrée mono ou stéréo de la Pro) ne font rien (`:468-473`, TODO).
 `sound_sb_dsp.c:484`, `:497`, `:510`, `:523` : les commandes 8 et 16 bits du DSP 4.xx passent `sb_data[0]`, l'octet
 de mode, tel quel comme format. En 8 bits, 01h à 03h prennent le chemin ADPCM (`:918-1030`) sur un `sbdat2` et un
 `sbref` périmés ; toute autre valeur que 00h, 10h, 20h et 30h n'a pas de `case` (`:866-1034`, `:1051-1086`) : la
-longueur ne bouge plus, aucune IRQ ne vient.
-*Effet* : un octet de mode aux bits réservés posés (les bits 0 à 3 ou 6 et 7) fige le transfert, sans fin ni IRQ.
+longueur ne bouge plus, aucune IRQ ne vient. À l'entrée (B8h à BFh, C8h à CFh), `sb_poll_i` n'a de `case` que pour
+00h à 30h (`:1118-1165`, `:1180-1233`).
+*Effet* : un octet de mode aux bits réservés posés (les bits 0 à 3 ou 6 et 7) fige le transfert, sans fin ni IRQ ; en
+sortie 8 bits, 01h et 02h jouent de l'ADPCM 4 et 2,6 bits (deux ou trois échantillons par octet, l'IRQ deux ou trois
+fois plus tard), 03h de l'ADPCM 2 bits qui ne finit pas (PB-91).
 *Trouvé par* : reconnaissance de G12 (contre-lecture du DSP).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-149 ; SB16BANC passe C0h en mode 01h.
+*Source* : guide de Creative, p. 6-23 (PDF 108 : bMode, D7-D6 à 0, D5 stéréo, D4 signé, D3-D0 à 0) et p. 6-24 ;
+micrologiciel 4.05, `cmd_dma8` ne teste que les bits 4 et 5 de l'octet (`v405-8k_e51aff23.asm:1031-1039`), `cmd_dma16`
+de même (`:1133-1141`) ; 4.13, `v413-8k_e22e9001.asm:1175-1240`. Documenté.
+*Cas qui discrimine* : SB 16, canal 1 du 8237 en simple cycle sur 10h octets : C0h 04h 0Fh 00h (le bit 2 réservé posé) :
+PCem ne bouge plus (`sb_8_length` reste à 0Fh, aucune IRQ) ; la carte joue 16 octets non signés mono et lève l'IRQ
+8 bits (82h bit 0). Et C0h 01h 0Fh 00h : de l'ADPCM 4 bits chez PCem, 16 octets non signés sur la carte.
+*G13* : (a).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-149 (B0h, B8h, C0h, C8h, et le `switch` 16 bits de `pollsb`) ;
+SB16BANC passe C0h en mode 01h.
 
 ### PB-150 — La fréquence 0 de 41h et 42h fige l'hôte
 
@@ -1618,33 +2417,68 @@ coefficients du FIR deviennent NaN si `sb_freq` n'était pas nul.
 *Effet* : un programme qui envoie 41h 00h 00h pendant un transfert fige l'émulateur ; le processeur invité ne
 reprend jamais la main.
 *Trouvé par* : reconnaissance de G12 (lectures des cartes et du DSP, mesure dans un bac à sable).
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : la fréquence 0 est ramenée à 1 Hz, le reste de la commande gardé (`Sound/sound_sb_dsp.cs`,
 garde `sound_sb_dsp.c:393` ; décision n° 10 de PLAN-G12.md). Aucune porte comparée n'envoie 0. Survie : `r9-sb16`.
 
-### PB-153 — Le CT1745 : 80h, 81h, 82h, 0Ah, 01h, la stéréo et la sélection d'entrée
+### PB-153 — Le CT1745 : 80h, 81h, 82h, 0Ah, 01h, 3Dh et 3Eh, la sélection d'entrée
 
 `sound_sb.c:611-636` : 80h et 81h appliquent les bits dans l'ordre, le dernier posé gagne, et un 0 ne change rien ;
 la traduction des requêtes 16 bits vers le canal 8 bits, que PCem documente (`:728-734`), n'existe pas. `:770` : 82h
-est rendu dans un `uint8_t`, le `| 0x4000` disparaît, et le bit du MPU (4) n'est jamais posé. `:601` : 0Ah
+est rendu dans un `uint8_t`, le `| 0x4000` disparaît, et le bit 2 du MPU (valeur 4) n'est jamais posé. `:601` : 0Ah
 (le micro de la Pro) est recopié en 3Ah par `0Ah × 3 + 10`, tronqué à 8 bits ; `:695` le relit par `(3Ah − 10) / 3`,
-juste pour 0Ah ≤ 51h, et FDh après un reset. 01h n'est pas tenu (`:540-546`) et se relit FFh. 0Eh (la stéréo de la
-Pro) n'est pas branché sur le DSP. `:143-148` : la sélection d'entrée MIDI se lit `a ? out_l : ((0 + b) ? out_r :
-0)`. Ni IRQ ni DMA dans la configuration de la SB 16 et de l'AWE32 (TODO `:1059`, `:1084`) : les défauts de `sb_dsp_init`, IRQ 7, DMA 1 et
-DMA 16 bits 5 (`sound_sb_dsp.c:826-828`), contre l'IRQ 5 des cartes d'usine.
+juste pour 0Ah ≤ 51h, et FDh après un reset. Élargi en G13 : la recopie oublie aussi le masque et le décalage — le
+0Ah du CT1745 a 3 bits, 3Ah ses 5 bits en D7:D3, que PCem relit lui-même `>> 3` (`:654`) ; l'échelle du guide donne
+`3Ah = ((0Ah & 7) × 3 + 10) << 3`. 01h n'est pas tenu (`:540-546`) et se relit FFh. `:143-148` : la sélection d'entrée
+MIDI se lit `a ? out_l : ((0 + b) ? out_r : 0)`, là où le mélangeur d'entrée additionne les interrupteurs fermés. Ni
+IRQ ni DMA dans la configuration de la SB 16 et de l'AWE32 (TODO `:1059`, `:1084`) : les défauts de `sb_dsp_init`,
+IRQ 7, DMA 1 et DMA 16 bits 5 (`sound_sb_dsp.c:826-828`), contre l'IRQ 5 des cartes d'usine. Élargi en G13 : le reset
+pose 3Dh et 3Eh à 55h et 2Bh (`:565-566`), la MIDI reliée, quand le guide donne 15h et 0Bh (ligne, CD et micro).
+0Eh (la stéréo de la Pro), que PCem ne branche pas sur le DSP de la SB 16, est absent du CT1745 : PCem y est fidèle
+(G13). La SB 16 que vise PCem n'est pas dite : 80h et 81h sont en lecture seule sur une carte PnP, et d'autres cartes
+se règlent par cavaliers, DMA haut compris.
 *Effet* : un pilote qui lit 82h pour reconnaître son IRQ ne voit jamais le MPU ; un réglage du micro au-delà de 51h
-se relit faux ; un jeu réglé par BLASTER=… I5, sans outil Creative qui écrive 80h, n'a pas d'IRQ.
-*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs).
-*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-153 ; SB16BANC les relit.
+se relit faux ; un jeu réglé par BLASTER=… I5, sans outil Creative qui écrive 80h, n'a pas d'IRQ ; une carte réglée
+pour le 16 bits sur le canal 8 bits ne le joue pas.
+*Trouvé par* : reconnaissance de G12 (contre-lecture des cartes et des mélangeurs) ; le décalage de 0Ah, 3Dh et 3Eh,
+reconnaissance de G13 (D5, N5 et N6 ; contre-lecture C10, C11 et A15).
+*Source* : guide de Creative, p. 2-5 (82h : D0 8 bits ou SB-MIDI, D1 16 bits, D2 MPU-401), p. 2-6 et 2-7 (80h, 81h ; la
+traduction), p. 4-11 (0Eh), fig. 4-3 et 4-5, p. 4-15 et 4-16 (0Ah, 3Ah, 3Dh, 3Eh), p. 5-5 (l'IRQ 5). Documenté, sauf 80h
+et 81h à plusieurs bits ou à 0, 01h et les bits hauts de 82h (inconnus : 86Box, DOSBox-X et MAME divergent).
+*Cas qui discrimine* : SB 16 ; après un reset du mélangeur, 3Dh et 3Eh relus 55h et 2Bh chez PCem, 15h et 0Bh sur la
+carte ; 0Ah = 07h, puis 3Ah relu 1Fh chez PCem, F8h sur la carte ; 81h = 02h, puis B0h 10h 03h 00h : PCem lit le canal
+5, la carte deux octets par échantillon sur le canal 1 ; au démarrage, 80h relu 04h (IRQ 7) chez PCem, 02h (IRQ 5).
+*G13* : mixte — (a) pour 82h bits 0-2, la traduction 16→8, la sélection additive, 3Dh et 3Eh, l'IRQ 5 d'usine (décision
+n° 13) ; (b) pour 0Ah↔3Ah ; (c) pour 80h et 81h à plusieurs bits ou à 0, 01h, les bits hauts de 82h et le modèle de
+carte ; (d) pour 0Eh, fidèle.
+*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-153 (les deux sélections, 01h, 3Dh/3Eh, 0Ah écrit et relu, 80h, 81h,
+82h, l'IRQ de `sb_16_init` et de `sb_awe32_init`) ; SB16BANC les relit.
 
-### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, en UART seul
+### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, des ACK en mode UART
 
 `sound_sb.c:1066` (l'AWE32 : `:1091`) : `mpu401_uart_init(&sb->mpu, 0x330, -1, 0)` — l'adresse est fixe et l'IRQ vaut -1
 (`sound_mpu401_uart.c:12-13` ne lève donc rien). Seuls FFh et 3Fh sont des commandes (`:21-45`) ; toute autre est
-ignorée, sans ACK. FFh rend l'ACK FEh même en mode UART (`:26`), contre la note de Roland que le code cite ; aucune
-entrée MIDI, la donnée relue reste l'ACK périmé.
-*Effet* : un test d'IRQ du MPU échoue ; un pilote qui attend l'absence d'ACK après FFh en mode UART lit un FEh.
-*Trouvé par* : reconnaissance de G12 (contre-lectures).
-*Reproduit* : `Sound/sound_mpu401_uart.cs`, marqueur PB-154 ; SB16BANC passe FFh, 3Fh et ACh.
+ignorée, sans ACK, comme sur la carte. FFh rend l'ACK FEh même en mode UART (`:26`), contre la note de Roland que le
+code cite ; aucune entrée MIDI, la donnée relue reste l'ACK périmé. Élargi en G13 : 3Fh est acquittée en mode UART
+aussi (`:36-44`), où la carte ne reconnaît plus que le reset ; et la logique d'IRQ, dormante ici, est l'inverse du
+guide : elle lève sur FFh et non au passage en UART, hors Aztech, et la lecture de 3x0h n'efface rien (`:54-62`).
+Brancher l'IRQ de la carte sans la réécrire produirait le contraire du guide. 330h est le réglage d'usine (300h par
+cavalier).
+*Effet* : un test d'IRQ du MPU échoue ; un pilote qui attend l'absence d'ACK après FFh en mode UART lit un FEh ; 3Fh
+renvoyée en mode UART laisse un FEh à lire que la carte ne rend pas.
+*Trouvé par* : reconnaissance de G12 (contre-lectures) ; 3Fh et la logique d'IRQ, reconnaissance de G13 (contre-lecture
+K10 et A7).
+*Source* : guide de Creative, p. 2-5 (l'IRQ partagée, acquittée par 3x0h, 82h bit 2), p. 5-5 et 5-7 (en UART, le seul
+reset), p. 5-9 et 5-10 (l'IRQ au passage en UART et à l'octet entrant, effacée par la lecture des données) ; Roland,
+manuel du MPU-401, § 5.3. Documenté, sauf l'ACK de FFh en mode UART sur la SB 16 et la lecture sans donnée (inconnus).
+*Cas qui discrimine* : SB 16 : 3Fh à 331h : la carte lève son IRQ (son bit dans IRR, 82h bit 2 à 1), et la lecture de
+330h rend FEh et l'efface ; PCem ne lève rien. Puis 3Fh de nouveau, en UART : la carte n'acquitte pas (331h bit 7 à 1,
+rien à lire) ; PCem pose FEh et 331h bit 7 à 0.
+*G13* : mixte — (a) pour l'IRQ (levée au passage en UART, effacée par la lecture de 3x0h, 82h bit 2) et pour 3Fh ignorée
+en mode UART ; (c) pour l'ACK de FFh en mode UART (le 4.05 n'en écrit pas : il viendrait de la puce d'interface) et la
+lecture sans donnée ; 330h, fidèle.
+*Reproduit* : `Sound/sound_mpu401_uart.cs` (l'écriture, 3Fh, la lecture) et `Sound/sound_sb.cs` (`sb_16_init`,
+`sb_awe32_init`), marqueurs PB-154 ; SB16BANC passe FFh, 3Fh et ACh.
 *G12.2* : l'AWE32 monte le même MPU, au même endroit.
 
 ### PB-155 — Le FIR de la SB 16 dépasse le gain unité au-delà de 34,7 kHz, et la conversion déborde
@@ -1654,25 +2488,57 @@ au-delà de 48 kHz, la coupure passe au-dessus de la fréquence de Nyquist de la
 de 34 736 Hz par 41h (2,67 à 65 535 Hz) et de 37 037 Hz par 40h (3,0 à 83 333 Hz, E5h à F5h). Un signal pleine
 échelle dont les signes suivent ceux des coefficients déborde alors `(int32_t)(low_fir_sb16(…) × voice)`
 (`sound_sb.c:150-151`) : `cvttss2si` rend INT_MIN, même pour un dépassement positif.
+Élargi en G13 : la fréquence de PCem est libre — 41h et 42h de 1 à 65 535 Hz (`sound_sb_dsp.c:389-402`), 40h jusqu'à
+1 MHz (`:379-388`) —, quand le DSP 4.05 la quantifie : 41h et 42h donnent un registre de 8 bits, `v ≈ 23 × f / 4096`
+arrondi (des pas d'environ 178 Hz), FFh dès que l'octet fort atteint B1h, 1Ch sous 13h ; 40h borne la constante à EBh,
+puis la traduit par une table. Au-dessus d'environ 45,3 kHz, la part du défaut n'existe donc pas sur la carte ; entre
+34,7 et 45,3 kHz, dans les normes, reste le débordement de la conversion. PB-150 (0 ramené à 1 Hz) touche la même
+commande.
 *Effet* : sur une SB 16 réglée au-delà de 34,7 kHz, des claquements pleins négatifs sur les sons forts et aigus ;
 et le repliement au-delà de 48 kHz.
-*Trouvé par* : reconnaissance de G12 (contre-lecture, balayage du filtre dans un bac à sable).
+*Trouvé par* : reconnaissance de G12 (contre-lecture, balayage du filtre dans un bac à sable) ; la quantification du
+4.05, reconnaissance de G13 (D5, N8 ; contre-lecture K4).
 Au-delà de 48 kHz, |H| atteint 2,0002 sur la bande où les copies du filtre se recouvrent ; une salve signée au
 hasard n'y suffit pas, un carré presque alterné, oui : rééchantillonné à 48 kHz, il retombe par endroits sur les
 signes des coefficients (sortie mesurée sur un modèle du filtre : 1,34 fois 2^31 à 65 535 Hz, 1,5 fois à 83 333 Hz).
-*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-155, par l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET
-saturerait. SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
+*Source* : le FIR est le rééchantillonneur de PCem, sans pendant sur la carte, et un CNA sature (déduit) ; 41h, « Valid
+sampling rates range from 5000 to 45 000 Hz inclusive » (guide de Creative, p. 6-15) ; micrologiciel 4.05, `X09a7`
+(`v405-8k_e51aff23.asm:1793-1856`) et 40h (`:1688-1692`, `:1754-1784`), vérifiés au binaire ; les Hz, MAME (secondaire).
+*Cas qui discrimine* : sur le noyau, `low_fir_sb16_coef` pour 40 960 Hz (Σ|coef| > 2), les 51 échantillons du FIR à
+±32 767 aux signes des coefficients, voix à 32 767 : PCem ajoute −21 846 (INT_MIN / 3 >> 15), une conversion saturante
++21 845. 41h FFh FFh : `sb_freq` 65 535 chez PCem, le registre FFh (≈ 45 344 Hz) sur la carte.
+*G13* : (a) pour la saturation, un artefact de PCem ; (a) pour le registre de fréquence du 4.05, ses Hz restant
+secondaires ; les défauts propres aux 4.04 à 4.12 (la retenue perdue de 41h, contre-lecture A3) restent à trancher.
+*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-155 (`sb_get_buffer_sb16`, `sb_get_buffer_emu8k`), par l'aide de
+conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. `Sound/sound_sb_dsp.cs`, marqueurs PB-155 (40h ; 41h et 42h).
+SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
 
-### PB-157 — Le 8237 haut : la commande, l'état des requêtes, les registres relus
+### PB-157 — La commande du 8237 haut, l'état des requêtes et les registres relus des deux 8237
 
 `dma.c:389-390` : l'écriture du registre de commande du 8237 haut (D0h) ne fait rien, `dma16_command` reste à 0
 (celui du bas est rangé, `:124-126`). `dma_stat_rq` n'est lu que par le PS/2 (`:198-204`) : sur l'ISA, les bits de
-requête ne remontent jamais. `dma16_read` rend, pour DAh, DCh et DEh, le dernier octet écrit (`dma16regs`, `:345`) ;
-le registre de masque ne se relit donc pas, en DEh comme en 0Fh.
-*Effet* : un programme qui désactive le 8237 haut par sa commande (bit 2) n'y arrive pas ; la relecture du masque
-rend autre chose que le masque.
-*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP et du DMA).
-*Reproduit* : `Models/dma.cs` (transcrit dès B3) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA compare l'état.
+requête ne remontent jamais, et cela sur les deux 8237 (`:82-85` et `:344-347` ne rendent que les TC). `dma16_read`
+rend, pour DAh — le registre temporaire — et pour les lectures « illégales » D2h à D8h, DCh et DEh, le dernier octet
+écrit (`dma16regs`, `:349`) ; `dma_read` fait de même en 09h à 0Ch, 0Eh et 0Fh (`:91`), seul 0Dh rendant 0 (`:87-88`).
+*Effet* : un programme qui désactive le 8237 haut par sa commande (bit 2) n'y arrive pas ; DAh se relit avec le
+dernier octet écrit au lieu du temporaire, nul sur un AT. Que le masque ne se relise pas en DEh, comme l'écrivait
+cette entrée, n'est pas un écart : la lecture de Fh est illégale, et l'AT ne documente DEh qu'en écriture (AT TR
+p. 1-14). Les cinq BIOS AT du dépôt réécrivent 00h en 08h et en D0h après leurs master clear (ibmat
+`F000:02A6-02AB`) : ranger la commande ne demande pas que le master clear l'efface (PB-251).
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP et du DMA) ; élargi aux deux 8237 et corrigé par la
+reconnaissance de G13.
+*Source* : 8237A (231466-005) p. 7, la commande « cleared by Reset or a Master Clear », son bit 2 désactive ; p. 9,
+l'état (« Bits 4–7 are set whenever their corresponding channel is requesting service »), le temporaire et la
+figure 6 (lectures « Illegal ») ; AT TR p. 1-14. Documenté ; la valeur d'une lecture illégale est inconnue.
+*Cas qui discrimine* : ibmat, OUT D0h,04h puis un DMA 16 bits de la SB 16 (canal 5) : PCem le fait ; le 8237A ne
+transfère rien jusqu'à OUT D0h,00h. OUT DAh,5Ah (un master clear) puis IN AL,DAh : PCem 5Ah ; le 8237A 00h.
+*G13* : (a) la commande et DAh, sans dépendre du master clear ; (c) les lectures illégales et les bits de requête.
+*Reproduit* : `Models/dma.cs` (transcrit dès B3), marqueurs PB-157 : `dma16_write` (`:371`, la commande),
+`dma_read` (`:165`, `:174`) et `dma16_read` (`:317`, `:322`) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA
+compare l'état. Les lectures illégales restent reproduites : leur valeur est inconnue, à mesurer sur un 8237A-5 et
+sur les contrôleurs intégrés des jeux de puces du dépôt ; les bits de requête aussi : PCem n'a pas de ligne DREQ, et
+un modèle qui garderait une requête après chaque transfert arrêterait le POST de l'XT (« HOT TIMER 1 OUTPUT », XT TR
+p. 5-30), et celui de la M24, dont la ROM 1.43 fait le même test (`F000:DC5C-DC62`).
 
 ### PB-158 — L'EMU8000 lu et écrit par octet ; WC figé entre deux écritures
 
@@ -1684,11 +2550,22 @@ monte, les bits de la DRAM s'effacent) et d'`emu8k_outw` (un mot téléversé, S
 octet. Et `emu8k_inw` (`:342-716`) n'appelle jamais `emu8k_update`, qui ne tourne qu'aux écritures (`:724`) et à
 chaque tampon (`sound_sb.c:221`) : WC (`:651`, avancé à `:2006`), CPF, CVCF et CCCA relus restent figés, puis
 sautent d'un tampon (TODO `:647-649`).
+Le guide de l'EMU8000 interdit l'accès par octet : ce qu'en fait la puce n'est pas décrit. Sur un bus AT, un octet lu
+à l'adresse impaire d'une carte 16 bits rend D15-D8, l'octet haut (déduit). WC, CPF, CVCF et CCCA sont décrits comme
+courants : documenté, et non déduit (corrigé en G13).
 *Effet* : un programme qui détecte la carte par octets (Impulse Tracker, d'après PCem) lit des valeurs décalées ;
 une attente par WC, sans écriture, dure jusqu'au tampon suivant ; un traqueur qui suit CCCA le voit par bonds.
-*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D1 à D3).
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-158 ; AWEBANC lit par octets aux ports pairs et impairs,
-écrit deux octets par SMLD, et relit WC deux fois sans écriture entre.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D1 à D3) ; précisé en G13 (contre-lecture K7).
+*Source* : guide de l'EMU8000, p. 7 (« no byte I/O transactions are allowed »), p. 14 (WC « continuously incrementing at
+the sample rate », 65 536 valeurs en 1,486 s), p. 8, 9 et 10-11 (CPF et CVCF « constantly being overwritten with new
+data », CCCA l'adresse courante). Documenté pour WC et les registres courants ; inconnu pour les accès par octet.
+*Cas qui discrimine* : AWE32, WC (pointeur 3Bh, A22h) lu deux fois à 5 ms de temps invité, sans écriture à l'EMU8000 ni
+tampon de son entre les deux : ΔWC = 0 chez PCem, 220 ou 221 sur la carte. A23h lu par octet : les bits 1 à 8 du mot
+chez PCem, ses bits 8 à 15 sur la carte (déduit).
+*G13* : mixte — (a) pour WC et les registres courants ; (b) pour l'octet impair ; (c) pour l'écriture par octet et les
+effets de bord par octet. AWEBANC ne discrimine pas WC : ses deux lectures se suivent à moins d'une microseconde.
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-158 (`emu8k_inw`, `emu8k_inb`, `emu8k_outb`) ; AWEBANC lit par
+octets aux ports pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre.
 
 ### PB-159 — Les bits plein et vide de la DRAM sont invisibles ; SMARW n'est pas masqué
 
@@ -1697,11 +2574,22 @@ une attente par WC, sans écriture, dure jusqu'au tampon suivant ; un traqueur q
 A22h, le mot HAUT (`(var) >> 16`, `:213`) : le bit 15 tombe, le drapeau n'apparaît jamais, et sa remise à zéro
 agit à vide. `:1152` : `smarw++` sans le masque de 24 bits que gardent SMALW (`:894`), SMALR (`:560`) et SMARR
 (`:644`) ; l'écriture, masquée à `:329`, ne déborde pas.
+Le guide décrit de plus une attente d'entrée-sortie (I/O WAIT) qui retient l'accès tant que SMLD ou SMRD est plein ou
+vide, que PCem ne modélise pas ; combien de temps le drapeau reste posé n'est pas dit : « jusqu'à la première lecture »
+est l'approximation de PCem (G13).
 *Effet* : un programme qui attend « non plein » passe ; un programme qui attendrait le bit à 1 bouclerait sans fin,
 côté invité. Au-delà de FFFFFFh, SMARW relu montre ses bits 24 et suivants.
-*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D6 et D7).
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-159 ; AWEBANC relit SMALR et SMARW en A22h après leurs
-écritures.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D6 et D7) ; précisé en G13 (contre-lecture K9).
+*Source* : guide de l'EMU8000, p. 11-12 (le bit 31 : MT pour SMALR et SMARR, FULL pour SMALW et SMARW ; « bits 30-24
+are zero on read » ; l'adresse en 23-0), p. 13-14 (l'attente) et p. 22-23 (la marche à suivre attend ces bits).
+Documenté pour le bit et le masque ; inconnu pour la durée du drapeau.
+*Cas qui discrimine* : AWE32 : SMALR écrit (pointeur 34h, A20h puis A22h), puis A22h lu : le bit 15 (MT) à 0 chez PCem,
+à 1 sur la carte à la première lecture (l'essai ne fige que celle-là). SMARW à FFFFFFh, puis SMRD écrit (pointeur 3Ah) :
+A22h relu (pointeur 37h) 0100h chez PCem (le bit 24), les bits 30-24 à 0 sur la carte.
+*G13* : (a) pour la visibilité au bit 31 et le masque de 24 bits ; (c) pour la durée du drapeau et l'attente, non
+décrites ou non modélisées.
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-159 (la lecture de A22h, SMARW) ; AWEBANC relit SMALR et SMARW en
+A22h après leurs écritures.
 
 ### PB-160 — L'EMU8000 de PCem : enveloppes, rustines et approximations
 
@@ -1717,8 +2605,11 @@ Ce que PCem assume ou rate dans la synthèse (`sound_emu8k.c`) :
   forcé à 4 au premier allumage d'un moteur d'enveloppe (`:989-994`, pour Doom), l'octet haut du pointeur tiré
   d'un compteur de 80h à 9Fh (`:710-711`), les pas d'initialisation repérés par `init1[0] = 03FFh` (`:912`, `:957`,
   `:1099`, `:1109`, `:1160`, `:1220`) ;
+- **les relectures** (élargi en G13) : HWCF1 à HWCF3 se relisent par une permutation fixe de leurs bits (`:564-572`),
+  de source inconnue, là où le guide les dit illisibles (« Due to a VLSI error, this register will not be correctly read
+  by the processor ») sans dire ce qu'on lit ;
 - **les approximations** : l'interpolation cubique au lieu des trois points de l'AWE, un échantillon plus tard
-  (`:290-317`) ; un chorus et une réverbération « workalike » (`:1422`, `:1537`) ; un égaliseur vide
+  (`:290-326`) ; un chorus et une réverbération « workalike » (`:1422`, `:1537`) ; un égaliseur vide
   (`:1587-1589`), les registres d'aigus et de graves sans effet ; la hauteur et la coupure posées à leur cible à
   chaque échantillon (`:1969`, `:1971`), le volume glissant de 400h par échantillon (`:1591-1602`) ;
 - **la sortie** : en cubique non filtré, `dat × cvcf_curr_volume` (`:1734`) déborde l'int32 quand |dat| passe
@@ -1727,21 +2618,47 @@ Ce que PCem assume ou rate dans la synthèse (`sound_emu8k.c`) :
 - **l'intégration** : la sortie de 44,1 kHz est portée à 48 kHz par répétition, sans interpolation
   (`sound_sb.c:226`) : du repliement.
 *Effet* : des timbres autres que ceux de l'AWE32, dits tels par PCem ; des redéclenchements sans délai ; des notes
-muettes à l'attaque 0 ; une carte non initialisée qui sonne.
-*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D4, D5, D8, D11 à D15).
-*Reproduit* : `Sound/sound_emu8k.cs` et `Sound/sound_sb.cs`, marqueurs PB-160. AWEBANC redéclenche une note
-sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact.
+muettes à l'attaque 0 ; une carte non initialisée qui sonne ; des relectures de HWCF1 à HWCF3 que la puce ne rend pas.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D4, D5, D8, D11 à D15) ; les relectures de HWCF1 à
+HWCF3, reconnaissance de G13 (contre-lecture A10).
+*Source* : guide de l'EMU8000, p. 14 et 21 (HWCF3 effacé au reset, 0004h en fin d'initialisation ; HWCF1 à 3
+illisibles), p. 16 (DCYSUSV bit 7 : moteur arrêté, les cibles ne sont plus écrites), p. 17 (« 0x00 being never
+attack »), p. 18 (IFATN), p. 7 (le pointeur « random »). Documenté pour hwcf3, l'attaque 0 et le pointeur ; le reste,
+déduit ou inconnu.
+*Cas qui discrimine* : AWE32 non initialisé (hwcf3 = 0) : une voix allumée (DCYSUSV bit 7 de 1 à 0) sonne chez PCem
+(hwcf3 forcé à 4) et se tait sur la carte, vu par la sonde ou la sortie, jamais par HWCF3 relu ; IFATN 40h écrit, moteur
+arrêté : PCem pose VTFT, la carte le laisse (déduit). Les autres points : rapport D5 de G13, § 3.
+*G13* : mixte — (a) pour la rustine de hwcf3 (décision n° 13) ; (b) pour celle d'IFATN, la fin du maintien, le
+relâchement en `>> 9`, la sortie et la répétition à 48 kHz ; (c) pour les délais, les pas d'initialisation,
+l'interpolation, les effets, les glissements et HWCF1 à HWCF3 relus ; (d) pour l'attaque 0 et le pointeur.
+*Reproduit* : `Sound/sound_emu8k.cs` et `Sound/sound_sb.cs`, marqueurs PB-160 (vingt-trois sites). AWEBANC redéclenche
+une note sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact ; il relit
+aussi HWCF1 à HWCF3 (`awebanc.S:77-85`), que la puce ne rend pas.
 
-### PB-165 — L'AWE32 est un DSP de type SB16 + 1 : 08h n'a plus de paramètre
+### PB-165 — 08h : la SB 16 de PCem lui attend un paramètre que le DSP 4.05 ne lit pas ; l'AWE32 est juste
 
-`sound_sb.c:1073-1095` : `sb_awe32_init` monte le DSP en type SB16 + 1 = 8, la version 4.13 (`sound_sb_dsp.c:57`) —
-numériquement SADGOLD (`ibm.h:359-360`). Les tests `>= SB16` le comptent comme une SB 16 ; le seul `== SB16`,
-dans `sb_doreset` (`sound_sb_dsp.c:168-171`), l'exclut : `sb_commands[8]` y vaut -1 au lieu de 1. 08h (la version
-de l'ASP) s'exécute alors dès l'octet de commande, rend 18h, et son paramètre est pris pour une commande.
-*Effet* : un pilote qui envoie 08h suivi d'un paramètre voit ce paramètre exécuté comme une commande (E1h rend la
-version, d'autres lancent un transfert) ; à confronter au vrai DSP 4.13 (G13).
-*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D15).
-*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-165 ; AWEBANC envoie 08h E1h et lit 18h, 04h, 0Dh.
+`sound_sb_dsp.c:168-171` : `sb_doreset` pose `sb_commands[8] = 1` pour `sb_type == SB16` (la SB 16, DSP 4.05), -1 pour
+tout autre type. `sound_sb.c:1073-1095` : `sb_awe32_init` monte le DSP en type SB16 + 1 = 8, la version 4.13
+(`sound_sb_dsp.c:57`) — numériquement SADGOLD (`ibm.h:359-360`) ; les tests `>= SB16` le comptent comme une SB 16, ce
+seul `== SB16` l'écarte. 08h (la version de l'ASP) rend 18h (`:648-650`) : sur l'AWE32 dès l'octet de commande, son
+paramètre supposé étant pris pour une commande ; sur la SB 16, après un paramètre. Renversé en G13 : dans chaque image
+d'origine des DSP 4.04 à 4.16, 08h lit le port 82h de son bus X et rend l'octet, sans lire d'octet de l'hôte. L'AWE32 de
+PCem est juste ; c'est la SB 16 qui se trompe, en avalant l'octet qui suit 08h. La valeur rendue est celle de ce port,
+que fixe le CSP s'il est monté : inconnue sans la puce.
+*Effet* : sur la SB 16, l'octet qui suit 08h est pris pour son paramètre au lieu d'être exécuté (08h puis E1h ne rend
+pas la version) ; sur les deux cartes, 18h n'est peut-être pas la valeur de la carte.
+*Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D15) ; renversé en G13 (reconnaissance D5, N7 ;
+contre-lecture C2, vérifié au binaire).
+*Source* : micrologiciel 4.05, `cmd_csp_version` (`v405-8k_e51aff23.asm:1326-1330` ; routine en 06C5h, `78 82 E2 12 …`,
+sans appel de `dsp_data_read`), 4.13 (`v413-8k_e22e9001.asm:1503-1507`), de même de 4.04 à 4.16. Documenté pour le
+nombre de paramètres ; la valeur, inconnue (DOSBox-X, mesuré : 10h avec l'ASP, FFh sur une ViBRA 16 sans, secondaire).
+*Cas qui discrimine* : SB 16 : 08h, E1h, puis trois lectures de 2xAh, chacune après 2xEh : PCem rend 18h et plus rien ;
+la carte rend l'octet de 08h, puis 04h et 05h. AWE32 : 18h, 04h et 0Dh dans les deux modes, le témoin.
+*G13* : (a) pour le nombre de paramètres de la SB 16 ; (c) pour la valeur rendue par 08h ; l'AWE32, fidèle, ne change
+pas.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-165 (`sb_doreset` ; la valeur de 08h) ; le marqueur de
+`sb_awe32_init` est retiré, le site étant juste. AWEBANC envoie 08h E1h et lit 18h, 04h, 0Dh, le comportement du 4.13 ;
+SB16BANC envoie 08h 00h, qui ne distingue pas (00h ne fait rien).
 
 ### PB-166 — L'AWE32 sans sa ROM arrête PCem ; une ROM courte laisse de l'indéterminé
 
@@ -1752,6 +2669,7 @@ initialisé : l'EMU8000 lit de l'indéterminé, différent d'une exécution à l
 filtre la carte par sa ROM (`wx-config.c:190-193`).
 *Effet* : un .cfg qui demande l'AWE32 sans `roms/awe32.raw` arrête l'émulateur au démarrage.
 *Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : `check_sndcard` refuse l'AWE32 sans sa ROM, ou avec une ROM d'une autre taille que
 1 048 576 octets, avec un avertissement (`pc.cs`, garde `sound_emu8k.c:2019` ; décision n° 5 de PLAN-G12.md).
 L'oracle refuse bruyamment de la monter. Survie : `r9-awecfg`.
@@ -1768,6 +2686,12 @@ disque SCSI, le `FILE*` reste ouvert avec son tampon stdio ; la libc le vide à 
 qu'il était sur le disque, et à la sortie le tampon orphelin, vidé en dernier (`_IO_list_all`), écrase ce qui a
 été écrit depuis.
 *Trouvé par* : transcription de G10.4 ; reconnaissance de G11.
+*Source* : sans objet au matériel : le mécanisme est une fuite de l'hôte, un objet et son tampon par amorçage ; l'effet
+sur l'image, le seul observable, est corrigé dans les deux modes (G13.0).
+*Cas qui discrimine* : aucun depuis G13.0 ; `reset-scsi-check` garde l'effet corrigé.
+*G13* : (d) — hors du mode : la fuite reste reproduite, l'image est protégée dans les deux modes.
+*Reproduit* : le mécanisme, `Scsi/scsi.cs`, `scsi_bus_close` (marqueur PB-121) : aucun périphérique n'est fermé, et
+l'ancien objet est lâché au ramasse-miettes.
 *NON reproduit* pour l'image (hôte, G13.0) : `hdd_file` vide un flux encore ouvert sur la même image avant de la
 rouvrir (`Disc/hdd_file.cs`, marqueur PB-121) ; la machine neuve relit l'image à jour, et le vieux tampon, vide,
 n'écrase plus rien à la sortie. Le flux n'est pas fermé (une image montée deux fois garde ses deux flux, comme deux
@@ -1776,12 +2700,1807 @@ Passé de la section C à la section A en G13.0 : l'image de l'utilisateur perda
 courant (le profil `ixtal26-486-scsi.cfg`, puis « Reset materiel » au menu). Le registre de `hdd_file`, que
 `closepc` vide du plus récent au plus ancien puis ferme (DEVIATION hôte, décision n° 7 de PLAN-G11.md), demeure.
 
+### PB-32 — `pmodeint` : une précédence d'opérateurs annule le code d'erreur
+
+`x86seg.c:1660` (le `pclog` est en `:1659`), dans la branche « vecteur hors des bornes de
+l'IDT » :
+
+```c
+x86gpf(NULL, (num * 8) + 2 + (soft) ? 0 : 1);
+```
+
+`+` lie plus fort que `?:` en C, donc la condition est `((num * 8) + 2 + soft)`. Elle est
+**toujours non nulle** — `num * 8 + 2` vaut au minimum 2 — et l'expression rend donc
+**toujours 0**. Le code d'erreur voulu, `(num * 8) + 2`, n'est jamais transmis ; les deux
+branches du ternaire, 0 et 1, sont là par accident de parenthésage.
+
+Les deux autres sites de la même fonction qui construisent ce code d'erreur l'écrivent
+correctement — `x86gpf(NULL, (num * 8) + 2)` aux lignes 1687 et 1692 — ce qui confirme
+l'intention.
+
+*Effet* : un `INT n` dont le vecteur dépasse la limite de l'IDT lève bien un #GP, mais avec
+un code d'erreur nul au lieu du sélecteur fautif. Un gestionnaire qui lirait le code pour
+identifier la cause verrait zéro. Aucun BIOS ni DOS de ce dépôt ne le lit.
+Passé de la section C à la section A en G13.1 : le code d'erreur empilé est un résultat observable, et le mode
+matériel le corrige (`PLAN-G13.md` § G13.5).
+*Source* : documenté — « Interrupt vector must be within IDT table limits, else #GP(vector number *
+8+2+EXT) » (386 PRM, page INT) ; les bits IDT et EXT du code (386 PRM § 9.7, « Error Code »).
+*Cas qui discrimine* : pm-check : IDT de limite FFh (32 portes), `INT 20h` → #GP(0) (PCem) ;
+#GP(0102h) (386). Une interruption matérielle hors de l'IDT : 0 contre n × 8 + 3 (EXT).
+*G13* : (a) — une ligne sous la garde, avec EXT (PB-192).
+*Reproduit* : `Cpu/x86seg.cs:1119`, marqueur `// pcem bug, reproduced: PB-32` dans `pmodeint`.
+Transcrit avec la même précédence, donc le même résultat — le corriger changerait le code
+d'erreur d'un côté seulement.
+
+### PB-169 — DIV et IDIV du 8088 ne lèvent INT 0 que pour un diviseur nul
+
+`808x.c:3571` (DIV AL,b, ci-dessous), `:3615` (IDIV AL,b), `:3723` (DIV AX,w), `:3746` (IDIV AX,w) :
+
+```c
+if (temp) {
+        tempw2 = tempw % temp;
+        ...
+        AH = tempw2;
+        tempw /= temp;
+        AL = tempw & 0xFF;
+} else {
+        printf("DIVb BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc);
+        writememw(ss, (SP - 2) & 0xFFFF, cpu_state.flags | 0xF000);
+```
+
+Seul le diviseur nul est testé : un quotient qui ne tient pas dans AL (AX) est tronqué. IDIV ne
+lève pas non plus l'interruption pour un quotient de 80h (8000h), ni ne tient compte d'un REP
+qui le précède : `rep()` relance l'instruction sans le préfixe (PB-177).
+
+*Effet* : DIV et IDIV rendent un quotient tronqué et un reste là où le 8088 lève INT 0. Mesuré :
+SST 8088 `F6.6` (4 802 / 10 000, « div byte [ss:bp+di+64h]: AX = 0x0AE6, attendu 0x8ED2 ») et
+`F7.6` (4 905 / 10 000) ; environ 7 000 des échecs de `F6.7` (PB-45).
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre C12), sur la ligne de base SST 8088.
+*Source* : documenté — « Interrupt 0 if the quotient is too big » (386 PRM, pages DIV et IDIV) ; sur
+le 8086/8088, un quotient de 80h (8000h) lève aussi l'exception 0 (§ 14.7, point 11) et l'adresse empilée
+est celle de l'instruction suivante (§ 14.7, point 2) ; REP devant IDIV inverse le signe (README SST 8088).
+*Cas qui discrimine* : SST 8088 `F6.6`, `F7.6` (au manifeste), `F6.7`, `F7.7` (hors). Banc : AX = 1000h,
+BL = 02h, `DIV BL` → AX = 0000h, rien d'empilé (PCem) ; INT 0, SP − 6, IP de l'instruction suivante
+empilé (8088).
+*G13* : (a), avec PB-45 et PB-180 : sans les drapeaux empilés, les cas de débordement
+échouent encore sur la pile, que la sonde compare sans masque (D1-contre K6).
+*Reproduit* : `Cpu/808x.cs:3542` (DIV b), `:3573` (IDIV b), `:3658` (DIV w), `:3693` (IDIV w),
+marqueurs `PB-169`.
+
+### PB-170 — Le DAA du 8088 suit le pseudo-code d'Intel, là où le silicium compare autrement
+
+`808x.c:1602` (dans `case 0x27`, `:1592-1610`) :
+
+```c
+if ((cpu_state.flags & C_FLAG) || (AL > 0x9F)) {
+        AL += 0x60;
+        cpu_state.flags |= C_FLAG;
+}
+```
+
+Le second ajustement compare l'AL déjà ajusté à 9Fh. Sur les 1 024 entrées (AL, AF, CF), le
+résultat est exactement celui du pseudo-code du SDM, qui compare l'AL d'origine à 99h : PCem est
+juste au regard d'Intel. Le 8088 mesuré compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1
+en entrée.
+
+*Effet* : pour AL de 9Ah à 9Fh avec AF = 1 et CF = 0 (6 entrées sur 1 024), PCem ajoute 66h et
+pose CF (9Eh → 04h), le 8088 n'ajoute que 6 (9Eh → A4h, CF = 0).
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre K5), sur la ligne de base SST 8088.
+*Source* : mesuré seulement — SST 8088 v2 (AMD D8088), forme `27` ; GloriousCow, commentaire du 24 février
+2023 sous l'article de K. Shirriff (righto.com) : « If AF==1, the CPU compares against 0x9F before
+adding 60 ». Intel ne documente pas cet écart : le SDM donne le résultat de PCem.
+*Cas qui discrimine* : SST 8088 `27`, au manifeste (9 936 / 10 000, « daa: AX = 0x3604, attendu
+0x36A4 » ; la règle prédit 0,59 % d'écarts, la mesure 0,64 %). Banc : AL = 9Eh, AF = 1, CF = 0,
+`DAA` → AL = 04h, CF = 1 (PCem) ; AL = A4h, CF = 0 (8088).
+*G13* : (a) — vérifiable par SST ; la règle vient d'un silicium AMD, que le corpus 8086 (Intel)
+peut confirmer (D1-contre A6).
+*Reproduit* : `Cpu/808x.cs:1531`, `case 0x27`, marqueur `PB-170`.
+
+### PB-171 — Le DAS du 8088 reprend le CF de l'emprunt d'en bas et compare l'AL déjà ajusté
+
+`808x.c:1665-1683` (`case 0x2F`), le second test en `:1675` :
+
+```c
+if ((cpu_state.flags & C_FLAG) || (AL > 0x9F)) {
+        AL -= 0x60;
+        cpu_state.flags |= C_FLAG;
+}
+```
+
+L'emprunt de l'ajustement bas pose CF, et le second test le reprend : `AL = 01h, AF = 1, CF = 0`
+donne FBh avec CF = 1 après le premier pas, puis 9Bh. Le SDM teste l'AL et le CF d'origine
+(`old_AL > 99H or old_CF = 1`) et rend FBh. Le seuil compare de plus l'AL ajusté à 9Fh.
+
+*Effet* : AL faux dans 24 des 1 024 entrées (AL, AF, CF) au regard du SDM, 18 au regard de la
+règle mesurée sur le 8088.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre K5), sur la ligne de base SST 8088.
+*Source* : documenté pour l'emprunt (SDM vol. 2, page DAS : `old_AL`, `old_CF`) ; pour le seuil, la
+règle du 8088 (9Fh si AF = 1, comme DAA) est déduite de la mesure : prédite 1,76 %, mesurée 1,86 %
+(SST 8088 v2, forme `2F`).
+*Cas qui discrimine* : SST 8088 `2F`, au manifeste (9 814 / 10 000, « das: AX = 0xEA9B, attendu
+0xEAFB »). Banc : AL = 01h, AF = 1, CF = 0, `DAS` → AL = 9Bh (PCem) ; FBh (SDM et 8088).
+*G13* : (a) — le SDM pour l'emprunt, la règle mesurée pour le seuil ; vérifiable par SST.
+*Reproduit* : `Cpu/808x.cs:1602`, `case 0x2F`, marqueur `PB-171`.
+
+### PB-172 — REP LODSB et REP LODSW ne chargent jamais AL ni AX
+
+`808x.c:1110-1147`, `rep()` : l'octet lu va dans `temp2` (`:1112`), le mot dans `tempw2` (`:1131`) ;
+ni l'un ni l'autre n'est copié dans AL ou AX.
+
+*Effet* : après `REP LODSB` ou `REP LODSW`, AL ou AX garde sa valeur ; SI et CX avancent. Un code
+qui se sert d'un REP LODS pour lire le dernier élément d'une suite lit faux.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre C9), sur la ligne de base SST 8088.
+*Source* : documenté — LODS charge AL (AX) depuis DS:SI à chaque répétition (Intel, page LODS) ;
+mesuré, SST 8088 v2, forme `AD`.
+*Cas qui discrimine* : SST 8088 `AD`, au manifeste (1 004 / 1 515 joués, « es rep lodsw: AX = 0x94BE,
+attendu 0xC65C » ; la sonde écarte les cas qui commencent par REP, D1-contre K9) ; `AC` hors manifeste.
+Banc : CX = 1, DS:SI sur 5Ah, AL = 00h, `REP LODSB` → AL = 00h (PCem), 5Ah (8088).
+*G13* : (a) — deux affectations sous la garde ; vérifiable par SST.
+*Reproduit* : `Cpu/808x.cs:941` (REP LODSB) et `:964` (REP LODSW), marqueurs `PB-172`.
+
+### PB-173 — SETMO et SETMOC (D0 à D3 /6) sont traités comme SHL
+
+`808x.c:2798-2799`, `:2920-2921`, `:3068-3069`, `:3219-3220` :
+
+```c
+case 0x20:
+case 0x30: /*SHL b,1*/
+```
+
+Le champ `reg` 6 (`0x30`) est rangé avec 4 (`0x20`, SHL). Sur le 8088, `/6` est SETMO (D0, D1) ou
+SETMOC (D2, D3, si CL ≠ 0) : l'opérande devient FFh (FFFFh).
+
+*Effet* : l'opérande est décalé à gauche au lieu de prendre FFh (FFFFh), et les drapeaux suivent
+SHL.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre C10), sur la ligne de base SST 8088.
+*Source* : mesuré seulement — SST 8088 v2 (AMD D8088) : `metadata.json` marque `D0.6`, `D1.6`, `D2.6`
+et `D3.6` « undocumented » (« well-defined and potentially useful behavior, such as SETMO and
+SETMOC », README), masque 0xF72A : aucun drapeau arithmétique comparé. Intel ne documente pas ces formes.
+*Cas qui discrimine* : SST 8088 `D0.6`, au manifeste (32 / 10 000, « setmo byte [ss:bp-3D75h]:
+mem[0xB0443] = 0x54, attendu 0xFF ») ; `D1.6`, `D2.6`, `D3.6` hors manifeste. Banc : AL = 2Ah, `D0 F0`
+→ AL = 54h (PCem), FFh (8088) ; SETMOC avec CL = 0 laisse l'opérande des deux côtés.
+*G13* : (a) — vérifiable par SST ; comportement pris du silicium AMD, que le corpus 8086 peut
+confirmer.
+*Reproduit* : `Cpu/808x.cs:2716` (D0), `:2832` (D1), `:2978` (D2), `:3157` (D3), marqueurs
+`PB-173`.
+
+### PB-174 — Les décalages par CL du 8088 n'écrivent jamais OF
+
+`808x.c:3068-3119` (SHL, SHR et SAR b,CL) et `:3219-3271` (w,CL) : aucune de ces lignes ne touche
+`V_FLAG`.
+
+*Effet* : OF garde la valeur qu'il avait avant l'instruction ; le 8088 le pose de façon
+déterministe, et la valeur héritée est fausse environ une fois sur deux.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.1, D1-contre C11), sur la ligne de base SST 8088.
+*Source* : Intel le dit indéfini (« OF is undefined for multiple shifts », 386 PRM, page SAL/SAR/SHL/SHR) ;
+le 8088 le pose, mesuré (SST 8088 v2 : masque 0xFFEF, seul AF masqué, sur `D2.4`, `D2.5`, `D2.7`, `D3.4`,
+`D3.5`, `D3.7`). Règle déduite, à confirmer sur ces formes : celle du dernier pas d'un bit.
+*Cas qui discrimine* : SST 8088 `D2.4`, au manifeste (2 648 / 5 000, « shl byte [ds:si+41h], cl: flags
+= 0xFC56, attendu 0xF446 », OF 1 contre 0) ; les cinq autres hors manifeste. Banc : OF = 1, AL = 01h,
+CL = 2, `SHL AL,CL` → OF = 1 (PCem), 0 (8088).
+*G13* : (a) — vérifiable par SST ; la règle exacte se tire des vecteurs.
+*Reproduit* : `Cpu/808x.cs:2981` (SHL b), `:3003` (SHR b), `:3024` (SAR b), `:3160` (SHL w), `:3182`
+(SHR w), `:3204` (SAR w), marqueurs `PB-174`.
+
+### PB-175 — AAM et AAD du 8088 posent SF et ZF d'après AX
+
+`808x.c:3284` (AAM) et `:3291` (AAD) : `setznp16(AX);`, là où les drapeaux suivent AL.
+
+*Effet* : AAD laisse AH à 0, donc ZF est juste et SF toujours nul (faux dès qu'AL ≥ 80h). AAM pose
+ZF à faux quand AL = 0 et AH ≠ 0, et SF à faux pour une base atypique (1, ou plus de 80h). PF est
+juste : la table de parité ne lit que l'octet bas.
+*Trouvé par* : reconnaissance de G13 (D1-contre A1), à la lecture du C.
+*Source* : documenté — « The SF, ZF, and PF flags are set according to the resulting binary value in the
+AL register » (SDM vol. 2, pages AAD et AAM) ; SST 8088 v2 compare SF, ZF et PF (masque 0xF7EE pour
+`D4` et `D5`).
+*Cas qui discrimine* : SST 8088 `D4`, `D5` (hors manifeste). Banc : AL = 14h, `AAM 0Ah` → AX = 0200h,
+ZF = 0 (PCem), 1 (8088) ; AH = 01h, AL = 78h, `AAD 0Ah` → AL = 82h, SF = 0 (PCem), 1 (8088).
+*G13* : (a) — vérifiable par SST ; même défaut dans le cœur 386 (PB-186).
+*Reproduit* : `Cpu/808x.cs:3255` (AAM) et `:3264` (AAD), marqueurs `PB-175`.
+
+### PB-176 — SAR par CL du 8088 rend CF nul au-delà de 8 (16) sur un opérande négatif
+
+`808x.c:3104` (SAR b,CL) et `:3258` (SAR w,CL) :
+
+```c
+if ((temp >> (c - 1)) & 1)
+```
+
+`temp` (`tempw`) est non signé : le décalage remplit de zéros. Pour un compte supérieur à 8 (16),
+le bit testé est un zéro, alors que le dernier bit sorti d'un SAR est une copie du signe. Au-delà
+de 32, le décalage du C est indéfini ; l'hôte x86 masque le compte à 5 bits, le C# aussi.
+
+*Effet* : CF = 0 au lieu de 1 après `SAR` par CL > 8 (16) d'un opérande négatif ; le résultat,
+calculé par la boucle, est juste.
+*Trouvé par* : reconnaissance de G13 (D1-contre A2), à la lecture du C.
+*Source* : déduit — la définition de SAR (le bit bas va dans CF à chaque pas, « the high-order bit
+remains the same », 386 PRM, page SAL/SAR/SHL/SHR) et un 8088 qui ne masque pas le compte (386 PRM
+§ 14.7, point 5 : seul le 386 le masque à 5 bits).
+*Cas qui discrimine* : SST 8088 `D2.7`, `D3.7` (hors manifeste ; le corpus masque CL à 6 bits).
+Banc : AL = 80h, CL = 9, `SAR AL,CL` → AL = FFh des deux côtés, CF = 0 (PCem), 1 (8088).
+*G13* : (a) — deux lignes ; vérifiable par SST.
+*Reproduit* : `Cpu/808x.cs:3025` (SAR b) et `:3206` (SAR w), marqueurs `PB-176`.
+
+### PB-177 — `rep()` du 8088 : 6Eh exécuté comme OUTSB, DS: absent, préfixe perdu avant REP
+
+`808x.c:950-969` (`case 0x6E: /*REP OUTSB*/`), `:915` (`uint16_t ipc = cpu_state.oldpc;`) et
+`:1201-1204` :
+
+```c
+default:
+        cpu_state.pc = ipc + 1;
+        cycles -= 20;
+        FETCHCLEAR();
+```
+
+Trois défauts :
+- (i) `F3 6E` envoie CX octets de DS:SI sur le port DX ; sur le 8088 et le 8086, OUTS n'existe
+  pas (il naît avec le 186) et 6Eh est l'alias de JLE, que PCem décode ainsi hors REP (`:2010`) ;
+- (ii) il n'y a pas de `case 0x3E` : `REP DS: MOVSB` tombe dans le `default`, qui relance à
+  `ipc + 1`, et la chaîne ne s'exécute qu'une fois ;
+- (iii) `ipc` est le début de toute l'instruction (les préfixes de segment font `goto
+  opcodestart` sans toucher `oldpc`) : avec un préfixe de segment AVANT le REP, le `default`
+  relance sur le REP, et l'instruction qui suit perd la surcharge — `26 F3 F7 /7` lit dans DS.
+
+*Effet* : (i) des E/S que le 8088 ne fait pas, et un saut omis ; (ii) une copie d'un seul élément ;
+(iii) un opérande lu dans le mauvais segment. Les IDIV « seg REP » du corpus en sont touchés (PB-45).
+*Trouvé par* : reconnaissance de G13 (D1-contre A3), à la lecture du C.
+*Source* : déduit — un préfixe vaut pour l'instruction qui le suit, dans n'importe quel ordre ; la
+carte des opcodes du 8086/8088 n'a pas OUTS (386 PRM § 14.7, point 3 : les opcodes indéfinis du 8086
+sont, sur le 386, de nouvelles instructions ou l'exception 6).
+*Cas qui discrimine* : (iii) SST 8088 `F6.7`, `F7.7` (IDIV précédés d'un préfixe de segment et d'un REP).
+Bancs : `F3 3E A4`, CX = 3 → un octet copié, CX = 3 (PCem) ; trois, CX = 0 (8088). `F3 6E` avec CX = 2
+→ deux OUT (PCem) ; un JLE, CX intact (8088).
+*G13* : (b) — comportement déduit ; seul (iii) se vérifie par SST, une fois levé le filtre REP de la
+sonde (D1-contre K9).
+*Reproduit* : `Cpu/808x.cs:771` (`case 0x6E`) et `:1038` (`default`), rep(), marqueurs `PB-177`.
+
+### PB-178 — LOCK du 8088 est une instruction d'un octet, pas un préfixe
+
+`808x.c:3489-3492` :
+
+```c
+case 0xF0: /*LOCK*/
+case 0xF1: /*LOCK alias*/
+        cycles -= 4;
+        break;
+```
+
+`break` et non `goto opcodestart` : la fin d'instruction efface un préfixe de segment placé avant
+LOCK (`:3924-3928`), et une interruption ou le pas-à-pas peuvent s'intercaler entre LOCK et
+l'instruction qu'il devait verrouiller.
+
+*Effet* : `26 F0 A1 00 00` lit DS:0000 au lieu d'ES:0000 ; un IRQ ou un INT 1 peut tomber entre LOCK
+et son instruction. Effet limité : un PC à un seul maître de bus se sert peu de LOCK.
+*Trouvé par* : reconnaissance de G13 (D1-contre A3), à la lecture du C.
+*Source* : déduit — LOCK est un préfixe de l'instruction qui le suit (« the instruction that follows
+it », Intel, page LOCK) ; aucun texte lu ici ne dit ce que fait le 8088 d'une interruption entre un
+préfixe et son instruction : inconnu pour ce point.
+*Cas qui discrimine* : banc : ES ≠ DS, `26 F0 A1 00 00` → AX lu dans DS (PCem) ; dans ES (8088).
+*G13* : (b) — comportement déduit, effet limité ; vérification par banc dirigé seulement.
+*Reproduit* : `Cpu/808x.cs:3463`, `case 0xF0`, marqueur `PB-178`.
+
+### PB-179 — Un mot à l'offset FFFFh ne replie pas à l'offset 0 du segment
+
+`808x.c:73-80` (`readmemw`) et `:105-111` (`writememw`) : les deux octets d'un mot sont lus ou
+écrits en `s + a` et `s + a + 1`, adresses linéaires, par le chemin rapide (`:79`, `:110`) comme
+par le lent (`readmemwl(s + a)`, `:77`).
+
+*Effet* : un mot lu ou écrit à l'offset FFFFh d'un segment prend son octet haut en `s + 10000h`,
+le premier octet du segment suivant, au lieu de l'offset 0 du même segment ; de même `PUSH` avec
+SP = 1. L'autre facette, le repli à 1 Mo d'un mot en FFFFFh, est celle de PB-07 (D1-contre A7).
+*Trouvé par* : reconnaissance de G13 (D1 § 3, PB-87 ; D1-contre A7), à la lecture du C.
+*Source* : documenté — « On the 8086, memory operands crossing offset 65,535 or 0 wrap around modulo
+65,536 » (386 PRM § 14.7, point 7) ; le repli des adresses à 1 Mo du 8086 (§ 14.7, point 18) relève de
+PB-07.
+*Cas qui discrimine* : banc C# seul (SST évite vraisemblablement ces offsets, D1-contre C18) : DS =
+1000h, AAh en 1FFFFh, 11h en 10000h, 22h en 20000h, `MOV AX,[FFFFh]` → AX = 22AAh (PCem), 11AAh (8088).
+*G13* : (a) — chemin chaud, chaque accès mot du 808x ; à faire avec PB-07 (D6), une seule condition
+de repli dans readmemw et writememw.
+*Reproduit* : `Cpu/808x.cs:116` (readmemw) et `:145` (writememw), marqueurs `PB-179`.
+
+### PB-180 — L'INT 0 du 8088 empile les drapeaux d'avant la division
+
+`808x.c:3595`, `:3637`, `:3730`, `:3754` (DIV et IDIV, octet et mot) :
+
+```c
+writememw(ss, (SP - 2) & 0xFFFF, cpu_state.flags | 0xF000);
+```
+
+*Effet* : les drapeaux empilés par l'erreur de division sont ceux d'avant l'instruction ; le 8088
+empile ceux que le microcode de la division a laissés — mesuré sur AAM 0 (octet bas 46h : ZF et
+PF posés, SF, AF et CF effacés, PB-46), déduit pour DIV et IDIV (les 32 cas à diviseur nul de
+`F6.7`). Le chemin R9 d'AAM 0 (PB-46, C# seul) empile de même. Sans ce point, détecter le
+débordement (PB-169) ne gagne presque rien sur `F6.x` et `F7.x` (D1-contre K6).
+*Trouvé par* : reconnaissance de G13 (D1-contre K6), sur la mesure de PB-46.
+*Source* : règle inconnue — Intel ne documente pas les drapeaux laissés par une division interrompue ;
+mesuré au cas par cas (SST 8088, `D4`). À tirer des vecteurs `F6.6`, `F6.7`, `F7.6`, `F7.7` (la pile
+de chaque cas), puis à confirmer sur le corpus 8086.
+*Cas qui discrimine* : SST 8088 `D4` (AAM 0, 47 cas) : octet bas des drapeaux empilés égal à celui
+d'avant (C#, chemin R9) ; 46h (8088). Puis les cas de débordement de `F6.6` à `F7.7`.
+*G13* : (c) — la règle est inconnue : à mesurer sur les vecteurs avant toute correction ; reproduit
+d'ici là.
+*Reproduit* : `Cpu/808x.cs:3554` (DIV b), `:3586` (IDIV b), `:3670` (DIV w), `:3706` (IDIV w),
+marqueurs `PB-180`.
+
+### PB-181 — L'AF d'ADC du cœur 286/386/486 manque quand le quartet bas de l'opérande vaut Fh
+
+`x86_flags.h:299-307`, `AF_SET`, branches `FLAGS_ADC8/16/32` :
+
+```c
+case FLAGS_ADC8:
+        return ((cpu_state.flags_res & 0xf) < (cpu_state.flags_op1 & 0xf)) ||
+               ((cpu_state.flags_res & 0xf) == (cpu_state.flags_op1 & 0xf) && cpu_state.flags_op2 == 0xff);
+```
+
+Avec une retenue entrante, le quartet bas du résultat égale celui de `op1` quand le quartet bas de
+`op2` vaut Fh, et la retenue sort alors du bit 3. La formule exige `op2 == 0xff` (0xffff,
+0xffffffff) : c'est celle du CF (`CF_SET`, `:344-352`), juste sur l'opérande entier, recopiée sur le
+quartet sans masquer `op2`. Le SBC du même en-tête est juste (`:317-321`). Défaut distinct de
+PB-01, d'une autre formule ; le 286 l'a aussi (`ops_286`, `cpu.c:324`, mêmes en-têtes).
+
+*Effet* : AF manque après ADC quand une retenue entre, que le quartet bas de `op2` vaut Fh et que
+`op2` n'est pas FFh (FFFFh, FFFFFFFFh) : 3 840 des 131 072 triplets de 8 bits (2,93 %). Des chiffres
+BCD valides ne l'exercent pas, à la différence de PB-01.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre C4), sur la ligne de base SST 386.
+*Source* : documenté — AF est la retenue du bit 3 (SDM vol. 1, § 3.4.3.1) ; mesuré, SST 386 (386EX),
+« l'AF d'ADC (2 370 cas) », famille F1 (`VERIFICATION.md` § G2) ; AF n'est pas un drapeau indéfini d'ADC.
+*Cas qui discrimine* : SST 386 `10`–`15`, `6611`, `6613`, `6615`, `80.2`–`83.2`, `6681.2`, `6683.2`.
+Banc : CF = 1, AL = 00h, `ADC AL,0Fh` → AF = 0 (PCem), 1 (386).
+*G13* : (a) — documenté et mesuré ; vaut pour le 286, le 386 et le 486.
+*Reproduit* : `Cpu/x86_flags.cs:236`, AF_SET, marqueur `PB-181` ; l'en-tête du fichier le dit
+(corrigé en G13.1 : il attribuait au cœur 386 la mesure du 8088).
+
+### PB-182 — LOCK du cœur 286/386/486 ne lève #UD que devant NOP
+
+`x86_ops_misc.h:701-712`, `opLOCK`, le seul refus en `:707` :
+
+```c
+ILLEGAL_ON((fetchdat & 0xff) == 0x90);
+```
+
+*Effet* : LOCK devant une instruction qui ne se verrouille pas, ou devant la forme registre d'une
+instruction verrouillable, s'exécute comme si LOCK n'était pas là ; le 386 et le 486 lèvent #UD
+(INT 6). Environ 3 % des cas de presque toutes les formes du corpus 386 portent un LOCK.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre C5), sur la ligne de base SST 386.
+*Source* : documenté pour le 386 — « An undefined-opcode exception (interrupt 6) results from using LOCK
+before any other instruction » (386 PRM § 14.7, point 9 ; page LOCK : les seules formes « that reference
+memory ») ; 486 : déduit (SDM) ; 286 : inconnu, le corpus SST 80286 tranchera.
+*Cas qui discrimine* : SST 386, famille E1 (13 860 échecs, 125 formes). Banc : `F0 01 C0` (LOCK ADD
+AX,AX, forme registre) → exécuté (PCem) ; INT 6, IP sur le préfixe (386).
+*G13* : (a) pour le 386 et le 486, gardé par UC : `opLOCK` sert aussi au 286 (`386_ops.h:10968-10969`),
+dont le comportement est inconnu (D1-contre A5).
+*Reproduit* : `Cpu/386_ops_prefix.cs:195`, opLOCK, marqueur `PB-182`.
+
+### PB-183 — BT, BTS, BTR et BTC déplacent l'adresse d'un décalage non signé
+
+`x86_ops_bit.h:8`, `:28`, `:48`, `:68` (BT) et `:92`, `:119`, `:146`, `:173` (la macro `opBT` de
+BTS, BTR et BTC) :
+
+```c
+cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].w / 16) * 2);
+```
+
+*Effet* : en forme mémoire, un registre de décalage négatif (8000h à FFFFh en 16 bits, bit 31 posé en
+32 bits) adresse en avant, jusqu'à 8 Ko (512 Mo) plus loin, au lieu d'en arrière : CF lit — et BTS,
+BTR, BTC écrivent — un autre mot. La forme registre n'est pas touchée.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre K7), à la lecture du C.
+*Source* : documenté — « If BitBase is a memory address, BitOffset can range from -2 gigabits to 2
+gigabits » (386 PRM § 17.2, Bit(BitBase, BitOffset)) ; SDM vol. 2, Table 3-2. Il n'explique qu'une
+partie des écarts de CF mesurés sur BT* (≈ 1 150 à 1 350 cas par forme) : le reste n'est pas lu (K7).
+*Cas qui discrimine* : banc, mode réel, 386 : AX = FFFFh, BX = 0100h, `BT [BX],AX` → bit 15 du mot
+en DS:20FEh (PCem) ; en DS:00FEh (386). SST 386 `0FA3`, `0FAB`, `0FB3`, `0FBB` : seulement après K7 et K8.
+*G13* : (a) — documenté et vérifiable par un banc ; la mesure SST ne départagera qu'une fois le reste
+des écarts de CF instruit.
+*Reproduit* : `Cpu/386_ops_bit.cs:30`, `:44` (OpBTx : BTS, BTR, BTC), `:303`, `:327`, `:351`, `:375`
+(BT), marqueurs `PB-183`.
+
+### PB-184 — MOVSX r16,r/m16 est un opcode illégal
+
+`386_ops.h:1432` (table `386_0f`, opérande 16 bits et adresse 16 bits, entrée `BF`) et `:1958`
+(adresse 32 bits) : `ILLEGAL`. La forme r32 (`66 0F BF`) existe, `opMOVSX_l_w`.
+
+*Effet* : `0F BF` en taille d'opérande 16 bits lève #UD (INT 6) ; le 386 mesuré l'exécute.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre C6), sur la ligne de base SST 386.
+*Source* : mesuré seulement — SST 386 (386EX) : `0FBF` à 2,7 %, `670FBF` à 2,3 %, `660FBF` à 96,8 % ;
+`80386.csv` la décrit « MOVSX r16/32, r/m16 ». Les manuels d'Intel (386 PRM, SDM) ne listent que la
+forme r32 : de ce côté, inconnu.
+*Cas qui discrimine* : SST 386 `0FBF`, `670FBF` (famille R). Banc : BX = 8001h, `0F BF C3` (MOVSX
+AX,BX) → INT 6 (PCem) ; AX = 8001h (386EX ; déduit : un mot étendu vers 16 bits est une copie).
+*G13* : (a) — mesuré ; demande un handler neuf dans une table générée (`386_ops_table386.cs`,
+`tools/ops386-table.py`), donc une table du mode posée par `cpu_set` (D1-contre A10).
+*Reproduit* : par la table générée, `Cpu/386_ops_table386.cs:717` et `:1069` (ILLEGAL, sans marqueur :
+fichier généré) ; marqueur `PB-184` dans `Cpu/386_ops_movx.cs:287` (PoserGroupe_movx_0f_386).
+
+### PB-185 — AAA et AAS du cœur 286/386/486 ajustent à la façon du 8086
+
+`x86_ops_bcd.h:3-15` (opAAA : `AL += 6; AH++;`, `:6-7`) et `:41-53` (opAAS : `AL -= 6; AH--;`,
+`:44-45`). La retenue d'AL + 6 ne passe pas dans AH, ni l'emprunt d'AL − 6.
+
+*Effet* : AAA avec AL ≥ FAh à ajuster : le SDM ajoute 106h à AX (AH + 2), PCem un seul à AH ; AAS avec
+AL < 6 : le SDM retire 6 d'AX puis 1 d'AH (AH − 2), PCem un seul.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre C7), sur la ligne de base SST 386.
+*Source* : contradiction documentée — SDM vol. 2, AAA (`AX := AX + 106H`) et AAS (`AX := AX – 6; AH :=
+AH – 1`) ; 386 PRM, AAA (`AL := (AL + 6) AND 0FH; AH := AH + 1`) et AAS (`AL := AL - 6; …; AH := AH - 1`),
+ce que fait PCem. La mesure (386EX) suit le SDM : `37` à 91,6 %, `3F` à 93,2 %, EAX divergent (déduit).
+*Cas qui discrimine* : SST 386 `37`, `3F` (famille R). Banc : AX = 00FAh, AF = 1, `AAA` → AX = 0100h
+(PCem) ; 0200h (SDM, 386EX). AX = 0102h, AF = 1, `AAS` → AX = 000Ch (PCem) ; FF0Ch (SDM).
+*G13* : (a) pour le 386 et le 486, sur la mesure du 386EX, qui tranche entre les manuels ; gardé par
+UC : le 286 partage ces handlers, son comportement est inconnu (D1-contre A5).
+*Reproduit* : `Cpu/386_ops_bcd.cs:44` (AAA) et `:99` (AAS), marqueurs `PB-185`.
+
+### PB-186 — AAD et AAM du cœur 286/386/486 posent SF et ZF d'après AX
+
+`x86_ops_bcd.h:23` (AAD) et `:35` (AAM) : `setznp16(AX);`, là où les drapeaux suivent AL.
+
+*Effet* : AAD : SF toujours nul (AH vaut 0 ; ZF est juste) ; AAM : ZF faux quand AL = 0 et AH ≠ 0,
+SF faux pour une base atypique. `D5` passe à 50,2 % : le profil d'un SF faux une fois sur deux.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre C8), sur la ligne de base SST 386.
+*Source* : documenté — « The SF, ZF, and PF flags are set according to the resulting binary value in the
+AL register » (SDM vol. 2, pages AAD et AAM) ; `80386.csv` donne `f_umask` 0xF7EE : SF, ZF et PF
+comparés.
+*Cas qui discrimine* : SST 386 `D5` (50,2 %), `D4` (84,8 %, famille F1). Bancs de PB-175 :
+AL = 14h, `AAM 0Ah` → ZF = 0 (PCem), 1 (386) ; AH = 01h, AL = 78h, `AAD 0Ah` → SF = 0 (PCem), 1 (386).
+*G13* : (a) — documenté et mesuré ; même défaut que le 8088 (PB-175).
+*Reproduit* : `Cpu/386_ops_bcd.cs:68` (AAD) et `:87` (AAM), marqueurs `PB-186`.
+
+### PB-187 — AAM 0 du cœur 286/386/486 prend la base 10 au lieu de lever #DE
+
+`x86_ops_bcd.h:31-32` :
+
+```c
+if (!base || cpu_manufacturer != MANU_INTEL)
+        base = 10;
+```
+
+*Effet* : `D4 00` divise AL par 10 au lieu de lever #DE (INT 0). PB-46 le décrit (`PCEM_BUGS.md`,
+section B) sans l'inscrire comme défaut du cœur 386.
+*Trouvé par* : reconnaissance de G13 (D1 § 5.3, D1-contre K4), sur la ligne de base SST 386.
+*Source* : documenté — « #DE If an immediate value of 0 is used » (SDM vol. 2, page AAM) ; les cas à
+immédiat nul de `D4` l'attendent (SST 386, 386EX).
+*Cas qui discrimine* : SST 386 `D4` (≈ 1/256 des 2 500 cas). Banc : AL = 2Ah, `AAM 0` → AX = 0402h,
+rien d'empilé (PCem) ; #DE, l'adresse de l'AAM empilée (386 : la faute pointe l'instruction, 386 PRM
+§ 14.7, point 2).
+*G13* : (a) — documenté, vérifiable par SST ; même famille « erreur de division » que PB-46 et
+PB-169.
+*Reproduit* : `Cpu/386_ops_bcd.cs:81`, opAAM, marqueur `PB-187`.
+
+### PB-188 — Le DAS du cœur 286/386/486 s'écarte du SDM
+
+`x86_ops_bcd.h:81-105`, opDAS, le second test en `:92` :
+
+```c
+if ((cpu_state.flags & C_FLAG) || (AL > 0x9f)) {
+```
+
+Comme celui du 8088 (PB-171), le second test reprend le CF de l'emprunt d'en bas et compare
+l'AL déjà ajusté ; le SDM teste l'AL et le CF d'origine. Le DAA du même cœur, identique au SDM,
+passe à 100 %.
+
+*Effet* : AL et CF faux dans 24 des 1 024 entrées (AL, AF, CF).
+*Trouvé par* : reconnaissance de G13 (D1-contre A4), sur la ligne de base SST 386.
+*Source* : documenté — SDM vol. 2, page DAS (`old_AL > 99H or old_CF = 1`) ; mesuré, SST 386 (386EX),
+`2F` à 95,6 % (famille R).
+*Cas qui discrimine* : SST 386 `2F`. Banc : AL = 01h, AF = 1, CF = 0, `DAS` → AL = 9Bh (PCem) ; FBh
+(SDM, 386EX).
+*G13* : (a) — documenté et mesuré.
+*Reproduit* : `Cpu/386_ops_bcd.cs:160`, opDAS, marqueur `PB-188`.
+
+### PB-189 — En mode réel, la limite des données n'est contrôlée que par les MOV
+
+`386_common.h:58-72` : `SEG_CHECK_READ` et `SEG_CHECK_WRITE` ne testent que le segment nul
+(`base == 0xffffffff`), et ce sont les seules gardes de la plupart des handlers. `CHECK_READ`,
+`CHECK_WRITE` et `CHECK_WRITE_REP` (`:74-92`), qui comparent l'adresse à `limit_low` et
+`limit_high`, ne servent qu'aux MOV de `x86_ops_mov.h` (23 sites), à `x86_ops_misc.h:50`, à six REP
+(`x86_ops_rep.h`) et au FSTP m64 (`x87_ops_loadstore.h:459`, `:475`).
+
+*Effet* : en mode réel, un opérande dont l'adresse effective dépasse FFFFh (adressage 32 bits) ou
+qui est à cheval sur l'offset FFFFh est lu ou écrit hors du segment, sans #GP ni #SS. Mesuré : SST
+386, familles E2 (75 858 échecs, 194 formes `67…`) et E3 (1 838 échecs, 48 formes) ; les MOV a32
+(`6788`–`678B`), qui contrôlent, passent à ≈ 94 %, le reste de E2 à ≈ 82 % (D1-contre K10).
+*Trouvé par* : reconnaissance de G13 (D1 § 5.2, D1-contre K10), sur la ligne de base SST 386.
+*Source* : documenté — exception 13 (segment de données) ou 12 (segment de pile) pour un opérande qui
+franchit l'offset 65 535 ou 0 (386 PRM § 14.7, point 7) ; « Interrupt 13 if any part of the operand
+would lie outside of the effective address space from 0 to 0FFFFH » (386 PRM, pages d'instruction).
+*Cas qui discrimine* : SST 386, familles E2 et E3. Banc, mode réel : BX = FFFFh, `ADD [BX],BX` → mot
+lu et écrit en DS:FFFFh et DS:10000h (PCem) ; INT 0Dh (386). EAX = 10000h, `67 01 00` → idem.
+*G13* : (a) — documenté et mesuré ; mais un contrôle sur chaque accès mémoire, le chemin le plus chaud
+du cœur : son coût est à décider avant G13.5, qui ne le prévoit pas (D1, question 6).
+*Reproduit* : `Cpu/386_common.cs:515`, SEG_CHECK_READ et SEG_CHECK_WRITE, marqueur `PB-189`.
+
+### PB-190 — LTR ne contrôle rien
+
+`x86_ops_pmode.h:230-262`, op0F00_common, `case 0x18` :
+
+```c
+addr = (sel & ~7) + gdt.base;
+...
+access |= 2;
+writememb(0, addr + 5, access);
+...
+tr.seg = sel;
+```
+
+LTR lit toujours la GDT, garde dans `tr.seg` le bit TI du sélecteur, et ne teste ni le sélecteur
+nul, ni la limite de la GDT, ni le type (une TSS disponible), ni la présence : le descripteur lu,
+quel qu'il soit, reçoit le bit 1 de son octet d'accès.
+
+*Effet* : LTR charge TR depuis un segment de données, une TSS occupée ou absente, ou d'après un
+sélecteur à TI = 1 (lu dans la GDT quand même), et modifie le descripteur ; avec TI = 1, la
+commutation suivante cherche le bit occupé dans la LDT (PB-42).
+*Trouvé par* : reconnaissance de G13 (D1 § 4, PB-42 ; D1-contre C19), à la lecture du C.
+*Source* : documenté — LTR lève « #GP(selector) if the object named by the source selector is not a TSS
+or is already busy », « #NP(selector) if the TSS is marked "not present" » (386 PRM, page LTR) ;
+« TSS descriptors may reside only in the GDT » (386 PRM § 7.2).
+*Cas qui discrimine* : pm-check, CPL 0 : `LTR` sur le sélecteur d'un segment de données → TR chargé,
+descripteur modifié (PCem) ; #GP(sélecteur) (386). Idem avec TI = 1, ou une TSS déjà occupée.
+*G13* : (a) — documenté ; rend PB-42 inatteignable.
+*Reproduit* : `Cpu/386_ops_0f.cs:570`, op0F00_common (LTR), marqueur `PB-190`.
+
+### PB-191 — La voie TSS des CALL, JMP et INT en accepte trop
+
+`x86seg.c:1284-1291` (loadcscall) et `:761-773` (loadcsjmp), après une lecture du descripteur dans
+la LDT si `seg & 4` (`:888-894`, `:582-588`) ; la porte de tâche de `pmodeint`, `:1963-1999`, qui lit
+la TSS dans la LDT si `seg & 4` (`:1967-1973`) et ne teste que sa présence (`:1990`).
+
+*Effet* : un CALL ou un JMP directement sur une TSS ne contrôle ni le DPL de la TSS contre CPL et RPL,
+ni sa présence, ni que son sélecteur désigne la GDT : une TSS de la LDT, d'un privilège insuffisant
+ou absente est commutée. La porte de tâche de l'IDT accepte une TSS de la LDT et ne vérifie pas que
+le descripteur désigné est une TSS disponible.
+*Trouvé par* : reconnaissance de G13 (D1 § 3, PB-39 ; D1-contre A9), à la lecture du C.
+*Source* : documenté — 386 PRM, pages CALL et JMP, branches TASK-STATE-SEGMENT (« TSS DPL must be
+>= CPL », « >= RPL », « must be present ») et TASK-GATE (« Must specify global in the local/global bit ») ;
+page INT, TASK-GATE (« AR byte must specify available TSS »). Exceptions : #TS (CALL, INT), #GP (JMP), #NP.
+*Cas qui discrimine* : pm-check, CPL 3 : `CALL FAR` sur une TSS 386 de DPL 0 → commutation (PCem) ;
+#TS(sélecteur de la TSS) (386 PRM, page CALL ; #GP selon la page JMP et le SDM). TSS absente :
+commutation contre #NP.
+*G13* : (a) pour les conditions ; (b) pour les exceptions, que les manuels contredisent (comme PB-39).
+*Reproduit* : `Cpu/x86seg.cs:724` (loadcscall), `:2548` (loadcsjmp), `:1418` (pmodeint, porte de
+tâche), marqueurs `PB-191`.
+
+### PB-192 — `pmodeint` : EXT jamais posé, et la limite de l'IDT testée sur le premier octet
+
+`x86seg.c:1648` et `:1687` :
+
+```c
+if (addr >= idt.limit) {
+...
+        x86gpf(NULL, (num * 8) + 2);
+```
+
+La porte occupe huit octets, de `addr` à `addr + 7`, mais seul `addr` est comparé à la limite. Et le
+code d'erreur d'une porte de type nul (`:1687`) n'a jamais le bit EXT, même quand l'événement est
+externe (`soft == 0`) ; celui de `:1660` le portait dans son expression voulue (PB-32). Le test de DPL
+(`:1692`) ne vaut que pour une interruption logicielle, où EXT est bien nul.
+
+*Effet* : une porte dont les derniers octets dépassent la limite est lue au-delà ; un #GP sur une
+porte invalide, pour une interruption matérielle ou une exception, porte n × 8 + 2 au lieu de
+n × 8 + 3.
+*Trouvé par* : reconnaissance de G13 (D1 § 4, PB-32 ; D1-contre § 5.2), à la lecture du C.
+*Source* : documenté — « Interrupt vector must be within IDT table limits, else #GP(vector number *
+8+2+EXT) » (386 PRM, page INT) ; le SDM compare `(vector_number « 3) + 7` à la limite (page INT n) ;
+« The processor sets the EXT bit if an event external to the program caused the exception » (§ 9.7).
+*Cas qui discrimine* : pm-check : limite de l'IDT 00FCh, `INT 1Fh` → porte lue (PCem) ; #GP(00FAh)
+(386). Interruption matérielle sur une porte de type nul → #GP(n × 8 + 2) (PCem) ; n × 8 + 3 (386).
+*G13* : (a) — documenté ; à faire avec PB-32.
+*Reproduit* : `Cpu/x86seg.cs:1095` (le test de limite) et `:1143` (le code d'erreur), pmodeint,
+marqueurs `PB-192`.
+
+### PB-193 — LOADALL386 ne contrôle pas le privilège
+
+`x86_ops_misc.h:930-974`, `opLOADALL386` : aucune garde, là où `opLOADALL`, celui du 286, teste
+`CPL && (cr0 & 1)` (`:828-831`) avant de lever #GP(0).
+
+*Effet* : en mode protégé, à un niveau de privilège autre que 0, LOADALL386 charge tout l'état (CR0,
+EFLAGS, EIP, les registres, les dix caches de descripteur) depuis ES:EDI : un programme de niveau 3
+prend la main sur la machine émulée.
+*Trouvé par* : reconnaissance de G13 (D1 § 3, PB-78 ; D1-contre C19), à la lecture du C.
+*Source* : source secondaire — « Attempting to execute LOADALL at any other privilege level will
+generate an exception 13 » (R. Collins, *The LOADALL Instruction*, rcollins.org) ; LOADALL n'est pas
+documenté par Intel.
+*Cas qui discrimine* : pm-check, cœur 386, CPL 3 : `0F 07`, ES:EDI sur un bloc préparé → état chargé
+(PCem) ; #GP(0) (386, selon Collins).
+*G13* : (b) — source secondaire seule, sans mesure.
+*Reproduit* : `Cpu/386_ops_0f.cs:817`, opLOADALL386, marqueur `PB-193`.
+
+### PB-194 — FXTRACT n'existe pas : D9 F4 est FPU_ILLEGAL
+
+`x87_ops.h:356` (et `:394` en a32), la rangée D9 F0-F7 : `opF2XM1, opFYL2X, opFPTAN, opFPATAN, ILLEGAL, opFPREM1, …` —
+D9 F4 décode, compte `timing_rr` et ne fait rien (`FPU_ILLEGAL_a16`, `:297-302`). `x87_ops_*.h` n'a aucun `opFXTRACT` ;
+le champ `fxtract` des quatre tables de temps (`x87_timings.c`) n'est lu par personne.
+*Effet* : FXTRACT ne sépare rien : la pile ne bouge pas, TOP ne descend pas, ST(0) garde la valeur d'origine ; un
+calcul de logarithme ou de mise à l'échelle qui passe par FXTRACT continue avec une pile décalée.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, confirmé par D2-contre C7).
+*Source* : SDM vol. 2, FXTRACT (l'exposant en ST(1), la significande poussée en ST(0) ; 0 → ZE et ST(1) = −∞) ;
+SDM vol. 3 (2016) § 22.18.7.12 et 387 PRM annexe C (8087 et 287 : 0 sans exception) — documenté.
+*Cas qui discrimine* : FNINIT ; FLDZ ; FLD m64 = 8,0 (4020000000000000) ; D9 F4 ; FSTP m64 ; FSTP m64 → PCem
+4020000000000000 puis 0000000000000000 (le zéro de FLDZ), silicium 3FF0000000000000 (1,0) puis 4008000000000000 (3,0).
+*G13* : (a) — un gestionnaire neuf avec ceux du noyau, après le point de décision n° 10 (exact aussi en double).
+*Reproduit* : `Cpu/x87_ops_tables.cs` (`Table_fpu_d9_a16` et `_a32`, rangée F0) et `Cpu/x87_ops_808x_tables.cs`
+(`ops_808x_fpu_d9_a16`), marqueurs PB-194 (générés par `gentab.py` et `gen46.py`).
+
+### PB-195 — FBSTP tronque au lieu d'arrondir, sans IE ni BCD indéfini
+
+`x87_ops_loadstore.h:141-200` : |ST(0)| est décomposé par `floor(fmod(tempd, 10.0))` puis `tempd /= 10.0`
+(`:152-160`, `:182-190`) : les chiffres sont ceux de la partie entière, tronquée, quel que soit RC ; aucune borne :
+au-delà de 10^18 − 1, le dix-neuvième chiffre tombe dans l'octet de signe (`:161-164`) ; un infini ou un NaN donne
+des chiffres nuls (`fmod` rend NaN, cvttsd2si 80000000h, l'octet 00) ; au-delà de 2^53, les divisions par 10 sont
+inexactes et les chiffres faux.
+*Effet* : FBSTP de 12,7 écrit 12 ; de 10^18, l'octet de signe 01h ; d'un NaN ou de +∞, un zéro BCD (de −∞, −0) ; jamais
+IE.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 2, FBSTP (arrondi à l'entier selon RC ; trop grand, ∞, NaN : #IA, et masquée l'indéfini BCD) ; SDM
+vol. 1 § 4.7 (l'indéfini BCD compacté, FFFF C000 0000 0000 0000h) — documenté.
+*Cas qui discrimine* : FLD m64 = 12,7 (4029666666666666) ; FBSTP m80 → PCem 12 00 00 00 00 00 00 00 00 00, silicium
+(au plus près) 13 00 … 00 ; FLD m64 = 10^18 (43ABC16D674EC800) ; FBSTP → PCem 00 × 9 puis 01, silicium 00 × 7, C0 FF
+FF et IE.
+*G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; PB-53 (la globale `tempc`) s'y éteint.
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16` et `FBSTP_a32`, marqueurs PB-195, et leurs copies de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-196 — FIST m16 et m32 hors bornes : les bits bas, ni l'indéfini entier ni IE
+
+`x87_ops_loadstore.h:46`, `:60`, `:75`, `:92` : `seteaw((int16_t)temp64)` ; `:282`, `:296`, `:311`, `:328` :
+`seteal((int32_t)temp64)` — l'entier de 64 bits de `x87_fround` tronqué ; PCem a commenté son propre contrôle
+(`fatal`, `:44-45`, `:280-281`…). FISTP m64 hors bornes tombe juste par hasard : `x87_fround` y rend 8000000000000000h
+(cvttsd2si), qui est l'indéfini entier ; IE manque partout (D2-contre A4-k).
+*Effet* : FIST m16 de 40 000 écrit 9C40h (−25 536) ; FIST m32 de 3·10^9, B2D05E00h ; un programme qui contrôle ses
+conversions par IE ou par l'indéfini ne voit jamais le débordement.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 2, FIST/FISTP (trop grand, ∞, NaN : #IA ; masquée, l'indéfini entier, 8000h, 80000000h ou
+8000000000000000h) ; Numerics Supplement (1980) — documenté.
+*Cas qui discrimine* : FLD m64 = 40 000,0 (40E3880000000000) ; FISTP m16 → PCem 9C40h et IE = 0, silicium 8000h et
+IE = 1 ; FLD m64 = 3·10^9 (41E65A0BC0000000) ; FISTP m32 → PCem B2D05E00h, silicium 80000000h et IE.
+*G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; IE avec PB-59.
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFISTiw_*`, `opFISTPiw_*`, `opFISTil_*`, `opFISTPil_*` (huit gestionnaires),
+marqueurs PB-196, et leurs copies de `Cpu/x87_ops_808x.cs`.
+
+### PB-197 — FRNDINT de |x| ≥ 2^63, d'un infini ou d'un NaN rend −2^63
+
+`x87_ops_misc.h:708`, `ST(0) = (double)x87_fround(ST(0));` ; `x87_ops.h:60-82` : `(int64_t)floor(b)` hors des bornes
+d'un `int64_t`, compilé en cvttsd2si, vaut 8000000000000000h ; les comparaisons de l'arrondi au plus près rendent alors
+`c` (2^63, ±∞) ou `a` (NaN), tous deux −2^63.
+*Effet* : FRNDINT de 2^63, de +∞, de −∞ ou d'un NaN rend −9,223372036854775808·10^18 (C3E0000000000000).
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 2, FRNDINT (arrondi selon RC ; une valeur déjà entière et un infini restent inchangés ; un SNaN :
+#IA, un QNaN propagé) — documenté.
+*Cas qui discrimine* : FLD m64 = 2^63 (43E0000000000000) ; FRNDINT ; FSTP m64 → PCem C3E0000000000000, silicium
+43E0000000000000 ; le même C3E0000000000000 chez PCem pour +∞ (7FF0000000000000) et pour 7FF8000000000000.
+*G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-197 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs` ; la cause, `x87_fround` (`Cpu/x87_ops.cs`, CvtI64), est partagée avec FIST.
+
+### PB-198 — FSCALE avec ST(1) NaN ou +∞ rend 0 ; le domaine du 287 n'est pas contrôlé
+
+`x87_ops_misc.h:722`, `temp64 = (int64_t)ST(1);` : un NaN, un infini ou |ST(1)| ≥ 2^63 donnent −2^63 (cvttsd2si) ;
+`:723-724`, `ST(0) * pow(2.0, −9,2·10^18)` vaut alors ±0. Le domaine du 287 (−2^15 ≤ ST(1) < 2^15) n'est pas contrôlé.
+*Effet* : FSCALE(1,0 ; NaN) rend 0 au lieu du NaN ; FSCALE(1,0 ; +∞) rend 0 au lieu de +∞ (−∞ rend 0, juste par
+hasard).
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7) ; le cas de +∞, lu à la ligne de C.
+*Source* : SDM vol. 2, FSCALE (ST(1) tronqué vers zéro ; table des résultats : ST(1) NaN → NaN, +∞ → ±∞) ; 287 PRM
+(domaine −2^15 ≤ ST(1) < 2^15, « undefined » hors domaine) — documenté ; la valeur hors domaine du 287 : inconnue.
+*Cas qui discrimine* : ST(0) = 1,0, ST(1) = 7FF8000000000000 ; FSCALE ; FSTP m64 → PCem 0000000000000000, silicium
+7FF8000000000000 ; ST(1) = +∞ → PCem 0000000000000000, silicium 7FF0000000000000.
+*G13* : (a) — avec les gestionnaires du noyau ; le domaine du 287 : avec les 16 bits ; hors domaine : (c).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFSCALE`, marqueur PB-198 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-199 — L'image FSAVE d'un registre TAG_UINT64 : l'entier suivi de 5555h, étiqueté « spécial »
+
+`x87_ops.h:152-161` (`x87_st_fsave` : `MM[reg].q` puis `0x5555`), `:163-175` (`x87_ld_frstor` : relu comme entier si
+la marque `0x5555` et TAG_UINT64 s'y trouvent), `x87.c:37-38` (`x87_gettag` : TAG_UINT64 → 10). TAG_UINT64 est la
+rustine de FILD m64 (`x87.h:29-30`, `x87_ops_loadstore.h:113-115`).
+*Effet* : après FILD m64, FSAVE écrit pour ce registre un entier de 64 bits suivi de 5555h au lieu du réel de 80 bits,
+et 10 (« spécial ») dans le mot d'étiquettes ; un débogueur, un gestionnaire d'exceptions ou un changement de tâche
+qui lit l'image voit des octets que le silicium n'écrit pas. L'aller-retour FSAVE / FRSTOR, lui, reste cohérent.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 1 § 8.1.10 (l'image FSAVE : huit réels de 80 bits) et § 8.1.7 (étiquettes : 00 valide, 01 zéro, 10
+spécial) — documenté.
+*Cas qui discrimine* : FNINIT ; FILD m64 = 5 ; FNSAVE (16 bits, réel) → le registre en +14 : PCem 05 00 00 00 00 00 00
+00 55 55, silicium 00 00 00 00 00 00 00 A0 01 40 (5,0) ; le mot d'étiquettes : PCem BFFFh, silicium 3FFFh.
+*G13* : (a) — avec le noyau (la rustine TAG_UINT64 disparaît), ou dès « A+ ».
+*Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st_fsave` et `x87_ld_frstor` ; `Cpu/x87.cs`, `x87_gettag` ;
+marqueurs PB-199.
+
+### PB-200 — FNSTSW AX sur le 8087 écrit AX
+
+`x87_ops.h:916`, la rangée DF E0 de `fpu_df_a16` (`opFSTSW_AX`), que `8087.h:86` recompile pour le 8087 ;
+`x87_ops_misc.h:24-32`.
+*Effet* : sur un 8088 + 8087, DF E0 écrit le mot d'état dans AX ; un programme qui reconnaît le 287 à ce que FNSTSW AX
+change AX croit le trouver.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7 ; relevé aussi par 86Box, ticket #4518).
+*Source* : 287 PRM (FSTSW AX, « a special 80287 instruction ») ; Numerics Supplement (1980 : le 8087 n'échange avec
+l'UC que par la mémoire) — documenté ; AX inchangé sur le 8088 + 8087 : déduit ; ce que le 8087 fait de DF E0 : inconnu.
+*Cas qui discrimine* : 8088 + 8087 : MOV AX, 1234h ; FNINIT ; FNSTSW AX → PCem AX = 0000h, silicium 1234h (déduit).
+*G13* : (b) — AX inchangé : déduit ; DF E0 dans le 8087 : (c), sans effet visible ; avec les coprocesseurs de 16 bits.
+*Reproduit* : `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16`, rangée E0, marqueur PB-200 (généré par
+`gen46.py`).
+
+### PB-201 — L'adressage du 8087 : les lectures bouclent dans le segment, pas les écritures
+
+`8087.h:19-23` (`readmeml`, `readmemq`) et l'`eaaddr + 8` de `x87_ld80` passent par le `readmemw` du 808x
+(`808x.c:73`, offset `uint16_t`) : l'offset est tronqué à 16 bits et boucle dans le segment. Les écritures passent par
+`writememw` (`808x.c:105`, offset `uint32_t`) et `writememb_8087` (`8087.h:25`, segment + offset sur 32 bits) : sans
+repli. (D2-contre A4-j prêtait aussi le repli à `writememw` : lu à la ligne, seul `readmemw` tronque.)
+*Effet* : un opérande qui franchit l'offset FFFFh est lu en partie au début du segment et écrit au-delà : FLD et FST du
+même opérande ne voient pas les mêmes octets.
+*Trouvé par* : reconnaissance de G13 (D2 § 7 ; D2-contre A4-j).
+*Source* : Numerics Supplement (1980), la lecture fictive : l'UC lit le premier mot, le 8087 en relève l'adresse
+physique de 20 bits et l'incrémente pour les mots suivants — documenté (D2 § 7).
+*Cas qui discrimine* : 8088 + 8087, DS = 1000h, des octets différents en 10000h et en 20000h : FLD m64 [FFFCh] → PCem
+lit ses quatre derniers octets en 10000h, silicium en 20000h ; FST m64 [FFFCh] écrit en 20000h des deux côtés.
+*G13* : (a) — avec les coprocesseurs de 16 bits : un accès propre au 8087, dans un fichier `*.Materiel.cs`.
+*Reproduit* : `Cpu/x87_8087.cs`, `readmemw` (la troncature `(uint16_t)a`), marqueur PB-201.
+
+### PB-202 — FINIT, et FSAVE, effacent C3-C0 sur le 8087 et le 287
+
+`x87_ops_misc.h:57`, `cpu_state.npxs = 0;` dans `opFINIT`, pour tous les types de coprocesseur ; `:346`, la même ligne à
+la fin de FSAVE.
+*Effet* : sur un 8087 ou un 287, les codes de condition posés avant FINIT ou FSAVE sont perdus.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7 et A8).
+*Source* : SDM vol. 3 (2016) § 22.18.2.1 et 387 PRM annexe C § C.3 (après FINIT, C3-C0 intacts sur 8087 et 287) —
+documenté ; FSAVE du 8087 : 86Box #4518 (« F(N)INIT and F(N)SAVE both need to simply AND the status word for 0x4700 on
+a 8087 », seconde main) ; FSAVE du 287 : déduit.
+*Cas qui discrimine* : 8087 ou 287 : FLDZ ; FTST (C3 = 1) ; FNINIT ; FSTSW m16 → PCem 0000h, silicium 4000h.
+*G13* : (a) — avec les coprocesseurs de 16 bits (FSAVE du 287 : déduit).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFINIT` et `FSAVE`, marqueurs PB-202 (générés par `gen44.py`), et leurs
+copies de `Cpu/x87_ops_808x.cs`.
+
+### PB-203 — `x87_reset` est vide : le RESET ne remet pas le coprocesseur dans son état initial
+
+`x87.c:97`, `void x87_reset() {}`, appelée par `resetx86` (`808x.c:697`).
+*Effet* : après un reset matériel, l'état x87 est celui d'avant ; à la mise sous tension, le zéro (npxc = 0 : tout
+démasqué, PC = 24 bits). Un logiciel qui calcule après un reset sans FNINIT hérite de masques et d'une précision que
+le silicium n'aurait pas.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7 ; PLAN-G4.md le notait).
+*Source* : 387 PRM annexe C § C.1 (au RESET, l'état de FNINIT, plus IE et ES posés, IM à 0, ERROR# actif) ; Numerics
+Supplement (1980) table S-7 p. S-26 et 287 PRM table 3-1 (8087, 287 : l'état de FNINIT, codes de condition
+indéterminés) — documenté.
+*Cas qui discrimine* : FLDCW 0000h, puis un reset matériel, puis FSTCW m16 et FSTSW m16 sans FNINIT → PCem 0000h et
+l'ancien mot d'état ; silicium (387) le mot de FNINIT, IM à 0, et IE et ES posés.
+*G13* : (a) — dans le cadre : l'état de reset par type de coprocesseur ; C3-C0 du 8087 et du 287 : (c).
+*Reproduit* : `Cpu/x87.cs`, `x87_reset`, vide, marqueur PB-203 ; l'appel est omis dans `Cpu/808x.cs`
+(`resetx86`, `// omitted:`, hors du domaine).
+
+### PB-204 — Les ports F0h et F1h de l'AT ne sont pas émulés
+
+Aucun gestionnaire : le seul `io_sethandler(0x00f0, …)` de PCem est celui de la PCjr (`src/floppy/fdc.c:1263-1268`) ;
+PCem ne modélise pas non plus le verrou BUSY# de l'AT. PLAN-G4.md, Les risques, le notait déjà.
+*Effet* : sur un AT, OUT F0h n'efface aucun verrou et OUT F1h ne réinitialise pas le coprocesseur : un BIOS ou un pilote
+qui réinitialise le 287 par F1h garde l'état d'avant.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : AP-578 § 2.2.1 p. 6 (ERROR# → IRQ13 ; BUSY# verrouillé jusqu'à une écriture au port F0h) ; IBM PC AT
+Technical Reference (6280070, 1985 : F0h efface le verrou, F1h réinitialise le coprocesseur ; page non relevée) —
+documenté.
+*Cas qui discrimine* : AT + 287 : FNINIT ; FLD1 ; OUT F1h, AL ; FSTSW m16 → PCem 3800h (TOP = 7), silicium TOP = 0
+(le 287 réinitialisé, C3-C0 indéterminés) ; le verrou (FWAIT bloqué jusqu'à OUT F0h) avec l'acheminement de PB-59.
+*G13* : (a) — G13.6, l'acheminement (le verrou de l'AT, F0h et F1h), avec la carte mère (PB-05).
+*Reproduit* : par absence ; aucun site dans le domaine du x87 (un gestionnaire de port relèverait de `Models/`).
+
+### PB-205 — Le bit C1 « arrondi vers le haut » n'est jamais posé
+
+Aucun gestionnaire arithmétique, de chargement ou de stockage (`x87_ops_arith.h`, `x87_ops_loadstore.h`,
+`x87_ops_misc.h`) ne pose C1 après un arrondi ; PE ne l'est pas non plus (PB-59).
+*Effet* : un programme qui lit C1 après une opération inexacte, ou un test de conformité, lit toujours 0.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 1 § 8.1.3.2 et § 8.5.6 (C1 = 1 quand le résultat inexact a été arrondi vers le haut) ; 387 PRM
+annexe C (propre au 387 et à ses successeurs) — documenté.
+*Cas qui discrimine* : FNINIT (64 bits, au plus près) ; FLD1 ; FDIV m64 = 3,0 ; FSTSW m16 → PCem 3800h, silicium (387 et
+suivants) 3A20h (C1 et PE : la significande AAAAAAAAAAAAAAABh est arrondie vers le haut).
+*G13* : (a) — avec le noyau, qui rend le sens de l'arrondi ; 387 et suivants seulement.
+*Reproduit* : par absence, dans tous les gestionnaires ; pas de site propre, pas de marqueur.
+
+### PB-206 — FLD m32 d'un SNaN le rend silencieux sans lever IE
+
+`x87_ops_loadstore.h:499`, `:515`, `x87_push((double)ts.s);` : la conversion de l'hôte (cvtss2sd) rend le NaN
+silencieux et ne signale rien au x87.
+*Effet* : FLD m32 d'un SNaN ne pose pas IE ; démasquée, aucune exception.
+*Trouvé par* : reconnaissance de G13 (D2 § 7, D2-contre C7).
+*Source* : SDM vol. 2, FLD (« #IA Source operand is an SNaN ») ; SDM vol. 3 (2016) § 22.18.7.11 (« The 16-bit IA-32 math
+coprocessors do not raise an exception when loading a signaling NaN ») — documenté ; la charge rendue silencieuse ou non
+par le 8087 et le 287 : inconnu.
+*Cas qui discrimine* : FNINIT ; FLD m32 = 7F800001h ; FSTSW m16 → PCem 3800h, silicium (387 et suivants) 3801h (IE) ; la
+valeur, 7FF8000020000000 en m64, est la même.
+*G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : sans exception, la valeur : (c).
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDs_a16` et `_a32`, marqueurs PB-206, et leurs copies de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-207 — FSTENV ne masque pas les exceptions
+
+`x87_ops_misc.h:826-869` : FSTENV range l'environnement et laisse `npxc` intact.
+*Effet* : un gestionnaire d'exceptions qui commence par FNSTENV, pour ne pas en lever une seconde, reste démasqué ; avec
+ZE démasquée, FNSTENV puis une division par zéro lève l'IRQ13 (PB-59) là où le silicium rend ±∞. Observable dès le
+mode PCem.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-a).
+*Source* : SDM vol. 2, FSTENV/FNSTENV (« Saves the current FPU operating environment … and then masks all floating-point
+exceptions ») — documenté pour le 387 et ses successeurs ; 8087 et 287 : déduit.
+*Cas qui discrimine* : FNINIT ; FLDCW 037Bh (ZE démasquée) ; FNSTENV m ; FSTCW m16 → PCem 037Bh, silicium 037Fh ; puis
+FLD1 ; FLDZ ; FDIVP → PCem IRQ13 et ST(1) inchangé, silicium +∞ sans interruption.
+*G13* : (a) — G13.6, un seul gestionnaire, avec l'acheminement (sa trace visible est l'IRQ13).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `FSTENV`, marqueur PB-207 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-208 — Le mot d'étiquettes ment pour les NaN et les infinis ; 10 est relu comme TAG_UINT64
+
+`x87.c:39-42` : `x87_gettag` rend 00 (valide) pour tout registre non vide, non nul et sans TAG_UINT64, NaN et infinis
+compris ; `x87.c:56-57` : `x87_settag` relit 10 comme TAG_VALID | TAG_UINT64.
+*Effet* : FSTENV et FSAVE étiquettent 00 un NaN ou un infini ; après FLDENV d'une image où un registre est marqué 10,
+FISTP m64 de ce registre écrit le `MM[].q` qui y traînait.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-b).
+*Source* : SDM vol. 1 § 8.1.7 (« 10 — Special: invalid (NaN, unsupported), infinity, or denormal ») — documenté ; qu'au
+rechargement le 387 ne retienne des étiquettes que « vide » ou « non vide » : déduit.
+*Cas qui discrimine* : FNINIT ; FLD m64 = +∞ ; FNSTENV m → étiquettes PCem 3FFFh, silicium BFFFh ; FNINIT ; FILD m64 =
+5 ; FSTP ST(0) ; FLD1 ; FNSTENV m ; étiquettes forcées à BFFFh ; FLDENV m ; FISTP m64 → PCem 5, silicium 1.
+*G13* : (a) — avec le noyau (les étiquettes calculées), ou dès « A+ ».
+*Reproduit* : `Cpu/x87.cs`, `x87_gettag` et `x87_settag`, marqueurs PB-208.
+
+### PB-209 — FUCOM, FUCOMP, FUCOMPP et FPREM1 s'exécutent sur le 8087 et le 287, en zéro cycle
+
+Les tables sont les mêmes pour le 287, le 387 et le 486 (`cpu_set` ne lit pas `fpu_type` pour les poser, D2-contre
+K16), et `8087.h:86` les recompile pour le 8087 : FUCOM et FUCOMP (`x87_ops.h:758-759`, a32 `:797-798`), FUCOMPP
+(`:432`, `:471`), FPREM1 (D9 F5, `:356`, `:394`). Leurs temps valent 0, « /*387+*/ » : `x87_timings.c:54`, `:71`
+(8087 : `fprem1`, `fucom`), `:128`, `:145` (287). FSIN, FCOS et FSINCOS relèvent de PB-68.
+*Effet* : sur un 8087 ou un 287, ces instructions du 387 calculent comme sur un 387 et ne coûtent aucun cycle ; un
+logiciel qui reconnaît le 387 à FUCOM ou à FPREM1 le trouve.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-c).
+*Source* : 387 PRM annexe C (FUCOM, FUCOMP, FUCOMPP, FPREM1, FSIN, FCOS, FSINCOS absents du 8087 et du 287) ; Juffa
+(« the Intel 8087/80287 do not feature … FUCOM … FPREM1 ») — documenté ; ce que le 8087 et le 287 font de ces octets
+(pile, mot d'état, durée) : inconnu, à mesurer sur DD E1, DA E9 et D9 F5.
+*Cas qui discrimine* : 287 : ST(0) = 5,0, ST(1) = 3,0 ; D9 F5 → PCem ST(0) = 2,0 (PB-65), en 0 cycle ; silicium :
+inconnu — le cas s'écrira sur la mesure.
+*G13* : (c) — le vrai comportement est inconnu ; reproduit tant qu'une mesure ne le tranche pas (décision n° 14).
+*Reproduit* : `Cpu/x87_ops_tables.cs` (rangées DD E0-EF, DA E8, D9 F0) et `Cpu/x87_ops_808x_tables.cs` ;
+`Cpu/x87_timings.cs` (`fprem1` et `fucom` des tables du 8087 et du 287) ; marqueurs PB-209.
+
+### PB-210 — Les alias non documentés, traités à moitié
+
+Exécutés : D9 D8+i (FSTP1, `x87_ops.h:353`, que PCem marque `/*Invalid*/`), DC D0+i et DC D8+i (FCOM2, FCOMP3, par la
+table de 32 entrées, `:717`, `:722`). `FPU_ILLEGAL` : DD C8+i (FXCH4, `:755`, `:794`), DE D0+i (FCOMP5, `:835`,
+`:874`), DF C0+i (FFREEP), DF C8+i, D0+i, D8+i (FXCH7, FSTP8, FSTP9) (`:912-915`, `:951-954`).
+*Effet* : DD C8+i, DE D0+i et DF C0+i à D8+i ne font rien (décodage et `timing_rr`) là où, selon les sources
+secondaires, le silicium échange, compare et dépile, libère et dépile, ou range et dépile.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-d).
+*Source* : déduit de sources secondaires seulement (D2-contre A4-d) ; aucune source primaire d'Intel relevée — « à
+instruire avant toute inscription » : une source primaire, ou DD C9, DE D1, DF C1, DF C9, DF D1 et DF D9 mesurés.
+*Cas qui discrimine* : ST(0) = 1,0, ST(1) = 2,0 ; DD C9 ; FSTP m64 → PCem 1,0 (rien n'a bougé), silicium attendu 2,0
+(déduit, non mesuré).
+*G13* : (c) — reproduit tant que le comportement n'est pas instruit (la contre-lecture voulait l'instruire d'abord).
+*Reproduit* : `Cpu/x87_ops_tables.cs` (rangées DD C8, DE D0, DF C0 à D8) et `Cpu/x87_ops_808x_tables.cs`, marqueurs
+PB-210 (générés par `gentab.py` et `gen46.py`).
+
+### PB-211 — FRNDINT perd le signe du zéro
+
+`x87_ops_misc.h:708` et `x87_ops.h:60-82` : `x87_fround` rend un `int64_t`, que `(double)` convertit en +0 pour tout
+résultat nul : −0, et ]−0,5 ; 0[ au plus près (]−1 ; 0[ vers +∞ ou vers zéro).
+*Effet* : FRNDINT de −0 ou de −0,3 rend +0 ; une division qui suit rend +∞ au lieu de −∞.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-e).
+*Source* : IEEE 754-1985 § 6.3 (« the sign of the result of the round floating-point number to integral value operation
+is the sign of the operand ») ; SDM vol. 2, FRNDINT — documenté.
+*Cas qui discrimine* : FLD m64 = −0,3 (BFD3333333333333) ; FRNDINT ; FSTP m64 → PCem 0000000000000000, silicium
+8000000000000000 ; de même pour −0 (8000000000000000).
+*G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
+*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-211 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-212 — FLD m64 d'un SNaN le garde signalant, sans IE
+
+`x87_ops_loadstore.h:396-427`, `t.i = geteaq(); … x87_push(t.d);` : les bits sont copiés tels quels (FLD m32, lui, rend
+le NaN silencieux : PB-206).
+*Effet* : un SNaN chargé par FLD m64 reste signalant dans le registre et ressort tel quel par FSTP m64 ; aucune IE.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-f).
+*Source* : SDM vol. 2, FLD (« #IA Source operand is an SNaN » ; masquée, le QNaN) — documenté pour le 387 et ses
+successeurs ; 8087 et 287 : sans exception (SDM vol. 3 (2016) § 22.18.7.11), la valeur chargée : inconnue.
+*Cas qui discrimine* : FNINIT ; FLD m64 = 7FF0000000000001 ; FSTP m64 ; FSTSW m16 → PCem 7FF0000000000001 et 0000h,
+silicium (387 et suivants) 7FF8000000000001 et 0001h (IE).
+*G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : (c).
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDd_a16` et `_a32`, marqueurs PB-212, et leurs copies de
+`Cpu/x87_ops_808x.cs`.
+
+### PB-213 — Les comparaisons ne remettent pas C1 à zéro
+
+`x87_ops_arith.h:29`, `:42` (FCOM et FCOMP mémoire, les huit instances du macro), `:159` (FCOM), `:173` (FCOMP), `:185`
+(FCOMPP), `:201` (FUCOMPP), `:404` (FUCOM), `:415` (FUCOMP) ; `x87_ops_misc.h:456` (FTST) : `npxs &= ~(C0 | C2 | C3)`,
+C1 intact. (D2-contre A4-g citait les six premières lignes ; FUCOM, FUCOMP et FTST font de même.)
+*Effet* : un C1 posé avant — par FXAM, FPREM, une transcendante — traverse la comparaison.
+*Trouvé par* : reconnaissance de G13 (D2-contre A4-g).
+*Source* : SDM vol. 2, FCOM/FCOMP/FCOMPP, FUCOM/FUCOMP/FUCOMPP et FTST (« C1 Set to 0 ») — documenté pour le 387 et ses
+successeurs ; 8087 et 287 : C1 « X » après une comparaison (287 PRM table 2-6), PCem n'y est pas en défaut.
+*Cas qui discrimine* : FNINIT ; FLD m64 = 2,0 ; FLD m64 = −1,0 ; FXAM (C1 = 1) ; FCOM ST(1) ; FSTSW m16 → PCem 3300h (C1
+et C0), silicium 3100h (C0).
+*G13* : (a) — G13.6, avec les comparaisons (PB-57, 58, 64 et la part « comparaisons » de 70) ; 387 et suivants.
+*Reproduit* : `Cpu/x87_ops_arith.cs` (vingt-deux comparaisons, générées par `gen43.py`) et `Cpu/x87_ops_misc.cs`
+(`opFTST`, `gen44.py`), et leurs copies de `Cpu/x87_ops_808x.cs` ; marqueurs PB-213.
+
+### PB-214 — PLAY AUDIO MSF cherche la piste sur la position encore compactée
+
+`cdrom-image.cc:83` : `image_playaudio` cherche la piste de `pos` (`GetTrack`) avant de convertir le MSF reçu
+(`:91-96`) ; en MSF, `pos` vaut alors `m × 65 536 + s × 256 + f`. Si cette valeur tombe dans une piste de données,
+la lecture est annulée (« Can't play data track », `:84-89`), alors que `scsi_cd` a déjà accepté la commande et rend
+GOOD (`scsi_cd.c:1375-1381`).
+*Effet* : PLAY AUDIO MSF d'une piste audio ne joue rien, sans erreur, quand la valeur compactée tombe dans une piste
+de données — toujours au-delà de l'adresse vraie, donc sur un disque où des données suivent l'audio (un CD Extra).
+Hors de toute piste, `attr` est indéterminé chez PCem et vaut 0 ici, des deux côtés (PB-111) : la lecture part.
+*Trouvé par* : reconnaissance de G13 (D3-contre, A4).
+*Source* : documenté — SFF-8020i r2.6 § 10.8.9 (PLAY AUDIO MSF) : la plage demandée est jouée ; une plage qui n'est
+pas audio rend CHECK CONDITION, 05/64h « Recommended » (Table 77) ; jamais un succès sans lecture.
+*Cas qui discrimine* : une feuille à piste 1 audio (LBA 0 à 2 999) et piste 2 de données (3 000 à 5 999) ; PLAY
+AUDIO MSF de 00:20:00 à 00:30:00 (LBA 1 350 à 2 100) : la valeur compactée, 5 120, tombe dans la piste 2 ; PCem rend
+GOOD, READ SUB-CHANNEL l'état 13h, rien ne joue ; le matériel joue (11h).
+*G13* : (a).
+*Reproduit* : `Cdrom/cdrom-image.cs`, `image_playaudio`, marqueur PB-214.
+
+### PB-215 — Le contrôle de piste de PLAY AUDIO MSF juge 150 secteurs trop loin
+
+`cdrom-image.cc:62-66` : `image_is_track_audio` convertit le MSF par `MSF_TO_FRAMES`
+(`includes/private/dosbox/cdrom.h:64`), qui ne retranche pas les 150 secteurs de l'amorce ; or `GetTrack` compare
+des LBA (`dosbox/cdrom_image.cpp:155-167`), et c'est `GetAudioTrackInfo` qui ajoute 150 pour le MSF (`:108`).
+`scsi_cd.c:1375-1378` refuse ou accepte PLAY AUDIO MSF sur ce jugement.
+*Effet* : les deux dernières secondes d'une piste sont jugées sur la suivante : 05/64h à tort à la fin de la
+dernière piste audio, ou d'une piste audio que suivent des données ; une piste de données acceptée à tort quand de
+l'audio la suit — la lecture part alors sur des données.
+*Trouvé par* : reconnaissance de G13 (D3-contre, A5).
+*Source* : documenté — SFF-8020i r2.6 § 10.8.9 : une plage audio est jouée, une plage de données rend CHECK
+CONDITION, 05/64h ; § 10.8.8 : 00:02:00 est le LBA 0, la conversion retranche donc 150.
+*Cas qui discrimine* : `mixte.cue` (données, puis audio en LBA 42 et 222, lead-out en 247) : PLAY AUDIO MSF depuis
+00:02:00 (LBA 0, des données) : PCem l'accepte, jugé au LBA 150 (piste 2) ; le matériel rend 05/64h. Depuis 00:05:05
+(LBA 230, piste 3) : PCem rend 05/64h, jugé au LBA 380, hors des pistes ; le matériel joue.
+*G13* : (a).
+*Reproduit* : `Cdrom/cdrom-image.cs`, `image_is_track_audio`, marqueur PB-215.
+
+### PB-216 — `ide_irq_update` baisse une IRQ que l'unité choisie tient encore, et la repose après l'EOI
+
+`ide.c:141-142` : la seconde branche d'`ide_irq_update` baisse la ligne dès que l'IRQ 14 est en attente ou en
+service au PIC esclave (`(pic2.pend | pic2.ins) & 0x40`), même quand l'unité choisie tient encore son interruption
+(`irqstat` à 1, nIEN à 0). `:139-140` : la première, une fois la ligne libre, repose une demande à chaque appel tant
+que `irqstat` vaut 1 — `picint` ne connaît pas de front (`pic.c:298-311`). La fonction est appelée à chaque écriture
+de 1F6h (`:433`) et de 3F6h (`:601`).
+*Effet* : une écriture de 1F6h ou de 3F6h entre la levée de l'IRQ et sa prise en compte la perd ; après l'EOI, tant
+que l'état n'est pas lu, une nouvelle écriture en pose une seconde. Baisser la ligne quand l'autre unité est
+choisie, ou sans interruption en attente, est juste.
+*Trouvé par* : reconnaissance de G13 (D3-stockage, § 1 point 7 ; forme restreinte par D3-contre, K13).
+*Source* : documenté — ATA-1 r4 § 6.3.10 : INTRQ est actif tant que l'unité choisie a une interruption en attente et
+que nIEN vaut 0 ; il ne retombe que sur RESET-, SRST, une écriture du registre de commande ou une lecture d'état. Le
+8259A de l'AT, par front, ne voit pas de front neuf sur une ligne restée haute — déduit.
+*Cas qui discrimine* : AT à IDE, unité 0 du primaire, nIEN = 0, IF à 0 ; une commande finie : `irqstat` à 1 et le
+bit 6 de `pic2.pend` posé ; écriture de 1F6h = A0h (la même unité) : PCem efface le bit 6, l'IRQ est perdue ; le
+matériel le garde, et l'IRQ arrive au STI.
+*G13* : (a) — avec PB-71, même fonction.
+*Reproduit* : `Ide/ide.cs`, `ide_irq_update`, marqueur PB-216.
+
+### PB-217 — Le sense du Xebec n'a ni le bit « adresse valide » ni l'adresse
+
+`mfm_xebec.c:314-332` (CMD_READ_STATUS) : les quatre octets de sense valent `error`, `drive_sel ? 0x20 : 0`, 0 et 0
+(`:321-323`).
+*Effet* : après une erreur sur une commande qui visait une adresse du disque, le sense ne dit pas où : l'octet 0 n'a
+pas le bit 7, et les octets 1 à 3 sont nuls, hors le bit d'unité. Le BIOS du Fixed Disk Adapter n'en garde que le
+type et le code (`AND AL,0FH`, `AND BL,30H`, lignes 1284-1291 de son listing) : seul un programme qui lit le sense
+brut voit l'écart.
+*Trouvé par* : reconnaissance de G13 (D3-stockage, fiche de PB-25 ; D3-contre, A6).
+*Source* : documenté — IBM Fixed Disk Adapter (6361503), *Sense Bytes*, p. 4 : octet 0, le bit 7 « address valid »
+quand la commande précédente visait une adresse, puis le type et le code de l'erreur ; octet 1, l'unité (bit 5) et
+la tête ; octet 2, les bits hauts du cylindre et le secteur ; octet 3, le bas du cylindre.
+*Cas qui discrimine* : XT à Xebec, disque de type 16 initialisé, unité 0 : READ SECTORS au cylindre 123h, tête 2,
+secteur 20 (au-delà des 17) : octet de fin 02h des deux côtés ; puis le sense (03h) : `21 00 00 00` chez PCem,
+`A1 02 54 23` sur la carte.
+*G13* : (a), de faible valeur.
+*Reproduit* : `Mfm/mfm_xebec.cs`, CMD_READ_STATUS, marqueur PB-217.
+
+### PB-218 — RETURN EEPROM (23h) ignore son drapeau
+
+`scsi_aha1540.c:1193-1202` : la commande 23h prend trois paramètres (`:639-641`) et rend `params[1]` octets de
+l'EEPROM depuis `params[2]` ; `params[0]` n'est jamais lu.
+*Effet* : une demande des options par défaut rend la configuration courante. La ROM v1.01 émet deux 23h au POST
+(`VERIFICATION.md` § G11.0), avec un drapeau qu'on ne connaît pas : l'effet pour l'invité est inconnu.
+*Trouvé par* : reconnaissance de G13 (D3-contre, A8).
+*Source* : AHA-1540C TR, *Return EEPROM* (23h), octet 0 : « 1 = Return configured options, 0 = Return default
+options » — documenté ; le contenu des options par défaut, les réglages d'usine du même TR (ID 7, DMA 5, IRQ 11) —
+déduit.
+*Cas qui discrimine* : EEPROM de référence (ID 7, DMA 7, IRQ 10, soit `07 71`) ; 23h, octet 0 = 00h, 2 octets depuis
+le décalage 0 : PCem rend `07 71` ; la carte, les options par défaut (`07 52` au codage de PCem — déduit).
+*G13* : (b) — le drapeau est documenté, pas le contenu des options par défaut ; l'effet sur la ROM, inconnu.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, la commande 23h, marqueur PB-218.
+
+### PB-35 — Lire le DAC juste après `OUT 3C8h,0` indexe `vgapal[-1]`
+
+`vid_svga.c:122-126`, l'écriture de l'index d'ÉCRITURE du DAC :
+
+```c
+        case 0x3C8:
+                svga->dac_write = val;
+                svga->dac_read = val - 1;
+                svga->dac_pos = 0;
+```
+
+puis `:241-247`, les deux premières lectures de `3C9h` :
+
+```c
+                                return svga->vgapal[svga->dac_read].r;
+                        return svga->vgapal[svga->dac_read].r & 0x3f;
+```
+
+`val = 0` donne `dac_read = -1`, et rien ne le borne avant les cas 0 et 1 — seul le cas 2
+masque, `(svga->dac_read + 1) & 255`. `vgapal[-1]` est hors du tableau : dans `svga_t`,
+le champ qui le PRÉCÈDE est `uint32_t pallook[512]`, et `RGB` étant aligné sur un octet il
+n'y a pas de bourrage entre les deux. La lecture rend donc les octets 1 à 3 de
+`pallook[511]`.
+
+*Effet* : les deux premières composantes lues valent ce que contient la fin de
+`pallook[]`, pas une couleur du DAC. Pour une VGA c'est **zéro**, et c'est connaissable :
+`pallook` n'est écrit qu'aux indices 0-255 (`3C9h` et `svga_set_ramdac_type`), et
+`vga_init` a tout effacé. La troisième lecture rend la composante bleue de l'entrée 255. Ce qu'un vrai DAC rend à cet
+endroit n'est pas documenté : aucune source ne dit qu'il lirait à l'index de lecture que pose `3C7h`. L'invité lit ces
+valeurs dès qu'il atteint le chemin : l'entrée passe de la section C à la section A, avec PB-37 et le même critère, un
+effet observable (D4-contre, § 2 n° 13).
+*Atteint* : oui, et compté — deux fois dans la campagne graphique de VERIFICATION.md
+§ M15, par un programme qui fait `OUT 3C8h,0` puis trois `IN AL,DX` sur `3C9h`. Le BIOS
+VGA, lui, ne le fait jamais : 1 536 lectures du DAC, aucune à l'index -1.
+*Source* : aucune source primaire lue — FreeVGA, *VGA Color Registers* (secondaire) : le résultat d'un entrelacement des
+lectures et des écritures « may produce unexpected results » et dépend du DAC ; la Sierra SC15025/26 a un registre
+d'adresse de 8 bits (p. 3-83), sans index -1 ; l'IMS G171 (INMOS, *Graphics Databook*, 1990) reste à lire — inconnu.
+*Cas qui discrimine* : VGA, entrée 255 du DAC = 3Fh 3Fh 3Fh, `OUT 3C8h,0` puis trois `IN 3C9h` : PCem rend 00h, 00h,
+3Fh ; un vrai DAC, inconnu — à mesurer DAC par DAC (VGA d'IBM, Trio64, GD5429, TKD8001, SC1502x), sous DEBUG, les
+entrées 0 et 255 d'abord écrites de valeurs distinctes.
+*G13* : (c) — le vrai comportement dépend du DAC et n'est pas documenté ; reproduit jusqu'à une mesure.
+*Reproduit* : `Video/vid_svga.cs`, `vgapal_at`, marqueur PB-35 (`:248`). Le
+C lit hors du tableau sans broncher, le C# lèverait ; `vgapal_at` rend les octets de
+`pallook[511]`, comme la disposition mémoire du C. Le diff de la campagne l'a vérifié : les
+registres qui reçoivent ces lectures sont hachés à chaque instruction.
+
+### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
+
+`vid_svga_render.c:707-718`, la branche sans remappage :
+
+```c
+                        for (x = 0; x <= svga->hdisp; x++) {
+                                ...
+                                p[0] = p[1] = dat0 & 0xffffff;
+                                p[2] = p[3] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
+                                p[4] = p[5] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
+                                p[6] = p[7] = dat2 >> 8;
+
+                                svga->ma += 12;
+                        }
+```
+
+`p` n'est ni incrémenté ni recalculé : chaque tour réécrit les huit MÊMES pixels, en tête de
+ligne. La branche avec remappage (`:720-737`) a le même défaut de `p`, mais avance déjà `x` de 4
+(`:720`). Le rendu haute résolution
+voisin (`:742-789`) écrit par `*p++` et ne l'a pas. Et `svga->ma` n'est pas masqué en
+sortie, contrairement aux cinq autres rendus 15 à 24 bpp — `ma` est masqué à chaque
+lecture, donc sans effet sur les adresses.
+
+*Effet* : en 24 bpp basse résolution, seuls les huit premiers pixels de chaque ligne
+changent, et ils portent le DERNIER groupe de la ligne ; le reste du tampon garde l'image
+précédente. Un effet visible dès que le rendu est atteint : l'entrée passe de la section C à la section A, avec PB-35
+et le même critère (D4-contre, § 2 n° 13).
+*Atteint* : oui, et compté — 368 908 appels dans la campagne de la 8900D (VERIFICATION.md
+§ M19), où le RAMDAC TKD8001 pose `bpp = 24` (`vid_tkd8001_ramdac.c:26-28`) et où
+`svga_recalctimings` choisit le rendu basse résolution quand le bit 6 d'AR10 est posé
+(`vid_svga.c:341`, `:403-407`). Une atteinte synthétique : le TKD8001 piloté à la main sur le mode 5Dh (§ M19,
+étape 7).
+*Source* : déduit — une vraie puce affiche toute la ligne, chaque point de 24 bits doublé, l'intention du code (le rendu
+haute résolution voisin écrit par `*p++`) ; inconnu — que la 8900D et son TKD8001 offrent vraiment 24 bpp avec AR10
+bit 6 (fiches Trident non lues).
+*Cas qui discrimine* : SVGA, `bpp` = 24, AR10 bit 6 posé, une ligne dont la VRAM porte des points tous différents : PCem
+n'écrit que les huit premiers points de la ligne, avec le dernier groupe ; attendu, chaque point de 24 bits de la VRAM
+doublé sur toute la ligne. Le diff attendu porte `#buffer32` et `ma`, que le rendu laisse avant son rechargement.
+*G13* : (b) — `x += 4` et `p += 8` sans remappage, `p += 8` avec, dans la fonction (`vid_svga.cs:975` compare `render`).
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur PB-37 (`:834`). Confronté
+à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
+hachage de `buffer32` porte les pixels que ce rendu écrit.
+
+### PB-220 — Le socle SVGA compte CR00 + 6 caractères par ligne, un de trop
+
+`vid_svga.c:334-335`, `svga_recalctimings` :
+
+```c
+        svga->htotal = svga->crtc[0];
+        svga->htotal += 6; /*+6 is required for Tyrian*/
+```
+
+IBM définit CR00 comme le nombre total de caractères moins 5. Toutes les cartes du socle en héritent : la VGA d'IBM,
+les deux Trident, la GD5429, la Trio64 et l'ET4000AX.
+*Effet* : une ligne d'un caractère de trop. En mode 3 (CR00 = 5Fh, 9 points, 28,322 MHz), 101 caractères au lieu de
+100 : 31,16 kHz et 69,39 Hz au lieu de 31,47 kHz et 70,09 Hz (mesuré, VERIFICATION.md, § L'hôte : le moniteur
+automatique). 1 % de trop sur la ligne, que voient la phase de 3DAh, les boucles d'attente et la fréquence verticale.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 1).
+*Source* : IBM, *PS/2 Hardware Interface Technical Reference — Common Interfaces* (84F9735, octobre 1990), p. 2-56 :
+CR00, « the total number of characters minus 5 » — documenté. Ce que compensait le + 6 de Tyrian : inconnu (86Box est
+passé à + 5 en gardant le commentaire, un indice).
+*Cas qui discrimine* : VGA, mode 3 (CR00 = 5Fh, SR1 bit 0 = 0, horloge de 28,322 MHz) : PCem `htotal` = 101, une ligne
+de 32,10 µs ; IBM, 100 et 31,78 µs.
+*G13* : (a) — documenté ; `--menu-check` resserré (31 à 32 kHz aujourd'hui), un commutateur propre (boot-diff SVGA).
+*Reproduit* : `Video/vid_svga.cs`, `svga_recalctimings`, marqueur PB-220 (`:592`).
+
+### PB-221 — Le chemin rapide des accès en mot ignore le mode d'écriture, la rotation et les verrous
+
+`vid_svga.c:110-111` et `:202-203`, le drapeau `fast` :
+
+```c
+        svga->fast = (svga->gdcreg[8] == 0xff && !(svga->gdcreg[3] & 0x18) && !svga->gdcreg[1]) &&
+                     ((svga->chain4 && svga->packed_chain4) || svga->fb_only);
+```
+
+Il ne teste ni le mode d'écriture (GR5 bits 0-1) ni la rotation (GR3 bits 0-2). Quand il est vrai, `svga_writew` et
+`svga_writel` (`:1474-1528`) et leurs formes linéaires (`:1573-1621`) posent les octets du processeur tels quels, là
+où deux écritures d'octet (`svga_write`, `:811-1060`) appliqueraient le mode ; `svga_readw` et `svga_readl`
+(`:1530-1571`) et leurs formes linéaires (`:1623-1658`) ne chargent aucun verrou, là où `svga_read` les charge
+(`:1085-1089`). SR2 n'est pas testé non plus, mais la forme octet du chain4 compact l'ignore aussi (`:828-830`).
+*Effet* : sur l'ET4000 (`packed_chain4` vaut 1 en permanence, `vid_et4000.c:496`) et sur la GD5429 en mode compact
+(`gd5429_readw`, `gd5429_readl`, `gd5429_writew`, `gd5429_writel`, `vid_cl5429.c:710-771`, et leurs formes linéaires,
+`:1251-1300`), un `REP MOVSW` ou `REP STOSW` en mode d'écriture 1, 2 ou 3, ou sous une rotation, écrit autre chose que
+deux écritures d'octet ; une lecture de mot laisse les verrous de la lecture d'avant.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 2).
+*Source* : Cirrus Logic, *CL-GD542X Technical Reference Manual* (janvier 1994), § 6.27, p. 6-34 : « These latches are
+loaded whenever display memory is read by the CPU » — documenté pour la GD5429 ; qu'un cycle de mot vaille deux cycles
+d'octet, et que l'ET4000 charge ses verrous de même : déduit.
+*Cas qui discrimine* : ET4000, mode 13h, GR5 = 41h, GR8 = FFh, VRAM[0..3] = 11h 22h 33h 44h : lecture d'octet en
+A000:0000, puis écriture du mot BBAAh en A000:0100 : PCem VRAM[100h..101h] = AAh BBh ; deux écritures d'octet, 11h 22h.
+*G13* : (a), (b) — (a) les verrous des lectures, documentés pour la GD542x ; (b) les écritures. Chemin chaud.
+*Reproduit* : `Video/vid_svga.cs`, marqueurs PB-221 : le calcul de `fast` dans `svga_out` (`:354`, `:451`) ;
+`svga_readw` (`:1896`), `svga_readl` (`:1920`), `svga_readw_linear` (`:2004`), `svga_readl_linear` (`:2026`).
+
+### PB-222 — Le curseur de la CGA et de la MDA inverse la cellule au lieu de forcer ses points
+
+`vid_cga.c:171-177` (80 colonnes) et `:205-214` (40 colonnes) :
+
+```c
+                                                        ((uint32_t *)buffer32->line[cga->displine])[(x << 3) + c + 8] =
+                                                                cols[...] ^
+                                                                0xffffff;
+```
+
+et `vid_mda.c:128-131`, `^= mdacols[attr][0][1]`. La CGA inverse l'index de couleur (le `& 0xf` de fin de ligne
+ramène `^ 0xffffff` à `^ 15`), la MDA la cellule par l'avant-plan.
+*Effet* : sous le curseur, l'invité voit le glyphe en négatif, aux couleurs complémentaires sur la CGA ; la vraie carte
+montre un pavé plein, de la couleur d'avant-plan.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 3 ; D4-contre, § 2 n° 3).
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984) : CGA, schéma feuille 1 (p. 28), le curseur entre en OU dans
++ALPHA DOTS ; MDA, schéma feuille 5 (p. 23), U3 74LS08 (CURSOR BLINK ∧ +CURSOR DLY) dans le OU U43 74S32 —
+documenté : le curseur force les points à 1.
+*Cas qui discrimine* : CGA, mode 3, caractère 20h d'attribut 07h sous le curseur, phase allumée : lignes 6-7, PCem
+cgapal[15], la carte cgapal[7] ; MDA, caractère DBh d'attribut 07h, rangées 0Bh-0Ch : PCem noir, la carte cgapal[7].
+*G13* : (a) — documenté par les deux schémas.
+*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-222 (`:285` en 80 colonnes, `:337` en 40) ;
+`Video/vid_mda.cs`, `mda_poll` (`:220`). L'Hercules, la M24 et le PC1512 dessinent le même XOR ; leur matériel n'a pas
+été lu : hors de l'entrée.
+
+### PB-223 — Les caractères de la CGA et le curseur de la MDA clignotent au mauvais rythme
+
+Chez PCem, chaque carte prend le même bit de son compteur de trames pour le curseur et pour les caractères : le bit 3
+pour la CGA (`vid_cga.c:165`, `:198`, `:346`), le bit 4 pour la MDA (`vid_mda.c:111`, `:187`), l'Hercules
+(`vid_hercules.c:163`, `:246`), la M24 (`vid_olivetti_m24.c:177`, `:353`) et le PC1512 (`vid_pc1512.c:205`, `:366`).
+*Effet* : les caractères de la CGA clignotent deux fois trop vite (8 trames sur 16 au lieu de 16 sur 32) ; le curseur
+de la MDA, deux fois trop lentement (16 trames sur 32 au lieu de 8 sur 16).
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 4 ; D4-contre, § 2 n° 4).
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), CGA, schéma feuille 3 (p. 30), U12 74LS393 : -CURSOR BLINK
+est la sortie QD d'un compteur avancé par +V SYNC DLY, -BLINK la sortie QA du second, avancé par QD ; la MDA de même
+(feuille 5, p. 23, U28) — documenté : curseur sur 16 trames, caractères sur 32. L'Hercules : inconnu.
+*Cas qui discrimine* : CGA, mode 3, 3D8h = 29h, caractère d'attribut 87h : trames entre deux bascules de l'avant-plan,
+PCem 8, la carte 16. MDA, mode 7 : trames entre deux bascules du curseur, PCem 16, la carte 8.
+*G13* : (a), (c) — (a) la CGA et la MDA, par leurs schémas ; (c) l'Hercules, dont le manuel ne dit pas le rythme.
+*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-223 (`:275`, `:326`, les caractères) ;
+`Video/vid_mda.cs`, `mda_poll` (`:292`, le curseur) ; `Video/vid_hercules.cs`, `hercules_poll` (`:318`, le curseur).
+La M24 et le PC1512, dont le matériel n'a pas été lu, restent hors de l'entrée.
+
+### PB-224 — Le bit 3 de 3BAh rend le retour vertical sur la MDA et l'Hercules, pas les points vidéo
+
+`vid_mda.c:135-136` et `:150` : `stat |= 8` à la ligne de synchronisation verticale, `stat &= ~8` seize lignes plus
+tard ; `mda_in` le rend en 3BAh (`:57`). L'Hercules de même (`vid_hercules.c:191-192`, `:206`, rendu en `:91`).
+*Effet* : un programme qui attend le retour vertical sur le bit 3, par habitude de la CGA, le trouve chez PCem ; sur la
+vraie carte, le bit suit les points sous le faisceau, et un écran vide le laisse à 0.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 1 ; D4-contre, § 1 n° 14 et § 3 n° 3).
+*Source* : IBM PC TR 6025008 (1981), pp. 2-42/2-43, et *Options and Adapters TR*, vol. 2, MDA p. 8 : bit 3,
+« +Black/White Video » ; schéma feuille 5 (p. 23) : +B & W VIDEO = +ALPHA DOTS ⊕ RVV (U54 74S86) ; le manuel de la
+Hercules, *GB101 Owner's Manual*, pp. 12-13 : bit 3, « 1 = dots on » — documenté.
+*Cas qui discrimine* : MDA, mode 7, écran d'espaces d'attribut 07h, curseur éteint (R10 = 20h), 3BAh lu à chaque ligne
+d'une trame : PCem rend le bit 3 à 1 pendant 16 lignes ; la carte, jamais.
+*G13* : (b) — il faut le point sous le faisceau à la lecture, le mécanisme neuf de PB-99 (4).
+*Reproduit* : `Video/vid_mda.cs`, `mda_in`, marqueur PB-224 (`:125`) ; `Video/vid_hercules.cs`, `hercules_in`
+(`:123`).
+
+### PB-225 — Le bit 7 de 3BAh de l'Hercules a la polarité inversée
+
+`vid_hercules.c:91` : `return (hercules->stat & 0xf) | ((hercules->stat & 8) << 4);` — le bit 7 recopie le bit 3, à 1
+pendant les seize lignes du retour vertical (`:191-192`, `:206`).
+*Effet* : un programme qui reconnaît l'Hercules, ou attend son retour vertical, par le bit 7 lit l'inverse : PCem rend
+0 pendant l'affichage et 1 pendant le retour.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 2 ; D4-contre, § 1 n° 14) ; PLAN-G9.md, n° 5, l'avait relevé
+« à vérifier ».
+*Source* : Hercules, *GB101 Owner's Manual*, section 2, pp. 12-13 : 3BAh bit 7, « 0 = vertical retrace … 1 = active
+display » — documenté.
+*Cas qui discrimine* : Hercules, 3BAh lu pendant l'affichage actif : PCem bit 7 = 0, la GB101 1 ; pendant les lignes
+où PCem pose le bit 3 : PCem 1, la GB101 0.
+*G13* : (a) — documenté, vérifiable en C# seul.
+*Reproduit* : `Video/vid_hercules.cs`, `hercules_in`, marqueur PB-225 (`:125`).
+
+### PB-226 — L'Input Status 1 de l'ET4000 : bit 7 toujours nul, bits 4-5 basculés
+
+`vid_et4000.c:287` : 3DAh tombe dans `svga_in`, qui rend `cgastat` (`vid_svga.c:262-269`) : le bit 7 n'y est jamais
+posé, et les bits 4-5 basculent à chaque lecture hors du retour de ligne.
+*Effet* : un programme qui attend le retour vertical de l'ET4000 sur le bit 7 ne le voit jamais changer ; les bits 4-5
+ne rendent pas la vidéo que choisit AR12.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 4).
+*Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), p. 103 : bit 7, « vertical retrace complement »,
+1 hors du retour ; bits 4-5, la rétroaction vidéo choisie par AR12 — documenté. Sur la VGA d'IBM, ces bits sont
+« Undefined on Read » (*PS/2 Common Interfaces*, p. 2-45) : l'écart ne vaut que pour l'ET4000.
+*Cas qui discrimine* : ET4000, IN 3DAh pendant l'affichage actif : PCem bit 7 = 0, l'ET4000 1 ; pendant le retour
+vertical : 0 des deux côtés.
+*G13* : (b) — le bit 7 est simple ; les bits 4-5 demandent le point sous le faisceau, comme PB-99 (4).
+*Reproduit* : `Video/vid_et4000.cs`, `et4000_in`, marqueur PB-226 (`:168`).
+
+### PB-227 — CR11 bit 7 ne protège pas CR35 sur l'ET4000
+
+`vid_et4000.c:84-87` :
+
+```c
+                if ((svga->crtcreg < 7) && (svga->crtc[0x11] & 0x80))
+                        return;
+                if ((svga->crtcreg == 7) && (svga->crtc[0x11] & 0x80))
+                        val = (svga->crtc[7] & ~0x10) | (val & 0x10);
+```
+
+Seuls CR0-CR7 sont protégés ; CR35, le débordement vertical de l'ET4000 (les bits 10 de `vblankstart`, `vtotal`,
+`dispend`, `vsyncstart` et `split`, `:387-396`), s'écrit toujours.
+*Effet* : un programme qui pose CR11 bit 7 pour figer le minutage, puis écrit CR35, le change chez PCem, pas sur
+l'ET4000 : les temps verticaux changent.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 8).
+*Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), p. 111, table 4.3-2 : CR35 « protected by bit 7
+of CRTC 11 » — documenté.
+*Cas qui discrimine* : ET4000, CR35 = 00h, CR11 = 80h, puis OUT 3D4h,35h et OUT 3D5h,02h : PCem CR35 = 02h, soit
+`vtotal` + 400h ; l'ET4000 garde 00h.
+*G13* : (a) — documenté, vérifiable en C# seul.
+*Reproduit* : `Video/vid_et4000.cs`, `et4000_out`, marqueur PB-227 (`:111`).
+
+### PB-228 — L'Input Status 0 de l'EGA rend son bit 7 toujours nul
+
+`vid_ega.c:155-167` : la lecture de 3C2h ne rend que le bit 4, l'interrupteur que choisit `egaswitchread` ; les bits
+5-7 sont nuls.
+*Effet* : le bit 7, « CRT Interrupt », reste à 0, la valeur du retour vertical : un programme qui l'interroge la lit en
+permanence. Distinct de l'IRQ 2, que PCem ne modélise pas (`vid_ega.c` n'appelle aucun `picint`) : une fonction
+absente, hors de l'entrée.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 5).
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), EGA p. 15 : Input Status Register Zero, bit 7, « CRT
+Interrupt — A logical 1 indicates video is being displayed … 0 … vertical retrace » — documenté ; son état quand CR11
+n'autorise pas l'interruption : inconnu.
+*Cas qui discrimine* : EGA, interruption verticale autorisée par CR11 (bits 4-5, pp. 36-37), IN 3C2h pendant l'affichage
+actif : PCem bit 7 = 0, l'EGA 1.
+*G13* : (b) — documenté quand l'interruption est autorisée, inconnu sinon.
+*Reproduit* : `Video/vid_ega.cs`, `ega_in`, marqueur PB-228 (`:273`).
+
+### PB-229 — Le RAMDAC Sierra de l'ET4000 : l'IPF tombe trop tôt ; l'ERPF, ses registres et D3 manquent
+
+`vid_unk_ramdac.c:84-87` :
+
+```c
+                if (ramdac->state == 4) {
+                        ramdac->state = 0;
+                        return ramdac->ctrl;
+                }
+```
+
+La lecture qui rend le registre de commande désarme le drapeau (l'IPF). Et `unk_ramdac_out` (`:14-76`) ne connaît que
+la profondeur : ni l'ERPF (D4 du registre de commande), qui ouvre les registres étendus par 3C7h-3C9h, ni ces
+registres (l'identité 09h-0Ch, les masques secondaires 0Dh-0Fh, le repack 10h), ni D3, qui contourne la palette.
+*Effet* : des lectures répétées de 3C6h, après les quatre qui arment, rendent le registre de commande puis le masque
+des points ; un pilote qui cherche l'identité de la puce (« S », « : », B1h, « A ») par l'ERPF ne la trouve pas.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 7).
+*Source* : Sierra, data sheet *SC15025/SC15026 HiCOLOR-24*, pp. 3-88/3-89 : l'IPF ne retombe qu'à la mise sous
+tension, à une écriture ou à la lecture d'une autre adresse ; tables 9 et 10, l'ERPF et les registres étendus —
+documenté ; la puce exacte de la carte modélisée (« SC1502x », `vid_unk_ramdac.c:4-7`) : inconnue.
+*Cas qui discrimine* : ET4000, six lectures de 3C6h de suite, sans autre accès : à la sixième, PCem rend le masque des
+points, la Sierra encore le registre de commande. L'ERPF : aucun cas tant que la puce n'est pas établie.
+*G13* : (b), (c) — (b) l'IPF, documenté ; (c) l'ERPF, ses registres et D3, sur une puce dont l'identité est inconnue.
+*Reproduit* : `Video/vid_unk_ramdac.cs`, marqueurs PB-229 : `unk_ramdac_in` (`:116`, l'IPF) et
+`unk_ramdac_out` (`:45`, l'ERPF et D3).
+
+### PB-230 — Le 6845 de la CGA, de la M24 et du PC1512 : R16-R17 s'écrivent, R0-R13 et l'index se relisent
+
+`vid_cga.c:16-17`, `crtcmask` : R16 et R17, le crayon optique, à FFh ; `vid_cga.c:62-65` : 3D4h rend l'index, 3D5h
+tout registre. La M24 (`vid_olivetti_m24.c:41-42`, `:80-83`) et le PC1512 (`vid_pc1512.c:45-46`, `:100-103`)
+recopient la table et la relecture. La MDA et l'Hercules rendent aussi l'index (`vid_mda.c:46-50`,
+`vid_hercules.c:80-84`) ; leurs R16-R17 et la relecture de leurs R0-R13 relèvent de PB-97.
+*Effet* : un logiciel qui écrit R16-R17 les relit modifiés ; un logiciel qui relit le CRTC ou son index pour
+reconnaître la carte voit ce qu'il a écrit.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 7 ; D4-contre, § 1 n° 14 et § 3 n° 9).
+*Source* : data sheet MC6845 (Motorola) : R16-R17 « Write : No », R0-R13 « Read : No » ; *Options and Adapters TR*,
+vol. 2 (1984), CGA : le 6845 de Motorola (p. 5), l'index « write-only » (p. 15), R0-R13 « Write Only » (p. 17) —
+documenté pour la CGA ; la puce de la M24 et du PC1512 n'a pas été lue ; la valeur relue : inconnue.
+*Cas qui discrimine* : CGA, OUT 3D4h,10h, OUT 3D5h,5Ah, IN 3D5h : PCem 5Ah ; le 6845 n'écrit pas R16, qui garde le
+verrou du crayon optique. L'index et R0-R13 : aucun cas avant une mesure (DEBUG, `o 3d4 n`, `i 3d5`, `i 3d4`).
+*G13* : (a), (c) — (a) R16-R17 de la CGA ; (c) l'index, R0-R13 relus, la M24 et le PC1512 : valeurs inconnues.
+*Reproduit* : marqueurs PB-230 : `Video/vid_cga.cs` (`:83`, la table ; `:138`, `cga_in`),
+`Video/vid_olivetti_m24.cs` (`:63`, `:110`), `Video/vid_pc1512.cs` (`:70`, `:134`), `Video/vid_mda.cs` (`:117`),
+`Video/vid_hercules.cs` (`:115`).
+
+### PB-231 — R10 bits 5-6 : seul « pas de curseur » est traité, pas le clignotement du 6845
+
+`vid_cga.c:343-346` :
+
+```c
+                                if ((cga->crtc[10] & 0x60) == 0x20)
+                                        cga->cursoron = 0;
+                                else
+                                        cga->cursoron = cga->cgablink & 8;
+```
+
+Les valeurs 10 et 11 des bits 5-6 tombent dans le cas ordinaire : le curseur clignote au seul rythme de la carte. De
+même la MDA (`vid_mda.c:184-187`), l'Hercules (`vid_hercules.c:243-246`), la M24 (`vid_olivetti_m24.c:350-353`) et le
+PC1512 (`vid_pc1512.c:363-366`).
+*Effet* : un logiciel qui pose R10 bits 5-6 à 10 ou 11 voit le clignotement ordinaire ; sur la carte, le 6845 fait
+clignoter le curseur lui-même, en plus de la carte.
+*Trouvé par* : reconnaissance de G13 (D4-contre, § 3 n° 10).
+*Source* : data sheet MC6845 (Motorola), R10 bits 5-6 ; IBM PC TR 6025008 (1981), en-tête de l'INT 10h : « HARDWARE
+WILL ALWAYS CAUSE BLINK — SETTING BIT 5 OR 6 WILL CAUSE ERRATIC BLINKING OR NO CURSOR AT ALL » — documenté ; le dessin
+qui en résulte : inconnu, à mesurer (R10 = 46h puis 66h, le curseur relevé sur 64 trames).
+*Cas qui discrimine* : CGA, R10 = 46h : PCem fait clignoter le curseur comme avec 06h ; le 6845 y ajoute son propre
+clignotement — aucun attendu documenté.
+*G13* : (c) — le combiné des deux clignotements n'est pas documenté ; reproduit jusqu'à une mesure.
+*Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:499`, `Video/vid_mda.cs:290`, `Video/vid_hercules.cs:316`,
+`Video/vid_olivetti_m24.cs:476`, `Video/vid_pc1512.cs:488`.
+
+### PB-232 — En 40 colonnes, la M24 et le PC1512 éteignent le caractère sous le curseur
+
+`vid_olivetti_m24.c:209` et `vid_pc1512.c:237` :
+
+```c
+                                                if ((m24->blink & 16) && (attr & 0x80))
+                                                        cols[1] = cols[0];
+```
+
+En 80 colonnes, les mêmes fichiers exemptent la cellule du curseur (`!drawcursor`, `vid_olivetti_m24.c:177`,
+`vid_pc1512.c:205`) ; en 40 colonnes, non. La famille de PB-04, où la CGA lit un champ que rien n'écrit.
+*Effet* : en 40 colonnes, un caractère clignotant sous le curseur perd son avant-plan pendant la phase éteinte ; le
+curseur, une inversion, n'y montre qu'un pavé uni.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 5 ; D4-contre, § 1 n° 14).
+*Source* : déduit — l'intention de PCem, que ses modes 80 colonnes suivent, et la logique documentée de la CGA d'IBM
+(PB-04) ; le matériel de la M24 et du PC1512 n'a pas été lu : inconnu.
+*Cas qui discrimine* : M24, 3D8h = 28h (40 colonnes), caractère 41h d'attribut 87h sous le curseur, trame où
+`blink & 16` ≠ 0 : sur les lignes du curseur, PCem un pavé uni (le fond inversé) ; avec l'exemption, le glyphe inversé.
+*G13* : (b) — l'intention de PCem est claire, le matériel inconnu ; une vérification par image seulement.
+*Reproduit* : marqueurs PB-232 : `Video/vid_olivetti_m24.cs:289`, `Video/vid_pc1512.cs:319`.
+
+### PB-233 — La MDA décode 3B0h-3B3h, 3B6h et 3B7h comme son 6845
+
+`vid_mda.c:18-27`, et `:46-55` en lecture : 3B0h, 3B2h et 3B6h prennent l'index du 6845 comme 3B4h ; 3B1h, 3B3h et
+3B7h ses registres comme 3B5h.
+*Effet* : un logiciel qui écrit dans 3B0h-3B3h, 3B6h ou 3B7h programme le 6845 chez PCem ; sur la vraie MDA, peut-être
+rien.
+*Trouvé par* : reconnaissance de G13 (D4-video, § 4 n° 10 ; D4-contre, § 2 n° 20).
+*Source* : *Options and Adapters TR*, vol. 2 (1984), MDA p. 7 : ces ports « Not Used » — documenté ; « Not Used »
+n'est pas « non décodé » : la CGA est décodée en partie (A1, A2 « don't care », CGA p. 15), et PCem est probablement
+juste (déduit) ; le décodage réel, à lire aux schémas (MDA, feuilles 1-2) avant de mesurer : inconnu.
+*Cas qui discrimine* : aucun tant que le décodage n'est pas lu : OUT 3B0h,0Ah puis OUT 3B1h,00h écrit R10 chez PCem,
+peut-être rien sur la MDA.
+*G13* : (c), faible — le vrai décodage est inconnu, et PCem probablement fidèle.
+*Reproduit* : `Video/vid_mda.cs`, `mda_out`, marqueur PB-233 (`:76`). L'Hercules décode de même
+(`vid_hercules.c:44-53`, `:80-89`) ; son manuel ne décrit que 3B4h-3B5h (pp. 8-9) : hors de l'entrée.
+
+### PB-234 — Un bloc ADPCM finit à la lecture de son dernier octet, avant de le jouer
+
+`sound_sb_dsp.c:941-945` (4 bits), `:982-986` (2,6 bits) : dès que les échantillons d'un octet sont sortis, `pollsb`
+lit l'octet suivant et décrémente `sb_8_length` ; `:1036-1044` : dès que le compte passe sous zéro, le bloc finit —
+l'IRQ, puis l'arrêt ou la recharge. L'octet qui fait passer le compte sous zéro est lu, pas encore décodé.
+*Effet* : en simple cycle, le dernier octet d'un bloc ADPCM (deux, trois ou quatre échantillons) n'est jamais joué ; en
+automatique, l'IRQ vient un octet avant la fin du bloc joué. Un programme qui enchaîne ses blocs par l'IRQ perd un octet
+par bloc.
+*Trouvé par* : reconnaissance de G13 (D5, N2 ; contre-lecture C8).
+*Source* : micrologiciel 2.02, `vector_dma_dac_adpcm2` et `_adpcm4` (`sbv202.asm:343-440`, `:445-530`) : l'IRQ n'est
+levée qu'une fois sorti le dernier échantillon du dernier octet (`r3` revenu à 0, compte nul) ; en automatique, quand il
+lit le premier octet du bloc suivant. Documenté pour le 2.02 ; déduit pour les 1.05, 2.00 et 2.01.
+*Cas qui discrimine* : SB 2.0, canal 1 du 8237 en simple cycle sur 4 octets (80h, 77h, 77h, 77h) ; 75h 03h 00h : PCem
+lève l'IRQ au 4e tic de sortie, à la lecture du 4e octet, après 4 échantillons ; le 2.02 joue les 3 octets de données,
+6 échantillons, puis lève l'IRQ.
+*G13* : (a) — documenté par le code machine ; l'attendu se combine avec PB-90, PB-91 et PB-146 (contre-lecture K6).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueur PB-234 (la fin du bloc 8 bits).
+
+### PB-235 — En ADPCM, `DMA_NODATA` est décodé et compté
+
+`sound_sb_dsp.c:943`, `:984`, `:1019` : `sbdat2 = sb_8_read_dma(dsp)` range −1 (`DMA_NODATA`, `dma.h:8`, que rend
+`dma_channel_read` pour un canal masqué ou hors du mode lecture, `dma.c:503-517`) comme un octet, et `:944`, `:985`
+décrémentent le compte ; les chemins PCM, eux, sautent le tic (`:871-872`, « Needed to prevent clicking in Worms »).
+*Effet* : quand le 8237 ne sert pas l'octet (canal masqué après son terme en simple cycle, ou programmé trop court), le
+bloc se poursuit sur des octets fictifs, −1 décodé, et finit à l'heure avec son IRQ ; le vrai DSP attend l'octet,
+occupé, sans lire de commande, jusqu'à ce que le DMA serve ou qu'un reset vienne.
+*Trouvé par* : reconnaissance de G13 (D5, N3 ; contre-lecture C9).
+*Source* : micrologiciel 2.02 : après sa requête de DMA, le DSP attend l'octet (`X01ac: jnb pin_dav_dsp,X01ac`,
+`sbv202.asm:424` ; `X07a7`, `:1570`). Documenté pour le 2.02, déduit pour les autres ; sauter le tic, comme en PCM,
+n'est qu'une approximation de cette attente.
+*Cas qui discrimine* : SB 2.0, canal 1 du 8237 masqué (0Ah ← 05h) ; 74h 07h 00h : PCem décode −1 et lève l'IRQ au 14e
+tic de sortie ; la carte attend le premier octet et ne lève rien tant que le canal reste masqué.
+*G13* : (a) pour l'attente — ni octet fictif, ni compte, ni IRQ ; l'état « occupé » du DSP pendant l'attente n'est
+qu'approché.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueurs PB-235 (les trois lectures ADPCM).
+
+### PB-236 — Le DSP au démarrage et au reset : ni sortie coupée, ni bloc 07FFh, ni constante 9Ch
+
+`sound_sb_dsp.c:123-157` (`sb_dsp_reset`), qu'appellent le reset par 2x6h (`:721-726`) et `sb_doreset` (`:159-178`) :
+`sb_8_autolen = 0xffff` (`:130`), `sb_speaker = 0` (`:137`) ; la constante de temps (`sb_timeo`, `sb_timei`, `sblatcho`,
+`sblatchi`, `sb_freq`) et `muted` ne sont pas touchés. Au démarrage, `muted` vaut 0 (le `memset` des `*_init`,
+`sound_sb.c:874` et suivants). Le reset est toujours complet : le micrologiciel, lui, restaure l'état antérieur après un
+reset reçu en grande vitesse ou en mode MIDI (une signature en RAM, `sbv202.asm:873-887`), que PCem ne connaît pas.
+*Effet* : sur les SB 1.5 à Pro v2, la sortie n'est coupée ni au démarrage ni après un reset, et D8h annonce « éteint »
+pendant qu'elle joue ; sur les SB 1.5 à 16, un 1Ch ou un 90h sans 48h préalable lève une IRQ tous les 65 536 octets au
+lieu de 2 048 ; sur les 2.xx et 3.xx, une constante non renvoyée après un reset garde l'ancienne fréquence au lieu de
+10 kHz.
+*Trouvé par* : reconnaissance de G13 (D5, N4 ; contre-lecture K2, A4 et N13).
+*Source* : guide de Creative, p. 2-2 (le reset « returns it to its default state ») ; micrologiciels 2.02
+(`sbv202.asm:855-907` : bloc `:905-906`, constante `:899`), 3.02 (`v302_4k_4701c5fc.asm:561-616`), 4.05
+(`v405-8k_e51aff23.asm:781-851`, le bloc en 0432h). Documenté ; la coupure par P2.0 (convention MCS-51) et le 1.05,
+déduits.
+*Cas qui discrimine* : SB 2.0 : 40h D3h, D1h, un reset (2x6h ← 01h puis 00h), puis 1Ch : PCem garde `sb_timeo` = D3h et
+`muted` = 0, et lève l'IRQ après 10000h octets ; la carte joue à 10 kHz (9Ch), sortie coupée (`muted` = 1), et lève
+l'IRQ après 800h octets. D8h rend 00h des deux côtés.
+*G13* : (a) — l'état documenté au reset (décision n° 13) ; le reset « chaud » attend PB-240 et PB-241.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_dsp_reset`, marqueur PB-236.
+
+### PB-237 — Les mélangeurs relèvent à 0 dB les volumes de reset du guide
+
+`sound_sb.c:346-347` (CT1335 : 0Ah, la voix, à 3 << 1, « changed default from -46dB to 0dB »), `:413-416` (CT1345 :
+04h, 22h et 26h à (7 << 5) | (7 << 1), « changed default from -11dB to 0dB »), `:550-556` (CT1745 : 30h à 35h à
+31 << 3, « Changed defaults from -14dB to 0dB »). Les `*_init` remettent leur mélangeur à zéro (`:952`, `:986`, `:1015`,
+`:1060`, `:1085`) : ce sont aussi les valeurs du démarrage.
+*Effet* : après un reset du mélangeur, et dès le démarrage, la voix — et sur la Pro et la 16, le général et la MIDI —
+est à 0 dB au lieu de −46, −11 ou −14 dB : le son est plus fort que sur la carte, et le CD, qui suit le général, aussi
+(81 au lieu de 20 sur 65 535 pour le CT1345, 12 au lieu de 2 pour le CT1745).
+*Trouvé par* : relevé par PLAN-G12 (« Les valeurs de reset sont changées exprès »), jamais numéroté ; reconnaissance de
+G13 (D5, N9 ; contre-lecture C10).
+*Source* : guide de Creative, p. 4-5 (CT1335 : général et MIDI 4 ⇒ −11 dB, voix 0 ⇒ −46 dB), p. 4-9 (CT1345 : voix,
+général et MIDI 4 ⇒ −11 dB), p. 4-15 (CT1745 : 30h à 35h 24 ⇒ −14 dB). Documenté.
+*Cas qui discrimine* : 00h écrit à l'index 0 (le reset) : CT1335, 0Ah relu 06h chez PCem, 00h sur la carte ; CT1345, les
+champs de 04h, 22h et 26h à 7 chez PCem, à 4 sur la carte, et le volume CD 81 contre 20 ; CT1745, 30h à 35h relus F8h
+chez PCem, C0h sur la carte.
+*G13* : (a) — l'état documenté au reset (décision n° 13) ; un son plus faible qu'en mode PCem, à dire à l'utilisateur.
+*Reproduit* : `Sound/sound_sb.cs`, les branches de reset de `sb_ct1335_mixer_write`, `sb_ct1345_mixer_write` et
+`sb_ct1745_mixer_write`, marqueurs PB-237.
+
+### PB-238 — La lecture de 2xEh acquitte aussi l'IRQ 16 bits, et fait retomber la ligne partagée
+
+`sound_sb_dsp.c:797-799` : la lecture de 2xEh appelle `picintc(1 << sb_irqnum)` et efface `sb_irq8` et `sb_irq16`
+ensemble. 2xFh (`:809-813`), lui, n'efface que `sb_irq16` et ne baisse la ligne que si `sb_irq8` est nul.
+*Effet* : sur la SB 16 et l'AWE32, quand les IRQ 8 et 16 bits sont pendantes ensemble, le gestionnaire qui acquitte la
+8 bits par 2xEh efface aussi la 16 bits : 82h ne la montre plus, et la ligne retombe au PIC alors qu'une source la
+tient. Le MPU, troisième source de la ligne, n'a pas d'IRQ chez PCem (PB-154).
+*Trouvé par* : reconnaissance de G13 (D5, N10 ; contre-lecture C14, K14).
+*Source* : guide de Creative, p. 2-5 (PDF 27) : les sources partagent une ligne d'IRQ ; 2xEh n'acquitte que l'IRQ 8 bits
+et SB-MIDI, 2xFh la 16 bits, 3x0h le MPU, et 82h les distingue. Documenté pour les acquits séparés ; la ligne, le OU
+des sources, est déduite.
+*Cas qui discrimine* : SB 16 : F2h puis F3h (82h = 03h), puis une lecture de 2xEh : PCem rend ensuite 82h = 00h et
+efface le bit de l'IRQ de la carte dans IRR ; la carte rend 82h = 02h et garde la ligne haute.
+*G13* : (a) — les acquits sont documentés ; la ligne partagée se corrige avec l'IRQ du MPU (PB-154).
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_read` (2xEh), marqueur PB-238.
+
+### PB-239 — Une commande de DMA reçue pendant un automatique relance sur-le-champ
+
+`sound_sb_dsp.c:201-230` (`sb_start_dma`) : toute commande de sortie (14h, 16h, 17h, 74h à 77h, C0h à C7h…) remplace
+sur-le-champ la longueur, le format et le mode du transfert en cours, au milieu du bloc.
+*Effet* : un programme qui sort d'un automatique par une commande en simple cycle, comme le prévoit Creative, voit le
+bloc en cours coupé net, et l'IRQ suivante vient trop tôt ; sur la SB 16, le dernier bloc prend chez PCem le format de
+la commande, quand le 4.05 garde l'ancien.
+*Trouvé par* : reconnaissance de G13 (D5, N11 ; contre-lecture C14, K5).
+*Source* : guide de Creative, p. 6-8 (1Ch : « The DSP will, at the end of the current block transfer, exit auto-init
+mode and process the new DMA mode I/O command ») et p. 3-16 ; micrologiciels 4.05 (`v405-8k_e51aff23.asm:1003-1012`,
+l'octet de mode jeté `:1005-1006` ; `:2623-2634`) et 2.02 (`sbv202.asm:1519-1530`, `:1618-1631`). Documenté.
+*Cas qui discrimine* : SB 16 (ou 2.0), 48h FFh 00h puis 1Ch (des blocs de 100h), puis, après 10h octets, 14h 0Fh 00h :
+PCem lève l'IRQ au 20h-ième octet ; la carte finit le bloc (l'IRQ au 100h-ième), puis joue les 10h octets (au
+110h-ième).
+*G13* : (a) — documenté ; le 2.02 met aussi en file pendant un simple cycle, le 4.05 pendant un automatique seulement.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_start_dma`, marqueur PB-239.
+
+### PB-240 — La MIDI de la SB n'existe pas : l'octet MIDI devient une commande
+
+`sound_sb_dsp.c:45-54` : 30h à 38h valent −1 dans `sb_commands` ; `:696-697` : 38h (« TODO: AZTECH MIDI-related? ») ne
+fait rien, et 30h à 37h n'ont pas de `case`. L'octet qui suit 38h est donc lu comme une commande.
+*Effet* : un programme réglé sur « Sound Blaster MIDI » voit ses octets MIDI exécutés : 90h lance une sortie DMA à
+grande vitesse (SB 2.0 et plus), 80h une pause du CNA qui avale deux octets, 40h une constante de temps… Après 34h à 37h
+(le mode UART), les écritures restent des commandes, et la sortie par un reset n'existe pas ; 30h et 31h (l'entrée)
+restent sans effet, faute de source MIDI.
+*Trouvé par* : reconnaissance de G13 (contre-lecture A5).
+*Source* : guide de Creative, p. 6-14 (PDF 99 : « Send command 38h. Send MIDI data. ») et p. 5-3 ; 34h à 37h, p. 6-12 et
+6-13 (DSP 2.00 et plus), dont seul un reset fait sortir. Documenté.
+*Cas qui discrimine* : SB 2.0 : 38h puis 90h : PCem lance une sortie DMA (`sb_8_enable` = 1) et n'envoie rien ; la carte
+envoie 90h à la sortie MIDI (`midi_write`, l'empreinte MIDI de la sonde) et ne lance rien.
+*G13* : (a) pour 38h et le mode UART de sortie (le puits `midi_write` existe, décision n° 8 de PLAN-G12.md) ; (c) pour
+l'entrée, faute de source.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, la table `sb_commands` et 38h (`sb_exec_command`), marqueurs PB-240.
+
+### PB-241 — En grande vitesse, le DSP prend encore des commandes, et son reset est complet
+
+`sound_sb_dsp.c:448-467` : 90h, 91h, 98h et 99h passent par `sb_start_dma` et `sb_start_dma_i` comme 1Ch et 14h ; le DSP
+continue d'exécuter les commandes, et le reset (`:721-726`) le remet à froid (PB-236), le bloc compris.
+*Effet* : sur les SB 2.0 à Pro v2, un octet écrit au DSP en grande vitesse est exécuté, quand la carte l'ignore,
+occupée ; le reset qui termine la grande vitesse pose le bloc à FFFFh au lieu de garder celui de 48h.
+*Trouvé par* : reconnaissance de G13 (contre-lecture A6).
+*Source* : guide de Creative, p. 6-20 (PDF 105 : « In high-speed mode, the DSP will not accept any other commands. To
+terminate high-speed mode, send a DSP reset command ») ; micrologiciel 2.02, `X0748` (`sbv202.asm:1482-1506`), reset
+« chaud » `:873-887`. Documenté pour les 2.01 à 3.xx ; le 4.05 reprend sa boucle de commandes
+(`v405-8k_e51aff23.asm:2512-2584`).
+*Cas qui discrimine* : SB 2.0 : 48h FFh 0Fh, 90h, puis E1h : PCem rend 02h 01h ; la carte n'exécute pas E1h (rien à
+lire, 2xCh bit 7 à 1) ; puis un reset : `sb_8_autolen` passe à FFFFh chez PCem, reste 0FFFh sur la carte.
+*G13* : (a) pour les DSP 2.01 à 3.xx ; la SB 16, qui accepte les commandes, ne change pas.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, 90h et 98h (`sb_exec_command`), marqueurs PB-241.
+
+### PB-242 — 48h et D8h sans garde de version : la SB 1.0 les accepte
+
+`sound_sb_dsp.c:403-405` (48h) et `:556-558` (D8h) : aucun test de `sb_type`, quand le guide ne les donne qu'à partir
+du DSP 2.00 ; sur la SB 1.0 (DSP 1.05), 48h prend ses deux octets et D8h rend l'état du haut-parleur.
+*Effet* : sur la SB 1.0, D8h rend 00h ou FFh, et 48h avale deux octets ; si le 1.05 ignorait ces commandes, les deux
+octets de 48h y seraient exécutés comme des commandes, et D8h ne rendrait rien.
+*Trouvé par* : reconnaissance de G13 (contre-lecture A9).
+*Source* : guide de Creative, p. 6-16 (48h) et p. 6-28 (D8h) : « Available » à partir de 2.00. Documenté pour le guide ;
+inconnu pour le 1.05, dont aucune image n'est publiée : à mesurer sur une SB 1.0, la réponse de D8h et le sort des deux
+octets de 48h.
+*Cas qui discrimine* : SB 1.0 : D8h, puis 2xEh lu : bit 7 à 1 chez PCem (une donnée, 00h) ; le 1.05, inconnu.
+*G13* : (c) — le comportement du DSP 1.05 n'est pas connu ; reproduit d'ici une mesure.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, 48h et D8h (`sb_exec_command`), marqueurs PB-242.
+
+### PB-243 — Avant la SB 16, les ports jumeaux du DSP ne répètent pas
+
+`sound_sb_dsp.c:847-848` : `sb_dsp_setaddr` installe 2x6h-2x7h et 2xAh-2xFh ; `sb_write` (`:720-764`) ne traite que
+2x6h et 2xCh, 2x7h et 2xDh ne font rien ; `sb_read` (`:770-815`) rend 0 pour 2x7h, 2xBh et 2xDh, et traite 2xFh en
+acquit 16 bits sur toutes les cartes (`:809-813`).
+*Effet* : sur les SB 1.0 à Pro v2, un programme qui passe par l'adresse jumelle (2x7h pour 2x6h, 2xBh pour 2xAh, 2xDh
+pour 2xCh, 2xFh pour 2xEh) n'a pas la réponse de la carte ; un `out dx,ax` de 0001h en 2x6h achève l'impulsion de reset
+sur la carte, pas chez PCem.
+*Trouvé par* : reconnaissance de G13 (contre-lecture A11).
+*Source* : DOSBox-X, « verified on real hardware » sur une SB 2.0 et une SB Pro 3.1 (`sblaster.cpp:3204-3211`,
+`:4454-4466`) : une source secondaire, mesurée ; aucune source primaire ne décrit ce décodage. Déduit.
+*Cas qui discrimine* : SB 2.0 : 01h puis 00h écrits en 2x7h, puis 2xEh et 2xAh lus : la carte rend le bit 7 à 1 et AAh,
+le reset fait ; PCem, 7Fh et l'octet périmé.
+*G13* : (b) — une source secondaire seulement.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_write` et `sb_read`, marqueurs PB-243.
+
+### PB-244 — D1h et D3h agissent sur-le-champ
+
+`sound_sb_dsp.c:529-542` : D1h et D3h changent `muted` (ou la pause, PB-147) dans la commande même ; le DSP reprend
+aussitôt les commandes.
+*Effet* : sur la carte, D1h et D3h occupent le DSP jusqu'à 112 et 220 ms : une commande envoyée juste après attend ;
+chez PCem, elle est servie aussitôt. Faible enjeu.
+*Trouvé par* : reconnaissance de G13 (contre-lecture A12).
+*Source* : guide de Creative, p. 6-25 (« The DSP takes a maximum of 112 milliseconds », D1h) et p. 6-26 (220 ms, D3h) ;
+micrologiciel 2.02, une rampe du CNA (`sbv202.asm:1827-1866`), aucune en 3.02 (`v302_4k_4701c5fc.asm:1413-1430`).
+Documenté pour le maximum ; la durée exacte par version se lit au micrologiciel.
+*Cas qui discrimine* : SB 2.0 : D1h puis D8h : chez PCem, 2xEh rend FFh (une donnée) dès l'écriture de D8h ; sur la
+carte, pas avant la fin de la rampe du 2.02, sous 112 ms.
+*G13* : (b) — la durée n'est donnée qu'en maximum, et varie d'une version à l'autre.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, D1h et D3h (`sb_exec_command`), marqueurs PB-244.
+
+### PB-245 — La souris de la M24 envoie ses déplacements négatifs en complément à deux, pas en signe et amplitude
+
+`keyboard_olim24.c:247-252`, `mouse_olim24_poll`, en mode souris (commande 12h du clavier) :
+
+```c
+if (mouse->x < -127)
+        mouse->x = -127;
+if (mouse->x > 127)
+        mouse->x = 127;
+if (mouse->x < -127)
+        mouse->x = 0x80 | ((-mouse->x) & 0x7f);
+```
+
+La troisième garde suit la borne : `x` vient d'être ramené dans [-127, 127], elle ne peut plus être vraie. De même
+pour `y` (`:254-259`). L'octet envoyé après le préfixe FEh (`:261-263`) est la troncature de `x` : le complément à
+deux d'un déplacement négatif, jamais le signe et l'amplitude que la conversion visait.
+*Effet* : conditionnel. Si le clavier de la M24 code ses déplacements en signe et amplitude, comme la conversion
+morte le suppose, un pilote lit un pas de −1 (FFh) comme −127, et la souris saute à chaque petit déplacement
+négatif ; s'il les code en complément à deux, il ne reste qu'une branche morte, sans effet.
+*Trouvé par* : transcription de G1.1 (deux marqueurs, restés sans entrée) ; instruit par la reconnaissance de G13.
+*Source* : inconnu — ni le Service Manual de l'AT&T 6300 ni son System Programmer's Guide n'en parlent ; le MOUSE.DOC
+du pilote Logitech de l'AT&T 6300 (cité sur le forum VCF, secondaire) ne dit que le préfixe FEh. À mesurer : une M24
+et sa souris, ou le pilote d'origine désassemblé (CBW : complément à deux ; AND 7Fh et TEST 80h : signe et amplitude).
+*Cas qui discrimine* : M24, commande 12h au clavier (60h, trois paramètres), un déplacement de −1 en X, 0 en Y : PCem
+envoie FEh FFh 00h ; un clavier à signe et amplitude enverrait FEh 81h 00h.
+*G13* : (c) — le codage du vrai clavier est inconnu : reproduit tant qu'une mesure ou un désassemblage n'a pas tranché.
+*Reproduit* : `Keyboard/keyboard_olim24.cs`, `mouse_olim24_poll`, marqueurs PB-245 (`:287`, `:297`).
+
+### PB-246 — La cascade du 8259 est servie avant l'IRQ 0 et l'IRQ 1
+
+`pic.c:358-359`, `picinterrupt` :
+
+```c
+for (c = 0; c < 8; c++) {
+        if ((AT || romset == ROM_XI8088) && (temp & (1 << 2))) {
+```
+
+Le test de la cascade ne dépend pas de `c` : dès `c = 0`, une demande de l'esclave (IRQ 8 à 15) passe avant celles
+du maître en IR0 et en IR1.
+*Effet* : sur un AT, une IRQ 8 à 15 est servie avant l'horloge (IRQ 0) et le clavier (IRQ 1) quand elles attendent
+ensemble ; avec PB-05, l'IRQ 0 ou l'IRQ 1 qui attendait est perdue (déduit ; fréquence inconnue : sous DOS, la RTC
+n'interrompt que pour INT 15h, AH = 83h et 86h).
+*Trouvé par* : reconnaissance de G13 (confirmé par la contre-lecture).
+*Source* : 8259A p. 15, « Fully Nested Mode » : « IR0 has the highest priority and IR7 the lowest » ; IBM AT TR
+1502494 p. 1-10 et 1-11 : IRQ 0, IRQ 1, IRQ 8 à 15 par la cascade, puis IRQ 3 à 7, « in decreasing priority ».
+Documenté.
+*Cas qui discrimine* : PICBANC (à écrire), ibmat, CLI : l'IRQ 0 (le PIT) et l'IRQ 9 (la SB Pro v2 en IRQ 2, F2h au
+DSP) en attente, relues à l'IRR (OCW3 0Ah) ; STI. PCem sert 71h puis 08h ; le 8259A, 08h puis 71h.
+*G13* : (a) — avec PB-05 et PB-247, dans un `picinterrupt` selon la fiche.
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-246.
+
+### PB-247 — Le masque de service du 8259 est ignoré
+
+`808x.c:55` (`IRQTEST`) et `:3985` (`takeint`) acceptent une interruption sur `pic.pend & ~pic.mask`, sans `mask2` ;
+`pic.c:356` et `:360`, `picinterrupt`, choisissent sur `pend & ~mask`, sans `mask2` non plus.
+(a) Sur le 808x, une IRQ de priorité égale ou moindre interrompt un gestionnaire qui a fait STI avant son EOI.
+(b) Sur l'AT, le cœur accepte sur `pic_intpending`, qui tient compte de `mask2` (`386.c:249`), mais `picinterrupt`
+descend dans l'esclave même quand l'ISR du maître le bloque ; cela n'arrive que par PB-246.
+*Effet* : sur le 5150 et l'XT, l'IRQ 1 du clavier s'imbrique dans l'INT 08h du BIOS, qui fait STI en tête
+(`F000:FEA5` du BIOS du 27/10/82) et n'envoie l'EOI qu'après INT 1Ch (`F000:FEE5-FEE7`) ; le 8259A l'aurait retenue.
+*Trouvé par* : reconnaissance de G13 (confirmé par la contre-lecture, qui en a borné (b)).
+*Source* : 8259A p. 15, « While the IS bit is set, all further interrupts of the same or lower priority are
+inhibited » ; p. 18, « in the normal nested mode a slave is masked out when its request is in service ». Documenté.
+*Cas qui discrimine* : PICBANC (à écrire), 5150 : INT 1Ch détourné, qui fait STI et attend une frappe injectée.
+PCem : INT 09h s'exécute dans INT 1Ch, avant l'EOI de l'IRQ 0 ; le 8259A : seulement après cet EOI.
+*G13* : (a) — (a) est propre au 808x, dans `IRQTEST`, un chemin chaud ; (b) ne se voit que par PB-246.
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-247 ; `Cpu/808x.cs`, `IRQTEST` et `takeint`, hors du
+domaine de la carte mère (leurs marqueurs reviennent au domaine du processeur).
+
+### PB-248 — Les rotations, la priorité et « sans opération » du 8259 font un EOI ; ni poll ni masque spécial
+
+`pic.c:117-145`, `pic_write` : l'OCW2 ne distingue que l'EOI spécifique (`(val & 0xE0) == 0x60`) ; toute autre forme
+— les rotations (00h, 80h, A0h, E0h + n), la priorité (C0h + n), « no operation » (40h) — tombe dans la boucle de
+l'EOI non spécifique. `:146-153` : l'OCW3 ne lit que RR et RIS ; le poll (bit 2) et le masque spécial (ESMM et SMM,
+bits 6-5) sont ignorés. De même pour l'esclave, `pic2_write`, `:224-244`.
+*Effet* : un programme qui fait tourner les priorités, ou interroge le 8259 par poll, voit des bits ISR effacés et
+lit l'IRR ou l'ISR au lieu du mot de poll. Aucun BIOS du dépôt n'émet ces formes (les OUT immédiats en 20h et A0h :
+20h, 60h-67h, 0Ah, 0Bh, 11h et 13h) ; l'usage par les logiciels est inconnu.
+*Trouvé par* : reconnaissance de G13 (élargi à l'esclave et à 40h par la contre-lecture).
+*Source* : 8259A p. 13-16 : les formats d'OCW2 et d'OCW3 (figure 8 : R, SL, EOI = 010, « no operation »), les
+rotations automatique et spécifique, Poll Command, Special Mask Mode. Documenté.
+*Cas qui discrimine* : dans l'INT 08h (IR0 en service), OCW2 40h, puis OCW3 0Bh et IN 20h : PCem 00h, l'ISR effacé ;
+le 8259A 01h. Poll, une IRQ n en attente : OCW3 0Ch puis IN 20h, le 8259A rend 80h + n ; PCem, l'IRR ou l'ISR.
+*G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
+*Reproduit* : `Models/pic.cs`, `pic_write` et `pic2_write`, marqueurs PB-248 (l'OCW2 et l'OCW3).
+
+### PB-249 — Le Clear Mask du 8237 (0Eh, DCh) est sans effet
+
+`dma.c:98-161`, `dma_write`, et `:357-425`, `dma16_write` : aucun `case 0xe`. L'écriture en 0Eh (DCh sur le 8237
+haut), « Clear Mask Register », est rangée dans `dmaregs` ou `dma16regs` et ne touche pas `dma_m`.
+*Effet* : un programme qui démasque les quatre canaux d'un contrôleur par cette commande les laisse masqués : ses
+transferts ne partent pas. Les BIOS du dépôt ne l'emploient pas (ils écrivent les masques un par un).
+*Trouvé par* : reconnaissance de G13 (confirmé par la contre-lecture).
+*Source* : 8237A p. 9, « Clear Mask Register: This command clears the mask bits of all four channels » ; IBM AT TR
+p. 1-14, DCh « Clear Mask Register ». Documenté.
+*Cas qui discrimine* : OUT 0Fh,0Fh (les quatre masques posés), OUT 0Eh,00h, puis un transfert sur le canal 2 : PCem
+`DMA_NODATA` (masqué) ; le 8237A le fait. Sur l'AT, OUT DEh,0Fh puis OUT DCh,00h : de même pour les canaux 4 à 7.
+*G13* : (a) — avec PB-157 et les autres voisins du 8237, dans un 8237 selon la fiche.
+*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-249.
+
+### PB-250 — Le registre de requête du 8237 (09h, D2h) est ignoré
+
+`dma.c:98-161` et `:357-425` : aucun `case 9`. Une requête logicielle (09h ; D2h sur le 8237 haut) est rangée et ne
+déclenche rien ; PCem n'a d'ailleurs pas de moteur de DMA qui transfère de lui-même : les périphériques tirent leurs
+octets par `dma_channel_read` et `dma_channel_write`.
+*Effet* : un transfert lancé par requête logicielle (en mode bloc) n'a jamais lieu. Le POST de l'AT écrit 00h en D2h
+(`F000:1402`), sans effet.
+*Trouvé par* : reconnaissance de G13 (confirmé par la contre-lecture).
+*Source* : 8237A p. 7, « Request Register » : la requête logicielle, en mode bloc seulement, effacée au TC ou par un
+EOP externe, et en entier par un Reset ; figure 6 (p. 9), « Write Request Register ». Documenté.
+*Cas qui discrimine* : XT, le canal 1 en bloc et en vérification (mode 81h), compte 0003h, démasqué ; OUT 09h,05h. Le
+8237A fait quatre cycles : l'état (08h) rend 02h, le compte FFFFh ; PCem rien (état 00h, compte 0003h).
+*G13* : (a) — documenté ; demande un moteur de transfert propre au mode matériel.
+*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-250.
+
+### PB-251 — Le master clear du 8237 n'efface ni la commande, ni l'état, ni la requête, ni le temporaire
+
+`dma.c:153-156` (0Dh) et `:417-420` (DAh) : le master clear remet la bascule à zéro et pose les quatre masques, rien
+d'autre. `dma_command` garde sa valeur (son bit 2 refuse encore tout transfert, `:503-505`), et les bits TC de
+`dma_stat` survivent.
+*Effet* : un programme qui désactive un 8237 (commande 04h) et compte sur le master clear pour le réactiver le laisse
+désactivé. Sans effet sur les BIOS du dépôt : les cinq BIOS AT réécrivent 00h en 08h et en D0h après leurs master
+clear (ibmat `F000:02A6-02AB`) ; ce n'est donc pas un préalable de PB-157.
+*Trouvé par* : reconnaissance de G13 (jugé non bloquant par la contre-lecture).
+*Source* : 8237A p. 9, « Master Clear » : « same effect as the hardware Reset. The Command, Status, Request,
+Temporary, and Internal First/Last Flip-Flop registers are cleared and the Mask register is set ». Documenté.
+*Cas qui discrimine* : XT, OUT 08h,04h, OUT 0Dh,00h, OUT 0Ah,00h (le rafraîchissement rétabli), puis une lecture de
+disquette par INT 13h : PCem la refuse (`DMA_NODATA`, le contrôleur reste désactivé) ; le 8237A la fait. L'état relu
+après un TC puis un master clear : PCem garde le bit TC ; le 8237A rend 00h.
+*G13* : (a) — documenté ; facultatif pour PB-157, que les BIOS du dépôt ne mettent pas en défaut.
+*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-251.
+
+### PB-252 — Au reset, les masques du 8237 restent à zéro
+
+`dma.c:43`, `dma_reset` : `dma_m = 0;` — les huit canaux démasqués. `dma_reset` ne remet pas non plus la commande ni
+l'état : `dma_command`, `dma16_command` et `dma_stat` survivent à un reset matériel (`pc.c:179`).
+*Effet* : entre le reset et la première programmation, un canal dont le mode convient transfère au lieu d'être
+masqué. Sans effet sur les BIOS du dépôt, qui font un master clear, ou posent les masques, avant tout usage ; un
+logiciel qui se sert d'un canal sans l'avoir démasqué le trouverait actif.
+*Trouvé par* : reconnaissance de G13 (confirmé par la contre-lecture).
+*Source* : 8237A p. 2, broche RESET : « clears the Command, Status, Request and Temporary registers… and sets the
+Mask register » ; p. 8, « The entire register is also set by a Reset ». Documenté.
+*Cas qui discrimine* : en C# seul, `dma_reset`, puis le mode du canal 2 posé en écriture (46h) sans toucher au masque,
+et `dma_channel_write(2, …)` : PCem fait le transfert ; le 8237A rend `DMA_NODATA` (le canal masqué).
+*G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
+*Reproduit* : `Models/dma.cs`, `dma_reset`, marqueur PB-252.
+
+### PB-253 — La cascade du 8237 n'est pas modélisée, et les maîtres de bus passent outre
+
+`dma.c:503-509` et `:571-577`, `dma_channel_read` et `dma_channel_write` : un canal 0 à 3 ne teste que la commande du
+8237 bas ; ni le masque ni le mode du canal 4 (la cascade), ni la commande du 8237 haut ne l'arrêtent. Les maîtres de
+bus n'y passent pas : la 1542C lit et écrit la mémoire directement (`scsi_aha1540.c:411` et suivantes,
+`mem_readb_phys`), sans regarder le masque ni le mode de son canal (7 par défaut) ni la commande du 8237 haut.
+*Effet* : un programme qui masque le canal 4, ou désactive le 8237 haut, ne suspend ni les canaux 0 à 3 ni la 1542C.
+*Trouvé par* : reconnaissance de G13 (élargi aux maîtres de bus par la contre-lecture).
+*Source* : 8237A p. 5-6 (Cascade Mode : DREQ et DACK d'un canal du premier), p. 7-8 (masque, commande) ; IBM AT TR
+p. 1-13, « Channel 4 is used to cascade channels 0 through 3 », et p. 1-26 (–MASTER, un maître de bus par un canal
+en cascade). Documenté par composition.
+*Cas qui discrimine* : ibmat, OUT D4h,04h (le canal 4 masqué), puis une lecture de disquette par INT 13h : PCem la
+fait ; l'AT la bloque (le 8237 bas n'obtient pas le bus) jusqu'au démasquage.
+*G13* : (a) — documenté par composition ; avec PB-157 (la commande du haut) et PB-251.
+*Reproduit* : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs PB-253 ; la 1542C
+(`Scsi/scsi_aha1540.cs`) est hors du domaine de la carte mère : son marqueur revient au domaine du stockage.
+
+### PB-254 — Les files du 8042 n'ont pas de garde : au seizième octet en attente, elles paraissent vides
+
+`keyboard_at.c:153-154` (`key_ctrl_queue`), `:233-234` (`key_queue`) et `:240-241` (`mouse_queue`) : chaque ajout
+avance `end` modulo 16 sans regarder `start`. Au seizième octet en attente, `end` rejoint `start` : la file paraît
+vide, et ce qu'elle tenait est perdu. Seul le poll de la souris PS/2 se borne (`mouse_ps2.c:176`, moins de 13).
+*Effet* : vingt codes de clavier que l'invité ne lit pas (l'IRQ 1 masquée, un long CLI) n'en laissent passer que
+quatre : le premier, déjà dans le tampon de sortie, puis les trois derniers. Côté souris, les réponses de commandes
+enchaînées sans lecture (E9h en rend quatre octets) se perdent de même.
+*Trouvé par* : reconnaissance de PS2 (défaut n° 4 de `PLAN-PS2.md`, jamais inscrit) ; reconnaissance de G13, élargi
+au clavier et au contrôleur par la contre-lecture.
+*Source* : IBM AT TR p. 4-3, « Keyboard Buffer » : seize codes gardés, le dix-septième remplacé par 00h, les suivants
+perdus ; PS/2 HITR Common Interfaces (84F9735), « Keyboard/Auxiliary Device Controller », p. 14-15 : le système tient
+la ligne « clock » pour retenir l'envoi. Documenté.
+*Cas qui discrimine* : ibmat, l'IRQ 1 masquée, vingt codes injectés sans lecture, puis 60h lu à chaque OBF : PCem
+rend le 1er, le 18e, le 19e et le 20e ; l'AT, les dix-sept premiers puis 00h.
+*G13* : (a) — documenté ; vérifiable en C# seul par des frappes injectées, et par PS2BANC sous `--force-ps2`.
+*Reproduit* : `Keyboard/keyboard_at.cs`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard` et
+`keyboard_at_adddata_mouse`, marqueurs PB-254.
+
+### PB-255 — ICW1 ne remet pas la lecture du 8259 sur l'IRR ; le reset la met sur l'ISR
+
+`pic.c:106-113` et `:214-221` : l'ICW1 efface le masque, l'ISR et `mask2`, mais ne touche pas `read`. `pic_reset`
+pose `pic.read = 1` (`:36`), c'est-à-dire l'ISR (`:161-162`), et ne remet jamais `pic2.read`.
+*Effet* : une lecture de 20h (ou de A0h) sans OCW3 après l'initialisation rend l'ISR, ou ce qu'un OCW3 d'avant a
+choisi, au lieu de l'IRR. Les lectures de 20h des ROM du dépôt suivent toutes un OCW3 (XT `F000:E036-E044`, AT
+`F000:1BD8`, M24) ; le 5150 ne lit jamais 20h ; les lectures de A0h des AMI restent à examiner.
+*Trouvé par* : contre-lecture de la reconnaissance de G13.
+*Source* : 8259A p. 10, ICW1, point e : « Special Mask Mode is cleared and Status Read is set to IRR » ; p. 17 :
+« After initialization the 8259A is set to IRR ». Documenté.
+*Cas qui discrimine* : OCW3 0Bh (l'ISR), puis ICW1 à ICW4 du maître, OCW1 FFh, un tic du PIT en attente ; IN 20h :
+PCem 00h (l'ISR) ; le 8259A 01h (l'IRR, que l'IMR n'affecte pas).
+*G13* : (a) — documenté, vérifiable en C# seul ; l'effet sur les logiciels est inconnu.
+*Reproduit* : `Models/pic.cs`, `pic_reset`, `pic_write` et `pic2_write`, marqueurs PB-255.
+
+### PB-256 — Ni la M24 ni le PC1512 n'ont de rafraîchissement par DMA
+
+`model.c:205` : seul `xt_init` branche la sortie 1 du PIT sur `pit_refresh_timer_xt`, une lecture DMA du canal 0.
+`ams_init` (`:259-270`) et `olim24_init` (`:292-300`) ne le font pas : le compteur 1 du PIT n'y commande rien.
+*Effet* (déduit) : ces deux UC ne perdent aucun cycle de rafraîchissement et vont plus vite que les vraies (sur le
+5150, IBM compte 7 % de la bande passante du bus, PC TR p. 2-8), et l'adresse courante du canal 0 n'avance jamais.
+C'est le pendant de PB-03 pour la fidélité du temps.
+*Trouvé par* : contre-lecture de la reconnaissance de G13.
+*Source* : Amstrad, PC1512 Technical Reference Manual, section 1, § 1.5, 1.5.1 et 1.7.2 : le canal 0, demandé par la
+sortie 1 du 8253, toutes les 15,13 µs ; la ROM 1.43 de la M24 pose le canal 0 en 58h et le compteur 1 à 13h, 15,9 µs
+(`F000:DC41-DC5A`). Documenté ; le coût d'un rafraîchissement en cycles de ces deux UC ne l'est pas.
+*Cas qui discrimine* : PC1512 ou M24 après le POST, l'adresse courante du canal 0 (deux lectures de 00h) relevée à
+1 ms d'intervalle : PCem, la même ; la machine, une soixantaine de transferts plus loin.
+*G13* : (b) — mécanisme documenté, temps déduit ; il change le temps de deux machines (question n° 2 de D6-contre).
+*Reproduit* : `Models/model.cs`, `olim24_init` et `ams_init`, marqueurs PB-256.
+
+### PB-257 — Le cycle de DMA est facturé avant les tests de masque et de mode
+
+`dma.c:511-517` et `:579-585` : sur une machine non AT, `refreshread()` (`FETCHCOMPLETE` et quatre cycles,
+`808x.c:82-85`) est appelé avant les tests du masque et du mode : un transfert refusé coûte le cycle d'un transfert
+fait.
+*Effet* (déduit) : du temps d'UC facturé à tort sur le 5150, l'XT, la M24 et le PC1512, chaque fois que le canal 0 est
+masqué ou pas encore programmé, et à chaque tentative refusée d'un périphérique. Corriger PB-03 seul porterait ces
+cycles fantômes au TSC : les deux vont ensemble.
+*Trouvé par* : contre-lecture de la reconnaissance de G13.
+*Source* : 8237A p. 8, « Mask Register » : un masque « disable(s) the incoming DREQ » — pas de requête, donc pas de
+cycle de bus. Documenté ; l'effet sur le temps est déduit.
+*Cas qui discrimine* : en C# seul, un 5150, le canal 2 masqué, `dma_channel_write(2, …)` : PCem rend `DMA_NODATA` et
+débite le cycle (`FETCHCOMPLETE`, `memcycs += 4`) ; le 8237A ne fait aucun cycle.
+*G13* : (a) — documenté, vérifiable en C# seul ; à corriger avec PB-03 (G13.3).
+*Reproduit* : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs PB-257.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
 
 `mem.c:1344` `ram = malloc(mem_size * 1024);` — pas un octet de marge — puis
-`808x.c:78` :
+`808x.c:79` (et `:110`, `writememw`) :
 
 ```c
 return *(uint16_t *)(readlookup2[(s + a) >> 12] + s + a);
@@ -1794,11 +4513,22 @@ allocation** : du tas adjacent.
 trois exécutions du même cas rendent `0x0E59`, `0x4959`, `0xD859`.
 *Trouvé par* : le fuzzer différentiel, ronde 1691 — inatteignable jusqu'à ce que le
 remplissage à motif de deux octets débloque les rondes au-delà de la 157.
-*Seule exception à la règle « on reproduit »* : un comportement indéfini n'est pas un
-comportement, il n'y a rien dont être le pendant fidèle. `tools/oracle/harness.c:99`
-`h_pad_ram()` donne quatre octets à zéro au `ram` de l'oracle, comme
-`Memory/mem.cs:706` le fait côté C#. **C'est la seule déviation assumée de l'oracle dans
-tout le dépôt**, et elle est consignée au registre des omissions de `TRANSCRIPTION.md`.
+*Exception à la règle « on reproduit »* : un comportement indéfini n'est pas un
+comportement, il n'y a rien dont être le pendant fidèle. `h_pad_ram()` (`tools/oracle/harness.c:562-566`)
+donne quatre octets à zéro au `ram` de l'oracle, comme `mem_alloc` (`Memory/mem.cs`, `new byte[mem_size * 1024 + 4]`)
+le fait côté C#, et la divergence est consignée au registre des omissions de `TRANSCRIPTION.md`. Ce n'est pas la
+seule déviation de l'oracle, contrairement à ce que disait cette entrée : `__wrap_rom_init` (PB-24,
+`harness_stubs.c:206`), le `nvrram` de la M24 (`harness.c:2075-2079`), le fil du S3 (`TRANSCRIPTION.md`).
+*Source* : IBM PC TR 6025008 p. 2-3, « The processor supports 20 bits of addressing (1 megabyte of storage) » : un mot
+en FFFFFh prend son octet haut en 00000h. Documenté ; au-dessus de la RAM, l'octet vient de ce qui est projeté à
+l'adresse suivante, ou du bus flottant (FFh dans le modèle de PCem ; inconnu sur un 5150, à mesurer).
+*Cas qui discrimine* : POP CX, SS = FFFFh, SP = 000Fh, sur la RAM plate du fuzzeur : CH = 00h (la marge) des deux
+côtés ; le 8088, l'octet en 00000h. MOV AX,[000Fh], DS = 9FFFh, un 5150 à 640 Ko : AH = 00h aujourd'hui ; par le
+chemin lent, ce que projette A0000h (rien avec une CGA : FFh).
+*G13* : (a) le repli à 1 Mo et l'octet haut lu par le chemin lent ; (c) la valeur du bus flottant, inconnue.
+*NON reproduit* (neutralisé des deux côtés) : la marge de quatre octets nuls, lue zéro par l'oracle comme par le C#.
+Sans marqueur jusqu'à G13.1, il porte depuis les marqueurs `not reproduced: PB-07` de `Memory/mem.cs` (`mem_alloc`,
+avec sa `DEVIATION`) et de `Cpu/808x.cs` (`readmemw`, `writememw`), posés par le domaine du processeur.
 
 ### PB-08 — `device.c:300` teste la borne après l'accès
 
@@ -1810,9 +4540,12 @@ while (devices[c] != NULL && c < 256)
 `devices[c]` est évalué **avant** `c < 256`. Quand les 256 fentes sont prises,
 `devices[256]` est déréférencé hors tableau.
 
-*Effet* : en C, lecture de la globale voisine ; en C#, exception. Inatteignable au
-palier (a), qui enregistre moins de dix devices.
-*Reproduit* : `PluginApi/device.cs:268`.
+*Effet* : en C, lecture de la globale voisine ; en C#, exception. Inatteignable : le dépôt enregistre une vingtaine
+de périphériques au plus, et l'invité n'en ajoute pas.
+*Source* : sans objet matériel — une limite d'une table de l'émulateur (`DEV_MAX`, 256).
+*Cas qui discrimine* : aucun — 256 périphériques ne s'enregistrent jamais.
+*G13* : (d) — sans effet et sans vérité matérielle ; inverser les deux opérandes serait neutre dans les deux modes.
+*Reproduit* : `PluginApi/device.cs`, `pcem_add_device`, marqueur PB-08 (`:327`).
 
 ### PB-09 — `charbuffer` du CGA est débordable par le programme invité
 
@@ -1822,6 +4555,7 @@ borne à 510. Même borne à la relecture 80 colonnes (`vid_cga.c:157-158`).
 
 *Effet* : un programme invité qui écrit plus de 128 dans le registre 1 du CRTC, en mode texte 80 colonnes,
 écrase en silence les champs voisins de `cga_t`, puis, au-delà de 134, le tas. Le BIOS du 5150 pose 40 ou 80.
+*G13* : hors du mode — corrigé dans les deux modes en G13.0 (R9, décision n° 2 de PLAN-G13.md).
 *NON reproduit* (R9, G13.0) : `charbuffer` fait 512 octets (`Video/vid_cga.cs`, marqueur PB-09) — ce que lit la
 carte, qui n'a pas de tampon de ligne, et identique à PCem tant qu'il survit (R1 = 129 et 130). Le C# levait
 `IndexOutOfRangeException`, que rien ne rattrapait : un `OUT` de l'invité arrêtait l'émulateur, et les dernières
@@ -1835,21 +4569,36 @@ carte, qui n'a pas de tampon de ligne, et identique à PCem tant qu'il survit (R
 
 *Effet* : double libération, uniquement sur le chemin d'échec du chargement de la ROM
 BASIC. `Stream.Close()` étant idempotent en .NET, sans conséquence dans iXtal26.
-*Reproduit* : `Memory/mem_bios.cs:115`.
+*Source* : sans objet matériel — le chemin d'échec du chargement d'une ROM de l'hôte.
+*Cas qui discrimine* : aucun — `Stream.Close()` est idempotent.
+*G13* : (d) — sans effet dans iXtal26 et sans vérité matérielle.
+*Reproduit* : `Memory/mem_bios.cs`, `loadbios`, marqueur PB-10 (`:284`, numéroté par le domaine du processeur).
 
 ### PB-16 — `img_load` éjecte sans remettre `f` à NULL
 
 `disc_img.c:248-249` et `:276-277`
 
-Sur une image de plus de 25 000 octets par piste, ou XDF de géométrie inconnue,
-`img_load` fait `fclose(img[drive].f); return;` sans annuler le pointeur. `disc_load`
-marque pourtant le lecteur plein (`drive_empty = 0`, `disc.c:83`) et appelle
-`fdd_disc_changed` → `img_seek`, dont le seul garde est `if (!img[drive].f)` : `fseek`
-et `fread` sur un `FILE *` fermé, puis un second `fclose` à la prochaine `disc_close`.
+Sur une image de plus de 25 000 octets par piste, ou XDF de géométrie inconnue, `img_load` fait
+`fclose(img[drive].f); return;` sans annuler le pointeur. `disc_load` marque pourtant le lecteur plein
+(`drive_empty = 0`, `disc.c:81`) et appelle `fdd_disc_changed`. L'`img_seek` sur le `FILE *` fermé n'est pas
+atteint, en C non plus : `disc_seek` teste le pointeur de fonction (`disc.c:208`), que `disc_close` et `disc_reset`
+ont remis à nul (`disc.c:94-107`, `:182-201`) et qu'`img_load`, sorti tôt, n'a pas reposé. Le comportement indéfini
+est le second `fclose`, sur le pointeur pendant, à la prochaine `disc_close` ou au prochain `disc_reset`
+(`img_close`, `disc_img.c:323-327`) : chaque reset matériel en fait un (`pc.c:366`), et la glibc peut s'y arrêter
+sur un « double free », chez PCem seulement (D3-contre, K11).
 
-*Effet* : comportement indéfini sur toute image rejetée par ces deux branches.
-*Reproduit* : `Disc/disc_img.cs`, les deux sites marqués — `Stream.Close()` est
-idempotent, `Seek` sur un flux fermé lève.
+*Effet* : comportement indéfini sur toute image rejetée par ces deux branches. Pour l'invité, le lecteur paraît
+chargé sans aucune fonction : un changement de disquette, puis « adresse non trouvée » à la lecture
+(`disc_notfound`), et READ ID sans réponse jusqu'au délai du BIOS ; le menu Ctrl+F12 annonce « inséré »
+(`Host/SdlMenu.cs:974-984`, qui teste `drive_empty`).
+*Source* : sans objet matériel — refuser un format d'image n'a pas d'analogue ; l'invité voit ce qu'il verrait d'une
+disquette non formatée — déduit.
+*Cas qui discrimine* : aucun pour le mode matériel. Pour l'hôte : une image au BPB de 30 × 1 024 octets par piste,
+insérée : `drive_empty` vaut 0 et le menu dit « inséré » ; un nettoyage la refuserait avec un avertissement, lecteur
+vide.
+*G13* : (d) — sans pendant matériel, et ni l'hôte ni les fichiers ne sont en jeu : laissé (décision n° 9).
+*Reproduit* : `Disc/disc_img.cs`, les deux sites marqués — le lecteur paraît chargé comme chez PCem ;
+`Stream.Close()` est idempotent, le second `fclose` n'a pas de pendant.
 
 ### PB-17 — `track_data` fait 20 Ko, une piste XDF ED en demande 23 552
 
@@ -1862,6 +4611,7 @@ dans `img[1]`.
 
 *Effet* : corruption mémoire à la première lecture de piste d'une image de plus de 40 secteurs par piste
 (`sector_size` est forcé à 512, `:158`) : une XDF à densité étendue, ou 41 secteurs de 128 octets lus par 512.
+*G13* : hors du mode — corrigé dans les deux modes en G13.0 (R9, décision n° 2 de PLAN-G13.md).
 *NON reproduit* (R9, G13.0) : `track_data` fait 195 × 512 octets par face (`Disc/disc_img.cs`, marqueur PB-17) ;
 une BPB admise annonce au plus 25 000 octets par piste, en secteurs d'au moins 128 octets. Le C# levait
 `ArgumentOutOfRangeException` à l'insertion, au démarrage comme au menu ; ces images se lisent désormais entières.
@@ -1869,16 +4619,20 @@ une BPB admise annonce au plus 25 000 octets par piste, en secteurs d'au moins 1
 
 ### PB-18 — `disc_load` copie `discfns[drive]` sur lui-même
 
-`disc.c:85`, appelé depuis `pc.c:367-368` avec `fn == discfns[drive]`
+`disc.c:83`, appelé depuis `pc.c:367-368` avec `fn == discfns[drive]`
 
 `strcpy(discfns[drive], fn)` : source et destination sont le même tableau. `strcpy`
 est déclaré `restrict` et le chevauchement est indéfini par la norme ; glibc s'en
 accommode pour un pointeur identique.
 
 *Effet* : aucun observé.
-*Reproduit* : `Disc/disc.cs`, `discfns[drive] = fn` — une affectation de référence.
-
----
+*Source* : sans objet matériel ; côté C, ISO/IEC 9899:2011 § 7.24.2.3 : un `strcpy` entre objets qui se chevauchent
+est indéfini — documenté.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet, et rien n'est reproduit en C#.
+*NON reproduit* (sans objet en C#) : `Disc/disc.cs`, `discfns[drive] = fn`, une affectation de référence, sans
+comportement indéfini ; le résultat est celui de la glibc, la chaîne inchangée. Le marqueur disait « reproduced » :
+il dit « not reproduced » depuis G13.1 (D3-stockage, § 4.1).
 
 ### PB-21 — `speakval` divise par `pit->l[0]` sans le tester, et le POST y passe
 
@@ -1895,22 +4649,28 @@ aux ports 0x40, 0x41 ou 0x42 la recalcule, même quand `l[0]` n'a pas encore ét
 Mesuré sur un amorçage 640 Ko : à la tranche 231, `l[0] = 0` et `l[2] = 65535`, donc
 `+inf`. Le `(int)` de PCem rend alors l'**entier indéfini** de `cvttss2si`, 0x80000000 —
 et le clamp de la ligne suivante ne le rattrape pas, `INT_MIN` n'étant pas `> 0x2000`.
-Les deux commentaires laissés par l'auteur au-dessus (`pit.c:420-421`,
+Les deux commentaires laissés par l'auteur entre le calcul et le plafond (`pit.c:420-421`,
 `"Speaker overflow"`) disent qu'il a soupçonné le débordement sans le fermer.
 
-*Effet* : `speakval` sort de sa plage nominale [−0x2000, +0x2000] et vaut `INT_MIN`
-jusqu'à la prochaine écriture au PIT. Il n'est lu que par `speaker_update`
-(`sound_speaker.c:24`) quand `pit.m[2]` vaut 0 ou 4 ; le bip du POST est en mode 3, donc
-l'audition n'en dépend pas. Tronqué en `int16_t` à `sound_speaker.c:35`, `INT_MIN`
-donnerait 0 — le silence, là où la valeur nominale aurait donné une tension.
+*Effet* : `speakval` sort de sa plage nominale [−0x2000, +0x2000] et vaut `INT_MIN` tant que le canal 0 garde le
+compte 0 que le BIOS y charge (18,2 Hz) : chaque écriture au PIT le recalcule avec ce 0, et 0/0 (`l[2]` nul) rend aussi
+l'entier indéfini (corrigé en G13 : l'entrée disait « jusqu'à la prochaine écriture au PIT »). Il n'est lu que par
+`speaker_update` (`sound_speaker.c:24`) quand `pit.m[2]` vaut 0 ou 4 ; le bip du POST est en mode 3, donc l'audition
+n'en dépend pas. Tronqué en `int16_t` à `sound_speaker.c:24`, `INT_MIN` donne 0 — le silence, là où la valeur
+nominale aurait donné une tension.
 
-*Reproduit* : `Models/pit.cs:543`, avec la garde explicite qu'impose .NET — voir la
+*Source* : Intel, fiche 8254 (231164-005), PDF p. 17 : « The largest possible initial count is 0; this is equivalent to
+2^16 for binary counting », convention que PCem applique déjà dans `pit_load` (`pit.c:119`). Documenté pour le compte
+0 ; `speakval`, le rapport des comptes des canaux 2 et 0, est le modèle de PCem, sans pendant sur la carte.
+*Cas qui discrimine* : canal 0 chargé à 0 (43h ← 36h, 40h ← 00h 00h), canal 2 en mode 0 à FFFFh (43h ← B0h, 42h ← FFh
+FFh) : `speakval` vaut INT_MIN chez PCem (sortie 0 en mode 0), 1FFFh avec le compte 0 lu comme 65 536
+(`--speaker-check`).
+*G13* : (b) — la correction est certaine, mais la valeur audible reste celle du modèle de PCem.
+*Reproduit* : `Models/pit.cs`, `pit_write`, marqueur PB-21, avec la garde explicite qu'impose .NET — voir la
 `DEVIATION` sur place. C'est le seul endroit du dépôt où une conversion flottant→entier
 devait être écrite à la main : .NET **sature** (`(int)float.PositiveInfinity` vaut
 `int.MaxValue`, que le clamp ramène alors à 0x2000) là où x86 rend l'entier indéfini.
 Trouvé par la sonde `speaker-probe` de M9, au premier tir.
-
----
 
 ### PB-24 — `rom_init` expose 12 Ko de tas non initialisé à l'invité
 
@@ -1939,6 +4699,7 @@ la partie chargée.
 pour le Xebec (8 × 512 = 4 096) et `55 aa 10` pour le DTC (16 × 512 = 8 192) — donc le
 balayage de ROM d'extension du POST ne somme et n'exécute que ce qui est chargé. Il faut
 un accès explicite de l'invité au-delà pour voir le tas.
+*G13* : hors du mode — non reproduit dans les deux modes (comportement indéfini en C, exception assumée) ; rien n'y bascule.
 *NON reproduit — divergence assumée* : `Flash/rom.cs:123` alloue un tableau CLR, donc
 **zéro**. Ce n'est pas un comportement dont être le pendant fidèle : c'est de l'UB, et
 trois exécutions donnent trois valeurs. Même arbitrage que `h_pad_ram` — un oracle qui
@@ -1991,6 +4752,7 @@ croissant des indices, et `video_init()` (`pc.c:374`) précède `hdd_controller_
 #3 device_close_all    device.c:40
 ```
 
+*G13* : hors du mode — non reproduit dans les deux modes (comportement indéfini en C, exception assumée) ; rien n'y bascule.
 *NON reproduit — divergence assumée*, et elle ne se choisit pas : le C# n'a pas de `free`.
 `cga_close` n'y libère rien, la liste de mappages reste parcourable, et
 `mem_mapping_remove` trouve sa cible. Le côté C# appelle donc `device_close_all()`
@@ -2019,6 +4781,7 @@ en C, SIGFPE sur un hôte x86. Le cœur 286/386 ne tombe pas, mais pour une autr
 point exception », code 136). Un 8088 lève INT 0 — SingleStepTests/8088, forme `D4`, 47 cas :
 SP − 6, IP poussé après l'instruction, AX inchangé.
 *Trouvé par* : audit du 26/09 (D3).
+*G13* : hors du mode — non reproduit dans les deux modes (comportement indéfini en C, exception assumée) ; rien n'y bascule.
 *NON reproduit*, exception assumée comme PB-24 : un oracle qui meurt n'a rien à reproduire.
 `Cpu/808x.cs`, marqueur `// pcem bug, not reproduced: PB-46` : garde vers le chemin de l'erreur
 de division, celui de DIV par zéro (F6 /6), 83 cycles, marquée `DEVIATION`. Mesuré : le C#
@@ -2046,6 +4809,7 @@ mais **après** la division, trop tard.
 abattait l'hôte (code 134, mesuré sur les trois formes). Le quotient, +2³¹ ou +2⁶³, ne tient
 pas dans la destination : le silicium lève #DE.
 *Trouvé par* : audit du 26/09 (D2).
+*G13* : hors du mode — non reproduit dans les deux modes (comportement indéfini en C, exception assumée) ; rien n'y bascule.
 *NON reproduit*, exception assumée comme PB-24 et PB-46 : un oracle qui meurt n'a rien à
 reproduire. Marqueurs `// pcem bug, not reproduced: PB-47` : `Cpu/808x.cs` (garde vers le
 chemin de la division par zéro, 165 cycles, marquée `DEVIATION`), `Cpu/386_ops_misc.cs` (deux
@@ -2086,6 +4850,7 @@ silicium, rien ne tombe ; Intel ne garantit l'inhibition que pour le PREMIER cha
 d'une suite.
 *Trouvé par* : le fuzzeur en mode flux sur les 256 opcodes, 286 et 386, dont un balayage
 opcode par opcode a isolé 0x17 ; confirmé à la ligne de C et au désassemblage.
+*G13* : hors du mode — non reproduit dans les deux modes (comportement indéfini en C, exception assumée) ; rien n'y bascule.
 *NON reproduit*, exception assumée comme PB-46 et PB-47 : la chaîne est bornée à
 `_386.SS_SHADOW_MAX` = 1 024 chargements enchaînés (`Cpu/386_ops_stack.cs`, profondeur
 commune aux quatre sites) ; au-delà, le chargement de SS rend la main sans ombre et exec386
@@ -2109,6 +4874,7 @@ négative, lus ou écrits hors du tableau dès l'amorçage du BIOS vidéo.
 *Effet* : comportement indéfini en C ; en C#, huit des douze cas vidéo et les deux cas SB
 s'arrêtaient sur `IndexOutOfRangeException` ou `OverflowException` (mesuré, G8.3).
 *Trouvé par* : la vérification des sections de device, G8.3 (`r9-sbcfg`).
+*G13* : hors du mode — non reproduit dans les deux modes ; rien n'y bascule.
 *Non reproduit* : `PluginApi/device.cs`, `config_hors_liste` — DEVIATION « valeur de
 configuration hors liste → défaut, comme l'interface de PCem l'impose », avec un avertissement
 sur la sortie d'erreur (section, clé, valeur rejetée, défaut retenu). Les listes `selection` sont
@@ -2148,12 +4914,20 @@ prouvé par `r9-awecfg`.
 `record_buffer[record_pos_read + 1]`, et `record_pos_read` monte jusqu'à FFFEh dans un tableau de FFFFh éléments
 (`sound_sb_dsp.h:82`). Ce compteur n'est remis à zéro que par le reset du DSP (`:144`) ; il avance à chaque tic
 de l'entrée, le mode direct compris (`:1248-1251`). Atteint sur la SB 16 par C8h-CFh et B8h-BFh en stéréo.
+Élargi en G13 : l'écriture aussi — `sound_sb.c:195-196` et `:303-304` rangent `record_buffer[c_record & 0xFFFF]`,
+l'indice FFFFh compris, dans le même tableau ; ce bloc ne s'exécute pas (PB-148).
 *Effet* : en C, la lecture tombe sur `buffer[0]`, le premier échantillon de SORTIE du bloc en cours (la
 disposition est mesurée : `int16_t`, sans bourrage) ; une fois tous les 32 768 couples, l'enregistrement reçoit un
 échantillon de la lecture.
-*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 6), atteint en G12.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, `record_lu`, marqueurs PB-151 ; une assertion statique de `harness.c` fige
-la disposition. SB16BANC enregistre au-delà de FFFEh, une sortie en cours.
+*Trouvé par* : reconnaissance de G8 (PLAN-G8.md, défaut n° 6), atteint en G12 ; l'écriture, contre-lecture de G13.
+*Source* : le tampon d'enregistrement est une construction de l'émulateur, sans pendant sur la carte : le juste est
+l'absence d'alias (déduit, et certain).
+*Cas qui discrimine* : SB 16, `record_pos_read` = FFFEh, `record_buffer` à 0, `dsp.buffer[0]` = 1234h : C8h 20h 01h 00h
+(entrée 8 bits stéréo non signée, 2 octets) : le second octet écrit par le DMA vaut 92h chez PCem, 80h sans alias.
+*G13* : (a) — un anneau de 10000h entrées, lu et écrit.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `record_lu` et ses quatre appels, et `Sound/sound_sb.cs`, `record_ecrit` et ses
+deux paires d'appels, marqueurs PB-151 ; une assertion statique de `harness.c` fige la disposition. SB16BANC enregistre
+au-delà de FFFEh, une sortie en cours.
 
 ### PB-152 — Le registre 3Bh du CT1745 indexe hors de sa table
 
@@ -2163,6 +4937,7 @@ mélangeur, celle de 3Bh comprise (`:639-669`). `speaker` n'est lu nulle part (T
 *Effet* : en C, une lecture dans `.rodata`, sans conséquence observable ; en C#, une exception à la première
 écriture d'un volume de haut-parleur (C0h, la valeur que posent les pilotes).
 *Trouvé par* : reconnaissance de G12 (lectures des cartes et du DSP).
+*G13* : hors du mode — non reproduit dans les deux modes ; rien n'y bascule.
 *NON reproduit* : l'indice borné (`Sound/sound_sb.cs`, marqueur PB-152) ; rien d'observable ne change, `speaker`
 reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16BANC écrit 3Bh = C0h sous l'oracle.
 
@@ -2173,7 +4948,13 @@ reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16B
 *Effet* : comportement indéfini, que GCC compile en `imul` qui enveloppe ; sans effet audible, l'enregistrement
 étant muet (PB-148).
 *Trouvé par* : reconnaissance de G12 (contre-lecture des cartes).
-*Reproduit* : `Sound/sound_sb.cs`, marqueur PB-156, par l'arithmétique enveloppante du C#
+*Source* : de la comptabilité de l'émulateur, sans pendant sur la carte : le juste est l'arithmétique exacte (déduit).
+40h FFh (1 MHz) sort des normes (guide de Creative, table 3-2, p. 3-9), et le DSP 4.05 borne la constante à EBh
+(`v405-8k_e51aff23.asm:1688-1692`, PB-155) : le cas est inatteignable sur la carte.
+*Cas qui discrimine* : SB 16, 40h FFh (`sb_freq` = 1 000 000), `record_pos_write` = 1000h : après un tampon de
+2 400 échantillons, PCem pose DB94h (l'ajout vaut −78 956, enveloppé), l'arithmétique exacte 96A0h (+100 000).
+*G13* : (a) — sans effet tant que PB-148 n'est pas corrigé, et inatteignable si le bornage de PB-155 l'est.
+*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-156, par l'arithmétique enveloppante du C#
 (`CheckForOverflowUnderflow` faux).
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
@@ -2184,6 +4965,7 @@ par un changement de type de manette à chaud depuis l'interface (`gameport_upda
 `gameport.c:140-148`) : les chronomètres battent alors sur une mémoire libérée.
 *Effet* : comportement indéfini en C, hors d'atteinte de l'invité.
 *Trouvé par* : transcription de G10.1.
+*G13* : hors du mode — non reproduit dans les deux modes ; rien n'y bascule.
 *Non reproduit* : `Joystick/joystick_sw_pad.cs`, `sw_close` — sans objet sous GC, l'objet restant
 vivant tant que ses chronomètres le tiennent, et iXtal n'a pas de changement de type à chaud. Sans
 action.
@@ -2196,9 +4978,15 @@ tombe dans les lignes du caractère suivant — jamais hors du tableau (`chr` �
 *Effet* : avec R9 > 15 (des cellules de plus de 16 lignes), le bas d'un caractère montre le haut
 du suivant.
 *Trouvé par* : reconnaissance de G9 (défaut n° 2).
-*Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` — l'accès se fait à plat (`chr * 16 + sc`),
+*Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), MDA : quatre lignes d'adresse de rangée, « RA (4) », vont au
+générateur de caractères (p. 3 ; schéma feuille 2, RA0-RA3 du MC6845), un générateur de 8 Ko (p. 1) — documenté ;
+rangée = `sc & 15`, les rangées 16-31 répétant 0-15 : déduit ; l'Hercules, dont le schéma n'a pas été lu : par analogie.
+*Cas qui discrimine* : MDA, R9 = 1Fh (32 lignes par rangée), caractère 41h : à la ligne 16 de la cellule, PCem dessine
+la ligne 0 du caractère 42h (`fontdatm_plat(41h, 16)`), la carte la ligne 0 du 41h (`sc & 15`).
+*G13* : (a), (b) — (a) la MDA, par son schéma ; (b) l'Hercules, dont le schéma n'a pas été lu.
+*Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` (`:60`) — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
-*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat.
+*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:232`).
 
 ### PB-111 — Le moteur d'images de CD lit de l'indéterminé
 
@@ -2215,11 +5003,21 @@ toute piste y est refusé comme une piste de données (« Can't play data track 
 appel joue ailleurs ; 31 écarts. Sans le `new[]` enveloppé, sous `MALLOC_PERTURB_=85`, les secteurs
 non lus valent AAh ; 158 écarts. Chez PCem, l'issue dépend de ce qu'un appel précédent a laissé.
 *Trouvé par* : reconnaissance de G10.3.
-*Rendu déterministe, des deux côtés* (décision n° 2 de G10.3) : zéro partout. Le C# initialise ;
-l'oracle compile `harness_cdrom.cpp` avec `-ftrivial-auto-var-init=zero` et prend tout `new[]`
-d'un `calloc` (`--wrap=_Znam`, que seul cet objet référence, `nm -u`). Conséquence inscrite : PLAY
-AUDIO en MSF teste la piste sur la position encore compactée (`cdrom-image.cc:83`), hors de toute
-piste, donc `attr` vaut 0 — la lecture part, même sur une piste de données.
+*Source* : sans objet matériel — des valeurs indéterminées de C (ISO/IEC 9899:2011 § 6.7.9 ¶ 10 pour les
+automatiques ; un `new[]` non initialisé). Les cas qu'elles touchent ont leur entrée : la lecture qui échoue
+(PB-109), la piste cherchée sur le MSF compacté (PB-214).
+*Cas qui discrimine* : aucun en mode matériel : zéro des deux côtés. Le défaut se montre sur l'oracle compilé sans
+`-ftrivial-auto-var-init=zero` (`cdimage-check`, `ok-ligne511.cue` : 31 écarts).
+*G13* : (d) — un comportement indéfini, neutralisé des deux côtés : rien à corriger.
+*NON reproduit — rendu déterministe, des deux côtés* (décision n° 2 de G10.3) : zéro partout. Le C# initialise ;
+l'oracle compile `harness_cdrom.cpp` avec `-ftrivial-auto-var-init=zero` et prend tout `new[]` d'un `calloc`
+(`--wrap=_Znam`, que seul cet objet référence, `nm -u`). Conséquence inscrite : PLAY AUDIO en MSF teste la piste sur
+la position encore compactée (`cdrom-image.cc:83`) ; hors de toute piste, `attr` vaut 0 et la lecture part. Elle ne
+part sur une piste de données que pour le moteur appelé seul (`cdimage-check`) : l'invité ne la voit pas, `scsi_cd`
+refusant d'abord une piste de données en 05/64h par `is_track_audio`, qui convertit le MSF (`scsi_cd.c:1375-1378` ;
+D3-contre, K4). Marqueurs `not reproduced: PB-111` devant les sept DEVIATION de `Cdrom/cdrom_image.cs` (ReadSectors,
+CanReadPVD, l'INDEX, GetCueFrame) et de `Cdrom/cdrom-image.cs` (is_track_audio, playaudio, getcurrentsubchannel),
+posés en G13.1.
 
 ### PB-124 — Le fil CD lit l'image sans verrou, en même temps que le fil d'émulation
 
@@ -2233,6 +5031,7 @@ STOP). Aucun verrou. Il lit aussi les pages de mode de `scsi_cd.c` (`atapi_get_c
 données pendant la lecture audio peut déplacer la position de l'autre, et la cadence du fil
 dépend de l'ordonnanceur de l'hôte : deux exécutions ne rendent pas le même son.
 *Trouvé par* : reconnaissance de G10.5.
+*G13* : hors du mode — non reproduit dans les deux modes ; rien n'y bascule.
 *NON reproduit — divergence assumée* (décision n° 7 de PLAN-G10, `DEVIATION` dans `Sound/sound.cs`
 et `tools/oracle/harness.c`) : le corps du fil s'exécute sur-le-champ, à l'échéance de
 `sound_poll`, dans le fil d'émulation, des deux côtés.
@@ -2246,6 +5045,7 @@ Eh donne 33 × 242 aux queues, Fh 33 × 242 à la réflexion et 34 × 242 aux qu
 *Effet* : en silence, le peigne s'effondre sans tomber ; avec du signal, `emu8k_reverb_comb_work` et
 `emu8k_reverb_tail_work` écrivent au-delà de leur tableau, dans les peignes voisins, puis dans `sb_t` et le tas.
 *Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000, contre-lecture D10).
+*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : des tampons de 34 × 242 = 8 228 entrées, qui tiennent la taille demandée, et une garde aux
 quatre affectations (`Sound/sound_emu8k.cs`, gardes `sound_emu8k.c:1164`, `:1165`, `:1167`, `:1173` ; décision n° 15
 de PLAN-G12.md). La sonde ne hache que les 7 744 premières entrées. Aucune porte comparée n'y va : AWEBANC s'arrête au
@@ -2261,6 +5061,13 @@ réglages extrêmes (le délai 1FFFh, la profondeur FFh, hwcf4 1FFFFFh), l'indic
 interpole avec la fraction du canal GAUCHE (`:1435`, réemployée à `:1468`).
 *Effet* : du signal gauche fuit à droite aux réglages extrêmes ; l'interpolation droite est décalée.
 *Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D9).
+*Source* : le chorus de PCem est un « workalike » (`:1422`) ; le guide de l'EMU8000 ne publie pas le microcode des
+effets : l'algorithme réel est inconnu. Deux choses sont sûres (déduit) : une ligne à retard ne lit pas hors
+d'elle-même, et chaque voie interpole à sa propre position.
+*Cas qui discrimine* : `emu8k_work_chorus` en C# seul, délai central 1FFFh, profondeur FFh, hwcf4 1FFFFFh, une rampe
+linéaire en entrée : PCem lit à droite des indices jusqu'à −8 158 et interpole avec la fraction gauche ; attendu : des
+indices dans [0, 4000h) et la sortie droite égale à la rampe interpolée au retard droit.
+*G13* : (b) — l'effet lui-même est inconnu ; seule sa cohérence se vérifie.
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite — la
 contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
 `emu8k-kernel-check` le passe sur des états fabriqués.
@@ -2273,9 +5080,14 @@ comportement indéfini ; GCC sur x86-64 émet `cvttss2si`, qui rend INT_MIN, mê
 `:1505` calcule de plus `-in`, qui déborde pour INT_MIN.
 *Effet* : une réverbération saturée claque à pleine amplitude négative au lieu de saturer.
 *Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-163, par l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET
-saturerait. Aucun invité n'y arrive en temps de porte : `emu8k-kernel-check` compare les sept noyaux sur des états
-fabriqués, des milliers de sorties à INT_MIN comprises.
+*Source* : la réverbération de PCem est un « workalike » (`:1537`), l'algorithme réel inconnu ; un processeur de signal
+à virgule fixe sature, il ne s'enroule pas (déduit).
+*Cas qui discrimine* : `emu8k_reverb_comb_work` sur un état fabriqué, `filterstore` = 2^30, `damp1` = 2,0, `damp2` = 0,
+l'écho et l'entrée nuls : `filterstore` devient INT_MIN chez PCem (2^31 hors bornes), 2^31 − 1 en conversion saturante.
+*G13* : (b) — l'effet est inconnu ; seule la saturation se vérifie.
+*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par l'aide de
+conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. Aucun invité n'y arrive en temps de porte : `emu8k-kernel-check`
+compare les sept noyaux sur des états fabriqués, des milliers de sorties à INT_MIN comprises.
 
 ### PB-164 — L'attaque de l'enveloppe de modulation lit au-delà de sa table
 
@@ -2284,6 +5096,9 @@ et `env_mod_hertz_to_octave[value_amp_hz >> 5]` est lu entre les deux : l'indice
 d'au plus `attack_amount >> 5`.
 *Effet* : une lecture hors table, aussitôt écrasée par `value_db_oct = 1 << 21` (`:1834`) ; rien d'observable.
 *Trouvé par* : reconnaissance de G12 (lectures de l'EMU8000).
+*Source* : sans objet : la valeur lue hors table est aussitôt écrasée.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet ; le C# borne déjà l'indice, au résultat identique.
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
 identique (décision n° 15 de PLAN-G12.md). Ce n'est pas un site R9.
 
@@ -2295,6 +5110,7 @@ zéro.
 *Effet* : PCem meurt de SIGFPE à l'insertion de l'image, au démarrage comme au menu ; le C# levait
 `DivideByZeroException`.
 *Trouvé par* : contre-lecture du stockage, reconnaissance de G13.
+*G13* : hors du mode — corrigé dans les deux modes en G13.0 (R9, décision n° 2 de PLAN-G13.md).
 *NON reproduit* (R9, G13.0) : une telle BPB est traitée comme une BPB fantaisiste, la géométrie déduite de la taille
 du fichier (`Disc/disc_img.cs`, marqueur PB-168, garde `disc_img.c:219`). `r9-disquette` le prouve.
 
@@ -2316,16 +5132,32 @@ linéaires.
 
 *Effet* : la garde est vraie en pratique toujours, donc `memcycs` est facturé même sur une
 lecture mot auto-référentielle, là où `readmemb` l'aurait sautée. Différence de quelques
-cycles, uniforme, invisible sans comparaison à du silicium.
-*Reproduit* : `Cpu/808x.cs:105`.
+cycles, uniforme, invisible sans comparaison à du silicium. Elle ne touche pas la fréquence de
+l'INT 8 : les −5,87 ppm que PB-03 lui imputait viennent de `cpu_get_speed() / 100` (`pc.c:473`)
+(D1-contre C16, D6-contre C2).
+*Source* : le coût en cycles d'une lecture mot du 8088 est mesuré par les traces de SST 8088 v2 ;
+le modèle de BIU de PCem est approché, et ces traces ne sont pas comparées (`VERIFICATION.md` § M5.0).
+*Cas qui discrimine* : aucun isolément — quelques cycles sur une lecture mot auto-référentielle, que
+seule une comparaison de cycles au silicium verrait.
+*G13* : (d) — du temps seul : la correction rendrait le modèle cohérent avec lui-même, non avec le
+silicium ; elle relève d'un chantier du temps du 8088 contre les traces de SST v2 (décision n° 1).
+*Reproduit* : `Cpu/808x.cs:111`, readmemw, marqueur `PB-11`.
 
 ### PB-12 — `REP MOVSB` oublie `memcycs = 0` en tête de boucle
 
-`808x.c:970`. Les branches `0xA5` (REP MOVSW), `0xA6`, `0xA7`, `0xAA`, `0xAB` remettent
+`808x.c:970`. Les branches `0xA5` (REP MOVSW, `:996`), `0xA6`, `0xA7`, `0xAA`, `0xAB` remettent
 `memcycs` à zéro à chaque itération ; `0xA4` non.
 
-*Effet* : le `FETCHADD` de l'itération consomme un `memcycs` jamais réinitialisé.
-*Reproduit* : `Cpu/808x.cs:758`.
+*Effet* : le `FETCHADD` de l'itération consomme un `memcycs` jamais réinitialisé. Dès la troisième
+itération, `FETCHADD(17 − memcycs)` reçoit un argument négatif et rend aussitôt : la file ne se
+remplit plus pendant un long REP MOVSB. Quelques cycles après l'instruction, aucun effet sur les
+données.
+*Source* : la file et les cycles d'un REP MOVSB du 8088 sont mesurés par SST 8088 v2 (traces et
+file finale), mais ni le modèle de PCem ni la sonde ne les comparent.
+*Cas qui discrimine* : aucun isolément — l'état de la file après un REP MOVSB de trois octets ou
+plus, que la sonde SST ne compare pas.
+*G13* : (d) — du temps seul, comme PB-11, et pour la même raison : à verser au même chantier.
+*Reproduit* : `Cpu/808x.cs:797`, rep(), marqueur `PB-12`.
 
 ### PB-13 — Branche morte dans l'EOI spécifique du PIC
 
@@ -2333,8 +5165,13 @@ cycles, uniforme, invisible sans comparaison à du silicium.
 `val >= 0x60`. La condition ne peut jamais être vraie. Les sites frères testent `c == 2`.
 
 *Effet* : la remise en attente de la cascade sur EOI spécifique d'IRQ 2 ne se déclenche
-jamais.
-*Reproduit* : `Models/pic.cs:163`.
+jamais. Aucun observable (contre-lecture de G13) : `pic_updatepending()`, appelé juste après, recalcule le bit 2 du
+maître avec la même condition ; sur le PC et l'XT, `pic2.pend` reste nul.
+*Source* : 8259A p. 15, l'EOI spécifique remet à zéro le bit ISR désigné. Documenté ; la remise en attente de la
+cascade vient du niveau de la sortie INT de l'esclave, que `pic_updatepending` rend déjà (déduit).
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet ; la ligne disparaît dans un 8259A selon la fiche (PB-05).
+*Reproduit* : `Models/pic.cs`, l'OCW2 de `pic_write`, marqueur PB-13 (`:166`).
 
 ### PB-15 — `fdd_getrpm` : un `switch` après des retours inconditionnels
 
@@ -2343,6 +5180,9 @@ jamais.
 seul de la vitesse.
 
 *Effet* : aucun.
+*Source* : sans objet — du code mort.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet.
 *Reproduit* : `Floppy/fdd.cs`, sous `#pragma warning disable CS0162` — C# fait du code
 mort une erreur.
 
@@ -2356,9 +5196,16 @@ est bien posé (`:1064`, `:1072`) et arme la détection symétrique en lecture.
 l'octet à temps ; `fdc_overrun` n'est jamais appelé par ce chemin. Le chemin d'écriture
 n'est pas exercé par l'amorçage de PC DOS 2.00 (VERIFICATION.md § M6), donc rien ne l'a
 mis en évidence à l'exécution.
+*Source* : documenté — NEC µPD765 Data Sheet (déc. 1978), WRITE DATA — l'octet est attendu « every 31 µs in the FM
+mode, and every 15 µs in the MFM mode » (au débit du 8 pouces ; le double à 250 kbit/s), faute de quoi OR est posé
+dans ST1 (bit D4) et la commande se termine.
+*Cas qui discrimine* : SPECIFY avec ND = 1, WRITE DATA d'un secteur, l'UC ne fournit pas le deuxième octet à temps :
+PCem écrit l'octet périmé et finit en ST1 = 00h ; le contrôleur pose OR, ST1 = 10h. Un écrivain ponctuel ne voit OR
+d'aucun côté.
+*G13* : (b) — un sens matériel, deux sites (D3-contre, K7) ; aucune machine d'iXtal n'écrit en PIO.
 *Reproduit* : `Floppy/fdc.cs`, test conservé tel quel.
 
-### PB-20 — Sept champs et globales morts dans la couche disquette
+### PB-20 — Un champ et sept globales morts dans la couche disquette
 
 Aucun n'est lu nulle part dans l'arbre vendoré :
 
@@ -2375,7 +5222,10 @@ Aucun n'est lu nulle part dans l'arbre vendoré :
 
 *Effet* : aucun. Deux `extern` commentés et un usage commenté disent que ces symboles ont
 eu des lecteurs, retirés sans que les définitions suivent.
-*Reproduit* : `Floppy/fdc.cs` et `Disc/disc.cs`, définitions conservées — le code mort
+*Source* : sans objet — des symboles morts (le titre disait « sept » pour les huit lignes du tableau).
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet.
+*Reproduit* : `Floppy/fdc.cs` et `Disc/disc.cs`, définitions conservées, marqueurs PB-20 — le code mort
 *commenté* de PCem n'est pas reproduit (R1), mais une variable morte n'est pas un
 commentaire.
 
@@ -2391,7 +5241,12 @@ commentaire.
 *Effet* : aucun sur le comportement — les conditions et les actions sont justes. Mais
 `fatal()` tue l'émulateur en imprimant sa chaîne : quand l'un de ces quatre se déclenche,
 le message désigne le mauvais endroit.
-*Reproduit* : `Mfm/mfm_xebec.cs`, chaînes conservées telles quelles.
+*Source* : sans objet — des libellés de `fatal()`. Les codes de la carte sont documentés (IBM Fixed Disk Adapter,
+p. 6 : 20h « Invalid Command », 21h « Illegal Disk Address ») et serviront au R9 (a) du Xebec.
+*Cas qui discrimine* : aucun (un message).
+*G13* : (d) — les chaînes tomberont avec le R9 (a) du Xebec, hors G13 (dix-neuf `fatal()` vivants, D3-contre, K19).
+*Reproduit* : `Mfm/mfm_xebec.cs`, chaînes conservées telles quelles ; marqueurs PB-26 aux trois sites (`:131` et
+`:133` ensemble, `:174` posé en G13.1, `:671`).
 
 ### PB-27 — Trois `switch` internes sans `default:` là où six autres appellent `fatal()`
 
@@ -2404,6 +5259,12 @@ terminent toutes par `default: fatal(...)`.
 chronomètre réarmé, ni IRQ. Il se fige au lieu de s'arrêter bruyamment, ce qui est le
 contraire de l'intention affichée par les six autres. Aucun état atteint pendant
 l'amorçage, `FDISK` et `FORMAT C: /S` de § M12 n'y mène.
+*Source* : déduit — les états sont ceux de la machine de PCem, sans équivalent connu sur le Xebec ; finir la
+commande en erreur 20h « Invalid Command » (IBM Fixed Disk Adapter, p. 6), comme R9 le ferait d'un `default:` à
+`fatal()`.
+*Cas qui discrimine* : état forgé, en C# seul : CMD_READ_STATUS dans l'état RECEIVED_DATA : PCem ne fait rien (ni
+octet de fin, ni IRQ) ; attendu : octet de fin 02h, sense 20h.
+*G13* : (b), avec le R9 (a) du Xebec — attendu déduit.
 *Reproduit* : `Mfm/mfm_xebec.cs`, les trois `switch` restent sans `default:`.
 
 ### PB-29 — `ide_fn` déclaré `[4][512]` dans `scsi_ibm.c`, défini `[7][512]` dans `ide.c`
@@ -2416,8 +5277,11 @@ une borne différente : `extern char ide_fn[4][512];`. Les cinq autres consommat
 de liens. Mais un lecteur de `scsi_ibm.c` en déduit quatre disques là où il y en a sept,
 et un `-fsanitize=bounds` sur cette unité de traduction signalerait à tort les indices 4
 à 6.
-*Sans objet ici* : `scsi_ibm.c` n'est pas transcrit. `Disc/hdd.cs` porte la définition à
-sept, celle d'`ide.c`.
+*Source* : sans objet.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet, rien de transcrit.
+*NON reproduit* (sans objet ici) : `scsi_ibm.c` n'est pas transcrit. `Disc/hdd.cs` porte la définition à sept, celle
+d'`ide.c` ; marqueur `not reproduced: PB-29`, posé en G13.1.
 
 ### PB-30 — Trois symboles morts dans `mfm_xebec.c`
 
@@ -2432,34 +5296,11 @@ vivants : `CMD_INIT_DRIVE_PARAMS` les remplit. Le nom `STAT_DRQ` vient du jeu de
 contrôleur ATA, où il existe ; le Xebec n'a pas ce bit.
 
 *Effet* : aucun.
-*Reproduit* : `Mfm/mfm_xebec.cs`, les trois définitions sont conservées — une constante
-morte n'est pas un commentaire (même arbitrage que PB-20).
-
-
-### PB-32 — `pmodeint` : une précédence d'opérateurs annule le code d'erreur
-
-`x86seg.c:1659`, dans la branche « vecteur hors des bornes de l'IDT » :
-
-```c
-x86gpf(NULL, (num * 8) + 2 + (soft) ? 0 : 1);
-```
-
-`+` lie plus fort que `?:` en C, donc la condition est `((num * 8) + 2 + soft)`. Elle est
-**toujours non nulle** — `num * 8 + 2` vaut au minimum 2 — et l'expression rend donc
-**toujours 0**. Le code d'erreur voulu, `(num * 8) + 2`, n'est jamais transmis ; les deux
-branches du ternaire, 0 et 1, sont là par accident de parenthésage.
-
-Les deux autres sites de la même fonction qui construisent ce code d'erreur l'écrivent
-correctement — `x86gpf(NULL, (num * 8) + 2)` aux lignes 1687 et 1692 — ce qui confirme
-l'intention.
-
-*Effet* : un `INT n` dont le vecteur dépasse la limite de l'IDT lève bien un #GP, mais avec
-un code d'erreur nul au lieu du sélecteur fautif. Un gestionnaire qui lirait le code pour
-identifier la cause verrait zéro. Aucun BIOS ni DOS de ce dépôt ne le lit.
-*Reproduit* : `Cpu/x86seg.cs`, marqueur `// pcem bug, reproduced: PB-32` dans `pmodeint`.
-Transcrit avec la même précédence, donc le même résultat — le corriger changerait le code
-d'erreur d'un côté seulement.
-
+*Source* : sans objet — des symboles morts.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet, déjà omis.
+*NON reproduit* (sans objet) : les trois symboles sont omis (`// omitted:`, `Mfm/mfm_xebec.cs`), marqueurs
+`not reproduced: PB-30` posés en G13.1. L'entrée disait « conservées » (D3-stockage, § 1 ; D3-contre, C7).
 
 ### PB-33 — `savenvr` écrit dans un fichier qu'il n'a pas vérifié avoir ouvert
 
@@ -2511,45 +5352,15 @@ BIOS ne programmera. `CMD_SET_PARAMETERS` transporte les têtes et les secteurs,
 cylindres, donc l'incohérence ne se voit qu'au premier accès au-delà du cylindre 462 —
 `mfm_get_sector` refuse alors sur « wrong cylinder », après que le formatage a paru
 réussir.
-*Reproduit* : `Host/HddImage.cs`, la table est recopiée **verbatim**, le 462 compris. La
-corriger serait réécrire la table d'un oracle ; `PrintHddTypes` cite ce PB à la place.
-
-
-### PB-35 — Lire le DAC juste après `OUT 3C8h,0` indexe `vgapal[-1]`
-
-`vid_svga.c:122-126`, l'écriture de l'index d'ÉCRITURE du DAC :
-
-```c
-        case 0x3C8:
-                svga->dac_write = val;
-                svga->dac_read = val - 1;
-                svga->dac_pos = 0;
-```
-
-puis `:241-247`, les deux premières lectures de `3C9h` :
-
-```c
-                                return svga->vgapal[svga->dac_read].r;
-                        return svga->vgapal[svga->dac_read].r & 0x3f;
-```
-
-`val = 0` donne `dac_read = -1`, et rien ne le borne avant les cas 0 et 1 — seul le cas 2
-masque, `(svga->dac_read + 1) & 255`. `vgapal[-1]` est hors du tableau : dans `svga_t`,
-le champ qui le PRÉCÈDE est `uint32_t pallook[512]`, et `RGB` étant aligné sur un octet il
-n'y a pas de bourrage entre les deux. La lecture rend donc les octets 1 à 3 de
-`pallook[511]`.
-
-*Effet* : les deux premières composantes lues valent ce que contient la fin de
-`pallook[]`, pas une couleur du DAC. Pour une VGA c'est **zéro**, et c'est connaissable :
-`pallook` n'est écrit qu'aux indices 0-255 (`3C9h` et `svga_set_ramdac_type`), et
-`vga_init` a tout effacé. Un vrai DAC lirait à l'index de LECTURE, que `3C7h` pose.
-*Atteint* : oui, et compté — deux fois dans la campagne graphique de VERIFICATION.md
-§ M15, par un programme qui fait `OUT 3C8h,0` puis trois `IN AL,DX` sur `3C9h`. Le BIOS
-VGA, lui, ne le fait jamais : 1 536 lectures du DAC, aucune à l'index -1.
-*Reproduit* : `Video/vid_svga.cs`, `vgapal_at`, marqueur `// pcem bug, reproduced:`. Le
-C lit hors du tableau sans broncher, le C# lèverait ; `vgapal_at` rend les octets de
-`pallook[511]`, comme la disposition mémoire du C. Le diff de la campagne l'a vérifié : les
-registres qui reçoivent ces lectures sont hachés à chaque instruction.
+*Source* : documenté pour l'AMI 286 — la table des types de sa ROM (`amic206.bin`, F000:E401, entrée 39 en E661h)
+dit 987 × 7 ; l'IBM AT n'a que 23 types : le « vrai » type 39 dépend du BIOS.
+*Cas qui discrimine* : aucun pour l'invité. Pour l'hôte : la liste des types
+(`Host/CommandLine/HardDiskTypeListing.cs`) et la création d'une image de type 39 : 462 × 7 × 17 secteurs chez PCem,
+987 × 7 × 17 selon la ROM AMI.
+*G13* : (d) — une table de l'hôte, sans pendant chez l'invité ; rien à protéger : laissée (décision n° 9).
+*Reproduit* : `Host/HddImage.cs`, la table est recopiée **verbatim**, le 462 compris (marqueur PB-34 devant la ligne
+du type 39, posé en G13.1 ; le commentaire n'y renvoyait que par une citation). La corriger serait réécrire la table
+d'un oracle ; `PrintHddTypes` cite ce PB à la place.
 
 ### PB-36 — Un temps « hors affichage » négatif, converti en entier non signé sans borne
 
@@ -2580,7 +5391,11 @@ du tout.
 *Effet* : aucun à l'écran. Mais la conversion est de l'UB, et un autre compilateur — ou
 .NET, voir plus bas — en fait autre chose, ce qui change la phase du balayage, donc les
 bits de `3DAh`.
-*Reproduit* : `Video/vid_svga.cs` et `Video/vid_cga.cs`, marqueur
+*Source* : sans objet pour l'invité. Le data sheet MC6845 (Motorola) exige R0 > R1 ; au-delà, l'affichage ne s'éteint
+jamais dans la ligne (déduit), ce que rend déjà l'arithmétique de PCem : la phase « hors affichage » ne dure rien.
+*Cas qui discrimine* : aucun — la période de ligne reste celle de `htotal`, et le C# rend la conversion de GCC.
+*G13* : (d) — sans effet ; une borne n'y changerait rien de visible, et `TIMER_USEC` allongerait la ligne de la SVGA.
+*Reproduit* : `Video/vid_svga.cs` (`:709`) et `Video/vid_cga.cs` (`:198`), marqueur
 `// pcem bug, reproduced: PB-36`, par `unchecked((uint64_t)(int64_t)x)`. Le `(uint64_t)x`
 direct n'était PAS fidèle : .NET 9 et au-delà **saturent** à 0 (mesuré sur .NET 10 :
 `(ulong)-5.5 = 0`, `(ulong)(long)-5.5 = 0xFFFFFFFFFFFFFFFB`, GCC -O2 rend le second). Trouvé
@@ -2589,41 +5404,11 @@ pose CR00 = 2Dh sous CR01 = 4Fh et lit `3DAh` 8 192 fois fait rougir le diff d'a
 l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 969 642
 instructions — avec la nouvelle.
 
-*G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs`. L'Hercules
-(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits.
-
-### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
-
-`vid_svga_render.c:707-718`, la branche sans remappage :
-
-```c
-                        for (x = 0; x <= svga->hdisp; x++) {
-                                ...
-                                p[0] = p[1] = dat0 & 0xffffff;
-                                p[2] = p[3] = (dat0 >> 24) | ((dat1 & 0xffff) << 8);
-                                p[4] = p[5] = (dat1 >> 16) | ((dat2 & 0xff) << 16);
-                                p[6] = p[7] = dat2 >> 8;
-
-                                svga->ma += 12;
-                        }
-```
-
-`p` n'est ni incrémenté ni recalculé : chaque tour réécrit les huit MÊMES pixels, en tête de
-ligne. La branche avec remappage (`:720-738`) a le même défaut. Le rendu haute résolution
-voisin (`:742-789`) écrit par `*p++` et ne l'a pas. Et `svga->ma` n'est pas masqué en
-sortie, contrairement aux cinq autres rendus 15 à 24 bpp — `ma` est masqué à chaque
-lecture, donc sans effet sur les adresses.
-
-*Effet* : en 24 bpp basse résolution, seuls les huit premiers pixels de chaque ligne
-changent, et ils portent le DERNIER groupe de la ligne ; le reste du tampon garde l'image
-précédente.
-*Atteint* : oui, et compté — 368 908 appels dans la campagne de la 8900D (VERIFICATION.md
-§ M19), où le RAMDAC TKD8001 pose `bpp = 24` (`vid_tkd8001_ramdac.c:26-28`) et où
-`svga_recalctimings` choisit le rendu basse résolution quand le bit 6 d'AR10 est posé
-(`vid_svga.c:341`, `:403-407`).
-*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-37`. Confronté
-à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
-hachage de `buffer32` porte les pixels que ce rendu écrit.
+*G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs` (`:159`). L'Hercules
+(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits (`Video/vid_hercules.cs:161`,
+`Video/vid_ega.cs:374`).
+*G13.1* : la M24 aussi (`vid_olivetti_m24.c:104-121`), marquée depuis G1.1 (`Video/vid_olivetti_m24.cs:156`) ; le
+PC1512 non, ses temps sont des constantes (`vid_pc1512.c:143-155`).
 
 ### PB-38 — `svga_render_16bpp_lowres` avance `ma` deux fois
 
@@ -2638,11 +5423,11 @@ hachage de `buffer32` porte les pixels que ce rendu écrit.
                 svga->ma &= svga->vram_display_mask;
 ```
 
-La branche sans remappage avance déjà `ma` de `x << 1` ; la ligne qui suit la branche
-l'avance une seconde fois — et, avec remappage, ajoute `x << 1` à un `ma` déjà avancé de 4
+La branche sans remappage avance déjà `ma` de `x << 1` (`:630`) ; la ligne qui suit la branche
+l'avance une seconde fois (`:642`) — et, avec remappage, ajoute `x << 1` à un `ma` déjà avancé de 4
 par groupe. Les trois autres rendus 15/16 bpp n'ont que la première. `ma` sert d'adresse de
 départ de la ligne suivante quand le rendu n'est pas rappelé sur une ligne répétée ; le
-compteur de ligne du CRTC (`svga_poll`, `vid_svga.c:564-578`) le recharge depuis `maback` à chaque ligne
+compteur de ligne du CRTC (`svga_poll`, `vid_svga.c:561-579`) le recharge depuis `maback` à chaque ligne
 affichée, ce qui borne l'effet.
 
 *Effet* (déduit à la lecture, non mesuré) : invisible tant que `svga_poll` recharge `ma`
@@ -2650,10 +5435,11 @@ depuis `maback` avant chaque ligne ; un `ma` doublé ne servirait qu'au test `ch
 d'un appel suivant sur la même ligne.
 *Atteint* : **non** par la campagne de § M19 — `16bpp_lowres` y est le seul des six rendus
 neufs à zéro passage. Il faudrait `bpp = 16` (TKD8001 de la 8900D) avec le bit 6 d'AR10.
-*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-38` — reproduction
+*Source* : sans objet pour l'invité : `ma` est rechargé depuis `maback` à chaque ligne affichée (`vid_svga.c:561-579`).
+*Cas qui discrimine* : aucun — `ma` ne diffère qu'échantillonné entre le rendu et son rechargement.
+*G13* : (d) — sans effet, même atteint ; à revoir si GR.1 montre que l'ET4000 HiColor passe par ce rendu.
+*Reproduit* : `Video/vid_svga_render.cs`, marqueur `// pcem bug, reproduced: PB-38` (`:757`) — reproduction
 PAS ENCORE confrontée à l'oracle.
-
----
 
 ### PB-42 — Le bit « occupé » de la nouvelle TSS est cherché dans la table de l'ancienne
 
@@ -2671,21 +5457,37 @@ choisie d'après `tr.seg & 4`, le sélecteur de l'ANCIENNE. Les blocs qui libèr
 (`:2471-2482`, `:2688-2699`) testent, eux, le bon sélecteur.
 
 *Effet* : aucun en pratique — une TSS vit toujours dans la GDT, et TR ne peut désigner que la
-GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne.
+GDT, donc `tr.seg & 4` vaut 0 et la GDT est choisie, qui est la bonne. Mais un programme invalide
+l'atteint : LTR ne contrôle rien et garde le bit TI dans `tr.seg` (PB-190) ; avec TI = 1, le
+bit occupé est cherché dans la LDT.
 *Trouvé par* : relecture pendant la transcription de taskswitch286, G2 D5.
-*Reproduit* : `Cpu/x86seg.cs`, taskswitch286, commentaires `verbatim`.
+*Source* : documenté — « TSS descriptors may reside only in the GDT » (386 PRM § 7.2) ; LTR lève
+#GP(sélecteur) si l'objet désigné n'est pas une TSS disponible (386 PRM, page LTR).
+*Cas qui discrimine* : aucun pour un programme valide ; par un LTR à TI = 1 puis un changement de
+tâche, PCem lit et écrit le bit occupé dans la LDT, là où le 386 a déjà levé #GP au LTR.
+*G13* : (d) — nettoyage : le correctif utile est celui de LTR (PB-190), qui rend
+`tr.seg & 4` toujours nul.
+*Reproduit* : `Cpu/x86seg.cs:1903` (TSS 32 bits) et `:2125` (TSS 16 bits), taskswitch286, marqueurs
+`PB-42`.
 
 ### PB-53 — FBSTP écrit la globale `tempc` des drapeaux
 
-`x87_ops_loadstore.h:152-164` : `uint8_t tempc` est déclaré DANS la boucle ; après elle,
+`x87_ops_loadstore.h:152-164` (et `:182-194` en a32) : `uint8_t tempc` est déclaré DANS la boucle ; après elle,
 `tempc = (uint8_t)floor(fmod(tempd, 10.0));` et `tempc |= 0x80;` ne peuvent donc pas viser
 cette locale — ils écrivent la globale `int tempc` de `x86_flags.h:3`, celle qu'ADC et SBB
-lisent (`x86_flags.h:577`). Le C compile parce qu'une globale du même nom est en portée.
+lisent (`x86_flags.h:565-596`). Le C compile parce qu'une globale du même nom est en portée.
+Le C# porte deux globales `tempc` (`Cpu/x86_flags.cs`, `Cpu/808x.cs`) là où le C n'en a qu'une (`808x.c:37`,
+l'`extern` de `x86_flags.h:3`) : le FBSTP du 8087 écrit celle des drapeaux du 386, que le 808x ne lit pas
+(D2-contre A4-l).
 *Effet* : aucun observable — ADC et SBB reposent `tempc` avant de le lire. L'octet de signe
 écrit en mémoire est juste, lu depuis cette globale.
 *Trouvé par* : transcription de G4.2 (la variable de l'écriture finale n'existait pas).
-*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16/_a32`, `x86_flags.tempc`, marqueur
-`// pcem bug, reproduced: PB-53`.
+*Source* : sans objet — un défaut du C, pas du matériel : chaque lecteur de `tempc` la repose avant de la lire
+(D2-contre C6) — documenté (code).
+*Cas qui discrimine* : aucun.
+*G13* : (d) — hors du mode : le FBSTP du mode matériel (PB-195) n'emploiera pas la globale.
+*Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16/_a32`, `x86_flags.tempc`, marqueurs
+`// pcem bug, reproduced: PB-53`, et leurs copies de `Cpu/x87_ops_808x.cs`.
 
 ### PB-98 — L'Hercules ne retire pas sa projection mémoire à la fermeture
 
@@ -2695,10 +5497,15 @@ mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la 
 (`mem.c:1373`) ; rien ne la parcourt entre-temps.
 *Effet* : aucun observable.
 *Trouvé par* : la lecture de G9.1.
-*Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (la projection reste, l'objet vivant sous GC).
+*Source* : sans objet : un état de l'hôte, sans pendant matériel.
+*Cas qui discrimine* : aucun — rien ne parcourt la liste avant le `mem_alloc` de l'amorçage suivant.
+*G13* : (d) — sans effet, sans comportement matériel à viser ; pour G15, ou jamais.
+*Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (`:434` ; la projection reste, l'objet vivant sous GC).
 *G10.2* : le XTIDE aussi. `xtide_close` (`xtide.c:106-110`) fait `free(xtide)` sans `rom_deinit` :
 la projection de sa ROM, en C8000, reste dans la liste jusqu'au `mem_alloc` suivant (le Xebec, lui,
 la retire, `mfm_xebec.c:766-774`). Reproduit dans `Ide/xtide.cs`, marqueur PB-98.
+*G13.1* : l'EGA aussi. `ega_close` (`vid_ega.c:1068-1073`) libère la carte sans retirer ni sa projection ni celle de sa
+ROM. Reproduit, `Video/vid_ega.cs`, marqueur PB-98 (`:1226`).
 
 ### PB-112 — Des fichiers d'image laissés ouverts
 
@@ -2707,8 +5514,12 @@ refusée après des FILE laisse ceux de ses pistes, que `LoadIsoFile` oublie par
 (`:187`) ; `image_open` remplace `cdrom` sans le libérer (`cdrom-image.cc:467`).
 *Effet* : aucun observable — des descripteurs ouverts jusqu'à la fin du processus.
 *Trouvé par* : transcription de G10.3.
-*Reproduit* : les objets sont lâchés et le GC les finalise ; `FileShare.ReadWrite | Delete`, sans
-verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, Windows compris.
+*Source* : sans objet — des descripteurs de fichier.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — sans effet observable.
+*Reproduit* : les objets sont lâchés et le GC les finalise (marqueurs PB-112, `Cdrom/cdrom_image.cs` et
+`Cdrom/cdrom-image.cs`, posés en G13.1) ; `FileShare.ReadWrite | Delete`, sans verrou, comme ifstream : un fichier
+encore ouvert n'empêche pas l'effacement, Windows compris.
 
 ### PB-127 — Huit fatal() que rien n'atteint dans le lecteur ZIP
 
@@ -2716,7 +5527,11 @@ verrou, comme ifstream : un fichier encore ouvert n'empêche pas l'effacement, W
 toujours 0 ; `:771`, `:776`, `:832`, `:837` les mêmes de `scsi_get_data`, qui rend un octet.
 *Effet* : aucun.
 *Trouvé par* : transcription de G10.6.
-*Reproduit* : les huit tests sont transcrits avec leur `fatal()`.
+*Source* : sans objet — du code inatteignable.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — inatteignable.
+*Reproduit* : les huit tests sont transcrits avec leur `fatal()`, `Scsi/scsi_zip.cs`, un marqueur PB-127 par paire,
+posés en G13.1 ; l'en-tête du fichier le nomme désormais (D3-contre, A14).
 
 ### PB-134 — Vingt-deux fatal() que rien n'atteint dans le SCSI
 
@@ -2728,19 +5543,40 @@ READ_MESSAGE), `:1807`, `:1828`, `:2047` (une phase, un REQ ou un message que `s
 `:679`, PB-135).
 *Effet* : aucun.
 *Trouvé par* : reconnaissance de G11.
-*Reproduit* : les sites sont transcrits avec leur `fatal()`.
+*Source* : sans objet — du code inatteignable.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — inatteignable.
+*Reproduit* : les sites sont transcrits avec leur `fatal()` ; marqueurs PB-134 posés en G13.1 : quatre dans
+`Scsi/scsi_hd.cs` (un par paire de tests), quatorze dans `Scsi/scsi_aha1540.cs`.
 
 ### PB-167 — `emu8k_close` ne libère pas le bloc vide
 
 `sound_emu8k.c:2031` alloue le bloc vide (128 Kio) ; `emu8k_close` (`:2234-2237`) libère la ROM et la RAM, pas lui.
 *Effet* : une fuite de 128 Kio à chaque fermeture de l'AWE32 ; rien pour l'invité.
 *Trouvé par* : reconnaissance de G12 (contre-lecture de l'EMU8000, D18).
+*Source* : sans objet : une fuite de l'hôte, sans pendant sur la carte.
+*Cas qui discrimine* : aucun.
+*G13* : (d) — rien pour l'invité, et sans objet en C#, où aucune mémoire ne se libère à la main.
 *Reproduit* : sans objet — `emu8k_t.mem` porte la ROM, le bloc vide et la RAM d'un seul tableau, que le
 ramasse-miettes rend avec la carte.
 
+### PB-219 — INQUIRY : une branche « LUN absent » morte, et non conforme
+
+`scsi_hd.c:193-194` : INQUIRY rend `0 | (3 << 5)` (60h) si `cdb[1] & 0xe0`. Mais le test général du LUN (`:131`, où
+l'exception d'INQUIRY est commentée) a déjà refusé toute commande d'un LUN non nul, en 05/25h : la branche n'est
+jamais prise.
+*Effet* : aucun. Elle serait d'ailleurs fausse : un qualificatif 011b exige le type 1Fh, soit 7Fh, et non 60h.
+*Trouvé par* : reconnaissance de G13 (D3-contre, K8 et A9).
+*Source* : documenté — SCSI-2 § 8.2.5.1 : le qualificatif 011b (aucun périphérique possible sur ce LUN) va avec le
+type 1Fh.
+*Cas qui discrimine* : aucun, la branche est inatteignable ; un INQUIRY à un LUN non nul rend 05/25h par le test
+général (PB-133).
+*G13* : (d) — inatteignable, sans effet ; la réponse juste à un LUN absent relève de PB-133.
+*Reproduit* : `Scsi/scsi_hd.cs`, INQUIRY, marqueur PB-219.
+
 ## Portée de ce registre
 
-Ces **cent soixante-huit** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **deux cent cinquante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -2791,6 +5627,8 @@ audit systématique de PCem** :
 | Reconnaissance (lecture puis contre-lecture) et transcription des SB 1.0, 1.5, 2.0 et Pro v1 (G12.0) | PB-145 à PB-148 ; PB-92, PB-93 élargis |
 | Reconnaissance (lecture puis contre-lecture) et transcription de la SB 16 (G12.1) | PB-149 à PB-157 ; PB-145, PB-148 élargis |
 | Reconnaissance (lecture puis contre-lecture) et transcription de l'AWE32 et de l'EMU8000 (G12.2) | PB-158 à PB-167 ; PB-93, PB-153, PB-154 élargis |
+| Contre-lecture du stockage, reconnaissance de G13 (G13.0) | PB-168 |
+| Reconnaissance de G13 (six lectures par domaine et leurs contre-lectures), inscrits en G13.1 | PB-169 à PB-257 : le processeur 169 à 193, le x87 194 à 213, le stockage 214 à 219, la vidéo 220 à 233, le son 234 à 244, la carte mère 245 à 257 ; des entrées existantes élargies, chacune le dit |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

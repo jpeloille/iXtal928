@@ -41,6 +41,8 @@ internal static partial class _386
     private static int opAAA(uint32_t fetchdat)
     {
         flags_rebuild();
+        // pcem bug, reproduced: PB-185 — AAA à la façon du 8086 (AL + 6 sans retenue vers AH) ; le SDM
+        //   écrit `AX := AX + 106H`, que suit le 386EX mesuré (SST, forme 37), quand le 386 PRM écrit AH + 1.
         if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
         {
                 AL += 6;
@@ -63,6 +65,8 @@ internal static partial class _386
                 @base = 10;
         AL = (uint8_t)((AH * @base) + AL);
         AH = 0;
+        // pcem bug, reproduced: PB-186 — SF calculé sur AX, donc toujours nul : le SDM le pose d'après
+        //   AL (SST, forme D5).
         setznp16(AX);
         CLOCK_CYCLES(is486 != 0 ? 14 : 19);
         PREFETCH_RUN(is486 != 0 ? 14 : 19, 2, -1, 0, 0, 0, 0, 0);
@@ -74,10 +78,14 @@ internal static partial class _386
     private static int opAAM(uint32_t fetchdat)
     {
         int @base = (uint8_t)fetchdat; cpu_state.pc++;
+        // pcem bug, reproduced: PB-187 — AAM 0 prend la base 10 ; le SDM lève #DE (« If an immediate
+        //   value of 0 is used ») et le 386EX aussi (SST, forme D4).
         if (@base == 0 || cpu_c.cpu_manufacturer != cpu_c.MANU_INTEL)
                 @base = 10;
         AH = (uint8_t)(AL / @base);
         AL %= (uint8_t)@base;
+        // pcem bug, reproduced: PB-186 — ZF et SF calculés sur AX : le SDM les pose d'après AL (ZF faux
+        //   quand AL = 0 et AH ≠ 0).
         setznp16(AX);
         CLOCK_CYCLES(is486 != 0 ? 15 : 17);
         PREFETCH_RUN(is486 != 0 ? 15 : 17, 2, -1, 0, 0, 0, 0, 0);
@@ -88,6 +96,8 @@ internal static partial class _386
     private static int opAAS(uint32_t fetchdat)
     {
         flags_rebuild();
+        // pcem bug, reproduced: PB-185 — AAS à la façon du 8086 (AL − 6 sans emprunt sur AH) ; le SDM
+        //   écrit `AX := AX – 6; AH := AH – 1`, que suit le 386EX mesuré (SST, forme 3F).
         if ((cpu_state.flags & A_FLAG) != 0 || ((AL & 0xF) > 9))
         {
                 AL -= 6;
@@ -147,6 +157,8 @@ internal static partial class _386
                 if ((tempi & 0x100) != 0)
                         cpu_state.flags |= C_FLAG;
         }
+        // pcem bug, reproduced: PB-188 — le second test reprend le CF de l'emprunt d'en bas et l'AL déjà
+        //   ajusté ; le SDM teste l'AL et le CF d'origine (24 entrées sur 1 024 diffèrent ; SST, forme 2F).
         if ((cpu_state.flags & C_FLAG) != 0 || (AL > 0x9f))
         {
                 AL -= 0x60;

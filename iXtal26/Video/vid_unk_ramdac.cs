@@ -38,8 +38,12 @@ internal static class vid_unk_ramdac
                         ramdac.state = 0;
                         // pcem bug, reproduced: PB-100 — FFh écrit une fois armé ne touche pas le
                         //   registre de commande et tombe dans svga_out (le masque des pixels) ;
-                        //   et le décodage ci-dessous rend 32 bits, que le SC1502x n'a pas.
+                        //   et le décodage ci-dessous tire 24 ou 32 bits de D5, qui choisit chez
+                        //   Sierra les fronts d'horloge ; ses modes à 4 octets passent par le
+                        //   registre étendu 10h. Le code 111 est réservé.
                         if (val == 0xFF) break;
+                        // pcem bug, reproduced: PB-229 — ni l'ERPF (D4), ni les registres
+                        //   étendus qu'il ouvre en 3C7h-3C9h, ni D3 (la palette contournée).
                         ramdac.ctrl = val;
                         oldbpp = svga.bpp;
                         switch ((val & 1) | ((val & 0xC0) >> 5))
@@ -109,6 +113,8 @@ internal static class vid_unk_ramdac
         switch (addr)
         {
         case 0x3C6:
+                // pcem bug, reproduced: PB-229 — l'IPF retombe à la lecture qui rend le registre de
+                //   commande ; chez Sierra, il tient jusqu'à une écriture ou la lecture d'une autre adresse.
                 if (ramdac.state == 4)
                 {
                         ramdac.state = 0;

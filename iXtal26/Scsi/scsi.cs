@@ -431,6 +431,8 @@ internal static class scsi
                         {
                         case BUS_IO:
                                 bus.state = STATE_DATAIN;
+                                // pcem bug, reproduced: PB-132 — lu dès l'entrée en DATA IN, même sans données :
+                                //   read_complete ne devient plus vrai, la phase ne finit pas.
                                 val = dev!.read(dev_data!);
                                 bus.bus_out = (bus.bus_out & ~(uint32_t)BUS_DATAMASK) | (uint32_t)(BUS_SETDATA(val) | BUS_DBP);
                                 break;

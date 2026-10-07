@@ -200,6 +200,7 @@ internal static partial class fdc_c
     internal static int lastbyte = 0;
     internal static uint8_t disc_3f7;
 
+    // pcem bug, reproduced: PB-20 — discmodified[] et discrate[] : ni lus ni écrits, nulle part.
     internal static int[] discmodified = new int[2];
     internal static int[] discrate = new int[2];
 
@@ -213,7 +214,7 @@ internal static partial class fdc_c
         fdc.@lock = 0;
         fdc.head = 0;
         // pcem bug, reproduced: PB-20 — abort est écrit ici et lu nulle part ; même
-        // cas que discmodified[] et discrate[] plus bas.
+        // cas que discmodified[] et discrate[] plus haut.
         fdc.abort = 0;
         if (AT == 0 && romset != ROM_XI8088 && romset != ROM_PC5086)
         {

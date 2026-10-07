@@ -1951,7 +1951,7 @@ internal static partial class vid_s3
                 int end_y = s3.accel.desty_axstp2;
 
                 if ((end_y - start_y) != 0)
-                        // pcem bug, not reproduced: PB-86 (voir poly_dx1)
+                        // pcem bug, not reproduced: PB-86 — voir poly_dx1.
                         s3.accel.poly_dx2 = (end_y - start_y) == -1 ? unchecked(-(end_x - start_x)) : (end_x - start_x) / (end_y - start_y);
                 else
                         s3.accel.poly_dx2 = 0;

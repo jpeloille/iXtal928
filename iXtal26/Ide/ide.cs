@@ -229,6 +229,8 @@ internal static class ide
     {
         if (ide.irqstat != 0 && ((pic2.pend | pic2.ins) & 0x40) == 0 && (ide.fdisk & 2) == 0)
                 picint((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
+        // pcem bug, reproduced: PB-216 — baisse aussi la ligne que l'unité choisie tient encore (irqstat à 1,
+        //   nIEN à 0) : l'IRQ en attente se perd ; et après l'EOI, la branche du dessus en pose une seconde.
         else if (((pic2.pend | pic2.ins) & 0x40) != 0)
                 picintc((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
     }

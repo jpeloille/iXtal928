@@ -32,12 +32,17 @@
 // flags_op. Et d'où flags_rebuild(), qui matérialise les six d'un coup et remet
 // flags_op à FLAGS_UNKNOWN — après quoi `cpu_state.flags` redevient la vérité.
 //
-// NE PAS « CORRIGER » AF_SET. Les formes ADC et SBB de PCem s'écartent du
-// silicium sur le bit AF (0x0010), et c'est consigné dans sst-baseline.tsv depuis
-// M0 : « adc dl, ch: flags = 0xF482, attendu 0xF492 (diff masqué 0x0010) », ~96 %
-// de réussite sur ces formes. Le fuzzeur compare à PCem, donc une transcription
-// fidèle sera VERTE et restera fausse au regard du matériel. C'est le choix du
-// projet : on transcrit PCem, y compris ses écarts, et on les consigne.
+// NE PAS « CORRIGER » AF_SET. Sa branche ADC s'écarte du silicium sur le bit AF
+// (0x0010) : elle teste `flags_op2 == 0xff` (0xffff, 0xffffffff) là où seul le
+// quartet bas de l'opérande compte, et se trompe sur 3 840 des 131 072 triplets
+// de 8 bits — une retenue entrante, le quartet bas de op2 à Fh, op2 ≠ FFh.
+// sst386-baseline.tsv le mesure (formes 10 à 15, 6611, 80.2…). Sa branche SBC est
+// juste. Ce n'est PAS le défaut d'ADC et de SBB du 8088 (PB-01, 808x.cs, une autre
+// formule), que sst-baseline.tsv consigne depuis M1.2 : « adc dl, ch: flags =
+// 0xF482, attendu 0xF492 (diff masqué 0x0010) ». Le fuzzeur compare à PCem, donc
+// une transcription fidèle sera VERTE et restera fausse au regard du matériel.
+// C'est le choix du projet : on transcrit PCem, y compris ses écarts, et on les
+// consigne.
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
@@ -212,8 +217,8 @@ internal static class x86_flags
         return 0;
     }
 
-    // pcem: x86_flags.h:275. VOIR L'EN-TÊTE : les branches ADC et SBC s'écartent du
-    // silicium, et c'est consigné dans sst-baseline.tsv. Transcrites telles quelles.
+    // pcem: x86_flags.h:275. VOIR L'EN-TÊTE : la branche ADC s'écarte du silicium,
+    // et sst386-baseline.tsv le mesure ; la branche SBC est juste. Transcrites telles quelles.
     internal static int AF_SET()
     {
         switch (cpu_state.flags_op)
@@ -228,6 +233,8 @@ internal static class x86_flags
         case FLAGS_INC8: case FLAGS_INC16: case FLAGS_INC32:
                 return (int)(((cpu_state.flags_op1 & 0xF) + (cpu_state.flags_op2 & 0xF)) & 0x10);
 
+        // pcem bug, reproduced: PB-181 — `flags_op2 == 0xff` (0xffff, 0xffffffff) au lieu du seul
+        //   quartet bas : avec une retenue entrante et un quartet bas de op2 à Fh, AF manque (x86_flags.h:299-307).
         case FLAGS_ADC8:
                 return (cpu_state.flags_res & 0xf) < (cpu_state.flags_op1 & 0xf) ||
                        ((cpu_state.flags_res & 0xf) == (cpu_state.flags_op1 & 0xf) && cpu_state.flags_op2 == 0xff) ? 1 : 0;

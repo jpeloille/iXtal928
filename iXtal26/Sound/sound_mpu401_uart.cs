@@ -50,8 +50,8 @@ internal static class sound_mpu401_uart
     }
 
     // pcem: sound_mpu401_uart.c:16-50
-    // pcem bug, reproduced: PB-154 — en mode UART, FFh rend quand même l'ACK FEh ; sur la SB 16 et l'AWE32,
-    //   l'IRQ vaut -1 : rien n'est levé.
+    // pcem bug, reproduced: PB-154 — en mode UART, FFh rend quand même l'ACK FEh (Roland : aucun) ; l'IRQ est
+    //   levée sur FFh et non au passage en UART, et vaut -1 sur la SB 16 et l'AWE32 : rien n'est levé.
     private static void mpu401_uart_write(uint16_t addr, uint8_t val, object p)
     {
         mpu401_uart_t mpu = (mpu401_uart_t)p;
@@ -74,6 +74,8 @@ internal static class sound_mpu401_uart
                         break;
 
                 case 0x3f:                   /*Enter UART mode*/
+                        // pcem bug, reproduced: PB-154 — acquittée même en mode UART, où seul le reset est reconnu
+                        //   (Creative p. 5-5) ; l'IRQ du passage en UART (p. 5-9) n'est levée que pour l'Aztech.
                         mpu.rx_data = 0xfe; /*Acknowledge*/
                         mpu.uart_mode = 1;
                         if (mpu.is_aztech != 0) {
@@ -100,6 +102,8 @@ internal static class sound_mpu401_uart
                 return mpu.status;
 
         /*Data*/
+        // pcem bug, reproduced: PB-154 — la lecture n'efface aucune IRQ (Creative p. 5-9 : elle l'efface) ; sans
+        //   donnée, elle rend l'ACK périmé.
         mpu.status = STATUS_INPUT_NOT_READY;
         return mpu.rx_data;
     }

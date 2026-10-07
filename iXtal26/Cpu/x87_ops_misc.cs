@@ -86,11 +86,13 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-70 — IC (bit 12) n'est lu nulle part : le 8087 et le 287 comparent en affine.
             if (cpu_c.fpu_type == cpu_c.FPU_8087)
                     cpu_state.npxc = 0x3ff;
             else
                     cpu_state.npxc = 0x37f;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
+            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;
@@ -139,6 +141,7 @@ internal static partial class _386
     private static int FSTOR()
     {
             if (FP_ENTER()) return 1;
+            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -214,6 +217,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
+            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l'image ne sont
+            //   pas écrits (16 bits réel : +8, +12 ; 32 bits réel : +16) ; disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
                     writememw(easeg, cpu_state.eaaddr, cpu_state.npxc);
@@ -386,8 +391,10 @@ internal static partial class _386
                     break;
             }
 
+            // pcem bug, reproduced: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.
             cpu_state.npxc = 0x37F;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
+            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 les laisse intacts.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;
@@ -403,6 +410,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             _ = FSAVE();
             return cpu_state.abrt;
     }
@@ -413,6 +421,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             _ = FSAVE();
             return cpu_state.abrt;
     }
@@ -423,6 +432,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             seteaw((uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11)));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
             return cpu_state.abrt;
@@ -434,6 +444,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             seteaw((uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11)));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
             return cpu_state.abrt;
@@ -505,6 +516,7 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, reproduced: PB-64 — un NaN rend « plus grand », pas « non ordonné ».
             if (ST(0) == 0.0)
@@ -765,6 +777,8 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.
+            // pcem bug, reproduced: PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.
             ST(0) = (double)x87_fround(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.frndint);
@@ -777,6 +791,7 @@ internal static partial class _386
             int64_t temp64;
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.
             temp64 = CvtI64(ST(1));
             if (ST(0) != 0.0)
                     ST(0) = ST(0) * Math.Pow(2.0, (double)temp64);
@@ -817,6 +832,7 @@ internal static partial class _386
     private static int FLDENV()
     {
             if (FP_ENTER()) return 1;
+            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -897,6 +913,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
+            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;
+            //   disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
                     writememw(easeg, cpu_state.eaaddr, cpu_state.npxc);
@@ -932,6 +950,7 @@ internal static partial class _386
                     writememl(easeg, cpu_state.eaaddr + 24, (uint32_t)x87_c.x87_op_seg);
                     break;
             }
+            // pcem bug, reproduced: PB-207 — npxc intact : FSTENV ne masque pas les exceptions.
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);
             return cpu_state.abrt;
     }
@@ -942,6 +961,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             _ = FSTENV();
             return cpu_state.abrt;
     }
@@ -952,6 +972,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             _ = FSTENV();
             return cpu_state.abrt;
     }
@@ -962,6 +983,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             seteaw(cpu_state.npxc);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
             return cpu_state.abrt;
@@ -973,6 +995,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             seteaw(cpu_state.npxc);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
             return cpu_state.abrt;

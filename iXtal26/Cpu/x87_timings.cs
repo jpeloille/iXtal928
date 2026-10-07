@@ -126,6 +126,7 @@ internal static class x87_timings_c
         fnop = (10 + 16) / 2,
         fpatan = (250 + 800) / 2,
         fprem = (15 + 190) / 2,
+        // pcem bug, reproduced: PB-209 — FPREM1, du 387, s'exécute sur ce coprocesseur, en 0 cycle.
         fprem1 = 0, /*387+*/
         fptan = (30 + 540) / 2,
         frndint = (16 + 50) / 2,
@@ -133,6 +134,7 @@ internal static class x87_timings_c
         fsave = (197 + 207) / 2,
         fscale = (32 + 38) / 2,
         fsetpm = 0,   /*287+*/
+        // pcem bug, reproduced: PB-68 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
         fsin_cos = 0, /*387+*/
         fsincos = 0,  /*387+*/
         fsqrt = (180 + 186) / 2,
@@ -143,6 +145,7 @@ internal static class x87_timings_c
         fstcw_sw = (12 + 18) / 2,
         fstenv = (40 + 50) / 2,
         ftst = (38 + 48) / 2,
+        // pcem bug, reproduced: PB-209 — FUCOM, FUCOMP, FUCOMPP, du 387, s'exécutent ici en 0 cycle.
         fucom = 0, /*387+*/
         fwait = 4,
         fxam = (12 + 23) / 2,
@@ -202,6 +205,7 @@ internal static class x87_timings_c
         fnop = (10 + 16) / 2,
         fpatan = (250 + 800) / 2,
         fprem = (15 + 190) / 2,
+        // pcem bug, reproduced: PB-209 — FPREM1, du 387, s'exécute sur ce coprocesseur, en 0 cycle.
         fprem1 = 0, /*387+*/
         fptan = (30 + 540) / 2,
         frndint = (16 + 50) / 2,
@@ -209,6 +213,7 @@ internal static class x87_timings_c
         fsave = (197 + 207) / 2,
         fscale = (32 + 38) / 2,
         fsetpm = (2 + 8) / 2, /*287+*/
+        // pcem bug, reproduced: PB-68 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
         fsin_cos = 0,         /*387+*/
         fsincos = 0,          /*387+*/
         fsqrt = (180 + 186) / 2,
@@ -219,6 +224,7 @@ internal static class x87_timings_c
         fstcw_sw = (12 + 18) / 2,
         fstenv = (40 + 50) / 2,
         ftst = (38 + 48) / 2,
+        // pcem bug, reproduced: PB-209 — FUCOM, FUCOMP, FUCOMPP, du 387, s'exécutent ici en 0 cycle.
         fucom = 0, /*387+*/
         fwait = 3,
         fxam = (12 + 23) / 2,

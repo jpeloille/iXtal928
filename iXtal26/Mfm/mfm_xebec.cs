@@ -36,6 +36,7 @@ namespace iXtal26.Mfm;
 // pcem: mfm_xebec.c:39-46 — classe : mfm_xebec.c:753 prend l'adresse de
 // drives[d].hdd_file et la passe à hdd_load.
 //
+// pcem bug, not reproduced: PB-30 — cfg_spt, mort chez PCem, n'est pas transcrit (ci-dessous).
 // omitted: `cfg_spt` (:41) — déclaré, jamais écrit. Les 17 secteurs par piste sont
 //   codés en dur partout (:260, :266, :275, :384, :660). Code mort chez PCem.
 internal sealed class mfm_drive_t
@@ -95,6 +96,7 @@ internal static partial class mfm_xebec
     private static uint64_t XEBEC_TIME => 2000 * TIMER_USEC;
 
     // pcem: mfm_xebec.c:27-37
+    // pcem bug, not reproduced: PB-30 — STATE_DUNNO, mort chez PCem, n'est pas transcrit.
     // omitted: STATE_DUNNO (:37) — déclaré, jamais utilisé.
     private const int STATE_IDLE = 0;
     private const int STATE_RECEIVE_COMMAND = 1;
@@ -106,6 +108,7 @@ internal static partial class mfm_xebec
     private const int STATE_COMPLETION_BYTE = 7;
 
     // pcem: mfm_xebec.c:80-88
+    // pcem bug, not reproduced: PB-30 — STAT_DRQ, mort chez PCem, n'est pas transcrit.
     // omitted: STAT_DRQ 0x10 (:81) — déclaré, jamais utilisé.
     private const int STAT_IRQ = 0x20;
     private const int STAT_BSY = 0x08;
@@ -207,6 +210,7 @@ internal static partial class mfm_xebec
                 switch (xebec.state)
                 {
                 case STATE_RECEIVE_COMMAND:
+                        // pcem bug, reproduced: PB-26 — « STATE_START_COMMAND » dans le cas STATE_RECEIVE_COMMAND.
                         if ((xebec.status & 0xf) != (STAT_BSY | STAT_CD | STAT_REQ))
                                 fatal($"Bad write data state - STATE_START_COMMAND, status={xebec.status:x2}\n");
                         if (xebec.command_pos >= 6)
@@ -295,14 +299,15 @@ internal static partial class mfm_xebec
         // pcem bug, reproduced: PB-25 — les têtes sont numérotées DEPUIS 0, donc le
         //   test devrait être `>=`. Avec `>`, head == hpc passe le filtre et le
         //   calcul d'adresse ci-dessous vise une piste entière au-delà du cylindre
-        //   demandé, en silence. Preuve interne : le test des secteurs, trois lignes
-        //   plus bas, utilise bien `>=`. mfm_at.c:113 porte le même défaut.
+        //   demandé, en silence. Preuve interne : le test des secteurs, plus bas,
+        //   utilise bien `>=`. mfm_at.c:113 et :121 portent le même défaut.
         if (xebec.head > heads)
         {
                 pclog("mfm_get_sector: past end of configured heads\n");
                 xebec.error = ERR_ILLEGAL_SECTOR_ADDRESS;
                 return 1;
         }
+        // pcem bug, reproduced: PB-25 — le même `>`, contre les têtes de l'image (:255).
         if (xebec.head > drive.hdd_file.hpc)
         {
                 pclog("mfm_get_sector: past end of heads\n");
@@ -395,6 +400,8 @@ internal static partial class mfm_xebec
                         xebec.data_pos = 0;
                         xebec.data_len = 4;
                         xebec.status = STAT_BSY | STAT_IO | STAT_REQ;
+                        // pcem bug, reproduced: PB-217 — ni le bit « adresse valide » (octet 0, bit 7) ni
+                        //   l'adresse (octets 1 à 3 : unité et tête, haut du cylindre et secteur, bas du cylindre).
                         xebec.data[0] = xebec.error;
                         xebec.data[1] = (uint8_t)(xebec.drive_sel != 0 ? 0x20 : 0);
                         xebec.data[2] = xebec.data[3] = 0;

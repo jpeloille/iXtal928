@@ -58,9 +58,10 @@
 // dans flags_rebuild. Les cas (e) du même fichier les effondrent espèce par
 // espèce, à l'instruction qui les pose.
 //
-// AF SUR ADC ET SBB : NE PAS « CORRIGER ». AF_SET des formes ADC/SBC de PCem
-// s'écarte du silicium, et l'écart est consigné dans sst-baseline.tsv depuis M0
-// (`adc dl, ch: flags = 0xF482, attendu 0xF492`, diff masqué 0x0010). Le
+// AF SUR ADC : NE PAS « CORRIGER ». AF_SET de la forme ADC de PCem s'écarte du
+// silicium (x86_flags.cs, PB-181), et sst386-baseline.tsv le mesure ; celui
+// de SBC est juste. L'exemple `adc dl, ch: flags = 0xF482, attendu 0xF492` de
+// sst-baseline.tsv est le défaut du 8088 (PB-01, 808x.cs), une autre formule. Le
 // fuzzeur compare à PCem : une transcription fidèle est verte ET fausse au
 // regard du matériel. C'est voulu — l'oracle de ce dépôt est PCem.
 

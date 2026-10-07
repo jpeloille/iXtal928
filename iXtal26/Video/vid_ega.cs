@@ -270,6 +270,8 @@ internal static class vid_ega
         case 0x3c1:
                 return ega.attrregs[ega.attraddr];
         case 0x3c2:
+                // pcem bug, reproduced: PB-228 — Input Status 0 ne rend que le bit 4 ; son bit 7 (« CRT
+                //   Interrupt », 0 pendant le retour vertical) reste à 0.
                 //                printf("Read egaswitch %02X %02X %i\n",egaswitchread,egaswitches,VGA);
                 switch (egaswitchread)
                 {
@@ -317,6 +319,8 @@ internal static class vid_ega
         ega.vsyncstart = ega.crtc[0x10];
         ega.split = ega.crtc[0x18];
 
+        // pcem bug, reproduced: PB-99 — CR07 bits 5-7 et CR09 bit 6 (:200-219) sont les bits 9 de la VGA ; l'EGA
+        //   n'en a pas (07h bits 6-7 et 09h bits 5-7 « Not Used »).
         if ((ega.crtc[7] & 1) != 0)
                 ega.vtotal |= 0x100;
         if ((ega.crtc[7] & 32) != 0)
@@ -411,6 +415,8 @@ internal static class vid_ega
                         }
                 }
 
+                // pcem bug, reproduced: PB-99 — l'adresse de la police n'est pas masquée par vrammask : avec
+                //   64 Ko, les tables 1 à 3 de SR3 (0x10002 et au-delà) lisent hors de la mémoire configurée.
                 dat = ega.vram[charaddr + (uint32_t)(ega.sc << 2)];
                 if ((ega.seqregs[1] & 8) != 0)
                 {
@@ -467,8 +473,9 @@ internal static class vid_ega
         int x;
         int offset = ((8 - ega.scrollcache) << 1) + 16;
         int line = ega.displine * Stride;
-        // Les colonnes peuvent dépasser 2047 : le C écrit alors dans la ligne suivante de
-        //   buffer32 (lignes contiguës, wx-sdl2-video.c:59-69), jamais hors du bloc — ici de même.
+        // pcem bug, reproduced: PB-89 — les colonnes peuvent dépasser 2047 (hdisp, soit CR01 + 1, jusqu'à 256) :
+        //   le C écrit alors dans la ligne suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69), jamais
+        //   hors du bloc — ici de même. Le texte, lui, borne par `& 2047`.
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -518,6 +525,7 @@ internal static class vid_ega
         int x;
         int offset = ((8 - ega.scrollcache) << 1) + 16;
         int line = ega.displine * Stride;
+        // pcem bug, reproduced: PB-89 — comme ega_draw_2bpp : jusqu'à 4 143, dans la ligne suivante.
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -582,6 +590,7 @@ internal static class vid_ega
         int x;
         int offset = (8 - ega.scrollcache) + 24;
         int line = ega.displine * Stride;
+        // pcem bug, reproduced: PB-89 — comme ega_draw_2bpp : jusqu'à 2 087, dans la ligne suivante.
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -664,6 +673,8 @@ internal static class vid_ega
                         if (ega.scrblank != 0)
                         {
                                 int line = ega.displine * Stride;
+                                // pcem bug, reproduced: PB-89 — (x * 18) + xx + 32 monte à 4 639 (:549-550) :
+                                //   la ligne suivante de buffer32, jamais hors du tableau.
                                 for (x = 0; x < ega.hdisp; x++)
                                 {
                                         switch (ega.seqregs[1] & 9)
@@ -756,6 +767,8 @@ internal static class vid_ega
                 {
                         //                        printf("Split at line %i %i\n",displine,vc);
                         ega.ma = ega.maback = 0;
+                        // pcem bug, reproduced: PB-99 — l'attribut 10h bit 5 (:613) remet le défilement fin à 0
+                        //   après la ligne de partage, comme la VGA ; sur l'EGA, 10h bits 4-7 sont « Not Used ».
                         if ((ega.attrregs[0x10] & 0x20) != 0)
                                 ega.scrollcache = 0;
                 }
@@ -763,6 +776,8 @@ internal static class vid_ega
                 {
                         //                        printf("Display over at line %i %i\n",displine,vc);
                         ega.dispon = 0;
+                        // pcem bug, reproduced: PB-99 — CR0A bit 5 (:619) éteint le curseur, comme la VGA ; sur
+                        //   l'EGA, 0Ah bits 5-7 sont « Not Used ».
                         if ((ega.crtc[10] & 0x20) != 0)
                                 ega.cursoron = 0;
                         else
@@ -1187,10 +1202,10 @@ internal static class vid_ega
         monitor_type = device_get_config_int("monitor_type");
         ega_init(ega, monitor_type, (monitor_type & 0xf) == 10 ? 1 : 0);
 
-        // pcem bug, reproduced: PB-99 — la mémoire configurée (64 ou 128 Ko) ne borne que les
-        //   écritures et lectures du processeur (vram_limit) ; le rendu lit au-delà (masques ORés
-        //   de 0x8000/0x10000 après vrammask, :345-347) des octets qu'une vraie carte plus petite
-        //   n'a pas.
+        // pcem bug, reproduced: PB-99 — le rendu est borné par vrammask, mais les substitutions de rangée
+        //   de CR17 s'appliquent après (:344-347, :405-408, :477-480) : avec 64 Ko, le bit 0x10000 (CR17
+        //   bit 1 = 0) lit des octets qu'une vraie carte de 64 Ko n'a pas. La police du texte, lue sans
+        //   masque (:287), sort de même par les tables de SR3 qui dépassent la mémoire.
         ega.vram_limit = (uint32_t)(device_get_config_int("memory") * 1024);
         ega.vrammask = (int)(ega.vram_limit - 1);
 
@@ -1208,8 +1223,9 @@ internal static class vid_ega
     // pcem: vid_ega.c:1068-1073
     internal static void ega_close(object? p)
     {
-        // omitted: free(ega->vram), free(ega) (:1071-1072) — sous GC. La projection et la ROM
-        //   restent dans la liste de mem.c jusqu'au mem_alloc suivant, comme en C (PB-98).
+        // pcem bug, reproduced: PB-98 — ni mem_mapping_remove ni rom_deinit : la projection et la ROM
+        //   restent dans la liste de mem.c jusqu'au mem_alloc suivant, comme en C.
+        // omitted: free(ega->vram), free(ega) (:1071-1072) — sous GC.
         Probe = null;
     }
 

@@ -704,6 +704,8 @@ internal static partial class pc
                         }
                         for (d = 0; d < Joystick.gameport.joystick_get_pov_count(Joystick.gameport.joystick_type); d++)
                         {
+                                // pcem bug, reproduced: PB-104 — le défaut de X et de Y est d, l'axe d, sans
+                                //   POV_X ni POV_Y (pc.c:801, :803) ; le repli de joystick_mapping rend ce même d.
                                 s = $"joystick_{c}_pov_{d}_x";
                                 js.pov_mapping[d, 0] = joystick_mapping(s, PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, "Joysticks", s, d), d, true);
                                 s = $"joystick_{c}_pov_{d}_y";

@@ -15,7 +15,7 @@
 // addr >> 12), et les mem_mapping_t elles-mêmes en liste chaînée.
 //
 // Le cache de 4 Ko n'est PAS une optimisation : addreadlookup facture
-// `cycles -= 9` (mem.c:378), donc son remplissage est visible dans le temps émulé.
+// `cycles -= 9` (mem.c:379), donc son remplissage est visible dans le temps émulé.
 
 using iXtal26.Cpu;
 using iXtal26.Diag;
@@ -1412,8 +1412,11 @@ internal static partial class mem
     internal static void mem_alloc()
     {
         mem_recalc++; // iXtal26 — la garde de la carte courte (mem_mapping_recalc)
-        // Quatre octets de marge : les accès 16/32 bits lisent ram[i+1..i+3]. En C
-        // un accès à cheval sur la fin lit la mémoire adjacente ; ici il lèverait.
+        // pcem bug, not reproduced: PB-07 — `ram = malloc(mem_size * 1024)` (mem.c:1344), sans marge : un
+        //   accès 16/32 bits à cheval sur la fin lit ram[i+1..i+3] dans le tas qui suit, une valeur qui
+        //   change d'une exécution à l'autre (808x.cs, readmemw et writememw).
+        // DEVIATION: quatre octets nuls de marge, comme h_pad_ram côté oracle (tools/oracle/harness.c:562) :
+        //   les deux côtés lisent et écrivent la même marge, nulle au départ ; sans elle, ici, l'accès lèverait.
         ram = new byte[mem_size * 1024 + 4];
 
         Array.Clear(read_mapping);

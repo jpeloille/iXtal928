@@ -110,3 +110,7 @@ Les portes de G13.0 sont en C# seul. `r9-filet` lance iXtal26 (`iXtal26.dll`, à
 deux processus, et injecte au second une panne par `IXTAL26_FAUTE_PLANTAGE=1`, qui lève une exception non rattrapée
 après la frappe : le filet des images vide les tampons et sort en 70, sans passer par le gestionnaire de plantages du
 système.
+
+La porte de G13.1, `recensement`, lit `PCEM_BUGS.md` et les sources de `iXtal26/` depuis son répertoire de travail,
+où les entrées du dépôt sont des liens : elle tient le registre et les marqueurs d'accord. Chaque marqueur porte sur
+sa ligne le numéro de son entrée, et un renvoi à un autre défaut va sur la ligne suivante.

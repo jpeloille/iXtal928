@@ -73,6 +73,8 @@ internal static class vid_mda
         mda_t mda = (mda_t)p;
         switch (addr)
         {
+        // pcem bug, reproduced: PB-233 — 3B0h-3B3h, 3B6h et 3B7h décodés comme 3B4h et 3B5h ; IBM les dit
+        //   « Not Used ». Le vrai décodage est à lire au schéma.
         case 0x3b0:
         case 0x3b2:
         case 0x3b4:
@@ -112,6 +114,7 @@ internal static class vid_mda
         case 0x3b2:
         case 0x3b4:
         case 0x3b6:
+                // pcem bug, reproduced: PB-230 — l'index se relit ; le 6845 le tient en écriture seule.
                 return (uint8_t)mda.crtcreg;
         case 0x3b1:
         case 0x3b3:
@@ -119,6 +122,8 @@ internal static class vid_mda
         case 0x3b7:
                 return mda.crtc[mda.crtcreg];
         case 0x3ba:
+                // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical (mda_poll, :135-136, :150) ;
+                //   chez IBM, « +Black/White Video » : le point vidéo sous le faisceau.
                 return (uint8_t)(mda.stat | 0xF0);
         }
         return 0xff;
@@ -187,6 +192,9 @@ internal static class vid_mda
                         }
                         mda.lastline = mda.displine;
                         int line = mda.displine * Stride;
+                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà de 227,
+                        //   (x * 9) + c monte à 2 294 (vid_mda.c:114-130) et déborde sur la ligne suivante de
+                        //   buffer32, ici le même tableau plat. Jamais hors du tableau : displine < 500.
                         for (x = 0; x < mda.crtc[1]; x++)
                         {
                                 chr = mda.vram[(mda.ma << 1) & 0xfff];
@@ -209,6 +217,8 @@ internal static class vid_mda
                                                 Buffer32[line + (x * 9) + 8] = mdacol(attr, blink, 0);
                                 }
                                 mda.ma++;
+                                // pcem bug, reproduced: PB-222 — le curseur inverse la cellule (^=) ; la
+                                //   carte force ses points à 1 : un pavé plein, de la couleur d'avant-plan.
                                 if (drawcursor != 0)
                                 {
                                         for (c = 0; c < 9; c++)
@@ -277,6 +287,10 @@ internal static class vid_mda
                                         mda.dispon = 1;
                                 if (mda.vadj == 0)
                                         mda.ma = mda.maback = (uint16_t)((mda.crtc[13] | (mda.crtc[12] << 8)) & 0x3fff);
+                                // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
+                                //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
+                                // pcem bug, reproduced: PB-223 — le curseur clignote au bit 4 de blink ; la
+                                //   carte le fait au bit 3, deux fois plus vite que les caractères.
                                 if ((mda.crtc[10] & 0x60) == 0x20)
                                         mda.cursoron = 0;
                                 else

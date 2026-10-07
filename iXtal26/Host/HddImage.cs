@@ -64,7 +64,7 @@ internal static class HddImage
     // une borne explicite à 46 dans le code d'indexation (amic206.bin:0xA882,
     // `cmp al,2Eh / ja`). Comparées entrée par entrée, 45 des 46 concordent exactement,
     // secteurs par piste compris. **La 39e ne concorde pas** : la ROM dit 987 x 7, PCem
-    // dit 462 x 7. Voir `// pcem bug, reproduced: PB-34` — la table reste verbatim,
+    // dit 462 x 7. Voir le marqueur PB-34 dans la table — elle reste verbatim,
     // parce que corriger un oracle n'est pas le transcrire.
     //
     // ET L'INT 13h N'ATTEINT PAS TOUT CE QUE LA TABLE DÉCRIT. Mesuré dans la même ROM,
@@ -79,6 +79,8 @@ internal static class HddImage
         (306, 4),   (615, 4),   (615, 6),  (940, 8),  (940, 6),  (615, 4),  (462, 8),  (733, 5), (900, 15), (820, 3),
         (855, 5),   (855, 7),   (306, 8),  (733, 7),  (0, 0),    (612, 4),  (977, 5),  (977, 7), (1024, 7), (733, 5),
         (733, 7),   (733, 5),   (306, 4),  (925, 7),  (925, 9),  (754, 7),  (754, 11), (699, 7), (823, 10), (918, 7),
+        // pcem bug, reproduced: PB-34 — le type 39, neuvième de la ligne suivante : 462 x 7, là où la ROM AMI 286
+        //   dit 987 x 7 (wx-config.c:1301).
         (1024, 11), (1024, 15), (1024, 5), (612, 2),  (1024, 9), (1024, 8), (615, 8),  (987, 3), (462, 7),  (820, 6),
         (977, 5),   (981, 5),   (830, 7),  (830, 10), (917, 15), (1224, 15),
     };

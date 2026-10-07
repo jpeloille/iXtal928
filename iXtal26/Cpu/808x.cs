@@ -108,14 +108,18 @@ internal static partial class _808x
 
     private static uint16_t readmemw(uint32_t s, uint16_t a)
     {
-        // pcem bug, reproduced: `a` est l'offset 16 bits, `cs + pc` une adresse
+        // pcem bug, reproduced: PB-11 — `a` est l'offset 16 bits, `cs + pc` une adresse
         // linéaire 20 bits — la garde est donc vraie en pratique toujours, là où
         // readmemb compare bien deux adresses linéaires. On transcrit tel quel.
         if (a != (cs + cpu_state.pc))
                 memcycs += (8 >> is8086);
+        // pcem bug, reproduced: PB-179 — un mot à l'offset FFFFh prend son octet haut en
+        //   `s + 0x10000`, par les deux chemins ; le 8088 et le 8086 replient à l'offset 0 du segment.
         if (mem.readlookup2[(s + a) >> 12] == -1 || s == 0xFFFFFFFF)
                 return mem.readmemwl(s + a);
         else
+                // pcem bug, not reproduced: PB-07 — au sommet de la RAM, l'octet haut sort du tableau : il lit
+                //   la marge de mem_alloc (mem.cs), nulle au départ, comme celle de h_pad_ram ; PCem, le tas.
                 return (uint16_t)(mem.ram[mem.readlookup2[(s + a) >> 12] + s + a]
                                 | (mem.ram[mem.readlookup2[(s + a) >> 12] + s + a + 1] << 8));
     }
@@ -138,10 +142,14 @@ internal static partial class _808x
     private static void writememw(uint32_t s, uint32_t a, uint16_t v)
     {
         memcycs += (8 >> is8086);
+        // pcem bug, reproduced: PB-179 — même repli manquant qu'à readmemw : l'octet haut
+        //   d'un mot à l'offset FFFFh s'écrit en `s + 0x10000`, et non à l'offset 0 du segment.
         if (mem.writelookup2[(s + a) >> 12] == -1 || s == 0xFFFFFFFF)
                 mem.writememwl(s + a, v);
         else
         {
+                // pcem bug, not reproduced: PB-07 — au sommet de la RAM, l'octet haut s'écrit dans la
+                //   marge de mem_alloc (mem.cs), comme dans celle de h_pad_ram côté oracle ; PCem, dans le tas.
                 mem.ram[mem.writelookup2[(s + a) >> 12] + s + a] = (uint8_t)v;
                 mem.ram[mem.writelookup2[(s + a) >> 12] + s + a + 1] = (uint8_t)(v >> 8);
         }
@@ -171,15 +179,18 @@ internal static partial class _808x
                 cycles -= (4 - (fetchcycles & 3));
                 fetchclocks += (4 - (fetchcycles & 3));
                 fetchcycles = 4;
+                // pcem bug, reproduced: PB-87 — 808x.c:145, la lecture principale, file vide : `pc` n'est
+                //   masqué qu'en fin d'instruction ; au repli de l'IP, l'octet suivant est lu en
+                //   `cs + 0x10000` et non à l'offset 0 du segment, sur le 8088 comme sur le 8086.
                 temp = readmembf(cs + cpu_state.pc);
                 cpu_state.pc = cpu_state.pc + 1;
                 prefetchpc = (uint16_t)cpu_state.pc;
                 if (is8086 != 0 && (cpu_state.pc & 1) != 0)
                 {
-                        // pcem: 808x.c:150 — `cs + cpu_state.pc`, PAS prefetchpc : au repli de l'IP
-                        // (pc = 0x10001, non masqué avant la fin de l'instruction) PCem lit 64 Ko plus
-                        // loin. Corrigé en G1.0 : la transcription de M1 lisait cs + prefetchpc, ce que
-                        // le 8088 n'atteint jamais (is8086) — le fuzzeur 8086 l'a vu (PB-87).
+                        // pcem bug, reproduced: PB-87 — 808x.c:150 lit `cs + cpu_state.pc`, PAS prefetchpc :
+                        // au repli de l'IP (pc = 0x10001, non masqué avant la fin de l'instruction) PCem lit
+                        // 64 Ko plus loin. Corrigé en G1.0 : la transcription de M1 lisait cs + prefetchpc, ce
+                        // que le 8088 n'atteint jamais (is8086) — le fuzzeur 8086 l'a vu.
                         prefetchqueue[0] = readmembf(cs + cpu_state.pc);
                         prefetchpc++;
                         prefetchw++;
@@ -287,6 +298,9 @@ internal static partial class _808x
 
         timer.tsc += (tsc_frac >> 32);
         tsc_frac &= 0xffffffff;
+        // pcem bug, reproduced: PB-03 — timer_process() vient APRÈS la prise du diff : les cycles qu'il
+        //   débite (le rafraîchissement par DMA, refreshread → FETCHCOMPLETE) n'entrent dans aucun diff
+        //   et n'arrivent jamais au TSC ; l'horloge de l'invité retarde sur son processeur.
         if (timer.TIMER_VAL_LESS_THAN_VAL(timer.timer_target, (uint32_t)timer.tsc))
                 timer.timer_process();
     }
@@ -577,6 +591,7 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & 0x80) == 0 && ((a ^ c) & 0x80) != 0)
                 cpu_state.flags |= V_FLAG;
+        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:786).
         if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
                 cpu_state.flags |= A_FLAG;
     }
@@ -614,6 +629,7 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & 0x8000) == 0 && ((a ^ c) & 0x8000) != 0)
                 cpu_state.flags |= V_FLAG;
+        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme ADD (808x.c:817).
         if ((((a & 0xF) + (b & 0xF)) & 0x10) != 0)
                 cpu_state.flags |= A_FLAG;
     }
@@ -652,6 +668,7 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & (a ^ c) & 0x80) != 0)
                 cpu_state.flags |= V_FLAG;
+        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:849).
         if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
                 cpu_state.flags |= A_FLAG;
     }
@@ -691,12 +708,15 @@ internal static partial class _808x
                 cpu_state.flags |= C_FLAG;
         if (((a ^ b) & (a ^ c) & 0x8000) != 0)
                 cpu_state.flags |= V_FLAG;
+        // pcem bug, reproduced: PB-01 — AF sans la retenue entrante `tempc`, comme SUB (808x.c:882).
         if ((((a & 0xF) - (b & 0xF)) & 0x10) != 0)
                 cpu_state.flags |= A_FLAG;
     }
 
     // ===== rep() : instructions de chaîne (808x.c:908-1215) =====
     // pcem: 808x.c:55
+    // pcem bug, reproduced: PB-247 — `pend & ~mask` sans `mask2`, le masque de service (l'ISR) : une
+    //   IRQ de priorité égale ou moindre interrompt un gestionnaire qui a fait STI avant son EOI.
     private static bool IRQTEST => (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0 && noint == 0;
 
     // pcem: 808x.c:908
@@ -748,6 +768,8 @@ startrep:
                 cycles -= 2;
                 goto startrep;
                 break;
+        // pcem bug, reproduced: PB-177 — 6Eh n'est pas OUTSB sur le 8088 et le 8086 (OUTS naît avec
+        //   le 186) mais l'alias de JLE (808x.c:2010) : le REP devrait être ignoré et le saut exécuté.
         case 0x6E: /*REP OUTSB*/
                 if (c > 0)
                 {
@@ -772,7 +794,7 @@ startrep:
                         firstrepcycle = 1;
                 break;
         case 0xA4: /*REP MOVSB*/
-                // pcem bug, reproduced: pas de `memcycs = 0;` en tête de boucle, à la
+                // pcem bug, reproduced: PB-12 — pas de `memcycs = 0;` en tête de boucle, à la
                 // différence de 0xA5/0xA6/0xA7/0xAA/0xAB — le FETCHADD ci-dessous
                 // consomme donc un memcycs jamais remis à zéro.
                 while (c > 0 && !IRQTEST)
@@ -916,6 +938,7 @@ startrep:
         case 0xAC: /*REP LODSB*/
                 if (c > 0)
                 {
+                        // pcem bug, reproduced: PB-172 — l'octet lu va dans temp2, jamais dans AL.
                         temp2 = readmemb(ds + SI);
                         if ((cpu_state.flags & D_FLAG) != 0)
                                 SI--;
@@ -938,6 +961,7 @@ startrep:
         case 0xAD: /*REP LODSW*/
                 if (c > 0)
                 {
+                        // pcem bug, reproduced: PB-172 — le mot lu va dans tempw2, jamais dans AX.
                         tempw2 = readmemw(ds, SI);
                         if ((cpu_state.flags & D_FLAG) != 0)
                                 SI -= 2;
@@ -1011,6 +1035,9 @@ startrep:
                 else
                         firstrepcycle = 1;
                 break;
+        // pcem bug, reproduced: PB-177 — pas de `case 0x3E` : REP DS: MOVSB tombe ici, et la chaîne
+        //   ne s'exécute qu'une fois. Et `ipc + 1` saute un préfixe de segment placé AVANT le REP (ipc est
+        //   oldpc, le début de toute l'instruction) : l'instruction qui suit le perd.
         default:
                 cpu_state.pc = (uint32_t)(ipc + 1);
                 cycles -= 20;
@@ -1501,6 +1528,8 @@ startrep:
                                 if ((tempi & 0x100) != 0)
                                         cpu_state.flags |= C_FLAG;
                         }
+                        // pcem bug, reproduced: PB-170 — le résultat est celui du pseudo-code d'Intel ;
+                        //   le 8088 mesuré compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1 en entrée.
                         if ((cpu_state.flags & C_FLAG) != 0 || (AL > 0x9F))
                         {
                                 AL += 0x60;
@@ -1570,6 +1599,8 @@ startrep:
                                 if ((tempi & 0x100) != 0)
                                         cpu_state.flags |= C_FLAG;
                         }
+                        // pcem bug, reproduced: PB-171 — le second test reprend le CF de l'emprunt
+                        //   d'en bas et l'AL déjà ajusté ; Intel teste l'AL et le CF d'origine.
                         if ((cpu_state.flags & C_FLAG) != 0 || (AL > 0x9F))
                         {
                                 AL -= 0x60;
@@ -2682,6 +2713,7 @@ startrep:
                                 cycles -= ((cpu_mod == 3) ? 2 : 23);
                                 break;
                         case 0x20:
+                        // pcem bug, reproduced: PB-173 — /6 (SETMO) suit SHL ; le 8088 met l'opérande à FFh.
                         case 0x30: /*SHL b,1*/
                                 if ((temp & 0x80) != 0)
                                         cpu_state.flags |= C_FLAG;
@@ -2797,6 +2829,7 @@ startrep:
                                 cycles -= ((cpu_mod == 3) ? 2 : 23);
                                 break;
                         case 0x20:
+                        // pcem bug, reproduced: PB-173 — /6 (SETMO) suit SHL ; le 8088 met l'opérande à FFFFh.
                         case 0x30: /*SHL w,1*/
                                 if ((tempw & 0x8000) != 0)
                                         cpu_state.flags |= C_FLAG;
@@ -2942,7 +2975,11 @@ startrep:
                                 cycles -= ((cpu_mod == 3) ? 8 : 28);
                                 break;
                         case 0x20:
+                        // pcem bug, reproduced: PB-173 — /6 (SETMOC) suit SHL ; le 8088 met l'opérande
+                        //   à FFh si CL ≠ 0.
                         case 0x30: /*SHL b,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur
+                                //   d'avant ; le 8088 le pose (mesuré, SST D2.4).
                                 if (c > 8)
                                 {
                                         temp = 0;
@@ -2963,6 +3000,7 @@ startrep:
                                 cpu_state.flags |= A_FLAG;
                                 break;
                         case 0x28: /*SHR b,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur d'avant.
                                 if (c > 8)
                                 {
                                         temp = 0;
@@ -2983,6 +3021,10 @@ startrep:
                                 cpu_state.flags |= A_FLAG;
                                 break;
                         case 0x38: /*SAR b,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur d'avant.
+                                // pcem bug, reproduced: PB-176 — `temp` est étendu par des zéros : au-delà
+                                //   de 8, CF vaut 0, là où un opérande négatif rend 1 (le dernier bit sorti est le
+                                //   signe).
                                 if (((temp >> (c - 1)) & 1) != 0)
                                         cpu_state.flags |= C_FLAG;
                                 else
@@ -3067,7 +3109,7 @@ startrep:
                                         c--;
                                         cycles -= 4;
                                 }
-                                // pcem bug, reproduced: `templ` porte la retenue ENTRÉE à la
+                                // pcem bug, reproduced: PB-02 — `templ` porte la retenue ENTRÉE à la
                                 //   dernière itération, pas celle qui en est sortie ; ce bloc
                                 //   écrase donc le C_FLAG correct posé dans la boucle. Le
                                 //   pendant octet, RCL b,CL (0xD2/0x10), ne l'a pas.
@@ -3095,7 +3137,7 @@ startrep:
                                         c--;
                                         cycles -= 4;
                                 }
-                                // pcem bug, reproduced: `tempw2` porte le bit ENTRÉ (l'ancienne
+                                // pcem bug, reproduced: PB-02 — `tempw2` porte le bit ENTRÉ (l'ancienne
                                 //   retenue), pas le bit sorti ; ce bloc écrase le C_FLAG
                                 //   correct posé dans la boucle. Le pendant octet, RCR b,CL,
                                 //   a exactement ces quatre lignes commentées (808x.c:3059-3060).
@@ -3112,7 +3154,10 @@ startrep:
                                 break;
 
                         case 0x20:
+                        // pcem bug, reproduced: PB-173 — /6 (SETMOC) suit SHL ; le 8088 met l'opérande
+                        //   à FFFFh si CL ≠ 0.
                         case 0x30: /*SHL w,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur d'avant.
                                 if (c > 16)
                                 {
                                         tempw = 0;
@@ -3134,6 +3179,7 @@ startrep:
                                 break;
 
                         case 0x28: /*SHR w,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur d'avant.
                                 if (c > 16)
                                 {
                                         tempw = 0;
@@ -3155,7 +3201,11 @@ startrep:
                                 break;
 
                         case 0x38: /*SAR w,CL*/
+                                // pcem bug, reproduced: PB-174 — OF n'est pas écrit : il garde sa valeur d'avant.
                                 tempw2 = (uint16_t)(tempw & 0x8000);
+                                // pcem bug, reproduced: PB-176 — `tempw` est étendu par des zéros : au-delà
+                                //   de 16, CF vaut 0, là où un opérande négatif rend 1 (le dernier bit sorti est le
+                                //   signe).
                                 if (((tempw >> (c - 1)) & 1) != 0)
                                         cpu_state.flags |= C_FLAG;
                                 else
@@ -3202,6 +3252,8 @@ startrep:
                         }
                         AH = (uint8_t)(AL / tempws);
                         AL %= (uint8_t)tempws;
+                        // pcem bug, reproduced: PB-175 — SF et ZF calculés sur AX : Intel les pose
+                        //   d'après AL (ZF faux si AL = 0 et AH ≠ 0).
                         setznp16(AX);
                         cycles -= 83;
                         break;
@@ -3209,6 +3261,8 @@ startrep:
                         tempws = FETCH();
                         AL = (uint8_t)((AH * tempws) + AL);
                         AH = 0;
+                        // pcem bug, reproduced: PB-175 — SF calculé sur AX, donc toujours nul : Intel le
+                        //   pose d'après le bit 7 d'AL.
                         setznp16(AX);
                         cycles -= 60;
                         break;
@@ -3406,6 +3460,9 @@ startrep:
                         cycles -= 12;
                         break;
 
+                // pcem bug, reproduced: PB-178 — LOCK est une instruction d'un octet, pas un préfixe :
+                //   un préfixe de segment placé avant lui se perd, et une interruption ou un pas-à-pas peut
+                //   s'intercaler entre LOCK et l'instruction verrouillée.
                 case 0xF0: /*LOCK*/
                 case 0xF1: /*LOCK alias*/
                         cycles -= 4;
@@ -3482,6 +3539,8 @@ startrep:
                                 break;
                         case 0x30: /*DIV AL,b*/
                                 tempw = AX;
+                                // pcem bug, reproduced: PB-169 — seul le diviseur nul lève INT 0 : un quotient
+                                //   au-delà de FFh est tronqué dans AL au lieu de lever l'erreur de division.
                                 if (temp != 0)
                                 {
                                         tempw2 = (uint16_t)(tempw % temp);
@@ -3492,6 +3551,8 @@ startrep:
                                 else
                                 {
                                         // omitted: printf("DIVb BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        // pcem bug, reproduced: PB-180 — les drapeaux sont empilés tels qu'avant
+                                        //   l'instruction ; le 8088 empile ceux que la division a laissés.
                                         writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
                                         writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
                                         writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
@@ -3509,6 +3570,9 @@ startrep:
                                 //   (808x.c:3614) : un dividende négatif est lu comme un grand
                                 //   positif. La forme mot, elle, signe (DX << 16 | AX).
                                 tempws = (int)AX;
+                                // pcem bug, reproduced: PB-169 — un quotient hors de -128..127 est tronqué dans
+                                //   AL au lieu de lever INT 0 ; le 8088 la lève aussi pour 80h, et un REP devant
+                                //   l'instruction en inverse le signe.
                                 if (temp != 0)
                                 {
                                         tempw2 = (uint16_t)(tempws % (int)((int8_t)temp));
@@ -3519,6 +3583,8 @@ startrep:
                                 else
                                 {
                                         // omitted: printf("IDIVb BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        // pcem bug, reproduced: PB-180 — les drapeaux sont empilés tels qu'avant
+                                        //   l'instruction ; le 8088 empile ceux que la division a laissés.
                                         writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
                                         writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
                                         writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
@@ -3589,6 +3655,8 @@ startrep:
                                 break;
                         case 0x30: /*DIV AX,w*/
                                 templ = (uint32_t)((DX << 16) | AX);
+                                // pcem bug, reproduced: PB-169 — seul le diviseur nul lève INT 0 : un quotient
+                                //   au-delà de FFFFh est tronqué dans AX au lieu de lever l'erreur de division.
                                 if (tempw != 0)
                                 {
                                         tempw2 = (uint16_t)(templ % tempw);
@@ -3599,6 +3667,8 @@ startrep:
                                 else
                                 {
                                         // omitted: printf("DIVw BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        // pcem bug, reproduced: PB-180 — les drapeaux sont empilés tels qu'avant
+                                        //   l'instruction ; le 8088 empile ceux que la division a laissés.
                                         writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
                                         writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
                                         writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
@@ -3620,6 +3690,9 @@ startrep:
                                 //   garde prend le chemin de la division par zéro ci-dessous.
                                 //
                                 // DEVIATION: l'oracle meurt ; 165 cycles, ceux d'IDIV mot.
+                                // pcem bug, reproduced: PB-169 — hors INT_MIN / -1, un quotient hors de
+                                //   -32768..32767 est tronqué dans AX au lieu de lever INT 0 ; le 8088 la lève aussi
+                                //   pour 8000h, et un REP devant l'instruction en inverse le signe.
                                 if (tempw != 0 && !(tempws == int.MinValue && tempw == 0xFFFF))
                                 {
                                         tempw2 = (uint16_t)(tempws % (int)((int16_t)tempw));
@@ -3630,6 +3703,8 @@ startrep:
                                 else
                                 {
                                         // omitted: printf("IDIVw BY 0 %04X:%04X\n", cs >> 4, cpu_state.pc) — sortie pure.
+                                        // pcem bug, reproduced: PB-180 — les drapeaux sont empilés tels qu'avant
+                                        //   l'instruction ; le 8088 empile ceux que la division a laissés.
                                         writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), (uint16_t)(cpu_state.flags | 0xF000));
                                         writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CS);
                                         writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), (uint16_t)cpu_state.pc);
@@ -3823,6 +3898,8 @@ startrep:
                                 FETCHCLEAR();
                         }
                 }
+                // pcem bug, reproduced: PB-247 — 808x.c:3985, même test qu'IRQTEST : `pend & ~mask` sans
+                //   `mask2` (l'ISR), que le 8259A retient (fiche 8259A, p. 15).
                 takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0) ? 1 : 0;
 
                 if (noint != 0)

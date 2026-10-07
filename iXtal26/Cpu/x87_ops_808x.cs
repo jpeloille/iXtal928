@@ -12,6 +12,7 @@
 // x87_st80 et les aides de FSAVE — se résout d'abord dans _808x (x87_8087.cs, 808x.cs), comme
 // le C, où 8087.h les redéfinit avant l'#include ; le reste vient de _386 (`using static`).
 // Ne pas éditer à la main : régénérer après toute modification des trois fichiers sources.
+// Les marqueurs de PB-54 n'y sont pas recopiés : le 8087 n'a pas de limite (CHECK_WRITE vide).
 
 using static iXtal26.Cpu._386;
 using static iXtal26.Cpu._386_common;
@@ -63,6 +64,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -78,6 +80,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -93,6 +96,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -111,6 +115,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -163,6 +168,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -196,6 +202,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -299,6 +306,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -314,6 +322,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -329,6 +338,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -347,6 +357,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
+            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -423,6 +434,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -438,6 +450,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -513,6 +526,7 @@ internal static partial class _808x
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;
@@ -528,6 +542,7 @@ internal static partial class _808x
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;
@@ -540,6 +555,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -553,6 +569,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -566,6 +583,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -582,6 +600,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -603,11 +622,12 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.s, ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -624,6 +644,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
@@ -640,6 +661,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             x87_pop();
@@ -689,6 +711,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
@@ -737,11 +760,12 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.s, ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -758,6 +782,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
@@ -774,6 +799,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             x87_pop();
@@ -823,6 +849,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
@@ -871,11 +898,12 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.d, ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -892,6 +920,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
@@ -908,6 +937,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             x87_pop();
@@ -957,6 +987,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
@@ -1005,11 +1036,12 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.d, ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -1026,6 +1058,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
@@ -1042,6 +1075,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             x87_pop();
@@ -1091,6 +1125,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
@@ -1139,11 +1174,12 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int16_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
@@ -1160,6 +1196,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
@@ -1176,6 +1213,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             x87_pop();
@@ -1225,6 +1263,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
@@ -1273,11 +1312,12 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int16_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
@@ -1294,6 +1334,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
@@ -1310,6 +1351,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             x87_pop();
@@ -1359,6 +1401,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
@@ -1407,11 +1450,12 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int32_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -1428,6 +1472,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
@@ -1444,6 +1489,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             x87_pop();
@@ -1493,6 +1539,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
@@ -1541,11 +1588,12 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)
-            //   (x87_ops_arith.h:12-16) — l'arrondi dirigé, pour ce seul FADD mémoire (PB-48).
+            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int32_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
+                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -1562,6 +1610,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
@@ -1578,6 +1627,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             x87_pop();
@@ -1627,6 +1677,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
@@ -1670,6 +1721,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87AddSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
@@ -1681,6 +1733,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87AddSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
@@ -1692,6 +1745,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87AddSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             x87_pop();
@@ -1704,6 +1758,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, reproduced: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend « plus
             //   grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné ».
@@ -1720,6 +1775,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), ST((int)(fetchdat & 7)));
             x87_pop();
@@ -1732,6 +1788,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, reproduced: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3.
             if (BitConverter.DoubleToUInt64Bits(ST(0)) == ((uint64_t)1 << 63) && BitConverter.DoubleToUInt64Bits(ST(1)) == 0)
@@ -1750,6 +1807,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST(1));
             x87_pop();
@@ -1831,6 +1889,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
@@ -1842,6 +1901,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87MulSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
@@ -1853,6 +1913,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87MulSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             x87_pop();
@@ -1933,6 +1994,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST((int)(fetchdat & 7)));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fucom);
@@ -1944,6 +2006,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST((int)(fetchdat & 7)));
             x87_pop();
@@ -2015,11 +2078,13 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-70 — IC (bit 12) n'est lu nulle part : le 8087 et le 287 comparent en affine.
             if (cpu_c.fpu_type == cpu_c.FPU_8087)
                     cpu_state.npxc = 0x3ff;
             else
                     cpu_state.npxc = 0x37f;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
+            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;
@@ -2068,6 +2133,7 @@ internal static partial class _808x
     private static int FSTOR()
     {
             if (FP_ENTER()) return 1;
+            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -2143,6 +2209,8 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
+            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l'image ne sont
+            //   pas écrits (16 bits réel : +8, +12 ; 32 bits réel : +16) ; disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
                     writememw(easeg, cpu_state.eaaddr, cpu_state.npxc);
@@ -2315,8 +2383,10 @@ internal static partial class _808x
                     break;
             }
 
+            // pcem bug, reproduced: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.
             cpu_state.npxc = 0x37F;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
+            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 les laisse intacts.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;
@@ -2434,6 +2504,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, reproduced: PB-64 — un NaN rend « plus grand », pas « non ordonné ».
             if (ST(0) == 0.0)
@@ -2694,6 +2765,8 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.
+            // pcem bug, reproduced: PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.
             ST(0) = (double)x87_fround(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.frndint);
@@ -2706,6 +2779,7 @@ internal static partial class _808x
             int64_t temp64;
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
+            // pcem bug, reproduced: PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.
             temp64 = CvtI64(ST(1));
             if (ST(0) != 0.0)
                     ST(0) = ST(0) * Math.Pow(2.0, (double)temp64);
@@ -2746,6 +2820,7 @@ internal static partial class _808x
     private static int FLDENV()
     {
             if (FP_ENTER()) return 1;
+            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -2826,6 +2901,8 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
+            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;
+            //   disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
                     writememw(easeg, cpu_state.eaaddr, cpu_state.npxc);
@@ -2861,6 +2938,7 @@ internal static partial class _808x
                     writememl(easeg, cpu_state.eaaddr + 24, (uint32_t)x87_c.x87_op_seg);
                     break;
             }
+            // pcem bug, reproduced: PB-207 — npxc intact : FSTENV ne masque pas les exceptions.
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);
             return cpu_state.abrt;
     }

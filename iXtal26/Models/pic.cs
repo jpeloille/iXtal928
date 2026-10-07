@@ -64,11 +64,13 @@ internal static partial class pic
         pic_.mask2 = 0;
         pic_.pend = pic_.ins = 0;
         pic_.vector = 8;
+        // pcem bug, reproduced: PB-255 — read = 1 met la lecture de 20h sur l'ISR (pic.c:36), et
+        //   pic2.read n'est jamais remis ; un 8259A initialisé se lit sur l'IRR.
         pic_.read = 1;
         pic2.icw = 0;
         pic2.mask = 0xFF;
-        // pcem bug, reproduced: pic.c:39 écrit `pic.mask2` dans le bloc pic2 ;
-        //                       pic2.mask2 n'est donc jamais remis à zéro.
+        // pcem bug, reproduced: PB-06 — pic.c:39 écrit `pic.mask2` dans le bloc pic2 ;
+        //   pic2.mask2 n'est donc jamais remis à zéro.
         pic_.mask2 = 0;
         pic2.pend = pic2.ins = 0;
         pic_intpending = 0;
@@ -147,6 +149,7 @@ internal static partial class pic
         {
                 if ((val & 16) != 0) /*ICW1*/
                 {
+                        // pcem bug, reproduced: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:106-113).
                         pic_.mask = 0;
                         pic_.mask2 = 0;
                         pic_.icw = 1;
@@ -160,16 +163,16 @@ internal static partial class pic
                         {
                                 pic_.ins &= unchecked((uint8_t)~(1 << (val & 7)));
                                 pic_update_mask(ref pic_.mask2, pic_.ins);
-                                // pcem bug, reproduced: pic.c:121 teste `val == 2` là où
-                                //                       tous les sites frères testent
-                                //                       `c == 2` ; inatteignable, la
-                                //                       branche impose val >= 0x60.
+                                // pcem bug, reproduced: PB-13 — pic.c:121 teste `val == 2` là où tous les sites
+                                //   frères testent `c == 2` ; inatteignable, la branche impose val >= 0x60.
                                 if (val == 2 && ((pic2.pend & ~pic2.mask) & ~pic2.mask2) != 0)
                                         pic_.pend |= (1 << 2);
                                 pic_updatepending();
                         }
                         else
                         {
+                                // pcem bug, reproduced: PB-248 — tout autre OCW2 (les rotations, la
+                                //   priorité, 40h « sans opération ») sert d'EOI non spécifique (pic.c:126-145).
                                 for (c = 0; c < 8; c++)
                                 {
                                         if ((pic_.ins & (1 << c)) != 0)
@@ -192,6 +195,8 @@ internal static partial class pic
                 }
                 else /*OCW3*/
                 {
+                        // pcem bug, reproduced: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
+                        //   sont ignorés (pic.c:146-153).
                         if ((val & 2) != 0)
                                 pic_.read = (val & 1);
                         if ((val & 0x40) != 0)
@@ -271,6 +276,7 @@ internal static partial class pic
         {
                 if ((val & 16) != 0) /*ICW1*/
                 {
+                        // pcem bug, reproduced: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:214-221).
                         pic2.mask = 0;
                         pic2.mask2 = 0;
                         pic2.icw = 1;
@@ -289,6 +295,8 @@ internal static partial class pic
                         }
                         else
                         {
+                                // pcem bug, reproduced: PB-248 — tout autre OCW2 (les rotations, la
+                                //   priorité, 40h « sans opération ») sert d'EOI non spécifique (pic.c:229-239).
                                 for (c = 0; c < 8; c++)
                                 {
                                         if ((pic2.ins & (1 << c)) != 0)
@@ -304,6 +312,8 @@ internal static partial class pic
                 }
                 else /*OCW3*/
                 {
+                        // pcem bug, reproduced: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
+                        //   sont ignorés (pic.c:240-244).
                         if ((val & 2) != 0)
                                 pic2.read = (val & 1);
                 }
@@ -414,10 +424,14 @@ internal static partial class pic
     internal static uint8_t picinterrupt()
     {
         Counters.n_picinterrupt++;
+        // pcem bug, reproduced: PB-247 — temp et temp2 ignorent mask2, le masque de service : la descente
+        //   dans l'esclave ne tient pas compte de l'ISR du maître (pic.c:356, :360).
         uint8_t temp = (uint8_t)(pic_.pend & ~pic_.mask);
         int c;
         for (c = 0; c < 8; c++)
         {
+                // pcem bug, reproduced: PB-246 — la cascade est testée à chaque c, dès c = 0 : les IRQ 8
+                //   à 15 passent avant l'IRQ 0 et l'IRQ 1 (pic.c:359).
                 if (AT != 0 && (temp & (1 << 2)) != 0)
                 {
                         uint8_t temp2 = (uint8_t)(pic2.pend & ~pic2.mask);
@@ -430,10 +444,9 @@ internal static partial class pic
                                         pic2.ins |= (uint8_t)(1 << c);
                                         pic_update_mask(ref pic2.mask2, pic2.ins);
 
-                                        // pcem bug, reproduced: pic.c:368-369 efface le bit
-                                        //                       `c` de pic.pend (l'IRQ du
-                                        //                       pic2) là où les lignes
-                                        //                       sœurs visent la cascade 2.
+                                        // pcem bug, reproduced: PB-05 — pic.c:368-369 efface le bit `c` de
+                                        //   pic.pend (l'indice de l'IRQ du pic2, appliqué au maître) là où
+                                        //   les lignes sœurs visent la cascade 2.
                                         if ((pic2.level_sensitive & (1 << c)) == 0)
                                                 pic_.pend &= unchecked((uint8_t)~(1 << c));
                                         pic_.ins |= (1 << 2); /*Cascade IRQ*/

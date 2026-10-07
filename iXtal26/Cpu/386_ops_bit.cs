@@ -27,6 +27,8 @@ internal static partial class _386
         if (l)
         {
                 uint32_t temp;
+                // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:146, :173) : un
+                //   registre négatif adresse en avant au lieu d'en arrière (386 PRM § 17.2, « -2 gigabits »).
                 cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
                 eal_r = eal_w = -1;
                 temp = geteal();
@@ -39,6 +41,8 @@ internal static partial class _386
         else
         {
                 uint16_t temp;
+                // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:92, :119) : un
+                //   registre de 8000h à FFFFh adresse en avant au lieu d'en arrière (-32 768 à -1 bits).
                 cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
                 eal_r = eal_w = -1;
                 temp = geteaw();
@@ -296,6 +300,7 @@ internal static partial class _386
 
         if (fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:48) : voir OpBTx.
         cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteal();
@@ -319,6 +324,7 @@ internal static partial class _386
 
         if (fetch_ea_32(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:68) : voir OpBTx.
         cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteal();
@@ -342,6 +348,7 @@ internal static partial class _386
 
         if (fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:8) : voir OpBTx.
         cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteaw();
@@ -365,6 +372,7 @@ internal static partial class _386
 
         if (fetch_ea_32(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:28) : voir OpBTx.
         cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteaw();

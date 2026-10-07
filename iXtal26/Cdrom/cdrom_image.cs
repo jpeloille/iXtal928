@@ -20,7 +20,7 @@
 // sscanf de la glibc.
 //
 // DEVIATIONS :
-//   1. R9, pcem bug, not reproduced (PB-110) : deux plantages de l'hôte par une feuille CUE, une donnée de
+//   1. R9, PB-110 non reproduit (marqueurs ci-dessous) : deux plantages de l'hôte par une feuille CUE, une donnée de
 //      l'utilisateur comme un .cfg (décision n° 4 de G10.3, 04/10) — une piste sans FILE lue
 //      (ReadSector, :183) et une piste avant le premier FILE suivie d'une piste qui en a un
 //      (AddTrack, :427). Survie : iXtal26.Diff r9-cue.
@@ -189,6 +189,8 @@ internal sealed class CDROM_Interface_Image : IDisposable
         }
 
         // pcem: cdrom_image.cpp:57-61
+        // pcem bug, reproduced: PB-109 — pas de clear() avant seekg : après un échec, failbit reste posé, et toute
+        //   lecture suivante du fichier échoue, sur toutes ses pistes, jusqu'à sa fermeture.
         internal override bool read(uint8_t[] buffer, int o, int seek, int count)
         {
             seekg(seek, SeekOrigin.Begin);
@@ -199,6 +201,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // pcem: cdrom_image.cpp:63-69
         // pcem bug, reproduced: PB-107 — (int) tronque une taille de plus de 2 Gio : négative jusqu'à 4 Gio,
         //   réduite modulo 4 Gio au-delà.
+        // pcem bug, reproduced: PB-109 — sous failbit, seekg et tellg échouent : getLength rend -1 (:66-67).
         internal override int getLength()
         {
             seekg(0, SeekOrigin.End);
@@ -274,6 +277,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
         attr = unchecked((uint8_t)tracks[track - 1].attr);
         index = 1;
         FRAMES_TO_MSF(sector + 150, ref absPos);
+        // pcem bug, reproduced: PB-123 — la position relative compte aussi les 150 secteurs de l'amorce (:122).
         FRAMES_TO_MSF(sector - tracks[track - 1].start + 150, ref relPos);
         return true;
     }
@@ -283,6 +287,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     {
         int sectorSize = raw ? RAW_SECTOR_SIZE : COOKED_SECTOR_SIZE;
         uint buflen = unchecked((uint)(num * (ulong)sectorSize));   // Bitu : unsigned int
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
         // DEVIATION: PB-111 — new Bit8u[buflen] n'est pas initialisé en C, et memcpy le copie ENTIER,
         //   secteurs non lus compris (:145). Zéro ici ; zéro dans l'oracle (--wrap=_Znam, décision n° 2).
         uint8_t[] buf = new uint8_t[buflen];
@@ -344,6 +349,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     // pcem: cdrom_image.cpp:186-230
     private bool LoadIsoFile(string filename)
     {
+        // pcem bug, reproduced: PB-112 — les fichiers d'une feuille refusée, oubliés ici sans être fermés (:187).
         tracks.Clear();
 
         // data track
@@ -380,6 +386,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
             track.sectorSize = RAW_SECTOR_SIZE;
             track.mode2 = true;
         }
+        // pcem bug, reproduced: PB-112 — l'image refusée garde son BinaryFile ouvert (:214-215).
         else
             return false;   // le BinaryFile n'est pas libéré (PB-112, DEVIATION n° 3 de l'en-tête)
 
@@ -403,6 +410,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     // pcem: cdrom_image.cpp:232-243
     private static bool CanReadPVD(TrackFile file, int sectorSize, bool mode2)
     {
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
         // DEVIATION: PB-111 — pvd[] n'est pas initialisé en C ; une lecture courte en laisse tout ou
         //   partie indéterminé. Zéro, des deux côtés (décision n° 2).
         uint8_t[] pvd = new uint8_t[COOKED_SECTOR_SIZE];
@@ -516,6 +524,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
             }
             else if (command == "INDEX")
             {
+                // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
                 // DEVIATION: PB-111 — `int index;` n'est pas initialisé en C (:330) — une ligne « INDEX »
                 //   sans numéro le laisse tel. Zéro, des deux côtés (décision n° 2).
                 int index = 0;
@@ -732,6 +741,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     {
         string msf = "";
         in_.read(ref msf);
+        // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
         // DEVIATION: PB-111 — min, sec et fr ne sont pas initialisés en C, et sscanf s'arrête au premier
         //   échec ; zéro, des deux côtés (décision n° 2).
         int min = 0, sec = 0, fr = 0;

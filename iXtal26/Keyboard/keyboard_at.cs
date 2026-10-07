@@ -258,6 +258,8 @@ internal static partial class keyboard_at
     // devant, et le poll rendra la main au clavier ensuite.
     internal static void keyboard_at_adddata(uint8_t val)
     {
+        // pcem bug, reproduced: PB-254 — aucune garde : au seizième octet en attente, end rejoint start et
+        //   la file paraît vide.
         key_ctrl_queue[key_ctrl_queue_end] = val;
         key_ctrl_queue_end = (key_ctrl_queue_end + 1) & 0xf;
 
@@ -299,6 +301,8 @@ internal static partial class keyboard_at
                         keyboard_at_.next_is_release = 0;
                 }
         }
+        // pcem bug, reproduced: PB-254 — aucune garde : au seizième code en attente, la file paraît vide ;
+        //   le clavier de l'AT en garde seize et remplace le dix-septième par 00h.
         key_queue[key_queue_end] = val;
         key_queue_end = (key_queue_end + 1) & 0xf;
         // omitted: pclog("keyboard_at : %02X added to key queue\n", val) — sortie pure.
@@ -308,6 +312,8 @@ internal static partial class keyboard_at
     // pcem: keyboard_at.c:234-238
     internal static void keyboard_at_adddata_mouse(uint8_t val)
     {
+        // pcem bug, reproduced: PB-254 — aucune garde : au seizième octet en attente, la file paraît vide ;
+        //   la vraie souris attend que le contrôleur relâche la ligne « clock ».
         mouse_queue[mouse_queue_end] = val;
         mouse_queue_end = (mouse_queue_end + 1) & 0xf;
         // omitted: pclog("keyboard_at : %02X added to mouse queue\n", val) — sortie pure.

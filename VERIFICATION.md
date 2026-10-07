@@ -3867,7 +3867,9 @@ Deux signatures suffisent à classer l'essentiel :
   autrement que PCem. **Mais pas tous** : le CF de BT* (≈ 1 150 à 1 350 cas par forme), l'AF
   d'ADC (2 370 cas) et le SF/ZF d'AAD/AAM sont **définis**. Ceux-là sont de vrais écarts de
   PCem, à instruire ; l'AF d'ADC rappelle PB-01 (la retenue entrante oubliée dans AF, sur
-  le 8088) — non vérifié dans le C du cœur 386.
+  le 8088) — non vérifié dans le C du cœur 386. *Instruits en G13.1 : l'AF d'ADC est un
+  défaut distinct de PB-01, PB-181 (le SBB du cœur est juste) ; le SF et le ZF d'AAD et d'AAM,
+  PB-186 ; une partie des écarts de CF de BT*, PB-183, le reste non lu.*
 
 ### Les familles
 
@@ -7224,3 +7226,75 @@ n'existe pas encore.
 en 55 minutes. Les journaux de g126 ayant été effacés, la référence g127 a été rejouée sur c00bfb3, le code de g126 :
 238 portes vertes en 63 minutes. Verdict par verdict, les 238 portes communes sont identiques, et cinq sont neuves.
 Aucun rapport de plantage n'a été laissé dans `/var/crash`.
+
+## G13.1 — Le registre et le recensement ; PB-169 à PB-257
+
+Le 7 octobre 2026. Plan : `PLAN-G13.md` § G13.1. Aucun comportement ne change : seuls des commentaires du code, les
+générateurs du x87 (leurs commentaires), le registre et la documentation bougent.
+
+**Les marqueurs.** Une seule méthode : le numéro `PB-nn` sur la ligne du marqueur, jamais un numéro de ligne. Six
+lectures, une par domaine, chacune dans ses seuls fichiers, ont numéroté les marqueurs qui ne l'étaient pas, posé ceux
+qui manquaient — dont ceux des sept défauts qui n'en avaient aucun, PB-01, 03, 07, 51, 54, 56 et 70 — et corrigé les
+commentaires faux qu'elles ont relus. Les lignes de marqueur passent de 288 (212 `reproduced`, 76 `not reproduced`) à
+867 (777 et 90) :
+- **le processeur** : 13 fichiers ; 69 posés, 6 numérotés, 9 commentaires corrigés, dont les en-têtes de
+  `x86_flags.cs` et de `386_ops_arith.cs`, qui prêtaient au cœur 386 l'AF d'ADC du 8088 ;
+- **le x87** : 5 fichiers écrits à la main et les 4 générateurs ; 239 posés, 19 numérotés, l'en-tête de `x87_ops.cs`
+  corrigé (PB-55, non PB-52). `gen46.py` ne recopie plus les marqueurs de PB-54 dans la copie du 8087, qui n'a pas de
+  limite de segment ;
+- **le stockage** : 13 fichiers ; 108 posés, 4 corrigés (PB-18 passe à `not reproduced`, sans objet en C#), et quatre
+  en-têtes faux ;
+- **la vidéo** : 10 fichiers ; 53 posés, PB-04 numéroté, 9 repris (CR3F de PB-100 est fidèle à l'AX : le défaut est
+  CR30-CR31) ;
+- **le son** : 4 fichiers ; 66 posés, 10 réécrits, 3 retirés (PB-145 sur le CT1335 et le CT1745, où le minimum est la
+  valeur du guide ; PB-165 dans `sb_awe32_init`, où le site est juste) ;
+- **la carte mère** : 8 fichiers ; 29 posés, 6 numérotés, dont les deux marqueurs de la M24 qui n'avaient pas d'entrée
+  (l'octet de souris, PB-245), 3 corrigés (PB-95 : le bouton gauche en bit 2, le droit en bit 0, chez IBM).
+
+**Le registre.** 222 entrées, chacune relue à la ligne de C par sa lecture : 133 réécrites, 89 neuves (PB-169 à
+PB-257 : le processeur 25, le x87 20, le stockage 6, la vidéo 14, le son 11, la carte mère 13). Chaque entrée des
+sections A et B porte sa *Source*, son *Cas qui discrimine* et son champ *G13* ; les 33 déjà corrigées dans les deux
+modes y sont « hors du mode ». Les entrées que la reconnaissance a montrées fausses sont corrigées, sources citées :
+PB-147 (la pause du DMA d'un DSP 1.xx est documentée ; le défaut est que D3h ne coupe pas le son), PB-165 renversé,
+PB-145, PB-92, PB-03 (les −5,87 ppm viennent de `pc.c:473`, non de PB-11), PB-07 (neutralisé, non reproduit), PB-95,
+PB-100, PB-16, PB-30, PB-144. PB-32, 35 et 37 passent de la section C à la section A : leur effet est observable.
+PB-111 reçoit son statut ; PB-121 aussi, pour son mécanisme, toujours reproduit. PB-128 reste à trancher : servir le
+transfert au-delà de 512 Ko est la question Q12 de la reconnaissance, le repli R9 du mode matériel, ouverte.
+`TRANSCRIPTION.md` citait encore `808x.c:78` et `mem.cs:706` pour PB-07 ; § G2 ci-dessus reçoit le renvoi à PB-181,
+PB-183 et PB-186.
+
+**Les pistes relevées, non inscrites** (non vérifiées par une contre-lecture) : les rendus texte du socle SVGA
+débordent sur la ligne suivante quand CR01 est grand (la famille de PB-89, jamais hors du tableau) ; PCem exécute
+BSWAP sur un 386, sans garde du 486 ; le micrologiciel des DSP quantifie la fréquence, ce qui touche aussi le repli R9
+de PB-150. PB-184 (MOVSX r16) a son site dans la table générée `386_ops_table386.cs`, que `tools/ops386-table.py`
+écrit sans commentaires : son marqueur est sur le gestionnaire, `386_ops_movx.cs`.
+
+**La porte `recensement`** (`tools/iXtal26.Diff/Recensement.cs`, en C# seul) lit `PCEM_BUGS.md` et les sources de
+`iXtal26/`. Elle exige que chaque marqueur porte un numéro sur sa ligne, qui ait son entrée ; que chaque défaut
+reproduit des sections A et B ait au moins un marqueur `reproduced`, sauf une absence (« *Reproduit* : par absence »,
+PB-204 et PB-205, qui n'ont pas de site) ; qu'aucun marqueur ne contredise le statut de son entrée ; que les numéros
+se suivent sans trou ni doublon, chacun avec un statut ; et que chaque entrée des sections A et B ait ses trois
+champs. Sur l'état d'avant G13.1, elle relève 296 écarts ; après la fusion, trois, réglés : le marqueur de PB-134
+citait PB-135 en renvoi sur sa ligne (le renvoi passe à la ligne suivante), et les deux absences du x87. Verte
+ensuite : 257 défauts (A 209, B 26, C 22), dont 199 reproduits en A et B, et 867 marqueurs.
+
+**Contrôles négatifs**, chacun sur une copie du registre et des sources :
+
+| Faute | Effet |
+|---|---|
+| le numéro retiré d'un marqueur de PB-01 | rouge : marqueur sans numéro sur sa ligne |
+| le champ *G13* de PB-01 retiré | rouge : PB-01 sans champ *G13* |
+| un identifiant provisoire (`PB-NEUF-UC-1`) sur un marqueur | rouge |
+| PB-73, non reproduit, ajouté à un marqueur `reproduced` | rouge : contradiction avec le registre |
+| l'entrée PB-205 retirée | rouge : PB-205 manque |
+| la *Source* de PB-01 retirée | rouge : reproduit, sans *Source* |
+
+**Aucun comportement ne change.** Dans les sources de `iXtal26/`, aucune ligne hors commentaire ne change. Les quatre
+générateurs du x87, rejoués après la renumérotation, rendent leurs cinq fichiers à l'octet près. `iXtal26.dll`,
+construite sans symboles de débogage (`DebugType=none`, déterministe) sur 15c2f2e et sur l'état commité, est
+identique à l'octet près (sha256 `5eaff45d…57f7a1`), alors que 58 fichiers du code ont changé ; le même procédé voit
+un seul littéral changé. `check-oracle` : 0 dérive. La construction : aucun avertissement.
+
+**Le sous-ensemble ciblé.** Seuls des commentaires changeant, pas de série entière : sur le worktree de l'état
+commité (15c2f2e et ses 71 fichiers), l'oracle reconstruit de zéro, `par.sh` joue `recensement`, `abi` et
+`ops-count` dans leurs bacs à sable : les trois vertes.

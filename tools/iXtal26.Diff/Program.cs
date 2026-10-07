@@ -300,6 +300,9 @@ switch (args[0])
     // G13.0 — le filet des images (Host/FiletImages.cs), de bout en bout : un plantage injecté contre une sortie normale.
     case "r9-filet":
         return R9Filet.Run("roms");
+    // G13.1 — le registre des défauts de PCem contre les marqueurs du code : chaque marqueur porte son numéro.
+    case "recensement":
+        return Recensement.Run();
     case "page-check":
     {
         var it = 200000;

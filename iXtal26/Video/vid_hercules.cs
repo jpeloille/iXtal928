@@ -112,6 +112,7 @@ internal static class vid_hercules
         case 0x3b2:
         case 0x3b4:
         case 0x3b6:
+                // pcem bug, reproduced: PB-230 — l'index se relit ; le 6845 le tient en écriture seule.
                 return (uint8_t)hercules.crtcreg;
         case 0x3b1:
         case 0x3b3:
@@ -119,6 +120,10 @@ internal static class vid_hercules
         case 0x3b7:
                 return hercules.crtc[hercules.crtcreg];
         case 0x3ba:
+                // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical ; le manuel de la GB101 y
+                //   met les points (« 1 = dots on »).
+                // pcem bug, reproduced: PB-225 — le bit 7 vaut 1 pendant le retour vertical ; le manuel dit
+                //   « 0 = vertical retrace », 1 pendant l'affichage.
                 return (uint8_t)((hercules.stat & 0xf) | ((hercules.stat & 8) << 4));
         }
         return 0xff;
@@ -190,6 +195,9 @@ internal static class vid_hercules
                         }
                         hercules.lastline = hercules.displine;
                         int line = hercules.displine * Stride;
+                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; en graphique,
+                        //   (x << 4) + c monte à 4 079 au-delà de 128 (vid_hercules.c:155), en texte (x * 9) + c à
+                        //   2 294 au-delà de 227 (:167-185) : la ligne suivante de buffer32, jamais hors du tableau.
                         if ((hercules.ctrl & 2) != 0 && (hercules.ctrl2 & 1) != 0)
                         {
                                 ca = (uint16_t)((hercules.sc & 3) * 0x2000);
@@ -305,6 +313,10 @@ internal static class vid_hercules
                                 if (hercules.vadj == 0)
                                         hercules.ma = hercules.maback =
                                                 (uint16_t)((hercules.crtc[13] | (hercules.crtc[12] << 8)) & 0x3fff);
+                                // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
+                                //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
+                                // pcem bug, reproduced: PB-223 — le rythme du curseur de la MDA (bit 4), deux
+                                //   fois trop lent sur la MDA ; celui de la GB101 n'est pas documenté.
                                 if ((hercules.crtc[10] & 0x60) == 0x20)
                                         hercules.cursoron = 0;
                                 else

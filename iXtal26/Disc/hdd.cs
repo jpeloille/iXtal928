@@ -53,7 +53,7 @@ internal static partial class hdd_c
     // xebec_set_switches calcule deux `switches` différents : divergence dès le
     // premier `in 0x322`.
     //
-    // Relevé au passage, sans marqueur parce qu'il n'y a rien à reproduire :
+    // pcem bug, not reproduced: PB-29 — sans objet : rien à reproduire, relevé au passage.
     // scsi_ibm.c:21 déclare `ide_fn[4][512]` contre le `[7][512]` réel d'ide.c:105.
     // Bornes divergentes sur le même objet, dans deux unités de traduction. Sans
     // objet ici — scsi_ibm.c n'est pas transcrit — mais l'entrée revient au registre

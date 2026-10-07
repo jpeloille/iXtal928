@@ -27,6 +27,11 @@ for m in re.finditer(r'static int (\w+)\(uint32_t fetchdat\) \{\n(.*?)\n\}',txt[
     if fn in ('opFCOMI','opFCOMIP','opFUCOMI','opFUCOMIP'): continue
     start=txt.find('static int %s(uint32_t fetchdat)'%fn); ln=txt[:start].count('\n')+1
     funcs.append((fn,'reg',m.group(2).split('\n'),None,None,None,None,'x87_ops_arith.h:%d'%ln))
+# G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md), posés ici et nulle part à la main.
+M48='// pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :'
+M48b='//   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).'
+M60='// pcem bug, reproduced: PB-60 — le NaN qui survit suit l\'ordre des opérandes que GCC a choisi.'
+MC1='// pcem bug, reproduced: PB-213 — C1 n\'est pas remis à zéro (387 et suivants : C1 = 0).'
 def conv(fn,kind,lines,optype,lv,get,use):
     out=[]; k=0
     while k<len(lines):
@@ -46,11 +51,12 @@ def conv(fn,kind,lines,optype,lv,get,use):
                 # le bloc de quatre lignes de PB-48
                 assert lines[k+2].strip()=='ST(0) += use_var;' and lines[k+4].strip()=='fesetround(FE_TONEAREST);'
                 ind=' '*8
-                out+=[ind+'// pcem: fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST)',
-                      ind+'//   (x87_ops_arith.h:12-16) — l\'arrondi dirigé, pour ce seul FADD mémoire (PB-48).',
+                out+=[ind+M48,
+                      ind+M48b,
                       ind+'if (((cpu_state.npxc >> 10) & 3) != 0)',
                       ind+'        ST(0) = x87_fadd_dirige(%s, ST(0), (cpu_state.npxc >> 10) & 3);'%USE[use],
                       ind+'else',
+                      ind+'        '+M60,
                       ind+'        ST(0) = X87AddSd(%s, ST(0)); // PB-60 : la mémoire en premier'%USE[use]]
                 k+=5; continue
         if kind=='mem' and r=='ST(0) *= %s;'%USE[use]:
@@ -84,6 +90,11 @@ def conv(fn,kind,lines,optype,lv,get,use):
             out.append(' '*8+'//   grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné ».')
         if re.search(r'\b(C0|C2|C3)\b',r) and 'x87_c.' not in r: sys.exit('C? non traduit: '+r)
         if 'use_var' in r or 'load_var' in r or 'optype' in r or 'fesetround' in r: sys.exit('reste: '+r)
+        # G13.1 — les marqueurs canoniques, une ligne de commentaire au-dessus du site.
+        if 'X87AddSd(' in r or 'X87MulSd(' in r:
+            out.append(' '*8+M60)
+        if r=='cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));':
+            out.append(' '*8+MC1)
         ind=' '*(len(l)-len(l.lstrip()))
         out.append(ind+r if ind else '        '+r); k+=1
     return out

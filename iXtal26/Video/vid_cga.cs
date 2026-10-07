@@ -80,6 +80,8 @@ internal static partial class vid_cga
     private const int COMPOSITE_NEW = 1;
 
     // pcem: vid_cga.c:16-17
+    // pcem bug, reproduced: PB-230 — R16 et R17, le crayon optique, s'écrivent (masque FFh) ; le 6845 les
+    //   tient en lecture seule.
     private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
                                                          0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -133,6 +135,8 @@ internal static partial class vid_cga
         switch (addr)
         {
         case 0x3D4:
+                // pcem bug, reproduced: PB-230 — l'index se relit, et R0-R13 aussi (3D5h) ; IBM les tient en
+                //   écriture seule.
                 return (uint8_t)cga.crtcreg;
         case 0x3D5:
                 return cga.crtc[cga.crtcreg];
@@ -237,6 +241,10 @@ internal static partial class vid_cga
                         cga.lastline = cga.displine;
 
                         cols[0] = (uint32_t)(((cga.cgamode & 0x12) == 0x12) ? 0 : (cga.cgacol & 15));
+                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà de 127
+                        //   (254 en 80 colonnes), la bordure (vid_cga.c:147-153), les boucles de 40 colonnes et du
+                        //   graphique (:188-270), hline (:275, :277) et la conversion (:280-294) débordent sur la
+                        //   ligne suivante de buffer32, ici le même tableau plat. Jamais hors du tableau.
                         for (c = 0; c < 8; c++)
                         {
                                 Buffer32[cga.displine * Stride + c] = cols[0];
@@ -261,9 +269,11 @@ internal static partial class vid_cga
                                         {
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)((attr >> 4) & 7);
-                                                // pcem bug, reproduced: `!cga->drawcursor` (vid_cga.c:165 et
-                                                //   :198) lit le CHAMP cga_t.drawcursor, que rien n'écrit —
-                                                //   donc toujours 0 — là où la locale `drawcursor` était visée.
+                                                // pcem bug, reproduced: PB-04 — `!cga->drawcursor` (vid_cga.c:165)
+                                                //   lit le CHAMP cga_t.drawcursor, que rien n'écrit — donc
+                                                //   toujours 0 — là où la locale `drawcursor` était visée.
+                                                // pcem bug, reproduced: PB-223 — les caractères clignotent
+                                                //   au bit 3 de cgablink, le rythme du curseur ; la carte : bit 4.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -272,6 +282,9 @@ internal static partial class vid_cga
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
+                                        // pcem bug, reproduced: PB-222 — le curseur inverse le glyphe
+                                        //   (^ 0xffffff) ; la carte force ses points à 1 : un pavé plein, de la
+                                        //   couleur d'avant-plan.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)
@@ -308,6 +321,10 @@ internal static partial class vid_cga
                                         {
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)((attr >> 4) & 7);
+                                                // pcem bug, reproduced: PB-04 — le même champ (vid_cga.c:198), en
+                                                //   40 colonnes.
+                                                // pcem bug, reproduced: PB-223 — le même rythme qu'en 80
+                                                //   colonnes.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -317,6 +334,8 @@ internal static partial class vid_cga
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
                                         cga.ma++;
+                                        // pcem bug, reproduced: PB-222 — le même curseur inversé qu'en 80
+                                        //   colonnes.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)
@@ -477,6 +496,8 @@ internal static partial class vid_cga
                                         cga.cgadispon = 1;
                                 if (cga.vadj == 0)
                                         cga.ma = cga.maback = (uint16_t)((cga.crtc[13] | (cga.crtc[12] << 8)) & 0x3fff);
+                                // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
+                                //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
                                 if ((cga.crtc[10] & 0x60) == 0x20)
                                         cga.cursoron = 0;
                                 else

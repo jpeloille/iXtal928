@@ -183,10 +183,12 @@ internal static class mfm_at
         //   configured sectors », « past end of heads », « past end of sectors ».
         if (drive.current_cylinder != mfm.cylinder)
                 return 1;
+        // pcem bug, reproduced: PB-25 — `>` et non `>=` : la tête cfg_hpc vise la tête 0 du cylindre suivant (:113).
         if (mfm.head > heads)
                 return 1;
         if (mfm.sector >= sectors + 1)
                 return 1;
+        // pcem bug, reproduced: PB-25 — le même `>`, contre les têtes de l'image (:121).
         if (mfm.head > drive.hdd_file.hpc)
                 return 1;
         if (mfm.sector >= drive.hdd_file.spt + 1)

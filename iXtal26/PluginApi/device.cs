@@ -324,7 +324,7 @@ internal static partial class device
         int c = 0;
         object? priv = null;
 
-        // pcem bug, reproduced: `devices[c]` est lu AVANT la borne `c < 256`, donc
+        // pcem bug, reproduced: PB-08 — `devices[c]` est lu AVANT la borne `c < 256`, donc
         //   devices[256] est déréférencé hors tableau quand les 256 fentes sont
         //   prises. Le C lit la globale voisine, le C# lève.
         while (devices[c] != null && c < 256)
