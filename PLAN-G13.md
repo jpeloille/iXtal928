@@ -221,13 +221,16 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **Vérification** : la série entière identique ; M1 et M2 ; les refus prouvés (boot-diff en mode matériel rend 2) ;
   `sst-probe` en mode matériel, les douze formes de PB-01 à 10 000 sur 10 000, aucune autre ne bougeant.
 
-### G13.3 — Le 8088 et le 8086  ✅ *fait, VERIFICATION.md § G13.3*
+### G13.3 — Le 8088 et le 8086  ✅ *fait, VERIFICATION.md § G13.3 ; suite le 09/10, § G13.3, suite*
 
 - PB-02 ; PB-45 avec le débordement de DIV et d'IDIV ; PB-87 élargi au fetch principal (priorité basse : chemin
   chaud, effet rare) ; PB-03 et PB-07 sur le 5150 et l'XT (ils sont dans `808x.cs` et se mesurent avec les outils de
   l'UC) ; les familles inscrites en G13.1 (DAA et DAS, REP LODS, SETMO, l'OF de SHL, AAM et AAD, SAR, `rep()`).
 - **Vérification** : SST 8088 et 8086 en mode matériel ; `--timer-check` (PB-03 : aucun cycle hors du compteur) ; le
   coût de `FETCH` (M1) ; une série.
+- **Ouvert** (09/10, à décider par Julien) : le temps d'un REP devant autre chose qu'une chaîne. Le mode matériel
+  garde le prix de PCem, 20 cycles et la file vidée ; devant IDIV, le seul cas du corpus, il compte 24,5 ± 1,5 cycles
+  de trop au 8088 (`sst-rep-temps`).
 
 ### G13.4 — La carte mère
 

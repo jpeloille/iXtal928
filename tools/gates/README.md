@@ -129,3 +129,7 @@ Les portes de G13.3 ajoutent, pour chaque correction du 8088 et du 8086, son cas
 d'instruction. Après chaque divergence admise, le fuzzeur fait jouer aux deux côtés une instruction neutre : l'état que
 la remise à zéro ne touche pas (l'adresse effective, la file de préfetch) ne passe pas d'une itération à la suivante.
 `materiel-cas-pb03` joue `--timer-check` sur le 5150 : il lit `roms/`.
+
+Depuis la suite de G13.3, `sst-probe` joue tous les cas préfixés par REP, et un REP devant une chaîne jusqu'à sa
+dernière répétition : SST attend la chaîne entière. `sst-rep-temps`, hors des portes, mesure le surcoût d'un REP devant
+autre chose qu'une chaîne, la trace du silicium contre les cycles du cœur C#.

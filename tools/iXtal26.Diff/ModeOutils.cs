@@ -21,7 +21,7 @@ internal static class ModeOutils
         "r9-mmu", "r9-cl5429", "r9-sbcfg", "r9-joycfg", "r9-s3", "r9-sb16", "r9-emu8k", "r9-awecfg", "r9-cue",
         "r9-atapi", "r9-cdcfg", "r9-zip", "r9-aha", "r9-scsihd", "r9-cga", "r9-m24", "r9-disquette", "r9-filet",
         "reset-scsi-check", "recensement", "config-check", "ops-count", "speed-check", "boot-profile",
-        "refresh-check", "fdc-trace", "materiel-cas", "materiel-mode", "banc",
+        "refresh-check", "fdc-trace", "materiel-cas", "materiel-mode", "banc", "sst-rep-temps",
     ];
 
     /// <summary>Vrai si la commande prend le mode matériel ; sinon, la raison du refus.</summary>

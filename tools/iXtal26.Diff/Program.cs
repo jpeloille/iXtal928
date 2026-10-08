@@ -14,6 +14,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      harnais xunit complet vaut d'être construit. --cpu 8086 : le corpus");
     Console.WriteLine("      SingleStepTests/8086 (vectors/sst8086/v1) sur le cœur 8086.");
     Console.WriteLine();
+    Console.WriteLine("  sst-rep-temps [--vectors DIR] [--op XX ...] [--limit N] [--cpu 8088|8086] [--cas TSV]");
+    Console.WriteLine("      G13.3 — le surcoût d'un REP devant autre chose qu'une chaîne : le silicium (la");
+    Console.WriteLine("      trace SST) contre le cœur C#, forme par forme, dans le mode demandé.");
+    Console.WriteLine();
     Console.WriteLine("  fetch-probe [CHEMIN_ROMS]");
     Console.WriteLine("      Sonde le chemin d'instruction de exec386 — getpccache, le cache");
     Console.WriteLine("      de page et son arithmetique de biais — contre l'oracle.\n");
@@ -785,6 +789,34 @@ switch (args[0])
                 : []);
 
         return SstProbe.Run(vectors, ops.ToArray(), limit, baseline, targetCs, cpu8086, attendu);
+    }
+
+    case "sst-rep-temps":
+    {
+        // G13.3 — SstRepTemps.cs : le C# seul, mesuré contre la trace du silicium.
+        string? vectors = null;
+        var limit = 0;
+        var cpu8086 = false;
+        var ops = new List<string>();
+        string? cas = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--vectors" when i + 1 < args.Length: vectors = args[++i]; break;
+                case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
+                case "--op" when i + 1 < args.Length: ops.Add(args[++i]); break;
+                case "--cas" when i + 1 < args.Length: cas = args[++i]; break;
+                case "--cpu" when i + 1 < args.Length && args[i + 1] is "8088" or "8086":
+                    cpu8086 = args[++i] == "8086";
+                    break;
+                default:
+                    Console.Error.WriteLine($"Option inconnue : {args[i]}");
+                    return 2;
+            }
+        }
+        return SstRepTemps.Run(vectors ?? (cpu8086 ? "vectors/sst8086/v1" : "vectors/sst/v2"), cpu8086, limit, ops,
+                               cas);
     }
 
     case "popss-check":

@@ -32,6 +32,11 @@
 // G13.3 — les drapeaux qu'une interruption empile (DIV, IDIV) se comparent sous le masque de la forme, comme FLAGS
 // (MasquePile) : la règle des corpus du 286 et du 386. Les lignes de base de l'oracle en ont gagné les cas de diviseur
 // nul de F6.6 et F6.7 (au 8088 et au 8086), F7.6 et F7.7 (au 8086).
+//
+// G13.3, suite — les cas préfixés par REP se jouent tous. Le filtre des cas qui commencent par F2 ou F3 datait d'avant
+// rep() (M1.9) ; il écartait la moitié des REP, et l'autre moitié, derrière un préfixe de segment, se jouait. Et un REP
+// devant une chaîne se joue jusqu'au bout (JouerChaine) : SST attend toutes les répétitions, quand PCem rend la main
+// après une seule pour LODS, STOS, CMPS et SCAS, l'instruction relancée de son début (`pc = ipc`).
 
 using System.IO.Compression;
 using System.Text.Json;
@@ -140,27 +145,15 @@ public static class SstProbe
             var n = limit > 0 ? Math.Min(limit, cases.Count) : cases.Count;
             ushort mask = masks.GetValueOrDefault(op, (ushort)0xFFFF);
 
-            int passMasked = 0, passRaw = 0, skippedPrefix = 0, skippedAam0 = 0, run = 0;
+            int passMasked = 0, passRaw = 0, skippedAam0 = 0, run = 0;
             var firstFailures = new List<string>();
 
             for (var i = 0; i < n; i++)
             {
-                // Les fichiers SST d'un opcode contiennent aussi ses formes
-                // PRÉFIXÉES. Tant qu'un préfixe n'est pas transcrit, ces cas
-                // mesurent son absence et non la justesse de l'opcode : on les
-                // compte à part au lieu de les laisser passer pour des échecs.
-                // Les overrides de segment sont tombés en M1.2 ; il ne reste que
-                // REPNE/REPE, qui attendent rep().
-                // Filtre appliqué aux DEUX cibles : sans quoi les dénominateurs diffèrent
-                // et la comparaison « le C# reproduit-il la ligne de base ? » n'a pas de sens.
-                if (cases[i].bytes.Length > 0 && IsUnimplementedPrefix((byte)cases[i].bytes[0]))
-                {
-                    skippedPrefix++;
-                    continue;
-                }
                 // G13.2 — AAM 0 (D4 00) tue l'oracle d'un SIGFPE (PB-46 : la division par zéro du C) ; le
-                // C# prend l'INT 0 de son chemin R9. Écarté des deux cibles, pour la même raison que REP :
-                // ces cas ne se jouent qu'en C# seul (PB-180).
+                // C# prend l'INT 0 de son chemin R9. Écarté des DEUX cibles, sans quoi les dénominateurs diffèrent et
+                // la comparaison « le C# reproduit-il la ligne de base ? » n'a pas de sens : ces cas ne se jouent
+                // qu'en C# seul (PB-180).
                 if (IsAam0(cases[i].bytes))
                 {
                     skippedAam0++;
@@ -179,7 +172,6 @@ public static class SstProbe
             var pct = 100.0 * passMasked / denom;
             Console.WriteLine($"  {op} : {passMasked}/{denom} ({pct:F2} %) avec masque 0x{mask:X4}" +
                               (mask != 0xFFFF ? $" ; {passRaw}/{denom} sans masque" : "") +
-                              (skippedPrefix > 0 ? $" — {skippedPrefix} cas REP écartés (rep() en M1.9)" : "") +
                               (skippedAam0 > 0 ? $" — {skippedAam0} cas AAM 0 écartés (PB-46)" : ""));
             foreach (var f in firstFailures)
                 Console.WriteLine(f);
@@ -306,10 +298,14 @@ public static class SstProbe
         var init = ToVector(c.initial.regs, null);
         Oracle.h_setregs(init);
 
-        Oracle.h_step();
-
         var got = new ushort[(int)R.COUNT];
+        Oracle.h_step();
         Oracle.h_getregs(got);
+        for (var pas = 1; pas < JouerChaine(c.bytes) && got[(int)R.IP] == init[(int)R.IP]; pas++)
+        {
+            Oracle.h_step();
+            Oracle.h_getregs(got);
+        }
 
         // `final` est un delta : seuls les registres modifiés y figurent.
         var want = ToVector(c.final.regs, init);
@@ -387,23 +383,16 @@ public static class SstProbe
     /// </summary>
     private static (bool okMasked, bool okRaw, string why) RunCaseCsharp(SstCase c, ushort mask, bool cpu8086)
     {
-        if (cpu8086)
-                _808x.Reset8086();
-        else
-                _808x.Reset();
-        mem.fill_ram(0x90);
-
-        if (c.initial.ram is not null)
-                foreach (var pair in c.initial.ram)
-                        mem.ram[pair[0] & mem.rammask] = (byte)pair[1];
-
-        var init = ToVector(c.initial.regs, null);
-        _808x.SetRegs(init);
-
-        _808x.Step();
+        var init = PreparerCsharp(c, cpu8086);
 
         var got = new ushort[(int)R.COUNT];
+        _808x.Step();
         _808x.GetRegs(got);
+        for (var pas = 1; pas < JouerChaine(c.bytes) && got[(int)R.IP] == init[(int)R.IP]; pas++)
+        {
+                _808x.Step();
+                _808x.GetRegs(got);
+        }
 
         var want = ToVector(c.final.regs, init);
 
@@ -439,6 +428,43 @@ public static class SstProbe
         return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
     }
 
+    /// <summary>Le cœur C# remis, la RAM et les registres d'un cas posés ; rend le vecteur initial.</summary>
+    private static ushort[] PreparerCsharp(SstCase c, bool cpu8086)
+    {
+        if (cpu8086)
+                _808x.Reset8086();
+        else
+                _808x.Reset();
+        mem.fill_ram(0x90);
+
+        if (c.initial.ram is not null)
+                foreach (var pair in c.initial.ram)
+                        mem.ram[pair[0] & mem.rammask] = (byte)pair[1];
+
+        var init = ToVector(c.initial.regs, null);
+        _808x.SetRegs(init);
+        return init;
+    }
+
+    /// <summary>G13.3 — les cycles que le cœur C# compte pour un cas, du pas qui commence l'instruction à celui qui
+    /// porte l'IP où SST la finit (trois pas au plus : en mode PCem, un REP devant autre chose qu'une chaîne prend un
+    /// pas à lui seul, PB-177) ; −1 si l'IP final n'est pas atteint. Pour SstRepTemps.</summary>
+    internal static int TempsCsharp(SstCase c, bool cpu8086)
+    {
+        var init = PreparerCsharp(c, cpu8086);
+        var ip = ToVector(c.final.regs, init)[(int)R.IP];
+        var got = new ushort[(int)R.COUNT];
+        var cycles = 0;
+        for (var pas = 0; pas < 3; pas++)
+        {
+                cycles += _808x.Step();
+                _808x.GetRegs(got);
+                if (got[(int)R.IP] == ip)
+                        return cycles;
+        }
+        return -1;
+    }
+
     /// <summary>G13.3 — les drapeaux qu'une interruption a empilés se comparent sous le masque de la forme, comme ceux de
     /// FLAGS : ce sont les mêmes drapeaux indéfinis, vus sur la pile. C'est la règle des corpus du 286 et du 386
     /// (« to assist in masking the flag value to handle undefined flags in instructions such as DIV », leur README), que
@@ -453,10 +479,17 @@ public static class SstProbe
         return addr == image ? mask & 0xFF : addr == image1 ? mask >> 8 : 0xFF;
     }
 
-    /// <summary>Préfixes que le cœur C# ne transcrit pas encore. Les overrides
-    /// de segment (26/2E/36/3E) sont transcrits depuis M1.2 ; restent REPNE et
-    /// REPE, qui dépendent de rep() — M1.9.</summary>
-    private static bool IsUnimplementedPrefix(byte b) => b is 0xF2 or 0xF3;
+    /// <summary>G13.3 — le nombre de pas qu'un cas peut demander : 1, ou, pour un REP devant une chaîne (A4h à A7h,
+    /// AAh à AFh, derrière ses préfixes), une répétition par pas tant que l'IP reste au début de l'instruction, CX
+    /// répétitions au plus et une de garde. Un saut sur lui-même n'est pas une chaîne : il se joue une fois.</summary>
+    internal static int JouerChaine(int[] bytes)
+    {
+        var i = 0;
+        var rep = false;
+        while (i < bytes.Length && bytes[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0xF0 or 0xF1 or 0xF2 or 0xF3)
+            rep |= bytes[i++] is 0xF2 or 0xF3;
+        return rep && i < bytes.Length && bytes[i] is (>= 0xA4 and <= 0xA7) or (>= 0xAA and <= 0xAF) ? 0x10001 : 1;
+    }
 
     /// <summary>AAM d'immédiat nul, derrière ses préfixes éventuels (segment, LOCK, REP).</summary>
     internal static bool IsAam0(int[] bytes)

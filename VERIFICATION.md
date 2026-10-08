@@ -7528,3 +7528,80 @@ Les 36 portes neuves sont celles de G13.3 : les cas des dix-sept corrections et 
 `sst8088-materiel` et `sst8086-materiel` jouent désormais `--hardware-mode processeur` et reproduisent leurs lignes
 de base régénérées. Après le lancement de la série, seul `iXtal26/Docs/pourquoi-on-corrige.md` a changé dans l'arbre
 principal (PB-258 dans la section de G13.3) ; aucune porte ne le lit.
+
+## G13.3, suite — Les REP dans la sonde SST ; le temps du REP mesuré
+
+Le 9 octobre 2026, après le commit de G13.3 (`8556e3a`). Julien, sur les deux limites qu'il laissait (les REP LODS que
+SST ne voyait pas, le temps d'un REP devant autre chose qu'une chaîne) : « peux t on couvrir cela en faisant un
+program ASM dans avec le dos de l'émulateur et ainsi le couvrir ? ». Un programme sous DOS ne mesurerait que
+l'émulateur, faute de 8088 réel (décision n° 14) ; la vérité des deux est déjà dans le corpus SST. Feu vert : « oui,
+fais les deux avant G13.4 ». Seuls les outils changent, pas l'émulateur : un sous-ensemble ciblé de portes, pas de
+série.
+
+**Les REP LODS : c'était la sonde.** Le corpus joue chaque REP jusqu'au bout : dans `AC`, 998 cas sur 2 000 sont des
+REP LODSB, de CX = 4 à 120 jusqu'à 0, en 65 à 1 573 cycles. PCem rend la main après une répétition de LODS (de même
+STOS, CMPS, SCAS), l'instruction relancée de son début (`pc = ipc`), et la sonde ne jouait qu'un pas. Elle écartait de
+plus tout cas qui commence par F2 ou F3, un filtre d'avant `rep()` (M1.9), soit la moitié des REP : au 8088, 1 547
+devant une chaîne et 630 devant autre chose ; au 8086, 1 504 et 141. Désormais (`SstProbe.JouerChaine`), plus de
+filtre, et un REP devant une chaîne (A4h à A7h, AAh à AFh) se rejoue pas après pas tant que l'IP reste au début de
+l'instruction, des deux côtés, l'oracle et le C#. Un saut sur lui-même n'est pas une chaîne : il se joue une fois.
+
+Les quatre lignes de base, régénérées, ne bougent qu'aux formes qui ont des REP :
+
+| Forme | 8088, oracle | 8088, matériel | 8086, oracle | 8086, matériel |
+|---|---|---|---|---|
+| `A4` | 1 483 → 2 000, toutes | 1 483 → 2 000, toutes | 1 499 → 2 000, toutes | 1 499 → 2 000, toutes |
+| `AC` | 1 009/1 455 → 1 019/2 000 | 1 009/1 455 → 2 000/2 000 | 1 035/1 500 → 1 066/2 000 | 1 035/1 500 → 2 000/2 000 |
+| `AD` | 1 004/1 515 → 1 010/2 000 | 1 004/1 515 → 2 000/2 000 | 1 032/1 497 → 1 068/2 000 | 1 032/1 497 → 2 000/2 000 |
+| `F6.7` | 1 187/9 696 → 1 187/10 000 | 9 696 → 10 000, toutes | 337/1 928 → 337/2 000 | 1 928 → 2 000, toutes |
+| `F7.7` | 2 243/9 674 → 2 243/10 000 | 9 674 → 10 000, toutes | 545/1 931 → 545/2 000 | 1 931 → 2 000, toutes |
+
+En mode matériel, les deux corpus passent maintenant en entier : 945 953 cas sur 945 953 au 8088, 205 988 sur
+205 988 au 8086. PB-172 se vérifie enfin contre le silicium, et l'IDIV sous REP de PB-177 sur les 630 et 141 cas qui
+commencent par REP. Le mode PCem échoue les mêmes REP qu'avant, et ceux qui viennent d'entrer : 855 527 sur 945 953 au
+8088, 186 089 sur 205 988 au 8086. Le banc sous DEBUG qu'on envisageait (REP LODSB à CX = 1) n'ajouterait rien : il
+redirait la page LODS d'Intel, que `materiel-cas PB-172` dit déjà, et le silicium la confirme maintenant cas par cas.
+
+**Le temps du REP** (`sst-rep-temps`, neuf, `tools/iXtal26.Diff/SstRepTemps.cs`). PCem facture un REP devant autre
+chose qu'une chaîne 20 cycles, file vidée (`rep()`, `default:`), et le mode matériel garde ce prix. Les temps absolus
+ne se comparent pas : le modèle de temps de PCem n'est pas celui du 8088, et la sonde part d'une file vide quand SST la
+donne pleine dans la moitié des cas du 8088 et tous ceux du 8086. Le surcoût du REP, si : dans une forme, les cas avec
+et sans REP tirent leurs opérandes de la même façon. Par forme et par strate (le nombre des autres préfixes, la file de
+départ vide ou non), la moyenne avec REP moins la moyenne sans REP, pour le silicium (la longueur de la trace SST) et
+pour le cœur C#, et leur écart, avec son erreur type. Le corpus n'a de REP devant autre chose qu'une chaîne que devant
+IDIV, `F6.7` et `F7.7` :
+
+| Corpus, mode matériel | Cas avec REP | Silicium | Cœur C# | Écart |
+|---|---|---|---|---|
+| 8088, `F6.7` | 628 | +2,9 | +28,5 | −25,7 ± 1,3 |
+| 8088, `F7.7` | 667 | +4,0 | +27,4 | −23,3 ± 2,6 |
+| 8088, ensemble | 1 295 | +3,5 | +27,9 | −24,5 ± 1,5 |
+| 8086, ensemble | 261 | +1,3 | +27,8 | −26,5 ± 3,4 |
+
+Le cœur facture un REP devant IDIV quelque 24 cycles de trop, pour une instruction d'une centaine à deux cents cycles.
+Ce n'est pas corrigé : ouvert dans `PLAN-G13.md` § G13.3, à décider par Julien. Le corpus ne dit rien des autres
+instructions.
+
+Cas par cas, contre le mode PCem (`--cas`, `F6.7` et `F7.7`), le mode matériel ne garde pas tout à fait le temps de
+PCem. Au 8088, sur les 317 cas avec REP que les deux modes finissent à l'IP de SST, les 150 qui commencent par le REP
+ont le même temps ; les 167 où un préfixe de segment le précède en ont 28,1 cycles de moins : PCem relance sur le REP
+(`ipc + 1`) et le facture deux fois, le mode matériel une. Au 8086, 33 et 25 cas, 25,9 cycles. Le mode matériel garde
+le prix d'un REP, pas le total de PCem ; la phrase « Le temps reste celui de PCem » de PB-177 est corrigée dans ce
+sens. Sans REP, 4 588 cas sur 4 590 ont le même temps au 8088, 1 107 sur 1 107 au 8086 ; les deux autres sont des IDIV
+octet qui débordent dans les deux modes, l'INT 0 du mode matériel plus lente de 12 et 15 cycles, hors du REP.
+
+**Contrôles négatifs**, posés dans une copie à part (`/tmp/a9/negrep`), ou par la liste des corrections demandées :
+
+| Faute | Mesure | Effet |
+|---|---|---|
+| `JouerChaine` ramené à un pas | `sst-probe` en mode matériel, `AC`, `AD` | rouge : 1 015 et 1 010 sur 2 000 |
+| le REP facturé 2 cycles en mode matériel | `sst-rep-temps` | l'écart passe de −24,5 à −6,5 : la mesure voit le prix du cœur |
+| le mode matériel sans PB-172 | `sst-probe`, `AC`, `AD` | rouge : 1 019 et 1 010, les chiffres de PCem |
+| le mode matériel sans PB-177 | `sst-probe`, `F6.7`, `F7.7` | rouge : 9 372 et 9 333, les cas avec REP |
+
+**Les portes.** Sans changement de l'émulateur, pas de série : le sous-ensemble que la sonde et le registre touchent,
+sous `MALLOC_PERTURB_=85`, l'oracle de G13.3 (`tools/oracle`, inchangé). `sst8088`, `sst8086` (le C# reproduit les
+lignes de base de l'oracle à l'identique), `sst8088-materiel`, `sst8086-materiel`, `materiel-mode` et `recensement`
+(258 défauts, 895 marqueurs) : vertes. `sst-diff` et le fuzzeur n'appellent de la sonde que `DiffCase`, `IsAam0` et le
+chargement, inchangés. `tools/fetch-sources.sh`, modifié dans l'arbre par la session de la documentation du 5150,
+n'est pas de cette étape.

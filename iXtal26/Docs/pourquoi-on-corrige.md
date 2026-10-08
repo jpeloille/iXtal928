@@ -181,7 +181,8 @@ SingleStepTests, enregistré sur un AMD D8088 et un Intel 8086.
 
 - **Le vrai PC.** LODS charge AL (AX) à chaque répétition.
 - **L'émulateur.** PCem lit l'octet et le garde pour lui : AL ne change pas.
-- **La correction.** AL et AX reçoivent la valeur lue.
+- **La correction.** AL et AX reçoivent la valeur lue. Vérifiée contre le silicium depuis que la sonde SST joue la
+  chaîne jusqu'à sa dernière répétition : les 2 000 REP LODSB et les 2 000 REP LODSW du corpus, au 8088 et au 8086.
 
 ### PB-173 — SETMO et SETMOC
 
@@ -212,3 +213,6 @@ SingleStepTests, enregistré sur un AMD D8088 et un Intel 8086.
 - **La correction.** On reprend juste après le REP, dans la même instruction, préfixes compris. Et l'IDIV qu'un REP
   précède rend l'opposé de son quotient, comme le 8088 et le 8086 le font (mesuré sur le corpus) : un effet de leur
   microcode, que PCem ignore.
+- **Ce qui reste.** Le temps. PCem facture le REP 20 cycles et vide la file ; devant IDIV, le seul cas que le corpus
+  mesure, le 8088 le paie 3 à 4 cycles. Le mode matériel garde le prix de PCem : 24 cycles de trop, une décision à
+  prendre.
