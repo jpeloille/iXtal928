@@ -28,6 +28,10 @@
 // joué sur le MÊME execx86 avec is8086, des deux côtés (h_set_core(Core8086), Reset8086). Le
 // corpus dit son processeur (metadata.json, « cpu ») : jouer l'un sur le cœur de l'autre est
 // refusé, au lieu d'écrire en silence une ligne de base qui ne mesure rien.
+//
+// G13.3 — les drapeaux qu'une interruption empile (DIV, IDIV) se comparent sous le masque de la forme, comme FLAGS
+// (MasquePile) : la règle des corpus du 286 et du 386. Les lignes de base de l'oracle en ont gagné les cas de diviseur
+// nul de F6.6 et F6.7 (au 8088 et au 8086), F7.6 et F7.7 (au 8086).
 
 using System.IO.Compression;
 using System.Text.Json;
@@ -324,7 +328,8 @@ public static class SstProbe
             foreach (var pair in c.final.ram)
             {
                 var actual = Oracle.ReadByte(pair[0]);
-                if (actual != (byte)pair[1])
+                var m = MasquePile(pair[0], init, want, mask);
+                if ((actual & m) != ((byte)pair[1] & m))
                     return (false, false,
                         $"mem[0x{pair[0]:X5}] = 0x{actual:X2}, attendu 0x{pair[1]:X2}");
             }
@@ -416,7 +421,8 @@ public static class SstProbe
                 foreach (var pair in c.final.ram)
                 {
                         var actual = mem.ram[pair[0] & mem.rammask];
-                        if (actual != (byte)pair[1])
+                        var m = MasquePile(pair[0], init, want, mask);
+                        if ((actual & m) != ((byte)pair[1] & m))
                                 return (false, false,
                                     $"mem[0x{pair[0]:X5}] = 0x{actual:X2}, attendu 0x{pair[1]:X2}");
                 }
@@ -431,6 +437,20 @@ public static class SstProbe
               $"(diff masqué 0x{(got[(int)R.FLAGS] ^ want[(int)R.FLAGS]) & mask:X4})";
 
         return (okMaskedFlags, okMaskedFlags && okRawFlags, why);
+    }
+
+    /// <summary>G13.3 — les drapeaux qu'une interruption a empilés se comparent sous le masque de la forme, comme ceux de
+    /// FLAGS : ce sont les mêmes drapeaux indéfinis, vus sur la pile. C'est la règle des corpus du 286 et du 386
+    /// (« to assist in masking the flag value to handle undefined flags in instructions such as DIV », leur README), que
+    /// sst386-probe applique depuis G13.2. Au 8088, seuls DIV, IDIV et AAM 0 empilent sous un masque : un cas qui finit
+    /// avec SP − 6. Rend le masque d'un octet de RAM final, FFh hors de l'image empilée des drapeaux.</summary>
+    private static int MasquePile(long addr, ushort[] init, ushort[] want, ushort mask)
+    {
+        if (mask == 0xFFFF || want[(int)R.SP] != (ushort)(init[(int)R.SP] - 6))
+            return 0xFF;
+        var image = ((want[(int)R.SS] << 4) + ((want[(int)R.SP] + 4) & 0xFFFF)) & 0xFFFFF;
+        var image1 = ((want[(int)R.SS] << 4) + ((want[(int)R.SP] + 5) & 0xFFFF)) & 0xFFFFF;
+        return addr == image ? mask & 0xFF : addr == image1 ? mask >> 8 : 0xFF;
     }
 
     /// <summary>Préfixes que le cœur C# ne transcrit pas encore. Les overrides

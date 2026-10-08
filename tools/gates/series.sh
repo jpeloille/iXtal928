@@ -453,9 +453,25 @@ run fuite-pb01 --hardware-mode PB-01 fuzz --mode single --iter 100000 $ALL --fui
 # G13.2 — SingleStepTests, le silicium, en C# seul : le 8088 (AMD D8088) et le 8086 (Intel), 103 formes chacun, corpus
 # récupérés par tools/fetch-sst.sh et fetch-sst8086.sh dans vectors/ (gitignoré, décision n° 5) ; une forme dont les
 # vecteurs manquent rend la porte rouge. En mode PCem, le C# rend les lignes de base de l'oracle à l'identique ; en
-# mode matériel, PB-01 corrigé, celles du mode, où les douze formes d'ADC et de SBB passent entières.
+# mode matériel, celles du mode : depuis G13.3, tout le domaine du processeur corrigé (PB-01 en G13.2).
 run sst8088 sst-probe --target csharp --limit 10000 --attendu sst-baseline.tsv
-run sst8088-materiel --hardware-mode PB-01 sst-probe --target csharp --limit 10000 --attendu sst-baseline-materiel.tsv
+run sst8088-materiel --hardware-mode processeur sst-probe --target csharp --limit 10000 \
+  --attendu sst-baseline-materiel.tsv
 run sst8086 sst-probe --cpu 8086 --target csharp --limit 10000 --attendu sst8086-baseline.tsv
-run sst8086-materiel --hardware-mode PB-01 sst-probe --cpu 8086 --target csharp --limit 10000 \
+run sst8086-materiel --hardware-mode processeur sst-probe --cpu 8086 --target csharp --limit 10000 \
   --attendu sst8086-baseline-materiel.tsv
+# G13.3 — le 8088 et le 8086 (PLAN-G13.md) : dix-sept corrections, en trois groupes qui ne valent qu'ensemble
+# (PB-03 et PB-257 ; PB-07 et PB-179 ; PB-45, PB-169 et PB-258). Pour chacune, le cas qui discrimine en C# seul : la
+# valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde qui dit que la correction a servi. PB-03
+# joue --timer-check sur le 5150 (aucun cycle consommé hors du TSC) ; PB-257, le 8237 d'un PC, canal masqué.
+for pb in 02 03 07 45 87 169 170 171 172 173 174 175 176 177 179 257 258; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# L'IDIV qu'un REP précède rend l'opposé de son quotient : la correction d'IDIV (PB-45), dans l'instruction que PB-177
+# garde entière.
+run materiel-cas-pb177-idiv --hardware-mode PB-177,PB-45 materiel-cas PB-177
+# Le contrôle de fuite des corrections qui ont un périmètre d'instruction (Fuzzer.HorsDuPerimetre) : toute divergence
+# avec l'oracle tombe dans l'instruction qu'une correction vise.
+run fuite-g133 --hardware-mode PB-02,PB-45,PB-87,PB-170,PB-171,PB-172,PB-173,PB-174,PB-175,PB-176,PB-177 fuzz \
+  --mode single --iter 100000 $ALL --fuite

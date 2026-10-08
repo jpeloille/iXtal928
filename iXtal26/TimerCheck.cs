@@ -72,6 +72,10 @@ internal static class TimerCheck
 
     private static long _slices;
 
+    /// <summary>G13.3 — les cycles consommés dans la fenêtre et jamais portés au TSC (le rapport 4) : PB-03 en mode PCem,
+    /// zéro à l'arrondi près en mode matériel. Lu par materiel-cas PB-03.</summary>
+    internal static long Manque;
+
     // Posés après initpc, parce qu'ils dépendent de la machine choisie.
     //
     // pc.c:473 — `int cycles_to_run = cpu_get_speed() / 100;`. DIVISION ENTIÈRE :
@@ -363,6 +367,7 @@ internal static class TimerCheck
                           $"(écart {Signed(Ppm(dcons / emuSeconds, _speed), 2)} ppm)");
         Console.WriteLine($"    portés au tsc            : {dtscCycles / emuSeconds:F3} /s " +
                           $"(écart {Signed(Ppm(dtscCycles / emuSeconds, _speed), 2)} ppm)");
+        Manque = dcons - dtscCycles;
         Console.WriteLine($"    cycles consommés mais JAMAIS portés au tsc : {dcons - dtscCycles} " +
                           $"sur {dcons} ({100.0 * (dcons - dtscCycles) / dcons:F4} %)");
         Console.WriteLine();

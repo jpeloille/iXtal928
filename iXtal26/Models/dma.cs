@@ -516,10 +516,13 @@ internal static partial class dma
                         return DMA_NODATA;
         }
 
-        // pcem bug, reproduced: PB-257 — le cycle est facturé avant les tests de masque et de mode : un
+        // pcem bug, fixed in hardware mode: PB-257 — le cycle est facturé avant les tests de masque et de mode : un
         //   transfert refusé coûte autant qu'un transfert fait.
-        if (AT == 0)
-                _808x.refreshread();
+        if (materiel.pb_257)
+                dma_cycle_materiel(channel, 8);
+        else
+                if (AT == 0)
+                        _808x.refreshread();
 
         if ((dma_m & (1 << channel)) != 0)
                 return DMA_NODATA;
@@ -604,10 +607,13 @@ internal static partial class dma
                         return DMA_NODATA;
         }
 
-        // pcem bug, reproduced: PB-257 — le cycle est facturé avant les tests de masque et de mode : un
+        // pcem bug, fixed in hardware mode: PB-257 — le cycle est facturé avant les tests de masque et de mode : un
         //   transfert refusé coûte autant qu'un transfert fait.
-        if (AT == 0)
-                _808x.refreshread();
+        if (materiel.pb_257)
+                dma_cycle_materiel(channel, 4);
+        else
+                if (AT == 0)
+                        _808x.refreshread();
 
         if ((dma_m & (1 << channel)) != 0)
                 return DMA_NODATA;

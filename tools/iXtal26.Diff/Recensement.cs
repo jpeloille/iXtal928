@@ -19,7 +19,8 @@
 //     discrimine* ;
 //   - G13.2 : qu'un défaut corrigé en mode matériel le soit partout d'accord — ses marqueurs « fixed in hardware mode »,
 //     le champ *Corrigé en mode matériel* de son entrée et la table des corrections (ModeMateriel) nomment les mêmes
-//     défauts, et aucun de ses sites ne reste « reproduced » ;
+//     défauts, et aucun de ses sites ne reste « reproduced » ; G13.3 : un défaut que le mode PCem neutralise (NON
+//     reproduit, PB-07) peut porter des marqueurs « fixed in hardware mode », si son entrée a ce champ ;
 //   - qu'aucune configuration lue par une porte (tools/gates/cfg, les gabarits .cfg.in, les profils que series.sh
 //     passe à --config) ne porte la clé hardware_mode : les portes jouent le mode PCem.
 // Tout numéro sur la ligne d'un marqueur compte comme un site : un renvoi à un autre défaut va sur la ligne suivante.
@@ -92,7 +93,8 @@ internal static class Recensement
                         corriges.Add(n);
                     else if (!non)
                         encoreReproduits.Add(n);
-                    if (!non && !e.Reproduit)
+                    // G13.3 — un défaut neutralisé en mode PCem (NON reproduit) peut être corrigé en mode matériel : PB-07.
+                    if (!non && !e.Reproduit && !(corrige && e.NonReproduit && e.Corrige))
                         fautes.Add($"{rel}:{i + 1} : « {m.Groups[1].Value} » pour PB-{n:00}, que le registre ne dit que NON reproduit");
                     if (non && !e.NonReproduit)
                         fautes.Add($"{rel}:{i + 1} : « not reproduced » pour PB-{n:00}, que le registre ne dit que reproduit");

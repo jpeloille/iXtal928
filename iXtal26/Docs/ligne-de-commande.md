@@ -177,7 +177,9 @@ reset matériel perd le disque, comme chez PCem.
 Le mode matériel (G13, `PLAN-G13.md`) : les défauts de PCem que LISTE nomme sont corrigés d'après la documentation du
 vrai matériel, au lieu d'être reproduits (`PCEM_BUGS.md`, champ *Corrigé en mode matériel*). LISTE est obligatoire :
 `tout`, `aucun`, des domaines (`processeur`, `x87`, `stockage`, `video`, `son`, `carte-mere`) ou des `PB-nn`, séparés
-par des virgules ; un nom inconnu, ou un PB que le mode ne corrige pas, est refusé. L'option l'emporte sur la clé
+par des virgules ; un nom inconnu, ou un PB que le mode ne corrige pas, est refusé. Les corrections qui ne valent
+qu'ensemble se demandent ensemble : nommer l'une demande les autres (PB-03 et PB-257 ; PB-07 et PB-179 ; PB-45,
+PB-169 et PB-258, depuis G13.3). L'option l'emporte sur la clé
 `hardware_mode` du .cfg (0 ou 1 ; une autre valeur vaut 0, avec un avertissement), propre à iXtal comme `zip_path` :
 `--hardware-mode aucun` rend le mode PCem par-dessus un fichier qui demande le mode matériel. Une clé absente ne
 demande rien. Le mode se choisit au lancement : il se fige avant le premier cœur, en tête d'initpc, et une demande qui

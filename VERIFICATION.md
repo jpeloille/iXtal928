@@ -7417,3 +7417,114 @@ dans `/var/crash` venait d'une sonde SST de 20 h 40, l'oracle tué par AAM 0 (PB
 posé : effacé. Pendant la série, deux commits de documentation du 5150 (`83c0b94`, `28997c3`) sont arrivés sur master ;
 ils n'ajoutent que des fichiers neufs, qu'aucune porte ne lit (`iXtal26/Docs/ibm5150/`, `sources/`, deux scripts),
 et G13.2 se pose sur eux sans chevauchement ; `recensement`, rejoué sur cet état final, est vert.
+
+## G13.3 — Le 8088 et le 8086 : dix-sept corrections en mode matériel ; PB-258
+
+Le 8 octobre 2026. Plan : `PLAN-G13.md` § G13.3, feu vert de Julien le 08/10 (« feu vert pour G13.3 »). Le mode PCem
+ne bouge pas ; le mode matériel corrige à côté (R10), le domaine du processeur entier.
+
+**Les corrections** (`Cpu/808x.cs`, gardes ; `Cpu/808x.Materiel.cs` et `Models/dma.Materiel.cs`, le code du mode) :
+PB-02 (le CF de RCL et RCR mot par CL), PB-03 et PB-257 (le temps du rafraîchissement porté au TSC ; un transfert de
+DMA refusé ne coûte rien), PB-07 et PB-179 (le mot à cheval sur une page, au repli de 1 Mo, à l'offset FFFFh), PB-45,
+PB-169 et PB-258 (IDIV signé, INT 0 sur un quotient hors capacité, la pile de l'erreur dans SS), PB-87 (l'instruction
+au repli de l'IP), PB-170 et PB-171 (DAA et DAS du silicium), PB-172 (REP LODS), PB-173 (SETMO, SETMOC), PB-174 et
+PB-176 (l'OF et le CF des décalages par CL), PB-175 (AAM, AAD), PB-177 (`rep()` : 6Eh, REP DS:, le préfixe avant
+REP, et l'IDIV qu'un REP précède, qui rend l'opposé de son quotient). Trois groupes ne valent qu'ensemble et se
+demandent ensemble (`ModeMateriel.Groupes`) : PB-03 et PB-257 ; PB-07 et PB-179 ; PB-45, PB-169 et PB-258. PB-180 (les
+drapeaux que le microcode empile sur l'erreur de division) reste reproduit : sa règle n'est pas connue. `DEVIATION`
+(R9) dans `fetch_materiel` : au-delà de 64 Kio dans une même instruction (une chaîne de préfixes qui remplit son
+segment, sans fin sur le silicium), la lecture redevient celle de PCem, pour que l'émulateur rende la main.
+
+**Les règles tirées du silicium**, vérifiées hors machine sur les vecteurs avant d'être écrites : DAA et DAS (le
+seuil de l'AL d'origine, 99h ou 9Fh si AF valait 1 ; l'emprunt du premier pas de DAS ne pose pas CF) rendent 10 000
+cas sur 10 000 au 8088, 2 000 sur 2 000 au 8086 ; l'OF des décalages par CL est celui du dernier pas d'un bit (14 566
+cas sur 14 566 aux formes octet) ; SETMO et SETMOC laissent l'octet bas des drapeaux à 84h dans les 29 691 cas qui
+changent l'opérande ; sous REP, IDIV rend l'opposé de son quotient et garde son reste, dans tous les cas à registre
+de `F6.7` et `F7.7` sans débordement, aux deux processeurs.
+
+**PB-258, neuf.** Après PB-169, les cas de débordement de `F6.6` à `F7.7` qui portent un préfixe de segment échouaient
+sur une écriture absente : un préfixe pose `ds = ss = …`, et le chemin de l'erreur de division empile avant de remettre
+`ss`, là où les PUSH le remettent. L'erreur empile donc dans le segment du préfixe, en mode PCem aussi (diviseur nul).
+Inscrit en section A, avec sa source (8086 Family User's Manual, « Interrupt Procedures »), et corrigé dans
+`int0_materiel`. Le chemin R9 d'AAM 0 (PB-46), du C# propre, a le même geste : le corriger changerait `execx86` en
+mode PCem ; il reste, et l'entrée le dit.
+
+**Les cas qui discriminent**, `materiel-cas PB-nn`, en C# seul, un ou plusieurs par correction : la valeur de PCem en
+mode PCem, celle du matériel en mode matériel, la sonde comptant la correction (`MaterielCas.cs` ; PB-01 y passe au
+même moule). PB-03 joue `--timer-check` sur le 5150 (cinq secondes à l'invite de BASIC : 1 288 cycles consommés jamais
+portés au TSC en mode PCem, 0 en mode matériel) ; PB-257, le 8237 d'un PC (canal masqué : 4 cycles de bus facturés
+contre 0). Pour PB-07, le cas remplit d'abord le cache de pages de la page FFh : sans lui, le harnais passe par le
+chemin lent, qui découpe déjà le mot, et ne discrimine rien. Les dix-sept rougissent sous la panne injectée
+(`--attendu materiel` en mode PCem), chacun sur 1 à 4 cas ; `materiel-cas-pb177-idiv` demande PB-177 et PB-45 ensemble.
+
+**`--timer-check` sur le 5150, 300 secondes.** Mode PCem : 77 350 cycles consommés jamais portés au TSC, rapport 1 à
+−59,87 ppm. Mode matériel (PB-03, PB-257) : aucun ; rapport 1 à −5,88 ppm, la seule troncature de `pc.c:473`
+(`TimerCheck.cs`). Le rapport 3 a une incertitude de ±33,3 ppm (l'alignement à une tranche) : son encadrement
+contient la fréquence nominale moins la troncature en mode matériel ([18,206359 ; 18,207572] Hz), l'exclut en mode PCem
+([18,204846 ; 18,206060]). Le rapport 2, quasi tautologique, varie dans la même incertitude (+1,68 et +30,77 ppm).
+Marge de l'hôte : 37,3 en mode matériel, 38,0 en mode PCem.
+
+**SST, le silicium, en C# seul.** La sonde du 8088 et du 8086 compare désormais les drapeaux qu'une interruption
+empile sous le masque de la forme, comme `sst386-probe` depuis G13.2 (`SstProbe.MasquePile`) : sans cela, chaque cas de
+débordement échouait sur la pile, et PB-169 ne se vérifiait pas. Les lignes de base de l'oracle, régénérées, ne
+bougent que là : `F6.6` 4 802 → 4 833 et `F6.7` 1 169 → 1 187 au 8088 ; `F6.6` 1 023 → 1 054, `F6.7` 303 → 337,
+`F7.6` 1 027 → 1 041, `F7.7` 533 → 545 au 8086 (les cas de diviseur nul). Le C# les reproduit à l'identique.
+En mode matériel, tout le domaine du processeur (`sst-baseline-materiel.tsv`, `sst8086-baseline-materiel.tsv`) :
+- au 8088, 32 formes montent et passent entières, aucune ne baisse, aucune autre ne bouge : 854 994 → 942 819 cas sur
+  943 776. Les 957 échecs restants sont tous des REP LODS à plusieurs répétitions (446 en `AC`, 511 en `AD`) : le
+  corpus attend la chaîne entière, la sonde joue une instruction, donc une itération, dans les deux modes. Le corpus
+  n'a aucun REP LODS à CX = 1 : PB-172 ne se voit que par son cas en C# ;
+- au 8086, 31 formes montent et passent entières, dont les quatre cas à cheval sur FFFFh (`18`, `28`, `33`, `D2.3`,
+  PB-87) : 185 521 → 203 413 sur 204 343, les 930 restants, les mêmes REP LODS. Le corpus du 8086 masque l'OF des
+  décalages par CL : `D2.4` à `D3.5` n'y bougent pas.
+
+**Le contrôle de fuite** (`fuite-g133`, le fuzzeur contre l'oracle, PB-02, 45, 87, 170 à 177 corrigés, avec 169 et 258
+par leur groupe) : 100 000 instructions des 256 opcodes, 1 519 divergences, toutes dans le périmètre déclaré de leur
+correction (`Fuzzer.HorsDuPerimetre`), aucune ailleurs (4 min 27 s). PB-03, PB-257, PB-07 et PB-179 n'ont pas de
+périmètre d'instruction : le contrôle les refuse (retour 2). Deux premières passes signalaient des fuites qui n'en
+étaient pas : la remise à zéro du harnais ne touche ni l'adresse effective, ni le contenu de la file de préfetch, ni
+`easeg`, et une instruction du périmètre les léguait autrement à la suivante (STOSB comparé sur `eaaddr` ; LDS sous sa
+forme registre, qui lit à `easeg + eaaddr`, neuf cycles d'un remplissage du cache de pages). Le mode PCem, rejoué sur
+la même graine, ne divergeait pas. Après chaque divergence admise, les deux côtés jouent désormais la même instruction
+neutre (MOV AX,[BX+SI]). `fuite-pb01` le confirme : 339 divergences, le chiffre de G13.2.
+
+**Le mode PCem ne coûte rien (M2).** Les listings du JIT de l'état G13.3 (`tools/listings-jit.sh`, les cinq
+scénarios) contre M0 : 996 méthodes, les six méthodes froides et les sept apparues de G13.2, rien d'autre. `execx86`,
+`rep`, `readmemw`, `writememw`, `clockhardware`, `dma_channel_read` et `dma_channel_write` ont le code machine de M0, et
+les scénarios du 8088 les compilent tous. Une première version gardait PB-03 après `timer_process()` : l'appel n'était
+plus terminal (`call` puis `ret` au lieu d'un `tail.jmp`), et `clockhardware` changeait. La correction appelle
+désormais `timer_process` elle-même, la ligne de PCem reste la dernière, et le listing est revenu à M0. Le décompte de
+R2 de `808x.cs` : 3 226 lignes vives (3 150 avant), pour 3 402 de C.
+
+**M1, le coût de la correction de `FETCH` quand on la demande** (`tools/perfbanc`, `FetchBanc.cs`, BenchmarkDotNet,
+la machine au repos) : `execx86` sur une boucle MOV, ADD, LOOP qui vide la file à chaque tour, 100 000 cycles par
+appel, un processus par mode, le même état final dans les trois. Mode PCem 114,8 µs ; PB-87 seul 125,0 µs (+9 %) ;
+le mode matériel entier 127,6 µs (+11 %). C'est le pire cas, une lecture principale par saut ; en mode PCem la garde
+est pliée et ne coûte rien (M2).
+
+**Contrôles négatifs**, chacun posé dans une copie des sources, construite à part (`/tmp/a9/neg133`) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| la garde de PB-170 inversée | `materiel-cas PB-170` | rouge : la valeur du 8088 en mode PCem |
+| PB-258 retiré de son groupe | `--hardware-mode PB-258 materiel-cas PB-258` | rouge : l'erreur empile dans DS |
+| un site de PB-07 resté `reproduced` | `recensement` | rouge : 2 écarts |
+| le champ *Corrigé en mode matériel* de PB-258 retiré | `recensement` | rouge |
+| le compte de PB-03 coupé | `materiel-cas PB-03` en mode matériel | rouge : 1 288 cycles perdus, sonde à zéro |
+| le seuil de DAA ramené à 99h | `sst8088-materiel` | rouge : la seule forme `27` (9 936) |
+| le masque de la pile retiré | `sst8088` | rouge : les seules `F6.6` et `F6.7` |
+| SETMO appliqué aussi à SHL | `fuite` (PB-173) | rouge : FUITE à l'itération 262, D2 /4 |
+| `pb_179` modifiable au lieu de figé | les listings du JIT | rouge : `readmemw` et `writememw` changent, et elles seules (contre la copie sans faute) |
+| la correction coupée par le masque | `materiel-cas PB-nn --attendu materiel`, les dix-sept | rouges |
+
+**La série.** La machine a redémarré à 17 h 35 et les traces de g129 étaient perdues : une référence neuve, g130ref,
+a tourné sur l'état commité (`9ccfdd4`, G13.2 et le chapitre 01 du 5150) : 254 portes, toutes vertes, en 67 minutes.
+g131 tourne sur le worktree de G13.3 (`2871ae3` et ses 22 fichiers, les corpus SST liés), sous `MALLOC_PERTURB_=85`,
+l'oracle reconstruit de zéro : 290 portes, toutes vertes, en 63 minutes. Contre g130ref, les 254 portes communes rendent
+les mêmes verdicts ; trois résumés changent, comme attendu : `materiel-cas-pb01` et `-materiel` (le cas générique de
+G13.3 : « chaque cas » au lieu de « les quatre cas ») et `recensement` (258 défauts, 895 marqueurs, contre 257 et 868).
+Les 36 portes neuves sont celles de G13.3 : les cas des dix-sept corrections et de PB-258 dans les deux modes,
+`materiel-cas-pb177-idiv` et `fuite-g133` (100 000 instructions, 1 519 divergences, toutes dans le périmètre).
+`sst8088-materiel` et `sst8086-materiel` jouent désormais `--hardware-mode processeur` et reproduisent leurs lignes
+de base régénérées. Après le lancement de la série, seul `iXtal26/Docs/pourquoi-on-corrige.md` a changé dans l'arbre
+principal (PB-258 dans la section de G13.3) ; aucune porte ne le lit.

@@ -109,7 +109,8 @@ SST 8088 v2 ne masque aucun drapeau sur `D3.2` et `D3.3` (`metadata.json`).
 inchangés `D2.2`, `D2.3`, `D1.2`, `D1.3`. Banc : AX = 8000h, CF = 0, CL = 1, `RCL AX,CL` → CF = 0
 (PCem), 1 (8088) ; AX = 0001h, CF = 0, CL = 1, `RCR AX,CL` → CF = 0 (PCem), 1 (8088).
 *G13* : (a) — sauter les deux blocs de quatre lignes sous la garde ; vérifiable par SST.
-*Reproduit* : `Cpu/808x.cs:3112` (RCL w,CL) et `:3140` (RCR w,CL), marqueurs `PB-02`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, RCL w,CL et RCR w,CL, marqueurs `fixed in hardware mode: PB-02`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_02)`, le bloc de quatre lignes qui écrasait le CF est sauté (`rcl_rcr_materiel`, `Cpu/808x.Materiel.cs`, la sonde seule) ; le CF du dernier bit sorti, posé par la boucle, reste. `materiel-cas PB-02` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : au 8088, `D3.2` de 2 627 à 5 000 cas sur 5 000, `D3.3` de 2 555 à 5 000 ; au 8086, de 1 118 et 1 112 à 2 000 sur 2 000.
 
 ### PB-03 — `clockhardware()` perd les cycles de rafraîchissement DRAM
 
@@ -155,8 +156,8 @@ pour le PIT, donc pour le TSC, en est déduit.
 (1,051 par appel de `timer_process`) et, pendant le test mémoire, un Δtsc de 140 457,5 par tranche ; le matériel,
 aucun, et un Δtsc de trois fois les cycles consommés (143 181,8 attendus).
 *G13* : (a) — le 5150 et l'XT seulement ; avec PB-257, dont les cycles fantômes iraient sinon au TSC.
-*Reproduit* : `Cpu/808x.cs`, `clockhardware`, marqueur PB-03 (posé en G13.1 par le domaine du processeur). Détail
-dans `VERIFICATION.md` § M4.6.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `clockhardware`, marqueur `fixed in hardware mode: PB-03`. Détail dans `VERIFICATION.md` § M4.6.
+*Corrigé en mode matériel* (G13.3, avec PB-257) : sous `if (materiel.pb_03)`, `clockhardware_materiel` appelle timer_process puis porte au TSC les cycles qu'il vient de débiter, par le même compte que clockhardware ; la ligne de PCem, `timer_process()`, reste un appel terminal. `--timer-check` sur le 5150, 300 s : en mode PCem 77 350 cycles consommés jamais portés au TSC (−59,87 ppm au rapport 1) ; en mode matériel aucun, le rapport 1 à −5,88 ppm, la seule troncature de `pc.c:473`, et l'encadrement du rapport 3 contient la fréquence nominale moins cette troncature. `materiel-cas PB-03` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : cinq secondes à l'invite de BASIC, 1 288 cycles perdus contre 0.
 
 ### PB-04 — Le CGA lit le champ `drawcursor` au lieu de la locale
 
@@ -515,7 +516,8 @@ un REP devant IDIV inverse le signe du quotient (README SST 8088, mesuré).
 → AL = FBh, AH = 01h (PCem, qui divise 65 527) ; AL = FCh (−4), AH = FFh (−1) sur le 8088.
 *G13* : (a) conditionnel — le signe seul gagne 1 143 cas sûrs ; le reste de `F6.7` attend PB-169,
 PB-180, PB-177 (REP après un préfixe) et la levée du filtre REP de la sonde.
-*Reproduit* : `Cpu/808x.cs:3569`, marqueur `// pcem bug, reproduced: PB-45` sur `tempws = (int)AX`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `tempws = (int)AX` d'IDIV octet, marqueur `fixed in hardware mode: PB-45`.
+*Corrigé en mode matériel* (G13.3, avec PB-169) : sous `if (materiel.pb_45)`, `idiv8_materiel` divise AX signé et lève INT 0 sur un quotient hors de −127..127 (PB-169). `materiel-cas PB-45` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : avec PB-169 et PB-258, `F6.7` passe entière, de 1 187 à 9 696 cas sur 9 696 au 8088, de 337 à 1 928 au 8086. Sous REP (avec PB-177), le quotient rendu est l'opposé du quotient, le reste inchangé : la règle du README SST, vérifiée sur tous les cas à registre de `F6.7` et `F7.7` ; le cas `materiel-cas-pb177-idiv`.
 
 ### PB-48 — Le mode d'arrondi du x87 ne s'applique qu'à FADD avec opérande mémoire
 
@@ -1328,8 +1330,8 @@ vrai 8086, pas celui de PCem —, et le 8088 n'atteignait jamais cette branche (
 AL,imm8) en 1FFFFh, 11h en 10000h, 22h en 20000h → AL = 22h (PCem), 11h (8088). SST n'exerce
 vraisemblablement pas ce repli (D1-contre C18) ; le fuzzeur 8086 en flux sert de contrôle de fuite.
 *G13* : (a), priorité basse — `FETCH` est le site le plus chaud du cœur 8088, et le cas est rare.
-*Reproduit* : `Cpu/808x.cs:182` (la lecture principale, `808x.c:145`) et `:190` (le préfetch du
-8086, `808x.c:150`), `FETCH`, marqueurs `PB-87`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `FETCH`, la lecture principale et le préfetch du 8086, marqueurs `fixed in hardware mode: PB-87`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_87)`, `fetch_materiel` lit à `cs + (pc & 0xFFFF)`, aux deux sites. `DEVIATION` (R9) : au-delà de 64 Kio dans une même instruction (une chaîne de préfixes qui remplit son segment, que le silicium ne finirait jamais), la lecture redevient celle de PCem. `materiel-cas PB-87` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : MOV AL,imm8 en 1000:FFFF, AL = 22h (PCem) contre 11h, au 8088 et au 8086. SST au 8086 : les quatre cas à cheval sur FFFFh (formes `18`, `28`, `33`, `D2.3`, un chacune) passent. En mode PCem, la garde est pliée : le code machine d'`execx86` est celui de M0 ; le coût de la correction demandée est mesuré par `tools/perfbanc` (`FetchPb87`, `VERIFICATION.md` § G13.3).
 
 ### PB-88 — La M24 recopie jusqu'à 510 octets dans une `charbuffer` de 256
 
@@ -2779,8 +2781,8 @@ BL = 02h, `DIV BL` → AX = 0000h, rien d'empilé (PCem) ; INT 0, SP − 6, IP d
 empilé (8088).
 *G13* : (a), avec PB-45 et PB-180 : sans les drapeaux empilés, les cas de débordement
 échouent encore sur la pile, que la sonde compare sans masque (D1-contre K6).
-*Reproduit* : `Cpu/808x.cs:3542` (DIV b), `:3573` (IDIV b), `:3658` (DIV w), `:3693` (IDIV w),
-marqueurs `PB-169`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, DIV et IDIV, octet et mot, marqueurs `fixed in hardware mode: PB-169`.
+*Corrigé en mode matériel* (G13.3, avec PB-45) : sous `if (materiel.pb_169)` (IDIV octet : `pb_45`), `div8_materiel`, `idiv8_materiel`, `div16_materiel` et `idiv16_materiel` lèvent INT 0 sur un quotient hors capacité, 80h et 8000h compris pour IDIV, l'IP de l'instruction suivante empilé ; les drapeaux empilés restent ceux d'avant (PB-180, reproduit), sous le SS réel (PB-258). `materiel-cas PB-169` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `F6.6`, `F6.7`, `F7.6` et `F7.7` passent entières : au 8088 de 4 833, 1 187, 4 905 et 2 243 cas à 10 000, 9 696, 10 000 et 9 674 ; au 8086 de 1 054, 337, 1 041 et 545 à 2 000, 1 928, 2 000 et 1 931 (avec PB-45, PB-258 et l'IDIV sous REP de PB-177). Depuis G13.3, la sonde compare les drapeaux qu'une interruption empile sous le masque de la forme, comme `sst386-probe` (`SstProbe.MasquePile`) ; sans cela, chaque cas de débordement échouait sur la pile.
 
 ### PB-170 — Le DAA du 8088 suit le pseudo-code d'Intel, là où le silicium compare autrement
 
@@ -2809,7 +2811,8 @@ adding 60 ». Intel ne documente pas cet écart : le SDM donne le résultat de P
 `DAA` → AL = 04h, CF = 1 (PCem) ; AL = A4h, CF = 0 (8088).
 *G13* : (a) — vérifiable par SST ; la règle vient d'un silicium AMD, que le corpus 8086 (Intel)
 peut confirmer (D1-contre A6).
-*Reproduit* : `Cpu/808x.cs:1531`, `case 0x27`, marqueur `PB-170`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `case 0x27`, marqueurs `fixed in hardware mode: PB-170`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_170)`, `daa_materiel` : le seuil de l'AL d'origine, 99h ou 9Fh si AF valait 1 ; AF et CF effacés quand leur pas n'a pas lieu. La règle rend les 10 000 cas du 8088 et les 2 000 du 8086 (Intel), vérifiée d'abord par un modèle hors machine. `materiel-cas PB-170` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `27` entière, 9 936 → 10 000 au 8088, 1 983 → 2 000 au 8086.
 
 ### PB-171 — Le DAS du 8088 reprend le CF de l'emprunt d'en bas et compare l'AL déjà ajusté
 
@@ -2835,7 +2838,8 @@ règle du 8088 (9Fh si AF = 1, comme DAA) est déduite de la mesure : prédite 1
 *Cas qui discrimine* : SST 8088 `2F`, au manifeste (9 814 / 10 000, « das: AX = 0xEA9B, attendu
 0xEAFB »). Banc : AL = 01h, AF = 1, CF = 0, `DAS` → AL = 9Bh (PCem) ; FBh (SDM et 8088).
 *G13* : (a) — le SDM pour l'emprunt, la règle mesurée pour le seuil ; vérifiable par SST.
-*Reproduit* : `Cpu/808x.cs:1602`, `case 0x2F`, marqueur `PB-171`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `case 0x2F`, marqueurs `fixed in hardware mode: PB-171`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_171)`, `das_materiel` : la règle de DAA en soustraction ; l'emprunt du premier pas ne pose pas CF. 10 000 cas sur 10 000 au 8088, 2 000 sur 2 000 au 8086, au modèle hors machine. `materiel-cas PB-171` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `2F` entière, 9 814 → 10 000 au 8088, 1 951 → 2 000 au 8086.
 
 ### PB-172 — REP LODSB et REP LODSW ne chargent jamais AL ni AX
 
@@ -2851,7 +2855,8 @@ mesuré, SST 8088 v2, forme `AD`.
 attendu 0xC65C » ; la sonde écarte les cas qui commencent par REP, D1-contre K9) ; `AC` hors manifeste.
 Banc : CX = 1, DS:SI sur 5Ah, AL = 00h, `REP LODSB` → AL = 00h (PCem), 5Ah (8088).
 *G13* : (a) — deux affectations sous la garde ; vérifiable par SST.
-*Reproduit* : `Cpu/808x.cs:941` (REP LODSB) et `:964` (REP LODSW), marqueurs `PB-172`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, REP LODSB et REP LODSW, marqueurs `fixed in hardware mode: PB-172`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_172)`, `lodsb_materiel` et `lodsw_materiel` chargent AL et AX. `materiel-cas PB-172` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : rien ne bouge, et rien ne le pouvait : le corpus n'a aucun REP LODS à CX = 1, et ses cas à CX > 1 attendent toutes les répétitions là où la sonde ne joue qu'une instruction, donc une itération ; ce sont les seuls échecs restants du mode matériel (957 cas au 8088, 930 au 8086). Le cas en C# seul est la preuve.
 
 ### PB-173 — SETMO et SETMOC (D0 à D3 /6) sont traités comme SHL
 
@@ -2876,8 +2881,8 @@ mem[0xB0443] = 0x54, attendu 0xFF ») ; `D1.6`, `D2.6`, `D3.6` hors manifeste. B
 → AL = 54h (PCem), FFh (8088) ; SETMOC avec CL = 0 laisse l'opérande des deux côtés.
 *G13* : (a) — vérifiable par SST ; comportement pris du silicium AMD, que le corpus 8086 peut
 confirmer.
-*Reproduit* : `Cpu/808x.cs:2716` (D0), `:2832` (D1), `:2978` (D2), `:3157` (D3), marqueurs
-`PB-173`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, D0 à D3 /6, marqueurs `fixed in hardware mode: PB-173`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_173)`, `setmo8_materiel` et `setmo16_materiel` mettent l'opérande à FFh (FFFFh) — SETMOC si CL ≠ 0, que le code de PCem teste déjà — avec les drapeaux que le 8088 laisse, mesurés : l'octet bas vaut 84h dans les 29 691 cas de D0.6 à D3.6 qui ne gardent pas l'opérande (SF et PF). Le temps reste celui de SHL. `materiel-cas PB-173` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `D0.6`, `D1.6`, `D2.6` et `D3.6` entières (de 32, 0, 174 et 155 cas au 8088 ; de 0, 0, 165 et 148 au 8086).
 
 ### PB-174 — Les décalages par CL du 8088 n'écrivent jamais OF
 
@@ -2894,8 +2899,8 @@ le 8088 le pose, mesuré (SST 8088 v2 : masque 0xFFEF, seul AF masqué, sur `D2.
 = 0xFC56, attendu 0xF446 », OF 1 contre 0) ; les cinq autres hors manifeste. Banc : OF = 1, AL = 01h,
 CL = 2, `SHL AL,CL` → OF = 1 (PCem), 0 (8088).
 *G13* : (a) — vérifiable par SST ; la règle exacte se tire des vecteurs.
-*Reproduit* : `Cpu/808x.cs:2981` (SHL b), `:3003` (SHR b), `:3024` (SAR b), `:3160` (SHL w), `:3182`
-(SHR w), `:3204` (SAR w), marqueurs `PB-174`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, SHL, SHR et SAR par CL, octet et mot, marqueurs `fixed in hardware mode: PB-174`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_174)`, l'OF du dernier pas d'un bit (`of_shl8_materiel` à `of_sar_materiel`) : SHL, le bit de poids fort du résultat XOR CF ; SHR, le bit 6 (14) du résultat ; SAR, 0. Tirée des vecteurs hors machine (D2.4, D2.5, D2.7 : 14 566 cas sur 14 566). `materiel-cas PB-174` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `D2.4`, `D2.5`, `D3.4` et `D3.5` entières au 8088 (de 2 648, 2 635, 2 598 et 2 597 à 5 000) ; `D2.7` et `D3.7` avec PB-176 ; le corpus du 8086 masque cet OF.
 
 ### PB-175 — AAM et AAD du 8088 posent SF et ZF d'après AX
 
@@ -2911,7 +2916,8 @@ AL register » (SDM vol. 2, pages AAD et AAM) ; SST 8088 v2 compare SF, ZF et PF
 *Cas qui discrimine* : SST 8088 `D4`, `D5` (hors manifeste). Banc : AL = 14h, `AAM 0Ah` → AX = 0200h,
 ZF = 0 (PCem), 1 (8088) ; AH = 01h, AL = 78h, `AAD 0Ah` → AL = 82h, SF = 0 (PCem), 1 (8088).
 *G13* : (a) — vérifiable par SST ; même défaut dans le cœur 386 (PB-186).
-*Reproduit* : `Cpu/808x.cs:3255` (AAM) et `:3264` (AAD), marqueurs `PB-175`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, AAM et AAD, marqueurs `fixed in hardware mode: PB-175`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_175)`, `znp_al_materiel` pose SF, ZF et PF d'après AL. `materiel-cas PB-175` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : `D4` et `D5` entières, de 8 415 et 5 131 cas au 8088 (9 953 et 10 000), de 1 724 et 1 031 au 8086 (1 988 et 2 000).
 
 ### PB-176 — SAR par CL du 8088 rend CF nul au-delà de 8 (16) sur un opérande négatif
 
@@ -2934,7 +2940,8 @@ remains the same », 386 PRM, page SAL/SAR/SHL/SHR) et un 8088 qui ne masque pas
 *Cas qui discrimine* : SST 8088 `D2.7`, `D3.7` (hors manifeste ; le corpus masque CL à 6 bits).
 Banc : AL = 80h, CL = 9, `SAR AL,CL` → AL = FFh des deux côtés, CF = 0 (PCem), 1 (8088).
 *G13* : (a) — deux lignes ; vérifiable par SST.
-*Reproduit* : `Cpu/808x.cs:3025` (SAR b) et `:3206` (SAR w), marqueurs `PB-176`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, SAR par CL, octet et mot, marqueurs `fixed in hardware mode: PB-176`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_176)`, `cf_sar8_materiel` et `cf_sar16_materiel` prennent le dernier bit sorti d'un décalage signé, le signe dès que le compte atteint la largeur. `materiel-cas PB-176` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : avec PB-174, `D2.7` et `D3.7` entières : de 1 593 et 1 740 à 5 000 au 8088, de 1 243 et 1 363 à 2 000 au 8086.
 
 ### PB-177 — `rep()` du 8088 : 6Eh exécuté comme OUTSB, DS: absent, préfixe perdu avant REP
 
@@ -2968,7 +2975,8 @@ Bancs : `F3 3E A4`, CX = 3 → un octet copié, CX = 3 (PCem) ; trois, CX = 0 (8
 → deux OUT (PCem) ; un JLE, CX intact (8088).
 *G13* : (b) — comportement déduit ; seul (iii) se vérifie par SST, une fois levé le filtre REP de la
 sonde (D1-contre K9).
-*Reproduit* : `Cpu/808x.cs:771` (`case 0x6E`) et `:1038` (`default`), rep(), marqueurs `PB-177`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, rep() (`case 0x6E`, `case 0x08`, `default`) et la répartition de F2 et F3, marqueurs `fixed in hardware mode: PB-177`.
+*Corrigé en mode matériel* (G13.3) : sous `if (materiel.pb_177)`, un REP devant autre chose qu'une chaîne reprend juste après le REP, dans la même instruction (`rep_defaut_materiel`, puis `goto opcodestart` d'execx86) : les préfixes placés avant le REP valent ; 6Eh y passe, alias de JLE ; 08h aussi, que PCem relançait de même ; REP DS: pose DS et répète (`rep_ds_materiel`). Le temps reste celui de PCem. `materiel-cas PB-177` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Les cas : REP 6Eh saute ; REP DS: MOVSB copie trois octets ; ES: REP MOV AX,[0] lit dans ES. IDIV ainsi relancé rend l'opposé de son quotient (`rep_idiv_materiel` relit les préfixes de l'instruction ; l'inversion est faite par la correction d'IDIV, PB-45) : sans PB-45, l'IDIV reste celui de PCem. Le cas : ES: REP IDIV BL, AX = 0010h, BL = 2, AL = 08h (PCem) contre F8h.
 
 ### PB-178 — LOCK du 8088 est une instruction d'un octet, pas un préfixe
 
@@ -3012,7 +3020,8 @@ PB-07.
 1000h, AAh en 1FFFFh, 11h en 10000h, 22h en 20000h, `MOV AX,[FFFFh]` → AX = 22AAh (PCem), 11AAh (8088).
 *G13* : (a) — chemin chaud, chaque accès mot du 808x ; à faire avec PB-07 (D6), une seule condition
 de repli dans readmemw et writememw.
-*Reproduit* : `Cpu/808x.cs:116` (readmemw) et `:145` (writememw), marqueurs `PB-179`.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, readmemw et writememw, marqueurs `fixed in hardware mode: PB-179`.
+*Corrigé en mode matériel* (G13.3, avec PB-07) : sous `if (materiel.pb_179)`, un mot à l'offset FFFFh prend son octet haut à l'offset 0 du segment, en lecture comme en écriture (`readmemw_materiel`, `writememw_materiel`). `materiel-cas PB-179` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : DS = 1000h, MOV AX,[FFFFh] rend 22AAh (PCem) contre 11AAh. Les gardes sont pliées en mode PCem : readmemw et writememw ont le code machine de M0.
 
 ### PB-180 — L'INT 0 du 8088 empile les drapeaux d'avant la division
 
@@ -4508,7 +4517,35 @@ cycle de bus. Documenté ; l'effet sur le temps est déduit.
 *Cas qui discrimine* : en C# seul, un 5150, le canal 2 masqué, `dma_channel_write(2, …)` : PCem rend `DMA_NODATA` et
 débite le cycle (`FETCHCOMPLETE`, `memcycs += 4`) ; le 8237A ne fait aucun cycle.
 *G13* : (a) — documenté, vérifiable en C# seul ; à corriger avec PB-03 (G13.3).
-*Reproduit* : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs PB-257.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs `fixed in hardware mode: PB-257`.
+*Corrigé en mode matériel* (G13.3, avec PB-03) : sous `if (materiel.pb_257)`, `dma_cycle_materiel` (`Models/dma.Materiel.cs`) ne facture le cycle que d'un transfert accepté (canal démasqué, au mode du transfert). `materiel-cas PB-257` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : un PC, canal 2 masqué, `dma_channel_write` : 4 cycles de bus facturés (PCem) contre 0 ; démasqué en écriture, 4 des deux côtés.
+
+### PB-258 — L'erreur de division empile dans le segment d'un préfixe
+
+`808x.c:3595`, `:3637`, `:3730`, `:3754` (l'INT 0 de DIV et IDIV, octet et mot) : `writememw(ss, (SP - 2) & 0xFFFF, …)`.
+Un préfixe de segment pose `ds = ss = …` (`808x.c:1737` et ses voisins) pour l'adressage par BP, et la fin
+d'instruction remet `ss` (`:3924-3928`). Les PUSH et les CALL remettent `ss = oldss` avant d'empiler (`if
+(cpu_state.ssegs) ss = oldss;`) ; le chemin de l'erreur de division ne le fait pas.
+
+*Effet* : `DS: DIV BL` avec BL = 0 empile les drapeaux, CS et IP dans le segment de DS, à l'offset SP − 6 : la pile
+reste intacte, une donnée est écrasée, et l'IRET du gestionnaire dépile ce qui se trouvait sur la vraie pile. En mode
+PCem, seul le diviseur nul y mène ; en mode matériel, chaque débordement de quotient aussi (PB-169).
+*Trouvé par* : SST en mode matériel, G13.3 — après PB-169, les cas de débordement des formes `F6.6` à `F7.7` qui
+portent un préfixe de segment échouaient sur une écriture absente (« mem[0xD6551] = 0x90, attendu 0x46 »).
+*Source* : documenté — « When an interrupt service procedure is entered, the flags, CS, and IP are pushed onto the
+stack » (8086 Family User's Manual, 9800722-03, chapitre 2, « Interrupt Procedures ») : la pile, SS:SP ; un préfixe
+de segment ne vaut que pour l'opérande mémoire de son instruction. Mesuré : SST 8088 v2, les cas préfixés de `F6.6` (« div ah » sous DS:, pile en SS:SP − 6).
+*Cas qui discrimine* : `DS: DIV BL`, BL = 0, DS = 3000h, SS:SP = 0000:FFFE : l'IP empilé (0103h) en 3FFF8h (PCem), en
+0FFF8h (8088).
+*G13* : (a) — vérifiable par SST ; avec PB-45 et PB-169, la même erreur de division.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, les quatre chemins de l'erreur de division, marqueurs `fixed in hardware
+mode: PB-258`.
+*Corrigé en mode matériel* (G13.3, avec PB-45 et PB-169) : `int0_materiel` (`Cpu/808x.Materiel.cs`), le chemin de
+l'erreur des corrections de DIV et d'IDIV, remet `ss = oldss` sous un préfixe avant d'empiler. `materiel-cas PB-258`
+rend 3FFF8h en mode PCem, 0FFF8h en mode matériel, la sonde comptant la correction ; la correction coupée
+(`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : avec lui, `F6.6`, `F6.7`, `F7.6` et `F7.7`
+passent entières (PB-169). Le chemin R9 d'AAM 0 (PB-46), du C# propre, a le même geste et le garde dans les deux
+modes : le corriger changerait le code machine d'`execx86` en mode PCem, et l'oracle n'y a pas de comportement.
 
 ## B. Comportement indéfini en C
 
@@ -4544,6 +4581,7 @@ chemin lent, ce que projette A0000h (rien avec une CGA : FFh).
 *NON reproduit* (neutralisé des deux côtés) : la marge de quatre octets nuls, lue zéro par l'oracle comme par le C#.
 Sans marqueur jusqu'à G13.1, il porte depuis les marqueurs `not reproduced: PB-07` de `Memory/mem.cs` (`mem_alloc`,
 avec sa `DEVIATION`) et de `Cpu/808x.cs` (`readmemw`, `writememw`), posés par le domaine du processeur.
+*Corrigé en mode matériel* (G13.3, avec PB-179) : sous `if (materiel.pb_07)`, un mot dont l'octet bas finit une page (`(s + a) & 0xFFF == 0xFFF`) se lit et s'écrit octet par octet, chacun par sa propre page (`readmemw_materiel`, `writememw_materiel`, `Cpu/808x.Materiel.cs`) : au repli de 1 Mo, l'octet haut vient de 00000h (rammask) ; au sommet de la RAM, de ce que projette l'adresse suivante (FFh sans rien, le bus flottant de PCem : (c), inconnu sur un 5150). Le mode PCem garde la marge nulle de `mem_alloc`. Un défaut neutralisé peut être corrigé en mode matériel : la porte `recensement` l'admet depuis G13.3 (marqueurs `fixed in hardware mode: PB-07` à côté des `not reproduced`). `materiel-cas PB-07` rend la valeur de PCem en mode PCem, celle du matériel en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. Le cas : la page FFh dans le cache, POP CX en FFFF:000F rend 0077h (PCem) contre 5A77h.
 
 ### PB-08 — `device.c:300` teste la borne après l'accès
 

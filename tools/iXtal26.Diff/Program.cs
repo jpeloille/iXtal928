@@ -911,9 +911,18 @@ switch (args[0])
         if (ops.Count == 0)
             ops.Add(0xCE);
 
-        if (Fuzzer.Fuite && (!single || !iXtal26.ModeMateriel.Actif))
+        if (Fuzzer.Fuite && (!single || !iXtal26.ModeMateriel.Actif || fuzzCore is not (Oracle.Core8088 or Oracle.Core8086)))
         {
-            Console.Error.WriteLine("--fuite : sous --hardware-mode, en mode simple (--mode single) seulement.");
+            Console.Error.WriteLine("--fuite : sous --hardware-mode, en mode simple (--mode single), sur le 8088 ou le 8086 " +
+                                    "seulement.");
+            return 2;
+        }
+        // G13.3 — le temps (PB-03, PB-257) et les accès mot (PB-07, PB-179) n'ont pas de périmètre d'instruction.
+        if (Fuzzer.Fuite && (iXtal26.materiel.pb_03 || iXtal26.materiel.pb_257 || iXtal26.materiel.pb_07 ||
+                             iXtal26.materiel.pb_179))
+        {
+            Console.Error.WriteLine("--fuite : PB-03, PB-257, PB-07 et PB-179 n'ont pas de périmètre d'instruction ; " +
+                                    "les retirer de --hardware-mode.");
             return 2;
         }
 

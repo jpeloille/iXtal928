@@ -123,3 +123,9 @@ sortie à un fichier d'attendus de `tools/gates/bancs/` ; `fuite-pb01` est le fu
 Les portes `sst8088` et `sst8086` (et leur pendant `-materiel`) lisent les corpus SingleStepTests de `vectors/`, que
 git ignore : `tools/fetch-sst.sh` et `tools/fetch-sst8086.sh` les récupèrent d'après leur manifeste, `--verify` les
 contrôle. Sous `--attendu`, une forme du fichier dont les vecteurs manquent rend la porte rouge, jamais muette.
+
+Les portes de G13.3 ajoutent, pour chaque correction du 8088 et du 8086, son cas en C# seul dans les deux modes
+(`materiel-cas-pbNN`, `-materiel`), et `fuite-g133`, le contrôle de fuite des corrections qui ont un périmètre
+d'instruction. Après chaque divergence admise, le fuzzeur fait jouer aux deux côtés une instruction neutre : l'état que
+la remise à zéro ne touche pas (l'adresse effective, la file de préfetch) ne passe pas d'une itération à la suivante.
+`materiel-cas-pb03` joue `--timer-check` sur le 5150 : il lit `roms/`.

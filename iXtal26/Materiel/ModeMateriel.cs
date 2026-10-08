@@ -34,7 +34,30 @@ internal static class ModeMateriel
     internal static readonly Correction[] Corrections =
     [
         new(1, "processeur", "l'AF d'ADC et de SBB du 8088 et du 8086 compte la retenue entrante"),
+        new(2, "processeur", "RCL et RCR mot par CL gardent le CF du dernier bit sorti"),
+        new(3, "processeur", "les cycles du rafraîchissement par DMA (5150, XT) arrivent au TSC"),
+        new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
+        new(45, "processeur", "IDIV octet divise AX signé"),
+        new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
+        new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
+        new(170, "processeur", "DAA compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1"),
+        new(171, "processeur", "DAS teste l'AL et le CF d'origine, au seuil de DAA"),
+        new(172, "processeur", "REP LODSB et REP LODSW chargent AL et AX"),
+        new(173, "processeur", "SETMO et SETMOC mettent l'opérande à FFh (FFFFh)"),
+        new(174, "processeur", "les décalages par CL posent OF, celui du dernier pas"),
+        new(175, "processeur", "AAM et AAD posent SF et ZF d'après AL"),
+        new(176, "processeur", "SAR par CL rend CF, la copie du signe, au-delà de 8 (16)"),
+        new(177, "processeur", "rep() : 6Eh est JLE, REP DS: répète, un préfixe placé avant REP vaut"),
+        new(179, "processeur", "un mot à l'offset FFFFh replie à l'offset 0 du segment"),
+        new(257, "carte-mere", "un transfert de DMA refusé ne coûte pas de cycle"),
+        new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
     ];
+
+    /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
+    /// autres. PB-03 et PB-257 : les cycles du rafraîchissement portés au TSC, sans ceux d'un transfert refusé, qui y
+    /// iraient sinon. PB-07 et PB-179 : la même condition de repli dans readmemw et writememw. PB-45, PB-169 et PB-258 :
+    /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul.</summary>
+    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [45, 169, 258]];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 
@@ -158,6 +181,9 @@ internal static class ModeMateriel
                 return false;
             }
         }
+        foreach (var groupe in Groupes)
+            if (groupe.Any(pbs.Contains))
+                pbs.UnionWith(groupe);
         return true;
     }
 }

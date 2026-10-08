@@ -221,7 +221,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **Vérification** : la série entière identique ; M1 et M2 ; les refus prouvés (boot-diff en mode matériel rend 2) ;
   `sst-probe` en mode matériel, les douze formes de PB-01 à 10 000 sur 10 000, aucune autre ne bougeant.
 
-### G13.3 — Le 8088 et le 8086
+### G13.3 — Le 8088 et le 8086  ✅ *fait, VERIFICATION.md § G13.3*
 
 - PB-02 ; PB-45 avec le débordement de DIV et d'IDIV ; PB-87 élargi au fetch principal (priorité basse : chemin
   chaud, effet rare) ; PB-03 et PB-07 sur le 5150 et l'XT (ils sont dans `808x.cs` et se mesurent avec les outils de

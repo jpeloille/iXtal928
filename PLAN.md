@@ -114,7 +114,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 - **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; toutes ses décisions validées le 07/10. G13.0 fait : R9
   et les fichiers de l'utilisateur, dans les deux modes. G13.1 fait : le registre, 257 défauts, chaque marqueur
   numéroté, la porte `recensement`. G13.2 fait : le mode matériel, son mécanisme et son pilote PB-01, contre
-  le silicium (SingleStepTests du 8088 et du 8086). Prochaine étape : G13.3, le 8088 et le 8086.
+  le silicium (SingleStepTests du 8088 et du 8086). G13.3 fait : le 8088 et le 8086, dix-sept corrections (PB-258
+  inscrit), toutes les formes visées de SST entières en mode matériel. Prochaine étape : G13.4, la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -337,7 +338,8 @@ partie transcrits en G8).
 ### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; feu vert du 06/10, en cours : `PLAN-G13.md`)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes refaits le 07/10 après G13.1, sur `PCEM_BUGS.md` (257
-défauts ; la porte `recensement` tient le registre et les marqueurs d'accord) :
+défauts ; la porte `recensement` tient le registre et les marqueurs d'accord ; PB-258, inscrit en G13.3, s'y ajoute
+en section A) :
 
 1. **Section A, 209 entrées** : 187 reproduites, 2 en partie (121, 128), 20 non reproduites, déjà corrigées dans
    les deux modes (R9). Leur classement pour G13 : 138 corrigeables et vérifiables (a), 28 à vérification faible

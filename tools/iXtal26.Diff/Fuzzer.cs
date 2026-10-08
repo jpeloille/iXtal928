@@ -98,14 +98,31 @@ public static class Fuzzer
 
     /// <summary>Le périmètre déclaré : l'instruction (préfixes passés) et l'état qui seul peut différer, par correction.
     /// PB-01 : ADC et SBB (10 à 15, 18 à 1D ; 80 à 83 /2 et /3), et le seul bit AF (0x10), dans les drapeaux et dans
-    /// leur image empilée. Rend null dans le périmètre, la raison sinon.</summary>
-    private static string? HorsDuPerimetre(byte[] code, in HState a, in HState b, int cycA, int cycB)
+    /// leur image empilée. G13.3, les corrections du 8088 : l'instruction qu'elles visent, tout son état — PB-02, D3 /2
+    /// et /3 ; PB-45 et PB-169, F6 et F7 /6 et /7 ; PB-170, 27 ; PB-171, 2F ; PB-173, D0 à D3 /6 ; PB-174, D2 et D3 /4,
+    /// /5 et /7 ; PB-175, D4 et D5 ; PB-176, D2 et D3 /7 ; PB-172 et PB-177, toute instruction précédée d'un REP ;
+    /// PB-87, une instruction qui commence à moins de 16 octets de FFFFh. PB-03 et PB-257 (le temps), PB-07 et PB-179
+    /// (les accès mot, partout) n'ont pas de périmètre d'instruction : le contrôle les refuse. Rend null dans le
+    /// périmètre, la raison sinon.</summary>
+    private static string? HorsDuPerimetre(byte[] code, ushort ip, in HState a, in HState b, int cycA, int cycB)
     {
         var i = 0;
+        var rep = false;
         while (i < code.Length - 1 && code[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0xF0 or 0xF2 or 0xF3)
-            i++;
+            rep |= code[i++] is 0xF2 or 0xF3;
         var op = code[i];
         var reg = i + 1 < code.Length ? (code[i + 1] >> 3) & 7 : -1;
+        if (materiel.pb_87 && ip >= 0xFFF0 ||
+            (materiel.pb_172 || materiel.pb_177) && rep ||
+            materiel.pb_02 && op == 0xD3 && reg is 2 or 3 ||
+            (materiel.pb_45 || materiel.pb_169) && op is 0xF6 or 0xF7 && reg is 6 or 7 ||
+            materiel.pb_170 && op == 0x27 ||
+            materiel.pb_171 && op == 0x2F ||
+            materiel.pb_173 && op is >= 0xD0 and <= 0xD3 && reg == 6 ||
+            materiel.pb_174 && op is 0xD2 or 0xD3 && reg is 4 or 5 or 7 ||
+            materiel.pb_175 && op is 0xD4 or 0xD5 ||
+            materiel.pb_176 && op is 0xD2 or 0xD3 && reg == 7)
+            return null;
         if (materiel.pb_01 && (op is (>= 0x10 and <= 0x15) or (>= 0x18 and <= 0x1D) ||
                                op is >= 0x80 and <= 0x83 && reg is 2 or 3))
         {
@@ -135,6 +152,32 @@ public static class Fuzzer
                 return $"écriture {i} en 0x{mem.wlog_addr[i]:X5} : oracle 0x{vo:X2}, C# 0x{vc:X2}";
         }
         return null;
+    }
+
+    /// <summary>G13.3 — le contrôle de fuite, après une divergence admise : MOV AX,[BX+SI] en 2000:0000, tous les
+    /// registres nuls, joué des deux côtés depuis une remise à zéro. Il pose eaaddr, easeg et la file de préfetch à
+    /// l'identique.</summary>
+    private static void Resynchroniser(int core)
+    {
+        Oracle.h_set_core(core);
+        Oracle.h_reset();
+        Oracle.h_fill_ram(0x90);
+        if (core == Oracle.Core8086)
+            _808x.Reset8086();
+        else
+            _808x.Reset();
+        mem.fill_ram(0x90);
+        byte[] neutre = [0x8B, 0x00];
+        Oracle.h_load(0x20000, neutre, (uint)neutre.Length);
+        mem.ram[0x20000] = neutre[0];
+        mem.ram[0x20001] = neutre[1];
+        var r = new ushort[(int)R.COUNT];
+        r[(int)R.CS] = 0x2000;
+        r[(int)R.FLAGS] = 0xF002;
+        Oracle.h_setregs(r);
+        _808x.SetRegs(r);
+        Oracle.h_step();
+        _808x.Step();
     }
 
     public static int RunSingle(byte[] opcodes, int iterations, ulong seed, bool verbose, int core,
@@ -451,9 +494,15 @@ public static class Fuzzer
             if (diff is null)
                 continue;
             string? hors = null;
-            if (Fuite && (hors = HorsDuPerimetre(code, a, b, cycC, cycS)) is null)
+            if (Fuite && (hors = HorsDuPerimetre(code, regs[(int)R.IP], a, b, cycC, cycS)) is null)
             {
                 dansLePerimetre++;
+                // G13.3 — l'état que la remise à zéro ne touche pas (eaaddr, easeg, le segment de l'adresse effective,
+                // le contenu de la file au-delà de prefetchw) survit d'une itération à l'autre, des deux côtés : une
+                // instruction du périmètre qui l'a laissé autrement le léguerait à la suivante, qui le compare ou s'en
+                // sert sans l'écrire (STOSB et eaaddr, LDS sous sa forme registre et easeg). Les deux côtés jouent donc
+                // la même instruction neutre, qui le repose à l'identique.
+                Resynchroniser(core);
                 continue;
             }
             if (hors is not null)

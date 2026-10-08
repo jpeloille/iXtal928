@@ -99,8 +99,8 @@ D4	9953	8415	0xF7EE	[10] aam CCh: flags = 0xF007, attendu 0xF086 (diff masqué 0
 D5	10000	5131	0xF7EE	[0] aad E2h: flags = 0xF407, attendu 0xFC96 (diff masqué 0x0080)
 E8	10000	10000	0xFFFF	
 F6.4	10000	10000	0xFF2B	
-F6.6	10000	4802	0xF72A	[2] div byte [ss:bp+di+64h]: AX = 0x0AE6, attendu 0x8ED2
-F6.7	9696	1169	0xF72A	[1] idiv byte [ds:bx+si+14h]: AX = 0x124C, attendu 0x494E
+F6.6	10000	4833	0xF72A	[2] div byte [ss:bp+di+64h]: AX = 0x0AE6, attendu 0x8ED2
+F6.7	9696	1187	0xF72A	[1] idiv byte [ds:bx+si+14h]: AX = 0x124C, attendu 0x494E
 F7.4	10000	10000	0xFF2B	
 F7.6	10000	4905	0xF72A	[2] div word [ss:bx+20B4h]: AX = 0xBE2B, attendu 0x82B9
 F7.7	9674	2243	0xF72A	[0] idiv ax: AX = 0x1E58, attendu 0xCBA9
