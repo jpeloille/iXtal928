@@ -8179,3 +8179,173 @@ PB-43, PB-50, PB-51 et PB-78 dans les deux modes. Comme pour g5a1, `os/386-HDD-C
 référence (empreinte vérifiée), copiée dans le worktree seul. Après la copie, deux mots de prose ont changé (« quatorze
 formes » dans PCEM_BUGS.md, « 148 instructions à cheval sur FFFFh » dans pourquoi-on-corrige.md) ; `recensement`, qui
 lit PCEM_BUGS.md, a été rejoué sur l'arbre final : vert, mêmes comptes.
+
+## G13.5c — Le 286, le 386 et le 486 : le mode protégé
+
+Le 10 octobre 2026, troisième et dernière sous-étape de G13.5 (« Pousse, et feu vert pour G13.5 », le 9). Huit défauts
+du mode protégé, corrigés en mode matériel : PB-32 et PB-192 en un groupe (la limite de l'IDT, son code d'erreur,
+EXT), PB-39 (la porte de tâche des CALL et JMP), PB-40 (un CALL de tâche n'empile rien), PB-190 (LTR), PB-191 (la voie
+TSS des CALL, JMP et INT), PB-193 (LOADALL386 hors du niveau 0), et PB-263, inscrit (l'IP d'un CALL de tâche contre la
+limite du nouveau CS). Les exceptions sont celles du manuel de chaque processeur (décision de Julien, le 10 : « aligne
+toi sur le manuel »). Le mode PCem ne bouge pas.
+
+**Le code** (`Cpu/386.Materiel.cs`, section « Le mode protégé » ; gardes dans `Cpu/x86seg.cs`, `Cpu/386_ops_call.cs`,
+`Cpu/386_ops_0f.cs`) :
+- PB-32 et PB-192 : sous `if (materiel.pb_32)`, `idt_limite_materiel` remplace le test `addr >= idt.limit` de
+  pmodeint : la porte entière contre la limite (`addr + 7`), puis #GP(n × 8 + 2 + EXT), ou la double et la triple
+  faute comme la branche de PCem. Sous `if (materiel.pb_192)`, `porte_nulle_materiel` ajoute EXT au code d'une porte de
+  type nul pour une exception ou une interruption matérielle. Un groupe (`ModeMateriel.Groupes`) ;
+- PB-39 : dans le `default` de loadcscall et de loadcsjmp, `porte_tache_materiel` : la porte (DPL au moins CPL et RPL,
+  présente), la TSS qu'elle désigne (dans la GDT, sous sa limite, disponible, présente), puis `taskswitch286` : lien
+  arrière et NT posé pour CALL, sans lien et NT effacé pour JMP, comme sur la voie TSS ;
+- PB-40 : la voie TSS de loadcscall et la porte de tâche notent la commutation (`commutation`, sous la garde de PB-40) ;
+  CALL_FAR_w et CALL_FAR_l s'arrêtent alors avant d'empiler ;
+- PB-190 : `ltr_materiel` avant la lecture du descripteur : #GP(sélecteur) pour TI = 1, un sélecteur hors de la GDT ou
+  un descripteur qui n'est pas une TSS disponible (type 1, ou 9 sur le 386 et le 486 ; le sélecteur nul compris),
+  #NP(sélecteur) pour une TSS absente ;
+- PB-191 : `tss_directe_materiel` sur la voie TSS des CALL et JMP (dans la GDT, DPL au moins CPL et RPL, disponible :
+  une TSS de type 9 n'existe pas sur le 286, présente), `tss_occupee_materiel` pour une TSS occupée, que PCem envoie au
+  `default` (#GP(sélecteur) par CALL, #GP(0) par JMP), `tss_int_materiel` sur la porte de tâche de l'IDT (une TSS de la
+  GDT, disponible ; EXT dans le code pour une exception ou une interruption matérielle). Pour JMP, ces contrôles et ceux
+  de PB-39 passent avant le test de présence que loadcsjmp fait sur tout descripteur système (`x86seg.c:659`) : le
+  manuel lève #GP avant #NP ;
+- PB-193 : `loadall386_privilege_materiel`, #GP(0) en mode protégé hors du niveau 0 ; sur le 486, PB-78 passe avant ;
+- PB-263 : `ip_tache_materiel`, après la commutation d'un CALL : un EIP au-delà de la limite du nouveau CS lève #TS(0)
+  sur le 386 et le 486, livré dans la nouvelle tâche (oldpc reçoit le nouvel EIP). Pour JMP et INT, et sur le 286, le
+  manuel écrit #GP(0), que la lecture de l'instruction lève déjà (PB-51).
+
+**Les exceptions, alignées sur le manuel de chaque processeur.** Une première version gardait #GP partout, celle de
+PCem, faute d'accord entre le 386 PRM et le SDM (D1-contre K2). Julien a tranché : le manuel. Les pseudo-codes, relus
+(`sources/`) : le 386 PRM (230985-001) et l'i486 PRM (1990) lèvent #TS(sélecteur) pour tous les contrôles d'une tâche
+par CALL (porte et TSS : DPL, RPL, TI, limite de la GDT, TSS disponible) et par INT (TI, limite, TSS disponible), et
+#TS(0) pour l'IP après la commutation d'un CALL ; #GP par JMP ; #NP pour la présence, partout. Le 80286 PRM (210498-005)
+lève #GP partout. `faute_tache` choisit d'après le cœur (`is386`) et l'instruction. Le SDM, plus tardif, écrit #GP aussi
+pour CALL et INT : il ne décrit pas ces processeurs-là. Le NT d'un JMP de tâche (K1) : le 386 PRM et l'i486 PRM
+(Table 7-2) l'effacent, comme PCem ; seul le SDM le prend dans la TSS. Aligné sur le manuel, il n'y a rien à corriger.
+PB-41 reste reproduit : aucun des trois manuels ne donne les moitiés hautes des registres chargés d'une TSS de 16 bits
+(le SDM : « modified and not maintained ») ; il faudrait les mesurer sur un 386.
+
+**pm-check en C# seul** (`--target csharp`). Le banc du mode protégé confrontait le C# à l'oracle, que le mode matériel
+ne peut pas suivre. Sous `--target csharp`, chaque cas joue le C# seul et se juge sur son attente ; en mode matériel,
+sur son attente du mode matériel (`ExpectMateriel`) quand la correction qu'il discrimine (`Pb`) est demandée. Dans un
+cas qui discrimine une correction, #TS, #NP et #GP ont chacun leur gestionnaire (vecteurs 0Ah, 0Bh, 0Dh), pour que
+l'attente nomme l'exception et non seulement la pile.
+- Au 386 et au 486 (`PmCheck386`), le décor est posé par le harnais (`PoserDecor`), champ par champ, comme
+  `opLOADALL386` et `loadall_load_segment` le posent : le 486 du mode matériel n'a plus de LOADALL386 (PB-78). Partout
+  où LOADALL386 existe encore (le 386 dans les deux modes, le 486 du mode PCem), chaque cas le joue d'abord, et le décor
+  du harnais doit lui être égal sur l'état architectural (registres, six segments et quatre registres système, CR0,
+  CR3, DR6, DR7, use32, stack32, drapeaux, EIP, `cpu_cur_status`, `oldcpl`) : 130 cas sur 130.
+- Au 286 (`PmCheck`), LOADALL, celui du 286, pose le décor dans les deux modes. Le banc n'avait aucune attente : ses
+  nouveaux cas en portent (celle de PCem, vérifiée sur l'oracle, et celle du 80286 PRM). LOADALL du 286 ne pose pas
+  `oldcpl` : une faute juste après se livrerait comme depuis l'anneau 0, sans bascule de pile (le cas d'avant « INT 10h
+  depuis CPL3 » le montre, sur l'oracle comme en C#) ; un cas de l'anneau 3 fait donc d'abord un JMP FAR dans son propre
+  code.
+
+**Un défaut du banc, trouvé en chemin.** Depuis G6.2, `pm-check --core 486` relançait chaque cas dans un processus
+fils avec `--core 386` écrit en dur : la porte `pm-check-486` jouait le 386. Le C# seul l'a montré (SMSW, que le 486
+de PCem rend nu, 0011h, et le 386 avec FF00h ; l'attente écrivait FF11h). Corrigé : le fils reçoit le cœur de la
+commande, et l'attente de SMSW suit le cœur. `pm-check-486` contre l'oracle, enfin sur le 486 : vert.
+
+**Les cas** (PCem : vérifié contre l'oracle ; matériel : le manuel du cœur). Au 386 et au 486 (décor de LOADALL386 ou du
+harnais ; une faute en anneau 0 empile son code sous EspDepart − 16, depuis l'anneau 3 sous ESP0 − 24) :
+
+| PB | Le cas | PCem | Matériel (386, 486) |
+|---|---|---|---|
+| 32 | `INT 20h`, IDT de 32 portes | #GP(0000h) | #GP(0102h) |
+| 192 | `INT 1Fh`, limite de l'IDT 00FCh | la porte exécutée | #GP(00FAh) |
+| 192 | DIV EBX par zéro, porte 0 de type nul | #GP(0002h) | #GP(0003h), EXT |
+| 39 | CALL FAR sur la porte de tâche 0070h | #GP(0070h) | commutation, lien arrière, NT, ESP 7000h (avec PB-40) |
+| 39 | JMP FAR sur la porte de tâche | #GP(0000h) | commutation sans lien, NT nul |
+| 39 | la porte (DPL 0) depuis CPL 3 : CALL ; JMP | #GP(0070h) ; #GP(0000h) | #TS(0070h) ; #GP(0070h) |
+| 40 | CALL FAR sur la TSS 386 n°2 | ESP 6FF8h | ESP 7000h, lien arrière, rien d'écrit sous 7000h |
+| 190 | LTR : segment de données, TI = 1, TSS occupée | TR chargé | #GP(sélecteur), TR inchangé |
+| 190 | LTR : TSS absente ; témoin, TSS disponible | TR chargé ; chargée et marquée occupée | #NP(0078h) ; idem |
+| 191 | TSS de DPL 0 depuis CPL 3 : CALL ; JMP | commutation | #TS(0078h) ; #GP(0078h) |
+| 191 | CALL FAR sur une TSS absente | commutation | #NP(0078h) |
+| 191 | TSS de la LDT (0014h) : CALL ; JMP | commutation | #TS(0014h) ; #GP(0014h) |
+| 191 | TSS occupée : CALL ; JMP | #GP(0078h) ; #GP(0000h) | #TS(0078h) ; #GP(0078h) |
+| 191 | INT 1Eh, porte de tâche vers une TSS de la LDT ; occupée | commutation | #TS(0014h) ; #TS(0078h) |
+| 191 | JMP FAR sur une TSS de DPL 0 et absente, depuis CPL 3 | #NP(0078h) | #GP(0078h) : le DPL avant la présence |
+| 191 | DIV EBX par zéro, porte 0 de tâche vers la LDT | commutation | #TS(0015h), EXT |
+| 263 | CALL FAR sur la TSS n°2, EIP 10000h (CS de limite FFFFh) | exécution en 10000h | #TS(0) dans la nouvelle tâche, EIP 10000h empilé |
+| 193 | LOADALL386 depuis CPL 3, bloc de l'anneau 0 | état chargé, EAX 5A5A5A5Ah | #GP(0) ; sur le 486, #UD (PB-78) |
+
+Au 286 (décor de LOADALL ; SP FFA0h, une faute en anneau 0 empile son code en FF98h, depuis l'anneau 3 en 7FF4h) :
+`INT 20h` (#GP(0) contre #GP(0102h)), `INT 1Fh` sous 00FCh, DIV par zéro sur une porte nulle (0002h contre 0003h), CALL et
+JMP sur la porte de tâche (commutation), CALL sur la TSS n°2 (SP 6FFCh contre 7000h), LTR sur un segment de données, une
+TSS 386 (type 9, que le 286 n'a pas), une TSS occupée, une TSS absente, CALL sur une TSS de DPL 0 depuis CPL 3, sur une
+TSS absente et sur une TSS de type 9 (PCem la lit en TSS 386, trop courte : #TS), JMP sur une TSS de la LDT et sur une TSS
+occupée, INT 1Eh et #DE (EXT, 0015h) par une porte de tâche vers une TSS de la LDT : #GP partout, #NP pour la présence. Deux témoins : CALL depuis CPL 3 sur une porte de DPL 0, et CALL sur une TSS occupée, où PCem lève déjà le #GP
+du 286.
+
+Deux attentes de PCem, écrites d'après les entrées, ne tenaient pas contre l'oracle, et l'oracle avait raison : un JMP
+sur une TSS absente lève #NP chez PCem aussi (`x86seg.c:659`, tout descripteur système), seul le CALL la commute
+(PB-191 repris) ; et une exception hors de l'IDT devient chez PCem la double faute (`x86_doabrt`, puis
+`pmodeint(8, 0)`), en mode matériel aussi, si bien que EXT au dépassement de l'IDT ne se voit que sur une interruption
+matérielle, que le banc ne tire pas : il se mesure sur la porte de type nul, par #DE, que DIV lève hors de
+`x86_doabrt`.
+
+**Les verdicts.** pm-check contre l'oracle : 130 verts au 386, 130 au 486, 87 au 286. En C# seul, mode PCem : 130, 130 et
+87, le décor du harnais égal à celui de LOADALL386 partout. En mode matériel (`--hardware-mode processeur`) : 130, 130 et
+87, dont 25, 25 et 17 jugés sur l'attente du mode matériel ; aucun autre cas ne bouge. `materiel-cas PB-nn`, pour les
+huit, au 386 et au 286 : la valeur de PCem en mode PCem, celle du matériel avec la seule correction (et son groupe), la
+sonde comptant de 1 à 19 passages, et chaque cas discriminant rougit quand on le juge sur l'attente de l'autre mode
+(`--attendu`).
+
+**Le coût (M1).** Aucune garde sur un chemin d'instruction : elles sont dans les transferts du mode protégé, LTR et
+LOADALL386. Sans banc. **Le mode PCem ne coûte rien (M2).** Un troisième scénario DEBUG sur l'ami386dx, `ami386dx-pm`,
+compile ce qu'aucun amorçage ne visitait : LGDT d'une GDT à deux entrées (une TSS 386 de dix-sept octets), PE posé,
+`66 CALL FAR` sur la TSS ; loadcscall, CALL_FAR_l et taskswitch286, qui lève #TS sur la limite, puis pmodeint sur
+l'IDT du mode réel ; la triple faute remet la machine à zéro, et DOS redémarre. Sa référence M0 est jouée sur 860f2b1
+(`/var/tmp/ixtal-g13/M0-860f2b1-g135c`) ; `M0-tout` réunit désormais les onze scénarios. M2-5c, les onze, pris après
+l'alignement : identiques à M0, hors les sept méthodes froides connues et les sept du mécanisme ; loadcscall,
+loadcsjmp, pmodeint, taskswitch286, CALL_FAR_w, CALL_FAR_l et op0F00_common (ibmat-287) à l'octet près. opLOADALL386
+n'a toujours pas de scénario. **Le temps réel (M4).** La marge la plus étroite, l'ami486 (DX2/66), `--timer-check roms
+60 --charge ram` : 3,90 en mode PCem, 3,34 en mode matériel (G13.5b : 3,88 et 3,33), le même nombre d'instructions.
+
+**Les contrôles négatifs**, chacun dans une copie des sources, construite à part (`/tmp/a9/neg135c.py`) ; le témoin
+sans faute est vert (les huit cas, le recensement, pm-check en C# seul au 286, au 386 et au 486) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| la porte comparée par son premier octet | `materiel-cas PB-192`, mode matériel | rouge, 2 échecs |
+| EXT oublié sur la porte de type nul | `materiel-cas PB-192`, mode matériel | rouge, 2 échecs |
+| le code du dépassement sans le vecteur | `materiel-cas PB-32`, mode matériel | rouge, 2 échecs |
+| la porte commutée sur son propre sélecteur | `materiel-cas PB-39`, mode matériel | rouge, 4 échecs |
+| un CALL de tâche qui empile encore | `materiel-cas PB-40`, mode matériel | rouge (les cas, la sonde muette) |
+| LTR sans contrôle du type | `materiel-cas PB-190`, mode matériel | rouge, 5 échecs |
+| la porte de tâche de l'IDT sans contrôle | `materiel-cas PB-191`, mode matériel | rouge, 5 échecs |
+| LOADALL386 permis à CPL 3 | `materiel-cas PB-193`, mode matériel | rouge (le cas, la sonde muette) |
+| le groupe [32, 192] défait | `materiel-cas PB-192`, mode matériel | rouge, 2 échecs |
+| #TS remplacé par #GP | `materiel-cas PB-39` et `PB-191`, mode matériel | rouge, 1 et 6 échecs |
+| l'IP d'un CALL de tâche non contrôlé | `materiel-cas PB-263`, mode matériel | rouge (le cas, la sonde muette) |
+| un marqueur de PB-190 resté `reproduced` | `recensement` | rouge |
+| LTR contrôlé hors de sa garde (une fuite) | `materiel-cas PB-190`, mode PCem | rouge, 8 échecs |
+| le décor du harnais faux (ESP lu à 14h) | `pm-check --core 386 --target csharp` | rouge, 130 cas |
+| la table du mode matériel ignorée | `pm-check --core 486 --target csharp`, mode matériel | rouge, 25 cas |
+| la table du 286 ignorée | `pm-check --target csharp`, mode matériel | rouge, 17 cas |
+
+**La contre-lecture** (Sonnet, en lecture seule) : aucune fuite ni erreur de logique ; `PoserDecor` relu contre
+`opLOADALL386` ligne à ligne. Repris : la porte de tâche posait le drapeau de PB-40 hors de la garde de PB-40 (sans
+effet, il n'est lu que sous elle ; désormais sous elle) ; `--case` n'était lu qu'à sa place fixe, et `--target csharp
+--case N` rendait 0 même rouge ; PB-39 disait « NT effacé » sans distinguer CALL (posé) de JMP (effacé). Relevé sans
+suite : LTR en mode réel n'atteint pas la correction (NOTRM lève #UD avant).
+
+Une seconde contre-lecture (Sonnet), sur l'alignement, les pseudo-codes des trois manuels en main : exceptions, ordre
+des contrôles, piles et codes conformes ; aucune fuite. Repris : pour JMP, PCem teste la présence de tout descripteur
+système avant le reste, et une TSS ou une porte à la fois absente et fautive levait #NP au lieu du #GP du manuel (les
+contrôles passent désormais avant, et un cas le mesure) ; une TSS 386 (type 9) passait la voie directe sur le 286 (#GP
+désormais, un cas au 286) ; le code d'une faute de la porte de tâche de l'IDT n'avait pas EXT (désormais, un cas par
+#DE au 386 et au 286) ; des textes de PCEM_BUGS.md (le champ *G13* de PB-39 et de PB-191, la liste des cas du 286, la
+phrase de PB-263 sur PB-51). Relevé sans suite : la garde de PB-32 tient un `else if` qui porte le test de PCem, forme
+permise (la garde seule sur sa ligne, `if`/`else`), sans fuite.
+
+**La série.** g5c1 tourne sur un worktree de `f3d5288` et des dix-huit fichiers de l'étape, les corpus SST liés corpus
+par corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 397 portes, toutes vertes, en 68 minutes. Une
+première g5c1, lancée avant l'alignement sur le manuel, a été arrêtée et n'a pas servi. Contre g5b1, les 375 portes
+communes rendent les mêmes verdicts ; quatre résumés changent, comme attendu : `pm-check` (87 cas, contre 68),
+`pm-check-386` et `pm-check-486` (130, contre 106 ; `pm-check-486` joue enfin le 486), `recensement` (263 défauts,
+989 marqueurs, contre 262 et 969 ; 56 défauts corrigés en mode matériel, contre 48). Les 22 portes neuves sont celles
+de l'étape : les cas des huit corrections dans les deux modes, et pm-check en C# seul au 286, au 386 et au 486, dans
+les deux modes. Comme pour g5b1, `os/386-HDD-C.img` a tourné avec l'image de référence (empreinte vérifiée), copiée
+dans le worktree seul.

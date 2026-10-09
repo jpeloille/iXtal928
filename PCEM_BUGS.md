@@ -373,9 +373,21 @@ contredisent : #TS (page CALL) ou #GP (page JMP, et SDM) pour DPL, TI, limite, T
 *Cas qui discrimine* : pm-check, cœur 386, CPL 0 : `CALL FAR` vers une porte de tâche (type 5) qui
 désigne une TSS 386 disponible → #GP(sélecteur de la porte) (PCem) ; commutation, lien arrière, NT = 1,
 TSS occupée (386). `JMP FAR` : #GP(0) contre une commutation sans lien.
-*G13* : (a) pour le chemin nominal ; (b) pour les codes d'erreur, que les manuels contredisent (K2).
-*Reproduit* : `Cpu/x86seg.cs:722` (loadcscall) et `:2546` (loadcsjmp), marqueurs `PB-39` ; épinglé
-par l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
+*G13* : (a) — documenté ; les exceptions, que le 386 PRM et le SDM se disputent (K2), suivent le manuel de chaque
+processeur (décision de Julien, le 10/10).
+*Reproduit* en mode PCem : `Cpu/x86seg.cs`, loadcscall et loadcsjmp (pour JMP, avant le test de présence de PCem :
+le manuel lève #GP avant #NP), marqueurs `fixed in hardware mode: PB-39` ;
+épinglé par l'attente du cas « CALL FAR porte de tâche -> #GP (PCem : type 5 non géré) ».
+*Corrigé en mode matériel* (G13.5c) : sous `if (materiel.pb_39)`, dans le `default` des deux fonctions,
+`porte_tache_materiel` (`Cpu/386.Materiel.cs`) contrôle la porte (DPL au moins CPL et RPL, présence) et la TSS qu'elle
+désigne (dans la GDT, sous sa limite, disponible, présente), puis change de tâche : avec le lien arrière pour CALL,
+sans lui pour JMP ; NT posé pour CALL, effacé pour JMP (386 PRM, Table 7-2, comme la voie TSS ; pour JMP, le SDM le
+prend dans la TSS : K1, reproduit).
+Les exceptions sont celles du manuel de chaque processeur (décision de Julien, le 10/10 ; K2) : sur le 386 et le 486,
+#TS pour CALL, #GP pour JMP (386 PRM et i486 PRM, pages CALL et JMP, TASK-GATE) ; sur le 286, #GP pour les deux (80286
+PRM) ; #NP pour la présence, partout. `materiel-cas PB-39` joue les cas de pm-check au 386 (CALL et JMP FAR sur la porte
+0070h ; la même porte, de DPL 0, depuis CPL 3 : #TS par CALL, #GP par JMP) et au 286 (CALL et JMP, et le témoin : #GP
+par CALL depuis CPL 3).
 
 ### PB-40 — CALL FAR sur une TSS empile l'adresse de retour sur la pile de la NOUVELLE tâche
 
@@ -406,8 +418,12 @@ branches TASK-GATE et TASK-STATE-SEGMENT de la page CALL).
 *Cas qui discrimine* : pm-check « CALL FAR TSS 386 » : ESP de la nouvelle tâche 0x6FF8 et deux mots
 écrits sous 0x7000 (PCem) ; ESP 0x7000, rien d'écrit (386).
 *G13* : (a) — un drapeau « commutation faite », posé par la voie TSS et par la porte (PB-39).
-*Reproduit* : `Cpu/386_ops_call.cs:56` (CALL_FAR_w) et `:121` (CALL_FAR_l), marqueurs `PB-40`,
-transcrits tels quels ; épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
+*Reproduit* en mode PCem : `Cpu/386_ops_call.cs`, CALL_FAR_w et CALL_FAR_l, marqueurs
+`fixed in hardware mode: PB-40`, transcrits tels quels ; épinglé par l'attente du cas « CALL FAR TSS 386 » (ESP 0x6FF8).
+*Corrigé en mode matériel* (G13.5c) : la voie TSS de loadcscall (sous `if (materiel.pb_40)`) et la porte de tâche
+(PB-39) notent la commutation faite ; sous la même garde, CALL_FAR_w et CALL_FAR_l s'arrêtent alors avant
+d'empiler (`appel_de_tache_materiel`, `Cpu/386.Materiel.cs`). `materiel-cas PB-40`, au 386 et au 286 : SP 7000h, le
+lien arrière, rien d'écrit sous 7000h.
 
 ### PB-41 — Une TSS 16 bits pose les moitiés hautes des registres généraux à FFFF
 
@@ -1215,7 +1231,8 @@ opLOADALL386, marqueur `fixed in hardware mode: PB-78`. Le fuzzeur du cœur 486 
 *Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_78)`, sur le 486, opLOADALL386 remet pc sur l'instruction
 et lève #UD, le geste d'ILLEGAL (`loadall486_materiel`, `Cpu/386.Materiel.cs`). `materiel-cas PB-78` rend le cas
 ci-dessus et son témoin (le 386 charge le bloc dans les deux modes), et rougit la correction coupée. pm-check pose
-le décor du 486 par LOADALL386 : en mode matériel, il lui faudra un autre chemin (G13.5c).
+le décor du 486 par LOADALL386 contre l'oracle ; sous `--target csharp` (G13.5c), le harnais le pose champ par champ,
+égal à celui de LOADALL386 là où il existe encore.
 
 ### PB-79 — Une table de pages hors RAM fait tomber l'émulateur
 
@@ -2819,9 +2836,16 @@ matériel le corrige (`PLAN-G13.md` § G13.5).
 *Cas qui discrimine* : pm-check : IDT de limite FFh (32 portes), `INT 20h` → #GP(0) (PCem) ;
 #GP(0102h) (386). Une interruption matérielle hors de l'IDT : 0 contre n × 8 + 3 (EXT).
 *G13* : (a) — une ligne sous la garde, avec EXT (PB-192).
-*Reproduit* : `Cpu/x86seg.cs:1119`, marqueur `// pcem bug, reproduced: PB-32` dans `pmodeint`.
+*Reproduit* en mode PCem : `Cpu/x86seg.cs`, `pmodeint`, marqueur `fixed in hardware mode: PB-32`.
 Transcrit avec la même précédence, donc le même résultat — le corriger changerait le code
 d'erreur d'un côté seulement.
+*Corrigé en mode matériel* (G13.5c), avec PB-192 (un groupe : le même test) : sous `if (materiel.pb_32)`,
+`idt_limite_materiel` (`Cpu/386.Materiel.cs`) compare la porte entière à la limite et lève #GP(n × 8 + 2 + EXT), ou
+la double et la triple faute comme la branche de PCem. `materiel-cas PB-32` joue le cas `INT 20h` de pm-check (0102h),
+au 386 et au 286.
+EXT, au dépassement de l'IDT, ne se voit que sur une interruption matérielle, que pm-check ne tire pas : une exception
+hors de l'IDT y devient la double faute (x86_doabrt, chez PCem comme en mode matériel) ; EXT se mesure sur la porte de
+type nul (PB-192).
 
 ### PB-169 — DIV et IDIV du 8088 ne lèvent INT 0 que pour un diviseur nul
 
@@ -3377,7 +3401,13 @@ or is already busy », « #NP(selector) if the TSS is marked "not present" » (3
 *Cas qui discrimine* : pm-check, CPL 0 : `LTR` sur le sélecteur d'un segment de données → TR chargé,
 descripteur modifié (PCem) ; #GP(sélecteur) (386). Idem avec TI = 1, ou une TSS déjà occupée.
 *G13* : (a) — documenté ; rend PB-42 inatteignable.
-*Reproduit* : `Cpu/386_ops_0f.cs:570`, op0F00_common (LTR), marqueur `PB-190`.
+*Reproduit* en mode PCem : `Cpu/386_ops_0f.cs`, op0F00_common (LTR), marqueur `fixed in hardware mode: PB-190`.
+*Corrigé en mode matériel* (G13.5c) : sous `if (materiel.pb_190)`, `ltr_materiel` (`Cpu/386.Materiel.cs`) lève
+#GP(sélecteur) pour TI = 1, un sélecteur hors de la GDT ou un descripteur qui n'est pas une TSS disponible (type 1,
+ou 9 sur le 386 et le 486 ; le sélecteur nul désigne le descripteur nul : #GP(0)), #NP(sélecteur) pour une TSS
+absente. `materiel-cas PB-190` joue les cinq cas LTR de pm-check au 386 : un segment de données, TI = 1, une TSS
+occupée, une TSS absente, et le témoin (la TSS disponible, chargée et marquée occupée dans les deux modes) ; et quatre
+au 286 : un segment de données, une TSS 386 (type 9, que le 286 n'a pas), une TSS occupée, une TSS absente.
 
 ### PB-191 — La voie TSS des CALL, JMP et INT en accepte trop
 
@@ -3386,19 +3416,34 @@ la LDT si `seg & 4` (`:888-894`, `:582-588`) ; la porte de tâche de `pmodeint`,
 la TSS dans la LDT si `seg & 4` (`:1967-1973`) et ne teste que sa présence (`:1990`).
 
 *Effet* : un CALL ou un JMP directement sur une TSS ne contrôle ni le DPL de la TSS contre CPL et RPL,
-ni sa présence, ni que son sélecteur désigne la GDT : une TSS de la LDT, d'un privilège insuffisant
-ou absente est commutée. La porte de tâche de l'IDT accepte une TSS de la LDT et ne vérifie pas que
+ni que son sélecteur désigne la GDT : une TSS de la LDT ou d'un privilège insuffisant est commutée. Un CALL
+commute aussi une TSS absente ; JMP, non (`x86seg.c:659` : #NP pour tout descripteur système absent ; le
+texte repris en G13.5c, d'après pm-check). La porte de tâche de l'IDT accepte une TSS de la LDT et ne vérifie pas que
 le descripteur désigné est une TSS disponible.
 *Trouvé par* : reconnaissance de G13 (D1 § 3, PB-39 ; D1-contre A9), à la lecture du C.
 *Source* : documenté — 386 PRM, pages CALL et JMP, branches TASK-STATE-SEGMENT (« TSS DPL must be
 >= CPL », « >= RPL », « must be present ») et TASK-GATE (« Must specify global in the local/global bit ») ;
 page INT, TASK-GATE (« AR byte must specify available TSS »). Exceptions : #TS (CALL, INT), #GP (JMP), #NP.
 *Cas qui discrimine* : pm-check, CPL 3 : `CALL FAR` sur une TSS 386 de DPL 0 → commutation (PCem) ;
-#TS(sélecteur de la TSS) (386 PRM, page CALL ; #GP selon la page JMP et le SDM). TSS absente :
-commutation contre #NP.
-*G13* : (a) pour les conditions ; (b) pour les exceptions, que les manuels contredisent (comme PB-39).
-*Reproduit* : `Cpu/x86seg.cs:724` (loadcscall), `:2548` (loadcsjmp), `:1418` (pmodeint, porte de
-tâche), marqueurs `PB-191`.
+#TS(sélecteur de la TSS) (386 PRM, page CALL ; #GP selon la page JMP et le SDM). `CALL FAR` sur une TSS
+absente : commutation contre #NP.
+*G13* : (a) — documenté ; les exceptions suivent le manuel de chaque processeur, comme PB-39.
+*Reproduit* en mode PCem : `Cpu/x86seg.cs`, loadcscall, loadcsjmp et pmodeint (porte de tâche), marqueurs
+`fixed in hardware mode: PB-191`.
+*Corrigé en mode matériel* (G13.5c) : sous `if (materiel.pb_191)`, `tss_directe_materiel` (CALL et JMP sur une TSS :
+dans la GDT, DPL au moins CPL et RPL, présente), `tss_occupee_materiel` (CALL et JMP sur une TSS occupée, que PCem
+envoie au `default` : #GP(sélecteur) pour CALL, #GP(0) pour JMP) et `tss_int_materiel` (la porte de tâche de l'IDT :
+une TSS de la GDT, disponible ; la présence reste au test de PCem, qui suit), dans `Cpu/386.Materiel.cs`. Les
+exceptions sont celles du manuel de chaque processeur (décision de Julien, le 10/10) : #TS pour CALL et INT sur le 386
+et le 486, #GP pour JMP, et #GP partout sur le 286 (80286 PRM) ; #NP pour la présence. `materiel-cas PB-191` joue les
+cas de pm-check au 386 (CALL et JMP FAR sur une TSS de DPL 0 depuis CPL 3, de la LDT, occupée ; CALL sur une TSS
+absente ; JMP sur une TSS de DPL 0 et absente, où le manuel lève #GP avant #NP ; INT 1Eh par une porte de tâche vers une
+TSS de la LDT, puis occupée ; #DE par une porte de tâche vers la LDT, EXT) et au 286 (CALL sur une TSS de DPL 0 depuis
+CPL 3, sur une TSS absente, sur une TSS 386 de type 9 ; JMP sur une TSS de la LDT, occupée ; INT 1Eh et #DE par une
+porte de tâche vers la LDT ; le témoin, CALL sur une TSS occupée, où PCem lève déjà le #GP du 286). Pour JMP, les
+contrôles passent avant le test de présence que loadcsjmp fait sur tout descripteur système (`tss_jmp_materiel`, et
+la porte de tâche de PB-39) ; une TSS de type 9 sur le 286 lève #GP ; le code d'une faute de la porte de tâche de
+l'IDT porte EXT pour une exception ou une interruption matérielle (386 PRM § 9.7).
 
 ### PB-192 — `pmodeint` : EXT jamais posé, et la limite de l'IDT testée sur le premier octet
 
@@ -3425,8 +3470,13 @@ n × 8 + 3.
 *Cas qui discrimine* : pm-check : limite de l'IDT 00FCh, `INT 1Fh` → porte lue (PCem) ; #GP(00FAh)
 (386). Interruption matérielle sur une porte de type nul → #GP(n × 8 + 2) (PCem) ; n × 8 + 3 (386).
 *G13* : (a) — documenté ; à faire avec PB-32.
-*Reproduit* : `Cpu/x86seg.cs:1095` (le test de limite) et `:1143` (le code d'erreur), pmodeint,
-marqueurs `PB-192`.
+*Reproduit* en mode PCem : `Cpu/x86seg.cs`, pmodeint, le test de limite et le code d'erreur, marqueurs
+`fixed in hardware mode: PB-192`.
+*Corrigé en mode matériel* (G13.5c), avec PB-32 : la limite par `idt_limite_materiel` (sous la garde de PB-32) ; sous
+`if (materiel.pb_192)`, `porte_nulle_materiel` ajoute EXT au code d'une porte de type nul pour une exception ou une
+interruption matérielle (`Cpu/386.Materiel.cs`). `materiel-cas PB-192` joue les deux cas de pm-check, au 386 et au
+286 : `INT 1Fh` sous une limite de 00FCh (porte lue contre #GP(00FAh)) ; DIV par zéro sur une porte 0 nulle
+(#GP(0002h) contre 0003h).
 
 ### PB-193 — LOADALL386 ne contrôle pas le privilège
 
@@ -3443,7 +3493,10 @@ documenté par Intel.
 *Cas qui discrimine* : pm-check, cœur 386, CPL 3 : `0F 07`, ES:EDI sur un bloc préparé → état chargé
 (PCem) ; #GP(0) (386, selon Collins).
 *G13* : (b) — source secondaire seule, sans mesure.
-*Reproduit* : `Cpu/386_ops_0f.cs:817`, opLOADALL386, marqueur `PB-193`.
+*Reproduit* en mode PCem : `Cpu/386_ops_0f.cs`, opLOADALL386, marqueur `fixed in hardware mode: PB-193`.
+*Corrigé en mode matériel* (G13.5c) : sous `if (materiel.pb_193)`, `loadall386_privilege_materiel`
+(`Cpu/386.Materiel.cs`) lève #GP(0) en mode protégé hors du niveau 0, la garde d'opLOADALL. Sur le 486, PB-78 passe
+avant : #UD. `materiel-cas PB-193` joue le cas de pm-check (CPL 3, ES:EDI sur un bloc de l'anneau 0, EAX 5A5A5A5Ah).
 
 ### PB-194 — FXTRACT n'existe pas : D9 F4 est FPU_ILLEGAL
 
@@ -4786,6 +4839,26 @@ of the bit offset operand ... The immediate bit offset ... modulo 16 or 32 » (S
 `Cpu/386.Materiel.cs`). `materiel-cas PB-262` rend le cas ci-dessus, et rougit la correction coupée. SST en mode
 matériel : `0FBA.4` à `0FBA.7` 2 487 sur 2 500 chacune (contre 1 262 à 1 900), le reste étant des mots à cheval
 sur FFFFh (PB-189) ; les formes 32 bits (`660FBA.*`) ne bougent que par LOCK (PB-182).
+
+### PB-263 — Le changement de tâche d'un CALL ne contrôle pas l'IP contre la limite du nouveau CS
+
+`x86seg.c:2393-2849`, `taskswitch286` : la nouvelle tâche charge CS et son cache, puis EIP, sans les confronter ;
+loadcscall (`:1284-1291`) rend la main. Ni la voie TSS ni la porte de tâche (PB-39) n'y regardent.
+
+*Effet* : un CALL vers une tâche dont l'EIP sort de la limite de son CS ne lève rien ; PCem exécute au-delà de la
+limite (PB-51). Sur le 386 et le 486, le manuel lève #TS(0) pour CALL ; pour JMP et INT, et sur le 286, #GP(0), que la
+lecture de l'instruction lève en mode matériel quand PB-51 est demandé.
+*Trouvé par* : G13.5c, à l'alignement des exceptions sur le manuel (pseudo-code de la page CALL).
+*Source* : documenté — « SWITCH-TASKS (with nesting) to TSS ; IP must be in code segment limit ELSE #TS(0) » (386 PRM
+et i486 PRM, page CALL, TASK-GATE et TASK-STATE-SEGMENT) ; #GP(0) aux pages JMP et INT, et au 80286 PRM.
+*Cas qui discrimine* : pm-check, cœur 386 : `CALL FAR` sur la TSS 386 n°2 dont l'EIP vaut 10000h (CS de limite FFFFh)
+→ exécution en 10000h (PCem) ; #TS(0) dans la nouvelle tâche, l'EIP 10000h empilé (386).
+*G13* : (a) — documenté.
+*Reproduit* en mode PCem : par la transcription de loadcscall, marqueur `fixed in hardware mode: PB-263` sur la voie TSS
+(`Cpu/x86seg.cs`).
+*Corrigé en mode matériel* (G13.5c) : sous `if (materiel.pb_263)`, après la commutation d'un CALL (la voie TSS, et la
+porte de tâche de PB-39), `ip_tache_materiel` (`Cpu/386.Materiel.cs`) lève #TS(0) sur le 386 et le 486 ; oldpc reçoit
+le nouvel EIP, pour que la faute se livre dans la nouvelle tâche. `materiel-cas PB-263` rend le cas ci-dessus.
 
 ## B. Comportement indéfini en C
 

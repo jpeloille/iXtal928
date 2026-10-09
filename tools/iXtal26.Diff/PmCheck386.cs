@@ -19,6 +19,13 @@
 // à l'octet près, sélecteurs. Une attente fausse est un défaut du banc, jamais un vert.
 //
 // PG reste nul : la pagination de PCem indexe la RAM sans borne (voir Fuzzer.SeedSys386).
+//
+// G13.5c — `--target csharp` : le C# seul, sans l'oracle, chaque cas jugé sur son attente ; en mode matériel, sur son
+// attente du mode matériel (`ExpectMateriel`) quand la correction qu'il discrimine (`Pb`) est demandée. Le décor y est
+// posé par le harnais, champ par champ, comme LOADALL386 le poserait : le 486 du mode matériel n'a plus de LOADALL
+// (PB-78). Partout où LOADALL386 existe encore (le 386, et le 486 du mode PCem), le cas le joue d'abord, et le décor
+// du harnais doit lui être égal, champ à champ (« DÉCOR FAUX » sinon). `materiel-cas PB-nn` joue de même les cas qui
+// discriminent une correction du mode protégé (G13.5c).
 
 using iXtal26.Cpu;
 using iXtal26.Diag;
@@ -89,12 +96,18 @@ public static class PmCheck386
         public bool Fuzz;                              // fuzzeur : la TSS de TR est occupée
         public bool Paging;                            // D6 : PG posé, carte identité des 4 premiers Mo
         public int V86 = -1;                           // D7 : IOPL d'entrée en V86 (par IRETD), -1 sinon
+        public uint IdtLimit = 32 * 8 - 1;             // G13.5c : la limite de l'IDT du décor
+        public uint Edi;                               // G13.5c : EDI du décor (LOADALL386 à CPL 3, PB-193)
+        public int Pb;                                 // G13.5c : la correction que le cas discrimine
+        public Func<HState, string?>? ExpectMateriel;  // G13.5c : l'attente du mode matériel, si elle diffère
     }
 
     public static int Run(int only = -1)
     {
-        Oracle.CheckAbi();
         var cases = Cases();
+        if (Csharp)
+            return RunCsharp(cases, only);
+        Oracle.CheckAbi();
         if (only >= 0)
         {
             Console.WriteLine(RunCase(cases[only]));
@@ -113,7 +126,9 @@ public static class PmCheck386
             };
             if (Path.GetFileNameWithoutExtension(self) == "dotnet")
                 psi.ArgumentList.Add(dll);
-            foreach (var a in new[] { "pm-check", "--core", "386", "--case", k.ToString() })
+            // G13.5c : le cœur du cas est celui de la commande. Jusque-là, `--core 486` relançait chaque cas avec
+            // `--core 386` : pm-check-486 jouait le 386 (mesuré : SMSW y rendait FF11h, le 486 de PCem rend 0011h).
+            foreach (var a in new[] { "pm-check", "--core", Core486 ? "486" : "386", "--case", k.ToString() })
                 psi.ArgumentList.Add(a);
             using var proc = System.Diagnostics.Process.Start(psi)!;
             var outp = proc.StandardOutput.ReadToEnd();
@@ -193,6 +208,10 @@ public static class PmCheck386
         // IDT : portes d'interruption 386 vers 88:0000E000 ; 0x1F en DPL3.
         for (uint v = 0; v < 32; v++)
             poke(Idt + 8 * v, Gate(0xE000, SelCode32, 0, (byte)(v == 0x1F ? 0xEE : 0x8E)));
+        // G13.5c : un cas qui discrimine une correction distingue #TS, #NP et #GP par leur gestionnaire.
+        if (c.Pb != 0)
+            foreach (var v in new[] { VecTs, VecNp, VecGp })
+                poke(Idt + 8 * (uint)v, Gate(Gestionnaire(v), SelCode32, 0, 0x8E));
 
         // TSS 386 : ESP0 en +4, SS0 en +8 (x86seg.c:1063-1066, `tr.access & 8`).
         poke(Tss, L(0, Esp0, SelStack32));
@@ -236,7 +255,20 @@ public static class PmCheck386
 
         c.Tweak?.Invoke(poke);
 
-        // Le bloc de LOADALL386 (x86_ops_misc.h:930-974).
+        poke(Bloc, BlocLoadall(c));
+
+        // LOADALL386 ne charge pas CR3 : en D6, deux instructions de mode réel le posent
+        // d'abord — MOV EAX,Pd ; MOV CR3,EAX.
+        if (c.Paging)
+            poke(0x7C00, [0x66, 0xB8, .. L(Pd), 0x0F, 0x22, 0xD8, 0x0F, 0x07]);
+        else
+            poke(0x7C00, [0x0F, 0x07]);                          // LOADALL386
+    }
+
+    /// <summary>Le bloc de LOADALL386 (x86_ops_misc.h:930-974) du décor d'un cas.</summary>
+    private static byte[] BlocLoadall(Case c)
+    {
+        var ring3 = EstRing3(c.Start);
         var b = new byte[0xCC];
         void Bd(int off, uint v) { for (var k = 0; k < 4; k++) b[off + k] = (byte)(v >> (8 * k)); }
         void Bw(int off, ushort v) { b[off] = (byte)v; b[off + 1] = (byte)(v >> 8); }
@@ -258,6 +290,7 @@ public static class PmCheck386
         Bw(0x04, c.Flags);                                      // FLAGS
         Bw(0x06, 0x0000);                                       // EFLAGS haut
         Bd(0x08, 0x1000);                                       // EIP
+        Bd(0x0C, c.Edi);                                        // EDI
         Bd(0x18, EspDepart);                                    // ESP
         Bd(0x1C, c.Ebx);
         Bd(0x28, c.Eax);
@@ -274,7 +307,7 @@ public static class PmCheck386
         Bw(0x3C, SelData); Bw(0x40, SelData); Bw(0x44, SelData);
         Bw(0x48, ssSel); Bw(0x4C, csSel); Bw(0x50, SelData);
         Seg(0x54, Tss, 0x67, (byte)(c.Fuzz ? 0x8B : 0x89), 0);   // TR : TSS 386
-        Seg(0x60, Idt, 32 * 8 - 1, 0, 0);                        // IDTR
+        Seg(0x60, Idt, c.IdtLimit, 0, 0);                        // IDTR
         Seg(0x6C, Gdt, GdtEntries * 8 - 1, 0, 0);                // GDTR
         Seg(0x78, Ldt, 0xFF, 0x82, 0);                           // LDTR
         Seg(0x84, DataBase, 0xFFFF, 0x93, 0);                    // GS
@@ -283,14 +316,7 @@ public static class PmCheck386
         Seg(0xA8, ring3 ? Stack3Base : StackBase, 0xFFFF, (byte)(ring3 ? 0xF3 : 0x93), (byte)(ss32 ? 0x40 : 0));
         Seg(0xB4, ring3 ? Code3Base : CodeBase, 0xFFFF, (byte)(ring3 ? 0xFB : 0x9B), (byte)(cs32 ? 0x40 : 0));
         Seg(0xC0, DataBase, 0xFFFF, 0x93, 0);                    // ES
-        poke(Bloc, b);
-
-        // LOADALL386 ne charge pas CR3 : en D6, deux instructions de mode réel le posent
-        // d'abord — MOV EAX,Pd ; MOV CR3,EAX.
-        if (c.Paging)
-            poke(0x7C00, [0x66, 0xB8, .. L(Pd), 0x0F, 0x22, 0xD8, 0x0F, 0x07]);
-        else
-            poke(0x7C00, [0x0F, 0x07]);                          // LOADALL386
+        return b;
     }
 
     /// <summary>G6.2 — `--core 486` : le banc et pm-fuzz sur l'ami486. Le décor se pose par
@@ -387,9 +413,229 @@ public static class PmCheck386
         return $"vert — CS:EIP {a.seg_sel[(int)Seg.CS]:X4}:{a.pc:X8}, SS:ESP {a.seg_sel[(int)Seg.SS]:X4}:{a.regs[4]:X8}";
     }
 
+    // ===== G13.5c — le C# seul, et le décor sans LOADALL386 =====
+
+    /// <summary>`--target csharp` : le C# seul (G13.5c).</summary>
+    internal static bool Csharp;
+
+    private static int RunCsharp(List<Case> cases, int only)
+    {
+        var loadall = LoadallDisponible();
+        if (only >= 0)
+        {
+            var r1 = RunCaseCsharp(cases[only], Materiel(cases[only]), loadall);
+            Console.WriteLine(r1);
+            return r1.StartsWith("vert", StringComparison.Ordinal) ? 0 : 1;
+        }
+        Console.WriteLine($"pm-check --core {(Core486 ? 486 : 386)} --target csharp ({ModeMateriel.Description}) — {cases.Count} cas, " +
+                          $"le décor posé par le harnais{(loadall ? ", égal à celui de LOADALL386" : " (le 486 n'a plus de LOADALL386, PB-78)")}\n");
+        int vert = 0, rouge = 0, attentes = 0, materiel = 0;
+        foreach (var c in cases)
+        {
+            var hw = Materiel(c);
+            var r = RunCaseCsharp(c, hw, loadall);
+            if (r.StartsWith("vert", StringComparison.Ordinal)) vert++; else rouge++;
+            if (c.Expect is not null || (hw && c.ExpectMateriel is not null)) attentes++;
+            if (hw && c.ExpectMateriel is not null) materiel++;
+            Console.WriteLine($"  {c.Name,-58} {(hw && c.ExpectMateriel is not null ? "[matériel] " : "")}{r}");
+        }
+        Console.WriteLine($"\n{vert} vert(s), {rouge} rouge(s) sur {cases.Count} ; {attentes} cas jugés sur une attente, " +
+                          $"dont {materiel} sur celle du mode matériel.");
+        return rouge == 0 ? 0 : 1;
+    }
+
+    /// <summary>L'attente du mode matériel vaut si la correction que le cas discrimine est demandée.</summary>
+    private static bool Materiel(Case c) => c.Pb != 0 && ModeMateriel.Demande(c.Pb);
+
+    /// <summary>LOADALL386 existe sur le 386, et sur le 486 tant que PB-78 n'est pas corrigé.</summary>
+    private static bool LoadallDisponible() => !(Core486 && ModeMateriel.Demande(78));
+
+    /// <summary>`materiel-cas PB-nn` pour une correction du mode protégé : les cas du banc qui la discriminent, sur le
+    /// 386, en C# seul, chacun jugé sur l'attente demandée. Rend le nombre d'échecs ; -1 si aucun cas.</summary>
+    internal static int CasMateriel(int pb, bool materielAttendu)
+    {
+        Csharp = true;
+        Core486 = false;
+        var bad = 0;
+        var cas = Cases().Where(c => c.Pb == pb).ToList();
+        if (cas.Count == 0)
+            return -1;
+        foreach (var c in cas)
+        {
+            var r = RunCaseCsharp(c, materielAttendu, true);
+            var ok = r.StartsWith("vert", StringComparison.Ordinal);
+            Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] {c.Name} : {r} (attendu {(materielAttendu ? "du matériel" : "de PCem")})");
+            if (!ok) bad++;
+        }
+        return bad;
+    }
+
+    /// <summary>Le cœur remis à zéro et le décor écrit en mémoire, côté C# seulement ; CS:IP en 0000:7C00, ES:EDI sur
+    /// le bloc de LOADALL386.</summary>
+    private static void PreparerCsharp(Case c)
+    {
+        if (Core486) _386.Reset486(); else _386.Reset386();
+        mem.fill_ram(0x90);
+        _386.ClearSegResidue();
+        if (_386.FuzzFpu != 0)
+            _808x.SetFpu(new ulong[8], new ulong[8], new ushort[8], new byte[8], 0, 0, 0x037F);
+        Build(c, (addr, bytes) =>
+        {
+            for (var i = 0; i < bytes.Length; i++) mem.ram[(addr + i) & mem.rammask] = bytes[i];
+        });
+        var regs = new ushort[(int)R.COUNT];
+        regs[(int)R.IP] = 0x7C00;
+        regs[(int)R.FLAGS] = 0x0002;
+        regs[(int)R.DI] = (ushort)Bloc;
+        _808x.SetRegs(regs);
+        _808x.SetRegs386(new ushort[8], 0, 0, 0);
+    }
+
+    private static string RunCaseCsharp(Case c, bool hw, bool loadall)
+    {
+        var b = HState.Create();
+        HState? parLoadall = null;
+        if (loadall)
+        {
+            PreparerCsharp(c);
+            for (var s = 0; s <= (c.Paging ? 2 : 0); s++)
+                _386.Step286();
+            var l = HState.Create();
+            _808x.GetState(ref l);
+            parLoadall = l;
+        }
+        PreparerCsharp(c);
+        if (c.Paging)
+        {
+            x86.cr3 = Pd;                                       // le préambule : MOV CR3,EAX
+            mem.flushmmucache();
+        }
+        PoserDecor(Bloc);
+        _808x.GetState(ref b);
+        if (parLoadall is { } pl && EcartDecor(pl, b) is { } e)
+            return $"DÉCOR FAUX : {e}";
+        var cs32 = Est32(c.Start);
+        if (b.use32 != (cs32 ? 0x300u : 0u) || b.stack32 != (cs32 || c.Stack32In16 ? 1 : 0))
+            return $"BANC FAUX après le décor : use32 0x{b.use32:X}, stack32 {b.stack32}";
+        var etapes = c.Steps + (c.V86 >= 0 ? 1 : 0);
+        for (var s = 0; s < etapes; s++)
+        {
+            try
+            {
+                _386.Step286();
+            }
+            catch (Exception ex)
+            {
+                return $"ARRÊT C# au pas {s + 1} : {ex.Message.Trim()}";
+            }
+        }
+        _808x.GetState(ref b);
+        var attente = (hw ? c.ExpectMateriel ?? c.Expect : c.Expect)?.Invoke(b);
+        if (attente is not null)
+            return $"ATTENTE NON TENUE (C#) : {attente}";
+        return $"vert — CS:EIP {b.seg_sel[(int)Seg.CS]:X4}:{b.pc:X8}, SS:ESP {b.seg_sel[(int)Seg.SS]:X4}:{b.regs[4]:X8}";
+    }
+
+    /// <summary>Le décor posé par le harnais : les champs que LOADALL386 lit dans son bloc (opLOADALL386 et
+    /// loadall_load_segment, 386_ops_0f.cs), dans le même ordre, lus dans la RAM du C#. Aucune instruction ne
+    /// s'exécute.</summary>
+    private static void PoserDecor(uint bloc)
+    {
+        uint Lm(uint o) => (uint)(mem.ram[bloc + o] | (mem.ram[bloc + o + 1] << 8) | (mem.ram[bloc + o + 2] << 16) | (mem.ram[bloc + o + 3] << 24));
+        ushort Wm(uint o) => (ushort)(mem.ram[bloc + o] | (mem.ram[bloc + o + 1] << 8));
+        var st = _386_common.cpu_state;
+        x86.cr0 = Lm(0);
+        st.flags = Wm(4);
+        st.eflags = Wm(6);
+        x86_flags.flags_extract();
+        st.pc = Lm(8);
+        x86.EDI = Lm(0x0C); x86.ESI = Lm(0x10); x86.EBP = Lm(0x14); x86.ESP = Lm(0x18);
+        x86.EBX = Lm(0x1C); x86.EDX = Lm(0x20); x86.ECX = Lm(0x24); x86.EAX = Lm(0x28);
+        x86.dr[6] = Lm(0x2C);
+        x86.dr[7] = Lm(0x30);
+        x86.tr.seg = Wm(0x34);
+        x86.ldt.seg = Wm(0x38);
+        x86.GS = Wm(0x3C); x86.FS = Wm(0x40); x86.DS = Wm(0x44); x86.SS = Wm(0x48); x86.CS = Wm(0x4C); x86.ES = Wm(0x50);
+        Segment(0x54, x86.tr); Segment(0x60, x86.idt); Segment(0x6C, x86.gdt); Segment(0x78, x86.ldt);
+        Segment(0x84, st.seg_gs); Segment(0x90, st.seg_fs); Segment(0x9C, st.seg_ds); Segment(0xA8, st.seg_ss);
+        Segment(0xB4, st.seg_cs); Segment(0xC0, st.seg_es);
+        if (x86.CPL == 3 && x86.oldcpl != 3)
+            mem.flushmmucache_cr3();
+        x86.oldcpl = x86.CPL;
+
+        void Segment(uint o, x86seg s)
+        {
+            var attrib = Lm(o);
+            var segdat3 = (attrib >> 16) & 0xFF;
+            s.access = (byte)((attrib >> 8) & 0xFF);
+            s.@base = Lm(o + 4);
+            s.limit = Lm(o + 8);
+            if (ReferenceEquals(s, st.seg_cs))
+                x86.use32 = (segdat3 & 0x40) != 0 ? 0x300u : 0;
+            if (ReferenceEquals(s, st.seg_ss))
+                x86.stack32 = (segdat3 & 0x40) != 0 ? 1 : 0;
+            x86.cpu_cur_status &= unchecked((ushort)~(x86.CPU_STATUS_USE32 | x86.CPU_STATUS_STACK32));
+            if (x86.use32 != 0)
+                x86.cpu_cur_status |= x86.CPU_STATUS_USE32;
+            if (x86.stack32 != 0)
+                x86.cpu_cur_status |= x86.CPU_STATUS_STACK32;
+            if ((s.access & 0x18) != 0x10 || (s.access & (1 << 2)) == 0)
+            {
+                s.limit_high = s.limit;
+                s.limit_low = 0;
+            }
+            else
+            {
+                s.limit_high = (segdat3 & 0x40) != 0 ? 0xFFFFFFFF : 0xFFFF;
+                s.limit_low = s.limit + 1;
+            }
+            var plat = s.@base == 0 && s.limit_low == 0 && s.limit_high == 0xFFFFFFFF;
+            if (ReferenceEquals(s, st.seg_ds))
+            {
+                if (plat) x86.cpu_cur_status &= unchecked((ushort)~x86.CPU_STATUS_NOTFLATDS);
+                else x86.cpu_cur_status |= x86.CPU_STATUS_NOTFLATDS;
+            }
+            if (ReferenceEquals(s, st.seg_ss))
+            {
+                if (plat) x86.cpu_cur_status &= unchecked((ushort)~x86.CPU_STATUS_NOTFLATSS);
+                else x86.cpu_cur_status |= x86.CPU_STATUS_NOTFLATSS;
+            }
+        }
+    }
+
+    /// <summary>Le décor du harnais contre celui de LOADALL386, sur l'état architectural qu'il pose : les registres,
+    /// les six segments et les quatre registres système (sélecteur, base, limites, accès), CR0, CR3, DR6, DR7, use32,
+    /// stack32, les drapeaux, EIP, cpu_cur_status et oldcpl.</summary>
+    private static string? EcartDecor(HState l, HState h)
+    {
+        for (var i = 0; i < 8; i++)
+            if (l.regs[i] != h.regs[i]) return $"regs[{i}] : LOADALL386 {l.regs[i]:X8}, harnais {h.regs[i]:X8}";
+        for (var i = 0; i < (int)Seg.COUNT; i++)
+            if ((l.seg_sel[i], l.seg_base[i], l.seg_limit[i], l.seg_limit_low[i], l.seg_limit_high[i], l.seg_access[i])
+                != (h.seg_sel[i], h.seg_base[i], h.seg_limit[i], h.seg_limit_low[i], h.seg_limit_high[i], h.seg_access[i]))
+                return $"segment {(Seg)i} : LOADALL386 {l.seg_sel[i]:X4}/{l.seg_base[i]:X8}/{l.seg_limit[i]:X}/{l.seg_access[i]:X2}, " +
+                       $"harnais {h.seg_sel[i]:X4}/{h.seg_base[i]:X8}/{h.seg_limit[i]:X}/{h.seg_access[i]:X2}";
+        for (var i = 0; i < 4; i++)
+            if ((l.sys_sel[i], l.sys_base[i], l.sys_limit[i], l.sys_access[i]) != (h.sys_sel[i], h.sys_base[i], h.sys_limit[i], h.sys_access[i]))
+                return $"{(Sys)i} : LOADALL386 {l.sys_sel[i]:X4}/{l.sys_base[i]:X8}/{l.sys_limit[i]:X}, harnais {h.sys_sel[i]:X4}/{h.sys_base[i]:X8}/{h.sys_limit[i]:X}";
+        if ((l.cr0, l.cr3, l.dr[6], l.dr[7], l.use32, l.stack32, l.flags, l.eflags, l.pc, l.cur_status, l.oldcpl)
+            != (h.cr0, h.cr3, h.dr[6], h.dr[7], h.use32, h.stack32, h.flags, h.eflags, h.pc, h.cur_status, h.oldcpl))
+            return $"CR0 {l.cr0:X8}/{h.cr0:X8}, CR3 {l.cr3:X8}/{h.cr3:X8}, use32 {l.use32:X}/{h.use32:X}, stack32 {l.stack32}/{h.stack32}, " +
+                   $"FLAGS {l.flags:X4}/{h.flags:X4}, EFLAGS {l.eflags:X4}/{h.eflags:X4}, EIP {l.pc:X8}/{h.pc:X8}, " +
+                   $"statut {l.cur_status:X4}/{h.cur_status:X4}, oldcpl {l.oldcpl}/{h.oldcpl} (LOADALL386/harnais)";
+        return null;
+    }
+
     private static string? Att(bool ok, string quoi) => ok ? null : quoi;
-    private static uint MemO(uint addr) =>
-        (uint)(Oracle.ReadByte(addr) | (Oracle.ReadByte(addr + 1) << 8) | (Oracle.ReadByte(addr + 2) << 16) | (Oracle.ReadByte(addr + 3) << 24));
+
+    /// <summary>G13.5c : #TS, #NP et #GP, et leurs gestionnaires (88:E0A0, 88:E0B0, 88:E0D0) dans un cas qui discrimine
+    /// une correction ; les autres vecteurs mènent en 88:E000.</summary>
+    private const int VecTs = 0x0A, VecNp = 0x0B, VecGp = 0x0D;
+    private static uint Gestionnaire(int v) => v is VecTs or VecNp or VecGp ? 0xE000u + (uint)v * 0x10 : 0xE000u;
+    /// <summary>Un mot double de la mémoire du côté jugé : l'oracle, ou le C# sous `--target csharp`.</summary>
+    private static uint MemO(uint addr) => Csharp
+        ? (uint)(mem.ram[addr] | (mem.ram[addr + 1] << 8) | (mem.ram[addr + 2] << 16) | (mem.ram[addr + 3] << 24))
+        : (uint)(Oracle.ReadByte(addr) | (Oracle.ReadByte(addr + 1) << 8) | (Oracle.ReadByte(addr + 2) << 16) | (Oracle.ReadByte(addr + 3) << 24));
     private static string? Pile(HState a, ushort ss, uint esp) =>
         Att(a.seg_sel[(int)Seg.SS] == ss && a.regs[4] == esp,
             $"SS:ESP {a.seg_sel[(int)Seg.SS]:X4}:{a.regs[4]:X8}, attendu {ss:X4}:{esp:X8}");
@@ -582,9 +828,15 @@ public static class PmCheck386
             ?? Att(((a.flags & 0x4000) != 0) == nt, $"FLAGS 0x{a.flags:X4}, NT attendu {nt}");
         // CALL : ESP 0x6FF8 et non 0x7000. CALL_FAR_l (x86_ops_call.h:51-76) empile l'adresse
         // de retour APRÈS loadcscall, donc sur la pile de la NOUVELLE tâche. Le 386 ne le
-        // fait pas ; PCem si, et le C# le reproduit.
+        // fait pas ; PCem si, et le C# le reproduit (PB-40 ; en mode matériel, rien d'empilé).
+        // G13.5c : le lien arrière, sur les deux voies d'un CALL de tâche.
+        static string? Lien(HState a) => Att((MemO(Tss2) & 0xFFFF) == SelTss, $"lien arrière 0x{MemO(Tss2) & 0xFFFF:X4}");
+        static string? RienSous7000(HState a) =>
+            Att(MemO(StackBase + 0x6FF8) == 0x90909090 && MemO(StackBase + 0x6FFC) == 0x90909090,
+                $"écrit sous 0x7000 : {MemO(StackBase + 0x6FF8):X8} {MemO(StackBase + 0x6FFC):X8}");
         l.Add(new() { Name = "CALL FAR TSS 386 (taskswitch286)", Start = Depart.Ring0_32, Code = Far32(0x9A, SelTss2, 0),
-                      Expect = a => Tache(a, 0x6FF8, true) });
+                      Expect = a => Tache(a, 0x6FF8, true), Pb = 40,
+                      ExpectMateriel = a => Tache(a, 0x7000, true) ?? Lien(a) ?? RienSous7000(a) });
         // TSS 286 depuis un 386 : la branche 16 bits, et son `| 0xFFFF0000` (x86seg.c:2800).
         l.Add(new() { Name = "JMP FAR TSS 286 depuis un 386 (moitiés hautes à FFFF)", Start = Depart.Ring0_32,
                       Code = Far32(0xEA, SelTss286, 0),
@@ -598,11 +850,119 @@ public static class PmCheck386
         // types 1 et 9 (TSS disponibles, commentés « Task gate » à x86seg.c:1284-1285) vers
         // taskswitch286, et le vrai type 5 tombe dans `default` — #GP. Transcrit tel quel.
         l.Add(new() { Name = "CALL FAR porte de tâche -> #GP (PCem : type 5 non géré)", Start = Depart.Ring0_32,
-                      Code = Far32(0x9A, SelTaskGate, 0), Expect = a => Pile(a, SelStack32, EspDepart - 16) });
+                      Code = Far32(0x9A, SelTaskGate, 0), Expect = a => Faute(a, EspDepart - 16, SelTaskGate), Pb = 39,
+                      ExpectMateriel = a => Tache(a, ModeMateriel.Demande(40) ? 0x7000u : 0x6FF8u, true) ?? Lien(a) });
         l.Add(new() { Name = "INT 1Eh par porte de tâche -> TSS 386 (pmodeint)", Start = Depart.Ring0_32, Code = [0xCD, 0x1E],
                       Tweak = p => p(Idt + 0x1E * 8, Gate(0, SelTss2, 0, 0x85)), Expect = a => Tache(a, 0x7000, true) });
         l.Add(new() { Name = "IRETD avec NT -> lien arrière (pmodeiret)", Start = Depart.Ring0_32, Code = [0xCF],
                       Flags = 0x4002, Tweak = p => p(Tss, W(SelTss2)), Expect = a => Tache(a, 0x7000, false) });
+
+        // --- G13.5c : les cas qui discriminent les corrections du mode protégé (PCEM_BUGS.md, « Cas qui discrimine »).
+        // Une faute en anneau 0 empile EFLAGS, CS, EIP et son code sous EspDepart ; depuis l'anneau 3, la pile bascule
+        // sur SS0:ESP0 de la TSS, avec SS et ESP en plus. #TS, #NP et #GP ont chacun leur gestionnaire. Les attentes du
+        // mode matériel sont celles du manuel du processeur (386 PRM et i486 PRM : #TS pour CALL et INT, #GP pour JMP).
+        static string? Faute(HState a, uint esp, uint code, int v = VecGp) =>
+            Cs(a, SelCode32, 0x300) ?? Att(a.pc == Gestionnaire(v), $"EIP 0x{a.pc:X8}, attendu le gestionnaire du vecteur {v:X2}h")
+            ?? Pile(a, SelStack32, esp)
+            ?? Att(MemO(StackBase + esp) == code, $"code d'erreur 0x{MemO(StackBase + esp):X}, attendu 0x{code:X}");
+        static string? TrVaut(HState a, ushort tr) => Att(a.sys_sel[(int)Sys.TR] == tr, $"TR {a.sys_sel[(int)Sys.TR]:X4}, attendu {tr:X4}");
+        void Tss2Acces(Action<uint, byte[]> p, byte acces) => p(Gdt + SelTss2 + 5, [acces]);
+        void Tss2DansLdt(Action<uint, byte[]> p) => p(Ldt + 0x10, Desc(0x67, Tss2, 0x89));   // sélecteur 0014h
+
+        // PB-32 et PB-192 (pmodeint) : le vecteur hors de l'IDT, la porte à cheval sur sa limite, EXT. EXT ne se voit au
+        // dépassement de l'IDT que sur une interruption matérielle, que le banc ne tire pas : une exception hors de
+        // l'IDT y devient la double faute, chez PCem comme en mode matériel (x86_doabrt, puis pmodeint(8, 0)). Il se
+        // voit sur la porte de type nul, par #DE, que DIV lève par x86_int, hors de x86_doabrt.
+        l.Add(new() { Name = "INT 20h, hors d'une IDT de 32 portes -> #GP", Start = Depart.Ring0_32, Code = [0xCD, 0x20], Pb = 32,
+                      Expect = a => Faute(a, EspDepart - 16, 0), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x0102) });
+        l.Add(new() { Name = "INT 1Fh, porte à cheval sur la limite (FCh) -> #GP", Start = Depart.Ring0_32, IdtLimit = 0xFC,
+                      Code = [0xCD, 0x1F], Pb = 192,
+                      Expect = a => Cs(a, SelCode32, 0x300) ?? Pile(a, SelStack32, EspDepart - 12),
+                      ExpectMateriel = a => Faute(a, EspDepart - 16, 0x00FA) });
+        l.Add(new() { Name = "DIV EBX nul, porte 0 de type nul -> #GP, EXT", Start = Depart.Ring0_32, Code = [0xF7, 0xF3],
+                      Tweak = p => p(Idt, new byte[8]), Pb = 192,
+                      Expect = a => Faute(a, EspDepart - 16, 0x02), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x03) });
+
+        // PB-39 : la porte de tâche (le CALL nominal est plus haut). Depuis l'anneau 3, la porte 0070h, de DPL 0 : #TS par
+        // CALL, #GP par JMP ; PCem, #GP(porte) et #GP(0).
+        l.Add(new() { Name = "JMP FAR porte de tâche -> #GP(0) (PCem)", Start = Depart.Ring0_32, Code = Far32(0xEA, SelTaskGate, 0),
+                      Pb = 39, Expect = a => Faute(a, EspDepart - 16, 0), ExpectMateriel = a => Tache(a, 0x7000, false) });
+        l.Add(new() { Name = "CALL FAR porte de tâche DPL 0 depuis CPL3 -> #TS", Start = Depart.Ring3_32,
+                      Code = Far32(0x9A, SelTaskGate, 0), Pb = 39,
+                      Expect = a => Faute(a, Esp0 - 24, SelTaskGate), ExpectMateriel = a => Faute(a, Esp0 - 24, SelTaskGate, VecTs) });
+        l.Add(new() { Name = "JMP FAR porte de tâche DPL 0 depuis CPL3 -> #GP", Start = Depart.Ring3_32,
+                      Code = Far32(0xEA, SelTaskGate, 0), Pb = 39,
+                      Expect = a => Faute(a, Esp0 - 24, 0), ExpectMateriel = a => Faute(a, Esp0 - 24, SelTaskGate) });
+
+        // PB-190 : LTR (0F 00 D8, LTR AX).
+        l.Add(new() { Name = "LTR AX, TSS n°2 disponible (témoin)", Start = Depart.Ring0_32, Eax = SelTss2, Code = [0x0F, 0x00, 0xD8],
+                      Pb = 190, Expect = a => TrVaut(a, SelTss2) ?? Att((MemO(Gdt + SelTss2 + 4) & 0x200) != 0, "TSS non marquée occupée") });
+        l.Add(new() { Name = "LTR AX, segment de données (0010h) -> #GP", Start = Depart.Ring0_32, Eax = SelData, Code = [0x0F, 0x00, 0xD8],
+                      Pb = 190, Expect = a => TrVaut(a, SelData), ExpectMateriel = a => Faute(a, EspDepart - 16, SelData) ?? TrVaut(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TI = 1 (000Ch) -> #GP", Start = Depart.Ring0_32, Eax = 0x000C, Code = [0x0F, 0x00, 0xD8],
+                      Pb = 190, Expect = a => TrVaut(a, 0x000C), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x000C) ?? TrVaut(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TSS occupée -> #GP", Start = Depart.Ring0_32, Eax = SelTss2, Code = [0x0F, 0x00, 0xD8],
+                      Tweak = p => Tss2Acces(p, 0x8B), Pb = 190,
+                      Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2) ?? TrVaut(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TSS absente -> #NP", Start = Depart.Ring0_32, Eax = SelTss2, Code = [0x0F, 0x00, 0xD8],
+                      Tweak = p => Tss2Acces(p, 0x09), Pb = 190,
+                      Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2, VecNp) ?? TrVaut(a, SelTss) });
+
+        // PB-191 : la voie TSS des CALL et JMP, la porte de tâche de l'IDT. #TS par CALL et INT, #GP par JMP.
+        l.Add(new() { Name = "CALL FAR TSS de DPL 0 depuis CPL3 -> #TS", Start = Depart.Ring3_32, Code = Far32(0x9A, SelTss2, 0),
+                      Pb = 191, Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, Esp0 - 24, SelTss2, VecTs) });
+        l.Add(new() { Name = "JMP FAR TSS de DPL 0 depuis CPL3 -> #GP", Start = Depart.Ring3_32, Code = Far32(0xEA, SelTss2, 0),
+                      Pb = 191, Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, Esp0 - 24, SelTss2) });
+        // Un JMP sur une TSS absente lève #NP chez PCem aussi (x86seg.c:659, tout descripteur système) ; un CALL, non.
+        l.Add(new() { Name = "CALL FAR TSS absente -> #NP", Start = Depart.Ring0_32, Code = Far32(0x9A, SelTss2, 0),
+                      Tweak = p => Tss2Acces(p, 0x09), Pb = 191,
+                      Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2, VecNp) });
+        l.Add(new() { Name = "CALL FAR TSS de la LDT (0014h) -> #TS", Start = Depart.Ring0_32, Code = Far32(0x9A, 0x0014, 0),
+                      Tweak = Tss2DansLdt, Pb = 191,
+                      Expect = a => TrVaut(a, 0x0014), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x0014, VecTs) });
+        l.Add(new() { Name = "JMP FAR TSS de la LDT (0014h) -> #GP", Start = Depart.Ring0_32, Code = Far32(0xEA, 0x0014, 0),
+                      Tweak = Tss2DansLdt, Pb = 191,
+                      Expect = a => TrVaut(a, 0x0014), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x0014) });
+        l.Add(new() { Name = "CALL FAR TSS occupée -> #TS (PCem : #GP)", Start = Depart.Ring0_32, Code = Far32(0x9A, SelTss2, 0),
+                      Tweak = p => Tss2Acces(p, 0x8B), Pb = 191,
+                      Expect = a => Faute(a, EspDepart - 16, SelTss2), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2, VecTs) });
+        l.Add(new() { Name = "JMP FAR TSS occupée -> #GP(TSS) (PCem : #GP(0))", Start = Depart.Ring0_32, Code = Far32(0xEA, SelTss2, 0),
+                      Tweak = p => Tss2Acces(p, 0x8B), Pb = 191,
+                      Expect = a => Faute(a, EspDepart - 16, 0), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2) });
+        l.Add(new() { Name = "INT 1Eh, porte de tâche vers la LDT (0014h) -> #TS", Start = Depart.Ring0_32, Code = [0xCD, 0x1E],
+                      Tweak = p => { Tss2DansLdt(p); p(Idt + 0x1E * 8, Gate(0, 0x0014, 0, 0x85)); }, Pb = 191,
+                      Expect = a => TrVaut(a, 0x0014), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x0014, VecTs) });
+        l.Add(new() { Name = "INT 1Eh, porte de tâche vers une TSS occupée -> #TS", Start = Depart.Ring0_32, Code = [0xCD, 0x1E],
+                      Tweak = p => { Tss2Acces(p, 0x8B); p(Idt + 0x1E * 8, Gate(0, SelTss2, 0, 0x85)); }, Pb = 191,
+                      Expect = a => TrVaut(a, SelTss2), ExpectMateriel = a => Faute(a, EspDepart - 16, SelTss2, VecTs) });
+
+        // L'ordre de JMP : DPL avant présence (#GP, puis #NP) ; PCem teste la présence d'abord (x86seg.c:659).
+        l.Add(new() { Name = "JMP FAR TSS de DPL 0 et absente depuis CPL3 -> #GP (PCem : #NP)", Start = Depart.Ring3_32,
+                      Code = Far32(0xEA, SelTss2, 0), Tweak = p => Tss2Acces(p, 0x09), Pb = 191,
+                      Expect = a => Faute(a, Esp0 - 24, SelTss2, VecNp), ExpectMateriel = a => Faute(a, Esp0 - 24, SelTss2) });
+        // EXT : #DE, une exception, livré par une porte de tâche vers une TSS de la LDT : #TS(0015h).
+        l.Add(new() { Name = "DIV EBX nul, porte 0 de tâche vers la LDT -> #TS, EXT", Start = Depart.Ring0_32, Code = [0xF7, 0xF3],
+                      Tweak = p => { Tss2DansLdt(p); p(Idt, Gate(0, 0x0014, 0, 0x85)); }, Pb = 191,
+                      Expect = a => TrVaut(a, 0x0014), ExpectMateriel = a => Faute(a, EspDepart - 16, 0x0015, VecTs) });
+
+        // PB-263 : CALL vers une tâche dont l'EIP (10000h) dépasse la limite de son CS (FFFFh) : #TS(0) dans la nouvelle
+        // tâche, sur sa pile (7000h), l'EIP fautif empilé ; PCem exécute en 10000h. Rien n'est empilé par le CALL dès
+        // que la commutation a fauté (PB-40 ou non).
+        l.Add(new() { Name = "CALL FAR TSS 386, EIP hors de la limite du CS -> #TS(0)", Start = Depart.Ring0_32,
+                      Code = Far32(0x9A, SelTss2, 0), Tweak = p => p(Tss2 + 0x20, L(0x10000)), Pb = 263,
+                      Expect = a => TrVaut(a, SelTss2) ?? Att(a.pc == 0x10000, $"EIP 0x{a.pc:X8}"),
+                      ExpectMateriel = a => TrVaut(a, SelTss2) ?? Faute(a, 0x6FF0, 0, VecTs)
+                                            ?? Att(MemO(StackBase + 0x6FF4) == 0x10000, $"EIP empilé 0x{MemO(StackBase + 0x6FF4):X8}") });
+
+        // PB-193 : LOADALL386 depuis l'anneau 3, ES:EDI sur un bloc qui pose l'anneau 0 en code 32 bits, EAX = 5A5A5A5Ah.
+        l.Add(new() { Name = "LOADALL386 depuis CPL3 -> #GP(0)", Start = Depart.Ring3_32, Code = [0x0F, 0x07], Edi = 0x400,
+                      Tweak = p => p(DataBase + 0x400, BlocLoadall(new Case { Start = Depart.Ring0_32, Eax = 0x5A5A5A5A })), Pb = 193,
+                      Expect = a => Att(a.regs[0] == 0x5A5A5A5A, $"EAX 0x{a.regs[0]:X8}") ?? Cs(a, SelCode32, 0x300),
+                      // Sur le 486 du mode matériel, LOADALL386 n'existe plus (PB-78) : #UD, sans code d'erreur, avant tout
+                      // contrôle de privilège.
+                      ExpectMateriel = a => Core486 && ModeMateriel.Demande(78)
+                          ? Cs(a, SelCode32, 0x300) ?? Pile(a, SelStack32, Esp0 - 20)
+                          : Faute(a, Esp0 - 24, 0) });
 
         // --- D4, angles morts : MOV CRx/DRx/TRx depuis CPL3 -> #GP ---
         foreach (var (code, what) in new (byte[], string)[]
@@ -752,8 +1112,9 @@ public static class PmCheck386
         l.Add(new() { Name = "V86 : LAR -> INT 6 (NOTRM)", Start = Depart.Ring0_32, V86 = 3, Code = [0x0F, 0x02, 0xC3],
                       Expect = a => FauteDepuisV86(a, 36) });
 
-        l.Add(new() { Name = "SMSW AX en mode protégé (386 : | 0xFF00)", Start = Depart.Ring0_32, Code = [0x66, 0x0F, 0x01, 0xE0],
-                      Expect = a => Att((a.regs[0] & 0xFFFF) == 0xFF11, $"AX 0x{a.regs[0] & 0xFFFF:X4}") });
+        // SMSW rend `msw | 0xFF00` sur le 386, `msw` nu sur le 486 (386_ops_0f.cs, op0F01_common).
+        l.Add(new() { Name = "SMSW AX en mode protégé (386 : | 0xFF00 ; 486 : nu)", Start = Depart.Ring0_32, Code = [0x66, 0x0F, 0x01, 0xE0],
+                      Expect = a => Att((a.regs[0] & 0xFFFF) == (Core486 ? 0x0011 : 0xFF11), $"AX 0x{a.regs[0] & 0xFFFF:X4}") });
         return l;
     }
 }

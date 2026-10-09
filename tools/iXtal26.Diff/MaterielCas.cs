@@ -16,7 +16,9 @@
 // 8237 (PB-157, PB-249 à PB-253) écrivent ses ports et tirent un transfert comme le ferait un périphérique
 // (dma_channel_write), après un reset du DMA. Ceux du 8042 et de la souris PS/2 (PB-254, PB-94, PB-95) appellent le
 // contrôleur, la souris et le poll comme le feraient le processeur et le chronomètre ; celui de PB-101 monte les ports
-// du PC1512 ; celui de PB-103 pose l'état de la manette et lit la CH et la TM.
+// du PC1512 ; celui de PB-103 pose l'état de la manette et lit la CH et la TM. Ceux du mode protégé (PB-32, PB-39,
+// PB-40, PB-190 à PB-193, PB-263) jouent les cas de pm-check qui les discriminent, au 386 et au 286, en C# seul
+// (PmCheck386.CasMateriel, PmCheck.CasMateriel).
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -39,7 +41,18 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78,
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
+    };
+
+    /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les
+    /// discriminent, en C# seul (PmCheck386.CasMateriel, PmCheck.CasMateriel), chacun avec l'attente de PCem et celle
+    /// du mode matériel.</summary>
+    private static Func<bool, int> Pm(int pb) => hw =>
+    {
+        var bad386 = PmCheck386.CasMateriel(pb, hw);
+        var bad286 = PmCheck.CasMateriel(pb, hw);
+        return bad386 < 0 && bad286 < 0 ? 1 : Math.Max(bad386, 0) + Math.Max(bad286, 0);
     };
 
     internal static int Run(string[] args)

@@ -507,3 +507,62 @@ longueur que le silicium ne leur donne pas. Quatre défauts, tous en mode matér
 - **L'émulateur.** PCem donne au 486 la table d'instructions du 386, LOADALL compris, et un programme qui sonde le
   processeur par ce chemin voit un 386.
 - **La correction.** L'exception d'opcode invalide sur le 486.
+
+## G13.5, fin — le 286, le 386 et le 486 (mode matériel) : le mode protégé
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.5, `VERIFICATION.md` § G13.5c.*
+
+En mode protégé, le processeur contrôle chaque passage d'un programme à un autre : une interruption passe par une
+table de portes, un changement de tâche par un descripteur qui doit en être un, et les instructions qui chargent
+l'état de la machine sont réservées au système. PCem en saute plusieurs, et, sur deux points, ne sait pas faire ce que
+le processeur fait. Huit défauts, tous en mode matériel. L'exception levée est celle du manuel de chaque processeur :
+sur le 386 et le 486, l'exception de TSS invalide pour un CALL ou une interruption, de protection générale pour un JMP ;
+sur le 286, de protection générale partout.
+
+### PB-32 et PB-192 — la table des interruptions
+
+- **Le vrai PC.** Une interruption dont la porte, huit octets, sort de la table lève l'exception de protection générale,
+  avec un code qui désigne la porte fautive ; un bit de ce code dit si l'événement venait de l'extérieur du programme
+  (une interruption matérielle, une exception) plutôt que d'une instruction INT.
+- **L'émulateur.** PCem ne compare à la limite que le premier octet de la porte, et une erreur de priorité
+  d'opérateurs dans son code C rend toujours un code nul ; ailleurs, le bit « extérieur » n'est jamais posé.
+- **La correction.** La porte entière contre la limite, le bon code, et le bit quand l'événement est extérieur.
+
+### PB-39 — la porte de tâche
+
+- **Le vrai PC.** Un CALL ou un JMP peut passer par une porte de tâche, un descripteur qui désigne la tâche à
+  reprendre : le processeur change de tâche.
+- **L'émulateur.** PCem ne sait passer que par le descripteur de tâche lui-même, qu'il appelle à tort « porte de
+  tâche » ; devant une vraie porte, il lève une exception.
+- **La correction.** La porte contrôlée, puis le changement de tâche, comme par le descripteur de tâche.
+
+### PB-40 — l'adresse de retour d'un CALL de tâche
+
+- **Le vrai PC.** Un CALL vers une autre tâche n'empile rien : la nouvelle tâche garde le lien vers l'ancienne, et
+  son IRET y revient.
+- **L'émulateur.** PCem empile l'adresse de retour après le changement, donc sur la pile de la nouvelle tâche, qu'il
+  décale de deux mots.
+- **La correction.** Rien d'empilé quand le CALL a changé de tâche.
+
+### PB-190 et PB-191 — les contrôles d'une tâche
+
+- **Le vrai PC.** LTR, qui désigne la tâche courante, n'accepte qu'un descripteur de tâche disponible et présent, dans
+  la table globale. Un CALL, un JMP ou une interruption vers une tâche contrôlent de même le privilège, la présence et
+  la table du descripteur.
+- **L'émulateur.** PCem accepte n'importe quel descripteur, y compris un segment de données ou une tâche déjà en
+  cours, et un programme sans privilège peut changer de tâche vers le système.
+- **La correction.** Les contrôles, et l'exception quand l'un d'eux échoue.
+
+### PB-193 — LOADALL hors du système
+
+- **Le vrai PC.** LOADALL, qui charge tout l'état du processeur, est réservé au niveau de privilège du système ; un
+  programme ordinaire qui l'essaie lève l'exception de protection générale.
+- **L'émulateur.** PCem l'exécute à tout niveau : un programme ordinaire prend la machine entière.
+- **La correction.** L'exception hors du niveau 0, en mode protégé.
+
+### PB-263 — l'adresse d'arrivée d'un CALL de tâche
+
+- **Le vrai PC.** Après avoir changé de tâche, un CALL vérifie que l'adresse où la nouvelle tâche reprend tient dans
+  son segment de code ; sinon, sur le 386 et le 486, l'exception de TSS invalide, dans la nouvelle tâche.
+- **L'émulateur.** PCem ne vérifie rien et exécute au-delà du segment.
+- **La correction.** La vérification après le changement de tâche.

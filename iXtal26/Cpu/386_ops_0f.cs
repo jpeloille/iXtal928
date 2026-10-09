@@ -567,9 +567,11 @@ internal static partial class _386
                 sel = geteaw();
                 if (cpu_state.abrt != 0)
                         return 1;
-                // pcem bug, reproduced: PB-190 — LTR ne contrôle rien : ni le bit TI (le descripteur est
-                //   lu dans la GDT, et tr.seg garde TI), ni la limite de la GDT, ni le type (une TSS disponible),
+                // pcem bug, fixed in hardware mode: PB-190 — LTR ne contrôle rien : ni le bit TI (le descripteur
+                //   est lu dans la GDT, et tr.seg garde TI), ni la limite de la GDT, ni le type (une TSS disponible),
                 //   ni la présence ; le 386 lève #GP(sélecteur) ou #NP(sélecteur) (386 PRM, page LTR ; § 7.2).
+                if (materiel.pb_190)
+                        if (_386_materiel.ltr_materiel(sel)) return 1;
                 addr = (uint32_t)(sel & ~7) + gdt.@base;
                 limit = (uint32_t)(readmemw(0, addr) + ((readmemb(0, addr + 6) & 0xf) << 16));
                 @base = (uint32_t)(readmemw(0, addr + 2) | (readmemb(0, addr + 4) << 16)
@@ -817,8 +819,10 @@ internal static partial class _386
         //   leur garde.
         if (materiel.pb_78)
                 if (_386_materiel.loadall486_materiel()) return 0;
-        // pcem bug, reproduced: PB-193 — aucun contrôle de privilège : en mode protégé, hors du niveau
-        //   0, le 386 lève l'exception 13 (R. Collins) ; opLOADALL, celui du 286, teste `CPL && (cr0 & 1)`.
+        // pcem bug, fixed in hardware mode: PB-193 — aucun contrôle de privilège : en mode protégé, hors du
+        //   niveau 0, le 386 lève l'exception 13 (R. Collins) ; opLOADALL, celui du 286, teste `CPL && (cr0 & 1)`.
+        if (materiel.pb_193)
+                if (_386_materiel.loadall386_privilege_materiel()) return 1;
         uint32_t la_addr = es + EDI;
 
         cr0 = readmeml(0, la_addr);

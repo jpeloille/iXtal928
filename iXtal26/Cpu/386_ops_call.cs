@@ -53,8 +53,8 @@ internal static partial class _386
         optype = CALL;
         cgate16 = cgate32 = 0;
         if ((msw & 1) != 0)
-                // pcem bug, reproduced: PB-40 — les empilements du retour suivent loadcscall : sur
-                //   une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
+                // pcem bug, fixed in hardware mode: PB-40 — les empilements du retour suivent loadcscall :
+                //   sur une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
                 x86seg_c.loadcscall(new_seg, old_pc);
         else
         {
@@ -68,6 +68,8 @@ internal static partial class _386
                 return true;
         }
         oldss = ss;
+        if (materiel.pb_40)
+                if (_386_materiel.appel_de_tache_materiel()) return false;
         if (cgate32 != 0)
         {
                 uint32_t old_esp = ESP;
@@ -118,8 +120,8 @@ internal static partial class _386
         optype = CALL;
         cgate16 = cgate32 = 0;
         if ((msw & 1) != 0)
-                // pcem bug, reproduced: PB-40 — les empilements du retour suivent loadcscall : sur
-                //   une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
+                // pcem bug, fixed in hardware mode: PB-40 — les empilements du retour suivent loadcscall :
+                //   sur une TSS, ils atterrissent sur la pile de la NOUVELLE tâche.
                 x86seg_c.loadcscall(new_seg, old_pc);
         else
         {
@@ -133,6 +135,8 @@ internal static partial class _386
                 return true;
         }
         oldss = ss;
+        if (materiel.pb_40)
+                if (_386_materiel.appel_de_tache_materiel()) return false;
         if (cgate16 != 0)
         {
                 uint32_t old_esp = ESP;

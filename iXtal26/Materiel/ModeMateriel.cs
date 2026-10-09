@@ -38,6 +38,9 @@ internal static class ModeMateriel
         new(3, "processeur", "les cycles du rafraîchissement par DMA (5150, XT) arrivent au TSC"),
         new(5, "carte-mere", "servir l'esclave du 8259 ne touche à l'IRR du maître que par la cascade"),
         new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
+        new(32, "processeur", "l'IDT trop courte lève #GP au code n × 8 + 2 + EXT"),
+        new(39, "processeur", "CALL et JMP sur une porte de tâche changent de tâche"),
+        new(40, "processeur", "CALL sur une tâche n'empile pas l'adresse de retour"),
         new(43, "processeur", "MOV CRx, DRx et TRx ignorent le champ mod (386, 486)"),
         new(45, "processeur", "IDIV octet divise AX signé"),
         new(50, "processeur", "une instruction de plus de 15 octets (10 sur le 286) lève #GP"),
@@ -67,6 +70,10 @@ internal static class ModeMateriel
         new(186, "processeur", "AAD et AAM du cœur 286/386/486 posent SF, ZF et PF d'après AL"),
         new(187, "processeur", "AAM 0 du cœur 286/386/486 lève #DE"),
         new(188, "processeur", "le DAS du cœur 286/386/486 teste l'AL et le CF d'origine"),
+        new(190, "processeur", "LTR contrôle le sélecteur, le type et la présence de la TSS"),
+        new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
+        new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
+        new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
         new(248, "carte-mere", "l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial"),
@@ -81,14 +88,16 @@ internal static class ModeMateriel
         new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
         new(261, "carte-mere", "la souris PS/2 remet ses compteurs de mouvement à zéro après EBh"),
         new(262, "processeur", "le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16"),
+        new(263, "processeur", "après un CALL de tâche, l'IP contre la limite du nouveau CS : #TS(0) (386, 486)"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
     /// autres. PB-03 et PB-257 : les cycles du rafraîchissement portés au TSC, sans ceux d'un transfert refusé, qui y
     /// iraient sinon. PB-07 et PB-179 : la même condition de repli dans readmemw et writememw. PB-45, PB-169 et PB-258 :
     /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
-    /// longueur et la limite, lues par le même décodeur en tête d'instruction.</summary>
-    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [45, 169, 258], [50, 51]];
+    /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
+    /// le code d'erreur de son dépassement, au même test.</summary>
+    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51]];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

@@ -251,7 +251,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   G13.0 ; PB-256 laissé reproduit, question à Julien) ; PS2BANC et JOYBANC dans les deux modes, `--joystick-check` ;
   série g4c1, 345 portes vertes.
 
-### G13.5 — Le 286, le 386 et le 486  *(en cours : trois sous-étapes, chacune sa série et son commit)*
+### G13.5 — Le 286, le 386 et le 486  *(en cours : quatre sous-étapes, chacune sa série et son commit)*
 
 - Avant les corrections : la carte plate de 16 Mo du cœur 286, des deux côtés (`h_flat16`, `FlatMap286`) ; 17 % du
   corpus SST du 286 tombe aujourd'hui hors de sa carte de 1 Mo (VERIFICATION.md § G13.2).
@@ -268,10 +268,16 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **G13.5b, le décodage, la longueur et le fetch borné** ✅ *(10/10, VERIFICATION.md § G13.5b)* : PB-43 avec PB-44,
   PB-50 et PB-51 en un groupe (un décodeur de longueur, son coût au banc `Exec386Banc`), PB-78 ; le scénario
   `ami386dx-ctrl` des listings.
-- **G13.5c, le mode protégé** : PB-32 avec PB-192, PB-39, PB-40, PB-190 (LTR), PB-191, PB-193 (le privilège de
-  LOADALL386, dont le cas se joue à CPL 3, dans pm-check) ; `pm-check` et sa table du mode matériel, qui pose le décor
-  du 486 autrement que par LOADALL386 (PB-78 corrigé). PB-41 et le NT d'un JMP de tâche restent reproduits ; PB-189
-  (la limite des données en mode réel) aussi, hors du plan.
+- **G13.5c, le mode protégé** ✅ *(10/10, VERIFICATION.md § G13.5c)* : PB-32 avec PB-192, PB-39, PB-40, PB-190 (LTR),
+  PB-191, PB-193 (le privilège de LOADALL386, dont le cas se joue à CPL 3, dans pm-check), PB-263 (inscrit : l'IP d'un
+  CALL de tâche) ; les exceptions du manuel de chaque processeur (#TS par CALL et INT sur le 386 et le 486, #GP sur le
+  286 ; décision de Julien du 10/10) ; `pm-check --target csharp` et ses tables du mode matériel, au 286, au 386 et au
+  486, qui pose le décor du 486 autrement que par LOADALL386 (PB-78 corrigé) ; le scénario `ami386dx-pm` des listings.
+  Le NT d'un JMP de tâche suit déjà le 386 PRM. PB-41 reste reproduit (aucun manuel ne donne la valeur) ; PB-189 (la
+  limite des données en mode réel) suit, en G13.5d.
+- **G13.5d, la limite des données** : PB-189 (en mode réel, un opérande au-delà de FFFFh ou à cheval sur FFFFh lève
+  #GP, ou #SS pour la pile), demandé par Julien le 10/10 ; un contrôle sur chaque accès mémoire, le chemin le plus chaud
+  du cœur : son coût mesuré (M1) en mode matériel, nul en mode PCem (M2) ; SST 386, familles E2 et E3.
 
 ### G13.6 — Le x87
 

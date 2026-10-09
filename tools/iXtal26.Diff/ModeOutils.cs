@@ -37,6 +37,11 @@ internal static class ModeOutils
                     return true;
                 raison = "le mode matériel se vérifie contre le silicium du corpus, sous --target csharp seulement";
                 return false;
+            case "pm-check":
+                if (Option(args, "--target") == "csharp")
+                    return true;
+                raison = "le banc du mode protégé se juge en mode matériel sur ses attentes, sous --target csharp seulement";
+                return false;
             case "bench":
                 if (Option(args, "--side") == "csharp")
                     return true;

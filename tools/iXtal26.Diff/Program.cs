@@ -407,7 +407,20 @@ switch (args[0])
         // G6.2 — `--core 486` : le banc du 386 sur l'ami486.
         PmCheck386.Core486 = core386 && args[2] == "486";
         var k = core386 ? 3 : 1;
-        var only = args.Length >= k + 2 && args[k] == "--case" ? int.Parse(args[k + 1]) : -1;
+        var c = Array.IndexOf(args, "--case", k);
+        var only = c >= 0 && c + 1 < args.Length ? int.Parse(args[c + 1]) : -1;
+        // G13.5c — `--target csharp` : le C# seul, jugé sur les attentes (et celles du mode matériel).
+        var t = Array.IndexOf(args, "--target");
+        if (t >= 0)
+        {
+            if (t + 1 >= args.Length || args[t + 1] != "csharp")
+            {
+                Console.Error.WriteLine("pm-check : --target csharp seulement.");
+                return 2;
+            }
+            PmCheck386.Csharp = true;
+            PmCheck.Csharp = true;
+        }
         return core386 ? PmCheck386.Run(only) : PmCheck.Run(only);
     }
 

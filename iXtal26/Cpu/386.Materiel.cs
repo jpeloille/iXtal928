@@ -423,4 +423,259 @@ internal static class _386_materiel
         }
         return depl + imm == 0 || borne(n + depl + imm - 1);
     }
+
+    // ===== Le mode protégé (G13.5c) =====
+    //
+    // Les exceptions sont celles du manuel de chaque processeur (décision de Julien, le 10/10) : sur le 386 et le 486,
+    // #TS pour les contrôles d'une tâche par CALL ou par INT, #GP par JMP (386 PRM et i486 PRM, pages CALL, INT et JMP,
+    // TASK-GATE et TASK-STATE-SEGMENT) ; sur le 286, #GP partout (80286 PRM, mêmes pages) ; #NP pour la présence, partout.
+    // Le SDM, plus tardif, écrit #GP aussi pour CALL et INT : il ne décrit pas ces processeurs-là.
+
+    /// <summary>La faute d'un contrôle de tâche : #TS sur le 386 et le 486 pour CALL et INT (`ts`), #GP sinon.</summary>
+    private static void faute_tache(uint16_t code, bool ts)
+    {
+        if (ts && is386 != 0)
+                x86seg_c.x86ts(null!, code);
+        else
+                x86seg_c.x86gpf(null!, code);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-32 — un vecteur hors de l'IDT lève #GP(n × 8 + 2 + EXT) (386 PRM, page INT ;
+    //   § 9.7, « Error Code ») ; PCem rend 0, par une précédence d'opérateurs.
+    // pcem bug, fixed in hardware mode: PB-192 — la porte doit tenir tout entière dans l'IDT : le SDM (page INT n) compare
+    //   `(vector_number « 3) + 7` à la limite ; PCem, le premier octet. Avec PB-32 (ModeMateriel.Groupes). Rend vrai si la
+    //   porte dépasse : la faute, ou la double faute pour #GP, ou la triple faute pour #DF, comme la branche de PCem.
+    internal static bool idt_limite_materiel(int num, int soft)
+    {
+        var addr = (uint32_t)(num << 3);
+        if (addr + 7 <= idt.limit)
+                return false;
+        if (addr < idt.limit)
+                ModeMateriel.Sonde[192]++;
+        if (num == 8)
+                _808x.softresetx86();
+        else if (num == 0xD)
+                x86seg_c.pmodeint(8, 0);
+        else
+        {
+                x86seg_c.x86gpf(null!, (uint16_t)(addr + 2 + (soft != 0 ? 0 : 1)));
+                ModeMateriel.Sonde[32]++;
+        }
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-192 — une porte de type nul lève #GP(n × 8 + 2 + EXT) : EXT pour un événement
+    //   externe au programme, une interruption matérielle ou une exception (386 PRM § 9.7). Un INT n garde le code de
+    //   PCem, sans EXT.
+    internal static bool porte_nulle_materiel(int num, int soft)
+    {
+        if (soft != 0)
+                return false;
+        var code = (uint16_t)((num * 8) + 3);
+        if ((cpu_state.eflags & VM_FLAG) != 0)
+                x86seg_c.x86gpf_expected(null!, code);
+        else
+                x86seg_c.x86gpf(null!, code);
+        ModeMateriel.Sonde[192]++;
+        return true;
+    }
+
+    /// <summary>Une TSS disponible : type 1 (286), ou 9 sur le 386 et le 486 ; le mot 2 d'un descripteur, S compris.</summary>
+    private static bool tss_disponible(uint16_t mot2) =>
+        (mot2 & 0x1F00) == 0x0100 || ((mot2 & 0x1F00) == 0x0900 && is386 != 0);
+
+    /// <summary>Le sélecteur d'une TSS : dans la GDT (TI = 0), ses huit octets sous la limite (386 PRM, pages CALL, JMP
+    /// et INT, « Must specify global in the local/global bit », « Index must be within GDT limits »).</summary>
+    private static bool selecteur_tss(uint16_t sel) => (sel & 4) == 0 && (uint32_t)(sel | 7) <= gdt.limit;
+
+    // pcem bug, fixed in hardware mode: PB-39 — CALL et JMP sur une porte de tâche (type 5) changent de tâche (386 PRM
+    //   § 7.5 et pages CALL et JMP, TASK-GATE) : le DPL de la porte au moins CPL et RPL, la porte présente ; la TSS
+    //   qu'elle désigne dans la GDT, disponible et présente ; puis la commutation, avec le lien arrière pour CALL, sans
+    //   lui pour JMP, dont NT sort effacé (386 PRM, Table 7-2), comme sur la voie TSS. Rend faux pour un autre type, que
+    //   le `default` de PCem traite.
+    internal static bool porte_tache_materiel(uint16_t seg, uint16_t[] segdat, uint32_t old_pc, int op)
+    {
+        if ((segdat[2] & 0x1F00) != 0x0500)
+                return false;
+        ModeMateriel.Sonde[39]++;
+        var dpl = (segdat[2] >> 13) & 3;
+        if (dpl < CPL || dpl < (seg & 3))
+        {
+                faute_tache((uint16_t)(seg & 0xFFFC), op == CALL);
+                return true;
+        }
+        if ((segdat[2] & 0x8000) == 0)
+        {
+                x86seg_c.x86np(null!, (uint16_t)(seg & 0xFFFC));
+                return true;
+        }
+        var tss = segdat[1];
+        if (!selecteur_tss(tss))
+        {
+                faute_tache((uint16_t)(tss & 0xFFFC), op == CALL);
+                return true;
+        }
+        var addr = gdt.@base + (uint32_t)(tss & ~7);
+        var d = new uint16_t[4];
+        cpl_override = 1;
+        d[0] = readmemw(0, addr);
+        d[1] = readmemw(0, addr + 2);
+        d[2] = readmemw(0, addr + 4);
+        d[3] = readmemw(0, addr + 6);
+        cpl_override = 0;
+        if (cpu_state.abrt != 0)
+                return true;
+        if (!tss_disponible(d[2]))
+        {
+                faute_tache((uint16_t)(tss & 0xFFFC), op == CALL);
+                return true;
+        }
+        if ((d[2] & 0x8000) == 0)
+        {
+                x86seg_c.x86np(null!, (uint16_t)(tss & 0xFFFC));
+                return true;
+        }
+        cpu_state.pc = old_pc;
+        optype = op;
+        cpl_override = 1;
+        x86seg_c.taskswitch286(tss, d, d[2] & 0x800);
+        if (op == JMP)
+                cpu_state.flags &= unchecked((uint16_t)~NT_FLAG);
+        cpl_override = 0;
+        if (op == CALL && materiel.pb_263)
+                ip_tache_materiel();
+        if (op == CALL && materiel.pb_40)
+                commutation = cpu_state.abrt == 0;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-191 — CALL et JMP directement sur une TSS : la TSS dans la GDT, son DPL au
+    //   moins CPL et RPL, présente (386 PRM, pages CALL et JMP, TASK-STATE-SEGMENT ; § 7.2, « TSS descriptors may reside
+    //   only in the GDT »), disponible (une TSS 386, type 9, n'existe pas sur le 286 : #GP, 80286 PRM). Rend vrai sur
+    //   une faute.
+    internal static bool tss_directe_materiel(uint16_t seg, uint16_t[] segdat, int op)
+    {
+        var dpl = (segdat[2] >> 13) & 3;
+        if ((seg & 4) != 0 || dpl < CPL || dpl < (seg & 3) || !tss_disponible(segdat[2]))
+                faute_tache((uint16_t)(seg & 0xFFFC), op == CALL);
+        else if ((segdat[2] & 0x8000) == 0)
+                x86seg_c.x86np(null!, (uint16_t)(seg & 0xFFFC));
+        else
+                return false;
+        ModeMateriel.Sonde[191]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-191 — CALL et JMP sur une TSS occupée (type 3, ou Bh sur le 386 et le 486) :
+    //   #TS(sélecteur) pour CALL sur le 386 et le 486, #GP(sélecteur) sinon (pages CALL et JMP, « TSS descriptor AR byte
+    //   must specify available TSS ») ; PCem lève #GP(sélecteur) pour CALL, #GP(0) pour JMP. Rend faux pour un autre type,
+    //   que le `default` de PCem traite.
+    internal static bool tss_occupee_materiel(uint16_t seg, uint16_t[] segdat, int op)
+    {
+        var type = segdat[2] & 0x1F00;
+        if (type != 0x0300 && !(type == 0x0B00 && is386 != 0))
+                return false;
+        faute_tache((uint16_t)(seg & 0xFFFC), op == CALL);
+        ModeMateriel.Sonde[191]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-191 — JMP sur une TSS, contrôlé avant le test de présence que loadcsjmp fait
+    //   pour tout descripteur système : DPL, GDT et type d'abord, #GP, puis la présence, #NP (page JMP). Rend faux pour
+    //   un autre type.
+    internal static bool tss_jmp_materiel(uint16_t seg, uint16_t[] segdat)
+    {
+        var type = segdat[2] & 0x1F00;
+        if (type is 0x0100 or 0x0900)
+                return tss_directe_materiel(seg, segdat, JMP);
+        return tss_occupee_materiel(seg, segdat, JMP);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-191 — la porte de tâche de l'IDT désigne une TSS de la GDT, disponible (386
+    //   PRM, page INT, TASK-GATE : « AR byte must specify available TSS ») : #TS(sélecteur) sur le 386 et le 486, #GP sur
+    //   le 286. Le code porte EXT pour une exception ou une interruption matérielle (386 PRM § 9.7, comme PB-192). La
+    //   présence reste au test de PCem, qui suit. Rend vrai sur une faute.
+    internal static bool tss_int_materiel(uint16_t seg, int soft)
+    {
+        if (selecteur_tss(seg))
+        {
+                cpl_override = 1;
+                var mot2 = readmemw(0, gdt.@base + (uint32_t)(seg & ~7) + 4);
+                cpl_override = 0;
+                if (cpu_state.abrt != 0)
+                        return true;
+                if (tss_disponible(mot2))
+                        return false;
+        }
+        faute_tache((uint16_t)((seg & 0xFFFC) | (soft != 0 ? 0 : 1)), true);
+        ModeMateriel.Sonde[191]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-263 — après la commutation d'un CALL, l'IP doit tenir dans la limite du nouveau
+    //   CS, sinon #TS(0) sur le 386 et le 486 (386 PRM et i486 PRM, page CALL : « IP must be in code segment limit ELSE
+    //   #TS(0) ») ; la faute se livre dans la nouvelle tâche, à son IP (x86_doabrt reprend oldpc). Sur le 286, et pour JMP
+    //   et INT, le manuel écrit #GP(0), que la lecture de l'instruction lève déjà (PB-51).
+    internal static void ip_tache_materiel()
+    {
+        if (is386 == 0 || cpu_state.abrt != 0 || cpu_state.pc <= cpu_state.seg_cs.limit)
+                return;
+        cpu_state.oldpc = cpu_state.pc;
+        x86seg_c.x86ts(null!, 0);
+        ModeMateriel.Sonde[263]++;
+    }
+
+    /// <summary>PB-40 : un CALL vient de changer de tâche. Posé par la voie TSS de loadcscall et par la porte de tâche
+    /// (PB-39), lu et effacé par CALL_FAR_w et CALL_FAR_l.</summary>
+    internal static bool commutation;
+
+    // pcem bug, fixed in hardware mode: PB-40 — la voie TSS de loadcscall a changé de tâche, ou non.
+    internal static void tache_appelee_materiel() => commutation = cpu_state.abrt == 0;
+
+    // pcem bug, fixed in hardware mode: PB-40 — un CALL qui change de tâche n'empile rien : le lien arrière de la nouvelle
+    //   TSS tient lieu de retour, et IRET le suit (386 PRM § 7.6, Table 7-2 ; page CALL, TASK-GATE et
+    //   TASK-STATE-SEGMENT). Rend vrai si CALL_FAR doit s'arrêter là.
+    internal static bool appel_de_tache_materiel()
+    {
+        if (!commutation)
+                return false;
+        commutation = false;
+        ModeMateriel.Sonde[40]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-190 — LTR : le sélecteur dans la GDT et sous sa limite, une TSS disponible,
+    //   sinon #GP(sélecteur) ; présente, sinon #NP(sélecteur) (386 PRM, page LTR ; § 7.2). Le sélecteur nul désigne le
+    //   descripteur nul, qui n'est pas une TSS : #GP(0). Rend vrai sur une faute.
+    internal static bool ltr_materiel(uint16_t sel)
+    {
+        var code = (uint16_t)(sel & 0xFFFC);
+        if (selecteur_tss(sel))
+        {
+                var mot2 = readmemw(0, gdt.@base + (uint32_t)(sel & ~7) + 4);
+                if (cpu_state.abrt != 0)
+                        return true;
+                if (!tss_disponible(mot2))
+                        x86seg_c.x86gpf(null!, code);
+                else if ((mot2 & 0x8000) == 0)
+                        x86seg_c.x86np(null!, code);
+                else
+                        return false;
+        }
+        else
+                x86seg_c.x86gpf(null!, code);
+        ModeMateriel.Sonde[190]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-193 — LOADALL386 hors du niveau 0, en mode protégé, lève l'exception 13 (R.
+    //   Collins, « The LOADALL Instruction ») ; la garde d'opLOADALL, celui du 286. Rend vrai sur la faute.
+    internal static bool loadall386_privilege_materiel()
+    {
+        if (CPL == 0 || (cr0 & 1) == 0)
+                return false;
+        x86seg_c.x86gpf(null!, 0);
+        ModeMateriel.Sonde[193]++;
+        return true;
+    }
 }

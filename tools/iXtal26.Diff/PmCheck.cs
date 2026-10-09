@@ -16,6 +16,12 @@
 // pose LOADALL en 0000:7C00, puis exécute pas à pas : LOADALL, l'instruction testée, et
 // quelques NOP à l'arrivée. Après CHAQUE pas : état complet (Fuzzer.Compare), journal
 // d'écritures, hachage de la RAM entière. Un arrêt fatal() du C# est un résultat NOMMÉ.
+//
+// G13.5c — les cas qui discriminent une correction du mode protégé portent leur attente (`Expect`, celle de PCem,
+// vérifiée sur l'état de l'oracle) et celle du mode matériel (`ExpectMateriel`, du manuel du 286 : 80286 PRM, pages CALL,
+// JMP, INT et LTR, #GP partout, #NP pour la présence). `--target csharp` joue le C# seul, chaque cas jugé sur son
+// attente, celle du mode matériel quand sa correction (`Pb`) est demandée ; LOADALL, celui du 286, y pose le décor dans
+// les deux modes. `materiel-cas PB-nn` joue ces cas avec ceux du 386 (PmCheck386.CasMateriel).
 
 using iXtal26.Cpu;
 using iXtal26.Diag;
@@ -47,7 +53,14 @@ public static class PmCheck
         public int Steps = 3;                  // pas APRÈS LOADALL
         public Action<Action<uint, byte[]>>? Tweak;
         public ushort[]? StackWords;           // mots posés en SS:SP au départ
+        public ushort IdtLimit = 32 * 8 - 1;   // G13.5c : la limite de l'IDT
+        public int Pb;                         // G13.5c : la correction que le cas discrimine
+        public Func<HState, string?>? Expect;  // G13.5c : l'attente de PCem, sur l'état jugé
+        public Func<HState, string?>? ExpectMateriel; // G13.5c : celle du mode matériel, si elle diffère
     }
+
+    /// <summary>`--target csharp` : le C# seul (G13.5c).</summary>
+    internal static bool Csharp;
 
     /// <summary>UN PROCESSUS PAR CAS. Ni h_reset ni Reset286 ni LOADALL ne remettent tout
     /// l'état d'un cœur : limit_raw des caches de segment, les sept globales du mode
@@ -57,8 +70,10 @@ public static class PmCheck
     /// les suivants côté oracle. Isolés, les deux cœurs partent neufs.</summary>
     public static int Run(int only = -1)
     {
-        Oracle.CheckAbi();
         var cases = Cases();
+        if (Csharp)
+            return RunCsharp(cases, only);
+        Oracle.CheckAbi();
         if (only >= 0)
         {
             Console.WriteLine(RunCase(cases[only]));
@@ -143,6 +158,10 @@ public static class PmCheck
         // IDT : 32 portes d'interruption DPL0 vers 08:E000, et 0x1F DPL3 (atteignable en CPL3).
         for (uint v = 0; v < 32; v++)
             poke(Idt + 8 * v, Gate(0xE000, SelCode0, 0, (byte)(v == 0x1F ? 0xE6 : 0x86)));
+        // G13.5c : un cas qui discrimine une correction distingue #TS, #NP et #GP par leur gestionnaire.
+        if (c.Pb != 0)
+            foreach (var v in new[] { VecTs, VecNp, VecGp })
+                poke(Idt + 8 * (uint)v, Gate((ushort)Gestionnaire(v), SelCode0, 0, 0x86));
 
         // TSS : SP0/SS0 = 18:8000 ; SS1/SS2 laissés nuls.
         poke(Tss, W(0, 0x8000, SelStack0, 0, 0, 0, 0));
@@ -194,7 +213,7 @@ public static class PmCheck
         Td(0x48, DataBase, 0x93, 0xFFFF);                       // DS
         Td(0x4E, Gdt, 0, 26 * 8 - 1);                           // GDTR
         Td(0x54, Ldt, 0x82, 0x00FF);                            // LDTR
-        Td(0x5A, Idt, 0, 32 * 8 - 1);                           // IDTR
+        Td(0x5A, Idt, 0, c.IdtLimit);                           // IDTR
         Td(0x60, Tss, 0x81, 0x002B);                            // TR
         poke(0x800, t);
 
@@ -243,8 +262,97 @@ public static class PmCheck
             if (d is not null)
                 return $"ROUGE au pas {s} : {d}";
         }
+        if (c.Expect?.Invoke(a) is { } attente)
+            return $"ATTENTE NON TENUE (oracle) : {attente}";
         return $"vert — CS:IP {a.seg_sel[(int)Seg.CS]:X4}:{a.pc:X4}, SS:SP {a.seg_sel[(int)Seg.SS]:X4}:{a.regs[4] & 0xFFFF:X4}";
     }
+
+    // ===== G13.5c — le C# seul =====
+
+    private static int RunCsharp(List<Case> cases, int only)
+    {
+        if (only >= 0)
+        {
+            var r1 = RunCaseCsharp(cases[only], Materiel(cases[only]));
+            Console.WriteLine(r1);
+            return r1.StartsWith("vert", StringComparison.Ordinal) ? 0 : 1;
+        }
+        Console.WriteLine($"pm-check --target csharp ({ModeMateriel.Description}) — {cases.Count} cas, le 286 seul, décor par LOADALL\n");
+        int vert = 0, rouge = 0, attentes = 0, materiel = 0;
+        foreach (var c in cases)
+        {
+            var hw = Materiel(c);
+            var r = RunCaseCsharp(c, hw);
+            if (r.StartsWith("vert", StringComparison.Ordinal)) vert++; else rouge++;
+            if (c.Expect is not null || (hw && c.ExpectMateriel is not null)) attentes++;
+            if (hw && c.ExpectMateriel is not null) materiel++;
+            Console.WriteLine($"  {c.Name,-52} {(hw && c.ExpectMateriel is not null ? "[matériel] " : "")}{r}");
+        }
+        Console.WriteLine($"\n{vert} vert(s), {rouge} rouge(s) sur {cases.Count} ; {attentes} cas jugés sur une attente, " +
+                          $"dont {materiel} sur celle du mode matériel.");
+        return rouge == 0 ? 0 : 1;
+    }
+
+    private static bool Materiel(Case c) => c.Pb != 0 && ModeMateriel.Demande(c.Pb);
+
+    /// <summary>`materiel-cas PB-nn` : les cas du 286 qui discriminent la correction, en C# seul, jugés sur l'attente
+    /// demandée. Rend le nombre d'échecs ; -1 si aucun cas.</summary>
+    internal static int CasMateriel(int pb, bool materielAttendu)
+    {
+        Csharp = true;
+        var cas = Cases().Where(c => c.Pb == pb).ToList();
+        if (cas.Count == 0)
+            return -1;
+        var bad = 0;
+        foreach (var c in cas)
+        {
+            var r = RunCaseCsharp(c, materielAttendu);
+            var ok = r.StartsWith("vert", StringComparison.Ordinal);
+            Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] 286 : {c.Name} : {r} (attendu {(materielAttendu ? "du matériel" : "de PCem")})");
+            if (!ok) bad++;
+        }
+        return bad;
+    }
+
+    private static string RunCaseCsharp(Case c, bool hw)
+    {
+        _386.Reset286();
+        mem.fill_ram(0x90);
+        _386.ClearSegResidue();
+        Build(c, (addr, bytes) =>
+        {
+            for (var i = 0; i < bytes.Length; i++) mem.ram[(addr + i) & mem.rammask] = bytes[i];
+        });
+        var regs = new ushort[(int)R.COUNT];
+        regs[(int)R.IP] = 0x7C00;
+        regs[(int)R.FLAGS] = 0x0002;
+        _808x.SetRegs(regs);
+        for (var s = 0; s <= c.Steps; s++)
+        {
+            try
+            {
+                _386.Step286();
+            }
+            catch (Exception e)
+            {
+                return $"ARRÊT C# au pas {s} : {e.Message.Trim()}";
+            }
+        }
+        var b = HState.Create();
+        _808x.GetState(ref b);
+        if ((hw ? c.ExpectMateriel ?? c.Expect : c.Expect)?.Invoke(b) is { } attente)
+            return $"ATTENTE NON TENUE (C#) : {attente}";
+        return $"vert — CS:IP {b.seg_sel[(int)Seg.CS]:X4}:{b.pc:X4}, SS:SP {b.seg_sel[(int)Seg.SS]:X4}:{b.regs[4] & 0xFFFF:X4}";
+    }
+
+    private const int VecTs = 0x0A, VecNp = 0x0B, VecGp = 0x0D;
+    private static uint Gestionnaire(int v) => v is VecTs or VecNp or VecGp ? 0xE000u + (uint)v * 0x10 : 0xE000u;
+    private static string? Att(bool ok, string quoi) => ok ? null : quoi;
+
+    /// <summary>Un mot de la mémoire du côté jugé : l'oracle, ou le C# sous `--target csharp`.</summary>
+    private static ushort MemW(uint addr) => Csharp
+        ? (ushort)(mem.ram[addr] | (mem.ram[addr + 1] << 8))
+        : (ushort)(Oracle.ReadByte(addr) | (Oracle.ReadByte(addr + 1) << 8));
 
     private static byte[] CallFar(ushort sel, ushort off) => [0x9A, (byte)off, (byte)(off >> 8), (byte)sel, (byte)(sel >> 8)];
     private static byte[] JmpFar(ushort sel, ushort off) => [0xEA, (byte)off, (byte)(off >> 8), (byte)sel, (byte)(sel >> 8)];
@@ -330,6 +438,84 @@ public static class PmCheck
                       Tweak = p => p(Idt + 13 * 8, Gate(0xE000, SelCode0, 0, 0x06)) });
         l.Add(new() { Name = "triple faute : portes 13 et 8 absentes", Code = JmpFar(0x0000, 0x0000),
                       Tweak = p => { p(Idt + 13 * 8, Gate(0xE000, SelCode0, 0, 0x06)); p(Idt + 8 * 8, Gate(0xE000, SelCode0, 0, 0x06)); } });
+
+        // --- G13.5c : les cas qui discriminent les corrections du mode protégé, sur le 286. Un pas après LOADALL. Une
+        // faute en anneau 0 empile FLAGS, CS, IP et son code sous SP (FFA0h) ; depuis l'anneau 3, la pile bascule sur
+        // SS0:SP0 de la TSS (18:8000), avec SS et SP en plus. #TS, #NP et #GP ont chacun leur gestionnaire. Les
+        // attentes du mode matériel sont celles du 80286 PRM : #GP partout, #NP pour la présence.
+        static string? Faute(HState a, ushort sp, ushort code, int v = VecGp) =>
+            Att(a.seg_sel[(int)Seg.CS] == SelCode0 && a.pc == Gestionnaire(v),
+                $"CS:IP {a.seg_sel[(int)Seg.CS]:X4}:{a.pc:X4}, attendu {SelCode0:X4}:{Gestionnaire(v):X4} (vecteur {v:X2}h)")
+            ?? Att(a.seg_sel[(int)Seg.SS] == SelStack0 && (a.regs[4] & 0xFFFF) == sp,
+                   $"SS:SP {a.seg_sel[(int)Seg.SS]:X4}:{a.regs[4] & 0xFFFF:X4}, attendu {SelStack0:X4}:{sp:X4}")
+            ?? Att(MemW(StackBase + sp) == code, $"code d'erreur 0x{MemW(StackBase + sp):X4}, attendu 0x{code:X4}");
+        static string? Tr(HState a, ushort tr) => Att(a.sys_sel[(int)Sys.TR] == tr, $"TR {a.sys_sel[(int)Sys.TR]:X4}, attendu {tr:X4}");
+        static string? Tache(HState a, ushort sp, bool nt) =>
+            Tr(a, SelTss2)
+            ?? Att(a.seg_sel[(int)Seg.CS] == SelCode0 && a.pc == 0x0200, $"CS:IP {a.seg_sel[(int)Seg.CS]:X4}:{a.pc:X4}")
+            ?? Att((a.regs[4] & 0xFFFF) == sp, $"SP {a.regs[4] & 0xFFFF:X4}, attendu {sp:X4}")
+            ?? Att((a.regs[0] & 0xFFFF) == 0x1111, $"AX {a.regs[0] & 0xFFFF:X4}")
+            ?? Att(((a.flags & 0x4000) != 0) == nt, $"FLAGS {a.flags:X4}, NT attendu {nt}")
+            ?? Att(!nt || MemW(Tss2) == SelTss, $"lien arrière {MemW(Tss2):X4}");
+        void Acces(Action<uint, byte[]> p, byte acces) => p(Gdt + SelTss2 + 5, [acces]);
+        // LOADALL, celui du 286, ne pose pas oldcpl (x86_ops_misc.h:827-881) : une faute juste après se livrerait comme
+        // depuis l'anneau 0, sans bascule de pile. Un cas de l'anneau 3 fait d'abord un JMP FAR dans son propre code
+        // (0033:1005), qui le pose, comme tout programme y arrive ; deux pas.
+        static byte[] Anneau3(byte[] code) => [.. JmpFar(SelCode3, 0x1005), .. code];
+        void TssDansLdt(Action<uint, byte[]> p) => p(Ldt + 0x10, Desc(0x002B, Tss2, 0x81));   // sélecteur 0014h
+        const ushort Sp = 0xFFA0 - 8, Sp3 = 0x8000 - 12;
+
+        l.Add(new() { Name = "INT 20h hors d'une IDT de 32 portes -> #GP", Code = [0xCD, 0x20], Steps = 1, Pb = 32,
+                      Expect = a => Faute(a, Sp, 0), ExpectMateriel = a => Faute(a, Sp, 0x0102) });
+        l.Add(new() { Name = "INT 1Fh, porte à cheval sur la limite (FCh) -> #GP", Code = [0xCD, 0x1F], Steps = 1, IdtLimit = 0xFC,
+                      Pb = 192, Expect = a => Att(a.pc == 0xE000 && (a.regs[4] & 0xFFFF) == 0xFFA0 - 6, $"IP {a.pc:X4}, SP {a.regs[4] & 0xFFFF:X4}"),
+                      ExpectMateriel = a => Faute(a, Sp, 0x00FA) });
+        l.Add(new() { Name = "DIV BX nul, porte 0 de type nul -> #GP, EXT", Code = [0xF7, 0xF3], Steps = 1,
+                      Tweak = p => p(Idt, new byte[8]), Pb = 192,
+                      Expect = a => Faute(a, Sp, 0x0002), ExpectMateriel = a => Faute(a, Sp, 0x0003) });
+        l.Add(new() { Name = "CALL FAR porte de tâche (286) -> commutation", Code = CallFar(SelTaskGate, 0), Steps = 1, Pb = 39,
+                      Expect = a => Faute(a, Sp, SelTaskGate),
+                      ExpectMateriel = a => Tache(a, ModeMateriel.Demande(40) ? (ushort)0x7000 : (ushort)0x6FFC, true) });
+        l.Add(new() { Name = "JMP FAR porte de tâche (286) -> commutation", Code = JmpFar(SelTaskGate, 0), Steps = 1, Pb = 39,
+                      Expect = a => Faute(a, Sp, 0), ExpectMateriel = a => Tache(a, 0x7000, false) });
+        l.Add(new() { Name = "CALL FAR porte de tâche DPL 0 depuis CPL3 -> #GP (témoin)", Cpl3 = true,
+                      Code = Anneau3(CallFar(SelTaskGate, 0)), Steps = 2, Pb = 39, Expect = a => Faute(a, Sp3, SelTaskGate) });
+        l.Add(new() { Name = "CALL FAR TSS 286 : rien d'empilé", Code = CallFar(SelTss2, 0), Steps = 1, Pb = 40,
+                      Expect = a => Tache(a, 0x6FFC, true),
+                      ExpectMateriel = a => Tache(a, 0x7000, true)
+                          ?? Att(MemW(StackBase + 0x6FFC) == 0x9090 && MemW(StackBase + 0x6FFE) == 0x9090, "écrit sous 7000h") });
+        l.Add(new() { Name = "LTR AX, segment de données (0010h) -> #GP", Ax = SelData0, Code = [0x0F, 0x00, 0xD8], Steps = 1, Pb = 190,
+                      Expect = a => Tr(a, SelData0), ExpectMateriel = a => Faute(a, Sp, SelData0) ?? Tr(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TSS 386 (type 9) sur le 286 -> #GP", Ax = SelTss2, Code = [0x0F, 0x00, 0xD8], Steps = 1,
+                      Tweak = p => Acces(p, 0x89), Pb = 190,
+                      Expect = a => Tr(a, SelTss2), ExpectMateriel = a => Faute(a, Sp, SelTss2) ?? Tr(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TSS occupée -> #GP", Ax = SelTss2, Code = [0x0F, 0x00, 0xD8], Steps = 1,
+                      Tweak = p => Acces(p, 0x83), Pb = 190,
+                      Expect = a => Tr(a, SelTss2), ExpectMateriel = a => Faute(a, Sp, SelTss2) ?? Tr(a, SelTss) });
+        l.Add(new() { Name = "LTR AX, TSS absente -> #NP", Ax = SelTss2, Code = [0x0F, 0x00, 0xD8], Steps = 1,
+                      Tweak = p => Acces(p, 0x01), Pb = 190,
+                      Expect = a => Tr(a, SelTss2), ExpectMateriel = a => Faute(a, Sp, SelTss2, VecNp) ?? Tr(a, SelTss) });
+        l.Add(new() { Name = "CALL FAR TSS de DPL 0 depuis CPL3 -> #GP", Cpl3 = true, Code = Anneau3(CallFar(SelTss2, 0)), Steps = 2,
+                      Pb = 191, Expect = a => Tr(a, SelTss2), ExpectMateriel = a => Faute(a, Sp3, SelTss2) });
+        l.Add(new() { Name = "CALL FAR TSS absente -> #NP", Code = CallFar(SelTss2, 0), Steps = 1, Tweak = p => Acces(p, 0x01), Pb = 191,
+                      Expect = a => Tr(a, SelTss2), ExpectMateriel = a => Faute(a, Sp, SelTss2, VecNp) });
+        l.Add(new() { Name = "JMP FAR TSS de la LDT (0014h) -> #GP", Code = JmpFar(0x0014, 0), Steps = 1, Tweak = TssDansLdt, Pb = 191,
+                      Expect = a => Tr(a, 0x0014), ExpectMateriel = a => Faute(a, Sp, 0x0014) });
+        l.Add(new() { Name = "JMP FAR TSS occupée -> #GP(TSS) (PCem : #GP(0))", Code = JmpFar(SelTss2, 0), Steps = 1,
+                      Tweak = p => Acces(p, 0x83), Pb = 191,
+                      Expect = a => Faute(a, Sp, 0), ExpectMateriel = a => Faute(a, Sp, SelTss2) });
+        l.Add(new() { Name = "CALL FAR TSS occupée -> #GP (témoin)", Code = CallFar(SelTss2, 0), Steps = 1,
+                      Tweak = p => Acces(p, 0x83), Pb = 191, Expect = a => Faute(a, Sp, SelTss2) });
+        // Une TSS 386 (type 9) n'existe pas sur le 286 : #GP ; PCem la lit en TSS 386, trop courte (2Bh) : #TS.
+        l.Add(new() { Name = "CALL FAR TSS 386 (type 9) sur le 286 -> #GP (PCem : #TS)", Code = CallFar(SelTss2, 0), Steps = 1,
+                      Tweak = p => Acces(p, 0x89), Pb = 191,
+                      Expect = a => Faute(a, Sp, SelTss2, VecTs), ExpectMateriel = a => Faute(a, Sp, SelTss2) });
+        l.Add(new() { Name = "DIV BX nul, porte 0 de tâche vers la LDT -> #GP, EXT", Code = [0xF7, 0xF3], Steps = 1,
+                      Tweak = p => { TssDansLdt(p); p(Idt, Gate(0, 0x0014, 0, 0x85)); }, Pb = 191,
+                      Expect = a => Tr(a, 0x0014), ExpectMateriel = a => Faute(a, Sp, 0x0015) });
+        l.Add(new() { Name = "INT 1Eh, porte de tâche vers la LDT (0014h) -> #GP", Code = [0xCD, 0x1E], Steps = 1,
+                      Tweak = p => { TssDansLdt(p); p(Idt + 0x1E * 8, Gate(0, 0x0014, 0, 0x85)); }, Pb = 191,
+                      Expect = a => Tr(a, 0x0014), ExpectMateriel = a => Faute(a, Sp, 0x0014) });
         return l;
     }
 }

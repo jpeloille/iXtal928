@@ -719,19 +719,33 @@ internal static partial class x86seg_c
                                 }
                                 break;
 
-                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
-                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
-                        // pcem bug, reproduced: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
+                        // pcem bug, fixed in hardware mode: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte
+                        //   de tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
+                        // pcem bug, fixed in hardware mode: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
                         //   (≥ CPL et ≥ RPL), ni sa présence, ni TI = 0 : une TSS de la LDT passe (x86seg.c:888).
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/
+                                if (materiel.pb_191)
+                                        if (_386_materiel.tss_directe_materiel(seg, segdat, CALL)) return;
                                 cpu_state.pc = old_pc;
                                 cpl_override = 1;
                                 taskswitch286(seg, segdat, segdat[2] & 0x800);
                                 cpl_override = 0;
+                                // pcem bug, fixed in hardware mode: PB-263 — l'IP de la nouvelle tâche contre sa limite.
+                                if (materiel.pb_263)
+                                        _386_materiel.ip_tache_materiel();
+                                // pcem bug, fixed in hardware mode: PB-40 — la commutation faite, que CALL_FAR lira.
+                                if (materiel.pb_40)
+                                        _386_materiel.tache_appelee_materiel();
                                 break;
 
                         default:
+                                // pcem bug, fixed in hardware mode: PB-39 — la porte de tâche (type 5).
+                                if (materiel.pb_39)
+                                        if (_386_materiel.porte_tache_materiel(seg, segdat, old_pc, CALL)) return;
+                                // pcem bug, fixed in hardware mode: PB-191 — une TSS occupée.
+                                if (materiel.pb_191)
+                                        if (_386_materiel.tss_occupee_materiel(seg, segdat, CALL)) return;
                                 // omitted: pclog("Bad CALL special descriptor %03X") — pure.
                                 x86gpf(null!, (uint16_t)(seg & ~3));
                                 return;
@@ -1092,9 +1106,14 @@ internal static partial class x86seg_c
                 return;
         }
         addr = (uint32_t)(num << 3);
-        // pcem bug, reproduced: PB-192 — `addr >= limit` (x86seg.c:1648) accepte une porte dont les huit
+        // pcem bug, fixed in hardware mode: PB-192 — `addr >= limit` (x86seg.c:1648) accepte une porte dont les huit
         //   octets dépassent la limite de l'IDT ; Intel teste `addr + 7` contre la limite.
-        if (addr >= idt.limit)
+        // pcem bug, fixed in hardware mode: PB-32 — en mode matériel, le test et le code d'erreur (386.Materiel.cs).
+        if (materiel.pb_32)
+        {
+                if (_386_materiel.idt_limite_materiel(num, soft)) return;
+        }
+        else if (addr >= idt.limit)
         {
                 // LA TRIPLE FAUTE EST UN RESET, ET C'EST LE SILICIUM. Si le vecteur 8
                 // (#DF, double faute) est lui-meme hors de l'IDT, le processeur ne peut
@@ -1116,7 +1135,7 @@ internal static partial class x86seg_c
                 }
                 else
                 {
-                        // pcem bug, reproduced: PB-32 — precedence d'operateurs. Le C ecrit (x86seg.c:1660)
+                        // pcem bug, fixed in hardware mode: PB-32 — precedence d'operateurs. Le C ecrit (x86seg.c:1660)
                         //   `(num * 8) + 2 + (soft) ? 0 : 1`, et `+` lie plus fort que `?:` :
                         //   la condition est `((num*8) + 2 + soft)`, toujours non nulle, donc
                         //   le code d'erreur vaut TOUJOURS 0. Le `(num*8)+2` voulu n'est
@@ -1140,10 +1159,12 @@ internal static partial class x86seg_c
                 return;
         oaddr = addr;
 
-        // pcem bug, reproduced: PB-192 — le code d'erreur `(num * 8) + 2` n'a jamais EXT (bit 0), même
+        // pcem bug, fixed in hardware mode: PB-192 — le code d'erreur `(num * 8) + 2` n'a jamais EXT (bit 0), même
         //   quand l'événement est externe (interruption matérielle ou exception, soft == 0).
         if ((segdat[2] & 0x1F00) == 0)
         {
+                if (materiel.pb_192)
+                        if (_386_materiel.porte_nulle_materiel(num, soft)) return;
                 // x86gpf_expected ET PAS x86gpf : le commentaire de PCem le dit — ca se
                 // declenche sur TOUTES les interruptions V86 d'EMM386, et le marquer
                 // « attendu » evite au recompilateur d'invalider ses blocs.
@@ -1415,8 +1436,10 @@ internal static partial class x86seg_c
                 break;
 
         case 0x500: /*Task gate*/
-                // pcem bug, reproduced: PB-191 — la porte de tâche de l'IDT accepte une TSS de la LDT
+                // pcem bug, fixed in hardware mode: PB-191 — la porte de tâche de l'IDT accepte une TSS de la LDT
                 //   (`seg & 4`) et ne vérifie pas que le descripteur est une TSS disponible (type 1 ou 9).
+                if (materiel.pb_191)
+                        if (_386_materiel.tss_int_materiel(segdat[1], soft)) return;
                 seg = segdat[1];
                 addr = (uint32_t)(seg & ~7);
                 if ((seg & 4) != 0)
@@ -2429,6 +2452,13 @@ internal static partial class x86seg_c
                 }
                 else /*System segment*/
                 {
+                        // pcem bug, fixed in hardware mode: PB-39 — la porte de tâche (type 5), contrôlée avant la
+                        //   présence que PCem teste ici : le manuel lève #GP (DPL, TSS) avant #NP (page JMP).
+                        if (materiel.pb_39)
+                                if (_386_materiel.porte_tache_materiel(seg, segdat, old_pc, JMP)) return;
+                        // pcem bug, fixed in hardware mode: PB-191 — une TSS, disponible ou occupée, de même.
+                        if (materiel.pb_191)
+                                if (_386_materiel.tss_jmp_materiel(seg, segdat)) return;
                         if ((segdat[2] & 0x8000) == 0)
                         {
                                 x86np("Load CS JMP system selector not present\n", (uint16_t)(seg & 0xfffc));
@@ -2543,9 +2573,9 @@ internal static partial class x86seg_c
                                 cycles -= cpu_c.timing_jmp_pm_gate;
                                 break;
 
-                        // pcem bug, reproduced: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte de
-                        //   tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
-                        // pcem bug, reproduced: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
+                        // pcem bug, fixed in hardware mode: PB-39 — les types 1 et 9 sont des TSS ; la vraie porte
+                        //   de tâche (type 5) n'a pas de `case` et tombe dans le default : #GP.
+                        // pcem bug, fixed in hardware mode: PB-191 — la voie TSS ne contrôle ni le DPL de la TSS
                         //   (≥ CPL et ≥ RPL), ni sa présence, ni TI = 0 : une TSS de la LDT passe (x86seg.c:582).
                         case 0x100: /*286 Task gate*/
                         case 0x900: /*386 Task gate*/

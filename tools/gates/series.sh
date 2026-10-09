@@ -565,3 +565,19 @@ for pb in 43 50 51 78; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.5c — le mode protégé (PLAN-G13.md) : la limite de l'IDT et son code d'erreur, EXT, la porte de tâche des CALL et
+# JMP, rien d'empilé par un CALL de tâche, LTR, la voie TSS, LOADALL386 hors du niveau 0, l'IP d'un CALL de tâche ; les
+# exceptions du manuel de chaque processeur. Les cas sont ceux de pm-check, au 386 et au 286, en C# seul. pm-check
+# --target csharp : le banc entier en C# seul, jugé sur ses attentes en mode PCem et sur celles du mode matériel ; au
+# 386 et au 486, le décor posé par le harnais (égal à celui de LOADALL386 là où il existe) : le 486 du mode matériel
+# n'a plus de LOADALL386 (PB-78) ; au 286, par LOADALL.
+for pb in 32 39 40 190 191 192 193 263; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run pm-check-286-csharp pm-check --target csharp
+run pm-check-286-materiel --hardware-mode processeur pm-check --target csharp
+for c in 386 486; do
+  run pm-check-$c-csharp pm-check --core $c --target csharp
+  run pm-check-$c-materiel --hardware-mode processeur pm-check --core $c --target csharp
+done

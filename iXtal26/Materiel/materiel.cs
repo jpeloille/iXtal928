@@ -33,6 +33,15 @@ internal static class materiel
     /// <summary>PB-07 : un mot à cheval sur deux pages lit et écrit son octet haut par sa propre page ; avec PB-179.</summary>
     internal static readonly bool pb_07;
 
+    /// <summary>PB-32 : l'IDT trop courte lève #GP(n × 8 + 2 + EXT) ; avec PB-192.</summary>
+    internal static readonly bool pb_32;
+
+    /// <summary>PB-39 : CALL et JMP sur une porte de tâche changent de tâche.</summary>
+    internal static readonly bool pb_39;
+
+    /// <summary>PB-40 : CALL sur une tâche n'empile pas l'adresse de retour.</summary>
+    internal static readonly bool pb_40;
+
     /// <summary>PB-43 : MOV CRx, DRx et TRx ignorent le champ mod (386, 486).</summary>
     internal static readonly bool pb_43;
 
@@ -120,6 +129,18 @@ internal static class materiel
     /// <summary>PB-188 : le DAS du cœur 286/386/486 teste l'AL et le CF d'origine.</summary>
     internal static readonly bool pb_188;
 
+    /// <summary>PB-190 : LTR contrôle le sélecteur, le type et la présence de la TSS.</summary>
+    internal static readonly bool pb_190;
+
+    /// <summary>PB-191 : la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type.</summary>
+    internal static readonly bool pb_191;
+
+    /// <summary>PB-192 : la porte doit tenir tout entière dans l'IDT, et EXT marque un événement externe ; avec PB-32.</summary>
+    internal static readonly bool pb_192;
+
+    /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
+    internal static readonly bool pb_193;
+
     /// <summary>PB-246 : la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1.</summary>
     internal static readonly bool pb_246;
 
@@ -162,6 +183,9 @@ internal static class materiel
     /// <summary>PB-262 : le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16.</summary>
     internal static readonly bool pb_262;
 
+    /// <summary>PB-263 : après un CALL de tâche, l'IP contrôlé contre la limite du nouveau CS, #TS(0) (386, 486).</summary>
+    internal static readonly bool pb_263;
+
     static materiel()
     {
         ModeMateriel.Gel();
@@ -170,6 +194,9 @@ internal static class materiel
         pb_03 = ModeMateriel.Demande(3);
         pb_05 = ModeMateriel.Demande(5);
         pb_07 = ModeMateriel.Demande(7);
+        pb_32 = ModeMateriel.Demande(32);
+        pb_39 = ModeMateriel.Demande(39);
+        pb_40 = ModeMateriel.Demande(40);
         pb_43 = ModeMateriel.Demande(43);
         pb_45 = ModeMateriel.Demande(45);
         pb_50 = ModeMateriel.Demande(50);
@@ -199,6 +226,10 @@ internal static class materiel
         pb_186 = ModeMateriel.Demande(186);
         pb_187 = ModeMateriel.Demande(187);
         pb_188 = ModeMateriel.Demande(188);
+        pb_190 = ModeMateriel.Demande(190);
+        pb_191 = ModeMateriel.Demande(191);
+        pb_192 = ModeMateriel.Demande(192);
+        pb_193 = ModeMateriel.Demande(193);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
         pb_248 = ModeMateriel.Demande(248);
@@ -213,5 +244,6 @@ internal static class materiel
         pb_258 = ModeMateriel.Demande(258);
         pb_261 = ModeMateriel.Demande(261);
         pb_262 = ModeMateriel.Demande(262);
+        pb_263 = ModeMateriel.Demande(263);
     }
 }
