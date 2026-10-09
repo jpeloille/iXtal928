@@ -9,6 +9,7 @@ using iXtal26.Memory;
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
 using static iXtal26.Cpu.x86_flags;
+using static iXtal26.Cpu._386_materiel;
 
 namespace iXtal26.Cpu;
 
@@ -27,9 +28,11 @@ internal static partial class _386
         if (l)
         {
                 uint32_t temp;
-                // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:146, :173) : un
+                // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:146, :173) : un
                 //   registre négatif adresse en avant au lieu d'en arrière (386 PRM § 17.2, « -2 gigabits »).
                 cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
+                if (materiel.pb_183)
+                        bt_decalage_materiel(true, a32);
                 eal_r = eal_w = -1;
                 temp = geteal();
                 if (cpu_state.abrt != 0)
@@ -41,9 +44,11 @@ internal static partial class _386
         else
         {
                 uint16_t temp;
-                // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:92, :119) : un
+                // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:92, :119) : un
                 //   registre de 8000h à FFFFh adresse en avant au lieu d'en arrière (-32 768 à -1 bits).
                 cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
+                if (materiel.pb_183)
+                        bt_decalage_materiel(false, a32);
                 eal_r = eal_w = -1;
                 temp = geteaw();
                 if (cpu_state.abrt != 0)
@@ -198,7 +203,12 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
 
         temp = geteaw();
+        // pcem bug, fixed in hardware mode: PB-262 — le décalage immédiat n'est pas réduit modulo 16 : `1 << count`
+        //   vise au-delà du mot quand `count & 31` vaut 16 ou plus, et BT, BTS, BTR, BTC ne lisent ni n'écrivent
+        //   rien (x86_ops_bit.h:205, :255).
         count = getbyte();
+        if (materiel.pb_262)
+                count = bt_immediat_materiel(count);
         if (cpu_state.abrt != 0)
                 return 1;
         tempc = (int)(temp & (1u << count));
@@ -251,7 +261,12 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
 
         temp = geteaw();
+        // pcem bug, fixed in hardware mode: PB-262 — le décalage immédiat n'est pas réduit modulo 16 : `1 << count`
+        //   vise au-delà du mot quand `count & 31` vaut 16 ou plus, et BT, BTS, BTR, BTC ne lisent ni n'écrivent
+        //   rien (x86_ops_bit.h:205, :255).
         count = getbyte();
+        if (materiel.pb_262)
+                count = bt_immediat_materiel(count);
         if (cpu_state.abrt != 0)
                 return 1;
         tempc = (int)(temp & (1u << count));
@@ -300,8 +315,10 @@ internal static partial class _386
 
         if (fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
-        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:48) : voir OpBTx.
+        // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:48) : voir OpBTx.
         cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
+        if (materiel.pb_183)
+                bt_decalage_materiel(true, false);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteal();
         if (cpu_state.abrt != 0)
@@ -324,8 +341,10 @@ internal static partial class _386
 
         if (fetch_ea_32(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
-        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:68) : voir OpBTx.
+        // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:68) : voir OpBTx.
         cpu_state.eaaddr += ((cpu_state.regs[cpu_reg].l / 32) * 4);
+        if (materiel.pb_183)
+                bt_decalage_materiel(true, true);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteal();
         if (cpu_state.abrt != 0)
@@ -348,8 +367,10 @@ internal static partial class _386
 
         if (fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
-        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:8) : voir OpBTx.
+        // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:8) : voir OpBTx.
         cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
+        if (materiel.pb_183)
+                bt_decalage_materiel(false, false);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteaw();
         if (cpu_state.abrt != 0)
@@ -372,8 +393,10 @@ internal static partial class _386
 
         if (fetch_ea_32(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
-        // pcem bug, reproduced: PB-183 — décalage non signé (x86_ops_bit.h:28) : voir OpBTx.
+        // pcem bug, fixed in hardware mode: PB-183 — décalage non signé (x86_ops_bit.h:28) : voir OpBTx.
         cpu_state.eaaddr += (uint32_t)((cpu_state.regs[cpu_reg].w / 16) * 2);
+        if (materiel.pb_183)
+                bt_decalage_materiel(false, true);
         eal_r = -1; // pcem: `eal_r = 0` — NULL ; -1 est le « pas de raccourci » du C#
         temp = geteaw();
         if (cpu_state.abrt != 0)

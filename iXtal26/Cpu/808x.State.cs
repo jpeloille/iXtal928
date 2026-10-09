@@ -281,7 +281,15 @@ internal static partial class _808x
     /// <summary>La même carte plate, pour le cœur 286. Pendant de h_flat_map()
     /// quand h_core vaut H_CORE_286 : c'est la MÊME fonction côté C, d'où l'appel
     /// à FlatMap() ici plutôt qu'une copie.</summary>
-    internal static void FlatMap286() => FlatMap();
+    internal static void FlatMap286() => FlatMap(Carte286.Ko);
+
+    /// <summary>G13.5 — la carte du cœur 286 : 1 Mo, ou 16 Mo pour la sonde SST (son bus a 24 bits, le mode réel
+    /// atteint 10FFEFh). Pendant de h_set_carte286 (harness.c). Dans une classe à part : un champ statique initialisé
+    /// dans _808x changerait son constructeur statique.</summary>
+    internal static class Carte286
+    {
+        internal static int Ko = 1024;
+    }
 
     /// <summary>La carte de 16 Mo du cœur 386 (G2, D2).</summary>
     internal static void FlatMap386() => FlatMap(16384);

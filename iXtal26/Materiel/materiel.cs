@@ -84,6 +84,30 @@ internal static class materiel
     /// <summary>PB-179 : un mot à l'offset FFFFh replie à l'offset 0 du segment ; avec PB-07.</summary>
     internal static readonly bool pb_179;
 
+    /// <summary>PB-181 : l'AF d'ADC du cœur 286/386/486 est la retenue du bit 3, retenue entrante comprise.</summary>
+    internal static readonly bool pb_181;
+
+    /// <summary>PB-182 : LOCK lève #UD devant une instruction qui ne se verrouille pas, ou sa forme registre (386, 486).</summary>
+    internal static readonly bool pb_182;
+
+    /// <summary>PB-183 : BT, BTS, BTR et BTC déplacent l'adresse d'un décalage signé.</summary>
+    internal static readonly bool pb_183;
+
+    /// <summary>PB-184 : MOVSX r16,r/m16 (0F BF sans 66h) s'exécute : la table du mode, posée par cpu_set.</summary>
+    internal static readonly bool pb_184;
+
+    /// <summary>PB-185 : AAA et AAS du cœur 286/386/486 ajustent AX entier (AX + 106h, AX − 6 puis AH − 1).</summary>
+    internal static readonly bool pb_185;
+
+    /// <summary>PB-186 : AAD et AAM du cœur 286/386/486 posent SF, ZF et PF d'après AL.</summary>
+    internal static readonly bool pb_186;
+
+    /// <summary>PB-187 : AAM 0 du cœur 286/386/486 lève #DE.</summary>
+    internal static readonly bool pb_187;
+
+    /// <summary>PB-188 : le DAS du cœur 286/386/486 teste l'AL et le CF d'origine.</summary>
+    internal static readonly bool pb_188;
+
     /// <summary>PB-246 : la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1.</summary>
     internal static readonly bool pb_246;
 
@@ -123,6 +147,9 @@ internal static class materiel
     /// <summary>PB-261 : la souris PS/2 remet ses compteurs de mouvement à zéro après le paquet d'EBh.</summary>
     internal static readonly bool pb_261;
 
+    /// <summary>PB-262 : le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16.</summary>
+    internal static readonly bool pb_262;
+
     static materiel()
     {
         ModeMateriel.Gel();
@@ -148,6 +175,14 @@ internal static class materiel
         pb_176 = ModeMateriel.Demande(176);
         pb_177 = ModeMateriel.Demande(177);
         pb_179 = ModeMateriel.Demande(179);
+        pb_181 = ModeMateriel.Demande(181);
+        pb_182 = ModeMateriel.Demande(182);
+        pb_183 = ModeMateriel.Demande(183);
+        pb_184 = ModeMateriel.Demande(184);
+        pb_185 = ModeMateriel.Demande(185);
+        pb_186 = ModeMateriel.Demande(186);
+        pb_187 = ModeMateriel.Demande(187);
+        pb_188 = ModeMateriel.Demande(188);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
         pb_248 = ModeMateriel.Demande(248);
@@ -161,5 +196,6 @@ internal static class materiel
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);
         pb_261 = ModeMateriel.Demande(261);
+        pb_262 = ModeMateriel.Demande(262);
     }
 }

@@ -112,12 +112,12 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      domaine d'horloge, temps vidéo). L'indice hors table doit être refusé");
     Console.WriteLine("      des deux côtés.");
     Console.WriteLine();
-    Console.WriteLine("  sst386-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp]");
+    Console.WriteLine("  sst386-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp] [--attendu F]");
     Console.WriteLine("               [--baseline FICHIER]");
     Console.WriteLine("      Sonde SingleStepTests/80386 (386EX, mode réel, format MOO) : l'état final");
     Console.WriteLine("      de chaque cas contre le silicium. --baseline ÉCRIT la ligne de base.");
     Console.WriteLine();
-    Console.WriteLine("  sst286-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp]");
+    Console.WriteLine("  sst286-probe [--vectors DIR] [--op FORME ...] [--limit N] [--target oracle|csharp] [--attendu F]");
     Console.WriteLine("               [--baseline FICHIER]");
     Console.WriteLine("      La même sonde sur SingleStepTests/80286 (Harris 80C286, mode réel, MOO),");
     Console.WriteLine("      sur le cœur 286.");
@@ -205,7 +205,7 @@ switch (args[0])
         var forms = new List<string>();
         var limit = 0;
         var csharp = false;
-        string? baseline = null;
+        string? baseline = null, attendu = null;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i])
@@ -215,12 +215,14 @@ switch (args[0])
                 case "--limit" when i + 1 < args.Length: limit = int.Parse(args[++i]); break;
                 case "--target" when i + 1 < args.Length: csharp = args[++i] == "csharp"; break;
                 case "--baseline" when i + 1 < args.Length: baseline = args[++i]; break;
+                // G13.5 — la porte, comme celle de sst-probe : la ligne de base rendue à l'identique, forme par forme.
+                case "--attendu" when i + 1 < args.Length: attendu = args[++i]; break;
                 default:
                     Console.Error.WriteLine($"Option inconnue : {args[i]}");
                     return 2;
             }
         }
-        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline, cpu286);
+        return Sst386Probe.Run(vectors, forms, limit, csharp, baseline, cpu286, attendu);
     }
 
     // G2, D0.6 — ce que la table du 386 porte réellement, lue vivante.

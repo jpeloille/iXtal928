@@ -28,7 +28,9 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # et le 387 (les tests de coprocesseur du POST), PC-DOS sur l'XT, et sous DEBUG les instructions dont une garde
 # n'est compilée par aucun amorçage (SBB octet : setsbc8). G13.4 : le PC1512 (amstrad_init), et la CH et la TM lues
 # sous DEBUG (O 201, I 201). La souris PS/2 n'a pas de scénario : aucune machine du dépôt ne la monte, et --force-ps2
-# n'existe sous --boot que depuis G13.4. Dans un texte de --type, « _ » tient lieu d'espace.
+# n'existe sous --boot que depuis G13.4. G13.5 : le 386 sous PC-DOS (CMOS de ami386dx-fd.cfg), et sous DEBUG, entrées
+# en octets, les instructions dont les handlers sont gardés (AAA, AAS, AAD, AAM, DAS, ADC, LOCK, BT, BTS et 0F BA, en
+# adresses de 16 et de 32 bits). Dans un texte de --type, « _ » tient lieu d'espace.
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
@@ -38,6 +40,7 @@ SCENARIOS=(
   "pc1512|--boot roms 3000 --model pc1512"
   "pc-joy-ch|--boot roms 7000 --config tools/gates/cfg/pc-joy-ch.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 300 --type  --type  --type B:DEBUG --type O_201_0 --type I_201 --type Q"
   "pc-joy-tm|--boot roms 7000 --config tools/gates/cfg/pc-joy-tm.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 300 --type  --type  --type B:DEBUG --type O_201_0 --type I_201 --type Q"
+  "ami386dx-dos|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type R_BX --type 200 --type E_100_37_3F_D5_0A_D4_0A_2F_14_0F_F0_01_07_0F_A3_07 --type E_10F_66_0F_A3_07_0F_AB_07_F0_0F_AB_07_0F_BA_E0_05 --type E_11E_67_0F_A3_03_66_67_0F_A3_03_67_0F_BA_23_05_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 
 capture() {
@@ -47,12 +50,18 @@ capture() {
   { dotnet --list-runtimes | grep Microsoft.NETCore.App; echo "dll $(sha256sum "$dll" | cut -c1-16)"; } > "$out/runtime.txt"
   local s nom args w
   for s in "${SCENARIOS[@]}"; do
-    nom=${s%%|*}; args=${s#*|}
+    nom=${s%%|*}; args=${s#*|}; cmos=""
+    if [[ "$args" == *"|"* ]]; then cmos=${args#*|}; args=${args%%|*}; fi
     if [ $# -gt 0 ] && [[ " $* " != *" $nom "* ]]; then continue; fi
     w=$(mktemp -d "${TMPDIR:-/tmp}/listings-jit-XXXXXX")
     mkdir -p "$w/nvr" "$w/os"
     for e in "$REPO"/*; do case "$(basename "$e")" in nvr|os) ;; *) ln -s "$e" "$w/";; esac; done
     cp -r "$REPO/nvr/default" "$w/nvr/"; cp -r "$REPO/os/pcdos20" "$w/os/"
+    # Un troisième champ, « CONFIG MACHINE » : le CMOS de la machine, fabriqué dans le bac à sable par --make-nvr (comme
+    # g5w-recipe.sh), sans listing, avant le scénario.
+    if [ -n "$cmos" ]; then
+      (cd "$w" && dotnet "$dll" --make-nvr "${cmos% *}" cmos.nvr --force > /dev/null 2>&1 && cp cmos.nvr "nvr/.${cmos#* }.nvr")
+    fi
     # Le texte de --type vide (Entrée seule) se passe par un argument vide : l'aplatissement des arguments le perdrait.
     local -a argv=()
     read -r -a mots <<< "$args"

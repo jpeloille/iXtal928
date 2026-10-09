@@ -59,6 +59,7 @@ iXtal26/Mouse/mouse_ps2.Materiel.cs	-	-	-	materiel	G13.4 : les commandes, l'éta
 iXtal26/Models/amstrad.Materiel.cs	-	-	-	materiel	G13.4 : le second port parallèle du PC1512 (PB-101)
 iXtal26/Joystick/joystick_ch_flightstick_pro.Materiel.cs	-	-	-	materiel	G13.4 : le chapeau de la CH à 315° (PB-103)
 iXtal26/Joystick/joystick_tm_fcs.Materiel.cs	-	-	-	materiel	G13.4 : le chapeau de la TM à 315° (PB-103)
+iXtal26/Cpu/386.Materiel.cs	-	-	-	materiel	G13.5 : les corrections du cœur 286/386/486 (PB-181 à PB-188, PB-262)
 iXtal26/Joystick/gameport.cs	pcem-dev/src/joystick/gameport.c	9eee9931577ed32db26fd9caa0f1232076a9127b69c740fa18088b3766e462ee	1-178	transcribed	G1.1 ; G10.1 : joystick_list et ses sept types ; joystick_type hors borne ramené au type 0 à la lecture du .cfg (PB-93, pc.cs)
 iXtal26/Joystick/gameport.cs	pcem-dev/src/joystick/joystick_standard.c	a325716a73fa73f719767f78337e467b4056e2bfc1bc7c1b6699ac20c67addfd	1-181	transcribed	G1.1 : les quatre joystick_standard
 iXtal26/Joystick/gameport.cs	pcem-dev/includes/private/joystick/gameport.h	52ee8277326b373fb1bc22442e9504fa0307a165aec48ce5c29c0a956720939f	-	transcribed	G1.1 : joystick_if_t

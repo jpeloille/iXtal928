@@ -37,7 +37,8 @@ internal static class MaterielCas
         [171] = Pb171, [172] = Pb172, [173] = Pb173, [174] = Pb174, [175] = Pb175, [176] = Pb176, [177] = Pb177,
         [179] = Pb179, [157] = Pb157, [246] = Pb246, [247] = Pb247, [248] = Pb248, [249] = Pb249, [250] = Pb250,
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
-        [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261,
+        [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
+        [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
     };
 
     internal static int Run(string[] args)
@@ -447,6 +448,130 @@ internal static class MaterielCas
         bad += Voir("canal 2 démasqué, en écriture, dma_channel_write", accepte == 4, $"{accepte} cycles de bus facturés",
                     "4", hw);
         return bad;
+    }
+
+    // ===== Le cœur 286/386/486 =====
+
+    /// <summary>Joue une instruction sur le cœur 386 (ou 286, 486) en mode réel : le code en 0000:0100, sur un fond de NOP,
+    /// SP = FFFEh, les drapeaux F002h, et les vecteurs 0 (#DE) et 6 (#UD) en 0000:0400 et 0000:0600, pour qu'une exception
+    /// se lise à l'IP d'après. Rend les registres de 16 bits d'après.</summary>
+    private static ushort[] Jouer386(byte[] code, Action<ushort[]> regs, Action? ram = null, int coeur = 386)
+    {
+        if (coeur == 286)
+            _386.Reset286();
+        else if (coeur == 486)
+            _386.Reset486();
+        else
+            _386.Reset386();
+        mem.fill_ram(0x90);
+        mem.ram[0x02] = 0x00; mem.ram[0x00] = 0x00; mem.ram[0x01] = 0x04; mem.ram[0x03] = 0x00;
+        mem.ram[0x18] = 0x00; mem.ram[0x19] = 0x06; mem.ram[0x1A] = 0x00; mem.ram[0x1B] = 0x00;
+        for (var k = 0; k < code.Length; k++)
+            mem.ram[0x100 + k] = code[k];
+        ram?.Invoke();
+        var r = new ushort[(int)R.COUNT];
+        r[(int)R.SP] = 0xFFFE;
+        r[(int)R.IP] = 0x100;
+        r[(int)R.FLAGS] = 0xF002;
+        regs(r);
+        _808x.SetRegs(r);
+        _386.Step286();
+        _386.flags_rebuild();
+        _808x.GetRegs(r);
+        return r;
+    }
+
+    // PB-181 — l'AF d'ADC est la retenue du bit 3, retenue entrante comprise (SDM vol. 1, § 3.4.3.1) : CF = 1, AL = 00h,
+    // ADC AL,0Fh rend 10h, une retenue sortie du bit 3 ; PCem ne la voit que si op2 vaut FFh.
+    private static int Pb181(bool hw)
+    {
+        var r = Jouer386([0x14, 0x0F], r => r[(int)R.FLAGS] = 0xF003);
+        return Reg("ADC AL,0Fh, CF = 1, AL = 00h (386)", r, R.AX, 0x0010, "AF", (0x0010, 0), (0x0010, 1), hw);
+    }
+
+    // PB-182 — LOCK devant la forme registre d'ADD lève #UD (386 PRM § 14.7, point 9) : l'IP d'après est celui du vecteur
+    // 6, AX intact. LOCK ADD [BX],AX, la forme mémoire, s'exécute dans les deux modes.
+    private static int Pb182(bool hw)
+    {
+        var bad = 0;
+        var r = Jouer386([0xF0, 0x01, 0xC0], r => r[(int)R.AX] = 0x0101);
+        bad += Voir("LOCK ADD AX,AX (386)", (r[(int)R.AX], r[(int)R.IP]) == (hw ? (0x0101, 0x0600) : (0x0202, 0x0103)),
+                    $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", hw ? "AX = 0101, IP = 0600 (#UD)" : "AX = 0202, IP = 0103", hw);
+        r = Jouer386([0xF0, 0x01, 0x07], r => { r[(int)R.AX] = 0x0101; r[(int)R.BX] = 0x2000; });
+        bad += Voir("LOCK ADD [BX],AX (386), témoin", mem.ram[0x2000] == 0x91 && r[(int)R.IP] == 0x0103,
+                    $"[2000h] = {mem.ram[0x2000]:X2}, IP = {r[(int)R.IP]:X4}", "[2000h] = 91, IP = 0103", hw);
+        return bad;
+    }
+
+    // PB-183 — le décalage de BT est signé (386 PRM § 17.2) : AX = FFFFh, BX = 0100h, BT [BX],AX lit le bit 15 du mot en
+    // DS:00FEh ; PCem en DS:20FEh. Et sous une adresse de 16 bits, l'adresse replie : BX = 0000h, BT [BX],AX lit le mot en
+    // DS:FFFEh, PCem en DS:1FFEh.
+    private static int Pb183(bool hw)
+    {
+        var bad = 0;
+        var r = Jouer386([0x0F, 0xA3, 0x07], r => { r[(int)R.AX] = 0xFFFF; r[(int)R.BX] = 0x0100; },
+                         () => { mem.ram[0x00FF] = 0x80; mem.ram[0x20FF] = 0x00; });
+        bad += Reg("BT [BX],AX, AX = FFFFh, BX = 0100h (386)", r, R.AX, 0x0001, "CF", (0xFFFF, 0), (0xFFFF, 1), hw);
+        r = Jouer386([0x0F, 0xA3, 0x07], r => { r[(int)R.AX] = 0xFFFF; r[(int)R.BX] = 0x0000; },
+                     () => { mem.ram[0xFFFF] = 0x80; mem.ram[0x1FFF] = 0x00; });
+        bad += Reg("BT [BX],AX, AX = FFFFh, BX = 0000h (386)", r, R.AX, 0x0001, "CF", (0xFFFF, 0), (0xFFFF, 1), hw);
+        return bad;
+    }
+
+    // PB-184 — MOVSX AX,BX (0F BF C3) copie le mot sur le 386EX mesuré (SST, forme 0FBF) ; PCem lève #UD.
+    private static int Pb184(bool hw)
+    {
+        var r = Jouer386([0x0F, 0xBF, 0xC3], r => { r[(int)R.AX] = 0x1234; r[(int)R.BX] = 0x8001; });
+        return Voir("MOVSX AX,BX, BX = 8001h (386)", (r[(int)R.AX], r[(int)R.IP]) == (hw ? (0x8001, 0x0103) : (0x1234, 0x0600)),
+                    $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", hw ? "AX = 8001, IP = 0103" : "AX = 1234, IP = 0600 (#UD)", hw);
+    }
+
+    // PB-185 — AAA : AX + 106h ; AAS : AX − 6, puis AH − 1 (SDM vol. 2). PCem ne passe pas la retenue d'AL à AH.
+    private static int Pb185(bool hw)
+    {
+        var bad = 0;
+        var r = Jouer386([0x37], r => { r[(int)R.AX] = 0x00FA; r[(int)R.FLAGS] = 0xF012; });
+        bad += Reg("AAA, AX = 00FAh, AF = 1 (386)", r, R.AX, 0x0001, "CF", (0x0100, 1), (0x0200, 1), hw);
+        r = Jouer386([0x3F], r => { r[(int)R.AX] = 0x0102; r[(int)R.FLAGS] = 0xF012; });
+        bad += Reg("AAS, AX = 0102h, AF = 1 (386)", r, R.AX, 0x0001, "CF", (0x000C, 1), (0xFF0C, 1), hw);
+        return bad;
+    }
+
+    // PB-186 — AAD et AAM posent SF, ZF et PF d'après AL (SDM vol. 2) ; PCem d'après AX.
+    private static int Pb186(bool hw)
+    {
+        var bad = 0;
+        var r = Jouer386([0xD4, 0x0A], r => r[(int)R.AX] = 0x0014);
+        bad += Reg("AAM 0Ah, AL = 14h (386)", r, R.AX, 0x0040, "ZF", (0x0200, 0), (0x0200, 1), hw);
+        r = Jouer386([0xD5, 0x0A], r => r[(int)R.AX] = 0x0178);
+        bad += Reg("AAD 0Ah, AH = 01h, AL = 78h (386)", r, R.AX, 0x0080, "SF", (0x0082, 0), (0x0082, 1), hw);
+        return bad;
+    }
+
+    // PB-187 — AAM 0 lève #DE, l'adresse de l'AAM empilée (SDM, page AAM) ; PCem divise par 10.
+    private static int Pb187(bool hw)
+    {
+        var r = Jouer386([0xD4, 0x00], r => r[(int)R.AX] = 0x002A);
+        var pile = (ushort)(mem.ram[0xFFF8] | mem.ram[0xFFF9] << 8);    // FLAGS, CS, puis IP
+        return Voir("AAM 0, AL = 2Ah (386)",
+                    hw ? (r[(int)R.AX], r[(int)R.IP], pile) == (0x002A, 0x0400, 0x0100) : (r[(int)R.AX], r[(int)R.IP]) == (0x0402, 0x0102),
+                    $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}, IP empilé = {pile:X4}",
+                    hw ? "AX = 002A, IP = 0400 (#DE), IP empilé = 0100" : "AX = 0402, IP = 0102", hw);
+    }
+
+    // PB-188 — DAS teste l'AL et le CF d'origine (SDM vol. 2) : AL = 01h, AF = 1, CF = 0 rend FBh ; PCem 9Bh.
+    private static int Pb188(bool hw)
+    {
+        var r = Jouer386([0x2F], r => { r[(int)R.AX] = 0x0001; r[(int)R.FLAGS] = 0xF012; });
+        return Reg("DAS, AL = 01h, AF = 1, CF = 0 (386)", r, R.AX, 0x0010, "AF", (0x009B, 1), (0x00FB, 1), hw);
+    }
+
+    // PB-262 — le décalage immédiat d'un BTC 16 bits se prend modulo 16 (SDM, page BT) : DX = 6D16h, BTC DX,53h bascule
+    // le bit 3 ; PCem vise le bit 83, hors du mot, et DX ne bouge pas.
+    private static int Pb262(bool hw)
+    {
+        var r = Jouer386([0x0F, 0xBA, 0xFA, 0x53], r => r[(int)R.DX] = 0x6D16);
+        return Reg("BTC DX,53h, DX = 6D16h (386)", r, R.DX, 0x0001, "CF", (0x6D16, 0), (0x6D1E, 0), hw);
     }
 
     // ===== Le 8259 =====

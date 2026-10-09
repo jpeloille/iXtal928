@@ -542,3 +542,18 @@ for m in "" "-materiel"; do
       --type "@manette 0,0,0,0,315" --type "" --type "" "${JOB[@]}" --type "@wait 1500"
   done
 done
+# G13.5a — le cœur 286/386/486 (PLAN-G13.md) : l'AF d'ADC, LOCK, BT, BTS, BTR et BTC (le décalage signé, l'adresse de
+# 16 bits qui replie, l'immédiat modulo 16), MOVSX r16, AAA et AAS, AAD et AAM, AAM 0, DAS. Pour chacune, le cas qui
+# discrimine en C# seul : la valeur de PCem en mode PCem, celle du matériel en mode matériel. Puis le silicium : les
+# corpus SST du 386 (386EX) et du 286 (Harris N80C286-12, sur la carte de 16 Mo), 150 cas par forme ; en mode PCem, le
+# C# rend la ligne de l'oracle sur ces cas ; en mode matériel, celle du mode. Les corpus entiers : sst386-baseline-
+# materiel.tsv et sst286-baseline-materiel.tsv (VERIFICATION.md § G13.5a).
+for pb in 181 182 183 184 185 186 187 188 262; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+for c in 386 286; do
+  run sst$c sst$c-probe --target csharp --limit 150 --attendu tools/gates/sst/sst$c-150.tsv
+  run sst$c-materiel --hardware-mode processeur sst$c-probe --target csharp --limit 150 \
+    --attendu tools/gates/sst/sst$c-materiel-150.tsv
+done

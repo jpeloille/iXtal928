@@ -86,7 +86,8 @@ public static class Oracle
     // 54 en G12.0 : les SB 1.0, 1.5, 2.0 et Pro v1 ; la sonde du son passe de 41 à 45 champs.
     // 55 en G12.1 : la SB 16 (le MPU-401 lié, dma.c inclus) ; la sonde du son à 62 champs, h_dma_probe, h_sb16_filter.
     // 56 en G12.2 : l'AWE32 et l'EMU8000 (sound_emu8k.c inclus) — h_emu8k_probe, h_emu8k_tables, h_emu8k_kernel.
-    public const int AbiVersion = 56;
+    // 57 en G13.5 : h_set_carte286, la carte de 16 Mo du cœur 286 (la sonde SST).
+    public const int AbiVersion = 57;
 
     static Oracle()
     {
@@ -198,6 +199,7 @@ public static class Oracle
          : m.cpu[0].cpus![0].cpu_type >= iXtal26.Cpu.cpu_c.CPU_i486SX ? Core486
          : m.cpu[0].cpus![0].cpu_type >= iXtal26.Cpu.cpu_c.CPU_386SX ? Core386 : Core286;
     [DllImport(Lib)] public static extern void h_set_core(int core);
+    [DllImport(Lib)] public static extern void h_set_carte286(int seize);
     [DllImport(Lib)] public static extern void h_prefetch_reset();
     [DllImport(Lib)] public static extern void h_seg_clear_residue();
     [DllImport(Lib)] public static extern int h_step_trace();

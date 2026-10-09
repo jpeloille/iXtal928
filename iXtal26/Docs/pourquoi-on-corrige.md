@@ -406,3 +406,59 @@ PB-104, le chapeau calculé sur un axe de la manette de l'hôte quand le .cfg ne
 pendant matériel : il reste dans les deux modes (décision n° 9). PB-256, l'absence de rafraîchissement par DMA sur la
 M24 et le PC1512, changerait la vitesse de ces deux machines pour un coût que rien ne documente : il reste reproduit,
 la question posée.
+
+## G13.5, début — le 286, le 386 et le 486 (mode matériel) : l'arithmétique et les instructions que le corpus mesure
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.5, `VERIFICATION.md` § G13.5a.*
+
+Le cœur de PCem qui exécute le 286, le 386 et le 486 a ses propres défauts, distincts de ceux du 8088. Les
+SingleStepTests du 386 (un Intel 386EX) et du 286 (un Harris 80C286) les mesurent instruction par instruction, en
+mode réel. Neuf défauts, tous en mode matériel ; le corpus du 286 dit, pour chacun, si le 286 le partage.
+
+### PB-181 — la demi-retenue d'ADC
+
+- **Le vrai PC.** AF est la retenue qui sort du bit 3, celle dont DAA et AAA ont besoin ; dans ADC, la retenue
+  entrante y compte.
+- **L'émulateur.** PCem recopie sur le quartet bas une formule écrite pour l'octet entier : avec une retenue entrante
+  et un quartet bas de Fh, AF manque, 3 % des cas.
+- **La correction.** AF est le bit 4 de op1 ^ op2 ^ résultat, la définition même de la retenue du bit 3.
+
+### PB-182 — LOCK
+
+- **Le vrai PC.** Le 386 n'accepte LOCK que devant les instructions qui lisent, modifient et réécrivent la mémoire
+  (ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC, XCHG, BTS, BTR, BTC ; CMPXCHG et XADD sur le 486) ; ailleurs,
+  ou devant leur forme registre, il lève l'exception d'opcode invalide.
+- **L'émulateur.** PCem ne refuse que LOCK NOP ; tout le reste s'exécute comme si LOCK n'était pas là.
+- **La correction.** La liste, et l'exception hors d'elle. Un programme qui teste le processeur par ce chemin voit un
+  386.
+
+### PB-183 et PB-262 — BT, BTS, BTR et BTC
+
+- **Le vrai PC.** Ces instructions prennent un bit dans une chaîne de bits en mémoire : un décalage négatif remonte en
+  arrière, une adresse de 16 bits reste dans son segment, et le décalage immédiat d'un mot se prend modulo 16.
+- **L'émulateur.** PCem traite le décalage comme non signé (il va jusqu'à 8 Ko trop loin en avant), laisse l'adresse
+  sortir du segment, et, avec un immédiat sur deux (ceux dont le bit 4 est posé), vise un bit hors du mot : BT rend
+  alors 0, BTS, BTR et BTC n'écrivent rien.
+- **La correction.** Le décalage signé, l'adresse repliée, l'immédiat réduit. Le troisième défaut, trouvé par la mesure
+  de cette étape, est inscrit au registre (PB-262) ; le second élargit PB-183.
+
+### PB-184 — MOVSX r16
+
+- **Le vrai PC.** Le 386 mesuré exécute MOVSX vers un registre de 16 bits depuis un mot : une simple copie.
+- **L'émulateur.** PCem n'a que la forme 32 bits, et lève l'exception d'opcode invalide sur l'autre.
+- **La correction.** La forme 16 bits, dans une table d'opcodes propre au mode, posée au démarrage du processeur.
+
+### PB-185, PB-186 et PB-188 — AAA, AAS, AAD, AAM et DAS
+
+- **Le vrai PC.** Le 386 ajuste AX entier dans AAA et AAS (AX + 106h), pose SF, ZF et PF d'après AL dans AAD et AAM, et
+  décide le second pas de DAS sur l'AL et le CF d'origine, comme le décrit le manuel d'Intel.
+- **L'émulateur.** PCem reprend l'ajustement du 8086, les drapeaux d'après AX, et le DAS du 8088 : de 4 % à 50 % des
+  cas de ces instructions s'écartent du silicium.
+- **La correction.** Celle du manuel, que le 386EX suit au cas près.
+
+### PB-187 — AAM 0
+
+- **Le vrai PC.** AAM divise AL par son opérande ; par zéro, il lève l'erreur de division.
+- **L'émulateur.** PCem remplace la base nulle par 10, et le programme continue sur un résultat inventé.
+- **La correction.** L'erreur de division, l'adresse de l'AAM empilée. Les drapeaux que le 386EX laisse alors ne suivent
+  aucune règle connue : ils ne sont pas imités.

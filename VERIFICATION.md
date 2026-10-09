@@ -7966,3 +7966,111 @@ de zéro : 345 portes, toutes vertes, en 63 minutes. Contre g4b1, les 325 portes
 un seul résumé change, comme attendu : `recensement` (261 défauts, 947 marqueurs, contre 260 et 928). Les 20 portes
 neuves sont celles de l'étape : les cas des six corrections dans les deux modes, et les quatre bancs PS2BANC (deux
 souris) et JOYBANC (CH, TM), dans les deux modes, chacun sur deux séances identiques.
+
+## G13.5a — Le 286, le 386 et le 486 : la carte de 16 Mo du 286, et les familles que SST mesure
+
+Le 10 octobre 2026, sur le feu vert de Julien (« Pousse, et feu vert pour G13.5 », le 9). G13.5 se découpe comme G13.4,
+en trois sous-étapes, chacune sa série et son commit (`PLAN-G13.md` § G13.5) ; G13.5a prend la carte du 286 et les
+défauts que les SingleStepTests du 386 (Intel 386EX) et du 286 (Harris N80C286-12) mesurent : PB-181 (l'AF d'ADC),
+PB-182 (LOCK), PB-183 (BT*, élargi : l'adresse de 16 bits replie), PB-262 (neuf : l'immédiat de 0F BA modulo 16),
+PB-184 (MOVSX r16), PB-185 (AAA, AAS), PB-186 (AAD, AAM), PB-187 (AAM 0), PB-188 (DAS). Le mode PCem ne bouge pas.
+
+**La carte de 16 Mo du 286.** Le mode réel du 286 atteint 10FFEFh ; sur la carte de 1 Mo des portes du 286, 254 319
+cas du corpus (17,2 %) tombaient hors carte (§ G13.2). `h_set_carte286` (ABI 57) et `_808x.Carte286.Ko` la portent à
+16 Mo, des deux côtés, pour la seule sonde SST : les autres portes du 286 (fuzz, pm-check, flux) gardent 1 Mo et leur
+coût. Le corpus entier se joue désormais, aucun cas hors carte ; `sst286-baseline.tsv` est régénérée sur l'oracle
+(1 450 252 cas réussis sur 1 477 997 joués, aucun hors carte, contre 1 202 039 sur 1 223 678 et 254 319 hors
+carte), et le C# la rend à l'identique (les 326 formes).
+
+**Le code.** `Cpu/386.Materiel.cs`, une classe à part, `_386_materiel` : des membres de plus dans `_386`, même dans une
+classe imbriquée, décalaient les numéros que le compilateur donne à ses lambdas et à ses classes de fermeture (mesuré
+sur les listings : `OP_ARITH_386` et une soixantaine de lambdas renommées) ; hors de `_386`, plus rien ne bouge. Les gardes :
+`x86_flags.cs` (AF_SET, les trois ADC), `386_ops_bcd.cs` (AAA, AAS, AAD, AAM, AAM 0, DAS), `386_ops_bit.cs` (OpBTx et
+les quatre BT, les deux 0F BA de 16 bits), `386_ops_prefix.cs` (opLOCK), `cpu.cs` (`cpu_set` pose la table 0F du mode,
+copie de celle de PCem où 0BFh et 2BFh copient le mot). `Carte286` est aussi une classe imbriquée : un champ
+initialisé dans `_808x` changeait son constructeur statique.
+
+**Le 286, d'après son corpus.** Le 286 partage ces handlers ; chaque correction ne vaut pour lui que si le corpus la
+confirme. Il confirme l'AF d'ADC, AAA, AAS, AAD, AAM, AAM 0 et DAS (les formes passent à 100 %, AAM 0 excepté, voir
+plus bas). Il dément LOCK : le 286 l'exécute devant tout, forme registre, CMP et MOV compris (une quarantaine de cas
+par forme, aucun #UD) ; PB-182 s'arrête sur `is386`. BT*, MOVSX et 0F BA n'existent pas sur le 286.
+
+**Deux trouvailles de la mesure.** `0FBA.7` restait à 51 % : PCem ne réduit pas l'immédiat d'un BT 16 bits modulo 16,
+`1 << 83` vise hors du mot (PB-262, inscrit, documenté par le SDM). Et les « autres écarts de CF » de BT*, que la
+reconnaissance n'expliquait pas (K7), venaient de l'adresse de 16 bits qui ne repliait pas : PB-183 élargi, il n'en
+reste aucun.
+
+**AAM 0, laissé en partie.** Le 386EX et le 286 lèvent #DE, EAX intact, et le mode matériel aussi ; mais ils laissent
+SF et ZF à 0 et PF à une valeur sans règle documentée (au 286, la parité d'AL sur quatre cas ; au 386, aucune règle
+sur douze). Inconnu, non imité (décision n° 14) : dix cas au 386, neuf au 286, échouent encore sur les drapeaux.
+
+**Les cas** (`materiel-cas`, C# seul, sur le cœur 386, les vecteurs 0 et 6 posés pour lire une exception à l'IP) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 181 | CF = 1, AL = 00h, ADC AL,0Fh | AF = 0 | AF = 1 |
+| 182 | LOCK ADD AX,AX ; témoin LOCK ADD [BX],AX | AX = 0202h ; exécuté | #UD, AX intact ; exécuté |
+| 183 | AX = FFFFh, BT [BX],AX avec BX = 0100h ; avec BX = 0 | DS:20FEh ; DS:1FFEh | DS:00FEh ; DS:FFFEh |
+| 184 | BX = 8001h, MOVSX AX,BX | #UD | AX = 8001h |
+| 185 | AAA, AX = 00FAh, AF = 1 ; AAS, AX = 0102h, AF = 1 | 0100h ; 000Ch | 0200h ; FF0Ch |
+| 186 | AAM 0Ah, AL = 14h ; AAD 0Ah, AX = 0178h | ZF = 0 ; SF = 0 | ZF = 1 ; SF = 1 |
+| 187 | AAM 0, AL = 2Ah | AX = 0402h | #DE, IP empilé 0100h |
+| 188 | DAS, AL = 01h, AF = 1, CF = 0 | AL = 9Bh | AL = FBh |
+| 262 | DX = 6D16h, BTC DX,53h | DX = 6D16h | DX = 6D1Eh |
+
+Chacun rend la valeur de PCem en mode PCem, celle du matériel avec sa seule correction, la sonde comptant la
+correction, et rougit la correction coupée (`--attendu materiel` en mode PCem).
+
+**SST en mode matériel, les corpus entiers.** Au 386 : 1 610 145 cas réussis sur 1 758 699, contre 1 555 116 en mode
+PCem ; 718 formes montent, aucune ne descend ; 135 passent à 100 %. Les formes visées : `37`, `3F`, `D5`, `2F`, `10`,
+`12`, `14`, `15`, `0FA3`, `0FAB`, `0FB3`, `0FBB` et leurs formes `66` entières ; `0FBF` 2 487 sur 2 500 (contre 68),
+`0FBA.4` à `.7` 2 487 (contre 1 262 à 1 900), `D4` 2 490 (contre 2 120). Ce qui reste, hors AAM 0 : les mots à cheval
+sur FFFFh et les adresses de 32 bits au-delà (PB-189, la limite des données en mode réel, hors du plan), et les
+familles sans entrée (les drapeaux indéfinis de SHLD et SHRD, POPFD, IRETD, ENTER…). Au 286 : 1 455 332 cas réussis sur 1 477 997, contre 1 450 252 en mode PCem ; 15 formes montent, aucune ne
+descend : `10`, `12`, `14`, `15`, `80.2`, `82.2`, `37`, `3F`, `D5`, `2F` entières, `11`, `13`, `81.2`, `83.2` de 4 948 à
+4 966 sur 5 000 (des mots à cheval sur FFFFh), `D4` 4 991 (AAM 0). Les
+lignes de base : `sst386-baseline-materiel.tsv` et `sst286-baseline-materiel.tsv`, à la racine.
+
+**Les portes SST.** Le corpus entier coûte de 20 à 30 minutes par cœur et par mode (la carte de 16 Mo remise à zéro à
+chaque cas) : la série joue 150 cas par forme, dans les deux modes, sur les deux cœurs, contre
+`tools/gates/sst/sst386-150.tsv` (l'oracle), `sst386-materiel-150.tsv`, `sst286-150.tsv` et `sst286-materiel-150.tsv`.
+`sst386-probe` et `sst286-probe` prennent `--attendu`, comme `sst-probe`.
+
+**Les listings du JIT.** Aucun scénario ne compilait les handlers gardés, AF_SET, AAD et `cpu_set` exceptés : le
+scénario `ami386dx-dos` les compile tous. L'ami386dx amorce PC-DOS (son CMOS fabriqué dans le bac à sable par
+`--make-nvr`, d'après `ami386dx-fd.cfg.in`, comme le fait `g5w-recipe.sh`) ; sous DEBUG, en octets, AAA, AAS, AAD,
+AAM, DAS, ADC, LOCK ADD, BT, BTS, LOCK BTS et 0F BA, en adresses de 16 et de 32 bits, jusqu'à l'INT 3. Sa référence
+M0 est rejouée sur 860f2b1 (`/var/tmp/ixtal-g13/M0-860f2b1-g135`). M2-5a, les neuf scénarios : identiques à M0, hors
+les sept méthodes froides connues et les sept du mécanisme.
+
+**Les contrôles négatifs**, chacun dans une copie des sources, construite à part :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| l'AF d'ADC rendu nul | `materiel-cas PB-181`, mode matériel | rouge |
+| LOCK lu depuis pc, sans revenir sur l'opcode | `materiel-cas PB-182`, mode matériel | rouge : le témoin lève #UD |
+| la table 0F du mode non posée par `cpu_set` | `materiel-cas PB-184`, mode matériel | rouge, la sonde à 0 |
+| BT sans le repli de 16 bits | `materiel-cas PB-183`, mode matériel | rouge : le second cas |
+| AAA corrigé hors de sa garde (une fuite) | `materiel-cas PB-185`, mode PCem | rouge |
+| un marqueur de PB-262 resté `reproduced` | `recensement` | rouge |
+| la carte du 286 laissée à 1 Mo côté C# dans la sonde | `sst286`, mode PCem | rouge : 326 écarts |
+| AAA corrigé hors de sa garde (une fuite) | `sst386`, mode PCem | rouge : la forme `37` |
+
+**Les outils.** Les portes neuves (`series.sh`) : les dix-huit cas, et les quatre portes SST de 150 cas par forme ;
+toutes vertes avant la série, avec `recensement` (262 défauts, 961 marqueurs). `sst286-baseline.tsv` régénérée (la
+carte de 16 Mo), `sst386-baseline-materiel.tsv` et `sst286-baseline-materiel.tsv` neuves ; `sst386-baseline.tsv` ne
+change pas (le cœur 386 de l'oracle non plus, ABI 57 ou 56). La contre-lecture (Sonnet, en lecture seule) n'a trouvé ni
+fuite ni valeur fausse dans les cas ; elle a corrigé un texte : PCem ne tombe faux que sur 128 immédiats de 0F BA sur
+256, ceux dont le bit 4 est posé (`1 << count` se réduit modulo 32), et non 240 ; la sonde de PB-262 ne compte plus que
+ceux-là, celle de PB-183 plus la forme registre.
+
+**La série.** g5a1 tourne sur un worktree de `14dea4b` et des trente et un fichiers de l'étape (le code, les cas, les
+quatre portes SST et leurs attendus, les trois références des sondes), les corpus SST liés corpus par corpus, sous
+`MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 367 portes, toutes vertes, en 70 minutes. Contre g4c1, les 345
+portes communes rendent les mêmes verdicts ; deux résumés changent, comme attendu : `abi` (57 contre 56) et
+`recensement` (262 défauts, 961 marqueurs, contre 261 et 947 ; 44 défauts corrigés en mode matériel, contre 35). Les 22
+portes neuves sont celles de l'étape : les cas des neuf corrections dans les deux modes, et `sst386`, `sst286` dans les
+deux modes, chacune sur les 150 premiers cas de chaque forme. L'image `os/386-HDD-C.img` de l'arbre principal, hors de
+git, a changé le 9 octobre à 22 h 51, en dehors de cette étape : son empreinte ne correspondait plus à celle de
+`tools/gates/g5w.sha256`, et la préparation s'est arrêtée. La série a tourné avec l'image de référence (celle de g4c1,
+empreinte vérifiée), copiée dans le worktree seul ; l'arbre principal n'a pas été touché.

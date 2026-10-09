@@ -38,7 +38,8 @@
 //
 // G13.2 — LE 286 (`sst286-probe`) : le corpus SingleStepTests/80286 (Harris 80C286, mode réel,
 // MOO à registres 16 bits), joué sur le cœur 286 des deux côtés (h_set_core(Core286),
-// Reset286). Sa carte plate fait 1 Mo : un cas qui touche au-delà est « hors carte ».
+// Reset286), sur la carte de 16 Mo depuis G13.5 (h_set_carte286, _808x.Carte286.Ko) : le mode réel du 286 atteint
+// 10FFEFh, et 17 % du corpus tombait hors de la carte de 1 Mo des autres portes du 286.
 
 using System.Text.Json;
 using iXtal26.Cpu;
@@ -49,13 +50,12 @@ namespace iXtal26.Diff;
 
 internal static class Sst386Probe
 {
-    // La carte du cœur 386 fait 16 Mo depuis D2 : tout le corpus (bus 24 bits) y tient. Celle du
-    // cœur 286 fait 1 Mo (FlatMap286, h_flat_map hors h_flat16).
-    private const uint CarteMax386 = 0x1000000;
-    private const uint CarteMax286 = 0x100000;
+    // La carte du cœur 386 fait 16 Mo depuis D2 : tout le corpus (bus 24 bits) y tient. Celle du cœur 286 aussi, pour
+    // la sonde seule, depuis G13.5 (FlatMap286 sous Carte286.Ko, h_flat_map sous h_carte286).
+    private const uint CarteMax = 0x1000000;
 
     internal static int Run(string vectors, List<string> forms, int limit, bool csharp, string? baseline,
-                            bool cpu286 = false)
+                            bool cpu286 = false, string? attendu = null)
     {
         Oracle.CheckAbi();
         var sub = cpu286 ? "v1_real_mode" : "v1_ex_real_mode";
@@ -91,7 +91,26 @@ internal static class Sst386Probe
         Console.WriteLine($"Sonde SST {cpu} — cible {(csharp ? "C#" : "oracle")}, " +
                           $"{files.Count} forme(s), {revoked.Count} empreinte(s) révoquée(s)\n");
 
-        var carteMax = cpu286 ? CarteMax286 : CarteMax386;
+        var carteMax = CarteMax;
+        if (cpu286)
+        {
+            _808x.Carte286.Ko = 16384;
+            Oracle.h_set_carte286(1);
+        }
+        try
+        {
+            return Jouer(files, cpu286, csharp, limit, revoked, umasks, carteMax, baseline, attendu);
+        }
+        finally
+        {
+            _808x.Carte286.Ko = 1024;
+            Oracle.h_set_carte286(0);
+        }
+    }
+
+    private static int Jouer(List<string> files, bool cpu286, bool csharp, int limit, HashSet<string> revoked,
+                             Dictionary<string, ushort> umasks, uint carteMax, string? baseline, string? attendu)
+    {
         var rows = new List<(string form, int pass, int played, int horsCarte, string firstWhy)>();
         foreach (var path in files)
         {
@@ -165,6 +184,9 @@ internal static class Sst386Probe
                 w.WriteLine($"{r.form}\t{r.pass}\t{r.played}\t{r.horsCarte}");
             Console.WriteLine($"\nLigne de base écrite : {baseline}");
         }
+
+        if (attendu is not null)
+            return SstProbe.Comparer(attendu, rows.Select(r => $"{r.form}\t{r.pass}\t{r.played}\t{r.horsCarte}").ToList());
 
         var total = rows.Sum(r => r.played);
         var ok = rows.Sum(r => r.pass);

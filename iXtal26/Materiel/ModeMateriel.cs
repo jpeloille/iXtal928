@@ -55,6 +55,14 @@ internal static class ModeMateriel
         new(176, "processeur", "SAR par CL rend CF, la copie du signe, au-delà de 8 (16)"),
         new(177, "processeur", "rep() : 6Eh est JLE, REP DS: répète, un préfixe placé avant REP vaut"),
         new(179, "processeur", "un mot à l'offset FFFFh replie à l'offset 0 du segment"),
+        new(181, "processeur", "l'AF d'ADC du cœur 286/386/486 compte la retenue entrante"),
+        new(182, "processeur", "LOCK lève #UD hors de sa liste et devant une forme registre (386, 486)"),
+        new(183, "processeur", "BT, BTS, BTR et BTC déplacent l'adresse d'un décalage signé"),
+        new(184, "processeur", "MOVSX r16,r/m16 s'exécute (386, 486)"),
+        new(185, "processeur", "AAA et AAS du cœur 286/386/486 ajustent AX entier"),
+        new(186, "processeur", "AAD et AAM du cœur 286/386/486 posent SF, ZF et PF d'après AL"),
+        new(187, "processeur", "AAM 0 du cœur 286/386/486 lève #DE"),
+        new(188, "processeur", "le DAS du cœur 286/386/486 teste l'AL et le CF d'origine"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
         new(248, "carte-mere", "l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial"),
@@ -68,6 +76,7 @@ internal static class ModeMateriel
         new(257, "carte-mere", "un transfert de DMA refusé ne coûte pas de cycle"),
         new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
         new(261, "carte-mere", "la souris PS/2 remet ses compteurs de mouvement à zéro après EBh"),
+        new(262, "processeur", "le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

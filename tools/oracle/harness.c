@@ -69,8 +69,13 @@ void h_set_core(int core) {
  * execx86 sans rien dire. Seul le CHOIX DE LA MACHINE distingue encore les deux. */
 static int h_exec386(void) { return h_core == H_CORE_286 || h_core == H_CORE_386 || h_core == H_CORE_486; }
 
-/* G6.0 — la carte plate de 16 Mo est celle du 386 ET du 486 : même exec386, même espace. */
-static int h_flat16(void) { return h_core == H_CORE_386 || h_core == H_CORE_486; }
+/* G6.0 — la carte plate de 16 Mo est celle du 386 ET du 486 : même exec386, même espace. G13.5 — et celle du 286
+ * quand la sonde SST la demande (h_set_carte286) : son bus a 24 bits, et le mode réel atteint 10FFEFh. Les autres
+ * portes du 286 gardent la carte de 1 Mo, et son coût. */
+static int h_carte286;
+static int h_flat16(void) { return h_core == H_CORE_386 || h_core == H_CORE_486 || (h_core == H_CORE_286 && h_carte286); }
+
+void h_set_carte286(int seize) { h_carte286 = seize != 0; }
 
 
 

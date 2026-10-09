@@ -313,6 +313,9 @@ internal static partial class cpu_c
         // is386, qui donne au 386 et au 486 leur table. Sur un 8088 elle est posée sans
         // être lue — execx86 n'aiguille pas par elle.
         _386.x86_setopcodes(_386.ops_386, _386.ops_386_0f);
+        // pcem bug, fixed in hardware mode: PB-184 — la table 0F du mode, où MOVSX r16,r/m16 s'exécute.
+        if (materiel.pb_184)
+                _386.x86_setopcodes(_386.ops_386, _386_materiel.table_0f_materiel());
         // omitted: x86_opcodes_REPE / _REPNE / _3DNOW (cpu.c:232-237) — les deux REP sont
         //   câblées une fois pour toutes (386_ops_rep.cs:915), 3DNOW est de l'ère K6.
         // omitted: les seize tables dynarec (cpu.c:239-273) et codegen_timing_set (:274)

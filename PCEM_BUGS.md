@@ -3106,8 +3106,14 @@ BCD valides ne l'exercent pas, à la différence de PB-01.
 *Cas qui discrimine* : SST 386 `10`–`15`, `6611`, `6613`, `6615`, `80.2`–`83.2`, `6681.2`, `6683.2`.
 Banc : CF = 1, AL = 00h, `ADC AL,0Fh` → AF = 0 (PCem), 1 (386).
 *G13* : (a) — documenté et mesuré ; vaut pour le 286, le 386 et le 486.
-*Reproduit* : `Cpu/x86_flags.cs:236`, AF_SET, marqueur `PB-181` ; l'en-tête du fichier le dit
-(corrigé en G13.1 : il attribuait au cœur 386 la mesure du 8088).
+*Reproduit* en mode PCem : `Cpu/x86_flags.cs`, AF_SET, marqueur `fixed in hardware mode: PB-181` ; l'en-tête du
+fichier le dit (corrigé en G13.1 : il attribuait au cœur 386 la mesure du 8088).
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_181)`, dans les trois branches ADC, AF est le bit 4 de
+op1 ^ op2 ^ résultat (`af_adc_materiel`, `Cpu/386.Materiel.cs`). Le 286 le partage, mesuré. `materiel-cas PB-181`
+rend le cas ci-dessus, et rougit la correction coupée. SST en mode matériel : au 386, `10`, `12`, `14`, `15`, `6615`,
+`80.2`, `82.2` entières (2 500 cas chacune), `11`, `13`, `81.2`, `83.2`, `6611`, `6613`, `6681.2`, `6683.2` de 2 487 à
+2 493 sur 2 500, le reste étant des mots à cheval sur FFFFh (PB-189) ; au 286, `10`, `12`, `14`, `15`, `80.2`, `82.2` entières (5 000 cas chacune, contre 4 849 à 4 875), `11`, `13`,
+`81.2`, `83.2` de 4 948 à 4 966 sur 5 000, le reste étant des mots à cheval sur FFFFh.
 
 ### PB-182 — LOCK du cœur 286/386/486 ne lève #UD que devant NOP
 
@@ -3128,7 +3134,13 @@ memory ») ; 486 : déduit (SDM) ; 286 : inconnu, le corpus SST 80286 tranchera.
 AX,AX, forme registre) → exécuté (PCem) ; INT 6, IP sur le préfixe (386).
 *G13* : (a) pour le 386 et le 486, gardé par UC : `opLOCK` sert aussi au 286 (`386_ops.h:10968-10969`),
 dont le comportement est inconnu (D1-contre A5).
-*Reproduit* : `Cpu/386_ops_prefix.cs:195`, opLOCK, marqueur `PB-182`.
+*Reproduit* en mode PCem : `Cpu/386_ops_prefix.cs`, opLOCK, marqueur `fixed in hardware mode: PB-182`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_182)`, sur le 386 et le 486, LOCK lit les préfixes qui le
+suivent jusqu'à l'opcode et lève #UD hors de la liste ou devant une forme registre (`lock_materiel`,
+`Cpu/386.Materiel.cs`). Le 286, lui, exécute LOCK devant tout, forme registre, CMP et MOV compris : SST 286, une
+quarantaine de cas par forme, aucun #UD (G13.5) ; il garde le comportement de PCem. `materiel-cas PB-182` rend le cas
+ci-dessus et un témoin (LOCK ADD [BX],AX, exécuté dans les deux modes), et rougit la correction coupée. SST 386 en
+mode matériel : les cas LOCK de toutes les formes (`10` entière, 2 500 cas, contre 2 408).
 
 ### PB-183 — BT, BTS, BTR et BTC déplacent l'adresse d'un décalage non signé
 
@@ -3150,8 +3162,17 @@ partie des écarts de CF mesurés sur BT* (≈ 1 150 à 1 350 cas par forme) : l
 en DS:20FEh (PCem) ; en DS:00FEh (386). SST 386 `0FA3`, `0FAB`, `0FB3`, `0FBB` : seulement après K7 et K8.
 *G13* : (a) — documenté et vérifiable par un banc ; la mesure SST ne départagera qu'une fois le reste
 des écarts de CF instruit.
-*Reproduit* : `Cpu/386_ops_bit.cs:30`, `:44` (OpBTx : BTS, BTR, BTC), `:303`, `:327`, `:351`, `:375`
-(BT), marqueurs `PB-183`.
+**Élargi en G13.5** : sous une adresse de 16 bits, l'adresse du mot, déplacement compris, replie dans les 64 Ko du
+segment, comme toute adresse effective de 16 bits ; PCem la laisse déborder au-delà de FFFFh (mesuré : SST 386,
+`bt [ss:bp+di-77h],ax`, AX = 92F2h, l'adresse 0B1Bh − DA2h lue en FD79h par le 386EX, en FFFFFD79h par PCem). Avec
+ce repli, les « autres écarts de CF » de K7 disparaissent : il n'en reste aucun.
+*Reproduit* en mode PCem : `Cpu/386_ops_bit.cs`, OpBTx (BTS, BTR, BTC) et les quatre BT, marqueurs `fixed in hardware
+mode: PB-183`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_183)`, après le déplacement de PCem, la différence avec le
+décalage signé (2000h de moins en 16 bits, 20000000h en 32 bits), puis le repli sous une adresse de 16 bits
+(`bt_decalage_materiel`, `Cpu/386.Materiel.cs`). `materiel-cas PB-183` rend le cas ci-dessus et celui du repli (BX =
+0, AX = FFFFh : DS:FFFEh), et rougit la correction coupée. SST 386 en mode matériel : `0FA3`, `0FAB`, `0FB3`, `0FBB`,
+`660FA3`, `660FAB`, `660FB3`, `660FBB` entières (2 500 cas chacune, contre 1 056 à 1 952).
 
 ### PB-184 — MOVSX r16,r/m16 est un opcode illégal
 
@@ -3167,8 +3188,13 @@ forme r32 : de ce côté, inconnu.
 AX,BX) → INT 6 (PCem) ; AX = 8001h (386EX ; déduit : un mot étendu vers 16 bits est une copie).
 *G13* : (a) — mesuré ; demande un handler neuf dans une table générée (`386_ops_table386.cs`,
 `tools/ops386-table.py`), donc une table du mode posée par `cpu_set` (D1-contre A10).
-*Reproduit* : par la table générée, `Cpu/386_ops_table386.cs:717` et `:1069` (ILLEGAL, sans marqueur :
-fichier généré) ; marqueur `PB-184` dans `Cpu/386_ops_movx.cs:287` (PoserGroupe_movx_0f_386).
+*Reproduit* en mode PCem : par la table générée, `Cpu/386_ops_table386.cs:717` et `:1069` (ILLEGAL, sans marqueur :
+fichier généré) ; marqueur `fixed in hardware mode: PB-184` dans `Cpu/386_ops_movx.cs` (PoserGroupe_movx_0f_386).
+*Corrigé en mode matériel* (G13.5) : `cpu_set` pose, sous `if (materiel.pb_184)`, la table 0F du mode, copie de celle
+de PCem où 0BFh et 2BFh copient le mot comme MOVZX r16,r/m16 (`table_0f_materiel`, `Cpu/386.Materiel.cs`) ; la table de
+PCem reste intacte. `materiel-cas PB-184` rend le cas ci-dessus, et rougit la correction coupée. SST 386 en mode
+matériel : `0FBF` 2 487 sur 2 500 (contre 68), `670FBF` 2 082 (contre 57), le reste étant des mots à cheval sur FFFFh
+ou au-delà (PB-189).
 
 ### PB-185 — AAA et AAS du cœur 286/386/486 ajustent à la façon du 8086
 
@@ -3185,7 +3211,11 @@ ce que fait PCem. La mesure (386EX) suit le SDM : `37` à 91,6 %, `3F` à 93,2 %
 (PCem) ; 0200h (SDM, 386EX). AX = 0102h, AF = 1, `AAS` → AX = 000Ch (PCem) ; FF0Ch (SDM).
 *G13* : (a) pour le 386 et le 486, sur la mesure du 386EX, qui tranche entre les manuels ; gardé par
 UC : le 286 partage ces handlers, son comportement est inconnu (D1-contre A5).
-*Reproduit* : `Cpu/386_ops_bcd.cs:44` (AAA) et `:99` (AAS), marqueurs `PB-185`.
+*Reproduit* en mode PCem : `Cpu/386_ops_bcd.cs`, AAA et AAS, marqueurs `fixed in hardware mode: PB-185`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_185)`, après l'ajustement de PCem, la retenue d'AL + 6 (ou
+l'emprunt d'AL − 6) passe dans AH (`aaa_materiel`, `aas_materiel`, `Cpu/386.Materiel.cs`). Le 286 suit le SDM lui
+aussi, mesuré. `materiel-cas PB-185` rend les cas ci-dessus, et rougit la correction coupée. SST en mode matériel :
+`37` et `3F` entières au 386 (2 500 cas chacune, contre 2 290 et 2 331) ; au 286, `37` et `3F` entières aussi (5 000 cas chacune, contre 4 641 et 4 817).
 
 ### PB-186 — AAD et AAM du cœur 286/386/486 posent SF et ZF d'après AX
 
@@ -3200,7 +3230,11 @@ comparés.
 *Cas qui discrimine* : SST 386 `D5` (50,2 %), `D4` (84,8 %, famille F1). Bancs de PB-175 :
 AL = 14h, `AAM 0Ah` → ZF = 0 (PCem), 1 (386) ; AH = 01h, AL = 78h, `AAD 0Ah` → SF = 0 (PCem), 1 (386).
 *G13* : (a) — documenté et mesuré ; même défaut que le 8088 (PB-175).
-*Reproduit* : `Cpu/386_ops_bcd.cs:68` (AAD) et `:87` (AAM), marqueurs `PB-186`.
+*Reproduit* en mode PCem : `Cpu/386_ops_bcd.cs`, AAD et AAM, marqueurs `fixed in hardware mode: PB-186`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_186)`, après le `setznp16(AX)` de PCem, SF, ZF et PF
+d'après AL (`aad_aam_materiel`, `Cpu/386.Materiel.cs`). Le 286 le partage, mesuré. `materiel-cas PB-186` rend les cas
+ci-dessus, et rougit la correction coupée. SST en mode matériel : `D5` entière au 386 (2 500 cas, contre 1 256) ;
+`D4` 2 490 sur 2 500, les dix restants étant AAM 0 (PB-187) ; au 286, `D5` entière (5 000 cas, contre 2 647), `D4` 4 991, les neuf restants étant AAM 0.
 
 ### PB-187 — AAM 0 du cœur 286/386/486 prend la base 10 au lieu de lever #DE
 
@@ -3221,7 +3255,13 @@ rien d'empilé (PCem) ; #DE, l'adresse de l'AAM empilée (386 : la faute pointe 
 § 14.7, point 2).
 *G13* : (a) — documenté, vérifiable par SST ; même famille « erreur de division » que PB-46 et
 PB-169.
-*Reproduit* : `Cpu/386_ops_bcd.cs:81`, opAAM, marqueur `PB-187`.
+*Reproduit* en mode PCem : `Cpu/386_ops_bcd.cs`, opAAM, marqueur `fixed in hardware mode: PB-187`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_187)`, une base nulle lève #DE par `x86_int(0)`, pc remis
+sur l'AAM (`aam0_materiel`, `Cpu/386.Materiel.cs`). Le 286 le lève aussi, mesuré. `materiel-cas PB-187` rend le cas
+ci-dessus, l'IP empilé compris, et rougit la correction coupée. SST : les cas AAM 0 lèvent #DE au 386 comme au 286,
+EAX intact ; mais ils échouent encore, sur les drapeaux. Le silicium laisse SF et ZF à 0 et PF à une valeur que rien
+ne documente (au 286, la parité d'AL sur les quatre cas lus ; au 386, aucune règle trouvée sur douze) : inconnu,
+non imité (décision n° 14). Dix cas au 386, neuf au 286.
 
 ### PB-188 — Le DAS du cœur 286/386/486 s'écarte du SDM
 
@@ -3242,7 +3282,11 @@ passe à 100 %.
 *Cas qui discrimine* : SST 386 `2F`. Banc : AL = 01h, AF = 1, CF = 0, `DAS` → AL = 9Bh (PCem) ; FBh
 (SDM, 386EX).
 *G13* : (a) — documenté et mesuré.
-*Reproduit* : `Cpu/386_ops_bcd.cs:160`, opDAS, marqueur `PB-188`.
+*Reproduit* en mode PCem : `Cpu/386_ops_bcd.cs`, opDAS, marqueur `fixed in hardware mode: PB-188`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_188)`, DAS selon le SDM, l'emprunt du premier pas posant
+CF (`das_materiel`, `Cpu/386.Materiel.cs`) — à la différence du 8088 (PB-171), où seul le second pas le décide. Le 286
+suit le SDM lui aussi, mesuré. `materiel-cas PB-188` rend le cas ci-dessus, et rougit la correction coupée. SST en
+mode matériel : `2F` entière au 386 (2 500 cas, contre 2 390) ; au 286, `2F` entière aussi (5 000 cas, contre 4 834).
 
 ### PB-189 — En mode réel, la limite des données n'est contrôlée que par les MOV
 
@@ -4681,6 +4725,28 @@ fois ; la souris, la seconde fois, FAh 00h 00h 00h.
 (`mouse_ps2_lu_materiel`, `Mouse/mouse_ps2.Materiel.cs`). `materiel-cas PB-261` rend le cas ci-dessus, et rougit la
 correction coupée.
 
+### PB-262 — Le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits n'est pas réduit modulo 16
+
+`x86_ops_bit.h:205` (`opBA_w_a16`) et `:255` (`opBA_w_a32`) : `count = getbyte();`, puis `temp & (1 << count)`,
+`temp |= (1 << count)` et ses voisins, sur un mot. Le compte n'est pas réduit modulo 16. (En C, un décalage de 32 ou
+plus est indéfini ; GCC sur x86 le réduit modulo 32, et le C# aussi : 20h vise donc le bit 0, juste.) Le bit visé sort
+du mot quand `count & 31` vaut 16 ou plus. Les formes 32 bits (`opBA_l_*`) tombent juste, la réduction modulo 32 étant
+la leur.
+
+*Effet* : `BT r/m16,imm8` avec un immédiat dont le bit 4 est posé (10h à 1Fh, 30h à 3Fh…) rend CF nul quel que soit le
+bit ; BTS, BTR et BTC n'écrivent rien. 128 immédiats sur 256, d'où la moitié des cas de `0FBA.5` et `0FBA.7`.
+*Trouvé par* : SST 386 en mode matériel (G13.5), forme `0FBA.7` restée à 51 % après PB-183.
+*Source* : documenté — « If the bit base operand specifies a register, the instruction takes the modulo 16, 32, or 64
+of the bit offset operand ... The immediate bit offset ... modulo 16 or 32 » (SDM vol. 2, page BT) ; mesuré, SST 386
+(386EX), `0FBA.4` à `0FBA.7` (1 262 à 1 900 sur 2 500 chez PCem).
+*Cas qui discrimine* : DX = 6D16h, `BTC DX,53h` → DX = 6D16h (PCem) ; 6D1Eh, le bit 3 basculé (386).
+*G13* : (a) — documenté et mesuré.
+*Reproduit* en mode PCem : `Cpu/386_ops_bit.cs`, `opBA_w_a16` et `opBA_w_a32`, marqueurs `fixed in hardware mode: PB-262`.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_262)`, le compte réduit modulo 16 (`bt_immediat_materiel`,
+`Cpu/386.Materiel.cs`). `materiel-cas PB-262` rend le cas ci-dessus, et rougit la correction coupée. SST en mode
+matériel : `0FBA.4` à `0FBA.7` 2 487 sur 2 500 chacune (contre 1 262 à 1 900), le reste étant des mots à cheval
+sur FFFFh (PB-189) ; les formes 32 bits (`660FBA.*`) ne bougent que par LOCK (PB-182).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -5819,6 +5885,7 @@ audit systématique de PCem** :
 | SST en mode matériel (G13.3) | PB-258 |
 | Le 8237 en mode matériel (G13.4) : les parts laissées reproduites de PB-157 et de PB-253, inscrites à part | PB-259, PB-260 |
 | Contre-lecture du 8042 et de la souris PS/2 en mode matériel (G13.4c) | PB-261 ; PB-94 élargi (les valeurs par défaut au reset) |
+| SST en mode matériel, le cœur 286/386/486 (G13.5) | PB-262 ; PB-183 élargi (l'adresse de 16 bits replie) |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

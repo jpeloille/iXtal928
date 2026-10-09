@@ -743,7 +743,7 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 56
+#define H_ABI_VERSION 57
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
@@ -766,6 +766,8 @@ int h_emu8k_tables(const char *romspath, int64_t *freq, int32_t *atten, int32_t 
 void h_emu8k_kernel(int kind, uint64_t seed, uint64_t *o);
 void h_aha_probe(uint64_t *o);
 void h_cd_sound_probe(uint64_t *out);
+/* 57 (G13.5) : h_set_carte286, la carte de 16 Mo du cœur 286 pour la sonde SST. */
+void h_set_carte286(int seize);
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

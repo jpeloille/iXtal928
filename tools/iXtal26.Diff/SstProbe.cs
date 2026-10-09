@@ -237,7 +237,7 @@ public static class SstProbe
     }
 
     /// <summary>G13.2 — la porte : les lignes rendues contre celles du fichier attendu, forme par forme.</summary>
-    private static int Comparer(string attenduPath, List<string> rendu)
+    internal static int Comparer(string attenduPath, List<string> rendu)
     {
         if (!File.Exists(attenduPath))
         {

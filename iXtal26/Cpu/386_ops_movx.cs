@@ -284,8 +284,9 @@ internal static partial class _386
     // pcem: 386_ops.h — les emplacements de ces handlers dans OP_TABLE(386) et (386_0f).
     private static void PoserGroupe_movx_0f_386()
     {
-        // pcem bug, reproduced: PB-184 — ni 0x0BF ni 0x2BF : MOVSX r16,r/m16 reste ILLEGAL (386_ops.h:1432,
-        //   :1958 ; posé par le fichier généré 386_ops_table386.cs), là où le 386EX l'exécute (SST, forme 0FBF).
+        // pcem bug, fixed in hardware mode: PB-184 — ni 0x0BF ni 0x2BF : MOVSX r16,r/m16 reste ILLEGAL
+        //   (386_ops.h:1432, :1958 ; posé par le fichier généré 386_ops_table386.cs), là où le 386EX l'exécute (SST,
+        //   forme 0FBF). Le mode matériel pose sa propre table 0F, dans cpu_set (386.Materiel.cs).
         ops_386_0f[0x0B6] = opMOVZX_w_b_a16;
         ops_386_0f[0x0B7] = opMOVZX_w_w_a16;
         ops_386_0f[0x0BE] = opMOVSX_w_b_a16;

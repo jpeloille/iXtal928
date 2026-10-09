@@ -30,6 +30,7 @@ using System.Runtime.CompilerServices;
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
+using static iXtal26.Cpu._386_materiel;
 
 namespace iXtal26.Cpu;
 
@@ -192,10 +193,13 @@ internal static partial class _386
                 return 0;
         cpu_state.pc++;
 
-        // pcem bug, reproduced: PB-182 — seul LOCK NOP est refusé : le 386 lève #UD devant toute
+        // pcem bug, fixed in hardware mode: PB-182 — seul LOCK NOP est refusé : le 386 lève #UD devant toute
         //   instruction hors de sa liste, et devant une forme registre (386 PRM § 14.7, point 9). La table
         //   du 286 partage ce handler, dont le vrai comportement y est inconnu.
         if (ILLEGAL_ON((fetchdat & 0xff) == 0x90)) return 0;
+        if (materiel.pb_182)
+                if (lock_materiel())
+                        return 0;
 
         CLOCK_CYCLES(4);
         PREFETCH_PREFIX();

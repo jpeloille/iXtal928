@@ -233,15 +233,21 @@ internal static class x86_flags
         case FLAGS_INC8: case FLAGS_INC16: case FLAGS_INC32:
                 return (int)(((cpu_state.flags_op1 & 0xF) + (cpu_state.flags_op2 & 0xF)) & 0x10);
 
-        // pcem bug, reproduced: PB-181 — `flags_op2 == 0xff` (0xffff, 0xffffffff) au lieu du seul
+        // pcem bug, fixed in hardware mode: PB-181 — `flags_op2 == 0xff` (0xffff, 0xffffffff) au lieu du seul
         //   quartet bas : avec une retenue entrante et un quartet bas de op2 à Fh, AF manque (x86_flags.h:299-307).
         case FLAGS_ADC8:
+                if (materiel.pb_181)
+                        return _386_materiel.af_adc_materiel();
                 return (cpu_state.flags_res & 0xf) < (cpu_state.flags_op1 & 0xf) ||
                        ((cpu_state.flags_res & 0xf) == (cpu_state.flags_op1 & 0xf) && cpu_state.flags_op2 == 0xff) ? 1 : 0;
         case FLAGS_ADC16:
+                if (materiel.pb_181)
+                        return _386_materiel.af_adc_materiel();
                 return (cpu_state.flags_res & 0xf) < (cpu_state.flags_op1 & 0xf) ||
                        ((cpu_state.flags_res & 0xf) == (cpu_state.flags_op1 & 0xf) && cpu_state.flags_op2 == 0xffff) ? 1 : 0;
         case FLAGS_ADC32:
+                if (materiel.pb_181)
+                        return _386_materiel.af_adc_materiel();
                 return (cpu_state.flags_res & 0xf) < (cpu_state.flags_op1 & 0xf) ||
                        ((cpu_state.flags_res & 0xf) == (cpu_state.flags_op1 & 0xf) && cpu_state.flags_op2 == 0xffffffff) ? 1 : 0;
 
