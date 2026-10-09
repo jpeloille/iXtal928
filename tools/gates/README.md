@@ -131,5 +131,7 @@ la remise à zéro ne touche pas (l'adresse effective, la file de préfetch) ne 
 `materiel-cas-pb03` joue `--timer-check` sur le 5150 : il lit `roms/`.
 
 Depuis la suite de G13.3, `sst-probe` joue tous les cas préfixés par REP, et un REP devant une chaîne jusqu'à sa
-dernière répétition : SST attend la chaîne entière. `sst-rep-temps`, hors des portes, mesure le surcoût d'un REP devant
-autre chose qu'une chaîne, la trace du silicium contre les cycles du cœur C#.
+dernière répétition : SST attend la chaîne entière. `sst-rep-temps` mesure le surcoût d'un REP devant autre chose
+qu'une chaîne, la trace du silicium contre les cycles du cœur C#. Sa porte, `sst-rep-temps-materiel` (`--controle`),
+le veut dans deux erreurs types du silicium en mode matériel, dans les cas que SST fait partir d'une file vide, comme
+la sonde : devant IDIV, le seul cas du corpus, au 8088 (le corpus du 8086 part toujours d'une file pleine).

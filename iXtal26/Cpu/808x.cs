@@ -779,18 +779,23 @@ internal static partial class _808x
         uint16_t ipc = (uint16_t)cpu_state.oldpc;
         int changeds = 0;
         uint32_t oldds = ds;
-        // pcem bug, fixed in hardware mode: PB-177 — l'adresse qui suit le REP, où reprendre (voir default).
+        // pcem bug, fixed in hardware mode: PB-177 — un REP devant autre chose qu'une chaîne n'est qu'un préfixe (voir
+        //   default) : il ne lit pas l'octet qui le suit, et l'instruction reprend juste après lui.
         if (materiel.pb_177)
-                rep_debut_materiel();
+                if (rep_prefixe_materiel())
+                {
+                        if (IRQTEST)
+                                takeint = 1;
+                        return;
+                }
 startrep:
         temp = FETCH();
 
         switch (temp)
         {
-        // pcem bug, fixed in hardware mode: PB-177 — REP devant OR relance aussi à `ipc + 1` (voir default).
+        // pcem bug, fixed in hardware mode: PB-177 — REP devant OR relance aussi à `ipc + 1` (voir default) ; le mode
+        //   matériel n'arrive pas ici (rep_prefixe_materiel).
         case 0x08:
-                if (materiel.pb_177)
-                        goto default;
                 cpu_state.pc = (uint32_t)(ipc + 1);
                 cycles -= 2;
                 FETCHCLEAR();
@@ -817,10 +822,9 @@ startrep:
                 goto startrep;
                 break;
         // pcem bug, fixed in hardware mode: PB-177 — 6Eh n'est pas OUTSB sur le 8088 et le 8086 (OUTS naît avec
-        //   le 186) mais l'alias de JLE (808x.c:2010) : le REP devrait être ignoré et le saut exécuté.
+        //   le 186) mais l'alias de JLE (808x.c:2010) : le REP devrait être ignoré et le saut exécuté. Le mode
+        //   matériel n'arrive pas ici (rep_prefixe_materiel).
         case 0x6E: /*REP OUTSB*/
-                if (materiel.pb_177)
-                        goto default;
                 if (c > 0)
                 {
                         temp2 = readmemb(ds + SI);
@@ -1091,7 +1095,8 @@ startrep:
                 break;
         // pcem bug, fixed in hardware mode: PB-177 — pas de `case 0x3E` : REP DS: MOVSB tombe ici, et la chaîne
         //   ne s'exécute qu'une fois. Et `ipc + 1` saute un préfixe de segment placé AVANT le REP (ipc est
-        //   oldpc, le début de toute l'instruction) : l'instruction qui suit le perd.
+        //   oldpc, le début de toute l'instruction) : l'instruction qui suit le perd. Et le REP coûte 20 cycles, file
+        //   vidée. Le mode matériel n'arrive ici qu'avec 3Eh (rep_prefixe_materiel).
         default:
                 if (materiel.pb_177)
                         if (temp == 0x3E)
@@ -1102,10 +1107,7 @@ startrep:
                                 cycles -= 2;
                                 goto startrep;
                         }
-                if (materiel.pb_177)
-                        rep_defaut_materiel();
-                else
-                        cpu_state.pc = (uint32_t)(ipc + 1);
+                cpu_state.pc = (uint32_t)(ipc + 1);
                 cycles -= 20;
                 FETCHCLEAR();
                 // CS8070: en C, `default:` sort du switch par sa fin ; C# l'interdit.

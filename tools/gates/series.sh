@@ -475,3 +475,6 @@ run materiel-cas-pb177-idiv --hardware-mode PB-177,PB-45 materiel-cas PB-177
 # avec l'oracle tombe dans l'instruction qu'une correction vise.
 run fuite-g133 --hardware-mode PB-02,PB-45,PB-87,PB-170,PB-171,PB-172,PB-173,PB-174,PB-175,PB-176,PB-177 fuzz \
   --mode single --iter 100000 $ALL --fuite
+# G13.3, suite — le temps d'un REP devant autre chose qu'une chaîne (PB-177), le cœur contre la trace du silicium : le
+# surcoût du REP devant IDIV, dans les cas que SST fait partir d'une file vide comme la sonde, dans deux erreurs types.
+run sst-rep-temps-materiel --hardware-mode processeur sst-rep-temps --op F6.7 --op F7.7 --controle

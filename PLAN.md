@@ -115,8 +115,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   et les fichiers de l'utilisateur, dans les deux modes. G13.1 fait : le registre, 257 défauts, chaque marqueur
   numéroté, la porte `recensement`. G13.2 fait : le mode matériel, son mécanisme et son pilote PB-01, contre
   le silicium (SingleStepTests du 8088 et du 8086). G13.3 fait : le 8088 et le 8086, dix-sept corrections (PB-258
-  inscrit), les deux corpus SST entiers en mode matériel (suite du 09/10 : les REP joués jusqu'au bout). Prochaine
-  étape : G13.4, la carte mère.
+  inscrit), les deux corpus SST entiers en mode matériel (suite du 09/10 : les REP joués jusqu'au bout ; le temps
+  d'un REP devant autre chose qu'une chaîne corrigé, contre le silicium). Prochaine étape : G13.4, la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

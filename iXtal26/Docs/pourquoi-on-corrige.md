@@ -213,6 +213,27 @@ SingleStepTests, enregistré sur un AMD D8088 et un Intel 8086.
 - **La correction.** On reprend juste après le REP, dans la même instruction, préfixes compris. Et l'IDIV qu'un REP
   précède rend l'opposé de son quotient, comme le 8088 et le 8086 le font (mesuré sur le corpus) : un effet de leur
   microcode, que PCem ignore.
-- **Ce qui reste.** Le temps. PCem facture le REP 20 cycles et vide la file ; devant IDIV, le seul cas que le corpus
-  mesure, le 8088 le paie 3 à 4 cycles. Le mode matériel garde le prix de PCem : 24 cycles de trop, une décision à
-  prendre.
+- **Le temps.** PCem facture le REP 20 cycles et vide la file : le mode matériel l'a gardé un jour, puis l'a corrigé
+  (§ G13.3, suite, ci-dessous).
+
+## G13.3, suite — le temps d'un REP devant autre chose qu'une chaîne (mode matériel)
+
+*Le 9 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.3, `VERIFICATION.md` § G13.3, le temps du REP.*
+
+### PB-177 — le prix du REP
+
+- **Le vrai PC.** Un REP devant une instruction qui n'est pas une chaîne n'est qu'un préfixe : le processeur le lit
+  et passe à l'octet suivant, la file de préfetch intacte. Mesuré sur le corpus, où ce cas n'existe que devant IDIV :
+  quand le 8088 part d'une file vide, le REP lui coûte 7,6 cycles en moyenne, le temps d'aller chercher son octet et
+  de le décoder ; quand la file le tient déjà, presque rien.
+- **L'émulateur.** PCem lit l'octet qui suit le REP, voit que ce n'est pas une chaîne, revient en arrière, facture
+  20 cycles et vide la file : l'instruction qui suit se relit octet par octet sur le bus. En tout, le REP coûtait
+  27,8 cycles dans les mêmes cas, 20 de trop.
+- **La correction.** Le REP regarde le premier octet qui suit ses préfixes de segment sans le lire. Devant une chaîne,
+  rien ne change. Devant autre chose, il ne coûte que le prix d'un préfixe, 4 cycles comme les préfixes de segment
+  du cœur, et la file reste pleine. Il coûte maintenant 7,8 cycles, contre 7,6 sur le silicium.
+- **Ce qui reste.** Quand la file du silicium tient déjà l'octet du REP, le cœur paie encore 8 cycles de plus : la
+  sonde part toujours d'une file vide, ce que le corpus ne fait qu'une fois sur deux au 8088, jamais au 8086. Cet
+  écart vient de la mesure, pas du REP. Les instructions autres qu'IDIV ne sont pas mesurées : le corpus n'en a pas
+  sous REP. Elles prennent le même prix de préfixe.
+

@@ -344,32 +344,41 @@ internal static partial class _808x
     //   l'instruction qui le suit s'exécute DANS LA MÊME instruction, avec les préfixes de segment placés avant le REP
     //   (un préfixe vaut pour l'instruction qui le suit, dans n'importe quel ordre) ; 6Eh est l'alias de JLE, OUTS
     //   n'existe pas avant le 186 (386 PRM § 14.7, point 3) ; REP DS: répète la chaîne. PCem relance à `ipc + 1`, le
-    //   début de toute l'instruction plus un, en fin d'instruction : un préfixe placé avant le REP y est perdu. Ici, on
-    //   reprend juste après le REP, et execx86 repart à opcodestart sans finir l'instruction. Le temps reste celui de
-    //   PCem (20 cycles). IDIV ainsi relancé rend l'opposé de son quotient, le reste inchangé (README SST 8088 ; mesuré
-    //   sur les cas à registre des formes F6.7 et F7.7, au 8088 et au 8086 : tous) ; la capacité, symétrique, ne change
-    //   pas. Sans état : rep_idiv_materiel relit les préfixes de l'instruction, depuis son début (oldpc), en mode
-    //   matériel avec PB-177 seulement — sans lui, IDIV n'est pas dans la même instruction que son REP.
-    private static uint32_t repSuite;
+    //   début de toute l'instruction plus un, en fin d'instruction : un préfixe placé avant le REP y est perdu. Ici, le
+    //   REP regarde, sans le lire, le premier octet qui suit ses préfixes de segment (la file, puis la mémoire) : devant
+    //   une chaîne, rep() suit son cours ; devant autre chose, le REP n'est qu'un préfixe, et execx86 repart à
+    //   opcodestart sans finir l'instruction, la file intacte. Son prix, REP_PRIX_MATERIEL, est celui d'un préfixe de
+    //   segment du cœur (`case 0x26` d'execx86), et non les 20 cycles et la file vidée de PCem : le silicium paie le
+    //   REP 7,6 cycles devant IDIV, file de départ vide, le cœur 7,8 (sst-rep-temps, VERIFICATION.md § G13.3, le temps
+    //   du REP). Au-delà de quinze préfixes de segment, la borne de rep_idiv_materiel, rep() suit son cours. IDIV ainsi
+    //   relancé rend l'opposé de son quotient, le reste inchangé (README SST 8088 ; mesuré sur les cas à registre des
+    //   formes F6.7 et F7.7, au 8088 et au 8086 : tous) ; la capacité, symétrique, ne change pas. Sans état :
+    //   rep_idiv_materiel relit les préfixes de l'instruction, depuis son début (oldpc), en mode matériel avec PB-177
+    //   seulement — sans lui, IDIV n'est pas dans la même instruction que son REP.
+    private const int REP_PRIX_MATERIEL = 4;
     private static bool repRelance;
 
-    private static void rep_debut_materiel()
+    private static bool rep_prefixe_materiel()
     {
-        repSuite = cpu_state.pc;
-        repRelance = false;
+        for (uint32_t k = 0; k < 16; k++)
+        {
+                var b = k < prefetchw ? prefetchqueue[k] : readmembf(cs + ((cpu_state.pc + k) & 0xFFFF));
+                if (b is 0x26 or 0x2E or 0x36 or 0x3E)
+                        continue;
+                if (b is (>= 0xA4 and <= 0xA7) or (>= 0xAA and <= 0xAF))
+                        return false;
+                ModeMateriel.Sonde[177]++;
+                cycles -= REP_PRIX_MATERIEL;
+                repRelance = true;
+                return true;
+        }
+        return false;
     }
 
     private static uint32_t rep_ds_materiel()
     {
         ModeMateriel.Sonde[177]++;
         return (uint32_t)DS << 4;
-    }
-
-    private static void rep_defaut_materiel()
-    {
-        ModeMateriel.Sonde[177]++;
-        cpu_state.pc = repSuite;
-        repRelance = true;
     }
 
     private static bool rep_idiv_materiel()

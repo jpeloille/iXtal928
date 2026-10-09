@@ -5,9 +5,9 @@
 //
 // G13.3, suite — LE TEMPS D'UN REP DEVANT AUTRE CHOSE QU'UNE CHAÎNE.
 //
-// PCem facture 20 cycles et vide la file (808x.c, rep(), `default:`) ; le mode matériel corrige ce que le REP fait
-// (PB-177) et garde ce temps. Le silicium, lui, est dans le corpus : chaque cas SST porte sa trace, un élément par
-// cycle d'horloge. Les temps absolus ne se comparent pas (le modèle de temps de PCem n'est pas celui du 8088, et la
+// PCem facture 20 cycles et vide la file (808x.c, rep(), `default:`) ; le mode matériel (PB-177) n'en fait qu'un
+// préfixe, la file intacte. Le silicium, lui, est dans le corpus : chaque cas SST porte sa trace, un élément par cycle
+// d'horloge. Les temps absolus ne se comparent pas (le modèle de temps de PCem n'est pas celui du 8088, et la
 // sonde part d'une file vide quand SST la donne pleine dans la moitié des cas du 8088 et tous ceux du 8086) ; le
 // SURCOÛT du REP, si : dans une forme, les cas avec REP et sans REP tirent leurs opérandes de la même façon.
 //
@@ -15,7 +15,10 @@
 // moins la moyenne sans REP : celle du silicium (la longueur de la trace), celle du cœur C# (les cycles de ses pas,
 // dans le mode demandé), et leur écart, la différence des différences, avec son erreur type. Les strates se pèsent par
 // leurs cas avec REP. Les chaînes (A4h, ACh, ADh) et AAM 0 sont hors de la mesure ; un cas dont le cœur n'atteint pas
-// l'IP final de SST aussi (compté à part).
+// l'IP final de SST aussi (compté à part). Le total se donne aussi par file de départ : la sonde part toujours d'une file
+// vide, et seuls les cas où SST la donne vide aussi se comparent au plus près (le silicium y lit l'octet du REP sur le
+// bus, comme le cœur) ; file pleine, le silicium a l'octet sans attendre, le cœur non. --controle fait de la mesure une
+// porte : rouge si l'écart de la file vide sort de deux erreurs types, ou si le corpus n'a pas de tels cas (le 8086).
 
 namespace iXtal26.Diff;
 
@@ -41,14 +44,18 @@ internal static class SstRepTemps
     /// <param name="ops">Les formes à mesurer ; vide, toutes celles du corpus.</param>
     /// <param name="casPath">Un TSV d'un cas par ligne (forme, numéro, REP, autres préfixes, file, silicium, cœur), pour
     /// confronter deux modes cas par cas.</param>
-    public static int Run(string vectorsDir, bool cpu8086, int limit, IReadOnlyList<string> ops, string? casPath)
+    /// <param name="controle">Rouge (1) si l'écart, file de départ vide, sort de deux erreurs types.</param>
+    public static int Run(string vectorsDir, bool cpu8086, int limit, IReadOnlyList<string> ops, string? casPath,
+                          bool controle)
     {
         using var cas = casPath is null ? null : new StreamWriter(casPath);
         Console.WriteLine($"Le surcoût d'un REP devant autre chose qu'une chaîne — corpus {vectorsDir}, cœur C# " +
                           $"{(cpu8086 ? "8086" : "8088")}, mode {(ModeMateriel.Actif ? "matériel" : "PCem")}\n");
         Console.WriteLine("  forme   REP  sans REP   silicium   cœur C#    écart (silicium − cœur)");
 
-        double poids = 0, sSil = 0, sEmu = 0, sEcart = 0, sVar = 0;
+        // [0] l'ensemble, [1] la file de départ vide, [2] pleine.
+        double[] poids = new double[3], sSil = new double[3], sEmu = new double[3], sEcart = new double[3],
+                 sVar = new double[3];
         int horsIp = 0, formes = 0;
         foreach (var path in Directory.GetFiles(vectorsDir, "*.json.gz").Order())
         {
@@ -96,34 +103,62 @@ internal static class SstRepTemps
             {
                 if (!rep || !strates.TryGetValue((autres, file, false), out var sans) || sans.N < 2 || avec.N < 1)
                     continue;
+                var dS = avec.N * (avec.Sil / avec.N - sans.Sil / sans.N);
+                var dE = avec.N * (avec.Emu / avec.N - sans.Emu / sans.N);
+                var dX = avec.N * (avec.Ecart / avec.N - sans.Ecart / sans.N);
+                var vX = (double)avec.N * avec.N * (avec.Variance / avec.N + sans.Variance / sans.N);
                 p += avec.N;
                 nSans += sans.N;
-                dSil += avec.N * (avec.Sil / avec.N - sans.Sil / sans.N);
-                dEmu += avec.N * (avec.Emu / avec.N - sans.Emu / sans.N);
-                dEcart += avec.N * (avec.Ecart / avec.N - sans.Ecart / sans.N);
-                v += (double)avec.N * avec.N * (avec.Variance / avec.N + sans.Variance / sans.N);
+                dSil += dS;
+                dEmu += dE;
+                dEcart += dX;
+                v += vX;
+                var t = file ? 2 : 1;
+                poids[t] += avec.N;
+                sSil[t] += dS;
+                sEmu[t] += dE;
+                sEcart[t] += dX;
+                sVar[t] += vX;
             }
             if (p == 0)
                 continue;
             formes++;
             Console.WriteLine($"  {op,-6} {p,4} {nSans,9} {dSil / p,10:+0.0;-0.0} {dEmu / p,9:+0.0;-0.0}" +
                               $"   {dEcart / p:+0.0;-0.0} ± {Math.Sqrt(v) / p:0.0}");
-            poids += p;
-            sSil += dSil;
-            sEmu += dEmu;
-            sEcart += dEcart;
-            sVar += v;
+            poids[0] += p;
+            sSil[0] += dSil;
+            sEmu[0] += dEmu;
+            sEcart[0] += dEcart;
+            sVar[0] += v;
         }
 
-        if (poids == 0)
+        if (poids[0] == 0)
         {
             Console.WriteLine("\nAucun cas avec REP devant autre chose qu'une chaîne.");
             return 2;
         }
-        Console.WriteLine($"\n  {formes} formes, {poids} cas avec REP : silicium {sSil / poids:+0.0;-0.0} cycles, " +
-                          $"cœur C# {sEmu / poids:+0.0;-0.0}, écart {sEcart / poids:+0.0;-0.0} ± " +
-                          $"{Math.Sqrt(sVar) / poids:0.0}." +
+        Console.WriteLine($"\n  {formes} formes, " + Total(0, "cas avec REP") +
                           (horsIp > 0 ? $" {horsIp} cas hors de la mesure : le cœur n'atteint pas l'IP final de SST." : ""));
-        return 0;
+        if (poids[1] > 0)
+            Console.WriteLine("  file de départ vide (la sonde aussi) : " + Total(1, "cas"));
+        if (poids[2] > 0)
+            Console.WriteLine("  file de départ pleine : " + Total(2, "cas"));
+        if (!controle)
+            return 0;
+        if (poids[1] == 0)
+        {
+            Console.WriteLine("\nRouge : aucun cas avec REP dont la file de départ soit vide.");
+            return 1;
+        }
+        var ecart = sEcart[1] / poids[1];
+        var deuxEt = 2 * Math.Sqrt(sVar[1]) / poids[1];
+        Console.WriteLine(Math.Abs(ecart) <= deuxEt
+            ? $"\nVert : file de départ vide, l'écart {ecart:+0.0;-0.0} est dans deux erreurs types ({deuxEt:0.0})."
+            : $"\nRouge : file de départ vide, l'écart {ecart:+0.0;-0.0} sort de deux erreurs types ({deuxEt:0.0}).");
+        return Math.Abs(ecart) <= deuxEt ? 0 : 1;
+
+        string Total(int t, string quoi) =>
+            $"{poids[t]} {quoi} : silicium {sSil[t] / poids[t]:+0.0;-0.0} cycles, cœur C# {sEmu[t] / poids[t]:+0.0;-0.0}, " +
+            $"écart {sEcart[t] / poids[t]:+0.0;-0.0} ± {Math.Sqrt(sVar[t]) / poids[t]:0.0}.";
     }
 }

@@ -7605,3 +7605,65 @@ lignes de base de l'oracle à l'identique), `sst8088-materiel`, `sst8086-materie
 (258 défauts, 895 marqueurs) : vertes. `sst-diff` et le fuzzeur n'appellent de la sonde que `DiffCase`, `IsAam0` et le
 chargement, inchangés. `tools/fetch-sources.sh`, modifié dans l'arbre par la session de la documentation du 5150,
 n'est pas de cette étape.
+
+## G13.3, le temps du REP — Un REP devant autre chose qu'une chaîne n'est qu'un préfixe
+
+Le 9 octobre 2026, après `02233b4`. Julien, sur le temps mesuré par `sst-rep-temps` (24,5 cycles de trop devant
+IDIV au 8088), à corriger ou non, et quand : « Oui, on corrige d'abord ». Avant G13.4, donc ; l'émulateur change, en
+mode matériel seulement : une série entière.
+
+**La correction** (PB-177, `808x.cs` rep() et `808x.Materiel.cs`). PCem lit l'octet qui suit le REP, voit que ce n'est
+pas une chaîne, relance, facture 20 cycles et vide la file ; le mode matériel de G13.3 relançait juste après le REP
+mais gardait ce prix. Désormais, en tête de rep(), `rep_prefixe_materiel` regarde sans le lire le premier octet qui
+suit les préfixes de segment (la file de préfetch, puis la mémoire) : devant une chaîne (A4h à A7h, AAh à AFh),
+rep() suit son cours, inchangé ; devant autre chose, le REP coûte `REP_PRIX_MATERIEL`, 4 cycles, le prix d'un préfixe
+de segment du cœur (`case 0x26` d'execx86), et execx86 repart à `opcodestart`, la file intacte. Ce qui ne servait
+plus au mode matériel s'en va : `rep_debut_materiel`, `rep_defaut_materiel`, `repSuite` et les `goto default` de
+08h et 6Eh, que le mode matériel n'atteint plus. Le mode PCem ne bouge pas.
+
+**La mesure.** `sst-rep-temps` donne désormais aussi son total par file de départ. La sonde part toujours d'une file
+vide ; SST la donne vide dans la moitié des cas du 8088, et jamais au 8086. Dans les cas à file vide, le silicium lit
+l'octet du REP sur le bus comme le cœur : ce sont les seuls qui se comparent de près. File pleine, il l'a sans
+attendre.
+
+| 8088, `F6.7` et `F7.7`, mode matériel | Cas avec REP | Silicium | Cœur, avant | Cœur, après | Écart, après |
+|---|---|---|---|---|---|
+| file de départ vide | 620 | +7,6 | +27,8 | +7,8 | −0,2 ± 2,1 |
+| file de départ pleine | 675 | −0,4 | +28,1 | +8,1 | −8,4 ± 2,0 |
+| ensemble | 1 295 | +3,5 | +27,9 | +7,9 | −4,5 ± 1,5 |
+
+Au 8086, 261 cas, tous à file pleine : silicium +1,3, cœur +27,8 avant, +7,8 après, écart −6,5 ± 3,4, celui de la
+file pleine du 8088. L'écart qui reste à file pleine vient de la sonde, pas du REP. Le prix de 4 cycles vient des
+cas à file vide : avec 2 cycles, le cœur y payait +5,8, à 1,8 cycle du silicium, dans les deux erreurs types aussi.
+La mesure ne départage pas 2 et 4 ; le prix des préfixes de segment du cœur, si. Le mode PCem, lui, paie +42,5 sur
+les 158 cas à file vide qu'il finit à l'IP de SST (écart −39,7) : il relance sur le REP quand un préfixe de segment le
+précède, et le facture deux fois.
+
+**La porte** `sst-rep-temps-materiel` (`--controle`, `series.sh`) : le mode matériel, `F6.7` et `F7.7` au 8088,
+rouge si l'écart à file vide sort de deux erreurs types (4,3 cycles), ou si le corpus n'a pas de tels cas. Verte
+après, rouge avant (−20,2), rouge en mode PCem (−39,7).
+
+**Le reste, en C# seul.** `sst-probe` en mode matériel : `A4`, `AC`, `AD`, `F6.7` et `F7.7` à 100 % au 8088 et au
+8086. `materiel-cas PB-177` vert dans les deux modes, et avec PB-45 (l'IDIV inversé). Les listings du JIT
+(`tools/listings-jit.sh`, capture `/var/tmp/ixtal-g13/M2-rep`) : rep() et execx86 identiques à M0 ; contre M2 de
+G13.3, seuls les constructeurs statiques de `materiel` et `ModeMateriel` diffèrent, par PB-258, ajouté à G13.3
+après cette capture.
+
+**Contrôles négatifs**, posés dans une copie à part (`/tmp/a9/negrep2`), un à la fois :
+
+| Faute | Mesure | Effet |
+|---|---|---|
+| l'état d'avant (`02233b4` : 20 cycles, file vidée) | `sst-rep-temps --controle` | rouge : −20,2, hors de 4,3 |
+| `REP_PRIX_MATERIEL` à 20, la file intacte | `sst-rep-temps --controle` | rouge : −16,2 |
+| le regard ne saute plus les préfixes de segment | `materiel-cas PB-177` | rouge : REP DS: MOVSB ne copie qu'un octet |
+| le REP facturé, mais l'instruction non reprise (`repRelance` faux) | `materiel-cas PB-177`, `sst-probe` `F6.7`, `F7.7` | rouge : 2 échecs ; 9 372 et 9 333 sur 10 000 |
+
+La troisième faute ne se voit pas dans SST : le corpus place toujours le REP en dernier, juste devant l'instruction
+(`A4`, `AC`, `AD`, `F6.7`, `F7.7`, aux deux processeurs) ; le banc de `materiel-cas` la voit.
+
+**La série.** grep2 tourne sur un worktree de `02233b4` et des dix fichiers de l'étape, les corpus SST liés corpus par
+corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 291 portes, toutes vertes, en 66 minutes. Contre
+g131 (G13.3), les 290 portes communes rendent les mêmes verdicts et les mêmes résumés, `fuite-g133` compris
+(1 519 divergences, toutes dans le périmètre) ; la neuve est `sst-rep-temps-materiel`. Une première série, grep1,
+était partie avec un lien `vectors/vectors` (le worktree a son propre `vectors/`, suivi par git) : arrêtée après ses
+premières portes, sans verdict retenu.

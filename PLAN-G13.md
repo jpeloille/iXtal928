@@ -228,9 +228,10 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   l'UC) ; les familles inscrites en G13.1 (DAA et DAS, REP LODS, SETMO, l'OF de SHL, AAM et AAD, SAR, `rep()`).
 - **Vérification** : SST 8088 et 8086 en mode matériel ; `--timer-check` (PB-03 : aucun cycle hors du compteur) ; le
   coût de `FETCH` (M1) ; une série.
-- **Ouvert** (09/10, à décider par Julien) : le temps d'un REP devant autre chose qu'une chaîne. Le mode matériel
-  garde le prix de PCem, 20 cycles et la file vidée ; devant IDIV, le seul cas du corpus, il compte 24,5 ± 1,5 cycles
-  de trop au 8088 (`sst-rep-temps`).
+- **Corrigé** (09/10, décision de Julien, « on corrige d'abord ») : le temps d'un REP devant autre chose qu'une
+  chaîne. Le mode matériel gardait le prix de PCem, 20 cycles et la file vidée, 24,5 ± 1,5 cycles de trop devant IDIV
+  au 8088 ; il facture maintenant le prix d'un préfixe, la file intacte : écart −0,2 ± 2,1 cycles contre le silicium,
+  file de départ vide (`sst-rep-temps`, porte `sst-rep-temps-materiel`).
 
 ### G13.4 — La carte mère
 
