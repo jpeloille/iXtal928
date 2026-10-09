@@ -1,0 +1,12 @@
+# PS2BANC (tools/ps2banc), comme ps2banc-2.attendus, avec l'Intellimouse (trois boutons). Les lignes qui changent :
+#   Le premier E9h : PCem 13h ; 12h, l'échelle en bit 4 et le milieu d'une souris à trois boutons en bit 1, le bit
+#     qu'IBM réserve (15F0306, p. 2-97) et que Chapweske donne au milieu (PB-95).
+#   F6h : PCem 3CEEh, rien ; la souris FAh (PB-94).
+#   Le second E9h : PCem 23h ; 22h, le flux en bit 5 et le milieu en bit 1.
+B>PS2BANC
+pcem: 3DFA3DFA3DFA3DFA3DFA3D133D023D64
+pcem: 3DFA3CEE3DFA3D0C3D003D003CEE3CEE
+pcem: 3D233D023D643DFA3DFA3DFA3DFA3DFA
+materiel: 3DFA3DFA3DFA3DFA3DFA3D123D023D64
+materiel: 3DFA3DFA3DFA3D0C3D003D003CEE3CEE
+materiel: 3D223D023D643DFA3DFA3DFA3DFA3DFA

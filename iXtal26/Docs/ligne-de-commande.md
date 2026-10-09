@@ -340,6 +340,13 @@ L'option est répétable : DOS demande la date puis l'heure avant de rendre son 
 `--settle N` fixe le nombre de tranches laissées à l'application après chaque Entrée. Le
 défaut suffit à un DIR ; un FORMAT 360 Ko en demande ~4 000.
 
+G13.4 — trois outils de banc, pour jouer en C# seul, en mode matériel, ce que boot-diff joue contre
+l'oracle (et refuse en mode matériel). `--joystick-type N` pose le type de manette après `--config`.
+La commande de script `@manette x,y,boutons,z,chapeau` pose l'état de la manette 0 de l'hôte, sans
+tranche, comme le `--joy-at` de boot-diff. `--force-ps2 N` monte la souris PS/2 N (2 ou 3) sur une
+machine sans MODEL_PS2 : c'est une PORTE DE VÉRIFICATION, comme le `--force-ps2` de boot-diff (PS2.1),
+pas une machine offerte ; ni un .cfg ni le SETUP ne la posent.
+
 `--model`, `--gfxcard`, `--cpu`, `--hdd`, `--hdd-type` et `--hdd-controller` sont COLLECTÉS, pas appliqués
 dans la boucle. Là, les options prennent effet dans l'ordre écrit, et `--config` poserait
 alors le modèle après `--model`. La précédence doit être la même qu'en mode fenêtre —

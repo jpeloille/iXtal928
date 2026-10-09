@@ -14,7 +14,7 @@
 
 namespace iXtal26.Joystick;
 
-internal static class joystick_ch_flightstick_pro_c
+internal static partial class joystick_ch_flightstick_pro_c
 {
     // pcem: joystick_ch_flightstick_pro.c:9
     private static object? ch_flightstick_pro_init() { return null; }
@@ -23,8 +23,8 @@ internal static class joystick_ch_flightstick_pro_c
     private static void ch_flightstick_pro_close(object? p) { }
 
     // pcem: joystick_ch_flightstick_pro.c:13-38
-    // pcem bug, reproduced: PB-103 — 315° (le haut-gauche d'un chapeau à huit directions) ne
-    //   tombe dans aucun cas : « > 315 », puis « < 315 » ; le chapeau se lit centré.
+    // pcem bug, fixed in hardware mode: PB-103 — 315° (le haut-gauche d'un chapeau à huit
+    //   directions) ne tombe dans aucun cas : « > 315 », puis « < 315 » ; le chapeau se lit centré.
     private static uint8_t ch_flightstick_pro_read(object? p)
     {
         uint8_t ret = 0xf0;
@@ -41,6 +41,9 @@ internal static class joystick_ch_flightstick_pro_c
                         ret &= unchecked((uint8_t)~0x80);
                 if (plat_joystick.joystick_state[0].pov[0] != -1)
                 {
+                        if (materiel.pb_103)
+                                if (ch_haut_materiel())
+                                        ret &= unchecked((uint8_t)~0xf0);
                         if (plat_joystick.joystick_state[0].pov[0] > 315 || plat_joystick.joystick_state[0].pov[0] < 45)
                                 ret &= unchecked((uint8_t)~0xf0);
                         else if (plat_joystick.joystick_state[0].pov[0] >= 45 && plat_joystick.joystick_state[0].pov[0] < 135)

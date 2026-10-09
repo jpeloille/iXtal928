@@ -172,7 +172,9 @@ internal static partial class amstrad
     {
         // pcem: amstrad.c:144 — G10.0 : lpt_init (common_init) pose désormais lpt2 en 278h ; ce
         //   retrait vise 379h-37Ah, où lpt2 n'est pas : il ne trouve rien, chez PCem aussi.
-        // pcem bug, reproduced: PB-101 — le PC1512 garde le LPT2 de lpt_init à 278h.
+        // pcem bug, fixed in hardware mode: PB-101 — le PC1512 garde le LPT2 de lpt_init à 278h.
+        if (materiel.pb_101)
+                amstrad_lpt2_materiel();
         Lpt.lpt.lpt2_remove_ams();
 
         io_sethandler(0x0078, 0x0001, amstrad_mouse_read, null, null, amstrad_mouse_write, null, null, null);

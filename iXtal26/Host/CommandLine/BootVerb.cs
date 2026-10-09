@@ -25,6 +25,7 @@ internal static class BootVerb
         var machine = new MachineOverrides();
         var settleSlices = KeyScript.SlicesAfterLine;
         var inPlace = false;
+        int? joystickType = null, forcedPs2 = null;
 
         while (cursor.NextIsOption)
         {
@@ -84,9 +85,33 @@ internal static class BootVerb
                     if (!ConfigurationFile.TryLoadNow(value))
                         return ExitCode.UsageError;
                     break;
+                // G13.4 — la manette des bancs (JOYBANC) : son type, appliqué après --config ; son état, par la
+                //   commande de script « @manette ».
+                case "--joystick-type":
+                    if (!int.TryParse(value, out var jt) || (uint)jt >= (uint)Joystick.gameport.joystick_type_count())
+                        return Failure.Usage($"--joystick-type attend un type de manette, de 0 à " +
+                                             $"{Joystick.gameport.joystick_type_count() - 1}.");
+                    joystickType = jt;
+                    break;
+                // G13.4 — PORTE DE VÉRIFICATION, PAS UNE MACHINE OFFERTE (le pendant du --force-ps2 de boot-diff,
+                //   PS2.1) : la souris PS/2 N (2, deux boutons ; 3, l'Intellimouse) montée sans le refus des machines
+                //   sans MODEL_PS2, pour jouer PS2BANC en mode matériel, que boot-diff refuse.
+                case "--force-ps2":
+                    if (value is not ("2" or "3"))
+                        return Failure.Usage("--force-ps2 attend 2 (souris PS/2 à deux boutons) ou 3 (Intellimouse).");
+                    forcedPs2 = int.Parse(value);
+                    break;
                 default:
                     return Failure.Usage($"Option inconnue après --boot : {option}");
             }
+        }
+
+        if (joystickType is { } type)
+            Joystick.gameport.joystick_type = type;
+        if (forcedPs2 is { } ps2)
+        {
+            Mouse.mouse.mouse_type = ps2;
+            Console.WriteLine($"--force-ps2 : porte de vérification — souris {ps2} montée sans MODEL_PS2 ; pas une machine offerte.");
         }
 
         if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardDiskController() ||

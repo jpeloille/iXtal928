@@ -147,3 +147,10 @@ Le 8237 suit, de même : `materiel-cas-pbNN` pour PB-157 et PB-249 à PB-253, et
 sur l'IBM AT, contre l'oracle (`bd-xt-dmabanc`, `bd-ibmat-dmabanc`) et contre `bancs/dmabanc-*.attendus`
 (`banc-dmabanc-xt`, `banc-dmabanc-at` et leurs `-materiel`). Tout s'y fait sous CLI ; l'XT voit Clear Mask par le
 rafraîchissement du canal 0, l'AT la cascade par une requête logicielle que le canal 4 masqué retient.
+
+Puis le 8042, la souris PS/2 et les ports : `materiel-cas-pbNN` pour PB-94, PB-95, PB-101, PB-103, PB-254 et PB-261, et deux
+bancs déjà joués contre l'oracle (`bd-ami386dx-ps2-banc-*`, `bd-pc-joy-*-banc`), rejoués en C# seul sous `--boot`
+contre `bancs/ps2banc-*.attendus` et `bancs/joybanc-*.attendus` (`banc-ps2banc-2`, `-3`, `banc-joybanc-ch`, `-tm` et
+leurs `-materiel`), puisque boot-diff refuse le mode matériel. `--boot` y prend trois outils de banc : `--force-ps2 N`
+(porte de vérification, comme celle de boot-diff), `--joystick-type N` et la commande de script `@manette`. PS2BANC
+tient le bouton du milieu par `@souris 0,0,4`, JOYBANC le chapeau à 315° par `@manette 0,0,0,0,315`.

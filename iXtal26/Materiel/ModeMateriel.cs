@@ -40,6 +40,10 @@ internal static class ModeMateriel
         new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
         new(45, "processeur", "IDIV octet divise AX signé"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
+        new(94, "carte-mere", "la souris PS/2 répond à F6h, EAh, F0h, EEh et ECh, et rejette une commande inconnue"),
+        new(95, "carte-mere", "l'octet d'état de la souris PS/2 : gauche en bit 2, droit en bit 0, mode distant en bit 6"),
+        new(101, "carte-mere", "le PC1512 n'a pas de second port parallèle à 278h"),
+        new(103, "carte-mere", "le chapeau de la CH et de la TM lit 315° (haut-gauche) en haut"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
         new(170, "processeur", "DAA compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1"),
@@ -59,9 +63,11 @@ internal static class ModeMateriel
         new(251, "carte-mere", "le master clear du 8237 efface aussi la commande, l'état et la requête"),
         new(252, "carte-mere", "au reset, le 8237 pose ses masques et efface la commande, l'état et la requête"),
         new(253, "carte-mere", "les canaux 0 à 3 de l'AT n'ont le bus que par la cascade du canal 4"),
+        new(254, "carte-mere", "le clavier de l'AT garde seize codes puis le débordement ; le 8042 ne perd rien d'autre"),
         new(255, "carte-mere", "après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR"),
         new(257, "carte-mere", "un transfert de DMA refusé ne coûte pas de cycle"),
         new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
+        new(261, "carte-mere", "la souris PS/2 remet ses compteurs de mouvement à zéro après EBh"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

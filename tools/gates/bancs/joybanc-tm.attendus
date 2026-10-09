@@ -1,0 +1,7 @@
+# JOYBANC (tools/joybanc) sous PC-DOS 2.00, sur le 5150, la ThrustMaster FCS (type 6), en C# seul sous --boot (G13.4) ;
+# le chapeau tenu à 315° (@manette 0,0,0,0,315), les axes au centre. La TM code son chapeau en résistance sur l'axe 3 :
+# PCem lit 315° comme le chapeau en bas, la valeur 0, le compte 0Fh des axes au centre (PB-103) ; « haut » -32768, le
+# compte le plus court, 01h. La rafale suit le bit de l'axe 3.
+B>JOYBANC
+pcem: FF 0F 00 0F 00 0F 00 0F 00 D1 79 01 00 D1 97 01 00
+materiel: FF 0F 00 0F 00 0F 00 01 00 E1 78 02 00 E1 96 02 00

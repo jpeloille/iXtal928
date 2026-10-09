@@ -1450,6 +1450,8 @@ F2h à F5h et FFh ; le `default`, qui appelait `fatal()`, est commenté (`:144-1
 commande — F6h (valeurs par défaut), EAh (mode flux), F0h (mode distant), EEh (écho), ECh, EDh —
 est retenue dans `command` et ne reçoit RIEN, pas même l'accusé FAh que la vraie souris rend à
 toute commande. `MOUSE_REMOTE` et `MOUSE_ECHO` (`:12`) ne sont jamais posés.
+Élargi en G13.4c (contre-lecture) : ni l'init (`:214-226`) ni le reset FFh (`:134-142`) ne posent les valeurs par
+défaut de la souris, 100 points par seconde et 4 points par mm ; un E9h sur une souris neuve rend 00h 00h.
 *Effet* : un pilote qui envoie F6h ou F0h attend son accusé jusqu'à son délai, puis conclut à
 une souris absente ou en panne.
 *Trouvé par* : reconnaissance de PS2 (PLAN-PS2.md, défaut n° 1).
@@ -1459,8 +1461,18 @@ posé par INT 15h C2h (désactivée, 100/s, 4 points/mm, 1:1). Documenté (secon
 *Cas qui discrimine* : PS2BANC sous `--force-ps2`, F6h par D4h : PCem ne rend rien (le tampon de sortie reste vide
 jusqu'au délai du pilote) ; la souris rend FAh, puis E9h donne FAh 00h 02h 64h.
 *G13* : (b) — les attendus ne reposent que sur des sources secondaires ; une vraie souris PS/2 les fixerait.
-*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-94 (`:90`) ; le banc PS2BANC le montre (F6h → rien, EEh
-au relevé).
+*Reproduit* en mode PCem : `Mouse/mouse_ps2.cs`, `mouse_ps2_write`, marqueur `fixed in hardware mode: PB-94` ; le
+banc PS2BANC le montre (F6h → rien, EEh au relevé).
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_94)`, le `default` du switch rend FAh à F6h (les valeurs par
+défaut : 100 par seconde, 4 points par mm, échelle 1:1, flux coupé, compteurs à zéro), à EAh (flux), à F0h (distant),
+à EEh (écho) et à ECh (fin de l'écho, le mode d'avant), et FEh puis FCh à une commande inconnue ; l'init et le reset
+FFh posent les valeurs par défaut, comme F6h ; en tête de
+`mouse_ps2_write`, l'écho renvoie tout octet hors ECh et FFh (`Mouse/mouse_ps2.Materiel.cs`). FEh (renvoyer le dernier
+paquet) n'est pas modélisé : il reste sans réponse ; ni le refus d'une donnée hors de sa plage après E8h ou F3h.
+`materiel-cas PB-94` (E9h sur la souris neuve, FAh 00h 02h 64h ; E8h 03h, F3h 28h, F6h, E9h, de nouveau 02h 64h ;
+F0h et un mouvement, aucun paquet ; ECh hors de l'écho ; l'écho, et FFh qui en sort ; EDh, F5h, EDh, EDh : FEh, FAh,
+FEh, FCh) rend les valeurs de PCem en mode PCem, celles de la
+souris en mode matériel ; la correction coupée, il rougit. PS2BANC en C# seul (`banc-ps2banc-2`, `-3`) : F6h lu FAh.
 *PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
 utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
@@ -1480,8 +1492,14 @@ Documenté ; que l'octet brut d'E9h soit le même est déduit (le BIOS relaie le
 *Cas qui discrimine* : PS2BANC sous `--force-ps2`, souris activée (F4h), E9h : gauche tenu, PCem 21h et IBM 24h ;
 droit tenu, 22h et 21h ; milieu tenu sur une souris à deux boutons, 23h et 20h.
 *G13* : (a) — avec PB-94 (le bit 6 suit le mode distant) ; le `temp |= 4` de PS2.0 n'en est pas l'attendu.
-*Reproduit* : `Mouse/mouse_ps2.cs`, marqueur PB-95 (`:113`) ; le banc PS2BANC, bouton du milieu tenu, le
-montre à E9h (23h).
+*Reproduit* en mode PCem : `Mouse/mouse_ps2.cs`, commande E9h, marqueur `fixed in hardware mode: PB-95` ; le banc
+PS2BANC, bouton du milieu tenu, le montre à E9h (23h).
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_95)`, l'octet d'état d'IBM (`mouse_ps2_etat_materiel`) :
+bit 6 le mode distant, 5 le flux, 4 l'échelle, 2 le gauche, 0 le droit, et le bit 1 au milieu d'une souris à trois
+boutons seulement (Chapweske ; réservé chez IBM, comme le paquet le fait du bit 2). `materiel-cas PB-95` (gauche,
+droit, milieu sur la souris à deux boutons, milieu sur l'Intellimouse : 21h, 22h, 23h, 23h contre 24h, 21h, 20h, 22h)
+rougit la correction coupée. PS2BANC en C# seul, le milieu tenu : 13h et 23h deviennent 10h et 20h (deux boutons), 12h
+et 22h (l'Intellimouse).
 *PS2.1* : aucune machine du dépôt ne monte la souris PS/2 (pas de `MODEL_PS2`, décision
 utilisateur du 03/10) ; le défaut n'est atteint que par la porte de vérification (`--force-ps2`).
 
@@ -1596,7 +1614,12 @@ répond pas (FFh, la valeur d'un port sans gestionnaire ; déduit).
 *Cas qui discrimine* : LPTBANC sur le PC1512 : PCem, 0040:000A = 0278h et 278h relu AAh après OUT 278h,AAh ; le
 PC1512, 0040:000A = 0000h et 278h relu FFh.
 *G13* : (a) — `lpt2_remove()` (278h) au lieu de `lpt2_remove_ams()` dans `amstrad_init`.
-*Reproduit* : `Lpt/lpt.cs` (`:258`), `Models/amstrad.cs` (`:175`), marqueurs PB-101.
+*Reproduit* en mode PCem : `Lpt/lpt.cs` (`lpt2_remove_ams`), `Models/amstrad.cs` (`amstrad_init`), marqueurs `fixed in
+hardware mode: PB-101`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_101)`, `amstrad_init` retire le LPT2 là où il est, par
+`lpt2_remove()` (`Models/amstrad.Materiel.cs`). `materiel-cas PB-101` (lpt_init, amstrad_init, OUT 278h,AAh, IN 278h)
+rend AAh en mode PCem, FFh en mode matériel ; la correction coupée, il rougit. Le même `amstrad_init` sert aux
+autres Amstrad du dépôt, qui n'ont pas non plus de port en 278h sans carte.
 
 ### PB-102 — La MDA et l'Hercules balayent avec un caractère de 8 points
 
@@ -1638,9 +1661,16 @@ qu'il donne est une convention, sans vérité matérielle.
 *Cas qui discrimine* : JOYBANC, tours 5 et 10, chapeau injecté à 315° : PCem, la CH au repos et la TM à 0 (en bas) ;
 « haut » (`>= 315`), les boutons 1 à 4 et −32768 ; « gauche » (le précédent `<= 315`), les boutons 1 et 2 et 16384.
 *G13* : (a) — sur une convention à trancher (« haut » ou « gauche ») ; du périphérique, sous l'interrupteur seul.
-*Reproduit* : `Joystick/joystick_ch_flightstick_pro.cs` (`:26`), `Joystick/joystick_tm_fcs.cs` (`:47`), marqueurs
-PB-103 ; montré par `bd-pc-joy-ch-banc` et `bd-pc-joy-tm-banc` (tours 5 et 10, le chapeau injecté à
-315°). Contrôle négatif : la borne de la TM corrigée (`<= 315`) fait rougir `bd-pc-joy-tm-banc`.
+*Reproduit* en mode PCem : `Joystick/joystick_ch_flightstick_pro.cs`, `Joystick/joystick_tm_fcs.cs`, marqueurs `fixed
+in hardware mode: PB-103` ; montré par `bd-pc-joy-ch-banc` et `bd-pc-joy-tm-banc` (tours 5 et 10, le chapeau injecté
+à 315°). Contrôle négatif : la borne de la TM corrigée (`<= 315`) fait rougir `bd-pc-joy-tm-banc`.
+*Corrigé en mode matériel* (G13.4) : la convention retenue est « haut » — chacune des trois autres diagonales se lit à
+la direction suivante dans le sens des aiguilles d'une montre (45° à droite, 135° en bas, 225° à gauche), 315° donc
+en haut. Sous `if (materiel.pb_103)`, 315° se lit en haut (`ch_haut_materiel`, `tm_haut_materiel`, dans les
+`*.Materiel.cs` des deux manettes). `materiel-cas PB-103` (0°, le témoin ; 315° : la CH F0h contre 00h, la TM 0 contre
+-32768) rougit la correction coupée. JOYBANC en C# seul, le chapeau tenu à 315° (`banc-joybanc-ch`, `-tm`) : la CH lit
+0Fh au lieu de FFh, la TM compte 01h sur l'axe 3 au lieu de 0Fh. Le choix se renverse sans peine : « gauche » serait
+la borne `<= 315` de l'intervalle précédent.
 
 ### PB-104 — Sans correspondance explicite, le chapeau se calcule sur un axe contre lui-même
 
@@ -4507,10 +4537,20 @@ au clavier et au contrôleur par la contre-lecture.
 perdus ; PS/2 HITR Common Interfaces (84F9735), « Keyboard/Auxiliary Device Controller », p. 14-15 : le système tient
 la ligne « clock » pour retenir l'envoi. Documenté.
 *Cas qui discrimine* : ibmat, l'IRQ 1 masquée, vingt codes injectés sans lecture, puis 60h lu à chaque OBF : PCem
-rend le 1er, le 18e, le 19e et le 20e ; l'AT, les dix-sept premiers puis 00h.
+rend le 1er, le 18e, le 19e et le 20e ; l'AT, les dix-sept premiers puis le code de débordement, 00h sans traduction
+et FFh traduit par le 8042 (le BIOS de l'AT le teste à FFh).
 *G13* : (a) — documenté ; vérifiable en C# seul par des frappes injectées, et par PS2BANC sous `--force-ps2`.
-*Reproduit* : `Keyboard/keyboard_at.cs`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard` et
-`keyboard_at_adddata_mouse`, marqueurs PB-254.
+*Reproduit* en mode PCem : `Keyboard/keyboard_at.cs`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard` et
+`keyboard_at_adddata_mouse`, marqueurs `fixed in hardware mode: PB-254`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_254)` (`Keyboard/keyboard_at.Materiel.cs`), le clavier
+garde ses octets dans son tampon, seize puis le code de débordement, les suivants perdus, en octets bruts avant la
+traduction ; il en livre un à la file de PCem quand elle est vide, en tête du poll, et l'octet livré compte encore
+dans les seize. Le contrôleur et la souris ne perdent rien : ce que leur file ne tient plus attend dans l'ordre (le
+8042 retient la souris par la ligne « clock », PS/2 HITR p. 14-15 ; ses propres réponses, déduit), au plus 64 octets,
+une borne de l'émulateur (R9). Le reset du clavier (FFh), celui de la souris (FFh), le self-test du contrôleur (AAh)
+et `keyboard_at_init` vident ce qui leur revient. `materiel-cas PB-254` (le clavier sans traduction : 01h puis 02h à
+14h, PCem 01h 12h 13h 14h, l'AT 01h à 11h puis 00h ; traduit, FFh au débordement ; vingt fois 20h au contrôleur, 4
+réponses contre 20 ; cinq E9h à la souris, 4 octets contre 20) rougit la correction coupée.
 
 ### PB-255 — ICW1 ne remet pas la lecture du 8259 sur l'IRR ; le reset la met sur l'ISR
 
@@ -4623,6 +4663,23 @@ p. 5-6 (Cascade Mode). Documenté par composition.
 PCem la fait ; l'AT la bloque jusqu'au démasquage.
 *G13* : (a) — documenté par composition ; au domaine du stockage (G13.7), avec la cascade de PB-253.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, les quatre chemins du maître de bus, marqueurs PB-260.
+
+### PB-261 — La lecture à distance de la souris PS/2 (EBh) ne remet pas ses compteurs à zéro
+
+`mouse_ps2.c:90-109`, commande EBh : le paquet part avec `mouse->x` et `mouse->y`, qui ne reviennent pas à zéro ; seul
+le paquet de flux les remet (`:210`). En mode distant, où le poll n'envoie rien, ils continuent d'accumuler.
+*Effet* : un pilote en mode distant qui lit la souris deux fois de suite reçoit deux fois le même mouvement : le
+pointeur part deux fois plus loin, puis dérive tant que la souris ne bouge pas.
+*Trouvé par* : contre-lecture de G13.4c.
+*Source* : Chapweske, « The PS/2 Mouse Interface », 2001, « Read Data (EB) » : après le paquet, la souris remet ses
+compteurs de mouvement à zéro (secondaire). Documenté (secondaire).
+*Cas qui discrimine* : la souris neuve, un mouvement de (5, 3) accumulé, puis EBh deux fois : PCem FAh 00h 05h FDh deux
+fois ; la souris, la seconde fois, FAh 00h 00h 00h.
+*G13* : (a) — avec PB-94 et PB-95, la souris PS/2.
+*Reproduit* en mode PCem : `Mouse/mouse_ps2.cs`, commande EBh, marqueur `fixed in hardware mode: PB-261`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_261)`, après le paquet, les compteurs à zéro
+(`mouse_ps2_lu_materiel`, `Mouse/mouse_ps2.Materiel.cs`). `materiel-cas PB-261` rend le cas ci-dessus, et rougit la
+correction coupée.
 
 ## B. Comportement indéfini en C
 
@@ -5761,6 +5818,7 @@ audit systématique de PCem** :
 | Reconnaissance de G13 (six lectures par domaine et leurs contre-lectures), inscrits en G13.1 | PB-169 à PB-257 : le processeur 169 à 193, le x87 194 à 213, le stockage 214 à 219, la vidéo 220 à 233, le son 234 à 244, la carte mère 245 à 257 ; des entrées existantes élargies, chacune le dit |
 | SST en mode matériel (G13.3) | PB-258 |
 | Le 8237 en mode matériel (G13.4) : les parts laissées reproduites de PB-157 et de PB-253, inscrites à part | PB-259, PB-260 |
+| Contre-lecture du 8042 et de la souris PS/2 en mode matériel (G13.4c) | PB-261 ; PB-94 élargi (les valeurs par défaut au reset) |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

@@ -255,7 +255,7 @@ internal static class lpt
     }
 
     // pcem: lpt.c:166
-    // pcem bug, reproduced: PB-101 — les gestionnaires de lpt2 sont à 278h, pas à 379h : ce
+    // pcem bug, fixed in hardware mode: PB-101 — les gestionnaires de lpt2 sont à 278h, pas à 379h : ce
     //   retrait ne trouve rien.
     internal static void lpt2_remove_ams() { io_removehandler(0x0379, 0x0002, lpt2_read, null, null, lpt2_write, null, null, null); }
 

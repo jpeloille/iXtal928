@@ -26,13 +26,18 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 # Les scénarios : un nom, puis les arguments d'iXtal26. Ils couvrent les cœurs 8088, 286, 386 et 486, le 8087, le 287
 # et le 387 (les tests de coprocesseur du POST), PC-DOS sur l'XT, et sous DEBUG les instructions dont une garde
-# n'est compilée par aucun amorçage (SBB octet : setsbc8). Dans un texte de --type, « _ » tient lieu d'espace.
+# n'est compilée par aucun amorçage (SBB octet : setsbc8). G13.4 : le PC1512 (amstrad_init), et la CH et la TM lues
+# sous DEBUG (O 201, I 201). La souris PS/2 n'a pas de scénario : aucune machine du dépôt ne la monte, et --force-ps2
+# n'existe sous --boot que depuis G13.4. Dans un texte de --type, « _ » tient lieu d'espace.
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
   "ibmat-287|--boot roms 3000 --config tools/gates/cfg/ibmat-287.cfg"
   "ami386dx-387|--boot roms 3000 --config tools/gates/cfg/ami386dx-387.cfg"
   "ami486-dx2|--boot roms 3000 --config tools/gates/cfg/ami486-dx2.cfg"
+  "pc1512|--boot roms 3000 --model pc1512"
+  "pc-joy-ch|--boot roms 7000 --config tools/gates/cfg/pc-joy-ch.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 300 --type  --type  --type B:DEBUG --type O_201_0 --type I_201 --type Q"
+  "pc-joy-tm|--boot roms 7000 --config tools/gates/cfg/pc-joy-tm.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 300 --type  --type  --type B:DEBUG --type O_201_0 --type I_201 --type Q"
 )
 
 capture() {

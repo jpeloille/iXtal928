@@ -98,7 +98,14 @@ internal static class UsageText
               --type TEXTE     après --boot : tape TEXTE puis Entrée dans la machine,
                                et revide l'écran. Répétable, dans l'ordre. C'est la
                                seule vérification du chemin clavier qui ne dépende
-                               pas d'une fenêtre ayant le focus
+                               pas d'une fenêtre ayant le focus. « @manette x,y,b,z,c »
+                               pose l'état de la manette 0 (boutons en masque, chapeau
+                               en degrés, -1 au repos) sans rien taper
+              --joystick-type N  après --boot : le type de manette (0 à 6), après
+                               --config
+              --force-ps2 N    après --boot : PORTE DE VÉRIFICATION, pas une machine
+                               offerte. Monte la souris PS/2 N (2 ou 3) sur une machine
+                               sans MODEL_PS2, pour le banc PS2BANC
           --hdd IMG            monte une image de disque dur EXISTANTE en C:, géométrie
                                déduite de sa taille. --hdd-d IMG : le disque D:. Une
                                taille qui ne correspond à aucun des 46 types du BIOS

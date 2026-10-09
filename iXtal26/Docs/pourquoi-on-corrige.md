@@ -338,3 +338,71 @@ l'XT et sur l'AT.
 - **La correction.** La commande est rangée et DAh rend 00h. Le reste de l'ancienne entrée (ce que rendent les
   lectures que la fiche interdit, et les bits de requête de l'état) n'a pas de valeur connue ou demande une ligne que
   PCem n'a pas : il reste reproduit, sous un numéro à lui (PB-259).
+
+## G13.4, fin — la carte mère (mode matériel) : le 8042, la souris PS/2 et les ports
+
+*Le 9 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.4, `VERIFICATION.md` § G13.4c.*
+
+Le 8042 est le contrôleur du clavier de l'AT : il reçoit les codes du clavier et, sur les machines qui en ont une, les
+octets de la souris PS/2, et les tend au processeur par un seul port (60h). Avec lui, la souris PS/2 elle-même, le
+second port parallèle du PC1512 et le chapeau de deux manettes. Six défauts, tous en mode matériel. PS2BANC et
+JOYBANC, deux programmes sous DEBUG, les montrent dans les deux modes.
+
+### PB-254 — les files d'attente du 8042
+
+- **Le vrai PC.** Le clavier de l'AT garde seize codes quand le programme ne les lit pas ; il remplace le dix-septième
+  par un code de débordement, que le BIOS signale d'un bip, et perd les suivants. La souris attend, retenue par le
+  contrôleur, et ne perd rien.
+- **L'émulateur.** Chaque file de PCem tient seize places sans garde : au seizième octet en attente, elle paraît vide,
+  et tout ce qu'elle tenait est perdu. Vingt touches non lues n'en laissent passer que quatre.
+- **La correction.** Le clavier garde seize codes, puis le code de débordement ; le contrôleur et la souris gardent
+  tout, dans l'ordre (64 octets au plus, une borne pour que l'émulateur ne grossisse pas sans fin).
+
+### PB-94 — les commandes de la souris PS/2
+
+- **Le vrai PC.** La souris acquitte toute commande (FAh), y compris « valeurs par défaut », « mode distant », « mode
+  flux » et l'écho, et rejette une commande inconnue (FEh, puis FCh).
+- **L'émulateur.** PCem ne répond rien à ces commandes : un pilote attend l'acquittement jusqu'à son délai, puis croit
+  la souris absente.
+- **La correction.** Les cinq commandes sont faites et acquittées ; une commande inconnue est rejetée. La souris neuve
+  ou remise à zéro prend ses valeurs par défaut (100 points par seconde, 4 points par mm), que PCem laisse à zéro. Le
+  renvoi du dernier paquet (FEh) n'est pas modélisé.
+
+### PB-95 — l'octet d'état de la souris
+
+- **Le vrai PC.** Dans l'état que rend la souris (commande E9h), IBM met le bouton gauche en bit 2 et le droit en
+  bit 0.
+- **L'émulateur.** PCem reprend la disposition du paquet de mouvement : un pilote voit le gauche comme le droit, et le
+  milieu comme deux boutons.
+- **La correction.** La disposition d'IBM, et le mode distant en bit 6.
+
+### PB-261 — la lecture de la souris à la demande
+
+- **Le vrai PC.** En mode distant, le pilote demande chaque mouvement (EBh) ; après l'avoir envoyé, la souris remet ses
+  compteurs à zéro.
+- **L'émulateur.** PCem ne les remet pas : la lecture suivante rend encore le même mouvement, et le pointeur dérive.
+- **La correction.** Les compteurs à zéro après le paquet. Le défaut, trouvé par la contre-lecture de cette étape, est
+  inscrit au registre.
+
+### PB-101 — le second port parallèle du PC1512
+
+- **Le vrai PC.** Le PC1512 n'a qu'un port parallèle, en 378h.
+- **L'émulateur.** PCem pose un second port en 278h sur toutes les machines, et le retrait propre aux Amstrad vise une
+  autre adresse : le PC1512 garde un port que la machine n'a pas, et son BIOS le trouve.
+- **La correction.** Le second port est retiré là où il est.
+
+### PB-103 — le chapeau en haut à gauche
+
+- **Le vrai PC.** Le chapeau de la CH Flightstick Pro et de la ThrustMaster FCS n'a que quatre directions.
+- **L'émulateur.** Un chapeau d'hôte à huit directions donne 315° pour le haut-gauche, et PCem ne le range nulle part :
+  la CH le lit au repos, la TM en bas.
+- **La correction.** 315° se lit en haut, comme chacune des trois autres diagonales se lit à la direction suivante
+  dans le sens des aiguilles d'une montre. C'est une convention, que rien ne fixe dans le matériel ; elle se renverse
+  sans peine.
+
+### Ce qui reste
+
+PB-104, le chapeau calculé sur un axe de la manette de l'hôte quand le .cfg ne dit rien, est un défaut de l'hôte sans
+pendant matériel : il reste dans les deux modes (décision n° 9). PB-256, l'absence de rafraîchissement par DMA sur la
+M24 et le PC1512, changerait la vitesse de ces deux machines pour un coût que rien ne documente : il reste reproduit,
+la question posée.

@@ -520,3 +520,25 @@ for m in "" "-materiel"; do
     --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type $'\x01' --type "@wait 900" --type "" \
     --type "" "${DCB[@]}" --type "@wait 900"
 done
+# G13.4 — le 8042, la souris PS/2 et les ports : PB-254, PB-94, PB-95, PB-261, PB-101 et PB-103, chacun son cas en C#
+# seul dans les deux modes ; puis, en C# seul sous --boot et contre leurs attendus dans les deux modes, PS2BANC (la souris montée
+# par --force-ps2, porte de vérification ; le bouton du milieu tenu par @souris) et JOYBANC sur la CH et la TM (le
+# chapeau à 315° par @manette) — boot-diff les joue contre l'oracle plus haut, et refuse le mode matériel.
+for pb in 94 95 101 103 254 261; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode carte-mere)
+  for mt in 2 3; do
+    runw banc-ps2banc-$mt$m f386.nvr ami386dx_opti495 "${h[@]}" banc "$REPO/tools/gates/bancs/ps2banc-$mt.attendus" -- \
+      --boot roms 2500 --config ami386dx-fd.cfg --force-ps2 $mt --floppy-a "$REPO/$DOS" \
+      --floppy-b "$REPO/os/pcdos20/pcdos20s.img" --settle 600 --type "" --type "" --type "@souris 0,0,4" "${P2B[@]}" \
+      --type "@wait 3000"
+  done
+  for t in 4:ch 6:tm; do
+    run banc-joybanc-${t#*:}$m "${h[@]}" banc tools/gates/bancs/joybanc-${t#*:}.attendus -- --boot roms 7000 \
+      --joystick-type ${t%%:*} --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 150 \
+      --type "@manette 0,0,0,0,315" --type "" --type "" "${JOB[@]}" --type "@wait 1500"
+  done
+done

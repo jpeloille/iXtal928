@@ -12,7 +12,7 @@
 
 namespace iXtal26.Joystick;
 
-internal static class joystick_tm_fcs_c
+internal static partial class joystick_tm_fcs_c
 {
     // pcem: joystick_tm_fcs.c:9
     private static object? tm_fcs_init() { return null; }
@@ -44,8 +44,8 @@ internal static class joystick_tm_fcs_c
     private static void tm_fcs_write(object? p) { }
 
     // pcem: joystick_tm_fcs.c:32-57
-    // pcem bug, reproduced: PB-103 — 315° (le haut-gauche d'un chapeau à huit directions) ne
-    //   tombe dans aucun cas et rend le 0 final, le code du chapeau EN BAS.
+    // pcem bug, fixed in hardware mode: PB-103 — 315° (le haut-gauche d'un chapeau à huit
+    //   directions) ne tombe dans aucun cas et rend le 0 final, le code du chapeau EN BAS.
     private static int tm_fcs_read_axis(object? p, int axis)
     {
         if (!plat_joystick.JOYSTICK_PRESENT(0))
@@ -62,6 +62,9 @@ internal static class joystick_tm_fcs_c
         case 3:
                 if (plat_joystick.joystick_state[0].pov[0] == -1)
                         return 32767;
+                if (materiel.pb_103)
+                        if (tm_haut_materiel())
+                                return -32768;
                 if (plat_joystick.joystick_state[0].pov[0] > 315 || plat_joystick.joystick_state[0].pov[0] < 45)
                         return -32768;
                 if (plat_joystick.joystick_state[0].pov[0] >= 45 && plat_joystick.joystick_state[0].pov[0] < 135)

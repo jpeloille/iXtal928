@@ -1,0 +1,14 @@
+# PS2BANC (tools/ps2banc) sous PC-DOS 2.00, sur l'ami386dx, la souris PS/2 à deux boutons montée par --force-ps2 (porte
+# de vérification), en C# seul sous --boot (G13.4) ; le bouton du milieu tenu dès avant le banc (@souris 0,0,4). Chaque
+# relevé : l'état (64h) puis la donnée (60h), EEh si rien n'est venu. Les lignes qui changent :
+#   Le premier E9h (échelle 2:1) : l'octet d'état, PCem 13h, le milieu codé par les bits 0 et 1 (PB-95) ; IBM 10h,
+#     l'échelle en bit 4, aucun bouton d'une souris à deux boutons (15F0306, p. 2-97).
+#   F6h (valeurs par défaut) : PCem ne répond pas (3CEEh, rien) ; la souris FAh (PB-94 ; Chapweske, Brouwer).
+#   Le second E9h (flux activé) : PCem 23h ; IBM 20h, le flux en bit 5.
+B>PS2BANC
+pcem: 3DFA3DFA3DFA3DFA3DFA3D133D023D64
+pcem: 3DFA3CEE3DFA3D083D003D003CEE3CEE
+pcem: 3D233D023D643DFA3DFA3DFA3DFA3DFA
+materiel: 3DFA3DFA3DFA3DFA3DFA3D103D023D64
+materiel: 3DFA3DFA3DFA3D083D003D003CEE3CEE
+materiel: 3D203D023D643DFA3DFA3DFA3DFA3DFA

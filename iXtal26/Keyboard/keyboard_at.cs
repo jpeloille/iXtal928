@@ -168,6 +168,8 @@ internal static partial class keyboard_at
     internal static void keyboard_at_poll()
     {
         timer_advance_u64(keyboard_at_.send_delay_timer, (uint64_t)(100 * TIMER_USEC));
+        if (materiel.pb_254)
+                keyboard_at_livrer_materiel();
 
         if (keyboard_at_.out_new != -1 && keyboard_at_.last_irq == 0)
         {
@@ -258,8 +260,11 @@ internal static partial class keyboard_at
     // devant, et le poll rendra la main au clavier ensuite.
     internal static void keyboard_at_adddata(uint8_t val)
     {
-        // pcem bug, reproduced: PB-254 — aucune garde : au seizième octet en attente, end rejoint start et
-        //   la file paraît vide.
+        // pcem bug, fixed in hardware mode: PB-254 — aucune garde : au seizième octet en attente, end rejoint start
+        //   et la file paraît vide.
+        if (materiel.pb_254)
+                if (keyboard_at_controleur_materiel(val))
+                        return;
         key_ctrl_queue[key_ctrl_queue_end] = val;
         key_ctrl_queue_end = (key_ctrl_queue_end + 1) & 0xf;
 
@@ -275,6 +280,12 @@ internal static partial class keyboard_at
     {
         if (keyboard_at_.reset_delay != 0)
                 return;
+        // pcem bug, fixed in hardware mode: PB-254 — le tampon du clavier (plus bas, la file sans garde).
+        if (materiel.pb_254)
+        {
+                keyboard_at_clavier_materiel(val);
+                return;
+        }
 
         // omitted: le bloc `romset == ROM_T3100E` (keyboard_at.c:173-217) — quinze cas
         //   de t3100e_notify_set pour la touche « Fn » du Toshiba T3100e, machine non
@@ -301,8 +312,8 @@ internal static partial class keyboard_at
                         keyboard_at_.next_is_release = 0;
                 }
         }
-        // pcem bug, reproduced: PB-254 — aucune garde : au seizième code en attente, la file paraît vide ;
-        //   le clavier de l'AT en garde seize et remplace le dix-septième par 00h.
+        // pcem bug, fixed in hardware mode: PB-254 — aucune garde : au seizième code en attente, la file paraît
+        //   vide ; le clavier de l'AT en garde seize et remplace le dix-septième par 00h.
         key_queue[key_queue_end] = val;
         key_queue_end = (key_queue_end + 1) & 0xf;
         // omitted: pclog("keyboard_at : %02X added to key queue\n", val) — sortie pure.
@@ -312,8 +323,11 @@ internal static partial class keyboard_at
     // pcem: keyboard_at.c:234-238
     internal static void keyboard_at_adddata_mouse(uint8_t val)
     {
-        // pcem bug, reproduced: PB-254 — aucune garde : au seizième octet en attente, la file paraît vide ;
-        //   la vraie souris attend que le contrôleur relâche la ligne « clock ».
+        // pcem bug, fixed in hardware mode: PB-254 — aucune garde : au seizième octet en attente, la file paraît
+        //   vide ; la vraie souris attend que le contrôleur relâche la ligne « clock ».
+        if (materiel.pb_254)
+                if (keyboard_at_souris_materiel(val))
+                        return;
         mouse_queue[mouse_queue_end] = val;
         mouse_queue_end = (mouse_queue_end + 1) & 0xf;
         // omitted: pclog("keyboard_at : %02X added to mouse queue\n", val) — sortie pure.
@@ -510,6 +524,8 @@ internal static partial class keyboard_at
 
                                 case 0xff:                                   /*Reset*/
                                         key_queue_start = key_queue_end = 0; /*Clear key queue*/
+                                        if (materiel.pb_254)
+                                                keyboard_at_clavier_vider_materiel();
                                         keyboard_at_adddata_keyboard(0xfa);
                                         keyboard_at_.reset_delay = RESET_DELAY_TIME;
                                         break;
@@ -597,6 +613,8 @@ internal static partial class keyboard_at
                         {
                                 keyboard_at_.initialised = 1;
                                 key_ctrl_queue_start = key_ctrl_queue_end = 0;
+                                if (materiel.pb_254)
+                                        keyboard_at_controleur_vider_materiel();
                                 keyboard_at_.status &= unchecked((uint8_t)~STAT_OFULL);
                         }
                         // omitted: `romset == ROM_T3100E || ROM_SPC6000A` -> status |= STAT_IFULL
@@ -840,6 +858,8 @@ internal static partial class keyboard_at
         keyboard_at_ = new();
         io_sethandler(0x0060, 0x0005, keyboard_at_read, null, null, keyboard_at_write, null, null, null);
         keyboard_at_reset();
+        if (materiel.pb_254)
+                keyboard_at_init_materiel();
         keyboard_send = keyboard_at_adddata_keyboard;
         keyboard_poll = keyboard_at_poll;
         keyboard_at_.mouse_write = null;

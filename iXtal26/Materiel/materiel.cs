@@ -39,6 +39,18 @@ internal static class materiel
     /// <summary>PB-87 : au repli de l'IP, la lecture d'instruction se fait à l'offset 0 du segment.</summary>
     internal static readonly bool pb_87;
 
+    /// <summary>PB-94 : la souris PS/2 répond FAh à F6h, EAh, F0h, EEh et ECh, et FEh ou FCh à une commande inconnue.</summary>
+    internal static readonly bool pb_94;
+
+    /// <summary>PB-95 : l'octet d'état de la souris PS/2 (E9h) selon IBM, et le mode distant en bit 6.</summary>
+    internal static readonly bool pb_95;
+
+    /// <summary>PB-101 : le PC1512 n'a pas de LPT2 à 278h.</summary>
+    internal static readonly bool pb_101;
+
+    /// <summary>PB-103 : le chapeau de la CH Flightstick Pro et de la TM FCS lit 315° en haut.</summary>
+    internal static readonly bool pb_103;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -96,6 +108,9 @@ internal static class materiel
     /// <summary>PB-253 : les canaux 0 à 3 de l'AT n'ont le bus que par la cascade du canal 4.</summary>
     internal static readonly bool pb_253;
 
+    /// <summary>PB-254 : les files du 8042 ; le tampon du clavier de l'AT, seize codes et le débordement.</summary>
+    internal static readonly bool pb_254;
+
     /// <summary>PB-255 : après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR.</summary>
     internal static readonly bool pb_255;
 
@@ -104,6 +119,9 @@ internal static class materiel
 
     /// <summary>PB-258 : l'erreur de division empile dans SS, sous un préfixe de segment ; avec PB-45 et PB-169.</summary>
     internal static readonly bool pb_258;
+
+    /// <summary>PB-261 : la souris PS/2 remet ses compteurs de mouvement à zéro après le paquet d'EBh.</summary>
+    internal static readonly bool pb_261;
 
     static materiel()
     {
@@ -115,6 +133,10 @@ internal static class materiel
         pb_07 = ModeMateriel.Demande(7);
         pb_45 = ModeMateriel.Demande(45);
         pb_87 = ModeMateriel.Demande(87);
+        pb_94 = ModeMateriel.Demande(94);
+        pb_95 = ModeMateriel.Demande(95);
+        pb_101 = ModeMateriel.Demande(101);
+        pb_103 = ModeMateriel.Demande(103);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);
@@ -134,8 +156,10 @@ internal static class materiel
         pb_251 = ModeMateriel.Demande(251);
         pb_252 = ModeMateriel.Demande(252);
         pb_253 = ModeMateriel.Demande(253);
+        pb_254 = ModeMateriel.Demande(254);
         pb_255 = ModeMateriel.Demande(255);
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);
+        pb_261 = ModeMateriel.Demande(261);
     }
 }

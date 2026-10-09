@@ -14,13 +14,18 @@
 // PB-246 à PB-248, PB-255) écrivent et lisent ses ports et l'acquittent comme le ferait le processeur, après
 // l'initialisation du BIOS de l'AT (maître en 08h, esclave en 70h sur IR2) ou de l'XT (un seul 8259, en 08h). Ceux du
 // 8237 (PB-157, PB-249 à PB-253) écrivent ses ports et tirent un transfert comme le ferait un périphérique
-// (dma_channel_write), après un reset du DMA.
+// (dma_channel_write), après un reset du DMA. Ceux du 8042 et de la souris PS/2 (PB-254, PB-94, PB-95) appellent le
+// contrôleur, la souris et le poll comme le feraient le processeur et le chronomètre ; celui de PB-101 monte les ports
+// du PC1512 ; celui de PB-103 pose l'état de la manette et lit la CH et la TM.
 
 using System.Reflection;
 using iXtal26.Cpu;
 using iXtal26.Diag;
+using iXtal26.Joystick;
+using iXtal26.Keyboard;
 using iXtal26.Memory;
 using iXtal26.Models;
+using iXtal26.Mouse;
 
 namespace iXtal26.Diff;
 
@@ -31,7 +36,8 @@ internal static class MaterielCas
         [1] = Pb01, [2] = Pb02, [3] = Pb03, [5] = Pb05, [7] = Pb07, [45] = Pb45, [87] = Pb87, [169] = Pb169, [170] = Pb170,
         [171] = Pb171, [172] = Pb172, [173] = Pb173, [174] = Pb174, [175] = Pb175, [176] = Pb176, [177] = Pb177,
         [179] = Pb179, [157] = Pb157, [246] = Pb246, [247] = Pb247, [248] = Pb248, [249] = Pb249, [250] = Pb250,
-        [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258,
+        [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
+        [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261,
     };
 
     internal static int Run(string[] args)
@@ -802,4 +808,242 @@ internal static class MaterielCas
                     (r == dma.DMA_NODATA) == hw, Fait(r), hw ? "refusé" : "fait", hw);
         return bad;
     });
+
+    // ===== Le 8042 et la souris PS/2 =====
+
+    private static string Hex(List<int> l) => l.Count == 0 ? "rien" : string.Join(" ", l.Select(v => $"{v:X2}"));
+
+    /// <summary>Le 8042 de l'AT neuf (keyboard_at_init), clavier actif (octet de commande 01h, traduction coupée),
+    /// sans souris.</summary>
+    private static void Clavier8042()
+    {
+        _808x.Reset();
+        keyboard_at.keyboard_at_init();
+        keyboard_at.keyboard_at_.mem[0] = 0x01;
+        keyboard_at.keyboard_at_.translate = 0;
+        mouse_ps2.mouse_scan = 0;
+    }
+
+    /// <summary>Le poll du 8042 tant qu'il livre : chaque octet arrivé au tampon de sortie, lu en 60h.</summary>
+    private static List<int> Vider8042()
+    {
+        var lus = new List<int>();
+        for (var k = 0; k < 400; k++)
+        {
+            keyboard_at.keyboard_at_poll();
+            if ((keyboard_at.keyboard_at_.status & 1) != 0)
+                lus.Add(keyboard_at.keyboard_at_read(0x60, null));
+        }
+        return lus;
+    }
+
+    // PB-254 — les files du 8042. Le clavier : AT TR p. 4-3, seize codes gardés, le dix-septième remplacé par le code de
+    // débordement (00h ; FFh traduit), les suivants perdus. Un code au tampon de sortie, non lu, puis dix-neuf autres
+    // (02h à 14h) : PCem rend 01h, 12h, 13h, 14h ; l'AT 01h à 11h puis 00h. Traduction posée, le premier puis dix-sept
+    // « A » (1Ch) : PCem 01h... et un 1Eh ; l'AT seize 1Eh puis FFh. Le contrôleur, vingt fois 20h (lire l'octet de
+    // commande) sans lecture : PCem en rend quatre, le 8042 vingt. La souris, cinq fois E9h (quatre octets chacune) :
+    // PCem quatre octets, la souris vingt (le 8042 la retient par la ligne « clock » : PS/2 HITR 84F9735, p. 14-15).
+    private static int Pb254(bool hw)
+    {
+        var bad = 0;
+        Clavier8042();
+        keyboard_at.keyboard_at_adddata_keyboard(0x01);
+        keyboard_at.keyboard_at_poll();
+        keyboard_at.keyboard_at_poll();
+        for (var c = 2; c <= 20; c++)
+            keyboard_at.keyboard_at_adddata_keyboard((byte)c);
+        var lus = Vider8042();
+        var att = hw ? Enumerable.Range(1, 17).Append(0).ToList() : [1, 18, 19, 20];
+        bad += Voir("clavier, 01h au tampon de sortie, puis 02h à 14h sans lecture", lus.SequenceEqual(att), Hex(lus),
+                    Hex(att), hw);
+
+        Clavier8042();
+        keyboard_at.keyboard_at_.translate = 1;
+        keyboard_at.keyboard_at_adddata_keyboard(0x16);  // « 1 », traduit 02h
+        keyboard_at.keyboard_at_poll();
+        keyboard_at.keyboard_at_poll();
+        for (var c = 0; c < 17; c++)
+            keyboard_at.keyboard_at_adddata_keyboard(0x1c);
+        lus = Vider8042();
+        att = hw ? [0x02, .. Enumerable.Repeat(0x1e, 16), 0xff] : [0x02, 0x1e];
+        bad += Voir("clavier traduit, 16h au tampon de sortie, puis dix-sept fois 1Ch", lus.SequenceEqual(att), Hex(lus),
+                    Hex(att), hw);
+
+        Clavier8042();
+        for (var c = 0; c < 20; c++)
+            keyboard_at.keyboard_at_write(0x64, 0x20, null);
+        lus = Vider8042();
+        var n = hw ? 20 : 4;
+        bad += Voir("contrôleur, vingt fois 20h sans lecture", lus.Count == n && lus.All(v => v == 0x01),
+                    $"{lus.Count} octet(s), {Hex(lus)}", $"{n} fois 01h", hw);
+
+        Clavier8042();
+        var m = mouse_ps2.mouse_ps2_init();
+        mouse_ps2.mouse_scan = 1;
+        for (var c = 0; c < 5; c++)
+            mouse_ps2.mouse_ps2_write(0xe9, m);
+        lus = Vider8042();
+        n = hw ? 20 : 4;
+        bad += Voir("souris, cinq fois E9h sans lecture", lus.Count == n, $"{lus.Count} octet(s), {Hex(lus)}",
+                    $"{n} octets", hw);
+        mouse_ps2.mouse_ps2_close(m);
+        mouse_ps2.mouse_scan = 0;
+        return bad;
+    }
+
+    /// <summary>Une souris PS/2 neuve du type donné (2, deux boutons ; 3, l'Intellimouse), sa file vide.</summary>
+    private static mouse_ps2_t Souris(int type)
+    {
+        mouse.mouse_type = type;
+        mouse.mouse_buttons = 0;
+        keyboard_at.mouse_queue_start = keyboard_at.mouse_queue_end = 0;
+        return (mouse_ps2_t)mouse_ps2.mouse_ps2_init();
+    }
+
+    /// <summary>Envoie un octet à la souris et rend ce qu'elle a mis dans la file.</summary>
+    private static List<int> Commande(mouse_ps2_t m, int v)
+    {
+        mouse_ps2.mouse_ps2_write((byte)v, m);
+        return FileSouris();
+    }
+
+    /// <summary>Ce que la souris a mis dans la file, retiré.</summary>
+    private static List<int> FileSouris()
+    {
+        var l = new List<int>();
+        while (keyboard_at.mouse_queue_start != keyboard_at.mouse_queue_end)
+        {
+            l.Add(keyboard_at.mouse_queue[keyboard_at.mouse_queue_start]);
+            keyboard_at.mouse_queue_start = (keyboard_at.mouse_queue_start + 1) & 0xf;
+        }
+        return l;
+    }
+
+    private static int Echange(string nom, mouse_ps2_t m, int v, int[] pcem, int[] materiel, bool hw)
+    {
+        var l = Commande(m, v);
+        var att = (hw ? materiel : pcem).ToList();
+        return Voir($"{nom} ({v:X2}h)", l.SequenceEqual(att), Hex(l), Hex(att), hw);
+    }
+
+    // PB-94 — FAh à toute commande valide, FEh puis FCh à une invalide ; F6h, F0h, EAh, EEh, ECh (Chapweske ; Brouwer).
+    // La souris neuve, E9h : PCem FAh 00h 00h 00h ; la souris FAh 00h 02h 64h, ses valeurs par défaut. E8h 03h, F3h 28h
+    // (posées), F6h, E9h : PCem rien puis FAh 00h 03h 28h ; la souris FAh, puis FAh 00h 02h 64h. F4h, F0h, un mouvement
+    // (PCem un paquet, en flux ; la souris, en mode distant, rien) ; EAh ; ECh hors de l'écho (FAh) ; EEh, 12h, ECh
+    // (l'écho) ; EEh, FFh (le reset sort de l'écho : FAh AAh 00h, puis E9h, FAh 00h 02h 64h) ; EDh, F5h, EDh, EDh (FEh,
+    // FAh, FEh, FCh : une commande valide remet le compte à zéro).
+    private static int Pb94(bool hw)
+    {
+        var bad = 0;
+        var m = Souris(2);
+        mouse_ps2.mouse_scan = 1;
+        bad += Echange("souris neuve, état", m, 0xe9, [0xfa, 0, 0, 0], [0xfa, 0, 2, 100], hw);
+        Commande(m, 0xe8);
+        Commande(m, 0x03);
+        Commande(m, 0xf3);
+        Commande(m, 0x28);
+        bad += Echange("valeurs par défaut", m, 0xf6, [], [0xfa], hw);
+        bad += Echange("état", m, 0xe9, [0xfa, 0, 3, 0x28], [0xfa, 0, 2, 100], hw);
+        bad += Echange("flux activé", m, 0xf4, [0xfa], [0xfa], hw);
+        bad += Echange("mode distant", m, 0xf0, [], [0xfa], hw);
+        mouse_ps2.mouse_ps2_poll(5, 5, 0, 0, m);
+        var l = FileSouris();
+        bad += Voir("un mouvement en mode distant", l.Count == (hw ? 0 : 3), $"{l.Count} octet(s)", hw ? "0" : "3", hw);
+        bad += Echange("mode flux", m, 0xea, [], [0xfa], hw);
+        bad += Echange("fin de l'écho, hors de l'écho", m, 0xec, [], [0xfa], hw);
+        bad += Echange("écho", m, 0xee, [], [0xfa], hw);
+        bad += Echange("écho, un octet", m, 0x12, [], [0x12], hw);
+        bad += Echange("fin de l'écho", m, 0xec, [], [0xfa], hw);
+        bad += Echange("écho, encore", m, 0xee, [], [0xfa], hw);
+        bad += Echange("reset dans l'écho", m, 0xff, [0xfa, 0xaa, 0], [0xfa, 0xaa, 0], hw);
+        bad += Echange("après le reset, état", m, 0xe9, [0xfa, 0, 3, 0x28], [0xfa, 0, 2, 100], hw);
+        bad += Echange("commande inconnue", m, 0xed, [], [0xfe], hw);
+        bad += Echange("une commande valide", m, 0xf5, [0xfa], [0xfa], hw);
+        bad += Echange("commande inconnue, après une valide", m, 0xed, [], [0xfe], hw);
+        bad += Echange("commande inconnue, encore", m, 0xed, [], [0xfc], hw);
+        mouse_ps2.mouse_ps2_close(m);
+        mouse_ps2.mouse_scan = 0;
+        return bad;
+    }
+
+    // PB-95 — l'octet d'état d'E9h, IBM 15F0306 p. 2-97 : gauche en bit 2, droit en bit 0, le flux activé en bit 5.
+    // Souris à deux boutons, F4h, E9h : gauche tenu, PCem 21h et IBM 24h ; droit, 22h et 21h ; milieu, 23h et 20h.
+    // L'Intellimouse, milieu tenu : PCem 23h ; le bit 1, celui du milieu d'une souris à trois boutons, 22h.
+    private static int Pb95(bool hw)
+    {
+        var bad = 0;
+        foreach (var (type, boutons, pcem, ibm) in new[] { (2, 1, 0x21, 0x24), (2, 2, 0x22, 0x21), (2, 4, 0x23, 0x20),
+                                                           (3, 4, 0x23, 0x22) })
+        {
+            var m = Souris(type);
+            Commande(m, 0xf4);
+            mouse.mouse_buttons = boutons;
+            int[] reste = [m.resolution, m.sample_rate];
+            bad += Echange($"type {type}, boutons {boutons}, état", m, 0xe9, [0xfa, pcem, .. reste], [0xfa, ibm, .. reste], hw);
+            mouse.mouse_buttons = 0;
+            mouse_ps2.mouse_ps2_close(m);
+        }
+        mouse.mouse_type = 0;
+        return bad;
+    }
+
+    // PB-261 — après le paquet d'EBh, la souris remet ses compteurs de mouvement à zéro (Chapweske, « Read Data »). La
+    // souris neuve, un mouvement de (5, 3) accumulé, puis EBh deux fois : PCem FAh 00h 05h FDh deux fois ; la souris la
+    // seconde fois FAh 00h 00h 00h.
+    private static int Pb261(bool hw)
+    {
+        var bad = 0;
+        var m = Souris(2);
+        mouse_ps2.mouse_scan = 1;
+        mouse_ps2.mouse_ps2_poll(5, 3, 0, 0, m);
+        bad += Echange("un mouvement accumulé, lecture", m, 0xeb, [0xfa, 0x20, 5, 0xfd], [0xfa, 0x20, 5, 0xfd], hw);
+        bad += Echange("lecture, encore", m, 0xeb, [0xfa, 0x20, 5, 0xfd], [0xfa, 0, 0, 0], hw);
+        mouse_ps2.mouse_ps2_close(m);
+        mouse_ps2.mouse_scan = 0;
+        return bad;
+    }
+
+    // PB-101 — le PC1512 n'a qu'un port parallèle, en 378h (Amstrad PC1512 TRM, section 1, § 1.3, 1.4, 1.10). lpt_init
+    // (common_init) pose LPT2 à 278h, puis amstrad_init : OUT 278h,AAh, IN 278h, PCem AAh (lpt2_dat) ; le PC1512 FFh,
+    // rien ne répond.
+    private static int Pb101(bool hw)
+    {
+        _808x.Reset();
+        io.io_init();
+        Lpt.lpt.lpt_init();
+        amstrad.amstrad_init();
+        io.outb(0x278, 0xaa);
+        var v = io.inb(0x278);
+        io.io_init();
+        return Voir("PC1512, OUT 278h,AAh puis IN 278h", v == (hw ? 0xff : 0xaa), $"{v:X2}h", hw ? "FFh" : "AAh", hw);
+    }
+
+    // PB-103 — le chapeau à 315° (haut-gauche de l'hôte) se lit en haut, comme chacune des autres diagonales se lit à
+    // la direction suivante dans le sens des aiguilles d'une montre. La CH : PCem F0h (au repos), « haut » 00h ; la TM,
+    // l'axe 3 : PCem 0 (en bas), « haut » -32768. Les témoins, identiques dans les deux modes : 0° (le haut), 45° (la
+    // droite), 135° (le bas), 225° (la gauche), -1 (au repos).
+    private static int Pb103(bool hw)
+    {
+        var bad = 0;
+        var js = plat_joystick.joystick_state[0];
+        var (nr, pov) = (js.plat_joystick_nr, js.pov[0]);
+        try
+        {
+            js.plat_joystick_nr = 1;
+            foreach (var (angle, ch, tm) in new[] { (0, 0x00, -32768), (45, 0x40, -16384), (135, 0x80, 0), (225, 0xc0, 16384),
+                                                     (-1, 0xf0, 32767), (315, hw ? 0x00 : 0xf0, hw ? -32768 : 0) })
+            {
+                js.pov[0] = angle;
+                var c = joystick_ch_flightstick_pro_c.joystick_ch_flightstick_pro.read!(null);
+                var t = joystick_tm_fcs_c.joystick_tm_fcs.read_axis!(null, 3);
+                bad += Voir($"chapeau à {angle}°, la CH (201h) et la TM (axe 3)", c == ch && t == tm, $"{c:X2}h, {t}",
+                            $"{ch:X2}h, {tm}", hw);
+            }
+        }
+        finally
+        {
+            (js.plat_joystick_nr, js.pov[0]) = (nr, pov);
+        }
+        return bad;
+    }
 }

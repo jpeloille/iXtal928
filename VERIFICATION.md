@@ -7847,3 +7847,122 @@ comme attendu : `recensement` (260 défauts, 928 marqueurs, contre 258 et 913). 
 l'étape : les cas des six corrections dans les deux modes, `bd-xt-dmabanc` et `bd-ibmat-dmabanc` (l'image B: identique
 des deux côtés, 548 octets écrits par l'invité), et les quatre bancs DMABANC, XT et AT, dans les deux modes, chacun sur
 deux séances identiques.
+
+## G13.4c — La carte mère : le 8042, la souris PS/2 et les ports en mode matériel
+
+Le 9 octobre 2026, à la suite de G13.4b. Ici, PB-254 (les files du 8042), PB-94, PB-95 et PB-261 (la souris PS/2),
+PB-101 (le second port parallèle du PC1512) et PB-103 (le chapeau de la CH et de la TM à 315°). PB-104 reste dans les deux
+modes (décision n° 9) ; PB-33 est corrigé depuis G13.0 ; PB-256 reste reproduit, la question posée. Le mode PCem ne
+bouge pas.
+
+**Le code.** `Keyboard/keyboard_at.Materiel.cs` : le tampon du clavier (seize octets bruts, puis 00h, puis rien),
+livré un octet à la fois à la file de PCem quand elle est vide, en tête du poll, et traduit à la livraison ; les
+réserves du contrôleur et de la souris (64 octets, dans l'ordre), versées dans leurs files dès qu'elles y tiennent ;
+leurs remises à zéro (FFh du clavier et de la souris, AAh du contrôleur, `keyboard_at_init`). L'état vit dans une
+classe imbriquée, `Etat8042`. `Mouse/mouse_ps2.Materiel.cs` : F6h, EAh, F0h, EEh, ECh, les commandes inconnues (FEh
+puis FCh), l'écho, les valeurs par défaut à l'init et au reset, l'octet d'état d'IBM, les compteurs remis à zéro après
+EBh ; l'état d'avant l'écho et le compte des invalides dans `EtatSouris`.
+`Models/amstrad.Materiel.cs` : `lpt2_remove()`. `Joystick/*.Materiel.cs` : 315° en haut. Les gardes : `keyboard_at.cs`
+(le poll, les trois ajouts aux files, le reset du clavier, le self-test, l'init), `mouse_ps2.cs` (l'entrée de
+`mouse_ps2_write`, un `default` au switch des commandes, E9h, EBh, le reset, l'init), `amstrad_init` (la ligne de PCem
+reste, inconditionnelle : après `lpt2_remove()`, son retrait à 379h ne trouve toujours rien), les deux manettes.
+
+**La contre-lecture** (Sonnet, en lecture seule) a trouvé un défaut : l'init et le reset de la souris, en mode
+matériel, laissaient la cadence et la résolution à zéro, alors qu'une souris neuve annonce 100 points par seconde et
+4 points par mm. Corrigé avec PB-94, dont l'entrée est élargie. Elle a aussi relevé un défaut de PCem neuf, inscrit et
+corrigé : PB-261, la lecture à distance (EBh) qui ne remet pas les compteurs de mouvement à zéro. Et, retenus : les
+files de PCem vidées aussi à l'init en mode matériel (PCem les garde d'un amorçage à l'autre), la ligne de PCem
+d'`amstrad_init` sortie d'un `else`, des cas plus complets. Laissés, et dits : l'octet que le 8042 a déjà pris ne
+compte plus dans les seize du clavier (le clavier en livre donc jusqu'à dix-sept, le débordement compris, au-delà de
+l'octet en sortie) ; le renvoi FEh et le refus d'une donnée hors de sa plage ne sont pas modélisés.
+
+**PB-103, la convention.** « Haut » : chacune des trois autres diagonales se lit déjà à la direction suivante dans le
+sens des aiguilles d'une montre (45° à droite, 135° en bas, 225° à gauche) ; 315° suit. Rien dans le matériel ne la
+fixe (le vrai chapeau n'a que quatre directions) ; « gauche » serait la borne `<= 315` de l'intervalle d'avant.
+
+**Les cas** (`materiel-cas`, C# seul) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 254 | 01h au tampon de sortie, puis 02h à 14h sans lecture | 01 12 13 14 | 01 à 11, puis 00 |
+| 254 | traduit : 16h, puis dix-sept fois 1Ch | 02 1E | 02, seize 1E, FF |
+| 254 | vingt fois 20h au contrôleur sans lecture | 4 réponses | 20 |
+| 254 | cinq E9h à la souris sans lecture | 4 octets | 20 |
+| 94 | E9h sur la souris neuve ; E8h 03h, F3h 28h, F6h, E9h | FA 00 00 00 ; rien, FA 00 03 28 | FA 00 02 64 ; FA, FA 00 02 64 |
+| 94 | F4h, F0h, un mouvement ; EAh ; ECh hors de l'écho ; EEh, 12h, ECh | un paquet ; rien ; rien ; rien | aucun paquet ; FA ; FA ; FA, 12, FA |
+| 94 | EEh, FFh, E9h ; EDh, F5h, EDh, EDh | rien, FA AA 00, FA 00 03 28 ; rien, FA, rien, rien | FA, FA AA 00, FA 00 02 64 ; FE, FA, FE, FC |
+| 95 | E9h, deux boutons : gauche, droit, milieu ; l'Intellimouse, milieu | 21h, 22h, 23h ; 23h | 24h, 21h, 20h ; 22h |
+| 101 | lpt_init, amstrad_init, OUT 278h,AAh, IN 278h | AAh | FFh |
+| 103 | les témoins 0°, 45°, 135°, 225°, -1 : la CH (201h), la TM (axe 3) | identiques | identiques |
+| 103 | le chapeau à 315° | F0h, 0 | 00h, -32768 |
+| 261 | un mouvement de (5, 3) accumulé, EBh deux fois | FA 20 05 FD, deux fois | puis FA 00 00 00 |
+
+Chacun rend la valeur de PCem en mode PCem, celle du matériel avec sa seule correction, la sonde comptant la
+correction, et rougit la correction coupée (`--attendu materiel` en mode PCem).
+
+**Les bancs en mode matériel.** boot-diff refuse le mode matériel (l'oracle est PCem) : PS2BANC et JOYBANC, joués
+contre l'oracle depuis PS2.0 et G10.1, se rejouent en C# seul sous `--boot`, contre leurs attendus, dans les deux
+modes. `--boot` y prend trois outils de banc : `--force-ps2 N` (la porte de vérification de boot-diff, PS2.1, pas une
+machine offerte), `--joystick-type N` et la commande de script `@manette x,y,b,z,c`. PS2BANC sur l'ami386dx (la CMOS
+des portes, `f386.nvr`), le bouton du milieu tenu par `@souris 0,0,4` avant le banc :
+
+| Relevé | PCem | Deux boutons | Intellimouse |
+|---|---|---|---|
+| E9h, échelle 2:1 (l'octet d'état) | 13h | 10h | 12h |
+| F6h (état, donnée) | 3Ch EEh, rien | 3Dh FAh | 3Dh FAh |
+| E9h, flux activé | 23h | 20h | 22h |
+
+Tous les autres relevés sont identiques d'un mode à l'autre, paquets compris. JOYBANC sur le 5150, le chapeau tenu à
+315° par `@manette 0,0,0,0,315` : la CH, la première lecture de 201h, FFh en mode PCem (au repos), 0Fh en mode
+matériel (les quatre boutons, le haut) ; la TM, le compte de l'axe 3, 0Fh (la valeur 0, en bas) contre 01h (-32768).
+Chaque banc joue deux séances identiques. `bd-ami386dx-ps2-banc-2`, `bd-pc-joy-ch-banc` et `bd-pc-joy-tm-banc`,
+contre l'oracle, restent verts.
+
+**L'hôte.** `--joystick-check`, en mode PCem et en mode matériel (tout) : le même verdict, vert, PB-104 reproduit dans
+les deux modes.
+
+**Les POST et la disquette.** Les neuf machines, en mode PCem, en mode matériel de la carte mère et en tout le mode
+matériel, rejouées cette fois avec leurs arguments intacts (le passage par xargs de G13.4b perdait les guillemets
+d'`@wait 900`, tapé alors comme du texte ; les comparaisons d'un mode à l'autre n'en étaient pas faussées) : les
+écrans identiques. PC-DOS 2.00 démarre de la disquette dans les trois modes, à l'identique : sur l'IBM AT et l'AMI 486
+(F1 passé) jusqu'au DIR de A: et de B: ; sur l'AMI 386DX, avec la CMOS des portes PS/2 (`f386.nvr`,
+`ami386dx-fd.cfg`), de même ; sur le 5150 et l'XT jusqu'au DIR de B:, où seule l'heure de DOS change (PB-03 et PB-257,
+G13.3). L'AMI 286 et l'AMI 386, sans CMOS à leur configuration dans le bac à sable, restent au SETUP, de même dans
+les trois modes.
+
+**Le mode PCem ne coûte rien (M2).** Les listings (`/var/tmp/ixtal-g13/M2-4c`) : contre M0, les méthodes froides de
+G13.2 et les sept apparues avec le mécanisme, plus `BootTest:TypeAndDump` (la commande `@manette`), froide aussi ;
+`keyboard_at_poll`, `keyboard_at_adddata`, `keyboard_at_adddata_keyboard`, `keyboard_at_adddata_mouse`,
+`keyboard_at_write` et `keyboard_at_init`, compilés par les scénarios AT, identiques. Trois scénarios neufs dans
+`tools/listings-jit.sh`, rejoués aussi sur 860f2b1 (`/var/tmp/ixtal-g13/M0-860f2b1-g134c`) : le POST du PC1512
+(`amstrad_init`), la CH et la TM lues sous DEBUG (`O 201 0`, `I 201`) ; leurs méthodes gardées identiques à M0. La
+souris PS/2 n'a pas de scénario : aucune machine du dépôt ne la monte, et 860f2b1 n'a pas `--force-ps2` sous `--boot`.
+`mouse_ps2_write` et `mouse_ps2_init` n'ont donc pas de listing mesuré ; leurs gardes ont la forme de
+toutes les autres. R2 : `mouse_ps2.cs`, 212 lignes vives (201 avant), contre 184 dans `mouse_ps2.c` ;
+`keyboard_at.cs`, 472 contre 668.
+
+**Contrôles négatifs**, dans une copie à part (`/tmp/a9/neg4c`), chacun joué sur son cas et, s'il en a un, sur son
+banc en mode matériel :
+
+| Faute | `materiel-cas` | Banc |
+|---|---|---|
+| le débordement qui garde l'octet au lieu de 00h | PB-254 rouge : 12h, et 1Eh au lieu de FFh | — |
+| la réserve du contrôleur jamais employée | PB-254 rouge : 4 réponses | — |
+| F6h sans FAh | PB-94 rouge : rien | PS2BANC rouge |
+| le milieu en bit 1 sur une souris à deux boutons | PB-95 rouge : 22h | PS2BANC rouge, deux relevés |
+| le PC1512 qui retire à 379h | PB-101 rouge : AAh | — |
+| la CH qui ne lit pas 315° en haut | PB-103 rouge : F0h | JOYBANC CH rouge |
+| EBh qui garde les compteurs | PB-261 rouge : FA 20 05 FD | — |
+| les valeurs par défaut sans la cadence | PB-94 rouge : trois E9h, 00h ou 28h au lieu de 64h | — |
+
+**Les outils.** Les portes neuves (`series.sh`) : les douze cas, et les huit bancs PS2BANC (deux souris) et JOYBANC
+(CH, TM) dans les deux modes. Ciblées après la contre-lecture (c4c2, 25 portes, avec `recensement`, `materiel-mode` et
+les trois boot-diff des bancs) : toutes vertes ; `recensement` : 261 défauts, 947 marqueurs, 35 défauts corrigés en
+mode matériel. Les POST, les listings et les contrôles négatifs ci-dessus sont ceux d'après la contre-lecture.
+
+**La série.** g4c1 tourne sur un worktree de `933ba98` et des trente et un fichiers de l'étape (le code, les cas, les
+bancs, les options de `--boot`), les corpus SST liés corpus par corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit
+de zéro : 345 portes, toutes vertes, en 63 minutes. Contre g4b1, les 325 portes communes rendent les mêmes verdicts ;
+un seul résumé change, comme attendu : `recensement` (261 défauts, 947 marqueurs, contre 260 et 928). Les 20 portes
+neuves sont celles de l'étape : les cas des six corrections dans les deux modes, et les quatre bancs PS2BANC (deux
+souris) et JOYBANC (CH, TM), dans les deux modes, chacun sur deux séances identiques.

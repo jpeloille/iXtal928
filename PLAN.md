@@ -116,9 +116,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   numéroté, la porte `recensement`. G13.2 fait : le mode matériel, son mécanisme et son pilote PB-01, contre
   le silicium (SingleStepTests du 8088 et du 8086). G13.3 fait : le 8088 et le 8086, dix-sept corrections (PB-258
   inscrit), les deux corpus SST entiers en mode matériel (suite du 09/10 : les REP joués jusqu'au bout ; le temps
-  d'un REP devant autre chose qu'une chaîne corrigé, contre le silicium). G13.4, la carte mère, en cours : G13.4a
-  fait, le 8259 (cinq corrections, PICBANC) ; G13.4b fait, le 8237 (six corrections, PB-259 et PB-260 inscrits,
-  DMABANC) ; reste le 8042, la souris et les ports (G13.4c).
+  d'un REP devant autre chose qu'une chaîne corrigé, contre le silicium). G13.4 fait, la carte mère : le 8259
+  (cinq corrections, PICBANC), le 8237 (six corrections, PB-259 et PB-260 inscrits, DMABANC), le 8042, la souris
+  PS/2 et les ports (six corrections, PB-261 inscrit, PS2BANC et JOYBANC).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

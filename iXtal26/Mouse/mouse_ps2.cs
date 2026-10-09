@@ -41,7 +41,7 @@ internal sealed class mouse_ps2_t
     internal uint8_t[] last_data = new uint8_t[6];
 }
 
-internal static class mouse_ps2
+internal static partial class mouse_ps2
 {
     // pcem: mouse_ps2.c:10. Jusqu'à PS2.0 il vivait dans keyboard_at.cs (DEVIATION) ; il
     //   rejoint son fichier. Le 8042 le lit et l'écrit (A7h, A8h, D4h, octet de commande).
@@ -61,6 +61,9 @@ internal static class mouse_ps2
     {
         // `p` est celui que mouse_ps2_init a passé à keyboard_at_set_mouse : jamais nul.
         mouse_ps2_t mouse = (mouse_ps2_t)p!;
+        if (materiel.pb_94)
+                if (mouse_ps2_entree_materiel(mouse, val))
+                        return;
 
         if (mouse.cd != 0)
         {
@@ -87,8 +90,8 @@ internal static class mouse_ps2
                 uint8_t temp;
 
                 mouse.command = val;
-                // pcem bug, reproduced: PB-94 — une commande hors de ce switch (F6h, EAh, F0h,
-                //   EEh, ECh, EDh…) ne reçoit RIEN, pas même FAh (le `default` est commenté,
+                // pcem bug, fixed in hardware mode: PB-94 — une commande hors de ce switch (F6h, EAh,
+                //   F0h, EEh, ECh, EDh…) ne reçoit RIEN, pas même FAh (le `default` est commenté,
                 //   :144-145) ; MOUSE_REMOTE et MOUSE_ECHO ne sont donc jamais posés.
                 switch (mouse.command)
                 {
@@ -109,9 +112,12 @@ internal static class mouse_ps2
 
                 case 0xe9: /*Status request*/
                         keyboard_at_adddata_mouse(0xfa);
+                        // pcem bug, fixed in hardware mode: PB-95 — la disposition du paquet (gauche en bit 0, droit en
+                        //   bit 1), et le milieu en 3 ; l'octet d'état d'IBM met le gauche en bit 2, le droit en bit 0.
+                        if (materiel.pb_95)
+                                if (mouse_ps2_etat_materiel(mouse))
+                                        break;
                         temp = mouse.flags;
-                        // pcem bug, reproduced: PB-95 — la disposition du paquet (gauche en bit 0, droit en bit 1),
-                        //   et le milieu en 3 ; l'octet d'état d'IBM met le gauche en bit 2, le droit en bit 0.
                         if ((mouse_buttons & 1) != 0)
                                 temp |= 1;
                         if ((mouse_buttons & 2) != 0)
@@ -142,6 +148,10 @@ internal static class mouse_ps2
                         keyboard_at_adddata_mouse((uint8_t)(mouse.y & 0xff));
                         if (mouse.intellimouse_mode != 0)
                                 keyboard_at_adddata_mouse((uint8_t)mouse.z);
+                        // pcem bug, fixed in hardware mode: PB-261 — les compteurs de mouvement ne reviennent pas à
+                        //   zéro après le paquet : la lecture suivante rend encore le même mouvement.
+                        if (materiel.pb_261)
+                                mouse_ps2_lu_materiel(mouse);
                         break;
 
                 case 0xf2: /*Read ID*/
@@ -172,6 +182,10 @@ internal static class mouse_ps2
                         mouse.flags = 0;
                         mouse.intellimouse_mode = 0;
                         mouse_queue_start = mouse_queue_end = 0;
+                        if (materiel.pb_254)
+                                keyboard_at_souris_vider_materiel();
+                        if (materiel.pb_94)
+                                mouse_ps2_defauts_materiel(mouse);
                         keyboard_at_adddata_mouse(0xfa);
                         keyboard_at_adddata_mouse(0xaa);
                         keyboard_at_adddata_mouse(0x00);
@@ -179,6 +193,10 @@ internal static class mouse_ps2
 
                         //                        default:
                         //                        fatal("mouse_ps2 : Bad command %02X\n", val, mouse->command);
+                default:
+                        if (materiel.pb_94)
+                                mouse_ps2_autre_materiel(mouse, val);
+                        break;
                 }
         }
 
@@ -262,6 +280,8 @@ internal static class mouse_ps2
         mouse.cd = 0;
         mouse.flags = 0;
         mouse.mode = MOUSE_STREAM;
+        if (materiel.pb_94)
+                mouse_ps2_init_materiel(mouse);
 
         // omitted: `if (romset == ROM_PC5086) upc_set_mouse(...)` (:224-225) — le PC5086 n'est
         //   pas dans le dépôt ; reste la branche du 8042.

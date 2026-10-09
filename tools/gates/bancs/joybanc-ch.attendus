@@ -1,0 +1,9 @@
+# JOYBANC (tools/joybanc) sous PC-DOS 2.00, sur le 5150, la CH Flightstick Pro (type 4), en C# seul sous --boot
+# (G13.4) ; le chapeau tenu à 315°, le haut-gauche de l'hôte, dès avant le banc (@manette 0,0,0,0,315), les axes au
+# centre, aucun bouton. Les douze tours lisent le même état ; le premier octet est la première lecture de 201h, les
+# quatre bits hauts portant les boutons, que la CH combine pour coder son chapeau. PCem FFh, le chapeau au repos (PB-103 :
+# 315° ne tombe dans aucun intervalle) ; « haut » 0Fh, les quatre boutons, la convention des trois autres diagonales,
+# chacune lue à la direction suivante dans le sens des aiguilles d'une montre. La rafale suit les mêmes bits.
+B>JOYBANC
+pcem: FF 0F 00 0F 00 0F 00 0F 00 D1 79 01 00 D1 97 01 00
+materiel: 0F 0F 00 0F 00 0F 00 0F 00 D1 01 01 00 D1 01 01 00

@@ -180,6 +180,19 @@ public static class BootTest
             Console.WriteLine($"\n--- souris : {v[0]},{v[1]}, boutons {v[2]} ---");
             return;
         }
+        // G13.4 — « @manette x,y,boutons,z,chapeau » : l'état de la manette 0 de l'hôte, branchée, sans fenêtre ni
+        // tranche, comme le --joy-at de boot-diff le pose (les boutons en masque, le chapeau en degrés, -1 au repos).
+        if (text.StartsWith("@manette ", StringComparison.Ordinal))
+        {
+            var v = text[9..].Split(',').Select(int.Parse).ToArray();
+            var js = Joystick.plat_joystick.joystick_state[0];
+            js.plat_joystick_nr = 1;
+            (js.axis[0], js.axis[1], js.axis[2], js.pov[0]) = (v[0], v[1], v[3], v[4]);
+            for (var b = 0; b < 32; b++)
+                js.button[b] = (v[2] >> b) & 1;
+            Console.WriteLine($"\n--- manette : {text[9..]} ---");
+            return;
+        }
         if (text.StartsWith("@wait ", StringComparison.Ordinal))
         {
             var n = int.Parse(text[6..]);
