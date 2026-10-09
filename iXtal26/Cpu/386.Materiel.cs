@@ -14,6 +14,8 @@
 // corpus confirme l'AF d'ADC, AAA, AAS, AAD, AAM, AAM 0 et DAS ; il dément LOCK, que le 286 accepte devant tout.
 // BT, BTS, BTR, BTC et MOVSX n'existent pas sur le 286.
 
+using System.Reflection;
+
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
 using static iXtal26.Cpu.x86_flags;
@@ -149,15 +151,21 @@ internal static class _386_materiel
         var modrm = fastreadb(a + (uint32_t)n);
         if (cpu_state.abrt != 0)
                 return false;
+        if (verrouillable(deux, op, modrm))
+                return false;
+        ModeMateriel.Sonde[182]++;
+        return ILLEGAL_ON(true);
+    }
+
+    // La liste de LOCK, sur la mémoire seulement (forme registre exclue).
+    private static bool verrouillable(bool deux, uint8_t op, uint8_t modrm)
+    {
         var reg = (modrm >> 3) & 7;
         var liste = deux
             ? op is 0xab or 0xb3 or 0xbb || (op == 0xba && reg >= 5) || (is486 != 0 && op is 0xb0 or 0xb1 or 0xc0 or 0xc1)
             : (op < 0x40 && (op & 7) < 2 && (op & 0x38) != 0x38) || (op is >= 0x80 and <= 0x83 && reg != 7) ||
               op is 0x86 or 0x87 || (op is 0xf6 or 0xf7 && reg is 2 or 3) || (op is 0xfe or 0xff && reg < 2);
-        if (liste && (modrm & 0xc0) != 0xc0)
-                return false;
-        ModeMateriel.Sonde[182]++;
-        return ILLEGAL_ON(true);
+        return liste && (modrm & 0xc0) != 0xc0;
     }
 
     // pcem bug, fixed in hardware mode: PB-184 — la table 0F du mode : MOVSX r16,r/m16 (0BFh, 2BFh) copie le mot,
@@ -186,5 +194,233 @@ internal static class _386_materiel
     {
         ModeMateriel.Sonde[184]++;
         return _386.ops_386_0f[0x2B7](fetchdat);     // MOVZX r16,r/m16, adresse de 32 bits
+    }
+
+    // pcem bug, fixed in hardware mode: PB-43 — MOV vers et depuis CRx, DRx et TRx : le champ mod est ignoré, rm est
+    //   toujours un registre (SDM vol. 2, page MOV, registres de contrôle et de débogage : « The 2 bits in the mod field
+    //   are ignored »). Ni déplacement ni SIB : l'instruction a trois octets, préfixes à part. Corrigé, PB-44 (une forme
+    //   a32 décodée en 16 bits) ne s'observe plus.
+    internal static void modrm_registre_materiel(uint32_t fetchdat)
+    {
+        cpu_state.pc++;
+        cpu_mod = 3;
+        cpu_reg = (int8_t)((fetchdat >> 3) & 7);
+        cpu_rm = (int8_t)(fetchdat & 7);
+        if ((fetchdat & 0xc0) != 0xc0)
+                ModeMateriel.Sonde[43]++;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-78 — le 486 n'a plus de LOADALL : 0F 07 lève #UD (R. Collins, « The
+    //   LOADALL Instruction » ; l'opcode est absent de la carte du 486). Le geste d'ILLEGAL : pc sur l'instruction,
+    //   puis l'exception.
+    internal static bool loadall486_materiel()
+    {
+        if (is486 == 0)
+                return false;
+        cpu_state.pc = cpu_state.oldpc;
+        x86illegal();
+        ModeMateriel.Sonde[78]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-50 — une instruction de plus de 15 octets lève #GP(0) sur le 386 et le 486
+    //   (386 PRM § 14.7, point 6), de plus de 10 sur le 286 (errata Intel « 80286 ARPL and Overlength Instructions »,
+    //   1984 ; mesuré : SST 286, 239 cas d'onze octets et plus, l'exception 13, aucune écriture, l'IP du premier préfixe
+    //   empilé). Le 386EX mesuré exécute ses instructions de 15 octets (SST 386, neuf cas).
+    // pcem bug, fixed in hardware mode: PB-51 — la lecture d'une instruction contrôle la limite de CS : un octet au-delà
+    //   lève #GP(0), avant toute exécution (386 PRM § 14.7, point 8 ; pages CALL et JMP du SDM ; mesuré : SST 386, 284
+    //   instructions à cheval sur FFFFh, l'exception 13, l'IP de l'instruction empilé). Le 286 en mode réel : OS/2
+    //   Museum, son corpus n'ayant aucune instruction à cheval.
+    //
+    // Les deux bornes se lisent par le même décodeur de longueur, en tête d'instruction, aux quatre sites qui lisent un
+    // opcode (exec386 et l'ombre de SS) : PB-50 et PB-51 vont ensemble (ModeMateriel.Groupes). Le chemin court ne décode
+    // rien : quinze octets au moins avant la limite, et moins de quatre préfixes en tête, l'instruction tient (onze
+    // octets au plus sans préfixe sur le 386, six sur le 286). Sinon le décodeur compte les octets que l'émulateur va
+    // consommer, préfixes, opcode, ModRM, SIB, déplacement et immédiat ; un opcode qui tombe sur ILLEGAL s'arrête à
+    // lui. Rend le premier mot de l'instruction, comme `fastreadl(cs + pc)` ; sur une faute, abrt est posé, et trap
+    // effacé (la boucle d'exec386 ne le relit que pour une instruction lue). Deux écarts connus, sans effet hors du bord
+    // de la limite : l'ordre des fautes — le décodeur compte le ModRM et les opérandes d'instructions qui lèveraient
+    // d'abord #UD ou #NM (CMPXCHG et XADD sur le 386, ESC sans coprocesseur, ARPL en mode réel, C6 et C7 hors de /0) ; et,
+    // sur le 286, F2 ou F3 suivi de 66h ou 67h, que PCem exécute par sa table REP (trois octets) et que le décodeur
+    // arrête à 66h, ILLEGAL du 286.
+    internal static uint32_t lire_instruction_materiel()
+    {
+        var pc = cpu_state.pc;
+        var limite = cpu_state.seg_cs.limit;
+        if (pc <= limite && limite - pc >= 14)
+        {
+                var dat = fastreadl(x86.cs + pc);
+                if (cpu_state.abrt != 0 || !prefixe((uint8_t)dat) || !prefixe((uint8_t)(dat >> 8)) ||
+                    !prefixe((uint8_t)(dat >> 16)) || !prefixe((uint8_t)(dat >> 24)))
+                        return dat;
+        }
+        if (!longueur_materiel(pc, limite))
+        {
+                trap = 0;               // aucune instruction n'a fini : pas de pas-à-pas après la faute
+                return 0;
+        }
+        return fastreadl(x86.cs + pc);
+    }
+
+    private static bool prefixe(uint8_t b) =>
+        b is 0x26 or 0x2e or 0x36 or 0x3e or 0xf0 or 0xf2 or 0xf3 || (is386 != 0 && b is >= 0x64 and <= 0x67);
+
+    // Les opérandes d'un opcode d'un octet, par ligne de 16 : N aucun, M ModRM, m ModRM et imm8, W ModRM et imm16/32,
+    // b imm8, v imm16/32, w imm16, E imm16 et imm8 (ENTER), P sélecteur et offset (CALL et JMP far), O offset d'adresse
+    // (MOV A0-A3), F ModRM et l'immédiat de TEST sous /0 et /1 (F6, F7), X l'échappement 0F. Les préfixes sont lus
+    // avant.
+    private const string Un =
+        "MMMMbvNNMMMMbvNX" + "MMMMbvNNMMMMbvNN" + "MMMMbvNNMMMMbvNN" + "MMMMbvNNMMMMbvNN" +
+        "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "NNMMNNNNvWbmNNNN" + "bbbbbbbbbbbbbbbb" +
+        "mWmmMMMMMMMMMMMM" + "NNNNNNNNNNPNNNNN" + "OOOONNNNbvNNNNNN" + "bbbbbbbbvvvvvvvv" +
+        "mmwNMMmWENwNNbNN" + "MMMMbbNNMMMMMMMM" + "bbbbbbbbvvPbNNNN" + "NNNNNNFFNNNNNNMM";
+
+    // Le second octet après 0F (386, 486) : C les registres de contrôle, de débogage et de test (0F 20 à 0F 26). Le
+    // 286 n'a que 0F 00 à 0F 03 (ModRM), 0F 05 et 0F 06 ; ses autres entrées sont ILLEGAL.
+    private const string Deux =
+        "MMMMNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "CCCCCCCNNNNNNNNN" + "NNNNNNNNNNNNNNNN" +
+        "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" +
+        "vvvvvvvvvvvvvvvv" + "MMMMMMMMMMMMMMMM" + "NNNMmMMMNNNMmMMM" + "MMMMMMMMNNmMMMMM" +
+        "MMNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN" + "NNNNNNNNNNNNNNNN";
+
+    private static readonly MethodInfo illegal =
+        typeof(_386).GetMethod("ILLEGAL", BindingFlags.NonPublic | BindingFlags.Static) ??
+        throw new InvalidOperationException("_386.ILLEGAL introuvable : le décodeur de longueur ne reconnaîtrait plus les opcodes invalides");
+
+    // Le décodeur. Rend faux sur une faute (#GP posé, ou l'abandon d'une lecture).
+    private static bool longueur_materiel(uint32_t pc, uint32_t limite)
+    {
+        var max = is386 != 0 ? 15 : 10;
+        var o32 = (use32 & 0x100) != 0;
+        var a32 = (use32 & 0x200) != 0;
+        var n = 0;
+        var verrou = false;
+        uint8_t b;
+
+        bool octet(int i, out uint8_t v)
+        {
+                v = 0;
+                if (!borne(i))
+                        return false;
+                v = fastreadb(x86.cs + pc + (uint32_t)i);
+                return cpu_state.abrt == 0;
+        }
+        bool borne(int i)
+        {
+                if (materiel.pb_50 && i >= max)
+                {
+                        ModeMateriel.Sonde[50]++;
+                        x86seg_c.x86gpf(null!, 0);
+                        return false;
+                }
+                if (pc > limite || (uint32_t)i > limite - pc)
+                {
+                        ModeMateriel.Sonde[51]++;
+                        x86seg_c.x86gpf(null!, 0);
+                        return false;
+                }
+                return true;
+        }
+
+        while (true)
+        {
+                if (!octet(n++, out b))
+                        return false;
+                if (!prefixe(b))
+                        break;
+                if (b == 0xf0)
+                        verrou = true;
+                else if (b == 0x66)
+                        o32 = (use32 & 0x100) == 0;
+                else if (b == 0x67)
+                        a32 = (use32 & 0x200) == 0;
+        }
+        var quadrant = (o32 ? 0x100 : 0) | (a32 ? 0x200 : 0);
+        char genre;
+        var deux = b == 0x0f;
+        if (deux)
+        {
+                if (!octet(n++, out b))
+                        return false;
+                if (_386.x86_opcodes_0f![is386 != 0 ? b | quadrant : b].Method == illegal)
+                        return true;
+                genre = Deux[b];
+        }
+        else
+        {
+                if (_386.x86_opcodes![b | quadrant].Method == illegal)
+                        return true;
+                genre = Un[b];
+        }
+
+        // LOCK devant ce qui ne se verrouille pas : #UD (PB-182) se décide à l'opcode et au ModRM, avant la longueur et la
+        // limite (mesuré : SST 386, `676681.7`, LOCK CMP de seize et dix-sept octets, #UD et non #GP). Le handler lève.
+        var refus = verrou && materiel.pb_182 && is386 != 0;
+        if (refus && genre is not ('M' or 'm' or 'W' or 'F'))
+                return true;
+        var imm = 0;
+        var v = o32 ? 4 : 2;
+        switch (genre)
+        {
+        case 'N':
+                return true;
+        case 'b':
+                return borne(n);
+        case 'v':
+                return borne(n + v - 1);
+        case 'w':
+                return borne(n + 1);
+        case 'E':
+                return borne(n + 2);
+        case 'P':
+                return borne(n + v + 1);
+        case 'O':
+                return borne(n + (a32 ? 3 : 1));
+        case 'm':
+                imm = 1;
+                break;
+        case 'W':
+                imm = v;
+                break;
+        }
+
+        if (!octet(n++, out var modrm))
+                return false;
+        if (refus && !verrouillable(deux, b, modrm))
+                return true;
+        var mod = modrm >> 6;
+        var rm = modrm & 7;
+        if (genre == 'F' && ((modrm >> 3) & 7) < 2)
+                imm = b == 0xf6 ? 1 : v;
+        if (genre == 'C')
+        {
+                if (materiel.pb_43)
+                        return true;            // le mod ignoré : ni déplacement ni SIB
+                if (b is 0x23 or 0x26)
+                        a32 = false;            // PB-44 : fetch_ea_16 sous la forme a32
+        }
+        var depl = 0;
+        if (mod != 3)
+        {
+                if (a32)
+                {
+                        if (rm == 4)
+                        {
+                                if (!octet(n++, out var sib))
+                                        return false;
+                                if (mod == 0 && (sib & 7) == 5)
+                                        depl = 4;
+                        }
+                        else if (mod == 0 && rm == 5)
+                                depl = 4;
+                        if (mod == 1)
+                                depl = 1;
+                        else if (mod == 2)
+                                depl = 4;
+                }
+                else
+                        depl = mod == 1 ? 1 : mod == 2 || rm == 6 ? 2 : 0;
+        }
+        return depl + imm == 0 || borne(n + depl + imm - 1);
     }
 }

@@ -812,8 +812,11 @@ internal static partial class _386
     // PAS DE PREFETCH_RUN, seulement CLOCK_CYCLES(350).
     private static int opLOADALL386(uint32_t fetchdat)
     {
-        // pcem bug, reproduced: PB-78 — aucune garde is486 : la table du 386 sert aussi au 486 (cpu.c:231),
-        //   qui charge ici tout l'état au lieu de lever #UD ; INVD, WBINVD, CMPXCHG et XADD ont, eux, leur garde.
+        // pcem bug, fixed in hardware mode: PB-78 — aucune garde is486 : la table du 386 sert aussi au 486
+        //   (cpu.c:231), qui charge ici tout l'état au lieu de lever #UD ; INVD, WBINVD, CMPXCHG et XADD ont, eux,
+        //   leur garde.
+        if (materiel.pb_78)
+                if (_386_materiel.loadall486_materiel()) return 0;
         // pcem bug, reproduced: PB-193 — aucun contrôle de privilège : en mode protégé, hors du niveau
         //   0, le 386 lève l'exception 13 (R. Collins) ; opLOADALL, celui du 286, teste `CPL && (cr0 & 1)`.
         uint32_t la_addr = es + EDI;

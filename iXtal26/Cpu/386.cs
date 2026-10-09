@@ -366,10 +366,14 @@ internal static partial class _386
                         cpu_state.ea_seg = cpu_state.seg_ds;
                         cpu_state.ssegs = 0;
 
-                        // pcem bug, reproduced: PB-51 — la lecture d'opcode (386.c:178) ne compare pas `pc` à la
-                        //   limite de CS : en mode réel, IP franchit FFFFh et l'exécution continue dans les 64 Ko
-                        //   suivants, là où un 286, un 386 ou un 486 lève #GP (INT 0Dh en mode réel).
-                        rmdat = fastreadl(cs + cpu_state.pc);
+                        // pcem bug, fixed in hardware mode: PB-51 — la lecture d'opcode (386.c:178) ne compare pas `pc`
+                        //   à la limite de CS : en mode réel, IP franchit FFFFh et l'exécution continue dans les 64 Ko
+                        //   suivants, là où un 286, un 386 ou un 486 lève #GP (INT 0Dh en mode réel). En mode matériel,
+                        //   le décodeur de longueur borne l'instruction entière (386.Materiel.cs), avec PB-50.
+                        if (materiel.pb_51)
+                                rmdat = _386_materiel.lire_instruction_materiel();
+                        else
+                                rmdat = fastreadl(cs + cpu_state.pc);
 
                         if (cpu_state.abrt == 0)
                         {

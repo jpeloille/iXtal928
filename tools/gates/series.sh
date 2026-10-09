@@ -557,3 +557,11 @@ for c in 386 286; do
   run sst$c-materiel --hardware-mode processeur sst$c-probe --target csharp --limit 150 \
     --attendu tools/gates/sst/sst$c-materiel-150.tsv
 done
+# G13.5b — la longueur et les bornes d'une instruction (PLAN-G13.md) : MOV CRx, DRx et TRx sans adresse, la limite de
+# 15 octets (10 sur le 286), la limite de CS à la lecture de l'instruction, LOADALL386 refusé au 486. Les cas en C#
+# seul ; le silicium (SST 386 et 286, les instructions trop longues et à cheval sur FFFFh) est dans les portes sst
+# ci-dessus et les références entières (VERIFICATION.md § G13.5b).
+for pb in 43 50 51 78; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

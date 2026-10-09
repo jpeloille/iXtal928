@@ -39,6 +39,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78,
     };
 
     internal static int Run(string[] args)
@@ -452,10 +453,12 @@ internal static class MaterielCas
 
     // ===== Le cœur 286/386/486 =====
 
-    /// <summary>Joue une instruction sur le cœur 386 (ou 286, 486) en mode réel : le code en 0000:0100, sur un fond de NOP,
-    /// SP = FFFEh, les drapeaux F002h, et les vecteurs 0 (#DE) et 6 (#UD) en 0000:0400 et 0000:0600, pour qu'une exception
-    /// se lise à l'IP d'après. Rend les registres de 16 bits d'après.</summary>
-    private static ushort[] Jouer386(byte[] code, Action<ushort[]> regs, Action? ram = null, int coeur = 386)
+    /// <summary>Joue une instruction (ou <paramref name="pas"/>) sur le cœur 386 (ou 286, 486) en mode réel : le code en
+    /// 0000:0100 (ou <paramref name="ip"/>), sur un fond de NOP, SP = FFFEh, les drapeaux F002h, et les vecteurs 0 (#DE),
+    /// 6 (#UD) et 0Dh (#GP) en 0000:0400, 0000:0600 et 0000:0700, pour qu'une exception se lise à l'IP d'après. Rend les
+    /// registres de 16 bits d'après.</summary>
+    private static ushort[] Jouer386(byte[] code, Action<ushort[]> regs, Action? ram = null, int coeur = 386,
+                                     int ip = 0x100, int pas = 1)
     {
         if (coeur == 286)
             _386.Reset286();
@@ -466,16 +469,18 @@ internal static class MaterielCas
         mem.fill_ram(0x90);
         mem.ram[0x02] = 0x00; mem.ram[0x00] = 0x00; mem.ram[0x01] = 0x04; mem.ram[0x03] = 0x00;
         mem.ram[0x18] = 0x00; mem.ram[0x19] = 0x06; mem.ram[0x1A] = 0x00; mem.ram[0x1B] = 0x00;
+        mem.ram[0x34] = 0x00; mem.ram[0x35] = 0x07; mem.ram[0x36] = 0x00; mem.ram[0x37] = 0x00;
         for (var k = 0; k < code.Length; k++)
-            mem.ram[0x100 + k] = code[k];
+            mem.ram[ip + k] = code[k];
         ram?.Invoke();
         var r = new ushort[(int)R.COUNT];
         r[(int)R.SP] = 0xFFFE;
-        r[(int)R.IP] = 0x100;
+        r[(int)R.IP] = (ushort)ip;
         r[(int)R.FLAGS] = 0xF002;
         regs(r);
         _808x.SetRegs(r);
-        _386.Step286();
+        for (var k = 0; k < pas; k++)
+            _386.Step286();
         _386.flags_rebuild();
         _808x.GetRegs(r);
         return r;
@@ -572,6 +577,99 @@ internal static class MaterielCas
     {
         var r = Jouer386([0x0F, 0xBA, 0xFA, 0x53], r => r[(int)R.DX] = 0x6D16);
         return Reg("BTC DX,53h, DX = 6D16h (386)", r, R.DX, 0x0001, "CF", (0x6D16, 0), (0x6D1E, 0), hw);
+    }
+
+    // PB-43 — MOV CRx, DRx et TRx ignorent le champ mod (SDM vol. 2) : 0F 20 06 (MOV ESI,CR0, mod 0, rm 6) fait trois
+    // octets ; PCem lit un déplacement de 16 bits et en fait cinq. Et 67 0F 23 85 (MOV DR0,EBP, mod 2) en fait quatre ;
+    // PCem six, la forme a32 décodée en 16 bits (PB-44), qui ne s'observe plus une fois PB-43 corrigé.
+    private static int Pb43(bool hw)
+    {
+        var bad = 0;
+        var r = Jouer386([0x0F, 0x20, 0x06, 0x40, 0x40], _ => { });
+        bad += Voir("MOV ESI,CR0, ModRM 06h (386)", r[(int)R.IP] == (hw ? 0x0103 : 0x0105), $"IP = {r[(int)R.IP]:X4}",
+                    hw ? "IP = 0103" : "IP = 0105", hw);
+        r = Jouer386([0x67, 0x0F, 0x23, 0x85], _ => { });
+        bad += Voir("MOV DR0,EBP, 67h, ModRM 85h (386)", r[(int)R.IP] == (hw ? 0x0104 : 0x0106), $"IP = {r[(int)R.IP]:X4}",
+                    hw ? "IP = 0104" : "IP = 0106", hw);
+        return bad;
+    }
+
+    // PB-50 — au-delà de 15 octets (10 sur le 286), #GP(0), l'IP du premier préfixe empilé (386 PRM § 14.7, point 6 ;
+    // SST 286) : quinze 26h et un NOP, seize octets ; PCem exécute le NOP. Quatorze 26h et le NOP passent dans les deux
+    // modes. Sur le 286, dix 26h et le NOP, onze octets.
+    private static int Pb50(bool hw)
+    {
+        var bad = 0;
+        byte[] Prefixes(int n) => [.. Enumerable.Repeat((byte)0x26, n), 0x90];
+        ushort Pile() => (ushort)(mem.ram[0xFFF8] | mem.ram[0xFFF9] << 8);
+        var r = Jouer386(Prefixes(15), _ => { });
+        bad += Voir("quinze ES: et NOP, seize octets (386)",
+                    hw ? (r[(int)R.IP], Pile()) == (0x0700, 0x0100) : r[(int)R.IP] == 0x0110,
+                    $"IP = {r[(int)R.IP]:X4}, IP empilé = {Pile():X4}", hw ? "IP = 0700 (#GP), IP empilé = 0100" : "IP = 0110", hw);
+        r = Jouer386(Prefixes(14), _ => { });
+        bad += Voir("quatorze ES: et NOP, quinze octets (386), témoin", r[(int)R.IP] == 0x010F, $"IP = {r[(int)R.IP]:X4}",
+                    "IP = 010F", hw);
+        r = Jouer386(Prefixes(10), _ => { }, coeur: 286);
+        bad += Voir("dix ES: et NOP, onze octets (286)",
+                    hw ? (r[(int)R.IP], Pile()) == (0x0700, 0x0100) : r[(int)R.IP] == 0x010B,
+                    $"IP = {r[(int)R.IP]:X4}, IP empilé = {Pile():X4}", hw ? "IP = 0700 (#GP), IP empilé = 0100" : "IP = 010B", hw);
+        r = Jouer386(Prefixes(9), _ => { }, coeur: 286);
+        bad += Voir("neuf ES: et NOP, dix octets (286), témoin", r[(int)R.IP] == 0x010A, $"IP = {r[(int)R.IP]:X4}",
+                    "IP = 010A", hw);
+        return bad;
+    }
+
+    // PB-51 — un octet d'instruction au-delà de la limite de CS lève #GP(0), avant l'exécution (386 PRM § 14.7, point 8 ;
+    // SST 386) : MOV AX,1234h en 0000:FFFEh, à cheval, ne charge rien et empile FFFEh ; PCem lit 12h en 1:0000h. Un NOP
+    // en FFFFh s'exécute, et l'instruction d'après, en 10000h, lève #GP, IP empilé 0000h ; PCem l'exécute. La pile en
+    // 0000:2000h, loin du code.
+    private static int Pb51(bool hw)
+    {
+        var bad = 0;
+        ushort Pile() => (ushort)(mem.ram[0x1FFA] | mem.ram[0x1FFB] << 8);
+        foreach (var coeur in new[] { 386, 286 })
+        {
+                var r = Jouer386([0xB8, 0x34, 0x12], r => r[(int)R.SP] = 0x2000, coeur: coeur, ip: 0xFFFE);
+                bad += Voir($"MOV AX,1234h en 0000:FFFEh ({coeur})",
+                            hw ? (r[(int)R.AX], r[(int)R.IP], Pile()) == (0, 0x0700, 0xFFFE) : (r[(int)R.AX], r[(int)R.IP]) == (0x1234, 0x0001),
+                            $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}, IP empilé = {Pile():X4}",
+                            hw ? "AX = 0000, IP = 0700 (#GP), IP empilé = FFFE" : "AX = 1234, IP = 0001 (de 10001h)", hw);
+        }
+        var n = Jouer386([0x90], r => r[(int)R.SP] = 0x2000, ip: 0xFFFF, pas: 2);
+        bad += Voir("NOP en 0000:FFFFh, puis l'instruction d'après (386)",
+                    hw ? (n[(int)R.IP], Pile()) == (0x0700, 0x0000) : n[(int)R.IP] == 0x0001,
+                    $"IP = {n[(int)R.IP]:X4}, IP empilé = {Pile():X4}", hw ? "IP = 0700 (#GP), IP empilé = 0000" : "IP = 0001 (de 10001h)", hw);
+        return bad;
+    }
+
+    // PB-78 — le 486 n'a pas de LOADALL : 0F 07 lève #UD (R. Collins). Le bloc en 0000:3000h charge un mode réel, EIP =
+    // 0200h, EAX = 5A5Ah ; PCem le charge. Sur le 386, LOADALL le charge dans les deux modes.
+    private static int Pb78(bool hw)
+    {
+        var bad = 0;
+        void Bloc()
+        {
+            void Bd(int off, uint v) { for (var k = 0; k < 4; k++) mem.ram[0x3000 + off + k] = (byte)(v >> (8 * k)); }
+            void Seg(int off, uint limit, byte access) { Bd(off, (uint)access << 8); Bd(off + 4, 0); Bd(off + 8, limit); }
+            for (var k = 0; k < 0xCC; k++) mem.ram[0x3000 + k] = 0;
+            Bd(0x00, 0x00000010);                               // CR0 : ET, mode réel
+            Bd(0x04, 0x0002);                                   // FLAGS
+            Bd(0x08, 0x0200);                                   // EIP
+            Bd(0x18, 0xFFFE);                                   // ESP
+            Bd(0x28, 0x5A5A);                                   // EAX
+            Seg(0x54, 0xFFFF, 0x89); Seg(0x60, 0x3FF, 0); Seg(0x6C, 0, 0); Seg(0x78, 0xFFFF, 0x82);
+            foreach (var off in new[] { 0x84, 0x90, 0x9C, 0xA8, 0xC0 })
+                Seg(off, 0xFFFF, 0x93);
+            Seg(0xB4, 0xFFFF, 0x9B);                            // CS
+        }
+        var r = Jouer386([0x0F, 0x07], r => r[(int)R.DI] = 0x3000, Bloc, coeur: 486);
+        bad += Voir("LOADALL386, ES:EDI = 0000:3000h (486)",
+                    (r[(int)R.AX], r[(int)R.IP]) == (hw ? (0, 0x0600) : (0x5A5A, 0x0200)),
+                    $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", hw ? "AX = 0000, IP = 0600 (#UD)" : "AX = 5A5A, IP = 0200", hw);
+        r = Jouer386([0x0F, 0x07], r => r[(int)R.DI] = 0x3000, Bloc);
+        bad += Voir("LOADALL386, ES:EDI = 0000:3000h (386), témoin", (r[(int)R.AX], r[(int)R.IP]) == (0x5A5A, 0x0200),
+                    $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", "AX = 5A5A, IP = 0200", hw);
+        return bad;
     }
 
     // ===== Le 8259 =====

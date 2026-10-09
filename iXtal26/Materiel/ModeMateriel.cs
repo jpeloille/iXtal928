@@ -38,7 +38,11 @@ internal static class ModeMateriel
         new(3, "processeur", "les cycles du rafraîchissement par DMA (5150, XT) arrivent au TSC"),
         new(5, "carte-mere", "servir l'esclave du 8259 ne touche à l'IRR du maître que par la cascade"),
         new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
+        new(43, "processeur", "MOV CRx, DRx et TRx ignorent le champ mod (386, 486)"),
         new(45, "processeur", "IDIV octet divise AX signé"),
+        new(50, "processeur", "une instruction de plus de 15 octets (10 sur le 286) lève #GP"),
+        new(51, "processeur", "la lecture d'une instruction contrôle la limite de CS (286, 386, 486)"),
+        new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
         new(94, "carte-mere", "la souris PS/2 répond à F6h, EAh, F0h, EEh et ECh, et rejette une commande inconnue"),
         new(95, "carte-mere", "l'octet d'état de la souris PS/2 : gauche en bit 2, droit en bit 0, mode distant en bit 6"),
@@ -82,8 +86,9 @@ internal static class ModeMateriel
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
     /// autres. PB-03 et PB-257 : les cycles du rafraîchissement portés au TSC, sans ceux d'un transfert refusé, qui y
     /// iraient sinon. PB-07 et PB-179 : la même condition de repli dans readmemw et writememw. PB-45, PB-169 et PB-258 :
-    /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul.</summary>
-    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [45, 169, 258]];
+    /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
+    /// longueur et la limite, lues par le même décodeur en tête d'instruction.</summary>
+    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [45, 169, 258], [50, 51]];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

@@ -465,9 +465,13 @@ déplacement de 16 bits (4040h) et saute les deux INC AX ; le 386 fait une instr
 (ESI = CR0) et AX gagne 2. Le fuzzeur `--0f 20…26` en mode matériel ne divergera que sur ces formes.
 *G13* : (b) — vrai comportement déduit pour le 386 et le 486 ; aucun corpus (`0F 20`–`0F 26` absents
 de SST 386).
-*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, les douze handlers, marqueurs `PB-43` (`:47`, `:89`, `:134`,
-`:151`, `:180`, `:239`, `:296`, `:315`, `:332`, `:349`, `:366`, `:383`) ; l'en-tête le dit (« LE CHAMP
-mod … EST IGNORÉ PAR LE SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare des deux côtés.
+*Reproduit* en mode PCem : `Cpu/386_ops_mov_ctrl.cs`, les douze handlers, marqueurs `fixed in hardware mode: PB-43` ;
+l'en-tête le dit (« LE CHAMP mod … EST IGNORÉ PAR LE SILICIUM, PAS PAR PCem »). Le fuzzeur `--0f 20…26` le compare
+des deux côtés.
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_43)`, chacun des douze handlers lit le ModRM comme un
+registre, sans déplacement ni SIB (`modrm_registre_materiel`, `Cpu/386.Materiel.cs`) ; le décodeur de longueur de
+PB-50 et PB-51 compte de même trois octets. `materiel-cas PB-43` rend le cas ci-dessus (`0F 20 06`, IP + 3 contre + 5)
+et `67 0F 23 85` (IP + 4 contre + 6, la forme de PB-44), et rougit la correction coupée.
 
 ### PB-44 — Les formes a32 de MOV DRx,r et MOV TRx,r décodent en 16 bits
 
@@ -485,7 +489,8 @@ corrigée seule en lirait 32 (8 octets), le 386 aucun (4 octets). Invisible pour
 *G13* : (d) — corrigé seul, il décoderait encore une adresse, d'une autre longueur, aussi fausse ; la
 correction de PB-43 le rend inobservable.
 *Reproduit* : `Cpu/386_ops_mov_ctrl.cs:313` (MOV DRx,r a32) et `:382` (MOV TRx,r a32), marqueurs
-`PB-44`.
+`PB-44`. En mode matériel, la correction de PB-43 (G13.5) le rend inobservable : le mod ignoré, la taille d'adresse ne
+décode plus rien.
 
 ### PB-45 — IDIV octet étend AX par des zéros au lieu du signe
 
@@ -597,15 +602,31 @@ exception 13 (errata Intel « 80286 ARPL and Overlength Instructions », 15 octo
 #GP (déduit, SDM) ; 8088/8086 : aucune limite (§ 14.7, point 6). Le README SST 80386 (10, #6) contredit Intel.
 *Cas qui discrimine* : banc, mode réel, 386 : quatorze `26` puis `90` (15 octets) passent des deux
 côtés ; quinze `26` puis `90` → NOP exécuté (PCem), INT 0Dh (386). Sur le 286, au-delà de 10 octets ;
-le corpus SST 80286 en a vraisemblablement, une fois `Moo.cs` étendu aux UC 16 bits.
+le corpus SST 80286 en a (G13.5 : 239 cas de onze octets et plus).
 *G13* : (a) — le compte des préfixes dans `Dispatch` suffit au cas pathologique ; l'exactitude au
 seuil (préfixes sous la limite, corps au-delà) demande un décodeur de longueur.
-*Reproduit* : le C# ne compte pas non plus (`Cpu/386_ops_prefix.cs:65`, `Dispatch`, marqueur
-`PB-50`). Mais le préfixe de PCem est un appel terminal
+*Reproduit* en mode PCem : le C# ne compte pas non plus (`Cpu/386_ops_prefix.cs`, `Dispatch`, marqueur
+`fixed in hardware mode: PB-50`). Mais le préfixe de PCem est un appel terminal
 que GCC compile en saut (`jmp *%rax`) ; C# ne garantit pas l'appel terminal, et le C# Debug
 tombait par StackOverflow sur la recette ci-dessus. Le C# aiguille donc par un trampoline
 (`TailCall` / `Dispatch`, `Cpu/386_ops_prefix.cs`, `// DEVIATION:`) : même handler, même
 fetchdat, même valeur rendue, sans pile — au bit près l'appel terminal de PCem.
+*Corrigé en mode matériel* (G13.5), avec PB-51 (un groupe : le même décodeur) : aux quatre sites qui lisent un opcode
+(la boucle d'exec386, et l'ombre de SS dans POP SS et MOV SS, deux formes chacun), sous `if (materiel.pb_51)`, un
+décodeur de longueur compte les octets que l'émulateur va consommer — préfixes, opcode, ModRM, SIB, déplacement,
+immédiat ; un opcode ILLEGAL s'arrête à lui — et lève #GP(0) au-delà de 15 octets, de 10 sur le 286
+(`lire_instruction_materiel`, `Cpu/386.Materiel.cs`). Le chemin court ne décode rien : quinze octets avant la limite,
+et moins de quatre préfixes en tête. Mesuré : SST 286, 239 instructions de onze octets et plus lèvent l'exception 13,
+sans rien écrire, l'IP du premier préfixe empilé ; à dix octets, 1 313 s'exécutent. SST 386 : 71 instructions de
+quinze octets, dont 54 s'exécutent (le README SST est démenti), 6 lèvent #UD (un LOCK refusé) et 11 l'exception 13
+d'un décalage a32 au-delà de FFFFh (PB-189, reproduit) ; les 10 de seize et dix-sept octets portent toutes un LOCK
+refusé et lèvent #UD, pas l'exception 13 : le refus du LOCK passe avant la longueur, et le décodeur s'arrête sur lui
+(`refus`, avec PB-182). Sans cela, 676681.7 (LOCK CMP de seize octets) perdait un cas. `materiel-cas PB-50` rend le
+cas ci-dessus sur le 386 et sur le 286 (onze octets), avec leurs témoins (quinze et dix octets), et rougit la
+correction coupée. En mode matériel, SST 286 gagne 238 cas, tous ceux qui se jouent (le 239e, C6#1982, est révoqué
+par le corpus) : 1 455 332 → 1 455 570, quatorze formes montent (`69`, `81.0` à `.7`, `9A`, `C7`, `EA`, `F7.0`, `F7.1`),
+aucune ne descend, et aucun cas qui passait ne tombe (comparaison cas par cas, G13.5b). Au 386, la limite ne change
+aucun cas : le corpus n'a aucune instruction de plus de quinze octets sans un LOCK refusé.
 
 ### PB-51 — Le fetch d'instruction ne contrôle pas la limite de CS
 
@@ -636,8 +657,23 @@ le 386 lève INT 0Dh, IP empilé 0000h (OS/2 Museum). Une instruction de 3 octet
 En mode protégé, CS de limite 0FFFh. Cas SST 286 et 386 en bord de segment : à compter.
 *G13* : (a) — chemin chaud : un test par instruction (`pc` contre la limite), ou par octet lu près de
 la limite pour l'instruction à cheval ; le coût est à mesurer.
-*Reproduit* : `Cpu/386.cs:369` (la lecture d'opcode d'exec386) et `Cpu/386_common.cs:564` (getbyte,
-getword, getlong), marqueurs `PB-51` : sans contrôle, comme PCem.
+*Reproduit* en mode PCem : `Cpu/386.cs` (la lecture d'opcode d'exec386), `Cpu/386_ops_stack.cs` et
+`Cpu/386_ops_mov_seg.cs` (l'ombre de SS), `Cpu/386_common.cs` (getbyte, getword, getlong), marqueurs `fixed in
+hardware mode: PB-51` : sans contrôle, comme PCem.
+*Corrigé en mode matériel* (G13.5), avec PB-50 : le décodeur de longueur, en tête d'instruction, lève #GP(0) si un
+octet de l'instruction passe la limite de CS, avant tout handler (`lire_instruction_materiel`,
+`Cpu/386.Materiel.cs`) ; getbyte, getword et getlong n'ont plus rien à contrôler. Sur le 286, 386 et 486 ; pour le
+286 en mode réel, la source reste l'OS/2 Museum, son corpus SST n'ayant aucune instruction à cheval sur FFFFh.
+Mesuré, SST 386, 284 cas en bord de segment : dans 148, l'instruction passe FFFFh et lève l'exception 13, l'IP de
+l'instruction empilé — tous échouaient, tous passent (+148, 1 610 145 → 1 610 293). Dans les 136 autres,
+l'instruction finit en FFFFh et c'est le HLT qui clôt le cas, en 10000h, qui lève l'exception : la sonde ne joue
+qu'un pas (`Sst386Probe.cs`, en-tête) et ne la voit pas. Un second pas, en essai hors commit, en fait passer 94 ; les
+39 restants sont des décalages a32 au-delà de FFFFh (`[ebx+FFFF38CCh]`), PB-189, reproduit ; 3 sauts lointains
+passaient déjà. Le banc le joue en deux pas : `materiel-cas PB-51` rend le cas ci-dessus (un NOP en FFFFh, puis #GP, IP
+empilé 0000h), MOV AX,1234h à cheval en FFFEh sur le 386 et le 286, et rougit la correction coupée. Le coût, quand on la demande : chaque instruction du cœur passe par `lire_instruction_materiel`,
++17 % pour exec386 sur une boucle MOV, ADD, LOOP (113,4 µs contre 132,2 pour 100 000 cycles), +22 % avec un préfixe
+par tour, qui fait lire les quatre octets de tête (138,5 contre 169,5) (`tools/perfbanc/Exec386Banc.cs`) ; en mode
+PCem, la garde est pliée et ne coûte rien (M2).
 
 ### PB-52 — FBLD n'existe pas : DF /4 est FPU_ILLEGAL
 
@@ -1173,9 +1209,13 @@ Instruction*, rcollins.org) : source secondaire ; l'opcode est absent de la cart
 (PCem) ; INT 6 (486). Sur l'ami386, LOADALL inchangé.
 *G13* : (b) — vrai comportement déduit, sans mesure ; la garde se pose dans le handler, pas dans la
 table générée.
-*Reproduit* : par la transcription (la table du 386 est partagée), `Cpu/386_ops_0f.cs:815`,
-opLOADALL386, marqueur `PB-78`. Le fuzzeur du cœur 486 ne tire plus `0F 07` au hasard
+*Reproduit* en mode PCem : par la transcription (la table du 386 est partagée), `Cpu/386_ops_0f.cs`,
+opLOADALL386, marqueur `fixed in hardware mode: PB-78`. Le fuzzeur du cœur 486 ne tire plus `0F 07` au hasard
 (`Fuzzer.cs`, G6.1) : il ferait tomber l'oracle (PB-79).
+*Corrigé en mode matériel* (G13.5) : sous `if (materiel.pb_78)`, sur le 486, opLOADALL386 remet pc sur l'instruction
+et lève #UD, le geste d'ILLEGAL (`loadall486_materiel`, `Cpu/386.Materiel.cs`). `materiel-cas PB-78` rend le cas
+ci-dessus et son témoin (le 386 charge le bloc dans les deux modes), et rougit la correction coupée. pm-check pose
+le décor du 486 par LOADALL386 : en mode matériel, il lui faudra un autre chemin (G13.5c).
 
 ### PB-79 — Une table de pages hors RAM fait tomber l'émulateur
 

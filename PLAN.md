@@ -120,7 +120,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   (cinq corrections, PICBANC), le 8237 (six corrections, PB-259 et PB-260 inscrits, DMABANC), le 8042, la souris
   PS/2 et les ports (six corrections, PB-261 inscrit, PS2BANC et JOYBANC).
   G13.5 en cours, le 286, le 386 et le 486 : G13.5a fait (la carte de 16 Mo du 286, neuf corrections que SST
-  mesure, PB-262 inscrit, SST 386 et 286 en mode matériel) ; G13.5b et G13.5c suivent.
+  mesure, PB-262 inscrit, SST 386 et 286 en mode matériel), G13.5b fait (la longueur d'une instruction et la
+  limite de CS à sa lecture, un décodeur de longueur ; MOV CRx sans adresse ; LOADALL refusé au 486) ; G13.5c suit.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

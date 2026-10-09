@@ -8074,3 +8074,108 @@ deux modes, chacune sur les 150 premiers cas de chaque forme. L'image `os/386-HD
 git, a changé le 9 octobre à 22 h 51, en dehors de cette étape : son empreinte ne correspondait plus à celle de
 `tools/gates/g5w.sha256`, et la préparation s'est arrêtée. La série a tourné avec l'image de référence (celle de g4c1,
 empreinte vérifiée), copiée dans le worktree seul ; l'arbre principal n'a pas été touché.
+
+## G13.5b — Le 286, le 386 et le 486 : la longueur et les bornes d'une instruction
+
+Le 10 octobre 2026, deuxième sous-étape de G13.5 (« Pousse, et feu vert pour G13.5 », le 9). Quatre défauts du
+décodage : PB-51 (la lecture d'une instruction ne contrôle pas la limite de CS), PB-50 (aucune limite de longueur),
+en un groupe, et PB-43 (MOV CRx, DRx et TRx décodent une adresse ; avec lui PB-44, qui ne s'observe plus), PB-78
+(LOADALL386 exécuté par le 486). PB-193, le privilège de LOADALL386, passe à G13.5c : son cas se joue à CPL 3, dans
+`pm-check`. Le mode PCem ne bouge pas.
+
+**Le code.** Un décodeur de longueur, `lire_instruction_materiel` et `longueur_materiel` (`Cpu/386.Materiel.cs`) :
+préfixes, opcode d'un ou deux octets, ModRM, SIB, déplacement, immédiat, d'après deux tables (`Un`, `Deux`) ; un
+opcode ILLEGAL s'arrête à lui, un LOCK refusé (PB-182) aussi. Il lève #GP(0) au-delà de 15 octets (10 sur le 286) ou
+au premier octet hors de la limite de CS, avant tout handler. Il remplace la lecture d'opcode aux quatre sites où
+PCem la fait : la boucle d'exec386, et l'ombre de SS de POP SS et MOV SS (deux formes chacun), sous
+`if (materiel.pb_51)` ; PB-50 et PB-51 forment un groupe (`ModeMateriel.Groupes`), le même décodeur. Le chemin court
+ne décode rien : quinze octets avant la limite, et moins de quatre préfixes en tête. PB-43 : aux douze handlers de
+`386_ops_mov_ctrl.cs`, `modrm_registre_materiel` prend le ModRM pour un registre, quel que soit mod. PB-78 :
+`opLOADALL386` lève #UD sur le 486.
+
+**Deux écarts connus du décodeur**, laissés : l'ordre des fautes d'une instruction trop longue qui lèverait aussi
+#UD ou #NM (le décodeur lève #GP le premier, sauf pour un LOCK refusé) ; sur le 286, F2 ou F3 suivi de 66h ou 67h,
+que PCem exécute par sa table REP (trois octets) et que le décodeur arrête à 66h, ILLEGAL du 286. Aucun cas du
+corpus ne les montre.
+
+**Les cas** (`materiel-cas`, C# seul ; vecteurs 0, 6 et 0Dh posés pour lire une exception à l'IP) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 43 | `0F 20 06 40 40` (MOV ESI,CR0, mod 0) ; `67 0F 23 85` (MOV DR0,EBP, mod 2) | IP 0105h ; 0106h | IP 0103h ; 0104h |
+| 50 | 386 : quinze `26` et un NOP ; témoin, quatorze | NOP exécuté (0110h) ; 010Fh | #GP, IP empilé 0100h ; 010Fh |
+| 50 | 286 : dix `26` et un NOP ; témoin, neuf | NOP exécuté (010Bh) ; 010Ah | #GP, IP empilé 0100h ; 010Ah |
+| 51 | 386 et 286 : MOV AX,1234h en FFFEh | AX = 1234h, IP 0001h | #GP, AX intact, IP empilé FFFEh |
+| 51 | NOP en FFFFh, deux pas | exécute 1:0000h | #GP, IP empilé 0000h |
+| 78 | 486 : LOADALL386, bloc en 0000:3000h ; témoin, 386 | AX = 5A5Ah, IP 0200h ; idem | #UD, AX intact ; idem |
+
+Chacun rend la valeur de PCem en mode PCem, celle du matériel avec sa seule correction (PB-50 et PB-51 ensemble, leur
+groupe), la sonde comptant la correction, et rougit la correction coupée (`--attendu materiel` en mode PCem).
+
+**SST, les corpus entiers.** Au 386, en mode matériel : 1 610 293 cas réussis sur 1 758 699, contre 1 610 145 en
+G13.5a (+148), 129 formes montent, aucune ne descend. Au 286 : 1 455 570 sur 1 477 997, contre 1 455 332 (+238), 14
+formes montent, aucune ne descend. Les portes de 150 cas : 21 formes montent au 386, 10 au 286. Pour écarter une perte
+compensée à l'intérieur d'une forme, les deux corpus ont été rejoués cas par cas, G13.5a contre G13.5b, la sonde
+imprimant chaque échec (un ajout hors commit) : aucun cas qui passait ne tombe.
+
+Ce que sont les gains, d'après les octets et l'IP de chaque cas :
+- au 386, les 148 sont des instructions à cheval sur FFFFh (de neuf à treize octets, l'IP en FFF8h) : toutes
+  échouaient, toutes passent. Les 136 autres cas « en bord » finissent en FFFFh ; c'est le HLT qui clôt le cas, en
+  10000h, qui lève l'exception, et la sonde ne joue qu'un pas. Un second pas, en essai hors commit, en fait passer 94 ;
+  les 39 restants ont un décalage a32 au-delà de FFFFh (`[ebx+FFFF38CCh]`), PB-189, reproduit ; 3 sauts lointains
+  passaient déjà. `materiel-cas PB-51` joue ce second pas (le NOP en FFFFh) ;
+- au 286, les 238 sont toutes les instructions de onze octets et plus que le corpus joue (le 239e, C6#1982, est
+  révoqué) : toutes lèvent l'exception 13. Les 15 de onze octets et plus qui lèvent #UD (BOUND et LDS de forme
+  registre) passaient et passent : #UD avant la longueur ;
+- au 386, 71 instructions de quinze octets : 54 s'exécutent, 6 lèvent #UD (un LOCK refusé), 11 l'exception 13 d'un
+  décalage a32 au-delà de FFFFh (PB-189). Les 10 de seize et dix-sept octets portent toutes un LOCK refusé, et lèvent
+  #UD : le refus du LOCK passe avant la longueur. Un premier décodeur, qui ne le savait pas, faisait perdre un cas à
+  676681.7 (LOCK CMP de seize octets) ; corrigé, la forme monte.
+
+**Le coût (M1).** Le banc `Exec386Banc` (`tools/perfbanc`, BenchmarkDotNet, la machine au repos, un processus par
+mode, le même état final dans les deux) : exec386 sur MOV, ADD, LOOP, 100 000 cycles par appel, 113,4 µs en mode
+PCem, 132,2 µs avec PB-51 (+17 %) ; avec un préfixe par tour, qui fait lire au chemin court ses quatre octets de tête,
+138,5 contre 169,5 µs (+22 %). C'est le seul ajout de G13 sur le chemin de chaque instruction du cœur. Le banc ne
+tournait pas d'abord : sans timer posé, `timer_target` vaut 7FFFFFFFh, `cycle_period` déborde en négatif et exec386
+ne sort plus de sa boucle ; le banc pose l'échéance au bout de ses cycles, comme Step286 au pas suivant.
+
+**Le mode PCem ne coûte rien (M2).** Un second scénario DEBUG sur l'ami386dx, `ami386dx-ctrl`, compile les seize
+handlers gardés qu'aucun amorçage ne compilait : MOV SS et POP SS (16 et 32 bits), MOV vers et depuis CR0, DR7 et TR6,
+en adresses de 16 et de 32 bits. LOADALL n'a pas de scénario (il écraserait la machine). Sa référence M0 est jouée sur
+860f2b1 (`/var/tmp/ixtal-g13/M0-860f2b1-g135b`). M2-5b, les dix scénarios : identiques à M0, hors les sept méthodes
+froides connues et les sept du mécanisme ; exec386, les seize handlers et `opPOP_SS_w` à l'octet près.
+
+**Le temps réel (M4).** `--timer-check roms 60 --charge ram`, la configuration de la porte et son CMOS fabriqué,
+mode PCem contre `--hardware-mode processeur` : ami286 (287) 33,3 contre 32,1 ; ami386 (4 Mo) 25,2 contre 22,0 ;
+ami486 (DX2/66, 33 MIPS invités) 3,88 contre 3,33. Partout plus de 1, et le même nombre d'instructions dans les deux
+modes.
+
+**Les contrôles négatifs**, chacun dans une copie des sources, construite à part (`/tmp/a9/neg135b.py`) ; le témoin
+sans faute est vert (les quatre cas, le recensement) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| le chemin court ne regarde pas les préfixes | `materiel-cas PB-50`, mode matériel | rouge, 3 échecs |
+| la limite de CS décalée d'un octet | `materiel-cas PB-51`, mode matériel | rouge, 2 échecs |
+| seize octets au lieu de quinze | `materiel-cas PB-50`, mode matériel | rouge, 1 échec |
+| MOV CRx sans avancer sur le ModRM | `materiel-cas PB-43`, mode matériel | rouge, 2 échecs |
+| LOADALL refusé dès le 386 | `materiel-cas PB-78`, mode matériel | rouge : le témoin |
+| un marqueur de PB-51 resté `reproduced` | `recensement` | rouge |
+| le groupe [50, 51] défait | `materiel-cas PB-50`, mode matériel | rouge, 3 échecs |
+| le décodeur hors de sa garde (une fuite) | `materiel-cas PB-51`, mode PCem | rouge, 3 échecs |
+
+**La contre-lecture** (Sonnet, en lecture seule) : un `trap` resté posé après une faute du décodeur (le pas-à-pas
+aurait suivi une instruction qui n'a pas fini : remis à 0) ; un ILLEGAL introuvable par réflexion donnait une
+comparaison muette (une exception, désormais) ; `pb_50` n'était lu nulle part (il garde désormais la limite de
+longueur) ; une phrase de PB-50 périmée. Tout est repris.
+
+**La série.** g5b1 tourne sur un worktree de `cb69404` et des vingt et un fichiers de l'étape (le code, les cas, les
+attendus SST du mode matériel, le banc d'exec386 et le scénario de listings), les corpus SST liés corpus par corpus, sous
+`MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 375 portes, toutes vertes, en 67 minutes. Contre g5a1, les 367
+portes communes rendent les mêmes verdicts ; un seul résumé change, comme attendu : `recensement` (262 défauts, 969
+marqueurs, contre 961 ; 48 défauts corrigés en mode matériel, contre 44). `sst386-materiel` et `sst286-materiel`
+reproduisent leurs nouveaux attendus, `sst386` et `sst286` (mode PCem) les anciens. Les 8 portes neuves sont les cas de
+PB-43, PB-50, PB-51 et PB-78 dans les deux modes. Comme pour g5a1, `os/386-HDD-C.img` a tourné avec l'image de
+référence (empreinte vérifiée), copiée dans le worktree seul. Après la copie, deux mots de prose ont changé (« quatorze
+formes » dans PCEM_BUGS.md, « 148 instructions à cheval sur FFFFh » dans pourquoi-on-corrige.md) ; `recensement`, qui
+lit PCEM_BUGS.md, a été rejoué sur l'arbre final : vert, mêmes comptes.

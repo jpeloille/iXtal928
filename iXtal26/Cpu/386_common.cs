@@ -561,8 +561,9 @@ internal static partial class _386_common
     // pcem: 386_common.h:160-176. Le pc avance AVANT la lecture, et la lecture se
     // fait à l'adresse d'avant : c'est ce qui permet aux handlers de relire leurs
     // propres octets d'immédiat après coup.
-    // pcem bug, reproduced: PB-51 — getbyte, getword et getlong lisent `cs + pc` sans contrôle de la limite
-    //   de CS, comme la lecture d'opcode (386.cs) : une instruction à cheval sur la limite ne lève rien.
+    // pcem bug, fixed in hardware mode: PB-51 — getbyte, getword et getlong lisent `cs + pc` sans contrôle de la
+    //   limite de CS, comme la lecture d'opcode (386.cs) : une instruction à cheval sur la limite ne lève rien. En
+    //   mode matériel, le décodeur de longueur a borné l'instruction entière avant son premier handler.
     internal static uint8_t getbyte()
     {
         cpu_state.pc++;

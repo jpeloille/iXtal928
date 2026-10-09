@@ -33,8 +33,20 @@ internal static class materiel
     /// <summary>PB-07 : un mot à cheval sur deux pages lit et écrit son octet haut par sa propre page ; avec PB-179.</summary>
     internal static readonly bool pb_07;
 
+    /// <summary>PB-43 : MOV CRx, DRx et TRx ignorent le champ mod (386, 486).</summary>
+    internal static readonly bool pb_43;
+
     /// <summary>PB-45 : IDIV octet divise AX signé ; avec PB-169.</summary>
     internal static readonly bool pb_45;
+
+    /// <summary>PB-50 : une instruction de plus de 15 octets (10 sur le 286) lève #GP ; avec PB-51.</summary>
+    internal static readonly bool pb_50;
+
+    /// <summary>PB-51 : la lecture d'une instruction contrôle la limite de CS (286, 386, 486) ; avec PB-50.</summary>
+    internal static readonly bool pb_51;
+
+    /// <summary>PB-78 : LOADALL386 lève #UD sur le 486.</summary>
+    internal static readonly bool pb_78;
 
     /// <summary>PB-87 : au repli de l'IP, la lecture d'instruction se fait à l'offset 0 du segment.</summary>
     internal static readonly bool pb_87;
@@ -158,7 +170,11 @@ internal static class materiel
         pb_03 = ModeMateriel.Demande(3);
         pb_05 = ModeMateriel.Demande(5);
         pb_07 = ModeMateriel.Demande(7);
+        pb_43 = ModeMateriel.Demande(43);
         pb_45 = ModeMateriel.Demande(45);
+        pb_50 = ModeMateriel.Demande(50);
+        pb_51 = ModeMateriel.Demande(51);
+        pb_78 = ModeMateriel.Demande(78);
         pb_87 = ModeMateriel.Demande(87);
         pb_94 = ModeMateriel.Demande(94);
         pb_95 = ModeMateriel.Demande(95);

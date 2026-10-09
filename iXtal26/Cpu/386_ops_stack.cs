@@ -305,7 +305,11 @@ internal static partial class _386
         cpu_state.op32 = use32;
         cpu_state.ssegs = 0;
         cpu_state.ea_seg = cpu_state.seg_ds;
-        fetchdat = fastreadl(cs + cpu_state.pc);
+        // pcem bug, fixed in hardware mode: PB-51 — l'instruction de l'ombre de SS se lit sans contrôle de la limite.
+        if (materiel.pb_51)
+                fetchdat = _386_materiel.lire_instruction_materiel();
+        else
+                fetchdat = fastreadl(cs + cpu_state.pc);
         cpu_state.pc++;
         if (cpu_state.abrt != 0)
                 return 1;
@@ -769,7 +773,11 @@ internal static partial class _386
         cpu_state.op32 = use32;
         cpu_state.ssegs = 0;
         cpu_state.ea_seg = cpu_state.seg_ds;
-        fetchdat = fastreadl(x86.cs + cpu_state.pc);
+        // pcem bug, fixed in hardware mode: PB-51 — l'instruction de l'ombre de SS se lit sans contrôle de la limite.
+        if (materiel.pb_51)
+                fetchdat = _386_materiel.lire_instruction_materiel();
+        else
+                fetchdat = fastreadl(x86.cs + cpu_state.pc);
         cpu_state.pc++;
         if (cpu_state.abrt != 0)
                 return 1;

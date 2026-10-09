@@ -462,3 +462,48 @@ mode réel. Neuf défauts, tous en mode matériel ; le corpus du 286 dit, pour c
 - **L'émulateur.** PCem remplace la base nulle par 10, et le programme continue sur un résultat inventé.
 - **La correction.** L'erreur de division, l'adresse de l'AAM empilée. Les drapeaux que le 386EX laisse alors ne suivent
   aucune règle connue : ils ne sont pas imités.
+
+## G13.5, suite — le 286, le 386 et le 486 (mode matériel) : la longueur et les bornes d'une instruction
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.5, `VERIFICATION.md` § G13.5b.*
+
+Avant d'exécuter une instruction, le processeur la lit : ses octets doivent tenir dans le segment de code, et ils ne
+doivent pas être trop nombreux. PCem ne vérifie ni l'un ni l'autre, et décode quelques instructions système d'une
+longueur que le silicium ne leur donne pas. Quatre défauts, tous en mode matériel.
+
+### PB-51 — la limite du segment de code
+
+- **Le vrai PC.** Chaque octet d'une instruction doit se trouver dans la limite du segment de code ; en mode réel, à
+  l'offset FFFFh au plus. Une instruction qui la passe lève l'exception de protection générale avant de s'exécuter, et
+  c'est son adresse qui est empilée. Le 386EX du corpus le fait sur 148 instructions à cheval sur FFFFh.
+- **L'émulateur.** PCem lit les octets sans regarder la limite : l'instruction déborde dans les 64 Ko suivants, et
+  l'exécution continue au-delà.
+- **La correction.** Un décodeur de longueur, en tête d'instruction, compte les octets qu'elle va lire et lève
+  l'exception si l'un d'eux passe la limite. Il ne travaille qu'au bord d'un segment ou devant une longue suite de
+  préfixes ; ailleurs, un seul test suffit.
+
+### PB-50 — la longueur d'une instruction
+
+- **Le vrai PC.** Une instruction a 15 octets au plus sur le 386 et le 486, 10 sur le 286, préfixes compris ; au-delà,
+  l'exception de protection générale. Le 286 du corpus la lève à onze octets, sur 239 cas, et le 386EX exécute ses
+  instructions de quinze.
+- **L'émulateur.** PCem ne compte rien : une mémoire remplie de préfixes forme une seule instruction de plus d'un
+  million d'octets.
+- **La correction.** Le même décodeur compte aussi la longueur.
+
+### PB-43 — MOV vers et depuis les registres de contrôle, de débogage et de test
+
+- **Le vrai PC.** Ces instructions désignent toujours un registre : le champ qui, ailleurs, annonce une adresse en
+  mémoire est ignoré, et l'instruction a trois octets.
+- **L'émulateur.** PCem décode ce champ comme une adresse, avale des octets de déplacement qui n'en sont pas, et saute
+  les instructions qui suivent. Une variante de ce défaut (PB-44, la taille d'adresse mal lue) ne s'observe plus une
+  fois celui-ci corrigé.
+- **La correction.** Le registre seul, sans déplacement.
+
+### PB-78 — LOADALL sur le 486
+
+- **Le vrai PC.** LOADALL, l'instruction non documentée qui charge tout l'état du processeur, n'existe plus sur le
+  486 : son code y est invalide.
+- **L'émulateur.** PCem donne au 486 la table d'instructions du 386, LOADALL compris, et un programme qui sonde le
+  processeur par ce chemin voit un 386.
+- **La correction.** L'exception d'opcode invalide sur le 486.

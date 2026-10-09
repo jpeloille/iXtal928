@@ -15,7 +15,8 @@
 // LE CHAMP mod DU ModRM EST IGNORÉ PAR LE SILICIUM, PAS PAR PCem. Un vrai 386 prend
 // toujours `rm` pour un registre. Ici fetch_ea_16/32 décode une adresse effective
 // quand mod ≠ 3 — elle consomme ses octets de déplacement et avance pc — puis le
-// handler lit cpu_rm comme un registre. Transcrit tel quel.
+// handler lit cpu_rm comme un registre. Transcrit tel quel ; le mode matériel
+// ignore le mod (PB-43, 386.Materiel.cs).
 //
 // LA GARDE EST `(CPL || VM) && (cr0 & 1)` : en mode réel elle est toujours fausse,
 // donc tous ces handlers y sont légaux. La branche #GP n'est pas atteinte par le
@@ -26,6 +27,7 @@
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
+using static iXtal26.Cpu._386_materiel;
 
 namespace iXtal26.Cpu;
 
@@ -44,8 +46,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         switch (cpu_reg)
         {
         case 0:
@@ -86,8 +90,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_32(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_32(fetchdat)) return 1;
         switch (cpu_reg)
         {
         case 0:
@@ -131,8 +137,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = dr[cpu_reg];
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 0);
@@ -148,8 +156,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_32(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_32(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = dr[cpu_reg];
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 1);
@@ -177,8 +187,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         switch (cpu_reg)
         {
         case 0:
@@ -236,8 +248,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_32(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_32(fetchdat)) return 1;
         switch (cpu_reg)
         {
         case 0:
@@ -293,8 +307,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         dr[cpu_reg] = cpu_state.regs[cpu_rm].l;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 0);
@@ -312,8 +328,10 @@ internal static partial class _386
         }
         // pcem bug, reproduced: PB-44 — la forme a32 décode en fetch_ea_16 (:220), mais
         //   passe ea32 = 1 à PREFETCH_RUN. Muet quand mod = 3, la forme d'usage.
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         dr[cpu_reg] = cpu_state.regs[cpu_rm].l;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 1);
@@ -329,8 +347,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = 0;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 0);
@@ -346,8 +366,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_32(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_32(fetchdat)) return 1;
         cpu_state.regs[cpu_rm].l = 0;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 1);
@@ -363,8 +385,10 @@ internal static partial class _386
                 x86seg_c.x86gpf(null!, 0);
                 return 1;
         }
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 0);
         return 0;
@@ -380,8 +404,10 @@ internal static partial class _386
                 return 1;
         }
         // pcem bug, reproduced: PB-44 — fetch_ea_16 dans la forme a32 (:269), comme MOV DRx,r.
-        // pcem bug, reproduced: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
-        if (fetch_ea_16(fetchdat)) return 1;
+        // pcem bug, fixed in hardware mode: PB-43 — mod ≠ 3 est décodé en adresse ; le 386 l'ignore.
+        if (materiel.pb_43)
+                modrm_registre_materiel(fetchdat);
+        else if (fetch_ea_16(fetchdat)) return 1;
         CLOCK_CYCLES(6);
         PREFETCH_RUN(6, 2, (int)fetchdat, 0, 0, 0, 0, 1);
         return 0;

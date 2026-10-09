@@ -63,8 +63,9 @@ internal static partial class _386
     internal static int Dispatch(OpFn fn, uint32_t fetchdat)
     {
         var r = fn(fetchdat);
-        // pcem bug, reproduced: PB-50 — aucun compte des octets d'instruction : la boucle suit une suite de
-        //   préfixes sans fin, là où le 386 et le 486 lèvent #GP(0) au-delà de 15 octets, le 286 au-delà de 10.
+        // pcem bug, fixed in hardware mode: PB-50 — aucun compte des octets d'instruction : la boucle suit une suite
+        //   de préfixes sans fin, là où le 386 et le 486 lèvent #GP(0) au-delà de 15 octets, le 286 au-delà de 10. En
+        //   mode matériel, le décodeur de longueur l'a refusée avant le premier préfixe (386.Materiel.cs).
         while (r == TAIL)
         {
                 var f = tail_fn!;

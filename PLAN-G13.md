@@ -265,10 +265,13 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   (PB-181), LOCK (PB-182), BT* (PB-183, PB-262), MOVSX r16 (PB-184), AAA et AAS (PB-185), AAD et AAM (PB-186), AAM 0
   (PB-187), DAS (PB-188) ; SST 386 et 286 en mode matériel, en entier puis en portes de 150 cas par forme ; le scénario
   `ami386dx-dos` des listings.
-- **G13.5b, le décodage, la longueur et le fetch borné** : PB-43 avec PB-44, PB-50, PB-51 (et son coût), PB-78, PB-193.
-- **G13.5c, le mode protégé** : PB-32 avec PB-192, PB-39, PB-40, PB-190 (LTR), PB-191 ; `pm-check` et sa table du mode
-  matériel. PB-41 et le NT d'un JMP de tâche restent reproduits ; PB-189 (la limite des données en mode réel) aussi,
-  hors du plan.
+- **G13.5b, le décodage, la longueur et le fetch borné** ✅ *(10/10, VERIFICATION.md § G13.5b)* : PB-43 avec PB-44,
+  PB-50 et PB-51 en un groupe (un décodeur de longueur, son coût au banc `Exec386Banc`), PB-78 ; le scénario
+  `ami386dx-ctrl` des listings.
+- **G13.5c, le mode protégé** : PB-32 avec PB-192, PB-39, PB-40, PB-190 (LTR), PB-191, PB-193 (le privilège de
+  LOADALL386, dont le cas se joue à CPL 3, dans pm-check) ; `pm-check` et sa table du mode matériel, qui pose le décor
+  du 486 autrement que par LOADALL386 (PB-78 corrigé). PB-41 et le NT d'un JMP de tâche restent reproduits ; PB-189
+  (la limite des données en mode réel) aussi, hors du plan.
 
 ### G13.6 — Le x87
 
