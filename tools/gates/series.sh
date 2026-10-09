@@ -500,3 +500,23 @@ for m in "" "-materiel"; do
     --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type $'\x01' --type "@wait 900" --type "" \
     --type "" "${PCB[@]}" --type "@wait 1500"
 done
+# G13.4 — le 8237 : PB-157, PB-249 à PB-253, chacun son cas en C# seul dans les deux modes ; puis DMABANC
+# (tools/dmabanc), comme PICBANC, sur l'XT et sur l'IBM AT.
+for pb in 157 249 250 251 252 253; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+mapfile -t DCK < tools/dmabanc/dmabanc.keys
+DCB=(); for l in "${DCK[@]}"; do DCB+=(--type "$l"); done
+run bd-xt-dmabanc boot-diff roms 9000 --model ibmxt --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 6000 \
+  --type-settle 600 --type "" --type "" "${DCB[@]}" --type "@wait 900"
+run bd-ibmat-dmabanc boot-diff roms 9000 --model ibmat --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 3000 \
+  --type-settle 600 --type $'\x01' --type "@wait 900" --type "" --type "" "${DCB[@]}" --type "@wait 900"
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode carte-mere)
+  run banc-dmabanc-xt$m "${h[@]}" banc tools/gates/bancs/dmabanc-xt.attendus -- --boot roms 9000 --model ibmxt \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${DCB[@]}" --type "@wait 900"
+  run banc-dmabanc-at$m "${h[@]}" banc tools/gates/bancs/dmabanc-at.attendus -- --boot roms 3000 --model ibmat \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type $'\x01' --type "@wait 900" --type "" \
+    --type "" "${DCB[@]}" --type "@wait 900"
+done

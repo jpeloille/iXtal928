@@ -243,7 +243,9 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   POST de toutes les machines ; `--joystick-check` ; PS2BANC ; deux ou trois séries.
 - **G13.4a, le 8259** ✅ *(09/10, VERIFICATION.md § G13.4a)* : PB-05, PB-246, PB-247, PB-248, PB-255 corrigés en
   mode matériel (PB-06 et PB-13 absorbés) ; PICBANC, XT et AT, dans les deux modes ; série g4a1, 307 portes vertes.
-- **G13.4b, le 8237** : PB-157, PB-249 à PB-253 ; DMABANC.
+- **G13.4b, le 8237** ✅ *(09/10, VERIFICATION.md § G13.4b)* : PB-157, PB-249, PB-250, PB-251, PB-252, PB-253
+  corrigés en mode matériel (PB-259 et PB-260 inscrits, la part qui reste reproduite) ; DMABANC, XT et AT, dans les
+  deux modes ; série g4b1, 325 portes vertes.
 - **G13.4c, le 8042, la souris PS/2 et les ports** : PB-254, PB-94, PB-95, PB-101, PB-103 (PB-104 et PB-33 selon la
   décision n° 9 ; PB-256 peut-être) ; PS2BANC, `--joystick-check`.
 

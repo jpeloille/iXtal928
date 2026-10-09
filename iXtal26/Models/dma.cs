@@ -118,8 +118,11 @@ internal static partial class dma
         int c;
 
         dma_wp = dma16_wp = 0;
-        // pcem bug, reproduced: PB-252 — le reset laisse les huit masques à 0 ; le 8237A les pose.
+        // pcem bug, fixed in hardware mode: PB-252 — le reset laisse les huit masques à 0, et la commande, l'état et la
+        //   requête des deux contrôleurs ; le 8237A pose les masques et efface le reste.
         dma_m = 0;
+        if (materiel.pb_252)
+                dma_reset_materiel();
 
         for (c = 0; c < 16; c++)
                 dmaregs[c] = 0;
@@ -139,6 +142,9 @@ internal static partial class dma
     {
         int channel = (addr >> 1) & 3;
         uint8_t temp;
+        // pcem bug, fixed in hardware mode: PB-250 — les requêtes logicielles en attente se servent avant la lecture.
+        if (materiel.pb_250)
+                dma_servir_materiel();
         switch (addr & 0xf)
         {
         case 0:
@@ -162,7 +168,7 @@ internal static partial class dma
                 return temp;
 
         case 8: /*Status register*/
-                // pcem bug, reproduced: PB-157 — les bits 4 à 7 (requêtes en cours) restent à 0 : dma_stat_rq
+                // pcem bug, reproduced: PB-259 — les bits 4 à 7 (requêtes en cours) restent à 0 : dma_stat_rq
                 //   n'est lu que par le PS/2 (dma.c:198-204).
                 temp = (uint8_t)(dma_stat & 0xf);
                 dma_stat &= unchecked((uint8_t)~0xf);
@@ -171,7 +177,7 @@ internal static partial class dma
         case 0xd:
                 return 0;
         }
-        // pcem bug, reproduced: PB-157 — 09h à 0Ch, 0Eh et 0Fh, lectures « illégales » (8237A, figure 6) : le
+        // pcem bug, reproduced: PB-259 — 09h à 0Ch, 0Eh et 0Fh, lectures « illégales » (8237A, figure 6) : le
         //   dernier octet écrit.
         return dmaregs[addr & 0xf];
     }
@@ -181,6 +187,14 @@ internal static partial class dma
     {
         int channel = (addr >> 1) & 3;
         dmaregs[addr & 0xf] = val;
+        // pcem bug, fixed in hardware mode: PB-250 — pas de `case 9` : le registre de requête est ignoré (voir plus bas).
+        if (materiel.pb_250)
+                if (dma_requete_materiel(0, addr, val))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-249 — pas de `case 0xe` : Clear Mask n'efface pas les masques.
+        if (materiel.pb_249)
+                if (dma_clear_mask_materiel(0, addr))
+                        return;
         switch (addr & 0xf)
         {
         case 0:
@@ -211,7 +225,7 @@ internal static partial class dma
                 dma_command = val;
                 return;
 
-        // pcem bug, reproduced: PB-250 — pas de `case 9` : le registre de requête est ignoré.
+        // pcem bug, fixed in hardware mode: PB-250 — pas de `case 9` : le registre de requête est ignoré.
         case 0xa: /*Mask*/
                 if ((val & 4) != 0)
                         dma_m |= (uint8_t)(1 << (val & 3));
@@ -239,13 +253,15 @@ internal static partial class dma
                 return;
 
         case 0xd: /*Master clear*/
-                // pcem bug, reproduced: PB-251 — ni la commande, ni l'état, ni la requête, ni le temporaire
+                // pcem bug, fixed in hardware mode: PB-251 — ni la commande, ni l'état, ni la requête, ni le temporaire
                 //   ne sont effacés : seuls la bascule et les masques bougent.
                 dma_wp = 0;
                 dma_m |= 0xf;
+                if (materiel.pb_251)
+                        dma_master_clear_materiel(0);
                 return;
 
-        // pcem bug, reproduced: PB-249 — pas de `case 0xe` : Clear Mask n'efface pas les masques.
+        // pcem bug, fixed in hardware mode: PB-249 — pas de `case 0xe` : Clear Mask n'efface pas les masques.
         case 0xf: /*Mask write*/
                 dma_m = (uint8_t)((dma_m & 0xf0) | (val & 0xf));
                 return;
@@ -284,6 +300,9 @@ internal static partial class dma
         int channel = ((addr >> 2) & 3) + 4;
         uint8_t temp;
         // omitted: printf de trace (dma.c:316) — sortie pure.
+        // pcem bug, fixed in hardware mode: PB-250 — les requêtes logicielles en attente se servent avant la lecture.
+        if (materiel.pb_250)
+                dma_servir_materiel();
         addr >>= 1;
         switch (addr & 0xf)
         {
@@ -314,13 +333,17 @@ internal static partial class dma
                 return temp;
 
         case 8: /*Status register*/
-                // pcem bug, reproduced: PB-157 — les bits 4 à 7 (requêtes en cours) restent à 0.
+                // pcem bug, reproduced: PB-259 — les bits 4 à 7 (requêtes en cours) restent à 0.
                 temp = (uint8_t)(dma_stat >> 4);
                 dma_stat &= unchecked((uint8_t)~0xf0);
                 return temp;
         }
-        // pcem bug, reproduced: PB-157 — DAh (le temporaire, 00h sur un AT), et D2h à D8h, DCh et DEh, lectures
-        //   « illégales » (8237A, figure 6) : le dernier octet écrit.
+        // pcem bug, fixed in hardware mode: PB-157 — DAh, le temporaire (00h sur un AT) : le dernier octet écrit.
+        if (materiel.pb_157)
+                if (dma_temporaire_materiel(addr))
+                        return 0;
+        // pcem bug, reproduced: PB-259 — D2h à D8h, DCh et DEh, lectures « illégales » (8237A, figure 6) : le dernier
+        //   octet écrit.
         return dma16regs[addr & 0xf];
     }
 
@@ -331,6 +354,14 @@ internal static partial class dma
         // omitted: printf de trace (dma.c:354) — sortie pure.
         addr >>= 1;
         dma16regs[addr & 0xf] = val;
+        // pcem bug, fixed in hardware mode: PB-250 — pas de `case 9` : le registre de requête (D2h) est ignoré.
+        if (materiel.pb_250)
+                if (dma_requete_materiel(4, addr, val))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-249 — pas de `case 0xe` : Clear Mask (DCh) n'efface pas les masques.
+        if (materiel.pb_249)
+                if (dma_clear_mask_materiel(4, addr))
+                        return;
         switch (addr & 0xf)
         {
         case 0:
@@ -368,10 +399,13 @@ internal static partial class dma
                 return;
 
         case 8: /*Control register*/
-                // pcem bug, reproduced: PB-157 — la commande du 8237 haut n'est pas rangée : dma16_command reste à 0.
+                // pcem bug, fixed in hardware mode: PB-157 — la commande du 8237 haut n'est pas rangée : dma16_command reste
+                //   à 0.
+                if (materiel.pb_157)
+                        dma16_command_materiel(val);
                 return;
 
-        // pcem bug, reproduced: PB-250 — pas de `case 9` : le registre de requête (D2h) est ignoré.
+        // pcem bug, fixed in hardware mode: PB-250 — pas de `case 9` : le registre de requête (D2h) est ignoré.
         case 0xa: /*Mask*/
                 if ((val & 4) != 0)
                         dma_m |= (uint8_t)(0x10 << (val & 3));
@@ -399,13 +433,15 @@ internal static partial class dma
                 return;
 
         case 0xd: /*Master clear*/
-                // pcem bug, reproduced: PB-251 — ni la commande, ni l'état, ni la requête, ni le temporaire
+                // pcem bug, fixed in hardware mode: PB-251 — ni la commande, ni l'état, ni la requête, ni le temporaire
                 //   ne sont effacés : seuls la bascule et les masques bougent.
                 dma16_wp = 0;
                 dma_m |= 0xf0;
+                if (materiel.pb_251)
+                        dma_master_clear_materiel(4);
                 return;
 
-        // pcem bug, reproduced: PB-249 — pas de `case 0xe` : Clear Mask (DCh) n'efface pas les masques.
+        // pcem bug, fixed in hardware mode: PB-249 — pas de `case 0xe` : Clear Mask (DCh) n'efface pas les masques.
         case 0xf: /*Mask write*/
                 dma_m = (uint8_t)((dma_m & 0x0f) | ((val & 0xf) << 4));
                 return;
@@ -503,12 +539,15 @@ internal static partial class dma
         uint16_t temp;
         int tc = 0;
 
-        // pcem bug, reproduced: PB-253 — pas de cascade : un canal 0 à 3 ignore le masque et le mode du
+        // pcem bug, fixed in hardware mode: PB-253 — pas de cascade : un canal 0 à 3 ignore le masque et le mode du
         //   canal 4, et la commande du 8237 haut.
         if (channel < 4)
         {
                 if ((dma_command & 0x04) != 0)
                         return DMA_NODATA;
+                if (materiel.pb_253)
+                        if (!dma_cascade_materiel())
+                                return DMA_NODATA;
         }
         else
         {
@@ -594,12 +633,15 @@ internal static partial class dma
     {
         dma_t dma_c = dma_[channel];
 
-        // pcem bug, reproduced: PB-253 — pas de cascade : un canal 0 à 3 ignore le masque et le mode du
+        // pcem bug, fixed in hardware mode: PB-253 — pas de cascade : un canal 0 à 3 ignore le masque et le mode du
         //   canal 4, et la commande du 8237 haut.
         if (channel < 4)
         {
                 if ((dma_command & 0x04) != 0)
                         return DMA_NODATA;
+                if (materiel.pb_253)
+                        if (!dma_cascade_materiel())
+                                return DMA_NODATA;
         }
         else
         {

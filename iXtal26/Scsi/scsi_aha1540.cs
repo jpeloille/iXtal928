@@ -398,7 +398,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:407-533
-    // pcem bug, reproduced: PB-253 — le CCB lu en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, reproduced: PB-260 — le CCB lu en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_cdb(aha154x_t scsi)
     {
         int c;
@@ -520,7 +520,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:535-1369
-    // pcem bug, reproduced: PB-253 — 03h, 1Ah et 1Bh en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, reproduced: PB-260 — 03h, 1Ah et 1Bh en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_cmd(aha154x_t scsi)
     {
         uint32_t addr = 0;
@@ -1245,7 +1245,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:1371-1693
-    // pcem bug, reproduced: PB-253 — mailbox, CCB et MBI en maître de bus : canal DMA, masque, 8237 ignorés.
+    // pcem bug, reproduced: PB-260 — mailbox, CCB et MBI en maître de bus : canal DMA, masque, 8237 ignorés.
     private static void process_ccb(aha154x_t scsi)
     {
         int c;
@@ -1544,7 +1544,7 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:1695-2057
-    // pcem bug, reproduced: PB-253 — les données en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, reproduced: PB-260 — les données en maître de bus : canal DMA, masque, mode et 8237 ignorés.
     private static void process_scsi(aha154x_t scsi)
     {
         int c;

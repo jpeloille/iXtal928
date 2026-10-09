@@ -142,3 +142,8 @@ pas d'`at.nvr`). En mode PCem, `bd-xt-picbanc` et `bd-ibmat-picbanc` le confront
 `banc-picbanc-xt` et `banc-picbanc-at`, puis leurs `-materiel` (tout le domaine de la carte mère), le confrontent aux
 attendus de `bancs/picbanc-*.attendus`. Le banc remet la CMOS de `nvr/` comme elle était avant chaque séance : l'AT
 l'écrit en sortant, et la seconde séance ne partirait pas du même état.
+
+Le 8237 suit, de même : `materiel-cas-pbNN` pour PB-157 et PB-249 à PB-253, et DMABANC (`tools/dmabanc`), sur l'XT et
+sur l'IBM AT, contre l'oracle (`bd-xt-dmabanc`, `bd-ibmat-dmabanc`) et contre `bancs/dmabanc-*.attendus`
+(`banc-dmabanc-xt`, `banc-dmabanc-at` et leurs `-materiel`). Tout s'y fait sous CLI ; l'XT voit Clear Mask par le
+rafraîchissement du canal 0, l'AT la cascade par une requête logicielle que le canal 4 masqué retient.

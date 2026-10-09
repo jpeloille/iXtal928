@@ -39,6 +39,9 @@ internal static class materiel
     /// <summary>PB-87 : au repli de l'IP, la lecture d'instruction se fait à l'offset 0 du segment.</summary>
     internal static readonly bool pb_87;
 
+    /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
+    internal static readonly bool pb_157;
+
     /// <summary>PB-169 : DIV et IDIV lèvent INT 0 sur un quotient hors capacité ; avec PB-45.</summary>
     internal static readonly bool pb_169;
 
@@ -78,6 +81,21 @@ internal static class materiel
     /// <summary>PB-248 : l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial.</summary>
     internal static readonly bool pb_248;
 
+    /// <summary>PB-249 : Clear Mask (0Eh, DCh) efface les quatre masques du 8237.</summary>
+    internal static readonly bool pb_249;
+
+    /// <summary>PB-250 : le registre de requête du 8237, la requête logicielle en mode bloc.</summary>
+    internal static readonly bool pb_250;
+
+    /// <summary>PB-251 : le master clear du 8237 efface la commande, l'état et la requête.</summary>
+    internal static readonly bool pb_251;
+
+    /// <summary>PB-252 : au reset, le 8237 pose ses masques et efface la commande, l'état et la requête.</summary>
+    internal static readonly bool pb_252;
+
+    /// <summary>PB-253 : les canaux 0 à 3 de l'AT n'ont le bus que par la cascade du canal 4.</summary>
+    internal static readonly bool pb_253;
+
     /// <summary>PB-255 : après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR.</summary>
     internal static readonly bool pb_255;
 
@@ -97,6 +115,7 @@ internal static class materiel
         pb_07 = ModeMateriel.Demande(7);
         pb_45 = ModeMateriel.Demande(45);
         pb_87 = ModeMateriel.Demande(87);
+        pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);
         pb_171 = ModeMateriel.Demande(171);
@@ -110,6 +129,11 @@ internal static class materiel
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
         pb_248 = ModeMateriel.Demande(248);
+        pb_249 = ModeMateriel.Demande(249);
+        pb_250 = ModeMateriel.Demande(250);
+        pb_251 = ModeMateriel.Demande(251);
+        pb_252 = ModeMateriel.Demande(252);
+        pb_253 = ModeMateriel.Demande(253);
         pb_255 = ModeMateriel.Demande(255);
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);

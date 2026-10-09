@@ -1,0 +1,13 @@
+# DMABANC (tools/dmabanc) sous PC-DOS 2.00, sur l'IBM AT, deux 8237 en cascade (G13.4). Les relevés, dans l'ordre :
+#   Le canal 0, Clear Mask vu par le rafraîchissement : 00h 00h, l'AT ne rafraîchit pas par DMA.
+#   Le canal 1 en bloc et en vérification, compte 0003h, la requête logicielle (OUT 09h,05h) : l'état, 02h, et le
+#     compte, FFFFh (fiche 8237A, p. 7) ; PCem 00h et 0003h (PB-250).
+#   Le 8237 bas désactivé, le master clear, la même requête : FFFFh (p. 9) ; PCem 0003h (PB-251).
+#   Le canal 4 masqué (OUT D4h,04h), la même requête : 0003h, le 8237 bas n'a pas le bus (AT TR p. 1-13 ; PB-253) ;
+#     Clear Mask au 8237 haut (OUT DCh) : FFFFh, la requête servie (PB-249). Le 8237 haut désactivé (OUT D0h,04h) :
+#     0003h ; réactivé : FFFFh (PB-157, PB-253). PCem 0003h partout, sans requête logicielle.
+#   OUT DAh,5Ah (le master clear du haut) puis IN DAh, le temporaire : 00h ; PCem 5Ah, le dernier octet écrit
+#     (PB-157).
+DMABANC
+pcem: DMABANC 00 00 00 03 00 03 00 03 00 03 00 03 00 03 00 5A
+materiel: DMABANC 00 00 02 FF FF FF FF 03 00 FF FF 03 00 FF FF 00

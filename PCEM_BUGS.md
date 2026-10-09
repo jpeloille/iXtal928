@@ -2550,13 +2550,16 @@ l'état (« Bits 4–7 are set whenever their corresponding channel is requestin
 figure 6 (lectures « Illegal ») ; AT TR p. 1-14. Documenté ; la valeur d'une lecture illégale est inconnue.
 *Cas qui discrimine* : ibmat, OUT D0h,04h puis un DMA 16 bits de la SB 16 (canal 5) : PCem le fait ; le 8237A ne
 transfère rien jusqu'à OUT D0h,00h. OUT DAh,5Ah (un master clear) puis IN AL,DAh : PCem 5Ah ; le 8237A 00h.
-*G13* : (a) la commande et DAh, sans dépendre du master clear ; (c) les lectures illégales et les bits de requête.
-*Reproduit* : `Models/dma.cs` (transcrit dès B3), marqueurs PB-157 : `dma16_write` (`:371`, la commande),
-`dma_read` (`:165`, `:174`) et `dma16_read` (`:317`, `:322`) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA
-compare l'état. Les lectures illégales restent reproduites : leur valeur est inconnue, à mesurer sur un 8237A-5 et
-sur les contrôleurs intégrés des jeux de puces du dépôt ; les bits de requête aussi : PCem n'a pas de ligne DREQ, et
-un modèle qui garderait une requête après chaque transfert arrêterait le POST de l'XT (« HOT TIMER 1 OUTPUT », XT TR
-p. 5-30), et celui de la M24, dont la ROM 1.43 fait le même test (`F000:DC5C-DC62`).
+*G13* : (a) la commande et DAh, sans dépendre du master clear ; (c) les lectures illégales et les bits de requête :
+inscrits à part en G13.4, PB-259, pour que la part (a) se corrige seule.
+*Reproduit* en mode PCem : `Models/dma.cs` (transcrit dès B3), marqueurs `fixed in hardware mode: PB-157` :
+`dma16_write` (la commande) et `dma16_read` (DAh) ; SB16BANC relit D0h, DAh et DEh, et la sonde du DMA compare l'état.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_157)`, la commande du 8237 haut est rangée
+(`dma16_command_materiel`), et son bit 2 refuse les transferts des canaux 4 à 7, comme celui du bas ; DAh se lit sur
+le temporaire, nul hors du transfert de mémoire à mémoire, que ni PCem ni le mode ne font (`dma_temporaire_materiel`,
+`Models/dma.Materiel.cs`). `materiel-cas PB-157` (AT : OUT D0h,04h puis un transfert du canal 5 ; OUT DAh,5Ah puis
+IN DAh) rend « fait » et 5Ah en mode PCem, « refusé » et 00h en mode matériel ; la correction coupée, il rougit.
+DMABANC, sur l'AT : le 8237 haut désactivé retient la requête du canal 1 (avec PB-253), et DAh rend 00h.
 
 ### PB-158 — L'EMU8000 lu et écrit par octet ; WC figé entre deux écritures
 
@@ -4391,7 +4394,13 @@ p. 1-14, DCh « Clear Mask Register ». Documenté.
 *Cas qui discrimine* : OUT 0Fh,0Fh (les quatre masques posés), OUT 0Eh,00h, puis un transfert sur le canal 2 : PCem
 `DMA_NODATA` (masqué) ; le 8237A le fait. Sur l'AT, OUT DEh,0Fh puis OUT DCh,00h : de même pour les canaux 4 à 7.
 *G13* : (a) — avec PB-157 et les autres voisins du 8237, dans un 8237 selon la fiche.
-*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-249.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-249`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_249)`, une écriture en 0Eh ou en DCh efface les quatre
+masques du contrôleur (`dma_clear_mask_materiel`, `Models/dma.Materiel.cs`). `materiel-cas PB-249` (OUT 0Fh,0Fh,
+OUT 0Eh,00h, un transfert du canal 2 ; OUT DEh,0Fh, OUT DCh,00h, un transfert du canal 5) rend « refusé » deux fois en
+mode PCem, « fait » deux fois en mode matériel ; la correction coupée, il rougit. DMABANC : sur l'XT, le
+rafraîchissement du canal 0 reprend après Clear Mask (01h au lieu de 00h) ; sur l'AT, Clear Mask au 8237 haut
+démasque le canal 4, et la requête du canal 1 passe.
 
 ### PB-250 — Le registre de requête du 8237 (09h, D2h) est ignoré
 
@@ -4406,7 +4415,17 @@ EOP externe, et en entier par un Reset ; figure 6 (p. 9), « Write Request Regis
 *Cas qui discrimine* : XT, le canal 1 en bloc et en vérification (mode 81h), compte 0003h, démasqué ; OUT 09h,05h. Le
 8237A fait quatre cycles : l'état (08h) rend 02h, le compte FFFFh ; PCem rien (état 00h, compte 0003h).
 *G13* : (a) — documenté ; demande un moteur de transfert propre au mode matériel.
-*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-250.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-250`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_250)`, une écriture en 09h ou en D2h pose ou efface la
+requête logicielle d'un canal (`dma_requete_materiel`), et les requêtes en attente se servent avant tout accès aux
+registres des deux 8237 (`dma_servir_materiel`, `Models/dma.Materiel.cs`) : non masquables, en mode bloc seulement,
+jusqu'au TC (N + 1 transferts, l'adresse avancée ou reculée d'autant), puis l'auto-initialisation ou le masque posé,
+le bit TC de l'état et la requête effacée. Un contrôleur désactivé, ou un canal du bas que la cascade ne sert pas
+(PB-253), les garde en attente. La vérification et la lecture ne touchent pas la mémoire ; l'écriture non plus : la
+donnée est celle d'un bus que personne ne pilote, inconnue. Le transfert de mémoire à mémoire n'est pas modélisé.
+`materiel-cas PB-250` (le canal 1 masqué, en bloc et en vérification, compte 0003h, OUT 09h,05h ; le canal 5, compte
+0002h, OUT D2h,05h) rend l'état 00h et le compte 0003h, puis 00h, en mode PCem ; 02h et FFFFh, puis 02h, en mode
+matériel ; la correction coupée, il rougit. DMABANC, sur l'XT et sur l'AT : 02h et FFFFh.
 
 ### PB-251 — Le master clear du 8237 n'efface ni la commande, ni l'état, ni la requête, ni le temporaire
 
@@ -4423,7 +4442,12 @@ Temporary, and Internal First/Last Flip-Flop registers are cleared and the Mask 
 disquette par INT 13h : PCem la refuse (`DMA_NODATA`, le contrôleur reste désactivé) ; le 8237A la fait. L'état relu
 après un TC puis un master clear : PCem garde le bit TC ; le 8237A rend 00h.
 *G13* : (a) — documenté ; facultatif pour PB-157, que les BIOS du dépôt ne mettent pas en défaut.
-*Reproduit* : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs PB-251.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_write` et `dma16_write`, marqueurs `fixed in hardware mode: PB-251`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_251)`, le master clear d'un contrôleur efface aussi sa
+commande, ses bits de l'état et ses requêtes (`dma_master_clear_materiel`, `Models/dma.Materiel.cs`) ; le temporaire
+reste nul. `materiel-cas PB-251` (le canal 2 au TC, OUT 08h,04h, OUT 0Dh : l'état ; puis le canal 2 démasqué, un
+transfert) rend 04h et « refusé » en mode PCem, 00h et « fait » en mode matériel ; la correction coupée, il rougit.
+DMABANC : le 8237 bas désactivé puis remis à zéro sert la requête du canal 1 (FFFFh, avec PB-250).
 
 ### PB-252 — Au reset, les masques du 8237 restent à zéro
 
@@ -4438,7 +4462,12 @@ Mask register » ; p. 8, « The entire register is also set by a Reset ». Docum
 *Cas qui discrimine* : en C# seul, `dma_reset`, puis le mode du canal 2 posé en écriture (46h) sans toucher au masque,
 et `dma_channel_write(2, …)` : PCem fait le transfert ; le 8237A rend `DMA_NODATA` (le canal masqué).
 *G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
-*Reproduit* : `Models/dma.cs`, `dma_reset`, marqueur PB-252.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_reset`, marqueur `fixed in hardware mode: PB-252`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_252)`, le reset pose les huit masques et efface les deux
+commandes, l'état et les requêtes (`dma_reset_materiel`, `Models/dma.Materiel.cs`). `materiel-cas PB-252` (le canal 2
+au TC, `dma_reset` : l'état ; le mode reposé, un transfert) rend 04h et « fait » en mode PCem, 00h et « refusé » en
+mode matériel ; la correction coupée, il rougit. Les POST des machines du dépôt n'en changent pas : chaque BIOS
+démasque ses canaux avant de s'en servir.
 
 ### PB-253 — La cascade du 8237 n'est pas modélisée, et les maîtres de bus passent outre
 
@@ -4454,8 +4483,15 @@ en cascade). Documenté par composition.
 *Cas qui discrimine* : ibmat, OUT D4h,04h (le canal 4 masqué), puis une lecture de disquette par INT 13h : PCem la
 fait ; l'AT la bloque (le 8237 bas n'obtient pas le bus) jusqu'au démasquage.
 *G13* : (a) — documenté par composition ; avec PB-157 (la commande du haut) et PB-251.
-*Reproduit* : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs PB-253 ; la 1542C
-(`Scsi/scsi_aha1540.cs`) est hors du domaine de la carte mère : son marqueur revient au domaine du stockage.
+*Reproduit* en mode PCem : `Models/dma.cs`, `dma_channel_read` et `dma_channel_write`, marqueurs `fixed in hardware
+mode: PB-253`. La 1542C (`Scsi/scsi_aha1540.cs`) est hors du domaine de la carte mère : ses sites sont inscrits à part
+en G13.4, PB-260, au domaine du stockage.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_253)`, sur l'AT, un canal 0 à 3 n'a le bus que si le canal
+4 n'est pas masqué, s'il est en mode cascade (C0h) et si le 8237 haut n'est pas désactivé (`dma_cascade_materiel`,
+`Models/dma.Materiel.cs`) ; sinon le transfert est refusé, comme par la commande du bas. La commande du haut n'est
+rangée qu'avec PB-157. `materiel-cas PB-253` (AT, le canal 4 en cascade : un transfert du canal 2 ; le canal 4 masqué ;
+le canal 4 démasqué en mode simple) rend « fait » trois fois en mode PCem, « fait » puis « refusé » deux fois en mode
+matériel ; la correction coupée, il rougit. DMABANC, sur l'AT : le canal 4 masqué retient la requête du canal 1.
 
 ### PB-254 — Les files du 8042 n'ont pas de garde : au seizième octet en attente, elles paraissent vides
 
@@ -4551,6 +4587,42 @@ rend 3FFF8h en mode PCem, 0FFF8h en mode matériel, la sonde comptant la correct
 (`--attendu materiel` en mode PCem), il rougit. SST en mode matériel : avec lui, `F6.6`, `F6.7`, `F7.6` et `F7.7`
 passent entières (PB-169). Le chemin R9 d'AAM 0 (PB-46), du C# propre, a le même geste et le garde dans les deux
 modes : le corriger changerait le code machine d'`execx86` en mode PCem, et l'oracle n'y a pas de comportement.
+
+### PB-259 — Le 8237 rend ses lectures illégales avec le dernier octet écrit, et son état sans bits de requête
+
+`dma.c:82-85` et `:344-347` : la lecture de l'état (08h, D0h) ne rend que les bits TC ; ses bits 4 à 7, les requêtes
+en cours, restent à 0 (`dma_stat_rq` n'est lu que par le PS/2, `:198-204`). `dma.c:91` et `:349` : les lectures que
+la fiche dit « illégales » (09h à 0Ch, 0Eh et 0Fh au 8237 bas ; D2h à D8h, DCh et DEh au haut) rendent le dernier
+octet écrit dans le registre (`dmaregs`, `dma16regs`).
+*Effet* : un programme qui attend qu'un canal demande (un bit de requête) ne le voit jamais ; une lecture illégale
+rend une valeur qu'aucun 8237 ne rend sans doute, mais que personne n'a mesurée.
+*Trouvé par* : reconnaissance de G12 (contre-lecture du DSP et du DMA), avec PB-157 ; inscrit à part en G13.4, pour
+que la part documentée de PB-157 se corrige seule.
+*Source* : 8237A (231466-005) p. 9 : l'état, « Bits 4–7 are set whenever their corresponding channel is requesting
+service » ; la figure 6, les lectures « Illegal ». Les bits de requête sont documentés ; la valeur d'une lecture
+illégale est inconnue.
+*Cas qui discrimine* : OUT 0Ah,05h puis IN AL,0Ah : PCem 05h ; le 8237A, inconnu. Un canal dont la ligne DREQ est
+haute, l'état relu : le 8237A pose son bit de requête ; PCem 0.
+*G13* : (c) — la valeur d'une lecture illégale est à mesurer sur un 8237A-5 et sur les contrôleurs intégrés des jeux
+de puces du dépôt ; les bits de requête demandent une ligne DREQ que PCem n'a pas, et un modèle qui garderait une
+requête après chaque transfert arrêterait le POST de l'XT (« HOT TIMER 1 OUTPUT », XT TR p. 5-30), et celui de la
+M24, dont la ROM 1.43 fait le même test (`F000:DC5C-DC62`).
+*Reproduit* : `Models/dma.cs`, `dma_read` (l'état, les lectures illégales) et `dma16_read` (de même), marqueurs PB-259.
+
+### PB-260 — La 1542C, maître de bus, passe outre son canal de DMA et le 8237
+
+`scsi_aha1540.c:411` et suivantes : la 1542C lit et écrit la mémoire directement (`mem_readb_phys`,
+`mem_writeb_phys`) : la mailbox, les CCB, les données, les commandes 03h, 1Ah et 1Bh. Elle ne regarde ni le masque ni
+le mode de son canal (7 par défaut), ni la commande du 8237 haut.
+*Effet* : un programme qui masque le canal de la 1542C, ou désactive le 8237 haut, ne suspend pas ses transferts.
+*Trouvé par* : contre-lecture de la carte mère, reconnaissance de G13, avec PB-253 ; inscrit à part en G13.4, au
+domaine du stockage.
+*Source* : IBM AT TR p. 1-26 (–MASTER : un maître de bus prend le bus par un canal du 8237 en mode cascade) ; 8237A
+p. 5-6 (Cascade Mode). Documenté par composition.
+*Cas qui discrimine* : ibmat avec une 1542C sur le canal 7, OUT D4h,07h (le canal 7 masqué), puis une lecture SCSI :
+PCem la fait ; l'AT la bloque jusqu'au démasquage.
+*G13* : (a) — documenté par composition ; au domaine du stockage (G13.7), avec la cascade de PB-253.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, les quatre chemins du maître de bus, marqueurs PB-260.
 
 ## B. Comportement indéfini en C
 
@@ -5687,6 +5759,8 @@ audit systématique de PCem** :
 | Reconnaissance (lecture puis contre-lecture) et transcription de l'AWE32 et de l'EMU8000 (G12.2) | PB-158 à PB-167 ; PB-93, PB-153, PB-154 élargis |
 | Contre-lecture du stockage, reconnaissance de G13 (G13.0) | PB-168 |
 | Reconnaissance de G13 (six lectures par domaine et leurs contre-lectures), inscrits en G13.1 | PB-169 à PB-257 : le processeur 169 à 193, le x87 194 à 213, le stockage 214 à 219, la vidéo 220 à 233, le son 234 à 244, la carte mère 245 à 257 ; des entrées existantes élargies, chacune le dit |
+| SST en mode matériel (G13.3) | PB-258 |
+| Le 8237 en mode matériel (G13.4) : les parts laissées reproduites de PB-157 et de PB-253, inscrites à part | PB-259, PB-260 |
 
 Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
 lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les

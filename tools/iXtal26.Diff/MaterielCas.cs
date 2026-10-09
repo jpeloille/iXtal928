@@ -12,7 +12,9 @@
 // Les cas du processeur jouent quelques instructions sur le cœur du harnais (_808x.Reset, la RAM plate de 1 Mo), le code
 // en 0000:0100 sur un fond de NOP ; ceux de PB-03 et de PB-257 montent une machine, le 5150. Ceux du 8259 (PB-05,
 // PB-246 à PB-248, PB-255) écrivent et lisent ses ports et l'acquittent comme le ferait le processeur, après
-// l'initialisation du BIOS de l'AT (maître en 08h, esclave en 70h sur IR2) ou de l'XT (un seul 8259, en 08h).
+// l'initialisation du BIOS de l'AT (maître en 08h, esclave en 70h sur IR2) ou de l'XT (un seul 8259, en 08h). Ceux du
+// 8237 (PB-157, PB-249 à PB-253) écrivent ses ports et tirent un transfert comme le ferait un périphérique
+// (dma_channel_write), après un reset du DMA.
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -28,7 +30,8 @@ internal static class MaterielCas
     {
         [1] = Pb01, [2] = Pb02, [3] = Pb03, [5] = Pb05, [7] = Pb07, [45] = Pb45, [87] = Pb87, [169] = Pb169, [170] = Pb170,
         [171] = Pb171, [172] = Pb172, [173] = Pb173, [174] = Pb174, [175] = Pb175, [176] = Pb176, [177] = Pb177,
-        [179] = Pb179, [246] = Pb246, [247] = Pb247, [248] = Pb248, [255] = Pb255, [257] = Pb257, [258] = Pb258,
+        [179] = Pb179, [157] = Pb157, [246] = Pb246, [247] = Pb247, [248] = Pb248, [249] = Pb249, [250] = Pb250,
+        [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258,
     };
 
     internal static int Run(string[] args)
@@ -622,6 +625,181 @@ internal static class MaterielCas
         var e = pic.pic2_read(0xA0, null!);
         bad += Voir("AT, mise sous tension, IRQ 0 et IRQ 8 en attente, IN 20h et IN A0h", (m, e) == (hw ? (1, 1) : (0, 0)),
                     $"{m:X2}h et {e:X2}h", hw ? "01h et 01h" : "00h et 00h", hw);
+        return bad;
+    });
+
+    // ===== Le 8237 =====
+
+    private static void Dma(ushort port, byte v)
+    {
+        if (port >= 0xC0)
+            dma.dma16_write(port, v, null!);
+        else
+            dma.dma_write(port, v, null!);
+    }
+
+    private static byte DmaLu(ushort port) => port >= 0xC0 ? dma.dma16_read(port, null!) : dma.dma_read(port, null!);
+
+    /// <summary>Le compte courant d'un canal du 8237 bas (port 01h, 03h, 05h, 07h), la bascule remise à zéro d'abord.</summary>
+    private static int Compte(int canal)
+    {
+        Dma(0x0C, 0);
+        var lo = DmaLu((ushort)(canal * 2 + 1));
+        var hi = DmaLu((ushort)(canal * 2 + 1));
+        return lo | hi << 8;
+    }
+
+    private static string Fait(int r) => r == dma.DMA_NODATA ? "refusé (DMA_NODATA)" : "fait";
+
+    private static int Avec8237(bool at, Func<int> cas)
+    {
+        var avant = x86.AT;
+        try
+        {
+            _808x.Reset();
+            x86.AT = at ? 1 : 0;
+            dma.dma_reset();
+            return cas();
+        }
+        finally
+        {
+            x86.AT = avant;
+            dma.dma_reset();
+        }
+    }
+
+    // PB-157 — la commande du 8237 haut, son bit 2 le désactive (fiche 8237A p. 7) ; DAh se lit sur le temporaire,
+    // nul hors du transfert de mémoire à mémoire (p. 9). AT, le canal 5 en écriture, démasqué, OUT D0h,04h : PCem fait
+    // le transfert, le 8237A le refuse. OUT DAh,5Ah (le master clear) puis IN DAh : PCem 5Ah, le 8237A 00h.
+    private static int Pb157(bool hw) => Avec8237(at: true, () =>
+    {
+        var bad = 0;
+        Dma(0xD6, 0x45);                                  // canal 5 : simple, écriture en mémoire
+        Dma(0xD4, 0x01);                                  // démasque le canal 5
+        Dma(0xD0, 0x04);                                  // le 8237 haut désactivé
+        var r = dma.dma_channel_write(5, 0x1234);
+        bad += Voir("AT, OUT D0h,04h, dma_channel_write du canal 5", (r == dma.DMA_NODATA) == hw, Fait(r),
+                    hw ? "refusé" : "fait", hw);
+        Dma(0xDA, 0x5A);
+        var t = DmaLu(0xDA);
+        bad += Voir("OUT DAh,5Ah, IN DAh", t == (hw ? 0x00 : 0x5A), $"{t:X2}h", hw ? "00h" : "5Ah", hw);
+        return bad;
+    });
+
+    // PB-249 — Clear Mask efface les quatre masques d'un contrôleur (fiche p. 9 ; AT TR p. 1-14). PC, OUT 0Fh,0Fh puis
+    // OUT 0Eh,00h, le canal 2 en écriture : PCem le laisse masqué (DMA_NODATA), le 8237A transfère. De même au 8237
+    // haut, OUT DEh,0Fh puis OUT DCh,00h, le canal 5.
+    private static int Pb249(bool hw) => Avec8237(at: false, () =>
+    {
+        var bad = 0;
+        Dma(0x0B, 0x46);                                  // canal 2 : simple, écriture en mémoire
+        Dma(0x0F, 0x0F);
+        Dma(0x0E, 0x00);
+        var r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("OUT 0Fh,0Fh, OUT 0Eh,00h, dma_channel_write du canal 2", (r != dma.DMA_NODATA) == hw, Fait(r),
+                    hw ? "fait" : "refusé", hw);
+        Dma(0xD6, 0x45);                                  // canal 5 : simple, écriture en mémoire
+        Dma(0xDE, 0x0F);
+        Dma(0xDC, 0x00);
+        r = dma.dma_channel_write(5, 0x1234);
+        bad += Voir("OUT DEh,0Fh, OUT DCh,00h, dma_channel_write du canal 5", (r != dma.DMA_NODATA) == hw, Fait(r),
+                    hw ? "fait" : "refusé", hw);
+        return bad;
+    });
+
+    // PB-250 — la requête logicielle (fiche p. 7) : non masquable, en mode bloc, jusqu'au TC. PC, le canal 1 masqué, en
+    // bloc et en vérification (81h), compte 0003h ; OUT 09h,05h : le 8237A fait quatre transferts, l'état rend 02h
+    // (TC du canal 1), le compte FFFFh ; PCem rien (00h, 0003h). De même au 8237 haut, le canal 5, compte 0002h,
+    // OUT D2h,05h, l'état D0h : 02h.
+    private static int Pb250(bool hw) => Avec8237(at: false, () =>
+    {
+        var bad = 0;
+        Dma(0x0A, 0x05);                                  // masque le canal 1
+        Dma(0x0B, 0x81);                                  // canal 1 : bloc, vérification
+        Dma(0x0C, 0x00);
+        Dma(0x03, 0x03);
+        Dma(0x03, 0x00);
+        DmaLu(0x08);
+        Dma(0x09, 0x05);
+        var st = DmaLu(0x08);
+        var n = Compte(1);
+        bad += Voir("canal 1 en bloc, compte 0003h, OUT 09h,05h ; l'état et le compte",
+                    (st, n) == (hw ? (0x02, 0xFFFF) : (0x00, 0x0003)), $"{st:X2}h, {n:X4}h",
+                    hw ? "02h, FFFFh" : "00h, 0003h", hw);
+        Dma(0xD6, 0x81);                                  // canal 5 : bloc, vérification
+        Dma(0xD8, 0x00);
+        Dma(0xC6, 0x02);
+        Dma(0xC6, 0x00);
+        DmaLu(0xD0);
+        Dma(0xD2, 0x05);
+        st = DmaLu(0xD0);
+        bad += Voir("canal 5 en bloc, compte 0002h, OUT D2h,05h ; l'état", st == (hw ? 0x02 : 0x00), $"{st:X2}h",
+                    hw ? "02h" : "00h", hw);
+        return bad;
+    });
+
+    // PB-251 — le master clear a l'effet du reset (fiche p. 9) : la commande, l'état et la requête effacés. PC, le canal
+    // 2 au TC (compte 0), puis OUT 08h,04h et OUT 0Dh : l'état relu, PCem 04h, le 8237A 00h ; le canal 2 démasqué,
+    // dma_channel_write : PCem refuse (le contrôleur reste désactivé), le 8237A transfère.
+    private static int Pb251(bool hw) => Avec8237(at: false, () =>
+    {
+        var bad = 0;
+        Dma(0x0B, 0x46);                                  // canal 2 : simple, écriture en mémoire, compte 0
+        Dma(0x0A, 0x02);
+        dma.dma_channel_write(2, 0x55);                   // le TC
+        Dma(0x08, 0x04);
+        Dma(0x0D, 0x00);
+        var st = DmaLu(0x08);
+        bad += Voir("le canal 2 au TC, OUT 08h,04h, OUT 0Dh ; l'état", st == (hw ? 0x00 : 0x04), $"{st:X2}h",
+                    hw ? "00h" : "04h", hw);
+        Dma(0x0A, 0x02);
+        var r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("puis OUT 0Ah,02h, dma_channel_write du canal 2", (r != dma.DMA_NODATA) == hw, Fait(r),
+                    hw ? "fait" : "refusé", hw);
+        return bad;
+    });
+
+    // PB-252 — le reset (fiche p. 2, broche RESET) pose les masques et efface l'état. PC, le canal 2 au TC, puis
+    // dma_reset : l'état relu, PCem 04h, le 8237A 00h ; le mode du canal 2 reposé, sans toucher au masque,
+    // dma_channel_write : PCem transfère, le 8237A refuse (masqué).
+    private static int Pb252(bool hw) => Avec8237(at: false, () =>
+    {
+        var bad = 0;
+        Dma(0x0B, 0x46);
+        Dma(0x0A, 0x02);
+        dma.dma_channel_write(2, 0x55);
+        dma.dma_reset();
+        var st = DmaLu(0x08);
+        bad += Voir("le canal 2 au TC, dma_reset ; l'état", st == (hw ? 0x00 : 0x04), $"{st:X2}h", hw ? "00h" : "04h", hw);
+        Dma(0x0B, 0x46);
+        var r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("le mode reposé, dma_channel_write du canal 2", (r == dma.DMA_NODATA) == hw, Fait(r),
+                    hw ? "refusé" : "fait", hw);
+        return bad;
+    });
+
+    // PB-253 — les canaux 0 à 3 de l'AT n'ont le bus que par le canal 4 en cascade (AT TR p. 1-13 ; fiche p. 5-6). AT,
+    // le canal 4 en cascade (C0h) et démasqué, le canal 2 en écriture auto-initialisée : transféré dans les deux modes ;
+    // OUT D4h,04h (le canal 4 masqué) : PCem transfère, le 8237A non ; le canal 4 démasqué mais en mode simple (40h) :
+    // de même.
+    private static int Pb253(bool hw) => Avec8237(at: true, () =>
+    {
+        var bad = 0;
+        Dma(0xD6, 0xC0);
+        Dma(0xD4, 0x00);
+        Dma(0x0B, 0x56);                                  // canal 2 : simple, auto-initialisé, écriture en mémoire
+        Dma(0x0A, 0x02);
+        var r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("AT, le canal 4 en cascade, dma_channel_write du canal 2", r != dma.DMA_NODATA, Fait(r), "fait", hw);
+        Dma(0xD4, 0x04);
+        r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("OUT D4h,04h (le canal 4 masqué), dma_channel_write du canal 2", (r == dma.DMA_NODATA) == hw,
+                    Fait(r), hw ? "refusé" : "fait", hw);
+        Dma(0xD4, 0x00);
+        Dma(0xD6, 0x40);
+        r = dma.dma_channel_write(2, 0x55);
+        bad += Voir("le canal 4 démasqué, en mode simple (40h), dma_channel_write du canal 2",
+                    (r == dma.DMA_NODATA) == hw, Fait(r), hw ? "refusé" : "fait", hw);
         return bad;
     });
 }

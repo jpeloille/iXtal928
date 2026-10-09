@@ -283,3 +283,58 @@ La source est la fiche du 8259A d'Intel ; PICBANC, un petit programme sous DEBUG
 - **L'émulateur.** PCem rend ce qui est en service, ou ce qu'une commande d'avant avait choisi.
 - **La correction.** La lecture revient sur les demandes à l'initialisation et à la mise sous tension.
 
+
+## G13.4, suite — la carte mère (mode matériel) : le 8237
+
+*Le 9 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.4, `VERIFICATION.md` § G13.4b.*
+
+Le 8237 est le contrôleur de DMA : il déplace des octets entre un périphérique et la mémoire sans passer par le
+processeur, pour la disquette, le disque de l'XT ou une carte son. Le PC en a un (canaux 0 à 3) ; l'AT en a deux, le
+second (canaux 4 à 7) branché en cascade : le premier n'obtient le bus que par le canal 4 du second. Six défauts, tous
+en mode matériel. La source est la fiche du 8237A d'Intel ; DMABANC, un petit programme sous DEBUG, les montre sur
+l'XT et sur l'AT.
+
+### PB-249 — démasquer tous les canaux d'un coup
+
+- **Le vrai PC.** Une commande (port 0Eh, DCh sur l'AT) démasque les quatre canaux d'un contrôleur.
+- **L'émulateur.** PCem l'ignore : les canaux restent masqués, leurs transferts ne partent pas.
+- **La correction.** La commande efface les quatre masques.
+
+### PB-250 — le transfert demandé par le logiciel
+
+- **Le vrai PC.** Un programme peut lancer lui-même un transfert, sans périphérique (port 09h, D2h) : en mode bloc, le
+  8237 va jusqu'au bout du compte.
+- **L'émulateur.** PCem l'ignore : rien ne se passe.
+- **La correction.** La requête est servie, jusqu'au bout du compte. La vérification et la lecture ne touchent pas la
+  mémoire ; l'écriture non plus, parce que personne ne fournit la donnée.
+
+### PB-251 — la remise à zéro par le logiciel
+
+- **Le vrai PC.** La remise à zéro d'un contrôleur (port 0Dh, DAh) fait comme le reset : elle efface aussi la
+  commande, l'état et les requêtes.
+- **L'émulateur.** PCem ne remet que les masques et le sélecteur d'octet : un contrôleur désactivé le reste.
+- **La correction.** Elle efface aussi la commande, l'état et les requêtes.
+
+### PB-252 — l'état à la mise sous tension
+
+- **Le vrai PC.** Au reset, les huit canaux sont masqués, la commande et l'état effacés.
+- **L'émulateur.** PCem démasque les huit canaux et garde la commande et l'état d'avant.
+- **La correction.** Les masques posés, le reste effacé. Les BIOS du dépôt démasquent leurs canaux avant de s'en
+  servir : leurs POST n'en changent pas.
+
+### PB-253 — la cascade sur l'AT
+
+- **Le vrai PC.** Si le canal 4 est masqué, s'il n'est pas en mode cascade, ou si le second 8237 est désactivé, les
+  canaux 0 à 3 n'obtiennent pas le bus.
+- **L'émulateur.** PCem ne modélise pas la cascade : les canaux 0 à 3 transfèrent quoi qu'il arrive.
+- **La correction.** Les canaux 0 à 3 de l'AT passent par le canal 4. La 1542C, une carte SCSI qui prend le bus
+  elle-même, passe outre de la même façon ; elle relève du stockage, et son défaut est inscrit à part (PB-260).
+
+### PB-157 — la commande du second 8237
+
+- **Le vrai PC.** La commande du second 8237 (port D0h) peut le désactiver ; son registre temporaire (DAh) se relit
+  à 00h.
+- **L'émulateur.** PCem ne range pas la commande, et DAh rend le dernier octet écrit.
+- **La correction.** La commande est rangée et DAh rend 00h. Le reste de l'ancienne entrée (ce que rendent les
+  lectures que la fiche interdit, et les bits de requête de l'état) n'a pas de valeur connue ou demande une ligne que
+  PCem n'a pas : il reste reproduit, sous un numéro à lui (PB-259).

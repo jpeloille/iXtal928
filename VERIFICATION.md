@@ -7756,3 +7756,94 @@ comme attendu : `recensement` (258 défauts, 913 marqueurs, contre 895). `fuite-
 neuves sont celles de l'étape : les cas des cinq corrections dans les deux modes, `bd-xt-picbanc` et `bd-ibmat-picbanc`
 (l'image B: identique des deux côtés, 1 059 octets écrits par l'invité), et les quatre bancs PICBANC, XT et AT, dans
 les deux modes, chacun sur deux séances identiques.
+
+## G13.4b — La carte mère : le 8237 en mode matériel
+
+Le 9 octobre 2026, à la suite de G13.4a. Ici, le 8237 : PB-157, PB-249, PB-250, PB-251, PB-252 et PB-253, la fiche du
+8237A d'Intel (231466-005) et l'AT TR pour sources. Le mode PCem ne bouge pas.
+
+**Deux entrées coupées en deux.** Une correction ne laisse aucun site reproduit (la porte `recensement`) ; deux
+entrées mêlaient une part corrigeable et une part qui ne l'est pas ici. La part (c) de PB-157 (les lectures que la
+fiche dit illégales, de valeur inconnue, et les bits de requête de l'état, qui demandent une ligne DREQ que PCem n'a
+pas) devient PB-259, reproduit. Les quatre sites de la 1542C, maître de bus, que PB-253 rangeait déjà au domaine du
+stockage, deviennent PB-260, reproduit, pour G13.7. Le registre passe à 260 défauts.
+
+**Le code.** `Models/dma.Materiel.cs` : le registre de requête et son moteur (`dma_requete_materiel`,
+`dma_servir_materiel` : une requête logicielle, non masquable, en mode bloc, servie jusqu'au TC avant tout accès aux
+registres ; un contrôleur désactivé ou une cascade fermée la garde en attente), Clear Mask, le master clear, le reset,
+la cascade de l'AT (`dma_cascade_materiel` : le canal 4 démasqué, en mode C0h, le 8237 haut actif), la commande du
+8237 haut et le temporaire DAh. L'état que PCem n'a pas (le registre de requête) vit dans une classe imbriquée,
+`Etat8237`, comme celui du 8259. Les gardes de `dma.cs` : en tête de `dma_read` et de `dma16_read` (le service), de
+`dma_write` et de `dma16_write` (la requête, Clear Mask), dans le master clear, le reset, la commande du haut, la
+lecture de DAh, et dans `dma_channel_read` et `dma_channel_write` (la cascade). Un transfert d'écriture lancé par le
+logiciel n'écrit rien en mémoire : la donnée est celle d'un bus que personne ne pilote. Le transfert de mémoire à
+mémoire n'est pas modélisé, ni par PCem ni par le mode.
+
+**Les cas** (`materiel-cas`, C# seul, après un reset du DMA ; un transfert tiré comme par un périphérique) :
+
+| PB | Le cas | PCem | 8237A |
+|---|---|---|---|
+| 157 | AT, OUT D0h,04h, un transfert du canal 5 ; OUT DAh,5Ah, IN DAh | fait ; 5Ah | refusé ; 00h |
+| 249 | OUT 0Fh,0Fh, OUT 0Eh, le canal 2 ; OUT DEh,0Fh, OUT DCh, le canal 5 | refusé ; refusé | fait ; fait |
+| 250 | le canal 1 masqué, bloc, vérification, compte 3, OUT 09h,05h : l'état, le compte ; le canal 5, OUT D2h,05h | 00h, 0003h ; 00h | 02h, FFFFh ; 02h |
+| 251 | le canal 2 au TC, OUT 08h,04h, OUT 0Dh : l'état ; le canal 2 démasqué, un transfert | 04h ; refusé | 00h ; fait |
+| 252 | le canal 2 au TC, `dma_reset` : l'état ; le mode reposé, un transfert | 04h ; fait | 00h ; refusé |
+| 253 | AT, le canal 4 en cascade, le canal 2 ; le canal 4 masqué ; en mode simple | fait ; fait ; fait | fait ; refusé ; refusé |
+
+Chacun rend la valeur de PCem en mode PCem, celle de la fiche avec sa seule correction, la sonde comptant la
+correction, et rougit la correction coupée (`--attendu materiel` en mode PCem).
+
+**DMABANC** (`tools/dmabanc/dmabanc.py`, 326 octets saisis dans DEBUG, puis lancés ; tout sous CLI) imprime seize
+octets : sur l'XT, le compte du canal 0 (le rafraîchissement) bouge-t-il, les quatre masques posés, puis après Clear
+Mask ; l'état et le compte après une requête logicielle sur le canal 1 (bloc, vérification, compte 3) ; le compte
+après la même requête, le contrôleur désactivé puis remis à zéro par le master clear ; sur l'AT, le compte quand le
+canal 4 est masqué, puis après Clear Mask au 8237 haut, quand le 8237 haut est désactivé, puis réactivé ; DAh après le
+master clear du haut.
+
+| Machine, mode | Relevés |
+|---|---|
+| XT, PCem | 00 00 00 03 00 03 00 00 00 00 00 00 00 00 00 00 |
+| XT, matériel | 00 01 02 FF FF FF FF 00 00 00 00 00 00 00 00 00 |
+| AT, PCem | 00 00 00 03 00 03 00 03 00 03 00 03 00 03 00 5A |
+| AT, matériel | 00 00 02 FF FF FF FF 03 00 FF FF 03 00 FF FF 00 |
+
+Chaque correction seule ne change que ses relevés : PB-249 le second sur l'XT ; PB-250 l'état et le premier compte,
+et sur l'AT les quatre comptes de la cascade (sans PB-253, rien ne la ferme) ; PB-157 DAh. PB-251 et PB-253 ne se
+voient dans DMABANC que par la requête logicielle, donc avec PB-250 ; leurs cas, en C# seul, les voient seuls.
+PB-252 (le reset) n'a pas de relevé : le BIOS est passé avant DEBUG. Les valeurs du mode PCem sont celles de
+l'oracle : `bd-xt-dmabanc` et `bd-ibmat-dmabanc`, verts.
+
+**Les POST et la disquette.** Les neuf machines, en mode PCem, en mode matériel de la carte mère et en tout le mode
+matériel : les écrans identiques. PC-DOS 2.00 démarre de la disquette (le canal 2, et sur l'AT la cascade du canal 4),
+identique dans les trois modes : sur le 5150 et l'XT jusqu'au DIR de B: ; sur l'AMI 386DX, avec la CMOS des portes
+PS/2 (`f386.nvr`, `ami386dx-fd.cfg`), jusqu'au DIR de A: et de B: ; sur l'IBM AT et l'AMI 486, F1 passé, jusqu'à
+l'invite de la date. L'AMI 286 et l'AMI 386, sans CMOS à leur configuration dans le bac à sable, s'arrêtent au SETUP,
+de même dans les trois modes. Sur le 5150 et l'XT, l'heure de DOS change comme en G13.4a (PB-03
+et PB-257), à l'identique : le 8237 n'y ajoute rien.
+
+**Le mode PCem ne coûte rien (M2).** Les listings (`/var/tmp/ixtal-g13/M2-4b`) : contre M0, les six méthodes froides
+de G13.2 et les sept apparues avec le mécanisme, rien d'autre ; `dma_read`, `dma_write`, `dma16_read`, `dma16_write`,
+`dma_reset`, `dma_channel_read` et `dma_channel_write` identiques. R2 : `dma.cs`, 427 lignes vives (407 avant), contre
+569 dans `dma.c`, dont le PS/2 n'est pas transcrit.
+
+**Contrôles négatifs**, dans une copie à part (`/tmp/a9/neg4b`), chacun joué sur son cas et sur DMABANC en mode
+matériel :
+
+| Faute | `materiel-cas` | DMABANC |
+|---|---|---|
+| le service sans le bit TC de l'état | PB-250 rouge : 00h, deux fois | XT rouge |
+| Clear Mask sans effet | PB-249 rouge : refusé, deux fois | XT rouge |
+| la cascade qui ignore le masque du canal 4 | PB-253 rouge : fait | AT rouge |
+| DAh qui rend le dernier octet écrit | PB-157 rouge : 5Ah | AT rouge |
+| le master clear qui garde la commande | PB-251 rouge : refusé | XT rouge |
+| le reset qui laisse les masques | PB-252 rouge : fait | vert : le reset n'a pas de relevé |
+
+**Les outils.** Les portes neuves (`series.sh`) : les douze cas, les deux boot-diff et les quatre bancs de DMABANC.
+
+**La série.** g4b1 tourne sur un worktree de `ac996de` et des quatorze fichiers de l'étape (le code, les cas, le banc,
+DMABANC), les corpus SST liés corpus par corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 325 portes,
+toutes vertes, en 66 minutes. Contre g4a1, les 307 portes communes rendent les mêmes verdicts ; un seul résumé change,
+comme attendu : `recensement` (260 défauts, 928 marqueurs, contre 258 et 913). Les 18 portes neuves sont celles de
+l'étape : les cas des six corrections dans les deux modes, `bd-xt-dmabanc` et `bd-ibmat-dmabanc` (l'image B: identique
+des deux côtés, 548 octets écrits par l'invité), et les quatre bancs DMABANC, XT et AT, dans les deux modes, chacun sur
+deux séances identiques.

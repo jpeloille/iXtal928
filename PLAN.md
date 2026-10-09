@@ -117,7 +117,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   le silicium (SingleStepTests du 8088 et du 8086). G13.3 fait : le 8088 et le 8086, dix-sept corrections (PB-258
   inscrit), les deux corpus SST entiers en mode matériel (suite du 09/10 : les REP joués jusqu'au bout ; le temps
   d'un REP devant autre chose qu'une chaîne corrigé, contre le silicium). G13.4, la carte mère, en cours : G13.4a
-  fait, le 8259 (cinq corrections, PICBANC) ; restent le 8237 (G13.4b) et le 8042, la souris et les ports (G13.4c).
+  fait, le 8259 (cinq corrections, PICBANC) ; G13.4b fait, le 8237 (six corrections, PB-259 et PB-260 inscrits,
+  DMABANC) ; reste le 8042, la souris et les ports (G13.4c).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
