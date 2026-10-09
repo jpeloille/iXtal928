@@ -52,6 +52,8 @@ iXtal26/Host/FiletImages.cs	-	-	-	host	G13.0 : le filet des images, vidées sur 
 iXtal26/Materiel/ModeMateriel.cs	-	-	-	host	G13.2 : la demande du mode matériel, sa table de corrections, son gel, sa sonde
 iXtal26/Materiel/materiel.cs	-	-	-	host	G13.2 : le mode matériel figé, un champ par correction, rien d'autre
 iXtal26/Cpu/808x.Materiel.cs	-	-	-	materiel	G13.2 : les corrections du 8088 et du 8086 (PB-01)
+iXtal26/Models/dma.Materiel.cs	-	-	-	materiel	G13.3 : les corrections du 8237 (PB-257)
+iXtal26/Models/pic.Materiel.cs	-	-	-	materiel	G13.4 : les corrections du 8259 (PB-05, PB-246 à PB-248, PB-255)
 iXtal26/Joystick/gameport.cs	pcem-dev/src/joystick/gameport.c	9eee9931577ed32db26fd9caa0f1232076a9127b69c740fa18088b3766e462ee	1-178	transcribed	G1.1 ; G10.1 : joystick_list et ses sept types ; joystick_type hors borne ramené au type 0 à la lecture du .cfg (PB-93, pc.cs)
 iXtal26/Joystick/gameport.cs	pcem-dev/src/joystick/joystick_standard.c	a325716a73fa73f719767f78337e467b4056e2bfc1bc7c1b6699ac20c67addfd	1-181	transcribed	G1.1 : les quatre joystick_standard
 iXtal26/Joystick/gameport.cs	pcem-dev/includes/private/joystick/gameport.h	52ee8277326b373fb1bc22442e9504fa0307a165aec48ce5c29c0a956720939f	-	transcribed	G1.1 : joystick_if_t

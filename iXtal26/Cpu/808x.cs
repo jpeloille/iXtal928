@@ -757,9 +757,17 @@ internal static partial class _808x
 
     // ===== rep() : instructions de chaîne (808x.c:908-1215) =====
     // pcem: 808x.c:55
-    // pcem bug, reproduced: PB-247 — `pend & ~mask` sans `mask2`, le masque de service (l'ISR) : une
+    // pcem bug, fixed in hardware mode: PB-247 — `pend & ~mask` sans `mask2`, le masque de service (l'ISR) : une
     //   IRQ de priorité égale ou moindre interrompt un gestionnaire qui a fait STI avant son EOI.
-    private static bool IRQTEST => (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0 && noint == 0;
+    private static bool IRQTEST
+    {
+        get
+        {
+                if (materiel.pb_247)
+                        return irqtest_materiel();
+                return (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0 && noint == 0;
+        }
+    }
 
     // pcem: 808x.c:908
     internal static int firstrepcycle = 1;
@@ -4062,9 +4070,11 @@ startrep:
                                 FETCHCLEAR();
                         }
                 }
-                // pcem bug, reproduced: PB-247 — 808x.c:3985, même test qu'IRQTEST : `pend & ~mask` sans
+                // pcem bug, fixed in hardware mode: PB-247 — 808x.c:3985, même test qu'IRQTEST : `pend & ~mask` sans
                 //   `mask2` (l'ISR), que le 8259A retient (fiche 8259A, p. 15).
                 takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask) != 0) ? 1 : 0;
+                if (materiel.pb_247)
+                        takeint_materiel();
 
                 if (noint != 0)
                         noint = 0;

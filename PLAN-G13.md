@@ -233,7 +233,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   au 8088 ; il facture maintenant le prix d'un préfixe, la file intacte : écart −0,2 ± 2,1 cycles contre le silicium,
   file de départ vide (`sst-rep-temps`, porte `sst-rep-temps-materiel`).
 
-### G13.4 — La carte mère
+### G13.4 — La carte mère  *(en cours : trois sous-étapes, chacune sa série et son commit)*
 
 - Les ports et l'hôte (PB-103, PB-101 ; PB-104 et PB-33 selon la décision n° 9) ; le 8237 selon la fiche (PB-157 et
   ses voisins inscrits) ; le 8259A selon la fiche (PB-05, avec la cascade et le masque de service ; PB-06 et PB-13
@@ -241,6 +241,11 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - Avant le x87 et le son, parce que leurs IRQ (IRQ13, la ligne partagée de la SB 16) passent par le PIC.
 - **Vérification** : PICBANC et DMABANC (à écrire, aux attendus de la fiche et de l'AT TR, dans les deux modes) ; les
   POST de toutes les machines ; `--joystick-check` ; PS2BANC ; deux ou trois séries.
+- **G13.4a, le 8259** ✅ *(09/10, VERIFICATION.md § G13.4a)* : PB-05, PB-246, PB-247, PB-248, PB-255 corrigés en
+  mode matériel (PB-06 et PB-13 absorbés) ; PICBANC, XT et AT, dans les deux modes ; série g4a1, 307 portes vertes.
+- **G13.4b, le 8237** : PB-157, PB-249 à PB-253 ; DMABANC.
+- **G13.4c, le 8042, la souris PS/2 et les ports** : PB-254, PB-94, PB-95, PB-101, PB-103 (PB-104 et PB-33 selon la
+  décision n° 9 ; PB-256 peut-être) ; PS2BANC, `--joystick-check`.
 
 ### G13.5 — Le 286, le 386 et le 486
 

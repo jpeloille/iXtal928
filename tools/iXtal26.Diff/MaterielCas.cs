@@ -10,7 +10,9 @@
 // materiel en mode PCem est la panne injectée (la correction coupée par le masque) : le cas doit rougir.
 //
 // Les cas du processeur jouent quelques instructions sur le cœur du harnais (_808x.Reset, la RAM plate de 1 Mo), le code
-// en 0000:0100 sur un fond de NOP ; ceux de PB-03 et de PB-257 montent une machine, le 5150.
+// en 0000:0100 sur un fond de NOP ; ceux de PB-03 et de PB-257 montent une machine, le 5150. Ceux du 8259 (PB-05,
+// PB-246 à PB-248, PB-255) écrivent et lisent ses ports et l'acquittent comme le ferait le processeur, après
+// l'initialisation du BIOS de l'AT (maître en 08h, esclave en 70h sur IR2) ou de l'XT (un seul 8259, en 08h).
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -24,9 +26,9 @@ internal static class MaterielCas
 {
     private static readonly SortedDictionary<int, Func<bool, int>> Cas = new()
     {
-        [1] = Pb01, [2] = Pb02, [3] = Pb03, [7] = Pb07, [45] = Pb45, [87] = Pb87, [169] = Pb169, [170] = Pb170,
+        [1] = Pb01, [2] = Pb02, [3] = Pb03, [5] = Pb05, [7] = Pb07, [45] = Pb45, [87] = Pb87, [169] = Pb169, [170] = Pb170,
         [171] = Pb171, [172] = Pb172, [173] = Pb173, [174] = Pb174, [175] = Pb175, [176] = Pb176, [177] = Pb177,
-        [179] = Pb179, [257] = Pb257, [258] = Pb258,
+        [179] = Pb179, [246] = Pb246, [247] = Pb247, [248] = Pb248, [255] = Pb255, [257] = Pb257, [258] = Pb258,
     };
 
     internal static int Run(string[] args)
@@ -437,4 +439,189 @@ internal static class MaterielCas
                     "4", hw);
         return bad;
     }
+
+    // ===== Le 8259 =====
+
+    /// <summary>Le 8259 comme le BIOS le laisse : sur l'AT, ICW1 11h, ICW2 08h, ICW3 04h, ICW4 01h au maître, et 11h,
+    /// 70h, 02h, 01h à l'esclave (AT TR 1502494, POST) ; sur l'XT, ICW1 13h, ICW2 08h, ICW4 01h. Masques à zéro.</summary>
+    private static void Pic(bool at)
+    {
+        x86.AT = at ? 1 : 0;
+        pic.pic_reset();
+        foreach (var (port, v) in at
+                     ? new (ushort, byte)[] { (0x20, 0x11), (0x21, 0x08), (0x21, 0x04), (0x21, 0x01), (0x21, 0x00) }
+                     : [(0x20, 0x13), (0x21, 0x08), (0x21, 0x01), (0x21, 0x00)])
+            pic.pic_write(port, v, null!);
+        if (at)
+            foreach (var (port, v) in new (ushort, byte)[] { (0xA0, 0x11), (0xA1, 0x70), (0xA1, 0x02), (0xA1, 0x01), (0xA1, 0x00) })
+                pic.pic2_write(port, v, null!);
+    }
+
+    private static int Avec8259(Func<int> cas)
+    {
+        var at = x86.AT;
+        try
+        {
+            return cas();
+        }
+        finally
+        {
+            x86.AT = at;
+            pic.pic_reset();
+        }
+    }
+
+    // PB-05 — servir une IRQ de l'esclave efface, dans l'IRR du maître, le bit de même indice. Fiche 8259A p. 7,
+    // « Interrupt Sequence » : à l'INTA, seul le bit de l'IRR servi s'efface. AT, IRQ 0 masquée mais en attente (l'IMR ne
+    // touche pas l'IRR), IRQ 8 en attente : l'acquittement sert 70h ; l'IRR du maître relu (OCW3 0Ah) : PCem 00h,
+    // l'IRQ 0 perdue ; le 8259A 01h.
+    private static int Pb05(bool hw) => Avec8259(() =>
+    {
+        Pic(at: true);
+        pic.pic_write(0x21, 0x01, null!);
+        pic.picint(1 << 0);
+        pic.picint(1 << 8);
+        var v = pic.picinterrupt();
+        pic.pic_write(0x20, 0x0A, null!);
+        var irr = pic.pic_read(0x20, null!);
+        return Voir("AT, IRQ 0 masquée et IRQ 8 en attente, un acquittement, l'IRR du maître", v == 0x70 && irr == (hw ? 1 : 0),
+                    $"vecteur {v:X2}h, IRR {irr:X2}h", $"vecteur 70h, IRR {(hw ? 1 : 0):X2}h", hw);
+    });
+
+    // PB-246 — la cascade passe avant l'IRQ 0 et l'IRQ 1. Fiche 8259A p. 15, « Fully Nested Mode » : IR0 la plus haute ;
+    // AT TR p. 1-10 : IRQ 0, IRQ 1, puis IRQ 8 à 15 par IR2. AT, IRQ 0 et IRQ 9 en attente : deux acquittements, une fin
+    // non spécifique entre eux. PCem 71h puis 08h ; le 8259A 08h puis 71h.
+    private static int Pb246(bool hw) => Avec8259(() =>
+    {
+        Pic(at: true);
+        pic.picint(1 << 0);
+        pic.picint(1 << 9);
+        var v1 = pic.picinterrupt();
+        pic.pic_write(0x20, 0x20, null!);
+        var v2 = pic.picinterrupt();
+        var (a1, a2) = hw ? (0x08, 0x71) : (0x71, 0x08);
+        return Voir("AT, IRQ 0 et IRQ 9 en attente, deux acquittements", v1 == a1 && v2 == a2, $"{v1:X2}h puis {v2:X2}h",
+                    $"{a1:X2}h puis {a2:X2}h", hw);
+    });
+
+    // PB-247 — le masque de service ignoré. Fiche 8259A p. 15 : « While the IS bit is set, all further interrupts of the
+    // same or lower priority are inhibited ». XT : l'IRQ 0 en service (son gestionnaire a fait STI, sans EOI), l'IRQ 1 en
+    // attente. Le 8259 : PCem acquitte 09h ; le 8259A rien (FFh) avant l'EOI, 09h après. Le 8088, IF = 1, le vecteur 09h
+    // en 0000:0500 : PCem y entre dans les trois pas, le 8088 reste dans son code. Et une chaîne REP : PCem l'arrête pour
+    // l'IRQ (IRQTEST), le 8088 la finit.
+    private static int Pb247(bool hw) => Avec8259(() =>
+    {
+        var bad = 0;
+        Pic(at: false);
+        pic.picint(1 << 0);
+        pic.picinterrupt();
+        pic.picint(1 << 1);
+        var v = pic.picinterrupt();
+        bad += Voir("XT, IRQ 0 en service, IRQ 1 en attente, un acquittement", v == (hw ? 0xFF : 0x09), $"{v:X2}h",
+                    hw ? "FFh, rien" : "09h", hw);
+        pic.pic_write(0x20, 0x20, null!);
+        v = pic.picinterrupt();
+        bad += Voir("puis une fin non spécifique, un acquittement", v == (hw ? 0x09 : 0xFF), $"{v:X2}h",
+                    hw ? "09h" : "FFh, l'IRQ 1 déjà servie", hw);
+        var r = Jouer([0x90, 0x90, 0x90], r => r[(int)R.FLAGS] = 0xF202, () =>
+        {
+            Pic(at: false);
+            pic.picint(1 << 0);
+            pic.picinterrupt();
+            pic.picint(1 << 1);
+            mem.ram[0x24] = 0x00;
+            mem.ram[0x25] = 0x05;
+            mem.ram[0x26] = 0x00;
+            mem.ram[0x27] = 0x00;
+        }, pas: 3);
+        var entre = r[(int)R.IP] >= 0x500 && r[(int)R.IP] < 0x510;
+        bad += Voir("le 8088, IF = 1, trois NOP", entre == !hw, $"CS:IP = {r[(int)R.CS]:X4}:{r[(int)R.IP]:X4}",
+                    hw ? "dans son code (0000:0103)" : "dans INT 09h (0000:05xx)", hw);
+        // REP STOSB, CX = 4, la même IRQ 1 retenue : le 8088 fait les quatre répétitions d'un pas ; PCem arrête la chaîne
+        // avant la première (IRQTEST), pour l'interruption qu'il prendra ensuite.
+        r = Jouer([0xF3, 0xAA], r => { r[(int)R.FLAGS] = 0xF202; r[(int)R.CX] = 4; r[(int)R.DI] = 0x600; r[(int)R.AX] = 0x55; },
+                  () =>
+                  {
+                      Pic(at: false);
+                      pic.picint(1 << 0);
+                      pic.picinterrupt();
+                      pic.picint(1 << 1);
+                  });
+        bad += Voir("le 8088, IF = 1, REP STOSB, CX = 4, un pas", r[(int)R.CX] == (hw ? 0 : 4),
+                    $"CX = {r[(int)R.CX]}", hw ? "CX = 0" : "CX = 4, la chaîne arrêtée avant sa première répétition", hw);
+        return bad;
+    });
+
+    // PB-248 — l'OCW2 et l'OCW3 réduits à l'EOI et à RR/RIS. Fiche 8259A p. 13-17, figure 8. XT : (1) IR0 en service,
+    // OCW2 40h (« no operation ») puis l'ISR (OCW3 0Bh) : PCem 00h, l'ISR effacé ; le 8259A 01h. (2) Poll, IRQ 3 en
+    // attente : OCW3 0Ch puis IN 20h ; le 8259A 83h, et IR3 passe en service ; PCem rend l'ISR, 00h. (3) La priorité
+    // posée, C1h (IR1 au plus bas, IR2 au plus haut), IRQ 0 et IRQ 2 en attente : le 8259A sert 0Ah, PCem 08h. (4) AT, le
+    // masque spécial (OCW3 68h), IR0 en service, IRQ 1 en attente : la demande vue par le processeur (pic_intpending),
+    // PCem aucune, le 8259A l'IRQ 1.
+    private static int Pb248(bool hw) => Avec8259(() =>
+    {
+        var bad = 0;
+        Pic(at: false);
+        pic.picint(1 << 0);
+        pic.picinterrupt();
+        pic.pic_write(0x20, 0x40, null!);
+        pic.pic_write(0x20, 0x0B, null!);
+        var isr = pic.pic_read(0x20, null!);
+        bad += Voir("XT, IR0 en service, OCW2 40h, l'ISR", isr == (hw ? 1 : 0), $"{isr:X2}h", $"{(hw ? 1 : 0):X2}h", hw);
+
+        Pic(at: false);
+        pic.picint(1 << 3);
+        pic.pic_write(0x20, 0x0C, null!);
+        var mot = pic.pic_read(0x20, null!);
+        pic.pic_write(0x20, 0x0B, null!);
+        isr = pic.pic_read(0x20, null!);
+        bad += Voir("XT, IRQ 3 en attente, poll (OCW3 0Ch), puis l'ISR", mot == (hw ? 0x83 : 0x00) && isr == (hw ? 0x08 : 0x00),
+                    $"{mot:X2}h, ISR {isr:X2}h", hw ? "83h, ISR 08h" : "00h, ISR 00h", hw);
+
+        Pic(at: false);
+        pic.pic_write(0x20, 0xC1, null!);
+        pic.picint(1 << 0);
+        pic.picint(1 << 2);
+        var v = pic.picinterrupt();
+        bad += Voir("XT, priorité C1h, IRQ 0 et IRQ 2 en attente, un acquittement", v == (hw ? 0x0A : 0x08), $"{v:X2}h",
+                    hw ? "0Ah" : "08h", hw);
+
+        Pic(at: true);
+        pic.picint(1 << 0);
+        pic.picinterrupt();
+        pic.pic_write(0x20, 0x68, null!);
+        pic.picint(1 << 1);
+        var dem = pic.pic_intpending;
+        bad += Voir("AT, IR0 en service, masque spécial (OCW3 68h), IRQ 1 en attente : la demande", dem == (hw ? 2 : 0),
+                    $"{dem:X2}h", $"{(hw ? 2 : 0):X2}h", hw);
+        return bad;
+    });
+
+    // PB-255 — la lecture après ICW1. Fiche 8259A p. 10, point e : « Status Read is set to IRR ». XT : OCW3 0Bh (l'ISR),
+    // puis ICW1 à ICW4, OCW1 FFh, un tic du PIT en attente ; IN 20h : PCem 00h (l'ISR), le 8259A 01h (l'IRR, que l'IMR
+    // n'affecte pas). Et à la mise sous tension, sans OCW3 : PCem lit l'ISR du maître (pic_reset pose read = 1) et garde
+    // la lecture d'avant à l'esclave ; le 8259A lit l'IRR des deux (au maître, 01h : l'esclave, masqué, ne demande pas
+    // par la cascade).
+    private static int Pb255(bool hw) => Avec8259(() =>
+    {
+        var bad = 0;
+        Pic(at: false);
+        pic.pic_write(0x20, 0x0B, null!);
+        foreach (var (port, v) in new (ushort, byte)[] { (0x20, 0x13), (0x21, 0x08), (0x21, 0x01), (0x21, 0xFF) })
+            pic.pic_write(port, v, null!);
+        pic.picint(1 << 0);
+        var l = pic.pic_read(0x20, null!);
+        bad += Voir("XT, OCW3 0Bh, ICW1 à ICW4, OCW1 FFh, IRQ 0 en attente, IN 20h", l == (hw ? 1 : 0), $"{l:X2}h",
+                    $"{(hw ? 1 : 0):X2}h", hw);
+        x86.AT = 1;
+        pic.pic2_write(0xA0, 0x0B, null!);                // l'esclave lu sur l'ISR, avant la mise sous tension
+        pic.pic_reset();
+        pic.picint(1 << 0);
+        pic.picint(1 << 8);
+        var m = pic.pic_read(0x20, null!);
+        var e = pic.pic2_read(0xA0, null!);
+        bad += Voir("AT, mise sous tension, IRQ 0 et IRQ 8 en attente, IN 20h et IN A0h", (m, e) == (hw ? (1, 1) : (0, 0)),
+                    $"{m:X2}h et {e:X2}h", hw ? "01h et 01h" : "00h et 00h", hw);
+        return bad;
+    });
 }

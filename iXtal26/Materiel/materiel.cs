@@ -27,6 +27,9 @@ internal static class materiel
     /// <summary>PB-03 : les cycles du rafraîchissement (5150, XT) portés au TSC ; avec PB-257.</summary>
     internal static readonly bool pb_03;
 
+    /// <summary>PB-05 : servir l'esclave du 8259 ne touche à l'IRR du maître que par la cascade.</summary>
+    internal static readonly bool pb_05;
+
     /// <summary>PB-07 : un mot à cheval sur deux pages lit et écrit son octet haut par sa propre page ; avec PB-179.</summary>
     internal static readonly bool pb_07;
 
@@ -66,6 +69,18 @@ internal static class materiel
     /// <summary>PB-179 : un mot à l'offset FFFFh replie à l'offset 0 du segment ; avec PB-07.</summary>
     internal static readonly bool pb_179;
 
+    /// <summary>PB-246 : la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1.</summary>
+    internal static readonly bool pb_246;
+
+    /// <summary>PB-247 : le masque de service du 8259 retient les niveaux de priorité égale ou moindre (8259, 808x).</summary>
+    internal static readonly bool pb_247;
+
+    /// <summary>PB-248 : l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial.</summary>
+    internal static readonly bool pb_248;
+
+    /// <summary>PB-255 : après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR.</summary>
+    internal static readonly bool pb_255;
+
     /// <summary>PB-257 : un transfert de DMA refusé ne coûte pas de cycle (5150, XT, M24, PC1512) ; avec PB-03.</summary>
     internal static readonly bool pb_257;
 
@@ -78,6 +93,7 @@ internal static class materiel
         pb_01 = ModeMateriel.Demande(1);
         pb_02 = ModeMateriel.Demande(2);
         pb_03 = ModeMateriel.Demande(3);
+        pb_05 = ModeMateriel.Demande(5);
         pb_07 = ModeMateriel.Demande(7);
         pb_45 = ModeMateriel.Demande(45);
         pb_87 = ModeMateriel.Demande(87);
@@ -91,6 +107,10 @@ internal static class materiel
         pb_176 = ModeMateriel.Demande(176);
         pb_177 = ModeMateriel.Demande(177);
         pb_179 = ModeMateriel.Demande(179);
+        pb_246 = ModeMateriel.Demande(246);
+        pb_247 = ModeMateriel.Demande(247);
+        pb_248 = ModeMateriel.Demande(248);
+        pb_255 = ModeMateriel.Demande(255);
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);
     }

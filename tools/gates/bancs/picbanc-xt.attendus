@@ -1,0 +1,14 @@
+# PICBANC (tools/picbanc) sous PC-DOS 2.00, sur l'XT, un seul 8259 (G13.4). Les relevés, dans l'ordre :
+#   ICW1 à ICW4 rejouées, OCW1 FFh, IN 20h : le 8259A se lit sur l'IRR après ICW1 (fiche 8259A, p. 10, point e), 01h,
+#     l'IRQ 0 en attente ; PCem lit l'ISR, 00h (PB-255).
+#   L'IRR, l'IRQ 0 haute : 01h, dans les deux modes.
+#   Le poll (OCW3 0Ch, IN 20h) : 80h, IR0 demande (p. 16, « Poll Command ») ; PCem rend l'IRR, 01h (PB-248).
+#   L'ISR après le poll : 01h, le poll vaut acquittement ; PCem 00h (PB-248).
+#   Dans l'INT 08h, IR0 en service, OCW2 40h puis l'ISR : 01h, « no operation » (p. 13, figure 8) ; PCem 00h, qui en
+#     fait un EOI (PB-248).
+#   Les entrées dans l'INT 08h pendant une attente sous STI, avant l'EOI : une seule, le 8259A retient l'IR0 en
+#     service (p. 15) ; PCem y rentre à chaque tic, 14h fois (PB-247 et PB-248).
+#   L'IRR de l'esclave, le registre B, l'ordre de service : 00h, l'XT n'en a pas.
+PICBANC
+pcem: PICBANC 00 01 01 00 00 14 00 00 00 00 00 00
+materiel: PICBANC 01 01 80 01 01 01 00 00 00 00 00 00

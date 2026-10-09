@@ -36,6 +36,7 @@ internal static class ModeMateriel
         new(1, "processeur", "l'AF d'ADC et de SBB du 8088 et du 8086 compte la retenue entrante"),
         new(2, "processeur", "RCL et RCR mot par CL gardent le CF du dernier bit sorti"),
         new(3, "processeur", "les cycles du rafraîchissement par DMA (5150, XT) arrivent au TSC"),
+        new(5, "carte-mere", "servir l'esclave du 8259 ne touche à l'IRR du maître que par la cascade"),
         new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
         new(45, "processeur", "IDIV octet divise AX signé"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
@@ -49,6 +50,10 @@ internal static class ModeMateriel
         new(176, "processeur", "SAR par CL rend CF, la copie du signe, au-delà de 8 (16)"),
         new(177, "processeur", "rep() : 6Eh est JLE, REP DS: répète, un préfixe placé avant REP vaut"),
         new(179, "processeur", "un mot à l'offset FFFFh replie à l'offset 0 du segment"),
+        new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
+        new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
+        new(248, "carte-mere", "l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial"),
+        new(255, "carte-mere", "après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR"),
         new(257, "carte-mere", "un transfert de DMA refusé ne coûte pas de cycle"),
         new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
     ];

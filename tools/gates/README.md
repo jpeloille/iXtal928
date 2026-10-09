@@ -135,3 +135,10 @@ dernière répétition : SST attend la chaîne entière. `sst-rep-temps` mesure 
 qu'une chaîne, la trace du silicium contre les cycles du cœur C#. Sa porte, `sst-rep-temps-materiel` (`--controle`),
 le veut dans deux erreurs types du silicium en mode matériel, dans les cas que SST fait partir d'une file vide, comme
 la sonde : devant IDIV, le seul cas du corpus, au 8088 (le corpus du 8086 part toujours d'une file pleine).
+
+Les portes de G13.4 commencent par le 8259 : le cas de chaque correction dans les deux modes (`materiel-cas-pbNN`), et
+PICBANC (`tools/picbanc`), un programme saisi dans DEBUG sur l'XT et sur l'IBM AT (F1 au POST, le bac à sable n'ayant
+pas d'`at.nvr`). En mode PCem, `bd-xt-picbanc` et `bd-ibmat-picbanc` le confrontent à l'oracle ; en C# seul,
+`banc-picbanc-xt` et `banc-picbanc-at`, puis leurs `-materiel` (tout le domaine de la carte mère), le confrontent aux
+attendus de `bancs/picbanc-*.attendus`. Le banc remet la CMOS de `nvr/` comme elle était avant chaque séance : l'AT
+l'écrit en sortant, et la seconde séance ne partirait pas du même état.

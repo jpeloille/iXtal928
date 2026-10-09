@@ -1,0 +1,12 @@
+# PICBANC (tools/picbanc) sous PC-DOS 2.00, sur l'IBM AT, deux 8259 en cascade (G13.4). Les six premiers relevés
+# comme sur l'XT (picbanc-xt.attendus), au maître ; sur l'AT, PCem ne rentre qu'une fois de plus dans l'INT 08h : le
+# 286 n'accepte une IRQ que hors du masque de service (pic_intpending), et seul « no operation » changé en EOI le
+# laisse passer (PB-248). Puis :
+#   L'IRR de l'esclave, avant le STI : 01h, l'IRQ 8 de la RTC en attente (registre A 26h, PIE posé).
+#   Le registre B de la RTC : 42h, PIE et le format 24 heures.
+#   L'ordre de service, l'IRQ 0 et l'IRQ 8 en attente au STI, « T » (54h) pour l'INT 08h, « R » (52h) pour l'INT 70h :
+#     le 8259A sert l'IRQ 0 avant la cascade (fiche 8259A p. 15 ; AT TR 1502494 p. 1-10) et ne perd pas l'IRQ 0 en
+#     servant l'IRQ 8 (p. 7) : « T R » ; PCem « R », l'IRQ 8 d'abord (PB-246) et l'IRQ 0 effacée (PB-05).
+PICBANC
+pcem: PICBANC 00 01 01 00 00 02 01 42 52 00 00 00
+materiel: PICBANC 01 01 80 01 01 01 01 42 54 52 00 00

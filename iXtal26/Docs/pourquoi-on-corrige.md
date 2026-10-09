@@ -237,3 +237,49 @@ SingleStepTests, enregistré sur un AMD D8088 et un Intel 8086.
   écart vient de la mesure, pas du REP. Les instructions autres qu'IDIV ne sont pas mesurées : le corpus n'en a pas
   sous REP. Elles prennent le même prix de préfixe.
 
+## G13.4 — la carte mère (mode matériel) : le 8259
+
+*Le 9 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.4, `VERIFICATION.md` § G13.4a.*
+
+Le 8259 est le contrôleur d'interruptions : il reçoit les huit lignes IRQ (seize sur l'AT, par un second 8259 branché
+sur l'IRQ 2 du premier), choisit la plus prioritaire et la présente au processeur. Cinq défauts, tous en mode matériel.
+La source est la fiche du 8259A d'Intel ; PICBANC, un petit programme sous DEBUG, les montre sur l'XT et sur l'AT.
+
+### PB-246 — l'ordre de service sur l'AT
+
+- **Le vrai PC.** IR0 est la plus prioritaire, IR7 la moins. Sur l'AT, les IRQ 8 à 15 passent par IR2 : elles se
+  servent après l'horloge (IRQ 0) et le clavier (IRQ 1), avant les IRQ 3 à 7.
+- **L'émulateur.** PCem teste l'esclave avant tout, dès IR0 : une IRQ 8 à 15 passe avant l'horloge et le clavier.
+- **La correction.** L'esclave se sert à son rang, IR2.
+
+### PB-05 — l'IRQ perdue
+
+- **Le vrai PC.** Servir une IRQ efface sa seule demande.
+- **L'émulateur.** Servir l'IRQ 8 + n efface aussi la demande de l'IRQ n du premier 8259 : l'IRQ 8 de l'horloge
+  temps réel efface un tic d'horloge en attente. Avec PB-246, ce tic est perdu.
+- **La correction.** Servir l'esclave ne touche au premier 8259 que par sa ligne IR2.
+
+### PB-247 — une interruption dans une interruption de même rang
+
+- **Le vrai PC.** Tant qu'une IRQ est en service (son gestionnaire n'a pas envoyé sa fin d'interruption), le 8259
+  retient les IRQ de même rang ou de rang moindre, même si le gestionnaire a rouvert les interruptions.
+- **L'émulateur.** Sur le 8088, PCem ne regarde que le masque : l'IRQ 1 du clavier interrompt l'INT 08h du BIOS, qui
+  rouvre les interruptions avant sa fin. Et une chaîne REP s'arrête pour cette IRQ.
+- **La correction.** Le 8259 et le 8088 tiennent compte de ce qui est en service ; la chaîne va au bout.
+
+### PB-248 — les commandes que PCem ne connaît pas
+
+- **Le vrai PC.** Le 8259 sait faire tourner ses priorités, fixer la moins prioritaire, ne rien faire (« no
+  operation »), être interrogé sans interruption (le poll), et lever l'effet de ce qui est en service (le masque
+  spécial).
+- **L'émulateur.** Toutes ces commandes, PCem les prend pour une fin d'interruption, et il ignore le poll et le masque
+  spécial.
+- **La correction.** Les huit formes de la commande, le poll et le masque spécial, selon la fiche. Aucun BIOS du dépôt
+  ne s'en sert ; un programme qui s'en sert voit maintenant ce qu'il demande.
+
+### PB-255 — la lecture après l'initialisation
+
+- **Le vrai PC.** Après l'initialisation, une lecture du 8259 rend les demandes en attente.
+- **L'émulateur.** PCem rend ce qui est en service, ou ce qu'une commande d'avant avait choisi.
+- **La correction.** La lecture revient sur les demandes à l'initialisation et à la mise sous tension.
+

@@ -7667,3 +7667,92 @@ g131 (G13.3), les 290 portes communes rendent les mêmes verdicts et les mêmes 
 (1 519 divergences, toutes dans le périmètre) ; la neuve est `sst-rep-temps-materiel`. Une première série, grep1,
 était partie avec un lien `vectors/vectors` (le worktree a son propre `vectors/`, suivi par git) : arrêtée après ses
 premières portes, sans verdict retenu.
+
+## G13.4a — La carte mère : le 8259 en mode matériel
+
+Le 9 octobre 2026. Plan : `PLAN-G13.md` § G13.4 ; Julien : « Lance g13.4 ». G13.4 se découpe en trois sous-étapes,
+chacune sa série et son commit : le 8259 (G13.4a), le 8237 (G13.4b), le 8042, la souris PS/2 et les ports (G13.4c).
+Ici, le 8259 : PB-05, PB-246, PB-247, PB-248 et PB-255, la fiche du 8259A d'Intel (231468-003) pour source ; PB-06
+et PB-13, sans effet, disparaissent dans le 8259 selon la fiche sans être des corrections. Le mode PCem ne bouge pas.
+
+**Le code.** `Models/pic.Materiel.cs`, neuf : `picinterrupt_materiel` (l'acquittement : la cascade à son rang, le
+masque de service, l'IRR du maître intact, l'ordre des niveaux tourné), l'OCW2 et l'OCW3 selon la figure 8, le poll,
+le masque spécial, ICW1 et la mise sous tension. Chaque correction ne vaut que si on la demande, dans le même code :
+sans PB-248, la priorité reste fixe et le masque de service est celui de `pic_update_mask`. Les gardes de `pic.cs` :
+quatre en tête de `picinterrupt` (PB-05, 246, 247, 248 : chacune donne la main à `picinterrupt_materiel`), l'OCW2 et
+l'OCW3 des deux contrôleurs, la lecture après un poll, ICW1, la mise sous tension. Sur le 8088 (PB-247), `IRQTEST`
+et le `takeint` de fin d'instruction retirent le masque de service (`Cpu/808x.Materiel.cs`). L'état que PCem ne
+tient pas (le niveau le plus bas, le masque spécial, la rotation automatique, le poll en attente) vit dans une classe
+imbriquée, `Etat8259` : placé dans `pic` même, un champ initialisé changeait son constructeur statique, et le JIT
+n'intégrait plus en constante l'adresse de `pic_current` dans `picintc` (une lecture de plus, vue contre M0).
+
+**Les cas** (`materiel-cas`, C# seul, le 8259 initialisé comme le BIOS l'initialise) :
+
+| PB | Le cas | PCem | 8259A |
+|---|---|---|---|
+| 05 | AT, l'IRQ 0 masquée en attente, l'IRQ 8 ; un acquittement, puis l'IRR du maître | 70h, 00h | 70h, 01h |
+| 246 | AT, l'IRQ 0 et l'IRQ 9 ; deux acquittements, une fin entre eux | 71h puis 08h | 08h puis 71h |
+| 247 | XT, IR0 en service, l'IRQ 1 en attente : l'acquittement ; la fin, l'acquittement ; le 8088, trois NOP ; REP STOSB, CX = 4 | 09h ; FFh ; dans INT 09h ; CX = 4 | FFh ; 09h ; dans son code ; CX = 0 |
+| 248 | XT : 40h puis l'ISR ; le poll et l'ISR ; la priorité C1h ; AT : le masque spécial, la demande | 00h ; 00h, 00h ; 08h ; 00h | 01h ; 83h, 08h ; 0Ah ; 02h |
+| 255 | XT : ICW1 à ICW4 après OCW3 0Bh, IN 20h ; AT : la mise sous tension, IN 20h et IN A0h | 00h ; 00h et 00h | 01h ; 01h et 01h |
+
+Chacun rend la valeur de PCem en mode PCem, celle de la fiche avec sa seule correction et avec tout le domaine de la
+carte mère, et rougit la correction coupée (`--attendu materiel` en mode PCem).
+
+**PICBANC** (`tools/picbanc/picbanc.py`, 627 octets saisis dans DEBUG, puis lancés) imprime douze relevés : la lecture
+après ICW1, l'IRR, le mot de poll, l'ISR après lui, l'ISR après « no operation » dans l'INT 08h, le nombre d'entrées
+dans l'INT 08h pendant une attente sous STI ; sur l'AT, l'IRR de l'esclave, le registre B de la RTC et l'ordre de
+service quand l'IRQ 0 et l'IRQ 8 attendent ensemble (« T » l'INT 08h, « R » l'INT 70h). Trois choses ont réglé le
+banc : l'IRR suit la ligne (la sortie du PIT n'est haute qu'une demi-période en mode 3 : on lit au début d'une
+demi-période haute) ; le poll ne voit que les demandes hors de l'IMR ; le BIOS de l'AT laisse PIE posé (42h), et la
+RTC ne s'arme qu'à l'écriture du registre A.
+
+| Machine, mode | Relevés |
+|---|---|
+| XT, PCem | 00 01 01 00 00 14 00 00 00 00 00 00 |
+| XT, matériel | 01 01 80 01 01 01 00 00 00 00 00 00 |
+| AT, PCem | 00 01 01 00 00 02 01 42 52 00 00 00 |
+| AT, matériel | 01 01 80 01 01 01 01 42 54 52 00 00 |
+
+Chaque correction seule ne change que ses relevés : PB-255 le premier ; PB-248 le poll, l'ISR qui le suit et
+« no operation » (et, sur l'AT, les entrées : le 286 accepte déjà hors du masque de service) ; PB-247 les entrées sur
+l'XT (02h : « no operation », encore un EOI sans PB-248, laisse une imbrication) ; PB-05 seul « R T », PB-246 seul
+« T R ». Les valeurs du mode PCem sont celles de l'oracle : `bd-xt-picbanc` et `bd-ibmat-picbanc`, verts.
+
+**Les POST.** Les neuf machines (le 5150, l'XT, l'AT, les quatre AMI, le PC1512, la M24), en mode PCem, en mode
+matériel de la carte mère et en tout le mode matériel : les écrans identiques, POST et invite ; PC-DOS 2.00 sur le
+5150 et l'XT jusqu'au DIR, sur l'AMI 386DX jusqu'au POST. Sur le 5150 et l'XT, seule l'heure de DOS change, et
+seulement avec PB-03 et PB-257 (G13.3) : avec les cinq corrections du 8259 seules, les écrans sont identiques, et le
+nombre d'instructions aussi sur l'XT (à une près sur le 5150).
+
+**Le mode PCem ne coûte rien (M2).** Les listings (`/var/tmp/ixtal-g13/M2-4a-b`) : contre M0, les six méthodes froides
+de G13.2, rien d'autre ; contre M2 de la suite de G13.3 (`M2-rep`), les deux constructeurs de `materiel` et de
+`ModeMateriel`, qui prennent les cinq corrections. `picinterrupt`, `pic_write`, `pic2_write`, `pic_read`,
+`pic2_read`, `pic_reset`, `IRQTEST` et `execx86` : identiques. R2 : `pic.cs`, 280 lignes vives contre 274 dans
+`pic.c`.
+
+**Contrôles négatifs**, dans une copie à part (`/tmp/a9/neg4a`), chacun joué sur son cas et sur PICBANC en mode
+matériel :
+
+| Faute | `materiel-cas` | PICBANC |
+|---|---|---|
+| `IRQTEST` sans le masque de service | PB-247 rouge : REP STOSB, CX = 4 | vert : pas de chaîne dans l'INT 08h |
+| la cascade à tout rang | PB-246 rouge : 71h puis 08h | AT rouge |
+| le poll sans acquittement | PB-248 rouge : ISR 00h | XT rouge |
+| ICW1 qui garde la lecture sur l'ISR | PB-255 rouge : 00h, puis 00h et 00h | XT rouge |
+| la priorité sans rotation | PB-248 rouge : 08h | vert : PICBANC ne tourne pas les priorités |
+
+Le `takeint` du 8088 ne se voit pas seul : sans lui, le 8088 tente un acquittement et `picinterrupt_materiel` rend
+FFh, sans effet. Il reste, pour que le 8088 ne fasse pas d'acquittement quand le 8259A ne demande rien.
+
+**Les outils.** `banc` remet la CMOS de `nvr/` entre ses deux séances (l'AT l'écrit en sortant ; la seconde séance ne
+partait pas du même état). Les portes neuves (`series.sh`) : les dix cas, les deux boot-diff et les quatre bancs de
+PICBANC.
+
+**La série.** g4a1 tourne sur un worktree de `dc721ad` et des treize fichiers de l'étape (le code, les cas, le banc,
+PICBANC), les corpus SST liés corpus par corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 307 portes,
+toutes vertes, en 61 minutes. Contre grep2, les 291 portes communes rendent les mêmes verdicts ; un seul résumé change,
+comme attendu : `recensement` (258 défauts, 913 marqueurs, contre 895). `fuite-g133` est inchangée. Les 16 portes
+neuves sont celles de l'étape : les cas des cinq corrections dans les deux modes, `bd-xt-picbanc` et `bd-ibmat-picbanc`
+(l'image B: identique des deux côtés, 1 059 octets écrits par l'invité), et les quatre bancs PICBANC, XT et AT, dans
+les deux modes, chacun sur deux séances identiques.

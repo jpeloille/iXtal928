@@ -10,6 +10,7 @@
 // (ModeMateriel.Sonde), qui dit qu'il a servi.
 
 using iXtal26.Memory;
+using iXtal26.Models;
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
 
@@ -405,5 +406,17 @@ internal static partial class _808x
                 return false;
         repRelance = false;
         return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-247 — le 8088 n'accepte une interruption que si le 8259A en demande une :
+    //   l'IRR hors du masque, ET hors du masque de service, les niveaux de priorité égale ou moindre que le plus
+    //   prioritaire en service (fiche 8259A, p. 15). Sans cela, IRQTEST arrêterait une chaîne REP pour une IRQ que le
+    //   8259A retient, sans fin. Pas de sonde : ce test court à chaque instruction ; picinterrupt_materiel compte.
+    private static bool irqtest_materiel() =>
+        (cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask & ~pic.pic_.mask2) != 0 && noint == 0;
+
+    private static void takeint_materiel()
+    {
+        takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask & ~pic.pic_.mask2) != 0) ? 1 : 0;
     }
 }

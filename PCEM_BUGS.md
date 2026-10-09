@@ -202,7 +202,8 @@ corresponding IRR bit is reset » ; rien d'autre ne bouge dans l'IRR du maître.
 05h et esclave 01h (OCW3 0Ah) ; STI. PCem sert 70h et perd l'IRQ 0 (l'IRR maître relu 00h) ; PB-05 seul corrigé,
 70h puis 08h ; avec PB-246, 08h puis 70h.
 *G13* : (a) — dans un 8259A selon la fiche, avec PB-246 et PB-247 ; PB-06 et PB-13 y sont absorbés.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-05 (`:447`).
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-05`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_05)`, `picinterrupt` passe la main à `picinterrupt_materiel` (`Models/pic.Materiel.cs`), un acquittement selon la fiche où chaque correction du 8259 ne vaut que si on la demande ; avec PB-05, servir l'esclave ne touche pas à l'IRR du maître, dont la cascade est recalculée par `pic_updatepending`. `materiel-cas PB-05` (AT, l'IRQ 0 masquée mais en attente, l'IRQ 8 : 70h, puis l'IRR du maître) rend 00h en mode PCem, 01h en mode matériel, la sonde comptant la correction ; la correction coupée (`--attendu materiel` en mode PCem), il rougit. PICBANC sur l'IBM AT, PB-05 seul : l'ordre de service « R T » au lieu de « R » ; avec PB-246, « T R ».
 
 ### PB-06 — `pic.c:39` écrit `pic.mask2` dans le bloc `pic2`
 
@@ -4338,7 +4339,8 @@ Documenté.
 *Cas qui discrimine* : PICBANC (à écrire), ibmat, CLI : l'IRQ 0 (le PIT) et l'IRQ 9 (la SB Pro v2 en IRQ 2, F2h au
 DSP) en attente, relues à l'IRR (OCW3 0Ah) ; STI. PCem sert 71h puis 08h ; le 8259A, 08h puis 71h.
 *G13* : (a) — avec PB-05 et PB-247, dans un `picinterrupt` selon la fiche.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-246.
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-246`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_246)`, `picinterrupt_materiel` (`Models/pic.Materiel.cs`) ne teste la cascade qu'à son rang, IR2 ; une cascade sans demande servable passe au niveau suivant. `materiel-cas PB-246` (AT, l'IRQ 0 et l'IRQ 9, deux acquittements) rend 71h puis 08h en mode PCem, 08h puis 71h en mode matériel ; la correction coupée, il rougit. PICBANC sur l'IBM AT, PB-246 seul : « T R » au lieu de « R ».
 
 ### PB-247 — Le masque de service du 8259 est ignoré
 
@@ -4355,8 +4357,9 @@ inhibited » ; p. 18, « in the normal nested mode a slave is masked out when it
 *Cas qui discrimine* : PICBANC (à écrire), 5150 : INT 1Ch détourné, qui fait STI et attend une frappe injectée.
 PCem : INT 09h s'exécute dans INT 1Ch, avant l'EOI de l'IRQ 0 ; le 8259A : seulement après cet EOI.
 *G13* : (a) — (a) est propre au 808x, dans `IRQTEST`, un chemin chaud ; (b) ne se voit que par PB-246.
-*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur PB-247 ; `Cpu/808x.cs`, `IRQTEST` et `takeint`, hors du
-domaine de la carte mère (leurs marqueurs reviennent au domaine du processeur).
+*Reproduit* : `Models/pic.cs`, `picinterrupt`, marqueur `fixed in hardware mode: PB-247` ; `Cpu/808x.cs`, `IRQTEST` et
+`takeint`, de même.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_247)`, `picinterrupt_materiel` choisit hors du masque de service (`mask2`), au maître comme à l'esclave ; sur le 8088, `IRQTEST` et `takeint` passent par `irqtest_materiel` et `takeint_materiel` (`Cpu/808x.Materiel.cs`), qui retirent aussi `mask2` : sans cela, une chaîne REP s'arrêterait sans fin pour une IRQ que le 8259A retient. Le 286 et ses successeurs acceptaient déjà sur `pic_intpending`, qui tient compte de `mask2`. `materiel-cas PB-247` (XT, IR0 en service, l'IRQ 1 en attente : l'acquittement, puis le 8088 sous IF = 1) rend 09h et l'entrée dans INT 09h en mode PCem, FFh et le 8088 dans son code en mode matériel ; la correction coupée, il rougit. PICBANC sur l'XT : dans l'INT 08h, IR0 en service, sous STI, une seule entrée au lieu de 14h (avec PB-248, qui garde l'ISR que « no operation » effaçait).
 
 ### PB-248 — Les rotations, la priorité et « sans opération » du 8259 font un EOI ; ni poll ni masque spécial
 
@@ -4373,7 +4376,8 @@ rotations automatique et spécifique, Poll Command, Special Mask Mode. Document�
 *Cas qui discrimine* : dans l'INT 08h (IR0 en service), OCW2 40h, puis OCW3 0Bh et IN 20h : PCem 00h, l'ISR effacé ;
 le 8259A 01h. Poll, une IRQ n en attente : OCW3 0Ch puis IN 20h, le 8259A rend 80h + n ; PCem, l'IRR ou l'ISR.
 *G13* : (a) — documenté, vérifiable en C# seul ; aucun BIOS du dépôt pour témoin.
-*Reproduit* : `Models/pic.cs`, `pic_write` et `pic2_write`, marqueurs PB-248 (l'OCW2 et l'OCW3).
+*Reproduit* : `Models/pic.cs`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-248` (l'OCW2 et l'OCW3).
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_248)`, l'OCW2 (`pic_ocw2_materiel`) distingue les huit formes de la figure 8 (fin non spécifique, spécifique, « no operation », rotations en fin automatique et aux fins, priorité posée) ; l'OCW3 (`pic_ocw3_materiel`) ajoute le poll et le masque spécial ; la lecture qui suit un poll rend 80h + le niveau et l'acquitte (`pic_poll_lire_materiel`) ; ICW1 et la mise sous tension remettent IR7 au plus bas, le masque spécial, la rotation et le poll (`Models/pic.Materiel.cs`). L'état que PCem ne tient pas (le niveau le plus bas, le masque spécial, la rotation automatique, le poll en attente) vit dans `pic.Materiel.cs`, par contrôleur ; le masque de service tient compte de la rotation et du masque spécial. `picinterrupt_materiel` parcourt les niveaux dans l'ordre tourné. `materiel-cas PB-248` (XT : 40h puis l'ISR ; le poll ; la priorité C1h ; AT : le masque spécial et la demande vue par le processeur) rend la valeur de PCem en mode PCem, celle de la fiche en mode matériel ; la correction coupée, il rougit. PICBANC : le poll 80h et l'ISR 01h, « no operation » 01h. Le masque de service recalculé à la mise sous tension remet aussi celui de l'esclave, que PCem oublie (PB-06), et la fin spécifique d'IR2 teste le niveau, que PCem compare à `val` (PB-13).
 
 ### PB-249 — Le Clear Mask du 8237 (0Eh, DCh) est sans effet
 
@@ -4485,7 +4489,8 @@ choisi, au lieu de l'IRR. Les lectures de 20h des ROM du dépôt suivent toutes 
 *Cas qui discrimine* : OCW3 0Bh (l'ISR), puis ICW1 à ICW4 du maître, OCW1 FFh, un tic du PIT en attente ; IN 20h :
 PCem 00h (l'ISR) ; le 8259A 01h (l'IRR, que l'IMR n'affecte pas).
 *G13* : (a) — documenté, vérifiable en C# seul ; l'effet sur les logiciels est inconnu.
-*Reproduit* : `Models/pic.cs`, `pic_reset`, `pic_write` et `pic2_write`, marqueurs PB-255.
+*Reproduit* : `Models/pic.cs`, `pic_reset`, `pic_write` et `pic2_write`, marqueurs `fixed in hardware mode: PB-255`.
+*Corrigé en mode matériel* (G13.4) : sous `if (materiel.pb_255)`, ICW1 remet la lecture sur l'IRR (`pic_icw1_255_materiel`), et la mise sous tension aussi, aux deux contrôleurs (`pic_reset_255_materiel`, `Models/pic.Materiel.cs`). `materiel-cas PB-255` (XT : OCW3 0Bh, ICW1 à ICW4, OCW1 FFh, une IRQ 0 en attente, IN 20h ; AT : la mise sous tension, IN 20h et IN A0h) rend 00h, puis 00h et 00h en mode PCem, 01h, puis 01h et 01h en mode matériel ; la correction coupée, il rougit. PICBANC : le premier relevé, 01h au lieu de 00h.
 
 ### PB-256 — Ni la M24 ni le PC1512 n'ont de rafraîchissement par DMA
 

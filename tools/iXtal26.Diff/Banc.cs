@@ -13,7 +13,9 @@
 //   « materiel: texte »  attendu en mode matériel seulement ;
 //   « # … »              un commentaire, où va la source de l'attendu.
 // Le scénario est joué DEUX fois, et les deux sorties doivent être identiques à l'octet près, une fois effacé le numéro
-// du processus que portent les copies temporaires des images (« ixtal-boot-PID- ») : le déterminisme du mode.
+// du processus que portent les copies temporaires des images (« ixtal-boot-PID- ») : le déterminisme du mode. Les deux
+// séances partent du même état : la CMOS que la première écrit dans nvr/ en sortant (savenvr) est remise ensuite comme
+// elle était, et de même après la seconde.
 
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -55,8 +57,11 @@ internal static class Banc
 
         var emulateur = Path.Combine(AppContext.BaseDirectory, "iXtal26.dll");
         var argv = args[(sep + 1)..].Concat(["--hardware-mode", ModeMateriel.ListeDemandee]).ToArray();
+        var cmos = Instantane("nvr");
         var (rc1, sortie1) = Lance(emulateur, argv);
+        Restaure("nvr", cmos);
         var (rc2, sortie2) = Lance(emulateur, argv);
+        Restaure("nvr", cmos);
         var bad = 0;
         Console.WriteLine($"  mode {ModeMateriel.Description} : deux séances, retours {rc1} et {rc2}");
         if (rc1 != 0 || rc2 != 0)
@@ -90,6 +95,21 @@ internal static class Banc
             ? $"\nVert : {Path.GetFileName(fichier)}, les {attendus.Count} attendus du mode {mode}, deux séances identiques."
             : $"\n{bad} échec(s) : {Path.GetFileName(fichier)} en mode {mode}.");
         return bad == 0 ? 0 : 1;
+    }
+
+    private static Dictionary<string, byte[]> Instantane(string dossier) =>
+        Directory.Exists(dossier)
+            ? Directory.EnumerateFiles(dossier, "*", SearchOption.AllDirectories).ToDictionary(f => f, File.ReadAllBytes)
+            : [];
+
+    private static void Restaure(string dossier, Dictionary<string, byte[]> etat)
+    {
+        if (Directory.Exists(dossier))
+            foreach (var f in Directory.EnumerateFiles(dossier, "*", SearchOption.AllDirectories).ToList())
+                if (!etat.ContainsKey(f))
+                    File.Delete(f);
+        foreach (var (f, octets) in etat)
+            File.WriteAllBytes(f, octets);
     }
 
     private static (int rc, string sortie) Lance(string dll, string[] args)

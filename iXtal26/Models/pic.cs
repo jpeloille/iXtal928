@@ -64,7 +64,7 @@ internal static partial class pic
         pic_.mask2 = 0;
         pic_.pend = pic_.ins = 0;
         pic_.vector = 8;
-        // pcem bug, reproduced: PB-255 — read = 1 met la lecture de 20h sur l'ISR (pic.c:36), et
+        // pcem bug, fixed in hardware mode: PB-255 — read = 1 met la lecture de 20h sur l'ISR (pic.c:36), et
         //   pic2.read n'est jamais remis ; un 8259A initialisé se lit sur l'IRR.
         pic_.read = 1;
         pic2.icw = 0;
@@ -76,6 +76,12 @@ internal static partial class pic
         pic_intpending = 0;
         pic_.level_sensitive = 0;
         pic2.level_sensitive = 0;
+        // pcem bug, fixed in hardware mode: PB-255 — les deux contrôleurs se lisent sur l'IRR.
+        if (materiel.pb_255)
+                pic_reset_255_materiel();
+        // pcem bug, fixed in hardware mode: PB-248 — l'état qu'ICW1 laisserait : priorités, masque spécial, poll.
+        if (materiel.pb_248)
+                pic_reset_248_materiel();
     }
 
     // pcem: pic.c:46-55
@@ -149,16 +155,27 @@ internal static partial class pic
         {
                 if ((val & 16) != 0) /*ICW1*/
                 {
-                        // pcem bug, reproduced: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:106-113).
+                        // pcem bug, fixed in hardware mode: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:106-113).
                         pic_.mask = 0;
                         pic_.mask2 = 0;
                         pic_.icw = 1;
                         pic_.icw1 = val;
                         pic_.ins = 0;
+                        if (materiel.pb_255)
+                                pic_icw1_255_materiel(pic_);
+                        // pcem bug, fixed in hardware mode: PB-248 — ICW1 remet aussi les priorités et le masque spécial.
+                        if (materiel.pb_248)
+                                pic_icw1_248_materiel(pic_);
                         pic_updatepending();
                 }
                 else if ((val & 8) == 0) /*OCW2*/
                 {
+                        // pcem bug, fixed in hardware mode: PB-248 — l'OCW2 selon la fiche (voir plus bas).
+                        if (materiel.pb_248)
+                        {
+                                pic_ocw2_materiel(pic_, val);
+                                return;
+                        }
                         if ((val & 0xE0) == 0x60)
                         {
                                 pic_.ins &= unchecked((uint8_t)~(1 << (val & 7)));
@@ -171,7 +188,7 @@ internal static partial class pic
                         }
                         else
                         {
-                                // pcem bug, reproduced: PB-248 — tout autre OCW2 (les rotations, la
+                                // pcem bug, fixed in hardware mode: PB-248 — tout autre OCW2 (les rotations, la
                                 //   priorité, 40h « sans opération ») sert d'EOI non spécifique (pic.c:126-145).
                                 for (c = 0; c < 8; c++)
                                 {
@@ -195,8 +212,13 @@ internal static partial class pic
                 }
                 else /*OCW3*/
                 {
-                        // pcem bug, reproduced: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
+                        // pcem bug, fixed in hardware mode: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
                         //   sont ignorés (pic.c:146-153).
+                        if (materiel.pb_248)
+                        {
+                                pic_ocw3_materiel(pic_, val);
+                                return;
+                        }
                         if ((val & 2) != 0)
                                 pic_.read = (val & 1);
                         if ((val & 0x40) != 0)
@@ -213,6 +235,10 @@ internal static partial class pic
         {
                 return pic_.mask;
         }
+        // pcem bug, fixed in hardware mode: PB-248 — après un poll, la lecture rend le mot de poll et acquitte.
+        if (materiel.pb_248)
+                if (poll_attendu_materiel(pic_))
+                        return pic_poll_lire_materiel(pic_);
         if (pic_.read != 0)
         {
                 return (uint8_t)(pic_.ins | (pic2.ins != 0 ? 4 : 0));
@@ -276,16 +302,27 @@ internal static partial class pic
         {
                 if ((val & 16) != 0) /*ICW1*/
                 {
-                        // pcem bug, reproduced: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:214-221).
+                        // pcem bug, fixed in hardware mode: PB-255 — ICW1 ne remet pas `read` sur l'IRR (pic.c:214-221).
                         pic2.mask = 0;
                         pic2.mask2 = 0;
                         pic2.icw = 1;
                         pic2.icw1 = val;
                         pic2.ins = 0;
+                        if (materiel.pb_255)
+                                pic_icw1_255_materiel(pic2);
+                        // pcem bug, fixed in hardware mode: PB-248 — ICW1 remet aussi les priorités et le masque spécial.
+                        if (materiel.pb_248)
+                                pic_icw1_248_materiel(pic2);
                         pic_updatepending();
                 }
                 else if ((val & 8) == 0) /*OCW2*/
                 {
+                        // pcem bug, fixed in hardware mode: PB-248 — l'OCW2 selon la fiche (voir plus bas).
+                        if (materiel.pb_248)
+                        {
+                                pic_ocw2_materiel(pic2, val);
+                                return;
+                        }
                         if ((val & 0xE0) == 0x60)
                         {
                                 pic2.ins &= unchecked((uint8_t)~(1 << (val & 7)));
@@ -295,7 +332,7 @@ internal static partial class pic
                         }
                         else
                         {
-                                // pcem bug, reproduced: PB-248 — tout autre OCW2 (les rotations, la
+                                // pcem bug, fixed in hardware mode: PB-248 — tout autre OCW2 (les rotations, la
                                 //   priorité, 40h « sans opération ») sert d'EOI non spécifique (pic.c:229-239).
                                 for (c = 0; c < 8; c++)
                                 {
@@ -312,8 +349,13 @@ internal static partial class pic
                 }
                 else /*OCW3*/
                 {
-                        // pcem bug, reproduced: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
+                        // pcem bug, fixed in hardware mode: PB-248 — le poll (bit 2) et le masque spécial (bits 6-5)
                         //   sont ignorés (pic.c:240-244).
+                        if (materiel.pb_248)
+                        {
+                                pic_ocw3_materiel(pic2, val);
+                                return;
+                        }
                         if ((val & 2) != 0)
                                 pic2.read = (val & 1);
                 }
@@ -327,6 +369,10 @@ internal static partial class pic
         {
                 return pic2.mask;
         }
+        // pcem bug, fixed in hardware mode: PB-248 — après un poll, la lecture rend le mot de poll et acquitte.
+        if (materiel.pb_248)
+                if (poll_attendu_materiel(pic2))
+                        return pic_poll_lire_materiel(pic2);
         if (pic2.read != 0)
         {
                 return pic2.ins;
@@ -424,13 +470,23 @@ internal static partial class pic
     internal static uint8_t picinterrupt()
     {
         Counters.n_picinterrupt++;
-        // pcem bug, reproduced: PB-247 — temp et temp2 ignorent mask2, le masque de service : la descente
+        // pcem bug, fixed in hardware mode: PB-05, PB-246, PB-247 et PB-248 — l'acquittement selon la fiche, chaque
+        //   correction seulement si on la demande (picinterrupt_materiel).
+        if (materiel.pb_05)
+                return picinterrupt_materiel();
+        if (materiel.pb_246)
+                return picinterrupt_materiel();
+        if (materiel.pb_247)
+                return picinterrupt_materiel();
+        if (materiel.pb_248)
+                return picinterrupt_materiel();
+        // pcem bug, fixed in hardware mode: PB-247 — temp et temp2 ignorent mask2, le masque de service : la descente
         //   dans l'esclave ne tient pas compte de l'ISR du maître (pic.c:356, :360).
         uint8_t temp = (uint8_t)(pic_.pend & ~pic_.mask);
         int c;
         for (c = 0; c < 8; c++)
         {
-                // pcem bug, reproduced: PB-246 — la cascade est testée à chaque c, dès c = 0 : les IRQ 8
+                // pcem bug, fixed in hardware mode: PB-246 — la cascade est testée à chaque c, dès c = 0 : les IRQ 8
                 //   à 15 passent avant l'IRQ 0 et l'IRQ 1 (pic.c:359).
                 if (AT != 0 && (temp & (1 << 2)) != 0)
                 {
@@ -444,7 +500,7 @@ internal static partial class pic
                                         pic2.ins |= (uint8_t)(1 << c);
                                         pic_update_mask(ref pic2.mask2, pic2.ins);
 
-                                        // pcem bug, reproduced: PB-05 — pic.c:368-369 efface le bit `c` de
+                                        // pcem bug, fixed in hardware mode: PB-05 — pic.c:368-369 efface le bit `c` de
                                         //   pic.pend (l'indice de l'IRQ du pic2, appliqué au maître) là où
                                         //   les lignes sœurs visent la cascade 2.
                                         if ((pic2.level_sensitive & (1 << c)) == 0)

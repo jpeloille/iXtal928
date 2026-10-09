@@ -478,3 +478,25 @@ run fuite-g133 --hardware-mode PB-02,PB-45,PB-87,PB-170,PB-171,PB-172,PB-173,PB-
 # G13.3, suite — le temps d'un REP devant autre chose qu'une chaîne (PB-177), le cœur contre la trace du silicium : le
 # surcoût du REP devant IDIV, dans les cas que SST fait partir d'une file vide comme la sonde, dans deux erreurs types.
 run sst-rep-temps-materiel --hardware-mode processeur sst-rep-temps --op F6.7 --op F7.7 --controle
+# G13.4 — le 8259 (PLAN-G13.md) : PB-05, PB-246, PB-247, PB-248 et PB-255, chacun son cas en C# seul dans les deux
+# modes ; puis PICBANC (tools/picbanc), saisi dans DEBUG sur l'XT et sur l'IBM AT (F1 au POST : le bac à sable n'a
+# pas d'at.nvr, et le BIOS dit 162), contre l'oracle en mode PCem (boot-diff) et, en C# seul, contre ses attendus dans
+# les deux modes ; en mode matériel, tout le domaine de la carte mère.
+for pb in 05 246 247 248 255; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+mapfile -t PCK < tools/picbanc/picbanc.keys
+PCB=(); for l in "${PCK[@]}"; do PCB+=(--type "$l"); done
+run bd-xt-picbanc boot-diff roms 9000 --model ibmxt --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 6000 \
+  --type-settle 600 --type "" --type "" "${PCB[@]}" --type "@wait 1500"
+run bd-ibmat-picbanc boot-diff roms 9000 --model ibmat --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 3000 \
+  --type-settle 600 --type $'\x01' --type "@wait 900" --type "" --type "" "${PCB[@]}" --type "@wait 1500"
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode carte-mere)
+  run banc-picbanc-xt$m "${h[@]}" banc tools/gates/bancs/picbanc-xt.attendus -- --boot roms 9000 --model ibmxt \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${PCB[@]}" --type "@wait 1500"
+  run banc-picbanc-at$m "${h[@]}" banc tools/gates/bancs/picbanc-at.attendus -- --boot roms 3000 --model ibmat \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type $'\x01' --type "@wait 900" --type "" \
+    --type "" "${PCB[@]}" --type "@wait 1500"
+done
