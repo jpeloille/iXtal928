@@ -878,8 +878,15 @@ documenté ; les cycles d'une instruction démasquée : déduit.
 FLDCW 037Bh ; FLD1 ; FLDZ ; FDIVP ; FNSTSW m16 → PCem 3004h, silicium (387) B084h (ZE, ES, B) ; FLD m64 =
 0000000000000001 → DE : PCem 0, silicium 1.
 *G13* : (b) — drapeaux masqués : (a), avec le noyau ; ZE et son acheminement : G13.6 ; OE, UE démasquées : (b).
-*Reproduit* : `Cpu/x87_ops.cs`, `x87_div`, partagé par les deux instanciations, marqueur PB-59 ; `x87_checkexceptions`,
-jamais appelée, n'est pas transcrite. `x87-cases` : 1 / ±0, ZE masquée et démasquée.
+*Reproduit* en mode PCem : `Cpu/x87_ops.cs`, `x87_div`, partagé par les deux instanciations, marqueur PB-59 ;
+`x87_checkexceptions`, jamais appelée, n'est pas transcrite. `x87-cases` : 1 / ±0, ZE masquée et démasquée.
+*Corrigé en mode matériel* (G13.6c, ZE seule, avec PB-69 et PB-204) : sous `if (materiel.pb_59)`, la branche démasquée
+de `x87_div` appelle `exception_demasquee` (`Cpu/x87.Materiel.cs`) : ES et B posés, la destination et la pile intactes,
+les cycles de PCem (déduit), puis l'acheminement, sur le front d'ES seulement. FNCLEX efface aussi B (les tables du
+mode, et celle du 8087 en place). Le 486, NE posé : #MF devant l'instruction suivante qui attend (`bloque`).
+`materiel-cas PB-59` : le mot d'état après FDIVP 1/0 sur les quatre coprocesseurs (B084h), après FNCLEX (3000h), #MF
+du 486 devant FLD1 et WAIT (l'adresse de retour, celle de FLD1), pas devant FNSTSW, et les sept instructions sans
+attente, a16 et a32. Les autres exceptions, et les drapeaux masqués : avec le noyau.
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 
@@ -1112,8 +1119,16 @@ Microsoft ou Borland) n'est jamais appelé.
 FLDZ ; FDIVP → PCem : ni NMI ni IRQ (la demande est jetée), silicium : le gestionnaire d'INT 2 s'exécute ; A0h = 00h :
 rien des deux côtés.
 *G13* : (a) — G13.6, l'acheminement, avec ZE seule ; SW1 : déduit ; la NMI sur front (D2-contre A7).
-*Reproduit* : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
+*Reproduit* en mode PCem : `Models/pic.cs` (`picint`, inchangé) et `Cpu/x87_ops.cs` (`x87_div`, partagé par
 les deux instanciations, marqueur PB-69) ; marqueur PB-69 à l'aiguillage des ESC, `Cpu/808x.cs` (`case 0xd8`).
+*Corrigé en mode matériel* (G13.6c, avec PB-59) : sur le 8087, `exception_demasquee` pose `nmi` si IEM est nul, sans
+IRQ13 ; le 808x prend la NMI si le port A0h l'ouvre, et la consomme (garde dans `execx86`, une NMI par front : déduit).
+La transcription a deux `nmi_mask` où PCem n'en a qu'un : A0h écrit celui de `Models/nmi.cs`, le 808x lit celui de
+`_808x`, que seul le port 70h de l'AT écrit ; sans effet en mode PCem, où rien ne pose `nmi`. En mode matériel,
+`nmi_write` et `nmi_init` tiennent aussi celui du 808x. FCLEX et FINIT du 8087 font retomber la sortie INT (une NMI
+retenue par A0h ne vient plus) ; FLDCW, FENI et FDISI qui changent IEM sous une exception en attente : non modélisé.
+`materiel-cas PB-69` : A0h ouvert ou fermé, IEM posé ou nul, la NMI qui rend la main par IRET (une seule), A0h ouvert
+après l'exception, FNCLEX ou FNINIT entre les deux, et deux exceptions pour une NMI (le front).
 
 ### PB-70 — Le contrôle de l'infini est ignoré : le 287 compare en affine, comme un 387
 
@@ -3726,7 +3741,20 @@ documenté.
 *Cas qui discrimine* : AT + 287 : FNINIT ; FLD1 ; OUT F1h, AL ; FSTSW m16 → PCem 3800h (TOP = 7), silicium TOP = 0
 (le 287 réinitialisé, C3-C0 indéterminés) ; le verrou (FWAIT bloqué jusqu'à OUT F0h) avec l'acheminement de PB-59.
 *G13* : (a) — G13.6, l'acheminement (le verrou de l'AT, F0h et F1h), avec la carte mère (PB-05).
-*Reproduit* : par absence ; aucun site dans le domaine du x87 (un gestionnaire de port relèverait de `Models/`).
+*Reproduit* en mode PCem : par absence ; aucun site dans le domaine du x87 (un gestionnaire de port relèverait de
+`Models/`).
+*Corrigé en mode matériel* (G13.6c, avec PB-59) : sous `if (materiel.pb_204)`, `at_init` pose les ports F0h et F1h
+(`Models/model.cs`, `at_coprocesseur_init` ; `Cpu/x87.Materiel.cs`, `ecrire_f0_f1`). L'exception démasquée du 287 ou du
+387 lève IRQ13 et pose le verrou ; F0h l'efface ; F1h l'efface et remet le coprocesseur dans l'état de FNINIT. Les
+tables du mode enveloppent chaque instruction qui attend (toutes, sauf FNCLEX, FNINIT, FSETPM, FNSTCW, FNSTSW,
+FNSAVE et FNSTENV : 286 PRM, #MF ; 387 PRM, annexe F ; 287 PRM p. 1-10 ; 486 PRM, table 17-8 ; FNSTCW sous le verrou :
+déduit), et WAIT par une garde dans `opWAIT` : sous le verrou, le processeur s'arrête devant l'instruction, cent
+cycles par tour, et une interruption peut le prendre. Le 486 : FERR# mène à IRQ13, NE posé ou non (déduit) ; NE nul,
+l'arrêt jusqu'à IGNNE#, que F0h pose tant qu'ES l'est. Le 486 et F1h : inconnu, rien. Une IRQ13 encore en attente au
+8259 n'est pas retirée par F0h (non modélisé) ; un reset du seul processeur laisse le verrou (déduit). `materiel-cas
+PB-204` : FLD1 et WAIT arrêtés, IRQ13 en attente (le témoin), F0h qui libère, une seconde exception sans front, FNINIT
+qui passe, F1h qui remet à zéro, sur le 287, le 287XL, le 387 et le 486 ; les sept instructions sans attente, dans
+`materiel-cas PB-59`.
 
 ### PB-205 — Le bit C1 « arrondi vers le haut » n'est jamais posé
 
@@ -3773,8 +3801,8 @@ FLD1 ; FLDZ ; FDIVP → PCem IRQ13 et ST(1) inchangé, silicium +∞ sans interr
 *Corrigé en mode matériel* (G13.6b) : sous `if (materiel.pb_207)`, les tables du mode (`Cpu/x87.Materiel.cs`,
 `masque_fstenv`) enveloppent FSTENV a16 et a32 : le gestionnaire de PCem, puis les six masques ; celle du 8087, en
 place, un gestionnaire nommé (`Cpu/808x.Materiel.cs`). Le 8087 et le 287 : déduit. `materiel-cas PB-207` : le mot de
-contrôle après FNSTENV, et celui de l'environnement rangé, inchangé, sur les quatre coprocesseurs ; la trace de l'IRQ13
-du cas qui discrimine viendra avec l'acheminement (G13.6c).
+contrôle après FNSTENV, et celui de l'environnement rangé, inchangé, sur les quatre coprocesseurs ; depuis G13.6c, la
+trace de l'IRQ13 du cas qui discrimine : FDIVP 1/0 après FNSTENV, 3804h sans IRQ13, sur le 287, le 387 et le 486.
 
 ### PB-208 — Le mot d'étiquettes ment pour les NaN et les infinis ; 10 est relu comme TAG_UINT64
 

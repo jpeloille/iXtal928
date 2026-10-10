@@ -60,6 +60,9 @@ internal static class materiel
     /// <summary>PB-58 : FCOMPP compare −0 et +0 égaux, sans le contournement de détection de PCem ; avec PB-57.</summary>
     internal static readonly bool pb_58;
 
+    /// <summary>PB-59 : une division par zéro démasquée pose ES et B, #MF sur le 486 ; avec PB-69 et PB-204.</summary>
+    internal static readonly bool pb_59;
+
     /// <summary>PB-61 : FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486).</summary>
     internal static readonly bool pb_61;
 
@@ -74,6 +77,9 @@ internal static class materiel
 
     /// <summary>PB-67 : FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64.</summary>
     internal static readonly bool pb_67;
+
+    /// <summary>PB-69 : sur un PC ou un XT, l'exception du 8087 lève la NMI, que A0h masque ; avec PB-59.</summary>
+    internal static readonly bool pb_69;
 
     /// <summary>PB-70 : le 8087 et le 287 comparent en projectif tant que IC est nul ; avec PB-57 et PB-64.</summary>
     internal static readonly bool pb_70;
@@ -168,6 +174,9 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
+    /// <summary>PB-204 : les ports F0h et F1h de l'AT, le verrou de BUSY# (287, 387), IGNNE# (486) ; avec PB-59.</summary>
+    internal static readonly bool pb_204;
+
     /// <summary>PB-207 : FSTENV masque les six exceptions après avoir rangé l'environnement.</summary>
     internal static readonly bool pb_207;
 
@@ -236,11 +245,13 @@ internal static class materiel
         pb_51 = ModeMateriel.Demande(51);
         pb_57 = ModeMateriel.Demande(57);
         pb_58 = ModeMateriel.Demande(58);
+        pb_59 = ModeMateriel.Demande(59);
         pb_61 = ModeMateriel.Demande(61);
         pb_63 = ModeMateriel.Demande(63);
         pb_64 = ModeMateriel.Demande(64);
         pb_66 = ModeMateriel.Demande(66);
         pb_67 = ModeMateriel.Demande(67);
+        pb_69 = ModeMateriel.Demande(69);
         pb_70 = ModeMateriel.Demande(70);
         pb_78 = ModeMateriel.Demande(78);
         pb_87 = ModeMateriel.Demande(87);
@@ -272,6 +283,7 @@ internal static class materiel
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);
         pb_193 = ModeMateriel.Demande(193);
+        pb_204 = ModeMateriel.Demande(204);
         pb_207 = ModeMateriel.Demande(207);
         pb_213 = ModeMateriel.Demande(213);
         pb_246 = ModeMateriel.Demande(246);

@@ -8589,3 +8589,95 @@ premier contrôle de l'ordre des poses était mal formé (il laissait la pose fi
 `materiel-cas` de G13.6b (deux PB, chacun dans les deux modes) ; un seul écart, attendu : `recensement` compte 1009
 marqueurs au lieu de 1027 : les copies de PB-213 dans les gestionnaires du 8087 (gen46) ne sont plus des marqueurs,
 le 8087 laissant C1 comme PCem.
+
+## G13.6c — Le x87 : l'acheminement de la division par zéro
+
+Le 10 octobre 2026. ZE est la seule exception que PCem lève (`x87_div`) ; démasquée, il appelle `picint(1 << 13)` et
+s'arrête là. Trois défauts, en un groupe (`ModeMateriel.Groupes`) : PB-59 (ni ES ni B), PB-69 (sur un PC ou un XT,
+IRQ13 se perd : le 8087 y passe par la NMI), PB-204 (ni le verrou de l'AT, ni les ports F0h et F1h). Les autres
+exceptions, et les cycles d'une instruction démasquée, attendent le noyau (point de décision n° 10).
+
+**Le mécanisme.** Sous `if (materiel.pb_59)`, la branche démasquée de `x87_div` appelle `exception_demasquee`
+(`Cpu/x87.Materiel.cs`) : ES et B posés ; sur le front d'ES seulement, le signal. Le 8087, IEM nul : `nmi` posée, sans
+IRQ13. Le 287, le 287XL et le 387 : IRQ13 et le verrou. Le 486 : IRQ13 (FERR#), et IGNNE# retombe. Les tables du mode
+enveloppent chaque instruction qui attend (`attente`, par position dans les seize tables : toutes, sauf FNCLEX, FNINIT,
+FSETPM, FNSTCW, FNSTSW m16 et AX, FNSAVE, FNSTENV) ; WAIT, par une garde dans `opWAIT`. Devant une instruction qui
+attend (`bloque`) : sous le verrou, l'arrêt (le pc ramené à `oldpc`, cent cycles, une interruption peut prendre le
+processeur) ; le 486, ES posé : #MF si NE, sinon l'arrêt, sauf sous IGNNE#. `cpu_set` pose PB-204 en tout dernier :
+les autres poses repèrent leurs gestionnaires par leur nom, que l'enveloppe effacerait. `at_init` pose F0h et F1h
+(`at_coprocesseur_init`) : F0h efface le verrou (le 486 : IGNNE# tant qu'ES l'est), F1h aussi, et remet le 287 ou le
+387 dans l'état de FNINIT. FNCLEX efface B ; sur le 8087, FNCLEX et FNINIT font retomber la sortie INT. Le 808x
+consomme la NMI qu'il prend (garde dans `execx86`). La transcription a deux `nmi_mask` où PCem n'en a qu'un : en mode
+matériel, `nmi_write` et `nmi_init` tiennent aussi celui que lit le 808x (sans effet en mode PCem, où rien ne pose
+`nmi`).
+
+**Les cas** (`materiel-cas PB-nn` ; un code dont on lit l'IP finit sur un HLT, l'IP d'arrivée ne dépend pas du nombre
+de pas : en mode PCem, FDIVP démasquée ne compte aucun cycle, et le pas enchaîne l'instruction suivante) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 59 | FNINIT ; FLDCW 037Bh ; FLD1 ; FLDZ ; FDIVP ; FNSTSW m16, les quatre coprocesseurs | 3004h | B084h |
+| 59 | la même, FNCLEX avant FNSTSW | 3000h | 3000h |
+| 59 | le 486, NE posé : FNSTSW m16 ; FLD1 ; WAIT | 3004h ; FLD1 et WAIT exécutés | B084h ; #MF devant FLD1 et WAIT, l'adresse de retour celle de FLD1 |
+| 59 | les sept qui n'attendent pas après l'exception (FNSTSW AX, FNSTCW, FNSTENV, FSETPM, FNSAVE ; a32 sur le 387 et le 486), 287, 287XL, 387, 486 (NE nul et posé) | exécutées | exécutées |
+| 69 | 8087 : A0h = 80h, IEM nul ; IEM posé ; A0h = 00h | ni NMI | la NMI ; rien ; rien |
+| 69 | 8087 : la NMI qui rend la main par IRET ; A0h ouvert après l'exception ; FNCLEX ou FNINIT entre les deux | ni NMI | une fois ; la NMI ; rien |
+| 69 | 8087 : deux exceptions, ES encore posé à la seconde | aucune NMI | une seule (le front) |
+| 204 | 287, 287XL, 387, 486 : FLD1, WAIT après l'exception | exécutés | arrêtés ; IRQ13 en attente dans les deux modes |
+| 204 | OUT F0h ; FLD1 ; FNSTSW m16 | 2804h | A884h |
+| 204 | une seconde exception, ES encore posé ; FLD1 | exécuté | exécuté (sans front) |
+| 204 | 287, 287XL, 387 : FNINIT sous le verrou ; F1h après FLD1 ; F1h sous le verrou | 0000h ; 3800h ; 2804h | 0000h ; 0000h ; 3800h |
+| 207 | FNSTENV ; FDIVP 1/0 (la trace annoncée en G13.6b) | 3004h, IRQ13 | 3804h, sans IRQ13 |
+
+**M2** (M2-6c, treize scénarios ; le treizième, `ami386dx-x87div`, joue FDIVP d'un quotient fini, 1 / 0 sous ZE
+masquée, FNCLEX et WAIT, sa référence capturée depuis 860f2b1 dans `M0-860f2b1-g136c`) : identique à M0, hors les sept
+méthodes froides connues et les sept du mécanisme. Une de plus, `at_init`, ne diffère que par l'en-tête du listing
+(« 1 inlinees without PGO data ») : `at_coprocesseur_init` y est inlinée et sa garde pliée, le code machine est
+identique à l'octet. `x87_div`, `opFDIVP`, `opFCLEX`, `opWAIT`, `execx86`, `nmi_write`, `nmi_init` et `cpu_set` : à
+l'octet près. La branche du 8087 de `x87_div` est la même méthode ; aucun scénario n'y fait de division.
+
+**Les contrôles négatifs** (`/tmp/a9/neg136c.py`) ; le témoin sans faute est vert (les trois PB et PB-207 dans les deux
+modes, `recensement`) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| ES et B non posés | `materiel-cas PB-59` | rouge, 8 échecs |
+| FNCLEX garde B | `materiel-cas PB-59` | rouge, 3 échecs |
+| le FNCLEX du 8087 non posé | `materiel-cas PB-59` | rouge, 1 échec |
+| sans front (chaque exception relève le signal) | `materiel-cas PB-204`, `PB-69` | rouge, 4 et 1 échecs |
+| le 8087 sans NMI | `materiel-cas PB-69` | rouge, 3 échecs |
+| IEM ignoré | `materiel-cas PB-69` | rouge, 1 échec |
+| A0h non relié au masque du 808x | `materiel-cas PB-69` | rouge, 3 échecs |
+| la NMI en niveau | `materiel-cas PB-69` | rouge, 2 échecs |
+| FNCLEX ne fait pas retomber INT | `materiel-cas PB-69` | rouge, 2 échecs |
+| le FNINIT du 8087 non posé | `materiel-cas PB-69` | rouge, 1 échec |
+| sans verrou | `materiel-cas PB-204` | rouge, 6 échecs |
+| WAIT sans garde | `materiel-cas PB-204`, `PB-59` | rouge, 4 et 1 échecs |
+| FNSTSW m16 attend | `materiel-cas PB-59` | rouge, 14 échecs |
+| FNSTENV et FNSAVE attendent (`is 7`) | `materiel-cas PB-59` | rouge, 8 échecs |
+| FNINIT attend | `materiel-cas PB-204` | rouge, 3 échecs |
+| F1h sans remise à zéro | `materiel-cas PB-204` | rouge, 3 échecs |
+| le 486 sans #MF | `materiel-cas PB-59` | rouge, 3 échecs |
+| F0h sans IGNNE# | `materiel-cas PB-204` | rouge, 2 échecs |
+| PB-204 posé avant PB-213 (les noms perdus) | `materiel-cas PB-213`, avec le groupe | rouge, 42 échecs |
+| la garde de `x87_div` qui fuit | `materiel-cas PB-59`, mode PCem | rouge, 9 échecs |
+| la garde d'`at_init` qui fuit | `materiel-cas PB-204`, mode PCem | rouge, 6 échecs |
+| un marqueur de PB-59 resté `reproduced` | `recensement` | rouge |
+
+Les dix cas x87 de G13.6a et G13.6b restent verts avec le groupe demandé en même temps.
+
+**La contre-lecture** (Sonnet, en lecture seule) : aucune fuite ; l'indexation de `sans_attente` et la précédence des
+motifs, l'ordre des poses, l'idempotence des tables du 8087, les IP et les mots d'état des cas, justes. Repris : la
+remise à zéro du verrou, d'IGNNE# et de la NMI du 8087 se faisait après le retour de `poser` sans coprocesseur (un
+verrou d'une machine précédente aurait survécu) ; deux commentaires périmés (« PB-213 en dernier ») ; la phrase « chaque
+code finit sur un HLT » ; les trous des cas : les sept instructions sans attente (une seule forme jouée, `is 6 or 7`
+réductible à `is 7` sans rougir), a32, le FNINIT et le front du 8087, la pile de #MF, le 287XL, ajoutés, et trois
+contrôles négatifs de plus. Non repris, et dit : une IRQ13 encore en attente au 8259 n'est pas retirée par F0h (la
+ligne du 8259 de l'AT, en front, garde sa demande ; non modélisé) ; un reset du seul processeur (8042, triple faute)
+laisse le verrou, comme la carte, qui ne le remet qu'avec le système (déduit) ; FNENI et FNDISI (DB E0, E1), et les
+entrées illégales, attendent sous le verrou (le 286 PRM ne les compte pas parmi les instructions qui n'attendent pas).
+Ce qui n'est pas couvert : qu'une interruption prenne le processeur arrêté, et les cent cycles d'un tour.
+
+**La série** (`g6c1`, le 10/10, 22:13 → 23:22, contre `g6b1`) : 425 portes vertes, les 419 de `g6b1` et les six
+`materiel-cas` de G13.6c (trois PB, chacun dans les deux modes) ; un seul écart, attendu : `recensement` compte 1025
+marqueurs au lieu de 1009, ceux de PB-59, PB-69 et PB-204.

@@ -365,10 +365,21 @@ internal static partial class cpu_c
                 // pcem bug, fixed in hardware mode: PB-207 — FSTENV masque les exceptions.
                 if (materiel.pb_207)
                         _x87_materiel.poser(207);
-                // pcem bug, fixed in hardware mode: PB-213 — les comparaisons remettent C1 à zéro (287XL, 387, 486) ; en dernier,
-                //   pour envelopper aussi les gestionnaires posés plus haut.
+                // pcem bug, fixed in hardware mode: PB-213 — les comparaisons remettent C1 à zéro (287XL, 387, 486) ; après
+                //   les poses de gestionnaires, pour envelopper aussi ceux posés plus haut.
                 if (materiel.pb_213)
                         _x87_materiel.poser(213);
+                // pcem bug, fixed in hardware mode: PB-59 — FNCLEX efface aussi B ; avec PB-69 et PB-204.
+                if (materiel.pb_59)
+                        _x87_materiel.poser(59);
+                // pcem bug, fixed in hardware mode: PB-69 — FNCLEX et FNINIT du 8087 font retomber sa sortie INT.
+                if (materiel.pb_69)
+                        _x87_materiel.poser(69);
+                // pcem bug, fixed in hardware mode: PB-204 — les instructions qui attendent le verrou de l'AT, ou
+                //   l'exception en attente du 486 ; en tout dernier, pour envelopper tous les gestionnaires posés plus
+                //   haut.
+                if (materiel.pb_204)
+                        _x87_materiel.poser(204);
         }
         else
         {

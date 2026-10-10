@@ -3412,7 +3412,7 @@ startrep:
                         fetchea();
                         // La valeur rendue par le handler est ignorée — celle d'x87_div comprise,
                         // dont l'IRQ13 se perd hors AT.
-                        // pcem bug, reproduced: PB-69
+                        // pcem bug, fixed in hardware mode: PB-69 — x87_div lève la NMI (x87.Materiel.cs).
                         if (cpu_c.hasfpu != 0) {
                                 uint16_t save_pc = (uint16_t)cpu_state.pc;
                                 ops_808x_fpu_d8_a16[rmdat >> 3](rmdat);
@@ -4050,6 +4050,11 @@ startrep:
                         x86seg_c.loadcs(readmemw(0, (uint16_t)(addr + 2)));
                         FETCHCLEAR();
                         nmi_enable = 0;
+                        // pcem bug, fixed in hardware mode: PB-69 — `nmi` reste posée : la NMI est un niveau, reprise à
+                        //   chaque IRET ; le 8088 la prend sur un front (déduit) : en mode matériel, prise, elle est
+                        //   consommée.
+                        if (materiel.pb_69)
+                                nmi = 0;
                 }
                 else if (takeint != 0 && cpu_state.ssegs == 0 && noint == 0)
                 {

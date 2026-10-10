@@ -97,6 +97,11 @@ internal static partial class _386
                 x86_int(7);
                 return 1;
         }
+        // pcem bug, fixed in hardware mode: PB-204 — WAIT n'attend rien : ni le verrou de l'AT (287, 387), ni
+        //   l'exception en attente du 486 ; en mode matériel, x87.Materiel.cs.
+        if (materiel.pb_204)
+                if (_x87_materiel.bloque())
+                        return 1;
         CLOCK_CYCLES(4);
         return 0;
     }

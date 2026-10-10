@@ -649,3 +649,39 @@ une constante, la profondeur de la pile. Huit défauts, tous en mode matériel.
   d'erreur commence ainsi, pour ne pas en déclencher une seconde.
 - **L'émulateur.** PCem range, mais ne masque rien.
 - **La correction.** Les six masques posés après le rangement.
+
+## G13.6, fin — le coprocesseur : où va une erreur de calcul
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, `VERIFICATION.md` § G13.6c.*
+
+La seule erreur de calcul que PCem connaît est la division par zéro. Un programme peut demander qu'elle l'interrompe
+au lieu de rendre l'infini : il la « démasque ». Ce qui se passe alors dépend du coprocesseur et de la carte mère.
+
+### PB-59 — l'erreur laisse sa marque dans le mot d'état
+
+- **Le vrai PC.** Le coprocesseur pose deux bits de plus : « une erreur attend » (ES) et « occupé » (B). Un
+  gestionnaire d'erreur les lit pour savoir ce qui s'est passé ; FNCLEX les efface.
+- **L'émulateur.** PCem ne pose ni l'un ni l'autre, et son FNCLEX garderait B.
+- **La correction.** Les deux bits posés, et effacés par FNCLEX. Sur le 486, réglé pour (bit NE de CR0), l'erreur
+  interrompt le processeur lui-même (#MF) devant l'instruction de calcul suivante.
+
+### PB-69 — sur un PC ou un XT, l'erreur passe par la NMI
+
+- **Le vrai PC.** Le 8087 du PC et de l'XT signale par une broche reliée à l'interruption non masquable (NMI). Le port
+  A0h l'ouvre ou la ferme ; le BIOS, puis le programme, y accrochent leur gestionnaire.
+- **L'émulateur.** PCem envoie l'erreur à l'IRQ13, qui n'existe pas sur ces machines : elle se perd. Et sa NMI, s'il
+  en levait une, reviendrait sans fin, quand le processeur ne la prend qu'une fois.
+- **La correction.** Le 8087 lève la NMI, que le port A0h laisse passer ou retient ; prise, elle est consommée. La
+  transcription avait deux copies du réglage du port A0h, là où PCem n'en a qu'une : en mode matériel, le port règle
+  celle que lit le processeur.
+
+### PB-204 — sur un AT, la carte bloque le coprocesseur jusqu'au gestionnaire
+
+- **Le vrai PC.** L'AT mène l'erreur du 287 à l'IRQ13, et la retient : le processeur ne lance plus d'instruction de
+  calcul tant que le gestionnaire n'a pas écrit au port F0h. Le port F1h remet le coprocesseur à zéro. Le 486 fait
+  de même avec ses propres broches : arrêté devant l'instruction suivante, il repart quand la carte, sur une écriture
+  au port F0h, l'autorise à ignorer l'erreur.
+- **L'émulateur.** PCem ne retient rien et n'a ni F0h ni F1h : le programme continue ses calculs avant que l'erreur
+  soit traitée, et un BIOS qui remet le coprocesseur à zéro par F1h n'y parvient pas.
+- **La correction.** Le blocage, les deux ports, et l'arrêt du 486. Les sept instructions de contrôle que le
+  processeur lance sans attendre (FNINIT, FNCLEX, FNSTSW, et quatre autres) passent, comme sur la machine.

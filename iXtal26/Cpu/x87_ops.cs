@@ -273,8 +273,8 @@ internal static partial class _386
     //   Rend vrai quand le handler doit sortir, comme les gardes.
     internal static bool x87_div(ref double dst, double src1, double src2)
     {
-        // pcem bug, reproduced: PB-59 — la seule exception modélisée ; démasquée, le handler sort sans tag ni
-        //   cycles, sans ES ni B.
+        // pcem bug, fixed in hardware mode: PB-59 — la seule exception modélisée ; démasquée, le handler sort sans tag
+        //   ni cycles, sans ES ni B ; en mode matériel, ES et B posés, et l'exception acheminée (x87.Materiel.cs).
         if (((double)src2) == 0.0)
         {
                 cpu_state.npxs |= STATUS_ZERODIVIDE;
@@ -283,7 +283,10 @@ internal static partial class _386
                 else
                 {
                         // omitted: pclog("FPU : divide by zero\n") — sortie pure.
-                        // pcem bug, reproduced: PB-69 — IRQ13 seulement : hors AT, picint jette la demande.
+                        // pcem bug, fixed in hardware mode: PB-69 — IRQ13 seulement : hors AT, picint la jette ; en
+                        //   mode matériel, la NMI du 8087, l'IRQ13 et le verrou de l'AT, FERR# du 486.
+                        if (materiel.pb_59)
+                                return _x87_materiel.exception_demasquee();
                         Models.pic.picint(1 << 13);
                         return true;
                 }

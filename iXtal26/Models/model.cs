@@ -181,6 +181,17 @@ internal static partial class model_c
         Cpu._808x.nmi_mask = 0;
         // omitted: nmi_init() — c'est le XT qui l'appelle, pas l'AT : sur un AT le
         //   masque de NMI est le bit 7 du port 0x70, tenu par writenvr.
+        at_coprocesseur_init();
+    }
+
+    /// <summary>G13.6c — les ports du coprocesseur de l'AT, que at_init pose ; le banc de cas (MaterielCas) les pose par
+    /// le même chemin.</summary>
+    internal static void at_coprocesseur_init()
+    {
+        // pcem bug, fixed in hardware mode: PB-204 — les ports F0h et F1h de l'AT ne sont pas émulés ; en mode
+        //   matériel, le verrou de BUSY# et la remise à zéro du coprocesseur (x87.Materiel.cs).
+        if (materiel.pb_204)
+                Cpu._x87_materiel.ports_at();
     }
 
     // pcem: model.c:348-351

@@ -41,7 +41,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1067,7 +1067,217 @@ internal static class MaterielCas
             bad += Voir($"FLDCW 037Bh ; {f} ; FNSTCW ({nom})", cw == attendu, $"{cw:X4}", $"{attendu:X4}", hw);
             bad += Voir($"{f}, le mot de contrôle rangé ({nom})", range == 0x037B, $"{range:X4}", "037B", hw);
         }
+        // La trace de l'IRQ13 (G13.6c) : FNINIT ; FLDCW [BX] ; FNSTENV [BX+10h] ; FLD1 ; FLDZ ; FDIVP ; FNSTSW [BX] → ZE
+        // masquée, +∞ et le dépilement, 3804h, sans IRQ13 ; PCem 3004h, l'IRQ13 en attente au second 8259.
+        return Avec8259(() =>
+        {
+            foreach (var (fpu, nom) in new[] { (2, "287"), (4, "387"), (5, "486") })
+            {
+                Pic(true);
+                var (_, m) = Acheminer(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0x77, 0x10, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9,
+                                             0xDD, 0x3F, 0xF4], 9);
+                var irq13 = (pic.pic2.pend & 0x20) != 0;
+                var attendu = hw ? (0x3804, false) : (0x3004, true);
+                bad += Voir($"FNSTENV ; FDIVP 1/0 ; FNSTSW m16, et IRQ13 ({nom})", (m, irq13) == attendu,
+                            $"{m:X4}, IRQ13 {(irq13 ? "en attente" : "non")}",
+                            $"{attendu.Item1:X4}, IRQ13 {(attendu.Item2 ? "en attente" : "non")}", hw);
+            }
+            return bad;
+        });
+    }
+
+    // ===== L'exception démasquée du x87 et son acheminement : PB-59, PB-69, PB-204 (un groupe) =====
+
+    /// <summary>FNINIT ; FLDCW [BX] ; FLD1 ; FLDZ ; FDIVP : 1 / 0, ZE démasquée par le mot de contrôle 037Bh ; dix octets,
+    /// l'instruction suivante en 010Ah.</summary>
+    private static readonly byte[] Zero = [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9];
+
+    /// <summary>Joue sur le x87 `fpu` (le 8088 pour le 8087, sinon le cœur de Coeur), comme X87Mem : le mot `cw` en
+    /// DS:0200h, BX = 0200h ; le vecteur 2 (NMI) en 0000:0500h, `nmi` (un HLT par défaut), et le vecteur 10h (#MF) en
+    /// 0000:0800h, un HLT ; la NMI réarmée (aucun reset ne le fait). `avant` court après le reset. Un code dont on lit
+    /// l'IP finit sur un HLT : l'IP d'arrivée ne dépend pas du nombre de pas (en mode PCem, FDIVP démasquée ne compte
+    /// aucun cycle, et le pas enchaîne l'instruction suivante). Rend l'IP d'après et le mot de DS:0200h ; les registres
+    /// d'après restent dans <see cref="Registres"/>.</summary>
+    private static (ushort ip, ushort mot) Acheminer(int fpu, byte[] code, int pas, ushort cw = 0x037B, Action? avant = null,
+                                                     byte[]? nmi = null)
+    {
+        void Ram()
+        {
+            mem.ram[0x200] = (byte)cw; mem.ram[0x201] = (byte)(cw >> 8);
+            mem.ram[0x08] = 0x00; mem.ram[0x09] = 0x05; mem.ram[0x0A] = 0x00; mem.ram[0x0B] = 0x00;
+            mem.ram[0x40] = 0x00; mem.ram[0x41] = 0x08; mem.ram[0x42] = 0x00; mem.ram[0x43] = 0x00;
+            var h = nmi ?? [0xF4];
+            for (var k = 0; k < h.Length; k++)
+                mem.ram[0x500 + k] = h[k];
+            mem.ram[0x800] = 0xF4;
+            _386_common.nmi_enable = 1;
+            avant?.Invoke();
+        }
+        _386.FuzzFpu = fpu;
+        try
+        {
+            Registres = fpu == 1 ? Jouer(code, r => r[(int)R.BX] = 0x200, Ram, pas)
+                                 : Jouer386(code, r => r[(int)R.BX] = 0x200, Ram, coeur: Coeur(fpu), pas: pas);
+            return (Registres[(int)R.IP], (ushort)(mem.ram[0x200] | mem.ram[0x201] << 8));
+        }
+        finally
+        {
+            _386.FuzzFpu = 0;
+            _808x.nmi = 0;
+            _808x.nmi_mask = 0;
+        }
+    }
+
+    private static ushort[] Registres = [];
+
+    private static void Ne() => x86.cr0 |= 0x20;
+
+    // PB-59 — une division par zéro démasquée pose ES et B (387 PRM, mot d'état ; 287 PRM p. 1-10 ; le 8087 : déduit) :
+    // FNINIT ; FLDCW [BX] (037Bh) ; FLD1 ; FLDZ ; FDIVP ; FNSTSW [BX] → B084h ; PCem 3004h (ni ES ni B). FNSTSW
+    // n'attend pas : le verrou de l'AT et l'exception en attente du 486 la laissent passer. FNCLEX avant FNSTSW : 3000h
+    // dans les deux modes, B effacé. Le 486, NE posé : FNSTSW passe sans #MF ; FLD1, ou WAIT, lève #MF (le vecteur 10h,
+    // 0000:0800h), l'adresse de retour celle de FLD1 ; PCem l'exécute. Les sept qui n'attendent pas (FNSTSW AX, FNSTCW,
+    // FNSTENV, FSETPM, FNSAVE ; a32 sur le 387 et le 486) passent après l'exception, sur le 287, le 287XL, le 387 et le
+    // 486.
+    private static int Pb59(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var (_, m) = Acheminer(fpu, [.. Zero, 0xDD, 0x3F], 6);
+            var attendu = hw ? 0xB084 : 0x3004;
+            bad += Voir($"FDIVP 1/0, ZE démasquée ; FNSTSW m16 ({nom})", m == attendu, $"{m:X4}", $"{attendu:X4}", hw);
+            (_, m) = Acheminer(fpu, [.. Zero, 0xDB, 0xE2, 0xDD, 0x3F], 7);
+            bad += Voir($"… ; FNCLEX ; FNSTSW m16 ({nom})", m == 0x3000, $"{m:X4}", "3000", hw);
+        }
+        var (ip, mot) = Acheminer(5, [.. Zero, 0xDD, 0x3F, 0xF4], 8, avant: Ne);
+        var att = hw ? (0x010C, 0xB084) : (0x010C, 0x3004);
+        bad += Voir("NE posé ; FDIVP 1/0 ; FNSTSW m16 (486)", (ip, mot) == att, $"IP = {ip:X4}, {mot:X4}",
+                    $"IP = {att.Item1:X4}, {att.Item2:X4}", hw);
+        (ip, _) = Acheminer(5, [.. Zero, 0xD9, 0xE8, 0xF4], 8, avant: Ne);
+        bad += Voir("NE posé ; FDIVP 1/0 ; FLD1 (486)", ip == (hw ? 0x0800 : 0x010C), $"IP = {ip:X4}",
+                    hw ? "IP = 0800 (#MF)" : "IP = 010C", hw);
+        // #MF est une faute : l'adresse de retour empilée est celle de FLD1, rejouée au retour.
+        var sp = Registres[(int)R.SP];
+        var retour = mem.ram[sp] | (mem.ram[sp + 1] << 8);
+        if (hw)
+            bad += Voir("NE posé ; #MF, l'adresse de retour (486)", (sp, retour) == (0xFFF8, 0x010A),
+                        $"SP = {sp:X4}, [SP] = {retour:X4}", "SP = FFF8, [SP] = 010A", hw);
+        (ip, _) = Acheminer(5, [.. Zero, 0x9B, 0xF4], 8, avant: Ne);
+        bad += Voir("NE posé ; FDIVP 1/0 ; WAIT (486)", ip == (hw ? 0x0800 : 0x010B), $"IP = {ip:X4}",
+                    hw ? "IP = 0800 (#MF)" : "IP = 010B", hw);
+        // Les sept qui n'attendent pas, après l'exception : FNSTSW AX ; FNSTCW [BX+2] ; FNSTENV [BX+10h] ; FSETPM ;
+        // FNSAVE [BX+30h] ; HLT en 0117h. Puis en a32 (387 et 486) : FNSTCW [EBX+2] ; FNSTENV [EBX+10h] ; FNSTSW [EBX+4] ;
+        // FNSAVE [EBX+30h] ; HLT en 011Ah. Aucune n'est arrêtée (ni #MF sur le 486, NE posé ou non).
+        byte[] a16 = [.. Zero, 0xDF, 0xE0, 0xD9, 0x7F, 0x02, 0xD9, 0x77, 0x10, 0xDB, 0xE4, 0xDD, 0x77, 0x30, 0xF4];
+        byte[] a32 = [.. Zero, 0x67, 0xD9, 0x7B, 0x02, 0x67, 0xD9, 0x73, 0x10, 0x67, 0xDD, 0x7B, 0x04, 0x67, 0xDD, 0x73, 0x30,
+                      0xF4];
+        foreach (var (fpu, nom, ne) in new[] { (2, "287", false), (3, "287XL", false), (4, "387", false), (5, "486", false),
+                                              (5, "486, NE posé", true) })
+        {
+            (ip, _) = Acheminer(fpu, a16, 14, avant: ne ? Ne : null);
+            bad += Voir($"FDIVP 1/0 ; les sept sans attente ({nom})", ip == 0x0117, $"IP = {ip:X4}", "IP = 0117", hw);
+            if (fpu < 4)
+                continue;
+            (ip, _) = Acheminer(fpu, a32, 13, avant: ne ? Ne : null);
+            bad += Voir($"FDIVP 1/0 ; les quatre a32 sans attente ({nom})", ip == 0x011A, $"IP = {ip:X4}", "IP = 011A", hw);
+        }
         return bad;
+    }
+
+    // PB-69 — sur un PC ou un XT, la sortie INT du 8087 va à la NMI, que le port A0h masque (AP-578 § 2.1) : MOV
+    // AL,80h ; OUT A0h,AL ; FNINIT ; FLDCW [BX] (037Bh, IEM nul) ; FLD1 ; FLDZ ; FDIVP ; HLT → la NMI, IP = 0500h ;
+    // PCem 010Eh. IEM posé (03FBh) ou A0h nul : 010Eh dans les deux modes. La NMI qui rend la main par IRET : 010Eh,
+    // prise sur un front, une fois (en niveau, elle reviendrait à chaque IRET). A0h ouvert après l'exception : la NMI
+    // vient alors ; FNCLEX ou FNINIT entre les deux : elle ne vient plus. Deux exceptions, ES encore posé à la seconde :
+    // une seule NMI (le front).
+    private static int Pb69(bool hw)
+    {
+        var bad = 0;
+        byte[] A0(byte v) => [0xB0, v, 0xE6, 0xA0];
+        nmi.nmi_init();
+        try
+        {
+            byte[] hlt = [0xF4], iret = [0x46, 0xCF];
+            (string nom, byte[] code, ushort cw, byte[] nmi, int pcem, int materiel)[] cas =
+            [
+                ("A0h = 80h ; FDIVP 1/0, IEM nul", [.. A0(0x80), .. Zero, 0xF4], 0x037B, hlt, 0x010E, 0x0500),
+                ("A0h = 80h ; FDIVP 1/0, IEM posé", [.. A0(0x80), .. Zero, 0xF4], 0x03FB, hlt, 0x010E, 0x010E),
+                ("A0h = 00h ; FDIVP 1/0, IEM nul", [.. A0(0x00), .. Zero, 0xF4], 0x037B, hlt, 0x010E, 0x010E),
+                ("A0h = 80h ; FDIVP 1/0, la NMI rend la main (IRET)", [.. A0(0x80), .. Zero, 0xF4], 0x037B, iret, 0x010E,
+                 0x010E),
+                ("FDIVP 1/0 ; A0h = 80h", [.. Zero, .. A0(0x80), 0xF4], 0x037B, hlt, 0x010E, 0x0500),
+                ("FDIVP 1/0 ; FNCLEX ; A0h = 80h", [.. Zero, 0xDB, 0xE2, .. A0(0x80), 0xF4], 0x037B, hlt, 0x0110, 0x0110),
+                ("FDIVP 1/0 ; FNINIT ; A0h = 80h", [.. Zero, 0xDB, 0xE3, .. A0(0x80), 0xF4], 0x037B, hlt, 0x0110, 0x0110),
+            ];
+            foreach (var (nom, code, cw, nmi, pcem, materiel) in cas)
+            {
+                var (ip, _) = Acheminer(1, code, 10, cw, nmi: nmi);
+                var attendu = hw ? materiel : pcem;
+                bad += Voir($"{nom} (8087)", ip == attendu, $"IP = {ip:X4}", $"IP = {attendu:X4}", hw);
+            }
+            // Le front : la NMI (INC SI ; IRET) une fois pour deux exceptions, ES encore posé à la seconde ; PCem, aucune.
+            Acheminer(1, [.. A0(0x80), .. Zero, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xF4], 16, nmi: iret);
+            var si = Registres[(int)R.SI];
+            bad += Voir("A0h = 80h ; deux FDIVP 1/0, ES encore posé ; les NMI prises (8087)", si == (hw ? 1 : 0),
+                        $"{si}", hw ? "1" : "0", hw);
+        }
+        finally
+        {
+            io.io_removehandler(0x00a0, 0x0001, null, null, null, nmi.nmi_write, null, null, null);
+        }
+        return bad;
+    }
+
+    // PB-204 — l'AT verrouille BUSY# sur ERROR# jusqu'à une écriture au port F0h (387 PRM, annexe F ; AP-578 § 2.2.1),
+    // et F1h remet le coprocesseur à zéro. Le 287 et le 387 : après FDIVP 1/0, FLD1 (ou WAIT) attend, IP = 010Ah ; PCem
+    // l'exécute. OUT F0h,AL ; FLD1 ; FNSTSW [BX] → A884h (TOP = 5, ZE, ES, B) ; PCem 2804h. FNINIT passe le verrou
+    // (0000h dans les deux modes). FNINIT ; FLD1 ; OUT F1h,AL ; FNSTSW [BX] → 0000h ; PCem 3800h. Le 486, NE nul : FLD1
+    // (ou WAIT) attend IGNNE#, que pose OUT F0h. IRQ13 en attente au second 8259 après l'exception : dans les deux
+    // modes (le témoin). Une seconde exception, ES encore posé, n'a pas de front : FLD1 passe (dans les deux modes).
+    private static int Pb204(bool hw)
+    {
+        var bad = 0;
+        return Avec8259(() =>
+        {
+            model_c.at_coprocesseur_init();
+            try
+            {
+                foreach (var (fpu, nom) in new[] { (2, "287"), (3, "287XL"), (4, "387"), (5, "486") })
+                {
+                    Pic(true);
+                    var (ip, _) = Acheminer(fpu, [.. Zero, 0xD9, 0xE8, 0xF4], 8);
+                    bad += Voir($"FDIVP 1/0 ; FLD1 ({nom})", ip == (hw ? 0x010A : 0x010C), $"IP = {ip:X4}",
+                                hw ? "IP = 010A (attend)" : "IP = 010C", hw);
+                    var irq13 = (pic.pic2.pend & 0x20) != 0;
+                    bad += Voir($"FDIVP 1/0, IRQ13 en attente ({nom}, témoin)", irq13, $"{irq13}", "True", hw);
+                    (ip, _) = Acheminer(fpu, [.. Zero, 0x9B, 0xF4], 8);
+                    bad += Voir($"FDIVP 1/0 ; WAIT ({nom})", ip == (hw ? 0x010A : 0x010B), $"IP = {ip:X4}",
+                                hw ? "IP = 010A (attend)" : "IP = 010B", hw);
+                    var (_, m) = Acheminer(fpu, [.. Zero, 0xE6, 0xF0, 0xD9, 0xE8, 0xDD, 0x3F], 8);
+                    bad += Voir($"FDIVP 1/0 ; OUT F0h ; FLD1 ; FNSTSW m16 ({nom})", m == (hw ? 0xA884 : 0x2804), $"{m:X4}",
+                                hw ? "A884" : "2804", hw);
+                    (ip, _) = Acheminer(fpu, [.. Zero, 0xE6, 0xF0, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xE8, 0xF4], 13);
+                    bad += Voir($"FDIVP 1/0 ; OUT F0h ; FDIVP 1/0, ES encore posé ; FLD1 ({nom})", ip == 0x0114,
+                                $"IP = {ip:X4}", "IP = 0114 (sans front, ni verrou ni arrêt)", hw);
+                    if (fpu == 5)
+                        continue;
+                    (_, m) = Acheminer(fpu, [.. Zero, 0xDB, 0xE3, 0xDD, 0x3F], 7);
+                    bad += Voir($"FDIVP 1/0 ; FNINIT ; FNSTSW m16 ({nom})", m == 0x0000, $"{m:X4}", "0000", hw);
+                    (_, m) = Acheminer(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xE6, 0xF1, 0xDD, 0x3F], 4);
+                    bad += Voir($"FNINIT ; FLD1 ; OUT F1h ; FNSTSW m16 ({nom})", m == (hw ? 0x0000 : 0x3800), $"{m:X4}",
+                                hw ? "0000" : "3800", hw);
+                    (_, m) = Acheminer(fpu, [.. Zero, 0xE6, 0xF1, 0xD9, 0xE8, 0xDD, 0x3F], 8);
+                    bad += Voir($"FDIVP 1/0 ; OUT F1h ; FLD1 ; FNSTSW m16 ({nom})", m == (hw ? 0x3800 : 0x2804), $"{m:X4}",
+                                hw ? "3800" : "2804", hw);
+                }
+            }
+            finally
+            {
+                io.io_removehandler(0x00f0, 0x0002, null, null, null, _x87_materiel.ecrire_f0_f1, null, null, null);
+            }
+            return bad;
+        });
     }
 
     // PB-58 — FLDZ ; FLDZ ; FCHS (ST(0) = −0, ST(1) = +0) ; FCOMPP ; FNSTSW AX → égaux, C3 (IEEE 754-1985 § 5.7) ; PCem,

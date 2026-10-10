@@ -47,11 +47,13 @@ internal static class ModeMateriel
         new(51, "processeur", "la lecture d'une instruction contrôle la limite de CS (286, 386, 486)"),
         new(57, "x87", "FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom"),
         new(58, "x87", "FCOMPP compare −0 et +0 égaux, sans le contournement de détection"),
+        new(59, "x87", "une division par zéro démasquée pose ES et B, et l'exception va où la carte la mène"),
         new(61, "x87", "FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486)"),
         new(63, "x87", "FXAM rend la classe de ST(0), et le signe dans C1"),
         new(64, "x87", "FTST rend un NaN non ordonné"),
         new(66, "x87", "les constantes au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486"),
         new(67, "x87", "FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64"),
+        new(69, "x87", "sur un PC ou un XT, l'exception du 8087 lève la NMI, que le port A0h masque"),
         new(70, "x87", "le 8087 et le 287 comparent en projectif tant que IC est nul"),
         new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
@@ -83,6 +85,7 @@ internal static class ModeMateriel
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
         new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
+        new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
         new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
@@ -108,8 +111,10 @@ internal static class ModeMateriel
     /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
     /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
-    /// fonction (x87.Materiel.cs).</summary>
-    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70]];
+    /// fonction (x87.Materiel.cs). PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée par la carte, au
+    /// même site (x87.Materiel.cs).</summary>
+    internal static readonly int[][] Groupes =
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204]];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

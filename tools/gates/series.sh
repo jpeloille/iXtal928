@@ -597,3 +597,9 @@ for pb in 207 213; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6c — l'acheminement de ZE, un groupe : PB-59 (ES et B ; #MF du 486), PB-69 (la NMI du 8087), PB-204 (le verrou de
+# l'AT, F0h et F1h ; IGNNE# du 486).
+for pb in 59 69 204; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

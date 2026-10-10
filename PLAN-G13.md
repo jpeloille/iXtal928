@@ -279,7 +279,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   #GP, ou #SS pour la pile), demandé par Julien le 10/10 ; un contrôle sur chaque accès mémoire, le chemin le plus chaud
   du cœur : son coût mesuré (M1) en mode matériel, nul en mode PCem (M2) ; SST 386, familles E2 et E3.
 
-### G13.6 — Le x87  *(en cours : 6a et 6b faits ; 6c, l'acheminement ; puis le point de décision n° 10)*
+### G13.6 — Le x87  *(6a, 6b et 6c faits ; suit le point de décision n° 10)*
 
 - Le cadre : des tables du mode posées par `cpu_set`, d'abord copies conformes (le fuzzeur doit rester vert) ; le
   harnais `x87hw-cases`, en C# seul.
@@ -299,8 +299,13 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **G13.6b, les deux PB de gestionnaires restants** ✅ *(10/10, VERIFICATION.md § G13.6b)* : PB-213 (les comparaisons
   remettent C1 à zéro : 287XL, 387, 486), oublié de 6a, et PB-207 (FSTENV masque les exceptions), par enveloppes posées
   dans les tables du mode, chaque gestionnaire repéré par son nom.
-- **G13.6c, l'acheminement** : PB-59 pour ZE (ES et B, les cycles), PB-69 (le 8087 du PC et de l'XT par la NMI), IRQ13
-  et le verrou de l'AT (PB-204, F0h et F1h), FERR# et #MF du 486, avec ZE seule.
+- **G13.6c, l'acheminement** ✅ *(10/10, VERIFICATION.md § G13.6c)* : PB-59, PB-69 et PB-204 en un groupe, ZE seule.
+  ES et B posés sur le front de l'exception ; le 8087 lève la NMI que le port A0h masque (les deux `nmi_mask` de la
+  transcription reliés en mode matériel), prise sur un front ; le 287 et le 387, IRQ13 et le verrou de l'AT, que F0h
+  et F1h effacent (F1h remet aussi le coprocesseur à zéro) ; le 486, FERR# vers IRQ13, #MF si NE, sinon l'arrêt
+  jusqu'à IGNNE#. Chaque instruction qui attend est enveloppée dans les tables du mode (toutes sauf FNCLEX, FNINIT,
+  FSETPM, FNSTCW, FNSTSW, FNSAVE et FNSTENV), WAIT par une garde. Les cycles de l'instruction démasquée restent ceux
+  de PCem (inconnus ; avec le noyau). Le scénario `ami386dx-x87div` des listings.
 - **Vérification** : `x87hw-cases`, aux attentes du 387 PRM (annexe C), du 287 PRM, du Numerics Supplement et de
   l'AP-578 ; le domaine d'accord contre l'oracle (opérandes normaux, PC à 53 bits, arrondi au plus près, PE et C1
   exclus) ; MSD « 80287 » sur un 286 avec 287 ; une série par sous-étape.

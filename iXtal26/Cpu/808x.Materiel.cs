@@ -460,7 +460,36 @@ internal static partial class _808x
                         if (ops_808x_fpu_d9_a16[i] is { } h && h.Method.Name == nameof(opFSTENV_a16))
                                 ops_808x_fpu_d9_a16[i] = opFSTENV_8087_materiel;
                 break;
+        case 59:
+                ops_808x_fpu_db_a16[0xE2] = opFCLEX_8087_materiel;
+                break;
+        case 69:
+                ops_808x_fpu_db_a16[0xE3] = opFINIT_8087_materiel;
+                break;
         }
+    }
+
+    // pcem bug, fixed in hardware mode: PB-59 — FCLEX du 8087 efface aussi B ; PB-69 : et IR, sa sortie INT retombe
+    //   (x87.Materiel.cs).
+    private static int opFCLEX_8087_materiel(uint32_t fetchdat)
+    {
+        var r = opFCLEX(fetchdat);
+        if (r == 0)
+        {
+                _x87_materiel.effacer_b();
+                _x87_materiel.int_8087_retombe();
+        }
+        return r;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-69 — FINIT du 8087 : IR effacé, IEM posé, sa sortie INT retombe
+    //   (x87.Materiel.cs).
+    private static int opFINIT_8087_materiel(uint32_t fetchdat)
+    {
+        var r = opFINIT(fetchdat);
+        if (r == 0)
+                _x87_materiel.int_8087_retombe();
+        return r;
     }
 
     // pcem bug, fixed in hardware mode: PB-207 — FSTENV du 8087, puis les six masques (x87.Materiel.cs). Un gestionnaire
