@@ -341,6 +341,27 @@ internal static partial class cpu_c
                 _386.x86_opcodes_de_a32 = _386.ops_fpu_de_a32;
                 _386.x86_opcodes_df_a16 = _386.ops_fpu_df_a16;
                 _386.x86_opcodes_df_a32 = _386.ops_fpu_df_a32;
+                // G13.6 — les tables x87 du mode matériel : des copies de celles de PCem, où chaque correction pose ses
+                //   gestionnaires (x87.Materiel.cs) ; aucune garde ne s'écrit dans les gestionnaires générés.
+                // pcem bug, fixed in hardware mode: PB-61 — FNSTSW AX (DF E0).
+                if (materiel.pb_61)
+                        _x87_materiel.poser(61);
+                // pcem bug, fixed in hardware mode: PB-57 — FCOM, FCOMP et FCOMPP de registre ; avec PB-64 et PB-70.
+                if (materiel.pb_57)
+                        _x87_materiel.poser(57);
+                // pcem bug, fixed in hardware mode: PB-64 — FTST.
+                if (materiel.pb_64)
+                        _x87_materiel.poser(64);
+                // pcem bug, fixed in hardware mode: PB-63 — FXAM.
+                if (materiel.pb_63)
+                        _x87_materiel.poser(63);
+                // pcem bug, fixed in hardware mode: PB-66 — les constantes, ln 2 au plus près, et RC sur le 287XL, le 387 et
+                //   le 486.
+                if (materiel.pb_66)
+                        _x87_materiel.poser(66);
+                // pcem bug, fixed in hardware mode: PB-67 — FST et FSTP ST(i), l'entier exact de TAG_UINT64.
+                if (materiel.pb_67)
+                        _x87_materiel.poser(67);
         }
         else
         {

@@ -8450,3 +8450,86 @@ Contre g5c1, les 397 portes communes rendent les mêmes verdicts ; un seul résu
 `sst286-materiel` reproduisent leurs nouveaux attendus, `sst386` et `sst286` (mode PCem) les anciens. Les 2 portes
 neuves sont les cas de PB-189 dans les deux modes. Comme pour g5c1, `os/386-HDD-C.img` a tourné avec l'image de
 référence (empreinte vérifiée), copiée dans le worktree seul.
+
+## G13.6a — Le x87 : le cadre, et les défauts à peu de gestionnaires
+
+Le 10 octobre 2026, première sous-étape de G13.6 (feu vert de Julien le 10 : « tu as mon feu vert »). Huit défauts du
+x87, corrigés en mode matériel : PB-61 (FNSTSW AX sans TOP), PB-57, PB-58, PB-64 et PB-70 en un groupe (les
+comparaisons : FCOM de registre, le contournement de FCOMPP, FTST, l'infini projectif), PB-63 (FXAM), PB-66 (les
+constantes), PB-67 (FST de registre sans l'entier de TAG_UINT64). Le mode PCem ne bouge pas.
+
+**Le cadre.** Les gestionnaires du x87 sont générés (`tools/x87gen`) et aiguillés par table : aucune garde ne s'y écrit.
+En mode matériel, `cpu_set` pose donc les tables du mode : à la première correction qui touche une table, une copie de
+celle de PCem, où chaque correction demandée pose ses gestionnaires (`_x87_materiel.poser`, sous la garde de son PB,
+`Cpu/x87.Materiel.cs`). Le mode PCem garde les tables de PCem, sans copie. Le 8087, que execx86 indexe en dur, voit
+ses entrées remplacées en place (`_808x.poser_8087_materiel`, `Cpu/808x.Materiel.cs`), en mode matériel seulement.
+`x87_compare`, transcrit à la main, porte la seule garde dans le code de PCem (PB-70) ; toutes les formes qui
+l'appellent (FCOM, FICOM, FUCOM et leurs variantes) en profitent. Les générateurs émettent les marqueurs « fixed in
+hardware mode » et rendent les fichiers commités à l'octet près ; gen46 fait de la copie 8087 de PB-61 un commentaire
+non marqueur (le 8087 n'a pas DF E0, PB-200). Le harnais `x87hw-cases` prévu est fondu dans `materiel-cas` : chaque cas
+joue le 8087 (cœur 8088), le 287 (cœur 286), le 387 (cœur 386) et le x87 du 486, en C# seul ; 77 cas.
+
+**Les corrections et leurs cas** (`materiel-cas PB-nn`) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 61 | FNINIT ; FLD1 ×3 ; FNSTSW AX (287, 387) | AX = 0000h | AX = 2800h (TOP = 5) |
+| 57 | FLD1 ; FLD NaN ; FCOM ST(1) (8087, 287, 387, 486) | C3 C2 C0 = 000 | 111, non ordonné |
+| 57 | FCOMP ST(1) et FCOMPP, NaN contre 1 (les entrées posées) | 111 | 111 |
+| 57 | le temps de FCOM, FCOMP et FCOMPP de registre (387, le dernier pas) | 28 cycles (`fadd`) | 24 (`fcom`) |
+| 58 | FLDZ ; FLDZ ; FCHS ; FCOMPP | 001 (le contournement) | 100, −0 = +0 |
+| 64 | FLD NaN ; FTST | 000 | 111 |
+| 64 | 1/0 ; FTST (+∞) | 000 | 111 en projectif (8087, 287) ; 000 sur le 387 et le 486, les témoins |
+| 70 | 1/0 ; FLD ST ; FCHS ; FCOMPP (la détection classique) | 001 (−∞ < +∞) | 100 sur le 8087 et le 287 (projectif) ; 001 sur le 387, le témoin |
+| 63 | FXAM de +∞, NaN, −0 | 0100, 0100, 1000 | 0101, 0001, 1010 (C3 C2 C1 C0) |
+| 66 | FLDLN2 ; FSTP m64 | 3FE62E42FEFA39F0 | …39EF, au plus près |
+| 66 | RC vers −∞ ; FLDLG2 ; FSTP m64 | 3FD34413509F79FF | …79FE sur le 387 et le 486 ; …79FF sur le 8087 et le 287, les témoins |
+| 66 | RC vers +∞ ; FLDL2T, FLDL2E, FLDPI ; FSTP m64 | …A371, …82FE, …2D18 | …A372, …82FF, …2D19 sur le 387 et le 486 ; au plus près ailleurs |
+| 67 | FILD 5 ; FILD 2^53 + 1 ; FST ST(1) ; FINCSTP ; FISTP m64 | 0000000000000005 | 0020000000000001 |
+| 67 | FILD ; FILD ; FSTP ST(1), par DD D9 et par D9 D9 ; FISTP m64 | 0000000000000005 | 0020000000000001 |
+
+Chacun rend la valeur de PCem en mode PCem, celle du matériel avec la seule correction (et son groupe), la sonde
+comptant ses passages, et chaque cas discriminant rougit jugé sur l'attente de l'autre mode. Les constantes : les
+doubles calculés de la valeur exacte à 60 chiffres (log₂ 10, log₂ e, π, log₁₀ 2, ln 2 ; le plus proche, celui du
+dessous, celui du dessus) ; PCem n'est faux qu'en ln 2, et sur RC. IE, que le silicium pose pour un opérande non
+comparable, n'est pas posé : il viendra avec les autres exceptions (PB-59, le noyau). Les cas du 8087 lisent le mot
+d'état par DF E0, que PCem exécute sur le 8087 (PB-200).
+
+**L'hypothèse A6 (PB-58), instruite.** Le contournement de FCOMPP servait, d'après son commentaire, la détection du
+387. Avec toutes les corrections du x87 (`--hardware-mode x87`), les POST du PC (8087), de l'AT (287), de l'ami386dx
+(387) et de l'ami486 détectent leur coprocesseur comme en mode PCem : le mot d'équipement de la BDA est identique
+(946Fh, 8453h, 8423h, 8423h), son bit 1 posé.
+
+**Le mode PCem ne coûte rien (M2).** M2-6a, les onze scénarios : identiques à M0, hors les sept méthodes froides
+connues et les sept du mécanisme ; `cpu_set` à l'octet près. Aucun scénario ne compilait `x87_compare` ni les
+gestionnaires en cause : un douzième, `ami386dx-x87` (l'ami386dx avec un 387, `tools/gates/cfg/ami386dx-387-fd.cfg.in`),
+y joue sous DEBUG FNINIT, FCOMPP, FLDLN2, FXAM, FTST, FCOM et FCOMP de registre, FST et FSTP de registre, FCOM m64 et
+FNSTSW AX ; sa référence M0 est jouée sur 860f2b1 (`/var/tmp/ixtal-g13/M0-860f2b1-g136a`, `M0-tout` en a douze) :
+identique, `x87_compare` et les dix gestionnaires à l'octet près. **Le coût (M1)** : aucune garde sur un chemin
+d'instruction (les tables se posent au reset) ; sans banc.
+
+**Les contrôles négatifs** (`/tmp/a9/neg136a.py`, une copie des sources) ; le témoin sans faute est vert (les huit cas,
+le recensement) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| un NaN rendu ordonné (un seul NaN suffit) | `materiel-cas PB-57`, `PB-64` | rouge, 12 et 4 échecs |
+| le projectif oublié | `materiel-cas PB-70` | rouge, 3 échecs |
+| FNSTSW AX sans TOP | `materiel-cas PB-61` | rouge, 2 échecs |
+| le signe de FXAM par `< 0` | `materiel-cas PB-63` | rouge, 4 échecs (−0) |
+| ln 2 de PCem | `materiel-cas PB-66` | rouge, 4 échecs |
+| FST sans MM[].q | `materiel-cas PB-67` | rouge, 12 échecs |
+| le contournement de FCOMPP gardé | `materiel-cas PB-58` | rouge (les cas, la sonde muette) |
+| le 8087 non posé | `materiel-cas PB-57` | rouge, 1 échec (le 8087) |
+| un marqueur de PB-61 resté `reproduced` | `recensement` | rouge |
+| les tables posées hors de leur garde (une fuite) | `materiel-cas PB-61`, mode PCem | rouge, 2 échecs |
+
+**La contre-lecture** (Sonnet, en lecture seule ; les générateurs rejoués dans un bac à sable, identiques à l'octet) :
+aucune fuite, les indices de table, les gestionnaires, les quinze constantes et la règle projective justes. Repris : des
+entrées posées sans cas (FCOMP et FCOMPP, FSTP par DD et D9, log₂ 10, log₂ e et π, FTST de l'infini projectif, le
+temps de `fcom`), désormais jouées, et le 486 ajouté aux cas ; la sonde de PB-58 ne compte que le motif (−0, +0) ;
+l'en-tête de `x87_ops_arith.cs` (gen43), deux commentaires, et le texte de PB-70 sur FUCOM (exécuté sur le 8087 et le
+287 par PB-209). Les contrôles négatifs ont été rejoués avec les cas ajoutés.
+
+**La série** (`g6a1`, le 10/10, 19:13 → 20:22, contre `g5d1`) : 415 portes vertes, les 399 de `g5d1` et les seize
+`materiel-cas` de G13.6a (huit PB, chacun dans les deux modes) ; aucun écart.

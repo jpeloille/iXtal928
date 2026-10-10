@@ -818,9 +818,13 @@ annexe C ; 287 PRM table 2-6 p. 2-10 et Numerics Supplement (1980), fiche du 808
 *Cas qui discrimine* : ST(0) = 7FF8000000000000, ST(1) = 1,0 ; FCOM ST(1) (D8 D1) ; FSTSW m16 → PCem C3 = C2 = C0 = 0,
 IE = 0, silicium (387 et suivants) C3 = C2 = C0 = 1, IE = 1 ; cycles : `fadd` (28 sur le 387) contre `fcom` (24).
 *G13* : (a) — G13.6, les PB à peu de gestionnaires (les comparaisons) ; C2 du 8087 et du 287 : (c).
-*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOM`, marqueur PB-57 (généré par `gen43.py`), et sa copie de
+*Reproduit* en mode PCem : `Cpu/x87_ops_arith.cs`, `opFCOM`, marqueur PB-57 (généré par `gen43.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`. `x87-cases` le confronte à l'oracle (NaN contre 1) ; contrôle négatif : x87_compare sans son
 test de NaN → divergence `npxs` à l'itération 67 du fuzzeur G4.3.
+*Corrigé en mode matériel* (G13.6a), avec PB-58, PB-64 et PB-70 (un groupe : les comparaisons) : sous `if (materiel.pb_57)`,
+les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FCOM, FCOMP et FCOMPP de registre corrigés (`compare_materiel`), au temps de `fcom`, sur le 8087, le 287,
+le 387 et le 486. IE, que le silicium pose pour un NaN, reste à poser avec les autres exceptions (PB-59). `materiel-cas
+PB-57` : NaN contre 1 sur les trois coprocesseurs, C3 C2 C0 = 111 contre 000.
 
 ### PB-58 — FCOMPP : −0 contre +0 rend « plus petit », un contournement de détection
 
@@ -845,8 +849,12 @@ FCOMPP (±0 égaux : C3) — documenté.
 *Cas qui discrimine* : FLDZ ; FLDZ ; FCHS (ST(0) = −0, ST(1) = +0) ; FCOMPP ; FSTSW m16 → PCem 0100h (C0), silicium
 4000h (C3).
 *G13* : (a) — G13.6, avec la part « comparaisons » de PB-70, après l'hypothèse A6 instruite.
-*Reproduit* : `Cpu/x87_ops_arith.cs`, `opFCOMPP`, marqueur PB-58, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` :
+*Reproduit* en mode PCem : `Cpu/x87_ops_arith.cs`, `opFCOMPP`, marqueur PB-58, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` :
 FCOMPP (−0, +0) identique à l'oracle ; sans le contournement, `npxs : oracle 0x0100, C# 0x4000`.
+*Corrigé en mode matériel* (G13.6a), dans le groupe des comparaisons : sous `materiel.pb_58`, le FCOMPP du mode
+(`_x87_materiel.fcompp`) ne prend plus le contournement : −0 et +0 égaux, C3. L'hypothèse A6 instruite : avec toutes
+les corrections du x87, les POST du PC (8087), de l'AT (287), de l'ami386dx (387) et de l'ami486 détectent leur
+coprocesseur comme en mode PCem (le mot d'équipement de la BDA, identique). `materiel-cas PB-58` : C3 contre C0.
 
 ### PB-59 — Seule la division par zéro lève une exception ; démasquée, l'instruction s'évapore
 
@@ -920,8 +928,12 @@ instruction ») — documenté.
 *Cas qui discrimine* : FNINIT ; FLD1 ; FLD1 ; FLD1 (TOP = 5) ; FNSTSW AX → PCem AX = 0000h, silicium 2800h ; FSTSW m16
 rend 2800h des deux côtés.
 *G13* : (a) — G13.6, le premier des PB à peu de gestionnaires (le pilote du x87) ; DF E0 sur le 8087 : PB-200.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFSTSW_AX`, marqueur PB-61 (généré par `gen44.py`), et sa copie de
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `opFSTSW_AX`, marqueur PB-61 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`. `x87-cases` : FNSTSW AX et FSTSW m16, TOP 0, 3, 6, npxs 0x3800.
+*Corrigé en mode matériel* (G13.6a, le pilote du x87) : sous `if (materiel.pb_61)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`)
+portent DF E0 corrigé (`opFSTSW_AX_materiel`), sur le 287, le 387 et le 486 ; le 8087 n'a pas DF E0 (PB-200), et la
+copie de son gestionnaire n'est plus un marqueur. `materiel-cas PB-61` : FNINIT ; FLD1 ×3 ; FNSTSW AX, 2800h contre
+0000h.
 
 ### PB-62 — Le pointeur d'instruction et d'opérande x87 n'est jamais mémorisé
 
@@ -963,8 +975,12 @@ signe dans C1 pour toutes les classes.
 *Cas qui discrimine* : FXAM ; FSTSW m16, en C3 C2 C1 C0 : ST(0) = +∞ → PCem 0100, silicium 0101 ; ST(0) =
 FFF8000000000000 → PCem 0100, silicium 0011 ; ST(0) = −0 → PCem 1000, silicium 1010.
 *G13* : (a) — G13.6, les PB à peu de gestionnaires ; codes « vide » du 8087 et du 287 : (c).
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFXAM`, marqueur PB-63, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FXAM
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `opFXAM`, marqueur PB-63, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FXAM
 sur onze classes, tag VALID et EMPTY.
+*Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_63)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FXAM corrigé (`fxam_materiel`) : vide,
+NaN, infini, zéro, normal, et le signe dans C1 ; la classe « dénormal » n'apparaît pas, un dénormal de 64 bits étant
+normal dans les 80 bits du registre ; le vide garde le C1 de PCem. `materiel-cas PB-63` : +∞, NaN et −0 sur les trois
+coprocesseurs.
 
 ### PB-64 — FTST : un NaN rend « plus grand »
 
@@ -976,8 +992,11 @@ C3 = C2 = C0 = 0 au lieu de « non ordonné ».
 *Cas qui discrimine* : ST(0) = 7FF8000000000000 ; FTST ; FSTSW m16 → PCem C3 = C2 = C0 = 0, IE = 0, silicium C3 = C2 =
 C0 = 1, IE = 1.
 *G13* : (a) — G13.6, les PB à peu de gestionnaires (IE avec PB-59, ∞ projectif avec PB-70).
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFTST`, marqueur PB-64, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FTST
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `opFTST`, marqueur PB-64, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : FTST
 sur les classes.
+*Corrigé en mode matériel* (G13.6a), dans le groupe des comparaisons : sous `if (materiel.pb_64)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FTST
+corrigé (`compare_materiel` contre +0) : un NaN, et en projectif un infini, non ordonnés. `materiel-cas PB-64` : NaN
+sur les trois coprocesseurs, 111 contre 000.
 
 ### PB-65 — FPREM tronque en un pas ; FPREM1 est FPREM
 
@@ -1018,8 +1037,12 @@ l'annexe C du 387 PRM (§ C.4, p. C-5) contre quatre textes (387 PRM § 4.7 p. 4
 *Cas qui discrimine* : FLDLN2 ; FSTP m64 → PCem 3FE62E42FEFA39F0, silicium (au plus près, vers −∞ ou vers zéro)
 3FE62E42FEFA39EF ; FLDLG2 sous RC vers −∞ (077Fh) ; FSTP m64 → PCem 3FD34413509F79FF, silicium 3FD34413509F79FE.
 *G13* : (a) pour le 387 et le 486 — G13.6, les PB à peu de gestionnaires ; 8087 et 287 : (b), la valeur au plus près.
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFLDLN2`, marqueur PB-66, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : les
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `opFLDLN2`, marqueur PB-66, et sa copie de `Cpu/x87_ops_808x.cs`. `x87-cases` : les
 sept constantes.
+*Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_66)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent les cinq constantes de D9 E9 à ED au
+double le plus proche de leur valeur exacte (calculée à 60 chiffres) sur le 8087 et le 287, et selon RC sur le 287XL,
+le 387 et le 486 (`constante_materiel`). `materiel-cas PB-66` : FLDLN2, …39EF contre …39F0 ; FLDLG2 sous RC vers −∞,
+…79FE sur le 387 (…79FF au plus près sur le 8087 et le 287, le témoin).
 
 ### PB-67 — FST et FSTP registre copient le tag TAG_UINT64, pas l'entier qu'il désigne
 
@@ -1034,8 +1057,11 @@ ce registre physique, pas la valeur chargée.
 *Cas qui discrimine* : FNINIT ; FILD m64 = 5 ; FILD m64 = 2^53 + 1 ; FST ST(1) ; FINCSTP ; FISTP m64 → PCem
 0000000000000005, silicium 0020000000000001.
 *G13* : (a) — G13.6, les PB à peu de gestionnaires (en double, recopier MM[].q ; avec le noyau, la rustine disparaît).
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `opFST` et `opFSTP`, marqueurs PB-67, et leurs copies de `Cpu/x87_ops_808x.cs`.
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `opFST` et `opFSTP`, marqueurs PB-67, et leurs copies de `Cpu/x87_ops_808x.cs`.
 `x87-cases` : `FST ST1 ; FINCSTP ; FISTP m64`.
+*Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_67)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FST et FSTP ST(i) corrigés
+(`fst_materiel`), qui copient aussi MM[].q. `materiel-cas PB-67` : FILD 5 ; FILD 2^53 + 1 ; FST ST(1) ; FINCSTP ;
+FISTP m64, 0020000000000001 contre 5, sur les trois coprocesseurs.
 
 ### PB-68 — Les transcendantes : la libm de l'hôte, sans bornes ni C2
 
@@ -1104,8 +1130,15 @@ FTST(∞), ∞ ± ∞, FSQRT(+∞) : IE) ; 287 PRM fig. 1-10 ; 387 PRM annexe C 
 *Cas qui discrimine* : 286 + 287 : FNINIT ; FLD1 ; FLDZ ; FDIVP (+∞) ; FLD ST(0) ; FCHS ; FCOMPP ; FSTSW m16 → PCem
 C3 C2 C0 = 001 (−∞ < +∞, « 387 »), silicium 100 (+∞ = −∞ en projectif, « 287 ») ; MSD : « 80287 ».
 *G13* : (a) — G13.6, la part « comparaisons » (avec PB-57, 58, 64) ; ∞ ± ∞, √+∞ : avec le noyau ; 287XL : déduit.
-*Reproduit* : par la transcription, `Cpu/x87_ops.cs` (`x87_compare`) et `Cpu/x87_ops_misc.cs` (`opFINIT`, généré par
+*Reproduit* en mode PCem : par la transcription, `Cpu/x87_ops.cs` (`x87_compare`) et `Cpu/x87_ops_misc.cs` (`opFINIT`, généré par
 `gen44.py`, et sa copie de `Cpu/x87_ops_808x.cs`), marqueurs PB-70 ; témoin MSD.
+*Corrigé en mode matériel* (G13.6a), la part « comparaisons », dans le groupe : sous `if (materiel.pb_70)`,
+`x87_compare` (`Cpu/x87_ops.cs`) rend la comparaison corrigée (`compare_materiel`) : sur le 8087 et le 287, IC nul,
++∞ = −∞ et un infini non comparable à un fini ; le 287XL, le 387 et le 486 restent en affine. Toutes les formes qui
+appellent x87_compare (FCOM et FICOM mémoire, FCOMP, FUCOM, que PCem exécute sur le 8087 et le 287 : PB-209) en
+profitent, avec FCOM de registre et FTST. ∞ ± ∞ et
+√+∞ attendent le noyau. `materiel-cas PB-70` : la détection classique (1/0, FCHS, FCOMPP), C3 sur le 8087 et le 287,
+C0 sur le 387 dans les deux modes (le témoin).
 
 ### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
 

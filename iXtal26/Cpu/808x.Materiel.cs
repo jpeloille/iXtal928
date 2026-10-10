@@ -419,4 +419,148 @@ internal static partial class _808x
     {
         takeint = ((cpu_state.flags & I_FLAG) != 0 && (pic.pic_.pend & ~pic.pic_.mask & ~pic.pic_.mask2) != 0) ? 1 : 0;
     }
+
+    // ===== Le x87 du 8087 (G13.6) =====
+    //
+    // execx86 indexe les tables du 8087 en dur (ops_808x_fpu_*) : en mode matériel, cpu_set y remplace en place les
+    // entrées corrigées (_x87_materiel.poser). Les gestionnaires ont les aides du 8087 (FP_ENTER, CLOCK_CYCLES) et les
+    // comparaisons corrigées, communes (x87.Materiel.cs).
+
+    internal static void poser_8087_materiel(int pb)
+    {
+        switch (pb)
+        {
+        case 57:
+                ops_808x_fpu_d8_a16[0x1A] = ops_808x_fpu_dc_a16[0x1A] = opFCOM_8087_materiel;
+                ops_808x_fpu_d8_a16[0x1B] = ops_808x_fpu_dc_a16[0x1B] = opFCOMP_8087_materiel;
+                ops_808x_fpu_de_a16[0xD9] = opFCOMPP_8087_materiel;
+                break;
+        case 64:
+                ops_808x_fpu_d9_a16[0xE4] = opFTST_8087_materiel;
+                break;
+        case 63:
+                ops_808x_fpu_d9_a16[0xE5] = opFXAM_8087_materiel;
+                break;
+        case 66:
+                ops_808x_fpu_d9_a16[0xE9] = opFLDL2T_8087_materiel;
+                ops_808x_fpu_d9_a16[0xEA] = opFLDL2E_8087_materiel;
+                ops_808x_fpu_d9_a16[0xEB] = opFLDPI_8087_materiel;
+                ops_808x_fpu_d9_a16[0xEC] = opFLDLG2_8087_materiel;
+                ops_808x_fpu_d9_a16[0xED] = opFLDLN2_8087_materiel;
+                break;
+        case 67:
+                for (var i = 0; i < 8; i++)
+                {
+                        ops_808x_fpu_dd_a16[0xD0 + i] = opFST_8087_materiel;
+                        ops_808x_fpu_dd_a16[0xD8 + i] = ops_808x_fpu_d9_a16[0xD8 + i] = opFSTP_8087_materiel;
+                }
+                break;
+        }
+    }
+
+    // pcem bug, fixed in hardware mode: PB-57 — FCOM, FCOMP et FCOMPP du 8087 (x87.Materiel.cs).
+    private static int opFCOM_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
+        cpu_state.npxs |= _x87_materiel.compare_materiel(_386.ST(0), _386.ST((int)(fetchdat & 7)));
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        ModeMateriel.Sonde[57]++;
+        return 0;
+    }
+
+    private static int opFCOMP_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
+        cpu_state.npxs |= _x87_materiel.compare_materiel(_386.ST(0), _386.ST((int)(fetchdat & 7)));
+        _386.x87_pop();
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        ModeMateriel.Sonde[57]++;
+        return 0;
+    }
+
+    private static int opFCOMPP_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
+        cpu_state.npxs |= _x87_materiel.fcompp(_386.ST(0), _386.ST(1));
+        _386.x87_pop();
+        _386.x87_pop();
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        ModeMateriel.Sonde[57]++;
+        return 0;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-64 — FTST du 8087 (x87.Materiel.cs).
+    private static int opFTST_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
+        cpu_state.npxs |= _x87_materiel.compare_materiel(_386.ST(0), 0.0);
+        CLOCK_CYCLES(x87_timings_c.x87_timings.ftst);
+        ModeMateriel.Sonde[64]++;
+        return 0;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-63 — FXAM du 8087 (x87.Materiel.cs).
+    private static int opFXAM_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C1 | x87_c.C2 | x87_c.C3));
+        cpu_state.npxs |= _x87_materiel.fxam_materiel();
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fxam);
+        ModeMateriel.Sonde[63]++;
+        return 0;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-66 — les constantes du 8087, au plus près (x87.Materiel.cs).
+    private static int constante_8087_materiel(int k)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        _386.x87_push_u64(_x87_materiel.constante_materiel(k));
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fld_const);
+        ModeMateriel.Sonde[66]++;
+        return 0;
+    }
+
+    private static int opFLDL2T_8087_materiel(uint32_t fetchdat) => constante_8087_materiel(0);
+    private static int opFLDL2E_8087_materiel(uint32_t fetchdat) => constante_8087_materiel(1);
+    private static int opFLDPI_8087_materiel(uint32_t fetchdat) => constante_8087_materiel(2);
+    private static int opFLDLG2_8087_materiel(uint32_t fetchdat) => constante_8087_materiel(3);
+    private static int opFLDLN2_8087_materiel(uint32_t fetchdat) => constante_8087_materiel(4);
+
+    // pcem bug, fixed in hardware mode: PB-67 — FST et FSTP ST(i) du 8087 (x87.Materiel.cs).
+    private static int opFST_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        _x87_materiel.fst_materiel(fetchdat);
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
+        return 0;
+    }
+
+    private static int opFSTP_8087_materiel(uint32_t fetchdat)
+    {
+        if (FP_ENTER())
+                return 1;
+        cpu_state.pc++;
+        _x87_materiel.fst_materiel(fetchdat);
+        _386.x87_pop();
+        CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
+        return 0;
+    }
 }

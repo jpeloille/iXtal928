@@ -54,6 +54,30 @@ internal static class materiel
     /// <summary>PB-51 : la lecture d'une instruction contrôle la limite de CS (286, 386, 486) ; avec PB-50.</summary>
     internal static readonly bool pb_51;
 
+    /// <summary>PB-57 : FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom ; avec PB-64 et PB-70.</summary>
+    internal static readonly bool pb_57;
+
+    /// <summary>PB-58 : FCOMPP compare −0 et +0 égaux, sans le contournement de détection de PCem ; avec PB-57.</summary>
+    internal static readonly bool pb_58;
+
+    /// <summary>PB-61 : FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486).</summary>
+    internal static readonly bool pb_61;
+
+    /// <summary>PB-63 : FXAM rend la classe de ST(0) : NaN, infini, zéro, normal, vide, et le signe dans C1.</summary>
+    internal static readonly bool pb_63;
+
+    /// <summary>PB-64 : FTST, un NaN non ordonné ; avec PB-57 et PB-70.</summary>
+    internal static readonly bool pb_64;
+
+    /// <summary>PB-66 : les constantes du x87 au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486.</summary>
+    internal static readonly bool pb_66;
+
+    /// <summary>PB-67 : FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64.</summary>
+    internal static readonly bool pb_67;
+
+    /// <summary>PB-70 : le 8087 et le 287 comparent en projectif tant que IC est nul ; avec PB-57 et PB-64.</summary>
+    internal static readonly bool pb_70;
+
     /// <summary>PB-78 : LOADALL386 lève #UD sur le 486.</summary>
     internal static readonly bool pb_78;
 
@@ -204,6 +228,14 @@ internal static class materiel
         pb_45 = ModeMateriel.Demande(45);
         pb_50 = ModeMateriel.Demande(50);
         pb_51 = ModeMateriel.Demande(51);
+        pb_57 = ModeMateriel.Demande(57);
+        pb_58 = ModeMateriel.Demande(58);
+        pb_61 = ModeMateriel.Demande(61);
+        pb_63 = ModeMateriel.Demande(63);
+        pb_64 = ModeMateriel.Demande(64);
+        pb_66 = ModeMateriel.Demande(66);
+        pb_67 = ModeMateriel.Demande(67);
+        pb_70 = ModeMateriel.Demande(70);
         pb_78 = ModeMateriel.Demande(78);
         pb_87 = ModeMateriel.Demande(87);
         pb_94 = ModeMateriel.Demande(94);

@@ -41,7 +41,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -470,6 +470,9 @@ internal static class MaterielCas
     /// 0000:0100 (ou <paramref name="ip"/>), sur un fond de NOP, SP = FFFEh, les drapeaux F002h, et les vecteurs 0 (#DE),
     /// 6 (#UD) et 0Dh (#GP) en 0000:0400, 0000:0600 et 0000:0700, pour qu'une exception se lise à l'IP d'après. Rend les
     /// registres de 16 bits d'après.</summary>
+    /// <summary>Les cycles du dernier pas de Jouer386 (G13.6a : le temps d'une instruction x87).</summary>
+    private static int DernierPas;
+
     private static ushort[] Jouer386(byte[] code, Action<ushort[]> regs, Action? ram = null, int coeur = 386,
                                      int ip = 0x100, int pas = 1)
     {
@@ -493,7 +496,7 @@ internal static class MaterielCas
         regs(r);
         _808x.SetRegs(r);
         for (var k = 0; k < pas; k++)
-            _386.Step286();
+            DernierPas = _386.Step286();
         _386.flags_rebuild();
         _808x.GetRegs(r);
         return r;
@@ -727,6 +730,308 @@ internal static class MaterielCas
         bad += Cas("RETF, SP = FFFEh, CS lu en SS:0000h", 386, [0xCB], r => r[(int)R.SP] = 0xFFFE,
                    r => r[(int)R.SP] == 0x0002 && r[(int)R.CS] == 0x9090, "SP = 0002, CS = 9090 (lu en SS:10000h)",
                    r => r[(int)R.SP] == 0x0002 && r[(int)R.CS] == 0x0400, "SP = 0002, CS = 0400 (lu en SS:0000h), aucune faute");
+        return bad;
+    }
+
+    // ===== Le x87 (G13.6) =====
+
+    /// <summary>Joue `pas` instructions x87 sur le cœur 286 (avec un 287) ou 386 (avec un 387), comme Jouer386 ; rend les
+    /// registres et l'état x87 d'après.</summary>
+    private static (ushort[] r, HState s) JouerX87(byte[] code, int coeur, int pas, Action<ushort[]>? regs = null)
+    {
+        _386.FuzzFpu = coeur == 286 ? 2 : 4;
+        try
+        {
+            var r = Jouer386(code, regs ?? (_ => { }), coeur: coeur, pas: pas);
+            var s = HState.Create();
+            _808x.GetState(ref s);
+            return (r, s);
+        }
+        finally
+        {
+            _386.FuzzFpu = 0;
+        }
+    }
+
+    // PB-61 — FNSTSW AX rend le mot d'état entier, TOP compris (SDM vol. 2, FSTSW ; 287 PRM) : FNINIT ; FLD1 ×3 (TOP = 5) ;
+    // FNSTSW AX → 2800h ; PCem 0000h. Sur le 287 (cœur 286) et le 387 (cœur 386).
+    private static int Pb61(bool hw)
+    {
+        var bad = 0;
+        foreach (var coeur in new[] { 286, 386 })
+        {
+            var (r, _) = JouerX87([0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xE8, 0xD9, 0xE8, 0xDF, 0xE0], coeur, 5);
+            var attendu = hw ? 0x2800 : 0x0000;
+            bad += Voir($"FNINIT ; FLD1 ×3 ; FNSTSW AX ({(coeur == 286 ? "287" : "387")})", r[(int)R.AX] == attendu,
+                        $"AX = {r[(int)R.AX]:X4}", $"AX = {attendu:X4}", hw);
+        }
+        return bad;
+    }
+
+    /// <summary>Joue sur le 8087 (cœur 8088), le 287 (cœur 286) ou le 387 (cœur 386) : un NaN de 64 bits en DS:0200h
+    /// (7FF8000000000000), BX = 0200h. Rend AX (FNSTSW AX en fin de code).</summary>
+    private static ushort X87(int fpu, byte[] code, int pas)
+    {
+        void Nan()
+        {
+            byte[] q = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x7F];
+            for (var k = 0; k < 8; k++) mem.ram[0x200 + k] = q[k];
+        }
+        if (fpu == 1)
+        {
+            _386.FuzzFpu = 1;
+            try
+            {
+                return Jouer(code, r => r[(int)R.BX] = 0x200, Nan, pas)[(int)R.AX];
+            }
+            finally
+            {
+                _386.FuzzFpu = 0;
+            }
+        }
+        _386.FuzzFpu = fpu;
+        try
+        {
+            return Jouer386(code, r => r[(int)R.BX] = 0x200, Nan, coeur: Coeur(fpu), pas: pas)[(int)R.AX];
+        }
+        finally
+        {
+            _386.FuzzFpu = 0;
+        }
+    }
+
+    private static readonly (int fpu, string nom)[] Fpus = [(1, "8087"), (2, "287"), (4, "387"), (5, "486")];
+    private static int Coeur(int fpu) => fpu switch { 2 => 286, 5 => 486, _ => 386 };
+    private static string Cc(ushort ax) => $"C3 C2 C0 = {(ax >> 14) & 1}{(ax >> 10) & 1}{(ax >> 8) & 1}";
+
+    // PB-57 — FCOM ST(1) de registre, ST(0) = NaN et ST(1) = 1 : non ordonné, C3 C2 C0 = 111 (SDM vol. 2, FCOM ; 387 PRM
+    // annexe C) ; PCem, 000. FNINIT ; FLD1 ; FLD m64 NaN ; FCOM ST(1) ; FNSTSW AX.
+    private static int Pb57(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xDD, 0x07, 0xD8, 0xD1, 0xDF, 0xE0], 5);
+            var attendu = hw ? "C3 C2 C0 = 111" : "C3 C2 C0 = 000";
+            bad += Voir($"FCOM ST(1), NaN contre 1 ({nom})", Cc(ax) == attendu, Cc(ax), attendu, hw);
+        }
+        // FCOMP ST(1) (D8 D9) et FCOMPP (DE D9), NaN contre 1 : non ordonné dans les deux modes (ils appellent
+        // x87_compare chez PCem aussi) ; leurs entrées dans les tables du mode, que seul le temps distingue.
+        foreach (var (fpu, nom) in Fpus)
+        foreach (var (o1, o2, n) in new (byte, byte, string)[] { (0xD8, 0xD9, "FCOMP ST(1)"), (0xDE, 0xD9, "FCOMPP") })
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xDD, 0x07, o1, o2, 0xDF, 0xE0], 5);
+            bad += Voir($"{n}, NaN contre 1 ({nom})", Cc(ax) == "C3 C2 C0 = 111", Cc(ax), "C3 C2 C0 = 111", hw);
+        }
+        // Le temps : FCOM, FCOMP et FCOMPP de registre comptent `fcom` (SDM ; 387 PRM annexe C), PCem `fadd` ; le 387 :
+        // FNINIT ; FLD1 ; FLD1 ; puis l'instruction, son pas mesuré.
+        foreach (var (o1, o2, n) in new (byte, byte, string)[] { (0xD8, 0xD1, "FCOM ST(1)"), (0xD8, 0xD9, "FCOMP ST(1)"), (0xDE, 0xD9, "FCOMPP") })
+        {
+            X87(4, [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xE8, o1, o2], 4);
+            var t = x87_timings_c.x87_timings;
+            var attendu = hw ? t.fcom : t.fadd;
+            bad += Voir($"{n}, son temps (387)", DernierPas == attendu, $"{DernierPas} cycles",
+                        $"{attendu} ({(hw ? "fcom" : "fadd")})", hw);
+        }
+        return bad;
+    }
+
+    // PB-64 — FTST de NaN : non ordonné, 111 (SDM vol. 2, FTST) ; PCem 000. FNINIT ; FLD m64 NaN ; FTST ; FNSTSW AX.
+    private static int Pb64(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xDD, 0x07, 0xD9, 0xE4, 0xDF, 0xE0], 4);
+            var attendu = hw ? "C3 C2 C0 = 111" : "C3 C2 C0 = 000";
+            bad += Voir($"FTST, NaN ({nom})", Cc(ax) == attendu, Cc(ax), attendu, hw);
+        }
+        // FTST de +∞ (1/0) : non comparable en projectif (le 8087 et le 287, IC nul ; Numerics Supplement table S-27) ;
+        // plus grand que 0 en affine, et chez PCem.
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xE4, 0xDF, 0xE0], 6);
+            var attendu = hw && fpu < 4 ? "C3 C2 C0 = 111" : "C3 C2 C0 = 000";
+            bad += Voir($"FTST, +∞ ({nom}){(fpu >= 4 ? ", témoin" : "")}", Cc(ax) == attendu, Cc(ax), attendu, hw);
+        }
+        return bad;
+    }
+
+    // PB-70 — la détection classique : FNINIT ; FLD1 ; FLDZ ; FDIVP (+∞) ; FLD ST(0) ; FCHS ; FCOMPP ; FNSTSW AX. En
+    // projectif (le 8087 et le 287, IC nul après FNINIT), −∞ = +∞ : C3 (Numerics Supplement, table S-27) ; PCem, −∞ < +∞ :
+    // C0. Le 387 n'a que l'affine : C0 dans les deux modes (le témoin).
+    private static int Pb70(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xC0, 0xD9, 0xE0, 0xDE, 0xD9, 0xDF, 0xE0], 8);
+            var attendu = hw && fpu < 4 ? "C3 C2 C0 = 100" : "C3 C2 C0 = 001";
+            bad += Voir($"FCOMPP, −∞ contre +∞ ({nom}){(fpu >= 4 ? ", témoin" : "")}", Cc(ax) == attendu, Cc(ax), attendu, hw);
+        }
+        return bad;
+    }
+
+    // PB-63 — FXAM (SDM vol. 2 ; Numerics Supplement table S-13), C3 C2 C1 C0 : +∞ 0101 (PCem 0100) ; NaN 0001 (PCem 0100) ;
+    // −0 1010 (PCem 1000). Le résultat lu par FNSTSW AX (sur le 8087, DF E0, que PCem exécute : PB-200).
+    private static int Pb63(bool hw)
+    {
+        var bad = 0;
+        string Code(ushort ax) => $"C3 C2 C1 C0 = {(ax >> 14) & 1}{(ax >> 10) & 1}{(ax >> 9) & 1}{(ax >> 8) & 1}";
+        (string nom, byte[] charge, string pcem, string materiel)[] cas =
+        [
+            ("+∞", [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9], "0100", "0101"),
+            ("NaN", [0xDD, 0x07], "0100", "0001"),
+            ("−0", [0xD9, 0xEE, 0xD9, 0xE0], "1000", "1010"),
+        ];
+        foreach (var (fpu, nomFpu) in Fpus)
+        foreach (var (nom, charge, pcem, materiel) in cas)
+        {
+            byte[] code = [0xDB, 0xE3, .. charge, 0xD9, 0xE5, 0xDF, 0xE0];
+            var ax = X87(fpu, code, 1 + charge.Length / 2 + 2);
+            var attendu = "C3 C2 C1 C0 = " + (hw ? materiel : pcem);
+            bad += Voir($"FXAM {nom} ({nomFpu})", Code(ax) == attendu, Code(ax), attendu, hw);
+        }
+        return bad;
+    }
+
+    /// <summary>Comme X87, le mot `init` en DS:0200h (un mot de contrôle pour FLDCW) ; rend les huit octets de DS:0200h
+    /// d'après (un FSTP m64 en fin de code).</summary>
+    private static ulong X87Mem(int fpu, byte[] code, int pas, ushort init)
+    {
+        void Mot() { mem.ram[0x200] = (byte)init; mem.ram[0x201] = (byte)(init >> 8); }
+        _386.FuzzFpu = fpu;
+        try
+        {
+            if (fpu == 1)
+                Jouer(code, r => r[(int)R.BX] = 0x200, Mot, pas);
+            else
+                Jouer386(code, r => r[(int)R.BX] = 0x200, Mot, coeur: Coeur(fpu), pas: pas);
+            ulong v = 0;
+            for (var k = 7; k >= 0; k--)
+                v = (v << 8) | mem.ram[0x200 + k];
+            return v;
+        }
+        finally
+        {
+            _386.FuzzFpu = 0;
+        }
+    }
+
+    // PB-66 — FNINIT ; FLDCW [BX] ; FLDLN2 (ou FLDLG2) ; FSTP m64 [BX]. ln 2 au plus près : 3FE62E42FEFA39EF (PCem …39F0),
+    // sur les trois coprocesseurs. log₁₀ 2 sous RC vers −∞ (077Fh) : 3FD34413509F79FE sur le 387, qui arrondit ses
+    // constantes au mode (387 PRM § 4.7) ; PCem …79FF ; le 8087 et le 287, au plus près, …79FF (le témoin).
+    private static int Pb66(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0xED, 0xDD, 0x1F], 4, 0x037F);
+            var attendu = hw ? 0x3FE62E42FEFA39EFUL : 0x3FE62E42FEFA39F0UL;
+            bad += Voir($"FLDLN2 ; FSTP m64 ({nom})", v == attendu, $"{v:X16}", $"{attendu:X16}", hw);
+        }
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0xEC, 0xDD, 0x1F], 4, 0x077F);
+            var attendu = hw && fpu >= 4 ? 0x3FD34413509F79FEUL : 0x3FD34413509F79FFUL;
+            bad += Voir($"RC vers −∞ ; FLDLG2 ; FSTP m64 ({nom}){(fpu < 4 ? ", témoin" : "")}", v == attendu, $"{v:X16}",
+                        $"{attendu:X16}", hw);
+        }
+        (byte op, string nom, ulong pres, ulong haut)[] hauts =
+        [(0xE9, "FLDL2T", 0x400A934F0979A371, 0x400A934F0979A372), (0xEA, "FLDL2E", 0x3FF71547652B82FE, 0x3FF71547652B82FF),
+         (0xEB, "FLDPI", 0x400921FB54442D18, 0x400921FB54442D19)];
+        foreach (var (fpu, nom) in Fpus)
+        foreach (var (op, nomC, pres, haut) in hauts)
+        {
+            var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, op, 0xDD, 0x1F], 4, 0x0B7F);
+            var attendu = hw && fpu >= 4 ? haut : pres;
+            bad += Voir($"RC vers +∞ ; {nomC} ; FSTP m64 ({nom}){(fpu < 4 ? ", témoin" : "")}", v == attendu, $"{v:X16}",
+                        $"{attendu:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-67 — FNINIT ; FILD m64 = 5 ; FILD m64 = 2^53 + 1 ; FST ST(1) ; FINCSTP ; FISTP m64 → 0020000000000001 (le registre
+    // de 80 bits tient l'entier : SDM vol. 1 § 8.1.2) ; PCem 0000000000000005, l'entier que MM[] gardait. Les deux entiers
+    // en DS:0200h et 0208h, le résultat en 0210h.
+    private static int Pb67(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            _386.FuzzFpu = fpu;
+            ulong v = 0;
+            try
+            {
+                void Entiers()
+                {
+                    for (var k = 0; k < 8; k++)
+                    {
+                        mem.ram[0x200 + k] = (byte)(5UL >> (8 * k));
+                        mem.ram[0x208 + k] = (byte)(0x0020000000000001UL >> (8 * k));
+                    }
+                }
+                byte[] code = [0xDB, 0xE3, 0xDF, 0x2F, 0xDF, 0x6F, 0x08, 0xDD, 0xD1, 0xD9, 0xF7, 0xDF, 0x7F, 0x10];
+                if (fpu == 1)
+                    Jouer(code, r => r[(int)R.BX] = 0x200, Entiers, 6);
+                else
+                    Jouer386(code, r => r[(int)R.BX] = 0x200, Entiers, coeur: Coeur(fpu), pas: 6);
+                for (var k = 7; k >= 0; k--)
+                    v = (v << 8) | mem.ram[0x210 + k];
+            }
+            finally
+            {
+                _386.FuzzFpu = 0;
+            }
+            var attendu = hw ? 0x0020000000000001UL : 5UL;
+            bad += Voir($"FILD ; FILD ; FST ST(1) ; FINCSTP ; FISTP m64 ({nom})", v == attendu, $"{v:X16}", $"{attendu:X16}", hw);
+        }
+        // FSTP ST(1), par DD D9 et par son alias D9 D9 : FILD ; FILD ; FSTP ST(1) ; FISTP m64, sans FINCSTP.
+        foreach (var (fpu, nom) in Fpus)
+        foreach (var (o1, o2) in new (byte, byte)[] { (0xDD, 0xD9), (0xD9, 0xD9) })
+        {
+            _386.FuzzFpu = fpu;
+            ulong v = 0;
+            try
+            {
+                void Entiers()
+                {
+                    for (var k = 0; k < 8; k++)
+                    {
+                        mem.ram[0x200 + k] = (byte)(5UL >> (8 * k));
+                        mem.ram[0x208 + k] = (byte)(0x0020000000000001UL >> (8 * k));
+                    }
+                }
+                byte[] code = [0xDB, 0xE3, 0xDF, 0x2F, 0xDF, 0x6F, 0x08, o1, o2, 0xDF, 0x7F, 0x10];
+                if (fpu == 1)
+                    Jouer(code, r => r[(int)R.BX] = 0x200, Entiers, 5);
+                else
+                    Jouer386(code, r => r[(int)R.BX] = 0x200, Entiers, coeur: Coeur(fpu), pas: 5);
+                for (var k = 7; k >= 0; k--)
+                    v = (v << 8) | mem.ram[0x210 + k];
+            }
+            finally
+            {
+                _386.FuzzFpu = 0;
+            }
+            var attendu = hw ? 0x0020000000000001UL : 5UL;
+            bad += Voir($"FILD ; FILD ; FSTP ST(1) ({o1:X2} {o2:X2}) ; FISTP m64 ({nom})", v == attendu, $"{v:X16}", $"{attendu:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-58 — FLDZ ; FLDZ ; FCHS (ST(0) = −0, ST(1) = +0) ; FCOMPP ; FNSTSW AX → égaux, C3 (IEEE 754-1985 § 5.7) ; PCem,
+    // par son contournement de détection du 387, C0. L'hypothèse A6 instruite : les POST du PC (8087), de l'AT (287), de
+    // l'ami386dx (387) et de l'ami486 détectent leur coprocesseur sans le contournement (VERIFICATION.md § G13.6a).
+    private static int Pb58(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        {
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xD9, 0xEE, 0xD9, 0xE0, 0xDE, 0xD9, 0xDF, 0xE0], 6);
+            var attendu = hw ? "C3 C2 C0 = 100" : "C3 C2 C0 = 001";
+            bad += Voir($"FCOMPP, −0 contre +0 ({nom})", Cc(ax) == attendu, Cc(ax), attendu, hw);
+        }
         return bad;
     }
 

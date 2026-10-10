@@ -15,7 +15,8 @@
 //   - le bloc fesetround des opFADD mémoire devient x87_fadd_dirige (PB-48, DEVIATION) ;
 //   - x87_compare / x87_ucompare, de l'asm x87 hôte chez PCem, sont leur sémantique (DEVIATION).
 // Quatre défauts de PCem reproduits : PB-57 (opFCOM), PB-58 (opFCOMPP), PB-59 (x87_div) et
-// PB-60 (le NaN propagé suit l'ordre des opérandes que GCC a choisi : X87AddSd, X87MulSd).
+// PB-60 (le NaN propagé suit l'ordre des opérandes que GCC a choisi : X87AddSd, X87MulSd) ; PB-57 et
+// PB-58 corrigés en mode matériel, dans les tables du mode (x87.Materiel.cs).
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
@@ -1172,8 +1173,9 @@ internal static partial class _386
             cpu_state.pc++;
             // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
-            // pcem bug, reproduced: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend « plus
-            //   grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné ».
+            // pcem bug, fixed in hardware mode: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend
+            //   « plus grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné » ; en mode matériel, la table du
+            //   mode porte le gestionnaire corrigé (x87.Materiel.cs).
             if (ST(0) == ST((int)(fetchdat & 7)))
                     cpu_state.npxs |= x87_c.C3;
             else if (ST(0) < ST((int)(fetchdat & 7)))
@@ -1202,7 +1204,8 @@ internal static partial class _386
             cpu_state.pc++;
             // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
-            // pcem bug, reproduced: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3.
+            // pcem bug, fixed in hardware mode: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3 ; en mode
+            //   matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
             if (BitConverter.DoubleToUInt64Bits(ST(0)) == ((uint64_t)1 << 63) && BitConverter.DoubleToUInt64Bits(ST(1)) == 0)
                     cpu_state.npxs |= x87_c.C0; /*Nasty hack to fix 80387 detection*/
             else

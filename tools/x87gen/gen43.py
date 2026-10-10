@@ -83,11 +83,13 @@ def conv(fn,kind,lines,optype,lv,get,use):
         if m:
             r='if (x87_div(ref %s, %s, %s)) return 1;'%(m.group(1),m.group(2),m.group(3))
         if 'Nasty hack' not in r and '*(uint64_t *)&ST(0)' in r:
-            out.append(' '*8+'// pcem bug, reproduced: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3.')
+            out.append(' '*8+'// pcem bug, fixed in hardware mode: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3 ; en mode')
+            out.append(' '*8+'//   matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).')
             r=r.replace('*(uint64_t *)&ST(0)','BitConverter.DoubleToUInt64Bits(ST(0))').replace('*(uint64_t *)&ST(1)','BitConverter.DoubleToUInt64Bits(ST(1))')
         if fn=='opFCOM' and r.startswith('if (ST(0) == ST('):
-            out.append(' '*8+'// pcem bug, reproduced: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend « plus')
-            out.append(' '*8+'//   grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné ».')
+            out.append(' '*8+'// pcem bug, fixed in hardware mode: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend')
+            out.append(' '*8+'//   « plus grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné » ; en mode matériel, la table du')
+            out.append(' '*8+'//   mode porte le gestionnaire corrigé (x87.Materiel.cs).')
         if re.search(r'\b(C0|C2|C3)\b',r) and 'x87_c.' not in r: sys.exit('C? non traduit: '+r)
         if 'use_var' in r or 'load_var' in r or 'optype' in r or 'fesetround' in r: sys.exit('reste: '+r)
         # G13.1 — les marqueurs canoniques, une ligne de commentaire au-dessus du site.
@@ -115,7 +117,8 @@ L=["""// SPDX-FileCopyrightText: 2026 Julien Peloille
 //   - le bloc fesetround des opFADD mémoire devient x87_fadd_dirige (PB-48, DEVIATION) ;
 //   - x87_compare / x87_ucompare, de l'asm x87 hôte chez PCem, sont leur sémantique (DEVIATION).
 // Quatre défauts de PCem reproduits : PB-57 (opFCOM), PB-58 (opFCOMPP), PB-59 (x87_div) et
-// PB-60 (le NaN propagé suit l'ordre des opérandes que GCC a choisi : X87AddSd, X87MulSd).
+// PB-60 (le NaN propagé suit l'ordre des opérandes que GCC a choisi : X87AddSd, X87MulSd) ; PB-57 et
+// PB-58 corrigés en mode matériel, dans les tables du mode (x87.Materiel.cs).
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;

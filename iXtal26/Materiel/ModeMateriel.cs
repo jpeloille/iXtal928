@@ -45,6 +45,14 @@ internal static class ModeMateriel
         new(45, "processeur", "IDIV octet divise AX signé"),
         new(50, "processeur", "une instruction de plus de 15 octets (10 sur le 286) lève #GP"),
         new(51, "processeur", "la lecture d'une instruction contrôle la limite de CS (286, 386, 486)"),
+        new(57, "x87", "FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom"),
+        new(58, "x87", "FCOMPP compare −0 et +0 égaux, sans le contournement de détection"),
+        new(61, "x87", "FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486)"),
+        new(63, "x87", "FXAM rend la classe de ST(0), et le signe dans C1"),
+        new(64, "x87", "FTST rend un NaN non ordonné"),
+        new(66, "x87", "les constantes au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486"),
+        new(67, "x87", "FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64"),
+        new(70, "x87", "le 8087 et le 287 comparent en projectif tant que IC est nul"),
         new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
         new(94, "carte-mere", "la souris PS/2 répond à F6h, EAh, F0h, EEh et ECh, et rejette une commande inconnue"),
@@ -97,8 +105,9 @@ internal static class ModeMateriel
     /// iraient sinon. PB-07 et PB-179 : la même condition de repli dans readmemw et writememw. PB-45, PB-169 et PB-258 :
     /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
-    /// le code d'erreur de son dépassement, au même test.</summary>
-    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51]];
+    /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
+    /// fonction (x87.Materiel.cs).</summary>
+    internal static readonly int[][] Groupes = [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70]];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

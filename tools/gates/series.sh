@@ -585,3 +585,10 @@ done
 # #SS. Le silicium est dans les portes sst ci-dessus (les attendus du mode matériel) et les références entières.
 run materiel-cas-pb189 materiel-cas PB-189
 run materiel-cas-pb189-materiel --hardware-mode PB-189 materiel-cas PB-189
+# G13.6a — le x87 (PLAN-G13.md) : les tables du mode posées par cpu_set (le 8087 en place) ; FNSTSW AX, les comparaisons
+# (FCOM de registre, FCOMPP, FTST, l'infini projectif du 8087 et du 287), FXAM, les constantes, FST de registre. Les cas
+# en C# seul, sur le 8087, le 287 et le 387.
+for pb in 57 58 61 63 64 66 67 70; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

@@ -1,0 +1,7 @@
+# G13.6a — l'ami386dx de ami386dx-fd.cfg.in, avec un 387 : le scénario ami386dx-x87 des listings (tools/listings-jit.sh)
+# y joue sous DEBUG les instructions x87 que le mode matériel corrige, pour que leurs méthodes gardées soient compilées.
+model = ami386dx
+mem_size = 4096
+fpu = 387
+drive_a_type = 5
+drive_b_type = 2

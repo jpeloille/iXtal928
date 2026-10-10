@@ -124,7 +124,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   lecture, un décodeur de longueur ; MOV CRx sans adresse ; LOADALL refusé au 486), G13.5c (le mode protégé : l'IDT,
   la porte de tâche, LTR, la voie TSS, LOADALL386 hors du niveau 0, l'IP d'un CALL de tâche ; les exceptions du manuel
   de chaque processeur ; pm-check en C# seul et ses tables du mode matériel, au 286, au 386 et au 486). G13.5d (PB-189 : chaque
-  opérande contre la limite de son segment, +107 361 cas SST au 386, +2 975 au 286). G13.6, le x87, attend son feu vert.
+  opérande contre la limite de son segment, +107 361 cas SST au 386, +2 975 au 286).
+  G13.6 en cours, le x87 (feu vert du 10/10) : G13.6a (les tables du mode, FNSTSW AX, les comparaisons et l'infini
+  projectif, FXAM, les constantes, FST de registre) ; G13.6b, l'acheminement, suit ; puis le point de décision n° 10.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

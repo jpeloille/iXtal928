@@ -34,8 +34,9 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # DR7 et TR6, en adresses de 16 et de 32 bits (LOADALL, qui écraserait la machine, n'a pas de scénario). G13.5c, un
 # troisième (ami386dx-pm) : le mode protégé que le POST ne visite pas. LGDT d'une GDT à deux entrées (la seconde, une
 # TSS 386 de dix-sept octets), PE posé, puis 66 CALL FAR sur la TSS : loadcscall, CALL_FAR_l et taskswitch286, qui lève
-# #TS sur la limite, puis pmodeint sur l'IDT du mode réel ; la triple faute remet la machine à zéro. Dans un texte de
-# --type, « _ » tient lieu d'espace.
+# #TS sur la limite, puis pmodeint sur l'IDT du mode réel ; la triple faute remet la machine à zéro. G13.6a, un
+# quatrième (ami386dx-x87, avec un 387) : FNINIT, FCOMPP, FLDLN2, FXAM, FTST, FCOM et FCOMP de registre, FST et FSTP de
+# registre, FCOM m64 (x87_compare) et FNSTSW AX. Dans un texte de --type, « _ » tient lieu d'espace.
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
@@ -47,6 +48,7 @@ SCENARIOS=(
   "pc-joy-tm|--boot roms 7000 --config tools/gates/cfg/pc-joy-tm.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 300 --type  --type  --type B:DEBUG --type O_201_0 --type I_201 --type Q"
   "ami386dx-dos|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type R_BX --type 200 --type E_100_37_3F_D5_0A_D4_0A_2F_14_0F_F0_01_07_0F_A3_07 --type E_10F_66_0F_A3_07_0F_AB_07_F0_0F_AB_07_0F_BA_E0_05 --type E_11E_67_0F_A3_03_66_67_0F_A3_03_67_0F_BA_23_05_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
   "ami386dx-ctrl|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_D0_8E_D0_67_8E_D0_16_17_66_16_66_17_0F_20_C0 --type E_110_0F_22_C0_67_0F_20_C0_67_0F_22_C0_0F_21_F8_0F_23_F8 --type E_121_67_0F_21_F8_67_0F_23_F8_0F_24_F0_0F_26_F0 --type E_12F_67_0F_24_F0_67_0F_26_F0_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
+  "ami386dx-x87|--boot roms 2500 --config tools/gates/cfg/ami386dx-387-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_DB_E3_D9_E8_D9_EE_DE_D9_D9_ED_D9_E5_D9_E4_D9_E8 --type E_110_D8_D1_D8_D9_DD_D1_DD_D9_DC_16_00_02_DF_E0_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami386dx-387-fd.cfg.in ami386dx_opti495"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 

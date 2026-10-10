@@ -302,8 +302,10 @@ internal static partial class _386
     //   effacent. Le fuzzeur de G4.3 le confronte à l'oracle, NaN et zéros signés tirés.
     internal static uint16_t x87_compare(double a, double b)
     {
-        // pcem bug, reproduced: PB-70 — affine toujours : IC (bit 12 de npxc) n'est lu nulle part, +∞ > −∞ même
-        //   sur le 8087 et le 287.
+        // pcem bug, fixed in hardware mode: PB-70 — affine toujours : IC (bit 12 de npxc) n'est lu nulle part, +∞ > −∞
+        //   même sur le 8087 et le 287 ; en mode matériel, la comparaison du silicium (x87.Materiel.cs).
+        if (materiel.pb_70)
+                return _x87_materiel.compare_materiel(a, b);
         if (double.IsNaN(a) || double.IsNaN(b))
                 return x87_c.C0 | x87_c.C2 | x87_c.C3;
         if (a < b)

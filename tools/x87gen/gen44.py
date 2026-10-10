@@ -23,7 +23,8 @@ CLR3='cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));'
 SWITCH='switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {'
 MARQ={
     ('opFINIT','if (cpu_c.fpu_type == cpu_c.FPU_8087)'):
-        [B+'PB-70 — IC (bit 12) n\'est lu nulle part : le 8087 et le 287 comparent en affine.'],
+        ['// pcem bug, fixed in hardware mode: PB-70 — IC (bit 12) n\'est lu nulle part : le 8087 et le 287 comparent en',
+         '//   affine ; en mode matériel, x87_compare le lit (x87.Materiel.cs).'],
     ('opFINIT',NPXS0):
         [B+'PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts.'],
     ('FSAVE',NPXS0):
@@ -113,19 +114,23 @@ def conv(fn,body):
         r=r.replace('FSTOR();','_ = FSTOR();').replace('FSAVE();','_ = FSAVE();').replace('FLDENV();','_ = FLDENV();').replace('FSTENV();','_ = FSTENV();')
         # repère des défauts
         if fn=='opFSTSW_AX' and r=='AX = cpu_state.npxs;':
-            out.append(ind+'// pcem bug, reproduced: PB-61 — npxs BRUT : sans les trois bits de TOP que la forme')
-            out.append(ind+'//   mémoire (opFSTSW_a16) y compose.')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-61 — npxs BRUT : sans les trois bits de TOP que la forme')
+            out.append(ind+'//   mémoire (opFSTSW_a16) y compose ; en mode matériel, la table du mode porte le gestionnaire corrigé')
+            out.append(ind+'//   (x87.Materiel.cs).')
         if fn in ('opFST','opFSTP') and r.startswith('cpu_state.tag[(cpu_state.TOP + (int)fetchdat)'):
-            out.append(ind+'// pcem bug, reproduced: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q.')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q ;')
+            out.append(ind+'//   en mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).')
         if fn=='opFXAM' and r.startswith('cpu_state.npxs &='):
-            out.append(ind+'// pcem bug, reproduced: PB-63 — trois classes seulement : vide, zéro, « normal ».')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-63 — trois classes seulement : vide, zéro, « normal » ; en')
+            out.append(ind+'//   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).')
         if fn=='opFTST' and r.startswith('if (ST(0) == 0.0)'):
-            out.append(ind+'// pcem bug, reproduced: PB-64 — un NaN rend « plus grand », pas « non ordonné ».')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-64 — un NaN rend « plus grand », pas « non ordonné » ; en')
+            out.append(ind+'//   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).')
         if fn in ('opFPREM','opFPREM1') and r.startswith('temp64 = '):
             out.append(ind+'// pcem bug, reproduced: PB-65 — un quotient tronqué d\'un coup, C2 jamais posé, et')
             out.append(ind+'//   FPREM1 identique à FPREM.')
         if fn=='opFLDLN2':
-            out.append(ind+'// pcem bug, reproduced: PB-66 — ln 2 d\'un ulp au-dessus du double le plus proche.') if r.startswith('x87_push_u64') else None
+            (out.append(ind+'// pcem bug, fixed in hardware mode: PB-66 — ln 2 d\'un ulp au-dessus du double le plus proche ;'), out.append(ind+'//   en mode matériel, la table du mode porte les constantes corrigées (x87.Materiel.cs).')) if r.startswith('x87_push_u64') else None
         if 'pclog' in r or 'fplog' in r: sys.exit('reste log : '+r)
         if re.search(r'\bC[0-3]\b',r) and 'x87_c.' not in r: sys.exit('C? : '+r)
         if re.search(r'\bFPU_8087\b',r) and 'cpu_c.' not in r: sys.exit('FPU : '+r)
@@ -147,7 +152,8 @@ L=["""// SPDX-FileCopyrightText: 2026 Julien Peloille
 // GÉNÉRÉ par règles depuis le C, comme x87_ops_loadstore.cs et x87_ops_arith.cs. Les
 // `codegen_set_rounding_mode(...)` sont omis : le dynarec, une souche vide dans l'oracle.
 // FSTOR, FSAVE, FLDENV et FSTENV appellent FP_ENTER une SECONDE fois (fpucount compte deux) :
-// c'est le C, sans autre effet. Défauts de PCem reproduits : PB-61 (FNSTSW AX sans TOP), PB-62
+// c'est le C, sans autre effet. Défauts de PCem reproduits (en mode PCem ; corrigés en mode matériel, ceux que
+// x87.Materiel.cs nomme) : PB-61 (FNSTSW AX sans TOP), PB-62
 // (x87_pc_* et x87_op_* jamais posés ; dispositions de FSAVE et FSTENV incomplètes), PB-63
 // (FXAM), PB-64 (FTST), PB-65 (FPREM, FPREM1), PB-66 (FLDLN2), PB-67 (FST registre et
 // TAG_UINT64), PB-68 (C2 et les transcendantes).

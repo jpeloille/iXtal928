@@ -582,3 +582,50 @@ sur le 286, de protection générale partout.
 - **La correction.** Chaque accès à la mémoire compare la donnée à la limite de son segment avant de la lire ou de
   l'écrire. Sur le corpus du vrai 386, plus de cent mille cas passent de faux à juste ; trois règles fines du silicium
   sont venues des rares cas que la première version faisait tomber.
+
+## G13.6, début — le coprocesseur arithmétique (mode matériel) : ce que les instructions rendent
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, `VERIFICATION.md` § G13.6a.*
+
+Le coprocesseur (8087, 287, 387, et celui du 486) calcule en virgule flottante. PCem le rend presque partout, mais se
+trompe sur quelques réponses que les programmes lisent pour décider : l'ordre de deux nombres, la nature d'un nombre,
+une constante, la profondeur de la pile. Huit défauts, tous en mode matériel.
+
+### PB-61 — FNSTSW AX
+
+- **Le vrai PC.** L'instruction copie le mot d'état du coprocesseur dans AX, y compris le niveau de sa pile de
+  registres ; les programmes de détection le lisent ainsi.
+- **L'émulateur.** PCem oublie le niveau de pile : AX dit toujours que la pile est vide.
+- **La correction.** Le mot d'état entier, comme la forme qui l'écrit en mémoire le donne déjà.
+
+### PB-57, PB-58, PB-64 et PB-70 — comparer deux nombres
+
+- **Le vrai PC.** Une comparaison rend « plus petit », « égal », « plus grand » ou « non ordonné » ; un NaN (« pas un
+  nombre ») n'est jamais ordonné ; −0 et +0 sont égaux. Le 8087 et le 287 connaissent de plus un infini « projectif »,
+  leur réglage par défaut, où +∞ et −∞ sont le même point : c'est ainsi qu'un programme distingue un 287 d'un 387.
+- **L'émulateur.** Deux formes de la comparaison prennent un NaN pour un nombre plus petit ; une astuce rend −0 plus
+  petit que +0 pour tromper une détection ; et l'infini projectif n'existe pas : PCem fait passer tout 287 pour un 387.
+- **La correction.** La comparaison du silicium partout, et l'infini projectif sur le 8087 et le 287. Sans l'astuce,
+  les démarrages des machines détectent toujours leur coprocesseur.
+
+### PB-63 — FXAM
+
+- **Le vrai PC.** FXAM dit ce qu'est le nombre au sommet de la pile : un NaN, un infini, un zéro, un nombre ordinaire,
+  un registre vide, et son signe.
+- **L'émulateur.** PCem ne connaît que vide, zéro et « ordinaire », et perd le signe de −0.
+- **La correction.** Toutes les classes, et le signe.
+
+### PB-66 — les constantes
+
+- **Le vrai PC.** Le coprocesseur charge en une instruction π, ln 2 et trois autres logarithmes, arrondis au plus
+  près ; le 387 et le 486 les arrondissent selon le mode d'arrondi choisi.
+- **L'émulateur.** PCem charge ln 2 trop grand d'une unité sur le dernier chiffre, et ignore le mode d'arrondi.
+- **La correction.** Les valeurs exactes, arrondies comme le coprocesseur les arrondit.
+
+### PB-67 — copier un entier de 64 bits
+
+- **Le vrai PC.** Un registre du coprocesseur tient exactement tout entier de 64 bits ; le copier d'un registre à un
+  autre le garde.
+- **L'émulateur.** PCem calcule en 53 bits et garde l'entier exact à part, mais oublie de le copier : la copie rend un
+  entier ancien.
+- **La correction.** La copie emporte l'entier exact.

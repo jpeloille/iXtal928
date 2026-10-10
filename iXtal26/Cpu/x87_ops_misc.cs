@@ -12,7 +12,8 @@
 // GÉNÉRÉ par règles depuis le C, comme x87_ops_loadstore.cs et x87_ops_arith.cs. Les
 // `codegen_set_rounding_mode(...)` sont omis : le dynarec, une souche vide dans l'oracle.
 // FSTOR, FSAVE, FLDENV et FSTENV appellent FP_ENTER une SECONDE fois (fpucount compte deux) :
-// c'est le C, sans autre effet. Défauts de PCem reproduits : PB-61 (FNSTSW AX sans TOP), PB-62
+// c'est le C, sans autre effet. Défauts de PCem reproduits (en mode PCem ; corrigés en mode matériel, ceux que
+// x87.Materiel.cs nomme) : PB-61 (FNSTSW AX sans TOP), PB-62
 // (x87_pc_* et x87_op_* jamais posés ; dispositions de FSAVE et FSTENV incomplètes), PB-63
 // (FXAM), PB-64 (FTST), PB-65 (FPREM, FPREM1), PB-66 (FLDLN2), PB-67 (FST registre et
 // TAG_UINT64), PB-68 (C2 et les transcendantes).
@@ -55,8 +56,9 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-61 — npxs BRUT : sans les trois bits de TOP que la forme
-            //   mémoire (opFSTSW_a16) y compose.
+            // pcem bug, fixed in hardware mode: PB-61 — npxs BRUT : sans les trois bits de TOP que la forme
+            //   mémoire (opFSTSW_a16) y compose ; en mode matériel, la table du mode porte le gestionnaire corrigé
+            //   (x87.Materiel.cs).
             AX = cpu_state.npxs;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
             return 0;
@@ -86,7 +88,8 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-70 — IC (bit 12) n'est lu nulle part : le 8087 et le 287 comparent en affine.
+            // pcem bug, fixed in hardware mode: PB-70 — IC (bit 12) n'est lu nulle part : le 8087 et le 287 comparent en
+            //   affine ; en mode matériel, x87_compare le lit (x87.Materiel.cs).
             if (cpu_c.fpu_type == cpu_c.FPU_8087)
                     cpu_state.npxc = 0x3ff;
             else
@@ -118,7 +121,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
             ST((int)(fetchdat & 7)) = ST(0);
-            // pcem bug, reproduced: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q.
+            // pcem bug, fixed in hardware mode: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q ;
+            //   en mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = cpu_state.tag[cpu_state.TOP & 7];
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
             return 0;
@@ -130,7 +134,8 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
             ST((int)(fetchdat & 7)) = ST(0);
-            // pcem bug, reproduced: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q.
+            // pcem bug, fixed in hardware mode: PB-67 — le tag est copié, TAG_UINT64 compris, mais pas MM[].q ;
+            //   en mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = cpu_state.tag[cpu_state.TOP & 7];
             x87_pop();
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
@@ -518,7 +523,8 @@ internal static partial class _386
             cpu_state.pc++;
             // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
-            // pcem bug, reproduced: PB-64 — un NaN rend « plus grand », pas « non ordonné ».
+            // pcem bug, fixed in hardware mode: PB-64 — un NaN rend « plus grand », pas « non ordonné » ; en
+            //   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
             if (ST(0) == 0.0)
                     cpu_state.npxs |= x87_c.C3;
             else if (ST(0) < 0.0)
@@ -532,7 +538,8 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-63 — trois classes seulement : vide, zéro, « normal ».
+            // pcem bug, fixed in hardware mode: PB-63 — trois classes seulement : vide, zéro, « normal » ; en
+            //   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C1 | x87_c.C2 | x87_c.C3));
             if (cpu_state.tag[cpu_state.TOP & 7] == x87_c.TAG_EMPTY)
                     cpu_state.npxs |= x87_c.C0 | x87_c.C3;
@@ -601,7 +608,8 @@ internal static partial class _386
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-66 — ln 2 d'un ulp au-dessus du double le plus proche.
+            // pcem bug, fixed in hardware mode: PB-66 — ln 2 d'un ulp au-dessus du double le plus proche ;
+            //   en mode matériel, la table du mode porte les constantes corrigées (x87.Materiel.cs).
             x87_push_u64(0x3fe62e42fefa39f0UL);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_const);
             return 0;

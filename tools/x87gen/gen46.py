@@ -11,6 +11,9 @@ for f in ['x87_ops_loadstore.cs','x87_ops_arith.cs','x87_ops_misc.cs']:
     # G13.1 — PB-54 est sans objet sur le 8087 (pas de limite de segment, CHECK_WRITE vide) : ses
     # marqueurs, d'une ligne chacun, ne sont pas recopiés.
     corps='\n'.join(x for x in t[a:b].rstrip('\n').split('\n') if '// pcem bug, reproduced: PB-54 ' not in x)
+    # G13.6 — PB-61 n'est corrigé que sur le 287 et après : le 8087 n'a pas DF E0 (PB-200). Sa copie n'est pas un
+    # marqueur.
+    corps=corps.replace('// pcem bug, fixed in hardware mode: PB-61 — ', '// Sur le 287 et après, PB-61 (corrigé en mode matériel) — ')
     bodies.append('    // ======== depuis %s ========\n'%f + corps)
 body='\n\n'.join(bodies)
 hdr="""// SPDX-FileCopyrightText: 2026 Julien Peloille
