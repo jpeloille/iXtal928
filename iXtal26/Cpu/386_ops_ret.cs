@@ -30,6 +30,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, RET, RETF et IRET contrôlent SS à chaque mot dépilé contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     /// <summary>pcem: x86_ops_ret.h:3-21 — la macro RETF_a16(stack_offset).
     ///
     /// DEVIATION: `return 1` depuis le milieu du macro ; la méthode rend `true`
@@ -48,13 +51,26 @@ internal static partial class _386
         }
         if (stack32 != 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 2)) return true;
                 cpu_state.pc = readmemw(ss, ESP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 2), 2)) return true;
                 x86seg_c.loadcs(readmemw(ss, ESP + 2));
         }
         else
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 2)) return true;
                 cpu_state.pc = readmemw(ss, SP);
-                x86seg_c.loadcs(readmemw(ss, (uint32_t)(SP + 2)));
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(SP + 2)), 2)) return true;
+                // pcem bug, fixed in hardware mode: PB-189 — sur une pile de 16 bits, CS se lit à l'offset replié (SS:0000h
+                //   pour SP = FFFEh) ; PCem le lit en SS:10000h.
+                if (materiel.pb_189)
+                        x86seg_c.loadcs(readmemw(ss, (uint32_t)((SP + 2) & 0xFFFF)));
+                else
+                        x86seg_c.loadcs(readmemw(ss, (uint32_t)(SP + 2)));
         }
         if (cpu_state.abrt != 0)
                 return true;
@@ -119,16 +135,28 @@ internal static partial class _386
                 uint16_t new_cs;
                 if (stack32 != 0)
                 {
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 2)) return 1;
                         cpu_state.pc = readmemw(ss, ESP);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 2), 2)) return 1;
                         new_cs = readmemw(ss, ESP + 2);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 4), 2)) return 1;
                         cpu_state.flags = (uint16_t)((cpu_state.flags & 0x7000) |
                                                      (readmemw(ss, ESP + 4) & 0xffd5) | 2);
                         ESP += 6;
                 }
                 else
                 {
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 2)) return 1;
                         cpu_state.pc = readmemw(ss, SP);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 2) & 0xffff)), 2)) return 1;
                         new_cs = readmemw(ss, (uint32_t)((SP + 2) & 0xffff));
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 4) & 0xffff)), 2)) return 1;
                         cpu_state.flags = (uint16_t)((cpu_state.flags & 0x7000) |
                                                      (readmemw(ss, (uint32_t)((SP + 4) & 0xffff)) & 0x0fd5) | 2);
                         SP += 6;
@@ -168,13 +196,25 @@ internal static partial class _386
         }
         if (stack32 != 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 4)) return true;
                 cpu_state.pc = readmeml(ss, ESP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 4)), 4)) return true;
                 x86seg_c.loadcs((uint16_t)(readmeml(ss, (uint32_t)(ESP + 4)) & 0xffff));
         }
         else
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 4)) return true;
                 cpu_state.pc = readmeml(ss, SP);
-                x86seg_c.loadcs((uint16_t)(readmeml(ss, (uint32_t)(SP + 4)) & 0xffff));
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(SP + 4)), 4)) return true;
+                // pcem bug, fixed in hardware mode: PB-189 — l'offset replié, de même.
+                if (materiel.pb_189)
+                        x86seg_c.loadcs((uint16_t)(readmeml(ss, (uint32_t)((SP + 4) & 0xFFFF)) & 0xffff));
+                else
+                        x86seg_c.loadcs((uint16_t)(readmeml(ss, (uint32_t)(SP + 4)) & 0xffff));
         }
         if (cpu_state.abrt != 0)
                 return true;
@@ -197,8 +237,14 @@ internal static partial class _386
                 {
                         uint16_t new_pc, new_cs, new_flags;
 
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 2)) return 1;
                         new_pc = readmemw(ss, SP);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 2) & 0xffff)), 2)) return 1;
                         new_cs = readmemw(ss, (uint32_t)((SP + 2) & 0xffff));
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 4) & 0xffff)), 2)) return 1;
                         new_flags = readmemw(ss, (uint32_t)((SP + 4) & 0xffff));
                         if (cpu_state.abrt != 0)
                                 return 1;
@@ -238,15 +284,27 @@ internal static partial class _386
                         uint16_t new_cs;
                         if (stack32 != 0)
                         {
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 2)) return 1;
                                 cpu_state.pc = readmemw(ss, ESP);
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 2)), 2)) return 1;
                                 new_cs = readmemw(ss, (uint32_t)(ESP + 2));
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 4)), 2)) return 1;
                                 cpu_state.flags = (uint16_t)((readmemw(ss, (uint32_t)(ESP + 4)) & 0xffd5) | 2);
                                 ESP += 6;
                         }
                         else
                         {
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 2)) return 1;
                                 cpu_state.pc = readmemw(ss, SP);
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 2) & 0xffff)), 2)) return 1;
                                 new_cs = readmemw(ss, (uint32_t)((SP + 2) & 0xffff));
+                                if (materiel.pb_189)
+                                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 4) & 0xffff)), 2)) return 1;
                                 cpu_state.flags = (uint16_t)((readmemw(ss, (uint32_t)((SP + 4) & 0xffff)) & 0xffd5) | 2);
                                 SP += 6;
                         }
@@ -284,16 +342,32 @@ internal static partial class _386
                 uint16_t new_cs;
                 if (stack32 != 0)
                 {
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 4)) return 1;
                         cpu_state.pc = readmeml(ss, ESP);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 4)), 2)) return 1;
                         new_cs = readmemw(ss, (uint32_t)(ESP + 4));
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 8)), 2)) return 1;
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 10)), 2)) return 1;
                         cpu_state.flags = (uint16_t)((readmemw(ss, (uint32_t)(ESP + 8)) & 0xffd5) | 2);
                         cpu_state.eflags = readmemw(ss, (uint32_t)(ESP + 10));
                         ESP += 12;
                 }
                 else
                 {
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(SP), 4)) return 1;
                         cpu_state.pc = readmeml(ss, SP);
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 4) & 0xffff)), 2)) return 1;
                         new_cs = readmemw(ss, (uint32_t)((SP + 4) & 0xffff));
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 8) & 0xffff)), 2)) return 1;
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 10) & 0xffff)), 2)) return 1;
                         cpu_state.flags = (uint16_t)((readmemw(ss, (uint32_t)((SP + 8) & 0xffff)) & 0xffd5) | 2);
                         cpu_state.eflags = readmemw(ss, (uint32_t)((SP + 10) & 0xffff));
                         SP += 12;

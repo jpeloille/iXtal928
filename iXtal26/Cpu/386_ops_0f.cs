@@ -44,6 +44,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, LGDT, LIDT, SGDT et SIDT contrôlent leurs six octets contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     /// <summary>pcem: x86_ops_pmode.h:352-485 — op0F01_common(fetchdat, is32,
     /// is286, ea32), appelé avec (0, 1, 0) par op0F01_286.
     ///
@@ -60,6 +63,8 @@ internal static partial class _386
         case 0x00: /*SGDT*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return true;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return true;
                 seteaw((uint16_t)gdt.limit);
                 @base = gdt.@base;
                 if (is286 != 0)
@@ -71,6 +76,8 @@ internal static partial class _386
         case 0x08: /*SIDT*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return true;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return true;
                 seteaw((uint16_t)idt.limit);
                 @base = idt.@base;
                 if (is286 != 0)
@@ -87,6 +94,8 @@ internal static partial class _386
                 }
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return true;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return true;
                 limit = geteaw();
                 @base = readmeml(0, easeg + cpu_state.eaaddr + 2);
                 if (cpu_state.abrt != 0)
@@ -106,6 +115,8 @@ internal static partial class _386
                 }
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return true;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return true;
                 limit = geteaw();
                 @base = readmeml(0, easeg + cpu_state.eaaddr + 2);
                 if (cpu_state.abrt != 0)

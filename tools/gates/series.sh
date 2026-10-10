@@ -581,3 +581,7 @@ for c in 386 486; do
   run pm-check-$c-csharp pm-check --core $c --target csharp
   run pm-check-$c-materiel --hardware-mode processeur pm-check --core $c --target csharp
 done
+# G13.5d — la limite des données (PLAN-G13.md) : chaque opérande en mémoire contre la limite de son segment, #GP ou
+# #SS. Le silicium est dans les portes sst ci-dessus (les attendus du mode matériel) et les références entières.
+run materiel-cas-pb189 materiel-cas PB-189
+run materiel-cas-pb189-materiel --hardware-mode PB-189 materiel-cas PB-189

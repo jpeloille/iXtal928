@@ -28,6 +28,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, CALL et JMP FAR en mémoire contrôlent le pointeur entier contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     /// <summary>pcem: x86_ops_call.h:3-96 — la macro CALL_FAR_w.
     ///
     /// DEVIATION: le macro fait `return 1` depuis son milieu ; une méthode C# ne
@@ -262,6 +265,8 @@ internal static partial class _386
         case 0x18: /*CALL far*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(4)) return 1;
                 new_pc = readmemw(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (cpu_state.eaaddr + 2));
                 if (cpu_state.abrt != 0)
@@ -293,6 +298,8 @@ internal static partial class _386
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 old_pc = cpu_state.pc;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(4)) return 1;
                 new_pc = readmemw(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, cpu_state.eaaddr + 2);
                 if (cpu_state.abrt != 0)
@@ -414,6 +421,8 @@ internal static partial class _386
         case 0x18: /*CALL far*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return 1;
                 new_pc = readmeml(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)((cpu_state.eaaddr + 4)));
                 if (cpu_state.abrt != 0)
@@ -443,6 +452,8 @@ internal static partial class _386
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 old_pc = cpu_state.pc;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return 1;
                 new_pc = readmeml(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
                 if (cpu_state.abrt != 0)
@@ -535,6 +546,8 @@ internal static partial class _386
         case 0x18: /*CALL far*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return 1;
                 new_pc = readmeml(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)((cpu_state.eaaddr + 4)));
                 if (cpu_state.abrt != 0)
@@ -564,6 +577,8 @@ internal static partial class _386
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 old_pc = cpu_state.pc;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(6)) return 1;
                 new_pc = readmeml(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
                 if (cpu_state.abrt != 0)
@@ -653,6 +668,8 @@ internal static partial class _386
         case 0x18: /*CALL far*/
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(4)) return 1;
                 new_pc = readmemw(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)((cpu_state.eaaddr + 2)));
                 if (cpu_state.abrt != 0)
@@ -682,6 +699,8 @@ internal static partial class _386
                 if (cpu_mod != 3)
                         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 old_pc = cpu_state.pc;
+                if (materiel.pb_189)
+                        if (cpu_mod != 3 && _386_materiel.limite_materiel(4)) return 1;
                 new_pc = readmemw(easeg, cpu_state.eaaddr);
                 new_cs = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
                 if (cpu_state.abrt != 0)

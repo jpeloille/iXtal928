@@ -70,6 +70,7 @@ internal static class ModeMateriel
         new(186, "processeur", "AAD et AAM du cœur 286/386/486 posent SF, ZF et PF d'après AL"),
         new(187, "processeur", "AAM 0 du cœur 286/386/486 lève #DE"),
         new(188, "processeur", "le DAS du cœur 286/386/486 teste l'AL et le CF d'origine"),
+        new(189, "processeur", "un opérande en mémoire tient entier dans la limite de son segment : #GP(0), #SS(0) pour la pile"),
         new(190, "processeur", "LTR contrôle le sélecteur, le type et la présence de la TSS"),
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),

@@ -3370,9 +3370,32 @@ franchit l'offset 65 535 ou 0 (386 PRM § 14.7, point 7) ; « Interrupt 13 if an
 would lie outside of the effective address space from 0 to 0FFFFH » (386 PRM, pages d'instruction).
 *Cas qui discrimine* : SST 386, familles E2 et E3. Banc, mode réel : BX = FFFFh, `ADD [BX],BX` → mot
 lu et écrit en DS:FFFFh et DS:10000h (PCem) ; INT 0Dh (386). EAX = 10000h, `67 01 00` → idem.
-*G13* : (a) — documenté et mesuré ; mais un contrôle sur chaque accès mémoire, le chemin le plus chaud
-du cœur : son coût est à décider avant G13.5, qui ne le prévoit pas (D1, question 6).
-*Reproduit* : `Cpu/386_common.cs:515`, SEG_CHECK_READ et SEG_CHECK_WRITE, marqueur `PB-189`.
+*G13* : (a) — documenté et mesuré ; un contrôle sur chaque accès mémoire, le chemin le plus chaud du cœur : fait
+en G13.5d, à la demande de Julien (le 10/10), son coût mesuré.
+*Reproduit* en mode PCem : `Cpu/386_common.cs`, SEG_CHECK_READ et SEG_CHECK_WRITE, et les accesseurs, marqueurs
+`fixed in hardware mode: PB-189` ; un marqueur en tête de chaque fichier de handlers qui porte une garde.
+*Corrigé en mode matériel* (G13.5d) : sous `if (materiel.pb_189)`, `limite_materiel`, `limite_seg_materiel` et
+`limite_pile_materiel` (`Cpu/386.Materiel.cs`) comparent l'opérande entier aux limites du cache du descripteur
+(limit_low, limit_high : FFFFh en mode réel, celles qu'un passage en mode protégé y a laissées, un segment expansé
+vers le bas), avant tout accès ; #SS(0) pour SS, #GP(0) sinon. Les sites : geteaX et seteaX (l'adresse effective), les
+chaînes et leurs REP (DS:SI, ES:DI), LDS, LES, LSS, LFS, LGS, CALL et JMP FAR en mémoire, BOUND, LGDT, LIDT, SGDT,
+SIDT, XLAT, et la pile (PUSH, POP, RET, RETF, IRET, LEAVE, ENTER, PUSHA, POPA), chaque contrôle avant l'accès et avant
+ce que l'instruction modifie (le registre d'un POP, les drapeaux d'IRETD, ESP et EBP d'ENTER, la lecture du port
+d'INS). Non contrôlés : les empilements des transferts du mode protégé (portes, IRET, RETF de niveau), ceux d'une
+interruption, les accès x87 qui ne passent pas par geteaX (les formes de 80, 94 et 108 octets), qu'aucun corpus ne
+mesure. Sur une pile de 16 bits, RETF lit CS à l'offset replié (SS:0000h pour SP = FFFEh), là où PCem le lit en
+SS:10000h. Trois règles du silicium, chacune tirée d'une perte du corpus, cas par cas : le 286 contrôle chaque mot
+d'un opérande de plusieurs mots à son offset replié (BOUND en FFFEh lit sa seconde borne en 0000h, sans faute ; en
+FFFDh, l'exception 13) ; sur une pile de 16 bits, l'offset se replie sur 16 bits (un RETF en SS:FFFEh lit CS en
+SS:0000h, sans faute) ; POP d'un registre de segment, opérande de 32 bits, avance ESP de 4 mais ne lit que le mot du
+sélecteur. Les empilements d'une interruption en mode réel ne sont pas contrôlés (un SP impair près de zéro mène à la
+double faute, puis à l'arrêt, que PCem ne modélise pas). Le coût : nul en mode PCem, nul au banc en mode matériel (un
+chemin court inliné, la faute seule appelée). SST en mode matériel, contre G13.5c : au 386, 107 361 cas gagnés, 7
+perdus (un SIB sans index et d'échelle non nulle, l'adresse au-delà de FFFFh, que le 386EX exécute sans faute, quand
+707 cas de la même forme la lèvent : inexpliqué, à mesurer) ; au 286, 2 975 gagnés, aucun perdu. `materiel-cas PB-189`
+: un mot à cheval, une adresse de 32 bits, POP en SP = FFFFh (#SS), LODSW, LES (au 386, le pointeur entier ; au 286,
+mot par mot), RETF en SS:FFFEh (CS lu en SS:0000h), chacun avec le registre de destination intact et SP après la
+faute, et un témoin.
 
 ### PB-190 — LTR ne contrôle rien
 

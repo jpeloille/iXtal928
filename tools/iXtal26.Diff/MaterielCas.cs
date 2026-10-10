@@ -41,7 +41,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -682,6 +682,51 @@ internal static class MaterielCas
         r = Jouer386([0x0F, 0x07], r => r[(int)R.DI] = 0x3000, Bloc);
         bad += Voir("LOADALL386, ES:EDI = 0000:3000h (386), témoin", (r[(int)R.AX], r[(int)R.IP]) == (0x5A5A, 0x0200),
                     $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", "AX = 5A5A, IP = 0200", hw);
+        return bad;
+    }
+
+    // PB-189 — un opérande en mémoire doit tenir entier dans la limite de son segment (386 PRM § 14.7, point 7 ;
+    // mesuré : SST 386 et 286) : l'exception 13, ou 12 pour la pile. Le vecteur 0Ch posé en 0000:0800, pour #SS. Au 386,
+    // l'opérande entier ; au 286, chaque mot à son offset replié (BOUND et LES en FFFEh lisent leur second mot en
+    // 0000h, sans faute). Un RETF en SS:FFFEh lit CS en SS:0000h, sans faute (PCem le lit en SS:10000h).
+    private static int Pb189(bool hw)
+    {
+        var bad = 0;
+        void Ss() { mem.ram[0x30] = 0x00; mem.ram[0x31] = 0x08; mem.ram[0x32] = 0x00; mem.ram[0x33] = 0x00; }
+        int Cas(string nom, int coeur, byte[] code, Action<ushort[]> regs, Func<ushort[], bool> pcem, string vuPcem,
+                Func<ushort[], bool> materiel, string vuMateriel)
+        {
+            var r = Jouer386(code, regs, Ss, coeur: coeur);
+            return Voir($"{nom} ({coeur})", hw ? materiel(r) : pcem(r),
+                        $"IP = {r[(int)R.IP]:X4}, CS = {r[(int)R.CS]:X4}, AX = {r[(int)R.AX]:X4}, SP = {r[(int)R.SP]:X4}",
+                        hw ? vuMateriel : vuPcem, hw);
+        }
+        // Une faute en mode réel empile FLAGS, CS et IP : SP − 6 ; l'IP du vecteur, 0700h (#GP) ou 0800h (#SS) ; le
+        // registre de destination intact (AX = 1234h).
+        bool Gp(ushort[] r, int sp) => r[(int)R.IP] == 0x0700 && r[(int)R.SP] == sp - 6 && r[(int)R.AX] == 0x1234;
+        const string VuGp = "IP = 0700 (#GP), AX = 1234 intact, SP − 6";
+        bad += Cas("ADD [BX],AX, BX = FFFFh, un mot à cheval", 386, [0x01, 0x07], r => { r[(int)R.BX] = 0xFFFF; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0102, "IP = 0102, le mot écrit en FFFFh et 10000h", r => Gp(r, 0xFFFE), VuGp);
+        bad += Cas("67 ADD [00010000h],AX, l'adresse de 32 bits au-delà de FFFFh", 386, [0x67, 0x01, 0x05, 0x00, 0x00, 0x01, 0x00],
+                   r => r[(int)R.AX] = 0x1234, r => r[(int)R.IP] == 0x0107, "IP = 0107", r => Gp(r, 0xFFFE), VuGp);
+        bad += Cas("POP AX, SP = FFFFh", 386, [0x58], r => { r[(int)R.SP] = 0xFFFF; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0101 && r[(int)R.SP] == 0x0001, "IP = 0101, SP = 0001",
+                   r => r[(int)R.IP] == 0x0800 && r[(int)R.SP] == 0xFFF9 && r[(int)R.AX] == 0x1234, "IP = 0800 (#SS), AX = 1234 intact, SP = FFF9");
+        bad += Cas("LODSW, SI = FFFFh", 386, [0xAD], r => { r[(int)R.SI] = 0xFFFF; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0101, "IP = 0101", r => Gp(r, 0xFFFE) && r[(int)R.SI] == 0xFFFF, VuGp + ", SI intact");
+        bad += Cas("LES AX,[BX], BX = FFFEh, le pointeur à cheval", 386, [0xC4, 0x07], r => { r[(int)R.BX] = 0xFFFE; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0102, "IP = 0102", r => Gp(r, 0xFFFE), VuGp);
+        bad += Cas("ADD [BX],AX, BX = FFFFh", 286, [0x01, 0x07], r => { r[(int)R.BX] = 0xFFFF; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0102, "IP = 0102", r => Gp(r, 0xFFFE), VuGp);
+        bad += Cas("LES AX,[BX], BX = FFFDh, le second mot à cheval", 286, [0xC4, 0x07], r => { r[(int)R.BX] = 0xFFFD; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0102, "IP = 0102", r => Gp(r, 0xFFFE), VuGp);
+        bad += Cas("LES AX,[BX], BX = FFFEh, deux mots entiers (témoin)", 286, [0xC4, 0x07], r => { r[(int)R.BX] = 0xFFFE; r[(int)R.AX] = 0x1234; },
+                   r => r[(int)R.IP] == 0x0102, "IP = 0102", r => r[(int)R.IP] == 0x0102, "IP = 0102, aucune faute");
+        // RETF en SS:FFFEh : IP en FFFEh (9090h, le fond), CS en SS:0000h, le mot 0400h du vecteur 0 (silicium) ; PCem le
+        // lit en SS:10000h, le fond (9090h).
+        bad += Cas("RETF, SP = FFFEh, CS lu en SS:0000h", 386, [0xCB], r => r[(int)R.SP] = 0xFFFE,
+                   r => r[(int)R.SP] == 0x0002 && r[(int)R.CS] == 0x9090, "SP = 0002, CS = 9090 (lu en SS:10000h)",
+                   r => r[(int)R.SP] == 0x0002 && r[(int)R.CS] == 0x0400, "SP = 0002, CS = 0400 (lu en SS:0000h), aucune faute");
         return bad;
     }
 

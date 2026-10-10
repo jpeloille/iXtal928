@@ -38,6 +38,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, BOUND contrôle ses deux bornes contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     // pcem: x86_ops_misc.h:28-32 — opNOP.
     //
     // Il occupe l'emplacement 0x90, qui SERAIT XCHG AX, AX. PCem lui donne un
@@ -95,6 +98,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         low = (int16_t)geteaw();
         high = (int16_t)readmemw(easeg, cpu_state.eaaddr + 2);
         if (cpu_state.abrt != 0)
@@ -448,6 +453,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(8)) return 1;
         low = (int32_t)geteal();
         high = (int32_t)readmeml(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -471,6 +478,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(8)) return 1;
         low = (int32_t)geteal();
         high = (int32_t)readmeml(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -494,6 +503,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         low = (int16_t)geteaw();
         high = (int16_t)readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
         if (cpu_state.abrt != 0)

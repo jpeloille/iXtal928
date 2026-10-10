@@ -8349,3 +8349,104 @@ communes rendent les mêmes verdicts ; quatre résumés changent, comme attendu 
 de l'étape : les cas des huit corrections dans les deux modes, et pm-check en C# seul au 286, au 386 et au 486, dans
 les deux modes. Comme pour g5b1, `os/386-HDD-C.img` a tourné avec l'image de référence (empreinte vérifiée), copiée
 dans le worktree seul.
+
+## G13.5d — Le 286, le 386 et le 486 : la limite des données
+
+Le 10 octobre 2026, quatrième sous-étape de G13.5, demandée par Julien le 10 (« pas moyen de faire le nécessaire ? »,
+puis « enchaîne sur G13.5d »). Un défaut : PB-189, la limite des données. En mode réel, PCem ne compare un opérande à
+la limite de son segment que dans une poignée de MOV ; partout ailleurs, un mot à cheval sur FFFFh ou une adresse de 32
+bits au-delà est lu et écrit hors du segment. Le mode PCem ne bouge pas.
+
+**Le code** (`Cpu/386.Materiel.cs`, section « La limite des données ») : `limite_seg_materiel` compare l'opérande
+entier aux limites du cache du descripteur (`limit_low`, `limit_high` : FFFFh en mode réel, celles qu'un passage en
+mode protégé y a laissées, un segment expansé vers le bas), avant tout accès, et lève #SS(0) pour SS, #GP(0) sinon ;
+`limite_materiel` l'applique à l'adresse effective, `limite_pile_materiel` à la pile, `pop_seg_l_materiel` à POP d'un
+registre de segment de 32 bits. Les gardes, `if (materiel.pb_189)` : dans les accesseurs geteaX et seteaX (612 appels
+de handlers), PUSH_W, POP_W, PUSH_L et POP_L ; avant chaque accès des chaînes et de leurs REP (126, posées par script,
+relues), de la pile (93 : PUSH et POP de mémoire, RET, RETF, IRET, LEAVE, ENTER, PUSHA, POPA), de LDS, LES, LSS, LFS et
+LGS, de CALL et JMP FAR en mémoire, de BOUND, de LGDT, LIDT, SGDT et SIDT. Les empilements d'une interruption en mode
+réel ne sont pas contrôlés : un SP impair près de zéro y mène à la double faute, puis à l'arrêt, que PCem ne modélise
+pas.
+
+**SST, cinq passes sur les deux corpus entiers**, en mode matériel, chaque échec imprimé (un ajout hors commit à la
+sonde) et comparé cas par cas, gagnés (en échec avant, juste après) et perdus (l'inverse). Une vague n'est gardée
+qu'avec ses pertes expliquées :
+
+| Passe | Ce qu'elle ajoute | 386 | 286 |
+|---|---|---|---|
+| 1 | geteaX et seteaX | +98 204, −7 | +2 451, −0 |
+| 2 | les chaînes, les pointeurs lointains, BOUND, xDT | +7 557, −0 | +121, −3 |
+| 3 | la pile ; le 286 contrôlé au premier mot | +1 006, −220 | +3, −4 |
+| 4 | le 286 mot par mot ; la pile repliée ; POP sreg 32 | +220, −0 | +4, −0 |
+| 5 | la contre-lecture : POP r avant l'affectation, RETF replié, XLAT… | +594, −0 | +403, −0 |
+
+Les pertes ont donné trois règles du silicium, chacune lue sur ses cas :
+- **le 286 contrôle chaque mot à son offset replié** : BOUND en SS:FFFEh lit sa seconde borne en SS:0000h et lève
+  INT 5 (la passe 2, qui contrôlait les quatre octets d'un bloc, en perdait trois) ; BOUND en DS:FFFDh, dont le second
+  mot est à cheval sur FFFFh, lève l'exception 13 (la passe 3, qui ne contrôlait que le premier mot, le perdait). Le
+  386 contrôle l'opérande entier : aucune perte de ce genre sur son corpus ;
+- **sur une pile de 16 bits, l'offset se replie sur 16 bits**, comme SP : un RETF en SS:FFFEh lit CS en SS:0000h, sans
+  faute. PCem passe parfois l'offset non replié (`SP + 2`, `EBP` dans ENTER) ; le contrôle prend l'offset replié ;
+- **POP d'un registre de segment, opérande de 32 bits** (6607, 6617, 661F, 660FA1, 660FA9) : ESP avance de 4, mais seul
+  le mot du sélecteur est lu ; en SS:FFFEh, aucune faute (210 cas perdus en passe 3).
+
+Bilan contre G13.5c : au 386, 1 717 647 cas justes sur 1 758 699 (contre 1 610 293), 107 361 gagnés, 7 perdus, 536
+formes en hausse, aucune en baisse ; au 286, 1 458 545 sur 1 477 997 (contre 1 455 570), 2 975 gagnés, aucun perdu, 83
+formes en hausse. Les 7 pertes du 386 restent inexpliquées : un SIB sans index et d'échelle non nulle, l'adresse
+au-delà de FFFFh (FFFFFA5Bh dans cinq d'entre elles, qui partagent l'état initial), que le 386EX exécute sans faute,
+quand 707 cas de la même forme la lèvent ; aucune règle trouvée (ni l'adresse linéaire au-delà de 4 Go, ni la forme du
+SIB), à mesurer sur un 386. Les quatre références du mode matériel sont régénérées (les corpus entiers et les portes de
+150 cas, la première ligne d'en-tête gardée) ; celles du mode PCem ne bougent pas. Restent en échec des formes sans
+rapport avec PB-189 : IRETD (66CF), ENTER, POPA 32 bits, SHLD et SHRD, PUSHFD et POPFD, les chaînes répétées sous un
+pas, déjà relevées.
+
+**Les cas** (`materiel-cas PB-189`, C# seul ; le vecteur 0Ch posé en 0000:0800 pour #SS) : au 386, ADD [BX],AX en
+FFFFh, ADD [00010000h],AX (adresse de 32 bits), POP AX en SP = FFFFh (#SS), LODSW en SI = FFFFh, LES en FFFEh (le
+pointeur entier), RETF en SS:FFFEh (CS lu en SS:0000h, 0400h ; PCem en SS:10000h) ; au 286, ADD [BX],AX en FFFFh, LES
+en FFFDh (le second mot à cheval) ; un témoin sans faute dans les deux modes, LES en FFFEh au 286 (deux mots entiers).
+Après une faute, chaque cas vérifie aussi le registre de destination (AX = 1234h intact) et SP. Chacun rend la valeur
+de PCem en mode PCem, celle du matériel avec la seule correction, la sonde comptant sept passages ; les huit cas
+discriminants rougissent jugés sur l'attente de l'autre mode.
+
+**Le coût (M1).** Le banc `Exec386Banc` gagne une boucle à deux accès mémoire par tour (ADD [BX],AX ; MOV AX,[SI] ;
+LOOP), trois contrôles par tour. Une première version, un appel de méthode par contrôle : 156,1 µs en mode PCem,
+166,8 µs sous PB-189 seul (+6,9 %), jugé trop cher (Julien). La version gardée inline le chemin court (l'opérande tient
+d'un bloc sous la limite, deux comparaisons) et n'appelle que pour la faute : 156,2 µs contre 154,3 µs, dans le bruit ;
+le même état final. **Le mode PCem ne coûte rien
+(M2).** M2-5d, les onze scénarios : identiques à M0, hors les sept méthodes froides connues et les sept du mécanisme ;
+les méthodes gardées y sont compilées (geteaw, seteaw, geteab, geteal, les chaînes et leurs REP, PUSH_W, POP_W, PUSH_L,
+POP_L, RET, RETF, IRET, PUSHA, POPA, LES, LDS, BOUND, op0F01_common) et identiques. **Le temps réel (M4).** L'ami486
+(DX2/66), `--timer-check roms 60 --charge ram` : 3,89 en mode PCem, 3,33 en mode matériel (G13.5c : 3,90 et 3,34),
+le même nombre d'instructions.
+
+**Les contrôles négatifs** (`/tmp/a9/neg135d.py`, une copie des sources, rejoués sur le code final) ; le témoin sans faute est vert (les cas, le
+recensement, la porte SST du 286 de 150 cas) :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| la limite décalée d'un octet | `materiel-cas PB-189` ; `sst286-materiel` | rouge, 5 échecs ; 56 écarts |
+| #GP au lieu de #SS pour la pile | `materiel-cas PB-189`, mode matériel | rouge, 1 échec |
+| le 286 contrôlé d'un bloc | `materiel-cas PB-189`, mode matériel | rouge, 1 échec (la porte SST de 150 cas n'a pas ces cas : vert) |
+| l'offset de pile non replié | `materiel-cas PB-189`, mode matériel | rouge, 1 échec |
+| un marqueur de PB-189 resté `reproduced` | `recensement` | rouge |
+| geteaw contrôlé hors de sa garde (une fuite) | `materiel-cas PB-189`, mode PCem | rouge, 3 échecs |
+
+M2 et les contrôles négatifs ont été rejoués sur le code final, après la contre-lecture : identiques.
+
+**La contre-lecture** (Sonnet, en lecture seule) : aucune fuite en mode PCem ; les gardes posées par script vérifiées
+une à une. Repris, deux défauts bloquants et quatre à corriger : ENTER sortait d'une faute de pile sans rendre ESP et
+EBP ; POP r rangeait dans le registre le 0 que POP_W rend sur une faute (contrôlé désormais avant l'affectation) ; IRETD
+écrivait les drapeaux avant de contrôler le dernier mot ; INS lisait le port avant de contrôler ES:DI ; RETF, sur une
+pile de 16 bits, contrôlait SS:0000h et lisait SS:10000h (il lit désormais à l'offset replié) ; CALL et JMP FAR en forme
+registre contrôlaient une adresse sans objet ; CMPS contrôlait ES:DI entre la lecture de DS:SI et son test de faute ;
+XLAT n'était pas contrôlé ; les cas ne vérifiaient que l'IP. La cinquième passe SST mesure ces reprises (+594 cas au
+386, +403 au 286, aucune perte). Relevé sans suite : PUSHA et POPA contrôlent chaque mot juste avant lui (une faute au
+second laisse le premier écrit, sous SP, sans effet) ; les accès non contrôlés sont dits dans PB-189.
+
+**La série.** g5d1 tourne sur un worktree de `91b9ffa` et des vingt-cinq fichiers de l'étape, les corpus SST liés
+corpus par corpus, sous `MALLOC_PERTURB_=85`, l'oracle reconstruit de zéro : 399 portes, toutes vertes, en 74 minutes.
+Contre g5c1, les 397 portes communes rendent les mêmes verdicts ; un seul résumé change, comme attendu : `recensement`
+(263 défauts, 1 009 marqueurs, contre 989 ; 57 défauts corrigés en mode matériel, contre 56). `sst386-materiel` et
+`sst286-materiel` reproduisent leurs nouveaux attendus, `sst386` et `sst286` (mode PCem) les anciens. Les 2 portes
+neuves sont les cas de PB-189 dans les deux modes. Comme pour g5c1, `os/386-HDD-C.img` a tourné avec l'image de
+référence (empreinte vérifiée), copiée dans le worktree seul.

@@ -129,6 +129,9 @@ internal static class materiel
     /// <summary>PB-188 : le DAS du cœur 286/386/486 teste l'AL et le CF d'origine.</summary>
     internal static readonly bool pb_188;
 
+    /// <summary>PB-189 : un opérande en mémoire tient entier dans la limite de son segment, sinon #GP(0) ou #SS(0).</summary>
+    internal static readonly bool pb_189;
+
     /// <summary>PB-190 : LTR contrôle le sélecteur, le type et la présence de la TSS.</summary>
     internal static readonly bool pb_190;
 
@@ -226,6 +229,7 @@ internal static class materiel
         pb_186 = ModeMateriel.Demande(186);
         pb_187 = ModeMateriel.Demande(187);
         pb_188 = ModeMateriel.Demande(188);
+        pb_189 = ModeMateriel.Demande(189);
         pb_190 = ModeMateriel.Demande(190);
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);

@@ -37,6 +37,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, chaque mot ou double mot lu ou écrit dans la pile contrôle SS contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     /// <summary>pcem: x86_ops_stack.h:3-10 — PUSH_W_OP(reg), et :19-26 —
     /// POP_W_OP(reg). Les deux macros, sur les huit registres généraux.</summary>
     private static void PoserPushPopRegistres()
@@ -57,6 +60,10 @@ internal static partial class _386
                 // pcem: x86_ops_stack.h:19-26 — op##POP_##reg
                 ops_286[0x58 + reg] = fetchdat =>
                 {
+                        // pcem bug, fixed in hardware mode: PB-189 — contrôlé avant l'affectation : sur une faute, POP_W et POP_L
+                        //   rendent 0, que PCem range dans le registre.
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP : SP, 2)) return 1;
                         cpu_state.regs[reg].w = POP_W();
                         CLOCK_CYCLES(is486 != 0 ? 1 : 4);
                         PREFETCH_RUN(4, 1, -1, 1, 0, 0, 0, 0);
@@ -70,26 +77,58 @@ internal static partial class _386
     {
         if (stack32 != 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 2), 2)) return 1;
                 writememw(ss, ESP - 2, AX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 4), 2)) return 1;
                 writememw(ss, ESP - 4, CX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 6), 2)) return 1;
                 writememw(ss, ESP - 6, DX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 8), 2)) return 1;
                 writememw(ss, ESP - 8, BX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 10), 2)) return 1;
                 writememw(ss, ESP - 10, SP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 12), 2)) return 1;
                 writememw(ss, ESP - 12, BP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 14), 2)) return 1;
                 writememw(ss, ESP - 14, SI);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP - 16), 2)) return 1;
                 writememw(ss, ESP - 16, DI);
                 if (cpu_state.abrt == 0)
                         ESP -= 16;
         }
         else
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 2) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 2) & 0xFFFF), AX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 4) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 4) & 0xFFFF), CX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 6) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 6) & 0xFFFF), DX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 8) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 8) & 0xFFFF), BX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 10) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 10) & 0xFFFF), SP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 12) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 12) & 0xFFFF), BP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 14) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 14) & 0xFFFF), SI);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP - 16) & 0xFFFF)), 2)) return 1;
                 writememw(ss, (uint32_t)((SP - 16) & 0xFFFF), DI);
                 if (cpu_state.abrt == 0)
                         SP -= 16;
@@ -111,24 +150,38 @@ internal static partial class _386
     {
         if (stack32 != 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 2)) return 1;
                 DI = readmemw(ss, ESP);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 2), 2)) return 1;
                 SI = readmemw(ss, ESP + 2);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 4), 2)) return 1;
                 BP = readmemw(ss, ESP + 4);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 8), 2)) return 1;
                 BX = readmemw(ss, ESP + 8);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 10), 2)) return 1;
                 DX = readmemw(ss, ESP + 10);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 12), 2)) return 1;
                 CX = readmemw(ss, ESP + 12);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP + 14), 2)) return 1;
                 AX = readmemw(ss, ESP + 14);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -136,24 +189,38 @@ internal static partial class _386
         }
         else
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(SP & 0xFFFF)), 2)) return 1;
                 DI = readmemw(ss, (uint32_t)(SP & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 2) & 0xFFFF)), 2)) return 1;
                 SI = readmemw(ss, (uint32_t)((SP + 2) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 4) & 0xFFFF)), 2)) return 1;
                 BP = readmemw(ss, (uint32_t)((SP + 4) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 8) & 0xFFFF)), 2)) return 1;
                 BX = readmemw(ss, (uint32_t)((SP + 8) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 10) & 0xFFFF)), 2)) return 1;
                 DX = readmemw(ss, (uint32_t)((SP + 10) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 12) & 0xFFFF)), 2)) return 1;
                 CX = readmemw(ss, (uint32_t)((SP + 12) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)((SP + 14) & 0xFFFF)), 2)) return 1;
                 AX = readmemw(ss, (uint32_t)((SP + 14) & 0xFFFF));
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -351,6 +418,8 @@ internal static partial class _386
                         uint16_t tempw;
 
                         BP -= 2;
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(BP), 2)) { ESP = tempESP; EBP = tempEBP; return 1; }
                         tempw = readmemw(ss, BP);
                         if (cpu_state.abrt != 0)
                         {
@@ -469,6 +538,10 @@ internal static partial class _386
                 // pcem: x86_ops_stack.h:27-34 — op##POP_##reg (32 bits)
                 OpFn pop = fetchdat =>
                 {
+                        // pcem bug, fixed in hardware mode: PB-189 — contrôlé avant l'affectation : sur une faute, POP_W et POP_L
+                        //   rendent 0, que PCem range dans le registre.
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP : SP, 4)) return 1;
                         cpu_state.regs[reg].l = POP_L();
                         CLOCK_CYCLES(is486 != 0 ? 1 : 4);
                         PREFETCH_RUN(4, 1, -1, 0, 1, 0, 0, 0);
@@ -519,7 +592,10 @@ internal static partial class _386
     {
         uint32_t temp_seg;
         uint32_t temp_esp = ESP;
-        temp_seg = POP_L();
+        if (materiel.pb_189)
+                temp_seg = _386_materiel.pop_seg_l_materiel();
+        else
+                temp_seg = POP_L();
         if (cpu_state.abrt != 0)
                 return 1;
         x86seg_c.loadseg((uint16_t)(temp_seg & 0xffff), realseg);
@@ -551,6 +627,8 @@ internal static partial class _386
                         uint32_t templ;
 
                         EBP -= 4;
+                        if (materiel.pb_189)
+                                if (_386_materiel.limite_pile_materiel((uint32_t)(EBP), 4)) { ESP = tempESP; EBP = tempEBP; return 1; }
                         templ = readmeml(ss, EBP);
                         if (cpu_state.abrt != 0) {
                                 ESP = tempESP;
@@ -613,47 +691,75 @@ internal static partial class _386
     private static int opPOPA_l(uint32_t fetchdat)
     {
         if ((stack32) != 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)(ESP), 4)) return 1;
                 EDI = readmeml(ss, ESP);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 4)), 4)) return 1;
                 ESI = readmeml(ss, (uint32_t)(ESP + 4));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 8)), 4)) return 1;
                 EBP = readmeml(ss, (uint32_t)(ESP + 8));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 16)), 4)) return 1;
                 EBX = readmeml(ss, (uint32_t)(ESP + 16));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 20)), 4)) return 1;
                 EDX = readmeml(ss, (uint32_t)(ESP + 20));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 24)), 4)) return 1;
                 ECX = readmeml(ss, (uint32_t)(ESP + 24));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP + 28)), 4)) return 1;
                 EAX = readmeml(ss, (uint32_t)(ESP + 28));
                 if (cpu_state.abrt != 0)
                         return 1;
                 ESP += 32;
         } else {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP)&0xFFFF))), 4)) return 1;
                 EDI = readmeml(ss, (uint32_t)(((SP)&0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 4) & 0xFFFF))), 4)) return 1;
                 ESI = readmeml(ss, (uint32_t)(((SP + 4) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 8) & 0xFFFF))), 4)) return 1;
                 EBP = readmeml(ss, (uint32_t)(((SP + 8) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 16) & 0xFFFF))), 4)) return 1;
                 EBX = readmeml(ss, (uint32_t)(((SP + 16) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 20) & 0xFFFF))), 4)) return 1;
                 EDX = readmeml(ss, (uint32_t)(((SP + 20) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 24) & 0xFFFF))), 4)) return 1;
                 ECX = readmeml(ss, (uint32_t)(((SP + 24) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP + 28) & 0xFFFF))), 4)) return 1;
                 EAX = readmeml(ss, (uint32_t)(((SP + 28) & 0xFFFF)));
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -753,7 +859,10 @@ internal static partial class _386
     {
         uint32_t temp_seg;
         uint32_t temp_esp = ESP;
-        temp_seg = POP_L();
+        if (materiel.pb_189)
+                temp_seg = _386_materiel.pop_seg_l_materiel();
+        else
+                temp_seg = POP_L();
         if (cpu_state.abrt != 0)
                 return 1;
         x86seg_c.loadseg((uint16_t)(temp_seg & 0xffff), cpu_state.seg_ss);
@@ -792,24 +901,56 @@ internal static partial class _386
     private static int opPUSHA_l(uint32_t fetchdat)
     {
         if ((stack32) != 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 4)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 4), EAX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 8)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 8), ECX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 12)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 12), EDX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 16)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 16), EBX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 20)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 20), ESP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 24)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 24), EBP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 28)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 28), ESI);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(ESP - 32)), 4)) return 1;
                 writememl(ss, (uint32_t)(ESP - 32), EDI);
                 if (cpu_state.abrt == 0)
                         ESP -= 32;
         } else {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 4) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 4) & 0xFFFF)), EAX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 8) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 8) & 0xFFFF)), ECX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 12) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 12) & 0xFFFF)), EDX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 16) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 16) & 0xFFFF)), EBX);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 20) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 20) & 0xFFFF)), ESP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 24) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 24) & 0xFFFF)), EBP);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 28) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 28) & 0xFFFF)), ESI);
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_pile_materiel((uint32_t)((uint32_t)(((SP - 32) & 0xFFFF))), 4)) return 1;
                 writememl(ss, (uint32_t)(((SP - 32) & 0xFFFF)), EDI);
                 if (cpu_state.abrt == 0)
                         SP -= 32;

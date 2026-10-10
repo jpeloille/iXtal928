@@ -413,11 +413,16 @@ internal static partial class _386_common
 
     // pcem: 386_common.h:180-220 — lecture et écriture par l'adresse effective.
     // `cpu_mod == 3` désigne un REGISTRE, pas la mémoire : aucun accès n'a lieu.
+    //
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, chaque accès par l'adresse effective contrôle
+    //   l'opérande entier contre la limite de son segment (386.Materiel.cs, limite_materiel).
 
     internal static uint8_t geteab()
     {
         if (cpu_mod == 3)
                 return (cpu_rm & 4) != 0 ? cpu_state.regs[cpu_rm & 3].b.h : cpu_state.regs[cpu_rm & 3].b.l;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(1)) return 0;
         if (eal_r != -1)
                 return mem.ram[eal_r];
         return readmemb(easeg, cpu_state.eaaddr);
@@ -427,6 +432,8 @@ internal static partial class _386_common
     {
         if (cpu_mod == 3)
                 return cpu_state.regs[cpu_rm].w;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(2)) return 0;
         if (eal_r != -1)
                 return ReadW(mem.ram, eal_r);
         return readmemw(easeg, cpu_state.eaaddr);
@@ -438,6 +445,8 @@ internal static partial class _386_common
     {
         if (cpu_mod != 3)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_materiel(1)) return;
                 if (eal_w != -1)
                         mem.ram[eal_w] = v;
                 else
@@ -453,6 +462,8 @@ internal static partial class _386_common
     {
         if (cpu_mod != 3)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_materiel(2)) return;
                 if (eal_w != -1)
                 {
                         mem.ram[eal_w] = (byte)v;
@@ -469,15 +480,27 @@ internal static partial class _386_common
     //   seteaq appelle writememql DIRECTEMENT, sans le raccourci de writememq — c'est le C.
     //   Ni l'une ni l'autre ne regarde cpu_mod ni eal_r/eal_w : le x87 ne les emploie
     //   qu'avec une opérande mémoire.
-    internal static uint64_t geteaq() => readmemq(easeg, cpu_state.eaaddr);
+    internal static uint64_t geteaq()
+    {
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(8)) return 0;
+        return readmemq(easeg, cpu_state.eaaddr);
+    }
 
-    internal static void seteaq(uint64_t v) => mem.writememql(easeg + cpu_state.eaaddr, v);
+    internal static void seteaq(uint64_t v)
+    {
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(8)) return;
+        mem.writememql(easeg + cpu_state.eaaddr, v);
+    }
 
     // pcem: 386_common.h:196-201 et :242-249 — G2, D2 : les formes 32 bits.
     internal static uint32_t geteal()
     {
         if (cpu_mod == 3)
                 return cpu_state.regs[cpu_rm].l;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 0;
         if (eal_r != -1)
                 return ReadL(mem.ram, eal_r);
         return readmeml(easeg, cpu_state.eaaddr);
@@ -487,6 +510,8 @@ internal static partial class _386_common
     {
         if (cpu_mod != 3)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_materiel(4)) return;
                 if (eal_w != -1)
                 {
                         mem.ram[eal_w] = (byte)v;
@@ -512,7 +537,7 @@ internal static partial class _386_common
     // zéros. Comme fetch_ea_16, elles rendent `true` quand le handler doit sortir.
     // -----------------------------------------------------------------------
 
-    // pcem bug, reproduced: PB-189 — SEG_CHECK_READ et SEG_CHECK_WRITE ne testent que le segment nul,
+    // pcem bug, fixed in hardware mode: PB-189 — SEG_CHECK_READ et SEG_CHECK_WRITE ne testent que le segment nul,
     //   et ce sont les seules gardes de la plupart des handlers (CHECK_READ, CHECK_WRITE et CHECK_WRITE_REP ne
     //   servent qu'aux MOV de x86_ops_mov.h, à x86_ops_misc.h:50, à six REP et au FSTP m64) : en mode réel,
     //   un opérande qui sort de la limite (adresse a32 au-delà de FFFFh, mot à cheval sur FFFFh) ne lève rien.
@@ -725,6 +750,9 @@ internal static partial class _386_common
     /// <summary>pcem: 386_ops.h:14-26</summary>
     internal static void PUSH_W(uint16_t val)
     {
+        // pcem bug, fixed in hardware mode: PB-189 — le mot empilé tient dans la limite de SS, sinon #SS(0).
+        if (materiel.pb_189)
+                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP - 2 : (uint32_t)((SP - 2) & 0xFFFF), 2)) return;
         if (stack32 != 0)
         {
                 writememw(ss, ESP - 2, val);
@@ -797,6 +825,8 @@ internal static partial class _386_common
     internal static uint32_t POP_L()
     {
         uint32_t ret;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP : SP, 4)) return 0;
         if (stack32 != 0)
         {
                 ret = readmeml(ss, ESP);
@@ -818,6 +848,8 @@ internal static partial class _386_common
     internal static uint16_t POP_W()
     {
         uint16_t ret;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP : SP, 2)) return 0;
         if (stack32 != 0)
         {
                 ret = readmemw(ss, ESP);
@@ -846,6 +878,8 @@ internal static partial class _386_common
     /// la largeur du nom.</summary>
     internal static void PUSH_L(uint32_t val)
     {
+        if (materiel.pb_189)
+                if (_386_materiel.limite_pile_materiel(stack32 != 0 ? ESP - 4 : (uint32_t)((SP - 4) & 0xFFFF), 4)) return;
         if (stack32 != 0)
         {
                 writememl(ss, ESP - 4, val);

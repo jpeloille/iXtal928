@@ -396,6 +396,9 @@ internal static partial class _386
         uint8_t temp;
 
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, fixed in hardware mode: PB-189 — l'octet de la table contre la limite du segment.
+        if (materiel.pb_189)
+                if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, addr, 1)) return 1;
         temp = readmemb(cpu_state.ea_seg!.@base, addr);
         if (cpu_state.abrt != 0)
                 return 1;
@@ -925,6 +928,9 @@ internal static partial class _386
         uint8_t temp;
 
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        // pcem bug, fixed in hardware mode: PB-189 — l'octet de la table contre la limite du segment.
+        if (materiel.pb_189)
+                if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, addr, 1)) return 1;
         temp = readmemb(cpu_state.ea_seg!.@base, addr);
         if (cpu_state.abrt != 0)
                 return 1;

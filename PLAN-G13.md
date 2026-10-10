@@ -251,7 +251,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   G13.0 ; PB-256 laissé reproduit, question à Julien) ; PS2BANC et JOYBANC dans les deux modes, `--joystick-check` ;
   série g4c1, 345 portes vertes.
 
-### G13.5 — Le 286, le 386 et le 486  *(en cours : quatre sous-étapes, chacune sa série et son commit)*
+### G13.5 — Le 286, le 386 et le 486  ✅ *fait : quatre sous-étapes, chacune sa série et son commit*
 
 - Avant les corrections : la carte plate de 16 Mo du cœur 286, des deux côtés (`h_flat16`, `FlatMap286`) ; 17 % du
   corpus SST du 286 tombe aujourd'hui hors de sa carte de 1 Mo (VERIFICATION.md § G13.2).
@@ -275,7 +275,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   486, qui pose le décor du 486 autrement que par LOADALL386 (PB-78 corrigé) ; le scénario `ami386dx-pm` des listings.
   Le NT d'un JMP de tâche suit déjà le 386 PRM. PB-41 reste reproduit (aucun manuel ne donne la valeur) ; PB-189 (la
   limite des données en mode réel) suit, en G13.5d.
-- **G13.5d, la limite des données** : PB-189 (en mode réel, un opérande au-delà de FFFFh ou à cheval sur FFFFh lève
+- **G13.5d, la limite des données** ✅ *(10/10, VERIFICATION.md § G13.5d)* : PB-189 (en mode réel, un opérande au-delà de FFFFh ou à cheval sur FFFFh lève
   #GP, ou #SS pour la pile), demandé par Julien le 10/10 ; un contrôle sur chaque accès mémoire, le chemin le plus chaud
   du cœur : son coût mesuré (M1) en mode matériel, nul en mode PCem (M2) ; SST 386, familles E2 et E3.
 

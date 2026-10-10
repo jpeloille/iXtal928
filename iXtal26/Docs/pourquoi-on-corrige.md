@@ -566,3 +566,19 @@ sur le 286, de protection générale partout.
   son segment de code ; sinon, sur le 386 et le 486, l'exception de TSS invalide, dans la nouvelle tâche.
 - **L'émulateur.** PCem ne vérifie rien et exécute au-delà du segment.
 - **La correction.** La vérification après le changement de tâche.
+
+## G13.5, la limite des données — le 286, le 386 et le 486 (mode matériel)
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.5, `VERIFICATION.md` § G13.5d.*
+
+### PB-189 — un opérande qui sort de son segment
+
+- **Le vrai PC.** Un segment fait au plus 64 Ko en mode réel. Une donnée lue ou écrite doit y tenir tout entière : un
+  mot posé à cheval sur la dernière adresse du segment, ou une adresse de 32 bits qui le dépasse, lève une exception de
+  protection générale, ou de pile pour la pile. Le 286 regarde chaque mot d'une donnée longue séparément ; le 386, la
+  donnée entière.
+- **L'émulateur.** PCem ne vérifie la limite que pour une poignée d'instructions : toutes les autres lisent et écrivent
+  au-delà du segment, dans la mémoire qui suit, sans exception.
+- **La correction.** Chaque accès à la mémoire compare la donnée à la limite de son segment avant de la lire ou de
+  l'écrire. Sur le corpus du vrai 386, plus de cent mille cas passent de faux à juste ; trois règles fines du silicium
+  sont venues des rares cas que la première version faisait tomber.

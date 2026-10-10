@@ -68,6 +68,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, les chaînes répétées contrôlent DS:SI et ES:DI à chaque tour contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     // pcem: x86_ops_rep.h:741-752 — opREPNE, et :753-764 — opREPE.
     //
     // CE SONT DES PRÉFIXES, comme op_seg à A11 : ils vont chercher l'opcode
@@ -164,6 +167,8 @@ internal static partial class _386
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         if (check_io_perm(DX)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 temp = (uint8_t)io.inb(DX);
                 writememb(es, DI, temp);
                 if (cpu_state.abrt != 0)
@@ -201,6 +206,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         if (check_io_perm(DX)) return 1;
         if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 temp = (uint16_t)io.inw(DX);
                 writememw(es, DI, temp);
                 if (cpu_state.abrt != 0)
@@ -235,6 +242,8 @@ internal static partial class _386
         {
                 uint8_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -269,6 +278,8 @@ internal static partial class _386
         {
                 uint16_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -316,9 +327,13 @@ internal static partial class _386
                         x86seg_c.x86gpf("Limit check", 0);
                         break;
                 }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 writememb(es, DI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -375,9 +390,13 @@ internal static partial class _386
                         x86seg_c.x86gpf("Limit check", 0);
                         break;
                 }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 writememw(es, DI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -431,6 +450,8 @@ internal static partial class _386
                         x86seg_c.x86gpf("Limit check", 0);
                         break;
                 }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 writememb(es, DI, AL);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -475,6 +496,8 @@ internal static partial class _386
                         x86seg_c.x86gpf("Limit check", 0);
                         break;
                 }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 writememw(es, DI, AX);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -512,6 +535,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (CX > 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 1)) return 1;
                 AL = readmemb(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -549,6 +574,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (CX > 0)
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 2)) return 1;
                 AX = readmemw(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -585,6 +612,10 @@ internal static partial class _386
                 uint8_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 1)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmemb(es, DI);
                 if (cpu_state.abrt != 0)
@@ -629,6 +660,10 @@ internal static partial class _386
                 uint8_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 1)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmemb(es, DI);
                 if (cpu_state.abrt != 0)
@@ -673,6 +708,10 @@ internal static partial class _386
                 uint16_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 2)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmemw(es, DI);
                 if (cpu_state.abrt != 0)
@@ -717,6 +756,10 @@ internal static partial class _386
                 uint16_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 2)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmemw(es, DI);
                 if (cpu_state.abrt != 0)
@@ -761,6 +804,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (0 == tempz))
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 uint8_t temp = readmemb(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -801,6 +846,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (1 == tempz))
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 1)) return 1;
                 uint8_t temp = readmemb(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -841,6 +888,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (0 == tempz))
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 uint16_t temp = readmemw(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -881,6 +930,8 @@ internal static partial class _386
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (1 == tempz))
         {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 2)) return 1;
                 uint16_t temp = readmemw(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -976,6 +1027,8 @@ internal static partial class _386
                 if (check_io_perm((uint16_t)(DX + 1))) return 1;
                 if (check_io_perm((uint16_t)(DX + 2))) return 1;
                 if (check_io_perm((uint16_t)(DX + 3))) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 temp = io.inl(DX);
                 writememl(es, DI, temp);
                 if (cpu_state.abrt != 0)
@@ -1008,6 +1061,8 @@ internal static partial class _386
         if (CX > 0) {
                 uint32_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1050,9 +1105,13 @@ internal static partial class _386
                 uint32_t temp;
 
                 if ((DI < (cpu_state.seg_es).limit_low) || (DI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 writememl(es, DI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1094,6 +1153,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         while (CX > 0) {
                 if ((DI < (cpu_state.seg_es).limit_low) || (DI + 3 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 writememl(es, DI, EAX);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1128,6 +1189,8 @@ internal static partial class _386
         if (CX > 0)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (CX > 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 4)) return 1;
                 EAX = readmeml(cpu_state.ea_seg!.@base, SI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1162,6 +1225,8 @@ internal static partial class _386
 
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
                 if (check_io_perm(DX)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 temp = io.inb(DX);
                 writememb(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1197,6 +1262,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
                 if (check_io_perm(DX)) return 1;
                 if (check_io_perm((uint16_t)(DX + 1))) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 temp = io.inw(DX);
                 writememw(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1234,6 +1301,8 @@ internal static partial class _386
                 if (check_io_perm((uint16_t)(DX + 1))) return 1;
                 if (check_io_perm((uint16_t)(DX + 2))) return 1;
                 if (check_io_perm((uint16_t)(DX + 3))) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 temp = io.inl(DX);
                 writememl(es, EDI, temp);
                 if (cpu_state.abrt != 0)
@@ -1266,6 +1335,8 @@ internal static partial class _386
         if (ECX > 0) {
                 uint8_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1298,6 +1369,8 @@ internal static partial class _386
         if (ECX > 0) {
                 uint16_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1331,6 +1404,8 @@ internal static partial class _386
         if (ECX > 0) {
                 uint32_t temp;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1373,9 +1448,13 @@ internal static partial class _386
                 uint8_t temp;
 
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 writememb(es, EDI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1421,9 +1500,13 @@ internal static partial class _386
                 uint16_t temp;
 
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 writememw(es, EDI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1469,9 +1552,13 @@ internal static partial class _386
                 uint32_t temp;
 
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 writememl(es, EDI, temp);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1513,6 +1600,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         while (ECX > 0) {
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 writememb(es, EDI, AL);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1548,6 +1637,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         while (ECX > 0) {
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI + 1 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 writememw(es, EDI, AX);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1583,6 +1674,8 @@ internal static partial class _386
                 if (SEG_CHECK_WRITE(cpu_state.seg_es)) return 1;
         while (ECX > 0) {
                 if ((EDI < (cpu_state.seg_es).limit_low) || (EDI + 3 > (cpu_state.seg_es).limit_high)) { x86seg_c.x86gpf("Limit check", 0); break; }
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 writememl(es, EDI, EAX);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1617,6 +1710,8 @@ internal static partial class _386
         if (ECX > 0)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (ECX > 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 1)) return 1;
                 AL = readmemb(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1651,6 +1746,8 @@ internal static partial class _386
         if (ECX > 0)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (ECX > 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 2)) return 1;
                 AX = readmemw(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1685,6 +1782,8 @@ internal static partial class _386
         if (ECX > 0)
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         while (ECX > 0) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 4)) return 1;
                 EAX = readmeml(cpu_state.ea_seg!.@base, ESI);
                 if (cpu_state.abrt != 0)
                         return 1;
@@ -1719,6 +1818,10 @@ internal static partial class _386
                 uint32_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 4)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmeml(es, DI);
                 if (cpu_state.abrt != 0)
@@ -1758,6 +1861,8 @@ internal static partial class _386
         if ((CX > 0) && (0 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (0 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 uint32_t temp = readmeml(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -1795,6 +1900,10 @@ internal static partial class _386
                 uint32_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, SI, 4)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, SI);
                 temp2 = readmeml(es, DI);
                 if (cpu_state.abrt != 0)
@@ -1834,6 +1943,8 @@ internal static partial class _386
         if ((CX > 0) && (1 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((CX > 0) && (1 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, DI, 4)) return 1;
                 uint32_t temp = readmeml(es, DI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -1871,6 +1982,10 @@ internal static partial class _386
                 uint8_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 1)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmemb(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -1909,6 +2024,10 @@ internal static partial class _386
                 uint16_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 2)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmemw(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -1947,6 +2066,10 @@ internal static partial class _386
                 uint32_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 4)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmeml(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -1986,6 +2109,8 @@ internal static partial class _386
         if ((ECX > 0) && (0 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (0 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 uint8_t temp = readmemb(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -2024,6 +2149,8 @@ internal static partial class _386
         if ((ECX > 0) && (0 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (0 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 uint16_t temp = readmemw(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -2062,6 +2189,8 @@ internal static partial class _386
         if ((ECX > 0) && (0 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (0 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 uint32_t temp = readmeml(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -2099,6 +2228,10 @@ internal static partial class _386
                 uint8_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 1)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 temp = readmemb(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmemb(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -2137,6 +2270,10 @@ internal static partial class _386
                 uint16_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 2)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 temp = readmemw(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmemw(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -2175,6 +2312,10 @@ internal static partial class _386
                 uint32_t temp, temp2;
                 if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.ea_seg!, ESI, 4)) return 1;
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 temp = readmeml(cpu_state.ea_seg!.@base, ESI);
                 temp2 = readmeml(es, EDI);
                 if (cpu_state.abrt != 0)
@@ -2214,6 +2355,8 @@ internal static partial class _386
         if ((ECX > 0) && (1 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (1 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 1)) return 1;
                 uint8_t temp = readmemb(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -2252,6 +2395,8 @@ internal static partial class _386
         if ((ECX > 0) && (1 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (1 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 2)) return 1;
                 uint16_t temp = readmemw(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;
@@ -2290,6 +2435,8 @@ internal static partial class _386
         if ((ECX > 0) && (1 == tempz))
                 if (SEG_CHECK_READ(cpu_state.seg_es)) return 1;
         while ((ECX > 0) && (1 == tempz)) {
+                if (materiel.pb_189)
+                        if (_386_materiel.limite_seg_materiel(cpu_state.seg_es, EDI, 4)) return 1;
                 uint32_t temp = readmeml(es, EDI);
                 if (cpu_state.abrt != 0)
                         break;

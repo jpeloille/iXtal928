@@ -42,6 +42,9 @@ namespace iXtal26.Cpu;
 
 internal static partial class _386
 {
+    // pcem bug, fixed in hardware mode: PB-189 — en mode matériel, LDS, LES, LSS, LFS et LGS contrôlent le pointeur entier contre la limite du
+    //   segment (386.Materiel.cs, « La limite des données »).
+
     // pcem: x86_ops_mov_seg.h:3-31 — opMOV_w_seg_a16. Lire un segment, lui,
     // est toujours légal — CS compris.
     private static int opMOV_w_seg_a16(uint32_t fetchdat)
@@ -147,6 +150,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         addr = readmemw(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, cpu_state.eaaddr + 2);
         if (cpu_state.abrt != 0)
@@ -176,6 +181,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         addr = readmemw(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, cpu_state.eaaddr + 2);
         if (cpu_state.abrt != 0)
@@ -214,6 +221,8 @@ internal static partial class _386
         if (a32 ? fetch_ea_32(fetchdat) : fetch_ea_16(fetchdat)) return 1;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(l ? 6u : 4u)) return 1;
         uint32_t addr = l ? readmeml(easeg, cpu_state.eaaddr) : readmemw(easeg, cpu_state.eaaddr);
         uint16_t seg = readmemw(easeg, cpu_state.eaaddr + (l ? 4u : 2u));
         if (cpu_state.abrt != 0)
@@ -258,6 +267,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(6)) return 1;
         addr = readmeml(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -281,6 +292,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(6)) return 1;
         addr = readmeml(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -303,6 +316,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         addr = readmemw(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
         if (cpu_state.abrt != 0)
@@ -531,6 +546,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(6)) return 1;
         addr = readmeml(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -554,6 +571,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(6)) return 1;
         addr = readmeml(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 4));
         if (cpu_state.abrt != 0)
@@ -576,6 +595,8 @@ internal static partial class _386
         if (fetch_ea_16(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         addr = readmemw(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
         if (cpu_state.abrt != 0)
@@ -598,6 +619,8 @@ internal static partial class _386
         if (fetch_ea_32(fetchdat)) return 1;
         if (ILLEGAL_ON(cpu_mod == 3)) return 0;
         if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (materiel.pb_189)
+                if (_386_materiel.limite_materiel(4)) return 1;
         addr = readmemw(easeg, cpu_state.eaaddr);
         seg = readmemw(easeg, (uint32_t)(cpu_state.eaaddr + 2));
         if (cpu_state.abrt != 0)

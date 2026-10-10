@@ -15,6 +15,7 @@
 // BT, BTS, BTR, BTC et MOVSX n'existent pas sur le 286.
 
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using static iXtal26.Cpu._386_common;
 using static iXtal26.Cpu.x86;
@@ -676,6 +677,78 @@ internal static class _386_materiel
                 return false;
         x86seg_c.x86gpf(null!, 0);
         ModeMateriel.Sonde[193]++;
+        return true;
+    }
+
+    // ===== La limite des données (G13.5d) =====
+
+    // pcem bug, fixed in hardware mode: PB-189 — un opérande en mémoire doit tenir entier dans la limite de son segment :
+    //   sinon l'exception 13, ou 12 pour la pile (386 PRM § 14.7, point 7 : « Interrupt 13 if any part of the operand
+    //   would lie outside of the effective address space from 0 to 0FFFFH » ; § 9.8.12 pour SS ; 80286 PRM, de même).
+    //   La limite est celle du cache du descripteur, en mode réel (FFFFh, ou celle qu'un passage en mode protégé y a
+    //   laissée) comme en mode protégé, où limit_low et limit_high portent déjà le segment expansé vers le bas. Rend
+    //   vrai sur une faute ; chaque site le contrôle avant son accès et avant tout ce qu'il modifie.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool limite_materiel(uint32_t taille) => limite_seg_materiel(cpu_state.ea_seg!, cpu_state.eaaddr, taille);
+
+    // pcem bug, fixed in hardware mode: PB-189 — la pile : sur une pile de 16 bits (B = 0), l'offset se replie sur
+    //   16 bits avant le contrôle, comme SP lui-même (un RETF en SS:FFFEh lit CS en SS:0000h, sans faute ; mesuré, SST
+    //   386, CA) ; PCem passe parfois l'offset non replié (SP + 2 dans RETF, que le mode matériel lit replié ; EBP dans
+    //   ENTER de 32 bits, lu tel quel).
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool limite_pile_materiel(uint32_t adr, uint32_t taille) =>
+        limite_seg_materiel(cpu_state.seg_ss, stack32 != 0 ? adr : adr & 0xFFFF, taille);
+
+    // pcem bug, fixed in hardware mode: PB-189 — POP d'un registre de segment, opérande de 32 bits : ESP avance de 4,
+    //   mais seul le mot du sélecteur est lu (mesuré : SST 386, 6607, 6617, 661F, 660FA1, 660FA9 en SS:FFFEh, sans
+    //   faute) ; le contrôle porte sur ce mot. Rend le sélecteur, comme POP_L ; sur une faute, abrt est posé.
+    internal static uint32_t pop_seg_l_materiel()
+    {
+        var adr = stack32 != 0 ? ESP : SP;
+        if (limite_pile_materiel(adr, 2))
+                return 0;
+        uint32_t v = readmemw(ss, adr);
+        if (cpu_state.abrt != 0)
+                return 0;
+        if (stack32 != 0)
+                ESP += 4;
+        else
+                SP += 4;
+        return v;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-189 — le même contrôle hors de l'adresse effective : les chaînes (DS:SI ou
+    //   ES:DI, et leurs formes 32 bits), qui ne passent pas par geteaX.
+    //   Le 286 lit un opérande de plusieurs mots mot par mot, chacun contrôlé à son offset replié sur 16 bits (mesuré :
+    //   SST 286, BOUND en SS:FFFEh lit sa seconde borne en SS:0000h et lève INT 5, mais BOUND en DS:FFFDh, dont le
+    //   second mot est à cheval sur FFFFh, lève l'exception 13).
+    //   Le chemin court, inliné à chaque site : l'opérande tient d'un bloc sous la limite (sur le 286 aussi, chaque mot
+    //   y tient alors) ; sinon, le contrôle entier, qui seul peut lever la faute.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool limite_seg_materiel(x86seg s, uint32_t bas, uint32_t taille)
+    {
+        if (bas >= s.limit_low && bas <= s.limit_high && s.limit_high - bas >= taille - 1)
+                return false;
+        return limite_faute_materiel(s, bas, taille);
+    }
+
+    private static bool limite_faute_materiel(x86seg s, uint32_t bas, uint32_t taille)
+    {
+        if (is386 == 0 && taille > 2)
+        {
+                for (uint32_t k = 0; k < taille; k += 2)
+                        if (limite_faute_materiel(s, (bas + k) & 0xFFFF, 2))
+                                return true;
+                return false;
+        }
+        var haut = (uint64_t)bas + taille - 1;
+        if (bas >= s.limit_low && haut <= s.limit_high)
+                return false;
+        if (ReferenceEquals(s, cpu_state.seg_ss))
+                x86seg_c.x86ss(null!, 0);
+        else
+                x86seg_c.x86gpf(null!, 0);
+        ModeMateriel.Sonde[189]++;
         return true;
     }
 }
