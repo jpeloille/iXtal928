@@ -279,7 +279,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   #GP, ou #SS pour la pile), demandé par Julien le 10/10 ; un contrôle sur chaque accès mémoire, le chemin le plus chaud
   du cœur : son coût mesuré (M1) en mode matériel, nul en mode PCem (M2) ; SST 386, familles E2 et E3.
 
-### G13.6 — Le x87  *(6a, 6b et 6c faits ; suit le point de décision n° 10)*
+### G13.6 — Le x87  *(6a, 6b et 6c faits ; point de décision n° 10 : étape 1 faite, en attente)*
 
 - Le cadre : des tables du mode posées par `cpu_set`, d'abord copies conformes (le fuzzeur doit rester vert) ; le
   harnais `x87hw-cases`, en C# seul.
@@ -291,6 +291,10 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   coprocesseurs de 16 bits suivent : 10 000 à 20 000 lignes, plus que G4 entier. Sinon, un repli : 80 bits pour
   stocker, `double` pour calculer. Jamais les noyaux transcendants de Bochs : leur licence (SoftFloat 2b) est
   incompatible avec la GPL-2.0-only.
+- **Point n° 10, étape 1, la réécriture et la mesure** ✅ *(11/10, VERIFICATION.md § G13, point de décision n° 10)* :
+  SoftFloat 3e réécrit en C# (`tools/softfloat/`), le sous-ensemble 80 bits en variante 8086, hors de l'émulateur ;
+  TestFloat 3e au bit près, niveaux 1 et 2 (9,6 milliards de cas, aucun écart) ; FADD à 10,7 ns. **Attend la décision
+  de Julien** avant toute intégration.
 - **G13.6a, le cadre et les PB à peu de gestionnaires** ✅ *(10/10, VERIFICATION.md § G13.6a)* : les tables du mode,
   copies de celles de PCem posées par `cpu_set` (`Cpu/x87.Materiel.cs`), le 8087 en place (`Cpu/808x.Materiel.cs`) ;
   PB-61 (le pilote), PB-57, PB-58, PB-64, PB-70 (un groupe : les comparaisons ; l'hypothèse A6 instruite), PB-63,

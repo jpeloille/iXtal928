@@ -127,8 +127,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   opérande contre la limite de son segment, +107 361 cas SST au 386, +2 975 au 286).
   G13.6 en cours, le x87 (feu vert du 10/10) : G13.6a (les tables du mode, FNSTSW AX, les comparaisons et l'infini
   projectif, FXAM, les constantes, FST de registre) ; G13.6b (C1 des comparaisons, FSTENV) ; G13.6c (l'acheminement
-  de ZE : ES et B, la NMI du 8087, IRQ13 et le verrou de l'AT, F0h et F1h, FERR# et #MF du 486) ; suit le point de
-  décision n° 10.
+  de ZE : ES et B, la NMI du 8087, IRQ13 et le verrou de l'AT, F0h et F1h, FERR# et #MF du 486). Point de décision
+  n° 10, étape 1 (11/10) : SoftFloat 3e réécrit en C#, hors de l'émulateur, vert à TestFloat 3e et mesuré ; attend la
+  décision de Julien.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

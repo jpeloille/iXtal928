@@ -72,6 +72,21 @@ dotnet_diagnostic.IDE0044.severity = none   # rendre readonly — interdit (cf. 
 dotnet_diagnostic.IDE0051.severity = none   # membre privé inutilisé
 dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
 
+# G13, point de décision n° 10 — SoftFloat 3e réécrit en C# : le même pacte que le code transcrit, la ligne du C
+# contre la ligne du C#. La classe `softfloat` porte le nom de la bibliothèque, comme `mem` celui de mem.c.
+[tools/softfloat/SoftFloat/**.cs]
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CS8981.severity = none
+dotnet_diagnostic.IDE0011.severity = none
+dotnet_diagnostic.IDE0045.severity = none
+dotnet_diagnostic.IDE0046.severity = none
+dotnet_diagnostic.IDE0047.severity = none
+dotnet_diagnostic.IDE0048.severity = none
+dotnet_diagnostic.IDE0055.severity = none
+dotnet_diagnostic.IDE0066.severity = none
+dotnet_diagnostic.IDE0044.severity = none
+
 # G13 — le mode matériel : la classe figée `materiel` et ses champs `pb_nn` ont la forme des marqueurs (PB-nn) et de
 # la garde que R2 retire du décompte, `if (materiel.pb_nn)`. G14 et G15 les renommeront avec le reste.
 [**/Materiel/materiel.cs]

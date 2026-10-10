@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>iXtal26.SoftFloatBanc</AssemblyName>
+        <RootNamespace>iXtal26.SoftFloatBanc</RootNamespace>
+
+        <!-- Outillage, pas code réécrit : warnings pleins, comme iXtal26.Diff. Le réglage de compilation de
+             iXtal26.csproj, pour mesurer ce que le produit exécuterait. -->
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+        <TieredCompilation>false</TieredCompilation>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../SoftFloat/iXtal26.SoftFloat.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -45,6 +45,61 @@ transcribed must be moved to "yes" here, with its upstream notice reproduced in 
 
 ---
 
+## Berkeley SoftFloat, Release 3e
+
+**Author:** John R. Hauser
+**Source:** <http://www.jhauser.us/arithmetic/SoftFloat.html> — `SoftFloat-3e.zip`,
+sha256 `21130ce885d35c1fe73fc1e1bf2244178167e05c6747cad5f450cc991714c746`
+**License:** **BSD 3-Clause** (SPDX: `BSD-3-Clause`), compatible with GPL v2.0
+
+`tools/softfloat/SoftFloat/` is a C# rewrite of the 80-bit subset of SoftFloat 3e (the
+`8086` specialization, which follows the x87 rules for NaNs), file by file. Each rewritten
+file carries the copyright line and the full notice of the C file it comes from;
+`tools/softfloat/SoftFloat/COPYING.txt` is the upstream licence. It is verified against
+TestFloat 3e, by the same author and under the same licence, which is fetched and built
+outside the repository (`tools/softfloat/outils/preparer.sh`); no TestFloat code is
+redistributed here. The upstream licence, as distributed:
+
+```
+License for Berkeley SoftFloat Release 3e
+
+John R. Hauser
+2018 January 20
+
+The following applies to the whole of SoftFloat Release 3e as well as to
+each source file individually.
+
+Copyright 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 The Regents of the
+University of California.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions, and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions, and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+ 3. Neither the name of the University nor the names of its contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS "AS IS", AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ARE
+DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+---
+
 ## SingleStepTests
 
 **Authors:** Daniel Balsom (GloriousCow) and the SingleStepTests contributors
@@ -60,4 +115,4 @@ upstream licence terms and reproduce them here.
 
 ---
 
-*Last updated: 2026-09-19*
+*Last updated: 2026-10-11*

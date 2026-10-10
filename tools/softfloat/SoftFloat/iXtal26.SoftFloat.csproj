@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- SoftFloat 3e de John R. Hauser, réécrit en C# : le sous-ensemble 80 bits dont le x87 a besoin (G13, point de
+         décision n° 10). Hors de l'émulateur tant que la mesure n'a pas tranché ; vérifié par TestFloat-3e
+         (tools/softfloat/Banc). Licence BSD-3-Clause, la notice dans COPYING.txt et en tête de chaque fichier porté. -->
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>iXtal26.SoftFloat</AssemblyName>
+        <RootNamespace>iXtal26.SoftFloat</RootNamespace>
+
+        <!-- Les réglages de iXtal26.csproj, pour mesurer ce que le produit exécuterait : le C enveloppe en silence,
+             pas de code non sûr, une seule compilation, optimisée d'emblée. -->
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+        <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+        <TieredCompilation>false</TieredCompilation>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="iXtal26.SoftFloatBanc"/>
+    </ItemGroup>
+
+</Project>

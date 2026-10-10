@@ -8681,3 +8681,86 @@ Ce qui n'est pas couvert : qu'une interruption prenne le processeur arrêté, et
 **La série** (`g6c1`, le 10/10, 22:13 → 23:22, contre `g6b1`) : 425 portes vertes, les 419 de `g6b1` et les six
 `materiel-cas` de G13.6c (trois PB, chacun dans les deux modes) ; un seul écart, attendu : `recensement` compte 1025
 marqueurs au lieu de 1009, ceux de PB-59, PB-69 et PB-204.
+
+## G13, point de décision n° 10, étape 1 — SoftFloat 3e réécrit en C#, hors de l'émulateur
+
+Le 11 octobre 2026, au feu vert de Julien (la réécriture, et l'en-tête des fichiers portés). Le noyau de 80 bits
+proposé au point n° 10 : SoftFloat 3e de John R. Hauser, licence BSD-3-Clause, réécrit en C# et vérifié par
+TestFloat 3e, du même auteur, avant toute intégration. L'émulateur n'est pas touché : la mesure doit trancher d'abord.
+
+**La réécriture** (`tools/softfloat/SoftFloat/`, bibliothèque `iXtal26.SoftFloat`). Le sous-ensemble est celui que
+l'éditeur de liens tire de `softfloat.a` pour un programme qui appelle ce dont le x87 a besoin : l'addition, la
+soustraction, la multiplication, la division, le reste, la racine, l'arrondi à l'entier, les six comparaisons, les
+conversions vers et depuis f32, f64, i32 et i64 ; 45 fichiers C, et les primitives que la build insère en ligne. Un
+fichier C# par fichier C, au même nom, les identifiants du C, la classe `softfloat` ; la build de référence est celle
+de `build/Linux-x86_64-GCC` en variante 8086 (les NaN et l'indéfini du x87, la petitesse après l'arrondi), et les types
+« fast » y prennent leur largeur de glibc (fast16 et fast32 sur 64 bits : le quotient d'`extF80_div` déborde dans
+cette largeur). Trois écarts de forme, annoncés en tête de leur fichier, là où C# refuse un `goto` dans un bloc ou un
+cas qui tombe dans le suivant : le bloc du débordement de `softfloat_roundPackToExtF80`, l'étiquette `increment` de
+`softfloat_roundToI64`, le `switch` d'`extF80_roundToInt`. Chaque fichier porté garde la ligne de copyright et la
+notice de son fichier C, mot pour mot (`outils/entetes.py`), sous `SPDX-License-Identifier: BSD-3-Clause` ; la licence
+d'origine est dans `COPYING.txt` et `THIRD_PARTY_NOTICES.md`. `outils/preparer.sh` télécharge les deux archives
+(empreintes vérifiées), les décompresse dans `sources/softfloat/` et les construit.
+
+**La vérification** (`outils/verifier.sh`, le banc `iXtal26.SoftFloatBanc ver`). `testfloat_gen` tire les cas et les
+résultats de la SoftFloat C de référence ; le banc recalcule chaque cas, compare la valeur et les cinq indicateurs au
+bit près (NaN compris), et réécrit la ligne pour `testfloat_ver -checkAll`. La matrice : 262 passes, chaque fonction
+sous les six modes d'arrondi (dont near_maxMag et odd, que le x87 n'a pas : le code porté les a), les trois précisions
+pour les cinq opérations qu'elles touchent, exact et non exact pour les conversions en entier et l'arrondi, la
+petitesse avant et après l'arrondi.
+
+| niveau | passes | cas | écarts au bit près | erreurs de `testfloat_ver -checkAll` | durée |
+|---|---|---|---|---|---|
+| 1 | 262 | 7 617 216 | 0 | 0 | quelques secondes |
+| 2 | 262 | 9 648 544 248 | 0 | 0 | 1 643 s, quatre processus |
+
+**Les contrôles négatifs**, une faute à la fois dans une copie, le niveau 1 en entier :
+
+| | la faute | le résultat |
+|---|---|---|
+| N0 | aucune (témoin) | vert |
+| N1 | 80 bits : la moitié n'arrondit plus vers le haut | rouge : add, sub, mul (12 passes) |
+| N2 | deux NaN : le plus petit gagne | rouge : add, sub, mul, div, rem (156 passes) |
+| N3 | l'indéfini devient un infini | rouge : six opérations (192 passes) |
+| N4 | conversion en i32 : l'égalité ne va plus au pair | rouge : `extF80_to_i32` (2 passes, 4 écarts) |
+| N5 | x − x : le signe du zéro sous l'arrondi vers −∞ | rouge : add, sub (24 passes) |
+| N6 | le reste : la parité du quotient | rouge : rem (12 passes) |
+| N7 | la racine : le bit collant | rouge : sqrt (12 passes, 14 écarts) |
+| N8 | le décalage de 128 bits, 64 ou plus : sans bit collant | rouge : add, sub (8 passes) |
+| N9 | `uint_fast32_t` sur 32 bits | ne compile pas |
+| N10 | vers f32 : le biais | rouge : `extF80_to_f32` (12 passes) |
+| N11 | depuis i32 : l'exposant | rouge : `i32_to_extF80` |
+| N12 | l'arrondi à l'entier : le cas qui tombe dans le suivant | rouge : `extF80_roundToInt` (2 passes) |
+| N13 | ≤ : les deux zéros | rouge : `extF80_le` |
+| N14 | le produit 64 × 64 : les deux moitiés échangées | rouge : mul (36 passes) |
+| N15 | la précision 64 : le masque d'arrondi | rouge : cinq opérations (60 passes) |
+
+N8 a d'abord retiré le bit collant de la branche courte du décalage : vert, parce que son seul appelant
+(`softfloat_subMagsExtF80`) y passe une moitié basse nulle ; la faute est un mutant équivalent, la branche longue en
+porte une qui ne l'est pas.
+
+**La contre-lecture** (Sonnet, les 52 fichiers contre le C, ligne à ligne) : aucun écart de comportement. Vu et sans
+effet : `packToF32UI` rend 64 bits où le C rend 32 pour une mantisse constante nulle (la valeur ne déborde pas) ;
+`softfloat_shortShiftLeft128` reçoit un compte de 64 quand le reste est nul (indéfini en C, mais sur des opérandes
+nuls). La notice de chaque fichier est celle du C, au mot près.
+
+**La mesure** (`iXtal26.SoftFloatBanc mesure`, réglages de compilation d'iXtal26, un cœur réservé par `taskset`, 19
+millions d'opérations par banc sur des normaux de graine fixe, le meilleur de cinq passes, deux passes concordantes à
+1 % près ; ns par opération) :
+
+| | `double` | SoftFloat | rapport |
+|---|---|---|---|
+| FADD | 0,38 | 10,7 | 28× |
+| FSUB | 0,38 | 10,7 | 28× |
+| FMUL | 0,38 | 8,5 | 22× |
+| FDIV | 0,76 | 15,3 | 20× |
+| FSQRT | 1,14 | 16,1 | 14× |
+| FCOM | 0,58 | 3,9 | 7× |
+| FLD m64 | 0,26 | 1,7 | 7× |
+| FST m64 | 0,26 | 2,9 | 11× |
+| FIST m32 | 0,69 | 2,4 | 3× |
+
+Le `double` est l'opération nue d'une boucle serrée, pas un gestionnaire d'iXtal ; pour l'échelle, exec386 joue une
+instruction simple en 5,7 ns environ (M1 de G13.5b). Rapporté au temps de l'invité, le pire cas est le 486DX2 à 66 MHz,
+où FADD prend 8 à 20 cycles (120 à 300 ns) : un flot de FADD seuls coûterait 4 à 9 % de temps réel de plus. Sur le 387
+(23 cycles au moins), le 287 et le 8087, la part est plus petite encore.
