@@ -31,7 +31,7 @@ for m in re.finditer(r'static int (\w+)\(uint32_t fetchdat\) \{\n(.*?)\n\}',txt[
 M48='// pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :'
 M48b='//   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).'
 M60='// pcem bug, reproduced: PB-60 — le NaN qui survit suit l\'ordre des opérandes que GCC a choisi.'
-MC1='// pcem bug, reproduced: PB-213 — C1 n\'est pas remis à zéro (387 et suivants : C1 = 0).'
+MC1='// pcem bug, fixed in hardware mode: PB-213 — C1 n\'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).'
 def conv(fn,kind,lines,optype,lv,get,use):
     out=[]; k=0
     while k<len(lines):

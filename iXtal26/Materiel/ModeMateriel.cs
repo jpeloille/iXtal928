@@ -83,6 +83,8 @@ internal static class ModeMateriel
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
         new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
+        new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
+        new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
         new(248, "carte-mere", "l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial"),

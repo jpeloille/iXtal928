@@ -629,3 +629,23 @@ une constante, la profondeur de la pile. Huit défauts, tous en mode matériel.
 - **L'émulateur.** PCem calcule en 53 bits et garde l'entier exact à part, mais oublie de le copier : la copie rend un
   entier ancien.
 - **La correction.** La copie emporte l'entier exact.
+
+## G13.6, suite — le coprocesseur : deux oublis de PCem
+
+*Le 10 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, `VERIFICATION.md` § G13.6b.*
+
+### PB-213 — une comparaison efface le bit C1
+
+- **Le vrai PC.** Le mot d'état du 387 et du 486 a quatre bits de « condition ». Une comparaison en pose trois et
+  remet le quatrième, C1, à zéro.
+- **L'émulateur.** PCem laisse C1 tel qu'une instruction précédente l'a laissé : un programme qui lit les quatre bits
+  ensemble se trompe.
+- **La correction.** Sur le 387 et le 486, chaque comparaison efface C1 ; le 8087 et le 287, où ce bit est indéfini,
+  gardent ce qu'ils avaient.
+
+### PB-207 — ranger l'environnement masque les exceptions
+
+- **Le vrai PC.** FSTENV range l'état du coprocesseur en mémoire, puis masque toutes ses exceptions : un gestionnaire
+  d'erreur commence ainsi, pour ne pas en déclencher une seconde.
+- **L'émulateur.** PCem range, mais ne masque rien.
+- **La correction.** Les six masques posés après le rangement.

@@ -14,6 +14,9 @@ for f in ['x87_ops_loadstore.cs','x87_ops_arith.cs','x87_ops_misc.cs']:
     # G13.6 — PB-61 n'est corrigé que sur le 287 et après : le 8087 n'a pas DF E0 (PB-200). Sa copie n'est pas un
     # marqueur.
     corps=corps.replace('// pcem bug, fixed in hardware mode: PB-61 — ', '// Sur le 287 et après, PB-61 (corrigé en mode matériel) — ')
+    # G13.6b — de même PB-213, corrigé sur le 387 et le 486 : après une comparaison, le C1 du 8087 est indéfini (287 PRM
+    # table 2-6).
+    corps=corps.replace('// pcem bug, fixed in hardware mode: PB-213 — ', '// Corrigé sur le 387 et après, PB-213 — ')
     bodies.append('    // ======== depuis %s ========\n'%f + corps)
 body='\n\n'.join(bodies)
 hdr="""// SPDX-FileCopyrightText: 2026 Julien Peloille

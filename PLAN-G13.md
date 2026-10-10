@@ -279,7 +279,7 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   #GP, ou #SS pour la pile), demandé par Julien le 10/10 ; un contrôle sur chaque accès mémoire, le chemin le plus chaud
   du cœur : son coût mesuré (M1) en mode matériel, nul en mode PCem (M2) ; SST 386, familles E2 et E3.
 
-### G13.6 — Le x87  *(en cours : 6a fait ; 6b, l'acheminement ; puis le point de décision n° 10)*
+### G13.6 — Le x87  *(en cours : 6a et 6b faits ; 6c, l'acheminement ; puis le point de décision n° 10)*
 
 - Le cadre : des tables du mode posées par `cpu_set`, d'abord copies conformes (le fuzzeur doit rester vert) ; le
   harnais `x87hw-cases`, en C# seul.
@@ -296,8 +296,11 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   PB-61 (le pilote), PB-57, PB-58, PB-64, PB-70 (un groupe : les comparaisons ; l'hypothèse A6 instruite), PB-63,
   PB-66, PB-67 ; les cas dans `materiel-cas` (le harnais `x87hw-cases` prévu y est fondu) ; le scénario `ami386dx-x87`
   des listings. IE n'est pas posé (avec le noyau, PB-59).
-- **G13.6b, l'acheminement** : PB-69 (le 8087 du PC et de l'XT par la NMI), IRQ13 et le verrou de l'AT (F0h, F1h),
-  FERR# et #MF du 486, avec ZE seule.
+- **G13.6b, les deux PB de gestionnaires restants** ✅ *(10/10, VERIFICATION.md § G13.6b)* : PB-213 (les comparaisons
+  remettent C1 à zéro : 287XL, 387, 486), oublié de 6a, et PB-207 (FSTENV masque les exceptions), par enveloppes posées
+  dans les tables du mode, chaque gestionnaire repéré par son nom.
+- **G13.6c, l'acheminement** : PB-59 pour ZE (ES et B, les cycles), PB-69 (le 8087 du PC et de l'XT par la NMI), IRQ13
+  et le verrou de l'AT (PB-204, F0h et F1h), FERR# et #MF du 486, avec ZE seule.
 - **Vérification** : `x87hw-cases`, aux attentes du 387 PRM (annexe C), du 287 PRM, du Numerics Supplement et de
   l'AP-578 ; le domaine d'accord contre l'oracle (opérandes normaux, PC à 53 bits, arrondi au plus près, PE et C1
   exclus) ; MSD « 80287 » sur un 286 avec 287 ; une série par sous-étape.

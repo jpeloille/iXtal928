@@ -455,7 +455,23 @@ internal static partial class _808x
                         ops_808x_fpu_dd_a16[0xD8 + i] = ops_808x_fpu_d9_a16[0xD8 + i] = opFSTP_8087_materiel;
                 }
                 break;
+        case 207:
+                for (var i = 0; i < ops_808x_fpu_d9_a16.Length; i++)
+                        if (ops_808x_fpu_d9_a16[i] is { } h && h.Method.Name == nameof(opFSTENV_a16))
+                                ops_808x_fpu_d9_a16[i] = opFSTENV_8087_materiel;
+                break;
         }
+    }
+
+    // pcem bug, fixed in hardware mode: PB-207 — FSTENV du 8087, puis les six masques (x87.Materiel.cs). Un gestionnaire
+    //   nommé, non une enveloppe : la table du 8087 est corrigée en place pour tout le processus ; au reset suivant,
+    //   poser_8087_materiel n'y trouve plus opFSTENV_a16 et n'enveloppe rien deux fois.
+    private static int opFSTENV_8087_materiel(uint32_t fetchdat)
+    {
+        var r = opFSTENV_a16(fetchdat);
+        if (r == 0)
+                _x87_materiel.masquer_exceptions();
+        return r;
     }
 
     // pcem bug, fixed in hardware mode: PB-57 — FCOM, FCOMP et FCOMPP du 8087 (x87.Materiel.cs).

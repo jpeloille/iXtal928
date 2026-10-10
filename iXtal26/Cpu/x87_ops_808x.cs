@@ -644,7 +644,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
@@ -661,7 +661,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             x87_pop();
@@ -782,7 +782,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
@@ -799,7 +799,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.s);
             x87_pop();
@@ -920,7 +920,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
@@ -937,7 +937,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             x87_pop();
@@ -1058,7 +1058,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
@@ -1075,7 +1075,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)t.d);
             x87_pop();
@@ -1196,7 +1196,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
@@ -1213,7 +1213,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             x87_pop();
@@ -1334,7 +1334,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
@@ -1351,7 +1351,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int16_t)t));
             x87_pop();
@@ -1472,7 +1472,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
@@ -1489,7 +1489,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             x87_pop();
@@ -1610,7 +1610,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
@@ -1627,7 +1627,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), (double)unchecked((int32_t)t));
             x87_pop();
@@ -1758,7 +1758,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, fixed in hardware mode: PB-57 — `==` et `<` du C, pas x87_compare : un NaN rend
             //   « plus grand » (C3 = C2 = C0 = 0) au lieu de « non ordonné » ; en mode matériel, la table du
@@ -1776,7 +1776,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_compare(ST(0), ST((int)(fetchdat & 7)));
             x87_pop();
@@ -1789,7 +1789,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, fixed in hardware mode: PB-58 — −0 contre +0 rend C0 (« plus petit »), pas C3 ; en mode
             //   matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
@@ -1809,7 +1809,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST(1));
             x87_pop();
@@ -1996,7 +1996,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST((int)(fetchdat & 7)));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fucom);
@@ -2008,7 +2008,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             cpu_state.npxs |= x87_ucompare(ST(0), ST((int)(fetchdat & 7)));
             x87_pop();
@@ -2510,7 +2510,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-213 — C1 n'est pas remis à zéro (387 et suivants : C1 = 0).
+            // Corrigé sur le 387 et après, PB-213 — C1 n'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).
             cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));
             // pcem bug, fixed in hardware mode: PB-64 — un NaN rend « plus grand », pas « non ordonné » ; en
             //   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).
@@ -2947,7 +2947,7 @@ internal static partial class _808x
                     writememl(easeg, cpu_state.eaaddr + 24, (uint32_t)x87_c.x87_op_seg);
                     break;
             }
-            // pcem bug, reproduced: PB-207 — npxc intact : FSTENV ne masque pas les exceptions.
+            // pcem bug, fixed in hardware mode: PB-207 — FSTENV ne masque pas les exceptions (x87.Materiel.cs).
             CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);
             return cpu_state.abrt;
     }

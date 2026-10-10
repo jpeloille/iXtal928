@@ -65,7 +65,56 @@ internal static class _x87_materiel
                 if (cpu_c.fpu_type == cpu_c.FPU_8087)
                         _808x.poser_8087_materiel(67);
                 break;
+        case 207:
+                partout(h => h.Method.Name is "opFSTENV_a16" or "opFSTENV_a32" ? masque_fstenv(h) : null);
+                if (cpu_c.fpu_type == cpu_c.FPU_8087)
+                        _808x.poser_8087_materiel(207);
+                break;
+        case 213:
+                // Le 287XL (un cœur de 387 : déduit, comme pour PB-66), le 387 et le 486 : après une comparaison, le C1 du
+                // 8087 et du 287 est indéfini.
+                if (cpu_c.fpu_type >= cpu_c.FPU_287XL)
+                        partout(h => h.Method.Name.StartsWith("opFCOM", StringComparison.Ordinal)
+                                     || h.Method.Name.StartsWith("opFUCOM", StringComparison.Ordinal)
+                                     || h.Method.Name.StartsWith("opFTST", StringComparison.Ordinal)
+                                ? efface_c1(h) : null);
+                break;
         }
+    }
+
+    /// <summary>Remplace, dans les seize tables du mode, chaque gestionnaire que `f` désigne (par son nom) par celui que
+    /// `f` rend ; une table n'est copiée que si elle change. Les gestionnaires déjà posés (FCOM de registre, PB-57) sont
+    /// enveloppés comme ceux de PCem : `cpu_set` pose PB-213 en dernier.</summary>
+    private static void partout(Func<OpFn, OpFn?> f)
+    {
+        _386.x86_opcodes_d8_a16 = sur(_386.x86_opcodes_d8_a16!, _386.ops_fpu_d8_a16, f);
+        _386.x86_opcodes_d8_a32 = sur(_386.x86_opcodes_d8_a32!, _386.ops_fpu_d8_a32, f);
+        _386.x86_opcodes_d9_a16 = sur(_386.x86_opcodes_d9_a16!, _386.ops_fpu_d9_a16, f);
+        _386.x86_opcodes_d9_a32 = sur(_386.x86_opcodes_d9_a32!, _386.ops_fpu_d9_a32, f);
+        _386.x86_opcodes_da_a16 = sur(_386.x86_opcodes_da_a16!, _386.ops_fpu_da_a16, f);
+        _386.x86_opcodes_da_a32 = sur(_386.x86_opcodes_da_a32!, _386.ops_fpu_da_a32, f);
+        _386.x86_opcodes_db_a16 = sur(_386.x86_opcodes_db_a16!, _386.ops_fpu_db_a16, f);
+        _386.x86_opcodes_db_a32 = sur(_386.x86_opcodes_db_a32!, _386.ops_fpu_db_a32, f);
+        _386.x86_opcodes_dc_a16 = sur(_386.x86_opcodes_dc_a16!, _386.ops_fpu_dc_a16, f);
+        _386.x86_opcodes_dc_a32 = sur(_386.x86_opcodes_dc_a32!, _386.ops_fpu_dc_a32, f);
+        _386.x86_opcodes_dd_a16 = sur(_386.x86_opcodes_dd_a16!, _386.ops_fpu_dd_a16, f);
+        _386.x86_opcodes_dd_a32 = sur(_386.x86_opcodes_dd_a32!, _386.ops_fpu_dd_a32, f);
+        _386.x86_opcodes_de_a16 = sur(_386.x86_opcodes_de_a16!, _386.ops_fpu_de_a16, f);
+        _386.x86_opcodes_de_a32 = sur(_386.x86_opcodes_de_a32!, _386.ops_fpu_de_a32, f);
+        _386.x86_opcodes_df_a16 = sur(_386.x86_opcodes_df_a16!, _386.ops_fpu_df_a16, f);
+        _386.x86_opcodes_df_a32 = sur(_386.x86_opcodes_df_a32!, _386.ops_fpu_df_a32, f);
+    }
+
+    private static OpFn[] sur(OpFn[] posee, OpFn[] pcem, Func<OpFn, OpFn?> f)
+    {
+        var t = posee;
+        for (var i = 0; i < posee.Length; i++)
+                if (posee[i] is { } h && f(h) is { } n)
+                {
+                        t = copie(t, pcem);
+                        t[i] = n;
+                }
+        return t;
     }
 
     private static void d8_dc(int i, OpFn f)
@@ -125,7 +174,7 @@ internal static class _x87_materiel
     // ===== Les comparaisons : PB-57, PB-64, PB-70 (un groupe, ModeMateriel.Groupes) =====
     //
     // Les codes de condition seulement : IE, que le silicium pose pour un opérande non comparable, reste à poser avec
-    // les autres exceptions (PB-59, le noyau). C1 reste celui de PCem (PB-213).
+    // les autres exceptions (PB-59, le noyau). C1 : PB-213, qui enveloppe ces gestionnaires comme ceux de PCem.
 
     /// <summary>Le 8087 et le 287 comparent en projectif tant que IC (bit 12 de npxc) est nul : +∞ = −∞, et un infini
     /// n'est pas comparable à un fini. Le 287XL, le 387 et le 486 n'ont que l'affine.</summary>
@@ -319,4 +368,35 @@ internal static class _x87_materiel
         _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
         return 0;
     }
+
+    // pcem bug, fixed in hardware mode: PB-207 — FSTENV range l'environnement, puis masque les six exceptions (SDM vol. 2,
+    //   FSTENV/FNSTENV ; 287 PRM : déduit). Le gestionnaire de PCem, puis les masques, s'il a abouti.
+    private static OpFn masque_fstenv(OpFn pcem) => fetchdat =>
+    {
+        var r = pcem(fetchdat);
+        if (r == 0)
+                masquer_exceptions();
+        return r;
+    };
+
+    internal static void masquer_exceptions()
+    {
+        if ((cpu_state.npxc & 0x3F) != 0x3F)
+                ModeMateriel.Sonde[207]++;
+        cpu_state.npxc |= 0x3F;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-213 — FCOM, FCOMP, FCOMPP, FICOM, FICOMP, FUCOM, FUCOMP, FUCOMPP et FTST
+    //   remettent C1 à zéro sur le 387 et le 486 (SDM vol. 2, « C1 Set to 0 ») ; le 287XL : déduit. La comparaison ne touche pas C1 : l'effacer
+    //   après le gestionnaire de PCem, s'il a abouti, revient à l'effacer avec C0, C2 et C3.
+    private static OpFn efface_c1(OpFn pcem) => fetchdat =>
+    {
+        var r = pcem(fetchdat);
+        if (r == 0 && (cpu_state.npxs & x87_c.C1) != 0)
+        {
+                cpu_state.npxs &= unchecked((uint16_t)~x87_c.C1);
+                ModeMateriel.Sonde[213]++;
+        }
+        return r;
+    };
 }

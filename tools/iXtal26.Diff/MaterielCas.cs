@@ -41,7 +41,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -801,7 +801,7 @@ internal static class MaterielCas
     }
 
     private static readonly (int fpu, string nom)[] Fpus = [(1, "8087"), (2, "287"), (4, "387"), (5, "486")];
-    private static int Coeur(int fpu) => fpu switch { 2 => 286, 5 => 486, _ => 386 };
+    private static int Coeur(int fpu) => fpu switch { 2 or 3 => 286, 5 => 486, _ => 386 };
     private static string Cc(ushort ax) => $"C3 C2 C0 = {(ax >> 14) & 1}{(ax >> 10) & 1}{(ax >> 8) & 1}";
 
     // PB-57 — FCOM ST(1) de registre, ST(0) = NaN et ST(1) = 1 : non ordonné, C3 C2 C0 = 111 (SDM vol. 2, FCOM ; 387 PRM
@@ -1016,6 +1016,56 @@ internal static class MaterielCas
             }
             var attendu = hw ? 0x0020000000000001UL : 5UL;
             bad += Voir($"FILD ; FILD ; FSTP ST(1) ({o1:X2} {o2:X2}) ; FISTP m64 ({nom})", v == attendu, $"{v:X16}", $"{attendu:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-213 — les comparaisons remettent C1 à zéro sur le 387 et le 486 (SDM vol. 2, « C1 Set to 0 ») ; PCem le laisse.
+    // FNINIT ; FLD1 ; FLD1 ; FCHS ; FXAM (−1 : C1 = 1) ; la comparaison ; FNSTSW AX. Ses formes de registre et de mémoire
+    // (BX = 0200h ; a32 : [EDI]), FUCOM et FTST, sur le 387, le 486 et le 287XL (déduit) ; le 8087 et le 287, où C1 est
+    // indéfini, gardent celui de PCem (témoins).
+    private static int Pb213(bool hw)
+    {
+        var bad = 0;
+        (byte[] op, string nom)[] formes =
+        [
+            ([0xD8, 0xD1], "FCOM ST(1)"), ([0xD8, 0xD9], "FCOMP ST(1)"), ([0xDE, 0xD9], "FCOMPP"),
+            ([0xD8, 0x17], "FCOM m32"), ([0xDC, 0x1F], "FCOMP m64"), ([0x67, 0xDC, 0x17], "FCOM m64 (a32)"),
+            ([0xDE, 0x17], "FICOM m16"), ([0xDE, 0x1F], "FICOMP m16"), ([0xDA, 0x17], "FICOM m32"),
+            ([0xDA, 0x1F], "FICOMP m32"), ([0xDD, 0xE1], "FUCOM ST(1)"), ([0xDD, 0xE9], "FUCOMP ST(1)"),
+            ([0xDA, 0xE9], "FUCOMPP"), ([0xD9, 0xE4], "FTST"),
+        ];
+        foreach (var (fpu, nom) in Fpus.Append((3, "287XL")))
+        foreach (var (op, n) in formes)
+        {
+            if (fpu < 3 && n != "FCOM ST(1)" || fpu == 3 && op[0] == 0x67) // le 287XL, sur le 286 : pas de 67h
+                continue;
+            byte[] code = [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xE8, 0xD9, 0xE0, 0xD9, 0xE5, .. op, 0xDF, 0xE0];
+            var c1 = (X87(fpu, code, 7) >> 9) & 1;
+            var attendu = hw && fpu >= 3 ? 0 : 1;
+            bad += Voir($"FXAM (C1 = 1) ; {n} ({nom}){(fpu < 3 ? ", témoin" : "")}", c1 == attendu, $"C1 = {c1}",
+                        $"C1 = {attendu}", hw);
+        }
+        return bad;
+    }
+
+    // PB-207 — FSTENV range l'environnement, puis masque les six exceptions (SDM vol. 2, FSTENV ; 8087 et 287 : déduit).
+    // FNINIT ; FLDCW [BX] (037Bh, ZE démasquée) ; FNSTENV [BX+10h] ; FNSTCW [BX] → 037Fh ; PCem 037Bh. L'environnement
+    // rangé garde 037Bh dans les deux modes. Le 387 et le 486 aussi en a32 (FNSTENV [EBX+10h]).
+    private static int Pb207(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in Fpus)
+        foreach (var a32 in fpu >= 4 ? new[] { false, true } : new[] { false })
+        {
+            byte[] env = a32 ? [0x67, 0xD9, 0x73, 0x10] : [0xD9, 0x77, 0x10];
+            var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, .. env, 0xD9, 0x3F], 4, 0x037B);
+            var range = mem.ram[0x210] | (mem.ram[0x211] << 8);
+            var cw = (int)(v & 0xFFFF);
+            var attendu = hw ? 0x037F : 0x037B;
+            var f = a32 ? "FNSTENV [EBX+10h]" : "FNSTENV [BX+10h]";
+            bad += Voir($"FLDCW 037Bh ; {f} ; FNSTCW ({nom})", cw == attendu, $"{cw:X4}", $"{attendu:X4}", hw);
+            bad += Voir($"{f}, le mot de contrôle rangé ({nom})", range == 0x037B, $"{range:X4}", "037B", hw);
         }
         return bad;
     }

@@ -362,6 +362,13 @@ internal static partial class cpu_c
                 // pcem bug, fixed in hardware mode: PB-67 — FST et FSTP ST(i), l'entier exact de TAG_UINT64.
                 if (materiel.pb_67)
                         _x87_materiel.poser(67);
+                // pcem bug, fixed in hardware mode: PB-207 — FSTENV masque les exceptions.
+                if (materiel.pb_207)
+                        _x87_materiel.poser(207);
+                // pcem bug, fixed in hardware mode: PB-213 — les comparaisons remettent C1 à zéro (287XL, 387, 486) ; en dernier,
+                //   pour envelopper aussi les gestionnaires posés plus haut.
+                if (materiel.pb_213)
+                        _x87_materiel.poser(213);
         }
         else
         {

@@ -3768,8 +3768,13 @@ exceptions ») — documenté pour le 387 et ses successeurs ; 8087 et 287 : dé
 *Cas qui discrimine* : FNINIT ; FLDCW 037Bh (ZE démasquée) ; FNSTENV m ; FSTCW m16 → PCem 037Bh, silicium 037Fh ; puis
 FLD1 ; FLDZ ; FDIVP → PCem IRQ13 et ST(1) inchangé, silicium +∞ sans interruption.
 *G13* : (a) — G13.6, un seul gestionnaire, avec l'acheminement (sa trace visible est l'IRQ13).
-*Reproduit* : `Cpu/x87_ops_misc.cs`, `FSTENV`, marqueur PB-207 (généré par `gen44.py`), et sa copie de
-`Cpu/x87_ops_808x.cs`.
+*Reproduit* en mode PCem : `Cpu/x87_ops_misc.cs`, `FSTENV`, marqueur PB-207 (généré par `gen44.py`), et sa copie de
+`Cpu/x87_ops_808x.cs` (marqueur corrigé aussi : le 8087 l'est).
+*Corrigé en mode matériel* (G13.6b) : sous `if (materiel.pb_207)`, les tables du mode (`Cpu/x87.Materiel.cs`,
+`masque_fstenv`) enveloppent FSTENV a16 et a32 : le gestionnaire de PCem, puis les six masques ; celle du 8087, en
+place, un gestionnaire nommé (`Cpu/808x.Materiel.cs`). Le 8087 et le 287 : déduit. `materiel-cas PB-207` : le mot de
+contrôle après FNSTENV, et celui de l'environnement rangé, inchangé, sur les quatre coprocesseurs ; la trace de l'IRQ13
+du cas qui discrimine viendra avec l'acheminement (G13.6c).
 
 ### PB-208 — Le mot d'étiquettes ment pour les NaN et les infinis ; 10 est relu comme TAG_UINT64
 
@@ -3859,8 +3864,14 @@ successeurs ; 8087 et 287 : C1 « X » après une comparaison (287 PRM table 2-6
 *Cas qui discrimine* : FNINIT ; FLD m64 = 2,0 ; FLD m64 = −1,0 ; FXAM (C1 = 1) ; FCOM ST(1) ; FSTSW m16 → PCem 3300h (C1
 et C0), silicium 3100h (C0).
 *G13* : (a) — G13.6, avec les comparaisons (PB-57, 58, 64 et la part « comparaisons » de 70) ; 387 et suivants.
-*Reproduit* : `Cpu/x87_ops_arith.cs` (vingt-deux comparaisons, générées par `gen43.py`) et `Cpu/x87_ops_misc.cs`
-(`opFTST`, `gen44.py`), et leurs copies de `Cpu/x87_ops_808x.cs` ; marqueurs PB-213.
+*Reproduit* en mode PCem : `Cpu/x87_ops_arith.cs` (vingt-deux comparaisons, générées par `gen43.py`) et
+`Cpu/x87_ops_misc.cs` (`opFTST`, `gen44.py`), marqueurs PB-213 ; leurs copies de `Cpu/x87_ops_808x.cs` n'en sont pas (le
+8087).
+*Corrigé en mode matériel* (G13.6b) : sous `if (materiel.pb_213)`, sur le 387, le 486 et le 287XL (un cœur de 387 :
+déduit), les tables du mode
+(`Cpu/x87.Materiel.cs`, `efface_c1`) enveloppent chaque comparaison, repérée par son nom, celles de PB-57 comprises :
+le gestionnaire, puis C1 effacé. `materiel-cas PB-213` : quatorze formes (registre, mémoire, a32, entières, FUCOM,
+FTST) après un FXAM qui pose C1 ; le 8087 et le 287, témoins.
 
 ### PB-214 — PLAY AUDIO MSF cherche la piste sur la position encore compactée
 

@@ -168,6 +168,12 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
+    /// <summary>PB-207 : FSTENV masque les six exceptions après avoir rangé l'environnement.</summary>
+    internal static readonly bool pb_207;
+
+    /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
+    internal static readonly bool pb_213;
+
     /// <summary>PB-246 : la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1.</summary>
     internal static readonly bool pb_246;
 
@@ -266,6 +272,8 @@ internal static class materiel
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);
         pb_193 = ModeMateriel.Demande(193);
+        pb_207 = ModeMateriel.Demande(207);
+        pb_213 = ModeMateriel.Demande(213);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
         pb_248 = ModeMateriel.Demande(248);

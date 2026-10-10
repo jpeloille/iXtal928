@@ -8533,3 +8533,59 @@ l'en-tête de `x87_ops_arith.cs` (gen43), deux commentaires, et le texte de PB-7
 
 **La série** (`g6a1`, le 10/10, 19:13 → 20:22, contre `g5d1`) : 415 portes vertes, les 399 de `g5d1` et les seize
 `materiel-cas` de G13.6a (huit PB, chacun dans les deux modes) ; aucun écart.
+
+## G13.6b — Le x87 : C1 des comparaisons, FSTENV
+
+Le 10 octobre 2026. Deux défauts de gestionnaires restaient au x87 : PB-213 (les comparaisons ne remettent pas C1 à
+zéro), oublié dans G13.6a, et PB-207 (FSTENV ne masque pas les exceptions). L'acheminement des exceptions, annoncé
+comme 6b, devient G13.6c.
+
+**Le cadre de G13.6a, une enveloppe.** Les comparaisons sont vingt-trois gestionnaires (registre, mémoire réelle et
+entière, a16 et a32, FUCOM, FTST). `partout` les cherche par nom (`opFCOM`, `opFUCOM`, `opFTST`) dans les seize tables
+du mode, ceux de PB-57 compris, et pose à leur place une enveloppe : le gestionnaire, puis C1 effacé s'il a abouti
+(rendu 0 ; un #NM ou une faute mémoire rendent 1). La comparaison ne touche pas C1 : l'effacer après revient à
+l'effacer avec C0, C2 et C3. `cpu_set` pose PB-213 en dernier, et repart des tables de PCem à chaque reset : pas
+d'enveloppe empilée. FSTENV a16 et a32 sont enveloppés de même (les masques après le rangement) ; dans la table du
+8087, corrigée en place, un gestionnaire nommé, qu'un second passage ne retrouve pas. PB-213 vaut pour le 387, le 486
+et le 287XL (un cœur de 387 : déduit, comme pour PB-66) ; après une comparaison, le C1 du 8087 et du 287 est indéfini.
+PB-207 vaut pour tous (le 8087 et le 287 : déduit).
+
+**Les cas** (`materiel-cas PB-nn`) :
+
+| PB | Le cas | PCem | Matériel |
+|---|---|---|---|
+| 213 | FLD1 ; FLD1 ; FCHS ; FXAM (C1 = 1) ; la comparaison ; FNSTSW AX, quatorze formes, sur le 387, le 486 et le 287XL (sans la forme a32 sur le 286) | C1 = 1 | C1 = 0 |
+| 213 | la même avec FCOM ST(1), sur le 8087 et le 287 (témoins) | C1 = 1 | C1 = 1 |
+| 207 | FLDCW 037Bh ; FNSTENV [BX+10h] (a32 : [EBX+10h]) ; FNSTCW, les quatre coprocesseurs | 037Bh | 037Fh ; l'environnement rangé garde 037Bh |
+
+Chaque cas discriminant rougit jugé sur l'attente de l'autre mode (41 et 6 échecs). La trace d'IRQ13 du cas de PB-207
+viendra avec l'acheminement.
+
+**M2** (M2-6b, les douze scénarios) : identique à M0, hors les sept méthodes froides connues et les sept du mécanisme ;
+`cpu_set` à l'octet près. Aucune garde sur un chemin d'instruction (les tables se posent au reset).
+
+**Les contrôles négatifs** (`/tmp/a9/neg136b.py`) ; le témoin sans faute est vert :
+
+| Faute | Porte | Effet |
+|---|---|---|
+| FSTENV sans les masques | `materiel-cas PB-207` | rouge, 6 échecs |
+| les masques posés avant le rangement | `materiel-cas PB-207` | rouge, 5 échecs (l'environnement rangé) |
+| le 8087 non posé | `materiel-cas PB-207` | rouge, 1 échec |
+| FSTENV a32 non enveloppé | `materiel-cas PB-207` | rouge, 2 échecs |
+| C1 non effacé | `materiel-cas PB-213` | rouge, 41 échecs |
+| FUCOM oublié | `materiel-cas PB-213` | rouge, 9 échecs |
+| PB-213 posé avant PB-57 (FCOM de registre non enveloppé) | `materiel-cas PB-213`, avec le groupe | rouge, 12 échecs |
+| C1 effacé aussi sur le 287 | `materiel-cas PB-213` | rouge, 1 échec (le témoin) |
+| un marqueur de PB-213 resté `reproduced` | `recensement` | rouge |
+| la pose hors de sa garde (une fuite) | `materiel-cas PB-213`, mode PCem | rouge, 41 échecs |
+
+**La contre-lecture** (Sonnet, en lecture seule ; les générateurs rejoués, identiques à l'octet) : aucune fuite ;
+`sur`, `partout`, la sélection par nom (aucun autre gestionnaire ne porte ces préfixes, les lambdas non plus),
+l'idempotence au reset et les encodages, justes. Repris : le 287XL inclus et joué ; trois formes de plus (FUCOMP,
+FICOMP m16, FICOM m32) ; l'environnement a32 rangé en DS:0210h, non dans la table des vecteurs ; deux textes. Le
+premier contrôle de l'ordre des poses était mal formé (il laissait la pose finale) : refait, il rougit.
+
+**La série** (`g6b1`, le 10/10, 20:34 → 21:43, contre `g6a1`) : 419 portes vertes, les 415 de `g6a1` et les quatre
+`materiel-cas` de G13.6b (deux PB, chacun dans les deux modes) ; un seul écart, attendu : `recensement` compte 1009
+marqueurs au lieu de 1027 : les copies de PB-213 dans les gestionnaires du 8087 (gen46) ne sont plus des marqueurs,
+le 8087 laissant C1 comme PCem.

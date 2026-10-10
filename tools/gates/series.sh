@@ -587,8 +587,13 @@ run materiel-cas-pb189 materiel-cas PB-189
 run materiel-cas-pb189-materiel --hardware-mode PB-189 materiel-cas PB-189
 # G13.6a — le x87 (PLAN-G13.md) : les tables du mode posées par cpu_set (le 8087 en place) ; FNSTSW AX, les comparaisons
 # (FCOM de registre, FCOMPP, FTST, l'infini projectif du 8087 et du 287), FXAM, les constantes, FST de registre. Les cas
-# en C# seul, sur le 8087, le 287 et le 387.
+# en C# seul, sur le 8087, le 287, le 387 et le 486.
 for pb in 57 58 61 63 64 66 67 70; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# G13.6b — PB-207 (FSTENV masque les exceptions) et PB-213 (les comparaisons remettent C1 à zéro, 387 et 486).
+for pb in 207 213; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done

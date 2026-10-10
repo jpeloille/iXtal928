@@ -42,14 +42,14 @@ MARQ={
     ('FLDENV',SWITCH):
         [B+'PB-62 — les pointeurs d\'instruction et d\'opérande de l\'image ne sont pas relus.'],
     ('FSTENV','CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);'):
-        [B+'PB-207 — npxc intact : FSTENV ne masque pas les exceptions.'],
+        ['// pcem bug, fixed in hardware mode: PB-207 — FSTENV ne masque pas les exceptions (x87.Materiel.cs).'],
     ('opFRNDINT','ST(0) = (double)x87_fround(ST(0));'):
         [B+'PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.',
          B+'PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.'],
     ('opFSCALE','temp64 = CvtI64(ST(1));'):
         [B+'PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.'],
     ('opFTST',CLR3):
-        [B+'PB-213 — C1 n\'est pas remis à zéro (387 et suivants : C1 = 0).'],
+        ['// pcem bug, fixed in hardware mode: PB-213 — C1 n\'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).'],
 }
 def conv(fn,body):
     out=[]; k=0
