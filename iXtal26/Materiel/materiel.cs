@@ -102,6 +102,9 @@ internal static class materiel
     /// <summary>PB-67 : FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64.</summary>
     internal static readonly bool pb_67;
 
+    /// <summary>PB-68 : les transcendantes sur 80 bits, arrondies une fois, et leurs spéciaux ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_68;
+
     /// <summary>PB-69 : sur un PC ou un XT, l'exception du 8087 lève la NMI, que A0h masque ; avec PB-59.</summary>
     internal static readonly bool pb_69;
 
@@ -323,6 +326,7 @@ internal static class materiel
         pb_65 = ModeMateriel.Demande(65);
         pb_66 = ModeMateriel.Demande(66);
         pb_67 = ModeMateriel.Demande(67);
+        pb_68 = ModeMateriel.Demande(68);
         pb_69 = ModeMateriel.Demande(69);
         pb_70 = ModeMateriel.Demande(70);
         pb_78 = ModeMateriel.Demande(78);

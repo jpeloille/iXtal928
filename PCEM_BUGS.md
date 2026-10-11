@@ -1151,10 +1151,22 @@ SDM vol. 2 (domaines de F2XM1, FYL2X, FYL2XP1) ; 287 PRM p. 2-12 et 2-13 (FPTAN 
 *Cas qui discrimine* : FLD m64 = 2^64 (43F0000000000000) ; FSIN ; FSTSW m16 → PCem C2 = 0, ST(0) = 3F982A353118793D,
 silicium (387 et suivants) C2 = 1, ST(0) inchangé ; F2XM1 de 10^−20 → PCem 0, silicium ≈ 6,93·10^−21.
 *G13* : (b) — domaines, C2, le 1 de FPTAN : (a) ; précision : (b), sans les noyaux de Bochs (K3) ; bits exacts : (c).
-*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 (FPTAN, FSINCOS, FSIN, FCOS) ; les rangées D9 F8 des tables
-(`Cpu/x87_ops_tables.cs`, `Cpu/x87_ops_808x_tables.cs`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-68 ;
+*Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 (FPTAN, FSINCOS, FSIN, FCOS), générés par `gen44.py`, et leurs
 copies de `Cpu/x87_ops_808x.cs`. `x87-cases` : les huit sur dix-neuf bornes × quatre ST(1) ; contrôles négatifs :
-FPTAN qui pose C2 → 76 cas divergents.
+FPTAN qui pose C2 → 76 cas divergents. FSIN, FCOS et FSINCOS sur le 8087 et le 287, et leurs temps nuls : PB-266.
+*Corrigé en mode matériel* (G13.6, le noyau, N6 ; en chantier) : les huit instructions du noyau
+(`_x87_noyau.f2xm1`, `fyl2x`, `fptan`, `fpatan`, `fsin_cos` ; le calcul, `Cpu/x87_transcendantes.Materiel.cs`)
+calculent sur un réel de travail de 128 bits, sans fonction de l'hôte (R10), et arrondissent une fois à 64 bits selon
+RC (PC n'y joue pas) : le résultat correctement arrondi, à une unité près au pire (visé : ≤ 1 ulp ; les bits d'Intel
+restent (c)). FSIN, FCOS, FSINCOS et FPTAN réduisent exactement par le Pi de 66 bits significatifs (SDM vol. 1, 2016,
+§ 8.3.8 ; 387 PRM § 4.4.9, π/4 sur 67 bits, la même valeur ; pour le 486 : déduit) et posent C2, sans rien changer,
+pour |x| ≥ 2^63 (387 PRM § 4.6.1 et § 4.6.2) ; ±∞, IE et C2 (387 PRM, table 3-10 ; le SDM vol. 1, 2016, dit C2
+effacé) ; FPTAN empile 1,0 ; les spéciaux des tables du SDM vol. 2 (3-16, 3-30, 3-33, 3-48, 3-49) ; FYL2X d'un
+négatif, IE. Hors des domaines (F2XM1 au-delà de
+[−1, 1], FYL2XP1 au-delà de 1 − √2/2), le résultat du silicium est indéfini : la valeur mathématique, un choix.
+`materiel-cas PB-68` : C2 de FSIN, FCOS et FPTAN, IE de FYL2X sur le 387 et le 486 ; F2XM1 de 10^−20 et FYL2XP1 de
+2^−70 sur les cinq coprocesseurs. `x87-transc` : les huit contre leur référence en précision arbitraire
+(`tools/x87ref/transcendantes.py`), au bit près. Les domaines étroits du 8087 et du 287, et FPTAN en rapport : N7.
 
 ### PB-69 — Sur un PC ou un XT, l'exception du 8087 se perd : IRQ13 sans second PIC, pas de NMI
 
@@ -5096,6 +5108,24 @@ même aide.
 *Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT (`_x87_noyau.frndint`) et FIST, FISTP
 (`_x87_noyau.fist`, N3a) arrondissent par SoftFloat sur 80 bits. `materiel-cas PB-265` : FRNDINT de −2^−60 et de 2 −
 2^−52, FISTP m16 de 2 − 2^−52, sur les cinq coprocesseurs.
+
+### PB-266 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur le 8087 et le 287, en 0 cycle
+
+`x87_ops.h`, la rangée D9 F8 des tables `fpu_d9` (FSINCOS en FB, FSIN en FE, FCOS en FF), que `8087.h` recompile pour
+le 8087, sans condition de type ; `x87_timings.c:61-62` et `:135-136`, `fsin_cos` et `fsincos` à 0 pour le 8087 et le
+287. Détaché de PB-68 (G13.6, le noyau, N6), qui corrige la précision et C2 des transcendantes : l'existence des
+instructions du 387 sur les coprocesseurs de 16 bits est une autre question, celle de N7.
+*Effet* : un programme qui reconnaît le 287 à ce que FSIN n'y existe pas (D9 FE) le prend pour un 387 ; FSIN, FCOS et
+FSINCOS y prennent 0 cycle.
+*Trouvé par* : transcription de G4.5 (alors sous PB-68) ; détaché en G13.6, le noyau, N6.
+*Source* : 387 PRM, annexe C (FSIN, FCOS, FSINCOS, FPREM1 et FUCOM : du 387 seulement) ; 287 PRM (la liste des
+instructions, sans elles) — documenté ; ce que le 8087 et le 287 font de D9 FB, FE et FF : inconnu.
+*Cas qui discrimine* : 286 + 287 : FNINIT ; FLD1 ; FSIN ; FSTP m64 → PCem 3FEAED548F090CEEh (sin 1), silicium : ni
+sin 1, ni 0 cycle (inconnu ; l'opcode n'est pas du 287).
+*G13* : (b) — avec les coprocesseurs de 16 bits (N7), comme PB-200 et PB-209 ; ce que fait le silicium : (c).
+*Reproduit* : les rangées D9 F8 de `Cpu/x87_ops_tables.cs` et `Cpu/x87_ops_808x_tables.cs` (générées par `gentab.py` et
+`gen46.py`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-266. Le noyau (N6) calcule FSIN, FCOS et FSINCOS
+sur tous les types, comme le 387, jusqu'à N7.
 
 ## B. Comportement indéfini en C
 

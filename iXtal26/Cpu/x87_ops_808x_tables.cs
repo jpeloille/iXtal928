@@ -56,7 +56,7 @@ internal static partial class _808x
         // pcem bug, fixed in hardware mode: PB-194 — D9 F4 (FXTRACT) est ILLEGAL : la pile ne bouge pas.
         // pcem bug, reproduced: PB-209 — FPREM1 (D9 F5), du 387, s'exécute sur le 8087.
         opF2XM1, opFYL2X, opFPTAN, opFPATAN, FPU_ILLEGAL_a16, opFPREM1, opFDECSTP, opFINCSTP,
-        // pcem bug, reproduced: PB-68 — FSINCOS, FSIN et FCOS (D9 FB, FE, FF), du 387, s'exécutent sur le 8087.
+        // pcem bug, reproduced: PB-266 — FSINCOS, FSIN et FCOS (D9 FB, FE, FF), du 387, s'exécutent sur le 8087.
         opFPREM, opFYL2XP1, opFSQRT, opFSINCOS, opFRNDINT, opFSCALE, opFSIN, opFCOS,
     ];
 

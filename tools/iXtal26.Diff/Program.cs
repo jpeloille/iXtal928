@@ -353,6 +353,9 @@ switch (args[0])
         return MaterielCas.Run(args.Skip(1).ToArray());
     case "banc":
         return Banc.Run(args.Skip(1).ToArray());
+    // G13.6, le noyau, N6 — les transcendantes contre leur référence en précision arbitraire.
+    case "x87-transc":
+        return X87Transc.Run(args.Skip(1).ToArray());
     case "page-check":
     {
         var it = 200000;

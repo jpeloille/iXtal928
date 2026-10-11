@@ -642,3 +642,8 @@ for pb in 65 194 197 198 211 265; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6, le noyau, N6 — les transcendantes (PB-68), en chantier : leurs cas dans les deux modes, et les huit
+# instructions contre leur référence en précision arbitraire (20 000 cas tirés chacune, au bit près).
+run materiel-cas-pb68 materiel-cas PB-68
+run materiel-cas-pb68-materiel --hardware-mode PB-68 materiel-cas PB-68
+run x87-transc x87-transc --vecteurs 20000 1

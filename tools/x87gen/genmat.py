@@ -328,6 +328,16 @@ registre('FXTRACT', [('d9', 0xF4)], '_x87_noyau.fxtract();', 'fxtract', 'FXTRACT
 registre('FPREM', [('d9', 0xF8)], '_x87_noyau.fprem(false);', 'fprem', 'FPREM (_x87_noyau.fprem ; PB-65).')
 registre('FPREM1', [('d9', 0xF5)], '_x87_noyau.fprem(true);', 'fprem1', 'FPREM1 (_x87_noyau.fprem ; PB-65).')
 
+# ---- N6 : les transcendantes ----
+registre('F2XM1', [('d9', 0xF0)], '_x87_noyau.f2xm1();', 'f2xm1', 'F2XM1 (_x87_noyau.f2xm1 ; PB-68).')
+registre('FYL2X', [('d9', 0xF1)], '_x87_noyau.fyl2x(false);', 'fyl2x', 'FYL2X (_x87_noyau.fyl2x ; PB-68).')
+registre('FYL2XP1', [('d9', 0xF9)], '_x87_noyau.fyl2x(true);', 'fyl2xp1', 'FYL2XP1 (_x87_noyau.fyl2x ; PB-68).')
+registre('FPTAN', [('d9', 0xF2)], '_x87_noyau.fptan(false);', 'fptan', 'FPTAN (_x87_noyau.fptan ; PB-68).')
+registre('FPATAN', [('d9', 0xF3)], '_x87_noyau.fpatan();', 'fpatan', 'FPATAN (_x87_noyau.fpatan ; PB-68).')
+registre('FSINCOS', [('d9', 0xFB)], '_x87_noyau.fptan(true);', 'fsincos', 'FSINCOS (_x87_noyau.fptan ; PB-68 ; sur le 8087 et le 287, PB-266).')
+registre('FSIN', [('d9', 0xFE)], '_x87_noyau.fsin_cos(0);', 'fsin_cos', 'FSIN (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).')
+registre('FCOS', [('d9', 0xFF)], '_x87_noyau.fsin_cos(1);', 'fsin_cos', 'FCOS (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).')
+
 instr('FSETPM', [('db', 0xE4)], '''
         if (@FP_ENTER()) return 1;
         cpu_state.pc++;

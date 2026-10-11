@@ -1540,6 +1540,305 @@ internal static class _x87_noyau
         return softfloat.softfloat_roundPackToExtF80(signe, p + ey - 64 + 0x3FFF, m, 0, 80);
     }
 
+    // ===== Les transcendantes (N6 ; le calcul : x87_transcendantes.Materiel.cs) =====
+
+    private static extFloat80_t infini(bool neg) => new() { signExp = (uint16_t)(neg ? 0xFFFF : 0x7FFF), signif = 0x8000000000000000 };
+
+    private static extFloat80_t zero(bool neg) => new() { signExp = (uint16_t)(neg ? 0x8000 : 0) };
+
+    private static bool negatif(in extFloat80_t v) => (v.signExp & 0x8000) != 0;
+
+    /// <summary>IE, et l'indéfini.</summary>
+    private static extFloat80_t invalide()
+    {
+        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_invalid;
+        return Indefini;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-68 — F2XM1 : 2^ST(0) − 1 sur 80 bits, arrondi une fois selon RC (PC n'y joue
+    //   pas : SDM vol. 1, 2003, § 8.1.4.2), au lieu de pow(2, x) − 1 en double, qui perd toute précision relative pour x
+    //   petit. ±0 rend ±0 (SDM vol. 2, 2016, table 3-16) ; un SNaN, IE et le QNaN ; un format non supporté, IE et
+    //   l'indéfini ; un dénormal, DE, puis le calcul (x ln 2, petit : UE masquée et PE). Hors de [−1, 1], le résultat du
+    //   silicium est indéfini (SDM vol. 2, F2XM1) : le noyau rend la même valeur mathématique, +∞ de +∞ et −1 de −∞
+    //   (un choix). Le domaine du 8087 et du 287 (0 ≤ x ≤ 1/2 : 287 PRM, F2XM1) : N7, de même indéfini au-delà.
+    internal static void f2xm1()
+    {
+        var faute = vide(0);
+        if (lire(0, out var x))
+                return;
+        if (faute)
+        {
+                ecrire(0, Indefini);
+                return;
+        }
+        var c = classe(x);
+        arrondi(false);
+        extFloat80_t r;
+        if (non_supporte(c))
+                r = invalide();
+        else if (nan(c))
+                r = nan_de(x, x);
+        else if (c == Classe.Zero)
+                r = x;
+        else if (c == Classe.Infini)
+                r = negatif(x) ? new extFloat80_t { signExp = 0xBFFF, signif = 0x8000000000000000 } : x;
+        else
+        {
+                if (denormal(c) && lever(DE))
+                        return;
+                ModeMateriel.Sonde[68]++;
+                var v = _x87_transcendantes.exp2m1(x, out var exact);
+                r = _x87_transcendantes.arrondir(v, !exact);
+        }
+        if (!indicateurs())
+                ecrire(0, r);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-68 — FYL2X, ST(1) × log₂ ST(0), et FYL2XP1, ST(1) × log₂(ST(0) + 1) (`p1`),
+    //   rangés dans ST(1), puis la pile dépilée : sur 80 bits, le produit arrondi une seule fois selon RC (PC n'y joue
+    //   pas), au lieu de log(x) / log(2) en double, et de log(x + 1,0), qui perd tout x petit. Les spéciaux sont ceux des
+    //   tables 3-48 et 3-49 du SDM vol. 2, 2016 : FYL2X d'un x négatif (−0 excepté), IE ; de ±0, ZE et ∓∞ par un y fini
+    //   non nul, ±∞ par ∓∞, IE par ±0 ; de +∞, IE par ±0 ; de +1, IE par ±∞ ; sinon, un zéro ou un infini de y prend le
+    //   signe de y fois celui de log₂ x. FYL2XP1 de ±0, le zéro du produit, IE par ±∞. Un NaN, la règle des NaN ; un
+    //   format non supporté, IE ; un dénormal, DE, sauf si IE ou ZE passe avant (SDM vol. 1, 2003, § 4.9.2, comme les
+    //   quatre opérations). FYL2XP1 hors de |x| < 1 − √2/2 : le résultat du silicium est indéfini (SDM vol. 2,
+    //   FYL2XP1 : « software should not rely on an exception being generated ») ; le noyau rend la même valeur
+    //   mathématique, et, pour x ≤ −1, ce que FYL2X rend de 1 + x (x = −1 : le cas de ±0 ; x < −1, IE), un choix. Les
+    //   domaines du 8087 et du 287 (287 PRM, FYL2X et FYL2XP1) : N7, de même indéfinis au-delà.
+    internal static void fyl2x(bool p1)
+    {
+        var faute = vide(0) || vide(1);
+        if (lire(0, out var x) || lire(1, out var y))
+                return;
+        var r = Indefini;
+        if (!faute && logarithme(p1, x, y, out r))
+                return;
+        ecrire(1, r);
+        depiler();
+    }
+
+    /// <summary>y × log₂ x, ou y × log₂(1 + x) (`p1`) ; vrai si l'instruction s'arrête sans rien ranger.</summary>
+    private static bool logarithme(bool p1, in extFloat80_t x, in extFloat80_t y, out extFloat80_t r)
+    {
+        Classe cx = classe(x), cy = classe(y);
+        bool sx = negatif(x), sy = negatif(y);
+        arrondi(false);
+        // x = −1 pour FYL2XP1 : 1 + x vaut ±0, le cas de FYL2X d'un zéro.
+        var moinsUn = p1 && x.signExp == 0xBFFF && x.signif == 0x8000000000000000;
+        if (non_supporte(cx) || non_supporte(cy))
+                r = invalide();
+        else if (nan(cx) || nan(cy))
+                r = nan_de(x, y);
+        else if (cx == Classe.Zero && !p1 || moinsUn)
+        {
+                if (cy == Classe.Zero)
+                        r = invalide();
+                else
+                {
+                        r = infini(!sy);
+                        if (cy != Classe.Infini)
+                                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_infinite;
+                }
+        }
+        else if (cx == Classe.Zero)
+                r = cy == Classe.Infini ? invalide() : zero(sx != sy);
+        else if (sx && (!p1 || cx == Classe.Infini || (x.signExp & 0x7FFF) > 0x3FFF ||
+                        (x.signExp & 0x7FFF) == 0x3FFF && x.signif > 0x8000000000000000))
+                r = invalide();
+        else if (cx == Classe.Infini)
+                r = cy == Classe.Zero ? invalide() : infini(sy);
+        else
+        {
+                ModeMateriel.Sonde[68]++;
+                var l = p1 ? _x87_transcendantes.log2_1p(x, out var exact) : _x87_transcendantes.log2(_x87_transcendantes.de(x), out exact);
+                if (l.m == 0)
+                        r = cy == Classe.Infini ? invalide() : zero(sy);
+                else if (cy == Classe.Infini)
+                        r = infini(sy != l.s);
+                else if (cy == Classe.Zero)
+                        r = zero(sy != l.s);
+                else
+                        r = _x87_transcendantes.arrondir(_x87_transcendantes.mul(_x87_transcendantes.de(y), l), !exact);
+        }
+        if ((softfloat.softfloat_exceptionFlags & (softfloat.softfloat_flag_invalid | softfloat.softfloat_flag_infinite)) == 0 &&
+            !nan(cx) && !nan(cy) && (denormal(cx) || denormal(cy)) && lever(DE))
+                return true;
+        return indicateurs();
+    }
+
+    private static readonly extFloat80_t Un = new() { signExp = 0x3FFF, signif = 0x8000000000000000 };
+
+    /// <summary>|x| ≥ 2^63 (x fini, normal) : hors de la borne de FSIN, FCOS, FSINCOS et FPTAN.</summary>
+    private static bool hors_borne(in extFloat80_t x) => (x.signExp & 0x7FFF) >= 0x3FFF + 63;
+
+    // pcem bug, fixed in hardware mode: PB-68 — FSIN et FCOS (`f` : 0, 1) : |x| ≥ 2^63, C2 = 1 et ST(0) inchangé, sans
+    //   exception (SDM vol. 2, 2016, FSIN et FCOS ; 387 PRM § 4.6.1 et § 4.6.2) ; sinon C2 = 0 et le résultat sur 80 bits,
+    //   l'argument réduit exactement par le Pi du silicium (x87_transcendantes.reduire), arrondi une fois selon RC (PC n'y
+    //   joue pas), au lieu de sin et cos de la libm en double, qui réduisent tout argument par le vrai π. ±0 : sin ±0,
+    //   cos +1 ; ±∞, IE, l'indéfini et C2 = 1 (387 PRM, table 3-10 ; 486 PRM, la même table : « set C2 » ; le SDM vol. 1,
+    //   2016, dit C2 effacé : le noyau suit les manuels du 387 et du 486, comme pour FPREM, N4b) ; un SNaN, IE et le QNaN ;
+    //   un format non supporté, IE ; un dénormal, DE, puis le calcul ; un résultat petit, UE (387 PRM § 3.2.5.2 compte
+    //   FSIN, FCOS et FSINCOS parmi ceux qui la lèvent). FSIN, FCOS et FSINCOS n'existent ni sur le 8087 ni sur le 287
+    //   (387 PRM, annexe C) : PB-266, N7.
+    internal static void fsin_cos(int f)
+    {
+        var faute = vide(0);
+        if (lire(0, out var x))
+                return;
+        cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+        if (faute)
+        {
+                ecrire(0, Indefini);
+                return;
+        }
+        var c = classe(x);
+        arrondi(false);
+        extFloat80_t r;
+        if (non_supporte(c))
+                r = invalide();
+        else if (c == Classe.Infini)
+        {
+                r = invalide();
+                cpu_state.npxs |= x87_c.C2;
+        }
+        else if (nan(c))
+                r = nan_de(x, x);
+        else if (c == Classe.Zero)
+                r = f == 0 ? x : Un;
+        else if (hors_borne(x))
+        {
+                ModeMateriel.Sonde[68]++;
+                cpu_state.npxs |= x87_c.C2;
+                indicateurs();
+                return;
+        }
+        else
+        {
+                if (denormal(c) && lever(DE))
+                        return;
+                ModeMateriel.Sonde[68]++;
+                r = _x87_transcendantes.arrondir(_x87_transcendantes.trigo(f, x), true);
+        }
+        if (!indicateurs())
+                ecrire(0, r);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-68 — FPTAN (`sincos` faux) : tan ST(0) rangé dans ST(0), puis 1,0 empilé
+    //   (SDM vol. 2, 2016, FPTAN) ; FSINCOS (`sincos`) : sin ST(0) rangé dans ST(0), puis cos ST(0) empilé (FSINCOS). |x|
+    //   ≥ 2^63 : C2 = 1, rien de rangé ni d'empilé ; sinon C2 = 0, le calcul comme FSIN (réduction exacte par Pi, un
+    //   arrondi selon RC) ; C1, celui du cosinus pour FSINCOS (inconnu : deux résultats, un C1). ±0 : ±0 et 1,0. ±∞, IE
+    //   et C2 = 1, comme FSIN ; un format non supporté, IE ; un NaN, rendu silencieux : l'indéfini, ou le NaN, aux deux
+    //   places (inconnu, comme FXTRACT). ST(7) doit être vide : la faute de pile masquée range l'indéfini aux deux places,
+    //   avant tout examen de x (387 PRM, annexe C, FPTAN : « both ST and ST(1) contain quiet NaNs » ; FSINCOS, par
+    //   analogie). Le 8087 et le 287 : FPTAN en rapport Y / X, sur 0 ≤ x ≤ π/4, et après la faute de pile l'opérande
+    //   gardé, poussé en ST(1) (287 PRM, FPTAN ; 387 PRM, annexe C) — 1,0 pour X est un rapport juste ; FSINCOS
+    //   absent : PB-266, N7.
+    internal static void fptan(bool sincos)
+    {
+        c1_zero();
+        if (vide(0) || plein())
+        {
+                if (faute_de_pile(!vide(0)))
+                        return;
+                cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+                ecrire(0, Indefini);
+                empiler(Indefini);
+                return;
+        }
+        cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+        var x = R[phys(0)];
+        var c = classe(x);
+        arrondi(false);
+        extFloat80_t r0, r1;
+        if (non_supporte(c))
+                r0 = r1 = invalide();
+        else if (c == Classe.Infini)
+        {
+                r0 = r1 = invalide();
+                cpu_state.npxs |= x87_c.C2;
+        }
+        else if (nan(c))
+                r0 = r1 = nan_de(x, x);
+        else if (c == Classe.Zero)
+        {
+                r0 = x;
+                r1 = Un;
+        }
+        else if (hors_borne(x))
+        {
+                ModeMateriel.Sonde[68]++;
+                cpu_state.npxs |= x87_c.C2;
+                indicateurs();
+                return;
+        }
+        else
+        {
+                if (denormal(c) && lever(DE))
+                        return;
+                ModeMateriel.Sonde[68]++;
+                if (sincos)
+                {
+                        r0 = _x87_transcendantes.arrondir(_x87_transcendantes.trigo(0, x), true);
+                        r1 = _x87_transcendantes.arrondir(_x87_transcendantes.trigo(1, x), true);
+                }
+                else
+                {
+                        r0 = _x87_transcendantes.arrondir(_x87_transcendantes.trigo(2, x), true);
+                        r1 = Un;
+                }
+        }
+        if (indicateurs())
+                return;
+        ecrire(0, r0);
+        empiler(r1);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-68 — FPATAN : l'angle du point (ST(0), ST(1)), de −π à π, du signe de ST(1),
+    //   rangé dans ST(1), puis la pile dépilée (SDM vol. 2, 2016, FPATAN), sur 80 bits, arrondi une fois selon RC (PC n'y
+    //   joue pas), au lieu d'atan2 de la libm en double. Les spéciaux de la table 3-30 : ±∞ en ST(1), ±π/2, ou ±π/4 et
+    //   ±3π/4 contre +∞ et −∞ ; ±0 en ST(1), ±0 contre un ST(0) positif (+0 compris), ±π contre un négatif (−0
+    //   compris) ; un fini en ST(1), ±0 contre +∞, ±π contre −∞, ±π/2 contre ±0 — sans IE pour 0/0 ni ∞/∞ (la note de la
+    //   table). Un NaN, la règle des NaN ; un format non supporté, IE ; un dénormal, DE. Le domaine du 287 (0 ≤ |ST(1)| <
+    //   |ST(0)| < +∞ : SDM vol. 2, FPATAN) : N7, indéfini au-delà.
+    internal static void fpatan()
+    {
+        var faute = vide(0) || vide(1);
+        if (lire(0, out var x) || lire(1, out var y))
+                return;
+        var r = Indefini;
+        if (!faute && arctangente(x, y, out r))
+                return;
+        ecrire(1, r);
+        depiler();
+    }
+
+    /// <summary>atan(y / x), x = ST(0), y = ST(1) ; vrai si l'instruction s'arrête sans rien ranger.</summary>
+    private static bool arctangente(in extFloat80_t x, in extFloat80_t y, out extFloat80_t r)
+    {
+        Classe cx = classe(x), cy = classe(y);
+        bool sx = negatif(x), sy = negatif(y);
+        arrondi(false);
+        if (non_supporte(cx) || non_supporte(cy))
+                r = invalide();
+        else if (nan(cx) || nan(cy))
+                r = nan_de(x, y);
+        else if (cy == Classe.Infini)
+                r = _x87_transcendantes.arrondir(_x87_transcendantes.angle(cx != Classe.Infini ? 2 : sx ? 3 : 1, sy), true);
+        else if (cy == Classe.Zero || cx == Classe.Infini)
+                r = sx ? _x87_transcendantes.arrondir(_x87_transcendantes.angle(4, sy), true) : zero(sy);
+        else if (cx == Classe.Zero)
+                r = _x87_transcendantes.arrondir(_x87_transcendantes.angle(2, sy), true);
+        else
+        {
+                ModeMateriel.Sonde[68]++;
+                r = _x87_transcendantes.arrondir(_x87_transcendantes.arctan(y, x), true);
+        }
+        if ((softfloat.softfloat_exceptionFlags & softfloat.softfloat_flag_invalid) == 0 && !nan(cx) && !nan(cy) &&
+            (denormal(cx) || denormal(cy)) && lever(DE))
+                return true;
+        return indicateurs();
+    }
+
     // ===== FNINIT, la mise sous tension, le RESET =====
 
     /// <summary>L'état de FNINIT (387 PRM, table 6-1 ; 287 PRM, table 3-1 ; 486 PRM, table 19-1) : le mot de contrôle

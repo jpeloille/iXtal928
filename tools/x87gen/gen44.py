@@ -97,7 +97,7 @@ def conv(fn,body):
         r=re.sub(r'(?<![\w.])(pow|log|tan|atan2|sin|cos)\(', lambda m: 'Math.'+{'pow':'Pow','log':'Log','tan':'Tan','atan2':'Atan2','sin':'Sin','cos':'Cos'}[m.group(1)]+'(', r)
         r=r.replace('cpu_state.npxs &= ~C2;','cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);')
         if fn in ('opFPTAN','opFSIN','opFCOS','opFSINCOS') and r.startswith('cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2)'):
-            out.append(ind+'// pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm')
             out.append(ind+'//   réduit tout argument, et « réduction incomplète » n\'est jamais signalée.')
         r=r.replace('fabs(ST(0))','Math.Abs(ST(0))').replace('sqrt(ST(0))','Math.Sqrt(ST(0))').replace('pow(2.0,','Math.Pow(2.0,')
         r=r.replace('temp64 = (int64_t)(ST(0) / ST(1));','temp64 = CvtI64(ST(0) / ST(1));').replace('temp64 = (int64_t)ST(1);','temp64 = CvtI64(ST(1));')

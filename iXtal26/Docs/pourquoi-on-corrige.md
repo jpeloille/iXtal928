@@ -900,3 +900,30 @@ silence : il « démasque » l'erreur. Toujours en chantier : seuls les tests le
 - **La correction.** Chaque erreur, avec sa réponse : l'arrêt, ou le résultat rangé à l'exposant ramené. La
   bibliothèque de calcul, qui ne sait pas faire ce dernier arrondi, gagne un réglage pour le faire, vérifié sur vingt
   millions de cas contre son calcul ordinaire.
+
+## G13.6, le noyau, suite — sinus, logarithmes et exponentielles
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N6.*
+
+Le coprocesseur sait calculer seul un sinus, un cosinus, une tangente, un arc tangente, un logarithme et une
+exponentielle. Toujours en chantier : seuls les tests le demandent.
+
+### PB-68 — les transcendantes
+
+- **Le vrai PC.** Le 387 et le 486 calculent ces fonctions sur leurs 64 bits de précision ; Intel promet, pour ses
+  processeurs suivants, moins d'une unité d'erreur sur le dernier bit. Pour un sinus, le 387 ramène d'abord l'angle
+  entre −45° et +45° en retirant des quarts de tour, mesurés avec sa propre valeur de π, gravée dans la puce avec 66
+  bits utiles ; le 486 fait de même, selon toute vraisemblance. Au-delà de 2^63, ils ne calculent rien : ils laissent le
+  nombre et lèvent un drapeau, C2, que le programme lit pour réduire l'angle lui-même. 2^x − 1 et log₂(1 + x) existent pour les x
+  minuscules : ils gardent toute leur précision là où 2^x et 1 + x se confondraient avec 1.
+- **L'émulateur.** PCem demande ces fonctions à la bibliothèque mathématique de l'ordinateur hôte, en 53 bits : le
+  résultat dépend de l'hôte, C2 n'est jamais levé, et 2^x − 1 d'un x minuscule rend 0. Un logarithme d'un nombre négatif
+  rend un « pas un nombre » sans signaler l'erreur.
+- **La correction.** Chaque fonction est écrite dans l'émulateur, sans rien demander à l'hôte : un calcul sur 128 bits,
+  arrondi une seule fois aux 64 bits du coprocesseur, l'angle réduit avec le π de 66 bits du silicium, C2 au-delà de
+  2^63, les cas particuliers de la documentation d'Intel. Un outil à part, qui calcule en précision arbitraire, en
+  fournit les attendus ; les deux s'accordent au bit près sur près de dix millions de cas tirés au hasard.
+
+FSIN, FCOS et FSINCOS n'existent pas sur le 8087 ni sur le 287 ; PCem les y exécute en 0 cycle. C'est un autre
+défaut, PB-266, qui sera corrigé avec les coprocesseurs de 16 bits.

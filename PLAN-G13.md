@@ -381,15 +381,22 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   l'instruction qui faute avant de calculer laisse sa destination ; OE et UE démasquées rangent le résultat à
   l'exposant décalé (±24 576), ce que SoftFloat ne fait pas : un second écart, un arrondi à exposant non borné,
   annoncé comme C1. PB-59 entier. ≈ 500 lignes.
-- **N6 — Les transcendantes.** F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS, écrites sur le noyau :
-  réduction par le π de 66 bits que décrit le SDM (vol. 1, § 8.3.10 ; pour le 387 et le 486 : déduit), polynômes en virgule fixe de 128 bits, un seul arrondi final ;
+- **N6 — Les transcendantes** ✅ *(12/10, VERIFICATION.md § G13.6, le noyau, N6)*. F2XM1, FYL2X, FYL2XP1, FPTAN,
+  FPATAN, FSIN, FCOS, FSINCOS, écrites sur le noyau :
+  réduction par le π de 66 bits que décrit le SDM (vol. 1, § 8.3.8 ; pour le 387 et le 486 : déduit), polynômes en virgule fixe de 128 bits, un seul arrondi final ;
   les domaines (ceux, étroits, du 8087 et du 287), C2 au-delà de 2^63, le 1 de FPTAN. Les attendus calculés hors
   machine en précision arbitraire (`decimal` de Python, sans installation ; un outil commité). Visé : ≤ 1 ulp sur
-  le 387 et le 486, (b) ; le bit d'Intel reste (c) (décision n° 14). PB-68. ≈ 1 500 à 2 000 lignes.
+  le 387 et le 486, (b) ; le bit d'Intel reste (c) (décision n° 14). PB-68. ≈ 1 500 à 2 000 lignes. *Fait* : la
+  réduction exacte, en entiers, par le Pi de 66 bits (§ 8.3.8) ; des séries de Taylor sur un réel de travail de 128
+  bits (`x87_transcendantes.Materiel.cs`), un seul arrondi ; la référence `tools/x87ref/transcendantes.py` et le banc
+  `x87-transc`, au bit près ; C2, le 1 de FPTAN, les spéciaux des tables du SDM ; hors des domaines, la valeur
+  mathématique (un choix). Les domaines étroits du 8087 et du 287, FPTAN en rapport, et FSIN, FCOS et FSINCOS, absents de
+  ces deux-là (PB-266, détaché de PB-68), passent à N7.
 - **N7 — Les coprocesseurs de 16 bits.** Le 8087 et le 287 : l'infini projectif dans l'arithmétique, les non normaux
   et les dénormaux chargés en non normaux, FXAM à seize codes, FINIT et FSAVE qui gardent C3-C0 (PB-202), FNSTSW AX
   absent du 8087 (PB-200), l'adressage du 8087 (PB-201), le quotient du 287, FSETPM et la disposition des images du
-  287, IEM, FENI, FDISI. ≈ 1 000 lignes. **Le noyau entre alors au mode** (« tout » et le domaine `x87`).
+  287, IEM, FENI, FDISI ; venus de N6, FSIN, FCOS et FSINCOS absents (PB-266), les domaines étroits des transcendantes
+  et FPTAN en rapport. ≈ 1 000 lignes. **Le noyau entre alors au mode** (« tout » et le domaine `x87`).
 - **N8 — La clôture.** Les gestionnaires en `double` de G13.6a et 6b, que le noyau remplace, quittent le dépôt (leurs
   cas restent, rejoués par le noyau) ; la couverture comptée (gestionnaires × classes × RC × PC) ; PCEM_BUGS ; la
   marge du `--timer-check` en mode matériel sur un invité saturé de flottant (le 486, un Whetstone), supérieure à 1

@@ -1470,6 +1470,94 @@ internal static class _808x_noyau
         return 0;
     }
 
+    // F2XM1 (_x87_noyau.f2xm1 ; PB-68).
+    internal static int opF2XM1(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.f2xm1();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.f2xm1);
+        return 0;
+    }
+
+    // FYL2X (_x87_noyau.fyl2x ; PB-68).
+    internal static int opFYL2X(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fyl2x(false);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2x);
+        return 0;
+    }
+
+    // FYL2XP1 (_x87_noyau.fyl2x ; PB-68).
+    internal static int opFYL2XP1(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fyl2x(true);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2xp1);
+        return 0;
+    }
+
+    // FPTAN (_x87_noyau.fptan ; PB-68).
+    internal static int opFPTAN(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fptan(false);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fptan);
+        return 0;
+    }
+
+    // FPATAN (_x87_noyau.fpatan ; PB-68).
+    internal static int opFPATAN(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fpatan();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fpatan);
+        return 0;
+    }
+
+    // FSINCOS (_x87_noyau.fptan ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFSINCOS(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fptan(true);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fsincos);
+        return 0;
+    }
+
+    // FSIN (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFSIN(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fsin_cos(0);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
+        return 0;
+    }
+
+    // FCOS (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFCOS(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fsin_cos(1);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
+        return 0;
+    }
+
     /// <summary>Les huit tables du 8087, remplacées en place (execx86 les indexe en dur) : chaque instruction écrite
     /// à son entrée, les autres à l'arrêt (_x87_noyau.a_ecrire).</summary>
     internal static void poser_tables()
@@ -1691,5 +1779,13 @@ internal static class _808x_noyau
         _808x.ops_808x_fpu_d9_a16[0xF4] = opFXTRACT;
         _808x.ops_808x_fpu_d9_a16[0xF8] = opFPREM;
         _808x.ops_808x_fpu_d9_a16[0xF5] = opFPREM1;
+        _808x.ops_808x_fpu_d9_a16[0xF0] = opF2XM1;
+        _808x.ops_808x_fpu_d9_a16[0xF1] = opFYL2X;
+        _808x.ops_808x_fpu_d9_a16[0xF9] = opFYL2XP1;
+        _808x.ops_808x_fpu_d9_a16[0xF2] = opFPTAN;
+        _808x.ops_808x_fpu_d9_a16[0xF3] = opFPATAN;
+        _808x.ops_808x_fpu_d9_a16[0xFB] = opFSINCOS;
+        _808x.ops_808x_fpu_d9_a16[0xFE] = opFSIN;
+        _808x.ops_808x_fpu_d9_a16[0xFF] = opFCOS;
     }
 }

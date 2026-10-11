@@ -9315,3 +9315,134 @@ l'écart de N4b, les mêmes méthodes.
 `recensement` change, 1057 marqueurs au lieu de 1056 (le marqueur de PB-59 dans `indicateurs`). Les 23 cas de N5
 courent sous `materiel-cas-pb264-materiel` et `materiel-cas-pb264-acheminement`, déjà portes ; aucune autre porte
 ne change.
+
+## G13.6, le noyau, N6 — les transcendantes
+
+Le 12 octobre 2026. Le noyau reste en chantier ; son groupe gagne PB-68. PB-266, détaché de PB-68, est neuf : FSIN,
+FCOS et FSINCOS, du 387, que PCem exécute sur le 8087 et le 287, en 0 cycle (N7). N6 n'a pas été coupé en deux : le
+registre veut tous les sites d'un défaut corrigé basculés ensemble, et ceux de PB-68 sont dans FPTAN, FSIN, FCOS et
+FSINCOS (C2).
+
+**Ce qui est écrit.** Le calcul (`Cpu/x87_transcendantes.Materiel.cs`), sans fonction de l'hôte (R10) : un réel de
+travail (`Reel`, un signe, un exposant non borné, 128 bits de significande normalisés), son produit, sa somme et son
+inverse (une amorce de 64 bits, deux pas de Newton), tronqués à 128 bits, le reste replié dans le bit de poids faible
+(le collant de SoftFloat), qui garde le sens de l'arrondi ; une division longue exacte pour deux significandes de 64
+bits (`quotient`). Les séries, évaluées par Horner : e^y − 1 sur |y| ≤ ln 2 / 2 (27 termes ; 2^x − 1 = 2^n (1 + (e^(f
+ln 2) − 1)) − 1, n l'entier le plus proche de x) ; ln m = 2 atanh((m − 1) / (m + 1)), m ramené à [√2/2, √2[ (26
+termes) ; log₂(1 + x) par 2 atanh(x / (2 + x)) sous |x| < 1/4, sans perte relative, et par log₂ de 1 + x, exact,
+au-delà ; sin r et cos r sur |r| ≤ π/4 (16 et 17 termes) ; atan t par atan(k/8) + atan(u), |u| ≤ 1/16 (17 termes).
+La réduction de FSIN, FCOS, FSINCOS et FPTAN est exacte, en entiers : |x| = q · Pi/2 + r, q le plus proche, par le Pi
+de 66 bits significatifs du silicium, 0.C90FDAA2 2168C234 C × 2^2 (SDM vol. 1, 2016, § 8.3.8 ; 387 PRM § 4.4.9 :
+« an internally stored π/4 divisor that has 67 significant bits », la même valeur, le 67e bit de π étant nul, pour
+π/4 < |x| < 2^63 ; pour le 486 : déduit) ; puis la fonction vraie de r selon q mod 4. Le SDM résume l'effet en
+« sin(x · π / Pi) » : les deux diffèrent d'un facteur (π − Pi) / Pi sur r, sous 2^−69 relatif, qui change le dernier
+bit de quelques pour cent des résultats réduits ; pour |x| ≤ Pi/4, où rien n'est réduit (387 PRM, *ibid.*), le modèle
+retenu rend sin x même, sans facteur (un choix, dit ; q tronqué au lieu du plus proche, autre choix possible, ne
+change que ces mêmes bits). Pour |r| < 2^−32, tan r et − cot r passent par leur série, que le quotient sin r / cos r ne départagerait pas ;
+FPATAN divise ses deux opérandes exactement : un rapport exact et petit (y = x · 2^−k) garde le sens de son terme en t³.
+Un seul arrondi final, `softfloat_roundPackToExtF80` à 64 bits selon RC (PC n'y joue pas : SDM vol. 1, 2003, §
+8.1.4.2), avec la petitesse, UE, OE, PE, C1 et l'exposant non borné de N5 ; un résultat transcendant force le collant,
+PE est toujours levée. UE, pour FSIN, FCOS et FSINCOS aussi, que le SDM vol. 2 ne nomme pas : le 387 PRM § 3.2.5.2 les
+compte. Le résultat est donc le résultat exact correctement arrondi, sauf à moins de 2^−127 environ d'une frontière
+d'arrondi, où l'écart est d'une unité au plus : le collant garde le sens d'un petit terme ajouté, mais un résidu
+retranché sous le dernier bit coûte une unité de 2^−127 (visé : ≤ 1 ulp ; les bits d'Intel restent (c), décision n°
+14).
+
+Les instructions (`_x87_noyau`) : `f2xm1`, `fyl2x` (FYL2X et FYL2XP1), `fpatan`, `fsin_cos` (FSIN, FCOS), `fptan`
+(FPTAN, FSINCOS) ; `genmat.py` les pose en D9 F0, F1, F2, F3, F9, FB, FE et FF, pour le 286, le 386, le 486 et le
+8087. Les spéciaux sont ceux des tables du SDM vol. 2, 2016 : 3-16 (F2XM1), 3-48 (FYL2X : un x négatif, −0 excepté,
+IE ; ±0, ZE et ∓∞ par un y fini non nul, sans ZE par ±∞, IE par ±0 ; +∞ et +1 avec leurs IE), 3-49 (FYL2XP1), 3-30
+(FPATAN, sans IE pour 0/0 ni ∞/∞, selon sa note), 3-33 (FPTAN) et celles de FSIN, FCOS et FSINCOS ; |x| ≥ 2^63, C2 = 1,
+ST(0) inchangé, rien d'empilé ni d'exception ; ±∞, IE, l'indéfini et C2 = 1 (387 PRM, table 3-10, et la même table du
+486 PRM : « set C2 » ; le SDM vol. 1, 2016, dit C2 effacé : le noyau suit les manuels du 387 et du 486, comme FPREM
+en N4b) ; sinon C2 = 0 ; FPTAN empile 1,0 ; FSINCOS range le sinus et empile le cosinus. DE après IE et ZE (SDM vol. 1, 2003, § 4.9.2, comme les quatre opérations). Les choix, dits : hors des
+domaines (F2XM1 au-delà de [−1, 1], FYL2XP1 au-delà de 1 − √2/2), où le résultat du silicium est indéfini, la valeur
+mathématique (FYL2XP1 de x ≤ −1 : ce que FYL2X rend de 1 + x) ; C1 de FSINCOS, celui du cosinus (deux résultats, un
+C1 : inconnu) ; FPTAN et FSINCOS d'un NaN ou de ±∞ rangent le NaN, ou l'indéfini, aux deux places (inconnu) ; leur
+faute de pile masquée range l'indéfini aux deux (387 PRM, annexe C, FPTAN : « both ST and ST(1) contain quiet NaNs » ;
+FSINCOS par analogie ; le 287 garde l'opérande, poussé en ST(1) : N7). Le 8087 et le 287 ont ici la réponse du 387 : leurs domaines
+étroits, FPTAN en rapport Y / X (1,0 pour X est un rapport juste) et l'absence de FSIN, FCOS et FSINCOS (PB-266) : N7.
+Les cycles restent ceux de PCem.
+
+**La référence** (`tools/x87ref/transcendantes.py`, commité ; Python, `decimal` et `fractions`, sans installation) :
+la valeur en décimal à 140 chiffres, la réduction par Pi en rationnels exacts, puis l'arrondi à 64 bits de SoftFloat
+récrit en rationnels (la petitesse après l'arrondi, PE, UE, OE, C1 ; le débordement selon RC). Une valeur approchée
+porte sa borne d'erreur (|v| · 2^−400, ou celle d'une série tronquée) ; un cas dont la frontière d'arrondi tombe dans
+la borne est écarté, compté (« difficile »). Sous 2^−60, sin, cos, tan et atan passent par leurs premiers termes en
+rationnels exacts, et F2XM1 sous −200 par −1 + 2^−300 : le terme qui départage l'arrondi y échappe au décimal. Elle
+réécrit en place les constantes du calcul (ln 2, log₂ e, √2, π, π/2, π/4, 3π/4, atan(k/8) et les coefficients des
+séries, au plus près à 128 bits) : rejouée, le fichier ne change pas. La référence, contrôlée contre la libm de Python
+en double sur ses propres vecteurs (un script jetable, hors dépôt) (538 000 cas comparables : RC au plus près, hors des pôles de tan, de log près de 1
+et de −1, et des opérandes hors de la plage du double, où la conversion seule amplifie l'erreur) : à 10^−13 relatif
+près, aucun écart.
+
+**Le banc** (`iXtal26.Diff x87-transc`, nouveau) : les vecteurs de la référence, joués sur le 387 par la couche du
+noyau (la pile posée, le mot de contrôle 037Fh avec RC), comparés au bit près : le nouvel ST(0), le nouvel ST(1), les
+six drapeaux, C1 et C2. Les vecteurs : les quatre RC, des opérandes dans les domaines et au-delà, aux bords, des
+dénormaux, les spéciaux, des x près des multiples de Pi/2 (k Pi/2 tronqué, à quelques unités près), |y| = |x| et
+|y| = |x| · 2^−k pour FPATAN. Trois jeux de 3 200 000 cas (graines 1 à 8, 11 à 18, puis 21 à 28 après la
+contre-lecture ; 400 000 par instruction) : aucun écart ; le premier écartait 3 084 F2XM1 très négatifs, que les
+suivants, la référence reprise, tranchent. Ce sont des vecteurs tirés au hasard : des entrées structurées (des
+significandes tout à un, celui de ln 2, x = 1 − 2^−k) tombent plus souvent à moins de 2^−127 d'une frontière, où le
+calcul peut s'écarter d'une unité (la contre-lecture : 43 sur 189 000 de ces cas, pour FYL2X, FYL2XP1 et FPATAN, chacun
+à moins de 2^−63 d'unité de la frontière) ; ni le générateur ni la porte ne les tirent, la limite est dite. La porte
+`x87-transc` tire 20 000 cas par instruction (160 000, une minute).
+
+**Ce que le banc a trouvé en route**, corrigé avant les comptes ci-dessus : dans la référence, une branche des petits
+arguments qui prenait un r réduit négatif pour petit, et ignorait le quadrant ; dans le noyau, tan d'un petit r par le
+quotient sin r / cos r, dont le bruit (2^−125) couvrait r²/3 — l'arrondi dirigé de FPTAN d'un x petit, ou près d'un
+multiple impair de Pi/2, tombait à côté —, d'où la série ; et le rapport de FPATAN, approché par Newton, que la
+division exacte remplace.
+
+**Les cas.** `materiel-cas PB-68` (neuf) : sur le 387 et le 486, FSIN de 2^64, FCOS et FPTAN de 2^63 (C2, ST(0)
+inchangé, rien d'empilé ; PCem calcule par la libm, 3F982A353118793Dh et 3F882AA375B3C33Eh, efface C2 et empile 1,0),
+FYL2X de −1 (IE ; PCem, le NaN de log(−1), sans IE) ; sur les cinq coprocesseurs, F2XM1 de 10^−20 (3BC05DD14F56AA62h,
+FSTP m64 de l'arrondi à 64 bits ; PCem 0) et FYL2XP1 de 2^−70 par 1 (3B971547652B82FEh ; PCem 0). Vert dans les deux
+modes ; `--attendu materiel` en mode PCem : 18 échecs. `materiel-cas PB-264`, en mode matériel, gagne treize cas
+(`Transcendantes`, sur le 387 ; le mot d'état, ST(0) et ST(1) en m80) : FPTAN de 0,5 (1,0 empilé sur tan 0,5, TOP = 4,
+PE, C1), FSINCOS de 1 (cos 1 empilé sur sin 1, C1 du cosinus), FPATAN de 1/1 (π/4, dépilé), de +0/−0 (+π) et de
++∞/−∞ (+3π/4), FYL2X de 3 × log₂ 8 (9, exact, sans PE) et de 2 × log₂ +0 (ZE, −∞), FSIN de 2^64 et FPTAN de 2^63 (C2,
+inchangés, TOP = 5), FCOS de −0 (+1, exact), F2XM1 de −1 (−0,5, exact), FSIN de +∞ (IE, l'indéfini, C2) et FPTAN de
+−∞ (IE, l'indéfini aux deux places, C2, TOP = 4). Les cas de chaque PB du x87 corrigé, dans les
+deux modes : verts. `recensement` : vert, 266 défauts, 1062 marqueurs (cinq neufs dans le noyau ; les huit de C2, basculés —
+quatre dans `x87_ops_misc.cs`, quatre dans `x87_ops_808x.cs` —, et les cinq de PB-266, renommés, ne changent pas le
+compte).
+
+**Les contrôles négatifs.** Vingt-deux fautes (`neg-n6.py`, hors dépôt comme les précédents), une à la fois, contre
+`x87-transc` (24 000 cas fixes), PB-68 et PB-264 ; vingt rougissent : Pi d'un bit de plus (4 026 écarts), la réduction tronquée et non au plus près (601), le cosinus sans son
+quadrant (5 783), tan d'un petit r par le quotient (435), le rapport de FPATAN approché (2), le collant perdu au-delà de
+128 bits (1 434), F2XM1 d'un entier inexact (25 ; PB-264, 1), log₂ d'une puissance de 2 inexact (83 ; 1), ln m sans
+ramener m sous √2 (140), FYL2XP1 par 1 + x arrondi (143), ZE perdue (34 ; 1), π/4 et 3π/4 échangés (PB-264, 1), la
+borne de C2 à 2^64 (20 ; PB-68, 4 ; PB-264, 1), FPTAN qui empile tan (2 893 ; 1), C1 du sinus pour FSINCOS (1 009), DE
+perdue pour FSIN (177), atan sans réduction (238), 1/b sans Newton (2 535), π et 0 échangés pour FPATAN de ±0 (56 ;
+1), C2 effacé pour FSIN et FCOS de ±∞ (31 ; 1) ; le témoin vert. Deux fautes restent vertes, équivalentes à la précision du calcul, et le disent : le collant
+perdu sous 128 bits (le collant forcé d'`arrondir` le recouvre), atan avec k tronqué (|u| ≤ 1/8 : 2^−107 encore).
+La première version de π/4 contre 3π/4 restait verte, faute d'un ∞/∞ tiré : le cas de +∞/−∞ l'a ajouté.
+
+**La contre-lecture** (Sonnet) : aucun défaut de calcul ; les décalages de 128 bits, les exposants, la réduction
+(r jamais nul, le quadrant), atan01, exp2m1, log2 et le nombre de termes des séries (troncature sous 2^−134) relus ;
+l'arrondi de la référence rejoué contre `softfloat_roundPackToExtF80` (41 120 cas aux frontières de la petitesse et
+du débordement), les tables 3-30, 3-48 et 3-49 recodées depuis le texte du SDM (1 974 combinaisons), les attendus des
+cas et les valeurs de PCem recalculés (π par Gauss-Legendre), 360 000 vecteurs neufs et 24 000 « adverses » (près
+des k Pi/2, de 2^63, des seuils 2^−60 et 2^−32, quotients exacts, dénormaux, débordements) : au bit près. Repris : C2
+pour ±∞ (le 387 PRM et le 486 PRM le posent, table 3-10 ; le noyau l'effaçait, en suivant le SDM vol. 1 sans le
+dire ; N4b avait suivi le 387 PRM pour FPREM) : posé, dans le noyau et la référence, deux cas neufs, une faute neuve
+(N20) ; les écarts d'une unité sur des entrées structurées, dits (ci-dessus) ; les sources du 387 PRM, citées : le π/4
+de 67 bits (§ 4.4.9), le C2 de FSIN et FCOS (§ 4.6.1 et § 4.6.2, au lieu du § 4.6.4 de FPTAN), la faute de pile de
+FPTAN (annexe C), UE de FSIN et FCOS (§ 3.2.5.2) ; « au second ordre », remplacé par l'écart vrai, (π − Pi)/Pi ; le
+compte des marqueurs basculés et renommés ; le texte de `pourquoi-on-corrige.md`, qui prêtait au 387 et au 486 la
+borne d'une unité du Pentium ; la citation du § 8.3.10 au lieu du § 8.3.8 dans PLAN-G13. Doutes non tranchés, dits :
+le modèle de la réduction (sin r ou sin(x π / Pi), q au plus près ou tronqué), C1 de FSINCOS, le contenu des deux
+places de FPTAN et FSINCOS d'un NaN, l'ordre de la faute de pile devant les autres examens.
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n5 : 1 130 méthodes, deux changées, `ModeMateriel..cctor`
+et `materiel..cctor` (l'entrée de PB-68 et son champ, exécutés une fois), aucune apparue ni disparue ; les
+gestionnaires de PCem dont les marqueurs ont changé (`x87_ops_misc.cs`, `x87_ops_808x.cs`, les tables, les temps) :
+identiques, ce ne sont que des commentaires. Contre M0 : l'écart de N5, et les deux mêmes constructeurs.
+
+**La série** (`g7n6`, le 12/10, 00:45 → 01:54, contre `g7n5`) : 475 portes, toutes vertes ; trois neuves,
+`materiel-cas-pb68` (mode PCem), `materiel-cas-pb68-materiel` (mode matériel) et `x87-transc` (160 000 cas,
+8 instructions, au bit près de la référence) ; seul `recensement` change parmi les anciennes, 266 défauts et
+1062 marqueurs au lieu de 265 et 1057 (PB-266 neuf ; les cinq marqueurs neufs de PB-68 dans le noyau ; des treize
+marqueurs de PB-68 chez PCem, huit basculés en « fixed in hardware mode », cinq renommés PB-266). Les 13 cas de `Transcendantes` courent sous `materiel-cas-pb264-materiel` et
+`materiel-cas-pb264-acheminement`, déjà portes ; aucune autre porte ne change.

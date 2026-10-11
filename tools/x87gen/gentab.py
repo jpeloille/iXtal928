@@ -59,7 +59,7 @@ MARQ={('fpu_df',0x20):[M52], ('fpu_df',0x60):[M52], ('fpu_df',0xa0):[M52],
       ('fpu_da',0xe8):[B+'PB-209 — FUCOMPP (DA E9) s\'exécute aussi sur le 287.'],
       ('fpu_d9',0xf0):['// pcem bug, fixed in hardware mode: '+'PB-194 — D9 F4 (FXTRACT) est ILLEGAL : la pile ne bouge pas.',
                        B+'PB-209 — FPREM1 (D9 F5) s\'exécute aussi sur le 287.'],
-      ('fpu_d9',0xf8):[B+'PB-68 — FSINCOS, FSIN et FCOS (D9 FB, FE, FF) s\'exécutent aussi sur le 287.'],
+      ('fpu_d9',0xf8):[B+'PB-266 — FSINCOS, FSIN et FCOS (D9 FB, FE, FF) s\'exécutent aussi sur le 287.'],
       ('fpu_db',0xe0):['// pcem bug, fixed in hardware mode: PB-62 — DB E4 (FSETPM) est FNOP : les images du 287 suivent CR0.PE, pas FSETPM.']}
 for name,n,a,b,ents in tables:
     L.append('    // pcem: x87_ops.h:%d-%d'%(a,b))

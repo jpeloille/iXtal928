@@ -43,7 +43,7 @@ internal static class MaterielCas
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
-        [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [68] = Pb68, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1723,6 +1723,8 @@ internal static class MaterielCas
             bad += Reductions();
         if (noyau && hw)
             bad += Demasquees();
+        if (noyau && hw)
+            bad += Transcendantes();
         return bad;
     }
 
@@ -1829,6 +1831,96 @@ internal static class MaterielCas
             var (_, r) = Deux(fpu, 0x3FF0000000000000, b, 0xFD);
             var a = hw ? b : 0UL;
             bad += Voir($"FSCALE 1 par {n} ; FSTP m64 ({nom})", r == a, $"{r:X16}", $"{a:X16}", hw);
+        }
+        return bad;
+    }
+
+    /// <summary>Les transcendantes du noyau (N6), sur le 387, aux attentes des sources (SDM vol. 2, 2016, F2XM1, FYL2X,
+    /// FPTAN, FPATAN, FSIN, FCOS, FSINCOS et leurs tables) et de la référence (tools/x87ref/transcendantes.py) : la pile
+    /// (FPTAN et FSINCOS empilent, FYL2X et FPATAN dépilent), l'ordre de FSINCOS, C2, C1, les spéciaux exacts. FNINIT ;
+    /// FLDCW [0310h] ; FLDZ ; FLD m64 [0308h] (ST(1)) ; FLD m64 [0300h] (ST(0)) ; D9 op ; FNSTSW [BX+0Ah] ; FSTP m80 [BX] ;
+    /// FSTP m80 [BX+0Ch]. TOP : 5 avant, 4 après un empilement, 6 après un dépilement.</summary>
+    private static int Transcendantes()
+    {
+        var bad = 0;
+        foreach (var (a, b, op, sw, s0, g0, s1, g1, n) in new (ulong, ulong, byte, ushort, ushort, ulong, ushort, ulong, string)[]
+                 {
+                     (0x3FE0000000000000, 0, 0xF2, 0x2220, 0x3FFF, 0x8000000000000000, 0x3FFE, 0x8BDA7ADF9A3A5219,
+                      "FPTAN 0,5 (1,0 empilé sur tan 0,5 ; PE, C1)"),
+                     (0x3FF0000000000000, 0, 0xFB, 0x2220, 0x3FFE, 0x8A51407DA8345C92, 0x3FFE, 0xD76AA47848677021,
+                      "FSINCOS 1 (cos 1 empilé sur sin 1 ; PE, C1 du cosinus)"),
+                     (0x3FF0000000000000, 0x3FF0000000000000, 0xF3, 0x3220, 0x3FFE, 0xC90FDAA22168C235, 0, 0,
+                      "FPATAN 1 / 1 (π/4, dépilé ; PE, C1)"),
+                     (0x8000000000000000, 0, 0xF3, 0x3220, 0x4000, 0xC90FDAA22168C235, 0, 0, "FPATAN +0 / −0 (+π, sans IE)"),
+                     (0xFFF0000000000000, 0x7FF0000000000000, 0xF3, 0x3220, 0x4000, 0x96CBE3F9990E91A8, 0, 0,
+                      "FPATAN +∞ / −∞ (+3π/4, sans IE)"),
+                     (0x4020000000000000, 0x4008000000000000, 0xF1, 0x3000, 0x4002, 0x9000000000000000, 0, 0,
+                      "FYL2X 3 × log₂ 8 (9, exact)"),
+                     (0, 0x4000000000000000, 0xF1, 0x3004, 0xFFFF, 0x8000000000000000, 0, 0, "FYL2X 2 × log₂ +0 (ZE, −∞)"),
+                     (0x43F0000000000000, 0, 0xFE, 0x2C00, 0x403F, 0x8000000000000000, 0, 0, "FSIN 2^64 (C2, inchangé)"),
+                     (0x43E0000000000000, 0, 0xF2, 0x2C00, 0x403E, 0x8000000000000000, 0, 0, "FPTAN 2^63 (C2, rien d'empilé)"),
+                     (0x8000000000000000, 0, 0xFF, 0x2800, 0x3FFF, 0x8000000000000000, 0, 0, "FCOS −0 (+1, exact)"),
+                     (0x7FF0000000000000, 0, 0xFE, 0x2C01, 0xFFFF, 0xC000000000000000, 0, 0,
+                      "FSIN +∞ (IE, l'indéfini, C2 : 387 PRM, table 3-10)"),
+                     (0xFFF0000000000000, 0, 0xF2, 0x2401, 0xFFFF, 0xC000000000000000, 0xFFFF, 0xC000000000000000,
+                      "FPTAN −∞ (IE, l'indéfini aux deux places, C2)"),
+                     (0xBFF0000000000000, 0, 0xF0, 0x2800, 0xBFFE, 0x8000000000000000, 0, 0, "F2XM1 −1 (−0,5, exact)"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xD9, 0xEE, 0xDD, 0x06, 0x08, 0x03, 0xDD, 0x06, 0x00, 0x03, 0xD9, op,
+                        .. SwA, 0xDB, 0x3F, 0xDB, 0x7F, 0x0C], 9, Ops((0x300, Le(a)), (0x308, Le(b)), (0x310, Cw(0x037F))));
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 × 2 (387)",
+                        W(0x20A) == sw && W(0x208) == s0 && Q(0x200) == g0 && W(0x214) == s1 && Q(0x20C) == g1,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}, {W(0x214):X4} {Q(0x20C):X16}",
+                        $"{sw:X4}, {s0:X4} {g0:X16}, {s1:X4} {g1:X16}", true);
+        }
+        return bad;
+    }
+
+    /// <summary>FNINIT ; FLD m64 a ; D9 op ; FNSTSW [BX+0Ah] ; FSTP m64 [BX] : le mot d'état et le nouvel ST(0).</summary>
+    private static (ushort sw, ulong r) Un87(int fpu, ulong a, byte op)
+    {
+        Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, op, .. SwA, 0xDD, 0x1F], 5, Ops((0x300, Le(a))));
+        return (W(0x20A), Q(0x200));
+    }
+
+    // PB-68 — les transcendantes. Sur le 387 et le 486, |x| ≥ 2^63 laisse ST(0) et pose C2 (387 PRM § 4.6.4 ; SDM vol. 2,
+    // FSIN, FCOS, FPTAN) : FSIN de 2^64, FCOS et FPTAN de 2^63 (FPTAN n'empile rien) ; PCem calcule par la libm et efface
+    // C2 (sin 2^64 = 3F982A353118793Dh, cos 2^63 = 3F882AA375B3C33Eh, FPTAN empile 1,0). Sur les cinq coprocesseurs, dans
+    // leurs domaines (387 PRM § 4.6 ; 287 PRM, F2XM1 et FYL2XP1) : F2XM1 de 10^−20, 2^x − 1 = x ln 2 + …, 6,93·10^−21
+    // (3BC05DD14F56AA62h, FSTP m64 de l'arrondi à 64 bits, tools/x87ref/transcendantes.py), PCem pow(2, x) − 1 = 0 ;
+    // FYL2XP1 de 2^−70 par 1, log₂(1 + 2^−70) (3B971547652B82FEh), PCem log(x + 1,0) / log 2 = 0. Sur le 387 et le 486,
+    // FYL2X de −1 lève IE (SDM vol. 2, table 3-48) ; PCem rend le NaN de log(−1), sans IE.
+    private static int Pb68(bool hw)
+    {
+        var bad = 0;
+        const ushort C2 = 0x400;
+        foreach (var (fpu, nom) in FpusXL.Where(f => f.fpu >= 4))
+        {
+            foreach (var (x, op, n, pcem) in new (ulong, byte, string, ulong)[]
+                     {
+                         (0x43F0000000000000, 0xFE, "FSIN de 2^64", 0x3F982A353118793D),
+                         (0x43E0000000000000, 0xFF, "FCOS de 2^63", 0x3F882AA375B3C33E),
+                         (0x43E0000000000000, 0xF2, "FPTAN de 2^63", 0x3FF0000000000000),
+                     })
+            {
+                var (sw, r) = Un87(fpu, x, op);
+                var (a, c2) = hw ? (x, C2) : (pcem, 0);
+                bad += Voir($"{n} ; FSTP m64, C2 ({nom})", r == a && (sw & C2) == c2, $"{r:X16}, C2 = {(sw & C2) >> 10}",
+                            $"{a:X16}, C2 = {c2 >> 10}", hw);
+            }
+            var (sw2, _) = Deux(fpu, 0xBFF0000000000000, 0x3FF0000000000000, 0xF1);
+            var ie = hw ? 1 : 0;
+            bad += Voir($"FYL2X de −1 par 1 : IE ({nom})", (sw2 & 1) == ie, $"IE = {sw2 & 1}", $"IE = {ie}", hw);
+        }
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var (_, r) = Un87(fpu, 0x3BC79CA10C924223, 0xF0);
+            var a = hw ? 0x3BC05DD14F56AA62UL : 0UL;
+            bad += Voir($"F2XM1 de 10^−20 ; FSTP m64 ({nom})", r == a, $"{r:X16}", $"{a:X16}", hw);
+            (_, r) = Deux(fpu, 0x3B90000000000000, 0x3FF0000000000000, 0xF9);
+            a = hw ? 0x3B971547652B82FEUL : 0UL;
+            bad += Voir($"FYL2XP1 de 2^−70 par 1 ; FSTP m64 ({nom})", r == a, $"{r:X16}", $"{a:X16}", hw);
         }
         return bad;
     }

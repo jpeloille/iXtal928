@@ -134,7 +134,7 @@ internal static class x87_timings_c
         fsave = (197 + 207) / 2,
         fscale = (32 + 38) / 2,
         fsetpm = 0,   /*287+*/
-        // pcem bug, reproduced: PB-68 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
+        // pcem bug, reproduced: PB-266 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
         fsin_cos = 0, /*387+*/
         fsincos = 0,  /*387+*/
         fsqrt = (180 + 186) / 2,
@@ -213,7 +213,7 @@ internal static class x87_timings_c
         fsave = (197 + 207) / 2,
         fscale = (32 + 38) / 2,
         fsetpm = (2 + 8) / 2, /*287+*/
-        // pcem bug, reproduced: PB-68 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
+        // pcem bug, reproduced: PB-266 — FSIN, FCOS et FSINCOS, du 387, s'exécutent sur ce coprocesseur, en 0 cycle.
         fsin_cos = 0,         /*387+*/
         fsincos = 0,          /*387+*/
         fsqrt = (180 + 186) / 2,

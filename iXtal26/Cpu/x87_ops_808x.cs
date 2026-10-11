@@ -2658,7 +2658,7 @@ internal static partial class _808x
             ST(0) = Math.Tan(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             x87_push(1.0);
-            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            // pcem bug, fixed in hardware mode: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
             //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
             cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fptan);
@@ -2762,7 +2762,7 @@ internal static partial class _808x
             ST(0) = Math.Sin(td);
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             x87_push(Math.Cos(td));
-            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            // pcem bug, fixed in hardware mode: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
             //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
             cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fsincos);
@@ -2804,7 +2804,7 @@ internal static partial class _808x
             cpu_state.pc++;
             ST(0) = Math.Sin(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
-            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            // pcem bug, fixed in hardware mode: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
             //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
             cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
@@ -2818,7 +2818,7 @@ internal static partial class _808x
             cpu_state.pc++;
             ST(0) = Math.Cos(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
-            // pcem bug, reproduced: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
+            // pcem bug, fixed in hardware mode: PB-68 — C2 toujours effacé : pas de borne |x| < 2^63, la libm
             //   réduit tout argument, et « réduction incomplète » n'est jamais signalée.
             cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);

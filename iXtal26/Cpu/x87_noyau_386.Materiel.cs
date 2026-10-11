@@ -2424,6 +2424,94 @@ internal static class _386_noyau
         return 0;
     }
 
+    // F2XM1 (_x87_noyau.f2xm1 ; PB-68).
+    internal static int opF2XM1(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.f2xm1();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.f2xm1);
+        return 0;
+    }
+
+    // FYL2X (_x87_noyau.fyl2x ; PB-68).
+    internal static int opFYL2X(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fyl2x(false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2x);
+        return 0;
+    }
+
+    // FYL2XP1 (_x87_noyau.fyl2x ; PB-68).
+    internal static int opFYL2XP1(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fyl2x(true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fyl2xp1);
+        return 0;
+    }
+
+    // FPTAN (_x87_noyau.fptan ; PB-68).
+    internal static int opFPTAN(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fptan(false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fptan);
+        return 0;
+    }
+
+    // FPATAN (_x87_noyau.fpatan ; PB-68).
+    internal static int opFPATAN(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fpatan();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fpatan);
+        return 0;
+    }
+
+    // FSINCOS (_x87_noyau.fptan ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFSINCOS(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fptan(true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fsincos);
+        return 0;
+    }
+
+    // FSIN (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFSIN(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fsin_cos(0);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
+        return 0;
+    }
+
+    // FCOS (_x87_noyau.fsin_cos ; PB-68 ; sur le 8087 et le 287, PB-266).
+    internal static int opFCOS(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fsin_cos(1);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fsin_cos);
+        return 0;
+    }
+
     // FSETPM : le 287 et le 287XL passent au mode protégé, jusqu'au RESET (287 PRM, FSETPM ; PB-62) ; le 387 et le 486
     //   n'en font rien (387 PRM § 4.8). Le 8087 n'a pas DB E4 : N7.
     internal static int opFSETPM(uint32_t fetchdat)
@@ -2876,6 +2964,22 @@ internal static class _386_noyau
         _386.x86_opcodes_d9_a32![0xF8] = opFPREM;
         _386.x86_opcodes_d9_a16![0xF5] = opFPREM1;
         _386.x86_opcodes_d9_a32![0xF5] = opFPREM1;
+        _386.x86_opcodes_d9_a16![0xF0] = opF2XM1;
+        _386.x86_opcodes_d9_a32![0xF0] = opF2XM1;
+        _386.x86_opcodes_d9_a16![0xF1] = opFYL2X;
+        _386.x86_opcodes_d9_a32![0xF1] = opFYL2X;
+        _386.x86_opcodes_d9_a16![0xF9] = opFYL2XP1;
+        _386.x86_opcodes_d9_a32![0xF9] = opFYL2XP1;
+        _386.x86_opcodes_d9_a16![0xF2] = opFPTAN;
+        _386.x86_opcodes_d9_a32![0xF2] = opFPTAN;
+        _386.x86_opcodes_d9_a16![0xF3] = opFPATAN;
+        _386.x86_opcodes_d9_a32![0xF3] = opFPATAN;
+        _386.x86_opcodes_d9_a16![0xFB] = opFSINCOS;
+        _386.x86_opcodes_d9_a32![0xFB] = opFSINCOS;
+        _386.x86_opcodes_d9_a16![0xFE] = opFSIN;
+        _386.x86_opcodes_d9_a32![0xFE] = opFSIN;
+        _386.x86_opcodes_d9_a16![0xFF] = opFCOS;
+        _386.x86_opcodes_d9_a32![0xFF] = opFCOS;
         _386.x86_opcodes_db_a16![0xE4] = opFSETPM;
         _386.x86_opcodes_db_a32![0xE4] = opFSETPM;
     }
