@@ -617,3 +617,10 @@ for pb in 52 55 56 195 196 206 212; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6, le noyau, N3b — l'environnement, en chantier : les limites et les droits de chaque accès (PB-54), les pointeurs
+# et les quatre dispositions des images (PB-62), FSAVE en réels de 80 bits (PB-199), les étiquettes (PB-208) ; les cas
+# du mode protégé de PB-54 et PB-62 jouent pm-check en C# seul.
+for pb in 54 62 199 208; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

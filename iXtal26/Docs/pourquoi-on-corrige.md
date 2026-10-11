@@ -763,3 +763,39 @@ les tests le demandent.
 - **L'émulateur.** PCem ne signale rien ; en 64 bits, il garde même le piège intact.
 - **La correction.** L'erreur, et le NaN rendu silencieux, sur le 387 et le 486 ; le 8087 et le 287, qui ne signalent
   rien, restent ainsi.
+
+## G13.6, le noyau, suite — sauver l'état du coprocesseur
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N3b.*
+
+Le noyau apprend à sauver et à recharger tout son état : les mots de contrôle et d'état, les étiquettes, l'adresse de
+la dernière instruction et les huit registres. Un système multitâche le fait à chaque changement de tâche, un
+gestionnaire d'erreur pour savoir quelle instruction a fauté. Toujours en chantier : seuls les tests le demandent.
+
+### PB-62 — l'adresse de la dernière instruction
+
+- **Le vrai PC.** Le coprocesseur retient l'adresse de la dernière instruction de calcul, son code et l'adresse de son
+  opérande. FSTENV et FSAVE les rangent, sous quatre formes selon le mode du processeur ; un gestionnaire d'erreur y lit
+  l'instruction fautive.
+- **L'émulateur.** PCem ne les retient jamais : il range des zéros, et laisse certains champs de l'image tels qu'ils
+  étaient en mémoire. Le 287 choisit sa forme selon FSETPM, que PCem ignore.
+- **La correction.** Les adresses retenues, rangées et relues sous les quatre formes, FSETPM compris.
+
+### PB-199 et PB-208 — l'image des registres et les étiquettes
+
+- **Le vrai PC.** FSAVE range les huit registres en nombres de 80 bits, et une étiquette par registre dit s'il est
+  vide, nul, ordinaire ou spécial (un infini, un NaN).
+- **L'émulateur.** PCem range un entier chargé par FILD comme un entier suivi d'une marque, étiquette les infinis et
+  les NaN comme des nombres ordinaires, et relit une étiquette « spéciale » comme son marqueur d'entier.
+- **La correction.** Les 80 bits, et les étiquettes tirées du contenu ; au rechargement, le 387 et le 486 les
+  recalculent.
+
+### PB-54 — les limites de la mémoire
+
+- **Le vrai PC.** Chaque accès à la mémoire est contrôlé : un opérande qui sort de son segment, ou une écriture dans un
+  segment protégé en lecture seule, déclenche une erreur au lieu d'écrire ailleurs.
+- **L'émulateur.** PCem ne contrôle qu'une seule instruction du coprocesseur, FSTP en 64 bits : les autres lisent et
+  écrivent au-delà de la limite, et dans un segment en lecture seule.
+- **La correction.** Le contrôle de la limite et des droits, à chaque accès ; les instructions de calcul l'auront avec
+  leur réécriture.

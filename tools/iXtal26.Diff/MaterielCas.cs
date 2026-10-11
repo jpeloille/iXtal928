@@ -43,7 +43,7 @@ internal static class MaterielCas
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
-        [196] = Pb196, [206] = Pb206, [212] = Pb212, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [196] = Pb196, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1302,16 +1302,15 @@ internal static class MaterielCas
     }
 
     /// <summary>Joue `code` sur le coprocesseur `fpu` (le cœur du 8088, du 286, du 386 ou du 486), `avant` après le RESET
-    /// du harnais, BX = 0200h.</summary>
-    private static void Jouer87(int fpu, byte[] code, int pas, Action? avant = null)
+    /// du harnais, BX = 0200h ; rend les registres d'après.</summary>
+    private static ushort[] Jouer87(int fpu, byte[] code, int pas, Action? avant = null)
     {
         _386.FuzzFpu = fpu;
         try
         {
             if (fpu == 1)
-                Jouer(code, r => r[(int)R.BX] = 0x200, avant, pas);
-            else
-                Jouer386(code, r => r[(int)R.BX] = 0x200, avant, coeur: Coeur(fpu), pas: pas);
+                return Jouer(code, r => r[(int)R.BX] = 0x200, avant, pas);
+            return Jouer386(code, r => r[(int)R.BX] = 0x200, avant, coeur: Coeur(fpu), pas: pas);
         }
         finally
         {
@@ -1967,6 +1966,194 @@ internal static class MaterielCas
             bad += Voir($"FCOMPP, −0 contre +0 ({nom})", Cc(ax) == attendu, Cc(ax), attendu, hw);
         }
         return bad;
+    }
+
+    // ===== Le noyau, N3b : l'environnement, les pointeurs, les étiquettes, les limites =====
+    //
+    // Le code en 0000:0100, BX = 0200h, l'opérande en DS:0300h ; FNSTENV [BX] (D9 37), FLDENV [BX] (D9 27), FNSAVE [BX]
+    // (DD 37), FRSTOR [BX] (DD 27) ; la mémoire est remplie de 90h : un champ que l'image n'écrit pas reste 9090h.
+
+    private static readonly byte[] Un64 = Le(0x3FF0000000000000);
+
+    private static string Mots4(int a) => $"{W(a):X4} {W(a + 2):X4} {W(a + 4):X4} {W(a + 6):X4}";
+
+    // PB-62 — les pointeurs (387 PRM § 2.1.5, fig. 2-8 ; 287 PRM, fig. 1-7) : FNINIT ; FLD m64 [0300h] (en 0102h) ;
+    // FNSTENV [BX] → la disposition réelle de 16 bits, +6 l'adresse 00102h, +8 l'opcode DD 06 (506h), +0Ah 0300h, +0Ch
+    // 0000h ; PCem 0000h, 9090h (non écrit), 0000h, 9090h. Sous un préfixe DS: (3E), l'adresse est celle du préfixe,
+    // 00102h, sur le 287, le 387 et le 486, celle de l'ESC, 00103h, sur le 8087. En mode matériel : les instructions de
+    // contrôle laissent les pointeurs, FNOP les pose et garde celui de l'opérande ; la disposition réelle de 32 bits
+    // (66, sur le 386 et le 486), ses champs réservés non écrits ; FSETPM, sur le 287 et le 287XL, la disposition
+    // protégée, ignoré du 387 et du 486 ; FLDENV relit les pointeurs de l'image, en 16 et en 32 bits. Le mode protégé
+    // (les dispositions protégées, FCS et FDS) : pm-check, en C# seul.
+    private static int Pb62(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (prefixe, quoi) in new (byte[], string)[] { ([], ""), ([0x3E], ", sous DS:") })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, .. prefixe, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0x37], 3, Op(Un64));
+            var ip = fpu == 1 ? 0x102 + prefixe.Length : 0x102;
+            var att = hw ? $"{ip:X4} 0506 0300 0000" : "0000 9090 0000 9090";
+            bad += Voir($"FLD m64{quoi} ; FNSTENV, +6 à +0Ch ({nom})", Mots4(0x206) == att, Mots4(0x206), att, hw);
+        }
+        // JMP FAR 2000:0010 ; MOV AX,3000h ; MOV DS,AX ; FNINIT ; FLD m64 [BX+8] (en 2000:0017, un déplacement d'un octet,
+        // l'opérande en 3000:0208) ; FNSTENV [BX+20h] : l'adresse 20017h (+6 0017h, +8 2547h : IP 19-16 et l'opcode DD
+        // 47), l'opérande 30208h (+0Ah 0208h, +0Ch 3000h).
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xEA, 0x10, 0x00, 0x00, 0x20], 6, () =>
+            {
+                byte[] suite = [0xB8, 0x00, 0x30, 0x8E, 0xD8, 0xDB, 0xE3, 0xDD, 0x47, 0x08, 0xD9, 0x77, 0x20];
+                for (var k = 0; k < suite.Length; k++)
+                    mem.ram[0x20010 + k] = suite[k];
+                for (var k = 0; k < 8; k++)
+                    mem.ram[0x30208 + k] = Un64[k];
+            });
+            var att = hw ? "0017 2547 0208 3000" : "0000 9090 0000 9090";
+            bad += Voir($"CS 2000h, DS 3000h : FLD m64 [BX+8] ; FNSTENV, +6 à +0Ch ({nom})", Mots4(0x30226) == att,
+                        Mots4(0x30226), att, hw);
+        }
+        if (!hw)
+            return bad + PmCheck386.CasMateriel(62, hw) + PmCheck386.CasMateriel(62, hw, core486: true);
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            // FLD m64 (0102h) ; FNOP (0106h) ; FNSTCW [BX+62h] ; FNCLEX ; FNSTENV : FNOP pose l'adresse et l'opcode (D9 D0),
+            // garde l'opérande ; FNSTCW et FNCLEX ne changent rien.
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xD0, 0xD9, 0x7F, 0x62, 0xDB, 0xE2, 0xD9, 0x37], 6, Op(Un64));
+            bad += Voir($"FLD m64 ; FNOP ; FNSTCW ; FNCLEX ; FNSTENV ({nom})", Mots4(0x206) == "0106 01D0 0300 0000",
+                        Mots4(0x206), "0106 01D0 0300 0000", hw);
+            // FLDENV [0300h] d'une image réelle de 16 bits (IP 51234h, opcode 506h, opérande 64321h), puis FNSTENV [BX] et
+            // FNSTCW [BX+20h] : les pointeurs relus, rangés tels quels ; le mot de contrôle de l'image, 0360h (les six
+            // exceptions démasquées), rangé, puis masqué (PB-207 : 037Fh).
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x26, 0x00, 0x03, 0xD9, 0x37, 0xD9, 0x7F, 0x20], 4,
+                    Op(0x60, 0x03, 0x00, 0x00, 0xFF, 0xFF, 0x34, 0x12, 0x06, 0x55, 0x21, 0x43, 0x00, 0x60));
+            var vu = $"{W(0x200):X4} {W(0x202):X4} {W(0x204):X4} " + Mots4(0x206) + $", {W(0x220):X4}";
+            const string aVu = "0360 0000 FFFF 1234 5506 4321 6000, 037F";
+            bad += Voir($"FLDENV d'une image de 16 bits ; FNSTENV ; FNSTCW ({nom})", vu == aVu, vu, aVu, hw);
+            if (fpu >= 4)
+            {
+                // 66 FNSTENV [BX] : la disposition réelle de 32 bits (fig. 2-6) ; +2, +0Eh, +16h, réservés, non écrits.
+                Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0x66, 0xD9, 0x37], 3, Op(Un64));
+                var v32 = $"{W(0x200):X4} {W(0x202):X4} " + Mots4(0x20C) + " " + Mots4(0x214);
+                const string a32 = "037F 9090 0102 9090 0506 0000 0300 9090 0000 0000";
+                bad += Voir($"FLD m64 ; 66 FNSTENV, la disposition réelle de 32 bits ({nom})", v32 == a32, v32, a32, hw);
+                // 66 FLDENV, une image de 32 bits (IP ABCD1234h, opcode 506h, opérande 56784321h), puis 66 FNSTENV.
+                Jouer87(fpu, [0xDB, 0xE3, 0x66, 0xD9, 0x26, 0x00, 0x03, 0x66, 0xD9, 0x37], 3,
+                        Op(0x7F, 0x02, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0x34, 0x12, 0, 0, 0x06, 0xD5, 0xBC, 0x0A, 0x21, 0x43, 0, 0,
+                           0x00, 0x80, 0x67, 0x05));
+                var l32 = Mots4(0x20C) + " " + Mots4(0x214);
+                bad += Voir($"66 FLDENV ; 66 FNSTENV ({nom})", l32 == "1234 9090 D506 0ABC 4321 9090 8000 0567", l32,
+                            "1234 9090 D506 0ABC 4321 9090 8000 0567", hw);
+            }
+            if (fpu >= 2)
+            {
+                // FSETPM ; FLD m64 (0104h) ; FNSTENV : le 287 et le 287XL, la disposition protégée de 16 bits (IP 0104h,
+                // CS 0000h, opérande 0300h, DS 0000h) ; le 387 et le 486 n'en font rien : la disposition réelle (+8, 0506h).
+                Jouer87(fpu, [0xDB, 0xE3, 0xDB, 0xE4, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0x37], 4, Op(Un64));
+                var a = fpu <= 3 ? "0104 0000 0300 0000" : "0104 0506 0300 0000";
+                bad += Voir($"FSETPM ; FLD m64 ; FNSTENV ({nom})", Mots4(0x206) == a, Mots4(0x206), a, hw);
+            }
+        }
+        return bad + PmCheck386.CasMateriel(62, hw) + PmCheck386.CasMateriel(62, hw, core486: true);
+    }
+
+    // PB-199 — FSAVE range chaque registre en réel de 80 bits (SDM vol. 1, 2003, § 8.1.9) : FNINIT ; FILD m64 = 5 ;
+    // FNSAVE [BX] → ST(0) en +0Eh, 4001h A000000000000000h, et les étiquettes 3FFFh ; PCem l'entier 5 suivi de 5555h, et
+    // BFFFh. En mode matériel : après FNSAVE, l'état de FNINIT (le mot d'état 0000h, le mot de contrôle 037Fh, 03FFh sur
+    // le 8087) ; deux FLDZ écrasent les deux registres (FNINIT les garde), et FRSTOR rend la pile : FISTP m64 ×2 → 1,
+    // puis 5.
+    private static int Pb199(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDF, 0x2E, 0x00, 0x03, 0xDD, 0x37], 3, Op(Le(5)));
+            var vu = $"{W(0x216):X4} {Q(0x20E):X16}, {W(0x204):X4}";
+            var att = hw ? "4001 A000000000000000, 3FFF" : "5555 0000000000000005, BFFF";
+            bad += Voir($"FILD m64 5 ; FNSAVE, ST(0) et les étiquettes ({nom})", vu == att, vu, att, hw);
+            if (!hw)
+                continue;
+            Jouer87(fpu, [0xDB, 0xE3, 0xDF, 0x2E, 0x00, 0x03, 0xD9, 0xE8, 0xDD, 0x37, 0xDD, 0x7F, 0x60, 0xD9, 0x7F, 0x62,
+                          0xD9, 0xEE, 0xD9, 0xEE, 0xDD, 0x27, 0xDF, 0x3E, 0x00, 0x03, 0xDF, 0x3E, 0x08, 0x03], 11, Op(Le(5)));
+            var cw = fpu == 1 ? 0x03FF : 0x037F;
+            var etat = $"{W(0x260):X4} {W(0x262):X4}, {Q(0x300)} {Q(0x308)}";
+            var aEtat = $"0000 {cw:X4}, 1 5";
+            bad += Voir($"FNSAVE, puis FNSTSW et FNSTCW ; FLDZ ×2 ; FRSTOR ; FISTP m64 ×2 ({nom})", etat == aEtat, etat, aEtat, hw);
+            if (fpu < 4)
+                continue;
+            // 66 FNSAVE et 66 FRSTOR : l'image de 32 bits, ST(0) = 1 en +1Ch (387 PRM, fig. 4-1).
+            Jouer87(fpu, [0xDB, 0xE3, 0xDF, 0x2E, 0x00, 0x03, 0xD9, 0xE8, 0x66, 0xDD, 0x37, 0xD9, 0xEE, 0xD9, 0xEE,
+                          0x66, 0xDD, 0x27, 0xDF, 0x3E, 0x00, 0x03, 0xDF, 0x3E, 0x08, 0x03], 9, Op(Le(5)));
+            var e32 = $"{W(0x224):X4} {Q(0x21C):X16}, {Q(0x300)} {Q(0x308)}";
+            const string a32 = "3FFF 8000000000000000, 1 5";
+            bad += Voir($"66 FNSAVE ; FLDZ ×2 ; 66 FRSTOR ; FISTP m64 ×2 ({nom})", e32 == a32, e32, a32, hw);
+        }
+        return bad;
+    }
+
+    // PB-208 — les étiquettes (SDM vol. 1, 2003, § 8.1.6) : FNINIT ; FLD m64 = +∞ ; FNSTENV → BFFFh (10, spécial) ; PCem
+    // 3FFFh. FNINIT ; FILD m64 = 5 ; FSTP ST(0) ; FLD1 ; FNSTENV ; l'étiquette de ST(0) forcée à 10 ; FLDENV ; FISTP m64
+    // → 1 ; PCem relit 10 comme l'entier de FILD, 5. En mode matériel : une image qui dit 00 pour +∞, relue par FLDENV puis
+    // rangée : 10, recalculée, sur le 287XL, le 387 et le 486 ; 00, gardée, sur le 8087 et le 287 (déduit).
+    private static int Pb208(bool hw)
+    {
+        var bad = 0;
+        var inf = Le(0x7FF0000000000000);
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0x37], 3, Op(inf));
+            var a = hw ? 0xBFFF : 0x3FFF;
+            bad += Voir($"FLD m64 +∞ ; FNSTENV, les étiquettes ({nom})", W(0x204) == a, $"{W(0x204):X4}", $"{a:X4}", hw);
+            Jouer87(fpu, [0xDB, 0xE3, 0xDF, 0x2E, 0x00, 0x03, 0xDD, 0xD8, 0xD9, 0xE8, 0xD9, 0x37, 0xC6, 0x47, 0x05, 0xBF,
+                          0xD9, 0x27, 0xDF, 0x3E, 0x00, 0x03], 8, Op(Le(5)));
+            var n = hw ? 1UL : 5UL;
+            bad += Voir($"FILD 5 ; FSTP ST(0) ; FLD1 ; FNSTENV ; étiquette 10 ; FLDENV ; FISTP m64 ({nom})", Q(0x300) == n,
+                        $"{Q(0x300)}", $"{n}", hw);
+            if (!hw)
+                continue;
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0x37, 0xC6, 0x47, 0x05, 0x3F, 0xD9, 0x27, 0xD9, 0x77, 0x20], 6,
+                    Op(inf));
+            var r = fpu >= 3 ? 0xBFFF : 0x3FFF;
+            bad += Voir($"+∞ étiqueté 00 dans l'image ; FLDENV ; FNSTENV ({nom})", W(0x224) == r, $"{W(0x224):X4}", $"{r:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-54 — la limite et les droits (386 PRM § 14.7, point 7 ; SDM vol. 2, FST) : en mode réel, un opérande à cheval sur
+    // l'offset FFFFh lève l'exception 13 (le vecteur en 0000:0700, FLAGS, CS et IP empilés : SP = FFF8h), sans rien
+    // écrire au-delà (DS:10000h ; DS:FFF8h à FFFDh, c'est la pile de la faute) ; PCem n'en contrôle aucun, sauf FSTP m64.
+    // Le 386 et le 486 contrôlent l'opérande entier ; le 286, le premier mot (287 PRM, table 2-4), les suivants menant à
+    // l'INT 9, non modélisée : ils y passent, comme dans PCem. Le 8087 n'a pas de limite. Témoin : FNSTENV [FFF2h],
+    // quatorze octets jusqu'à FFFFh, sans faute. Un opérande au-delà de FFFFh (67, le 386 et le 486). Les
+    // droits du mode protégé : pm-check, en C# seul.
+    private static int Pb54(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL.Where(f => f.fpu >= 2))
+        {
+            var a386 = fpu >= 4;
+            var cas = new List<(string, byte[], int, int, bool)>
+            {
+                ("FLD m32 [FFFFh], le premier mot à cheval", [0xDB, 0xE3, 0xD9, 0x06, 0xFF, 0xFF], 2, 0x106, true),
+                ("FLD1 ; FST m64 [FFFCh]", [0xDB, 0xE3, 0xD9, 0xE8, 0xDD, 0x16, 0xFC, 0xFF], 3, 0x108, a386),
+                ("FLD m32 [FFFEh]", [0xDB, 0xE3, 0xD9, 0x06, 0xFE, 0xFF], 2, 0x106, a386),
+                ("FNSAVE [FFC0h]", [0xDB, 0xE3, 0xDD, 0x36, 0xC0, 0xFF], 2, 0x106, a386),
+                ("FNSTENV [FFF4h]", [0xDB, 0xE3, 0xD9, 0x36, 0xF4, 0xFF], 2, 0x106, a386),
+                ("FNSTENV [FFF2h], témoin", [0xDB, 0xE3, 0xD9, 0x36, 0xF2, 0xFF], 2, 0x106, false),
+            };
+            if (fpu >= 4)
+                cas.Add(("FLD1 ; 67 FST m32 [00010000h]", [0xDB, 0xE3, 0xD9, 0xE8, 0x67, 0xD9, 0x15, 0x00, 0x00, 0x01, 0x00], 3, 0x10B, true));
+            foreach (var (quoi, code, pas, ipPcem, faute) in cas)
+            {
+                var r = Jouer87(fpu, code, pas);
+                var gp = hw && faute;
+                var ok = gp ? r[(int)R.IP] == 0x0700 && r[(int)R.SP] == 0xFFF8 && W(0x10000) == 0x9090
+                            : r[(int)R.IP] == ipPcem;
+                bad += Voir($"{quoi} ({nom})", ok, $"IP = {r[(int)R.IP]:X4}, SP = {r[(int)R.SP]:X4}, DS:10000 = {W(0x10000):X4}",
+                            gp ? "IP = 0700 (#GP), SP = FFF8, DS:10000 = 9090 (rien d'écrit)" : $"IP = {ipPcem:X4}", hw);
+            }
+        }
+        return bad + PmCheck386.CasMateriel(54, hw) + PmCheck386.CasMateriel(54, hw, core486: true);
     }
 
     // ===== Le 8259 =====

@@ -60,7 +60,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
@@ -77,7 +77,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
@@ -94,7 +94,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
@@ -114,7 +114,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
@@ -171,7 +171,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, fixed in hardware mode: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
@@ -206,7 +206,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, fixed in hardware mode: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
@@ -240,7 +240,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             if ((cpu_state.tag[cpu_state.TOP & 7] & x87_c.TAG_UINT64) != 0)
                     temp64 = (int64_t)cpu_state.MM[cpu_state.TOP & 7].q;
             else
@@ -260,7 +260,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             if ((cpu_state.tag[cpu_state.TOP & 7] & x87_c.TAG_UINT64) != 0)
                     temp64 = (int64_t)cpu_state.MM[cpu_state.TOP & 7].q;
             else
@@ -310,7 +310,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
@@ -327,7 +327,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
@@ -344,7 +344,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
@@ -364,7 +364,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
@@ -413,7 +413,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             x87_st80(ST(0));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -428,7 +428,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             x87_st80(ST(0));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -476,7 +476,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             t.d = ST(0);
             seteaq(t.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_64);
@@ -490,7 +490,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             t.d = ST(0);
             seteaq(t.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_64);
@@ -504,7 +504,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
+            // pcem bug, fixed in hardware mode: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
             if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 7)) return 1;
             t.d = ST(0);
             seteaq(t.i);
@@ -522,7 +522,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
+            // pcem bug, fixed in hardware mode: PB-54 — le seul contrôle de limite des stockages x87 (FST m64 n'en a pas).
             if (CHECK_WRITE(cpu_state.ea_seg!, cpu_state.eaaddr, cpu_state.eaaddr + 7)) return 1;
             t.d = ST(0);
             seteaq(t.i);
@@ -572,7 +572,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
@@ -587,7 +587,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
@@ -602,7 +602,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
@@ -620,7 +620,7 @@ internal static partial class _386
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
+            // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
             // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);

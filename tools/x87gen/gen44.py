@@ -17,7 +17,7 @@ while i<len(lines):
 # G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md) : (fonction, ligne C# exacte ou début) ->
 # lignes de commentaire posées au-dessus du site ; ceux de PB-54 suivent le SEG_CHECK_WRITE, où manque CHECK_WRITE.
 B='// pcem bug, reproduced: '
-M54=B+'PB-54 — pas de CHECK_WRITE : la limite de l\'opérande n\'est pas contrôlée.'
+M54='// pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l\'opérande n\'est pas contrôlée.'
 NPXS0='cpu_state.npxs = 0;'
 CLR3='cpu_state.npxs &= unchecked((uint16_t)~(x87_c.C0 | x87_c.C2 | x87_c.C3));'
 SWITCH='switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {'
@@ -30,17 +30,17 @@ MARQ={
     ('FSAVE',NPXS0):
         [B+'PB-202 — C3-C0 effacés : le 8087 les laisse intacts.'],
     ('FSAVE','cpu_state.npxc = 0x37F;'):
-        [B+'PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.'],
+        ['// pcem bug, fixed in hardware mode: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.'],
     ('FSAVE',SWITCH):
-        [B+'PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l\'image ne sont',
+        ['// pcem bug, fixed in hardware mode: PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l\'image ne sont',
          '//   pas écrits (16 bits réel : +8, +12 ; 32 bits réel : +16) ; disposition choisie par CR0.PE, pas FSETPM.'],
     ('FSTENV',SWITCH):
-        [B+'PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;',
+        ['// pcem bug, fixed in hardware mode: PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;',
          '//   disposition choisie par CR0.PE, pas FSETPM.'],
     ('FSTOR',SWITCH):
-        [B+'PB-62 — les pointeurs d\'instruction et d\'opérande de l\'image ne sont pas relus.'],
+        ['// pcem bug, fixed in hardware mode: PB-62 — les pointeurs d\'instruction et d\'opérande de l\'image ne sont pas relus.'],
     ('FLDENV',SWITCH):
-        [B+'PB-62 — les pointeurs d\'instruction et d\'opérande de l\'image ne sont pas relus.'],
+        ['// pcem bug, fixed in hardware mode: PB-62 — les pointeurs d\'instruction et d\'opérande de l\'image ne sont pas relus.'],
     ('FSTENV','CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);'):
         ['// pcem bug, fixed in hardware mode: PB-207 — FSTENV ne masque pas les exceptions (x87.Materiel.cs).'],
     ('opFRNDINT','ST(0) = (double)x87_fround(ST(0));'):

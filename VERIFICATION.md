@@ -8949,3 +8949,94 @@ changé sont identiques. Contre M0 : l'écart de N1.
 **La série** (`g7n3a`, le 11/10, 14:23 → 15:36, contre `g7n2`) : 444 portes vertes, les 430 de `g7n2` et quatorze neuves,
 `materiel-cas` de PB-52, 55, 56, 195, 196, 206 et 212 dans les deux modes ; un seul autre écart, attendu : `recensement`
 compte 1042 marqueurs au lieu de 1035.
+
+## G13.6, le noyau, N3b — L'environnement, les pointeurs, les étiquettes, les limites
+
+Le 11 octobre 2026, seconde moitié de N3. Le noyau reste en chantier ; son groupe compte treize PB.
+
+**Ce qui est écrit.** La couche (`_x87_noyau`) : les pointeurs (FIP, FCS, FOP, FDP, FDS), pris par chaque instruction
+qui n'est pas de contrôle, après les contrôles de son adresse : CS:oldpc (le premier préfixe) et l'opcode, et l'adresse
+de l'opérande d'une forme de mémoire ; sur le 8087, l'adresse physique de l'ESC, sans ses préfixes, déduite de
+`cpu_state.pc` après `fetchea`. FINIT, FCLEX, FLDCW, FSTCW, FSTSW, FSTENV, FLDENV, FSAVE, FRSTOR et FSETPM les
+laissent (SDM vol. 1, 2003, § 8.1.7 ; 387 PRM § 2.1.5 et § 4.8) ; FNOP, FFREE, FINCSTP et FDECSTP les posent (déduit :
+absentes de ces listes). Les quatre
+dispositions des images (387 PRM, fig. 2-5 à 2-8 ; 486 PRM, fig. 15-5 à 15-8), choisies par PE hors du mode virtuel 8086
+sur le 387 et le 486, par FSETPM sur le 287 et le 287XL (posé par DB E4, effacé par le seul RESET), réelle de 16 bits
+sur le 8087 ; l'opcode en protégé 32 bits sur le 387, pas sur le 486 ; les champs réservés non écrits. FNSTENV range
+puis masque les six exceptions (PB-207, que le noyau reprend) ; FNSAVE range l'environnement et ST(0) à ST(7) en
+réels de 80 bits, puis pose l'état de FNINIT du type ; FLDENV et FRSTOR relisent tout, TOP d'abord, les registres en
+ordre de pile, puis les étiquettes : recalculées du contenu, sauf « vide », sur le 287XL, le 387 et le 486 (SDM vol. 1,
+2003, § 8.1.6), gardées sur le 8087 et le 287 (déduit). `limite` : l'opérande entier dans la limite de son segment et,
+en mode protégé hors V86, les droits (écrire dans un segment de code ou en lecture seule, lire un code en exécution
+seule) : #GP(0), #SS(0) pour la pile, avant toute modification. Un mot suivant hors de la limite : sur le 386 et le
+486, l'exception 13 pour l'opérande entier (le 386 PRM, contre l'INT 9 du 387 PRM) ; sur le 286, le 287 PRM seul fait
+foi (l'exception 13 pour le premier mot, l'INT 9 pour les suivants, table 2-4 et § 9.6.3), l'INT 9 n'est pas modélisée
+et les mots suivants passent, comme dans PCem.
+Le générateur : `@LIMITE(n, r|w)` dans chaque forme de mémoire (2, 4, 8, 10, 14 ou 28, 94 ou 108 octets),
+`@POINTEURS` et `@POINTEURS_M` dans chaque instruction qui n'est pas de contrôle, placés avant le `cpu_state.pc++`
+d'une forme de registre (le 8087 lit `cpu_state.pc`) ; FLDENV, FNSTENV, FRSTOR et FNSAVE lisent ou écrivent l'image mot
+à mot, l'état changé seulement une fois l'image entière transférée ; FSTP ST(i) a un gestionnaire par échappement (DD
+et D9), l'opcode étant celui de son ESC. Les bits réservés du mot de contrôle restent tels qu'écrits, comme PCem
+(inconnu ; la question laissée par N2).
+
+**Quatre PB** rejoignent le groupe du noyau, en chantier : PB-54 (les limites et les droits), PB-62 (les pointeurs et
+les dispositions), PB-199 (FSAVE en 80 bits), PB-208 (les étiquettes). PB-207, corrigé en G13.6b dans les gestionnaires
+en `double`, ne peut entrer au groupe avant N7 (« tout » tirerait le noyau) : le noyau le reprend sans marqueur, comme
+PB-63, 66 et 67 en N3a. Les marqueurs passent à `fixed in hardware mode` (`x87_ops_loadstore.cs`, `x87.cs`,
+`x87_ops.cs`, `x87_8087.cs`, et par `gen44.py`, `gen46.py` et `gentab.py`) ; leurs entrées ont leur champ *Corrigé en
+mode matériel*. `recensement` : vert, 264 défauts, 1050 marqueurs, 83 corrigés.
+
+**Les cas.** Un `materiel-cas` par PB, dans les deux modes. PB-62, sur les cinq coprocesseurs : FLD m64 puis FNSTENV,
+les mots +6 à +0Ch de l'image réelle (l'adresse, l'opcode DD 06, l'opérande), sans et sous un préfixe DS: (l'adresse du
+préfixe, celle de l'ESC sur le 8087) ; en mode matériel, FNOP qui pose l'adresse et garde l'opérande, FNSTCW et FNCLEX
+qui ne changent rien, FLDENV d'une image de 16 bits rangée telle quelle par FNSTENV puis masquée (FNSTCW : 037Fh), la
+disposition réelle de 32 bits et ses champs réservés intacts, son aller-retour, FSETPM (le 287 et le 287XL : la
+disposition protégée ; le 387 et le 486 : la réelle) ; CS = 2000h et DS = 3000h, FLD m64 [BX+8] (les bits 19-16 de
+l'adresse et de l'opérande, et le déplacement d'un octet du 8087). PB-199 : FILD m64 5 puis FNSAVE, le registre et les
+étiquettes ; en mode matériel, l'état de FNINIT après FNSAVE, FRSTOR après deux FLDZ qui écrasent les registres, et
+le même aller-retour en 32 bits (66) sur le 386 et le 486. PB-208 : +∞
+étiqueté 10, l'étiquette 10 forcée sur un 1 relue (FISTP rend 1), et une image qui dit 00 pour +∞ : 10 recalculée sur le
+287XL, le 387 et le 486, 00 gardée sur le 8087 et le 287. PB-54, sur le 287, le 287XL, le 387 et le 486, en mode réel :
+FLD m32 [FFFFh] (le premier mot à cheval) : l'exception 13 partout ; FST m64 [FFFCh], FLD m32 [FFFEh], FNSAVE
+[FFC0h], FNSTENV [FFF4h], et 67 FST m32 [00010000h] : l'exception 13 sur le 386 et le 486, rien d'écrit en DS:10000h,
+sans faute sur le 286 (l'INT 9) ; FNSTENV [FFF2h], le témoin, sans faute. Le mode protégé, par `pm-check` en
+C# seul (cinq cas neufs en fin de liste, hors de la comparaison à l'oracle, le coprocesseur du cœur posé par le cas) :
+FST m32 dans un segment de données en lecture seule et par CS:, #GP(0) sans écrire, un témoin inscriptible ; FNSTENV en
+protégé de 32 et de 16 bits, FIP, FCS, FDP, FDS et l'opcode (387) ou non (486) ; FLDENV d'une image protégée de 32 bits
+rangée telle quelle. `pm-check --target csharp` passe de 130 à 136 cas, vert dans les deux modes ; la comparaison à
+l'oracle reste à 130.
+
+**Les contrôles négatifs.** L'attendu inversé, pour les quatre PB et dans les deux sens : rouge. Vingt-trois fautes
+(`neg-n3b.py`, rejouées après les reprises) : sans les droits (4 échecs), la limite au premier octet seul (12), le 286
+qui contrôle l'opérande entier (8), FIP jamais pris (26), FDP jamais pris (26), FCS jamais pris (8), les sélecteurs
+oubliés en mode réel (4), l'ESC du 8087 sans son déplacement (3), le déplacement d'un octet compté deux (1), FNOP sans
+les pointeurs (4), FNCLEX qui les pose (4), FSETPM ignoré (2), l'opcode du 486 en protégé 32 bits (2), un champ
+réservé écrit (4), FLDENV sans IP 19-16 (5), FNSTENV sans masquer (5), FSAVE sans l'exposant (12) et sans FNINIT (5),
+FRSTOR sans les registres (7), les étiquettes gardées sur le 387 (3) ou recalculées sur le 8087 et le 287 (2),
+l'infini étiqueté 00 (8), FLD m32 sans limite (6) : rouges ; le témoin vert. Le cas de FRSTOR ne discriminait pas (FNINIT garde les registres, FRSTOR les retrouvait sans
+rien relire) : deux FLDZ les écrasent désormais.
+
+**La contre-lecture** (Sonnet) : aucun défaut bloquant ; le mode PCem inchangé (des commentaires et des champs
+statiques), les quatre dispositions et leur relecture, les tailles de `@LIMITE`, le calcul de `pointeurs_8087`, les
+encodages et les attendus recalculés à la main, confirmés. Repris : le 286, pour qui le 287 PRM ne se contredit pas
+(l'exception 13 pour le premier mot, l'INT 9 pour les suivants) — le premier mot seul y est contrôlé, l'INT 9 n'étant
+pas modélisée, et le cas FLD m32 [FFFFh] l'exerce ; les cas resserrés (CS et DS non nuls, un déplacement d'un octet, 66
+FNSAVE et FRSTOR, FLDENV en protégé) ; `a_lire`, qui lisait des champs réservés, une liste par disposition ; « déduit »
+pour FNOP, FFREE, FINCSTP et FDECSTP, et l'ambiguïté du 486 sur FSETPM, dits ; la contradiction du 387 PRM sur
+l'opcode en protégé (fig. 2-5 contre l'annexe D, item 5) et celle du SDM sur FINIT et les pointeurs, dites dans le code
+et dans PB-62 ; l'ordre de pile de FSAVE cité au 387 PRM, fig. 4-1 ; la règle de lecture des droits séparée de la
+citation d'écriture ; le libellé de PB-208 (le 287XL compris) ; `PmCheck386.CasMateriel` rend `Csharp` et `Core486`.
+Non repris, dit : le mode V86, le chemin #SS, un segment expansé vers le bas et la lecture d'un code en exécution seule
+n'ont pas de cas (la comparaison aux bornes du cache, limit_low et limit_high, est celle de PB-189 ; le harnais du mode protégé ne charge pas de CS en
+exécution seule) ; FSETPM sur un 287 en mode protégé du 286 n'a pas de cas protégé (le harnais du 286 n'a pas de x87).
+
+**M2.** Contre M2-n3a : 1 130 méthodes, deux changées, les constructeurs statiques de `ModeMateriel` et de `materiel`
+(quatre corrections et quatre champs de plus, exécutés une fois) ; les gestionnaires de PCem dont seuls les marqueurs
+ont changé sont identiques, aucune méthode du noyau n'est compilée en mode PCem. Contre M0 : l'écart de N1, les huit
+mêmes méthodes changées. Recapturé après les reprises de la contre-lecture, depuis le Release de la série
+(`M2-n3b2`) : identique à la première capture, méthode par méthode.
+
+**La série** (`g7n3b`, le 11/10, 16:16 → 17:28, contre `g7n3a`) : 452 portes vertes, les 444 de `g7n3a` et huit neuves,
+`materiel-cas` de PB-54, 62, 199 et 208 dans les deux modes ; les autres écarts, attendus : `recensement` compte 1050
+marqueurs au lieu de 1042, et `pm-check-386` et `pm-check-486`, en C# et en mode matériel, jugent 136 cas au lieu de
+130 (les six cas neufs, 110 sur une attente au lieu de 104).

@@ -43,10 +43,15 @@ internal static class _x87_noyau
     /// spécial, 11 vide).</summary>
     internal static uint16_t etiquettes = 0xFFFF;
 
-    /// <summary>Les pointeurs de la dernière instruction (FIP, FCS, FOP) et de son opérande (FDP, FDS) ; N3 les
-    /// tient.</summary>
+    /// <summary>Les pointeurs de la dernière instruction qui n'est pas de contrôle (FIP, FCS, FOP) et de son opérande
+    /// (FDP, FDS) : l'offset et le sélecteur, ou, relus d'une image du mode réel ou pris par le 8087, l'adresse de 20 ou
+    /// 32 bits, le sélecteur à zéro (pointeurs, fldenv).</summary>
     internal static uint32_t fip, fdp;
     internal static uint16_t fcs, fds, fop;
+
+    /// <summary>Le mode protégé du 287 et du 287XL, posé par FSETPM, effacé par le seul RESET (287 PRM, FSETPM) : il
+    /// choisit la disposition de leurs images (disposition).</summary>
+    internal static bool fsetpm;
 
     internal const int VALIDE = 0, ZERO = 1, SPECIAL = 2, VIDE = 3;
 
@@ -618,6 +623,321 @@ internal static class _x87_noyau
         return false;
     }
 
+    // ===== Les pointeurs, les limites, l'environnement (N3b) =====
+
+    // pcem bug, fixed in hardware mode: PB-62 — chaque instruction qui n'est pas de contrôle mémorise son adresse, son
+    //   opcode et l'adresse de son opérande (387 PRM § 2.1.5 ; SDM vol. 1, 2003, § 8.1.7 et § 8.1.8). Les instructions
+    //   de contrôle les laissent : FINIT, FCLEX, FLDCW, FSTCW, FSTSW, FSTENV, FLDENV, FSAVE, FRSTOR et WAIT (la liste du
+    //   SDM ; le 387 PRM la donne pour le pointeur d'opérande), et FSETPM, FENI et FDISI, sans effet sur le 387 (387
+    //   PRM § 4.8 : « no internal states are affected » ; le 486 PRM dit FSETPM « treated as FNOP », et ailleurs sans
+    //   fonction : le noyau le tient pour sans effet) ; FNOP, FFREE, FINCSTP et FDECSTP, des instructions de contrôle
+    //   pour le 387 PRM (table 4-12) mais absentes des listes qui laissent les pointeurs, les posent (déduit). L'adresse est
+    //   celle du premier préfixe (387 PRM § 2.1.5, « as in the 80287 »), CS:oldpc ; l'opcode, les trois bits bas de
+    //   l'ESC et l'octet ModRM. Une forme de registre laisse le pointeur d'opérande, « undefined » (387 PRM ; le 387 ne
+    //   le prend que « if present » : déduit). Les pointeurs se prennent après les contrôles de l'adresse : une
+    //   instruction qui faute sur son opérande ne les touche pas (inconnu).
+    internal static void pointeurs(int esc, uint32_t fetchdat)
+    {
+        fip = cpu_state.oldpc;
+        fcs = x86.CS;
+        fop = (uint16_t)((uint32_t)((esc & 7) << 8) | (fetchdat & 0xFF));
+    }
+
+    internal static void pointeurs_m(int esc, uint32_t fetchdat)
+    {
+        pointeurs(esc, fetchdat);
+        fdp = cpu_state.eaaddr;
+        fds = cpu_state.ea_seg!.seg;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-62 — le 8087 prend l'adresse de l'ESC lui-même, sans ses préfixes (387 PRM
+    //   § 2.1.5 : « the instruction address points only to the ESC instruction opcode »), et celle de l'opérande, en
+    //   adresses physiques de 20 bits (287 PRM, fig. 1-7, « formatted like the 8087 »). L'ESC est avant l'octet ModRM
+    //   et son déplacement, que le 8088 a lus (fetchea). Quelles instructions de contrôle laissent ses pointeurs :
+    //   celles du 287 (déduit).
+    internal static void pointeurs_8087(int esc, uint32_t fetchdat, bool memoire)
+    {
+        var mod = (fetchdat >> 6) & 3;
+        var dep = mod == 1 ? 1u : mod == 2 || (mod == 0 && (fetchdat & 7) == 6) ? 2u : 0u;
+        fip = ((uint32_t)(x86.CS << 4) + ((cpu_state.pc - 2 - dep) & 0xFFFF)) & 0xFFFFF;
+        fcs = 0;
+        fop = (uint16_t)((uint32_t)((esc & 7) << 8) | (fetchdat & 0xFF));
+        if (!memoire)
+                return;
+        fdp = (x86.easeg + (cpu_state.eaaddr & 0xFFFF)) & 0xFFFFF;
+        fds = 0;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-54 — chaque accès du x87 à la mémoire contrôle l'opérande contre la limite de
+    //   son segment, et, en mode protégé, ses droits. Les droits : écrire dans un segment de code ou de données en
+    //   lecture seule lève #GP(0) (SDM vol. 2, FST, « #GP(0) If the destination is located in a non-writable segment ») ;
+    //   lire un segment de code en exécution seule aussi, la règle de tout accès en lecture du mode protégé (déduit
+    //   pour le x87). La limite : l'exception 13 si l'opérande commence hors de la limite (387 PRM, annexe D,
+    //   item 7 ; 287 PRM, table 2-4 : « Word memory reference with offset = FFFF(H) », le premier mot). Un mot suivant
+    //   qui en sort lève l'INT 9 du 287 et du 387 selon leurs manuels (287 PRM § 9.6.3 ; 387 PRM, annexe D, item 7),
+    //   l'exception 13 selon le 386 PRM (§ 14.7, point 7) : sur le 386 et le 486, les sources se contredisent et
+    //   l'exception 13 est retenue pour l'opérande entier ; sur le 286, le 287 PRM seul fait foi, et l'INT 9 n'est pas
+    //   modélisée : le premier mot est contrôlé, les suivants passent, comme dans PCem. Le 286 ne replie pas ici
+    //   l'offset de chaque mot comme pour ses propres opérandes (PB-189) : le canal du 287 incrémente l'adresse (287 PRM §
+    //   9.6.3, « the limit test performed on each transfer »). #SS(0) pour la pile, comme PB-189. Le contrôle précède
+    //   tout ce que l'instruction modifie ; le 8087 n'a pas de limite.
+    internal static bool limite(uint32_t taille, bool ecriture)
+    {
+        var s = cpu_state.ea_seg!;
+        var bas = cpu_state.eaaddr;
+        var pm = (x86.msw & 1) != 0 && (cpu_state.eflags & x86.VM_FLAG) == 0;
+        var interdit = pm && (ecriture ? (s.access & 0x0A) != 0x02 : (s.access & 0x0A) == 0x08);
+        if (x86.is386 == 0 && taille > 2)
+                taille = 2;
+        if (!interdit && bas >= s.limit_low && (uint64_t)bas + taille - 1 <= s.limit_high)
+                return false;
+        ModeMateriel.Sonde[54]++;
+        if (!interdit && ReferenceEquals(s, cpu_state.seg_ss))
+                x86seg_c.x86ss(null!, 0);
+        else
+                x86seg_c.x86gpf(null!, 0);
+        return true;
+    }
+
+    /// <summary>Les mots d'une image à écrire ou à lire : `n` paires, l'offset dans l'image et le mot. Les champs
+    /// réservés n'y sont pas : ni écrits, ni lus.</summary>
+    internal static readonly uint32_t[] off = new uint32_t[64];
+    internal static readonly uint16_t[] mot = new uint16_t[64];
+    internal static int n;
+
+    private static readonly uint16_t[] image = new uint16_t[54];
+
+    private static void ajouter(uint32_t o, uint32_t v)
+    {
+        off[n] = o;
+        mot[n] = (uint16_t)v;
+        n++;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-62 — la disposition de l'image (387 PRM § 2.1.5, fig. 2-5 à 2-8 ; 486 PRM §
+    //   15.1.5) : bit 0, le mode protégé ; bit 1, l'opérande de 32 bits. Le 387 et le 486 suivent PE, le mode virtuel
+    //   8086 prenant celle du mode réel ; le 287 et le 287XL, qui ne voient pas le mode du processeur, suivent FSETPM
+    //   (287 PRM, FSETPM ; le 287XL, au brochage du 287 : déduit) ; le 8087, la disposition réelle de 16 bits.
+    internal static int disposition()
+    {
+        if (cpu_c.fpu_type == cpu_c.FPU_8087)
+                return 0;
+        var pm = cpu_c.fpu_type is cpu_c.FPU_287 or cpu_c.FPU_287XL
+                ? fsetpm
+                : (x86.msw & 1) != 0 && (cpu_state.eflags & x86.VM_FLAG) == 0;
+        return (pm ? 1 : 0) | ((cpu_state.op32 & 0x100) != 0 ? 2 : 0);
+    }
+
+    internal static uint32_t taille_env(int d) => (d & 2) != 0 ? 28u : 14u;
+
+    // pcem bug, fixed in hardware mode: PB-62 — l'environnement rangé, dans les quatre dispositions : le mot de
+    //   contrôle, le mot d'état (TOP compris), les étiquettes et les pointeurs. En mode réel, les adresses de 20 bits (16
+    //   bits) ou de 32 bits (32 bits), le sélecteur décalé de quatre bits ajouté à l'offset ; en mode protégé, l'offset
+    //   et le sélecteur. L'opcode : dans les deux dispositions réelles, et dans celle de 32 bits protégée du 387 (fig.
+    //   2-5 ; son annexe D, item 5, dit au contraire l'opcode « not saved in protected mode » : la figure est suivie),
+    //   pas dans celle du 486 (486 PRM, fig. 15-5 : réservé) ni dans celle de 16 bits protégée. Les champs
+    //   réservés (les moitiés hautes de la disposition de 32 bits) ne sont pas écrits : leur valeur sur le silicium est
+    //   inconnue, et PCem les laisse ; les bits que les figures disent nuls le sont.
+    private static void env_ranger(int d)
+    {
+        n = 0;
+        ModeMateriel.Sonde[62]++;
+        var sw = (cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11);
+        uint32_t ip = (uint32_t)(fcs << 4) + fip, op = (uint32_t)(fds << 4) + fdp;
+        if ((d & 2) == 0)
+        {
+                ajouter(0, cpu_state.npxc);
+                ajouter(2, (uint32_t)sw);
+                ajouter(4, etiquettes);
+                if (d == 0)
+                {
+                        ajouter(6, ip);
+                        ajouter(8, ((ip >> 16) & 0xF) << 12 | (uint32_t)(fop & 0x7FF));
+                        ajouter(10, op);
+                        ajouter(12, ((op >> 16) & 0xF) << 12);
+                }
+                else
+                {
+                        ajouter(6, fip);
+                        ajouter(8, fcs);
+                        ajouter(10, fdp);
+                        ajouter(12, fds);
+                }
+        }
+        else
+        {
+                ajouter(0, cpu_state.npxc);
+                ajouter(4, (uint32_t)sw);
+                ajouter(8, etiquettes);
+                if (d == 2)
+                {
+                        ajouter(12, ip);
+                        var x = ((ip >> 16) & 0xFFFF) << 12 | (uint32_t)(fop & 0x7FF);
+                        ajouter(16, x);
+                        ajouter(18, x >> 16);
+                        ajouter(20, op);
+                        var y = ((op >> 16) & 0xFFFF) << 12;
+                        ajouter(24, y);
+                        ajouter(26, y >> 16);
+                }
+                else
+                {
+                        ajouter(12, fip);
+                        ajouter(14, fip >> 16);
+                        ajouter(16, fcs);
+                        if (cpu_c.fpu_type != cpu_c.FPU_BUILTIN)
+                                ajouter(18, (uint32_t)(fop & 0x7FF));
+                        ajouter(20, fdp);
+                        ajouter(22, fdp >> 16);
+                        ajouter(24, fds);
+                }
+        }
+        // PB-208 : les étiquettes rangées sont celles du contenu (etiquette_de, à chaque écriture d'un registre).
+        for (var p = 0; p < 8; p++)
+                if (etiquette(p) == SPECIAL)
+                {
+                        ModeMateriel.Sonde[208]++;
+                        break;
+                }
+    }
+
+    // pcem bug, fixed in hardware mode: PB-199 — FSAVE range, après l'environnement, ST(0) à ST(7), chacun en réel de 80
+    //   bits, quel que soit son contenu (SDM vol. 1, 2003, § 8.1.9 ; l'ordre de pile : 387 PRM, fig. 4-1 et 4-2).
+    private static void registres_ranger(int d)
+    {
+        ModeMateriel.Sonde[199]++;
+        var b = taille_env(d);
+        for (var i = 0; i < 8; i++, b += 10)
+        {
+                var v = R[phys(i)];
+                ajouter(b, (uint32_t)v.signif);
+                ajouter(b + 2, (uint32_t)(v.signif >> 16));
+                ajouter(b + 4, (uint32_t)(v.signif >> 32));
+                ajouter(b + 6, (uint32_t)(v.signif >> 48));
+                ajouter(b + 8, v.signExp);
+        }
+    }
+
+    /// <summary>FSTENV : les mots de l'environnement, à écrire (off, mot, n).</summary>
+    internal static void fstenv(int d) => env_ranger(d);
+
+    // PB-207 (corrigé en G13.6b, en double) : après avoir rangé l'environnement, FSTENV masque les six exceptions (SDM
+    //   vol. 2, FSTENV ; le 8087 et le 287 : déduit).
+    internal static void fstenv_fin() => cpu_state.npxc |= 0x3F;
+
+    /// <summary>FSAVE : l'environnement et les huit registres, à écrire.</summary>
+    internal static void fsave(int d)
+    {
+        env_ranger(d);
+        registres_ranger(d);
+    }
+
+    /// <summary>Après FSAVE, l'état de FNINIT (SDM vol. 2, FSAVE) : finit, qui garde les pointeurs sur le 387 et les
+    /// efface sur le 486. C3-C0 du 8087 et du 287 : N7 (PB-202).</summary>
+    internal static void fsave_fin() => finit();
+
+    /// <summary>FLDENV et FRSTOR : les offsets des mots à lire, ceux qu'env_ranger et registres_ranger écrivent, sans les
+    /// champs réservés.</summary>
+    internal static void a_lire(int d, bool registres)
+    {
+        n = 0;
+        if ((d & 2) == 0)
+                for (uint32_t o = 0; o < 14; o += 2)
+                        ajouter(o, 0);
+        else if (d == 2)
+                foreach (var o in (ReadOnlySpan<uint32_t>)[0, 4, 8, 12, 16, 18, 20, 24, 26])
+                        ajouter(o, 0);
+        else
+        {
+                foreach (var o in (ReadOnlySpan<uint32_t>)[0, 4, 8, 12, 14, 16, 20, 22, 24])
+                        ajouter(o, 0);
+                if (cpu_c.fpu_type != cpu_c.FPU_BUILTIN)
+                        ajouter(18, 0);
+        }
+        if (!registres)
+                return;
+        var b = taille_env(d);
+        for (uint32_t k = 0; k < 80; k += 2)
+                ajouter(b + k, 0);
+    }
+
+    private static uint32_t L(uint32_t o) => image[o >> 1];
+
+    private static uint32_t LL(uint32_t o) => image[o >> 1] | (uint32_t)image[(o >> 1) + 1] << 16;
+
+    // pcem bug, fixed in hardware mode: PB-62 — FLDENV et FRSTOR relisent les pointeurs de l'image, dans sa
+    //   disposition : les adresses du mode réel, sélecteur à zéro ; l'offset et le sélecteur du mode protégé ; l'opcode
+    //   là où l'image le porte, gardé sinon (déduit). Le mot d'état donne TOP. Démasquer ainsi une exception en
+    //   attente : N5.
+    internal static void fldenv(int d, bool registres)
+    {
+        for (var k = 0; k < n; k++)
+                image[off[k] >> 1] = mot[k];
+        cpu_state.npxc = (uint16_t)L(0);
+        var sw = (uint16_t)L((d & 2) != 0 ? 4u : 2u);
+        var tw = (uint16_t)L((d & 2) != 0 ? 8u : 4u);
+        cpu_state.npxs = sw;
+        cpu_state.TOP = (sw >> 11) & 7;
+        switch (d)
+        {
+        case 0:
+                fip = L(6) | (L(8) >> 12) << 16;
+                fop = (uint16_t)(L(8) & 0x7FF);
+                fdp = L(10) | (L(12) >> 12) << 16;
+                fcs = fds = 0;
+                break;
+        case 1:
+                fip = L(6);
+                fcs = (uint16_t)L(8);
+                fdp = L(10);
+                fds = (uint16_t)L(12);
+                break;
+        case 2:
+                fip = L(12) | ((LL(16) >> 12) & 0xFFFF) << 16;
+                fop = (uint16_t)(L(16) & 0x7FF);
+                fdp = L(20) | ((LL(24) >> 12) & 0xFFFF) << 16;
+                fcs = fds = 0;
+                break;
+        default:
+                fip = LL(12);
+                fcs = (uint16_t)L(16);
+                if (cpu_c.fpu_type != cpu_c.FPU_BUILTIN)
+                        fop = (uint16_t)(L(18) & 0x7FF);
+                fdp = LL(20);
+                fds = (uint16_t)L(24);
+                break;
+        }
+        if (registres)
+        {
+                var b = taille_env(d);
+                for (var i = 0; i < 8; i++, b += 10)
+                        R[phys(i)] = new extFloat80_t { signif = LL(b) | (uint64_t)LL(b + 4) << 32, signExp = (uint16_t)L(b + 8) };
+        }
+        etiquettes_chargees(tw);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-208 — le 387 et le 486 ne retiennent d'une étiquette chargée que « vide » ou
+    //   « non vide », et recalculent celle d'un registre non vide de son contenu (SDM vol. 1, 2003, § 8.1.6 : « the x87
+    //   FPU reads the actual value in the data register and sets the tag for the register accordingly » ; le 287XL :
+    //   déduit). Le 8087 et le 287 gardent les étiquettes de l'image (déduit : leurs manuels ne décrivent pas ce
+    //   recalcul).
+    private static void etiquettes_chargees(uint16_t tw)
+    {
+        if (cpu_c.fpu_type < cpu_c.FPU_287XL)
+        {
+                etiquettes = tw;
+                return;
+        }
+        for (var p = 0; p < 8; p++)
+        {
+                var e = (tw >> (p * 2)) & 3;
+                var c = e == VIDE ? VIDE : etiquette_de(R[p]);
+                if (c != e)
+                        ModeMateriel.Sonde[208]++;
+                etiqueter(p, c);
+        }
+    }
+
     // ===== FNINIT, la mise sous tension, le RESET =====
 
     /// <summary>L'état de FNINIT (387 PRM, table 6-1 ; 287 PRM, table 3-1 ; 486 PRM, table 19-1) : le mot de contrôle
@@ -643,12 +963,14 @@ internal static class _x87_noyau
     {
         Array.Clear(R);
         fip = fdp = fcs = fds = fop = 0;
+        fsetpm = false;
         finit();
     }
 
     // pcem bug, fixed in hardware mode: PB-203 — au RESET, le coprocesseur prend l'état initial de son type. Le 8087,
     //   le 287 et le 287XL : celui de FNINIT (Numerics Supplement, table S-7 ; 287 PRM, table 3-1 ; le 287XL : inconnu,
-    //   celui du 287 qu'il remplace). Le 387 : celui de FNINIT, IM à 0, IE, ES et B posés, ce qui active ERROR# et
+    //   celui du 287 qu'il remplace), et le mode réel, que FSETPM ne quitte que jusqu'au RESET (287 PRM, FSETPM). Le
+    //   387 : celui de FNINIT, IM à 0, IE, ES et B posés, ce qui active ERROR# et
     //   signale sa présence au 386 (387 PRM § 6.2.5 et annexe C, « RESET, FINIT, and ERROR# pin »). Le 486 : rien, sans
     //   l'auto-test que le RESET d'un PC ne demande pas (486 PRM § 19.2.3 : « When the Built-In Self-Test is not
     //   requested, a hardware RESET leaves the FPU state unchanged »).
@@ -660,6 +982,7 @@ internal static class _x87_noyau
         case cpu_c.FPU_287:
         case cpu_c.FPU_287XL:
                 finit();
+                fsetpm = false;
                 break;
         case cpu_c.FPU_387:
                 finit();

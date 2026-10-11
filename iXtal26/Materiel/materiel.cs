@@ -57,6 +57,9 @@ internal static class materiel
     /// <summary>PB-52 : FBLD charge dix-huit chiffres décimaux ; le noyau, en chantier.</summary>
     internal static readonly bool pb_52;
 
+    /// <summary>PB-54 : chaque accès du x87 contrôle la limite de son opérande et ses droits ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_54;
+
     /// <summary>PB-55 : FLD m80 charge les 80 bits tels quels ; le noyau, en chantier.</summary>
     internal static readonly bool pb_55;
 
@@ -74,6 +77,9 @@ internal static class materiel
 
     /// <summary>PB-61 : FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486).</summary>
     internal static readonly bool pb_61;
+
+    /// <summary>PB-62 : les pointeurs d'instruction et d'opérande du x87 ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_62;
 
     /// <summary>PB-63 : FXAM rend la classe de ST(0) : NaN, infini, zéro, normal, vide, et le signe dans C1.</summary>
     internal static readonly bool pb_63;
@@ -189,6 +195,9 @@ internal static class materiel
     /// <summary>PB-196 : FIST hors bornes : IE et l'indéfini entier ; le noyau, en chantier.</summary>
     internal static readonly bool pb_196;
 
+    /// <summary>PB-199 : FSAVE range chaque registre en réel de 80 bits ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_199;
+
     /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau (en chantier).</summary>
     internal static readonly bool pb_203;
 
@@ -200,6 +209,9 @@ internal static class materiel
 
     /// <summary>PB-207 : FSTENV masque les six exceptions après avoir rangé l'environnement.</summary>
     internal static readonly bool pb_207;
+
+    /// <summary>PB-208 : les étiquettes du contenu, recalculées au chargement (287XL, 387, 486) ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_208;
 
     /// <summary>PB-212 : FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486) ; le noyau, en chantier.</summary>
     internal static readonly bool pb_212;
@@ -272,12 +284,14 @@ internal static class materiel
         pb_50 = ModeMateriel.Demande(50);
         pb_51 = ModeMateriel.Demande(51);
         pb_52 = ModeMateriel.Demande(52);
+        pb_54 = ModeMateriel.Demande(54);
         pb_55 = ModeMateriel.Demande(55);
         pb_56 = ModeMateriel.Demande(56);
         pb_57 = ModeMateriel.Demande(57);
         pb_58 = ModeMateriel.Demande(58);
         pb_59 = ModeMateriel.Demande(59);
         pb_61 = ModeMateriel.Demande(61);
+        pb_62 = ModeMateriel.Demande(62);
         pb_63 = ModeMateriel.Demande(63);
         pb_64 = ModeMateriel.Demande(64);
         pb_66 = ModeMateriel.Demande(66);
@@ -316,10 +330,12 @@ internal static class materiel
         pb_193 = ModeMateriel.Demande(193);
         pb_195 = ModeMateriel.Demande(195);
         pb_196 = ModeMateriel.Demande(196);
+        pb_199 = ModeMateriel.Demande(199);
         pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
         pb_206 = ModeMateriel.Demande(206);
         pb_207 = ModeMateriel.Demande(207);
+        pb_208 = ModeMateriel.Demande(208);
         pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
         pb_246 = ModeMateriel.Demande(246);

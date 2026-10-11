@@ -745,6 +745,15 @@ vol. 3A ch. 6, i486 PRM § 9.9.9 contre § 25.1 ; SDM vol. 2 (#GP, segment non i
 sur ces deux lignes et après le `SEG_CHECK_WRITE` de chacun des vingt autres stockages, et (par `gen44.py`) de FSAVE,
 FSTENV, FSTSW m16 et FSTCW dans `Cpu/x87_ops_misc.cs`. Aucun dans `Cpu/x87_ops_808x.cs` : `gen46.py` les écarte, le
 8087 n'a pas de limite de segment (`CHECK_WRITE` vide, `Cpu/x87_8087.cs`).
+*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : chaque forme de mémoire du noyau, chargement,
+stockage, FLDCW, FSTCW, FSTSW, FLDENV, FSTENV, FRSTOR et FSAVE, contrôle l'opérande entier contre la limite de son
+segment, et en mode protégé ses droits (écrire dans un segment de code ou en lecture seule, lire un segment de code en
+exécution seule), avant tout ce qu'il modifie (`_x87_noyau.limite`) : #GP(0), #SS(0) pour la pile. Un mot suivant
+hors de la limite : sur le 386 et le 486, les sources se contredisent (l'INT 9 du 387 PRM, l'exception 13 du 386 PRM),
+l'exception 13 est retenue pour l'opérande entier ; sur le 286, le 287 PRM seul fait foi (l'INT 9, table 2-4 et §
+9.6.3), elle n'est pas modélisée : seul le premier mot y est contrôlé, les suivants passent comme dans PCem. Le 8087 :
+pas de limite. `materiel-cas PB-54`, et en mode protégé `pm-check`, en
+C# seul : un segment en lecture seule, le segment de code, un témoin inscriptible.
 
 ### PB-55 — x87_ld80 replie l'exposant modulo 1024 et écrase les dénormaux
 
@@ -975,6 +984,19 @@ K20-d) ; Numerics Supplement (1980) fig. S-9 — documenté ; 287 et FSETPM : d�
 FLDENV, FSTENV (générés par `gen44.py`), et leurs copies de `Cpu/x87_ops_808x.cs` ; la rangée DB E0 de
 `Cpu/x87_ops_tables.cs` (FSETPM) ; marqueurs PB-62. `x87-cases` fait l'aller-retour FSAVE / FRSTOR et FSTENV / FLDENV
 en 16 et 32 bits, réel et PE, et compare les 112 octets.
+*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : chaque instruction du noyau qui n'est pas de
+contrôle prend CS:oldpc (le premier préfixe), l'opcode et, d'une forme de mémoire, l'adresse de l'opérande
+(`_x87_noyau.pointeurs`) ; FINIT, FCLEX, FLDCW, FSTCW, FSTSW, FSTENV, FLDENV, FSAVE et FRSTOR les laissent (SDM vol. 1,
+2003, § 8.1.7), et FSETPM, sans effet sur le 387 (387 PRM § 4.8 ; sur le 287 : déduit). Le 8087 prend l'adresse physique de l'ESC, sans ses préfixes (387 PRM § 2.1.5) ; quelles
+instructions le laissent : celles du 287, déduit. FSTENV et FSAVE rangent, FLDENV et FRSTOR relisent les quatre
+dispositions, choisies par PE (387, 486) ou par FSETPM, que le 287 et le 287XL tiennent jusqu'au RESET ; l'opcode en
+protégé 32 bits sur le 387 (fig. 2-5, que son annexe D, item 5, contredit : la figure est suivie), pas sur le 486 (486
+PRM, fig. 15-5) ; les champs réservés non écrits, comme PCem (leur valeur est inconnue). FSAVE pose ensuite l'état de
+FNINIT du type, 03FFh sur le 8087. FINIT et FSAVE gardent les pointeurs sur le 287 et le 387 (287 PRM, table 3-1 ; 387
+PRM, table 6-1 ; le 8087, comme le 287 : déduit), les effacent sur le 486 (486 PRM, table 19-1) ; le SDM § 8.1.7 dit à la fois qu'ils les
+laissent et qu'ils les effacent : les tables de chaque type sont suivies. FSETPM sur le 486 (« treated as FNOP »,
+ailleurs sans fonction) : sans effet, les pointeurs laissés. `materiel-cas PB-62`, et `pm-check` en C# seul pour
+les dispositions protégées.
 
 ### PB-63 — FXAM ne connaît que trois classes
 
@@ -3681,6 +3703,8 @@ spécial) — documenté.
 *G13* : (a) — avec le noyau (la rustine TAG_UINT64 disparaît), ou dès « A+ ».
 *Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st_fsave` et `x87_ld_frstor` ; `Cpu/x87.cs`, `x87_gettag` ;
 marqueurs PB-199.
+*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : le noyau n'a pas de TAG_UINT64 ; FSAVE range ST(0)
+à ST(7) en réels de 80 bits, FRSTOR les relit (`_x87_noyau.fsave`, `fldenv`). `materiel-cas PB-199`.
 
 ### PB-200 — FNSTSW AX sur le 8087 écrit AX
 
@@ -3842,6 +3866,9 @@ rechargement le 387 ne retienne des étiquettes que « vide » ou « non vide »
 5 ; FSTP ST(0) ; FLD1 ; FNSTENV m ; étiquettes forcées à BFFFh ; FLDENV m ; FISTP m64 → PCem 5, silicium 1.
 *G13* : (a) — avec le noyau (les étiquettes calculées), ou dès « A+ ».
 *Reproduit* : `Cpu/x87.cs`, `x87_gettag` et `x87_settag`, marqueurs PB-208.
+*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : l'étiquette d'un registre est celle de son contenu,
+posée à chaque écriture (`_x87_noyau.etiquette_de`) ; FLDENV et FRSTOR n'en retiennent que « vide » et recalculent les
+autres sur le 287XL, le 387 et le 486, les gardent sur le 8087 et le 287 (déduit). `materiel-cas PB-208`.
 
 ### PB-209 — FUCOM, FUCOMP, FUCOMPP et FPREM1 s'exécutent sur le 8087 et le 287, en zéro cycle
 

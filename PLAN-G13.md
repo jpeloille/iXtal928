@@ -358,8 +358,9 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   tous les PB du x87 qu'il touche. ≈ 1 000 à 1 500 lignes, dont la moitié générée.
 - **N3 — Les mouvements de données et le contrôle.** Coupé en deux : **N3a** ✅ *(11/10, VERIFICATION.md § G13.6, le
   noyau, N3a)*, les chargements, les stockages, les constantes et les opérations de registre (PB-52, 55, 56, 195,
-  196, 206, 212) ; **N3b**, l'environnement, les pointeurs, les étiquettes et les contrôles de limite (PB-54, 62, 199,
-  207, 208). FLD, FST, FSTP m32, m64 et m80 ; FILD, FIST, FISTP m16, m32,
+  196, 206, 212) ; **N3b** ✅ *(11/10, VERIFICATION.md § G13.6, le noyau, N3b)*, l'environnement, les pointeurs, les
+  étiquettes et les contrôles de limite (PB-54, 62, 199, 208 ; PB-207, corrigé en 6b, que le noyau reprend, et PB-63,
+  66, 67 de même, n'entrent au groupe qu'en N7). FLD, FST, FSTP m32, m64 et m80 ; FILD, FIST, FISTP m16, m32,
   m64 ; FBLD, FBSTP ; les constantes ; FXCH, FST et FSTP registre, FFREE, FINCSTP, FDECSTP, FCHS, FABS, FXAM ;
   FLDCW, FSTCW, FSTSW, FCLEX, FINIT, FLDENV, FSTENV, FSAVE, FRSTOR avec les pointeurs ; chaque accès mémoire contrôlé
   (le chemin de PB-189). PB-52, 54, 55, 56 (le stockage), 62, 63, 66, 67, 195, 196, 199, 203, 206, 207, 208, 212 ;

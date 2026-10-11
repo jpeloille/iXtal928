@@ -100,6 +100,8 @@ public static class PmCheck386
         public uint Edi;                               // G13.5c : EDI du décor (LOADALL386 à CPL 3, PB-193)
         public int Pb;                                 // G13.5c : la correction que le cas discrimine
         public Func<HState, string?>? ExpectMateriel;  // G13.5c : l'attente du mode matériel, si elle diffère
+        public bool X87;                               // G13.6 : avec un coprocesseur (le 387 ; celui du 486)
+        public bool CsharpSeul;                        // G13.6 : en C# seul, hors de la comparaison à l'oracle
     }
 
     public static int Run(int only = -1)
@@ -107,6 +109,7 @@ public static class PmCheck386
         var cases = Cases();
         if (Csharp)
             return RunCsharp(cases, only);
+        cases = cases.Where(c => !c.CsharpSeul).ToList();
         Oracle.CheckAbi();
         if (only >= 0)
         {
@@ -452,10 +455,23 @@ public static class PmCheck386
 
     /// <summary>`materiel-cas PB-nn` pour une correction du mode protégé : les cas du banc qui la discriminent, sur le
     /// 386, en C# seul, chacun jugé sur l'attente demandée. Rend le nombre d'échecs ; -1 si aucun cas.</summary>
-    internal static int CasMateriel(int pb, bool materielAttendu)
+    internal static int CasMateriel(int pb, bool materielAttendu, bool core486 = false)
+    {
+        var (csharp, c486) = (Csharp, Core486);
+        try
+        {
+            return CasMateriel0(pb, materielAttendu, core486);
+        }
+        finally
+        {
+            (Csharp, Core486) = (csharp, c486);
+        }
+    }
+
+    private static int CasMateriel0(int pb, bool materielAttendu, bool core486)
     {
         Csharp = true;
-        Core486 = false;
+        Core486 = core486;
         var bad = 0;
         var cas = Cases().Where(c => c.Pb == pb).ToList();
         if (cas.Count == 0)
@@ -491,7 +507,23 @@ public static class PmCheck386
         _808x.SetRegs386(new ushort[8], 0, 0, 0);
     }
 
+    /// <summary>G13.6 : un cas du x87 se joue avec le coprocesseur du cœur, le 387 ou celui du 486.</summary>
     private static string RunCaseCsharp(Case c, bool hw, bool loadall)
+    {
+        var avant = _386.FuzzFpu;
+        if (c.X87)
+            _386.FuzzFpu = Core486 ? 5 : 4;
+        try
+        {
+            return RunCaseCsharpX87(c, hw, loadall);
+        }
+        finally
+        {
+            _386.FuzzFpu = avant;
+        }
+    }
+
+    private static string RunCaseCsharpX87(Case c, bool hw, bool loadall)
     {
         var b = HState.Create();
         HState? parLoadall = null;
@@ -1115,6 +1147,60 @@ public static class PmCheck386
         // SMSW rend `msw | 0xFF00` sur le 386, `msw` nu sur le 486 (386_ops_0f.cs, op0F01_common).
         l.Add(new() { Name = "SMSW AX en mode protégé (386 : | 0xFF00 ; 486 : nu)", Start = Depart.Ring0_32, Code = [0x66, 0x0F, 0x01, 0xE0],
                       Expect = a => Att((a.regs[0] & 0xFFFF) == (Core486 ? 0x0011 : 0xFF11), $"AX 0x{a.regs[0] & 0xFFFF:X4}") });
+
+        // G13.6, le noyau, N3b — le x87 en mode protégé, en C# seul (l'oracle n'a pas de coprocesseur dans ce banc), en
+        // fin de liste (les indices des cas comparés à l'oracle ne bougent pas). FNINIT ; FLD1 ; FST m32 [00000100h].
+        // PB-54 : écrire dans un segment de données en lecture seule (le sélecteur 60h, ses droits passés à 90h) ou dans
+        // le segment de code lève #GP(0), sans écrire (SDM vol. 2, FST) ; PCem écrit 3F800000h.
+        static uint Mot(uint a) => MemO(a) & 0xFFFF;
+        byte[] fst = [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0x15, .. Imm32(0x100)];
+        string? Ecrit(HState a, uint lin, uint pc) =>
+            Att(a.pc == pc, $"EIP 0x{a.pc:X8}, attendu 0x{pc:X8}") ?? Att(MemO(lin) == 0x3F800000, $"0x{MemO(lin):X8} en 0x{lin:X}, attendu 3F800000");
+        string? Faute13SansEcrire(HState a, uint lin) =>
+            Faute(a, EspDepart - 16, 0) ?? Att(MemO(lin) == 0x90909090, $"0x{MemO(lin):X8} en 0x{lin:X} : écrit malgré la faute");
+        l.Add(new() { Name = "x87 : FST m32, DS en lecture seule -> #GP(0)", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = [0x66, 0xB8, 0x60, 0x00, 0x8E, 0xD8, .. fst], Steps = 5, Pb = 54,
+                      Tweak = p => p(Gdt + SelDataAsCode + 5, [0x90]),
+                      Expect = a => Ecrit(a, DataBase + 0x100, 0x1010), ExpectMateriel = a => Faute13SansEcrire(a, DataBase + 0x100) });
+        l.Add(new() { Name = "x87 : FST m32 par CS: -> #GP(0)", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = [0xDB, 0xE3, 0xD9, 0xE8, 0x2E, 0xD9, 0x15, .. Imm32(0x100)], Steps = 3, Pb = 54,
+                      Expect = a => Ecrit(a, CodeBase + 0x100, 0x100B), ExpectMateriel = a => Faute13SansEcrire(a, CodeBase + 0x100) });
+        l.Add(new() { Name = "x87 : FST m32, DS inscriptible (témoin)", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = fst, Steps = 3, Pb = 54, Expect = a => Ecrit(a, DataBase + 0x100, 0x100A) });
+        // PB-62 : FNINIT ; FLD m32 [00000200h] (en 88:1002) ; FNSTENV [00000100h], 32 bits, puis 16 bits (66). La
+        // disposition protégée (387 PRM, fig. 2-5 et 2-7 ; 486 PRM, fig. 15-5) : FIP 1002h, FCS 88h, FDP 200h, FDS 10h ;
+        // l'opcode D9 05 (105h) en +12h sur le 387, pas sur le 486 (réservé, non écrit : 9090h) ; la moitié haute du mot
+        // de contrôle non écrite. PCem range des zéros.
+        byte[] env = [0xDB, 0xE3, 0xD9, 0x05, .. Imm32(0x200)];
+        const uint E = DataBase + 0x100;
+        l.Add(new() { Name = "x87 : FNSTENV, la disposition protégée de 32 bits", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = [.. env, 0xD9, 0x35, .. Imm32(0x100)], Steps = 3, Pb = 62,
+                      Expect = a => Att(MemO(E + 0x0C) == 0 && MemO(E + 0x10) == 0 && MemO(E + 0x14) == 0 && MemO(E + 0x18) == 0,
+                                        $"{MemO(E + 0x0C):X8} {MemO(E + 0x10):X8} {MemO(E + 0x14):X8} {MemO(E + 0x18):X8}, attendu des zéros"),
+                      ExpectMateriel = a => Att(Mot(E) == 0x037F && Mot(E + 2) == 0x9090 && MemO(E + 0x0C) == 0x1002
+                                                && Mot(E + 0x10) == SelCode32 && Mot(E + 0x12) == (Core486 ? 0x9090u : 0x0105u)
+                                                && MemO(E + 0x14) == 0x200 && Mot(E + 0x18) == SelData && Mot(E + 0x1A) == 0x9090,
+                                                $"CW {Mot(E):X4} {Mot(E + 2):X4}, FIP {MemO(E + 0x0C):X8}, +10h {MemO(E + 0x10):X8}, " +
+                                                $"FDP {MemO(E + 0x14):X8}, +18h {MemO(E + 0x18):X8}") });
+        l.Add(new() { Name = "x87 : FNSTENV, la disposition protégée de 16 bits", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = [.. env, 0x66, 0xD9, 0x35, .. Imm32(0x100)], Steps = 3, Pb = 62,
+                      Expect = a => Att(Mot(E + 6) == 0 && Mot(E + 8) == 0 && Mot(E + 10) == 0 && Mot(E + 12) == 0,
+                                        $"{Mot(E + 6):X4} {Mot(E + 8):X4} {Mot(E + 10):X4} {Mot(E + 12):X4}, attendu des zéros"),
+                      ExpectMateriel = a => Att(Mot(E + 6) == 0x1002 && Mot(E + 8) == SelCode32 && Mot(E + 10) == 0x200 && Mot(E + 12) == SelData,
+                                                $"{Mot(E + 6):X4} {Mot(E + 8):X4} {Mot(E + 10):X4} {Mot(E + 12):X4}, attendu 1002 0088 0200 0010") });
+        // FLDENV [00000300h] d'une image protégée de 32 bits (FIP 12345678h, FCS 88h, l'opcode 105h, FDP 9ABCDEF0h, FDS
+        // 10h), puis FNSTENV [00000100h] : rangée telle quelle (l'opcode sur le 387 ; le 486 ne le relit ni ne le range).
+        l.Add(new() { Name = "x87 : FLDENV puis FNSTENV, protégé de 32 bits", Start = Depart.Ring0_32, X87 = true, CsharpSeul = true,
+                      Code = [0xD9, 0x25, .. Imm32(0x300), 0xD9, 0x35, .. Imm32(0x100)], Steps = 2, Pb = 62,
+                      Tweak = p => p(DataBase + 0x300, [0x7F, 0x02, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0x78, 0x56, 0x34, 0x12,
+                                                        0x88, 0x00, 0x05, 0x01, 0xF0, 0xDE, 0xBC, 0x9A, 0x10, 0x00, 0, 0]),
+                      Expect = a => Att(MemO(E + 0x0C) == 0 && MemO(E + 0x14) == 0,
+                                        $"FIP {MemO(E + 0x0C):X8}, FDP {MemO(E + 0x14):X8}, attendu des zéros"),
+                      ExpectMateriel = a => Att(Mot(E) == 0x027F && MemO(E + 0x0C) == 0x12345678 && Mot(E + 0x10) == SelCode32
+                                                && Mot(E + 0x12) == (Core486 ? 0x9090u : 0x0105u) && MemO(E + 0x14) == 0x9ABCDEF0
+                                                && Mot(E + 0x18) == SelData,
+                                                $"CW {Mot(E):X4}, FIP {MemO(E + 0x0C):X8}, +10h {MemO(E + 0x10):X8}, " +
+                                                $"FDP {MemO(E + 0x14):X8}, +18h {Mot(E + 0x18):X4}") });
         return l;
     }
 }

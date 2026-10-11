@@ -2139,7 +2139,7 @@ internal static partial class _808x
     private static int FSTOR()
     {
             if (FP_ENTER()) return 1;
-            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
+            // pcem bug, fixed in hardware mode: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -2215,7 +2215,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
-            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l'image ne sont
+            // pcem bug, fixed in hardware mode: PB-62 — x87_pc_* et x87_op_* valent toujours 0, et des champs de l'image ne sont
             //   pas écrits (16 bits réel : +8, +12 ; 32 bits réel : +16) ; disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
@@ -2389,7 +2389,7 @@ internal static partial class _808x
                     break;
             }
 
-            // pcem bug, reproduced: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.
+            // pcem bug, fixed in hardware mode: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.
             cpu_state.npxc = 0x37F;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
             // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 les laisse intacts.
@@ -2829,7 +2829,7 @@ internal static partial class _808x
     private static int FLDENV()
     {
             if (FP_ENTER()) return 1;
-            // pcem bug, reproduced: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
+            // pcem bug, fixed in hardware mode: PB-62 — les pointeurs d'instruction et d'opérande de l'image ne sont pas relus.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/
             case 0x001: /*16-bit protected mode*/
@@ -2910,7 +2910,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(7 << 11)) | ((cpu_state.TOP & 7) << 11));
 
-            // pcem bug, reproduced: PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;
+            // pcem bug, fixed in hardware mode: PB-62 — x87_pc_* et x87_op_* valent toujours 0, champs non écrits comme FSAVE ;
             //   disposition choisie par CR0.PE, pas FSETPM.
             switch ((cr0 & 1) | (cpu_state.op32 & 0x100)) {
             case 0x000: /*16-bit real mode*/

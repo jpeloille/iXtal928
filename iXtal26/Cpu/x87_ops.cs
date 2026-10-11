@@ -99,7 +99,7 @@ internal static partial class _386
     {
         reg = (cpu_state.TOP + reg) & 7;
 
-        // pcem bug, reproduced: PB-199 — un registre TAG_UINT64 s'écrit en entier suivi de 0x5555,
+        // pcem bug, fixed in hardware mode: PB-199 — un registre TAG_UINT64 s'écrit en entier suivi de 0x5555,
         //   pas en réel de 80 bits.
         if ((cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
@@ -120,7 +120,7 @@ internal static partial class _386
         cpu_state.MM[reg].q = readmemq(easeg, cpu_state.eaaddr);
         cpu_state.MM_w4[reg] = readmemw(easeg, cpu_state.eaaddr + 8);
 
-        // pcem bug, reproduced: PB-199 — une image qui finit par 0x5555 sous une étiquette 10 est relue
+        // pcem bug, fixed in hardware mode: PB-199 — une image qui finit par 0x5555 sous une étiquette 10 est relue
         //   comme un entier de 64 bits, pas comme un réel de 80 bits.
         if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] & x87_c.TAG_UINT64) != 0)
         {
