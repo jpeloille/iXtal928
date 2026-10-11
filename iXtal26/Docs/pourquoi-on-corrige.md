@@ -1002,3 +1002,12 @@ x87, obtient le calcul du vrai coprocesseur, ses 80 bits, ses arrondis, ses erre
 de PCem en 53 bits. Les premières corrections du x87, écrites en 53 bits avant le noyau, sont reprises par lui ; elles
 disparaîtront du code à la clôture. Les quelques codes d'instruction qu'Intel n'a jamais documentés et que PCem traite
 comme des riens le restent : ce qu'en fait le silicium n'est pas connu.
+
+## G13.6, le noyau, suite — les premières corrections du x87 s'effacent
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N8a.*
+
+Avant le noyau, une dizaine de défauts du x87 avaient été corrigés en 53 bits, à la manière de PCem : la comparaison
+des infinis du 287, FXAM, les constantes, le mot d'état… Le noyau les refait sur 80 bits depuis qu'il est au mode. Ces
+premières corrections, devenues inutiles, quittent le code ; leurs tests restent, et vérifient désormais le noyau.

@@ -14,8 +14,8 @@
 //
 // LE MODE (N7c) : le noyau entre dans « tout » et dans le domaine x87, et se demande par chaque numéro de son groupe
 // (ModeMateriel.Groupes), qui comprend les corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70,
-// 207, 213) : le noyau les reprend sur 80 bits, ses tables remplaçant toutes celles du x87, et leurs gestionnaires
-// quittent le dépôt en N8. Chaque instruction que PCem exécute y a son gestionnaire du noyau ; les entrées que PCem
+// 207, 213) : le noyau les reprend sur 80 bits, ses tables remplaçant toutes celles du x87 ; leurs gestionnaires en
+// `double` ont quitté le dépôt (N8a). Chaque instruction que PCem exécute y a son gestionnaire du noyau ; les entrées que PCem
 // tient pour illégales gardent le sien (table ; PB-210). L'acheminement de G13.6c (PB-59, 69, 204), lui, reste celui
 // de la carte : le noyau ne le prend que s'il est demandé (lever, int_retombe), et PB-204 enveloppe ses tables comme
 // celles du mode.

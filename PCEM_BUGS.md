@@ -849,7 +849,7 @@ test de NaN → divergence `npxs` à l'itération 67 du fuzzeur G4.3.
 les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FCOM, FCOMP et FCOMPP de registre corrigés (`compare_materiel`), au temps de `fcom`, sur le 8087, le 287,
 le 387 et le 486. IE, que le silicium pose pour un NaN, reste à poser avec les autres exceptions (PB-59). `materiel-cas
 PB-57` : NaN contre 1 sur les trois coprocesseurs, C3 C2 C0 = 111 contre 000.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-57 demande le noyau (`_x87_noyau.fcom_st`, `comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-57 demande le noyau (`_x87_noyau.fcom_st`, `comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-58 — FCOMPP : −0 contre +0 rend « plus petit », un contournement de détection
 
@@ -880,7 +880,7 @@ FCOMPP (−0, +0) identique à l'oracle ; sans le contournement, `npxs : oracle 
 (`_x87_materiel.fcompp`) ne prend plus le contournement : −0 et +0 égaux, C3. L'hypothèse A6 instruite : avec toutes
 les corrections du x87, les POST du PC (8087), de l'AT (287), de l'ami386dx (387) et de l'ami486 détectent leur
 coprocesseur comme en mode PCem (le mot d'équipement de la BDA, identique). `materiel-cas PB-58` : C3 contre C0.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-58 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-58 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-59 — Seule la division par zéro lève une exception ; démasquée, l'instruction s'évapore
 
@@ -1012,7 +1012,7 @@ rend 2800h des deux côtés.
 portent DF E0 corrigé (`opFSTSW_AX_materiel`), sur le 287, le 387 et le 486 ; le 8087 n'a pas DF E0 (PB-200), et la
 copie de son gestionnaire n'est plus un marqueur. `materiel-cas PB-61` : FNINIT ; FLD1 ×3 ; FNSTSW AX, 2800h contre
 0000h.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-61 demande le noyau (`_x87_noyau.mot_d_etat_ax`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-61 demande le noyau (`_x87_noyau.mot_d_etat_ax`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-62 — Le pointeur d'instruction et d'opérande x87 n'est jamais mémorisé
 
@@ -1075,7 +1075,7 @@ normal dans les 80 bits du registre ; le vide garde le C1 de PCem. `materiel-cas
 coprocesseurs. Le noyau (`_x87_noyau.fxam`) : les seize codes du 8087 et du 287 (N7a) : le non normal, 000,
 et le pseudo-zéro, un non normal (déduit) ; le pseudo-infini et le pseudo-NaN, des NaN, 001 ; le vide, le code du 387
 (l'un des quatre : (c)).
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-63 demande le noyau (`_x87_noyau.fxam`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-63 demande le noyau (`_x87_noyau.fxam`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-64 — FTST : un NaN rend « plus grand »
 
@@ -1092,7 +1092,7 @@ sur les classes.
 *Corrigé en mode matériel* (G13.6a), dans le groupe des comparaisons : sous `if (materiel.pb_64)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FTST
 corrigé (`compare_materiel` contre +0) : un NaN, et en projectif un infini, non ordonnés. `materiel-cas PB-64` : NaN
 sur les trois coprocesseurs, 111 contre 000.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-64 demande le noyau (`_x87_noyau.ftst`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-64 demande le noyau (`_x87_noyau.ftst`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-65 — FPREM tronque en un pas ; FPREM1 est FPREM
 
@@ -1150,7 +1150,7 @@ double le plus proche de leur valeur exacte (calculée à 60 chiffres) sur le 80
 le 387 et le 486 (`constante_materiel`). `materiel-cas PB-66` : FLDLN2, …39EF contre …39F0 ; FLDLG2 sous RC vers −∞,
 …79FE sur le 387 (…79FF sur le 8087 et le 287, le témoin, en G13.6a ; le noyau, N7c, rend …79FE sur les cinq : il range
 la constante de 80 bits au plus près, que FSTP m64 arrondit selon RC ; leur arrondi propre se voit en m80).
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-66 demande le noyau (`_x87_noyau.constante`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-66 demande le noyau (`_x87_noyau.constante`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-67 — FST et FSTP registre copient le tag TAG_UINT64, pas l'entier qu'il désigne
 
@@ -1170,7 +1170,7 @@ ce registre physique, pas la valeur chargée.
 *Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_67)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FST et FSTP ST(i) corrigés
 (`fst_materiel`), qui copient aussi MM[].q. `materiel-cas PB-67` : FILD 5 ; FILD 2^53 + 1 ; FST ST(1) ; FINCSTP ;
 FISTP m64, 0020000000000001 contre 5, sur les trois coprocesseurs.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-67 demande le noyau (`_x87_noyau.fst_st`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-67 demande le noyau (`_x87_noyau.fst_st`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-68 — Les transcendantes : la libm de l'hôte, sans bornes ni C2
 
@@ -1274,7 +1274,7 @@ profitent, avec FCOM de registre et FTST. ∞ ± ∞ et
 √+∞ : le noyau (G13.6, le noyau, N7b), en projectif, IE et l'indéfini quels que soient les signes (287
 PRM, table 1-12) ; `materiel-cas PB-264` (`NonNormaux`). `materiel-cas PB-70` : la détection classique (1/0, FCHS, FCOMPP), C3 sur le 8087 et le 287,
 C0 sur le 387 dans les deux modes (le témoin).
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-70 demande le noyau (`_x87_noyau.comparer`, `operation`, `fsqrt`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-70 demande le noyau (`_x87_noyau.comparer`, `operation`, `fsqrt`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
 
@@ -3971,7 +3971,7 @@ FLD1 ; FLDZ ; FDIVP → PCem IRQ13 et ST(1) inchangé, silicium +∞ sans interr
 place, un gestionnaire nommé (`Cpu/808x.Materiel.cs`). Le 8087 et le 287 : déduit. `materiel-cas PB-207` : le mot de
 contrôle après FNSTENV, et celui de l'environnement rangé, inchangé, sur les quatre coprocesseurs ; depuis G13.6c, la
 trace de l'IRQ13 du cas qui discrimine : FDIVP 1/0 après FNSTENV, 3804h sans IRQ13, sur le 287, le 387 et le 486.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-207 demande le noyau (`_x87_noyau.fstenv_fin`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-207 demande le noyau (`_x87_noyau.fstenv_fin`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-208 — Le mot d'étiquettes ment pour les NaN et les infinis ; 10 est relu comme TAG_UINT64
 
@@ -4081,7 +4081,7 @@ déduit), les tables du mode
 (`Cpu/x87.Materiel.cs`, `efface_c1`) enveloppent chaque comparaison, repérée par son nom, celles de PB-57 comprises :
 le gestionnaire, puis C1 effacé. `materiel-cas PB-213` : quatorze formes (registre, mémoire, a32, entières, FUCOM,
 FTST) après un FXAM qui pose C1 ; le 8087 et le 287, témoins.
-*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-213 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-213 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode ; le gestionnaire en `double` de G13.6a ou 6b, que décrit le paragraphe précédent (ses identifiants et sa garde n'existent plus), a quitté le dépôt (G13.6, le noyau, N8a). Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-214 — PLAY AUDIO MSF cherche la piste sur la position encore compactée
 

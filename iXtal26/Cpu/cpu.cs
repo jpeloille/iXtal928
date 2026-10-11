@@ -341,34 +341,9 @@ internal static partial class cpu_c
                 _386.x86_opcodes_de_a32 = _386.ops_fpu_de_a32;
                 _386.x86_opcodes_df_a16 = _386.ops_fpu_df_a16;
                 _386.x86_opcodes_df_a32 = _386.ops_fpu_df_a32;
-                // G13.6 — les tables x87 du mode matériel : des copies de celles de PCem, où chaque correction pose ses
-                //   gestionnaires (x87.Materiel.cs) ; aucune garde ne s'écrit dans les gestionnaires générés.
-                // pcem bug, fixed in hardware mode: PB-61 — FNSTSW AX (DF E0).
-                if (materiel.pb_61)
-                        _x87_materiel.poser(61);
-                // pcem bug, fixed in hardware mode: PB-57 — FCOM, FCOMP et FCOMPP de registre ; avec PB-64 et PB-70.
-                if (materiel.pb_57)
-                        _x87_materiel.poser(57);
-                // pcem bug, fixed in hardware mode: PB-64 — FTST.
-                if (materiel.pb_64)
-                        _x87_materiel.poser(64);
-                // pcem bug, fixed in hardware mode: PB-63 — FXAM.
-                if (materiel.pb_63)
-                        _x87_materiel.poser(63);
-                // pcem bug, fixed in hardware mode: PB-66 — les constantes, ln 2 au plus près, et RC sur le 287XL, le 387 et
-                //   le 486.
-                if (materiel.pb_66)
-                        _x87_materiel.poser(66);
-                // pcem bug, fixed in hardware mode: PB-67 — FST et FSTP ST(i), l'entier exact de TAG_UINT64.
-                if (materiel.pb_67)
-                        _x87_materiel.poser(67);
-                // pcem bug, fixed in hardware mode: PB-207 — FSTENV masque les exceptions.
-                if (materiel.pb_207)
-                        _x87_materiel.poser(207);
-                // pcem bug, fixed in hardware mode: PB-213 — les comparaisons remettent C1 à zéro (287XL, 387, 486) ; après
-                //   les poses de gestionnaires, pour envelopper aussi ceux posés plus haut.
-                if (materiel.pb_213)
-                        _x87_materiel.poser(213);
+                // G13.6 — les tables x87 du mode matériel : des copies de celles de PCem, où l'acheminement enveloppe ses
+                //   gestionnaires (x87.Materiel.cs), puis celles du noyau ; aucune garde ne s'écrit dans les gestionnaires
+                //   générés.
                 // pcem bug, fixed in hardware mode: PB-59 — FNCLEX efface aussi B ; avec PB-69 et PB-204.
                 if (materiel.pb_59)
                         _x87_materiel.poser(59);
@@ -376,8 +351,8 @@ internal static partial class cpu_c
                 if (materiel.pb_69)
                         _x87_materiel.poser(69);
                 // pcem bug, fixed in hardware mode: PB-264 — le noyau de 80 bits (avec PB-203 et son groupe ;
-                //   x87_noyau.Materiel.cs) : ses tables remplacent celles du mode, après les poses de G13.6a et 6b, dont il
-                //   reprend les corrections, avant PB-204, qui enveloppe par position.
+                //   x87_noyau.Materiel.cs) : ses tables remplacent celles du mode, et reprennent les corrections en `double` de
+                //   G13.6a et 6b, avant PB-204, qui enveloppe par position.
                 if (materiel.pb_264)
                         _x87_noyau.poser();
                 // pcem bug, fixed in hardware mode: PB-204 — les instructions qui attendent le verrou de l'AT, ou

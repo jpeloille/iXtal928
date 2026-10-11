@@ -139,7 +139,7 @@ internal static class ModeMateriel
     /// par la carte, au même site (x87.Materiel.cs). PB-48, 52, 54 à 58, 60 à 68, 70, 194 à 203, 206 à 208, 211 à 213, 264 et
     /// 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
     /// corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213), dont il remplace les tables
-    /// (G13.6, le noyau, N7c ; leurs gestionnaires quittent le dépôt en N8).</summary>
+    /// (G13.6, le noyau, N7c ; leurs gestionnaires en `double` ont quitté le dépôt en N8a).</summary>
     internal static readonly int[][] Groupes =
         [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204],
          [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 264, 265]];

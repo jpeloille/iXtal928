@@ -424,7 +424,12 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
 - **N8 — La clôture.** Les gestionnaires en `double` de G13.6a et 6b, que le noyau remplace, quittent le dépôt (leurs
   cas restent, rejoués par le noyau) ; la couverture comptée (gestionnaires × classes × RC × PC) ; PCEM_BUGS ; la
   marge du `--timer-check` en mode matériel sur un invité saturé de flottant (le 486, un Whetstone), supérieure à 1
-  (décision n° 7) ; X87BANC aux mêmes temps (les cycles restent ceux de PCem).
+  (décision n° 7) ; X87BANC aux mêmes temps (les cycles restent ceux de PCem). Coupé en deux (12/10) :
+  - **N8a — Le retrait** ✅ *(12/10, VERIFICATION.md § G13.6, le noyau, N8a)*. Les gestionnaires en `double` de PB-57,
+    58, 61, 63, 64, 66, 67, 70, 207 et 213 (x87.Materiel.cs, 808x.Materiel.cs), leurs poses dans cpu_set et la garde de
+    PB-70 dans `x87_compare` ; l'acheminement (PB-59, 69, 204), qui vaut sans le noyau, reste.
+  - **N8b — Les mesures.** La couverture comptée, la marge du `--timer-check` sous un invité saturé de flottant, X87BANC,
+    PCEM_BUGS.
 
 **La vérification, en plus du patron de chaque étape.** TestFloat rejoué à travers les gestionnaires (le mot de
 contrôle vers SoftFloat, les indicateurs vers `npxs`) ; le domaine d'accord contre l'oracle dès N4 ; les vecteurs

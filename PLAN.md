@@ -139,7 +139,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   réduites par le Pi du silicium et arrondies une fois ; PB-68 ; PB-266, neuf, détaché pour N7) ; N7 coupé en trois
   (12/10) : N7a ✅ (12/10 : le 8087 et le 287, hors des non normaux ; PB-200, 201, 202 ; PB-266 reste reproduit) ;
   N7b ✅ (12/10 : les non normaux et l'infini projectif du 8087 et du 287 ; PB-59, PB-70) ; N7c ✅ (12/10 : le noyau
-  entre au mode, « tout » et le domaine x87, et reprend les corrections de G13.6a et 6b).
+  entre au mode, « tout » et le domaine x87, et reprend les corrections de G13.6a et 6b) ; N8 coupé en deux : N8a ✅
+  (12/10 : les gestionnaires en double de G13.6a et 6b quittent le dépôt).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

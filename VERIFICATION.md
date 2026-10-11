@@ -9740,3 +9740,40 @@ gestionnaire de PCem ne change (`cpu.cs`, `808x.cs`, `x87.Materiel.cs` : des com
 `--hardware-mode x87` (`materiel-cas-pb264-x87`, `-pb204-x87` et les dix PB repris) ; seul `recensement` change parmi
 les anciennes, 1084 marqueurs au lieu de 1074. Les portes de G13.6a et 6b (`materiel-cas-pb57-materiel` et les autres),
 inchangées dans la liste, jouent désormais le noyau, vertes.
+
+## G13.6, le noyau, N8a — le retrait des gestionnaires en double
+
+Le 12 octobre 2026. N8 est coupé en deux (PLAN-G13.md) : N8a retire les gestionnaires en `double` de G13.6a et 6b, que
+le noyau a repris en N7c ; N8b fera les mesures (la couverture, la marge du `--timer-check`, X87BANC).
+
+**Ce qui part.** De `Cpu/x87.Materiel.cs`, les cas 61, 57, 64, 63, 66, 67, 207 et 213 de `poser` et leurs gestionnaires
+(`opFSTSW_AX_materiel`, `compare_materiel`, FCOM, FCOMP, FCOMPP, FTST et FXAM corrigés, les constantes, FST et FSTP de
+registre, l'enveloppe de FSTENV, celle de C1), et les aides de pose devenues inutiles (`d8_dc`, `d9`, `dd`, `de`, `df`) ;
+de `Cpu/808x.Materiel.cs`, leurs pendants du 8087 ; de `cpu_set` (`Cpu/cpu.cs`), leurs huit poses gardées ; de
+`x87_compare` (`Cpu/x87_ops.cs`, du code de PCem), la garde de PB-70 qui renvoyait à `compare_materiel`. Restent
+l'acheminement (PB-59, PB-69, PB-204 : FNCLEX qui efface B, la NMI du 8087, le verrou de l'AT et l'attente), qui vaut
+avec les tables de PCem comme avec celles du noyau, et les marqueurs des sites de PCem (« fixed in hardware mode »), qui
+nomment le défaut à son site ; ceux des gestionnaires retirés partent avec eux. Chaque PB repris garde ses marqueurs au
+noyau (N7c). Les commentaires qui annonçaient le retrait « en N8 » le disent fait ; PCEM_BUGS, dans les dix entrées,
+dit le gestionnaire parti et ses identifiants disparus.
+
+**Les cas.** Tous les PB du x87, dans les quatre configurations (mode PCem, le PB seul, `--hardware-mode x87`,
+`--hardware-mode tout`), l'acheminement avec le noyau, `materiel-mode` : verts. Le recensement : 266 défauts, 1060
+marqueurs (vingt-quatre partis avec les gestionnaires). Le retrait ne se contrôle pas par une faute : ce qui reste est
+déjà rejoué, les cas de chaque PB repris sur le noyau (N7c), ceux de PB-59 sans lui (`materiel-cas-pb59-materiel`).
+
+**La contre-lecture** (Sonnet) : le retrait est propre ; plus aucune référence aux gestionnaires retirés ; `poser` ne
+garde que PB-59, 69 et 204, posés avant le noyau, PB-204 en dernier ; sans le noyau, PB-59 seul enveloppe les tables
+copiées de PCem ; avec lui, le noyau fait lui-même FNCLEX et l'acheminement (`lever`, `int_retombe`). Le mode PCem :
+la garde retirée de `x87_compare` était fausse, le chemin restant le même. Les PB repris gardent chacun au moins deux
+marqueurs ; le décompte des vingt-quatre partis, confirmé par PB. Cinquante-six exécutions de `materiel-cas` (les PB
+57 à 213, 59, 69, 204 et 264, en mode PCem, seuls, sous x87 et sous tout) et des combinaisons (PB-59,PB-264 ;
+PB-59,PB-69,PB-204,PB-57) : vertes. Repris : les paragraphes de PCEM_BUGS qui citaient les identifiants retirés (la
+phrase « Repris par le noyau » le dit, dans les dix entrées) ; le titre de la section de `pourquoi-on-corrige.md`.
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n7c : 1 130 méthodes, aucune changée, apparue ni disparue :
+la garde retirée de `x87_compare` et les poses retirées de `cpu_set` étaient pliées par le JIT en mode PCem, et leur
+code machine ne change pas.
+
+**La série** (`g7n8a`, le 12/10, 07:46 → 08:54, contre `g7n7c`) : 493 portes, toutes vertes, les mêmes ; seul
+`recensement` change, 1060 marqueurs au lieu de 1084.
