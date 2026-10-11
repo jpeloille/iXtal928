@@ -78,7 +78,7 @@ internal static partial class _808x
 # G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md) : (table, premier indice de la rangée de
 # huit) -> lignes posées au-dessus de la rangée. Ces tables ne servent qu'au 8087.
 B='// pcem bug, reproduced: '
-M52=B+'PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
+M52='// pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
 MARQ={('fpu_df',0x20):[M52], ('fpu_df',0x60):[M52], ('fpu_df',0xa0):[M52],
       ('fpu_df',0xc0):[B+'PB-210 — DF C0-DF (FFREEP et les alias FXCH7, FSTP8, FSTP9) : ILLEGAL.'],
       ('fpu_df',0xe0):[B+'PB-200 — DF E0 (FNSTSW AX, une instruction du 287) écrit AX sur le 8087.'],

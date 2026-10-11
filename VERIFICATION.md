@@ -8887,3 +8887,65 @@ et le 486, non documentés : N3, avec FLDCW.
 **La série** (`g7n2`, le 11/10, 12:42 → 13:50, contre `g7n1`) : 430 portes vertes, les 425 de `g7n1` et cinq neuves, `materiel-cas`
 de PB-203 et de PB-264 dans les deux modes, et celle de PB-264 avec l'acheminement ; un seul autre écart, attendu :
 `recensement` compte 1035 marqueurs au lieu de 1029.
+
+## G13.6, le noyau, N3a — Les mouvements de données
+
+Le 11 octobre 2026, troisième étape du noyau, première moitié de N3 (la seconde, N3b : l'environnement, les pointeurs,
+les étiquettes et les contrôles de limite, PB-54 d'un bloc). Le noyau reste en chantier ; son groupe compte neuf PB.
+
+**Ce qui est écrit.** La couche (`_x87_noyau`) : FLD m32, m64 et m80, FILD m16, m32 et m64, FBLD, les sept constantes
+(arrondies selon RC sur le 287XL, le 387 et le 486, depuis leur valeur exacte calculée à deux cents chiffres ; au plus
+près sur le 8087 et le 287), FLD ST(i), FXCH, FST et FSTP ST(i), FCHS, FABS, FXAM (les classes du 387), FST et FSTP
+m32 et m64, FSTP m80, FIST et FISTP m16, m32 et m64, FBSTP ; les exceptions de chacune selon l'annexe B du 387 PRM (la
+faute de pile d'abord, puis IE et DE avant le calcul, puis O, U et P), la réponse masquée (les indéfinis réel, entier
+et BCD), C1 selon la table 15-1 du 486 PRM (à zéro, ou l'arrondi vers le haut). Le générateur : chaque gestionnaire lit
+ou écrit la mémoire, la couche fait le reste ; un stockage n'écrit, puis ne dépile, que si la couche ne l'a pas arrêté.
+Une PE démasquée laisse ranger et dépiler, puis lève (387 PRM § 3.2.6). Les aides mémoire du 8087 (`readmemq`,
+`readmemw`, `writememq`, `writememw`, `geteal`, `geteaq`, `seteal`, `seteaq`) passent de `private` à `internal`.
+
+**Sept PB** rejoignent le groupe du noyau, en chantier : PB-52 (FBLD), PB-55 et PB-56 (les 80 bits tels quels),
+PB-195 (FBSTP), PB-196 (FIST hors bornes), PB-206 et PB-212 (FLD d'un SNaN). Leurs marqueurs de PCem passent à `fixed
+in hardware mode` (`x87_ops_loadstore.cs`, `x87_ops.cs`, `x87_8087.cs`, et par `gentab.py` et `gen46.py` les tables) ;
+leurs entrées ont leur champ *Corrigé en mode matériel*. `recensement` : vert, 264 défauts, 1042 marqueurs, 79 corrigés.
+
+**Les cas.** Un `materiel-cas` par PB, dans les deux modes, sur le 8087, le 287, le 287XL, le 387 et le 486 : FBLD
+(−12 345, −0, 10^18 − 1, un nombre à dix-huit chiffres distincts), FLD m80 (2^1024 et un non normal, inchangés),
+FSTP m80 (2^−1074 normalisé, DE), FBSTP (12,7 → 13, 10^18 → l'indéfini BCD, −13,5 vers zéro → −13, et en mode
+matériel un m80 à dix-huit chiffres et la borne), FIST (40 000, 3·10^9, −32 768, 32 767,5, 32 767,4), FLD d'un SNaN
+(le mot d'état, et le registre relu en m80 : silencieux sur le 387, signalant sur le 8087 et le 287). Le cas du noyau
+(PB-264) gagne en mode matériel les instructions sans PB propre : les constantes sous les quatre RC, FXCH et FLD ST(i)
+sur un registre vide, FCHS, FABS, FXAM sur chaque classe, FST m32 et m64 (dépassement, non supporté, dénormal, SNaN),
+FSTP m80 de la pile vide, FISTP m64 selon RC, FILD m16 négatif et m64 exact, le débordement d'un FLD m32 (C1), C1 remis
+à zéro par un chargement, et trois réponses démasquées (rien d'empilé ; rien de rangé ni de dépilé ; PE, rangé puis
+levé) : 122 contrôles.
+
+**Les contrôles négatifs.** L'attendu inversé, pour les sept PB et dans les deux sens : rouge. Seize fautes
+(`neg-n3a.py`) : FBLD sans le signe (10 échecs), FLD m32 et m64 d'un SNaN sans IE (3 et 3), FIST m16 sans borne (10),
+FBSTP sans borne (5) et tronqué (5), les constantes sans RC (5), FXAM sans le dénormal (2), FXCH sans l'indéfini (1),
+FST m32 sans DE (1), FSTP m80 sans dépiler (4), C1 jamais remis à zéro (1), FLD m80 qui replie l'exposant (5), FLD m64
+sans DE (5), une PE démasquée qui arrête (1), le SNaN du 8087 levé et rendu silencieux (2 et 2) : rouges ; le témoin
+vert. Deux cas ne discriminaient pas et ont été repris : FXCH sur un registre vide (le registre vide, rangé, donnait
+aussi l'indéfini ; FXAM le lit désormais) et FBSTP (le cas posait le mot de contrôle sur l'opérande).
+
+**La contre-lecture** (Sonnet) : aucun risque pour le mode PCem ; les emplacements des tables, les sept constantes sous
+chaque RC, FXAM, FXCH, l'ordre des chiffres de FBLD et de FBSTP, les indéfinis, C1 et les opérandes des cas vérifiés.
+Repris : une PE démasquée arrêtait FST, FIST et FBSTP sans rien ranger (387 PRM § 3.2.6 : le résultat arrondi est
+rangé, puis l'exception) ; trois citations (FXAM, 387 PRM § 4.5.10 ; les constantes, SDM vol. 1 § 8.3.4 ; l'en-tête
+du groupe) ; PB-55 « sans autre exception que la faute de pile » ; les reports en N7 dits (FIST et FBSTP d'un dénormal
+sur le 8087 et le 287 : IE et l'indéfini, 287 PRM table 1-17) ; FSTP m64 du noyau, qui perd jusqu'à N3b le CHECK_WRITE
+que PCem y faisait seul, dit dans le générateur ; les cas resserrés (les SNaN du 8087 relus en m80, −13,5 vers zéro,
+des chiffres tous distincts, les bornes de FIST, FLDL2T et FLDL2E sous RC, les réponses démasquées, le débordement
+d'un FLD, FILD négatif, FLD m32 dénormal, FST m64 d'un SNaN, FSTP m80 et FXCH sur la pile vide). Examiné et non
+repris : la petitesse avant l'arrondi, que la relecture proposait ; le SDM dit le contraire (vol. 1, 2003, § 4.9.1.5 :
+« whenever the rounded result of an instruction is tiny »), comme SoftFloat pour le 8086 ; FLD ST(i) vide sur une pile
+pleine, qui lève les deux fautes l'une après l'autre (C1 à 1 au lieu de 0, rare) ; le mot d'état posé avant une
+écriture qui ferait une faute de page (comme PCem). PB-53 (la globale `tempc` de FBSTP) n'a plus de sens dans le noyau,
+qui ne la touche pas.
+
+**M2.** Contre M2-n2 : 1 130 méthodes, deux changées, les constructeurs statiques de `ModeMateriel` et de `materiel`
+(sept corrections et sept champs de plus, exécutés une fois) ; les gestionnaires de PCem dont seuls les marqueurs ont
+changé sont identiques. Contre M0 : l'écart de N1.
+
+**La série** (`g7n3a`, le 11/10, 14:23 → 15:36, contre `g7n2`) : 444 portes vertes, les 430 de `g7n2` et quatorze neuves,
+`materiel-cas` de PB-52, 55, 56, 195, 196, 206 et 212 dans les deux modes ; un seul autre écart, attendu : `recensement`
+compte 1042 marqueurs au lieu de 1035.

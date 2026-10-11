@@ -228,7 +228,7 @@ internal static partial class _808x
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,
@@ -237,7 +237,7 @@ internal static partial class _808x
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,
@@ -246,7 +246,7 @@ internal static partial class _808x
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,

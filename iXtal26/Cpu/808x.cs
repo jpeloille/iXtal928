@@ -146,7 +146,7 @@ internal static partial class _808x
                 mem.ram[mem.writelookup2[a >> 12] + a] = v;
     }
 
-    private static void writememw(uint32_t s, uint32_t a, uint16_t v)
+    internal static void writememw(uint32_t s, uint32_t a, uint16_t v)
     {
         memcycs += (8 >> is8086);
         // pcem bug, fixed in hardware mode: PB-179 — même repli manquant qu'à readmemw : l'octet haut

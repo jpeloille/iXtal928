@@ -714,6 +714,10 @@ BCD invalide : inconnue, à mesurer.
 (générées par `tools/x87gen/gentab.py`), et `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16` (`gen46.py`) ;
 marqueurs PB-52. (Ce champ citait `Cpu/x87_ops.cs`, `TableFpu`, disparue en G4.3 : D2-contre K11.) Le fuzzeur G4.2
 (`--x87 mem`) tire DF /4 et le confronte à l'oracle.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier, par son numéro seulement jusqu'à N7) : le gestionnaire
+FBLD du noyau (`Cpu/x87_noyau_386.Materiel.cs`, `Cpu/x87_noyau_808x.Materiel.cs`, générés par `tools/x87gen/genmat.py` ;
+`_x87_noyau.fbld`) convertit les dix-huit chiffres exactement et empile, −0 gardé ; un chiffre de A à F compte pour sa
+valeur (inconnu). `materiel-cas PB-52`.
 
 ### PB-54 — Seul FSTP m64 contrôle la limite du segment ; FST m64 et les autres stockages non
 
@@ -774,6 +778,8 @@ lisent comme des normaux.
 marqueurs PB-55 ; FLD m80 (`opFLDe_*`) et FRSTOR (`x87_ld_frstor`) l'appellent. L'en-tête de `x87_ops.cs` attribuait
 ce défaut à PB-52 : corrigé. Le fuzzeur G4.2 le confronte à l'oracle (DB /5) ; contrôle négatif : sans `& 0x3ff`,
 divergence à l'itération 3.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m80 du noyau (`_x87_noyau.fld_f80`) charge les
+80 bits tels quels, sans autre exception que la faute de pile ; un format non supporté lèvera IE à l'usage. `materiel-cas PB-55`.
 
 ### PB-56 — x87_st80 écrit un double dénormal comme un normal, et 53 bits de précision seulement
 
@@ -794,6 +800,8 @@ FDIV(R), FSQRT) ; SDM vol. 2, FINIT (037Fh, PC = 64 bits) ; 387 PRM ; Numerics S
 *G13* : (a) — avec le noyau seulement ; en double, le codage des dénormaux, pas la précision (D2-contre K5).
 *Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st80`, verbatim, marqueurs PB-56 ; ST est un `double[]`
 (`Cpu/x86.cs`, hors du domaine du x87, sans marqueur).
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FSTP m80 du noyau (`_x87_noyau.fst_f80`) range les
+80 bits tels quels ; vide, l'indéfini. `materiel-cas PB-56`.
 
 ### PB-57 — FCOM en forme registre compare avec `==` et `<` : un NaN rend « plus grand »
 
@@ -3603,6 +3611,9 @@ FF et IE.
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; PB-53 (la globale `tempc`) s'y éteint.
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16` et `FBSTP_a32`, marqueurs PB-195, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FBSTP du noyau (`_x87_noyau.fbstp`) arrondit selon
+RC (SoftFloat, `extF80_roundToInt` : PE et C1), puis range les chiffres ; au-delà de 10^18 − 1, un NaN, un infini, un
+format non supporté ou la pile vide : IE et, masquée, l'indéfini BCD du SDM. `materiel-cas PB-195`.
 
 ### PB-196 — FIST m16 et m32 hors bornes : les bits bas, ni l'indéfini entier ni IE
 
@@ -3620,6 +3631,9 @@ IE = 1 ; FLD m64 = 3·10^9 (41E65A0BC0000000) ; FISTP m32 → PCem B2D05E00h, si
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; IE avec PB-59.
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFISTiw_*`, `opFISTPiw_*`, `opFISTil_*`, `opFISTPil_*` (huit gestionnaires),
 marqueurs PB-196, et leurs copies de `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FIST et FISTP du noyau (`_x87_noyau.fist`) arrondissent
+selon RC (SoftFloat : PE et C1) ; hors bornes, un NaN ou un infini : IE et, masquée, l'indéfini entier.
+`materiel-cas PB-196`.
 
 ### PB-197 — FRNDINT de |x| ≥ 2^63, d'un infini ou d'un NaN rend −2^63
 
@@ -3791,6 +3805,9 @@ valeur, 7FF8000020000000 en m64, est la même.
 *G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : sans exception, la valeur : (c).
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDs_a16` et `_a32`, marqueurs PB-206, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m32 du noyau (`_x87_noyau.fld_f32`) : un SNaN
+lève IE et se charge silencieux (387, 486, et le 287XL : déduit) ; un dénormal lève DE. Le 8087 et le 287 ne lèvent rien
+et chargent les bits étendus, sans les rendre silencieux (la valeur : inconnue). `materiel-cas PB-206`.
 
 ### PB-207 — FSTENV ne masque pas les exceptions
 
@@ -3887,6 +3904,8 @@ silicium (387 et suivants) 7FF8000000000001 et 0001h (IE).
 *G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : (c).
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDd_a16` et `_a32`, marqueurs PB-212, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m64 du noyau (`_x87_noyau.fld_f64`), comme FLD m32
+(PB-206). `materiel-cas PB-212`.
 
 ### PB-213 — Les comparaisons ne remettent pas C1 à zéro
 

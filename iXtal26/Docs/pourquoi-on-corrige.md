@@ -717,3 +717,49 @@ contrôle (FNINIT, FNCLEX, FLDCW, FNSTCW, FNSTSW, FNOP, FINCSTP, FDECSTP, FFREE)
   place vide se lit comme si elle contenait encore son ancien nombre, sans erreur.
 - **La correction.** La pile du noyau signale l'erreur et range l'indéfini. Les instructions qui empilent et lisent
   arrivent aux étapes suivantes ; elles passeront toutes par cette pile.
+
+## G13.6, le noyau, suite — charger et ranger des nombres
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N3a.*
+
+Le noyau apprend à charger des nombres depuis la mémoire et à les y ranger, dans tous les formats du coprocesseur :
+réels de 32, 64 et 80 bits, entiers de 16, 32 et 64 bits, décimaux de dix-huit chiffres. Toujours en chantier : seuls
+les tests le demandent.
+
+### PB-52 — charger un nombre décimal
+
+- **Le vrai PC.** FBLD lit dix-huit chiffres décimaux et un signe, et les empile. Des tableurs comme Lotus 1-2-3 s'en
+  servent.
+- **L'émulateur.** PCem n'a pas cette instruction : elle ne charge rien, et le calcul continue sur ce qui était là.
+- **La correction.** Les chiffres convertis exactement et empilés.
+
+### PB-195 — ranger un nombre décimal
+
+- **Le vrai PC.** FBSTP arrondit le nombre selon le mode choisi par le programme, puis le range en décimal ; un nombre
+  trop grand pour dix-huit chiffres, ou qui n'en est pas un, donne une valeur « indéfinie » et une erreur.
+- **L'émulateur.** PCem tronque au lieu d'arrondir (12,7 devient 12), et un nombre trop grand déborde dans l'octet du
+  signe, sans erreur.
+- **La correction.** L'arrondi, la borne, l'indéfini et l'erreur.
+
+### PB-196 — ranger un entier trop grand
+
+- **Le vrai PC.** FIST range un entier ; s'il ne tient pas dans 16 ou 32 bits, le coprocesseur range une valeur
+  « indéfinie » et signale l'erreur.
+- **L'émulateur.** PCem garde les bits du bas : 40 000 devient −25 536, sans erreur.
+- **La correction.** L'indéfini et l'erreur.
+
+### PB-55 et PB-56 — charger et ranger 80 bits tels quels
+
+- **Le vrai PC.** Le format de 80 bits est celui des registres : FLD et FSTP le copient sans rien changer.
+- **L'émulateur.** PCem le convertit en `double` : un exposant trop grand se replie (2^1024 devient 1), un très petit
+  nombre change de valeur, et onze bits de précision se perdent.
+- **La correction.** Les 80 bits copiés.
+
+### PB-206 et PB-212 — charger un « NaN signalant »
+
+- **Le vrai PC.** Un NaN signalant est une valeur piège : le 387 et le 486 signalent une erreur en le chargeant, et le
+  rendent inoffensif.
+- **L'émulateur.** PCem ne signale rien ; en 64 bits, il garde même le piège intact.
+- **La correction.** L'erreur, et le NaN rendu silencieux, sur le 387 et le 486 ; le 8087 et le 287, qui ne signalent
+  rien, restent ainsi.

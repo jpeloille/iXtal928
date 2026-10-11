@@ -45,6 +45,9 @@ internal static class ModeMateriel
         new(45, "processeur", "IDIV octet divise AX signé"),
         new(50, "processeur", "une instruction de plus de 15 octets (10 sur le 286) lève #GP"),
         new(51, "processeur", "la lecture d'une instruction contrôle la limite de CS (286, 386, 486)"),
+        new(52, "x87", "FBLD charge dix-huit chiffres décimaux (le noyau, en chantier)"),
+        new(55, "x87", "FLD m80 charge les 80 bits tels quels (le noyau, en chantier)"),
+        new(56, "x87", "FSTP m80 range les 80 bits tels quels (le noyau, en chantier)"),
         new(57, "x87", "FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom"),
         new(58, "x87", "FCOMPP compare −0 et +0 égaux, sans le contournement de détection"),
         new(59, "x87", "une division par zéro démasquée pose ES et B, et l'exception va où la carte la mène"),
@@ -85,9 +88,13 @@ internal static class ModeMateriel
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
         new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
+        new(195, "x87", "FBSTP arrondit selon RC ; trop grand, un NaN ou un infini : IE et l'indéfini BCD (le noyau, en chantier)"),
+        new(196, "x87", "FIST et FISTP hors bornes : IE et l'indéfini entier (le noyau, en chantier)"),
         new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau, en chantier)"),
         new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
+        new(206, "x87", "FLD m32 d'un SNaN lève IE (387, 486 ; le noyau, en chantier)"),
         new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
+        new(212, "x87", "FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486 ; le noyau, en chantier)"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
@@ -114,16 +121,17 @@ internal static class ModeMateriel
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
     /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
     /// fonction (x87.Materiel.cs). PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée par la carte, au
-    /// même site (x87.Materiel.cs). PB-203 et PB-264 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que
-    /// ses gestionnaires partagent ; chaque étape du noyau y ajoute les PB qu'elle corrige.</summary>
+    /// même site (x87.Materiel.cs). PB-52, 55, 56, 195, 196, 203, 206, 212 et 264 : le noyau de 80 bits
+    /// (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; chaque étape du noyau y ajoute les PB
+    /// qu'elle corrige.</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [203, 264]];
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [52, 55, 56, 195, 196, 203, 206, 212, 264]];
 
     /// <summary>Les corrections en chantier : celles du noyau de 80 bits du x87 (PLAN-G13.md, § G13.6, le noyau ;
     /// décision n° 4), qui n'entrent ni dans « tout », ni dans leur domaine, avant la fin de N7. Le noyau remplace la pile
     /// en `double` de PCem par huit registres de 80 bits : ses gestionnaires ne cohabitent pas avec ceux de PCem, et tant
     /// qu'il n'est pas complet, il ne se demande que par ses numéros, pour les cas et les portes.</summary>
-    internal static readonly int[] EnChantier = [203, 264];
+    internal static readonly int[] EnChantier = [52, 55, 56, 195, 196, 203, 206, 212, 264];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

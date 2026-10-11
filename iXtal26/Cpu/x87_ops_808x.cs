@@ -64,7 +64,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -80,7 +80,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
             return cpu_state.abrt;
@@ -96,7 +96,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -115,7 +115,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 32767 || temp64 < -32768)
                                        // fatal("FISTw overflow %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteaw(unchecked((uint16_t)(int16_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -168,7 +168,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
+            // pcem bug, fixed in hardware mode: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -202,7 +202,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
+            // pcem bug, fixed in hardware mode: PB-195 — chiffres tronqués, pas arrondis selon RC ; ni IE ni BCD indéfini.
             tempd = ST(0);
             if (tempd < 0.0)
                     tempd = -tempd;
@@ -306,7 +306,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -322,7 +322,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
             return cpu_state.abrt;
@@ -338,7 +338,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -357,7 +357,7 @@ internal static partial class _808x
             temp64 = x87_fround(ST(0));
             // /*                        if (temp64 > 2147483647 || temp64 < -2147483647)
                                        // fatal("FISTl out of range! %i\n", temp64);*/
-            // pcem bug, reproduced: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
+            // pcem bug, fixed in hardware mode: PB-196 — hors bornes : les bits bas, pas l'indéfini entier ni IE.
             seteal(unchecked((uint32_t)(int32_t)temp64));
             if (cpu_state.abrt != 0)
                     return 1;
@@ -434,7 +434,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
+            // pcem bug, fixed in hardware mode: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -450,7 +450,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
+            // pcem bug, fixed in hardware mode: PB-212 — un SNaN reste signalant, sans IE (387 et suivants : IE, QNaN).
             x87_push(t.d);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
             return 0;
@@ -526,7 +526,7 @@ internal static partial class _808x
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
+            // pcem bug, fixed in hardware mode: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;
@@ -542,7 +542,7 @@ internal static partial class _808x
             ts.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
+            // pcem bug, fixed in hardware mode: PB-206 — un SNaN est rendu silencieux sans IE (387 et suivants : IE).
             x87_push((double)ts.s);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
             return 0;

@@ -446,7 +446,7 @@ internal static partial class _386
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,
@@ -455,7 +455,7 @@ internal static partial class _386
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,
@@ -464,7 +464,7 @@ internal static partial class _386
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16, opFISTiw_a16,
         opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16, opFISTPiw_a16,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16, FPU_ILLEGAL_a16,
         opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16, opFILDiq_a16,
         FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16, FBSTP_a16,
@@ -487,7 +487,7 @@ internal static partial class _386
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32,
         opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32,
         FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32,
@@ -496,7 +496,7 @@ internal static partial class _386
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32,
         opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32,
         FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32,
@@ -505,7 +505,7 @@ internal static partial class _386
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32, opFISTiw_a32,
         opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32, opFISTPiw_a32,
-        // pcem bug, reproduced: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
+        // pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n'est chargé ni poussé.
         FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32, FPU_ILLEGAL_a32,
         opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32, opFILDiq_a32,
         FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32, FBSTP_a32,

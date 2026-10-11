@@ -53,13 +53,13 @@ internal static partial class _808x
     // l'`eaaddr + 8` de x87_ld80, et l'offset boucle dans le segment. Même geste ici.
     // pcem bug, reproduced: PB-201 — les LECTURES bouclent dans le segment ; le 8087 incrémente l'adresse
     //   physique de 20 bits, comme le font ici les écritures (writememw du 808x, writememb_8087), sans repli.
-    private static uint16_t readmemw(uint32_t s, uint32_t a) => readmemw(s, (uint16_t)a);
+    internal static uint16_t readmemw(uint32_t s, uint32_t a) => readmemw(s, (uint16_t)a);
 
     // pcem: 8087.h:19-23
     private static uint32_t readmeml(uint32_t seg, uint32_t addr)
         => (uint32_t)(readmemw(seg, addr) | (readmemw(seg, addr + 2) << 16));
 
-    private static uint64_t readmemq(uint32_t seg, uint32_t addr)
+    internal static uint64_t readmemq(uint32_t seg, uint32_t addr)
         => (uint64_t)readmemw(seg, addr) | ((uint64_t)readmemw(seg, addr + 2) << 16) |
            ((uint64_t)readmemw(seg, addr + 4) << 32) | ((uint64_t)readmemw(seg, addr + 6) << 48);
 
@@ -72,7 +72,7 @@ internal static partial class _808x
         writememw(seg, addr + 2, (uint16_t)((val >> 16) & 0xffff));
     }
 
-    private static void writememq(uint32_t seg, uint32_t addr, uint64_t val)
+    internal static void writememq(uint32_t seg, uint32_t addr, uint64_t val)
     {
         writememw(seg, addr, (uint16_t)(val & 0xffff));
         writememw(seg, addr + 2, (uint16_t)((val >> 16) & 0xffff));
@@ -81,21 +81,21 @@ internal static partial class _808x
     }
 
     // pcem: 8087.h:37-58
-    private static uint32_t geteal()
+    internal static uint32_t geteal()
     {
         if (cpu_mod == 3)
                 pc.fatal("geteal cpu_mod==3\n");
         return readmeml(easeg, cpu_state.eaaddr);
     }
 
-    private static uint64_t geteaq()
+    internal static uint64_t geteaq()
     {
         if (cpu_mod == 3)
                 pc.fatal("geteaq cpu_mod==3\n");
         return readmemq(easeg, cpu_state.eaaddr);
     }
 
-    private static void seteal(uint32_t val)
+    internal static void seteal(uint32_t val)
     {
         if (cpu_mod == 3)
                 pc.fatal("seteal cpu_mod==3\n");
@@ -103,7 +103,7 @@ internal static partial class _808x
                 writememl(easeg, cpu_state.eaaddr, val);
     }
 
-    private static void seteaq(uint64_t val)
+    internal static void seteaq(uint64_t val)
     {
         if (cpu_mod == 3)
                 pc.fatal("seteaq cpu_mod==3\n");
@@ -120,7 +120,7 @@ internal static partial class _808x
         ll |= (uint64_t)readmeml(easeg, cpu_state.eaaddr + 4) << 32;
         int16_t begin = (int16_t)readmemw(easeg, cpu_state.eaaddr + 8);
 
-        // pcem bug, reproduced: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
+        // pcem bug, fixed in hardware mode: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
         //   retenue de l'arrondi collée par OU dans l'exposant, bit entier ignoré.
         int64_t exp64 = (((begin & 0x7fff) - BIAS80));
         int64_t blah = ((exp64 > 0) ? exp64 : -exp64) & 0x3ff;
@@ -152,7 +152,7 @@ internal static partial class _808x
         int64_t mant80 = (int64_t)(ll & (0x000fffffffffffff));
         uint64_t mant80final = (uint64_t)(mant80 << 11);
 
-        // pcem bug, reproduced: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
+        // pcem bug, fixed in hardware mode: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
         //   2^-1023 × 1,f) ; les onze bits bas de la mantisse sont toujours nuls : ST n'a que 53 bits.
         if (exp80final == 0x7ff) /*Infinity / Nan*/
         {

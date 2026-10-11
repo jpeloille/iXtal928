@@ -50,7 +50,7 @@ internal static partial class _386
 # G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md) : (table, premier indice de la rangée de huit)
 # -> lignes posées au-dessus de la rangée. Ces tables servent au 287, au 387 et au 486.
 B='// pcem bug, reproduced: '
-M52=B+'PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
+M52='// pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
 MARQ={('fpu_df',0x20):[M52], ('fpu_df',0x60):[M52], ('fpu_df',0xa0):[M52],
       ('fpu_df',0xc0):[B+'PB-210 — DF C0-DF (FFREEP et les alias FXCH7, FSTP8, FSTP9) : ILLEGAL.'],
       ('fpu_dd',0xc8):[B+'PB-210 — DD C8-CF (FXCH4, alias non documenté de FXCH) : ILLEGAL.'],

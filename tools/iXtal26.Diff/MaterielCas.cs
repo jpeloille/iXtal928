@@ -42,7 +42,8 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
+        [196] = Pb196, [206] = Pb206, [212] = Pb212, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1296,6 +1297,14 @@ internal static class MaterielCas
     /// du harnais, BX = 0200h ; rend les mots en DS:0200h et DS:0202h (FNSTSW [BX], FNSTCW [BX+2]).</summary>
     private static (ushort a, ushort b) Mots(int fpu, byte[] code, int pas, Action? avant = null)
     {
+        Jouer87(fpu, code, pas, avant);
+        return (W(0x200), W(0x202));
+    }
+
+    /// <summary>Joue `code` sur le coprocesseur `fpu` (le cœur du 8088, du 286, du 386 ou du 486), `avant` après le RESET
+    /// du harnais, BX = 0200h.</summary>
+    private static void Jouer87(int fpu, byte[] code, int pas, Action? avant = null)
+    {
         _386.FuzzFpu = fpu;
         try
         {
@@ -1303,12 +1312,198 @@ internal static class MaterielCas
                 Jouer(code, r => r[(int)R.BX] = 0x200, avant, pas);
             else
                 Jouer386(code, r => r[(int)R.BX] = 0x200, avant, coeur: Coeur(fpu), pas: pas);
-            return ((ushort)(mem.ram[0x200] | mem.ram[0x201] << 8), (ushort)(mem.ram[0x202] | mem.ram[0x203] << 8));
         }
         finally
         {
             _386.FuzzFpu = 0;
         }
+    }
+
+    private static ushort W(int a) => (ushort)(mem.ram[a] | mem.ram[a + 1] << 8);
+
+    private static ulong Q(int a) => (ulong)W(a) | (ulong)W(a + 2) << 16 | (ulong)W(a + 4) << 32 | (ulong)W(a + 6) << 48;
+
+    /// <summary>Pose `octets` en DS:0300h (l'opérande des cas de N3a).</summary>
+    private static Action Op(params byte[] octets) => () =>
+    {
+        for (var k = 0; k < octets.Length; k++)
+            mem.ram[0x300 + k] = octets[k];
+    };
+
+    private static byte[] Le(ulong q) => BitConverter.GetBytes(q);
+
+    private static byte[] Le80(ushort se, ulong sig) => [.. BitConverter.GetBytes(sig), .. BitConverter.GetBytes(se)];
+
+    // ===== Le noyau, N3a : les mouvements de données =====
+    //
+    // Le code en 0000:0100, BX = 0200h, l'opérande en DS:0300h. FLD m64 [0300h] (DD 06 00 03), FLD m32 (D9 06 00 03), FLD
+    // m80 (DB 2E 00 03), FBLD (DF 26 00 03) ; FSTP m64 [BX] (DD 1F), FSTP m80 [BX] (DB 3F), FBSTP [BX] (DF 37), FISTP
+    // m16 et m32 [BX] (DF 1F, DB 1F) ; FNSTSW [BX+0Ah] (DD 7F 0A) et FNSTSW [BX] (DD 3F) ; FSTP m64 [BX+2] (DD 5F 02).
+
+    private static readonly byte[] SwA = [0xDD, 0x7F, 0x0A];
+
+    // PB-52 — FBLD (SDM vol. 2, FBLD) : FNINIT ; FLDZ ; FBLD = −12 345 ; FSTP m64 → C0C81C8000000000h ; PCem, FBLD
+    // ILLEGAL, le zéro de FLDZ, 0. −0 : 8000000000000000h. En m80, exacts : 999 999 999 999 999 999 (403Ah
+    // DE0B6B3A763FFFF0h) et 123 456 789 012 345 678, chiffres tous distincts (4037h DB4DA5D31879A700h).
+    private static int Pb52(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            foreach (var (bcd, att, n) in new (byte[], ulong, string)[]
+                     {
+                         ([0x45, 0x23, 0x01, 0, 0, 0, 0, 0, 0, 0x80], 0xC0C81C8000000000, "−12 345"),
+                         ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80], 0x8000000000000000, "−0"),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xDF, 0x26, 0x00, 0x03, 0xDD, 0x1F], 4, Op(bcd));
+                var a = hw ? att : 0UL;
+                bad += Voir($"FLDZ ; FBLD {n} ; FSTP m64 ({nom})", Q(0x200) == a, $"{Q(0x200):X16}", $"{a:X16}", hw);
+            }
+            foreach (var (bcd, hse, hsig, n) in new (byte[], ushort, ulong, string)[]
+                     {
+                         ([0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x00], 0x403A, 0xDE0B6B3A763FFFF0, "10^18 − 1"),
+                         ([0x78, 0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12, 0x00], 0x4037, 0xDB4DA5D31879A700,
+                          "123 456 789 012 345 678"),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xDF, 0x26, 0x00, 0x03, 0xDB, 0x3F], 4, Op(bcd));
+                var (se, sig) = hw ? (hse, hsig) : ((ushort)0, 0UL);
+                bad += Voir($"FLDZ ; FBLD {n} ; FSTP m80 ({nom})", W(0x208) == se && Q(0x200) == sig,
+                            $"{W(0x208):X4} {Q(0x200):X16}", $"{se:X4} {sig:X16}", hw);
+            }
+        }
+        return bad;
+    }
+
+    // PB-55 — FLD m80 charge les 80 bits tels quels (SDM vol. 2, FLD) : 2^1024 (43FFh 8000000000000000h) ; FSTP m80 → le
+    // même ; PCem, l'exposant replié, 3FFFh 8000000000000000h. Un non normal (3FFFh 4000000000000000h) : le même ; PCem,
+    // le bit entier ignoré, 1,5 : 3FFFh C000000000000000h.
+    private static int Pb55(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (se, sig, pse, psig) in new (ushort, ulong, ushort, ulong)[]
+                 {
+                     (0x43FF, 0x8000000000000000, 0x3FFF, 0x8000000000000000),
+                     (0x3FFF, 0x4000000000000000, 0x3FFF, 0xC000000000000000),
+                 })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDB, 0x2E, 0x00, 0x03, 0xDB, 0x3F], 3, Op(Le80(se, sig)));
+            var (ase, asig) = hw ? (se, sig) : (pse, psig);
+            bad += Voir($"FLD m80 {se:X4} {sig:X16} ; FSTP m80 ({nom})", W(0x208) == ase && Q(0x200) == asig,
+                        $"{W(0x208):X4} {Q(0x200):X16}", $"{ase:X4} {asig:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-56 — FSTP m80 range les 80 bits (SDM vol. 1 § 8.1.2) : FLD m64 = 2^−1074 (le plus petit dénormal, chargé
+    // normalisé, DE) ; FSTP m80 → 3BCDh 8000000000000000h, et le mot d'état 0002h (DE) ; PCem 3C00h 8000000000000800h,
+    // 0000h.
+    private static int Pb56(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xDB, 0x3F, .. SwA], 4, Op(Le(1)));
+            var (se, sig, sw) = hw ? ((ushort)0x3BCD, 0x8000000000000000, (ushort)0x0002) : ((ushort)0x3C00, 0x8000000000000800, (ushort)0);
+            bad += Voir($"FLD m64 2^−1074 ; FSTP m80 ; FNSTSW ({nom})", W(0x208) == se && Q(0x200) == sig && W(0x20A) == sw,
+                        $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", $"{se:X4} {sig:X16}, {sw:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-195 — FBSTP (SDM vol. 2, FBSTP ; vol. 1 § 4.7) : 12,7 au plus près → 13, PE (et C1 sur le 387, le 486 et le
+    // 287XL : 0220h ; 0020h) ; PCem 12 et 0000h. 10^18 → l'indéfini BCD FFFF C000000000000000h et IE (0001h) ; PCem 00 × 9
+    // puis 01. −13,5 vers zéro (RC = 11) → −13 (au plus près : −14 ; PE : 0020h ; PCem tronque aussi, 0000h). En mode
+    // matériel, depuis un m80 exact : 123 456 789 012 345 678 → ses chiffres, et 10^18 − 1, la borne, → 99 × 9 ; ni PE ni
+    // IE.
+    private static int Pb195(bool hw)
+    {
+        var bad = 0;
+        if (materiel.pb_195 && hw)
+            foreach (var (fpu, nom) in FpusXL)
+            foreach (var (se, sig, bas, haut) in new (ushort, ulong, ulong, ushort)[]
+                     {
+                         (0x4037, 0xDB4DA5D31879A700, 0x3456789012345678, 0x0012),
+                         (0x403A, 0xDE0B6B3A763FFFF0, 0x9999999999999999, 0x0099),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xDB, 0x2E, 0x00, 0x03, 0xDF, 0x37, .. SwA], 4, Op(Le80(se, sig)));
+                bad += Voir($"FLD m80 {se:X4} {sig:X16} ; FBSTP ({nom})", Q(0x200) == bas && W(0x208) == haut && W(0x20A) == 0,
+                            $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", $"{haut:X4} {bas:X16}, 0000", hw);
+            }
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var c1 = fpu >= 3 ? 0x0200 : 0;
+            foreach (var (v, cw, hse, hsig, hsw, pse, psig) in new (ulong, ushort, ushort, ulong, int, ushort, ulong)[]
+                     {
+                         (0x4029666666666666, 0x037F, 0x0000, 0x13, 0x0020 | c1, 0x0000, 0x12),
+                         (0x43ABC16D674EC800, 0x037F, 0xFFFF, 0xC000000000000000, 0x0001, 0x0100, 0x0),
+                         (0xC02B000000000000, 0x0F7F, 0x8000, 0x13, 0x0020, 0x8000, 0x13),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xDD, 0x06, 0x00, 0x03, 0xDF, 0x37, .. SwA], 5,
+                        () => { Op(Le(v))(); mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+                var (se, sig, sw) = hw ? (hse, hsig, hsw) : (pse, psig, 0);
+                bad += Voir($"CW {cw:X4} ; FLD m64 {v:X16} ; FBSTP ; FNSTSW ({nom})",
+                            W(0x208) == se && Q(0x200) == sig && W(0x20A) == sw,
+                            $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", $"{se:X4} {sig:X16}, {sw:X4}", hw);
+            }
+        }
+        return bad;
+    }
+
+    // PB-196 — FIST hors bornes (SDM vol. 2, FIST/FISTP) : 40 000 ; FISTP m16 → 8000h et IE ; PCem 9C40h. 3·10^9 ; FISTP
+    // m32 → 80000000h et IE ; PCem B2D05E00h. Les bornes : −32 768 → 8000h, sans IE (témoin) ; 32 767,5, au plus près
+    // 32 768 → 8000h et IE (PCem, sans IE) ; 32 767,4 → 7FFFh et PE (PCem, sans PE).
+    private static int Pb196(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (v, op, hv, hsw, pv, n) in new (ulong, byte, uint, int, uint, string)[]
+                 {
+                     (0x40E3880000000000, 0xDF, 0x8000, 0x0001, 0x9C40, "40 000 ; FISTP m16"),
+                     (0x41E65A0BC0000000, 0xDB, 0x80000000, 0x0001, 0xB2D05E00, "3·10^9 ; FISTP m32"),
+                     (0xC0E0000000000000, 0xDF, 0x8000, 0x0000, 0x8000, "−32 768, la borne ; FISTP m16"),
+                     (0x40DFFFE000000000, 0xDF, 0x8000, 0x0001, 0x8000, "32 767,5, arrondi à 32 768 ; FISTP m16"),
+                     (0x40DFFFD99999999A, 0xDF, 0x7FFF, 0x0020, 0x7FFF, "32 767,4 ; FISTP m16"),
+                 })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, op, 0x1F, .. SwA], 4, Op(Le(v)));
+            var r = op == 0xDF ? W(0x200) : (uint)(W(0x200) | W(0x202) << 16);
+            var (a, sw) = hw ? (hv, hsw) : (pv, 0);
+            bad += Voir($"{n} ; FNSTSW ({nom})", r == a && W(0x20A) == sw, $"{r:X}, {W(0x20A):X4}", $"{a:X}, {sw:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-206 et PB-212 — FLD m32 et m64 d'un SNaN (SDM vol. 2, FLD) : sur le 387, le 486 et le 287XL, IE (le mot d'état
+    // 3801h, TOP = 7), et le QNaN : FSTP m64 → 7FF8000020000000h (m32 7F800001h) et 7FF8000000000001h (m64
+    // 7FF0000000000001h) ; le 8087 et le 287 ne lèvent rien au chargement (3800h) et gardent les bits signalants
+    // (inconnu). Le registre est relu par FSTP m80, sans conversion : 7FFFh C000010000000000h (m32) et C000000000000800h
+    // (m64) ; le 8087 et le 287, 8000010000000000h et 8000000000000800h ; PCem 3800h, C000010000000000h (cvtss2sd rend le
+    // NaN silencieux) et 8000000000000800h (gardé signalant).
+    private static int Pb206(bool hw) =>
+        Snan(hw, [0xD9, 0x06, 0x00, 0x03], Le(0x7F800001)[..4], 0xC000010000000000, 0x8000010000000000, 0xC000010000000000);
+
+    private static int Pb212(bool hw) =>
+        Snan(hw, [0xDD, 0x06, 0x00, 0x03], Le(0x7FF0000000000001), 0xC000000000000800, 0x8000000000000800, 0x8000000000000800);
+
+    /// <summary>FNINIT ; FLD ; FNSTSW [BX] ; FSTP m80 [BX+2] : le registre chargé, lu sans conversion. `h387` : le QNaN du
+    /// 387, du 486 et du 287XL ; `h16` : les bits étendus du 8087 et du 287 ; `p` : PCem.</summary>
+    private static int Snan(bool hw, byte[] fld, byte[] op, ulong h387, ulong h16, ulong p)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, .. fld, 0xDD, 0x3F, 0xDB, 0x7F, 0x02], 4, Op(op));
+            var sw = hw && fpu >= 3 ? 0x3801 : 0x3800;
+            var q = !hw ? p : fpu >= 3 ? h387 : h16;
+            bad += Voir($"FLD d'un SNaN ; FNSTSW ; FSTP m80 ({nom})", W(0x200) == sw && W(0x20A) == 0x7FFF && Q(0x202) == q,
+                        $"{W(0x200):X4}, {W(0x20A):X4} {Q(0x202):X16}", $"{sw:X4}, 7FFF {q:X16}", hw);
+        }
+        return bad;
     }
 
     // PB-203 — au RESET, l'état initial du type (387 PRM § 6.2.5 et annexe C ; 287 PRM, table 3-1 ; Numerics Supplement,
@@ -1435,6 +1630,124 @@ internal static class MaterielCas
             });
         if (noyau && materiel.pb_204)
             bad += Acheminement(hw);
+        if (noyau && hw)
+            bad += Mouvements();
+        return bad;
+    }
+
+    /// <summary>Les instructions de N3a sans PB propre, en mode matériel, aux attentes des sources (387 PRM, annexe B et
+    /// tables 3-6 à 3-10 ; SDM vol. 2 ; 486 PRM, table 15-1) : les constantes selon RC (le 287, au plus près) ; FXCH et
+    /// FLD ST(i) sur un registre vide ; FCHS, FABS ; FXAM sur chaque classe ; FST m32 en dépassement, d'un format non
+    /// supporté, d'un dénormal ; FISTP m64 selon RC, C1 compris ; FILD m64 exact ; FST ST(i). Le mot d'état lu par FNSTSW
+    /// [BX+0Ah].</summary>
+    private static int Mouvements()
+    {
+        var bad = 0;
+        // Les constantes : FNINIT ; FLDCW [0310h] ; FLDPI ou FLDLG2 ; FSTP m80.
+        foreach (var (fpu, cw, op, sig) in new (int, ushort, byte, ulong)[]
+                 {
+                     (4, 0x037F, 0xEB, 0xC90FDAA22168C235), (4, 0x077F, 0xEB, 0xC90FDAA22168C234),
+                     (4, 0x0B7F, 0xEB, 0xC90FDAA22168C235), (4, 0x037F, 0xEC, 0x9A209A84FBCFF799),
+                     (4, 0x0F7F, 0xEC, 0x9A209A84FBCFF798), (2, 0x077F, 0xEB, 0xC90FDAA22168C235),
+                     (5, 0x0F7F, 0xED, 0xB17217F7D1CF79AB), (4, 0x0B7F, 0xE9, 0xD49A784BCD1B8AFF),
+                     (4, 0x037F, 0xE9, 0xD49A784BCD1B8AFE), (4, 0x037F, 0xEA, 0xB8AA3B295C17F0BC),
+                     (4, 0x077F, 0xEA, 0xB8AA3B295C17F0BB),
+                 })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xD9, op, 0xDB, 0x3F], 4,
+                    () => { mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+            bad += Voir($"CW {cw:X4} ; D9 {op:X2} ; FSTP m80 (FPU {fpu})", Q(0x200) == sig, $"{Q(0x200):X16}", $"{sig:X16}", true);
+        }
+        // Les opérations de registre, sur le 387 : le mot d'état, puis ST(0) rangé en m80.
+        foreach (var (code, pas, op, sw, se, sig, n) in new (byte[], int, byte[], ushort, ushort, ulong, string)[]
+                 {
+                     ([0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xC9, 0xD9, 0xE5], 4, [], 0x3B41, 0xFFFF, 0xC000000000000000,
+                      "FLD1 ; FXCH ST(1) vide ; FXAM (l'indéfini, pas le vide)"),
+                     ([0xDB, 0xE3, 0xD9, 0xC3], 2, [], 0x3841, 0xFFFF, 0xC000000000000000, "FLD ST(3) vide"),
+                     ([0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xE0], 3, [], 0x3800, 0xBFFF, 0x8000000000000000, "FLD1 ; FCHS"),
+                     ([0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xE1], 3, Le(0xC000000000000000), 0x3800, 0x4000,
+                      0x8000000000000000, "FLD m64 −2 ; FABS"),
+                     ([0xDB, 0xE3, 0xDF, 0x2E, 0x00, 0x03], 2, Le(0x7FFFFFFFFFFFFFFF), 0x3800, 0x403D, 0xFFFFFFFFFFFFFFFE,
+                      "FILD m64 2^63 − 1"),
+                     ([0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDD, 0xD1, 0xDD, 0xD8], 5, [], 0x3800, 0x0000, 0, "FLD1 ; FLDZ ; FST ST(1) ; FSTP ST(0)"),
+                     ([0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xE0, 0xD9, 0xE5, 0xD9, 0xE8], 5, [], 0x3400, 0x3FFF, 0x8000000000000000,
+                      "FLD1 ; FCHS ; FXAM (C1, C2) ; FLD1 (C1 à zéro)"),
+                     ([0xDB, 0xE3, .. Enumerable.Repeat<byte[]>([0xD9, 0xE8], 8).SelectMany(b => b), 0xD9, 0x06, 0x00, 0x03], 10,
+                      Le(0x3F800000)[..4], 0x3A41, 0xFFFF, 0xC000000000000000, "FLD1 × 8 ; FLD m32 (débordement, C1)"),
+                     ([0xDB, 0xE3, 0xDF, 0x06, 0x00, 0x03], 2, [0xFB, 0xFF], 0x3800, 0xC001, 0xA000000000000000, "FILD m16 −5"),
+                     ([0xDB, 0xE3, 0xD9, 0x06, 0x00, 0x03], 2, Le(1)[..4], 0x3802, 0x3F6A, 0x8000000000000000,
+                      "FLD m32 2^−149 (DE, normalisé)"),
+                     ([0xDB, 0xE3, 0xD9, 0xC9], 2, [], 0x0041, 0xFFFF, 0xC000000000000000, "FXCH ST(1), les deux vides"),
+                 })
+        {
+            Jouer87(4, [.. code, .. SwA, 0xDB, 0x3F], pas + 2, Op(op));
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 (387)", W(0x20A) == sw && W(0x208) == se && Q(0x200) == sig,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{sw:X4}, {se:X4} {sig:X16}", true);
+        }
+        // FXAM : FLD m80 ; FXAM ; FNSTSW [BX+0Ah] (TOP = 7) ; et la pile vide.
+        foreach (var (se, sig, sw, n) in new (ushort, ulong, ushort, string)[]
+                 {
+                     (0x0000, 0x0000000000000001, 0x7C00, "dénormal"), (0x0000, 0x8000000000000000, 0x7C00, "pseudo-dénormal"),
+                     (0x3FFF, 0x4000000000000000, 0x3800, "non normal (non supporté)"), (0x7FFF, 0x8000000000000000, 0x3D00, "+∞"),
+                     (0x8000, 0x0000000000000000, 0x7A00, "−0"), (0xFFFF, 0xC000000000000000, 0x3B00, "l'indéfini, −QNaN"),
+                     (0x3FFF, 0x8000000000000000, 0x3C00, "1"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xDB, 0x2E, 0x00, 0x03, 0xD9, 0xE5, .. SwA], 4, Op(Le80(se, sig)));
+            bad += Voir($"FXAM, {n} (387)", W(0x20A) == sw, $"{W(0x20A):X4}", $"{sw:X4}", true);
+        }
+        Jouer87(4, [0xDB, 0xE3, 0xD9, 0xE5, .. SwA], 3);
+        bad += Voir("FXAM, la pile vide (387)", W(0x20A) == 0x4100, $"{W(0x20A):X4}", "4100", true);
+        // FST m32 [BX] (D9 17) depuis un m80 : 2^200, l'infini, OE, PE et C1 ; un non normal, IE et l'indéfini ; le plus
+        // petit dénormal de 80 bits, DE, UE et PE, zéro.
+        foreach (var (se, sig, r, sw, n) in new (ushort, ulong, uint, ushort, string)[]
+                 {
+                     (0x40C7, 0x8000000000000000, 0x7F800000, 0x3A28, "2^200"),
+                     (0x3FFF, 0x4000000000000000, 0xFFC00000, 0x3801, "un non normal"),
+                     (0x0000, 0x0000000000000001, 0x00000000, 0x3832, "un dénormal de 80 bits"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xDB, 0x2E, 0x00, 0x03, 0xD9, 0x17, .. SwA], 4, Op(Le80(se, sig)));
+            var v = (uint)(W(0x200) | W(0x202) << 16);
+            bad += Voir($"FLD m80 {n} ; FST m32 (387)", v == r && W(0x20A) == sw, $"{v:X8}, {W(0x20A):X4}", $"{r:X8}, {sw:X4}", true);
+        }
+        // FST m64 [BX] (DD 17) d'un SNaN de 80 bits (7FFFh A000000000000000h) : IE, le QNaN 7FFC000000000000h.
+        Jouer87(4, [0xDB, 0xE3, 0xDB, 0x2E, 0x00, 0x03, 0xDD, 0x17, .. SwA], 4, Op(Le80(0x7FFF, 0xA000000000000000)));
+        bad += Voir("FLD m80 SNaN ; FST m64 (387)", Q(0x200) == 0x7FFC000000000000 && W(0x20A) == 0x3801,
+                    $"{Q(0x200):X16}, {W(0x20A):X4}", "7FFC000000000000, 3801", true);
+        // FSTP m80 [BX] de la pile vide : l'indéfini, IE et SF, TOP = 1 après le dépilement.
+        Jouer87(4, [0xDB, 0xE3, 0xDB, 0x3F, .. SwA], 3);
+        bad += Voir("FSTP m80, la pile vide (387)", W(0x208) == 0xFFFF && Q(0x200) == 0xC000000000000000 && W(0x20A) == 0x0841,
+                    $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", "FFFF C000000000000000, 0841", true);
+        // Démasquées (FLDCW [0310h]) : IM à 0, FLD m32 d'un SNaN n'empile rien (TOP = 0 ; IE, ES et B : 8081h) ; IM à 0,
+        // FISTP m16 de 40 000 ne range ni ne dépile (le mot en [BX] reste 9090h ; TOP = 7 : B881h) ; PM à 0, FISTP m32
+        // de 2,5 range 2 et dépile, puis lève (PE, ES et B : 80A0h).
+        foreach (var (cw, code, op, mot, sw, n) in new (ushort, byte[], byte[], uint, ushort, string)[]
+                 {
+                     (0x037E, [0xD9, 0x06, 0x00, 0x03], Le(0x7F800001)[..4], 0x90909090, 0x8081, "IM à 0 ; FLD m32 SNaN"),
+                     (0x037E, [0xDD, 0x06, 0x00, 0x03, 0xDF, 0x1F], Le(0x40E3880000000000), 0x90909090, 0xB881,
+                      "IM à 0 ; FLD m64 40 000 ; FISTP m16"),
+                     (0x035F, [0xDD, 0x06, 0x00, 0x03, 0xDB, 0x1F], Le(0x4004000000000000), 0x00000002, 0x80A0,
+                      "PM à 0 ; FLD m64 2,5 ; FISTP m32"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, .. code, .. SwA], code.Length == 4 ? 4 : 5,
+                    () => { Op(op)(); mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+            var m = (uint)(W(0x200) | W(0x202) << 16);
+            bad += Voir($"{n} ; FNSTSW (387)", m == mot && W(0x20A) == sw, $"[BX] {m:X8}, {W(0x20A):X4}", $"[BX] {mot:X8}, {sw:X4}", true);
+        }
+        // FISTP m64 [BX] (DF 3F) : 2,5 au plus près → 2, PE ; 3,5 → 4, PE et C1 ; 2,1 vers +∞ → 3, PE et C1.
+        foreach (var (v, cw, r, sw) in new (ulong, ushort, ulong, ushort)[]
+                 {
+                     (0x4004000000000000, 0x037F, 2, 0x0020), (0x400C000000000000, 0x037F, 4, 0x0220),
+                     (0x4000CCCCCCCCCCCD, 0x0B7F, 3, 0x0220),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xDD, 0x06, 0x00, 0x03, 0xDF, 0x3F, .. SwA], 5,
+                    () => { Op(Le(v))(); mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+            bad += Voir($"CW {cw:X4} ; FLD m64 {v:X16} ; FISTP m64 (387)", Q(0x200) == r && W(0x20A) == sw,
+                        $"{Q(0x200)}, {W(0x20A):X4}", $"{r}, {sw:X4}", true);
+        }
         return bad;
     }
 

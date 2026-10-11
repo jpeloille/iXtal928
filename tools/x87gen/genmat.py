@@ -4,7 +4,8 @@
 # la classe de leur cœur : fetch_ea, SEG_CHECK_*, geteaw, seteaw, FP_ENTER et CLOCK_CYCLES sont celles de _386 et de
 # _386_common, ou celles du 8087 (x87_8087.cs, 808x.cs). @LIMITE(n), le contrôle de l'opérande contre la limite de son
 # segment (le chemin de PB-189), n'existe pas sur le 8087, qui n'a pas de limite ; aucun corps ne l'emploie avant N3,
-# où PB-54 rejoint le noyau. @RETOMBE, la sortie INT du 8087 qui retombe (PB-69), n'existe que sur le 8087.
+# où PB-54 rejoint le noyau ; d'ici là, FSTP m64 du noyau perd même le CHECK_WRITE que PCem y faisait seul. @RETOMBE,
+# la sortie INT du 8087 qui retombe (PB-69), n'existe que sur le 8087.
 #
 # Rejouable à l'octet près : après toute retouche, `python3 tools/x87gen/genmat.py ; git status --short` vide.
 import os, re
@@ -105,6 +106,99 @@ instr('FFREE', [('dd', 0xC0 + i) for i in range(8)], '''
         return 0;
 ''', doc='FFREE ST(i) : l\'étiquette de ST(i) vide ; TOP et le registre gardés.')
 
+# ---- N3a : les mouvements de données ----
+# Le gestionnaire lit ou écrit la mémoire ; la couche (_x87_noyau) fait le reste. Un stockage n'écrit, puis ne dépile,
+# que si la couche ne l'a pas arrêté (une exception démasquée) ; une faute de la mémoire (abrt) arrête aussi.
+
+def lecture(nom, ou, decl, lire, appel, temps, doc):
+    instr(nom, ou, '''
+        %s
+        if (@FP_ENTER()) return 1;
+        if (@EA(fetchdat)) return 1;
+        if (@SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+%s
+        if (cpu_state.abrt != 0) return 1;
+        %s
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.%s);
+        return 0;
+''' % (decl, lire, appel, temps), doc=doc)
+
+def stockage(nom, ou, appel, ecrire, pop, temps, doc):
+    instr(nom, ou, '''
+        if (@FP_ENTER()) return 1;
+        if (@EA(fetchdat)) return 1;
+        if (@SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
+        if (!%s)
+        {
+%s
+                if (cpu_state.abrt != 0) return 1;%s
+        }
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.%s);
+        return 0;
+''' % (appel, ecrire, '\n                _x87_noyau.depiler();' if pop else '', temps), doc=doc)
+
+lecture('FLDs', [('d9', '/0')], 'uint32_t t;', '        t = @geteal();', '_x87_noyau.fld_f32(t);', 'fld_32',
+        'FLD m32 (_x87_noyau.fld_f32).')
+lecture('FLDd', [('dd', '/0')], 'uint64_t t;', '        t = @geteaq();', '_x87_noyau.fld_f64(t);', 'fld_64',
+        'FLD m64 (_x87_noyau.fld_f64).')
+lecture('FLDe', [('db', '/5')], 'uint64_t s; uint16_t e;',
+        '        s = @readmemq(x86.easeg, cpu_state.eaaddr);\n        e = @readmemw(x86.easeg, cpu_state.eaaddr + 8);',
+        '_x87_noyau.fld_f80(s, e);', 'fld_80', 'FLD m80 : les 80 bits tels quels (_x87_noyau.fld_f80).')
+lecture('FILDiw', [('df', '/0')], 'uint16_t t;', '        t = @geteaw();', '_x87_noyau.fild((int16_t)t);', 'fild_16',
+        'FILD m16.')
+lecture('FILDil', [('db', '/0')], 'uint32_t t;', '        t = @geteal();', '_x87_noyau.fild((int32_t)t);', 'fild_32',
+        'FILD m32.')
+lecture('FILDiq', [('df', '/5')], 'uint64_t t;', '        t = @geteaq();', '_x87_noyau.fild((int64_t)t);', 'fild_64',
+        'FILD m64.')
+lecture('FBLD', [('df', '/4')], 'uint64_t s; uint16_t e;',
+        '        s = @readmemq(x86.easeg, cpu_state.eaaddr);\n        e = @readmemw(x86.easeg, cpu_state.eaaddr + 8);',
+        '_x87_noyau.fbld(s, e);', 'fbld', 'FBLD m80 : dix-huit chiffres décimaux (_x87_noyau.fbld ; PB-52).')
+
+for n, reg, pop in [('FSTs', '/2', False), ('FSTPs', '/3', True)]:
+    stockage(n, [('d9', reg)], '_x87_noyau.fst_f32(out var t)', '                @seteal(t);', pop, 'fst_32',
+             '%s m32 (_x87_noyau.fst_f32).' % n[:-1])
+for n, reg, pop in [('FSTd', '/2', False), ('FSTPd', '/3', True)]:
+    stockage(n, [('dd', reg)], '_x87_noyau.fst_f64(out var t)', '                @seteaq(t);', pop, 'fst_64',
+             '%s m64 (_x87_noyau.fst_f64).' % n[:-1])
+stockage('FSTPe', [('db', '/7')], '_x87_noyau.fst_f80(out var t)',
+         '                @writememq(x86.easeg, cpu_state.eaaddr, t.signif);\n'
+         '                @writememw(x86.easeg, cpu_state.eaaddr + 8, t.signExp);', True, 'fst_80',
+         'FSTP m80 : les 80 bits tels quels (_x87_noyau.fst_f80).')
+for n, esc, reg, pop, bits, ecr, temps in [
+        ('FISTiw', 'df', '/2', False, 16, '@seteaw((uint16_t)t)', 'fist_16'),
+        ('FISTPiw', 'df', '/3', True, 16, '@seteaw((uint16_t)t)', 'fist_16'),
+        ('FISTil', 'db', '/2', False, 32, '@seteal((uint32_t)t)', 'fist_32'),
+        ('FISTPil', 'db', '/3', True, 32, '@seteal((uint32_t)t)', 'fist_32'),
+        ('FISTPiq', 'df', '/7', True, 64, '@seteaq((uint64_t)t)', 'fist_64')]:
+    stockage(n, [(esc, reg)], '_x87_noyau.fist(%d, out var t)' % bits, '                %s;' % ecr, pop, temps,
+             '%s m%d (_x87_noyau.fist).' % ('FISTP' if pop else 'FIST', bits))
+stockage('FBSTP', [('df', '/6')], '_x87_noyau.fbstp(out var s, out var e)',
+         '                @writememq(x86.easeg, cpu_state.eaaddr, s);\n'
+         '                @writememw(x86.easeg, cpu_state.eaaddr + 8, e);', True, 'fbstp',
+         'FBSTP m80 (_x87_noyau.fbstp ; PB-195).')
+
+def registre(nom, ou, corps, temps, doc):
+    instr(nom, ou, '''
+        if (@FP_ENTER()) return 1;
+        cpu_state.pc++;
+        %s
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.%s);
+        return 0;
+''' % (corps, temps), doc=doc)
+
+registre('FLD', [('d9', 0xC0 + i) for i in range(8)], '_x87_noyau.fld_st((int)(fetchdat & 7));', 'fld', 'FLD ST(i).')
+registre('FXCH', [('d9', 0xC8 + i) for i in range(8)], '_x87_noyau.fxch((int)(fetchdat & 7));', 'fxch', 'FXCH ST(i).')
+registre('FST', [('dd', 0xD0 + i) for i in range(8)], '_x87_noyau.fst_st((int)(fetchdat & 7));', 'fst', 'FST ST(i).')
+registre('FSTP', [('dd', 0xD8 + i) for i in range(8)] + [('d9', 0xD8 + i) for i in range(8)],
+         'if (!_x87_noyau.fst_st((int)(fetchdat & 7)))\n                _x87_noyau.depiler();', 'fst',
+         'FSTP ST(i) (DD D8+i, et D9 D8+i comme PCem).')
+registre('FCHS', [('d9', 0xE0)], '_x87_noyau.signe(false);', 'fchs', 'FCHS.')
+registre('FABS', [('d9', 0xE1)], '_x87_noyau.signe(true);', 'fabs', 'FABS.')
+registre('FXAM', [('d9', 0xE5)], '_x87_noyau.fxam();', 'fxam', 'FXAM (_x87_noyau.fxam).')
+registre('FLDz1', [('d9', 0xE8), ('d9', 0xEE)], '_x87_noyau.constante((int)(fetchdat & 7));', 'fld_z1', 'FLD1 et FLDZ.')
+registre('FLDconst', [('d9', 0xE9 + k) for k in range(5)], '_x87_noyau.constante((int)(fetchdat & 7));', 'fld_const',
+         'FLDL2T, FLDL2E, FLDPI, FLDLG2, FLDLN2 (_x87_noyau.constante).')
+
 # ---- Les deux instanciations ----
 # Les aides de contexte et leur classe, par cible.
 CTX = {
@@ -113,6 +207,9 @@ CTX = {
     '8087': {'FP_ENTER': '_808x.FP_ENTER', 'CLOCK_CYCLES': '_808x.CLOCK_CYCLES', 'SEG_CHECK_READ': '_808x.SEG_CHECK_READ',
              'SEG_CHECK_WRITE': '_808x.SEG_CHECK_WRITE', 'geteaw': '_808x.geteaw', 'seteaw': '_808x.seteaw'},
 }
+for k in ['geteal', 'geteaq', 'seteal', 'seteaq', 'readmemq', 'readmemw', 'writememq', 'writememw']:
+    CTX['386'][k] = k
+    CTX['8087'][k] = '_808x.' + k
 
 def instancier(corps, cible, a):
     t = corps

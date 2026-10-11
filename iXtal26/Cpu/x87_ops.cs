@@ -215,7 +215,7 @@ internal static partial class _386
         ll |= (uint64_t)readmeml(easeg, cpu_state.eaaddr + 4) << 32;
         int16_t begin = (int16_t)readmemw(easeg, cpu_state.eaaddr + 8);
 
-        // pcem bug, reproduced: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
+        // pcem bug, fixed in hardware mode: PB-55 — exposant replié modulo 1024, exposant nul gardé nul (dénormaux faux),
         //   retenue de l'arrondi collée par OU dans l'exposant, bit entier ignoré.
         int64_t exp64 = (((begin & 0x7fff) - BIAS80));
         int64_t blah = ((exp64 > 0) ? exp64 : -exp64) & 0x3ff;
@@ -247,7 +247,7 @@ internal static partial class _386
         int64_t mant80 = (int64_t)(ll & (0x000fffffffffffff));
         uint64_t mant80final = (uint64_t)(mant80 << 11);
 
-        // pcem bug, reproduced: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
+        // pcem bug, fixed in hardware mode: PB-56 — un double dénormal reçoit le bit entier et l'exposant rebiaisé (le normal
         //   2^-1023 × 1,f) ; les onze bits bas de la mantisse sont toujours nuls : ST n'a que 53 bits.
         if (exp80final == 0x7ff) /*Infinity / Nan*/
         {

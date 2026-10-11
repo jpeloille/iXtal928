@@ -611,3 +611,9 @@ for pb in 203 264; do
 done
 # Le noyau avec l'acheminement de G13.6c : le port F1h et l'attente de l'AT et du 486 sur une exception du noyau.
 run materiel-cas-pb264-acheminement --hardware-mode PB-204,PB-264 materiel-cas PB-264
+# G13.6, le noyau, N3a — les mouvements de données, en chantier : FBLD (PB-52), FLD et FSTP m80 (PB-55, PB-56), FBSTP
+# (PB-195), FIST hors bornes (PB-196), FLD m32 et m64 d'un SNaN (PB-206, PB-212).
+for pb in 52 55 56 195 196 206 212; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

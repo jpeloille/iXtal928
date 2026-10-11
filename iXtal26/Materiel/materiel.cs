@@ -54,6 +54,15 @@ internal static class materiel
     /// <summary>PB-51 : la lecture d'une instruction contrôle la limite de CS (286, 386, 486) ; avec PB-50.</summary>
     internal static readonly bool pb_51;
 
+    /// <summary>PB-52 : FBLD charge dix-huit chiffres décimaux ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_52;
+
+    /// <summary>PB-55 : FLD m80 charge les 80 bits tels quels ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_55;
+
+    /// <summary>PB-56 : FSTP m80 range les 80 bits tels quels ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_56;
+
     /// <summary>PB-57 : FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom ; avec PB-64 et PB-70.</summary>
     internal static readonly bool pb_57;
 
@@ -174,14 +183,26 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
+    /// <summary>PB-195 : FBSTP arrondit selon RC ; trop grand : IE et l'indéfini BCD ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_195;
+
+    /// <summary>PB-196 : FIST hors bornes : IE et l'indéfini entier ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_196;
+
     /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau (en chantier).</summary>
     internal static readonly bool pb_203;
 
     /// <summary>PB-204 : les ports F0h et F1h de l'AT, le verrou de BUSY# (287, 387), IGNNE# (486) ; avec PB-59.</summary>
     internal static readonly bool pb_204;
 
+    /// <summary>PB-206 : FLD m32 d'un SNaN lève IE (387, 486) ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_206;
+
     /// <summary>PB-207 : FSTENV masque les six exceptions après avoir rangé l'environnement.</summary>
     internal static readonly bool pb_207;
+
+    /// <summary>PB-212 : FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486) ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_212;
 
     /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
     internal static readonly bool pb_213;
@@ -250,6 +271,9 @@ internal static class materiel
         pb_45 = ModeMateriel.Demande(45);
         pb_50 = ModeMateriel.Demande(50);
         pb_51 = ModeMateriel.Demande(51);
+        pb_52 = ModeMateriel.Demande(52);
+        pb_55 = ModeMateriel.Demande(55);
+        pb_56 = ModeMateriel.Demande(56);
         pb_57 = ModeMateriel.Demande(57);
         pb_58 = ModeMateriel.Demande(58);
         pb_59 = ModeMateriel.Demande(59);
@@ -290,9 +314,13 @@ internal static class materiel
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);
         pb_193 = ModeMateriel.Demande(193);
+        pb_195 = ModeMateriel.Demande(195);
+        pb_196 = ModeMateriel.Demande(196);
         pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
+        pb_206 = ModeMateriel.Demande(206);
         pb_207 = ModeMateriel.Demande(207);
+        pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
