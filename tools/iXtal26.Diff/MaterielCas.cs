@@ -1405,7 +1405,7 @@ internal static class MaterielCas
 
     // PB-56 — FSTP m80 range les 80 bits (SDM vol. 1 § 8.1.2) : FLD m64 = 2^−1074 (le plus petit dénormal, chargé
     // normalisé, DE) ; FSTP m80 → 3BCDh 8000000000000000h, et le mot d'état 0002h (DE) ; PCem 3C00h 8000000000000800h,
-    // 0000h. La précision (N4a) : FNINIT ; FLD1 ; FDIV m64 3,0 ; FSTP m80 → 3FFDh AAAAAAAAAAAAAAABh, 64 bits arrondis au
+    // 0000h. Le 8087 et le 287 le chargent en son non normal équivalent, 3C01h 0000000000000800h (N7b). La précision (N4a) : FNINIT ; FLD1 ; FDIV m64 3,0 ; FSTP m80 → 3FFDh AAAAAAAAAAAAAAABh, 64 bits arrondis au
     // plus près ; PCem, 53 bits, 3FFDh AAAAAAAAAAAAA800h.
     private static int Pb56(bool hw)
     {
@@ -1413,7 +1413,9 @@ internal static class MaterielCas
         foreach (var (fpu, nom) in FpusXL)
         {
             Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xDB, 0x3F, .. SwA], 4, Op(Le(1)));
-            var (se, sig, sw) = hw ? ((ushort)0x3BCD, 0x8000000000000000, (ushort)0x0002) : ((ushort)0x3C00, 0x8000000000000800, (ushort)0);
+            var (se, sig, sw) = !hw ? ((ushort)0x3C00, 0x8000000000000800, (ushort)0)
+                              : fpu < 3 ? ((ushort)0x3C01, 0x0000000000000800, (ushort)0x0002)
+                              : ((ushort)0x3BCD, 0x8000000000000000, (ushort)0x0002);
             bad += Voir($"FLD m64 2^−1074 ; FSTP m80 ; FNSTSW ({nom})", W(0x208) == se && Q(0x200) == sig && W(0x20A) == sw,
                         $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", $"{se:X4} {sig:X16}, {sw:X4}", hw);
             Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03, 0xDB, 0x3F], 4, Ops((0x308, Trois)));
@@ -1734,6 +1736,8 @@ internal static class MaterielCas
             bad += Transcendantes();
         if (noyau && hw)
             bad += SeizeBits();
+        if (noyau && hw)
+            bad += NonNormaux();
         return bad;
     }
 
@@ -2182,6 +2186,136 @@ internal static class MaterielCas
                 bad += Voir($"FNINIT ; FENI ; FNSTCW ; FDISI ; DB E5 ; FNSTCW ; FNSTSW ({nom})", W(0x202) == eni && W(0x204) == disi && W(0x20A) == 0,
                             $"{W(0x202):X4} {W(0x204):X4}, {W(0x20A):X4}", $"{eni:X4} {disi:X4}, 0000", true);
             }
+        }
+        return bad;
+    }
+
+    // ===== Le noyau, N7b : les non normaux et l'infini projectif du 8087 et du 287 =====
+    //
+    // Les opérandes : un m80 en 0300h (M80a) et en 0320h (M80b), un m64 en 0330h (DD 06 30 03). U, le non normal 3FFF
+    // 4000000000000000h (0,5, exposant 0, J = 0) ; le dénormal 0000 0000000000000001h (2^−16445). Le 287XL, le 387 et le
+    // 486 (le témoin) refusent U (IE, un format non supporté). C1 ignoré.
+
+    private static readonly byte[] M64c = [0xDD, 0x06, 0x30, 0x03];
+
+    private static int NonNormaux()
+    {
+        var bad = 0;
+        const ulong J = 0x8000000000000000, IND = 0xC000000000000000;
+        (ushort, ulong) u = (0x3FFF, 0x4000000000000000), den = (0, 1);
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var seize = fpu < 3;
+            // (nom, le code entre FNINIT et FNSTSW ; FSTP m80 [BX], le nombre de ses instructions, les opérandes,
+            //  l'attendu du 8087 et du 287, puis du 387 : mot d'état, exposant, significande)
+            foreach (var (n, code, pas, ops, a16, a87) in new (string, byte[], int, Action, (ushort, ushort, ulong), (ushort, ushort, ulong))[]
+                     {
+                         ("FLD m32 2^−149 (le non normal 3F81h)", [0xD9, 0x06, 0x00, 0x03], 1, Ops((0x300, [1, 0, 0, 0])),
+                          (0x3802, 0x3F81, 0x0000010000000000), (0x3802, 0x3F6A, J)),
+                         ("FLD m64 2^−1074 (le non normal 3C01h)", [0xDD, 0x06, 0x00, 0x03], 1, Ops((0x300, Le(1))),
+                          (0x3802, 0x3C01, 0x800), (0x3802, 0x3BCD, J)),
+                         ("FLD m32 2^−149 ; FXAM (non normal, 0000)", [0xD9, 0x06, 0x00, 0x03, 0xD9, 0xE5], 2, Ops((0x300, [1, 0, 0, 0])),
+                          (0x3802, 0x3F81, 0x0000010000000000), (0x3C02, 0x3F6A, J)),
+                         ("0,25 + U, FADDP (rangé à l'exposant de U : 3FFF 6000000000000000h)", [.. M80b, .. M80a, 0xDE, 0xC1], 3,
+                          Ops((0x300, Le80(u.Item1, u.Item2)), (0x320, Le80(0x3FFD, J))), (0x3800, 0x3FFF, 0x6000000000000000),
+                          (0x3801, 0xFFFF, IND)),
+                         ("1 + 0,5 non normal d'exposant 3 (4002 0800000000000000h), FADDP (1 le plus grand, normal : normalisé, 3FFF C000000000000000h)",
+                          [.. M80b, .. M80a, 0xDE, 0xC1], 3, Ops((0x300, Le80(0x4002, 0x0800000000000000)), (0x320, Le80(0x3FFF, J))),
+                          (0x3800, 0x3FFF, 0xC000000000000000), (0x3801, 0xFFFF, IND)),
+                         ("3 × U, FMULP (non normal : 4000 6000000000000000h)", [.. M80b, .. M80a, 0xDE, 0xC9], 3,
+                          Ops((0x300, Le80(u.Item1, u.Item2)), (0x320, Le80(0x4000, 0xC000000000000000))),
+                          (0x3800, 0x4000, 0x6000000000000000), (0x3801, 0xFFFF, IND)),
+                         ("U / 2, FDIVP (non normal : 3FFE 4000000000000000h)", [.. M80a, .. M80b, 0xDE, 0xF9], 3,
+                          Ops((0x300, Le80(u.Item1, u.Item2)), (0x320, Le80(0x4000, J))), (0x3800, 0x3FFE, 0x4000000000000000),
+                          (0x3801, 0xFFFF, IND)),
+                         ("U × U, deux non normaux de 63 zéros de tête, FMULP (un pseudo-zéro, PE)", [.. M80b, .. M80a, 0xDE, 0xC9], 3,
+                          Ops((0x300, Le80(0x3FFF, 1)), (0x320, Le80(0x3FFF, 1))), (0x3820, 0x3FFF, 0), (0x3801, 0xFFFF, IND)),
+                         ("1 / dénormal, FDIV ST(0), ST(1) (IE ; le 387, DE, OE, PE, +∞)", [.. M80a, 0xD9, 0xE8, 0xD8, 0xF1], 3,
+                          Ops((0x300, Le80(den.Item1, den.Item2))), (0x3003, 0xFFFF, IND), (0x302A, 0x7FFF, J)),
+                         ("FSQRT d'un dénormal (IE ; le 387, DE et PE)", [.. M80a, 0xD9, 0xFA], 2, Ops((0x300, Le80(den.Item1, den.Item2))),
+                          (0x3803, 0xFFFF, IND), (0x3822, 0x1FE0, 0xB504F333F9DE6484)),
+                         ("FSCALE de U par 2 (4001 4000000000000000h)", [.. M80b, .. M80a, 0xD9, 0xFD], 3,
+                          Ops((0x300, Le80(u.Item1, u.Item2)), (0x320, Le80(0x4000, J))), (0x3000, 0x4001, 0x4000000000000000),
+                          (0x3001, 0xFFFF, IND)),
+                         ("FRNDINT de 1,5 non normal (4000 6000000000000000h : 2, PE)", [.. M80a, 0xD9, 0xFC], 2,
+                          Ops((0x300, Le80(0x4000, 0x6000000000000000))), (0x3820, 0x4000, J), (0x3801, 0xFFFF, IND)),
+                         ("vers +∞, FRNDINT de 0,5 non normal (4000 2000000000000000h : 1, normalisé, 3FFF 8000000000000000h)",
+                          [.. Cw310, .. M80a, 0xD9, 0xFC], 3, Ops((0x300, Le80(0x4000, 0x2000000000000000)), (0x310, Cw(0x0B7F))),
+                          (0x3820, 0x3FFF, J), (0x3801, 0xFFFF, IND)),
+                         ("FXTRACT d'un dénormal (le significande tel quel, l'exposant −16382, C00C FFF8000000000000h en ST(1))",
+                          [.. M80a, 0xD9, 0xF4], 2, Ops((0x300, Le80(den.Item1, den.Item2))), (0x3002, 0x3FFF, 1), (0x3002, 0x3FFF, J)),
+                         ("FSCALE d'un dénormal par 1 (0002 0000000000000001h, le significande gardé)", [.. M80b, .. M80a, 0xD9, 0xFD], 3,
+                          Ops((0x300, Le80(den.Item1, den.Item2)), (0x320, Le80(0x3FFF, J))), (0x3002, 0x0002, 1), (0x3002, 0x0000, 2)),
+                         ("FLD1 ; FPREM par U (un modulo non normal : IE, C2 effacé ; le 387, IE et C2)", [.. M80b, 0xD9, 0xE8, 0xD9, 0xF8], 3,
+                          Ops((0x320, Le80(u.Item1, u.Item2))), (0x3001, 0xFFFF, IND), (0x3401, 0xFFFF, IND)),
+                         ("U / +0, FDIVP (ZE et +∞)", [.. M80a, 0xD9, 0xEE, 0xDE, 0xF9], 3, Ops((0x300, Le80(u.Item1, u.Item2))),
+                          (0x3804, 0x7FFF, J), (0x3801, 0xFFFF, IND)),
+                         ("pseudo-zéro / +0, FDIVP (0 ÷ 0 : IE)", [.. M80a, 0xD9, 0xEE, 0xDE, 0xF9], 3, Ops((0x300, Le80(0x3FFF, 0))),
+                          (0x3801, 0xFFFF, IND), (0x3801, 0xFFFF, IND)),
+                         ("+0 + pseudo-zéro, FADDP (le pseudo-zéro 3FFFh)", [0xD9, 0xEE, .. M80a, 0xDE, 0xC1], 3, Ops((0x300, Le80(0x3FFF, 0))),
+                          (0x3800, 0x3FFF, 0), (0x3801, 0xFFFF, IND)),
+                         ("pseudo-zéro + +0, FADDP (le même, l'ordre inversé)", [.. M80a, 0xD9, 0xEE, 0xDE, 0xC1], 3, Ops((0x300, Le80(0x3FFF, 0))),
+                          (0x3800, 0x3FFF, 0), (0x3801, 0xFFFF, IND)),
+                         ("FSCALE de 1 par 4040 0000000000000001h (4, non normal : 16, 4003 8000000000000000h)", [.. M80a, 0xD9, 0xE8, 0xD9, 0xFD], 3,
+                          Ops((0x300, Le80(0x4040, 1))), (0x3000, 0x4003, J), (0x3001, 0xFFFF, IND)),
+                         ("FTST d'un pseudo-zéro (C3, sans DE ; gardé tel quel)", [.. M80a, 0xD9, 0xE4], 2, Ops((0x300, Le80(0x3FFF, 0))),
+                          (0x7800, 0x3FFF, 0), (0x7D01, 0x3FFF, 0)),
+                         ("2^−16383 non normal × 0,5, FMULP (petit : dénormalisé, 0000 2000000000000000h, exact)", [.. M80b, .. M80a, 0xDE, 0xC9], 3,
+                          Ops((0x300, Le80(0x0001, 0x4000000000000000)), (0x320, Le80(0x3FFE, J))), (0x3800, 0x0000, 0x2000000000000000),
+                          (0x3801, 0xFFFF, IND)),
+                         ("vers −∞, 2^16382 non normal × 4, FMULP (table 1-11 : 7FFE 4000000000000000h, PE sans OE)",
+                          [.. Cw310, .. M80b, .. M80a, 0xDE, 0xC9], 4,
+                          Ops((0x300, Le80(0x7FFE, 0x4000000000000000)), (0x320, Le80(0x4001, J)), (0x310, Cw(0x077F))),
+                          (0x3820, 0x7FFE, 0x4000000000000000), (0x3801, 0xFFFF, IND)),
+                         ("+∞ + +∞, FADDP (projectif : IE)", [.. M64c, .. M64c, 0xDE, 0xC1], 3, Ops((0x330, Le(0x7FF0000000000000))),
+                          (0x3801, 0xFFFF, IND), (0x3800, 0x7FFF, J)),
+                         ("FSQRT de +∞ (projectif : IE)", [.. M64c, 0xD9, 0xFA], 2, Ops((0x330, Le(0x7FF0000000000000))),
+                          (0x3801, 0xFFFF, IND), (0x3800, 0x7FFF, J)),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. code, .. SwA, 0xDB, 0x3F], pas + 3, ops);
+                var (asw, ase, asig) = seize ? a16 : a87;
+                bad += Voir($"{n} ; FNSTSW ; FSTP m80 ({nom})", (W(0x20A) & ~0x200) == asw && W(0x208) == ase && Q(0x200) == asig,
+                            $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{asw:X4}, {ase:X4} {asig:X16}", true);
+            }
+
+            // FCOMPP de U contre 0,5 : le 8087 et le 287, DE et l'égalité (C3, 4002h) ; le 387, IE et non ordonné (4501h).
+            Jouer87(fpu, [0xDB, 0xE3, .. M64c, .. M80a, 0xDE, 0xD9, .. SwA], 5,
+                    Ops((0x300, Le80(u.Item1, u.Item2)), (0x330, Le(0x3FE0000000000000))));
+            var sw = seize ? (ushort)0x4002 : (ushort)0x4501;
+            bad += Voir($"FLD m64 0,5 ; FLD m80 U ; FCOMPP ; FNSTSW ({nom})", W(0x20A) == sw, $"{W(0x20A):X4}", $"{sw:X4}", true);
+
+            // FST m32 [BX+40h] d'un non normal sous 2^−126 (3F00 4000000000000000h, 2^−256) : le 8087 et le 287, la valeur
+            // convertie (+0), UE et PE (3830h) ; le 387, IE et l'indéfini (FFC00000h).
+            Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0x57, 0x40, .. SwA], 4, Ops((0x300, Le80(0x3F00, 0x4000000000000000))));
+            var (s32, v32) = seize ? ((ushort)0x3830, 0u) : ((ushort)0x3801, 0xFFC00000u);
+            var l32 = (uint)(W(0x240) | W(0x242) << 16);
+            bad += Voir($"FLD m80 non normal 2^−256 ; FST m32 ; FNSTSW ({nom})", (W(0x20A) & ~0x200) == s32 && l32 == v32,
+                        $"{W(0x20A):X4}, {l32:X8}", $"{s32:X4}, {v32:X8}", true);
+            // FST m32 de U (0,5, au-dessus de 2^−126) : IE et l'indéfini, sur les cinq (le 387, un format non supporté).
+            Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0x57, 0x40, .. SwA], 4, Ops((0x300, Le80(u.Item1, u.Item2))));
+            l32 = (uint)(W(0x240) | W(0x242) << 16);
+            bad += Voir($"FLD m80 U ; FST m32 ; FNSTSW ({nom})", (W(0x20A) & ~0x200) == 0x3801 && l32 == 0xFFC00000,
+                        $"{W(0x20A):X4}, {l32:X8}", "3801, FFC00000", true);
+
+            // FISTP m32 [BX+40h] d'un dénormal : le 8087 et le 287, IE et l'indéfini entier (80000000h ; DE du chargement) ;
+            // le 387, 0 et PE.
+            Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xDB, 0x5F, 0x40, .. SwA], 4, Ops((0x300, Le80(den.Item1, den.Item2))));
+            (s32, v32) = seize ? ((ushort)0x0003, 0x80000000u) : ((ushort)0x0020, 0u);
+            l32 = (uint)(W(0x240) | W(0x242) << 16);
+            bad += Voir($"FLD m80 dénormal ; FISTP m32 ; FNSTSW ({nom})", (W(0x20A) & ~0x200) == s32 && l32 == v32,
+                        $"{W(0x20A):X4}, {l32:X8}", $"{s32:X4}, {v32:X8}", true);
+
+            // FXTRACT de 4005 4000000000000000h (32, non normal) : le 8087 et le 287, le significande tel quel (3FFF
+            // 4000000000000000h) et l'exposant 6 (4001 C000000000000000h) ; le 387, IE et l'indéfini aux deux.
+            Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0xF4, .. SwA, 0xDB, 0x3F, 0xDB, 0x7F, 0x0C], 6,
+                    Ops((0x300, Le80(0x4005, 0x4000000000000000))));
+            var (xs, s0, g0, s1, g1) = seize ? ((ushort)0x3000, (ushort)0x3FFF, 0x4000000000000000UL, (ushort)0x4001, 0xC000000000000000UL)
+                                             : ((ushort)0x3001, (ushort)0xFFFF, IND, (ushort)0xFFFF, IND);
+            bad += Voir($"FLD m80 32 non normal ; FXTRACT ; FNSTSW ; FSTP m80 × 2 ({nom})",
+                        W(0x20A) == xs && W(0x208) == s0 && Q(0x200) == g0 && W(0x214) == s1 && Q(0x20C) == g1,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}, {W(0x214):X4} {Q(0x20C):X16}",
+                        $"{xs:X4}, {s0:X4} {g0:X16}, {s1:X4} {g1:X16}", true);
         }
         return bad;
     }

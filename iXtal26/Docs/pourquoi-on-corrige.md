@@ -970,3 +970,23 @@ Le noyau suit aussi les autres différences qu'Intel décrit : tout « pas un no
 trigonométriques et logarithmiques, qui ne vérifient pas leurs opérandes ; FXTRACT, FSCALE et FPREM sur leurs cas
 particuliers ; FENI et FDISI, propres au 8087. Ce que le silicium fait des instructions du 387 qu'ils n'ont pas
 (FSIN, FUCOM…) n'est documenté nulle part : elles restent celles du 387, comme chez PCem.
+
+## G13.6, le noyau, suite — les nombres « non normaux » des anciens
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N7b.*
+
+Toujours en chantier : seuls les tests le demandent.
+
+### PB-59 — les non normaux, et PB-70 — l'infini sans signe
+
+- **Le vrai PC.** Un nombre flottant s'écrit d'ordinaire « normalisé », son premier chiffre binaire à 1. Le 8087 et le
+  287 acceptent aussi des nombres dont les premiers chiffres sont des zéros, les « non normaux » : un nombre minuscule
+  lu en mémoire devient l'un d'eux, et le calcul les garde tels quels tant que leur imprécision compte, pour ne jamais
+  faire passer un résultat douteux pour un résultat exact. Diviser par l'un d'eux, en prendre la racine ou le convertir
+  en entier est une erreur. Le 387 a abandonné ces nombres. Les deux anciens connaissent aussi un infini sans signe,
+  le mode « projectif » de leur démarrage : ∞ + ∞ y est une erreur, et la racine de l'infini aussi.
+- **L'émulateur.** PCem calcule en 53 bits normalisés : il ne connaît ni les non normaux ni l'infini sans signe.
+- **La correction.** Le noyau suit les tables d'Intel : le chargement en non normal, le calcul qui le garde, les
+  erreurs, l'infini projectif. Le détail du circuit n'étant décrit nulle part, le calcul range le résultat exact à
+  l'exposant que la documentation lui prête ; le dernier bit peut différer du silicium, et les tests le disent.

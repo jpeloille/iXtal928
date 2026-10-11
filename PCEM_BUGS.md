@@ -816,7 +816,8 @@ FDIV(R), FSQRT) ; SDM vol. 2, FINIT (037Fh, PC = 64 bits) ; 387 PRM ; Numerics S
 *Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FSTP m80 du noyau (`_x87_noyau.fst_f80`) range les
 80 bits tels quels ; vide, l'indéfini. `materiel-cas PB-56`. La précision (N4a) : les registres du noyau ont 64 bits de
 significande, et ses opérations les calculent (PC = 11 après FNINIT) ; `materiel-cas PB-56` : 1/3 rangé en m80,
-3FFDh AAAAAAAAAAAAAAABh.
+3FFDh AAAAAAAAAAAAAAABh. Le 8087 et le 287 chargent le dénormal de 64 bits en son non normal équivalent, 3C01h
+0000000000000800h (N7b ; PB-59).
 
 ### PB-57 — FCOM en forme registre compare avec `==` et `<` : un NaN rend « plus grand »
 
@@ -933,8 +934,20 @@ note 1, le dit pair, le 387 PRM, annexe C, différent de celui du 387 : le noyau
 (l'annexe C dit à la fois « signals overflow only when the rounding control is not set to round to zero » et l'infini
 rendu ; la table 1-17 range ce cas sous « Overflow » : OE est levée) ; UE masquée hors de l'arrondi vers zéro, comme le
 387 ; les transcendantes n'ont pas ces réponses masquées (le 287 PRM ne leur prête pas O : un choix) ; D et I
-« simultanés » d'une comparaison (287 PRM, annexe C, point 4), non modélisés ; FST m32 et m64 d'un dénormal, DE comme le
-387 (les tables 1-8 et 1-17 ne la nomment pas pour FST : N7b).
+« simultanés » d'une comparaison (287 PRM, annexe C, point 4), non modélisés. Les non normaux (N7b ; 287 PRM, tables 1-8, 1-9,
+1-10, 1-11 et 1-17 ; 387 PRM, annexe C § C.2 et § C.4) : un dénormal de 32 ou de 64 bits chargé, ou opérande en mémoire,
+en son non normal équivalent (`non_normal_f32`, `non_normal_f64`), un dénormal du registre pris pour le sien ;
+l'arithmétique des non normaux (`arith_seize`, `ranger_seize`) : la valeur exacte de l'opération rangée à l'exposant
+que la table 1-9 donne, sans normaliser — l'addition à l'exposant le plus grand si l'opérande de plus grande valeur
+absolue est non normal, normalisée s'il est normal ; le produit non normal (un pseudo-zéro au-delà de 64 zéros de tête) ;
+le quotient d'un dividende non normal ; la division par un non normal ou un dénormal, IE, par un zéro vrai, ZE (IE pour
+un pseudo-zéro) ; la petitesse et le dépassement jugés sur l'exposant de travail, celui du registre, le dépassement
+d'un non normal selon la table 1-11 —, un modèle : le chemin de données réel,
+son alignement et ses bits de garde sont inconnus ((b), les valeurs fines (c)) ; FSQRT, et FPREM par un modulo, non
+normal ou dénormal, IE ; FIST, FISTP et FBSTP, IE ; FST m32 et m64 d'un non normal, IE au-dessus de la frontière de
+petitesse du format, UE au-dessous, et d'un dénormal, sans DE ; les comparaisons, DE pour un non normal (le pseudo-zéro
+excepté), sur les valeurs normalisées ; FRNDINT et le dividende de FPREM, normalisés. `materiel-cas PB-264`
+(`NonNormaux`), sur les cinq coprocesseurs.
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 
@@ -1250,7 +1263,8 @@ C3 C2 C0 = 001 (−∞ < +∞, « 387 »), silicium 100 (+∞ = −∞ en projec
 +∞ = −∞ et un infini non comparable à un fini ; le 287XL, le 387 et le 486 restent en affine. Toutes les formes qui
 appellent x87_compare (FCOM et FICOM mémoire, FCOMP, FUCOM, que PCem exécute sur le 8087 et le 287 : PB-209) en
 profitent, avec FCOM de registre et FTST. ∞ ± ∞ et
-√+∞ attendent le noyau. `materiel-cas PB-70` : la détection classique (1/0, FCHS, FCOMPP), C3 sur le 8087 et le 287,
+√+∞ : le noyau (G13.6, le noyau, N7b ; en chantier), en projectif, IE et l'indéfini quels que soient les signes (287
+PRM, table 1-12) ; `materiel-cas PB-264` (`NonNormaux`). `materiel-cas PB-70` : la détection classique (1/0, FCHS, FCOMPP), C3 sur le 8087 et le 287,
 C0 sur le 387 dans les deux modes (le témoin).
 
 ### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
@@ -3686,7 +3700,9 @@ SDM vol. 3 (2016) § 22.18.7.12 et 387 PRM annexe C (8087 et 287 : 0 sans except
 en ST(1), le significande empilé ; un zéro, ZE et −∞ ; un infini, +∞ et lui-même ; un dénormal, DE. `materiel-cas PB-194`
 (le cas qui discrimine, sur les cinq coprocesseurs). Le 8087 et le 287 (N7a ; 387 PRM, annexe C § C.4 ; 287 PRM,
 FXTRACT et table 1-12) : un zéro, deux zéros de son signe, sans exception ; un infini, IE et l'indéfini aux deux ; ni DE
-ni ZE. `materiel-cas PB-264` (`SeizeBits`). Le dénormal et le non normal du 8087 et du 287 : N7b.
+ni ZE. `materiel-cas PB-264` (`SeizeBits`). Le dénormal et le non normal (N7b) : l'exposant et le significande tels
+quels, le dénormal pris pour son non normal équivalent (« its significand is identical to the original operand's » ;
+déduit pour eux). `materiel-cas PB-264` (`NonNormaux`).
 
 ### PB-195 — FBSTP tronque au lieu d'arrondir, sans IE ni BCD indéfini
 
@@ -3766,7 +3782,8 @@ hasard).
 sans limite et suit la table des spéciaux du 387 PRM (tables 3-3 et 3-4) : un NaN propagé, ±∞ ou ±0 par ±∞, IE pour ∞
 par −∞ et 0 par +∞ ; O, U et P par l'arrondi selon RC. `materiel-cas PB-198` : 1 par NaN et par +∞, sur les cinq
 coprocesseurs. Le 8087 et le 287 (N7a ; 287 PRM, table 1-12) : par ±∞, ±0 rend ±0, tout autre opérande IE et
-l'indéfini (1 par +∞ dans `materiel-cas PB-198`) ; hors de leur domaine, la valeur du 387 (« undefined » : (c)).
+l'indéfini (1 par +∞ dans `materiel-cas PB-198`) ; hors de leur domaine, la valeur du 387 (« undefined » : (c)). Un
+non normal (N7b) : l'échelle ajoutée à l'exposant, le significande gardé (déduit).
 
 ### PB-199 — L'image FSAVE d'un registre TAG_UINT64 : l'entier suivi de 5555h, étiqueté « spécial »
 
@@ -3963,8 +3980,9 @@ rechargement le 387 ne retienne des étiquettes que « vide » ou « non vide »
 posée à chaque écriture (`_x87_noyau.etiquette_de`) ; FLDENV et FRSTOR n'en retiennent que « vide » et recalculent les
 autres sur le 287XL, le 387 et le 486, les gardent sur le 8087 et le 287 (déduit). `materiel-cas PB-208`. Le 8087 et le
 287 étiquettent valides le non normal et le pseudo-zéro (N7a ; 387 PRM, annexe C § C.2), et gardent les étiquettes
-chargées (documenté : § C.3, « honors the tag and does not examine the register ») ; qu'ils s'y fient ensuite pour
-classer l'opérande de chaque instruction, au lieu du contenu : N7b.
+chargées (documenté : § C.3, « honors the tag and does not examine the register »). Qu'ils s'y fient ensuite pour
+classer l'opérande de chaque instruction est documenté, mais pas ce qu'ils font d'un contenu que l'étiquette contredit
+(quelle classe pour « spécial » sur un normal ?) : (c), le noyau examine le contenu (N7b).
 
 ### PB-209 — FUCOM, FUCOMP, FUCOMPP et FPREM1 s'exécutent sur le 8087 et le 287, en zéro cycle
 

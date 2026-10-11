@@ -410,14 +410,14 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
     seize codes, hors de l'arithmétique des non normaux). Les domaines étroits et le
     rapport de FPTAN : hors domaine, « undefined » ; le noyau garde la valeur mathématique (un choix, (c)). PB-209 et
     PB-266 restent reproduits (décision n° 14).
-  - **N7b — Les non normaux et l'infini projectif.** Les tables 1-8, 1-9, 1-10, 1-11, 1-12 et 1-17 du 287 PRM : le
+  - **N7b — Les non normaux et l'infini projectif** ✅ *(12/10, VERIFICATION.md § G13.6, le noyau, N7b)*. Les tables 1-8, 1-9, 1-10, 1-11, 1-12 et 1-17 du 287 PRM : le
     dénormal chargé en non normal (FLD m32, m64), converti en non normal dans un calcul ; l'arithmétique des non
     normaux (la normalisation de l'opérande le plus grand pour l'addition, un produit non normal, un dividende non
     normal) ; IE pour un diviseur, une racine, un modulo, un FIST ou un FBSTP dénormal ou non normal ; FST m32 et m64
     d'un non normal ; le pseudo-zéro ; les comparaisons, FTST et FRNDINT qui normalisent d'abord (DE pour un non normal
-    comparé) ; FXTRACT d'un dénormal et d'un non normal ; FST m32 et m64 d'un dénormal ; les étiquettes auxquelles le
-    8087 et le 287 se fient au lieu du contenu (387 PRM, annexe C § C.3) ; l'infini projectif dans l'addition, la
-    soustraction et FSQRT.
+    comparé) ; FXTRACT d'un dénormal et d'un non normal ; FST m32 et m64 d'un dénormal ; l'infini projectif dans
+    l'addition, la soustraction et FSQRT. Les étiquettes auxquelles le 8087 et le 287 se fient au lieu du contenu
+    (annexe C § C.3) : ce qu'ils font d'un contenu contredit n'est pas décrit, (c).
   - **N7c — L'entrée au mode.** `EnChantier` vidé ; les groupes du noyau et des comparaisons réunis, PB-57, 58, 61,
     63, 64, 66, 67, 70, 207 et 213 repris par le noyau ; les entrées illégales de PCem (PB-210) aux tables du noyau ;
     chaque lecteur de `cpu_state.ST` et `tag` (le débogueur, l'état sauvé) relu ; « tout » et le domaine `x87`.

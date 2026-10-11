@@ -9569,3 +9569,102 @@ disparue ; les gestionnaires de PCem dont les marqueurs ont basculé (`x87_ops_m
 marqueurs au lieu de 1062. Les cas de `SeizeBits` courent sous `materiel-cas-pb264-materiel` et
 `materiel-cas-pb264-acheminement`, déjà portes ; les domaines d'accord du 8087 et du 287, inchangés, restent verts.
 M2 recapturé après les reprises, sur le Release de la série : le même résultat.
+
+## G13.6, le noyau, N7b — les non normaux et l'infini projectif
+
+Le 12 octobre 2026. Le noyau reste en chantier ; aucun PB neuf ni nouveau membre du groupe : N7b complète PB-59 (les
+non normaux, leurs exceptions) et PB-70 (l'infini projectif hors des comparaisons, que G13.6a laissait au noyau).
+Sources : le 287 PRM (1987), « Denormals », « Unnormals—Descendents of Denormal Operands », « Zeros and pseudo zeros »,
+tables 1-8, 1-9, 1-10, 1-11, 1-12 et 1-17, son annexe C (points 1 à 4) ; le 387 PRM, annexe C § C.2 et § C.4.
+
+**Ce qui est écrit** (`Cpu/x87_noyau.Materiel.cs`, le 8087 et le 287 seuls ; `non_normal_seize` : un non normal, le
+pseudo-zéro compris, ou un dénormal, l'exposant nul, J compris) :
+- **Le chargement** : un dénormal de 32 ou de 64 bits, chargé par FLD ou opérande d'une opération, devient son non
+  normal équivalent, l'exposant minimal du format et le significande décalé tel quel (`non_normal_f32`,
+  `non_normal_f64` ; « Load as equivalent unnormal ») ; un dénormal du registre vaut son non normal d'exposant −16382.
+- **Les quatre opérations** (`chemin_seize`, `arith_seize`, `ranger_seize`) : la valeur exacte (en `BigInteger`, un
+  chemin rare), rangée à un exposant de travail imposé, sans normaliser, arrondie selon RC et PC à ses bits de rang
+  ≥ 2^(er − 63). L'addition et la soustraction : l'exposant le plus grand des opérandes non nuls (un de plus sur une
+  retenue) si l'opérande de plus grande valeur absolue est non normal ; normalisées (les valeurs, au chemin ordinaire)
+  s'il est normal. Le produit : la somme des exposants, un de plus si le produit des significandes dépasse 2^127 ; un
+  significande arrondi à zéro donne un pseudo-zéro (« if two unnormals [...] are multiplied together »). Le quotient
+  d'un dividende non normal : la différence des exposants, sans le décalage d'une division normalisée (une première
+  version le faisait, et rendait normal le quotient d'un dividende à un seul zéro de tête : relevé en écrivant les
+  cas). La division par un non normal ou un dénormal, pseudo-zéro compris : IE ; par un zéro vrai, le chemin
+  ordinaire, ZE et ±∞ (IE pour un pseudo-zéro, 0 ÷ 0). Un zéro vrai multiplié rend le zéro du produit ; une somme
+  exactement nulle, le zéro du signe d'IEEE 754 (table 1-10), un pseudo-zéro si les deux opérandes sont nuls et l'un
+  d'eux un pseudo-zéro, dans un ordre comme dans l'autre ; à égalité de valeur absolue entre un normal et un non
+  normal, le normal décide (inconnu). Avec un infini, les valeurs normalisées vont au chemin ordinaire. La petitesse
+  et le dépassement se jugent sur l'exposant de travail, celui du registre (« exponent of true result < −16,382 ») ;
+  un arrondi à PC sous 64 bits peut rendre un pseudo-zéro, et un pseudo-zéro divisé par un normal reste un pseudo-zéro
+  (le 287 PRM, ambigu, pourrait vouloir un zéro vrai) : masquée, dénormalisée et arrondie, UE si inexacte ou
+  vers zéro ; démasquée, tronquée et décalée de 24 576. Le dépassement : l'infini au plus près et vers zéro ; dirigé
+  vers l'infini, l'infini ; dirigé à l'opposé, le plus grand exposant et le significande du résultat, tronqué, normal ou
+  non (table 1-11), PE sans OE ; démasqué, tronqué et décalé. C'est un modèle : le chemin de données du 8087 et du 287,
+  l'alignement de leurs opérandes et leurs bits de garde ne sont décrits nulle part ; la forme du résultat (non
+  normal, son exposant) suit la table 1-9, ses derniers bits sont (c).
+- **Le reste de la table 1-9** : FSQRT d'un non normal ou d'un dénormal, IE ; FPREM, un modulo non normal ou dénormal,
+  IE et « complete remainder », un dividende non normal normalisé ; FIST, FISTP et FBSTP d'un dénormal ou d'un non
+  normal, IE et l'indéfini entier ou BCD ; FST et FSTP m32 et m64 d'un non normal, IE et l'indéfini au-dessus de la
+  frontière de petitesse du format, UE au-dessous (la valeur normalisée, convertie), et d'un dénormal, sans DE ; les
+  comparaisons et FTST, DE pour un non normal (le pseudo-zéro excepté : annexe C, point 3), sur les valeurs normalisées,
+  le pseudo-zéro comme un zéro ; FRNDINT, normalisé d'abord ; FXTRACT, l'exposant et le significande tels quels ;
+  FSCALE, l'échelle ajoutée à l'exposant, le significande gardé (déduits). Les transcendantes : « undefined », la valeur
+  du 387 (N7a).
+- **L'infini projectif** (PB-70) : ∞ ± ∞, quels que soient les signes, et la racine de +∞, IE et l'indéfini (table 1-12).
+- **Les étiquettes** auxquelles le 8087 et le 287 se fient (annexe C § C.3) : ce qu'ils font d'un contenu que
+  l'étiquette contredit n'est pas décrit : (c), le noyau examine le contenu.
+
+**Les cas.** `materiel-cas PB-264`, en mode matériel, gagne `NonNormaux`, trente et un cas sur chacun des cinq
+coprocesseurs, le 287XL, le 387 et le 486 pour témoins (ils refusent un non normal : IE et l'indéfini) ; U, le non
+normal 3FFFh 4000000000000000h (0,5) : FLD m32 2^−149 et FLD m64 2^−1074 (3F81h 0000010000000000h, 3C01h
+0000000000000800h, DE ; le 387, normalisés), FXAM du premier (0000) ; 0,25 + U (3FFFh 6000000000000000h, à l'exposant
+de U) et 1 + 0,5 d'exposant 3 (le plus grand normal : normalisé, 3FFFh C000000000000000h) ; 3 × U (4000h
+6000000000000000h) ; U / 2 (3FFEh 4000000000000000h) ; deux non normaux de 63 zéros de tête multipliés (le pseudo-zéro
+3FFFh, PE) ; 2^−16383 non normal × 0,5 (dénormalisé, 0000h 2000000000000000h) ; vers −∞, 2^16382 non normal × 4 (7FFEh
+4000000000000000h, PE sans OE : table 1-11) ; 1 divisé par un dénormal (IE ; le 387, DE, OE, +∞) ; FSQRT d'un dénormal
+(IE) ; FSCALE de U par 2 (4001h 4000000000000000h) ; FRNDINT de 1,5 non normal (2, PE) ; FTST d'un pseudo-zéro (C3 sans
+DE) ; ∞ + ∞ et la racine de +∞ en projectif (IE ; le 387, +∞) ; FCOMPP de U contre 0,5 (DE et C3 ; le 387, IE et non
+ordonné) ; FST m32 d'un non normal sous 2^−126 (+0, UE et PE ; le 387, IE et FFC00000h) et de U (IE et FFC00000h) ;
+vers +∞, FRNDINT de 0,5 non normal (1, normalisé) ; FXTRACT et FSCALE d'un dénormal (le significande tel quel, 0002h
+0000000000000001h pour FSCALE par 1) ; FPREM par U (IE, C2 effacé) ; U / +0 (ZE, +∞) et pseudo-zéro / +0 (IE) ; +0 +
+pseudo-zéro, dans les deux ordres (le pseudo-zéro) ; FSCALE de 1 par 4040h 0000000000000001h (4 : 16) ; FISTP m32 d'un dénormal (IE,
+80000000h ; le 387, 0) ; FXTRACT de 32 non normal (3FFFh 4000000000000000h et 6). Un cas de N3a change son attendu :
+`materiel-cas PB-56`, FLD m64 2^−1074 sur le 8087 et le 287, 3C01h 0000000000000800h, le non normal (vert dans les deux
+modes). Tous les PB du x87, dans les deux modes, et l'acheminement : verts ; les domaines d'accord du 387, du 486, du 287
+et du 8087 et `x87-transc` : verts. Le recensement : 266 défauts, 1074 marqueurs, quatre neufs pour PB-59
+(`ranger_seize`, `arith_seize`, `non_normal_f32`, `st_non_normal`).
+
+**Les contrôles négatifs.** Vingt-cinq fautes (`neg-n7b.py`, hors dépôt), une à la fois, contre `materiel-cas PB-264`
+en mode matériel (et PB-56) : vingt-quatre rougissent — aucun non normal (22 échecs), FLD m32 et m64 d'un dénormal
+normalisé (4 ; 2, PB-56 2), l'addition normalisée (2), l'exposant du produit d'un de plus (8), le décalage normalisé du
+quotient (2), la division par un dénormal calculée (le harnais s'arrête), le pseudo-zéro rendu zéro vrai (2), la
+petitesse d'un cran trop bas (2), le plus grand fini au lieu du significande non normal (table 1-11, 2), FSQRT d'un
+dénormal calculée (2), FSQRT de +∞ et ∞ + ∞ en projectif (2 et 2), FCOM d'un non normal sans DE (2) ou non normalisé (4),
+FST m32 d'un non normal converti (2), FIST d'un dénormal (2), FXTRACT et FSCALE normalisés (2 et 2), FPREM par un non
+normal (2), l'addition non normalisée quand le plus grand opérande est normal (2), et après la contre-lecture le zéro
+d'un non normal divisé par un zéro vrai (4), zéro et pseudo-zéro selon l'ordre (2), l'échelle de FSCALE bornée sur
+l'exposant d'un ST(1) non normal (2) ; le témoin vert. Cinq restaient
+vertes au premier passage, mes cas ne touchant pas leur chemin (FST au-dessus de la frontière, FXTRACT et FSCALE d'un
+dénormal, FPREM par un non normal, FRNDINT d'un non normal qui s'arrondit à un entier non normal) : quatre cas neufs les
+font rougir ; la cinquième, FRNDINT sans la normalisation, reste verte et le dit : `extF80_roundToInt` de SoftFloat
+normalise déjà une entrée dont J = 0 ; la normalisation du noyau, redondante, écrit la règle de la table 1-9.
+
+**La contre-lecture** (Sonnet) : une sonde hors dépôt sur 226 valeurs (non normaux, dénormaux, pseudo-dénormaux,
+pseudo-zéros, zéros, normaux extrêmes, infinis, NaN), au carré, les quatre RC, les trois PC, IC 0 et 1, environ 200 000
+combinaisons par coprocesseur, contre un oracle exact en rationnels : aucun plantage, la valeur arrondie, le sens des
+RC dirigés, PE, UE et OE justes ; les opérations à un opérande, les formes inverses et dépilées, seize mots de contrôle :
+aucun plantage ; le 287XL, le 387 et le 486, HEAD et l'arbre chargés côte à côte, 15 390 600 opérations : identiques
+octet pour octet. Repris : la division d'un non normal par un zéro vrai, qui rendait un zéro sans exception (ZE et ±∞,
+IE pour un pseudo-zéro) ; zéro vrai + pseudo-zéro, qui dépendait de l'ordre ; l'échelle de FSCALE, bornée à 2^20 sur
+l'exposant d'un ST(1) non normal sans regarder sa valeur (`tronque`, sur le bit de tête) ; cinq cas, trois fautes ;
+une phrase contradictoire de PB-59 (FST d'un dénormal) et la doc de `fst_f32` ; l'exposant de travail du dépassement,
+dit ; le pseudo-zéro divisé et l'arrondi PC qui rend un pseudo-zéro, dits ; une étiquette (2^−256). Doutes laissés,
+dits : le pseudo-zéro de FIST (IE, table 1-17, contre +0, table 1-10) et de FST (sa valeur ou son champ exposant).
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n7a : 1 130 méthodes, aucune changée, apparue ni disparue
+(N7b ne touche que le noyau, que le mode PCem n'exécute pas).
+
+**La série** (`g7n7b`, le 12/10, 04:49 → 06:00, contre `g7n7a`) : 481 portes, toutes vertes, les mêmes ; seul
+`recensement` change, 1074 marqueurs au lieu de 1070. Les cas de `NonNormaux` courent sous `materiel-cas-pb264-materiel`
+et `materiel-cas-pb264-acheminement`, déjà portes.

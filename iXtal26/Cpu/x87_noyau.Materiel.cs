@@ -29,6 +29,7 @@
 // FNSTSW et FNSTCW les lisent. Les registres, les étiquettes et les pointeurs sont ici ; cpu_state.ST et cpu_state.tag
 // ne servent plus.
 
+using System.Numerics;
 using iXtal26.SoftFloat;
 using static iXtal26.Cpu._386_common;
 
@@ -116,7 +117,7 @@ internal static class _x87_noyau
 
     /// <summary>Un format que le 387 et le 486 ne supportent plus (387 PRM § 3.1.7 : « pseudozeros, pseudo-NaNs,
     /// pseudoinfinities, and unnormal numbers ») : un opérande invalide (IE). Le pseudo-dénormal reste un opérande,
-    /// dénormal (DE). Le 287XL, un cœur de 387 : déduit. Le 8087 et le 287 calculent sur un non normal : N7.</summary>
+    /// dénormal (DE). Le 287XL, un cœur de 387 : déduit. Le 8087 et le 287 calculent sur un non normal (non_normal_seize).</summary>
     internal static bool non_supporte(Classe c) =>
         cpu_c.fpu_type >= cpu_c.FPU_287XL && c is Classe.NonNormal or Classe.PseudoInfini or Classe.PseudoNaN;
 
@@ -439,6 +440,263 @@ internal static class _x87_noyau
         return lever(DE);
     }
 
+    // ===== Le 8087 et le 287 : les non normaux (N7b) =====
+    //
+    // Le 8087 et le 287 calculent sur un non normal (un exposant ni nul ni maximal, J = 0 ; le pseudo-zéro, son
+    // significande nul, en est un) au lieu de le refuser, et convertissent un dénormal en son non normal équivalent,
+    // l'exposant de 1 (−16382) et le même significande (287 PRM, « Unnormals—Descendents of Denormal Operands », tables
+    // 1-8, 1-9 et 1-17) : « unnormal operands generate unnormal results, so long as their unnormality has a significant
+    // effect on the result ». Leur chemin de données n'est pas décrit au bit près : le noyau calcule la valeur exacte de
+    // l'opération et la range à l'exposant que la table 1-9 lui donne, sans la normaliser (ranger_seize) ; l'alignement
+    // réel des opérandes et ses bits de garde sont inconnus.
+
+    /// <summary>Sur le 8087 et le 287, un opérande de l'arithmétique des non normaux : un non normal (le pseudo-zéro
+    /// compris) ou un dénormal (l'exposant nul, J compris : 287 PRM, annexe C, point 1).</summary>
+    private static bool non_normal_seize(Classe c) =>
+        seize_bits() && c is Classe.NonNormal or Classe.Denormal or Classe.PseudoDenormal;
+
+    /// <summary>Un fini tel qu'il est : le signe, l'exposant sans biais, le significande sans normalisation ; un exposant
+    /// nul vaut 1, le non normal équivalent du dénormal (287 PRM, table 1-8).</summary>
+    private static (bool s, int e, uint64_t m) brut80(in extFloat80_t v)
+    {
+        var f = v.signExp & 0x7FFF;
+        return ((v.signExp & 0x8000) != 0, (f == 0 ? 1 : f) - 0x3FFF, v.signif);
+    }
+
+    /// <summary>La valeur d'un non normal ou d'un dénormal, normalisée exactement (le plus possible : un dénormal au
+    /// besoin) ; un pseudo-zéro devient le zéro de son signe. « Normalize as much as possible » (287 PRM, table 1-9).</summary>
+    private static extFloat80_t normal80(in extFloat80_t v)
+    {
+        var (s, e, m) = brut80(v);
+        var signe = (uint16_t)(s ? 0x8000 : 0);
+        if (m == 0)
+                return new extFloat80_t { signExp = signe };
+        var d = Math.Min(System.Numerics.BitOperations.LeadingZeroCount(m), e + 16382);
+        m <<= d;
+        e -= d;
+        return new extFloat80_t { signExp = (uint16_t)(signe | ((m >> 63) != 0 ? e + 0x3FFF : 0)), signif = m };
+    }
+
+    /// <summary>Un opérande du 8087 et du 287 tel que SoftFloat le prend : normalisé s'il est non normal ou dénormal.</summary>
+    private static extFloat80_t pour_softfloat(in extFloat80_t v) => non_normal_seize(classe(v)) ? normal80(v) : v;
+
+    // pcem bug, fixed in hardware mode: PB-59 — ranger_seize : la valeur exacte s × num / den × 2^k (num > 0), rangée à
+    //   l'exposant de travail `er` imposé (le significande, ses bits au-dessus de 2^(er − 63), sans normaliser : un non
+    //   normal reste non normal), arrondi selon RC et PC (24, 53 ou 64 bits comptés depuis le bit 63), une retenue
+    //   montant er d'un. Petit, er sous −16382 (« exponent of true result < −16,382 », table 1-17) : masquée, la valeur
+    //   dénormalisée jusqu'à −16382 et arrondie, UE si inexacte ou vers zéro (seize_depassement) ; démasquée, tronquée,
+    //   l'exposant décalé de 24 576, sans PE (387 PRM, annexe C § C.2). Au-delà de 16383 : masquée, l'infini au plus près
+    //   et vers zéro, OE et PE ; dirigée, l'infini du côté de l'arrondi, OE et PE, sinon le plus grand exposant avec le
+    //   significande du résultat, tronqué, normal ou non, PE sans OE (287 PRM, table 1-11) ; démasquée, tronquée, décalée,
+    //   sans PE. Un significande arrondi à zéro, hors de la petitesse : un pseudo-zéro (287 PRM : « A pseudo zero result
+    //   will be produced if two unnormals [...] are multiplied together »). Les indicateurs vont à SoftFloat ; C1 n'est
+    //   pas posé (indéfini sur le 8087 et le 287).
+    private static extFloat80_t ranger_seize(bool s, BigInteger num, BigInteger den, int k, int er, bool selonPc)
+    {
+        ModeMateriel.Sonde[59]++;
+        var p = !selonPc ? 64 : softfloat.extF80_roundingPrecision switch { 32 => 24, 64 => 53, _ => 64 };
+        var signe = (uint16_t)(s ? 0x8000 : 0);
+        var mode = softfloat.softfloat_roundingMode;
+        var petitVrai = er < -16382;
+        if (petitVrai && masquee(UE))
+        {
+                var (m, e, inexact) = arrondir_a(s, num, den, k, -16382, p, mode);
+                var f = softfloat.softfloat_exceptionFlags;
+                if (inexact || mode == softfloat.softfloat_round_minMag)
+                        f |= softfloat.softfloat_flag_underflow;
+                if (inexact)
+                        f |= softfloat.softfloat_flag_inexact;
+                softfloat.softfloat_exceptionFlags = f;
+                if (m == 0)
+                        return new extFloat80_t { signExp = signe };
+                return new extFloat80_t { signExp = (uint16_t)(signe | ((m >> 63) != 0 ? e + 0x3FFF : 0)), signif = m };
+        }
+        if (petitVrai)
+        {
+                var (m, e, _) = arrondir_a(s, num, den, k, er, p, softfloat.softfloat_round_minMag);
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+                e += 0x6000;
+                if (e + 0x3FFF <= 0)
+                {
+                        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_inexact;
+                        return new extFloat80_t { signExp = signe };
+                }
+                return new extFloat80_t { signExp = (uint16_t)(signe | (e + 0x3FFF)), signif = m };
+        }
+        var (mr, er2, inex) = arrondir_a(s, num, den, k, er, p, mode);
+        if (er2 > 16383)
+        {
+                if (!masquee(OE))
+                {
+                        var (m, e, _) = arrondir_a(s, num, den, k, er, p, softfloat.softfloat_round_minMag);
+                        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_overflow;
+                        e -= 0x6000;
+                        if (e > 16383)
+                        {
+                                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_inexact;
+                                return infini(s);
+                        }
+                        return new extFloat80_t { signExp = (uint16_t)(signe | (e + 0x3FFF)), signif = m };
+                }
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_inexact;
+                var versInfini = mode == softfloat.softfloat_round_near_even || mode == softfloat.softfloat_round_minMag ||
+                                 mode == (s ? softfloat.softfloat_round_min : softfloat.softfloat_round_max);
+                if (versInfini)
+                {
+                        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_overflow;
+                        return infini(s);
+                }
+                var (mt, _, _) = arrondir_a(s, num, den, k, er, p, softfloat.softfloat_round_minMag);
+                var masque = ~((1UL << (64 - p)) - 1);
+                var sig = (mt >> 63) != 0 ? masque : mt;
+                return new extFloat80_t { signExp = (uint16_t)(signe | 0x7FFE), signif = sig };
+        }
+        if (inex)
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_inexact;
+        return new extFloat80_t { signExp = (uint16_t)(signe | (er2 + 0x3FFF)), signif = mr };
+    }
+
+    /// <summary>num / den × 2^k en unités de 2^(er − 63), arrondi selon `mode` à p bits comptés depuis le bit 63 ; une
+    /// retenue au-delà du bit 63 décale d'un et monte er. Rend le significande, l'exposant et l'inexactitude.</summary>
+    private static (uint64_t m, int e, bool inexact) arrondir_a(bool s, BigInteger num, BigInteger den, int k, int er, int p,
+                                                              uint8_t mode)
+    {
+        var sh = k - er + 63;
+        BigInteger n = num, d = den;
+        if (sh >= 0)
+                n <<= sh;
+        else
+                d <<= -sh;
+        var du = d << (64 - p);
+        var q = BigInteger.DivRem(n, du, out var reste);
+        var inexact = !reste.IsZero;
+        var plus = mode switch
+        {
+                softfloat.softfloat_round_near_even => reste * 2 > du || reste * 2 == du && !q.IsEven,
+                softfloat.softfloat_round_min => inexact && s,
+                softfloat.softfloat_round_max => inexact && !s,
+                _ => false,
+        };
+        if (plus)
+                q += 1;
+        var m = q << (64 - p);
+        if (m >= BigInteger.One << 64)
+        {
+                m >>= 1;
+                er++;
+        }
+        return ((uint64_t)m, er, inexact);
+    }
+
+    private static BigInteger grand(uint64_t m) => new(m);
+
+    // pcem bug, fixed in hardware mode: PB-59 — les quatre opérations du 8087 et du 287 sur un non normal ou un dénormal
+    //   (287 PRM, tables 1-8, 1-9 et 1-17), `a op b`, aucun NaN ni infini : la division par un non normal ou un dénormal
+    //   (le pseudo-zéro compris), IE et l'indéfini ; l'addition et la soustraction, rangées à l'exposant le plus grand
+    //   des opérandes non nuls (un de plus sur une retenue), si l'opérande de plus grande valeur absolue est non normal,
+    //   et normalisées, l'opération de SoftFloat sur les valeurs, s'il est normal (« Normalization of operand with
+    //   larger absolute value determines normalization of result ») ; la multiplication, non normale (« If either operand
+    //   is unnormal, result is unnormal ») : l'exposant de la somme des exposants, un de plus si le produit des
+    //   significandes dépasse 2^127 ; la division d'un dividende non normal (le diviseur normal) : l'exposant de la
+    //   différence, sans le décalage d'une division normalisée, le quotient gardant ses zéros de tête (« Result is
+    //   unnormal »). Un zéro vrai rend le zéro de l'opération ; un résultat nul d'un
+    //   pseudo-zéro, un pseudo-zéro (un pseudo-zéro divisé par un normal aussi : le 287 PRM, ambigu, pourrait vouloir un
+    //   zéro vrai) ; une somme exactement nulle, le zéro vrai du signe d'IEEE 754 (287 PRM, table 1-10). La division par
+    //   un zéro vrai et les infinis prennent le chemin ordinaire (chemin_seize). Le dépassement et la petitesse se
+    //   jugent sur l'exposant de travail, celui du registre (« exponent of true result ») ; un arrondi à PC sous 64 bits
+    //   peut rendre un pseudo-zéro (non décrit).
+    //   DE pour un dénormal, l'opération faite. Rend vrai si l'instruction s'arrête.
+    private static bool arith_seize(int k, in extFloat80_t a, in extFloat80_t b, bool den, out extFloat80_t r)
+    {
+        Classe ca = classe(a), cb = classe(b);
+        r = Indefini;
+        if (k == DIV && non_normal_seize(cb))
+        {
+                ModeMateriel.Sonde[59]++;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                return indicateurs();
+        }
+        var (sa, ea, ma) = brut80(a);
+        var (sb, eb, mb) = brut80(b);
+        if (k == SUB)
+                sb = !sb;
+        if (k is ADD or SUB)
+        {
+                var lo = Math.Min(ca == Classe.Zero ? eb : ea, cb == Classe.Zero ? ea : eb);
+                var va = grand(ma) << (ea - lo);
+                var vb = grand(mb) << (eb - lo);
+                var somme = (sa ? -va : va) + (sb ? -vb : vb);
+                var er = Math.Max(ca == Classe.Zero ? int.MinValue : ea, cb == Classe.Zero ? int.MinValue : eb);
+                if (somme.IsZero)
+                {
+                        var neg = sa == sb ? sa : softfloat.softfloat_roundingMode == softfloat.softfloat_round_min;
+                        r = ma == 0 && mb == 0 ? pseudo_zero(neg, er) : zero(neg);
+                }
+                else
+                {
+                        var neg = somme.Sign < 0;
+                        var abs = BigInteger.Abs(somme);
+                        if (abs >= BigInteger.One << (er - lo + 64))
+                                er++;
+                        r = ranger_seize(neg, abs, BigInteger.One, lo - 63, er, true);
+                }
+        }
+        else if (ca == Classe.Zero || cb == Classe.Zero)
+                r = zero(sa != sb);
+        else if (k == MUL)
+        {
+                var prod = grand(ma) * grand(mb);
+                var er = ea + eb + (prod >= BigInteger.One << 127 ? 1 : 0);
+                r = prod.IsZero ? pseudo_zero(sa != sb, er) : ranger_seize(sa != sb, prod, BigInteger.One, ea + eb - 126, er, true);
+        }
+        else
+        {
+                var er = ea - eb;
+                r = ma == 0 ? pseudo_zero(sa != sb, er) : ranger_seize(sa != sb, grand(ma), grand(mb), ea - eb, er, true);
+        }
+        if ((den || denormal(ca) || denormal(cb)) && lever(DE))
+                return true;
+        return indicateurs();
+    }
+
+    /// <summary>Le pseudo-zéro d'exposant `er` (sans biais), le zéro vrai si l'exposant sort de la plage.</summary>
+    private static extFloat80_t pseudo_zero(bool neg, int er)
+    {
+        var f = er + 0x3FFF;
+        return new extFloat80_t { signExp = (uint16_t)((neg ? 0x8000 : 0) | (f is > 0 and < 0x7FFF ? f : 0)) };
+    }
+
+    /// <summary>Vrai si `a op b` prend le chemin des non normaux (arith_seize) : un opérande non normal ou dénormal sur le
+    /// 8087 ou le 287, aucun NaN ni infini, et, pour l'addition et la soustraction, l'opérande de plus grande valeur
+    /// absolue non normal (sinon, les valeurs normalisées par le chemin ordinaire) ; la division par un non normal,
+    /// toujours (IE).</summary>
+    private static bool chemin_seize(int k, in extFloat80_t a, in extFloat80_t b)
+    {
+        Classe ca = classe(a), cb = classe(b);
+        if (!non_normal_seize(ca) && !non_normal_seize(cb))
+                return false;
+        if (k == DIV && non_normal_seize(cb))
+                return true;
+        // Un infini, ou la division par un zéro vrai (ZE et ±∞ ; IE pour un pseudo-zéro, 0 ÷ 0) : le chemin ordinaire.
+        if (ca == Classe.Infini || cb == Classe.Infini || k == DIV && cb == Classe.Zero)
+                return false;
+        if (k is MUL or DIV)
+                return true;
+        if (ca == Classe.Zero && cb == Classe.Zero)
+                return false;
+        var (_, ea, ma) = brut80(a);
+        var (_, eb, mb) = brut80(b);
+        var lo = Math.Min(ca == Classe.Zero ? eb : ea, cb == Classe.Zero ? ea : eb);
+        var va = grand(ma) << (ea - lo);
+        var vb = grand(mb) << (eb - lo);
+        // À égalité de valeur absolue, le chemin ne dépend pas de l'ordre : deux valeurs nulles (un zéro vrai et un
+        // pseudo-zéro, ou deux pseudo-zéros) le prennent (le pseudo-zéro « behaves like unnormals », 287 PRM, « Zeros and
+        // pseudo zeros ») ; sinon, un normal l'emporte (inconnu).
+        if (va == vb)
+                return va.IsZero || non_normal_seize(ca) && non_normal_seize(cb);
+        return non_normal_seize(va > vb ? ca : cb);
+    }
+
     // ===== Les mouvements de données (N3a) =====
     //
     // Chaque fonction est le cœur d'une instruction : le gestionnaire généré lit ou écrit la mémoire, elle fait le reste.
@@ -467,8 +725,8 @@ internal static class _x87_noyau
     //   8087 et le 287 ne lèvent rien sur un SNaN (SDM vol. 3, 2016, § 22.18.7.11) ; la valeur qu'ils chargent est
     //   inconnue : ses bits, étendus sans le rendre silencieux. DE démasquée les arrête avant toute écriture, pile comprise
     //   (287 PRM, « Simultaneous Exception Response » et table 3-2 ; manuel de l'iAPX 86/88, 1981 : une exception
-    //   « detected before an operation begins » laisse la pile et la mémoire ; PB-59, N7a). Leurs dénormaux chargés en
-    //   non normaux : N7b.
+    //   « detected before an operation begins » laisse la pile et la mémoire ; PB-59, N7a). Leurs dénormaux se chargent en
+    //   non normaux (non_normal_f32, N7b).
     internal static void fld_f32(uint32_t v)
     {
         c1_zero();
@@ -488,7 +746,7 @@ internal static class _x87_noyau
                 return;
         }
         softfloat.softfloat_exceptionFlags = 0;
-        var r = softfloat.f32_to_extF80(new float32_t { v = v });
+        var r = non_normal_f32(v) ?? softfloat.f32_to_extF80(new float32_t { v = v });
         uint16_t e = 0;
         if ((softfloat.softfloat_exceptionFlags & softfloat.softfloat_flag_invalid) != 0)
         {
@@ -523,7 +781,7 @@ internal static class _x87_noyau
                 return;
         }
         softfloat.softfloat_exceptionFlags = 0;
-        var r = softfloat.f64_to_extF80(new float64_t { v = v });
+        var r = non_normal_f64(v) ?? softfloat.f64_to_extF80(new float64_t { v = v });
         uint16_t e = 0;
         if ((softfloat.softfloat_exceptionFlags & softfloat.softfloat_flag_invalid) != 0)
         {
@@ -713,7 +971,8 @@ internal static class _x87_noyau
         return false;
     }
 
-    /// <summary>FST et FSTP m32 et m64 : arrondis selon RC (PC n'y joue pas), DE pour une source dénormale, puis O, U, P
+    /// <summary>FST et FSTP m32 et m64 : arrondis selon RC (PC n'y joue pas), DE pour une source dénormale (pas sur le
+    /// 8087 et le 287 : st_non_normal), puis O, U, P
     /// et C1 (l'arrondi vers le haut) ; un SNaN, IE et le QNaN. Rend vrai si l'instruction s'arrête, sans rien
     /// ranger : IE, DE, et OE ou UE démasquées (indicateurs, la destination en mémoire ; UE démasquée pour un résultat
     /// petit, même exact : 387 PRM § 3.2.5.2).</summary>
@@ -722,9 +981,14 @@ internal static class _x87_noyau
         r = 0;
         if (source(out var v, out var ns))
                 return true;
-        if (classe(v) is Classe.Denormal or Classe.PseudoDenormal && lever(DE))
+        if (!seize_bits() && classe(v) is Classe.Denormal or Classe.PseudoDenormal && lever(DE))
                 return true;
         arrondi(false);
+        if (st_non_normal(ref v, -126))
+        {
+                r = 0xFFC00000;
+                return indicateurs(true);
+        }
         r = softfloat.extF80_to_f32(v).v;
         if (ns)
                 softfloat.softfloat_exceptionFlags = 0;
@@ -745,9 +1009,14 @@ internal static class _x87_noyau
         r = 0;
         if (source(out var v, out var ns))
                 return true;
-        if (classe(v) is Classe.Denormal or Classe.PseudoDenormal && lever(DE))
+        if (!seize_bits() && classe(v) is Classe.Denormal or Classe.PseudoDenormal && lever(DE))
                 return true;
         arrondi(false);
+        if (st_non_normal(ref v, -1022))
+        {
+                r = 0xFFF8000000000000;
+                return indicateurs(true);
+        }
         r = softfloat.extF80_to_f64(v).v;
         if (ns)
                 softfloat.softfloat_exceptionFlags = 0;
@@ -759,6 +1028,28 @@ internal static class _x87_noyau
                 seize_memoire(v, ref r, ref se, 11, 52);
         }
         return indicateurs(true);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-59 — FST et FSTP m32 et m64 d'un non normal sur le 8087 et le 287 (287 PRM, table
+    //   1-9 : « If value is above destination's underflow boundary, then signal invalid operation; else signal
+    //   underflow » ; table 1-17 : « Store real indefinite ») : au-dessus de 2^emin du format, IE, et l'indéfini (vrai, la
+    //   destination s'en charge) ; au-dessous, la valeur normalisée, convertie, UE levée (le pseudo-zéro, de valeur
+    //   nulle, compris : son zéro). Un dénormal du registre n'y lève pas DE (les tables 1-8 et 1-17 ne la nomment pas
+    //   pour FST : déduit), et se convertit comme le 387 le ferait. Après arrondi.
+    private static bool st_non_normal(ref extFloat80_t v, int emin)
+    {
+        if (!seize_bits() || classe(v) != Classe.NonNormal)
+                return false;
+        ModeMateriel.Sonde[59]++;
+        var (_, e, m) = brut80(v);
+        if (m != 0 && e - System.Numerics.BitOperations.LeadingZeroCount(m) >= emin)
+        {
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_invalid;
+                return true;
+        }
+        v = normal80(v);
+        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+        return false;
     }
 
     /// <summary>FST m32 et m64 sur le 8087 et le 287 : IE pour un NaN (nan_de_seize, PB-60 ; la valeur rangée, celle de
@@ -790,13 +1081,22 @@ internal static class _x87_noyau
     //   NaN ou un infini : IE, et masquée l'indéfini entier, 8000h, 80000000h ou 8000000000000000h (SDM vol. 2,
     //   FIST/FISTP ; 387 PRM § 3.1.4, table 3-6) ; inexact, PE et C1 (l'arrondi vers le haut). `bits` : 16, 32 ou 64.
     //   Le 8087 et le 287 rangent l'indéfini, IE, pour un dénormal ou un non normal (287 PRM, table 1-17 ; 387 PRM,
-    //   annexe C) : N7.
+    //   annexe C ; N7b).
     internal static bool fist(int bits, out int64_t r)
     {
         r = 0;
         if (source(out var v, out _))
                 return true;
         arrondi(false);
+        if (non_normal_seize(classe(v)))
+        {
+                // Le 8087 et le 287 : FIST et FISTP d'un dénormal ou d'un non normal, IE et l'indéfini entier (287 PRM,
+                // tables 1-9 et 1-17 ; 387 PRM, annexe C § C.4 ; PB-59).
+                ModeMateriel.Sonde[59]++;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                r = bits == 16 ? short.MinValue : bits == 32 ? int.MinValue : long.MinValue;
+                return indicateurs();
+        }
         var mode = softfloat.softfloat_roundingMode;
         if (bits == 64)
                 r = softfloat.extF80_to_i64(v, mode, true);
@@ -818,7 +1118,7 @@ internal static class _x87_noyau
     // pcem bug, fixed in hardware mode: PB-195 — FBSTP : ST(0) arrondi à l'entier selon RC (PE, C1), puis dix-huit
     //   chiffres et le signe ; au-delà de 10^18 − 1, un NaN ou un infini : IE, et masquée l'indéfini BCD, FFFF C000 0000
     //   0000 0000h (SDM vol. 1, 2003, § 4.7 ; le 387 PRM, table 3-7, n'en fixe que les deux octets hauts). Un zéro garde
-    //   son signe (déduit, comme FIST : 387 PRM § 4.3.6). Le 8087 et le 287, sur un dénormal : comme FIST, N7. Rend vrai
+    //   son signe (déduit, comme FIST : 387 PRM § 4.3.6). Le 8087 et le 287, sur un dénormal ou un non normal : comme FIST (N7b). Rend vrai
     //   si l'instruction s'arrête, sans rien ranger.
     internal static bool fbstp(out uint64_t bas, out uint16_t haut)
     {
@@ -829,7 +1129,8 @@ internal static class _x87_noyau
                 return true;
         arrondi(false);
         var c = classe(v);
-        if (ns || c is Classe.QNaN or Classe.SNaN or Classe.Infini)
+        // Le 8087 et le 287 : FBSTP d'un dénormal ou d'un non normal, IE et l'indéfini BCD (287 PRM, table 1-17 ; PB-59).
+        if (ns || c is Classe.QNaN or Classe.SNaN or Classe.Infini || non_normal_seize(c))
         {
                 softfloat.softfloat_exceptionFlags = ns ? (byte)0 : softfloat.softfloat_flag_invalid;
                 return indicateurs();
@@ -1150,8 +1451,9 @@ internal static class _x87_noyau
     //   « non vide », et recalculent celle d'un registre non vide de son contenu (SDM vol. 1, 2003, § 8.1.6 : « the x87
     //   FPU reads the actual value in the data register and sets the tag for the register accordingly » ; le 287XL :
     //   déduit). Le 8087 et le 287 gardent les étiquettes de l'image (387 PRM, annexe C § C.3 : « the 80287/8087, in
-    //   this case, honors the tag and does not examine the register ») ; qu'ils s'y fient ensuite pour classer
-    //   l'opérande de chaque instruction : N7b.
+    //   this case, honors the tag and does not examine the register »). Qu'ils s'y fient ensuite pour classer l'opérande
+    //   de chaque instruction est documenté, mais pas ce qu'ils font d'un contenu que l'étiquette contredit (quelle
+    //   classe, par exemple, pour « spécial » sur un normal ?) : inconnu, le noyau examine le contenu (c).
     private static void etiquettes_chargees(uint16_t tw)
     {
         if (cpu_c.fpu_type < cpu_c.FPU_287XL)
@@ -1179,8 +1481,8 @@ internal static class _x87_noyau
     // produire ; le dépassement, par excès ou par défaut ; la précision. Les premières sont « detected before a
     // floating-point operation begins » : démasquées, la destination reste intacte. RC et PC règlent l'arrondi
     // (arrondi(true)) : PB-48 et la précision de PB-56. Le 8087 et le 287 : DE démasquée avant les autres, IE pour tout
-    // NaN, leurs dépassements (N7a, plus haut) ; l'infini projectif dans l'arithmétique, leurs non normaux, IE pour un
-    // diviseur dénormal ou non normal et pour la racine d'un dénormal (287 PRM, table 1-17) : N7b.
+    // NaN, leurs dépassements (N7a, plus haut) ; leurs non normaux (arith_seize, N7b) ; l'infini projectif dans
+    // l'addition et la soustraction (PB-70).
 
     internal const int ADD = 0, MUL = 1, SUB = 2, DIV = 3;
 
@@ -1196,7 +1498,7 @@ internal static class _x87_noyau
                         signExp = (uint16_t)((v >> 16 & 0x8000) | 0x7FFF),
                         signif = 0x8000000000000000 | (uint64_t)(v & 0x007FFFFF) << 40,
                 };
-        return softfloat.f32_to_extF80(new float32_t { v = v });
+        return non_normal_f32(v) ?? softfloat.f32_to_extF80(new float32_t { v = v });
     }
 
     /// <summary>Un opérande m64 en 80 bits, comme de_f32.</summary>
@@ -1209,7 +1511,27 @@ internal static class _x87_noyau
                         signExp = (uint16_t)((v >> 48 & 0x8000) | 0x7FFF),
                         signif = 0x8000000000000000 | (v & 0x000FFFFFFFFFFFFF) << 11,
                 };
-        return softfloat.f64_to_extF80(new float64_t { v = v });
+        return non_normal_f64(v) ?? softfloat.f64_to_extF80(new float64_t { v = v });
+    }
+
+    // pcem bug, fixed in hardware mode: PB-59 — le 8087 et le 287 chargent un dénormal de 32 ou de 64 bits en son non normal
+    //   équivalent (387 PRM, annexe C § C.4 : « Loading a denormal causes the number to be converted to an unnormal » ;
+    //   287 PRM, table 1-8 : « Load as equivalent unnormal »), en FLD comme en opérande d'une opération : l'exposant
+    //   minimal du format (−126, −1022), le significande décalé tel quel, J = 0 ; null ailleurs.
+    private static extFloat80_t? non_normal_f32(uint32_t v)
+    {
+        if (!seize_bits() || (v & 0x7F800000) != 0 || (v & 0x007FFFFF) == 0)
+                return null;
+        ModeMateriel.Sonde[59]++;
+        return new extFloat80_t { signExp = (uint16_t)((v >> 16 & 0x8000) | (0x3FFF - 126)), signif = (uint64_t)(v & 0x007FFFFF) << 40 };
+    }
+
+    private static extFloat80_t? non_normal_f64(uint64_t v)
+    {
+        if (!seize_bits() || (v & 0x7FF0000000000000) != 0 || (v & 0x000FFFFFFFFFFFFF) == 0)
+                return null;
+        ModeMateriel.Sonde[59]++;
+        return new extFloat80_t { signExp = (uint16_t)((v >> 48 & 0x8000) | (0x3FFF - 1022)), signif = (v & 0x000FFFFFFFFFFFFF) << 11 };
     }
 
     /// <summary>Un entier m16 ou m32 en 80 bits, exact (FIADD et ses voisines, FICOM).</summary>
@@ -1247,7 +1569,23 @@ internal static class _x87_noyau
                 r = nan_de_seize(a, b);
                 return indicateurs();
         }
-        r = calcul(k, a, b);
+        if (projectif() && k is ADD or SUB && ca == Classe.Infini && cb == Classe.Infini)
+        {
+                // PB-70 — en projectif, ∞ ± ∞, quels que soient les signes : IE et l'indéfini (287 PRM, table 1-12).
+                ModeMateriel.Sonde[70]++;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                return indicateurs();
+        }
+        if (chemin_seize(k, a, b))
+                return arith_seize(k, a, b, den, out r);
+        // Le 8087 et le 287, l'opérande le plus grand normal, ou un infini : les valeurs, normalisées, au chemin ordinaire.
+        extFloat80_t x = a, y = b;
+        if (seize_bits())
+        {
+                x = pour_softfloat(a);
+                y = pour_softfloat(b);
+        }
+        r = calcul(k, x, y);
         ModeMateriel.Sonde[48]++;
         if (nan(ca) || nan(cb))
                 ModeMateriel.Sonde[60]++;
@@ -1263,7 +1601,7 @@ internal static class _x87_noyau
                 softfloat.softfloat_roundingMode = softfloat.softfloat_round_minMag;
                 softfloat.extF80_roundingPrecision = 80;
                 softfloat.softfloat_exceptionFlags = 0;
-                r = calcul(k, a, b);
+                r = calcul(k, x, y);
                 softfloat.softfloat_exceptionFlags = (byte)((f | softfloat.softfloat_exceptionFlags) & ~softfloat.softfloat_flag_inexact);
                 softfloat.softfloat_roundingMode = mode;
                 softfloat.extF80_roundingPrecision = bits;
@@ -1328,7 +1666,7 @@ internal static class _x87_noyau
 
     /// <summary>FSQRT : la racine de ST(0), arrondie selon RC et PC ; un négatif non nul, −∞ compris, IE et
     /// l'indéfini ; −0 rend −0 (SDM vol. 2, FSQRT). Le 8087 et le 287 : DE démasquée d'abord, IE pour tout NaN (N7a) ;
-    /// +∞ en projectif, un dénormal : N7b.</summary>
+    /// un non normal, un dénormal et +∞ en projectif, IE (N7b).</summary>
     internal static void fsqrt()
     {
         var faute = vide(0);
@@ -1351,6 +1689,14 @@ internal static class _x87_noyau
                 return;
         else if (seize_bits() && nan_seize(c))
                 r = nan_de_seize(x, x);
+        else if (non_normal_seize(c) || projectif() && c == Classe.Infini && !negatif(x))
+        {
+                // Le 8087 et le 287 : la racine d'un non normal ou d'un dénormal, et de +∞ en projectif, IE et l'indéfini
+                // (287 PRM, tables 1-9, 1-12 et 1-17 ; PB-59, PB-70).
+                ModeMateriel.Sonde[non_normal_seize(c) ? 59 : 70]++;
+                r = Indefini;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
         else
         {
                 r = softfloat.extF80_sqrt(x);
@@ -1386,7 +1732,10 @@ internal static class _x87_noyau
         Classe ca = classe(a), cb = classe(b);
         uint16_t cc;
         uint16_t e = 0;
-        if (de_d_abord(den || denormal(ca) || denormal(cb)))
+        // Le 8087 et le 287 lèvent DE pour un non normal comparé, le pseudo-zéro excepté (287 PRM, annexe C, point 3 ;
+        // table 1-17), et le comparent normalisé (table 1-9 : « Normalize as much as possible before making comparison »).
+        var nn = seize_bits() && (ca == Classe.NonNormal && a.signif != 0 || cb == Classe.NonNormal && b.signif != 0);
+        if (de_d_abord(den || denormal(ca) || denormal(cb) || nn))
                 return true;
         if (non_supporte(ca) || non_supporte(cb))
         {
@@ -1412,10 +1761,10 @@ internal static class _x87_noyau
         }
         else
         {
-                if (den || denormal(ca) || denormal(cb))
+                if (den || denormal(ca) || denormal(cb) || nn)
                         e = DE;
-                var ac = canonique(a);
-                var bc = canonique(b);
+                var ac = canonique(pour_softfloat(a));
+                var bc = canonique(pour_softfloat(b));
                 cc = softfloat.extF80_eq(ac, bc) ? x87_c.C3 : softfloat.extF80_lt_quiet(ac, bc) ? x87_c.C0 : (uint16_t)0;
         }
         if (e != 0 && lever(e))
@@ -1465,8 +1814,8 @@ internal static class _x87_noyau
     // Les exceptions (387 PRM, annexe B) : FRNDINT, IS, I, D et P ; FSCALE, IS, I, D, O, U et P ; FXTRACT, IS, I, D et Z ;
     // FPREM et FPREM1, IS, I, D et U — U masquée jamais : le reste est exact, et un reste dénormal exact ne lève pas UE
     // masquée ; démasquée, il la lève et se range à l'exposant décalé (indicateurs, N5). Ni PC ni, pour FPREM et FPREM1, RC n'y jouent (387 PRM § 4.4.9 et § 4.4.10 : « the
-    // 80387 produces an exact result »). Les cas des opérandes spéciaux : 387 PRM, tables 3-3 et 3-4. Le 8087 et le 287
-    // (FXTRACT d'un infini ou d'un zéro, le domaine de FSCALE, les codes de FPREM) : N7.
+    // 80387 produces an exact result »). Les cas des opérandes spéciaux : 387 PRM, tables 3-3 et 3-4. Le 8087 et le 287 :
+    // les fonctions le disent (N7a, N7b).
 
     /// <summary>Un opérande fini non nul, normalisé : le signe, l'exposant sans biais, le significande (bit 63 à 1) ;
     /// un dénormal ou un pseudo-dénormal (exposant nul) vaut 2^−16382 × 0,f.</summary>
@@ -1517,6 +1866,10 @@ internal static class _x87_noyau
                 r = nan_de_seize(x, x);
         else
         {
+                // Le 8087 et le 287 normalisent un non normal le plus possible avant d'arrondir, un pseudo-zéro rend son zéro
+                // (287 PRM, table 1-9 et « Zeros and pseudo zeros »).
+                if (non_normal_seize(c))
+                        x = normal80(x);
                 r = softfloat.extF80_roundToInt(x, softfloat.softfloat_roundingMode, true);
                 if (denormal(c) && lever(DE))
                         return;
@@ -1598,6 +1951,14 @@ internal static class _x87_noyau
                         return;
                 if (cx is Classe.Infini or Classe.Zero)
                         r = x;
+                else if (non_normal_seize(cx))
+                {
+                        // Le 8087 et le 287 ajoutent l'échelle à l'exposant, le significande gardé, non normal compris (287 PRM,
+                        // FSCALE : « adds this value to the exponent » ; déduit ; PB-198).
+                        var (s, e, m) = brut80(x);
+                        var n = tronque(y);
+                        r = m == 0 ? pseudo_zero(s, e + n) : ranger_seize(s, grand(m), BigInteger.One, e + n - 63, e + n, false);
+                }
                 else
                 {
                         var (s, e, m) = normaliser(x);
@@ -1616,9 +1977,11 @@ internal static class _x87_noyau
         if (classe(y) == Classe.Zero)
                 return 0;
         var (s, e, m) = normaliser(y);
-        if (e < 0)
+        // L'exposant du bit de tête : celui d'un non normal du 8087 et du 287 est sous son exposant.
+        var tete = m == 0 ? -1 : e - System.Numerics.BitOperations.LeadingZeroCount(m);
+        if (tete < 0)
                 return 0;
-        var n = e >= 20 ? 1 << 20 : (int)(m >> (63 - e));
+        var n = tete >= 20 ? 1 << 20 : (int)(e >= 63 ? m << (e - 63) : m >> (63 - e));
         return s ? -n : n;
     }
 
@@ -1629,7 +1992,7 @@ internal static class _x87_noyau
     //   l'indéfini aux deux ; un dénormal, DE, normalisé. Une faute de pile masquée : l'indéfini aux deux (inconnu). Le
     //   8087 et le 287 (387 PRM, annexe C § C.2 et § C.4 ; 287 PRM, FXTRACT et table 1-12) : un zéro rend deux zéros
     //   du signe de l'opérande, sans exception ; un infini, IE et l'indéfini aux deux ; un NaN, IE (nan_de_seize) ; ni
-    //   DE ni ZE. Le dénormal et le non normal, leur exposant et leur significande tels quels : N7b.
+    //   DE ni ZE ; le dénormal et le non normal, leur exposant et leur significande tels quels (N7b).
     internal static void fxtract()
     {
         c1_zero();
@@ -1671,6 +2034,16 @@ internal static class _x87_noyau
         {
                 ex = new extFloat80_t { signExp = 0x7FFF, signif = 0x8000000000000000 };
                 sig = x;
+        }
+        else if (non_normal_seize(c))
+        {
+                // Le 8087 et le 287 : l'exposant et le significande tels quels, le dénormal pris pour son non normal
+                // équivalent (287 PRM, FXTRACT : « its significand is identical to the original operand's » ; déduit pour
+                // le non normal et le dénormal ; PB-194).
+                ModeMateriel.Sonde[194]++;
+                var (s, e, m) = brut80(x);
+                ex = softfloat.i32_to_extF80(e);
+                sig = new extFloat80_t { signExp = (uint16_t)((s ? 0x8000 : 0) | 0x3FFF), signif = m };
         }
         else
         {
@@ -1724,7 +2097,16 @@ internal static class _x87_noyau
                 r = nan_de_seize(x, y);
                 invalide = true;
         }
-        // Un pseudo-zéro (exposant non nul, significande nul : le 8087 et le 287 le prennent, N7b) compte pour un zéro.
+        else if (non_normal_seize(cy) && cx != Classe.Infini)
+        {
+                // Le 8087 et le 287 : un modulo non normal ou dénormal, IE, l'indéfini, « complete remainder » (287 PRM,
+                // tables 1-9 et 1-17 ; PB-59).
+                ModeMateriel.Sonde[59]++;
+                r = Indefini;
+                invalide = true;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
+        // Un pseudo-zéro diviseur (exposant non nul, significande nul : le 8087 et le 287 le prennent) compte pour un zéro.
         else if (non_supporte(cx) || non_supporte(cy) ||
                  !nan(cx) && !nan(cy) && (cx == Classe.Infini || cy == Classe.Zero || cy != Classe.Infini && y.signif == 0))
         {
@@ -1739,6 +2121,12 @@ internal static class _x87_noyau
         {
                 if ((denormal(cx) || denormal(cy)) && lever(DE))
                         return;
+                // Le 8087 et le 287 : un dividende non normal ou dénormal rend un reste normalisé (287 PRM, table 1-9).
+                if (non_normal_seize(cx))
+                {
+                        x = normal80(x);
+                        cx = classe(x);
+                }
                 if (cx == Classe.Zero || x.signif == 0 || cy == Classe.Infini)
                         r = cx == Classe.Denormal ? exact(x) : x;
                 else
