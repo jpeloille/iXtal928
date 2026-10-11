@@ -9777,3 +9777,55 @@ code machine ne change pas.
 
 **La série** (`g7n8a`, le 12/10, 07:46 → 08:54, contre `g7n7c`) : 493 portes, toutes vertes, les mêmes ; seul
 `recensement` change, 1060 marqueurs au lieu de 1084.
+
+## G13.6, le noyau, N8b — les mesures, et la fin du noyau
+
+Le 12 octobre 2026. La dernière étape du noyau : elle ne change pas l'émulation, elle la mesure.
+
+**La couverture comptée** (`iXtal26.Diff x87-couverture`, neuf ; porte `x87-couverture`) : chaque fonction de la couche
+du noyau que les gestionnaires appellent (trente-cinq : les quatre opérations et leurs formes inverses et dépilées,
+FCOM et FUCOM, FSCALE, FPREM et FPREM1, FYL2X et FYL2XP1, FPATAN, FXCH, FSQRT, FRNDINT, FXTRACT, F2XM1, FSIN, FCOS,
+FPTAN, FSINCOS, FTST, FXAM, FCHS, FST de registre, FST m32 et m64, FSTP m80, FIST m16, m32 et m64, FBSTP, FLD m80, les
+constantes), jouée en C# seul sur une grille : vingt-trois valeurs de 80 bits de toutes les classes du format (les
+zéros, des normaux, les bords de la plage, le dénormal et le pseudo-dénormal, le non normal et le pseudo-zéro, les
+infinis, le QNaN, le SNaN, le pseudo-infini et le pseudo-NaN) et un registre vide, en un ou deux opérandes ; les
+quatre RC ; les trois PC ; les exceptions toutes masquées ou toutes démasquées ; les cinq coprocesseurs : 1 028 160
+combinaisons, en une demi-seconde. Sans oracle, chacune est jugée sur trois invariants : aucune exception de l'hôte ;
+l'étiquette de chaque registre non vide est celle de son contenu ; ES posé si et seulement si une exception démasquée
+est levée. Vert. Deux fautes injectées le rougissent : l'étiquette non mise à jour par `ecrire` (181 259 combinaisons),
+ES posé pour une exception masquée (328 782). Les valeurs, elles, sont jugées ailleurs : les cas de `materiel-cas`, le
+domaine d'accord, `x87-transc`.
+
+**La marge du `--timer-check`** (décision n° 7 : supérieure à 1 en mode matériel, sur un invité saturé de flottant). Une
+charge neuve, `--charge x87` (`TimerCheck.cs`) : la boucle interne de X87BANC (FLD m64 0,5, FPTAN, FDIVP, FSQRT, FMUL m64,
+FSTP m64, ses opérandes par CS:), écrite en RAM et sautée après l'amorçage, comme `--charge ram`. Release (le worktree
+de l'étape), 60 s émulées, en mode PCem puis sous `--hardware-mode tout` :
+
+| machine | marge, mode PCem | marge, mode matériel | instructions dans la fenêtre |
+|---|---|---|---|
+| AT, 286 + 287 (`ibmat-287`) | 61,6 | 47,6 | 2 478 829 |
+| 386DX + 387 (`ami386dx-387`) | 52,4 | 27,4 | 9 391 382 |
+| 486DX2/66 (`ami486-dx2`) | 42,3 | 7,4 | 60 465 020 |
+
+Le 486, le plus chargé (une instruction x87 toutes les quelques instructions, à 66 MHz), garde une marge de 7,4 : le
+noyau de 80 bits y coûte un facteur 5,7 sur un invité qui ne fait que du flottant, et tient le temps réel avec large
+réserve. Ce sont des mesures de l'hôte, non déterministes.
+
+**X87BANC aux mêmes temps** (les cycles restent ceux de PCem) : la ligne `EMPREINTE` du `--timer-check` — les tops du
+BIOS, les tranches, le TSC, les cycles consommés, les instructions — est identique, à l'unité près, entre le mode PCem
+et le mode matériel, sur les trois machines, sous la boucle même de X87BANC : le noyau calcule autrement, au même
+nombre de cycles. Le banc lui-même (tapé sous DEBUG par KeyScript, G4.7), qui compte des tics de l'INT 1Ah sur la même
+boucle, en rendrait donc le même compte ; il n'a pas été rejoué.
+
+**PCEM_BUGS** : relu pour le noyau (les vingt-cinq entrées corrigées par lui, les dix qu'il a reprises, PB-209, PB-210 et
+PB-266, restés reproduits) au fil des contre-lectures de N7a à N8a ; rien de neuf à y écrire.
+
+**Le noyau est clos.** Son sous-bloc (PLAN-G13.md, § G13.6, le noyau) est fait de N1 à N8 : un x87 de 80 bits sur
+SoftFloat 3e, pour le 8087, le 287, le 287XL, le 387 et le 486, au mode matériel, « tout » et le domaine x87, le mode
+PCem identique à M0 au code machine près, hors des écarts expliqués à chaque étape (M2).
+
+**La vérification** : l'étape ne change que de l'outillage et un verbe de l'hôte (`--timer-check`) ; pas de série
+entière, un sous-ensemble ciblé : `materiel-cas PB-03` dans les deux modes (son cas appelle `TimerCheck.Run`, dont la
+signature change), `materiel-mode`, `x87-couverture`, `materiel-cas PB-264` et `PB-204` sous `x87`, `recensement`
+(266 défauts, 1060 marqueurs) : verts. M2, depuis le Release du worktree, contre M2-n8a : 1 130 méthodes, aucune
+changée, apparue ni disparue. La porte `x87-couverture` entre à la série.

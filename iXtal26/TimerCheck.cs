@@ -124,9 +124,10 @@ internal static class TimerCheck
         return k == _tscPerCycle ? tsc / k : (long)Math.Floor(tsc / _tscPerCycle);
     }
 
-    /// <param name="ramLoad">« --charge ram » : la fenêtre mesure une boucle écrite en RAM
-    /// plutôt que ce que la machine faisait à la fin de l'amorçage. Voir InstallRamLoop.</param>
-    internal static int Run(string roms, int seconds, int bootSlices, bool ramLoad = false)
+    /// <param name="charge">« --charge ram » : la fenêtre mesure une boucle écrite en RAM plutôt que ce que la machine
+    /// faisait à la fin de l'amorçage (InstallRamLoop) ; « --charge x87 », une boucle d'instructions du coprocesseur
+    /// (InstallX87Loop).</param>
+    internal static int Run(string roms, int seconds, int bootSlices, Charge charge = Charge.Repos)
     {
         if (!pc.initpc(roms))
                 return 1;
@@ -259,7 +260,9 @@ internal static class TimerCheck
 
         Console.WriteLine($"  le compteur avance : +{probe1 - probe0} tops en 1 s contractuelle. Mesure autorisée.\n");
 
-        if (ramLoad && !InstallRamLoop())
+        if (charge == Charge.Ram && !InstallRamLoop(RamLoop, "ram"))
+                return 1;
+        if (charge == Charge.X87 && !InstallRamLoop(X87Loop, "x87"))
                 return 1;
 
         // ---------------------------------------------------------------
@@ -405,9 +408,27 @@ internal static class TimerCheck
         return 0;
     }
 
+    internal enum Charge { Repos, Ram, X87 }
+
     // MOV CX,FFFF / DEC CX / JNZ -3 / JMP -8 : une boucle sur registres, qui ne touche pas
     // la mémoire hors de son propre préfetch.
     private static readonly byte[] RamLoop = [0xB9, 0xFF, 0xFF, 0x49, 0x75, 0xFD, 0xEB, 0xF8];
+
+    // LA CHARGE « X87 » (G13.6, le noyau, N8b ; décision n° 7 : la marge du mode matériel sous un invité saturé de
+    // flottant) : la boucle interne de X87BANC (tools/x87banc, G4.7), ses opérandes adressés par CS: (DS n'est pas maîtrisé
+    // à la fin de l'amorçage) : FNINIT, puis MOV CX,FFFF et, CX fois, FLD m64 0,5 / FPTAN / FDIVP / FSQRT / FMUL m64 0,5 /
+    // FSTP m64, puis JMP au MOV. 0,5 en 0000:0630, le résultat en 0000:0638. Les instructions du 287 comme du 387, 0,5 dans
+    // le domaine du FPTAN du 287 ; aucune exception démasquée (FNINIT les masque toutes).
+    private static readonly byte[] X87Loop =
+    [
+        0xDB, 0xE3, 0xB9, 0xFF, 0xFF, 0x2E, 0xDD, 0x06, 0x30, 0x06, 0xD9, 0xF2, 0xDE, 0xF9, 0xD9, 0xFA,
+        0x2E, 0xDC, 0x0E, 0x30, 0x06, 0x2E, 0xDD, 0x1E, 0x38, 0x06, 0xE2, 0xE9, 0xEB, 0xE4,
+        0x90, 0x90, // jusqu'à 0620
+        0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x3F, // 0630 : 0,5
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0638 : le résultat
+    ];
+
     private const uint32_t RamLoopAddr = 0x600;
 
     /// <summary>
@@ -423,17 +444,22 @@ internal static class TimerCheck
     /// l'extérieur, comme un débogueur le ferait. Réservé au 286 en mode réel — le 8088
     /// porte sa propre file de préfetch, et un sélecteur de mode protégé ne se pose pas ainsi.
     /// </summary>
-    private static bool InstallRamLoop()
+    private static bool InstallRamLoop(byte[] boucle, string nom)
     {
         if (x86.AT == 0 || (x86.msw & 1) != 0)
         {
-                Console.Error.WriteLine("--charge ram : réservée au 286 en mode réel " +
+                Console.Error.WriteLine($"--charge {nom} : réservée au 286 en mode réel " +
                                         $"(AT = {x86.AT}, MSW.PE = {x86.msw & 1}).");
                 return false;
         }
+        if (nom == "x87" && cpu_c.hasfpu == 0)
+        {
+                Console.Error.WriteLine("--charge x87 : la machine n'a pas de coprocesseur.");
+                return false;
+        }
 
-        for (var i = 0; i < RamLoop.Length; i++)
-                mem.ram[RamLoopAddr + i] = RamLoop[i];
+        for (var i = 0; i < boucle.Length; i++)
+                mem.ram[RamLoopAddr + i] = boucle[i];
 
         x86seg_c.loadcs(0);
         _386_common.cpu_state.pc = RamLoopAddr;
@@ -441,7 +467,9 @@ internal static class TimerCheck
         mem.flushmmucache();
         _386.prefetch_reset();
 
-        Console.WriteLine($"--- charge « ram » : boucle MOV CX,FFFF / DEC CX / JNZ / JMP en 0000:{RamLoopAddr:X4}, IF = 1 ---\n");
+        Console.WriteLine(nom == "ram"
+                ? $"--- charge « ram » : boucle MOV CX,FFFF / DEC CX / JNZ / JMP en 0000:{RamLoopAddr:X4}, IF = 1 ---\n"
+                : $"--- charge « x87 » : la boucle de X87BANC (FLD, FPTAN, FDIVP, FSQRT, FMUL, FSTP) en 0000:{RamLoopAddr:X4}, IF = 1 ---\n");
         return true;
     }
 

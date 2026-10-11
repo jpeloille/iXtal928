@@ -23,7 +23,7 @@ internal static class TimerCheckVerb
             return Failure.Usage("--timer-check attend un nombre de secondes émulées entier positif.");
 
         var machine = new MachineOverrides();
-        var measuresRamLoop = false;
+        var charge = TimerCheck.Charge.Repos;
         var bootSlices = TimerCheck.DefaultBootSlices;
 
         while (cursor.NextIsOption)
@@ -44,9 +44,9 @@ internal static class TimerCheckVerb
                     machine.GraphicsCard = value;
                     break;
                 case "--charge":
-                    if (value is not ("ram" or "repos"))
-                        return Failure.Usage("--charge attend « repos » ou « ram ».");
-                    measuresRamLoop = value == "ram";
+                    if (value is not ("ram" or "repos" or "x87"))
+                        return Failure.Usage("--charge attend « repos », « ram » ou « x87 ».");
+                    charge = value switch { "ram" => TimerCheck.Charge.Ram, "x87" => TimerCheck.Charge.X87, _ => TimerCheck.Charge.Repos };
                     break;
                 case "--cpu":
                     if (!int.TryParse(value, out var processorIndex) || processorIndex < 0)
@@ -76,7 +76,6 @@ internal static class TimerCheckVerb
         if (!machine.TryApplyMachineAndCheckProcessor() || !machine.TryApplyHardwareMode())
             return ExitCode.UsageError;
 
-        return (ExitCode)TimerCheck.Run(paths.resolve_roms_path(romDirectory), emulatedSeconds, bootSlices,
-                                        measuresRamLoop);
+        return (ExitCode)TimerCheck.Run(paths.resolve_roms_path(romDirectory), emulatedSeconds, bootSlices, charge);
     }
 }

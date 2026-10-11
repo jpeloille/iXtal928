@@ -662,3 +662,6 @@ run materiel-cas-pb204-x87 --hardware-mode x87 materiel-cas PB-204
 for pb in 57 58 61 63 64 66 67 70 207 213; do
   run materiel-cas-pb$pb-x87 --hardware-mode x87 materiel-cas PB-$pb
 done
+# G13.6, le noyau, N8b — la couverture comptée : chaque fonction du noyau sur une grille de classes × RC × PC × masques ×
+# coprocesseurs, jugée sur ses invariants (aucune exception de l'hôte, les étiquettes, ES).
+run x87-couverture x87-couverture

@@ -169,7 +169,7 @@ internal static class UsageText
                                Avec DOSSIER, y écrit les deux versions en WAV
           --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER] [--cpu N]
                         [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]
-                        [--charge repos|ram]
+                        [--charge repos|ram|x87]
                                amorce, vérifie que l'INT 8 du BIOS tourne, puis
                                compte les tops de la BDA (0040:006C) sur SECONDES
                                secondes ÉMULÉES et compare à 1193182/65536 =
