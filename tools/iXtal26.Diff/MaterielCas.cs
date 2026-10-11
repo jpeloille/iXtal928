@@ -1721,6 +1721,8 @@ internal static class MaterielCas
             bad += Arithmetique();
         if (noyau && hw)
             bad += Reductions();
+        if (noyau && hw)
+            bad += Demasquees();
         return bad;
     }
 
@@ -2006,6 +2008,99 @@ internal static class MaterielCas
         {
             Jouer87(fpu, [0xDB, 0xE3, .. code, .. SwA], pas + 2, op);
             bad += Voir($"{n} ; FNSTSW (FPU {fpu})", W(0x20A) == sw, $"{W(0x20A):X4}", $"{sw:X4}", true);
+        }
+        return bad;
+    }
+
+    /// <summary>Les exceptions démasquées du noyau (N5 ; PB-59), sur le 387, aux attentes des sources : avant le calcul (IS,
+    /// I, D, Z), l'instruction s'arrête, rien n'est rangé ni dépilé (SDM vol. 1, 2003, § 8.5.1 à 8.5.3) ; OE et UE, la
+    /// destination un registre, le résultat rangé à l'exposant décalé de 24 576, arrondi selon PC et RC, C1 compris, UE
+    /// levée pour un résultat petit même exact, et FSCALE au-delà du décalage, ±∞ ou ±0 (387 PRM § 3.2.5.1 et § 3.2.5.2 ;
+    /// SDM vol. 1, 2003, § 8.5.4 et § 8.5.5) ; la destination en mémoire, rien n'est rangé, la pile intacte, ni PE ni C1
+    /// (§ 8.5.6) ; PE, le résultat rangé (387 PRM § 3.2.6) ; FLD d'un dénormal, DE démasquée, empile quand même (SDM vol.
+    /// 2, FLD). FNINIT ; FLDCW [0310h] ; le code ; FNSTSW [BX+0Ah] ; FSTP m80 [BX] (retenu par le verrou de l'AT sous
+    /// l'acheminement, PB-204 : la mémoire intacte).</summary>
+    private static int Demasquees()
+    {
+        var bad = 0;
+        const byte FLDCW = 0xD9, FLD80 = 0xDB;
+        byte[] pre = [FLDCW, 0x2E, 0x10, 0x03];
+        byte[] m80 = [FLD80, 0x2E, 0x20, 0x03];
+        byte[] deux = [0xDD, 0x06, 0x08, 0x03, 0xDD, 0x06, 0x00, 0x03];
+        const ulong J = 0x8000000000000000;
+        foreach (var (cw, code, pas, op, sw, se, sig, n) in new (ushort, byte[], int, Action?, ushort, ushort, ulong, string)[]
+                 {
+                     (0x0377, [.. m80, 0xD8, 0xC8], 2, Ops((0x320, Le80(0x7E7F, J))), 0xB888, 0x5CFF, J,
+                      "OM à 0 ; FLD m80 2^16000 ; FMUL ST(0), ST(0) (2^32000 décalé : 2^7424 ; OE seule, exact)"),
+                     (0x036F, [.. m80, 0xD8, 0xC8], 2, Ops((0x320, Le80(0x017F, J))), 0xB890, 0x22FF, J,
+                      "UM à 0 ; FLD m80 2^−16000 ; FMUL ST(0), ST(0) (2^−32000 décalé : 2^−7424 ; UE)"),
+                     (0x036F, [.. m80, 0xD9, 0xE8, 0xD8, 0xC9], 3, Ops((0x320, Le80(0x0000, 1))), 0xB092, 0x5FC2, J,
+                      "UM à 0 ; FLD m80 dénormal ; FLD1 ; FMUL ST(0), ST(1) (2^−16445 exact, petit : UE et DE, décalé)"),
+                     (0x0077, [.. m80, 0xD8, 0xC8], 2, Ops((0x320, Le80(0x7E7F, 0xFFFFFFFFFFFFFFFF))), 0xBAA8, 0x5D01, J,
+                      "OM à 0, PC 24 bits ; FLD m80 2^16000 × (2 − 2^−63) ; FMUL ST(0), ST(0) (arrondi à 24 bits : 2^32002 décalé ; PE, C1)"),
+                     (0x0377, [.. deux, 0xD9, 0xFD], 3, Ops((0x300, Le(0x3FF0000000000000)), (0x308, Le(0x40D3880000000000))), 0xB088,
+                      0x2E1F, J, "OM à 0 ; FSCALE 1 par 20 000 (2^20000 décalé : 2^−4576)"),
+                     (0x0377, [.. deux, 0xD9, 0xFD], 3, Ops((0x300, Le(0x3FF0000000000000)), (0x308, Le(0x40ED4C0000000000))), 0xB2A8,
+                      0x7FFF, J, "OM à 0 ; FSCALE 1 par 60 000 (au-delà du décalage : +∞, OE, PE, C1)"),
+                     (0x036F, [.. deux, 0xD9, 0xFD], 3, Ops((0x300, Le(0x3FF0000000000000)), (0x308, Le(0xC0ED4C0000000000))), 0xB0B0,
+                      0x0000, 0, "UM à 0 ; FSCALE 1 par −60 000 (au-delà du décalage : +0, UE, PE)"),
+                     (0x0377, [.. m80, 0xD9, 0xC0, 0xDE, 0xC1], 3, Ops((0x320, Le80(0x7FFE, J))), 0xB888, 0x1FFF, J,
+                      "OM à 0 ; FLD m80 2^16383 ; FLD ST(0) ; FADDP (2^16384 décalé : 2^−8192 ; rangé et dépilé, TOP = 7)"),
+                     (0x036F, [FLD80, 0x2E, 0x30, 0x03, .. m80, 0xD9, 0xF8], 3,
+                      Ops((0x330, Le80(0x0002, J)), (0x320, Le80(0x0002, 0x8040000000000000))), 0xB290, 0x5FF9, J,
+                      "UM à 0 ; FPREM (2^−16381 + 2^−16390) par 2^−16381 (le reste 2^−16390, exact et petit : UE, décalé ; Q = 1, C1)"),
+                     (0x037F, [FLD80, 0x2E, 0x30, 0x03, .. m80, 0xD9, 0xF8], 3,
+                      Ops((0x330, Le80(0x0002, J)), (0x320, Le80(0x0002, 0x8040000000000000))), 0x3200, 0x0000, 0x0080000000000000,
+                      "masquées ; le même FPREM (le reste dénormal, exact : ni UE ni PE)"),
+                     (0x037D, [.. m80, 0xD9, 0xE8, 0xD8, 0xC9], 3, Ops((0x320, Le80(0x0000, 1))), 0xB082, 0x3FFF, J,
+                      "DM à 0 ; FLD m80 dénormal ; FLD1 ; FMUL ST(0), ST(1) (arrêtée : 1 gardé, TOP = 6)"),
+                     (0x037B, [0xD9, 0xEE, 0xD9, 0xF4], 2, null, 0xB884, 0x0000, 0,
+                      "ZM à 0 ; FLDZ ; FXTRACT (arrêtée : 0 gardé, rien d'empilé)"),
+                     (0x037D, [0xD9, 0x06, 0x00, 0x03], 1, Ops((0x300, Le(1)[..4])), 0xB882, 0x3F6A, J,
+                      "DM à 0 ; FLD m32 2^−149 (DE, empilé quand même)"),
+                     (0x037D, [0xDD, 0x06, 0x00, 0x03], 1, Ops((0x300, Le(1))), 0xB882, 0x3BCD, J,
+                      "DM à 0 ; FLD m64 2^−1074 (DE, empilé quand même)"),
+                     (0x035F, [0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03], 2, Ops((0x308, Trois)), 0xBAA0, 0x3FFD, 0xAAAAAAAAAAAAAAAB,
+                      "PM à 0 ; FLD1 ; FDIV m64 3 (rangé, arrondi vers le haut : PE, C1)"),
+                     (0x0777, [.. m80, 0xDC, 0x36, 0x08, 0x03], 2, Ops((0x320, Le80(0x7E7F, J)), (0x308, Le(0x0188000000000000))),
+                      0xB8A8, 0x2265, 0xAAAAAAAAAAAAAAAA,
+                      "OM à 0, vers −∞ ; FLD m80 2^16000 ; FDIV m64 3 × 2^−1000 (4/3 × 2^16998 décalé, tronqué : OE, PE, sans C1)"),
+                     (0x036F, [0xD9, 0xE8, .. m80, 0xD9, 0xF8], 3, Ops((0x320, Le80(0x0000, 1))), 0xB092, 0x5FC2, J,
+                      "UM à 0 ; FLD1 ; FLD m80 dénormal ; FPREM (Q = 0, le dividende rendu, petit : UE et DE, décalé)"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, .. pre, .. code, .. SwA, 0xDB, 0x3F], pas + 4,
+                    () => { op?.Invoke(); mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+            var (ase, asig) = (sw & 0x8000) != 0 && materiel.pb_204 ? ((ushort)0x9090, 0x9090909090909090) : (se, sig);
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 (387)", W(0x20A) == sw && W(0x208) == ase && Q(0x200) == asig,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{sw:X4}, {ase:X4} {asig:X16}", true);
+        }
+        // La destination en mémoire : FST m32 [BX] (D9 17) ou FST m64 [BX] (DD 17) ; FNSTSW [BX+0Ah] ; FSTP m80 [BX+0Ch]
+        // (DB 7F 0C), la pile.
+        // FSTP (modrm 1Fh) : rien de rangé, la pile intacte, sous OE ou UE démasquée ; rangé et dépilé sous PE démasquée
+        // (FSTP m80 lit alors la pile vide : l'indéfini).
+        foreach (var (cw, st, modrm, se0, sig0, mem8, sw, pse, psig, n) in new (ushort, byte, byte, ushort, ulong, ulong, ushort, ushort, ulong, string)[]
+                 {
+                     (0x0377, 0xD9, 0x17, 0x40C7, J, 0x9090909090909090, 0xB888, 0x40C7, J,
+                      "OM à 0 ; FLD m80 2^200 ; FST m32 (rien de rangé ; OE seule, ni PE ni C1)"),
+                     (0x036F, 0xD9, 0x17, 0x3F73, J, 0x9090909090909090, 0xB890, 0x3F73, J,
+                      "UM à 0 ; FLD m80 2^−140 ; FST m32 (exact mais petit : UE, rien de rangé)"),
+                     (0x037F, 0xD9, 0x17, 0x3F73, J, 0x9090909000000200, 0x3800, 0x3F73, J,
+                      "masquées ; FLD m80 2^−140 ; FST m32 (le dénormal exact, sans UE)"),
+                     (0x036F, 0xDD, 0x17, 0x0000, 1, 0x9090909090909090, 0xB892, 0x0000, 1,
+                      "UM à 0 ; FLD m80 dénormal ; FST m64 (DE, puis UE : rien de rangé)"),
+                     (0x0377, 0xD9, 0x1F, 0x40C7, J, 0x9090909090909090, 0xB888, 0x40C7, J,
+                      "OM à 0 ; FLD m80 2^200 ; FSTP m32 (rien de rangé ni dépilé : TOP = 7)"),
+                     (0x035F, 0xDD, 0x1F, 0x3FFF, J | 1, 0x3FF0000000000000, 0x80A0, 0xFFFF, 0xC000000000000000,
+                      "PM à 0 ; FLD m80 1 + 2^−63 ; FSTP m64 (1 rangé et dépilé, TOP = 0 ; PE, sans C1)"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, .. pre, .. m80, st, modrm, .. SwA, 0xDB, 0x7F, 0x0C], 6,
+                    () => { Ops((0x320, Le80(se0, sig0)))(); mem.ram[0x310] = (byte)cw; mem.ram[0x311] = (byte)(cw >> 8); });
+            var (ase, asig) = (sw & 0x8000) != 0 && materiel.pb_204 ? ((ushort)0x9090, 0x9090909090909090) : (pse, psig);
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 (387)", Q(0x200) == mem8 && W(0x20A) == sw && W(0x214) == ase && Q(0x20C) == asig,
+                        $"[BX] {Q(0x200):X16}, {W(0x20A):X4}, {W(0x214):X4} {Q(0x20C):X16}",
+                        $"[BX] {mem8:X16}, {sw:X4}, {ase:X4} {asig:X16}", true);
         }
         return bad;
     }

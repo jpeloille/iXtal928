@@ -12,11 +12,17 @@
 // `testfloat_ver -checkAll <fonction>` la juge à son tour. Le bilan va sur stderr ; le code de sortie est 1 au premier
 // écart.
 //
+// `nonborne [millions]` vérifie l'exposant non borné (la seconde déviation, s_roundPackToExtF80.cs) contre la SoftFloat
+// bornée, que TestFloat a vérifiée : le résultat décalé de 2^±24576 d'une opération qui sort de la plage est celui,
+// borné, de la même opération sur des opérandes décalés d'autant (un décalage exact), et un résultat qui reste dans la
+// plage est celui du chemin borné, au bit près, indicateurs et C1 compris.
+//
 // `mesure` chronomètre la réécriture contre le `double` de l'hôte, sur les mêmes opérandes (des valeurs normales tirées
 // d'une graine fixe) : ce que coûterait de calculer le x87 sur 80 bits au lieu de 64.
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using iXtal26.SoftFloat;
 using static iXtal26.SoftFloat.softfloat;
 
@@ -30,8 +36,11 @@ internal static class Program
             return Ver.Executer(args[1], args[2..]);
         if (args.Length >= 1 && args[0] == "mesure")
             return Mesure.Executer(args[1..]);
+        if (args.Length >= 1 && args[0] == "nonborne")
+            return NonBorne.Executer(args[1..]);
         Console.Error.WriteLine("usage : iXtal26.SoftFloatBanc ver <fonction> [options de testfloat_gen] < cas");
         Console.Error.WriteLine("        iXtal26.SoftFloatBanc mesure [millions d'opérations par banc]");
+        Console.Error.WriteLine("        iXtal26.SoftFloatBanc nonborne [millions de cas]");
         return 2;
     }
 }
@@ -275,3 +284,239 @@ internal static class Mesure
         return meilleur;
     }
 }
+
+internal static class NonBorne
+{
+    private const int Decalage = 0x6000;
+
+    private static readonly byte[] Modes =
+        [softfloat_round_near_even, softfloat_round_min, softfloat_round_max, softfloat_round_minMag];
+
+    private static readonly byte[] Precisions = [32, 64, 80];
+
+    private static Random alea = new(2026);
+    private static long ecarts, decales, massifs, dedans, sautes;
+
+    internal static int Executer(string[] args)
+    {
+        var millions = args.Length > 0 ? int.Parse(args[0], CultureInfo.InvariantCulture) : 2;
+        var n = millions * 1_000_000L;
+        for (var i = 0L; i < n; i++)
+        {
+            softfloat_roundingMode = Modes[alea.Next(Modes.Length)];
+            var prec = Precisions[alea.Next(Precisions.Length)];
+            var cote = (byte) (alea.Next(3) switch
+            {
+                0 => softfloat_flag_overflow,
+                1 => softfloat_flag_underflow,
+                _ => softfloat_flag_overflow | softfloat_flag_underflow,
+            });
+            if ((i & 1) == 0)
+                Arrondi(prec, cote);
+            else
+                Operation(prec, cote, alea.Next(4), alea.Next(2) == 0);
+        }
+        softfloat_unboundedExp = 0;
+        Console.Error.WriteLine($"nonborne : {n} cas, {decales} décalés, {massifs} hors de portée du décalage, {dedans} dans la plage, " +
+                                $"{sautes} sautés (en bord de plage), {ecarts} écart(s)");
+        return ecarts == 0 && decales > n / 10 && massifs > n / 100 ? 0 : 1;
+    }
+
+    private static ulong Sig(bool tete)
+    {
+        var h = (ulong) alea.NextInt64() << 1 ^ (ulong) alea.Next(2);
+        var s = alea.Next(12) switch
+        {
+            0 => 0xFFFFFFFFFFFFFFFFUL,
+            1 => 0x8000000000000000UL,
+            2 => h & ~0x000000FFFFFFFFFFUL | 0x0000008000000000UL,   // l'égalité à 24 bits
+            3 => h & ~0x00000000000007FFUL | 0x0000000000000400UL,   // l'égalité à 53 bits
+            4 => h >> alea.Next(1, 64),                               // petit : la normalisation longue (non normalisé)
+            _ => h,
+        };
+        return tete ? s | 0x8000000000000000UL : s;
+    }
+
+    private static ulong Extra() => alea.Next(4) switch
+    {
+        0 => 0,
+        1 => 0x8000000000000000UL,
+        _ => (ulong) alea.NextInt64() << 1 ^ (ulong) alea.Next(2),
+    };
+
+    private static (extFloat80_t z, byte f, bool c) Borne(Func<extFloat80_t> calcul)
+    {
+        softfloat_unboundedExp = 0;
+        softfloat_exceptionFlags = 0;
+        softfloat_roundedUp = false;
+        var z = calcul();
+        return (z, softfloat_exceptionFlags, softfloat_roundedUp);
+    }
+
+    private static (extFloat80_t z, byte f, bool c) NonBorne_(Func<extFloat80_t> calcul, byte cote)
+    {
+        softfloat_unboundedExp = cote;
+        softfloat_exceptionFlags = 0;
+        softfloat_roundedUp = false;
+        var z = calcul();
+        softfloat_unboundedExp = 0;
+        return (z, softfloat_exceptionFlags, softfloat_roundedUp);
+    }
+
+    /// <summary>softfloat_roundPackToExtF80 seul, l'exposant tiré autour des deux bords et au-delà du décalage (FSCALE).</summary>
+    private static void Arrondi(byte prec, byte cote)
+    {
+        var sign = alea.Next(2) == 0;
+        var haut = alea.Next(2) == 0;
+        var sig = Sig(haut);
+        var extra = Extra();
+        // Un quart des cas au bord du décalage même : FSCALE, que le décalage ne ramène pas toujours dans la plage.
+        var exp = alea.Next(4) == 0
+            ? haut ? alea.Next(0x7FFE + Decalage - 2, 0x7FFF + Decalage + 200) : alea.Next(-Decalage - 200, -Decalage + 70)
+            : haut ? alea.Next(0x7FF0, 0x7FFF + Decalage + 40) : alea.Next(-Decalage - 140, 20);
+        if (!haut && sig == 0 && extra == 0)
+            sig = 1;
+        var u = NonBorne_(() => softfloat_roundPackToExtF80(sign, exp, sig, extra, prec), cote);
+        var b = Borne(() => softfloat_roundPackToExtF80(sign, exp, sig, extra, prec));
+        // L'exposant de la valeur normalisée (comme roundPackUnbounded).
+        var ne = exp;
+        ulong ns = sig, nx = extra;
+        if (ns == 0) { ns = nx; nx = 0; ne -= 64; }
+        var k = BitOperations.LeadingZeroCount(ns);
+        if (k != 0) { ns = ns << k | nx >> (64 - k); nx <<= k; ne -= k; }
+        (extFloat80_t z, byte f, bool c) att;
+        if ((cote & softfloat_flag_overflow) != 0 && ne >= 0x7FFE)
+            att = Attendu(sign, ne - Decalage, ns, nx, prec, true, b);
+        else if ((cote & softfloat_flag_underflow) != 0 && ne <= 0)
+            att = Attendu(sign, ne + Decalage, ns, nx, prec, false, b);
+        else
+        {
+            att = b;
+            dedans++;
+        }
+        if (att.f == 0xFF)
+            return;
+        Juger($"roundPack {(sign ? '-' : '+')} exp {exp} sig {sig:X16} extra {extra:X16} p{prec} rm{softfloat_roundingMode} côté {cote}", u, att);
+    }
+
+    /// <summary>Le résultat attendu d'une valeur hors de la plage, d'après le chemin borné à l'exposant décalé `e2`.
+    /// f = 0xFF : en bord de plage, sauté.</summary>
+    private static (extFloat80_t z, byte f, bool c) Attendu(bool sign, int e2, ulong ns, ulong nx, byte prec, bool haut,
+                                                            (extFloat80_t z, byte f, bool c) borne)
+    {
+        if (haut ? e2 >= 0x7FFF : e2 <= -1)
+        {
+            massifs++;
+            return haut
+                ? (new extFloat80_t { signExp = (ushort) ((sign ? 0x8000 : 0) | 0x7FFF), signif = 0x8000000000000000 },
+                   (byte) (softfloat_flag_overflow | softfloat_flag_inexact), true)
+                : (new extFloat80_t { signExp = (ushort) (sign ? 0x8000 : 0) }, (byte) (softfloat_flag_underflow | softfloat_flag_inexact), false);
+        }
+        if (e2 < 2 || e2 > 0x7FFD)
+        {
+            sautes++;
+            return (default, 0xFF, false);
+        }
+        var r = Borne(() => softfloat_roundPackToExtF80(sign, e2, ns, nx, prec));
+        var re = r.z.signExp & 0x7FFF;
+        if (haut ? re + Decalage > 0x7FFE : re - Decalage <= 0)
+        {
+            decales++;
+            return (r.z, (byte) (r.f | (haut ? softfloat_flag_overflow : softfloat_flag_underflow)), r.c);
+        }
+        dedans++;
+        return borne;
+    }
+
+    private static extFloat80_t X(bool s, int e, ulong m) => new() { signExp = (ushort) ((s ? 0x8000 : 0) | e), signif = m };
+
+    /// <summary>Une opération qui sort de la plage par excès (`haut`) ou par défaut ; la référence, la même sur des
+    /// opérandes décalés de 2^∓24576, exactement.</summary>
+    private static void Operation(byte prec, byte cote, int op, bool haut)
+    {
+        extF80_roundingPrecision = prec;
+        bool sa = alea.Next(2) == 0, sb = alea.Next(2) == 0;
+        ulong ma = Sig(true), mb = Sig(true);
+        int ea, eb;
+        // Le décalage d'un opérande : son exposant ∓ 24 576 (un dénormal, normalisé d'abord).
+        bool da = false;
+        if (op <= 1)
+        {
+            // FADD, FSUB : les deux opérandes près du bord.
+            ea = haut ? alea.Next(0x7FF0, 0x7FFF) : alea.Next(1, 4);
+            eb = haut ? alea.Next(0x7FB0, 0x7FFF) : alea.Next(1, 70);
+        }
+        else
+        {
+            var cible = haut ? alea.Next(0x7FFD, 0x7FFE + 0x1F00) : alea.Next(-0x1F00, 3);
+            ea = haut ? alea.Next(0x6001, 0x7FFF) : alea.Next(1, 0x1F00);
+            eb = op == 2 ? cible - ea + 0x3FFF : ea - cible + 0x3FFF;
+            if (eb < 1 || eb > 0x7FFE)
+                return;
+            if (!haut && alea.Next(4) == 0)
+            {
+                // a dénormal : exposant nul, significande sans bit de tête.
+                da = true;
+                ma >>= 1 + alea.Next(60);
+                if (ma == 0)
+                    ma = 1;
+            }
+        }
+        var a = X(sa, da ? 0 : ea, ma);
+        var b = X(sb, eb, mb);
+        // a et b décalés : a seul pour FMUL et FDIV, les deux pour FADD et FSUB.
+        var dec = haut ? -Decalage : Decalage;
+        extFloat80_t ra, rb = b;
+        if (da)
+        {
+            var nn = softfloat_normSubnormalExtF80Sig(ma);
+            ra = X(sa, 1 + (int) nn.exp + dec, nn.sig);
+        }
+        else
+            ra = X(sa, ea + dec, ma);
+        if (op <= 1)
+            rb = X(sb, eb + dec, mb);
+        Func<extFloat80_t, extFloat80_t, extFloat80_t> f = op switch
+        {
+            0 => extF80_add,
+            1 => extF80_sub,
+            2 => extF80_mul,
+            _ => extF80_div,
+        };
+        var u = NonBorne_(() => f(a, b), cote);
+        var bo = Borne(() => f(a, b));
+        var r = Borne(() => f(ra, rb));
+        extF80_roundingPrecision = 80;
+        if ((r.f & (softfloat_flag_overflow | softfloat_flag_underflow)) != 0)
+        {
+            sautes++;
+            return;
+        }
+        var re = r.z.signExp & 0x7FFF;
+        var nul = r.z.signif == 0;
+        var sort = !nul && (haut ? re - dec > 0x7FFE : re - dec <= 0);
+        var flag = haut ? softfloat_flag_overflow : softfloat_flag_underflow;
+        (extFloat80_t z, byte f, bool c) att;
+        if (sort && (cote & flag) != 0)
+        {
+            decales++;
+            att = (r.z, (byte) (r.f | flag), r.c);
+        }
+        else
+        {
+            dedans++;
+            att = bo;
+        }
+        Juger($"op{op} {a.signExp:X4}:{a.signif:X16} {b.signExp:X4}:{b.signif:X16} p{prec} rm{softfloat_roundingMode} côté {cote}", u, att);
+    }
+
+    private static void Juger(string cas, (extFloat80_t z, byte f, bool c) u, (extFloat80_t z, byte f, bool c) att)
+    {
+        if (u.z.signExp == att.z.signExp && u.z.signif == att.z.signif && u.f == att.f && u.c == att.c)
+            return;
+        if (++ecarts <= 20)
+            Console.Error.WriteLine($"écart : {cas} → {u.z.signExp:X4}:{u.z.signif:X16} f{u.f} c{(u.c ? 1 : 0)}, " +
+                                    $"attendu {att.z.signExp:X4}:{att.z.signif:X16} f{att.f} c{(att.c ? 1 : 0)}");
+    }
+}
+

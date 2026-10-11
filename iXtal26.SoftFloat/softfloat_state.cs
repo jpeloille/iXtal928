@@ -55,4 +55,12 @@ internal static partial class softfloat
     // softfloat_exceptionFlags. round_odd, que le x87 n'a pas, est hors de cette définition : softfloat_roundToI32 et
     // …ToI64 posent C1 avant d'y forcer le bit bas (le banc ne vérifie pas C1 sous -rodd).
     internal static bool softfloat_roundedUp;
+
+    // DEVIATION (G13, le noyau, N5 ; validée par Julien le 11/10 : le point (3) du sous-bloc, PLAN-G13.md § G13.6, le noyau) : l'exposant non borné du x87, pour OE
+    // et UE démasquées quand la destination est un registre. Les côtés de la plage de 80 bits que
+    // softfloat_roundPackToExtF80 ne borne pas : softfloat_flag_overflow, softfloat_flag_underflow, ou les deux ; un
+    // résultat qui en sort est arrondi sur un exposant non borné et rangé à l'exposant décalé de 24 576
+    // (s_roundPackToExtF80.cs). Nul, le défaut : SoftFloat tel qu'en C. Les conversions vers 32 et 64 bits n'y
+    // regardent pas (le x87 ne range rien en mémoire quand OE ou UE démasquée s'y produit).
+    internal static uint_fast8_t softfloat_unboundedExp;
 }

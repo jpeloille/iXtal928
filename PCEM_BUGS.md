@@ -912,7 +912,16 @@ du 486 devant FLD1 et WAIT (l'adresse de retour, celle de FLD1), pas devant FNST
 attente, a16 et a32. Les autres exceptions, et les drapeaux masqués : avec le noyau. Les drapeaux masqués (G13.6, le
 noyau, N3a et N4a ; en chantier) : chaque instruction du noyau pose IE, DE, ZE, OE, UE et PE selon SoftFloat et la
 classe de ses opérandes, dans l'ordre du SDM (vol. 1, 2003, § 4.9.2) ; `materiel-cas PB-264`, en mode matériel :
-FSQRT de −1, 1/0, 0/0, ∞ − ∞, un dépassement par excès et par défaut, un dénormal, PE. Démasquées : N5.
+FSQRT de −1, 1/0, 0/0, ∞ − ∞, un dépassement par excès et par défaut, un dénormal, PE. Démasquées (G13.6, le noyau,
+N5 ; en chantier) : `indicateurs` (`Cpu/x87_noyau.Materiel.cs`, marqueur PB-59) ; IS, I, D et Z arrêtent l'instruction,
+rien de rangé ni de dépilé ; O et U, la destination un registre, rangent le résultat à l'exposant décalé de 24 576,
+arrondi selon PC et RC, C1 compris (387 PRM § 3.2.5 ; SDM vol. 1, 2003, § 8.5.4 et § 8.5.5), UE levée pour un résultat
+petit même exact, et FSCALE au-delà du décalage rend ±∞ ou ±0 — un arrondi à exposant non borné que SoftFloat n'a pas,
+une seconde déviation (`softfloat_unboundedExp`, le point (3) du feu vert du 11/10) ; la destination en mémoire (FST
+et FSTP m32 et m64), rien n'est rangé ni dépilé, ni PE ni C1 (§ 8.5.6 ; 486 PRM § 19.2.5) ; P, le résultat rangé ; FLD
+m32 et m64 d'un dénormal, DE démasquée, empilent quand même (SDM vol. 2, FLD ; d'autres sources disent le contraire,
+en général : inconnu). L'instruction qui range se termine, dépilement compris (486 PRM § 19.2.5). Le 8087 et le 287
+(le significande non arrondi, sans PE ; 387 PRM, annexe C) : N7. `materiel-cas PB-264` : vingt-trois cas.
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 

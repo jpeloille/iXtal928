@@ -376,7 +376,8 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   **domaine d'accord** : sous 027Fh, sur des normaux du `double`, le noyau rend au bit près le `double` de PCem — le
   fuzzeur, restreint à ce domaine, contre l'oracle (une exception déclarée au refus des fuzzeurs, comme le contrôle
   de fuite). ≈ 1 500 lignes.
-- **N5 — Les exceptions démasquées.** IE, DE, OE, UE et PE par l'acheminement de G13.6c (aujourd'hui ZE seule) :
+- **N5 — Les exceptions démasquées** ✅ *(11/10, VERIFICATION.md § G13.6, le noyau, N5)*. IE, DE, OE, UE et PE par
+  l'acheminement de G13.6c (aujourd'hui ZE seule) :
   l'instruction qui faute avant de calculer laisse sa destination ; OE et UE démasquées rangent le résultat à
   l'exposant décalé (±24 576), ce que SoftFloat ne fait pas : un second écart, un arrondi à exposant non borné,
   annoncé comme C1. PB-59 entier. ≈ 500 lignes.

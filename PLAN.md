@@ -134,7 +134,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   contrôle ; PB-203 et PB-264 corrigés, en chantier) ; N3a ✅ (11/10 : les mouvements de données ; PB-52, 55, 56, 195,
   196, 206, 212) ; N3b ✅ (11/10 : l'environnement, les pointeurs, les étiquettes, les limites ; PB-54, 62, 199, 208) ;
   N4a ✅ (11/10 : l'arithmétique, les comparaisons et le domaine d'accord ; PB-48, 60) ; N4b ✅ (11/10 : FRNDINT, FSCALE,
-  FXTRACT, FPREM et FPREM1 ; PB-65, 194, 197, 198, 211 et 265, neuf).
+  FXTRACT, FPREM et FPREM1 ; PB-65, 194, 197, 198, 211 et 265, neuf) ; N5 ✅ (11/10 : les exceptions démasquées,
+  l'exposant décalé de 24 576 ; PB-59 complété par le noyau, au groupe en N7).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

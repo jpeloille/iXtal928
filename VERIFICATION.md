@@ -9217,3 +9217,101 @@ seuls les marqueurs ont changé, `x87_fround` compris, sont identiques. Contre M
 douze neuves (`materiel-cas` de PB-65, 194, 197, 198, 211 et 265 dans les deux modes) ; `recensement` compte 265
 défauts au registre au lieu de 264 et 1056 marqueurs au lieu de 1051. `materiel-cas-pb264-acheminement`, rouge dans
 `g7n4a` par son attendu, est verte avec l'attendu repris ; aucune autre porte ne change.
+
+## G13.6, le noyau, N5 — les exceptions démasquées
+
+Le 11 octobre 2026. Le noyau reste en chantier ; son groupe ne change pas (PB-59, corrigé pour ZE en G13.6c, est
+complété par le noyau, comme PB-57 et ses voisins le sont : il le rejoint en N7).
+
+**Ce qui est écrit.** La couche (`_x87_noyau`) : `indicateurs` sépare les deux familles. Avant le calcul (IS, I, D,
+Z), une exception démasquée arrête l'instruction, rien de rangé ni de dépilé (SDM vol. 1, 2003, § 8.5.1 à 8.5.3 ; 387
+PRM § 3.2.2 à 3.2.4), comme depuis N3a. Après le calcul : OE et UE, la destination un registre, rangent le résultat à
+l'exposant décalé de 24 576, arrondi selon PC et RC, C1 et PE compris, puis lèvent (387 PRM § 3.2.5.1 et § 3.2.5.2 ;
+SDM vol. 1, 2003, § 8.5.4 et § 8.5.5) ; UE démasquée se lève pour un résultat petit même exact (« regardless of
+inexactness ») ; PE démasquée laisse ranger (387 PRM § 3.2.6). L'instruction qui range se termine, dépilement compris
+(486 PRM § 19.2.5 : « the register stack and memory appear as if the instruction has run to completion »). La
+destination en mémoire (FST et FSTP m32 et m64), OE ou UE démasquée arrête l'instruction, rien de rangé ni de dépilé
+(SDM § 8.5.4 et § 8.5.5 ; 486 PRM § 19.2.5 : « handled like a before exception »), PE n'est pas signalée et C1 est mis
+à zéro (SDM § 8.5.6) ; la petitesse d'un résultat exact s'y juge par `petit` (l'arrondi selon RC à 24 ou 53 bits, sur l'exposant de
+80 bits). FLD m32 et m64 d'un dénormal, DE démasquée, empilent quand même la valeur (SDM vol. 2, FLD : « the value is
+still pushed onto the x87 stack » ; le 387 PRM § 3.2.4 dit les opérandes inchangés, en général : la note propre à FLD
+est suivie, D2-contre A4-h ; le SDM vol. 1 § 8.5.2 et le 486 PRM § 19.2.5 disent eux aussi, en général, la pile
+inchangée : les sources se contredisent, inconnu). `arrondi` pose `softfloat_unboundedExp` d'après OM et UM ; FSCALE et
+le reste de FPREM passent par `softfloat_roundPackToExtF80`, ils en héritent, et un dividende dénormal que FPREM rend
+tel quel (Q = 0) y repasse (`exact`) : UE démasquée le décale comme tout résultat petit. La petitesse après l'arrondi
+n'est écrite que par le SDM (le 387 PRM et le 486 PRM disent « tiny » sans plus). Le 8087 et le 287, la destination un
+registre, laissent le significande non arrondi et ne lèvent pas PE (387 PRM, annexe C ; 486 PRM, chapitre 25), et
+jugent la petitesse sur le résultat vrai (287 PRM, table 1-17) : N7 ; ils ont ici la réponse du 387. Les cycles d'une
+instruction démasquée restent ceux de PCem.
+
+**La seconde déviation de SoftFloat** (validée : le point (3) du feu vert du 11/10, PLAN-G13.md § G13.6, le noyau). Une globale `softfloat_unboundedExp`
+(`softfloat_state.cs`) nomme les côtés de la plage de 80 bits que `softfloat_roundPackToExtF80` ne borne pas ; un
+résultat qui en sort est arrondi à la précision demandée sur un exposant non borné (`roundPackUnbounded`, la valeur
+normalisée d'abord, sur 128 bits), puis rangé décalé de ∓24 576 ; si le décalage ne suffit pas (FSCALE), ±∞ avec OE et
+PE, ou ±0 avec UE et PE, la réponse masquée au plus près (387 PRM, *ibid.* ; SDM § 8.5.4 : « a properly signed ∞ is
+stored »). C1, l'arrondi vers le haut, se juge avant le décalage. Nulle, la globale laisse le chemin du C seul : le
+défaut, et tout ce que TestFloat vérifie. Chaque site le dit en tête de fichier, comme l'écart C1.
+
+**Le banc** (`iXtal26.SoftFloatBanc nonborne`) : la référence est la SoftFloat bornée, que TestFloat a vérifiée. Un
+résultat décalé doit être, au bit près, indicateurs et C1 compris, celui de la même opération sur des opérandes décalés
+de 2^∓24576 (un décalage exact : FMUL et FDIV en décalent un, FADD et FSUB les deux ; un dénormal, normalisé d'abord) ;
+pour `softfloat_roundPackToExtF80` seul, l'arrondi borné à l'exposant décalé ; un résultat resté dans la plage, celui du
+chemin borné. Les quatre arrondis du x87, les trois précisions, les côtés tirés au sort, des significandes tout à un,
+à l'égalité à 24, 53 et 64 bits, petits (la normalisation longue) et au hasard, des exposants aux deux bords et au-delà
+du décalage. 20 millions de cas : 8 541 388 décalés, 1 467 894 au-delà du décalage, 9 980 112 dans la plage, 10 606
+sautés (en bord de plage, où la référence elle-même sortirait), aucun écart. Au-delà du décalage, l'attendu (±∞ et C1,
+±0 sans C1) est celui que le 387 PRM écrit, posé par le banc : il le vérifie sans le dériver. **TestFloat**, niveau 1, rejoué : 262 passes, 7 617 216 cas, aucun écart, aucune erreur de
+`testfloat_ver` ; le niveau 2 n'est pas rejoué, le chemin borné n'ayant gagné qu'un test d'entrée sur une globale que
+TestFloat laisse nulle.
+
+**Les cas.** `materiel-cas PB-264`, en mode matériel, gagne vingt-trois cas (`Demasquees`, sur le 387) : OM à 0, 2^16000
+au carré (5CFFh, 2^7424 ; OE seule, le produit exact), 2^16383 + 2^16383 par FADDP (1FFFh, rangé et dépilé, TOP = 7),
+FSCALE de 1 par 20 000 (2E1Fh) et par 60 000 (au-delà du décalage : +∞, OE, PE, C1) ; OM à 0 et PC à 24 bits, (2^16000
+× (2 − 2^−63))² (arrondi à 24 bits : 2^32002 décalé, 5D01h, PE et C1) ; UM à 0, 2^−16000 au carré (22FFh), le plus petit
+dénormal par 1 (2^−16445, exact et petit : UE et DE, 5FC2h), FSCALE par −60 000 (+0, UE, PE), FPREM de 2^−16381 + 2^−16390
+par 2^−16381 (le reste 2^−16390, exact et petit : UE, 5FF9h, Q = 1 et C1 ; masquées, le dénormal exact, ni UE ni PE) ;
+FPREM de 1 par un dénormal rendu tel quel (Q = 0, petit : UE et DE, 5FC2h) ; OM à 0 et RC vers −∞, 2^16000 divisé par
+3 × 2^−1000 (4/3 × 2^16998 décalé, 2265h, tronqué : OE et PE, sans C1) ; DM à 0, FMUL d'un dénormal (arrêtée : 1
+gardé, TOP = 6), FLD m32 2^−149 et FLD m64 2^−1074 (DE, empilés) ; ZM à 0, FXTRACT de 0 (arrêtée) ; PM à 0, 1/3 (rangé,
+PE et C1) ; la destination en mémoire : FST m32 de 2^200 sous OM à 0 (rien de rangé, OE seule, la pile intacte), FSTP
+m32 du même (ni rangé ni dépilé, TOP = 7), FST m32 de 2^−140 sous UM à 0 (exact mais petit : UE, rien de rangé ;
+masquées, le dénormal exact 00000200h, sans UE), FST m64 d'un dénormal de 80 bits sous UM à 0 (DE puis UE, rien de
+rangé), FSTP m64 de 1 + 2^−63 sous PM à 0 (1 rangé et dépilé, TOP = 0, PE sans C1). Sous l'acheminement
+(`materiel-cas-pb264-acheminement`), le verrou de l'AT retient le FSTP m80 qui suit : la mémoire intacte, le mot d'état
+le même. Verts au premier passage, dans les trois configurations ; les cas de chaque PB du x87 corrigé (le groupe du
+noyau, ceux de G13.6a, 6b et 6c), dans les deux modes, et le domaine d'accord du 387 (5 000 instructions) : verts.
+`recensement` : vert, 265 défauts, 1057 marqueurs (le marqueur de PB-59 dans `indicateurs`).
+
+**Les contrôles négatifs.** Dix-huit fautes (`neg-n5.py`), une à la fois : OE et UE démasquées qui arrêtent sans
+ranger (PB-264, 11 échecs), PE signalée vers la mémoire (3), C1 selon l'arrondi vers la mémoire (2), la petitesse
+exacte de FST m32 oubliée (2), son seuil décalé (1), l'exposant borné sous OM à 0 (5), FLD d'un dénormal qui n'empile
+rien (2), DE démasquée qui n'arrête pas FMUL (1), le résultat rangé en mémoire (4), le dividende dénormal de FPREM
+rendu sans l'arrondi (1) ; dans SoftFloat, un décalage de 0x5FFF (le banc, 418 851 écarts ; PB-264, 5), UE seulement
+si inexact (67 296 ; 5), le plus grand fini au-delà du décalage (82 645 ; 1), l'égalité à 80 bits sans le pair (le
+banc, 4 832), à 24 et 53 bits (988), C1 perdu (286 009 ; 1), PC ignorée (515 067 ; 1), la valeur non normalisée
+(122 649) : rouges ; le témoin vert (PB-264, PB-59, le banc, le domaine d'accord). Deux fautes, écrites d'abord en code
+mort, ne compilaient pas : réécrites.
+
+**La contre-lecture** (Sonnet) : aucun défaut dans le code ni dans les dix-neuf attendus, recalculés à la main ;
+`roundPackUnbounded` relu contre le chemin du C (la normalisation, les deux arrondis, la retenue, le pair, C1, les
+seuils, le retour sans effet de bord), le banc rejoué au compte près. Repris : deux affirmations de la documentation —
+le dépilement après OE et UE démasquées n'est pas déduit, le 486 PRM § 19.2.5 l'écrit, et le SDM dit TOP inchangé aussi
+pour un rangement en mémoire ; le 8087 et le 287 n'ont pas « les mêmes réponses » (le significande non arrondi, sans PE,
+la petitesse avant l'arrondi : 387 PRM, annexe C ; 486 PRM, chapitre 25 ; 287 PRM, table 1-17), noté pour N7 ; FPREM
+rendait tel quel un dividende dénormal (Q = 0) sans lever UE démasquée, il repasse par l'arrondi ; les sources qui
+contredisent la note de FLD citées ; la petitesse après l'arrondi, écrite par le seul SDM, dite ; le banc tire les
+égalités à 24 et 53 bits (25 en 20 millions avant, quand une faute ôtant le pair à 24 bits n'en voyait pas davantage)
+et les petites valeurs de la normalisation longue ; quatre cas neufs (FPREM d'un dénormal, FDIV en dépassement vers
+−∞, FSTP m32 non dépilé, FSTP m64 rangé et dépilé sous PE) ; deux fautes neuves (N17, N18) ; la phrase de
+`pourquoi-on-corrige.md` sur la mémoire, PE exceptée ; l'en-tête du noyau, PE démasquée rangée où qu'elle aille. Non
+repris : `softfloat_unboundedExp` n'est pas remis à zéro après l'instruction (seul le noyau appelle SoftFloat, et
+`arrondi` le pose avant chaque calcul) ; d'autres types que le 387 dans `Demasquees` (le 8087 et le 287 en N7).
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n4b : 1 130 méthodes, aucune changée, apparue ni
+disparue — N5 ne touche que la couche du noyau et SoftFloat, qu'aucune méthode du mode PCem n'appelle. Contre M0 :
+l'écart de N4b, les mêmes méthodes.
+
+**La série** (`g7n5`, le 11/10, 22:26 → 23:34, contre `g7n4b`) : 472 portes, toutes vertes, les mêmes ; seul
+`recensement` change, 1057 marqueurs au lieu de 1056 (le marqueur de PB-59 dans `indicateurs`). Les 23 cas de N5
+courent sous `materiel-cas-pb264-materiel` et `materiel-cas-pb264-acheminement`, déjà portes ; aucune autre porte
+ne change.

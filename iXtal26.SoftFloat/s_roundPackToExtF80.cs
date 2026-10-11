@@ -44,6 +44,16 @@
 //
 // DEVIATION (G13, point n° 10, validée par Julien le 11/10) — C1 : chaque chemin retient la troncature (`expTrunc`, `sigTrunc`) avant d'arrondir,
 // et packReturn note dans softfloat_roundedUp si le résultat en diffère (softfloat_state.cs). Rien d'autre ne change.
+//
+// DEVIATION (G13, le noyau, N5 ; validée par Julien le 11/10 : le point (3) du sous-bloc, PLAN-G13.md § G13.6, le noyau) — l'exposant non borné : quand
+// softfloat_unboundedExp (softfloat_state.cs) nomme un côté (softfloat_flag_overflow, softfloat_flag_underflow), un
+// résultat qui sort de ce côté de la plage de 80 bits est arrondi à la précision demandée sur un exposant non borné,
+// puis rangé à l'exposant décalé de 24 576 (3 × 2^13 ; 387 PRM § 3.2.5.1 et § 3.2.5.2 ; SDM vol. 1, 2003, § 8.5.4 et §
+// 8.5.5) : c'est la réponse du x87 à OE et UE démasquées, quand la destination est un registre. Côté du dépassement par
+// défaut, la petitesse se juge sur ce résultat (exposant ≤ 0 : après l'arrondi), et UE est levée qu'il soit exact ou non
+// (387 PRM § 3.2.5.2 : « regardless of inexactness »). Si le décalage ne suffit pas (FSCALE), la réponse masquée de
+// l'arrondi au plus près : ±∞ avec OE et PE, ±0 avec UE et PE. Tout est dans roundPackUnbounded ; softfloat_unboundedExp
+// nul (le défaut, et tout ce que TestFloat vérifie), le chemin du C reste seul.
 
 namespace iXtal26.SoftFloat;
 
@@ -67,6 +77,10 @@ internal static partial class softfloat
         uint64_extra sig64Extra;
         extFloat80_t uZ;
 
+        if ( softfloat_unboundedExp != 0 && (sig | sigExtra) != 0
+                && roundPackUnbounded( sign, exp, sig, sigExtra, roundingPrecision, out uZ ) ) {
+            return uZ; // DEVIATION: exposant non borné
+        }
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
         roundingMode = softfloat_roundingMode;
@@ -269,5 +283,100 @@ internal static partial class softfloat
         uZ.signExp = (uint16_t) packToExtF80UI64( sign, exp );
         uZ.signif = sig;
         return uZ;
+    }
+
+    /// <summary>DEVIATION : l'exposant non borné (voir l'en-tête). Arrondit sig × 2^(exp − 0x3FFF − 63), étendu par
+    /// sigExtra, à la précision demandée sans borner l'exposant ; rend faux, sans rien toucher, si le résultat reste dans
+    /// la plage ou en sort d'un côté que softfloat_unboundedExp ne nomme pas : le chemin borné le traite alors.</summary>
+    private static bool roundPackUnbounded(
+        bool sign, int_fast32_t exp, uint_fast64_t sig, uint_fast64_t sigExtra, uint_fast8_t roundingPrecision,
+        out extFloat80_t uZ)
+    {
+        uZ = default;
+        // Normaliser la valeur, sur 128 bits : un dénormal (exp ≤ 0, ou bit de tête nul) prend son exposant vrai.
+        if ( sig == 0 ) {
+            sig = sigExtra;
+            sigExtra = 0;
+            exp -= 64;
+        }
+        int shift = softfloat_countLeadingZeros64( sig );
+        if ( shift != 0 ) {
+            sig = sig << shift | sigExtra >> (64 - shift);
+            sigExtra <<= shift;
+            exp -= shift;
+        }
+        uint_fast8_t roundingMode = softfloat_roundingMode;
+        bool roundNearEven = roundingMode == softfloat_round_near_even;
+        bool directed = ! roundNearEven && roundingMode != softfloat_round_near_maxMag;
+        bool toward = roundingMode == (sign ? softfloat_round_min : softfloat_round_max);
+        bool inexact;
+        int_fast32_t expTrunc = exp;
+        uint_fast64_t sigTrunc;
+        if ( roundingPrecision == 32 || roundingPrecision == 64 ) {
+            uint_fast64_t roundMask = roundingPrecision == 64 ? 0x00000000000007FFUL : 0x000000FFFFFFFFFFUL;
+            uint_fast64_t roundIncrement = (roundMask + 1) >> 1;
+            sig |= b2u( sigExtra != 0 );
+            if ( directed ) roundIncrement = toward ? roundMask : 0;
+            uint_fast64_t roundBits = sig & roundMask;
+            sigTrunc = sig & ~roundMask;
+            inexact = roundBits != 0;
+            if ( inexact && roundingMode == softfloat_round_odd ) {
+                sig = sigTrunc | (roundMask + 1);
+            } else {
+                sig += roundIncrement;
+                if ( sig < roundIncrement ) {
+                    ++exp;
+                    sig = 0x8000000000000000UL;
+                }
+                if ( roundNearEven && (roundBits << 1 == roundMask + 1) ) roundMask |= roundMask + 1;
+                sig &= ~roundMask;
+            }
+        } else {
+            sigTrunc = sig;
+            inexact = sigExtra != 0;
+            bool doIncrement = directed ? toward && inexact : 0x8000000000000000UL <= sigExtra;
+            if ( inexact && roundingMode == softfloat_round_odd ) {
+                sig |= 1;
+            } else if ( doIncrement ) {
+                ++sig;
+                if ( sig == 0 ) {
+                    ++exp;
+                    sig = 0x8000000000000000UL;
+                } else if ( roundNearEven && (sigExtra & 0x7FFFFFFFFFFFFFFFUL) == 0 ) {
+                    sig &= ~(uint_fast64_t) 1;
+                }
+            }
+        }
+        bool roundedUp = (sig != sigTrunc) || (exp != expTrunc);
+        if ( 0x7FFE < exp && (softfloat_unboundedExp & softfloat_flag_overflow) != 0 ) {
+            softfloat_raiseFlags( softfloat_flag_overflow );
+            exp -= 0x6000;
+            if ( 0x7FFE < exp ) {
+                // Le décalage ne suffit pas : ±∞, la réponse masquée au plus près.
+                softfloat_raiseFlags( softfloat_flag_inexact );
+                softfloat_roundedUp = true;
+                uZ.signExp = (uint16_t) packToExtF80UI64( sign, 0x7FFF );
+                uZ.signif = 0x8000000000000000UL;
+                return true;
+            }
+        } else if ( exp <= 0 && (softfloat_unboundedExp & softfloat_flag_underflow) != 0 ) {
+            softfloat_raiseFlags( softfloat_flag_underflow );
+            exp += 0x6000;
+            if ( exp <= 0 ) {
+                // Le décalage ne suffit pas : ±0, la réponse masquée au plus près.
+                softfloat_raiseFlags( softfloat_flag_inexact );
+                softfloat_roundedUp = false;
+                uZ.signExp = (uint16_t) packToExtF80UI64( sign, 0 );
+                uZ.signif = 0;
+                return true;
+            }
+        } else {
+            return false;
+        }
+        if ( inexact ) softfloat_exceptionFlags |= softfloat_flag_inexact;
+        softfloat_roundedUp = roundedUp; // DEVIATION: C1, sur le résultat arrondi avant le décalage
+        uZ.signExp = (uint16_t) packToExtF80UI64( sign, exp );
+        uZ.signif = sig;
+        return true;
     }
 }

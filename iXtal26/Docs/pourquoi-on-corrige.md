@@ -878,3 +878,25 @@ demandent.
   facteur suivent des règles fixes.
 - **L'émulateur.** PCem rend zéro dans ces cas.
 - **La correction.** Les règles du coprocesseur.
+
+## G13.6, le noyau, suite — les erreurs que le programme veut voir
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N5.*
+
+Un programme peut demander au coprocesseur de l'interrompre à chaque erreur de calcul au lieu de la corriger en
+silence : il « démasque » l'erreur. Toujours en chantier : seuls les tests le demandent.
+
+### PB-59 — les erreurs démasquées
+
+- **Le vrai PC.** Six erreurs se démasquent une à une. Celles qui se voient avant le calcul (une pile vide, une
+  opération impossible, un nombre trop petit en entrée, une division par zéro) arrêtent l'instruction sans rien
+  écrire. Celles qui se voient après (un résultat trop grand, trop petit, ou arrondi) laissent le résultat en place :
+  trop grand ou trop petit, il est rangé avec son exposant ramené au milieu de la plage, pour que le programme puisse
+  le corriger et continuer ; vers la mémoire, un résultat trop grand ou trop petit n'est pas écrit et le nombre reste
+  sur la pile, un résultat seulement arrondi est écrit. Un nombre minuscule
+  chargé depuis la mémoire est empilé quand même.
+- **L'émulateur.** PCem ne connaît que la division par zéro ; les autres erreurs n'arrêtent jamais rien.
+- **La correction.** Chaque erreur, avec sa réponse : l'arrêt, ou le résultat rangé à l'exposant ramené. La
+  bibliothèque de calcul, qui ne sait pas faire ce dernier arrondi, gagne un réglage pour le faire, vérifié sur vingt
+  millions de cas contre son calcul ordinaire.
