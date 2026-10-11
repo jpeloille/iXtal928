@@ -603,3 +603,11 @@ for pb in 59 69 204; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6, le noyau, N2 — le noyau de 80 bits, en chantier (demandé par ses numéros seulement) : PB-203 (le RESET par
+# type de coprocesseur) et PB-264 (la faute de pile), un groupe ; la couche commune et les instructions de contrôle.
+for pb in 203 264; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# Le noyau avec l'acheminement de G13.6c : le port F1h et l'attente de l'AT et du 486 sur une exception du noyau.
+run materiel-cas-pb264-acheminement --hardware-mode PB-204,PB-264 materiel-cas PB-264

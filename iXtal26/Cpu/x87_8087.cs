@@ -31,23 +31,23 @@ namespace iXtal26.Cpu;
 internal static partial class _808x
 {
     // pcem: x87_ops.h:261-262 — sous X8087.
-    private static bool FP_ENTER()
+    internal static bool FP_ENTER()
     {
         _386_common.fpucount++;
         return false;
     }
 
     // pcem: 8087.h:12-17 — vides : le 808x a déjà décodé l'adresse effective.
-    private static bool fetch_ea_16(uint32_t fetchdat) => false;
+    internal static bool fetch_ea_16(uint32_t fetchdat) => false;
     private static bool fetch_ea_32(uint32_t fetchdat) => false;
-    private static bool SEG_CHECK_READ(x86seg seg) => false;
-    private static bool SEG_CHECK_WRITE(x86seg seg) => false;
+    internal static bool SEG_CHECK_READ(x86seg seg) => false;
+    internal static bool SEG_CHECK_WRITE(x86seg seg) => false;
     private static bool CHECK_WRITE(x86seg seg, uint32_t low, uint32_t high) => false;
     private static void PREFETCH_RUN(int instr_cycles, int bytes, int modrm, int reads, int reads_l,
                                      int writes, int writes_l, int ea32) { }
 
     // pcem: 8087.h:9-10
-    private static void CLOCK_CYCLES(int c) => cycles -= c;
+    internal static void CLOCK_CYCLES(int c) => cycles -= c;
 
     // Le readmemw du 808x prend un offset de 16 bits (808x.c) : le C tronque en silence
     // l'`eaaddr + 8` de x87_ld80, et l'offset boucle dans le segment. Même geste ici.

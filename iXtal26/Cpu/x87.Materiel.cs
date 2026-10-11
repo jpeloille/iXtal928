@@ -592,6 +592,12 @@ internal static class _x87_materiel
         }
         if (port == 0xF1 && cpu_c.fpu_type is cpu_c.FPU_287 or cpu_c.FPU_287XL or cpu_c.FPU_387)
         {
+                // Le noyau (en chantier) : le RESET de son type (PB-203) ; le 387 en sort ES posé, sans front acheminé.
+                if (materiel.pb_264)
+                {
+                        _x87_noyau.reset();
+                        return;
+                }
                 cpu_state.npxc = 0x37f;
                 cpu_state.npxs = 0;
                 Array.Clear(cpu_state.tag);

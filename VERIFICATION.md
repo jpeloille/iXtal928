@@ -8811,3 +8811,79 @@ configurations seulement (`dotnet sln add` ajoutait des plateformes x64 et x86) 
 
 **La série** (`g7n1`, le 11/10, 10:54 → 12:03, contre `g6c1`) : 425 portes vertes, les mêmes ; un seul écart,
 attendu : `recensement` compte 264 défauts et 1029 marqueurs au lieu de 263 et 1025, ceux de PB-264.
+
+## G13.6, le noyau, N2 — L'état de 80 bits et le générateur
+
+Le 11 octobre 2026, deuxième étape du plan validé (PLAN-G13.md, § G13.6, le noyau). Le noyau entre au mode matériel,
+**en chantier** : `ModeMateriel.EnChantier` (PB-203, PB-264) le tient hors de « tout » et du domaine `x87`, il ne se
+demande que par ses numéros, et les deux forment un groupe (`Groupes`). Le mode PCem ne change pas.
+
+**La couche commune** (`Cpu/x87_noyau.Materiel.cs`, classe `_x87_noyau`, écrite à la main) : l'état (huit
+`extFloat80_t`, le mot d'étiquettes de l'architecture, FIP, FCS, FOP, FDP, FDS ; npxc, npxs et TOP restent ceux de
+`cpu_state`) ; la classe d'un opérande (zéro, normal, dénormal, pseudo-dénormal, non normal, pseudo-infini, pseudo-NaN,
+infini, QNaN, SNaN) et les formats que le 387 ne supporte plus (387 PRM § 3.1.7) ; les exceptions (`lever` : masquées,
+la réponse masquée ; démasquées, ES et B, et l'acheminement de G13.6c seulement s'il est demandé, PB-59) ; la pile
+(`empiler`, `lire`, `depiler`, la faute de pile de PB-264) ; le mot de contrôle vers SoftFloat (`arrondi` : RC, et PC
+pour les opérations qui le suivent) et ses indicateurs vers le mot d'état (`indicateurs` : PE, UE, OE, ZE, IE, et C1,
+l'arrondi vers le haut, sur le 387 et le 486) ; FNINIT, la mise sous tension et le RESET par type (PB-203). Un seul
+contrat : une fonction qui peut lever rend vrai quand l'instruction s'arrête.
+
+**Le générateur** (`tools/x87gen/genmat.py`) : une description, deux instanciations, `_386_noyau` (le 286, le 386 et le
+486, a16 et a32 ; `Cpu/x87_noyau_386.Materiel.cs`) et `_808x_noyau` (le 8087 ; `Cpu/x87_noyau_808x.Materiel.cs`) ;
+chaque aide de contexte prend la classe de son cœur (sept aides du 8087 passent de `private` à `internal`) ; le
+contrôle de limite (le chemin de PB-189) est prévu pour le 286 et après, et ne sert qu'en N3, avec PB-54. Les
+instructions de N2 : FNINIT, FNCLEX (sur le 8087, sa sortie INT retombe si PB-69 est demandé), FLDCW, FNSTCW, FNSTSW
+m16 et AX (pas sur le 8087), FNOP, FINCSTP, FDECSTP (C1 à zéro sur le 387 et le 486 : 486 PRM, table 15-1), FFREE. Les
+tables du noyau remplacent toutes celles du x87 (`cpu_set`, sous `if (materiel.pb_264)`, après les poses de 6a et 6b,
+qu'elles remplacent donc si on les demande ensemble, avant PB-204, qui les enveloppe) ; les instructions pas encore
+écrites s'y arrêtent (`a_ecrire`, l'échappement et l'octet ModRM nommés). Rejoué : `genmat.py`, puis les quatre
+générateurs de PCem, `git status` sans changement.
+
+**PB-203** (le RESET, `resetx86` sous `if (materiel.pb_203)`, et le port F1h de l'AT) et **PB-264** (la faute de pile)
+corrigés en chantier ; leurs marqueurs `reproduced` passent à `fixed in hardware mode`. `recensement` : vert, 264
+défauts, 1035 marqueurs, 72 corrigés.
+
+**Les cas** (`materiel-cas PB-203` et `PB-264` ; le chemin suit le mode figé, l'attendu `--attendu`). PB-203, dix
+contrôles : après le RESET du harnais, FNSTSW et FNSTCW sur le 8087 (03FFh, 0000h), le 287 et le 287XL (037Fh,
+0000h), le 387 (037Eh, 8081h), le 486 (037Fh, 0000h, la mise sous tension) ; PCem 0000h partout ; puis un second
+`resetx86` sur un état posé, que le 486 garde. PB-264, 51 contrôles en mode PCem, 81 en mode matériel, 88 avec
+l'acheminement (`--hardware-mode PB-204,PB-264`, une porte de plus) : neuf empilements (3A41h sur le 387, le 486 et le
+287XL, 3801h sur le 8087 et le 287, l'indéfini en ST(0) ; PCem 3800h) ; un registre vide lu, C1 posé avant (0041h, ou
+0201h ; PCem 0200h) ; la même lecture démasquée (arrêtée, 80C1h ou 8081h) ; chaque instruction de contrôle (C1 de
+FINCSTP et de FDECSTP, le repli de TOP, B effacé par FNCLEX, FFREE lu dans le mot d'étiquettes, FNSTSW AX avec TOP,
+les formes a32) ; en mode matériel, la couche seule (treize classes, les formats non supportés par type, douze
+divisions : les quatre RC, PC à 24 et 53 bits, sans PC, un quotient exact qui remet C1 à zéro, OE, ZE, IE masquée et
+démasquée) ; avec l'acheminement, F1h (le RESET du 287 et du 387, rien sur le 486) et l'attente de FNOP derrière une
+exception démasquée du noyau.
+
+**Les contrôles négatifs.** L'attendu inversé, dans les deux sens et pour les deux PB : rouge. Seize fautes, une à une
+dans une copie restaurée (`neg-n2.py`, qui reconstruit l'outil à la fin) : la faute de pile sans SF ni C1 (9 échecs),
+le débordement masqué sans l'indéfini (5), le RESET du 387 sans IE, ES et B (2), `resetx86` sans le RESET (5),
+`cpu_set` sans les tables (1 et 23), FINCSTP et FDECSTP qui gardent C1 (6 et 3), FFREE qui libère ST(0) (4), FNCLEX
+qui garde B, au 386 (4) et au 8087 (1), les indicateurs sans C1 (7), RC croisé (2), FNSTSW AX sans TOP (4), une
+exception démasquée sans ES ni B (6), F1h qui ignore le noyau (1), l'acheminement jamais pris (3) : rouges ; le
+témoin vert. Deux leçons : le premier FINCSTP ne rougissait pas, le cas faisant FDECSTP avant lui, qui effaçait déjà
+C1 (chaque instruction a désormais son contrôle) ; et un contrôle a rougi sur un binaire resté à la dernière faute,
+le script ne reconstruisant pas l'outil après la restauration (il le fait désormais).
+
+**M2.** Contre M2-n1 : 1 130 méthodes, deux changées, `ModeMateriel..cctor` et `materiel..cctor` (la table et les
+deux champs, exécutés une fois) ; `cpu_set` et `resetx86`, qui portent les gardes, identiques. Contre M0 : l'écart de
+N1, les mêmes huit méthodes.
+
+**La contre-lecture** (Sonnet) : aucun risque pour le mode PCem ; l'indexation des tables, la classification,
+FNCLEX, FNSTSW, RC et PC vers SoftFloat, le RESET du 387, la faute de pile vérifiés contre les sources. Repris : le
+noyau ne prend plus l'acheminement de G13.6c que si PB-59 est demandé (il levait IRQ13 et le verrou de l'AT sans
+eux), et la sortie INT du 8087 retombe à FNINIT et FNCLEX sous PB-69 ; le contrôle de limite, qui corrigeait PB-189
+et PB-54 sans qu'on les demande, attend N3 ; le contrat de la couche unifié (vrai : l'instruction s'arrête) ; l'arrêt
+nomme l'échappement ; le 287 (sa table 3-1 dit IEM à 1, sa figure 1-5 un bit réservé : 037Fh gardé, inconnu) et la
+mise sous tension du 486 (non définie : les valeurs de la table 10-1, un choix) dits comme tels ; deux citations
+(387 PRM § 2.2.4 et SDM vol. 1, 2003, § 8.1.4.2 pour PC ; SDM, 2016, § 8.1.3.2 pour C1) ; l'ordre de C1 entre le
+calcul et la faute de pile écrit dans le contrat ; les cas renforcés (C1 posé avant le sous-débordement, le crochet de
+`resetx86` sur chaque type, le mot d'étiquettes, le repli de TOP, la couche complétée, le 8087 démasqué, F1h et
+l'attente avec PB-204). Non repris : FINCSTP et FDECSTP du 8087 et du 287 gardent C1, que la table 15-1 dit indéfini
+(le cas fige le choix, comme PCem) ; les bits réservés du mot de contrôle (6, 7, 13 à 15) relus par FNSTCW sur le 387
+et le 486, non documentés : N3, avec FLDCW.
+
+**La série** (`g7n2`, le 11/10, 12:42 → 13:50, contre `g7n1`) : 430 portes vertes, les 425 de `g7n1` et cinq neuves, `materiel-cas`
+de PB-203 et de PB-264 dans les deux modes, et celle de PB-264 avec l'acheminement ; un seul autre écart, attendu :
+`recensement` compte 1035 marqueurs au lieu de 1029.

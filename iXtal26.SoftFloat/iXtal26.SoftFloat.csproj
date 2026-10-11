@@ -25,6 +25,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="iXtal26"/>
         <InternalsVisibleTo Include="iXtal26.SoftFloatBanc"/>
+        <InternalsVisibleTo Include="iXtal26.Diff"/>
     </ItemGroup>
 
 </Project>

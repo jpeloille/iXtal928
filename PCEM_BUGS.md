@@ -3727,6 +3727,14 @@ l'ancien mot d'état ; silicium (387) le mot de FNINIT, IM à 0, et IE et ES pos
 *G13* : (a) — dans le cadre : l'état de reset par type de coprocesseur ; C3-C0 du 8087 et du 287 : (c).
 *Reproduit* : `Cpu/x87.cs`, `x87_reset`, vide, marqueur PB-203 ; l'appel est omis dans `Cpu/808x.cs`
 (`resetx86`, `// omitted:`, hors du domaine).
+*Corrigé en mode matériel* (G13.6, le noyau, N2 ; en chantier, par son numéro seulement jusqu'à N7) : sous `if
+(materiel.pb_203)`, `resetx86` appelle le RESET du noyau (`Cpu/x87_noyau.Materiel.cs`, `reset`) : le 8087, le 287 et le
+287XL (inconnu : celui du 287 qu'il remplace) dans l'état de FNINIT ; le 387 aussi, IM à 0, IE, ES et B posés (387 PRM
+§ 6.2.5) ; le 486 rien, sans l'auto-test (486 PRM § 19.2.3), et à la mise sous tension, dont l'état n'est pas défini
+(table 10-1, note 4), les valeurs de la table (037Fh, 0000h, FFFFh) : un choix. Le mot de contrôle du 287 reste 037Fh :
+sa table 3-1 dit IEM à 1 (03FFh), sa figure 1-5 un bit réservé (inconnu). Le port F1h de l'AT (PB-204) appelle le même
+RESET. C3-C0 du 8087 et du 287 restent ceux de FNINIT (PB-202, N7). `materiel-cas PB-203` ; F1h dans le cas de PB-264,
+avec l'acheminement.
 
 ### PB-204 — Les ports F0h et F1h de l'AT ne sont pas émulés
 
@@ -4971,8 +4979,14 @@ opérations invalides (IE), sans SF, que le 387 introduit.
 indéfini ; 8087 et 287 : IE posé (C1 non spécifié). FNINIT ; FADD ST, ST(1) → PCem 0000h ; 387 0041h (IE,
 SF), ST(0) indéfini.
 *G13* : (a) — avec le noyau : la pile et son débordement dans sa couche commune (N2), chaque gestionnaire en N3 et N4.
-*Reproduit* en mode PCem : `Cpu/x87_ops.cs` (`ST`, `x87_push`, `x87_push_u64`, `x87_pop`), marqueurs `reproduced:
-PB-264` ; les gestionnaires du 8087 appellent les mêmes aides.
+*Reproduit* en mode PCem : `Cpu/x87_ops.cs` (`ST`, `x87_push`, `x87_push_u64`, `x87_pop`), marqueurs PB-264 ; les
+gestionnaires du 8087 appellent les mêmes aides.
+*Corrigé en mode matériel* (G13.6, le noyau, N2 ; en chantier, par son numéro seulement jusqu'à N7) : sous `if
+(materiel.pb_264)`, `cpu_set` pose les tables du noyau de 80 bits, dont la pile (`Cpu/x87_noyau.Materiel.cs`) lève la
+faute : `empiler` sur un registre plein, `lire` un registre vide ; IE, et sur le 387 et le 486 (le 287XL : déduit) SF
+et C1 ; masquée, l'indéfini empilé, ou lu à la place de l'opérande ; démasquée, ES et B, et l'acheminement de G13.6c
+s'il est demandé (PB-59). Chaque gestionnaire qui empile ou lit la pile passe par elles : N3 et N4. `materiel-cas
+PB-264`, sur la couche ; avec PB-204, l'acheminement.
 
 ## B. Comportement indéfini en C
 

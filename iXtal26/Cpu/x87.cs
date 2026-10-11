@@ -93,7 +93,7 @@ internal static class x87_c
     // pcem: x87.c:97 — VIDE chez PCem : ni ST, ni tag, ni TOP, ni npxs, ni npxc ne sont remis
     //   par un reset. Leur valeur est le zéro de la mise sous tension (VERIFICATION.md § G4.0,
     //   h_fpu_clear_residue).
-    // pcem bug, reproduced: PB-203 — le silicium sort du RESET dans l'état de FNINIT (le 387 : IE et ES
-    //   posés en plus).
+    // pcem bug, fixed in hardware mode: PB-203 — le silicium sort du RESET dans l'état de FNINIT (le 387 : IE et
+    //   ES posés en plus) ; en mode matériel, le noyau (x87_noyau.Materiel.cs, reset), appelé par resetx86.
     internal static void x87_reset() { }
 }

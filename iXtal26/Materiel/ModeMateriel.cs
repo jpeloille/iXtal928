@@ -85,6 +85,7 @@ internal static class ModeMateriel
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
         new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
+        new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau, en chantier)"),
         new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
         new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
@@ -103,6 +104,7 @@ internal static class ModeMateriel
         new(261, "carte-mere", "la souris PS/2 remet ses compteurs de mouvement à zéro après EBh"),
         new(262, "processeur", "le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16"),
         new(263, "processeur", "après un CALL de tâche, l'IP contre la limite du nouveau CS : #TS(0) (386, 486)"),
+        new(264, "x87", "la pile du x87 déborde : IE, et SF et C1 sur le 387 et le 486 (le noyau, en chantier)"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
@@ -112,9 +114,16 @@ internal static class ModeMateriel
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
     /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
     /// fonction (x87.Materiel.cs). PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée par la carte, au
-    /// même site (x87.Materiel.cs).</summary>
+    /// même site (x87.Materiel.cs). PB-203 et PB-264 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que
+    /// ses gestionnaires partagent ; chaque étape du noyau y ajoute les PB qu'elle corrige.</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204]];
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [203, 264]];
+
+    /// <summary>Les corrections en chantier : celles du noyau de 80 bits du x87 (PLAN-G13.md, § G13.6, le noyau ;
+    /// décision n° 4), qui n'entrent ni dans « tout », ni dans leur domaine, avant la fin de N7. Le noyau remplace la pile
+    /// en `double` de PCem par huit registres de 80 bits : ses gestionnaires ne cohabitent pas avec ceux de PCem, et tant
+    /// qu'il n'est pas complet, il ne se demande que par ses numéros, pour les cas et les portes.</summary>
+    internal static readonly int[] EnChantier = [203, 264];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 
@@ -142,8 +151,8 @@ internal static class ModeMateriel
     /// <summary>La demande en liste de ligne de commande (« PB-01,PB-45 », ou « aucun »), pour un processus fils.</summary>
     internal static string ListeDemandee => Actif ? string.Join(",", demande.Select(n => $"PB-{n:00}")) : "aucun";
 
-    /// <summary>Toutes les corrections.</summary>
-    internal static SortedSet<int> Tout => [.. Corrections.Select(c => c.Pb)];
+    /// <summary>Toutes les corrections, sauf celles en chantier.</summary>
+    internal static SortedSet<int> Tout => [.. Corrections.Select(c => c.Pb).Except(EnChantier)];
 
     /// <summary>Pose la demande d'une LISTE : « tout », « aucun », des domaines ou des PB-nn, séparés par des virgules.
     /// Rend faux, le message écrit, sur un nom inconnu ou sur un changement après le gel.</summary>
@@ -219,7 +228,7 @@ internal static class ModeMateriel
             else if (mot == "aucun")
                 continue;
             else if (Domaines.Contains(mot))
-                pbs.UnionWith(Corrections.Where(c => c.Domaine == mot).Select(c => c.Pb));
+                pbs.UnionWith(Corrections.Where(c => c.Domaine == mot && !EnChantier.Contains(c.Pb)).Select(c => c.Pb));
             else if (Regex.Match(brut, @"^PB-(\d+)$", RegexOptions.IgnoreCase) is { Success: true } m)
             {
                 var n = int.Parse(m.Groups[1].Value);

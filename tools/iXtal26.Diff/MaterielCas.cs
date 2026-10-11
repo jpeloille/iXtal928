@@ -28,6 +28,7 @@ using iXtal26.Keyboard;
 using iXtal26.Memory;
 using iXtal26.Models;
 using iXtal26.Mouse;
+using iXtal26.SoftFloat;
 
 namespace iXtal26.Diff;
 
@@ -41,7 +42,7 @@ internal static class MaterielCas
         [251] = Pb251, [252] = Pb252, [253] = Pb253, [255] = Pb255, [257] = Pb257, [258] = Pb258, [94] = Pb94,
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
-        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1278,6 +1279,366 @@ internal static class MaterielCas
             }
             return bad;
         });
+    }
+
+    // ===== Le noyau de 80 bits (G13.6, le noyau ; en chantier : PB-203 et PB-264, un groupe) =====
+    //
+    // Le noyau n'a encore que ses instructions de contrôle (N2) : FNINIT, FNCLEX, FLDCW, FNSTCW, FNSTSW, FNOP, FINCSTP,
+    // FDECSTP, FFREE. Un cas qui empile ou lit la pile passe donc, en mode matériel, par la couche (x87_noyau.Materiel.cs),
+    // que les gestionnaires de N3 et N4 appelleront ; en mode PCem, par les instructions. Le chemin suit le mode FIGÉ, et
+    // l'attendu --attendu : la panne injectée (l'attendu de l'autre mode) rougit donc dans les deux sens.
+
+    private static readonly (int fpu, string nom)[] FpusXL = [(1, "8087"), (2, "287"), (3, "287XL"), (4, "387"), (5, "486")];
+
+    private static readonly extFloat80_t Un = new() { signExp = 0x3FFF, signif = 0x8000000000000000 };
+
+    /// <summary>Joue `code` sur le coprocesseur `fpu` (le cœur du 8088, du 286, du 386 ou du 486), `avant` après le RESET
+    /// du harnais, BX = 0200h ; rend les mots en DS:0200h et DS:0202h (FNSTSW [BX], FNSTCW [BX+2]).</summary>
+    private static (ushort a, ushort b) Mots(int fpu, byte[] code, int pas, Action? avant = null)
+    {
+        _386.FuzzFpu = fpu;
+        try
+        {
+            if (fpu == 1)
+                Jouer(code, r => r[(int)R.BX] = 0x200, avant, pas);
+            else
+                Jouer386(code, r => r[(int)R.BX] = 0x200, avant, coeur: Coeur(fpu), pas: pas);
+            return ((ushort)(mem.ram[0x200] | mem.ram[0x201] << 8), (ushort)(mem.ram[0x202] | mem.ram[0x203] << 8));
+        }
+        finally
+        {
+            _386.FuzzFpu = 0;
+        }
+    }
+
+    // PB-203 — au RESET, l'état initial du type (387 PRM § 6.2.5 et annexe C ; 287 PRM, table 3-1 ; Numerics Supplement,
+    // table S-7 ; 486 PRM § 19.2.3 et table 10-1). Le RESET du harnais (resetx86), puis FNSTSW [BX] ; FNSTCW [BX+2] : le
+    // 8087 03FFh et 0000h, le 287 et le 287XL 037Fh et 0000h, le 387 037Eh et 8081h (IM à 0 ; IE, ES et B), le 486
+    // 037Fh et 0000h (la mise sous tension) ; PCem 0000h et 0000h, le zéro de sa mise sous tension. Puis un second RESET
+    // (resetx86) sur un état posé (le mot de contrôle 0040h, PE) : les mêmes mots, sauf le 486, que le RESET ne touche
+    // pas (0040h et 0020h, comme PCem). C3-C0 restent hors du cas : le 8087 et le 287 les gardent (PB-202, N7). Avec
+    // l'acheminement (PB-204), le port F1h de l'AT remet le 287 et le 387 dans leur état de RESET (le cas de PB-264).
+    private static int Pb203(bool hw)
+    {
+        var bad = 0;
+        byte[] code = [0xDD, 0x3F, 0xD9, 0x7F, 0x02];
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var (sw, cw) = Mots(fpu, code, 2);
+            var (acw, asw) = !hw ? (0x0000, 0x0000) : fpu switch
+            {
+                1 => (0x03FF, 0x0000),
+                4 => (0x037E, 0x8081),
+                _ => (0x037F, 0x0000),
+            };
+            bad += Voir($"RESET ; FNSTSW ; FNSTCW ({nom})", (cw, sw) == (acw, asw), $"{cw:X4} et {sw:X4}",
+                        $"{acw:X4} et {asw:X4}", hw);
+            (sw, cw) = Mots(fpu, code, 2, () =>
+            {
+                _386_common.cpu_state.npxc = 0x0040;
+                _386_common.cpu_state.npxs = 0x0020;
+                _808x.resetx86();
+            });
+            if (!hw || fpu == 5)
+                (acw, asw) = (0x0040, 0x0020);
+            bad += Voir($"CW 0040h, PE ; RESET ; FNSTSW ; FNSTCW ({nom})", (cw, sw) == (acw, asw), $"{cw:X4} et {sw:X4}",
+                        $"{acw:X4} et {asw:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-264 — la faute de pile (SDM vol. 1 § 8.5.1.1 ; 387 PRM ; 287 PRM). Le débordement : FNINIT, neuf empilements de
+    // 1, FNSTSW [BX] → le 387, le 486 et le 287XL 3A41h (TOP = 7 ; IE, SF, C1), le 8087 et le 287 3801h (IE) ; ST(0)
+    // l'indéfini ; PCem (neuf FLD1) 3800h, ST(0) = 1. Le sous-débordement, C1 posé : ST(1) lu vide → 0041h (IE, SF ; C1
+    // à 0), le 8087 et le 287 0201h ; l'opérande lu, l'indéfini ; PCem (FADD ST,ST(1)) 0200h. Démasquée (IM à 0) : la
+    // lecture s'arrête, ES et B posés (8081h, ou 80C1h avec SF) ; PCem 0000h ; sans l'acheminement, rien ne part vers la
+    // carte (le 8087 compris), avec lui (--hardware-mode PB-204,PB-264), le cas Acheminement. Puis la couche seule (le
+    // mode matériel) : les classes d'un opérande, le mot de contrôle vers SoftFloat, ses indicateurs vers le mot d'état.
+    private static int Pb264(bool hw)
+    {
+        var bad = 0;
+        var noyau = materiel.pb_264;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var sf = fpu >= 3;
+            ushort sw;
+            bool indefini;
+            if (noyau)
+            {
+                (sw, _) = Mots(fpu, [0xDD, 0x3F], 1, () =>
+                {
+                    _x87_noyau.finit();
+                    for (var k = 0; k < 9; k++)
+                        _x87_noyau.empiler(Un);
+                });
+                indefini = Egal(_x87_noyau.R[_x87_noyau.phys(0)], _x87_noyau.Indefini);
+            }
+            else
+            {
+                (sw, _) = Mots(fpu, [0xDB, 0xE3, .. Enumerable.Repeat<byte[]>([0xD9, 0xE8], 9).SelectMany(b => b), 0xDD, 0x3F], 11);
+                indefini = double.IsNaN(_386.ST(0));
+            }
+            var att = !hw ? 0x3800 : sf ? 0x3A41 : 0x3801;
+            bad += Voir($"neuf empilements ; FNSTSW ({nom})", sw == att && indefini == hw, $"{sw:X4}, ST(0) {(indefini ? "indéfini" : "non")}",
+                        $"{att:X4}, ST(0) {(hw ? "indéfini" : "non")}", hw);
+
+            if (noyau)
+            {
+                var lu = Un;
+                (sw, _) = Mots(fpu, [0xDD, 0x3F], 1, () =>
+                {
+                    _x87_noyau.finit();
+                    _386_common.cpu_state.npxs = 0x0200;
+                    _x87_noyau.lire(1, out lu);
+                });
+                indefini = Egal(lu, _x87_noyau.Indefini);
+            }
+            else
+            {
+                (sw, _) = Mots(fpu, [0xD8, 0xC1, 0xDD, 0x3F], 2, () => _386_common.cpu_state.npxs = 0x0200);
+                indefini = false;
+            }
+            att = !hw ? 0x0200 : sf ? 0x0041 : 0x0201;
+            bad += Voir($"C1 ; ST(1) lu vide ; FNSTSW ({nom})", sw == att && indefini == hw, $"{sw:X4}, l'opérande {(indefini ? "indéfini" : "non")}",
+                        $"{att:X4}, l'opérande {(hw ? "indéfini" : "non")}", hw);
+
+            if (fpu == 1 && materiel.pb_59)
+                continue;
+            var arrete = false;
+            bad += Avec8259(() =>
+            {
+                Pic(true);
+                if (noyau)
+                    (sw, _) = Mots(fpu, [0xDD, 0x3F], 1, () =>
+                    {
+                        _x87_noyau.finit();
+                        _386_common.cpu_state.npxc = 0x037E;
+                        arrete = _x87_noyau.lire(1, out _);
+                    });
+                else
+                    (sw, _) = Mots(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD8, 0xC1, 0xDD, 0x3F], 4,
+                                   () => { mem.ram[0x200] = 0x7E; mem.ram[0x201] = 0x03; });
+                _x87_materiel.verrou = _x87_materiel.ignne = false;
+                att = !hw ? 0x0000 : sf ? 0x80C1 : 0x8081;
+                return Voir($"IM à 0 ; ST(1) lu vide ; FNSTSW ({nom})", sw == att && arrete == hw,
+                            $"{sw:X4}, {(arrete ? "arrêtée" : "continue")}", $"{att:X4}, {(hw ? "arrêtée" : "continue")}", hw);
+            });
+        }
+        bad += Controle(hw, noyau);
+        if (noyau && hw)
+            bad += Avec8259(() =>
+            {
+                Pic(true);
+                var b = Couche();
+                _x87_materiel.verrou = _x87_materiel.ignne = false;
+                return b;
+            });
+        if (noyau && materiel.pb_204)
+            bad += Acheminement(hw);
+        return bad;
+    }
+
+    /// <summary>Le noyau avec l'acheminement de G13.6c (--hardware-mode PB-204,PB-264). Le port F1h de l'AT, le mot de
+    /// contrôle 0040h et PE posés : le 287 et le 287XL sortent en 037Fh et 0000h, le 387 en 037Eh et 8081h (leur RESET,
+    /// PB-203) ; le 486, que F1h ne touche pas, en 0040h et 0020h. Une lecture de pile démasquée (IM à 0), puis FNOP, qui
+    /// attend : le verrou de l'AT (287, 387) ou l'exception en attente du 486 (NE nul) l'arrêtent, IP = 0100h.</summary>
+    private static int Acheminement(bool hw)
+    {
+        var bad = 0;
+        model_c.at_coprocesseur_init();
+        try
+        {
+            foreach (var (fpu, nom) in FpusXL.Where(f => f.fpu >= 2))
+            {
+                var (sw, cw) = Mots(fpu, [0xE6, 0xF1, 0xDD, 0x3F, 0xD9, 0x7F, 0x02], 3, () =>
+                {
+                    _386_common.cpu_state.npxc = 0x0040;
+                    _386_common.cpu_state.npxs = 0x0020;
+                });
+                var (acw, asw) = !hw || fpu == 5 ? (0x0040, 0x0020) : fpu == 4 ? (0x037E, 0x8081) : (0x037F, 0x0000);
+                bad += Voir($"CW 0040h, PE ; OUT F1h ; FNSTSW ; FNSTCW ({nom})", (cw, sw) == (acw, asw), $"{cw:X4} et {sw:X4}",
+                            $"{acw:X4} et {asw:X4}", hw);
+                bad += Avec8259(() =>
+                {
+                    Pic(true);
+                    _386.FuzzFpu = fpu;
+                    try
+                    {
+                        var r = Jouer386([0xD9, 0xD0], _ => { }, () =>
+                        {
+                            _x87_noyau.finit();
+                            _386_common.cpu_state.npxc = 0x037E;
+                            _x87_noyau.lire(1, out _);
+                        }, coeur: Coeur(fpu));
+                        _x87_materiel.verrou = _x87_materiel.ignne = false;
+                        var ip = r[(int)R.IP];
+                        var aip = hw ? 0x0100 : 0x0102;
+                        return Voir($"IM à 0 ; ST(1) lu vide ; FNOP ({nom})", ip == aip, $"IP = {ip:X4}", $"IP = {aip:X4}", hw);
+                    }
+                    finally
+                    {
+                        _386.FuzzFpu = 0;
+                    }
+                });
+            }
+        }
+        finally
+        {
+            io.io_removehandler(0x00f0, 0x0002, null, null, null, _x87_materiel.ecrire_f0_f1, null, null, null);
+        }
+        return bad;
+    }
+
+    /// <summary>Les instructions de contrôle du noyau (N2), sur chaque coprocesseur, par les instructions dans les deux
+    /// modes. FNINIT ; FLDCW [BX+4] = 0B7Fh ; FNOP ; FNSTCW [BX+2] ; FNSTSW [BX] → 0B7Fh et 0000h (témoin). C1 posé ;
+    /// FINCSTP (ou FDECSTP) ; FNSTSW → TOP = 1 (ou 7) et, sur le 387, le 486 et le 287XL, C1 à zéro (486 PRM, table
+    /// 15-1) : 0800h (3800h) ; le 8087 et le 287 (C1 indéfini, laissé) et PCem 0A00h (3A00h). FNCLEX sous B, C3-C0 et les six exceptions : 4700h ;
+    /// PCem garde B, C700h (PB-59, que le noyau ne reproduit pas). FFREE ST(1) après deux empilements : ST(1) vide, ST(0)
+    /// non (témoin), lu dans le mot d'étiquettes, celui de l'architecture : DFFFh (FLD1, FLDZ). TOP = 7 ; FINCSTP : TOP = 0
+    /// (témoin du repli). FNSTSW AX, TOP = 5 (287 et après) : 2800h ; PCem 0000h (PB-61, de même). Les formes a32 de FLDCW,
+    /// FNSTCW et FNSTSW (386, 486 ; témoin).</summary>
+    private static int Controle(bool hw, bool noyau)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var (sw, cw) = Mots(fpu, [0xDB, 0xE3, 0xD9, 0x6F, 0x04, 0xD9, 0xD0, 0xD9, 0x7F, 0x02, 0xDD, 0x3F], 5,
+                                () => { mem.ram[0x204] = 0x7F; mem.ram[0x205] = 0x0B; });
+            bad += Voir($"FNINIT ; FLDCW ; FNOP ; FNSTCW ; FNSTSW ({nom}, témoin)", (cw, sw) == (0x0B7F, 0x0000),
+                        $"{cw:X4} et {sw:X4}", "0B7F et 0000", hw);
+
+            int att;
+            foreach (var (op, n, top) in new (byte, string, int)[] { (0xF7, "FINCSTP", 1), (0xF6, "FDECSTP", 7), (0xF7, "TOP = 7 ; FINCSTP", 0) })
+            {
+                (sw, _) = Mots(fpu, [0xD9, op, 0xDD, 0x3F], 2, () =>
+                {
+                    _386_common.cpu_state.npxs = 0x0200;
+                    _386_common.cpu_state.TOP = top == 0 ? 7 : 0;
+                });
+                att = top << 11 | (hw && fpu >= 3 ? 0 : 0x0200);
+                bad += Voir($"C1 ; {n} ; FNSTSW ({nom})", sw == att, $"{sw:X4}", $"{att:X4}", hw);
+            }
+
+            (sw, _) = Mots(fpu, [0xDB, 0xE2, 0xDD, 0x3F], 2, () => _386_common.cpu_state.npxs = 0xC7FF);
+            att = hw ? 0x4700 : 0xC700;
+            bad += Voir($"B, C3-C0, ES, SF et les exceptions ; FNCLEX ; FNSTSW ({nom})", sw == att, $"{sw:X4}", $"{att:X4}", hw);
+
+            ushort tw;
+            if (noyau)
+            {
+                Mots(fpu, [0xDD, 0xC1], 1, () =>
+                {
+                    _x87_noyau.finit();
+                    _x87_noyau.empiler(Un);
+                    _x87_noyau.empiler(new extFloat80_t());
+                });
+                tw = _x87_noyau.etiquettes;
+            }
+            else
+            {
+                Mots(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDD, 0xC1], 4);
+                tw = x87_c.x87_gettag();
+            }
+            bad += Voir($"1 et 0 empilés ; FFREE ST(1) ; le mot d'étiquettes ({nom}, témoin)", tw == 0xDFFF, $"{tw:X4}",
+                        "DFFF (ST(0) = R6 zéro, R7 libéré)", hw);
+
+            if (fpu == 1)
+                continue;
+            var ax = X87(fpu, [0xDB, 0xE3, 0xD9, 0xF6, 0xD9, 0xF6, 0xD9, 0xF6, 0xDF, 0xE0], 5);
+            att = hw ? 0x2800 : 0x0000;
+            bad += Voir($"FNINIT ; FDECSTP ×3 ; FNSTSW AX ({nom})", ax == att, $"{ax:X4}", $"{att:X4}", hw);
+
+            if (fpu < 4)
+                continue;
+            (sw, cw) = Mots(fpu, [0xDB, 0xE3, 0x67, 0xD9, 0x6B, 0x04, 0x67, 0xD9, 0x7B, 0x02, 0x67, 0xDD, 0x3B], 4,
+                            () => { mem.ram[0x204] = 0x7F; mem.ram[0x205] = 0x0B; });
+            bad += Voir($"FNINIT ; FLDCW, FNSTCW et FNSTSW en a32 ({nom}, témoin)", (cw, sw) == (0x0B7F, 0x0000),
+                        $"{cw:X4} et {sw:X4}", "0B7F et 0000", hw);
+        }
+        return bad;
+    }
+
+    private static bool Egal(in extFloat80_t a, in extFloat80_t b) => a.signExp == b.signExp && a.signif == b.signif;
+
+    /// <summary>La couche du noyau, hors des instructions : les classes d'un opérande (387 PRM § 3.1 et table 3-9), les
+    /// formats que le 387 ne supporte plus (§ 3.1.7), le mot de contrôle vers SoftFloat et ses indicateurs vers le mot
+    /// d'état, C1 compris (SDM vol. 1, 2016, § 8.1.3.2 ; 2003, § 8.1.2.2).</summary>
+    private static int Couche()
+    {
+        var bad = 0;
+        foreach (var (se, sig, c) in new (ushort, ulong, _x87_noyau.Classe)[]
+                 {
+                     (0x0000, 0, _x87_noyau.Classe.Zero), (0x8000, 0, _x87_noyau.Classe.Zero),
+                     (0x3FFF, 0x8000000000000000, _x87_noyau.Classe.Normal),
+                     (0x0000, 0x0000000000000001, _x87_noyau.Classe.Denormal),
+                     (0x0000, 0x8000000000000000, _x87_noyau.Classe.PseudoDenormal),
+                     (0x3FFF, 0x4000000000000000, _x87_noyau.Classe.NonNormal),
+                     (0x3FFF, 0x0000000000000000, _x87_noyau.Classe.NonNormal),
+                     (0x7FFF, 0x8000000000000000, _x87_noyau.Classe.Infini),
+                     (0x7FFF, 0x0000000000000000, _x87_noyau.Classe.PseudoInfini),
+                     (0x7FFF, 0x4000000000000000, _x87_noyau.Classe.PseudoNaN),
+                     (0x7FFF, 0xC000000000000000, _x87_noyau.Classe.QNaN),
+                     (0xFFFF, 0xC000000000000000, _x87_noyau.Classe.QNaN),
+                     (0x7FFF, 0xA000000000000000, _x87_noyau.Classe.SNaN),
+                 })
+        {
+            var v = _x87_noyau.classe(new extFloat80_t { signExp = se, signif = sig });
+            bad += Voir($"la classe de {se:X4} {sig:X16}", v == c, $"{v}", $"{c}", true);
+        }
+        var fpu = cpu_c.fpu_type;
+        try
+        {
+            foreach (var (t, nom) in FpusXL)
+            {
+                cpu_c.fpu_type = t;
+                var ns = _x87_noyau.non_supporte(_x87_noyau.Classe.NonNormal) && _x87_noyau.non_supporte(_x87_noyau.Classe.PseudoNaN)
+                         && _x87_noyau.non_supporte(_x87_noyau.Classe.PseudoInfini)
+                         && !_x87_noyau.non_supporte(_x87_noyau.Classe.PseudoDenormal);
+                bad += Voir($"non normal, pseudo-infini et pseudo-NaN non supportés, pseudo-dénormal supporté ({nom})", ns == t >= 3, $"{ns}",
+                            $"{t >= 3}", true);
+            }
+            // 1 ÷ 3 (387) : au plus près, AAAAAAAAAAAAAAABh, PE et C1 (l'arrondi vers le haut) ; vers −∞ et vers zéro,
+            // ...AAAAh, PE seul ; vers +∞, ...AAABh, PE et C1 ; PC à 24 bits, AAAAAB0000000000h, PE et C1 ; à 53 bits,
+            // AAAAAAAAAAAAA800h, PE ; PC à 24 bits sans `selon_pc`, les 64 bits. 1 ÷ 1, C1 posé avant : exact, rien, C1
+            // à 0. Le plus grand fini ÷ le plus petit normal : OE, PE et C1 (l'infini). 1 ÷ 0 : ZE et l'infini ; 0 ÷ 0 :
+            // IE et l'indéfini ; IM à 0, l'instruction s'arrête, ES et B posés.
+            cpu_c.fpu_type = cpu_c.FPU_387;
+            var trois = new extFloat80_t { signExp = 0x4000, signif = 0xC000000000000000 };
+            var zero = new extFloat80_t();
+            var max = new extFloat80_t { signExp = 0x7FFE, signif = 0xFFFFFFFFFFFFFFFF };
+            var min = new extFloat80_t { signExp = 0x0001, signif = 0x8000000000000000 };
+            foreach (var (cw, pc, a, b, sig, sw, stop) in new (ushort, bool, extFloat80_t, extFloat80_t, ulong, ushort, bool)[]
+                     {
+                         (0x037F, true, Un, trois, 0xAAAAAAAAAAAAAAAB, 0x0220, false),
+                         (0x077F, true, Un, trois, 0xAAAAAAAAAAAAAAAA, 0x0020, false),
+                         (0x0B7F, true, Un, trois, 0xAAAAAAAAAAAAAAAB, 0x0220, false),
+                         (0x0F7F, true, Un, trois, 0xAAAAAAAAAAAAAAAA, 0x0020, false),
+                         (0x007F, true, Un, trois, 0xAAAAAB0000000000, 0x0220, false),
+                         (0x027F, true, Un, trois, 0xAAAAAAAAAAAAA800, 0x0020, false),
+                         (0x007F, false, Un, trois, 0xAAAAAAAAAAAAAAAB, 0x0220, false),
+                         (0x037F, true, Un, Un, 0x8000000000000000, 0x0000, false),
+                         (0x037F, true, max, min, 0x8000000000000000, 0x0228, false),
+                         (0x037F, true, Un, zero, 0x8000000000000000, 0x0004, false),
+                         (0x037F, true, zero, zero, 0xC000000000000000, 0x0001, false),
+                         (0x037E, true, zero, zero, 0xC000000000000000, 0x8081, true),
+                     })
+            {
+                _386_common.cpu_state.npxc = cw;
+                _386_common.cpu_state.npxs = 0x0200;
+                _x87_noyau.arrondi(selon_pc: pc);
+                var z = softfloat.extF80_div(a, b);
+                var arrete = _x87_noyau.indicateurs();
+                bad += Voir($"CW {cw:X4}{(pc ? "" : " (sans PC)")}, {a.signExp:X4} {a.signif:X16} ÷ {b.signExp:X4} {b.signif:X16}",
+                            z.signif == sig && _386_common.cpu_state.npxs == sw && arrete == stop,
+                            $"{z.signif:X16}, {_386_common.cpu_state.npxs:X4}{(arrete ? ", arrêtée" : "")}",
+                            $"{sig:X16}, {sw:X4}{(stop ? ", arrêtée" : "")}", true);
+            }
+        }
+        finally
+        {
+            cpu_c.fpu_type = fpu;
+        }
+        return bad;
     }
 
     // PB-58 — FLDZ ; FLDZ ; FCHS (ST(0) = −0, ST(1) = +0) ; FCOMPP ; FNSTSW AX → égaux, C3 (IEEE 754-1985 § 5.7) ; PCem,

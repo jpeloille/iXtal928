@@ -130,7 +130,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   de ZE : ES et B, la NMI du 8087, IRQ13 et le verrou de l'AT, F0h et F1h, FERR# et #MF du 486). Point de décision
   n° 10, étape 1 (11/10) : SoftFloat 3e réécrit en C#, hors de l'émulateur, vert à TestFloat 3e et mesuré. Le noyau
   (plan N1-N8 validé le 11/10, PLAN-G13.md) : N1 ✅ (11/10 : la bibliothèque dans `iXtal26.SoftFloat/`, l'écart C1,
-  PB-264 au registre).
+  PB-264 au registre) ; N2 ✅ (11/10 : l'état de 80 bits, la couche commune, le générateur et les instructions de
+  contrôle ; PB-203 et PB-264 corrigés, en chantier).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

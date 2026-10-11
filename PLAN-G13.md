@@ -346,7 +346,8 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   résultat diffère de celui qu'arrondit vers zéro) ; TestFloat repasse en entier. Le registre : le débordement de
   pile du x87 (empiler sur un registre plein, lire un registre vide : IE, et SF et C1 sur le 387 et le 486), que
   PCem ignore et qu'aucune entrée ne porte, inscrit avec ses marqueurs. ≈ 300 lignes.
-- **N2 — L'état de 80 bits et le générateur** (aucun comportement ne change). L'état du mode (huit registres
+- **N2 — L'état de 80 bits et le générateur** ✅ *(11/10, VERIFICATION.md § G13.6, le noyau, N2)* (aucun
+  comportement ne change pour l'utilisateur ; PB-203 et PB-264 corrigés en chantier). L'état du mode (huit registres
   `extFloat80_t`, le mot d'étiquettes de l'architecture, FIP, FCS, FOP, FDP, FDS) ; l'état de reset par type
   (PB-203) ; une couche sémantique commune aux cœurs (`x87_noyau.Materiel.cs` : la classe de chaque opérande —
   normal, dénormal, non normal, pseudo-dénormal, pseudo-infini, NaN —, la pile et son débordement, la réponse

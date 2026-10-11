@@ -174,6 +174,9 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
+    /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau (en chantier).</summary>
+    internal static readonly bool pb_203;
+
     /// <summary>PB-204 : les ports F0h et F1h de l'AT, le verrou de BUSY# (287, 387), IGNNE# (486) ; avec PB-59.</summary>
     internal static readonly bool pb_204;
 
@@ -227,6 +230,10 @@ internal static class materiel
 
     /// <summary>PB-263 : après un CALL de tâche, l'IP contrôlé contre la limite du nouveau CS, #TS(0) (386, 486).</summary>
     internal static readonly bool pb_263;
+
+    /// <summary>PB-264 : la pile du x87 déborde (IE, SF, C1) ; avec PB-203, le noyau (en chantier). Sa garde pose les
+    /// tables du noyau.</summary>
+    internal static readonly bool pb_264;
 
     static materiel()
     {
@@ -283,6 +290,7 @@ internal static class materiel
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);
         pb_193 = ModeMateriel.Demande(193);
+        pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
         pb_207 = ModeMateriel.Demande(207);
         pb_213 = ModeMateriel.Demande(213);
@@ -301,5 +309,6 @@ internal static class materiel
         pb_261 = ModeMateriel.Demande(261);
         pb_262 = ModeMateriel.Demande(262);
         pb_263 = ModeMateriel.Demande(263);
+        pb_264 = ModeMateriel.Demande(264);
     }
 }

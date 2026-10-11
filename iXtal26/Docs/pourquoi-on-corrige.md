@@ -685,3 +685,35 @@ au lieu de rendre l'infini : il la « démasque ». Ce qui se passe alors dépen
   soit traitée, et un BIOS qui remet le coprocesseur à zéro par F1h n'y parvient pas.
 - **La correction.** Le blocage, les deux ports, et l'arrêt du 486. Les sept instructions de contrôle que le
   processeur lance sans attendre (FNINIT, FNCLEX, FNSTSW, et quatre autres) passent, comme sur la machine.
+
+## G13.6, le noyau — un coprocesseur de 80 bits, en chantier
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N2.*
+
+Le coprocesseur calcule sur 80 bits ; PCem, sur les 64 bits d'un `double` de l'hôte. Le mode matériel reçoit donc un
+coprocesseur à lui, le noyau : huit registres de 80 bits et une bibliothèque de calcul vérifiée bit à bit (SoftFloat).
+Il s'écrit en huit étapes. Tant qu'il n'est pas complet, il ne remplace pas celui de PCem pour l'utilisateur : seuls
+les tests le demandent, par ses numéros. Cette première étape pose l'état, le RESET, la pile et les instructions de
+contrôle (FNINIT, FNCLEX, FLDCW, FNSTCW, FNSTSW, FNOP, FINCSTP, FDECSTP, FFREE).
+
+### PB-203 — le RESET remet le coprocesseur dans son état de départ
+
+- **Le vrai PC.** Au RESET, le coprocesseur reprend un état connu, qui dépend de son modèle. Le 8087 et le 287 sont
+  dans l'état de FNINIT : toutes les exceptions masquées, la pile vide. Le 387 aussi, à ceci près qu'il lève une
+  erreur exprès : c'est ainsi que le 386 sait, au démarrage, qu'un 387 est présent. Le 486 ne change rien, à moins
+  qu'on lui demande son auto-test.
+- **L'émulateur.** PCem ne remet rien : son coprocesseur garde l'état d'avant le RESET, et sort de la mise sous
+  tension avec un mot de contrôle nul, qui démasque toutes les exceptions.
+- **La correction.** Chaque modèle reçoit son état de RESET ; le port F1h de l'AT, qui remet le coprocesseur à zéro,
+  passe par le même chemin.
+
+### PB-264 — la pile du coprocesseur déborde
+
+- **Le vrai PC.** La pile a huit places. Empiler une neuvième valeur, ou lire une place vide, est une erreur : le
+  coprocesseur la signale (le 387 et le 486 disent en plus laquelle des deux), et range à la place une valeur
+  « indéfinie », qu'un programme reconnaît.
+- **L'émulateur.** PCem ne regarde jamais si une place est libre : la neuvième valeur écrase la plus ancienne, et une
+  place vide se lit comme si elle contenait encore son ancien nombre, sans erreur.
+- **La correction.** La pile du noyau signale l'erreur et range l'indéfini. Les instructions qui empilent et lisent
+  arrivent aux étapes suivantes ; elles passeront toutes par cette pile.

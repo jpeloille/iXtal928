@@ -454,7 +454,7 @@ internal static partial class _808x
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint16_t geteaw()
+    internal static uint16_t geteaw()
     {
         if (cpu_mod == 3)
                 return cpu_state.regs[cpu_rm].w;
@@ -486,7 +486,7 @@ internal static partial class _808x
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void seteaw(uint16_t val)
+    internal static void seteaw(uint16_t val)
     {
         if (cpu_mod == 3)
                 cpu_state.regs[cpu_rm].w = val;
@@ -1170,7 +1170,11 @@ startrep:
         makemod1table();
         mem.resetreadlookup();
         FETCHCLEAR();
-        // omitted: x87_reset() et codegen_reset() — 8087 et dynarec.
+        // omitted: x87_reset() et codegen_reset() — vide chez PCem (x87.cs), et le dynarec.
+        // pcem bug, fixed in hardware mode: PB-203 — le RESET remet le coprocesseur dans l'état initial de son type (le
+        //   noyau, en chantier ; x87_noyau.Materiel.cs).
+        if (materiel.pb_203)
+                _x87_noyau.reset();
         // omitted: cpu_set_edx() (:698) — inerte ICI : EDX vient d'être mis à zéro, et
         //   edx_reset vaut 0 dans les trois tables du dépôt (cpu_tables.cs).
         mem.mmu_perm = 4;
