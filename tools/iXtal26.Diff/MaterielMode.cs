@@ -54,6 +54,16 @@ internal static class MaterielMode
             Verifie("la clé hardware_mode = 1 est refusée par loadconfig", !pc.loadconfig(hw1), ModeMateriel.Description);
             Verifie("la clé hardware_mode = 7 retombe sur le mode PCem, qui ne change rien", pc.loadconfig(hw7) && !ModeMateriel.Actif,
                     ModeMateriel.Description);
+            // G13.6, le noyau, N7c : le noyau de 80 bits entre au mode ; « tout » et le domaine x87 le prennent, et une
+            // correction en double de G13.6a ou 6b le demande, qui la reprend.
+            var x87 = ModeMateriel.Corrections.Where(c => c.Domaine == "x87" && !ModeMateriel.EnChantier.Contains(c.Pb)).Select(c => c.Pb);
+            Verifie("« tout » et le domaine x87 prennent le noyau (aucune correction en chantier)",
+                    ModeMateriel.EnChantier.Length == 0 && ModeMateriel.Tout.Contains(264) && x87.Contains(264),
+                    $"en chantier : {ModeMateriel.EnChantier.Length}");
+            int[] g6 = [57, 58, 61, 63, 64, 66, 67, 70, 207, 213];
+            var hors = g6.Where(n => !ModeMateriel.Groupes.Any(g => g.Contains(n) && g.Contains(264))).ToList();
+            Verifie("une correction de G13.6a ou 6b demande le noyau", hors.Count == 0,
+                    hors.Count == 0 ? "PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213 : au groupe du noyau" : $"hors du groupe : {string.Join(", ", hors)}");
 
             Console.WriteLine("\nLe lanceur d'iXtal26 :");
             Lance("--boot --hardware-mode tout, figé à son point de gel", emulateur,

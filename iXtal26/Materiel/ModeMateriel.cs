@@ -43,25 +43,25 @@ internal static class ModeMateriel
         new(40, "processeur", "CALL sur une tâche n'empile pas l'adresse de retour"),
         new(43, "processeur", "MOV CRx, DRx et TRx ignorent le champ mod (386, 486)"),
         new(45, "processeur", "IDIV octet divise AX signé"),
-        new(48, "x87", "chaque opération suit RC, et PC la précision des quatre opérations (le noyau, en chantier)"),
+        new(48, "x87", "chaque opération suit RC, et PC la précision des quatre opérations (le noyau)"),
         new(50, "processeur", "une instruction de plus de 15 octets (10 sur le 286) lève #GP"),
         new(51, "processeur", "la lecture d'une instruction contrôle la limite de CS (286, 386, 486)"),
-        new(52, "x87", "FBLD charge dix-huit chiffres décimaux (le noyau, en chantier)"),
-        new(54, "x87", "chaque accès du x87 contrôle la limite de son opérande et, en mode protégé, ses droits (le noyau, en chantier)"),
-        new(55, "x87", "FLD m80 charge les 80 bits tels quels (le noyau, en chantier)"),
-        new(56, "x87", "les registres de 80 bits : FSTP m80 les range tels quels, les calculs ont 64 bits de significande (le noyau, en chantier)"),
+        new(52, "x87", "FBLD charge dix-huit chiffres décimaux (le noyau)"),
+        new(54, "x87", "chaque accès du x87 contrôle la limite de son opérande et, en mode protégé, ses droits (le noyau)"),
+        new(55, "x87", "FLD m80 charge les 80 bits tels quels (le noyau)"),
+        new(56, "x87", "les registres de 80 bits : FSTP m80 les range tels quels, les calculs ont 64 bits de significande (le noyau)"),
         new(57, "x87", "FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom"),
         new(58, "x87", "FCOMPP compare −0 et +0 égaux, sans le contournement de détection"),
         new(59, "x87", "une division par zéro démasquée pose ES et B, et l'exception va où la carte la mène"),
-        new(60, "x87", "deux NaN : le plus grand significande survit, quel que soit l'ordre des opérandes (le noyau, en chantier)"),
+        new(60, "x87", "deux NaN : le plus grand significande survit, quel que soit l'ordre des opérandes (le noyau)"),
         new(61, "x87", "FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486)"),
-        new(62, "x87", "les pointeurs d'instruction et d'opérande, rangés et relus dans les quatre dispositions (le noyau, en chantier)"),
+        new(62, "x87", "les pointeurs d'instruction et d'opérande, rangés et relus dans les quatre dispositions (le noyau)"),
         new(63, "x87", "FXAM rend la classe de ST(0), et le signe dans C1"),
         new(64, "x87", "FTST rend un NaN non ordonné"),
-        new(65, "x87", "FPREM et FPREM1 : le reste exact, la réduction partielle et C2 ; FPREM1 au plus près (le noyau, en chantier)"),
+        new(65, "x87", "FPREM et FPREM1 : le reste exact, la réduction partielle et C2 ; FPREM1 au plus près (le noyau)"),
         new(66, "x87", "les constantes au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486"),
         new(67, "x87", "FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64"),
-        new(68, "x87", "les transcendantes sur 80 bits, arrondies une fois selon RC ; C2 au-delà de 2^63, réduites par le Pi du silicium (le noyau, en chantier)"),
+        new(68, "x87", "les transcendantes sur 80 bits, arrondies une fois selon RC ; C2 au-delà de 2^63, réduites par le Pi du silicium (le noyau)"),
         new(69, "x87", "sur un PC ou un XT, l'exception du 8087 lève la NMI, que le port A0h masque"),
         new(70, "x87", "le 8087 et le 287 comparent en projectif tant que IC est nul"),
         new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
@@ -94,22 +94,22 @@ internal static class ModeMateriel
         new(191, "processeur", "la voie TSS des CALL, JMP et INT contrôle le DPL, la présence, la GDT et le type"),
         new(192, "processeur", "la porte tient tout entière dans l'IDT ; EXT marque un événement externe"),
         new(193, "processeur", "LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé"),
-        new(194, "x87", "FXTRACT sépare l'exposant et le significande (le noyau, en chantier)"),
-        new(195, "x87", "FBSTP arrondit selon RC ; trop grand, un NaN ou un infini : IE et l'indéfini BCD (le noyau, en chantier)"),
-        new(196, "x87", "FIST et FISTP hors bornes : IE et l'indéfini entier (le noyau, en chantier)"),
-        new(197, "x87", "FRNDINT garde |x| ≥ 2^63, les infinis et les NaN (le noyau, en chantier)"),
-        new(198, "x87", "FSCALE par un NaN ou un infini : la table des spéciaux (le noyau, en chantier)"),
-        new(199, "x87", "FSAVE range chaque registre en réel de 80 bits (le noyau, en chantier)"),
-        new(200, "x87", "DF E0 laisse AX sur le 8087, qui n'a pas FNSTSW AX (le noyau, en chantier)"),
-        new(201, "x87", "le 8087 lit et écrit chaque mot de son opérande à l'adresse physique, sans boucler dans le segment (le noyau, en chantier)"),
-        new(202, "x87", "FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 (le noyau, en chantier)"),
-        new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau, en chantier)"),
+        new(194, "x87", "FXTRACT sépare l'exposant et le significande (le noyau)"),
+        new(195, "x87", "FBSTP arrondit selon RC ; trop grand, un NaN ou un infini : IE et l'indéfini BCD (le noyau)"),
+        new(196, "x87", "FIST et FISTP hors bornes : IE et l'indéfini entier (le noyau)"),
+        new(197, "x87", "FRNDINT garde |x| ≥ 2^63, les infinis et les NaN (le noyau)"),
+        new(198, "x87", "FSCALE par un NaN ou un infini : la table des spéciaux (le noyau)"),
+        new(199, "x87", "FSAVE range chaque registre en réel de 80 bits (le noyau)"),
+        new(200, "x87", "DF E0 laisse AX sur le 8087, qui n'a pas FNSTSW AX (le noyau)"),
+        new(201, "x87", "le 8087 lit et écrit chaque mot de son opérande à l'adresse physique, sans boucler dans le segment (le noyau)"),
+        new(202, "x87", "FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 (le noyau)"),
+        new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau)"),
         new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
-        new(206, "x87", "FLD m32 d'un SNaN lève IE (387, 486 ; le noyau, en chantier)"),
+        new(206, "x87", "FLD m32 d'un SNaN lève IE (387, 486 ; le noyau)"),
         new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
-        new(208, "x87", "les étiquettes rangées sont celles du contenu, et recalculées au chargement (287XL, 387, 486 ; le noyau, en chantier)"),
-        new(211, "x87", "FRNDINT garde le signe du zéro (le noyau, en chantier)"),
-        new(212, "x87", "FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486 ; le noyau, en chantier)"),
+        new(208, "x87", "les étiquettes rangées sont celles du contenu, et recalculées au chargement (287XL, 387, 486 ; le noyau)"),
+        new(211, "x87", "FRNDINT garde le signe du zéro (le noyau)"),
+        new(212, "x87", "FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486 ; le noyau)"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
@@ -126,8 +126,8 @@ internal static class ModeMateriel
         new(261, "carte-mere", "la souris PS/2 remet ses compteurs de mouvement à zéro après EBh"),
         new(262, "processeur", "le décalage immédiat d'un BT, BTS, BTR ou BTC 16 bits se prend modulo 16"),
         new(263, "processeur", "après un CALL de tâche, l'IP contre la limite du nouveau CS : #TS(0) (386, 486)"),
-        new(264, "x87", "la pile du x87 déborde : IE, et SF et C1 sur le 387 et le 486 (le noyau, en chantier)"),
-        new(265, "x87", "FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 (le noyau, en chantier)"),
+        new(264, "x87", "la pile du x87 déborde : IE, et SF et C1 sur le 387 et le 486 (le noyau)"),
+        new(265, "x87", "FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 (le noyau)"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
@@ -135,19 +135,19 @@ internal static class ModeMateriel
     /// iraient sinon. PB-07 et PB-179 : la même condition de repli dans readmemw et writememw. PB-45, PB-169 et PB-258 :
     /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
-    /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
-    /// fonction (x87.Materiel.cs). PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée par la carte, au
-    /// même site (x87.Materiel.cs). PB-48, 52, 54, 55, 56, 60, 62, 65, 68, 194 à 203, 206, 208, 211, 212, 264 et 265 : le noyau de 80 bits
-    /// (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; chaque étape du noyau y ajoute les PB
-    /// qu'elle corrige.</summary>
+    /// le code d'erreur de son dépassement, au même test. PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée
+    /// par la carte, au même site (x87.Materiel.cs). PB-48, 52, 54 à 58, 60 à 68, 70, 194 à 203, 206 à 208, 211 à 213, 264 et
+    /// 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
+    /// corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213), dont il remplace les tables
+    /// (G13.6, le noyau, N7c ; leurs gestionnaires quittent le dépôt en N8).</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 208, 211, 212, 264, 265]];
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204],
+         [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 264, 265]];
 
-    /// <summary>Les corrections en chantier : celles du noyau de 80 bits du x87 (PLAN-G13.md, § G13.6, le noyau ;
-    /// décision n° 4), qui n'entrent ni dans « tout », ni dans leur domaine, avant la fin de N7. Le noyau remplace la pile
-    /// en `double` de PCem par huit registres de 80 bits : ses gestionnaires ne cohabitent pas avec ceux de PCem, et tant
-    /// qu'il n'est pas complet, il ne se demande que par ses numéros, pour les cas et les portes.</summary>
-    internal static readonly int[] EnChantier = [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 208, 211, 212, 264, 265];
+    /// <summary>Les corrections en chantier, qui n'entrent ni dans « tout », ni dans leur domaine : aucune depuis que le
+    /// noyau de 80 bits du x87 est complet (PLAN-G13.md, § G13.6, le noyau, N7c ; décision n° 4). Le mécanisme reste pour
+    /// un chantier futur.</summary>
+    internal static readonly int[] EnChantier = [];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

@@ -392,7 +392,7 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   `x87-transc`, au bit près ; C2, le 1 de FPTAN, les spéciaux des tables du SDM ; hors des domaines, la valeur
   mathématique (un choix). Les domaines étroits du 8087 et du 287, FPTAN en rapport, et FSIN, FCOS et FSINCOS, absents de
   ces deux-là (PB-266, détaché de PB-68), passent à N7.
-- **N7 — Les coprocesseurs de 16 bits.** Le 8087 et le 287 : l'infini projectif dans l'arithmétique, les non normaux
+- **N7 — Les coprocesseurs de 16 bits** ✅ *(12/10, en trois : N7a, N7b, N7c)*. Le 8087 et le 287 : l'infini projectif dans l'arithmétique, les non normaux
   et les dénormaux chargés en non normaux, FXAM à seize codes, FINIT et FSAVE qui gardent C3-C0 (PB-202), FNSTSW AX
   absent du 8087 (PB-200), l'adressage du 8087 (PB-201), le quotient du 287, FSETPM et la disposition des images du
   287, IEM, FENI, FDISI ; venus de N6, FSIN, FCOS et FSINCOS absents (PB-266), les domaines étroits des transcendantes
@@ -418,7 +418,7 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
     comparé) ; FXTRACT d'un dénormal et d'un non normal ; FST m32 et m64 d'un dénormal ; l'infini projectif dans
     l'addition, la soustraction et FSQRT. Les étiquettes auxquelles le 8087 et le 287 se fient au lieu du contenu
     (annexe C § C.3) : ce qu'ils font d'un contenu contredit n'est pas décrit, (c).
-  - **N7c — L'entrée au mode.** `EnChantier` vidé ; les groupes du noyau et des comparaisons réunis, PB-57, 58, 61,
+  - **N7c — L'entrée au mode** ✅ *(12/10, VERIFICATION.md § G13.6, le noyau, N7c)*. `EnChantier` vidé ; les groupes du noyau et des comparaisons réunis, PB-57, 58, 61,
     63, 64, 66, 67, 70, 207 et 213 repris par le noyau ; les entrées illégales de PCem (PB-210) aux tables du noyau ;
     chaque lecteur de `cpu_state.ST` et `tag` (le débogueur, l'état sauvé) relu ; « tout » et le domaine `x87`.
 - **N8 — La clôture.** Les gestionnaires en `double` de G13.6a et 6b, que le noyau remplace, quittent le dépôt (leurs

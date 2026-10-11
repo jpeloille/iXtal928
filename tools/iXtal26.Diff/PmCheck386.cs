@@ -478,7 +478,8 @@ public static class PmCheck386
             return -1;
         foreach (var c in cas)
         {
-            var r = RunCaseCsharp(c, materielAttendu, true);
+            // Le 486 du mode matériel n'a plus de LOADALL386 (PB-78, demandé avec « tout ») : le décor du harnais seul.
+            var r = RunCaseCsharp(c, materielAttendu, LoadallDisponible());
             var ok = r.StartsWith("vert", StringComparison.Ordinal);
             Console.WriteLine($"  [{(ok ? "ok" : "ECHEC")}] {c.Name} : {r} (attendu {(materielAttendu ? "du matériel" : "de PCem")})");
             if (!ok) bad++;

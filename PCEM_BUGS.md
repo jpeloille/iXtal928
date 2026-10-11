@@ -598,7 +598,7 @@ appelé par les seuls opFADD mémoire ; les huit blocs FADD mémoire de `Cpu/x87
 `tools/x87gen/gen43.py`) ; FST et FSTP m32 de `Cpu/x87_ops_loadstore.cs` ; leurs copies de `Cpu/x87_ops_808x.cs` ;
 marqueurs PB-48. `x87-cases` : les bords de l'arrondi dirigé de FADD mémoire. (Ce champ disait « pas encore —
 G4.3 transcrira… » : G4.3 l'a fait, D2-contre K11.)
-*Corrigé en mode matériel* (G13.6, le noyau, N4a ; en chantier) : les quatre opérations du noyau (`_x87_noyau.operation`),
+*Corrigé en mode matériel* (G13.6, le noyau, N4a) : les quatre opérations du noyau (`_x87_noyau.operation`),
 en mémoire et de registre, FSQRT, et FST m32 et m64 (N3a), arrondissent selon RC, et les quatre opérations et FSQRT à
 la précision de PC (SoftFloat). `materiel-cas PB-48` : FDIV m64 et FDIVP de registre sous 0A7Fh, FST m32 sous 077Fh,
 FSUB de registre sous 0F7Fh, sur les cinq coprocesseurs.
@@ -718,7 +718,7 @@ BCD invalide : inconnue, à mesurer.
 (générées par `tools/x87gen/gentab.py`), et `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16` (`gen46.py`) ;
 marqueurs PB-52. (Ce champ citait `Cpu/x87_ops.cs`, `TableFpu`, disparue en G4.3 : D2-contre K11.) Le fuzzeur G4.2
 (`--x87 mem`) tire DF /4 et le confronte à l'oracle.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier, par son numéro seulement jusqu'à N7) : le gestionnaire
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : le gestionnaire
 FBLD du noyau (`Cpu/x87_noyau_386.Materiel.cs`, `Cpu/x87_noyau_808x.Materiel.cs`, générés par `tools/x87gen/genmat.py` ;
 `_x87_noyau.fbld`) convertit les dix-huit chiffres exactement et empile, −0 gardé ; un chiffre de A à F compte pour sa
 valeur (inconnu). `materiel-cas PB-52`.
@@ -749,7 +749,7 @@ vol. 3A ch. 6, i486 PRM § 9.9.9 contre § 25.1 ; SDM vol. 2 (#GP, segment non i
 sur ces deux lignes et après le `SEG_CHECK_WRITE` de chacun des vingt autres stockages, et (par `gen44.py`) de FSAVE,
 FSTENV, FSTSW m16 et FSTCW dans `Cpu/x87_ops_misc.cs`. Aucun dans `Cpu/x87_ops_808x.cs` : `gen46.py` les écarte, le
 8087 n'a pas de limite de segment (`CHECK_WRITE` vide, `Cpu/x87_8087.cs`).
-*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : chaque forme de mémoire du noyau, chargement,
+*Corrigé en mode matériel* (G13.6, le noyau, N3b) : chaque forme de mémoire du noyau, chargement,
 stockage, FLDCW, FSTCW, FSTSW, FLDENV, FSTENV, FRSTOR et FSAVE, contrôle l'opérande entier contre la limite de son
 segment, et en mode protégé ses droits (écrire dans un segment de code ou en lecture seule, lire un segment de code en
 exécution seule), avant tout ce qu'il modifie (`_x87_noyau.limite`) : #GP(0), #SS(0) pour la pile. Un mot suivant
@@ -791,7 +791,7 @@ lisent comme des normaux.
 marqueurs PB-55 ; FLD m80 (`opFLDe_*`) et FRSTOR (`x87_ld_frstor`) l'appellent. L'en-tête de `x87_ops.cs` attribuait
 ce défaut à PB-52 : corrigé. Le fuzzeur G4.2 le confronte à l'oracle (DB /5) ; contrôle négatif : sans `& 0x3ff`,
 divergence à l'itération 3.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m80 du noyau (`_x87_noyau.fld_f80`) charge les
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FLD m80 du noyau (`_x87_noyau.fld_f80`) charge les
 80 bits tels quels, sans autre exception que la faute de pile ; un format non supporté lèvera IE à l'usage. `materiel-cas PB-55`.
 
 ### PB-56 — x87_st80 écrit un double dénormal comme un normal, et 53 bits de précision seulement
@@ -813,7 +813,7 @@ FDIV(R), FSQRT) ; SDM vol. 2, FINIT (037Fh, PC = 64 bits) ; 387 PRM ; Numerics S
 *G13* : (a) — avec le noyau seulement ; en double, le codage des dénormaux, pas la précision (D2-contre K5).
 *Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st80`, verbatim, marqueurs PB-56 ; ST est un `double[]`
 (`Cpu/x86.cs`, hors du domaine du x87, sans marqueur).
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FSTP m80 du noyau (`_x87_noyau.fst_f80`) range les
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FSTP m80 du noyau (`_x87_noyau.fst_f80`) range les
 80 bits tels quels ; vide, l'indéfini. `materiel-cas PB-56`. La précision (N4a) : les registres du noyau ont 64 bits de
 significande, et ses opérations les calculent (PC = 11 après FNINIT) ; `materiel-cas PB-56` : 1/3 rangé en m80,
 3FFDh AAAAAAAAAAAAAAABh. Le 8087 et le 287 chargent le dénormal de 64 bits en son non normal équivalent, 3C01h
@@ -849,6 +849,7 @@ test de NaN → divergence `npxs` à l'itération 67 du fuzzeur G4.3.
 les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FCOM, FCOMP et FCOMPP de registre corrigés (`compare_materiel`), au temps de `fcom`, sur le 8087, le 287,
 le 387 et le 486. IE, que le silicium pose pour un NaN, reste à poser avec les autres exceptions (PB-59). `materiel-cas
 PB-57` : NaN contre 1 sur les trois coprocesseurs, C3 C2 C0 = 111 contre 000.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-57 demande le noyau (`_x87_noyau.fcom_st`, `comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-58 — FCOMPP : −0 contre +0 rend « plus petit », un contournement de détection
 
@@ -879,6 +880,7 @@ FCOMPP (−0, +0) identique à l'oracle ; sans le contournement, `npxs : oracle 
 (`_x87_materiel.fcompp`) ne prend plus le contournement : −0 et +0 égaux, C3. L'hypothèse A6 instruite : avec toutes
 les corrections du x87, les POST du PC (8087), de l'AT (287), de l'ami386dx (387) et de l'ami486 détectent leur
 coprocesseur comme en mode PCem (le mot d'équipement de la BDA, identique). `materiel-cas PB-58` : C3 contre C0.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-58 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-59 — Seule la division par zéro lève une exception ; démasquée, l'instruction s'évapore
 
@@ -911,10 +913,10 @@ mode, et celle du 8087 en place). Le 486, NE posé : #MF devant l'instruction su
 `materiel-cas PB-59` : le mot d'état après FDIVP 1/0 sur les quatre coprocesseurs (B084h), après FNCLEX (3000h), #MF
 du 486 devant FLD1 et WAIT (l'adresse de retour, celle de FLD1), pas devant FNSTSW, et les sept instructions sans
 attente, a16 et a32. Les autres exceptions, et les drapeaux masqués : avec le noyau. Les drapeaux masqués (G13.6, le
-noyau, N3a et N4a ; en chantier) : chaque instruction du noyau pose IE, DE, ZE, OE, UE et PE selon SoftFloat et la
+noyau, N3a et N4a) : chaque instruction du noyau pose IE, DE, ZE, OE, UE et PE selon SoftFloat et la
 classe de ses opérandes, dans l'ordre du SDM (vol. 1, 2003, § 4.9.2) ; `materiel-cas PB-264`, en mode matériel :
 FSQRT de −1, 1/0, 0/0, ∞ − ∞, un dépassement par excès et par défaut, un dénormal, PE. Démasquées (G13.6, le noyau,
-N5 ; en chantier) : `indicateurs` (`Cpu/x87_noyau.Materiel.cs`, marqueur PB-59) ; IS, I, D et Z arrêtent l'instruction,
+N5) : `indicateurs` (`Cpu/x87_noyau.Materiel.cs`, marqueur PB-59) ; IS, I, D et Z arrêtent l'instruction,
 rien de rangé ni de dépilé ; O et U, la destination un registre, rangent le résultat à l'exposant décalé de 24 576,
 arrondi selon PC et RC, C1 compris (387 PRM § 3.2.5 ; SDM vol. 1, 2003, § 8.5.4 et § 8.5.5), UE levée pour un résultat
 petit même exact, et FSCALE au-delà du décalage rend ±∞ ou ±0 — un arrondi à exposant non borné que SoftFloat n'a pas,
@@ -980,7 +982,7 @@ absolue) — documenté ; deux significandes égaux de signes contraires : incon
 mémoire en premier) ; vingt-deux sites de `Cpu/x87_ops_arith.cs` (générés par `gen43.py`) et leurs copies de
 `Cpu/x87_ops_808x.cs` ; marqueurs PB-60 sur la ligne au-dessus de chaque site, les fins de ligne `// PB-60 : …`
 restant. Contrôle négatif : l'ordre de opFADD inversé → divergence à l'itération 46 159.
-*Corrigé en mode matériel* (G13.6, le noyau, N4a ; en chantier) : les quatre opérations du noyau (`_x87_noyau.operation`)
+*Corrigé en mode matériel* (G13.6, le noyau, N4a) : les quatre opérations du noyau (`_x87_noyau.operation`)
 propagent le NaN par la règle de la spécialisation du 8086 de SoftFloat, celle de la table 4-7 ; l'opérande en mémoire
 garde son bit de silence jusqu'au calcul (`de_f32`, `de_f64`). Deux significandes égaux de signes contraires :
 SoftFloat rend le positif, (c). `materiel-cas PB-60` : DC C5, FADD m64 et D8 C9, sur les cinq coprocesseurs. Le 8087 et
@@ -1010,6 +1012,7 @@ rend 2800h des deux côtés.
 portent DF E0 corrigé (`opFSTSW_AX_materiel`), sur le 287, le 387 et le 486 ; le 8087 n'a pas DF E0 (PB-200), et la
 copie de son gestionnaire n'est plus un marqueur. `materiel-cas PB-61` : FNINIT ; FLD1 ×3 ; FNSTSW AX, 2800h contre
 0000h.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-61 demande le noyau (`_x87_noyau.mot_d_etat_ax`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-62 — Le pointeur d'instruction et d'opérande x87 n'est jamais mémorisé
 
@@ -1036,7 +1039,7 @@ K20-d) ; Numerics Supplement (1980) fig. S-9 — documenté ; 287 et FSETPM : d�
 FLDENV, FSTENV (générés par `gen44.py`), et leurs copies de `Cpu/x87_ops_808x.cs` ; la rangée DB E0 de
 `Cpu/x87_ops_tables.cs` (FSETPM) ; marqueurs PB-62. `x87-cases` fait l'aller-retour FSAVE / FRSTOR et FSTENV / FLDENV
 en 16 et 32 bits, réel et PE, et compare les 112 octets.
-*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : chaque instruction du noyau qui n'est pas de
+*Corrigé en mode matériel* (G13.6, le noyau, N3b) : chaque instruction du noyau qui n'est pas de
 contrôle prend CS:oldpc (le premier préfixe), l'opcode et, d'une forme de mémoire, l'adresse de l'opérande
 (`_x87_noyau.pointeurs`) ; FINIT, FCLEX, FLDCW, FSTCW, FSTSW, FSTENV, FLDENV, FSAVE et FRSTOR les laissent (SDM vol. 1,
 2003, § 8.1.7), et FSETPM, sans effet sur le 387 (387 PRM § 4.8 ; sur le 287 : déduit). Le 8087 prend l'adresse physique de l'ESC, sans ses préfixes (387 PRM § 2.1.5) ; quelles
@@ -1069,9 +1072,10 @@ sur onze classes, tag VALID et EMPTY.
 *Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_63)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FXAM corrigé (`fxam_materiel`) : vide,
 NaN, infini, zéro, normal, et le signe dans C1 ; la classe « dénormal » n'apparaît pas, un dénormal de 64 bits étant
 normal dans les 80 bits du registre ; le vide garde le C1 de PCem. `materiel-cas PB-63` : +∞, NaN et −0 sur les trois
-coprocesseurs. Le noyau (`_x87_noyau.fxam`, en chantier) : les seize codes du 8087 et du 287 (N7a) : le non normal, 000,
+coprocesseurs. Le noyau (`_x87_noyau.fxam`) : les seize codes du 8087 et du 287 (N7a) : le non normal, 000,
 et le pseudo-zéro, un non normal (déduit) ; le pseudo-infini et le pseudo-NaN, des NaN, 001 ; le vide, le code du 387
 (l'un des quatre : (c)).
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-63 demande le noyau (`_x87_noyau.fxam`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-64 — FTST : un NaN rend « plus grand »
 
@@ -1088,6 +1092,7 @@ sur les classes.
 *Corrigé en mode matériel* (G13.6a), dans le groupe des comparaisons : sous `if (materiel.pb_64)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FTST
 corrigé (`compare_materiel` contre +0) : un NaN, et en projectif un infini, non ordonnés. `materiel-cas PB-64` : NaN
 sur les trois coprocesseurs, 111 contre 000.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-64 demande le noyau (`_x87_noyau.ftst`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-65 — FPREM tronque en un pas ; FPREM1 est FPREM
 
@@ -1111,7 +1116,7 @@ silicium 3FB9999999999996 et C3 C1 C0 = 010 (Q = 9) ; ST(0) = 2^100, ST(1) = 3,0
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFPREM` et `opFPREM1`, marqueurs PB-65, et leurs copies de
 `Cpu/x87_ops_808x.cs` ; la conversion par CvtI64 (cvttsd2si, G4.0). `x87-cases` : FPREM, FPREM1, FSCALE sur neuf couples
 de bornes (grands quotients, diviseur nul, infinis, NaN).
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FPREM et FPREM1 du noyau (`_x87_noyau.fprem`, `reste`)
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FPREM et FPREM1 du noyau (`_x87_noyau.fprem`, `reste`)
 rendent le reste exact, le quotient tronqué ou au plus près (au pair) sur 64 bits de significande, ses trois bits bas en
 C0, C3 et C1 ; au-delà de 63 d'écart d'exposants, une réduction partielle, C2 = 1, N = 32 + (D mod 32) (un choix,
 (c)) ; un diviseur nul ou un dividende infini, IE, l'indéfini et C2. `materiel-cas PB-65` : 1 par 0,1 en FPREM et en
@@ -1143,7 +1148,9 @@ sept constantes.
 *Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_66)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent les cinq constantes de D9 E9 à ED au
 double le plus proche de leur valeur exacte (calculée à 60 chiffres) sur le 8087 et le 287, et selon RC sur le 287XL,
 le 387 et le 486 (`constante_materiel`). `materiel-cas PB-66` : FLDLN2, …39EF contre …39F0 ; FLDLG2 sous RC vers −∞,
-…79FE sur le 387 (…79FF au plus près sur le 8087 et le 287, le témoin).
+…79FE sur le 387 (…79FF sur le 8087 et le 287, le témoin, en G13.6a ; le noyau, N7c, rend …79FE sur les cinq : il range
+la constante de 80 bits au plus près, que FSTP m64 arrondit selon RC ; leur arrondi propre se voit en m80).
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-66 demande le noyau (`_x87_noyau.constante`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-67 — FST et FSTP registre copient le tag TAG_UINT64, pas l'entier qu'il désigne
 
@@ -1163,6 +1170,7 @@ ce registre physique, pas la valeur chargée.
 *Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_67)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FST et FSTP ST(i) corrigés
 (`fst_materiel`), qui copient aussi MM[].q. `materiel-cas PB-67` : FILD 5 ; FILD 2^53 + 1 ; FST ST(1) ; FINCSTP ;
 FISTP m64, 0020000000000001 contre 5, sur les trois coprocesseurs.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-67 demande le noyau (`_x87_noyau.fst_st`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-68 — Les transcendantes : la libm de l'hôte, sans bornes ni C2
 
@@ -1190,7 +1198,7 @@ silicium (387 et suivants) C2 = 1, ST(0) inchangé ; F2XM1 de 10^−20 → PCem 
 *Reproduit* : `Cpu/x87_ops_misc.cs`, marqueurs PB-68 (FPTAN, FSINCOS, FSIN, FCOS), générés par `gen44.py`, et leurs
 copies de `Cpu/x87_ops_808x.cs`. `x87-cases` : les huit sur dix-neuf bornes × quatre ST(1) ; contrôles négatifs :
 FPTAN qui pose C2 → 76 cas divergents. FSIN, FCOS et FSINCOS sur le 8087 et le 287, et leurs temps nuls : PB-266.
-*Corrigé en mode matériel* (G13.6, le noyau, N6 ; en chantier) : les huit instructions du noyau
+*Corrigé en mode matériel* (G13.6, le noyau, N6) : les huit instructions du noyau
 (`_x87_noyau.f2xm1`, `fyl2x`, `fptan`, `fpatan`, `fsin_cos` ; le calcul, `Cpu/x87_transcendantes.Materiel.cs`)
 calculent sur un réel de travail de 128 bits, sans fonction de l'hôte (R10), et arrondissent une fois à 64 bits selon
 RC (PC n'y joue pas) : le résultat correctement arrondi, à une unité près au pire (visé : ≤ 1 ulp ; les bits d'Intel
@@ -1263,9 +1271,10 @@ C3 C2 C0 = 001 (−∞ < +∞, « 387 »), silicium 100 (+∞ = −∞ en projec
 +∞ = −∞ et un infini non comparable à un fini ; le 287XL, le 387 et le 486 restent en affine. Toutes les formes qui
 appellent x87_compare (FCOM et FICOM mémoire, FCOMP, FUCOM, que PCem exécute sur le 8087 et le 287 : PB-209) en
 profitent, avec FCOM de registre et FTST. ∞ ± ∞ et
-√+∞ : le noyau (G13.6, le noyau, N7b ; en chantier), en projectif, IE et l'indéfini quels que soient les signes (287
+√+∞ : le noyau (G13.6, le noyau, N7b), en projectif, IE et l'indéfini quels que soient les signes (287
 PRM, table 1-12) ; `materiel-cas PB-264` (`NonNormaux`). `materiel-cas PB-70` : la détection classique (1/0, FCHS, FCOMPP), C3 sur le 8087 et le 287,
 C0 sur le 387 dans les deux modes (le témoin).
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-70 demande le noyau (`_x87_noyau.comparer`, `operation`, `fsqrt`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-71 — Le canal IDE secondaire lit l'état de l'IRQ 14, pas le sien
 
@@ -3696,7 +3705,7 @@ SDM vol. 3 (2016) § 22.18.7.12 et 387 PRM annexe C (8087 et 287 : 0 sans except
 *G13* : (a) — un gestionnaire neuf avec ceux du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_tables.cs` (`Table_fpu_d9_a16` et `_a32`, rangée F0) et `Cpu/x87_ops_808x_tables.cs`
 (`ops_808x_fpu_d9_a16`), marqueurs PB-194 (générés par `gentab.py` et `gen46.py`).
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FXTRACT du noyau (`_x87_noyau.fxtract`) : l'exposant
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FXTRACT du noyau (`_x87_noyau.fxtract`) : l'exposant
 en ST(1), le significande empilé ; un zéro, ZE et −∞ ; un infini, +∞ et lui-même ; un dénormal, DE. `materiel-cas PB-194`
 (le cas qui discrimine, sur les cinq coprocesseurs). Le 8087 et le 287 (N7a ; 387 PRM, annexe C § C.4 ; 287 PRM,
 FXTRACT et table 1-12) : un zéro, deux zéros de son signe, sans exception ; un infini, IE et l'indéfini aux deux ; ni DE
@@ -3722,7 +3731,7 @@ FF et IE.
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; PB-53 (la globale `tempc`) s'y éteint.
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `FBSTP_a16` et `FBSTP_a32`, marqueurs PB-195, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FBSTP du noyau (`_x87_noyau.fbstp`) arrondit selon
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FBSTP du noyau (`_x87_noyau.fbstp`) arrondit selon
 RC (SoftFloat, `extF80_roundToInt` : PE et C1), puis range les chiffres ; au-delà de 10^18 − 1, un NaN, un infini, un
 format non supporté ou la pile vide : IE et, masquée, l'indéfini BCD du SDM. `materiel-cas PB-195`.
 
@@ -3742,7 +3751,7 @@ IE = 1 ; FLD m64 = 3·10^9 (41E65A0BC0000000) ; FISTP m32 → PCem B2D05E00h, si
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 ; IE avec PB-59.
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFISTiw_*`, `opFISTPiw_*`, `opFISTil_*`, `opFISTPil_*` (huit gestionnaires),
 marqueurs PB-196, et leurs copies de `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FIST et FISTP du noyau (`_x87_noyau.fist`) arrondissent
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FIST et FISTP du noyau (`_x87_noyau.fist`) arrondissent
 selon RC (SoftFloat : PE et C1) ; hors bornes, un NaN ou un infini : IE et, masquée, l'indéfini entier.
 `materiel-cas PB-196`.
 
@@ -3760,7 +3769,7 @@ d'un `int64_t`, compilé en cvttsd2si, vaut 8000000000000000h ; les comparaisons
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-197 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs` ; la cause, `x87_fround` (`Cpu/x87_ops.cs`, CvtI64), est partagée avec FIST.
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT du noyau (`_x87_noyau.frndint`, SoftFloat
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FRNDINT du noyau (`_x87_noyau.frndint`, SoftFloat
 `extF80_roundToInt`) laisse une valeur déjà entière, un infini, et rend un QNaN d'un NaN. `materiel-cas PB-197` : 2^63
 et +∞, sur les cinq coprocesseurs.
 
@@ -3778,7 +3787,7 @@ hasard).
 *G13* : (a) — avec les gestionnaires du noyau ; le domaine du 287 : avec les 16 bits ; hors domaine : (c).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFSCALE`, marqueur PB-198 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FSCALE du noyau (`_x87_noyau.fscale`) tronque ST(1)
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FSCALE du noyau (`_x87_noyau.fscale`) tronque ST(1)
 sans limite et suit la table des spéciaux du 387 PRM (tables 3-3 et 3-4) : un NaN propagé, ±∞ ou ±0 par ±∞, IE pour ∞
 par −∞ et 0 par +∞ ; O, U et P par l'arrondi selon RC. `materiel-cas PB-198` : 1 par NaN et par +∞, sur les cinq
 coprocesseurs. Le 8087 et le 287 (N7a ; 287 PRM, table 1-12) : par ±∞, ±0 rend ±0, tout autre opérande IE et
@@ -3801,7 +3810,7 @@ spécial) — documenté.
 *G13* : (a) — avec le noyau (la rustine TAG_UINT64 disparaît), ou dès « A+ ».
 *Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st_fsave` et `x87_ld_frstor` ; `Cpu/x87.cs`, `x87_gettag` ;
 marqueurs PB-199.
-*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : le noyau n'a pas de TAG_UINT64 ; FSAVE range ST(0)
+*Corrigé en mode matériel* (G13.6, le noyau, N3b) : le noyau n'a pas de TAG_UINT64 ; FSAVE range ST(0)
 à ST(7) en réels de 80 bits, FRSTOR les relit (`_x87_noyau.fsave`, `fldenv`). `materiel-cas PB-199`.
 
 ### PB-200 — FNSTSW AX sur le 8087 écrit AX
@@ -3817,7 +3826,7 @@ l'UC que par la mémoire) — documenté ; AX inchangé sur le 8088 + 8087 : dé
 *G13* : (b) — AX inchangé : déduit ; DF E0 dans le 8087 : (c), sans effet visible ; avec les coprocesseurs de 16 bits.
 *Reproduit* : `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16`, rangée E0, marqueur PB-200 (généré par
 `gen46.py`).
-*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : la rangée DF E0 des tables du noyau pour le 8087
+*Corrigé en mode matériel* (G13.6, le noyau, N7a) : la rangée DF E0 des tables du noyau pour le 8087
 (`Cpu/x87_noyau_808x.Materiel.cs`, généré par `genmat.py`) laisse AX (`_x87_noyau.dfe0_8087`), aux cycles de PCem.
 `materiel-cas PB-200` : MOV AX, 1234h ; FNINIT ; FNSTSW AX → 1234h sur le 8087, 0000h sur le 287 (le témoin).
 
@@ -3836,7 +3845,7 @@ physique de 20 bits et l'incrémente pour les mots suivants — documenté (D2 �
 lit ses quatre derniers octets en 10000h, silicium en 20000h ; FST m64 [FFFCh] écrit en 20000h des deux côtés.
 *G13* : (a) — avec les coprocesseurs de 16 bits : un accès propre au 8087, dans un fichier `*.Materiel.cs`.
 *Reproduit* : `Cpu/x87_8087.cs`, `readmemw` (la troncature `(uint16_t)a`), marqueur PB-201.
-*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : les gestionnaires du noyau pour le 8087 lisent et
+*Corrigé en mode matériel* (G13.6, le noyau, N7a) : les gestionnaires du noyau pour le 8087 lisent et
 écrivent par `readmemw_8087`, `writememw_8087` et leurs voisines (`Cpu/808x.Materiel.cs`) : le premier mot lu par l'UC
 (`readmemw`, PB-07 et PB-179 compris), les suivants et toutes les écritures à l'adresse physique incrémentée, repliée à
 1 Mo. `materiel-cas PB-201` : DS = 0, FLD m64 [FFFCh] → 1,0 (les octets de 10000h) ; PCem, 2,0 (ceux de 0000h).
@@ -3854,7 +3863,7 @@ a 8087 », seconde main) ; FSAVE du 287 : déduit.
 *G13* : (a) — avec les coprocesseurs de 16 bits (FSAVE du 287 : déduit).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFINIT` et `FSAVE`, marqueurs PB-202 (générés par `gen44.py`), et leurs
 copies de `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : `_x87_noyau.finit` garde C3-C0 (le masque 4700h) sur
+*Corrigé en mode matériel* (G13.6, le noyau, N7a) : `_x87_noyau.finit` garde C3-C0 (le masque 4700h) sur
 le 8087 et le 287 ; FSAVE (`fsave_fin`) et le RESET (`reset`) passent par lui (387 PRM, annexe C § C.3 : le RESET aussi).
 Le 287XL, un cœur de 387, les efface (déduit). `materiel-cas PB-202` : FLDZ ; FTST ; FNINIT, ou FNSAVE ; FNSTSW →
 4000h sur le 8087 et le 287, 0000h sur le 287XL, le 387 et le 486 ; le harnais efface C3-C0 après son RESET (la mise
@@ -3875,7 +3884,7 @@ l'ancien mot d'état ; silicium (387) le mot de FNINIT, IM à 0, et IE et ES pos
 *G13* : (a) — dans le cadre : l'état de reset par type de coprocesseur ; C3-C0 du 8087 et du 287 : (c).
 *Reproduit* : `Cpu/x87.cs`, `x87_reset`, vide, marqueur PB-203 ; l'appel est omis dans `Cpu/808x.cs`
 (`resetx86`, `// omitted:`, hors du domaine).
-*Corrigé en mode matériel* (G13.6, le noyau, N2 ; en chantier, par son numéro seulement jusqu'à N7) : sous `if
+*Corrigé en mode matériel* (G13.6, le noyau, N2) : sous `if
 (materiel.pb_203)`, `resetx86` appelle le RESET du noyau (`Cpu/x87_noyau.Materiel.cs`, `reset`) : le 8087, le 287 et le
 287XL (inconnu : celui du 287 qu'il remplace) dans l'état de FNINIT ; le 387 aussi, IM à 0, IE, ES et B posés (387 PRM
 § 6.2.5) ; le 486 rien, sans l'auto-test (486 PRM § 19.2.3), et à la mise sous tension, dont l'état n'est pas défini
@@ -3939,7 +3948,7 @@ valeur, 7FF8000020000000 en m64, est la même.
 *G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : sans exception, la valeur : (c).
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDs_a16` et `_a32`, marqueurs PB-206, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m32 du noyau (`_x87_noyau.fld_f32`) : un SNaN
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FLD m32 du noyau (`_x87_noyau.fld_f32`) : un SNaN
 lève IE et se charge silencieux (387, 486, et le 287XL : déduit) ; un dénormal lève DE. Le 8087 et le 287 ne lèvent rien
 et chargent les bits étendus, sans les rendre silencieux (la valeur : inconnue). `materiel-cas PB-206`.
 
@@ -3962,6 +3971,7 @@ FLD1 ; FLDZ ; FDIVP → PCem IRQ13 et ST(1) inchangé, silicium +∞ sans interr
 place, un gestionnaire nommé (`Cpu/808x.Materiel.cs`). Le 8087 et le 287 : déduit. `materiel-cas PB-207` : le mot de
 contrôle après FNSTENV, et celui de l'environnement rangé, inchangé, sur les quatre coprocesseurs ; depuis G13.6c, la
 trace de l'IRQ13 du cas qui discrimine : FDIVP 1/0 après FNSTENV, 3804h sans IRQ13, sur le 287, le 387 et le 486.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-207 demande le noyau (`_x87_noyau.fstenv_fin`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-208 — Le mot d'étiquettes ment pour les NaN et les infinis ; 10 est relu comme TAG_UINT64
 
@@ -3976,7 +3986,7 @@ rechargement le 387 ne retienne des étiquettes que « vide » ou « non vide »
 5 ; FSTP ST(0) ; FLD1 ; FNSTENV m ; étiquettes forcées à BFFFh ; FLDENV m ; FISTP m64 → PCem 5, silicium 1.
 *G13* : (a) — avec le noyau (les étiquettes calculées), ou dès « A+ ».
 *Reproduit* : `Cpu/x87.cs`, `x87_gettag` et `x87_settag`, marqueurs PB-208.
-*Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : l'étiquette d'un registre est celle de son contenu,
+*Corrigé en mode matériel* (G13.6, le noyau, N3b) : l'étiquette d'un registre est celle de son contenu,
 posée à chaque écriture (`_x87_noyau.etiquette_de`) ; FLDENV et FRSTOR n'en retiennent que « vide » et recalculent les
 autres sur le 287XL, le 387 et le 486, les gardent sur le 8087 et le 287 (déduit). `materiel-cas PB-208`. Le 8087 et le
 287 étiquettent valides le non normal et le pseudo-zéro (N7a ; 387 PRM, annexe C § C.2), et gardent les étiquettes
@@ -4016,7 +4026,8 @@ instruire avant toute inscription » : une source primaire, ou DD C9, DE D1, DF 
 (déduit, non mesuré).
 *G13* : (c) — reproduit tant que le comportement n'est pas instruit (la contre-lecture voulait l'instruire d'abord).
 *Reproduit* : `Cpu/x87_ops_tables.cs` (rangées DD C8, DE D0, DF C0 à D8) et `Cpu/x87_ops_808x_tables.cs`, marqueurs
-PB-210 (générés par `gentab.py` et `gen46.py`).
+PB-210 (générés par `gentab.py` et `gen46.py`) ; le noyau (G13.6, le noyau, N7c) garde ces gestionnaires de PCem à leurs entrées (`_x87_noyau.table`, et les
+tables du 8087 remplacées en place), et exécute les alias que PCem exécute : le même comportement dans les deux modes.
 
 ### PB-211 — FRNDINT perd le signe du zéro
 
@@ -4031,7 +4042,7 @@ is the sign of the operand ») ; SDM vol. 2, FRNDINT — documenté.
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-211 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT du noyau garde le signe d'un résultat nul.
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FRNDINT du noyau garde le signe d'un résultat nul.
 `materiel-cas PB-211` : −0,3 et −0, sur les cinq coprocesseurs.
 
 ### PB-212 — FLD m64 d'un SNaN le garde signalant, sans IE
@@ -4047,7 +4058,7 @@ silicium (387 et suivants) 7FF8000000000001 et 0001h (IE).
 *G13* : (a) — avec le noyau, après le point de décision n° 10 ; 8087 et 287 : (c).
 *Reproduit* : `Cpu/x87_ops_loadstore.cs`, `opFLDd_a16` et `_a32`, marqueurs PB-212, et leurs copies de
 `Cpu/x87_ops_808x.cs`.
-*Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FLD m64 du noyau (`_x87_noyau.fld_f64`), comme FLD m32
+*Corrigé en mode matériel* (G13.6, le noyau, N3a) : FLD m64 du noyau (`_x87_noyau.fld_f64`), comme FLD m32
 (PB-206). `materiel-cas PB-212`.
 
 ### PB-213 — Les comparaisons ne remettent pas C1 à zéro
@@ -4070,6 +4081,7 @@ déduit), les tables du mode
 (`Cpu/x87.Materiel.cs`, `efface_c1`) enveloppent chaque comparaison, repérée par son nom, celles de PB-57 comprises :
 le gestionnaire, puis C1 effacé. `materiel-cas PB-213` : quatorze formes (registre, mémoire, a32, entières, FUCOM,
 FTST) après un FXAM qui pose C1 ; le 8087 et le 287, témoins.
+*Repris par le noyau* (G13.6, le noyau, N7c) : demandé, PB-213 demande le noyau (`_x87_noyau.comparer`), dont le groupe le comprend ; le noyau calcule sur 80 bits et remplace les tables du mode, et le gestionnaire en `double` de G13.6a ou 6b, inutilisé, quitte le dépôt en N8. Ses cas jouent sur le noyau en mode matériel.
 
 ### PB-214 — PLAY AUDIO MSF cherche la piste sur la position encore compactée
 
@@ -5143,7 +5155,7 @@ SF), ST(0) indéfini.
 *G13* : (a) — avec le noyau : la pile et son débordement dans sa couche commune (N2), chaque gestionnaire en N3 et N4.
 *Reproduit* en mode PCem : `Cpu/x87_ops.cs` (`ST`, `x87_push`, `x87_push_u64`, `x87_pop`), marqueurs PB-264 ; les
 gestionnaires du 8087 appellent les mêmes aides.
-*Corrigé en mode matériel* (G13.6, le noyau, N2 ; en chantier, par son numéro seulement jusqu'à N7) : sous `if
+*Corrigé en mode matériel* (G13.6, le noyau, N2) : sous `if
 (materiel.pb_264)`, `cpu_set` pose les tables du noyau de 80 bits, dont la pile (`Cpu/x87_noyau.Materiel.cs`) lève la
 faute : `empiler` sur un registre plein, `lire` un registre vide ; IE, et sur le 387 et le 486 (le 287XL : déduit) SF
 et C1 ; masquée, l'indéfini empilé, ou lu à la place de l'opérande ; démasquée, ES et B, et l'acheminement de G13.6c
@@ -5169,7 +5181,7 @@ silicium 8000000000000000h (−0) ; FLD m64 = 3FFFFFFFFFFFFFFFh (2 − 2^−52) 
 *G13* : (a) — avec le noyau (FRNDINT par SoftFloat en N4b, FIST et FISTP en N3a).
 *Reproduit* en mode PCem : `Cpu/x87_ops.cs`, `x87_fround`, marqueur PB-265 ; les gestionnaires du 8087 appellent la
 même aide.
-*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT (`_x87_noyau.frndint`) et FIST, FISTP
+*Corrigé en mode matériel* (G13.6, le noyau, N4b) : FRNDINT (`_x87_noyau.frndint`) et FIST, FISTP
 (`_x87_noyau.fist`, N3a) arrondissent par SoftFloat sur 80 bits. `materiel-cas PB-265` : FRNDINT de −2^−60 et de 2 −
 2^−52, FISTP m16 de 2 − 2^−52, sur les cinq coprocesseurs.
 

@@ -1601,17 +1601,9 @@ internal static class _808x_noyau
     }
 
     /// <summary>Les huit tables du 8087, remplacées en place (execx86 les indexe en dur) : chaque instruction écrite
-    /// à son entrée, les autres à l'arrêt (_x87_noyau.a_ecrire).</summary>
+    /// à son entrée ; les autres, celles que PCem tient pour illégales, gardent leur gestionnaire de PCem (PB-210).</summary>
     internal static void poser_tables()
     {
-        _x87_noyau.remplir(_808x.ops_808x_fpu_d8_a16, 0xD8);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_d9_a16, 0xD9);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_da_a16, 0xDA);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_db_a16, 0xDB);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_dc_a16, 0xDC);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_dd_a16, 0xDD);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_de_a16, 0xDE);
-        _x87_noyau.remplir(_808x.ops_808x_fpu_df_a16, 0xDF);
         _808x.ops_808x_fpu_db_a16[0xE3] = opFNINIT;
         _808x.ops_808x_fpu_db_a16[0xE2] = opFNCLEX;
         _x87_noyau.memoire(_808x.ops_808x_fpu_d9_a16, 5, opFLDCW_a16);

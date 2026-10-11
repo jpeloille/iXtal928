@@ -990,3 +990,15 @@ Toujours en chantier : seuls les tests le demandent.
 - **La correction.** Le noyau suit les tables d'Intel : le chargement en non normal, le calcul qui le garde, les
   erreurs, l'infini projectif. Le détail du circuit n'étant décrit nulle part, le calcul range le résultat exact à
   l'exposant que la documentation lui prête ; le dernier bit peut différer du silicium, et les tests le disent.
+
+## G13.6, le noyau, fin du chantier — le coprocesseur de 80 bits pour tous
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N7c.*
+
+Le noyau de 80 bits était en chantier : seuls les tests pouvaient le demander. Il calcule désormais tout ce que le
+coprocesseur sait faire, du 8087 au 486. Il entre donc dans le mode matériel : quiconque demande ce mode, ou son domaine
+x87, obtient le calcul du vrai coprocesseur, ses 80 bits, ses arrondis, ses erreurs et leurs signaux, au lieu de celui
+de PCem en 53 bits. Les premières corrections du x87, écrites en 53 bits avant le noyau, sont reprises par lui ; elles
+disparaîtront du code à la clôture. Les quelques codes d'instruction qu'Intel n'a jamais documentés et que PCem traite
+comme des riens le restent : ce qu'en fait le silicium n'est pas connu.

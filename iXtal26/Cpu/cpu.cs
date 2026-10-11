@@ -375,9 +375,9 @@ internal static partial class cpu_c
                 // pcem bug, fixed in hardware mode: PB-69 — FNCLEX et FNINIT du 8087 font retomber sa sortie INT.
                 if (materiel.pb_69)
                         _x87_materiel.poser(69);
-                // pcem bug, fixed in hardware mode: PB-264 — le noyau de 80 bits, en chantier (avec PB-203 ;
-                //   x87_noyau.Materiel.cs) : ses tables remplacent celles du mode, après les poses de G13.6a et 6b, avant
-                //   PB-204, qui enveloppe par position.
+                // pcem bug, fixed in hardware mode: PB-264 — le noyau de 80 bits (avec PB-203 et son groupe ;
+                //   x87_noyau.Materiel.cs) : ses tables remplacent celles du mode, après les poses de G13.6a et 6b, dont il
+                //   reprend les corrections, avant PB-204, qui enveloppe par position.
                 if (materiel.pb_264)
                         _x87_noyau.poser();
                 // pcem bug, fixed in hardware mode: PB-204 — les instructions qui attendent le verrou de l'AT, ou

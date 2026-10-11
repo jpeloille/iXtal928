@@ -54,19 +54,19 @@ internal static class materiel
     /// <summary>PB-51 : la lecture d'une instruction contrôle la limite de CS (286, 386, 486) ; avec PB-50.</summary>
     internal static readonly bool pb_51;
 
-    /// <summary>PB-48 : chaque opération du x87 suit RC, et PC la précision ; le noyau, en chantier.</summary>
+    /// <summary>PB-48 : chaque opération du x87 suit RC, et PC la précision ; le noyau.</summary>
     internal static readonly bool pb_48;
 
-    /// <summary>PB-52 : FBLD charge dix-huit chiffres décimaux ; le noyau, en chantier.</summary>
+    /// <summary>PB-52 : FBLD charge dix-huit chiffres décimaux ; le noyau.</summary>
     internal static readonly bool pb_52;
 
-    /// <summary>PB-54 : chaque accès du x87 contrôle la limite de son opérande et ses droits ; le noyau, en chantier.</summary>
+    /// <summary>PB-54 : chaque accès du x87 contrôle la limite de son opérande et ses droits ; le noyau.</summary>
     internal static readonly bool pb_54;
 
-    /// <summary>PB-55 : FLD m80 charge les 80 bits tels quels ; le noyau, en chantier.</summary>
+    /// <summary>PB-55 : FLD m80 charge les 80 bits tels quels ; le noyau.</summary>
     internal static readonly bool pb_55;
 
-    /// <summary>PB-56 : FSTP m80 range les 80 bits tels quels ; le noyau, en chantier.</summary>
+    /// <summary>PB-56 : FSTP m80 range les 80 bits tels quels ; le noyau.</summary>
     internal static readonly bool pb_56;
 
     /// <summary>PB-57 : FCOM, FCOMP et FCOMPP de registre comparent comme le silicium, au temps de fcom ; avec PB-64 et PB-70.</summary>
@@ -78,13 +78,13 @@ internal static class materiel
     /// <summary>PB-59 : une division par zéro démasquée pose ES et B, #MF sur le 486 ; avec PB-69 et PB-204.</summary>
     internal static readonly bool pb_59;
 
-    /// <summary>PB-60 : deux NaN, le plus grand significande survit ; le noyau, en chantier.</summary>
+    /// <summary>PB-60 : deux NaN, le plus grand significande survit ; le noyau.</summary>
     internal static readonly bool pb_60;
 
     /// <summary>PB-61 : FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486).</summary>
     internal static readonly bool pb_61;
 
-    /// <summary>PB-62 : les pointeurs d'instruction et d'opérande du x87 ; le noyau, en chantier.</summary>
+    /// <summary>PB-62 : les pointeurs d'instruction et d'opérande du x87 ; le noyau.</summary>
     internal static readonly bool pb_62;
 
     /// <summary>PB-63 : FXAM rend la classe de ST(0) : NaN, infini, zéro, normal, vide, et le signe dans C1.</summary>
@@ -93,7 +93,7 @@ internal static class materiel
     /// <summary>PB-64 : FTST, un NaN non ordonné ; avec PB-57 et PB-70.</summary>
     internal static readonly bool pb_64;
 
-    /// <summary>PB-65 : FPREM et FPREM1, le reste exact et la réduction partielle ; le noyau, en chantier.</summary>
+    /// <summary>PB-65 : FPREM et FPREM1, le reste exact et la réduction partielle ; le noyau.</summary>
     internal static readonly bool pb_65;
 
     /// <summary>PB-66 : les constantes du x87 au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486.</summary>
@@ -102,7 +102,7 @@ internal static class materiel
     /// <summary>PB-67 : FST et FSTP ST(i) copient aussi l'entier exact de TAG_UINT64.</summary>
     internal static readonly bool pb_67;
 
-    /// <summary>PB-68 : les transcendantes sur 80 bits, arrondies une fois, et leurs spéciaux ; le noyau, en chantier.</summary>
+    /// <summary>PB-68 : les transcendantes sur 80 bits, arrondies une fois, et leurs spéciaux ; le noyau.</summary>
     internal static readonly bool pb_68;
 
     /// <summary>PB-69 : sur un PC ou un XT, l'exception du 8087 lève la NMI, que A0h masque ; avec PB-59.</summary>
@@ -201,52 +201,52 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
-    /// <summary>PB-194 : FXTRACT sépare l'exposant et le significande ; le noyau, en chantier.</summary>
+    /// <summary>PB-194 : FXTRACT sépare l'exposant et le significande ; le noyau.</summary>
     internal static readonly bool pb_194;
 
-    /// <summary>PB-195 : FBSTP arrondit selon RC ; trop grand : IE et l'indéfini BCD ; le noyau, en chantier.</summary>
+    /// <summary>PB-195 : FBSTP arrondit selon RC ; trop grand : IE et l'indéfini BCD ; le noyau.</summary>
     internal static readonly bool pb_195;
 
-    /// <summary>PB-196 : FIST hors bornes : IE et l'indéfini entier ; le noyau, en chantier.</summary>
+    /// <summary>PB-196 : FIST hors bornes : IE et l'indéfini entier ; le noyau.</summary>
     internal static readonly bool pb_196;
 
-    /// <summary>PB-197 : FRNDINT garde |x| ≥ 2^63, les infinis et les NaN ; le noyau, en chantier.</summary>
+    /// <summary>PB-197 : FRNDINT garde |x| ≥ 2^63, les infinis et les NaN ; le noyau.</summary>
     internal static readonly bool pb_197;
 
-    /// <summary>PB-198 : FSCALE par un NaN ou un infini ; le noyau, en chantier.</summary>
+    /// <summary>PB-198 : FSCALE par un NaN ou un infini ; le noyau.</summary>
     internal static readonly bool pb_198;
 
-    /// <summary>PB-199 : FSAVE range chaque registre en réel de 80 bits ; le noyau, en chantier.</summary>
+    /// <summary>PB-199 : FSAVE range chaque registre en réel de 80 bits ; le noyau.</summary>
     internal static readonly bool pb_199;
 
-    /// <summary>PB-200 : DF E0 laisse AX sur le 8087 ; le noyau, en chantier.</summary>
+    /// <summary>PB-200 : DF E0 laisse AX sur le 8087 ; le noyau.</summary>
     internal static readonly bool pb_200;
 
-    /// <summary>PB-201 : le 8087 adresse chaque mot de son opérande à l'adresse physique ; le noyau, en chantier.</summary>
+    /// <summary>PB-201 : le 8087 adresse chaque mot de son opérande à l'adresse physique ; le noyau.</summary>
     internal static readonly bool pb_201;
 
-    /// <summary>PB-202 : FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 ; le noyau, en chantier.</summary>
+    /// <summary>PB-202 : FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 ; le noyau.</summary>
     internal static readonly bool pb_202;
 
-    /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau (en chantier).</summary>
+    /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau.</summary>
     internal static readonly bool pb_203;
 
     /// <summary>PB-204 : les ports F0h et F1h de l'AT, le verrou de BUSY# (287, 387), IGNNE# (486) ; avec PB-59.</summary>
     internal static readonly bool pb_204;
 
-    /// <summary>PB-206 : FLD m32 d'un SNaN lève IE (387, 486) ; le noyau, en chantier.</summary>
+    /// <summary>PB-206 : FLD m32 d'un SNaN lève IE (387, 486) ; le noyau.</summary>
     internal static readonly bool pb_206;
 
     /// <summary>PB-207 : FSTENV masque les six exceptions après avoir rangé l'environnement.</summary>
     internal static readonly bool pb_207;
 
-    /// <summary>PB-208 : les étiquettes du contenu, recalculées au chargement (287XL, 387, 486) ; le noyau, en chantier.</summary>
+    /// <summary>PB-208 : les étiquettes du contenu, recalculées au chargement (287XL, 387, 486) ; le noyau.</summary>
     internal static readonly bool pb_208;
 
-    /// <summary>PB-211 : FRNDINT garde le signe du zéro ; le noyau, en chantier.</summary>
+    /// <summary>PB-211 : FRNDINT garde le signe du zéro ; le noyau.</summary>
     internal static readonly bool pb_211;
 
-    /// <summary>PB-212 : FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486) ; le noyau, en chantier.</summary>
+    /// <summary>PB-212 : FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486) ; le noyau.</summary>
     internal static readonly bool pb_212;
 
     /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
@@ -297,11 +297,11 @@ internal static class materiel
     /// <summary>PB-263 : après un CALL de tâche, l'IP contrôlé contre la limite du nouveau CS, #TS(0) (386, 486).</summary>
     internal static readonly bool pb_263;
 
-    /// <summary>PB-264 : la pile du x87 déborde (IE, SF, C1) ; avec PB-203, le noyau (en chantier). Sa garde pose les
+    /// <summary>PB-264 : la pile du x87 déborde (IE, SF, C1) ; avec PB-203, le noyau. Sa garde pose les
     /// tables du noyau.</summary>
     internal static readonly bool pb_264;
 
-    /// <summary>PB-265 : FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 ; le noyau, en chantier.</summary>
+    /// <summary>PB-265 : FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 ; le noyau.</summary>
     internal static readonly bool pb_265;
 
     static materiel()

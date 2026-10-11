@@ -115,12 +115,12 @@ internal static class _386_noyau
         return cpu_state.abrt;
     }
 
-    // FNSTSW AX : le mot d'état, TOP compris (287, 387, 486).
+    // FNSTSW AX : le mot d'état, TOP compris (287, 387, 486 ; _x87_noyau.mot_d_etat_ax, PB-61).
     internal static int opFNSTSW_AX(uint32_t fetchdat)
     {
         if (_386.FP_ENTER()) return 1;
         cpu_state.pc++;
-        x86.AX = (uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11));
+        x86.AX = _x87_noyau.mot_d_etat_ax();
         _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
         return 0;
     }
@@ -2555,25 +2555,25 @@ internal static class _386_noyau
     }
 
     /// <summary>Les seize tables du noyau, qui remplacent celles du mode : chaque instruction écrite à son entrée,
-    /// les autres à l'arrêt (_x87_noyau.a_ecrire).</summary>
+    /// les autres, celles que PCem tient pour illégales, à leur gestionnaire de PCem (_x87_noyau.table ; PB-210).</summary>
     internal static void poser_tables()
     {
-        _386.x86_opcodes_d8_a16 = _x87_noyau.table(32, 0xD8);
-        _386.x86_opcodes_d8_a32 = _x87_noyau.table(32, 0xD8);
-        _386.x86_opcodes_d9_a16 = _x87_noyau.table(256, 0xD9);
-        _386.x86_opcodes_d9_a32 = _x87_noyau.table(256, 0xD9);
-        _386.x86_opcodes_da_a16 = _x87_noyau.table(256, 0xDA);
-        _386.x86_opcodes_da_a32 = _x87_noyau.table(256, 0xDA);
-        _386.x86_opcodes_db_a16 = _x87_noyau.table(256, 0xDB);
-        _386.x86_opcodes_db_a32 = _x87_noyau.table(256, 0xDB);
-        _386.x86_opcodes_dc_a16 = _x87_noyau.table(32, 0xDC);
-        _386.x86_opcodes_dc_a32 = _x87_noyau.table(32, 0xDC);
-        _386.x86_opcodes_dd_a16 = _x87_noyau.table(256, 0xDD);
-        _386.x86_opcodes_dd_a32 = _x87_noyau.table(256, 0xDD);
-        _386.x86_opcodes_de_a16 = _x87_noyau.table(256, 0xDE);
-        _386.x86_opcodes_de_a32 = _x87_noyau.table(256, 0xDE);
-        _386.x86_opcodes_df_a16 = _x87_noyau.table(256, 0xDF);
-        _386.x86_opcodes_df_a32 = _x87_noyau.table(256, 0xDF);
+        _386.x86_opcodes_d8_a16 = _x87_noyau.table(_386.ops_fpu_d8_a16);
+        _386.x86_opcodes_d8_a32 = _x87_noyau.table(_386.ops_fpu_d8_a32);
+        _386.x86_opcodes_d9_a16 = _x87_noyau.table(_386.ops_fpu_d9_a16);
+        _386.x86_opcodes_d9_a32 = _x87_noyau.table(_386.ops_fpu_d9_a32);
+        _386.x86_opcodes_da_a16 = _x87_noyau.table(_386.ops_fpu_da_a16);
+        _386.x86_opcodes_da_a32 = _x87_noyau.table(_386.ops_fpu_da_a32);
+        _386.x86_opcodes_db_a16 = _x87_noyau.table(_386.ops_fpu_db_a16);
+        _386.x86_opcodes_db_a32 = _x87_noyau.table(_386.ops_fpu_db_a32);
+        _386.x86_opcodes_dc_a16 = _x87_noyau.table(_386.ops_fpu_dc_a16);
+        _386.x86_opcodes_dc_a32 = _x87_noyau.table(_386.ops_fpu_dc_a32);
+        _386.x86_opcodes_dd_a16 = _x87_noyau.table(_386.ops_fpu_dd_a16);
+        _386.x86_opcodes_dd_a32 = _x87_noyau.table(_386.ops_fpu_dd_a32);
+        _386.x86_opcodes_de_a16 = _x87_noyau.table(_386.ops_fpu_de_a16);
+        _386.x86_opcodes_de_a32 = _x87_noyau.table(_386.ops_fpu_de_a32);
+        _386.x86_opcodes_df_a16 = _x87_noyau.table(_386.ops_fpu_df_a16);
+        _386.x86_opcodes_df_a32 = _x87_noyau.table(_386.ops_fpu_df_a32);
         _386.x86_opcodes_db_a16![0xE3] = opFNINIT;
         _386.x86_opcodes_db_a32![0xE3] = opFNINIT;
         _386.x86_opcodes_db_a16![0xE2] = opFNCLEX;

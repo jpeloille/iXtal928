@@ -771,7 +771,8 @@ internal static class MaterielCas
     }
 
     /// <summary>Joue sur le 8087 (cœur 8088), le 287 (cœur 286) ou le 387 (cœur 386) : un NaN de 64 bits en DS:0200h
-    /// (7FF8000000000000), BX = 0200h. Rend AX (FNSTSW AX en fin de code).</summary>
+    /// (7FF8000000000000), BX = 0200h. Rend AX (FNSTSW AX en fin de code) ; sur le 8087, qui n'a pas FNSTSW AX (PB-200 :
+    /// le noyau laisse AX), le DF E0 final devient FNSTSW [BX+40h] (DD 7F 40), et le mot d'état est lu en mémoire.</summary>
     private static ushort X87(int fpu, byte[] code, int pas)
     {
         void Nan()
@@ -784,6 +785,11 @@ internal static class MaterielCas
             _386.FuzzFpu = 1;
             try
             {
+                if (code is [.., 0xDF, 0xE0])
+                {
+                    Jouer([.. code[..^2], 0xDD, 0x7F, 0x40], r => r[(int)R.BX] = 0x200, Nan, pas);
+                    return W(0x240);
+                }
                 return Jouer(code, r => r[(int)R.BX] = 0x200, Nan, pas)[(int)R.AX];
             }
             finally
@@ -922,7 +928,9 @@ internal static class MaterielCas
 
     // PB-66 — FNINIT ; FLDCW [BX] ; FLDLN2 (ou FLDLG2) ; FSTP m64 [BX]. ln 2 au plus près : 3FE62E42FEFA39EF (PCem …39F0),
     // sur les trois coprocesseurs. log₁₀ 2 sous RC vers −∞ (077Fh) : 3FD34413509F79FE sur le 387, qui arrondit ses
-    // constantes au mode (387 PRM § 4.7) ; PCem …79FF ; le 8087 et le 287, au plus près, …79FF (le témoin).
+    // constantes au mode (387 PRM § 4.7) ; PCem …79FF. Le 8087 et le 287 la prennent au plus près, mais le noyau (N7c)
+    // range la constante de 80 bits et FSTP m64 l'arrondit selon RC, comme le silicium : la même valeur que le 387 ; leur
+    // arrondi propre se voit en m80 (materiel-cas PB-264, les constantes de N3a). En G13.6a, en double, ils rendaient …79FF.
     private static int Pb66(bool hw)
     {
         var bad = 0;
@@ -935,8 +943,8 @@ internal static class MaterielCas
         foreach (var (fpu, nom) in Fpus)
         {
             var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, 0xEC, 0xDD, 0x1F], 4, 0x077F);
-            var attendu = hw && fpu >= 4 ? 0x3FD34413509F79FEUL : 0x3FD34413509F79FFUL;
-            bad += Voir($"RC vers −∞ ; FLDLG2 ; FSTP m64 ({nom}){(fpu < 4 ? ", témoin" : "")}", v == attendu, $"{v:X16}",
+            var attendu = hw ? 0x3FD34413509F79FEUL : 0x3FD34413509F79FFUL;
+            bad += Voir($"RC vers −∞ ; FLDLG2 ; FSTP m64 ({nom})", v == attendu, $"{v:X16}",
                         $"{attendu:X16}", hw);
         }
         (byte op, string nom, ulong pres, ulong haut)[] hauts =
@@ -946,8 +954,8 @@ internal static class MaterielCas
         foreach (var (op, nomC, pres, haut) in hauts)
         {
             var v = X87Mem(fpu, [0xDB, 0xE3, 0xD9, 0x2F, 0xD9, op, 0xDD, 0x1F], 4, 0x0B7F);
-            var attendu = hw && fpu >= 4 ? haut : pres;
-            bad += Voir($"RC vers +∞ ; {nomC} ; FSTP m64 ({nom}){(fpu < 4 ? ", témoin" : "")}", v == attendu, $"{v:X16}",
+            var attendu = hw ? haut : pres;
+            bad += Voir($"RC vers +∞ ; {nomC} ; FSTP m64 ({nom})", v == attendu, $"{v:X16}",
                         $"{attendu:X16}", hw);
         }
         return bad;
@@ -1266,12 +1274,15 @@ internal static class MaterielCas
                         continue;
                     (_, m) = Acheminer(fpu, [.. Zero, 0xDB, 0xE3, 0xDD, 0x3F], 7);
                     bad += Voir($"FDIVP 1/0 ; FNINIT ; FNSTSW m16 ({nom})", m == 0x0000, $"{m:X4}", "0000", hw);
+                    // Avec le noyau (demandé par « x87 » ou « tout »), F1h fait le RESET de PB-203 : le 387 en sort IE, ES et B
+                    // posés (8081h).
+                    var r387 = hw && fpu == 4 && materiel.pb_264;
                     (_, m) = Acheminer(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xE6, 0xF1, 0xDD, 0x3F], 4);
-                    bad += Voir($"FNINIT ; FLD1 ; OUT F1h ; FNSTSW m16 ({nom})", m == (hw ? 0x0000 : 0x3800), $"{m:X4}",
-                                hw ? "0000" : "3800", hw);
+                    var a = !hw ? 0x3800 : r387 ? 0x8081 : 0x0000;
+                    bad += Voir($"FNINIT ; FLD1 ; OUT F1h ; FNSTSW m16 ({nom})", m == a, $"{m:X4}", $"{a:X4}", hw);
                     (_, m) = Acheminer(fpu, [.. Zero, 0xE6, 0xF1, 0xD9, 0xE8, 0xDD, 0x3F], 8);
-                    bad += Voir($"FDIVP 1/0 ; OUT F1h ; FLD1 ; FNSTSW m16 ({nom})", m == (hw ? 0x3800 : 0x2804), $"{m:X4}",
-                                hw ? "3800" : "2804", hw);
+                    a = !hw ? 0x2804 : r387 ? 0xB881 : 0x3800;
+                    bad += Voir($"FDIVP 1/0 ; OUT F1h ; FLD1 ; FNSTSW m16 ({nom})", m == a, $"{m:X4}", $"{a:X4}", hw);
                 }
             }
             finally
@@ -1282,12 +1293,11 @@ internal static class MaterielCas
         });
     }
 
-    // ===== Le noyau de 80 bits (G13.6, le noyau ; en chantier : PB-203 et PB-264, un groupe) =====
+    // ===== Le noyau de 80 bits (G13.6, le noyau ; PB-203, PB-264 et leur groupe) =====
     //
-    // Le noyau n'a encore que ses instructions de contrôle (N2) : FNINIT, FNCLEX, FLDCW, FNSTCW, FNSTSW, FNOP, FINCSTP,
-    // FDECSTP, FFREE. Un cas qui empile ou lit la pile passe donc, en mode matériel, par la couche (x87_noyau.Materiel.cs),
-    // que les gestionnaires de N3 et N4 appelleront ; en mode PCem, par les instructions. Le chemin suit le mode FIGÉ, et
-    // l'attendu --attendu : la panne injectée (l'attendu de l'autre mode) rougit donc dans les deux sens.
+    // Les premiers cas (N2) jouent la pile par la couche (x87_noyau.Materiel.cs) en mode matériel, par les instructions en
+    // mode PCem. Le chemin suit le mode FIGÉ, et l'attendu --attendu : la panne injectée (l'attendu de l'autre mode)
+    // rougit donc dans les deux sens.
 
     private static readonly (int fpu, string nom)[] FpusXL = [(1, "8087"), (2, "287"), (3, "287XL"), (4, "387"), (5, "486")];
 
@@ -2176,6 +2186,14 @@ internal static class MaterielCas
                 Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0x37], 3, Ops((0x300, Le80(0x3FFF, 0x4000000000000000))));
                 var tw = seize ? (ushort)0x3FFF : (ushort)0xBFFF;
                 bad += Voir($"FLD m80 non normal ; FNSTENV, les étiquettes ({nom})", W(0x204) == tw, $"{W(0x204):X4}", $"{tw:X4}", true);
+            }
+
+            // PB-210 — les entrées que PCem tient pour illégales gardent son gestionnaire sous le noyau (N7c) : DD C9 (FXCH4,
+            // un alias non documenté), sans effet ; FLD1 ; FLDZ ; DD C9 ; FNSTSW ; FSTP m64 → 0 (rien d'échangé), TOP = 6.
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xD9, 0xEE, 0xDD, 0xC9, .. SwA, 0xDD, 0x1F], 6);
+                bad += Voir($"FLD1 ; FLDZ ; DD C9 (FXCH4, illégal chez PCem) ; FNSTSW ; FSTP m64 ({nom})", W(0x20A) == 0x3000 && Q(0x200) == 0,
+                            $"{W(0x20A):X4}, {Q(0x200):X16}", "3000, 0000000000000000", true);
             }
 
             // FENI et FDISI : IEM (bit 7) sur le 8087 (FNINIT, 03FFh ; FENI, 037Fh ; FDISI, 03FFh), sans effet ailleurs

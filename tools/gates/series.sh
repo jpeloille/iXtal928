@@ -654,3 +654,11 @@ for pb in 200 201 202; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6, le noyau, N7c — le noyau entre au mode : « tout » et le domaine x87 le prennent, avec l'acheminement et les
+# corrections de G13.6a et 6b qu'il reprend ; ses cas sous le domaine x87.
+run materiel-cas-pb264-x87 --hardware-mode x87 materiel-cas PB-264
+run materiel-cas-pb204-x87 --hardware-mode x87 materiel-cas PB-204
+# Les corrections de G13.6a et 6b, reprises par le noyau, sous le domaine x87.
+for pb in 57 58 61 63 64 66 67 70 207 213; do
+  run materiel-cas-pb$pb-x87 --hardware-mode x87 materiel-cas PB-$pb
+done

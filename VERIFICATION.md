@@ -9668,3 +9668,75 @@ dits : le pseudo-zéro de FIST (IE, table 1-17, contre +0, table 1-10) et de FST
 **La série** (`g7n7b`, le 12/10, 04:49 → 06:00, contre `g7n7a`) : 481 portes, toutes vertes, les mêmes ; seul
 `recensement` change, 1074 marqueurs au lieu de 1070. Les cas de `NonNormaux` courent sous `materiel-cas-pb264-materiel`
 et `materiel-cas-pb264-acheminement`, déjà portes.
+
+## G13.6, le noyau, N7c — l'entrée au mode
+
+Le 12 octobre 2026. Le noyau de 80 bits du x87 est complet : il quitte le chantier (décision n° 4), entre dans « tout »
+et dans le domaine x87, et reprend les corrections en `double` de G13.6a et 6b.
+
+**Ce qui change.**
+- `ModeMateriel.EnChantier` est vide (le mécanisme reste pour un chantier futur) ; « tout » et le domaine x87 prennent
+  les vingt-cinq PB du noyau. Le groupe du noyau réunit aussi PB-57, 58, 61, 63, 64, 66, 67, 70, 207 et 213 : en
+  demander un demande le noyau, qui le reprend sur 80 bits et remplace les tables du mode ; leurs gestionnaires en
+  `double` restent posés par cpu_set, inutilisés, jusqu'à N8. L'acheminement (PB-59, 69, 204) reste son propre groupe.
+  Les descriptions perdent « en chantier ».
+- Les tables du noyau sont copiées de celles de PCem (`_x87_noyau.table`) au lieu d'être remplies d'arrêts
+  (`a_ecrire`, retiré) : les entrées que PCem tient pour illégales (PB-210 : FXCH4, FCOMP5, FFREEP et les autres alias)
+  y gardent son gestionnaire, que le 8087 garde en place ; toute entrée que PCem exécute a son gestionnaire du noyau
+  (N7a ; un script hors dépôt le recompte, `couverture.py`).
+- Les sites du noyau qui reprennent PB-57 (`fcom_st`), 58 et 213 (`comparer`), 61 (`mot_d_etat_ax`, appelé par FNSTSW
+  AX, `genmat.py`), 63 (`fxam`), 64 (`ftst`), 66 (`constante`), 67 (`fst_st`) et 207 (`fstenv_fin`) portent leur
+  marqueur et comptent leur sonde : un cas du mode matériel exige que la correction ait servi.
+- Hors du x87, seul le port de diagnostic du fuzzeur lit `cpu_state.ST` (808x.State.cs, l'oracle) ; aucune porte de la
+  série ne demandait « tout » ni « x87 ».
+
+**Les cas.** Les cas de G13.6a et 6b jouent désormais sur le noyau en mode matériel, verts, avec trois reprises :
+`X87` lit le mot d'état du 8087 en mémoire (FNSTSW [BX+40h]) au lieu de FNSTSW AX, que le noyau ne fait plus sur le 8087
+(PB-200) ; PB-66, FSTP m64 d'une constante sous RC dirigé : le noyau range la constante de 80 bits et l'arrondit selon
+RC, comme le silicium, et le 8087 et le 287 rendent donc la valeur du 387 (leur arrondi propre se voit en m80, les cas de
+N3a) ; PB-204, OUT F1h avec le noyau : le RESET de PB-203, le 387 en sort IE, ES et B posés (8081h). Tous les PB du x87,
+dans les quatre configurations (mode PCem, le PB seul, `--hardware-mode x87`, `--hardware-mode tout`) : verts. Sous
+« tout », PB-54 et PB-62 rougissaient d'abord, « DÉCOR FAUX » : `PmCheck386.CasMateriel` posait le décor du mode
+protégé par LOADALL386, que le 486 du mode matériel n'a plus (PB-78) ; il suit désormais `LoadallDisponible`, comme le
+banc entier (un défaut du harnais, déjà présent à HEAD sous `processeur,PB-54`). `materiel-cas PB-264` gagne un cas :
+DD C9 (FXCH4), sans effet sous le noyau. `materiel-mode` gagne deux contrôles : « tout » et le domaine x87 prennent le
+noyau, et chaque correction de G13.6a et 6b est au groupe du noyau. Douze portes neuves, sous `--hardware-mode x87` :
+`materiel-cas-pb264-x87`, `materiel-cas-pb204-x87` et les dix PB repris (`materiel-cas-pb57-x87` à `-pb213-x87`). Le
+recensement : 266 défauts, 1084 marqueurs (dix neufs : PB-57, 58, 61, 63, 64, 66, 67, 70, 207 et 213 à leurs sites du
+noyau, et PB-70 sur l'infini projectif d'`operation` et de `fsqrt`).
+
+**Les amorçages.** Les scénarios des listings qui exécutent du x87 (le 5150 avec 8087 sous PC-DOS, l'AT avec 287, le
+386 avec 387 sous le POST et sous DEBUG, le 486, la division par zéro sous DEBUG), joués en mode PCem et sous
+`--hardware-mode tout` (Debug, dans un bac à sable, `boot-materiel.sh` hors dépôt) : aucun arrêt ; l'écran et les
+comptes identiques dans les deux modes, sauf le 5150, dont les temps changent avec les corrections de la carte mère :
+sous « tout » et sous « tout sauf le noyau », sa sortie est identique au caractère près.
+
+**Les contrôles négatifs** (`neg-n7c.py`, hors dépôt) : le noyau encore en chantier, PB-57 hors du groupe (`materiel-mode`
+rougit), les tables sans les entrées de PCem (le harnais s'arrête sur le gestionnaire nul), les sondes de PB-57 et de
+PB-61 retirées (« la correction n'a pas servi ») ; le témoin vert.
+
+**La contre-lecture** (Sonnet) : une sonde par réflexion construit le mode, appelle cpu_set et lit les seize tables et
+les huit du 8087, sur le 8088 et le 8087, le 286 et le 287 ou le 287XL, le 386 et le 387, le 486, avec chacun des PB
+repris seul, puis « tout » : le groupe entier (trente-cinq PB, PB-264 compris, sans l'acheminement), chaque entrée au
+noyau sauf les FPU_ILLEGAL de PCem (403 par table), aucune sur un gestionnaire en `double`, ceux que le 8087 pose en
+place compris : aucun mélange possible ; aucun lecteur de `cpu_state.ST` ni de `tag` en mode matériel ; `genmat.py`
+régénéré, identique ; le mode PCem intouché (des commentaires seuls hors du code du mode). Repris : les marqueurs de
+PB-57 et PB-70 au noyau, qui n'avaient que leur sonde ; les sondes de PB-213 (seulement quand C1 était posé) et de
+PB-66 (ni FLD1 ni FLDZ), trop larges ; vingt-huit « ) » précédées d'une espace dans PCEM_BUGS, reste du retrait de
+« en chantier » ; le texte de PB-66 (…79FE sur les cinq avec le noyau), le commentaire de F1h (`ports_at`), une
+étiquette de cas (DD C9) ; les dix PB repris, joués en série sous `--hardware-mode x87`. Doutes laissés, dits : le
+FNCLEX du noyau efface B (N2), la moitié de PB-59 qui n'est pas au groupe, et qu'un PB repris seul apporte donc ; le
+port de diagnostic du fuzzeur (`808x.State.cs`) ne vide pas les registres du noyau (sans effet : cpu_set les remet à
+zéro) ; la vitesse du noyau sur un invité saturé de flottant, le 486 surtout : N8 (décision n° 7).
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n7b : 1 130 méthodes, deux changées, aucune apparue ni
+disparue : `ModeMateriel..cctor` (les groupes, `EnChantier` vide, les descriptions) et `mem..cctor`, par l'ordre
+d'initialisation : `EnChantier = []` initialise `Array.Empty<int>()` plus tôt, et le JIT, qui compile ensuite le
+constructeur de `mem` (dont `readlookup2` et `writelookup2` valent `[]`), y voit la classe déjà prête : le test
+d'initialisation et la barrière d'écriture disparaissent. Les deux constructeurs ne s'exécutent qu'une fois ; aucun
+gestionnaire de PCem ne change (`cpu.cs`, `808x.cs`, `x87.Materiel.cs` : des commentaires).
+
+**La série** (`g7n7c`, le 12/10, 06:25 → 07:38, contre `g7n7b`) : 493 portes, toutes vertes ; douze neuves, sous
+`--hardware-mode x87` (`materiel-cas-pb264-x87`, `-pb204-x87` et les dix PB repris) ; seul `recensement` change parmi
+les anciennes, 1084 marqueurs au lieu de 1074. Les portes de G13.6a et 6b (`materiel-cas-pb57-materiel` et les autres),
+inchangées dans la liste, jouent désormais le noyau, vertes.

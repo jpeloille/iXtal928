@@ -80,10 +80,10 @@ instr('FNSTSW', [('dd', '/7')], '''
 instr('FNSTSW_AX', [('df', 0xE0)], '''
         if (@FP_ENTER()) return 1;
         cpu_state.pc++;
-        x86.AX = (uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11));
+        x86.AX = _x87_noyau.mot_d_etat_ax();
         @CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
         return 0;
-''', cibles=('386',), doc='FNSTSW AX : le mot d\'état, TOP compris (287, 387, 486).')
+''', cibles=('386',), doc='FNSTSW AX : le mot d\'état, TOP compris (287, 387, 486 ; _x87_noyau.mot_d_etat_ax, PB-61).')
 
 instr('FNSTSW_AX', [('df', 0xE0)], '''
         if (@FP_ENTER()) return 1;
@@ -445,15 +445,14 @@ def generer(cible):
                                 for b in (tailles if cible == '386' else [16]))
     out = [x for x in out if x is not None]
     if cible == '386':
-        tables = ['        _386.x86_opcodes_%s_a%d = _x87_noyau.table(%d, 0x%s);' % (e, a, 32 if e in ('d8', 'dc') else 256, e.upper())
+        tables = ['        _386.x86_opcodes_%s_a%d = _x87_noyau.table(_386.ops_fpu_%s_a%d);' % (e, a, e, a)
                   for e in ['d8', 'd9', 'da', 'db', 'dc', 'dd', 'de', 'df'] for a in (16, 32)]
         doc = ('    /// <summary>Les seize tables du noyau, qui remplacent celles du mode : chaque instruction écrite à son entrée,\n'
-               '    /// les autres à l\'arrêt (_x87_noyau.a_ecrire).</summary>')
+               '    /// les autres, celles que PCem tient pour illégales, à leur gestionnaire de PCem (_x87_noyau.table ; PB-210).</summary>')
     else:
-        tables = ['        _x87_noyau.remplir(_808x.ops_808x_fpu_%s_a16, 0x%s);' % (e, e.upper())
-                  for e in ['d8', 'd9', 'da', 'db', 'dc', 'dd', 'de', 'df']]
+        tables = []
         doc = ('    /// <summary>Les huit tables du 8087, remplacées en place (execx86 les indexe en dur) : chaque instruction écrite\n'
-               '    /// à son entrée, les autres à l\'arrêt (_x87_noyau.a_ecrire).</summary>')
+               '    /// à son entrée ; les autres, celles que PCem tient pour illégales, gardent leur gestionnaire de PCem (PB-210).</summary>')
     corps = '\n'.join(out) + '\n' + doc + '\n    internal static void poser_tables()\n    {\n' + '\n'.join(tables + pose) + '\n    }\n'
     hdr = '''// SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only

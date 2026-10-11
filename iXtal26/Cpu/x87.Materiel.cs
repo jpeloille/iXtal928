@@ -576,8 +576,9 @@ internal static class _x87_materiel
 
     // pcem bug, fixed in hardware mode: PB-204 — les ports F0h et F1h de l'AT (AP-578 § 2.2.1 ; IBM PC AT Technical
     //   Reference, 1985) : une écriture à F0h efface le verrou (le 486 : pose IGNNE# tant que FERR# est actif) ; à F1h,
-    //   elle efface aussi le verrou et remet à zéro le 287 ou le 387, dans l'état de FNINIT (opFINIT). Le 486 et F1h :
-    //   inconnu, rien.
+    //   elle efface aussi le verrou et remet à zéro le 287 ou le 387, dans l'état de FNINIT (opFINIT), ou, avec le
+    //   noyau, dans l'état du RESET de son type (PB-203 : le 387 en sort IE, ES et B posés). Le 486 et F1h : inconnu,
+    //   rien.
     internal static void ports_at() => io.io_sethandler(0x00f0, 0x0002, null, null, null, ecrire_f0_f1, null, null, null);
 
     internal static void ecrire_f0_f1(uint16_t port, uint8_t val, object p)
@@ -592,7 +593,7 @@ internal static class _x87_materiel
         }
         if (port == 0xF1 && cpu_c.fpu_type is cpu_c.FPU_287 or cpu_c.FPU_287XL or cpu_c.FPU_387)
         {
-                // Le noyau (en chantier) : le RESET de son type (PB-203) ; le 387 en sort ES posé, sans front acheminé.
+                // Le noyau : le RESET de son type (PB-203) ; le 387 en sort ES posé, sans front acheminé.
                 if (materiel.pb_264)
                 {
                         _x87_noyau.reset();

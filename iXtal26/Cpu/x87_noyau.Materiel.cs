@@ -12,13 +12,13 @@
 // le mot de contrôle vers SoftFloat et ses indicateurs vers le mot d'état. Les gestionnaires eux-mêmes sont générés
 // d'une seule description (tools/x87gen/genmat.py : x87_noyau_386.Materiel.cs, x87_noyau_808x.Materiel.cs).
 //
-// EN CHANTIER (ModeMateriel.EnChantier) : le noyau ne se demande que par les numéros de son groupe, jusqu'à la fin de
-// N7 ; ni « tout » ni le domaine x87 ne le prennent. Ses tables remplacent alors toutes celles du x87 : chaque
-// instruction déjà écrite y a son gestionnaire, les autres s'arrêtent bruyamment (a_ecrire), au lieu de calculer en
-// `double` sur des registres que le noyau ne lit pas. Demandé avec une correction de G13.6a ou 6b (PB-57, 58, 61, 63,
-// 64, 66, 67, 70, 207, 213), le noyau la remplace : leurs gestionnaires calculent en `double`, les siens sur 80 bits,
-// et ils disparaîtront en N8. L'acheminement de G13.6c (PB-59, 69, 204), lui, reste celui de la carte : le noyau ne
-// le prend que s'il est demandé (lever, int_retombe), et PB-204 enveloppe ses tables comme celles du mode.
+// LE MODE (N7c) : le noyau entre dans « tout » et dans le domaine x87, et se demande par chaque numéro de son groupe
+// (ModeMateriel.Groupes), qui comprend les corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70,
+// 207, 213) : le noyau les reprend sur 80 bits, ses tables remplaçant toutes celles du x87, et leurs gestionnaires
+// quittent le dépôt en N8. Chaque instruction que PCem exécute y a son gestionnaire du noyau ; les entrées que PCem
+// tient pour illégales gardent le sien (table ; PB-210). L'acheminement de G13.6c (PB-59, 69, 204), lui, reste celui
+// de la carte : le noyau ne le prend que s'il est demandé (lever, int_retombe), et PB-204 enveloppe ses tables comme
+// celles du mode.
 //
 // Le contrat de la couche : une fonction qui peut lever une exception rend VRAI quand l'instruction doit s'arrêter
 // sans rien ranger ni dépiler (une exception démasquée qui précède le calcul ; OE ou UE démasquée quand la destination
@@ -427,6 +427,14 @@ internal static class _x87_noyau
     //   special 80287 instruction » ; Numerics Supplement, 1980 : le 8087 n'échange avec l'UC que par la mémoire) : AX
     //   reste tel quel (déduit) ; ce que le 8087 fait de l'opcode est inconnu, le noyau n'en fait rien.
     internal static void dfe0_8087() => ModeMateriel.Sonde[200]++;
+
+    // pcem bug, fixed in hardware mode: PB-61 — FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486 ; 287
+    //   PRM, FSTSW AX), au lieu de npxs brut.
+    internal static uint16_t mot_d_etat_ax()
+    {
+        ModeMateriel.Sonde[61]++;
+        return (uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11));
+    }
 
     // pcem bug, fixed in hardware mode: PB-59 — sur le 8087 et le 287, DE démasquée passe avant toute autre exception, sauf
     //   la faute de pile (287 PRM, table 3-2, « Denormalized operand (if unmasked) » en tête, et annexe C, point 4 :
@@ -838,7 +846,7 @@ internal static class _x87_noyau
         empiler(r);
     }
 
-    // PB-66 (corrigé en G13.6a, en double) : les constantes de 80 bits. Le 287XL, le 387 et le 486 arrondissent la
+    // pcem bug, fixed in hardware mode: PB-66 — les constantes de 80 bits (G13.6a les corrigeait en double ; le noyau, N7c). Le 287XL, le 387 et le 486 arrondissent la
     //   valeur exacte selon RC (387 PRM § 4.7 ; SDM vol. 1, 2003, § 8.3.4 ; § 8.3.8 donne les 66 bits de π) ; le 8087 et le 287 la rendent au plus près.
     //   Les significandes, calculés de la valeur exacte à deux cents chiffres : au plus près, vers le bas (vers −∞ et
     //   vers zéro, les constantes étant positives), vers le haut.
@@ -856,6 +864,8 @@ internal static class _x87_noyau
     /// <summary>D9 E8 + k : FLD1, FLDL2T, FLDL2E, FLDPI, FLDLG2, FLDLN2, FLDZ.</summary>
     internal static void constante(int k)
     {
+        if (k is not (0 or 6))
+                ModeMateriel.Sonde[66]++;
         c1_zero();
         var c = Constantes[k];
         var sig = cpu_c.fpu_type < cpu_c.FPU_287XL ? c.pres : ((cpu_state.npxc >> 10) & 3) switch
@@ -898,10 +908,12 @@ internal static class _x87_noyau
         etiqueter(pi, e0);
     }
 
-    /// <summary>FST et FSTP ST(i) : ST(0) copié tel quel, 80 bits (C1 à zéro : rien n'est arrondi) ; vide, l'indéfini.
-    /// Rend vrai si l'instruction s'arrête (le gestionnaire ne dépile pas).</summary>
+    // pcem bug, fixed in hardware mode: PB-67 — FST et FSTP ST(i) : ST(0) copié tel quel, 80 bits, l'entier exact de
+    //   TAG_UINT64 n'ayant plus lieu (C1 à zéro : rien n'est arrondi) ; vide, l'indéfini. Rend vrai si l'instruction
+    //   s'arrête (le gestionnaire ne dépile pas).
     internal static bool fst_st(int i)
     {
+        ModeMateriel.Sonde[67]++;
         c1_zero();
         if (lire(0, out var v))
                 return true;
@@ -924,7 +936,7 @@ internal static class _x87_noyau
         R[p].signExp = (uint16_t)(abs ? R[p].signExp & 0x7FFF : R[p].signExp ^ 0x8000);
     }
 
-    // PB-63 (corrigé en G13.6a, en double) : FXAM sur 80 bits (387 PRM § 4.5.10 et table 4-8 ; SDM vol. 2, FXAM) : non
+    // pcem bug, fixed in hardware mode: PB-63 — FXAM sur 80 bits (387 PRM § 4.5.10 et table 4-8 ; SDM vol. 2, FXAM) : non
     //   supporté C3 C2 C0 = 000, NaN 001, normal 010, infini 011, zéro 100, vide 101, dénormal 110 (le pseudo-dénormal
     //   compris) ; C1, le signe du registre, vide compris. Le 8087 et le 287 ont seize codes (287 PRM, table 2-8 ;
     //   Numerics Supplement, 1980, table S-13) : ceux du 387, et 000 pour un non normal, le pseudo-zéro compris (un non
@@ -934,6 +946,7 @@ internal static class _x87_noyau
     //   (inconnu).
     internal static void fxam()
     {
+        ModeMateriel.Sonde[63]++;
         var v = R[phys(0)];
         uint16_t c;
         if (vide(0))
@@ -1351,9 +1364,13 @@ internal static class _x87_noyau
     /// <summary>FSTENV : les mots de l'environnement, à écrire (off, mot, n).</summary>
     internal static void fstenv(int d) => env_ranger(d);
 
-    // PB-207 (corrigé en G13.6b, en double) : après avoir rangé l'environnement, FSTENV masque les six exceptions (SDM
+    // pcem bug, fixed in hardware mode: PB-207 — après avoir rangé l'environnement, FSTENV masque les six exceptions (SDM
     //   vol. 2, FSTENV ; le 8087 et le 287 : déduit).
-    internal static void fstenv_fin() => cpu_state.npxc |= 0x3F;
+    internal static void fstenv_fin()
+    {
+        ModeMateriel.Sonde[207]++;
+        cpu_state.npxc |= 0x3F;
+    }
 
     /// <summary>FSAVE : l'environnement et les huit registres, à écrire.</summary>
     internal static void fsave(int d)
@@ -1571,7 +1588,8 @@ internal static class _x87_noyau
         }
         if (projectif() && k is ADD or SUB && ca == Classe.Infini && cb == Classe.Infini)
         {
-                // PB-70 — en projectif, ∞ ± ∞, quels que soient les signes : IE et l'indéfini (287 PRM, table 1-12).
+                // pcem bug, fixed in hardware mode: PB-70 — en projectif, ∞ ± ∞, quels que soient les signes : IE et
+                //   l'indéfini (287 PRM, table 1-12).
                 ModeMateriel.Sonde[70]++;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
                 return indicateurs();
@@ -1691,8 +1709,8 @@ internal static class _x87_noyau
                 r = nan_de_seize(x, x);
         else if (non_normal_seize(c) || projectif() && c == Classe.Infini && !negatif(x))
         {
-                // Le 8087 et le 287 : la racine d'un non normal ou d'un dénormal, et de +∞ en projectif, IE et l'indéfini
-                // (287 PRM, tables 1-9, 1-12 et 1-17 ; PB-59, PB-70).
+                // pcem bug, fixed in hardware mode: PB-59 PB-70 — le 8087 et le 287 : la racine d'un non normal ou d'un
+                //   dénormal, et de +∞ en projectif, IE et l'indéfini (287 PRM, tables 1-9, 1-12 et 1-17).
                 ModeMateriel.Sonde[non_normal_seize(c) ? 59 : 70]++;
                 r = Indefini;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
@@ -1713,7 +1731,7 @@ internal static class _x87_noyau
     private static bool projectif() =>
         cpu_c.fpu_type is cpu_c.FPU_8087 or cpu_c.FPU_287 && (cpu_state.npxc & 0x1000) == 0;
 
-    // PB-57, PB-58, PB-64, PB-70, PB-213 (corrigés en G13.6a et 6b, en double) : la comparaison sur 80 bits (SDM vol. 2,
+    // pcem bug, fixed in hardware mode: PB-57 PB-58 PB-70 PB-213 — la comparaison sur 80 bits (SDM vol. 2,
     //   FCOM/FCOMP/FCOMPP, FUCOM/FUCOMP/FUCOMPP, FICOM/FICOMP et FTST ; 387 PRM § 4.5) : C3 C2 C0 = 000 pour a > b, 001
     //   pour a < b, 100 pour a = b (−0 et +0 égaux), 111 non ordonné ; C1 à zéro sur le 287XL, le 387 et le 486, « X »
     //   sur le 8087 et le 287, laissé. Non ordonné : un NaN, IE pour FCOM et ses voisines, pour un SNaN seul avec FUCOM
@@ -1769,6 +1787,11 @@ internal static class _x87_noyau
         }
         if (e != 0 && lever(e))
                 return true;
+        // PB-58 : −0 et +0 égaux ; PB-213 : C1 remis à zéro (287XL, 387, 486).
+        if (ca == Classe.Zero && cb == Classe.Zero && (a.signExp ^ b.signExp) != 0)
+                ModeMateriel.Sonde[58]++;
+        if (cpu_c.fpu_type >= cpu_c.FPU_287XL && (cpu_state.npxs & C1) != 0)
+                ModeMateriel.Sonde[213]++;
         c1_zero();
         cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(x87_c.C0 | x87_c.C2 | x87_c.C3)) | cc);
         return false;
@@ -1791,20 +1814,23 @@ internal static class _x87_noyau
         return comparer(x, m, true, den);
     }
 
-    /// <summary>FCOM, FCOMP, FUCOM, FUCOMP ST(i), FCOMPP et FUCOMPP (i = 1) : ST(0) contre ST(i). Rend vrai si
-    /// l'instruction s'arrête.</summary>
+    // pcem bug, fixed in hardware mode: PB-57 — FCOM, FCOMP, FUCOM, FUCOMP ST(i), FCOMPP et FUCOMPP (i = 1) : ST(0) contre
+    //   ST(i), par la comparaison du silicium (comparer) et non par `==` et `<` en double. Rend vrai si l'instruction
+    //   s'arrête.
     internal static bool fcom_st(int i, bool signale)
     {
+        ModeMateriel.Sonde[57]++;
         if (lire(0, out var x) || lire(i, out var y))
                 return true;
         return comparer(x, y, signale);
     }
 
-    // PB-64 (corrigé en G13.6a, en double) : FTST compare ST(0) à +0, comme FCOM (SDM vol. 2, FTST ; Numerics
+    // pcem bug, fixed in hardware mode: PB-64 — FTST compare ST(0) à +0, comme FCOM (SDM vol. 2, FTST ; Numerics
     //   Supplement, 1980, table S-27 : en projectif, un infini, non comparable et IE). FTST de −0 : le 387 PRM, table
     //   3-3, donne C1 = 1 (« C3 = C1 = 1 ») ; le SDM, « C1 Set to 0 » ; le SDM est suivi, comme pour PB-213 (inconnu).
     internal static void ftst()
     {
+        ModeMateriel.Sonde[64]++;
         if (!lire(0, out var x))
                 comparer(x, new extFloat80_t(), true);
     }
@@ -2622,16 +2648,11 @@ internal static class _x87_noyau
                 _808x_noyau.poser_tables();
     }
 
-    /// <summary>Une table du noyau, de l'échappement `esc` : chaque entrée s'arrête (a_ecrire) jusqu'à ce que son
-    /// instruction soit écrite.</summary>
-    internal static OpFn[] table(int n, int esc)
-    {
-        var t = new OpFn[n];
-        remplir(t, esc);
-        return t;
-    }
-
-    internal static void remplir(OpFn[] t, int esc) => Array.Fill(t, a_ecrire(esc));
+    /// <summary>Une table du noyau, copiée de celle de PCem (`pcem`, ops_fpu_*) : le noyau y pose chacune de ses
+    /// instructions (poser_tables) ; les entrées qui restent sont celles que PCem tient pour illégales (FPU_ILLEGAL :
+    /// l'adresse effective lue, quelques cycles, rien d'autre ; les alias non documentés, PB-210, reproduit) et que le
+    /// noyau garde telles quelles. Toute entrée que PCem exécute a son gestionnaire du noyau (N7a).</summary>
+    internal static OpFn[] table(OpFn[] pcem) => (OpFn[])pcem.Clone();
 
     /// <summary>Pose `f` aux entrées de mémoire de la ligne `reg` : dans une table de 256 (indexée par l'octet ModRM),
     /// les trois valeurs de mod autres que 3 ; dans une table de 32 (D8 et DC, indexées par mod et reg), les entrées
@@ -2648,13 +2669,4 @@ internal static class _x87_noyau
                 if (((i >> 3) & 7) == reg)
                         t[i] = f;
     }
-
-    /// <summary>Une instruction que le noyau n'a pas encore : l'arrêt, plutôt qu'un calcul faux (le noyau en
-    /// chantier).</summary>
-    private static OpFn a_ecrire(int esc) => fetchdat =>
-    {
-        pc.fatal($"le noyau du x87, en chantier : {esc:X2} {fetchdat & 0xff:X2} n'est pas encore écrite (IP " +
-                 $"{cpu_state.oldpc:X4}).\n");
-        return 1;
-    };
 }

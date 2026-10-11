@@ -1172,7 +1172,7 @@ startrep:
         FETCHCLEAR();
         // omitted: x87_reset() et codegen_reset() — vide chez PCem (x87.cs), et le dynarec.
         // pcem bug, fixed in hardware mode: PB-203 — le RESET remet le coprocesseur dans l'état initial de son type (le
-        //   noyau, en chantier ; x87_noyau.Materiel.cs).
+        //   noyau ; x87_noyau.Materiel.cs).
         if (materiel.pb_203)
                 _x87_noyau.reset();
         // omitted: cpu_set_edx() (:698) — inerte ICI : EDX vient d'être mis à zéro, et
