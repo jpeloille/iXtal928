@@ -93,6 +93,9 @@ internal static class materiel
     /// <summary>PB-64 : FTST, un NaN non ordonné ; avec PB-57 et PB-70.</summary>
     internal static readonly bool pb_64;
 
+    /// <summary>PB-65 : FPREM et FPREM1, le reste exact et la réduction partielle ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_65;
+
     /// <summary>PB-66 : les constantes du x87 au plus près (ln 2 compris), et selon RC sur le 287XL, le 387 et le 486.</summary>
     internal static readonly bool pb_66;
 
@@ -195,11 +198,20 @@ internal static class materiel
     /// <summary>PB-193 : LOADALL386 lève #GP(0) hors du niveau 0, en mode protégé.</summary>
     internal static readonly bool pb_193;
 
+    /// <summary>PB-194 : FXTRACT sépare l'exposant et le significande ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_194;
+
     /// <summary>PB-195 : FBSTP arrondit selon RC ; trop grand : IE et l'indéfini BCD ; le noyau, en chantier.</summary>
     internal static readonly bool pb_195;
 
     /// <summary>PB-196 : FIST hors bornes : IE et l'indéfini entier ; le noyau, en chantier.</summary>
     internal static readonly bool pb_196;
+
+    /// <summary>PB-197 : FRNDINT garde |x| ≥ 2^63, les infinis et les NaN ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_197;
+
+    /// <summary>PB-198 : FSCALE par un NaN ou un infini ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_198;
 
     /// <summary>PB-199 : FSAVE range chaque registre en réel de 80 bits ; le noyau, en chantier.</summary>
     internal static readonly bool pb_199;
@@ -218,6 +230,9 @@ internal static class materiel
 
     /// <summary>PB-208 : les étiquettes du contenu, recalculées au chargement (287XL, 387, 486) ; le noyau, en chantier.</summary>
     internal static readonly bool pb_208;
+
+    /// <summary>PB-211 : FRNDINT garde le signe du zéro ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_211;
 
     /// <summary>PB-212 : FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486) ; le noyau, en chantier.</summary>
     internal static readonly bool pb_212;
@@ -274,6 +289,9 @@ internal static class materiel
     /// tables du noyau.</summary>
     internal static readonly bool pb_264;
 
+    /// <summary>PB-265 : FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_265;
+
     static materiel()
     {
         ModeMateriel.Gel();
@@ -302,6 +320,7 @@ internal static class materiel
         pb_62 = ModeMateriel.Demande(62);
         pb_63 = ModeMateriel.Demande(63);
         pb_64 = ModeMateriel.Demande(64);
+        pb_65 = ModeMateriel.Demande(65);
         pb_66 = ModeMateriel.Demande(66);
         pb_67 = ModeMateriel.Demande(67);
         pb_69 = ModeMateriel.Demande(69);
@@ -336,14 +355,18 @@ internal static class materiel
         pb_191 = ModeMateriel.Demande(191);
         pb_192 = ModeMateriel.Demande(192);
         pb_193 = ModeMateriel.Demande(193);
+        pb_194 = ModeMateriel.Demande(194);
         pb_195 = ModeMateriel.Demande(195);
         pb_196 = ModeMateriel.Demande(196);
+        pb_197 = ModeMateriel.Demande(197);
+        pb_198 = ModeMateriel.Demande(198);
         pb_199 = ModeMateriel.Demande(199);
         pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
         pb_206 = ModeMateriel.Demande(206);
         pb_207 = ModeMateriel.Demande(207);
         pb_208 = ModeMateriel.Demande(208);
+        pb_211 = ModeMateriel.Demande(211);
         pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
         pb_246 = ModeMateriel.Demande(246);
@@ -362,5 +385,6 @@ internal static class materiel
         pb_262 = ModeMateriel.Demande(262);
         pb_263 = ModeMateriel.Demande(263);
         pb_264 = ModeMateriel.Demande(264);
+        pb_265 = ModeMateriel.Demande(265);
     }
 }

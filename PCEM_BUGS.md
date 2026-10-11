@@ -1070,6 +1070,12 @@ silicium 3FB9999999999996 et C3 C1 C0 = 010 (Q = 9) ; ST(0) = 2^100, ST(1) = 3,0
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFPREM` et `opFPREM1`, marqueurs PB-65, et leurs copies de
 `Cpu/x87_ops_808x.cs` ; la conversion par CvtI64 (cvttsd2si, G4.0). `x87-cases` : FPREM, FPREM1, FSCALE sur neuf couples
 de bornes (grands quotients, diviseur nul, infinis, NaN).
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FPREM et FPREM1 du noyau (`_x87_noyau.fprem`, `reste`)
+rendent le reste exact, le quotient tronqué ou au plus près (au pair) sur 64 bits de significande, ses trois bits bas en
+C0, C3 et C1 ; au-delà de 63 d'écart d'exposants, une réduction partielle, C2 = 1, N = 32 + (D mod 32) (un choix,
+(c)) ; un diviseur nul ou un dividende infini, IE, l'indéfini et C2. `materiel-cas PB-65` : 1 par 0,1 en FPREM et en
+FPREM1, 3 par 2 en FPREM1 (le pair), 2^100 par 3 (C2), sur les cinq coprocesseurs. Le quotient du 287 et les codes
+qu'une réduction incomplète laisse au 8087 et au 287 : N7.
 
 ### PB-66 — FLDLN2 est d'un ulp trop grand
 
@@ -3627,6 +3633,9 @@ SDM vol. 3 (2016) § 22.18.7.12 et 387 PRM annexe C (8087 et 287 : 0 sans except
 *G13* : (a) — un gestionnaire neuf avec ceux du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_tables.cs` (`Table_fpu_d9_a16` et `_a32`, rangée F0) et `Cpu/x87_ops_808x_tables.cs`
 (`ops_808x_fpu_d9_a16`), marqueurs PB-194 (générés par `gentab.py` et `gen46.py`).
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FXTRACT du noyau (`_x87_noyau.fxtract`) : l'exposant
+en ST(1), le significande empilé ; un zéro, ZE et −∞ ; un infini, +∞ et lui-même ; un dénormal, DE. `materiel-cas PB-194`
+(le cas qui discrimine, sur les cinq coprocesseurs) ; le zéro et l'infini du 8087 et du 287 (sans exception, IE) : N7.
 
 ### PB-195 — FBSTP tronque au lieu d'arrondir, sans IE ni BCD indéfini
 
@@ -3684,6 +3693,9 @@ d'un `int64_t`, compilé en cvttsd2si, vaut 8000000000000000h ; les comparaisons
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-197 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs` ; la cause, `x87_fround` (`Cpu/x87_ops.cs`, CvtI64), est partagée avec FIST.
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT du noyau (`_x87_noyau.frndint`, SoftFloat
+`extF80_roundToInt`) laisse une valeur déjà entière, un infini, et rend un QNaN d'un NaN. `materiel-cas PB-197` : 2^63
+et +∞, sur les cinq coprocesseurs.
 
 ### PB-198 — FSCALE avec ST(1) NaN ou +∞ rend 0 ; le domaine du 287 n'est pas contrôlé
 
@@ -3699,6 +3711,10 @@ hasard).
 *G13* : (a) — avec les gestionnaires du noyau ; le domaine du 287 : avec les 16 bits ; hors domaine : (c).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFSCALE`, marqueur PB-198 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FSCALE du noyau (`_x87_noyau.fscale`) tronque ST(1)
+sans limite et suit la table des spéciaux du 387 PRM (tables 3-3 et 3-4) : un NaN propagé, ±∞ ou ±0 par ±∞, IE pour ∞
+par −∞ et 0 par +∞ ; O, U et P par l'arrondi selon RC. `materiel-cas PB-198` : 1 par NaN et par +∞, sur les cinq
+coprocesseurs. Le domaine du 287 : N7.
 
 ### PB-199 — L'image FSAVE d'un registre TAG_UINT64 : l'entier suivi de 5555h, étiqueté « spécial »
 
@@ -3930,6 +3946,8 @@ is the sign of the operand ») ; SDM vol. 2, FRNDINT — documenté.
 *G13* : (a) — avec les gestionnaires du noyau, après le point de décision n° 10 (exact aussi en double).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFRNDINT`, marqueur PB-211 (généré par `gen44.py`), et sa copie de
 `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT du noyau garde le signe d'un résultat nul.
+`materiel-cas PB-211` : −0,3 et −0, sur les cinq coprocesseurs.
 
 ### PB-212 — FLD m64 d'un SNaN le garde signalant, sans IE
 
@@ -5046,6 +5064,29 @@ faute : `empiler` sur un registre plein, `lire` un registre vide ; IE, et sur le
 et C1 ; masquée, l'indéfini empilé, ou lu à la place de l'opérande ; démasquée, ES et B, et l'acheminement de G13.6c
 s'il est demandé (PB-59). Chaque gestionnaire qui empile ou lit la pile passe par elles : N3 et N4. `materiel-cas
 PB-264`, sur la couche ; avec PB-204, l'acheminement.
+
+### PB-265 — L'arrondi au plus près de x87_fround arrondit b + 1,0 : −2^−60 rend +1, 2 − 2^−52 rend 1
+
+`x87_ops.h:60-82`, `x87_fround`, la branche au plus près : `a = floor(b)`, `c = floor(b + 1.0)`, puis la distance de
+`b` à chacun. La somme `b + 1.0` est elle-même arrondie au double : pour un négatif de [−2^−54 ; 0[, elle vaut
+1, `c` vaut 1, les deux distances `b − a` et `c − b` s'arrondissent toutes deux à 1, et l'égalité
+choisit `c` parce que `a = −1` est impair ; pour 2 − 2^−52, `b + 1.0` est le milieu de deux doubles, arrondi au pair,
+3, et la distance à `a` = 1 compte moins que celle à `c` = 3.
+*Effet* : FRNDINT, FIST et FISTP sous RC = 00 rendent +1 pour tout négatif de [−2^−54 ; 0[ (au lieu de −0 et 0), et
+2^m − 1 pour le double qui précède 2^m, 1 ≤ m ≤ 51 (1 pour 2 − 2^−52, 7 pour 8 − 2^−50, 1023 pour 1024 − 2^−43) ; un
+million de doubles tirés n'en montrent pas d'autre (la contre-lecture de N4b).
+*Trouvé par* : le domaine d'accord du noyau (G13.6, le noyau, N4b), FRNDINT sur des normaux de 2^−60 à 2^60 ; l'oracle,
+qui exécute le C de PCem, rend 3FF0000000000000h pour −2^−60.
+*Source* : IEEE 754-1985 § 4.1 (le plus proche, au pair à égalité) ; SDM vol. 2, FRNDINT et FIST — documenté.
+*Cas qui discrimine* : FNINIT ; FLD m64 = −2^−60 (BC30000000000000h) ; FRNDINT ; FSTP m64 → PCem 3FF0000000000000h,
+silicium 8000000000000000h (−0) ; FLD m64 = 3FFFFFFFFFFFFFFFh (2 − 2^−52) ; FRNDINT ; FSTP m64 → PCem
+3FF0000000000000h, silicium 4000000000000000h ; FISTP m16 du même → PCem 1, silicium 2.
+*G13* : (a) — avec le noyau (FRNDINT par SoftFloat en N4b, FIST et FISTP en N3a).
+*Reproduit* en mode PCem : `Cpu/x87_ops.cs`, `x87_fround`, marqueur PB-265 ; les gestionnaires du 8087 appellent la
+même aide.
+*Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FRNDINT (`_x87_noyau.frndint`) et FIST, FISTP
+(`_x87_noyau.fist`, N3a) arrondissent par SoftFloat sur 80 bits. `materiel-cas PB-265` : FRNDINT de −2^−60 et de 2 −
+2^−52, FISTP m16 de 2 − 2^−52, sur les cinq coprocesseurs.
 
 ## B. Comportement indéfini en C
 

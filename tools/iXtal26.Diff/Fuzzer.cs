@@ -185,7 +185,7 @@ public static class Fuzzer
                                 byte[]? second0F = null)
     {
         var dansLePerimetre = 0;
-        int horsDomaine = 0, tempsDeclares = 0;
+        int horsDomaine = 0, tempsDeclares = 0, zerosDeclares = 0;
         Oracle.CheckAbi();
         Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
                           $"{string.Join(",", opcodes.Select(o => $"0x{o:X2}"))}, " +
@@ -439,10 +439,9 @@ public static class Fuzzer
             }
 
             byte[]? operande = null;
-            var racine = false;
             if (Accord)
             {
-                operande = AccordInstruction(code, ref rng, out racine);
+                operande = AccordInstruction(code, ref rng);
                 regs[(int)R.DS] = 0x3000;
             }
 
@@ -475,7 +474,7 @@ public static class Fuzzer
             if (FpuState)
                 SeedFpu(ref fpuRng);
             else if (Accord)
-                AccordFpu(ref fpuRng, racine);
+                AccordFpu(ref fpuRng, code);
 
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -512,6 +511,8 @@ public static class Fuzzer
             if (Accord)
             {
                 accordDiff = AccordLire(ref a, ref b, out var horsDuDomaine);
+                if (accordDiff is null && !horsDuDomaine && AccordZeroDeclare(code, a, ref b))
+                    zerosDeclares++;
                 if (horsDuDomaine)
                 {
                     horsDomaine++;
@@ -585,7 +586,7 @@ public static class Fuzzer
             }
             Console.WriteLine($"\nVert : domaine d'accord, {iterations - horsDomaine} instructions au bit près de PCem ; " +
                               $"{horsDomaine} hors du domaine, écartées ; {tempsDeclares} temps de FCOM de registre non comparés " +
-                              "(PB-57).");
+                              $"(PB-57) ; {zerosDeclares} −0 de FRNDINT, +0 ou +1 chez PCem (PB-211, PB-265).");
         }
         else
             Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
@@ -936,12 +937,13 @@ public static class Fuzzer
     internal static bool Accord;
 
     // Les formes de registre du domaine, par échappement : D8 et DC entiers (DC D0+i et D8+i, les alias de FCOM et FCOMP,
-    // comme PCem) ; D9 : FCHS, FABS, FTST, FXAM, FSQRT ; DA E9 : FUCOMPP ; DD E0 à EF : FUCOM et FUCOMP ; DE : FADDP,
+    // comme PCem) ; D9 : FCHS, FABS, FTST, FXAM, FSQRT, FRNDINT, FSCALE (N4b ; FXTRACT, que PCem n'a pas, et FPREM et FPREM1,
+    // qu'il calcule faux, PB-194 et PB-65, n'y sont pas) ; DA E9 : FUCOMPP ; DD E0 à EF : FUCOM et FUCOMP ; DE : FADDP,
     // FMULP, FCOMPP, FSUBRP, FSUBP, FDIVRP, FDIVP (DE D0 à D7, FCOMP5, que PCem refuse, PB-210, n'y est pas).
     private static readonly Dictionary<byte, byte[]> AccordRegistre = new()
     {
         [0xD8] = [.. Enumerable.Range(0xC0, 64).Select(x => (byte)x)],
-        [0xD9] = [0xE0, 0xE1, 0xE4, 0xE5, 0xFA],
+        [0xD9] = [0xE0, 0xE1, 0xE4, 0xE5, 0xFA, 0xFC, 0xFD],
         [0xDA] = [0xE9],
         [0xDC] = [.. Enumerable.Range(0xC0, 64).Select(x => (byte)x)],
         [0xDD] = [.. Enumerable.Range(0xE0, 16).Select(x => (byte)x)],
@@ -954,18 +956,16 @@ public static class Fuzzer
 
     /// <summary>L'instruction du domaine en `code` (son échappement, code[0], tiré par la boucle) : une forme de registre,
     /// ou, pour D8, DA, DC et DE, une fois sur deux, la forme en mémoire /0 à /7 en [disp16]. Rend les octets de
-    /// l'opérande (un m32 ou un m64 normal, un entier non nul), ou null ; `racine` : FSQRT, dont ST(0) sera positif.</summary>
-    private static byte[]? AccordInstruction(byte[] code, ref Lcg rng, out bool racine)
+    /// l'opérande (un m32 ou un m64 normal, un entier non nul), ou null.</summary>
+    private static byte[]? AccordInstruction(byte[] code, ref Lcg rng)
     {
         var esc = code[0];
         Array.Fill(code, (byte)0x90, 1, code.Length - 1);
-        racine = false;
         if (!AccordRegistre.TryGetValue(esc, out var rangee))
             throw new InvalidOperationException($"--accord : l'échappement {esc:X2} n'a pas de forme dans le domaine.");
         if (esc is 0xD9 or 0xDD || (rng.Next() & 1) == 0)
         {
             code[1] = rangee[rng.Next() % (uint)rangee.Length];
-            racine = esc == 0xD9 && code[1] == 0xFA;
             return null;
         }
         code[1] = (byte)((rng.Next() & 7) << 3 | 6);
@@ -994,10 +994,10 @@ public static class Fuzzer
         }
     }
 
-    /// <summary>L'état du domaine, des deux côtés : huit registres pleins et normaux (ST(0) positif pour FSQRT), TOP
-    /// tiré, le mot d'état à zéro hors TOP, le mot de contrôle 027Fh ; le noyau reçoit les mêmes, étendus à 80 bits,
-    /// exacts.</summary>
-    private static void AccordFpu(ref Lcg r, bool racine)
+    /// <summary>L'état du domaine, des deux côtés : huit registres pleins et normaux (ST(0) positif pour FSQRT ; ST(1)
+    /// de −64 à 64 pour FSCALE, que PCem calcule par pow(2, n), hors du domaine au-delà de ±1022), TOP tiré, le mot
+    /// d'état à zéro hors TOP, le mot de contrôle 027Fh ; le noyau reçoit les mêmes, étendus à 80 bits, exacts.</summary>
+    private static void AccordFpu(ref Lcg r, byte[] code)
     {
         var top = (int)(r.Next() & 7);
         for (var i = 0; i < 8; i++)
@@ -1007,8 +1007,10 @@ public static class Fuzzer
             SeedMmW4[i] = 0;
             SeedTag[i] = x87_c.TAG_VALID;
         }
-        if (racine)
+        if (code[0] == 0xD9 && code[1] == 0xFA)
             SeedSt[top] &= 0x7FFFFFFFFFFFFFFF;
+        if (code[0] == 0xD9 && code[1] == 0xFD)
+            SeedSt[(top + 1) & 7] = BitConverter.DoubleToUInt64Bits(((int)(r.Next() % 128000) - 64000) / 1000.0);
         var npxs = (ushort)(top << 11);
         Oracle.h_setfpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, 0x027F);
         _808x.SetFpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, 0x027F);
@@ -1065,6 +1067,22 @@ public static class Fuzzer
         (b.nextcyc, b.cycdiff, b.current_diff, b.prefetchw, b.prefetchpc) =
             (a.nextcyc, a.cycdiff, a.current_diff, a.prefetchw, a.prefetchpc);
         Array.Copy(a.prefetchqueue, b.prefetchqueue, b.prefetchqueue.Length);
+    }
+
+    /// <summary>FRNDINT d'un négatif qui s'arrondit à zéro rend −0 dans le noyau ; PCem rend +0 (PB-211), ou +1 pour un
+    /// négatif de [−2^−54 ; 0[ (PB-265, l'arrondi de b + 1,0) ; l'opérande tiré (SeedSt) le dit, et ST(0) seul, alors,
+    /// est pris de l'oracle.</summary>
+    private static bool AccordZeroDeclare(byte[] code, in HState a, ref HState b)
+    {
+        var p = a.fpu_top & 7;
+        var x = SeedSt[p];
+        if (code[0] != 0xD9 || code[1] != 0xFC || b.fpu_st[p] != 0x8000000000000000 || (x >> 63) == 0)
+            return false;
+        var tout_petit = (x & 0x7FFFFFFFFFFFFFFF) <= 0x3C90000000000000;   // |x| ≤ 2^−54
+        if (!(a.fpu_st[p] == 0 || a.fpu_st[p] == 0x3FF0000000000000 && tout_petit))
+            return false;
+        b.fpu_st[p] = a.fpu_st[p];
+        return true;
     }
 
     /// <summary>PB-57 : FCOM, FCOMP (D8 et DC D0 à DF) et FCOMPP (DE D9) de registre comptent `fadd` chez PCem, `fcom` dans

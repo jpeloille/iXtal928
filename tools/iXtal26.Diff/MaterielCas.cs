@@ -43,7 +43,7 @@ internal static class MaterielCas
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
-        [196] = Pb196, [48] = Pb48, [60] = Pb60, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1719,6 +1719,182 @@ internal static class MaterielCas
             bad += Mouvements();
         if (noyau && hw)
             bad += Arithmetique();
+        if (noyau && hw)
+            bad += Reductions();
+        return bad;
+    }
+
+    // ===== Le noyau, N4b : FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 =====
+    //
+    // FLD m64 [0308h] (DD 06 08 03) charge ST(1) ; puis FLD1 ou FLD m64 [0300h] (DD 06 00 03) ST(0) ; FSTP m64 [BX] (DD
+    // 1F), FSTP m64 [BX+8] (DD 5F 08).
+
+    /// <summary>FNINIT ; FLD m64 b (ST(1)) ; FLD m64 a (ST(0)) ; `op` ; FNSTSW [BX+0Ah] ; FSTP m64 [BX] : le mot d'état et
+    /// le résultat.</summary>
+    private static (ushort sw, ulong r) Deux(int fpu, ulong a, ulong b, byte op)
+    {
+        Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x08, 0x03, 0xDD, 0x06, 0x00, 0x03, 0xD9, op, .. SwA, 0xDD, 0x1F], 6,
+                Ops((0x300, Le(a)), (0x308, Le(b))));
+        return (W(0x20A), Q(0x200));
+    }
+
+    // PB-65 — FPREM et FPREM1 (387 PRM § 4.4.9, § 4.4.10 et table 4-4). FPREM de 1 par 0,1 (3FB999999999999Ah) : Q = 9,
+    // le reste exact, 3FB9999999999996h, C3 C1 C0 = 010 (3200h, TOP = 6) ; PCem, Q par un double arrondi, 10, 0 et C3
+    // (7000h). FPREM1 du même couple : Q = 10, le reste −2^−54 (BC90000000000000h), C3 (7000h) ; PCem, FPREM, 0. FPREM1 de
+    // 3 par 2 : 1,5, au pair, Q = 2, −1 (BFF0000000000000h, 7000h) ; PCem, FPREM, 1 et C1 (3200h). FPREM de 2^100 par 3 :
+    // une réduction partielle, C2 (3400h) ; D = 99, N = 32 + 3 (un choix : PB-65) : 2^100 − 3 × 2^64 × ⌊2^36 / 3⌋ = 2^64
+    // (43F0000000000000h) ; PCem, C2 jamais posé.
+    private static int Pb65(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (a, b, op, hsw, hr, psw, pr, n) in new (ulong, ulong, byte, ushort, ulong, ushort, ulong, string)[]
+                 {
+                     (0x3FF0000000000000, 0x3FB999999999999A, 0xF8, 0x3200, 0x3FB9999999999996, 0x7000, 0, "FPREM 1 par 0,1"),
+                     (0x3FF0000000000000, 0x3FB999999999999A, 0xF5, 0x7000, 0xBC90000000000000, 0x7000, 0, "FPREM1 1 par 0,1"),
+                     (0x4008000000000000, 0x4000000000000000, 0xF5, 0x7000, 0xBFF0000000000000, 0x3200, 0x3FF0000000000000,
+                      "FPREM1 3 par 2"),
+                     (0x4630000000000000, 0x4008000000000000, 0xF8, 0x3400, 0x43F0000000000000, 0x3000, 0xFFFFFFFFFFFFFFFF,
+                      "FPREM 2^100 par 3"),
+                 })
+        {
+            var (sw, r) = Deux(fpu, a, b, op);
+            var (asw, ar) = hw ? (hsw, hr) : (psw, pr);
+            var ok = sw == asw && (ar == 0xFFFFFFFFFFFFFFFF || r == ar);
+            bad += Voir($"{n} ; FNSTSW ; FSTP m64 ({nom})", ok, $"{sw:X4}, {r:X16}", $"{asw:X4}, {(ar == 0xFFFFFFFFFFFFFFFF ? "—" : ar.ToString("X16"))}", hw);
+        }
+        return bad;
+    }
+
+    // PB-194 — FXTRACT (387 PRM § 4.4.12) : FLDZ ; FLD m64 8 ; FXTRACT ; FSTP m64 ; FSTP m64 → le significande 1
+    // (3FF0000000000000h), puis l'exposant 3 (4008000000000000h) ; PCem, D9 F4 ILLEGAL : 8 puis le zéro de FLDZ.
+    private static int Pb194(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xF4, 0xDD, 0x1F, 0xDD, 0x5F, 0x08], 6,
+                    Ops((0x300, Le(0x4020000000000000))));
+            var (a, b) = hw ? (0x3FF0000000000000UL, 0x4008000000000000UL) : (0x4020000000000000UL, 0UL);
+            bad += Voir($"FLDZ ; FLD m64 8 ; FXTRACT ; FSTP m64 × 2 ({nom})", Q(0x200) == a && Q(0x208) == b,
+                        $"{Q(0x200):X16} {Q(0x208):X16}", $"{a:X16} {b:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-197 — FRNDINT de 2^63 (43E0000000000000h) et de +∞ : eux-mêmes (SDM vol. 2, FRNDINT) ; PCem C3E0000000000000h.
+    private static int Pb197(bool hw) => Rndint(hw, [(0x43E0000000000000, "2^63"), (0x7FF0000000000000, "+∞")], 0xC3E0000000000000);
+
+    // PB-211 — FRNDINT de −0,3 (BFD3333333333333h) et de −0 : −0 (IEEE 754-1985 § 6.3) ; PCem +0.
+    private static int Pb211(bool hw) => Rndint(hw, [(0xBFD3333333333333, "−0,3"), (0x8000000000000000, "−0")], 0, 0x8000000000000000);
+
+    /// <summary>FNINIT ; FLD m64 v ; FRNDINT ; FSTP m64 : en mode matériel `materiel` (ou v), chez PCem `pcem`.</summary>
+    private static int Rndint(bool hw, (ulong v, string n)[] cas, ulong pcem, ulong? materiel = null)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (v, n) in cas)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xFC, 0xDD, 0x1F], 4, Ops((0x300, Le(v))));
+            var a = hw ? materiel ?? v : pcem;
+            bad += Voir($"FLD m64 {n} ; FRNDINT ; FSTP m64 ({nom})", Q(0x200) == a, $"{Q(0x200):X16}", $"{a:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-265 — l'arrondi au plus près de PCem arrondit b + 1,0 : FRNDINT de −2^−60 (BC30000000000000h) → −0 ; PCem +1
+    // (3FF0000000000000h). FRNDINT de 2 − 2^−52 (3FFFFFFFFFFFFFFFh) → 2 ; PCem 1. FISTP m16 du même → 2 ; PCem 1.
+    private static int Pb265(bool hw)
+    {
+        var bad = Rndint(hw, [(0xBC30000000000000, "−2^−60")], 0x3FF0000000000000, 0x8000000000000000)
+                + Rndint(hw, [(0x3FFFFFFFFFFFFFFF, "2 − 2^−52")], 0x3FF0000000000000, 0x4000000000000000);
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xDF, 0x1F], 3, Ops((0x300, Le(0x3FFFFFFFFFFFFFFF))));
+            var a = hw ? 2 : 1;
+            bad += Voir($"FLD m64 2 − 2^−52 ; FISTP m16 ({nom})", W(0x200) == a, $"{W(0x200)}", $"{a}", hw);
+        }
+        return bad;
+    }
+
+    // PB-198 — FSCALE de 1 par ST(1) = NaN (7FF8000000000000h) : le NaN ; par +∞ : +∞ (387 PRM, table 3-4) ; PCem 0.
+    private static int Pb198(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (b, n) in new (ulong, string)[] { (0x7FF8000000000000, "NaN"), (0x7FF0000000000000, "+∞") })
+        {
+            var (_, r) = Deux(fpu, 0x3FF0000000000000, b, 0xFD);
+            var a = hw ? b : 0UL;
+            bad += Voir($"FSCALE 1 par {n} ; FSTP m64 ({nom})", r == a, $"{r:X16}", $"{a:X16}", hw);
+        }
+        return bad;
+    }
+
+    /// <summary>FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 du noyau (N4b), en mode matériel, aux attentes des sources (387
+    /// PRM § 4.4.8 à 4.4.12, tables 3-3, 3-4, 3-10 et 4-4 ; SDM vol. 2). FNINIT ; FLDCW [0310h] ; FLD m64 [0308h] ; FLD m64
+    /// [0300h] ; le code ; FNSTSW [BX+0Ah] (TOP = 6) ; FSTP m80 [BX].</summary>
+    private static int Reductions()
+    {
+        var bad = 0;
+        foreach (var (a, b, cw, op, sw, se, sig, n) in new (ulong, ulong, ushort, byte, ushort, ushort, ulong, string)[]
+                 {
+                     (0x4004000000000000, 0, 0x037F, 0xFC, 0x3020, 0x4000, 0x8000000000000000, "FRNDINT 2,5 (au pair : 2, PE)"),
+                     (0x400C000000000000, 0, 0x037F, 0xFC, 0x3220, 0x4001, 0x8000000000000000, "FRNDINT 3,5 (4, PE, C1)"),
+                     (0xC004000000000000, 0, 0x0B7F, 0xFC, 0x3020, 0xC000, 0x8000000000000000, "FRNDINT −2,5 vers +∞ (−2, PE)"),
+                     (0x3FF0000000000000, 0x40D3880000000000, 0x037F, 0xFD, 0x3228, 0x7FFF, 0x8000000000000000,
+                      "FSCALE 1 par 20 000 (+∞ : OE, PE, C1)"),
+                     (0x3FF0000000000000, 0x4010CCCCCCCCCCCD, 0x037F, 0xFD, 0x3000, 0x4003, 0x8000000000000000,
+                      "FSCALE 1 par 4,2 (tronqué : 16)"),
+                     (0x3FF0000000000000, 0xC0D3880000000000, 0x037F, 0xFD, 0x3030, 0x0000, 0, "FSCALE 1 par −20 000 (UE, PE, 0)"),
+                     (0x7FF0000000000000, 0xFFF0000000000000, 0x037F, 0xFD, 0x3001, 0xFFFF, 0xC000000000000000,
+                      "FSCALE +∞ par −∞ (IE, l'indéfini)"),
+                     (0x0000000000000000, 0x7FF0000000000000, 0x037F, 0xFD, 0x3001, 0xFFFF, 0xC000000000000000,
+                      "FSCALE 0 par +∞ (IE, l'indéfini)"),
+                     (0x4008000000000000, 0, 0x037F, 0xF8, 0x3401, 0xFFFF, 0xC000000000000000, "FPREM 3 par 0 (IE, l'indéfini, C2)"),
+                     (0x7FF0000000000000, 0x3FF0000000000000, 0x037F, 0xF8, 0x3401, 0xFFFF, 0xC000000000000000,
+                      "FPREM +∞ par 1 (IE, C2)"),
+                     (0x4008000000000000, 0x7FF0000000000000, 0x037F, 0xF8, 0x3000, 0x4000, 0xC000000000000000,
+                      "FPREM 3 par +∞ (3, Q = 0)"),
+                     (0xC01C000000000000, 0x4000000000000000, 0x037F, 0xF8, 0x7200, 0xBFFF, 0x8000000000000000,
+                      "FPREM −7 par 2 (−1, Q = 3 : C3 C1)"),
+                     (0xC018000000000000, 0x4008000000000000, 0x037F, 0xF8, 0x7000, 0x8000, 0, "FPREM −6 par 3 (−0, Q = 2 : C3)"),
+                     (0x3FF0000000000000, 0x4000000000000000, 0x037F, 0xF5, 0x3000, 0x3FFF, 0x8000000000000000,
+                      "FPREM1 1 par 2 (0,5 : au pair, Q = 0, 1)"),
+                     (0x3FF0000000000000, 0xC0D0040000000000, 0x037F, 0xFD, 0x3000, 0x0000, 0x0000200000000000,
+                      "FSCALE 1 par −16 400 (2^−16400, dénormal exact : ni UE ni PE)"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xDD, 0x06, 0x08, 0x03, 0xDD, 0x06, 0x00, 0x03, 0xD9, op, .. SwA, 0xDB, 0x3F], 7,
+                    Ops((0x300, Le(a)), (0x308, Le(b)), (0x310, Cw(cw))));
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 (387)", W(0x20A) == sw && W(0x208) == se && Q(0x200) == sig,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{sw:X4}, {se:X4} {sig:X16}", true);
+        }
+        // FPREM sur le 287 d'un diviseur pseudo-zéro (3FFFh 0000000000000000h, que le 287 prend) : un diviseur nul, IE,
+        // l'indéfini et C2 (et pas l'arrêt de l'hôte : la division entière par zéro de `reste`).
+        Jouer87(2, [0xDB, 0xE3, 0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xE8, 0xD9, 0xF8, .. SwA, 0xDB, 0x3F], 6,
+                Ops((0x320, Le80(0x3FFF, 0))));
+        bad += Voir("FLD m80 pseudo-zéro ; FLD1 ; FPREM ; FNSTSW ; FSTP m80 (287)",
+                    W(0x20A) == 0x3401 && W(0x208) == 0xFFFF && Q(0x200) == 0xC000000000000000,
+                    $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", "3401, FFFF C000000000000000", true);
+        // FXTRACT : FNINIT ; FLD m80 [0320h] ; FXTRACT ; FNSTSW ; FSTP m80 [BX] (le significande) ; FSTP m80 [BX+0Ch]
+        // (l'exposant).
+        foreach (var (se0, sig0, sw, s1, g1, s2, g2, n) in new (ushort, ulong, ushort, ushort, ulong, ushort, ulong, string)[]
+                 {
+                     (0x8000, 0, 0x3004, 0x8000, 0, 0xFFFF, 0x8000000000000000, "−0 (ZE ; −0, −∞)"),
+                     (0x7FFF, 0x8000000000000000, 0x3000, 0x7FFF, 0x8000000000000000, 0x7FFF, 0x8000000000000000, "+∞ (+∞, +∞)"),
+                     (0x0000, 0x0000000000000001, 0x3002, 0x3FFF, 0x8000000000000000, 0xC00D, 0x807A000000000000,
+                      "le plus petit dénormal (DE ; 1, −16 445)"),
+                     (0xC005, 0xC000000000000000, 0x3000, 0xBFFF, 0xC000000000000000, 0x4001, 0xC000000000000000, "−96 (−1,5, 6)"),
+                 })
+        {
+            Jouer87(4, [0xDB, 0xE3, 0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xF4, .. SwA, 0xDB, 0x3F, 0xDB, 0x7F, 0x0C], 6,
+                    Ops((0x320, Le80(se0, sig0))));
+            bad += Voir($"FXTRACT {n} ; FNSTSW ; FSTP m80 × 2 (387)",
+                        W(0x20A) == sw && W(0x208) == s1 && Q(0x200) == g1 && W(0x214) == s2 && Q(0x20C) == g2,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}, {W(0x214):X4} {Q(0x20C):X16}",
+                        $"{sw:X4}, {s1:X4} {g1:X16}, {s2:X4} {g2:X16}", true);
+        }
         return bad;
     }
 

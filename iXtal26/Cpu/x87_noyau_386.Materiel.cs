@@ -2369,6 +2369,61 @@ internal static class _386_noyau
         return 0;
     }
 
+    // FRNDINT (_x87_noyau.frndint ; PB-197, PB-211).
+    internal static int opFRNDINT(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.frndint();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.frndint);
+        return 0;
+    }
+
+    // FSCALE (_x87_noyau.fscale ; PB-198).
+    internal static int opFSCALE(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fscale();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fscale);
+        return 0;
+    }
+
+    // FXTRACT (_x87_noyau.fxtract ; PB-194).
+    internal static int opFXTRACT(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fxtract();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fxtract);
+        return 0;
+    }
+
+    // FPREM (_x87_noyau.fprem ; PB-65).
+    internal static int opFPREM(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fprem(false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fprem);
+        return 0;
+    }
+
+    // FPREM1 (_x87_noyau.fprem ; PB-65).
+    internal static int opFPREM1(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fprem(true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fprem1);
+        return 0;
+    }
+
     // FSETPM : le 287 et le 287XL passent au mode protégé, jusqu'au RESET (287 PRM, FSETPM ; PB-62) ; le 387 et le 486
     //   n'en font rien (387 PRM § 4.8). Le 8087 n'a pas DB E4 : N7.
     internal static int opFSETPM(uint32_t fetchdat)
@@ -2811,6 +2866,16 @@ internal static class _386_noyau
         _386.x86_opcodes_dd_a32![0xEF] = opFUCOMP;
         _386.x86_opcodes_da_a16![0xE9] = opFUCOMPP;
         _386.x86_opcodes_da_a32![0xE9] = opFUCOMPP;
+        _386.x86_opcodes_d9_a16![0xFC] = opFRNDINT;
+        _386.x86_opcodes_d9_a32![0xFC] = opFRNDINT;
+        _386.x86_opcodes_d9_a16![0xFD] = opFSCALE;
+        _386.x86_opcodes_d9_a32![0xFD] = opFSCALE;
+        _386.x86_opcodes_d9_a16![0xF4] = opFXTRACT;
+        _386.x86_opcodes_d9_a32![0xF4] = opFXTRACT;
+        _386.x86_opcodes_d9_a16![0xF8] = opFPREM;
+        _386.x86_opcodes_d9_a32![0xF8] = opFPREM;
+        _386.x86_opcodes_d9_a16![0xF5] = opFPREM1;
+        _386.x86_opcodes_d9_a32![0xF5] = opFPREM1;
         _386.x86_opcodes_db_a16![0xE4] = opFSETPM;
         _386.x86_opcodes_db_a32![0xE4] = opFSETPM;
     }

@@ -636,3 +636,9 @@ run accord-387 --hardware-mode PB-264 fuzz --core 386 --fpu 387 --mode single --
 run accord-486 --hardware-mode PB-264 fuzz --core 486 --fpu 5 --mode single --accord --iter 10000 --seed 2
 run accord-287 --hardware-mode PB-264 fuzz --core 286 --fpu 287 --mode single --accord --iter 5000 --seed 3
 run accord-8087 --hardware-mode PB-264 fuzz --core 8088 --fpu 8087 --mode single --accord --iter 20000 --seed 4
+# G13.6, le noyau, N4b — FPREM et FPREM1 (PB-65), FXTRACT (PB-194), FRNDINT (PB-197, PB-211, PB-265), FSCALE (PB-198), en
+# chantier ; le domaine d'accord y gagne FRNDINT et FSCALE.
+for pb in 65 194 197 198 211 265; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

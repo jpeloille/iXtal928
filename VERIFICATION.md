@@ -9142,3 +9142,78 @@ cette instruction qui attend, et rien n'est rangé, comme sur le silicium (le mo
 L'attendu du cas, et non l'émulateur, est repris : sous l'acheminement, la mémoire intacte. La porte rejouée avec le
 `materiel-cas` corrigé, et ses deux voisines (PB-264 en mode PCem et en mode matériel) : vertes ; l'émulateur n'ayant pas
 changé, la série n'est pas rejouée.
+
+## G13.6, le noyau, N4b — FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1
+
+Le 11 octobre 2026, seconde moitié de N4. Le noyau reste en chantier ; son groupe compte vingt et un PB.
+
+**Ce qui est écrit.** La couche (`_x87_noyau`) : `frndint` (SoftFloat, `extF80_roundToInt`, selon RC, PE et C1 ; une
+valeur déjà entière, un infini, le signe d'un zéro gardés) ; `fscale` (ST(1) tronqué vers zéro, borné à ±2^20,
+`softfloat_roundPackToExtF80` à 64 bits selon RC : O, U, P et C1 ; les spéciaux des tables 3-3 et 3-4 du 387 PRM :
+±0 et ±∞ par ±∞, IE pour ∞ par −∞ et 0 par +∞) ; `fxtract` (l'exposant sans biais en ST(1), le significande empilé,
+ST(7) vide exigé ; un zéro, ZE et −∞ ; un infini, +∞ ; un dénormal, DE, normalisé) ; `fprem` et `reste` (le reste exact
+sur des entiers de 128 bits, le quotient tronqué ou au plus près au pair, ses trois bits bas en C0, C3, C1 ; au-delà de
+63 d'écart d'exposants, une réduction partielle, C2 = 1 et, sur le 287XL, le 387 et le 486, C0, C3, C1 à zéro ; N = 32
++ (D mod 32), un choix, le SDM n'en disant que « between 32 and 63 » ; un diviseur nul ou un dividende infini, IE,
+l'indéfini et C2, 387 PRM, table 3-10 ; un pseudo-zéro du 8087 et du 287 compte pour un zéro) ; `normaliser` (un dénormal vaut 2^−16382 × 0,f : l'exposant de SoftFloat part
+de 1) ; `nan_de` (la règle des NaN de SoftFloat, à deux opérandes). Le générateur : D9 FC, FD, F4, F8 et F5, cinq
+gestionnaires de plus pour chaque cible. Ni PC (SDM vol. 1, 2003, § 8.1.4.2 : les quatre opérations et FSQRT seules)
+ni, pour FPREM et FPREM1, RC (387 PRM § 4.4.9 et § 4.4.10 : un résultat exact). Le 8087 et le 287 (FXTRACT d'un zéro
+ou d'un infini, le domaine de FSCALE, les codes d'une réduction incomplète, le quotient du 287) : N7.
+
+**Six PB** rejoignent le groupe du noyau, en chantier : PB-65 (FPREM, FPREM1), PB-194 (FXTRACT), PB-197 et PB-211
+(FRNDINT), PB-198 (FSCALE), et **PB-265, neuf** : l'arrondi au plus près de `x87_fround` calcule `floor(b + 1.0)`, et
+la somme est elle-même arrondie ; FRNDINT, FIST et FISTP rendent +1 pour un négatif de [−2^−54 ; 0[ (au lieu de −0 et
+0), et 2^m − 1 pour le double qui précède 2^m, 1 ≤ m ≤ 51 (1 pour 2 − 2^−52, 7 pour 8 − 2^−50). Trouvé par le domaine d'accord, que FRNDINT a
+rejoint : l'oracle, qui exécute le C de PCem (`x87_ops.h:60-82`), rend 3FF0000000000000h pour −2^−60 ; inscrit au
+registre, son marqueur dans `x87_ops.cs`, corrigé par le noyau (FRNDINT ici, FIST et FISTP depuis N3a). Les marqueurs
+de PB-65, 194, 197, 198 et 211 passent à `fixed in hardware mode` (par `gen44.py`, `gen46.py` et `gentab.py`).
+`recensement` : vert, 265 défauts, 1056 marqueurs.
+
+**Les cas.** Un `materiel-cas` par PB, dans les deux modes, sur les cinq coprocesseurs. PB-65 : FPREM de 1 par 0,1 (Q
+= 9, le reste exact 3FB9999999999996h, C1 ; PCem Q = 10, 0 et C3), FPREM1 du même couple (Q = 10, −2^−54), FPREM1 de 3
+par 2 (1,5 au pair : Q = 2, −1 ; PCem 1), FPREM de 2^100 par 3 (C2 ; le reste partiel 2^64). PB-194 : FXTRACT de 8 (1
+puis 3 ; PCem 8 puis le zéro de FLDZ). PB-197 : FRNDINT de 2^63 et de +∞ (eux-mêmes ; PCem −2^63). PB-211 : de −0,3 et
+de −0 (−0 ; PCem +0). PB-198 : FSCALE de 1 par NaN et par +∞ (eux-mêmes ; PCem 0). PB-265 : FRNDINT de −2^−60 (−0 ;
+PCem +1) et de 2 − 2^−52 (2 ; PCem 1), FISTP m16 de 2 − 2^−52 (2 ; PCem 1). En mode matériel, `materiel-cas PB-264`
+gagne vingt cas (`Reductions`) : FRNDINT de 2,5, 3,5 (C1) et −2,5 vers +∞ ; FSCALE par 20 000 (OE, C1), par 4,2 (16),
+par −20 000 (UE), par −16 400 (un dénormal exact, ni UE ni PE), +∞ par −∞ et 0 par +∞ (IE) ; FPREM par 0 et de +∞
+(IE, C2), par +∞ (le dividende), de −7 par 2 (−1, C3 C1), de −6 par 3 (−0) ; FPREM1 de 1 par 2 (0,5, au pair : Q = 0) ;
+sur le 287, FPREM par un pseudo-zéro (IE, C2) ; FXTRACT de −0 (ZE, −∞), de +∞, du plus petit dénormal (DE ; 1 et −16 445) et de −96. Le cas du dénormal a
+trouvé l'écart d'un de l'exposant de `normaliser` au premier passage.
+
+**Le domaine d'accord** gagne FRNDINT et FSCALE (ST(1) de −64 à 64 : PCem passe par pow(2, n)). Déclarés : le −0 de
+FRNDINT d'un négatif, quand PCem rend +0 (PB-211) ou +1 (PB-265), ST(0) seul pris de l'oracle. FXTRACT, que PCem n'a
+pas, et FPREM, FPREM1, qu'il calcule faux, n'y sont pas. Vert sur le 387, le 486, le 287 et le 8087.
+
+**Les contrôles négatifs.** L'attendu inversé, pour les six PB et dans les deux sens : rouge. Dix-sept fautes
+(`neg-n4b.py`) : FRNDINT qui tronque (PB-265, 5 échecs ; PB-264 ; le domaine d'accord), qui perd le signe du zéro
+(PB-211, 10), FSCALE d'un NaN rendu nul (PB-198, 5), sans ses IE (PB-264, 2), ST(1) mal tronqué (PB-264 ; le domaine
+d'accord), l'exposant d'un dénormal décalé (PB-264), FXTRACT de zéro sans ZE (PB-264) et renversé (PB-194, 5), FPREM1
+sans l'égalité au pair (PB-65, 5), un autre N partiel (5), C0 et C1 échangés (5), le partiel sans C2 (5), FPREM1 qui
+garde le signe (10), FPREM1 généré comme FPREM (8), FPREM par zéro sans IE (PB-264 : l'outil s'arrête, une division
+entière par zéro dans `reste`), FRNDINT qui rend −0 d'un positif (le domaine d'accord, depuis la contre-lecture) :
+rouges ; le témoin vert.
+
+**La contre-lecture** (Sonnet) : aucun défaut bloquant ; `reste` (les unités, le cas D = −1, le partiel, le pair, les
+bits du quotient, la normalisation), `fscale`, `fxtract`, `frndint`, les vingt et un PB du groupe, les attendus des cas
+recalculés à la main, PB-265 rejoué en Python, le mode PCem (des commentaires seuls), confirmés. Repris : un diviseur
+pseudo-zéro, que le 8087 et le 287 prennent, menait `reste` à une division entière par zéro, l'arrêt de l'hôte — il
+compte désormais pour un zéro (IE, C2), et un cas sur le 287 l'exerce ; la déclaration du domaine d'accord pour FRNDINT
+acceptait tout −0 du noyau contre 0 ou 1 chez PCem — elle exige un opérande négatif, et pour +1, de [−2^−54 ; 0[ (un
+mutant, −0 d'un positif, la rougit) ; la zone de PB-265, [−2^−54 ; 0[ et non ]−2^−53 ; 0[, et sa seconde famille, le
+double qui précède 2^m pour 1 ≤ m ≤ 51 (rejoués en Python ici) ; la table 3-10 du 387 PRM, et non 3-7, pour l'IE de
+FPREM ; U, que FPREM et FPREM1 ne lèvent jamais masquée (le reste est exact), dit ; la phrase de PB-194 dans
+`pourquoi-on-corrige.md` ; quatre cas neufs (−0 de FPREM, le pair de FPREM1 à D = −1, un dénormal de FSCALE, le
+pseudo-zéro). Non repris : FXTRACT en faute de pile, FRNDINT et FPREM d'un SNaN (la règle de SoftFloat, éprouvée en
+N4a) ; la réduction partielle sur le 8087 et le 287, où C0, C3 et C1 « laissés » ne se distinguent pas de « mis à zéro »
+après FNINIT (N7, avec leurs codes).
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n4a : 1 130 méthodes, deux changées, les constructeurs
+statiques de `ModeMateriel` et de `materiel` (six corrections et six champs de plus) ; les gestionnaires de PCem dont
+seuls les marqueurs ont changé, `x87_fround` compris, sont identiques. Contre M0 : l'écart de N4a, les mêmes méthodes.
+
+**La série** (`g7n4b`, le 11/10, 20:38 → 21:47, contre `g7n4a`) : 472 portes, toutes vertes, les 460 de `g7n4a` et
+douze neuves (`materiel-cas` de PB-65, 194, 197, 198, 211 et 265 dans les deux modes) ; `recensement` compte 265
+défauts au registre au lieu de 264 et 1056 marqueurs au lieu de 1051. `materiel-cas-pb264-acheminement`, rouge dans
+`g7n4a` par son attendu, est verte avec l'attendu repris ; aucune autre porte ne change.

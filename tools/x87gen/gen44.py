@@ -44,10 +44,10 @@ MARQ={
     ('FSTENV','CLOCK_CYCLES(x87_timings_c.x87_timings.fstenv);'):
         ['// pcem bug, fixed in hardware mode: PB-207 — FSTENV ne masque pas les exceptions (x87.Materiel.cs).'],
     ('opFRNDINT','ST(0) = (double)x87_fround(ST(0));'):
-        [B+'PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.',
-         B+'PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.'],
+        ['// pcem bug, fixed in hardware mode: '+'PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.',
+         '// pcem bug, fixed in hardware mode: '+'PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.'],
     ('opFSCALE','temp64 = CvtI64(ST(1));'):
-        [B+'PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.'],
+        ['// pcem bug, fixed in hardware mode: '+'PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.'],
     ('opFTST',CLR3):
         ['// pcem bug, fixed in hardware mode: PB-213 — C1 n\'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).'],
 }
@@ -127,7 +127,7 @@ def conv(fn,body):
             out.append(ind+'// pcem bug, fixed in hardware mode: PB-64 — un NaN rend « plus grand », pas « non ordonné » ; en')
             out.append(ind+'//   mode matériel, la table du mode porte le gestionnaire corrigé (x87.Materiel.cs).')
         if fn in ('opFPREM','opFPREM1') and r.startswith('temp64 = '):
-            out.append(ind+'// pcem bug, reproduced: PB-65 — un quotient tronqué d\'un coup, C2 jamais posé, et')
+            out.append(ind+'// pcem bug, fixed in hardware mode: PB-65 — un quotient tronqué d\'un coup, C2 jamais posé, et')
             out.append(ind+'//   FPREM1 identique à FPREM.')
         if fn=='opFLDLN2':
             (out.append(ind+'// pcem bug, fixed in hardware mode: PB-66 — ln 2 d\'un ulp au-dessus du double le plus proche ;'), out.append(ind+'//   en mode matériel, la table du mode porte les constantes corrigées (x87.Materiel.cs).')) if r.startswith('x87_push_u64') else None

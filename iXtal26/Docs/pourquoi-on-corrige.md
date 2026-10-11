@@ -834,3 +834,47 @@ des nombres ordinaires, arrondis au plus près à 53 bits, les deux rendent le m
 - **L'émulateur.** PCem ne signale que la division par zéro. Ses comparaisons ont déjà été corrigées (G13.6a) ; le noyau
   les reprend.
 - **La correction.** Les six signaux, posés par le noyau dans l'ordre que décrit Intel.
+
+## G13.6, le noyau, suite — arrondir, mettre à l'échelle, décomposer, prendre un reste
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N4b.*
+
+Cinq instructions qui servent aux bibliothèques mathématiques : arrondir à l'entier, multiplier par une puissance de
+deux, séparer un nombre en exposant et mantisse, et calculer un reste. Toujours en chantier : seuls les tests le
+demandent.
+
+### PB-65 — le reste d'une division
+
+- **Le vrai PC.** FPREM calcule le reste exact d'une division ; quand les deux nombres sont très éloignés, il procède
+  par étapes et le signale, pour que le programme recommence. FPREM1 donne le reste au sens de la norme IEEE, avec un
+  quotient arrondi au plus près. Les fonctions sinus et cosinus écrites à la main s'en servent pour ramener un angle
+  dans un petit intervalle.
+- **L'émulateur.** PCem divise en double, tronque, et soustrait : le quotient est faux au-delà de quinze chiffres, le
+  reste aussi, il ne signale jamais une réduction incomplète, et FPREM1 fait la même chose que FPREM.
+- **La correction.** Le reste exact, par étapes au-delà de 63 bits d'écart, et FPREM1 au plus près.
+
+### PB-194 — séparer l'exposant et la mantisse
+
+- **Le vrai PC.** FXTRACT range l'exposant et la mantisse d'un nombre dans deux registres ; les conversions en texte et
+  les calculs de puissances s'en servent.
+- **L'émulateur.** PCem ne connaît pas l'instruction : elle ne fait rien, la pile ne bouge pas, et le programme
+  calcule la suite avec un registre de moins que prévu.
+- **La correction.** L'instruction.
+
+### PB-197, PB-211 et PB-265 — arrondir à l'entier
+
+- **Le vrai PC.** FRNDINT arrondit à l'entier ; un nombre déjà entier, si grand soit-il, reste tel quel, et un résultat
+  nul garde son signe.
+- **L'émulateur.** PCem passe par un entier de 64 bits : au-delà, et pour un infini, il rend un nombre négatif énorme ;
+  −0,3 devient +0 au lieu de −0. Et son arrondi au plus près se trompe lui-même sur certains nombres : un négatif
+  minuscule devient +1, et un nombre juste sous 2 devient 1. Ce dernier défaut, nouveau, a été trouvé par la
+  comparaison du noyau à PCem ; il touche aussi FIST, qui range un entier.
+- **La correction.** L'arrondi sur 80 bits, signe compris.
+
+### PB-198 — multiplier par une puissance de deux
+
+- **Le vrai PC.** FSCALE multiplie par deux à la puissance du second registre ; un « pas un nombre » ou un infini en
+  facteur suivent des règles fixes.
+- **L'émulateur.** PCem rend zéro dans ces cas.
+- **La correction.** Les règles du coprocesseur.

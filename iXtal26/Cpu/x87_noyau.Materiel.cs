@@ -1186,11 +1186,292 @@ internal static class _x87_noyau
     }
 
     // PB-64 (corrigé en G13.6a, en double) : FTST compare ST(0) à +0, comme FCOM (SDM vol. 2, FTST ; Numerics
-    //   Supplement, 1980, table S-27 : en projectif, un infini, non comparable et IE).
+    //   Supplement, 1980, table S-27 : en projectif, un infini, non comparable et IE). FTST de −0 : le 387 PRM, table
+    //   3-3, donne C1 = 1 (« C3 = C1 = 1 ») ; le SDM, « C1 Set to 0 » ; le SDM est suivi, comme pour PB-213 (inconnu).
     internal static void ftst()
     {
         if (!lire(0, out var x))
                 comparer(x, new extFloat80_t(), true);
+    }
+
+    // ===== FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 (N4b) =====
+    //
+    // Les exceptions (387 PRM, annexe B) : FRNDINT, IS, I, D et P ; FSCALE, IS, I, D, O, U et P ; FXTRACT, IS, I, D et Z ;
+    // FPREM et FPREM1, IS, I, D et U — U jamais ici : le reste est exact, et un reste dénormal exact ne lève pas UE masquée
+    // (son cas démasqué : N5). Ni PC ni, pour FPREM et FPREM1, RC n'y jouent (387 PRM § 4.4.9 et § 4.4.10 : « the
+    // 80387 produces an exact result »). Les cas des opérandes spéciaux : 387 PRM, tables 3-3 et 3-4. Le 8087 et le 287
+    // (FXTRACT d'un infini ou d'un zéro, le domaine de FSCALE, les codes de FPREM) : N7.
+
+    /// <summary>Un opérande fini non nul, normalisé : le signe, l'exposant sans biais, le significande (bit 63 à 1) ;
+    /// un dénormal ou un pseudo-dénormal (exposant nul) vaut 2^−16382 × 0,f.</summary>
+    private static (bool s, int e, uint64_t m) normaliser(in extFloat80_t v)
+    {
+        var e = v.signExp & 0x7FFF;
+        if (e != 0)
+                return ((v.signExp & 0x8000) != 0, e - 0x3FFF, v.signif);
+        // L'exposant d'un dénormal est celui de 1 (2^−16382) ; SoftFloat rend le décalage de la normalisation.
+        var n = softfloat.softfloat_normSubnormalExtF80Sig(v.signif);
+        return ((v.signExp & 0x8000) != 0, 1 + (int)n.exp - 0x3FFF, n.sig);
+    }
+
+    /// <summary>Le NaN de deux opérandes, par la règle de la table 4-7 (SoftFloat, la spécialisation du 8086) : IE pour un
+    /// SNaN.</summary>
+    private static extFloat80_t nan_de(in extFloat80_t a, in extFloat80_t b)
+    {
+        var z = softfloat.softfloat_propagateNaNExtF80UI(a.signExp, a.signif, b.signExp, b.signif);
+        return new extFloat80_t { signExp = (uint16_t)z.v64, signif = z.v0 };
+    }
+
+    // pcem bug, fixed in hardware mode: PB-197 PB-211 PB-265 — FRNDINT : ST(0) arrondi à l'entier selon RC (387 PRM §
+    //   4.4.11), au plus près sans l'arrondi de b + 1,0 de PCem, PE et C1 si inexact ; une valeur déjà entière, |x| ≥ 2^63 compris, et un infini restent tels quels ; un zéro, et
+    //   un résultat nul, gardent le signe de l'opérande (IEEE 754-1985 § 6.3 ; 387 PRM, table 3-3) ; un SNaN, IE et le
+    //   QNaN ; un format non supporté, IE et l'indéfini ; un dénormal, DE (SoftFloat, extF80_roundToInt).
+    internal static void frndint()
+    {
+        var faute = vide(0);
+        if (lire(0, out var x))
+                return;
+        if (faute)
+        {
+                ecrire(0, Indefini);
+                return;
+        }
+        var c = classe(x);
+        arrondi(false);
+        extFloat80_t r;
+        if (non_supporte(c))
+        {
+                r = Indefini;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
+        else
+        {
+                r = softfloat.extF80_roundToInt(x, softfloat.softfloat_roundingMode, true);
+                if (denormal(c) && lever(DE))
+                        return;
+                if ((x.signExp & 0x7FFF) >= 0x3FFF + 63)
+                        ModeMateriel.Sonde[197]++;
+                if (r.signExp == 0x8000 && r.signif == 0)
+                        ModeMateriel.Sonde[211]++;
+                if (softfloat.softfloat_roundingMode == softfloat.softfloat_round_near_even && (x.signExp & 0x7FFF) < 0x3FFF + 63)
+                        ModeMateriel.Sonde[265]++;
+        }
+        if (!indicateurs())
+                ecrire(0, r);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-198 — FSCALE : ST(0) × 2^n, n la valeur de ST(1) tronquée vers zéro, sans
+    //   limite (387 PRM § 4.4.8) ; arrondi selon RC, à 64 bits (PC n'y joue pas : SDM vol. 1, 2003, § 8.1.4.2), O, U,
+    //   P et C1. Les spéciaux (387 PRM, tables 3-3 et 3-4) : ST(1) = −∞ rend ±0 d'un fini, IE d'un infini ; ST(1) = +∞
+    //   rend ±∞ d'un fini non nul, IE d'un zéro ; un infini ou un zéro en ST(0), sinon, reste tel quel ; un NaN, la règle
+    //   des NaN ; un format non supporté, IE. Un dénormal, DE. Le domaine du 287 (−2^15 ≤ ST(1) < 2^15) : N7.
+    internal static void fscale()
+    {
+        var faute = vide(0) || vide(1);
+        if (lire(0, out var x) || lire(1, out var y))
+                return;
+        if (faute)
+        {
+                ecrire(0, Indefini);
+                return;
+        }
+        Classe cx = classe(x), cy = classe(y);
+        arrondi(false);
+        extFloat80_t r;
+        if (non_supporte(cx) || non_supporte(cy))
+        {
+                r = Indefini;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
+        else if (nan(cx) || nan(cy))
+        {
+                ModeMateriel.Sonde[198] += nan(cy) ? 1 : 0;
+                r = nan_de(x, y);
+        }
+        else if (cy == Classe.Infini)
+        {
+                ModeMateriel.Sonde[198]++;
+                var moins = (y.signExp & 0x8000) != 0;
+                if (moins ? cx == Classe.Infini : cx == Classe.Zero)
+                {
+                        r = Indefini;
+                        softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                }
+                else if (denormal(cx) && lever(DE))
+                        return;
+                else
+                        r = cx is Classe.Infini or Classe.Zero ? x
+                          : new extFloat80_t { signExp = (uint16_t)((x.signExp & 0x8000) | (moins ? 0 : 0x7FFF)), signif = moins ? 0 : 0x8000000000000000 };
+        }
+        else
+        {
+                if ((denormal(cx) || denormal(cy)) && lever(DE))
+                        return;
+                if (cx is Classe.Infini or Classe.Zero)
+                        r = x;
+                else
+                {
+                        var (s, e, m) = normaliser(x);
+                        r = softfloat.softfloat_roundPackToExtF80(s, e + 0x3FFF + tronque(y), m, 0, 80);
+                }
+        }
+        if (!indicateurs())
+                ecrire(0, r);
+    }
+
+    /// <summary>ST(1) tronqué vers zéro, borné à ±2^20 : au-delà, le résultat déborde de toute façon, par excès ou par
+    /// défaut (l'exposant de 80 bits tient en 15 bits, un dénormal en 64 de plus).</summary>
+    private static int tronque(in extFloat80_t y)
+    {
+        if (classe(y) == Classe.Zero)
+                return 0;
+        var (s, e, m) = normaliser(y);
+        if (e < 0)
+                return 0;
+        var n = e >= 20 ? 1 << 20 : (int)(m >> (63 - e));
+        return s ? -n : n;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-194 — FXTRACT (387 PRM § 4.4.12 ; SDM vol. 2, FXTRACT) : l'exposant sans biais
+    //   de ST(0), en réel, remplace ST(0), puis son significande, l'exposant mis à 3FFFh et le signe gardé, est empilé.
+    //   ST(7) doit être vide. Un zéro : ZE, ST(1) = −∞ et ST(0) le zéro ; un infini : ST(1) = +∞ et ST(0) l'infini, sans
+    //   exception (387 PRM, tables 3-3 et 3-4) ; un NaN, rendu silencieux, aux deux ; un format non supporté, IE et
+    //   l'indéfini aux deux ; un dénormal, DE, normalisé. Une faute de pile masquée : l'indéfini aux deux (inconnu).
+    internal static void fxtract()
+    {
+        c1_zero();
+        if (vide(0) || plein())
+        {
+                if (faute_de_pile(!vide(0)))
+                        return;
+                ecrire(0, Indefini);
+                empiler(Indefini);
+                return;
+        }
+        var x = R[phys(0)];
+        ModeMateriel.Sonde[194]++;
+        var c = classe(x);
+        arrondi(false);
+        extFloat80_t ex, sig;
+        if (non_supporte(c) || nan(c))
+        {
+                softfloat.softfloat_exceptionFlags = non_supporte(c) || c == Classe.SNaN ? softfloat.softfloat_flag_invalid : (byte)0;
+                ex = sig = non_supporte(c) ? Indefini : nan_de(x, x);
+        }
+        else if (c == Classe.Zero)
+        {
+                if (lever(ZE))
+                        return;
+                ex = new extFloat80_t { signExp = 0xFFFF, signif = 0x8000000000000000 };
+                sig = x;
+        }
+        else if (c == Classe.Infini)
+        {
+                ex = new extFloat80_t { signExp = 0x7FFF, signif = 0x8000000000000000 };
+                sig = x;
+        }
+        else
+        {
+                if (denormal(c) && lever(DE))
+                        return;
+                var (s, e, m) = normaliser(x);
+                ex = softfloat.i32_to_extF80(e);
+                sig = new extFloat80_t { signExp = (uint16_t)((s ? 0x8000 : 0) | 0x3FFF), signif = m };
+        }
+        if (indicateurs())
+                return;
+        ecrire(0, ex);
+        empiler(sig);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-65 — FPREM et FPREM1 (387 PRM § 4.4.9 et § 4.4.10 ; SDM vol. 2, FPREM et
+    //   FPREM1) : le reste exact de ST(0) par ST(1), le quotient tronqué vers zéro (FPREM) ou au plus près, au pair
+    //   (FPREM1) ; le reste a le signe du dividende (FPREM), ou celui que le quotient au plus près lui donne (FPREM1), et
+    //   un reste nul celui du dividende (table 3-3). Si les exposants diffèrent de 64 ou plus, une réduction partielle :
+    //   ST(0) − ST(1) × Q × 2^(D − N), Q tronqué, C2 = 1, et C0, C3, C1 à zéro (SDM vol. 3, 2016, § 22.18.2.1 ; le 8087
+    //   et le 287 les laissent : N7). N, « an implementation-dependent number between 32 and 63 » (SDM vol. 2) : 32 + (D
+    //   mod 32), un choix (inconnu pour le 387 et le 486). Complète, C2 = 0 et les trois bits bas du quotient en C0 (Q2),
+    //   C3 (Q1) et C1 (Q0) (387 PRM, table 4-4). Un diviseur nul ou un dividende infini : IE, l'indéfini et C2 (387 PRM,
+    //   table 3-10) ; un diviseur infini : le dividende, Q = 0 ; un dividende nul : lui-même ; un NaN, la règle des NaN ;
+    //   un format non supporté, IE ; un dénormal, DE. Ni PE ni RC.
+    internal static void fprem(bool ieee)
+    {
+        var faute = vide(0) || vide(1);
+        if (lire(0, out var x) || lire(1, out var y))
+                return;
+        ModeMateriel.Sonde[65]++;
+        const uint16_t CODES = x87_c.C0 | x87_c.C1 | x87_c.C2 | x87_c.C3;
+        uint16_t cc = 0;
+        extFloat80_t r;
+        Classe cx = classe(x), cy = classe(y);
+        arrondi(false);
+        if (faute)
+                r = Indefini;
+        // Un pseudo-zéro (exposant non nul, significande nul : le 8087 et le 287 le prennent, N7) compte pour un zéro.
+        else if (non_supporte(cx) || non_supporte(cy) ||
+                 !nan(cx) && !nan(cy) && (cx == Classe.Infini || cy == Classe.Zero || cy != Classe.Infini && y.signif == 0))
+        {
+                r = Indefini;
+                cc = x87_c.C2;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
+        else if (nan(cx) || nan(cy))
+                r = nan_de(x, y);
+        else
+        {
+                if ((denormal(cx) || denormal(cy)) && lever(DE))
+                        return;
+                if (cx == Classe.Zero || x.signif == 0 || cy == Classe.Infini)
+                        r = x;
+                else
+                        r = reste(x, y, ieee, out cc);
+        }
+        if (indicateurs())
+                return;
+        if (cpu_c.fpu_type < cpu_c.FPU_287XL && (cc & x87_c.C2) != 0)
+                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~x87_c.C2) | x87_c.C2);
+        else
+                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~CODES) | cc);
+        ecrire(0, r);
+    }
+
+    /// <summary>Le reste de deux finis non nuls, exact (FPREM, FPREM1) ; `cc`, C2 et les bits du quotient.</summary>
+    private static extFloat80_t reste(in extFloat80_t x, in extFloat80_t y, bool ieee, out uint16_t cc)
+    {
+        var (sx, ex, mx) = normaliser(x);
+        var (_, ey, my) = normaliser(y);
+        var d = ex - ey;
+        var partielle = d >= 64;
+        if (partielle)
+        {
+                var n = 32 + d % 32;
+                ey += d - n;
+                d = n;
+        }
+        // |x| < |y| / 2 : Q = 0 pour les deux, le dividende rendu.
+        if (d < -1)
+        {
+                cc = 0;
+                return x;
+        }
+        // x = num × 2^(ey − 64), y = den × 2^(ey − 64) : un bit de plus, pour D = −1 (FPREM1, |x| ≥ |y| / 2).
+        UInt128 num = (UInt128)mx << (d + 1), den = (UInt128)my << 1;
+        UInt128 q = num / den, rr = num % den;
+        var signe = sx;
+        if (ieee && !partielle && (rr << 1 > den || rr << 1 == den && (q & 1) != 0))
+        {
+                q++;
+                rr = den - rr;
+                signe = !sx;
+        }
+        cc = partielle ? x87_c.C2
+           : (uint16_t)(((q & 4) != 0 ? x87_c.C0 : 0) | ((q & 2) != 0 ? x87_c.C3 : 0) | ((q & 1) != 0 ? x87_c.C1 : 0));
+        if (rr == 0)
+                return new extFloat80_t { signExp = (uint16_t)(sx ? 0x8000 : 0) };
+        // rr < 2^65 : son bit de tête p, la valeur 1,f × 2^(p + ey − 64).
+        var p = 127 - (int)UInt128.LeadingZeroCount(rr);
+        var m = p >= 63 ? (uint64_t)(rr >> (p - 63)) : (uint64_t)(rr << (63 - p));
+        return softfloat.softfloat_roundPackToExtF80(signe, p + ey - 64 + 0x3FFF, m, 0, 80);
     }
 
     // ===== FNINIT, la mise sous tension, le RESET =====

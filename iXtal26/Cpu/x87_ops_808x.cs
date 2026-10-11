@@ -2703,7 +2703,7 @@ internal static partial class _808x
             int64_t temp64;
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-65 — un quotient tronqué d'un coup, C2 jamais posé, et
+            // pcem bug, fixed in hardware mode: PB-65 — un quotient tronqué d'un coup, C2 jamais posé, et
             //   FPREM1 identique à FPREM.
             temp64 = CvtI64(ST(0) / ST(1));
             ST(0) = ST(0) - (ST(1) * (double)temp64);
@@ -2725,7 +2725,7 @@ internal static partial class _808x
             int64_t temp64;
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-65 — un quotient tronqué d'un coup, C2 jamais posé, et
+            // pcem bug, fixed in hardware mode: PB-65 — un quotient tronqué d'un coup, C2 jamais posé, et
             //   FPREM1 identique à FPREM.
             temp64 = CvtI64(ST(0) / ST(1));
             ST(0) = ST(0) - (ST(1) * (double)temp64);
@@ -2774,8 +2774,8 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.
-            // pcem bug, reproduced: PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.
+            // pcem bug, fixed in hardware mode: PB-197 — |x| >= 2^63, ∞ ou NaN rendent -2^63, pas la valeur elle-même.
+            // pcem bug, fixed in hardware mode: PB-211 — un résultat nul perd son signe : -0 et ]-0,5 ; 0[ rendent +0.
             ST(0) = (double)x87_fround(ST(0));
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.frndint);
@@ -2788,7 +2788,7 @@ internal static partial class _808x
             int64_t temp64;
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.
+            // pcem bug, fixed in hardware mode: PB-198 — ST(1) NaN ou infini : (int64_t) rend -2^63, et ST(0) devient ±0.
             temp64 = CvtI64(ST(1));
             if (ST(0) != 0.0)
                     ST(0) = ST(0) * Math.Pow(2.0, (double)temp64);

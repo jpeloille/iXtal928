@@ -1415,6 +1415,61 @@ internal static class _808x_noyau
         return 0;
     }
 
+    // FRNDINT (_x87_noyau.frndint ; PB-197, PB-211).
+    internal static int opFRNDINT(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.frndint();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.frndint);
+        return 0;
+    }
+
+    // FSCALE (_x87_noyau.fscale ; PB-198).
+    internal static int opFSCALE(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fscale();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fscale);
+        return 0;
+    }
+
+    // FXTRACT (_x87_noyau.fxtract ; PB-194).
+    internal static int opFXTRACT(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fxtract();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fxtract);
+        return 0;
+    }
+
+    // FPREM (_x87_noyau.fprem ; PB-65).
+    internal static int opFPREM(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fprem(false);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fprem);
+        return 0;
+    }
+
+    // FPREM1 (_x87_noyau.fprem ; PB-65).
+    internal static int opFPREM1(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs_8087(0xD9, fetchdat, false);
+        cpu_state.pc++;
+        _x87_noyau.fprem(true);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fprem1);
+        return 0;
+    }
+
     /// <summary>Les huit tables du 8087, remplacées en place (execx86 les indexe en dur) : chaque instruction écrite
     /// à son entrée, les autres à l'arrêt (_x87_noyau.a_ecrire).</summary>
     internal static void poser_tables()
@@ -1631,5 +1686,10 @@ internal static class _808x_noyau
         _808x.ops_808x_fpu_dd_a16[0xEE] = opFUCOMP;
         _808x.ops_808x_fpu_dd_a16[0xEF] = opFUCOMP;
         _808x.ops_808x_fpu_da_a16[0xE9] = opFUCOMPP;
+        _808x.ops_808x_fpu_d9_a16[0xFC] = opFRNDINT;
+        _808x.ops_808x_fpu_d9_a16[0xFD] = opFSCALE;
+        _808x.ops_808x_fpu_d9_a16[0xF4] = opFXTRACT;
+        _808x.ops_808x_fpu_d9_a16[0xF8] = opFPREM;
+        _808x.ops_808x_fpu_d9_a16[0xF5] = opFPREM1;
     }
 }

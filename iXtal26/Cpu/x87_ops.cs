@@ -185,6 +185,7 @@ internal static partial class _386
         {
         case 0: /*Nearest*/
                 a = CvtI64(Math.Floor(b));
+                // pcem bug, fixed in hardware mode: PB-265 — b + 1.0 arrondi : −2^−60 rend +1, 2 − 2^−52 rend 1.
                 c = CvtI64(Math.Floor(b + 1.0));
                 if ((b - a) < (c - b))
                         return a;

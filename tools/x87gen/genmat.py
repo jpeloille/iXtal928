@@ -321,6 +321,13 @@ for nom, ou, signale, pops, tps, doc in [
         corps += ';'
     registre(nom, ou, corps, tps, doc)
 
+# ---- N4b : FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 ----
+registre('FRNDINT', [('d9', 0xFC)], '_x87_noyau.frndint();', 'frndint', 'FRNDINT (_x87_noyau.frndint ; PB-197, PB-211).')
+registre('FSCALE', [('d9', 0xFD)], '_x87_noyau.fscale();', 'fscale', 'FSCALE (_x87_noyau.fscale ; PB-198).')
+registre('FXTRACT', [('d9', 0xF4)], '_x87_noyau.fxtract();', 'fxtract', 'FXTRACT (_x87_noyau.fxtract ; PB-194).')
+registre('FPREM', [('d9', 0xF8)], '_x87_noyau.fprem(false);', 'fprem', 'FPREM (_x87_noyau.fprem ; PB-65).')
+registre('FPREM1', [('d9', 0xF5)], '_x87_noyau.fprem(true);', 'fprem1', 'FPREM1 (_x87_noyau.fprem ; PB-65).')
+
 instr('FSETPM', [('db', 0xE4)], '''
         if (@FP_ENTER()) return 1;
         cpu_state.pc++;
