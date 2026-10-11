@@ -2088,7 +2088,8 @@ internal static partial class _808x
             else
                     cpu_state.npxc = 0x37f;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
-            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts.
+            // pcem bug, fixed in hardware mode: PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts ;
+            //   le noyau les garde.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;
@@ -2392,7 +2393,8 @@ internal static partial class _808x
             // pcem bug, fixed in hardware mode: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.
             cpu_state.npxc = 0x37F;
             // omitted: codegen_set_rounding_mode(...) — le dynarec (souche vide dans l'oracle).
-            // pcem bug, reproduced: PB-202 — C3-C0 effacés : le 8087 les laisse intacts.
+            // pcem bug, fixed in hardware mode: PB-202 — C3-C0 effacés : le 8087 les laisse intacts ; le noyau les
+            //   garde.
             cpu_state.npxs = 0;
             Array.Clear(cpu_state.tag);
             cpu_state.TOP = 0;

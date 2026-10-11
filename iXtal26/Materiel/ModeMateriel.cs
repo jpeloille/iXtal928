@@ -100,6 +100,9 @@ internal static class ModeMateriel
         new(197, "x87", "FRNDINT garde |x| ≥ 2^63, les infinis et les NaN (le noyau, en chantier)"),
         new(198, "x87", "FSCALE par un NaN ou un infini : la table des spéciaux (le noyau, en chantier)"),
         new(199, "x87", "FSAVE range chaque registre en réel de 80 bits (le noyau, en chantier)"),
+        new(200, "x87", "DF E0 laisse AX sur le 8087, qui n'a pas FNSTSW AX (le noyau, en chantier)"),
+        new(201, "x87", "le 8087 lit et écrit chaque mot de son opérande à l'adresse physique, sans boucler dans le segment (le noyau, en chantier)"),
+        new(202, "x87", "FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 (le noyau, en chantier)"),
         new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau, en chantier)"),
         new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
         new(206, "x87", "FLD m32 d'un SNaN lève IE (387, 486 ; le noyau, en chantier)"),
@@ -134,17 +137,17 @@ internal static class ModeMateriel
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
     /// le code d'erreur de son dépassement, au même test. PB-57, PB-58, PB-64 et PB-70 : les comparaisons du x87, par la même
     /// fonction (x87.Materiel.cs). PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée par la carte, au
-    /// même site (x87.Materiel.cs). PB-48, 52, 54, 55, 56, 60, 62, 65, 68, 194 à 199, 203, 206, 208, 211, 212, 264 et 265 : le noyau de 80 bits
+    /// même site (x87.Materiel.cs). PB-48, 52, 54, 55, 56, 60, 62, 65, 68, 194 à 203, 206, 208, 211, 212, 264 et 265 : le noyau de 80 bits
     /// (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; chaque étape du noyau y ajoute les PB
     /// qu'elle corrige.</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 203, 206, 208, 211, 212, 264, 265]];
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [57, 58, 64, 70], [59, 69, 204], [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 208, 211, 212, 264, 265]];
 
     /// <summary>Les corrections en chantier : celles du noyau de 80 bits du x87 (PLAN-G13.md, § G13.6, le noyau ;
     /// décision n° 4), qui n'entrent ni dans « tout », ni dans leur domaine, avant la fin de N7. Le noyau remplace la pile
     /// en `double` de PCem par huit registres de 80 bits : ses gestionnaires ne cohabitent pas avec ceux de PCem, et tant
     /// qu'il n'est pas complet, il ne se demande que par ses numéros, pour les cas et les portes.</summary>
-    internal static readonly int[] EnChantier = [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 203, 206, 208, 211, 212, 264, 265];
+    internal static readonly int[] EnChantier = [48, 52, 54, 55, 56, 60, 62, 65, 68, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 208, 211, 212, 264, 265];
 
     internal static readonly string[] Domaines = ["processeur", "x87", "stockage", "video", "son", "carte-mere"];
 

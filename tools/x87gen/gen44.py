@@ -26,9 +26,11 @@ MARQ={
         ['// pcem bug, fixed in hardware mode: PB-70 — IC (bit 12) n\'est lu nulle part : le 8087 et le 287 comparent en',
          '//   affine ; en mode matériel, x87_compare le lit (x87.Materiel.cs).'],
     ('opFINIT',NPXS0):
-        [B+'PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts.'],
+        ['// pcem bug, fixed in hardware mode: PB-202 — C3-C0 effacés : le 8087 et le 287 les laissent intacts ;',
+         '//   le noyau les garde.'],
     ('FSAVE',NPXS0):
-        [B+'PB-202 — C3-C0 effacés : le 8087 les laisse intacts.'],
+        ['// pcem bug, fixed in hardware mode: PB-202 — C3-C0 effacés : le 8087 les laisse intacts ; le noyau les',
+         '//   garde.'],
     ('FSAVE','cpu_state.npxc = 0x37F;'):
         ['// pcem bug, fixed in hardware mode: PB-62 — 0x37F même pour le 8087, où FNINIT pose 0x3FF.'],
     ('FSAVE',SWITCH):

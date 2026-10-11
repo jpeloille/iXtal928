@@ -81,7 +81,8 @@ B='// pcem bug, reproduced: '
 M52='// pcem bug, fixed in hardware mode: PB-52 — DF /4 (FBLD m80bcd) est ILLEGAL : rien n\'est chargé ni poussé.'
 MARQ={('fpu_df',0x20):[M52], ('fpu_df',0x60):[M52], ('fpu_df',0xa0):[M52],
       ('fpu_df',0xc0):[B+'PB-210 — DF C0-DF (FFREEP et les alias FXCH7, FSTP8, FSTP9) : ILLEGAL.'],
-      ('fpu_df',0xe0):[B+'PB-200 — DF E0 (FNSTSW AX, une instruction du 287) écrit AX sur le 8087.'],
+      ('fpu_df',0xe0):['// pcem bug, fixed in hardware mode: PB-200 — DF E0 (FNSTSW AX, une instruction du 287) écrit AX sur le',
+                       '//   8087 ; le noyau le laisse.'],
       ('fpu_dd',0xc8):[B+'PB-210 — DD C8-CF (FXCH4, alias non documenté de FXCH) : ILLEGAL.'],
       ('fpu_de',0xd0):[B+'PB-210 — DE D0-D7 (FCOMP5, alias non documenté de FCOMP) : ILLEGAL.'],
       ('fpu_dd',0xe0):[B+'PB-209 — FUCOM et FUCOMP (DD E0-EF), du 387, s\'exécutent sur le 8087.'],

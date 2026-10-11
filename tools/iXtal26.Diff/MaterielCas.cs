@@ -43,7 +43,7 @@ internal static class MaterielCas
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
-        [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [68] = Pb68, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [68] = Pb68, [200] = Pb200, [201] = Pb201, [202] = Pb202, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1302,15 +1302,22 @@ internal static class MaterielCas
     }
 
     /// <summary>Joue `code` sur le coprocesseur `fpu` (le cœur du 8088, du 286, du 386 ou du 486), `avant` après le RESET
-    /// du harnais, BX = 0200h ; rend les registres d'après.</summary>
+    /// du harnais, BX = 0200h ; rend les registres d'après. C3-C0 sont effacés après le RESET, comme à la mise sous
+    /// tension : le 8087 et le 287 les gardent à travers le RESET et FNINIT (PB-202), et un cas hériterait sinon de ceux
+    /// du précédent.</summary>
     private static ushort[] Jouer87(int fpu, byte[] code, int pas, Action? avant = null)
     {
         _386.FuzzFpu = fpu;
+        var apres = () =>
+        {
+            _386_common.cpu_state.npxs &= unchecked((ushort)~0x4700);
+            avant?.Invoke();
+        };
         try
         {
             if (fpu == 1)
-                return Jouer(code, r => r[(int)R.BX] = 0x200, avant, pas);
-            return Jouer386(code, r => r[(int)R.BX] = 0x200, avant, coeur: Coeur(fpu), pas: pas);
+                return Jouer(code, r => r[(int)R.BX] = 0x200, apres, pas);
+            return Jouer386(code, r => r[(int)R.BX] = 0x200, apres, coeur: Coeur(fpu), pas: pas);
         }
         finally
         {
@@ -1725,6 +1732,8 @@ internal static class MaterielCas
             bad += Demasquees();
         if (noyau && hw)
             bad += Transcendantes();
+        if (noyau && hw)
+            bad += SeizeBits();
         return bad;
     }
 
@@ -1821,7 +1830,8 @@ internal static class MaterielCas
         return bad;
     }
 
-    // PB-198 — FSCALE de 1 par ST(1) = NaN (7FF8000000000000h) : le NaN ; par +∞ : +∞ (387 PRM, table 3-4) ; PCem 0.
+    // PB-198 — FSCALE de 1 par ST(1) = NaN (7FF8000000000000h) : le NaN ; par +∞ : +∞ (387 PRM, table 3-4), l'indéfini
+    // sur le 8087 et le 287 (287 PRM, table 1-12 : « ± Y scaled by ± ∞ : Invalid operation ») ; PCem 0.
     private static int Pb198(bool hw)
     {
         var bad = 0;
@@ -1829,7 +1839,7 @@ internal static class MaterielCas
         foreach (var (b, n) in new (ulong, string)[] { (0x7FF8000000000000, "NaN"), (0x7FF0000000000000, "+∞") })
         {
             var (_, r) = Deux(fpu, 0x3FF0000000000000, b, 0xFD);
-            var a = hw ? b : 0UL;
+            var a = !hw ? 0UL : fpu < 3 && n == "+∞" ? 0xFFF8000000000000 : b;
             bad += Voir($"FSCALE 1 par {n} ; FSTP m64 ({nom})", r == a, $"{r:X16}", $"{a:X16}", hw);
         }
         return bad;
@@ -1925,6 +1935,298 @@ internal static class MaterielCas
         return bad;
     }
 
+    // ===== Le noyau, N7a : le 8087 et le 287, hors des non normaux =====
+    //
+    // Chaque cas sur les cinq coprocesseurs ; le 8087 et le 287 (seize) contre le 287XL, le 387 et le 486, le témoin. Le
+    // code en 0000:0100, BX = 0200h ; les opérandes en DS:0300h et suivants, le mot de contrôle en DS:0310h (FLDCW [0310h],
+    // D9 2E 10 03).
+
+    private static readonly byte[] Cw310 = [0xD9, 0x2E, 0x10, 0x03];
+    private static readonly byte[] M80a = [0xDB, 0x2E, 0x00, 0x03];
+    private static readonly byte[] M80b = [0xDB, 0x2E, 0x20, 0x03];
+
+    /// <summary>FNINIT ; FLDCW cw ; FLD m80 a (0300h) ; FLD m80 b (0320h) ; DE op (ST(1) ← ST(1) op ST(0), dépilé) ; FNSTSW [BX+0Ah] ;
+    /// FSTP m80 [BX] : le mot d'état et le résultat.</summary>
+    private static (ushort sw, ushort se, ulong sig) Deux80(int fpu, ushort cw, (ushort se, ulong sig) a, (ushort se, ulong sig) b, byte op)
+    {
+        Jouer87(fpu, [0xDB, 0xE3, .. Cw310, .. M80a, .. M80b, 0xDE, op, .. SwA, 0xDB, 0x3F], 7,
+                Ops((0x300, Le80(a.se, a.sig)), (0x320, Le80(b.se, b.sig)), (0x310, Cw(cw))));
+        return (W(0x20A), W(0x208), Q(0x200));
+    }
+
+    private static int SeizeBits()
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            var seize = fpu < 3;
+
+            // PB-60 — un NaN opérande : IE sur le 8087 et le 287, quel qu'il soit, et le NaN tel quel (387 PRM, annexe C §
+            // C.2 ; 287 PRM, table 1-17). FLD m64 7FF0000000000001 (un SNaN pour le 387, qui le rend silencieux au
+            // chargement, avec IE) ; FLD1 ; FADD ST(0), ST(1) ; FNSTSW ; FSTP m80 → 287 7FFF 8000000000000800h, 387 7FFF
+            // C000000000000800h, IE des deux côtés. Un QNaN (7FF8000000000001) : IE sur le 287 seul.
+            foreach (var (nan, s287, s387, n) in new (ulong, ulong, ushort, string)[]
+                     {
+                         (0x7FF0000000000001, 0x8000000000000800, 0x3001, "SNaN"),
+                         (0x7FF8000000000001, 0xC000000000000800, 0x3000, "QNaN"),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xE8, 0xD8, 0xC1, .. SwA, 0xDB, 0x3F], 6, Ops((0x300, Le(nan))));
+                var (asw, asig) = seize ? ((ushort)0x3001, s287) : (s387, 0xC000000000000800UL);
+                bad += Voir($"FLD m64 {n} ; FLD1 ; FADD ; FNSTSW ; FSTP m80 ({nom})", W(0x20A) == asw && Q(0x200) == asig && W(0x208) == 0x7FFF,
+                            $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{asw:X4}, 7FFF {asig:X16}", true);
+            }
+
+            // PB-59 — le dépassement masqué (387 PRM, annexe C § C.2) : (2 − 2^−63) × 2^16383 au carré. Vers zéro (0F7Fh), le
+            // 8087 et le 287 rendent +∞, le 387 le plus grand fini, OE et PE des deux côtés ; vers −∞ (077Fh), le plus
+            // grand fini, sans OE sur le 8087 et le 287. FMULP (DE C9).
+            var max = ((ushort)0x7FFE, 0xFFFFFFFFFFFFFFFFUL);
+            {
+                var (sw, se, sig) = Deux80(fpu, 0x0F7F, max, max, 0xC9);
+                var (ase, asig) = seize ? ((ushort)0x7FFF, 0x8000000000000000UL) : max;
+                bad += Voir($"vers zéro, max × max ; FNSTSW ; FSTP m80 ({nom})", sw == 0x3828 && se == ase && sig == asig,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"3828, {ase:X4} {asig:X16}", true);
+                (sw, se, sig) = Deux80(fpu, 0x077F, max, max, 0xC9);
+                var asw = seize ? (ushort)0x3820 : (ushort)0x3828;
+                bad += Voir($"vers −∞, max × max ; FNSTSW ; FSTP m80 ({nom})", sw == asw && se == 0x7FFE && sig == 0xFFFFFFFFFFFFFFFF,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"{asw:X4}, 7FFE FFFFFFFFFFFFFFFF", true);
+            }
+
+            // PB-59 — la petitesse (387 PRM, annexe C § C.2 ; 287 PRM, table 1-17). Vers zéro, 2^−16382 × 0,5 = 2^−16383,
+            // un dénormal exact (0000 4000000000000000h) : UE sur le 8087 et le 287 (« on tininess, regardless of loss of
+            // accuracy »), rien sur le 387. Au plus près, (2 − 2^−62) × 2^−16382 × 0,5 × (1 + 2^−63) = (1 − 2^−126) ×
+            // 2^−16382, petit avant l'arrondi, 2^−16382 après, même sur un exposant non borné (0001 8000000000000000h) : UE
+            // et PE sur le 8087 et le 287, PE et C1 sur le 387.
+            {
+                var (sw, se, sig) = Deux80(fpu, 0x0F7F, (0x0001, 0x8000000000000000), (0x3FFE, 0x8000000000000000), 0xC9);
+                var asw = seize ? (ushort)0x3810 : (ushort)0x3800;
+                bad += Voir($"vers zéro, 2^−16382 × 0,5 ; FNSTSW ; FSTP m80 ({nom})", sw == asw && se == 0 && sig == 0x4000000000000000,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"{asw:X4}, 0000 4000000000000000", true);
+                (sw, se, sig) = Deux80(fpu, 0x037F, (0x0001, 0xFFFFFFFFFFFFFFFE), (0x3FFE, 0x8000000000000001), 0xC9);
+                asw = seize ? (ushort)0x3830 : (ushort)0x3A20;
+                bad += Voir($"au plus près, (1 − 2^−126) × 2^−16382 ; FNSTSW ; FSTP m80 ({nom})", sw == asw && se == 1 && sig == 0x8000000000000000,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"{asw:X4}, 0001 8000000000000000", true);
+            }
+
+            // PB-59 — OE démasquée (0377h), la destination un registre : (1 + 2^−63) × 2^16383 × 3. Le 387 arrondit (au
+            // pair, C000000000000002h), PE et C1 ; le 8087 et le 287 laissent le significande non arrondi
+            // (C000000000000001h), sans PE (387 PRM, annexe C § C.2) ; l'exposant décalé de 24 576 (1FFFh), ES et B. Sous
+            // l'acheminement (PB-204), FSTP m80 attend le verrou de l'AT : la mémoire intacte, comme pour Demasquees.
+            {
+                var (sw, se, sig) = Deux80(fpu, 0x0377, (0x7FFE, 0x8000000000000001), (0x4000, 0xC000000000000000), 0xC9);
+                var (asw, asig) = seize ? ((ushort)0xB888, 0xC000000000000001UL) : ((ushort)0xBAA8, 0xC000000000000002UL);
+                var ase = (ushort)0x1FFF;
+                if (materiel.pb_204 && fpu > 1)
+                    (ase, asig) = (0x9090, 0x9090909090909090);
+                bad += Voir($"OE démasquée, (1 + 2^−63) × 2^16383 × 3 ; FNSTSW ; FSTP m80 ({nom})", sw == asw && se == ase && sig == asig,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"{asw:X4}, {ase:X4} {asig:X16}", true);
+            }
+
+            // PB-59 — UE démasquée (036Fh), au plus près, (1 − 2^−126) × 2^−16382 (le produit plus haut) : petit avant
+            // l'arrondi seulement. Le 8087 et le 287 lèvent UE, et rangent le significande non arrondi
+            // (FFFFFFFFFFFFFFFFh), à l'exposant décalé (0 + 24 576 : 6000h), sans PE, ES et B ; le 387, ni petit ni UE, rend
+            // 2^−16382, PE et C1. Sous l'acheminement, FSTP m80 attend (le 287).
+            {
+                var (sw, se, sig) = Deux80(fpu, 0x036F, (0x0001, 0xFFFFFFFFFFFFFFFE), (0x3FFE, 0x8000000000000001), 0xC9);
+                var (asw, ase, asig) = seize ? ((ushort)0xB890, (ushort)0x6000, 0xFFFFFFFFFFFFFFFFUL)
+                                             : ((ushort)0x3A20, (ushort)0x0001, 0x8000000000000000UL);
+                if (materiel.pb_204 && fpu == 2)
+                    (ase, asig) = (0x9090, 0x9090909090909090);
+                bad += Voir($"UE démasquée, (1 − 2^−126) × 2^−16382 ; FNSTSW ; FSTP m80 ({nom})", sw == asw && se == ase && sig == asig,
+                            $"{sw:X4}, {se:X4} {sig:X16}", $"{asw:X4}, {ase:X4} {asig:X16}", true);
+            }
+
+            // PB-59 et PB-60 — FST m32 et m64 (seize_memoire) : vers zéro (0F7Fh), FLD m80 2^200 ; FST m32 [BX] → +∞
+            // (7F800000h) sur le 8087 et le 287, le plus grand fini (7F7FFFFFh) sur le 387, OE et PE. FLD m64 d'un QNaN ;
+            // FST m64 [BX] : IE sur le 8087 et le 287 seuls.
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. Cw310, .. M80a, 0xD9, 0x17, .. SwA], 5, Ops((0x300, Le80(0x40C7, 0x8000000000000000)), (0x310, Cw(0x0F7F))));
+                var a32 = seize ? 0x7F800000u : 0x7F7FFFFFu;
+                var l32 = (uint)(W(0x200) | W(0x202) << 16);
+                bad += Voir($"vers zéro, FLD m80 2^200 ; FST m32 ; FNSTSW ({nom})", l32 == a32 && W(0x20A) == 0x3828,
+                            $"{l32:X8}, {W(0x20A):X4}", $"{a32:X8}, 3828", true);
+                Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xDD, 0x17, .. SwA], 4, Ops((0x300, Le(0x7FF8000000000001))));
+                var asw = seize ? (ushort)0x3801 : (ushort)0x3800;
+                bad += Voir($"FLD m64 QNaN ; FST m64 ; FNSTSW ({nom})", W(0x20A) == asw && Q(0x200) == 0x7FF8000000000001,
+                            $"{W(0x20A):X4}, {Q(0x200):X16}", $"{asw:X4}, 7FF8000000000001", true);
+            }
+
+            // PB-59 — DE démasquée d'abord sur le 8087 et le 287 (287 PRM, table 3-2) : un dénormal divisé par +0, DM à 0
+            // (037Dh) ; le 387 lève ZE, masquée, range −∞… +∞ et dépile ; le 8087 et le 287 lèvent DE et s'arrêtent, sans
+            // ranger ni dépiler. FNINIT ; FLD m80 dénormal ; FLDZ ; FNCLEX ; FLDCW ; FDIVP (DE F9) ; FNSTSW.
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0xEE, 0xDB, 0xE2, .. Cw310, 0xDE, 0xF9, .. SwA], 7,
+                        Ops((0x300, Le80(0, 1)), (0x310, Cw(0x037D))));
+                var asw = seize ? (ushort)0xB082 : (ushort)0x3804;
+                bad += Voir($"DM à 0, dénormal / +0 ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+            }
+
+            // PB-59 — FLD m80 d'un dénormal : DE sur le 8087 et le 287 (387 PRM, annexe C § C.4), rien sur le 387. DM à 0
+            // (037Dh) : le 8087 et le 287 s'arrêtent avant d'empiler (287 PRM, table 3-2 : TOP = 0, 8082h) ; le 387, FLD m80
+            // sans DE (3800h) ; FLD m64 2^−1074, le 387 empile quand même (SDM vol. 2, FLD : B882h), le 8087 et le 287 non.
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. M80a, .. SwA], 3, Ops((0x300, Le80(0, 1))));
+                var asw = seize ? (ushort)0x3802 : (ushort)0x3800;
+                bad += Voir($"FLD m80 dénormal ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+                Jouer87(fpu, [0xDB, 0xE3, .. Cw310, .. M80a, .. SwA], 4, Ops((0x300, Le80(0, 1)), (0x310, Cw(0x037D))));
+                asw = seize ? (ushort)0x8082 : (ushort)0x3800;
+                bad += Voir($"DM à 0 ; FLD m80 dénormal ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+                Jouer87(fpu, [0xDB, 0xE3, .. Cw310, 0xDD, 0x06, 0x00, 0x03, .. SwA], 4, Ops((0x300, Le(1)), (0x310, Cw(0x037D))));
+                asw = seize ? (ushort)0x8082 : (ushort)0xB882;
+                bad += Voir($"DM à 0 ; FLD m64 2^−1074 ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+            }
+
+            // PB-68 — FPATAN d'un pseudo-zéro en ST(0) (3FFF 0000000000000000h) par 0,5 : le 8087 et le 287 le prennent pour
+            // un zéro (π/2, 3FF921FB54442D18h, sans IE) ; sans cela, la division exacte d'arctan le prendrait pour diviseur
+            // (son exposant de travail, 0, passe celui de 0,5) et planterait ; le 387, un format non supporté, IE et
+            // l'indéfini.
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x30, 0x03, .. M80a, 0xD9, 0xF3, .. SwA, 0xDD, 0x1F], 6,
+                        Ops((0x300, Le80(0x3FFF, 0)), (0x330, Le(0x3FE0000000000000))));
+                var (asw, ar) = seize ? ((ushort)0x3820, 0x3FF921FB54442D18UL) : ((ushort)0x3801, 0xFFF8000000000000UL);
+                bad += Voir($"FLD m64 0,5 ; FLD m80 pseudo-zéro ; FPATAN ; FNSTSW, C1 ignoré ; FSTP m64 ({nom})",
+                            (W(0x20A) & ~0x200) == asw && Q(0x200) == ar, $"{W(0x20A):X4}, {Q(0x200):X16}", $"{asw:X4}, {ar:X16}", true);
+            }
+
+            // PB-194 — FXTRACT (387 PRM, annexe C § C.4 ; 287 PRM, FXTRACT et table 1-12). De −0 : deux −0 sur le 8087 et
+            // le 287, sans exception ; le 387, ZE, −∞ en ST(1). De +∞ : IE et l'indéfini aux deux sur le 8087 et le 287 ;
+            // +∞ aux deux sur le 387. FNSTSW ; FSTP m64 [BX] ; FSTP m64 [BX+10h].
+            foreach (var (charge, n, s16, a16, s87, a87) in new (byte[], string, ushort, (ulong, ulong), ushort, (ulong, ulong))[]
+                     {
+                         ([0xD9, 0xEE, 0xD9, 0xE0], "FLDZ ; FCHS", 0x3000, (0x8000000000000000, 0x8000000000000000), 0x3004,
+                          (0x8000000000000000, 0xFFF0000000000000)),
+                         ([0xDD, 0x06, 0x00, 0x03], "FLD m64 +∞", 0x3001, (0xFFF8000000000000, 0xFFF8000000000000), 0x3000,
+                          (0x7FF0000000000000, 0x7FF0000000000000)),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. charge, 0xD9, 0xF4, .. SwA, 0xDD, 0x1F, 0xDD, 0x5F, 0x10], charge.Length == 4 && charge[0] == 0xDD ? 6 : 7,
+                        Ops((0x300, Le(0x7FF0000000000000))));
+                var (asw, (a0, a1)) = seize ? (s16, a16) : (s87, a87);
+                bad += Voir($"{n} ; FXTRACT ; FNSTSW ; FSTP m64 × 2 ({nom})", W(0x20A) == asw && Q(0x200) == a0 && Q(0x210) == a1,
+                            $"{W(0x20A):X4}, {Q(0x200):X16} {Q(0x210):X16}", $"{asw:X4}, {a0:X16} {a1:X16}", true);
+            }
+
+            // PB-198 — FSCALE par +∞ (287 PRM, table 1-12) : 1 rend IE et l'indéfini sur le 8087 et le 287, +∞ sur le 387 ;
+            // +0 rend +0 sur le 8087 et le 287, IE et l'indéfini sur le 387.
+            foreach (var (a, n, s16, r16, s87, r87) in new (ulong, string, ushort, ulong, ushort, ulong)[]
+                     {
+                         (0x3FF0000000000000, "1", 0x3001, 0xFFF8000000000000, 0x3000, 0x7FF0000000000000),
+                         (0, "+0", 0x3000, 0, 0x3001, 0xFFF8000000000000),
+                     })
+            {
+                var (sw, r) = Deux(fpu, a, 0x7FF0000000000000, 0xFD);
+                var (asw, ar) = seize ? (s16, r16) : (s87, r87);
+                bad += Voir($"FSCALE {n} par +∞ ; FNSTSW ; FSTP m64 ({nom})", sw == asw && r == ar, $"{sw:X4}, {r:X16}", $"{asw:X4}, {ar:X16}", true);
+            }
+
+            // PB-65 — les bits du quotient de FPREM sur le 8087 et le 287 : leurs sources se contredisent sur un défaut (287
+            // PRM, p. 2-8, et sa table 2-4 ; 387 PRM, annexe C § C.4) ; les bits justes, ceux de PCem et du 387, sont gardés
+            // (c). FXAM de −0 pose C3 et C1 ; FPREM de 1 par 3 (Q = 0) : 3000h ; de 7 par 2 (Q = 3) : C3 et C1, 7200h.
+            foreach (var (b, a, n, asw) in new (ulong, ulong, string, ushort)[]
+                     {
+                         (0x4008000000000000, 0x3FF0000000000000, "1 par 3", 0x3000),
+                         (0x4000000000000000, 0x401C000000000000, "7 par 2", 0x7200),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xD9, 0xE0, 0xD9, 0xE5, 0xDD, 0xD8, 0xDD, 0x06, 0x00, 0x03, 0xDD, 0x06, 0x08, 0x03,
+                              0xD9, 0xF8, .. SwA], 9, Ops((0x300, Le(b)), (0x308, Le(a))));
+                bad += Voir($"FXAM −0 ; FPREM {n} ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+            }
+
+            // PB-68 — FPTAN sur le 8087 et le 287 : C2 indéfini, laissé (387 PRM, annexe C § C.3) ; FXAM de 0,5 le pose,
+            // FPTAN de 0,5 le garde (3420h : C2, PE, TOP = 6) ; le 387 l'efface (3020h, C1 ignoré). Pile pleine (huit FLD1) :
+            // l'opérande gardé, poussé en ST(1), l'indéfini en ST(0), IE seule (3801h) ; le 387, l'indéfini aux deux, SF et
+            // C1 (3A41h).
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xDD, 0x06, 0x00, 0x03, 0xD9, 0xE5, 0xD9, 0xF2, .. SwA], 5, Ops((0x300, Le(0x3FE0000000000000))));
+                var asw = seize ? (ushort)0x3420 : (ushort)0x3020;
+                bad += Voir($"FLD m64 0,5 ; FXAM ; FPTAN ; FNSTSW, C1 ignoré ({nom})", (W(0x20A) & ~0x200) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+                Jouer87(fpu, [0xDB, 0xE3, .. Enumerable.Repeat<byte[]>([0xD9, 0xE8], 8).SelectMany(o => o), 0xD9, 0xF2, .. SwA, 0xDD, 0x1F,
+                              0xDD, 0x5F, 0x10], 13);
+                var (s, a1) = seize ? ((ushort)0x3801, 0x3FF0000000000000UL) : ((ushort)0x3A41, 0xFFF8000000000000UL);
+                bad += Voir($"huit FLD1 ; FPTAN ; FNSTSW ; FSTP m64 × 2 ({nom})", W(0x20A) == s && Q(0x200) == 0xFFF8000000000000 && Q(0x210) == a1,
+                            $"{W(0x20A):X4}, {Q(0x200):X16} {Q(0x210):X16}", $"{s:X4}, FFF8000000000000 {a1:X16}", true);
+            }
+
+            // PB-68 — le 8087 et le 287 n'examinent pas les opérandes de leurs transcendantes (287 PRM, « operands not
+            // checked ») : FYL2X de −1 par 1, l'indéfini sans IE (3800h ; le 387, 3801h) ; de +0 par 1, −∞ sans ZE
+            // (3800h ; le 387, 3804h).
+            foreach (var (a, n, r, s87) in new (ulong, string, ulong, ushort)[]
+                     {
+                         (0xBFF0000000000000, "−1", 0xFFF8000000000000, 0x3801),
+                         (0, "+0", 0xFFF0000000000000, 0x3804),
+                     })
+            {
+                var (sw, rr) = Deux(fpu, a, 0x3FF0000000000000, 0xF1);
+                var asw = seize ? (ushort)0x3800 : s87;
+                bad += Voir($"FYL2X {n} par 1 ; FNSTSW ; FSTP m64 ({nom})", sw == asw && rr == r, $"{sw:X4}, {rr:X16}", $"{asw:X4}, {r:X16}", true);
+            }
+
+            // PB-63 — FXAM d'un pseudo-infini (7FFF 0000000000000000h) : un NaN pour le 8087 et le 287 (C0, 3900h) ; un format
+            // non supporté pour le 387 (000, 3800h). PB-208 — l'étiquette d'un non normal (3FFF 4000000000000000h), valide
+            // sur le 8087 et le 287 (FNSTENV : 3FFFh), spéciale sur le 387 (BFFFh).
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0xE5, .. SwA], 4, Ops((0x300, Le80(0x7FFF, 0))));
+                var asw = seize ? (ushort)0x3900 : (ushort)0x3800;
+                bad += Voir($"FLD m80 pseudo-infini ; FXAM ; FNSTSW ({nom})", W(0x20A) == asw, $"{W(0x20A):X4}", $"{asw:X4}", true);
+                Jouer87(fpu, [0xDB, 0xE3, .. M80a, 0xD9, 0x37], 3, Ops((0x300, Le80(0x3FFF, 0x4000000000000000))));
+                var tw = seize ? (ushort)0x3FFF : (ushort)0xBFFF;
+                bad += Voir($"FLD m80 non normal ; FNSTENV, les étiquettes ({nom})", W(0x204) == tw, $"{W(0x204):X4}", $"{tw:X4}", true);
+            }
+
+            // FENI et FDISI : IEM (bit 7) sur le 8087 (FNINIT, 03FFh ; FENI, 037Fh ; FDISI, 03FFh), sans effet ailleurs
+            // (037Fh) ; DB E5, sans effet. FNSTCW [BX+2] (D9 7F 02).
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xDB, 0xE0, 0xD9, 0x7F, 0x02, 0xDB, 0xE1, 0xDB, 0xE5, 0xD9, 0x7F, 0x04, .. SwA], 7);
+                var (eni, disi) = fpu == 1 ? ((ushort)0x037F, (ushort)0x03FF) : ((ushort)0x037F, (ushort)0x037F);
+                bad += Voir($"FNINIT ; FENI ; FNSTCW ; FDISI ; DB E5 ; FNSTCW ; FNSTSW ({nom})", W(0x202) == eni && W(0x204) == disi && W(0x20A) == 0,
+                            $"{W(0x202):X4} {W(0x204):X4}, {W(0x20A):X4}", $"{eni:X4} {disi:X4}, 0000", true);
+            }
+        }
+        return bad;
+    }
+
+    // PB-200 — DF E0 sur le 8088 et le 8087 : MOV AX, 1234h ; FNINIT ; FNSTSW AX → AX gardé (déduit : le 8087 n'a pas
+    // FNSTSW AX, 287 PRM) ; PCem, 0000h. Le 287 (le témoin) : 0000h des deux côtés.
+    private static int Pb200(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in new[] { (1, "8087"), (2, "287") })
+        {
+            var r = Jouer87(fpu, [0xB8, 0x34, 0x12, 0xDB, 0xE3, 0xDF, 0xE0], 3);
+            var ax = fpu == 1 && hw ? (ushort)0x1234 : (ushort)0;
+            bad += Voir($"MOV AX, 1234h ; FNINIT ; FNSTSW AX ({nom})", r[(int)R.AX] == ax, $"AX = {r[(int)R.AX]:X4}", $"{ax:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-201 — l'adressage du 8087 (Numerics Supplement, 1980) : DS = 0, FLD m64 [FFFCh] lit ses quatre premiers octets en
+    // FFFCh, les quatre suivants en 10000h, l'adresse physique incrémentée ; PCem boucle dans le segment et les lit en
+    // 0000h. En FFFCh, 0 ; en 10000h, 3FF00000h (1,0) ; en 0000h, 40000000h (2,0). FNINIT ; FLD m64 [FFFCh] (DD 06 FC FF) ;
+    // FSTP m64 [BX].
+    private static int Pb201(bool hw)
+    {
+        Jouer87(1, [0xDB, 0xE3, 0xDD, 0x06, 0xFC, 0xFF, 0xDD, 0x1F], 3,
+                Ops((0xFFFC, [0, 0, 0, 0]), (0x10000, [0, 0, 0xF0, 0x3F]), (0, [0, 0, 0, 0x40])));
+        var a = hw ? 0x3FF0000000000000UL : 0x4000000000000000UL;
+        return Voir("DS = 0 ; FNINIT ; FLD m64 [FFFCh] ; FSTP m64 (8087)", Q(0x200) == a, $"{Q(0x200):X16}", $"{a:X16}", hw);
+    }
+
+    // PB-202 — FINIT et FSAVE gardent C3-C0 sur le 8087 et le 287 (387 PRM, annexe C § C.3) : FNINIT ; FLDZ ; FTST (C3) ;
+    // FNINIT, ou FNSAVE [BX] ; FNSTSW [BX+70h] → 4000h ; PCem, 0000h ; le 287XL, le 387 et le 486, 0000h des deux côtés.
+    private static int Pb202(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        foreach (var (op, n) in new (byte[], string)[] { ([0xDB, 0xE3], "FNINIT"), ([0xDD, 0x37], "FNSAVE") })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xEE, 0xD9, 0xE4, .. op, 0xDD, 0x7F, 0x70], 5);
+            var sw = hw && fpu < 3 ? (ushort)0x4000 : (ushort)0;
+            bad += Voir($"FLDZ ; FTST ; {n} ; FNSTSW ({nom})", W(0x270) == sw, $"{W(0x270):X4}", $"{sw:X4}", hw);
+        }
+        return bad;
+    }
+
     /// <summary>FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 du noyau (N4b), en mode matériel, aux attentes des sources (387
     /// PRM § 4.4.8 à 4.4.12, tables 3-3, 3-4, 3-10 et 4-4 ; SDM vol. 2). FNINIT ; FLDCW [0310h] ; FLD m64 [0308h] ; FLD m64
     /// [0300h] ; le code ; FNSTSW [BX+0Ah] (TOP = 6) ; FSTP m80 [BX].</summary>
@@ -1965,12 +2267,13 @@ internal static class MaterielCas
                         $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{sw:X4}, {se:X4} {sig:X16}", true);
         }
         // FPREM sur le 287 d'un diviseur pseudo-zéro (3FFFh 0000000000000000h, que le 287 prend) : un diviseur nul, IE,
-        // l'indéfini et C2 (et pas l'arrêt de l'hôte : la division entière par zéro de `reste`).
+        // l'indéfini, C2 effacé (287 PRM, table 1-17, « complete remainder » : N7a) (et pas l'arrêt de l'hôte : la
+        // division entière par zéro de `reste`).
         Jouer87(2, [0xDB, 0xE3, 0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xE8, 0xD9, 0xF8, .. SwA, 0xDB, 0x3F], 6,
                 Ops((0x320, Le80(0x3FFF, 0))));
         bad += Voir("FLD m80 pseudo-zéro ; FLD1 ; FPREM ; FNSTSW ; FSTP m80 (287)",
-                    W(0x20A) == 0x3401 && W(0x208) == 0xFFFF && Q(0x200) == 0xC000000000000000,
-                    $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", "3401, FFFF C000000000000000", true);
+                    W(0x20A) == 0x3001 && W(0x208) == 0xFFFF && Q(0x200) == 0xC000000000000000,
+                    $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", "3001, FFFF C000000000000000", true);
         // FXTRACT : FNINIT ; FLD m80 [0320h] ; FXTRACT ; FNSTSW ; FSTP m80 [BX] (le significande) ; FSTP m80 [BX+0Ch]
         // (l'exposant).
         foreach (var (se0, sig0, sw, s1, g1, s2, g2, n) in new (ushort, ulong, ushort, ushort, ulong, ushort, ulong, string)[]

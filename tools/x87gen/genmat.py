@@ -83,7 +83,15 @@ instr('FNSTSW_AX', [('df', 0xE0)], '''
         x86.AX = (uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11));
         @CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
         return 0;
-''', cibles=('386',), doc='FNSTSW AX : le mot d\'état, TOP compris (287, 387, 486 ; le 8087 n\'a pas DF E0 : N7, PB-200).')
+''', cibles=('386',), doc='FNSTSW AX : le mot d\'état, TOP compris (287, 387, 486).')
+
+instr('FNSTSW_AX', [('df', 0xE0)], '''
+        if (@FP_ENTER()) return 1;
+        cpu_state.pc++;
+        _x87_noyau.dfe0_8087();
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
+        return 0;
+''', cibles=('8087',), doc='DF E0 sur le 8087, qui n\'a pas FNSTSW AX : AX inchangé (_x87_noyau.dfe0_8087 ; PB-200) ; les cycles de PCem.')
 
 instr('FNOP', [('d9', 0xD0)], '''
         if (@FP_ENTER()) return 1;
@@ -346,7 +354,36 @@ instr('FSETPM', [('db', 0xE4)], '''
         @CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
         return 0;
 ''', cibles=('386',), doc='FSETPM : le 287 et le 287XL passent au mode protégé, jusqu\'au RESET (287 PRM, FSETPM ; PB-62) ; le 387 et le 486\n'
-                          'n\'en font rien (387 PRM § 4.8). Le 8087 n\'a pas DB E4 : N7.')
+                          'n\'en font rien (387 PRM § 4.8). Le 8087 n\'a pas DB E4 : DB_E5.')
+
+for nom, op, effet, quoi in [('FENI', 0xE0, 'cpu_state.npxc &= unchecked((uint16_t)~0x80);', 'efface'),
+                             ('FDISI', 0xE1, 'cpu_state.npxc |= 0x80;', 'pose')]:
+    instr(nom, [('db', op)], '''
+        if (@FP_ENTER()) return 1;
+        cpu_state.pc++;
+        %s
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.fdisi_eni);
+        return 0;
+''' % effet, cibles=('8087',), doc='%s : %s IEM, le masque des requêtes d\'interruption du 8087, bit 7 du mot de contrôle (Numerics\n'
+                                  'Supplement, 1980, %s) ; une instruction de contrôle, qui laisse les pointeurs.' % (nom, quoi, nom))
+    instr(nom, [('db', op)], '''
+        if (@FP_ENTER()) return 1;
+        cpu_state.pc++;
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+''', cibles=('386',), doc='%s : sans effet sur le 287, le 387 et le 486 (287 PRM : « the 80287 will perform no specific operation and\n'
+                         'no internal states will be affected » ; 387 PRM, annexe D, point 2).' % nom)
+
+DB_E5 = '''
+        if (@FP_ENTER()) return 1;
+        cpu_state.pc++;
+        @CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+'''
+DB_E5_DOC = ('DB E5, et DB E4 sur le 8087 : réservés (les tables des opcodes du 287 PRM et du manuel de l\'iAPX 86/88, 1981) ;\n'
+             'PCem les exécute en FNOP ; le noyau, sans effet ni pointeurs, aux cycles de FNOP (inconnu).')
+instr('DB_E5', [('db', 0xE5)], DB_E5, cibles=('386',), doc=DB_E5_DOC)
+instr('DB_E5', [('db', 0xE4), ('db', 0xE5)], DB_E5, cibles=('8087',), doc=DB_E5_DOC)
 
 # ---- Les deux instanciations ----
 # Les aides de contexte et leur classe, par cible.
@@ -356,9 +393,12 @@ CTX = {
     '8087': {'FP_ENTER': '_808x.FP_ENTER', 'CLOCK_CYCLES': '_808x.CLOCK_CYCLES', 'SEG_CHECK_READ': '_808x.SEG_CHECK_READ',
              'SEG_CHECK_WRITE': '_808x.SEG_CHECK_WRITE', 'geteaw': '_808x.geteaw', 'seteaw': '_808x.seteaw'},
 }
+# Le 8087 lit et écrit son opérande à l'adresse physique, mot après mot (PB-201 : 808x.Materiel.cs) ; geteaw, la seule
+# lecture d'un mot, est celle de l'UC.
 for k in ['geteal', 'geteaq', 'seteal', 'seteaq', 'readmemq', 'readmemw', 'writememq', 'writememw']:
     CTX['386'][k] = k
-    CTX['8087'][k] = '_808x.' + k
+    CTX['8087'][k] = '_808x.' + k + '_8087'
+CTX['8087']['seteaw'] = '_808x.seteaw_8087'
 
 def instancier(corps, cible, a, esc):
     t = corps

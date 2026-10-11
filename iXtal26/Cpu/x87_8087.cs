@@ -51,8 +51,9 @@ internal static partial class _808x
 
     // Le readmemw du 808x prend un offset de 16 bits (808x.c) : le C tronque en silence
     // l'`eaaddr + 8` de x87_ld80, et l'offset boucle dans le segment. Même geste ici.
-    // pcem bug, reproduced: PB-201 — les LECTURES bouclent dans le segment ; le 8087 incrémente l'adresse
-    //   physique de 20 bits, comme le font ici les écritures (writememw du 808x, writememb_8087), sans repli.
+    // pcem bug, fixed in hardware mode: PB-201 — les LECTURES bouclent dans le segment ; le 8087 incrémente l'adresse
+    //   physique de 20 bits, comme le font ici les écritures (writememw du 808x, writememb_8087), sans repli. Le noyau
+    //   (x87_noyau_808x.Materiel.cs) lit par readmemw_8087 (808x.Materiel.cs).
     internal static uint16_t readmemw(uint32_t s, uint32_t a) => readmemw(s, (uint16_t)a);
 
     // pcem: 8087.h:19-23

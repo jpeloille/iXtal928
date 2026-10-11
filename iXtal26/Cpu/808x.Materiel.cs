@@ -608,4 +608,68 @@ internal static partial class _808x
         CLOCK_CYCLES(x87_timings_c.x87_timings.fst);
         return 0;
     }
+
+    // pcem bug, fixed in hardware mode: PB-201 — l'adressage du 8087, pour le noyau de 80 bits (x87_noyau_808x.Materiel.cs,
+    //   à la place des aides de 8087.h, x87_8087.cs) : l'UC lit le premier mot de l'opérande (la lecture fictive), le
+    //   8087 en relève l'adresse physique de 20 bits et l'incrémente pour chaque mot suivant, qu'il lit ou écrit lui-même
+    //   (Numerics Supplement, 1980 ; D2 § 7) : rien ne boucle dans le segment, l'adresse boucle à 1 Mo. Le premier mot lu
+    //   passe par readmemw, comme toute lecture de l'UC (PB-07 et PB-179 compris). Chaque mot suivant, et chaque mot écrit,
+    //   passe par readmemw ou writememw : dans le segment, tel quel, comme PCem (les mêmes cycles de bus, le même chemin
+    //   de la mémoire) ; au-delà de l'offset FFFFh, à l'adresse physique, découpée en une tranche de 64 Ko et un offset ;
+    //   un mot à cheval sur deux tranches (l'offset FFFFh, que readmemw replierait), octet par octet. `a` : l'offset de
+    //   l'opérande et celui du mot, sans repli à 16 bits.
+    internal static uint16_t readmemw_8087(uint32_t s, uint32_t a)
+    {
+        if (a == cpu_state.eaaddr || a < 0xFFFF)
+                return readmemw(s, (uint16_t)a);
+        ModeMateriel.Sonde[201]++;
+        var p = (s + a) & 0xFFFFF;
+        if ((p & 0xFFFF) != 0xFFFF)
+                return readmemw(p & 0xF0000, (uint16_t)p);
+        memcycs += 8 >> is8086;
+        return (uint16_t)(readmembf(p) | readmembf((p + 1) & 0xFFFFF) << 8);
+    }
+
+    internal static void writememw_8087(uint32_t s, uint32_t a, uint16_t v)
+    {
+        if (a < 0xFFFF)
+        {
+                writememw(s, a, v);
+                return;
+        }
+        var p = (s + a) & 0xFFFFF;
+        if ((p & 0xFFFF) != 0xFFFF)
+        {
+                writememw(p & 0xF0000, p & 0xFFFF, v);
+                return;
+        }
+        memcycs += 8 >> is8086;
+        writemembf_materiel(p, (uint8_t)v);
+        writemembf_materiel((p + 1) & 0xFFFFF, (uint8_t)(v >> 8));
+    }
+
+    internal static uint64_t readmemq_8087(uint32_t s, uint32_t a) =>
+        readmemw_8087(s, a) | (uint64_t)readmemw_8087(s, a + 2) << 16 |
+        (uint64_t)readmemw_8087(s, a + 4) << 32 | (uint64_t)readmemw_8087(s, a + 6) << 48;
+
+    internal static void writememq_8087(uint32_t s, uint32_t a, uint64_t v)
+    {
+        for (var k = 0; k < 4; k++)
+                writememw_8087(s, a + (uint32_t)(2 * k), (uint16_t)(v >> (16 * k)));
+    }
+
+    internal static uint32_t geteal_8087() =>
+        readmemw_8087(easeg, cpu_state.eaaddr) | (uint32_t)readmemw_8087(easeg, cpu_state.eaaddr + 2) << 16;
+
+    internal static uint64_t geteaq_8087() => readmemq_8087(easeg, cpu_state.eaaddr);
+
+    internal static void seteaw_8087(uint16_t v) => writememw_8087(easeg, cpu_state.eaaddr, v);
+
+    internal static void seteal_8087(uint32_t v)
+    {
+        writememw_8087(easeg, cpu_state.eaaddr, (uint16_t)v);
+        writememw_8087(easeg, cpu_state.eaaddr + 2, (uint16_t)(v >> 16));
+    }
+
+    internal static void seteaq_8087(uint64_t v) => writememq_8087(easeg, cpu_state.eaaddr, v);
 }

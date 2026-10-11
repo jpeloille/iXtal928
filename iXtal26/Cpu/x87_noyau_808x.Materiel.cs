@@ -61,7 +61,7 @@ internal static class _808x_noyau
         if (_808x.FP_ENTER()) return 1;
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-        _808x.seteaw(cpu_state.npxc);
+        _808x.seteaw_8087(cpu_state.npxc);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
         return cpu_state.abrt;
     }
@@ -72,9 +72,19 @@ internal static class _808x_noyau
         if (_808x.FP_ENTER()) return 1;
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-        _808x.seteaw((uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11)));
+        _808x.seteaw_8087((uint16_t)((cpu_state.npxs & 0xC7FF) | ((cpu_state.TOP & 7) << 11)));
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
         return cpu_state.abrt;
+    }
+
+    // DF E0 sur le 8087, qui n'a pas FNSTSW AX : AX inchangé (_x87_noyau.dfe0_8087 ; PB-200) ; les cycles de PCem.
+    internal static int opFNSTSW_AX(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        _x87_noyau.dfe0_8087();
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fstcw_sw);
+        return 0;
     }
 
     // FNOP.
@@ -134,7 +144,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD9, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fld_f32(t);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fld_32);
@@ -149,7 +159,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDD, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fld_f64(t);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fld_64);
@@ -164,8 +174,8 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDB, fetchdat, true);
-        s = _808x.readmemq(x86.easeg, cpu_state.eaaddr);
-        e = _808x.readmemw(x86.easeg, cpu_state.eaaddr + 8);
+        s = _808x.readmemq_8087(x86.easeg, cpu_state.eaaddr);
+        e = _808x.readmemw_8087(x86.easeg, cpu_state.eaaddr + 8);
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fld_f80(s, e);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fld_80);
@@ -195,7 +205,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDB, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fild((int32_t)t);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fild_32);
@@ -210,7 +220,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fild((int64_t)t);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fild_64);
@@ -225,8 +235,8 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
-        s = _808x.readmemq(x86.easeg, cpu_state.eaaddr);
-        e = _808x.readmemw(x86.easeg, cpu_state.eaaddr + 8);
+        s = _808x.readmemq_8087(x86.easeg, cpu_state.eaaddr);
+        e = _808x.readmemw_8087(x86.easeg, cpu_state.eaaddr + 8);
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fbld(s, e);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fbld);
@@ -242,7 +252,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xD9, fetchdat, true);
         if (!_x87_noyau.fst_f32(out var t))
         {
-                _808x.seteal(t);
+                _808x.seteal_8087(t);
                 if (cpu_state.abrt != 0) return 1;
         }
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -258,7 +268,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xD9, fetchdat, true);
         if (!_x87_noyau.fst_f32(out var t))
         {
-                _808x.seteal(t);
+                _808x.seteal_8087(t);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -275,7 +285,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDD, fetchdat, true);
         if (!_x87_noyau.fst_f64(out var t))
         {
-                _808x.seteaq(t);
+                _808x.seteaq_8087(t);
                 if (cpu_state.abrt != 0) return 1;
         }
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fst_64);
@@ -291,7 +301,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDD, fetchdat, true);
         if (!_x87_noyau.fst_f64(out var t))
         {
-                _808x.seteaq(t);
+                _808x.seteaq_8087(t);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -308,8 +318,8 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDB, fetchdat, true);
         if (!_x87_noyau.fst_f80(out var t))
         {
-                _808x.writememq(x86.easeg, cpu_state.eaaddr, t.signif);
-                _808x.writememw(x86.easeg, cpu_state.eaaddr + 8, t.signExp);
+                _808x.writememq_8087(x86.easeg, cpu_state.eaaddr, t.signif);
+                _808x.writememw_8087(x86.easeg, cpu_state.eaaddr + 8, t.signExp);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -326,7 +336,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
         if (!_x87_noyau.fist(16, out var t))
         {
-                _808x.seteaw((uint16_t)t);
+                _808x.seteaw_8087((uint16_t)t);
                 if (cpu_state.abrt != 0) return 1;
         }
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fist_16);
@@ -342,7 +352,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
         if (!_x87_noyau.fist(16, out var t))
         {
-                _808x.seteaw((uint16_t)t);
+                _808x.seteaw_8087((uint16_t)t);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -359,7 +369,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDB, fetchdat, true);
         if (!_x87_noyau.fist(32, out var t))
         {
-                _808x.seteal((uint32_t)t);
+                _808x.seteal_8087((uint32_t)t);
                 if (cpu_state.abrt != 0) return 1;
         }
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fist_32);
@@ -375,7 +385,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDB, fetchdat, true);
         if (!_x87_noyau.fist(32, out var t))
         {
-                _808x.seteal((uint32_t)t);
+                _808x.seteal_8087((uint32_t)t);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -392,7 +402,7 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
         if (!_x87_noyau.fist(64, out var t))
         {
-                _808x.seteaq((uint64_t)t);
+                _808x.seteaq_8087((uint64_t)t);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -409,8 +419,8 @@ internal static class _808x_noyau
         _x87_noyau.pointeurs_8087(0xDF, fetchdat, true);
         if (!_x87_noyau.fbstp(out var s, out var e))
         {
-                _808x.writememq(x86.easeg, cpu_state.eaaddr, s);
-                _808x.writememw(x86.easeg, cpu_state.eaaddr + 8, e);
+                _808x.writememq_8087(x86.easeg, cpu_state.eaaddr, s);
+                _808x.writememw_8087(x86.easeg, cpu_state.eaaddr + 8, e);
                 if (cpu_state.abrt != 0) return 1;
                 _x87_noyau.depiler();
         }
@@ -541,7 +551,7 @@ internal static class _808x_noyau
         _x87_noyau.a_lire(d, false);
         for (var k = 0; k < _x87_noyau.n; k++)
         {
-                _x87_noyau.mot[k] = _808x.readmemw(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k]);
+                _x87_noyau.mot[k] = _808x.readmemw_8087(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k]);
                 if (cpu_state.abrt != 0) return 1;
         }
         _x87_noyau.fldenv(d, false);
@@ -560,7 +570,7 @@ internal static class _808x_noyau
         _x87_noyau.fstenv(d);
         for (var k = 0; k < _x87_noyau.n; k++)
         {
-                _808x.writememw(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k], _x87_noyau.mot[k]);
+                _808x.writememw_8087(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k], _x87_noyau.mot[k]);
                 if (cpu_state.abrt != 0) return 1;
         }
         _x87_noyau.fstenv_fin();
@@ -579,7 +589,7 @@ internal static class _808x_noyau
         _x87_noyau.a_lire(d, true);
         for (var k = 0; k < _x87_noyau.n; k++)
         {
-                _x87_noyau.mot[k] = _808x.readmemw(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k]);
+                _x87_noyau.mot[k] = _808x.readmemw_8087(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k]);
                 if (cpu_state.abrt != 0) return 1;
         }
         _x87_noyau.fldenv(d, true);
@@ -598,7 +608,7 @@ internal static class _808x_noyau
         _x87_noyau.fsave(d);
         for (var k = 0; k < _x87_noyau.n; k++)
         {
-                _808x.writememw(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k], _x87_noyau.mot[k]);
+                _808x.writememw_8087(x86.easeg, cpu_state.eaaddr + _x87_noyau.off[k], _x87_noyau.mot[k]);
                 if (cpu_state.abrt != 0) return 1;
         }
         _x87_noyau.fsave_fin();
@@ -614,7 +624,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -629,7 +639,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
@@ -644,7 +654,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -659,7 +669,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -674,7 +684,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
@@ -689,7 +699,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
@@ -704,7 +714,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
@@ -719,7 +729,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xD8, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         if (!_x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den))
                 _x87_noyau.depiler();
@@ -735,7 +745,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -750,7 +760,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
@@ -765,7 +775,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -780,7 +790,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -795,7 +805,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
@@ -810,7 +820,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
@@ -825,7 +835,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
@@ -840,7 +850,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDC, fetchdat, true);
-        t = _808x.geteaq();
+        t = _808x.geteaq_8087();
         if (cpu_state.abrt != 0) return 1;
         if (!_x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den))
                 _x87_noyau.depiler();
@@ -856,7 +866,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -871,7 +881,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
@@ -886,7 +896,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -901,7 +911,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -916,7 +926,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
@@ -931,7 +941,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
@@ -946,7 +956,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         _x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false);
         _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
@@ -961,7 +971,7 @@ internal static class _808x_noyau
         if (_808x.fetch_ea_16(fetchdat)) return 1;
         if (_808x.SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
         _x87_noyau.pointeurs_8087(0xDA, fetchdat, true);
-        t = _808x.geteal();
+        t = _808x.geteal_8087();
         if (cpu_state.abrt != 0) return 1;
         if (!_x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false))
                 _x87_noyau.depiler();
@@ -1558,6 +1568,38 @@ internal static class _808x_noyau
         return 0;
     }
 
+    // FENI : efface IEM, le masque des requêtes d'interruption du 8087, bit 7 du mot de contrôle (Numerics
+    //   Supplement, 1980, FENI) ; une instruction de contrôle, qui laisse les pointeurs.
+    internal static int opFENI(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        cpu_state.npxc &= unchecked((uint16_t)~0x80);
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdisi_eni);
+        return 0;
+    }
+
+    // FDISI : pose IEM, le masque des requêtes d'interruption du 8087, bit 7 du mot de contrôle (Numerics
+    //   Supplement, 1980, FDISI) ; une instruction de contrôle, qui laisse les pointeurs.
+    internal static int opFDISI(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        cpu_state.npxc |= 0x80;
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fdisi_eni);
+        return 0;
+    }
+
+    // DB E5, et DB E4 sur le 8087 : réservés (les tables des opcodes du 287 PRM et du manuel de l'iAPX 86/88, 1981) ;
+    //   PCem les exécute en FNOP ; le noyau, sans effet ni pointeurs, aux cycles de FNOP (inconnu).
+    internal static int opDB_E5(uint32_t fetchdat)
+    {
+        if (_808x.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        _808x.CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+    }
+
     /// <summary>Les huit tables du 8087, remplacées en place (execx86 les indexe en dur) : chaque instruction écrite
     /// à son entrée, les autres à l'arrêt (_x87_noyau.a_ecrire).</summary>
     internal static void poser_tables()
@@ -1575,6 +1617,7 @@ internal static class _808x_noyau
         _x87_noyau.memoire(_808x.ops_808x_fpu_d9_a16, 5, opFLDCW_a16);
         _x87_noyau.memoire(_808x.ops_808x_fpu_d9_a16, 7, opFNSTCW_a16);
         _x87_noyau.memoire(_808x.ops_808x_fpu_dd_a16, 7, opFNSTSW_a16);
+        _808x.ops_808x_fpu_df_a16[0xE0] = opFNSTSW_AX;
         _808x.ops_808x_fpu_d9_a16[0xD0] = opFNOP;
         _808x.ops_808x_fpu_d9_a16[0xF7] = opFINCSTP;
         _808x.ops_808x_fpu_d9_a16[0xF6] = opFDECSTP;
@@ -1787,5 +1830,9 @@ internal static class _808x_noyau
         _808x.ops_808x_fpu_d9_a16[0xFB] = opFSINCOS;
         _808x.ops_808x_fpu_d9_a16[0xFE] = opFSIN;
         _808x.ops_808x_fpu_d9_a16[0xFF] = opFCOS;
+        _808x.ops_808x_fpu_db_a16[0xE0] = opFENI;
+        _808x.ops_808x_fpu_db_a16[0xE1] = opFDISI;
+        _808x.ops_808x_fpu_db_a16[0xE4] = opDB_E5;
+        _808x.ops_808x_fpu_db_a16[0xE5] = opDB_E5;
     }
 }

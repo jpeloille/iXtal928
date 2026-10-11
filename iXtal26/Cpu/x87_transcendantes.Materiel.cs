@@ -165,13 +165,14 @@ internal static class _x87_transcendantes
     }
 
     /// <summary>Le réel arrondi une fois au registre de 80 bits, selon RC, à 64 bits de significande
-    /// (softfloat_roundPackToExtF80 : les indicateurs, C1, et l'exposant non borné d'OE et d'UE démasquées).
+    /// (softfloat_roundPackToExtF80 : les indicateurs, C1, et l'exposant non borné d'OE et d'UE démasquées ; sur le 8087
+    /// et le 287, démasquées, sans arrondi : _x87_noyau.seize_arrondi).
     /// `inexact` : la valeur vraie n'est pas celle du réel (une transcendante), qui doit donc lever PE même si ses bits
     /// bas sont nuls.</summary>
     internal static extFloat80_t arrondir(in Reel r, bool inexact)
     {
         var bas = (ulong)r.m | (inexact ? 1UL : 0UL);
-        return softfloat.softfloat_roundPackToExtF80(r.s, r.e + 0x3FFF, (ulong)(r.m >> 64), bas, 80);
+        return _x87_noyau.seize_arrondi(r.s, r.e + 0x3FFF, (ulong)(r.m >> 64), bas, 80);
     }
 
     // ===== Les constantes (tools/x87ref/transcendantes.py constantes ; au plus près, 128 bits) =====

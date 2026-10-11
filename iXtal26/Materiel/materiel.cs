@@ -219,6 +219,15 @@ internal static class materiel
     /// <summary>PB-199 : FSAVE range chaque registre en réel de 80 bits ; le noyau, en chantier.</summary>
     internal static readonly bool pb_199;
 
+    /// <summary>PB-200 : DF E0 laisse AX sur le 8087 ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_200;
+
+    /// <summary>PB-201 : le 8087 adresse chaque mot de son opérande à l'adresse physique ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_201;
+
+    /// <summary>PB-202 : FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_202;
+
     /// <summary>PB-203 : au RESET, le coprocesseur prend l'état initial de son type ; avec PB-264, le noyau (en chantier).</summary>
     internal static readonly bool pb_203;
 
@@ -365,6 +374,9 @@ internal static class materiel
         pb_197 = ModeMateriel.Demande(197);
         pb_198 = ModeMateriel.Demande(198);
         pb_199 = ModeMateriel.Demande(199);
+        pb_200 = ModeMateriel.Demande(200);
+        pb_201 = ModeMateriel.Demande(201);
+        pb_202 = ModeMateriel.Demande(202);
         pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
         pb_206 = ModeMateriel.Demande(206);

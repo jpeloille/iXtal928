@@ -74,11 +74,14 @@ internal static class _x87_noyau
     internal static bool vide(int i) => etiquette(phys(i)) == VIDE;
 
     /// <summary>L'étiquette d'un contenu, comme le 387 et le 486 la calculent : 01 pour un zéro, 10 pour un NaN, un
-    /// infini, un dénormal et les formats non supportés, 00 sinon. Celle du 8087 et du 287 pour un non normal : N7.</summary>
+    /// infini, un dénormal et les formats non supportés, 00 sinon. Le 8087 et le 287 étiquettent valides (00) le non
+    /// normal et le pseudo-zéro (387 PRM, annexe C § C.2 : « The encoding for pseudozero and unnormal is "valid" » ;
+    /// PB-208).</summary>
     internal static int etiquette_de(in extFloat80_t v) => classe(v) switch
     {
         Classe.Zero => ZERO,
         Classe.Normal => VALIDE,
+        Classe.NonNormal when seize_bits() => VALIDE,
         _ => SPECIAL,
     };
 
@@ -116,6 +119,14 @@ internal static class _x87_noyau
     /// dénormal (DE). Le 287XL, un cœur de 387 : déduit. Le 8087 et le 287 calculent sur un non normal : N7.</summary>
     internal static bool non_supporte(Classe c) =>
         cpu_c.fpu_type >= cpu_c.FPU_287XL && c is Classe.NonNormal or Classe.PseudoInfini or Classe.PseudoNaN;
+
+    /// <summary>Le 8087 et le 287, les coprocesseurs de 16 bits, d'avant la norme IEEE 754 (387 PRM, annexe C,
+    /// « Compatibility between the 80387 and the 80287/8087 ») ; le 287XL, un cœur de 387, n'en est pas (déduit).</summary>
+    internal static bool seize_bits() => cpu_c.fpu_type < cpu_c.FPU_287XL;
+
+    /// <summary>Un NaN pour le 8087 et le 287 : l'exposant maximal et tout significande sauf 1,0…0, celui de l'infini
+    /// (287 PRM, « NaN ») ; le pseudo-infini et le pseudo-NaN du 387 en sont.</summary>
+    private static bool nan_seize(Classe c) => c is Classe.QNaN or Classe.SNaN or Classe.PseudoNaN or Classe.PseudoInfini;
 
     // ===== Les exceptions =====
 
@@ -235,6 +246,9 @@ internal static class _x87_noyau
         softfloat.softfloat_roundedUp = false;
         softfloat.softfloat_unboundedExp = (byte)(((cpu_state.npxc & OE) == 0 ? softfloat.softfloat_flag_overflow : 0) |
                                                   ((cpu_state.npxc & UE) == 0 ? softfloat.softfloat_flag_underflow : 0));
+        // La petitesse : après l'arrondi (SDM vol. 1, 2003, § 4.9.1.5), avant sur le 8087 et le 287 (PB-59, seize_arrondi).
+        softfloat.softfloat_detectTininess = seize_bits() ? softfloat.softfloat_tininess_beforeRounding
+                                                          : softfloat.softfloat_tininess_afterRounding;
     }
 
     // pcem bug, fixed in hardware mode: PB-59 — après un calcul : les indicateurs de SoftFloat vers le mot d'état
@@ -256,9 +270,8 @@ internal static class _x87_noyau
     //   (SDM vol. 1, 2003, § 8.5.6 : « the inexact-result condition is not reported and the C1 flag is cleared » ; 486
     //   PRM § 19.2.5 : « handled like a before exception; memory is not updated and the stack is not popped ») ; UE y
     //   est levée pour un résultat petit et exact par l'appelant (petit). La petitesse après l'arrondi n'est écrite que
-    //   par le SDM (le 387 PRM et le 486 PRM disent « tiny » sans plus). Le 8087 et le 287, la destination un registre,
-    //   laissent le significande non arrondi, sans PE (387 PRM, annexe C ; 486 PRM, chapitre 25), et jugent la petitesse
-    //   sur le résultat vrai (287 PRM, table 1-17) : N7 ; ici, la réponse du 387.
+    //   par le SDM (le 387 PRM et le 486 PRM disent « tiny » sans plus). Le 8087 et le 287 : seize_arrondi et
+    //   seize_depassement.
     internal static bool indicateurs(bool memoire = false)
     {
         var f = softfloat.softfloat_exceptionFlags;
@@ -292,16 +305,18 @@ internal static class _x87_noyau
 
     /// <summary>Vrai si `v`, fini et non nul, est petit pour un format de `bits` de significande et d'exposant minimal
     /// `emin` (sans biais) : arrondi selon RC à `bits` sur un exposant non borné, il reste sous 2^emin (après l'arrondi,
-    /// comme indicateurs ; un dénormal de 80 bits l'est toujours). Les indicateurs de SoftFloat et C1 sont
-    /// gardés.</summary>
+    /// comme indicateurs ; un dénormal de 80 bits l'est toujours ; le 8087 et le 287 la jugent avant l'arrondi, sur la
+    /// valeur vraie, PB-59). Les indicateurs de SoftFloat et C1 sont gardés.</summary>
     private static bool petit(in extFloat80_t v, byte bits, int emin)
     {
         var c = classe(v);
-        if (c is Classe.Zero or Classe.Infini or Classe.QNaN or Classe.SNaN || non_supporte(c))
+        if (c is Classe.Zero or Classe.Infini or Classe.QNaN or Classe.SNaN || non_supporte(c) || seize_bits() && nan_seize(c))
                 return false;
         var (s, e, m) = normaliser(v);
         if (e >= emin)
                 return false;
+        if (seize_bits())
+                return true;
         var f = softfloat.softfloat_exceptionFlags;
         var h = softfloat.softfloat_roundedUp;
         var u = softfloat.softfloat_unboundedExp;
@@ -311,6 +326,117 @@ internal static class _x87_noyau
         softfloat.softfloat_roundedUp = h;
         softfloat.softfloat_unboundedExp = u;
         return (r.signExp & 0x7FFF) < emin + 0x3FFF;
+    }
+
+    // ===== Le 8087 et le 287 : les exceptions (N7a) =====
+
+    // pcem bug, fixed in hardware mode: PB-59 — le dépassement et la petitesse du 8087 et du 287 (387 PRM, annexe C §
+    //   C.2). OE ou UE démasquée, la destination un registre : « the significand is not rounded but rather is left as
+    //   is », et PE n'est pas levée ; le noyau tronque le significande à 64 bits (déduit) et garde l'exposant décalé de
+    //   N5. `seize_arrondi` refait l'arrondi de (s, exp, sig, extra) vers zéro ; les opérations qui n'arrondissent pas
+    //   par softfloat_roundPackToExtF80 refont leur calcul (operation). La petitesse se juge avant l'arrondi, sur le
+    //   résultat vrai (287 PRM, table 1-17 : « exponent of true result < −16,382 (true) » ; arrondi).
+    internal static extFloat80_t seize_arrondi(bool s, int exp, uint64_t sig, uint64_t extra, byte bits)
+    {
+        var r = softfloat.softfloat_roundPackToExtF80(s, exp, sig, extra, bits);
+        if (!brut())
+                return r;
+        var mode = softfloat.softfloat_roundingMode;
+        var f = softfloat.softfloat_exceptionFlags;
+        softfloat.softfloat_roundingMode = softfloat.softfloat_round_minMag;
+        softfloat.softfloat_exceptionFlags = 0;
+        r = softfloat.softfloat_roundPackToExtF80(s, exp, sig, extra, 80);
+        softfloat.softfloat_exceptionFlags = (byte)((f | softfloat.softfloat_exceptionFlags) & ~softfloat.softfloat_flag_inexact);
+        softfloat.softfloat_roundingMode = mode;
+        ModeMateriel.Sonde[59]++;
+        return r;
+    }
+
+    /// <summary>Vrai sur le 8087 et le 287 quand OE ou UE démasquée vient d'être levée par l'arrondi : le résultat doit
+    /// être refait sans arrondi (seize_arrondi).</summary>
+    internal static bool brut() =>
+        seize_bits() && (softfloat.softfloat_exceptionFlags & softfloat.softfloat_unboundedExp &
+                         (softfloat.softfloat_flag_overflow | softfloat.softfloat_flag_underflow)) != 0;
+
+    // pcem bug, fixed in hardware mode: PB-59 — les réponses masquées du 8087 et du 287 (387 PRM, annexe C § C.2 ; 287
+    //   PRM, tables 1-11 et 1-17), après l'arrondi d'un résultat `r` : OE masquée, le dépassement rend l'infini au plus
+    //   près et vers zéro (« If rounding is set to chop (toward zero), the result is positive or negative infinity »), et
+    //   OE n'est levée que si la réponse est l'infini (« does not signal the overflow exception when the masked
+    //   response is not infinity ») : vers +∞ ou −∞, le plus grand fini, PE seule ; UE masquée et l'arrondi vers zéro,
+    //   UE est levée sur la seule petitesse (« raised on tininess, regardless of loss of accuracy ») : un résultat
+    //   dénormal exact la lève aussi. `exp`, `frac` : les bits de l'exposant et de la fraction du format (15 et 64, le
+    //   bit entier compris, pour un registre ; 8 et 23, 11 et 52, pour FST m32 et m64).
+    internal static void seize_depassement(ref uint64_t bits, ref uint16_t signExp, int exp, int frac)
+    {
+        if (!seize_bits())
+                return;
+        var f = softfloat.softfloat_exceptionFlags;
+        var registre = exp == 15;
+        var max = (1 << exp) - 1;
+        var e = registre ? signExp & 0x7FFF : (int)(bits >> frac) & max;
+        var fraction = registre ? bits : bits & ((1UL << frac) - 1);
+        var negatif = registre ? (signExp & 0x8000) != 0 : (bits >> (frac + exp)) != 0;
+        var chop = softfloat.softfloat_roundingMode == softfloat.softfloat_round_minMag;
+        if ((f & softfloat.softfloat_flag_overflow) != 0 && masquee(OE))
+        {
+                ModeMateriel.Sonde[59]++;
+                if (chop)
+                {
+                        if (registre)
+                        {
+                                signExp = (uint16_t)(negatif ? 0xFFFF : 0x7FFF);
+                                bits = 0x8000000000000000;
+                        }
+                        else
+                                bits = (negatif ? 1UL << (frac + exp) : 0) | (uint64_t)max << frac;
+                }
+                else if (e != max)
+                        softfloat.softfloat_exceptionFlags &= unchecked((byte)~softfloat.softfloat_flag_overflow);
+        }
+        if (chop && masquee(UE) && e == 0 && fraction != 0 && (f & softfloat.softfloat_flag_underflow) == 0)
+        {
+                ModeMateriel.Sonde[59]++;
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+        }
+    }
+
+    /// <summary>seize_depassement d'un résultat de 80 bits.</summary>
+    internal static void seize_depassement(ref extFloat80_t r) => seize_depassement(ref r.signif, ref r.signExp, 15, 64);
+
+    // pcem bug, fixed in hardware mode: PB-60 — le 8087 et le 287 lèvent IE pour tout NaN opérande, et non pour le seul
+    //   SNaN (387 PRM, annexe C § C.2 : « raises an invalid-operation exception upon encountering any kind of NaN »),
+    //   et rendent le NaN de plus grande valeur absolue, signes ignorés (287 PRM, table 1-17 ; Numerics Supplement,
+    //   1980, « NANs »), tel quel : ils ne connaissent qu'un genre de NaN et ne le rendent pas silencieux (déduit). Deux
+    //   significandes égaux : le positif, la règle du 387 (inconnu).
+    private static extFloat80_t nan_de_seize(in extFloat80_t a, in extFloat80_t b)
+    {
+        ModeMateriel.Sonde[60]++;
+        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_invalid;
+        bool na = nan_seize(classe(a)), nb = nan_seize(classe(b));
+        if (!nb)
+                return a;
+        if (!na)
+                return b;
+        if (a.signif != b.signif)
+                return a.signif > b.signif ? a : b;
+        return a.signExp <= b.signExp ? a : b;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-200 — DF E0 sur le 8087, qui n'a pas FNSTSW AX (287 PRM, FSTSW AX : « a
+    //   special 80287 instruction » ; Numerics Supplement, 1980 : le 8087 n'échange avec l'UC que par la mémoire) : AX
+    //   reste tel quel (déduit) ; ce que le 8087 fait de l'opcode est inconnu, le noyau n'en fait rien.
+    internal static void dfe0_8087() => ModeMateriel.Sonde[200]++;
+
+    // pcem bug, fixed in hardware mode: PB-59 — sur le 8087 et le 287, DE démasquée passe avant toute autre exception, sauf
+    //   la faute de pile (287 PRM, table 3-2, « Denormalized operand (if unmasked) » en tête, et annexe C, point 4 :
+    //   « a Denormal Operand exception takes precedence over a nonstack Invalid operation exception » ; 387 PRM, annexe
+    //   C § C.2). Vrai si l'instruction s'arrête.
+    private static bool de_d_abord(bool den)
+    {
+        if (!seize_bits() || !den || masquee(DE))
+                return false;
+        ModeMateriel.Sonde[59]++;
+        return lever(DE);
     }
 
     // ===== Les mouvements de données (N3a) =====
@@ -339,7 +465,10 @@ internal static class _x87_noyau
     //   PRM § 3.2.4, le SDM vol. 1 § 8.5.2 et le 486 PRM § 19.2.5 disent, en général, la pile inchangée après une
     //   exception de dénormal démasquée : les sources se contredisent, la note propre à FLD est suivie ; inconnu). Le
     //   8087 et le 287 ne lèvent rien sur un SNaN (SDM vol. 3, 2016, § 22.18.7.11) ; la valeur qu'ils chargent est
-    //   inconnue : ses bits, étendus sans le rendre silencieux. Leurs dénormaux chargés en non normaux : N7.
+    //   inconnue : ses bits, étendus sans le rendre silencieux. DE démasquée les arrête avant toute écriture, pile comprise
+    //   (287 PRM, « Simultaneous Exception Response » et table 3-2 ; manuel de l'iAPX 86/88, 1981 : une exception
+    //   « detected before an operation begins » laisse la pile et la mémoire ; PB-59, N7a). Leurs dénormaux chargés en
+    //   non normaux : N7b.
     internal static void fld_f32(uint32_t v)
     {
         c1_zero();
@@ -368,7 +497,7 @@ internal static class _x87_noyau
         }
         if ((v & 0x7F800000) == 0 && (v & 0x007FFFFF) != 0)
                 e |= DE;
-        if (e != 0 && lever(e) && e != DE)
+        if (e != 0 && lever(e) && (e != DE || seize_bits()))
                 return;
         empiler(r);
     }
@@ -403,17 +532,26 @@ internal static class _x87_noyau
         }
         if ((v & 0x7FF0000000000000) == 0 && (v & 0x000FFFFFFFFFFFFF) != 0)
                 e |= DE;
-        if (e != 0 && lever(e) && e != DE)
+        if (e != 0 && lever(e) && (e != DE || seize_bits()))
                 return;
         empiler(r);
     }
 
     // pcem bug, fixed in hardware mode: PB-55 — FLD m80 : les 80 bits tels quels, sans conversion ni autre exception que
     //   la faute de pile (SDM vol. 2, FLD ; 387 PRM, annexe B) ; un format non supporté se charge, et lève IE quand une opération le lit.
+    //   PB-59 : le 8087 et le 287 lèvent DE pour un dénormal (387 PRM, annexe C § C.4 : « Reports denormal
+    //   exception » ; 287 PRM, annexe C, point 2 : de la mémoire seulement), l'exposant nul, J compris (point 1) ;
+    //   masquée, « load as usual » (287 PRM, table 1-17) ; démasquée, rien n'est empilé (fld_f32).
     internal static void fld_f80(uint64_t signif, uint16_t signExp)
     {
         ModeMateriel.Sonde[55]++;
         c1_zero();
+        if (seize_bits() && !plein() && (signExp & 0x7FFF) == 0 && signif != 0)
+        {
+                ModeMateriel.Sonde[59]++;
+                if (lever(DE))
+                        return;
+        }
         empiler(new extFloat80_t { signExp = signExp, signif = signif });
     }
 
@@ -530,8 +668,12 @@ internal static class _x87_noyau
 
     // PB-63 (corrigé en G13.6a, en double) : FXAM sur 80 bits (387 PRM § 4.5.10 et table 4-8 ; SDM vol. 2, FXAM) : non
     //   supporté C3 C2 C0 = 000, NaN 001, normal 010, infini 011, zéro 100, vide 101, dénormal 110 (le pseudo-dénormal
-    //   compris) ; C1, le signe du registre, vide compris. Les seize codes du 8087 et du 287 (le non normal, ses signes) :
-    //   N7 ; ceux qu'il partage avec le 387 sont les mêmes.
+    //   compris) ; C1, le signe du registre, vide compris. Le 8087 et le 287 ont seize codes (287 PRM, table 2-8 ;
+    //   Numerics Supplement, 1980, table S-13) : ceux du 387, et 000 pour un non normal, le pseudo-zéro compris (un non
+    //   normal au significande nul : 287 PRM, « Zeros and pseudo zeros »), le signe dans C1 ; le pseudo-infini et le
+    //   pseudo-NaN sont des NaN (nan_seize), 001. Le vide : quatre codes possibles, C3 = C0 = 1, C2 et C1 quelconques
+    //   (287 PRM, FXAM : « bits C3 and C0 of the condition code are both 1 in all encodings ») ; le noyau rend celui du 387
+    //   (inconnu).
     internal static void fxam()
     {
         var v = R[phys(0)];
@@ -546,6 +688,7 @@ internal static class _x87_noyau
                         Classe.Denormal or Classe.PseudoDenormal => (uint16_t)(x87_c.C3 | x87_c.C2),
                         Classe.Infini => (uint16_t)(x87_c.C2 | x87_c.C0),
                         Classe.QNaN or Classe.SNaN => x87_c.C0,
+                        Classe.PseudoInfini or Classe.PseudoNaN when seize_bits() => x87_c.C0,
                         _ => 0,
                 };
         if ((v.signExp & 0x8000) != 0)
@@ -585,8 +728,15 @@ internal static class _x87_noyau
         r = softfloat.extF80_to_f32(v).v;
         if (ns)
                 softfloat.softfloat_exceptionFlags = 0;
-        else if (!masquee(UE) && petit(v, 32, -126))
-                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+        else
+        {
+                if (!masquee(UE) && petit(v, 32, -126))
+                        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+                uint64_t b = r;
+                uint16_t se = 0;
+                seize_memoire(v, ref b, ref se, 8, 23);
+                r = (uint32_t)b;
+        }
         return indicateurs(true);
     }
 
@@ -601,9 +751,30 @@ internal static class _x87_noyau
         r = softfloat.extF80_to_f64(v).v;
         if (ns)
                 softfloat.softfloat_exceptionFlags = 0;
-        else if (!masquee(UE) && petit(v, 64, -1022))
-                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+        else
+        {
+                if (!masquee(UE) && petit(v, 64, -1022))
+                        softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_underflow;
+                uint16_t se = 0;
+                seize_memoire(v, ref r, ref se, 11, 52);
+        }
         return indicateurs(true);
+    }
+
+    /// <summary>FST m32 et m64 sur le 8087 et le 287 : IE pour un NaN (nan_de_seize, PB-60 ; la valeur rangée, celle de
+    /// la conversion de SoftFloat, inconnue), puis les réponses masquées du dépassement et de la petitesse
+    /// (seize_depassement, PB-59).</summary>
+    private static void seize_memoire(in extFloat80_t v, ref uint64_t r, ref uint16_t se, int exp, int frac)
+    {
+        if (!seize_bits())
+                return;
+        if (nan_seize(classe(v)))
+        {
+                ModeMateriel.Sonde[60]++;
+                softfloat.softfloat_exceptionFlags |= softfloat.softfloat_flag_invalid;
+                return;
+        }
+        seize_depassement(ref r, ref se, exp, frac);
     }
 
     // pcem bug, fixed in hardware mode: PB-56 — FSTP m80 : les 80 bits tels quels (SDM vol. 2, FST ; 387 PRM, annexe B :
@@ -891,7 +1062,8 @@ internal static class _x87_noyau
     }
 
     /// <summary>Après FSAVE, l'état de FNINIT (SDM vol. 2, FSAVE) : finit, qui garde les pointeurs sur le 387 et les
-    /// efface sur le 486. C3-C0 du 8087 et du 287 : N7 (PB-202).</summary>
+    /// efface sur le 486, et C3-C0 sur le 8087 et le 287 (PB-202 ; FSAVE du 8087 : 86Box, ticket 4518, seconde main ; du
+    /// 287 : déduit).</summary>
     internal static void fsave_fin() => finit();
 
     /// <summary>FLDENV et FRSTOR : les offsets des mots à lire, ceux qu'env_ranger et registres_ranger écrivent, sans les
@@ -977,8 +1149,9 @@ internal static class _x87_noyau
     // pcem bug, fixed in hardware mode: PB-208 — le 387 et le 486 ne retiennent d'une étiquette chargée que « vide » ou
     //   « non vide », et recalculent celle d'un registre non vide de son contenu (SDM vol. 1, 2003, § 8.1.6 : « the x87
     //   FPU reads the actual value in the data register and sets the tag for the register accordingly » ; le 287XL :
-    //   déduit). Le 8087 et le 287 gardent les étiquettes de l'image (déduit : leurs manuels ne décrivent pas ce
-    //   recalcul).
+    //   déduit). Le 8087 et le 287 gardent les étiquettes de l'image (387 PRM, annexe C § C.3 : « the 80287/8087, in
+    //   this case, honors the tag and does not examine the register ») ; qu'ils s'y fient ensuite pour classer
+    //   l'opérande de chaque instruction : N7b.
     private static void etiquettes_chargees(uint16_t tw)
     {
         if (cpu_c.fpu_type < cpu_c.FPU_287XL)
@@ -1005,10 +1178,9 @@ internal static class _x87_noyau
     // a QNaN ») ; une autre opération invalide, la division par zéro ; le dénormal, qui, masqué, laisse les suivantes se
     // produire ; le dépassement, par excès ou par défaut ; la précision. Les premières sont « detected before a
     // floating-point operation begins » : démasquées, la destination reste intacte. RC et PC règlent l'arrondi
-    // (arrondi(true)) : PB-48 et la précision de PB-56. Le 8087 et le 287 : l'infini projectif dans l'arithmétique, leurs
-    // non normaux, IE pour tout NaN (287 PRM, table 1-17 : « One or both operands is a NaN » ; 387 PRM § C.2), IE pour
-    // un diviseur dénormal ou non normal et pour la racine d'un dénormal (table 1-17), N7 ; ici, ils calculent comme le
-    // 387.
+    // (arrondi(true)) : PB-48 et la précision de PB-56. Le 8087 et le 287 : DE démasquée avant les autres, IE pour tout
+    // NaN, leurs dépassements (N7a, plus haut) ; l'infini projectif dans l'arithmétique, leurs non normaux, IE pour un
+    // diviseur dénormal ou non normal et pour la racine d'un dénormal (287 PRM, table 1-17) : N7b.
 
     internal const int ADD = 0, MUL = 1, SUB = 2, DIV = 3;
 
@@ -1054,7 +1226,9 @@ internal static class _x87_noyau
     //   SoftFloat applique dans sa spécialisation du 8086, pas celui de l'ordre des opérandes. Deux significandes égaux
     //   de signes contraires : SoftFloat rend le positif (inconnu sur le silicium). Le format non supporté (387, 486) :
     //   IE et l'indéfini ; un dénormal, DE, sauf si un NaN, une autre opération invalide ou la division par zéro passe
-    //   avant (SDM vol. 1, 2003, § 4.9.2). Rend vrai si l'instruction s'arrête, sans rien ranger.
+    //   avant (SDM vol. 1, 2003, § 4.9.2). Rend vrai si l'instruction s'arrête, sans rien ranger. Le 8087 et le 287 :
+    //   DE démasquée d'abord (de_d_abord), IE pour tout NaN (nan_de_seize), et leurs réponses au dépassement et à la
+    //   petitesse (seize_depassement ; démasquées, le calcul refait sans arrondi, seize_arrondi).
     internal static bool operation(int k, in extFloat80_t a, in extFloat80_t b, bool den, out extFloat80_t r)
     {
         Classe ca = classe(a), cb = classe(b);
@@ -1065,21 +1239,47 @@ internal static class _x87_noyau
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
                 return indicateurs();
         }
-        r = k switch
+        r = Indefini;
+        if (de_d_abord(den || denormal(ca) || denormal(cb)))
+                return true;
+        if (seize_bits() && (nan_seize(ca) || nan_seize(cb)))
         {
-                ADD => softfloat.extF80_add(a, b),
-                MUL => softfloat.extF80_mul(a, b),
-                SUB => softfloat.extF80_sub(a, b),
-                _ => softfloat.extF80_div(a, b),
-        };
+                r = nan_de_seize(a, b);
+                return indicateurs();
+        }
+        r = calcul(k, a, b);
         ModeMateriel.Sonde[48]++;
         if (nan(ca) || nan(cb))
                 ModeMateriel.Sonde[60]++;
         else if ((softfloat.softfloat_exceptionFlags & (softfloat.softfloat_flag_invalid | softfloat.softfloat_flag_infinite)) == 0 &&
                  (den || denormal(ca) || denormal(cb)) && lever(DE))
                 return true;
+        if (brut())
+        {
+                // Le 8087 et le 287, OE ou UE démasquée : le calcul refait vers zéro, à 64 bits, sans PE (seize_arrondi).
+                var mode = softfloat.softfloat_roundingMode;
+                var bits = softfloat.extF80_roundingPrecision;
+                var f = softfloat.softfloat_exceptionFlags;
+                softfloat.softfloat_roundingMode = softfloat.softfloat_round_minMag;
+                softfloat.extF80_roundingPrecision = 80;
+                softfloat.softfloat_exceptionFlags = 0;
+                r = calcul(k, a, b);
+                softfloat.softfloat_exceptionFlags = (byte)((f | softfloat.softfloat_exceptionFlags) & ~softfloat.softfloat_flag_inexact);
+                softfloat.softfloat_roundingMode = mode;
+                softfloat.extF80_roundingPrecision = bits;
+                ModeMateriel.Sonde[59]++;
+        }
+        seize_depassement(ref r);
         return indicateurs();
     }
+
+    private static extFloat80_t calcul(int k, in extFloat80_t a, in extFloat80_t b) => k switch
+    {
+        ADD => softfloat.extF80_add(a, b),
+        MUL => softfloat.extF80_mul(a, b),
+        SUB => softfloat.extF80_sub(a, b),
+        _ => softfloat.extF80_div(a, b),
+    };
 
     // Une faute de pile masquée range l'indéfini, sans calculer (SDM vol. 1, 2003, § 8.5.1.1 : « the x87 FPU returns the
     // floating point, integer, or packed decimal integer indefinite value to the destination operand ») : pas le NaN
@@ -1127,7 +1327,8 @@ internal static class _x87_noyau
     }
 
     /// <summary>FSQRT : la racine de ST(0), arrondie selon RC et PC ; un négatif non nul, −∞ compris, IE et
-    /// l'indéfini ; −0 rend −0 (SDM vol. 2, FSQRT). +∞ en projectif (8087, 287) : N7.</summary>
+    /// l'indéfini ; −0 rend −0 (SDM vol. 2, FSQRT). Le 8087 et le 287 : DE démasquée d'abord, IE pour tout NaN (N7a) ;
+    /// +∞ en projectif, un dénormal : N7b.</summary>
     internal static void fsqrt()
     {
         var faute = vide(0);
@@ -1146,6 +1347,10 @@ internal static class _x87_noyau
                 r = Indefini;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
         }
+        else if (de_d_abord(denormal(c)))
+                return;
+        else if (seize_bits() && nan_seize(c))
+                r = nan_de_seize(x, x);
         else
         {
                 r = softfloat.extF80_sqrt(x);
@@ -1172,7 +1377,8 @@ internal static class _x87_noyau
     //   le 287 PRM par sa table 1-17 et le texte de FCOM, le Numerics Supplement par sa table des réponses masquées,
     //   qui comptent ±∞ contre ±∞ invalide, non comparable (C3 C2 C0 = 111 et IE). L'égalité de G13.6a est gardée (C3
     //   seul, sans IE ; inconnu) ; les deux lectures posent C3, que la détection du 287 lit. Un dénormal, DE, si rien ne
-    //   passe avant. Une exception
+    //   passe avant ; démasquée sur le 8087 et le 287, avant tout (de_d_abord). Leur pseudo-infini et leur pseudo-NaN
+    //   sont des NaN (nan_seize) ; FUCOM, qu'ils n'ont pas, compare comme celui du 387 (PB-209). Une exception
     //   démasquée arrête l'instruction, les codes laissés (inconnu) ; elle ne dépile pas. `den` : l'opérande en mémoire
     //   était un dénormal (de_f32, de_f64).
     internal static bool comparer(in extFloat80_t a, in extFloat80_t b, bool signale, bool den = false)
@@ -1180,12 +1386,14 @@ internal static class _x87_noyau
         Classe ca = classe(a), cb = classe(b);
         uint16_t cc;
         uint16_t e = 0;
+        if (de_d_abord(den || denormal(ca) || denormal(cb)))
+                return true;
         if (non_supporte(ca) || non_supporte(cb))
         {
                 e = IE;
                 cc = x87_c.C3 | x87_c.C2 | x87_c.C0;
         }
-        else if (nan(ca) || nan(cb))
+        else if (nan(ca) || nan(cb) || seize_bits() && (nan_seize(ca) || nan_seize(cb)))
         {
                 if (signale || ca == Classe.SNaN || cb == Classe.SNaN)
                         e = IE;
@@ -1283,7 +1491,8 @@ internal static class _x87_noyau
     // pcem bug, fixed in hardware mode: PB-197 PB-211 PB-265 — FRNDINT : ST(0) arrondi à l'entier selon RC (387 PRM §
     //   4.4.11), au plus près sans l'arrondi de b + 1,0 de PCem, PE et C1 si inexact ; une valeur déjà entière, |x| ≥ 2^63 compris, et un infini restent tels quels ; un zéro, et
     //   un résultat nul, gardent le signe de l'opérande (IEEE 754-1985 § 6.3 ; 387 PRM, table 3-3) ; un SNaN, IE et le
-    //   QNaN ; un format non supporté, IE et l'indéfini ; un dénormal, DE (SoftFloat, extF80_roundToInt).
+    //   QNaN ; un format non supporté, IE et l'indéfini ; un dénormal, DE (SoftFloat, extF80_roundToInt). Le 8087 et le
+    //   287 : DE démasquée d'abord, IE pour tout NaN (N7a).
     internal static void frndint()
     {
         var faute = vide(0);
@@ -1302,6 +1511,10 @@ internal static class _x87_noyau
                 r = Indefini;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
         }
+        else if (de_d_abord(denormal(c)))
+                return;
+        else if (seize_bits() && nan_seize(c))
+                r = nan_de_seize(x, x);
         else
         {
                 r = softfloat.extF80_roundToInt(x, softfloat.softfloat_roundingMode, true);
@@ -1322,7 +1535,10 @@ internal static class _x87_noyau
     //   limite (387 PRM § 4.4.8) ; arrondi selon RC, à 64 bits (PC n'y joue pas : SDM vol. 1, 2003, § 8.1.4.2), O, U,
     //   P et C1. Les spéciaux (387 PRM, tables 3-3 et 3-4) : ST(1) = −∞ rend ±0 d'un fini, IE d'un infini ; ST(1) = +∞
     //   rend ±∞ d'un fini non nul, IE d'un zéro ; un infini ou un zéro en ST(0), sinon, reste tel quel ; un NaN, la règle
-    //   des NaN ; un format non supporté, IE. Un dénormal, DE. Le domaine du 287 (−2^15 ≤ ST(1) < 2^15) : N7.
+    //   des NaN ; un format non supporté, IE. Un dénormal, DE. Le 8087 et le 287 (287 PRM, table 1-12) : par ±∞, ±0 rend
+    //   ±0, tout autre opérande IE (∞ par ∞ compris) ; DE démasquée d'abord, IE pour tout NaN, leurs dépassements (N7a).
+    //   Hors de leur domaine (−2^15 ≤ ST(1) < 2^15, et 0 < |ST(1)| < 1), « undefined » sans exception (287 PRM, FSCALE ;
+    //   387 PRM, annexe C § C.4) : le noyau rend la valeur du 387 (un choix ; la valeur du silicium, inconnue).
     internal static void fscale()
     {
         var faute = vide(0) || vide(1);
@@ -1341,10 +1557,25 @@ internal static class _x87_noyau
                 r = Indefini;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
         }
+        else if (de_d_abord(denormal(cx) || denormal(cy)))
+                return;
+        else if (seize_bits() && (nan_seize(cx) || nan_seize(cy)))
+                r = nan_de_seize(x, y);
         else if (nan(cx) || nan(cy))
         {
                 ModeMateriel.Sonde[198] += nan(cy) ? 1 : 0;
                 r = nan_de(x, y);
+        }
+        else if (cy == Classe.Infini && seize_bits())
+        {
+                ModeMateriel.Sonde[198]++;
+                if (cx == Classe.Zero)
+                        r = x;
+                else
+                {
+                        r = Indefini;
+                        softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                }
         }
         else if (cy == Classe.Infini)
         {
@@ -1370,7 +1601,8 @@ internal static class _x87_noyau
                 else
                 {
                         var (s, e, m) = normaliser(x);
-                        r = softfloat.softfloat_roundPackToExtF80(s, e + 0x3FFF + tronque(y), m, 0, 80);
+                        r = seize_arrondi(s, e + 0x3FFF + tronque(y), m, 0, 80);
+                        seize_depassement(ref r);
                 }
         }
         if (!indicateurs())
@@ -1394,7 +1626,10 @@ internal static class _x87_noyau
     //   de ST(0), en réel, remplace ST(0), puis son significande, l'exposant mis à 3FFFh et le signe gardé, est empilé.
     //   ST(7) doit être vide. Un zéro : ZE, ST(1) = −∞ et ST(0) le zéro ; un infini : ST(1) = +∞ et ST(0) l'infini, sans
     //   exception (387 PRM, tables 3-3 et 3-4) ; un NaN, rendu silencieux, aux deux ; un format non supporté, IE et
-    //   l'indéfini aux deux ; un dénormal, DE, normalisé. Une faute de pile masquée : l'indéfini aux deux (inconnu).
+    //   l'indéfini aux deux ; un dénormal, DE, normalisé. Une faute de pile masquée : l'indéfini aux deux (inconnu). Le
+    //   8087 et le 287 (387 PRM, annexe C § C.2 et § C.4 ; 287 PRM, FXTRACT et table 1-12) : un zéro rend deux zéros
+    //   du signe de l'opérande, sans exception ; un infini, IE et l'indéfini aux deux ; un NaN, IE (nan_de_seize) ; ni
+    //   DE ni ZE. Le dénormal et le non normal, leur exposant et leur significande tels quels : N7b.
     internal static void fxtract()
     {
         c1_zero();
@@ -1411,17 +1646,26 @@ internal static class _x87_noyau
         var c = classe(x);
         arrondi(false);
         extFloat80_t ex, sig;
-        if (non_supporte(c) || nan(c))
+        if (seize_bits() && nan_seize(c))
+                ex = sig = nan_de_seize(x, x);
+        else if (non_supporte(c) || nan(c))
         {
                 softfloat.softfloat_exceptionFlags = non_supporte(c) || c == Classe.SNaN ? softfloat.softfloat_flag_invalid : (byte)0;
                 ex = sig = non_supporte(c) ? Indefini : nan_de(x, x);
         }
+        else if (c == Classe.Zero && seize_bits())
+                ex = sig = x;
         else if (c == Classe.Zero)
         {
                 if (lever(ZE))
                         return;
                 ex = new extFloat80_t { signExp = 0xFFFF, signif = 0x8000000000000000 };
                 sig = x;
+        }
+        else if (c == Classe.Infini && seize_bits())
+        {
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                ex = sig = Indefini;
         }
         else if (c == Classe.Infini)
         {
@@ -1430,7 +1674,7 @@ internal static class _x87_noyau
         }
         else
         {
-                if (denormal(c) && lever(DE))
+                if (denormal(c) && !seize_bits() && lever(DE))
                         return;
                 var (s, e, m) = normaliser(x);
                 ex = softfloat.i32_to_extF80(e);
@@ -1447,11 +1691,18 @@ internal static class _x87_noyau
     //   (FPREM1) ; le reste a le signe du dividende (FPREM), ou celui que le quotient au plus près lui donne (FPREM1), et
     //   un reste nul celui du dividende (table 3-3). Si les exposants diffèrent de 64 ou plus, une réduction partielle :
     //   ST(0) − ST(1) × Q × 2^(D − N), Q tronqué, C2 = 1, et C0, C3, C1 à zéro (SDM vol. 3, 2016, § 22.18.2.1 ; le 8087
-    //   et le 287 les laissent : N7). N, « an implementation-dependent number between 32 and 63 » (SDM vol. 2) : 32 + (D
-    //   mod 32), un choix (inconnu pour le 387 et le 486). Complète, C2 = 0 et les trois bits bas du quotient en C0 (Q2),
-    //   C3 (Q1) et C1 (Q0) (387 PRM, table 4-4). Un diviseur nul ou un dividende infini : IE, l'indéfini et C2 (387 PRM,
-    //   table 3-10) ; un diviseur infini : le dividende, Q = 0 ; un dividende nul : lui-même ; un NaN, la règle des NaN ;
-    //   un format non supporté, IE ; un dénormal, DE. Ni PE ni RC.
+    //   et le 287 les laissent, 387 PRM, annexe C § C.3). N, « an implementation-dependent number between 32 and 63 »
+    //   (SDM vol. 2) : 32 + (D mod 32), un choix (inconnu pour le 387 et le 486). Complète, C2 = 0 et les trois bits bas
+    //   du quotient en C0 (Q2), C3 (Q1) et C1 (Q0) (387 PRM, table 4-4). Le 8087 et le 287 : les mêmes bits. Leurs sources
+    //   se contredisent sur un défaut de ces bits — le 287 PRM, p. 2-8 : « If the quotient is less than 4, then C0 will be
+    //   the value of C3 before FPREM was executed », que sa table 2-4 contredit ; le 387 PRM, annexe C § C.4 : « incorrect
+    //   when performing a reduction of 64N + M when N ≥ 1 and M = 1 or M = 2 » — : faute de silicium, les bits justes,
+    //   ceux de PCem, sont gardés (c). Un
+    //   diviseur nul ou un dividende infini : IE, l'indéfini et C2 (387 PRM, table 3-10 ; le 8087 et le 287, C2 effacé,
+    //   « set condition code = complete remainder », 287 PRM, table 1-17, les autres codes laissés : inconnu, et de même
+    //   pour un NaN) ; un diviseur infini : le dividende, Q = 0 ; un dividende nul : lui-même ; un NaN, la règle des NaN
+    //   (IE pour tout NaN sur le 8087 et le 287) ; un format non supporté, IE ; un dénormal, DE (démasquée sur le 8087 et
+    //   le 287, avant tout). Ni PE ni RC. FPREM1 du 8087 et du 287, qu'ils n'ont pas : celui du 387 (PB-209).
     internal static void fprem(bool ieee)
     {
         var faute = vide(0) || vide(1);
@@ -1460,17 +1711,26 @@ internal static class _x87_noyau
         ModeMateriel.Sonde[65]++;
         const uint16_t CODES = x87_c.C0 | x87_c.C1 | x87_c.C2 | x87_c.C3;
         uint16_t cc = 0;
+        var invalide = false;
         extFloat80_t r;
         Classe cx = classe(x), cy = classe(y);
         arrondi(false);
         if (faute)
                 r = Indefini;
-        // Un pseudo-zéro (exposant non nul, significande nul : le 8087 et le 287 le prennent, N7) compte pour un zéro.
+        else if (de_d_abord(denormal(cx) || denormal(cy)))
+                return;
+        else if (seize_bits() && (nan_seize(cx) || nan_seize(cy)))
+        {
+                r = nan_de_seize(x, y);
+                invalide = true;
+        }
+        // Un pseudo-zéro (exposant non nul, significande nul : le 8087 et le 287 le prennent, N7b) compte pour un zéro.
         else if (non_supporte(cx) || non_supporte(cy) ||
                  !nan(cx) && !nan(cy) && (cx == Classe.Infini || cy == Classe.Zero || cy != Classe.Infini && y.signif == 0))
         {
                 r = Indefini;
                 cc = x87_c.C2;
+                invalide = true;
                 softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
         }
         else if (nan(cx) || nan(cy))
@@ -1486,8 +1746,12 @@ internal static class _x87_noyau
         }
         if (indicateurs())
                 return;
-        if (cpu_c.fpu_type < cpu_c.FPU_287XL && (cc & x87_c.C2) != 0)
-                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~x87_c.C2) | x87_c.C2);
+        if (!seize_bits())
+                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~CODES) | cc);
+        else if (invalide)
+                cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+        else if ((cc & x87_c.C2) != 0)
+                cpu_state.npxs |= x87_c.C2;
         else
                 cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~CODES) | cc);
         ecrire(0, r);
@@ -1555,12 +1819,30 @@ internal static class _x87_noyau
         return Indefini;
     }
 
+    // pcem bug, fixed in hardware mode: PB-68 — le 8087 et le 287 n'examinent pas les opérandes de leurs transcendantes
+    //   (287 PRM, « Transcendental Instructions » : « If a transcendental operand is invalid or out-of-range, the
+    //   instruction will produce an undefined result without signalling an exception » ; ses pages d'instructions :
+    //   FPTAN, I et P ; FPATAN et F2XM1, U et P ; FYL2X et FYL2XP1, P ; « operands not checked » ; 387 PRM, annexe C §
+    //   C.2 : pas de DE) : ni IE, hors de la faute de pile, ni ZE, ni DE. La valeur rendue, indéfinie sur le silicium, est
+    //   celle du 387 (un choix), et de même hors de leurs domaines étroits (F2XM1, 0 ≤ x ≤ 0,5 ; FYL2X, 0 < x < ∞ ;
+    //   FYL2XP1, 0 ≤ |x| < 1 − √2/2 ; FPTAN, 0 ≤ x ≤ π/4 ; FPATAN, 0 ≤ y < x < ∞ : 287 PRM, table 2-9 et ses pages). Avant
+    //   indicateurs.
+    private static void non_examines()
+    {
+        if (!seize_bits())
+                return;
+        const byte IZ = softfloat.softfloat_flag_invalid | softfloat.softfloat_flag_infinite;
+        if ((softfloat.softfloat_exceptionFlags & IZ) != 0)
+                ModeMateriel.Sonde[68]++;
+        softfloat.softfloat_exceptionFlags &= unchecked((byte)~IZ);
+    }
+
     // pcem bug, fixed in hardware mode: PB-68 — F2XM1 : 2^ST(0) − 1 sur 80 bits, arrondi une fois selon RC (PC n'y joue
     //   pas : SDM vol. 1, 2003, § 8.1.4.2), au lieu de pow(2, x) − 1 en double, qui perd toute précision relative pour x
     //   petit. ±0 rend ±0 (SDM vol. 2, 2016, table 3-16) ; un SNaN, IE et le QNaN ; un format non supporté, IE et
     //   l'indéfini ; un dénormal, DE, puis le calcul (x ln 2, petit : UE masquée et PE). Hors de [−1, 1], le résultat du
     //   silicium est indéfini (SDM vol. 2, F2XM1) : le noyau rend la même valeur mathématique, +∞ de +∞ et −1 de −∞
-    //   (un choix). Le domaine du 8087 et du 287 (0 ≤ x ≤ 1/2 : 287 PRM, F2XM1) : N7, de même indéfini au-delà.
+    //   (un choix). Le 8087 et le 287 : non_examines.
     internal static void f2xm1()
     {
         var faute = vide(0);
@@ -1584,12 +1866,13 @@ internal static class _x87_noyau
                 r = negatif(x) ? new extFloat80_t { signExp = 0xBFFF, signif = 0x8000000000000000 } : x;
         else
         {
-                if (denormal(c) && lever(DE))
+                if (denormal(c) && !seize_bits() && lever(DE))
                         return;
                 ModeMateriel.Sonde[68]++;
                 var v = _x87_transcendantes.exp2m1(x, out var exact);
                 r = _x87_transcendantes.arrondir(v, !exact);
         }
+        non_examines();
         if (!indicateurs())
                 ecrire(0, r);
     }
@@ -1603,8 +1886,8 @@ internal static class _x87_noyau
     //   format non supporté, IE ; un dénormal, DE, sauf si IE ou ZE passe avant (SDM vol. 1, 2003, § 4.9.2, comme les
     //   quatre opérations). FYL2XP1 hors de |x| < 1 − √2/2 : le résultat du silicium est indéfini (SDM vol. 2,
     //   FYL2XP1 : « software should not rely on an exception being generated ») ; le noyau rend la même valeur
-    //   mathématique, et, pour x ≤ −1, ce que FYL2X rend de 1 + x (x = −1 : le cas de ±0 ; x < −1, IE), un choix. Les
-    //   domaines du 8087 et du 287 (287 PRM, FYL2X et FYL2XP1) : N7, de même indéfinis au-delà.
+    //   mathématique, et, pour x ≤ −1, ce que FYL2X rend de 1 + x (x = −1 : le cas de ±0 ; x < −1, IE), un choix. Le
+    //   8087 et le 287 : non_examines.
     internal static void fyl2x(bool p1)
     {
         var faute = vide(0) || vide(1);
@@ -1661,8 +1944,9 @@ internal static class _x87_noyau
                         r = _x87_transcendantes.arrondir(_x87_transcendantes.mul(_x87_transcendantes.de(y), l), !exact);
         }
         if ((softfloat.softfloat_exceptionFlags & (softfloat.softfloat_flag_invalid | softfloat.softfloat_flag_infinite)) == 0 &&
-            !nan(cx) && !nan(cy) && (denormal(cx) || denormal(cy)) && lever(DE))
+            !nan(cx) && !nan(cy) && (denormal(cx) || denormal(cy)) && !seize_bits() && lever(DE))
                 return true;
+        non_examines();
         return indicateurs();
     }
 
@@ -1679,7 +1963,8 @@ internal static class _x87_noyau
     //   2016, dit C2 effacé : le noyau suit les manuels du 387 et du 486, comme pour FPREM, N4b) ; un SNaN, IE et le QNaN ;
     //   un format non supporté, IE ; un dénormal, DE, puis le calcul ; un résultat petit, UE (387 PRM § 3.2.5.2 compte
     //   FSIN, FCOS et FSINCOS parmi ceux qui la lèvent). FSIN, FCOS et FSINCOS n'existent ni sur le 8087 ni sur le 287
-    //   (387 PRM, annexe C) : PB-266, N7.
+    //   (387 PRM, annexe C) : ce que le silicium fait de leurs octets est inconnu, et ils calculent comme sur le 387
+    //   (PB-266, reproduit ; décision n° 14).
     internal static void fsin_cos(int f)
     {
         var faute = vide(0);
@@ -1730,17 +2015,33 @@ internal static class _x87_noyau
     //   et C2 = 1, comme FSIN ; un format non supporté, IE ; un NaN, rendu silencieux : l'indéfini, ou le NaN, aux deux
     //   places (inconnu, comme FXTRACT). ST(7) doit être vide : la faute de pile masquée range l'indéfini aux deux places,
     //   avant tout examen de x (387 PRM, annexe C, FPTAN : « both ST and ST(1) contain quiet NaNs » ; FSINCOS, par
-    //   analogie). Le 8087 et le 287 : FPTAN en rapport Y / X, sur 0 ≤ x ≤ π/4, et après la faute de pile l'opérande
-    //   gardé, poussé en ST(1) (287 PRM, FPTAN ; 387 PRM, annexe C) — 1,0 pour X est un rapport juste ; FSINCOS
-    //   absent : PB-266, N7.
+    //   analogie). Le 8087 et le 287 : FPTAN rend un rapport Y / X (287 PRM, FPTAN : « The result of the operation is a
+    //   ratio ») ; le noyau garde tan x et 1,0, un rapport juste (les Y et X du silicium : inconnus) ; C2 indéfini,
+    //   laissé ; après un débordement de pile masqué, « the original operand remains unchanged, but is pushed to ST(1) »
+    //   (387 PRM, annexe C § C.4), l'indéfini en ST(0) ; ni DE ni examen des opérandes (non_examines). FSINCOS, qu'ils
+    //   n'ont pas, calcule comme celui du 387 (PB-266, reproduit).
     internal static void fptan(bool sincos)
     {
         c1_zero();
+        // Le 8087 et le 287 : C2 indéfini pour FPTAN (387 PRM, annexe C § C.3), laissé.
+        var seize = seize_bits() && !sincos;
+        var c2 = (uint16_t)(cpu_state.npxs & x87_c.C2);
         if (vide(0) || plein())
         {
                 if (faute_de_pile(!vide(0)))
                         return;
-                cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
+                if (seize && !vide(0))
+                {
+                        // L'opérande gardé, poussé en ST(1) ; l'indéfini en ST(0).
+                        ModeMateriel.Sonde[68]++;
+                        var p = (cpu_state.TOP - 1) & 7;
+                        cpu_state.TOP = p;
+                        R[p] = Indefini;
+                        etiqueter(p, SPECIAL);
+                        return;
+                }
+                if (!seize)
+                        cpu_state.npxs &= unchecked((uint16_t)~x87_c.C2);
                 ecrire(0, Indefini);
                 empiler(Indefini);
                 return;
@@ -1767,13 +2068,13 @@ internal static class _x87_noyau
         else if (hors_borne(x))
         {
                 ModeMateriel.Sonde[68]++;
-                cpu_state.npxs |= x87_c.C2;
+                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~x87_c.C2) | (seize ? c2 : x87_c.C2));
                 indicateurs();
                 return;
         }
         else
         {
-                if (denormal(c) && lever(DE))
+                if (denormal(c) && !seize && lever(DE))
                         return;
                 ModeMateriel.Sonde[68]++;
                 if (sincos)
@@ -1787,6 +2088,11 @@ internal static class _x87_noyau
                         r1 = Un;
                 }
         }
+        if (seize)
+        {
+                non_examines();
+                cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~x87_c.C2) | c2);
+        }
         if (indicateurs())
                 return;
         ecrire(0, r0);
@@ -1798,8 +2104,8 @@ internal static class _x87_noyau
     //   joue pas), au lieu d'atan2 de la libm en double. Les spéciaux de la table 3-30 : ±∞ en ST(1), ±π/2, ou ±π/4 et
     //   ±3π/4 contre +∞ et −∞ ; ±0 en ST(1), ±0 contre un ST(0) positif (+0 compris), ±π contre un négatif (−0
     //   compris) ; un fini en ST(1), ±0 contre +∞, ±π contre −∞, ±π/2 contre ±0 — sans IE pour 0/0 ni ∞/∞ (la note de la
-    //   table). Un NaN, la règle des NaN ; un format non supporté, IE ; un dénormal, DE. Le domaine du 287 (0 ≤ |ST(1)| <
-    //   |ST(0)| < +∞ : SDM vol. 2, FPATAN) : N7, indéfini au-delà.
+    //   table). Un NaN, la règle des NaN ; un format non supporté, IE ; un dénormal, DE. Le 8087 et le 287 :
+    //   non_examines.
     internal static void fpatan()
     {
         var faute = vide(0) || vide(1);
@@ -1818,8 +2124,19 @@ internal static class _x87_noyau
         Classe cx = classe(x), cy = classe(y);
         bool sx = negatif(x), sy = negatif(y);
         arrondi(false);
+        // Le 8087 et le 287, qui n'examinent pas leurs opérandes, prennent un pseudo-zéro pour un zéro, et le pseudo-infini
+        // et le pseudo-NaN pour des NaN (nan_seize) : la division exacte d'arctan ne reçoit jamais un significande nul.
+        if (seize_bits())
+        {
+                if (cx == Classe.NonNormal && x.signif == 0)
+                        cx = Classe.Zero;
+                if (cy == Classe.NonNormal && y.signif == 0)
+                        cy = Classe.Zero;
+        }
         if (non_supporte(cx) || non_supporte(cy))
                 r = invalide();
+        else if (seize_bits() && (nan_seize(cx) || nan_seize(cy)))
+                r = nan_de_seize(x, y);
         else if (nan(cx) || nan(cy))
                 r = nan_de(x, y);
         else if (cy == Classe.Infini)
@@ -1834,8 +2151,9 @@ internal static class _x87_noyau
                 r = _x87_transcendantes.arrondir(_x87_transcendantes.arctan(y, x), true);
         }
         if ((softfloat.softfloat_exceptionFlags & softfloat.softfloat_flag_invalid) == 0 && !nan(cx) && !nan(cy) &&
-            (denormal(cx) || denormal(cy)) && lever(DE))
+            (denormal(cx) || denormal(cy)) && !seize_bits() && lever(DE))
                 return true;
+        non_examines();
         return indicateurs();
     }
 
@@ -1845,11 +2163,17 @@ internal static class _x87_noyau
     /// 037Fh (03FFh sur le 8087, IEM posé, comme PCem), le mot d'état à zéro, TOP à zéro, les huit étiquettes vides ;
     /// les registres gardés ; les pointeurs gardés, sauf sur le 486, qui les efface. Le 287 : sa table 3-1 dit IEM à 1
     /// (03FFh), sa figure 1-5 fait du bit 7 un bit réservé ; la source se contredit, 037Fh, la valeur de PCem, est
-    /// gardée (inconnu). C3-C0 du 8087 et du 287 (gardés par le silicium, PB-202) : N7.</summary>
+    /// gardée (inconnu).</summary>
+    // pcem bug, fixed in hardware mode: PB-202 — le 8087 et le 287 gardent C3-C0 après FINIT, et donc après FSAVE et le
+    //   RESET (387 PRM, annexe C § C.3 : « After FINIT, incomplete FPREM, and hardware reset, the 80287/8087 leaves
+    //   these bits intact » ; SDM vol. 3, 2016, § 22.18.2.1) : le mot d'état passe par le masque 4700h. Le 287XL, un cœur
+    //   de 387, les efface (déduit).
     internal static void finit()
     {
         cpu_state.npxc = cpu_c.fpu_type == cpu_c.FPU_8087 ? (uint16_t)0x3FF : (uint16_t)0x37F;
-        cpu_state.npxs = 0;
+        if (seize_bits() && (cpu_state.npxs & 0x4700) != 0)
+                ModeMateriel.Sonde[202]++;
+        cpu_state.npxs = seize_bits() ? (uint16_t)(cpu_state.npxs & 0x4700) : (uint16_t)0;
         cpu_state.TOP = 0;
         etiquettes = 0xFFFF;
         if (cpu_c.fpu_type == cpu_c.FPU_BUILTIN)
@@ -1865,12 +2189,13 @@ internal static class _x87_noyau
         Array.Clear(R);
         fip = fdp = fcs = fds = fop = 0;
         fsetpm = false;
+        cpu_state.npxs = 0;
         finit();
     }
 
     // pcem bug, fixed in hardware mode: PB-203 — au RESET, le coprocesseur prend l'état initial de son type. Le 8087,
     //   le 287 et le 287XL : celui de FNINIT (Numerics Supplement, table S-7 ; 287 PRM, table 3-1 ; le 287XL : inconnu,
-    //   celui du 287 qu'il remplace), et le mode réel, que FSETPM ne quitte que jusqu'au RESET (287 PRM, FSETPM). Le
+    //   celui du 287 qu'il remplace), C3-C0 gardés par le 8087 et le 287 (PB-202), et le mode réel, que FSETPM ne quitte que jusqu'au RESET (287 PRM, FSETPM). Le
     //   387 : celui de FNINIT, IM à 0, IE, ES et B posés, ce qui active ERROR# et
     //   signale sa présence au 386 (387 PRM § 6.2.5 et annexe C, « RESET, FINIT, and ERROR# pin »). Le 486 : rien, sans
     //   l'auto-test que le RESET d'un PC ne demande pas (486 PRM § 19.2.3 : « When the Built-In Self-Test is not

@@ -920,8 +920,21 @@ petit même exact, et FSCALE au-delà du décalage rend ±∞ ou ±0 — un arro
 une seconde déviation (`softfloat_unboundedExp`, le point (3) du feu vert du 11/10) ; la destination en mémoire (FST
 et FSTP m32 et m64), rien n'est rangé ni dépilé, ni PE ni C1 (§ 8.5.6 ; 486 PRM § 19.2.5) ; P, le résultat rangé ; FLD
 m32 et m64 d'un dénormal, DE démasquée, empilent quand même (SDM vol. 2, FLD ; d'autres sources disent le contraire,
-en général : inconnu). L'instruction qui range se termine, dépilement compris (486 PRM § 19.2.5). Le 8087 et le 287
-(le significande non arrondi, sans PE ; 387 PRM, annexe C) : N7. `materiel-cas PB-264` : vingt-trois cas.
+en général : inconnu). L'instruction qui range se termine, dépilement compris (486 PRM § 19.2.5). `materiel-cas PB-264` :
+vingt-trois cas. Le 8087 et le 287 (N7a ; 387 PRM, annexe C § C.2 ; 287 PRM, tables 1-11, 1-17 et 3-2) : OE ou UE démasquée
+vers un registre, le significande non arrondi (tronqué à 64 bits : déduit), sans PE (`seize_arrondi`) ; la petitesse
+avant l'arrondi (`softfloat_detectTininess`) ; OE masquée,
+l'infini au plus près et vers zéro, OE seulement si la réponse est l'infini ; vers zéro, UE masquée sur la seule
+petitesse (`seize_depassement`, FST m32 et m64 compris) ; DE démasquée avant toute autre exception, sauf la faute de pile
+(`de_d_abord`), et FLD m32, m64 et m80 d'un dénormal, DE démasquée, n'empilent rien (287 PRM, table 3-2 ; manuel de
+l'iAPX 86/88, 1981 : « detected before an operation begins ») ; DE pour FLD m80 d'un dénormal. `materiel-cas PB-264`
+(`SeizeBits`), sur les cinq coprocesseurs. Inconnus, dits : le dernier bit du plus grand fini (le 287 PRM, table 1-11,
+note 1, le dit pair, le 387 PRM, annexe C, différent de celui du 387 : le noyau rend celui du 387) ; OE vers zéro
+(l'annexe C dit à la fois « signals overflow only when the rounding control is not set to round to zero » et l'infini
+rendu ; la table 1-17 range ce cas sous « Overflow » : OE est levée) ; UE masquée hors de l'arrondi vers zéro, comme le
+387 ; les transcendantes n'ont pas ces réponses masquées (le 287 PRM ne leur prête pas O : un choix) ; D et I
+« simultanés » d'une comparaison (287 PRM, annexe C, point 4), non modélisés ; FST m32 et m64 d'un dénormal, DE comme le
+387 (les tables 1-8 et 1-17 ne la nomment pas pour FST : N7b).
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 
@@ -957,7 +970,11 @@ restant. Contrôle négatif : l'ordre de opFADD inversé → divergence à l'it�
 *Corrigé en mode matériel* (G13.6, le noyau, N4a ; en chantier) : les quatre opérations du noyau (`_x87_noyau.operation`)
 propagent le NaN par la règle de la spécialisation du 8086 de SoftFloat, celle de la table 4-7 ; l'opérande en mémoire
 garde son bit de silence jusqu'au calcul (`de_f32`, `de_f64`). Deux significandes égaux de signes contraires :
-SoftFloat rend le positif, (c). `materiel-cas PB-60` : DC C5, FADD m64 et D8 C9, sur les cinq coprocesseurs.
+SoftFloat rend le positif, (c). `materiel-cas PB-60` : DC C5, FADD m64 et D8 C9, sur les cinq coprocesseurs. Le 8087 et
+le 287 (N7a ; `nan_de_seize`) : IE pour tout NaN opérande, le NaN de plus grand significande rendu tel quel, sans être
+rendu silencieux (387 PRM, annexe C § C.2 ; 287 PRM, table 1-17 : déduit pour le silence) ; leur pseudo-infini et leur
+pseudo-NaN sont des NaN ; FST m32 et m64 d'un NaN, IE (déduit de « any kind of NaN » ; la valeur rangée, celle de
+SoftFloat : inconnue). `materiel-cas PB-264` (`SeizeBits`).
 
 ### PB-61 — FNSTSW AX rend npxs sans TOP
 
@@ -1039,7 +1056,9 @@ sur onze classes, tag VALID et EMPTY.
 *Corrigé en mode matériel* (G13.6a) : sous `if (materiel.pb_63)`, les tables du mode, posées par cpu_set (`Cpu/x87.Materiel.cs`, `_x87_materiel.poser`), et en place celles du 8087 (`Cpu/808x.Materiel.cs`) portent FXAM corrigé (`fxam_materiel`) : vide,
 NaN, infini, zéro, normal, et le signe dans C1 ; la classe « dénormal » n'apparaît pas, un dénormal de 64 bits étant
 normal dans les 80 bits du registre ; le vide garde le C1 de PCem. `materiel-cas PB-63` : +∞, NaN et −0 sur les trois
-coprocesseurs.
+coprocesseurs. Le noyau (`_x87_noyau.fxam`, en chantier) : les seize codes du 8087 et du 287 (N7a) : le non normal, 000,
+et le pseudo-zéro, un non normal (déduit) ; le pseudo-infini et le pseudo-NaN, des NaN, 001 ; le vide, le code du 387
+(l'un des quatre : (c)).
 
 ### PB-64 — FTST : un NaN rend « plus grand »
 
@@ -1083,8 +1102,12 @@ de bornes (grands quotients, diviseur nul, infinis, NaN).
 rendent le reste exact, le quotient tronqué ou au plus près (au pair) sur 64 bits de significande, ses trois bits bas en
 C0, C3 et C1 ; au-delà de 63 d'écart d'exposants, une réduction partielle, C2 = 1, N = 32 + (D mod 32) (un choix,
 (c)) ; un diviseur nul ou un dividende infini, IE, l'indéfini et C2. `materiel-cas PB-65` : 1 par 0,1 en FPREM et en
-FPREM1, 3 par 2 en FPREM1 (le pair), 2^100 par 3 (C2), sur les cinq coprocesseurs. Le quotient du 287 et les codes
-qu'une réduction incomplète laisse au 8087 et au 287 : N7.
+FPREM1, 3 par 2 en FPREM1 (le pair), 2^100 par 3 (C2), sur les cinq coprocesseurs. Le 8087 et le 287 (N7a) : une
+réduction incomplète laisse C0, C3 et C1 (387 PRM, annexe C § C.3) ; une opération invalide, C2 effacé (« complete
+remainder », 287 PRM, table 1-17) ; complète, les bits justes du quotient : leurs sources se contredisent sur un défaut
+de ces bits (287 PRM, p. 2-8, « If the quotient is less than 4, then C0 will be the value of C3 before FPREM », que sa
+table 2-4 contredit ; 387 PRM, annexe C § C.4, « 64N + M when N ≥ 1 and M = 1 or M = 2 ») : ceux de PCem, gardés (c).
+`materiel-cas PB-264` (`SeizeBits`) : Q = 0 et Q = 3 après FXAM de −0.
 
 ### PB-66 — FLDLN2 est d'un ulp trop grand
 
@@ -1166,7 +1189,12 @@ négatif, IE. Hors des domaines (F2XM1 au-delà de
 [−1, 1], FYL2XP1 au-delà de 1 − √2/2), le résultat du silicium est indéfini : la valeur mathématique, un choix.
 `materiel-cas PB-68` : C2 de FSIN, FCOS et FPTAN, IE de FYL2X sur le 387 et le 486 ; F2XM1 de 10^−20 et FYL2XP1 de
 2^−70 sur les cinq coprocesseurs. `x87-transc` : les huit contre leur référence en précision arbitraire
-(`tools/x87ref/transcendantes.py`), au bit près. Les domaines étroits du 8087 et du 287, et FPTAN en rapport : N7.
+(`tools/x87ref/transcendantes.py`), au bit près. Le 8087 et le 287 (N7a ; `non_examines`) : leurs opérandes ne sont pas
+examinés (287 PRM : « operands not checked ») : ni IE, hors de la faute de pile, ni ZE, ni DE ; hors de leurs domaines
+étroits, la valeur du 387, comme pour un opérande invalide (un choix : « undefined ») ; FPTAN rend tan x et 1,0, un
+rapport juste (les Y et X du silicium : inconnus), laisse C2 (indéfini), et, la pile pleine, garde l'opérande en ST(1)
+(387 PRM, annexe C § C.4) ; la faute de pile lève IE comme ailleurs (les pages du 287 PRM ne nomment I que pour FPTAN :
+déduit) ; FPATAN prend un pseudo-zéro pour un zéro (un choix). `materiel-cas PB-264` (`SeizeBits`).
 
 ### PB-69 — Sur un PC ou un XT, l'exception du 8087 se perd : IRQ13 sans second PIC, pas de NMI
 
@@ -3656,7 +3684,9 @@ SDM vol. 3 (2016) § 22.18.7.12 et 387 PRM annexe C (8087 et 287 : 0 sans except
 (`ops_808x_fpu_d9_a16`), marqueurs PB-194 (générés par `gentab.py` et `gen46.py`).
 *Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FXTRACT du noyau (`_x87_noyau.fxtract`) : l'exposant
 en ST(1), le significande empilé ; un zéro, ZE et −∞ ; un infini, +∞ et lui-même ; un dénormal, DE. `materiel-cas PB-194`
-(le cas qui discrimine, sur les cinq coprocesseurs) ; le zéro et l'infini du 8087 et du 287 (sans exception, IE) : N7.
+(le cas qui discrimine, sur les cinq coprocesseurs). Le 8087 et le 287 (N7a ; 387 PRM, annexe C § C.4 ; 287 PRM,
+FXTRACT et table 1-12) : un zéro, deux zéros de son signe, sans exception ; un infini, IE et l'indéfini aux deux ; ni DE
+ni ZE. `materiel-cas PB-264` (`SeizeBits`). Le dénormal et le non normal du 8087 et du 287 : N7b.
 
 ### PB-195 — FBSTP tronque au lieu d'arrondir, sans IE ni BCD indéfini
 
@@ -3735,7 +3765,8 @@ hasard).
 *Corrigé en mode matériel* (G13.6, le noyau, N4b ; en chantier) : FSCALE du noyau (`_x87_noyau.fscale`) tronque ST(1)
 sans limite et suit la table des spéciaux du 387 PRM (tables 3-3 et 3-4) : un NaN propagé, ±∞ ou ±0 par ±∞, IE pour ∞
 par −∞ et 0 par +∞ ; O, U et P par l'arrondi selon RC. `materiel-cas PB-198` : 1 par NaN et par +∞, sur les cinq
-coprocesseurs. Le domaine du 287 : N7.
+coprocesseurs. Le 8087 et le 287 (N7a ; 287 PRM, table 1-12) : par ±∞, ±0 rend ±0, tout autre opérande IE et
+l'indéfini (1 par +∞ dans `materiel-cas PB-198`) ; hors de leur domaine, la valeur du 387 (« undefined » : (c)).
 
 ### PB-199 — L'image FSAVE d'un registre TAG_UINT64 : l'entier suivi de 5555h, étiqueté « spécial »
 
@@ -3769,6 +3800,9 @@ l'UC que par la mémoire) — documenté ; AX inchangé sur le 8088 + 8087 : dé
 *G13* : (b) — AX inchangé : déduit ; DF E0 dans le 8087 : (c), sans effet visible ; avec les coprocesseurs de 16 bits.
 *Reproduit* : `Cpu/x87_ops_808x_tables.cs`, `ops_808x_fpu_df_a16`, rangée E0, marqueur PB-200 (généré par
 `gen46.py`).
+*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : la rangée DF E0 des tables du noyau pour le 8087
+(`Cpu/x87_noyau_808x.Materiel.cs`, généré par `genmat.py`) laisse AX (`_x87_noyau.dfe0_8087`), aux cycles de PCem.
+`materiel-cas PB-200` : MOV AX, 1234h ; FNINIT ; FNSTSW AX → 1234h sur le 8087, 0000h sur le 287 (le témoin).
 
 ### PB-201 — L'adressage du 8087 : les lectures bouclent dans le segment, pas les écritures
 
@@ -3785,6 +3819,10 @@ physique de 20 bits et l'incrémente pour les mots suivants — documenté (D2 �
 lit ses quatre derniers octets en 10000h, silicium en 20000h ; FST m64 [FFFCh] écrit en 20000h des deux côtés.
 *G13* : (a) — avec les coprocesseurs de 16 bits : un accès propre au 8087, dans un fichier `*.Materiel.cs`.
 *Reproduit* : `Cpu/x87_8087.cs`, `readmemw` (la troncature `(uint16_t)a`), marqueur PB-201.
+*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : les gestionnaires du noyau pour le 8087 lisent et
+écrivent par `readmemw_8087`, `writememw_8087` et leurs voisines (`Cpu/808x.Materiel.cs`) : le premier mot lu par l'UC
+(`readmemw`, PB-07 et PB-179 compris), les suivants et toutes les écritures à l'adresse physique incrémentée, repliée à
+1 Mo. `materiel-cas PB-201` : DS = 0, FLD m64 [FFFCh] → 1,0 (les octets de 10000h) ; PCem, 2,0 (ceux de 0000h).
 
 ### PB-202 — FINIT, et FSAVE, effacent C3-C0 sur le 8087 et le 287
 
@@ -3799,6 +3837,11 @@ a 8087 », seconde main) ; FSAVE du 287 : déduit.
 *G13* : (a) — avec les coprocesseurs de 16 bits (FSAVE du 287 : déduit).
 *Reproduit* : `Cpu/x87_ops_misc.cs`, `opFINIT` et `FSAVE`, marqueurs PB-202 (générés par `gen44.py`), et leurs
 copies de `Cpu/x87_ops_808x.cs`.
+*Corrigé en mode matériel* (G13.6, le noyau, N7a ; en chantier) : `_x87_noyau.finit` garde C3-C0 (le masque 4700h) sur
+le 8087 et le 287 ; FSAVE (`fsave_fin`) et le RESET (`reset`) passent par lui (387 PRM, annexe C § C.3 : le RESET aussi).
+Le 287XL, un cœur de 387, les efface (déduit). `materiel-cas PB-202` : FLDZ ; FTST ; FNINIT, ou FNSAVE ; FNSTSW →
+4000h sur le 8087 et le 287, 0000h sur le 287XL, le 387 et le 486 ; le harnais efface C3-C0 après son RESET (la mise
+sous tension).
 
 ### PB-203 — `x87_reset` est vide : le RESET ne remet pas le coprocesseur dans son état initial
 
@@ -3821,7 +3864,7 @@ l'ancien mot d'état ; silicium (387) le mot de FNINIT, IM à 0, et IE et ES pos
 § 6.2.5) ; le 486 rien, sans l'auto-test (486 PRM § 19.2.3), et à la mise sous tension, dont l'état n'est pas défini
 (table 10-1, note 4), les valeurs de la table (037Fh, 0000h, FFFFh) : un choix. Le mot de contrôle du 287 reste 037Fh :
 sa table 3-1 dit IEM à 1 (03FFh), sa figure 1-5 un bit réservé (inconnu). Le port F1h de l'AT (PB-204) appelle le même
-RESET. C3-C0 du 8087 et du 287 restent ceux de FNINIT (PB-202, N7). `materiel-cas PB-203` ; F1h dans le cas de PB-264,
+RESET. C3-C0 du 8087 et du 287 sont gardés (PB-202, N7a). `materiel-cas PB-203` ; F1h dans le cas de PB-264,
 avec l'acheminement.
 
 ### PB-204 — Les ports F0h et F1h de l'AT ne sont pas émulés
@@ -3918,7 +3961,10 @@ rechargement le 387 ne retienne des étiquettes que « vide » ou « non vide »
 *Reproduit* : `Cpu/x87.cs`, `x87_gettag` et `x87_settag`, marqueurs PB-208.
 *Corrigé en mode matériel* (G13.6, le noyau, N3b ; en chantier) : l'étiquette d'un registre est celle de son contenu,
 posée à chaque écriture (`_x87_noyau.etiquette_de`) ; FLDENV et FRSTOR n'en retiennent que « vide » et recalculent les
-autres sur le 287XL, le 387 et le 486, les gardent sur le 8087 et le 287 (déduit). `materiel-cas PB-208`.
+autres sur le 287XL, le 387 et le 486, les gardent sur le 8087 et le 287 (déduit). `materiel-cas PB-208`. Le 8087 et le
+287 étiquettent valides le non normal et le pseudo-zéro (N7a ; 387 PRM, annexe C § C.2), et gardent les étiquettes
+chargées (documenté : § C.3, « honors the tag and does not examine the register ») ; qu'ils s'y fient ensuite pour
+classer l'opérande de chaque instruction, au lieu du contenu : N7b.
 
 ### PB-209 — FUCOM, FUCOMP, FUCOMPP et FPREM1 s'exécutent sur le 8087 et le 287, en zéro cycle
 
@@ -5122,10 +5168,11 @@ FSINCOS y prennent 0 cycle.
 instructions, sans elles) — documenté ; ce que le 8087 et le 287 font de D9 FB, FE et FF : inconnu.
 *Cas qui discrimine* : 286 + 287 : FNINIT ; FLD1 ; FSIN ; FSTP m64 → PCem 3FEAED548F090CEEh (sin 1), silicium : ni
 sin 1, ni 0 cycle (inconnu ; l'opcode n'est pas du 287).
-*G13* : (b) — avec les coprocesseurs de 16 bits (N7), comme PB-200 et PB-209 ; ce que fait le silicium : (c).
+*G13* : (c) — ce que le 8087 et le 287 font de D9 FB, FE et FF est inconnu : reproduit (décision n° 14), comme PB-209
+(N7a ; le classement (b) de N6 supposait un comportement à corriger).
 *Reproduit* : les rangées D9 F8 de `Cpu/x87_ops_tables.cs` et `Cpu/x87_ops_808x_tables.cs` (générées par `gentab.py` et
 `gen46.py`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-266. Le noyau (N6) calcule FSIN, FCOS et FSINCOS
-sur tous les types, comme le 387, jusqu'à N7.
+sur tous les types, comme le 387 : le même comportement reproduit.
 
 ## B. Comportement indéfini en C
 

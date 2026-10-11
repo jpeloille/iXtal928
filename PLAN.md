@@ -136,7 +136,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   N4a ✅ (11/10 : l'arithmétique, les comparaisons et le domaine d'accord ; PB-48, 60) ; N4b ✅ (11/10 : FRNDINT, FSCALE,
   FXTRACT, FPREM et FPREM1 ; PB-65, 194, 197, 198, 211 et 265, neuf) ; N5 ✅ (11/10 : les exceptions démasquées,
   l'exposant décalé de 24 576 ; PB-59 complété par le noyau, au groupe en N7) ; N6 ✅ (12/10 : les transcendantes,
-  réduites par le Pi du silicium et arrondies une fois ; PB-68 ; PB-266, neuf, détaché pour N7).
+  réduites par le Pi du silicium et arrondies une fois ; PB-68 ; PB-266, neuf, détaché pour N7) ; N7 coupé en trois
+  (12/10) : N7a ✅ (12/10 : le 8087 et le 287, hors des non normaux ; PB-200, 201, 202 ; PB-266 reste reproduit).
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

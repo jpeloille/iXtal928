@@ -927,3 +927,46 @@ exponentielle. Toujours en chantier : seuls les tests le demandent.
 
 FSIN, FCOS et FSINCOS n'existent pas sur le 8087 ni sur le 287 ; PCem les y exécute en 0 cycle. C'est un autre
 défaut, PB-266, qui sera corrigé avec les coprocesseurs de 16 bits.
+
+## G13.6, le noyau, suite — le 8087 et le 287, les anciens
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N7a.*
+
+Le 8087 (1980, aux côtés du 8088 du PC et de l'XT) et le 287 (1983, aux côtés du 286 de l'AT) sont antérieurs à la
+norme du calcul flottant que le 387 suivra. Intel a publié la liste de ce qui les sépare du 387 ; PCem les traite
+comme un 387. Toujours en chantier : seuls les tests le demandent. Ce que les anciens font de leurs nombres « non
+normaux » viendra à l'étape suivante.
+
+### PB-202 — l'initialisation qui garde les codes
+
+- **Le vrai PC.** Quatre bits du mot d'état, C3 à C0, gardent le résultat de la dernière comparaison. Sur le 8087 et
+  le 287, l'initialisation (FINIT, et la sauvegarde FSAVE qui la suit, et même le reset de la machine) les laisse en
+  place ; le 387 les efface.
+- **L'émulateur.** PCem les efface sur tous les coprocesseurs.
+- **La correction.** Le noyau les garde sur le 8087 et le 287.
+
+### PB-200 — FNSTSW AX sur le 8087
+
+- **Le vrai PC.** Le 287 a appris à copier son mot d'état directement dans le registre AX du processeur ; le 8087 ne
+  sait pas le faire : il ne parle au 8088 qu'à travers la mémoire. Un programme peut s'en servir pour savoir lequel des
+  deux il a.
+- **L'émulateur.** PCem écrit AX sur le 8087 aussi : le programme croit trouver un 287.
+- **La correction.** Sur le 8087, AX reste tel quel.
+
+### PB-201 — l'adresse que le 8087 incrémente
+
+- **Le vrai PC.** Pour lire un nombre en mémoire, le 8088 lit le premier mot et le 8087 relève au passage son adresse
+  physique ; il lit seul les mots suivants, à l'adresse suivante, sans connaître les segments du 8088. Un nombre posé à
+  cheval sur la fin d'un segment se lit donc au-delà, et pas au début du segment.
+- **L'émulateur.** PCem relit le début du segment en lecture, mais écrit au-delà : écrire un nombre puis le relire ne
+  rend pas toujours le même.
+- **La correction.** Les lectures et les écritures du 8087 suivent l'adresse physique, comme sur le silicium.
+
+### Le reste de la liste
+
+Le noyau suit aussi les autres différences qu'Intel décrit : tout « pas un nombre » est une erreur pour le 8087 et le
+287 ; leurs arrondis de résultats trop grands ou trop petits, et l'ordre de leurs erreurs ; leurs fonctions
+trigonométriques et logarithmiques, qui ne vérifient pas leurs opérandes ; FXTRACT, FSCALE et FPREM sur leurs cas
+particuliers ; FENI et FDISI, propres au 8087. Ce que le silicium fait des instructions du 387 qu'ils n'ont pas
+(FSIN, FUCOM…) n'est documenté nulle part : elles restent celles du 387, comme chez PCem.

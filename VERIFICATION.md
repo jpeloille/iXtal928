@@ -9446,3 +9446,126 @@ identiques, ce ne sont que des commentaires. Contre M0 : l'écart de N5, et les 
 1062 marqueurs au lieu de 265 et 1057 (PB-266 neuf ; les cinq marqueurs neufs de PB-68 dans le noyau ; des treize
 marqueurs de PB-68 chez PCem, huit basculés en « fixed in hardware mode », cinq renommés PB-266). Les 13 cas de `Transcendantes` courent sous `materiel-cas-pb264-materiel` et
 `materiel-cas-pb264-acheminement`, déjà portes ; aucune autre porte ne change.
+
+## G13.6, le noyau, N7a — le 8087 et le 287, hors des non normaux
+
+Le 12 octobre 2026. N7 est coupé en trois (PLAN-G13.md) : N7a, ce que le 8087 et le 287 font autrement que le 387,
+hors des non normaux ; N7b, les non normaux et l'infini projectif dans l'arithmétique ; N7c, l'entrée du noyau au mode.
+La liste suivie est celle de l'annexe C du 387 PRM (« Compatibility between the 80387 and the 80287/8087 »), complétée
+par le 287 PRM (le manuel du 286 et du 287, 1987 : ses tables 1-11, 1-12, 1-17, 2-8 et 3-2, ses pages d'instructions,
+ses tables d'opcodes) et le manuel de l'iAPX 86/88 (1981, le 8087). Le noyau reste en chantier ; son groupe gagne
+PB-200, PB-201 et PB-202, que le registre portait reproduits. Aucun défaut neuf : chaque autre différence relève d'un
+défaut déjà inscrit (PB-59, 60, 63, 65, 68, 194, 198, 208).
+
+**Ce qui est écrit** (`Cpu/x87_noyau.Materiel.cs`, sauf mention ; `seize_bits`, le 8087 et le 287, le 287XL compté
+comme un cœur de 387, déduit) :
+- **PB-202** : `finit` garde C3-C0 (le masque 4700h) ; FSAVE et le RESET passent par lui (387 PRM, annexe C § C.3 :
+  « After FINIT, incomplete FPREM, and hardware reset, the 80287/8087 leaves these bits intact »).
+- **PB-200** : DF E0 sur le 8087 laisse AX (`dfe0_8087` ; le gestionnaire du 8087, généré), aux cycles de PCem.
+- **PB-201** : les gestionnaires du 8087 lisent et écrivent par `readmemw_8087` et ses voisines (`Cpu/808x.Materiel.cs`,
+  que `genmat.py` substitue aux aides de 8087.h) : le premier mot lu par l'UC, les suivants et toutes les écritures à
+  l'adresse physique incrémentée, repliée à 1 Mo. Dans le segment, chaque mot passe tel quel par `readmemw` ou
+  `writememw`, comme chez PCem : la première version lisait octet par octet, et le domaine d'accord du 8087 a relevé
+  neuf cycles de trop sur un FDIVR m32 (le chemin lent de la mémoire ne compte pas deux octets comme un mot).
+- **FENI et FDISI** (DB E0, E1) : IEM du 8087 effacé ou posé ; sans effet sur le 287, le 387 et le 486 (287 PRM : « no
+  internal states will be affected »). DB E5, et DB E4 sur le 8087, réservés : sans effet, aux cycles de FNOP, comme
+  PCem les exécute (inconnu). Toutes les entrées que PCem exécute ont désormais leur gestionnaire du noyau ; les
+  entrées illégales de PCem (PB-210) restent à l'arrêt jusqu'à N7c.
+- **PB-60** (`nan_de_seize`) : IE pour tout NaN opérande, le NaN de plus grand significande, tel quel, sans être rendu
+  silencieux ; le pseudo-infini et le pseudo-NaN sont des NaN (`nan_seize`) ; FST m32 et m64 d'un NaN, IE.
+- **PB-59** : DE démasquée avant toute autre exception, sauf la faute de pile (`de_d_abord` ; 287 PRM, table 3-2) ;
+  FLD m80 d'un dénormal, DE ; FLD m32, m64 et m80 d'un dénormal, DE démasquée, n'empilent rien (détectée avant
+  l'opération : 287 PRM et manuel de l'iAPX 86/88 ; le 387 garde la note du SDM, qui empile) ; la petitesse avant l'arrondi (`softfloat_detectTininess`, posé par `arrondi`) ; OE
+  masquée, l'infini au plus près et vers zéro, OE seulement si la réponse est l'infini, UE masquée vers zéro sur la
+  seule petitesse (`seize_depassement`, les registres et FST m32 et m64) ; OE ou UE démasquée vers un registre, le
+  significande non arrondi, tronqué à 64 bits (déduit), sans PE (`seize_arrondi`, et le calcul refait dans
+  `operation`) ; refait vers zéro, où la petitesse avant et après l'arrondi coïncident, il n'a pas besoin que
+  l'exposant non borné de SoftFloat (N5) la juge avant : SoftFloat n'est pas touché. Une première version l'y faisait
+  juger ; un contrôle négatif, resté vert, a montré l'extension inutile, retirée.
+- **PB-68** (`non_examines`) : les transcendantes n'examinent pas leurs opérandes (287 PRM : « operands not checked ») :
+  ni IE, hors de la faute de pile, ni ZE, ni DE ; la valeur rendue hors de leurs domaines étroits et pour un opérande
+  invalide, « undefined », est celle du 387 (un choix). FPTAN laisse C2 et, la pile pleine, garde l'opérande en ST(1),
+  l'indéfini en ST(0) (annexe C § C.4) ; il rend tan x et 1,0, un rapport juste. FSIN, FCOS, FSINCOS, FPREM1 et FUCOM,
+  que le 8087 et le 287 n'ont pas, calculent comme sur le 387 : PB-209 et PB-266 restent reproduits (décision n° 14 ;
+  PB-266 passe de (b) à (c)). FPATAN prend un pseudo-zéro pour un zéro : la contre-lecture l'a trouvé planter (la division
+  exacte d'`arctan` recevait un significande nul ; 392 combinaisons, le 8087 et le 287 seuls).
+- **PB-194, PB-198** : FXTRACT d'un zéro rend deux zéros de son signe, sans exception, d'un infini IE et l'indéfini
+  aux deux, sans DE ni ZE ; FSCALE par ±∞ rend ±0 d'un zéro, IE de tout autre opérande (287 PRM, table 1-12). Hors du
+  domaine de FSCALE, la valeur du 387 (« undefined » : (c)).
+- **PB-65** : FPREM invalide, C2 effacé (« complete remainder », table 1-17) ; incomplet, C0, C3 et C1 laissés (N4b) ;
+  complet, les bits justes du quotient : le 287 PRM (p. 2-8, que sa table 2-4 contredit) et le 387 PRM (annexe C §
+  C.4, « 64N + M ») décrivent deux défauts différents de ces bits ; faute de silicium, ceux de PCem sont gardés (c).
+  Une première version suivait la p. 2-8 ; la contre-lecture l'a relevé.
+- **PB-63, PB-208** : FXAM rend 000 pour un non normal et le pseudo-zéro, 001 pour le pseudo-infini et le pseudo-NaN ;
+  l'étiquette du non normal et du pseudo-zéro est « valide ». Les étiquettes chargées par FLDENV et FRSTOR sont gardées
+  (N3b ; documenté, annexe C § C.3) ; que le 8087 et le 287 s'y fient au lieu du contenu : N7b.
+- **Inconnus, dits** (PCEM_BUGS, PB-59) : le dernier bit du plus grand fini, OE vers zéro (l'annexe C se contredit), UE
+  masquée hors de l'arrondi vers zéro, les réponses masquées des transcendantes, D et I « simultanés », DE de FST m32
+  et m64 (N7b). La mise sous tension efface le mot d'état (C3-C0 compris).
+
+**Les cas.** `materiel-cas PB-200`, `PB-201` et `PB-202` (neufs) : MOV AX, 1234h ; FNINIT ; FNSTSW AX (1234h sur le
+8087 ; 0000h chez PCem et sur le 287) ; DS = 0, FLD m64 [FFFCh] (1,0, les octets de 10000h ; PCem 2,0, ceux de 0000h) ;
+FLDZ ; FTST ; FNINIT ou FNSAVE ; FNSTSW (4000h sur le 8087 et le 287 ; 0000h ailleurs et chez PCem). Verts dans les deux
+modes ; `--attendu materiel` en mode PCem : 1, 1 et 4 échecs. `Jouer87` efface C3-C0 après le RESET du harnais (la
+mise sous tension) : le 8087 et le 287 les garderaient sinon d'un cas à l'autre. `materiel-cas PB-264`, en mode
+matériel, gagne `SeizeBits`, vingt-huit cas sur chacun des cinq coprocesseurs, le 287XL, le 387 et le 486 pour témoins : un SNaN et
+un QNaN plus 1 (le NaN tel quel, IE) ; max × max vers zéro (+∞) et vers −∞ (sans OE) ; 2^−16382 × 0,5 vers zéro (UE,
+exact) ; (1 − 2^−126) × 2^−16382 au plus près, masqué (UE et PE ; le 387, PE et C1) et UM à 0 (le significande non
+arrondi, 6000h FFFFFFFFFFFFFFFFh, sans PE) ; OM à 0, (1 + 2^−63) × 2^16383 × 3 (C000000000000001h contre
+C000000000000002h, sans PE) ; FST m32 de 2^200 vers zéro (7F800000h contre 7F7FFFFFh) et FST m64 d'un QNaN (IE) ; DM à
+0, un dénormal par +0 (DE et l'arrêt ; le 387, ZE) ; FLD m80 d'un dénormal (DE), et sous DM à 0 FLD m80 et m64 d'un
+dénormal (rien d'empilé, 8082h ; le 387, 3800h et B882h) ; FXTRACT de −0 et de +∞ ; FSCALE de 1 et de +0 par +∞ ; FPREM
+de 1 par 3 et de 7 par 2 après FXAM de −0 (3000h et 7200h, les bits justes) ; FPATAN d'un pseudo-zéro (π/2 ; le 387, IE) ; FPTAN de 0,5 après FXAM (C2
+gardé) et sur une pile pleine (1,0 gardé en ST(1)) ; FYL2X de −1 et de +0 (ni IE ni ZE) ; FXAM du pseudo-infini (C0) ;
+l'étiquette d'un non normal (FNSTENV : 3FFFh contre BFFFh) ; FENI, FDISI et DB E5. Deux cas anciens changent leur
+attendu, sur la source : FPREM du 287 par un pseudo-zéro (C2 effacé : 3001h au lieu de 3401h) et FSCALE de 1 par +∞ sur
+le 8087 et le 287 (`materiel-cas PB-198` : IE et l'indéfini). Les cas de chaque PB du x87, dans les deux modes, et
+l'acheminement (PB-204, PB-264) : verts. Le domaine d'accord (`fuzz --accord`, sur le 387, le 486, le 287 et le
+8087) : vert ; `x87-transc` (160 000 cas) : vert ; le banc de l'exposant non borné (`nonborne 2`, deux millions de
+cas) : aucun écart (passé avant le retrait de l'extension de SoftFloat, qui le laisse sans objet).
+
+**Les contrôles négatifs.** Vingt-sept fautes (`neg-n7a.py`, hors dépôt comme les précédents), une à la fois, contre
+`materiel-cas` en mode matériel (PB-264, et PB-198, 200, 201, 202 selon la faute) ; toutes rougissent : le 8087 et le 287
+pris pour des 387 (49 échecs ; PB-202, 4), l'étiquette du non normal spéciale (2), la petitesse après l'arrondi (4), OE
+et UE démasquées arrondies (4), le dépassement vers zéro au plus grand fini (4), OE gardée vers −∞ (2), le dénormal
+exact sans UE vers zéro (2), un NaN sans IE (4), le NaN rendu silencieux (4), DE démasquée après ZE (2), FLD m80 d'un
+dénormal sans DE (2), FXAM du pseudo-infini non supporté (2), FXTRACT de −0 avec ZE (2) et de +∞ sans IE (2), FSCALE
+par +∞ selon le 387 (4 ; PB-198, 2), C2 posé par un FPREM invalide (1), les opérandes
+des transcendantes examinés (4), C2 effacé par FPTAN (2), l'indéfini aux deux places de FPTAN sur une pile pleine (2),
+FINIT qui efface C3-C0 (PB-202, 4), DF E0 qui écrit AX (PB-200, 1), le 8087 qui boucle dans le segment (PB-201, 1),
+FENI sans effet (1), FST m64 d'un QNaN sans IE (2), FPATAN d'un pseudo-zéro sans garde (le harnais s'arrête sur la division par
+zéro de l'hôte ; il a fallu que le cas prenne ST(1) = 0,5, sans quoi le pseudo-zéro n'est pas le diviseur), FLD m80 d'un
+dénormal empilé sous DM à 0 (2) ; le témoin vert. La faute « les bits du quotient du 387 » est partie avec `quotient_seize`. Une vingt-septième faute visait l'extension de la
+petitesse dans l'exposant non borné de SoftFloat ; restée verte, elle a montré l'extension inutile (ci-dessus).
+
+**Le recensement** : vert, 266 défauts, 1070 marqueurs. Huit neufs, dans le noyau : PB-59 (trois : `seize_arrondi`,
+`seize_depassement`, `de_d_abord`), PB-60 (`nan_de_seize`), PB-68 (`non_examines`), PB-200
+(`dfe0_8087`), PB-201 (`readmemw_8087`, `Cpu/808x.Materiel.cs`), PB-202 (`finit`). Six marqueurs de PCem basculent en
+« fixed in hardware mode », sans changer le compte : PB-200 dans `x87_ops_808x_tables.cs` (`gen46.py`), PB-201 dans
+`x87_8087.cs`, PB-202 dans `x87_ops_misc.cs` et `x87_ops_808x.cs` (`gen44.py`, `gen46.py`) ; régénérés, seules ces
+lignes de commentaire changent.
+
+**La contre-lecture** (Sonnet) : les cinq `materiel-cas` rejoués dans les deux modes, les attendus recalculés en
+rationnels exacts (max × max, (1 − 2^−126) × 2^−16382, (1 + 2^−63) × 2^16383 × 3, les mots d'état), une sonde hors
+dépôt sur tous les opérateurs, vingt valeurs par vingt, sept mots de contrôle ; le 287XL, le 387 et le 486 relus
+fonction par fonction : inchangés, hors des entrées DB E0, E1 et E5, désormais sans effet au lieu de l'arrêt. Repris :
+le plantage de FPATAN d'un pseudo-zéro (ci-dessus ; un cas, une faute) ; les bits du quotient de FPREM, dont les
+sources se contredisent, rendus à PCem ; DE démasquée de FLD, qui n'empile plus rien sur le 8087 et le 287 (deux cas,
+une faute) ; la mise sous tension, qui efface le mot d'état ; PB-208, documenté et non déduit, et l'étiquette à
+laquelle le 8087 et le 287 se fient, inscrite pour N7b ; les inconnus du dépassement, de la petitesse, des
+transcendantes, de D et I simultanés et de FST d'un dénormal, dits ; trois classements adoucis (IE de FST d'un NaN,
+FXAM du pseudo-zéro, I des transcendantes : déduits). Doutes laissés, dits : la troncature du significande non arrondi,
+la valeur rangée par FST d'un NaN. Couverture : PB-201 ne teste qu'une lecture (les écritures sont celles de PCem hors
+du repli de 1 Mo, relues à la ligne).
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n6 : 1 130 méthodes, deux changées, `ModeMateriel..cctor`
+et `materiel..cctor` (les entrées de PB-200, 201 et 202 et leurs champs, exécutés une fois), aucune apparue ni
+disparue ; les gestionnaires de PCem dont les marqueurs ont basculé (`x87_ops_misc.cs`, `x87_ops_808x.cs`,
+`x87_ops_808x_tables.cs`, `x87_8087.cs`) : identiques, ce ne sont que des commentaires. Les aides du 8087 de PB-201
+(`808x.Materiel.cs`) ne sont appelées que par le noyau.
+
+**La série** (`g7n7a`, le 12/10, 03:00 → 04:06, contre `g7n6`) : 481 portes, toutes vertes ; six neuves,
+`materiel-cas-pb200`, `-pb201` et `-pb202`, dans chaque mode ; seul `recensement` change parmi les anciennes, 1070
+marqueurs au lieu de 1062. Les cas de `SeizeBits` courent sous `materiel-cas-pb264-materiel` et
+`materiel-cas-pb264-acheminement`, déjà portes ; les domaines d'accord du 8087 et du 287, inchangés, restent verts.
+M2 recapturé après les reprises, sur le Release de la série : le même résultat.

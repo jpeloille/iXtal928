@@ -647,3 +647,10 @@ done
 run materiel-cas-pb68 materiel-cas PB-68
 run materiel-cas-pb68-materiel --hardware-mode PB-68 materiel-cas PB-68
 run x87-transc x87-transc --vecteurs 20000 1
+# G13.6, le noyau, N7a — le 8087 et le 287, hors des non normaux, en chantier : DF E0 du 8087 (PB-200), son adressage
+# (PB-201), C3-C0 gardés par FINIT et FSAVE (PB-202) ; le reste (leurs exceptions, leurs NaN, FXTRACT, FSCALE, FPREM,
+# les transcendantes non examinées, FXAM, les étiquettes, FENI et FDISI) dans materiel-cas PB-264 (mode matériel).
+for pb in 200 201 202; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

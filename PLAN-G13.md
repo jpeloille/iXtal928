@@ -396,7 +396,31 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   et les dénormaux chargés en non normaux, FXAM à seize codes, FINIT et FSAVE qui gardent C3-C0 (PB-202), FNSTSW AX
   absent du 8087 (PB-200), l'adressage du 8087 (PB-201), le quotient du 287, FSETPM et la disposition des images du
   287, IEM, FENI, FDISI ; venus de N6, FSIN, FCOS et FSINCOS absents (PB-266), les domaines étroits des transcendantes
-  et FPTAN en rapport. ≈ 1 000 lignes. **Le noyau entre alors au mode** (« tout » et le domaine `x87`).
+  et FPTAN en rapport. ≈ 1 000 lignes. **Le noyau entre alors au mode** (« tout » et le domaine `x87`). Coupé en
+  trois (12/10), sur la liste de l'annexe C du 387 PRM (« Compatibility between the 80387 and the 80287/8087 ») :
+  - **N7a — Le 8087 et le 287, hors des non normaux** ✅ *(12/10, VERIFICATION.md § G13.6, le noyau, N7a)*. FINIT, FSAVE et le RESET gardent C3-C0 (PB-202, annexe C §
+    C.3) ; DF E0 sur le 8087, AX inchangé (PB-200) ; l'adressage du 8087, l'adresse physique incrémentée pour chaque
+    mot (PB-201) ; FENI et FDISI (IEM du 8087, sans effet ailleurs), et les entrées que PCem exécute en FNOP ; IE pour
+    tout NaN, le NaN de plus grand significande ; le dépassement masqué (l'infini au plus près et vers zéro, OE
+    seulement si la réponse est l'infini), la petitesse sur le résultat vrai, OE et UE démasquées vers la pile sans
+    arrondi ni PE ; DE démasquée avant toute autre ; ni DE dans les transcendantes et FXTRACT, ni examen de leurs
+    opérandes (287 PRM, « operands not checked ») ; DE pour FLD m80 ; FXTRACT d'un zéro (deux zéros) et d'un infini
+    (IE), FSCALE par un infini (IE) ; FPTAN sans C2, l'opérande gardé en ST(1) après la faute de pile ; C2 de FPREM
+    invalide (les bits de son quotient, sur lesquels les sources se contredisent, restent ceux de PCem) ; les étiquettes du pseudo-zéro et du non normal, et leurs codes de FXAM (les
+    seize codes, hors de l'arithmétique des non normaux). Les domaines étroits et le
+    rapport de FPTAN : hors domaine, « undefined » ; le noyau garde la valeur mathématique (un choix, (c)). PB-209 et
+    PB-266 restent reproduits (décision n° 14).
+  - **N7b — Les non normaux et l'infini projectif.** Les tables 1-8, 1-9, 1-10, 1-11, 1-12 et 1-17 du 287 PRM : le
+    dénormal chargé en non normal (FLD m32, m64), converti en non normal dans un calcul ; l'arithmétique des non
+    normaux (la normalisation de l'opérande le plus grand pour l'addition, un produit non normal, un dividende non
+    normal) ; IE pour un diviseur, une racine, un modulo, un FIST ou un FBSTP dénormal ou non normal ; FST m32 et m64
+    d'un non normal ; le pseudo-zéro ; les comparaisons, FTST et FRNDINT qui normalisent d'abord (DE pour un non normal
+    comparé) ; FXTRACT d'un dénormal et d'un non normal ; FST m32 et m64 d'un dénormal ; les étiquettes auxquelles le
+    8087 et le 287 se fient au lieu du contenu (387 PRM, annexe C § C.3) ; l'infini projectif dans l'addition, la
+    soustraction et FSQRT.
+  - **N7c — L'entrée au mode.** `EnChantier` vidé ; les groupes du noyau et des comparaisons réunis, PB-57, 58, 61,
+    63, 64, 66, 67, 70, 207 et 213 repris par le noyau ; les entrées illégales de PCem (PB-210) aux tables du noyau ;
+    chaque lecteur de `cpu_state.ST` et `tag` (le débogueur, l'état sauvé) relu ; « tout » et le domaine `x87`.
 - **N8 — La clôture.** Les gestionnaires en `double` de G13.6a et 6b, que le noyau remplace, quittent le dépôt (leurs
   cas restent, rejoués par le noyau) ; la couverture comptée (gestionnaires × classes × RC × PC) ; PCEM_BUGS ; la
   marge du `--timer-check` en mode matériel sur un invité saturé de flottant (le 486, un Whetstone), supérieure à 1

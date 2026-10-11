@@ -115,7 +115,7 @@ internal static class _386_noyau
         return cpu_state.abrt;
     }
 
-    // FNSTSW AX : le mot d'état, TOP compris (287, 387, 486 ; le 8087 n'a pas DF E0 : N7, PB-200).
+    // FNSTSW AX : le mot d'état, TOP compris (287, 387, 486).
     internal static int opFNSTSW_AX(uint32_t fetchdat)
     {
         if (_386.FP_ENTER()) return 1;
@@ -2513,13 +2513,43 @@ internal static class _386_noyau
     }
 
     // FSETPM : le 287 et le 287XL passent au mode protégé, jusqu'au RESET (287 PRM, FSETPM ; PB-62) ; le 387 et le 486
-    //   n'en font rien (387 PRM § 4.8). Le 8087 n'a pas DB E4 : N7.
+    //   n'en font rien (387 PRM § 4.8). Le 8087 n'a pas DB E4 : DB_E5.
     internal static int opFSETPM(uint32_t fetchdat)
     {
         if (_386.FP_ENTER()) return 1;
         cpu_state.pc++;
         if (cpu_c.fpu_type is cpu_c.FPU_287 or cpu_c.FPU_287XL)
                 _x87_noyau.fsetpm = true;
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+    }
+
+    // FENI : sans effet sur le 287, le 387 et le 486 (287 PRM : « the 80287 will perform no specific operation and
+    //   no internal states will be affected » ; 387 PRM, annexe D, point 2).
+    internal static int opFENI(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+    }
+
+    // FDISI : sans effet sur le 287, le 387 et le 486 (287 PRM : « the 80287 will perform no specific operation and
+    //   no internal states will be affected » ; 387 PRM, annexe D, point 2).
+    internal static int opFDISI(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        cpu_state.pc++;
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
+        return 0;
+    }
+
+    // DB E5, et DB E4 sur le 8087 : réservés (les tables des opcodes du 287 PRM et du manuel de l'iAPX 86/88, 1981) ;
+    //   PCem les exécute en FNOP ; le noyau, sans effet ni pointeurs, aux cycles de FNOP (inconnu).
+    internal static int opDB_E5(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        cpu_state.pc++;
         _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fnop);
         return 0;
     }
@@ -2982,5 +3012,11 @@ internal static class _386_noyau
         _386.x86_opcodes_d9_a32![0xFF] = opFCOS;
         _386.x86_opcodes_db_a16![0xE4] = opFSETPM;
         _386.x86_opcodes_db_a32![0xE4] = opFSETPM;
+        _386.x86_opcodes_db_a16![0xE0] = opFENI;
+        _386.x86_opcodes_db_a32![0xE0] = opFENI;
+        _386.x86_opcodes_db_a16![0xE1] = opFDISI;
+        _386.x86_opcodes_db_a32![0xE1] = opFDISI;
+        _386.x86_opcodes_db_a16![0xE5] = opDB_E5;
+        _386.x86_opcodes_db_a32![0xE5] = opDB_E5;
     }
 }
