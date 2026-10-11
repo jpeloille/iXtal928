@@ -799,3 +799,38 @@ gestionnaire d'erreur pour savoir quelle instruction a fauté. Toujours en chant
   écrivent au-delà de la limite, et dans un segment en lecture seule.
 - **La correction.** Le contrôle de la limite et des droits, à chaque accès ; les instructions de calcul l'auront avec
   leur réécriture.
+
+## G13.6, le noyau, suite — calculer et comparer
+
+*Le 11 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.6, le noyau, `VERIFICATION.md` § G13.6, le noyau,
+N4a.*
+
+Le noyau calcule : les quatre opérations, la racine carrée et les comparaisons, sur 80 bits. Toujours en chantier :
+seuls les tests le demandent. Un contrôle neuf vérifie qu'il ne s'écarte pas de PCem là où PCem calcule juste : sur
+des nombres ordinaires, arrondis au plus près à 53 bits, les deux rendent le même résultat au bit près.
+
+### PB-48 — le sens de l'arrondi
+
+- **Le vrai PC.** Le programme choisit comment arrondir un résultat inexact : au plus près, vers le haut, vers le bas
+  ou vers zéro, et avec combien de bits (24, 53 ou 64). Chaque opération obéit. L'arithmétique d'intervalles et
+  certaines bibliothèques mathématiques en dépendent.
+- **L'émulateur.** PCem n'arrondit dans le sens demandé que pour une seule instruction, l'addition avec un opérande en
+  mémoire ; les autres arrondissent toujours au plus près, et toutes calculent avec 53 bits.
+- **La correction.** Chaque opération suit le sens et la précision demandés.
+
+### PB-60 — le NaN qui survit
+
+- **Le vrai PC.** Quand les deux opérandes sont des « NaN » (des valeurs « pas un nombre »), le coprocesseur garde
+  celui qui porte la plus grande valeur, selon une règle fixe.
+- **L'émulateur.** Le NaN qui survit dépend de l'ordre dans lequel le compilateur de PCem a rangé les opérandes,
+  instruction par instruction.
+- **La correction.** La règle du coprocesseur, la même pour toutes les instructions.
+
+### Les exceptions et les comparaisons
+
+- **Le vrai PC.** Chaque opération signale ce qui s'est mal passé : une opération impossible (la racine d'un négatif),
+  une division par zéro, un résultat trop grand, trop petit ou arrondi. Une comparaison avec un NaN rend « non
+  ordonné », et sur le 8087 et le 287, l'infini n'a pas de signe.
+- **L'émulateur.** PCem ne signale que la division par zéro. Ses comparaisons ont déjà été corrigées (G13.6a) ; le noyau
+  les reprend.
+- **La correction.** Les six signaux, posés par le noyau dans l'ordre que décrit Intel.

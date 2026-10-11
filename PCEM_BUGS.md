@@ -598,6 +598,10 @@ appelé par les seuls opFADD mémoire ; les huit blocs FADD mémoire de `Cpu/x87
 `tools/x87gen/gen43.py`) ; FST et FSTP m32 de `Cpu/x87_ops_loadstore.cs` ; leurs copies de `Cpu/x87_ops_808x.cs` ;
 marqueurs PB-48. `x87-cases` : les bords de l'arrondi dirigé de FADD mémoire. (Ce champ disait « pas encore —
 G4.3 transcrira… » : G4.3 l'a fait, D2-contre K11.)
+*Corrigé en mode matériel* (G13.6, le noyau, N4a ; en chantier) : les quatre opérations du noyau (`_x87_noyau.operation`),
+en mémoire et de registre, FSQRT, et FST m32 et m64 (N3a), arrondissent selon RC, et les quatre opérations et FSQRT à
+la précision de PC (SoftFloat). `materiel-cas PB-48` : FDIV m64 et FDIVP de registre sous 0A7Fh, FST m32 sous 077Fh,
+FSUB de registre sous 0F7Fh, sur les cinq coprocesseurs.
 
 ### PB-50 — Aucune limite de longueur d'instruction : les préfixes s'enchaînent sans fin
 
@@ -810,7 +814,9 @@ FDIV(R), FSQRT) ; SDM vol. 2, FINIT (037Fh, PC = 64 bits) ; 387 PRM ; Numerics S
 *Reproduit* : `Cpu/x87_ops.cs` et `Cpu/x87_8087.cs`, `x87_st80`, verbatim, marqueurs PB-56 ; ST est un `double[]`
 (`Cpu/x86.cs`, hors du domaine du x87, sans marqueur).
 *Corrigé en mode matériel* (G13.6, le noyau, N3a ; en chantier) : FSTP m80 du noyau (`_x87_noyau.fst_f80`) range les
-80 bits tels quels ; vide, l'indéfini. `materiel-cas PB-56`.
+80 bits tels quels ; vide, l'indéfini. `materiel-cas PB-56`. La précision (N4a) : les registres du noyau ont 64 bits de
+significande, et ses opérations les calculent (PC = 11 après FNINIT) ; `materiel-cas PB-56` : 1/3 rangé en m80,
+3FFDh AAAAAAAAAAAAAAABh.
 
 ### PB-57 — FCOM en forme registre compare avec `==` et `<` : un NaN rend « plus grand »
 
@@ -903,7 +909,10 @@ les cycles de PCem (déduit), puis l'acheminement, sur le front d'ES seulement. 
 mode, et celle du 8087 en place). Le 486, NE posé : #MF devant l'instruction suivante qui attend (`bloque`).
 `materiel-cas PB-59` : le mot d'état après FDIVP 1/0 sur les quatre coprocesseurs (B084h), après FNCLEX (3000h), #MF
 du 486 devant FLD1 et WAIT (l'adresse de retour, celle de FLD1), pas devant FNSTSW, et les sept instructions sans
-attente, a16 et a32. Les autres exceptions, et les drapeaux masqués : avec le noyau.
+attente, a16 et a32. Les autres exceptions, et les drapeaux masqués : avec le noyau. Les drapeaux masqués (G13.6, le
+noyau, N3a et N4a ; en chantier) : chaque instruction du noyau pose IE, DE, ZE, OE, UE et PE selon SoftFloat et la
+classe de ses opérandes, dans l'ordre du SDM (vol. 1, 2003, § 4.9.2) ; `materiel-cas PB-264`, en mode matériel :
+FSQRT de −1, 1/0, 0/0, ∞ − ∞, un dépassement par excès et par défaut, un dénormal, PE. Démasquées : N5.
 
 ### PB-60 — Le NaN propagé suit l'ordre des opérandes que GCC a choisi, handler par handler
 
@@ -936,6 +945,10 @@ absolue) — documenté ; deux significandes égaux de signes contraires : incon
 mémoire en premier) ; vingt-deux sites de `Cpu/x87_ops_arith.cs` (générés par `gen43.py`) et leurs copies de
 `Cpu/x87_ops_808x.cs` ; marqueurs PB-60 sur la ligne au-dessus de chaque site, les fins de ligne `// PB-60 : …`
 restant. Contrôle négatif : l'ordre de opFADD inversé → divergence à l'itération 46 159.
+*Corrigé en mode matériel* (G13.6, le noyau, N4a ; en chantier) : les quatre opérations du noyau (`_x87_noyau.operation`)
+propagent le NaN par la règle de la spécialisation du 8086 de SoftFloat, celle de la table 4-7 ; l'opérande en mémoire
+garde son bit de silence jusqu'au calcul (`de_f32`, `de_f64`). Deux significandes égaux de signes contraires :
+SoftFloat rend le positif, (c). `materiel-cas PB-60` : DC C5, FADD m64 et D8 C9, sur les cinq coprocesseurs.
 
 ### PB-61 — FNSTSW AX rend npxs sans TOP
 

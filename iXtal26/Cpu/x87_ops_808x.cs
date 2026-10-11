@@ -555,7 +555,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -569,7 +569,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -583,7 +583,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -600,7 +600,7 @@ internal static partial class _808x
             if (FP_ENTER()) return 1;
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -622,12 +622,12 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.s, ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -711,7 +711,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
@@ -760,12 +760,12 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.s, ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
@@ -849,7 +849,7 @@ internal static partial class _808x
             t.i = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.s, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
@@ -898,12 +898,12 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.d, ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -987,7 +987,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
@@ -1036,12 +1036,12 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige(t.d, ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
@@ -1125,7 +1125,7 @@ internal static partial class _808x
             t.i = geteaq();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(t.d, ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
@@ -1174,12 +1174,12 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int16_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
@@ -1263,7 +1263,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
@@ -1312,12 +1312,12 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int16_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
@@ -1401,7 +1401,7 @@ internal static partial class _808x
             t = geteaw();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int16_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
@@ -1450,12 +1450,12 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int32_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -1539,7 +1539,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
@@ -1588,12 +1588,12 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
+            // pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :
             //   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).
             if (((cpu_state.npxc >> 10) & 3) != 0)
                     ST(0) = x87_fadd_dirige((double)unchecked((int32_t)t), ST(0), (cpu_state.npxc >> 10) & 3);
             else
-                    // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+                    // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
                     ST(0) = X87AddSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
@@ -1677,7 +1677,7 @@ internal static partial class _808x
             t = geteal();
             if (cpu_state.abrt != 0)
                     return 1;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd((double)unchecked((int32_t)t), ST(0)); // PB-60 : la mémoire en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
@@ -1721,7 +1721,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87AddSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
@@ -1733,7 +1733,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87AddSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
@@ -1745,7 +1745,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87AddSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             x87_pop();
@@ -1891,7 +1891,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST(0) = X87MulSd(ST((int)(fetchdat & 7)), ST(0)); // PB-60 : ST(i) en premier
             cpu_state.tag[cpu_state.TOP & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
@@ -1903,7 +1903,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87MulSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
@@ -1915,7 +1915,7 @@ internal static partial class _808x
     {
             if (FP_ENTER()) return 1;
             cpu_state.pc++;
-            // pcem bug, reproduced: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
+            // pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l'ordre des opérandes que GCC a choisi.
             ST((int)(fetchdat & 7)) = X87MulSd(ST(0), ST((int)(fetchdat & 7))); // PB-60 : ST(0) en premier
             cpu_state.tag[(cpu_state.TOP + (int)fetchdat) & 7] = x87_c.TAG_VALID;
             x87_pop();

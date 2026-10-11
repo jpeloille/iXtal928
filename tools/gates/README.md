@@ -120,6 +120,9 @@ demande en clair, `--hardware-mode LISTE` en tête de ses arguments, et `par.sh`
 `IXTAL26_*` inconnue, ou une variable qui change la compilation du JIT (`DOTNET_Jit*`, `DOTNET_Tiered*`,
 `DOTNET_ReadyToRun*`), est posée. `banc` lance iXtal26 (`--boot`) deux fois dans le mode de la porte et compare la
 sortie à un fichier d'attendus de `tools/gates/bancs/` ; `fuite-pb01` est le fuzzeur en contrôle de fuite (`--fuite`).
+Les portes `accord-387`, `-486`, `-287` et `-8087` (G13.6, le noyau, N4a) le jouent sur le domaine d'accord du noyau du
+x87 (`--accord`, sous `--hardware-mode PB-264`) : sous 027Fh, sur des normaux du double, le noyau de 80 bits rend au bit
+près le double de PCem.
 Les portes `sst8088` et `sst8086` (et leur pendant `-materiel`) lisent les corpus SingleStepTests de `vectors/`, que
 git ignore : `tools/fetch-sst.sh` et `tools/fetch-sst8086.sh` les récupèrent d'après leur manifeste, `--verify` les
 contrôle. Sous `--attendu`, une forme du fichier dont les vecteurs manquent rend la porte rouge, jamais muette.

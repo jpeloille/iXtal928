@@ -28,9 +28,9 @@ for m in re.finditer(r'static int (\w+)\(uint32_t fetchdat\) \{\n(.*?)\n\}',txt[
     start=txt.find('static int %s(uint32_t fetchdat)'%fn); ln=txt[:start].count('\n')+1
     funcs.append((fn,'reg',m.group(2).split('\n'),None,None,None,None,'x87_ops_arith.h:%d'%ln))
 # G13.1 — les marqueurs `// pcem bug, reproduced: PB-nn` (PCEM_BUGS.md), posés ici et nulle part à la main.
-M48='// pcem bug, reproduced: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :'
+M48='// pcem bug, fixed in hardware mode: PB-48 — RC ne vaut que pour ce FADD mémoire, par x87_fadd_dirige :'
 M48b='//   fesetround(rounding_modes[RC]) ; ST(0) += use_var ; fesetround(FE_TONEAREST) (x87_ops_arith.h:12-16).'
-M60='// pcem bug, reproduced: PB-60 — le NaN qui survit suit l\'ordre des opérandes que GCC a choisi.'
+M60='// pcem bug, fixed in hardware mode: PB-60 — le NaN qui survit suit l\'ordre des opérandes que GCC a choisi.'
 MC1='// pcem bug, fixed in hardware mode: PB-213 — C1 n\'est pas remis à zéro (387 et suivants ; x87.Materiel.cs).'
 def conv(fn,kind,lines,optype,lv,get,use):
     out=[]; k=0

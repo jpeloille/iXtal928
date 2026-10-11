@@ -27,6 +27,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("       [--0f XX ...]   (386, single : 0F XX, préfixes 66/67 tirés)");
     Console.WriteLine("       [--fpu-state]   (G4.0 : état x87 tiré et posé des deux côtés)");
     Console.WriteLine("       [--fpu 8087|287|287xl|387] [--x87 mem]   (G4.2 : coprocesseur ; ESC mémoire transcrits)");
+    Console.WriteLine("       [--accord]   (G13.6, le noyau : sous --hardware-mode PB-264, le domaine d'accord, 027Fh,");
+    Console.WriteLine("                     des normaux du double ; D8, D9, DA, DC, DD, DE par défaut)");
     Console.WriteLine("  pm-fuzz [--op XX ...] [--0f XX ...] [--iter N] [--seed N]");
     Console.WriteLine("  page-check [--iter N] [--seed N] [--renew N] [--oracle]");
     Console.WriteLine("      mmutranslatereal confronté des deux côtés, tables de pages tirées en RAM");
@@ -926,6 +928,8 @@ switch (args[0])
                 case "--fpu-state": Fuzzer.FpuState = true; break;
                 // G13.2 — le contrôle de fuite du mode matériel (Fuzzer.Fuite).
                 case "--fuite": Fuzzer.Fuite = true; break;
+                // G13.6, le noyau, N4a — le domaine d'accord du noyau (Fuzzer.Accord).
+                case "--accord": Fuzzer.Accord = true; break;
                 // G4.2 — le coprocesseur des deux côtés (FPU_* : 1 = 8087, 2 = 287, 3 = 287XL,
                 // 4 = 387), posé avant chaque reset : h_set_fpu, _386.FuzzFpu.
                 case "--fpu" when i + 1 < args.Length:
@@ -959,6 +963,8 @@ switch (args[0])
             ops.Add(0x0F);
         }
 
+        if (ops.Count == 0 && Fuzzer.Accord)
+            ops.AddRange([0xD8, 0xD9, 0xDA, 0xDC, 0xDD, 0xDE]);
         if (ops.Count == 0)
             ops.Add(0xCE);
 
@@ -967,6 +973,16 @@ switch (args[0])
             Console.Error.WriteLine("--fuite : sous --hardware-mode, en mode simple (--mode single), sur le 8088 ou le 8086 " +
                                     "seulement.");
             return 2;
+        }
+        // G13.6, le noyau, N4a — le domaine d'accord : le noyau demandé, en mode simple, un état x87 qui lui est propre.
+        if (Fuzzer.Accord)
+        {
+            if (!single || !iXtal26.materiel.pb_264 || Fuzzer.FpuState || Fuzzer.Fuite)
+            {
+                Console.Error.WriteLine("--accord : sous --hardware-mode PB-264 (le noyau), en mode simple (--mode single), " +
+                                        "sans --fpu-state ni --fuite.");
+                return 2;
+            }
         }
         // G13.3 — le temps (PB-03, PB-257) et les accès mot (PB-07, PB-179) n'ont pas de périmètre d'instruction.
         if (Fuzzer.Fuite && (iXtal26.materiel.pb_03 || iXtal26.materiel.pb_257 || iXtal26.materiel.pb_07 ||

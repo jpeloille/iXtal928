@@ -365,7 +365,10 @@ déterministe, « sans fonction de l'hôte à résultat variable » ; les transc
   FLDCW, FSTCW, FSTSW, FCLEX, FINIT, FLDENV, FSTENV, FSAVE, FRSTOR avec les pointeurs ; chaque accès mémoire contrôlé
   (le chemin de PB-189). PB-52, 54, 55, 56 (le stockage), 62, 63, 66, 67, 195, 196, 199, 203, 206, 207, 208, 212 ;
   les exceptions masquées. ≈ 1 500 lignes.
-- **N4 — L'arithmétique, les comparaisons, l'arrondi.** FADD, FSUB(R), FMUL, FDIV(R) en mémoire (m32, m64, m16
+- **N4 — L'arithmétique, les comparaisons, l'arrondi.** Coupé en deux : **N4a** ✅ *(11/10, VERIFICATION.md § G13.6, le
+  noyau, N4a)*, les quatre opérations, FSQRT, les comparaisons et le domaine d'accord (PB-48, 60 ; la précision de
+  PB-56, les drapeaux masqués de PB-59 ; les comparaisons de PB-57, 58, 64, 70 et 213 reprises, au groupe en N7) ;
+  **N4b**, FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1 (PB-65, 194, 197, 198, 211). Le contenu d'ensemble : FADD, FSUB(R), FMUL, FDIV(R) en mémoire (m32, m64, m16
   entier, m32 entier) et en registre ; FSQRT ; FCOM, FCOMP, FCOMPP, FUCOM*, FICOM, FTST (le projectif du 287 compris) ;
   FRNDINT, FSCALE, FXTRACT ; FPREM et FPREM1 par réductions partielles (C2, et le quotient dans C0, C3, C1). PB-48,
   56 (la précision), 57, 58, 59 (les drapeaux masqués), 60, 64, 65, 70, 194, 197, 198, 211, 213. Après N4, le

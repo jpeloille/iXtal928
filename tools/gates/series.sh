@@ -624,3 +624,15 @@ for pb in 54 62 199 208; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.6, le noyau, N4a — l'arithmétique et les comparaisons, en chantier : RC et PC (PB-48), le NaN qui survit (PB-60) ;
+# leurs drapeaux masqués et les comparaisons du noyau sont dans materiel-cas PB-264 (mode matériel). Le domaine d'accord
+# (fuzz --accord) : sous 027Fh, sur des normaux du double, le noyau rend au bit près le double de PCem, sur le 387, le
+# 486, le 287 et le 8087.
+for pb in 48 60; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run accord-387 --hardware-mode PB-264 fuzz --core 386 --fpu 387 --mode single --accord --iter 20000 --seed 1
+run accord-486 --hardware-mode PB-264 fuzz --core 486 --fpu 5 --mode single --accord --iter 10000 --seed 2
+run accord-287 --hardware-mode PB-264 fuzz --core 286 --fpu 287 --mode single --accord --iter 5000 --seed 3
+run accord-8087 --hardware-mode PB-264 fuzz --core 8088 --fpu 8087 --mode single --accord --iter 20000 --seed 4

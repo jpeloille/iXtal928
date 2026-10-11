@@ -21,6 +21,7 @@
 using iXtal26.Cpu;
 using iXtal26.Diag;
 using iXtal26.Memory;
+using iXtal26.SoftFloat;
 
 namespace iXtal26.Diff;
 
@@ -184,6 +185,7 @@ public static class Fuzzer
                                 byte[]? second0F = null)
     {
         var dansLePerimetre = 0;
+        int horsDomaine = 0, tempsDeclares = 0;
         Oracle.CheckAbi();
         Console.WriteLine($"Diff différentiel (mode simple) — opcodes " +
                           $"{string.Join(",", opcodes.Select(o => $"0x{o:X2}"))}, " +
@@ -436,10 +438,25 @@ public static class Fuzzer
                     regs[(int)R.ES] = (ushort)(0x3000 + (rng.Next() % 0x4000));
             }
 
+            byte[]? operande = null;
+            var racine = false;
+            if (Accord)
+            {
+                operande = AccordInstruction(code, ref rng, out racine);
+                regs[(int)R.DS] = 0x3000;
+            }
+
             var linear = (uint)(regs[(int)R.CS] << 4) + regs[(int)R.IP];
             Oracle.h_load(linear, code, (uint)code.Length);
             for (var i = 0; i < code.Length; i++)
                 mem.ram[(linear + i) & mem.rammask] = code[i];
+            if (operande is not null)
+            {
+                var ea = 0x30000u + (uint)(code[2] | code[3] << 8);
+                Oracle.h_load(ea, operande, (uint)operande.Length);
+                for (var i = 0; i < operande.Length; i++)
+                    mem.ram[ea + i] = operande[i];
+            }
 
             if (steered)
                 steeredCount++;
@@ -457,6 +474,8 @@ public static class Fuzzer
 
             if (FpuState)
                 SeedFpu(ref fpuRng);
+            else if (Accord)
+                AccordFpu(ref fpuRng, racine);
 
             Oracle.h_wlog_reset();
             mem.wlog_reset();
@@ -489,8 +508,33 @@ public static class Fuzzer
 
             Oracle.h_getstate(out a);
             _808x.GetState(ref b);
+            string? accordDiff = null;
+            if (Accord)
+            {
+                accordDiff = AccordLire(ref a, ref b, out var horsDuDomaine);
+                if (horsDuDomaine)
+                {
+                    horsDomaine++;
+                    continue;
+                }
+                // PB-57 : le temps consommé diffère de fadd − fcom, exactement ; le modèle de temps qui en découle (le TSC,
+                // et sur le 8088 le préfetch et sa file, que le temps de l'instruction règle) est alors pris de l'oracle.
+                var t = x87_timings_c.x87_timings;
+                if (AccordTempsDeclare(code))
+                {
+                    if (cycC - cycS == t.fadd - t.fcom)
+                    {
+                        tempsDeclares++;
+                        AccordTempsDeOracle(a, ref b);
+                        cycS = cycC;
+                    }
+                    else
+                        accordDiff ??= $"PB-57 : le temps de fcom attendu, fadd − fcom = {t.fadd - t.fcom} cycles de moins que " +
+                                       $"l'oracle ; C# {cycS}, oracle {cycC}";
+                }
+            }
 
-            var diff = Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a, core) : null);
+            var diff = accordDiff ?? Compare(a, b, cycC, cycS) ?? CmpWrites() ?? (X87Mem || X87G44 || X87All ? CmpEa(a, core) : null);
             if (diff is null)
                 continue;
             string? hors = null;
@@ -531,6 +575,17 @@ public static class Fuzzer
             }
             Console.WriteLine($"\nVert : contrôle de fuite, {iterations} instructions ; {dansLePerimetre} divergences, toutes " +
                               $"dans le périmètre du mode {ModeMateriel.Description}, aucune ailleurs.");
+        }
+        else if (Accord)
+        {
+            if (iterations - horsDomaine == 0)
+            {
+                Console.WriteLine($"\nNON ATTEINT : {iterations} instructions, toutes hors du domaine d'accord.");
+                return 1;
+            }
+            Console.WriteLine($"\nVert : domaine d'accord, {iterations - horsDomaine} instructions au bit près de PCem ; " +
+                              $"{horsDomaine} hors du domaine, écartées ; {tempsDeclares} temps de FCOM de registre non comparés " +
+                              "(PB-57).");
         }
         else
             Console.WriteLine($"\nVert : {iterations} instructions, zéro divergence.");
@@ -865,6 +920,157 @@ public static class Fuzzer
         Oracle.h_setregs386(hi, 0, fs, gs);
         _808x.SetRegs386(hi, 0, fs, gs);
     }
+
+    /// <summary>G13.6, le noyau, N4a — le domaine d'accord (PLAN-G13.md, § G13.6, le noyau ; décision n° 6) : sous le mot
+    /// de contrôle 027Fh (53 bits, au plus près, tout masqué), sur des opérandes normaux du double, le noyau de 80 bits
+    /// rend au bit près le double de PCem. Sous --hardware-mode et le noyau demandé, chaque itération tire, dans les
+    /// échappements de --op, une instruction de l'arithmétique ou des comparaisons (AccordRegistre ; D8, DA, DC et DE en
+    /// mémoire aussi, l'opérande en DS:disp16, DS = 3000h, loin du code), huit registres pleins et normaux, de 2^−60 à
+    /// 2^60, et compare à l'oracle l'état entier, les registres du noyau lus en double. Hors du domaine, et donc écartés
+    /// (comptés), selon l'oracle seul : sa division par zéro, un registre qui n'est plus un double normal ou un zéro ; chez
+    /// le noyau, une exception autre que PE ou un registre qui n'est pas un double sont des divergences (AccordLire). Les
+    /// opérandes tirés n'en sortent pas : une porte qui en compte est à relire. Ne sont pas comparés : PE et C1 (PCem ne les pose pas, PB-59 et PB-213), les
+    /// pointeurs (PB-62), le temps de FCOM, FCOMP et FCOMPP de registre, dont l'écart doit être fadd − fcom (PB-57,
+    /// AccordTempsDeclare) ; une étiquette n'est que vide ou pleine (PB-208). Le contrôle,
+    /// accepté en mode matériel comme celui de fuite (ModeOutils), est une exception déclarée au refus des fuzzeurs.</summary>
+    internal static bool Accord;
+
+    // Les formes de registre du domaine, par échappement : D8 et DC entiers (DC D0+i et D8+i, les alias de FCOM et FCOMP,
+    // comme PCem) ; D9 : FCHS, FABS, FTST, FXAM, FSQRT ; DA E9 : FUCOMPP ; DD E0 à EF : FUCOM et FUCOMP ; DE : FADDP,
+    // FMULP, FCOMPP, FSUBRP, FSUBP, FDIVRP, FDIVP (DE D0 à D7, FCOMP5, que PCem refuse, PB-210, n'y est pas).
+    private static readonly Dictionary<byte, byte[]> AccordRegistre = new()
+    {
+        [0xD8] = [.. Enumerable.Range(0xC0, 64).Select(x => (byte)x)],
+        [0xD9] = [0xE0, 0xE1, 0xE4, 0xE5, 0xFA],
+        [0xDA] = [0xE9],
+        [0xDC] = [.. Enumerable.Range(0xC0, 64).Select(x => (byte)x)],
+        [0xDD] = [.. Enumerable.Range(0xE0, 16).Select(x => (byte)x)],
+        [0xDE] = [.. Enumerable.Range(0xC0, 16).Select(x => (byte)x), 0xD9, .. Enumerable.Range(0xE0, 32).Select(x => (byte)x)],
+    };
+
+    /// <summary>Un double normal de 2^−60 à 2^60, de signe tiré.</summary>
+    private static ulong NormalDouble(ref Lcg r) =>
+        (ulong)(r.Next() & 1) << 63 | (ulong)(1023 - 60 + r.Next() % 120) << 52 | (Next64(ref r) & 0x000FFFFFFFFFFFFF);
+
+    /// <summary>L'instruction du domaine en `code` (son échappement, code[0], tiré par la boucle) : une forme de registre,
+    /// ou, pour D8, DA, DC et DE, une fois sur deux, la forme en mémoire /0 à /7 en [disp16]. Rend les octets de
+    /// l'opérande (un m32 ou un m64 normal, un entier non nul), ou null ; `racine` : FSQRT, dont ST(0) sera positif.</summary>
+    private static byte[]? AccordInstruction(byte[] code, ref Lcg rng, out bool racine)
+    {
+        var esc = code[0];
+        Array.Fill(code, (byte)0x90, 1, code.Length - 1);
+        racine = false;
+        if (!AccordRegistre.TryGetValue(esc, out var rangee))
+            throw new InvalidOperationException($"--accord : l'échappement {esc:X2} n'a pas de forme dans le domaine.");
+        if (esc is 0xD9 or 0xDD || (rng.Next() & 1) == 0)
+        {
+            code[1] = rangee[rng.Next() % (uint)rangee.Length];
+            racine = esc == 0xD9 && code[1] == 0xFA;
+            return null;
+        }
+        code[1] = (byte)((rng.Next() & 7) << 3 | 6);
+        var disp = rng.Next() % 0xFFF0;
+        code[2] = (byte)disp;
+        code[3] = (byte)(disp >> 8);
+        switch (esc)
+        {
+            case 0xD8:
+            {
+                var f = (rng.Next() & 1) << 31 | (127 - 60 + rng.Next() % 120) << 23 | (rng.Next() & 0x7FFFFF);
+                return BitConverter.GetBytes(f);
+            }
+            case 0xDC:
+                return BitConverter.GetBytes(NormalDouble(ref rng));
+            case 0xDA:
+            {
+                var v = rng.Next();
+                return BitConverter.GetBytes(v == 0 ? 1u : v);
+            }
+            default:
+            {
+                var v = (ushort)rng.Next();
+                return BitConverter.GetBytes(v == 0 ? (ushort)1 : v);
+            }
+        }
+    }
+
+    /// <summary>L'état du domaine, des deux côtés : huit registres pleins et normaux (ST(0) positif pour FSQRT), TOP
+    /// tiré, le mot d'état à zéro hors TOP, le mot de contrôle 027Fh ; le noyau reçoit les mêmes, étendus à 80 bits,
+    /// exacts.</summary>
+    private static void AccordFpu(ref Lcg r, bool racine)
+    {
+        var top = (int)(r.Next() & 7);
+        for (var i = 0; i < 8; i++)
+        {
+            SeedSt[i] = NormalDouble(ref r);
+            SeedMm[i] = 0;
+            SeedMmW4[i] = 0;
+            SeedTag[i] = x87_c.TAG_VALID;
+        }
+        if (racine)
+            SeedSt[top] &= 0x7FFFFFFFFFFFFFFF;
+        var npxs = (ushort)(top << 11);
+        Oracle.h_setfpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, 0x027F);
+        _808x.SetFpu(SeedSt, SeedMm, SeedMmW4, SeedTag, top, npxs, 0x027F);
+        for (var i = 0; i < 8; i++)
+            _x87_noyau.R[i] = softfloat.f64_to_extF80(new float64_t { v = SeedSt[i] });
+        _x87_noyau.etiquettes = 0;
+    }
+
+    /// <summary>Lit l'état du noyau dans `b`, comme l'oracle tient le sien, et retire des deux ce qui n'est pas comparé.
+    /// `hors` : l'itération sort du domaine, jugée sur l'oracle seul — sa division par zéro (ZE, la seule exception de
+    /// PCem) ou un registre qui n'est plus un double normal ou un zéro (un infini, un NaN, un dénormal). Le côté C# ne
+    /// juge pas : une exception autre que PE, un registre qui n'est pas un double normal ou un zéro sont, chez lui, des
+    /// divergences, rendues ; ce que le domaine écarte ne doit pas cacher un défaut du noyau.</summary>
+    private static string? AccordLire(ref HState a, ref HState b, out bool hors)
+    {
+        hors = (a.npxs & 0x04) != 0;
+        for (var p = 0; p < 8 && !hors; p++)
+        {
+            var x = a.fpu_st[p] & 0x7FF0000000000000;
+            hors = x == 0x7FF0000000000000 || x == 0 && (a.fpu_st[p] & 0x000FFFFFFFFFFFFF) != 0;
+        }
+        if (hors)
+            return null;
+        // IE, DE, ZE, OE, UE et SF.
+        if ((_386_common.cpu_state.npxs & 0x5F) != 0)
+            return $"le noyau lève {_386_common.cpu_state.npxs & 0x5F:X2}h dans le domaine (npxs {_386_common.cpu_state.npxs:X4})";
+        for (var p = 0; p < 8; p++)
+        {
+            var v = _x87_noyau.R[p];
+            var signe = (ulong)(v.signExp >> 15) << 63;
+            var e = (v.signExp & 0x7FFF) - 0x3FFF;
+            if (v.signif == 0 && (v.signExp & 0x7FFF) == 0)
+                b.fpu_st[p] = signe;
+            else if ((v.signif >> 63) == 0 || (v.signif & 0x7FF) != 0 || e < -1022 || e > 1023)
+                return $"R[{p}] du noyau : {v.signExp:X4} {v.signif:X16}, pas un double normal (oracle 0x{a.fpu_st[p]:X16})";
+            else
+                b.fpu_st[p] = signe | (ulong)(e + 1023) << 52 | (v.signif >> 11) & 0x000FFFFFFFFFFFFF;
+            b.fpu_tag[p] = _x87_noyau.etiquette(p) == _x87_noyau.VIDE ? x87_c.TAG_EMPTY : x87_c.TAG_VALID;
+        }
+        const ushort masque = unchecked((ushort)~(0x0020 | 0x0200));
+        a.npxs &= masque;
+        b.npxs &= masque;
+        // PCem laisse TOP croître (x87_pop : TOP++) et le masque à chaque lecture ; le noyau le tient sur trois bits.
+        a.fpu_top &= 7;
+        b.fpu_top &= 7;
+        (b.x87_pc_off, b.x87_op_off, b.x87_pc_seg, b.x87_op_seg) = (a.x87_pc_off, a.x87_op_off, a.x87_pc_seg, a.x87_op_seg);
+        return null;
+    }
+
+    private static void AccordTempsDeOracle(in HState a, ref HState b)
+    {
+        (b.cycles, b.tsc, b.tsc_frac, b.memcycs, b.fetchcycles, b.fetchclocks) =
+            (a.cycles, a.tsc, a.tsc_frac, a.memcycs, a.fetchcycles, a.fetchclocks);
+        (b.nextcyc, b.cycdiff, b.current_diff, b.prefetchw, b.prefetchpc) =
+            (a.nextcyc, a.cycdiff, a.current_diff, a.prefetchw, a.prefetchpc);
+        Array.Copy(a.prefetchqueue, b.prefetchqueue, b.prefetchqueue.Length);
+    }
+
+    /// <summary>PB-57 : FCOM, FCOMP (D8 et DC D0 à DF) et FCOMPP (DE D9) de registre comptent `fadd` chez PCem, `fcom` dans
+    /// le noyau.</summary>
+    private static bool AccordTempsDeclare(byte[] code) =>
+        code[0] is 0xD8 or 0xDC && code[1] is >= 0xD0 and <= 0xDF || code[0] == 0xDE && code[1] == 0xD9;
 
     /// <summary>G4.0 — `--fpu-state` : un état x87 tiré et posé des DEUX côtés à chaque
     /// itération. Son générateur est À PART (graine ^ FpuSalt) : la suite principale ne

@@ -43,7 +43,7 @@ internal static class MaterielCas
         [95] = Pb95, [101] = Pb101, [103] = Pb103, [254] = Pb254, [261] = Pb261, [181] = Pb181, [182] = Pb182,
         [183] = Pb183, [184] = Pb184, [185] = Pb185, [186] = Pb186, [187] = Pb187, [188] = Pb188, [262] = Pb262,
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
-        [196] = Pb196, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
+        [196] = Pb196, [48] = Pb48, [60] = Pb60, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
     };
 
@@ -1398,7 +1398,8 @@ internal static class MaterielCas
 
     // PB-56 — FSTP m80 range les 80 bits (SDM vol. 1 § 8.1.2) : FLD m64 = 2^−1074 (le plus petit dénormal, chargé
     // normalisé, DE) ; FSTP m80 → 3BCDh 8000000000000000h, et le mot d'état 0002h (DE) ; PCem 3C00h 8000000000000800h,
-    // 0000h.
+    // 0000h. La précision (N4a) : FNINIT ; FLD1 ; FDIV m64 3,0 ; FSTP m80 → 3FFDh AAAAAAAAAAAAAAABh, 64 bits arrondis au
+    // plus près ; PCem, 53 bits, 3FFDh AAAAAAAAAAAAA800h.
     private static int Pb56(bool hw)
     {
         var bad = 0;
@@ -1408,6 +1409,91 @@ internal static class MaterielCas
             var (se, sig, sw) = hw ? ((ushort)0x3BCD, 0x8000000000000000, (ushort)0x0002) : ((ushort)0x3C00, 0x8000000000000800, (ushort)0);
             bad += Voir($"FLD m64 2^−1074 ; FSTP m80 ; FNSTSW ({nom})", W(0x208) == se && Q(0x200) == sig && W(0x20A) == sw,
                         $"{W(0x208):X4} {Q(0x200):X16}, {W(0x20A):X4}", $"{se:X4} {sig:X16}, {sw:X4}", hw);
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03, 0xDB, 0x3F], 4, Ops((0x308, Trois)));
+            var s = hw ? 0xAAAAAAAAAAAAAAAB : 0xAAAAAAAAAAAAA800;
+            bad += Voir($"FLD1 ; FDIV m64 3 ; FSTP m80 ({nom})", W(0x208) == 0x3FFD && Q(0x200) == s,
+                        $"{W(0x208):X4} {Q(0x200):X16}", $"3FFD {s:X16}", hw);
+        }
+        return bad;
+    }
+
+    private static readonly byte[] Trois = Le(0x4008000000000000);
+
+    /// <summary>Pose chaque opérande à son adresse de DS (0300h, 0308h ; 0310h, le mot de contrôle de FLDCW ; 0320h, un
+    /// second m80).</summary>
+    private static Action Ops(params (int adr, byte[] octets)[] ops) => () =>
+    {
+        foreach (var (adr, octets) in ops)
+            for (var k = 0; k < octets.Length; k++)
+                mem.ram[adr + k] = octets[k];
+    };
+
+    private static byte[] Cw(ushort cw) => [(byte)cw, (byte)(cw >> 8)];
+
+    // ===== Le noyau, N4a : l'arithmétique et les comparaisons =====
+    //
+    // FLDCW [0310h] (D9 2E 10 03), FDIV m64 [0308h] (DC 36 08 03), FADD m64 [0308h] (DC 06 08 03), FLD m64 [0308h] (DD 06
+    // 08 03), FLD m80 [0320h] (DB 2E 20 03).
+
+    // PB-48 — chaque opération suit RC (SDM vol. 1, 2003, § 8.1.4.3 ; IEEE 754-1985 § 4), et PC la précision des quatre
+    // opérations (§ 8.1.4.2). Sous 0A7Fh (53 bits, vers +∞) : FLD1 ; FDIV m64 3 ; FSTP m64 → 3FD5555555555556h ; PCem, au
+    // plus près, 3FD5555555555555h. De registre, FLD1 ; FLD m64 3 ; FDIVP ST(1), ST(0) (DE F9) : de même. Sous 077Fh (64
+    // bits, vers −∞) : FLD1 ; FDIV m64 3 ; FST m32 → 3EAAAAAAh ; PCem 3EAAAAABh. Sous 0F7Fh (64 bits, vers zéro) : FLD m64
+    // 2^−70 ; FLD1 ; FSUB ST(0), ST(1) (D8 E1) ; FSTP m80 → 3FFEh FFFFFFFFFFFFFFFFh ; PCem, en double, 1 : 3FFFh
+    // 8000000000000000h. Le 8087 et le 287 aussi (Numerics Supplement, 1980, « Rounding Control »).
+    private static int Pb48(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            foreach (var (code, pas, n) in new (byte[], int, string)[]
+                     {
+                         ([0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03], 2, "FLD1 ; FDIV m64 3"),
+                         ([0xD9, 0xE8, 0xDD, 0x06, 0x08, 0x03, 0xDE, 0xF9], 3, "FLD1 ; FLD m64 3 ; FDIVP ST(1), ST(0)"),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, .. code, 0xDD, 0x1F], pas + 3, Ops((0x308, Trois), (0x310, Cw(0x0A7F))));
+                var a = hw ? 0x3FD5555555555556UL : 0x3FD5555555555555UL;
+                bad += Voir($"CW 0A7Fh ; {n} ; FSTP m64 ({nom})", Q(0x200) == a, $"{Q(0x200):X16}", $"{a:X16}", hw);
+            }
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03, 0xD9, 0x17], 5,
+                    Ops((0x308, Trois), (0x310, Cw(0x077F))));
+            var f = (uint)(W(0x200) | W(0x202) << 16);
+            var af = hw ? 0x3EAAAAAAu : 0x3EAAAAABu;
+            bad += Voir($"CW 077Fh ; FLD1 ; FDIV m64 3 ; FST m32 ({nom})", f == af, $"{f:X8}", $"{af:X8}", hw);
+            Jouer87(fpu, [0xDB, 0xE3, 0xD9, 0x2E, 0x10, 0x03, 0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xD8, 0xE1, 0xDB, 0x3F], 6,
+                    Ops((0x308, Le(0x3B90000000000000)), (0x310, Cw(0x0F7F))));
+            var (se, sig) = hw ? ((ushort)0x3FFE, 0xFFFFFFFFFFFFFFFF) : ((ushort)0x3FFF, 0x8000000000000000);
+            bad += Voir($"CW 0F7Fh ; FLD m64 2^−70 ; FLD1 ; FSUB ST(0), ST(1) ; FSTP m80 ({nom})", W(0x208) == se && Q(0x200) == sig,
+                        $"{W(0x208):X4} {Q(0x200):X16}", $"{se:X4} {sig:X16}", hw);
+        }
+        return bad;
+    }
+
+    // PB-60 — deux NaN : le plus grand significande survit (SDM vol. 1, table 4-7 ; Numerics Supplement, « NANs »), quel
+    // que soit l'ordre des opérandes ; PCem suit celui que GCC a choisi. A = 7FF8000000000001h, B = 7FF8000000000002h.
+    // FLD m64 B ; FLD m64 A × 5 ; FADD ST(5), ST(0) (DC C5) ; FLD ST(5) ; FSTP m64 → B ; PCem A. FLD m64 B ; FADD m64 A ;
+    // FSTP m64 → B ; PCem, la mémoire, A. FLD m64 A ; FLD m64 B ; FMUL ST(0), ST(1) (D8 C9) ; FSTP m64 → B ; PCem, ST(1), A.
+    private static int Pb60(bool hw)
+    {
+        var bad = 0;
+        var a = Le(0x7FF8000000000001);
+        var b = Le(0x7FF8000000000002);
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            foreach (var (code, pas, op, n) in new (byte[], int, Action, string)[]
+                     {
+                         ([0xDD, 0x06, 0x00, 0x03, .. Enumerable.Repeat<byte[]>([0xDD, 0x06, 0x08, 0x03], 5).SelectMany(x => x),
+                           0xDC, 0xC5, 0xD9, 0xC5], 8, Ops((0x300, b), (0x308, a)), "FLD B ; FLD A × 5 ; FADD ST(5), ST(0) ; FLD ST(5)"),
+                         ([0xDD, 0x06, 0x00, 0x03, 0xDC, 0x06, 0x08, 0x03], 2, Ops((0x300, b), (0x308, a)), "FLD B ; FADD m64 A"),
+                         ([0xDD, 0x06, 0x00, 0x03, 0xDD, 0x06, 0x08, 0x03, 0xD8, 0xC9], 3, Ops((0x300, a), (0x308, b)),
+                          "FLD A ; FLD B ; FMUL ST(0), ST(1)"),
+                     })
+            {
+                Jouer87(fpu, [0xDB, 0xE3, .. code, 0xDD, 0x1F], pas + 2, op);
+                var att = hw ? 0x7FF8000000000002UL : 0x7FF8000000000001UL;
+                bad += Voir($"{n} ; FSTP m64 ({nom})", Q(0x200) == att, $"{Q(0x200):X16}", $"{att:X16}", hw);
+            }
         }
         return bad;
     }
@@ -1631,6 +1717,120 @@ internal static class MaterielCas
             bad += Acheminement(hw);
         if (noyau && hw)
             bad += Mouvements();
+        if (noyau && hw)
+            bad += Arithmetique();
+        return bad;
+    }
+
+    /// <summary>L'arithmétique et les comparaisons du noyau (N4a), en mode matériel, aux attentes des sources (387 PRM,
+    /// annexe B et § 4.5 ; SDM vol. 1, 2003, § 4.9.2 et table 4-7 ; SDM vol. 2 ; 287 PRM, table 1-17 ; Numerics
+    /// Supplement, 1980, table S-27) : les drapeaux masqués de chaque exception (la part masquée de PB-59), la faute de
+    /// pile qui rend l'indéfini, PC, les formes renversées, les comparaisons ordonnées, non ordonnées, en projectif.
+    /// FNINIT ; le code ; FNSTSW [BX+0Ah] ; FSTP m80 [BX].</summary>
+    private static int Arithmetique()
+    {
+        var bad = 0;
+        var m2 = Le(0x4000000000000000);
+        var dix = Le(0x4024000000000000);
+        foreach (var (fpu, code, pas, op, sw, se, sig, n) in new (int, byte[], int, Action?, ushort, ushort, ulong, string)[]
+                 {
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xFA], 2, Ops((0x308, Le(0xBFF0000000000000))), 0x3801, 0xFFFF,
+                      0xC000000000000000, "FLD m64 −1 ; FSQRT (IE, l'indéfini)"),
+                     (4, [0xD9, 0xEE, 0xD9, 0xE0, 0xD9, 0xFA], 3, null, 0x3800, 0x8000, 0, "FLDZ ; FCHS ; FSQRT (−0)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xFA], 2, Ops((0x308, m2)), 0x3820, 0x3FFF, 0xB504F333F9DE6484,
+                      "FLD m64 2 ; FSQRT (PE)"),
+                     (4, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9], 3, null, 0x3804, 0x7FFF, 0x8000000000000000,
+                      "FLD1 ; FLDZ ; FDIVP (ZE, +∞)"),
+                     (4, [0xD9, 0xEE, 0xD8, 0xF0], 2, null, 0x3801, 0xFFFF, 0xC000000000000000, "FLDZ ; FDIV ST(0), ST(0) (0/0, IE)"),
+                     (4, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xC0, 0xDE, 0xE9], 5, null, 0x3805, 0xFFFF, 0xC000000000000000,
+                      "FLD1 ; FLDZ ; FDIVP ; FLD ST(0) ; FSUBP (∞ − ∞, IE)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD8, 0xC8], 2, Ops((0x320, Le80(0x7E7F, 0x8000000000000000))), 0x3A28, 0x7FFF,
+                      0x8000000000000000, "FLD m80 2^16000 ; FMUL ST(0), ST(0) (OE, PE, C1, +∞)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD8, 0xC8], 2, Ops((0x320, Le80(0x017F, 0x8000000000000000))), 0x3830, 0x0000,
+                      0, "FLD m80 2^−16000 ; FMUL ST(0), ST(0) (UE, PE, 0)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xE8, 0xD8, 0xC9], 3, Ops((0x320, Le80(0x0000, 1))), 0x3002, 0x0000, 1,
+                      "FLD m80 dénormal ; FLD1 ; FMUL ST(0), ST(1) (DE, exact)"),
+                     (4, [0xD9, 0x2E, 0x10, 0x03, 0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03], 3, Ops((0x308, Trois), (0x310, Cw(0x007F))),
+                      0x3A20, 0x3FFD, 0xAAAAAB0000000000, "CW 007Fh (24 bits) ; FLD1 ; FDIV m64 3 (PE, C1)"),
+                     (4, [0xD9, 0xE8, 0xD8, 0xC3], 2, null, 0x3841, 0xFFFF, 0xC000000000000000,
+                      "FLD1 ; FADD ST(0), ST(3) vide (IE, SF, l'indéfini)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD8, 0xC3], 2, Ops((0x320, Le80(0x7FFF, 0xFFFFFFFFFFFFFFFF))), 0x3841, 0xFFFF,
+                      0xC000000000000000, "FLD m80 QNaN ; FADD ST(0), ST(3) vide (l'indéfini, pas le QNaN)"),
+                     (1, [0xD9, 0xE8, 0xD8, 0xC3], 2, null, 0x3801, 0xFFFF, 0xC000000000000000,
+                      "FLD1 ; FADD ST(0), ST(3) vide (le 8087 : IE seule)"),
+                     (4, [0xD9, 0xE8, 0xDB, 0x2E, 0x20, 0x03, 0xD8, 0xC1], 3, Ops((0x320, Le80(0x7FFF, 0xA000000000000001))), 0x3001,
+                      0x7FFF, 0xE000000000000001, "FLD1 ; FLD m80 SNaN ; FADD ST(0), ST(1) (IE, rendu silencieux)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xE8, 0xD8, 0xC1], 3, Ops((0x320, Le80(0x3FFF, 0x4000000000000000))), 0x3001,
+                      0xFFFF, 0xC000000000000000, "FLD m80 non normal ; FLD1 ; FADD ST(0), ST(1) (IE, l'indéfini)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xD8, 0xE9], 3, Ops((0x308, dix)), 0x3000, 0x4002, 0x9000000000000000,
+                      "FLD m64 10 ; FLD1 ; FSUBR ST(0), ST(1) (10 − 1)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xDC, 0xE1, 0xDD, 0xD8], 4, Ops((0x308, dix)), 0x3800, 0xC002,
+                      0x9000000000000000, "FLD m64 10 ; FLD1 ; FSUBR ST(1), ST(0) (DC E1 : 1 − 10) ; FSTP ST(0)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xDC, 0xE9, 0xDD, 0xD8], 4, Ops((0x308, dix)), 0x3800, 0x4002,
+                      0x9000000000000000, "FLD m64 10 ; FLD1 ; FSUB ST(1), ST(0) (DC E9 : 10 − 1) ; FSTP ST(0)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xDE, 0xF1], 3, Ops((0x308, Le(0x4010000000000000))), 0x3800, 0x3FFD,
+                      0x8000000000000000, "FLD m64 4 ; FLD1 ; FDIVRP ST(1), ST(0) (DE F1 : 1/4)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xD9, 0xE8, 0xDE, 0xF9], 3, Ops((0x308, Le(0x4010000000000000))), 0x3800, 0x4001,
+                      0x8000000000000000, "FLD m64 4 ; FLD1 ; FDIVP ST(1), ST(0) (DE F9 : 4/1)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xDD, 0x06, 0x08, 0x03, 0xD8, 0xC1], 3,
+                      Ops((0x320, Le80(0x0000, 1)), (0x308, Le(0x7FF8000000000000))), 0x3000, 0x7FFF, 0xC000000000000000,
+                      "FLD m80 dénormal ; FLD m64 QNaN ; FADD ST(0), ST(1) (le QNaN, sans DE)"),
+                     (4, [0xD9, 0xEE, 0xDB, 0x2E, 0x20, 0x03, 0xD8, 0xF1], 3, Ops((0x320, Le80(0x0000, 1))), 0x3004, 0x7FFF,
+                      0x8000000000000000, "FLDZ ; FLD m80 dénormal ; FDIV ST(0), ST(1) (ZE, sans DE)"),
+                     (4, [0xDB, 0x2E, 0x20, 0x03, 0xD9, 0xE8, 0xD8, 0xC9], 3, Ops((0x320, Le80(0x0000, 0x8000000000000000))), 0x3002,
+                      0x0001, 0x8000000000000000, "FLD m80 pseudo-dénormal ; FLD1 ; FMUL ST(0), ST(1) (DE, 2^−16382)"),
+                     (4, [0xD9, 0x2E, 0x10, 0x03, 0xDD, 0x06, 0x08, 0x03, 0xD9, 0xFA], 3,
+                      Ops((0x308, Le(0xBFF0000000000000)), (0x310, Cw(0x037E))), 0xB881, 0xBFFF, 0x8000000000000000,
+                      "IM à 0 ; FLD m64 −1 ; FSQRT (arrêtée : −1 gardé ; IE, ES, B)"),
+                     (4, [0xD9, 0x2E, 0x10, 0x03, 0xD9, 0xEE, 0xD9, 0xEE, 0xDE, 0xF9], 4, Ops((0x310, Cw(0x037E))), 0xB081, 0x0000, 0,
+                      "IM à 0 ; FLDZ ; FLDZ ; FDIVP 0/0 (arrêtée, sans dépiler : TOP = 6)"),
+                     (4, [0xDD, 0x06, 0x08, 0x03, 0xDE, 0x2E, 0x00, 0x03], 2, Ops((0x308, Le(0x4004000000000000)), (0x300, [10, 0])),
+                      0x3800, 0x4001, 0xF000000000000000, "FLD m64 2,5 ; FISUBR m16 10 (7,5)"),
+                     (5, [0xD9, 0xE8, 0xDA, 0x0E, 0x00, 0x03], 2, Ops((0x300, [0xFD, 0xFF, 0xFF, 0xFF])), 0x3800, 0xC000,
+                      0xC000000000000000, "FLD1 ; FIMUL m32 −3 (486)"),
+                     (4, [0xD9, 0xE8, 0xD8, 0x06, 0x08, 0x03], 2, Ops((0x308, Le(0x7F800001)[..4])), 0x3801, 0x7FFF,
+                      0xC000010000000000, "FLD1 ; FADD m32 SNaN (IE, rendu silencieux au calcul)"),
+                 })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, .. code, .. SwA, 0xDB, 0x3F], pas + 3, op);
+            // Une exception démasquée, avec l'acheminement de G13.6c (PB-204) : le verrou de l'AT retient FSTP m80, qui
+            // attend ; rien n'est rangé.
+            var (ase, asig) = (sw & 0x8000) != 0 && materiel.pb_204 ? ((ushort)0x9090, 0x9090909090909090) : (se, sig);
+            bad += Voir($"{n} ; FNSTSW ; FSTP m80 (FPU {fpu})", W(0x20A) == sw && W(0x208) == ase && Q(0x200) == asig,
+                        $"{W(0x20A):X4}, {W(0x208):X4} {Q(0x200):X16}", $"{sw:X4}, {ase:X4} {asig:X16}", true);
+        }
+        // Les comparaisons : FNINIT ; le code ; FNSTSW [BX+0Ah] (C3 C2 C0 = 4500h, non ordonné).
+        foreach (var (fpu, code, pas, op, sw, n) in new (int, byte[], int, Action?, ushort, string)[]
+                 {
+                     (4, [0xD9, 0xE8, 0xDD, 0x06, 0x08, 0x03, 0xDD, 0xE1], 3, Ops((0x308, Le(0x7FF8000000000000))), 0x7500,
+                      "FLD1 ; FLD m64 QNaN ; FUCOM ST(1) (non ordonné, sans IE)"),
+                     (4, [0xD9, 0xE8, 0xDD, 0x06, 0x08, 0x03, 0xD8, 0xD1], 3, Ops((0x308, Le(0x7FF8000000000000))), 0x7501,
+                      "FLD1 ; FLD m64 QNaN ; FCOM ST(1) (IE)"),
+                     (4, [0xD9, 0xE8, 0xDB, 0x2E, 0x20, 0x03, 0xDD, 0xE1], 3, Ops((0x320, Le80(0x7FFF, 0xA000000000000000))), 0x7501,
+                      "FLD1 ; FLD m80 SNaN ; FUCOM ST(1) (IE)"),
+                     (4, [0xDD, 0x06, 0x00, 0x03, 0xDC, 0x16, 0x08, 0x03], 2, Ops((0x300, m2), (0x308, Le(1))), 0x3802,
+                      "FLD m64 2 ; FCOM m64 2^−1074 (plus grand, DE)"),
+                     (4, [0xD9, 0xE8, 0xD8, 0x16, 0x08, 0x03], 2, Ops((0x308, Le(0x7F800001)[..4])), 0x7D01,
+                      "FLD1 ; FCOM m32 SNaN (IE)"),
+                     (4, [0xD9, 0xEE, 0xD9, 0xEE, 0xD9, 0xE0, 0xDE, 0xD9], 4, null, 0x4000, "FLDZ ; FLDZ ; FCHS ; FCOMPP (égaux)"),
+                     (4, [0xDF, 0x06, 0x08, 0x03, 0xDE, 0x16, 0x08, 0x03], 2, Ops((0x308, [0xFB, 0xFF])), 0x7800,
+                      "FILD m16 −5 ; FICOM m16 −5 (égaux)"),
+                     (4, [0xD9, 0xE8, 0xD9, 0xE0, 0xD9, 0xE4], 3, null, 0x3900, "FLD1 ; FCHS ; FTST (plus petit)"),
+                     (4, [0xD9, 0xE8, 0xD9, 0xE0, 0xD9, 0xE5, 0xD9, 0xE4], 4, null, 0x3900,
+                      "FLD1 ; FCHS ; FXAM (C1) ; FTST (C1 à zéro)"),
+                     (4, [0xD8, 0xD9], 1, null, 0x4D41, "FCOMP ST(1), la pile vide (IE, SF, non ordonné, dépilé)"),
+                     (4, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xE8, 0xD8, 0xD1], 5, null, 0x3104,
+                      "FLD1 ; FLDZ ; FDIVP ; FLD1 ; FCOM ST(1) (1 < +∞, affine)"),
+                     (2, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xE8, 0xD8, 0xD1], 5, null, 0x7505,
+                      "FLD1 ; FLDZ ; FDIVP ; FLD1 ; FCOM ST(1) (le 287, projectif : IE, non comparable)"),
+                     (2, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xE4], 4, null, 0x7D05, "FLD1 ; FLDZ ; FDIVP ; FTST (le 287, projectif)"),
+                     (1, [0xD9, 0xE8, 0xD9, 0xEE, 0xDE, 0xF9, 0xD9, 0xC0, 0xD9, 0xE0, 0xDE, 0xD9], 6, null, 0x4004,
+                      "FLD1 ; FLDZ ; FDIVP ; FLD ST(0) ; FCHS ; FCOMPP (le 8087, projectif : −∞ = +∞)"),
+                 })
+        {
+            Jouer87(fpu, [0xDB, 0xE3, .. code, .. SwA], pas + 2, op);
+            bad += Voir($"{n} ; FNSTSW (FPU {fpu})", W(0x20A) == sw, $"{W(0x20A):X4}", $"{sw:X4}", true);
+        }
         return bad;
     }
 

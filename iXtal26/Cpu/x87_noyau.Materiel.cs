@@ -938,6 +938,261 @@ internal static class _x87_noyau
         }
     }
 
+    // ===== L'arithmétique et les comparaisons (N4a) =====
+    //
+    // Les exceptions de chaque instruction (387 PRM, annexe B) : FADD, FSUB, FSUBR, FMUL et leurs formes entières, IS, I,
+    // D, O, U et P ; FDIV et FDIVR, Z en plus ; FSQRT, IS, I, D et P ; FCOM, FCOMP, FCOMPP, FICOM, FICOMP, FTST, FUCOM,
+    // FUCOMP et FUCOMPP, IS, I et D. Leur ordre (SDM vol. 1, 2003, § 4.9.2) : la faute de pile, un format non supporté,
+    // un SNaN ; un QNaN, qui n'est pas une exception mais passe avant les suivantes (« a QNaN divided by zero results in
+    // a QNaN ») ; une autre opération invalide, la division par zéro ; le dénormal, qui, masqué, laisse les suivantes se
+    // produire ; le dépassement, par excès ou par défaut ; la précision. Les premières sont « detected before a
+    // floating-point operation begins » : démasquées, la destination reste intacte. RC et PC règlent l'arrondi
+    // (arrondi(true)) : PB-48 et la précision de PB-56. Le 8087 et le 287 : l'infini projectif dans l'arithmétique, leurs
+    // non normaux, IE pour tout NaN (287 PRM, table 1-17 : « One or both operands is a NaN » ; 387 PRM § C.2), IE pour
+    // un diviseur dénormal ou non normal et pour la racine d'un dénormal (table 1-17), N7 ; ici, ils calculent comme le
+    // 387.
+
+    internal const int ADD = 0, MUL = 1, SUB = 2, DIV = 3;
+
+    /// <summary>Un opérande m32 en 80 bits, exact. Un NaN garde son bit de silence : le calcul applique la règle des NaN
+    /// (SDM vol. 1, 2003, table 4-7 : un SNaN et un QNaN, le QNaN) à l'opérande tel qu'il est en mémoire. `den` : un
+    /// dénormal, que la conversion normalise.</summary>
+    internal static extFloat80_t de_f32(uint32_t v, out bool den)
+    {
+        den = (v & 0x7F800000) == 0 && (v & 0x007FFFFF) != 0;
+        if ((v & 0x7F800000) == 0x7F800000 && (v & 0x007FFFFF) != 0)
+                return new extFloat80_t
+                {
+                        signExp = (uint16_t)((v >> 16 & 0x8000) | 0x7FFF),
+                        signif = 0x8000000000000000 | (uint64_t)(v & 0x007FFFFF) << 40,
+                };
+        return softfloat.f32_to_extF80(new float32_t { v = v });
+    }
+
+    /// <summary>Un opérande m64 en 80 bits, comme de_f32.</summary>
+    internal static extFloat80_t de_f64(uint64_t v, out bool den)
+    {
+        den = (v & 0x7FF0000000000000) == 0 && (v & 0x000FFFFFFFFFFFFF) != 0;
+        if ((v & 0x7FF0000000000000) == 0x7FF0000000000000 && (v & 0x000FFFFFFFFFFFFF) != 0)
+                return new extFloat80_t
+                {
+                        signExp = (uint16_t)((v >> 48 & 0x8000) | 0x7FFF),
+                        signif = 0x8000000000000000 | (v & 0x000FFFFFFFFFFFFF) << 11,
+                };
+        return softfloat.f64_to_extF80(new float64_t { v = v });
+    }
+
+    /// <summary>Un entier m16 ou m32 en 80 bits, exact (FIADD et ses voisines, FICOM).</summary>
+    internal static extFloat80_t de_i(int32_t v) => softfloat.i32_to_extF80(v);
+
+    private static bool nan(Classe c) => c is Classe.QNaN or Classe.SNaN;
+
+    private static bool denormal(Classe c) => c is Classe.Denormal or Classe.PseudoDenormal;
+
+    // pcem bug, fixed in hardware mode: PB-48 PB-60 — les quatre opérations sur 80 bits, `a op b` : arrondies selon RC
+    //   et PC (387 PRM § 2.2.4 ; SDM vol. 1, 2003, § 8.1.4.2), qu'elles soient en mémoire ou de registre, l'opérande en
+    //   mémoire d'abord étendu à 80 bits ; le NaN qui survit est celui de la règle du silicium (SDM vol. 1, 2003, table
+    //   4-7 : un SNaN et un QNaN, le QNaN ; deux NaN du même genre, le plus grand significande ; rendu silencieux), que
+    //   SoftFloat applique dans sa spécialisation du 8086, pas celui de l'ordre des opérandes. Deux significandes égaux
+    //   de signes contraires : SoftFloat rend le positif (inconnu sur le silicium). Le format non supporté (387, 486) :
+    //   IE et l'indéfini ; un dénormal, DE, sauf si un NaN, une autre opération invalide ou la division par zéro passe
+    //   avant (SDM vol. 1, 2003, § 4.9.2). Rend vrai si l'instruction s'arrête, sans rien ranger.
+    internal static bool operation(int k, in extFloat80_t a, in extFloat80_t b, bool den, out extFloat80_t r)
+    {
+        Classe ca = classe(a), cb = classe(b);
+        arrondi(true);
+        if (non_supporte(ca) || non_supporte(cb))
+        {
+                r = Indefini;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+                return indicateurs();
+        }
+        r = k switch
+        {
+                ADD => softfloat.extF80_add(a, b),
+                MUL => softfloat.extF80_mul(a, b),
+                SUB => softfloat.extF80_sub(a, b),
+                _ => softfloat.extF80_div(a, b),
+        };
+        ModeMateriel.Sonde[48]++;
+        if (nan(ca) || nan(cb))
+                ModeMateriel.Sonde[60]++;
+        else if ((softfloat.softfloat_exceptionFlags & (softfloat.softfloat_flag_invalid | softfloat.softfloat_flag_infinite)) == 0 &&
+                 (den || denormal(ca) || denormal(cb)) && lever(DE))
+                return true;
+        return indicateurs();
+    }
+
+    // Une faute de pile masquée range l'indéfini, sans calculer (SDM vol. 1, 2003, § 8.5.1.1 : « the x87 FPU returns the
+    // floating point, integer, or packed decimal integer indefinite value to the destination operand ») : pas le NaN
+    // qu'une propagation choisirait.
+
+    /// <summary>ST(0) ← ST(0) op m, ou m op ST(0) (`inverse`, FSUBR et FDIVR) : les formes en mémoire, l'opérande déjà
+    /// étendu (de_f32, de_f64, ou l'entier, exact).</summary>
+    internal static void arith_m(int k, bool inverse, in extFloat80_t m, bool den)
+    {
+        var faute = vide(0);
+        if (lire(0, out var x))
+                return;
+        var r = Indefini;
+        if (!faute && (inverse ? operation(k, m, x, den, out r) : operation(k, x, m, den, out r)))
+                return;
+        ecrire(0, r);
+    }
+
+    /// <summary>D8 de registre : ST(0) ← ST(0) op ST(i), ou ST(i) op ST(0) (`inverse`).</summary>
+    internal static void arith_st0(int k, bool inverse, int i)
+    {
+        var faute = vide(0) || vide(i);
+        if (lire(0, out var x) || lire(i, out var y))
+                return;
+        var r = Indefini;
+        if (!faute && (inverse ? operation(k, y, x, false, out r) : operation(k, x, y, false, out r)))
+                return;
+        ecrire(0, r);
+    }
+
+    /// <summary>DC et DE de registre : ST(i) ← ST(i) op ST(0), ou ST(0) op ST(i) (`inverse` : DC E0+i et DE E0+i,
+    /// FSUBR ; DC F0+i et DE F0+i, FDIVR ; SDM vol. 2, FSUB/FSUBP/FISUB et FSUBR/FSUBRP/FISUBR) ; `pop`, puis dépiler.
+    /// Rien n'est rangé ni dépilé si l'instruction s'arrête.</summary>
+    internal static void arith_sti(int k, bool inverse, int i, bool pop)
+    {
+        var faute = vide(0) || vide(i);
+        if (lire(0, out var y) || lire(i, out var x))
+                return;
+        var r = Indefini;
+        if (!faute && (inverse ? operation(k, y, x, false, out r) : operation(k, x, y, false, out r)))
+                return;
+        ecrire(i, r);
+        if (pop)
+                depiler();
+    }
+
+    /// <summary>FSQRT : la racine de ST(0), arrondie selon RC et PC ; un négatif non nul, −∞ compris, IE et
+    /// l'indéfini ; −0 rend −0 (SDM vol. 2, FSQRT). +∞ en projectif (8087, 287) : N7.</summary>
+    internal static void fsqrt()
+    {
+        var faute = vide(0);
+        if (lire(0, out var x))
+                return;
+        if (faute)
+        {
+                ecrire(0, Indefini);
+                return;
+        }
+        var c = classe(x);
+        arrondi(true);
+        extFloat80_t r;
+        if (non_supporte(c))
+        {
+                r = Indefini;
+                softfloat.softfloat_exceptionFlags = softfloat.softfloat_flag_invalid;
+        }
+        else
+        {
+                r = softfloat.extF80_sqrt(x);
+                if (!nan(c) && (softfloat.softfloat_exceptionFlags & softfloat.softfloat_flag_invalid) == 0 &&
+                    denormal(c) && lever(DE))
+                        return;
+        }
+        if (!indicateurs())
+                ecrire(0, r);
+    }
+
+    /// <summary>Vrai si l'infini est projectif : le 8087 et le 287, IC (bit 12) nul (287 PRM, fig. 1-10 ; Numerics
+    /// Supplement, 1980, p. S-18). Le 287XL, le 387 et le 486 n'ont que l'affine (387 PRM, annexe C ; le 287XL : déduit).</summary>
+    private static bool projectif() =>
+        cpu_c.fpu_type is cpu_c.FPU_8087 or cpu_c.FPU_287 && (cpu_state.npxc & 0x1000) == 0;
+
+    // PB-57, PB-58, PB-64, PB-70, PB-213 (corrigés en G13.6a et 6b, en double) : la comparaison sur 80 bits (SDM vol. 2,
+    //   FCOM/FCOMP/FCOMPP, FUCOM/FUCOMP/FUCOMPP, FICOM/FICOMP et FTST ; 387 PRM § 4.5) : C3 C2 C0 = 000 pour a > b, 001
+    //   pour a < b, 100 pour a = b (−0 et +0 égaux), 111 non ordonné ; C1 à zéro sur le 287XL, le 387 et le 486, « X »
+    //   sur le 8087 et le 287, laissé. Non ordonné : un NaN, IE pour FCOM et ses voisines, pour un SNaN seul avec FUCOM
+    //   (`signale` faux) ; un format non supporté, IE. En projectif, ±∞ contre ±∞ est égal, et un infini contre un fini
+    //   non comparable, avec IE (287 PRM, table 1-12, « ±∞ : ±∞ A=B » ; Numerics Supplement, 1980, table S-27 et son
+    //   texte, « infinity cannot be compared with any value except infinity »). Chacun de ces deux manuels se contredit :
+    //   le 287 PRM par sa table 1-17 et le texte de FCOM, le Numerics Supplement par sa table des réponses masquées,
+    //   qui comptent ±∞ contre ±∞ invalide, non comparable (C3 C2 C0 = 111 et IE). L'égalité de G13.6a est gardée (C3
+    //   seul, sans IE ; inconnu) ; les deux lectures posent C3, que la détection du 287 lit. Un dénormal, DE, si rien ne
+    //   passe avant. Une exception
+    //   démasquée arrête l'instruction, les codes laissés (inconnu) ; elle ne dépile pas. `den` : l'opérande en mémoire
+    //   était un dénormal (de_f32, de_f64).
+    internal static bool comparer(in extFloat80_t a, in extFloat80_t b, bool signale, bool den = false)
+    {
+        Classe ca = classe(a), cb = classe(b);
+        uint16_t cc;
+        uint16_t e = 0;
+        if (non_supporte(ca) || non_supporte(cb))
+        {
+                e = IE;
+                cc = x87_c.C3 | x87_c.C2 | x87_c.C0;
+        }
+        else if (nan(ca) || nan(cb))
+        {
+                if (signale || ca == Classe.SNaN || cb == Classe.SNaN)
+                        e = IE;
+                cc = x87_c.C3 | x87_c.C2 | x87_c.C0;
+        }
+        else if (projectif() && (ca == Classe.Infini || cb == Classe.Infini))
+        {
+                ModeMateriel.Sonde[70]++;
+                if (ca == cb)
+                        cc = x87_c.C3;
+                else
+                {
+                        e = IE;
+                        cc = x87_c.C3 | x87_c.C2 | x87_c.C0;
+                }
+        }
+        else
+        {
+                if (den || denormal(ca) || denormal(cb))
+                        e = DE;
+                var ac = canonique(a);
+                var bc = canonique(b);
+                cc = softfloat.extF80_eq(ac, bc) ? x87_c.C3 : softfloat.extF80_lt_quiet(ac, bc) ? x87_c.C0 : (uint16_t)0;
+        }
+        if (e != 0 && lever(e))
+                return true;
+        c1_zero();
+        cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~(x87_c.C0 | x87_c.C2 | x87_c.C3)) | cc);
+        return false;
+    }
+
+    /// <summary>Le pseudo-dénormal (exposant nul, J = 1) vaut le normal d'exposant 1 (387 PRM § 3.1 ; SDM vol. 1, 2003,
+    /// § 8.2.2) : la comparaison de SoftFloat, qui lit les bits, le reçoit sous cette forme.</summary>
+    private static extFloat80_t canonique(extFloat80_t v)
+    {
+        if ((v.signExp & 0x7FFF) == 0 && (v.signif >> 63) != 0)
+                v.signExp |= 1;
+        return v;
+    }
+
+    /// <summary>FCOM et FCOMP m : ST(0) contre l'opérande étendu. Rend vrai si l'instruction s'arrête.</summary>
+    internal static bool fcom_m(in extFloat80_t m, bool den)
+    {
+        if (lire(0, out var x))
+                return true;
+        return comparer(x, m, true, den);
+    }
+
+    /// <summary>FCOM, FCOMP, FUCOM, FUCOMP ST(i), FCOMPP et FUCOMPP (i = 1) : ST(0) contre ST(i). Rend vrai si
+    /// l'instruction s'arrête.</summary>
+    internal static bool fcom_st(int i, bool signale)
+    {
+        if (lire(0, out var x) || lire(i, out var y))
+                return true;
+        return comparer(x, y, signale);
+    }
+
+    // PB-64 (corrigé en G13.6a, en double) : FTST compare ST(0) à +0, comme FCOM (SDM vol. 2, FTST ; Numerics
+    //   Supplement, 1980, table S-27 : en projectif, un infini, non comparable et IE).
+    internal static void ftst()
+    {
+        if (!lire(0, out var x))
+                comparer(x, new extFloat80_t(), true);
+    }
+
     // ===== FNINIT, la mise sous tension, le RESET =====
 
     /// <summary>L'état de FNINIT (387 PRM, table 6-1 ; 287 PRM, table 3-1 ; 486 PRM, table 19-1) : le mot de contrôle

@@ -9040,3 +9040,105 @@ mêmes méthodes changées. Recapturé après les reprises de la contre-lecture,
 `materiel-cas` de PB-54, 62, 199 et 208 dans les deux modes ; les autres écarts, attendus : `recensement` compte 1050
 marqueurs au lieu de 1042, et `pm-check-386` et `pm-check-486`, en C# et en mode matériel, jugent 136 cas au lieu de
 130 (les six cas neufs, 110 sur une attente au lieu de 104).
+
+## G13.6, le noyau, N4a — L'arithmétique, les comparaisons et le domaine d'accord
+
+Le 11 octobre 2026, première moitié de N4, coupé comme N3 : N4a, les quatre opérations, la racine carrée et les
+comparaisons ; N4b, FRNDINT, FSCALE, FXTRACT, FPREM et FPREM1. Le noyau reste en chantier ; son groupe compte quinze PB.
+
+**Ce qui est écrit.** La couche (`_x87_noyau`) : `operation`, les quatre opérations `a op b` sur 80 bits, arrondies
+selon RC et PC (`arrondi(true)`) ; l'opérande en mémoire étendu exactement (`de_f32`, `de_f64`, `de_i`), un NaN gardant
+son bit de silence jusqu'au calcul, pour que la règle des NaN (SDM vol. 1, 2003, table 4-7) s'applique à l'opérande tel
+qu'il est en mémoire. L'ordre des exceptions est celui du SDM (vol. 1, 2003, § 4.9.2) : la faute de pile, un format non
+supporté (387, 486 : IE et l'indéfini), un SNaN ; un QNaN ; une autre opération invalide, la division par zéro ; le
+dénormal (DE, sauf si l'un des précédents) ; le dépassement ; la précision. Une faute de pile masquée range l'indéfini
+sans calculer (§ 8.5.1.1), pas le NaN qu'une propagation choisirait. Une exception démasquée qui précède le calcul
+arrête l'instruction : rien n'est rangé ni dépilé. `arith_m`, `arith_st0` et `arith_sti` : les formes
+en mémoire, D8 de registre (ST(0) destination), DC et DE de registre (ST(i) destination ; /4 FSUBR et /5 FSUB, /6 FDIVR
+et /7 FDIV, renversés par rapport à D8, SDM vol. 2). `fsqrt` : −0 rend −0, un négatif IE. `comparer` : C3 C2 C0, C1 à
+zéro sur le 287XL, le 387 et le 486 (PB-213), un NaN non ordonné, IE pour FCOM et ses voisines, pour un SNaN seul avec
+FUCOM ; −0 et +0 égaux (PB-58) ; le pseudo-dénormal comparé sous sa forme canonique ; en projectif (le 8087 et le 287,
+IC nul), ±∞ contre ±∞ égal et un infini contre un fini non comparable, IE (287 PRM, table 1-12 ; Numerics Supplement,
+1980, table S-27 et son texte). Chacun des deux manuels se contredit : le 287 PRM par sa table 1-17 et le texte de FCOM,
+le Numerics Supplement par sa table des réponses masquées, qui comptent ±∞ contre ±∞ invalide (C3 C2 C0 = 111 et IE) ;
+l'égalité de G13.6a est gardée, C3 seul sans IE (inconnu), et les deux lectures posent C3, que lit la détection du 287. Le générateur : D8, DC, DA et DE /0 à /7 en
+mémoire (m32, m64, m32 et m16 entiers ; FCOM et FCOMP à /2 et /3), D8, DC et DE de registre, DC D0+i et D8+i (les
+alias de FCOM et FCOMP, comme PCem), FCOMPP, FUCOM, FUCOMP, FUCOMPP, FTST, FSQRT : 92 gestionnaires de plus pour le
+286, le 386 et le 486 (a16 et a32 comptés à part), 60 pour le 8087. Les temps de PCem, sauf FCOM, FCOMP et FCOMPP de registre, à
+`fcom` (PB-57, comme G13.6a). Les 8087 et 287 calculent ici comme le 387 ; ce qui les en distingue va à N7 : l'infini
+projectif dans l'arithmétique, leurs non normaux, IE pour tout NaN, QNaN compris (287 PRM, table 1-17 ; 387 PRM § C.2),
+IE et non DE pour un diviseur dénormal ou non normal et pour la racine d'un dénormal (table 1-17), FUCOM qu'ils n'ont
+pas (PB-209). Les cas de PB-60 sur le 8087 et le 287 ne jugent que le NaN propagé.
+
+**Deux PB** rejoignent le groupe du noyau, en chantier : PB-48 (RC et PC dans chaque opération ; FST m32 l'était depuis
+N3a) et PB-60 (le NaN qui survit). PB-56 gagne la précision (64 bits de significande), PB-59 les drapeaux masqués ; les
+comparaisons de G13.6a et 6b (PB-57, 58, 64, 70, 213) sont reprises sans marqueur, et n'entrent au groupe qu'en N7.
+Les marqueurs de PB-48 (25 sites) et de PB-60 (46) passent à `fixed in hardware mode` (`x87_ops.cs`,
+`x87_ops_loadstore.cs`, et par `gen43.py` et `gen46.py`, `x87_ops_arith.cs` et `x87_ops_808x.cs`) ; les générateurs
+rejouent à l'octet près. `recensement` : vert, 264 défauts, 1051 marqueurs, 85 corrigés.
+
+**Les cas.** PB-48, sur les cinq coprocesseurs : sous 0A7Fh (53 bits, vers +∞), FDIV m64 et FDIVP de registre, 1/3 :
+3FD5555555555556h (PCem 3FD5555555555555h) ; sous 077Fh, FDIV puis FST m32 : 3EAAAAAAh (PCem 3EAAAAABh) ; sous 0F7Fh,
+1 − 2^−70 de registre : 3FFEh FFFFFFFFFFFFFFFFh (PCem 1). PB-56, la précision : 1/3 en m80, 3FFDh AAAAAAAAAAAAAAABh
+(PCem …A800h). PB-60 : DC C5, FADD m64 et D8 C9 sur deux QNaN, le plus grand significande (PCem, l'ordre de GCC). En mode
+matériel, `materiel-cas PB-264` gagne vingt-huit cas d'arithmétique et quatorze de comparaison (`Arithmetique`) : IE
+pour √−1, 0/0, ∞ − ∞, un SNaN (rendu silencieux, en m80 et en m32), un non normal ; ZE ; OE, PE et C1 ; UE et PE ; DE
+seul sur un dénormal exact, sur un pseudo-dénormal (2^−16382), pas après un QNaN ni une division par zéro ; IM à 0,
+√−1 et 0/0 arrêtées, rien rangé ni dépilé ; PC à 24 bits ; la faute de pile qui range l'indéfini, pas un QNaN (et sur le 8087, IE sans
+SF) ; −0 de √−0 ; les formes renversées D8 E9, DC E1, DC E9, DE F1, DE F9 ; FISUBR m16, FIMUL m32 sur le 486 ; FUCOM d'un
+QNaN sans IE, FCOM avec, FUCOM d'un SNaN avec ; FCOM m64 d'un dénormal (DE) ; FCOM m32 d'un SNaN ; FCOMPP −0 contre +0 ;
+FICOM m16 ; FTST, et C1 effacé après FXAM ; FCOMP sur la pile vide ; 1 contre +∞ en affine (387) et en projectif (287 :
+IE, non comparable), FTST(+∞) sur le 287, −∞ = +∞ par FCOMPP sur le 8087.
+
+**Le domaine d'accord** (décision n° 6 ; `fuzz --accord`, sous `--hardware-mode PB-264`, une exception déclarée au refus
+des fuzzeurs, comme `--fuite`) : sous 027Fh, sur des normaux du double, le noyau rend au bit près le double de PCem.
+Chaque itération tire une instruction parmi D8, DC, DE de registre et en mémoire, DA en mémoire et FUCOMPP, D9 (FCHS,
+FABS, FTST, FXAM, FSQRT, ST(0) positif), DD (FUCOM, FUCOMP), huit registres normaux de 2^−60 à 2^60, l'opérande en
+DS:disp16 ; puis compare l'état entier, les registres du noyau lus en double. Écartés, comptés, selon l'oracle seul :
+sa division par zéro, un registre qui n'est plus un double normal ou un zéro ; chez le noyau, une exception autre que PE
+ou un registre qui n'est pas un double normal sont des divergences (les opérandes tirés ne sortent pas du domaine :
+une porte qui en écarte est à relire). Non comparés : PE et C1
+(PB-59, PB-213), les pointeurs (PB-62), TOP au-delà de ses trois bits (PCem le laisse croître : `x87_pop`, TOP++),
+une étiquette au-delà de vide ou pleine (PB-208), et le temps de FCOM, FCOMP et FCOMPP de registre, dont l'écart doit
+être exactement fadd − fcom (PB-57 ; sur le 8088, le préfetch et sa file, que ce temps règle, pris de l'oracle). Le
+premier passage a trouvé TOP (9 contre 1) et cet écart de temps ; ni l'un ni l'autre n'est un défaut du noyau. Portes :
+`accord-387` (20 000 itérations), `accord-486` (10 000), `accord-287` (5 000 ; le 286 rejoue sa carte à chaque
+itération, 2 ms) et `accord-8087` (20 000). Le 287XL aussi, à la main : 5 000, vert ; hors du domaine : aucune.
+
+**Les contrôles négatifs.** L'attendu inversé, pour PB-48 et PB-60 et dans les deux sens : rouge. Seize fautes
+(`neg-n4a.py`) : PC ignorée (PB-264, 1 échec ; le domaine d'accord du 387, un registre qui n'est pas un double), le
+second NaN rendu (PB-60, 10), DC et DE renversés (PB-264, 10 ; le domaine d'accord du 387 et du 8087), FUCOM qui lève IE
+sur un QNaN (1), sans le projectif (3), une comparaison sans DE (1), une opération sans DE (1), la faute de pile qui
+propage un QNaN (1), C1 gardé par les comparaisons (1), le m32 SNaN rendu silencieux à la conversion (1), RC ignoré
+(PB-48, 15), −0 et +0 inégaux (1), FCOM ST(i) au temps de fadd (le domaine d'accord : l'écart de PB-57 manque), FSUBP
+généré renversé (le domaine d'accord), FCOMPP qui ne dépile qu'une fois (PB-264, 1 ; le domaine d'accord), DE levé à
+tort (le domaine d'accord, depuis la contre-lecture) : rouges ; le témoin vert.
+
+**La contre-lecture** (Sonnet) : aucun défaut bloquant ; les sens des opérandes (D8, DC, DE), les tables et les
+alias, la priorité des exceptions, la faute de pile masquée, l'arrêt démasqué, les vingt-trois cas d'arithmétique et
+quatorze de comparaison d'alors, ceux de PB-48, 56 et 60 recalculés à la main, le mode PCem (des commentaires seuls) et
+les citations, confirmés. Repris : le domaine d'accord écartait ce que le noyau levait à tort (une exception, un
+registre hors du double) — il juge désormais sur l'oracle seul, et le mutant d'un DE levé à tort le rougit ; la
+contradiction du projectif, interne à chacun des deux manuels (le 287 PRM, tables 1-12 et 1-17) ; la liste de ce qui
+distingue le 8087 et le 287, pour N7 (IE pour tout NaN, un diviseur dénormal, la racine d'un dénormal) ; la citation
+du § 8.5.1.1, exacte ; les sections du SDM de 2003 (§ 8.1.4.2 et 8.1.4.3) dans les cas ; le compte des cas ; la puce de
+N4 dans PLAN-G13 ; des cas neufs : DE après un QNaN et une division par zéro, un pseudo-dénormal, deux arrêts
+démasqués. Non repris : la conversion d'un opérande SNaN en mémoire, gardé signalant jusqu'au calcul, que la table
+4-7 fonde (le silicium pourrait le convertir comme FLD : la source ne le dit pas) ; les numéros de section d'après 2003
+dans PB-48 et PB-56, des lignes anciennes de PCEM_BUGS.md.
+
+**M2.** Depuis le Release du worktree de la série, contre M2-n3b2 : 1 130 méthodes, deux changées, les constructeurs
+statiques de `ModeMateriel` et de `materiel` (deux corrections et deux champs de plus, exécutés une fois) ; les
+gestionnaires de PCem dont seuls les marqueurs ont changé sont identiques, aucune méthode du noyau n'est compilée en
+mode PCem. Contre M0 : l'écart de N3b, les mêmes méthodes.
+
+**La série** (`g7n4a`, le 11/10, 19:01 → 20:17, contre `g7n3b` ; relancée après le redémarrage de la machine, la première
+arrêtée avant sa fin ; les portes une fois et demie à deux fois plus lentes que dans `g7n3b`, la machine chargée par
+l'IDE) : 460 portes, 459 vertes, les 452 de `g7n3b` et huit neuves (`materiel-cas` de PB-48 et 60 dans les deux modes,
+`accord-387`, `-486`, `-287` et `-8087`) ; `recensement` compte 1051 marqueurs au lieu de 1050. Une rouge,
+`materiel-cas-pb264-acheminement` : les deux cas démasqués ajoutés après la contre-lecture (√−1 et 0/0 sous IM à 0),
+essayés sans l'acheminement seulement, attendaient le rangement de FSTP m80 ; avec PB-204, le verrou de l'AT retient
+cette instruction qui attend, et rien n'est rangé, comme sur le silicium (le mot d'état, B881h et B081h, était juste).
+L'attendu du cas, et non l'émulateur, est repris : sous l'acheminement, la mémoire intacte. La porte rejouée avec le
+`materiel-cas` corrigé, et ses deux voisines (PB-264 en mode PCem et en mode matériel) : vertes ; l'émulateur n'ayant pas
+changé, la série n'est pas rejouée.

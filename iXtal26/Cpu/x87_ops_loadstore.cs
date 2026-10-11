@@ -573,7 +573,7 @@ internal static partial class _386
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
             // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -588,7 +588,7 @@ internal static partial class _386
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
             // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             CLOCK_CYCLES(x87_timings_c.x87_timings.fst_32);
@@ -603,7 +603,7 @@ internal static partial class _386
             if (fetch_ea_16(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
             // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)
@@ -621,7 +621,7 @@ internal static partial class _386
             if (fetch_ea_32(fetchdat)) return 1;
             if (SEG_CHECK_WRITE(cpu_state.ea_seg!)) return 1;
             // pcem bug, fixed in hardware mode: PB-54 — pas de CHECK_WRITE : la limite de l'opérande n'est pas contrôlée.
-            // pcem bug, reproduced: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
+            // pcem bug, fixed in hardware mode: PB-48 — RC ignoré : la conversion en float arrondit au plus près.
             ts.s = (float)ST(0);
             seteal(ts.i);
             if (cpu_state.abrt != 0)

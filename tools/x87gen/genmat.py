@@ -265,6 +265,62 @@ lire_image('FRSTOR', [('dd', '/4')], '_x87_noyau.taille_env(d) + 80', 'true', 'f
 ecrire_image('FNSAVE', [('dd', '/6')], '_x87_noyau.taille_env(d) + 80', '_x87_noyau.fsave(d);', '_x87_noyau.fsave_fin();',
              'fsave', 'FNSAVE : l\'environnement et les huit registres de 80 bits, puis l\'état de FNINIT (PB-62, PB-199).')
 
+# ---- N4a : l'arithmétique et les comparaisons ----
+# Les quatre opérations (_x87_noyau.operation), en mémoire (m32, m64, m32 entier, m16 entier : D8, DC, DA, DE /0, /1, /4
+# à /7) et de registre (D8, DC et DE), FSQRT ; les comparaisons (_x87_noyau.comparer) : FCOM et FCOMP en mémoire, de
+# registre en D8 et en DC D0+i et D8+i (des alias, comme PCem), FCOMPP, FUCOM, FUCOMP, FUCOMPP, FICOM, FICOMP, FTST.
+# Les temps sont ceux de PCem, sauf FCOM, FCOMP et FCOMPP de registre, au temps de fcom (PB-57, comme G13.6a).
+OPS = [(0, 'FADD', 'ADD', False, 'fadd'), (1, 'FMUL', 'MUL', False, 'fmul'), (4, 'FSUB', 'SUB', False, 'fadd'),
+       (5, 'FSUBR', 'SUB', True, 'fadd'), (6, 'FDIV', 'DIV', False, 'fdiv'), (7, 'FDIVR', 'DIV', True, 'fdiv')]
+MEM = [('s', 'd8', 4, 'uint32_t t;', '        t = @geteal();', '_x87_noyau.de_f32(t, out var den)', 'den', '_32', 'm32'),
+       ('d', 'dc', 8, 'uint64_t t;', '        t = @geteaq();', '_x87_noyau.de_f64(t, out var den)', 'den', '_64', 'm64'),
+       ('il', 'da', 4, 'uint32_t t;', '        t = @geteal();', '_x87_noyau.de_i((int32_t)t)', 'false', '_i32', 'm32 entier'),
+       ('iw', 'de', 2, 'uint16_t t;', '        t = @geteaw();', '_x87_noyau.de_i((int16_t)t)', 'false', '_i16', 'm16 entier')]
+for suf, esc, n, decl, lire, ext, den, temps, nom in MEM:
+    for reg, op, k, inv, tps in OPS:
+        mn = ('FI' + op[1:]) if suf in ('il', 'iw') else op
+        lecture(op + suf, [(esc, '/%d' % reg)], n, decl, lire,
+                '_x87_noyau.arith_m(_x87_noyau.%s, %s, %s, %s);' % (k, 'true' if inv else 'false', ext, den),
+                tps + temps, '%s %s (_x87_noyau.arith_m ; PB-48, PB-60).' % (mn, nom))
+    for reg, op, pop in [(2, 'FCOM', False), (3, 'FCOMP', True)]:
+        mn = ('FI' + op[1:]) if suf in ('il', 'iw') else op
+        appel = '_x87_noyau.fcom_m(%s, %s)' % (ext, den)
+        lecture(op + suf, [(esc, '/%d' % reg)], n, decl, lire,
+                ('if (!%s)\n                _x87_noyau.depiler();' % appel) if pop else appel + ';',
+                'fcom' + temps, '%s %s (_x87_noyau.comparer).' % (mn, nom))
+
+I = '(int)(fetchdat & 7)'
+for reg, op, k, inv, tps in OPS:
+    registre(op + '_st0', [('d8', 24 + reg)], '_x87_noyau.arith_st0(_x87_noyau.%s, %s, %s);' % (k, 'true' if inv else 'false', I),
+             tps, '%s ST(0), ST(i) (D8 %02X+i).' % (op, 0xC0 + 8 * reg))
+# DC et DE : la destination est ST(i) ; /4 (E0+i) est FSUBR et /5 (E8+i) FSUB, /6 (F0+i) FDIVR et /7 (F8+i) FDIV.
+STI = [(0, 'FADD', 'ADD', False, 'fadd'), (1, 'FMUL', 'MUL', False, 'fmul'), (4, 'FSUBR', 'SUB', True, 'fadd'),
+       (5, 'FSUB', 'SUB', False, 'fadd'), (6, 'FDIVR', 'DIV', True, 'fdiv'), (7, 'FDIV', 'DIV', False, 'fdiv')]
+for reg, op, k, inv, tps in STI:
+    registre(op + '_sti', [('dc', 24 + reg)], '_x87_noyau.arith_sti(_x87_noyau.%s, %s, %s, false);' % (k, 'true' if inv else 'false', I),
+             tps, '%s ST(i), ST(0) (DC %02X+i).' % (op, 0xC0 + 8 * reg))
+    registre(op + 'P', [('de', 0xC0 + 8 * reg + i) for i in range(8)],
+             '_x87_noyau.arith_sti(_x87_noyau.%s, %s, %s, true);' % (k, 'true' if inv else 'false', I),
+             tps, '%sP ST(i), ST(0) (DE %02X+i).' % (op, 0xC0 + 8 * reg))
+registre('FSQRT', [('d9', 0xFA)], '_x87_noyau.fsqrt();', 'fsqrt', 'FSQRT (_x87_noyau.fsqrt).')
+registre('FTST', [('d9', 0xE4)], '_x87_noyau.ftst();', 'ftst', 'FTST (_x87_noyau.ftst ; PB-64, en projectif PB-70).')
+for nom, ou, signale, pops, tps, doc in [
+        ('FCOM_st', [('d8', 26)], 'true', 0, 'fcom', 'FCOM ST(i) (D8 D0+i ; PB-57, au temps de fcom).'),
+        ('FCOMP_st', [('d8', 27)], 'true', 1, 'fcom', 'FCOMP ST(i) (D8 D8+i ; PB-57).'),
+        ('FCOM_dc', [('dc', 26)], 'true', 0, 'fcom', 'FCOM ST(i), DC D0+i : un alias, comme PCem.'),
+        ('FCOMP_dc', [('dc', 27)], 'true', 1, 'fcom', 'FCOMP ST(i), DC D8+i : un alias, comme PCem.'),
+        ('FCOMPP', [('de', 0xD9)], 'true', 2, 'fcom', 'FCOMPP (DE D9 ; PB-57, PB-58 : −0 et +0 égaux).'),
+        ('FUCOM', [('dd', 0xE0 + i) for i in range(8)], 'false', 0, 'fucom', 'FUCOM ST(i) : un QNaN ne lève pas IE.'),
+        ('FUCOMP', [('dd', 0xE8 + i) for i in range(8)], 'false', 1, 'fucom', 'FUCOMP ST(i).'),
+        ('FUCOMPP', [('da', 0xE9)], 'false', 2, 'fucom', 'FUCOMPP (DA E9).')]:
+    i = '1' if nom.endswith('PP') else I
+    corps = '_x87_noyau.fcom_st(%s, %s)' % (i, signale)
+    if pops:
+        corps = 'if (!%s)\n        {\n%s        }' % (corps, '                _x87_noyau.depiler();\n' * pops)
+    else:
+        corps += ';'
+    registre(nom, ou, corps, tps, doc)
+
 instr('FSETPM', [('db', 0xE4)], '''
         if (@FP_ENTER()) return 1;
         cpu_state.pc++;

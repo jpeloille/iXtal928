@@ -1044,6 +1044,1331 @@ internal static class _386_noyau
         return 0;
     }
 
+    // FADD m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFADDs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    internal static int opFADDs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    // FMUL m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFMULs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
+        return 0;
+    }
+
+    internal static int opFMULs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_32);
+        return 0;
+    }
+
+    // FSUB m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    internal static int opFSUBs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    // FSUBR m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBRs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    internal static int opFSUBRs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_32);
+        return 0;
+    }
+
+    // FDIV m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
+        return 0;
+    }
+
+    internal static int opFDIVs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
+        return 0;
+    }
+
+    // FDIVR m32 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVRs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
+        return 0;
+    }
+
+    internal static int opFDIVRs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_32);
+        return 0;
+    }
+
+    // FCOM m32 (_x87_noyau.comparer).
+    internal static int opFCOMs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
+        return 0;
+    }
+
+    internal static int opFCOMs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
+        return 0;
+    }
+
+    // FCOMP m32 (_x87_noyau.comparer).
+    internal static int opFCOMPs_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
+        return 0;
+    }
+
+    internal static int opFCOMPs_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xD8, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_f32(t, out var den), den))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_32);
+        return 0;
+    }
+
+    // FADD m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFADDd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    internal static int opFADDd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    // FMUL m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFMULd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
+        return 0;
+    }
+
+    internal static int opFMULd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_64);
+        return 0;
+    }
+
+    // FSUB m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    internal static int opFSUBd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    // FSUBR m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBRd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    internal static int opFSUBRd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_64);
+        return 0;
+    }
+
+    // FDIV m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
+        return 0;
+    }
+
+    internal static int opFDIVd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
+        return 0;
+    }
+
+    // FDIVR m64 (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVRd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
+        return 0;
+    }
+
+    internal static int opFDIVRd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_64);
+        return 0;
+    }
+
+    // FCOM m64 (_x87_noyau.comparer).
+    internal static int opFCOMd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
+        return 0;
+    }
+
+    internal static int opFCOMd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
+        return 0;
+    }
+
+    // FCOMP m64 (_x87_noyau.comparer).
+    internal static int opFCOMPd_a16(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
+        return 0;
+    }
+
+    internal static int opFCOMPd_a32(uint32_t fetchdat)
+    {
+        uint64_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(8, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDC, fetchdat);
+        t = geteaq();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_f64(t, out var den), den))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_64);
+        return 0;
+    }
+
+    // FIADD m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFADDil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    internal static int opFADDil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    // FIMUL m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFMULil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
+        return 0;
+    }
+
+    internal static int opFMULil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i32);
+        return 0;
+    }
+
+    // FISUB m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    internal static int opFSUBil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    // FISUBR m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBRil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    internal static int opFSUBRil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i32);
+        return 0;
+    }
+
+    // FIDIV m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
+        return 0;
+    }
+
+    internal static int opFDIVil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
+        return 0;
+    }
+
+    // FIDIVR m32 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVRil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
+        return 0;
+    }
+
+    internal static int opFDIVRil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i32);
+        return 0;
+    }
+
+    // FICOM m32 entier (_x87_noyau.comparer).
+    internal static int opFCOMil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
+        return 0;
+    }
+
+    internal static int opFCOMil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
+        return 0;
+    }
+
+    // FICOMP m32 entier (_x87_noyau.comparer).
+    internal static int opFCOMPil_a16(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
+        return 0;
+    }
+
+    internal static int opFCOMPil_a32(uint32_t fetchdat)
+    {
+        uint32_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(4, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDA, fetchdat);
+        t = geteal();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_i((int32_t)t), false))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i32);
+        return 0;
+    }
+
+    // FIADD m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFADDiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    internal static int opFADDiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.ADD, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    // FIMUL m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFMULiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
+        return 0;
+    }
+
+    internal static int opFMULiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.MUL, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul_i16);
+        return 0;
+    }
+
+    // FISUB m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    internal static int opFSUBiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    // FISUBR m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFSUBRiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    internal static int opFSUBRiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.SUB, true, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd_i16);
+        return 0;
+    }
+
+    // FIDIV m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIViw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i16);
+        return 0;
+    }
+
+    internal static int opFDIViw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, false, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i16);
+        return 0;
+    }
+
+    // FIDIVR m16 entier (_x87_noyau.arith_m ; PB-48, PB-60).
+    internal static int opFDIVRiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i16);
+        return 0;
+    }
+
+    internal static int opFDIVRiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.arith_m(_x87_noyau.DIV, true, _x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv_i16);
+        return 0;
+    }
+
+    // FICOM m16 entier (_x87_noyau.comparer).
+    internal static int opFCOMiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
+        return 0;
+    }
+
+    internal static int opFCOMiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        _x87_noyau.fcom_m(_x87_noyau.de_i((int16_t)t), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
+        return 0;
+    }
+
+    // FICOMP m16 entier (_x87_noyau.comparer).
+    internal static int opFCOMPiw_a16(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_16(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_i((int16_t)t), false))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
+        return 0;
+    }
+
+    internal static int opFCOMPiw_a32(uint32_t fetchdat)
+    {
+        uint16_t t;
+        if (_386.FP_ENTER()) return 1;
+        if (fetch_ea_32(fetchdat)) return 1;
+        if (SEG_CHECK_READ(cpu_state.ea_seg!)) return 1;
+        if (_x87_noyau.limite(2, false)) return 1;
+        _x87_noyau.pointeurs_m(0xDE, fetchdat);
+        t = geteaw();
+        if (cpu_state.abrt != 0) return 1;
+        if (!_x87_noyau.fcom_m(_x87_noyau.de_i((int16_t)t), false))
+                _x87_noyau.depiler();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom_i16);
+        return 0;
+    }
+
+    // FADD ST(0), ST(i) (D8 C0+i).
+    internal static int opFADD_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.ADD, false, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FMUL ST(0), ST(i) (D8 C8+i).
+    internal static int opFMUL_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.MUL, false, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
+        return 0;
+    }
+
+    // FSUB ST(0), ST(i) (D8 E0+i).
+    internal static int opFSUB_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.SUB, false, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FSUBR ST(0), ST(i) (D8 E8+i).
+    internal static int opFSUBR_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.SUB, true, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FDIV ST(0), ST(i) (D8 F0+i).
+    internal static int opFDIV_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.DIV, false, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FDIVR ST(0), ST(i) (D8 F8+i).
+    internal static int opFDIVR_st0(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_st0(_x87_noyau.DIV, true, (int)(fetchdat & 7));
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FADD ST(i), ST(0) (DC C0+i).
+    internal static int opFADD_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.ADD, false, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FADDP ST(i), ST(0) (DE C0+i).
+    internal static int opFADDP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.ADD, false, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FMUL ST(i), ST(0) (DC C8+i).
+    internal static int opFMUL_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.MUL, false, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
+        return 0;
+    }
+
+    // FMULP ST(i), ST(0) (DE C8+i).
+    internal static int opFMULP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.MUL, false, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fmul);
+        return 0;
+    }
+
+    // FSUBR ST(i), ST(0) (DC E0+i).
+    internal static int opFSUBR_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.SUB, true, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FSUBRP ST(i), ST(0) (DE E0+i).
+    internal static int opFSUBRP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.SUB, true, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FSUB ST(i), ST(0) (DC E8+i).
+    internal static int opFSUB_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.SUB, false, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FSUBP ST(i), ST(0) (DE E8+i).
+    internal static int opFSUBP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.SUB, false, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fadd);
+        return 0;
+    }
+
+    // FDIVR ST(i), ST(0) (DC F0+i).
+    internal static int opFDIVR_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.DIV, true, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FDIVRP ST(i), ST(0) (DE F0+i).
+    internal static int opFDIVRP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.DIV, true, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FDIV ST(i), ST(0) (DC F8+i).
+    internal static int opFDIV_sti(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.DIV, false, (int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FDIVP ST(i), ST(0) (DE F8+i).
+    internal static int opFDIVP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.arith_sti(_x87_noyau.DIV, false, (int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fdiv);
+        return 0;
+    }
+
+    // FSQRT (_x87_noyau.fsqrt).
+    internal static int opFSQRT(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fsqrt();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fsqrt);
+        return 0;
+    }
+
+    // FTST (_x87_noyau.ftst ; PB-64, en projectif PB-70).
+    internal static int opFTST(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD9, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.ftst();
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.ftst);
+        return 0;
+    }
+
+    // FCOM ST(i) (D8 D0+i ; PB-57, au temps de fcom).
+    internal static int opFCOM_st(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fcom_st((int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        return 0;
+    }
+
+    // FCOMP ST(i) (D8 D8+i ; PB-57).
+    internal static int opFCOMP_st(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xD8, fetchdat);
+        cpu_state.pc++;
+        if (!_x87_noyau.fcom_st((int)(fetchdat & 7), true))
+        {
+                _x87_noyau.depiler();
+        }
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        return 0;
+    }
+
+    // FCOM ST(i), DC D0+i : un alias, comme PCem.
+    internal static int opFCOM_dc(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fcom_st((int)(fetchdat & 7), true);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        return 0;
+    }
+
+    // FCOMP ST(i), DC D8+i : un alias, comme PCem.
+    internal static int opFCOMP_dc(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDC, fetchdat);
+        cpu_state.pc++;
+        if (!_x87_noyau.fcom_st((int)(fetchdat & 7), true))
+        {
+                _x87_noyau.depiler();
+        }
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        return 0;
+    }
+
+    // FCOMPP (DE D9 ; PB-57, PB-58 : −0 et +0 égaux).
+    internal static int opFCOMPP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDE, fetchdat);
+        cpu_state.pc++;
+        if (!_x87_noyau.fcom_st(1, true))
+        {
+                _x87_noyau.depiler();
+                _x87_noyau.depiler();
+        }
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fcom);
+        return 0;
+    }
+
+    // FUCOM ST(i) : un QNaN ne lève pas IE.
+    internal static int opFUCOM(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDD, fetchdat);
+        cpu_state.pc++;
+        _x87_noyau.fcom_st((int)(fetchdat & 7), false);
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fucom);
+        return 0;
+    }
+
+    // FUCOMP ST(i).
+    internal static int opFUCOMP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDD, fetchdat);
+        cpu_state.pc++;
+        if (!_x87_noyau.fcom_st((int)(fetchdat & 7), false))
+        {
+                _x87_noyau.depiler();
+        }
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fucom);
+        return 0;
+    }
+
+    // FUCOMPP (DA E9).
+    internal static int opFUCOMPP(uint32_t fetchdat)
+    {
+        if (_386.FP_ENTER()) return 1;
+        _x87_noyau.pointeurs(0xDA, fetchdat);
+        cpu_state.pc++;
+        if (!_x87_noyau.fcom_st(1, false))
+        {
+                _x87_noyau.depiler();
+                _x87_noyau.depiler();
+        }
+        _386.CLOCK_CYCLES(x87_timings_c.x87_timings.fucom);
+        return 0;
+    }
+
     // FSETPM : le 287 et le 287XL passent au mode protégé, jusqu'au RESET (287 PRM, FSETPM ; PB-62) ; le 387 et le 486
     //   n'en font rien (387 PRM § 4.8). Le 8087 n'a pas DB E4 : N7.
     internal static int opFSETPM(uint32_t fetchdat)
@@ -1254,6 +2579,238 @@ internal static class _386_noyau
         _x87_noyau.memoire(_386.x86_opcodes_dd_a32!, 4, opFRSTOR_a32);
         _x87_noyau.memoire(_386.x86_opcodes_dd_a16!, 6, opFNSAVE_a16);
         _x87_noyau.memoire(_386.x86_opcodes_dd_a32!, 6, opFNSAVE_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 0, opFADDs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 0, opFADDs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 1, opFMULs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 1, opFMULs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 4, opFSUBs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 4, opFSUBs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 5, opFSUBRs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 5, opFSUBRs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 6, opFDIVs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 6, opFDIVs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 7, opFDIVRs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 7, opFDIVRs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 2, opFCOMs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 2, opFCOMs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a16!, 3, opFCOMPs_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_d8_a32!, 3, opFCOMPs_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 0, opFADDd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 0, opFADDd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 1, opFMULd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 1, opFMULd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 4, opFSUBd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 4, opFSUBd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 5, opFSUBRd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 5, opFSUBRd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 6, opFDIVd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 6, opFDIVd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 7, opFDIVRd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 7, opFDIVRd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 2, opFCOMd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 2, opFCOMd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a16!, 3, opFCOMPd_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_dc_a32!, 3, opFCOMPd_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 0, opFADDil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 0, opFADDil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 1, opFMULil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 1, opFMULil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 4, opFSUBil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 4, opFSUBil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 5, opFSUBRil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 5, opFSUBRil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 6, opFDIVil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 6, opFDIVil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 7, opFDIVRil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 7, opFDIVRil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 2, opFCOMil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 2, opFCOMil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a16!, 3, opFCOMPil_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_da_a32!, 3, opFCOMPil_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 0, opFADDiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 0, opFADDiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 1, opFMULiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 1, opFMULiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 4, opFSUBiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 4, opFSUBiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 5, opFSUBRiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 5, opFSUBRiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 6, opFDIViw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 6, opFDIViw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 7, opFDIVRiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 7, opFDIVRiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 2, opFCOMiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 2, opFCOMiw_a32);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a16!, 3, opFCOMPiw_a16);
+        _x87_noyau.memoire(_386.x86_opcodes_de_a32!, 3, opFCOMPiw_a32);
+        _386.x86_opcodes_d8_a16![0x18] = opFADD_st0;
+        _386.x86_opcodes_d8_a32![0x18] = opFADD_st0;
+        _386.x86_opcodes_d8_a16![0x19] = opFMUL_st0;
+        _386.x86_opcodes_d8_a32![0x19] = opFMUL_st0;
+        _386.x86_opcodes_d8_a16![0x1C] = opFSUB_st0;
+        _386.x86_opcodes_d8_a32![0x1C] = opFSUB_st0;
+        _386.x86_opcodes_d8_a16![0x1D] = opFSUBR_st0;
+        _386.x86_opcodes_d8_a32![0x1D] = opFSUBR_st0;
+        _386.x86_opcodes_d8_a16![0x1E] = opFDIV_st0;
+        _386.x86_opcodes_d8_a32![0x1E] = opFDIV_st0;
+        _386.x86_opcodes_d8_a16![0x1F] = opFDIVR_st0;
+        _386.x86_opcodes_d8_a32![0x1F] = opFDIVR_st0;
+        _386.x86_opcodes_dc_a16![0x18] = opFADD_sti;
+        _386.x86_opcodes_dc_a32![0x18] = opFADD_sti;
+        _386.x86_opcodes_de_a16![0xC0] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC0] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC1] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC1] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC2] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC2] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC3] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC3] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC4] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC4] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC5] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC5] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC6] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC6] = opFADDP;
+        _386.x86_opcodes_de_a16![0xC7] = opFADDP;
+        _386.x86_opcodes_de_a32![0xC7] = opFADDP;
+        _386.x86_opcodes_dc_a16![0x19] = opFMUL_sti;
+        _386.x86_opcodes_dc_a32![0x19] = opFMUL_sti;
+        _386.x86_opcodes_de_a16![0xC8] = opFMULP;
+        _386.x86_opcodes_de_a32![0xC8] = opFMULP;
+        _386.x86_opcodes_de_a16![0xC9] = opFMULP;
+        _386.x86_opcodes_de_a32![0xC9] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCA] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCA] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCB] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCB] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCC] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCC] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCD] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCD] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCE] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCE] = opFMULP;
+        _386.x86_opcodes_de_a16![0xCF] = opFMULP;
+        _386.x86_opcodes_de_a32![0xCF] = opFMULP;
+        _386.x86_opcodes_dc_a16![0x1C] = opFSUBR_sti;
+        _386.x86_opcodes_dc_a32![0x1C] = opFSUBR_sti;
+        _386.x86_opcodes_de_a16![0xE0] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE0] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE1] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE1] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE2] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE2] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE3] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE3] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE4] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE4] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE5] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE5] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE6] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE6] = opFSUBRP;
+        _386.x86_opcodes_de_a16![0xE7] = opFSUBRP;
+        _386.x86_opcodes_de_a32![0xE7] = opFSUBRP;
+        _386.x86_opcodes_dc_a16![0x1D] = opFSUB_sti;
+        _386.x86_opcodes_dc_a32![0x1D] = opFSUB_sti;
+        _386.x86_opcodes_de_a16![0xE8] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xE8] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xE9] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xE9] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xEA] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xEA] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xEB] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xEB] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xEC] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xEC] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xED] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xED] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xEE] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xEE] = opFSUBP;
+        _386.x86_opcodes_de_a16![0xEF] = opFSUBP;
+        _386.x86_opcodes_de_a32![0xEF] = opFSUBP;
+        _386.x86_opcodes_dc_a16![0x1E] = opFDIVR_sti;
+        _386.x86_opcodes_dc_a32![0x1E] = opFDIVR_sti;
+        _386.x86_opcodes_de_a16![0xF0] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF0] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF1] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF1] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF2] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF2] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF3] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF3] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF4] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF4] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF5] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF5] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF6] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF6] = opFDIVRP;
+        _386.x86_opcodes_de_a16![0xF7] = opFDIVRP;
+        _386.x86_opcodes_de_a32![0xF7] = opFDIVRP;
+        _386.x86_opcodes_dc_a16![0x1F] = opFDIV_sti;
+        _386.x86_opcodes_dc_a32![0x1F] = opFDIV_sti;
+        _386.x86_opcodes_de_a16![0xF8] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xF8] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xF9] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xF9] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFA] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFA] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFB] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFB] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFC] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFC] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFD] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFD] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFE] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFE] = opFDIVP;
+        _386.x86_opcodes_de_a16![0xFF] = opFDIVP;
+        _386.x86_opcodes_de_a32![0xFF] = opFDIVP;
+        _386.x86_opcodes_d9_a16![0xFA] = opFSQRT;
+        _386.x86_opcodes_d9_a32![0xFA] = opFSQRT;
+        _386.x86_opcodes_d9_a16![0xE4] = opFTST;
+        _386.x86_opcodes_d9_a32![0xE4] = opFTST;
+        _386.x86_opcodes_d8_a16![0x1A] = opFCOM_st;
+        _386.x86_opcodes_d8_a32![0x1A] = opFCOM_st;
+        _386.x86_opcodes_d8_a16![0x1B] = opFCOMP_st;
+        _386.x86_opcodes_d8_a32![0x1B] = opFCOMP_st;
+        _386.x86_opcodes_dc_a16![0x1A] = opFCOM_dc;
+        _386.x86_opcodes_dc_a32![0x1A] = opFCOM_dc;
+        _386.x86_opcodes_dc_a16![0x1B] = opFCOMP_dc;
+        _386.x86_opcodes_dc_a32![0x1B] = opFCOMP_dc;
+        _386.x86_opcodes_de_a16![0xD9] = opFCOMPP;
+        _386.x86_opcodes_de_a32![0xD9] = opFCOMPP;
+        _386.x86_opcodes_dd_a16![0xE0] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE0] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE1] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE1] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE2] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE2] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE3] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE3] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE4] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE4] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE5] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE5] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE6] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE6] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE7] = opFUCOM;
+        _386.x86_opcodes_dd_a32![0xE7] = opFUCOM;
+        _386.x86_opcodes_dd_a16![0xE8] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xE8] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xE9] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xE9] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xEA] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xEA] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xEB] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xEB] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xEC] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xEC] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xED] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xED] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xEE] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xEE] = opFUCOMP;
+        _386.x86_opcodes_dd_a16![0xEF] = opFUCOMP;
+        _386.x86_opcodes_dd_a32![0xEF] = opFUCOMP;
+        _386.x86_opcodes_da_a16![0xE9] = opFUCOMPP;
+        _386.x86_opcodes_da_a32![0xE9] = opFUCOMPP;
         _386.x86_opcodes_db_a16![0xE4] = opFSETPM;
         _386.x86_opcodes_db_a32![0xE4] = opFSETPM;
     }

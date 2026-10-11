@@ -54,6 +54,9 @@ internal static class materiel
     /// <summary>PB-51 : la lecture d'une instruction contrôle la limite de CS (286, 386, 486) ; avec PB-50.</summary>
     internal static readonly bool pb_51;
 
+    /// <summary>PB-48 : chaque opération du x87 suit RC, et PC la précision ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_48;
+
     /// <summary>PB-52 : FBLD charge dix-huit chiffres décimaux ; le noyau, en chantier.</summary>
     internal static readonly bool pb_52;
 
@@ -74,6 +77,9 @@ internal static class materiel
 
     /// <summary>PB-59 : une division par zéro démasquée pose ES et B, #MF sur le 486 ; avec PB-69 et PB-204.</summary>
     internal static readonly bool pb_59;
+
+    /// <summary>PB-60 : deux NaN, le plus grand significande survit ; le noyau, en chantier.</summary>
+    internal static readonly bool pb_60;
 
     /// <summary>PB-61 : FNSTSW AX rend le mot d'état entier, TOP compris (287, 387, 486).</summary>
     internal static readonly bool pb_61;
@@ -281,6 +287,7 @@ internal static class materiel
         pb_40 = ModeMateriel.Demande(40);
         pb_43 = ModeMateriel.Demande(43);
         pb_45 = ModeMateriel.Demande(45);
+        pb_48 = ModeMateriel.Demande(48);
         pb_50 = ModeMateriel.Demande(50);
         pb_51 = ModeMateriel.Demande(51);
         pb_52 = ModeMateriel.Demande(52);
@@ -290,6 +297,7 @@ internal static class materiel
         pb_57 = ModeMateriel.Demande(57);
         pb_58 = ModeMateriel.Demande(58);
         pb_59 = ModeMateriel.Demande(59);
+        pb_60 = ModeMateriel.Demande(60);
         pb_61 = ModeMateriel.Demande(61);
         pb_62 = ModeMateriel.Demande(62);
         pb_63 = ModeMateriel.Demande(63);

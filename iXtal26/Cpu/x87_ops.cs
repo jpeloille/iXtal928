@@ -327,7 +327,7 @@ internal static partial class _386
 
     internal static uint16_t x87_ucompare(double a, double b) => x87_compare(a, b);
 
-    // pcem bug, reproduced: PB-60 — QUEL NaN GAGNE. `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
+    // pcem bug, fixed in hardware mode: PB-60 — QUEL NaN GAGNE. `addsd` et `mulsd` rendent le PREMIER opérande NaN, rendu
     // silencieux, quand les deux en sont ; l'addition et la multiplication étant commutatives,
     // GCC a choisi l'ordre handler par handler, et RyuJIT n'y est pas tenu. Ces deux aides
     // imposent la règle SSE avec un ordre EXPLICITE, celui que `x87-nan-order` a mesuré sur
@@ -353,8 +353,8 @@ internal static partial class _386
     //   lieu de ±∞), les opérandes infinis ou NaN (le résultat ne dépend pas du mode), et le
     //   signe d'un zéro exact (−0 vers le bas, sauf +0 + +0). Mesuré en G4.0 contre le
     //   fesetround de l'oracle (x87-parity (a), 100 %), et confronté au vrai handler en G4.3.
-    // pcem bug, reproduced: PB-48 — appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près.
-    // pcem bug, reproduced: PB-60 — `a` est l'opérande que GCC met en premier, la mémoire (mesuré) : son NaN survit.
+    // pcem bug, fixed in hardware mode: PB-48 — appelé pour les SEULS opFADD mémoire : FSUB, FMUL, FDIV restent au plus près.
+    // pcem bug, fixed in hardware mode: PB-60 — `a` est l'opérande que GCC met en premier, la mémoire (mesuré) : son NaN survit.
     internal static double x87_fadd_dirige(double a, double b, int rc)
     {
         double r = a + b;

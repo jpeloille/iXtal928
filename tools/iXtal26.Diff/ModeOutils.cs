@@ -48,9 +48,10 @@ internal static class ModeOutils
                 raison = "seul le côté C# (--side csharp) se mesure en mode matériel";
                 return false;
             case "fuzz":
-                if (args.Contains("--fuite"))
+                if (args.Contains("--fuite") || args.Contains("--accord"))
                     return true;
-                raison = "le fuzzeur compare à l'oracle ; en mode matériel, il ne sert qu'au contrôle de fuite (--fuite)";
+                raison = "le fuzzeur compare à l'oracle ; en mode matériel, il ne sert qu'au contrôle de fuite (--fuite) et " +
+                         "au domaine d'accord du noyau (--accord)";
                 return false;
         }
         raison = "la commande compare le C# à l'oracle, qui est PCem";
