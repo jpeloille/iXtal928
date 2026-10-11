@@ -41,6 +41,7 @@ internal struct x87_td
 internal static partial class _386
 {
     // pcem: x87_ops.h:11 — ST(x), le registre x de la pile, relatif à TOP.
+    // pcem bug, reproduced: PB-264 — lu sans regarder l'étiquette : un registre vide rend son dernier contenu, sans IE.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static ref double ST(int x) => ref cpu_state.ST[(cpu_state.TOP + x) & 7];
 
@@ -59,6 +60,7 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:34-38
+    // pcem bug, reproduced: PB-264 — empile sans regarder l'étiquette : un registre plein est écrasé, sans IE.
     internal static void x87_push(double i)
     {
         cpu_state.TOP--;
@@ -67,6 +69,7 @@ internal static partial class _386
     }
 
     // pcem: x87_ops.h:53-58
+    // pcem bug, reproduced: PB-264 — rend ST(0) même vide, sans IE.
     internal static double x87_pop()
     {
         double t = cpu_state.ST[cpu_state.TOP & 7];
@@ -79,6 +82,7 @@ internal static partial class _386
     internal const uint16_t FPCW_DISI = 1 << 7;
 
     // pcem: x87_ops.h:40-51 — G4.4 (FLDLN2). Pousse des BITS, pas une valeur.
+    // pcem bug, reproduced: PB-264 — comme x87_push : un registre plein est écrasé, sans IE.
     internal static void x87_push_u64(uint64_t i)
     {
         cpu_state.TOP--;

@@ -292,9 +292,10 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   stocker, `double` pour calculer. Jamais les noyaux transcendants de Bochs : leur licence (SoftFloat 2b) est
   incompatible avec la GPL-2.0-only.
 - **Point n° 10, étape 1, la réécriture et la mesure** ✅ *(11/10, VERIFICATION.md § G13, point de décision n° 10)* :
-  SoftFloat 3e réécrit en C# (`tools/softfloat/`), le sous-ensemble 80 bits en variante 8086, hors de l'émulateur ;
-  TestFloat 3e au bit près, niveaux 1 et 2 (9,6 milliards de cas, aucun écart) ; FADD à 10,7 ns. **Attend la décision
-  de Julien** avant toute intégration.
+  SoftFloat 3e réécrit en C# (alors `tools/softfloat/` ; la bibliothèque est dans `iXtal26.SoftFloat/` depuis N1), le
+  sous-ensemble 80 bits en variante 8086, hors de l'émulateur ; TestFloat 3e au bit près, niveaux 1 et 2 (9,6
+  milliards de cas, aucun écart) ; FADD à 10,7 ns. **Intégration décidée par Julien le 11/10** (« feu vert pour les
+  deux » : le sous-bloc, et C1 noté par l'arrondi) ; le plan découpé, § G13.6, le noyau, validé le même jour.
 - **G13.6a, le cadre et les PB à peu de gestionnaires** ✅ *(10/10, VERIFICATION.md § G13.6a)* : les tables du mode,
   copies de celles de PCem posées par `cpu_set` (`Cpu/x87.Materiel.cs`), le 8087 en place (`Cpu/808x.Materiel.cs`) ;
   PB-61 (le pilote), PB-57, PB-58, PB-64, PB-70 (un groupe : les comparaisons ; l'hypothèse A6 instruite), PB-63,
@@ -313,6 +314,82 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
 - **Vérification** : `x87hw-cases`, aux attentes du 387 PRM (annexe C), du 287 PRM, du Numerics Supplement et de
   l'AP-578 ; le domaine d'accord contre l'oracle (opérandes normaux, PC à 53 bits, arrondi au plus près, PE et C1
   exclus) ; MSD « 80287 » sur un 286 avec 287 ; une série par sous-étape.
+
+### G13.6, le noyau — le sous-bloc du point n° 10  *(proposé et validé le 11/10)*
+
+*Validé par Julien le 11/10 (« feu vert pour les six »)* : (1) la bibliothèque dans `iXtal26.SoftFloat/`, projet frère ;
+(2) l'écart C1 à chaque site d'arrondi ; (3) l'arrondi à exposant non borné pour OE et UE démasquées, en N5 ; (4) un
+seul groupe pour le noyau, qui n'entre dans « tout » qu'à la fin de N7, et les gestionnaires en `double` de 6a et 6b
+retirés en N8 ; (5) le débordement de pile du x87 inscrit au registre en N1 ; (6) le fuzzeur en mode matériel sur le
+domaine d'accord, exception déclarée, dès N4.
+
+Le découpage suit la voie B de la reconnaissance (D2 § 8.4, corrigée par D2-contre § 5) : B1 est fait (le point n° 10,
+étape 1) ; B2 se coupe en trois ; B4 n'emprunte rien à l'hôte. Chaque étape a ses cas en C# seul, ses contrôles
+négatifs, sa contre-lecture, sa série entière (l'émulateur change) et son commit ; le mode PCem reste identique à M0
+(M2), à chaque étape.
+
+**Ce qui commande le découpage.** Le noyau change la représentation : en mode matériel, la pile devient huit registres
+de 80 bits, à côté des `double` de PCem, que le mode PCem garde. Un gestionnaire du noyau ne peut pas cohabiter avec
+un gestionnaire de PCem dans la même machine : le premier écrit des registres que le second ne lit pas. Le noyau
+n'entre donc au mode, pour l'utilisateur, qu'une fois complet ; d'ici là, il ne se demande que par sa liste de PB,
+pour les cas et les portes. Et R10 tranche une question que D2-contre (A2) laissait ouverte : le code du mode est
+déterministe, « sans fonction de l'hôte à résultat variable » ; les transcendantes ne peuvent pas passer par
+`Math.Sin` et ses voisins, elles s'écrivent sur le noyau.
+
+- **N1 — Le noyau dans le produit** ✅ *(11/10, VERIFICATION.md § G13.6, le noyau, N1)* (aucun comportement ne
+  change). La bibliothèque quitte `tools/` pour
+  `iXtal26.SoftFloat/`, un projet frère d'`iXtal26` qui le référence (comme le banc) ; sa licence reste dans son
+  répertoire. L'écart C1 (validé) : SoftFloat note s'il a arrondi vers le haut, dans une globale à côté de
+  `softfloat_exceptionFlags`, à chaque site d'arrondi — `softfloat_roundPackToExtF80`, `…ToF32`, `…ToF64`,
+  `softfloat_roundToI32`, `…ToI64`, `extF80_roundToInt` (FST m32 et m64, FIST et FRNDINT posent C1 comme FADD) ;
+  chaque site le dit en tête de fichier. Le banc vérifie C1 sur tous les cas de TestFloat contre sa définition (le
+  résultat diffère de celui qu'arrondit vers zéro) ; TestFloat repasse en entier. Le registre : le débordement de
+  pile du x87 (empiler sur un registre plein, lire un registre vide : IE, et SF et C1 sur le 387 et le 486), que
+  PCem ignore et qu'aucune entrée ne porte, inscrit avec ses marqueurs. ≈ 300 lignes.
+- **N2 — L'état de 80 bits et le générateur** (aucun comportement ne change). L'état du mode (huit registres
+  `extFloat80_t`, le mot d'étiquettes de l'architecture, FIP, FCS, FOP, FDP, FDS) ; l'état de reset par type
+  (PB-203) ; une couche sémantique commune aux cœurs (`x87_noyau.Materiel.cs` : la classe de chaque opérande —
+  normal, dénormal, non normal, pseudo-dénormal, pseudo-infini, NaN —, la pile et son débordement, la réponse
+  masquée de chaque exception, les indicateurs et C1 vers `npxs`, PC et RC vers SoftFloat) ; un générateur
+  (`tools/x87gen/`) qui rend, d'une seule description, les gestionnaires du noyau pour le 286, le 386 et le 486
+  (a16, a32) et pour le 8087 (a16, l'adressage de PB-201), et les tables du mode — une instanciation partagée à la
+  source (D2-contre K1-K2), deux à la sortie, sans générique ni interface (R4). Le groupe du noyau (`Groupes`) réunit
+  tous les PB du x87 qu'il touche. ≈ 1 000 à 1 500 lignes, dont la moitié générée.
+- **N3 — Les mouvements de données et le contrôle.** FLD, FST, FSTP m32, m64 et m80 ; FILD, FIST, FISTP m16, m32,
+  m64 ; FBLD, FBSTP ; les constantes ; FXCH, FST et FSTP registre, FFREE, FINCSTP, FDECSTP, FCHS, FABS, FXAM ;
+  FLDCW, FSTCW, FSTSW, FCLEX, FINIT, FLDENV, FSTENV, FSAVE, FRSTOR avec les pointeurs ; chaque accès mémoire contrôlé
+  (le chemin de PB-189). PB-52, 54, 55, 56 (le stockage), 62, 63, 66, 67, 195, 196, 199, 203, 206, 207, 208, 212 ;
+  les exceptions masquées. ≈ 1 500 lignes.
+- **N4 — L'arithmétique, les comparaisons, l'arrondi.** FADD, FSUB(R), FMUL, FDIV(R) en mémoire (m32, m64, m16
+  entier, m32 entier) et en registre ; FSQRT ; FCOM, FCOMP, FCOMPP, FUCOM*, FICOM, FTST (le projectif du 287 compris) ;
+  FRNDINT, FSCALE, FXTRACT ; FPREM et FPREM1 par réductions partielles (C2, et le quotient dans C0, C3, C1). PB-48,
+  56 (la précision), 57, 58, 59 (les drapeaux masqués), 60, 64, 65, 70, 194, 197, 198, 211, 213. Après N4, le
+  **domaine d'accord** : sous 027Fh, sur des normaux du `double`, le noyau rend au bit près le `double` de PCem — le
+  fuzzeur, restreint à ce domaine, contre l'oracle (une exception déclarée au refus des fuzzeurs, comme le contrôle
+  de fuite). ≈ 1 500 lignes.
+- **N5 — Les exceptions démasquées.** IE, DE, OE, UE et PE par l'acheminement de G13.6c (aujourd'hui ZE seule) :
+  l'instruction qui faute avant de calculer laisse sa destination ; OE et UE démasquées rangent le résultat à
+  l'exposant décalé (±24 576), ce que SoftFloat ne fait pas : un second écart, un arrondi à exposant non borné,
+  annoncé comme C1. PB-59 entier. ≈ 500 lignes.
+- **N6 — Les transcendantes.** F2XM1, FYL2X, FYL2XP1, FPTAN, FPATAN, FSIN, FCOS, FSINCOS, écrites sur le noyau :
+  réduction par le π de 66 bits que décrit le SDM (vol. 1, § 8.3.10 ; pour le 387 et le 486 : déduit), polynômes en virgule fixe de 128 bits, un seul arrondi final ;
+  les domaines (ceux, étroits, du 8087 et du 287), C2 au-delà de 2^63, le 1 de FPTAN. Les attendus calculés hors
+  machine en précision arbitraire (`decimal` de Python, sans installation ; un outil commité). Visé : ≤ 1 ulp sur
+  le 387 et le 486, (b) ; le bit d'Intel reste (c) (décision n° 14). PB-68. ≈ 1 500 à 2 000 lignes.
+- **N7 — Les coprocesseurs de 16 bits.** Le 8087 et le 287 : l'infini projectif dans l'arithmétique, les non normaux
+  et les dénormaux chargés en non normaux, FXAM à seize codes, FINIT et FSAVE qui gardent C3-C0 (PB-202), FNSTSW AX
+  absent du 8087 (PB-200), l'adressage du 8087 (PB-201), le quotient du 287, FSETPM et la disposition des images du
+  287, IEM, FENI, FDISI. ≈ 1 000 lignes. **Le noyau entre alors au mode** (« tout » et le domaine `x87`).
+- **N8 — La clôture.** Les gestionnaires en `double` de G13.6a et 6b, que le noyau remplace, quittent le dépôt (leurs
+  cas restent, rejoués par le noyau) ; la couverture comptée (gestionnaires × classes × RC × PC) ; PCEM_BUGS ; la
+  marge du `--timer-check` en mode matériel sur un invité saturé de flottant (le 486, un Whetstone), supérieure à 1
+  (décision n° 7) ; X87BANC aux mêmes temps (les cycles restent ceux de PCem).
+
+**La vérification, en plus du patron de chaque étape.** TestFloat rejoué à travers les gestionnaires (le mot de
+contrôle vers SoftFloat, les indicateurs vers `npxs`) ; le domaine d'accord contre l'oracle dès N4 ; les vecteurs
+publics des tests x87 de QEMU (GPL-2.0-or-later, des données, hors dépôt comme SST) ; MSD « 80287 » et les détections
+387 à chaque étape qui touche les comparaisons (D2, risque 10). Environ 8 000 à 10 000 lignes en tout, générées
+comprises.
 
 ### G13.7 — Le stockage
 

@@ -74,7 +74,7 @@ dotnet_diagnostic.IDE0052.severity = none   # membre privé jamais lu
 
 # G13, point de décision n° 10 — SoftFloat 3e réécrit en C# : le même pacte que le code transcrit, la ligne du C
 # contre la ligne du C#. La classe `softfloat` porte le nom de la bibliothèque, comme `mem` celui de mem.c.
-[tools/softfloat/SoftFloat/**.cs]
+[iXtal26.SoftFloat/**.cs]
 dotnet_diagnostic.IDE1006.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CS8981.severity = none

@@ -41,6 +41,9 @@
 // Un seul écart de forme : en C, `goto overflow` saute dans le bloc du débordement à 80 bits, ce que C# interdit. Le
 // bloc est sorti sous l'étiquette, après la fin du chemin ordinaire, qui saute à packReturn ; le débordement à 80
 // bits pose roundMask à zéro puis y saute. Le chemin de chacun est celui du C.
+//
+// DEVIATION (G13, point n° 10, validée par Julien le 11/10) — C1 : chaque chemin retient la troncature (`expTrunc`, `sigTrunc`) avant d'arrondir,
+// et packReturn note dans softfloat_roundedUp si le résultat en diffère (softfloat_state.cs). Rien d'autre ne change.
 
 namespace iXtal26.SoftFloat;
 
@@ -59,6 +62,8 @@ internal static partial class softfloat
         bool roundNearEven;
         uint_fast64_t roundIncrement = 0, roundMask = 0, roundBits;
         bool isTiny, doIncrement;
+        int_fast32_t expTrunc = 0; // DEVIATION: C1
+        uint_fast64_t sigTrunc = 0; // DEVIATION: C1
         uint64_extra sig64Extra;
         extFloat80_t uZ;
 
@@ -98,6 +103,8 @@ internal static partial class softfloat
                     || (sig <= (uint64_t) (sig + roundIncrement));
                 sig = softfloat_shiftRightJam64( sig, (uint_fast32_t) (1 - exp) );
                 roundBits = sig & roundMask;
+                expTrunc = 0; // DEVIATION: C1
+                sigTrunc = sig & ~roundMask; // DEVIATION: C1
                 if ( roundBits != 0 ) {
                     if ( isTiny ) softfloat_raiseFlags( softfloat_flag_underflow );
                     softfloat_exceptionFlags |= softfloat_flag_inexact;
@@ -123,6 +130,8 @@ internal static partial class softfloat
         }
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
+        expTrunc = exp; // DEVIATION: C1
+        sigTrunc = sig & ~roundMask; // DEVIATION: C1
         if ( roundBits != 0 ) {
             softfloat_exceptionFlags |= softfloat_flag_inexact;
             if ( roundingMode == softfloat_round_odd ) {
@@ -168,6 +177,8 @@ internal static partial class softfloat
                 exp = 0;
                 sig = sig64Extra.v;
                 sigExtra = sig64Extra.extra;
+                expTrunc = 0; // DEVIATION: C1
+                sigTrunc = sig; // DEVIATION: C1
                 if ( sigExtra != 0 ) {
                     if ( isTiny ) softfloat_raiseFlags( softfloat_flag_underflow );
                     softfloat_exceptionFlags |= softfloat_flag_inexact;
@@ -209,6 +220,8 @@ internal static partial class softfloat
         }
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
+        expTrunc = exp; // DEVIATION: C1
+        sigTrunc = sig; // DEVIATION: C1
         if ( sigExtra != 0 ) {
             softfloat_exceptionFlags |= softfloat_flag_inexact;
             if ( roundingMode == softfloat_round_odd ) {
@@ -235,6 +248,8 @@ internal static partial class softfloat
      overflow:
         softfloat_raiseFlags(
             softfloat_flag_overflow | softfloat_flag_inexact );
+        expTrunc = 0x7FFE; // DEVIATION: C1 — la troncature d'un débordement est le plus grand fini
+        sigTrunc = ~roundMask; // DEVIATION: C1
         if (
                roundNearEven
             || (roundingMode == softfloat_round_near_maxMag)
@@ -250,6 +265,7 @@ internal static partial class softfloat
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
      packReturn:
+        softfloat_roundedUp = (sig != sigTrunc) || (exp != expTrunc); // DEVIATION: C1
         uZ.signExp = (uint16_t) packToExtF80UI64( sign, exp );
         uZ.signif = sig;
         return uZ;

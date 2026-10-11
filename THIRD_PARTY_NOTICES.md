@@ -52,10 +52,10 @@ transcribed must be moved to "yes" here, with its upstream notice reproduced in 
 sha256 `21130ce885d35c1fe73fc1e1bf2244178167e05c6747cad5f450cc991714c746`
 **License:** **BSD 3-Clause** (SPDX: `BSD-3-Clause`), compatible with GPL v2.0
 
-`tools/softfloat/SoftFloat/` is a C# rewrite of the 80-bit subset of SoftFloat 3e (the
+`iXtal26.SoftFloat/` is a C# rewrite of the 80-bit subset of SoftFloat 3e (the
 `8086` specialization, which follows the x87 rules for NaNs), file by file. Each rewritten
 file carries the copyright line and the full notice of the C file it comes from;
-`tools/softfloat/SoftFloat/COPYING.txt` is the upstream licence. It is verified against
+`iXtal26.SoftFloat/COPYING.txt` is the upstream licence. It is verified against
 TestFloat 3e, by the same author and under the same licence, which is fetched and built
 outside the repository (`tools/softfloat/outils/preparer.sh`); no TestFloat code is
 redistributed here. The upstream licence, as distributed:

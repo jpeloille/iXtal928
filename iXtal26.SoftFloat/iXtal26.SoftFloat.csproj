@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- SoftFloat 3e de John R. Hauser, réécrit en C# : le sous-ensemble 80 bits dont le x87 a besoin (G13, point de
-         décision n° 10). Hors de l'émulateur tant que la mesure n'a pas tranché ; vérifié par TestFloat-3e
+    <!-- SoftFloat 3e de John R. Hauser, réécrit en C# : le sous-ensemble 80 bits dont le x87 a besoin, le noyau du mode
+         matériel (G13, point de décision n° 10). Un projet frère d'iXtal26, qui le référence ; vérifié par TestFloat-3e
          (tools/softfloat/Banc). Licence BSD-3-Clause, la notice dans COPYING.txt et en tête de chaque fichier porté. -->
 
     <PropertyGroup>
@@ -23,6 +23,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="iXtal26"/>
         <InternalsVisibleTo Include="iXtal26.SoftFloatBanc"/>
     </ItemGroup>
 

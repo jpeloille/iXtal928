@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: (aucun) — outillage de vérification et de mesure de la réécriture de SoftFloat (tools/softfloat/SoftFloat).
+// ORACLE: (aucun) — outillage de vérification et de mesure de la réécriture de SoftFloat (iXtal26.SoftFloat).
 //
 // Deux modes.
 //
@@ -90,7 +90,7 @@ internal static class Ver
 
         using var entree = new StreamReader(Console.OpenStandardInput(), bufferSize: 1 << 20);
         using var sortie = new StreamWriter(Console.OpenStandardOutput(), bufferSize: 1 << 20);
-        long cas = 0, ecarts = 0;
+        long cas = 0, ecarts = 0, ecartsC1 = 0, c1Poses = 0;
         string? ligne;
         while ((ligne = entree.ReadLine()) != null)
         {
@@ -104,24 +104,34 @@ internal static class Ver
                 return 2;
             }
             softfloat_exceptionFlags = 0;
-            var resultat = forme switch
-            {
-                Forme.Abz80 => Ecrire80(Binaire(fonction, Lire80(t[0]), Lire80(t[1]))),
-                Forme.Az80 => Ecrire80(extF80_sqrt(Lire80(t[0]))),
-                Forme.Az80Rx => Ecrire80(extF80_roundToInt(Lire80(t[0]), arrondi, exact)),
-                Forme.AbBool => Comparer(fonction, Lire80(t[0]), Lire80(t[1])) ? "1" : "0",
-                Forme.A80F32 => extF80_to_f32(Lire80(t[0])).v.ToString("X8"),
-                Forme.A80F64 => extF80_to_f64(Lire80(t[0])).v.ToString("X16"),
-                Forme.A80I32Rx => ((uint) extF80_to_i32(Lire80(t[0]), arrondi, exact)).ToString("X8"),
-                Forme.A80I64Rx => ((ulong) extF80_to_i64(Lire80(t[0]), arrondi, exact)).ToString("X16"),
-                Forme.F32A80 => Ecrire80(f32_to_extF80(new float32_t { v = (uint) Hex(t[0]) })),
-                Forme.F64A80 => Ecrire80(f64_to_extF80(new float64_t { v = Hex(t[0]) })),
-                Forme.I32A80 => Ecrire80(i32_to_extF80((int) (uint) Hex(t[0]))),
-                Forme.I64A80 => Ecrire80(i64_to_extF80((long) Hex(t[0]))),
-                _ => throw new InvalidOperationException(),
-            };
-            var indicateurs = softfloat_exceptionFlags.ToString("X2");
+            softfloat_roundedUp = false;
+            var resultat = Calculer(forme, fonction, t, arrondi, exact);
+            var drapeaux = softfloat_exceptionFlags;
+            var c1 = softfloat_roundedUp;
+            var indicateurs = drapeaux.ToString("X2");
             cas++;
+            if (forme == Forme.AbBool)
+            {
+                // Une comparaison n'arrondit pas : C1 reste faux.
+                if (c1 && ++ecartsC1 <= 10)
+                    Console.Error.WriteLine($"écart C1 : {ligne}  →  C1 posé par une comparaison");
+            }
+            else if (arrondi != softfloat_round_odd)
+            {
+                // C1 contre sa définition : un résultat inexact, non invalide, arrondi vers le haut diffère de celui
+                // qu'arrondit minMag (la troncature). Une fonction à paramètre `exact` ne lève l'inexactitude que sous
+                // -exact : là, la différence seule la dit (l'arrondi à l'entier n'a pas de zéro signé qui change).
+                softfloat_roundingMode = softfloat_round_minMag;
+                var tronque = Calculer(forme, fonction, t, softfloat_round_minMag, exact);
+                softfloat_roundingMode = arrondi;
+                var inexact = (drapeaux & softfloat_flag_inexact) != 0
+                              || forme is Forme.Az80Rx or Forme.A80I32Rx or Forme.A80I64Rx;
+                var attendu = inexact && (drapeaux & softfloat_flag_invalid) == 0 && tronque != resultat;
+                if (attendu != c1 && ++ecartsC1 <= 10)
+                    Console.Error.WriteLine($"écart C1 : {ligne}  →  C1 {(c1 ? 1 : 0)}, attendu {(attendu ? 1 : 0)}");
+                if (attendu)
+                    c1Poses++;
+            }
             if (resultat != t[nOperandes] || indicateurs != t[nOperandes + 1])
             {
                 if (++ecarts <= 10)
@@ -136,9 +146,27 @@ internal static class Ver
             sortie.Write(' ');
             sortie.WriteLine(indicateurs);
         }
-        Console.Error.WriteLine($"{fonction} {string.Join(' ', options)} : {cas} cas, {ecarts} écarts au bit près");
-        return ecarts == 0 && cas > 0 ? 0 : 1;
+        Console.Error.WriteLine($"{fonction} {string.Join(' ', options)} : {cas} cas, {ecarts + ecartsC1} écarts au bit près " +
+                                $"(dont {ecartsC1} sur C1 ; C1 posé {c1Poses} fois)");
+        return ecarts == 0 && ecartsC1 == 0 && cas > 0 ? 0 : 1;
     }
+
+    private static string Calculer(Forme forme, string fonction, string[] t, byte arrondi, bool exact) => forme switch
+    {
+        Forme.Abz80 => Ecrire80(Binaire(fonction, Lire80(t[0]), Lire80(t[1]))),
+        Forme.Az80 => Ecrire80(extF80_sqrt(Lire80(t[0]))),
+        Forme.Az80Rx => Ecrire80(extF80_roundToInt(Lire80(t[0]), arrondi, exact)),
+        Forme.AbBool => Comparer(fonction, Lire80(t[0]), Lire80(t[1])) ? "1" : "0",
+        Forme.A80F32 => extF80_to_f32(Lire80(t[0])).v.ToString("X8"),
+        Forme.A80F64 => extF80_to_f64(Lire80(t[0])).v.ToString("X16"),
+        Forme.A80I32Rx => ((uint) extF80_to_i32(Lire80(t[0]), arrondi, exact)).ToString("X8"),
+        Forme.A80I64Rx => ((ulong) extF80_to_i64(Lire80(t[0]), arrondi, exact)).ToString("X16"),
+        Forme.F32A80 => Ecrire80(f32_to_extF80(new float32_t { v = (uint) Hex(t[0]) })),
+        Forme.F64A80 => Ecrire80(f64_to_extF80(new float64_t { v = Hex(t[0]) })),
+        Forme.I32A80 => Ecrire80(i32_to_extF80((int) (uint) Hex(t[0]))),
+        Forme.I64A80 => Ecrire80(i64_to_extF80((long) Hex(t[0]))),
+        _ => throw new InvalidOperationException(),
+    };
 
     private static extFloat80_t Binaire(string f, extFloat80_t a, extFloat80_t b) => f switch
     {

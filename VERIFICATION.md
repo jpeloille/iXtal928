@@ -8764,3 +8764,50 @@ Le `double` est l'opération nue d'une boucle serrée, pas un gestionnaire d'iXt
 instruction simple en 5,7 ns environ (M1 de G13.5b). Rapporté au temps de l'invité, le pire cas est le 486DX2 à 66 MHz,
 où FADD prend 8 à 20 cycles (120 à 300 ns) : un flot de FADD seuls coûterait 4 à 9 % de temps réel de plus. Sur le 387
 (23 cycles au moins), le 287 et le 8087, la part est plus petite encore.
+
+## G13.6, le noyau, N1 — Le noyau dans le produit
+
+Le 11 octobre 2026, après la validation du plan découpé (PLAN-G13.md, § G13.6, le noyau : « feu vert pour les six »).
+Aucun comportement ne change : le mode PCem n'appelle pas le noyau, et le mode matériel ne l'appelle pas encore.
+
+**La bibliothèque** quitte `tools/softfloat/SoftFloat/` pour `iXtal26.SoftFloat/` (un `git mv`), projet frère
+qu'`iXtal26.csproj` référence (`ProjectReference`) et que la solution liste ; son assembly reste à part, sous sa licence
+BSD-3-Clause, `InternalsVisibleTo` ouvert à `iXtal26` et au banc. `.editorconfig` et `THIRD_PARTY_NOTICES.md` suivent.
+
+**L'écart C1** (validé : la décision n° 2 du plan). Une globale `softfloat_roundedUp` (`softfloat_state.cs`) : vraie si
+le résultat rangé a une magnitude plus grande que sa troncature, celle qu'arrondirait minMag ; fausse pour un résultat
+exact, invalide, ou un débordement vers le plus grand fini. Six sites la posent, chaque ligne marquée `// DEVIATION:
+C1` et l'écart annoncé en tête du fichier : `softfloat_roundPackToExtF80` (chaque chemin retient sa troncature avant
+d'arrondir : ordinaire, petit, 80 bits, débordement), `…ToF32` et `…ToF64` (FST m32 et m64), `softfloat_roundToI32` et
+`…ToI64` (FIST), `extF80_roundToInt` (FRNDINT, la retenue de 1,xxx vers 2 comprise : elle change l'exposant, pas la
+mantisse). Une opération qui n'arrondit pas n'y touche pas ; l'appelant la remet à faux, comme les indicateurs.
+
+**La vérification de C1.** Le banc recalcule chaque cas de TestFloat sous minMag : C1 attendu si le résultat est
+inexact (pour les fonctions à paramètre `exact`, la différence seule le dit), non invalide, et diffère de la
+troncature ; round_odd est exclu (le x87 ne l'a pas). Le niveau 1 l'a d'abord trouvé faux sur FRNDINT, où la
+retenue vers 2 passait dans l'exposant sans changer la mantisse ; corrigé. Puis :
+
+| niveau | passes | cas | écarts au bit près, C1 compris | erreurs de `testfloat_ver -checkAll` | durée |
+|---|---|---|---|---|---|
+| 1 | 262 | 7 617 216 | 0 | 0 | quelques secondes |
+| 2 | 262 | 9 648 544 248 | 0 | 0 | 1 872 s, quatre processus (chaque cas calculé deux fois) |
+
+Les contrôles négatifs de C1 (une faute à la fois, une copie, le niveau 1) : le témoin vert ; C1 jamais noté à 80
+bits (114 passes rouges), la troncature fausse d'un débordement (72), FST m32 et m64, FIST m32 et m64, FRNDINT sans
+la retenue et sans « |x| < 1 rendu à 1 » (8 passes chacun) : rouges.
+
+**PB-264**, inscrit au registre (décision n° 5) : la pile du x87 ne déborde jamais (`x87_push`, `x87_push_u64`,
+`x87_pop`, `ST(x)` ne regardent pas l'étiquette). Ses quatre marqueurs dans `Cpu/x87_ops.cs`. `recensement` : vert,
+264 défauts, 1029 marqueurs ; un numéro retiré d'un marqueur, ou le champ *G13* retiré de l'entrée : rouge.
+
+**M2.** Les treize scénarios, contre M0 : l'écart connu (les huit méthodes froides et les sept du mécanisme, comme en
+G13.6c) ; contre M2-6c : 1 130 méthodes, aucune changée, aucune apparue. Le noyau n'est compilé par aucun scénario.
+
+**La contre-lecture** (Sonnet) : aucun chemin faux dans les six sites, ni valeur ni indicateur changé par les lignes
+de l'écart. Repris : round_odd, que le x87 n'a pas, sort de la définition (`softfloat_roundToI32` et `…ToI64` posent
+C1 avant d'y forcer le bit bas ; dit dans `softfloat_state.cs`, et le banc ne vérifie pas C1 sous `-rodd`) ; le banc
+vérifie aussi qu'une comparaison laisse C1 faux ; `iXtal26.sln` réécrit à la main, le projet et ses deux
+configurations seulement (`dotnet sln add` ajoutait des plateformes x64 et x86) ; deux phrases (PLAN-G13, PB-264).
+
+**La série** (`g7n1`, le 11/10, 10:54 → 12:03, contre `g6c1`) : 425 portes vertes, les mêmes ; un seul écart,
+attendu : `recensement` compte 264 défauts et 1029 marqueurs au lieu de 263 et 1025, ceux de PB-264.

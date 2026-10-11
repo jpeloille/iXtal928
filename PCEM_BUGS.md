@@ -4955,6 +4955,25 @@ et i486 PRM, page CALL, TASK-GATE et TASK-STATE-SEGMENT) ; #GP(0) aux pages JMP 
 porte de tâche de PB-39), `ip_tache_materiel` (`Cpu/386.Materiel.cs`) lève #TS(0) sur le 386 et le 486 ; oldpc reçoit
 le nouvel EIP, pour que la faute se livre dans la nouvelle tâche. `materiel-cas PB-263` rend le cas ci-dessus.
 
+### PB-264 — La pile du x87 ne déborde jamais : empiler sur un registre plein, lire un registre vide ne lèvent rien
+
+`x87_ops.h:11` (`ST(x)`), `:34-38` (`x87_push`), `:40-51` (`x87_push_u64`), `:53-58` (`x87_pop`) : ni l'empilement ni
+la lecture ne regardent l'étiquette du registre ; `x87_checkexceptions` (`:32`) est vide.
+
+*Effet* : un neuvième empilement écrase le registre le plus ancien, une opération sur un registre vide calcule sur son
+dernier contenu (le zéro de la mise sous tension, ou une valeur périmée) ; ni IE, ni SF, ni C1, ni l'indéfini.
+*Trouvé par* : le plan du noyau de 80 bits (G13, point de décision n° 10), à la lecture de `x87_push`.
+*Source* : documenté — 387 PRM et SDM vol. 1 § 8.5.1.1 (« Stack Overflow or Underflow Exception (#IS) ») : IE et SF
+posés, C1 à 1 pour un débordement, à 0 pour un sous-débordement ; masquée, l'indéfini (FFFF C000000000000000h) est
+rangé à la destination. 287 PRM et Numerics Supplement : le débordement et le sous-débordement de pile sont des
+opérations invalides (IE), sans SF, que le 387 introduit.
+*Cas qui discrimine* : FNINIT ; neuf FLD1 ; FNSTSW AX → PCem 3800h, ST(0) = 1 ; 387 et 486 3A41h (IE, SF, C1), ST(0)
+indéfini ; 8087 et 287 : IE posé (C1 non spécifié). FNINIT ; FADD ST, ST(1) → PCem 0000h ; 387 0041h (IE,
+SF), ST(0) indéfini.
+*G13* : (a) — avec le noyau : la pile et son débordement dans sa couche commune (N2), chaque gestionnaire en N3 et N4.
+*Reproduit* en mode PCem : `Cpu/x87_ops.cs` (`ST`, `x87_push`, `x87_push_u64`, `x87_pop`), marqueurs `reproduced:
+PB-264` ; les gestionnaires du 8087 appellent les mêmes aides.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation

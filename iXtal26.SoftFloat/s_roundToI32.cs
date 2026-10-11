@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: BSD-3-Clause
 //
-// ORACLE: sources/softfloat/SoftFloat-3e/source/s_roundToI64.c
+// ORACLE: sources/softfloat/SoftFloat-3e/source/s_roundToI32.c
 //         (SoftFloat-3e.zip, sha256 21130ce885d35c1fe73fc1e1bf2244178167e05c6747cad5f450cc991714c746 ; hors dépôt)
 //
 // La notice d'origine, gardée comme la licence le demande :
@@ -38,63 +38,55 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// L'étiquette `increment`, dans le bloc du second `if` en C, n'est pas une cible que C# accepte depuis le premier : le
-// premier cas y entre par une copie du bloc (les trois instructions qui suivent l'étiquette), puis rejoint la suite.
+// DEVIATION (G13, point n° 10, validée par Julien le 11/10) — C1 : la magnitude entière avant l'incrément, comparée à celle d'après (softfloat_state.cs) ;
+// faux sur l'invalide. Rien d'autre ne change.
 
 namespace iXtal26.SoftFloat;
 
 internal static partial class softfloat
 {
-    internal static int_fast64_t
-     softfloat_roundToI64(
-         bool sign,
-         uint_fast64_t sig,
-         uint_fast64_t sigExtra,
-         uint_fast8_t roundingMode,
-         bool exact
-     )
+    internal static int_fast32_t
+     softfloat_roundToI32(
+         bool sign, uint_fast64_t sig, uint_fast8_t roundingMode, bool exact )
     {
-        uint64_t uZ;
-        int_fast64_t z;
+        uint_fast16_t roundIncrement, roundBits;
+        uint_fast32_t sig32;
+        uint32_t uZ;
+        int_fast32_t z;
+        uint_fast64_t sigTrunc; // DEVIATION: C1
 
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
+        roundIncrement = 0x800;
         if (
-            (roundingMode == softfloat_round_near_maxMag)
-                || (roundingMode == softfloat_round_near_even)
+            (roundingMode != softfloat_round_near_maxMag)
+                && (roundingMode != softfloat_round_near_even)
         ) {
-            if ( 0x8000000000000000UL <= sigExtra ) {
-                ++sig;
-                if ( sig == 0 ) goto invalid;
-                if (
-                    (sigExtra == 0x8000000000000000UL)
-                        && (roundingMode == softfloat_round_near_even)
-                ) {
-                    sig &= ~(uint_fast64_t) 1;
-                }
-            }
-        } else {
+            roundIncrement = 0;
             if (
-                sigExtra != 0
-                    && (sign
-                            ? (roundingMode == softfloat_round_min)
-                                  || (roundingMode == softfloat_round_odd)
-                            : (roundingMode == softfloat_round_max))
+                sign
+                    ? (roundingMode == softfloat_round_min)
+                          || (roundingMode == softfloat_round_odd)
+                    : (roundingMode == softfloat_round_max)
             ) {
-                ++sig;
-                if ( sig == 0 ) goto invalid;
-                if (
-                    (sigExtra == 0x8000000000000000UL)
-                        && (roundingMode == softfloat_round_near_even)
-                ) {
-                    sig &= ~(uint_fast64_t) 1;
-                }
+                roundIncrement = 0xFFF;
             }
         }
-        uZ = sign ? 0 - sig : sig;
-        z = (int64_t) uZ;
+        roundBits = sig & 0xFFF;
+        sigTrunc = sig>>12; // DEVIATION: C1
+        sig += roundIncrement;
+        if ( (sig & 0xFFFFF00000000000UL) != 0 ) goto invalid;
+        sig32 = sig>>12;
+        if (
+            (roundBits == 0x800) && (roundingMode == softfloat_round_near_even)
+        ) {
+            sig32 &= ~(uint_fast32_t) 1;
+        }
+        softfloat_roundedUp = sig32 != sigTrunc; // DEVIATION: C1
+        uZ = (uint32_t) (sign ? 0 - sig32 : sig32);
+        z = (int32_t) uZ;
         if ( z != 0 && ((z < 0) ^ sign) ) goto invalid;
-        if ( sigExtra != 0 ) {
+        if ( roundBits != 0 ) {
             if ( roundingMode == softfloat_round_odd ) z |= 1;
             if ( exact ) softfloat_exceptionFlags |= softfloat_flag_inexact;
         }
@@ -102,7 +94,8 @@ internal static partial class softfloat
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
      invalid:
+        softfloat_roundedUp = false; // DEVIATION: C1
         softfloat_raiseFlags( softfloat_flag_invalid );
-        return sign ? i64_fromNegOverflow : i64_fromPosOverflow;
+        return sign ? i32_fromNegOverflow : i32_fromPosOverflow;
     }
 }

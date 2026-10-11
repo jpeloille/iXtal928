@@ -79,4 +79,10 @@
              § M5.0 ; à trancher, pas à balayer en passant.) -->
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- G13, point de décision n° 10 : le noyau de 80 bits du x87 en mode matériel, SoftFloat 3e réécrit en C#
+             (BSD-3-Clause, son propre assembly). Le mode PCem ne l'appelle jamais. -->
+        <ProjectReference Include="../iXtal26.SoftFloat/iXtal26.SoftFloat.csproj"/>
+    </ItemGroup>
+
 </Project>

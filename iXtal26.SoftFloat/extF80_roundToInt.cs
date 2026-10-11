@@ -39,6 +39,9 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // Le `switch` du C tombe d'un cas dans le suivant (near_even dans near_maxMag) : `goto case` en C#.
+//
+// DEVIATION (G13, point n° 10, validée par Julien le 11/10) — C1 : faux d'entrée ; vrai quand |x| < 1 est rendu à 1 ; sinon, la mantisse et l'exposant rendus comparés
+// à la troncature (la retenue de 1,xxx vers 2 passe dans l'exposant ; softfloat_state.cs). Rien d'autre ne change.
 
 namespace iXtal26.SoftFloat;
 
@@ -58,6 +61,7 @@ internal static partial class softfloat
         uint_fast64_t lastBitMask, roundBitsMask;
         extFloat80_t uZ;
 
+        softfloat_roundedUp = false; // DEVIATION: C1
         /*------------------------------------------------------------------------
         *------------------------------------------------------------------------*/
         uA = a;
@@ -116,6 +120,7 @@ internal static partial class softfloat
             sigZ  = 0;
             goto uiZ;
          mag1:
+            softfloat_roundedUp = true; // DEVIATION: C1 — |x| < 1 rendu à 1
             uiZ64 = signUI64 | 0x3FFF;
             sigZ  = 0x8000000000000000UL;
             goto uiZ;
@@ -145,6 +150,7 @@ internal static partial class softfloat
             if ( roundingMode == softfloat_round_odd ) sigZ |= lastBitMask;
             if ( exact ) softfloat_exceptionFlags |= softfloat_flag_inexact;
         }
+        softfloat_roundedUp = sigZ != (sigA & ~roundBitsMask) || uiZ64 != (signUI64 | (uint_fast16_t) exp); // DEVIATION: C1
      uiZ:
         uZ.signExp = (uint16_t) uiZ64;
         uZ.signif = sigZ;

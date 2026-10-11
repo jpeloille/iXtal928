@@ -17,7 +17,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../SoftFloat/iXtal26.SoftFloat.csproj"/>
+        <ProjectReference Include="../../../iXtal26.SoftFloat/iXtal26.SoftFloat.csproj"/>
     </ItemGroup>
 
 </Project>

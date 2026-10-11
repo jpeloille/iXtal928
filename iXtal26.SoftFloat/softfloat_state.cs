@@ -47,4 +47,12 @@ internal static partial class softfloat
     internal static uint_fast8_t softfloat_exceptionFlags = 0;
 
     internal static uint_fast8_t extF80_roundingPrecision = 80;
+
+    // DEVIATION (G13, point n° 10, validée par Julien le 11/10) : le bit C1 du x87, « arrondi vers le haut ».
+    // SoftFloat ne dit pas dans quel sens il a arrondi ; chaque site d'arrondi le note ici : vrai si le résultat rangé
+    // a une magnitude plus grande que sa troncature (le résultat qu'arrondit minMag), faux sinon. Une opération qui
+    // n'arrondit pas n'y touche pas : l'appelant le remet à faux avant chaque opération, comme
+    // softfloat_exceptionFlags. round_odd, que le x87 n'a pas, est hors de cette définition : softfloat_roundToI32 et
+    // …ToI64 posent C1 avant d'y forcer le bit bas (le banc ne vérifie pas C1 sous -rodd).
+    internal static bool softfloat_roundedUp;
 }
