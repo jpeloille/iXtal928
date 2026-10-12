@@ -742,3 +742,9 @@ for pb in 139 141; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7e2a — le côté SCSI de l'AHA-1542C : PB-276 (le surplus de la cible au bout du CCB, HRST et SCRST qui libèrent
+# le bus), PB-278 (les bits de sens, 12h ; les 24 bits ; l'ID de l'hôte), chacun son cas en C# seul dans les deux modes.
+for pb in 276 278; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

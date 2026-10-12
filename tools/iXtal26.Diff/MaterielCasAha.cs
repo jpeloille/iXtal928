@@ -207,8 +207,8 @@ internal static partial class MaterielCas
     // attente (une commande 1Fh, ECHO, achevée sans IRST) : chez PCem l'IRQ 10 reste levée au PIC esclave ; sur la
     // carte, l'interruption passe sur la nouvelle ligne, l'ancienne retombe (déduit). L'IRQ 11 levée des deux côtés.
     // IRST ensuite baisse l'IRQ 11, la ligne de la carte, des deux côtés. Témoin : 22h qui ne change pas l'IRQ, l'IRQ 10
-    // levée des deux côtés. Le cas suppose PB-144 coupé (la carte neuve à l'IRQ 10, la référence) : les portes lancent
-    // chaque correction seule. Les lignes 10 et 11 masquées au PIC
+    // levée des deux côtés. L'EEPROM de départ, la référence (l'IRQ 10), posée dans le fichier de chaque mode : le cas
+    // tient aussi sous PB-144 (« tout »). Les lignes 10 et 11 masquées au PIC
     // pendant le cas, pour que le BIOS ne les acquitte pas.
     private static int Pb277(bool hw)
     {
@@ -232,7 +232,11 @@ internal static partial class MaterielCas
                      $"puis {(irst ? "levée" : "basse")} après IRST";
             var att = $"IRQ 10 levée avant, puis {(dix ? "levée" : "basse")}, IRQ 11 {(onze ? "levée" : "basse")}, puis basse après IRST";
             return Voir(nom, vu == att, vu, att, hw);
-        }));
+        }), nvr =>
+        {
+            foreach (var f in new[] { ".aha1542c.nvr", ".aha1542c.materiel.nvr" })
+                File.WriteAllBytes(Path.Combine(nvr, f), Convert.FromHexString(Reference));
+        });
         return Essai(0x72, "22h, l'IRQ de 10 à 11", !hw, true) + Essai(0x71, "22h, l'IRQ inchangée (témoin)", true, false);
     }
 }

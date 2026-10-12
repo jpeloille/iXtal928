@@ -166,7 +166,9 @@ internal static class ModeMateriel
         new(271, "stockage", "READ CD MSF, obligatoire, servi"),
         new(272, "stockage", "PLAY AUDIO(12) lit son adresse et sa longueur sur quatre octets"),
         new(273, "stockage", "une plage de PLAY AUDIO qui change de type (audio, données) rend 05/63h"),
+        new(276, "stockage", "l'AHA-1542C : HRST et SCRST libèrent le bus, le surplus de la cible passé au bout du CCB"),
         new(277, "stockage", "Set EEPROM (22h) de l'AHA-1542C qui change l'IRQ relâche l'ancienne ligne"),
+        new(278, "stockage", "le CCB de l'AHA-1542C : les bits de sens (12h, aucun transfert), les 24 bits, l'ID de l'hôte"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

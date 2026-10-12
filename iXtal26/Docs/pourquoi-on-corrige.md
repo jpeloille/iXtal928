@@ -1405,3 +1405,35 @@ suivantes de la carte.
 
 La boîte aux lettres réservée au BIOS de la carte : son rapport avec la boîte normale n'est pas documenté ; seule est
 corrigée l'évidence — elle n'écrase plus une demande en cours.
+
+## G13.7e2a — les données et le bus SCSI de la carte Adaptec
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e2a.*
+
+### PB-276 — quand le disque a plus à dire que la place prévue
+
+- **Le vrai PC.** Chaque demande du pilote dit combien d'octets il attend. Si le disque en envoie davantage, le manuel
+  dit que la demande finit sans erreur : la carte laisse donc passer le surplus sans le ranger (déduit). Et un reset complet de la carte, ou le reset du
+  bus qu'elle sait déclencher, remet tous les appareils SCSI au repos.
+- **L'émulateur.** PCem, au bout de la place prévue, attend que le disque change de phase ; le disque attend qu'on
+  prenne ses octets ; ni l'un ni l'autre ne cède, sans fin. Aucun reset de la carte ne touche le bus : le disque reste
+  occupé, et tous les disques SCSI disparaissent jusqu'au redémarrage du PC.
+- **La correction.** Le surplus passé (lu et jeté, ou des zéros envoyés en écriture), la demande achevée ; les deux
+  resets qui libèrent le bus.
+
+### PB-278 — les bits de sens, la mémoire de 16 Mo, l'adresse de la carte
+
+- **Le vrai PC.** Deux bits de la demande, quand le pilote en pose un, arment le contrôle de longueur : un disque qui
+  envoie trop, ou trop peu, rend une erreur « dépassement » (12h). Les deux à la fois veulent dire « aucun
+  transfert » : ce que le disque envoie est ignoré. La carte, sur
+  le bus ISA, n'a que 24 lignes d'adresse : au-delà de 16 Mo, elle revient à zéro. Et elle ne se sélectionne pas
+  elle-même : l'adresse SCSI qu'elle porte n'est pas un disque.
+- **L'émulateur.** PCem range les deux bits sans les lire, écrit au-delà de 16 Mo, et accepte de sélectionner l'adresse
+  de la carte.
+- **La correction.** Le contrôle et son erreur 12h, « aucun transfert », le bouclage à 16 Mo, l'adresse de la carte
+  refusée.
+
+### Ce qui reste comme chez PCem
+
+Une demande en cours au moment d'un reset « doux » de la carte, ou d'un reset du bus : le manuel ne dit pas ce qu'elle
+devient (PB-281). Et une demande posée à cheval sur la limite des 16 Mo, qu'aucun pilote ne pose là (PB-282).

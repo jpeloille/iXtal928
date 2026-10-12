@@ -524,10 +524,13 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.7e1b — Les mailbox** ✅ *(13/10, VERIFICATION.md § G13.7e1b)*. PB-141 (01h de compte nul refusé, le balayage des 02h, le MBI libre attendu, HRST et
     SRST exigent une nouvelle init), PB-139 (ABORT : l'emplacement en `c * 4`, un seul MBI, 03h si le CCB est déjà
     rendu).
-  - **G13.7e2 — Le côté SCSI.** PB-276 (HRST libère le bus, le statut d'hôte 12h au lieu de la navette), PB-278 (les
-    bits de sens arment le contrôle de longueur, 12h ; les deux posés, aucun transfert ; les 24 bits, l'ID de l'hôte
-    exclu), PB-133 (le LUN du
-    CCB par IDENTIFY), PB-137 (le sense automatique sur CHECK CONDITION seul, rangé dans le CCB en 12h + m).
+  - **G13.7e2 — Le côté SCSI.** Coupée en deux le 13/10 :
+    - **G13.7e2a — Les données et le bus** ✅ *(13/10, VERIFICATION.md § G13.7e2a)*. PB-276 (HRST et SCRST remettent le bus au repos ; au bout du CCB, le
+      surplus de la cible purgé et le CCB achevé, au lieu de la navette), PB-278 (les bits de sens arment le contrôle
+      de longueur, 12h ; les deux posés, aucun transfert ; les données à 24 bits, l'ID de l'hôte exclu). Détachés,
+      reproduits : PB-281 (le CCB en vol sous SRST ou SCRST, inconnu), PB-282 (le CCB lui-même à cheval sur 16 Mo).
+    - **G13.7e2b — Le LUN et le sense.** PB-133 (le LUN du CCB par IDENTIFY), PB-137 (le sense automatique sur CHECK
+      CONDITION seul, rangé dans le CCB en 12h + m).
   - **G13.7e3 — La commande BIOS 03h.** PB-138 (ni CCB périmé, ni succès sur une cible absente : 80h), PB-279 (le
     secteur CHS moins 1) ; attendus
     déduits, l'interface est privée.

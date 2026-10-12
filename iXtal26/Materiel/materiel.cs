@@ -231,8 +231,14 @@ internal static class materiel
     /// <summary>PB-218 : Return EEPROM (23h), le drapeau à 0 rend les options d'usine.</summary>
     internal static readonly bool pb_218;
 
+    /// <summary>PB-276 : HRST et SCRST remettent le bus SCSI au repos ; au bout du CCB, le surplus est passé.</summary>
+    internal static readonly bool pb_276;
+
     /// <summary>PB-277 : Set EEPROM (22h) qui change l'IRQ relâche l'ancienne ligne.</summary>
     internal static readonly bool pb_277;
+
+    /// <summary>PB-278 : le CCB de l'AHA-1542C — les bits de sens (12h), les 24 bits, l'ID de l'hôte.</summary>
+    internal static readonly bool pb_278;
 
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
@@ -495,7 +501,9 @@ internal static class materiel
         pb_141 = ModeMateriel.Demande(141);
         pb_144 = ModeMateriel.Demande(144);
         pb_218 = ModeMateriel.Demande(218);
+        pb_276 = ModeMateriel.Demande(276);
         pb_277 = ModeMateriel.Demande(277);
+        pb_278 = ModeMateriel.Demande(278);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

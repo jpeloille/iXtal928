@@ -10459,3 +10459,70 @@ dont seuls changent des jetons de chaînes (7, 4 et 4 `mov edi`, avant `CORINFO_
 **La série** g7e1b (le worktree de l'étape, contre g7e1a) : 574 portes, toutes vertes ; 570 communes à g7e1a, chacune au
 même verdict ; un seul résumé change, `recensement` (280 défauts, 1 164 marqueurs). Quatre neuves : les `materiel-cas`
 de PB-139 et PB-141, dans les deux modes.
+
+## G13.7e2a — les données et le bus de l'AHA-1542C
+
+Le 13 octobre 2026. La troisième étape de 7e (PLAN-G13.md, § G13.7), 7e2 coupée en deux (7e2a, les données et le bus ;
+7e2b, le LUN et le sense). La source : le Technical Reference de l'AHA-1540C/1542C — chapitre 4 (le port de contrôle :
+HRST « A Reset Condition is generated on the SCSI bus », SRST « is not generated », SCRST « causes a SCSI Bus Reset » ;
+*Reset Functions*), chapitre 5 (le CCB : octet 1, les bits de sens et le contrôle de longueur ; octets 4 à 6, le
+résiduel ; octet 14, le statut d'hôte 12h).
+
+**Les corrections du mode matériel** (domaine `stockage`, deux ; `Scsi/scsi_aha1540.Materiel.cs`, en `NoInlining`),
+chaque garde en tête de son `case` ou de son état : PB-276 — HRST et SCRST remettent le bus au repos ; au bout du CCB,
+tant que la cible reste en phase de données, le surplus est passé (lu et jeté ; des zéros en écriture, déduit), puis la
+cible passe au statut — la navette de PCem disparaît. PB-278 — un seul bit de sens posé arme le contrôle de longueur :
+le dépassement comme le manque rendent 12h, MBI 04h, le résiduel à zéro au dépassement, la différence au manque ; les
+deux bits, aucun transfert, ce que la cible envoie passé sans erreur (déduit) ; les adresses des données et de la liste
+bouclent à 24 bits ; l'ID de l'hôte n'est pas sélectionnable, 11h (déduit). `donnees_materiel` fait READ_DATA ou
+WRITE_DATA en entier, octet par octet, chaque part selon sa garde ; `achevement_materiel` rend le CCB en 12h en tête de
+CCB_STATE_SEND_REQUEST_SENSE (sans sense) et de CCB_STATE_WAIT_REQUEST_SENSE ; `selection_materiel` oublie le
+dépassement du CCB précédent et refuse l'ID de l'hôte. Détachés, reproduits dans les deux modes : PB-281 (le CCB en vol sous SRST ou SCRST, inconnu) et
+PB-282 (le CCB lui-même à cheval sur 16 Mo). Le marqueur de `scsi.c:241` (l'octet lu à l'entrée en DATA IN, même sans
+données), que PB-276 portait, passe à PB-132 : le disque du mode matériel n'entre plus en DATA IN sans données (7d2a).
+
+**Les cas**, en C# seul (`MaterielCasCcb.cs`, sur le banc des mailbox : le POST a fini d'effacer la mémoire basse —
+écrits d'abord sur le banc de 7d2a, ils voyaient en mode PCem un tampon effacé pendant les 400 tranches de la navette),
+sont verts dans les deux modes, sous « tout », la sonde atteinte, rouges sous l'attente de l'autre mode. Sous « tout »,
+`materiel-cas PB-277` rougissait (hors de l'étape : la carte neuve y est à l'IRQ 11, l'usine de PB-144, et le cas
+supposait l'IRQ 10) : son EEPROM de départ, la référence, est maintenant posée dans le fichier de chaque mode ; vert dans
+les deux modes et sous « tout ». Les cas SCSI et AHA (PB-128 à PB-132, PB-139 à PB-141, PB-144, PB-218, PB-276 à
+PB-278) sont verts sous « tout ». `recensement` vert (282 défauts, 1 169 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137e2a.py`, rejoués après la contre-lecture) : dix-neuf fautes, chacune
+rougit son cas — le bus non remis au repos, SCRST oublié, la navette sans bits de sens, le bourrage à FFh, les deux bits
+qui transfèrent, puis qui rendent 12h, sans bouclage à 24 bits, l'ID de l'hôte sélectionnable, 00h au lieu de 12h, le
+résiduel non écrit, MBI 01h, le manque ignoré, et sept gardes retirées (le port de contrôle, READ_DATA et WRITE_DATA
+pour PB-276 ; les deux achèvements, la sélection et READ_DATA pour PB-278). Le témoin, sans faute, est vert. Une faute
+écartée, équivalente : le résiduel du dépassement forcé à la différence — au dépassement, toute la longueur est passée,
+la différence est nulle (le code l'écrit ainsi désormais). Non couvertes par une faute : la garde PB-278 de WRITE_DATA
+(le même appel que celle de READ_DATA) et la garde PB-276 de la sélection (elle n'oublie qu'un dépassement, qu'aucun
+cas ne laisse traîner).
+
+**Les amorçages.** Le scénario `ami486-aha` (le POST de la ROM v1.01, puis PC-DOS), joué en mode PCem, sous PB-276 et
+PB-278, et sous « tout » (Debug, bac à sable hors dépôt) : aucun arrêt ; la sortie identique, la ligne du mode à part.
+
+**La contre-lecture** (Sonnet, le TR et le C relus) : rien de bloquant ; le mode PCem intact (des gardes seules, en tête
+de `case` ou d'état) ; `donnees_materiel` équivalent au C hors contrôle et purge (la liste relue avant plutôt
+qu'après, la sentinelle de `int_buffer` avant le masque, les compteurs aux seuls octets du CCB) ; `achevement_materiel`
+conforme aux deux achèvements du C hors 12h, MBI 04h et résiduel ; les attendus des cas recalculés justes. Repris :
+le manque — le TR le nomme deux fois sous l'octet 1 et y conseille de laisser les bits à zéro hors du média « unless
+transfer length checking is desired », conseil vide si le manque ne comptait pas : il rend 12h (le cas d'un secteur
+dans 1 024 octets, témoin, devient discriminant) ; les deux bits, « suppression of data transfer » : rien de transféré,
+sans erreur (et non 12h) ; le dépassement noté seulement pour la commande, plus pour son REQUEST SENSE ; trois cas
+ajoutés (le bit 4 en dépassement ; un CCB exact après un 12h ; le surplus d'une écriture) ; les sources de PB-276 (les
+zéros d'une écriture vont au média), PB-278, PB-281 et PB-282 précisées ; `pourquoi-on-corrige` adouci (le surplus
+passé est déduit) ; le commentaire périmé de `ModeOutils.cs` sur r9-aha récrit (r9-aha atteint ses gardes en mode
+matériel, sous PB-276 et sous « tout »). Non repris : les deux gardes d'une même tête qui appellent la même méthode
+(une garde par défaut, la règle) ; non couverts par un cas, notés : le dépassement en écriture sous bit, les listes
+de dispersion (02h, 04h), la mailbox du BIOS dans `achevement_materiel`, un CHECK CONDITION avec dépassement.
+
+**M2** (Release du worktree, le scénario `ami486-aha`) : avec et sans les neuf gardes de 7e2a (`M2-7e2a` contre
+`M2-7e2a-sansgardes`), identique (947 méthodes, aucune changée). Contre M2-7e1b (tous les scénarios) : les
+constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command` et `scsi_zip_command`,
+de même longueur, dont seuls changent des jetons de chaînes (8, 4 et 4 `mov edi`, avant
+`CORINFO_HELP_STRCNS`) ; le code est le même.
+
+**La série** g7e2a (le worktree de l'étape, contre g7e1b) : 578 portes, toutes vertes ; 574 communes à g7e1b, chacune au
+même verdict ; un seul résumé change, `recensement` (282 défauts, 1 169 marqueurs). Quatre neuves : les `materiel-cas`
+de PB-276 et PB-278, dans les deux modes.

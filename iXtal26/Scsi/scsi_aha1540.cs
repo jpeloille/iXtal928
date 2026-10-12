@@ -12,9 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-133, PB-136 à PB-138, PB-142, PB-143, PB-276, PB-278 à PB-280 (PCEM_BUGS.md), dont la
-//   lecture de 22h au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode
-//   matériel (scsi_aha1540.Materiel.cs) : PB-139 à PB-141, PB-144, PB-218, PB-277.
+//   n° 5). Reproduits : PB-133, PB-136 à PB-138, PB-142, PB-143, PB-279 à PB-282 (PCEM_BUGS.md), dont la lecture de
+//   22h au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
+//   (scsi_aha1540.Materiel.cs) : PB-139 à PB-141, PB-144, PB-218, PB-276 à PB-278.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -289,7 +289,10 @@ internal static partial class scsi_aha1540
                 // pcem bug, fixed in hardware mode: PB-141 — ni HRST ni SRST n'abandonnent les balayages ni n'exigent 01h.
                 if (materiel.pb_141)
                         reset_mailbox_materiel(scsi, val);
-                // pcem bug, reproduced: PB-276 — aucun des trois resets ne remet le bus SCSI au repos.
+                // pcem bug, fixed in hardware mode: PB-276 — aucun des trois resets ne remet le bus SCSI au repos ; HRST et
+                //   SCRST le devraient.
+                if (materiel.pb_276)
+                        reset_bus_materiel(scsi, val);
                 if ((val & CTRL_RESET) != 0)
                 {
                         scsi.isr = 0;
@@ -301,6 +304,7 @@ internal static partial class scsi_aha1540
                         scsi.current_mbi = 0;
                         scsi.mbo_irq_enable = 0;
                 }
+                // pcem bug, reproduced: PB-281 — le CCB en vol abandonné sans MBI ; sous SRST, la cible reste BSY.
                 if ((val & CTRL_SRST) != 0)
                 {
                         scsi.isr = 0;
@@ -318,6 +322,7 @@ internal static partial class scsi_aha1540
                         clear_irq(scsi);
                         scsi.status &= unchecked((uint8_t)~STATUS_INVDCMD);
                 }
+                // pcem bug, reproduced: PB-281 — SCRST abandonne le CCB en vol sans MBI (le TR : il « continue »).
                 if ((val & CTRL_BRST) != 0)
                 {
                         scsi.ccb_state = CCB_STATE_IDLE;
@@ -414,7 +419,7 @@ internal static partial class scsi_aha1540
         case CCB_INITIATOR:
         case CCB_INITIATOR_RESIDUAL:
                 temp = mem_readb_phys(scsi.ccb.addr + 0x01);
-                // pcem bug, reproduced: PB-278 — les bits 3 et 4, rangés, jamais lus : ni contrôle de longueur
+                // pcem bug, fixed in hardware mode: PB-278 — les bits 3 et 4, rangés, jamais lus : ni contrôle de longueur
                 //   (12h), ni « aucun transfert » s'ils sont posés tous deux. Le sens, lui, est conforme à la carte.
                 scsi.ccb.transfer_dir = (temp >> 3) & 3;
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
@@ -424,7 +429,7 @@ internal static partial class scsi_aha1540
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
-                // pcem bug, reproduced: PB-278 — ccb.addr + n sans bouclage à 24 bits (:425-433).
+                // pcem bug, reproduced: PB-282 — ccb.addr + n sans bouclage à 24 bits (:425-433).
                 scsi.ccb.data_len = (uint32_t)(mem_readb_phys(scsi.ccb.addr + 0x06) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x05) << 8) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x04) << 16));
@@ -1434,6 +1439,10 @@ internal static partial class scsi_aha1540
                 break;
 
         case CCB_STATE_SEND_REQUEST_SENSE:
+                // pcem bug, fixed in hardware mode: PB-278 — un dépassement sous contrôle de longueur rendrait 12h.
+                if (materiel.pb_278)
+                        if (achevement_materiel(scsi, false))
+                                break;
                 if (scsi.ccb.req_sense_len == CCB_SENSE_NONE)
                 {
                         if (scsi.ccb.from_mailbox != 0)
@@ -1513,6 +1522,10 @@ internal static partial class scsi_aha1540
                 break;
 
         case CCB_STATE_WAIT_REQUEST_SENSE:
+                // pcem bug, fixed in hardware mode: PB-278 — de même après le sense.
+                if (materiel.pb_278)
+                        if (achevement_materiel(scsi, true))
+                                break;
                 if (scsi.scsi_state != SCSI_STATE_IDLE)
                         break; /*Wait until SCSI state machine has completed command*/
 
@@ -1585,8 +1598,14 @@ internal static partial class scsi_aha1540
                 break;
 
         case SCSI_STATE_SELECT:
+                if (materiel.pb_276)
+                        if (selection_materiel(scsi))
+                                break;
+                if (materiel.pb_278)
+                        if (selection_materiel(scsi))
+                                break;
                 scsi.cdb.last_status = 0;
-                // pcem bug, reproduced: PB-278 — l'ID de l'hôte n'est pas exclu : seul un ID au-delà de 6 est refusé.
+                // pcem bug, fixed in hardware mode: PB-278 — l'ID de l'hôte n'est pas exclu : seul un ID au-delà de 6 est refusé.
                 scsi_bus_update(scsi.bus, BUS_SEL | BUS_SETDATA(1 << scsi.ccb.target_id));
                 if ((scsi_bus_read(scsi.bus) & BUS_BSY) == 0 || scsi.ccb.target_id > 6)
                 {
@@ -1722,6 +1741,12 @@ internal static partial class scsi_aha1540
                 break;
 
         case SCSI_STATE_READ_DATA:
+                if (materiel.pb_276)
+                        if (donnees_materiel(scsi, true))
+                                break;
+                if (materiel.pb_278)
+                        if (donnees_materiel(scsi, true))
+                                break;
                 while (scsi.cdb.data_idx < scsi.cdb.data_len && scsi.scsi_state == SCSI_STATE_READ_DATA &&
                        bytes_transferred < MAX_BYTES_TRANSFERRED_PER_POLL)
                 {
@@ -1746,7 +1771,7 @@ internal static partial class scsi_aha1540
                                         uint8_t data = (uint8_t)BUS_GETDATA(bus_state);
                                         int bus_out = 0;
 
-                                        // pcem bug, reproduced: PB-278 — adresse sans bouclage à 24 bits (:1857).
+                                        // pcem bug, fixed in hardware mode: PB-278 — adresse sans bouclage à 24 bits (:1857).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 scsi.int_buffer[scsi.cdb.data_idx] = data;
                                         else
@@ -1762,7 +1787,7 @@ internal static partial class scsi_aha1540
 
                         bytes_transferred++;
                 }
-                // pcem bug, reproduced: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                // pcem bug, fixed in hardware mode: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
                 //   DATA IN : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {
@@ -1798,6 +1823,12 @@ internal static partial class scsi_aha1540
                 break;
 
         case SCSI_STATE_WRITE_DATA:
+                if (materiel.pb_276)
+                        if (donnees_materiel(scsi, false))
+                                break;
+                if (materiel.pb_278)
+                        if (donnees_materiel(scsi, false))
+                                break;
                 while (scsi.cdb.data_idx < scsi.cdb.data_len && bytes_transferred < MAX_BYTES_TRANSFERRED_PER_POLL)
                 {
                         int d;
@@ -1821,7 +1852,7 @@ internal static partial class scsi_aha1540
                                         uint8_t data;
                                         int bus_out;
 
-                                        // pcem bug, reproduced: PB-278 — adresse sans bouclage à 24 bits (:1935).
+                                        // pcem bug, fixed in hardware mode: PB-278 — adresse sans bouclage à 24 bits (:1935).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 data = scsi.int_buffer[scsi.cdb.data_idx];
                                         else
@@ -1838,7 +1869,7 @@ internal static partial class scsi_aha1540
 
                         bytes_transferred++;
                 }
-                // pcem bug, reproduced: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                // pcem bug, fixed in hardware mode: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
                 //   DATA OUT : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {

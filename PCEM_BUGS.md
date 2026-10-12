@@ -2613,8 +2613,8 @@ sans données. Cible bloquée à dessein, puis HRST et un CCB vers l'ID 0 : 11h 
 matériel, le bus libéré, UNIT ATTENTION puis GOOD.
 *G13* : (a) côté cible ; le côté de la carte (la navette au bout du CCB, les resets qui ne libèrent pas le bus) est
 détaché en PB-276 (G13.7d2a).
-*Reproduit* en mode PCem : `Scsi/scsi_hd.cs`, marqueurs `fixed in hardware mode: PB-132` ; hors des portes comparées
-(les bancs n'y mènent pas), montré par `r9-scsihd`.
+*Reproduit* en mode PCem : `Scsi/scsi_hd.cs`, marqueurs `fixed in hardware mode: PB-132`, et `Scsi/scsi.cs` (l'octet lu
+à l'entrée en DATA IN, G13.7e2a) ; hors des portes comparées (les bancs n'y mènent pas), montré par `r9-scsihd`.
 *Corrigé en mode matériel* (G13.7d2a), côté cible : sous `if (materiel.pb_132)`, `allocation_nulle_materiel` (REQUEST
 SENSE — la sense effacée même sans transfert —, INQUIRY, MODE SENSE(6)), `longueur_nulle_materiel` (READ(10)) et
 `mode_select_vide_materiel` (MODE SELECT(6)) passent au statut, GOOD, sans phase de données (`Scsi/scsi_hd.Materiel.cs`
@@ -5753,19 +5753,35 @@ disque, propre au fabricant.
 ### PB-276 — Au bout du CCB, l'AHA fait la navette ; aucun reset de la carte ne libère le bus
 
 `scsi_aha1540.c:1832-1910` et `scsi.c:241` : quand la cible reste en phase de données au-delà de la longueur du CCB
-(plus de données que le CCB n'en alloue), la carte fait le va-et-vient NEXT_PHASE ↔ READ_DATA à chaque échéance ; et
-les resets de la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas le bus : aucun appel à `scsi_bus_reset`.
-La cible reste BSY ; toute sélection suivante échoue (`wait_for_bus`, `:1721`). Le côté de la carte de l'ancien
-PB-132, détaché en G13.7d2a (le côté de la cible, les longueurs nulles, y est corrigé).
+(plus de données que le CCB n'en alloue), la carte fait le va-et-vient NEXT_PHASE ↔ READ_DATA (ou WRITE_DATA) à chaque
+échéance ; et les resets de la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas le bus : aucun appel à
+`scsi_bus_reset`. La cible reste BSY ; toute sélection suivante échoue (`wait_for_bus`, `:1721`). Le côté de la carte
+de l'ancien PB-132, détaché en G13.7d2a (le côté de la cible, les longueurs nulles, y est corrigé). Le CCB en vol sous
+SRST ou SCRST, détaché en PB-281 en G13.7e2a.
 *Effet* : une cible qui a plus de données que le CCB fige le bus, et tous les disques SCSI disparaissent jusqu'au
 reset matériel du PC.
 *Trouvé par* : reconnaissance de G11.
-*Source* : documenté — AHA-1540C TR, port de contrôle : HRST reset le bus et la carte ; SCRST, reset « soft », laisse
-continuer les opérations ; statut d'hôte 12h (« more data than was allocated »). Un CCB en vol sous SCRST : inconnu.
-*Cas qui discrimine* : un CCB de 512 octets pour un READ(10) de deux secteurs : PCem fait la navette ; le matériel rend
-le statut d'hôte 12h. Cible bloquée, puis HRST et un CCB vers l'ID 0 : 11h chez PCem ; le bus libéré sur le matériel.
-*G13* : (a) pour HRST et le statut 12h (G13.7e, la carte) ; le CCB en vol sous SCRST (c).
-*Reproduit* : `Scsi/scsi.cs` et `Scsi/scsi_aha1540.cs`, marqueurs `reproduced: PB-276`.
+*Source* : documenté — AHA-1540C TR, chapitre 4, port de contrôle : HRST « A Reset Condition is generated on the SCSI
+bus » ; SCRST « causes a SCSI Bus Reset to be generated » ; SRST « A Reset Condition is not generated » ; chapitre 5,
+CCB octet 1 : sans bits de sens, un dépassement « completes the operation without error ». Le surplus lu et jeté, ou
+complété de zéros en écriture : déduit (le TR dit seulement que la commande finit ; les zéros d'une écriture vont au
+média — le risque du choix).
+*Cas qui discrimine* : READ(10) de deux secteurs dans un CCB de 512 octets, sans bits de sens : PCem fait la navette ;
+le matériel rend GOOD, le premier secteur lu. Un transfert en cours, puis HRST ou SCRST et un CCB vers l'ID 1 : 11h
+chez PCem ; le bus libéré sur le matériel.
+*G13* : (a) — G13.7e2a.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-276` (le port de contrôle ;
+la fin de READ_DATA et de WRITE_DATA).
+*Corrigé en mode matériel* (G13.7e2a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_276)`,
+`reset_bus_materiel`, en tête du port de contrôle, remet le bus au repos sous HRST et SCRST (`scsi_bus_reset`) ;
+`donnees_materiel`, en tête de SCSI_STATE_READ_DATA et de SCSI_STATE_WRITE_DATA, fait l'état entier octet par octet et,
+au bout du CCB, passe le surplus tant que la cible reste en phase de données (lu et jeté ; zéros envoyés), puis la
+cible passe au statut ; `selection_materiel`, en tête de SCSI_STATE_SELECT, oublie le dépassement du CCB précédent.
+`materiel-cas PB-276` (sur le banc des mailbox, après le POST : READ(10) et WRITE(10) de deux secteurs dans 512 octets ;
+un READ(10) de 1 000 secteurs interrompu par HRST, puis par SCRST, et TEST UNIT READY) rend aucun MBI deux fois et 11h
+deux fois en mode PCem ; GOOD, le premier secteur lu ; GOOD, le second secteur relu nul ; GOOD deux fois en mode
+matériel ; la correction coupée, il rougit. Hors de la carte : `scsi.c:241` (lu dès l'entrée en DATA IN, même sans
+données) n'est plus atteint par le disque du mode matériel — marqueur PB-132.
 
 ### PB-277 — Set EEPROM (22h) qui change l'IRQ laisse l'ancienne ligne levée
 
@@ -5790,20 +5806,41 @@ coupée, il rougit.
 
 ### PB-278 — Le CCB de la 1542C : les bits de sens, les adresses à 24 bits, l'ID de l'hôte
 
-`scsi_aha1540.c:417`, `:425-433`, `:1857`, `:1935`, `:1703-1711` : les bits de sens du CCB sont rangés sans être lus —
-le sens vient de la commande, ce qui est conforme à la carte (AHA-1540C TR, CCB octet 1 ; D3-contre, C11), mais le
-contrôle de longueur qu'ils arment (statut d'hôte 12h) et « aucun transfert » quand les deux sont posés manquent ; les
-adresses du CCB et des données ne bouclent pas à 24 bits ; l'ID de l'hôte n'est pas exclu de la sélection. Détaché de
-PB-144 en G13.7e1a.
-*Effet* : un pilote qui emploie les bits de sens voit une carte qui ne les tient pas ; un CCB au-delà de 16 Mo lit
-une mémoire que la carte n'adresse pas.
+`scsi_aha1540.c:417`, `:1857`, `:1935`, `:1703-1711` : les bits de sens du CCB sont rangés sans être lus — le sens
+vient de la commande, ce qui est conforme à la carte (AHA-1540C TR, CCB octet 1 ; D3-contre, C11), mais le contrôle de
+longueur qu'ils arment (statut d'hôte 12h) et « aucun transfert » quand les deux sont posés manquent ; les adresses des
+données ne bouclent pas à 24 bits ; l'ID de l'hôte n'est pas exclu de la sélection. Détaché de PB-144 en G13.7e1a ;
+le CCB lui-même à cheval sur 16 Mo détaché en PB-282 en G13.7e2a.
+*Effet* : un pilote qui emploie les bits de sens voit une carte qui ne les tient pas ; des données au-delà de 16 Mo
+lisent une mémoire que la carte n'adresse pas.
 *Trouvé par* : reconnaissance de G11 (dans PB-144).
-*Source* : AHA-1540C TR, CCB octet 1 (« If both bits are set … no data transfer ») — documenté ; les 24 bits, l'ID de
-l'hôte exclu — déduits.
-*Cas qui discrimine* : CCB READ de 4 secteurs, longueur 512, bit 3 posé : PCem fait la navette (PB-276), la carte
-rend 12h.
-*G13* : (a) pour la longueur ; les 24 bits et l'ID de l'hôte (b) — G13.7e2.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-278 (les bits de sens, les adresses, la sélection).
+*Source* : AHA-1540C TR, chapitre 5, CCB octet 1 (« If bits 3 or 4 are set for an Initiator CCB, the data length is
+checked » ; « if a data underrun/overrun condition occurs, the CCB is returned with an indication of Data
+Underrun/Overrun (12H) » ; « If both bits are set … no data transfer ») ; octet 14 (12h) ; octets 4-6 (le résiduel
+« set to zero » au dépassement) — documenté. Le manque compte : l'octet 14 ne définit 12h que par le dépassement, mais
+l'octet 1 le nomme deux fois, et son conseil de laisser les bits à zéro aux commandes hors du média « unless transfer
+length checking is desired » n'a de sens que si le manque rend 12h (une cible n'envoie jamais plus que l'allocation
+d'un INQUIRY). Les deux bits : « suppression of data transfer … for Read operations » — ce que la cible envoie est
+passé sans erreur, déduit. Les 24 bits, l'ID de l'hôte exclu (11h) — déduits.
+*Cas qui discrimine* : CCB READ de deux secteurs, longueur 512, bit 3 posé : PCem fait la navette (PB-276), la carte
+rend 12h ; d'un secteur dans 1 024 octets : GOOD chez PCem, 12h sur la carte.
+*G13* : (a) pour la longueur ; les deux bits, les 24 bits et l'ID de l'hôte (b) — G13.7e2a. Hors de l'étape : un ID
+au-delà de 6 reste refusé même quand l'hôte n'est pas l'ID 7 — le bus d'iXtal n'a pas de cible en 7.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-278` (les bits de sens ;
+l'achèvement, avant et après le sense ; la sélection ; les adresses de READ_DATA et de WRITE_DATA).
+*Corrigé en mode matériel* (G13.7e2a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_278)`,
+`donnees_materiel` arme le contrôle sur la commande d'un CCB de mailbox dont un bit de sens est posé (le surplus passé,
+le dépassement noté — jamais celui du REQUEST SENSE ; les deux bits : rien n'est transféré, sans erreur) et boucle les
+adresses des données et de la liste, lue pendant le transfert, à 24 bits ; `achevement_materiel`, en tête de
+CCB_STATE_SEND_REQUEST_SENSE et de CCB_STATE_WAIT_REQUEST_SENSE, rend en 12h, MBI 04h, un CCB à un seul bit dont la
+cible a transféré plus ou moins que la longueur (la somme des segments pour une liste) — le résiduel à zéro au
+dépassement, la différence au manque ; `selection_materiel` fait échouer la sélection de l'ID de l'hôte, 11h.
+`materiel-cas PB-278` (sur le banc des mailbox : deux secteurs dans 512 octets, opcode 03h, au bit 3 sans puis avec la
+sense automatique, et au bit 4 ; un secteur dans 1 024 octets au bit 3, puis un CCB exact ; les deux bits, un secteur ;
+témoin : le bit 4 seul sur un READ exact ; WRITE(10) depuis FFFF00h, relu ; l'ID de l'hôte posé à 1 par 22h, TEST UNIT
+READY vers l'ID 1) rend aucun MBI trois fois, GOOD puis GOOD, le secteur lu, le témoin, l'espace au-delà de 16 Mo et
+GOOD en mode PCem ; 12h et le résiduel 0 trois fois, 12h (résiduel 512) puis GOOD, rien lu sans erreur, le même témoin,
+la table des vecteurs et 11h en mode matériel ; la correction coupée, il rougit.
 
 ### PB-279 — La commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur
 
@@ -5831,6 +5868,32 @@ carte, inconnu.
 *G13* : l'IRQ de code 7 (c), reproduite dans les deux modes (décision n° 14) ; les temps (d), hors G13.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-280 (`set_irq` ; la commande 06h, le marqueur valant pour 06h à
 09h, qui se suivent).
+
+### PB-281 — Un CCB en vol sous SRST ou SCRST : abandonné sans MBI
+
+`scsi_aha1540.c:286-313` : SRST et BRST (SCRST) remettent les machines d'états de la carte au repos ; le CCB en vol
+n'est jamais rendu, son MBO reste plein. Sous SRST, la cible reste BSY au milieu de sa commande. Détaché de PB-276 en
+G13.7e2a.
+*Effet* : un CCB perdu ; après SRST, le bus figé jusqu'à HRST ou SCRST.
+*Trouvé par* : reconnaissance de G11 (dans PB-132, puis PB-276).
+*Source* : AHA-1540C TR, chapitre 4 : SRST « clears all on-going SCSI and host adapter commands » sans reset du bus ;
+SCRST « will allow partially completed operations to continue ». Ce que la carte fait du CCB en vol et de la cible :
+inconnu.
+*Cas qui discrimine* : un READ(10) long, SRST au milieu, puis un CCB : PCem 11h ; la carte, inconnu.
+*G13* : (c), reproduit dans les deux modes (décision n° 14) ; à reprendre si une source apparaît — sous SRST, le bus figé
+est de la famille de PB-276.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-281 (SRST, BRST).
+
+### PB-282 — Le CCB à cheval sur 16 Mo ne boucle pas à 24 bits
+
+`scsi_aha1540.c:425-433` (et la lecture de la CDB, du sense, et la somme des segments du résiduel qui suivent) :
+`ccb.addr + n` sans masque ; la liste lue pendant le transfert, elle, boucle en mode matériel (PB-278). Détaché de PB-278 en G13.7e2a (les données, elles, y sont corrigées).
+*Effet* : un CCB posé dans les 30 derniers octets sous 16 Mo lit et écrit au-delà ; la carte boucle à 0.
+*Trouvé par* : reconnaissance de G11 (dans PB-144).
+*Source* : déduit (le maître de bus ISA a 24 lignes d'adresse).
+*Cas qui discrimine* : un CCB en FFFFF8h : PCem lit sa CDB au-delà de 16 Mo, la carte en 000000h.
+*G13* : (c) — aucun pilote ne pose un CCB là ; reproduit dans les deux modes.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-282 (`process_cdb`).
 
 ## B. Comportement indéfini en C
 

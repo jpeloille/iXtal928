@@ -7,8 +7,8 @@
 // Les corrections des défauts de PCem dans scsi_aha1540.c, appelées par les gardes de scsi_aha1540.cs
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. La référence : AHA-1540C/1542C Technical Reference (Adaptec, 510397-00 A, avril 1993) —
-// chapitre 3 (les réglages d'usine, les interrupteurs), chapitre 5 (Return Setup Data, Set EEPROM, Return EEPROM). Les
-// méthodes portent NoInlining (M2, G13.7c2).
+// chapitre 3 (les réglages d'usine, les interrupteurs), chapitre 4 (le port de contrôle, les resets), chapitre 5 (Return
+// Setup Data, Set EEPROM, Return EEPROM, les mailbox, le CCB). Les méthodes portent NoInlining (M2, G13.7c2).
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C (scsi_aha1540.cs).
 #pragma warning disable CS8981
@@ -16,6 +16,7 @@
 using System.Runtime.CompilerServices;
 using static iXtal26.Memory.mem;
 using static iXtal26.Models.pic;
+using static iXtal26.Scsi.scsi;
 
 namespace iXtal26.Scsi;
 
@@ -154,6 +155,14 @@ internal static partial class scsi_aha1540
         }
 
         internal static readonly ConditionalWeakTable<aha154x_t, Mailbox> Mailboxes = new();
+
+        internal sealed class Transfert
+        {
+            /// <summary>La cible a voulu plus de données que le CCB n'en alloue : le surplus est passé (G13.7e2a).</summary>
+            internal bool depassement;
+        }
+
+        internal static readonly ConditionalWeakTable<aha154x_t, Transfert> Transferts = new();
     }
 
     private static EtatAha.Mailbox mailbox_materiel(aha154x_t scsi) => EtatAha.Mailboxes.GetOrCreateValue(scsi);
@@ -363,6 +372,216 @@ internal static partial class scsi_aha1540
                         }
                 }
         }
+        return true;
+    }
+
+    // ---- G13.7e2a : les données et le bus (PB-276, PB-278) ----
+
+    private const uint8_t HOST_STATUS_DEPASSEMENT_MATERIEL = 0x12;
+
+    private static EtatAha.Transfert transfert_materiel(aha154x_t scsi) => EtatAha.Transferts.GetOrCreateValue(scsi);
+
+    /// <summary>PB-276 : HRST et SCRST posent la condition de reset sur le bus SCSI (TR, chapitre 4 : « A Reset
+    /// Condition is generated on the SCSI bus » ; SCRST : « causes a SCSI Bus Reset to be generated ») ; la cible
+    /// lâche BSY et le bus revient au repos. SRST ne la pose pas (« A Reset Condition is not generated »), comme PCem.
+    /// Ce que devient le CCB en vol : PB-281, reproduit.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void reset_bus_materiel(aha154x_t scsi, uint8_t val)
+    {
+        if ((val & (CTRL_RESET | CTRL_BRST)) == 0)
+                return;
+        ModeMateriel.Sonde[276]++;
+        scsi_bus_reset(scsi.bus);
+        transfert_materiel(scsi).depassement = false;
+    }
+
+    /// <summary>PB-276 et PB-278 : la tête de SCSI_STATE_SELECT. La sélection d'une commande (et non celle de son
+    /// REQUEST SENSE) ouvre un CCB neuf : le dépassement du précédent est oublié. PB-278 : l'ID de l'hôte n'est pas
+    /// une cible ; le sélectionner échoue comme une cible absente, 11h (déduit : la carte ne peut pas se sélectionner
+    /// elle-même). Vrai si la sélection est faite ici.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool selection_materiel(aha154x_t scsi)
+    {
+        if (scsi.ccb_state == CCB_STATE_WAIT_COMMAND)
+                transfert_materiel(scsi).depassement = false;
+        if (materiel.pb_278 && scsi.ccb.target_id == scsi.host_id)
+        {
+                ModeMateriel.Sonde[278]++;
+                scsi.cdb.last_status = 0;
+                scsi.scsi_state = SCSI_STATE_SELECT_FAILED;
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>PB-276 et PB-278 : SCSI_STATE_READ_DATA (lecture) ou SCSI_STATE_WRITE_DATA en entier, octet par
+    /// octet, la liste de dispersion relue entre deux segments comme chez PCem.
+    /// PB-276 : au bout du CCB, tant que la cible reste en phase de données, la carte passe le surplus — lu et jeté,
+    /// ou des zéros envoyés (déduit : le TR dit seulement qu'une commande d'accès au média sans bits de sens « completes
+    /// without error », « some or all of the data … may not be transferred » ; les zéros d'une écriture vont au média)
+    /// — puis la cible passe au statut ; PCem fait la navette NEXT_PHASE ↔ données sans fin.
+    /// PB-278 : un bit de sens posé arme le contrôle de longueur (TR, chapitre 5, CCB octet 1) — le surplus est alors
+    /// passé de même, noté, et le CCB rendra 12h (achevement_materiel) ; les deux posés, aucun transfert (« the command
+    /// must perform no data transfer », « suppression of data transfer … for Read operations ») : tout ce que la cible
+    /// envoie ou demande est passé, sans erreur (déduit) ; le contrôle ne vaut que pour la commande d'un CCB de mailbox
+    /// (ni pour son REQUEST SENSE, ni pour la commande BIOS 03h, sans octet de sens). Les adresses des données et de la
+    /// liste, lue pendant le transfert, bouclent à 24 bits (déduit : le maître de bus ISA a 24 lignes d'adresse).
+    /// Sans l'une ni l'autre correction en jeu, le bout du CCB rend NEXT_PHASE comme chez PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool donnees_materiel(aha154x_t scsi, bool lecture)
+    {
+        var t = transfert_materiel(scsi);
+        var etat = lecture ? SCSI_STATE_READ_DATA : SCSI_STATE_WRITE_DATA;
+        var phase = lecture ? BUS_IO : 0;
+        var controle = materiel.pb_278 && scsi.ccb_state == CCB_STATE_WAIT_COMMAND && scsi.ccb.from_mailbox != 0 &&
+                       scsi.ccb.transfer_dir != 0;
+        var aucun = controle && scsi.ccb.transfer_dir == 3;
+        var passe = materiel.pb_276 || controle;
+        var masque = materiel.pb_278 ? 0xffffffu : 0xffffffffu;
+        var bytes_transferred = 0;
+
+        while (scsi.scsi_state == etat && bytes_transferred < MAX_BYTES_TRANSFERRED_PER_POLL)
+        {
+                if (scsi.cdb.data_idx == scsi.cdb.data_len && scsi.cdb.scatter_gather != 0 &&
+                    scsi.cdb.data_seg_list_idx < scsi.cdb.data_seg_list_len)
+                {
+                        var l = (scsi.cdb.data_seg_list_pointer + scsi.cdb.data_seg_list_idx) & masque;
+                        scsi.cdb.data_len = mem_readb_phys((l + 2) & masque) | (mem_readb_phys((l + 1) & masque) << 8) |
+                                            (mem_readb_phys(l) << 16);
+                        scsi.cdb.data_pointer = (uint32_t)(mem_readb_phys((l + 5) & masque) |
+                                                           (mem_readb_phys((l + 4) & masque) << 8) |
+                                                           (mem_readb_phys((l + 3) & masque) << 16));
+                        scsi.cdb.data_idx = 0;
+                        scsi.cdb.data_seg_list_idx += 6;
+                        continue;
+                }
+                var dans_ccb = !aucun && scsi.cdb.data_idx < scsi.cdb.data_len;
+                if (!dans_ccb && !passe)
+                {
+                        scsi.scsi_state = SCSI_STATE_NEXT_PHASE;
+                        break;
+                }
+
+                for (var d = 0; d < 20; d++)
+                {
+                        int bus_state = scsi_bus_read(scsi.bus);
+
+                        // pcem bug, reproduced: PB-134 — BSY tombe après l'ACK du message, jamais ici (:1842, :1920).
+                        if ((bus_state & BUS_BSY) == 0)
+                                pc.fatal(lecture ? "READ_DATA - dropped BSY waiting\n" : "WRITE_DATA - dropped BSY waiting\n");
+
+                        if ((bus_state & (BUS_IO | BUS_CD | BUS_MSG)) != phase)
+                        {
+                                scsi.scsi_state = SCSI_STATE_NEXT_PHASE;
+                                break;
+                        }
+
+                        if ((bus_state & BUS_REQ) != 0)
+                        {
+                                int bus_out = 0;
+
+                                if (!dans_ccb)
+                                {
+                                        ModeMateriel.Sonde[controle ? 278 : 276]++;
+                                        if (controle && !aucun)
+                                                t.depassement = true;
+                                }
+                                else if (lecture)
+                                {
+                                        var data = (uint8_t)BUS_GETDATA(bus_state);
+                                        if (scsi.cdb.data_pointer == 0xFFFFFFFF)
+                                                scsi.int_buffer[scsi.cdb.data_idx] = data;
+                                        else
+                                                mem_writeb_phys((scsi.cdb.data_pointer + (uint32_t)scsi.cdb.data_idx) & masque, data);
+                                        scsi.cdb.data_idx++;
+                                        scsi.cdb.bytes_transferred++;
+                                }
+                                else
+                                {
+                                        uint8_t data;
+                                        if (scsi.cdb.data_pointer == 0xFFFFFFFF)
+                                                data = scsi.int_buffer[scsi.cdb.data_idx];
+                                        else
+                                                data = mem_readb_phys((scsi.cdb.data_pointer + (uint32_t)scsi.cdb.data_idx) & masque);
+                                        scsi.cdb.data_idx++;
+                                        scsi.cdb.bytes_transferred++;
+                                        bus_out = BUS_SETDATA(data);
+                                }
+
+                                scsi_bus_update(scsi.bus, bus_out | BUS_ACK);
+                                scsi_bus_update(scsi.bus, bus_out & ~BUS_ACK);
+                                break;
+                        }
+                }
+
+                bytes_transferred++;
+        }
+        return true;
+    }
+
+    /// <summary>La longueur que le CCB alloue : son champ, ou pour une liste de dispersion la somme de ses segments
+    /// (TR, octets 4-6 : « the sum of all segment Data Lengths »), la liste lue à 24 bits.</summary>
+    private static uint32_t longueur_ccb_materiel(aha154x_t scsi)
+    {
+        if (scsi.ccb.opcode != CCB_INITIATOR_SCATTER_GATHER && scsi.ccb.opcode != CCB_INITIATOR_SCATTER_GATHER_RESIDUAL)
+                return scsi.ccb.data_len;
+        uint32_t somme = 0;
+        for (uint32_t c = 0; c + 6 <= scsi.ccb.data_seg_list_len; c += 6)
+        {
+                var l = (scsi.ccb.data_seg_list_pointer + c) & 0xffffff;
+                somme += (uint32_t)(mem_readb_phys((l + 2) & 0xffffff) | (mem_readb_phys((l + 1) & 0xffffff) << 8) |
+                                    (mem_readb_phys(l) << 16));
+        }
+        return somme;
+    }
+
+    /// <summary>PB-278 : l'achèvement d'un CCB de mailbox dont un seul bit de sens est posé, quand la cible a transféré
+    /// plus ou moins que la longueur allouée — statut d'hôte 12h (TR, chapitre 5, CCB octet 1 : « if a data
+    /// underrun/overrun condition occurs, the CCB is returned with an indication of Data Underrun/Overrun (12H) » ; et
+    /// le conseil de laisser les bits à zéro aux commandes hors du média « unless transfer length checking is desired »,
+    /// qui n'a de sens que si le manque compte), le MBI 04h (« completed with error »), et, pour les opcodes 03h et 04h,
+    /// le résiduel : zéro au dépassement (« In the event of data overrun, these bytes are set to zero »), la différence
+    /// au manque. La tête de CCB_STATE_SEND_REQUEST_SENSE (sans sense : `apres_sense` faux) et de
+    /// CCB_STATE_WAIT_REQUEST_SENSE ; sinon faux, et l'état de PCem suit : sans bit de sens, ou les deux posés (aucun
+    /// transfert), le CCB finit sans erreur (« completes the operation without error »).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool achevement_materiel(aha154x_t scsi, bool apres_sense)
+    {
+        var t = transfert_materiel(scsi);
+        if (apres_sense ? scsi.scsi_state != SCSI_STATE_IDLE : scsi.ccb.req_sense_len != CCB_SENSE_NONE)
+                return false;
+        var depassement = t.depassement;
+        t.depassement = false;
+        if (scsi.ccb.from_mailbox == 0 || scsi.ccb.transfer_dir == 0 || scsi.ccb.transfer_dir == 3)
+                return false;
+        var manque = (uint32_t)scsi.ccb.bytes_transferred < longueur_ccb_materiel(scsi);
+        if (!depassement && !manque)
+                return false;
+
+        ModeMateriel.Sonde[278]++;
+        mem_writeb_phys(scsi.ccb.addr + 0xe, HOST_STATUS_DEPASSEMENT_MATERIEL);
+        mem_writeb_phys(scsi.ccb.addr + 0xf, scsi.ccb.status);
+        if (scsi.ccb.residual != 0)
+        {
+                // Au dépassement, toute la longueur est passée : la différence est nulle.
+                var residu = scsi.ccb.total_data_len - (uint32_t)scsi.ccb.bytes_transferred;
+                mem_writeb_phys(scsi.ccb.addr + 0x4, (uint8_t)(residu >> 16));
+                mem_writeb_phys(scsi.ccb.addr + 0x5, (uint8_t)(residu >> 8));
+                mem_writeb_phys(scsi.ccb.addr + 0x6, (uint8_t)(residu & 0xff));
+        }
+        if (scsi.current_mbo_is_bios != 0)
+        {
+                mem_writeb_phys(scsi.bios_mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
+                mem_writeb_phys(scsi.ccb.addr + 0xd, MBI_CCB_COMPLETE_WITH_ERROR);
+                if (scsi.mbo_irq_enable != 0)
+                        set_irq(scsi, ISR_MBOA);
+        }
+        else
+        {
+                mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
+                mbi_materiel(scsi, MBI_CCB_COMPLETE_WITH_ERROR, scsi.ccb.addr);
+        }
+        scsi.ccb_state = CCB_STATE_IDLE;
         return true;
     }
 }
