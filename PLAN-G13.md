@@ -473,6 +473,13 @@ contre-lecture, M2, sa série entière et son commit :
   collant ; PB-122, le lead-out de la TOC) ; l'ATAPI et l'audio (PB-117, READ CAPACITY ; PB-119, MODE SELECT ; PB-120,
   la TOC brute ; PB-123, l'audio en LBA ; PB-214 et 215, PLAY AUDIO MSF) ; PB-115, les transferts complets. Le jeu de
   commandes : Q5. Restent au repli : PB-113 (déjà celui du lecteur), PB-114 (inconnu), PB-110 et 116 (les fichiers).
+  Coupée en trois le 12/10, comme N7 :
+  - **G13.7c1 — Le moteur d'images** ✅ *(12/10, VERIFICATION.md § G13.7c1)*. PB-106, PB-108 (étendu : la piste qui ouvre son
+    fichier commence à son INDEX 01, quel que soit son INDEX 00), PB-109, PB-122 ; en C# seul, hors machine ; deux
+    scénarios de M2 (ami486-cd-cue, un PACKET READ(10) sous DEBUG ; ami486-cd-iso).
+  - **G13.7c2 — Les commandes du lecteur.** PB-117, PB-119, PB-120 (la TOC brute, moteur et commande), PB-118 et le jeu
+    de commandes selon l'année du modèle (Q5), PB-115 (les transferts complets).
+  - **G13.7c3 — L'audio.** PB-123, PB-214, PB-215.
 - **G13.7d — Le ZIP et le disque SCSI.** PB-125 (les transferts complets, une adresse hors du disque en CHECK
   CONDITION, 05/21h), PB-126 (la capacité, la fin du disque, les phases à longueur nulle ; START STOP UNIT reste
   reproduit, inconnu sur le lecteur d'Iomega), PB-128 (les transferts complets, jusqu'à 65 535 blocs), PB-129 (la

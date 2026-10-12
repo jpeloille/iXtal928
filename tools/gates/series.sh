@@ -682,3 +682,10 @@ for pb in 71 216 74; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7c1 — le moteur d'images de CD (PLAN-G13.md, G13.7) : PB-106 (le secteur de 2 336 octets), PB-108 (la piste qui
+# ouvre son fichier commence à son INDEX 01), PB-109 (l'échec collant), PB-122 (le lead-out de la TOC), chacun son cas
+# en C# seul dans les deux modes, hors machine, sur des images que le cas écrit.
+for pb in 106 108 109 122; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

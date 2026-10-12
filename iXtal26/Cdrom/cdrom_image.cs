@@ -51,7 +51,7 @@ internal struct TMSF
     internal uint8_t fr;
 }
 
-internal sealed class CDROM_Interface_Image : IDisposable
+internal sealed partial class CDROM_Interface_Image : IDisposable
 {
     // pcem: cdrom.h:48-52
     internal const int RAW_SECTOR_SIZE = 2352;
@@ -87,7 +87,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     }
 
     // pcem: cdrom.h:110-120 — l'ifstream (:119) : un FileStream, et les trois bits d'un basic_ios.
-    internal sealed class BinaryFile : TrackFile
+    internal sealed partial class BinaryFile : TrackFile
     {
         private readonly FileStream? file;
         internal bool badbit, eofbit, failbit;
@@ -189,10 +189,12 @@ internal sealed class CDROM_Interface_Image : IDisposable
         }
 
         // pcem: cdrom_image.cpp:57-61
-        // pcem bug, reproduced: PB-109 — pas de clear() avant seekg : après un échec, failbit reste posé, et toute
-        //   lecture suivante du fichier échoue, sur toutes ses pistes, jusqu'à sa fermeture.
+        // pcem bug, fixed in hardware mode: PB-109 — pas de clear() avant seekg : après un échec, failbit reste posé, et
+        //   toute lecture suivante du fichier échoue, sur toutes ses pistes, jusqu'à sa fermeture.
         internal override bool read(uint8_t[] buffer, int o, int seek, int count)
         {
+            if (materiel.pb_109)
+                clear_materiel();
             seekg(seek, SeekOrigin.Begin);
             read_(buffer, o, count);
             return !fail();
@@ -201,9 +203,11 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // pcem: cdrom_image.cpp:63-69
         // pcem bug, reproduced: PB-107 — (int) tronque une taille de plus de 2 Gio : négative jusqu'à 4 Gio,
         //   réduite modulo 4 Gio au-delà.
-        // pcem bug, reproduced: PB-109 — sous failbit, seekg et tellg échouent : getLength rend -1 (:66-67).
+        // pcem bug, fixed in hardware mode: PB-109 — sous failbit, seekg et tellg échouent : getLength rend -1 (:66-67).
         internal override int getLength()
         {
+            if (materiel.pb_109)
+                clear_materiel();
             seekg(0, SeekOrigin.End);
             int length = unchecked((int)tellg());
             if (fail())
@@ -333,11 +337,13 @@ internal sealed class CDROM_Interface_Image : IDisposable
             return false;
         if (t.sectorSize == RAW_SECTOR_SIZE && !t.mode2 && !raw)
             seek += 16;
-        // pcem bug, reproduced: PB-106 — +24 est juste pour un secteur brut de 2 352 octets (12 de
+        // pcem bug, fixed in hardware mode: PB-106 — +24 est juste pour un secteur brut de 2 352 octets (12 de
         //   synchronisation, 4 d'en-tête, 8 de sous-en-tête), faux pour 2 336 (8 seulement) : une piste
         //   MODE2/2336 lit 16 octets trop loin.
         if (t.mode2 && !raw)
             seek += 24;
+        if (materiel.pb_106)
+            seek = mode2_2336_materiel(t.sectorSize, t.mode2 && !raw, seek);
 
         // pcem bug, not reproduced: PB-110 (R9) — une piste sans fichier (une feuille CUE sans FILE avant
         //   elle) : NULL->read, l'hôte tombe. La lecture échoue ici.
@@ -396,9 +402,11 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // leadout track
         track.number = 2;
         track.track_number = 0xAA;
-        // pcem bug, reproduced: PB-122 — le lead-out sans ADR ni contrôle : READ TOC rend 00 dans son
+        // pcem bug, fixed in hardware mode: PB-122 — le lead-out sans ADR ni contrôle : READ TOC rend 00 dans son
         //   descripteur, où un vrai lecteur met ADR 1 et le contrôle de la dernière piste (14h, données).
         track.attr = 0;
+        if (materiel.pb_122)
+            track.attr = lead_out_materiel();
         track.start = track.length;
         track.length = 0;
         track.file = null;
@@ -417,10 +425,12 @@ internal sealed class CDROM_Interface_Image : IDisposable
         int seek = 16 * sectorSize;        // first vd is located at sector 16
         if (sectorSize == RAW_SECTOR_SIZE && !mode2)
             seek += 16;
-        // pcem bug, reproduced: PB-106 — +24 aussi pour 2 336 : une vraie image MODE2/2336 n'est jamais
+        // pcem bug, fixed in hardware mode: PB-106 — +24 aussi pour 2 336 : une vraie image MODE2/2336 n'est jamais
         //   reconnue.
         if (mode2)
             seek += 24;
+        if (materiel.pb_106)
+            seek = mode2_2336_materiel(sectorSize, mode2, seek);
         file.read(pvd, 0, seek, COOKED_SECTOR_SIZE);
         // pvd[0] = descriptor type, pvd[1..5] = standard identifier, pvd[6] = iso version (+8 for High Sierra)
         return (pvd[0] == 1 && Same(pvd, 1, "CD001") && pvd[6] == 1) ||
@@ -586,8 +596,10 @@ internal sealed class CDROM_Interface_Image : IDisposable
         // add leadout track
         track.number++;
         track.track_number = 0xAA;
-        // pcem bug, reproduced: PB-122 — comme LoadIsoFile : le lead-out sans ADR ni contrôle.
+        // pcem bug, fixed in hardware mode: PB-122 — comme LoadIsoFile : le lead-out sans ADR ni contrôle.
         track.attr = 0;//sync with load iso
+        if (materiel.pb_122)
+            track.attr = lead_out_materiel();
         track.start = 0;
         track.length = 0;
         track.file = null;
@@ -603,7 +615,7 @@ internal sealed class CDROM_Interface_Image : IDisposable
     {
         // frames between index 0(prestart) and 1(curr.start) must be skipped
         int skip;
-        // pcem bug, reproduced: PB-108 — un INDEX 00 en 00:00:00 ne compte pas (prestart > 0) : la piste
+        // pcem bug, fixed in hardware mode: PB-108 — un INDEX 00 en 00:00:00 ne compte pas (prestart > 0) : la piste
         //   d'un fichier qui commence par son prégap est lue en avance de la longueur de ce prégap.
         if (prestart > 0)
         {
@@ -613,6 +625,8 @@ internal sealed class CDROM_Interface_Image : IDisposable
         }
         else
             skip = 0;
+        if (materiel.pb_108)
+            skip = index_01_materiel(curr, skip);
 
         // first track (track number must be 1)
         if (tracks.Count == 0)

@@ -150,6 +150,18 @@ internal static class materiel
     /// <summary>PB-103 : le chapeau de la CH Flightstick Pro et de la TM FCS lit 315° en haut.</summary>
     internal static readonly bool pb_103;
 
+    /// <summary>PB-106 : un secteur de CD de 2 336 octets a ses données à +8 (SFF-8020i).</summary>
+    internal static readonly bool pb_106;
+
+    /// <summary>PB-108 : la piste qui ouvre son fichier y commence à son INDEX 01 (la feuille CUE).</summary>
+    internal static readonly bool pb_108;
+
+    /// <summary>PB-109 : un échec de lecture de l'image de CD ne colle pas au fichier.</summary>
+    internal static readonly bool pb_109;
+
+    /// <summary>PB-122 : le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste.</summary>
+    internal static readonly bool pb_122;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -378,6 +390,10 @@ internal static class materiel
         pb_95 = ModeMateriel.Demande(95);
         pb_101 = ModeMateriel.Demande(101);
         pb_103 = ModeMateriel.Demande(103);
+        pb_106 = ModeMateriel.Demande(106);
+        pb_108 = ModeMateriel.Demande(108);
+        pb_109 = ModeMateriel.Demande(109);
+        pb_122 = ModeMateriel.Demande(122);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

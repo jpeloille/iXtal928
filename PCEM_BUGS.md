@@ -1980,8 +1980,14 @@ en-tête (2 336 octets), les données sont à +8. Figure non revérifiée en con
 rend `01 « CD001 » 01`. `formats.cue`, la piste MODE2/2336 : son secteur 16 commence chez PCem au 16e octet du PVD,
 sur le matériel à son octet 0.
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom_image.cs`, `CanReadPVD` et `ReadSector`, marqueurs PB-106. Contrôles
-négatifs : chacun des deux décalages corrigé (+8) rougit la porte.
+*Reproduit* en mode PCem : `Cdrom/cdrom_image.cs`, `CanReadPVD` et `ReadSector`, marqueurs `fixed in hardware mode:
+PB-106`. Contrôles négatifs : chacun des deux décalages corrigé (+8) rougit la porte.
+*Corrigé en mode matériel* (G13.7c1) : sous `if (materiel.pb_106)`, `mode2_2336_materiel`
+(`Cdrom/cdrom_image.Materiel.cs`) retire 16 des 24 octets de PCem quand le secteur fait 2 336 octets, dans
+`CanReadPVD` et dans `ReadSector` ; le mode 2 brut (2 352) garde +24. `materiel-cas PB-106` (une image MODE2/2336 de
+20 secteurs, son PVD au secteur 16 ; la même en piste d'une feuille ; une piste MODE2/2352 en témoin) rend l'image
+refusée et `10 10 10` (le 16e octet du PVD) en mode PCem ; l'image montée, son secteur 16 et la piste qui rendent
+`01 43 44` en mode matériel ; la correction coupée, il rougit.
 
 ### PB-107 — Une image de plus de 2 Gio prend une longueur tronquée
 
@@ -2019,8 +2025,27 @@ la TOC rend INDEX 01 (SFF-8020i § 10.8.19). Format non revérifié en contre-le
 *Cas qui discrimine* : `multi.cue`, la piste 2 dans son propre fichier (INDEX 00 en 00:00:00, INDEX 01 au secteur
 5) : READ du premier secteur de la piste 2 rend chez PCem le secteur 0 du fichier, sur le matériel le secteur 5.
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom_image.cs`, `AddTrack`, marqueur PB-108. Contrôle négatif :
-`prestart >= 0` rougit la porte.
+*Reproduit* en mode PCem : `Cdrom/cdrom_image.cs`, `AddTrack`, marqueur `fixed in hardware mode: PB-108`. Contrôle
+négatif : `prestart >= 0` rougit la porte.
+*Corrigé en mode matériel* (G13.7c1) : sous `if (materiel.pb_108)`, `index_01_materiel`
+(`Cdrom/cdrom_image.Materiel.cs`) : une piste qui ouvre son fichier — la première de la feuille, ou la première d'un
+nouveau FILE — y commence à la position de son INDEX 01, quel que soit son INDEX 00 ; dans le fichier de la piste
+précédente, le décalage reste celui de PCem, juste (la piste précédente finit à l'INDEX 00). La même formule de PCem
+décale aussi, ce que l'entrée ne nommait pas, une telle piste dont l'INDEX 00 est au-delà de 00:00:00 (de la valeur
+de l'INDEX 00 : elle retranche l'INDEX 00 d'une position comptée depuis le fichier) ou qui n'en a pas (de toute la
+position de l'INDEX 01) ; et, dans une feuille d'un seul fichier dont l'INDEX 01 de la piste 1 dépasse 00:00:00
+(avec ou sans INDEX 00), toutes les pistes suivantes, qui héritent de son décalage. Déduit du format (les positions
+comptées depuis le début du FILE). La correction ne touche que l'octet du fichier, pas la disposition des LBA, qui
+reste celle de PCem : la piste 1 commence au LBA de son INDEX 01 (plus le PREGAP), là où un disque gravé la mettrait
+au LBA 0 ; le prégap d'une piste qui ouvre un nouveau FILE (les trames avant son INDEX 01) tombe, pour `GetTrack`, dans
+la piste précédente, et sa lecture échoue au-delà de son fichier, où un vrai lecteur le lirait. Une feuille cassée dont
+l'INDEX 01 dépasse la fin de son fichier prend une longueur négative, ou d'un secteur, sans être refusée — comme chez
+PCem quand l'INDEX 00 est au-delà de 00:00:00 ; un fichier de l'hôte, laissé à PCem (Q12).
+`materiel-cas PB-108` (un fichier audio de 30 trames marquées ; la piste 2 seule dans ce fichier, INDEX 01 en
+00:00:05, avec INDEX 00 en 00:00:00, en 00:00:02 ou sans ; la piste 1 qui ouvre la feuille, INDEX 00 en 00:00:00 et
+INDEX 01 en 00:00:05, puis la piste 2 en 00:00:15 du même fichier ; en témoin, une piste dans le fichier de la
+précédente) rend les trames 0, 3, 0, puis 0 et 10 en mode PCem ; 5, 5, 5, puis 5 et 15 en mode matériel ; le témoin,
+15 dans les deux ; la correction coupée, il rougit.
 
 ### PB-109 — Un échec de lecture colle au fichier
 
@@ -2040,9 +2065,15 @@ le suivant. Aucune norme ne décrit une image de fichier.
 refuse toute relecture de la piste 3 ; attendu : elle réussit. `tronque-pvd.iso` : PCem monte une longueur 0 ;
 attendu : la longueur réelle.
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom_image.cs`, l'ifstream modélisé d'après la libstdc++ de gcc 15 (bits d'état et
-sentinelles) ; marqueurs PB-109 sur `read` et `getLength`, posés en G13.1 (seul l'en-tête le nommait, D3-contre,
-C8). Contrôle négatif : `failbit` effacé par `seekg` rougit la porte.
+*Reproduit* en mode PCem : `Cdrom/cdrom_image.cs`, l'ifstream modélisé d'après la libstdc++ de gcc 15 (bits d'état
+et sentinelles) ; marqueurs `fixed in hardware mode: PB-109` sur `read` et `getLength`, posés en G13.1 (seul l'en-tête
+le nommait, D3-contre, C8). Contrôle négatif : `failbit` effacé par `seekg` rougit la porte.
+*Corrigé en mode matériel* (G13.7c1) : sous `if (materiel.pb_109)`, `clear_materiel`
+(`Cdrom/cdrom_image.Materiel.cs`) efface les bits de l'ifstream avant chaque lecture et avant `getLength`, comme un
+`clear()` ; une lecture courte échoue encore, seule ; un fichier qui ne s'est pas ouvert reste en échec.
+`materiel-cas PB-109` (une feuille sur un fichier de 20 secteurs et 1 000 octets : le secteur 20, incomplet, puis le
+secteur 0 ; une ISO coupée sept octets après le début de son PVD) rend deux échecs et la longueur 0 en mode PCem ; un
+échec, le secteur 0 lu et la longueur 16 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-110 — Une feuille CUE dont des pistes précèdent tout FILE fait tomber l'émulateur
 
@@ -2228,8 +2259,13 @@ contrôle 4 ou 6 d'un disque de données — ADR 1 documenté, le contrôle de l
 *Cas qui discrimine* : ATAPIBANC, READ TOC (format 0, LBA) de `iso-2048.iso` : le descripteur du lead-out vaut
 `00 00 AA 00 00 00 00 20` chez PCem, `00 14 AA 00 00 00 00 20` sur le matériel.
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom_image.cs`, marqueurs PB-122 ; le moteur est comparé des deux côtés par
-`cdimage-check`, la commande par ATAPIBANC.
+*Reproduit* en mode PCem : `Cdrom/cdrom_image.cs`, marqueurs `fixed in hardware mode: PB-122` ; le moteur est comparé
+des deux côtés par `cdimage-check`, la commande par ATAPIBANC.
+*Corrigé en mode matériel* (G13.7c1) : sous `if (materiel.pb_122)`, `lead_out_materiel`
+(`Cdrom/cdrom_image.Materiel.cs`) donne au lead-out, dans `LoadIsoFile` et dans `LoadCueSheet`, l'octet ADR/contrôle de
+la dernière piste : 14h pour des données, 10h pour de l'audio. `materiel-cas PB-122` (READ TOC, format 0, LBA, d'une
+ISO de 20 secteurs et d'une feuille dont la dernière piste est audio ; les pistes en témoins) rend `00 00 AA 00` les
+deux fois en mode PCem ; `00 14 AA 00` et `00 10 AA 00` en mode matériel ; la correction coupée, il rougit.
 
 ### PB-123 — L'audio CD en LBA confond l'adresse et la position du lecteur, à 150 secteurs près
 

@@ -9943,3 +9943,59 @@ Contre M0, le scénario neuf rejoué sur 860f2b1 (`M0-860f2b1-g137b`) : les mét
 verdict, sauf `r9-xebec-materiel`, rouge dans g7a et verte ici (31 essais, la correction de `xebec_tete_materiel`
 faite après g7a, § G13.7a). Deux résumés changent : `recensement` (267 défauts, 1 095 marqueurs, sept de plus) et
 `r9-xebec-materiel`. Six neuves : les `materiel-cas` de PB-71, PB-216 et PB-74, dans les deux modes.
+
+## G13.7c1 — le moteur d'images de CD
+
+Le 12 octobre 2026. La troisième étape du stockage, première du CD (PLAN-G13.md, § G13.7 : 7c coupée en trois, 7c1 le
+moteur d'images, 7c2 les commandes du lecteur, 7c3 l'audio). Les sources : SFF-8020i révision 2.6 (22 janvier 1996),
+Figure 11 (le secteur XA mode 2) et § 10.8.19, Table 131 (la TOC) ; le format de la feuille CUE (CDRWIN User's Guide,
+Golden Hawk Technology, annexe A ; libodraw, *CUE sheet format* § 5.6 : les positions d'INDEX comptées depuis le début
+du FILE).
+
+**Les corrections du mode matériel** (domaine `stockage`, quatre neuves, `Cdrom/cdrom_image.Materiel.cs`, la classe
+du moteur rendue partielle, sans champ neuf) : PB-106, les données d'un secteur de 2 336 octets à +8 (`CanReadPVD`,
+`ReadSector`) ; PB-108, la piste qui ouvre son fichier — la première de la feuille, ou la première d'un nouveau FILE —
+y commence à son INDEX 01 (`AddTrack`) : étendue, au-delà du cas que l'entrée nommait (INDEX 00 en 00:00:00), à un
+INDEX 00 plus loin et à son absence, que la même formule de PCem décale aussi ; dans le fichier de la piste
+précédente, la formule de PCem reste, juste ; PB-109, les bits de l'ifstream effacés avant chaque lecture et avant
+`getLength` ; PB-122, le lead-out avec l'octet ADR/contrôle de la dernière piste (`LoadIsoFile`, `LoadCueSheet`).
+Chacune a son cas en C# seul (`materiel-cas`, `MaterielCasCd.cs`), hors machine : le cas écrit ses images (des
+secteurs marqués de leur numéro) et les ouvre par le moteur, ou par `image_open` et la table du pilote pour READ TOC.
+Les quatre sont verts dans les deux modes, la sonde atteinte en mode matériel ; chacun rougit sous `--attendu
+materiel` en mode PCem. `cdimage-check` (le C# contre l'oracle, en mode PCem), `r9-cue`, `r9-cdcfg` et `r9-atapi`,
+verts ; les trois derniers aussi en mode matériel (`stockage`).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137c1.py`, une faute à la fois dans le dépôt) : neuf fautes, chacune rougit
+son cas — la correction de PB-106 posée sur le secteur de 2 352, +16 au lieu de +8, `CanReadPVD` non corrigé ; la
+première piste de la feuille non corrigée, la correction de PB-108 étendue au fichier de la piste précédente ; `read`
+ou `getLength` sans l'effacement de PB-109 ; le lead-out de PB-122 toujours à 14h, ou la feuille non corrigée. La
+deuxième faute de PB-108 survivait d'abord : dans le fichier de la piste précédente, le décalage de la piste dans le
+fichier ne dépend pas du prégap retranché, seule la longueur de la piste précédente en dépend ; le témoin lit
+désormais cette longueur (10, la piste 1 finit à l'INDEX 00 de la piste 2), et la faute rougit. Le témoin, sans
+faute, est vert.
+
+**La contre-lecture** (Sonnet ; SFF-8020i et le guide de CDRWIN non disponibles pour elle, les contrôles portent sur le
+code et sur `dosbox/cdrom_image.cpp`) : rien à corriger, quatre remarques. Les trois branches d'`AddTrack` déroulées
+avec la correction (la première piste, le même fichier, un nouveau fichier) et le lead-out : la trame du fichier et le
+LBA se correspondent partout ; la capacité suit. Aucun autre lecteur de l'octet du lead-out n'est touché (`GetTrack`
+ne rend jamais le lead-out ; `image_readtoc_raw` s'arrête avant, PB-120). Chaque attendu des cas recalculé à la main,
+le programme machine des scénarios de M2 désassemblé. Reprises dans le texte de PB-108 : la correction touche l'octet
+du fichier, pas la disposition des LBA, qui reste celle de PCem (la piste 1 au LBA de son INDEX 01, le prégap d'un
+nouveau FILE illisible) ; une feuille cassée dont l'INDEX 01 dépasse la fin de son fichier prend une longueur
+absurde sans être refusée, comme chez PCem (un fichier de l'hôte) ; le décalage hérité vaut aussi sans INDEX 00. La
+sonde de PB-109 compte chaque effacement d'un bit posé, même sans effet final (une image refusée) : laissée.
+
+**M2** (Release du worktree ; deux scénarios neufs dans `tools/listings-jit.sh`, l'ami486 et un lecteur ATAPI en
+maître secondaire, PC-DOS 2.0 sur disquette : `ami486-cd-cue`, la feuille `multi.cue` d'isogen, puis sous DEBUG un
+programme de soixante-quatorze octets qui envoie un PACKET READ(10) du LBA 16 par les ports 170h-177h — le registre de
+fonctions remis à 0 après le POST ; le premier essai reçoit UNIT ATTENTION, le deuxième ABRT, le troisième rend le
+PVD, `01 « CD001 » 01`, dans les deux captures ; `ami486-cd-iso`, l'ISO `iso-2048.iso`, le POST ; les images d'isogen
+écrites dans le bac à sable). Contre M2-7b : deux méthodes changées, les constructeurs statiques de `materiel` et de
+`ModeMateriel` ; les méthodes neuves, celles des deux scénarios neufs. Contre M0, les deux scénarios rejoués sur
+860f2b1 (`M0-860f2b1-g137c1`) : les sept méthodes gardées — `ReadSector`, `CanReadPVD`, `LoadIsoFile`, `LoadCueSheet`,
+`AddTrack`, `BinaryFile.read` et `BinaryFile.getLength` — identiques ; changent seulement les méthodes du mécanisme
+du mode et de la ligne de commande, posées par les étapes antérieures de G13.
+
+**La série** g7c1 (le worktree de l'étape, contre g7b) : 522 portes, toutes vertes ; 514 communes à g7b, chacune au
+même verdict ; un seul résumé change, `recensement` (267 défauts, 1 099 marqueurs). Huit neuves : les `materiel-cas`
+de PB-106, PB-108, PB-109 et PB-122, dans les deux modes.

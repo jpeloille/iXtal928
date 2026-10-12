@@ -1096,3 +1096,45 @@ envoyée à un second disque absent de l'AT (PB-75) restent aussi en l'état : p
 PB-72 — ce qu'un disque fait d'une écriture dans ses registres pendant qu'il se réinitialise — n'est pas défini par
 la norme de 1993, et celle de 1997 se contredit : il reste en l'état, comme Julien l'a décidé (Q6). PB-73, la commande
 multiple sans taille de bloc, rendait déjà l'erreur du vrai disque.
+
+## G13.7c1 — le moteur d'images de CD
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7c1.*
+
+Un lecteur de CD émulé ne lit pas un disque : il lit un fichier qui en tient lieu, une image. Le moteur d'images
+traduit chaque secteur demandé en une position dans ce fichier. Quand il se trompe, le programme lit autre chose que
+ce que le vrai lecteur aurait lu du vrai disque.
+
+### PB-106 — le secteur de 2 336 octets
+
+- **Le vrai PC.** Certains CD (les CD-ROM XA) rangent leurs données en « mode 2 » ; une image peut garder chaque
+  secteur entier (2 352 octets) ou sans ses 16 premiers octets de synchronisation et d'en-tête (2 336). Dans le
+  second cas, les données commencent 8 octets après le début du secteur.
+- **L'émulateur.** PCem saute 24 octets dans les deux cas : une image de 2 336 octets n'est jamais reconnue, et une
+  telle piste dans une feuille CUE se lit 16 octets trop loin.
+- **La correction.** 8 octets pour un secteur de 2 336.
+
+### PB-108 — où commence une piste dans son fichier
+
+- **Le vrai PC.** Une feuille CUE décrit un disque à partir d'un ou plusieurs fichiers ; ses positions INDEX se
+  comptent depuis le début du fichier. Une piste dont le fichier commence par le silence qui la précède (son
+  « prégap », INDEX 00) commence vraiment à son INDEX 01.
+- **L'émulateur.** PCem ne retranche le prégap que s'il ne commence pas au tout début du fichier ; dans la disposition
+  la plus courante, un fichier par piste, chaque piste commence donc par son prégap, lu à la place de la musique ou
+  des données.
+- **La correction.** Une piste qui ouvre son fichier y commence à son INDEX 01.
+
+### PB-109 — l'échec qui colle
+
+- **Le vrai PC.** Un lecteur qui ne peut pas lire un secteur le signale, puis lit le suivant.
+- **L'émulateur.** Une lecture qui atteint la fin du fichier laisse le fichier en échec dans la bibliothèque C++ de
+  PCem : plus rien ne s'y lit, sur toutes les pistes qui le partagent, jusqu'à ce que l'image soit rechargée.
+- **La correction.** Chaque lecture repart d'un fichier sain : seul le secteur fautif échoue.
+
+### PB-122 — la fin du disque dans la table des matières
+
+- **Le vrai PC.** La table des matières du disque (TOC) se termine par une entrée qui marque la fin des pistes, le
+  « lead-out » ; comme les pistes, elle porte un octet qui dit le type d'information et la nature de la dernière
+  piste (données ou audio).
+- **L'émulateur.** PCem met cet octet à zéro.
+- **La correction.** Le lead-out reprend l'octet de la dernière piste.

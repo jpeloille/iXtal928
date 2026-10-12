@@ -42,7 +42,11 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # PC-DOS amorcé de A: qui copie COMMAND.COM sur B:, l'écriture d'une disquette), et l'IBM AT et son contrôleur
 # (ibmat-mfm ; le POST, SET PARAMETERS et la lecture du secteur d'amorce de C:). Leurs images vierges (hdc_fn = os/…)
 # sont COPIÉES dans le bac à sable. G13.7b, l'IDE : l'IBM AT et un disque IDE vierge (ibmat-ide ; le POST, son
-# interruption, le secteur d'amorce).
+# interruption, le secteur d'amorce). G13.7c1, le moteur d'images de CD : l'ami486 et un lecteur ATAPI, chargé de la
+# feuille multi.cue d'isogen (ami486-cd-cue ; LoadCueSheet et AddTrack, puis, sous DEBUG, un PACKET READ(10) du
+# secteur 16 conduit par les ports 170h-177h, le registre de fonctions remis à 0 après le POST : le premier reçoit
+# UNIT ATTENTION (le disque vient d'être chargé), le deuxième ABRT, le troisième lit le PVD ; ReadSector) ou de l'ISO iso-2048.iso (ami486-cd-iso, le POST ;
+# LoadIsoFile et CanReadPVD). Les images d'isogen sont ÉCRITES dans le bac à sable (isogen/).
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
@@ -59,6 +63,8 @@ SCENARIOS=(
   "xt-xebec|--boot roms 9000 --config tools/gates/cfg/xt-xebec.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type COPY_COMMAND.COM_B:X.COM --type @wait_2000"
   "ibmat-mfm|--boot roms 4000 --config tools/gates/cfg/ibmat-mfm.cfg|tools/gates/cfg/ibmat-mfm.cfg at"
   "ibmat-ide|--boot roms 4000 --config tools/gates/cfg/ibmat-ide.cfg|tools/gates/cfg/ibmat-ide.cfg at"
+  "ami486-cd-cue|--boot roms 6000 --config tools/gates/cfg/ami486-cd-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type O_176_A0 --type O_171_0 --type E_100_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_110_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_120_70_01_BE_00_02_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_130_A8_80_75_FB_A8_09_74_F7_A8_01_75_0D_BA_70_01_BF --type E_140_00_03_B9_00_04_ED_AB_E2_FC_CC --type E_200_28_00_00_00_00_10_00_00_01_00_00_00 --type G=100 --type G=100 --type G=100 --type D_300_30F --type Q --type @wait_2000|tools/gates/cfg/ami486-cd-fd.cfg ami486"
+  "ami486-cd-iso|--boot roms 3000 --config tools/gates/cfg/ami486-cd-iso-fd.cfg|tools/gates/cfg/ami486-cd-iso-fd.cfg ami486"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 
@@ -80,6 +86,12 @@ capture() {
     local cfgs; cfgs=$(grep -o -- '--config [^ ]*' <<< "${args%%|*}" | cut -d' ' -f2)
     for c in $cfgs; do
       grep -oE '^hd[c-f]_fn = os/[^ ]+' "$REPO/$c" 2>/dev/null | sed 's/^.* = //' | while read -r img; do cp "$REPO/$img" "$w/os/"; done
+    done
+    # Les images de CD d'isogen (cdrom_path = isogen/…), écrites dans le bac à sable.
+    for c in $cfgs; do
+      if grep -qE '^cdrom_path = isogen/' "$REPO/$c" 2>/dev/null; then
+        mkdir -p "$w/isogen"; python3 "$REPO/tools/isogen/isogen.py" "$w/isogen" > /dev/null
+      fi
     done
     # Un troisième champ, « CONFIG MACHINE » : le CMOS de la machine, fabriqué dans le bac à sable par --make-nvr (comme
     # g5w-recipe.sh), sans listing, avant le scénario.
