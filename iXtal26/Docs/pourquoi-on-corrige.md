@@ -1323,3 +1323,16 @@ d'Iomega l'envoient ainsi. Ce que faisait le vrai lecteur Iomega n'est pas connu
 
 PB-275 — la vérification, le formatage de bas niveau, les réglages envoyés au disque et ses diagnostics restent
 simulés : ce qu'en faisait un disque de l'époque dépend de son fabricant, et n'est pas connu.
+
+## G13.7d2b — les réglages du disque SCSI
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7d2b.*
+
+### PB-130 — MODE SENSE
+
+- **Le vrai PC.** Un programme peut demander au disque ses réglages — sa taille, sa géométrie — sous une forme fixée
+  par la norme SCSI-2 ; le disque refuse une page de réglages qu'il ne connaît pas.
+- **L'émulateur.** PCem rend un en-tête faux, une géométrie sans rapport avec la taille du disque, une page
+  « PCEM » qu'aucun vrai disque n'a, et des zéros en trop ; il accepte n'importe quelle page.
+- **La correction.** La forme de la norme, avec la géométrie de l'image — celle d'un disque virtuel est un choix,
+  pris cohérent avec la taille qu'il annonce.

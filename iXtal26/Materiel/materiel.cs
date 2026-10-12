@@ -207,6 +207,9 @@ internal static class materiel
     /// <summary>PB-129 : le disque SCSI annonce son dernier bloc, et refuse au-delà.</summary>
     internal static readonly bool pb_129;
 
+    /// <summary>PB-130 : MODE SENSE du disque SCSI selon SCSI-2.</summary>
+    internal static readonly bool pb_130;
+
     /// <summary>PB-131 : REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2.</summary>
     internal static readonly bool pb_131;
 
@@ -466,6 +469,7 @@ internal static class materiel
         pb_126 = ModeMateriel.Demande(126);
         pb_128 = ModeMateriel.Demande(128);
         pb_129 = ModeMateriel.Demande(129);
+        pb_130 = ModeMateriel.Demande(130);
         pb_131 = ModeMateriel.Demande(131);
         pb_132 = ModeMateriel.Demande(132);
         pb_157 = ModeMateriel.Demande(157);

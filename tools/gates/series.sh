@@ -726,3 +726,6 @@ for pb in 128 129 131 132; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7d2b — MODE SENSE du disque SCSI (PB-130), son cas en C# seul dans les deux modes, sur le même banc.
+run materiel-cas-pb130 materiel-cas PB-130
+run materiel-cas-pb130-materiel --hardware-mode PB-130 materiel-cas PB-130

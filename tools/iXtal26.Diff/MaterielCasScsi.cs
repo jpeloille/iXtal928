@@ -17,18 +17,19 @@ internal static partial class MaterielCas
 {
     private const uint Lu = 0x200000;
 
-    /// <summary>L'ami486, la carte et ses deux disques, puis le corps ; la machine fermée ensuite.</summary>
-    private static int AvecScsi(Func<int> corps) => AvecCd(d =>
+    /// <summary>L'ami486, la carte et ses deux disques (celui de l'ID 1 à la géométrie donnée, 20 × 64 × 32 sinon),
+    /// puis le corps ; la machine fermée ensuite.</summary>
+    private static int AvecScsi(Func<int> corps, int cyl = 20, int tetes = 64, int spt = 32) => AvecCd(d =>
     {
         for (var u = 0; u < 2; u++)
         {
             using var f = new FileStream(Path.Combine(d, $"d{u}.img"), FileMode.Create, FileAccess.Write);
-            f.SetLength(20 * 64 * 32 * 512L);
+            f.SetLength(u == 0 ? 20 * 64 * 32 * 512L : (long)cyl * tetes * spt * 512);
         }
         var cfg = Path.Combine(d, "scsi.cfg");
         File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = aha1542c\n" +
                                $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {d}/d0.img\n" +
-                               $"hdd_cylinders = 20\nhdd_heads = 64\nhdd_sectors = 32\nhdd_fn = {d}/d1.img\n");
+                               $"hdd_cylinders = {cyl}\nhdd_heads = {tetes}\nhdd_sectors = {spt}\nhdd_fn = {d}/d1.img\n");
         try
         {
             if (!pc.loadconfig(cfg))
@@ -213,6 +214,83 @@ internal static partial class MaterielCas
                 }
                 return b;
             });
+        return bad;
+    }
+}
+
+internal static partial class MaterielCas
+{
+    /// <summary>MODE SENSE(6) vers l'ID 1, le tampon rempli de EEh avant : rend le statut cible, la sense, la longueur
+    /// transférée (le dernier octet qui n'est plus EEh) et les octets.</summary>
+    private static (byte cible, byte[] sense, int n, byte[] b) ModeSense(int dbd, int pc, int page, int alloc = 255)
+    {
+        for (var k = 0; k < 256; k++)
+            mem.mem_writeb_phys(Lu + (uint)k, 0xEE);
+        var (_, c, _) = Ccb([0x1A, (byte)(dbd << 3), (byte)(pc << 6 | page), 0, (byte)alloc, 0], alloc, Lu, sansSense: true);
+        var b = Lire(Lu, 256);
+        var n = 256;
+        while (n > 0 && b[n - 1] == 0xEE)
+            n--;
+        return (c, SenseScsi(), n, b);
+    }
+
+    // PB-130 — MODE SENSE(6) selon SCSI-2 (§ 8.2.10, § 8.3.3, Tables 91, 93, 163, 164, 165 et 171), l'allocation à 255.
+    // Sur le disque de 20 × 64 × 32 (40 960 secteurs) à l'ID 1 : page 03h, PCem rend 146 octets, l'en-tête `91 00 08 00`
+    // ; le matériel 36, comparés un à un — l'en-tête `23 00 00 08`, le descripteur `00 00 A0 00 00 00 02 00`, la page
+    // `03 16`, une zone par cylindre (64), 32 secteurs par piste, 512 octets, l'entrelacement 1, HSEC. Coupée à 20 octets :
+    // 20 sur le matériel, la longueur restant 23h. Page 3Fh : 60 octets (3Bh, le descripteur, la 03h puis la 04h) ; sous
+    // DBD, 52 (33h, sans descripteur) ; PC = 2 (les valeurs par défaut), les mêmes 60 ; chez PCem, 170. Page 00h : 12
+    // octets, l'en-tête et le descripteur ; sous DBD, 4 ; chez PCem, 134. Les pages 30h (« PCEM ») et 05h : GOOD chez
+    // PCem ; 05/24h. PC = 3 (les valeurs sauvées) : GOOD chez PCem ; 05/39h. PC = 1 (les modifiables), pages 03h et 04h :
+    // la géométrie chez PCem ; un masque nul, HSEC compris (Table 165). Puis, sur un disque de 70 000 × 2 × 1 (140 000
+    // secteurs), page 04h : les cylindres sur trois octets, `01 11 70`, et le descripteur `00 02 22 E0`.
+    private static int Pb130(bool hw)
+    {
+        const string desc = "0000A00000000200";
+        const string p03 = "0316" + "0040" + "000000000000" + "0020" + "0200" + "0001" + "00000000" + "40000000";
+        const string m03 = "0316" + "0000" + "000000000000" + "0000" + "0000" + "0000" + "00000000" + "00000000";
+        const string p04 = "0416" + "000014" + "40" + "000014" + "000014" + "0000" + "000000" + "00" + "00" + "00" + "0000" + "0000";
+        const string m04 = "0416" + "000000" + "00" + "000000" + "000000" + "0000" + "000000" + "00" + "00" + "00" + "0000" + "0000";
+        var bad = AvecScsi(() =>
+        {
+            var bad = 0;
+            int Voir1(string nom, int dbd, int pc, int page, string attendu, int pcem, int alloc = 255)
+            {
+                var (c, _, n, b) = ModeSense(dbd, pc, page, alloc);
+                var t = Convert.ToHexString(b, 0, n);
+                return Voir(nom, c == 0 && (hw ? t == attendu : n == pcem), hw ? t : $"{n} octets", hw ? attendu : $"{pcem} octets", hw);
+            }
+            bad += Voir1("page 03h : les octets", 0, 0, 0x03, "23000008" + desc + p03, 146);
+            bad += Voir1("page 03h, coupée à 20 octets", 0, 0, 0x03, ("23000008" + desc + p03)[..40], 20, 20);
+            bad += Voir1("page 04h : les octets", 0, 0, 0x04, "23000008" + desc + p04, 146);
+            bad += Voir1("page 3Fh : les octets", 0, 0, 0x3F, "3B000008" + desc + p03 + p04, 170);
+            bad += Voir1("page 3Fh sous DBD : les octets", 1, 0, 0x3F, "33000000" + p03 + p04, 170);
+            bad += Voir1("page 3Fh, PC = 2 : les octets", 0, 2, 0x3F, "3B000008" + desc + p03 + p04, 170);
+            bad += Voir1("page 00h : les octets", 0, 0, 0x00, "0B000008" + desc, 134);
+            bad += Voir1("page 00h sous DBD : les octets", 1, 0, 0x00, "03000000", 134);
+            foreach (var (nom, pc, page, asc) in new[] { ("page 30h (« PCEM »)", 0, 0x30, 0x24), ("page 05h", 0, 0x05, 0x24), ("PC = 3, page 03h", 3, 0x03, 0x39) })
+            {
+                var (c2, s2, _, _) = ModeSense(0, pc, page);
+                bad += Voir($"{nom} : le statut, l'ASC", hw ? c2 == 2 && (s2[2] & 0x0F) == 5 && s2[12] == asc : c2 == 0, $"cible {c2:X2}h, {s2[2] & 0x0F:X2}/{s2[12]:X2}h",
+                            hw ? $"02h, 05/{asc:X2}h" : "00h (GOOD)", hw);
+            }
+            foreach (var (page, masque) in new[] { (0x03, m03), (0x04, m04) })
+            {
+                var (c3, _, n3, b3) = ModeSense(0, 1, page);
+                var t3 = Convert.ToHexString(b3, 0, n3);
+                var nul = n3 >= 36 && b3.Skip(14).Take(22).All(x => x == 0);
+                bad += Voir($"PC = 1, page {page:X2}h : les octets", c3 == 0 && (hw ? t3 == "23000008" + desc + masque : !nul), hw ? t3 : nul ? "nuls" : "non nuls",
+                            hw ? "23000008" + desc + masque : "non nuls (la géométrie)", hw);
+            }
+            return bad;
+        });
+        bad += AvecScsi(() =>
+        {
+            var (c, _, n, b) = ModeSense(0, 0, 0x04);
+            var t = Convert.ToHexString(b, 0, n);
+            const string grand = "23000008" + "000222E000000200" + "0416" + "011170" + "02" + "011170" + "011170" + "0000" + "000000" + "00" + "00" + "00" + "0000" + "0000";
+            return Voir("70 000 cylindres, page 04h : les octets", c == 0 && (hw ? t == grand : n == 146), hw ? t : $"{n} octets", hw ? grand : "146 octets", hw);
+        }, 70000, 2, 1);
         return bad;
     }
 }

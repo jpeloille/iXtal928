@@ -10312,3 +10312,42 @@ décalée ; le code est le même. Les 31 méthodes apparues sont celles de la ca
 **La série** g7d2a (le worktree de l'étape, contre g7d1) : 560 portes, toutes vertes ; 552 communes à g7d1, chacune au
 même verdict ; un seul résumé change, `recensement` (276 défauts, 1 158 marqueurs). Huit neuves : les `materiel-cas`
 de PB-128, PB-129, PB-131 et PB-132, dans les deux modes.
+
+## G13.7d2b — MODE SENSE du disque SCSI
+
+Le 13 octobre 2026. La seconde étape de 7d2 (PLAN-G13.md, § G13.7). La source : SCSI-2 (X3.131-1994), § 8.2.10 (MODE
+SENSE(6), PC, DBD, la note 77, § 8.2.10.4), § 8.3.3 (Tables 91, 93, 94), § 9.3.3 (Tables 153 à 155, la page 03h,
+Tables 163 à 165, la page 04h, Table 171).
+
+**La correction du mode matériel** (domaine `stockage`, une ; `mode_sense_materiel` dans `Scsi/scsi_hd.Materiel.cs`,
+en `NoInlining`) : PB-130 — l'en-tête de la Table 91 (la longueur disponible moins un, WP selon l'image et DPOFUA à
+0, la longueur du descripteur 8, ou 0 sous DBD), le descripteur de la Table 93 (les blocs sur trois octets, 512), les
+pages 03h et 04h à la géométrie de l'image — un choix, cohérent avec READ CAPACITY —, la page 00h réduite à l'en-tête
+et au descripteur (note 77), 3Fh pour toutes ; la page 30h « PCEM » et toute page inconnue refusées 05/24h ; PC = 1, un
+masque nul ; PC = 2, les valeurs courantes ; PC = 3, 05/39h ; coupé à l'allocation, sans le bourrage de PCem. Son cas
+en C# seul (`MaterielCasScsi.cs`, sur le banc de G13.7d2a, chaque réponse comparée octet par octet, et un disque de
+70 000 × 2 × 1 pour les champs sur trois octets) est vert dans les deux modes, la sonde atteinte ; il rougit sous
+`--attendu materiel`. Non couverts, écrits dans PCEM_BUGS : WP (aucune configuration ne charge un disque SCSI en
+lecture seule) et le plafond de 0xFFFFFF blocs. `recensement` vert (276 défauts, 1 160 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137d2b.py`, rejoués après le renforcement du cas) : huit fautes, chacune
+rougit le cas — la longueur des données, DBD ignoré, HSEC, la page 30h servie, les valeurs sauvées servies, le masque
+des modifiables, un cylindre de trop, la garde retirée. Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, SCSI-2 relue) : rien de bloquant ; chaque octet conforme aux Tables 91, 93, 154, 163 et
+171, le mode PCem intact, les longueurs de PCem (134, 146, 170) recalculées justes. Trois points à corriger, tous du
+cas : la page 00h et 3Fh sous DBD n'étaient pas comparées en entier ; des champs jamais exercés (le poids fort des
+cylindres, PC = 2, PC = 1 sur la page 03h et HSEC, l'allocation partielle, 3Fh sans DBD, 00h sous DBD) ; un contrôle
+en double — le cas compare désormais chaque réponse octet par octet, sur ses quatorze requêtes. Remarques reprises :
+la Table 165 nommée pour le masque, la Table 154 pour DPOFUA, la priorité de 05/39h sur 05/24h dite (la norme ne la
+tranche pas), la référence `scsi_hd.c:329-408` de PB-130.
+
+**M2** (Release du worktree, le scénario `ami486-aha` de G13.7d2a) : avec et sans la garde `pb_130` (`M2-7d2b` contre
+`M2-7d2b-sansgardes`), identique (947 méthodes, aucune changée). Contre M2-7d2a (tous les scénarios) : les
+constructeurs statiques de `materiel` et de `ModeMateriel` (la correction inscrite), et trois méthodes —
+`scsi_hd_command`, `process_scsi` de l'AHA et `scsi_zip_command` — dont seuls changent des jetons de chaînes (4, 7 et
+4 `mov edi`, avant `CORINFO_HELP_STRCNS`) : les chaînes neuves de l'assembly décalent la table ; le code est le même.
+
+**La série** g7d2b (le worktree de l'étape, contre g7d2a) : 562 portes, toutes vertes ; 560 communes à g7d2a, chacune au
+même verdict ; un seul résumé change, `recensement` (276 défauts, 1 160 marqueurs). Deux neuves : les `materiel-cas`
+de PB-130, dans les deux modes.

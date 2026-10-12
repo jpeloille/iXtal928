@@ -90,6 +90,7 @@ internal static class ModeMateriel
         new(126, "stockage", "le ZIP : la capacité, la fin du disque, les longueurs nulles, le disque gardé au reset"),
         new(128, "stockage", "le disque SCSI transfère au-delà de 512 Ko"),
         new(129, "stockage", "le disque SCSI annonce son dernier bloc, et refuse au-delà (05/21h)"),
+        new(130, "stockage", "MODE SENSE du disque SCSI : l'en-tête, le descripteur, les pages 03h et 04h, PC et DBD"),
         new(131, "stockage", "REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2"),
         new(132, "stockage", "une longueur nulle finit sans phase de données (le disque SCSI)"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),

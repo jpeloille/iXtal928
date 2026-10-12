@@ -286,4 +286,62 @@ internal static partial class scsi_hd_c
         data.cmd_pos = CMD_POS_IDLE;
         return BUS_CD | BUS_IO;
     }
+
+    private const int ASC_SAVING_PARAMETERS_NOT_SUPPORTED_MATERIEL = 0x39;
+
+    // pcem bug, fixed in hardware mode: PB-130 — MODE SENSE(6) selon SCSI-2 (§ 8.2.10, § 8.3.3, § 9.3.3). L'en-tête
+    //   (Table 91) : la longueur des données disponibles moins un, le type de support 00h, le paramètre propre (Table
+    //   154 : WP si l'image est en lecture seule, DPOFUA à 0 — la cible ignore DPO et FUA), la longueur du descripteur, 8,
+    //   ou 0 sous DBD. Le descripteur (Table 93) : la densité, réservée pour un disque, 0 ; le nombre de blocs sur trois
+    //   octets (0, « all of the remaining logical blocks », s'il n'y tient pas) ; la longueur du bloc, 512. Les pages : la
+    //   03h (Table 163) et la 04h (Table 171), dans l'ordre des codes ; la géométrie est celle de l'image — un choix,
+    //   celle d'un disque virtuel, cohérente avec READ CAPACITY. La 03h : une zone par cylindre, aucune piste ni aucun
+    //   secteur de réserve, les secteurs par piste de l'image, 512 octets, l'entrelacement 1, sans décalage, le secteur
+    //   dur (HSEC ; Table 164 interdit 00b). La 04h : les cylindres et les têtes, la précompensation et le courant réduit
+    //   au nombre de cylindres (désactivés), le reste à 0 (« not implemented … shall be set to zero »). La page 00h rend
+    //   l'en-tête et le descripteur seuls (note 77) ; la 30h « PCEM » et toute autre page : 05/24h ; 3Fh : toutes. PC :
+    //   les valeurs courantes et par défaut sont les mêmes (MODE SELECT n'en change aucune, PB-275) ; les modifiables, un
+    //   masque nul, SSEC et HSEC à 00b compris (Table 165 : « not changeable ») ; les sauvées : 05/39h (§ 8.2.10.4, rien
+    //   n'est sauvé), avant le refus d'une page inconnue — la norme ne dit pas lequel prime. PS à 0. Coupé à
+    //   l'allocation, sans bourrage.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int mode_sense_materiel(scsi_hd_data data, uint8_t[] cdb)
+    {
+        ModeMateriel.Sonde[130]++;
+        int pc = cdb[2] >> 6, page = cdb[2] & 0x3f;
+        if (pc == 3 || page is not (0x00 or 0x03 or 0x04 or 0x3f))
+        {
+            data.status = STATUS_CHECK_CONDITION;
+            data.sense_key = KEY_ILLEGAL_REQ;
+            data.asc = pc == 3 ? ASC_SAVING_PARAMETERS_NOT_SUPPORTED_MATERIEL : ASC_INV_FIELD_IN_CMD_PACKET;
+            data.ascq = 0;
+            data.cmd_pos = CMD_POS_IDLE;
+            return BUS_CD | BUS_IO;
+        }
+        var h = data.hdd;
+        var masque = pc == 1;
+        int V(int v) => masque ? 0 : v;
+        var r = new List<uint8_t> { 0, 0, (uint8_t)(h.read_only != 0 ? 0x80 : 0), (uint8_t)((cdb[1] & 0x08) != 0 ? 0 : 8) };
+        if ((cdb[1] & 0x08) == 0)
+        {
+            var n = h.sectors > 0xFFFFFF ? 0 : h.sectors;
+            r.AddRange([0, (uint8_t)(n >> 16), (uint8_t)(n >> 8), (uint8_t)n, 0, 0, 512 >> 8, 512 & 0xff]);
+        }
+        if (page is 0x03 or 0x3f)
+            r.AddRange([0x03, 0x16, (uint8_t)(V(h.hpc) >> 8), (uint8_t)V(h.hpc), 0, 0, 0, 0, 0, 0,
+                        (uint8_t)(V(h.spt) >> 8), (uint8_t)V(h.spt), (uint8_t)(V(512) >> 8), (uint8_t)V(512), 0, (uint8_t)V(1),
+                        0, 0, 0, 0, (uint8_t)V(0x40), 0, 0, 0]);
+        if (page is 0x04 or 0x3f)
+        {
+            var c = V(h.tracks);
+            r.AddRange([0x04, 0x16, (uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c, (uint8_t)V(h.hpc),
+                        (uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c, (uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        }
+        r[0] = (uint8_t)(r.Count - 1);
+        for (var k = 0; k < Math.Min(cdb[4], r.Count); k++)
+            scsi_add_data(r[k], data);
+        data.cmd_pos = CMD_POS_IDLE;
+        return BUS_IO;
+    }
 }

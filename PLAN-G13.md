@@ -509,7 +509,7 @@ contre-lecture, M2, sa série entière et son commit :
     - **G13.7d2a** ✅ *(13/10, VERIFICATION.md § G13.7d2a)*. PB-128 (les transferts complets), PB-129 (le dernier bloc, la
       plage), PB-131 (REQUEST SENSE, INQUIRY, les refus), PB-132 côté cible (les longueurs nulles) ; VERIFY, MODE SELECT
       et FORMAT UNIT simulés détachés en PB-275 (reproduit, inconnu) ; le côté carte de PB-132 détaché en PB-276 (7e).
-    - **G13.7d2b.** PB-130 (MODE SENSE : l'en-tête, le descripteur, le bourrage, la géométrie).
+    - **G13.7d2b** ✅ *(13/10, VERIFICATION.md § G13.7d2b)*. PB-130 (MODE SENSE : l'en-tête, le descripteur, le bourrage, la géométrie).
 - **G13.7e — L'AHA-1542C.** PB-276 (l'ancien PB-132 côté carte : HRST, la navette, le statut 12h), PB-133 (le LUN par IDENTIFY), PB-135 (les cinq commandes du TR),
   PB-137 (le sense automatique), PB-139 (ABORT), PB-140 (RETURN SETUP DATA entier), PB-141 (les mailbox), PB-144 (la
   longueur et les réglages d'usine ; la traduction CHS et les 24 bits, déduits), PB-136 et 138 dans leurs bornes,

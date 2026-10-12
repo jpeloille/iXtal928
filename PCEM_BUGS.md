@@ -2524,19 +2524,37 @@ et GOOD six fois en mode PCem ; 40 959 et 05/21h six fois en mode matériel ; la
 longueur du descripteur à 0 alors que 8 octets de descripteur suivent (`sectors >> 24` dans l'octet de
 densité, un nombre de blocs sur 24 bits). `:410-412` : `for (; len >= 0; len--) add_data_len(0)` décrémente
 `len` pendant que `i` monte : min(i0, L) + ⌈(L − i0)/2⌉ octets au lieu de L (L = 255 : 134 octets pour la
-page 00h, 146 pour 03h, 04h ou 30h, 170 pour 3Fh). `:329-389` : géométrie fixe (256 secteurs par piste, 4 096
+page 00h, 146 pour 03h, 04h ou 30h, 170 pour 3Fh). `:329-408` : géométrie fixe (256 secteurs par piste, 4 096
 cylindres, 64 têtes), page 30h « PCEM ». PC et DBD ignorés ; une page inconnue rend GOOD.
 *Effet* : un utilitaire qui lit les pages de mode lit des zéros pour des pages et une géométrie sans
 rapport avec READ CAPACITY.
 *Trouvé par* : reconnaissance de G11.
 *Source* : documenté — SCSI-2 § 8.3.3, Tables 91 (en-tête(6), longueur du descripteur = 8) et 93 (densité, blocs sur
 3 octets, longueur de bloc) ; § 9.3.3 (paramètre propre : WP et DPOFUA) ; § 8.2.10 (DBD, PC) ; une page inconnue :
-05/24h. Non revérifié en contre-lecture. La géométrie d'un disque virtuel est un choix.
+05/24h. Relu en G13.7d2b. La géométrie d'un disque virtuel est un choix.
 *Cas qui discrimine* : MODE SENSE(6), page 03h, allocation 255, disque de 40 960 secteurs : PCem rend 146 octets,
 en-tête `91 00 08 00` ; le matériel 36 (4 + 8 + 24), en-tête `23 00 00 08` ; DBD = 1 : le descripteur reste chez
 PCem ; page 05h : GOOD contre 05/24h.
 *G13* : (a) — la géométrie : un choix, pas une inconnue.
-*Reproduit* : `Scsi/scsi_hd.cs`, MODE SENSE(6) (l'en-tête, les pages, le bourrage), marqueurs PB-130 posés en G13.1.
+*Reproduit* en mode PCem : `Scsi/scsi_hd.cs`, MODE SENSE(6) (l'en-tête, les pages, le bourrage), marqueurs `fixed in
+hardware mode: PB-130` posés en G13.1.
+*Corrigé en mode matériel* (G13.7d2b) : `Scsi/scsi_hd.Materiel.cs` — sous `if (materiel.pb_130)`,
+`mode_sense_materiel` rend l'en-tête de la Table 91 (la longueur disponible moins un, le paramètre propre de la Table
+154 — WP selon l'image, DPOFUA à 0 : la cible ignore DPO et FUA —, la longueur du descripteur 8, ou 0 sous DBD), le descripteur de la Table 93 (la densité 0, les
+blocs sur trois octets, 512), les pages 03h et 04h (Tables 163 et 171) dans l'ordre des codes, à la géométrie de
+l'image — un choix, cohérent avec READ CAPACITY : une zone par cylindre, aucune réserve, les secteurs par piste,
+512 octets, l'entrelacement 1, HSEC (la Table 164 interdit 00b) ; les cylindres et les têtes, la précompensation et
+le courant réduit désactivés (au nombre de cylindres), le reste à 0. La page 00h : l'en-tête et le descripteur
+(§ 8.2.10, note 77) ; 30h et toute page inconnue : 05/24h ; 3Fh : toutes. PC : courantes et par défaut égales (MODE
+SELECT ne change rien, PB-275), modifiables un masque nul (SSEC et HSEC compris, Table 165), sauvées 05/39h
+(§ 8.2.10.4), avant le refus d'une page inconnue. Coupé à l'allocation, sans bourrage. SCSI-2 § 8.2.10, § 8.3.3 et
+§ 9.3.3 relus en G13.7d2b. `materiel-cas PB-130` (MODE SENSE(6) vers l'ID 1, allocation 255, chaque réponse comparée
+octet par octet : les pages 03h (et coupée à 20 octets), 04h, 3Fh (avec et sans DBD, et sous PC = 2), 00h (avec et
+sans DBD) ; 30h et 05h ; PC = 3 ; PC = 1 sur 03h et 04h ; puis un disque de 70 000 × 2 × 1, les cylindres sur trois
+octets) rend 146, 20, 146, 170 trois fois, 134 deux fois, GOOD trois fois et la géométrie sous PC = 1 en mode PCem ;
+les octets de la norme, 05/24h deux fois, 05/39h et un masque nul en mode matériel ; la correction coupée, il
+rougit. Non couverts : WP (aucune configuration ne charge un disque SCSI en lecture seule) et le plafond de 0xFFFFFF
+blocs du descripteur (un disque de 8 Go).
 
 ### PB-131 — REQUEST SENSE, INQUIRY et les refus du disque SCSI
 

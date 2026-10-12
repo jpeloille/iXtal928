@@ -11,8 +11,8 @@
 //   planter, et l'invité reçoit les bonnes données : ce régime est reproduit.
 // DEVIATIONS (R9, PB-128) : au-delà de 2 × BUFFER_SIZE pour data_in (:87, :717), au-delà de BUFFER_SIZE
 //   pour data_out (:723-728, :99-102), l'octet est compté, pas gardé, et se relit nul.
-// Reproduits en mode PCem, corrigés en mode matériel (scsi_hd.Materiel.cs) : PB-128, PB-129, PB-131, PB-132.
-// Reproduits : PB-130, PB-133, PB-275 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
+// Reproduits en mode PCem, corrigés en mode matériel (scsi_hd.Materiel.cs) : PB-128 à PB-132.
+// Reproduits : PB-133, PB-275 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
 
 // CS8981 : `scsi_hd_c` porte le nom de l'unité C, que le membre `scsi_hd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -386,9 +386,13 @@ internal static partial class scsi_hd_c
                 if (materiel.pb_132)
                         if ((bus_state = allocation_nulle_materiel(data, cdb)) >= 0)
                                 break;
+                // pcem bug, fixed in hardware mode: PB-130 — l'en-tête, le descripteur, les pages et le bourrage ci-dessous.
+                if (materiel.pb_130)
+                        if ((bus_state = mode_sense_materiel(data, cdb)) >= 0)
+                                break;
                 len = cdb[4];
 
-                // pcem bug, reproduced: PB-130 — en-tête 00 00 08 00 : 08h dans le paramètre propre, la longueur
+                // pcem bug, fixed in hardware mode: PB-130 — en-tête 00 00 08 00 : 08h dans le paramètre propre, la longueur
                 //   du descripteur à 0, puis huit octets de descripteur (sectors >> 24 en densité, 24 bits de blocs).
                 add_data_len(data, ref i, len, 0);
                 add_data_len(data, ref i, len, 0);
@@ -405,7 +409,7 @@ internal static partial class scsi_hd_c
                 add_data_len(data, ref i, len, (512 >> 8) & 0xff);
                 add_data_len(data, ref i, len, 512 & 0xff);
 
-                // pcem bug, reproduced: PB-130 — géométrie fixe (256 secteurs, 4 096 cylindres, 64 têtes),
+                // pcem bug, fixed in hardware mode: PB-130 — géométrie fixe (256 secteurs, 4 096 cylindres, 64 têtes),
                 //   page 30h « PCEM » ; PC et DBD ignorés ; une page inconnue rend GOOD.
                 if ((cdb[2] & 0x3f) == 0x03 || (cdb[2] & 0x3f) == 0x3f)
                 {
@@ -491,7 +495,7 @@ internal static partial class scsi_hd_c
                         add_data_len(data, ref i, len, ' ');
                 }
 
-                // pcem bug, reproduced: PB-130 — len décroît pendant que i monte : min(i0, L) + ⌈(L − i0)/2⌉
+                // pcem bug, fixed in hardware mode: PB-130 — len décroît pendant que i monte : min(i0, L) + ⌈(L − i0)/2⌉
                 //   octets au lieu de L.
                 for (; len >= 0; len--)
                 {
