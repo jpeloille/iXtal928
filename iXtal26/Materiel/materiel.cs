@@ -126,6 +126,12 @@ internal static class materiel
     /// <summary>PB-70 : le 8087 et le 287 comparent en projectif tant que IC est nul ; avec PB-57 et PB-64.</summary>
     internal static readonly bool pb_70;
 
+    /// <summary>PB-71 : chaque canal IDE suit sa propre ligne (IRQ 14, IRQ 15) ; avec PB-216.</summary>
+    internal static readonly bool pb_71;
+
+    /// <summary>PB-74 : READ VERIFY vérifie tous ses secteurs et rend l'adresse et le compte d'ATA-1.</summary>
+    internal static readonly bool pb_74;
+
     /// <summary>PB-78 : LOADALL386 lève #UD sur le 486.</summary>
     internal static readonly bool pb_78;
 
@@ -267,6 +273,9 @@ internal static class materiel
     /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
     internal static readonly bool pb_213;
 
+    /// <summary>PB-216 : INTRQ suit l'unité choisie et nIEN, un front par interruption ; avec PB-71.</summary>
+    internal static readonly bool pb_216;
+
     /// <summary>PB-217 : le sense du Xebec porte le bit « adresse valide » et l'adresse.</summary>
     internal static readonly bool pb_217;
 
@@ -361,6 +370,8 @@ internal static class materiel
         pb_68 = ModeMateriel.Demande(68);
         pb_69 = ModeMateriel.Demande(69);
         pb_70 = ModeMateriel.Demande(70);
+        pb_71 = ModeMateriel.Demande(71);
+        pb_74 = ModeMateriel.Demande(74);
         pb_78 = ModeMateriel.Demande(78);
         pb_87 = ModeMateriel.Demande(87);
         pb_94 = ModeMateriel.Demande(94);
@@ -408,6 +419,7 @@ internal static class materiel
         pb_211 = ModeMateriel.Demande(211);
         pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
+        pb_216 = ModeMateriel.Demande(216);
         pb_217 = ModeMateriel.Demande(217);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);

@@ -69,6 +69,8 @@ internal static class ModeMateriel
         new(68, "x87", "les transcendantes sur 80 bits, arrondies une fois selon RC ; C2 au-delà de 2^63, réduites par le Pi du silicium (le noyau)"),
         new(69, "x87", "sur un PC ou un XT, l'exception du 8087 lève la NMI, que le port A0h masque"),
         new(70, "x87", "le 8087 et le 287 comparent en projectif tant que IC est nul"),
+        new(71, "stockage", "chaque canal IDE suit sa ligne d'interruption, et non celle de l'IRQ 14"),
+        new(74, "stockage", "READ VERIFY vérifie tous ses secteurs ; l'adresse du dernier, le compte nul, ou IDNF"),
         new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
         new(94, "carte-mere", "la souris PS/2 répond à F6h, EAh, F0h, EEh et ECh, et rejette une commande inconnue"),
@@ -116,6 +118,7 @@ internal static class ModeMateriel
         new(211, "x87", "FRNDINT garde le signe du zéro (le noyau)"),
         new(212, "x87", "FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486 ; le noyau)"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
+        new(216, "stockage", "INTRQ suit l'unité choisie et nIEN ; un front par interruption, aucune perdue"),
         new(217, "stockage", "le sense du Xebec porte le bit « adresse valide » et l'adresse"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
@@ -145,9 +148,10 @@ internal static class ModeMateriel
     /// par la carte, au même site (x87.Materiel.cs). PB-48, 52, 54 à 58, 60 à 68, 70, 194 à 203, 206 à 208, 211 à 213, 264 et
     /// 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
     /// corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213), dont il remplace les tables
-    /// (G13.6, le noyau, N7c ; leurs gestionnaires en `double` ont quitté le dépôt en N8a).</summary>
+    /// (G13.6, le noyau, N7c ; leurs gestionnaires en `double` ont quitté le dépôt en N8a). PB-71 et PB-216 : la ligne
+    /// d'interruption d'un canal IDE, dans la même fonction (ide_irq_update, G13.7b).</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204],
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204], [71, 216],
          [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 264, 265]];
 
     /// <summary>Les corrections en chantier, qui n'entrent ni dans « tout », ni dans leur domaine : aucune depuis que le

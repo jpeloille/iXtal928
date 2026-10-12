@@ -77,7 +77,7 @@ internal sealed class IDE
     }
 }
 
-internal static class ide
+internal static partial class ide
 {
     // pcem: ide.c:1 — propriété et non constante : TIMER_USEC reste nul jusqu'à
     // setpitclock() (timer.cs), comme dans mfm_at.cs.
@@ -208,6 +208,9 @@ internal static class ide
         if ((ide.fdisk & 2) == 0)
         {
                 picint((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
+                // pcem bug, fixed in hardware mode: PB-216 — la ligne monte : ide_irq_update ne la relèvera pas.
+                if (materiel.pb_216)
+                        ide_ligne_materiel(ide, true);
                 if (ide_bus_master_set_irq != null)
                         ide_bus_master_set_irq(ide.board, ide_bus_master_p);
         }
@@ -219,17 +222,23 @@ internal static class ide
     private static void ide_irq_lower(IDE ide)
     {
         picintc((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
+        // pcem bug, fixed in hardware mode: PB-216 — la ligne retombe.
+        if (materiel.pb_216)
+                ide_ligne_materiel(ide, false);
         ide.irqstat = 0;
     }
 
     // pcem: ide.c:138-143 — le masque 0x40 est l'IRQ 14 (bit 6 du PIC esclave), et il sert
     // AUSSI au canal secondaire, dont la ligne est l'IRQ 15 (0x80).
-    // pcem bug, reproduced: PB-71
+    // pcem bug, fixed in hardware mode: PB-71
     internal static void ide_irq_update(IDE ide)
     {
+        if (materiel.pb_71)
+                if (ide_irq_update_materiel(ide))
+                        return;
         if (ide.irqstat != 0 && ((pic2.pend | pic2.ins) & 0x40) == 0 && (ide.fdisk & 2) == 0)
                 picint((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
-        // pcem bug, reproduced: PB-216 — baisse aussi la ligne que l'unité choisie tient encore (irqstat à 1,
+        // pcem bug, fixed in hardware mode: PB-216 — baisse aussi la ligne que l'unité choisie tient encore (irqstat à 1,
         //   nIEN à 0) : l'IRQ en attente se perd ; et après l'EOI, la branche du dessus en pose une seconde.
         else if (((pic2.pend | pic2.ins) & 0x40) != 0)
                 picintc((uint16_t)((ide.board != 0) ? (1 << 15) : (1 << 14)));
@@ -384,6 +393,10 @@ internal static class ide
     internal static void resetide()
     {
         int d;
+
+        // pcem bug, fixed in hardware mode: PB-216 — les deux fils INTRQ partent bas.
+        if (materiel.pb_216)
+                ide_raz_materiel();
 
         /* Close hard disk image files (if previously open) */
         for (d = 0; d < 4; d++)
@@ -1115,7 +1128,10 @@ internal static class ide
                 }
                 // VERIFY NE BOUGE RIEN : ni les registres d'adresse, ni le compteur — le
                 // disque rend la main au premier rappel, comme s'il n'y avait qu'un secteur.
-                // pcem bug, reproduced: PB-74
+                // pcem bug, fixed in hardware mode: PB-74
+                if (materiel.pb_74)
+                        if (ide_verify_materiel(ide))
+                                return;
                 ide.pos = 0;
                 ide.atastat = READY_STAT | DSC_STAT;
                 ide_irq_raise(ide);

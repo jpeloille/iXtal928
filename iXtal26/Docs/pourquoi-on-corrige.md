@@ -1065,3 +1065,34 @@ READ LONG et WRITE LONG, sur l'XT comme sur l'AT, lisent et écrivent les 4 octe
 contrôleur calcule pour chaque secteur. Le polynôme est publié, mais pas la manière exacte de le calculer : ces octets
 seraient inventés. Ces deux commandes restent refusées. La commande propre à la carte DTC (PB-28) et la commande
 envoyée à un second disque absent de l'AT (PB-75) restent aussi en l'état : personne ne sait ce que fait le matériel.
+
+## G13.7b — le disque IDE
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7b.*
+
+### PB-71 et PB-216 — l'interruption du disque
+
+- **Le vrai PC.** Quand le disque IDE a fini une commande, il lève un fil d'interruption et le garde levé jusqu'à ce
+  que le programme lise son état. Le contrôleur d'interruptions de l'AT ne réagit qu'au moment où le fil monte : une
+  interruption, une seule. Chaque canal a son fil, l'IRQ 14 pour le premier, l'IRQ 15 pour le second.
+- **L'émulateur.** Chaque fois que le programme choisit un disque ou touche au registre de contrôle, PCem recalcule le
+  fil à sa manière : il peut retirer une interruption encore due — elle est perdue —, ou en poser une seconde après
+  qu'elle a été servie. Et pour le second canal, il regarde le fil du premier.
+- **La correction.** Chaque fil est suivi comme un vrai fil : levé tant que le disque choisi a une interruption en
+  attente et ne l'a pas masquée, une seule interruption à la montée ; un reset du disque, logiciel ou matériel, efface
+  l'interruption en attente.
+
+### PB-74 — VERIFY
+
+- **Le vrai PC.** La commande VERIFY relit sur le disque le nombre de secteurs demandé, sans rien transférer, et rend
+  à la fin l'adresse du dernier secteur vérifié et un compte nul ; un secteur introuvable l'arrête en erreur.
+- **L'émulateur.** PCem répond « fait » tout de suite, comme si un seul secteur avait été vérifié, et laisse l'adresse
+  et le compte tels quels ; même au-delà de la fin du disque, sans erreur.
+- **La correction.** Tous les secteurs sont parcourus, l'adresse et le compte sont ceux de la norme ATA-1, et un
+  secteur au-delà du disque rend l'erreur « secteur introuvable ».
+
+### Ce qui reste comme chez PCem
+
+PB-72 — ce qu'un disque fait d'une écriture dans ses registres pendant qu'il se réinitialise — n'est pas défini par
+la norme de 1993, et celle de 1997 se contredit : il reste en l'état, comme Julien l'a décidé (Q6). PB-73, la commande
+multiple sans taille de bloc, rendait déjà l'erreur du vrai disque.

@@ -47,6 +47,7 @@ internal static partial class MaterielCas
         [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [68] = Pb68, [200] = Pb200, [201] = Pb201, [202] = Pb202, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
         [14] = Pb14, [19] = Pb19, [22] = Pb22, [23] = Pb23, [25] = Pb25, [217] = Pb217,
+        [71] = Pb71, [74] = Pb74, [216] = Pb216,
     };
 
     /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les

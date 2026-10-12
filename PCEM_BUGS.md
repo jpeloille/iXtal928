@@ -1310,7 +1310,12 @@ canal ; preuve interne : `ide_irq_raise` et `ide_irq_lower` visent l'IRQ 15 pour
 = 0), une IRQ 14 est en attente : une écriture de 176h efface chez PCem le bit 7 de `pic2.pend` (l'IRQ 15 perdue) ;
 le matériel le garde.
 *G13* : (a) — à traiter avec PB-216, même fonction.
-*Reproduit* : `Ide/ide.cs`, `ide_irq_update`, marqueur PB-71.
+*Reproduit* en mode PCem : `Ide/ide.cs`, `ide_irq_update`, marqueur `fixed in hardware mode: PB-71`.
+*Corrigé en mode matériel* (G13.7b), avec PB-216 (la même fonction, un seul groupe) : sous `if (materiel.pb_71)`,
+`ide_irq_update_materiel` (`Ide/ide.Materiel.cs`) suit le fil INTRQ de chaque ligne, l'IRQ 14 pour le primaire,
+l'IRQ 15 pour le secondaire. `materiel-cas PB-71` (l'IRQ 15 levée par le secondaire, une IRQ 14 en attente, OUT
+176h,A0h) rend la demande de l'IRQ 15 perdue en mode PCem, gardée en mode matériel ; puis nIEN posé sur le secondaire
+(OUT 376h,02h) retire l'IRQ 15 et laisse l'IRQ 14, dans les deux modes ; la correction coupée, il rougit.
 
 ### PB-72 — Sélectionner un lecteur pendant un reset perd la tête et le mode LBA de l'écriture
 
@@ -1356,7 +1361,16 @@ verified ») et § 7.2.11 (compte nul en fin normale). ATA-3 r7b § 7.19 ne requ
 ATA-1 : compte 0, secteur 5. VERIFY qui franchit la fin du disque : PCem, READY sans erreur ; ATA-1 : ERR, IDNF,
 l'adresse du premier secteur fautif et le compte restant.
 *G13* : (a), sous ATA-1.
-*Reproduit* : `Ide/ide.cs`, `callbackide`, marqueur PB-74.
+*Reproduit* en mode PCem : `Ide/ide.cs`, `callbackide`, marqueur `fixed in hardware mode: PB-74`.
+*Corrigé en mode matériel* (G13.7b) : sous `if (materiel.pb_74)`, `ide_verify_materiel` (`Ide/ide.Materiel.cs`)
+parcourt les secteurs du compte (0 : 256) par `ide_next_sector` ; un secteur hors du disque (au-delà de sa capacité,
+ou en CHS un secteur nul, au-delà de la piste ou une tête au-delà de l'image, l'adressage de PCem) finit en ERR et
+IDNF, l'adresse du secteur fautif et le compte restant ; sinon le compte est nul et l'adresse celle du dernier
+secteur vérifié. En LBA, l'adresse est recopiée dans les registres de secteur, de cylindre et de tête, que PCem ne
+met jamais à jour (`lba_addr` seul avance). `materiel-cas PB-74` (les deux cas ci-dessus et un VERIFY de 2
+secteurs depuis le LBA 100, sur un disque de 20 × 4 × 17) rend compte 5 et secteur 1, compte 2 et LBA 100, puis
+READY, compte 5 et LBA 1358 en mode PCem ; compte 0 et secteur 5, compte 0 et LBA 101, puis ERR, IDNF, compte 3 et
+LBA 1360 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-75 — Une commande à l'unité 1 absente arrête l'émulateur (Fixed Disk Adapter de l'AT)
 
@@ -4164,7 +4178,20 @@ que nIEN vaut 0 ; il ne retombe que sur RESET-, SRST, une écriture du registre 
 bit 6 de `pic2.pend` posé ; écriture de 1F6h = A0h (la même unité) : PCem efface le bit 6, l'IRQ est perdue ; le
 matériel le garde, et l'IRQ arrive au STI.
 *G13* : (a) — avec PB-71, même fonction.
-*Reproduit* : `Ide/ide.cs`, `ide_irq_update`, marqueur PB-216.
+*Reproduit* en mode PCem : `Ide/ide.cs`, `ide_irq_update`, marqueur `fixed in hardware mode: PB-216`.
+*Corrigé en mode matériel* (G13.7b), avec PB-71 : le fil INTRQ de chaque ligne est suivi (`EtatIde.ligne`, posé par
+`ide_irq_raise`, baissé par `ide_irq_lower`) ; `ide_irq_update_materiel` le recalcule — haut tant que l'unité choisie
+a une interruption en attente et que nIEN vaut 0 — et ne pose une demande au 8259 (`picint`) que sur un front
+montant, ne la retire (`picintc`) que quand il retombe (`Ide/ide.Materiel.cs`). SRST et RESET- le néguent (§ 6.3.10,
+signalé par la contre-lecture) : SRST (3F6h, bit 2) efface l'interruption en attente des deux unités du canal, le
+reset de l'IDE celle de toutes, et les fils partent bas. Une unité choisie de nouveau, son interruption toujours en
+attente, relève le fil : un front, lecture littérale d'ATA-1 (le comportement d'un vrai disque n'est pas mesuré).
+`materiel-cas PB-216` (l'interruption levée, OUT 1F6h,A0h ; puis la demande servie, l'état non lu, un second OUT
+1F6h,A0h ; puis l'état lu, une interruption neuve servie avant toute écriture, OUT 1F6h,A0h ; puis une interruption
+levée, SRST posé et retiré ; puis nIEN posé, une interruption levée, nIEN remis à 0) rend « perdue », « posée »,
+« posée », « retirée puis posée », « aucune puis posée » en mode PCem, « gardée », « aucune », « aucune »,
+« retirée puis aucune », « aucune puis posée » en mode matériel ; la correction coupée, il rougit. L'unité non choisie qui lève sa ligne (ide_irq_raise ne regarde pas l'unité choisie) reste celle
+de PCem : hors de ces deux défauts.
 
 ### PB-217 — Le sense du Xebec n'a ni le bit « adresse valide » ni l'adresse
 

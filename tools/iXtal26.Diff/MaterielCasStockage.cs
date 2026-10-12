@@ -249,4 +249,139 @@ internal static partial class MaterielCas
                     $"fin 00h, {string.Join(" ", attendu.Select(o => o.ToString("X2")))}", hw);
         return bad + VoirArret();
     });
+
+    // ===== L'IDE (G13.7b) =====
+
+    /// <summary>L'ibmat et son IDE, un disque de 20 × 4 × 17 en C:, l'UC arrêtée.</summary>
+    private static void MonterIde(string tmp)
+    {
+        var c = XebecBanc.Image(tmp, "c.img", 20, 4, 17);
+        XebecBanc.Demarrer("roms", Cfg(tmp, "model = ibmat\ndrive_a_type = 5\ndrive_b_type = 2\nhdd_controller = ide\n" +
+                                            $"hdc_cylinders = 20\nhdc_heads = 4\nhdc_sectors = 17\nhdc_fn = {c}\n"));
+    }
+
+    private static byte IdeAttendre(ushort b = 0x1F0)
+    {
+        for (var i = 0; i < 50 && (io.inb((ushort)(b + 7)) & 0x80) != 0; i++)
+            pc.runpc();
+        return io.inb((ushort)(b + 7));
+    }
+
+    // PB-71 — chaque canal a sa ligne (ATA-1 r4 § 6.3.10 ; l'IRQ 15 du secondaire, ide.c:118-136). L'unité maîtresse
+    // du canal secondaire a levé l'IRQ 15 ; une IRQ 14 attend au PIC esclave ; une écriture de 176h (la même unité) :
+    // PCem efface la demande de l'IRQ 15 (le bit 7 de pic2.pend), le matériel la garde.
+    private static int Pb71(bool hw) => Avec(tmp =>
+    {
+        MonterIde(tmp);
+        io.outb(0x176, 0xA0);
+        Ide.ide.ide_irq_raise(Ide.ide.ide_drives[2]);
+        Models.pic.picint(1 << 14);
+        io.outb(0x176, 0xA0);
+        var garde = (Models.pic.pic2.pend & 0x80) != 0;
+        var bad = Voir("IRQ 15 levée par le secondaire, IRQ 14 en attente, OUT 176h,A0h ; la demande de l'IRQ 15",
+                       garde == hw, garde ? "gardée" : "perdue", hw ? "gardée" : "perdue", hw);
+        // Puis nIEN posé sur le secondaire (OUT 376h,02h) : sa ligne retombe, la demande de l'IRQ 15 se retire, celle de
+        // l'IRQ 14 reste — dans les deux modes.
+        io.outb(0x376, 0x02);
+        var (i15, i14) = ((Models.pic.pic2.pend & 0x80) != 0, (Models.pic.pic2.pend & 0x40) != 0);
+        bad += Voir("puis OUT 376h,02h (nIEN) ; les demandes des IRQ 15 et 14", !i15 && i14,
+                    $"IRQ 15 {(i15 ? "posée" : "retirée")}, IRQ 14 {(i14 ? "posée" : "retirée")}", "IRQ 15 retirée, IRQ 14 posée", hw);
+        return bad + VoirArret();
+    });
+
+    // PB-216 — INTRQ est actif tant que l'unité choisie a une interruption en attente et que nIEN vaut 0 (ATA-1 r4
+    // § 6.3.10) ; le 8259A de l'AT ne prend que les fronts. Unité 0 du primaire, son interruption levée : OUT 1F6h,A0h
+    // (la même unité), PCem retire la demande (le bit 6 de pic2.pend), le matériel la garde. Puis la demande servie (le
+    // bit effacé, comme l'acquittement), l'état non lu : un second OUT 1F6h,A0h, PCem pose une seconde demande, le
+    // matériel aucune (pas de front).
+    private static int Pb216(bool hw) => Avec(tmp =>
+    {
+        MonterIde(tmp);
+        var bad = 0;
+        io.outb(0x1F6, 0xA0);
+        Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
+        io.outb(0x1F6, 0xA0);
+        var garde = (Models.pic.pic2.pend & 0x40) != 0;
+        bad += Voir("l'interruption levée, OUT 1F6h,A0h ; la demande de l'IRQ 14", garde == hw, garde ? "gardée" : "perdue",
+                    hw ? "gardée" : "perdue", hw);
+        Models.pic.pic2.pend &= unchecked((byte)~0x40);
+        io.outb(0x1F6, 0xA0);
+        var seconde = (Models.pic.pic2.pend & 0x40) != 0;
+        bad += Voir("la demande servie, l'état non lu, OUT 1F6h,A0h ; une seconde demande", seconde == !hw,
+                    seconde ? "posée" : "aucune", hw ? "aucune" : "posée", hw);
+        // L'état lu (1F7h, l'interruption retombe), une interruption neuve, servie avant toute écriture de 1F6h, puis
+        // OUT 1F6h,A0h : le matériel ne voit pas de front neuf.
+        io.inb(0x1F7);
+        Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
+        Models.pic.pic2.pend &= unchecked((byte)~0x40);
+        io.outb(0x1F6, 0xA0);
+        seconde = (Models.pic.pic2.pend & 0x40) != 0;
+        bad += Voir("l'état lu, une interruption neuve servie, OUT 1F6h,A0h ; une seconde demande", seconde == !hw,
+                    seconde ? "posée" : "aucune", hw ? "aucune" : "posée", hw);
+        // SRST négue INTRQ (§ 6.3.10) : l'état lu, une interruption neuve, OUT 3F6h,04h (SRST), puis OUT 3F6h,00h. PCem
+        // garde l'interruption en attente et la repose à la fin du reset ; le matériel l'a effacée : aucune demande.
+        io.inb(0x1F7);
+        Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
+        io.outb(0x3F6, 0x04);
+        var pendant = (Models.pic.pic2.pend & 0x40) != 0;
+        io.outb(0x3F6, 0x00);
+        var apres = (Models.pic.pic2.pend & 0x40) != 0;
+        bad += Voir("une interruption levée, OUT 3F6h,04h (SRST), puis OUT 3F6h,00h ; la demande pendant, puis après",
+                    !pendant && apres == !hw, $"{(pendant ? "posée" : "retirée")}, puis {(apres ? "posée" : "aucune")}",
+                    hw ? "retirée, puis aucune" : "retirée, puis posée", hw);
+        // nIEN : l'interruption levée pendant que nIEN vaut 1 ne pose rien ; nIEN remis à 0, le fil monte — dans les deux
+        // modes.
+        IdeAttendre();
+        io.inb(0x1F7);
+        io.outb(0x3F6, 0x02);
+        Ide.ide.ide_irq_raise(Ide.ide.ide_drives[0]);
+        var masquee = (Models.pic.pic2.pend & 0x40) != 0;
+        io.outb(0x3F6, 0x00);
+        var demasquee = (Models.pic.pic2.pend & 0x40) != 0;
+        bad += Voir("nIEN posé, une interruption levée, puis nIEN remis à 0 ; la demande", !masquee && demasquee,
+                    $"{(masquee ? "posée" : "aucune")}, puis {(demasquee ? "posée" : "aucune")}", "aucune, puis posée", hw);
+        return bad + VoirArret();
+    });
+
+    // PB-74 — READ VERIFY SECTOR(S) (ATA-1 r4 § 9.19, § 7.2.11) : en fin normale, l'adresse du dernier secteur vérifié
+    // et le compte nul ; en erreur, IDNF, l'adresse du secteur fautif et le compte restant. VERIFY de 5 secteurs depuis
+    // CHS 0/0/1 : PCem rend le compte 5 et le secteur 1, ATA-1 le compte 0 et le secteur 5. VERIFY de 5 secteurs depuis
+    // le LBA 1358 d'un disque de 1360 : PCem, READY, compte 5, LBA 1358 ; ATA-1, ERR et IDNF, compte 3, LBA 1360.
+    private static int Pb74(bool hw) => Avec(tmp =>
+    {
+        MonterIde(tmp);
+        var bad = 0;
+        void Verify(int compte, int s, int cl, int ch, int dh)
+        {
+            io.outb(0x1F2, (byte)compte);
+            io.outb(0x1F3, (byte)s);
+            io.outb(0x1F4, (byte)cl);
+            io.outb(0x1F5, (byte)ch);
+            io.outb(0x1F6, (byte)dh);
+            io.outb(0x1F7, 0x40);
+        }
+        Verify(5, 1, 0, 0, 0xA0);
+        var st = IdeAttendre();
+        var (n, sec) = (io.inb(0x1F2), io.inb(0x1F3));
+        bad += Voir("VERIFY de 5 secteurs depuis CHS 0/0/1 ; l'état, le compte, le secteur",
+                    (st & 0x01) == 0 && (n, sec) == (hw ? (0, 5) : (5, 1)), $"état {st:X2}h, compte {n}, secteur {sec}",
+                    hw ? "compte 0, secteur 5" : "compte 5, secteur 1", hw);
+        Verify(2, 100, 0, 0, 0xE0);
+        st = IdeAttendre();
+        n = io.inb(0x1F2);
+        var lba100 = io.inb(0x1F3) | io.inb(0x1F4) << 8 | io.inb(0x1F5) << 16;
+        bad += Voir("VERIFY de 2 secteurs depuis le LBA 100 ; l'état, le compte, le LBA",
+                    (st & 0x01) == 0 && (n, lba100) == (hw ? (0, 101) : (2, 100)), $"état {st:X2}h, compte {n}, LBA {lba100}",
+                    hw ? "compte 0, LBA 101" : "compte 2, LBA 100", hw);
+        Verify(5, 0x4E, 0x05, 0, 0xE0);
+        st = IdeAttendre();
+        var err = io.inb(0x1F1);
+        n = io.inb(0x1F2);
+        var lba = io.inb(0x1F3) | io.inb(0x1F4) << 8 | io.inb(0x1F5) << 16;
+        bad += Voir("VERIFY de 5 secteurs depuis le LBA 1358 d'un disque de 1360 ; l'état, l'erreur, le compte, le LBA",
+                    hw ? (st & 0x01) != 0 && err == 0x10 && n == 3 && lba == 1360 : (st & 0x01) == 0 && n == 5 && lba == 1358,
+                    $"état {st:X2}h, erreur {err:X2}h, compte {n}, LBA {lba}",
+                    hw ? "ERR, IDNF, compte 3, LBA 1360" : "sans erreur, compte 5, LBA 1358", hw);
+        return bad + VoirArret();
+    });
 }

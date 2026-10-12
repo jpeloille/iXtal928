@@ -466,7 +466,7 @@ contre-lecture, M2, sa série entière et son commit :
   les deux modes, par l'*IBM Fixed Disk Adapter* (Q4 de D3-stockage) ; PB-76, READ LONG et WRITE LONG, 512 octets et
   les 4 de l'ECC — si le code ECC du WD1003 n'est pas documenté au bit près, PB-76 reste au repli (dit). Restent
   reproduits : PB-28 (le DTC 5150X, inconnu), PB-75 (l'unité 1 absente, inconnu).
-- **G13.7b — L'IDE.** PB-71 et PB-216 (l'IRQ du canal secondaire, et `ide_irq_update` qui baisse une ligne encore
+- **G13.7b — L'IDE** ✅ *(12/10, VERIFICATION.md § G13.7b ; SRST et RESET- effacent l'interruption en attente, ajoutés par la contre-lecture)*. PB-71 et PB-216 (l'IRQ du canal secondaire, et `ide_irq_update` qui baisse une ligne encore
   tenue : une seule fonction), PB-74 (VERIFY, tous les secteurs et les registres de fin, ATA-1). PB-73 est déjà le
   comportement du disque ; PB-72 : Q6.
 - **G13.7c — Le CD.** Le moteur d'images (PB-106, le mode 2 à 2 336 octets ; PB-108, INDEX 00 ; PB-109, l'échec

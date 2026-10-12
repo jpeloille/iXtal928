@@ -9893,3 +9893,53 @@ tête 0 d'une unité absente (zéro tête dans son image) hors du disque, 21h, a
 de PB-267. La correction ne touche que le mode matériel du Xebec ; les portes qui l'exercent, rejouées : `r9-xebec`
 dans les deux modes (31 essais), `materiel-cas PB-25` dans les deux modes, `recensement` : vertes ; le contrôle
 négatif M6 (`<=`) rougit encore. Aucune autre porte de la série ne monte le Xebec en mode matériel.
+
+## G13.7b — le disque IDE
+
+Le 12 octobre 2026. La deuxième étape du stockage (PLAN-G13.md, § G13.7). La source, lue : ATA-1, AT Attachment
+Interface for Disk Drives (X3.221-1994, révision 4) — § 6.3.10 (INTRQ), § 7.2.6 (nIEN), § 7.2.11 et § 9.19 (READ
+VERIFY SECTOR(S)). Que le 8259A de l'AT ne prenne que les fronts est déduit (ICW1, LTIM = 0, posé par le BIOS).
+
+**Les corrections du mode matériel** (domaine `stockage`, trois neuves, PB-71 et PB-216 en groupe) : PB-71, chaque
+canal a son fil — le second ne regarde plus celui du premier, sa demande de l'IRQ 15 n'est plus retirée par
+l'IRQ 14 ; PB-216, INTRQ suivi comme un fil (`EtatIde.ligne`, une classe imbriquée : le constructeur statique de
+`ide` ne change pas) — haut tant que l'unité choisie a une interruption en attente et que nIEN vaut 0, `picint` à la
+montée seulement, `picintc` à la chute ; la lecture de l'état, l'écriture d'une commande, SRST (les deux unités du
+canal) et RESET- (toutes les unités) l'effacent ; PB-74, VERIFY parcourt tous les secteurs (le compte 0 vaut 256),
+rend en fin normale l'adresse du dernier secteur vérifié et le compte nul, et, au-delà du disque, IDNF (10h) avec
+l'adresse du secteur fautif et le compte restant ; l'adresse recopiée dans les registres LBA quand l'unité est en LBA.
+Chacune a son cas en C# seul (`materiel-cas`, `MaterielCasStockage.cs`), l'IBM AT et un disque IDE de 20 × 4 × 17
+sur le banc de 7a, conduit par ses ports : PB-71, la demande de l'IRQ 15 gardée, puis nIEN sur 376h qui la retire
+(dans les deux modes) ; PB-216, cinq temps — la même unité choisie à nouveau (PCem perd la demande), la demande
+servie et l'état non lu (PCem en pose une seconde), l'état lu et une interruption neuve (aucun front), SRST (PCem
+repose l'interruption à la fin du reset), nIEN remis à 0 (le front, dans les deux modes) ; PB-74, CHS 0/0/1 × 5,
+LBA 100 × 2, LBA 1358 × 5 sur un disque de 1 360 secteurs. Les trois sont verts dans les deux modes, la sonde
+atteinte en mode matériel.
+
+**Restent comme chez PCem** : PB-72 (une écriture des registres pendant le reset ; ATA-1 ne la définit pas, ATA-4 se
+contredit — Q6, Julien) ; PB-73 rendait déjà l'erreur du vrai disque. Écrits dans PCEM_BUGS, sans effet sur le code :
+l'unité rechoisie dont l'interruption n'a pas été lue fait remonter le fil, lecture littérale d'ATA-1 que rien ne
+mesure ; un VERIFY de 256 secteurs en erreur au premier rend le compte 0, le registre n'a que 8 bits.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137b.py`, une faute à la fois dans le dépôt) : neuf fautes, chacune rougit
+son cas — la ligne de l'IRQ 14 pour les deux canaux (PB-71) ; un front à chaque appel, la ligne baissée à tort,
+`ide_irq_raise` qui ne suit pas le fil, SRST qui garde l'interruption (PB-216) ; un seul secteur, l'adresse LBA non
+recopiée, la capacité à un près, le compte restant perdu (PB-74). Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, ATA-1 r4 relu) : un point à corriger, cinq remarques, tous traités. Corrigé : SRST et
+RESET- ne retiraient pas l'interruption en attente, que § 6.3.10 compte parmi les chutes d'INTRQ — PCem la garde et
+la repose à la fin du reset ; `ide_raz_materiel` (RESET-, au début de `resetide`) et l'écriture de 3F6h avec SRST
+l'effacent, le cas de PB-216 l'exerce, la faute B9 le prouve. Repris des remarques : le cas de PB-216 couvre aussi
+nIEN remis à 0 après une interruption masquée ; le chemin d'erreur de VERIFY remet `pos` à 0 et allume le témoin
+comme le chemin normal ; l'unité rechoisie et le compte de 256 écrits dans PCEM_BUGS (ci-dessus).
+
+**M2** (Release du worktree, un scénario neuf dans `tools/listings-jit.sh` : `ibmat-ide`, l'IBM AT et un disque IDE
+vierge, le POST, son interruption, le secteur d'amorce). Contre M2-7a : deux méthodes changées, les constructeurs
+statiques de `materiel` et de `ModeMateriel` (les trois champs, les trois corrections et le groupe [71, 216]).
+Contre M0, le scénario neuf rejoué sur 860f2b1 (`M0-860f2b1-g137b`) : les méthodes gardées `ide_irq_update`,
+`ide_irq_raise`, `ide_irq_lower`, `resetide` et `callbackide` identiques.
+
+**La série** g7b (le worktree de l'étape, contre g7a) : 514 portes, toutes vertes ; 508 communes à g7a, chacune au même
+verdict, sauf `r9-xebec-materiel`, rouge dans g7a et verte ici (31 essais, la correction de `xebec_tete_materiel`
+faite après g7a, § G13.7a). Deux résumés changent : `recensement` (267 défauts, 1 095 marqueurs, sept de plus) et
+`r9-xebec-materiel`. Six neuves : les `materiel-cas` de PB-71, PB-216 et PB-74, dans les deux modes.

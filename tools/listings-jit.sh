@@ -41,7 +41,8 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # « _ » tient lieu d'espace. G13.7a, deux disques MFM : l'XT et son Xebec (xt-xebec ; le POST de la ROM de la carte, un
 # PC-DOS amorcé de A: qui copie COMMAND.COM sur B:, l'écriture d'une disquette), et l'IBM AT et son contrôleur
 # (ibmat-mfm ; le POST, SET PARAMETERS et la lecture du secteur d'amorce de C:). Leurs images vierges (hdc_fn = os/…)
-# sont COPIÉES dans le bac à sable.
+# sont COPIÉES dans le bac à sable. G13.7b, l'IDE : l'IBM AT et un disque IDE vierge (ibmat-ide ; le POST, son
+# interruption, le secteur d'amorce).
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
@@ -57,6 +58,7 @@ SCENARIOS=(
   "ami386dx-x87div|--boot roms 2500 --config tools/gates/cfg/ami386dx-387-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_DB_E3_D9_E8_D9_E8_DE_F9_D9_EE_DE_F9_DB_E2_9B_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami386dx-387-fd.cfg.in ami386dx_opti495"
   "xt-xebec|--boot roms 9000 --config tools/gates/cfg/xt-xebec.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type COPY_COMMAND.COM_B:X.COM --type @wait_2000"
   "ibmat-mfm|--boot roms 4000 --config tools/gates/cfg/ibmat-mfm.cfg|tools/gates/cfg/ibmat-mfm.cfg at"
+  "ibmat-ide|--boot roms 4000 --config tools/gates/cfg/ibmat-ide.cfg|tools/gates/cfg/ibmat-ide.cfg at"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 

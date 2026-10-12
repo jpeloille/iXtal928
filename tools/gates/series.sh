@@ -676,3 +676,9 @@ for pb in 14 19 22 23 25 217; do
 done
 run r9-xebec r9-xebec
 run r9-xebec-materiel --hardware-mode stockage r9-xebec
+# G13.7b — l'IDE (PLAN-G13.md, G13.7) : PB-71 et PB-216 (la ligne d'interruption d'un canal, un seul groupe), PB-74
+# (READ VERIFY), chacun son cas en C# seul dans les deux modes, sur l'ibmat à disque IDE dont l'UC reste arrêtée.
+for pb in 71 216 74; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
