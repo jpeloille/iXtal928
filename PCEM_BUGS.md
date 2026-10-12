@@ -2723,12 +2723,23 @@ ABORT et chaque 02h suivant en reposte un.
 *Trouvé par* : reconnaissance de G11.
 *Source* : documenté — AHA-1540C TR, MBO (« After the MBO has been examined … the host adapter sets the MBO command
 byte back to zero ») et MBI : 02h « CCB aborted by host », 03h « Aborted CCB not found … It is likely that the CCB
-was already presented to the host ».
-*Cas qui discrimine* : mailbox de 4 octets, ABORT à l'emplacement 1 pour un CCB déjà achevé : PCem efface l'octet 8
-(l'emplacement 2), poste un MBI « aborted » (02h), puis un autre à chaque commande 02h ; la carte efface
-l'emplacement 1 et poste un seul MBI 03h.
+was already presented to the host ». Le START retiré quand il attend encore, et l'achèvement sans HACC (réservé aux
+commandes de l'hôte) — déduits.
+*Cas qui discrimine* : mailbox de 4 octets, ABORT à l'emplacement 1 pour un CCB qui n'attend pas (déjà achevé, ou
+inconnu) : PCem efface l'octet 8 (l'emplacement 2), poste un MBI « aborted » (02h), puis un autre à chaque commande
+02h ; la carte efface l'emplacement 1 et poste un seul MBI 03h. ABORT d'un CCB dont le START attend encore : PCem
+rend 02h puis lance le CCB quand même ; la carte le retire.
 *G13* : (a) — l'abandon d'un CCB en vol dépend du temps : son attendu est le plus fragile.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-139.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, le balayage de la mailbox, marqueurs `fixed in hardware mode:
+PB-139`.
+*Corrigé en mode matériel* (G13.7e1b) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_139)`, en tête de
+l'état CCB_STATE_IDLE, `balayage_materiel` : ABORT efface son propre MBO (`c * 4`), cherche le CCB visé parmi les
+START qui attendent — trouvé, ce START est effacé et le MBI dit 02h ; sinon 03h —, un seul MBI, sans HACC (un
+achèvement de mailbox, pas une commande de l'hôte : déduit). Un CCB en vol ne s'abandonne pas : le balayage n'a lieu
+qu'au repos de la carte, qui n'a qu'un CCB à la fois. `materiel-cas PB-139` (quatre emplacements : ABORT d'un CCB
+inconnu au MBO 1, START au MBO 2, deux 02h ; deux emplacements : ABORT au MBO 0 du CCB qui attend au MBO 1, deux 02h)
+rend l'ABORT laissé, le START perdu et 02h deux fois, puis 02h et le CCB lancé quand même, en mode PCem ; les MBO
+effacés, 03h puis l'achèvement du CCB, puis 02h seul, en mode matériel ; la correction coupée, il rougit.
 
 ### PB-140 — RETURN SETUP DATA est tronqué à 20 octets
 
@@ -2773,7 +2784,25 @@ MBI : un emplacement libre ; HRST et SRST exigent une nouvelle init. La mailbox 
 seul 02h : un seul part, contre les deux ; un MBI encore occupé : écrasé, contre l'attente ; HRST puis 02h sans
 01h : compté sans rien dire (le CCB part au 01h suivant), contre INVDCMD.
 *G13* : (a), la mailbox du BIOS (b) — son rapport à la mailbox normale n'est pas documenté.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-141 (01h, 02h, les deux balayages, les trois écritures du MBI).
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-141` (le port de contrôle,
+01h, 02h, les deux balayages, les trois écritures du MBI).
+*Corrigé en mode matériel* (G13.7e1b) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_141)`, chaque garde en
+tête de son `case` (M2) : `mailbox_init_materiel` (01h de compte nul : INVDCMD et HACC, la mailbox inchangée),
+`demarrage_materiel` (02h sans mailbox initialisée : INVDCMD et HACC ; sinon un balayage qui dure tant qu'un MBO plein
+reste), `reset_mailbox_materiel` (HRST et SRST abandonnent les balayages et exigent une nouvelle 01h ; HRST remet aussi la
+mailbox du BIOS à zéro, « identical to that of normal power-on » ; SRST la laisse déclarée, le TR n'en disant rien), `balayage_materiel` (le tourniquet depuis l'emplacement qui suit le
+dernier servi ; un code de MBO inconnu remis à zéro sans MBI, TR, chapitre 5 ; aucun CCB ne part sans un MBI libre,
+cherché en tourniquet — un seul CCB à la fois et un hôte qui ne fait que libérer des MBI : libre au départ, il l'est à
+l'achèvement ; la carte, elle, attend au moment de rendre — déduit ; la mailbox du BIOS balayée seulement si la normale
+n'a rien lancé, et n'attend pas le MBI de la normale : elle n'en écrit aucun — déduit ; l'état INIT, lui, ne la
+garde pas plus que chez PCem). `materiel-cas PB-141` (01h de compte 0 ; deux CCB et un 02h ; le MBI 0 occupé ; l'unique MBI
+occupé, puis libéré ; HRST, puis SRST : 02h sans 01h, puis 01h ; le tourniquet ; un code de MBO inconnu) rend HACC seul, un
+achèvement, le MBI écrasé, le MBI écrasé et le MBO libéré, deux fois aucun HACC puis le CCB parti sans 02h, le MBO 0
+servi seul,
+et 05h laissé en mode PCem ; INVDCMD, deux achèvements, le MBI 1, l'attente puis l'achèvement, INVDCMD puis l'attente
+d'un 02h (deux fois), le MBO 2 puis le 0, et 00h en mode matériel ; la correction coupée, il rougit. Non couvert par le cas : la
+mailbox du BIOS (le même passage de la carte demanderait 02h et 82h à la même échéance) ; le MBO effacé dès sa
+lecture (PCem l'efface à l'achèvement : le moment, pas le résultat).
 
 ### PB-142 — La machine des commandes est réentrante, et part de zéro
 

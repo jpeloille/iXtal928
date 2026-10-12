@@ -521,7 +521,7 @@ contre-lecture, M2, sa série entière et son commit :
     les options d'usine), PB-140 (0Dh entier : 44 octets utiles, les interrupteurs en 26h, 0 pour 256), PB-277 (22h
     qui change l'IRQ relâche l'ancienne ligne, détaché de PB-136 ; PB-136 hors bornes reste reproduit). PB-278 à
     PB-280 détachés de PB-144.
-  - **G13.7e1b — Les mailbox.** PB-141 (01h de compte nul refusé, le balayage des 02h, le MBI libre attendu, HRST et
+  - **G13.7e1b — Les mailbox** ✅ *(13/10, VERIFICATION.md § G13.7e1b)*. PB-141 (01h de compte nul refusé, le balayage des 02h, le MBI libre attendu, HRST et
     SRST exigent une nouvelle init), PB-139 (ABORT : l'emplacement en `c * 4`, un seul MBI, 03h si le CCB est déjà
     rendu).
   - **G13.7e2 — Le côté SCSI.** PB-276 (HRST libère le bus, le statut d'hôte 12h au lieu de la navette), PB-278 (les

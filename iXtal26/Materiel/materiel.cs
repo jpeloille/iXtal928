@@ -216,8 +216,14 @@ internal static class materiel
     /// <summary>PB-132 : une longueur nulle finit sans phase de données (la cible).</summary>
     internal static readonly bool pb_132;
 
+    /// <summary>PB-139 : ABORT efface son propre MBO, et rend un seul MBI, 02h ou 03h.</summary>
+    internal static readonly bool pb_139;
+
     /// <summary>PB-140 : Return Setup Data (0Dh) de l'AHA-1542C en entier.</summary>
     internal static readonly bool pb_140;
+
+    /// <summary>PB-141 : les mailbox de l'AHA-1542C : 01h, 02h, le tourniquet, le MBI libre, HRST et SRST.</summary>
+    internal static readonly bool pb_141;
 
     /// <summary>PB-144 : l'EEPROM de l'AHA-1542C propre au mode matériel ; sans elle, les réglages d'usine.</summary>
     internal static readonly bool pb_144;
@@ -484,7 +490,9 @@ internal static class materiel
         pb_130 = ModeMateriel.Demande(130);
         pb_131 = ModeMateriel.Demande(131);
         pb_132 = ModeMateriel.Demande(132);
+        pb_139 = ModeMateriel.Demande(139);
         pb_140 = ModeMateriel.Demande(140);
+        pb_141 = ModeMateriel.Demande(141);
         pb_144 = ModeMateriel.Demande(144);
         pb_218 = ModeMateriel.Demande(218);
         pb_277 = ModeMateriel.Demande(277);

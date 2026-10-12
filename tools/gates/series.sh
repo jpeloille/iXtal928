@@ -736,3 +736,9 @@ for pb in 140 144 218 277; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7e1b — les mailbox de l'AHA-1542C : PB-141 (01h et 02h, le tourniquet, le MBI libre, HRST et SRST), PB-139
+# (ABORT), chacun son cas en C# seul dans les deux modes, sur le même banc.
+for pb in 139 141; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

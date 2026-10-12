@@ -1376,3 +1376,32 @@ PB-136 — une demande d'écriture plus longue que la mémoire de la carte lit l
 vraie carte n'est pas documenté. PB-280 — une IRQ réglée hors des valeurs que propose Adaptec, et les temps de bus,
 qu'un émulateur n'a pas. PB-278 et PB-279 (le bloc de commande, la commande privée du BIOS) viennent avec les étapes
 suivantes de la carte.
+
+## G13.7e1b — les boîtes aux lettres de la carte Adaptec
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e1b.*
+
+### PB-141 — les boîtes aux lettres
+
+- **Le vrai PC.** Le pilote dépose ses demandes dans des « boîtes aux lettres » en mémoire, puis dit une fois à la carte
+  d'aller voir : la carte les sert toutes, dans l'ordre d'un tourniquet, et dépose chaque réponse dans une boîte de
+  retour libre — elle attend s'il n'y en a pas. Une boîte de taille nulle, ou un « va voir » sans boîtes déclarées, est
+  refusé ; après un reset de la carte, il faut les déclarer à nouveau.
+- **L'émulateur.** PCem ne sert qu'une demande par « va voir », toujours depuis la première boîte ; il écrase une
+  réponse que le pilote n'a pas encore lue ; il accepte une taille nulle, et après un reset il garde le compte des
+  « va voir » et repart tout seul.
+- **La correction.** Le tourniquet, la boîte de retour libre attendue, les refus, et le reset qui oublie tout.
+
+### PB-139 — l'abandon d'une demande
+
+- **Le vrai PC.** Le pilote peut demander l'abandon d'une demande : la carte efface cette demande d'abandon, retire la
+  demande visée si elle attend encore, et répond une fois — « abandonnée », ou « introuvable » si elle était déjà
+  servie.
+- **L'émulateur.** PCem efface la mauvaise boîte (il calcule son adresse avec un pas double), qui peut être une autre
+  demande, perdue ; il répond « abandonnée » même quand il n'y a rien à abandonner, et recommence à chaque « va voir ».
+- **La correction.** La bonne boîte, et une seule réponse juste.
+
+### Ce qui reste comme chez PCem
+
+La boîte aux lettres réservée au BIOS de la carte : son rapport avec la boîte normale n'est pas documenté ; seule est
+corrigée l'évidence — elle n'écrase plus une demande en cours.

@@ -10405,3 +10405,57 @@ seuls changent des jetons de chaînes (7, 4 et 4 `mov edi`, avant `CORINFO_HELP_
 **La série** g7e1a (le worktree de l'étape, contre g7d2b) : 570 portes, toutes vertes ; 562 communes à g7d2b, chacune au
 même verdict ; un seul résumé change, `recensement` (280 défauts, 1 162 marqueurs). Huit neuves : les `materiel-cas`
 de PB-140, PB-144, PB-218 et PB-277, dans les deux modes.
+
+## G13.7e1b — les mailbox de l'AHA-1542C
+
+Le 13 octobre 2026. La deuxième étape de 7e (PLAN-G13.md, § G13.7). La source : le Technical Reference de
+l'AHA-1540C/1542C — chapitre 2 (*Principles of Operation* : le tourniquet des MBO et des MBI), chapitre 4 (HRST et
+SRST : « the mailbox structure must be reinitialized »), chapitre 5 (Mailbox Initialization 01h, Start SCSI Command
+02h, *Mailbox Out Definition*, *Mailbox In Definition* : 02h « CCB aborted by host », 03h « Aborted CCB not found »).
+
+**Les corrections du mode matériel** (domaine `stockage`, deux ; `Scsi/scsi_aha1540.Materiel.cs`, en `NoInlining`),
+chaque garde en tête de son `case` ou de son état (la leçon de M2 en G13.7e1a) : PB-141 — 01h de compte nul refusé
+(INVDCMD et HACC) ; 02h sans mailbox initialisée refusé, sinon un balayage qui dure tant qu'un MBO plein reste, en
+tourniquet depuis l'emplacement qui suit le dernier servi ; un code de MBO inconnu remis à zéro ; aucun CCB ne part
+sans un MBI libre, cherché en tourniquet ; HRST et SRST abandonnent les balayages et exigent une nouvelle 01h ; la
+mailbox du BIOS balayée seulement si la normale n'a rien lancé. PB-139 — ABORT efface son propre MBO, retire le START
+visé s'il attend encore et rend un seul MBI, 02h ou 03h. Les deux corrections partagent `balayage_materiel`, chaque
+part selon sa garde ; ensemble (« tout »), les deux cas restent verts.
+
+**Le banc.** Les cas (`MaterielCasMailbox.cs`) écrivent leur mailbox en mémoire basse : le POST de l'ami486, que le
+banc croyait arrêté sur « Press F1 », efface encore la mémoire entre la 400e et la 450e tranche (mesuré : la mailbox
+écrite à la 300e tranche disparaissait, écrite à la 850e elle reste). Chaque cas attend donc 600 tranches ; ceux de
+G13.7d2a, plus brefs, finissent avant cet effacement (le banc est déterministe : verts, ils le restent).
+
+Les deux cas, en C# seul (`MaterielCasMailbox.cs`, une machine neuve par situation), sont verts dans les deux modes,
+sous les deux corrections ensemble et sous « tout », la sonde atteinte, rouges sous l'attente de l'autre mode.
+`recensement` vert (280 défauts, 1 164 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137e1b.py`) : seize fautes, chacune rougit son cas — 01h de compte nul
+accepté, 02h sans 01h accepté, un balayage par 02h, toujours depuis l'emplacement 0, le MBI libre non attendu, HRST
+puis SRST qui n'exigent pas 01h, le code inconnu laissé, l'ABORT en `c * 8`, 02h toujours, le START visé laissé, et
+chacune des cinq gardes retirée. Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, le TR et le C relus) : rien de bloquant ; la part PCem de `balayage_materiel` conforme
+au C pas à pas (sans PB-141 : `mbo_req`, depuis 0, la mailbox du BIOS non gardée ; sans PB-139 : `c * 8`, le même
+`isr`) ; l'hypothèse du MBI libre au départ tient dans le modèle de PCem (un seul CCB à la fois, l'hôte ne fait que
+libérer des MBI) ; chaque attendu des cas recalculé juste. Deux points corrigés : SRST n'efface plus la mailbox du BIOS
+(le TR ne le dit que de HRST, « identical to that of normal power-on ») ; un MBI normal occupé ne bloque plus la
+mailbox du BIOS, qui n'en écrit aucun. Remarques reprises : un cas SRST à côté du cas HRST ; `AvecMb` vérifie qu'une
+marque écrite dans la mailbox tient 100 tranches, sinon le banc s'arrête ; PB-139, le cas et le niveau des parts
+déduites (le START retiré, l'achèvement sans HACC) alignés ; PB-141, la mailbox du BIOS précisée.
+
+**Les amorçages.** Le scénario `ami486-aha` (le POST de la ROM v1.01, qui passe par la mailbox du BIOS, puis PC-DOS),
+joué en mode PCem, sous les six corrections de 7e1a et 7e1b, et sous « tout » (Debug, bac à sable hors dépôt) : aucun
+arrêt ; la sortie identique au caractère près sous les six corrections, l'écran identique sous « tout ». (Hors de
+l'étape : `--hardware-mode` placé avant `--boot` est ignoré sans un mot ; il ne compte que parmi les arguments du
+verbe.)
+
+**M2** (Release du worktree, le scénario `ami486-aha`) : avec et sans les cinq gardes de 7e1b (`M2-7e1b` contre
+`M2-7e1b-sansgardes`), identique (947 méthodes, aucune changée). Contre M2-7e1a (tous les scénarios) : les
+constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command` et `scsi_zip_command`,
+dont seuls changent des jetons de chaînes (7, 4 et 4 `mov edi`, avant `CORINFO_HELP_STRCNS`) ; le code est le même.
+
+**La série** g7e1b (le worktree de l'étape, contre g7e1a) : 574 portes, toutes vertes ; 570 communes à g7e1a, chacune au
+même verdict ; un seul résumé change, `recensement` (280 défauts, 1 164 marqueurs). Quatre neuves : les `materiel-cas`
+de PB-139 et PB-141, dans les deux modes.

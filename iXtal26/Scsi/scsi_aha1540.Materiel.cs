@@ -14,6 +14,7 @@
 #pragma warning disable CS8981
 
 using System.Runtime.CompilerServices;
+using static iXtal26.Memory.mem;
 using static iXtal26.Models.pic;
 
 namespace iXtal26.Scsi;
@@ -131,6 +132,237 @@ internal static partial class scsi_aha1540
         scsi.cmd_state = CMD_STATE_SEND_RESULT;
         scsi.result_pos = 0;
         scsi.result_len = c;
+        return true;
+    }
+
+    // ---- G13.7e1b : les mailbox (PB-141, PB-139) ----
+
+    private const uint8_t MBI_CCB_NON_TROUVE_MATERIEL = 0x03;
+
+    // L'état que PCem n'a pas, dans une classe à part (un champ statique de plus dans scsi_aha1540 changerait son
+    // constructeur statique).
+    private static class EtatAha
+    {
+        internal sealed class Mailbox
+        {
+            /// <summary>Une Mailbox Initialization valide reçue depuis la mise sous tension ou le dernier HRST ou SRST.</summary>
+            internal bool initialisee;
+            /// <summary>Un balayage demandé par 02h, qui dure tant qu'un MBO plein reste à servir.</summary>
+            internal bool balayage;
+            /// <summary>Le dernier MBO servi : le balayage reprend à l'emplacement suivant (tourniquet).</summary>
+            internal int dernier = -1;
+        }
+
+        internal static readonly ConditionalWeakTable<aha154x_t, Mailbox> Mailboxes = new();
+    }
+
+    private static EtatAha.Mailbox mailbox_materiel(aha154x_t scsi) => EtatAha.Mailboxes.GetOrCreateValue(scsi);
+
+    /// <summary>PB-141 : HRST et SRST abandonnent les balayages en cours et exigent une nouvelle Mailbox Initialization
+    /// (TR, chapitre 4 : « the mailbox structure must be reinitialized » ; SRST : « all queued commands are
+    /// abandoned ») ; HRST rend aussi la mailbox du BIOS à son état de mise sous tension (« identical to that of normal
+    /// power-on ») ; SRST la laisse déclarée — le TR n'en dit rien.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void reset_mailbox_materiel(aha154x_t scsi, uint8_t val)
+    {
+        if ((val & (CTRL_RESET | CTRL_SRST)) == 0)
+                return;
+        ModeMateriel.Sonde[141]++;
+        var m = mailbox_materiel(scsi);
+        m.initialisee = false;
+        m.balayage = false;
+        m.dernier = -1;
+        scsi.mbo_req = 0;
+        scsi.bios_mbo_req = 0;
+        if ((val & CTRL_RESET) != 0)
+                scsi.bios_mbo_inited = 0;
+    }
+
+    /// <summary>PB-141 : Mailbox Initialization (01h) — un compte nul pose INVDCMD et HACC, la mailbox inchangée (TR,
+    /// chapitre 5 : « Must be greater than zero ») ; sinon, comme PCem, et le tourniquet repart de l'emplacement 0.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool mailbox_init_materiel(aha154x_t scsi)
+    {
+        ModeMateriel.Sonde[141]++;
+        var m = mailbox_materiel(scsi);
+        if (scsi.@params[0] == 0)
+        {
+                scsi.status |= STATUS_INVDCMD;
+                set_irq(scsi, ISR_HACC);
+                scsi.cmd_state = CMD_STATE_IDLE;
+                return true;
+        }
+        scsi.mbc = scsi.@params[0];
+        scsi.mba = (uint32_t)(scsi.@params[3] | (scsi.@params[2] << 8) | (scsi.@params[1] << 16));
+        scsi.mba_i = scsi.mba + (uint32_t)(scsi.mbc * 4);
+        scsi.current_mbo = 0;
+        scsi.current_mbi = 0;
+        scsi.status &= unchecked((uint8_t)~STATUS_INIT);
+        m.initialisee = true;
+        m.balayage = false;
+        m.dernier = -1;
+        set_irq(scsi, ISR_HACC);
+        scsi.cmd_state = CMD_STATE_IDLE;
+        return true;
+    }
+
+    /// <summary>PB-141 : Start SCSI Command (02h) — sans mailbox initialisée, INVDCMD et HACC ; sinon un balayage, qui
+    /// dure jusqu'à ce que tous les MBO pleins soient servis (TR, chapitre 5), sans HACC.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool demarrage_materiel(aha154x_t scsi)
+    {
+        ModeMateriel.Sonde[141]++;
+        var m = mailbox_materiel(scsi);
+        if (!m.initialisee)
+        {
+                scsi.status |= STATUS_INVDCMD;
+                set_irq(scsi, ISR_HACC);
+        }
+        else
+                m.balayage = true;
+        scsi.cmd_state = CMD_STATE_IDLE;
+        return true;
+    }
+
+    /// <summary>Le MBI libre où la carte rendra le prochain achèvement, cherché en tourniquet depuis `current_mbi` (TR,
+    /// chapitre 5 : « scans the first byte of an MBI entry to find a free mailbox ») ; faux s'il n'y en a aucun.</summary>
+    private static bool mbi_libre_materiel(aha154x_t scsi)
+    {
+        for (var k = 0; k < scsi.mbc; k++)
+        {
+                var i = (scsi.current_mbi + k) % scsi.mbc;
+                if (mem_readb_phys(scsi.mba_i + (uint32_t)(i * 4)) == 0)
+                {
+                        scsi.current_mbi = i;
+                        return true;
+                }
+        }
+        return false;
+    }
+
+    private static void mbi_materiel(aha154x_t scsi, uint8_t code, uint32_t ccb)
+    {
+        mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), code);
+        mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 1, (uint8_t)(ccb >> 16));
+        mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 2, (uint8_t)(ccb >> 8));
+        mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 3, (uint8_t)(ccb & 0xff));
+        scsi.current_mbi++;
+        if (scsi.current_mbi >= scsi.mbc)
+                scsi.current_mbi = 0;
+        set_irq(scsi, (uint8_t)((scsi.mbo_irq_enable != 0 ? ISR_MBOA : 0) | ISR_MBIF));
+    }
+
+    /// <summary>PB-141 et PB-139 : l'état CCB_STATE_IDLE de process_ccb en entier, chaque part selon sa correction.
+    /// PB-141 : le balayage dure tant qu'un MBO plein reste, en tourniquet depuis l'emplacement qui suit le dernier
+    /// servi (TR, chapitre 5, MBO) ; un code de MBO inconnu est remis à zéro sans MBI ; aucun CCB ne part sans un MBI
+    /// libre pour son achèvement — un seul CCB à la fois, et l'hôte ne fait que libérer des MBI : libre au départ, il
+    /// l'est à l'achèvement (déduit : la carte attend au moment de rendre) ; la mailbox du BIOS, qui n'écrit aucun MBI,
+    /// n'attend pas le MBI de la normale, et n'est balayée que si la normale n'a rien lancé (déduit). Sans PB-141, le balayage de PCem (un par 02h compté, depuis l'emplacement 0).
+    /// PB-139 : ABORT efface son propre MBO, cherche le CCB visé parmi les START qui attendent — trouvé, ce START est
+    /// effacé et le MBI dit 02h ; sinon 03h (« Aborted CCB not found ») — un seul MBI ; sans PB-139, l'ABORT de PCem
+    /// (c * 8, 02h toujours). Un CCB en vol ne s'abandonne pas ici : le balayage n'a lieu qu'au repos.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool balayage_materiel(aha154x_t scsi)
+    {
+        var m = mailbox_materiel(scsi);
+        var tourniquet = materiel.pb_141;
+        var abandon = materiel.pb_139;
+
+        var actif = tourniquet ? m.balayage && m.initialisee : (scsi.status & STATUS_INIT) == 0 && scsi.mbo_req != 0;
+        if (actif)
+        {
+                var servi = false;
+                var attente = false;
+                for (var k = 0; k < scsi.mbc && !servi && !attente; k++)
+                {
+                        var c = tourniquet ? (m.dernier + 1 + k) % scsi.mbc : k;
+                        uint32_t mbo = mem_readl_phys(scsi.mba + (uint32_t)(c * 4));
+                        var command = (uint8_t)(mbo & 0xff);
+                        uint32_t ccb = (mbo >> 24) | ((mbo >> 8) & 0xff00) | ((mbo << 8) & 0xff0000);
+
+                        if (command == COMMAND_START_CCB)
+                        {
+                                if (tourniquet && !mbi_libre_materiel(scsi))
+                                {
+                                        attente = true;
+                                        break;
+                                }
+                                if (tourniquet)
+                                        ModeMateriel.Sonde[141]++;
+                                scsi.current_mbo = c;
+                                scsi.current_mbo_is_bios = 0;
+                                scsi.ccb.addr = ccb;
+                                process_cdb(scsi);
+                                m.dernier = c;
+                                if (!tourniquet)
+                                        scsi.mbo_req--;
+                                servi = true;
+                        }
+                        else if (command == COMMAND_ABORT_CCB)
+                        {
+                                if (tourniquet && !mbi_libre_materiel(scsi))
+                                {
+                                        attente = true;
+                                        break;
+                                }
+                                if (abandon)
+                                        ModeMateriel.Sonde[139]++;
+                                if (!tourniquet)
+                                        scsi.mbo_req--;
+                                m.dernier = c;
+                                if (abandon)
+                                {
+                                        mem_writeb_phys(scsi.mba + (uint32_t)(c * 4), COMMAND_FREE_CCB);
+                                        var trouve = false;
+                                        for (var j = 0; j < scsi.mbc && !trouve; j++)
+                                        {
+                                                uint32_t autre = mem_readl_phys(scsi.mba + (uint32_t)(j * 4));
+                                                uint32_t pointe = (autre >> 24) | ((autre >> 8) & 0xff00) | ((autre << 8) & 0xff0000);
+                                                if ((autre & 0xff) == COMMAND_START_CCB && pointe == ccb)
+                                                {
+                                                        mem_writeb_phys(scsi.mba + (uint32_t)(j * 4), COMMAND_FREE_CCB);
+                                                        trouve = true;
+                                                }
+                                        }
+                                        mbi_materiel(scsi, trouve ? MBI_CCB_ABORTED : MBI_CCB_NON_TROUVE_MATERIEL, ccb);
+                                }
+                                else
+                                {
+                                        // L'ABORT de PCem, la correction de PB-139 coupée : c * 8, et HACC avec le MBI.
+                                        mem_writeb_phys(scsi.mba + (uint32_t)(c * 8), 0);
+                                        mbi_materiel(scsi, MBI_CCB_ABORTED, ccb);
+                                        scsi.isr |= ISR_HACC;
+                                }
+                                servi = true;
+                        }
+                        else if (command != COMMAND_FREE_CCB && tourniquet)
+                        {
+                                mem_writeb_phys(scsi.mba + (uint32_t)(c * 4), COMMAND_FREE_CCB);
+                        }
+                }
+                if (tourniquet && !servi && !attente)
+                        m.balayage = false;
+        }
+        if ((!tourniquet || scsi.ccb_state == CCB_STATE_IDLE) && scsi.bios_mbo_inited != 0 && scsi.bios_mbo_req != 0)
+        {
+                for (var c = 0; c < scsi.bios_mbc; c++)
+                {
+                        uint32_t mbo = mem_readl_phys(scsi.bios_mba + (uint32_t)(c * 4));
+                        var command = (uint8_t)(mbo & 0xff);
+                        uint32_t ccb = (mbo >> 24) | ((mbo >> 8) & 0xff00) | ((mbo << 8) & 0xff0000);
+
+                        if (command == COMMAND_START_CCB)
+                        {
+                                scsi.current_mbo = c;
+                                scsi.current_mbo_is_bios = 1;
+                                scsi.ccb.addr = ccb;
+                                process_cdb(scsi);
+                                scsi.bios_mbo_req--;
+                                set_irq(scsi, ISR_HACC);
+                                break;
+                        }
+                }
+        }
         return true;
     }
 }

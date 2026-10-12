@@ -12,9 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-133, PB-136 à PB-139, PB-141 à PB-143, PB-276, PB-278 à PB-280 (PCEM_BUGS.md), dont la
+//   n° 5). Reproduits : PB-133, PB-136 à PB-138, PB-142, PB-143, PB-276, PB-278 à PB-280 (PCEM_BUGS.md), dont la
 //   lecture de 22h au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode
-//   matériel (scsi_aha1540.Materiel.cs) : PB-140, PB-144, PB-218, PB-277.
+//   matériel (scsi_aha1540.Materiel.cs) : PB-139 à PB-141, PB-144, PB-218, PB-277.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -286,6 +286,9 @@ internal static partial class scsi_aha1540
         switch (port & 3)
         {
         case 0: /*Control register*/
+                // pcem bug, fixed in hardware mode: PB-141 — ni HRST ni SRST n'abandonnent les balayages ni n'exigent 01h.
+                if (materiel.pb_141)
+                        reset_mailbox_materiel(scsi, val);
                 // pcem bug, reproduced: PB-276 — aucun des trois resets ne remet le bus SCSI au repos.
                 if ((val & CTRL_RESET) != 0)
                 {
@@ -670,7 +673,10 @@ internal static partial class scsi_aha1540
                         break;
 
                 case COMMAND_MAILBOX_INITIALIZATION:
-                        // pcem bug, reproduced: PB-141 — un compte nul accepté (la carte rend INVDCMD).
+                        // pcem bug, fixed in hardware mode: PB-141 — un compte nul accepté (la carte rend INVDCMD).
+                        if (materiel.pb_141)
+                                if (mailbox_init_materiel(scsi))
+                                        break;
                         scsi.mbc = scsi.@params[0];
                         scsi.mba = (uint32_t)(scsi.@params[3] | (scsi.@params[2] << 8) | (scsi.@params[1] << 16));
                         scsi.mba_i = scsi.mba + (uint32_t)(scsi.mbc * 4);
@@ -682,8 +688,11 @@ internal static partial class scsi_aha1540
                         break;
 
                 case COMMAND_START_SCSI_COMMAND:
-                        // pcem bug, reproduced: PB-141 — un balayage compté par 02h ; ni HRST, ni SRST, ni 01h
+                        // pcem bug, fixed in hardware mode: PB-141 — un balayage compté par 02h ; ni HRST, ni SRST, ni 01h
                         //   ne remettent ce compte à zéro.
+                        if (materiel.pb_141)
+                                if (demarrage_materiel(scsi))
+                                        break;
                         scsi.mbo_req++;
                         scsi.cmd_state = CMD_STATE_IDLE;
                         /*Don't send IRQ until we actually start processing a mailbox*/
@@ -1266,7 +1275,14 @@ internal static partial class scsi_aha1540
         switch (scsi.ccb_state)
         {
         case CCB_STATE_IDLE:
-                // pcem bug, reproduced: PB-141 — un balayage par 02h compté, toujours depuis l'emplacement 0.
+                // pcem bug, fixed in hardware mode: PB-141 — un balayage par 02h compté, toujours depuis l'emplacement 0.
+                if (materiel.pb_141)
+                        if (balayage_materiel(scsi))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-139 — l'ABORT ci-dessous.
+                if (materiel.pb_139)
+                        if (balayage_materiel(scsi))
+                                break;
                 if ((scsi.status & STATUS_INIT) == 0 && scsi.mbo_req != 0)
                 {
                         for (c = 0; c < scsi.mbc; c++)
@@ -1294,7 +1310,7 @@ internal static partial class scsi_aha1540
                                 {
                                         scsi.mbo_req--;
 
-                                        // pcem bug, reproduced: PB-139 — c * 8 et non c * 4 ; et rien n'est interrompu.
+                                        // pcem bug, fixed in hardware mode: PB-139 — c * 8 et non c * 4 ; et rien n'est interrompu.
                                         mem_writeb_phys(scsi.mba + (uint32_t)(c * 8), 0);
 
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_ABORTED);
@@ -1310,7 +1326,7 @@ internal static partial class scsi_aha1540
                                 }
                         }
                 }
-                // pcem bug, reproduced: PB-141 — ni l'état CCB ni STATUS_INIT ne gardent ce balayage : un CCB de la
+                // pcem bug, fixed in hardware mode: PB-141 — ni l'état CCB ni STATUS_INIT ne gardent ce balayage : un CCB de la
                 //   mailbox normale pris à la même échéance est écrasé.
                 if (scsi.bios_mbo_inited != 0 && scsi.bios_mbo_req != 0)
                 {
@@ -1388,7 +1404,7 @@ internal static partial class scsi_aha1540
                                 {
                                         mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
-                                        // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1500-1503).
+                                        // pcem bug, fixed in hardware mode: PB-141 — MBI écrasé s'il est occupé (:1500-1503).
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE_WITH_ERROR);
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 1, (uint8_t)(scsi.ccb.addr >> 16));
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4) + 2, (uint8_t)(scsi.ccb.addr >> 8));
@@ -1447,7 +1463,7 @@ internal static partial class scsi_aha1540
                                 {
                                         mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
-                                        // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1565-1571).
+                                        // pcem bug, fixed in hardware mode: PB-141 — MBI écrasé s'il est occupé (:1565-1571).
                                         if (scsi.ccb.status == STATUS_GOOD)
                                                 mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE);
                                         else
@@ -1526,7 +1542,7 @@ internal static partial class scsi_aha1540
                         {
                                 mem_writeb_phys(scsi.mba + (uint32_t)(scsi.current_mbo * 4), COMMAND_FREE_CCB);
 
-                                // pcem bug, reproduced: PB-141 — MBI écrasé s'il est occupé (:1654-1659).
+                                // pcem bug, fixed in hardware mode: PB-141 — MBI écrasé s'il est occupé (:1654-1659).
                                 if (scsi.ccb.status == STATUS_GOOD)
                                         mem_writeb_phys(scsi.mba_i + (uint32_t)(scsi.current_mbi * 4), MBI_CCB_COMPLETE);
                                 else
