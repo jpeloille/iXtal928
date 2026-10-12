@@ -2662,18 +2662,19 @@ cible ; la ROM absente et la règle ISA 16 bits refusent la carte avec un averti
 
 `scsi_aha1540.c:1166-1168` : `params[c + 3]` pour `c < params[1]`, jusqu'à 255 : au-delà de `params[64]`,
 le struct — `result_pos`, `result_len` (petit-boutien), puis `result[]` jusqu'à `result[185]` (vérifié sur le
-code de gcc 15.2 -O2). Seuls 32 octets sont persistés (`:2114`). L'IRQ peut changer avec une interruption en
-attente : `set_irq` et IRST visent la nouvelle ligne, l'ancienne reste levée.
-*Effet* : une EEPROM programmée avec des octets de l'état interne de la carte ; une interruption collée.
+code de gcc 15.2 -O2). Seuls 32 octets sont persistés (`:2114`). L'IRQ qui change avec une interruption en attente
+est détachée en PB-277 (G13.7e1a).
+*Effet* : une EEPROM programmée avec des octets de l'état interne de la carte.
 *Trouvé par* : reconnaissance de G11.
 *Source* : AHA-1540C TR, *Set EEPROM* (22h) : octet 0 réservé, octet 1 le nombre, octet 2 le décalage, « One to 32
 bytes of data » — documenté dans les bornes, mais le TR se contredit (« 31 minus the offset value ») ; au-delà de 32
-octets : inconnu. L'ancienne IRQ relâchée quand la configuration change : déduit.
-*Cas qui discrimine* : 22h de 4 octets au décalage 8, puis 23h : les mêmes 4 octets des deux côtés ; 22h qui change
-l'IRQ avec une interruption en attente : l'ancienne ligne reste levée chez PCem, retombe sur la carte ; 224 octets
-depuis 32 (AHABANC) : l'état interne chez PCem, inconnu sur la carte.
-*G13* : (b), hors bornes (c) — le TR est ambigu : à mesurer sur une 1542C.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md), marqueur PB-136.
+octets : inconnu.
+*Cas qui discrimine* : 22h de 4 octets au décalage 8, puis 23h : les mêmes 4 octets des deux côtés (dans les bornes,
+PCem est juste) ; 224 octets depuis 32 (AHABANC) : l'état interne chez PCem, inconnu sur la carte.
+*G13* : (c) — hors bornes, le TR est ambigu : à mesurer sur une 1542C ; reproduit dans les deux modes (décision
+n° 14).
+*Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md), marqueur PB-136 ; et dans les deux
+modes : `Scsi/scsi_aha1540.Materiel.cs`, la commande 22h du mode matériel (PB-277), marqueur PB-136.
 
 ### PB-137 — Le sense automatique : inconditionnel, inversé, et écrit au hasard
 
@@ -2742,7 +2743,19 @@ interrupteurs avec en bit 7 « EEPROM read data », 27h-28h la somme, 29h-2Bh la
 interrupteurs, 0 chez PCem), A3h C2h en 27h-28h et la mailbox du BIOS en 29h-2Bh. 0Dh de 0 : aucun octet chez PCem,
 256 sur la carte.
 *G13* : (a).
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-140.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, Return Setup Data, marqueur `fixed in hardware mode: PB-140`.
+*Corrigé en mode matériel* (G13.7e1a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_140)`,
+`setup_data_materiel`, en tête du `case`, fait la commande entière : la longueur demandée, 256 pour 0, les octets 00h
+à 24h de PCem, puis 25h à 2Bh (le réessai à zéro, les
+interrupteurs, A3h C2h, la mailbox du BIOS) et des zéros au-delà. L'octet 26h (TR, chapitre 5 : un interrupteur sur
+On rend 1 ; chapitre 3, les tables) : SW2-SW4 en bits 0-2, le port (`dipsw`) ; SW6-SW8 en bits 4-6, l'adresse de la
+ROM (DC000h : 0, D8000h : 1… C8000h : 5) — documentés ; SW5 en bit 3, sur On : la carte de PCem n'a pas de 82077,
+le contrôleur de disquettes est désactivé — déduit ; le bit 7, la donnée lue de l'EEPROM, inconnu : 0, comme chez
+PCem. `materiel-cas PB-140` (0Dh de 44, de 50 et de 0 ; la ROM en DC000h, D8000h puis C8000h, la carte en 334h) rend 44
+octets dont 25h-2Bh nuls, 0 octet, et 26h = 00h en mode PCem ; `0009A3C2012345` en 25h-2Bh, 256 octets, 26h = 09h, 19h
+(D8000h) puis 59h en mode matériel ; la correction coupée, il rougit. Non couverts : l'octet 0 (la parité, que PCem rend coupée
+quand l'usine l'active) et 10h (la déconnexion) : leur place dans l'EEPROM est inconnue ; la fenêtre de la ROM
+(`:2076-2079`) rend toujours `dipsw` seul, comme chez PCem.
 
 ### PB-141 — Les mailbox : le compte des 02h, le balayage BIOS, le MBI non vérifié
 
@@ -2793,28 +2806,29 @@ un LBA et une longueur tronqués ; déclaré sur 0 octet — PCem exécute TEST 
 *G13* : (c) — rien ne documente ce cas : à mesurer sur la carte.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-143.
 
-### PB-144 — La 1542C de PCem : traduction, adresses et EEPROM
+### PB-144 — Sans EEPROM, la 1542C de PCem n'a pas les réglages d'usine ; une EEPROM pour deux modes
 
-`scsi_aha1540.c:773`, `:815`, `:857` : la commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur (la ROM
-v1.01 ne s'en sert pas : elle passe par 82h). `:425-433`, `:1857`, `:1935` : les adresses ne bouclent pas à 24 bits.
-`:2101-2104`, `:2155-2157`, `:261-266` : sans EEPROM, ID 0, DMA 0, IRQ 9 ; une IRQ de code 7 vaut 16, et
-`picint((uint16_t)(1 << 16))` ne lève rien. `:1703-1711`, `:1052-1074`, `:417` : l'ID de l'hôte n'est pas exclu de
-la sélection ; délai de sélection, temps de bus et vitesse sont rangés sans effet ; les bits de sens du CCB sont
-rangés sans être lus : le sens vient de la commande, ce qui est conforme à la carte (AHA-1540C TR, CCB octet 1 ;
-D3-contre, C11), mais le contrôle de longueur qu'ils arment (statut d'hôte 12h) et « aucun transfert » quand les
-deux sont posés manquent.
-*Effet* : sans conséquence pour la ROM ; un pilote qui les emploie voit une carte qui ne les tient pas. Le cas
-« sans EEPROM » ne survient que sans `nvr/default/aha1542c.nvr`, l'EEPROM de référence de PCem (ID 7, DMA 7, IRQ
-10), qu'iXtal livre.
+`scsi_aha1540.c:2101-2104`, `:2155-2157` : sans EEPROM, ID 0, DMA 0, IRQ 9. L'EEPROM vit dans `nvr/.aha1542c.nvr`,
+la référence de PCem dans `nvr/default/aha1542c.nvr` (ID 7, DMA 7, IRQ 10, soit `07 71`). Les autres parts de
+l'ancienne entrée sont détachées en G13.7e1a : les bits de sens du CCB, les adresses à 24 bits et l'ID de l'hôte en
+PB-278 ; la traduction CHS de la commande 03h en PB-279 ; l'IRQ de code 7 et les temps en PB-280.
+*Effet* : sans conséquence pour la ROM ; le cas « sans EEPROM » ne survient que sans la référence, qu'iXtal livre.
+Mais une carte neuve de PCem n'est pas une carte neuve d'Adaptec : DMA 7 et IRQ 10 au lieu de 5 et 11.
 *Trouvé par* : reconnaissance de G11.
-*Source* : AHA-1540C TR, CCB octet 1 (le sens vient de la commande ; « If both bits are set … no data transfer ») et
-réglages d'usine (ID 7, DMA 5, IRQ 11, 330h, DC000h) — documentés ; le −1 du secteur, les 24 bits, l'ID de l'hôte
-exclu — déduits ; l'IRQ de code 7 — inconnu (SCSISelect ne propose que 9, 10, 11, 12, 14 et 15).
-*Cas qui discrimine* : CCB READ de 4 secteurs, longueur 512, bit 3 posé : PCem bloque (PB-132), la carte rend 12h ;
-sans EEPROM ni référence : ID 0, DMA 0, IRQ 9 chez PCem, ID 7, DMA 5, IRQ 11 ; 03h/02h au secteur 1 : LBA 1 chez
-PCem, LBA 0.
-*G13* : (b), mixte : longueur et usine (a), CHS et 24 bits (b), IRQ de code 7 (c), temps (d, hors G13).
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-144 posés en G13.1 (seuls des commentaires le nommaient).
+*Source* : AHA-1540C TR, chapitre 3 — les réglages d'usine (ID 7, DMA 5, IRQ 11, 330h, DC000h) — documentés ; leur
+codage dans l'EEPROM, celui de PCem (octet 1 : le DMA en bits 4-6, l'IRQ moins 9 en bits 0-2), et les autres octets,
+ceux de la référence — déduits.
+*Cas qui discrimine* : sans EEPROM écrite, 0Bh (Return Configuration Data) : `80 02 07` chez PCem (la référence),
+`20 04 07` sur une carte neuve. Une EEPROM écrite dans un mode : celle de l'autre mode ne change pas (Q8).
+*G13* : (a) — Q8 de PLAN-G13.md, validée par Julien le 12/10 : les réglages d'usine, et un fichier par mode.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, l'init de la carte, marqueur `fixed in hardware mode: PB-144`.
+*Corrigé en mode matériel* (G13.7e1a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_144)`,
+`eeprom_materiel` lit l'EEPROM de son fichier, `nvr/.aha1542c.materiel.nvr`, et Set EEPROM l'y écrit ; sans lui,
+l'image d'usine (`eeprom_usine_materiel` : la référence, l'octet 1 à 52h). `nvr/default/` ne livre aucune référence
+pour ce mode : le repli de `nvrfopen` n'y trouve rien. `materiel-cas PB-144` (une carte neuve : 0Bh et 23h des 32
+octets ; 22h qui pose l'ID 6, les fichiers écrits, puis 0Bh sur une machine neuve ; l'EEPROM de l'autre mode garnie
+d'un ID 5) rend `800207`, la référence, `.aha1542c.nvr` seul, `800206` et `800207` en mode PCem ; `200407`, l'usine,
+`.aha1542c.materiel.nvr` seul, `200406` et `200407` en mode matériel ; la correction coupée, il rougit.
 
 ### PB-145 — La SB 2.0 sans mélangeur rend l'audio CD presque muet
 
@@ -4450,15 +4464,21 @@ PCem, `A1 02 54 23`, `00 00 00 00` et `80 01 80 10` en mode matériel ; la corre
 `scsi_aha1540.c:1193-1202` : la commande 23h prend trois paramètres (`:639-641`) et rend `params[1]` octets de
 l'EEPROM depuis `params[2]` ; `params[0]` n'est jamais lu.
 *Effet* : une demande des options par défaut rend la configuration courante. La ROM v1.01 émet deux 23h au POST
-(`VERIFICATION.md` § G11.0), avec un drapeau qu'on ne connaît pas : l'effet pour l'invité est inconnu.
+(`VERIFICATION.md` § G11.0), avec le drapeau 01h (`mov al, 1` après la commande, aux décalages 300h et 380h de la ROM,
+lu en G13.7e1a) : elle demande la configuration, et ne voit pas le défaut.
 *Trouvé par* : reconnaissance de G13 (D3-contre, A8).
 *Source* : AHA-1540C TR, *Return EEPROM* (23h), octet 0 : « 1 = Return configured options, 0 = Return default
 options » — documenté ; le contenu des options par défaut, les réglages d'usine du même TR (ID 7, DMA 5, IRQ 11) —
 déduit.
 *Cas qui discrimine* : EEPROM de référence (ID 7, DMA 7, IRQ 10, soit `07 71`) ; 23h, octet 0 = 00h, 2 octets depuis
 le décalage 0 : PCem rend `07 71` ; la carte, les options par défaut (`07 52` au codage de PCem — déduit).
-*G13* : (b) — le drapeau est documenté, pas le contenu des options par défaut ; l'effet sur la ROM, inconnu.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, la commande 23h, marqueur PB-218.
+*G13* : (b) — le drapeau est documenté, pas le contenu des options par défaut.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, la commande 23h, marqueur `fixed in hardware mode: PB-218`.
+*Corrigé en mode matériel* (G13.7e1a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_218)`,
+`eeprom_rendue_materiel`, en tête du `case`, rend au drapeau 0 les octets de l'image d'usine de PB-144 ; tout autre drapeau, la
+configuration, comme chez PCem (le TR ne définit que 0 et 1). `materiel-cas PB-218` (22h qui pose l'octet 1 à 61h,
+puis 23h au drapeau 1, au drapeau 0 sur 2 et 32 octets, et au décalage 1) rend `0761`, `0761`, la configuration et
+`61B6` en mode PCem ; `0761`, `0752`, l'usine et `52B6` en mode matériel ; la correction coupée, il rougit.
 
 ### PB-35 — Lire le DAC juste après `OUT 3C8h,0` indexe `vgapal[-1]`
 
@@ -5717,6 +5737,71 @@ continuer les opérations ; statut d'hôte 12h (« more data than was allocated 
 le statut d'hôte 12h. Cible bloquée, puis HRST et un CCB vers l'ID 0 : 11h chez PCem ; le bus libéré sur le matériel.
 *G13* : (a) pour HRST et le statut 12h (G13.7e, la carte) ; le CCB en vol sous SCRST (c).
 *Reproduit* : `Scsi/scsi.cs` et `Scsi/scsi_aha1540.cs`, marqueurs `reproduced: PB-276`.
+
+### PB-277 — Set EEPROM (22h) qui change l'IRQ laisse l'ancienne ligne levée
+
+`scsi_aha1540.c:1166-1172`, `:261-266` : 22h recalcule `scsi->irq` depuis l'EEPROM même quand une interruption de la
+carte est en attente ; `set_irq` et IRST visent la nouvelle ligne, et rien ne baisse l'ancienne. Détaché de PB-136 en
+G13.7e1a.
+*Effet* : une interruption collée sur une ligne que la carte n'emploie plus.
+*Trouvé par* : reconnaissance de G11 (dans PB-136).
+*Source* : AHA-1540C TR — la carte pilote une seule ligne d'interruption, celle de sa configuration ; que la ligne
+quittée retombe : déduit.
+*Cas qui discrimine* : une commande achevée sans IRST (l'IRQ 10 levée), puis 22h qui pose l'IRQ 11 : l'IRQ 10 reste
+levée au PIC esclave chez PCem, retombe sur la carte ; l'IRQ 11 levée des deux côtés.
+*G13* : (b) — déduit.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, la commande 22h, marqueur `fixed in hardware mode: PB-277`.
+*Corrigé en mode matériel* (G13.7e1a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_277)`,
+`eeprom_programmee_materiel`, en tête du `case`, fait la commande entière comme PCem (PB-136 reproduit), et baisse
+l'ancienne ligne quand l'IRQ change et qu'une interruption est en attente ; la fin de la commande la présente sur la
+nouvelle. `materiel-cas PB-277` (les lignes 10 et 11 masquées au PIC ; ECHO achevé
+sans IRST, puis 22h vers l'IRQ 11 ; témoin, 22h qui garde l'IRQ 10) rend l'IRQ 10 levée et l'IRQ 11 levée en mode
+PCem ; l'IRQ 10 basse et l'IRQ 11 levée en mode matériel ; le témoin, l'IRQ 10 levée des deux côtés ; la correction
+coupée, il rougit.
+
+### PB-278 — Le CCB de la 1542C : les bits de sens, les adresses à 24 bits, l'ID de l'hôte
+
+`scsi_aha1540.c:417`, `:425-433`, `:1857`, `:1935`, `:1703-1711` : les bits de sens du CCB sont rangés sans être lus —
+le sens vient de la commande, ce qui est conforme à la carte (AHA-1540C TR, CCB octet 1 ; D3-contre, C11), mais le
+contrôle de longueur qu'ils arment (statut d'hôte 12h) et « aucun transfert » quand les deux sont posés manquent ; les
+adresses du CCB et des données ne bouclent pas à 24 bits ; l'ID de l'hôte n'est pas exclu de la sélection. Détaché de
+PB-144 en G13.7e1a.
+*Effet* : un pilote qui emploie les bits de sens voit une carte qui ne les tient pas ; un CCB au-delà de 16 Mo lit
+une mémoire que la carte n'adresse pas.
+*Trouvé par* : reconnaissance de G11 (dans PB-144).
+*Source* : AHA-1540C TR, CCB octet 1 (« If both bits are set … no data transfer ») — documenté ; les 24 bits, l'ID de
+l'hôte exclu — déduits.
+*Cas qui discrimine* : CCB READ de 4 secteurs, longueur 512, bit 3 posé : PCem fait la navette (PB-276), la carte
+rend 12h.
+*G13* : (a) pour la longueur ; les 24 bits et l'ID de l'hôte (b) — G13.7e2.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-278 (les bits de sens, les adresses, la sélection).
+
+### PB-279 — La commande BIOS 03h traduit CHS en LBA sans retrancher 1 au secteur
+
+`scsi_aha1540.c:773`, `:815`, `:857` : les sous-fonctions 02h, 03h et 04h calculent le LBA avec le numéro de secteur
+tel quel, alors que les secteurs CHS commencent à 1. Détaché de PB-144 en G13.7e1a.
+*Effet* : sans conséquence pour la ROM v1.01, qui passe par 82h ; un appelant de 03h lit le secteur suivant.
+*Trouvé par* : reconnaissance de G11 (dans PB-144).
+*Source* : déduit — la commande 03h est « reserved for use by the Adaptec host adapter BIOS » (TR) ; le −1, la
+convention CHS de l'INT 13h.
+*Cas qui discrimine* : 03h/02h au cylindre 0, tête 0, secteur 1 : LBA 1 chez PCem, LBA 0 attendu.
+*G13* : (b) — attendus déduits : l'interface est privée ; avec PB-138, G13.7e3.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-279 (les trois sous-fonctions).
+
+### PB-280 — La 1542C de PCem : l'IRQ de code 7, et les temps sans effet
+
+`scsi_aha1540.c:261-266` : une EEPROM qui code l'IRQ 7 donne l'IRQ 16, et `picint((uint16_t)(1 << 16))` ne lève rien.
+`:1052-1074` : le délai de sélection, les temps de bus et la vitesse sont rangés sans effet. Détaché de PB-144 en
+G13.7e1a.
+*Effet* : une carte muette sous une EEPROM de code 7 ; des temps que le pilote règle sans rien changer.
+*Trouvé par* : reconnaissance de G11 (dans PB-144).
+*Source* : l'IRQ de code 7 — inconnu (SCSISelect ne propose que 9, 10, 11, 12, 14 et 15) ; les temps — documentés
+(TR, 06h à 09h), mais l'émulateur n'a pas de temps de bus.
+*Cas qui discrimine* : EEPROM à l'octet 1 de code 7, une commande achevée : aucune ligne levée chez PCem ; sur la
+carte, inconnu.
+*G13* : l'IRQ de code 7 (c), reproduite dans les deux modes (décision n° 14) ; les temps (d), hors G13.
+*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-280 (`set_irq` ; la commande 06h, le marqueur valant pour 06h à
+09h, qui se suivent).
 
 ## B. Comportement indéfini en C
 

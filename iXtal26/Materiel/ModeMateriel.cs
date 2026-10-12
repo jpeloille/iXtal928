@@ -93,6 +93,8 @@ internal static class ModeMateriel
         new(130, "stockage", "MODE SENSE du disque SCSI : l'en-tête, le descripteur, les pages 03h et 04h, PC et DBD"),
         new(131, "stockage", "REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2"),
         new(132, "stockage", "une longueur nulle finit sans phase de données (le disque SCSI)"),
+        new(140, "stockage", "Return Setup Data (0Dh) de l'AHA-1542C en entier : 44 octets, les interrupteurs, 0 pour 256"),
+        new(144, "stockage", "l'EEPROM de l'AHA-1542C propre au mode matériel ; sans elle, l'usine (ID 7, DMA 5, IRQ 11)"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
         new(170, "processeur", "DAA compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1"),
@@ -138,6 +140,7 @@ internal static class ModeMateriel
         new(215, "stockage", "le contrôle de piste de PLAY AUDIO MSF juge le LBA, sans les 150 secteurs"),
         new(216, "stockage", "INTRQ suit l'unité choisie et nIEN ; un front par interruption, aucune perdue"),
         new(217, "stockage", "le sense du Xebec porte le bit « adresse valide » et l'adresse"),
+        new(218, "stockage", "Return EEPROM (23h) de l'AHA-1542C : le drapeau 0 rend les options d'usine"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
         new(247, "carte-mere", "le masque de service du 8259 retient les niveaux de priorité égale ou moindre"),
         new(248, "carte-mere", "l'OCW2 et l'OCW3 du 8259 selon la fiche : rotations, priorité, poll, masque spécial"),
@@ -161,6 +164,7 @@ internal static class ModeMateriel
         new(271, "stockage", "READ CD MSF, obligatoire, servi"),
         new(272, "stockage", "PLAY AUDIO(12) lit son adresse et sa longueur sur quatre octets"),
         new(273, "stockage", "une plage de PLAY AUDIO qui change de type (audio, données) rend 05/63h"),
+        new(277, "stockage", "Set EEPROM (22h) de l'AHA-1542C qui change l'IRQ relâche l'ancienne ligne"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

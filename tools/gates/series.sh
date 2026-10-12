@@ -729,3 +729,10 @@ done
 # G13.7d2b — MODE SENSE du disque SCSI (PB-130), son cas en C# seul dans les deux modes, sur le même banc.
 run materiel-cas-pb130 materiel-cas PB-130
 run materiel-cas-pb130-materiel --hardware-mode PB-130 materiel-cas PB-130
+# G13.7e1a — la configuration de l'AHA-1542C (PLAN-G13.md, G13.7e) : PB-140 (Return Setup Data entier), PB-144 (l'EEPROM
+# du mode matériel, l'usine), PB-218 (le drapeau de Return EEPROM), PB-277 (Set EEPROM qui change l'IRQ), chacun son cas
+# en C# seul dans les deux modes, sur le même banc, l'EEPROM dans un répertoire temporaire.
+for pb in 140 144 218 277; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

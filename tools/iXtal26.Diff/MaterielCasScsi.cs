@@ -17,9 +17,13 @@ internal static partial class MaterielCas
 {
     private const uint Lu = 0x200000;
 
+    /// <summary>Le répertoire des ROM du banc : « roms », relatif au répertoire courant ; absolu sous AvecNvr, qui en
+    /// change.</summary>
+    private static string RomsBanc = "roms";
+
     /// <summary>L'ami486, la carte et ses deux disques (celui de l'ID 1 à la géométrie donnée, 20 × 64 × 32 sinon),
-    /// puis le corps ; la machine fermée ensuite.</summary>
-    private static int AvecScsi(Func<int> corps, int cyl = 20, int tetes = 64, int spt = 32) => AvecCd(d =>
+    /// puis le corps ; la machine fermée ensuite. `section` s'ajoute au .cfg (la section du device).</summary>
+    private static int AvecScsi(Func<int> corps, int cyl = 20, int tetes = 64, int spt = 32, string section = "") => AvecCd(d =>
     {
         for (var u = 0; u < 2; u++)
         {
@@ -29,13 +33,13 @@ internal static partial class MaterielCas
         var cfg = Path.Combine(d, "scsi.cfg");
         File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = aha1542c\n" +
                                $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {d}/d0.img\n" +
-                               $"hdd_cylinders = {cyl}\nhdd_heads = {tetes}\nhdd_sectors = {spt}\nhdd_fn = {d}/d1.img\n");
+                               $"hdd_cylinders = {cyl}\nhdd_heads = {tetes}\nhdd_sectors = {spt}\nhdd_fn = {d}/d1.img\n" + section);
         try
         {
             if (!pc.loadconfig(cfg))
                 throw new InvalidOperationException("loadconfig");
             Floppy.fdd_c.discfns[0] = Floppy.fdd_c.discfns[1] = "";
-            if (!pc.initpc("roms"))
+            if (!pc.initpc(RomsBanc))
                 throw new InvalidOperationException("initpc");
             R9Atapi.Tranches(300);
             return corps();

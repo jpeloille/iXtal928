@@ -10351,3 +10351,57 @@ constructeurs statiques de `materiel` et de `ModeMateriel` (la correction inscri
 **La série** g7d2b (le worktree de l'étape, contre g7d2a) : 562 portes, toutes vertes ; 560 communes à g7d2a, chacune au
 même verdict ; un seul résumé change, `recensement` (276 défauts, 1 160 marqueurs). Deux neuves : les `materiel-cas`
 de PB-130, dans les deux modes.
+
+## G13.7e1a — la configuration de l'AHA-1542C
+
+Le 13 octobre 2026. La première étape de 7e (PLAN-G13.md, § G13.7, coupée en quatre le même jour). La source : le
+Technical Reference de l'AHA-1540C/1542C (Adaptec, 510397-00 A, avril 1993) — chapitre 3 (les réglages d'usine, les
+interrupteurs SW1-SW8 et leurs tables), chapitre 5 (Return Setup Data 0Dh, Set EEPROM 22h, Return EEPROM 23h). La
+ROM v1.01 lue pour le drapeau de 23h : `B0 23 E8 … B0 01` aux décalages 300h et 380h, la configuration demandée.
+
+**Le découpage du registre.** Un défaut corrigé ne garde aucun marqueur `reproduced` : PB-136 et PB-144, mixtes,
+sont scindés. PB-136 garde la lecture de 22h au-delà de 32 octets (inconnue, reproduite) ; l'ancienne IRQ qui reste
+levée devient PB-277. PB-144 garde l'EEPROM et l'usine ; les bits de sens, les 24 bits et l'ID de l'hôte deviennent
+PB-278 (7e2), la traduction CHS de 03h PB-279 (7e3), l'IRQ de code 7 et les temps PB-280 (reproduits).
+
+**Les corrections du mode matériel** (domaine `stockage`, quatre ; `Scsi/scsi_aha1540.Materiel.cs`, en `NoInlining`) :
+PB-144 — l'EEPROM du mode matériel dans `nvr/.aha1542c.materiel.nvr` (Q8 : un fichier par mode), sans elle l'image
+d'usine (la référence de PCem, l'octet 1 à 52h : DMA 5, IRQ 11) ; PB-218 — 23h au drapeau 0 rend l'image d'usine ;
+PB-140 — 0Dh rend la longueur demandée, 256 pour 0, les octets 25h à 2Bh (dont 26h, les interrupteurs) et des zéros
+au-delà ; PB-277 — 22h qui change l'IRQ, une interruption en attente, baisse l'ancienne ligne. Les trois corrections
+de `process_cmd` font la commande entière, la garde en tête du `case` (voir M2). Chacune a son cas en C#
+seul (`MaterielCasAha.cs`, sur le banc de G13.7d2a ; l'EEPROM lue et écrite dans un `nvr/` temporaire, le répertoire
+courant changé le temps du cas — `initpc` y résout les chemins du CMOS —, les ROM par leur chemin absolu), vert dans
+les deux modes, la sonde atteinte, rouge sous l'attente de l'autre mode. `recensement` vert (280 défauts, 1 162
+marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137e1a.py`) : seize fautes, chacune rougit son cas — l'usine de PCem (PB-144
+et PB-218 rougissent), un fichier pour les deux modes, pas d'usine sans fichier, 0 qui ne rend pas 256, l'adresse de
+la ROM absente de 26h, SW6 et SW8 inversés, la somme perdue, le reste non effacé, l'IRQ relâchée sans changement,
+puis sans interruption en attente, le drapeau inversé, le décalage ignoré, et chacune des quatre gardes retirée. Le
+témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, le TR relu) : rien de bloquant ; chaque octet conforme au TR — 0Dh (25h-2Bh, 26h bit à
+bit contre les tables des ports et des adresses de ROM, 256 pour 0), le drapeau de 23h, l'image d'usine contre la
+référence (seul l'octet 1 diffère), 0Bh ; le mode PCem intact (hors des gardes, des commentaires et `partial`) ; les
+gardes bien placées (PB-277 avant le recalcul de l'IRQ, PB-140 après la remise à zéro de PCem) ; les références au C
+justes ; SW5 sur On jugé défendable (le TR conseille de couper le contrôleur de la carte quand la machine a le sien).
+Un point à corriger, du cas : l'octet 26h n'était exercé qu'à 09h et 59h, symétriques — un cas en D8000h (bit 4 seul)
+départage désormais l'ordre de SW6 à SW8, et la faute « SW6 et SW8 inversés » le rougit. Remarques reprises : IRST
+baisse ensuite la nouvelle ligne (vérifié dans le cas PB-277) ; le cas PB-277 suppose PB-144 coupé, les portes lançant
+chaque correction seule (écrit dans le cas) ; `AvecNvr` vérifie désormais que l'EEPROM du `nvr/` d'origine n'a ni
+paru ni changé, et ne laisse pas son répertoire en cas d'erreur ; le marqueur PB-280 de 06h vaut pour 06h à 09h ; le
+plan à jour (PB-277, PB-278, PB-279 nommés dans leurs étapes).
+
+**M2** (Release du worktree, le scénario `ami486-aha`) : une première forme plaçait les trois gardes de `process_cmd`
+après la boucle de PCem de chaque commande ; repliées, elles changeaient pourtant le code que le JIT tire de
+`process_cmd` (7 094 octets contre 7 972 sans gardes : les registres et l'ordre des blocs, deux blocs fusionnés — le même
+travail, pas le même code). Les gardes sont passées en tête de leur `case`, chaque correction faisant la commande
+entière ; avec et sans les quatre gardes (`M2-7e1a-aha` contre `M2-7e1a-sansgardes`), identique (947 méthodes, aucune
+changée). Contre M2-7d2b (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel` (les
+corrections inscrites), et trois méthodes — `process_scsi` de l'AHA, `scsi_hd_command` et `scsi_zip_command` — dont
+seuls changent des jetons de chaînes (7, 4 et 4 `mov edi`, avant `CORINFO_HELP_STRCNS`) ; le code est le même.
+
+**La série** g7e1a (le worktree de l'étape, contre g7d2b) : 570 portes, toutes vertes ; 562 communes à g7d2b, chacune au
+même verdict ; un seul résumé change, `recensement` (280 défauts, 1 162 marqueurs). Huit neuves : les `materiel-cas`
+de PB-140, PB-144, PB-218 et PB-277, dans les deux modes.

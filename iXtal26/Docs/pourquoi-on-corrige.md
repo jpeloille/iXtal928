@@ -1336,3 +1336,43 @@ simulés : ce qu'en faisait un disque de l'époque dépend de son fabricant, et 
   « PCEM » qu'aucun vrai disque n'a, et des zéros en trop ; il accepte n'importe quelle page.
 - **La correction.** La forme de la norme, avec la géométrie de l'image — celle d'un disque virtuel est un choix,
   pris cohérent avec la taille qu'il annonce.
+
+## G13.7e1a — la configuration de la carte Adaptec
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e1a.*
+
+### PB-144 — la carte neuve
+
+- **Le vrai PC.** Une AHA-1542C sort d'usine avec l'ID 7, le canal DMA 5 et l'IRQ 11 ; ses réglages, une fois
+  changés, restent dans une petite mémoire de la carte.
+- **L'émulateur.** PCem part de réglages tirés de son propre fichier, DMA 7 et IRQ 10, et sans lui de zéros. Ce
+  fichier est le même dans les deux modes : une carte réglée en mode matériel l'est aussi en mode PCem.
+- **La correction.** Les réglages d'usine, et une mémoire de carte propre au mode matériel (Q8, validée par Julien).
+
+### PB-218 — les réglages d'usine, à la demande
+
+- **Le vrai PC.** Un programme peut demander à la carte ses réglages actuels, ou ceux d'usine.
+- **L'émulateur.** PCem rend toujours les réglages actuels.
+- **La correction.** Les réglages d'usine quand on les demande. (Le BIOS de la carte demande les réglages actuels : il
+  ne voit pas de différence.)
+
+### PB-140 — la description de la carte
+
+- **Le vrai PC.** La carte décrit sa configuration sur 44 octets, dont la position de ses interrupteurs ; un
+  programme peut en demander jusqu'à 256.
+- **L'émulateur.** PCem coupe la description à 20 octets, et répond « rien » à une demande de 256.
+- **La correction.** La description entière, avec les interrupteurs : le port et l'adresse de la ROM réglés, le
+  lecteur de disquettes de la carte désactivé — celle de PCem n'en a pas.
+
+### PB-277 — l'interruption qui change de ligne
+
+- **Le vrai PC.** Quand la carte change de ligne d'interruption, l'ancienne ligne retombe.
+- **L'émulateur.** PCem laisse l'ancienne ligne levée : une interruption fantôme pour le contrôleur d'interruptions.
+- **La correction.** L'ancienne ligne retombe.
+
+### Ce qui reste comme chez PCem
+
+PB-136 — une demande d'écriture plus longue que la mémoire de la carte lit l'état interne de PCem : ce que fait la
+vraie carte n'est pas documenté. PB-280 — une IRQ réglée hors des valeurs que propose Adaptec, et les temps de bus,
+qu'un émulateur n'a pas. PB-278 et PB-279 (le bloc de commande, la commande privée du BIOS) viennent avec les étapes
+suivantes de la carte.

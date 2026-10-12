@@ -216,6 +216,18 @@ internal static class materiel
     /// <summary>PB-132 : une longueur nulle finit sans phase de données (la cible).</summary>
     internal static readonly bool pb_132;
 
+    /// <summary>PB-140 : Return Setup Data (0Dh) de l'AHA-1542C en entier.</summary>
+    internal static readonly bool pb_140;
+
+    /// <summary>PB-144 : l'EEPROM de l'AHA-1542C propre au mode matériel ; sans elle, les réglages d'usine.</summary>
+    internal static readonly bool pb_144;
+
+    /// <summary>PB-218 : Return EEPROM (23h), le drapeau à 0 rend les options d'usine.</summary>
+    internal static readonly bool pb_218;
+
+    /// <summary>PB-277 : Set EEPROM (22h) qui change l'IRQ relâche l'ancienne ligne.</summary>
+    internal static readonly bool pb_277;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -472,6 +484,10 @@ internal static class materiel
         pb_130 = ModeMateriel.Demande(130);
         pb_131 = ModeMateriel.Demande(131);
         pb_132 = ModeMateriel.Demande(132);
+        pb_140 = ModeMateriel.Demande(140);
+        pb_144 = ModeMateriel.Demande(144);
+        pb_218 = ModeMateriel.Demande(218);
+        pb_277 = ModeMateriel.Demande(277);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

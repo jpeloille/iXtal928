@@ -12,8 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-136 à PB-144 (PCEM_BUGS.md), dont la lecture de 22h au-delà de params[64] (PB-136,
-//   param_lu) ; les fatal inatteignables de PB-134.
+//   n° 5). Reproduits : PB-133, PB-136 à PB-139, PB-141 à PB-143, PB-276, PB-278 à PB-280 (PCEM_BUGS.md), dont la
+//   lecture de 22h au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode
+//   matériel (scsi_aha1540.Materiel.cs) : PB-140, PB-144, PB-218, PB-277.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -160,7 +161,7 @@ internal sealed class aha154x_t
     internal int reg3_idx;
 }
 
-internal static class scsi_aha1540
+internal static partial class scsi_aha1540
 {
     // pcem: scsi_aha1540.c:30-57
     internal const int CMD_STATE_RESET = 0, CMD_STATE_IDLE = 1, CMD_STATE_GET_PARAMS = 2, CMD_STATE_CMD_IN_PROGRESS = 3,
@@ -266,8 +267,8 @@ internal static class scsi_aha1540
         return scsi.result[i - 72];
     }
 
-    // pcem: scsi_aha1540.c:261-264 — picint prend un uint16_t : l'IRQ 16 (EEPROM à 7) donne 0 (PB-144).
-    // pcem bug, reproduced: PB-144 — un code d'IRQ 7 donne l'IRQ 16 : picint((uint16_t)(1 << 16)) ne lève rien.
+    // pcem: scsi_aha1540.c:261-264 — picint prend un uint16_t : l'IRQ 16 (EEPROM à 7) donne 0 (PB-280).
+    // pcem bug, reproduced: PB-280 — un code d'IRQ 7 donne l'IRQ 16 : picint((uint16_t)(1 << 16)) ne lève rien.
     private static void set_irq(aha154x_t scsi, uint8_t val)
     {
         picint((uint16_t)(1 << scsi.irq));
@@ -410,7 +411,7 @@ internal static class scsi_aha1540
         case CCB_INITIATOR:
         case CCB_INITIATOR_RESIDUAL:
                 temp = mem_readb_phys(scsi.ccb.addr + 0x01);
-                // pcem bug, reproduced: PB-144 — les bits 3 et 4, rangés, jamais lus : ni contrôle de longueur
+                // pcem bug, reproduced: PB-278 — les bits 3 et 4, rangés, jamais lus : ni contrôle de longueur
                 //   (12h), ni « aucun transfert » s'ils sont posés tous deux. Le sens, lui, est conforme à la carte.
                 scsi.ccb.transfer_dir = (temp >> 3) & 3;
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
@@ -420,7 +421,7 @@ internal static class scsi_aha1540
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
-                // pcem bug, reproduced: PB-144 — ccb.addr + n sans bouclage à 24 bits (:425-433).
+                // pcem bug, reproduced: PB-278 — ccb.addr + n sans bouclage à 24 bits (:425-433).
                 scsi.ccb.data_len = (uint32_t)(mem_readb_phys(scsi.ccb.addr + 0x06) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x05) << 8) |
                                                (mem_readb_phys(scsi.ccb.addr + 0x04) << 16));
@@ -726,7 +727,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:773).
+                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:773).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_READ_10;
@@ -775,7 +776,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:815).
+                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:815).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_WRITE_10;
@@ -824,7 +825,7 @@ internal static class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-144 — le secteur sans −1 (:857).
+                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:857).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_VERIFY_10;
@@ -1024,7 +1025,7 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_SET_SELECTION_TIMEOUT:
-                        // pcem bug, reproduced: PB-144 — délai de sélection, temps de bus, vitesse : sans effet.
+                        // pcem bug, reproduced: PB-280 — délai de sélection, temps de bus, vitesse : sans effet.
                         scsi.e_d = scsi.@params[0];
                         scsi.to = (uint16_t)((scsi.@params[1] << 8) | scsi.@params[2]);
                         set_irq(scsi, ISR_HACC);
@@ -1074,6 +1075,10 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_RETURN_SETUP_DATA:
+                        // pcem bug, fixed in hardware mode: PB-140 — tronqué à 20 octets, la suite mise à zéro (plus bas).
+                        if (materiel.pb_140)
+                                if (setup_data_materiel(scsi))
+                                        break;
                         scsi.result[0] = 0x00;                       /*SPS*/
                         scsi.result[1] = scsi.atbs;                  /*AT bus speed*/
                         scsi.result[2] = scsi.bon;                   /*BON*/
@@ -1102,7 +1107,7 @@ internal static class scsi_aha1540
                         scsi.result[43] = (uint8_t)(scsi.bios_mba & 0xff);
                         scsi.cmd_state = CMD_STATE_SEND_RESULT;
                         scsi.result_pos = 0;
-                        // pcem bug, reproduced: PB-140 — tronqué à 20 octets, la suite mise à zéro.
+                        // PB-140 : tronqué à 20 octets, la suite mise à zéro (la garde, en tête).
                         scsi.result_len = Math.Min((int)scsi.@params[0], 20);
                         for (; scsi.result_len < scsi.@params[0]; scsi.result_len++)
                                 scsi.result[scsi.result_len] = 0;
@@ -1126,10 +1131,15 @@ internal static class scsi_aha1540
 
                 case 0x22:
                         /*COMMAND_ADAPTEC_PROGRAM_EEPROM*/
+                        // pcem bug, fixed in hardware mode: PB-277 — l'IRQ change, l'ancienne ligne reste levée (plus bas).
+                        if (materiel.pb_277)
+                                if (eeprom_programmee_materiel(scsi))
+                                        break;
                         // pcem bug, reproduced: PB-136 — params[c + 3] pour c < params[1] (jusqu'à 255) : au-delà de
-                        //   params[64], le struct C (param_lu). L'IRQ change même avec une interruption en attente.
+                        //   params[64], le struct C (param_lu).
                         for (c = 0; c < scsi.@params[1]; c++)
                                 scsi.eeprom[(scsi.@params[2] + c) & 0xff] = param_lu(scsi, c + 3);
+                        // PB-277 : l'IRQ change même avec une interruption en attente (la garde, en tête).
                         scsi.host_id = scsi.eeprom[0] & 7;
                         scsi.dma = (scsi.eeprom[1] >> 4) & 7;
                         scsi.irq = (scsi.eeprom[1] & 7) + 9;
@@ -1140,8 +1150,11 @@ internal static class scsi_aha1540
                         break;
 
                 case COMMAND_ADAPTEC_RETURN_EEPROM_DATA:
-                        // pcem bug, reproduced: PB-218 — l'octet 0 est ignoré (1 : la configuration ;
+                        // pcem bug, fixed in hardware mode: PB-218 — l'octet 0 est ignoré (1 : la configuration ;
                         //   0 : les options d'usine) : la configuration est toujours rendue.
+                        if (materiel.pb_218)
+                                if (eeprom_rendue_materiel(scsi))
+                                        break;
                         for (c = 0; c < scsi.@params[1]; c++)
                         {
                                 scsi.result[c] = scsi.eeprom[(scsi.@params[2] + c) & 0xff];
@@ -1557,7 +1570,7 @@ internal static class scsi_aha1540
 
         case SCSI_STATE_SELECT:
                 scsi.cdb.last_status = 0;
-                // pcem bug, reproduced: PB-144 — l'ID de l'hôte n'est pas exclu : seul un ID au-delà de 6 est refusé.
+                // pcem bug, reproduced: PB-278 — l'ID de l'hôte n'est pas exclu : seul un ID au-delà de 6 est refusé.
                 scsi_bus_update(scsi.bus, BUS_SEL | BUS_SETDATA(1 << scsi.ccb.target_id));
                 if ((scsi_bus_read(scsi.bus) & BUS_BSY) == 0 || scsi.ccb.target_id > 6)
                 {
@@ -1717,7 +1730,7 @@ internal static class scsi_aha1540
                                         uint8_t data = (uint8_t)BUS_GETDATA(bus_state);
                                         int bus_out = 0;
 
-                                        // pcem bug, reproduced: PB-144 — adresse sans bouclage à 24 bits (:1857).
+                                        // pcem bug, reproduced: PB-278 — adresse sans bouclage à 24 bits (:1857).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 scsi.int_buffer[scsi.cdb.data_idx] = data;
                                         else
@@ -1792,7 +1805,7 @@ internal static class scsi_aha1540
                                         uint8_t data;
                                         int bus_out;
 
-                                        // pcem bug, reproduced: PB-144 — adresse sans bouclage à 24 bits (:1935).
+                                        // pcem bug, reproduced: PB-278 — adresse sans bouclage à 24 bits (:1935).
                                         if (scsi.cdb.data_pointer == 0xFFFFFFFF)
                                                 data = scsi.int_buffer[scsi.cdb.data_idx];
                                         else
@@ -1967,7 +1980,8 @@ internal static class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:2096-2107 — l'EEPROM se lit à l'init, dans `nvr/.aha1542c.nvr`, sinon dans la référence
-    //   `nvr/default/aha1542c.nvr` (nvrfopen) ; sans l'un ni l'autre, des zéros : ID 0, DMA 0, IRQ 9 (PB-144).
+    //   `nvr/default/aha1542c.nvr` (nvrfopen) ; sans l'un ni l'autre, des zéros : ID 0, DMA 0, IRQ 9 (PB-144 ; le mode
+    //   matériel lit le sien, eeprom_materiel).
     private static void aha1542c_eeprom_load(aha154x_t scsi, string fn)
     {
         FileStream? f;
@@ -2035,8 +2049,11 @@ internal static class scsi_aha1540
         scsi_bus_init(scsi.bus);
 
         aha1542c_eeprom_load(scsi, "aha1542c.nvr");
+        // pcem bug, fixed in hardware mode: PB-144 — une EEPROM pour les deux modes ; sans elle, des zéros : ID 0, DMA 0,
+        //   IRQ 9 ; l'usine dit ID 7, DMA 5, IRQ 11.
+        if (materiel.pb_144)
+                eeprom_materiel(scsi);
 
-        // pcem bug, reproduced: PB-144 — sans EEPROM, des zéros : ID 0, DMA 0, IRQ 9 ; l'usine dit ID 7, DMA 5, IRQ 11.
         scsi.host_id = scsi.eeprom[0] & 7;
         scsi.dma = (scsi.eeprom[1] >> 4) & 7;
         scsi.irq = (scsi.eeprom[1] & 7) + 9;
