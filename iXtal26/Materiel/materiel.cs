@@ -183,8 +183,17 @@ internal static class materiel
     /// <summary>PB-271 : READ CD MSF, obligatoire, servi.</summary>
     internal static readonly bool pb_271;
 
+    /// <summary>PB-272 : PLAY AUDIO(12) lit son adresse et sa longueur sur quatre octets.</summary>
+    internal static readonly bool pb_272;
+
+    /// <summary>PB-273 : une plage de PLAY AUDIO qui change de type rend 05/63h.</summary>
+    internal static readonly bool pb_273;
+
     /// <summary>PB-122 : le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste.</summary>
     internal static readonly bool pb_122;
+
+    /// <summary>PB-123 : l'audio en LBA compte les 150 secteurs de l'amorce, comme la position du lecteur.</summary>
+    internal static readonly bool pb_123;
 
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
@@ -309,6 +318,12 @@ internal static class materiel
     /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
     internal static readonly bool pb_213;
 
+    /// <summary>PB-214 : PLAY AUDIO MSF cherche sa piste au LBA qu'il désigne.</summary>
+    internal static readonly bool pb_214;
+
+    /// <summary>PB-215 : le contrôle de piste de PLAY AUDIO MSF juge le LBA, sans les 150 secteurs.</summary>
+    internal static readonly bool pb_215;
+
     /// <summary>PB-216 : INTRQ suit l'unité choisie et nIEN, un front par interruption ; avec PB-71.</summary>
     internal static readonly bool pb_216;
 
@@ -425,7 +440,10 @@ internal static class materiel
         pb_269 = ModeMateriel.Demande(269);
         pb_270 = ModeMateriel.Demande(270);
         pb_271 = ModeMateriel.Demande(271);
+        pb_272 = ModeMateriel.Demande(272);
+        pb_273 = ModeMateriel.Demande(273);
         pb_122 = ModeMateriel.Demande(122);
+        pb_123 = ModeMateriel.Demande(123);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);
@@ -467,6 +485,8 @@ internal static class materiel
         pb_211 = ModeMateriel.Demande(211);
         pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
+        pb_214 = ModeMateriel.Demande(214);
+        pb_215 = ModeMateriel.Demande(215);
         pb_216 = ModeMateriel.Demande(216);
         pb_217 = ModeMateriel.Demande(217);
         pb_246 = ModeMateriel.Demande(246);

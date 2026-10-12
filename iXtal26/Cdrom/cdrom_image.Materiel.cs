@@ -47,6 +47,17 @@ internal sealed partial class CDROM_Interface_Image
         return curr.start;
     }
 
+    // pcem bug, fixed in hardware mode: PB-123 — READ SUB-CHANNEL : la position relative compte depuis le début de la
+    //   piste (SFF-8020i r2.6 § 10.8.18, Table 115), sans les 150 secteurs de l'amorce, que seule l'adresse absolue en
+    //   MSF porte.
+    private TMSF position_relative_materiel(int sector, int track)
+    {
+        ModeMateriel.Sonde[123]++;
+        TMSF rel = default;
+        FRAMES_TO_MSF(sector - tracks[track - 1].start, ref rel);
+        return rel;
+    }
+
     internal sealed partial class BinaryFile
     {
         // pcem bug, fixed in hardware mode: PB-109 — un lecteur qui échoue sur un secteur lit le suivant : l'échec ne

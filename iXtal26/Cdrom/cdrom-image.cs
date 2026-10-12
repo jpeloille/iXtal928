@@ -110,9 +110,11 @@ internal static partial class cdrom_image
             int m = (int)((pos >> 16) & 0xff);
             int s = (int)((pos >> 8) & 0xff);
             int f = (int)(pos & 0xff);
-            // pcem bug, reproduced: PB-215 — MSF_TO_FRAMES garde les 150 secteurs de l'amorce (cdrom.h:64) :
-            //   la piste est jugée 150 secteurs plus loin.
+            // pcem bug, fixed in hardware mode: PB-215 — MSF_TO_FRAMES garde les 150 secteurs de l'amorce
+            //   (cdrom.h:64) : la piste est jugée 150 secteurs plus loin.
             pos = unchecked((uint32_t)MSF_TO_FRAMES(m, s, f));
+            if (materiel.pb_215)
+                pos = msf_vers_lba_materiel(pos);
         }
 
         // pcem bug, not reproduced: PB-111 — neutralisé : zéro, des deux côtés (DEVIATION ci-dessous).
@@ -136,9 +138,11 @@ internal static partial class cdrom_image
         //   compactée tombe hors des pistes ; zéro (en-tête) : la lecture part.
         uint8_t attr = 0;
         TMSF tmsf = default;
-        // pcem bug, reproduced: PB-214 — en MSF, la piste est cherchée à la valeur compactée m × 65 536 +
+        // pcem bug, fixed in hardware mode: PB-214 — en MSF, la piste est cherchée à la valeur compactée m × 65 536 +
         //   s × 256 + f, avant la conversion : si elle tombe dans une piste de données, la lecture s'annule en silence.
         cdrom.GetAudioTrackInfo(cdrom.GetTrack(unchecked((int)pos)), ref number, ref tmsf, ref attr);
+        if (materiel.pb_214)
+            attr = attribut_piste_materiel(pos, ismsf, attr);
         if (attr == DATA_TRACK)
         {
             pclog("Can't play data track\n");
@@ -164,8 +168,12 @@ internal static partial class cdrom_image
         }
         else
             len += pos;
-        // pcem bug, reproduced: PB-123 — en LBA, l'adresse rangée telle quelle dans une position qui compte
-        //   les 150 secteurs de l'amorce : la piste joue 150 secteurs trop tôt, ou rien.
+        // pcem bug, fixed in hardware mode: PB-123 — en LBA, l'adresse rangée telle quelle dans une position qui
+        //   compte les 150 secteurs de l'amorce : la piste joue 150 secteurs trop tôt, ou rien.
+        if (materiel.pb_123)
+            pos = position_lba_materiel(pos, ismsf);
+        if (materiel.pb_123)
+            len = position_lba_materiel(len, ismsf);
         image_cd_pos = pos; // + 150;
         image_cd_end = len; // + 150;
         image_cd_state = CD_PLAYING;
@@ -206,7 +214,9 @@ internal static partial class cdrom_image
     {
         if (cdrom is null)
             return;
-        // pcem bug, reproduced: PB-123 — l'adresse LBA rangée comme une position du lecteur.
+        // pcem bug, fixed in hardware mode: PB-123 — l'adresse LBA rangée comme une position du lecteur.
+        if (materiel.pb_123)
+            pos = position_lba_materiel(pos, 0);
         image_cd_pos = pos;
         image_cd_state = CD_STOPPED;
     }
@@ -323,10 +333,13 @@ internal static partial class cdrom_image
             b[o + pos] = 0;
             pos += 4;
         }
-        // pcem bug, reproduced: PB-123 — en LBA, l'adresse absolue et la relative gardent les 150 de GetAudioSub.
+        // pcem bug, fixed in hardware mode: PB-123 — en LBA, l'adresse absolue et la relative gardent les 150 de
+        //   GetAudioSub.
         else
         {
             uint32_t dat = unchecked((uint32_t)MSFtoLBA(absPos.min, absPos.sec, absPos.fr));
+            if (materiel.pb_123)
+                dat = lba_absolue_materiel(dat);
             b[o + pos++] = (uint8_t)((dat >> 24) & 0xff);
             b[o + pos++] = (uint8_t)((dat >> 16) & 0xff);
             b[o + pos++] = (uint8_t)((dat >> 8) & 0xff);

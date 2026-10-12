@@ -85,6 +85,7 @@ internal static class ModeMateriel
         new(119, "stockage", "MODE SELECT lit l'en-tête de sa forme, rend 1Ah ou 26h, et finit à longueur nulle"),
         new(120, "stockage", "la TOC brute a ses points A0h, A1h, A2h et sa longueur"),
         new(122, "stockage", "le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste"),
+        new(123, "stockage", "l'audio CD en LBA : l'adresse et la position du lecteur à 150 secteurs près"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
         new(170, "processeur", "DAA compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1"),
@@ -126,6 +127,8 @@ internal static class ModeMateriel
         new(211, "x87", "FRNDINT garde le signe du zéro (le noyau)"),
         new(212, "x87", "FLD m64 d'un SNaN lève IE et le charge silencieux (387, 486 ; le noyau)"),
         new(213, "x87", "les comparaisons remettent C1 à zéro (287XL, 387, 486)"),
+        new(214, "stockage", "PLAY AUDIO MSF cherche sa piste au LBA qu'il désigne"),
+        new(215, "stockage", "le contrôle de piste de PLAY AUDIO MSF juge le LBA, sans les 150 secteurs"),
         new(216, "stockage", "INTRQ suit l'unité choisie et nIEN ; un front par interruption, aucune perdue"),
         new(217, "stockage", "le sense du Xebec porte le bit « adresse valide » et l'adresse"),
         new(246, "carte-mere", "la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1"),
@@ -149,6 +152,8 @@ internal static class ModeMateriel
         new(269, "stockage", "MECHANISM STATUS lit son allocation sur deux octets, et rend 1Ah sous huit octets"),
         new(270, "stockage", "le lecteur ATAPI refuse les commandes que la norme de sa génération n'a pas"),
         new(271, "stockage", "READ CD MSF, obligatoire, servi"),
+        new(272, "stockage", "PLAY AUDIO(12) lit son adresse et sa longueur sur quatre octets"),
+        new(273, "stockage", "une plage de PLAY AUDIO qui change de type (audio, données) rend 05/63h"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

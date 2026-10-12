@@ -2357,9 +2357,26 @@ début de la piste). PLAY AUDIO(12) manque à la Table 37 : il relève de Q5 de 
 150 et s'arrête à 72, rien ne joue ; le matériel joue depuis 00:02:42. READ SUB-CHANNEL huit secteurs plus loin :
 relatif 00:02:08 chez PCem, 00:00:08 ; en LBA, quinze secteurs plus loin : 207 et 165 chez PCem, 57 et 15.
 *G13* : (a) pour le LBA et le sous-canal ; PLAY AUDIO(12) selon Q5 de D3-stockage.
-*Reproduit* : `Cdrom/cdrom-image.cs` (`image_playaudio`, `image_seek`, le sous-canal en LBA) et
-`Cdrom/cdrom_image.cs` (`GetAudioSub`), marqueurs PB-123 ; comparé des deux côtés par `cdimage-check` et par
-`bd-ami486-atapi-audio`.
+*Reproduit* en mode PCem : `Cdrom/cdrom-image.cs` (`image_playaudio`, `image_seek`, le sous-canal en LBA) et
+`Cdrom/cdrom_image.cs` (`GetAudioSub`), marqueurs `fixed in hardware mode: PB-123` ; comparé des deux côtés par
+`cdimage-check` et par `bd-ami486-atapi-audio`.
+*Corrigé en mode matériel* (G13.7c4) : sous `if (materiel.pb_123)` — texte relu en G13.7c4 (§ 10.8.8 ; § 10.8.18 :
+« The Absolute CD-ROM Address field gives the current location relative to the logical beginning of the media », la
+relative « to the logical beginning of the current track ») —, `position_lba_materiel` (`Cdrom/cdrom-image.Materiel.cs`)
+range une adresse LBA de PLAY AUDIO et de SEEK plus 150 dans la position du lecteur, une adresse MSF telle quelle ;
+`lba_absolue_materiel` rend l'adresse absolue du sous-canal en LBA moins 150 ; `position_relative_materiel`
+(`Cdrom/cdrom_image.Materiel.cs`) compte la position relative depuis le début de la piste, sans les 150, dans les deux
+formes. PLAY AUDIO(12) relève de PB-270 (refusé par les modèles SFF-8020i) et de PB-272 ; la plage qui change de
+type, de PB-273. Restent comme chez PCem :
+l'adresse de départ FFFFFFFFh (« play from the current location of the optics », § 10.8.8), qui n'atteint pas le
+lecteur (le contrôle de piste la refuse, 64h) ; READ SUB-CHANNEL rend la position du
+prochain secteur à lire, là où la norme dit le dernier joué — le tampon de son rend l'écart indécidable au secteur
+près —, l'état 13h après un SEEK (la Table 116 donnerait 15h), et la piste 0 au lead-out (la norme : AAh).
+`materiel-cas PB-123` (au niveau du
+pilote d'images, sur mixte.cue : PLAY AUDIO en LBA depuis 42, SEEK au LBA 42, puis PLAY AUDIO MSF depuis 00:02:42,
+huit secteurs joués, et READ SUB-CHANNEL en MSF et en LBA ; le son du premier rappel) rend 150 et 72, des zéros, 42,
+00:02:50 et 00:02:08, 200 et 158 en mode PCem ; 192 et 222, le secteur 42 de mixte.bin, 192, 00:02:50 et 00:00:08, 50
+et 8 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-125 — Le lecteur ZIP écrit et lit hors de ses tampons, et hors de l'image
 
@@ -4241,7 +4258,13 @@ pas audio rend CHECK CONDITION, 05/64h « Recommended » (Table 77) ; jamais un 
 AUDIO MSF de 00:20:00 à 00:30:00 (LBA 1 350 à 2 100) : la valeur compactée, 5 120, tombe dans la piste 2 ; PCem rend
 GOOD, READ SUB-CHANNEL l'état 13h, rien ne joue ; le matériel joue (11h).
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom-image.cs`, `image_playaudio`, marqueur PB-214.
+*Reproduit* en mode PCem : `Cdrom/cdrom-image.cs`, `image_playaudio`, marqueur `fixed in hardware mode: PB-214`.
+*Corrigé en mode matériel* (G13.7c4) : sous `if (materiel.pb_214)`, `attribut_piste_materiel`
+(`Cdrom/cdrom-image.Materiel.cs`) reprend l'attribut de la piste au LBA que désigne le MSF (converti, moins 150) ; hors
+de toute piste, celui de PCem (zéro, PB-111), la lecture part. Le reste de la plage est jugé par PB-273. `materiel-cas PB-214` (au niveau du
+pilote d'images, la feuille ci-dessus ; puis, en témoin, un départ à 00:41:25, au LBA 2 950, à la fin de la piste
+audio) rend le lecteur arrêté en mode PCem, en lecture depuis la position 1 500 en mode matériel, et en lecture dans
+les deux modes pour le témoin ; la correction coupée, il rougit.
 
 ### PB-215 — Le contrôle de piste de PLAY AUDIO MSF juge 150 secteurs trop loin
 
@@ -4259,7 +4282,12 @@ CONDITION, 05/64h ; § 10.8.8 : 00:02:00 est le LBA 0, la conversion retranche d
 00:02:00 (LBA 0, des données) : PCem l'accepte, jugé au LBA 150 (piste 2) ; le matériel rend 05/64h. Depuis 00:05:05
 (LBA 230, piste 3) : PCem rend 05/64h, jugé au LBA 380, hors des pistes ; le matériel joue.
 *G13* : (a).
-*Reproduit* : `Cdrom/cdrom-image.cs`, `image_is_track_audio`, marqueur PB-215.
+*Reproduit* en mode PCem : `Cdrom/cdrom-image.cs`, `image_is_track_audio`, marqueur `fixed in hardware mode: PB-215`.
+*Corrigé en mode matériel* (G13.7c4) : sous `if (materiel.pb_215)`, `msf_vers_lba_materiel`
+(`Cdrom/cdrom-image.Materiel.cs`) retranche les 150 secteurs de l'amorce avant de chercher la piste ; un MSF avant
+00:02:00 tombe hors des pistes, la commande rend 64h (l'ASC de PCem pour une piste qui n'est pas audio). `materiel-cas
+PB-215` (au niveau du pilote d'images, sur mixte.cue : 00:02:00 et 00:05:05 en MSF, le LBA 42 en témoin) rend 1, 0, 1
+en mode PCem ; 0, 1, 1 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-216 — `ide_irq_update` baisse une IRQ que l'unité choisie tient encore, et la repose après l'EOI
 
@@ -5503,6 +5531,45 @@ déduit) ; le reste comme READ CD, dont l'octet 9 autre que 10h ou F8h, 05/20h c
 PB-271` rend 05/20h en mode PCem ; en mode matériel le PVD, GOOD sans données pour un départ égal à la fin, 24h pour
 un départ au-delà, vingt secteurs en deux tranches (la commande traduite relancée), 21h avant 00:02:00 et 24h pour
 une image à 75 ; la correction coupée, il rougit.
+
+### PB-272 — PLAY AUDIO(12) lit son adresse et sa longueur sur trois octets
+
+`scsi_cd.c` (PLAY AUDIO, la branche de A5h) : `pos = cdb[3..5]`, `len = cdb[7..9]` ; MMC-2 les met aux octets 2 à 5 et
+6 à 9, sur quatre octets.
+*Effet* : une adresse de 2^24 secteurs ou plus — hors de tout disque — est rabattue sur ses trois octets bas et
+jouée ; une longueur de 2^24 blocs ou plus, tronquée.
+*Trouvé par* : la contre-lecture de G13.7c4.
+*Source* : documenté — MMC-2 (T10/1228-D r11a), § 6.1.11, Table 209 : « Logical Block Address » aux octets 2 à 5,
+« Play Length » aux octets 6 à 9. SFF-8020i r2.6 n'a pas la commande (PB-270).
+*Cas qui discrimine* : une feuille à deux pistes, données puis audio (la piste 2 en LBA 32) ; PLAY AUDIO(12) depuis
+01000020h : PCem joue depuis le LBA 32, le matériel rend 05/64h (hors des pistes audio).
+*G13* : (a).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, PLAY AUDIO, marqueur `fixed in hardware mode: PB-272`.
+*Corrigé en mode matériel* (G13.7c4) : sous `if (materiel.pb_272)`, `play_audio_12_materiel`
+(`Scsi/scsi_cd.Materiel.cs`) relit l'adresse et la longueur de PLAY AUDIO(12) sur quatre octets. `materiel-cas
+PB-272` (sur l'ami486 et son lecteur ATAPI ; en témoin, depuis le LBA 32) rend GOOD puis GOOD en mode PCem ; 64h puis
+GOOD en mode matériel ; la correction coupée, il rougit.
+
+### PB-273 — PLAY AUDIO ne juge que le début de la plage
+
+`scsi_cd.c` (PLAY AUDIO) : seul le bloc de départ passe le contrôle de piste (`is_track_audio`) ; une plage qui entre
+dans une piste de données est acceptée, et le lecteur joue les données comme du son.
+*Effet* : PLAY AUDIO d'une plage qui finit dans une piste de données — un CD Extra, un disque mixte — rend GOOD et
+joue du bruit au-delà de la piste audio.
+*Trouvé par* : la contre-lecture de G13.7c4.
+*Source* : documenté — SFF-8020i r2.6 § 10.8.8 : « If the CD-ROM information type (data vs. audio) changes within the
+transfer length, the command shall be terminated with a CHECK CONDITION and the sense key shall be set to ILLEGAL
+REQUEST and the additional sense code set to END OF USER AREA ENCOUNTERED ON THIS TRACK » (05/63h, Table 73).
+*Cas qui discrimine* : une feuille à deux pistes, audio puis données (la piste 2 en LBA 200) ; PLAY AUDIO(10) du LBA
+195, dix blocs, et PLAY AUDIO MSF de 00:02:25 à 00:04:55 : PCem rend GOOD, le matériel 05/63h ; en témoin, du LBA 20,
+cinq blocs, GOOD dans les deux modes.
+*G13* : (a).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, PLAY AUDIO, marqueur `fixed in hardware mode: PB-273`.
+*Corrigé en mode matériel* (G13.7c4) : sous `if (materiel.pb_273)`, `plage_mixte_materiel` (`Scsi/scsi_cd.Materiel.cs`)
+juge la plage — du départ à la fin exclue, en LBA, le MSF moins 150 — piste par piste dans le moteur d'images
+(`plage_audio_materiel`, `Cdrom/cdrom-image.Materiel.cs`) : une piste de données touchée rend 05/63h ; une plage vide,
+ou un autre pilote que celui des images, n'est pas jugée. `materiel-cas PB-273` rend les valeurs ci-dessus ; la
+correction coupée, il rougit.
 
 ## B. Comportement indéfini en C
 

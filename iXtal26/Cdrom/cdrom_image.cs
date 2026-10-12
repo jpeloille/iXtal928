@@ -281,8 +281,11 @@ internal sealed partial class CDROM_Interface_Image : IDisposable
         attr = unchecked((uint8_t)tracks[track - 1].attr);
         index = 1;
         FRAMES_TO_MSF(sector + 150, ref absPos);
-        // pcem bug, reproduced: PB-123 — la position relative compte aussi les 150 secteurs de l'amorce (:122).
+        // pcem bug, fixed in hardware mode: PB-123 — la position relative compte aussi les 150 secteurs de l'amorce
+        //   (:122).
         FRAMES_TO_MSF(sector - tracks[track - 1].start + 150, ref relPos);
+        if (materiel.pb_123)
+            relPos = position_relative_materiel(sector, track);
         return true;
     }
 

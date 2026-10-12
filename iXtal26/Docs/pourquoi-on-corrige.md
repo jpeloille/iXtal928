@@ -1223,3 +1223,35 @@ commandes que la norme suivante (MMC-2, 1999) a ajoutées. Julien a tranché : c
   norme l'impose.
 - **L'émulateur.** PCem n'a pas cette commande.
 - **La correction.** Elle est servie, par la même voie que sa sœur adressée par numéro de secteur.
+
+## G13.7c4 — la musique du CD
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7c4.*
+
+Un CD audio se repère de deux façons : par un numéro de secteur, qui part de zéro au début de la musique, ou par un
+temps (minutes, secondes, images), qui commence deux secondes plus tôt — ces deux secondes, 150 secteurs, précèdent
+la première piste. Le lecteur convertit l'un en l'autre. PCem mélange les deux.
+
+### PB-123 — jouer par numéro de secteur
+
+- **Le vrai PC.** « Joue à partir du secteur 42 » commence la musique au temps 00:02:42 ; « où en es-tu ? » répond
+  par la position sur le disque et dans la piste.
+- **L'émulateur.** PCem prend le numéro de secteur pour un temps, sans les deux secondes : la musique part 150
+  secteurs trop tôt, ou pas du tout ; et sa réponse compte ces deux secondes là où elles n'ont rien à faire.
+- **La correction.** Les deux secondes ajoutées ou retirées où il faut.
+
+### PB-214 et PB-215 — jouer par temps
+
+- **Le vrai PC.** Avant de jouer à partir d'un temps, le lecteur vérifie que la piste est de la musique ; une piste
+  de données est refusée.
+- **L'émulateur.** PCem cherche la piste au mauvais endroit — sur un nombre fabriqué avec les chiffres du temps, ou
+  150 secteurs trop loin — : il refuse de la musique, accepte des données, ou « joue » sans rien jouer.
+- **La correction.** La piste est cherchée au secteur que désigne le temps.
+
+### PB-272 et PB-273 — la plage à jouer
+
+- **Le vrai PC.** Le programme donne au lecteur un début et une longueur ; le lecteur lit ces nombres en entier, et
+  refuse une plage qui passe de la musique aux données.
+- **L'émulateur.** PCem lit le début de l'une des commandes sur trois octets au lieu de quatre — une adresse hors du
+  disque retombe sur une vraie piste —, et ne vérifie que le début de la plage : il joue des données comme du son.
+- **La correction.** Les quatre octets, et la plage vérifiée d'un bout à l'autre.

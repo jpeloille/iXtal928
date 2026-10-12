@@ -703,3 +703,11 @@ for pb in 118 270 271; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7c4 — l'audio du CD (PLAN-G13.md, G13.7) : PB-123 (l'adresse LBA et la position du lecteur, READ SUB-CHANNEL),
+# PB-214 (la piste de PLAY AUDIO MSF), PB-215 (son contrôle de piste), chacun son cas en C# seul dans les deux modes, au
+# niveau du pilote d'images, sur la feuille mixte.cue d'isogen ; PB-272 (l'adresse de PLAY AUDIO(12)) et PB-273 (la
+# plage qui change de type), sur le banc de r9-atapi.
+for pb in 123 214 215 272 273; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

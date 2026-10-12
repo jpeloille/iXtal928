@@ -1499,9 +1499,15 @@ internal static partial class scsi_cd_c
                 }
                 else
                 {
+                        // pcem bug, fixed in hardware mode: PB-272 — PLAY AUDIO(12) : l'adresse et la longueur lues sur
+                        //   trois octets, quand elles en ont quatre.
                         pos = (cdb[3] << 16) | (cdb[4] << 8) | cdb[5];
                         len = (cdb[7] << 16) | (cdb[8] << 8) | cdb[9];
                 }
+                if (materiel.pb_272)
+                        pos = play_audio_12_materiel(cdb, pos, 2);
+                if (materiel.pb_272)
+                        len = play_audio_12_materiel(cdb, len, 6);
 
                 if ((cdrom_ioctl.cdrom_drive < 1) || (data.cd_status <= cdrom_ioctl.CD_STATUS_DATA_ONLY) ||
                     atapi.is_track_audio((uint32_t)pos, (cdb[0] == GPCMD_PLAY_AUDIO_MSF) ? 1 : 0) == 0)
@@ -1509,6 +1515,10 @@ internal static partial class scsi_cd_c
                         atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_ILLEGAL_MODE_FOR_THIS_TRACK, 0);
                         return SCSI_PHASE_STATUS;
                 }
+                // pcem bug, fixed in hardware mode: PB-273 — seul le début de la plage est jugé.
+                if (materiel.pb_273)
+                        if (plage_mixte_materiel(data, cdb, pos, len))
+                                return SCSI_PHASE_STATUS;
 
                 atapi.playaudio((uint32_t)pos, (uint32_t)len, (cdb[0] == GPCMD_PLAY_AUDIO_MSF) ? 1 : 0);
                 data.cmd_pos = CMD_POS_IDLE;

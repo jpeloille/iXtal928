@@ -307,4 +307,47 @@ internal static partial class scsi_cd_c
         Array.Copy(cdb, data.cdb, CDB_MAX_LEN);
         return false;
     }
+
+    // pcem bug, fixed in hardware mode: PB-272 — PLAY AUDIO(12) (MMC-2 r11a § 6.1.11, Table 209) : l'adresse aux octets 2
+    //   à 5, la longueur aux octets 6 à 9, sur quatre octets chacune. Les autres PLAY AUDIO, tels quels.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int play_audio_12_materiel(uint8_t[] cdb, int valeur, int o)
+    {
+        if (cdb[0] != GPCMD_PLAY_AUDIO_12)
+            return valeur;
+        ModeMateriel.Sonde[272]++;
+        return (cdb[o] << 24) | (cdb[o + 1] << 16) | (cdb[o + 2] << 8) | cdb[o + 3];
+    }
+
+    // pcem bug, fixed in hardware mode: PB-273 — « If the CD-ROM information type (data vs. audio) changes within the
+    //   transfer length, the command shall be terminated with a CHECK CONDITION and the sense key shall be set to
+    //   ILLEGAL REQUEST and the additional sense code set to END OF USER AREA ENCOUNTERED ON THIS TRACK » (SFF-8020i r2.6
+    //   § 10.8.8 ; 05/63h, Table 73). La plage — du départ à la fin exclue, en LBA : le MSF moins 150 —
+    //   jugée piste par piste dans le moteur d'images ; une plage vide, ou un autre pilote que celui des images, non
+    //   jugés.
+    private const int ASC_END_OF_USER_AREA_MATERIEL = 0x63;
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool plage_mixte_materiel(scsi_cd_data_t data, uint8_t[] cdb, int pos, int len)
+    {
+        long debut, fin;
+        if (cdb[0] == GPCMD_PLAY_AUDIO_MSF)
+        {
+            debut = ((pos >> 16 & 0xff) * 60 + (pos >> 8 & 0xff)) * 75 + (pos & 0xff) - 150;
+            fin = ((len >> 16 & 0xff) * 60 + (len >> 8 & 0xff)) * 75 + (len & 0xff) - 150;
+        }
+        else
+        {
+            debut = (uint)pos;
+            fin = debut + (uint)len;
+        }
+        if (!iXtal26.Cdrom.cdrom_image.plage_audio_materiel(debut, fin))
+        {
+            ModeMateriel.Sonde[273]++;
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_END_OF_USER_AREA_MATERIEL, 0);
+            data.cmd_pos = CMD_POS_IDLE;
+            return true;
+        }
+        return false;
+    }
 }

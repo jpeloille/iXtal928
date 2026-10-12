@@ -469,7 +469,7 @@ contre-lecture, M2, sa série entière et son commit :
 - **G13.7b — L'IDE** ✅ *(12/10, VERIFICATION.md § G13.7b ; SRST et RESET- effacent l'interruption en attente, ajoutés par la contre-lecture)*. PB-71 et PB-216 (l'IRQ du canal secondaire, et `ide_irq_update` qui baisse une ligne encore
   tenue : une seule fonction), PB-74 (VERIFY, tous les secteurs et les registres de fin, ATA-1). PB-73 est déjà le
   comportement du disque ; PB-72 : Q6.
-- **G13.7c — Le CD.** Le moteur d'images (PB-106, le mode 2 à 2 336 octets ; PB-108, INDEX 00 ; PB-109, l'échec
+- **G13.7c — Le CD** ✅ *(13/10, en quatre : 7c1 à 7c4)*. Le moteur d'images (PB-106, le mode 2 à 2 336 octets ; PB-108, INDEX 00 ; PB-109, l'échec
   collant ; PB-122, le lead-out de la TOC) ; l'ATAPI et l'audio (PB-117, READ CAPACITY ; PB-119, MODE SELECT ; PB-120,
   la TOC brute ; PB-123, l'audio en LBA ; PB-214 et 215, PLAY AUDIO MSF) ; PB-115, les transferts complets. Le jeu de
   commandes : Q5. Restent au repli : PB-113 (déjà celui du lecteur), PB-114 (inconnu), PB-110 et 116 (les fichiers).
@@ -489,7 +489,11 @@ contre-lecture, M2, sa série entière et son commit :
     READ DISC INFORMATION refusés par les modèles SFF-8020i ; MMC-2 pour le 40x, le 48x, le 72x et le générique de
     PCem (années documentées pour quatre modèles, déduites de la vitesse pour les autres) ; PB-118, GESN selon MMC-2,
     en groupe avec PB-270 ; PB-271 (neuf), READ CD MSF, obligatoire, servi.
-  - **G13.7c4 — L'audio.** PB-123, PB-214, PB-215.
+  - **G13.7c4 — L'audio** ✅ *(13/10, VERIFICATION.md § G13.7c4)*. PB-123 (l'adresse LBA de PLAY AUDIO et de SEEK, et READ
+    SUB-CHANNEL : la position du lecteur à 150 secteurs près), PB-214 (la piste de PLAY AUDIO MSF cherchée à son LBA),
+    PB-215 (son contrôle de piste) ; deux défauts neufs, de la contre-lecture : PB-272 (l'adresse de PLAY AUDIO(12) sur
+    quatre octets) et PB-273 (une plage qui change de type, 05/63h) ; en C# seul, au niveau du pilote d'images et sur
+    le banc de r9-atapi.
 - **G13.7d — Le ZIP et le disque SCSI.** PB-125 (les transferts complets, une adresse hors du disque en CHECK
   CONDITION, 05/21h), PB-126 (la capacité, la fin du disque, les phases à longueur nulle ; START STOP UNIT reste
   reproduit, inconnu sur le lecteur d'Iomega), PB-128 (les transferts complets, jusqu'à 65 535 blocs), PB-129 (la

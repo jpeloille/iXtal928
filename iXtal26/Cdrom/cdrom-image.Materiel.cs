@@ -65,4 +65,64 @@ internal static partial class cdrom_image
         b[o + 3] = 1;
         return len;
     }
+
+    // pcem bug, fixed in hardware mode: PB-123 — la position du lecteur (image_cd_pos, image_cd_end) compte les 150
+    //   secteurs de l'amorce : 00:02:00 est le LBA 0 (SFF-8020i r2.6 § 10.8.8 : « PLAY AUDIO commands with a starting
+    //   LBA address of 0000 0000h shall begin the audio play operation at 00m 02s 00f »). Une adresse LBA, de PLAY AUDIO
+    //   ou de SEEK, y entre plus 150 ; une adresse MSF y entre telle quelle.
+    private static uint32_t position_lba_materiel(uint32_t pos, int ismsf)
+    {
+        if (ismsf != 0)
+            return pos;
+        ModeMateriel.Sonde[123]++;
+        return unchecked(pos + 150);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-123 — READ SUB-CHANNEL en LBA : l'adresse absolue est le LBA, la position
+    //   absolue moins 150 (§ 10.8.18, Table 115).
+    private static uint32_t lba_absolue_materiel(uint32_t frames)
+    {
+        ModeMateriel.Sonde[123]++;
+        return unchecked(frames - 150);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-215 — le MSF de PLAY AUDIO MSF jugé au LBA qu'il désigne : les images
+    //   moins 150 (§ 10.8.8). GetTrack compare des LBA.
+    private static uint32_t msf_vers_lba_materiel(uint32_t frames)
+    {
+        ModeMateriel.Sonde[215]++;
+        return unchecked(frames - 150);
+    }
+
+    // pcem bug, fixed in hardware mode: PB-214 — la piste d'une demande MSF cherchée à son LBA (le MSF converti, moins
+    //   150), pas à la valeur compactée m × 65 536 + s × 256 + f : SFF-8020i r2.6 § 10.8.9 — la plage demandée est jouée
+    //   si elle est audio. Hors de toute piste, l'attribut de PCem (zéro, PB-111) : la lecture part.
+    private static uint8_t attribut_piste_materiel(uint32_t pos, int ismsf, uint8_t attr)
+    {
+        if (ismsf == 0 || cdrom is null)
+            return attr;
+        ModeMateriel.Sonde[214]++;
+        var lba = MSFtoLBA((int)((pos >> 16) & 0xff), (int)((pos >> 8) & 0xff), (int)(pos & 0xff)) - 150;
+        uint8_t a = 0;
+        int numero = 0;
+        TMSF t = default;
+        cdrom.GetAudioTrackInfo(cdrom.GetTrack(lba), ref numero, ref t, ref a);
+        return a;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-273 — la plage [debut, fin) en LBA est-elle audio d'un bout à l'autre ? Chaque
+    //   piste qu'elle touche (le lead-out exclu) doit l'être. Vrai pour une plage vide, ou sans image.
+    internal static bool plage_audio_materiel(long debut, long fin)
+    {
+        if (cdrom is null || fin <= debut)
+            return true;
+        var pistes = cdrom.tracks;
+        for (var i = 0; i < pistes.Count - 1; i++)
+        {
+            long a = pistes[i].start, b = pistes[i + 1].start;
+            if (a < fin && debut < b && pistes[i].attr != AUDIO_TRACK)
+                return false;
+        }
+        return true;
+    }
 }

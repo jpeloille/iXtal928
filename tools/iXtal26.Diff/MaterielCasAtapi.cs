@@ -426,4 +426,56 @@ internal static partial class MaterielCas
         }
         return bad;
     });
+
+    // PB-272 — PLAY AUDIO(12) (MMC-2 r11a § 6.1.11, Table 209) : l'adresse aux octets 2 à 5. Une feuille à deux pistes,
+    // données puis audio (la piste 2 en LBA 32). PLAY AUDIO(12) depuis 01000020h (l'octet 2 à 1 : au-delà de tout
+    // disque) : PCem lit 000020h, le LBA 32, et joue ; le matériel juge l'adresse hors des pistes, 05/64h. Témoin : depuis
+    // le LBA 32, GOOD dans les deux modes.
+    private static int Pb272(bool hw) => AvecAtapi(d =>
+    {
+        Iso(d, 32);
+        Ecrire(d, "audio.bin", Marques(30, 2352));
+        return Feuille(d, "deux.cue", "FILE \"iso32.iso\" BINARY", "  TRACK 01 MODE1/2048", "    INDEX 01 00:00:00",
+                       "FILE \"audio.bin\" BINARY", "  TRACK 02 AUDIO", "    INDEX 01 00:00:00");
+    }, () =>
+    {
+        var (st, _, _) = Paquet(R9Atapi.Cdb(0xA5, 0, 1, 0, 0, 32, 0, 0, 0, 5));
+        var asc = (st & 1) != 0 ? Asc() : 0;
+        var bad = Voir("PLAY AUDIO(12) depuis 01000020h, cinq blocs : l'état, l'ASC", hw ? (st & 1) != 0 && asc == 0x64 : (st & 1) == 0,
+                       $"état {st:X2}h, ASC {asc:X2}h", hw ? "ERR, 64h (hors des pistes audio)" : "GOOD (joue depuis le LBA 32)", hw);
+        Paquet(R9Atapi.Cdb(0x4E));
+        (st, _, _) = Paquet(R9Atapi.Cdb(0xA5, 0, 0, 0, 0, 32, 0, 0, 0, 5));
+        return bad + Voir("témoin : PLAY AUDIO(12) depuis le LBA 32", (st & 1) == 0, $"état {st:X2}h", "GOOD, dans les deux modes", hw);
+    });
+
+    // PB-273 — « If the CD-ROM information type (data vs. audio) changes within the transfer length, the command shall be
+    // terminated with … END OF USER AREA ENCOUNTERED ON THIS TRACK » (SFF-8020i r2.6 § 10.8.8, 05/63h). Une feuille à
+    // deux pistes, audio puis données (la piste 2 en LBA 200) : PLAY AUDIO(10) depuis le LBA 195, dix blocs (jusqu'au LBA
+    // 204) — PCem joue, le matériel rend 63h ; de même en MSF, de 00:02:25 à 00:04:55 (LBA 25 à 205 ; PCem juge le départ
+    // 150 secteurs plus loin, PB-215, au LBA 175, encore dans l'audio). Témoin : du LBA 20, cinq blocs, GOOD dans les deux
+    // modes.
+    private static int Pb273(bool hw) => AvecAtapi(d =>
+    {
+        Ecrire(d, "audio.bin", Marques(200, 2352));
+        Iso(d, 32);
+        return Feuille(d, "ad.cue", "FILE \"audio.bin\" BINARY", "  TRACK 01 AUDIO", "    INDEX 01 00:00:00",
+                       "FILE \"iso32.iso\" BINARY", "  TRACK 02 MODE1/2048", "    INDEX 01 00:00:00");
+    }, () =>
+    {
+        var bad = 0;
+        foreach (var (nom, cdb) in new[]
+                 {
+                     ("PLAY AUDIO(10) du LBA 195, dix blocs", R9Atapi.Cdb(0x45, 0, 0, 0, 0, 195, 0, 0, 10)),
+                     ("PLAY AUDIO MSF de 00:02:25 à 00:04:55", R9Atapi.Cdb(0x47, 0, 0, 0, 2, 25, 0, 4, 55)),
+                 })
+        {
+            var (st, _, _) = Paquet(cdb);
+            var asc = (st & 1) != 0 ? Asc() : 0;
+            bad += Voir($"{nom} (la piste de données en LBA 200) : l'état, l'ASC", hw ? (st & 1) != 0 && asc == 0x63 : (st & 1) == 0,
+                        $"état {st:X2}h, ASC {asc:X2}h", hw ? "ERR, 63h (END OF USER AREA ENCOUNTERED)" : "GOOD (joue)", hw);
+            Paquet(R9Atapi.Cdb(0x4E));
+        }
+        var (s2, _, _) = Paquet(R9Atapi.Cdb(0x45, 0, 0, 0, 0, 20, 0, 0, 5));
+        return bad + Voir("témoin : PLAY AUDIO(10) du LBA 20, cinq blocs", (s2 & 1) == 0, $"état {s2:X2}h", "GOOD, dans les deux modes", hw);
+    });
 }

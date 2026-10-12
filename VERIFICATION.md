@@ -10125,3 +10125,57 @@ trois méthodes neuves qu'elle appelle portent `NoInlining`.
 **La série** g7c3 (le worktree de l'étape, contre g7c2) : 538 portes, toutes vertes ; 532 communes à g7c2, chacune au
 même verdict ; un seul résumé change, `recensement` (271 défauts, 1 114 marqueurs). Six neuves : les `materiel-cas`
 de PB-118, PB-270 et PB-271, dans les deux modes.
+
+## G13.7c4 — l'audio du CD
+
+Le 12 octobre 2026. La dernière étape du CD (PLAN-G13.md, § G13.7). Les sources : SFF-8020i r2.6, § 10.8.8 (« PLAY
+AUDIO commands with a starting LBA address of 0000 0000h shall begin the audio play operation at 00m 02s 00f » ; la
+plage qui change de type, END OF USER AREA ENCOUNTERED ON THIS TRACK, 05/63h, Table 73), § 10.8.9 (PLAY AUDIO MSF),
+§ 10.8.18 (READ SUB-CHANNEL : l'adresse absolue « relative to the logical beginning of the media », la relative « to
+the logical beginning of the current track ») ; MMC-2 r11a § 6.1.11, Table 209 (PLAY AUDIO(12)) ; relus pour cette
+étape.
+
+**Les corrections du mode matériel** (domaine `stockage`, cinq neuves ; `Cdrom/cdrom-image.Materiel.cs`,
+`Cdrom/cdrom_image.Materiel.cs`, `Scsi/scsi_cd.Materiel.cs`) : PB-123, la position du lecteur compte les 150 secteurs
+de l'amorce — une adresse LBA de PLAY AUDIO et de SEEK y entre plus 150, une adresse MSF telle quelle ; READ
+SUB-CHANNEL rend en LBA l'adresse absolue moins 150, et la position relative depuis le début de la piste, sans les
+150, dans les deux formes ; PB-214, la piste de PLAY AUDIO MSF cherchée au LBA que désigne le MSF, non à sa valeur
+compactée ; PB-215, le contrôle de piste de PLAY AUDIO MSF juge le LBA, sans les 150 ; et deux défauts neufs, de la
+contre-lecture : PB-272, PLAY AUDIO(12) lit son adresse et sa longueur sur quatre octets (PCem : trois) ; PB-273, une
+plage qui change de type — de l'audio aux données — rend 05/63h (PCem ne juge que le départ, et joue les données).
+Chacune a son cas en C# seul : PB-123, 214 et 215 au niveau du pilote d'images (`MaterielCasCd.cs`), sur la feuille
+`mixte.cue` d'isogen (celle de PCEM_BUGS) — pour PB-123, le son du premier rappel comparé au secteur 42 de
+`mixte.bin` — et, pour PB-214, une feuille d'une piste audio de 3 000 secteurs suivie d'une piste de données ; PB-272
+et 273 sur le banc de `r9-atapi` (`MaterielCasAtapi.cs`). Les cinq sont verts dans les deux modes, la sonde atteinte ;
+chacun rougit sous `--attendu materiel`. Les douze autres cas du CD (G13.7c1 à 7c3), rejoués, verts dans les deux
+modes, chacun rouge sous panne ; `recensement` vert (273 défauts, 1 124 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137c4.py`) : onze fautes, chacune rougit son cas — 75 au lieu de 150, SEEK
+non corrigé, la fin non corrigée, la relative qui garde les 150, l'absolue LBA qui les garde (PB-123) ; la piste
+cherchée sans les 150, l'attribut de PCem rendu (PB-214) ; 75 au lieu de 150 (PB-215) ; trois octets (PB-272) ; seul
+le départ jugé, la fin MSF décalée (PB-273). La faute « sans les 150 » de PB-214 survivait d'abord : les deux
+positions tombaient dans la même piste ; le cas joue aussi depuis 00:41:25, à la fin de la piste audio, où l'oubli
+bascule dans la piste de données. Le cas MSF de PB-273 tombait d'abord, chez PCem, dans les données dès le départ
+(PB-215 le juge 150 secteurs plus loin) : la piste audio allongée à 200 secteurs. Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, SFF-8020i relue) : rien à corriger, sept remarques, toutes traitées. Corrigés, deux
+défauts neufs relevés par elle : PLAY AUDIO(12) sur trois octets (PB-272) ; la plage qui change de type (PB-273,
+documentée § 10.8.8). Repris : le cas de PB-123 vérifie le son rendu, pas seulement les positions. Écrits dans
+PCEM_BUGS, laissés comme chez PCem : l'adresse de départ FFFFFFFFh (« la position courante »), refusée en amont par
+le contrôle de piste ; READ SUB-CHANNEL rend la position du prochain secteur, l'état 13h après un SEEK, la piste 0 au
+lead-out ; un MSF avant 00:02:00 rend 64h. Vérifiés justes : chaque lecteur et écrivain de `image_cd_pos` et
+`image_cd_end` (le +150 n'est appliqué qu'une fois, en LBA ; seul SEEK appelle `seek`), la cohérence de `len` entre la
+commande et le pilote, l'avance de huit secteurs du rappel, les attendus recalculés.
+
+**M2** (Release du worktree ; le scénario `ami486-cd-cue` étendu dans `tools/listings-jit.sh` : un troisième programme
+tapé sous DEBUG, sans données — 600h, le paquet en 700h, l'attente de BSY puis INT 3 —, joue la piste 2 en MSF, cherche
+son début par SEEK et la joue en LBA, puis le premier lit READ SUB-CHANNEL ; les méthodes gardées `image_playaudio`,
+`image_seek`, `image_is_track_audio` et `image_getcurrentsubchannel` compilées, `GetAudioSub` inlinée dans la
+dernière). Contre M2-7c3 : deux méthodes changées, les constructeurs statiques de `materiel` et de `ModeMateriel`.
+Contre M0, le scénario rejoué sur 860f2b1 (`M0-860f2b1-g137c4`) : ces méthodes et `scsi_cd_command` (les gardes de
+PB-272 et PB-273, leurs méthodes en `NoInlining`) identiques ; changent seulement les méthodes du mécanisme du mode
+et de la ligne de commande, posées par les étapes antérieures de G13.
+
+**La série** g7c4 (le worktree de l'étape, contre g7c3) : 548 portes, toutes vertes ; 538 communes à g7c3, chacune au
+même verdict ; un seul résumé change, `recensement` (273 défauts, 1 124 marqueurs). Dix neuves : les `materiel-cas`
+de PB-123, PB-214, PB-215, PB-272 et PB-273, dans les deux modes.

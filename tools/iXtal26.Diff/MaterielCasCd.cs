@@ -11,6 +11,7 @@
 
 using iXtal26.Cdrom;
 using iXtal26.Ide;
+using static iXtal26.Ide.ide_atapi;
 
 namespace iXtal26.Diff;
 
@@ -249,5 +250,102 @@ internal static partial class MaterielCas
         }
 
         return bad;
+    });
+
+    /// <summary>La feuille mixte.cue d'isogen (une piste de données, LBA 0 ; la piste 2 audio en LBA 42, trente
+    /// secteurs ; la piste 3 audio en LBA 222 ; le lead-out en 247), montée par le pilote d'images ; le corps ; le
+    /// dossier d'isogen effacé ensuite.</summary>
+    private static int AvecMixte(Func<ATAPI, string, int> corps) => AvecCd(_ =>
+    {
+        var d = IsoGen.Generer();
+        try
+        {
+            if (cdrom_image.image_open(Path.Combine(d, "mixte.cue")) != 0)
+                return Voir("mixte.cue montée", false, "refusée", "montée", false);
+            return corps(ide_atapi.atapi!, d);
+        }
+        finally
+        {
+            IsoGen.Effacer(d);
+        }
+    });
+
+    private static string Msf(byte[] b, int o) => $"{b[o + 1]:D2}:{b[o + 2]:D2}:{b[o + 3]:D2}";
+
+    private static uint Be(byte[] b, int o) => (uint)(b[o] << 24 | b[o + 1] << 16 | b[o + 2] << 8 | b[o + 3]);
+
+    // PB-123 — la position du lecteur compte les 150 secteurs de l'amorce : 00:02:00 est le LBA 0 (SFF-8020i r2.6
+    // § 10.8.8) ; READ SUB-CHANNEL rend l'adresse absolue et la relative au début de la piste (§ 10.8.18, Table 115).
+    // PLAY AUDIO en LBA depuis 42, trente secteurs : PCem range 42 (ramené à 150) et 72, rien ne joue ; le matériel 192
+    // et 222. SEEK au LBA 42 : PCem 42, le matériel 192. PLAY AUDIO MSF depuis 00:02:42, huit secteurs joués : en MSF,
+    // l'absolue 00:02:50 des deux côtés, la relative 00:02:08 chez PCem, 00:00:08 ; en LBA, 200 et 158 chez PCem, 50 et 8.
+    private static int Pb123(bool hw) => AvecMixte((a, d) =>
+    {
+        var bad = 0;
+        a.playaudio(42, 30, 0);
+        var (p, e) = (cdrom_image.image_cd_pos, cdrom_image.image_cd_end);
+        bad += Voir("PLAY AUDIO en LBA depuis 42, trente secteurs : la position et la fin du lecteur", (p, e) == (hw ? (192u, 222u) : (150u, 72u)),
+                    $"{p}, {e}", hw ? "192, 222" : "150, 72 (rien ne joue)", hw);
+        // Le son rendu : le premier secteur joué est le secteur 42 de mixte.bin (INDEX 01 de la piste 2) ; PCem ne
+        // joue rien (des zéros).
+        var son = new short[1176];
+        cdrom_image.image_audio_callback(son, son.Length);
+        var fichier = File.ReadAllBytes(Path.Combine(d, "mixte.bin")).AsSpan(42 * 2352, 2352);
+        var attendu = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, short>(fichier).ToArray();
+        var ok = hw ? son.SequenceEqual(attendu) : son.All(x => x == 0);
+        bad += Voir("le son rendu par le premier rappel", ok, ok ? (hw ? "le secteur 42" : "des zéros") : $"premiers échantillons {son[0]}, {son[1]}",
+                    hw ? "le secteur 42 de mixte.bin" : "des zéros (rien ne joue)", hw);
+        a.stop();
+        a.seek(42);
+        p = cdrom_image.image_cd_pos;
+        bad += Voir("SEEK au LBA 42 : la position du lecteur", p == (hw ? 192u : 42u), $"{p}", hw ? "192" : "42", hw);
+        a.playaudio(0x00022A, 0x000300, 1);
+        cdrom_image.image_audio_callback(new short[1176 * 8], 1176 * 8);
+        var b = new byte[16];
+        a.getcurrentsubchannel(b, 0, 1);
+        var (abs, rel) = (Msf(b, 3), Msf(b, 7));
+        bad += Voir("PLAY AUDIO MSF depuis 00:02:42, huit secteurs joués ; READ SUB-CHANNEL en MSF : l'absolue, la relative",
+                    (abs, rel) == ("00:02:50", hw ? "00:00:08" : "00:02:08"), $"{abs}, {rel}", hw ? "00:02:50, 00:00:08" : "00:02:50, 00:02:08", hw);
+        a.getcurrentsubchannel(b, 0, 0);
+        var (la, lr) = (Be(b, 3), Be(b, 7));
+        bad += Voir("READ SUB-CHANNEL en LBA : l'absolue, la relative", (la, lr) == (hw ? (50u, 8u) : (200u, 158u)), $"{la}, {lr}",
+                    hw ? "50, 8" : "200, 158", hw);
+        return bad;
+    });
+
+    // PB-214 — PLAY AUDIO MSF : la plage demandée est jouée (SFF-8020i r2.6 § 10.8.9). Une feuille à piste 1 audio (LBA 0
+    // à 2 999) et piste 2 de données (3 000 à 5 999) ; PLAY AUDIO MSF de 00:20:00 à 00:30:00 (LBA 1 350 à 2 100) : la
+    // valeur compactée, 1400h = 5 120, tombe dans la piste 2 ; PCem annule la lecture (arrêté), le matériel joue
+    // (en cours, depuis la position 1 500). Puis 00:41:25, à la fin de la piste audio : en lecture des deux côtés.
+    private static int Pb214(bool hw) => AvecCd(d =>
+    {
+        Ecrire(d, "a.bin", new byte[3000 * 2352]);
+        Ecrire(d, "d.bin", new byte[3000 * 2048]);
+        var cue = Feuille(d, "ad.cue", "FILE \"a.bin\" BINARY", "  TRACK 01 AUDIO", "    INDEX 01 00:00:00",
+                          "FILE \"d.bin\" BINARY", "  TRACK 02 MODE1/2048", "    INDEX 01 00:00:00");
+        if (cdrom_image.image_open(cue) != 0)
+            return Voir("ad.cue montée", false, "refusée", "montée", hw);
+        ide_atapi.atapi!.playaudio(0x001400, 0x001E00, 1);
+        var (etat, pos) = (cdrom_image.image_cd_state, cdrom_image.image_cd_pos);
+        var bad = Voir("PLAY AUDIO MSF de 00:20:00 à 00:30:00 : l'état du lecteur, sa position", hw ? etat == cdrom_image.CD_PLAYING && pos == 1500
+                                                                                                  : etat == cdrom_image.CD_STOPPED,
+                       $"état {etat}, position {pos}", hw ? "en cours (1), 1500" : "arrêté (0)", hw);
+        // 00:41:25, le LBA 2 950, à la fin de la piste audio (3 100 sans les 150 : la piste de données) ; la valeur
+        // compactée, 2919h, hors des pistes : en lecture dans les deux modes.
+        ide_atapi.atapi!.stop();
+        ide_atapi.atapi!.playaudio(0x002919, 0x002A00, 1);
+        etat = cdrom_image.image_cd_state;
+        return bad + Voir("PLAY AUDIO MSF depuis 00:41:25 (LBA 2 950, la fin de la piste audio) : l'état du lecteur",
+                          etat == cdrom_image.CD_PLAYING, $"état {etat}", "en cours (1), dans les deux modes", hw);
+    });
+
+    // PB-215 — le contrôle de piste de PLAY AUDIO MSF : 00:02:00 est le LBA 0 (§ 10.8.8). mixte.cue : 00:02:00 (LBA 0,
+    // des données) — PCem le juge audio (au LBA 150, la piste 2), le matériel non ; 00:05:05 (LBA 230, la piste 3) —
+    // PCem le juge hors des pistes (380), le matériel audio. Témoin : le LBA 42 en LBA, audio des deux côtés.
+    private static int Pb215(bool hw) => AvecMixte((a, _) =>
+    {
+        var (x, y, t) = (a.is_track_audio(0x000200, 1), a.is_track_audio(0x000505, 1), a.is_track_audio(42, 0));
+        return Voir("is_track_audio de 00:02:00, de 00:05:05 (MSF), du LBA 42", (x, y, t) == (hw ? (0, 1, 1) : (1, 0, 1)),
+                    $"{x}, {y}, {t}", hw ? "0, 1, 1" : "1, 0, 1", hw);
     });
 }
