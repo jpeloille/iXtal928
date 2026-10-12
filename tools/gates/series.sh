@@ -689,3 +689,10 @@ for pb in 106 108 109 122; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7c2 — les commandes du lecteur de CD (PLAN-G13.md, G13.7) : PB-117 (READ CD-ROM CAPACITY), PB-119 (MODE SELECT),
+# PB-120 (la TOC brute), PB-268 (le READ hors du disque), PB-269 (MECHANISM STATUS), chacun son cas en C# seul dans
+# les deux modes, sur le banc de r9-atapi (l'ami486, le lecteur en maître secondaire, ses ports conduits depuis l'outil).
+for pb in 117 119 120 268 269; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

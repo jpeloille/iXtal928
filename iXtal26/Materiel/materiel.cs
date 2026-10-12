@@ -159,6 +159,21 @@ internal static class materiel
     /// <summary>PB-109 : un échec de lecture de l'image de CD ne colle pas au fichier.</summary>
     internal static readonly bool pb_109;
 
+    /// <summary>PB-117 : READ CD-ROM CAPACITY rend l'adresse du dernier bloc avant le lead-out.</summary>
+    internal static readonly bool pb_117;
+
+    /// <summary>PB-119 : MODE SELECT lit son en-tête selon sa longueur, et finit à longueur nulle.</summary>
+    internal static readonly bool pb_119;
+
+    /// <summary>PB-120 : la TOC brute a ses points A0h, A1h, A2h et sa longueur.</summary>
+    internal static readonly bool pb_120;
+
+    /// <summary>PB-268 : un READ qui sort du disque est refusé d'emblée, 05/21h.</summary>
+    internal static readonly bool pb_268;
+
+    /// <summary>PB-269 : MECHANISM STATUS lit son allocation sur deux octets, et rend 1Ah sous huit octets.</summary>
+    internal static readonly bool pb_269;
+
     /// <summary>PB-122 : le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste.</summary>
     internal static readonly bool pb_122;
 
@@ -393,6 +408,11 @@ internal static class materiel
         pb_106 = ModeMateriel.Demande(106);
         pb_108 = ModeMateriel.Demande(108);
         pb_109 = ModeMateriel.Demande(109);
+        pb_117 = ModeMateriel.Demande(117);
+        pb_119 = ModeMateriel.Demande(119);
+        pb_120 = ModeMateriel.Demande(120);
+        pb_268 = ModeMateriel.Demande(268);
+        pb_269 = ModeMateriel.Demande(269);
         pb_122 = ModeMateriel.Demande(122);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);

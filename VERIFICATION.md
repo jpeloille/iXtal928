@@ -9999,3 +9999,72 @@ du mode et de la ligne de commande, posées par les étapes antérieures de G13.
 **La série** g7c1 (le worktree de l'étape, contre g7b) : 522 portes, toutes vertes ; 514 communes à g7b, chacune au
 même verdict ; un seul résumé change, `recensement` (267 défauts, 1 099 marqueurs). Huit neuves : les `materiel-cas`
 de PB-106, PB-108, PB-109 et PB-122, dans les deux modes.
+
+## G13.7c2 — les commandes du lecteur de CD
+
+Le 12 octobre 2026. La deuxième étape du CD (PLAN-G13.md, § G13.7 : 7c coupée en quatre, 7c3 le jeu de commandes
+selon l'année du modèle, Q5, 7c4 l'audio). La source, obtenue pour cette étape : SFF-8020i révision 2.6 (22 janvier
+1996, « Proposed », la copie de revue), § 10.2.5 (la longueur d'allocation), § 10.8.3 et Table 45 (MECHANISM STATUS),
+§ 10.8.4 et Table 58 (MODE SELECT), § 10.8.12 et Table 87 (READ(10)), § 10.8.14 et la note du modèle CD-ROM (READ
+CD-ROM CAPACITY), § 10.8.19 et Tables 128, 129, 131 (READ TOC) ; SCSI-2 (X3.131-1994), chapitre 9 : § 9.1.2 (le bloc
+hors de la capacité), § 9.2.5 (READ(6)) ; ses Tables 91 et 92 (les en-têtes de MODE SELECT), non relues. La Figure 11
+(PB-106, G13.7c1) est relue : le sous-en-tête de 8 octets précède les données d'un secteur XA mode 2.
+
+**Les corrections du mode matériel** (domaine `stockage`, cinq neuves ; `Scsi/scsi_cd.Materiel.cs` et
+`Cdrom/cdrom-image.Materiel.cs`, les classes rendues partielles, sans champ neuf) : PB-117, READ CD-ROM CAPACITY rend
+le dernier LBA, la capacité du moteur moins deux ; PB-119, MODE SELECT de longueur 0 fini en GOOD sans phase de
+données, la liste lue selon sa forme (en-tête de 8 octets et descripteurs aux octets 6-7 en (10), de 4 octets et
+longueur à l'octet 3 en (6)), et deux défauts du même sous-programme relevés au texte de § 10.8.4 — une page inconnue
+ou de mauvaise longueur rend 26h (PCem : 24h) sans rien changer (PCem applique les pages qui précèdent), une liste qui
+tronque l'en-tête ou une page rend 1Ah (PCem lit au-delà, GOOD) ; PB-120, la TOC brute de la norme — la longueur, une
+session, A0h, A1h, A2h, puis les pistes, POINT à sa place ; et deux défauts neufs, trouvés par la contre-lecture :
+PB-268, un READ qui sort du disque refusé d'emblée, 05/21h, sans données (PCem sert les tranches lisibles puis des
+octets périmés, déborde son compte dès 2^20 blocs, et READ CD brut rend GOOD), dans READ(6), READ(10), READ(12) et
+READ CD ; PB-269, MECHANISM STATUS, l'allocation lue aux octets 8 et 9 (PCem y prend l'octet 7) et 05/1Ah sous huit
+octets. Chacune a son cas en C# seul (`materiel-cas`, `MaterielCasAtapi.cs`) sur le banc de `r9-atapi` : l'ami486
+amorcé, le lecteur en maître secondaire chargé d'une image que le cas écrit, ses ports conduits depuis l'outil, chaque
+commande relevée (l'état, l'erreur, la raison d'interruption, les données ; pour MODE SELECT, le volume du port 0 que
+le lecteur garde). Les cinq sont verts dans les deux modes, la sonde atteinte en mode matériel ; chacun rougit sous
+`--attendu materiel` en mode PCem.
+
+**PB-115 examiné** (Q12, « les transferts complets du CD ») : rien n'y bascule. Les transferts de PCem dans le disque
+sont déjà complets (`data_in` rempli par tranches, la commande relancée à chaque tranche lue) ; MECHANISM STATUS de
+longueur 0 rend GOOD sans données, la règle de § 10.8.3 ; les lectures qui sortent du disque, qui atteignaient les
+autres replis, sont PB-268 ; `data_out` ne déborde plus en mode matériel (PB-119). Restent les replis d'un échec de
+lecture dans le disque, un fichier d'image illisible : un fichier de l'hôte. Relevé en passant, laissé à 7c3 :
+READ(6), absent de la Table 37, prend chez PCem une longueur 0 pour aucun bloc, là où SCSI-2 § 9.2.5 la compte 256
+(« A transfer length of zero indicates that 256 logical blocks shall be transferred »).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137c2.py`, une faute à la fois dans le dépôt) : treize fautes, chacune
+rougit son cas — la capacité moins un (PB-117) ; la longueur 0 non corrigée, huit octets d'en-tête en (6), la longueur
+des données du mode prise pour celle des descripteurs, 24h au lieu de 26h, la page tronquée acceptée (PB-119) ; le
+type XA perdu, la longueur qui compte l'en-tête, A2h sans le lead-out (PB-120) ; un bloc de trop permis, READ CD non
+vérifié (PB-268) ; la borne à 4, l'octet 7 encore lu (PB-269). Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, SFF-8020i r2.6 et le chapitre 9 de SCSI-2 relus ; ses Tables 91 et 92 non disponibles) :
+deux points à corriger, huit remarques, tous traités. Corrigés : le texte de PB-115 était faux — un READ qui sort du
+disque déborde son compte dès 2^20 blocs, sert des octets périmés dans DRQ, et READ CD brut ignore l'échec (PB-268,
+neuf, corrigé) ; MECHANISM STATUS sous huit octets est une erreur de § 10.8.3 (PB-269, neuf, corrigé, avec l'octet 7
+que PCem lit). Repris : le cas de la longueur 0 de PB-119 exige le paquet accepté et la raison d'interruption de la
+phase d'état ; les cas de PB-119 couvrent un en-tête tronqué et un descripteur de bloc ; ceux de PB-120, deux pistes
+(l'ADR/contrôle de A0h, A1h, A2h) et la coupe à la longueur d'allocation, et, en mode PCem, l'absence de A0h. Écrits
+dans PCEM_BUGS : la lecture des octets 6-7 (et 3) vient de SCSI-2, SFF-8020i les réserve ; les conditions de § 10.8.4
+non tenues (un champ non modifiable, le type de support, le bit SP) ; le numéro de session de départ ignoré.
+
+**M2** (Release du worktree ; le scénario `ami486-cd-cue` de G13.7c1 étendu dans `tools/listings-jit.sh` : le
+programme tapé sous DEBUG lit la longueur de chaque bloc en 174h-175h, rejoue READ TOC au format 10b, puis un second,
+tapé après les lectures — le secteur lu en 300h couvrirait 400h —, envoie MODE SELECT(10) de la page audio : les
+méthodes gardées `scsi_cd_command`, `cdrom_mode_select` et `image_readtoc_raw` compilées). La première capture a
+trouvé `scsi_cd_command` changée, contre 7c1 comme contre M0 : un appel de PCem à `ide_padstr8` n'y était plus inliné
+(seize inlinées sans PGO au lieu de dix-sept). Les petites méthodes du mode matériel, inlinées dans les branches que
+la garde rend mortes avant que le JIT ne les retire, mangeaient le budget d'inlining de la méthode. Elles portent
+désormais `NoInlining`, et la garde de PB-269 ne passe plus de variable par référence (un `ldloca` marque la variable
+même dans une branche morte) : deux gardes, la longueur rendue par `allocation_materiel`. Recapturé : contre M2-7c1,
+deux méthodes changées, les constructeurs statiques de `materiel` et de `ModeMateriel` ; contre M0, le scénario
+rejoué sur 860f2b1 (`M0-860f2b1-g137c2`), `scsi_cd_command`, `cdrom_mode_select`, `image_readtoc_raw`,
+`ReadSector` identiques ; changent seulement les méthodes du mécanisme du mode et de la ligne de commande, posées
+par les étapes antérieures de G13.
+
+**La série** g7c2 (le worktree de l'étape, contre g7c1) : 532 portes, toutes vertes ; 522 communes à g7c1, chacune
+au même verdict ; un seul résumé change, `recensement` (269 défauts, 1 108 marqueurs). Dix neuves : les
+`materiel-cas` de PB-117, PB-119, PB-120, PB-268 et PB-269, dans les deux modes.

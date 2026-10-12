@@ -473,13 +473,20 @@ contre-lecture, M2, sa série entière et son commit :
   collant ; PB-122, le lead-out de la TOC) ; l'ATAPI et l'audio (PB-117, READ CAPACITY ; PB-119, MODE SELECT ; PB-120,
   la TOC brute ; PB-123, l'audio en LBA ; PB-214 et 215, PLAY AUDIO MSF) ; PB-115, les transferts complets. Le jeu de
   commandes : Q5. Restent au repli : PB-113 (déjà celui du lecteur), PB-114 (inconnu), PB-110 et 116 (les fichiers).
-  Coupée en trois le 12/10, comme N7 :
+  Coupée le 12/10, comme N7 (en trois, puis en quatre en G13.7c2) :
   - **G13.7c1 — Le moteur d'images** ✅ *(12/10, VERIFICATION.md § G13.7c1)*. PB-106, PB-108 (étendu : la piste qui ouvre son
     fichier commence à son INDEX 01, quel que soit son INDEX 00), PB-109, PB-122 ; en C# seul, hors machine ; deux
     scénarios de M2 (ami486-cd-cue, un PACKET READ(10) sous DEBUG ; ami486-cd-iso).
-  - **G13.7c2 — Les commandes du lecteur.** PB-117, PB-119, PB-120 (la TOC brute, moteur et commande), PB-118 et le jeu
-    de commandes selon l'année du modèle (Q5), PB-115 (les transferts complets).
-  - **G13.7c3 — L'audio.** PB-123, PB-214, PB-215.
+  - **G13.7c2 — Les commandes du lecteur** ✅ *(12/10, VERIFICATION.md § G13.7c2)*. PB-117, PB-119 (et deux défauts du même
+    sous-programme, au texte de SFF-8020i § 10.8.4 : 26h au lieu de 24h, la liste vérifiée avant d'appliquer ; 1Ah pour
+    une liste tronquée), PB-120 ; deux défauts neufs, de la contre-lecture : PB-268 (un READ qui sort du disque, refusé
+    d'emblée) et PB-269 (MECHANISM STATUS) ; PB-115 examiné : rien n'y bascule (les transferts dans le disque déjà
+    complets, ceux qui en sortent étant PB-268). Le texte de SFF-8020i r2.6 obtenu : les références des étapes du CD
+    relues.
+  - **G13.7c3 — Le jeu de commandes selon l'année du modèle (Q5).** PB-118 (GET EVENT STATUS NOTIFICATION), MODE
+    SELECT et MODE SENSE(6), PLAY AUDIO(12), READ(6) (absent de la Table 37 ; chez PCem, une longueur 0 n'y vaut pas
+    256 blocs) : servis ou refusés selon le modèle.
+  - **G13.7c4 — L'audio.** PB-123, PB-214, PB-215.
 - **G13.7d — Le ZIP et le disque SCSI.** PB-125 (les transferts complets, une adresse hors du disque en CHECK
   CONDITION, 05/21h), PB-126 (la capacité, la fin du disque, les phases à longueur nulle ; START STOP UNIT reste
   reproduit, inconnu sur le lecteur d'Iomega), PB-128 (les transferts complets, jusqu'à 65 535 blocs), PB-129 (la

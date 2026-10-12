@@ -9,8 +9,8 @@
 //
 // DEVIATIONS (R9, PB-115) : MECHANISM STATUS de longueur 0 (:993) ; data_out débordé (:1576-1581) ; la
 //   lecture au-delà de data_in (:1565) ; le compte négatif passé à readsector (:1187).
-// Reproduits : PB-117 (READ CAPACITY), PB-118 (GET EVENT STATUS NOTIFICATION), PB-119 (MODE SELECT),
-//   PB-120 (la TOC brute).
+// Reproduits : PB-118 (GET EVENT STATUS NOTIFICATION) ; en mode PCem, PB-117 (READ CAPACITY), PB-119 (MODE SELECT),
+//   PB-120 (la TOC brute), corrigés en mode matériel (scsi_cd.Materiel.cs, cdrom-image.Materiel.cs).
 
 // CS8981 : `scsi_cd_c` porte le nom de l'unité C, que le membre `scsi_cd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -129,7 +129,7 @@ internal sealed class cd_model_t
     }
 }
 
-internal static class scsi_cd_c
+internal static partial class scsi_cd_c
 {
     // pcem: scsi_cd.c:12
     private static int MIN(int a, int b) => a < b ? a : b;
@@ -783,9 +783,12 @@ internal static class scsi_cd_c
     // pcem: scsi_cd.c:755-805 — la longueur lue en tête (data_out[0..1]) est celle des données du mode, prise
     //   pour celle du descripteur de bloc, et l'en-tête compté huit octets même en MODE SELECT(6) (prefix_len
     //   n'est jamais lu).
-    // pcem bug, reproduced: PB-119
+    // pcem bug, fixed in hardware mode: PB-119
     private static void cdrom_mode_select(scsi_cd_data_t data, int data_len)
     {
+        if (materiel.pb_119)
+                if (cdrom_mode_select_materiel(data, data_len))
+                        return;
         int len = data.data_out[1] | (data.data_out[0] << 8);
         int pos = 8 + len; /*Skip over mode parameter header*/
 
@@ -1042,7 +1045,14 @@ internal static class scsi_cd_c
                 return SCSI_PHASE_STATUS;
 
         case GPCMD_MECHANISM_STATUS: /*0xbd*/
+                // pcem bug, fixed in hardware mode: PB-269 — la longueur d'allocation lue sur trois octets (7 à 9), et
+                //   une longueur qui tronque l'en-tête de huit octets servie sans erreur.
                 alloc_length = (cdb[7] << 16) | (cdb[8] << 8) | cdb[9];
+                if (materiel.pb_269)
+                        alloc_length = allocation_materiel(cdb, alloc_length);
+                if (materiel.pb_269)
+                        if (mechanism_status_tronque_materiel(data, alloc_length))
+                                return SCSI_PHASE_STATUS;
 
                 // pcem bug, not reproduced: PB-115 — fatal("Zero allocation length to MECHANISM STATUS not impl.\n")
                 //   (:993), à la portée de tout invité.
@@ -1080,7 +1090,7 @@ internal static class scsi_cd_c
                         break;
                 case 2: /*Raw*/
                         // La TOC brute : ni lead-out, ni longueur en tête (data_in[0..1] reste à zéro).
-                        // pcem bug, reproduced: PB-120
+                        // pcem bug, fixed in hardware mode: PB-120 — dans le moteur (cdrom-image.cs, image_readtoc_raw).
                         len = atapi.readtoc_raw(data.data_in, 0, alloc_length);
                         break;
                 default:
@@ -1109,6 +1119,10 @@ internal static class scsi_cd_c
                         data.cdlen = (cdb[6] << 16) | (cdb[7] << 8) | cdb[8];
                         data.cdpos = (cdb[2] << 24) | (cdb[3] << 16) | (cdb[4] << 8) | cdb[5];
 
+                        // pcem bug, fixed in hardware mode: PB-268 — la plage n'est jamais vérifiée d'emblée.
+                        if (materiel.pb_268)
+                                if (lecture_hors_disque_materiel(data))
+                                        return SCSI_PHASE_STATUS;
                         data.cmd_pos = CMD_POS_START_SECTOR;
                         data.bytes_expected = data.cdlen * ((rcdmode == 0x10) ? 2048 : 2352);
                         if (data.is_atapi != 0)
@@ -1215,6 +1229,10 @@ internal static class scsi_cd_c
                                                    (uint32_t)cdb[5]);
                         }
 
+                        // pcem bug, fixed in hardware mode: PB-268 — la plage n'est jamais vérifiée d'emblée.
+                        if (materiel.pb_268)
+                                if (lecture_hors_disque_materiel(data))
+                                        return SCSI_PHASE_STATUS;
                         data.cmd_pos = CMD_POS_START_SECTOR;
                         data.bytes_expected = data.cdlen * 2048;
                         if (data.is_atapi != 0)
@@ -1339,7 +1357,7 @@ internal static class scsi_cd_c
         case GPCMD_MODE_SELECT_10:
                 // Une longueur 0 : bytes_required vaut 0, write_complete ne devient jamais vrai, et la phase de
                 //   données ne finit pas (DRQ, compte d'octets 0 puis FFFEh).
-                // pcem bug, reproduced: PB-119
+                // pcem bug, fixed in hardware mode: PB-119
                 if (data.cmd_pos == CMD_POS_IDLE)
                 {
                         int len_;
@@ -1355,6 +1373,9 @@ internal static class scsi_cd_c
                                 data.prefix_len = 10;
                         }
 
+                        if (materiel.pb_119)
+                                if (mode_select_vide_materiel(data, len_))
+                                        return SCSI_PHASE_STATUS;
                         data.cmd_pos = CMD_POS_TRANSFER;
                         data.bytes_required = len_;
                         return SCSI_PHASE_DATA_OUT;
@@ -1643,8 +1664,10 @@ internal static class scsi_cd_c
         case GPCMD_READ_CDROM_CAPACITY:
                 // La capacité de l'image (fin + 1, PB de G10.3) rendue telle quelle : le nombre de blocs + 1, là où
                 //   READ CAPACITY attend le dernier LBA — 33 pour 32 secteurs.
-                // pcem bug, reproduced: PB-117
+                // pcem bug, fixed in hardware mode: PB-117
                 size = atapi.size();
+                if (materiel.pb_117)
+                        size = dernier_bloc_materiel(size);
                 scsi_add_data(data, (uint8_t)((size >> 24) & 0xff));
                 scsi_add_data(data, (uint8_t)((size >> 16) & 0xff));
                 scsi_add_data(data, (uint8_t)((size >> 8) & 0xff));

@@ -1975,7 +1975,7 @@ PVD à partir de son 16e octet. Mesuré par `cdimage-check` (constats, `iso-2336
 *Trouvé par* : reconnaissance de G10.3.
 *Source* : documenté — SFF-8020i r2.6 (22 janvier 1996), Figure 11 : un secteur XA mode 2 forme 1 porte 12 octets de
 synchronisation, 4 d'en-tête et 8 de sous-en-tête avant ses 2 048 octets de données ; sans synchronisation ni
-en-tête (2 336 octets), les données sont à +8. Figure non revérifiée en contre-lecture.
+en-tête (2 336 octets), les données sont à +8. Figure relue en G13.7c2.
 *Cas qui discrimine* : `iso-2336-mode2.bin` (isogen) : PCem refuse l'image ; le matériel la lit, et son secteur 16
 rend `01 « CD001 » 01`. `formats.cue`, la piste MODE2/2336 : son secteur 16 commence chez PCem au 16e octet du PVD,
 sur le matériel à son octet 0.
@@ -2152,6 +2152,15 @@ au-delà de `data_out`, l'octet est compté sans être gardé ; à la fin de `da
 octets), le transfert s'arrête — un dernier octet nul, puis CHECK CONDITION, ILLEGAL REQUEST /
 LBA OUT OF RANGE —, et en deçà les octets périmés de PCem sont rendus ; un compte négatif est un
 échec de lecture. Marqueurs PB-115, survie `r9-atapi`.
+*Examiné en mode matériel* (G13.7c2, Q12 : « les transferts complets du CD ») : rien n'y bascule ; deux défauts
+voisins, neufs, le sont. Les transferts de PCem dans le disque sont déjà complets — `data_in` se remplit par tranches
+de `MAX_NR_SECTORS` secteurs, `scsi_cd_read` relance la commande quand la tranche est lue. MECHANISM STATUS de longueur
+0 rend GOOD sans données, la règle de SFF-8020i r2.6 § 10.8.3 ; une longueur qui tronque son en-tête est PB-269. Un
+READ qui sort du disque — où le compte `cdlen × 2048` ou `× 2352` déborde (dès 2^20 blocs), où PCem sert des octets
+périmés jusqu'au bord de `data_in` après un échec de tranche, et où READ CD brut rend GOOD — est PB-268 : refusé
+d'emblée en mode matériel, il n'atteint plus ces replis. `data_out` ne déborde plus en mode matériel, MODE SELECT de
+longueur 0 finissant sans phase de données (PB-119). Restent en mode matériel les replis d'un échec de lecture dans
+le disque (un fichier d'image illisible) : un fichier de l'hôte.
 
 ### PB-116 — Une image illisible au démarrage laisse le pilote CD nul
 
@@ -2180,9 +2189,15 @@ address of the last block prior to the lead-out area ») ; SCSI-2 § 9.2.7 (non 
 *Cas qui discrimine* : ATAPIBANC, image de 32 secteurs : READ CAPACITY rend 00000021h (33) chez PCem, 0000001Fh (31)
 sur le matériel, 2 048 octets par bloc ; READ(10) du LBA 31 : GOOD des deux côtés.
 *G13* : (a).
-*Reproduit* : `Scsi/scsi_cd.cs`, READ CAPACITY, et `Cdrom/cdrom-image.cs`, `image_open` (la capacité plus un),
-marqueurs PB-117. Contrôle négatif : la capacité moins un rougit ATAPIBANC ; la valeur juste est la capacité moins
-deux, 31 (D3-contre, C10).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, READ CAPACITY, et `Cdrom/cdrom-image.cs`, `image_open` (la capacité
+plus un), marqueurs `fixed in hardware mode: PB-117`. Contrôle négatif : la capacité moins un rougit ATAPIBANC ; la
+valeur juste est la capacité moins deux, 31 (D3-contre, C10).
+*Corrigé en mode matériel* (G13.7c2) : sous `if (materiel.pb_117)`, `dernier_bloc_materiel`
+(`Scsi/scsi_cd.Materiel.cs`) rend la capacité du moteur moins deux, le début du lead-out moins un ; la capacité du
+moteur, que rien d'autre ne lit, garde son plus un. Texte relu en G13.7c2 (SFF-8020i r2.6, le modèle CD-ROM : « The
+READ CD-ROM CAPACITY command returns the logical block address of the last block prior to the lead-out area »).
+`materiel-cas PB-117` (READ CD-ROM CAPACITY d'une ISO de 32 secteurs, sur l'ami486 et son lecteur ATAPI ; en témoin,
+READ(10) du LBA 31) rend 33 et 2 048 en mode PCem, 31 et 2 048 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-118 — GET EVENT STATUS NOTIFICATION annonce toujours un nouveau disque
 
@@ -2221,9 +2236,30 @@ octets, en-tête(10) de 8). MODE SELECT(6) relève de Q5 de D3-stockage.
 loin et refuse (05/24h) ; le matériel l'accepte, et MODE SENSE la relit. MODE SELECT(10) de longueur 0 : PCem reste
 en phase de données (DRQ, compte 0 puis FFFEh) ; le matériel rend GOOD sans transfert.
 *G13* : (a).
-*Reproduit* : `Scsi/scsi_cd.cs`, marqueurs PB-119. ATAPIBANC le montre : MODE SELECT(10) de la page audio est relu à
-l'identique par MODE SENSE(10) ; MODE SELECT(6) de la même page prend ses vingt octets, puis est refusé (ILLEGAL
-REQUEST, 24h) : la page est cherchée quatre octets trop loin. La longueur 0, par `r9-atapi`.
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, marqueurs `fixed in hardware mode: PB-119`. ATAPIBANC le montre :
+MODE SELECT(10) de la page audio est relu à l'identique par MODE SENSE(10) ; MODE SELECT(6) de la même page prend ses
+vingt octets, puis est refusé (ILLEGAL REQUEST, 24h) : la page est cherchée quatre octets trop loin. La longueur 0, par
+`r9-atapi`.
+*Corrigé en mode matériel* (G13.7c2) : sous `if (materiel.pb_119)`, `mode_select_vide_materiel` finit MODE SELECT de
+longueur 0 en GOOD, sans phase de données, et `cdrom_mode_select_materiel` (`Scsi/scsi_cd.Materiel.cs`) lit la liste
+selon sa forme — un en-tête de 8 octets en MODE SELECT(10), la longueur des descripteurs de bloc aux octets 6 et 7
+(SFF-8020i r2.6, Table 58, où ils sont réservés ; SCSI-2, Table 92), de 4 octets en MODE SELECT(6), cette longueur à
+l'octet 3 (SCSI-2, Table 91) ; la longueur des données du mode, réservée en MODE SELECT, ignorée. Deux défauts du même
+sous-programme, relevés en G13.7c2 au texte de § 10.8.4 : une page inconnue ou d'une longueur autre que celle de
+MODE SENSE rend INVALID FIELD IN PARAMETER LIST (05/26h), où PCem rend 24h, « and shall not change any mode
+parameters » — la liste entière vérifiée avant d'appliquer, où PCem applique les pages qui précèdent la faute ; une
+liste qui tronque l'en-tête ou une page rend PARAMETER LIST LENGTH ERROR (05/1Ah), où PCem lit au-delà et rend GOOD.
+Les pages gardées restent celles de PCem (l'audio ; les trois autres acceptées sans effet), et les autres conditions
+de § 10.8.4 ne sont pas tenues : un champ non modifiable changé, une valeur d'en-tête non supportée (le type de
+support), le bit SP sans pages sauvegardées — rendus GOOD, comme chez PCem. SFF-8020i réserve les octets 3 à 7 de
+l'en-tête (aucun descripteur de bloc sur ATAPI, où un hôte les laisse à zéro) : leur lecture comme longueur des
+descripteurs vient de SCSI-2 (Tables 91 et 92, non relues), le même lecteur servant aussi derrière une carte SCSI.
+Que MODE SELECT(6) existe
+sur un lecteur ATAPI relève de Q5 (G13.7c3) ; servi, il a cet en-tête. `materiel-cas PB-119` (sur l'ami486 et son
+lecteur ATAPI, le volume du port 0 lu après chaque essai : la longueur 0 ; la page audio sous une longueur des données
+du mode de 0016h ; la page puis une page 0Fh ; une liste de 18 octets ; MODE SELECT(6) de la page) rend DRQ, FFh, 24h
+et 82h, GOOD, 24h en mode PCem ; GOOD sans DRQ, 81h, 26h et 81h, 1Ah, GOOD et 84h en mode matériel ; la correction
+coupée, il rougit.
 
 ### PB-120 — La TOC brute n'a ni lead-out ni longueur
 
@@ -2240,9 +2276,21 @@ Byte » : 00h, 10h, 20h) ; la longueur des données renseignée.
 `00 00 01 01` et `01 14 00 00 00 00 00 00 00 02 00` ; le matériel `00 2E 01 01`, puis A0h (piste 1, type 00h), A1h
 (piste 1), A2h (00:02:32) et `01 14 00 01 00 00 00 00 00 02 00`.
 *G13* : (a).
-*Reproduit* : `Scsi/scsi_cd.cs` (READ TOC) et `Cdrom/cdrom-image.cs` (`image_readtoc_raw`), marqueurs PB-120 ; le
-moteur est comparé des deux côtés par `cdimage-check`. ATAPIBANC ne lit pas la TOC brute (PLAN-G10.md, « Les
-risques »).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs` (READ TOC) et `Cdrom/cdrom-image.cs` (`image_readtoc_raw`), marqueurs
+`fixed in hardware mode: PB-120` ; le moteur est comparé des deux côtés par `cdimage-check`. ATAPIBANC ne lit pas la
+TOC brute (PLAN-G10.md, « Les risques »).
+*Corrigé en mode matériel* (G13.7c2) : sous `if (materiel.pb_120)`, `image_readtoc_raw_materiel`
+(`Cdrom/cdrom-image.Materiel.cs`) rend la table entière (la commande la coupe à la longueur d'allocation) : la
+longueur, une session, A0h (le numéro de la première piste et le type du disque, 00h, ou 20h quand la première piste
+est en mode 2), A1h (le numéro de la dernière), A2h (le début du lead-out), puis une entrée par piste, la session à
+l'octet 0 et la piste en POINT (Tables 128, 129 et 131, relues en G13.7c2). L'ADR/contrôle de A0h est celui de la
+première piste, celui de A1h et de A2h celui de la dernière (déduit, comme PB-122). Le numéro de session de départ
+(l'octet 6 de la commande) est ignoré, comme chez PCem : le disque n'a qu'une session. `materiel-cas PB-120` (sur
+l'ami486 et son lecteur ATAPI : READ TOC au format 10b d'une ISO de 32 secteurs, d'une feuille à une piste MODE2/2352,
+d'une feuille à deux pistes, données puis audio, entière puis sous une allocation de 15 octets) rend les quinze octets
+ci-dessus, aucun A0h et deux entrées sans longueur en mode PCem ; les quarante-huit octets ci-dessus, le type 20h,
+A0h en 14h et A1h, A2h en 10h, la longueur 0039h intacte sous la coupe en mode matériel ; la correction coupée, il
+rougit.
 
 ### PB-122 — Le lead-out de la TOC n'a ni ADR ni contrôle
 
@@ -5334,6 +5382,52 @@ octets du tampon, DRIVE DIAGNOSTIC rend 04h (Not Ready) sur une unité absente ;
 TRACK (le drapeau de piste n'a pas de place dans l'image), READ ECC BURST ERROR LENGTH, READ LONG et WRITE LONG (l'ECC
 n'est pas documenté au bit près, PB-76). Survie : `r9-xebec`, trente et un essais, chaque garde atteinte, la carte
 répond ensuite ; les outils comparés à l'oracle n'empruntent aucun de ces chemins.
+
+### PB-268 — Un READ du lecteur de CD qui sort du disque est servi en partie, ou déborde son compte
+
+`scsi_cd.c:1124-1198` (READ(6), READ(10), READ(12)) et `:1039-1122` (READ CD) : la plage demandée n'est jamais
+vérifiée contre la capacité. La commande lit tranche par tranche (seize secteurs) ; la tranche qui sort du disque
+échoue (CHECK CONDITION, 05/21h), mais le compte d'octets attendu (`bytes_expected = cdlen × 2048`, ou `× 2352`) reste,
+et le pont continue de servir `data_in` — ses octets périmés — jusqu'à lui. Ce compte est un `int` : il déborde dès
+2^20 blocs (READ(12), READ CD), et n'est plus un compte. READ CD brut (`0xF8`) ne teste pas le retour de
+`readsector_raw` : au-delà du disque, il rend GOOD et des zéros.
+*Effet* : sur un disque de 32 secteurs, READ(10) de 40 blocs depuis le LBA 0 sert 81 920 octets — les 65 536 du
+disque, puis 16 384 octets périmés — avant l'erreur ; READ CD brut de deux blocs depuis le LBA 31 rend GOOD ; READ(12)
+d'un million de blocs déborde le compte (et mène aux replis de PB-115).
+*Trouvé par* : la contre-lecture de G13.7c2 (le texte de PB-115).
+*Source* : documenté — SCSI-2 (X3.131-1994) § 9.1.2 : « If a command is issued that requests access to a logical
+block not within the capacity of the medium, the command is terminated with CHECK CONDITION » ; SFF-8020i r2.6,
+Table 87 : 05/21h, LOGICAL BLOCK ADDRESS OUT OF RANGE. Que le refus vienne avant toute donnée est déduit (la commande
+est terminée).
+*Cas qui discrimine* : ci-dessus, sur une ISO de 32 secteurs ; en témoin, READ(10) des LBA 30 et 31.
+*G13* : (a).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, READ CD et READ(6/10/12), marqueurs `fixed in hardware mode: PB-268`.
+*Corrigé en mode matériel* (G13.7c2) : sous `if (materiel.pb_268)`, `lecture_hors_disque_materiel`
+(`Scsi/scsi_cd.Materiel.cs`) refuse d'emblée, sans données, la commande dont le dernier bloc dépasse le disque (le
+nombre de blocs : la capacité du moteur moins un, PB-117) : CHECK CONDITION, 05/21h ; une longueur nulle ne lit rien
+et n'est pas une erreur. `materiel-cas PB-268` (sur l'ami486 et son lecteur ATAPI) rend 81 920 octets puis 21h,
+GOOD, GOOD en mode PCem ; 21h sans données aux trois commandes en mode matériel ; la correction coupée, il rougit.
+
+### PB-269 — MECHANISM STATUS lit sa longueur d'allocation sur trois octets, et la tronque sans erreur
+
+`scsi_cd.c:989-1007` : la longueur d'allocation est lue aux octets 7 à 9 de la commande, l'octet 7 réservé compris
+(comme PB-118) ; et une longueur de 1 à 7 octets, qui tronque l'en-tête de huit, est servie telle quelle, GOOD.
+*Effet* : un pilote qui laisse un octet 7 non nul obtient huit octets là où il n'en voulait aucun ; une longueur
+courte rend un en-tête tronqué sans erreur.
+*Trouvé par* : la contre-lecture de G13.7c2.
+*Source* : documenté — SFF-8020i r2.6 § 10.8.3 (Table 45 : la longueur d'allocation aux octets 8 et 9) : « The ATAPI
+CD-ROM Drive shall terminate the command with CHECK CONDITION status if the parameter list length results in the
+truncation of any Mechanism Status header », PARAMETER LIST LENGTH ERROR (05/1Ah) ; § 10.2.5 : la seule commande où
+une allocation courte est une erreur (« Note: In the future, this error may be removed »).
+*Cas qui discrimine* : MECHANISM STATUS, allocation de 4 octets : PCem GOOD et 4 octets, le matériel 1Ah ; l'octet 7 à
+1, les octets 8 et 9 à 0 : PCem 8 octets, le matériel aucun, GOOD ; en témoin, 8 octets dans les deux modes.
+*G13* : (a).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, MECHANISM STATUS, marqueur `fixed in hardware mode: PB-269`.
+*Corrigé en mode matériel* (G13.7c2) : sous deux gardes `if (materiel.pb_269)`, `allocation_materiel` lit l'allocation
+aux octets 8 et 9 et `mechanism_status_tronque_materiel` (`Scsi/scsi_cd.Materiel.cs`) rend 05/1Ah, sans données, sous
+huit octets ; la
+longueur nulle reste GOOD sans données. `materiel-cas PB-269` rend les valeurs ci-dessus ; la correction coupée, il
+rougit.
 
 ## B. Comportement indéfini en C
 

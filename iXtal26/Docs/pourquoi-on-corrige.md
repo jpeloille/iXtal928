@@ -1138,3 +1138,57 @@ ce que le vrai lecteur aurait lu du vrai disque.
   piste (données ou audio).
 - **L'émulateur.** PCem met cet octet à zéro.
 - **La correction.** Le lead-out reprend l'octet de la dernière piste.
+
+## G13.7c2 — les commandes du lecteur de CD
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7c2.*
+
+Le programme parle au lecteur de CD par des commandes normalisées (SFF-8020i, 1996) : combien de secteurs a le
+disque, quelle est sa table des matières, quels réglages appliquer, lire tels secteurs. PCem répond de travers à cinq
+d'entre elles.
+
+### PB-117 — la taille du disque
+
+- **Le vrai PC.** À la question « quelle est la capacité ? », le lecteur répond par le numéro du dernier secteur
+  lisible : 31 pour un disque de 32 secteurs.
+- **L'émulateur.** PCem répond 33, deux de trop ; un pilote qui lit le dernier secteur annoncé reçoit une erreur.
+- **La correction.** Le numéro du dernier secteur.
+
+### PB-119 — MODE SELECT, les réglages du lecteur
+
+- **Le vrai PC.** Le programme envoie au lecteur une liste de réglages (le volume de la musique, par exemple),
+  précédée d'un en-tête dont la taille dépend de la forme de la commande. Une liste vide n'est pas une erreur ; une
+  liste coupée, ou un réglage inconnu, est refusée en entier, sans rien changer.
+- **L'émulateur.** PCem lit l'en-tête de travers et peut sauter les réglages ; une liste vide le laisse attendre des
+  données qui ne viennent jamais ; il applique les réglages qui précèdent une faute, et ne voit pas une liste coupée.
+- **La correction.** L'en-tête lu selon la forme de la commande ; la liste vide finie aussitôt ; la liste vérifiée
+  entière avant d'appliquer quoi que ce soit, avec les codes d'erreur de la norme.
+
+### PB-120 — la table des matières « brute »
+
+- **Le vrai PC.** Sous sa forme brute, la table des matières commence par trois entrées : la première piste (et le
+  type du disque), la dernière, et le début de la zone de fin ; puis une entrée par piste, et sa longueur en tête.
+- **L'émulateur.** PCem ne rend que les pistes, sans ces trois entrées ni la longueur, et range le numéro de piste à
+  la mauvaise place.
+- **La correction.** La table de la norme.
+
+### PB-268 — une lecture qui sort du disque
+
+- **Le vrai PC.** Un programme qui demande des secteurs au-delà de la fin du disque reçoit une erreur, « adresse hors
+  du disque », et aucune donnée.
+- **L'émulateur.** PCem lit tant qu'il peut, puis signale l'erreur, mais continue de servir des données périmées
+  jusqu'au compte demandé ; pour une très grande demande, son compte déborde ; et une lecture « brute » au-delà du
+  disque répond même « réussi », avec des zéros.
+- **La correction.** La demande est vérifiée d'emblée, et refusée.
+
+### PB-269 — MECHANISM STATUS
+
+- **Le vrai PC.** Cette commande rend l'état du mécanisme dans un en-tête de huit octets ; un programme qui en demande
+  moins reçoit une erreur — c'est la seule commande où la norme l'exige.
+- **L'émulateur.** PCem lit la taille demandée sur un octet de trop, et sert un en-tête tronqué sans rien dire.
+- **La correction.** La taille lue à sa place, et l'erreur de la norme.
+
+### Ce qui reste comme chez PCem
+
+PB-115 — des lectures que PCem coupait par sécurité. Les lectures normales dans le disque sont déjà complètes ; celles
+qui en sortent sont PB-268. Rien d'autre n'y change.

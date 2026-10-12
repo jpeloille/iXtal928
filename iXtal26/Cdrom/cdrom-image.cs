@@ -30,7 +30,7 @@ using static iXtal26.Cdrom.CDROM_Interface_Image;
 
 namespace iXtal26.Cdrom;
 
-internal static class cdrom_image
+internal static partial class cdrom_image
 {
     private static void pclog(string s) => Console.Error.Write(s);
 
@@ -477,11 +477,13 @@ internal static class cdrom_image
     }
 
     // pcem: cdrom-image.cc:383-425 — de first_track à last_track : sans le lead-out, et sans b[0] ni b[1].
-    // pcem bug, reproduced: PB-120 — ni les points A0h, A1h, A2h, ni le lead-out, ni la longueur (b[0], b[1]).
+    // pcem bug, fixed in hardware mode: PB-120 — ni les points A0h, A1h, A2h, ni le lead-out, ni la longueur (b[0], b[1]).
     private static int image_readtoc_raw(uint8_t[] b, int o, int maxlen)
     {
         if (cdrom is null)
             return 0;
+        if (materiel.pb_120)
+            return image_readtoc_raw_materiel(cdrom, b, o);
 
         int track;
         int len = 4;
@@ -592,7 +594,8 @@ internal static class cdrom_image
         image_cd_state = CD_STOPPED;
         image_cd_pos = 0;
         cd_buflen = 0;
-        // pcem bug, reproduced: PB-117 — le début du lead-out plus un : READ CAPACITY rend cette capacité telle quelle.
+        // pcem bug, fixed in hardware mode: PB-117 — le début du lead-out plus un : READ CAPACITY la rend telle quelle
+        //   (corrigé dans scsi_cd.cs, READ CAPACITY).
         cdrom_capacity = unchecked((uint32_t)(image_get_last_block(0, 0, 4096, 0) + 1));
         ide_atapi.atapi = image_atapi;
         return 0;

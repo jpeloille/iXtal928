@@ -80,6 +80,9 @@ internal static class ModeMateriel
         new(106, "stockage", "un secteur de CD de 2 336 octets a ses données à +8"),
         new(108, "stockage", "la piste qui ouvre son fichier y commence à son INDEX 01"),
         new(109, "stockage", "un échec de lecture de l'image ne colle pas au fichier"),
+        new(117, "stockage", "READ CD-ROM CAPACITY rend l'adresse du dernier bloc avant le lead-out"),
+        new(119, "stockage", "MODE SELECT lit l'en-tête de sa forme, rend 1Ah ou 26h, et finit à longueur nulle"),
+        new(120, "stockage", "la TOC brute a ses points A0h, A1h, A2h et sa longueur"),
         new(122, "stockage", "le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
@@ -141,6 +144,8 @@ internal static class ModeMateriel
         new(263, "processeur", "après un CALL de tâche, l'IP contre la limite du nouveau CS : #TS(0) (386, 486)"),
         new(264, "x87", "la pile du x87 déborde : IE, et SF et C1 sur le 387 et le 486 (le noyau)"),
         new(265, "x87", "FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 (le noyau)"),
+        new(268, "stockage", "un READ du CD qui sort du disque est refusé d'emblée, 05/21h"),
+        new(269, "stockage", "MECHANISM STATUS lit son allocation sur deux octets, et rend 1Ah sous huit octets"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

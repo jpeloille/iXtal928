@@ -19,7 +19,8 @@
 // du PC1512 ; celui de PB-103 pose l'état de la manette et lit la CH et la TM. Ceux du mode protégé (PB-32, PB-39,
 // PB-40, PB-190 à PB-193, PB-263) jouent les cas de pm-check qui les discriminent, au 386 et au 286, en C# seul
 // (PmCheck386.CasMateriel, PmCheck.CasMateriel). Ceux du stockage (PB-14, PB-19, PB-22, PB-23, PB-25, PB-217) sont dans
-// MaterielCasStockage.cs ; ceux du moteur d'images de CD (PB-106, PB-108, PB-109, PB-122), dans MaterielCasCd.cs.
+// MaterielCasStockage.cs ; ceux du moteur d'images de CD (PB-106, PB-108, PB-109, PB-122), dans MaterielCasCd.cs ; ceux des
+// commandes du lecteur (PB-117, PB-119, PB-120, PB-268, PB-269), dans MaterielCasAtapi.cs.
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -49,6 +50,7 @@ internal static partial class MaterielCas
         [14] = Pb14, [19] = Pb19, [22] = Pb22, [23] = Pb23, [25] = Pb25, [217] = Pb217,
         [71] = Pb71, [74] = Pb74, [216] = Pb216,
         [106] = Pb106, [108] = Pb108, [109] = Pb109, [122] = Pb122,
+        [117] = Pb117, [119] = Pb119, [120] = Pb120, [268] = Pb268, [269] = Pb269,
     };
 
     /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les
