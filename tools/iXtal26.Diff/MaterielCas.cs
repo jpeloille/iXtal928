@@ -21,7 +21,7 @@
 // (PmCheck386.CasMateriel, PmCheck.CasMateriel). Ceux du stockage (PB-14, PB-19, PB-22, PB-23, PB-25, PB-217) sont dans
 // MaterielCasStockage.cs ; ceux du moteur d'images de CD (PB-106, PB-108, PB-109, PB-122 ; l'audio, PB-123, PB-214, PB-215), dans MaterielCasCd.cs ; ceux des
 // commandes du lecteur (PB-117 à PB-120, PB-268 à PB-273), dans MaterielCasAtapi.cs ; ceux du ZIP
-// (PB-125, PB-126), dans MaterielCasZip.cs.
+// (PB-125, PB-126), dans MaterielCasZip.cs ; ceux du disque SCSI (PB-128, PB-129, PB-131, PB-132), dans MaterielCasScsi.cs.
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -50,7 +50,7 @@ internal static partial class MaterielCas
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
         [14] = Pb14, [19] = Pb19, [22] = Pb22, [23] = Pb23, [25] = Pb25, [217] = Pb217,
         [71] = Pb71, [74] = Pb74, [216] = Pb216,
-        [106] = Pb106, [108] = Pb108, [109] = Pb109, [122] = Pb122, [123] = Pb123, [214] = Pb214, [215] = Pb215, [125] = Pb125, [126] = Pb126,
+        [106] = Pb106, [108] = Pb108, [109] = Pb109, [122] = Pb122, [123] = Pb123, [214] = Pb214, [215] = Pb215, [125] = Pb125, [126] = Pb126, [128] = Pb128, [129] = Pb129, [131] = Pb131, [132] = Pb132,
         [117] = Pb117, [119] = Pb119, [120] = Pb120, [268] = Pb268, [269] = Pb269, [118] = Pb118, [270] = Pb270, [271] = Pb271, [272] = Pb272, [273] = Pb273,
     };
 

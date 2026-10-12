@@ -25,8 +25,8 @@ namespace iXtal26.Diff;
 
 internal static class R9Aha
 {
-    private const ushort P = 0x334;
-    private const uint Ccb = 0x80000, Mbox = 0x80100, Petit = 0x80200, Buf = 0x100000;
+    internal const ushort P = 0x334;
+    internal const uint Ccb = 0x80000, Mbox = 0x80100, Petit = 0x80200, Buf = 0x100000;
 
     private static int Essais;
 
@@ -219,12 +219,12 @@ internal static class R9Aha
     }
 
     // ---- les ports et la mailbox -------------------------------------------------------------------
-    private static byte Etat() => io.inb(P);
+    internal static byte Etat() => io.inb(P);
 
-    private static byte Isr() => io.inb(P + 2);
+    internal static byte Isr() => io.inb(P + 2);
 
     /// <summary>Un octet de commande ou de paramètre, CDF libre d'abord (au plus cent tranches).</summary>
-    private static void Cmd(params int[] octets)
+    internal static void Cmd(params int[] octets)
     {
         foreach (var o in octets)
         {
@@ -235,7 +235,7 @@ internal static class R9Aha
     }
 
     /// <summary>Attendre HACC (au plus cent tranches) ; l'état relevé, puis IRST.</summary>
-    private static byte Hacc()
+    internal static byte Hacc()
     {
         for (var i = 0; i < 100 && (Isr() & 0x04) == 0; i++)
             pc.runpc();
@@ -245,7 +245,7 @@ internal static class R9Aha
     }
 
     /// <summary>Un CCB de format 4 : opcode, ID, la CDB (sa longueur déclarée est la sienne), les données.</summary>
-    private static byte[] CcbDe(int opcode, int id, byte[] cdb, int longueur, uint donnees = Petit)
+    internal static byte[] CcbDe(int opcode, int id, byte[] cdb, int longueur, uint donnees = Petit)
     {
         var c = new byte[0x12 + cdb.Length + 14];
         c[0] = (byte)opcode;
@@ -263,7 +263,7 @@ internal static class R9Aha
 
     /// <summary>MAILBOX INIT (une MBO, une MBI), le CCB écrit, START, 02h ; puis au plus `tranches` tranches pour
     /// le MBI. Rend le statut d'hôte, le statut cible et le code du MBI (0 : rien).</summary>
-    private static (byte hote, byte cible, byte mbi) Mailbox(byte[] ccb, int tranches = 100)
+    internal static (byte hote, byte cible, byte mbi) Mailbox(byte[] ccb, int tranches = 100)
     {
         Cmd(0x01, 1, (int)(Mbox >> 16) & 0xFF, (int)(Mbox >> 8) & 0xFF, (int)Mbox & 0xFF);
         Hacc();

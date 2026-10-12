@@ -719,3 +719,10 @@ for pb in 125 126; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7d2a — le disque SCSI (PLAN-G13.md, G13.7) : PB-128 (les transferts au-delà de 512 Ko), PB-129 (le dernier bloc, la
+# plage), PB-131 (REQUEST SENSE, INQUIRY, les refus), PB-132 côté cible (les longueurs nulles), chacun son cas en C# seul
+# dans les deux modes, sur le banc de r9-scsihd (l'AHA-1542C conduite par ses ports et sa mailbox).
+for pb in 128 129 131 132; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

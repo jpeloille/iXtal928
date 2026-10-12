@@ -201,6 +201,18 @@ internal static class materiel
     /// <summary>PB-126 : le ZIP — la capacité, la fin du disque, les longueurs nulles, le disque gardé au reset.</summary>
     internal static readonly bool pb_126;
 
+    /// <summary>PB-128 : le disque SCSI transfère au-delà de 512 Ko.</summary>
+    internal static readonly bool pb_128;
+
+    /// <summary>PB-129 : le disque SCSI annonce son dernier bloc, et refuse au-delà.</summary>
+    internal static readonly bool pb_129;
+
+    /// <summary>PB-131 : REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2.</summary>
+    internal static readonly bool pb_131;
+
+    /// <summary>PB-132 : une longueur nulle finit sans phase de données (la cible).</summary>
+    internal static readonly bool pb_132;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -452,6 +464,10 @@ internal static class materiel
         pb_123 = ModeMateriel.Demande(123);
         pb_125 = ModeMateriel.Demande(125);
         pb_126 = ModeMateriel.Demande(126);
+        pb_128 = ModeMateriel.Demande(128);
+        pb_129 = ModeMateriel.Demande(129);
+        pb_131 = ModeMateriel.Demande(131);
+        pb_132 = ModeMateriel.Demande(132);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

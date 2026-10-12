@@ -1281,3 +1281,45 @@ la première piste. Le lecteur convertit l'un en l'autre. PCem mélange les deux
 
 PB-274 — la commande d'éjection : PCem éjecte quand la norme dit « arrêter le moteur », parce que les pilotes
 d'Iomega l'envoient ainsi. Ce que faisait le vrai lecteur Iomega n'est pas connu : elle reste.
+
+## G13.7d2a — le disque SCSI
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7d2a.*
+
+### PB-128 — les gros transferts
+
+- **Le vrai PC.** Le disque SCSI lit ou écrit d'un coup jusqu'à 65 535 secteurs ; la carte Adaptec transfère tout ce
+  que le disque rend.
+- **L'émulateur.** PCem range un transfert dans deux réserves de 256 Ko ; au-delà, il écrit hors de sa mémoire —
+  l'émulateur coupait le transfert, par sécurité, et rendait des zéros.
+- **La correction.** Le transfert va jusqu'au bout.
+
+### PB-129 — la fin du disque
+
+- **Le vrai PC.** Le disque annonce le numéro de son dernier secteur, et refuse toute lecture ou écriture au-delà
+  avec une erreur précise (« adresse hors du disque »).
+- **L'émulateur.** PCem annonce un secteur de trop, et répond « tout va bien » à un accès hors du disque — une
+  lecture rend le tampon d'avant, une écriture est perdue.
+- **La correction.** Le dernier secteur, et le refus.
+
+### PB-131 — les réponses du disque
+
+- **Le vrai PC.** Après une erreur, le disque en donne la raison dans un format fixé par la norme, et l'oublie dès la
+  commande suivante ; il se présente comme un disque SCSI-2 ; il distingue une commande inconnue d'un paramètre
+  refusé.
+- **L'émulateur.** PCem donne la raison dans un format incomplet, la garde indéfiniment, se dit d'une norme
+  antérieure, et répond « unité absente » à toute commande qu'il refuse.
+- **La correction.** Les réponses de la norme SCSI-2.
+
+### PB-132 — les demandes vides
+
+- **Le vrai PC.** Une commande qui demande zéro octet se termine aussitôt, sans erreur.
+- **L'émulateur.** PCem attend des données qui ne viennent jamais : la carte reste bloquée, et tous les disques SCSI
+  disparaissent jusqu'au redémarrage.
+- **La correction.** La commande se termine aussitôt, côté disque. (Le côté de la carte, qui devrait se débloquer à
+  son reset, vient avec la carte Adaptec, PB-276.)
+
+### Ce qui reste comme chez PCem
+
+PB-275 — la vérification, le formatage de bas niveau, les réglages envoyés au disque et ses diagnostics restent
+simulés : ce qu'en faisait un disque de l'époque dépend de son fabricant, et n'est pas connu.

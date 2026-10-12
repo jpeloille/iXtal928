@@ -53,7 +53,9 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # READ SUB-CHANNEL (image_getcurrentsubchannel, GetAudioSub). G13.7d1, le ZIP : ami486-zip, le lecteur ZIP 100 en maître
 # secondaire sur une image vierge créée creuse dans le bac à sable ; les mêmes programmes sous DEBUG — READ CAPACITY
 # (trois essais, l'attention du disque chargé), WRITE(10) d'un secteur du LBA 16 (le second programme, 512 octets),
-# READ(10) et READ(6) de ce secteur (scsi_zip_command, scsi_add_data, scsi_get_data, scsi_zip_read, scsi_zip_write) ou de l'ISO iso-2048.iso (ami486-cd-iso, le POST ;
+# READ(10) et READ(6) de ce secteur (scsi_zip_command, scsi_add_data, scsi_get_data, scsi_zip_read, scsi_zip_write).
+# G13.7d2a, le disque SCSI : ami486-aha, l'AHA-1542C et un disque vierge à l'ID 0, créé creux ; le POST de la ROM de la
+# carte (INQUIRY, TEST UNIT READY, READ CAPACITY, la lecture du secteur 0), puis PC-DOS sur A: (scsi_hd_command) ou de l'ISO iso-2048.iso (ami486-cd-iso, le POST ;
 # LoadIsoFile et CanReadPVD). Les images d'isogen sont ÉCRITES dans le bac à sable (isogen/).
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
@@ -74,6 +76,7 @@ SCENARIOS=(
   "ami486-cd-cue|--boot roms 6000 --config tools/gates/cfg/ami486-cd-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type O_176_A0 --type O_171_0 --type E_100_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_110_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_120_70_01_BE_00_02_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_130_A8_80_75_FB_A8_09_74_F7_A8_01_75_17_BA_74_01_EC --type E_140_88_C1_42_EC_88_C5_41_D1_E9_BA_70_01_BF_00_03_ED --type E_150_AB_E2_FC_CC --type E_200_28_00_00_00_00_10_00_00_01_00_00_00 --type G=100 --type G=100 --type G=100 --type D_300_30F --type E_200_43_00_02_00_00_00_00_08_00_00_00_00 --type G=100 --type D_300_30F --type E_400_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_410_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_420_70_01_BE_00_05_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_430_A8_80_75_FB_A8_09_74_F7_A8_01_75_0D_BA_70_01_BE --type E_440_20_05_B9_0C_00_AD_EF_E2_FC_CC --type E_500_55_10_00_00_00_00_00_00_18_00_00_00 --type E_520_00_00_00_00_00_00_00_00_0E_0E_05_04_00_80_00_4B_01_80_02_40_00_00_00_00 --type G=400 --type I_177 --type E_600_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_610_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_620_70_01_BE_00_07_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_630_A8_80_75_FB_CC --type E_700_47_00_00_00_02_25_00_02_28_00_00_00 --type G=600 --type I_177 --type E_700_2B_00_00_00_00_25_00_00_00_00_00_00 --type G=600 --type I_177 --type E_700_45_00_00_00_00_25_00_00_02_00_00_00 --type G=600 --type I_177 --type E_200_42_02_40_01_00_00_00_00_10_00_00_00 --type G=100 --type D_300_30F --type Q --type @wait_2000|tools/gates/cfg/ami486-cd-fd.cfg ami486"
   "ami486-cd-iso|--boot roms 3000 --config tools/gates/cfg/ami486-cd-iso-fd.cfg|tools/gates/cfg/ami486-cd-iso-fd.cfg ami486"
   "ami486-zip|--boot roms 6000 --config tools/gates/cfg/ami486-zip-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type O_176_A0 --type O_171_0 --type E_100_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_110_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_120_70_01_BE_00_02_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_130_A8_80_75_FB_A8_09_74_F7_A8_01_75_17_BA_74_01_EC --type E_140_88_C1_42_EC_88_C5_41_D1_E9_BA_70_01_BF_00_03_ED --type E_150_AB_E2_FC_CC --type E_200_25_00_00_00_00_00_00_00_00_00_00_00 --type G=100 --type G=100 --type G=100 --type D_300_307 --type E_400_BA_76_01_B0_A0_EE_BA_74_01_B0_00_EE_42_B0_08_EE --type E_410_BA_77_01_B0_A0_EE_EC_A8_80_75_FB_A8_08_74_F7_BA --type E_420_70_01_BE_00_05_B9_06_00_AD_EF_E2_FC_BA_77_01_EC --type E_430_A8_80_75_FB_A8_09_74_F7_A8_01_75_0D_BA_70_01_BE --type E_440_20_05_B9_00_01_AD_EF_E2_FC_CC --type E_500_2A_00_00_00_00_10_00_00_01_00_00_00 --type E_520_5A_A5 --type G=400 --type I_177 --type E_200_28_00_00_00_00_10_00_00_01_00_00_00 --type G=100 --type D_300_30F --type E_200_08_00_00_10_01_00_00_00_00_00_00_00 --type G=100 --type D_300_30F --type Q --type @wait_2000|tools/gates/cfg/ami486-zip-fd.cfg ami486"
+  "ami486-aha|--boot roms 6000 --config tools/gates/cfg/ami486-aha-m2.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type @wait_2000|tools/gates/cfg/ami486-aha-m2.cfg ami486"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 
@@ -102,9 +105,11 @@ capture() {
         mkdir -p "$w/isogen"; python3 "$REPO/tools/isogen/isogen.py" "$w/isogen" > /dev/null
       fi
     done
-    # L'image vierge du ZIP 100 (zip_path = zip100.img), creuse, dans le bac à sable.
+    # L'image vierge du ZIP 100 (zip_path = zip100.img), et celle du disque SCSI (hdc_fn = scsi-m2.img), creuses, dans le
+    # bac à sable.
     for c in $cfgs; do
       if grep -qE '^zip_path = zip100.img' "$REPO/$c" 2>/dev/null; then truncate -s 100663296 "$w/zip100.img"; fi
+      if grep -qE '^hdc_fn = scsi-m2.img' "$REPO/$c" 2>/dev/null; then truncate -s 20971520 "$w/scsi-m2.img"; fi
     done
     # Un troisième champ, « CONFIG MACHINE » : le CMOS de la machine, fabriqué dans le bac à sable par --make-nvr (comme
     # g5w-recipe.sh), sans listing, avant le scénario.

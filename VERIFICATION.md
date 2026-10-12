@@ -10251,3 +10251,64 @@ déplacement, et une douzième faute (la garde de `sortie_debordee` retirée) : 
 même verdict ; deux résumés changent, `bd-ami486-zip-banc` (ZIPBANC étendu : 3 073 octets écrits par l'invité dans C:)
 et `recensement` (274 défauts, 1 140 marqueurs). Quatre neuves : les `materiel-cas` de PB-125 et PB-126, dans les deux
 modes.
+
+## G13.7d2a — le disque SCSI
+
+Le 13 octobre 2026. La première étape de 7d2 (PLAN-G13.md, § G13.7 : 7d2 coupée en deux, 7d2a les commandes et les
+transferts du disque SCSI, 7d2b MODE SENSE). La source : SCSI-2 (X3.131-1994), chapitre 7 (§ 7.5.3, § 7.6), chapitre
+8 (§ 8.2.5 INQUIRY, § 8.2.8 MODE SELECT(6), § 8.2.10 MODE SENSE(6), § 8.2.14 REQUEST SENSE, § 8.2.15 SEND
+DIAGNOSTIC) et chapitre 9 (§ 9.1.2, § 9.2.6 READ(10), § 9.2.7 READ CAPACITY, § 9.2.19 VERIFY, § 9.2.21 WRITE(10)).
+
+**Les corrections du mode matériel** (domaine `stockage`, quatre ; `Scsi/scsi_hd.Materiel.cs`, l'état dans une classe
+imbriquée, les méthodes en `NoInlining`, aucune garde dans `scsi_add_data` ni `scsi_get_data`) : PB-128, les
+transferts complets — au-delà des tampons de PCem, la lecture et l'écriture se prolongent dans une extension hors de
+la classe ; PB-129 — READ CAPACITY rend 40 959 pour 40 960 secteurs, READ et WRITE (6 et 10) et VERIFY(10) hors du
+disque rendent 05/21h d'emblée ; PB-131 — REQUEST SENSE au format fixe de SCSI-2 (70h, la longueur additionnelle
+0Ah ; Valid à 0, déduit), la sense effacée par la commande suivante, INQUIRY version 2 et longueur additionnelle 5Bh
+sans CmdQue, EVPD ou un code de page refusés 05/24h, un code inconnu 05/20h, SEND DIAGNOSTIC sans liste GOOD ; PB-132
+côté cible — READ(10) de compte 0, INQUIRY, MODE SENSE(6) et REQUEST SENSE d'allocation 0 (la sense effacée), MODE
+SELECT(6) de longueur 0 : GOOD sans phase de données. Deux entrées neuves : PB-275 (VERIFY, MODE SELECT, FORMAT UNIT et
+SEND DIAGNOSTIC d'une liste non vide, simulés — propres au fabricant, inconnus : reproduits dans les deux modes) et
+PB-276 (le côté de la carte de l'ancien PB-132 : la navette au bout du CCB, les resets qui ne libèrent pas le bus —
+pour G13.7e). Chacune a son cas en C# seul (`MaterielCasScsi.cs`, sur le banc de `r9-scsihd` : l'ami486, l'AHA-1542C
+et deux disques vierges, la carte conduite par ses ports et sa mailbox, `R9Aha` ouvert à ces cas) ; les quatre sont
+verts dans les deux modes, la sonde atteinte ; chacun rougit sous `--attendu materiel`. La sense automatique de la
+carte n'est pas rangée dans le CCB (PB-137, G13.7e) : les cas la coupent (CCB, octet 3 = 01h) et lisent la sense par
+REQUEST SENSE. `recensement` vert (276 défauts, 1 158 marqueurs). En mode matériel, `r9-scsihd` n'atteint plus ses
+gardes : il ne tourne qu'en mode PCem, comme `r9-atapi` et `r9-zip` (le commentaire de `ModeOutils.cs` le dit).
+
+**La contre-lecture** (Sonnet, SCSI-2 relue) : rien de bloquant, le mode PCem inchangé, la logique des transferts
+juste ; quatre points à corriger, onze remarques, traités. Corrigés : le bit Valid laissé à 0 était justifié à tort
+(« le champ d'information n'est pas rempli ») — la norme demande l'adresse « associated with the sense key », sans
+dire laquelle pour une plage : déduit, écrit ; SEND DIAGNOSTIC sans autotest refusé 05/24h n'était pas dans la norme
+(§ 8.2.15 : l'opération de la liste, propre au fabricant) — la liste vide rend GOOD, la liste non vide passe à
+PB-275 ; « un LUN non nul garde 05/25h (§ 7.5.3) » citait la norme à contresens — rattaché à PB-133 et PB-219 ;
+INQUIRY d'un code de page sans EVPD, et avec EVPD d'allocation 0, servis — refusés 05/24h, avant l'allocation nulle.
+Repris : la citation de l'effacement de la sense (§ 8.2.14, littérale) ; les cas élargis — les frontières de
+transfert (les secteurs 511, 512, 1 023, 1 024, 1 050, 1 099), le dernier bloc lu, WRITE(10), READ(6) et WRITE(6) hors
+du disque, deux blocs à cheval, REQUEST SENSE de 8 octets, SEND DIAGNOSTIC, le LUN 1, chaque longueur nulle — dont
+WRITE(10) de compte 0, que PCem finit déjà en GOOD : sa garde retirée, le cas le garde en témoin ; la sonde de
+`sortie_ecrire_materiel` comptée une fois par transfert ; le commentaire de `ModeOutils.cs`. Vérifiés justes : les
+seuils de la prise en charge, égaux aux bornes R9 ; la fin de transfert vue par la carte (`data_pos_write`) ; READ(6)
+de compte 0 (256 blocs) ; l'effacement de la sense avant le test du LUN ; les sections citées.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137d2a.py`) : dix-huit fautes, chacune rougit son cas — la lecture complète
+coupée, `data_out` non prolongé, l'extension relue nulle (PB-128) ; la capacité, un secteur de trop, VERIFY sans plage,
+sa garde retirée (PB-129) ; la longueur additionnelle, la sense persistante, la longueur d'INQUIRY, EVPD servi, le code
+de page servi, le code inconnu en 25h, SEND DIAGNOSTIC vide refusé (PB-131) ; READ(10) de compte 0, INQUIRY
+d'allocation 0, MODE SELECT(6) vide, REQUEST SENSE vide qui n'efface pas (PB-132). Le témoin, sans faute, est vert.
+
+**M2** (Release du worktree ; un scénario neuf dans `tools/listings-jit.sh`, `ami486-aha` : l'ami486 et l'AHA-1542C,
+un disque SCSI vierge à l'ID 0 créé creux dans le bac à sable, le POST de la ROM de la carte puis PC-DOS sur A: —
+`scsi_hd_command`, `scsi_add_data`, `scsi_get_data`, `scsi_hd_read`, `scsi_hd_write` et la carte compilées). Le
+scénario est neuf : M0 n'en a pas de capture. La preuve que les gardes se plient vient d'une seconde capture, d'un
+build identique dont les vingt-trois gardes `pb_128`, `pb_129`, `pb_131` et `pb_132` sont retirées de `scsi_hd.cs`
+(`M2-7d2a-sansgardes`) : le scénario `ami486-aha`, avec et sans les gardes, identique (947 méthodes, aucune changée).
+Contre M2-7d1 (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel` (les quatre
+corrections inscrites), et `scsi_zip_command`, dont seuls quatre jetons de chaînes changent (`mov edi, 0xB36E` devenu
+`0xB54D`, avant `CORINFO_HELP_STRCNS` et `fatal`) — l'assembly a gagné des chaînes, la table des jetons s'est
+décalée ; le code est le même. Les 31 méthodes apparues sont celles de la carte et du disque, du scénario neuf.
+
+**La série** g7d2a (le worktree de l'étape, contre g7d1) : 560 portes, toutes vertes ; 552 communes à g7d1, chacune au
+même verdict ; un seul résumé change, `recensement` (276 défauts, 1 158 marqueurs). Huit neuves : les `materiel-cas`
+de PB-128, PB-129, PB-131 et PB-132, dans les deux modes.

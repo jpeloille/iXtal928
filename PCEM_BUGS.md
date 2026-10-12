@@ -2478,12 +2478,21 @@ transfère ce que la cible rend, dans la limite du CCB (TR, CCB). Rien de matér
 *Cas qui discrimine* : CCB READ(10) de 2 048 secteurs depuis le LBA 0, disque d'au moins 2 048 secteurs : iXtal (la
 garde R9) rend les 1 024 premiers justes, puis des zéros ; PCem écrit hors du struct ; le matériel rend les 2 048
 secteurs.
-*G13* : à trancher — corrigeable (servir le transfert par morceaux au-delà de 512 Ko), hors de la liste de G13.7 :
-le repli R9 du mode matériel est la question Q12 de D3-stockage, ouverte.
+*G13* : (a) — les transferts complets (Q12, tranchée le 12/10).
 *Reproduit jusqu'à 2 × 256 Ko* : `data_in` et `data_out` en un tableau contigu (décision n° 9 de PLAN-G11.md),
-marqueur PB-128 sur `io`.
+marqueur `fixed in hardware mode: PB-128` sur `io` (en deçà, le régime de PCem est celui du matériel).
 *NON reproduit au-delà* (R9) : l'octet est compté, pas gardé, et se relit nul (`Scsi/scsi_hd.cs`, `:87`, `:717`,
 `:101`, `:728`). Survie : `r9-scsihd`.
+*Corrigé en mode matériel* (G13.7d2a) : `Scsi/scsi_hd.Materiel.cs` — sous `if (materiel.pb_128)`, à l'étape de
+transfert de READ (6 et 10) et de WRITE (6 et 10), `lecture_complete_materiel` et `ecriture_complete_materiel`
+prennent en charge un transfert qui dépasse les tampons de PCem : la lecture remplit `io` puis une extension, hors de
+la classe, que `scsi_hd_read` relit (`extension_lire_materiel`, dans son repli) ; l'écriture lit ce que `scsi_hd_write`
+a rangé dans `io` et dans l'extension (`sortie_ecrire_materiel`, dans son repli). En deçà, la voie de PCem. Aucune
+garde dans `scsi_add_data` ni `scsi_get_data`, petites méthodes inlinées à chaque octet (la leçon de M2, G13.7d1).
+`materiel-cas PB-128` (sur l'ami486 et l'AHA-1542C, CCB vers l'ID 1 : WRITE(10) de 1 100 secteurs à un motif qui
+varie d'un octet à l'autre, puis READ(10) de 1 100 secteurs, relu aux frontières — les secteurs 511, 512, 1 023,
+1 024, 1 050 et 1 099) rend le 511 juste et les autres nuls en mode PCem, tous justes en mode matériel ; la
+correction coupée, il rougit.
 
 ### PB-129 — Le disque SCSI annonce un secteur de trop, et le lit sans erreur
 
@@ -2499,8 +2508,15 @@ CONDITION), ASC 21h, LOGICAL BLOCK ADDRESS OUT OF RANGE (§ 8.2.14) — sections
 *Cas qui discrimine* : disque de n secteurs (40 960, celui d'`aha-format`) : READ CAPACITY rend n chez PCem, n − 1
 sur le matériel ; READ(10) du LBA n : GOOD et le dernier secteur lu ou écrit, contre CHECK CONDITION, sense 05/21h.
 *G13* : (a) ; l'UNIT ATTENTION de la mise sous tension (§ 7.9) touchera les témoins (D3-contre, A10).
-*Reproduit* : `Scsi/scsi_hd.cs`, READ CAPACITY, READ(6), READ(10), WRITE(6) et WRITE(10), marqueurs PB-129 posés en
-G13.1 (seul l'en-tête le nommait, D3-contre, C8).
+*Reproduit* en mode PCem : `Scsi/scsi_hd.cs`, READ CAPACITY, READ(6), READ(10), WRITE(6) et WRITE(10), marqueurs
+`fixed in hardware mode: PB-129` posés en G13.1 (seul l'en-tête le nommait, D3-contre, C8).
+*Corrigé en mode matériel* (G13.7d2a) : sous `if (materiel.pb_129)`, `capacite_materiel` (READ CAPACITY rend le nombre
+de secteurs moins un), `plage_materiel` (READ et WRITE, 6 et 10) et `verify_plage_materiel` (VERIFY(10)) rendent
+CHECK CONDITION, 05/21h, avant toute donnée, pour un bloc hors du disque (`Scsi/scsi_hd.Materiel.cs` ; SCSI-2 § 9.2.7,
+§ 9.1.2, relus en G13.7d2a ; d'emblée : déduit). `materiel-cas PB-129` (READ CAPACITY ; READ(10) du dernier bloc,
+GOOD dans les deux modes ; READ(10), VERIFY(10), WRITE(10), READ(6) et WRITE(6) du LBA 40 960 et READ(10) de deux
+blocs depuis le 40 959, chacun suivi de REQUEST SENSE — la sense automatique de la carte coupée, PB-137) rend 40 960
+et GOOD six fois en mode PCem ; 40 959 et 05/21h six fois en mode matériel ; la correction coupée, il rougit.
 
 ### PB-130 — MODE SENSE du disque SCSI : en-tête, descripteur, bourrage, géométrie fixe
 
@@ -2538,9 +2554,26 @@ un code inconnu, 05/25h pour un LUN (§ 7.5.3). FORMAT UNIT : le sort des donné
 *Cas qui discrimine* : un code inconnu (0Eh), TEST UNIT READY, REQUEST SENSE : 05/25h chez PCem, 00/00h sur le
 matériel (05/20h si REQUEST SENSE suit le code) ; INQUIRY de 96 octets : `00 00 00 02 00 00 00 02` chez PCem,
 `00 00 02 02 5B 00 00 00` ; REQUEST SENSE : longueur additionnelle 00h contre 0Ah.
-*G13* : (a), FORMAT UNIT (c) — le sort des données est propre au fabricant : laissé simulé.
-*Reproduit* : `Scsi/scsi_hd.cs` (`scsi_hd_illegal`, REQUEST SENSE, INQUIRY, VERIFY, MODE SELECT, FORMAT UNIT),
-marqueurs PB-131 posés en G13.1.
+*G13* : (a) ; VERIFY, MODE SELECT et FORMAT UNIT simulés, détachés en PB-275 (G13.7d2a).
+*Reproduit* en mode PCem : `Scsi/scsi_hd.cs` (`scsi_hd_illegal`, REQUEST SENSE, INQUIRY), marqueurs `fixed in hardware
+mode: PB-131` posés en G13.1.
+*Corrigé en mode matériel* (G13.7d2a) : `Scsi/scsi_hd.Materiel.cs` — sous `if (materiel.pb_131)`,
+`sense_suivante_materiel` efface la sense au début de toute commande autre que REQUEST SENSE (« cleared upon receipt
+of any subsequent I/O process », § 8.2.14 ; § 7.6) ; `request_sense_materiel`, le format fixe de SCSI-2 (70h, la
+longueur additionnelle 0Ah ; l'octet 1, bit 0, réservé en SCSI-2, ignoré — le format descripteur est de SPC-3). Le bit
+Valid reste à 0 : le champ d'information porte « the unsigned logical block address associated with the sense key »,
+et pour une plage refusée la norme ne dit pas laquelle — déduit, le champ laissé non valide, ce que le bit permet.
+`inquiry_materiel`, la version 2, la longueur additionnelle 5Bh, CmdQue à 0, corrigés en place ;
+`inquiry_evpd_materiel`, EVPD, ou un code de page sans EVPD, refusés 05/24h (§ 8.2.5 : pas de pages de données
+vitales), avant l'allocation nulle ; `refus_materiel`, un code inconnu 05/20h ; `diagnostic_vide_materiel`, SEND
+DIAGNOSTIC sans autotest et sans liste, GOOD (§ 8.2.15 : une longueur nulle n'est pas une erreur ; une liste non
+vide reste à PB-275). Le refus d'un LUN non nul, avant le `switch`, garde 05/25h : son sort est celui de PB-133 et
+de PB-219. Textes relus en G13.7d2a (SCSI-2, chapitres 7 et 8). `materiel-cas PB-131` (CCB vers l'ID 1, la sense
+automatique coupée : un code inconnu puis REQUEST SENSE ; un code inconnu, TEST UNIT READY, REQUEST SENSE ; REQUEST
+SENSE de 8 octets ; INQUIRY de 96 octets ; INQUIRY avec EVPD, avec EVPD et une allocation nulle, avec un code de page
+sans EVPD ; SEND DIAGNOSTIC sans liste ; TEST UNIT READY au LUN 1, 05/25h dans les deux modes) rend 05/25h et 00h,
+05/25h, 00h, `00 00 00 02 00 00 00 02`, GOOD, 05/25h en mode PCem ; 05/20h et 0Ah, 00/00h, 0Ah, `00 00 02 02 5B 00 00
+00`, 05/24h trois fois, GOOD en mode matériel ; la correction coupée, il rougit.
 
 ### PB-132 — Une phase vide fige le bus SCSI, et aucun reset de la carte ne le libère
 
@@ -2560,9 +2593,19 @@ les opérations ; statut d'hôte 12h (« more data than was allocated »). Un CC
 *Cas qui discrimine* : CCB READ(10) de compte 0 : PCem ne poste aucun MBI et fait la navette ; le matériel rend GOOD
 sans données. Cible bloquée à dessein, puis HRST et un CCB vers l'ID 0 : 11h (sélection) chez PCem ; sur le
 matériel, le bus libéré, UNIT ATTENTION puis GOOD.
-*G13* : (a) côté cible et pour HRST ; le CCB en vol sous SCRST (c) — son sort après le reset du bus est inconnu.
-*Reproduit* : `Scsi/scsi_hd.cs`, `Scsi/scsi.cs` et `Scsi/scsi_aha1540.cs`, marqueurs PB-132 ; hors des portes
-comparées (les bancs n'y mènent pas), montré par `r9-scsihd`.
+*G13* : (a) côté cible ; le côté de la carte (la navette au bout du CCB, les resets qui ne libèrent pas le bus) est
+détaché en PB-276 (G13.7d2a).
+*Reproduit* en mode PCem : `Scsi/scsi_hd.cs`, marqueurs `fixed in hardware mode: PB-132` ; hors des portes comparées
+(les bancs n'y mènent pas), montré par `r9-scsihd`.
+*Corrigé en mode matériel* (G13.7d2a), côté cible : sous `if (materiel.pb_132)`, `allocation_nulle_materiel` (REQUEST
+SENSE — la sense effacée même sans transfert —, INQUIRY, MODE SENSE(6)), `longueur_nulle_materiel` (READ(10)) et
+`mode_select_vide_materiel` (MODE SELECT(6)) passent au statut, GOOD, sans phase de données (`Scsi/scsi_hd.Materiel.cs`
+; SCSI-2 § 8.2.5, § 8.2.8, § 8.2.10, § 8.2.14, § 9.2.6). WRITE(10) de compte 0, PCem le finit déjà en GOOD sans
+données (§ 9.2.21) : rien à corriger, le cas le garde en témoin. `materiel-cas PB-132` (CCB vers l'ID 1, une machine
+neuve chacun, après un code inconnu : READ(10) et WRITE(10) de compte 0, INQUIRY, MODE SENSE(6) et REQUEST SENSE
+d'allocation 0, MODE SELECT(6) de longueur 0) rend « aucun MBI » cinq fois et GOOD pour WRITE(10) en mode PCem ; le
+MBI et GOOD six fois en mode matériel, et la sense effacée par REQUEST SENSE vide ; la correction coupée, il
+rougit.
 
 ### PB-133 — Le LUN du CCB n'atteint jamais le disque
 
@@ -5621,6 +5664,41 @@ Seule une mesure sur un ZIP 100 ATAPI dirait le matériel.
 *G13* : (c) — inconnu : reproduit dans les deux modes (décision n° 14), à mesurer.
 *Reproduit* : `Scsi/scsi_zip.cs`, START STOP UNIT, marqueur `reproduced: PB-274` ; comparé des deux côtés par
 `bd-ami486-zip-banc`.
+
+### PB-275 — VERIFY, MODE SELECT, FORMAT UNIT et SEND DIAGNOSTIC du disque SCSI sont simulés
+
+`scsi_hd.c:656-675` : VERIFY ne lit rien et ne compare rien (le bit BytChk ignoré) ; MODE SELECT jette les pages
+reçues ; FORMAT UNIT rend GOOD aussitôt, sans rien effacer ; SEND DIAGNOSTIC sans autotest refuse une liste de
+paramètres non vide sans la recevoir (05/25h). Détaché de PB-131 en G13.7d2a, le reste de PB-131 étant
+corrigé en mode matériel.
+*Effet* : un formatage de bas niveau est instantané et garde les données ; une page de mode envoyée ne change rien ;
+VERIFY ne détecte rien (sur une image, tout secteur se lit).
+*Trouvé par* : reconnaissance de G11.
+*Source* : SCSI-2 § 9.2.1 (FORMAT UNIT : le sort des données propre au fabricant), § 9.2.19 (VERIFY), § 8.2.8 (MODE
+SELECT : des pages que le disque peut refuser ou ne pas sauver), § 8.2.15 (SEND DIAGNOSTIC : l'opération de la liste,
+propre au fabricant si PF vaut 0) — ce qu'un disque de l'époque faisait de chacune est propre au fabricant : inconnu.
+*Cas qui discrimine* : FORMAT UNIT puis READ(10) d'un secteur écrit : les données restent chez PCem ; sur un vrai
+disque, propre au fabricant.
+*G13* : (c) — inconnu : reproduit dans les deux modes (décision n° 14). La plage de VERIFY est jugée par PB-129.
+*Reproduit* : `Scsi/scsi_hd.cs`, VERIFY, MODE SELECT, FORMAT UNIT et SEND DIAGNOSTIC, marqueurs `reproduced: PB-275`
+(la liste vide de SEND DIAGNOSTIC, GOOD, est jugée par PB-131).
+
+### PB-276 — Au bout du CCB, l'AHA fait la navette ; aucun reset de la carte ne libère le bus
+
+`scsi_aha1540.c:1832-1910` et `scsi.c:241` : quand la cible reste en phase de données au-delà de la longueur du CCB
+(plus de données que le CCB n'en alloue), la carte fait le va-et-vient NEXT_PHASE ↔ READ_DATA à chaque échéance ; et
+les resets de la carte (CTRL_RESET, SRST, BRST, `:276-313`) ne touchent pas le bus : aucun appel à `scsi_bus_reset`.
+La cible reste BSY ; toute sélection suivante échoue (`wait_for_bus`, `:1721`). Le côté de la carte de l'ancien
+PB-132, détaché en G13.7d2a (le côté de la cible, les longueurs nulles, y est corrigé).
+*Effet* : une cible qui a plus de données que le CCB fige le bus, et tous les disques SCSI disparaissent jusqu'au
+reset matériel du PC.
+*Trouvé par* : reconnaissance de G11.
+*Source* : documenté — AHA-1540C TR, port de contrôle : HRST reset le bus et la carte ; SCRST, reset « soft », laisse
+continuer les opérations ; statut d'hôte 12h (« more data than was allocated »). Un CCB en vol sous SCRST : inconnu.
+*Cas qui discrimine* : un CCB de 512 octets pour un READ(10) de deux secteurs : PCem fait la navette ; le matériel rend
+le statut d'hôte 12h. Cible bloquée, puis HRST et un CCB vers l'ID 0 : 11h chez PCem ; le bus libéré sur le matériel.
+*G13* : (a) pour HRST et le statut 12h (G13.7e, la carte) ; le CCB en vol sous SCRST (c).
+*Reproduit* : `Scsi/scsi.cs` et `Scsi/scsi_aha1540.cs`, marqueurs `reproduced: PB-276`.
 
 ## B. Comportement indéfini en C
 

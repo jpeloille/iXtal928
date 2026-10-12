@@ -285,7 +285,7 @@ internal static class scsi_aha1540
         switch (port & 3)
         {
         case 0: /*Control register*/
-                // pcem bug, reproduced: PB-132 — aucun des trois resets ne remet le bus SCSI au repos.
+                // pcem bug, reproduced: PB-276 — aucun des trois resets ne remet le bus SCSI au repos.
                 if ((val & CTRL_RESET) != 0)
                 {
                         scsi.isr = 0;
@@ -1733,7 +1733,7 @@ internal static class scsi_aha1540
 
                         bytes_transferred++;
                 }
-                // pcem bug, reproduced: PB-132 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                // pcem bug, reproduced: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
                 //   DATA IN : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {
@@ -1809,7 +1809,7 @@ internal static class scsi_aha1540
 
                         bytes_transferred++;
                 }
-                // pcem bug, reproduced: PB-132 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
+                // pcem bug, reproduced: PB-276 — au bout du CCB, NEXT_PHASE renvoie ici tant que la cible reste en
                 //   DATA OUT : la navette sans fin, sans statut d'hôte 12h.
                 if (scsi.cdb.data_idx == scsi.cdb.data_len)
                 {

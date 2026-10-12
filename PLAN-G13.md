@@ -505,8 +505,12 @@ contre-lecture, M2, sa série entière et son commit :
     2 × 256 Ko, comme `scsi_hd`, vérifié par ZIPBANC contre l'oracle) ; PB-125 (les transferts complets) et PB-126 (la
     capacité, la fin du disque, les longueurs nulles, le disque gardé au reset) en mode matériel ; START STOP UNIT
     détaché en PB-274, reproduit (inconnu sur le lecteur d'Iomega).
-  - **G13.7d2 — Le disque SCSI.** PB-128 à PB-131, PB-132 côté cible.
-- **G13.7e — L'AHA-1542C.** PB-132 côté carte (HRST), PB-133 (le LUN par IDENTIFY), PB-135 (les cinq commandes du TR),
+  - **G13.7d2 — Le disque SCSI**, coupée en deux :
+    - **G13.7d2a** ✅ *(13/10, VERIFICATION.md § G13.7d2a)*. PB-128 (les transferts complets), PB-129 (le dernier bloc, la
+      plage), PB-131 (REQUEST SENSE, INQUIRY, les refus), PB-132 côté cible (les longueurs nulles) ; VERIFY, MODE SELECT
+      et FORMAT UNIT simulés détachés en PB-275 (reproduit, inconnu) ; le côté carte de PB-132 détaché en PB-276 (7e).
+    - **G13.7d2b.** PB-130 (MODE SENSE : l'en-tête, le descripteur, le bourrage, la géométrie).
+- **G13.7e — L'AHA-1542C.** PB-276 (l'ancien PB-132 côté carte : HRST, la navette, le statut 12h), PB-133 (le LUN par IDENTIFY), PB-135 (les cinq commandes du TR),
   PB-137 (le sense automatique), PB-139 (ABORT), PB-140 (RETURN SETUP DATA entier), PB-141 (les mailbox), PB-144 (la
   longueur et les réglages d'usine ; la traduction CHS et les 24 bits, déduits), PB-136 et 138 dans leurs bornes,
   PB-218 (le drapeau de RETURN EEPROM). Restent reproduits : la réentrance de PB-142, PB-143, le CCB en vol sous

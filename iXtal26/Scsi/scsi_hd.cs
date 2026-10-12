@@ -11,7 +11,8 @@
 //   planter, et l'invité reçoit les bonnes données : ce régime est reproduit.
 // DEVIATIONS (R9, PB-128) : au-delà de 2 × BUFFER_SIZE pour data_in (:87, :717), au-delà de BUFFER_SIZE
 //   pour data_out (:723-728, :99-102), l'octet est compté, pas gardé, et se relit nul.
-// Reproduits : PB-129 à PB-133 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
+// Reproduits en mode PCem, corrigés en mode matériel (scsi_hd.Materiel.cs) : PB-128, PB-129, PB-131, PB-132.
+// Reproduits : PB-130, PB-133, PB-275 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
 
 // CS8981 : `scsi_hd_c` porte le nom de l'unité C, que le membre `scsi_hd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -37,7 +38,7 @@ internal sealed class scsi_hd_data
 
     internal uint8_t status;
 
-    // pcem bug, reproduced: PB-128 — jusqu'à 2 × 256 Ko, data_in déborde dans data_out, comme dans le struct C.
+    // pcem bug, fixed in hardware mode: PB-128 — jusqu'à 2 × 256 Ko, data_in déborde dans data_out, comme dans le struct C.
     // data_in[BUFFER_SIZE] puis data_out[BUFFER_SIZE] : voir l'en-tête.
     internal uint8_t[] io = new uint8_t[2 * scsi_hd_c.BUFFER_SIZE];
     internal int data_pos_read, data_pos_write;
@@ -55,7 +56,7 @@ internal sealed class scsi_hd_data
     internal scsi_bus_t? bus;
 }
 
-internal static class scsi_hd_c
+internal static partial class scsi_hd_c
 {
     // pcem: scsi_hd.c:13-17
     internal const int BUFFER_SIZE = 256 * 1024;
@@ -137,7 +138,7 @@ internal static class scsi_hd_c
     }
 
     // pcem: scsi_hd.c:107-112
-    // pcem bug, reproduced: PB-131 — tout refus porte 05/25h (LUN non supporté), un code inconnu compris.
+    // pcem bug, fixed in hardware mode: PB-131 — tout refus porte 05/25h (LUN non supporté), un code inconnu compris.
     private static void scsi_hd_illegal(scsi_hd_data data)
     {
         data.status = STATUS_CHECK_CONDITION;
@@ -167,6 +168,10 @@ internal static class scsi_hd_c
         data.status = STATUS_GOOD;
         data.data_pos_read = data.data_pos_write = 0;
 
+        // pcem bug, fixed in hardware mode: PB-131 — la sense n'est effacée que par REQUEST SENSE.
+        if (materiel.pb_131)
+                sense_suivante_materiel(data, cdb);
+
         // pcem bug, reproduced: PB-133 — le LUN lu dans cdb[1] seulement : celui du CCB n'arrive jamais (ni IDENTIFY).
         if ((cdb[0] != SCSI_REQUEST_SENSE /* && cdb[0] != SCSI_INQUIRY*/) && (cdb[1] & 0xe0) != 0)
         {
@@ -187,10 +192,16 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_REQUEST_SENSE:
-                // pcem bug, reproduced: PB-131 — 18 octets à longueur additionnelle 0, sans bit Valid ; le format
+                // pcem bug, fixed in hardware mode: PB-131 — 18 octets à longueur additionnelle 0, sans bit Valid ; le format
                 //   descripteur sur cdb[1] bit 0 ; effacé par REQUEST SENSE seul, il survit aux autres commandes.
+                // pcem bug, fixed in hardware mode: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
+                if (materiel.pb_132)
+                        if ((bus_state = allocation_nulle_materiel(data, cdb)) >= 0)
+                                break;
+                if (materiel.pb_131)
+                        if ((bus_state = request_sense_materiel(data, cdb)) >= 0)
+                                break;
                 desc = cdb[1] & 1;
-                // pcem bug, reproduced: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
                 len = cdb[4];
 
                 if (desc == 0)
@@ -233,7 +244,14 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_INQUIRY:
-                // pcem bug, reproduced: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
+                // pcem bug, fixed in hardware mode: PB-131 — EVPD et le code de page ignorés : servis comme l'INQUIRY standard.
+                if (materiel.pb_131)
+                        if ((bus_state = inquiry_evpd_materiel(data, cdb)) >= 0)
+                                break;
+                // pcem bug, fixed in hardware mode: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
+                if (materiel.pb_132)
+                        if ((bus_state = allocation_nulle_materiel(data, cdb)) >= 0)
+                                break;
                 len = cdb[4] | (cdb[3] << 8);
 
                 // pcem bug, reproduced: PB-219 — branche morte, le test du LUN plus haut refusant avant ;
@@ -246,7 +264,7 @@ internal static class scsi_hd_c
                 {
                         add_data_len(data, ref i, len, 0 | (0 << 5)); /*Hard disc*/
                 }
-                // pcem bug, reproduced: PB-131 — 96 octets, version 0, longueur additionnelle 0, CmdQue annoncé
+                // pcem bug, fixed in hardware mode: PB-131 — 96 octets, version 0, longueur additionnelle 0, CmdQue annoncé
                 //   (octet 7), EVPD ignoré.
                 add_data_len(data, ref i, len, 0); /*Not removeable*/
                 add_data_len(data, ref i, len, 0); /*No version*/
@@ -353,6 +371,8 @@ internal static class scsi_hd_c
                 add_data_len(data, ref i, len, 0);
                 add_data_len(data, ref i, len, 0);
 
+                if (materiel.pb_131)
+                        inquiry_materiel(data);
                 data.cmd_pos = CMD_POS_IDLE;
                 bus_state = BUS_IO;
                 break;
@@ -362,7 +382,10 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_MODE_SENSE_6:
-                // pcem bug, reproduced: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
+                // pcem bug, fixed in hardware mode: PB-132 — une allocation nulle entre quand même en DATA IN, et n'en sort plus.
+                if (materiel.pb_132)
+                        if ((bus_state = allocation_nulle_materiel(data, cdb)) >= 0)
+                                break;
                 len = cdb[4];
 
                 // pcem bug, reproduced: PB-130 — en-tête 00 00 08 00 : 08h dans le paramètre propre, la longueur
@@ -490,7 +513,11 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_READ_CAPACITY_10:
-                // pcem bug, reproduced: PB-129 — le nombre de blocs, non l'adresse du dernier : un secteur de trop.
+                // pcem bug, fixed in hardware mode: PB-129 — le nombre de blocs, non l'adresse du dernier : un secteur de
+                //   trop.
+                if (materiel.pb_129)
+                        if ((bus_state = capacite_materiel(data)) >= 0)
+                                break;
                 scsi_add_data((uint8_t)((data.hdd.sectors >> 24) & 0xff), data);
                 scsi_add_data((uint8_t)((data.hdd.sectors >> 16) & 0xff), data);
                 scsi_add_data((uint8_t)((data.hdd.sectors >> 8) & 0xff), data);
@@ -518,6 +545,9 @@ internal static class scsi_hd_c
                         if (data.len == 0)
                                 data.len = 256;
 
+                        if (materiel.pb_129)
+                                if ((bus_state = plage_materiel(data)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_START_SECTOR;
@@ -526,11 +556,14 @@ internal static class scsi_hd_c
                         bus_state = BUS_CD;
                         break;
                 }
+                if (materiel.pb_128)
+                        if ((bus_state = lecture_complete_materiel(data)) >= 0)
+                                break;
                 while (data.len != 0)
                 {
                         if (data.cmd_pos == CMD_POS_START_SECTOR)
                         {
-                                // pcem bug, reproduced: PB-129 — au-delà de la fin, rien n'est lu : buf périmé, GOOD.
+                                // pcem bug, fixed in hardware mode: PB-129 — au-delà de la fin, rien n'est lu : buf périmé, GOOD.
                                 hdd_file.hdd_read_sectors(data.hdd, data.addr, 1, data.buf);
                                 pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         }
@@ -574,9 +607,15 @@ internal static class scsi_hd_c
                 {
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         data.addr = cdb[5] | (cdb[4] << 8) | (cdb[3] << 16) | (cdb[2] << 24);
-                        // pcem bug, reproduced: PB-132 — un compte nul entre quand même en DATA IN, et n'en sort plus.
+                        // pcem bug, fixed in hardware mode: PB-132 — un compte nul entre quand même en DATA IN, et n'en sort plus.
                         data.len = cdb[8] | (cdb[7] << 8);
 
+                        if (materiel.pb_132)
+                                if ((bus_state = longueur_nulle_materiel(data)) >= 0)
+                                        break;
+                        if (materiel.pb_129)
+                                if ((bus_state = plage_materiel(data)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_START_SECTOR;
@@ -585,11 +624,14 @@ internal static class scsi_hd_c
                         bus_state = BUS_CD;
                         break;
                 }
+                if (materiel.pb_128)
+                        if ((bus_state = lecture_complete_materiel(data)) >= 0)
+                                break;
                 while (data.len != 0)
                 {
                         if (data.cmd_pos == CMD_POS_START_SECTOR)
                         {
-                                // pcem bug, reproduced: PB-129 — au-delà de la fin, rien n'est lu : buf périmé, GOOD.
+                                // pcem bug, fixed in hardware mode: PB-129 — au-delà de la fin, rien n'est lu : buf périmé, GOOD.
                                 hdd_file.hdd_read_sectors(data.hdd, data.addr, 1, data.buf);
                                 pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         }
@@ -635,6 +677,9 @@ internal static class scsi_hd_c
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         data.bytes_required = data.len * 512;
 
+                        if (materiel.pb_129)
+                                if ((bus_state = plage_materiel(data)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_TRANSFER;
@@ -649,6 +694,9 @@ internal static class scsi_hd_c
                         break;
                 }
 
+                if (materiel.pb_128)
+                        if ((bus_state = ecriture_complete_materiel(data)) >= 0)
+                                break;
                 while (data.len != 0)
                 {
                         for (; data.sector_pos < 512; data.sector_pos++)
@@ -669,7 +717,7 @@ internal static class scsi_hd_c
                                 }
                         }
 
-                        // pcem bug, reproduced: PB-129 — au-delà de la fin, rien n'est écrit, et GOOD.
+                        // pcem bug, fixed in hardware mode: PB-129 — au-delà de la fin, rien n'est écrit, et GOOD.
                         hdd_file.hdd_write_sectors(data.hdd, data.addr, 1, data.buf);
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
 
@@ -694,6 +742,9 @@ internal static class scsi_hd_c
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         data.bytes_required = data.len * 512;
 
+                        if (materiel.pb_129)
+                                if ((bus_state = plage_materiel(data)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_TRANSFER;
@@ -708,6 +759,9 @@ internal static class scsi_hd_c
                         break;
                 }
 
+                if (materiel.pb_128)
+                        if ((bus_state = ecriture_complete_materiel(data)) >= 0)
+                                break;
                 while (data.len != 0)
                 {
                         for (; data.sector_pos < 512; data.sector_pos++)
@@ -728,7 +782,7 @@ internal static class scsi_hd_c
                                 }
                         }
 
-                        // pcem bug, reproduced: PB-129 — au-delà de la fin, rien n'est écrit, et GOOD.
+                        // pcem bug, fixed in hardware mode: PB-129 — au-delà de la fin, rien n'est écrit, et GOOD.
                         hdd_file.hdd_write_sectors(data.hdd, data.addr, 1, data.buf);
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
 
@@ -741,14 +795,22 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_VERIFY_10:
-                // pcem bug, reproduced: PB-131 — VERIFY simulé : rien n'est lu ni comparé, aucun LBA n'est vérifié.
+                // pcem bug, reproduced: PB-275 — VERIFY simulé : rien n'est lu ni comparé, aucun LBA n'est vérifié.
+                // pcem bug, fixed in hardware mode: PB-129 — le LBA de VERIFY n'est pas vérifié.
+                if (materiel.pb_129)
+                        if ((bus_state = verify_plage_materiel(data, cdb)) >= 0)
+                                break;
                 data.cmd_pos = CMD_POS_IDLE;
                 bus_state = BUS_CD | BUS_IO;
                 break;
 
         case SCSI_MODE_SELECT_6:
-                // pcem bug, reproduced: PB-131 — MODE SELECT simulé : les pages reçues sont jetées.
-                // pcem bug, reproduced: PB-132 — une longueur nulle entre quand même en DATA OUT, et n'en sort plus.
+                // pcem bug, reproduced: PB-275 — MODE SELECT simulé : les pages reçues sont jetées.
+                // pcem bug, fixed in hardware mode: PB-132 — une longueur nulle entre quand même en DATA OUT, et n'en sort
+                //   plus.
+                if (materiel.pb_132)
+                        if ((bus_state = mode_select_vide_materiel(data, cdb)) >= 0)
+                                break;
                 if (data.bytes_received == 0)
                 {
                         data.bytes_required = cdb[4];
@@ -760,7 +822,7 @@ internal static class scsi_hd_c
                 break;
 
         case SCSI_FORMAT:
-                // pcem bug, reproduced: PB-131 — FORMAT UNIT simulé : instantané, rien n'est effacé.
+                // pcem bug, reproduced: PB-275 — FORMAT UNIT simulé : instantané, rien n'est effacé.
                 bus_state = BUS_CD | BUS_IO;
                 break;
 
@@ -789,6 +851,11 @@ internal static class scsi_hd_c
                 else
                 {
                         /*Treat all other diagnostic requests as illegal*/
+                        // pcem bug, fixed in hardware mode: PB-131 — une liste de paramètres vide refusée (05/25h, LUN).
+                        if (materiel.pb_131)
+                                if ((bus_state = diagnostic_vide_materiel(data, cdb)) >= 0)
+                                        break;
+                        // pcem bug, reproduced: PB-275 — une liste non vide refusée sans être reçue (05/25h).
                         scsi_hd_illegal(data);
                         bus_state = BUS_CD | BUS_IO;
                 }
@@ -796,6 +863,10 @@ internal static class scsi_hd_c
 
         default:
                 // omitted: pclog("Bad SCSI HD command %02x\n") (:705) — sortie pure.
+                // pcem bug, fixed in hardware mode: PB-131 — un code inconnu rend 05/25h (LUN) au lieu de 05/20h.
+                if (materiel.pb_131)
+                        if ((bus_state = refus_materiel(data, ASC_ILLEGAL_OPCODE)) >= 0)
+                                break;
                 scsi_hd_illegal(data);
                 bus_state = BUS_CD | BUS_IO;
                 break;
@@ -813,6 +884,9 @@ internal static class scsi_hd_c
         // DEVIATION: au-delà de 2 × BUFFER_SIZE, l'octet se relit nul, la position avance.
         if (data.data_pos_read >= 2 * BUFFER_SIZE)
         {
+                // pcem bug, fixed in hardware mode: PB-128 — le transfert complet, au-delà des deux tampons.
+                if (materiel.pb_128)
+                        return extension_lire_materiel(data);
                 R9.Garde("scsi_hd.c:717");
                 data.data_pos_read++;
                 return 0;
@@ -830,6 +904,10 @@ internal static class scsi_hd_c
         // DEVIATION: au-delà du tampon, l'octet est compté, pas gardé.
         if (data.data_pos_write >= BUFFER_SIZE)
         {
+                // pcem bug, fixed in hardware mode: PB-128 — le transfert complet, au-delà de data_out.
+                if (materiel.pb_128)
+                        if (sortie_ecrire_materiel(data, val))
+                                return;
                 R9.Garde("scsi_hd.c:728");
                 data.data_pos_write++;
                 data.bytes_received++;
@@ -841,7 +919,7 @@ internal static class scsi_hd_c
     }
 
     // pcem: scsi_hd.c:731-735
-    // pcem bug, reproduced: PB-132 — une phase DATA IN vide : l'octet lu à l'entrée (scsi.c:241) désaccorde
+    // pcem bug, fixed in hardware mode: PB-132 — une phase DATA IN vide : l'octet lu à l'entrée (scsi.c:241) désaccorde
     //   les deux positions, et la cible ne quitte plus la phase.
     private static int scsi_hd_read_complete(object p)
     {
