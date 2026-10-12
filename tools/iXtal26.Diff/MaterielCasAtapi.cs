@@ -15,11 +15,14 @@ namespace iXtal26.Diff;
 internal static partial class MaterielCas
 {
     /// <summary>L'ami486 et son lecteur ATAPI chargé de <paramref name="image"/>, puis le corps ; la machine fermée ensuite.</summary>
-    private static int AvecAtapi(Func<string, string> image, Func<int> corps) => AvecCd(d =>
+    private static int AvecAtapi(Func<string, string> image, Func<int> corps, string? modele = null, bool prepare = true) => AvecCd(d =>
     {
         var cfg = Path.Combine(d, "atapi.cfg");
+        var chemin = image(d);
         File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = ide\n" +
-                               $"cdrom_channel = 2\ncdrom_drive = 200\ncdrom_path = {image(d)}\n");
+                               (chemin.Length > 0 ? $"cdrom_channel = 2\ncdrom_drive = 200\ncdrom_path = {chemin}\n"
+                                                  : "cdrom_channel = 2\ncdrom_drive = -1\n") +
+                               (modele is null ? "" : $"cd_model = {modele}\n"));
         try
         {
             if (!pc.loadconfig(cfg))
@@ -31,7 +34,8 @@ internal static partial class MaterielCas
                 throw new InvalidOperationException("initpc");
             R9Atapi.Tranches(100);
             io.outb(0x376, 0x02);
-            R9Atapi.Prepare();
+            if (prepare)
+                R9Atapi.Prepare();
             return corps();
         }
         finally
@@ -172,9 +176,11 @@ internal static partial class MaterielCas
         var (s4, _, _) = Paquet(R9Atapi.Cdb(0x15, 0x10, 0, 0, l4.Length), l4);
         var a4 = (s4 & 1) != 0 ? Asc() : 0;
         var v4 = Vol();
+        // Sous PB-270 (le mode « tout », le domaine « stockage »), MODE SELECT(6) n'existe pas sur ATAPI : 20h.
         bad += Voir("MODE SELECT(6) de la page audio, en-tête de quatre octets : l'état, l'ASC, le volume du port 0",
-                    hw ? (s4 & 1) == 0 && v4 == 0x84 : (s4 & 1) != 0 && a4 == 0x24, $"état {s4:X2}h, ASC {a4:X2}h, volume {v4:X2}h",
-                    hw ? "GOOD, 84h" : "ERR, 24h", hw);
+                    hw && materiel.pb_270 ? (s4 & 1) != 0 && a4 == 0x20
+                    : hw ? (s4 & 1) == 0 && v4 == 0x84 : (s4 & 1) != 0 && a4 == 0x24, $"état {s4:X2}h, ASC {a4:X2}h, volume {v4:X2}h",
+                    hw && materiel.pb_270 ? "ERR, 20h (PB-270)" : hw ? "GOOD, 84h" : "ERR, 24h", hw);
         return bad;
     });
 
@@ -299,6 +305,125 @@ internal static partial class MaterielCas
         (st, _, b) = Paquet(R9Atapi.Cdb(0xBD, 0, 0, 0, 0, 0, 0, 0, 0, 8));
         bad += Voir("témoin : MECHANISM STATUS, allocation de 8 octets", (st & 1) == 0 && b.Length == 8, $"état {st:X2}h, {b.Length} octets",
                     "GOOD, 8 octets, dans les deux modes", hw);
+        return bad;
+    });
+
+    // PB-118 — GET EVENT STATUS NOTIFICATION selon MMC-2 r11a § 6.1.5 (Tables 162 à 166, 178 à 180), sur le Kenwood
+    // UCR-421 (72x, 2000 : un lecteur MMC-2). Deux appels, mode scruté, classe des supports, disque chargé : PCem rend
+    // `04 00 04 10 02 02 00 00` les deux fois (la longueur en petit-boutiste, NewMedia toujours) ; le matériel
+    // `00 06 04 10 02 02 00 00` puis `00 06 04 10 00 02 00 00`. Sans la classe des supports : PCem `00 00 80 10`, le
+    // matériel `00 02 80 10`. La longueur d'allocation aux octets 7 et 8 (00 04), l'octet 9 à 00 : PCem lit 000400h et
+    // rend 8 octets, le matériel 4. Lecteur vide : le matériel `00 06 04 10 00 00 00 00`.
+    private static int Pb118(bool hw)
+    {
+        static byte[] Gesn(int classes, int a7, int a8) => R9Atapi.Cdb(0x4A, 1, 0, 0, classes, 0, 0, a7, a8, 0);
+        var bad = AvecAtapi(d => Iso(d, 32), () =>
+        {
+            var b1 = Paquet(Gesn(0x10, 0, 8)).d;
+            var b2 = Paquet(Gesn(0x10, 0, 8)).d;
+            var (h1, h2) = (Hex(b1, 0, b1.Length), Hex(b2, 0, b2.Length));
+            var r = Voir("deux GET EVENT STATUS NOTIFICATION, classe des supports, disque chargé",
+                         hw ? h1 == "00 06 04 10 02 02 00 00" && h2 == "00 06 04 10 00 02 00 00"
+                            : h1 == "04 00 04 10 02 02 00 00" && h2 == h1,
+                         $"{h1} | {h2}", hw ? "00 06 04 10 02 02 00 00 | 00 06 04 10 00 02 00 00" : "04 00 04 10 02 02 00 00, deux fois", hw);
+            var b3 = Paquet(Gesn(0x02, 0, 8)).d;
+            r += Voir("sans la classe des supports (classe 1 demandée)", Hex(b3, 0, b3.Length) == (hw ? "00 02 80 10" : "00 00 80 10"),
+                      Hex(b3, 0, b3.Length), hw ? "00 02 80 10" : "00 00 80 10", hw);
+            var b4 = Paquet(Gesn(0x10, 0, 4)).d;
+            r += Voir("la longueur d'allocation 0004h aux octets 7 et 8", b4.Length == (hw ? 4 : 8), $"{b4.Length} octets",
+                      hw ? "4 octets" : "8 octets (PCem lit 000400h sur trois octets)", hw);
+            return r;
+        }, "ucr421");
+        if (hw)
+            bad += AvecAtapi(_ => "", () =>
+            {
+                var b = Paquet(Gesn(0x10, 0, 8)).d;
+                return Voir("lecteur vide : GET EVENT STATUS NOTIFICATION", Hex(b, 0, b.Length) == "00 06 04 10 00 00 00 00",
+                            Hex(b, 0, b.Length), "00 06 04 10 00 00 00 00", hw);
+            }, "ucr421");
+        return bad;
+    }
+
+    // PB-270 — le jeu de commandes d'un lecteur ATAPI selon sa génération (Q5) : SFF-8020i r2.6 (Table 37) et MMC-2 r11a
+    // (Table B.2). Sur le Matshita CR-587-B (24x, SFF-8020i) : READ(6), MODE SENSE(6), GET EVENT STATUS NOTIFICATION,
+    // PLAY AUDIO(12) et READ DISC INFORMATION — PCem les sert, le matériel rend 05/20h. Sur le Kenwood UCR-421 (MMC-2) :
+    // READ(6) rend 20h, GET EVENT STATUS NOTIFICATION et READ DISC INFORMATION sont servis. Témoin : READ(10), GOOD.
+    private static int Pb270(bool hw)
+    {
+        // Ce que PCem rend à chacune, servie : l'ASC (0 : GOOD) ; PLAY AUDIO(12) sur une piste de données, 64h.
+        (string nom, byte[] cdb, int servie)[] commandes =
+        [
+            ("READ(6) du LBA 16", R9Atapi.Cdb(0x08, 0, 0, 16, 1), 0),
+            ("MODE SENSE(6) de toutes les pages", R9Atapi.Cdb(0x1A, 0, 0x3F, 0, 0xFF), 0),
+            ("GET EVENT STATUS NOTIFICATION", R9Atapi.Cdb(0x4A, 1, 0, 0, 0x10, 0, 0, 0, 8), 0),
+            ("PLAY AUDIO(12) du LBA 0, un bloc", R9Atapi.Cdb(0xA5, 0, 0, 0, 0, 0, 0, 0, 0, 1), 0x64),
+            ("READ DISC INFORMATION", R9Atapi.Cdb(0x51, 0, 0, 0, 0, 0, 0, 0, 34), 0),
+            ("REZERO UNIT", R9Atapi.Cdb(0x01), 0),
+            ("SEEK(6) au LBA 16", R9Atapi.Cdb(0x0B, 0, 0, 16), 0),
+        ];
+        int Essais(string modele, Func<int, bool> refusee) => AvecAtapi(d => Iso(d, 32), () =>
+        {
+            var bad = 0;
+            for (var i = 0; i < commandes.Length; i++)
+            {
+                var (st, _, _) = Paquet(commandes[i].cdb);
+                var asc = (st & 1) != 0 ? Asc() : 0;
+                var attendu = hw && refusee(i);
+                var servie = commandes[i].servie;
+                bad += Voir($"{modele} : {commandes[i].nom}", attendu ? (st & 1) != 0 && asc == 0x20
+                                                                   : servie == 0 ? (st & 1) == 0 : (st & 1) != 0 && asc == servie,
+                            $"état {st:X2}h, ASC {asc:X2}h", attendu ? "ERR, 20h (INVALID COMMAND OPERATION CODE)"
+                                                                     : servie == 0 ? "GOOD (servie)" : $"ERR, {servie:X2}h (servie, comme chez PCem)", hw);
+            }
+            var (s, _, b) = Paquet(R9Atapi.Read10(16, 1));
+            return bad + Voir($"{modele}, témoin : READ(10) du LBA 16", (s & 1) == 0 && b.Length == 2048, $"état {s:X2}h", "GOOD", hw);
+        }, modele);
+        // GET EVENT STATUS NOTIFICATION, qui traverse l'attention d'unité, envoyé quand elle est en attente (TEST UNIT
+        // READY l'a rendue, son sense reste) : refusé par le CR-587-B du matériel (gesn_materiel) ; servi par PCem.
+        var ua = AvecAtapi(d => Iso(d, 32), () =>
+        {
+            var (t, _, _) = Paquet(R9Atapi.Cdb(0x00));     // TEST UNIT READY : l'attention d'unité rendue, son sense gardé
+            if ((t & 1) == 0)
+                return Voir("TEST UNIT READY après le chargement", false, $"état {t:X2}h", "ERR (UNIT ATTENTION)", hw);
+            var (st, _, _) = Paquet(commandes[2].cdb);
+            var asc = (st & 1) != 0 ? Asc() : 0;
+            return Voir("cr-587-b : GET EVENT STATUS NOTIFICATION sous l'attention d'unité du chargement",
+                        hw ? (st & 1) != 0 && asc == 0x20 : (st & 1) == 0, $"état {st:X2}h, ASC {asc:X2}h", hw ? "ERR, 20h" : "GOOD", hw);
+        }, "cr-587-b", prepare: false);
+        return ua + Essais("cr-587-b", _ => true) + Essais("ucr421", i => i is 0 or 1 or 5 or 6);
+    }
+
+    // PB-271 — READ CD MSF (B9h), obligatoire (SFF-8020i r2.6, Table 37 et § 10.8.16 ; MMC-2 r11a, Table B.2 et § 6.1.16).
+    // De 00:02:16 à 00:02:17, données utilisateur (octet 9 = 10h) : PCem rend 05/20h ; le matériel le secteur 16 (le PVD).
+    // Le départ égal à la fin : GOOD sans données. Le départ au-delà de la fin : 24h (Table 106). Vingt secteurs : deux
+    // tranches, la commande traduite relancée par scsi_cd_read. Un départ avant 00:02:00 : 21h ; une image à 75 : 24h.
+    private static int Pb271(bool hw) => AvecAtapi(d => Iso(d, 32), () =>
+    {
+        var bad = 0;
+        var (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 2, 16, 0, 2, 17, 0x10));
+        var asc = (st & 1) != 0 ? Asc() : 0;
+        bad += Voir("READ CD MSF de 00:02:16 à 00:02:17", hw ? (st & 1) == 0 && b.Length == 2048 && b[0] == 1 && b[1] == (byte)'C'
+                                                           : (st & 1) != 0 && asc == 0x20,
+                    $"état {st:X2}h, ASC {asc:X2}h, {b.Length} octets", hw ? "GOOD, le PVD (2 048 octets)" : "ERR, 20h", hw);
+        if (hw)
+        {
+            (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 2, 16, 0, 2, 16, 0x10));
+            bad += Voir("le départ égal à la fin", (st & 1) == 0 && b.Length == 0, $"état {st:X2}h, {b.Length} octets", "GOOD, aucun octet", hw);
+            (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 2, 17, 0, 2, 16, 0x10));
+            asc = (st & 1) != 0 ? Asc() : 0;
+            bad += Voir("le départ au-delà de la fin", (st & 1) != 0 && asc == 0x24, $"état {st:X2}h, ASC {asc:X2}h", "ERR, 24h", hw);
+            (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 2, 0, 0, 2, 20, 0x10));
+            bad += Voir("de 00:02:00 à 00:02:20, vingt secteurs (deux tranches de seize, la commande relancée)",
+                        (st & 1) == 0 && b.Length == 20 * 2048 && b[16 * 2048] == 1 && b[19 * 2048] == 19,
+                        $"état {st:X2}h, {b.Length} octets", "GOOD, 40 960 octets, le PVD à 16 × 2 048, le secteur 19", hw);
+            // En brut (F8h) : READ CD de PCem n'y teste pas l'échec de lecture, seul le refus de la traduction rend 21h.
+            (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 1, 0, 0, 2, 1, 0xF8));
+            asc = (st & 1) != 0 ? Asc() : 0;
+            bad += Voir("un départ avant 00:02:00, en brut", (st & 1) != 0 && asc == 0x21, $"état {st:X2}h, ASC {asc:X2}h", "ERR, 21h", hw);
+            (st, _, b) = Paquet(R9Atapi.Cdb(0xB9, 0, 0, 0, 2, 75, 0, 3, 0, 0x10));
+            asc = (st & 1) != 0 ? Asc() : 0;
+            bad += Voir("une image à 75", (st & 1) != 0 && asc == 0x24, $"état {st:X2}h, ASC {asc:X2}h", "ERR, 24h", hw);
+        }
         return bad;
     });
 }

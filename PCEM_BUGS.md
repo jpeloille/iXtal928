@@ -2211,13 +2211,29 @@ lecteur vide —, et lit la longueur 4 comme 1 024. ATAPIBANC, deux appels : `04
 les deux fois, lecteur chargé comme vide.
 *Trouvé par* : reconnaissance de G10.4 (PLAN-G10.md, « toujours NEW_MEDIA »).
 *Source* : SFF-8020i r2.6, Table 37 : 4Ah n'y est pas (documenté), d'où 05/20h en 1996 (déduit). MMC-2
-(T10/97-108r0) § 9.1.2 : longueur 0006h en ordre réseau, un événement rapporté une fois, 05/24h si IMMED = 0,
-filtrage par classe, sans UNIT ATTENTION (documenté). Référence à choisir (Q5 de D3-stockage).
+(T10/97-108r0) § 9.1.2 : longueur 0006h en ordre réseau, un événement rapporté une fois, filtrage par classe, sans
+UNIT ATTENTION (documenté) ; IMMED = 0 : « the command shall fail as an illegal request », sans ASC (relu en G13.7c3,
+dans le brouillon et dans la r11a ; le « 24h » d'abord écrit ici ne venait pas du texte). Référence tranchée par Q5.
 *Cas qui discrimine* : deux GESN (polled, classe média), disque chargé : PCem `04 00 04 10 02 02 00 00` les deux
 fois ; MMC-2 `00 06 04 10 02 02 00 00` puis `00 06 04 10 00 02 00 00` ; lecteur vide : PCem inchangé, MMC-2
 `00 06 04 10 00 00 00 00` ; SFF-8020i : CHECK CONDITION, 05/20h.
-*G13* : (b) — corrigeable, mais la référence (SFF-8020i ou MMC-2) n'est pas tranchée.
-*Reproduit* : `Scsi/scsi_cd.cs`, marqueurs PB-118. Contrôle négatif : la longueur en ordre réseau rougit ATAPIBANC.
+*G13* : (a) — la référence tranchée par Q5 (Julien, 12/10) : selon l'année du modèle (PB-270).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, marqueurs `fixed in hardware mode: PB-118`. Contrôle négatif : la
+longueur en ordre réseau rougit ATAPIBANC.
+*Corrigé en mode matériel* (G13.7c3, en groupe avec PB-270) : sous `if (materiel.pb_118)`, `gesn_materiel`
+(`Scsi/scsi_cd.Materiel.cs`) — texte de MMC-2 relu (T10/1228-D révision 11a, 30 août 1999, § 6.1.5, Tables 162 à
+166 et 178 à 180) : sur un lecteur ATAPI de la génération SFF-8020i, 05/20h (PB-270) ; sur un lecteur MMC-2, et
+derrière une carte SCSI, la longueur d'allocation aux octets 7 et 8, le mode asynchrone refusé (« shall fail as an
+illegal request » ; l'ASC de PCem gardé, la norme n'en nomme pas), la classe des supports seule servie — la
+longueur 6 en ordre réseau, la classe 4, les classes servies 10h, l'événement NewMedia une fois quand un disque est
+apparu ou a changé, MediaRemoval une fois quand il a disparu, NoEvent sinon, l'état Media Present (le plateau n'est
+pas modélisé) —, une demande sans elle rendant l'en-tête seul, NEA et la classe 0 ; sans effet de bord sur le
+disque. Limite : l'échange d'une image pour une autre n'est vu que si GET EVENT STATUS NOTIFICATION est la première
+commande après lui — chaque commande lit et efface le drapeau du moteur (`medium_changed`) ; les apparitions et
+disparitions du disque, elles, sont toujours vues. `materiel-cas PB-118` (sur l'ami486 et le Kenwood UCR-421 : deux appels, une demande de la classe 1, une
+allocation de 0004h, un lecteur vide) rend `04 00 04 10 02 02 00 00` deux fois, `00 00 80 10` et 8 octets en mode
+PCem ; `00 06 04 10 02 02 00 00` puis `00 06 04 10 00 02 00 00`, `00 02 80 10`, 4 octets et `00 06 04 10 00 00 00 00`
+en mode matériel ; la correction coupée, il rougit.
 
 ### PB-119 — MODE SELECT lit son en-tête de travers et ne finit pas à longueur nulle
 
@@ -2254,8 +2270,9 @@ de § 10.8.4 ne sont pas tenues : un champ non modifiable changé, une valeur d'
 support), le bit SP sans pages sauvegardées — rendus GOOD, comme chez PCem. SFF-8020i réserve les octets 3 à 7 de
 l'en-tête (aucun descripteur de bloc sur ATAPI, où un hôte les laisse à zéro) : leur lecture comme longueur des
 descripteurs vient de SCSI-2 (Tables 91 et 92, non relues), le même lecteur servant aussi derrière une carte SCSI.
-Que MODE SELECT(6) existe
-sur un lecteur ATAPI relève de Q5 (G13.7c3) ; servi, il a cet en-tête. `materiel-cas PB-119` (sur l'ami486 et son
+MODE SELECT(6) n'existe pas
+sur un lecteur ATAPI (PB-270, G13.7c3) : sous PB-270 (le domaine « stockage », le mode « tout »), sa forme ne se lit
+plus que derrière une carte SCSI ; le cas de PB-119 attend alors 20h. `materiel-cas PB-119` (sur l'ami486 et son
 lecteur ATAPI, le volume du port 0 lu après chaque essai : la longueur 0 ; la page audio sous une longueur des données
 du mode de 0016h ; la page puis une page 0Fh ; une liste de 18 octets ; MODE SELECT(6) de la page) rend DRQ, FFh, 24h
 et 82h, GOOD, 24h en mode PCem ; GOOD sans DRQ, 81h, 26h et 81h, 1Ah, GOOD et 84h en mode matériel ; la correction
@@ -5428,6 +5445,64 @@ aux octets 8 et 9 et `mechanism_status_tronque_materiel` (`Scsi/scsi_cd.Materiel
 huit octets ; la
 longueur nulle reste GOOD sans données. `materiel-cas PB-269` rend les valeurs ci-dessus ; la correction coupée, il
 rougit.
+
+### PB-270 — Le lecteur ATAPI sert des commandes que la norme de sa génération n'a pas
+
+`scsi_cd.c` : un seul jeu de commandes pour les douze modèles, de l'Aztech 4x (1995-1996) au Kenwood 72x (2000), sur
+ATAPI comme derrière une carte SCSI : READ(6), MODE SELECT(6), MODE SENSE(6), GET EVENT STATUS NOTIFICATION, PLAY
+AUDIO(12), READ DISC INFORMATION y sont servis.
+*Effet* : un pilote qui sonde le lecteur — par MODE SENSE(6), par GET EVENT STATUS NOTIFICATION — voit répondre un
+lecteur de 1996 comme un lecteur de 2000, et ne prend pas le chemin qu'il prendrait sur le vrai.
+*Trouvé par* : D3-stockage (Q5), tranché par Julien le 12/10 : « selon l'année du modèle choisi ».
+*Source* : documenté pour les listes — SFF-8020i r2.6 (22 janvier 1996), Table 37, « Packet Commands Supported by
+CD-ROM Drives » ; MMC-2 (T10/1228-D r11a, 30 août 1999), Annex B, Table B.2, « ATAPI CD Commands ». Aucune des deux
+n'a REZERO UNIT, READ(6), SEEK(6), MODE SELECT(6) ni MODE SENSE(6) ; SFF-8020i n'a ni GET EVENT STATUS NOTIFICATION, ni
+PLAY AUDIO(12), ni READ DISC INFORMATION, que MMC-2 liste — GET EVENT STATUS NOTIFICATION obligatoire (« M »),
+PLAY AUDIO(12) pour les DVD (« D », alors que son Annex I la range dans l'audio CD), READ DISC INFORMATION pour les
+graveurs (« E, R, K ») : qu'un lecteur de CD-ROM MMC-2 ait ces deux-là est inconnu, ils restent servis comme chez
+PCem. Déduit : une commande absente de la liste rend INVALID COMMAND OPERATION CODE (05/20h, SFF-8020i Table 87). Les années des modèles : documentées pour le NEC CDR-1300A, le Sony CDU311 (manuel ©
+1996), le Toshiba XM-5702B (annoncé le 14/10/1996, PC Watch) et le Kenwood UCR-421 (essais de presse d'août 2000) ;
+déduites de la vitesse pour les autres (l'Aztech 4x, le GoldStar 16x, les Matshita 24x et 32x, le BTC 36x vers
+1996-1998 ; le Philips 40x et le Mitsumi 48x vers 1999). Rangés : MMC-2 pour le Philips, le Mitsumi, le Kenwood et,
+par choix, le lecteur générique de PCem, qui n'a pas d'année (le modèle par défaut) ; SFF-8020i pour les autres — la
+limite est la moins sûre entre le 36x et le 40x, et la génération intermédiaire (MMC-1, SFF-8090, 1997-1998) n'est
+pas représentée. Non essayé : qu'un pilote ATAPI de l'époque (VIDE-CDD.SYS, AZTIDECD.SYS, SGIDECD.SYS, cités par
+PCem) n'envoie aucune des commandes refusées ; les deux listes le laissent attendre, aucun amorçage ne l'a vérifié.
+*Cas qui discrimine* : sur le Matshita CR-587-B, READ(6), MODE SENSE(6), GET EVENT STATUS NOTIFICATION, PLAY
+AUDIO(12), READ DISC INFORMATION, REZERO UNIT et SEEK(6) : PCem les sert (GOOD, et 64h pour PLAY AUDIO(12) sur une
+piste de données), le matériel rend 05/20h ; GET EVENT STATUS NOTIFICATION sous l'attention d'unité du chargement,
+de même ; sur le Kenwood UCR-421, les quatre commandes de six octets et REZERO UNIT rendent 20h, les trois autres sont
+servies comme chez PCem.
+*G13* : (a), la limite des générations déduite.
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, `scsi_cd_command`, marqueur `fixed in hardware mode: PB-270`.
+*Corrigé en mode matériel* (G13.7c3, en groupe avec PB-118) : sous `if (materiel.pb_270)`, `commande_absente_materiel`
+(`Scsi/scsi_cd.Materiel.cs`) rend 05/20h, avant toute autre étape, à la commande absente de la génération du modèle
+(`mmc2_materiel`, par le nom de configuration) ; sur ATAPI seulement — derrière une carte SCSI, le même lecteur sert
+le jeu de SCSI-2, où les commandes de six octets existent ; une attention d'unité en attente passe devant (la suite de
+PCem la rend ; GET EVENT STATUS NOTIFICATION, qui la traverse, est refusé par `gesn_materiel`). `materiel-cas PB-270`
+rend les valeurs ci-dessus ; la correction coupée, il rougit.
+
+### PB-271 — READ CD MSF, obligatoire, manque
+
+`scsi_cd.c` : READ CD MSF (B9h) n'a pas d'entrée ; il tombe dans le cas par défaut, 05/20h.
+*Effet* : un pilote qui lit par adresses MSF — les secteurs bruts ou l'audio numérique d'un CD — reçoit une erreur.
+*Trouvé par* : G13.7c3, en relisant la Table 37 de SFF-8020i pour Q5.
+*Source* : documenté — SFF-8020i r2.6, Table 37 (« M », obligatoire) et § 10.8.16 ; MMC-2 r11a, Table B.2 (« B »,
+obligatoire pour tout lecteur de CD) et § 6.1.16 : « A starting MSF address equal to an ending MSF address prevents a
+read operation. This shall not be considered an error. If the starting MSF address is greater than the ending MSF
+address, the command shall be terminated with CHECK CONDITION status, ILLEGAL REQUEST. »
+*Cas qui discrimine* : READ CD MSF de 00:02:16 à 00:02:17, données utilisateur : PCem 05/20h, le matériel le secteur 16.
+*G13* : (a).
+*Reproduit* en mode PCem : `Scsi/scsi_cd.cs`, `scsi_cd_command`, marqueur `fixed in hardware mode: PB-271`.
+*Corrigé en mode matériel* (G13.7c3) : sous `if (materiel.pb_271)`, `read_cd_msf_materiel` (`Scsi/scsi_cd.Materiel.cs`)
+traduit le paquet en READ CD (BEh), que PCem sert, avant toute autre étape : l'adresse de départ, le compte (la fin
+moins le départ), les octets 1, 9 et 10 aux mêmes places ; un départ au-delà de la fin rend INVALID FIELD IN COMMAND
+PACKET (05/24h, SFF-8020i Table 106), une seconde au-delà de 59 ou une image au-delà de 74 aussi (déduit), un départ
+avant 00:02:00 — le prégap de la piste 1, que le moteur ne sert pas — LOGICAL BLOCK ADDRESS OUT OF RANGE (05/21h,
+déduit) ; le reste comme READ CD, dont l'octet 9 autre que 10h ou F8h, 05/20h comme chez PCem. `materiel-cas
+PB-271` rend 05/20h en mode PCem ; en mode matériel le PVD, GOOD sans données pour un départ égal à la fin, 24h pour
+un départ au-delà, vingt secteurs en deux tranches (la commande traduite relancée), 21h avant 00:02:00 et 24h pour
+une image à 75 ; la correction coupée, il rougit.
 
 ## B. Comportement indéfini en C
 

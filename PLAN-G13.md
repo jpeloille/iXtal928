@@ -483,9 +483,12 @@ contre-lecture, M2, sa série entière et son commit :
     d'emblée) et PB-269 (MECHANISM STATUS) ; PB-115 examiné : rien n'y bascule (les transferts dans le disque déjà
     complets, ceux qui en sortent étant PB-268). Le texte de SFF-8020i r2.6 obtenu : les références des étapes du CD
     relues.
-  - **G13.7c3 — Le jeu de commandes selon l'année du modèle (Q5).** PB-118 (GET EVENT STATUS NOTIFICATION), MODE
-    SELECT et MODE SENSE(6), PLAY AUDIO(12), READ(6) (absent de la Table 37 ; chez PCem, une longueur 0 n'y vaut pas
-    256 blocs) : servis ou refusés selon le modèle.
+  - **G13.7c3 — Le jeu de commandes selon l'année du modèle (Q5)** ✅ *(12/10, VERIFICATION.md § G13.7c3)*. MMC-2 (r11a,
+    août 1999) obtenue. PB-270 (neuf) : sur ATAPI, READ(6), MODE SELECT(6) et MODE SENSE(6) refusés (ni SFF-8020i
+    Table 37, ni MMC-2 Table B.2 — la longueur 0 de READ(6) n'a donc plus d'objet sur ATAPI), GESN, PLAY AUDIO(12) et
+    READ DISC INFORMATION refusés par les modèles SFF-8020i ; MMC-2 pour le 40x, le 48x, le 72x et le générique de
+    PCem (années documentées pour quatre modèles, déduites de la vitesse pour les autres) ; PB-118, GESN selon MMC-2,
+    en groupe avec PB-270 ; PB-271 (neuf), READ CD MSF, obligatoire, servi.
   - **G13.7c4 — L'audio.** PB-123, PB-214, PB-215.
 - **G13.7d — Le ZIP et le disque SCSI.** PB-125 (les transferts complets, une adresse hors du disque en CHECK
   CONDITION, 05/21h), PB-126 (la capacité, la fin du disque, les phases à longueur nulle ; START STOP UNIT reste

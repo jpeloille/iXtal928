@@ -1192,3 +1192,34 @@ d'entre elles.
 
 PB-115 — des lectures que PCem coupait par sécurité. Les lectures normales dans le disque sont déjà complètes ; celles
 qui en sortent sont PB-268. Rien d'autre n'y change.
+
+## G13.7c3 — le jeu de commandes du lecteur de CD, selon son année
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7c3.*
+
+PCem propose douze lecteurs de CD, d'un 4x de 1995-1996 à un 72x de 2000, mais tous répondent aux mêmes commandes.
+Or la norme des lecteurs a changé entre-temps : en 1996 (SFF-8020i), un lecteur ne connaissait pas certaines
+commandes que la norme suivante (MMC-2, 1999) a ajoutées. Julien a tranché : chaque modèle répond selon son année.
+
+### PB-270 — les commandes que le lecteur n'a pas
+
+- **Le vrai PC.** Un lecteur refuse, « commande inconnue », ce que sa norme ne prévoit pas : un lecteur de 1996 ne
+  sait pas dire « un disque vient d'être inséré » (GET EVENT STATUS NOTIFICATION), et aucun lecteur ATAPI ne connaît
+  les formes courtes de certaines commandes, réservées aux disques SCSI.
+- **L'émulateur.** PCem répond à tout, avec n'importe quel modèle.
+- **La correction.** Chaque modèle refuse ce que la norme de son année n'a pas ; les années des lecteurs les plus
+  anciens et du plus récent sont documentées, les autres déduites de leur vitesse.
+
+### PB-118 — « un disque vient d'être inséré »
+
+- **Le vrai PC.** Un lecteur récent signale l'arrivée d'un disque une fois, puis plus rien tant que rien ne change.
+- **L'émulateur.** PCem annonce un nouveau disque à chaque question — même lecteur vide —, avec une longueur mal
+  écrite.
+- **La correction.** Le signalement de la norme, une fois.
+
+### PB-271 — lire par minutes, secondes et images
+
+- **Le vrai PC.** Tout lecteur de CD sait lire des secteurs désignés par leur position en temps (READ CD MSF) ; la
+  norme l'impose.
+- **L'émulateur.** PCem n'a pas cette commande.
+- **La correction.** Elle est servie, par la même voie que sa sœur adressée par numéro de secteur.

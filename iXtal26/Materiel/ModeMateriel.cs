@@ -81,6 +81,7 @@ internal static class ModeMateriel
         new(108, "stockage", "la piste qui ouvre son fichier y commence à son INDEX 01"),
         new(109, "stockage", "un échec de lecture de l'image ne colle pas au fichier"),
         new(117, "stockage", "READ CD-ROM CAPACITY rend l'adresse du dernier bloc avant le lead-out"),
+        new(118, "stockage", "GET EVENT STATUS NOTIFICATION selon MMC-2 sur un lecteur de cette génération"),
         new(119, "stockage", "MODE SELECT lit l'en-tête de sa forme, rend 1Ah ou 26h, et finit à longueur nulle"),
         new(120, "stockage", "la TOC brute a ses points A0h, A1h, A2h et sa longueur"),
         new(122, "stockage", "le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste"),
@@ -146,6 +147,8 @@ internal static class ModeMateriel
         new(265, "x87", "FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 (le noyau)"),
         new(268, "stockage", "un READ du CD qui sort du disque est refusé d'emblée, 05/21h"),
         new(269, "stockage", "MECHANISM STATUS lit son allocation sur deux octets, et rend 1Ah sous huit octets"),
+        new(270, "stockage", "le lecteur ATAPI refuse les commandes que la norme de sa génération n'a pas"),
+        new(271, "stockage", "READ CD MSF, obligatoire, servi"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
@@ -158,9 +161,10 @@ internal static class ModeMateriel
     /// 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
     /// corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213), dont il remplace les tables
     /// (G13.6, le noyau, N7c ; leurs gestionnaires en `double` ont quitté le dépôt en N8a). PB-71 et PB-216 : la ligne
-    /// d'interruption d'un canal IDE, dans la même fonction (ide_irq_update, G13.7b).</summary>
+    /// d'interruption d'un canal IDE, dans la même fonction (ide_irq_update, G13.7b). PB-118 et PB-270 : GET EVENT STATUS
+    /// NOTIFICATION, servi ou refusé selon la génération du lecteur (G13.7c3).</summary>
     internal static readonly int[][] Groupes =
-        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204], [71, 216],
+        [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204], [71, 216], [118, 270],
          [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 264, 265]];
 
     /// <summary>Les corrections en chantier, qui n'entrent ni dans « tout », ni dans leur domaine : aucune depuis que le

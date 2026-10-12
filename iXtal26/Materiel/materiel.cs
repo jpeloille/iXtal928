@@ -162,6 +162,9 @@ internal static class materiel
     /// <summary>PB-117 : READ CD-ROM CAPACITY rend l'adresse du dernier bloc avant le lead-out.</summary>
     internal static readonly bool pb_117;
 
+    /// <summary>PB-118 : GET EVENT STATUS NOTIFICATION selon MMC-2, sur un lecteur de cette génération ; avec PB-270.</summary>
+    internal static readonly bool pb_118;
+
     /// <summary>PB-119 : MODE SELECT lit son en-tête selon sa longueur, et finit à longueur nulle.</summary>
     internal static readonly bool pb_119;
 
@@ -173,6 +176,12 @@ internal static class materiel
 
     /// <summary>PB-269 : MECHANISM STATUS lit son allocation sur deux octets, et rend 1Ah sous huit octets.</summary>
     internal static readonly bool pb_269;
+
+    /// <summary>PB-270 : le lecteur ATAPI refuse les commandes que la norme de sa génération n'a pas.</summary>
+    internal static readonly bool pb_270;
+
+    /// <summary>PB-271 : READ CD MSF, obligatoire, servi.</summary>
+    internal static readonly bool pb_271;
 
     /// <summary>PB-122 : le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste.</summary>
     internal static readonly bool pb_122;
@@ -409,10 +418,13 @@ internal static class materiel
         pb_108 = ModeMateriel.Demande(108);
         pb_109 = ModeMateriel.Demande(109);
         pb_117 = ModeMateriel.Demande(117);
+        pb_118 = ModeMateriel.Demande(118);
         pb_119 = ModeMateriel.Demande(119);
         pb_120 = ModeMateriel.Demande(120);
         pb_268 = ModeMateriel.Demande(268);
         pb_269 = ModeMateriel.Demande(269);
+        pb_270 = ModeMateriel.Demande(270);
+        pb_271 = ModeMateriel.Demande(271);
         pb_122 = ModeMateriel.Demande(122);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);

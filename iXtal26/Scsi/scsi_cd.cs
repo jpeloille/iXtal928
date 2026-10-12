@@ -9,8 +9,9 @@
 //
 // DEVIATIONS (R9, PB-115) : MECHANISM STATUS de longueur 0 (:993) ; data_out débordé (:1576-1581) ; la
 //   lecture au-delà de data_in (:1565) ; le compte négatif passé à readsector (:1187).
-// Reproduits : PB-118 (GET EVENT STATUS NOTIFICATION) ; en mode PCem, PB-117 (READ CAPACITY), PB-119 (MODE SELECT),
-//   PB-120 (la TOC brute), corrigés en mode matériel (scsi_cd.Materiel.cs, cdrom-image.Materiel.cs).
+// Reproduits en mode PCem, corrigés en mode matériel (scsi_cd.Materiel.cs, cdrom-image.Materiel.cs) : PB-117 (READ
+//   CAPACITY), PB-118 (GET EVENT STATUS NOTIFICATION), PB-119 (MODE SELECT), PB-120 (la TOC brute), PB-268 (le READ
+//   hors du disque), PB-269 (MECHANISM STATUS), PB-270 (le jeu de commandes du modèle), PB-271 (READ CD MSF).
 
 // CS8981 : `scsi_cd_c` porte le nom de l'unité C, que le membre `scsi_cd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -574,7 +575,7 @@ internal static partial class scsi_cd_c
 
     // pcem: scsi_cd.c:579-606 — buffer[4] et buffer[5] sont lus AVANT d'être écrits : start_command les a mis à
     //   zéro, donc « support présent », « nouveau support », et atapi->load() à chaque appel.
-    // pcem bug, reproduced: PB-118
+    // pcem bug, fixed in hardware mode: PB-118
     private static int atapi_event_status(uint8_t[] buffer)
     {
         uint8_t event_code, media_status = 0;
@@ -886,6 +887,15 @@ internal static partial class scsi_cd_c
 
         if (data.received_cdb == 0)
                 Array.Copy(cdb, data.cdb, CDB_MAX_LEN);
+        // pcem bug, fixed in hardware mode: PB-270 — le lecteur ATAPI sert toutes les commandes de la table, quelle que
+        //   soit la génération du modèle choisi.
+        if (materiel.pb_270)
+                if (commande_absente_materiel(data, cdb))
+                        return SCSI_PHASE_STATUS;
+        // pcem bug, fixed in hardware mode: PB-271 — READ CD MSF (B9h) manque : ILLEGAL REQUEST, opcode inconnu.
+        if (materiel.pb_271)
+                if (read_cd_msf_materiel(data, cdb))
+                        return SCSI_PHASE_STATUS;
 
         if ((cdb[0] != SCSI_REQUEST_SENSE) && (cdb[1] & 0xe0) != 0)
         {
@@ -1389,9 +1399,12 @@ internal static partial class scsi_cd_c
                 return SCSI_PHASE_DATA_OUT;
 
         case GPCMD_GET_EVENT_STATUS_NOTIFICATION: /*0x4a*/
+                // pcem bug, fixed in hardware mode: PB-118
+                if (materiel.pb_118)
+                        return gesn_materiel(data, cdb, changed);
                 temp_command = cdb[0];
                 // La longueur d'allocation lue sur trois octets (7 à 9), l'octet de contrôle compris.
-                // pcem bug, reproduced: PB-118
+                // pcem bug, fixed in hardware mode: PB-118
                 alloc_length = (cdb[7] << 16) | (cdb[8] << 8) | cdb[9];
 
                 {
@@ -1444,7 +1457,7 @@ internal static partial class scsi_cd_c
                         }
                         len = (int)used_len;
                         // La longueur de l'en-tête, un uint16_t dans l'ordre de l'hôte : petit-boutiste.
-                        // pcem bug, reproduced: PB-118
+                        // pcem bug, fixed in hardware mode: PB-118
                         data.data_in[0] = (uint8_t)(used_len - 4);
                         data.data_in[1] = (uint8_t)((used_len - 4) >> 8);
                 }

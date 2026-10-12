@@ -10068,3 +10068,60 @@ par les étapes antérieures de G13.
 **La série** g7c2 (le worktree de l'étape, contre g7c1) : 532 portes, toutes vertes ; 522 communes à g7c1, chacune
 au même verdict ; un seul résumé change, `recensement` (269 défauts, 1 108 marqueurs). Dix neuves : les
 `materiel-cas` de PB-117, PB-119, PB-120, PB-268 et PB-269, dans les deux modes.
+
+## G13.7c3 — le jeu de commandes du lecteur de CD, selon l'année du modèle
+
+Le 12 octobre 2026. La troisième étape du CD (PLAN-G13.md, § G13.7), Q5 tranchée par Julien : « selon l'année du modèle
+choisi ». Les sources : SFF-8020i r2.6 (22 janvier 1996), Table 37 (les commandes d'un lecteur de CD ATAPI), Tables 87
+et 106, § 10.8.16 ; MMC-2, obtenue pour cette étape — T10/1228-D révision 11a (30 août 1999), § 6.1.5 (GET EVENT/STATUS
+NOTIFICATION, Tables 162 à 166 et 178 à 180), § 6.1.16 (READ CD MSF), Annex B, Table B.2 (les commandes d'un lecteur
+de CD ATAPI) et sa clé ; le brouillon T10/97-108r0 (la clause 9 de SFF-8090 r0.9). Les années des modèles, par une
+recherche documentaire : documentées pour le NEC CDR-1300A, le Sony CDU311 (manuel © 1996), le Toshiba XM-5702B
+(annoncé le 14 octobre 1996) et le Kenwood UCR-421 (essais d'août 2000) ; déduites de la vitesse pour les sept autres.
+
+**Les corrections du mode matériel** (domaine `stockage`, trois neuves, PB-118 et PB-270 en groupe ;
+`Scsi/scsi_cd.Materiel.cs`, l'état dans une classe imbriquée) : PB-270, neuf — sur ATAPI, une commande absente de la
+liste de la génération du modèle rend 05/20h, avant toute autre étape : REZERO UNIT, READ(6), SEEK(6), MODE SELECT(6)
+et MODE SENSE(6) dans les deux générations (ni la Table 37 ni la Table B.2 ne les ont), GET EVENT STATUS NOTIFICATION,
+PLAY AUDIO(12) et READ DISC INFORMATION pour la génération SFF-8020i ; MMC-2 pour le 40x, le 48x, le 72x et, par
+choix, le lecteur générique de PCem ; derrière une carte SCSI, le jeu de SCSI-2 reste. PB-118 — GET EVENT STATUS
+NOTIFICATION selon MMC-2 : l'allocation aux octets 7 et 8, la longueur 6 en ordre réseau, NewMedia une fois puis
+NoEvent, MediaRemoval, Media Present, `00 02 80 10` sans la classe des supports, sans effet de bord. PB-271, neuf —
+READ CD MSF, obligatoire dans les deux normes, traduit en READ CD : la fin exclusive, 24h pour un départ au-delà de la
+fin ou un MSF invalide, 21h avant 00:02:00. Chacune a son cas en C# seul (`MaterielCasAtapi.cs`, sur le banc de
+`r9-atapi`, le modèle choisi par sa clé `cd_model` : le Matshita CR-587-B pour SFF-8020i, le Kenwood UCR-421 pour
+MMC-2). Les trois sont verts dans les deux modes, la sonde atteinte ; chacun rougit sous `--attendu materiel`. Les
+cinq cas de G13.7c2 rejoués (le modèle par défaut gardé), verts ; celui de PB-119 attend 20h pour MODE SELECT(6)
+quand PB-270 est actif (vert sous `--hardware-mode stockage`).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137c3.py`) : treize fautes, chacune rougit son cas — le CR-587-B rangé en
+MMC-2 ; MODE SENSE(6) servi ; READ DISC INFORMATION servi en SFF ; GET EVENT STATUS NOTIFICATION servi en SFF sous
+l'attention d'unité ; REZERO UNIT et SEEK(6) servis (PB-270) ; la longueur 8, NewMedia toujours, l'allocation sur trois
+octets, sans NEA (PB-118) ; la fin incluse, sans les 150, le départ au-delà de la fin accepté, le départ avant 00:02:00
+accepté (PB-271). Deux survivaient d'abord : GET EVENT STATUS NOTIFICATION sous l'attention d'unité n'était pas
+exercé (l'attention n'est en attente qu'après une commande qui l'a rendue : le cas envoie d'abord TEST UNIT READY) ;
+le départ avant 00:02:00 échouait déjà en lecture de données (le cas le lit en brut, F8h, où READ CD de PCem ne
+teste pas l'échec). Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, les deux normes relues) : six points à corriger, neuf remarques, tous traités.
+Corrigés : REZERO UNIT et SEEK(6), servis par PCem et absents des deux tables, ajoutés aux refus ; « listée dans MMC-2,
+donc servie » n'est pas une preuve pour PLAY AUDIO(12) (« D ») et READ DISC INFORMATION (« E, R, K ») — dits inconnus,
+laissés servis comme chez PCem ; l'ASC du mode asynchrone de GET EVENT STATUS NOTIFICATION, écrit 24h dans l'entrée
+de PB-118 sans source (ni la r11a ni le brouillon n'en nomment) — l'ASC de PCem gardé, le texte rectifié ; un départ
+de READ CD MSF avant 00:02:00 transmis en LBA négatif — 21h ; le cas de PB-119 sous PB-270 — 20h attendu ; le modèle
+par défaut des cas de G13.7c2, changé à tort — rétabli. Repris : les cas de PB-270 vérifient l'état exact de PCem
+(GOOD, 64h pour PLAY AUDIO(12) sur une piste de données), celui de PB-271 deux tranches (la commande traduite
+relancée) ; l'ASC 24h de READ CD MSF documenté (Table 106) ; écrits dans PCEM_BUGS : la limite de l'échange d'image
+pour GET EVENT STATUS NOTIFICATION, le choix du lecteur générique, la génération intermédiaire non représentée, le
+risque non essayé d'un pilote de l'époque qui enverrait une commande refusée.
+
+**M2** (Release du worktree, les scénarios de G13.7c2 ; `ami486-cd-cue` compile `scsi_cd_command` et ses deux gardes
+neuves). La première capture a trouvé changé le constructeur statique de `scsi_cd_c` : la table de la présence vue
+par GET EVENT STATUS NOTIFICATION, un champ statique de la classe, l'initialisait. Rangée dans une classe imbriquée
+(`EtatGesn`, comme `EtatIde` en G13.7b), recapturé : contre M2-7c2, deux méthodes changées, les constructeurs
+statiques de `materiel` et de `ModeMateriel` ; contre M0 (`M0-860f2b1-g137c2`), `scsi_cd_command` identique — les
+trois méthodes neuves qu'elle appelle portent `NoInlining`.
+
+**La série** g7c3 (le worktree de l'étape, contre g7c2) : 538 portes, toutes vertes ; 532 communes à g7c2, chacune au
+même verdict ; un seul résumé change, `recensement` (271 défauts, 1 114 marqueurs). Six neuves : les `materiel-cas`
+de PB-118, PB-270 et PB-271, dans les deux modes.

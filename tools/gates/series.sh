@@ -696,3 +696,10 @@ for pb in 117 119 120 268 269; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7c3 — le jeu de commandes du lecteur de CD selon la génération du modèle (PLAN-G13.md, G13.7, Q5) : PB-118 (GET
+# EVENT STATUS NOTIFICATION selon MMC-2) et PB-270 (les commandes que la norme de la génération n'a pas), un groupe ;
+# PB-271 (READ CD MSF) ; chacun son cas en C# seul dans les deux modes, sur le banc de r9-atapi.
+for pb in 118 270 271; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

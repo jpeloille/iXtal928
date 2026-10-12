@@ -159,4 +159,152 @@ internal static partial class scsi_cd_c
         }
         return true;
     }
+
+    // pcem bug, fixed in hardware mode: PB-270 — le jeu de commandes d'un lecteur ATAPI dépend de sa génération (Q5 :
+    //   selon l'année du modèle). SFF-8020i r2.6 (janvier 1996), Table 37, et MMC-2 (T10/1228-D r11a, août 1999),
+    //   Table B.2, listent les commandes d'un lecteur de CD ATAPI ; une commande absente de la liste de sa génération
+    //   rend ILLEGAL REQUEST, INVALID COMMAND OPERATION CODE (05/20h ; SFF-8020i, Table 87) — déduit de l'absence.
+    //   Aucune des deux n'a REZERO UNIT, READ(6), SEEK(6), MODE SELECT(6) ni MODE SENSE(6) : refusés dans les deux
+    //   générations. SFF-8020i n'a ni GET EVENT STATUS NOTIFICATION, ni PLAY AUDIO(12), ni READ DISC INFORMATION :
+    //   refusés par les modèles de cette génération. MMC-2 rend le premier obligatoire ; les deux autres, elle les
+    //   liste pour les DVD (« D ») et les graveurs (« E, R, K ») — qu'un lecteur de CD-ROM de 1999 les ait est inconnu :
+    //   servis, comme chez PCem. Les modèles de PCem rangés par leur année (PCEM_BUGS.md, PB-270) : MMC-2 pour le 40x
+    //   de Philips et le 48x de Mitsumi (1999, déduit de la vitesse), le 72x de Kenwood (2000, documenté) et, par
+    //   choix, le lecteur générique de PCem, qui n'a pas d'année ; SFF-8020i pour les autres, du 4x d'Aztech au 36x de
+    //   BTC (1996, documenté pour trois ; jusqu'à 1998, déduit). Sur ATAPI seulement : derrière une carte SCSI, le même
+    //   lecteur sert le jeu de SCSI-2, où ces commandes de six octets existent. Une attention d'unité en attente passe
+    //   devant (la suite de PCem la rend, puis GET EVENT STATUS NOTIFICATION est refusé dans son cas).
+    private static bool mmc2_materiel(scsi_cd_data_t data) =>
+        cd_models[data.cur_model].model_config_string_40 is "pcemcd" or "pca403cd" or "crmc-fx4820t" or "ucr421";
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool commande_absente_materiel(scsi_cd_data_t data, uint8_t[] cdb)
+    {
+        if (data.is_atapi == 0 || data.sense_key == SENSE_UNIT_ATTENTION)
+            return false;
+        var absente = cdb[0] switch
+        {
+            SCSI_REZERO_UNIT or GPCMD_READ_6 or SCSI_SEEK_6 or GPCMD_MODE_SELECT_6 or GPCMD_MODE_SENSE_6 => true,
+            GPCMD_GET_EVENT_STATUS_NOTIFICATION or GPCMD_PLAY_AUDIO_12 or GPCMD_READ_DISC_INFORMATION => !mmc2_materiel(data),
+            _ => false,
+        };
+        if (!absente)
+            return false;
+        ModeMateriel.Sonde[270]++;
+        atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_ILLEGAL_OPCODE, 0);
+        data.cmd_pos = CMD_POS_IDLE;
+        return true;
+    }
+
+    // L'état que PCem n'a pas : la présence du disque au dernier GET EVENT STATUS NOTIFICATION, par lecteur, dans une
+    // classe à part — un champ de plus dans scsi_cd_data_t, ou un champ statique de plus dans scsi_cd_c (son
+    // constructeur statique), changerait le code machine du mode PCem.
+    private static class EtatGesn
+    {
+        internal static readonly ConditionalWeakTable<scsi_cd_data_t, StrongBox<bool>> PresenceVue = new();
+    }
+
+    // pcem bug, fixed in hardware mode: PB-118 — GET EVENT STATUS NOTIFICATION selon MMC-2 r11a § 6.1.5 (Tables 162 à
+    //   166, 178 à 180), sur un lecteur de cette génération (refusé sur les autres, PB-270, avec qui il fait groupe) : la
+    //   longueur d'allocation aux octets 7 et 8 ; le mode asynchrone (IMMED = 0) refusé, « shall fail as an illegal
+    //   request », l'ASC de PCem gardé (ni la r11a ni le brouillon T10/97-108r0 n'en nomment) ; la classe des supports (bit 4 de l'octet 4) seule
+    //   servie : l'en-tête, la longueur des données qui suivent le champ de longueur (6) en ordre réseau, la classe 4,
+    //   les classes servies (10h), puis l'événement — NewMedia (2) une fois quand un disque est apparu ou a changé,
+    //   MediaRemoval (3) une fois quand il a disparu, NoEvent (0) sinon — et l'état (Media Present, bit 1 ; le plateau
+    //   n'est pas modélisé). Une demande sans la classe des supports : l'en-tête seul, NEA et la classe 0
+    //   (`00 02 80 10`). Sans effet de bord : PCem charge le disque (atapi->load()) à chaque appel.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int gesn_materiel(scsi_cd_data_t data, uint8_t[] cdb, int changed)
+    {
+        if (data.is_atapi != 0 && !mmc2_materiel(data))
+        {
+            ModeMateriel.Sonde[270]++;
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_ILLEGAL_OPCODE, 0);
+            return SCSI_PHASE_STATUS;
+        }
+        ModeMateriel.Sonde[118]++;
+        if ((cdb[1] & 0x01) == 0)
+        {
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_ILLEGAL_OPCODE, 0);
+            return SCSI_PHASE_STATUS;
+        }
+        var alloc_length = (cdb[7] << 8) | cdb[8];
+        var b = data.data_in;
+        int len;
+        if ((cdb[4] & (1 << 4)) != 0)
+        {
+            var vu = EtatGesn.PresenceVue.GetValue(data, _ => new StrongBox<bool>(false));
+            var present = atapi!.ready() != 0;
+            var evenement = present && (changed != 0 || !vu.Value) ? 2 : !present && vu.Value ? 3 : 0;
+            vu.Value = present;
+            b[0] = 0;
+            b[1] = 6;
+            b[2] = 4;
+            b[3] = 1 << 4;
+            b[4] = (uint8_t)evenement;
+            b[5] = (uint8_t)(present ? 0x02 : 0x00);
+            b[6] = 0;
+            b[7] = 0;
+            len = 8;
+        }
+        else
+        {
+            b[0] = 0;
+            b[1] = 2;
+            b[2] = 0x80;
+            b[3] = 1 << 4;
+            len = 4;
+        }
+        data.bytes_expected = data.data_pos_write = Math.Min(alloc_length, len);
+        data.cmd_pos = CMD_POS_IDLE;
+        return alloc_length != 0 ? SCSI_PHASE_DATA_IN : SCSI_PHASE_STATUS;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-271 — READ CD MSF (B9h), obligatoire dans SFF-8020i r2.6 (Table 37,
+    //   § 10.8.16) comme dans MMC-2 r11a (Table B.2, « B » : tout lecteur de CD ; § 6.1.16) : le paquet traduit en READ CD
+    //   (BEh), que PCem sert, avant toute autre étape — l'adresse de départ, le compte (la fin moins le départ : « A
+    //   starting MSF address equal to an ending MSF address prevents a read operation »), les octets 1, 9 et 10 aux
+    //   mêmes places. Un départ au-delà de la fin : ILLEGAL REQUEST (INVALID FIELD IN COMMAND PACKET, 24h, de la Table 106
+    //   de SFF-8020i) ; une seconde au-delà de 59 ou une image au-delà de 74 : 24h aussi (déduit) ; un départ avant
+    //   00:02:00 (le prégap de la piste 1, que le moteur ne sert pas) : LOGICAL BLOCK ADDRESS OUT OF RANGE, 21h (déduit).
+    //   Le reste comme READ CD : l'octet 9 autre que 10h ou F8h rend 20h, l'ASC de PCem pour READ CD.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool read_cd_msf_materiel(scsi_cd_data_t data, uint8_t[] cdb)
+    {
+        if (cdb[0] != 0xB9)
+            return false;
+        ModeMateriel.Sonde[271]++;
+        if (cdb[4] > 59 || cdb[5] > 74 || cdb[7] > 59 || cdb[8] > 74)
+        {
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_INV_FIELD_IN_CMD_PACKET, 0);
+            data.cmd_pos = CMD_POS_IDLE;
+            return true;
+        }
+        var debut = cdb[3] * 4500 + cdb[4] * 75 + cdb[5] - 150;
+        var fin = cdb[6] * 4500 + cdb[7] * 75 + cdb[8] - 150;
+        if (debut > fin)
+        {
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_INV_FIELD_IN_CMD_PACKET, 0);
+            data.cmd_pos = CMD_POS_IDLE;
+            return true;
+        }
+        if (debut < 0)
+        {
+            atapi_cmd_error(data, SENSE_ILLEGAL_REQUEST, ASC_LBA_OUT_OF_RANGE, 0);
+            data.cmd_pos = CMD_POS_IDLE;
+            return true;
+        }
+        var n = fin - debut;
+        cdb[0] = GPCMD_READ_CD;
+        cdb[2] = (uint8_t)(debut >> 24);
+        cdb[3] = (uint8_t)(debut >> 16);
+        cdb[4] = (uint8_t)(debut >> 8);
+        cdb[5] = (uint8_t)debut;
+        cdb[6] = (uint8_t)(n >> 16);
+        cdb[7] = (uint8_t)(n >> 8);
+        cdb[8] = (uint8_t)n;
+        cdb[11] = 0;
+        Array.Copy(cdb, data.cdb, CDB_MAX_LEN);
+        return false;
+    }
 }
