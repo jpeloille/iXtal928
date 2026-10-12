@@ -18,7 +18,8 @@
 // contrôleur, la souris et le poll comme le feraient le processeur et le chronomètre ; celui de PB-101 monte les ports
 // du PC1512 ; celui de PB-103 pose l'état de la manette et lit la CH et la TM. Ceux du mode protégé (PB-32, PB-39,
 // PB-40, PB-190 à PB-193, PB-263) jouent les cas de pm-check qui les discriminent, au 386 et au 286, en C# seul
-// (PmCheck386.CasMateriel, PmCheck.CasMateriel).
+// (PmCheck386.CasMateriel, PmCheck.CasMateriel). Ceux du stockage (PB-14, PB-19, PB-22, PB-23, PB-25, PB-217) sont dans
+// MaterielCasStockage.cs.
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -32,7 +33,7 @@ using iXtal26.SoftFloat;
 
 namespace iXtal26.Diff;
 
-internal static class MaterielCas
+internal static partial class MaterielCas
 {
     private static readonly SortedDictionary<int, Func<bool, int>> Cas = new()
     {
@@ -45,6 +46,7 @@ internal static class MaterielCas
         [43] = Pb43, [50] = Pb50, [51] = Pb51, [78] = Pb78, [189] = Pb189, [61] = Pb61, [57] = Pb57, [64] = Pb64, [70] = Pb70, [63] = Pb63, [66] = Pb66, [67] = Pb67, [58] = Pb58, [213] = Pb213, [207] = Pb207, [59] = Pb59, [69] = Pb69, [204] = Pb204, [203] = Pb203, [264] = Pb264, [52] = Pb52, [55] = Pb55, [56] = Pb56, [195] = Pb195,
         [196] = Pb196, [48] = Pb48, [60] = Pb60, [65] = Pb65, [194] = Pb194, [197] = Pb197, [198] = Pb198, [68] = Pb68, [200] = Pb200, [201] = Pb201, [202] = Pb202, [211] = Pb211, [265] = Pb265, [206] = Pb206, [212] = Pb212, [54] = Pb54, [62] = Pb62, [199] = Pb199, [208] = Pb208, [32] = Pm(32), [39] = Pm(39), [40] = Pm(40),
         [190] = Pm(190), [191] = Pm(191), [192] = Pm(192), [193] = Pm(193), [263] = Pm(263),
+        [14] = Pb14, [19] = Pb19, [22] = Pb22, [23] = Pb23, [25] = Pb25, [217] = Pb217,
     };
 
     /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les

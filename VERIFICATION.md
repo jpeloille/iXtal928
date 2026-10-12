@@ -9829,3 +9829,67 @@ entière, un sous-ensemble ciblé : `materiel-cas PB-03` dans les deux modes (so
 signature change), `materiel-mode`, `x87-couverture`, `materiel-cas PB-264` et `PB-204` sous `x87`, `recensement`
 (266 défauts, 1060 marqueurs) : verts. M2, depuis le Release du worktree, contre M2-n8a : 1 130 méthodes, aucune
 changée, apparue ni disparue. La porte `x87-couverture` entre à la série.
+
+## G13.7a — la disquette et le MFM
+
+Le 12 octobre 2026. La première étape du stockage (PLAN-G13.md, § G13.7, plan validé le 12/10 ; Q12 tranchée par
+Julien : le comportement documenté du matériel). Les sources, lues : IBM Fixed Disk Adapter (6361503, Programming
+Considerations et listing du BIOS de la carte), IBM PC AT Technical Reference (1502494, Fixed Disk and Diskette Drive
+Adapter), NEC µPD765 (déc. 1978), WD1003-WA2 OEM Manual (1986), et la fiche du WD1014 (Storage Management Products
+Handbook, 1984).
+
+**Les corrections du mode matériel** (domaine `stockage`, six neuves) : PB-14, le débit de 300 kbit/s — le cas 1 de
+`disc_set_rate` ne retombe plus dans le cas 2, et l'octet dure 80/3 µs au format 32:32 de `TIMER_USEC` ; PB-19,
+l'écrasement en écriture hors DMA — WRITE DATA seulement, quand la demande faite à l'UC court encore ; PB-22, FORMAT
+TRACK du Xebec depuis le secteur 0 ; PB-23, le bit d'unité de l'octet de fin ; PB-25, la tête égale au nombre de têtes
+refusée, sur le Xebec (21h) et sur l'AT (IDNF) ; PB-217, le sense du Xebec avec le bit « adresse valide » et l'adresse.
+Chacune a son cas en C# seul (`materiel-cas`, `MaterielCasStockage.cs`), sur une machine neuve dont l'UC reste arrêtée
+sur CLI ; HLT (`XebecBanc.cs`) : le BIOS ne parle jamais au contrôleur, l'outil le conduit par ses ports. Les six sont
+verts dans les deux modes, la sonde atteinte en mode matériel.
+
+**R9 dans les deux modes** (PB-267, neuf) : les dix-neuf `fatal()` du Xebec (le registre de données à contretemps :
+ignoré ; le rappel hors de son état : ignoré ; le DMA coupé en cours de transfert : la carte finit par le registre de
+données ; une commande que PCem n'a pas : FORMAT DRIVE, READ DATA FROM SECTOR BUFFER et DRIVE DIAGNOSTIC servis,
+Invalid Command pour les autres), et, trouvée par la contre-lecture, l'unité absente que READ, WRITE et FORMAT TRACK
+atteignaient sur un fichier nul après INITIALIZE DRIVE CHARACTERISTICS : l'erreur 04h, juste avant l'accès au
+fichier (VERIFY, qui n'y accède pas, reste celui de PCem). Porte `r9-xebec`, en C# seul, dans les deux modes : trente
+et un essais, chaque site atteint (trois par un état forgé, que l'invité n'atteint pas), la carte répond ensuite.
+
+**PB-76 reste au repli** : READ LONG et WRITE LONG transfèrent 4 octets d'ECC, dont le polynôme est publié (WD1003)
+mais ni la valeur initiale, ni l'ordre des bits, ni l'étendue du calcul ; les octets seraient inventés (décision
+n° 14). Restent aussi reproduits PB-28 (le DTC 5150X) et PB-75 (l'unité 1 absente de l'AT), inconnus.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137a.py`, une faute à la fois dans le dépôt) : dix-sept fautes, chacune
+rougit son cas — la fraction de PB-14 perdue, son cas 1 qui retombe ; la demande de PB-19 jamais vue ; le secteur de
+PB-22 gardé ; le bit de PB-23 nul, ou posé sur erreur seulement ; `<=` pour PB-25, sur le Xebec et sur l'AT ; le bit 7,
+la consommation, l'adresse du SEEK ou le secteur de PB-217 perdus ; Invalid Command rendu à `fatal()`, le relais PIO
+de :438 retiré, FORMAT DRIVE arrêté un secteur trop tôt, la lecture de :121 qui prend l'octet, la garde de l'unité
+absente retirée : `r9-xebec` rougit. Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet) : treize constats, tous traités. Corrigés : PB-19 touchait aussi FORMAT TRACK hors DMA
+(cadencé à 8 µs par le chronomètre du contrôleur, pas par le disque) — limité à WRITE DATA ; FORMAT DRIVE, et READ,
+WRITE et FORMAT TRACK, sur l'unité absente initialisée levaient une exception de l'hôte (PCem y plante aussi) —
+l'erreur 04h ; le cas de FORMAT DRIVE ne prouvait pas « jusqu'à la fin du disque » — il part trois cylindres avant ;
+le cas de PB-14 recalculait l'attendu comme le code — une borne indépendante, 8 / 0,3 µs ; le cas de PB-23 n'exerçait
+que l'erreur — l'unité 1 présente, 20h. Rectifiés dans les textes : la borne de FORMAT DRIVE et le masque de 323h
+marqués déduits (la « p. 15 » citée ne le disait pas), la commande 0Dh distinguée de l'AH = 0Dh du BIOS, les
+dénombrements, l'unité du sense déduite.
+
+**M2** (Release du worktree, deux scénarios neufs dans `tools/listings-jit.sh` : `xt-xebec`, l'XT et son Xebec, PC-DOS
+qui copie sur B: ; `ibmat-mfm`, l'IBM AT et son disque MFM, le POST qui lit le secteur d'amorce ; leurs images vierges
+copiées dans le bac à sable). Contre M2-n8b : deux méthodes changées, les constructeurs statiques de `materiel` et de
+`ModeMateriel` (les six champs et les six corrections neuves) ; `disc_poll` et `disc_set_rate`, gardés, identiques.
+Contre M0, les deux scénarios neufs rejoués sur 860f2b1 (`M0-860f2b1-g137a`) : les méthodes gardées `xebec_get_sector`,
+`mfm_get_sector`, `fdc_getdata` et `disc_poll` identiques ; changent `xebec_read`, `xebec_write` et `xebec_callback`
+(R9, dans les deux modes, voulu), le constructeur statique de `mfm_xebec` (la table de l'adresse du sense), et les
+méthodes déjà changées par les étapes antérieures de G13 (le mécanisme du mode).
+
+**La série** g7a (le worktree de l'étape, contre g7n8a) : 508 portes, 493 communes à g7n8a, chacune au même verdict ;
+un seul résumé change, `recensement` (267 défauts, 1 088 marqueurs). Quinze neuves : `x87-couverture` (entrée en N8b),
+les douze `materiel-cas` du stockage (PB-14, 19, 22, 23, 25, 217, dans les deux modes) et `r9-xebec` dans les deux
+modes. Une rouge, neuve : `r9-xebec-materiel`, quatre essais sur trente et un — en mode matériel, PB-25 jugeait la
+tête 0 d'une unité absente (zéro tête dans son image) hors du disque, 21h, avant le refus de l'unité absente (PB-267,
+04h) ; VERIFY aussi. L'unité absente n'est pas une adresse hors du disque : `xebec_tete_materiel` la laisse au refus
+de PB-267. La correction ne touche que le mode matériel du Xebec ; les portes qui l'exercent, rejouées : `r9-xebec`
+dans les deux modes (31 essais), `materiel-cas PB-25` dans les deux modes, `recensement` : vertes ; le contrôle
+négatif M6 (`<=`) rougit encore. Aucune autre porte de la série ne monte le Xebec en mode matériel.

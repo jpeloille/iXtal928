@@ -399,10 +399,9 @@ le son, la carte mère, la souris et les ports, puis la section B, puis la secti
   à la suivante (l'IRQ13 d'un x87 démasqué, vue comme « BANC FAUX »). Contournée en G4.4 —
   `npxc = 0x037F` posé à chaque cas sous `--fpu` —, pas corrigée : l'état du PIC n'est pas
   remis à zéro entre deux cas.
-- **Hors plan, règle R9** (TRANSCRIPTION.md) : (a) les dix-sept `fatal()` de protocole de
-  `mfm_xebec.c` (état inattendu, commande inconnue, « no DMA ») — l'invité peut arrêter
-  l'émulateur ; à traiter selon R9 après lecture de la documentation Xebec / IBM (l'octet d'état
-  d'erreur de la carte). (b) Les accès `geteal`, `geteaq`, `seteal`, `seteaq` du 8087 en mod = 3
+- **Hors plan, règle R9** (TRANSCRIPTION.md) : (a) les `fatal()` de protocole de `mfm_xebec.c`
+  (état inattendu, commande inconnue, « no DMA ») — ✅ traités en G13.7a (dix-neuf sites, PB-267,
+  porte `r9-xebec`), par la documentation d'IBM. (b) Les accès `geteal`, `geteaq`, `seteal`, `seteaq` du 8087 en mod = 3
   (`8087.h:37-58`, `fatal`) : prouver qu'aucune table ne les atteint, ou appliquer R9.
 
 ## L'ordre
@@ -564,7 +563,7 @@ Après G14.
 - Une copie de référence **figée** des disques de l'utilisateur pour les portes (hors `/tmp`,
   empreinte versionnée), pour que ses usages ne fassent plus dériver `g5w`.
 
-Le reste du hors plan — les `fatal()` du Xebec (R9), le 8087 en mod=3, la fuite d'IRQ de
+Le reste du hors plan — les `fatal()` du Xebec (R9 ; faits en G13.7a), le 8087 en mod=3, la fuite d'IRQ de
 `pm-fuzz`, les sondes, le reliquat du 286, la dette de documentation — peut y être rattaché ou
 rester hors plan.
 

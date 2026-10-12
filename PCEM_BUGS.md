@@ -247,7 +247,14 @@ BIOS (« 01: 300 KBS ») : 300 kbit/s, soit 26,67 µs par octet.
 l'écart entre deux appels de `disc_poll` vaut 32 µs chez PCem, 26,67 µs (80/3) sur le matériel — PCem écrit 26 pour
 ce débit, l'arrondi est à trancher.
 *G13* : (a).
-*Reproduit* : `Disc/disc.cs`, `goto case 2` marqué.
+*Reproduit* en mode PCem : `Disc/disc.cs`, `goto case 2`, marqueur `fixed in hardware mode: PB-14`.
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_14)`, le cas 1 de `disc_set_rate` ne retombe plus dans
+le cas 2 et garde les 26 µs de PCem ; `disc_poll` ajoute la fraction de 2/3 µs, au format 32:32 de `TIMER_USEC`
+(`disc_poll_materiel`, `Disc/disc.Materiel.cs`) : l'octet dure 80/3 µs exactement, l'arrondi tranché. `materiel-cas
+PB-14` (l'avance d'un appel de `disc_poll` aux débits 1, 0 et 2, contre le calcul du code et contre 8 / 0,3 µs) rend
+32, 16 et 32 µs en mode PCem, 26,6667, 16 et 32 µs en mode matériel ; la correction coupée, il rougit. Le `break`
+rend atteignables, pour le débit 1, les branches `drvden` 1 (16 µs) et 2 (4 µs) de PCem, que la documentation de
+l'AT ne connaît pas ; `fdc_update_drvrate` n'a aucun appelant, `drive_rate` reste 0 : seule la branche de 26 µs sert.
 
 ### PB-22 — `CMD_FORMAT_TRACK` ne réinitialise pas `sector`, et formate donc à côté
 
@@ -271,7 +278,11 @@ cylindre et un secteur à zéro (octet 2), le cylindre (octet 3) : la piste dés
 en (c, h, 5) — le secteur courant passe à 6 —, puis FORMAT TRACK (c, h) : PCem formate les secteurs 6 à 16 de (c, h)
 et 0 à 5 de (c, h + 1) ; la carte, les 17 secteurs de (c, h), et (c, h + 1) reste intact.
 *G13* : (a).
-*Reproduit* : `Mfm/mfm_xebec.cs`, l'absence d'affectation est conservée et marquée.
+*Reproduit* en mode PCem : `Mfm/mfm_xebec.cs`, l'absence d'affectation est conservée, marqueur `fixed in hardware
+mode: PB-22`.
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_22)`, FORMAT TRACK part du secteur 0
+(`xebec_format_materiel`, `Mfm/mfm_xebec.Materiel.cs`). `materiel-cas PB-22` (le cas ci-dessus, en C# seul) rend
+(1, 0, 0) intact et (1, 1, 0) effacé en mode PCem, l'inverse en mode matériel ; la correction coupée, il rougit.
 
 ### PB-23 — Le bit d'unité de l'octet de fin est toujours nul
 
@@ -294,7 +305,11 @@ conséquence sur un XT à un seul disque, ce qui est la configuration historique
 *Cas qui discrimine* : TEST DRIVE READY (00h) vers l'unité 1 (octet 1 = 20h), unité D présente : octet de fin 00h
 chez PCem, 20h sur la carte ; unité D absente : 02h contre 22h.
 *G13* : (a) — sans effet pour le BIOS d'IBM, qui ne lit que le bit 1.
-*Reproduit* : `Mfm/mfm_xebec.cs`.
+*Reproduit* en mode PCem : `Mfm/mfm_xebec.cs`, `xebec_callback`, marqueur `fixed in hardware mode: PB-23`.
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_23)`, l'octet de fin porte 20h pour l'unité 1
+(`xebec_unite_materiel`, `Mfm/mfm_xebec.Materiel.cs`). `materiel-cas PB-23` (TEST DRIVE READY vers l'unité 1 absente,
+puis vers l'unité 0, puis vers l'unité 1 présente) rend 02h, 00h et 00h en mode PCem, 22h, 00h et 20h en mode
+matériel ; la correction coupée, il rougit.
 
 ### PB-25 — La borne des têtes est testée avec `>` au lieu de `>=`
 
@@ -313,8 +328,13 @@ présente aucun champ ID, d'où IDNF (10h), que `mfm_at` rend pour tout refus d'
 de fin 00h ; la carte, 02h et le sense 21h. AT : SET PARAMETERS à n têtes (n < 16), READ SECTORS (20h) à la tête n :
 PCem lit (c + 1, 0, s) sans erreur ; le contrôleur, ERR et l'erreur 10h (IDNF).
 *G13* : (a).
-*Reproduit* : `Mfm/mfm_xebec.cs` et `Mfm/mfm_at.cs`, `mfm_get_sector`, quatre marqueurs PB-25 — les deux de l'AT
-posés en G13.1, qui n'en avaient pas (D3-contre, C6).
+*Reproduit* en mode PCem : `Mfm/mfm_xebec.cs` et `Mfm/mfm_at.cs`, `mfm_get_sector`, quatre marqueurs `fixed in
+hardware mode: PB-25` — les deux de l'AT posés en G13.1, qui n'en avaient pas (D3-contre, C6).
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_25)`, la tête égale au nombre de têtes (de la commande
+d'initialisation ou de l'image) est refusée, 21h sur le Xebec, IDNF sur l'AT (`xebec_tete_materiel`,
+`Mfm/mfm_xebec.Materiel.cs` ; `mfm_tete_materiel`, `Mfm/mfm_at.Materiel.cs`). `materiel-cas PB-25` (les deux cas
+ci-dessus, en C# seul) rend la tête 0 du cylindre suivant en mode PCem, l'erreur en mode matériel ; la correction
+coupée, il rougit.
 
 ### PB-28 — `CMD_DTC_GET_DRIVE_PARAMS` répond une géométrie inventée sur une unité absente
 
@@ -1358,6 +1378,13 @@ Le WD1003 réel transfère alors 512 octets plus 4 octets d'ECC ; ni PCem ni iXt
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueurs `pcem bug, not reproduced: PB-76` — ERR,
 erreur ABRT, IRQ 14 : le comportement sûr le plus proche.
+*Amendé en G13.7a* (Q12 de D3-stockage, tranchée : le comportement documenté du matériel) : le repli reste, faute
+d'ECC décrit au bit près. Le Fixed Disk and Diskette Drive Adapter de l'AT (1502494) documente le transfert — les
+4 octets d'ECC passent un par un après les 512 de données — mais pas le code ; le manuel OEM du WD1003-WA2 (mars 1986)
+donne le polynôme, x³² + x²⁸ + x²⁶ + x¹⁹ + x¹⁷ + x¹⁰ + x⁶ + x² + 1, et la fiche du WD1014 (Storage Management
+Products Handbook, 1984) le générateur, deux registres de 16 bits alimentés deux bits à la fois ; ni la valeur
+initiale des registres, ni l'ordre des bits, ni ce que couvre le calcul (la marque d'adresse ou non) ne sont dits.
+READ LONG rendrait donc 4 octets inventés : décision n° 14, le comportement sûr reste (ABRT).
 
 ### PB-77 — `cpu_features` n'est jamais remis à zéro : un i486 hérite de CR4 et VME d'un iDX4
 
@@ -4155,7 +4182,15 @@ la tête ; octet 2, les bits hauts du cylindre et le secteur ; octet 3, le bas d
 secteur 20 (au-delà des 17) : octet de fin 02h des deux côtés ; puis le sense (03h) : `21 00 00 00` chez PCem,
 `A1 02 54 23` sur la carte.
 *G13* : (a), de faible valeur.
-*Reproduit* : `Mfm/mfm_xebec.cs`, CMD_READ_STATUS, marqueur PB-217.
+*Reproduit* en mode PCem : `Mfm/mfm_xebec.cs`, CMD_READ_STATUS, marqueurs `fixed in hardware mode: PB-217`.
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_217)`, chaque commande note en début si elle vise une
+adresse (FORMAT DRIVE, VERIFY, FORMAT TRACK, READ, WRITE, SEEK), et le sense rend le bit 7 et l'adresse où la commande
+s'est arrêtée — les registres de la carte, ou l'adresse du SEEK ; REQUEST SENSE devient à son tour la commande
+précédente (`xebec_adresse_materiel`, `xebec_sense_materiel`, `Mfm/mfm_xebec.Materiel.cs`). Déduits : l'adresse rendue
+après un succès (le secteur suivant le dernier lu), et l'unité de l'octet 1, celle du DCB de REQUEST SENSE (le manuel
+ne dit pas si c'est celle de la commande précédente). `materiel-cas PB-217` (le cas ci-dessus, un second sense, puis
+un SEEK réussi au cylindre 210h, tête 1, et son sense) rend `21 00 00 00`, `00 00 00 00` et `00 00 00 00` en mode
+PCem, `A1 02 54 23`, `00 00 00 00` et `80 01 80 10` en mode matériel ; la correction coupée, il rougit.
 
 ### PB-218 — RETURN EEPROM (23h) ignore son drapeau
 
@@ -5204,6 +5239,39 @@ sin 1, ni 0 cycle (inconnu ; l'opcode n'est pas du 287).
 `gen46.py`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-266. Le noyau (N6) calcule FSIN, FCOS et FSINCOS
 sur tous les types, comme le 387 : le même comportement reproduit.
 
+### PB-267 — Le Xebec s'arrête sur dix-neuf fatal() et sur une unité absente, tous à la portée de l'invité
+
+`mfm_xebec.c:121`, `:131`, `:133`, `:144` (le registre de données lu hors de sa phase ou au-delà de sa longueur),
+`:174`, `:176`, `:189`, `:191`, `:203` (écrit de même), `:365`, `:476`, `:555`, `:590`, `:634`, `:671` (le rappel
+dans un état que la commande n'a pas), `:438`, `:516`, `:626` (« no DMA » : le masque de DMA de la carte effacé entre
+deux temps d'un transfert), `:711` (une commande que PCem n'a pas) ; et `hdd_file.c:178`, `:211`, `:248`, où READ,
+WRITE et FORMAT TRACK atteignent le fichier d'une unité absente (`fseeko64(NULL)`), dès qu'INITIALIZE DRIVE
+CHARACTERISTICS lui a donné une géométrie : seuls TEST DRIVE READY, RECALIBRATE et SEEK testent l'unité.
+*Effet* : un programme qui lit ou écrit le registre de données à contretemps — après un reset de la carte (321h), sans
+commande —, qui envoie une impulsion de sélection (322h) pendant une commande, qui coupe le DMA de la carte en cours
+de transfert, ou qui envoie une commande que PCem ne connaît pas — FORMAT DRIVE (04h), FORMAT BAD TRACK (07h), READ
+ECC BURST ERROR LENGTH (0Dh), READ DATA FROM SECTOR BUFFER (0Eh), DRIVE DIAGNOSTIC (E3h), READ LONG et WRITE LONG
+(E5h, E6h), toutes de la carte, que son BIOS appelle (INT 13h, AH = 06h, 07h, 0Ah, 0Bh, 0Eh, 13h ; la commande 0Dh,
+le BIOS l'envoie après une erreur d'ECC corrigée), ou un code inconnu — ou qui adresse une unité absente — arrête
+PCem.
+*Trouvé par* : inventaire de la règle R9 (PLAN.md, « Hors plan », R9 (a)) ; traité en G13.7a (Q4 de D3-stockage) ;
+l'unité absente, par la contre-lecture de G13.7a.
+*G13* : hors du mode — corrigé dans les deux modes (R9) ; rien n'y bascule.
+*Non reproduit* (R9) : `Mfm/mfm_xebec.cs`, dix-neuf marqueurs `pcem bug, not reproduced: PB-267`, chaque site gardé
+(`Diag.R9`), le message de PCem gardé au journal (les libellés faux de PB-26 compris). Le registre de données à
+contretemps : l'accès est ignoré (FFh en lecture), l'état reste ; le rappel hors de son état : ignoré ; le DMA coupé :
+la carte finit le transfert par le registre de données, comme sans DMA — 323h est le registre de masque du DMA et
+de l'interruption (IBM Fixed Disk Adapter, 6361503, p. 14) ; qu'il ne coupe que DRQ 3 et que le contrôleur continue
+par le registre de données est déduit. L'unité absente : juste avant l'accès au fichier, et seulement là (VERIFY, qui
+n'y accède pas, reste celui de PCem), l'erreur 04h, Not Ready (p. 5). Les commandes : celles que la carte documente et
+que l'image porte sont servies dans les deux modes (`xebec_commande_r9`) — FORMAT DRIVE efface du cylindre et de la
+tête donnés jusqu'au dernier cylindre déclaré par INITIALIZE DRIVE CHARACTERISTICS (« format the drive starting at the
+desired track », le listing du BIOS de la carte ; la borne est déduite), READ DATA FROM SECTOR BUFFER rend les 512
+octets du tampon, DRIVE DIAGNOSTIC rend 04h (Not Ready) sur une unité absente ; les autres rendent l'erreur 20h, Invalid Command (p. 6) — les codes inconnus, et FORMAT BAD
+TRACK (le drapeau de piste n'a pas de place dans l'image), READ ECC BURST ERROR LENGTH, READ LONG et WRITE LONG (l'ECC
+n'est pas documenté au bit près, PB-76). Survie : `r9-xebec`, trente et un essais, chaque garde atteinte, la carte
+répond ensuite ; les outils comparés à l'oracle n'empruntent aucun de ces chemins.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -5913,7 +5981,16 @@ dans ST1 (bit D4) et la commande se termine.
 PCem écrit l'octet périmé et finit en ST1 = 00h ; le contrôleur pose OR, ST1 = 10h. Un écrivain ponctuel ne voit OR
 d'aucun côté.
 *G13* : (b) — un sens matériel, deux sites (D3-contre, K7) ; aucune machine d'iXtal n'écrit en PIO.
-*Reproduit* : `Floppy/fdc.cs`, test conservé tel quel.
+*Reproduit* en mode PCem : `Floppy/fdc.cs`, `fdc_getdata`, test conservé tel quel, marqueur `fixed in hardware mode:
+PB-19`.
+*Corrigé en mode matériel* (G13.7a) : sous `if (materiel.pb_19)`, quand le disque prend l'octet suivant hors DMA et
+que la demande faite à l'UC court encore (RQM et NDM, sans DIO : le registre de données n'a pas été écrit depuis),
+le contrôleur pose OR et termine (`fdc_ecrasement_materiel`, `Floppy/fdc.Materiel.cs`). WRITE DATA seulement :
+FORMAT TRACK prend aussi ses octets par `fdc_getdata`, au pas de 8 µs du chronomètre du contrôleur et non du disque —
+il reste celui de PCem (contre-lecture de G13.7a). Le chemin de la FIFO (82077) reste celui de PCem ; le premier
+octet, que PCem ne demande pas hors du PCjr, n'est pas jugé. `materiel-cas PB-19`
+(un PC, SPECIFY ND = 1, WRITE DATA, un seul octet fourni à la demande) rend ST1 = 00h en mode PCem, 10h en mode
+matériel ; la correction coupée, il rougit.
 
 ### PB-20 — Un champ et sept globales morts dans la couche disquette
 

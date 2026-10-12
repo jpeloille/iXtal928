@@ -665,3 +665,14 @@ done
 # G13.6, le noyau, N8b — la couverture comptée : chaque fonction du noyau sur une grille de classes × RC × PC × masques ×
 # coprocesseurs, jugée sur ses invariants (aucune exception de l'hôte, les étiquettes, ES).
 run x87-couverture x87-couverture
+# G13.7a — la disquette et le MFM (PLAN-G13.md, G13.7) : PB-14 (le débit de 300 kbit/s), PB-19 (l'écrasement en
+# écriture hors DMA), PB-22, PB-23, PB-25 et PB-217 (le Xebec ; PB-25 aussi sur l'AT), chacun son cas en C# seul dans
+# les deux modes, sur une machine neuve dont l'UC reste arrêtée (XebecBanc). r9-xebec, en C# seul : les dix-neuf sites
+# où PCem s'arrête dans le Xebec (PB-267, R9), chacun atteint, et les commandes de la carte qu'il n'a pas ; dans les
+# deux modes.
+for pb in 14 19 22 23 25 217; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run r9-xebec r9-xebec
+run r9-xebec-materiel --hardware-mode stockage r9-xebec

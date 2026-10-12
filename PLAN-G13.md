@@ -460,7 +460,7 @@ PLAN-G11.md (les tampons du ZIP au régime de `scsi_hd`, la fidélité du mode P
 
 Cinq étapes, chacune avec ses cas `hw-*` en C# seul (chaque attendu sourcé à sa norme), ses contrôles négatifs, sa
 contre-lecture, M2, sa série entière et son commit :
-- **G13.7a — La disquette et le MFM.** PB-14 (le débit de 300 kbit/s), PB-19 (la surcharge d'une écriture en PIO, deux
+- **G13.7a — La disquette et le MFM** ✅ *(12/10, VERIFICATION.md § G13.7a ; PB-76 reste au repli, l'ECC n'étant pas documenté au bit près ; l'unité absente du Xebec ajoutée à PB-267 par la contre-lecture)*. PB-14 (le débit de 300 kbit/s), PB-19 (la surcharge d'une écriture en PIO, deux
   sites), PB-22 (FORMAT TRACK du Xebec part du secteur 0), PB-23 (le bit d'unité de l'octet de fin), PB-25 (la borne
   des têtes), PB-217 (le sense du Xebec et son adresse) ; les dix-sept `fatal()` de protocole du Xebec, sous R9, dans
   les deux modes, par l'*IBM Fixed Disk Adapter* (Q4 de D3-stockage) ; PB-76, READ LONG et WRITE LONG, 512 octets et

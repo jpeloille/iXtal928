@@ -22,6 +22,7 @@
 // `object` ; le cast est celui du C (mfm_xebec.c:112, :162).
 #pragma warning disable CS8600, CS8602
 
+using iXtal26.Diag;
 using iXtal26.Disc;
 using iXtal26.Flash;
 using iXtal26.PluginApi;
@@ -141,6 +142,9 @@ internal static partial class mfm_xebec
     private const int ERR_NOT_READY = 0x04;
     private const int ERR_SEEK_ERROR = 0x15;
     private const int ERR_ILLEGAL_SECTOR_ADDRESS = 0x21;
+    // DEVIATION: absent de mfm_xebec.c — l'erreur 20h, Invalid Command (IBM Fixed Disk Adapter, p. 6), que rend
+    //   xebec_commande_r9 (PB-267, R9).
+    private const int ERR_INVALID_COMMAND = 0x20;
 
     // pcem: mfm_xebec.c:111-160
     private static uint8_t xebec_read(uint16_t port, object priv)
@@ -155,8 +159,15 @@ internal static partial class mfm_xebec
                 switch (xebec.state)
                 {
                 case STATE_COMPLETION_BYTE:
+                        // pcem bug, not reproduced: PB-267 — fatal() (:121) : l'octet de fin lu hors de sa phase (après
+                        //   un reset de la carte, 321h).
+                        // DEVIATION: la lecture est ignorée — FFh, l'état reste —, et le message de PCem va au journal.
                         if ((xebec.status & 0xf) != (STAT_CD | STAT_IO | STAT_REQ | STAT_BSY))
-                                fatal($"Read data STATE_COMPLETION_BYTE, status={xebec.status:x2}\n");
+                        {
+                                pclog($"Read data STATE_COMPLETION_BYTE, status={xebec.status:x2}\n");
+                                R9.Garde("mfm_xebec.c:121");
+                                break;
+                        }
 
                         temp = xebec.completion_byte;
                         xebec.status = 0;
@@ -168,10 +179,21 @@ internal static partial class mfm_xebec
                         //   STATE_COMPLETION_BYTE dans le cas STATE_SEND_DATA, et
                         //   « Data write » dans le chemin de LECTURE. Deux libellés
                         //   faux par copier-coller ; le comportement, lui, est juste.
+                        // pcem bug, not reproduced: PB-267 — fatal() (:131, :133) : une donnée lue hors de sa phase, ou
+                        //   au-delà de sa longueur.
+                        // DEVIATION: la lecture est ignorée — FFh, l'état reste.
                         if ((xebec.status & 0xf) != (STAT_IO | STAT_REQ | STAT_BSY))
-                                fatal($"Read data STATE_COMPLETION_BYTE, status={xebec.status:x2}\n");
+                        {
+                                pclog($"Read data STATE_COMPLETION_BYTE, status={xebec.status:x2}\n");
+                                R9.Garde("mfm_xebec.c:131");
+                                break;
+                        }
                         if (xebec.data_pos >= xebec.data_len)
-                                fatal("Data write with full data!\n");
+                        {
+                                pclog("Data write with full data!\n");
+                                R9.Garde("mfm_xebec.c:133");
+                                break;
+                        }
                         temp = xebec.data[xebec.data_pos++];
                         if (xebec.data_pos == xebec.data_len)
                         {
@@ -182,7 +204,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"Read data register - {xebec.state}, {xebec.status:x2}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:144) : le registre de données lu hors d'une phase
+                        //   de lecture.
+                        // DEVIATION: la lecture est ignorée — FFh, l'état reste.
+                        pclog($"Read data register - {xebec.state}, {xebec.status:x2}\n");
+                        R9.Garde("mfm_xebec.c:144");
                         break;
                 }
                 break;
@@ -211,10 +237,21 @@ internal static partial class mfm_xebec
                 {
                 case STATE_RECEIVE_COMMAND:
                         // pcem bug, reproduced: PB-26 — « STATE_START_COMMAND » dans le cas STATE_RECEIVE_COMMAND.
+                        // pcem bug, not reproduced: PB-267 — fatal() (:174, :176) : un octet de commande hors de sa
+                        //   phase, ou un septième.
+                        // DEVIATION: l'écriture est ignorée, l'état reste.
                         if ((xebec.status & 0xf) != (STAT_BSY | STAT_CD | STAT_REQ))
-                                fatal($"Bad write data state - STATE_START_COMMAND, status={xebec.status:x2}\n");
+                        {
+                                pclog($"Bad write data state - STATE_START_COMMAND, status={xebec.status:x2}\n");
+                                R9.Garde("mfm_xebec.c:174");
+                                break;
+                        }
                         if (xebec.command_pos >= 6)
-                                fatal("Command write with full command!\n");
+                        {
+                                pclog("Command write with full command!\n");
+                                R9.Garde("mfm_xebec.c:176");
+                                break;
+                        }
                         /*Command data*/
                         xebec.command[xebec.command_pos++] = val;
                         if (xebec.command_pos == 6)
@@ -226,10 +263,21 @@ internal static partial class mfm_xebec
                         break;
 
                 case STATE_RECEIVE_DATA:
+                        // pcem bug, not reproduced: PB-267 — fatal() (:189, :191) : une donnée écrite hors de sa phase, ou
+                        //   au-delà de sa longueur.
+                        // DEVIATION: l'écriture est ignorée, l'état reste.
                         if ((xebec.status & 0xf) != (STAT_BSY | STAT_REQ))
-                                fatal($"Bad write data state - STATE_RECEIVE_DATA, status={xebec.status:x2}\n");
+                        {
+                                pclog($"Bad write data state - STATE_RECEIVE_DATA, status={xebec.status:x2}\n");
+                                R9.Garde("mfm_xebec.c:189");
+                                break;
+                        }
                         if (xebec.data_pos >= xebec.data_len)
-                                fatal("Data write with full data!\n");
+                        {
+                                pclog("Data write with full data!\n");
+                                R9.Garde("mfm_xebec.c:191");
+                                break;
+                        }
                         /*Command data*/
                         xebec.data[xebec.data_pos++] = val;
                         if (xebec.data_pos == xebec.data_len)
@@ -241,7 +289,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"Write data unknown state - {xebec.state} {xebec.status:x2}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:203) : le registre de données écrit hors d'une
+                        //   phase d'écriture.
+                        // DEVIATION: l'écriture est ignorée, l'état reste.
+                        pclog($"Write data unknown state - {xebec.state} {xebec.status:x2}\n");
+                        R9.Garde("mfm_xebec.c:203");
                         break;
                 }
                 break;
@@ -296,18 +348,21 @@ internal static partial class mfm_xebec
                 xebec.error = ERR_ILLEGAL_SECTOR_ADDRESS;
                 return 1;
         }
-        // pcem bug, reproduced: PB-25 — les têtes sont numérotées DEPUIS 0, donc le
+        // pcem bug, fixed in hardware mode: PB-25 — les têtes sont numérotées DEPUIS 0, donc le
         //   test devrait être `>=`. Avec `>`, head == hpc passe le filtre et le
         //   calcul d'adresse ci-dessous vise une piste entière au-delà du cylindre
         //   demandé, en silence. Preuve interne : le test des secteurs, plus bas,
         //   utilise bien `>=`. mfm_at.c:113 et :121 portent le même défaut.
+        if (materiel.pb_25)
+                if (xebec_tete_materiel(xebec, drive))
+                        return 1;
         if (xebec.head > heads)
         {
                 pclog("mfm_get_sector: past end of configured heads\n");
                 xebec.error = ERR_ILLEGAL_SECTOR_ADDRESS;
                 return 1;
         }
-        // pcem bug, reproduced: PB-25 — le même `>`, contre les têtes de l'image (:255).
+        // pcem bug, fixed in hardware mode: PB-25 — le même `>`, contre les têtes de l'image (:255).
         if (xebec.head > drive.hdd_file.hpc)
         {
                 pclog("mfm_get_sector: past end of heads\n");
@@ -359,14 +414,19 @@ internal static partial class mfm_xebec
         mfm_drive_t drive;
 
         xebec.drive_sel = (xebec.command[1] & 0x20) != 0 ? 1 : 0;
-        // pcem bug, reproduced: PB-23 — drive_sel vaut 0 ou 1 à la ligne au-dessus,
+        // pcem bug, fixed in hardware mode: PB-23 — drive_sel vaut 0 ou 1 à la ligne au-dessus,
         //   donc `& 0x20` vaut TOUJOURS 0 : le bit d'unité de l'octet de fin ne
         //   signale jamais le lecteur D. L'intention était `command[1] & 0x20`.
         //   Preuve interne : CMD_READ_STATUS fait correctement
         //   `data[1] = drive_sel ? 0x20 : 0`.
         xebec.completion_byte = (uint8_t)(xebec.drive_sel & 0x20);
+        if (materiel.pb_23)
+                xebec_unite_materiel(xebec);
 
         drive = xebec.drives[xebec.drive_sel];
+        // pcem bug, fixed in hardware mode: PB-217 — l'adresse de la commande, que le sense rendra (voir CMD_READ_STATUS).
+        if (materiel.pb_217)
+                xebec_adresse_materiel(xebec);
 
         switch (xebec.command[0])
         {
@@ -400,11 +460,13 @@ internal static partial class mfm_xebec
                         xebec.data_pos = 0;
                         xebec.data_len = 4;
                         xebec.status = STAT_BSY | STAT_IO | STAT_REQ;
-                        // pcem bug, reproduced: PB-217 — ni le bit « adresse valide » (octet 0, bit 7) ni
+                        // pcem bug, fixed in hardware mode: PB-217 — ni le bit « adresse valide » (octet 0, bit 7) ni
                         //   l'adresse (octets 1 à 3 : unité et tête, haut du cylindre et secteur, bas du cylindre).
                         xebec.data[0] = xebec.error;
                         xebec.data[1] = (uint8_t)(xebec.drive_sel != 0 ? 0x20 : 0);
                         xebec.data[2] = xebec.data[3] = 0;
+                        if (materiel.pb_217)
+                                xebec_sense_materiel(xebec);
                         xebec.error = 0;
                         break;
 
@@ -444,7 +506,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"CMD_VERIFY_SECTORS: bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:365) : le rappel dans un état que la commande
+                        //   n'a pas (une impulsion de sélection, 322h, pendant la commande).
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_VERIFY_SECTORS: bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:365");
                         break;
                 }
                 break;
@@ -456,13 +522,15 @@ internal static partial class mfm_xebec
                 xebec.cylinder = xebec.command[3] | ((xebec.command[2] & 0xc0) << 2);
                 drive.current_cylinder = (xebec.cylinder >= drive.cfg_cyl) ? drive.cfg_cyl - 1 : xebec.cylinder;
                 xebec.head = xebec.command[1] & 0x1f;
-                // pcem bug, reproduced: PB-22 — `xebec.sector` n'est PAS réinitialisé
+                // pcem bug, fixed in hardware mode: PB-22 — `xebec.sector` n'est PAS réinitialisé
                 //   ici, alors que les trois autres commandes d'accès font
                 //   `sector = command[2] & 0x1f`. Or xebec_get_sector l'inclut dans
                 //   l'adresse : le formatage démarre au secteur laissé par la
                 //   commande précédente, déborde sur la piste suivante et laisse le
                 //   début de la piste visée intact. Résidu ≥ 17 : la commande échoue
                 //   en ERR_ILLEGAL_SECTOR_ADDRESS.
+                if (materiel.pb_22)
+                        xebec_format_materiel(xebec);
 
                 if (xebec_get_sector(xebec, out addr) != 0)
                 {
@@ -472,6 +540,8 @@ internal static partial class mfm_xebec
                         return;
                 }
 
+                if (xebec_absente_r9(xebec, drive))
+                        return;
                 hdd_file.hdd_format_sectors(drive.hdd_file, (int)addr, 17);
 
                 xebec_complete(xebec);
@@ -499,6 +569,8 @@ internal static partial class mfm_xebec
                                         return;
                                 }
 
+                                if (xebec_absente_r9(xebec, drive))
+                                        return;
                                 hdd_file.hdd_read_sectors(drive.hdd_file, (int)addr, 1, xebec.sector_buf);
                                 readflash_set(READFLASH_HDC, xebec.drive_sel);
                         }
@@ -534,7 +606,17 @@ internal static partial class mfm_xebec
                                 timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
                         }
                         else
-                                fatal("Read sectors no DMA! - shouldn't get here\n");
+                        {
+                                // pcem bug, not reproduced: PB-267 — fatal() (:438) : le masque de DMA (323h) effacé
+                                //   entre deux temps de la commande.
+                                // DEVIATION: la carte sert le secteur par le registre de données, comme sans DMA : le
+                                //   registre de 323h masque le DMA et l'interruption de la carte (p. 14) ; qu'il ne coupe
+                                //   que DRQ 3, et que le contrôleur continue par le registre de données, est déduit.
+                                pclog("Read sectors no DMA! - shouldn't get here\n");
+                                R9.Garde("mfm_xebec.c:438");
+                                xebec.status = STAT_BSY | STAT_IO | STAT_REQ;
+                                Array.Copy(xebec.sector_buf, xebec.data, 512);
+                        }
                         break;
 
                 case STATE_SENT_DATA:
@@ -555,6 +637,8 @@ internal static partial class mfm_xebec
                                         return;
                                 }
 
+                                if (xebec_absente_r9(xebec, drive))
+                                        return;
                                 hdd_file.hdd_read_sectors(drive.hdd_file, (int)addr, 1, xebec.sector_buf);
                                 readflash_set(READFLASH_HDC, xebec.drive_sel);
 
@@ -573,7 +657,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"CMD_READ_SECTORS: bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:476) : le rappel dans un état que la commande
+                        //   n'a pas (une impulsion de sélection, 322h, pendant la commande).
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_READ_SECTORS: bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:476");
                         break;
                 }
                 break;
@@ -619,7 +707,16 @@ internal static partial class mfm_xebec
                                 timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
                         }
                         else
-                                fatal("Write sectors no DMA! - should never get here\n");
+                        {
+                                // pcem bug, not reproduced: PB-267 — fatal() (:516) : le masque de DMA effacé entre
+                                //   deux temps de la commande.
+                                // DEVIATION: la carte attend le reste du secteur par le registre de données ; la part
+                                //   déjà reçue par DMA passe dans data[], que STATE_RECEIVED_DATA recopie.
+                                pclog("Write sectors no DMA! - should never get here\n");
+                                R9.Garde("mfm_xebec.c:516");
+                                xebec.status = STAT_BSY | STAT_REQ;
+                                Array.Copy(xebec.sector_buf, xebec.data, 512);
+                        }
                         break;
 
                 case STATE_RECEIVED_DATA:
@@ -636,6 +733,8 @@ internal static partial class mfm_xebec
                                         return;
                                 }
 
+                                if (xebec_absente_r9(xebec, drive))
+                                        return;
                                 hdd_file.hdd_write_sectors(drive.hdd_file, (int)addr, 1, xebec.sector_buf);
                         }
 
@@ -658,7 +757,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"CMD_WRITE_SECTORS: bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:555) : le rappel dans un état que la commande
+                        //   n'a pas (une impulsion de sélection, 322h, pendant la commande).
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_WRITE_SECTORS: bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:555");
                         break;
                 }
                 break;
@@ -698,7 +801,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"CMD_INIT_DRIVE_PARAMS bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:590) : le rappel dans un état que la commande
+                        //   n'a pas.
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_INIT_DRIVE_PARAMS bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:590");
                         break;
                 }
                 break;
@@ -740,7 +847,14 @@ internal static partial class mfm_xebec
                                 timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
                         }
                         else
-                                fatal("CMD_WRITE_SECTOR_BUFFER - should never get here!\n");
+                        {
+                                // pcem bug, not reproduced: PB-267 — fatal() (:626) : le masque de DMA effacé entre
+                                //   deux temps de la commande.
+                                // DEVIATION: la carte attend le reste du tampon par le registre de données.
+                                pclog("CMD_WRITE_SECTOR_BUFFER - should never get here!\n");
+                                R9.Garde("mfm_xebec.c:626");
+                                xebec.status = STAT_BSY | STAT_REQ;
+                        }
                         break;
                 case STATE_RECEIVED_DATA:
                         Array.Copy(xebec.data, xebec.sector_buf, 512);
@@ -748,7 +862,11 @@ internal static partial class mfm_xebec
                         break;
 
                 default:
-                        fatal($"CMD_WRITE_SECTOR_BUFFER bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:634) : le rappel dans un état que la commande
+                        //   n'a pas (une impulsion de sélection, 322h, pendant la commande).
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_WRITE_SECTOR_BUFFER bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:634");
                         break;
                 }
                 break;
@@ -795,7 +913,11 @@ internal static partial class mfm_xebec
                         // pcem bug, reproduced: PB-26 — la chaîne annonce
                         //   CMD_INIT_DRIVE_PARAMS à l'intérieur de
                         //   CMD_DTC_GET_DRIVE_PARAMS.
-                        fatal($"CMD_INIT_DRIVE_PARAMS bad state {xebec.state}\n");
+                        // pcem bug, not reproduced: PB-267 — fatal() (:671) : le rappel dans un état que la commande
+                        //   n'a pas.
+                        // DEVIATION: le rappel est ignoré.
+                        pclog($"CMD_INIT_DRIVE_PARAMS bad state {xebec.state}\n");
+                        R9.Garde("mfm_xebec.c:671");
                         break;
                 }
                 break;
@@ -840,8 +962,119 @@ internal static partial class mfm_xebec
                 break;
 
         default:
-                fatal($"Unknown Xebec command - {xebec.command[0]:x2} {xebec.command[1]:x2} " +
+                // pcem bug, not reproduced: PB-267 — fatal() (:711) : une commande que PCem n'a pas, de la carte ou
+                //   inconnue.
+                // DEVIATION: celles que la carte documente et que l'image sait porter sont servies, les autres
+                //   rendent l'erreur 20h, Invalid Command (xebec_commande_r9).
+                pclog($"Unknown Xebec command - {xebec.command[0]:x2} {xebec.command[1]:x2} " +
                       $"{xebec.command[2]:x2} {xebec.command[3]:x2} {xebec.command[4]:x2} {xebec.command[5]:x2}\n");
+                R9.Garde("mfm_xebec.c:711");
+                xebec_commande_r9(xebec, drive);
+                break;
+        }
+    }
+
+    // pcem bug, not reproduced: PB-267 — l'unité absente n'est testée que par TEST DRIVE READY, RECALIBRATE et SEEK ;
+    //   après INITIALIZE DRIVE CHARACTERISTICS sur elle (qui pose sa géométrie), READ, WRITE et FORMAT TRACK passent
+    //   xebec_get_sector et atteignent hdd_file sur un FILE nul : fseeko64(NULL), hdd_file.c:178, :211, :248.
+    // DEVIATION: juste avant l'accès au fichier, et seulement là — VERIFY, qui n'y accède pas, reste celui de PCem —, la
+    //   commande finit en erreur 04h, « the drive did not respond with a ready signal » (Disk Controller Error Tables,
+    //   p. 5) ; FORMAT DRIVE (xebec_commande_r9) de même.
+    private static bool xebec_absente_r9(xebec_t xebec, mfm_drive_t drive)
+    {
+        if (drive.hdd_file.f != null)
+                return false;
+        R9.Garde("hdd_file.c:178");
+        xebec_error(xebec, ERR_NOT_READY);
+        xebec_complete(xebec);
+        return true;
+    }
+
+    // pcem bug, not reproduced: PB-267 — la commande que PCem n'a pas : fatal() (mfm_xebec.c:711).
+    // DEVIATION: le comportement de la carte, quand l'IBM Fixed Disk Adapter (6361503) le documente et que l'image
+    //   le porte, dans les deux modes (R9) : FORMAT DRIVE (04h) formate « the drive starting at the desired track »
+    //   (BIOS de la carte, INT 13h AH = 07h), jusqu'au dernier cylindre que INITIALIZE DRIVE CHARACTERISTICS a déclaré
+    //   (la borne est déduite : le manuel ne la dit pas) ; READ DATA FROM SECTOR BUFFER (0Eh) rend les
+    //   512 octets du tampon, que 0Fh écrit ; DRIVE DIAGNOSTIC (E3h) teste l'unité. Les autres rendent l'erreur 20h,
+    //   Invalid Command (Disk Controller Error Tables, p. 6) : les codes inconnus, et quatre commandes de la carte que
+    //   l'image ne porte pas — FORMAT BAD TRACK (07h) et son drapeau de piste, READ ECC BURST ERROR LENGTH (0Dh),
+    //   READ LONG et WRITE LONG (E5h, E6h) et leurs 4 octets d'ECC, que la documentation ne décrit pas au bit près.
+    private static void xebec_commande_r9(xebec_t xebec, mfm_drive_t drive)
+    {
+        switch (xebec.command[0])
+        {
+        case 0x04: /*Format drive*/
+                if (xebec.state != STATE_START_COMMAND)
+                        return;
+                xebec.cylinder = xebec.command[3] | ((xebec.command[2] & 0xc0) << 2);
+                drive.current_cylinder = (xebec.cylinder >= drive.cfg_cyl) ? drive.cfg_cyl - 1 : xebec.cylinder;
+                xebec.head = xebec.command[1] & 0x1f;
+                xebec.sector = 0;
+                if (xebec_absente_r9(xebec, drive))
+                        return;
+                if (xebec_get_sector(xebec, out long addr) != 0)
+                        xebec_error(xebec, xebec.error);
+                else if (drive.cfg_cyl * drive.cfg_hpc * 17 > addr)
+                        hdd_file.hdd_format_sectors(drive.hdd_file, (int)addr, drive.cfg_cyl * drive.cfg_hpc * 17 - (int)addr);
+                xebec_complete(xebec);
+                break;
+
+        case 0x0e: /*Read data from sector buffer*/
+                switch (xebec.state)
+                {
+                case STATE_START_COMMAND:
+                        xebec.state = STATE_SEND_DATA;
+                        xebec.data_pos = 0;
+                        xebec.data_len = 512;
+                        if ((xebec.irq_dma_mask & DMA_ENA) != 0)
+                                timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
+                        else
+                        {
+                                xebec.status = STAT_BSY | STAT_IO | STAT_REQ;
+                                Array.Copy(xebec.sector_buf, xebec.data, 512);
+                        }
+                        break;
+
+                case STATE_SEND_DATA:
+                        xebec.status = STAT_BSY;
+                        if ((xebec.irq_dma_mask & DMA_ENA) == 0)
+                        {
+                                xebec.status = STAT_BSY | STAT_IO | STAT_REQ;
+                                Array.Copy(xebec.sector_buf, xebec.data, 512);
+                                break;
+                        }
+                        for (; xebec.data_pos < 512; xebec.data_pos++)
+                        {
+                                if (dma_channel_write(3, xebec.sector_buf[xebec.data_pos]) == DMA_NODATA)
+                                {
+                                        xebec.status = STAT_BSY | STAT_CD | STAT_IO | STAT_REQ;
+                                        timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
+                                        return;
+                                }
+                        }
+                        xebec.state = STATE_SENT_DATA;
+                        timer_set_delay_u64(xebec.callback_timer, XEBEC_TIME);
+                        break;
+
+                case STATE_SENT_DATA:
+                        xebec_complete(xebec);
+                        break;
+                }
+                break;
+
+        case 0xe3: /*Drive diagnostic*/
+                if (xebec.state != STATE_START_COMMAND)
+                        return;
+                if (drive.hdd_file.f == null)
+                        xebec_error(xebec, ERR_NOT_READY);
+                xebec_complete(xebec);
+                break;
+
+        default:
+                if (xebec.state != STATE_START_COMMAND)
+                        return;
+                xebec_error(xebec, ERR_INVALID_COMMAND);
+                xebec_complete(xebec);
                 break;
         }
     }

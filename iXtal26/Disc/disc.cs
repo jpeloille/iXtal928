@@ -199,6 +199,9 @@ internal static partial class disc
     internal static void disc_poll(object? p)
     {
         timer_advance_u64(disc_poll_timer, (uint64_t)disc_period * TIMER_USEC);
+        // pcem bug, fixed in hardware mode: PB-14 — 26 µs, l'entier de PCem pour 300 kbit/s ; l'octet en dure 80/3.
+        if (materiel.pb_14)
+                disc_poll_materiel();
 
         if (disc_drivesel < 2 && drives[disc_drivesel].poll != null)
                 drives[disc_drivesel].poll();
@@ -256,7 +259,9 @@ internal static partial class disc
                         disc_period = 4;
                         break;
                 }
-                // pcem bug, reproduced: PB-14 — pas de break : le cas 1 retombe dans le cas 2.
+                // pcem bug, fixed in hardware mode: PB-14 — pas de break : le cas 1 retombe dans le cas 2.
+                if (materiel.pb_14)
+                        break;
                 goto case 2;
         case 2: /*Double density*/
                 disc_period = 32;

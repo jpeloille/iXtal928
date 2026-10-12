@@ -1360,8 +1360,11 @@ internal static partial class fdc_c
 
         if (fdc.pcjr != 0 || fdc.dma == 0)
         {
-                // pcem bug, reproduced: PB-19 — written n'est jamais posé à 1 : ce test
+                // pcem bug, fixed in hardware mode: PB-19 — written n'est jamais posé à 1 : ce test
                 // ne peut pas se déclencher, l'écrasement en écriture n'est pas détecté.
+                if (materiel.pb_19)
+                        if (fdc_ecrasement_materiel())
+                                return -1;
                 if (fdc.byte_written != 0)
                 {
                         fdc_overrun();

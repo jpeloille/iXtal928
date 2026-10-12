@@ -340,6 +340,9 @@ switch (args[0])
     // G13.0 — l'image d'un disque SCSI à travers un reset matériel (PB-121), en C# seul.
     case "reset-scsi-check":
         return ResetScsiCheck.Run("roms");
+    // G13.7a — R9 : les dix-neuf sites où PCem s'arrête dans le Xebec (PB-267), et les commandes qu'il n'a pas, en C# seul.
+    case "r9-xebec":
+        return R9Xebec.Run("roms");
     // G13.0 — le filet des images (Host/FiletImages.cs), de bout en bout : un plantage injecté contre une sortie normale.
     case "r9-filet":
         return R9Filet.Run("roms");

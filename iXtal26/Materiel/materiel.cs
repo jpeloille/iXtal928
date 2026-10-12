@@ -33,6 +33,21 @@ internal static class materiel
     /// <summary>PB-07 : un mot à cheval sur deux pages lit et écrit son octet haut par sa propre page ; avec PB-179.</summary>
     internal static readonly bool pb_07;
 
+    /// <summary>PB-14 : le débit de 300 kbit/s de la disquette, à 80/3 µs l'octet (AT).</summary>
+    internal static readonly bool pb_14;
+
+    /// <summary>PB-19 : en écriture hors DMA, l'octet que l'UC n'a pas fourni à temps pose OR (µPD765).</summary>
+    internal static readonly bool pb_19;
+
+    /// <summary>PB-22 : FORMAT TRACK du Xebec formate la piste désignée depuis son début.</summary>
+    internal static readonly bool pb_22;
+
+    /// <summary>PB-23 : l'octet de fin du Xebec porte le bit d'unité (bit 5).</summary>
+    internal static readonly bool pb_23;
+
+    /// <summary>PB-25 : la tête égale au nombre de têtes est hors du disque (Xebec, AT).</summary>
+    internal static readonly bool pb_25;
+
     /// <summary>PB-32 : l'IDT trop courte lève #GP(n × 8 + 2 + EXT) ; avec PB-192.</summary>
     internal static readonly bool pb_32;
 
@@ -252,6 +267,9 @@ internal static class materiel
     /// <summary>PB-213 : les comparaisons du 287XL, du 387 et du 486 remettent C1 à zéro.</summary>
     internal static readonly bool pb_213;
 
+    /// <summary>PB-217 : le sense du Xebec porte le bit « adresse valide » et l'adresse.</summary>
+    internal static readonly bool pb_217;
+
     /// <summary>PB-246 : la cascade du 8259 se sert à son rang, après l'IRQ 0 et l'IRQ 1.</summary>
     internal static readonly bool pb_246;
 
@@ -312,6 +330,11 @@ internal static class materiel
         pb_03 = ModeMateriel.Demande(3);
         pb_05 = ModeMateriel.Demande(5);
         pb_07 = ModeMateriel.Demande(7);
+        pb_14 = ModeMateriel.Demande(14);
+        pb_19 = ModeMateriel.Demande(19);
+        pb_22 = ModeMateriel.Demande(22);
+        pb_23 = ModeMateriel.Demande(23);
+        pb_25 = ModeMateriel.Demande(25);
         pb_32 = ModeMateriel.Demande(32);
         pb_39 = ModeMateriel.Demande(39);
         pb_40 = ModeMateriel.Demande(40);
@@ -385,6 +408,7 @@ internal static class materiel
         pb_211 = ModeMateriel.Demande(211);
         pb_212 = ModeMateriel.Demande(212);
         pb_213 = ModeMateriel.Demande(213);
+        pb_217 = ModeMateriel.Demande(217);
         pb_246 = ModeMateriel.Demande(246);
         pb_247 = ModeMateriel.Demande(247);
         pb_248 = ModeMateriel.Demande(248);

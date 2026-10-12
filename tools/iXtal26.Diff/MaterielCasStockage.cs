@@ -1,0 +1,252 @@
+// SPDX-FileCopyrightText: 2026 Julien Peloille
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// ORACLE: (aucun) — outillage de vérification.
+//
+// Les cas qui discriminent les corrections du stockage (G13.7a, PLAN-G13.md), en C# seul : la disquette (PB-14, le
+// débit de 300 kbit/s ; PB-19, l'écrasement en écriture hors DMA) et le disque MFM (PB-22, PB-23, PB-25, PB-217). Chacun
+// sur une machine neuve dont l'UC reste arrêtée (XebecBanc) : le BIOS ne touche ni au contrôleur ni à l'horloge-octet,
+// l'outil les conduit par leurs ports, et chaque attendu porte sa source.
+
+using iXtal26.Disc;
+
+namespace iXtal26.Diff;
+
+internal static partial class MaterielCas
+{
+    /// <summary>Un cas sur une machine neuve, dans un dossier du TMPDIR effacé ensuite.</summary>
+    private static int Avec(Func<string, int> corps)
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), $"materiel-cas-{Environment.ProcessId}");
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            return corps(tmp);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"  [ECHEC] ARRÊT — {e.GetType().Name} : {e.Message.Trim()}");
+            return 1;
+        }
+        finally
+        {
+            try { pc.closepc(); } catch (Exception) { }
+            Directory.Delete(tmp, true);
+        }
+    }
+
+    private static string Cfg(string dossier, string texte)
+    {
+        var chemin = Path.Combine(dossier, "cas.cfg");
+        File.WriteAllText(chemin, texte);
+        return chemin;
+    }
+
+    private static int VoirArret() =>
+        XebecBanc.Arretee() ? 0 : Voir("l'UC reste arrêtée", false, "elle a quitté 0000:0500", "CS:IP = 0000:0500", true);
+
+    // PB-14 — à 300 kbit/s (CCR = 01h ; IBM PC AT Technical Reference, 1502494, « Fixed Disk and Diskette Drive
+    // Adapter », Data Rates, et le listing du BIOS, « 01: 300 KBS »), l'octet dure 8 / 0,3 = 80/3 µs. PCem fait
+    // retomber le cas 1 de disc_set_rate dans le cas 2 : 32 µs, le pas de 250 kbit/s. L'avance d'un appel de disc_poll,
+    // au format 32:32 de TIMER_USEC ; les débits 0 (16 µs) et 2 (32 µs) en témoins, égaux dans les deux modes.
+    private static int Pb14(bool hw) => Avec(tmp =>
+    {
+        XebecBanc.Demarrer("roms", Cfg(tmp, "model = ibmat\nmem_size = 640\ngfxcard = cga\n"));
+        var u = timer.TIMER_USEC;
+        var bad = 0;
+        foreach (var (rate, attendu, nom) in new[] { (1, hw ? 80 * u / 3 : 32 * u, hw ? "80/3 µs" : "32 µs"),
+                                                     (0, 16 * u, "16 µs"), (2, 32 * u, "32 µs") })
+        {
+            disc.disc_set_rate(0, 0, rate);
+            var t = disc.disc_poll_timer;
+            var avant = ((ulong)t.ts_integer << 32) | t.ts_frac;
+            disc.disc_poll(null);
+            var pas = (((ulong)t.ts_integer << 32) | t.ts_frac) - avant;
+            // Une borne indépendante du calcul du code : 8 / 0,3 = 26,6667 µs à 300 kbit/s.
+            var reel = hw && rate == 1 ? 8 / 0.3 : rate == 0 ? 16 : 32;
+            bad += Voir($"disc_set_rate(débit {rate}), un appel de disc_poll",
+                        pas == attendu && Math.Abs(pas / (double)u - reel) < 1e-4,
+                        $"{pas / (double)u:F4} µs", nom, hw);
+        }
+        return bad;
+    });
+
+    // PB-19 — en écriture hors DMA, le µPD765 attend chaque octet dans son temps, faute de quoi il pose OR dans ST1 (bit
+    // 4) et termine la commande (NEC µPD765 Data Sheet, déc. 1978, WRITE DATA). PC, une 360 Ko en A:, SPECIFY ND = 1,
+    // WRITE DATA du secteur (0, 0, 1) ; l'UC ne fournit qu'un octet à la demande du contrôleur, puis plus rien. PCem
+    // écrit l'octet périmé et ne pose pas OR ; le contrôleur pose OR à l'octet suivant, ST1 = 10h.
+    private static int Pb19(bool hw) => Avec(tmp =>
+    {
+        var a = Path.Combine(tmp, "a.img");
+        File.WriteAllBytes(a, new byte[368640]);
+        XebecBanc.Demarrer("roms", Cfg(tmp, "model = ibmpc\nmem_size = 640\ngfxcard = cga\n"), a);
+        io.outb(0x3F2, 0x1C);
+        for (var i = 0; i < 5; i++)
+            pc.runpc();
+        void Octets(params int[] octets)
+        {
+            foreach (var o in octets)
+            {
+                if ((io.inb(0x3F4) & 0xC0) != 0x80)
+                    throw new InvalidOperationException($"le contrôleur ne demande pas d'octet : MSR {io.inb(0x3F4):X2}h");
+                io.outb(0x3F5, (byte)o);
+            }
+        }
+        Octets(0x03, 0xDF, 0x03);
+        Octets(0x45, 0x00, 0x00, 0x00, 0x01, 0x02, 0x01, 0x2A, 0xFF);
+        var donnes = 0;
+        for (var i = 0; i < 200000 && (io.inb(0x3F4) & 0xC0) != 0xC0; i++)
+        {
+            if ((io.inb(0x3F4) & 0xE0) == 0xA0 && donnes < 1)
+            {
+                io.outb(0x3F5, 0x5A);
+                donnes++;
+            }
+            disc.disc_poll(null);
+            // La fin de la commande passe par le chronomètre du contrôleur (fdc.timer) : une tranche, de loin en loin,
+            // longtemps après l'octet fourni.
+            if (i % 1000 == 999)
+                pc.runpc();
+        }
+        if ((io.inb(0x3F4) & 0xC0) != 0xC0)
+            return Voir("WRITE DATA, un seul octet fourni", false, "pas de phase de résultat", "la phase de résultat", hw);
+        var res = new byte[7];
+        for (var i = 0; i < 7; i++)
+            res[i] = io.inb(0x3F5);
+        return Voir("WRITE DATA hors DMA, un seul octet fourni ; ST0, ST1", hw ? res[1] == 0x10 : (res[1] & 0x10) == 0,
+                    $"ST0 = {res[0]:X2}h, ST1 = {res[1]:X2}h", hw ? "ST1 = 10h (OR)" : "ST1 sans OR", hw) + VoirArret();
+    });
+
+    // PB-22 — FORMAT TRACK (06h) porte un secteur nul dans son DCB : la piste désignée se formate depuis son début (IBM
+    // Fixed Disk Adapter, 6361503, p. 11). XT, Xebec, type 16 : READ du secteur (1, 0, 5) — le secteur courant passe à 6
+    // —, puis FORMAT TRACK (1, 0). PCem formate depuis le secteur 6 : (1, 0, 0) reste intact, (1, 1, 0) est effacé ; la
+    // carte efface (1, 0, 0) et laisse (1, 1, 0).
+    private static int Pb22(bool hw) => Avec(tmp =>
+    {
+        var marques = Enumerable.Range(0, 17).Select(s => (XebecBanc.Lba(1, 0, s), (byte)0xAA))
+                                .Concat(Enumerable.Range(0, 6).Select(s => (XebecBanc.Lba(1, 1, s), (byte)0xAA))).ToArray();
+        XebecBanc.Monter("roms", tmp, XebecBanc.Image(tmp, "c.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt, marques));
+        var bad = 0;
+        var (fin, lus) = XebecBanc.Lire(1, 0, 5);
+        bad += Voir("READ (1, 0, 5)", fin == 0 && lus.Length == 512 && lus[0] == 0xAA, $"fin {fin:X2}h, {lus.Length} octets",
+                    "fin 00h, 512 octets AAh", hw);
+        (fin, _) = XebecBanc.Echange([0x06, 0x00, 0x00, 0x01, 0x01, 0x05]);
+        bad += Voir("FORMAT TRACK (1, 0)", fin == 0, $"fin {fin:X2}h", "fin 00h", hw);
+        var debut = XebecBanc.Lire(1, 0, 0).lus;
+        var suivante = XebecBanc.Lire(1, 1, 0).lus;
+        bad += Voir("puis (1, 0, 0) et (1, 1, 0)", debut.Length == 512 && suivante.Length == 512 &&
+                    (debut[0], suivante[0]) == (hw ? ((byte)0x00, (byte)0xAA) : ((byte)0xAA, (byte)0x00)),
+                    $"{(debut.Length > 0 ? debut[0] : -1):X2}h, {(suivante.Length > 0 ? suivante[0] : -1):X2}h",
+                    hw ? "00h (effacé), AAh (intact)" : "AAh (intact), 00h (effacé)", hw);
+        return bad + VoirArret();
+    });
+
+    // PB-23 — l'octet de fin porte en bit 5 l'unité de la commande (IBM Fixed Disk Adapter, Status Register, p. 3). XT,
+    // Xebec, l'unité 1 absente : TEST DRIVE READY (00h) vers l'unité 1, octet de fin 02h chez PCem, 22h sur la carte ;
+    // vers l'unité 0, 00h des deux côtés. Puis l'unité 1 présente : TEST DRIVE READY réussi, 00h chez PCem, 20h sur la
+    // carte.
+    private static int Pb23(bool hw)
+    {
+        var bad = Pb23Absente(hw);
+        bad += Avec(tmp =>
+        {
+            XebecBanc.Monter("roms", tmp, XebecBanc.Image(tmp, "c.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt),
+                             XebecBanc.Image(tmp, "d.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt));
+            var fin = XebecBanc.Echange([0x00, 0x20, 0, 0, 0, 0]).fin;
+            return Voir("TEST DRIVE READY, unité 1 présente", fin == (hw ? 0x20 : 0x00), $"fin {fin:X2}h",
+                        hw ? "20h" : "00h", hw) + VoirArret();
+        });
+        return bad;
+    }
+
+    private static int Pb23Absente(bool hw) => Avec(tmp =>
+    {
+        XebecBanc.Monter("roms", tmp, XebecBanc.Image(tmp, "c.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt));
+        var bad = 0;
+        var fin = XebecBanc.Echange([0x00, 0x20, 0, 0, 0, 0]).fin;
+        bad += Voir("TEST DRIVE READY, unité 1 absente", fin == (hw ? 0x22 : 0x02), $"fin {fin:X2}h",
+                    hw ? "22h" : "02h", hw);
+        fin = XebecBanc.Echange([0x00, 0x00, 0, 0, 0, 0]).fin;
+        bad += Voir("TEST DRIVE READY, unité 0", fin == 0x00, $"fin {fin:X2}h", "00h", hw);
+        return bad + VoirArret();
+    });
+
+    // PB-25 — les têtes se numérotent depuis 0 : la tête égale au nombre de têtes est hors du disque. Xebec (IBM Fixed
+    // Disk Adapter, p. 6, l'erreur 21h « Illegal Disk Address ») : READ à la tête 4 d'un disque de 4 têtes, PCem lit
+    // (1, 0, 0), octet de fin 00h ; la carte rend 02h et le sense 21h. AT (le WD1003, déduit : aucun champ ID sur une tête
+    // absente, IDNF) : SET PARAMETERS à 4 têtes, READ SECTORS (20h) à la tête 4 : PCem lit (1, 0, 1) sans erreur ; le
+    // contrôleur, ERR et l'erreur 10h.
+    private static int Pb25(bool hw)
+    {
+        var bad = Avec(tmp =>
+        {
+            XebecBanc.Monter("roms", tmp, XebecBanc.Image(tmp, "c.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt,
+                                                          (XebecBanc.Lba(1, 0, 0), 0x5A)));
+            var (fin, lus) = XebecBanc.Lire(0, 4, 0);
+            var sense = XebecBanc.Sense();
+            return Voir("Xebec, READ (0, 4, 0) sur 4 têtes ; l'octet de fin, le sense",
+                        hw ? fin == 0x02 && (sense[0] & 0x3F) == 0x21 : fin == 0x00 && lus.Length == 512 && lus[0] == 0x5A,
+                        $"fin {fin:X2}h, {lus.Length} octets, sense {sense[0]:X2}h",
+                        hw ? "fin 02h, sense 21h" : "fin 00h, le secteur (1, 0, 0)", hw) + VoirArret();
+        });
+        bad += Avec(tmp =>
+        {
+            var c = XebecBanc.Image(tmp, "c.img", 306, 4, 17, ((1 * 4 + 0) * 17 + 0, 0x5A));
+            XebecBanc.Demarrer("roms", Cfg(tmp, "model = ibmat\nmem_size = 640\ngfxcard = cga\nhdd_controller = mfm_at\n" +
+                                                $"hdc_cylinders = 306\nhdc_heads = 4\nhdc_sectors = 17\nhdc_fn = {c}\n"));
+            byte Attendre()
+            {
+                for (var i = 0; i < 50 && (io.inb(0x1F7) & 0x80) != 0; i++)
+                    pc.runpc();
+                return io.inb(0x1F7);
+            }
+            io.outb(0x1F6, 0xA3);
+            io.outb(0x1F2, 17);
+            io.outb(0x1F7, 0x91);
+            Attendre();
+            io.outb(0x1F2, 1);
+            io.outb(0x1F3, 1);
+            io.outb(0x1F4, 0);
+            io.outb(0x1F5, 0);
+            io.outb(0x1F6, 0xA4);
+            io.outb(0x1F7, 0x20);
+            var st = Attendre();
+            var err = io.inb(0x1F1);
+            var mot = (st & 0x08) != 0 ? io.inw(0x1F0) : 0;
+            return Voir("AT, SET PARAMETERS à 4 têtes, READ SECTORS (0, 4, 1) ; l'état, l'erreur",
+                        hw ? (st & 0x01) != 0 && err == 0x10 : (st & 0x09) == 0x08 && mot == 0x5A5A,
+                        $"état {st:X2}h, erreur {err:X2}h, premier mot {mot:X4}h",
+                        hw ? "ERR, erreur 10h (IDNF)" : "DRQ, le secteur (1, 0, 1)", hw) + VoirArret();
+        });
+        return bad;
+    }
+
+    // PB-217 — le sense (IBM Fixed Disk Adapter, Sense Bytes, p. 4) : octet 0, le bit 7 « address valid » quand la
+    // commande précédente visait une adresse, puis l'erreur ; octet 1, l'unité et la tête ; octet 2, le haut du cylindre
+    // et le secteur ; octet 3, le bas du cylindre. XT, Xebec : READ au cylindre 123h, tête 2, secteur 20 (au-delà des
+    // 17) : octet de fin 02h ; le sense, PCem 21 00 00 00, la carte A1 02 54 23 ; un second sense, 00 00 00 00 des deux
+    // côtés (REQUEST SENSE ne vise pas d'adresse) ; un SEEK réussi au cylindre 210h, tête 1, puis le sense : PCem
+    // 00 00 00 00, la carte 80 01 80 10 (l'adresse valide, sans erreur).
+    private static int Pb217(bool hw) => Avec(tmp =>
+    {
+        XebecBanc.Monter("roms", tmp, XebecBanc.Image(tmp, "c.img", XebecBanc.Cyl, XebecBanc.Tetes, XebecBanc.Spt));
+        var bad = 0;
+        var fin = XebecBanc.Lire(0x123, 2, 20).fin;
+        bad += Voir("READ (123h, 2, 20)", fin == 0x02, $"fin {fin:X2}h", "02h", hw);
+        var s = XebecBanc.Sense();
+        byte[] attendu = hw ? [0xA1, 0x02, 0x54, 0x23] : [0x21, 0x00, 0x00, 0x00];
+        bad += Voir("le sense", s.SequenceEqual(attendu), string.Join(" ", s.Select(o => o.ToString("X2"))),
+                    string.Join(" ", attendu.Select(o => o.ToString("X2"))), hw);
+        s = XebecBanc.Sense();
+        bad += Voir("un second sense", s.SequenceEqual(new byte[4]), string.Join(" ", s.Select(o => o.ToString("X2"))),
+                    "00 00 00 00", hw);
+        // SEEK (0Bh) réussi au cylindre 210h, tête 1 : la commande visait une adresse, le sense la rend sans erreur.
+        fin = XebecBanc.Echange([0x0B, 0x01, 0x80, 0x10, 0, 0x05]).fin;
+        s = XebecBanc.Sense();
+        attendu = hw ? [0x80, 0x01, 0x80, 0x10] : [0x00, 0x00, 0x00, 0x00];
+        bad += Voir("SEEK (210h, 1), puis le sense", fin == 0 && s.SequenceEqual(attendu),
+                    $"fin {fin:X2}h, {string.Join(" ", s.Select(o => o.ToString("X2")))}",
+                    $"fin 00h, {string.Join(" ", attendu.Select(o => o.ToString("X2")))}", hw);
+        return bad + VoirArret();
+    });
+}

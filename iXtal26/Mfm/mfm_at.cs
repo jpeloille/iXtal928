@@ -49,7 +49,7 @@ namespace iXtal26.Mfm;
 // côté serait un doublon. L'imbriquer dans la classe de l'unité est le rendu C# le plus
 // proche de « local à cette unité », et il garde le NOM du C — le renommer serait une
 // déviation visible dans tout le fichier.
-internal static class mfm_at
+internal static partial class mfm_at
 {
     // pcem: mfm_at.c:21 — propriété et non constante : TIMER_USEC reste nul jusqu'à
     // setpitclock() (timer.cs:49-50), donc la multiplication doit se faire à l'usage.
@@ -183,12 +183,15 @@ internal static class mfm_at
         //   configured sectors », « past end of heads », « past end of sectors ».
         if (drive.current_cylinder != mfm.cylinder)
                 return 1;
-        // pcem bug, reproduced: PB-25 — `>` et non `>=` : la tête cfg_hpc vise la tête 0 du cylindre suivant (:113).
+        // pcem bug, fixed in hardware mode: PB-25 — `>` et non `>=` : la tête cfg_hpc vise la tête 0 du cylindre suivant (:113).
+        if (materiel.pb_25)
+                if (mfm_tete_materiel(mfm, drive))
+                        return 1;
         if (mfm.head > heads)
                 return 1;
         if (mfm.sector >= sectors + 1)
                 return 1;
-        // pcem bug, reproduced: PB-25 — le même `>`, contre les têtes de l'image (:121).
+        // pcem bug, fixed in hardware mode: PB-25 — le même `>`, contre les têtes de l'image (:121).
         if (mfm.head > drive.hdd_file.hpc)
                 return 1;
         if (mfm.sector >= drive.hdd_file.spt + 1)

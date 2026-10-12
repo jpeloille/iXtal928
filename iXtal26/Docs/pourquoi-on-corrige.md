@@ -1011,3 +1011,57 @@ N8a.*
 Avant le noyau, une dizaine de défauts du x87 avaient été corrigés en 53 bits, à la manière de PCem : la comparaison
 des infinis du 287, FXAM, les constantes, le mot d'état… Le noyau les refait sur 80 bits depuis qu'il est au mode. Ces
 premières corrections, devenues inutiles, quittent le code ; leurs tests restent, et vérifient désormais le noyau.
+
+## G13.7a — la disquette et le disque MFM
+
+*Le 12 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7a.*
+
+Le stockage des premières machines : le contrôleur de disquette de tous les PC, l'IBM Fixed Disk Adapter de l'XT (une
+carte conçue par Xebec) et le contrôleur de disque de l'AT. Julien a tranché le 12 octobre : en mode matériel, on fait
+ce que fait le vrai matériel, partout où sa documentation le décrit.
+
+### PB-14 — la disquette à 300 kbit/s
+
+- **Le vrai PC.** L'AT lit une disquette de 360 Ko dans son lecteur de 1,2 Mo à 300 000 bits par seconde : un octet
+  passe toutes les 26,67 µs.
+- **L'émulateur.** Une instruction `break` oubliée fait retomber ce débit sur celui de 250 kbit/s : 32 µs par octet,
+  la disquette tourne 20 % trop lentement. Les données restent justes.
+- **La correction.** L'octet dure 80/3 µs, à la fraction près.
+
+### PB-19 — l'octet que le programme n'a pas fourni à temps
+
+- **Le vrai PC.** Quand un programme écrit sur la disquette sans passer par le DMA, il doit donner chaque octet au
+  contrôleur avant que la tête ne l'atteigne sur la piste. S'il est en retard, le contrôleur arrête la commande et le
+  signale (« overrun »).
+- **L'émulateur.** La détection existe chez PCem, mais l'indicateur qu'elle teste n'est jamais posé : l'octet périmé
+  est écrit sans rien dire.
+- **La correction.** Un octet demandé et non fourni arrête la commande, comme sur le contrôleur NEC.
+
+### PB-22, PB-23, PB-25 et PB-217 — le contrôleur de l'XT
+
+- **Le vrai PC.** Le manuel d'IBM décrit la carte octet par octet : FORMAT TRACK formate la piste désignée depuis son
+  début ; l'octet de fin de chaque commande dit quelle unité elle visait ; une tête au-delà de la dernière est une
+  adresse illégale ; après une erreur, le « sense » rend l'adresse où elle s'est produite.
+- **L'émulateur.** PCem formate à partir du secteur laissé par la commande précédente, déborde sur la piste suivante
+  et laisse le début de la piste visée intact ; il oublie l'unité dans l'octet de fin ; il lit la tête qui n'existe
+  pas sur le cylindre suivant, sans erreur (le contrôleur de l'AT a le même défaut) ; son sense n'a jamais l'adresse.
+- **La correction.** Chacun des quatre comme le manuel le décrit.
+
+### PB-267 — les arrêts du contrôleur de l'XT
+
+- **Le vrai PC.** Un programme maladroit, ou un utilitaire de bas niveau, ne fait pas tomber l'ordinateur : au pire,
+  la carte rend une erreur.
+- **L'émulateur.** PCem s'arrête net dans une vingtaine de situations que le programme peut provoquer : lire ou
+  écrire la carte à contretemps, la relancer pendant une commande, couper son DMA en cours de transfert, lire un second
+  disque absent, ou lui envoyer une commande qu'il n'a pas programmée — dont sept que la carte connaît, comme FORMAT
+  DRIVE ou le diagnostic de l'unité.
+- **La correction**, dans les deux modes (l'émulateur ne doit jamais tomber) : l'accès à contretemps est ignoré ; le
+  transfert sans DMA se finit octet par octet ; le disque absent répond « pas prêt » ; les commandes de la carte qui se
+  décrivent entièrement sont servies, et les autres rendent l'erreur « commande invalide » du manuel.
+
+### Ce qui reste comme chez PCem
+
+READ LONG et WRITE LONG, sur l'XT comme sur l'AT, lisent et écrivent les 4 octets de code correcteur (l'ECC) que le
+contrôleur calcule pour chaque secteur. Le polynôme est publié, mais pas la manière exacte de le calculer : ces octets
+seraient inventés. Ces deux commandes restent refusées. La commande propre à la carte DTC (PB-28) et la commande
+envoyée à un second disque absent de l'AT (PB-75) restent aussi en l'état : personne ne sait ce que fait le matériel.
