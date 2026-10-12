@@ -1255,3 +1255,29 @@ la première piste. Le lecteur convertit l'un en l'autre. PCem mélange les deux
 - **L'émulateur.** PCem lit le début de l'une des commandes sur trois octets au lieu de quatre — une adresse hors du
   disque retombe sur une vraie piste —, et ne vérifie que le début de la plage : il joue des données comme du son.
 - **La correction.** Les quatre octets, et la plage vérifiée d'un bout à l'autre.
+
+## G13.7d1 — le lecteur ZIP
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7d1.*
+
+### PB-125 — les gros transferts
+
+- **Le vrai PC.** Un programme peut lire ou écrire d'un coup jusqu'à 65 535 secteurs, plus de 30 Mo.
+- **L'émulateur.** PCem range un transfert dans deux réserves de 256 Ko ; au-delà, il écrit hors de sa mémoire —
+  l'émulateur coupait le transfert, par sécurité, et rendait des zéros.
+- **La correction.** Le transfert va jusqu'au bout. (En mode PCem, les deux réserves sont désormais côte à côte,
+  comme dans le C : une lecture de 256 à 512 Ko y passe, comme chez PCem ; une écriture s'arrête à 256 Ko.)
+
+### PB-126 — la fin du disque, et le reset
+
+- **Le vrai PC.** Le lecteur annonce le numéro du dernier secteur, refuse de lire au-delà, ne fait rien d'une
+  demande de longueur nulle, et garde son disque quand on réinitialise la machine.
+- **L'émulateur.** PCem annonce un secteur de trop et le lit sans erreur, reste bloqué sur une demande vide, et perd
+  le disque au reset.
+- **La correction.** Le comportement de la norme ; après un reset, le lecteur signale qu'il a été réinitialisé,
+  puis repart avec son disque.
+
+### Ce qui reste comme chez PCem
+
+PB-274 — la commande d'éjection : PCem éjecte quand la norme dit « arrêter le moteur », parce que les pilotes
+d'Iomega l'envoient ainsi. Ce que faisait le vrai lecteur Iomega n'est pas connu : elle reste.

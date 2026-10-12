@@ -500,6 +500,12 @@ contre-lecture, M2, sa série entière et son commit :
   capacité, le bloc de trop), PB-130 (MODE SENSE), PB-131 (REQUEST SENSE, INQUIRY, les refus ; FORMAT UNIT reste simulé),
   PB-132 côté cible (la phase vide) ; le reliquat de G11 (les tampons du ZIP au régime de `scsi_hd`, en mode PCem :
   vérifié contre l'oracle, ZIPBANC).
+  Coupée en deux le 13/10 :
+  - **G13.7d1 — Le ZIP** ✅ *(13/10, VERIFICATION.md § G13.7d1)*. Le reliquat de G11 en mode PCem (les tampons en un tableau de
+    2 × 256 Ko, comme `scsi_hd`, vérifié par ZIPBANC contre l'oracle) ; PB-125 (les transferts complets) et PB-126 (la
+    capacité, la fin du disque, les longueurs nulles, le disque gardé au reset) en mode matériel ; START STOP UNIT
+    détaché en PB-274, reproduit (inconnu sur le lecteur d'Iomega).
+  - **G13.7d2 — Le disque SCSI.** PB-128 à PB-131, PB-132 côté cible.
 - **G13.7e — L'AHA-1542C.** PB-132 côté carte (HRST), PB-133 (le LUN par IDENTIFY), PB-135 (les cinq commandes du TR),
   PB-137 (le sense automatique), PB-139 (ABORT), PB-140 (RETURN SETUP DATA entier), PB-141 (les mailbox), PB-144 (la
   longueur et les réglages d'usine ; la traduction CHS et les 24 bits, déduits), PB-136 et 138 dans leurs bornes,

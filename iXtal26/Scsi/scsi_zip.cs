@@ -4,10 +4,16 @@
 // ORACLE: pcem-dev/src/scsi/scsi_zip.c  (scsi_zip.h : includes/private/scsi/scsi_zip.h)
 // STATUS: deviated — G10.6 (PLAN-G10.md) : le lecteur ZIP 100 de PCem, entier — zip_load, zip_eject,
 //
-// DEVIATIONS (R9, PB-125) : data_in et data_out débordés (:209, :222-224, :979, :985-990) — l'octet au-delà
-//   du tampon est compté, pas gardé, et se relit nul. Le secteur hors de l'image va au garde de hdd_file.cs.
-// Reproduits : PB-126 (READ CAPACITY, le secteur 196 608, START STOP UNIT, la perte au reset, les phases
-//   de longueur nulle) ; les huit fatal() inatteignables de PB-127.
+// DEVIATION (forme, G13.7d1, le reliquat de G11 ; décision n° 9 de PLAN-G11.md, comme scsi_hd) : data_in et data_out,
+//   contigus dans le struct C (scsi_zip.c:50-51), sont UN tableau `io` de 2 × BUFFER_SIZE — data_in en io[0..],
+//   data_out en io[BUFFER_SIZE..]. En C, un READ de 513 à 1 024 secteurs déborde de data_in dans data_out sans
+//   dommage, et l'invité relit les bonnes données.
+// DEVIATIONS (R9, PB-125) : au-delà de 2 × BUFFER_SIZE pour data_in (:209, :979), au-delà de BUFFER_SIZE pour data_out
+//   (:222-224, :985-990), l'octet est compté, pas gardé, et se relit nul. Le secteur hors de l'image va au garde de
+//   hdd_file.cs.
+// Reproduits en mode PCem, corrigés en mode matériel (scsi_zip.Materiel.cs) : PB-125 (les transferts au-delà des
+//   tampons), PB-126 (READ CAPACITY, le secteur 196 608, la perte au reset, les phases de longueur nulle). Reproduits :
+//   PB-274 (START STOP UNIT) ; les huit fatal() inatteignables de PB-127.
 
 // CS8981 : `scsi_zip_c` porte le nom de l'unité C, que le membre `scsi_zip` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -35,8 +41,10 @@ internal sealed class scsi_zip_data
 
     internal uint8_t status;
 
-    internal uint8_t[] data_in = new uint8_t[scsi_zip_c.BUFFER_SIZE];
-    internal uint8_t[] data_out = new uint8_t[scsi_zip_c.BUFFER_SIZE];
+    // pcem bug, fixed in hardware mode: PB-125 — jusqu'à 2 × 256 Ko, data_in déborde dans data_out, comme dans le struct
+    //   C ; au-delà, le mode matériel prolonge les deux tampons (scsi_zip.Materiel.cs).
+    // data_in[BUFFER_SIZE] puis data_out[BUFFER_SIZE] : voir l'en-tête.
+    internal uint8_t[] io = new uint8_t[2 * scsi_zip_c.BUFFER_SIZE];
     internal int data_pos_read, data_pos_write;
 
     internal int bytes_received, bytes_required;
@@ -61,7 +69,7 @@ internal sealed class scsi_zip_data
     internal int pio_mode, mdma_mode;
 }
 
-internal static class scsi_zip_c
+internal static partial class scsi_zip_c
 {
     // DEVIATION: pclog() appartient à plugin-api/logging.c, pas transcrit. Shim local, comme hdd_file.cs.
     private static void pclog(string s) { }
@@ -221,9 +229,11 @@ internal static class scsi_zip_c
     {
         scsi_zip_data data = new();
 
-        // pcem bug, reproduced: PB-126 — chaque resetide alloue un lecteur neuf, sans disque :
+        // pcem bug, fixed in hardware mode: PB-126 — chaque resetide alloue un lecteur neuf, sans disque :
         //   un reset matériel perd le disque.
         data.disc_loaded = 0;
+        if (materiel.pb_126)
+                reprise_materiel(data);
 
         data.hd_id = id;
         data.bus = bus;
@@ -268,15 +278,13 @@ internal static class scsi_zip_c
     {
 
         // pcem bug, not reproduced: PB-125 — data_in[data_pos_write++] sans borne (:209) : READ(10) de plus de
-        //   512 secteurs écrit au-delà de data_in, dans data_out puis hors de la structure.
-        // DEVIATION: au-delà du tampon, l'octet est compté, pas gardé (il se relit nul, scsi_zip_read).
-        if (data.data_pos_write >= BUFFER_SIZE)
-        {
-                R9.Garde("scsi_zip.c:209");
-                data.data_pos_write++;
-                return 0;
-        }
-        data.data_in[data.data_pos_write++] = val;
+        //   1 024 secteurs écrit au-delà de data_in et de data_out, hors de la structure.
+        // DEVIATION: au-delà des deux tampons, l'octet est compté, pas gardé (il se relit nul, scsi_zip_read) — dans
+        //   une méthode à part, hors de ligne : scsi_add_data, appelée à chaque octet, reste petite et s'inline comme
+        //   avant, et la garde du mode matériel vit dans la méthode à part (M2, G13.7d1).
+        if (data.data_pos_write >= 2 * BUFFER_SIZE)
+                return entree_debordee(data, val);
+        data.io[data.data_pos_write++] = val;
 
 
 
@@ -288,16 +296,37 @@ internal static class scsi_zip_c
     {
         // pcem bug, not reproduced: PB-125 — data_out[data_pos_read++] lu, puis
         //   pc.fatal("scsi_get_data beyond buffer limits\n") (:222-224) : WRITE de plus de 512 secteurs.
-        // DEVIATION: au-delà du tampon, l'octet se lit nul, la position avance.
+        // DEVIATION: au-delà du tampon, l'octet se lit nul, la position avance — dans une méthode à part, comme
+        //   scsi_add_data.
         if (data.data_pos_read >= BUFFER_SIZE)
-        {
-                R9.Garde("scsi_zip.c:224");
-                data.data_pos_read++;
-                return 0;
-        }
-        uint8_t val = data.data_out[data.data_pos_read++];
+                return sortie_debordee(data);
+        uint8_t val = data.io[BUFFER_SIZE + data.data_pos_read++];
 
         return val;
+    }
+
+    // Le repli R9 de scsi_add_data (:209), dans les deux modes.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static int entree_debordee(scsi_zip_data data, uint8_t val)
+    {
+        // pcem bug, fixed in hardware mode: PB-125 — le transfert complet, au-delà des deux tampons.
+        if (materiel.pb_125)
+                return extension_ecrire_materiel(data, val);
+        R9.Garde("scsi_zip.c:209");
+        data.data_pos_write++;
+        return 0;
+    }
+
+    // Le repli R9 de scsi_get_data (:222-224), dans les deux modes.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static int sortie_debordee(scsi_zip_data data)
+    {
+        // pcem bug, fixed in hardware mode: PB-125 — le transfert complet, au-delà de data_out.
+        if (materiel.pb_125)
+                return sortie_lire_materiel(data);
+        R9.Garde("scsi_zip.c:224");
+        data.data_pos_read++;
+        return 0;
     }
 
     // pcem: scsi_zip.c:229-234
@@ -349,6 +378,10 @@ internal static class scsi_zip_c
                 return bus_state;
         }
 
+        // pcem bug, fixed in hardware mode: PB-126 — après un reset, l'attention d'unité 29h (le disque gardé).
+        if (materiel.pb_126)
+                if ((bus_state = attention_reset_materiel(data, cdb)) >= 0)
+                        return bus_state;
         if ((scsi_zip_cmd_flags[cdb[0]] & CHECK_READY) != 0 && data.disc_loaded == 0)
         {
                 pclog("Disc not loaded\n");
@@ -696,12 +729,12 @@ internal static class scsi_zip_c
                 len = data.data_pos_write;
                 if (cdb[0] == SCSI_MODE_SENSE_6)
                 {
-                        data.data_in[0] = (uint8_t)(len - 1);
+                        data.io[0] = (uint8_t)(len - 1);
                 }
                 else
                 {
-                        data.data_in[0] = (uint8_t)((len - 2) >> 8);
-                        data.data_in[1] = (uint8_t)((len - 2) & 255);
+                        data.io[0] = (uint8_t)((len - 2) >> 8);
+                        data.io[1] = (uint8_t)((len - 2) & 255);
                 }
 
                 data.cmd_pos = CMD_POS_IDLE;
@@ -709,8 +742,11 @@ internal static class scsi_zip_c
                 break;
 
         case SCSI_READ_CAPACITY_10:
-                // pcem bug, reproduced: PB-126 — READ CAPACITY rend le nombre de blocs (196 608), non le dernier
-                //   LBA (196 607).
+                // pcem bug, fixed in hardware mode: PB-126 — READ CAPACITY rend le nombre de blocs (196 608), non le
+                //   dernier LBA (196 607).
+                if (materiel.pb_126)
+                        if ((bus_state = capacite_materiel(data)) >= 0)
+                                break;
                 scsi_add_data((ZIP_SECTORS >> 24) & 0xff, data);
                 scsi_add_data((ZIP_SECTORS >> 16) & 0xff, data);
                 scsi_add_data((ZIP_SECTORS >> 8) & 0xff, data);
@@ -738,6 +774,10 @@ internal static class scsi_zip_c
                         if (data.len == 0)
                                 data.len = 256;
 
+                        // pcem bug, fixed in hardware mode: PB-126 — ni la plage ni la longueur nulle ne sont vérifiées.
+                        if (materiel.pb_126)
+                                if ((bus_state = plage_materiel(data, cdb)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_START_SECTOR;
@@ -751,7 +791,7 @@ internal static class scsi_zip_c
                 {
                         if (data.cmd_pos == CMD_POS_START_SECTOR)
                         {
-                                // pcem bug, reproduced: PB-126 — au secteur 196 608, hdd_read_sectors ne lit rien
+                                // pcem bug, fixed in hardware mode: PB-126 — au secteur 196 608, hdd_read_sectors ne lit rien
                                 //   (hdd_file.c:174-180) et buf garde le secteur précédent.
                                 hdd_file.hdd_read_sectors(data.hdd, data.addr, 1, data.buf);
                                 pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
@@ -797,6 +837,10 @@ internal static class scsi_zip_c
                         data.addr = cdb[5] | (cdb[4] << 8) | (cdb[3] << 16) | (cdb[2] << 24);
                         data.len = cdb[8] | (cdb[7] << 8);
 
+                        // pcem bug, fixed in hardware mode: PB-126 — ni la plage ni la longueur nulle ne sont vérifiées.
+                        if (materiel.pb_126)
+                                if ((bus_state = plage_materiel(data, cdb)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_START_SECTOR;
@@ -810,7 +854,7 @@ internal static class scsi_zip_c
                 {
                         if (data.cmd_pos == CMD_POS_START_SECTOR)
                         {
-                                // pcem bug, reproduced: PB-126 — au secteur 196 608, hdd_read_sectors ne lit rien
+                                // pcem bug, fixed in hardware mode: PB-126 — au secteur 196 608, hdd_read_sectors ne lit rien
                                 //   (hdd_file.c:174-180) et buf garde le secteur précédent.
                                 hdd_file.hdd_read_sectors(data.hdd, data.addr, 1, data.buf);
                                 pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
@@ -865,6 +909,10 @@ internal static class scsi_zip_c
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         data.bytes_required = data.len * 512;
 
+                        // pcem bug, fixed in hardware mode: PB-126 — ni la plage ni la longueur nulle ne sont vérifiées.
+                        if (materiel.pb_126)
+                                if ((bus_state = plage_materiel(data, cdb)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_TRANSFER;
@@ -933,6 +981,10 @@ internal static class scsi_zip_c
                         pc.readflash_set(pc.READFLASH_HDC, data.hd_id);
                         data.bytes_required = data.len * 512;
 
+                        // pcem bug, fixed in hardware mode: PB-126 — ni la plage ni la longueur nulle ne sont vérifiées.
+                        if (materiel.pb_126)
+                                if ((bus_state = plage_materiel(data, cdb)) >= 0)
+                                        break;
                         data.cmd_pos = CMD_POS_WAIT;
                         timer_set_delay_u64(data.callback_timer, RW_DELAY);
                         data.new_cmd_pos = CMD_POS_TRANSFER;
@@ -986,8 +1038,11 @@ internal static class scsi_zip_c
                 break;
 
         case SCSI_MODE_SELECT_6:
-                // pcem bug, reproduced: PB-126 — de longueur 0, la phase de données sortante ne finit jamais :
-                //   write_complete n'est lu qu'après un octet reçu (scsi.c:157-161), et 1 ≠ 0.
+                // pcem bug, fixed in hardware mode: PB-126 — de longueur 0, la phase de données sortante ne finit
+                //   jamais : write_complete n'est lu qu'après un octet reçu (scsi.c:157-161), et 1 ≠ 0.
+                if (materiel.pb_126)
+                        if ((bus_state = mode_select_vide_materiel(data, cdb)) >= 0)
+                                break;
                 if (data.bytes_received == 0)
                 {
                         data.bytes_required = cdb[4];
@@ -1015,7 +1070,7 @@ internal static class scsi_zip_c
         case SCSI_START_STOP_UNIT:
                 /*if ((cdb[4] & (START_STOP_LOEJ | START_STOP_START)) == START_STOP_LOEJ)*/
                 /*This is incorrect based on the SCSI spec, but it's what the Iomega Win9x drivers send to eject a disc*/
-                // pcem bug, reproduced: PB-126 — START STOP UNIT éjecte sur START = 0 et LOEJ = 0 (arrêter le moteur),
+                // pcem bug, reproduced: PB-274 — START STOP UNIT éjecte sur START = 0 et LOEJ = 0 (arrêter le moteur),
                 //   et non sur LOEJ = 1 (éjecter).
                 if ((cdb[4] & (START_STOP_LOEJ | START_STOP_START)) == 0)
                         zip_eject();
@@ -1118,14 +1173,17 @@ internal static class scsi_zip_c
 
         // pcem bug, not reproduced: PB-125 — data_in[data_pos_read++] sans borne (:979) : une lecture de
         //   longueur nulle ne finit jamais (PB-126), et l'invité qui insiste lit hors de la structure.
-        // DEVIATION: au-delà du tampon, l'octet se lit nul, la position avance.
-        if (data.data_pos_read >= BUFFER_SIZE)
+        // DEVIATION: au-delà des deux tampons, l'octet se lit nul, la position avance.
+        if (data.data_pos_read >= 2 * BUFFER_SIZE)
         {
+                // pcem bug, fixed in hardware mode: PB-125 — le transfert complet, au-delà des deux tampons.
+                if (materiel.pb_125)
+                        return extension_lire_materiel(data);
                 R9.Garde("scsi_zip.c:979");
                 data.data_pos_read++;
                 return 0;
         }
-        return data.data_in[data.data_pos_read++];
+        return data.io[data.data_pos_read++];
     }
 
     // pcem: scsi_zip.c:982-991
@@ -1138,18 +1196,22 @@ internal static class scsi_zip_c
         // DEVIATION: au-delà du tampon, l'octet est compté mais pas gardé.
         if (data.data_pos_write >= BUFFER_SIZE)
         {
+                // pcem bug, fixed in hardware mode: PB-125 — le transfert complet, au-delà de data_out.
+                if (materiel.pb_125)
+                        if (sortie_ecrire_materiel(data, val))
+                                return;
                 R9.Garde("scsi_zip.c:990");
                 data.data_pos_write++;
                 data.bytes_received++;
                 return;
         }
-        data.data_out[data.data_pos_write++] = val;
+        data.io[BUFFER_SIZE + data.data_pos_write++] = val;
 
         data.bytes_received++;
     }
 
     // pcem: scsi_zip.c:993-996
-    // pcem bug, reproduced: PB-126 — une lecture de longueur nulle : l'octet lu à l'entrée en DATA IN (scsi.c:241)
+    // pcem bug, fixed in hardware mode: PB-126 — une lecture de longueur nulle : l'octet lu à l'entrée en DATA IN (scsi.c:241)
     //   désaccorde les deux positions, et la phase ne finit plus.
     private static int scsi_zip_read_complete(object p)
     {

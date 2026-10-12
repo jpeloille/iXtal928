@@ -2393,10 +2393,31 @@ position courante, avec la même taille.
 *Effet* : un pilote ou un programme qui envoie un READ, un WRITE ou un secteur hors de l'image fait
 tomber l'émulateur, ou écrit n'importe où dans l'image.
 *Trouvé par* : reconnaissance de G10.6.
-*G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
-*NON reproduit* (R9) : `DEVIATION` dans `Scsi/scsi_zip.cs` — l'octet au-delà d'un tampon est compté,
-pas gardé, et se relit nul — et dans `Disc/hdd_file.cs` — hors de l'image ou à un offset négatif, rien
-n'est lu ni écrit, le retour est 1. Survie : `r9-zip`, sept essais, chaque garde atteinte.
+*Source* : documenté — SCSI-2 § 9.2.6 et § 9.2.21, READ(10) et WRITE(10) transfèrent la longueur demandée (jusqu'à
+65 535 blocs) ; SFF-8070i r1.3, Table 37. Rien de matériel ne borne à 512 Ko.
+*Cas qui discrimine* : WRITE(10) de 1 100 secteurs depuis le LBA 0, chacun à un motif qui varie d'un mot à l'autre :
+PCem n'en garde que 512 (`data_out`, 256 Ko) ; le matériel les écrit tous (les secteurs 511, 512 et 1 099 relus).
+Les secteurs 1 000 et 1 050 écrits un à un, puis READ(10) de 1 100 secteurs : le 1 050, au-delà des deux tampons,
+nul chez PCem, juste sur le matériel ; le 1 000 juste des deux côtés (le reliquat de G11).
+*G13* : (a) — les transferts complets (Q12) ; le repli R9 reste au-delà du mode.
+*Reproduit jusqu'à 2 × 256 Ko* (G13.7d1, le reliquat de G11 ; décision n° 9 de PLAN-G11.md, comme PB-128) : `data_in`
+et `data_out` en un tableau contigu, `io` — un READ de 513 à 1 024 secteurs déborde de `data_in` dans `data_out` et
+se relit juste, comme dans le struct C, et comme le matériel ; marqueur `fixed in hardware mode: PB-125` sur `io`. Vérifié contre l'oracle par ZIPBANC :
+une écriture au LBA 550, puis un READ(10) de 600 secteurs, sa somme tournante identique des deux côtés.
+*NON reproduit au-delà* (R9) : `DEVIATION` dans `Scsi/scsi_zip.cs` — l'octet au-delà des deux tampons (data_in) ou
+au-delà de data_out est compté, pas gardé, et se relit nul — et dans `Disc/hdd_file.cs` — hors de l'image ou à un
+offset négatif, rien n'est lu ni écrit, le retour est 1. Survie : `r9-zip`, sept essais (les transferts portés à
+1 100 secteurs, au-delà des deux tampons), chaque garde atteinte.
+*Corrigé en mode matériel* (G13.7d1) : sous `if (materiel.pb_125)`, dans les branches du repli R9,
+`extension_ecrire_materiel` et `extension_lire_materiel`, `sortie_ecrire_materiel` et `sortie_lire_materiel`
+(`Scsi/scsi_zip.Materiel.cs`) prolongent `data_in` au-delà des deux tampons et `data_out` au-delà de 256 Ko dans une
+extension, hors de la classe (`EtatZip`) : READ et WRITE transfèrent la longueur demandée, jusqu'à 65 535 blocs
+(SCSI-2 § 9.2.6, § 9.2.21 ; SFF-8070i r1.3, READ(10), Table 37). Le secteur hors de l'image relève de PB-126.
+Les extensions grandissent par doublement et vivent autant que le lecteur ; elles ne sont pas remises à zéro entre
+deux commandes : un invité qui lirait au-delà de ce qu'une commande a écrit y relirait du périmé, comme dans les
+tampons de PCem. `materiel-cas PB-125` (sur l'ami486 et le lecteur ZIP, le motif ci-dessus) rend en mode PCem le
+secteur 511 juste, 512 et 1 099 nuls, le 1 000 juste et le 1 050 nul dans le READ de 1 100 secteurs ; en mode
+matériel, tout juste ; la correction coupée, il rougit.
 *Amendé en G11* : sous la glibc, `hdd_file.c` avec un `transfer_sectors` négatif ne plante pas toujours —
 `fread` rend EFAULT sans rien lire ; `fwrite` pousse jusqu'à 4 Ko du struct au-delà de la capacité ; un offset
 négatif à `transfer_sectors` = 1 lit ou écrit à la position courante du `FILE`. Ces cas dépendent de la libc et
@@ -2424,7 +2445,22 @@ déduit. START STOP UNIT : la norme éjecte sur LoEj 1 / Start 0 (Table 59) ; le
 matériel ; READ(10) du LBA 196 608 : GOOD et l'ancien tampon, contre 05/21h ; READ(10) de compte 0 : une phase sans
 fin, contre GOOD ; reset matériel puis TEST UNIT READY : lecteur vide, contre 06/29h puis GOOD.
 *G13* : (a), START STOP UNIT (c) — inconnu sur le lecteur d'Iomega : à mesurer sur un ZIP 100 ATAPI.
-*Reproduit* : `Scsi/scsi_zip.cs`, marqueurs PB-126 ; comparé des deux côtés par `bd-ami486-zip-banc`.
+*Reproduit* en mode PCem : `Scsi/scsi_zip.cs`, marqueurs `fixed in hardware mode: PB-126` ; comparé des deux côtés
+par `bd-ami486-zip-banc`. START STOP UNIT, inconnu sur le lecteur d'Iomega, est désormais PB-274 (G13.7d1).
+*Corrigé en mode matériel* (G13.7d1) : `Scsi/scsi_zip.Materiel.cs`, sous `if (materiel.pb_126)` — `capacite_materiel`,
+READ CAPACITY rend 196 607 (SFF-8070i r1.3, Table 41) ; `plage_materiel`, READ et WRITE (6 et 10) hors du disque
+rendent 05/21h avant toute donnée (SCSI-2 § 9.1.2 ; SFF-8070i r1.3, les tables d'erreurs de READ(10) et WRITE(10) ;
+d'emblée : déduit), et READ(10) ou WRITE(10) de longueur 0, GOOD sans phase de données (§ 9.2.6, § 9.2.21 ;
+SFF-8070i § 9.7.7), même hors du disque — READ(6) et WRITE(6) comptent 0 pour 256, comme PCem ; la protection en
+écriture passe avant la plage, comme chez PCem (07/27h) ; VERIFY, SEEK et FORMAT UNIT ne sont pas jugés ;
+`mode_select_vide_materiel`, MODE SELECT(6) de longueur 0, GOOD sans phase ; `reprise_materiel`, le lecteur neuf
+d'un reset matériel reprend le disque de l'ancien (déduit), et `attention_reset_materiel` rend 06/29h — SFF-8070i
+r1.3 § 9.6 : à toute commande sauf INQUIRY, qui s'exécute et la laisse ; REQUEST SENSE la rapporte et l'efface — en
+recouvrant l'attention du disque changé (28h) que PCem poserait aussi (un disque chargé entre le reset et la
+première commande voit donc son 28h recouvert). `materiel-cas PB-126` (sur l'ami486 et le lecteur ZIP) rend
+196 608, GOOD au LBA 196 608, DRQ pour les deux longueurs nulles, 3Ah puis 3Ah après le reset en mode PCem ; 196 607,
+21h, GOOD sans DRQ deux fois, 29h puis GOOD, puis, après un second reset, INQUIRY GOOD, REQUEST SENSE 06/29h et TEST
+UNIT READY GOOD en mode matériel ; la correction coupée, il rougit.
 
 ### PB-128 — Le disque SCSI écrit et lit hors de ses tampons
 
@@ -5570,6 +5606,21 @@ juge la plage — du départ à la fin exclue, en LBA, le MSF moins 150 — pist
 (`plage_audio_materiel`, `Cdrom/cdrom-image.Materiel.cs`) : une piste de données touchée rend 05/63h ; une plage vide,
 ou un autre pilote que celui des images, n'est pas jugée. `materiel-cas PB-273` rend les valeurs ci-dessus ; la
 correction coupée, il rougit.
+
+### PB-274 — START STOP UNIT du ZIP éjecte à rebours de la norme
+
+`scsi_zip.c:885-891` : START STOP UNIT éjecte le disque quand START et LOEJ valent 0 (« arrêter le moteur ») et le
+garde quand LOEJ vaut 1 (« éjecter ») ; le commentaire de PCem dit que c'est ce qu'envoient les pilotes Iomega de
+Windows 9x pour éjecter. Détaché de PB-126 en G13.7d1, le reste de PB-126 étant corrigé en mode matériel.
+*Effet* : une éjection à la norme n'éjecte pas ; un arrêt du moteur éjecte.
+*Trouvé par* : reconnaissance de G10.6 ; montré par ZIPBANC.
+*Source* : documenté pour la norme — SFF-8070i r1.3, Table 59 : LoEj 1 et Start 0 éjectent ; inconnu pour le ZIP 100
+ATAPI d'Iomega, que le commentaire de PCem dit répondre à l'inverse.
+*Cas qui discrimine* : ZIPBANC — START STOP UNIT, LOEJ = 1 : le disque reste ; START = LOEJ = 0 : il est éjecté (PCem).
+Seule une mesure sur un ZIP 100 ATAPI dirait le matériel.
+*G13* : (c) — inconnu : reproduit dans les deux modes (décision n° 14), à mesurer.
+*Reproduit* : `Scsi/scsi_zip.cs`, START STOP UNIT, marqueur `reproduced: PB-274` ; comparé des deux côtés par
+`bd-ami486-zip-banc`.
 
 ## B. Comportement indéfini en C
 

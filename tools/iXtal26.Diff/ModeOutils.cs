@@ -7,9 +7,11 @@
 // compare le C# à l'oracle ne dirait rien en mode matériel, ni par un vert ni par un rouge. Chaque commande déclare
 // donc si elle prend le mode ; une commande neuve le refuse (retour 2) tant qu'elle n'est pas inscrite ici.
 //
-// Trois portes R9 n'atteignent leur garde que par un défaut de PCem : r9-atapi par PB-119, r9-zip par PB-126, r9-aha
-// par PB-132. Elles restent acceptées tant que ces défauts ne sont pas corrigés ; leur correction demandera un autre
-// scénario en mode matériel (une survie qui ne passe pas par sa garde ne prouve rien).
+// Trois portes R9 n'atteignent leur garde que par un défaut de PCem : r9-atapi par PB-119, r9-zip par PB-125 et PB-126,
+// r9-aha par PB-132. PB-119 (G13.7c2), PB-125 et PB-126 (G13.7d1) sont corrigés : en mode matériel, r9-atapi et r9-zip
+// n'atteignent plus toutes leurs gardes et rougiraient (« la garde n'a pas été atteinte ») — la série ne les lance qu'en
+// mode PCem, où les gardes sont atteintes ; les corrections ont leurs cas (materiel-cas). r9-aha reste acceptée tant
+// que PB-132 n'est pas corrigé (une survie qui ne passe pas par sa garde ne prouve rien).
 
 namespace iXtal26.Diff;
 

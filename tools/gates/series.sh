@@ -377,7 +377,8 @@ runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-
 # IDENTIFY PACKET, TEST UNIT READY (UNIT ATTENTION puis GOOD), INQUIRY, READ CAPACITY (PB-126), READ FORMAT
 # CAPACITIES, MODE SENSE, IOMEGA SENSE, WRITE(10) et WRITE(6) d'un secteur relus par READ(10) et READ(6), le secteur
 # 196 608 (PB-126), VERIFY, SEEK, REZERO, SEND DIAGNOSTIC, RESERVE, RELEASE, une LUN non nulle, un code inconnu,
-# START STOP UNIT (PB-126) ; l'image ZIP comparée des deux côtés. r9-zip, en C# seul : les sites où PCem s'arrête ou
+# START STOP UNIT (PB-274) ; G13.7d1 : WRITE(10) au LBA 550 puis READ(10) de 600 secteurs, data_in qui déborde dans
+# data_out (le reliquat de G11) ; l'image ZIP comparée des deux côtés. r9-zip, en C# seul : les sites où PCem s'arrête ou
 # déborde (PB-125).
 mapfile -t ZBK < tools/atapibanc/zipbanc.keys
 ZBB=(); for l in "${ZBK[@]}"; do ZBB+=(--type "$l"); done
@@ -708,6 +709,13 @@ done
 # niveau du pilote d'images, sur la feuille mixte.cue d'isogen ; PB-272 (l'adresse de PLAY AUDIO(12)) et PB-273 (la
 # plage qui change de type), sur le banc de r9-atapi.
 for pb in 123 214 215 272 273; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# G13.7d1 — le lecteur ZIP (PLAN-G13.md, G13.7) : PB-125 (les transferts au-delà de 512 Ko) et PB-126 (la capacité, la fin
+# du disque, les longueurs nulles, le disque gardé au reset), chacun son cas en C# seul dans les deux modes, sur le banc
+# de r9-zip.
+for pb in 125 126; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done

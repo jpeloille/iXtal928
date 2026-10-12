@@ -10179,3 +10179,75 @@ et de la ligne de commande, posées par les étapes antérieures de G13.
 **La série** g7c4 (le worktree de l'étape, contre g7c3) : 548 portes, toutes vertes ; 538 communes à g7c3, chacune au
 même verdict ; un seul résumé change, `recensement` (273 défauts, 1 124 marqueurs). Dix neuves : les `materiel-cas`
 de PB-123, PB-214, PB-215, PB-272 et PB-273, dans les deux modes.
+
+## G13.7d1 — le lecteur ZIP
+
+Le 13 octobre 2026. La première étape de 7d (PLAN-G13.md, § G13.7 : 7d coupée en deux, 7d1 le ZIP, 7d2 le disque SCSI).
+Les sources : SFF-8070i révision 1.3 (5 juillet 2001), ATAPI Removable Rewritable Media — la norme des lecteurs ATAPI
+amovibles comme le ZIP 100 ; § 9.6 (l'attention d'unité), § 9.2.5 (MODE SELECT), § 9.7.7, Tables 37, 41, 59, 61 et
+les tables d'erreurs de READ(10) et WRITE(10) ; SCSI-2, § 8.2.8, § 9.1.2, § 9.2.6, § 9.2.21. La révision 1.2 que
+citait PB-126 n'a pas été trouvée ; les tables citées sont les mêmes.
+
+**Le reliquat de G11, en mode PCem** (un changement voulu des deux modes ; décision n° 9 de PLAN-G11.md, comme
+`scsi_hd`) : `data_in` et `data_out` du ZIP, contigus dans le struct C (`scsi_zip.c:50-51`), deviennent un seul tableau
+`io` de 2 × 256 Ko — un READ de 513 à 1 024 secteurs déborde de `data_in` dans `data_out` et se relit juste, comme dans
+le C ; les replis R9 passent à 2 × 256 Ko pour `data_in`, restent à 256 Ko pour `data_out`. `r9-zip` porté à 1 100
+secteurs (au-delà des deux tampons), sept essais, vert en mode PCem. ZIPBANC étendu (`tools/atapibanc/atapibanc.py`,
+les touches régénérées) : WRITE(10) d'un secteur non nul au LBA 550, puis READ(10) de 600 secteurs — le secteur 550 à
+l'octet 281 600 du transfert, dans la zone de `data_out`, couvert par la somme tournante que relèvent l'oracle C et le
+C#.
+
+**ZIPBANC contre l'oracle** (la porte `bd-ami486-zip-banc`, jouée seule dans le worktree avant la série) : verte —
+les deux amorçages identiques sur 515 588 948 instructions, la sonde VGA identique, l'image C: et l'image ZIP
+identiques des deux côtés (1 530 octets écrits par l'invité dans le ZIP, dont le secteur 550). Le READ(10) de 600
+secteurs passe donc des deux côtés par le débordement de `data_in` dans `data_out`, au même octet.
+
+**Les corrections du mode matériel** (domaine `stockage`, deux ; `Scsi/scsi_zip.Materiel.cs`, l'état dans une classe
+imbriquée, les méthodes en `NoInlining`) : PB-125, les transferts complets — au-delà des tampons de PCem, `data_in` et
+`data_out` se prolongent dans une extension hors de la classe ; PB-126 — READ CAPACITY rend 196 607, READ et WRITE
+hors du disque rendent 05/21h d'emblée, READ(10) et WRITE(10) de longueur 0 et MODE SELECT(6) de longueur 0 rendent
+GOOD sans phase de données, le disque est gardé au reset matériel, puis 06/29h (§ 9.6 : à toute commande sauf INQUIRY ;
+REQUEST SENSE la rapporte et l'efface ; elle recouvre le 28h de PCem). START STOP UNIT, inconnu sur le lecteur
+d'Iomega, est détaché en PB-274, reproduit. Chacune a son cas en C# seul (`MaterielCasZip.cs`, sur le banc de
+`r9-zip` : l'ami486 et le lecteur ZIP sur une image vierge creuse) ; les deux sont verts dans les deux modes, la sonde
+atteinte ; chacun rougit sous `--attendu materiel`. `recensement` vert (274 défauts, 1 140 marqueurs). En mode
+matériel, `r9-zip` n'atteint plus ses gardes (les corrections les évitent) : il ne tourne qu'en mode PCem, comme
+`r9-atapi` depuis G13.7c2 (le commentaire de `ModeOutils.cs` le dit).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137d1.py`) : onze fautes, chacune rougit son cas — `data_in` ou `data_out`
+non prolongé, l'extension relue nulle (PB-125) ; la capacité, un secteur de trop, la longueur nulle, MODE SELECT(6)
+vide, le disque perdu au reset, sans l'attention 29h, INQUIRY qui rend l'attention, REQUEST SENSE en erreur (PB-126).
+Le témoin, sans faute, est vert.
+
+**La contre-lecture** (Sonnet, SFF-8070i et SCSI-2 relues) : rien de bloquant, cinq points à corriger, quatre
+remarques, tous traités. Corrigés : la citation du struct C (les lignes 50-51 de `scsi_zip.c`, non 31-32) ; « PCem n'en
+garde que 1 024 » pour un WRITE — 512, `data_out` seul ; le cas de PB-125 ne voyait pas un décalage d'index — un motif
+qui varie d'un mot à l'autre, des secteurs entiers comparés aux frontières (511, 512, 1 099) et dans le READ de 1 100
+secteurs (le 1 000, dans la zone du reliquat, et le 1 050) ; des commentaires dépassés (START STOP UNIT, désormais
+PB-274 ; `ModeOutils.cs` sur `r9-zip`). Repris : l'attention 29h n'était rendue qu'aux commandes qui vérifient le
+lecteur — à toutes sauf INQUIRY, REQUEST SENSE la rapportant (§ 9.6), avec un cas ; écrits dans PCEM_BUGS : les tables
+de SFF-8070i pour 05/21h, la protection en écriture avant la plage, VERIFY, SEEK et FORMAT UNIT non jugés, les
+extensions non remises à zéro, le 28h recouvert d'un disque chargé entre le reset et la première commande. Vérifiés
+justes : chaque accès converti au tableau `io`, les bornes R9 égales à celles du C, l'ajout à ZIPBANC (le secteur 550
+dans la zone de `data_out`, couvert par la somme), les index des extensions, la reprise sans double fermeture (et
+sans effet à la mise sous tension : `zip_load` vient après le reset).
+
+**M2** (Release du worktree ; un scénario neuf dans `tools/listings-jit.sh`, `ami486-zip` : l'ami486 et le lecteur ZIP
+sur une image vierge créée creuse dans le bac à sable, les programmes de G13.7c sous DEBUG — READ CAPACITY, WRITE(10)
+d'un secteur, READ(10) et READ(6) de ce secteur, relu `5A A5` — : `scsi_zip_command`, `scsi_add_data`,
+`scsi_get_data`, `scsi_zip_read`, `scsi_zip_write`, `scsi_zip_init` compilées). Le reliquat change le code du ZIP en
+mode PCem, voulu : M0 ne peut pas servir de témoin. La preuve que les gardes se plient vient d'une seconde capture,
+d'un build identique dont les douze gardes `pb_125` et `pb_126` sont retirées de `scsi_zip.cs` (`M2-7d1-sansgardes`) :
+la première comparaison a trouvé `scsi_zip_command` changée — la garde de PB-125, posée dans le repli de
+`scsi_add_data`, en grossissait l'IL, et l'inliner, qui juge la taille avant de plier la garde, ne l'inlinait plus que
+10 fois au lieu de 46. Le repli R9 de `scsi_add_data` et de `scsi_get_data` est passé, dans les deux modes, dans deux
+méthodes à part en `NoInlining` (`entree_debordee`, `sortie_debordee`), qui portent la garde ; recapturé : le scénario
+`ami486-zip`, avec et sans les gardes, identique (964 méthodes, aucune changée). Contre M2-7c4 : les constructeurs
+statiques de `materiel` et de `ModeMateriel`, et `zip_eject` et le lambda de `FiletImages` qui lit `zip_data.hdd` —
+le reliquat, la place des champs du ZIP changée par le tableau `io`. Les contrôles négatifs rejoués après le
+déplacement, et une douzième faute (la garde de `sortie_debordee` retirée) : rouges.
+
+**La série** g7d1 (le worktree de l'étape, contre g7c4) : 552 portes, toutes vertes ; 548 communes à g7c4, chacune au
+même verdict ; deux résumés changent, `bd-ami486-zip-banc` (ZIPBANC étendu : 3 073 octets écrits par l'invité dans C:)
+et `recensement` (274 défauts, 1 140 marqueurs). Quatre neuves : les `materiel-cas` de PB-125 et PB-126, dans les deux
+modes.

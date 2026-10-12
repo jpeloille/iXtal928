@@ -408,6 +408,10 @@ elif ZIP:
     S += PACKET_OUT512(CDB(0x2A, 0, 0, 0, 0, 100, 0, 0, 1), SECT100)              # WRITE(10), LBA 100
     S += PACKET_OUT512(CDB(0x0A, 0, 0, 101, 1), SECT101)                           # WRITE(6), LBA 101
     S += PACKET(READ10(100, 2), 16)                               # READ(10) des deux secteurs écrits
+    S += PACKET_OUT512(CDB(0x2A, 0, 0, 0, 0x02, 0x26, 0, 0, 1), SECT101)          # WRITE(10), LBA 550 (G13.7d1)
+    S += PACKET(READ10(0, 600))                                   # READ(10) de 600 secteurs : data_in déborde dans
+                                                                  # data_out (le reliquat de G11, G13.7d1) ; la somme
+                                                                  # tournante couvre le secteur 550
     S += PACKET(CDB(0x08, 0, 0, 101, 1), 8)                       # READ(6) du secteur 101
     S += PACKET(READ10(0, 1), 8)                                  # le secteur 0 : nul
     S += PACKET(READ10(196608, 1), 8)                             # au-delà de la fin : le tampon d'avant (PB-126)
@@ -420,7 +424,7 @@ elif ZIP:
     S += PACKET(CDB(0x00, 0x20))                                  # TEST UNIT READY sur la LUN 1 : refusé
     S += PACKET(SENSE, 18)                                        # ILLEGAL REQUEST, 25h
     S += PACKET(CDB(0xD8))                                        # un code inconnu
-    S += PACKET(CDB(0x1B, 0, 0, 0, 2))                            # START STOP UNIT, LOEJ = 1 : n'éjecte pas (PB-126)
+    S += PACKET(CDB(0x1B, 0, 0, 0, 2))                            # START STOP UNIT, LOEJ = 1 : n'éjecte pas (PB-274)
     S += PACKET(TUR)                                              # GOOD
     S += PACKET(CDB(0x1B, 0, 0, 0, 0))                            # START STOP UNIT, START = LOEJ = 0 : éjecte
     S += PACKET(TUR)                                              # NOT READY

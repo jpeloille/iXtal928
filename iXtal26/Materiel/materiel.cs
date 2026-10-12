@@ -195,6 +195,12 @@ internal static class materiel
     /// <summary>PB-123 : l'audio en LBA compte les 150 secteurs de l'amorce, comme la position du lecteur.</summary>
     internal static readonly bool pb_123;
 
+    /// <summary>PB-125 : le lecteur ZIP transfère au-delà de 512 Ko.</summary>
+    internal static readonly bool pb_125;
+
+    /// <summary>PB-126 : le ZIP — la capacité, la fin du disque, les longueurs nulles, le disque gardé au reset.</summary>
+    internal static readonly bool pb_126;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -444,6 +450,8 @@ internal static class materiel
         pb_273 = ModeMateriel.Demande(273);
         pb_122 = ModeMateriel.Demande(122);
         pb_123 = ModeMateriel.Demande(123);
+        pb_125 = ModeMateriel.Demande(125);
+        pb_126 = ModeMateriel.Demande(126);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

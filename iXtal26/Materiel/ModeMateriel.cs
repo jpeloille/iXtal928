@@ -86,6 +86,8 @@ internal static class ModeMateriel
         new(120, "stockage", "la TOC brute a ses points A0h, A1h, A2h et sa longueur"),
         new(122, "stockage", "le lead-out de la TOC porte ADR 1 et le contrôle de la dernière piste"),
         new(123, "stockage", "l'audio CD en LBA : l'adresse et la position du lecteur à 150 secteurs près"),
+        new(125, "stockage", "le lecteur ZIP transfère au-delà de 512 Ko"),
+        new(126, "stockage", "le ZIP : la capacité, la fin du disque, les longueurs nulles, le disque gardé au reset"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(169, "processeur", "DIV et IDIV lèvent INT 0 sur un quotient hors capacité"),
         new(170, "processeur", "DAA compare l'AL d'origine à 99h, ou à 9Fh si AF valait 1"),

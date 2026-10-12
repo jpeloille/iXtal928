@@ -3,7 +3,7 @@
 //
 // r9-zip — les sites où PCem déborde ou s'arrête dans le lecteur ZIP (G10.6), en C# SEUL.
 //
-// PB-125 : data_in écrit sans borne (scsi_zip.c:209) et lu sans borne (:979) ; data_out lu au-delà (:222-224) et
+// PB-125 : data_in écrit sans borne (scsi_zip.c:209) et lu sans borne (:979), au-delà des deux tampons contigus ; data_out lu au-delà (:222-224) et
 // écrit au-delà (:985-990) ; le secteur hors de l'image, ou d'un LBA de 2^31 et plus, qui envoie une taille négative
 // à fread et fwrite (hdd_file.c:179, :212). Chaque site est nommé, « fichier.c:ligne », et atteint par un scénario
 // de l'invité : les ports de l'unité IDE 2 (170h-177h) conduits depuis l'outil, sur un ami486 amorcé, le lecteur ZIP
@@ -35,21 +35,22 @@ internal static class R9Zip
             File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = ide\n" +
                                    $"zip_channel = 2\nzip_path = {img}\n");
 
-            bad += Essai("scsi_zip.c:209", "READ(10) de 600 secteurs : data_in débordé à l'écriture", romsPath, cfg, () =>
+            // Au-delà des deux tampons contigus (2 × 256 Ko, G13.7d1) : 1 100 secteurs.
+            bad += Essai("scsi_zip.c:209", "READ(10) de 1 100 secteurs : data_in et data_out débordés à l'écriture", romsPath, cfg, () =>
             {
-                if (!Paquet(Read10(0, 600)))
+                if (!Paquet(Read10(0, 1100)))
                     return "le paquet devait partir";
                 var lus = Donnees(100);
                 var f = Fin(lus);
-                return lus == 600 * 512 && (f.st & 1) == 0 ? null : $"ATTENDU 307 200 octets et GOOD : {Dit(f)}";
+                return lus == 1100 * 512 && (f.st & 1) == 0 ? null : $"ATTENDU 563 200 octets et GOOD : {Dit(f)}";
             });
             bad += Essai("scsi_zip.c:979", "READ(10) de longueur nulle : la lecture ne finit pas, l'invité insiste", romsPath, cfg, () =>
             {
                 if (!Paquet(Read10(0, 0)))
                     return "le paquet devait partir";
-                // La phase de données ne finit jamais (PB-126) : 300 000 octets lus, au-delà des 262 144 de data_in.
+                // La phase de données ne finit jamais (PB-126) : 600 000 octets lus, au-delà des 524 288 des deux tampons.
                 var lus = 0;
-                for (var b = 0; b < 8 && lus < 300000; b++)
+                for (var b = 0; b < 16 && lus < 600000; b++)
                 {
                     var n = Bloc();
                     if (n <= 0)
