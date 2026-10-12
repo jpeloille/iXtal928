@@ -449,6 +449,52 @@ comprises.
   bancs (ATAPIBANC, ZIPBANC, AHABANC) en C# seul, avec leurs attendus du mode matériel ; des témoins inter-modes (les
   mêmes images formatées dans les deux modes, identiques) ; trois ou quatre séries.
 
+#### G13.7, le plan détaillé — *proposé et validé le 12/10 (« Je valide les recommandations »)*
+
+**Q12, tranchée par Julien le 12/10** (« je veux que l'on fasse ce que le vrai matériel fait ») : en mode matériel, le
+comportement documenté du matériel au lieu du repli de R9 — les transferts complets du CD (PB-115), du ZIP (PB-125) et
+du disque SCSI (PB-128), READ LONG et WRITE LONG du WD1003 (PB-76), les commandes 0Ch, 1Ch, 1Dh, 20h et 21h de
+l'AHA-1542C (PB-135) ; le repli reste où il est déjà le comportement du matériel (PB-73, 113), où ce comportement est
+inconnu (PB-75, 114), et pour les fichiers de l'hôte (PB-110, 116, la configuration de PB-135). Le reliquat de
+PLAN-G11.md (les tampons du ZIP au régime de `scsi_hd`, la fidélité du mode PCem) entre dans G13.7.
+
+Cinq étapes, chacune avec ses cas `hw-*` en C# seul (chaque attendu sourcé à sa norme), ses contrôles négatifs, sa
+contre-lecture, M2, sa série entière et son commit :
+- **G13.7a — La disquette et le MFM.** PB-14 (le débit de 300 kbit/s), PB-19 (la surcharge d'une écriture en PIO, deux
+  sites), PB-22 (FORMAT TRACK du Xebec part du secteur 0), PB-23 (le bit d'unité de l'octet de fin), PB-25 (la borne
+  des têtes), PB-217 (le sense du Xebec et son adresse) ; les dix-sept `fatal()` de protocole du Xebec, sous R9, dans
+  les deux modes, par l'*IBM Fixed Disk Adapter* (Q4 de D3-stockage) ; PB-76, READ LONG et WRITE LONG, 512 octets et
+  les 4 de l'ECC — si le code ECC du WD1003 n'est pas documenté au bit près, PB-76 reste au repli (dit). Restent
+  reproduits : PB-28 (le DTC 5150X, inconnu), PB-75 (l'unité 1 absente, inconnu).
+- **G13.7b — L'IDE.** PB-71 et PB-216 (l'IRQ du canal secondaire, et `ide_irq_update` qui baisse une ligne encore
+  tenue : une seule fonction), PB-74 (VERIFY, tous les secteurs et les registres de fin, ATA-1). PB-73 est déjà le
+  comportement du disque ; PB-72 : Q6.
+- **G13.7c — Le CD.** Le moteur d'images (PB-106, le mode 2 à 2 336 octets ; PB-108, INDEX 00 ; PB-109, l'échec
+  collant ; PB-122, le lead-out de la TOC) ; l'ATAPI et l'audio (PB-117, READ CAPACITY ; PB-119, MODE SELECT ; PB-120,
+  la TOC brute ; PB-123, l'audio en LBA ; PB-214 et 215, PLAY AUDIO MSF) ; PB-115, les transferts complets. Le jeu de
+  commandes : Q5. Restent au repli : PB-113 (déjà celui du lecteur), PB-114 (inconnu), PB-110 et 116 (les fichiers).
+- **G13.7d — Le ZIP et le disque SCSI.** PB-125 (les transferts complets, une adresse hors du disque en CHECK
+  CONDITION, 05/21h), PB-126 (la capacité, la fin du disque, les phases à longueur nulle ; START STOP UNIT reste
+  reproduit, inconnu sur le lecteur d'Iomega), PB-128 (les transferts complets, jusqu'à 65 535 blocs), PB-129 (la
+  capacité, le bloc de trop), PB-130 (MODE SENSE), PB-131 (REQUEST SENSE, INQUIRY, les refus ; FORMAT UNIT reste simulé),
+  PB-132 côté cible (la phase vide) ; le reliquat de G11 (les tampons du ZIP au régime de `scsi_hd`, en mode PCem :
+  vérifié contre l'oracle, ZIPBANC).
+- **G13.7e — L'AHA-1542C.** PB-132 côté carte (HRST), PB-133 (le LUN par IDENTIFY), PB-135 (les cinq commandes du TR),
+  PB-137 (le sense automatique), PB-139 (ABORT), PB-140 (RETURN SETUP DATA entier), PB-141 (les mailbox), PB-144 (la
+  longueur et les réglages d'usine ; la traduction CHS et les 24 bits, déduits), PB-136 et 138 dans leurs bornes,
+  PB-218 (le drapeau de RETURN EEPROM). Restent reproduits : la réentrance de PB-142, PB-143, le CCB en vol sous
+  SCRST, l'IRQ de code 7 (inconnus). Les réglages d'usine : Q8.
+
+**Les questions de D3-stockage, tranchées par Julien le 12/10 sur ces propositions** :
+- **Q5 (G13.7c)** — les commandes que la norme du lecteur de 1996 n'a pas (GET EVENT STATUS NOTIFICATION, MODE
+  SELECT/SENSE(6)) : les refuser comme un lecteur SFF-8020i, ou les servir selon MMC-2 comme un lecteur de 1998 ? Les
+  modèles de PCem vont d'un 4x (vers 1995) à un 72x (vers 1999). *Validé : selon l'année du modèle choisi.*
+- **Q6 (G13.7b)** — PB-72, une écriture pendant un reset : ATA-1 n'en dit rien et ATA-3 se contredit. Proposé : le
+  laisser reproduit (inconnu, décision n° 14). *Validé.*
+- **Q8 (G13.7e)** — sans EEPROM écrite, les réglages d'usine du TR (ID 7, DMA 5, IRQ 11) au lieu de ceux de PCem (ID 7,
+  DMA 7, IRQ 10) ; et un fichier `nvr` de la carte par mode, ou partagé ? Proposé : les réglages d'usine, et un
+  fichier par mode (une EEPROM écrite dans un mode ne doit pas changer l'autre). *Validé.*
+
 ### G13.8 — Le son
 
 - Le DSP 8 bits et l'ADPCM (PB-90, 91 ; 146 et l'octet de référence ; la coupure de PB-147 ; 149 ; l'état du DSP au
