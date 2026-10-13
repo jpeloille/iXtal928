@@ -194,6 +194,7 @@ internal static class ModeMateriel
         new(278, "stockage", "le CCB de l'AHA-1542C : les bits de sens (12h, aucun transfert), les 24 bits, l'ID de l'hôte"),
         new(279, "stockage", "la commande BIOS 03h de l'AHA-1542C : le secteur CHS compté à partir de 1"),
         new(284, "son", "les tables ADPCM 2 bits et 2,6 bits du DSP, et le troisième échantillon du 2,6 bits"),
+        new(285, "son", "une IRQ du DSP levée sur la ligne déjà haute ne repose pas la demande au PIC : le 8259 la prend sur un front"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

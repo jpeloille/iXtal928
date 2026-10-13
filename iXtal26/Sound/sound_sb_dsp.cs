@@ -237,6 +237,10 @@ internal static partial class sound_sb_dsp
                 dsp.sb_irq8 = 1;
         else
                 dsp.sb_irq16 = 1;
+        // pcem bug, fixed in hardware mode: PB-285 — la demande posée au PIC à chaque levée, même quand la ligne est
+        //   déjà haute (une autre source pendante, ou celle-ci non acquittée) : après l'INTA, elle redemande
+        //   l'interruption, quand le 8259 de l'AT, sur front, n'en verrait pas de nouvelle. Corrigé en tête des états
+        //   qui lèvent : sb_irq, que le JIT inline dans pollsb, ne porte pas de garde.
         // pcem bug, reproduced: PB-92 — l'IRQ 10 que propose la configuration (sound_sb.c) tombe,
         //   sur une machine sans second PIC, dans le `num <= 0xff` de picint (pic.c:302-308) :
         //   perdue, sans un mot. Comme sur la carte : l'IRQ 10 n'est que sur la rallonge de 36
@@ -973,10 +977,18 @@ internal static partial class sound_sb_dsp
                 sb_add_data(dsp, dsp.sb_test);
                 break;
         case 0xF2: /*Trigger 8-bit IRQ*/
+                // pcem bug, fixed in hardware mode: PB-285 — l'IRQ reposée au PIC, la ligne déjà haute.
+                if (materiel.pb_285)
+                        if (leve_materiel(dsp, 1))
+                                break;
                    //                pclog("Trigger IRQ\n");
                 sb_irq(dsp, 1);
                 break;
         case 0xF3: /*Trigger 16-bit IRQ*/
+                // pcem bug, fixed in hardware mode: PB-285 — de même.
+                if (materiel.pb_285)
+                        if (leve_materiel(dsp, 0))
+                                break;
                    //                pclog("Trigger IRQ\n");
                 sb_irq(dsp, 0);
                 break;
@@ -1463,6 +1475,10 @@ internal static partial class sound_sb_dsp
                         if (materiel.pb_239)
                                 if (fin_file_materiel(dsp, 1))
                                         return;
+                        // pcem bug, fixed in hardware mode: PB-285 — l'IRQ du bloc reposée au PIC, la ligne déjà haute.
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 1, dsp.output_timer))
+                                        return;
                         if (dsp.sb_8_autoinit != 0)
                                 dsp.sb_8_length = dsp.sb_8_autolen;
                         else {
@@ -1527,6 +1543,10 @@ internal static partial class sound_sb_dsp
                         if (materiel.pb_239)
                                 if (fin_file_materiel(dsp, 0))
                                         return;
+                        // pcem bug, fixed in hardware mode: PB-285 — de même.
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 0, dsp.output_timer))
+                                        return;
                         //                        pclog("16DMA over %i\n",dsp->sb_16_autoinit);
                         if (dsp.sb_16_autoinit != 0)
                                 dsp.sb_16_length = dsp.sb_16_autolen;
@@ -1540,6 +1560,11 @@ internal static partial class sound_sb_dsp
         if (dsp.sb_pausetime > -1) {
                 dsp.sb_pausetime--;
                 if (dsp.sb_pausetime < 0) {
+                        // pcem bug, fixed in hardware mode: PB-285 — l'IRQ de la pause reposée au PIC, la ligne déjà
+                        //   haute.
+                        if (materiel.pb_285)
+                                if (pause_fin_materiel(dsp))
+                                        return;
                         sb_irq(dsp, 1);
                         if (dsp.sb_8_enable == 0)
                                 timer_disable(dsp.output_timer);
@@ -1596,6 +1621,10 @@ internal static partial class sound_sb_dsp
                 }
 
                 if (dsp.sb_8_length < 0) {
+                        // pcem bug, fixed in hardware mode: PB-285 — l'IRQ du bloc reposée au PIC, la ligne déjà haute.
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 1, dsp.input_timer))
+                                        return;
                         //                        pclog("Input DMA over %i\n",sb_8_autoinit);
                         if (dsp.sb_8_autoinit != 0)
                                 dsp.sb_8_length = dsp.sb_8_autolen;
@@ -1653,6 +1682,10 @@ internal static partial class sound_sb_dsp
                 }
 
                 if (dsp.sb_16_length < 0) {
+                        // pcem bug, fixed in hardware mode: PB-285 — de même.
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 0, dsp.input_timer))
+                                        return;
                         //                        pclog("16iDMA over %i\n",sb_16_autoinit);
                         if (dsp.sb_16_autoinit != 0)
                                 dsp.sb_16_length = dsp.sb_16_autolen;

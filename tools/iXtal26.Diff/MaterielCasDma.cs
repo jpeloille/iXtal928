@@ -16,14 +16,15 @@ namespace iXtal26.Diff;
 internal static partial class MaterielCas
 {
     /// <summary>Le canal 5 du 8237 haut : <paramref name="compte"/> + 1 mots depuis <paramref name="adresse"/>, en
-    /// lecture de la mémoire, simple ou automatique ; le canal 4 en cascade, comme Dma1.</summary>
-    private static void Dma5(uint adresse, int compte, bool auto)
+    /// lecture de la mémoire (la sortie) ou en écriture (l'entrée), simple ou automatique ; le canal 4 en cascade, comme
+    /// Dma1.</summary>
+    private static void Dma5(uint adresse, int compte, bool auto, bool entree = false)
     {
         io.outb(0xd6, 0xc0);
         io.outb(0xd4, 0x00);
         io.outb(0xd4, 0x05);
         io.outb(0xd8, 0);
-        io.outb(0xd6, (byte)(0x49 | (auto ? 0x10 : 0)));
+        io.outb(0xd6, (byte)((entree ? 0x45 : 0x49) | (auto ? 0x10 : 0)));
         io.outb(0xc4, (byte)(adresse >> 1));
         io.outb(0xc4, (byte)(adresse >> 9));
         io.outb(0x8b, (byte)((adresse >> 16) & 0xfe));

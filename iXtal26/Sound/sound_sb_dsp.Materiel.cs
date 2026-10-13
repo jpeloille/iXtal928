@@ -56,6 +56,8 @@ internal static partial class sound_sb_dsp
             internal bool mpu;
             /// <summary>Le reset du DSP rejoué pendant que le MPU tient la ligne (PB-238) : il ne la baisse pas.</summary>
             internal bool reset_ligne;
+            /// <summary>L'IRQ du PIC sur laquelle la ligne de la carte est montée, à son dernier front (PB-285).</summary>
+            internal int ligne;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -616,12 +618,12 @@ internal static partial class sound_sb_dsp
                         return true;
                 }
                 e.r6 = w;
-                sb_irq(dsp, 1);
+                irq_materiel(dsp, 1);
                 return true;
         }
         dsp.sb_8_enable = 0;
         timer_disable(dsp.output_timer);
-        sb_irq(dsp, 1);
+        irq_materiel(dsp, 1);
         return true;
     }
 
@@ -643,7 +645,7 @@ internal static partial class sound_sb_dsp
         if (attente == ATTENTE_DONNEE)
                 decode_materiel(dsp, e);
         else if (attente == ATTENTE_RECHARGE)
-                sb_irq(dsp, 1);
+                irq_materiel(dsp, 1);
         return true;
     }
 
@@ -722,7 +724,7 @@ internal static partial class sound_sb_dsp
                 if (e.file8 < 0)
                         return false;
                 file_reprise_materiel(dsp, e);
-                sb_irq(dsp, 1);
+                irq_materiel(dsp, 1);
                 return true;
         }
         if (e.file16 < 0)
@@ -731,7 +733,7 @@ internal static partial class sound_sb_dsp
         dsp.sb_16_length = e.file16;
         dsp.sb_16_autoinit = 0;
         e.file16 = -1;
-        sb_irq(dsp, 0);
+        irq_materiel(dsp, 0);
         return true;
     }
 
@@ -927,7 +929,7 @@ internal static partial class sound_sb_dsp
                         dsp.sb_16_enable = 0;
                         timer_disable(dsp.output_timer);
                 }
-                sb_irq(dsp, 0);
+                irq_materiel(dsp, 0);
         }
         return true;
     }
@@ -979,7 +981,7 @@ internal static partial class sound_sb_dsp
                         dsp.sb_16_enable = 0;
                         timer_disable(dsp.input_timer);
                 }
-                sb_irq(dsp, 0);
+                irq_materiel(dsp, 0);
         }
         return true;
     }
@@ -1043,9 +1045,12 @@ internal static partial class sound_sb_dsp
     internal static void mpu_leve_materiel(sb_dsp_t dsp)
     {
         bool tenue = ligne_tenue_materiel(dsp);
-        etat_materiel(dsp).mpu = true;
-        if (!tenue)
-            Models.pic.picint((uint16_t)(1 << dsp.sb_irqnum));
+        var e = etat_materiel(dsp);
+        e.mpu = true;
+        if (tenue)
+            return;
+        e.ligne = dsp.sb_irqnum;
+        Models.pic.picint((uint16_t)(1 << dsp.sb_irqnum));
     }
 
     /// <summary>PB-154 : la lecture de 330h efface l'IRQ du MPU (guide, p. 5-9 et 2-5) ; la ligne retombe si aucune
@@ -1066,4 +1071,87 @@ internal static partial class sound_sb_dsp
     /// <summary>PB-154 : l'IRQ du MPU pendante, pour 82h.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static bool mpu_pendante_materiel(sb_dsp_t dsp) => etat_materiel(dsp).mpu;
+
+    // ===== G13.8d4 — le re-front : une IRQ levée sur la ligne déjà haute =====
+
+    /// <summary>PB-285 : la ligne de la carte est déjà haute sur l'IRQ du PIC qu'elle tient (une source pendante, celle
+    /// qui se lève comprise) : la levée ne fait pas de front, et le 8259 de l'AT, sur front (ICW1, LTIM = 0), ne voit
+    /// pas de demande neuve (déduit). Faux sinon : la levée de PCem, un front, la ligne notée montée sur l'IRQ en cours.
+    /// L'IRQ changée par 80h pendant que la ligne est haute : la levée de PCem sur la nouvelle (la carte,
+    /// inconnue).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool ligne_haute_materiel(sb_dsp_t dsp)
+    {
+        var e = etat_materiel(dsp);
+        if (ligne_tenue_materiel(dsp) && e.ligne == dsp.sb_irqnum)
+            return true;
+        e.ligne = dsp.sb_irqnum;
+        return false;
+    }
+
+    /// <summary>PB-285 : F2h et F3h, en tête de leurs cases, et les levées du mode matériel (irq_materiel) : la ligne
+    /// déjà haute, l'IRQ 8 ou 16 bits posée, sans demande au PIC. Vrai : la levée est faite.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool leve_materiel(sb_dsp_t dsp, int irq8)
+    {
+        if (!ligne_haute_materiel(dsp))
+            return false;
+        ModeMateriel.Sonde[285]++;
+        if (irq8 != 0)
+            dsp.sb_irq8 = 1;
+        else
+            dsp.sb_irq16 = 1;
+        return true;
+    }
+
+    /// <summary>La levée des corrections du mode matériel : celle de PCem (sb_irq), ou, sous PB-285, sans demande au
+    /// PIC quand la ligne est déjà haute.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void irq_materiel(sb_dsp_t dsp, int irq8)
+    {
+        if (materiel.pb_285 && leve_materiel(dsp, irq8))
+            return;
+        sb_irq(dsp, irq8);
+    }
+
+    /// <summary>PB-285 : en tête de l'état « fin de bloc » de `pollsb` et de `sb_poll_i`, 8 et 16 bits : la ligne déjà
+    /// haute, le bloc de PCem (rechargé, ou fini et la minuterie <paramref name="minuterie"/> arrêtée), puis l'IRQ sans
+    /// demande au PIC. Vrai : le tic rend la main, comme PB-239 — l'autre largeur, dans le même sens, est éteinte
+    /// (sb_start_dma et sb_start_dma_i l'ont coupée), la pause de 80h ne court pas pendant un transfert, et le tic
+    /// d'entrée a traité son octet.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool fin_bloc_materiel(sb_dsp_t dsp, int dma8, pc_timer_t minuterie)
+    {
+        if (!ligne_haute_materiel(dsp))
+            return false;
+        if (dma8 != 0) {
+                if (dsp.sb_8_autoinit != 0)
+                        dsp.sb_8_length = dsp.sb_8_autolen;
+                else {
+                        dsp.sb_8_enable = 0;
+                        timer_disable(minuterie);
+                }
+        } else {
+                if (dsp.sb_16_autoinit != 0)
+                        dsp.sb_16_length = dsp.sb_16_autolen;
+                else {
+                        dsp.sb_16_enable = 0;
+                        timer_disable(minuterie);
+                }
+        }
+        leve_materiel(dsp, dma8);
+        return true;
+    }
+
+    /// <summary>PB-285 : la fin de la pause de 80h, en tête de son état : la ligne déjà haute, l'IRQ 8 bits sans demande
+    /// au PIC, puis la minuterie arrêtée sans transfert 8 bits, comme PCem. Vrai : la fin est faite.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool pause_fin_materiel(sb_dsp_t dsp)
+    {
+        if (!leve_materiel(dsp, 1))
+            return false;
+        if (dsp.sb_8_enable == 0)
+            timer_disable(dsp.output_timer);
+        return true;
+    }
 }

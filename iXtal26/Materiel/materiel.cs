@@ -306,6 +306,9 @@ internal static class materiel
     /// <summary>PB-238 : la ligne d'IRQ partagée de la SB 16 ; 2xEh n'acquitte que l'IRQ 8 bits.</summary>
     internal static readonly bool pb_238;
 
+    /// <summary>PB-285 : une IRQ du DSP levée sur la ligne déjà haute ne repose pas la demande au PIC (le front).</summary>
+    internal static readonly bool pb_285;
+
     /// <summary>PB-158 : WC et les registres courants de l'EMU8000 avancent à la lecture.</summary>
     internal static readonly bool pb_158;
 
@@ -601,6 +604,7 @@ internal static class materiel
         pb_153 = ModeMateriel.Demande(153);
         pb_154 = ModeMateriel.Demande(154);
         pb_238 = ModeMateriel.Demande(238);
+        pb_285 = ModeMateriel.Demande(285);
         pb_158 = ModeMateriel.Demande(158);
         pb_159 = ModeMateriel.Demande(159);
         pb_160 = ModeMateriel.Demande(160);

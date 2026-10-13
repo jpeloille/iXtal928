@@ -3177,7 +3177,8 @@ et de `mpu401_uart_read`) ; 82h la montre au bit 2 (`irq_etat_materiel`, en têt
 monter que si aucune autre source ne la tenait, et retomber à la lecture de 330h que si aucune ne la tient plus (la
 ligne partagée, déduit ; les acquits du DSP sont ceux de PB-238). Reste celui de PCem : 80h changé pendant que le MPU
 est pendant, la ligne baissée est la nouvelle et l'ancienne reste au PIC, comme pour les IRQ du DSP (la carte,
-inconnue). `materiel-cas PB-154` : 3Fh (IRR à 1 et 82h=04, contre rien), FFh hors du mode UART, 3Fh en mode UART
+inconnue) ; de même, le MPU qui se lève sur la ligne qu'une source du DSP tient ne la monte pas, l'IRQ changée par 80h
+ou non (PB-285 la compare pour le DSP). `materiel-cas PB-154` : 3Fh (IRR à 1 et 82h=04, contre rien), FFh hors du mode UART, 3Fh en mode UART
 (331h=80h, rien à lire, contre 00h), FFh en mode UART, l'AWE32, 80h=02h puis 3Fh (l'IRQ 5), 3Fh puis 2xEh (82h=04 ; la
 ligne tenue avec PB-238, baissée sans lui) ; les témoins 3Fh puis 330h lu, F3h ou F2h et 3Fh puis 330h lu (le DSP
 tient la ligne), et la MIDI en mode UART ; la correction coupée, il rougit.
@@ -5196,9 +5197,8 @@ en tête de la case), 2xFh que la 16 bits (`lit_2xf_materiel`) ; l'une et l'autr
 aucune source ne la tient plus, le MPU compris. Le reset du DSP efface ses deux IRQ, mais ne baisse pas la ligne que le
 MPU tient (`reset_ligne_materiel`, en tête de `sb_dsp_reset` : le reset rejoué, l'IRQ de la carte hors du PIC). Élargi
 en G13.8d2 : 2xFh et le reset baissent aussi la ligne que le MPU tient ; sans PB-154, le MPU ne lève rien, et ces deux
-sites rendent ce que rend PCem. Reste celui de PCem : une IRQ du DSP levée pendant que la ligne est déjà tenue repose
-le bit dans IRR, quand une ligne sur front ne remonterait pas (déduit) ; `sb_irq`, que le JIT inline dans `pollsb`, ne
-peut pas porter de garde. `materiel-cas PB-238` : F2h et F3h puis 2xEh (82h=00 et IRR à 0, contre 82h=02 et IRR à 1),
+sites rendent ce que rend PCem. Une IRQ du DSP levée pendant que la ligne est déjà tenue, qui reposait le bit dans
+IRR : PB-285 (G13.8d4). `materiel-cas PB-238` : F2h et F3h puis 2xEh (82h=00 et IRR à 0, contre 82h=02 et IRR à 1),
 F3h puis 2xEh ; F2h, F3h et 3Fh, puis 2xEh, 2xFh et 330h lus un à un (la ligne tenue jusqu'au dernier acquit ; sans
 PB-154, jusqu'à 2xFh) ; sous PB-154 aussi, 3Fh, F3h puis 2xFh, 3Fh, F2h, F3h puis le reset, et 3Fh, 34h puis le reset
 (sous PB-240, le reset « chaud ») : la ligne que le MPU tient, 82h=04 ; les témoins F2h puis 2xEh, F2h et F3h puis 2xFh, les deux acquittés, et le reset sans le MPU ; la correction
@@ -6237,6 +6237,47 @@ hasard, rend les tables corrigées identiques au micrologiciel) :
 modèle des deux décodeurs rend les tables corrigées identiques au micrologiciel sur 20 000 flux. `materiel-cas PB-284`
 (77h sur 80h et 6Dh ; 77h sur trois 6Ch ; 17h sur 55h, 54h) : 94h, 54h et 94h en mode PCem, 90h, 57h et 9Eh en mode
 matériel ; la correction coupée, il rougit.
+
+### PB-285 — Une IRQ du DSP levée sur la ligne déjà haute repose la demande au PIC
+
+`sound_sb_dsp.c:107-114` (`sb_irq`) : chaque levée pose le drapeau de sa source et appelle `picint(1 << sb_irqnum)`,
+qui pose le bit dans IRR (`pic.c:298-311`), que la ligne de la carte soit déjà haute ou non. Les sites : F2h et F3h
+(`:606-613`), la fin d'un bloc en sortie, 8 et 16 bits (`pollsb`, `:1036-1044`, `:1088-1096`), la fin de la pause de
+80h (`:1099-1106`), la fin d'un bloc en entrée, 8 et 16 bits (`sb_poll_i`, `:1167-1175`, `:1235-1243`).
+*Effet* : une source qui se lève pendant qu'une autre tient la ligne (le 16 bits pendant le 8 bits, ou le MPU sous
+PB-154), ou la même source levée de nouveau sans acquit (l'automatique dont le gestionnaire n'a pas lu 2xEh), redemande
+l'interruption : après l'INTA, qui a effacé IRR, la ligne toujours haute, PCem la rend une seconde fois au processeur.
+Le programme qui oublie un acquit reçoit chez PCem une interruption par bloc ; sur la carte, il n'en reçoit plus
+aucune. Le gestionnaire de la SB 16 qui n'acquitte qu'une source sur deux est servi de nouveau chez PCem ; sur la carte,
+la seconde source attend, la ligne haute, qu'il lise 82h.
+*Trouvé par* : G13.8d2 (la ligne partagée : la levée sans front, que `sb_irq`, inliné, ne pouvait pas corriger ;
+remonté à Julien, ouvert en étape G13.8d4 le 14/10).
+*Source* : le 8259A de l'AT est programmé sur front (ICW1, LTIM = 0, posé par le BIOS) : une demande est un front
+montant d'IR, et la ligne qui reste haute après l'INTA n'en fait pas de nouveau — déduit de la fiche d'Intel, comme
+PB-216. La ligne de la carte haute tant qu'une source est pendante, jusqu'à son acquit (2xEh, 2xFh, 330h) : le guide de
+Creative, p. 2-5, déduit (PB-238).
+*Cas qui discrimine* : SB 16, l'IRQ 7 seule démasquée ; F2h, l'INTA (IRR effacé, ISR posé), puis F2h sans lire 2xEh :
+PCem repose IRR (IRR7 = 1) ; la carte, la ligne restée haute, non (IRR7 = 0).
+*G13* : (a) — le front du 8259A ; la ligne tenue, celle de PB-238.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, `sb_irq`, et en tête de chaque état qui lève (F2h, F3h, les
+quatre fins de bloc de `pollsb` et `sb_poll_i`, la fin de la pause), marqueurs PB-285.
+*Corrigé en mode matériel* (G13.8d4) : sous `if (materiel.pb_285)`, en tête de chaque état qui lève —
+`Sound/sound_sb_dsp.Materiel.cs`. La ligne est haute quand une source la tient (`ligne_tenue_materiel`, le OU du 8
+bits, du 16 bits et du MPU de PB-238) sur l'IRQ où elle est montée (`EtatDsp.ligne`, notée à chaque front, celui du MPU
+compris) ; la levée pose alors sa source sans demande au PIC (`leve_materiel` en tête de F2h et de F3h ;
+`fin_bloc_materiel` en tête des quatre fins de bloc : le bloc de PCem, rechargé ou fini, puis la source ;
+`pause_fin_materiel` en tête de la fin de pause). Ligne basse : la levée de PCem, un front. Le tic rend la main après
+la fin de bloc, comme PB-239 : l'autre largeur, dans le même sens, est éteinte (`sb_start_dma` et `sb_start_dma_i` la
+coupent). Les levées des autres corrections du DSP (PB-234, PB-235, PB-239, PB-153) passent par `irq_materiel`, la
+levée de PCem ou, sous PB-285, la même. `sb_irq` reste sans garde : le JIT l'inline dans `pollsb`. L'IRQ changée par
+80h pendant que la ligne est haute reste celle de PCem dans les deux modes : la levée suivante monte la nouvelle (la
+carte, inconnue). Sous PB-154 sans PB-238, 2xEh, 2xFh et le reset de PCem baissent au PIC la ligne que le MPU tient
+encore : une levée du DSP n'y fait pas de front jusqu'à la lecture de 330h, comme sur la carte, où la ligne ne
+retombe pas ; PB-238 rend la combinaison entière. `materiel-cas PB-285` : F2h, l'INTA, puis F2h ; puis F3h ; la SB 2.0, F2h deux fois ; F3h ou F2h,
+l'INTA, puis un bloc de quatre octets ou de quatre mots, en sortie et en entrée, et la pause de 80h ; la SB 2.0, le bloc
+qui reprend la commande en file (sous PB-239, `irq_materiel`) ; IRR7 = 1 en mode PCem, 0 en mode matériel ; sous PB-154,
+3Fh au MPU, l'INTA, puis F2h ; les témoins F2h, 2xEh puis F2h, avec et sans l'INTA (un front neuf), F2h, l'INTA, le
+reset du DSP puis F2h, et 80h changé pendant que la ligne est haute ; la correction coupée, il rougit.
 
 ## B. Comportement indéfini en C
 

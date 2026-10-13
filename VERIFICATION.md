@@ -11125,3 +11125,65 @@ DEBUG, qui ne lit que l'octet bas).
 **La série** g8f (le worktree de l'étape, contre g8d2) : 641 portes, toutes vertes ; 635 communes à g8d2, chacune au
 même verdict ; un seul résumé change, `recensement` (284 défauts, 1 217 marqueurs, vingt-quatre de moins qu'à g8d2).
 Six neuves : les `materiel-cas` de PB-158, de PB-159 et de PB-160, chacun en mode PCem et sous son PB seul.
+
+## G13.8d4 — le front de la ligne d'IRQ des Sound Blaster
+
+Le 14 octobre 2026. Une étape ouverte à la demande de Julien (le 14/10), sur le point remonté par 8d2 : une IRQ du DSP
+levée pendant que la ligne de la carte est déjà haute reposait la demande au PIC. Un défaut neuf, PB-285 ; la source :
+le 8259A de l'AT sur front (ICW1, LTIM = 0), déduit comme pour PB-216, et la ligne tenue jusqu'à l'acquit (guide de
+Creative, p. 2-5, déduit, PB-238).
+
+**La correction du mode matériel** (domaine `son`, une ; les aides en fin de `Sound/sound_sb_dsp.Materiel.cs`, l'IRQ du
+dernier front dans `EtatDsp.ligne`). Sept gardes, chacune en tête d'un état qui lève : F2h et F3h (`leve_materiel`), les
+quatre fins de bloc de `pollsb` et de `sb_poll_i` (`fin_bloc_materiel` : le bloc de PCem, rechargé ou fini, puis la
+source), la fin de la pause de 80h (`pause_fin_materiel`). La ligne haute — une source pendante, le 8 bits, le 16 bits
+ou le MPU de PB-154, sur l'IRQ où elle est montée —, la levée pose sa source sans demande au PIC ; basse, la levée de
+PCem, un front. Le tic rend la main après la fin de bloc, comme PB-239 : l'autre largeur, dans le même sens, est éteinte
+par `sb_start_dma` et `sb_start_dma_i`, la pause ne court pas pendant un transfert, et l'entrée a traité son octet. Les
+huit levées des autres corrections du DSP (PB-234, PB-235, PB-239, PB-153) passent par `irq_materiel`. `sb_irq`, que le
+JIT inline dans `pollsb`, reste sans garde, son marqueur dit où la correction se fait. 80h changé pendant que la ligne
+est haute : la levée suivante monte la nouvelle IRQ, comme chez PCem (la carte, inconnue).
+
+**Les cas**, en C# seul (`MaterielCasFront.cs`, neuf ; l'INTA jouée à la main, l'IRQ 7 seule démasquée puis
+`picinterrupt`, la demande vérifiée à IRR et le vecteur rendu ; `Dma5` prend l'entrée), verts en mode PCem, sous PB-285
+seul, sous « tout », sous PB-239 et PB-285, sous PB-154, PB-238 et PB-285, et sous PB-154 seul ; rouges sous l'attente de
+l'autre mode (neuf sur quatorze). Après F2h et l'INTA : F2h, F3h ; la SB 2.0, F2h deux fois ; F3h ou F2h et l'INTA, puis
+un bloc de quatre octets ou de quatre mots, en sortie (14h, B0h) et en entrée (24h, B8h), et la pause de 80h ; la SB
+2.0, un second 14h mis en file, le bloc repris par `irq_materiel` sous PB-239 : IRR7 = 1 en mode PCem, 0 en mode
+matériel, 82h et la fin du transfert les mêmes. Sous PB-154, 3Fh au MPU, l'INTA, puis F2h (82h = 05h, IRR7 0 contre 1).
+Témoins : F2h, 2xEh puis F2h, avec et sans l'INTA ; F2h, l'INTA, le reset du DSP puis F2h (la ligne retombée, un front
+neuf) ; F2h, l'INTA, 80h = 02h puis F2h (IRR5 = 1 dans les deux modes).
+
+**Le recensement** : vert, 285 défauts au registre, 1 225 marqueurs (huit de plus : `sb_irq` et les sept gardes).
+
+**Les contrôles négatifs** (/tmp/a9/neg-8d4.py, dans l'arbre, chaque faute restaurée) : quinze fautes, chacune rougit son
+cas — chacune des sept gardes retirée ; `irq_materiel` toujours par PCem (sous PB-239 et PB-285, et sous « tout ») ;
+`ligne_haute_materiel` sans l'IRQ du dernier front (le témoin de 80h) ; `leve_materiel` sans la source ;
+`fin_bloc_materiel` sans la fin du bloc simple ; `mpu_leve_materiel` sans noter la ligne (sous « tout ») ;
+`pause_fin_materiel` sans arrêter la minuterie ; et les attentes inversées (neuf échecs en mode PCem et sous PB-285) ;
+le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : chaque aide refait le code de PCem qu'elle remplace ; le retour anticipé ne saute rien (les deux largeurs
+exclusives dans un sens, la pause exclusive d'un transfert, `processed` et le mode direct de l'entrée) ; le modèle de la
+ligne avec PB-285 seul, avec PB-238 et avec PB-154 ; le reset rejoué de PB-238 sans interférence ; aucun site de levée
+oublié (`sb_irq` n'est appelé que par les sept états gardés et par `irq_materiel`) ; les lignes de PCem citées.
+Repris : l'INTA du banc vérifie la demande à IRR et le vecteur ; un témoin du reset du DSP ; l'attendu du cas du MPU
+suit PB-154 (juste sous PB-154 seul) ; l'entrée dit que sous PB-154 sans PB-238, la ligne que PCem a baissée au PIC
+mais que le MPU tient encore ne fait pas de front jusqu'à 330h, comme sur la carte ; la section de VERIFICATION écrite
+avant le commit. Laissé, dit dans l'entrée de PB-154 : le MPU qui lève après un changement de 80h ne compare pas l'IRQ
+du dernier front (la carte, inconnue).
+
+**M2** (Release du worktree ; les scénarios `ami486-sb16`, `ami486-adpcm` et `ami486-dma`, qui jouent les commandes, le
+tic de sortie et le tic d'entrée) : avec et sans les sept gardes, identique (969 méthodes, aucune changée). Contre M2-8f
+(tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init` (les jetons de chaînes) ; aucune méthode apparue ni disparue.
+
+**Les amorçages** (Release du worktree, bac à sable hors dépôt ; /tmp/a9/boots-8d4.sh) : la SB 16 sous DEBUG — F2h deux
+fois, IRR relu ; le canal 1 du 8237, F3h puis 14h de seize octets (la fin de bloc, la ligne haute) ; F3h puis une pause
+de 80h ; 82h, IRR, les acquits —, en mode PCem, sous PB-285 et sous « tout » : aucun arrêt, les écrans identiques
+(l'IRQ 7 reste masquée par le BIOS : aucune INTA, la différence ne se voit qu'au banc).
+
+**La série** g8d4 (le worktree de l'étape, contre g8f) : 645 portes, toutes vertes ; 641 communes à g8f, chacune au même
+verdict ; un seul résumé change, `recensement` (285 défauts, 1 225 marqueurs, huit de plus qu'à g8f). Quatre neuves :
+les `materiel-cas` de PB-285, en mode PCem, sous PB-285 seul, avec PB-239 et avec PB-154 et PB-238.

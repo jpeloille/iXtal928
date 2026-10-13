@@ -1703,9 +1703,8 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
 - **L'émulateur.** PCem efface les deux sources du son à la lecture de 2xEh, et baisse la ligne : le programme qui
   joue du 8 bits et du 16 bits à la fois perd l'interruption 16 bits.
 - **La correction.** 2xEh n'acquitte que le 8 bits ; la ligne ne retombe, à 2xEh, à 2xFh ou au reset du DSP, que
-  quand plus aucune source ne la tient. Reste celui de PCem : une source qui se lève pendant que la ligne est déjà
-  haute redemande l'interruption, quand le vrai PC, qui la détecte sur un front, n'en verrait pas de nouvelle
-  (déduit).
+  quand plus aucune source ne la tient. Une source qui se lève pendant que la ligne est déjà haute : G13.8d4,
+  PB-285.
 
 ### PB-154 — l'interruption du MPU-401
 
@@ -1750,3 +1749,22 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
 - **La correction.** HWCF3 n'est que ce que le programme y écrit : sans initialisation, l'AWE32 se tait, comme la
   carte. Le reste de ce que PCem assume dans la synthèse (les enveloppes, les effets, l'interpolation) reste le sien :
   ce sont ses modèles, et le guide ne décrit pas ceux de la puce.
+
+## G13.8d4 — le front de la ligne d'interruption des Sound Blaster
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8d4.*
+
+### PB-285 — une ligne déjà haute ne redemande rien
+
+- **Le vrai PC.** Le contrôleur d'interruptions de l'AT prend une demande sur un front : la ligne qui monte. La ligne
+  de la Sound Blaster reste haute tant qu'une source n'est pas acquittée. Une source qui se lève pendant ce temps
+  (le 16 bits pendant le 8 bits, ou le même bloc qui finit encore sans acquit) ne fait pas de front : le processeur
+  n'en apprend rien, et le programme doit lire 82h et acquitter chaque source (déduit, de la fiche du 8259A et du
+  guide de Creative).
+- **L'émulateur.** PCem redemande l'interruption à chaque levée. Un programme qui oublie un acquit reçoit quand même
+  une interruption par bloc, quand la vraie carte se tait après la première ; le gestionnaire qui n'acquitte qu'une
+  source sur deux est rappelé.
+- **La correction.** Une levée sur la ligne déjà haute pose sa source, que 82h montre, sans demande au contrôleur.
+  Une ligne basse qui monte fait sa demande, comme chez PCem. Si le programme change l'interruption de la carte
+  (80h) pendant que la ligne est haute, la carte ne dit pas ce qui se passe : la levée suivante monte la nouvelle
+  ligne, comme chez PCem.
