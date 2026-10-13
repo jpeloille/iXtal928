@@ -10848,3 +10848,79 @@ même verdict ; un seul résumé change, `recensement` (284 défauts, 1 218 marq
 `materiel-cas` de PB-90, PB-91, PB-146, PB-234, PB-235 et PB-284, chacun en mode PCem, sous son PB seul et sous les
 six ensemble. Une première tentative avait échoué à la préparation : le quota de /tmp plein (les restes des séries
 passées, supprimés depuis).
+
+## G13.8c1 — les commandes de DMA du DSP
+
+Le 13 octobre 2026. La troisième étape du son (PLAN-G13.md, § G13.8), la première moitié de 8c : PB-155 (le registre
+de fréquence du 4.05) attend la réponse de Julien à Q15, et viendra en 8c2. Les sources : le guide de Creative (p.
+3-16, 6-8, 6-23 et 6-24) ; les micrologiciels 2.02 (`cmd_dac_dma`, `cmd_dac_adpcm`, les reprises X011f, X0186,
+X0206 et X0286), 3.02 (`cmd_dac_dma`), 4.05 (`cmd_dma8`, `cmd_dma16`, `X051a`, `dma_dac1_normal`) et 4.13
+(`dma_dac1_normal`).
+
+**Les corrections du mode matériel** (domaine `son`, deux ; l'aide dans `Sound/sound_sb_dsp.Materiel.cs` ; la file,
+8 et 16 bits, dans `EtatDsp`). PB-149 — `commande_dsp4_materiel`, en tête des quatre groupes de cas B0h à CFh :
+l'octet de mode réduit à ses bits 4 et 5. PB-239 — la même aide, et `dma8_file_materiel` en tête de 14h,
+`adpcm_commande_materiel` en tête de 16h, 17h et 74h à 77h : une sortie en simple cycle reçue pendant un transfert de
+sortie de la même largeur (tout transfert hors pause sur les DSP 1.05 à 3.xx ; un automatique sur la SB 16 et
+l'AWE32) va en file, sa longueur seule (sur le 4.05, B0h à CFh en file efface l'automatique) ; `fin_file_materiel`, en tête des deux états « fin de bloc » de `pollsb`, et le tic ADPCM de
+PB-234 : l'IRQ du bloc fini, puis le bloc en file, sans automatique ; `file_reset_materiel`, en tête de
+`sb_dsp_reset` ; `sortie_auto_materiel`, en tête de DAh : sur les DSP 1.05 à 3.xx, le bloc en cours finit le
+transfert, file comprise. `sb_start_dma` n'a pas de garde. Le transfert compte comme en cours si sa minuterie tourne : PCem
+laisse `sb_8_enable` à 1 après un reset. Restent comme chez PCem : une commande de l'autre sens pendant un transfert ;
+une commande automatique pendant un transfert (les deux relancent) ; 1Ch après DAh (le 2.02 laisse finir).
+
+**Les modèles** de 8b (/tmp/a9/m8b/ticks.py), étendus à la file (le mode matériel et `Fw`, le vecteur du 2.02, où
+une commande reçue pendant un transfert pose `length` et `dma_mode_on`) : toujours d'accord sur les 4 000 scénarios
+de 8b ; le cas ADPCM de PB-239 en vient (les IRQ aux 66e et 82e tics, 40 octets pris, sous « tout » ; le
+micrologiciel rend les mêmes).
+
+**Les cas**, en C# seul (`MaterielCasDma.cs`, neuf ; le canal 5 du 8237 haut pour le 16 bits ; le tic joué à la main
+seulement si sa minuterie tourne — `pollsb` la relancerait, ce qu'aucune machine ne fait), verts en mode PCem, sous
+leur PB seul et sous « tout » ; rouges sous l'attente de l'autre mode (PB-149 : quatre situations sur cinq, un
+témoin ; PB-239 : neuf sur quatorze, cinq témoins). PB-149 (SB 16) : C0h 04h 0Fh 00h (aucune IRQ chez PCem, au 16e tic sur
+la carte) ; C0h 01h (au 32e tic chez PCem, de l'ADPCM) ; B0h 14h en 16 bits ; C8h 04h à l'entrée ; le témoin C0h 10h.
+PB-239 : 48h FFh 00h, 1Ch, puis 14h 0Fh 00h au 17e tic (l'IRQ au 32e chez PCem, aux 256e et 272e sur la carte), sur
+la SB 2.0 et sur la SB 16 ; 14h pendant 14h (la SB 2.0 en file, aux 64e et 80e ; la SB 16 relance, le témoin) ; C6h
+puis C0h 10h (le bloc en file reste non signé : 8000h contre 0000h) ; B6h puis B0h en 16 bits ; 74h pendant 74h
+(composé avec 8b) ; le témoin du reset (une file en attente, un reset, puis 48h 07h 00h et 1Ch, qui ne passe pas par
+la file : l'IRQ tous les 8 tics) ; le témoin du transfert arrêté par un reset, que la 14h suivante relance (PCem
+laisse `sb_8_enable` à 1 : l'IRQ au 28e tic des deux côtés) ; D0h puis 14h (la SB 2.0 relance, le témoin ; la SB 16
+met en file, et le bloc repris par D4h finit d'abord : 269 et 285) ; DAh puis 14h, et 14h puis DAh, sur la SB 2.0 (256
+contre 32) ; deux C0h sur la SB 16 (la seconde part de neuf, le témoin). Le cas ADPCM de PB-239 se joue aussi sous les six de 8b et
+PB-239 ensemble. Les cas du son de 8a et 8b, et ceux du stockage, restent verts sous « tout ».
+`recensement` vert (284 défauts, 1 237 marqueurs).
+
+**Les contrôles négatifs** (/tmp/a9/neg-g138c1.py, hors dépôt) : le témoin sans faute vert dans les quatre
+vérifications ; 16 fautes, chacune rougit son cas — les bits 0 à 3 gardés, la garde de B0h à B7h retirée, l'entrée non
+masquée (PB-149) ; la SB 2.0 sans file en simple cycle, pas de file en 16 bits, la longueur en file décalée, la reprise
+8 bits retirée, la file gardée au reset, l'ADPCM sans file, le tic ADPCM du DSP sans reprise, B0h à CFh sans file, la
+minuterie ignorée, la file pendant une pause du 2.02, DAh sans effet sur la file, B0h à CFh en file qui garde
+l'automatique, la fin de bloc 8 bits qui ignore DAh (PB-239 ; la minuterie ignorée et la fin de bloc qui ignore DAh ne
+rougissaient d'abord aucun cas : le témoin du reset suivi d'une 14h, et 14h puis DAh, ont été ajoutés).
+
+**La contre-lecture** (Sonnet ; PCem, les cinq micrologiciels et les cas relus) : un bloquant, repris — sur les DSP
+2.0x et 3.xx, D0h relâche la broche d'activation du DMA (`cmdg_misc` ; le 3.02, `setb t0`), et une commande reçue
+pendant la pause part de neuf : la file ne se pose plus en pause sur ces DSP (le 4.05, qui teste `dma8_mode`, la pose).
+Repris aussi : DAh sur les DSP 1.05 à 3.xx, qui termine le transfert file comprise (`autoinit_exit`, testé avant
+`dma_mode_on` ; une garde en tête de DAh) ; B0h à CFh mise en file sur le 4.05, qui efface l'automatique (`X051a`), la
+commande suivante partant de neuf ; la file des deux largeurs effacée à tout départ neuf ; la phrase sur la file d'une
+largeur à l'autre (le 4.05 a un drapeau par largeur ; reste PCem : une sortie reçue pendant une entrée automatique,
+sur le même `dma8_mode`) ; le cas ADPCM de PB-239 joué aussi avec les six de 8b dans la série ; les cas de la pause,
+de DAh (dans les deux ordres) et des deux C0h. Vérifié juste : le mode PCem intact, les deux `return` de `pollsb`, la
+reprise (X011f, X0186, X0206, X0286), le bloc de 48h gardé en file et posé au départ neuf, le masque 30h de PB-149
+dans les deux sens, le canal 5 du banc, les numéros de lignes.
+
+**M2** (Release du worktree ; le scénario `ami486-dma`, neuf dans `tools/listings-jit.sh` : la SB 16 sous DEBUG, le
+canal 1 et le canal 5 en automatique, 48h, 1Ch puis 14h, C6h puis C0h, C8h à l'entrée, B6h puis B0h, chacun arrêté
+par un reset) : avec et sans les dix-neuf gardes de 8c1 (`ami486-sb16`, `ami486-adpcm` et `ami486-dma`), identique
+(969 méthodes, aucune changée). Contre M2-8b (tous les scénarios) : les constructeurs statiques de `materiel` et de
+`ModeMateriel`, et `process_scsi`, `scsi_hd_command` et `scsi_zip_command` (des constantes de `mov`, les jetons de
+chaînes) ; `sb_poll_i` et `sb_start_dma_i` apparaissent, le scénario neuf jouant l'entrée.
+
+**Les amorçages.** Le scénario `ami486-dma` joué en mode PCem, sous PB-149, sous PB-239 et sous « tout » (Release du
+worktree, bac à sable hors dépôt) : aucun arrêt, l'écran le même dans les quatre (seule la bannière du mode change).
+
+**La série** g8c1 (le worktree de l'étape, contre g8b) : 619 portes, toutes vertes ; 614 communes à g8b, chacune au
+même verdict ; un seul résumé change, `recensement` (284 défauts, 1 237 marqueurs). Cinq neuves : les `materiel-cas`
+de PB-149 et de PB-239, chacun en mode PCem et sous son PB seul, et celui de PB-239 sous les six PB de l'ADPCM avec
+lui (`materiel-cas-pb239-adpcm`).

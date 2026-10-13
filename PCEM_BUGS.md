@@ -3054,6 +3054,12 @@ PCem ne bouge plus (`sb_8_length` reste à 0Fh, aucune IRQ) ; la carte joue 16 o
 *G13* : (a).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-149 (B0h, B8h, C0h, C8h, et le `switch` 16 bits de `pollsb`) ;
 SB16BANC passe C0h en mode 01h.
+*Corrigé en mode matériel* (G13.8c1) : sous `if (materiel.pb_149)`, en tête des quatre groupes de cas B0h à B7h, B8h
+à BFh, C0h à C7h et C8h à CFh (`Sound/sound_sb_dsp.Materiel.cs`, `commande_dsp4_materiel`) : l'octet de mode réduit à
+ses bits 4 et 5, puis la commande de PCem (le départ, le bloc posé par la longueur, comme le `dma8_block_len` du
+4.05). Le `switch` 16 bits de `pollsb` et `sb_poll_i` ne voient plus que 00h à 30h. `materiel-cas PB-149` : C0h 04h
+(aucune IRQ chez PCem, au 16e tic sur la carte), C0h 01h (de l'ADPCM chez PCem, l'IRQ au 32e), B0h 14h en 16 bits, C8h
+04h à l'entrée ; le témoin C0h 10h ; la correction coupée, il rougit.
 
 ### PB-150 — La fréquence 0 de 41h et 42h fige l'hôte
 
@@ -5113,12 +5119,35 @@ la commande, quand le 4.05 garde l'ancien.
 *Trouvé par* : reconnaissance de G13 (D5, N11 ; contre-lecture C14, K5).
 *Source* : guide de Creative, p. 6-8 (1Ch : « The DSP will, at the end of the current block transfer, exit auto-init
 mode and process the new DMA mode I/O command ») et p. 3-16 ; micrologiciels 4.05 (`v405-8k_e51aff23.asm:1003-1012`,
-l'octet de mode jeté `:1005-1006` ; `:2623-2634`) et 2.02 (`sbv202.asm:1519-1530`, `:1618-1631`). Documenté.
+l'octet de mode jeté `:1005-1006` ; `:2623-2634`), 4.13 (`dma_dac1_normal`, `:2910-2920`), 2.02 (`sbv202.asm:1519-1530`,
+`:1618-1631` ; la reprise, X011f, X0186, X0206, X0286) et 3.02 (`cmd_dac_dma`, `:1131-1143`). Documenté pour ces quatre ;
+déduit pour les 1.05, 2.00, 2.01 et 3.00.
 *Cas qui discrimine* : SB 16 (ou 2.0), 48h FFh 00h puis 1Ch (des blocs de 100h), puis, après 10h octets, 14h 0Fh 00h :
 PCem lève l'IRQ au 20h-ième octet ; la carte finit le bloc (l'IRQ au 100h-ième), puis joue les 10h octets (au
 110h-ième).
 *G13* : (a) — documenté ; le 2.02 met aussi en file pendant un simple cycle, le 4.05 pendant un automatique seulement.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_start_dma`, marqueur PB-239.
+*Corrigé en mode matériel* (G13.8c1) : sous `if (materiel.pb_239)`, en tête des cas 14h, 16h, 17h, 74h à 77h et B0h
+à CFh (`file_materiel`) : une sortie en simple cycle reçue pendant un transfert de sortie de la même largeur — tout
+transfert hors pause sur les DSP 1.05 à 3.xx (D0h relâche la broche d'activation du DMA, `cmdg_misc` : la commande
+part alors de neuf) ; un automatique, en pause ou non, sur la SB 16 et l'AWE32 (un drapeau par largeur, `dma8_mode`,
+`dma16_mode`) — n'en part pas : sa longueur va en file, son format est ignoré (le vecteur du DSP ne change pas ; le
+4.05 jette l'octet de mode), le bloc de 48h reste. Une seconde commande remplace la longueur, sauf après B0h à CFh
+sur le 4.05, qui efface l'automatique (`X051a`) : la suivante part de neuf. En tête de l'état « fin de bloc » de
+`pollsb`, 8 et 16 bits (`fin_file_materiel`), et dans le tic ADPCM de PB-234 : l'IRQ du bloc fini, puis le bloc en
+file, sans automatique (2.02 X011f, X0186, X0206, X0286). En tête de DAh (`sortie_auto_materiel`) : sur les DSP 1.05
+à 3.xx, le bloc en cours finit le transfert, file comprise (`autoinit_exit`, testé avant `dma_mode_on`) ; le 4.05
+reprend la file. Le transfert compte comme en cours si sa minuterie tourne (PCem laisse `sb_8_enable` à 1 après un
+reset) ; le reset efface la file (en tête de `sb_dsp_reset`), et un départ neuf aussi, des deux largeurs.
+`sb_start_dma`, peut-être inliné, ne porte pas de garde. Reste PCem : une commande de l'autre sens pendant un
+transfert (le 2.02 la met en file sur le vecteur en cours ; le 4.05, sur le même `dma8_mode`, met en file une sortie
+reçue pendant une entrée automatique) ; une commande automatique pendant un transfert, qui relance des deux côtés ;
+1Ch après DAh, que le 2.02 laisse finir (il n'efface pas `autoinit_exit`). `materiel-cas PB-239` : 48h FFh 00h, 1Ch,
+puis 14h au 17e tic (l'IRQ au 32e chez PCem, aux 256e et 272e sur la carte, SB 2.0 et SB 16) ; 14h pendant 14h (la
+SB 2.0 en file, la SB 16 relance, le témoin) ; C6h puis C0h 10h (le bloc en file reste non signé) ; B6h puis B0h en
+16 bits ; 74h pendant 74h, composé avec 8b ; D0h puis 14h (la SB 2.0 relance, le témoin ; la SB 16 met en file, et
+D4h reprend le bloc) ; DAh puis 14h, et 14h puis DAh, sur la SB 2.0 (256 contre 32) ; deux C0h sur la SB 16 (le témoin) ; les deux
+témoins du reset ; la correction coupée, il rougit.
 
 ### PB-240 — La MIDI de la SB n'existe pas : l'octet MIDI devient une commande
 

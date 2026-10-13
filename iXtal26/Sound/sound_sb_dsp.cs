@@ -256,6 +256,9 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:123-157
     internal static void sb_dsp_reset(sb_dsp_t dsp)
     {
+        // pcem bug, fixed in hardware mode: PB-239 — la commande mise en file part avec le transfert.
+        if (materiel.pb_239)
+                file_reset_materiel(dsp);
         // pcem bug, fixed in hardware mode: PB-241 — le reset reçu en grande vitesse est « chaud » : le bloc gardé.
         if (materiel.pb_241)
                 if (reset_chaud_materiel(dsp, 241))
@@ -359,8 +362,9 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:201-230
     internal static void sb_start_dma(sb_dsp_t dsp, int dma8, int autoinit, uint8_t format, int len)
     {
-        // pcem bug, reproduced: PB-239 — la commande relance sur-le-champ ; pendant un automatique, le DSP
-        //   finit d'abord le bloc en cours (le 2.02 aussi pendant un simple cycle ; le 4.05 jette l'octet de mode).
+        // pcem bug, fixed in hardware mode: PB-239 — la commande relance sur-le-champ ; pendant un automatique, le DSP
+        //   finit d'abord le bloc en cours (le 2.02 aussi pendant un simple cycle ; le 4.05 jette l'octet de mode). Le
+        //   mode matériel met la commande en file en tête de ses cases (14h, 16h, 17h, 74h à 77h, B0h à CFh).
         dsp.sb_pausetime = -1;
         if (dma8 != 0) {
                 dsp.sb_8_length = len;
@@ -477,9 +481,19 @@ internal static partial class sound_sb_dsp
                 dsp.sbdat = dsp.sbdatl = dsp.sbdatr = (int16_t)((dsp.sb_data[0] ^ 0x80) << 8);
                 break;
         case 0x14: /*8-bit single cycle DMA output*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (dma8_file_materiel(dsp))
+                                break;
                 sb_start_dma(dsp, 1, 0, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x17: /*2-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -490,6 +504,11 @@ internal static partial class sound_sb_dsp
                 //                pclog("Ref byte 2 %02X\n",sbref);
                 goto case 0x16;
         case 0x16: /*2-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -596,6 +615,11 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_autolen = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
                 break;
         case 0x75: /*4-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -611,6 +635,11 @@ internal static partial class sound_sb_dsp
                 //                pclog("Ref byte 4 %02X\n",sbref);
                 goto case 0x74;
         case 0x74: /*4-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -630,6 +659,11 @@ internal static partial class sound_sb_dsp
                         dsp.sb_8_length--;
                 break;
         case 0x77: /*2.6-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -645,6 +679,11 @@ internal static partial class sound_sb_dsp
                 //                pclog("Ref byte 26 %02X\n",sbref);
                 goto case 0x76;
         case 0x76: /*2.6-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-239 — pendant un transfert, la commande relance au lieu d'aller en
+                //   file.
+                if (materiel.pb_239)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
                 //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
                 if (materiel.pb_234)
@@ -758,9 +797,17 @@ internal static partial class sound_sb_dsp
         case 0xB5:
         case 0xB6:
         case 0xB7: /*16-bit DMA output*/
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué à ses bits 4 et 5.
+                if (materiel.pb_149)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-239 — une sortie en simple cycle pendant un automatique relance.
+                if (materiel.pb_239)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB16)
                         break;
-                // pcem bug, reproduced: PB-149 — l'octet de mode (sb_data[0]) n'est pas masqué.
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode (sb_data[0]) n'est pas masqué.
                 sb_start_dma(dsp, 0, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_16_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
@@ -772,9 +819,17 @@ internal static partial class sound_sb_dsp
         case 0xBD:
         case 0xBE:
         case 0xBF: /*16-bit DMA input*/
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué à ses bits 4 et 5.
+                if (materiel.pb_149)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-239 — une sortie en simple cycle pendant un automatique relance.
+                if (materiel.pb_239)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB16)
                         break;
-                // pcem bug, reproduced: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
                 //   sb_poll_i n'a pas de case, ni fin ni IRQ.
                 sb_start_dma_i(dsp, 0, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_16_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
@@ -787,9 +842,17 @@ internal static partial class sound_sb_dsp
         case 0xC5:
         case 0xC6:
         case 0xC7: /*8-bit DMA output*/
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué à ses bits 4 et 5.
+                if (materiel.pb_149)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-239 — une sortie en simple cycle pendant un automatique relance.
+                if (materiel.pb_239)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB16)
                         break;
-                // pcem bug, reproduced: PB-149 — 01h à 03h prennent le chemin ADPCM, sur un sbdat2 et un sbref périmés.
+                // pcem bug, fixed in hardware mode: PB-149 — 01h à 03h prennent le chemin ADPCM, sur un sbdat2 et un sbref périmés.
                 sb_start_dma(dsp, 1, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_8_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
                 break;
@@ -801,9 +864,17 @@ internal static partial class sound_sb_dsp
         case 0xCD:
         case 0xCE:
         case 0xCF: /*8-bit DMA input*/
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué à ses bits 4 et 5.
+                if (materiel.pb_149)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-239 — une sortie en simple cycle pendant un automatique relance.
+                if (materiel.pb_239)
+                        if (commande_dsp4_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB16)
                         break;
-                // pcem bug, reproduced: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
+                // pcem bug, fixed in hardware mode: PB-149 — l'octet de mode n'est pas masqué : hors de 00h, 10h, 20h et 30h,
                 //   sb_poll_i n'a pas de case, ni fin ni IRQ.
                 sb_start_dma_i(dsp, 1, dsp.sb_command & 4, dsp.sb_data[0], dsp.sb_data[1] + (dsp.sb_data[2] << 8));
                 dsp.sb_8_autolen = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
@@ -858,6 +929,10 @@ internal static partial class sound_sb_dsp
                 dsp.sb_16_autoinit = 0;
                 break;
         case 0xDA: /*Exit 8-bit auto-init mode*/
+                // pcem bug, fixed in hardware mode: PB-239 — sur les DSP 1.05 à 3.xx, DAh termine aussi la commande en
+                //   file.
+                if (materiel.pb_239)
+                        sortie_auto_materiel(dsp);
                 dsp.sb_8_autoinit = 0;
                 break;
         case 0xE0: /*DSP identification*/
@@ -1374,6 +1449,11 @@ internal static partial class sound_sb_dsp
                 // pcem bug, fixed in hardware mode: PB-234 — en ADPCM, le bloc finit à la lecture de son dernier octet,
                 //   avant de le jouer (en simple cycle, jamais) ; le DSP 2.02 lève l'IRQ après son dernier échantillon.
                 if (dsp.sb_8_length < 0) {
+                        // pcem bug, fixed in hardware mode: PB-239 — la commande en file n'existe pas : le bloc fini
+                        //   recharge ou s'arrête.
+                        if (materiel.pb_239)
+                                if (fin_file_materiel(dsp, 1))
+                                        return;
                         if (dsp.sb_8_autoinit != 0)
                                 dsp.sb_8_length = dsp.sb_8_autolen;
                         else {
@@ -1425,11 +1505,15 @@ internal static partial class sound_sb_dsp
                         break;
                         //                        default:
                         //                                fatal("Unrecognised SB 16-bit format %02X\n",sb_16_format);
-                // pcem bug, reproduced: PB-149 — un format hors de 00/10/20/30 n'a pas de case : la longueur ne
+                // pcem bug, fixed in hardware mode: PB-149 — un format hors de 00/10/20/30 n'a pas de case : la longueur ne
                 //   bouge plus, aucune IRQ.
                 }
 
                 if (dsp.sb_16_length < 0) {
+                        // pcem bug, fixed in hardware mode: PB-239 — de même en 16 bits.
+                        if (materiel.pb_239)
+                                if (fin_file_materiel(dsp, 0))
+                                        return;
                         //                        pclog("16DMA over %i\n",dsp->sb_16_autoinit);
                         if (dsp.sb_16_autoinit != 0)
                                 dsp.sb_16_length = dsp.sb_16_autolen;

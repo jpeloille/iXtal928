@@ -285,6 +285,12 @@ internal static class materiel
     /// <summary>PB-284 : les tables ADPCM 2 bits et 2,6 bits du DSP, et le troisième échantillon du 2,6 bits.</summary>
     internal static readonly bool pb_284;
 
+    /// <summary>PB-149 : B0h à CFh du DSP 4.xx ne lisent que les bits 4 et 5 de l'octet de mode.</summary>
+    internal static readonly bool pb_149;
+
+    /// <summary>PB-239 : une sortie en simple cycle reçue pendant un transfert (un automatique, sur le 4.xx) va en file.</summary>
+    internal static readonly bool pb_239;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -564,6 +570,8 @@ internal static class materiel
         pb_234 = ModeMateriel.Demande(234);
         pb_235 = ModeMateriel.Demande(235);
         pb_284 = ModeMateriel.Demande(284);
+        pb_149 = ModeMateriel.Demande(149);
+        pb_239 = ModeMateriel.Demande(239);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

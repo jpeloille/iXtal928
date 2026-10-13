@@ -41,6 +41,12 @@ internal static partial class sound_sb_dsp
             /// <summary>L'octet que le DSP attend du 8237 (PB-235) : aucun, la référence, le premier octet, un octet
             /// de données, ou celui qui recharge un bloc automatique.</summary>
             internal int attente;
+            /// <summary>La longueur d'une commande en simple cycle mise en file pendant un transfert de sortie, 8 et 16
+            /// bits (PB-239) ; -1 sans file.</summary>
+            internal int file8 = -1, file16 = -1;
+            /// <summary>DAh reçue d'un DSP 1.05 à 3.xx (PB-239) : le bloc en cours finit le transfert, file comprise
+            /// (2.02 `autoinit_exit`, testé avant `dma_mode_on`).</summary>
+            internal bool sortie8;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -485,9 +491,11 @@ internal static partial class sound_sb_dsp
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool adpcm_commande_materiel(sb_dsp_t dsp)
     {
+        int len = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
+        if (dsp.sb_command is not (0x1F or 0x7D or 0x7F) && materiel.pb_239 && file_materiel(dsp, 1, len))
+                return true;
         if (!materiel.pb_234)
                 return adpcm_commande_pcem_materiel(dsp);
-        int len = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
         switch (dsp.sb_command) {
         case 0x16: return adpcm_depart_materiel(dsp, ADPCM_2, 0, len, false);
         case 0x17: return adpcm_depart_materiel(dsp, ADPCM_2, 0, len, true);
@@ -502,25 +510,26 @@ internal static partial class sound_sb_dsp
                                      1, len, false);
     }
 
-    /// <summary>PB-90 sans PB-234 : le départ de PCem (sound_sb_dsp.c, 74h à 77h, 7Dh, 7Fh), le premier octet de
-    /// données lu sans le drapeau de fin de compte ; la référence, tronquée à 8 bits, ne le gardait pas.</summary>
+    /// <summary>PB-90 et PB-239 sans PB-234 : le départ de PCem (sound_sb_dsp.c, 16h, 17h, 74h à 77h, 1Fh, 7Dh, 7Fh), le
+    /// premier octet de données lu sans le drapeau de fin de compte sous PB-90 ; la référence, tronquée à 8 bits, ne
+    /// le gardait pas.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool adpcm_commande_pcem_materiel(sb_dsp_t dsp)
     {
         int len = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
         int c = dsp.sb_command;
-        int format = c is 0x74 or 0x75 or 0x7D ? ADPCM_4 : ADPCM_26;
-        int autoinit = c is 0x7D or 0x7F ? 1 : 0;
+        int format = c is 0x74 or 0x75 or 0x7D ? ADPCM_4 : c is 0x76 or 0x77 or 0x7F ? ADPCM_26 : ADPCM_2;
+        int autoinit = c is 0x1F or 0x7D or 0x7F ? 1 : 0;
         if (autoinit != 0 && dsp.sb_type < SB15)
                 return false;
-        if (c is 0x75 or 0x77) {
+        if (c is 0x17 or 0x75 or 0x77) {
                 dsp.sbref = (uint8_t)lecture_adpcm_materiel(dsp);
                 dsp.sbstep = 0;
         }
         sb_start_dma(dsp, 1, autoinit, (uint8_t)format, len);
         dsp.sbdat2 = lecture_adpcm_materiel(dsp);
         dsp.sb_8_length--;
-        if (c is 0x75 or 0x77)
+        if (c is 0x17 or 0x75 or 0x77)
                 dsp.sb_8_length--;
         return true;
     }
@@ -585,8 +594,12 @@ internal static partial class sound_sb_dsp
                 decode_materiel(dsp, e);
                 return true;
         }
-        if (dsp.sb_8_autoinit != 0) {
+        if (sortie_fin_materiel(e))
+                dsp.sb_8_autoinit = 0;
+        else if (dsp.sb_8_autoinit != 0 || e.file8 >= 0) {
                 dsp.sb_8_length = dsp.sb_8_autolen;
+                if (e.file8 >= 0)
+                        file_reprise_materiel(dsp, e);
                 e.r3 = par_octet_materiel(dsp);
                 int w = lecture_adpcm_materiel(dsp);
                 if (attend_materiel(w)) {
@@ -622,6 +635,183 @@ internal static partial class sound_sb_dsp
                 decode_materiel(dsp, e);
         else if (attente == ATTENTE_RECHARGE)
                 sb_irq(dsp, 1);
+        return true;
+    }
+
+    // ===== G13.8c1 — l'octet de mode du DSP 4.xx, la commande mise en file =====
+
+    /// <summary>PB-239 : un transfert de sortie en cours, au sens du micrologiciel — 2.0x et 3.xx : tout transfert hors
+    /// pause (le 2.02 et le 3.02 testent la broche d'activation du DMA, `cmd_dac_dma`, `cmd_dac_adpcm`, que D0h relâche,
+    /// `cmdg_misc`) ; 4.05 et 4.13 : un automatique seulement, en pause ou non (`dma_dac1_normal`, `jnb dma8_mode` ;
+    /// B0h à CFh, `X051a` ; un drapeau par largeur, `dma16_mode`). Le transfert vit si sa minuterie tourne : après un
+    /// reset, PCem laisse `sb_8_enable` à 1.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool en_cours_materiel(sb_dsp_t dsp, int dma8)
+    {
+        if (!timer_is_enabled_materiel(dsp))
+                return false;
+        if (dma8 != 0)
+                return dsp.sb_8_enable != 0 && dsp.sb_8_output != 0 &&
+                       (dsp.sb_type < SB16 ? dsp.sb_8_pause == 0 : dsp.sb_8_autoinit != 0);
+        return dsp.sb_16_enable != 0 && dsp.sb_16_output != 0 && dsp.sb_16_autoinit != 0;
+    }
+
+    private static bool timer_is_enabled_materiel(sb_dsp_t dsp) => timer_is_enabled(dsp.output_timer) != 0;
+
+    /// <summary>PB-239 : une commande de sortie en simple cycle reçue pendant un transfert de sortie ne relance pas ;
+    /// sa longueur est mise en file (2.02 `:1519-1530`, `:1618-1631` ; 3.02 `:1131-1143` ; 4.05 `:2623-2634`,
+    /// `X051a`), le bloc en cours se finit dans son format (le vecteur du DSP ne change pas ; le 4.05 jette l'octet de
+    /// mode de B0h à CFh, et le bloc de 48h reste). Une autre commande de la même largeur, en file avant la fin,
+    /// remplace la longueur (sauf après B0h à CFh sur le 4.05 : `X051a` efface `dma8_mode`, la suivante part de neuf).
+    /// Après DAh, sur les DSP 1.05 à 3.xx, la commande est prise et perdue : le transfert finira avec le bloc. Rend true
+    /// si la commande est prise ; sinon, elle part de neuf, et les files, s'il en restait (un départ de l'autre largeur
+    /// coupe celle-ci), sont effacées.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool file_materiel(sb_dsp_t dsp, int dma8, int len)
+    {
+        var e = etat_materiel(dsp);
+        if (!en_cours_materiel(dsp, dma8)) {
+                file_reset_materiel(dsp);
+                return false;
+        }
+        ModeMateriel.Sonde[239]++;
+        if (dma8 != 0 && e.sortie8)
+                return true;
+        if (dma8 != 0)
+                e.file8 = len;
+        else
+                e.file16 = len;
+        return true;
+    }
+
+    /// <summary>PB-239 : 14h, en tête de son case.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool dma8_file_materiel(sb_dsp_t dsp) => file_materiel(dsp, 1, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
+
+    /// <summary>PB-239 : la reprise de la file à la fin du bloc — sa longueur, l'automatique coupé (2.02 X011f :
+    /// `clr dma_autoinit_on`, `len_left = length`).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void file_reprise_materiel(sb_dsp_t dsp, EtatDsp.Etat e)
+    {
+        ModeMateriel.Sonde[239]++;
+        dsp.sb_8_length = e.file8;
+        dsp.sb_8_autoinit = 0;
+        e.file8 = -1;
+    }
+
+    /// <summary>PB-239 : en tête de l'état « fin de bloc » de `pollsb`, 8 et 16 bits : avec une file, l'IRQ du bloc
+    /// fini, puis le bloc en file dans le même format, sans automatique. Rend true si la file est reprise (`pollsb`
+    /// rend alors la main : la sortie de l'autre largeur est éteinte, sb_start_dma l'a coupée, et la pause de 80h ne
+    /// court pas pendant un transfert).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool fin_file_materiel(sb_dsp_t dsp, int dma8)
+    {
+        var e = etat_materiel(dsp);
+        if (dma8 != 0) {
+                if (sortie_fin_materiel(e))
+                        return false;
+                if (e.file8 < 0)
+                        return false;
+                file_reprise_materiel(dsp, e);
+                sb_irq(dsp, 1);
+                return true;
+        }
+        if (e.file16 < 0)
+                return false;
+        ModeMateriel.Sonde[239]++;
+        dsp.sb_16_length = e.file16;
+        dsp.sb_16_autoinit = 0;
+        e.file16 = -1;
+        sb_irq(dsp, 0);
+        return true;
+    }
+
+    /// <summary>PB-149 et PB-239 : B0h à CFh (DSP 4.xx), en tête de leurs cases. Sous PB-149, l'octet de mode masqué à
+    /// ses bits 4 et 5 (guide, p. 6-23 ; 4.05 `cmd_dma8` et `cmd_dma16` ne testent qu'eux, `:1031-1039`,
+    /// `:1133-1141`). Sous PB-239, une sortie en simple cycle pendant un automatique de la même largeur va en file, le
+    /// bloc de 48h gardé ; sinon la commande de PCem, le bloc posé par la longueur (4.05, `dma8_block_len`).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool commande_dsp4_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type < SB16)
+                return false;
+        int c = dsp.sb_command;
+        int dma8 = (c & 0x40) != 0 ? 1 : 0;
+        int autoinit = c & 4;
+        int len = dsp.sb_data[1] + (dsp.sb_data[2] << 8);
+        int mode = dsp.sb_data[0];
+        if (materiel.pb_149 && (mode & ~0x30) != 0) {
+                ModeMateriel.Sonde[149]++;
+                mode &= 0x30;
+        }
+        if ((c & 8) != 0) {
+                sb_start_dma_i(dsp, dma8, autoinit, (uint8_t)mode, len);
+        } else {
+                if (autoinit == 0 && materiel.pb_239 && file_materiel(dsp, dma8, len)) {
+                        file_dsp4_materiel(dsp, dma8);
+                        return true;
+                }
+                sb_start_dma(dsp, dma8, autoinit, (uint8_t)mode, len);
+        }
+        if (dma8 != 0)
+                dsp.sb_8_autolen = len;
+        else
+                dsp.sb_16_autolen = len;
+        return true;
+    }
+
+    /// <summary>PB-239 : un départ neuf efface la file de sa largeur (sb_start_dma n'est pas gardé : le JIT
+    /// l'inline peut-être).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void file_effacee_materiel(sb_dsp_t dsp, int dma8)
+    {
+        var e = etat_materiel(dsp);
+        if (dma8 != 0)
+                e.file8 = -1;
+        else
+                e.file16 = -1;
+    }
+
+    /// <summary>PB-239 : le reset arrête le transfert ; la file part avec lui. En tête de sb_dsp_reset.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void file_reset_materiel(sb_dsp_t dsp)
+    {
+        file_effacee_materiel(dsp, 1);
+        file_effacee_materiel(dsp, 0);
+        etat_materiel(dsp).sortie8 = false;
+    }
+
+    /// <summary>PB-239 : B0h à CFh mise en file sur le 4.05 efface le drapeau de l'automatique (`X051a`, `clr dma8_mode` ;
+    /// `dma16_mode` en 16 bits) : le bloc en cours sera le dernier, et la commande suivante part de neuf.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void file_dsp4_materiel(sb_dsp_t dsp, int dma8)
+    {
+        if (dma8 != 0)
+                dsp.sb_8_autoinit = 0;
+        else
+                dsp.sb_16_autoinit = 0;
+    }
+
+    /// <summary>PB-239 : DAh, en tête de son case — sur les DSP 1.05 à 3.xx, le bloc en cours finira le transfert,
+    /// même avec une commande en file (2.02 `cmd_exit_autoinit` pose `autoinit_exit`, que les vecteurs testent avant
+    /// `dma_mode_on`). Le 4.05 reprend la file (`dma8_active` testé d'abord) : rien à noter.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void sortie_auto_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type >= SB16)
+                return;
+        ModeMateriel.Sonde[239]++;
+        etat_materiel(dsp).sortie8 = true;
+    }
+
+    /// <summary>PB-239 : à la fin du bloc, après DAh, le transfert s'arrête ; la file est perdue.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool sortie_fin_materiel(EtatDsp.Etat e)
+    {
+        if (!e.sortie8)
+                return false;
+        e.sortie8 = false;
+        e.file8 = -1;
         return true;
     }
 }

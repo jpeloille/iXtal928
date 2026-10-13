@@ -776,3 +776,10 @@ for pb in 90 91 146 234 235 284; do
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-adpcm --hardware-mode PB-90,PB-91,PB-146,PB-234,PB-235,PB-284 materiel-cas PB-$pb
 done
+# G13.8c1 — les commandes de DMA du DSP : PB-149 (l'octet de mode de B0h à CFh), PB-239 (la commande mise en file).
+for pb in 149 239; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# Le cas ADPCM de PB-239 avec les six de 8b : l'attendu « tout », celui du vecteur du DSP.
+run materiel-cas-pb239-adpcm --hardware-mode PB-90,PB-91,PB-146,PB-234,PB-235,PB-284,PB-239 materiel-cas PB-239

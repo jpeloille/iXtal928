@@ -568,7 +568,10 @@ contre-lecture, M2, sa série entière et son commit :
     l'étude (13/10), les décodeurs des quatre micrologiciels relus : PB-284, neuf (les tables du 2 et du 2,6 bits, le
     troisième échantillon du 2,6 bits) ; PB-234 élargi (le premier octet d'un bloc, sans référence et à la recharge).
     Le vecteur du DSP tic par tic sous PB-234, le tic de PCem refait sous les autres ; quatre attendus par scénario.
-  - **G13.8c — Le DSP 4.xx et la fréquence.** PB-149, PB-239, PB-155 (Q15).
+  - **G13.8c — Le DSP 4.xx et la fréquence.** PB-149, PB-239, PB-155 (Q15). Coupée en deux le 13/10 : **8c1** ✅
+    *(13/10, VERIFICATION.md § G13.8c1)*, PB-149 (l'octet de mode de B0h à CFh) et PB-239 (la commande mise en file :
+    2.0x et 3.xx pendant tout transfert, 4.xx pendant un automatique), qui ne dépendent pas de Q15 ; **8c2**, PB-155,
+    après la réponse à Q15.
   - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14) ; à
     couper en deux si elle pèse.
   - **G13.8e — L'enregistrement.** PB-148 (Q13), PB-151, PB-156 ; après 8d.

@@ -1634,3 +1634,26 @@ Une commande écrite pendant un bloc fait perdre un tic au vrai DSP, inaudible ;
 format 2 bits, que le programme interne calcule faux (une valeur indéfinie), reste borné à 255 comme chez PCem.
 En stéréo, sur la SB Pro, l'alternance des voies reste celle de PCem : le programme interne n'en dit rien. Une
 commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239, à l'étape suivante.
+
+## G13.8c1 — les commandes de lecture et d'enregistrement du DSP
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8c1.*
+
+### PB-149 — l'octet de mode de la SB 16
+
+- **Le vrai PC.** Les commandes de la SB 16 (B0h à CFh) prennent un octet de mode dont seuls deux bits comptent :
+  stéréo, et signé. Le programme interne ignore les autres.
+- **L'émulateur.** PCem prend l'octet entier pour le format. Avec un bit réservé posé, il ne reconnaît plus rien : le
+  transfert se fige, sans fin ni interruption ; avec 01h à 03h, il joue de l'ADPCM, que ces commandes n'ont pas.
+- **La correction.** L'octet réduit à ses deux bits.
+
+### PB-239 — la commande qui attend son tour
+
+- **Le vrai PC.** Une commande de lecture reçue pendant un transfert ne l'interrompt pas : le DSP finit le bloc en
+  cours, lève son interruption, puis enchaîne sur la nouvelle longueur, dans le format en cours. Le guide de Creative
+  le dit pour sortir d'une lecture en boucle ; les DSP jusqu'au 3.xx le font pendant tout transfert qui n'est pas en
+  pause, ceux de la SB 16 pendant une lecture en boucle seulement.
+- **L'émulateur.** PCem relance sur-le-champ : le bloc en cours est coupé net, et l'interruption suivante vient trop
+  tôt.
+- **La correction.** La commande attend la fin du bloc. Une commande d'enregistrement reçue pendant une lecture
+  (ou l'inverse), qui chez le DSP prendrait la file de l'autre sens, reste comme chez PCem.
