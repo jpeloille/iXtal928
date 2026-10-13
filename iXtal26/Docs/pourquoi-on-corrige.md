@@ -1504,3 +1504,61 @@ encore pour elle (PB-138, l'étape suivante).
 Le refus d'une unité absente par le lecteur CD et le ZIP (PB-283) : sous la carte Adaptec, iXtal26 ne monte ni l'un
 ni l'autre sur le bus SCSI, et le même code sert les lecteurs ATAPI, dont la norme ne dit pas ce qu'ils font de ce
 numéro.
+
+## G13.8a — l'état du processeur de la Sound Blaster
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8a.*
+
+### PB-236 — la carte qui s'allume, ou qu'on remet à zéro
+
+- **Le vrai PC.** Le processeur de son de la carte (le DSP) démarre dans un état fixé par son programme interne :
+  sortie coupée jusqu'à ce que le logiciel l'ouvre, cadence de 10 kHz, blocs de 2 048 octets entre deux
+  interruptions. Le guide de Creative le dit (« returns it to its default state »), et les programmes internes
+  désassemblés le montrent.
+- **L'émulateur.** PCem ne coupe jamais la sortie, ni au démarrage ni après une remise à zéro ; il garde l'ancienne
+  cadence ; et ses blocs font 65 536 octets : un programme qui ne fixe pas la taille attend son interruption trente-deux
+  fois trop longtemps.
+- **La correction.** L'état du programme interne, au démarrage et à chaque remise à zéro. La SB 16 n'a pas de coupure,
+  et sa cadence au démarrage n'est pas connue : elle ne change que pour la taille des blocs. On entend la différence :
+  la carte reste muette tant que le logiciel n'a pas ouvert sa sortie — une déduction : les programmes internes lus
+  (2.02, 3.02) laissent la broche de coupure au repos après la remise à zéro, sans l'ouvrir ; ceux des premières
+  cartes ne sont pas publiés.
+
+### PB-241 — la grande vitesse
+
+- **Le vrai PC.** Pour jouer vite, les DSP 2.01 à 3.xx ont un mode « grande vitesse » où ils ne lisent plus aucune
+  commande (« the DSP will not accept any other commands ») ; on en sort à la fin du bloc d'une lecture simple, ou
+  sinon par une remise à zéro, qui est alors « à chaud » : le programme interne retrouve sa marque et garde ses
+  réglages. La SB 16 accepte les commandes en grande vitesse, mais sa remise à zéro y est « à chaud » aussi.
+- **L'émulateur.** PCem continue d'exécuter les commandes, et sa remise à zéro efface tout, la taille des blocs
+  comprise.
+- **La correction.** En grande vitesse, rien n'est pris (sauf sur la SB 16) ; la remise à zéro qui en sort garde les
+  réglages. Ce que la carte répond alors à la question « es-tu prête ? » n'est pas documenté : c'est celui de PCem.
+
+### PB-240 — la prise MIDI de la carte
+
+- **Le vrai PC.** La commande 38h envoie l'octet suivant à la prise MIDI ; 34h à 37h ouvrent un mode où tout ce que
+  le logiciel écrit part à la prise, jusqu'à une remise à zéro (« à chaud », elle aussi).
+- **L'émulateur.** PCem ignore 38h : l'octet de musique qui la suit est pris pour une commande. Un jeu réglé sur la
+  « MIDI de la Sound Blaster » voit ses notes exécutées : 90h lance une lecture de son, 40h change la cadence…
+- **La correction.** Les octets partent à la sortie MIDI. L'entrée MIDI reste comme chez PCem : il n'y a rien à y
+  brancher.
+
+### PB-165 — la question à la puce absente
+
+- **Le vrai PC.** Sur la SB 16, la commande 08h interroge la puce de traitement optionnelle ; le programme interne du
+  DSP 4.05 répond sans lire d'octet de plus.
+- **L'émulateur.** PCem attend un octet de plus, et avale donc la commande suivante.
+- **La correction.** 08h répond seule. Ce qu'elle répond dépend de la puce, qu'on n'a pas : la valeur reste celle de
+  PCem.
+
+### PB-147 — le haut-parleur de la première Sound Blaster
+
+- **Le vrai PC.** Les commandes D1h et D3h relient et coupent la sortie du son numérique, de la 1.0 à la Pro (la
+  SB 16 n'a pas cette coupure) ; sur la 1.0, elles suspendent aussi la lecture en cours.
+- **L'émulateur.** Sur la SB 1.0, PCem ne fait que la suspension : D3h ne coupe pas le son.
+- **La correction.** D3h coupe et D1h rouvre, en plus de la suspension, que PCem faisait déjà comme la carte.
+
+### Ce qui reste comme chez PCem
+
+Ce que répond 08h, et l'entrée MIDI : sans la puce ni de source MIDI, rien ne dit ce que la carte ferait.

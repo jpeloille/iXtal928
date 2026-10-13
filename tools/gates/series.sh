@@ -760,3 +760,10 @@ for pb in 138 279; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.8a — l'état du DSP des Sound Blaster : PB-236 (le reset : le bloc 07FFh, la constante 9Ch, la sortie coupée),
+# PB-241 (la grande vitesse : aucune commande, le reset « chaud »), PB-240 (la MIDI : 38h, le mode UART), PB-165 (08h
+# de la SB 16 sans paramètre), PB-147 (D1h et D3h de la SB 1.0), chacun son cas en C# seul dans les deux modes.
+for pb in 236 241 240 165 147; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

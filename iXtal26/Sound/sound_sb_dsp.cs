@@ -140,8 +140,8 @@ internal static partial class sound_sb_dsp
 
     // pcem: sound_sb_dsp.c:45-54 — global MUTABLE (sb_doreset l'écrit) : il traverse les
     // amorçages d'un processus comme chez PCem.
-    // pcem bug, reproduced: PB-240 — 30h à 38h (la MIDI de la SB) valent -1 : 38h s'exécute seule, et l'octet
-    //   MIDI qui la suit est pris pour une commande ; 34h à 37h (le mode UART) n'ont pas de case.
+    // pcem bug, fixed in hardware mode: PB-240 — 30h à 38h (la MIDI de la SB) valent -1 : 38h s'exécute seule, et
+    //   l'octet MIDI qui la suit est pris pour une commande ; 34h à 37h (le mode UART) n'ont pas de case.
     internal static readonly int[] sb_commands = new int[256] {
         -1, 2,  -1, -1, 1,  2,  -1, 0,  1,  -1, -1, -1, -1, -1, 2,  1,  1,  -1, -1, -1, 2,  -1, 2,  2,  -1, -1, -1, -1, 0,
         -1, -1, 0,  0,  -1, -1, -1, 2,  -1, -1, -1, -1, -1, -1, -1, 0,  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -252,14 +252,28 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:123-157
     internal static void sb_dsp_reset(sb_dsp_t dsp)
     {
+        // pcem bug, fixed in hardware mode: PB-241 — le reset reçu en grande vitesse est « chaud » : le bloc gardé.
+        if (materiel.pb_241)
+                if (reset_chaud_materiel(dsp, 241))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-240 — de même en mode UART.
+        if (materiel.pb_240)
+                if (reset_chaud_materiel(dsp, 240))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-236 — le reset « froid » : bloc 07FFh, constante 9Ch, sortie coupée.
+        if (materiel.pb_236)
+                if (reset_materiel(dsp))
+                        return;
         timer_disable(dsp.output_timer);
         timer_disable(dsp.input_timer);
 
         dsp.sb_command = 0;
 
-        // pcem bug, reproduced: PB-236 — le reset remet le DSP à froid : bloc 07FFh, constante 9Ch, sortie
+        // pcem bug, fixed in hardware mode: PB-236 — le reset remet le DSP à froid : bloc 07FFh, constante 9Ch, sortie
         //   coupée (2.02, 3.02 ; le bloc en 4.xx aussi). PCem pose FFFFh et garde la constante et `muted`, que rien ne
         //   pose non plus au démarrage.
+        // pcem bug, fixed in hardware mode: PB-241 — le reset est toujours complet : en grande vitesse, le
+        //   micrologiciel restaure l'état antérieur.
         dsp.sb_8_length = 0xffff;
         dsp.sb_8_autolen = 0xffff;
 
@@ -295,8 +309,8 @@ internal static partial class sound_sb_dsp
         if (IS_AZTECH(dsp)) {
                 // omitted: sb_commands[8] = 1 ; sb_commands[9] = 1 (:165-166) — Aztech.
         } else {
-                // pcem bug, reproduced: PB-165 — 08h attend un paramètre sur la SB 16 ; le DSP 4.05 n'en lit aucun,
-                //   comme 4.04 à 4.16 et comme l'AWE32 de PCem (type SB16 + 1), qui prend -1.
+                // pcem bug, fixed in hardware mode: PB-165 — 08h attend un paramètre sur la SB 16 ; le DSP 4.05 n'en
+                //   lit aucun, comme 4.04 à 4.16 et comme l'AWE32 de PCem (type SB16 + 1), qui prend -1.
                 if (dsp.sb_type == SB16)
                         sb_commands[8] = 1;
                 else
@@ -441,6 +455,9 @@ internal static partial class sound_sb_dsp
     internal static void sb_exec_command(sb_dsp_t dsp)
     {
         int temp, c;
+        // pcem bug, fixed in hardware mode: PB-241 — 90h, 91h, 98h, 99h ouvrent la grande vitesse (DSP 2.01 et plus).
+        if (materiel.pb_241)
+                grande_vitesse_pose_materiel(dsp);
         //        pclog("sb_exec_command : SB command %02X\n", dsp->sb_command);
         switch (dsp.sb_command) {
         case 0x01: /*???*/
@@ -606,8 +623,8 @@ internal static partial class sound_sb_dsp
         case 0x90: /*High speed 8-bit autoinit DMA output*/
                 if (dsp.sb_type < SB2)
                         break;
-                // pcem bug, reproduced: PB-241 — la grande vitesse n'arrête pas les commandes : le DSP 2.01 à
-                //   3.xx n'en prend plus jusqu'au reset (ou la fin d'un 91h), qui restaure alors l'état antérieur.
+                // pcem bug, fixed in hardware mode: PB-241 — la grande vitesse n'arrête pas les commandes : le DSP
+                //   2.01 à 3.xx n'en prend plus jusqu'au reset (ou la fin d'un 91h), qui restaure alors l'état antérieur.
                 sb_start_dma(dsp, 1, 1, 0, dsp.sb_8_autolen);
                 break;
         case 0x91: /*High speed 8-bit single cycle DMA output*/
@@ -618,7 +635,7 @@ internal static partial class sound_sb_dsp
         case 0x98: /*High speed 8-bit autoinit DMA input*/
                 if (dsp.sb_type < SB2)
                         break;
-                // pcem bug, reproduced: PB-241 — de même à l'entrée (98h, 99h).
+                // pcem bug, fixed in hardware mode: PB-241 — de même à l'entrée (98h, 99h).
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_8_autolen);
                 break;
         case 0x99: /*High speed 8-bit single cycle DMA input*/
@@ -696,8 +713,10 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_pause = 1;
                 break;
         case 0xD1: /*Speaker on*/
-                // pcem bug, reproduced: PB-147 — sur la SB 1.0, D1h et D3h ne font que la pause du DMA, celle du guide
-                //   (p. 6-25) : la sortie n'est ni reliée ni coupée.
+                // pcem bug, fixed in hardware mode: PB-147 — sur la SB 1.0, D1h et D3h ne font que la pause du DMA,
+                //   celle du guide (p. 6-25) : la sortie n'est ni reliée ni coupée.
+                if (materiel.pb_147)
+                        haut_parleur_materiel(dsp, 1);
                 // pcem bug, reproduced: PB-244 — sur-le-champ ; le guide donne jusqu'à 112 ms.
                 if (dsp.sb_type < SB15)
                         dsp.sb_8_pause = 1;
@@ -706,7 +725,9 @@ internal static partial class sound_sb_dsp
                 dsp.sb_speaker = 1;
                 break;
         case 0xD3: /*Speaker off*/
-                // pcem bug, reproduced: PB-147 — sur la SB 1.0, la pause seule : D3h ne coupe pas le son.
+                // pcem bug, fixed in hardware mode: PB-147 — sur la SB 1.0, la pause seule : D3h ne coupe pas le son.
+                if (materiel.pb_147)
+                        haut_parleur_materiel(dsp, 0);
                 // pcem bug, reproduced: PB-244 — sur-le-champ ; le guide donne jusqu'à 220 ms.
                 if (dsp.sb_type < SB15)
                         dsp.sb_8_pause = 1;
@@ -794,8 +815,8 @@ internal static partial class sound_sb_dsp
                 }
                 if (dsp.sb_type < SB16)
                         break;
-                // pcem bug, reproduced: PB-165 — 18h ; le DSP 4.xx rend le port 82h de son bus X, inconnu sans la puce
-                //   (FFh sur une ViBRA 16 sans ASP, 10h avec, selon DOSBox-X).
+                // PB-165, la part inconnue (c) — 18h, la même dans les deux modes : le DSP 4.xx rend le port 82h de son
+                //   bus X, inconnu sans la puce (FFh sur une ViBRA 16 sans ASP, 10h avec, selon DOSBox-X).
                 sb_add_data(dsp, 0x18);
                 break;
         case 0x0E: /*ASP set register*/
@@ -838,7 +859,7 @@ internal static partial class sound_sb_dsp
                 }
                 break;
         case 0x38: /*TODO: AZTECH MIDI-related? */
-                // pcem bug, reproduced: PB-240 — 38h (« Send MIDI data ») ne fait rien.
+                // pcem bug, fixed in hardware mode: PB-240 — 38h (« Send MIDI data ») ne fait rien.
                 break;
                 //                default:
                 //                fatal("Exec bad SB command %02X\n",dsp->sb_command);
@@ -861,6 +882,18 @@ internal static partial class sound_sb_dsp
                 dsp.sbreset = v;
                 return;
         case 0xC: /*Command/data write*/
+                // pcem bug, fixed in hardware mode: PB-241 — en grande vitesse, le DSP 2.01 à 3.xx ne prend rien.
+                if (materiel.pb_241)
+                        if (commande_ignoree_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-240 — 38h et l'octet MIDI, le mode UART (34h à 37h).
+                if (materiel.pb_240)
+                        if (midi_materiel(dsp, v))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-165 — 08h de la SB 16, sans paramètre.
+                if (materiel.pb_165)
+                        if (asp_version_materiel(dsp, v))
+                                break;
                 timer_set_delay_u64(dsp.wb_timer, TIMER_USEC * 1);
                 if (dsp.asp_data_len != 0) {
                         //                        pclog("ASP data %i\n", dsp->asp_data_len);

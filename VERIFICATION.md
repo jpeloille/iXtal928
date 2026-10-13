@@ -10671,3 +10671,84 @@ suivante », mise à jour.
 **La série** g7e3 (le worktree de l'étape, contre g7e2b) : 586 portes, toutes vertes ; 582 communes à g7e2b, chacune au
 même verdict ; un seul résumé change, `recensement` (283 défauts, 1 178 marqueurs). Quatre neuves : les `materiel-cas`
 de PB-138 et PB-279, dans les deux modes.
+
+## G13.8a — l'état du DSP des Sound Blaster
+
+Le 13 octobre 2026. La première étape du son (PLAN-G13.md, § G13.8). L'étude, en lecture seule, a recensé trente
+entrées du son et coupé G13.8 en sept sous-étapes ; elle a posé quatre questions à Julien (Q13 à Q16), dont 8a ne
+dépend pas. Les sources : le guide de Creative (*Sound Blaster Series Hardware Programming Guide*, p. 2-2, 5-3, 6-12 à
+6-14, 6-20, 6-25 et 6-26) ; les micrologiciels désassemblés (décision n° 8 de PLAN-G12.md) : 2.02 (`sbv202.asm`,
+Schlaepfer), 3.02, 4.05 et 4.13 (CT1741_DSP), relus pour l'étape hors du dépôt (/var/tmp/ixtal-g13/fw).
+
+**Les corrections du mode matériel** (domaine `son`, cinq ; l'aide dans `Sound/sound_sb_dsp.Materiel.cs`, neuf ; l'état
+que PCem n'a pas — la grande vitesse, le mode UART, l'octet MIDI attendu — dans une table à part, `EtatDsp` ;
+`sb_commands`, statique et partagé, jamais écrit). Chaque garde seule sur sa ligne, en tête de fonction ou de `case` :
+PB-236 — `reset_materiel`, en tête de `sb_dsp_reset` (donc au démarrage et par 2x6h, après les gardes du reset
+« chaud ») : le bloc à 07FFh ; avant la SB 16, la constante à 9Ch (sortie et entrée, 10 000 Hz) et la sortie coupée
+(sur la SB 1.0, avec PB-147 seulement). PB-241 — `grande_vitesse_pose_materiel`, en tête de `sb_exec_command` : 90h,
+91h, 98h et 99h notées sur les DSP 2.01 et plus, tant que le DMA tourne ; `commande_ignoree_materiel`, en tête du `case
+0xC` de `sb_write` : aucun octet pris sur les DSP 2.01 à 3.xx ; `reset_chaud_materiel`, en tête de `sb_dsp_reset` : le
+reset « chaud » (le bloc, la constante, le haut-parleur, l'octet de E2h gardés ; le DMA arrêté ; avant le 4.xx, la
+sortie selon le haut-parleur). PB-240 — `midi_materiel`, en tête du `case 0xC` de `sb_write` : 38h et l'octet suivant
+vers `midi_write`, le mode UART de 34h à 37h (DSP 2.00 et plus) ; le reset qui en sort, chaud. PB-165 —
+`asp_version_materiel`, au même endroit : 08h de la SB 16 exécutée dès son octet. PB-147 — `haut_parleur_materiel`, en
+tête des cas D1h et D3h : la sortie de la SB 1.0 rouverte et coupée. Restent comme chez PCem : la valeur de 08h (18h,
+inconnue sans la puce), l'entrée MIDI, et 2xCh en grande vitesse (que la broche d'occupation du 2.02 soit son bit 7
+n'est pas documenté).
+
+**Les cas**, en C# seul (`MaterielCasSon.cs`, neuf : une machine par situation, l'ami486 et la carte du cas ; la carte
+par ses ports, le canal 1 du 8237 par les siens, le canal 4 du haut en cascade comme le laisse le POST ; le tic de
+sortie joué à la main, `pollsb`, un octet par tic), sont verts en mode PCem, sous leur PB seul et sous « tout », la
+sonde atteinte, et rouges sous l'attente de l'autre mode (PB-236 : trois situations sur cinq, deux témoins ; PB-241 :
+quatre vérifications sur six ; PB-240 : quatre sur sept ; PB-165 et PB-147 : une sur deux, l'autre témoin). PB-236 : la
+SB 2.0 au démarrage puis 1Ch (l'IRQ au 65 536e octet, la constante 00h, la sortie ouverte, contre le 2 048e, 9Ch,
+coupée) ; la même après 40h D3h, D1h et un reset ; la SB 16 au démarrage (le bloc seul) ; les témoins, 48h FFh 00h
+(l'IRQ au 256e octet) et la SB 1.0 au démarrage (coupée sous PB-147). PB-241 : 40h A5h, D1h, 48h, 90h, puis E1h (02h
+01h contre rien), puis un reset, D8h et E1h (le bloc FFFFh et le haut-parleur à l'arrêt contre 0FFFh et le
+haut-parleur gardé ; la constante A5h des deux côtés) ; 98h ; la SB 16, qui prend E1h, et son reset chaud ; le
+témoin, 91h jusqu'à la fin de son bloc, qui rend le DSP aux commandes et laisse le reset froid. PB-240 : 38h 90h ; 48h,
+34h, puis 90h, E1h, 41h et un reset chaud ; 37h 90h ; 38h puis un reset (l'octet attendu oublié) ; les témoins, 40h
+38h et 34h sur la SB 1.0, sans mode UART. PB-165 : 08h E1h sur la SB 16 (18h contre 18h 04h 05h) ; le témoin, l'AWE32
+(18h 04h 0Dh). PB-147 : D3h, 14h sur des octets à 00h (la sortie à 8000h contre 0) ; le témoin, D1h. Sous « tout »,
+les cas du 8237 de la fiche (PB-252, PB-253) demandaient la cascade : le banc la pose. Les cas du stockage de 7e
+(PB-133, PB-137, PB-138, PB-279) restent verts sous « tout ». `recensement` vert (283 défauts, 1 185 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g138a.py`, rejoués après la contre-lecture) : vingt-cinq fautes, chacune
+rougit son cas — PB-236 : le bloc FFFFh, la constante gardée, la sortie ouverte, la garde retirée, la SB 1.0 ouverte
+au démarrage sous PB-147 (sous « tout ») ; PB-241 : la grande vitesse non notée, les commandes prises, le reset froid,
+la garde de `sb_exec_command` retirée, 98h oubliée, la SB 16 sans reset chaud, la SB 16 sourde en grande vitesse, la
+sortie coupée au chaud malgré D1h, le haut-parleur perdu au chaud, la fin de 91h ignorée ; PB-240 : rien à la MIDI, le
+mode UART d'un seul octet, le reset froid, la garde retirée, l'octet de 38h attendu après un reset, 37h oubliée, le
+mode UART sur la SB 1.0 ; PB-165 : 08h non reconnue, la garde retirée ; PB-147 : D3h qui ne coupe pas, la garde de D3h
+retirée. Le témoin, sans faute, est vert dans les dix configurations. Une faute invisible par construction : le test
+de type de PB-165 (`!= SB16`), car hors de la SB 16 la commande 08h de PCem ne fait déjà rien de plus.
+
+**Les amorçages.** Le scénario `ami486-sb16` (PC-DOS sur A:, puis DEBUG qui conduit la SB 16 par ses ports : le reset,
+E1h, 08h puis E1h, 38h puis 90h, 34h, D3h et D1h, et les lectures de 2xAh, 2xCh et 2xEh), joué en mode PCem, sous
+chacun des cinq PB et sous « tout » (Release du worktree, bac à sable hors dépôt) : aucun arrêt. L'écran ne change que
+sous PB-165 et sous « tout » : après 08h E1h, DEBUG lit 18h 04h 05h au lieu de 18h 00h 00h. Sous les quatre autres,
+l'écran est celui de PCem (la SB 16 n'a ni coupure ni grande vitesse sourde ; 38h y envoie 90h à la MIDI, sans trace à
+l'écran).
+
+**M2** (Release du worktree ; le scénario `ami486-sb16`, neuf dans `tools/listings-jit.sh`, le seul qui monte une
+Sound Blaster) : avec et sans les neuf gardes de 8a (`M2-8a` contre `M2-8a-sansgardes`), identique (966 méthodes, aucune
+changée). Contre M2-7e3 (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et
+`process_scsi`, `scsi_hd_command` et `scsi_zip_command`, dont seuls changent des jetons de chaînes (`mov edi`) ; les
+55 méthodes apparues sont celles du scénario neuf (le DSP, le mélangeur, l'OPL).
+
+**La contre-lecture** (Sonnet, les micrologiciels 2.02, 3.02, 4.05 et 4.13 et le guide relus) : rien de bloquant ; le
+mode PCem intact (les gardes seules, en tête ; `sb_commands` jamais écrit ; l'état propre dans `EtatDsp`). Repris : le
+4.05 et le 4.13 posent aussi la signature du reset « chaud » en grande vitesse (`hs_dma_continuous`) — le reset chaud
+étendu à la SB 16 et à l'AWE32, sans y ignorer les commandes ; « 2xCh occupé » en grande vitesse n'était que déduit,
+et douteux (le 2.02 garde sa broche d'occupation pendant l'attente de l'octet de 38h) — retiré, 2xCh reste celui de
+PCem ; au reset chaud, la sortie suit le haut-parleur, l'octet de E2h est gardé, le DMA arrêté ; les cas complétés (le
+reset froid après la fin de 91h, la constante et le haut-parleur gardés au chaud, `sb_timei` et `sb_freq`, 37h, 38h
+puis un reset, la SB 1.0 sans mode UART, la SB 16 en grande vitesse) ; les formules (PB-147 « sur toutes les
+versions », PB-236 et son *G13*, les DSP 2.00, 2.01 et 3.00 sans image dits déduits, la coupure au démarrage dite
+déduite dans `pourquoi-on-corrige.md`, la sortie de grande vitesse par la fin de 91h, « quatre ou cinq séries ») ;
+`NoInlining` sur toutes les aides ; la table de `ModeMateriel` remise dans l'ordre des numéros. Noté pour 8c : le 4.05
+pose 38h à froid dans un registre voisin de celui de la fréquence (PB-155).
+
+**La série** g8a (le worktree de l'étape, contre g7e3) : 596 portes, toutes vertes ; 586 communes à g7e3, chacune au
+même verdict ; un seul résumé change, `recensement` (283 défauts, 1 185 marqueurs). Dix neuves : les `materiel-cas` de
+PB-236, PB-241, PB-240, PB-165 et PB-147, dans les deux modes.

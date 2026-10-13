@@ -2967,7 +2967,7 @@ commande à paramètre.
 Sur les DSP 2.00 à 3.02, D1h et D3h règlent `muted` ; sur la SB 16, aucun des deux, comme le 4.xx (guide de Creative,
 p. 6-25, note 2). Corrigé en G13 : la pause est écrite par Creative — « On version 1.xx, the DSP will pause the DMA
 transfer after executing this command », pour D1h et pour D3h (p. 6-25 et 6-26, PDF 110-111) — et PCem y est fidèle. Le
-défaut est l'autre moitié : D1h et D3h relient et coupent aussi la sortie du CNA, sur toutes les versions (« The speaker
+défaut est l'autre moitié : D1h et D3h relient et coupent aussi la sortie du CNA, des DSP 1.xx à 3.xx (« The speaker
 here refers to the connection of the digitized sound output to the amplifier input », p. 6-25 ; « Available » coche
 1.xx), et sur la SB 1.0 PCem n'y touche pas.
 *Effet* : sur la SB 1.0, D3h ne coupe pas le son ; un D1h ou un D3h envoyé après le lancement d'un DMA le suspend
@@ -2981,7 +2981,13 @@ déduit pour le 1.05, dont aucune image n'est publiée.
 `dsp.buffer` reçoit 8000h (−32 768) chez PCem, 0 sur la carte ; D1h, puis de même : non nul des deux côtés. D8h
 n'existe pas sur le 1.xx : l'essai ne l'emploie pas.
 *G13* : (a) pour la coupure, documentée (déduite pour le 1.05) ; (d) pour la pause, fidèle.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-147 (D1h, D3h) ; SBBANC envoie D1h après 14h sur la SB 1.0.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, marqueurs `fixed in hardware mode: PB-147` (D1h, D3h) ; SBBANC
+envoie D1h après 14h sur la SB 1.0.
+*Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_147)` — `Sound/sound_sb_dsp.Materiel.cs`,
+`haut_parleur_materiel`, en tête des cas D1h et D3h : sur la SB 1.0, D1h ouvre la sortie (`muted` à 0), D3h la coupe ;
+la pause du DMA de PCem, fidèle, suit. Au démarrage, la sortie de la SB 1.0 n'est coupée que si PB-236 l'est aussi
+(sans PB-147, rien ne la rouvrirait). `materiel-cas PB-147` (D3h puis 14h sur des octets à 00h ; le témoin, D1h) rend
+la sortie à 8000h en mode PCem, à 0 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-148 — L'enregistrement rend toujours du silence
 
@@ -3284,9 +3290,15 @@ nombre de paramètres ; la valeur, inconnue (DOSBox-X, mesuré : 10h avec l'ASP,
 la carte rend l'octet de 08h, puis 04h et 05h. AWE32 : 18h, 04h et 0Dh dans les deux modes, le témoin.
 *G13* : (a) pour le nombre de paramètres de la SB 16 ; (c) pour la valeur rendue par 08h ; l'AWE32, fidèle, ne change
 pas.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-165 (`sb_doreset` ; la valeur de 08h) ; le marqueur de
-`sb_awe32_init` est retiré, le site étant juste. AWEBANC envoie 08h E1h et lit 18h, 04h, 0Dh, le comportement du 4.13 ;
-SB16BANC envoie 08h 00h, qui ne distingue pas (00h ne fait rien).
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, marqueur `fixed in hardware mode: PB-165` (`sb_doreset`) ; la
+valeur de 08h, la part (c), est notée sans marqueur, la même dans les deux modes ; le marqueur de `sb_awe32_init` est
+retiré, le site étant juste. AWEBANC envoie 08h E1h et lit 18h, 04h, 0Dh, le comportement du 4.13 ; SB16BANC envoie 08h
+00h, qui ne distingue pas (00h ne fait rien).
+*Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_165)` — `Sound/sound_sb_dsp.Materiel.cs`,
+`asp_version_materiel`, en tête du `case 0xC` de `sb_write` : sur la SB 16, 08h reçu comme commande s'exécute dès son
+octet, sans paramètre ; `sb_commands`, partagé, n'est pas touché. La valeur rendue reste 18h (c). `materiel-cas PB-165`
+(08h E1h sur la SB 16 ; le témoin, l'AWE32) rend 18h seul en mode PCem, 18h 04h 05h en mode matériel ; la correction
+coupée, il rougit.
 
 ### PB-166 — L'AWE32 sans sa ROM arrête PCem ; une ROM courte laisse de l'indéterminé
 
@@ -4981,19 +4993,28 @@ qu'approché.
 `sound_sb.c:874` et suivants). Le reset est toujours complet : le micrologiciel, lui, restaure l'état antérieur après un
 reset reçu en grande vitesse ou en mode MIDI (une signature en RAM, `sbv202.asm:873-887`), que PCem ne connaît pas.
 *Effet* : sur les SB 1.5 à Pro v2, la sortie n'est coupée ni au démarrage ni après un reset, et D8h annonce « éteint »
-pendant qu'elle joue ; sur les SB 1.5 à 16, un 1Ch ou un 90h sans 48h préalable lève une IRQ tous les 65 536 octets au
+pendant qu'elle joue ; sur les SB 1.5 à 16, un 1Ch (et, dès la 2.0, un 90h) sans 48h préalable lève une IRQ tous les 65 536 octets au
 lieu de 2 048 ; sur les 2.xx et 3.xx, une constante non renvoyée après un reset garde l'ancienne fréquence au lieu de
 10 kHz.
 *Trouvé par* : reconnaissance de G13 (D5, N4 ; contre-lecture K2, A4 et N13).
 *Source* : guide de Creative, p. 2-2 (le reset « returns it to its default state ») ; micrologiciels 2.02
 (`sbv202.asm:855-907` : bloc `:905-906`, constante `:899`), 3.02 (`v302_4k_4701c5fc.asm:561-616`), 4.05
-(`v405-8k_e51aff23.asm:781-851`, le bloc en 0432h). Documenté ; la coupure par P2.0 (convention MCS-51) et le 1.05,
-déduits.
+(`v405-8k_e51aff23.asm:781-851`, le bloc en 0432h). Documenté pour les 2.02, 3.02 et 4.05 lus ; les 2.00, 2.01 et 3.00
+(aucune image publiée), la coupure par P2.0 (convention MCS-51) et le 1.05, déduits.
 *Cas qui discrimine* : SB 2.0 : 40h D3h, D1h, un reset (2x6h ← 01h puis 00h), puis 1Ch : PCem garde `sb_timeo` = D3h et
 `muted` = 0, et lève l'IRQ après 10000h octets ; la carte joue à 10 kHz (9Ch), sortie coupée (`muted` = 1), et lève
 l'IRQ après 800h octets. D8h rend 00h des deux côtés.
-*G13* : (a) — l'état documenté au reset (décision n° 13) ; le reset « chaud » attend PB-240 et PB-241.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_dsp_reset`, marqueur PB-236.
+*G13* : (a) — l'état documenté au reset (décision n° 13) ; le reset « chaud » est celui de PB-240 et PB-241.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, `sb_dsp_reset`, marqueur `fixed in hardware mode: PB-236`.
+*Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_236)` — `Sound/sound_sb_dsp.Materiel.cs`,
+`reset_materiel`, en tête de `sb_dsp_reset`, donc au démarrage (`sb_doreset`) et par 2x6h : le reset de PCem, le bloc
+à 07FFh ; avant la SB 16, la constante à 9Ch (10 kHz) et la sortie coupée — sur la SB 1.0, avec PB-147 seulement. La
+SB 16 garde sa constante, inconnue au reset (décision n° 14 ; le 4.05 pose 38h, à froid, dans un registre voisin de
+celui de la fréquence, `v405-8k_e51aff23.asm:844` : à revoir avec PB-155, en 8c). Le reset « chaud » (après la grande vitesse ou le mode
+UART) est celui de PB-241 et de PB-240, dont les gardes passent avant. `materiel-cas PB-236` (la SB 2.0 au démarrage et
+après 40h D3h, D1h et un reset, puis 1Ch ; la SB 16 au démarrage ; les témoins, 48h, et la SB 1.0 avec PB-147) rend
+l'IRQ au 65 536e octet, la constante gardée et la sortie ouverte en mode PCem ; au 2 048e, 9Ch et coupée en mode
+matériel ; la correction coupée, il rougit.
 
 ### PB-237 — Les mélangeurs relèvent à 0 dB les volumes de reset du guide
 
@@ -5063,23 +5084,52 @@ restent sans effet, faute de source MIDI.
 envoie 90h à la sortie MIDI (`midi_write`, l'empreinte MIDI de la sonde) et ne lance rien.
 *G13* : (a) pour 38h et le mode UART de sortie (le puits `midi_write` existe, décision n° 8 de PLAN-G12.md) ; (c) pour
 l'entrée, faute de source.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, la table `sb_commands` et 38h (`sb_exec_command`), marqueurs PB-240.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, la table `sb_commands` et 38h (`sb_exec_command`), marqueurs
+`fixed in hardware mode: PB-240`.
+*Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_240)` — `Sound/sound_sb_dsp.Materiel.cs`, `midi_materiel`,
+en tête du `case 0xC` de `sb_write` : 38h reçu comme commande fait partir l'octet suivant à `midi_write` ; 34h à 37h
+(DSP 2.00 et plus) ouvrent le mode UART, où chaque octet écrit part à `midi_write` ; `reset_chaud_materiel`, en tête de
+`sb_dsp_reset`, en fait sortir par un reset « chaud » (la signature 34h 12h du micrologiciel, comme PB-241 : le bloc,
+la constante et le haut-parleur gardés, AAh rendu) ; un reset reçu pendant l'attente de l'octet de 38h est froid, et
+l'octet attendu oublié. L'état vit dans une table à part (`EtatDsp`), `sb_commands` n'est pas touché. L'entrée MIDI
+(30h, 31h, et celle du mode UART) reste celle de PCem (c), faute de source. `materiel-cas PB-240` (38h 90h ; 48h, 34h,
+puis 90h, E1h, 41h et un reset ; 37h 90h ; 38h puis un reset ; les témoins, 40h 38h et 34h sur la SB 1.0) rend un DMA
+lancé, rien à la MIDI et le bloc FFFFh en mode PCem ; les octets à la MIDI, aucun DMA et le bloc gardé en mode
+matériel ; la correction coupée, il rougit.
 
 ### PB-241 — En grande vitesse, le DSP prend encore des commandes, et son reset est complet
 
 `sound_sb_dsp.c:448-467` : 90h, 91h, 98h et 99h passent par `sb_start_dma` et `sb_start_dma_i` comme 1Ch et 14h ; le DSP
 continue d'exécuter les commandes, et le reset (`:721-726`) le remet à froid (PB-236), le bloc compris.
 *Effet* : sur les SB 2.0 à Pro v2, un octet écrit au DSP en grande vitesse est exécuté, quand la carte l'ignore,
-occupée ; le reset qui termine la grande vitesse pose le bloc à FFFFh au lieu de garder celui de 48h.
+occupée ; sur les SB 2.0 à AWE32, le reset qui termine la grande vitesse pose le bloc à FFFFh au lieu de garder celui
+de 48h.
 *Trouvé par* : reconnaissance de G13 (contre-lecture A6).
 *Source* : guide de Creative, p. 6-20 (PDF 105 : « In high-speed mode, the DSP will not accept any other commands. To
 terminate high-speed mode, send a DSP reset command ») ; micrologiciel 2.02, `X0748` (`sbv202.asm:1482-1506`), reset
 « chaud » `:873-887`. Documenté pour les 2.01 à 3.xx ; le 4.05 reprend sa boucle de commandes
-(`v405-8k_e51aff23.asm:2512-2584`).
+(`v405-8k_e51aff23.asm:2512-2584`), mais pose la même signature de reset « chaud » (`hs_dma_continuous`, `:2560-2561`,
+effacée à la fin d'un 91h, `:307-308`), comme le 4.13 (`v413-8k_e22e9001.asm:2348`, `:2511`, `:2524`, `:2840`). Que le
+DSP occupé se lise au bit 7 de 2xCh n'est pas documenté (le 2.02 garde aussi sa broche d'occupation pendant l'attente
+de l'octet de 38h).
 *Cas qui discrimine* : SB 2.0 : 48h FFh 0Fh, 90h, puis E1h : PCem rend 02h 01h ; la carte n'exécute pas E1h (rien à
-lire, 2xCh bit 7 à 1) ; puis un reset : `sb_8_autolen` passe à FFFFh chez PCem, reste 0FFFh sur la carte.
-*G13* : (a) pour les DSP 2.01 à 3.xx ; la SB 16, qui accepte les commandes, ne change pas.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, 90h et 98h (`sb_exec_command`), marqueurs PB-241.
+lire) ; puis un reset : `sb_8_autolen` passe à FFFFh chez PCem, reste 0FFFh sur la carte (de même sur la SB 16).
+*G13* : (a) pour les commandes des DSP 2.01 à 3.xx, et le reset « chaud » des DSP 2.01 à 4.13 ; la SB 16, qui accepte
+les commandes, ne change que pour le reset. Ce que rend 2xCh en grande vitesse, inconnu, reste celui de PCem.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, 90h et 98h (`sb_exec_command`), le reset (`sb_dsp_reset`),
+marqueurs `fixed in hardware mode: PB-241`.
+*Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_241)` — `Sound/sound_sb_dsp.Materiel.cs` :
+`grande_vitesse_pose_materiel`, en tête de `sb_exec_command`, note la grande vitesse de 90h, 91h, 98h et 99h sur les DSP
+2.01 et plus ; elle dure tant que le DMA tourne (la fin du bloc de 91h et 99h rend le DSP aux commandes et efface la
+signature) ; `commande_ignoree_materiel`, en tête du `case 0xC` de `sb_write`, n'y prend aucun octet sur les DSP 2.01
+à 3.xx ; `reset_chaud_materiel`, en tête de `sb_dsp_reset`, fait du reset qui la termine un reset « chaud » : le bloc,
+la constante, le haut-parleur et l'octet de E2h gardés, le DMA arrêté, AAh rendu ; avant le 4.xx, la sortie rouverte
+si le haut-parleur était actif, coupée sinon (2.02, `:883-886`). Sur la SB 16, une commande de DMA reçue pendant la
+grande vitesse la laisse courir : ce qu'en fait le 4.05 n'a pas été relu, le reset reste alors « chaud ».
+`materiel-cas PB-241` (40h A5h, D1h, 48h FFh 0Fh, 90h, E1h, puis un reset, D8h et E1h ; 98h ; la SB 16 et son reset ;
+le témoin, 91h jusqu'à la fin de son bloc, puis un reset froid) rend 02h 01h, le bloc FFFFh et le haut-parleur à
+l'arrêt en mode PCem ; rien, le bloc 0FFFh et le haut-parleur gardé en mode matériel ; la correction coupée, il
+rougit.
 
 ### PB-242 — 48h et D8h sans garde de version : la SB 1.0 les accepte
 

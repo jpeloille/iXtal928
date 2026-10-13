@@ -252,6 +252,21 @@ internal static class materiel
     /// <summary>PB-279 : la commande BIOS 03h compte les secteurs CHS à partir de 1.</summary>
     internal static readonly bool pb_279;
 
+    /// <summary>PB-147 : sur la SB 1.0, D1h et D3h relient et coupent aussi la sortie.</summary>
+    internal static readonly bool pb_147;
+
+    /// <summary>PB-165 : 08h de la SB 16 (DSP 4.05) ne lit pas de paramètre.</summary>
+    internal static readonly bool pb_165;
+
+    /// <summary>PB-236 : le DSP au démarrage et au reset : le bloc 07FFh, la constante 9Ch, la sortie coupée.</summary>
+    internal static readonly bool pb_236;
+
+    /// <summary>PB-240 : la MIDI de la SB : 38h envoie l'octet suivant, 34h à 37h ouvrent le mode UART.</summary>
+    internal static readonly bool pb_240;
+
+    /// <summary>PB-241 : en grande vitesse, le DSP 2.01 à 3.xx ne prend aucune commande ; le reset qui en sort est « chaud ».</summary>
+    internal static readonly bool pb_241;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -520,6 +535,11 @@ internal static class materiel
         pb_277 = ModeMateriel.Demande(277);
         pb_278 = ModeMateriel.Demande(278);
         pb_279 = ModeMateriel.Demande(279);
+        pb_147 = ModeMateriel.Demande(147);
+        pb_165 = ModeMateriel.Demande(165);
+        pb_236 = ModeMateriel.Demande(236);
+        pb_240 = ModeMateriel.Demande(240);
+        pb_241 = ModeMateriel.Demande(241);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

@@ -555,8 +555,42 @@ contre-lecture, M2, sa série entière et son commit :
   reset ; 08h de la SB 16) ; le CT1745, le MPU-401 et la ligne d'IRQ partagée (PB-153, 154 ; 145 pour la 2.0 sans
   mélangeur) ; l'enregistrement (PB-148, 151, 156) ; l'EMU8000 (PB-158 à 160, 162, 163) ; la clôture (PB-21, 155).
 - **Vérification** : des cas en C# seul aux valeurs du guide de Creative et des micrologiciels, chacun avec sa page ;
-  SBBANC, SB16BANC et AWEBANC en C# seul (le scénario de PB-146 corrigé : une commande à paramètre intercalée) ; quatre
-  ou cinq séries.
+  SBBANC, SB16BANC et AWEBANC en C# seul (le scénario de PB-146 corrigé : une commande à paramètre intercalée) ; une
+  série par sous-étape.
+  Coupée en sept le 13/10 (l'étude, en lecture seule, de trente entrées du son) ; une série par sous-étape :
+  - **G13.8a — L'état du DSP** ✅ *(13/10, VERIFICATION.md § G13.8a)*. PB-236 (le reset : le bloc 07FFh, la constante 9Ch, la sortie coupée, au démarrage
+    aussi), PB-241 (la grande vitesse : aucune commande sur les DSP 2.01 à 3.xx ; le reset « chaud » qui garde le bloc,
+    jusqu'au 4.13 ; 2xCh, inconnu, reste celui de PCem), PB-240 (38h et l'octet MIDI, le mode UART de 34h à 37h dont un reset fait sortir ; l'entrée reste
+    reproduite, faute de source), PB-165 (08h de la SB 16 sans paramètre ; sa valeur, inconnue, reste 18h), PB-147
+    (D1h et D3h de la SB 1.0 relient et coupent la sortie). Le banc des cas du son (`MaterielCasSon.cs`) : une machine
+    par situation, la carte par ses ports, le 8237 par les siens, le tic de sortie joué à la main.
+  - **G13.8b — L'ADPCM.** PB-90, PB-91, PB-234, PB-235, PB-146 : les attendus se composent (contre-lecture K6).
+  - **G13.8c — Le DSP 4.xx et la fréquence.** PB-149, PB-239, PB-155 (Q15).
+  - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14) ; à
+    couper en deux si elle pèse.
+  - **G13.8e — L'enregistrement.** PB-148 (Q13), PB-151, PB-156 ; après 8d.
+  - **G13.8f — L'EMU8000.** PB-158, PB-159, la part (a) de PB-160 ; PB-162 et PB-163 (Q13).
+  - **G13.8g — La clôture du son.** PB-21 ; SBBANC, SB16BANC et AWEBANC en C# seul dans les deux modes ; PERFBANC ;
+    les témoins (Q16). Fondue dans 8f si elle reste légère.
+  Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244
+  (b), proposés (Q13). Hors du mode : PB-150, 152, 161, 166 (R9), 93 ; (d) : PB-164, PB-167.
+
+**Les questions du son (G13.8), posées à Julien le 13/10 ; 8a n'en dépend pas** :
+- **Q13 (8d, 8e, 8f, 8g)** — les parts (b) : corriger celles dont la correction est certaine et se vérifie par
+  cohérence — PB-21 (le compte 0 lu 65 536), PB-148 (les chemins documentés de l'enregistrement, sans modèle des
+  filtres), PB-162 (le chorus droit dans son tampon), PB-163 (la réverbération saturée), 0Ah↔3Ah de PB-153 (à l'échelle
+  du guide), l'octet impair de PB-158 (le bus AT) — et laisser reproduits, en le disant, PB-243 (une source secondaire
+  seulement), PB-244 (une durée maximale seulement) et les parts (b) de PB-160 (des modèles de PCem ; les corriger
+  serait en inventer un autre) ? *Proposé.*
+- **Q14 (8d)** — l'IRQ 5 d'usine de la SB 16 et de l'AWE32 (décision n° 13) contre les profils réglés à l'IRQ 7
+  (`SET BLASTER … I7`) et le témoin Windows 3.11 de G12.3 : l'usine sans clé neuve, dite dans le profil et la bannière
+  du mode (comme Q8) ; un réglage propre viendrait en G16 s'il manque. Autre choix : une clé `sb16_irq` du mode. *Proposé :
+  l'usine.*
+- **Q15 (8c)** — PB-155 : le registre de fréquence de 8 bits du 4.05 (documenté par le micrologiciel), avec les Hz de
+  MAME (secondaire, dit dans l'entrée), et la conversion saturante ; ou la saturation seule, la fréquence de PCem
+  gardée (part reclassée (c)). *Proposé : le registre et la saturation.*
+- **Q16 (8g)** — les témoins : le logiciel de la disquette SB Pro 2 (VPLAY, VEDIT2 pour l'ADPCM, VREC) installé sur une
+  copie de disque dans /var/tmp, hors du dépôt, sans porte de série, comme les amorçages de 7e. *Proposé : oui.*
 
 ### G13.9 — La vidéo
 
