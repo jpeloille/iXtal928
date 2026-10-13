@@ -1669,6 +1669,13 @@ premier échantillon du 4e octet lu, le terme du 8237, PCem fait passer `sbref` 
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-90 : les deux lectures ADPCM de `pollsb` (4 et 2,6 bits) et les
 lectures de `sbdat2` de 74h/75h, 76h/77h, 7Dh et 7Fh. La lecture 2 bits de `pollsb` porte PB-91 ; celles de 16h/17h et
 de 1Fh, sans effet, n'ont pas de marqueur.
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_90)`, en tête des cas `ADPCM_4` et `ADPCM_26` de
+`pollsb` (le tic du mode matériel, `adpcm_materiel`) et des commandes 74h à 77h, 7Dh et 7Fh (`adpcm_commande_materiel`,
+le départ de PCem ou, avec PB-234, celui du DSP) : les lectures ADPCM du mode matériel (`lecture_adpcm_materiel`)
+rendent l'octet sans `DMA_OVER` (le drapeau seul retiré), `DMA_NODATA` tel quel. `sb_8_read_dma`, que le JIT inline,
+ne porte pas de garde : les chemins PCM, que le drapeau ne touche pas, restent ceux de PCem ; le 2 bits, que le `& 3`
+masque, aussi. `materiel-cas PB-90` (75h sur un 8237 de 4 octets en automatique) rend 44h au 5e tic en mode PCem, 80h
+jusqu'au bout en mode matériel ; la correction coupée, il rougit.
 
 ### PB-91 — L'ADPCM 2 bits ne finit jamais
 
@@ -1686,6 +1693,11 @@ après 4 octets pris au 8237 ; PCem jamais (`sb_8_length` reste à 2, `sb_8_enab
 puis 1Fh), la carte recharge `sb_8_autolen` tous les 4 octets ; PCem jamais.
 *G13* : (a) — documenté ; l'instant de l'IRQ se combine avec la fin de bloc du 2.02 (PB-234).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueur PB-91.
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_91)`, en tête du cas `ADPCM_2` de `pollsb` — le tic du
+mode matériel (`adpcm_materiel`) décrémente le compte à chaque octet lu (`compte2_materiel`), dans le tic de PCem comme
+dans celui du DSP (PB-234). `materiel-cas PB-91` : 16h 03h 00h lève l'IRQ au 12e tic (au 16e avec PB-234), jamais chez
+PCem ; 48h 03h 00h puis 1Fh, aux 12e et 28e (13e et 29e sous « tout », avec la référence de PB-146) ; la correction
+coupée, il rougit.
 
 ### PB-92 — L'IRQ 10 de la Sound Blaster se perd sur une machine sans second PIC
 
@@ -2959,6 +2971,12 @@ PCem.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 (1Fh, 2Ch, 7Dh, 7Fh) ; SBBANC passe 7Dh après 48h 7Fh 01h, ce
 qui ne distingue pas les deux comportements (les octets « périmés » y sont la taille du bloc) : il faut intercaler une
 commande à paramètre.
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_146)`, en tête des cas 1Fh, 2Ch, 7Dh et 7Fh de
+`sb_exec_command` (`automatique_materiel`) : le bloc de 48h ; pour 1Fh, 7Dh et 7Fh l'octet de référence d'abord, puis le
+départ de 17h, 75h et 77h de PCem, ou, avec PB-234, celui du DSP. `sb_commands`, partagé, n'est pas touché.
+`materiel-cas PB-146` : 48h 7Fh 01h, 40h A5h, 7Dh — l'IRQ après 1A6h octets en mode PCem, 180h sous PB-146 seul, 181h
+sous « tout » (K6) ; 2Ch, l'IRQ au 16e octet écrit contre le 166e ; le témoin de SBBANC (48h puis 7Dh) ; la correction
+coupée, il rougit.
 
 ### PB-147 — Sur la SB 1.0, D3h met le DMA en pause sans couper le son
 
@@ -4960,12 +4978,36 @@ par bloc.
 *Trouvé par* : reconnaissance de G13 (D5, N2 ; contre-lecture C8).
 *Source* : micrologiciel 2.02, `vector_dma_dac_adpcm2` et `_adpcm4` (`sbv202.asm:343-440`, `:445-530`) : l'IRQ n'est
 levée qu'une fois sorti le dernier échantillon du dernier octet (`r3` revenu à 0, compte nul) ; en automatique, quand il
-lit le premier octet du bloc suivant. Documenté pour le 2.02 ; déduit pour les 1.05, 2.00 et 2.01.
+lit le premier octet du bloc suivant. Les vecteurs du 3.02 (`:222-424`), du 4.05 (`v405-8k_e51aff23.asm:416-706`) et
+du 4.13 ont la même structure. Documenté pour ces quatre ; déduit pour les 1.05, 2.00, 2.01 et 3.00, sans image.
 *Cas qui discrimine* : SB 2.0, canal 1 du 8237 en simple cycle sur 4 octets (80h, 77h, 77h, 77h) ; 75h 03h 00h : PCem
 lève l'IRQ au 4e tic de sortie, à la lecture du 4e octet, après 4 échantillons ; le 2.02 joue les 3 octets de données,
 6 échantillons, puis lève l'IRQ.
-*G13* : (a) — documenté par le code machine ; l'attendu se combine avec PB-90, PB-91 et PB-146 (contre-lecture K6).
+Élargi en G13.8b : le premier octet d'un bloc. Le DSP compte, par octet, les échantillons qui restent (`r3`) et ne lit
+l'octet suivant qu'au tic où le compte tombe à zéro. Sans référence (16h, 74h, 76h), le premier octet est lu pendant
+la commande et `r3` part de 4, 4 et 3 : il donne 3 échantillons en 2 bits (le dernier perdu), 3 en 4 bits (haut, bas,
+puis haut encore) et 2 en 2,6 bits (le second pris comme un troisième, sur deux bits) ; PCem en tire 4, 2 et 3. Au tic
+qui recharge un bloc automatique (ou qui lance un bloc mis en file), le DSP lit l'octet sans le décoder : le premier
+octet de chaque bloc suivant donne un échantillon de moins (3, 1 et 2).
+*G13* : (a) — documenté par le code machine ; l'attendu se combine avec PB-90, PB-91 et PB-146 (contre-lecture K6). Le
+premier octet : documenté par quatre micrologiciels (2.02 `:1555-1600` et `:1659-1700`, 3.02 `:1165-1186` et
+`:1245-1280`, 4.05 `:2684-2721` et `:2800-2860`, 4.13 `:2971-3025` et `:3150-3181` ; la recharge, 2.02 X016e, X01ee,
+X026e).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueur PB-234 (la fin du bloc 8 bits).
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_234)`, en tête des cas ADPCM de `pollsb` et des commandes
+16h, 17h, 74h à 77h, 1Fh, 7Dh et 7Fh (`Sound/sound_sb_dsp.Materiel.cs`, `adpcm_materiel`, `adpcm_commande_materiel`) :
+le vecteur du micrologiciel — `r3` décompté par tic, l'octet suivant lu et décodé au tic où il tombe à zéro, le compte
+décrémenté alors ; le compte nul, l'IRQ après le dernier échantillon, ou la recharge de 48h, l'octet lu sans décodage
+et l'IRQ. Au départ, la référence au CNA et `r3` à 1, ou le premier octet lu pendant la commande et `r3` à 4, 4 ou 3.
+L'état propre (`r3`, l'octet qui tourne, l'attente de PB-235) est dans `EtatDsp`, hors du condensé d'état de
+`sound_sb.cs`, comme celui de 8a. La référence sort au CNA dès la commande, le tampon rattrapé d'abord ; en stéréo,
+la Pro alterne les voies comme chez PCem (les vecteurs n'ont pas de stéréo : l'alternance est celle de la carte,
+inconnue). Deux modèles au tic, hors du dépôt
+(le `pollsb` de PCem ; le vecteur du 2.02 transcrit du code machine), s'accordent avec le mode matériel sur 4 000
+scénarios tirés au hasard (VERIFICATION.md § G13.8b). `materiel-cas PB-234` : 75h 03h 00h, l'IRQ au 7e tic contre le
+4e ; 74h 01h 00h, trois échantillons du premier octet ; 48h 01h 00h puis 7Dh, la recharge ; la correction coupée, il
+rougit. Reste PCem : une commande reçue pendant le bloc ne fait pas perdre de tic (le DSP saute le sien, inaudible) ; le
+bloc mis en file d'un 74h reçu pendant un bloc est PB-239 (8c).
 
 ### PB-235 — En ADPCM, `DMA_NODATA` est décodé et compté
 
@@ -4984,6 +5026,15 @@ tic de sortie ; la carte attend le premier octet et ne lève rien tant que le ca
 *G13* : (a) pour l'attente — ni octet fictif, ni compte, ni IRQ ; l'état « occupé » du DSP pendant l'attente n'est
 qu'approché.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `pollsb`, marqueurs PB-235 (les trois lectures ADPCM).
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_235)`, en tête des cas ADPCM de `pollsb`
+(`adpcm_materiel`) : un octet que le 8237 ne sert pas n'est ni décodé ni compté ; le DSP le redemande à chaque tic, et
+reprend là où il l'attendait (la référence, le premier octet, l'octet de données, la recharge). Sans PB-234, le tic
+de PCem refait, l'octet attendu marqué par `DMA_NODATA` dans `sbdat2`, compté une fois, à la demande (le DSP décompte
+avant de demander) ; mais le dernier octet d'un bloc, non servi, y finit le bloc sans être attendu (la fin de bloc de
+PCem, que corrige PB-234), et une référence non servie à la commande y reste FFh (PCem). L'état « occupé » du DSP pendant l'attente, et une commande écrite pendant ce temps (la même broche que
+l'octet du DMA : inconnu), restent ceux de PCem. `materiel-cas PB-235` : le canal masqué, l'IRQ au 14e tic en mode PCem,
+au 34e (39e sous « tout ») une fois le canal démasqué au 21e ; trois témoins servis, les sorties de PCem ; la correction
+coupée, il rougit.
 
 ### PB-236 — Le DSP au démarrage et au reset : ni sortie coupée, ni bloc 07FFh, ni constante 9Ch
 
@@ -6023,6 +6074,45 @@ d'atteinte ici.
 *G13* : (c) — la forme SCSI inatteignable, la forme ATAPI inconnue ; reproduit dans les deux modes (décision n° 14).
 *Reproduit* : `Scsi/scsi_cd.cs`, `Scsi/scsi_zip.cs`, marqueurs PB-283 (le test du LUN ; la branche d'INQUIRY du ZIP).
 
+
+### PB-284 — Les tables ADPCM 2 bits et 2,6 bits ne sont pas celles du DSP
+
+`sound_sb_dsp.c:67-68` (`scaleMap26`), `:72` (`scaleMap2`), `:963` (le troisième échantillon d'un octet de 2,6 bits).
+Le DSP décode par un pas `r5` : `delta = m × r5 + r5 / 2` (4 et 2,6 bits), `r5 / 2` ou `r5 / 2 + r5` (2 bits) ; les
+tables de PCem en déroulent les rangées, une par valeur de `r5`. Trois écarts :
+- 2,6 bits, la cinquième rangée : `r5` double jusqu'à 10h (16), et la rangée vaut 8, 24, 40, 56 ; PCem porte 5, 15, 25,
+  35 (un pas de 10, décimal) ;
+- 2 bits, la sixième rangée (`r5` = 20h) : « 00 » ajoute `r5 / 2` = 16 ; PCem porte 6 (`scaleMap2[20]`) ;
+- 2,6 bits, le troisième échantillon de l'octet : le signe est le bit 1 et l'amplitude le bit 0 seul, `m` ∈ {0, 1} ;
+  PCem lit `(octet << 1) & 7`, l'amplitude 2 × bit 0, `m` ∈ {0, 2}.
+*Effet* : un flux de 2,6 bits qui monte au plus grand pas sort des écarts de 5 à 35 au lieu de 8 à 56 : le signal
+plafonne, sourd et lent à suivre une attaque ; chaque troisième échantillon à bit 0 levé fait un écart de `2 r5 + r5/2`
+au lieu de `r5 + r5/2`, et l'écart se garde (le codage est différentiel). En 2 bits, au plus grand pas, « 00 » monte de
+6 au lieu de 16.
+*Trouvé par* : G13.8b (relecture des décodeurs des micrologiciels, après la contre-lecture K3 de D5, qui avait vérifié
+le 4 bits seul).
+*Source* : micrologiciel 2.02, `adpcm_2_decode` (`sbv202.asm:1964-2073` : la rangée par `r5`, plafond `cjne r5,#20h`)
+et `adpcm_2_6_decode` (`:2156-2248` : `cjne r5,#10h` ; `cjne r3,#1` puis `anl a,#1`, le troisième échantillon) ; les
+mêmes octets dans le 3.02 (`:1507-1686`), le 4.05 (`v405-8k_e51aff23.asm:3337-3525`) et le 4.13 (`:3676-3864`).
+Documenté par quatre micrologiciels ; déduit pour les 1.05, 2.00, 2.01 et 3.00, sans image. Le 4 bits est juste
+(K3). La saturation haute du 2 bits, fautive dans le micrologiciel (`mov a,0ffh`, D5 A3), n'est pas de ce défaut.
+*Cas qui discrimine* (SB 2.0, sorties en `sbref` ; le modèle des deux décodeurs, rejoué sur 20 000 flux tirés au
+hasard, rend les tables corrigées identiques au micrologiciel) :
+- 77h sur la référence 80h puis 6Dh (011, 011, puis le signe 0 et le bit 1) : PCem 83h, 8Ah, 94h ; la carte 83h, 8Ah,
+  90h ;
+- 77h sur 00h puis trois 6Ch (deux pas montants, un pas nul qui divise `r5`) : le neuvième échantillon, au pas 16, vaut
+  54h chez PCem (+5), 57h sur la carte (+8) ;
+- 17h sur 00h puis 55h et 54h (cinq « 01 », puis « 00 » au pas 20h) : le dernier échantillon vaut 94h chez PCem (+6),
+  9Eh sur la carte (+16).
+*G13* : (a) — documenté par le code machine.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, `scaleMap26` et `scaleMap2`, et le troisième échantillon de `ADPCM_26` dans
+`pollsb`, marqueurs PB-284.
+*Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_284)`, en tête des cas `ADPCM_26` et `ADPCM_2` de
+`pollsb` (`adpcm_materiel`) : les rangées du DSP (`TablesAdpcm`, une classe à part : M2) et le troisième
+échantillon du 2,6 bits sur son seul bit 0 (`troisieme_materiel`), dans le tic de PCem comme dans celui du DSP. Le
+modèle des deux décodeurs rend les tables corrigées identiques au micrologiciel sur 20 000 flux. `materiel-cas PB-284`
+(77h sur 80h et 6Dh ; 77h sur trois 6Ch ; 17h sur 55h, 54h) : 94h, 54h et 94h en mode PCem, 90h, 57h et 9Eh en mode
+matériel ; la correction coupée, il rougit.
 
 ## B. Comportement indéfini en C
 

@@ -564,7 +564,10 @@ contre-lecture, M2, sa série entière et son commit :
     reproduite, faute de source), PB-165 (08h de la SB 16 sans paramètre ; sa valeur, inconnue, reste 18h), PB-147
     (D1h et D3h de la SB 1.0 relient et coupent la sortie). Le banc des cas du son (`MaterielCasSon.cs`) : une machine
     par situation, la carte par ses ports, le 8237 par les siens, le tic de sortie joué à la main.
-  - **G13.8b — L'ADPCM.** PB-90, PB-91, PB-234, PB-235, PB-146 : les attendus se composent (contre-lecture K6).
+  - **G13.8b — L'ADPCM** ✅ *(13/10, VERIFICATION.md § G13.8b)*. PB-90, PB-91, PB-234, PB-235, PB-146 : les attendus se composent (contre-lecture K6). À
+    l'étude (13/10), les décodeurs des quatre micrologiciels relus : PB-284, neuf (les tables du 2 et du 2,6 bits, le
+    troisième échantillon du 2,6 bits) ; PB-234 élargi (le premier octet d'un bloc, sans référence et à la recharge).
+    Le vecteur du DSP tic par tic sous PB-234, le tic de PCem refait sous les autres ; quatre attendus par scénario.
   - **G13.8c — Le DSP 4.xx et la fréquence.** PB-149, PB-239, PB-155 (Q15).
   - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14) ; à
     couper en deux si elle pèse.

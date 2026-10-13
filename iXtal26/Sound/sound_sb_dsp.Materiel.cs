@@ -16,6 +16,7 @@
 // `sb_commands`, statique et partagé, n'est jamais écrit ici.
 
 using System.Runtime.CompilerServices;
+using static iXtal26.Models.dma;
 using static iXtal26.Sound.sound_mpu401_uart;
 using static iXtal26.timer;
 
@@ -34,6 +35,12 @@ internal static partial class sound_sb_dsp
             internal bool uart;
             /// <summary>38h reçue : l'octet suivant part à la sortie MIDI (PB-240).</summary>
             internal bool midi_attendu;
+            /// <summary>Le bloc ADPCM du DSP (PB-234) : les échantillons qui restent dans l'octet en cours (`r3` du
+            /// micrologiciel), et cet octet, qui tourne à chaque échantillon (`r6`).</summary>
+            internal int r3, r6;
+            /// <summary>L'octet que le DSP attend du 8237 (PB-235) : aucun, la référence, le premier octet, un octet
+            /// de données, ou celui qui recharge un bloc automatique.</summary>
+            internal int attente;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -222,5 +229,399 @@ internal static partial class sound_sb_dsp
                 return;
         ModeMateriel.Sonde[147]++;
         dsp.muted = actif != 0 ? 0 : 1;
+    }
+
+    // ===== G13.8b — l'ADPCM =====
+
+    private const int ATTENTE_AUCUNE = 0, ATTENTE_REFERENCE = 1, ATTENTE_PREMIER = 2, ATTENTE_DONNEE = 3,
+                      ATTENTE_RECHARGE = 4;
+
+    /// <summary>Les tables de PB-284, dans une classe à part : un champ statique de plus dans sound_sb_dsp changerait
+    /// son constructeur statique, et le code que le JIT tire des méthodes qui lisent ses tables (M2 :
+    /// `low_fir_sb16_coef` n'y était plus une constante).</summary>
+    private static class TablesAdpcm
+    {
+        /// <summary>PB-284 : la cinquième rangée du 2,6 bits au pas `r5` = 10h (`delta = m × 16 + 8`).</summary>
+        internal static readonly int8_t[] scaleMap26 = {0,  1,  2,   3,   0, -1, -2, -3, 1,  3,   5,   7,   -1, -3, -5, -7, 2,  6,   10,  14,
+                                                        -2, -6, -10, -14, 4, 12, 20, 28, -4, -12, -20, -28, 8,  24, 40, 56, -8, -24, -40, -56};
+        /// <summary>PB-284 : la sixième rangée du 2 bits au pas `r5` = 20h (« 00 » ajoute 16).</summary>
+        internal static readonly int8_t[] scaleMap2 = {0, 1, 0, -1, 1, 3, -1, -3, 2, 6, -2, -6, 4, 12, -4, -12, 8, 24, -8, -24, 16, 48, -16, -48};
+    }
+
+    /// <summary>Les lectures ADPCM du mode matériel : celles de PCem, ou, sous PB-90, sans le drapeau de fin de
+    /// compte.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int lecture_adpcm_materiel(sb_dsp_t dsp)
+    {
+        if (!materiel.pb_90)
+                return sb_8_read_dma(dsp);
+        return lecture_materiel(dsp);
+    }
+
+    /// <summary>PB-90 : le terme du compte sort sur la broche EOP du 8237, pas dans l'octet (fiche 8237A, tableau 1) ;
+    /// le DSP lit l'octet seul (le drapeau seul retiré : un canal de 16 bits garde son mot). `DMA_NODATA` passe tel
+    /// quel. Les chemins PCM, que le drapeau ne touche pas (il sort des 16 bits), restent ceux de PCem : sb_8_read_dma,
+    /// que le JIT inline, ne porte pas de garde (PLAN-G13.md, la règle de placement).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int lecture_materiel(sb_dsp_t dsp)
+    {
+        int v = dma_channel_read(dsp.sb_8_dmanum);
+        if (v == DMA_NODATA || (v & DMA_OVER) == 0)
+                return v;
+        ModeMateriel.Sonde[90]++;
+        return v & ~DMA_OVER;
+    }
+
+    /// <summary>PB-235 : l'octet que le 8237 ne sert pas, le DSP l'attend (2.02 `X01ac`, `X0840`) : ni octet fictif,
+    /// ni compte.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool attend_materiel(int v)
+    {
+        if (v != DMA_NODATA || !materiel.pb_235)
+                return false;
+        ModeMateriel.Sonde[235]++;
+        return true;
+    }
+
+    /// <summary>La sortie d'un échantillon, comme `pollsb` (la Pro en stéréo alterne les voies).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void sortie_materiel(sb_dsp_t dsp)
+    {
+        dsp.sbdat = (int16_t)((dsp.sbref ^ 0x80) << 8);
+        if (dsp.sb_type >= SBPRO && dsp.sb_type < SB16 && dsp.stereo != 0) {
+                if (dsp.sbleftright != 0)
+                        dsp.sbdatl = dsp.sbdat;
+                else
+                        dsp.sbdatr = dsp.sbdat;
+                dsp.sbleftright = dsp.sbleftright == 0 ? 1 : 0;
+        } else
+                dsp.sbdatl = dsp.sbdatr = dsp.sbdat;
+    }
+
+    /// <summary>Un pas du décodeur : l'indice (le signe et l'amplitude) sur la rangée du pas, comme `pollsb` ; les
+    /// tables de PB-284 en mode matériel.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void pas_materiel(sb_dsp_t dsp, int indice, int8_t[] echelle, uint8_t[] ajustement, int max)
+    {
+        int tempi = indice + dsp.sbstep;
+        if (tempi < 0)
+                tempi = 0;
+        if (tempi > max)
+                tempi = max;
+        int @ref = dsp.sbref + echelle[tempi];
+        if (@ref > 0xff)
+                dsp.sbref = 0xff;
+        else if (@ref < 0x00)
+                dsp.sbref = 0x00;
+        else
+                dsp.sbref = (uint8_t)@ref;
+        dsp.sbstep = (int8_t)((dsp.sbstep + ajustement[tempi]) & 0xff);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int8_t[] echelle26_materiel()
+    {
+        if (!materiel.pb_284)
+                return scaleMap26;
+        ModeMateriel.Sonde[284]++;
+        return TablesAdpcm.scaleMap26;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int8_t[] echelle2_materiel()
+    {
+        if (!materiel.pb_284)
+                return scaleMap2;
+        ModeMateriel.Sonde[284]++;
+        return TablesAdpcm.scaleMap2;
+    }
+
+    /// <summary>PB-284 : le troisième échantillon d'un octet de 2,6 bits — le signe au bit 1, l'amplitude au bit 0
+    /// seul (2.02 `adpcm_2_6_decode`, `cjne r3,#1` puis `anl a,#1`) ; PCem, l'amplitude 2 × bit 0. `octet` porte le
+    /// signe en bit 2 et le bit 0 en bit 1, comme `(sbdat2 << 1) & 7`.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int troisieme_materiel(int indice)
+    {
+        if (!materiel.pb_284)
+                return indice;
+        ModeMateriel.Sonde[284]++;
+        return (indice & 4) | ((indice >> 1) & 1);
+    }
+
+    /// <summary>PB-91, PB-235, PB-284, PB-90 sans PB-234 : le tic ADPCM de PCem (`pollsb`, :923-1031), l'octet lu à la fin du
+    /// précédent, chacune de ces corrections à sa place. Toutes coupées, c'est le tic de PCem ; la fin du bloc reste
+    /// celle de `pollsb`, après le `switch`. L'octet non servi (PB-235) est compté une fois, à la demande, comme le DSP
+    /// décompte avant de demander ; mais si c'est le dernier du bloc, la fin de `pollsb` le termine sans l'attendre
+    /// (la fin de bloc du DSP est PB-234).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool adpcm_pcem_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sbdat2 == DMA_NODATA && materiel.pb_235) {
+                int v = lecture_adpcm_materiel(dsp);
+                if (attend_materiel(v))
+                        return true;
+                dsp.sbdat2 = v;
+        }
+        switch (dsp.sb_8_format) {
+        case ADPCM_4:
+                pas_materiel(dsp, dsp.sbdacpos != 0 ? dsp.sbdat2 & 0xF : dsp.sbdat2 >> 4, scaleMap4, adjustMap4, 63);
+                if (++dsp.sbdacpos >= 2) {
+                        dsp.sbdacpos = 0;
+                        dsp.sbdat2 = lecture_adpcm_materiel(dsp);
+                        dsp.sb_8_length--;
+                }
+                break;
+        case ADPCM_26:
+                pas_materiel(dsp, dsp.sbdacpos == 0 ? dsp.sbdat2 >> 5 : dsp.sbdacpos == 1 ? (dsp.sbdat2 >> 2) & 7
+                                : troisieme_materiel((dsp.sbdat2 << 1) & 7), echelle26_materiel(), adjustMap26, 39);
+                if (++dsp.sbdacpos >= 3) {
+                        dsp.sbdacpos = 0;
+                        dsp.sbdat2 = lecture_adpcm_materiel(dsp);
+                        dsp.sb_8_length--;
+                }
+                break;
+        default:
+                pas_materiel(dsp, (dsp.sbdat2 >> ((3 - dsp.sbdacpos) * 2)) & 3, echelle2_materiel(), adjustMap2, 23);
+                if (++dsp.sbdacpos >= 4) {
+                        dsp.sbdacpos = 0;
+                        dsp.sbdat2 = lecture_adpcm_materiel(dsp);
+                        if (materiel.pb_91)
+                                compte2_materiel(dsp);
+                }
+                break;
+        }
+        sortie_materiel(dsp);
+        return true;
+    }
+
+    /// <summary>PB-91 : l'ADPCM 2 bits décrémente son compte à chaque octet lu (2.02 `X01a2`, `X01a4`), comme le 4 et
+    /// le 2,6 bits.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void compte2_materiel(sb_dsp_t dsp)
+    {
+        ModeMateriel.Sonde[91]++;
+        dsp.sb_8_length--;
+    }
+
+    /// <summary>PB-234 : le décodage d'un échantillon par le micrologiciel — l'octet `r6` tourne : de 4 bits en 4
+    /// bits (`swap`), de 3 en 3 en 2,6 bits (le troisième, `r3` = 1, sur 2 bits), de 2 en 2 en 2 bits. L'indice est
+    /// celui de `pollsb` ; les mêmes tables (K3 ; PB-284 pour le 2 et le 2,6 bits).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void decode_materiel(sb_dsp_t dsp, EtatDsp.Etat e)
+    {
+        int r6 = e.r6;
+        switch (dsp.sb_8_format) {
+        case ADPCM_4:
+                pas_materiel(dsp, r6 >> 4, scaleMap4, adjustMap4, 63);
+                e.r6 = ((r6 & 0x0f) << 4) | ((r6 >> 4) & 0x0f);
+                break;
+        case ADPCM_26:
+                if (e.r3 == 1) {
+                        pas_materiel(dsp, troisieme_materiel(((r6 >> 5) & 4) | ((r6 >> 5) & 2)), echelle26_materiel(),
+                                     adjustMap26, 39);
+                        break;
+                }
+                pas_materiel(dsp, r6 >> 5, echelle26_materiel(), adjustMap26, 39);
+                e.r6 = ((r6 << 3) | ((r6 & 0xff) >> 5)) & 0xff;
+                break;
+        default:
+                pas_materiel(dsp, (r6 >> 6) & 3, echelle2_materiel(), adjustMap2, 23);
+                e.r6 = (r6 << 2) & 0xff;
+                break;
+        }
+        sortie_materiel(dsp);
+    }
+
+    /// <summary>Les échantillons d'un octet, que `r3` reçoit quand le DSP lit un octet de données.</summary>
+    private static int par_octet_materiel(sb_dsp_t dsp) => dsp.sb_8_format switch { ADPCM_4 => 2, ADPCM_26 => 3, _ => 4 };
+
+    /// <summary>PB-234 : la commande ADPCM, comme le micrologiciel la lance (2.02 `:1555-1600`, `:1659-1700` ; les
+    /// mêmes constantes en 3.02, 4.05 et 4.13). Avec référence, l'octet va au CNA aussitôt, le pas à 1 (`sbstep` 0) et
+    /// `r3` à 1 : le premier tic lit le premier octet de données. Sans référence, le premier octet est lu pendant la
+    /// commande, sans toucher au compte, et `r3` part de 4 (2 et 4 bits) ou de 3 (2,6 bits). Le compte est celui du
+    /// paramètre, N : N octets lus ensuite.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool adpcm_depart_materiel(sb_dsp_t dsp, int format, int autoinit, int len, bool reference)
+    {
+        ModeMateriel.Sonde[234]++;
+        var e = etat_materiel(dsp);
+        e.attente = ATTENTE_AUCUNE;
+        sb_start_dma(dsp, 1, autoinit, (uint8_t)format, len);
+        if (reference) {
+                e.r3 = 1;
+                int v = lecture_adpcm_materiel(dsp);
+                if (attend_materiel(v)) {
+                        e.attente = ATTENTE_REFERENCE;
+                        return true;
+                }
+                sb_dsp_update(dsp);
+                reference_materiel(dsp, v);
+                return true;
+        }
+        e.r3 = format == ADPCM_26 ? 3 : 4;
+        int w = lecture_adpcm_materiel(dsp);
+        if (attend_materiel(w)) {
+                e.attente = ATTENTE_PREMIER;
+                return true;
+        }
+        e.r6 = w;
+        return true;
+    }
+
+    /// <summary>PB-234 : l'octet de référence sort aussitôt sur le CNA (2.02 `mov port_dac_out,a`) ; hors de `pollsb`,
+    /// le tampon est d'abord rattrapé (sb_dsp_update, comme 10h). En stéréo, la Pro alterne les voies comme chez PCem :
+    /// les vecteurs ADPCM n'ont pas de stéréo, l'alternance est celle de la carte, inconnue.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void reference_materiel(sb_dsp_t dsp, int v)
+    {
+        dsp.sbref = (uint8_t)v;
+        dsp.sbstep = 0;
+        sortie_materiel(dsp);
+    }
+
+    /// <summary>PB-234 et PB-90 : les commandes ADPCM de sortie, en tête de leur case dans sb_exec_command. 1Fh, 7Dh
+    /// et 7Fh sans PB-146 gardent les paramètres de PCem (les octets de la commande précédente, sans référence). Sans
+    /// PB-234, le départ de PCem, ses octets lus sans le drapeau de PB-90.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool adpcm_commande_materiel(sb_dsp_t dsp)
+    {
+        if (!materiel.pb_234)
+                return adpcm_commande_pcem_materiel(dsp);
+        int len = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
+        switch (dsp.sb_command) {
+        case 0x16: return adpcm_depart_materiel(dsp, ADPCM_2, 0, len, false);
+        case 0x17: return adpcm_depart_materiel(dsp, ADPCM_2, 0, len, true);
+        case 0x74: return adpcm_depart_materiel(dsp, ADPCM_4, 0, len, false);
+        case 0x75: return adpcm_depart_materiel(dsp, ADPCM_4, 0, len, true);
+        case 0x76: return adpcm_depart_materiel(dsp, ADPCM_26, 0, len, false);
+        case 0x77: return adpcm_depart_materiel(dsp, ADPCM_26, 0, len, true);
+        }
+        if (dsp.sb_type < SB15)
+                return false;
+        return adpcm_depart_materiel(dsp, dsp.sb_command == 0x1F ? ADPCM_2 : dsp.sb_command == 0x7D ? ADPCM_4 : ADPCM_26,
+                                     1, len, false);
+    }
+
+    /// <summary>PB-90 sans PB-234 : le départ de PCem (sound_sb_dsp.c, 74h à 77h, 7Dh, 7Fh), le premier octet de
+    /// données lu sans le drapeau de fin de compte ; la référence, tronquée à 8 bits, ne le gardait pas.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool adpcm_commande_pcem_materiel(sb_dsp_t dsp)
+    {
+        int len = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
+        int c = dsp.sb_command;
+        int format = c is 0x74 or 0x75 or 0x7D ? ADPCM_4 : ADPCM_26;
+        int autoinit = c is 0x7D or 0x7F ? 1 : 0;
+        if (autoinit != 0 && dsp.sb_type < SB15)
+                return false;
+        if (c is 0x75 or 0x77) {
+                dsp.sbref = (uint8_t)lecture_adpcm_materiel(dsp);
+                dsp.sbstep = 0;
+        }
+        sb_start_dma(dsp, 1, autoinit, (uint8_t)format, len);
+        dsp.sbdat2 = lecture_adpcm_materiel(dsp);
+        dsp.sb_8_length--;
+        if (c is 0x75 or 0x77)
+                dsp.sb_8_length--;
+        return true;
+    }
+
+    /// <summary>PB-146 : 1Fh, 2Ch, 7Dh et 7Fh n'ont pas de paramètre ; le bloc est celui de 48h (guide, p. 6-8 à 6-19 ;
+    /// 2.02 `:1395-1398`, `:1612-1616`), et 1Fh, 7Dh et 7Fh lisent d'abord l'octet de référence (« with reference
+    /// byte » ; 2.02 `:1659-1672`). Sans PB-234, le départ de 17h, 75h et 77h de PCem, deux octets décomptés.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool automatique_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type < SB15)
+                return false;
+        ModeMateriel.Sonde[146]++;
+        if (dsp.sb_command == 0x2C) {
+                sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_8_autolen);
+                return true;
+        }
+        int format = dsp.sb_command == 0x1F ? ADPCM_2 : dsp.sb_command == 0x7D ? ADPCM_4 : ADPCM_26;
+        if (materiel.pb_234)
+                return adpcm_depart_materiel(dsp, format, 1, dsp.sb_8_autolen, true);
+        dsp.sbref = (uint8_t)lecture_adpcm_materiel(dsp);
+        dsp.sbstep = 0;
+        sb_start_dma(dsp, 1, 1, (uint8_t)format, dsp.sb_8_autolen);
+        dsp.sbdat2 = lecture_adpcm_materiel(dsp);
+        dsp.sb_8_length -= 2;
+        return true;
+    }
+
+    /// <summary>Le tic ADPCM du mode matériel, en tête des cas ADPCM de `pollsb` sous PB-234, PB-235, PB-91, PB-284 et
+    /// PB-90.
+    /// Sans PB-234, celui de PCem (adpcm_pcem_materiel). Avec, le vecteur du micrologiciel (2.02
+    /// `vector_dma_dac_adpcm2`, `_adpcm4`, `_adpcm2_6`, `sbv202.asm:343-640` ; 3.02, 4.05 et 4.13 de même) : `r3`
+    /// décompté ; à zéro, l'octet suivant lu, le compte décrémenté, et décodé dans le même tic ; le compte nul, la fin
+    /// du bloc — l'IRQ après le dernier échantillon ; en automatique, le compte de 48h rechargé et le premier octet du
+    /// bloc suivant lu, sans décodage dans ce tic. Le compte reste ≥ 0 : le test de `pollsb` après le `switch` ne
+    /// joue pas. Rend toujours true.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool adpcm_materiel(sb_dsp_t dsp)
+    {
+        if (!materiel.pb_234)
+                return adpcm_pcem_materiel(dsp);
+        ModeMateriel.Sonde[234]++;
+        var e = etat_materiel(dsp);
+        if (e.attente != ATTENTE_AUCUNE)
+                return attente_materiel(dsp, e);
+        if (--e.r3 > 0) {
+                decode_materiel(dsp, e);
+                return true;
+        }
+        if (dsp.sb_8_length != 0) {
+                if (dsp.sb_8_format != ADPCM_2)
+                        dsp.sb_8_length--;
+                else if (materiel.pb_91)
+                        compte2_materiel(dsp);
+                e.r3 = par_octet_materiel(dsp);
+                int v = lecture_adpcm_materiel(dsp);
+                if (attend_materiel(v)) {
+                        e.attente = ATTENTE_DONNEE;
+                        return true;
+                }
+                e.r6 = v;
+                decode_materiel(dsp, e);
+                return true;
+        }
+        if (dsp.sb_8_autoinit != 0) {
+                dsp.sb_8_length = dsp.sb_8_autolen;
+                e.r3 = par_octet_materiel(dsp);
+                int w = lecture_adpcm_materiel(dsp);
+                if (attend_materiel(w)) {
+                        e.attente = ATTENTE_RECHARGE;
+                        return true;
+                }
+                e.r6 = w;
+                sb_irq(dsp, 1);
+                return true;
+        }
+        dsp.sb_8_enable = 0;
+        timer_disable(dsp.output_timer);
+        sb_irq(dsp, 1);
+        return true;
+    }
+
+    /// <summary>PB-235 avec PB-234 : le DSP attend l'octet, et reprend là où il l'attendait — la référence au CNA, le
+    /// premier octet rangé, l'octet de données décodé, ou le bloc rechargé et l'IRQ levée.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool attente_materiel(sb_dsp_t dsp, EtatDsp.Etat e)
+    {
+        int v = lecture_adpcm_materiel(dsp);
+        if (attend_materiel(v))
+                return true;
+        int attente = e.attente;
+        e.attente = ATTENTE_AUCUNE;
+        if (attente == ATTENTE_REFERENCE) {
+                reference_materiel(dsp, v);
+                return true;
+        }
+        e.r6 = v;
+        if (attente == ATTENTE_DONNEE)
+                decode_materiel(dsp, e);
+        else if (attente == ATTENTE_RECHARGE)
+                sb_irq(dsp, 1);
+        return true;
     }
 }

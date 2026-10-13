@@ -170,6 +170,8 @@ internal static partial class sound_sb_dsp
                                                     0,  16, 16,  16, 240, 0,  0,  0,  0,  0,  0,   0, 240, 0,  0,  0,  0,   0,  0,   0};
 
     // pcem: sound_sb_dsp.c:67-68
+    // pcem bug, fixed in hardware mode: PB-284 — la cinquième rangée (5, 15, 25, 35) n'est pas celle du DSP, au pas
+    //   10h : 8, 24, 40, 56 (2.02 `adpcm_2_6_decode`).
     private static readonly int8_t[] scaleMap26 = {0,  1,  2,   3,   0, -1, -2, -3, 1,  3,   5,   7,   -1, -3, -5, -7, 2,  6,   10,  14,
                                                    -2, -6, -10, -14, 4, 12, 20, 28, -4, -12, -20, -28, 5,  15, 25, 35, -5, -15, -25, -35};
     // pcem: sound_sb_dsp.c:69-70
@@ -177,6 +179,8 @@ internal static partial class sound_sb_dsp
                                                      248, 0, 0, 8, 248, 0, 0, 8, 248, 0, 0, 8, 248, 0, 0, 0, 248, 0, 0, 0};
 
     // pcem: sound_sb_dsp.c:72
+    // pcem bug, fixed in hardware mode: PB-284 — `scaleMap2[20]` vaut 6 ; au pas 20h, « 00 » ajoute 16 (2.02
+    //   `adpcm_2_decode`).
     private static readonly int8_t[] scaleMap2 = {0, 1, 0, -1, 1, 3, -1, -3, 2, 6, -2, -6, 4, 12, -4, -12, 8, 24, -8, -24, 6, 48, -16, -48};
     // pcem: sound_sb_dsp.c:73
     private static readonly uint8_t[] adjustMap2 = {0, 4, 0, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 4, 252, 0, 252, 0};
@@ -476,11 +480,21 @@ internal static partial class sound_sb_dsp
                 sb_start_dma(dsp, 1, 0, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x17: /*2-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 dsp.sbref = (uint8_t)sb_8_read_dma(dsp);
                 dsp.sbstep = 0;
                 //                pclog("Ref byte 2 %02X\n",sbref);
                 goto case 0x16;
         case 0x16: /*2-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 sb_start_dma(dsp, 1, 0, ADPCM_2, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -493,10 +507,19 @@ internal static partial class sound_sb_dsp
                 sb_start_dma(dsp, 1, 1, 0, dsp.sb_8_autolen);
                 break;
         case 0x1F: /*2-bit ADPCM autoinit output*/
+                // pcem bug, fixed in hardware mode: PB-146 — ni le bloc de 48h ni l'octet de référence.
+                if (materiel.pb_146)
+                        if (automatique_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x1F] vaut 0 : sb_data[0..1] sont les octets de la
-                //   commande précédente, et non la taille de 48h ; l'octet de référence n'est pas lu.
+                // pcem bug, fixed in hardware mode: PB-146 — sb_commands[0x1F] vaut 0 : sb_data[0..1] sont les octets
+                //   de la commande précédente, et non la taille de 48h ; l'octet de référence n'est pas lu.
                 sb_start_dma(dsp, 1, 1, ADPCM_2, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
@@ -517,9 +540,13 @@ internal static partial class sound_sb_dsp
                 sb_start_dma_i(dsp, 1, 0, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x2C: /*8-bit autoinit DMA input*/
+                // pcem bug, fixed in hardware mode: PB-146 — ni le bloc de 48h ni l'octet de référence.
+                if (materiel.pb_146)
+                        if (automatique_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x2C] vaut 0, comme pour 1Fh.
+                // pcem bug, fixed in hardware mode: PB-146 — sb_commands[0x2C] vaut 0, comme pour 1Fh.
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x40: /*Set time constant*/
@@ -569,48 +596,120 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_autolen = dsp.sb_data[0] + (dsp.sb_data[1] << 8);
                 break;
         case 0x75: /*4-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 dsp.sbref = (uint8_t)sb_8_read_dma(dsp);
                 dsp.sbstep = 0;
                 //                pclog("Ref byte 4 %02X\n",sbref);
                 goto case 0x74;
         case 0x74: /*4-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 sb_start_dma(dsp, 1, 0, ADPCM_4, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
-                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
+                // pcem bug, fixed in hardware mode: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet
+                //   octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 if (dsp.sb_command == 0x75)
                         dsp.sb_8_length--;
                 break;
         case 0x77: /*2.6-bit ADPCM output with reference*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 dsp.sbref = (uint8_t)sb_8_read_dma(dsp);
                 dsp.sbstep = 0;
                 //                pclog("Ref byte 26 %02X\n",sbref);
                 goto case 0x76;
         case 0x76: /*2.6-bit ADPCM output*/
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 sb_start_dma(dsp, 1, 0, ADPCM_26, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
-                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
+                // pcem bug, fixed in hardware mode: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet
+                //   octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 if (dsp.sb_command == 0x77)
                         dsp.sb_8_length--;
                 break;
         case 0x7D: /*4-bit ADPCM autoinit output*/
+                // pcem bug, fixed in hardware mode: PB-146 — ni le bloc de 48h ni l'octet de référence.
+                if (materiel.pb_146)
+                        if (automatique_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x7D] vaut 0, comme pour 1Fh : ni la taille de 48h ni
-                //   l'octet de référence.
+                // pcem bug, fixed in hardware mode: PB-146 — sb_commands[0x7D] vaut 0, comme pour 1Fh : ni la taille de
+                //   48h ni l'octet de référence.
                 sb_start_dma(dsp, 1, 1, ADPCM_4, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
-                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
+                // pcem bug, fixed in hardware mode: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet
+                //   octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 break;
         case 0x7F: /*2.6-bit ADPCM autoinit output*/
+                // pcem bug, fixed in hardware mode: PB-146 — ni le bloc de 48h ni l'octet de référence.
+                if (materiel.pb_146)
+                        if (automatique_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-234 — le DSP lance le bloc à sa façon : la référence au CNA, ou
+                //   le premier octet lu sans décompte, `r3` à 4, 4 ou 3.
+                if (materiel.pb_234)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
+                // pcem bug, fixed in hardware mode: PB-90 — le premier octet lu porte `DMA_OVER` si le compte du 8237
+                //   finit sur lui.
+                if (materiel.pb_90)
+                        if (adpcm_commande_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB15)
                         break;
-                // pcem bug, reproduced: PB-146 — sb_commands[0x7F] vaut 0, comme pour 1Fh : ni la taille de 48h ni
-                //   l'octet de référence.
+                // pcem bug, fixed in hardware mode: PB-146 — sb_commands[0x7F] vaut 0, comme pour 1Fh : ni la taille de
+                //   48h ni l'octet de référence.
                 sb_start_dma(dsp, 1, 1, ADPCM_26, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
-                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet octet.
+                // pcem bug, fixed in hardware mode: PB-90 — `octet | DMA_OVER` si le compte du 8237 finit sur cet
+                //   octet.
                 dsp.sbdat2 = sb_8_read_dma(dsp);
                 dsp.sb_8_length--;
                 break;
@@ -1094,6 +1193,18 @@ internal static partial class sound_sb_dsp
                         break;
 
                 case ADPCM_4:
+                        // pcem bug, fixed in hardware mode: PB-234 — le tic de PCem, et non le vecteur du DSP.
+                        if (materiel.pb_234)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-235 — l'octet que le 8237 ne sert pas, décodé et compté.
+                        if (materiel.pb_235)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-90 — `DMA_OVER` entre dans sbdat2 au terme du 8237.
+                        if (materiel.pb_90)
+                                if (adpcm_materiel(dsp))
+                                        break;
                         if (dsp.sbdacpos != 0)
                                 tempi = (dsp.sbdat2 & 0xF) + dsp.sbstep;
                         else
@@ -1118,10 +1229,10 @@ internal static partial class sound_sb_dsp
                         dsp.sbdacpos++;
                         if (dsp.sbdacpos >= 2) {
                                 dsp.sbdacpos = 0;
-                                // pcem bug, reproduced: PB-90 — à l'octet qui finit le compte du 8237, dma_channel_read
-                                //   rend `octet | DMA_OVER` (0x10000) : sbdat2 >> 4 vaut alors 0x1000 + quartet,
-                                //   tempi sature à 63 et l'échantillon suivant saute de scaleMap4[63].
-                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
+                                // pcem bug, fixed in hardware mode: PB-90 — à l'octet qui finit le compte du 8237,
+                                //   dma_channel_read rend `octet | DMA_OVER` (0x10000) : sbdat2 >> 4 vaut alors 0x1000
+                                //   + quartet, tempi sature à 63 et l'échantillon suivant saute de scaleMap4[63].
+                                // pcem bug, fixed in hardware mode: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
                                 //   DSP attend l'octet (les chemins PCM, eux, sautent le tic).
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                                 dsp.sb_8_length--;
@@ -1138,11 +1249,29 @@ internal static partial class sound_sb_dsp
                         break;
 
                 case ADPCM_26:
+                        // pcem bug, fixed in hardware mode: PB-234 — le tic de PCem, et non le vecteur du DSP.
+                        if (materiel.pb_234)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-235 — l'octet que le 8237 ne sert pas, décodé et compté.
+                        if (materiel.pb_235)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-284 — les tables de PCem, et non celles du DSP.
+                        if (materiel.pb_284)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-90 — `DMA_OVER` entre dans sbdat2 au terme du 8237.
+                        if (materiel.pb_90)
+                                if (adpcm_materiel(dsp))
+                                        break;
                         if (dsp.sbdacpos == 0)
                                 tempi = (dsp.sbdat2 >> 5) + dsp.sbstep;
                         else if (dsp.sbdacpos == 1)
                                 tempi = ((dsp.sbdat2 >> 2) & 7) + dsp.sbstep;
                         else
+                                // pcem bug, fixed in hardware mode: PB-284 — l'amplitude du troisième échantillon
+                                //   est le bit 0 seul, et non 2 × bit 0 (2.02, `cjne r3,#1` puis `anl a,#1`).
                                 tempi = ((dsp.sbdat2 << 1) & 7) + dsp.sbstep;
 
                         if (tempi < 0)
@@ -1164,9 +1293,9 @@ internal static partial class sound_sb_dsp
                         dsp.sbdacpos++;
                         if (dsp.sbdacpos >= 3) {
                                 dsp.sbdacpos = 0;
-                                // pcem bug, reproduced: PB-90 — `octet | DMA_OVER` au terme du compte du 8237 :
-                                //   sbdat2 >> 5 vaut 0x800 + ..., tempi sature à 39.
-                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
+                                // pcem bug, fixed in hardware mode: PB-90 — `octet | DMA_OVER` au terme du compte du
+                                //   8237 : sbdat2 >> 5 vaut 0x800 + ..., tempi sature à 39.
+                                // pcem bug, fixed in hardware mode: PB-235 — DMA_NODATA (-1) est décodé et compté ; le
                                 //   DSP attend l'octet.
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                                 dsp.sb_8_length--;
@@ -1183,6 +1312,22 @@ internal static partial class sound_sb_dsp
                         break;
 
                 case ADPCM_2:
+                        // pcem bug, fixed in hardware mode: PB-234 — le tic de PCem, et non le vecteur du DSP.
+                        if (materiel.pb_234)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-235 — l'octet que le 8237 ne sert pas, décodé et compté.
+                        if (materiel.pb_235)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-91 — le compte jamais décrémenté.
+                        if (materiel.pb_91)
+                                if (adpcm_materiel(dsp))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-284 — les tables de PCem, et non celles du DSP.
+                        if (materiel.pb_284)
+                                if (adpcm_materiel(dsp))
+                                        break;
                         tempi = ((dsp.sbdat2 >> ((3 - dsp.sbdacpos) * 2)) & 3) + dsp.sbstep;
                         if (tempi < 0)
                                 tempi = 0;
@@ -1203,11 +1348,11 @@ internal static partial class sound_sb_dsp
                         dsp.sbdacpos++;
                         if (dsp.sbdacpos >= 4) {
                                 dsp.sbdacpos = 0;
-                                // pcem bug, reproduced: PB-91 — sb_8_length n'est jamais décrémenté ici
+                                // pcem bug, fixed in hardware mode: PB-91 — sb_8_length n'est jamais décrémenté ici
                                 //   (cf. ADPCM_4 :944, ADPCM_26 :985) : 0x16/0x17 ne finissent jamais, sans IRQ ;
                                 //   0x1F ne recharge jamais. Et DMA_OVER entre dans sbdat2 comme à :943/:984 (PB-90 ;
                                 //   masqué ici par le `& 3` de :999, sans effet audible).
-                                // pcem bug, reproduced: PB-235 — DMA_NODATA (-1) est décodé ; le DSP attend
+                                // pcem bug, fixed in hardware mode: PB-235 — DMA_NODATA (-1) est décodé ; le DSP attend
                                 //   l'octet.
                                 dsp.sbdat2 = sb_8_read_dma(dsp);
                         }
@@ -1226,7 +1371,7 @@ internal static partial class sound_sb_dsp
                         // fatal("Unrecognised SB 8-bit format %02X\n",sb_8_format);
                 }
 
-                // pcem bug, reproduced: PB-234 — en ADPCM, le bloc finit à la lecture de son dernier octet,
+                // pcem bug, fixed in hardware mode: PB-234 — en ADPCM, le bloc finit à la lecture de son dernier octet,
                 //   avant de le jouer (en simple cycle, jamais) ; le DSP 2.02 lève l'IRQ après son dernier échantillon.
                 if (dsp.sb_8_length < 0) {
                         if (dsp.sb_8_autoinit != 0)

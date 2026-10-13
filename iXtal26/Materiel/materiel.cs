@@ -267,6 +267,24 @@ internal static class materiel
     /// <summary>PB-241 : en grande vitesse, le DSP 2.01 à 3.xx ne prend aucune commande ; le reset qui en sort est « chaud ».</summary>
     internal static readonly bool pb_241;
 
+    /// <summary>PB-90 : l'octet ADPCM lu au terme du compte du 8237 se décode sans le drapeau DMA_OVER.</summary>
+    internal static readonly bool pb_90;
+
+    /// <summary>PB-91 : l'ADPCM 2 bits décrémente son compte : 16h et 17h finissent, 1Fh recharge.</summary>
+    internal static readonly bool pb_91;
+
+    /// <summary>PB-146 : 1Fh, 2Ch, 7Dh et 7Fh prennent le bloc de 48h ; 1Fh, 7Dh et 7Fh lisent l'octet de référence.</summary>
+    internal static readonly bool pb_146;
+
+    /// <summary>PB-234 : le bloc ADPCM tic par tic, comme le DSP : son premier octet, l'IRQ après le dernier échantillon.</summary>
+    internal static readonly bool pb_234;
+
+    /// <summary>PB-235 : en ADPCM, le DSP attend l'octet que le 8237 ne sert pas, sans le décoder ni le compter.</summary>
+    internal static readonly bool pb_235;
+
+    /// <summary>PB-284 : les tables ADPCM 2 bits et 2,6 bits du DSP, et le troisième échantillon du 2,6 bits.</summary>
+    internal static readonly bool pb_284;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -540,6 +558,12 @@ internal static class materiel
         pb_236 = ModeMateriel.Demande(236);
         pb_240 = ModeMateriel.Demande(240);
         pb_241 = ModeMateriel.Demande(241);
+        pb_90 = ModeMateriel.Demande(90);
+        pb_91 = ModeMateriel.Demande(91);
+        pb_146 = ModeMateriel.Demande(146);
+        pb_234 = ModeMateriel.Demande(234);
+        pb_235 = ModeMateriel.Demande(235);
+        pb_284 = ModeMateriel.Demande(284);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

@@ -10752,3 +10752,99 @@ pose 38h à froid dans un registre voisin de celui de la fréquence (PB-155).
 **La série** g8a (le worktree de l'étape, contre g7e3) : 596 portes, toutes vertes ; 586 communes à g7e3, chacune au
 même verdict ; un seul résumé change, `recensement` (283 défauts, 1 185 marqueurs). Dix neuves : les `materiel-cas` de
 PB-236, PB-241, PB-240, PB-165 et PB-147, dans les deux modes.
+
+## G13.8b — l'ADPCM des Sound Blaster
+
+Le 13 octobre 2026. La deuxième étape du son (PLAN-G13.md, § G13.8). L'étude a relu, dans les quatre micrologiciels
+(2.02, 3.02, 4.05, 4.13 ; hors du dépôt, /var/tmp/ixtal-g13/fw), les vecteurs ADPCM, le lancement des commandes et les
+décodeurs. Deux constats : PB-284, neuf — les tables 2 bits et 2,6 bits de PCem ne sont pas celles du DSP, et le
+troisième échantillon d'un octet de 2,6 bits n'a qu'un bit d'amplitude (la contre-lecture K3 de D5 n'avait vérifié que
+le 4 bits, juste) ; PB-234 élargi — le premier octet d'un bloc : sans référence, `r3` part de 4, 4 et 3 (2, 4 et
+2,6 bits ; 3, 3 et 2 échantillons, le 4 bits rejouant son quartet haut), et le tic qui recharge un bloc automatique
+lit l'octet sans le décoder. Les mêmes constantes dans les quatre micrologiciels.
+
+**Les corrections du mode matériel** (domaine `son`, six ; l'aide dans `Sound/sound_sb_dsp.Materiel.cs` ; l'état que
+PCem n'a pas — `r3`, l'octet qui tourne, l'octet attendu — dans `EtatDsp`). PB-90 — en tête des cas `ADPCM_4` et
+`ADPCM_26` de `pollsb` et des commandes 74h à 77h, 7Dh et 7Fh : les lectures du mode matériel sans `DMA_OVER` (le
+drapeau seul retiré). Une première version la mettait en tête de `sb_8_read_dma` : M2 l'a refusée, la méthode n'étant
+plus inlinée (PLAN-G13.md, la règle de placement) ; elle n'en porte plus. PB-146 — `automatique_materiel`, en tête des cas 1Fh, 2Ch, 7Dh et 7Fh : le
+bloc de 48h, l'octet de référence (le départ de 17h, 75h et 77h de PCem, ou, avec PB-234, celui du DSP). PB-234 —
+`adpcm_commande_materiel`, en tête des cas 16h, 17h, 74h à 77h, 1Fh, 7Dh et 7Fh (le départ du DSP), et `adpcm_materiel`,
+en tête des cas ADPCM de `pollsb` : le vecteur du micrologiciel, tic par tic ; la fin du bloc après le dernier
+échantillon, la recharge sans décodage, l'IRQ ; le compte reste ≥ 0, le test de fin de bloc de `pollsb`, après le
+`switch`, ne joue pas. PB-235, PB-91 et PB-284 — la même aide, en tête des cas ADPCM (PB-91 en 2 bits, PB-284 en 2 et
+2,6 bits) : sans PB-234, elle refait le tic de PCem, chaque correction à sa place (l'octet non servi attendu, le compte
+du 2 bits, les tables du DSP) ; avec, le vecteur du DSP les porte de même. Toutes coupées, c'est le tic de PCem. Les
+gardes de `pollsb` sont par échantillon, à l'encontre du « niveau le plus froid » de la règle de placement : le
+comportement corrigé vit dans le tic, et elles ne sont atteintes que pendant un bloc ADPCM, en tête de ses cas ; M2 les
+montre pliées (ci-dessous), et PERFBANC mesurera le mode matériel en 8g.
+Restent comme chez PCem : le tic perdu par le DSP quand une commande arrive pendant un bloc ; une commande écrite
+pendant l'attente d'un octet (la même broche que l'octet du DMA : inconnu) ; la saturation haute du 2 bits, fautive
+dans le micrologiciel (`mov a,0ffh`, valeur indéfinie) ; une référence non servie à la commande, sans PB-234 (FFh) ; le
+bloc mis en file par une commande ADPCM reçue pendant un bloc (PB-239, en 8c).
+
+**Les modèles**, hors du dépôt (/tmp/a9/m8b) : `modele.py`, les décodeurs du 2.02 (`r2`, `r5`) et ceux de PCem
+(`sbref`, `sbstep`, les tables) ; sur 20 000 flux tirés au hasard, le 4 bits de PCem rend celui du DSP (K3), et le 2 et
+le 2,6 bits corrigés aussi. `ticks.py`, au tic : le 8237 (`dma.c:498-565`), `pollsb` de PCem avec les corrections du
+mode matériel en option, et `Fw`, le vecteur du 2.02 transcrit à part du code machine (`r3`, `len_left`,
+`dma_blk_len`, l'attente de l'octet). Les six corrections ensemble rendent `Fw` sur 4 000 scénarios tirés au hasard
+(commande, compte du 8237, automatique ou non, 48h, canal masqué puis démasqué) : les sorties, les IRQ et les octets
+pris. Les attendus des cas viennent de ces modèles ; le modèle de PCem retrouve, sans y avoir été réglé, les attendus
+que le registre avait tirés de la lecture du C (PB-146 : 1A6h, 180h, 181h ; PB-234 : l'IRQ au 4e tic contre le 7e ;
+PB-235 : au 14e).
+
+**Les cas**, en C# seul (`MaterielCasAdpcm.cs`, neuf, sur le banc du son de 8a ; un scénario : des octets à 10000h, le
+canal 1, des commandes, des tics joués à la main ; il rend `sbref` après chaque tic, les tics des IRQ et le compte
+restant du 8237). Les corrections se composent : quatre attendus par scénario — PCem, le PB du cas seul, « tout », et
+« tout » sans lui (l'attente inversée sous « tout »). Verts en mode PCem, sous leur PB seul et sous « tout » ; rouges
+sous l'attente de l'autre mode, dans les trois modes (PB-90 : une situation sur une ; PB-91 : deux sur deux ; PB-146 :
+trois sur trois ; PB-234 : trois sur trois ; PB-235 : une sur quatre, trois témoins ; PB-284 : trois sur trois).
+PB-90 : 75h 07h 00h sur un 8237 de 4 octets en automatique (44h au 5e tic contre 80h). PB-91 : 16h 03h 00h (l'IRQ au
+12e tic, au 16e sous « tout », jamais chez PCem) ; 48h 03h 00h puis 1Fh. PB-146 : 48h 7Fh 01h, 40h A5h, 7Dh (1A6h,
+180h, 181h octets) ; le témoin de SBBANC ; 2Ch (l'IRQ au 16e octet écrit contre le 166e). PB-234 : 75h 03h 00h (l'IRQ
+au 7e tic contre le 4e) ; 74h 01h 00h (le premier octet) ; 48h 01h 00h puis 7Dh (la recharge). PB-235 : le canal
+masqué jusqu'au 21e tic (l'IRQ au 14e chez PCem ; au 34e, au 39e sous « tout ») ; les témoins servis, 75h, 77h et 17h,
+qui sortent ce que sort PCem. PB-284 : 77h sur 80h et 6Dh (94h contre 90h) ; 77h sur trois 6Ch (54h contre 57h) ; 17h
+sur 55h et 54h (94h contre 9Eh). Les cas du son de 8a et ceux du stockage de 7e restent verts sous « tout ».
+`recensement` vert (284 défauts, 1 218 marqueurs).
+
+**Les contrôles négatifs** (/tmp/a9/neg-g138b.py, hors dépôt ; une faute à la fois, restaurée) : le témoin sans faute
+vert dans les douze vérifications ; 24 fautes, chacune rougit son cas — le drapeau gardé, la garde du 4 bits retirée,
+les lectures du mode matériel avec le drapeau (PB-90) ; le compte du 2 bits figé, sa garde retirée (PB-91) ; sans référence avec PB-234, la référence non
+décomptée sans lui, 2Ch sur les octets périmés, le départ de PCem sous PB-234 (PB-146) ; le premier octet à la façon
+de PCem, la recharge qui décode, la référence suivie d'un tic de trop, la fin sans IRQ, la garde du 4 bits retirée, le
+compte du 4 et du 2,6 bits figé (PB-234) ; l'octet fictif décodé, pas de nouvelle demande sans PB-234, l'octet attendu
+perdu, le tic de PCem refait de travers (PB-235) ; la rangée de PCem au pas 10h, le 6 au pas 20h, le troisième
+échantillon de PCem, une garde retirée (PB-284).
+
+**M2** (Release du worktree ; le scénario `ami486-adpcm`, neuf dans `tools/listings-jit.sh` : le canal 1 en automatique,
+48h, puis 75h, 77h, 17h, 74h, 76h, 16h, 7Dh, 7Fh et 1Fh sous DEBUG — `pollsb` dans ses trois cas ADPCM) : avec et sans
+les trente gardes de 8b (`M2-8b` contre `M2-8b-sansgardes`, `ami486-sb16` et `ami486-adpcm`), identique (967 méthodes,
+aucune changée). Contre M2-8a (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et
+`process_scsi`, `scsi_hd_command` et `scsi_zip_command`, dont seules changent des constantes de `mov` (les jetons de
+chaînes). Deux premières versions avaient échoué : la garde de PB-90 en tête de `sb_8_read_dma` ôtait la méthode de
+l'inlining (elle apparaissait, et `pollsb` et `sb_exec_command` l'appelaient) ; les tables de PB-284 dans
+`sound_sb_dsp` changeaient son constructeur statique, et `low_fir_sb16` et `recalc_sb16_filter` lisaient alors
+`low_fir_sb16_coef` en mémoire au lieu de l'avoir en constante. La garde est passée en tête des cas, les tables dans
+une classe à part (`TablesAdpcm`).
+
+**La contre-lecture** (Sonnet ; les quatre micrologiciels, `dma.c` et `pollsb` relus, les modèles rejoués, les trois
+tables recalculées depuis l'asm) : rien de bloquant ; le mode PCem intact ; les constantes de lancement (`r3` à 1, 4,
+4, 3 ; `r5` à 1) trouvées dans les quatre images ; les rangées de PB-284 seules fausses, les ajustements justes ; les
+vecteurs du 4.05 et du 4.13 de la même forme que le 2.02 (la file de `dma8_active` est PB-239). Repris : la référence
+au CNA, hors de `pollsb`, rattrape d'abord le tampon (`sb_dsp_update`) ; PB-90 ne retire que le drapeau (un canal de
+16 bits garde son mot) ; la série joue aussi chaque cas sous les six drapeaux ensemble (l'attendu « tout ») ; PB-235
+sans PB-234 : l'octet compté une fois, et le dernier d'un bloc non servi qui finit le bloc sans être attendu, écrit ;
+les numéros de lignes des micrologiciels (3.02, 4.05, 4.13) et le 3.00 dit déduit dans PB-234 ; la stéréo de la Pro
+dite comme chez PCem ; le saut de PB-90 de 35 en 2,6 bits.
+
+**Les amorçages.** Le scénario `ami486-adpcm` (PC-DOS sur A:, puis DEBUG : le 8237 et les neuf commandes ADPCM de
+sortie, chaque automatique arrêté par un reset), joué en mode PCem, sous chacun des six PB et sous « tout » (Release du
+worktree, bac à sable hors dépôt) : aucun arrêt, l'écran le même dans les huit (seule la bannière du mode change) ; ce
+que l'ADPCM corrige s'entend, et ne se voit pas sous DEBUG.
+
+**La série** g8b (le worktree de l'étape, contre g8a) : 614 portes, toutes vertes ; 596 communes à g8a, chacune au
+même verdict ; un seul résumé change, `recensement` (284 défauts, 1 218 marqueurs). Dix-huit neuves : les
+`materiel-cas` de PB-90, PB-91, PB-146, PB-234, PB-235 et PB-284, chacun en mode PCem, sous son PB seul et sous les
+six ensemble. Une première tentative avait échoué à la préparation : le quota de /tmp plein (les restes des séries
+passées, supprimés depuis).

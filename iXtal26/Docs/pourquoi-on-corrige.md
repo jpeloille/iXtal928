@@ -1562,3 +1562,75 @@ numéro.
 ### Ce qui reste comme chez PCem
 
 Ce que répond 08h, et l'entrée MIDI : sans la puce ni de source MIDI, rien ne dit ce que la carte ferait.
+
+## G13.8b — le son compressé (l'ADPCM) de la Sound Blaster
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8b.*
+
+L'ADPCM range deux, trois ou quatre échantillons par octet : chacun dit de combien monter ou descendre depuis le
+précédent, et le pas s'agrandit ou rétrécit à mesure. Une erreur sur un échantillon décale donc tous les suivants.
+Le programme interne du DSP fait ce travail ; on l'a lu dans quatre versions (2.02, 3.02, 4.05, 4.13), qui font la même
+chose.
+
+### PB-90 — la fin du compte prise pour une donnée
+
+- **Le vrai PC.** Quand le contrôleur de DMA a servi son dernier octet, il le signale sur une broche à part ; l'octet,
+  lui, arrive intact.
+- **L'émulateur.** PCem colle ce signal dans l'octet. En ADPCM, l'échantillon suivant fait un saut vers le bas (de 60
+  en 4 bits, de 35 en 2,6 bits), et le reste du son garde le décalage.
+- **La correction.** L'octet seul arrive au DSP.
+
+### PB-91 — le format 2 bits qui ne finit jamais
+
+- **Le vrai PC.** En 2 bits comme dans les autres formats, le DSP compte les octets lus et lève son interruption à la
+  fin du bloc.
+- **L'émulateur.** PCem oublie de compter en 2 bits : le son ne s'arrête plus, et le programme attend une
+  interruption qui ne vient pas.
+- **La correction.** Le compte, comme le DSP.
+
+### PB-146 — les lectures en boucle
+
+- **Le vrai PC.** Les commandes de lecture et d'enregistrement en boucle (1Fh, 2Ch, 7Dh, 7Fh) n'ont pas de paramètre :
+  la taille du bloc est celle fixée avant par 48h. Les trois en ADPCM lisent d'abord un octet de départ, la
+  « référence ».
+- **L'émulateur.** PCem prend comme taille les octets de la commande précédente, quels qu'ils soient, et décode la
+  référence comme une donnée.
+- **La correction.** La taille de 48h, la référence lue d'abord.
+
+### PB-234 — le bloc, échantillon par échantillon
+
+- **Le vrai PC.** Le DSP lève son interruption quand le dernier échantillon du bloc est sorti. Au départ d'un bloc
+  sans référence, il tire trois échantillons du premier octet en 2 et en 4 bits (en 4 bits, il en rejoue un), deux en
+  2,6 bits ; et à chaque nouveau bloc d'une lecture en boucle, il lit le premier octet sans en jouer d'échantillon
+  dans ce même temps. Les quatre programmes internes ont ces mêmes nombres : c'est le comportement de la carte, pas une
+  faute de lecture.
+- **L'émulateur.** PCem finit le bloc dès qu'il en lit le dernier octet, avant de le jouer : ce dernier octet est
+  perdu, et l'interruption arrive tôt. Il tire de chaque octet son nombre d'échantillons, sans les exceptions du
+  départ.
+- **La correction.** Le déroulé du programme interne, tic par tic. Deux modèles écrits à part, l'un d'après PCem,
+  l'autre d'après le code machine du DSP, s'accordent avec le mode matériel sur 4 000 scénarios.
+
+### PB-235 — l'octet qui ne vient pas
+
+- **Le vrai PC.** Si le contrôleur de DMA ne sert pas l'octet demandé, le DSP l'attend.
+- **L'émulateur.** PCem décode un octet fictif, le compte, et finit le bloc à l'heure, interruption comprise, sans
+  avoir rien lu.
+- **La correction.** Le DSP attend, puis reprend où il en était. Ce qu'il fait d'une commande reçue pendant
+  l'attente n'est pas connu : comme chez PCem.
+
+### PB-284 — deux tables de décodage
+
+- **Le vrai PC.** Le DSP calcule chaque pas d'une seule formule ; en 2,6 bits, le troisième échantillon d'un octet
+  n'a qu'un bit d'amplitude.
+- **L'émulateur.** PCem lit ses pas dans des tables, justes en 4 bits, mais fausses à leur dernière rangée en 2,6 bits
+  (5, 15, 25, 35 au lieu de 8, 24, 40, 56) et en 2 bits (6 au lieu de 16), et il compte double l'amplitude du
+  troisième échantillon en 2,6 bits. Un son fort, en 2,6 bits, plafonne et suit mal les attaques.
+- **La correction.** Les tables du DSP, et le troisième échantillon sur un bit. Les décodeurs corrigés rendent,
+  octet pour octet, ce que rend le programme interne.
+
+### Ce qui reste comme chez PCem
+
+Une commande écrite pendant un bloc fait perdre un tic au vrai DSP, inaudible ; et le dépassement par le haut du
+format 2 bits, que le programme interne calcule faux (une valeur indéfinie), reste borné à 255 comme chez PCem.
+En stéréo, sur la SB Pro, l'alternance des voies reste celle de PCem : le programme interne n'en dit rien. Une
+commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239, à l'étape suivante.

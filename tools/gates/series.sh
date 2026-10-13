@@ -767,3 +767,12 @@ for pb in 236 241 240 165 147; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.8b — l'ADPCM : PB-90 (le terme du 8237 hors de l'octet), PB-91 (le compte du 2 bits), PB-146 (le bloc de 48h et
+# l'octet de référence des automatiques), PB-234 (le bloc tic par tic, comme le DSP), PB-235 (l'octet non servi
+# attendu), PB-284 (les tables du 2 et du 2,6 bits) ; leurs attendus se composent (MaterielCasAdpcm.cs) : chaque cas
+# aussi sous les six ensemble, l'attendu « tout », celui du vecteur du DSP.
+for pb in 90 91 146 234 235 284; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-adpcm --hardware-mode PB-90,PB-91,PB-146,PB-234,PB-235,PB-284 materiel-cas PB-$pb
+done

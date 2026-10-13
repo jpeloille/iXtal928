@@ -73,6 +73,8 @@ internal static class ModeMateriel
         new(74, "stockage", "READ VERIFY vérifie tous ses secteurs ; l'adresse du dernier, le compte nul, ou IDNF"),
         new(78, "processeur", "LOADALL386 lève #UD sur le 486"),
         new(87, "processeur", "au repli de l'IP, l'instruction se lit à l'offset 0 du segment"),
+        new(90, "son", "l'octet ADPCM lu au terme du 8237 se décode seul, sans le drapeau de fin de compte"),
+        new(91, "son", "l'ADPCM 2 bits compte ses octets : 16h et 17h finissent, 1Fh recharge"),
         new(94, "carte-mere", "la souris PS/2 répond à F6h, EAh, F0h, EEh et ECh, et rejette une commande inconnue"),
         new(95, "carte-mere", "l'octet d'état de la souris PS/2 : gauche en bit 2, droit en bit 0, mode distant en bit 6"),
         new(101, "carte-mere", "le PC1512 n'a pas de second port parallèle à 278h"),
@@ -100,6 +102,7 @@ internal static class ModeMateriel
         new(140, "stockage", "Return Setup Data (0Dh) de l'AHA-1542C en entier : 44 octets, les interrupteurs, 0 pour 256"),
         new(141, "stockage", "les mailbox de l'AHA-1542C : 01h et 02h refusés, le tourniquet, le MBI libre, HRST et SRST"),
         new(144, "stockage", "l'EEPROM de l'AHA-1542C propre au mode matériel ; sans elle, l'usine (ID 7, DMA 5, IRQ 11)"),
+        new(146, "son", "1Fh, 2Ch, 7Dh et 7Fh : le bloc de 48h ; 1Fh, 7Dh et 7Fh lisent l'octet de référence"),
         new(147, "son", "sur la SB 1.0, D1h et D3h relient et coupent aussi la sortie du CNA"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(165, "son", "08h de la SB 16 (DSP 4.05) sans paramètre"),
@@ -148,6 +151,8 @@ internal static class ModeMateriel
         new(216, "stockage", "INTRQ suit l'unité choisie et nIEN ; un front par interruption, aucune perdue"),
         new(217, "stockage", "le sense du Xebec porte le bit « adresse valide » et l'adresse"),
         new(218, "stockage", "Return EEPROM (23h) de l'AHA-1542C : le drapeau 0 rend les options d'usine"),
+        new(234, "son", "le bloc ADPCM du DSP : son premier octet, l'IRQ après le dernier échantillon"),
+        new(235, "son", "en ADPCM, le DSP attend l'octet que le 8237 ne sert pas"),
         new(236, "son", "le DSP au démarrage et au reset : le bloc 07FFh, la constante 9Ch, la sortie coupée"),
         new(240, "son", "la MIDI de la SB : 38h et l'octet MIDI, le mode UART (34h à 37h), dont un reset fait sortir"),
         new(241, "son", "la grande vitesse du DSP : aucune commande (2.01 à 3.xx), le reset « chaud » garde le bloc"),
@@ -178,6 +183,7 @@ internal static class ModeMateriel
         new(277, "stockage", "Set EEPROM (22h) de l'AHA-1542C qui change l'IRQ relâche l'ancienne ligne"),
         new(278, "stockage", "le CCB de l'AHA-1542C : les bits de sens (12h, aucun transfert), les 24 bits, l'ID de l'hôte"),
         new(279, "stockage", "la commande BIOS 03h de l'AHA-1542C : le secteur CHS compté à partir de 1"),
+        new(284, "son", "les tables ADPCM 2 bits et 2,6 bits du DSP, et le troisième échantillon du 2,6 bits"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
