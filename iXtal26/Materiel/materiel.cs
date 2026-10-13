@@ -306,6 +306,15 @@ internal static class materiel
     /// <summary>PB-238 : la ligne d'IRQ partagée de la SB 16 ; 2xEh n'acquitte que l'IRQ 8 bits.</summary>
     internal static readonly bool pb_238;
 
+    /// <summary>PB-158 : WC et les registres courants de l'EMU8000 avancent à la lecture.</summary>
+    internal static readonly bool pb_158;
+
+    /// <summary>PB-159 : les adresses de la DRAM de l'EMU8000 relues en A22h, le bit 31 et le masque de 24 bits.</summary>
+    internal static readonly bool pb_159;
+
+    /// <summary>PB-160 : HWCF3 de l'EMU8000 sans la rustine qui le force à 0004h au premier allumage d'une voix.</summary>
+    internal static readonly bool pb_160;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -592,6 +601,9 @@ internal static class materiel
         pb_153 = ModeMateriel.Demande(153);
         pb_154 = ModeMateriel.Demande(154);
         pb_238 = ModeMateriel.Demande(238);
+        pb_158 = ModeMateriel.Demande(158);
+        pb_159 = ModeMateriel.Demande(159);
+        pb_160 = ModeMateriel.Demande(160);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

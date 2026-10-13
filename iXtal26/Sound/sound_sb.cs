@@ -506,7 +506,8 @@ internal static partial class sound_sb
     // pcem: sound_sb.c:214-331 — G12.2, l'AWE32 : sb_get_buffer_sb16, plus l'EMU8000, rééchantillonné de 44,1 à 48 kHz
     //   par répétition (:226). Les gains de l'OPL sont `>> 15` puis `>> 16` (:228-229), l'inverse de la SB 16 : on ne
     //   factorise pas.
-    // pcem bug, reproduced: PB-160 — le rééchantillonnage par répétition, sans interpolation (repliement).
+    // PB-160, la part (b), la même dans les deux modes (Q13) — le rééchantillonnage par répétition, sans interpolation
+    //   (repliement).
     internal static void sb_get_buffer_emu8k(int32_t[] buffer, int len, object? p)
     {
         sb_t sb = (sb_t)p;

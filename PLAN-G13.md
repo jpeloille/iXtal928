@@ -580,7 +580,12 @@ contre-lecture, M2, sa série entière et son commit :
     question ; **8d3**, de PB-153, l'IRQ 5 d'usine, après la réponse à Q14. La sélection additive de PB-153 passe en
     8e : elle ne sert que l'enregistrement, et se lit par échantillon (la garde au niveau du tampon).
   - **G13.8e — L'enregistrement.** PB-148 (Q13), PB-151, PB-156, la sélection additive de PB-153 ; après 8d.
-  - **G13.8f — L'EMU8000.** PB-158, PB-159, la part (a) de PB-160 ; PB-162 et PB-163 (Q13).
+    Attend Q13 : sans PB-148, l'enregistrement reste muet, PB-151 et PB-156 n'ont aucun effet audible, et PB-156 devient
+    inatteignable si PB-155 est borné (Q15) ; l'étude les joint alors à 8c2.
+  - **G13.8f — L'EMU8000** ✅ *(14/10, VERIFICATION.md § G13.8f)*, sans question : PB-158 (a) (WC et les registres
+    courants avancent à la lecture), PB-159 (a) (le bit 31 et le masque de 24 bits des adresses de la DRAM, en A22h),
+    PB-160 (a) (HWCF3 sans la rustine : l'AWE32 non initialisée se tait). Faite avant 8e, que bloquent Q13 et Q15.
+    Restent PB-162 et PB-163 (Q13), avec l'octet impair de PB-158.
   - **G13.8g — La clôture du son.** PB-21 ; SBBANC, SB16BANC et AWEBANC en C# seul dans les deux modes ; PERFBANC ;
     les témoins (Q16). Fondue dans 8f si elle reste légère.
   Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244

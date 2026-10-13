@@ -3269,8 +3269,15 @@ tampon de son entre les deux : ΔWC = 0 chez PCem, 220 ou 221 sur la carte. A23h
 chez PCem, ses bits 8 à 15 sur la carte (déduit).
 *G13* : mixte — (a) pour WC et les registres courants ; (b) pour l'octet impair ; (c) pour l'écriture par octet et les
 effets de bord par octet. AWEBANC ne discrimine pas WC : ses deux lectures se suivent à moins d'une microseconde.
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-158 (`emu8k_inw`, `emu8k_inb`, `emu8k_outb`) ; AWEBANC lit par
-octets aux ports pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre.
+*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueur PB-158 (`emu8k_inw`) ; AWEBANC lit par octets aux ports
+pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre. La part (b), l'octet impair
+(Q13), et la part inconnue (c), l'accès par octet, les mêmes dans les deux modes, portent un commentaire (`emu8k_inb`,
+`emu8k_outb` ; G13.8f).
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_158)` — `Sound/sound_emu8k.Materiel.cs`.
+Chaque lecture (`lit_materiel`, en tête d'`emu8k_inw`) fait d'abord avancer la puce jusqu'à l'instant présent
+(`emu8k_update`), comme PCem le fait à chaque écriture : WC, CPF, CVCF et CCCA relus sont courants, au tic de sortie
+près (48 kHz, la résolution de `sound_pos_global`). Le son produit ne change pas : la puce avance par les mêmes
+échantillons, par tranches plus fines.
 
 ### PB-159 — Les bits plein et vide de la DRAM sont invisibles ; SMARW n'est pas masqué
 
@@ -3293,8 +3300,16 @@ Documenté pour le bit et le masque ; inconnu pour la durée du drapeau.
 A22h relu (pointeur 37h) 0100h chez PCem (le bit 24), les bits 30-24 à 0 sur la carte.
 *G13* : (a) pour la visibilité au bit 31 et le masque de 24 bits ; (c) pour la durée du drapeau et l'attente, non
 décrites ou non modélisées.
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-159 (la lecture de A22h, SMARW) ; AWEBANC relit SMALR et SMARW en
-A22h après leurs écritures.
+*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueurs PB-159 (la lecture de A22h, SMARW) ; AWEBANC relit SMALR
+et SMARW en A22h après leurs écritures.
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_159)` — `Sound/sound_emu8k.Materiel.cs`.
+SMALR, SMARR, SMALW et SMARW relus en A22h (`dram_lu_materiel`, en tête de chacun des quatre cas) rendent le drapeau
+de PCem au bit 31 (le bit 15 du mot haut) et les bits 30 à 24 à zéro : le masque de 24 bits se fait à la lecture, la
+seule à voir les bits hauts de SMARW (l'écriture en mémoire masque déjà). Restent ceux de PCem, la part (c) : le
+drapeau posé à l'écriture de l'adresse (MT) ou de SMRD (FULL), effacé à la première lecture de A22h, un seul pour les
+deux flux de lecture et un seul pour les deux d'écriture — SMRD lève donc aussi le FULL de SMALW, et SMLD ne lève rien ;
+ni l'attente d'entrée-sortie, ni la durée du drapeau. Commentaires « la part inconnue (c) » à la déclaration des
+drapeaux et à leurs trois poses.
 
 ### PB-160 — L'EMU8000 de PCem : enveloppes, rustines et approximations
 
@@ -3336,9 +3351,20 @@ arrêté : PCem pose VTFT, la carte le laisse (déduit). Les autres points : rap
 *G13* : mixte — (a) pour la rustine de hwcf3 (décision n° 13) ; (b) pour celle d'IFATN, la fin du maintien, le
 relâchement en `>> 9`, la sortie et la répétition à 48 kHz ; (c) pour les délais, les pas d'initialisation,
 l'interpolation, les effets, les glissements et HWCF1 à HWCF3 relus ; (d) pour l'attaque 0 et le pointeur.
-*Reproduit* : `Sound/sound_emu8k.cs` et `Sound/sound_sb.cs`, marqueurs PB-160 (vingt-trois sites). AWEBANC redéclenche
-une note sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact ; il relit
-aussi HWCF1 à HWCF3 (`awebanc.S:77-85`), que la puce ne rend pas.
+*Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueur PB-160 (la rustine de hwcf3). AWEBANC redéclenche une
+note sans réécrire ses enveloppes, remet hwcf3 à 0 avant un allumage, et écrit IFATN sur un canal intact ; il relit
+aussi HWCF1 à HWCF3 (`awebanc.S:77-85`), que la puce ne rend pas. Les vingt-deux autres sites (`Sound/sound_emu8k.cs`,
+`Sound/sound_sb.cs`), les mêmes dans les deux modes, portent un commentaire qui dit leur part (G13.8f) : (b), Q13 —
+IFATN, la fin du maintien, le relâchement en `>> 9`, la sortie, la répétition à 48 kHz ; (c) — les délais, les pas
+d'initialisation, l'interpolation, le chorus, la réverbération, l'égaliseur, les glissements, HWCF1 à HWCF3 relus ;
+(d) — l'attaque 0, le pointeur.
+*Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_160)` — `Sound/sound_emu8k.Materiel.cs`.
+HWCF3 n'est que ce que le programme y écrit : au premier allumage d'un moteur d'enveloppe (DCYSUSV bit 7 de 1 à 0),
+HWCF3 autre que 0004h, l'écriture est rejouée par le chemin de PCem (`dcysusv_materiel`, en tête du cas de DCYSUSV),
+puis HWCF3 rendu à sa valeur : la voix s'allume comme chez PCem, et la sortie reste fermée tant que le programme n'a
+pas écrit 0004h (`emu8k_update` ne joue une voix que sous le bit 2). L'AWE32 qu'aucun programme n'initialise (ni
+AWEUTIL, ni pilote) se tait, comme la carte ; Doom, qui ne l'initialise pas (selon PCem), n'y joue rien sans
+AWEUTIL.
 
 ### PB-165 — 08h : la SB 16 de PCem lui attend un paramètre que le DSP 4.05 ne lit pas ; l'AWE32 est juste
 

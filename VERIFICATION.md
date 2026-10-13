@@ -11064,3 +11064,64 @@ même verdict ; un seul résumé change, `recensement` (284 défauts, 1 241 marq
 neuves : les `materiel-cas` de PB-238 et de PB-154, chacun en mode PCem et sous son PB seul ; chacun sous les deux
 ensemble (`materiel-cas-pb238-pb154`, `materiel-cas-pb154-pb238`), et celui de PB-238 avec PB-240
 (`materiel-cas-pb238-pb240`).
+
+## G13.8f — l'EMU8000 de l'AWE32
+
+Le 14 octobre 2026. La sixième étape du son (PLAN-G13.md, § G13.8), sans question : les parts (a) de PB-158, PB-159 et
+PB-160. Elle passe avant 8e, que bloquent Q13 (PB-148 : sans lui l'enregistrement reste muet) et Q15 (PB-156, avec
+PB-151 joint à 8c2 par l'étude). La source : le guide de l'EMU8000 (Rossum, AWE32/EMU8000 Programmer's Guide), p. 6
+(pas d'accès par octet), p. 10-13 (SMALR, SMARR, SMALW, SMARW : le bit 31, MT ou FULL ; les bits 30-24 à zéro), p. 13
+(WC), p. 13-14 et 20 (HWCF3, l'initialisation).
+
+**Les corrections du mode matériel** (domaine `son`, trois ; l'aide dans `Sound/sound_emu8k.Materiel.cs`, neuf ; le
+drapeau de réentrée dans `EtatEmu`, aucun champ dans `emu8k_t`). PB-158 — `lit_materiel`, en tête d'`emu8k_inw` :
+chaque lecture fait d'abord avancer la puce (`emu8k_update`), comme chaque écriture ; WC, CPF, CVCF et CCCA sont
+courants au tic de sortie près. PB-159 — `dram_lu_materiel`, en tête des cases 20 à 23 du port A22h : le drapeau de
+PCem au bit 31, les bits 30 à 24 à zéro (le masque à la lecture, la seule à voir les bits hauts de SMARW). PB-160 —
+`dcysusv_materiel`, en tête du cas de DCYSUSV : au premier allumage d'un moteur, HWCF3 autre que 0004h, l'écriture est
+rejouée par le chemin de PCem puis HWCF3 rendu ; l'AWE32 non initialisée se tait. Restent ceux de PCem, en
+commentaires : de PB-158, l'octet impair (b, Q13) et l'accès par octet (c) ; de PB-159, la source et la durée du
+drapeau, un pour deux flux (c) ; de PB-160, les vingt-deux autres sites, (b), (c) et (d).
+
+**Les cas**, en C# seul (`MaterielCasEmu.cs`, neuf ; le temps de sortie joué à la main par `sound_pos_global`, les
+drapeaux statiques remis à zéro par cas), verts en mode PCem, sous leur PB seul et sous « tout » ; rouges sous
+l'attente de l'autre mode (PB-158 : trois sur quatre ; PB-159 : quatre sur cinq ; PB-160 : deux sur quatre). PB-158 :
+WC relu après 240 tics sans écriture (ΔWC 0 contre 220), CPF après PTRX et 48 tics (0000h contre E000h), CVCF après
+VTFT et 48 tics (0000h contre B000h, 44 échantillons du glissement de PCem) ; témoin : le pointeur réécrit entre les
+deux lectures de WC. PB-159 : SMALR et SMARR écrits puis A22h relu deux fois (0056h contre 8056h, puis 0056h), SMALW
+après SMRD (le drapeau partagé de PCem, au bit 31), SMARW à FFFFFFh puis SMRD (0100h contre 8000h) ; témoin : A20h
+seul. PB-160 : une voix allumée sur l'AWE32 non initialisée (HWCF3 0004h contre 0000h) et après HWCF3 = 0001h (0004h
+contre 0001h), le moteur et l'enveloppe les mêmes ; témoins : HWCF3 déjà à 0004h, le moteur laissé arrêté.
+
+**Le recensement** : vert, 284 défauts au registre, 1 217 marqueurs (vingt-quatre « reproduced » de PB-158 et de
+PB-160 devenus des commentaires de part).
+
+**Les contrôles négatifs** (/tmp/a9/neg-g138f.py, dans le worktree) : treize fautes, chacune rougit son cas — chacune
+des six gardes retirée, la lecture sans `emu8k_update`, le bit 31 absent, le masque de 24 bits absent, le drapeau
+jamais effacé, HWCF3 non rendu, le rejeu réservé au moteur déjà allumé ; et les attentes inversées ; le témoin sans
+faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code, les textes, les cas, le guide relus) : aucun bloquant. Repris : les
+commentaires de la part (c) de PB-159 à la déclaration des drapeaux et à leurs trois poses ; l'entrée dit que SMRD lève
+aussi le FULL de SMALW et que SMLD ne lève rien, et le cas de SMALW dit vérifier le drapeau partagé de PCem ; deux cas
+sur les registres courants (CPF, CVCF) ; `pos0` montré par les cas de PB-158 ; « le bit de sortie effacé au reset ».
+Vérifié juste : les corrections contre le guide, la réentrée de PB-160 (`emu8k_update` rappelé sans effet, HWCF3 lu
+nulle part ailleurs dans le cas), le son inchangé par le découpage plus fin de PB-158, le masque de SMARW suffisant à
+la lecture, le classement des vingt-deux sites de PB-160, le scénario neuf.
+
+**M2** (Release du worktree ; un scénario neuf, `ami486-awe32` : l'AWE32 sous DEBUG, par octets — WC, SMALR écrit et
+relu, DCYSUSV allumé avant et après HWCF3 = 4 — qui joue `emu8k_inw` et `emu8k_outw` ; sa configuration
+`tools/gates/cfg/ami486-awe32-fd.cfg`) : avec et sans les six gardes de 8f, identique (981 méthodes, aucune changée).
+Contre M2-8d2 (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et
+`process_scsi`, `scsi_hd_command` et `scsi_zip_command` (les jetons de chaînes), comme à chaque étape ; vingt-trois
+méthodes apparues, celles de l'EMU8000 et de l'AWE32 que joue le scénario neuf.
+
+**Les amorçages** (Release du worktree, bac à sable hors dépôt ; /tmp/a9/boots-8f.sh) : l'AWE32 sous DEBUG — WC lu deux
+fois, SMALR écrit et relu, SMARW et SMRD, DCYSUSV allumé, HWCF2 relu —, en mode PCem, sous PB-158, PB-159, PB-160 et
+« tout » : aucun arrêt ; les écrans ne diffèrent que par les valeurs voulues (sous PB-158, les octets de WC, qui avance
+à la lecture ; sous PB-160, HWCF2 relu 03h contre 43h, le bit de HWCF3 que PCem y montre ; PB-159 ne se voit pas par
+DEBUG, qui ne lit que l'octet bas).
+
+**La série** g8f (le worktree de l'étape, contre g8d2) : 641 portes, toutes vertes ; 635 communes à g8d2, chacune au
+même verdict ; un seul résumé change, `recensement` (284 défauts, 1 217 marqueurs, vingt-quatre de moins qu'à g8d2).
+Six neuves : les `materiel-cas` de PB-158, de PB-159 et de PB-160, chacun en mode PCem et sous son PB seul.

@@ -1717,3 +1717,36 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
 - **La correction.** L'interruption au passage en UART et après le reset du MPU (déduit pour celle-ci : l'octet
   rendu la lève), effacée par la lecture, montrée dans 82h ; le passage en UART ignoré en mode UART. Ce que rend le
   reset en mode UART, et une lecture sans donnée, restent ceux de PCem : la carte n'est pas documentée là-dessus.
+
+## G13.8f — l'EMU8000 de l'AWE32
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8f.*
+
+### PB-158 — un compteur qui tourne
+
+- **Le vrai PC.** L'EMU8000 compte ses échantillons dans WC, 44 100 fois par seconde, sans arrêt ; ses registres
+  « courants » (la hauteur, le volume, l'adresse jouée) changent à chaque échantillon. Un programme peut attendre en
+  regardant WC tourner.
+- **L'émulateur.** PCem ne fait avancer la puce qu'à chaque écriture du programme et à chaque tampon de son : entre
+  deux, WC relu ne bouge pas. Une attente sur WC, sans écriture, dure jusqu'au tampon suivant.
+- **La correction.** Chaque lecture fait d'abord avancer la puce jusqu'à l'instant présent, comme chaque écriture.
+  L'accès par octet, que le guide interdit, reste celui de PCem.
+
+### PB-159 — les bits « vide » et « plein » de la mémoire
+
+- **Le vrai PC.** Les quatre registres d'adresse de la mémoire de son disent, au bit 31, si une donnée attend d'être
+  lue ou écrite ; les bits 30 à 24 se lisent à zéro. Les programmes attendent ces bits avant de changer d'adresse.
+- **L'émulateur.** PCem range son drapeau au bit 15 d'une valeur dont il ne rend que les 16 bits hauts : le drapeau
+  ne se voit jamais. Et l'adresse d'écriture droite, avancée sans masque, montre un bit 24.
+- **La correction.** Le drapeau au bit 31, les bits 30 à 24 à zéro. Combien de temps le drapeau reste levé, la carte
+  ne le dit pas : il retombe à la première lecture, comme chez PCem.
+
+### PB-160 — une carte qu'il faut allumer
+
+- **Le vrai PC.** À la mise sous tension, la sortie de l'EMU8000 est fermée ; le programme d'initialisation (AWEUTIL,
+  ou le pilote) l'ouvre en dernier, en écrivant 0004h dans HWCF3.
+- **L'émulateur.** PCem ouvre la sortie de lui-même dès qu'une voix s'allume, pour des programmes qui n'initialisent
+  pas la carte (Doom, selon PCem) : une carte non initialisée joue quand même.
+- **La correction.** HWCF3 n'est que ce que le programme y écrit : sans initialisation, l'AWE32 se tait, comme la
+  carte. Le reste de ce que PCem assume dans la synthèse (les enveloppes, les effets, l'interpolation) reste le sien :
+  ce sont ses modèles, et le guide ne décrit pas ceux de la puce.

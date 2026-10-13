@@ -805,3 +805,9 @@ run materiel-cas-pb238-pb154 --hardware-mode PB-154,PB-238 materiel-cas PB-238
 run materiel-cas-pb154-pb238 --hardware-mode PB-154,PB-238 materiel-cas PB-154
 # Le reset du DSP en mode UART, « chaud » sous PB-240, pendant que le MPU tient la ligne.
 run materiel-cas-pb238-pb240 --hardware-mode PB-154,PB-238,PB-240 materiel-cas PB-238
+# G13.8f — l'EMU8000 de l'AWE32 : PB-158 (WC avance à la lecture), PB-159 (le bit 31 et le masque de 24 bits des
+# adresses de la DRAM en A22h), PB-160 (HWCF3 sans la rustine de Doom).
+for pb in 158 159 160; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
