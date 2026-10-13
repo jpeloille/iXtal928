@@ -418,7 +418,8 @@ internal static partial class sound_sb
                 out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion */
-                // pcem bug, reproduced: PB-153 — `a ? out_l : 0 + b ? out_r : 0` se lit `a ? out_l : ((0 + b) ? out_r : 0)`.
+                // PB-153, une part (a) qui viendra avec l'enregistrement (G13.8e), la même dans les deux modes d'ici là —
+                //   `a ? out_l : 0 + b ? out_r : 0` se lit `a ? out_l : ((0 + b) ? out_r : 0)`.
                 in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
                        : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
                                                                               : 0;
@@ -529,7 +530,7 @@ internal static partial class sound_sb
                 out_r += ((emu.buffer[c_emu8k + 1] * mixer.fm_r) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion  */
-                // pcem bug, reproduced: PB-153 — la sélection d'entrée MIDI mal parenthésée.
+                // PB-153, une part (a) qui viendra avec l'enregistrement (G13.8e) — la sélection d'entrée MIDI mal parenthésée.
                 in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
                        : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
                                                                               : 0;
@@ -618,6 +619,10 @@ internal static partial class sound_sb
     //   le mélangeur, le CD au minimum est la valeur de reset du guide.
     internal static void sb_ct1335_mixer_write(uint16_t addr, uint8_t val, object p)
     {
+        // pcem bug, fixed in hardware mode: PB-237 — le reset relève la voix à 0 dB.
+        if (materiel.pb_237)
+                if (reset_ct1335_materiel(addr, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1335_mixer_t mixer = sb.mixer_sb2;
 
@@ -630,7 +635,7 @@ internal static partial class sound_sb
                         mixer.regs[0x02] = 4 << 1;
                         mixer.regs[0x06] = 4 << 1;
                         mixer.regs[0x08] = 0 << 1;
-                        // pcem bug, reproduced: PB-237 — la voix relevée à 0 dB ; le guide la met à 0 ⇒ −46 dB
+                        // pcem bug, fixed in hardware mode: PB-237 — la voix relevée à 0 dB ; le guide la met à 0 ⇒ −46 dB
                         //   (p. 4-5). 02h, 06h et 08h sont ceux du guide.
                         /* changed default from -46dB to 0dB*/
                         mixer.regs[0x0A] = 3 << 1;
@@ -683,9 +688,14 @@ internal static partial class sound_sb
         return 0xff;
     }
 
-    // pcem: sound_sb.c:395-398
+    // pcem: sound_sb.c:395-398 — NoInlining : la garde de PB-145 ne va pas dans une méthode inlinée (M2).
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal static void sb_ct1335_mixer_reset(sb_t sb)
     {
+        // pcem bug, fixed in hardware mode: PB-145 — appelée même sans mélangeur (sb_2_init) : le CD à 20/65535.
+        if (materiel.pb_145)
+                if (sans_melangeur_materiel())
+                        return;
         sb_ct1335_mixer_write(0x254, 0, sb);
         sb_ct1335_mixer_write(0x255, 0, sb);
     }
@@ -693,6 +703,10 @@ internal static partial class sound_sb
     // pcem: sound_sb.c:400-494
     internal static void sb_ct1345_mixer_write(uint16_t addr, uint8_t val, object p)
     {
+        // pcem bug, fixed in hardware mode: PB-237 — le reset relève la voix, le général et la MIDI à 0 dB.
+        if (materiel.pb_237)
+                if (reset_ct1345_materiel(addr, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1345_mixer_t mixer = sb.mixer_sbpro;
 
@@ -705,7 +719,7 @@ internal static partial class sound_sb
                         mixer.regs[0x0A] = 0 << 1;
                         mixer.regs[0x0C] = (0 << 5) | (0 << 3) | (0 << 1);
                         mixer.regs[0x0E] = (0 << 5) | (0 << 1);
-                        // pcem bug, reproduced: PB-237 — la voix, le général et la MIDI relevés à 0 dB (7) ; le
+                        // pcem bug, fixed in hardware mode: PB-237 — la voix, le général et la MIDI relevés à 0 dB (7) ; le
                         //   guide les met à 4 ⇒ −11 dB (p. 4-9). 28h, le CD à 0, est celui du guide.
                         /* changed default from -11dB to 0dB */
                         mixer.regs[0x04] = (7 << 5) | (7 << 1);
@@ -835,14 +849,23 @@ internal static partial class sound_sb
     //   32767 × 25 / 65535, 12 sur 65 535, avec le général relevé.
     internal static void sb_ct1745_mixer_write(uint16_t addr, uint8_t val, object p)
     {
+        // pcem bug, fixed in hardware mode: PB-237 — le reset relève le général, la voix et la MIDI à 0 dB.
+        if (materiel.pb_237)
+                if (reset_ct1745_materiel(addr, p))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-153 — le reset relie la MIDI aux mélangeurs d'entrée (3Dh, 3Eh) ; 81h
+        //   sans canal 16 bits ne change rien, aucune traduction.
+        if (materiel.pb_153)
+                if (reset_ct1745_materiel(addr, p) || dma_ct1745_materiel(addr, val, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1745_mixer_t mixer = sb.mixer_sb16;
 
         if ((addr & 1) == 0) {
                 mixer.index = val;
         } else {
-                // pcem bug, reproduced: PB-153 — 01h n'est pas tenu (le CT1335 et le CT1345 y rangent l'index) : il se
-                //   relit FFh.
+                // PB-153, la part inconnue (c), la même dans les deux modes — 01h n'est pas tenu (le CT1335 et le CT1345 y
+                //   rangent l'index) : il se relit FFh.
                 // TODO: and this?  001h:
                 /*DESCRIPTION
          Contains previously selected register value.  Mixer Data Register value
@@ -853,7 +876,7 @@ internal static partial class sound_sb
 
                 if (mixer.index == 0) {
                         /* Reset */
-                        // pcem bug, reproduced: PB-237 — le général, la voix et la MIDI relevés à 0 dB (31) ;
+                        // pcem bug, fixed in hardware mode: PB-237 — le général, la voix et la MIDI relevés à 0 dB (31) ;
                         //   le guide les met à 24 ⇒ −14 dB (p. 4-15). Le CD à 0 est celui du guide.
                         /* Changed defaults from -14dB to 0dB*/
                         mixer.regs[0x30] = 31 << 3;
@@ -870,7 +893,7 @@ internal static partial class sound_sb
                         mixer.regs[0x3A] = 0 << 3;
                         mixer.regs[0x3B] = 0 << 6;
                         mixer.regs[0x3C] = OUTPUT_MIC | OUTPUT_CD_R | OUTPUT_CD_L | OUTPUT_LINE_R | OUTPUT_LINE_L;
-                        // pcem bug, reproduced: PB-153 — 3Dh et 3Eh à 55h et 2Bh, la MIDI reliée ; le guide : 15h et
+                        // pcem bug, fixed in hardware mode: PB-153 — 3Dh et 3Eh à 55h et 2Bh, la MIDI reliée ; le guide : 15h et
                         //   0Bh, la MIDI ouverte (p. 4-16).
                         mixer.regs[0x3D] = INPUT_MIC | INPUT_CD_L | INPUT_LINE_L | INPUT_MIDI_L;
                         mixer.regs[0x3E] = INPUT_MIC | INPUT_CD_R | INPUT_LINE_R | INPUT_MIDI_R;
@@ -908,8 +931,8 @@ internal static partial class sound_sb
                         mixer.regs[0x39] = (uint8_t)(((mixer.regs[0x2E] & 0xf) << 4) | 0x8);
                         break;
                 case 0x0A:
-                        // pcem bug, reproduced: PB-153 — 0Ah × 3 + 10, sans `& 7` ni `<< 3` (3Ah a ses 5 bits en D7:D3,
-                        //   que :654 relit `>> 3`), tronqué à 8 bits.
+                        // PB-153, la part (b), la même dans les deux modes (Q13) — 0Ah × 3 + 10, sans `& 7` ni `<< 3` (3Ah a
+                        //   ses 5 bits en D7:D3, que :654 relit `>> 3`), tronqué à 8 bits.
                         mixer.regs[0x3A] = (uint8_t)((mixer.regs[0x0A] * 3) + 10);
                         break;
 
@@ -920,7 +943,8 @@ internal static partial class sound_sb
 
                          Note: Registers 80h and 81h are Read-only for PnP boards.
                          */
-                // pcem bug, reproduced: PB-153 — plusieurs bits : le dernier gagne ; 0 : rien ne change.
+                // PB-153, la part inconnue (c), la même dans les deux modes — plusieurs bits : le dernier gagne ; 0 : rien ne
+                //   change.
                 case 0x80:
                         if ((val & 1) != 0)
                                 sb_dsp_setirq(sb.dsp, 2);
@@ -932,8 +956,9 @@ internal static partial class sound_sb
                                 sb_dsp_setirq(sb.dsp, 10);
                         break;
 
-                // pcem bug, reproduced: PB-153 — plusieurs bits : le dernier gagne ; aucun bit 16 bits : rien ne
-                //   change, et la traduction des requêtes 16 bits vers le canal 8 bits (:728-734) n'existe pas.
+                // PB-153, la part inconnue (c), la même dans les deux modes — plusieurs bits : le dernier gagne.
+                // pcem bug, fixed in hardware mode: PB-153 — aucun bit 16 bits : rien ne change, et la traduction des
+                //   requêtes 16 bits vers le canal 8 bits (:728-734) n'existe pas.
                 case 0x81:
                         /* The documentation is confusing. sounds as if multple dma8 channels could be set. */
                         if ((val & 1) != 0)
@@ -1013,8 +1038,8 @@ internal static partial class sound_sb
         case 0x04:
                 return (uint8_t)(((mixer.regs[0x33] >> 4) & 0x0f) | (mixer.regs[0x32] & 0xf0));
         case 0x0a:
-                // pcem bug, reproduced: PB-153 — l'aller-retour de 0Ah ne tient que pour 0Ah <= 51h ; (0 - 10) / 3 vaut -3,
-                //   tronqué vers zéro comme en C, rendu FDh.
+                // PB-153, la part (b), la même dans les deux modes (Q13) — l'aller-retour de 0Ah ne tient que pour
+                //   0Ah <= 51h ; (0 - 10) / 3 vaut -3, tronqué vers zéro comme en C, rendu FDh.
                 return (uint8_t)((mixer.regs[0x3a] - 10) / 3);
         case 0x22:
                 return (uint8_t)(((mixer.regs[0x31] >> 4) & 0x0f) | (mixer.regs[0x30] & 0xf0));
@@ -1049,6 +1074,10 @@ internal static partial class sound_sb
                 break;
 
         case 0x81: {
+                // pcem bug, fixed in hardware mode: PB-153 — la traduction : aucun canal 16 bits à relire.
+                if (materiel.pb_153)
+                        if (traduit_materiel(sb.dsp))
+                                return dma_lu_materiel(sb.dsp);
                 /* TODO: Unaffected by mixer reset or soft reboot.
                 * Enabling multiple 8 or 16-bit DMA bits enables multiple DMA channels.
                 * Disabling all 8-bit DMA channel bits disables 8-bit DMA requests,
@@ -1090,8 +1119,8 @@ internal static partial class sound_sb
                 /* 0 = none, 1 =  digital 8bit or SBMIDI, 2 = digital 16bit, 4 = MPU-401 */
                 /* 0x02000 DSP v4.04, 0x4000 DSP v4.05 0x8000 DSP v4.12. I haven't seen this making any difference, but I'm
                  * keeping it for now. */
-                // pcem bug, reproduced: PB-153 — rendu dans un uint8_t : le `| 0x4000` disparaît, et le bit 2 (4, le
-                //   MPU) n'est jamais posé.
+                // PB-153, une part (a) qui viendra avec l'IRQ du MPU (G13.8d2), la même dans les deux modes d'ici là —
+                //   rendu dans un uint8_t, le `| 0x4000` disparaît (sans effet) ; le bit 2 (4, le MPU) n'est jamais posé.
                 return (uint8_t)(((sb.dsp.sb_irq8 != 0) ? 1 : 0) | ((sb.dsp.sb_irq16 != 0) ? 2 : 0) | 0x4000);
 
                 /* TODO: creative drivers read and write on 0xFE and 0xFF. not sure what they are supposed to be. */
@@ -1197,7 +1226,7 @@ internal static partial class sound_sb
         sb_dsp_setaddr(sb.dsp, addr);
         sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
         sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
-        // pcem bug, reproduced: PB-145 — le mélangeur remis à zéro même sans mixaddr : le CD à 20/65535.
+        // pcem bug, fixed in hardware mode: PB-145 — le mélangeur remis à zéro même sans mixaddr : le CD à 20/65535.
         sb_ct1335_mixer_reset(sb);
         /* CMS I/O handler is activated on the dedicated sound_cms module
            DSP I/O handler is activated in sb_dsp_setaddr */
@@ -1412,8 +1441,8 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // pcem bug, reproduced: PB-153 — ni IRQ ni DMA dans la configuration : l'IRQ 7 de sb_dsp_init, quand la carte
-        //   sort d'usine à l'IRQ 5 (guide p. 5-5).
+        // PB-153, une part (a) qui attend Q14 (G13.8d2), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
+        //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
         sb_ct1745_mixer_reset(sb);
         io_sethandler(addr, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
@@ -1453,8 +1482,8 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16 + 1, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // pcem bug, reproduced: PB-153 — ni IRQ ni DMA dans la configuration : l'IRQ 7 de sb_dsp_init, quand la carte
-        //   sort d'usine à l'IRQ 5 (guide p. 5-5).
+        // PB-153, une part (a) qui attend Q14 (G13.8d2), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
+        //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
         sb_ct1745_mixer_reset(sb);
         io_sethandler(addr, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);

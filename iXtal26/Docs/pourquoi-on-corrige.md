@@ -1657,3 +1657,36 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
   tôt.
 - **La correction.** La commande attend la fin du bloc. Une commande d'enregistrement reçue pendant une lecture
   (ou l'inverse), qui chez le DSP prendrait la file de l'autre sens, reste comme chez PCem.
+
+## G13.8d1 — les mélangeurs de la Sound Blaster
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8d1.*
+
+### PB-237 — les volumes au démarrage
+
+- **Le vrai PC.** À chaque reset, le mélangeur pose les volumes que le guide de Creative documente : la voix à
+  −46 dB sur la SB 2.0, la voix, le général et la MIDI à −11 dB sur la Pro, à −14 dB sur la SB 16. Au démarrage
+  aussi, déduit : le guide ne parle que du reset.
+- **L'émulateur.** PCem les relève exprès à 0 dB : le son est plus fort que sur la carte, et le CD, qui suit le
+  volume général, aussi.
+- **La correction.** Les volumes du guide. Le son est plus faible qu'en mode PCem : c'est celui de la carte, que le
+  programme qui règle le mélangeur remonte comme sur le vrai PC.
+
+### PB-145 — le CD de la SB 2.0 sans mélangeur
+
+- **Le vrai PC.** La SB 2.0 simple n'a pas de mélangeur : rien n'y règle le volume du CD, qui passe tel quel
+  (déduit : le guide ne dote de mélangeur que la version CD de la carte).
+- **L'émulateur.** PCem remet quand même à zéro un mélangeur absent : le CD tombe presque au silence, et aucun port
+  ne permet de le relever.
+- **La correction.** Sans mélangeur, pas de reset : le CD reste à son plein volume, comme sur la SB 1.0 et la 1.5.
+
+### PB-153 — la SB 16 : l'entrée au reset, et le 16 bits par le canal 8 bits
+
+- **Le vrai PC.** Au reset, le mélangeur d'entrée de la SB 16 relie la ligne, le CD et le micro, pas la musique du
+  synthétiseur. Et la carte sait jouer et enregistrer du 16 bits par un canal DMA 8 bits quand on ne lui donne aucun
+  canal 16 bits (le registre 81h) : deux octets par échantillon, l'octet bas d'abord (déduit, l'ordre du PC).
+- **L'émulateur.** PCem relie aussi la musique à l'entrée. Sans canal 16 bits, il garde l'ancien, que rien ne sert :
+  le transfert ne démarre jamais.
+- **La correction.** L'entrée du guide au reset, et la traduction vers le canal 8 bits. Le reste de PB-153 viendra
+  avec l'interruption partagée (le MPU-401) et avec l'enregistrement ; l'interruption d'usine attend la réponse de
+  Julien.

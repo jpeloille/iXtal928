@@ -21,12 +21,13 @@ internal static partial class MaterielCas
 {
     private const ushort Sb = 0x220;
 
-    /// <summary>L'ami486 et la carte <paramref name="carte"/> (le nom interne de sound.cs), puis le corps sur son DSP ;
-    /// l'empreinte MIDI remise à zéro ; la machine fermée ensuite.</summary>
-    private static int AvecSb(string carte, Func<sb_dsp_t, int> corps) => AvecCd(d =>
+    /// <summary>L'ami486 et la carte <paramref name="carte"/> (le nom interne de sound.cs), réglée par
+    /// <paramref name="section"/> (la section de son device, ou rien), puis le corps sur son DSP ; l'empreinte MIDI remise
+    /// à zéro ; la machine fermée ensuite.</summary>
+    private static int AvecSb(string carte, Func<sb_dsp_t, int> corps, string section = "") => AvecCd(d =>
     {
         var cfg = Path.Combine(d, "sb.cfg");
-        File.WriteAllText(cfg, $"model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nsndcard = {carte}\n");
+        File.WriteAllText(cfg, $"model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nsndcard = {carte}\n{section}");
         try
         {
             if (!pc.loadconfig(cfg))

@@ -783,3 +783,14 @@ for pb in 149 239; do
 done
 # Le cas ADPCM de PB-239 avec les six de 8b : l'attendu « tout », celui du vecteur du DSP.
 run materiel-cas-pb239-adpcm --hardware-mode PB-90,PB-91,PB-146,PB-234,PB-235,PB-284,PB-239 materiel-cas PB-239
+# G13.8d1 — les mélangeurs : PB-237 (les volumes du reset), PB-145 (la SB 2.0 sans mélangeur), PB-153 (3Dh et 3Eh au
+# reset, la traduction du 16 bits vers le canal 8 bits).
+for pb in 237 145 153; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# PB-237 et PB-153 partagent le reset du CT1745 : chacun avec l'autre.
+run materiel-cas-pb237-pb153 --hardware-mode PB-153,PB-237 materiel-cas PB-237
+run materiel-cas-pb153-pb237 --hardware-mode PB-153,PB-237 materiel-cas PB-153
+# La traduction de PB-153 et la file de PB-239.
+run materiel-cas-pb153-pb239 --hardware-mode PB-153,PB-239 materiel-cas PB-153

@@ -1464,6 +1464,10 @@ internal static partial class sound_sb_dsp
                 }
         }
         if (dsp.sb_16_enable != 0 && dsp.sb_16_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_16_output != 0) {
+                // pcem bug, fixed in hardware mode: PB-153 — la traduction vers le canal 8 bits (81h) n'existe pas.
+                if (materiel.pb_153)
+                        if (seize_traduit_materiel(dsp))
+                                return;
                 // pcem: sound_sb_dsp.c:1047-1097 — G12.1. `data | DMA_OVER` (0x10000) disparaît à la conversion en
                 //   int16_t de sbdatl et sbdatr : pas de pendant 16 bits à PB-90.
                 Span<int> data = stackalloc int[2];
@@ -1595,6 +1599,10 @@ internal static partial class sound_sb_dsp
                 processed = 1;
         }
         if (dsp.sb_16_enable != 0 && dsp.sb_16_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_16_output == 0) {
+                // pcem bug, fixed in hardware mode: PB-153 — la traduction vers le canal 8 bits (81h) n'existe pas.
+                if (materiel.pb_153)
+                        if (seize_traduit_i_materiel(dsp))
+                                return;
                 // pcem: sound_sb_dsp.c:1180-1246 — G12.1. Le `return` sur DMA_NODATA saute aussi `processed = 1` et
                 //   l'avance du mode direct (:1248-1251), comme en C.
                 // omitted: SB_TEST_RECORDING_SAW (:1181-1198) — #ifdef éteint ; la branche #else suit.

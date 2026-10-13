@@ -47,6 +47,10 @@ internal static partial class sound_sb_dsp
             /// <summary>DAh reçue d'un DSP 1.05 à 3.xx (PB-239) : le bloc en cours finit le transfert, file comprise
             /// (2.02 `autoinit_exit`, testé avant `dma_mode_on`).</summary>
             internal bool sortie8;
+            /// <summary>81h du CT1745 écrit avec un seul canal 8 bits et aucun canal 16 bits : le 16 bits passe par le
+            /// canal 8 bits, deux octets par échantillon (PB-153). Ni le reset du mélangeur ni celui du DSP ne
+            /// l'arrêtent : PCem garde 80h et 81h à l'un et à l'autre, et le guide ne dit rien de leur reset.</summary>
+            internal bool traduit;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -812,6 +816,166 @@ internal static partial class sound_sb_dsp
                 return false;
         e.sortie8 = false;
         e.file8 = -1;
+        return true;
+    }
+
+    // ===== G13.8d1 — la traduction du 16 bits vers le canal 8 bits (81h du CT1745) =====
+
+    /// <summary>PB-153 : 81h pose ou arrête la traduction (sound_sb.Materiel.cs).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void traduction_materiel(sb_dsp_t dsp, bool traduit) => etat_materiel(dsp).traduit = traduit;
+
+    /// <summary>PB-153 : la traduction est posée.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static bool traduit_materiel(sb_dsp_t dsp)
+    {
+        if (!etat_materiel(dsp).traduit)
+                return false;
+        ModeMateriel.Sonde[153]++;
+        return true;
+    }
+
+    /// <summary>PB-153 : 81h relu pendant la traduction — le seul canal 8 bits, aucun bit 16 bits.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static uint8_t dma_lu_materiel(sb_dsp_t dsp) => dsp.sb_8_dmanum switch { 0 => 1, 1 => 2, 3 => 8, _ => 0 };
+
+    /// <summary>PB-153 : un mot lu par le canal 8 bits, l'octet bas d'abord (déduit : l'ordre du x86 ; le guide n'en dit
+    /// rien). Sans l'un des deux octets, DMA_NODATA (le bas déjà lu est perdu, comme le premier mot d'une paire stéréo
+    /// de PCem ; déduit) ; le DMA_OVER du 8237 disparaît, comme à la conversion en int16_t de sb_16_read_dma.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int mot_lu_materiel(sb_dsp_t dsp)
+    {
+        int bas = dma_channel_read(dsp.sb_8_dmanum);
+        if (bas == DMA_NODATA)
+                return DMA_NODATA;
+        int haut = dma_channel_read(dsp.sb_8_dmanum);
+        if (haut == DMA_NODATA)
+                return DMA_NODATA;
+        return (bas & 0xFF) | ((haut & 0xFF) << 8);
+    }
+
+    /// <summary>PB-153 : un mot écrit par le canal 8 bits, l'octet bas d'abord (déduit, comme à la lecture) ; 1 si le
+    /// 8237 ne prend pas le bas (le retour de sb_16_write_dma).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int mot_ecrit_materiel(sb_dsp_t dsp, uint16_t val)
+    {
+        if (dma_channel_write(dsp.sb_8_dmanum, (uint16_t)(val & 0xFF)) == DMA_NODATA)
+                return 1;
+        dma_channel_write(dsp.sb_8_dmanum, (uint16_t)(val >> 8));
+        return 0;
+    }
+
+    /// <summary>PB-153 : le tic de sortie 16 bits pendant la traduction — celui de PCem (pollsb), les mots lus par le
+    /// canal 8 bits ; l'IRQ reste celle du 16 bits (2xFh l'acquitte : déduit, le guide n'en dit rien). Vrai : le tic
+    /// est joué.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool seize_traduit_materiel(sb_dsp_t dsp)
+    {
+        if (!traduit_materiel(dsp))
+                return false;
+        int g, d;
+
+        sb_dsp_update(dsp);
+
+        switch (dsp.sb_16_format) {
+        case 0x00: /*Mono unsigned*/
+                g = mot_lu_materiel(dsp);
+                if (g == DMA_NODATA)
+                        break;
+                dsp.sbdatl = dsp.sbdatr = (int16_t)(g ^ 0x8000);
+                dsp.sb_16_length--;
+                break;
+        case 0x10: /*Mono signed*/
+                g = mot_lu_materiel(dsp);
+                if (g == DMA_NODATA)
+                        break;
+                dsp.sbdatl = dsp.sbdatr = (int16_t)g;
+                dsp.sb_16_length--;
+                break;
+        case 0x20: /*Stereo unsigned*/
+                g = mot_lu_materiel(dsp);
+                d = mot_lu_materiel(dsp);
+                if (g == DMA_NODATA || d == DMA_NODATA)
+                        break;
+                dsp.sbdatl = (int16_t)(g ^ 0x8000);
+                dsp.sbdatr = (int16_t)(d ^ 0x8000);
+                dsp.sb_16_length -= 2;
+                break;
+        case 0x30: /*Stereo signed*/
+                g = mot_lu_materiel(dsp);
+                d = mot_lu_materiel(dsp);
+                if (g == DMA_NODATA || d == DMA_NODATA)
+                        break;
+                dsp.sbdatl = (int16_t)g;
+                dsp.sbdatr = (int16_t)d;
+                dsp.sb_16_length -= 2;
+                break;
+        }
+
+        if (dsp.sb_16_length < 0) {
+                if (materiel.pb_239)
+                        if (fin_file_materiel(dsp, 0))
+                                return true;
+                if (dsp.sb_16_autoinit != 0)
+                        dsp.sb_16_length = dsp.sb_16_autolen;
+                else {
+                        dsp.sb_16_enable = 0;
+                        timer_disable(dsp.output_timer);
+                }
+                sb_irq(dsp, 0);
+        }
+        return true;
+    }
+
+    /// <summary>PB-153 : le tic d'entrée 16 bits pendant la traduction — celui de PCem (sb_poll_i), les mots écrits par
+    /// le canal 8 bits ; PB-151 (record_lu) y reste reproduit. Vrai : le tic est joué.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool seize_traduit_i_materiel(sb_dsp_t dsp)
+    {
+        if (!traduit_materiel(dsp))
+                return false;
+        switch (dsp.sb_16_format) {
+        case 0x00: /*Unsigned mono*/
+                if (mot_ecrit_materiel(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                        return true;
+                dsp.sb_16_length--;
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+                break;
+        case 0x10: /*Signed mono*/
+                if (mot_ecrit_materiel(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                        return true;
+                dsp.sb_16_length--;
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+                break;
+        case 0x20: /*Unsigned stereo*/
+                if (mot_ecrit_materiel(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                        return true;
+                mot_ecrit_materiel(dsp, (uint16_t)(record_lu(dsp, dsp.record_pos_read + 1) ^ 0x8000));
+                dsp.sb_16_length -= 2;
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+                break;
+        case 0x30: /*Signed stereo*/
+                if (mot_ecrit_materiel(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                        return true;
+                mot_ecrit_materiel(dsp, (uint16_t)record_lu(dsp, dsp.record_pos_read + 1));
+                dsp.sb_16_length -= 2;
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+                break;
+        }
+
+        if (dsp.sb_16_length < 0) {
+                if (dsp.sb_16_autoinit != 0)
+                        dsp.sb_16_length = dsp.sb_16_autolen;
+                else {
+                        dsp.sb_16_enable = 0;
+                        timer_disable(dsp.input_timer);
+                }
+                sb_irq(dsp, 0);
+        }
         return true;
     }
 }

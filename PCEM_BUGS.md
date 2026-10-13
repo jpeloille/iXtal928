@@ -2944,8 +2944,16 @@ et 62) : documenté. Une SB 2.0 simple n'a rien qui règle un volume CD ; le lai
 65 535 sans mélangeur, comme sur la SB 1.0. Témoin : avec `mixaddr` = 250h, 08h relu 00h et 20 dans les deux modes.
 *G13* : (a) — la SB 2.0 sans mélangeur seule, un choix de modèle déduit ; le minimum après le reset d'un mélangeur,
 fidèle.
-*Reproduit* : `Sound/sound_sb.cs`, `sb_2_init`, marqueur PB-145. La sonde du son compare le volume CD de la carte
-(G12.0). Les marqueurs PB-145 du CT1335 et du CT1745 sont retirés en G13 : leur minimum est celui du guide.
+*Reproduit* en mode PCem : `Sound/sound_sb.cs`, `sb_2_init` et `sb_ct1335_mixer_reset`, marqueurs `fixed in
+hardware mode: PB-145`. La sonde du son compare le volume CD de la carte (G12.0). Les marqueurs PB-145 du CT1335 et du
+CT1745 sont retirés en G13 : leur minimum est celui du guide.
+*Corrigé en mode matériel* (G13.8d1) : sous `if (materiel.pb_145)`, en tête de `sb_ct1335_mixer_reset`
+(`Sound/sound_sb.Materiel.cs`, `sans_melangeur_materiel`) : sans mélangeur (`mixaddr` = 0), le reset est sauté, et le
+volume CD reste celui de `sound_reset`, 65 535, comme sur la SB 1.0 et la 1.5 (déduit : le volume CD est une
+grandeur du modèle de PCem). Avec le mélangeur, le reset et
+son minimum, ceux du guide, ne changent pas. `materiel-cas PB-145` : la SB 2.0 sans mélangeur rend le CD à 20/20 en
+mode PCem, à 65 535 en mode matériel ; les témoins, la SB 2.0 avec son CT1335 en 250h (20) et la SB 1.5 (65 535) ; la
+correction coupée, il rougit.
 
 ### PB-146 — 1Fh, 2Ch, 7Dh et 7Fh prennent les paramètres de la commande précédente
 
@@ -3106,8 +3114,29 @@ carte ; 0Ah = 07h, puis 3Ah relu 1Fh chez PCem, F8h sur la carte ; 81h = 02h, pu
 *G13* : mixte — (a) pour 82h bits 0-2, la traduction 16→8, la sélection additive, 3Dh et 3Eh, l'IRQ 5 d'usine (décision
 n° 13) ; (b) pour 0Ah↔3Ah ; (c) pour 80h et 81h à plusieurs bits ou à 0, 01h, les bits hauts de 82h et le modèle de
 carte ; (d) pour 0Eh, fidèle.
-*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-153 (les deux sélections, 01h, 3Dh/3Eh, 0Ah écrit et relu, 80h, 81h,
-82h, l'IRQ de `sb_16_init` et de `sb_awe32_init`) ; SB16BANC les relit.
+*Reproduit* en mode PCem : `Sound/sound_sb.cs`, marqueurs `fixed in hardware mode: PB-153` (3Dh/3Eh, 81h sans canal
+16 bits, la relecture de 81h) ; `Sound/sound_sb_dsp.cs`, les états 16 bits de `pollsb` et `sb_poll_i`. Les autres sites,
+les mêmes dans les deux modes, portent un commentaire qui dit leur part (G13.8d1) : les deux sélections, (a), avec
+l'enregistrement (8e) ; 82h, (a), avec l'IRQ du MPU (8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a), après
+Q14 ; 0Ah écrit et relu, (b), Q13 ; 01h, 80h et 81h à plusieurs bits, (c). SB16BANC les relit.
+*Corrigé en mode matériel* (G13.8d1), en partie : sous `if (materiel.pb_153)` — `Sound/sound_sb.Materiel.cs` et
+`Sound/sound_sb_dsp.Materiel.cs`. Le reset du CT1745 (`reset_ct1745_materiel`, en tête de `sb_ct1745_mixer_write`,
+partagé avec PB-237, chaque part ne suivant que sa correction) pose 3Dh et 3Eh à 15h et 0Bh. 81h écrit avec un seul canal
+8 bits et aucun canal 16 bits (`dma_ct1745_materiel`) pose le canal 8 bits et la traduction ; tout bit 16 bits
+l'arrête (le guide : la traduction quand tous les bits 16 bits sont à 0), et PCem pose le canal ; plusieurs canaux 8
+bits sans canal 16 bits, ou 00h, restent ceux de PCem, la traduction inchangée.
+Pendant la traduction, 81h se relit sans bit 16 bits, et les états 16 bits de `pollsb` et de `sb_poll_i`
+(`seize_traduit_materiel`, `seize_traduit_i_materiel`, en tête de l'état) lisent et écrivent chaque échantillon en deux
+octets sur le canal 8 bits, l'octet bas d'abord (déduit : l'ordre du x86) ; l'IRQ reste celle du 16 bits (déduit, le
+guide n'en dit rien). Ni le reset du mélangeur ni celui du DSP n'arrêtent la traduction : PCem garde 80h et 81h à l'un
+et à l'autre, et le guide ne dit rien de leur reset (déduit). Restent, en
+(a) : le bit 2 de 82h, avec l'IRQ du MPU (8d2) ; l'IRQ 5 d'usine (8d2, Q14) ; la sélection additive, qui ne sert que
+l'enregistrement, avec lui (8e) : elle se lit par échantillon, et sa garde se tiendra au niveau du tampon. `materiel-cas
+PB-153` : 3Dh et 3Eh au démarrage et après un reset (55h et 2Bh contre 15h et 0Bh), 81h=02h relu (22h contre 02h), puis
+B0h 10h sur le canal 1 (aucune IRQ chez PCem ; l'IRQ au 4e tic, le dernier mot DEF0h), B0h 30h en stéréo, B8h 10h à
+l'entrée, 81h après le reset du mélangeur et après celui du DSP, B6h traduit puis B0h en file (avec PB-239, l'IRQ à la
+fin du bloc puis à celle de la file ; sans lui, PCem relance) ; les témoins 81h=22h et 81h=E2h après la traduction,
+81h=0Ah, et la part du reset de PB-237, qui ne suit que sa correction ; la correction coupée, il rougit.
 
 ### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, des ACK en mode UART
 
@@ -5090,8 +5119,17 @@ général et MIDI 4 ⇒ −11 dB), p. 4-15 (CT1745 : 30h à 35h 24 ⇒ −14 dB)
 champs de 04h, 22h et 26h à 7 chez PCem, à 4 sur la carte, et le volume CD 81 contre 20 ; CT1745, 30h à 35h relus F8h
 chez PCem, C0h sur la carte.
 *G13* : (a) — l'état documenté au reset (décision n° 13) ; un son plus faible qu'en mode PCem, à dire à l'utilisateur.
-*Reproduit* : `Sound/sound_sb.cs`, les branches de reset de `sb_ct1335_mixer_write`, `sb_ct1345_mixer_write` et
-`sb_ct1745_mixer_write`, marqueurs PB-237.
+*Reproduit* en mode PCem : `Sound/sound_sb.cs`, les branches de reset de `sb_ct1335_mixer_write`,
+`sb_ct1345_mixer_write` et `sb_ct1745_mixer_write`, marqueurs `fixed in hardware mode: PB-237`.
+*Corrigé en mode matériel* (G13.8d1) : sous `if (materiel.pb_237)`, en tête des trois `*_mixer_write`
+(`Sound/sound_sb.Materiel.cs`, `reset_ct1335_materiel`, `reset_ct1345_materiel`, `reset_ct1745_materiel`) : le reset
+(une donnée écrite à l'index 0) pose les valeurs du guide — CT1335, 0Ah à 0 ; CT1345, 04h, 22h et 26h à 88h ; CT1745,
+30h à 35h à C0h —, puis laisse PCem recalculer ses volumes par une écriture de la valeur de reset d'un registre que le
+reset pose aussi (0Ah, 0Eh, qui passe aussi la stéréo au DSP, ou 43h) ; l'index revient à 0. Au démarrage aussi : les
+init passent par le même reset (le guide ne parle que du reset ; le démarrage, déduit). Le son est plus faible qu'en mode PCem (la voix à −46 dB sur le CT1335), et le CD,
+qui suit le général, aussi : 20 au lieu de 81 sur le CT1345, 2 au lieu de 12 sur le CT1745. `materiel-cas PB-237` :
+les trois mélangeurs au démarrage et après un reset ; les témoins, les registres que PCem pose comme le guide, et la
+part du reset de PB-153 (3Dh, 3Eh), qui ne suit que sa correction ; la correction coupée, il rougit.
 
 ### PB-238 — La lecture de 2xEh acquitte aussi l'IRQ 16 bits, et fait retomber la ligne partagée
 

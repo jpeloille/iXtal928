@@ -291,6 +291,15 @@ internal static class materiel
     /// <summary>PB-239 : une sortie en simple cycle reçue pendant un transfert (un automatique, sur le 4.xx) va en file.</summary>
     internal static readonly bool pb_239;
 
+    /// <summary>PB-237 : les volumes du reset des mélangeurs CT1335, CT1345 et CT1745, ceux du guide.</summary>
+    internal static readonly bool pb_237;
+
+    /// <summary>PB-145 : la SB 2.0 sans mélangeur ne règle pas le volume CD, laissé au maximum.</summary>
+    internal static readonly bool pb_145;
+
+    /// <summary>PB-153 : le CT1745 — 3Dh et 3Eh au reset du guide ; 81h sans canal 16 bits, la traduction vers le canal 8 bits.</summary>
+    internal static readonly bool pb_153;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -572,6 +581,9 @@ internal static class materiel
         pb_284 = ModeMateriel.Demande(284);
         pb_149 = ModeMateriel.Demande(149);
         pb_239 = ModeMateriel.Demande(239);
+        pb_237 = ModeMateriel.Demande(237);
+        pb_145 = ModeMateriel.Demande(145);
+        pb_153 = ModeMateriel.Demande(153);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

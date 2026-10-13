@@ -10924,3 +10924,77 @@ worktree, bac à sable hors dépôt) : aucun arrêt, l'écran le même dans les 
 même verdict ; un seul résumé change, `recensement` (284 défauts, 1 237 marqueurs). Cinq neuves : les `materiel-cas`
 de PB-149 et de PB-239, chacun en mode PCem et sous son PB seul, et celui de PB-239 sous les six PB de l'ADPCM avec
 lui (`materiel-cas-pb239-adpcm`).
+
+## G13.8d1 — les mélangeurs
+
+Le 13 octobre 2026. La quatrième étape du son (PLAN-G13.md, § G13.8), la première moitié de 8d, coupée le 13/10 :
+8d2 (la ligne partagée : PB-154, PB-238, le bit 2 de 82h et l'IRQ 5 d'usine de PB-153) attend en partie la réponse de
+Julien à Q14 ; la sélection additive de PB-153 passe en 8e, avec l'enregistrement qu'elle seule sert. La source : le
+guide de Creative, p. 2-5 à 2-7 (80h à 82h), 4-5 (CT1335), 4-8 et 4-9 (CT1345), 4-15 à 4-17 (CT1745).
+
+**Les corrections du mode matériel** (domaine `son`, trois ; l'aide dans `Sound/sound_sb.Materiel.cs`, neuf, et dans
+`Sound/sound_sb_dsp.Materiel.cs` ; la traduction dans `EtatDsp`). PB-237 — `reset_ct1335_materiel`,
+`reset_ct1345_materiel`, `reset_ct1745_materiel`, en tête des trois `*_mixer_write` : le reset pose les volumes du
+guide (0Ah à 0 ; 04h, 22h et 26h à 88h ; 30h à 35h à C0h), puis laisse PCem recalculer par une écriture de la valeur
+de reset de 0Ah, 0Eh ou 43h, et remet l'index à 0. PB-145 — `sans_melangeur_materiel`, en tête de
+`sb_ct1335_mixer_reset` (NoInlining, son seul appelant `sb_2_init`) : sans mélangeur, pas de reset, le CD à 65 535.
+PB-153 — le même reset du CT1745 (une garde par PB, chaque part ne suivant que sa correction) : 3Dh et 3Eh à 15h et
+0Bh ; `dma_ct1745_materiel`, dans la même garde : 81h avec un seul canal 8 bits et aucun canal 16 bits pose la
+traduction, tout bit 16 bits l'arrête ; la relecture de 81h ; `seize_traduit_materiel` et `seize_traduit_i_materiel`,
+en tête des états 16 bits de `pollsb` et de `sb_poll_i` : les états de PCem, chaque mot en deux octets sur le canal 8
+bits (l'octet bas d'abord, déduit). Les autres sites de PB-153 (les deux sélections, 82h, l'IRQ des init, 0Ah↔3Ah,
+01h, 80h et 81h à plusieurs bits) perdent leur marqueur « reproduced », que le recensement refuse sur un défaut corrigé,
+pour un commentaire qui dit leur part et leur échéance, comme la part (c) de PB-165.
+
+**Les cas**, en C# seul (`MaterielCasMelangeur.cs`, neuf ; `AvecSb` prend la section du device, pour le CT1335 en
+250h), verts en mode PCem, sous leur PB seul, sous « tout », sous PB-153 et PB-237 ensemble, et sous PB-153 et PB-239
+ensemble ; rouges sous l'attente de l'autre mode (PB-237 : six situations sur neuf, trois témoins ; PB-145 : une sur
+trois, deux témoins ; PB-153 : neuf sur treize, quatre témoins). PB-237 : les trois mélangeurs au démarrage et après
+un reset (le CD de la Pro, 81 contre 20 ; celui de la SB 16, 12 contre 2 ; la stéréo du DSP remise ; l'index relu
+00h) ; les témoins, les registres que PCem pose comme le guide, et 3Dh et 3Eh, qui ne suivent que PB-153. PB-145 : la
+SB 2.0 sans mélangeur (20 contre 65 535) ; les témoins, la SB 2.0 avec son CT1335 et la SB 1.5. PB-153 : 3Dh et 3Eh au
+démarrage et après un reset ; 81h=02h relu ; B0h 10h sur le canal 1 (l'IRQ au 4e tic, le dernier mot DEF0h ; rien chez
+PCem), B0h 30h en stéréo, B8h 10h à l'entrée ; 81h après le reset du mélangeur et après celui du DSP ; B6h traduit,
+puis B0h au 3e tic (avec PB-239, l'IRQ aux 8e et 12e tics ; sans lui, au 6e) ; les témoins 81h=22h et 81h=E2h après
+la traduction, 81h=0Ah, et 30h, qui ne suit que PB-237. Les cas du son de 8a à 8c1 restent verts sous « tout ».
+`recensement` vert (284 défauts, 1 236 marqueurs : dix « reproduced » de PB-153 devenus commentaires, neuf marqueurs
+« fixed » neufs).
+
+**Les contrôles négatifs** (/tmp/a9/neg-g138d1.py, hors dépôt) : le témoin sans faute vert dans les six
+vérifications ; 26 fautes, chacune rougit son cas — PB-237 : la voix du CT1335 ou du CT1345 à 0 dB, le CT1745 à 0 dB,
+la stéréo du DSP pas remise, l'index pas remis à 0, la garde du CT1345 retirée, le recalcul par un registre que le
+reset ne pose pas à sa valeur, et sa part du reset qui poserait aussi 3Dh et 3Eh ; PB-145 : le reset jamais sauté,
+ou sauté avec le mélangeur ; PB-153 : 3Dh avec la MIDI, la garde sans le reset ou sans 81h, la traduction jamais posée
+ou jamais arrêtée, plusieurs canaux 16 bits qui la gardent, deux canaux 8 bits traduits, son arrêt par le reset du
+mélangeur ou par celui du DSP, 81h relu comme PCem, la sortie ou l'entrée sans traduction, les octets du mot inversés,
+la stéréo sans le mot droit, et sa part du reset qui poserait aussi les volumes.
+
+**La contre-lecture** (Sonnet ; le guide, PCem et les cas relus) : aucun bloquant. Repris : tout bit 16 bits de 81h
+arrête la traduction (le guide : elle vaut quand tous sont à 0), un seul ne suffisait pas ; « 80h et 81h gardés au
+reset » attribué à tort au guide (c'est le TODO de PCem ; dit déduit) ; l'octet bas d'abord dit déduit ; dans
+`pourquoi-on-corrige.md`, le démarrage et la SB 2.0 sans mélangeur dits déduits, les noms de programmes retirés ; les
+deux gardes de PB-153 en tête du CT1745 fondues en une ; `sb_ct1335_mixer_reset` en NoInlining (une garde n'entre pas
+dans une méthode inlinée) ; les cas ajoutés — l'indépendance des deux parts du reset partagé, le reset du DSP, la
+stéréo, 81h=E2h, la file de PB-239 pendant un automatique traduit (et la porte de série PB-153 avec PB-239). Vérifié
+juste : les valeurs des trois resets et leurs bits, le recalcul (le même que celui du reset de PCem hors les valeurs
+voulues), les copies des états 16 bits, ligne à ligne, le `return` de `pollsb`, le contexte de
+`device_get_config_int` dans `sb_2_init`.
+
+**M2** (Release du worktree ; les scénarios du son, `ami486-sb16`, `ami486-adpcm` et `ami486-dma`, qui jouent les
+états 16 bits de `pollsb` et de `sb_poll_i` ; aucun scénario neuf, les mélangeurs ne s'écrivent pas assez pour monter
+d'étage) : avec et sans les huit gardes de 8d1, identique (969 méthodes, aucune changée). Contre M2-8c1 (tous les
+scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command` et
+`scsi_zip_command` (les jetons de chaînes), comme à chaque étape.
+
+**Les amorçages** (Release du worktree, bac à sable hors dépôt ; /tmp/a9/boots-8d1.sh) : la SB 16 sous DEBUG — le
+reset du mélangeur, 30h et 3Dh relus, 81h=02h relu, le canal 1 en automatique et B6h 10h (traduit en mode matériel),
+2xFh, le reset du DSP, 81h=22h relu —, en mode PCem, sous PB-237, sous PB-153 et sous « tout » ; la SB 2.0 sans
+mélangeur (DEBUG, le reset du DSP), en mode PCem, sous PB-145 et sous « tout » : aucun arrêt ; les écrans ne diffèrent
+que par les valeurs voulues (30h, F8h contre C0h ; 3Dh, 55h contre 15h ; 81h, 22h contre 02h pendant la traduction),
+la SB 2.0 la même dans les trois.
+
+**La série** g8d1 (le worktree de l'étape, contre g8c1) : 628 portes, toutes vertes ; 619 communes à g8c1, chacune au
+même verdict ; un seul résumé change, `recensement` (284 défauts, 1 236 marqueurs, un de moins qu'à g8c1). Neuf
+neuves : les `materiel-cas` de PB-237, de PB-145 et de PB-153, chacun en mode PCem et sous son PB seul ; ceux de PB-237
+et de PB-153 sous les deux ensemble (`materiel-cas-pb237-pb153`, `materiel-cas-pb153-pb237`), et celui de PB-153 avec
+PB-239 (`materiel-cas-pb153-pb239`).
