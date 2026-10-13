@@ -10600,3 +10600,74 @@ défauts de PCEM_BUGS.md, périmé avant l'étape (hors périmètre).
 **La série** g7e2b (le worktree de l'étape, contre g7e2a) : 582 portes, toutes vertes ; 578 communes à g7e2a, chacune au
 même verdict ; un seul résumé change, `recensement` (283 défauts, 1 176 marqueurs). Quatre neuves : les `materiel-cas`
 de PB-133 et PB-137, dans les deux modes.
+
+## G13.7e3 — la commande BIOS 03h de l'AHA-1542C
+
+Le 13 octobre 2026. La cinquième et dernière étape de 7e (PLAN-G13.md, § G13.7). Les sources : le Technical Reference
+de l'AHA-1540C/1542C, chapitre 5 (la commande 03h, « reserved for use by the Adaptec host adapter BIOS », sans plus) et
+chapitre 6 (les codes AH du BIOS de la carte : « 80h Time-out. Host adapter or device not responding to BIOS ») ; la
+convention CHS de l'INT 13h. Les attendus sont déduits (classe (b)) : l'interface est privée.
+
+**L'étude a sorti PB-283 de l'étape.** Le CD-ROM et le ZIP SCSI ne sont pas montables sous l'AHA-1542C d'iXtal26
+(PLAN-G11.md, décisions n° 2 et n° 11 : `cdrom_channel` et `zip_channel` ramenés à -1, `pc.cs`, `check_hdd_controller`) :
+sa forme SCSI est inatteignable — le cas écrit pour elle le montrait, les deux lecteurs refusés à la configuration. Le
+même test du LUN sert les lecteurs ATAPI, dont SFF-8020i r2.6 réserve l'octet 1 du paquet (Table 38) sans dire ce que
+le lecteur en fait, et que SFF-8070i dit obsolète, puis optionnel. PB-283 passe en (c), reproduit dans les deux modes
+(décision n° 14) ; le code écrit pour lui est retiré. Au passage, le libellé de PB-137 dans `ModeMateriel` perd son
+« 14h en échec », abandonné en 7e2b.
+
+**Les corrections du mode matériel** (domaine `stockage`, deux), chaque garde en tête de son `case` ou de son état :
+PB-138 — `bios_materiel` (`Scsi/scsi_aha1540.Materiel.cs`), en tête de COMMAND_START_BIOS_COMMAND (avant la garde de
+PB-279) : au départ de la commande, le CCB n'est plus celui de la mailbox (`from_mailbox` à 0) ni à liste de dispersion
+(`opcode` à 00h, l'aspect trouvé par la contre-lecture) ; son achèvement ne touche plus l'ancien CCB, son MBO ni la
+mailbox d'entrée ; `bios_absente_materiel`, en tête de CCB_STATE_WAIT_COMMAND, note la sélection ratée, et la commande
+rend 80h (DF, HACC) au lieu du statut et du tampon périmés. PB-279 — `secteur_materiel`, en tête de la même case : pour
+02h, 03h et 04h, le paramètre du secteur ramené à la base 0 avant le calcul de PCem, une fois, au départ ; le secteur 0,
+hors de la convention, tel quel (inconnu).
+
+**Les cas**, en C# seul (`MaterielCasBios.cs`, sur le banc des mailbox ; `R9Aha.BiosChs` code le cylindre, la tête et
+le secteur comme PCem), sont verts en mode PCem, sous leur PB seul et sous « tout », la sonde atteinte, et rouges sous
+l'attente de l'autre mode (PB-138 : cinq situations sur six, la sixième témoin ; PB-279 : trois sur cinq, deux
+témoins). PB-138 : 02h après un CCB de la mailbox, un START reposé dans le MBO (PCem achève l'ancien CCB, perd le START,
+poste un MBI ; le matériel n'y touche pas — et l'octet +1Ch du CCB périmé montre le sense de PB-137, rangé là sous
+PB-138 seul, nulle part sous « tout ») ; 02h après un CCB à liste de dispersion (PCem lit dans l'ancienne liste) ; 02h,
+03h, 04h vers l'ID 5 vide et 02h vers l'ID 7, celui de la carte, après un succès (00h contre 80h) ; 08h et 15h vers
+l'ID 5 (00h et la capacité périmée contre 80h et le tampon intact) ; le témoin, 08h vers l'ID 1 (la capacité suit
+PB-129 sous « tout »). PB-279 : 02h au secteur 1 et à la tête 1 (les blocs 1 et 33 contre 0 et 32), 03h au secteur 2
+(l'écriture au bloc 2 contre 1) ; les témoins, le secteur 0 (bloc 0) et 04h au dernier secteur (00h des deux côtés ;
+sous « tout », où PB-129 refuse le bloc 40 960, il prouve le −1 de 04h). Tous les cas du stockage (PB-117 à PB-123,
+PB-125, PB-126, PB-128 à PB-133, PB-137 à PB-141, PB-144, PB-218, PB-268 à PB-273, PB-276 à PB-279) sont verts sous
+« tout ». `recensement` vert (283 défauts, 1 178 marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137e3.py`, rejoués après la contre-lecture) : dix fautes, chacune rougit son
+cas — le CCB de la mailbox gardé, l'opcode périmé gardé, 00h sur une cible absente, la sélection ratée non notée, le
+secteur sans −1, le secteur 0 décrémenté, 04h oublié (sous « tout », par le témoin du dernier secteur), et trois gardes
+retirées (la commande et la sélection pour PB-138, le secteur pour PB-279). Le témoin, sans faute, est vert dans les
+quatre configurations. Non couverts par un cas, notés dans PB-138 : un statut périmé non nul (PCem rend alors 20h, le
+repli de PB-135) ; un HRST pendant la commande.
+
+**Les amorçages.** Le scénario `ami486-aha` (le POST de la ROM v1.01, puis PC-DOS), joué en mode PCem, sous PB-138, sous
+PB-279 et sous « tout » (Debug, bac à sable hors dépôt) : aucun arrêt, le même écran. Sous PB-138 et sous PB-279 seuls,
+la sortie est celle de PCem : la ROM ne passe pas par la commande 03h (elle utilise sa mailbox, 82h). Sous « tout », la
+sortie est celle de PB-133 et PB-137 ensemble (7e2b).
+
+**M2** (Release du worktree, le scénario `ami486-aha`) : avec et sans les trois gardes de 7e3 (`M2-7e3` contre
+`M2-7e3-sansgardes`), identique (947 méthodes, aucune changée). Contre M2-7e2b (tous les scénarios) : les
+constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command` et `scsi_zip_command`,
+de même longueur, dont seuls changent des jetons de chaînes (7, 4 et 4 `mov edi`) ; le code est le même.
+
+**La contre-lecture** (Sonnet, le TR, SFF-8020i et le C relus) : rien de bloquant ; le mode PCem intact (trois gardes,
+en tête de case ou d'état, et des marqueurs) ; la garde de PB-279 jouée une fois par commande, même quand la commande
+attend un CCB de la mailbox ; le reclassement de PB-283 confirmé. Repris : un défaut voisin, l'opcode du CCB que la
+commande BIOS ne pose pas (après un CCB à liste de dispersion, la lecture part dans l'ancienne liste), rangé dans
+PB-138, corrigé par la même garde, avec sa situation et sa faute ; sous PB-138 seul, le sense de la commande rangé au
+CCB périmé (le défaut de PB-137), dit dans l'entrée et montré par le cas (l'octet +1Ch) ; le START reposé dans le MBO,
+03h et 04h vers l'ID vide, et l'ID de la carte, ajoutés aux situations ; le témoin de 04h décrit comme ne prouvant le
+−1 que sous « tout » ; les formulations qui donnaient le CCB interne et les registres de 03h pour documentés, rendues
+déduites ; AAh, « Device Not Ready », noté comme l'autre code écarté ; l'argument interne de PB-279 (32 secteurs par
+tête dans le calcul de PCem) ajouté ; la section 7e2b de `pourquoi-on-corrige.md`, qui renvoyait PB-283 à « une étape
+suivante », mise à jour.
+
+**La série** g7e3 (le worktree de l'étape, contre g7e2b) : 586 portes, toutes vertes ; 582 communes à g7e2b, chacune au
+même verdict ; un seul résumé change, `recensement` (283 défauts, 1 178 marqueurs). Quatre neuves : les `materiel-cas`
+de PB-138 et PB-279, dans les deux modes.

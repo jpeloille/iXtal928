@@ -2733,18 +2733,37 @@ sense du disque gardée, rien en mode matériel ; la correction coupée, il roug
 `scsi_aha1540.c:765-1013` : les sous-fonctions 02h, 03h, 04h et 08h ne posent ni `from_mailbox` ni
 `current_mbo` (seule 15h remet `from_mailbox` à 0, `:974`). Après un CCB de mailbox, leur achèvement écrit dans
 l'ANCIEN CCB (`+0Eh`, `+0Fh`), libère son MBO — un START que le pilote vient d'y poser est perdu — et poste un
-MBI. Et sur une cible absente, la sélection ratée (`:1488-1526`) ne touche ni `ccb.status` ni `int_buffer` :
-02h, 03h, 04h réussissent si le statut périmé vaut 0 ; 08h et 15h rendent quatre octets périmés.
-*Effet* : des achèvements fantômes ; un disque absent « lu » sans erreur.
-*Trouvé par* : reconnaissance de G11.
+MBI. Aucune ne pose non plus `ccb.opcode` : après un CCB à liste de dispersion (opcode 02h ou 04h), l'envoi
+(`:1467`) part vers la liste périmée, et non vers l'adresse de la commande (trouvé en G13.7e3). Et sur une cible
+absente, la sélection ratée (`:1488-1526`) ne touche ni `ccb.status` ni `int_buffer` : 02h, 03h, 04h réussissent si
+le statut périmé vaut 0 ; 08h et 15h rendent quatre octets périmés.
+*Effet* : des achèvements fantômes ; une lecture du BIOS rangée là où un pilote avait mis sa liste ; un disque absent
+« lu » sans erreur.
+*Trouvé par* : reconnaissance de G11 ; l'opcode, contre-lecture de G13.7e3.
 *Source* : AHA-1540C TR : la commande 03h est « reserved for use by the Adaptec host adapter BIOS », ses codes sont
-inconnus ; qu'elle n'achève pas un CCB de la mailbox, et qu'une cible absente échoue — déduit (chapitre 6 : « 80h
-Time-out. Host adapter or device not responding to BIOS »).
+inconnus ; qu'elle ait son propre CCB, qui n'achève pas celui de la mailbox, et qu'une cible absente échoue en 80h —
+déduit (chapitre 6, les codes AH du BIOS de la carte : « 80h Time-out. Host adapter or device not responding to
+BIOS » ; AAh, « Device Not Ready », suppose une cible qui rend une sense).
 *Cas qui discrimine* : un CCB de mailbox achevé, puis 03h/08h : PCem écrit dans l'ancien CCB (+0Eh, +0Fh), libère
 son MBO et poste un MBI ; attendu : l'ancien CCB intact, aucun MBI. 03h/02h vers l'ID 5 vide après un succès : PCem
 rend 00h ; attendu : 80h.
-*G13* : (b) — attendus déduits : l'interface est privée.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-138 (la commande 03h, la sélection ratée).
+*G13* : (b) — attendus déduits : l'interface est privée ; G13.7e3.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-138` (la commande 03h, la
+sélection ratée).
+*Corrigé en mode matériel* (G13.7e3) : sous `if (materiel.pb_138)` — `Scsi/scsi_aha1540.Materiel.cs`,
+`bios_materiel`, en tête de COMMAND_START_BIOS_COMMAND : au départ de la commande, le CCB n'est plus celui de la
+mailbox (`from_mailbox` à 0), ni à liste de dispersion (`opcode` à 00h) ; son achèvement ne touche ni l'ancien CCB,
+ni son MBO, ni la mailbox d'entrée ; `bios_absente_materiel`, en tête de CCB_STATE_WAIT_COMMAND, note la sélection
+ratée, et la commande rend 80h (DF, HACC) sans lire de statut ni de tampon périmé, pour les cinq sous-fonctions qui
+passent par le CCB (02h, 03h, 04h, 08h et 15h). Le sense de la commande suit PB-137 : sous PB-138 seul, PCem le
+demande même après GOOD et, le CCB n'étant plus de la mailbox, le range à l'adresse du CCB périmé (+12h + 10) — le
+défaut de PB-137, que « tout » corrige. `materiel-cas PB-138` (sur le banc des mailbox : 02h après un CCB de la
+mailbox, un START reposé ; 02h après un CCB à liste de dispersion ; 02h, 03h, 04h vers l'ID 5 vide et 02h vers
+l'ID 7 après un succès ; 08h et 15h vers l'ID 5 ; le témoin, 08h vers l'ID 1) rend l'ancien CCB achevé, le START
+perdu et un MBI, la lecture dans l'ancienne liste, 00h quatre fois, 00h et la capacité périmée, 00h en mode PCem ;
+l'ancien CCB intact, le START gardé, aucun MBI, la lecture à son adresse, 80h six fois, le tampon intact en mode
+matériel ; la correction coupée, il rougit. Non couverts par un cas : un statut périmé non nul (PCem rend alors 20h,
+le repli de PB-135) ; un HRST pendant la commande (le drapeau de la sélection ratée, effacé au départ de la suivante).
 
 ### PB-139 — ABORT efface le mauvais emplacement, et n'interrompt rien
 
@@ -5882,10 +5901,18 @@ tel quel, alors que les secteurs CHS commencent à 1. Détaché de PB-144 en G13
 *Effet* : sans conséquence pour la ROM v1.01, qui passe par 82h ; un appelant de 03h lit le secteur suivant.
 *Trouvé par* : reconnaissance de G11 (dans PB-144).
 *Source* : déduit — la commande 03h est « reserved for use by the Adaptec host adapter BIOS » (TR) ; le −1, la
-convention CHS de l'INT 13h.
+convention CHS de l'INT 13h. Le calcul de PCem le dit aussi : `sector + head * 32`, 32 secteurs par tête ; sans −1, le
+secteur 32 de la tête 0 tombe sur le bloc du secteur 1 de la tête 1.
 *Cas qui discrimine* : 03h/02h au cylindre 0, tête 0, secteur 1 : LBA 1 chez PCem, LBA 0 attendu.
 *G13* : (b) — attendus déduits : l'interface est privée ; avec PB-138, G13.7e3.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-279 (les trois sous-fonctions).
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-279` (les trois
+sous-fonctions).
+*Corrigé en mode matériel* (G13.7e3) : sous `if (materiel.pb_279)` — `Scsi/scsi_aha1540.Materiel.cs`,
+`secteur_materiel`, en tête de COMMAND_START_BIOS_COMMAND : pour 02h, 03h et 04h, au départ de la commande, le
+paramètre du secteur ramené à la base 0, puis le calcul de PCem. Le secteur 0, hors de la convention de l'INT 13h :
+inconnu, laissé tel quel (décision n° 14). `materiel-cas PB-279` (02h au secteur 1 et à la tête 1, 03h au secteur 2,
+sur un disque marqué bloc par bloc ; le témoin, le secteur 0) rend les blocs 1, 33 et l'écriture au bloc 2 en mode
+PCem ; 0, 32 et le bloc 1 en mode matériel ; la correction coupée, il rougit.
 
 ### PB-280 — La 1542C de PCem : l'IRQ de code 7, et les temps sans effet
 
@@ -5934,12 +5961,16 @@ est de la famille de PB-276.
 05/25h, INQUIRY compris (son exception est commentée) ; REQUEST SENSE, exempté, rend la sense du LUN 0. Et
 `scsi_zip.c:375-376`, la branche « LUN absent » d'INQUIRY, morte comme celle du disque (PB-219), et fausse (60h).
 Détaché de PB-133 en G13.7e2b (le disque y est corrigé).
-*Effet* : un pilote qui balaie les LUN par INQUIRY voit un refus au lieu de 7Fh ; en mode matériel, le LUN du CCB
-y arrive désormais (PB-133).
-*Trouvé par* : G13.7e2b (étude de PB-133).
-*Source* : documenté — SCSI-2 § 7.5.3, § 8.2.5.1 (comme PB-133).
-*Cas qui discrimine* : INQUIRY au LUN 1 du lecteur CD SCSI : CHECK CONDITION, 05/25h ; le matériel 7Fh.
-*G13* : (a) — G13.7e3 ; d'ici là, reproduit dans les deux modes.
+*Effet* : aucun sous l'AHA-1542C d'iXtal26, qui n'a ni CD-ROM ni ZIP sur son bus (PLAN-G11.md, décisions n° 2
+et n° 11 : les canaux à -1 sous `aha1542c`). Le même test sert le lecteur ATAPI (`is_atapi`) : un paquet dont
+l'octet 1 porte des bits 5-7 est refusé en 05/25h.
+*Trouvé par* : G13.7e2b (étude de PB-133) ; sa portée revue en G13.7e3.
+*Source* : documenté pour SCSI — SCSI-2 § 7.5.3, § 8.2.5.1 (comme PB-133). Pour ATAPI, inconnu : SFF-8020i r2.6
+réserve l'octet 1 du paquet (Table 38, INQUIRY : « Reserved ») sans dire ce qu'en fait le lecteur, et SFF-8070i dit
+le LUN du paquet obsolète, puis optionnel, d'une révision à l'autre.
+*Cas qui discrimine* : INQUIRY au LUN 1 d'un lecteur CD SCSI : CHECK CONDITION, 05/25h ; le matériel 7Fh — hors
+d'atteinte ici.
+*G13* : (c) — la forme SCSI inatteignable, la forme ATAPI inconnue ; reproduit dans les deux modes (décision n° 14).
 *Reproduit* : `Scsi/scsi_cd.cs`, `Scsi/scsi_zip.cs`, marqueurs PB-283 (le test du LUN ; la branche d'INQUIRY du ZIP).
 
 

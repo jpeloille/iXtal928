@@ -754,3 +754,9 @@ for pb in 133 137; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7e3 — la commande BIOS 03h de l'AHA-1542C : PB-138 (le CCB de la mailbox intact, 80h sur une cible absente),
+# PB-279 (le secteur CHS compté à partir de 1), chacun son cas en C# seul dans les deux modes.
+for pb in 138 279; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

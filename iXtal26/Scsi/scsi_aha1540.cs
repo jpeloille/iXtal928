@@ -12,9 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-136, PB-138, PB-142, PB-143, PB-279 à PB-282 (PCEM_BUGS.md), dont la lecture de 22h
-//   au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
-//   (scsi_aha1540.Materiel.cs) : PB-133, PB-137, PB-139 à PB-141, PB-144, PB-218, PB-276 à PB-278.
+//   n° 5). Reproduits : PB-136, PB-142, PB-143, PB-280 à PB-282 (PCEM_BUGS.md), dont la lecture de 22h au-delà
+//   de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
+//   (scsi_aha1540.Materiel.cs) : PB-133, PB-137 à PB-141, PB-144, PB-218, PB-276 à PB-279.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -704,8 +704,14 @@ internal static partial class scsi_aha1540
                         break;
 
                 case COMMAND_START_BIOS_COMMAND:
-                        // pcem bug, reproduced: PB-138 — ni from_mailbox ni current_mbo posés (sauf 15h) ; ccb.status et
-                        //   int_buffer périmés après une sélection ratée.
+                        // pcem bug, fixed in hardware mode: PB-138 — ni from_mailbox (sauf 15h), ni current_mbo, ni
+                        //   ccb.opcode posés ; ccb.status et int_buffer périmés après une sélection ratée.
+                        if (materiel.pb_138)
+                                if (bios_materiel(scsi))
+                                        break;
+                        // pcem bug, fixed in hardware mode: PB-279 — le secteur CHS sans −1 (02h, 03h, 04h).
+                        if (materiel.pb_279)
+                                secteur_materiel(scsi);
                         if (scsi.ccb_state != CCB_STATE_IDLE)
                                 break;
                         if (scsi.@params[0] >= 0x16)
@@ -741,7 +747,7 @@ internal static partial class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:773).
+                                                // pcem bug, fixed in hardware mode: PB-279 — le secteur sans −1 (:773).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_READ_10;
@@ -790,7 +796,7 @@ internal static partial class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:815).
+                                                // pcem bug, fixed in hardware mode: PB-279 — le secteur sans −1 (:815).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_WRITE_10;
@@ -839,7 +845,7 @@ internal static partial class scsi_aha1540
                                                 int head = (scsi.@params[4] & 0xf) | ((scsi.@params[3] & 3) << 4);
                                                 int cylinder = (scsi.@params[3] >> 2) | ((scsi.@params[2] & 0xf) << 6);
 
-                                                // pcem bug, reproduced: PB-279 — le secteur sans −1 (:857).
+                                                // pcem bug, fixed in hardware mode: PB-279 — le secteur sans −1 (:857).
                                                 addr = (uint32_t)(sector + (head * 32) + (cylinder * 64 * 32));
                                         }
                                                 scsi.ccb.cdb[0] = SCSI_VERIFY_10;
@@ -1393,9 +1399,12 @@ internal static partial class scsi_aha1540
                 break;
 
         case CCB_STATE_WAIT_COMMAND:
+                // pcem bug, fixed in hardware mode: PB-138 — commande BIOS, cible absente : ni ccb.status ni int_buffer.
+                if (materiel.pb_138)
+                        bios_absente_materiel(scsi);
                 if (scsi.scsi_state == SCSI_STATE_SELECT_FAILED)
                 {
-                        // pcem bug, reproduced: PB-138 — commande BIOS, cible absente : ni ccb.status ni int_buffer.
+                        // pcem bug, fixed in hardware mode: PB-138 — commande BIOS, cible absente : ni ccb.status ni int_buffer.
                         if (scsi.ccb.from_mailbox != 0)
                         {
                                 mem_writeb_phys(scsi.ccb.addr + 0xe, HOST_STATUS_SELECTION_TIME_OUT);

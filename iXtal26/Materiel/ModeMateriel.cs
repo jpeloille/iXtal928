@@ -94,7 +94,8 @@ internal static class ModeMateriel
         new(131, "stockage", "REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2"),
         new(132, "stockage", "une longueur nulle finit sans phase de données (le disque SCSI)"),
         new(133, "stockage", "le LUN du CCB de l'AHA-1542C transmis à la cible ; INQUIRY 7Fh et 05/25h à un LUN absent"),
-        new(137, "stockage", "le sense automatique de l'AHA-1542C : sur CHECK CONDITION seul, au bout du CCB, 14h en échec"),
+        new(137, "stockage", "le sense automatique de l'AHA-1542C : sur CHECK CONDITION seul, rangé au bout du CCB"),
+        new(138, "stockage", "la commande BIOS 03h de l'AHA-1542C : le CCB de la mailbox intact, 80h sur une cible absente"),
         new(139, "stockage", "ABORT de l'AHA-1542C : son propre MBO effacé, un seul MBI, 02h ou 03h"),
         new(140, "stockage", "Return Setup Data (0Dh) de l'AHA-1542C en entier : 44 octets, les interrupteurs, 0 pour 256"),
         new(141, "stockage", "les mailbox de l'AHA-1542C : 01h et 02h refusés, le tourniquet, le MBI libre, HRST et SRST"),
@@ -171,6 +172,7 @@ internal static class ModeMateriel
         new(276, "stockage", "l'AHA-1542C : HRST et SCRST libèrent le bus, le surplus de la cible passé au bout du CCB"),
         new(277, "stockage", "Set EEPROM (22h) de l'AHA-1542C qui change l'IRQ relâche l'ancienne ligne"),
         new(278, "stockage", "le CCB de l'AHA-1542C : les bits de sens (12h, aucun transfert), les 24 bits, l'ID de l'hôte"),
+        new(279, "stockage", "la commande BIOS 03h de l'AHA-1542C : le secteur CHS compté à partir de 1"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

@@ -283,9 +283,15 @@ internal static class R9Aha
 
     /// <summary>La commande BIOS 03h, sous-fonction `f`, sur l'ID `id`, un secteur (cylindre 0, tête 0, secteur
     /// 1), les données en Petit ; HACC attendu. Rend l'état et l'octet de données.</summary>
-    internal static (byte st, byte donnee) Bios(int f, int id)
+    internal static (byte st, byte donnee) Bios(int f, int id) => BiosChs(f, id, 0, 0, 1);
+
+    /// <summary>La commande BIOS 03h, sous-fonction `f`, sur l'ID `id`, un secteur au cylindre, à la tête et au
+    /// secteur donnés (au codage de PCem : le cylindre sur dix bits en params[2] et [3], la tête sur six en [3] et
+    /// [4]), les données en Petit ; HACC attendu. Rend l'état et l'octet de données.</summary>
+    internal static (byte st, byte donnee) BiosChs(int f, int id, int cylindre, int tete, int secteur)
     {
-        Cmd(0x03, f, id, 0, 0, 0, 1, 1, (int)(Petit >> 16) & 0xFF, (int)(Petit >> 8) & 0xFF, (int)Petit & 0xFF);
+        Cmd(0x03, f, id, (cylindre >> 6) & 0xF, ((cylindre & 0x3F) << 2) | ((tete >> 4) & 3), tete & 0xF, secteur, 1,
+            (int)(Petit >> 16) & 0xFF, (int)(Petit >> 8) & 0xFF, (int)Petit & 0xFF);
         for (var i = 0; i < 100 && (Isr() & 0x04) == 0; i++)
             pc.runpc();
         var st = Etat();

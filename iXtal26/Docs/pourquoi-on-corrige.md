@@ -1453,7 +1453,7 @@ devient (PB-281). Et une demande posée à cheval sur la limite des 16 Mo, qu'au
   voie, dans la commande elle-même, le disque refuse INQUIRY au lieu de dire « personne ici ».
 - **La correction.** Le numéro de la demande transmis au disque (nos disques n'ayant pas de messages, il est posé dans
   la commande, où la norme dit que le disque l'ignore autrement — déduit) ; le disque répond aux unités absentes selon
-  la norme. Le lecteur CD et le ZIP SCSI ont le même refus : noté à part (PB-283), pour une étape suivante.
+  la norme. Le lecteur CD et le ZIP SCSI ont le même refus : noté à part (PB-283), laissé tel quel en G13.7e3.
 
 ### PB-137 — le compte rendu d'erreur automatique
 
@@ -1470,3 +1470,37 @@ devient (PB-281). Et une demande posée à cheval sur la limite des 16 Mo, qu'au
 Le statut d'hôte 14h, « le compte rendu d'erreur a lui-même échoué », que le manuel décrit : chacun de nos appareils
 répond toujours à cette demande, il ne peut pas arriver. Et la commande du BIOS qui suit une demande du pilote se prend
 encore pour elle (PB-138, l'étape suivante).
+
+## G13.7e3 — la commande du BIOS de la carte Adaptec
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e3.*
+
+### PB-138 — la commande du BIOS qui se prend pour une demande du pilote
+
+- **Le vrai PC.** La carte a une commande réservée à son propre BIOS (03h) : lire, écrire ou vérifier des secteurs,
+  lire la taille d'un disque. Le manuel ne la décrit pas plus ; mais c'est une commande à part des demandes que le
+  pilote dépose dans la boîte aux lettres, et le BIOS de la carte a un code pour l'appareil qui ne répond pas :
+  « délai dépassé » (80h).
+- **L'émulateur.** PCem garde l'étiquette de la dernière demande du pilote : la commande du BIOS qui la suit croit
+  achever cette demande, réécrit son compte rendu, libère sa case — une nouvelle demande que le pilote y aurait posée
+  est perdue — et lui envoie un avis de fin. Si cette demande rangeait ses données par morceaux, selon une liste, la
+  lecture du BIOS suit l'ancienne liste. Et sur un disque absent, il relit le résultat de la commande précédente :
+  si elle avait réussi, le disque absent est « lu » sans erreur, et sa « taille » est celle de l'autre disque.
+- **La correction.** La commande du BIOS n'est plus une demande du pilote ; un disque absent rend 80h (déduit : la
+  commande n'est pas documentée, mais le code est celui du BIOS de la carte).
+
+### PB-279 — le secteur 1 est le premier
+
+- **Le vrai PC.** Dans les commandes de disque du BIOS, les secteurs d'une piste se comptent à partir de 1 ; la
+  commande 03h de la carte en reprend le découpage en cylindre, tête et secteur (déduit, comme le reste de cette
+  commande).
+- **L'émulateur.** PCem prend le numéro tel quel : le secteur 1 devient le deuxième bloc du disque, et tout ce que la
+  commande lit ou écrit est décalé d'un bloc.
+- **La correction.** Le secteur compté à partir de 1 (déduit, la commande n'étant pas documentée). Le secteur 0, qui
+  n'existe pas dans la convention, reste où PCem le met.
+
+### Ce qui reste comme chez PCem
+
+Le refus d'une unité absente par le lecteur CD et le ZIP (PB-283) : sous la carte Adaptec, iXtal26 ne monte ni l'un
+ni l'autre sur le bus SCSI, et le même code sert les lecteurs ATAPI, dont la norme ne dit pas ce qu'ils font de ce
+numéro.

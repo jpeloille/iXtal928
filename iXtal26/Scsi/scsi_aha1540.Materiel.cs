@@ -8,8 +8,8 @@
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. La référence : AHA-1540C/1542C Technical Reference (Adaptec, 510397-00 A, avril 1993) —
 // chapitre 3 (les réglages d'usine, les interrupteurs), chapitre 4 (le port de contrôle, les resets), chapitre 5 (Return
-// Setup Data, Set EEPROM, Return EEPROM, les mailbox, le CCB, le sense automatique). Les méthodes portent NoInlining
-// (M2, G13.7c2).
+// Setup Data, Set EEPROM, Return EEPROM, les mailbox, le CCB, le sense automatique, la commande BIOS 03h), chapitre 6
+// (les codes d'erreur du BIOS). Les méthodes portent NoInlining (M2, G13.7c2).
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C (scsi_aha1540.cs).
 #pragma warning disable CS8981
@@ -161,6 +161,8 @@ internal static partial class scsi_aha1540
         {
             /// <summary>La cible a voulu plus de données que le CCB n'en alloue : le surplus est passé (G13.7e2a).</summary>
             internal bool depassement;
+            /// <summary>La sélection de la commande BIOS 03h en cours a échoué : elle rendra 80h (G13.7e3).</summary>
+            internal bool bios_absente;
         }
 
         internal static readonly ConditionalWeakTable<aha154x_t, Transfert> Transferts = new();
@@ -641,5 +643,74 @@ internal static partial class scsi_aha1540
         scsi.scsi_state = SCSI_STATE_SELECT;
         scsi.ccb_state = CCB_STATE_WAIT_REQUEST_SENSE;
         return true;
+    }
+
+    // ---- G13.7e3 : la commande BIOS 03h (PB-138, PB-279) ----
+
+    private const uint8_t BIOS_TEMPS_MATERIEL = 0x80;
+
+    /// <summary>PB-138 : la tête de COMMAND_START_BIOS_COMMAND. Le TR réserve la commande 03h au BIOS de la carte
+    /// (chapitre 5 : « reserved for use by the Adaptec host adapter BIOS ») sans la décrire ; qu'elle ait son propre
+    /// CCB, à part de la mailbox, est déduit. Au départ de la commande, le CCB n'est plus « de la mailbox » : son
+    /// achèvement ne touche ni l'ancien CCB, ni son MBO, ni la mailbox d'entrée (PCem garde le drapeau du dernier CCB
+    /// de la mailbox) ; et il n'est plus à liste de dispersion (PCem garde l'opcode du dernier CCB, et part vers sa
+    /// liste au lieu de params[7..9]). Le sense de la commande, lui, suit PB-137 (sans lui, PCem le range à l'adresse du
+    /// CCB périmé). Une cible absente, dont la sélection échoue, rend 80h, le code AH du BIOS de la carte pour un appareil
+    /// qui ne répond pas (TR, chapitre 6 : « 80h Time-out. Host adapter or device not responding to BIOS » — déduit pour
+    /// l'octet que rend 03h ; AAh, « Device Not Ready », suppose une cible qui rend une sense). PCem lit un statut
+    /// périmé. Vrai si la commande est achevée ici.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool bios_materiel(aha154x_t scsi)
+    {
+        if (scsi.ccb_state != CCB_STATE_IDLE)
+                return false;
+        var t = transfert_materiel(scsi);
+        if (scsi.bios_cmd_state == 0)
+        {
+                if (scsi.ccb.from_mailbox != 0 || scsi.ccb.opcode != CCB_INITIATOR)
+                {
+                        ModeMateriel.Sonde[138]++;
+                        scsi.ccb.from_mailbox = 0;
+                        scsi.ccb.opcode = CCB_INITIATOR;
+                }
+                t.bios_absente = false;
+                return false;
+        }
+        if (!t.bios_absente)
+                return false;
+        ModeMateriel.Sonde[138]++;
+        t.bios_absente = false;
+        scsi.data_in = BIOS_TEMPS_MATERIEL;
+        set_irq(scsi, ISR_HACC);
+        scsi.status |= STATUS_DF;
+        scsi.cmd_state = CMD_STATE_IDLE;
+        return true;
+    }
+
+    /// <summary>PB-138 : la tête de CCB_STATE_WAIT_COMMAND. La sélection de la commande BIOS a échoué : noté pour
+    /// bios_materiel, qui rendra 80h ; l'état de PCem suit (le CCB et le bus au repos).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void bios_absente_materiel(aha154x_t scsi)
+    {
+        if (scsi.scsi_state != SCSI_STATE_SELECT_FAILED || scsi.ccb.from_mailbox != 0)
+                return;
+        ModeMateriel.Sonde[138]++;
+        transfert_materiel(scsi).bios_absente = true;
+    }
+
+    /// <summary>PB-279 : la tête de COMMAND_START_BIOS_COMMAND. Les sous-fonctions 02h, 03h et 04h comptent les
+    /// secteurs à partir de 1, comme l'INT 13h dont elles reprennent les registres (déduit : l'interface est privée) ;
+    /// PCem prend le numéro tel quel, un secteur plus loin. Le paramètre du secteur est ramené à la base 0 avant le
+    /// calcul de PCem, une fois, au départ de la commande. Le secteur 0, hors de la convention : inconnu, tel quel,
+    /// comme PCem (décision n° 14).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void secteur_materiel(aha154x_t scsi)
+    {
+        if (scsi.ccb_state != CCB_STATE_IDLE || scsi.bios_cmd_state != 0)
+                return;
+        if (scsi.@params[0] < 0x02 || scsi.@params[0] > 0x04 || scsi.@params[5] == 0)
+                return;
+        ModeMateriel.Sonde[279]++;
+        scsi.@params[5]--;
     }
 }

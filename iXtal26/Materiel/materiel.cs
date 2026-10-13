@@ -222,6 +222,9 @@ internal static class materiel
     /// <summary>PB-137 : le sense automatique de l'AHA-1542C sur CHECK CONDITION seul, rangé au bout du CCB.</summary>
     internal static readonly bool pb_137;
 
+    /// <summary>PB-138 : la commande BIOS 03h n'achève pas le CCB de la mailbox ; une cible absente rend 80h.</summary>
+    internal static readonly bool pb_138;
+
     /// <summary>PB-139 : ABORT efface son propre MBO, et rend un seul MBI, 02h ou 03h.</summary>
     internal static readonly bool pb_139;
 
@@ -245,6 +248,9 @@ internal static class materiel
 
     /// <summary>PB-278 : le CCB de l'AHA-1542C — les bits de sens (12h), les 24 bits, l'ID de l'hôte.</summary>
     internal static readonly bool pb_278;
+
+    /// <summary>PB-279 : la commande BIOS 03h compte les secteurs CHS à partir de 1.</summary>
+    internal static readonly bool pb_279;
 
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
@@ -504,6 +510,7 @@ internal static class materiel
         pb_132 = ModeMateriel.Demande(132);
         pb_133 = ModeMateriel.Demande(133);
         pb_137 = ModeMateriel.Demande(137);
+        pb_138 = ModeMateriel.Demande(138);
         pb_139 = ModeMateriel.Demande(139);
         pb_140 = ModeMateriel.Demande(140);
         pb_141 = ModeMateriel.Demande(141);
@@ -512,6 +519,7 @@ internal static class materiel
         pb_276 = ModeMateriel.Demande(276);
         pb_277 = ModeMateriel.Demande(277);
         pb_278 = ModeMateriel.Demande(278);
+        pb_279 = ModeMateriel.Demande(279);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

@@ -534,9 +534,10 @@ contre-lecture, M2, sa série entière et son commit :
       automatique sur CHECK CONDITION seul, rangé dans le CCB en 12h + m, octet de contrôle 0 ; celui de la commande
       BIOS dans le tampon interne ; 14h inatteignable). Détaché, reproduit : PB-283 (le CD et le ZIP SCSI à un LUN
       absent).
-  - **G13.7e3 — La commande BIOS 03h ; le LUN du CD et du ZIP.** PB-138 (ni CCB périmé, ni succès sur une cible
-    absente : 80h), PB-279 (le secteur CHS moins 1) ; attendus déduits, l'interface est privée. PB-283 (le CD et le ZIP
-    SCSI à un LUN absent, comme le disque en 7e2b).
+  - **G13.7e3 — La commande BIOS 03h** ✅ *(13/10, VERIFICATION.md § G13.7e3)*. PB-138 (ni CCB périmé, ni succès sur une cible absente : 80h), PB-279 (le
+    secteur CHS moins 1) ; attendus déduits, l'interface est privée. PB-283 reclassé (c) à l'étude, et sorti de
+    l'étape : sa forme SCSI est inatteignable (ni CD ni ZIP sur le bus de l'AHA, décision n° 2 de PLAN-G11.md), sa
+    forme ATAPI inconnue (SFF-8020i réserve l'octet 1 du paquet) ; reproduit dans les deux modes.
 
 **Les questions de D3-stockage, tranchées par Julien le 12/10 sur ces propositions** :
 - **Q5 (G13.7c)** — les commandes que la norme du lecteur de 1996 n'a pas (GET EVENT STATUS NOTIFICATION, MODE
