@@ -575,9 +575,10 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14). Coupée
     en deux le 13/10 : **8d1** ✅ *(13/10, VERIFICATION.md § G13.8d1)*, les mélangeurs — PB-237 (les volumes du reset),
     PB-145 (la SB 2.0 sans mélangeur), et de PB-153, 3Dh et 3Eh au reset et la traduction du 16 bits vers le canal 8
-    bits (81h), qui ne dépendent d'aucune question ; **8d2**, la ligne partagée — PB-154 (l'IRQ du MPU, 3Fh en mode UART), PB-238 (2xEh), et de PB-153, le
-    bit 2 de 82h et l'IRQ 5 d'usine (Q14). La sélection additive de PB-153 passe en 8e : elle ne sert que
-    l'enregistrement, et se lit par échantillon (la garde au niveau du tampon).
+    bits (81h), qui ne dépendent d'aucune question ; **8d2** ✅ *(13/10, VERIFICATION.md § G13.8d2)*, la ligne
+    partagée — PB-154 (l'IRQ du MPU, 82h bit 2, 3Fh en mode UART) et PB-238 (2xEh, 2xFh et le reset du DSP), sans
+    question ; **8d3**, de PB-153, l'IRQ 5 d'usine, après la réponse à Q14. La sélection additive de PB-153 passe en
+    8e : elle ne sert que l'enregistrement, et se lit par échantillon (la garde au niveau du tampon).
   - **G13.8e — L'enregistrement.** PB-148 (Q13), PB-151, PB-156, la sélection additive de PB-153 ; après 8d.
   - **G13.8f — L'EMU8000.** PB-158, PB-159, la part (a) de PB-160 ; PB-162 et PB-163 (Q13).
   - **G13.8g — La clôture du son.** PB-21 ; SBBANC, SB16BANC et AWEBANC en C# seul dans les deux modes ; PERFBANC ;

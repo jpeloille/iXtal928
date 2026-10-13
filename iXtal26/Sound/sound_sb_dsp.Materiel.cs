@@ -51,6 +51,11 @@ internal static partial class sound_sb_dsp
             /// canal 8 bits, deux octets par échantillon (PB-153). Ni le reset du mélangeur ni celui du DSP ne
             /// l'arrêtent : PCem garde 80h et 81h à l'un et à l'autre, et le guide ne dit rien de leur reset.</summary>
             internal bool traduit;
+            /// <summary>L'IRQ du MPU-401 de la carte, pendante (PB-154) : levée par l'octet que le MPU rend, effacée par
+            /// la lecture de 330h ; la troisième source de la ligne partagée (PB-238), que 82h montre au bit 2.</summary>
+            internal bool mpu;
+            /// <summary>Le reset du DSP rejoué pendant que le MPU tient la ligne (PB-238) : il ne la baisse pas.</summary>
+            internal bool reset_ligne;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -978,4 +983,87 @@ internal static partial class sound_sb_dsp
         }
         return true;
     }
+
+    // ===== G13.8d2 — la ligne d'IRQ partagée : 2xEh, 2xFh, le reset et le MPU-401 =====
+
+    /// <summary>La ligne d'IRQ que partagent le 8 bits (et SB-MIDI), le 16 bits et le MPU-401 (guide, p. 2-5) : elle est
+    /// tenue tant qu'une source est pendante (le OU des trois, déduit).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool ligne_tenue_materiel(sb_dsp_t dsp) =>
+        dsp.sb_irq8 != 0 || dsp.sb_irq16 != 0 || etat_materiel(dsp).mpu;
+
+    /// <summary>PB-238 : la lecture de 2xEh n'acquitte que l'IRQ 8 bits (et SB-MIDI) ; la ligne ne retombe au PIC que si
+    /// ni l'IRQ 16 bits ni le MPU ne la tiennent (guide, p. 2-5). Rend l'état de PCem (bit 7 : un octet à lire).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t lit_2xe_materiel(sb_dsp_t dsp)
+    {
+        ModeMateriel.Sonde[238]++;
+        dsp.sb_irq8 = 0;
+        if (!ligne_tenue_materiel(dsp))
+            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+        if (IS_AZTECH(dsp))
+            return (uint8_t)((dsp.sb_read_rp == dsp.sb_read_wp) ? 0x00 : 0x80);
+        return (uint8_t)((dsp.sb_read_rp == dsp.sb_read_wp) ? 0x7F : 0xFF);
+    }
+
+    /// <summary>PB-238 : la lecture de 2xFh acquitte l'IRQ 16 bits ; la ligne retombe si ni l'IRQ 8 bits ni le MPU ne la
+    /// tiennent (PCem ne regarde que l'IRQ 8 bits : le MPU n'a pas d'IRQ chez lui).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t lit_2xf_materiel(sb_dsp_t dsp)
+    {
+        ModeMateriel.Sonde[238]++;
+        dsp.sb_irq16 = 0;
+        if (!ligne_tenue_materiel(dsp))
+            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+        return 0xff;
+    }
+
+    /// <summary>PB-238 : le reset du DSP efface ses deux IRQ ; quand le MPU tient la ligne, elle ne retombe pas. Le reset
+    /// est rejoué l'IRQ de la carte hors du PIC : 1 &lt;&lt; 16 vaut 0 dans un uint16_t, et picintc(0) ne fait rien.
+    /// Vrai : le reset est fait.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool reset_ligne_materiel(sb_dsp_t dsp)
+    {
+        var e = etat_materiel(dsp);
+        if (!e.mpu || e.reset_ligne)
+            return false;
+        ModeMateriel.Sonde[238]++;
+        int irq = dsp.sb_irqnum;
+        e.reset_ligne = true;
+        dsp.sb_irqnum = 16;
+        sb_dsp_reset(dsp);
+        dsp.sb_irqnum = irq;
+        e.reset_ligne = false;
+        return true;
+    }
+
+    /// <summary>PB-154 : le MPU lève son IRQ, sur la ligne de la carte (celle que 80h choisit) ; le PIC ne la voit monter
+    /// que si aucune autre source ne la tenait (une ligne sur front : déduit).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void mpu_leve_materiel(sb_dsp_t dsp)
+    {
+        bool tenue = ligne_tenue_materiel(dsp);
+        etat_materiel(dsp).mpu = true;
+        if (!tenue)
+            Models.pic.picint((uint16_t)(1 << dsp.sb_irqnum));
+    }
+
+    /// <summary>PB-154 : la lecture de 330h efface l'IRQ du MPU (guide, p. 5-9 et 2-5) ; la ligne retombe si aucune
+    /// autre source ne la tient. Sans IRQ pendante, rien. 80h changé pendant qu'une source est pendante : la ligne
+    /// baissée est la nouvelle, et l'ancienne reste au PIC, comme chez PCem pour les IRQ du DSP (sb_dsp_setirq ne
+    /// touche pas au PIC ; la carte, inconnue).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void mpu_acquitte_materiel(sb_dsp_t dsp)
+    {
+        var e = etat_materiel(dsp);
+        if (!e.mpu)
+            return;
+        e.mpu = false;
+        if (!ligne_tenue_materiel(dsp))
+            Models.pic.picintc((uint16_t)(1 << dsp.sb_irqnum));
+    }
+
+    /// <summary>PB-154 : l'IRQ du MPU pendante, pour 82h.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static bool mpu_pendante_materiel(sb_dsp_t dsp) => etat_materiel(dsp).mpu;
 }

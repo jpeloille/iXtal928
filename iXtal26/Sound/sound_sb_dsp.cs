@@ -256,6 +256,10 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:123-157
     internal static void sb_dsp_reset(sb_dsp_t dsp)
     {
+        // pcem bug, fixed in hardware mode: PB-238 — le reset baisse la ligne même quand le MPU la tient.
+        if (materiel.pb_238)
+                if (reset_ligne_materiel(dsp))
+                        return;
         // pcem bug, fixed in hardware mode: PB-239 — la commande mise en file part avec le transfert.
         if (materiel.pb_239)
                 file_reset_materiel(dsp);
@@ -1135,8 +1139,10 @@ internal static partial class sound_sb_dsp
                 else
                         return 0x7F;
         case 0xE: /*Read data ready*/
-                // pcem bug, reproduced: PB-238 — 2xEh n'acquitte que l'IRQ 8 bits (et SB-MIDI) ; ici, l'IRQ
+                // pcem bug, fixed in hardware mode: PB-238 — 2xEh n'acquitte que l'IRQ 8 bits (et SB-MIDI) ; ici, l'IRQ
                 //   16 bits aussi, et la ligne que partagent les sources retombe au PIC.
+                if (materiel.pb_238)
+                        return lit_2xe_materiel(dsp);
                 picintc((uint16_t)(1 << dsp.sb_irqnum));
                 dsp.sb_irq8 = dsp.sb_irq16 = 0;
                 // Only bit 7 is defined but aztech diagnostics fail if the others are set. Keep the original behavior to not
@@ -1149,6 +1155,9 @@ internal static partial class sound_sb_dsp
                         return (uint8_t)((dsp.sb_read_rp == dsp.sb_read_wp) ? 0x7F : 0xFF);
                 }
         case 0xF: /*16-bit ack*/
+                // pcem bug, fixed in hardware mode: PB-238 — la ligne retombe même quand le MPU la tient.
+                if (materiel.pb_238)
+                        return lit_2xf_materiel(dsp);
                 dsp.sb_irq16 = 0;
                 if (dsp.sb_irq8 == 0)
                         picintc((uint16_t)(1 << dsp.sb_irqnum));

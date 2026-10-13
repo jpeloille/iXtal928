@@ -141,4 +141,13 @@ internal static partial class sound_sb
         sb.mixer_sb16.regs[0x81] = val;
         return true;
     }
+
+    /// <summary>PB-154 : 82h — le bit 2, l'IRQ du MPU pendante (guide, p. 2-5) ; les bits 0 et 1, ceux de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t irq_etat_materiel(sb_t sb)
+    {
+        ModeMateriel.Sonde[154]++;
+        return (uint8_t)(((sb.dsp.sb_irq8 != 0) ? 1 : 0) | ((sb.dsp.sb_irq16 != 0) ? 2 : 0) |
+                         (mpu_pendante_materiel(sb.dsp) ? 4 : 0));
+    }
 }

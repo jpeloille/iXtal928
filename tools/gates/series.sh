@@ -794,3 +794,14 @@ run materiel-cas-pb237-pb153 --hardware-mode PB-153,PB-237 materiel-cas PB-237
 run materiel-cas-pb153-pb237 --hardware-mode PB-153,PB-237 materiel-cas PB-153
 # La traduction de PB-153 et la file de PB-239.
 run materiel-cas-pb153-pb239 --hardware-mode PB-153,PB-239 materiel-cas PB-153
+# G13.8d2 — la ligne d'IRQ partagée de la SB 16 : PB-238 (2xEh n'acquitte que le 8 bits ; la ligne retombe avec la
+# dernière source), PB-154 (l'IRQ du MPU-401, 82h bit 2, 3Fh ignorée en mode UART).
+for pb in 238 154; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# La ligne que le MPU tient : chacun avec l'autre.
+run materiel-cas-pb238-pb154 --hardware-mode PB-154,PB-238 materiel-cas PB-238
+run materiel-cas-pb154-pb238 --hardware-mode PB-154,PB-238 materiel-cas PB-154
+# Le reset du DSP en mode UART, « chaud » sous PB-240, pendant que le MPU tient la ligne.
+run materiel-cas-pb238-pb240 --hardware-mode PB-154,PB-238,PB-240 materiel-cas PB-238

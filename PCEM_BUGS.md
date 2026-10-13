@@ -3117,7 +3117,7 @@ carte ; (d) pour 0Eh, fidèle.
 *Reproduit* en mode PCem : `Sound/sound_sb.cs`, marqueurs `fixed in hardware mode: PB-153` (3Dh/3Eh, 81h sans canal
 16 bits, la relecture de 81h) ; `Sound/sound_sb_dsp.cs`, les états 16 bits de `pollsb` et `sb_poll_i`. Les autres sites,
 les mêmes dans les deux modes, portent un commentaire qui dit leur part (G13.8d1) : les deux sélections, (a), avec
-l'enregistrement (8e) ; 82h, (a), avec l'IRQ du MPU (8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a), après
+l'enregistrement (8e) ; 82h, (a), corrigé avec l'IRQ du MPU (PB-154, G13.8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a), après
 Q14 ; 0Ah écrit et relu, (b), Q13 ; 01h, 80h et 81h à plusieurs bits, (c). SB16BANC les relit.
 *Corrigé en mode matériel* (G13.8d1), en partie : sous `if (materiel.pb_153)` — `Sound/sound_sb.Materiel.cs` et
 `Sound/sound_sb_dsp.Materiel.cs`. Le reset du CT1745 (`reset_ct1745_materiel`, en tête de `sb_ct1745_mixer_write`,
@@ -3130,8 +3130,9 @@ Pendant la traduction, 81h se relit sans bit 16 bits, et les états 16 bits de `
 octets sur le canal 8 bits, l'octet bas d'abord (déduit : l'ordre du x86) ; l'IRQ reste celle du 16 bits (déduit, le
 guide n'en dit rien). Ni le reset du mélangeur ni celui du DSP n'arrêtent la traduction : PCem garde 80h et 81h à l'un
 et à l'autre, et le guide ne dit rien de leur reset (déduit). Restent, en
-(a) : le bit 2 de 82h, avec l'IRQ du MPU (8d2) ; l'IRQ 5 d'usine (8d2, Q14) ; la sélection additive, qui ne sert que
-l'enregistrement, avec lui (8e) : elle se lit par échantillon, et sa garde se tiendra au niveau du tampon. `materiel-cas
+(a) : l'IRQ 5 d'usine (Q14) ; la sélection additive, qui ne sert que l'enregistrement, avec lui (8e) : elle se lit par
+échantillon, et sa garde se tiendra au niveau du tampon. Le bit 2 de 82h est corrigé avec l'IRQ du MPU (PB-154,
+G13.8d2). `materiel-cas
 PB-153` : 3Dh et 3Eh au démarrage et après un reset (55h et 2Bh contre 15h et 0Bh), 81h=02h relu (22h contre 02h), puis
 B0h 10h sur le canal 1 (aucune IRQ chez PCem ; l'IRQ au 4e tic, le dernier mot DEF0h), B0h 30h en stéréo, B8h 10h à
 l'entrée, 81h après le reset du mélangeur et après celui du DSP, B6h traduit puis B0h en file (avec PB-239, l'IRQ à la
@@ -3154,15 +3155,32 @@ renvoyée en mode UART laisse un FEh à lire que la carte ne rend pas.
 K10 et A7).
 *Source* : guide de Creative, p. 2-5 (l'IRQ partagée, acquittée par 3x0h, 82h bit 2), p. 5-5 et 5-7 (en UART, le seul
 reset), p. 5-9 et 5-10 (l'IRQ au passage en UART et à l'octet entrant, effacée par la lecture des données) ; Roland,
-manuel du MPU-401, § 5.3. Documenté, sauf l'ACK de FFh en mode UART sur la SB 16 et la lecture sans donnée (inconnus).
+manuel du MPU-401, § 5.3. Documenté, sauf l'ACK de FFh en mode UART sur la SB 16 et la lecture sans donnée (inconnus) ;
+l'IRQ que lève l'ACK de FFh est déduite (chez Roland, la donnée prête mène l'interruption), et 3Fh sans ACK en mode
+UART, déduite de p. 5-5.
 *Cas qui discrimine* : SB 16 : 3Fh à 331h : la carte lève son IRQ (son bit dans IRR, 82h bit 2 à 1), et la lecture de
 330h rend FEh et l'efface ; PCem ne lève rien. Puis 3Fh de nouveau, en UART : la carte n'acquitte pas (331h bit 7 à 1,
 rien à lire) ; PCem pose FEh et 331h bit 7 à 0.
 *G13* : mixte — (a) pour l'IRQ (levée au passage en UART, effacée par la lecture de 3x0h, 82h bit 2) et pour 3Fh ignorée
 en mode UART ; (c) pour l'ACK de FFh en mode UART (le 4.05 n'en écrit pas : il viendrait de la puce d'interface) et la
 lecture sans donnée ; 330h, fidèle.
-*Reproduit* : `Sound/sound_mpu401_uart.cs` (l'écriture, 3Fh, la lecture) et `Sound/sound_sb.cs` (`sb_16_init`,
-`sb_awe32_init`), marqueurs PB-154 ; SB16BANC passe FFh, 3Fh et ACh.
+*Reproduit* en mode PCem : `Sound/sound_mpu401_uart.cs` (l'écriture, 3Fh, la lecture) et `Sound/sound_sb.cs`
+(`sb_16_init`, `sb_awe32_init`, 82h), marqueurs PB-154 ; SB16BANC passe FFh, 3Fh et ACh. Les parts inconnues (c), l'ACK
+de FFh en mode UART et la lecture sans donnée, les mêmes dans les deux modes, portent un commentaire (G13.8d2).
+*Corrigé en mode matériel* (G13.8d2), sauf les parts (c) : sous `if (materiel.pb_154)` —
+`Sound/sound_mpu401_uart.Materiel.cs`, `Sound/sound_sb_dsp.Materiel.cs` et `Sound/sound_sb.Materiel.cs`. Le MPU de la
+carte (celui de `sb_pri`) lève l'IRQ de la carte, celle que 80h choisit, quand il rend un octet : l'ACK de 3Fh hors du
+mode UART (guide, p. 5-9), et celui de FFh, dans les deux modes (déduit : chez Roland, la donnée prête mène
+l'interruption ; en mode UART, l'ACK reste celui de PCem, inconnu, et l'IRQ, ajoutée, le suit). En mode UART, 3Fh est
+ignorée, sans ACK (déduit de p. 5-5) ; les autres commandes, comme chez PCem. La lecture de 330h efface l'IRQ (`commande_materiel` et `acquitte_materiel`, en tête de `mpu401_uart_write`
+et de `mpu401_uart_read`) ; 82h la montre au bit 2 (`irq_etat_materiel`, en tête de la case). Le PIC ne voit la ligne
+monter que si aucune autre source ne la tenait, et retomber à la lecture de 330h que si aucune ne la tient plus (la
+ligne partagée, déduit ; les acquits du DSP sont ceux de PB-238). Reste celui de PCem : 80h changé pendant que le MPU
+est pendant, la ligne baissée est la nouvelle et l'ancienne reste au PIC, comme pour les IRQ du DSP (la carte,
+inconnue). `materiel-cas PB-154` : 3Fh (IRR à 1 et 82h=04, contre rien), FFh hors du mode UART, 3Fh en mode UART
+(331h=80h, rien à lire, contre 00h), FFh en mode UART, l'AWE32, 80h=02h puis 3Fh (l'IRQ 5), 3Fh puis 2xEh (82h=04 ; la
+ligne tenue avec PB-238, baissée sans lui) ; les témoins 3Fh puis 330h lu, F3h ou F2h et 3Fh puis 330h lu (le DSP
+tient la ligne), et la MIDI en mode UART ; la correction coupée, il rougit.
 *G12.2* : l'AWE32 monte le même MPU, au même endroit.
 
 ### PB-155 — Le FIR de la SB 16 dépasse le gain unité au-delà de 34,7 kHz, et la conversion déborde
@@ -5145,7 +5163,20 @@ des sources, est déduite.
 *Cas qui discrimine* : SB 16 : F2h puis F3h (82h = 03h), puis une lecture de 2xEh : PCem rend ensuite 82h = 00h et
 efface le bit de l'IRQ de la carte dans IRR ; la carte rend 82h = 02h et garde la ligne haute.
 *G13* : (a) — les acquits sont documentés ; la ligne partagée se corrige avec l'IRQ du MPU (PB-154).
-*Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_read` (2xEh), marqueur PB-238.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, `sb_read` (2xEh et 2xFh) et `sb_dsp_reset`, marqueurs PB-238.
+*Corrigé en mode matériel* (G13.8d2) : sous `if (materiel.pb_238)` — `Sound/sound_sb_dsp.Materiel.cs`. La ligne est le
+OU des trois sources, le 8 bits, le 16 bits et le MPU (déduit). 2xEh n'acquitte que l'IRQ 8 bits (`lit_2xe_materiel`,
+en tête de la case), 2xFh que la 16 bits (`lit_2xf_materiel`) ; l'une et l'autre ne baissent la ligne au PIC que si
+aucune source ne la tient plus, le MPU compris. Le reset du DSP efface ses deux IRQ, mais ne baisse pas la ligne que le
+MPU tient (`reset_ligne_materiel`, en tête de `sb_dsp_reset` : le reset rejoué, l'IRQ de la carte hors du PIC). Élargi
+en G13.8d2 : 2xFh et le reset baissent aussi la ligne que le MPU tient ; sans PB-154, le MPU ne lève rien, et ces deux
+sites rendent ce que rend PCem. Reste celui de PCem : une IRQ du DSP levée pendant que la ligne est déjà tenue repose
+le bit dans IRR, quand une ligne sur front ne remonterait pas (déduit) ; `sb_irq`, que le JIT inline dans `pollsb`, ne
+peut pas porter de garde. `materiel-cas PB-238` : F2h et F3h puis 2xEh (82h=00 et IRR à 0, contre 82h=02 et IRR à 1),
+F3h puis 2xEh ; F2h, F3h et 3Fh, puis 2xEh, 2xFh et 330h lus un à un (la ligne tenue jusqu'au dernier acquit ; sans
+PB-154, jusqu'à 2xFh) ; sous PB-154 aussi, 3Fh, F3h puis 2xFh, 3Fh, F2h, F3h puis le reset, et 3Fh, 34h puis le reset
+(sous PB-240, le reset « chaud ») : la ligne que le MPU tient, 82h=04 ; les témoins F2h puis 2xEh, F2h et F3h puis 2xFh, les deux acquittés, et le reset sans le MPU ; la correction
+coupée, il rougit.
 
 ### PB-239 — Une commande de DMA reçue pendant un automatique relance sur-le-champ
 

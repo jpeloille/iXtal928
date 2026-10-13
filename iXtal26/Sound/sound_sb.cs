@@ -1116,11 +1116,14 @@ internal static partial class sound_sb
                  in which case it should chain to the previous routine.
                  */
         case 0x82:
+                // pcem bug, fixed in hardware mode: PB-154 — le bit 2, l'IRQ du MPU, jamais posé.
+                if (materiel.pb_154)
+                        return irq_etat_materiel(sb);
                 /* 0 = none, 1 =  digital 8bit or SBMIDI, 2 = digital 16bit, 4 = MPU-401 */
                 /* 0x02000 DSP v4.04, 0x4000 DSP v4.05 0x8000 DSP v4.12. I haven't seen this making any difference, but I'm
                  * keeping it for now. */
-                // PB-153, une part (a) qui viendra avec l'IRQ du MPU (G13.8d2), la même dans les deux modes d'ici là —
-                //   rendu dans un uint8_t, le `| 0x4000` disparaît (sans effet) ; le bit 2 (4, le MPU) n'est jamais posé.
+                // Rendu dans un uint8_t, le `| 0x4000` disparaît (sans effet) ; le bit 2 (4, le MPU), que PB-153 recense
+                //   aussi, est celui de PB-154, ci-dessus.
                 return (uint8_t)(((sb.dsp.sb_irq8 != 0) ? 1 : 0) | ((sb.dsp.sb_irq16 != 0) ? 2 : 0) | 0x4000);
 
                 /* TODO: creative drivers read and write on 0xFE and 0xFF. not sure what they are supposed to be. */
@@ -1441,7 +1444,7 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // PB-153, une part (a) qui attend Q14 (G13.8d2), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
+        // PB-153, une part (a) qui attend Q14 (G13.8d3), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
         //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
         sb_ct1745_mixer_reset(sb);
@@ -1450,7 +1453,8 @@ internal static partial class sound_sb
         io_sethandler(0x0388, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
         io_sethandler((uint16_t)(addr + 4), 0x0002, sb_ct1745_mixer_read, null, null, sb_ct1745_mixer_write, null, null, sb);
         sound_add_handler(sb_get_buffer_sb16, sb);
-        // pcem bug, reproduced: PB-154 — le MPU-401 sans IRQ (-1), en 330h fixe (le réglage d'usine).
+        // pcem bug, fixed in hardware mode: PB-154 — le MPU-401 sans IRQ (-1) ; en mode matériel, il lève celle de la
+        //   carte (sound_mpu401_uart.Materiel.cs). En 330h fixe, le réglage d'usine.
         sound_mpu401_uart.mpu401_uart_init(sb.mpu, 0x330, -1, 0);
 
         return sb;
@@ -1482,7 +1486,7 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16 + 1, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // PB-153, une part (a) qui attend Q14 (G13.8d2), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
+        // PB-153, une part (a) qui attend Q14 (G13.8d3), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
         //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
         sb_ct1745_mixer_reset(sb);
@@ -1491,7 +1495,8 @@ internal static partial class sound_sb
         io_sethandler(0x0388, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
         io_sethandler((uint16_t)(addr + 4), 0x0002, sb_ct1745_mixer_read, null, null, sb_ct1745_mixer_write, null, null, sb);
         sound_add_handler(sb_get_buffer_emu8k, sb);
-        // pcem bug, reproduced: PB-154 — le MPU-401 sans IRQ (-1), en 330h fixe (le réglage d'usine).
+        // pcem bug, fixed in hardware mode: PB-154 — le MPU-401 sans IRQ (-1) ; en mode matériel, il lève celle de la
+        //   carte (sound_mpu401_uart.Materiel.cs). En 330h fixe, le réglage d'usine.
         sound_mpu401_uart.mpu401_uart_init(sb.mpu, 0x330, -1, 0);
         sb.emu8k = new emu8k_t();
         sound_emu8k.emu8k_init(sb.emu8k, emu_addr, onboard_ram);

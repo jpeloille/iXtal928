@@ -1690,3 +1690,30 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
 - **La correction.** L'entrée du guide au reset, et la traduction vers le canal 8 bits. Le reste de PB-153 viendra
   avec l'interruption partagée (le MPU-401) et avec l'enregistrement ; l'interruption d'usine attend la réponse de
   Julien.
+
+## G13.8d2 — la ligne d'interruption partagée de la SB 16
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8d2.*
+
+### PB-238 — un acquit pour chaque source
+
+- **Le vrai PC.** Sur la SB 16, trois sources partagent une seule ligne d'interruption : le son 8 bits, le son 16
+  bits et le MPU-401. Chacune a son acquit (2xEh, 2xFh, la donnée du MPU), et le registre 82h dit lesquelles sont
+  pendantes. La ligne reste haute tant qu'une source la tient (déduit : le guide décrit les acquits séparés).
+- **L'émulateur.** PCem efface les deux sources du son à la lecture de 2xEh, et baisse la ligne : le programme qui
+  joue du 8 bits et du 16 bits à la fois perd l'interruption 16 bits.
+- **La correction.** 2xEh n'acquitte que le 8 bits ; la ligne ne retombe, à 2xEh, à 2xFh ou au reset du DSP, que
+  quand plus aucune source ne la tient. Reste celui de PCem : une source qui se lève pendant que la ligne est déjà
+  haute redemande l'interruption, quand le vrai PC, qui la détecte sur un front, n'en verrait pas de nouvelle
+  (déduit).
+
+### PB-154 — l'interruption du MPU-401
+
+- **Le vrai PC.** Le MPU-401 de la SB 16 lève l'interruption de la carte quand il a un octet à rendre, d'abord au
+  passage en mode UART ; la lecture de sa donnée l'efface, et 82h la montre. En mode UART, il ne reconnaît plus que
+  le reset.
+- **L'émulateur.** PCem ne relie le MPU à aucune interruption : le test d'interruption d'un pilote échoue. Et il
+  acquitte encore le passage en UART quand le MPU y est déjà, laissant un octet que la carte ne rend pas.
+- **La correction.** L'interruption au passage en UART et après le reset du MPU (déduit pour celle-ci : l'octet
+  rendu la lève), effacée par la lecture, montrée dans 82h ; le passage en UART ignoré en mode UART. Ce que rend le
+  reset en mode UART, et une lecture sans donnée, restent ceux de PCem : la carte n'est pas documentée là-dessus.

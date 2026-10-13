@@ -10998,3 +10998,69 @@ même verdict ; un seul résumé change, `recensement` (284 défauts, 1 236 marq
 neuves : les `materiel-cas` de PB-237, de PB-145 et de PB-153, chacun en mode PCem et sous son PB seul ; ceux de PB-237
 et de PB-153 sous les deux ensemble (`materiel-cas-pb237-pb153`, `materiel-cas-pb153-pb237`), et celui de PB-153 avec
 PB-239 (`materiel-cas-pb153-pb239`).
+
+## G13.8d2 — la ligne d'IRQ partagée
+
+Le 13 octobre 2026. La cinquième étape du son (PLAN-G13.md, § G13.8), la seconde moitié de 8d, sans question : PB-238
+et PB-154. L'IRQ 5 d'usine de PB-153 attend la réponse de Julien à Q14 (8d3). La source : le guide de Creative, p. 2-5
+(les sources partagent une ligne ; leurs acquits ; 82h), p. 5-5, 5-7 et 5-9 (le MPU-401 en mode UART, son IRQ) ; le
+manuel Roland du MPU-401 (la donnée prête mène l'interruption).
+
+**Les corrections du mode matériel** (domaine `son`, deux ; l'aide dans `Sound/sound_sb_dsp.Materiel.cs`,
+`Sound/sound_mpu401_uart.Materiel.cs`, neuf, et `Sound/sound_sb.Materiel.cs` ; l'IRQ du MPU dans `EtatDsp`). La ligne
+est le OU des trois sources (déduit). PB-238 — `lit_2xe_materiel` et `lit_2xf_materiel`, en tête des cases 0xE et 0xF
+de `sb_read` : chaque lecture n'acquitte que sa source, et ne baisse la ligne que si aucune ne la tient plus ;
+`reset_ligne_materiel`, en tête de `sb_dsp_reset` : quand le MPU tient la ligne, le reset est rejoué l'IRQ de la carte
+hors du PIC (`sb_irqnum` à 16 : `(uint16_t)(1 << 16)` vaut 0, et `picintc(0)` ne fait rien), puis la restaure. Aucune
+garde dans `sb_irq` ni `sb_irqc`, que le JIT inline dans `pollsb` : une IRQ du DSP levée pendant que la ligne est tenue
+repose le bit dans IRR, comme chez PCem (une ligne sur front ne remonterait pas, déduit ; dit dans l'entrée). PB-154 —
+`commande_materiel` et `acquitte_materiel`, en tête de `mpu401_uart_write` et de `mpu401_uart_read` : le MPU de
+`sb_pri` lève l'IRQ de la carte (celle de 80h) à l'ACK de 3Fh hors du mode UART et à celui de FFh (déduit), ignore 3Fh
+en mode UART, et la lecture de 330h l'efface ; `irq_etat_materiel`, en tête de la case 82h du CT1745 : le bit 2.
+L'ACK de FFh en mode UART et la lecture sans donnée, inconnus, restent ceux de PCem (commentaires « la part inconnue
+(c) »). Le bit 2 de 82h, que PB-153 recensait aussi, est celui de PB-154 ; l'IRQ des init garde son commentaire
+(8d3, Q14).
+
+**Les cas**, en C# seul (`MaterielCasLigne.cs`, neuf ; IRR lu dans `pic_.pend`), verts en mode PCem, sous leur PB
+seul, sous PB-154 et PB-238 ensemble, sous PB-154, PB-238 et PB-240 et sous « tout » ; rouges sous l'attente de
+l'autre mode (PB-238 : trois situations sur dix sous lui seul, six sous PB-154 aussi — trois cas ne discriminent
+qu'avec l'IRQ du MPU, et sont témoins sans elle ; PB-154 : sept sur onze). PB-238 : F2h et F3h puis 2xEh (82h=00 et
+IRR à 0, contre 82h=02 et IRR à 1), F3h puis 2xEh, les trois sources acquittées une à une, 3Fh, F3h puis 2xFh, 3Fh,
+F2h, F3h puis le reset, 3Fh, 34h puis le reset (le reset « chaud » sous PB-240) ; témoins : F2h puis 2xEh, F2h et F3h
+puis 2xFh, les deux acquittés, le reset sans le MPU. PB-154 : 3Fh, FFh hors du mode UART, 3Fh en mode UART (331h=80h),
+FFh en mode UART, l'AWE32, 80h=02h puis 3Fh (l'IRQ 5), 3Fh puis 2xEh (82h=04 ; la ligne selon PB-238) ; témoins : 3Fh
+puis 330h lu, F3h ou F2h et 3Fh puis 330h lu, la MIDI en mode UART.
+
+**Le recensement** : vert, 284 défauts au registre, 1 241 marqueurs.
+
+**Les contrôles négatifs** (/tmp/a9/neg-g138d2.py, dans le worktree) : dix-neuf fautes, chacune rougit son cas — 2xEh
+qui efface aussi le 16 bits ou baisse toujours la ligne, 2xFh qui ignore le MPU, le reset rejoué qui baisse la ligne
+ou rejoué sans le MPU, chacune des six gardes retirée, 3Fh acquittée en mode UART, aucune IRQ levée, 330h qui n'efface
+rien ou baisse la ligne que le DSP tient, 82h sans le bit 2, le MPU sans sa carte, l'IRQ 7 fixe, FFh sans IRQ ; le
+témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code, les textes, les cas relus) : aucun bloquant. Repris : 80h changé pendant
+qu'une source est pendante dit dans l'entrée et le commentaire (la ligne baissée est la nouvelle, comme chez PCem pour
+le DSP) ; l'IRQ de FFh en mode UART dite ajoutée et déduite, sur un ACK inconnu, et 3Fh sans ACK en mode UART dite
+déduite de p. 5-5 ; les sites reproduits de PB-238 complétés ; les cas ajoutés — les trois sources acquittées une à
+une, 330h lu avec le 16 bits pendant, FFh en mode UART, l'AWE32, le reset « chaud » de PB-240 (et sa porte de série).
+Vérifié juste : l'astuce de `sb_irqnum` sur tous les chemins du reset (PB-236, 239, 240, 241) et sa récursion, la
+garde seule en tête de chaque site, aucun champ statique neuf, l'IRQ 2/9 de l'AT, un MPU d'une autre carte qui suit
+PCem.
+
+**M2** (Release du worktree ; les scénarios du son, `ami486-sb16`, `ami486-adpcm` et `ami486-dma`, qui jouent `sb_read`
+et `sb_dsp_reset` ; aucun scénario neuf) : avec et sans les six gardes de 8d2, identique (969 méthodes, aucune
+changée). Contre M2-8d1 (tous les scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et
+`process_scsi`, `scsi_hd_command` et `scsi_zip_command` (les jetons de chaînes), comme à chaque étape.
+
+**Les amorçages** (Release du worktree, bac à sable hors dépôt ; /tmp/a9/boots-8d2.sh) : la SB 16 sous DEBUG — 3Fh au
+MPU, 82h, 330h ; F2h et F3h, 82h, 2xEh, 82h, 2xFh, 82h ; FFh, 330h, 3Fh, 330h, 3Fh en mode UART, 331h ; FFh, le reset
+du DSP, 82h, 330h, 82h —, en mode PCem, sous PB-238, sous PB-154 et sous « tout » : aucun arrêt ; les écrans ne
+diffèrent que par les valeurs voulues (82h après 3Fh, 04h contre 00h ; après 2xEh, 02h contre 00h sous PB-238 ; 331h
+après 3Fh en mode UART, 80h contre 00h ; 82h après le reset du DSP, le MPU pendant, 04h contre 00h).
+
+**La série** g8d2 (le worktree de l'étape, contre g8d1) : 635 portes, toutes vertes ; 628 communes à g8d1, chacune au
+même verdict ; un seul résumé change, `recensement` (284 défauts, 1 241 marqueurs, cinq de plus qu'à g8d1). Sept
+neuves : les `materiel-cas` de PB-238 et de PB-154, chacun en mode PCem et sous son PB seul ; chacun sous les deux
+ensemble (`materiel-cas-pb238-pb154`, `materiel-cas-pb154-pb238`), et celui de PB-238 avec PB-240
+(`materiel-cas-pb238-pb240`).

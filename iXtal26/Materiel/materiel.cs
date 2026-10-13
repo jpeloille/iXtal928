@@ -300,6 +300,12 @@ internal static class materiel
     /// <summary>PB-153 : le CT1745 — 3Dh et 3Eh au reset du guide ; 81h sans canal 16 bits, la traduction vers le canal 8 bits.</summary>
     internal static readonly bool pb_153;
 
+    /// <summary>PB-154 : l'IRQ du MPU-401 de la SB 16, 82h bit 2, et 3Fh ignorée en mode UART.</summary>
+    internal static readonly bool pb_154;
+
+    /// <summary>PB-238 : la ligne d'IRQ partagée de la SB 16 ; 2xEh n'acquitte que l'IRQ 8 bits.</summary>
+    internal static readonly bool pb_238;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -584,6 +590,8 @@ internal static class materiel
         pb_237 = ModeMateriel.Demande(237);
         pb_145 = ModeMateriel.Demande(145);
         pb_153 = ModeMateriel.Demande(153);
+        pb_154 = ModeMateriel.Demande(154);
+        pb_238 = ModeMateriel.Demande(238);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

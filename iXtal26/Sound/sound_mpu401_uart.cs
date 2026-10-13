@@ -34,7 +34,7 @@ internal sealed class mpu401_uart_t
     internal int is_aztech;
 }
 
-internal static class sound_mpu401_uart
+internal static partial class sound_mpu401_uart
 {
     // pcem: sound_mpu401_uart.c:7
     private const int STATUS_OUTPUT_NOT_READY = 0x40;
@@ -50,10 +50,16 @@ internal static class sound_mpu401_uart
     }
 
     // pcem: sound_mpu401_uart.c:16-50
-    // pcem bug, reproduced: PB-154 — en mode UART, FFh rend quand même l'ACK FEh (Roland : aucun) ; l'IRQ est
-    //   levée sur FFh et non au passage en UART, et vaut -1 sur la SB 16 et l'AWE32 : rien n'est levé.
+    // pcem bug, fixed in hardware mode: PB-154 — l'IRQ est levée sur FFh et non au passage en UART, et vaut -1 sur la
+    //   SB 16 et l'AWE32 : rien n'est levé.
+    // PB-154, la part inconnue (c) — en mode UART, FFh rend quand même l'ACK FEh (Roland : aucun ; Creative ne
+    //   distingue pas le mode UART), dans les deux modes.
     private static void mpu401_uart_write(uint16_t addr, uint8_t val, object p)
     {
+        // pcem bug, fixed in hardware mode: PB-154 — ni IRQ au passage en UART, ni 3Fh ignorée en mode UART.
+        if (materiel.pb_154)
+                if (commande_materiel(addr, val, p))
+                        return;
         mpu401_uart_t mpu = (mpu401_uart_t)p;
 
         if ((addr & 1) != 0) /*Command*/
@@ -74,7 +80,7 @@ internal static class sound_mpu401_uart
                         break;
 
                 case 0x3f:                   /*Enter UART mode*/
-                        // pcem bug, reproduced: PB-154 — acquittée même en mode UART, où seul le reset est reconnu
+                        // pcem bug, fixed in hardware mode: PB-154 — acquittée même en mode UART, où seul le reset est reconnu
                         //   (Creative p. 5-5) ; l'IRQ du passage en UART (p. 5-9) n'est levée que pour l'Aztech.
                         mpu.rx_data = 0xfe; /*Acknowledge*/
                         mpu.uart_mode = 1;
@@ -96,14 +102,17 @@ internal static class sound_mpu401_uart
     // pcem: sound_mpu401_uart.c:52-62
     private static uint8_t mpu401_uart_read(uint16_t addr, object p)
     {
+        // pcem bug, fixed in hardware mode: PB-154 — la lecture de la donnée n'efface pas l'IRQ.
+        if (materiel.pb_154)
+                acquitte_materiel(addr, p);
         mpu401_uart_t mpu = (mpu401_uart_t)p;
 
         if ((addr & 1) != 0) /*Status*/
                 return mpu.status;
 
         /*Data*/
-        // pcem bug, reproduced: PB-154 — la lecture n'efface aucune IRQ (Creative p. 5-9 : elle l'efface) ; sans
-        //   donnée, elle rend l'ACK périmé.
+        // pcem bug, fixed in hardware mode: PB-154 — la lecture n'efface aucune IRQ (Creative p. 5-9 : elle l'efface).
+        // PB-154, la part inconnue (c) — sans donnée, la lecture rend l'ACK périmé, dans les deux modes.
         mpu.status = STATUS_INPUT_NOT_READY;
         return mpu.rx_data;
     }
