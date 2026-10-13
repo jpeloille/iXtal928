@@ -748,3 +748,9 @@ for pb in 276 278; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7e2b — le LUN et le sense automatique de l'AHA-1542C : PB-133 (le LUN du CCB jusqu'à la cible, un LUN absent
+# selon SCSI-2), PB-137 (le sense sur CHECK CONDITION seul, au bout du CCB), chacun son cas en C# seul dans les deux modes.
+for pb in 133 137; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

@@ -93,6 +93,8 @@ internal static class ModeMateriel
         new(130, "stockage", "MODE SENSE du disque SCSI : l'en-tête, le descripteur, les pages 03h et 04h, PC et DBD"),
         new(131, "stockage", "REQUEST SENSE, INQUIRY et les refus du disque SCSI selon SCSI-2"),
         new(132, "stockage", "une longueur nulle finit sans phase de données (le disque SCSI)"),
+        new(133, "stockage", "le LUN du CCB de l'AHA-1542C transmis à la cible ; INQUIRY 7Fh et 05/25h à un LUN absent"),
+        new(137, "stockage", "le sense automatique de l'AHA-1542C : sur CHECK CONDITION seul, au bout du CCB, 14h en échec"),
         new(139, "stockage", "ABORT de l'AHA-1542C : son propre MBO effacé, un seul MBI, 02h ou 03h"),
         new(140, "stockage", "Return Setup Data (0Dh) de l'AHA-1542C en entier : 44 octets, les interrupteurs, 0 pour 256"),
         new(141, "stockage", "les mailbox de l'AHA-1542C : 01h et 02h refusés, le tourniquet, le MBI libre, HRST et SRST"),

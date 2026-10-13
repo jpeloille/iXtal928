@@ -283,7 +283,7 @@ internal static class R9Aha
 
     /// <summary>La commande BIOS 03h, sous-fonction `f`, sur l'ID `id`, un secteur (cylindre 0, tête 0, secteur
     /// 1), les données en Petit ; HACC attendu. Rend l'état et l'octet de données.</summary>
-    private static (byte st, byte donnee) Bios(int f, int id)
+    internal static (byte st, byte donnee) Bios(int f, int id)
     {
         Cmd(0x03, f, id, 0, 0, 0, 1, 1, (int)(Petit >> 16) & 0xFF, (int)(Petit >> 8) & 0xFF, (int)Petit & 0xFF);
         for (var i = 0; i < 100 && (Isr() & 0x04) == 0; i++)

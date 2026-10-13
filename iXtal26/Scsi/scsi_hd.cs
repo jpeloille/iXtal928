@@ -11,8 +11,8 @@
 //   planter, et l'invité reçoit les bonnes données : ce régime est reproduit.
 // DEVIATIONS (R9, PB-128) : au-delà de 2 × BUFFER_SIZE pour data_in (:87, :717), au-delà de BUFFER_SIZE
 //   pour data_out (:723-728, :99-102), l'octet est compté, pas gardé, et se relit nul.
-// Reproduits en mode PCem, corrigés en mode matériel (scsi_hd.Materiel.cs) : PB-128 à PB-132.
-// Reproduits : PB-133, PB-275 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
+// Reproduits en mode PCem, corrigés en mode matériel (scsi_hd.Materiel.cs) : PB-128 à PB-133.
+// Reproduits : PB-219, PB-275 (PCEM_BUGS.md) ; les huit fatal() inatteignables de PB-134.
 
 // CS8981 : `scsi_hd_c` porte le nom de l'unité C, que le membre `scsi_hd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -168,11 +168,16 @@ internal static partial class scsi_hd_c
         data.status = STATUS_GOOD;
         data.data_pos_read = data.data_pos_write = 0;
 
+        // pcem bug, fixed in hardware mode: PB-133 — un LUN non nul : INQUIRY refusé, REQUEST SENSE celle du LUN 0.
+        if (materiel.pb_133)
+                if ((bus_state = lun_materiel(data, cdb)) >= 0)
+                        return bus_state;
         // pcem bug, fixed in hardware mode: PB-131 — la sense n'est effacée que par REQUEST SENSE.
         if (materiel.pb_131)
                 sense_suivante_materiel(data, cdb);
 
-        // pcem bug, reproduced: PB-133 — le LUN lu dans cdb[1] seulement : celui du CCB n'arrive jamais (ni IDENTIFY).
+        // pcem bug, fixed in hardware mode: PB-133 — le LUN lu dans cdb[1] seulement : celui du CCB n'arrive jamais (ni
+        //   IDENTIFY) ; un LUN non nul refuse INQUIRY, et REQUEST SENSE rend la sense du LUN 0.
         if ((cdb[0] != SCSI_REQUEST_SENSE /* && cdb[0] != SCSI_INQUIRY*/) && (cdb[1] & 0xe0) != 0)
         {
                 /*Non-zero LUN - abort command*/

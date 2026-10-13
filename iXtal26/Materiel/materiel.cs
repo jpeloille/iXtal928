@@ -216,6 +216,12 @@ internal static class materiel
     /// <summary>PB-132 : une longueur nulle finit sans phase de données (la cible).</summary>
     internal static readonly bool pb_132;
 
+    /// <summary>PB-133 : le LUN du CCB de l'AHA-1542C atteint la cible ; un LUN absent selon SCSI-2.</summary>
+    internal static readonly bool pb_133;
+
+    /// <summary>PB-137 : le sense automatique de l'AHA-1542C sur CHECK CONDITION seul, rangé au bout du CCB.</summary>
+    internal static readonly bool pb_137;
+
     /// <summary>PB-139 : ABORT efface son propre MBO, et rend un seul MBI, 02h ou 03h.</summary>
     internal static readonly bool pb_139;
 
@@ -496,6 +502,8 @@ internal static class materiel
         pb_130 = ModeMateriel.Demande(130);
         pb_131 = ModeMateriel.Demande(131);
         pb_132 = ModeMateriel.Demande(132);
+        pb_133 = ModeMateriel.Demande(133);
+        pb_137 = ModeMateriel.Demande(137);
         pb_139 = ModeMateriel.Demande(139);
         pb_140 = ModeMateriel.Demande(140);
         pb_141 = ModeMateriel.Demande(141);

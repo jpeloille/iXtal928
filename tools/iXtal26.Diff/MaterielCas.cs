@@ -23,7 +23,7 @@
 // commandes du lecteur (PB-117 à PB-120, PB-268 à PB-273), dans MaterielCasAtapi.cs ; ceux du ZIP
 // (PB-125, PB-126), dans MaterielCasZip.cs ; ceux du disque SCSI (PB-128 à PB-132), dans MaterielCasScsi.cs ; ceux de
 // l'AHA-1542C, dans MaterielCasAha.cs (la configuration : PB-140, PB-144, PB-218, PB-277), MaterielCasMailbox.cs (les
-// mailbox : PB-139, PB-141) et MaterielCasCcb.cs (le côté SCSI : PB-276, PB-278).
+// mailbox : PB-139, PB-141) et MaterielCasCcb.cs (le côté SCSI : PB-276, PB-278, PB-133, PB-137).
 
 using System.Reflection;
 using iXtal26.Cpu;
@@ -54,7 +54,7 @@ internal static partial class MaterielCas
         [71] = Pb71, [74] = Pb74, [216] = Pb216,
         [106] = Pb106, [108] = Pb108, [109] = Pb109, [122] = Pb122, [123] = Pb123, [214] = Pb214, [215] = Pb215, [125] = Pb125, [126] = Pb126, [128] = Pb128, [129] = Pb129, [130] = Pb130, [131] = Pb131, [132] = Pb132,
         [117] = Pb117, [119] = Pb119, [120] = Pb120, [268] = Pb268, [269] = Pb269, [118] = Pb118, [270] = Pb270, [271] = Pb271, [272] = Pb272, [273] = Pb273,
-        [140] = Pb140, [144] = Pb144, [218] = Pb218, [277] = Pb277, [139] = Pb139, [141] = Pb141, [276] = Pb276, [278] = Pb278,
+        [140] = Pb140, [144] = Pb144, [218] = Pb218, [277] = Pb277, [139] = Pb139, [141] = Pb141, [276] = Pb276, [278] = Pb278, [133] = Pb133, [137] = Pb137,
     };
 
     /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les

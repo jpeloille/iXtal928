@@ -12,9 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-133, PB-136 à PB-138, PB-142, PB-143, PB-279 à PB-282 (PCEM_BUGS.md), dont la lecture de
-//   22h au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
-//   (scsi_aha1540.Materiel.cs) : PB-139 à PB-141, PB-144, PB-218, PB-276 à PB-278.
+//   n° 5). Reproduits : PB-136, PB-138, PB-142, PB-143, PB-279 à PB-282 (PCEM_BUGS.md), dont la lecture de 22h
+//   au-delà de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
+//   (scsi_aha1540.Materiel.cs) : PB-133, PB-137, PB-139 à PB-141, PB-144, PB-218, PB-276 à PB-278.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -425,7 +425,7 @@ internal static partial class scsi_aha1540
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
                 scsi.ccb.req_sense_len = mem_readb_phys(scsi.ccb.addr + 0x03);
 
-                // pcem bug, reproduced: PB-133 — le LUN n'est jamais transmis au disque (ni IDENTIFY).
+                // pcem bug, fixed in hardware mode: PB-133 — le LUN n'est jamais transmis au disque (ni IDENTIFY).
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
@@ -456,7 +456,7 @@ internal static partial class scsi_aha1540
                 scsi.ccb.scsi_cmd_len = mem_readb_phys(scsi.ccb.addr + 0x02);
                 scsi.ccb.req_sense_len = mem_readb_phys(scsi.ccb.addr + 0x03);
 
-                // pcem bug, reproduced: PB-133 — de même pour un CCB à liste de dispersion.
+                // pcem bug, fixed in hardware mode: PB-133 — de même pour un CCB à liste de dispersion.
                 scsi.ccb.lun = temp & 7;
                 scsi.ccb.target_id = (temp >> 5) & 7;
 
@@ -1434,11 +1434,15 @@ internal static partial class scsi_aha1540
                         break; /*Wait until SCSI state machine has completed command*/
                 scsi.ccb.status = scsi.cdb.last_status;
                 scsi.ccb.bytes_transferred = scsi.cdb.bytes_transferred;
-                // pcem bug, reproduced: PB-137 — le sense automatique suit toute commande, même GOOD.
+                // pcem bug, fixed in hardware mode: PB-137 — le sense automatique suit toute commande, même GOOD.
                 scsi.ccb_state = CCB_STATE_SEND_REQUEST_SENSE;
                 break;
 
         case CCB_STATE_SEND_REQUEST_SENSE:
+                // pcem bug, fixed in hardware mode: PB-137 — le sense automatique suit toute commande, même GOOD.
+                if (materiel.pb_137)
+                        if (sense_auto_materiel(scsi))
+                                break;
                 // pcem bug, fixed in hardware mode: PB-278 — un dépassement sous contrôle de longueur rendrait 12h.
                 if (materiel.pb_278)
                         if (achevement_materiel(scsi, false))
@@ -1497,8 +1501,8 @@ internal static partial class scsi_aha1540
                         break;
                 }
                 /*Build request sense command*/
-                // pcem bug, reproduced: PB-137 — après chaque commande, même GOOD ; octet de contrôle 14 ; et la
-                //   destination inversée : le CCB de mailbox dans int_buffer, la commande BIOS à ccb.addr périmé.
+                // pcem bug, fixed in hardware mode: PB-137 — après chaque commande, même GOOD ; octet de contrôle 14 ;
+                //   et la destination inversée : le CCB de mailbox dans int_buffer, la commande BIOS à ccb.addr périmé.
                 scsi.cdb.data[0] = SCSI_REQUEST_SENSE;
                 scsi.cdb.data[1] = (uint8_t)(scsi.ccb.lun << 5);
                 scsi.cdb.data[2] = 0x00;
@@ -1598,6 +1602,9 @@ internal static partial class scsi_aha1540
                 break;
 
         case SCSI_STATE_SELECT:
+                // pcem bug, fixed in hardware mode: PB-133 — le LUN du CCB n'atteint pas la cible (ni IDENTIFY).
+                if (materiel.pb_133)
+                        identify_materiel(scsi);
                 if (materiel.pb_276)
                         if (selection_materiel(scsi))
                                 break;

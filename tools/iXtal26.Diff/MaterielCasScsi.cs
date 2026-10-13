@@ -141,8 +141,8 @@ internal static partial class MaterielCas
     // matériel (00/00h, § 8.2.14). REQUEST SENSE coupé à 8 octets : 70h et 0Ah sur le matériel. INQUIRY de 96 octets :
     // PCem `00 00 00 02 00 00 00 02`, le matériel `00 00 02 02 5B 00 00 00` (§ 8.2.5.1). INQUIRY avec EVPD, avec EVPD et
     // une allocation nulle, avec un code de page sans EVPD : PCem GOOD, le matériel 05/24h. SEND DIAGNOSTIC sans
-    // autotest, liste vide (§ 8.2.15) : PCem 05/25h, le matériel GOOD. TEST UNIT READY au LUN 1 : 05/25h dans les deux
-    // modes (le refus du LUN gardé).
+    // autotest, liste vide (§ 8.2.15) : PCem 05/25h, le matériel GOOD. TEST UNIT READY au LUN 1, puis REQUEST SENSE au
+    // même LUN (dans le CCB et la CDB, que PB-133 le passe ou non) : 05/25h dans les deux modes (le refus du LUN gardé).
     private static int Pb131(bool hw) => AvecScsi(() =>
     {
         var bad = 0;
@@ -182,9 +182,18 @@ internal static partial class MaterielCas
         var s5 = SenseScsi();
         bad += Voir("SEND DIAGNOSTIC sans autotest, liste vide : le statut, l'ASC", hw ? c5 == 0 : c5 == 2 && s5[12] == 0x25, $"cible {c5:X2}h, ASC {s5[12]:X2}h",
                     hw ? "00h (GOOD)" : "02h, 25h", hw);
-        var (_, c6, _) = Ccb([0x00, 0x20, 0, 0, 0, 0], 0, Lu, sansSense: true);
-        var s6 = SenseScsi();
-        bad += Voir("TEST UNIT READY au LUN 1 (cdb[1]) : le statut, l'ASC", c6 == 2 && s6[12] == 0x25, $"cible {c6:X2}h, ASC {s6[12]:X2}h",
+        var t6 = R9Aha.CcbDe(0, 1, [0x00, 0x20, 0, 0, 0, 0], 0, Lu);
+        t6[1] |= 1;
+        t6[3] = 1;
+        var (_, c6, _) = R9Aha.Mailbox(t6, 400);
+        for (var k = 0; k < 18; k++)
+            mem.mem_writeb_phys(Lu + (uint)k, 0xEE);
+        var r6 = R9Aha.CcbDe(0, 1, [0x03, 0x20, 0, 0, 18, 0], 18, Lu);
+        r6[1] |= 1;
+        r6[3] = 1;
+        R9Aha.Mailbox(r6, 400);
+        var s6 = Lire(Lu, 18);
+        bad += Voir("TEST UNIT READY au LUN 1 : le statut, l'ASC", c6 == 2 && s6[12] == 0x25, $"cible {c6:X2}h, ASC {s6[12]:X2}h",
                     "02h, 25h (dans les deux modes)", hw);
         return bad;
     });

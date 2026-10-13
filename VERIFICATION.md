@@ -10526,3 +10526,77 @@ de même longueur, dont seuls changent des jetons de chaînes (8, 4 et 4 `mov ed
 **La série** g7e2a (le worktree de l'étape, contre g7e1b) : 578 portes, toutes vertes ; 574 communes à g7e1b, chacune au
 même verdict ; un seul résumé change, `recensement` (282 défauts, 1 169 marqueurs). Quatre neuves : les `materiel-cas`
 de PB-276 et PB-278, dans les deux modes.
+
+## G13.7e2b — le LUN et le sense automatique de l'AHA-1542C
+
+Le 13 octobre 2026. La quatrième étape de 7e (PLAN-G13.md, § G13.7), la seconde moitié de 7e2. Les sources : le
+Technical Reference de l'AHA-1540C/1542C, chapitre 5 (le CCB : octet 1, le LUN, « The LUN field in the SCSI Command
+Descriptor Block (CDB) is expected to be zero » ; octet 3, le sense automatique ; octets 18 + m, sa place et le statut
+d'hôte 14h) ; SCSI-2 (X3.131-1994), § 7.2.2 (IDENTIFY), § 7.5.3 (un LUN que la cible n'a pas), § 7.6 (la sense propre
+au nexus), § 8.2.5.1 (7Fh).
+
+**Les corrections du mode matériel** (domaine `stockage`, deux), chaque garde en tête de son `case` ou de son état :
+PB-133 — `identify_materiel` (`Scsi/scsi_aha1540.Materiel.cs`), en tête de SCSI_STATE_SELECT, pose le LUN du CCB dans la
+CDB, octet 1 bits 5-7 (déduit : nos cibles n'ont pas de phase MESSAGE OUT, et la cible SCSI-2 ignore le LUN de la CDB
+après IDENTIFY) ; `lun_materiel` (`Scsi/scsi_hd.Materiel.cs`), en tête de `scsi_hd_command`, sert un LUN non nul selon
+§ 7.5.3 : INQUIRY par la voie du LUN 0 (sa sense gardée), puis 7Fh en tête ; REQUEST SENSE, 18 octets 05/25h ; le reste
+en CHECK CONDITION, la sense du LUN 0 ni lue, ni effacée, ni écrite. PB-137 — `sense_auto_materiel`, en tête de
+CCB_STATE_SEND_REQUEST_SENSE (avant la garde de PB-278) : sans CHECK CONDITION, l'octet 3 tenu pour 01h, et l'état de
+PCem achève le CCB (le 12h de PB-278 compris) ; après un CHECK CONDITION, le REQUEST SENSE de la carte, octet de contrôle
+0 (déduit), rangé en CCB + 12h + m pour un CCB de mailbox, dans le tampon interne pour la commande BIOS 03h (déduit). Le
+statut d'hôte 14h (le sense lui-même en CHECK CONDITION), documenté, n'est pas écrit : chacune de nos cibles rend
+REQUEST SENSE en GOOD, il est inatteignable. Détaché, reproduit dans les deux modes : PB-283 (le CD-ROM et le ZIP SCSI à
+un LUN absent, le même refus que le disque ; pour 7e3). PB-219 (la branche morte d'INQUIRY du disque) reste reproduit.
+
+**Les cas**, en C# seul (`MaterielCasCcb.cs`, sur le banc des mailbox), sont verts dans les deux modes, sous « tout », la
+sonde atteinte, et rouges sous l'attente de l'autre mode (PB-133 : cinq situations sur six, la sixième témoin ;
+PB-137 : quatre sur cinq, un témoin). PB-133 : INQUIRY, TEST UNIT READY (sans, puis avec la sense automatique) et
+REQUEST SENSE au LUN 1 du CCB (00h, GOOD, la sense vide chez PCem ; 7Fh, CHECK CONDITION — avec 05/25h au bout du CCB
+sous « tout » —, 05/25h sur le matériel) ; TEST UNIT READY au LUN 1 de la CDB seule (CHECK CONDITION chez PCem, GOOD sur
+le matériel) ; le témoin, la sense du LUN 0 (son ASC comparé : 25h, 20h sous PB-131) après un INQUIRY au LUN 1. PB-137 :
+un opcode inconnu, l'octet 3 à 12h et à 00h (rien au bout du CCB chez PCem ; 18 et 14 octets, 70h, clé 05h, sur le
+matériel) ; le témoin, l'octet 3 à 01h ; un refus laissé au disque, puis TEST UNIT READY GOOD à 00h (PCem envoie son
+REQUEST SENSE, la sense du disque est vide ; le matériel la garde — vide sous « tout », PB-131 l'effaçant) ; la lecture
+BIOS 03h GOOD après 15h (PCem écrit le sense au CCB périmé, 80000h + 12h + 10 ; le matériel rien). PB-278 gagne une
+situation : le manque, avec la sense automatique (sous « tout », PB-137 achève le CCB GOOD sans sense, et 12h sort). Sous « tout », `materiel-cas PB-131` rougissait :
+sa dernière situation mettait le LUN 1 dans la CDB seule, et la carte y pose désormais le LUN 0 du CCB ; elle met
+maintenant le LUN 1 dans le CCB et la CDB, et relit la sense au même LUN, son tampon posé à EEh d'abord — 02h, 25h en mode PCem, sous PB-131 seul et
+sous « tout ». Tous les cas du stockage (PB-117 à PB-123, PB-125, PB-126, PB-128 à PB-133, PB-137, PB-139 à PB-141,
+PB-144, PB-218, PB-268 à PB-273, PB-276 à PB-278) sont verts sous « tout ». `recensement` vert (283 défauts, 1 176
+marqueurs).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g137e2b.py`, rejoués après la contre-lecture) : treize fautes, chacune rougit son cas — le LUN de la CDB gardé,
+le LUN du CCB perdu, INQUIRY à 60h, la sense du LUN 0 effacée par INQUIRY (sous « tout », où PB-131 l'efface), REQUEST
+SENSE sans 25h, les autres commandes en GOOD, le sense après GOOD, le sense de la mailbox dans le tampon, 00h valant 18
+octets, l'octet 3 non tenu pour 01h après GOOD, et trois gardes retirées (la sélection et le disque pour PB-133, le
+sense pour PB-137). Le témoin, sans faute, est vert dans les quatre configurations. Non couverts par un cas, notés :
+l'octet de contrôle de la CDB du sense (invisible de nos cibles) ; le sense d'une commande BIOS 03h en CHECK CONDITION
+(ses lectures en erreur passent par PB-135 et PB-138, 7e3).
+
+**Les amorçages.** Le scénario `ami486-aha` (le POST de la ROM v1.01, puis PC-DOS), joué en mode PCem, sous PB-133 et
+PB-137, sous chacun seul et sous « tout » (Debug, bac à sable hors dépôt) : aucun arrêt, le même écran. Sous PB-133
+seul, la sortie est identique à PCem. Sous PB-137, la trace des tranches avance d'environ 650 instructions dès la
+tranche 1 200 : les CCB de la ROM, finis GOOD, ne sont plus suivis d'un REQUEST SENSE ; sous PB-137 seul, la même
+sortie que sous les deux.
+
+**M2** (Release du worktree, le scénario `ami486-aha`) : avec et sans les trois gardes de 7e2b (`M2-7e2b` contre
+`M2-7e2b-sansgardes`), identique (947 méthodes, aucune changée). Contre M2-7e2a (tous les scénarios) : les
+constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command` et `scsi_zip_command`,
+de même longueur, dont seuls changent des jetons de chaînes (8, 4 et 4 `mov edi`, avant `CORINFO_HELP_STRCNS`) ; le
+code est le même.
+
+**La contre-lecture** (Sonnet, le TR, SCSI-2 et le C relus) : rien de bloquant ; le mode PCem intact (trois gardes, en
+tête d'état ou de fonction, et des marqueurs) ; les citations exactes ; l'INQUIRY récursif sans réentrance, sa sense
+rendue ; la mutation de l'octet 3 lue seulement par l'achèvement de PB-278 et par PCem ; le 12h de PB-278 sort avec ou
+sans sense. Repris : le témoin de PB-133 compare l'ASC, et non la seule clé (05h des deux refus) ; le témoin « TEST UNIT
+READY GOOD » de PB-137, qui ne voyait rien, devient discriminant (un refus laissé au disque) ; deux situations ajoutées
+(TEST UNIT READY au LUN 1 avec la sense automatique ; le manque de PB-278 avec la sense automatique) ; le tampon du cas
+PB-131 posé à EEh ; la phrase du TR sur la cible sans IDENTIFY (« the LUN field in the SCSI CDB must contain the correct
+Logical Unit address ») citée à l'appui de `identify_materiel` ; la contradiction du TR sur 14h notée dans PB-137
+(« Target Bus Phase Sequence Failure » dans la table de l'octet 14) ; le compte des situations de PB-137 ; PB-283 rangé
+en 7e3 ; le commentaire du refus d'EVPD au LUN absent précisé. Non repris : le compte « deux cent cinquante-sept »
+défauts de PCEM_BUGS.md, périmé avant l'étape (hors périmètre).
+
+**La série** g7e2b (le worktree de l'étape, contre g7e2a) : 582 portes, toutes vertes ; 578 communes à g7e2a, chacune au
+même verdict ; un seul résumé change, `recensement` (283 défauts, 1 176 marqueurs). Quatre neuves : les `materiel-cas`
+de PB-133 et PB-137, dans les deux modes.

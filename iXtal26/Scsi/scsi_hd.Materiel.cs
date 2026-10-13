@@ -196,6 +196,49 @@ internal static partial class scsi_hd_c
         return BUS_CD | BUS_IO;
     }
 
+    // pcem bug, fixed in hardware mode: PB-133 — un LUN non nul (le disque n'a que le LUN 0 ; SCSI-2 § 7.5.3, « the
+    //   target does not support the logical unit ») : « In response to an INQUIRY command, the target shall return the
+    //   INQUIRY data with the peripheral qualifier set to the value required in 8.2.5.1 » — 7Fh (§ 8.2.5.1 : « If the
+    //   target is not capable of supporting a device on this logical unit, this field shall be set to 7Fh ») ; « In
+    //   response to any other command except REQUEST SENSE, the target shall terminate the command with CHECK CONDITION
+    //   status » ; « In response to a REQUEST SENSE command, the target shall return sense data », 05/25h. PCem refuse
+    //   INQUIRY, et REQUEST SENSE y rend la sense du LUN 0. Celle-ci n'est ni lue, ni effacée, ni écrite : « preserved
+    //   for the I_T_x nexus » (§ 7.6). INQUIRY servi par la voie du LUN 0, sa sense gardée, puis 7Fh en tête (déduit :
+    //   le reste des données standard est celui de la cible ; un refus d'EVPD ou de page se relit en 05/25h au LUN
+    //   absent, et pas au LUN 0).
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int lun_materiel(scsi_hd_data data, uint8_t[] cdb)
+    {
+        if ((cdb[1] & 0xe0) == 0)
+            return -1;
+        ModeMateriel.Sonde[133]++;
+        if (cdb[0] == SCSI_INQUIRY)
+        {
+            var c = (uint8_t[])cdb.Clone();
+            c[1] &= 0x1f;
+            var (cle, asc, ascq) = (data.sense_key, data.asc, data.ascq);
+            var bus = scsi_hd_command(c, data);
+            (data.sense_key, data.asc, data.ascq) = (cle, asc, ascq);
+            if (data.status == STATUS_GOOD && data.data_pos_write > 0)
+                data.io[0] = 0x7F;
+            return bus;
+        }
+        if (cdb[0] == SCSI_REQUEST_SENSE)
+        {
+            var s = new uint8_t[18];
+            s[0] = 0x70;
+            s[2] = KEY_ILLEGAL_REQ;
+            s[7] = 0x0A;
+            s[12] = ASC_INVALID_LUN;
+            for (var k = 0; k < Math.Min(cdb[4], s.Length); k++)
+                scsi_add_data(s[k], data);
+            data.cmd_pos = CMD_POS_IDLE;
+            return cdb[4] == 0 ? BUS_CD | BUS_IO : BUS_IO;
+        }
+        data.status = STATUS_CHECK_CONDITION;
+        return BUS_CD | BUS_IO;
+    }
+
     // pcem bug, fixed in hardware mode: PB-131 — la sense est « cleared upon receipt of any subsequent I/O process
     //   (including REQUEST SENSE) » (SCSI-2 § 8.2.14 ; § 7.6, la condition d'allégeance) : effacée au début de toute
     //   commande autre que REQUEST SENSE, qui la rapporte puis l'efface. Le disque ne pose aucune attention d'unité.

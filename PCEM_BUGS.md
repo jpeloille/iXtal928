@@ -2629,17 +2629,34 @@ rougit.
 
 `scsi_aha1540.c:422`, `:440` : le LUN est lu dans le CCB, mais il n'y a ni phase MESSAGE OUT ni message
 IDENTIFY ; seul le sense automatique le pose dans la CDB (`:1603`). `scsi_hd.c:131` ne connaît le LUN que
-par `cdb[1]` bits 5-7.
-*Effet* : un pilote qui ne met le LUN que dans le CCB voit le disque répondre sur ses huit LUN.
+par `cdb[1]` bits 5-7 ; et là, un LUN non nul refuse INQUIRY (05/25h), et REQUEST SENSE, exempté, rend la sense du
+LUN 0. Le même refus du CD-ROM et du ZIP, détaché en PB-283 en G13.7e2b.
+*Effet* : un pilote qui ne met le LUN que dans le CCB voit le disque répondre sur ses huit LUN ; un pilote qui le
+met dans la CDB voit un LUN absent refuser INQUIRY.
 *Trouvé par* : reconnaissance de G11.
 *Source* : documenté — AHA-1540C TR, CCB octet 1 (le LUN passe par IDENTIFY ; « The LUN field in the SCSI Command
-Descriptor Block (CDB) is expected to be zero ») ; SCSI-2 § 7.2.2, § 8.2.5.1 (LUN non supporté : INQUIRY rend 7Fh),
-§ 7.5.3 (les autres commandes : 05/25h).
-*Cas qui discrimine* : CCB vers l'ID 0, LUN 1 dans le CCB et 0 dans la CDB : INQUIRY rend 00h (un disque) chez PCem,
-7Fh sur le matériel ; TEST UNIT READY : GOOD contre CHECK CONDITION, sense 05/25h.
-*G13* : (a).
-*Reproduit* : `Scsi/scsi_aha1540.cs`, `Scsi/scsi_hd.cs`, marqueurs PB-133 (les deux formes de CCB ; le test du LUN
-du disque).
+Descriptor Block (CDB) is expected to be zero ») ; SCSI-2 § 7.2.2 (après IDENTIFY, la cible ignore le LUN de la CDB),
+§ 7.5.3 (un LUN que la cible n'a pas : INQUIRY rend ses données, « with the peripheral qualifier set to the value
+required in 8.2.5.1 » ; les autres commandes CHECK CONDITION ; REQUEST SENSE rend 05/25h), § 8.2.5.1 (7Fh), § 7.6
+(la sense propre à chaque nexus). Le LUN du CCB posé dans la CDB, faute de phase MESSAGE OUT : déduit, sur le TR
+lui-même (« If the target does not accept an Identify message out, the LUN field in the SCSI CDB must contain the
+correct Logical Unit address »).
+*Cas qui discrimine* : CCB vers l'ID 1, LUN 1 dans le CCB et 0 dans la CDB : INQUIRY rend 00h (un disque) chez PCem,
+7Fh sur le matériel ; TEST UNIT READY : GOOD contre CHECK CONDITION (et, avec PB-137, 05/25h au bout du CCB) ;
+REQUEST SENSE : la sense du LUN 0 contre 05/25h.
+LUN 0 dans le CCB et 1 dans la CDB : TEST UNIT READY en CHECK CONDITION chez PCem, GOOD sur le matériel.
+*G13* : (a) — G13.7e2b.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, `Scsi/scsi_hd.cs`, marqueurs `fixed in hardware mode: PB-133` (les
+deux formes de CCB ; le test du LUN du disque).
+*Corrigé en mode matériel* (G13.7e2b) : sous `if (materiel.pb_133)` — `Scsi/scsi_aha1540.Materiel.cs`,
+`identify_materiel`, en tête de SCSI_STATE_SELECT, pose le LUN du CCB dans la CDB (octet 1, bits 5-7) ;
+`Scsi/scsi_hd.Materiel.cs`, `lun_materiel`, en tête de `scsi_hd_command`, sert un LUN non nul selon § 7.5.3 : INQUIRY
+par la voie du LUN 0, la sense de celui-ci gardée, puis 7Fh en tête ; REQUEST SENSE, 18 octets 05/25h ; le reste en
+CHECK CONDITION ; la sense du LUN 0 n'est ni lue, ni effacée, ni écrite. `materiel-cas PB-133` (sur le banc des
+mailbox : INQUIRY, TEST UNIT READY, avec et sans la sense automatique, et REQUEST SENSE au LUN 1 du CCB ; TEST UNIT
+READY au LUN 1 de la CDB ; le témoin, la sense du LUN 0 après un INQUIRY au LUN 1) rend 00h, GOOD deux fois, la sense
+vide, CHECK CONDITION en mode PCem ; 7Fh, CHECK CONDITION deux fois (05/25h au bout du CCB sous PB-137), 05/25h, GOOD en
+mode matériel ; la correction coupée, il rougit.
 
 ### PB-135 — L'AHA-1542C s'arrête sur une commande de l'invité ; la configuration la fait tomber
 
@@ -2682,18 +2699,34 @@ modes : `Scsi/scsi_aha1540.Materiel.cs`, la commande 22h du mode matériel (PB-2
 vaut 1 ; son octet de contrôle vaut 14 (`:1610`). Sa destination est inversée (`:1613-1616`) : un CCB de
 mailbox l'envoie dans `int_buffer` et jamais dans le CCB ; une commande BIOS 03h l'envoie à
 `ccb.addr + 12h + longueur de CDB`, avec `ccb.addr` PÉRIMÉ — 0 à la mise sous tension, soit la table des
-vecteurs (INT 07h à 0Ah).
+vecteurs (INT 07h à 0Ah) ; après la sous-fonction 15h (qui seule pose « hors mailbox ») suivant un CCB de mailbox,
+ce CCB.
 *Effet* : un pilote ne trouve jamais le sense dans son CCB ; une commande BIOS directe peut écraser les
-vecteurs de l'horloge et du clavier.
+vecteurs de l'horloge et du clavier, ou un CCB rendu.
 *Trouvé par* : reconnaissance de G11.
 *Source* : documenté — AHA-1540C TR, CCB octet 3 — le sense automatique suit un CHECK CONDITION ; 00h : 14 octets,
-01h : aucun, 08h à FFh : la longueur ; rangé à la fin du CCB (octets 18 + m à 18 + m + n). L'octet de contrôle de la
-CDB à 0 : déduit. La commande 03h, interface du BIOS : inconnu (l'intention lisible est l'inverse de PCem).
+01h : aucun, 08h à FFh : la longueur (02h à 07h réservés : la longueur, comme PCem — inconnu) ; rangé à la fin du CCB
+(octets 18 + m à 18 + m + n) ; un REQUEST SENSE fini en CHECK CONDITION rend le statut d'hôte 14h — que la table de
+l'octet 14 nomme pourtant « Target Bus Phase Sequence Failure » ; inatteignable ici de toute façon : chacune de nos
+cibles rend REQUEST SENSE en GOOD. L'octet de contrôle de la CDB à 0 : déduit. La commande 03h, interface
+du BIOS : inconnu ; son sense dans le tampon interne, déduit (son CCB est celui de la carte).
 *Cas qui discrimine* : un CCB qui finit GOOD : PCem envoie un REQUEST SENSE au disque, le matériel aucun ; un CCB en
 CHECK CONDITION, octet 3 = 12h : PCem range le sense dans `int_buffer`, le matériel 18 octets en CCB + 12h + m ;
-octet 3 = 01h : aucun sense, des deux côtés.
-*G13* : (a) pour la mailbox ; (b) pour 03h, interface privée.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-137 (l'entrée inconditionnelle, la CDB et sa destination).
+octet 3 = 01h : aucun sense, des deux côtés ; la commande BIOS 03h GOOD après 15h : PCem écrit au CCB périmé.
+*G13* : (a) pour la mailbox ; (b) pour 03h, interface privée — G13.7e2b. Le choix de la destination suit
+`ccb.from_mailbox`, que la commande BIOS 03h ne pose pas (PB-138, G13.7e3) : resté à 1 après un CCB de mailbox, la
+commande BIOS est achevée comme ce CCB, PCem y écrivant déjà son statut et son MBI (PB-138) ; en mode matériel, le sense
+d'un CHECK CONDITION y va aussi.
+*Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, marqueurs `fixed in hardware mode: PB-137` (l'entrée
+inconditionnelle, la CDB et sa destination).
+*Corrigé en mode matériel* (G13.7e2b) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_137)`,
+`sense_auto_materiel`, en tête de CCB_STATE_SEND_REQUEST_SENSE : après un autre statut que CHECK CONDITION, l'octet 3
+tenu pour 01h, et l'état de PCem achève le CCB (le 12h de PB-278 compris) ; après un CHECK CONDITION, le REQUEST SENSE
+de la carte, octet de contrôle 0, rangé en CCB + 12h + m pour un CCB de mailbox, dans le tampon interne pour la
+commande BIOS. `materiel-cas PB-137` (sur le banc des mailbox : un opcode inconnu, octet 3 à 12h, 00h et 01h ;
+TEST UNIT READY GOOD, octet 3 à 00h, après un refus resté au disque ; la lecture BIOS 03h après 15h) rend rien au bout
+du CCB trois fois, la sense du disque consommée et le CCB périmé écrit en mode PCem ; 18 octets, 14 octets, rien, la
+sense du disque gardée, rien en mode matériel ; la correction coupée, il rougit.
 
 ### PB-138 — Les commandes BIOS 03h achèvent un CCB périmé, et réussissent à faux
 
@@ -5895,6 +5928,21 @@ est de la famille de PB-276.
 *G13* : (c) — aucun pilote ne pose un CCB là ; reproduit dans les deux modes.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-282 (`process_cdb`).
 
+### PB-283 — Le CD-ROM et le ZIP SCSI à un LUN absent : INQUIRY refusé, REQUEST SENSE celle du LUN 0
+
+`scsi_cd.c:840`, `scsi_zip.c:262` : comme le disque (PB-133), un LUN non nul dans `cdb[1]` refuse toute commande en
+05/25h, INQUIRY compris (son exception est commentée) ; REQUEST SENSE, exempté, rend la sense du LUN 0. Et
+`scsi_zip.c:375-376`, la branche « LUN absent » d'INQUIRY, morte comme celle du disque (PB-219), et fausse (60h).
+Détaché de PB-133 en G13.7e2b (le disque y est corrigé).
+*Effet* : un pilote qui balaie les LUN par INQUIRY voit un refus au lieu de 7Fh ; en mode matériel, le LUN du CCB
+y arrive désormais (PB-133).
+*Trouvé par* : G13.7e2b (étude de PB-133).
+*Source* : documenté — SCSI-2 § 7.5.3, § 8.2.5.1 (comme PB-133).
+*Cas qui discrimine* : INQUIRY au LUN 1 du lecteur CD SCSI : CHECK CONDITION, 05/25h ; le matériel 7Fh.
+*G13* : (a) — G13.7e3 ; d'ici là, reproduit dans les deux modes.
+*Reproduit* : `Scsi/scsi_cd.cs`, `Scsi/scsi_zip.cs`, marqueurs PB-283 (le test du LUN ; la branche d'INQUIRY du ZIP).
+
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -6981,7 +7029,8 @@ jamais prise.
 type 1Fh.
 *Cas qui discrimine* : aucun, la branche est inatteignable ; un INQUIRY à un LUN non nul rend 05/25h par le test
 général (PB-133).
-*G13* : (d) — inatteignable, sans effet ; la réponse juste à un LUN absent relève de PB-133.
+*G13* : (d) — inatteignable, sans effet ; la réponse juste à un LUN absent relève de PB-133 (en mode matériel,
+`lun_materiel` sert l'INQUIRY d'un LUN non nul avant ce test, G13.7e2b).
 *Reproduit* : `Scsi/scsi_hd.cs`, INQUIRY, marqueur PB-219.
 
 ## Portée de ce registre

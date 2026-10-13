@@ -12,6 +12,7 @@
 // Reproduits en mode PCem, corrigés en mode matériel (scsi_cd.Materiel.cs, cdrom-image.Materiel.cs) : PB-117 (READ
 //   CAPACITY), PB-118 (GET EVENT STATUS NOTIFICATION), PB-119 (MODE SELECT), PB-120 (la TOC brute), PB-268 (le READ
 //   hors du disque), PB-269 (MECHANISM STATUS), PB-270 (le jeu de commandes du modèle), PB-271 (READ CD MSF).
+// Reproduits : PB-283 (un LUN non nul).
 
 // CS8981 : `scsi_cd_c` porte le nom de l'unité C, que le membre `scsi_cd` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -897,6 +898,8 @@ internal static partial class scsi_cd_c
                 if (read_cd_msf_materiel(data, cdb))
                         return SCSI_PHASE_STATUS;
 
+        // pcem bug, reproduced: PB-283 — un LUN non nul refuse INQUIRY (05/25h, et non 7Fh) ; REQUEST SENSE rend
+        //   celle du LUN 0.
         if ((cdb[0] != SCSI_REQUEST_SENSE) && (cdb[1] & 0xe0) != 0)
         {
                 // omitted: pclog("non-zero LUN\n").

@@ -8,7 +8,8 @@
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. La référence : AHA-1540C/1542C Technical Reference (Adaptec, 510397-00 A, avril 1993) —
 // chapitre 3 (les réglages d'usine, les interrupteurs), chapitre 4 (le port de contrôle, les resets), chapitre 5 (Return
-// Setup Data, Set EEPROM, Return EEPROM, les mailbox, le CCB). Les méthodes portent NoInlining (M2, G13.7c2).
+// Setup Data, Set EEPROM, Return EEPROM, les mailbox, le CCB, le sense automatique). Les méthodes portent NoInlining
+// (M2, G13.7c2).
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C (scsi_aha1540.cs).
 #pragma warning disable CS8981
@@ -582,6 +583,63 @@ internal static partial class scsi_aha1540
                 mbi_materiel(scsi, MBI_CCB_COMPLETE_WITH_ERROR, scsi.ccb.addr);
         }
         scsi.ccb_state = CCB_STATE_IDLE;
+        return true;
+    }
+
+    /// <summary>PB-133 : la tête de SCSI_STATE_SELECT. La carte transmet le LUN du CCB par le message IDENTIFY (TR,
+    /// chapitre 5, CCB octet 1), et la cible SCSI-2 ignore alors le champ LUN de la CDB (SCSI-2 § 7.2.2), « expected to
+    /// be zero ». Nos cibles n'ont pas de phase MESSAGE OUT : le LUN du CCB remplace celui de la CDB, octet 1 bits 5-7
+    /// (déduit, sur le TR lui-même : « If the target does not accept an Identify message out, the LUN field in the SCSI
+    /// CDB must contain the correct Logical Unit address »). Les commandes de la carte (BIOS 03h, sense
+    /// automatique) portent déjà le LUN du CCB, ou 0.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void identify_materiel(aha154x_t scsi)
+    {
+        var lun = (uint8_t)(scsi.ccb.lun << 5);
+        if ((scsi.cdb.data[1] & 0xe0) == lun)
+                return;
+        ModeMateriel.Sonde[133]++;
+        scsi.cdb.data[1] = (uint8_t)((scsi.cdb.data[1] & 0x1f) | lun);
+    }
+
+    /// <summary>PB-137 : la tête de CCB_STATE_SEND_REQUEST_SENSE. Le sense automatique ne suit qu'un CHECK CONDITION
+    /// (TR, chapitre 5, CCB octet 3 : « When a SCSI device terminates an operation with Check Condition status … the
+    /// host adapter itself must take charge of generating the Request Sense command » ; octets 18 + m : « If a Check
+    /// Status condition is detected ») : après un autre statut, le CCB s'achève comme sans sense — l'octet 3 tenu
+    /// pour 01h, et l'état de PCem suit (avec PB-278). Après un CHECK CONDITION : 00h demande 14 octets, 08h à FFh la longueur
+    /// (02h à 07h, réservés : la longueur, comme PCem) ; l'octet de contrôle de la CDB à 0 (déduit : la carte n'a ni
+    /// lien ni drapeau à demander ; PCem y met 14) ; le sense rangé à la fin du CCB, en CCB + 12h + m, pour un CCB de
+    /// mailbox — et pour la commande BIOS 03h dans le tampon interne (déduit : son CCB est celui de la carte ; PCem
+    /// inverse les deux, et la commande BIOS écrit au CCB périmé).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool sense_auto_materiel(aha154x_t scsi)
+    {
+        if (scsi.ccb.req_sense_len == CCB_SENSE_NONE)
+                return false;
+        ModeMateriel.Sonde[137]++;
+        if (scsi.ccb.status != STATUS_CHECK_CONDITION)
+        {
+                scsi.ccb.req_sense_len = CCB_SENSE_NONE;
+                return false;
+        }
+        var n = scsi.ccb.req_sense_len == CCB_SENSE_14 ? 14 : scsi.ccb.req_sense_len;
+        scsi.cdb.data[0] = SCSI_REQUEST_SENSE;
+        scsi.cdb.data[1] = (uint8_t)(scsi.ccb.lun << 5);
+        scsi.cdb.data[2] = 0x00;
+        scsi.cdb.data[3] = 0x00;
+        scsi.cdb.data[4] = (uint8_t)n;
+        scsi.cdb.data[5] = 0x00;
+        scsi.cdb.len = 6;
+        scsi.cdb.idx = 0;
+        if (scsi.ccb.from_mailbox != 0)
+                scsi.cdb.data_pointer = scsi.ccb.addr + 0x12 + (uint32_t)scsi.ccb.scsi_cmd_len;
+        else
+                scsi.cdb.data_pointer = 0xFFFFFFFF;
+        scsi.cdb.data_idx = 0;
+        scsi.cdb.data_len = n;
+        scsi.cdb.scatter_gather = 0;
+        scsi.scsi_state = SCSI_STATE_SELECT;
+        scsi.ccb_state = CCB_STATE_WAIT_REQUEST_SENSE;
         return true;
     }
 }

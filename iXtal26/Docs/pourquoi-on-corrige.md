@@ -1437,3 +1437,36 @@ corrigée l'évidence — elle n'écrase plus une demande en cours.
 
 Une demande en cours au moment d'un reset « doux » de la carte, ou d'un reset du bus : le manuel ne dit pas ce qu'elle
 devient (PB-281). Et une demande posée à cheval sur la limite des 16 Mo, qu'aucun pilote ne pose là (PB-282).
+
+## G13.7e2b — le numéro d'unité et le compte rendu d'erreur de la carte Adaptec
+
+*Le 13 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e2b.*
+
+### PB-133 — l'unité derrière l'adresse SCSI
+
+- **Le vrai PC.** Derrière chaque adresse SCSI, un appareil peut loger jusqu'à huit unités (LUN). Le pilote dit
+  laquelle il veut dans sa demande ; la carte la transmet au disque par un message à part, et le disque, qui n'a que
+  l'unité 0, répond aux autres selon la norme : à la question « qui es-tu ? » (INQUIRY), « personne ici » (7Fh) ; à
+  tout le reste, une erreur « unité non prise en charge ».
+- **L'émulateur.** PCem lit le numéro d'unité dans la demande, mais ne le transmet jamais : le disque répond présent
+  sur ses huit unités, et un programme qui les balaie croit voir huit disques. Et quand l'unité arrive par l'autre
+  voie, dans la commande elle-même, le disque refuse INQUIRY au lieu de dire « personne ici ».
+- **La correction.** Le numéro de la demande transmis au disque (nos disques n'ayant pas de messages, il est posé dans
+  la commande, où la norme dit que le disque l'ignore autrement — déduit) ; le disque répond aux unités absentes selon
+  la norme. Le lecteur CD et le ZIP SCSI ont le même refus : noté à part (PB-283), pour une étape suivante.
+
+### PB-137 — le compte rendu d'erreur automatique
+
+- **Le vrai PC.** Quand un disque finit une demande en erreur (CHECK CONDITION), la carte lui demande aussitôt le
+  détail de l'erreur (REQUEST SENSE) et le range à la fin de la demande du pilote, à l'endroit prévu pour lui.
+- **L'émulateur.** PCem le demande après chaque commande, même réussie, et le range au mauvais endroit : pour une
+  demande du pilote, dans une mémoire interne de la carte, jamais lue ; pour une commande du BIOS, à l'adresse d'une
+  ancienne demande — à la mise sous tension, sur la table des vecteurs d'interruption.
+- **La correction.** Le détail demandé après une erreur seulement, et rangé à la fin de la demande du pilote ; pour
+  la commande du BIOS, dans la mémoire interne de la carte (déduit : le manuel ne dit rien de cette commande).
+
+### Ce qui reste comme chez PCem
+
+Le statut d'hôte 14h, « le compte rendu d'erreur a lui-même échoué », que le manuel décrit : chacun de nos appareils
+répond toujours à cette demande, il ne peut pas arriver. Et la commande du BIOS qui suit une demande du pilote se prend
+encore pour elle (PB-138, l'étape suivante).

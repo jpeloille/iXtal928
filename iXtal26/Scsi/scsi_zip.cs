@@ -13,7 +13,7 @@
 //   hdd_file.cs.
 // Reproduits en mode PCem, corrigés en mode matériel (scsi_zip.Materiel.cs) : PB-125 (les transferts au-delà des
 //   tampons), PB-126 (READ CAPACITY, le secteur 196 608, la perte au reset, les phases de longueur nulle). Reproduits :
-//   PB-274 (START STOP UNIT) ; les huit fatal() inatteignables de PB-127.
+//   PB-274 (START STOP UNIT), PB-283 (un LUN non nul) ; les huit fatal() inatteignables de PB-127.
 
 // CS8981 : `scsi_zip_c` porte le nom de l'unité C, que le membre `scsi_zip` garde (TRANSCRIPTION.md).
 #pragma warning disable CS8981
@@ -369,6 +369,8 @@ internal static partial class scsi_zip_c
         data.status = STATUS_GOOD;
         data.data_pos_read = data.data_pos_write = 0;
 
+        // pcem bug, reproduced: PB-283 — un LUN non nul refuse INQUIRY (05/25h, et non 7Fh) ; REQUEST SENSE rend
+        //   celle du LUN 0.
         if ((cdb[0] != SCSI_REQUEST_SENSE /* && cdb[0] != SCSI_INQUIRY*/) && (cdb[1] & 0xe0) != 0)
         {
                 pclog("non-zero LUN\n");
@@ -496,6 +498,8 @@ internal static partial class scsi_zip_c
         case SCSI_INQUIRY:
                 len = cdb[4] | (cdb[3] << 8);
 
+                // pcem bug, reproduced: PB-283 — branche morte, le test du LUN plus haut refusant avant ; et 60h au lieu
+                //   de 7Fh.
                 if ((cdb[1] & 0xe0) != 0)
                 {
                         add_data_len(data, ref i, len, 0 | (3 << 5)); /*No physical device on this LUN*/
