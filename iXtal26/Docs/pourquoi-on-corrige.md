@@ -1847,3 +1847,29 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
   programmes s'en servent pour reconnaître la carte et pour attendre le retour.
 - **L'émulateur.** PCem met ce bit à 1 pendant le retour : l'inverse.
 - **La correction.** La polarité du manuel.
+
+## G13.9a2 — le socle SVGA, les écritures de mot et le 24 bits
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9a2. Après la réponse de
+Julien à Q17 : la documentation du matériel tranche.*
+
+### PB-221 — un mot écrit, ce sont deux octets
+
+- **Le vrai PC.** Chaque octet écrit passe par la logique d'écriture de la carte : le mode d'écriture (1 recopie les
+  verrous, 2 et 3 dessinent une couleur), la rotation, le masque de bits. Qu'un mot du processeur arrive comme deux
+  octets, chacun traité ainsi, est déduit de la documentation de Cirrus, comme pour les lectures.
+- **L'émulateur.** Quand le masque de bits laisse tout passer, PCem pose le mot tel quel, même en mode d'écriture 1 à
+  3 ou sous une rotation. Une copie d'écran à écran par `REP MOVSW` en mode 1 écrit alors les octets du processeur au
+  lieu des verrous.
+- **La correction.** En mode 1 à 3, ou sous une rotation, le mot s'écrit octet par octet, comme le fait PCem lui-même
+  quand le masque n'est pas plein. En mode 0 sans rotation, rien ne change. Sur la GD5429, sous ses modes d'écriture
+  étendus, l'octet de la carte n'est pas celui du socle : PCem reste.
+
+### PB-37 — une ligne de 24 bits dessinée en entier
+
+- **Le vrai PC.** En 24 bits basse résolution, une carte affiche toute la ligne, chaque point doublé (déduit : le
+  rendu voisin de PCem le fait ainsi, et aucun mode ne montre une ligne réduite à ses huit premiers points).
+- **L'émulateur.** Le rendu de PCem n'avance jamais dans la ligne : il réécrit sans fin les huit premiers points, et
+  le reste de l'écran garde l'image d'avant.
+- **La correction.** La sortie avance de huit points par groupe de quatre, comme le rendu voisin le fait. Que la
+  Trident 8900D et son RAMDAC offrent vraiment ce mode n'est pas connu ; s'il est atteint, il est dessiné en entier.

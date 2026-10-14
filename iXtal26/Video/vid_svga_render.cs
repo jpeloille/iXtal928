@@ -819,6 +819,13 @@ internal static partial class vid_svga_render
     // pcem: vid_svga_render.c:694-740
     internal static void svga_render_24bpp_lowres(svga_t svga)
     {
+        // pcem bug, fixed in hardware mode: PB-37 — le rendu de la ligne, avec la sortie qui avance
+        //   (rendu_24bpp_lowres_materiel).
+        if (materiel.pb_37)
+        {
+                rendu_24bpp_lowres_materiel(svga);
+                return;
+        }
         uint32_t changed_addr = svga.remap_func!(svga, svga.ma);
 
         if (svga.changedvram[changed_addr >> 12] != 0 || svga.changedvram[(changed_addr >> 12) + 1] != 0 || svga.fullchange != 0)
@@ -831,10 +838,9 @@ internal static partial class vid_svga_render
                         svga.firstline_draw = svga.displine;
                 svga.lastline_draw = svga.displine;
 
-                // pcem bug, reproduced: PB-37 — p n'avance jamais : chaque tour de boucle
+                // pcem bug, fixed in hardware mode: PB-37 — p n'avance jamais : chaque tour de boucle
                 //   réécrit les huit MÊMES pixels, en tête de ligne, et le reste de la ligne
-                //   garde l'image précédente. Et ma n'est pas masqué en sortie, contrairement
-                //   aux cinq autres rendus 15 à 24 bpp.
+                //   garde l'image précédente.
                 if (svga.remap_required == 0)
                 {
                         for (x = 0; x <= svga.hdisp; x++)

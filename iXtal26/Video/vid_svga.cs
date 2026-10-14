@@ -351,10 +351,10 @@ internal static partial class vid_svga
                 case 4:
                         svga.chain2_write = (val & 4) == 0 ? 1 : 0;
                         svga.chain4 = val & 8;
-                        // PB-221, la part (b), la même dans les deux modes (Q17) — `fast` ne teste ni le mode
-                        //   d'écriture (GR5) ni la rotation (GR3 bits 0-2) : les écritures de mot et de double mot
-                        //   posent alors les octets du processeur tels quels, là où deux écritures d'octet appliquent
-                        //   le mode.
+                        // pcem bug, fixed in hardware mode: PB-221 — `fast` ne teste ni le mode d'écriture (GR5) ni
+                        //   la rotation (GR3 bits 0-2) : les écritures de mot et de double mot posent alors les octets
+                        //   du processeur tels quels, là où deux écritures d'octet appliquent le mode. Corrigé en tête
+                        //   du chemin rapide des quatre écritures.
                         svga.fast = ((svga.gdcreg[8] == 0xff && (svga.gdcreg[3] & 0x18) == 0 && svga.gdcreg[1] == 0) &&
                                      ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)) ? 1 : 0;
                         break;
@@ -449,7 +449,7 @@ internal static partial class vid_svga
                         break;
                 }
                 svga.gdcreg[svga.gdcaddr & 15] = val;
-                // PB-221, la part (b), la même dans les deux modes (Q17) — le même `fast`, sans GR5 ni la rotation.
+                // pcem bug, fixed in hardware mode: PB-221 — le même `fast`, sans GR5 ni la rotation.
                 svga.fast = ((svga.gdcreg[8] == 0xff && (svga.gdcreg[3] & 0x18) == 0 && svga.gdcreg[1] == 0) &&
                              ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)) ? 1 : 0;
                 if (((svga.gdcaddr & 15) == 5 && ((val ^ o) & 0x70) != 0) || ((svga.gdcaddr & 15) == 6 && ((val ^ o) & 1) != 0))
@@ -1828,6 +1828,11 @@ internal static partial class vid_svga
                 return;
         }
 
+        // pcem bug, fixed in hardware mode: PB-221 — l'écriture rapide pose les octets du processeur tels quels, sans
+        //   le mode d'écriture ni la rotation ; deux écritures d'octet les appliquent.
+        if (materiel.pb_221)
+                if (ecrit_banque_materiel(svga, addr, val, 2))
+                        return;
         egawrites += 2;
 
         cycles -= video_timing_write_w;
@@ -1861,6 +1866,11 @@ internal static partial class vid_svga
                 return;
         }
 
+        // pcem bug, fixed in hardware mode: PB-221 — l'écriture rapide pose les octets du processeur tels quels, sans
+        //   le mode d'écriture ni la rotation ; deux écritures d'octet les appliquent.
+        if (materiel.pb_221)
+                if (ecrit_banque_materiel(svga, addr, val, 4))
+                        return;
         egawrites += 4;
 
         cycles -= video_timing_write_l;
@@ -1953,6 +1963,11 @@ internal static partial class vid_svga
                 return;
         }
 
+        // pcem bug, fixed in hardware mode: PB-221 — l'écriture rapide pose les octets du processeur tels quels, sans
+        //   le mode d'écriture ni la rotation ; deux écritures d'octet les appliquent.
+        if (materiel.pb_221)
+                if (ecrit_lineaire_materiel(svga, addr, val, 2))
+                        return;
         egawrites += 2;
 
         cycles -= video_timing_write_w;
@@ -1983,6 +1998,11 @@ internal static partial class vid_svga
                 return;
         }
 
+        // pcem bug, fixed in hardware mode: PB-221 — l'écriture rapide pose les octets du processeur tels quels, sans
+        //   le mode d'écriture ni la rotation ; deux écritures d'octet les appliquent.
+        if (materiel.pb_221)
+                if (ecrit_lineaire_materiel(svga, addr, val, 4))
+                        return;
         egawrites += 4;
 
         cycles -= video_timing_write_l;

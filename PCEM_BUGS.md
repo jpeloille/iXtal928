@@ -4780,9 +4780,15 @@ bit 6 (fiches Trident non lues).
 n'écrit que les huit premiers points de la ligne, avec le dernier groupe ; attendu, chaque point de 24 bits de la VRAM
 doublé sur toute la ligne. Le diff attendu porte `#buffer32` et `ma`, que le rendu laisse avant son rechargement.
 *G13* : (b) — `x += 4` et `p += 8` sans remappage, `p += 8` avec, dans la fonction (`vid_svga.cs:975` compare `render`).
-*Reproduit* : `Video/vid_svga_render.cs`, marqueur PB-37 (`:834`). Confronté
-à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
+*Reproduit* en mode PCem : `Video/vid_svga_render.cs`, `svga_render_24bpp_lowres`, marqueur `fixed in hardware mode:
+PB-37`. Confronté à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
 hachage de `buffer32` porte les pixels que ce rendu écrit.
+*Corrigé en mode matériel* (G13.9a2, après la réponse de Julien à Q17) : sous `if (materiel.pb_37)`, en tête de
+`svga_render_24bpp_lowres` (`Video/vid_svga_render.Materiel.cs`, `rendu_24bpp_lowres_materiel`) : quatre points de 24
+bits par tour, avec ou sans remappage (`x += 4`), la sortie avançant de huit points (`p += 8`), chaque point doublé ;
+`ma`, non masqué en sortie, reste celui de PCem (sans effet). Que la 8900D et son TKD8001 offrent ce mode reste inconnu.
+`materiel-cas PB-37` : la VRAM à 00h, 01h…, hdisp = 7, la ligne rendue sans et avec remappage (les points 0, 2, 8 et 10,
+et `ma`).
 
 ### PB-220 — Le socle SVGA compte CR00 + 6 caractères par ligne, un de trop
 
@@ -4837,9 +4843,8 @@ d'octet, et que l'ET4000 charge ses verrous de même : déduit.
 *Cas qui discrimine* : ET4000, mode 13h, GR5 = 41h, GR8 = FFh, VRAM[0..3] = 11h 22h 33h 44h : lecture d'octet en
 A000:0000, puis écriture du mot BBAAh en A000:0100 : PCem VRAM[100h..101h] = AAh BBh ; deux écritures d'octet, 11h 22h.
 *G13* : (a), (b) — (a) les verrous des lectures, documentés pour la GD542x ; (b) les écritures. Chemin chaud.
-*Reproduit* : la part (b), dans les deux modes (Q17) : le calcul de `fast` dans `svga_out`, `Video/vid_svga.cs`,
-commentaires `PB-221, la part (b)`. La part (a), en mode PCem : `svga_readw`, `svga_readl`, `svga_readw_linear` et
-`svga_readl_linear`, marqueurs `fixed in hardware mode: PB-221`.
+*Reproduit* en mode PCem : `Video/vid_svga.cs`, le calcul de `fast` dans `svga_out`, et les quatre lectures et les
+quatre écritures de mot et de double mot, marqueurs `fixed in hardware mode: PB-221`.
 *Corrigé en mode matériel*, la part (a) (G13.9a) : sous `if (materiel.pb_221)`, en tête du chemin rapide des quatre
 lectures (`Video/vid_svga.Materiel.cs`, `verrous_banque_materiel`, `verrous_lineaire_materiel`) : les quatre verrous
 chargés comme le ferait la lecture d'octet du dernier octet (`addr + 1`, `addr + 3`), par la banque ou la fenêtre
@@ -4847,6 +4852,19 @@ linéaire ; l'octet rendu et les cycles restent ceux de PCem. Au bord d'une banq
 octet sans repli, les verrous celui que la lecture d'octet replie : l'écart de PCem sur l'octet reste. `materiel-cas
 PB-221` : le mot et le double mot sur l'ET4000 et la GD5429 en compact, alignés et à cheval sur deux doubles mots,
 GR8 = 7Fh (le chemin lent) en témoin.
+*Corrigé en mode matériel*, la part (b) (G13.9a2, après la réponse de Julien à Q17) : sous `if (materiel.pb_221)`, en
+tête du chemin rapide de `svga_writew`, `svga_writel`, `svga_writew_linear` et `svga_writel_linear`
+(`ecrit_banque_materiel`, `ecrit_lineaire_materiel`) : en mode d'écriture 1 à 3 (GR5 bits 0-1), ou sous une rotation
+(GR3 bits 0-2), le mot ou le double mot s'écrit octet par octet, par `svga_write` ou `svga_write_linear`, comme le
+chemin lent de la même fonction chez PCem, cycles compris, et chaque octet replié dans la banque comme lui ; sinon
+le chemin rapide, qui donne alors la même chose. Un mot écrit qui vaut deux octets : déduit, comme pour les lectures.
+Sur la GD5429, `svga_write_linear` est l'écriture d'octet de sa fenêtre linéaire dans la même plage
+(`gd5429_writeb_linear`) ; par la banque, elle prend `gd5429_write_linear`, qui diffère sous GR0B bit 2 (le mode
+d'écriture étendu) ou bit 4 (l'adressage de 16 bits) : là, le chemin rapide de PCem reste, dans les deux modes. Le
+calcul de `fast` lui-même ne change pas : il sert aussi aux lectures. `materiel-cas PB-221` : sur l'ET4000 et la
+GD5429 en compact, le mode 1 (les verrous 11223344h : le mot BBAAh rend AAh BBh chez PCem, 11h 22h sur la carte ; le
+double mot, 11h à 44h) et une rotation (0201h, 01h 02h contre 80h 01h) ; témoins, le mode 0 sans rotation (la
+correction ne sert pas) et la GD5429 sous GR0B = 04h.
 
 ### PB-222 — Le curseur de la CGA et de la MDA inverse la cellule au lieu de forcer ses points
 

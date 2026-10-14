@@ -324,8 +324,12 @@ internal static class materiel
     /// <summary>PB-220 : le socle SVGA compte CR00 + 5 caractères par ligne, et non + 6.</summary>
     internal static readonly bool pb_220;
 
-    /// <summary>PB-221 : les lectures rapides de mot et de double mot chargent les verrous de leur dernier octet.</summary>
+    /// <summary>PB-221 : les accès rapides de mot et de double mot ; les lectures chargent les verrous de leur dernier
+    /// octet, les écritures suivent le mode d'écriture et la rotation.</summary>
     internal static readonly bool pb_221;
+
+    /// <summary>PB-37 : le rendu 24 bpp basse résolution dessine toute la ligne, chaque point doublé.</summary>
+    internal static readonly bool pb_37;
 
     /// <summary>PB-102 : la MDA et l'Hercules balayent avec leur caractère, 9 points (16 en graphique sur l'Hercules).</summary>
     internal static readonly bool pb_102;
@@ -638,6 +642,7 @@ internal static class materiel
         pb_80 = ModeMateriel.Demande(80);
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);
+        pb_37 = ModeMateriel.Demande(37);
         pb_102 = ModeMateriel.Demande(102);
         pb_97 = ModeMateriel.Demande(97);
         pb_96 = ModeMateriel.Demande(96);

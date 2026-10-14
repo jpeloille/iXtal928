@@ -11315,3 +11315,57 @@ MDA, 8/9), la phase de 3BAh lue sous DEBUG, et son bit 7 sur l'Hercules (PB-225)
 même verdict ; un seul résumé change, `recensement` (285 défauts, 1 219 marqueurs, quatre de moins qu'à g9a). Treize
 neuves : les `materiel-cas` de PB-102, PB-97, PB-96, PB-222, PB-223 et PB-225, en mode PCem et sous chaque PB seul, et
 PB-222 sous PB-96 et PB-222.
+
+## G13.9a2 — le socle SVGA, les écritures de mot et le 24 bits
+
+Le 14 octobre 2026. Les parts (b) du socle, après la réponse de Julien à Q17 : la part (b) de PB-221 (un mot écrit vaut
+deux octets, déduit de Cirrus, § 6.27, comme les lectures de 9a) et PB-37 (la ligne de 24 bits en entier, déduit du
+rendu voisin ; que la 8900D offre ce mode, inconnu).
+
+**La correction du mode matériel** (domaine `video`, une neuve, PB-37 ; PB-221 élargie). Cinq gardes. PB-221, en tête
+du chemin rapide de `svga_writew`, `svga_writel`, `svga_writew_linear` et `svga_writel_linear`
+(`ecrit_banque_materiel`, `ecrit_lineaire_materiel`, `Video/vid_svga.Materiel.cs`) : en mode d'écriture 1 à 3 ou sous
+une rotation, les octets par `svga_write` ou `svga_write_linear`, comme le chemin lent de la même fonction (cycles et
+repli de la banque compris) ; sinon le chemin rapide. Sur la GD5429, sous GR0B bit 2 ou bit 4, son écriture d'octet
+par la banque n'est pas celle du socle : le chemin de PCem reste. Le calcul de `fast` ne change pas : il sert aussi
+aux lectures. PB-37, en tête de `svga_render_24bpp_lowres` (`rendu_24bpp_lowres_materiel`,
+`Video/vid_svga_render.Materiel.cs`, neuf) : quatre points par tour, la sortie qui avance de huit.
+
+**Les cas**, en C# seul (`MaterielCasVideo.cs`), verts en mode PCem, sous chaque PB seul et sous « tout » ; rouges sous
+l'attente de l'autre mode (quatorze et deux). PB-221, les écritures : sur l'ET4000 (la banque) et la GD5429 en compact
+(la fenêtre), le mode 1 (les verrous 11223344h : le mot BBAAh, AAh BBh chez PCem, 11h 22h sur la carte ; le double
+mot, 11h à 44h) et une rotation (0201h : 01h 02h contre 80h 01h) ; témoins, le mode 0 sans rotation (la correction ne
+sert pas) et la GD5429 sous GR0B = 04h (le chemin de PCem). PB-37 : la VRAM à 00h, 01h…, hdisp = 7, la ligne rendue
+sans et avec remappage (les points 0, 2, 8 et 10, et `ma` : 565554h, 595857h, 0, 0 et 96 contre 020100h, 050403h,
+0E0D0Ch, 11100Fh et 24).
+
+**Le recensement** : vert, 285 défauts au registre, 1 226 marqueurs (sept de plus : les deux calculs de `fast`, de
+commentaires de part redevenus marqueurs, et les cinq gardes neuves ; le commentaire de la boucle de PB-37 était déjà
+un marqueur).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9a2.py, dans l'arbre, chaque faute restaurée) : treize fautes, chacune rougit
+son cas — chacune des cinq gardes retirée ; la rotation oubliée ; les octets à la même adresse ; GR0B de la GD5429
+ignoré ; les octets toujours ; la sortie qui n'avance pas ; un point par tour ; et les attentes inversées ; le témoin
+sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : les octets, leur ordre, leur banque ; la condition complète (ce que `fast` ignore : GR5 bits 0-1 et GR3 bits
+0-2) ; les attendus des cas, recalculés ; le mode PCem et les gardes ; aucune autre écriture rapide oubliée (`fast`
+n'est que dans le socle). Repris : la GD5429 sous GR0B bits 2 et 4 (la condition bornée, dite) ; le témoin qui vérifie
+que la correction ne sert pas ; le commentaire des scénarios de M2 (leurs écritures passent par le chemin lent : les
+méthodes sont compilées, c'est ce que M2 compare) ; « déduit » dans la section de pourquoi-on-corrige ; le repli de la
+banque dit dans l'entrée ; la phrase sur `ma` retirée du marqueur de PB-37.
+
+**M2** (Release du worktree ; les scénarios `ami486-et4000` et `ami486-gd5429`, qui écrivent aussi un mot et un double
+mot, et un neuf, `ami486-tvga24` : la TVGA8900D en mode 13h, son TKD8001 passé en 24 bits, le rendu 24 bpp basse
+résolution) : avec et sans les cinq gardes, identique (957 méthodes, aucune changée). Contre M2-9b (tous les
+scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel` et les quatre jetons de chaînes habituels ;
+neuf apparues, dont `svga_writel`, `svga_writel_linear` et `svga_render_24bpp_lowres`.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9a2.sh) : l'ET4000AX, la GD5429 et la TVGA8900D sous DEBUG (les
+séquences de M2, puis le mode 3), en mode PCem, sous PB-221 et PB-37, et sous « tout » : aucun arrêt ; sous les deux
+PB, la sortie entière est celle du mode PCem ; sous « tout », seule la trace des tranches (PB-220).
+
+**La série** g9a2 (le worktree de l'étape, contre g9b) : 666 portes, toutes vertes ; 664 communes à g9b, chacune au
+même verdict ; un seul résumé change, `recensement` (285 défauts, 1 226 marqueurs, sept de plus qu'à g9b). Deux
+neuves : les `materiel-cas` de PB-37, en mode PCem et sous PB-37 ; celles de PB-221 jouent les écritures.

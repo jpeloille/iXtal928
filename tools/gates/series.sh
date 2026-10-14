@@ -824,6 +824,10 @@ for pb in 220 80 221; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.9a2 — le socle SVGA, les parts (b) : PB-221 (les écritures rapides suivent le mode et la rotation ; le cas de
+# PB-221 les joue avec les lectures) et PB-37 (le rendu 24 bpp basse résolution).
+run materiel-cas-pb37 materiel-cas PB-37
+run materiel-cas-pb37-materiel --hardware-mode PB-37 materiel-cas PB-37
 # G13.9b — la MDA et l'Hercules : PB-102 (le caractère de 9 points, 16 en graphique), PB-97 (le 6845 à la largeur de ses
 # registres, sans le « Turbo XT »), PB-96 (la police à la rangée sc & 15), PB-222 (le curseur plein), PB-223 (le curseur
 # sur 16 trames), PB-225 (3BAh bit 7 de l'Hercules).

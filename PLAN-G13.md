@@ -626,10 +626,10 @@ contre-lecture, M2, sa série entière et son commit :
     les verrous, dans le socle et la GD5429 ; les verrous de huit octets restent ceux de PCem, hors de la source. La
     part (a) de PB-221 : les lectures rapides de mot et de double mot chargent les verrous de leur dernier octet. La
     part (b) de PB-221, les écritures, et PB-37 attendent Q17.
-  - **G13.9a2 — Le socle SVGA, les parts (b)**, après la réponse à Q17 : la part (b) de PB-221 (le chemin rapide des
+  - **G13.9a2 — Le socle SVGA, les parts (b)** ✅ *(14/10, VERIFICATION.md § G13.9a2)*, après la réponse à Q17 : la part (b) de PB-221 (le chemin rapide des
     écritures en mode d'écriture 0 et sans rotation seulement : un mot écrit vaut deux octets) et PB-37 (toute la ligne
     de 24 bits, chaque point doublé). Après 9b.
-  - **G13.9b — La MDA et l'Hercules.** Sans question : PB-102 (le caractère de 9 points), la part (a) de PB-97 (les
+  - **G13.9b — La MDA et l'Hercules** ✅ *(14/10, VERIFICATION.md § G13.9b)*. Sans question : PB-102 (le caractère de 9 points), la part (a) de PB-97 (les
     masques, le Turbo XT), la MDA de PB-96, la MDA de PB-222 et de PB-223 (le curseur plein, son rythme), et PB-225.
     PB-224 va à 9f (Q18) ; l'entrelacé de PB-97 et l'Hercules de PB-96 restent reproduits (Q17).
   - **G13.9c — La CGA, la M24 et le PC1512.** Sans question : PB-04, la CGA de PB-222 et de PB-223, la part (a) de

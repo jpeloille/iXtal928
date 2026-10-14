@@ -8,7 +8,8 @@
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. Les références : IBM, PS/2 Hardware Interface Technical Reference — Common Interfaces
 // (84F9735, 1990), p. 2-56 (CR00) ; Cirrus Logic, CL-GD542X Technical Reference Manual (1994), § 6.27, p. 6-34 (les
-// verrous, chargés à chaque lecture de la mémoire d'affichage). Les méthodes portent NoInlining (M2, G13.7c2).
+// verrous, chargés à chaque lecture de la mémoire d'affichage ; le cycle de mot qui vaut deux cycles d'octet, déduit).
+// Les méthodes portent NoInlining (M2, G13.7c2).
 
 using System.Runtime.CompilerServices;
 
@@ -66,5 +67,37 @@ internal static partial class vid_svga
     {
         ModeMateriel.Sonde[221]++;
         verrous_materiel(svga, addr & svga.decode_mask);
+    }
+
+    /// <summary>PB-221 (b) : un mot ou un double mot écrit, ce sont deux ou quatre écritures d'octet (déduit de Cirrus,
+    /// § 6.27, comme les lectures) : en mode d'écriture 1 à 3 (GR5 bits 0-1), ou sous une rotation (GR3 bits 0-2), les
+    /// octets passent par svga_write, comme le chemin lent de la même fonction chez PCem. Faux : le chemin rapide de
+    /// PCem, qui donne la même chose en mode 0 sans rotation.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool ecrit_banque_materiel(svga_t svga, uint32_t addr, uint32_t val, int n)
+    {
+        if (svga.writemode == 0 && (svga.gdcreg[3] & 7) == 0)
+                return false;
+        ModeMateriel.Sonde[221]++;
+        for (int i = 0; i < n; i++)
+                svga_write(addr + (uint32_t)i, (uint8_t)(val >> (8 * i)), svga);
+        return true;
+    }
+
+    /// <summary>PB-221 (b) : de même, par la fenêtre linéaire (svga_write_linear, l'écriture d'octet que la fenêtre de la
+    /// GD5429 prend dans la même plage, gd5429_writeb_linear). Sur la GD5429, GR0B bit 2 (le mode d'écriture étendu) ou
+    /// bit 4 (l'adressage de 16 bits) changent son écriture d'octet par la banque (gd5429_write_linear), que
+    /// svga_write_linear ignore : le chemin rapide de PCem reste alors.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool ecrit_lineaire_materiel(svga_t svga, uint32_t addr, uint32_t val, int n)
+    {
+        if (svga.writemode == 0 && (svga.gdcreg[3] & 7) == 0)
+                return false;
+        if (svga.p is gd5429_t && (svga.gdcreg[0xb] & 0x14) != 0)
+                return false;
+        ModeMateriel.Sonde[221]++;
+        for (int i = 0; i < n; i++)
+                svga_write_linear(addr + (uint32_t)i, (uint8_t)(val >> (8 * i)), svga);
+        return true;
     }
 }
