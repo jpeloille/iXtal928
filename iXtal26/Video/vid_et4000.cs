@@ -42,12 +42,13 @@ internal sealed class et4000_t
 }
 
 /*ET4000 emulation*/
-internal static class vid_et4000
+internal static partial class vid_et4000
 {
     // pcem: vid_et4000.c:34-37
-    // pcem bug, reproduced: PB-100 — CR30 et CR31, que l'ET4000AX n'a pas (data book Tseng, table 4.3-2),
-    //   s'écrivent et se relisent. CR38-CR3F effacés, CR3F compris : fidèle à l'AX, qui n'a pas CR3F ; le
-    //   débordement de htotal que et4000_recalctimings y lit (:399) est celui de la W32.
+    // PB-100, une part inconnue (c), la même dans les deux modes — CR30 et CR31, que l'ET4000AX n'a pas (data book
+    //   Tseng, table 4.3-2), s'écrivent et se relisent ; ce qu'ils rendent sur la puce est inconnu. La part (d) :
+    //   CR38-CR3F effacés, CR3F compris, fidèle à l'AX, qui n'a pas CR3F ; le débordement de htotal que
+    //   et4000_recalctimings y lit (:399) est celui de la W32.
     private static readonly uint8_t[] crtc_mask = new uint8_t[0x40]
     {
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -69,8 +70,9 @@ internal static class vid_et4000
 
         //        pclog("ET4000 out %04X %02X\n", addr, val);
 
-        // pcem bug, reproduced: PB-100 — pas de KEY (03h en 3BFh, puis A0h en 3D8h ou 3B8h) : ce qu'il garde
-        //   s'écrit toujours (CRTC au-delà de 18h hors 33h et 35h, TS6, TS7, ATC 16h, 3CDh avant la première pose).
+        // PB-100, une part (b) qui viendra avec le KEY (G13.9e2), la même dans les deux modes d'ici là — pas de
+        //   KEY (03h en 3BFh, puis A0h en 3D8h ou 3B8h) : ce qu'il garde s'écrit toujours (CRTC au-delà de 18h hors
+        //   33h et 35h, TS6, TS7, ATC 16h, 3CDh avant la première pose).
         switch (addr)
         {
         case 0x3C6:
@@ -92,9 +94,9 @@ internal static class vid_et4000
                 {
                         old = svga.gdcreg[6];
                         svga_out(addr, val, svga);
-                        // pcem bug, reproduced: PB-100 — la fenêtre de 128 Ko n'est posée que sur une
-                        //   transition non nul → nul (:72-75) ; svga_init laisse banked_mask à 0, et
-                        //   écrire 0 sur un GDC6 déjà nul ne le pose jamais.
+                        // PB-100, une part (b) sans effet visible, la même dans les deux modes — la fenêtre de
+                        //   128 Ko n'est posée que sur une transition non nul → nul (:72-75) ; svga_init laisse
+                        //   banked_mask à 0, et écrire 0 sur un GDC6 déjà nul ne le pose jamais.
                         if ((old & 0xc) != 0 && (val & 0xc) == 0)
                         {
                                 /*override mask - ET4000 supports linear 128k at A0000*/
@@ -108,8 +110,11 @@ internal static class vid_et4000
                 svga.crtcreg = (uint8_t)(val & 0x3f);
                 return;
         case 0x3D5:
-                // pcem bug, reproduced: PB-227 — CR11 bit 7 ne protège que CR0-CR7 ; le data book protège
-                //   aussi CR35 (table 4.3-2).
+                // pcem bug, fixed in hardware mode: PB-227 — CR11 bit 7 ne protège que CR0-CR7 ; le data book
+                //   protège aussi CR35 (table 4.3-2).
+                if (materiel.pb_227)
+                        if (cr35_materiel(svga))
+                                return;
                 if ((svga.crtcreg < 7) && (svga.crtc[0x11] & 0x80) != 0)
                         return;
                 if ((svga.crtcreg == 7) && (svga.crtc[0x11] & 0x80) != 0)
@@ -141,13 +146,15 @@ internal static class vid_et4000
 
         //        if (addr != 0x3da) pclog("IN ET4000 %04X\n", addr);
 
-        // pcem bug, reproduced: PB-100 — pas de séquence KEY (3BFh/3D8h) : ce qu'elle garde en lecture
+        // PB-100, une part (b) qui viendra avec le KEY (G13.9e2), la même dans les deux modes d'ici là — pas de
+        //   séquence KEY (3BFh/3D8h) : ce qu'elle garde en lecture
         //   (Input Status 0 bits 5-6, 3CAh bit 7) reste toujours ouvert.
         switch (addr)
         {
         case 0x3C5:
-                // pcem bug, reproduced: PB-100 — SR7 se relit bit 2 forcé (:270-271). « Set to 1 (always) »
-                //   (data book, TS 7) règle l'écriture ; la valeur relue par la puce n'est pas documentée.
+                // PB-100, une part inconnue (c), la même dans les deux modes — SR7 se relit bit 2 forcé
+                //   (:270-271). « Set to 1 (always) » (data book, TS 7) règle l'écriture ; la valeur relue par la
+                //   puce n'est pas documentée.
                 if ((svga.seqaddr & 0xf) == 7)
                         return (uint8_t)(svga.seqregs[svga.seqaddr & 0xf] | 4);
                 break;
@@ -184,9 +191,11 @@ internal static class vid_et4000
                 svga.vsyncstart += 0x400;
         if ((svga.crtc[0x35] & 0x10) != 0)
                 svga.split += 0x400;
-        // pcem bug, reproduced: PB-100 — un CR13 nul vaut 256 (:397-398).
+        // pcem bug, fixed in hardware mode: PB-100 — un CR13 nul vaut 256 (:397-398).
         if (svga.rowoffset == 0)
                 svga.rowoffset = 0x100;
+        if (materiel.pb_100)
+                cr13_materiel(svga);
         if ((svga.crtc[0x3f] & 1) != 0)
                 svga.htotal += 256;
         if ((svga.attrregs[0x16] & 0x20) != 0)

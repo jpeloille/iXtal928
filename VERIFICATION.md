@@ -11477,3 +11477,54 @@ celle du mode PCem ; sous « tout », seule la trace des tranches.
 **La série** g9d (le worktree de l'étape, contre g9c) : 674 portes, toutes vertes ; 672 communes à g9c, chacune au même
 verdict, `materiel-mode` compris (l'exemple de PB-36) ; un seul résumé change, `recensement` (285 défauts, 1 226
 marqueurs, quatre de moins qu'à g9c). Deux neuves : les `materiel-cas` de PB-99, en mode PCem et sous PB-99.
+
+## G13.9e — l'ET4000 et son RAMDAC
+
+Le 14 octobre 2026. La Tseng ET4000AX (data book ET4000 Graphics Controller, 1990) et son RAMDAC Sierra (data sheet
+SC15025/26) : PB-227 (CR35 protégé par CR11 bit 7, p. 111, table 4.3-2), la part CR13 de PB-100 (nul vaut 0) et la part
+IPF de PB-229 (pp. 3-88/3-89). Le reste de PB-100 devient des commentaires de part : le KEY (b), qui viendra en G13.9e2 ;
+la fenêtre de 128 Ko (b), sans effet visible ; CR30-CR31, SR7, FFh et les profondeurs (c) ; CR3F (d). L'ERPF, ses
+registres et D3 de PB-229 restent PCem, la puce exacte étant inconnue. La machine a redémarré pendant la pause : la
+référence de série g9d, effacée avec /tmp, a été refaite sur 3a825a3 (g9dref : 674 portes vertes, recensement 285 /
+1 226, comme g9d).
+
+**La correction du mode matériel** (domaine `video`, trois ; `Video/vid_et4000.Materiel.cs` et
+`Video/vid_unk_ramdac.Materiel.cs`, neufs ; `vid_et4000` et `vid_unk_ramdac` deviennent partielles). Trois gardes :
+en tête de l'écriture de 3D5h (`cr35_materiel` : CR35 ignoré sous CR11 bit 7, avant le masque et `old`) ; après la
+ligne de PCem dans `et4000_recalctimings` (`cr13_materiel` : CR13 nul, `rowoffset` à 0) ; en tête de la lecture de
+3C6h (`ipf_materiel` : armé, le registre de commande rendu sans désarmer).
+
+**Les cas**, en C# seul (`MaterielCasEt4000.cs`, neuf, sur le banc du socle), verts en mode PCem, sous chaque PB seul
+et sous « tout » ; rouges sous l'attente de l'autre mode. PB-227 : CR35 = 02h sous CR11 = 80h (02h contre 00h) ;
+témoins, CR11 = 00h, et CR33 sous CR11 bit 7. PB-100 : CR13 = 01h puis 00h (256 contre 0) ; témoin, 28h. PB-229 : six
+lectures de 3C6h de suite, le registre de commande à 20h (la sixième : 00h, le masque des points, contre 20h) ;
+témoin, 3C8h lu avant la sixième.
+
+**Le recensement** : vert, 285 défauts au registre, 1 219 marqueurs (sept de moins : les marqueurs de PB-100 et de
+PB-229 devenus des commentaires de part).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9e.py, dans l'arbre, chaque faute restaurée) : huit fautes, chacune rougit son
+cas — chacune des trois gardes retirée ; CR35 ignoré sans CR11 ; CR13 nul pris pour 1 ; un registre de commande nul ;
+et les attentes inversées ; le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : CR35 avant le masque, `old` et le `svga_out` final ; `rowoffset` à 0 sans effet de bord dans `svga_poll` (la
+même rangée répétée) ; l'IPF, les autres adresses et l'écriture qui le font retomber ; aucun autre chemin. Repris : un
+témoin de CR33 sous CR11 bit 7 (une garde trop large rougit) ; les parts de PB-100 nommées par leur lettre ; la puce
+inconnue dite au site de FFh ; la TVGA, la GD5429 et la Trio64, qui lisent aussi un CR13 nul comme 256, dites hors de
+l'entrée.
+
+**M2** (Release du worktree ; le scénario `ami486-et4000`, qui compile `et4000_out`, `et4000_in`,
+`et4000_recalctimings` et `unk_ramdac_in`) : avec et sans les trois gardes, identique (911 méthodes, aucune changée) ;
+contre M2-9d (tous les scénarios), les constructeurs statiques de `materiel` et de `ModeMateriel` et les quatre jetons
+de chaînes habituels.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9e.sh) : l'ami486 et l'ET4000AX, PC-DOS, sous DEBUG le mode 13h,
+les lectures de M2, le mode 3, puis six lectures de 3C6h, en mode PCem, sous les trois PB et sous « tout » : aucun
+arrêt ; les écrans texte identiques, hors la sixième lecture de 3C6h (FFh contre 00h, le registre de commande : PB-229).
+Le BIOS de la carte sonde son RAMDAC au POST par des lectures de 3C6h : sous PB-229 seul, vingt instructions de plus
+avant la tranche 600, puis le même écran ; sous PB-227 et PB-100, la trace entière est celle du mode PCem.
+
+**La série** g9e (le worktree de l'étape, contre g9dref, la référence refaite) : 680 portes, toutes vertes ; 674
+communes à g9dref, chacune au même verdict ; un seul résumé change, `recensement` (285 défauts, 1 219 marqueurs, sept de
+moins). Six neuves : les `materiel-cas` de PB-227, PB-100 et PB-229, en mode PCem et sous chaque PB seul.

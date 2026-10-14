@@ -1911,3 +1911,24 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **La correction.** Ces bits n'ont plus d'effet, et le texte est redessiné à chaque ligne. Restent ceux de PCem : ce
   que rendent les registres en écriture seule (inconnu), les broches vidéo de 3DAh (avec le faisceau, plus tard), et la
   mémoire de 64 Ko (avec les rendus, plus tard).
+
+## G13.9e — l'ET4000 et son RAMDAC
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9e.*
+
+### PB-227, PB-100 — deux registres de l'ET4000
+
+- **Le vrai PC.** Le data book de Tseng range CR35, le débordement vertical de l'ET4000, parmi les registres que CR11
+  bit 7 protège, comme les registres de minutage de la VGA. Et CR13 donne la longueur d'une rangée en mémoire : à 0,
+  chaque ligne affiche la même rangée.
+- **L'émulateur.** PCem laisse écrire CR35 sous la protection, et lit un CR13 nul comme 256.
+- **La correction.** CR35 protégé, CR13 nul pris pour 0.
+
+### PB-229 — le registre caché du RAMDAC
+
+- **Le vrai PC.** Le RAMDAC Sierra de l'ET4000 cache son registre de commande derrière quatre lectures de 3C6h. Une
+  fois ouvert, il le reste jusqu'à une écriture ou à la lecture d'une autre adresse : chaque lecture de 3C6h rend le
+  registre de commande.
+- **L'émulateur.** PCem le referme dès la première lecture qui le rend : la suivante rend le masque des points.
+- **La correction.** Le registre reste ouvert comme la fiche de Sierra le dit. Le reste de cette puce (ses registres
+  étendus, son mode qui contourne la palette) dépend de son modèle exact, inconnu : PCem reste.

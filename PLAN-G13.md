@@ -641,9 +641,13 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.9d — L'EGA** ✅ *(14/10, VERIFICATION.md § G13.9d)*. PB-99 (1), (2), (5) et (7), avec CR0A bit 5 et
     l'attribut 10h bit 5. PB-99 (6), la mémoire de 64 Ko qui ne voit pas le bit 0x10000 (déduit, Q17), va à 9c2 avec les
     rendus qu'elle touche ; PB-99 (4) et PB-228 vont à 9f (Q18).
-  - **G13.9e — L'ET4000 et son RAMDAC.** PB-227 (CR35 sous CR11) ; de PB-100, ce que le data book de Tseng établit
-    (CR13 = 0 vaut 0 ; la séquence KEY, sa pose et sa portée, si l'étude de 9e le confirme ; la fenêtre de 128 Ko, à
-    trancher à l'étude), le retrait du KEY restant reproduit ; l'IPF de PB-229 (Q17). PB-226 va à 9f (Q18).
+  - **G13.9e — L'ET4000 et son RAMDAC** ✅ *(14/10, VERIFICATION.md § G13.9e)*. PB-227 (CR35 sous CR11), CR13 de
+    PB-100 (nul vaut 0), l'IPF de PB-229 (Q17). La fenêtre de 128 Ko de PB-100 : sans effet visible (le BIOS pose un mode
+    avant tout accès), laissée. PB-226 va à 9f (Q18).
+  - **G13.9e2 — La séquence KEY de l'ET4000** (PB-100 (b)) : sa pose (03h en 3BFh, puis A0h en 3D8h ou 3B8h) et sa
+    portée (data book Tseng, pp. 102-104, 111, 136-137, 142, 144, 158) ; son retrait, que le data book ne décrit pas,
+    reste ouvert, comme chez PCem. Une sous-étape à part : elle ferme des registres que le BIOS de la carte doit ouvrir,
+    et ses amorçages le vérifient.
   - **G13.9f — Le faisceau** (Q18), après 9e : le point sous le faisceau à l'instant de la lecture, tiré du temps de la
     ligne et de la mémoire d'affichage ; PB-99 (4) (3DAh de l'EGA, POD14 sans bip pour critère), PB-224 (3BAh bit 3 de
     la MDA et de l'Hercules), PB-226 (les bits 4-5 et 7 de l'Input Status 1 de l'ET4000), PB-228 (l'Input Status 0 de

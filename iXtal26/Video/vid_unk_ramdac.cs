@@ -23,7 +23,7 @@ internal sealed class unk_ramdac_t
   It is possibly a Sierra 1502x
   It's addressed by the TLIVESA1 driver for ET4000*/
 /* Note by Tenshi: Not possibly, this *IS* a Sierra 1502x. */
-internal static class vid_unk_ramdac
+internal static partial class vid_unk_ramdac
 {
     // pcem: vid_unk_ramdac.c:14-76
     internal static void unk_ramdac_out(uint16_t addr, uint8_t val, unk_ramdac_t ramdac, svga_t svga)
@@ -36,13 +36,13 @@ internal static class vid_unk_ramdac
                 if (ramdac.state == 4)
                 {
                         ramdac.state = 0;
-                        // pcem bug, reproduced: PB-100 — FFh écrit une fois armé ne touche pas le
-                        //   registre de commande et tombe dans svga_out (le masque des pixels) ;
-                        //   et le décodage ci-dessous tire 24 ou 32 bits de D5, qui choisit chez
-                        //   Sierra les fronts d'horloge ; ses modes à 4 octets passent par le
-                        //   registre étendu 10h. Le code 111 est réservé.
+                        // PB-100, une part (c), la puce inconnue, la même dans les deux modes — FFh écrit une fois
+                        //   armé ne touche pas le registre de commande et tombe dans svga_out (le masque des
+                        //   pixels) ; et le décodage ci-dessous tire 24 ou 32 bits de D5, qui choisit chez Sierra les
+                        //   fronts d'horloge ; ses modes à 4 octets passent par le registre étendu 10h. Le code 111
+                        //   est réservé. La puce exacte de la carte est inconnue.
                         if (val == 0xFF) break;
-                        // pcem bug, reproduced: PB-229 — ni l'ERPF (D4), ni les registres
+                        // PB-229, la part inconnue (c), la même dans les deux modes — ni l'ERPF (D4), ni les registres
                         //   étendus qu'il ouvre en 3C7h-3C9h, ni D3 (la palette contournée).
                         ramdac.ctrl = val;
                         oldbpp = svga.bpp;
@@ -113,8 +113,11 @@ internal static class vid_unk_ramdac
         switch (addr)
         {
         case 0x3C6:
-                // pcem bug, reproduced: PB-229 — l'IPF retombe à la lecture qui rend le registre de
+                // pcem bug, fixed in hardware mode: PB-229 — l'IPF retombe à la lecture qui rend le registre de
                 //   commande ; chez Sierra, il tient jusqu'à une écriture ou la lecture d'une autre adresse.
+                if (materiel.pb_229)
+                        if (ramdac.state == 4)
+                                return ipf_materiel(ramdac);
                 if (ramdac.state == 4)
                 {
                         ramdac.state = 0;

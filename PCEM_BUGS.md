@@ -1911,9 +1911,14 @@ reconnaissance de G13 (D4-video, § PB-100 ; D4-contre, § 2 n° 7 à 11).
 *Cas qui discrimine* : CR13 = 00h : PCem `rowoffset` = 256, l'ET4000 0, la même rangée répétée ; sans KEY, CR36 = 5Ah :
 PCem l'écrit, l'ET4000 l'ignore ; FFh écrit une fois armé : PCem garde le registre de commande, la Sierra y prend FFh.
 *G13* : (b), (c), (d) — (b) CR13, 128 Ko, le KEY posé ; (c) son retrait, SR7, FFh, 24/32 bits, CR30-31 ; (d) CR3F.
-*Reproduit* : `Video/vid_et4000.cs`, marqueurs PB-100 : `:48` (le masque), `:72` (le KEY, en écriture), `:95` (la
-fenêtre de 128 Ko), `:144` (le KEY, en lecture), `:149` (SR7), `:187` (CR13) ; `Video/vid_unk_ramdac.cs:39` (FFh et
-les profondeurs).
+*Reproduit* : CR13, en mode PCem, `Video/vid_et4000.cs`, `et4000_recalctimings`, marqueur `fixed in hardware mode:
+PB-100` ; le reste, dans les deux modes, commentaires `PB-100, une part` : le KEY (b), en écriture et en lecture, qui
+viendra en G13.9e2 ; le masque de CR30-CR31, SR7, FFh et les profondeurs du RAMDAC (c), inconnus ; la fenêtre de 128 Ko,
+sans effet visible.
+*Corrigé en mode matériel*, CR13 (G13.9e) : sous `if (materiel.pb_100)`, après la ligne de PCem
+(`Video/vid_et4000.Materiel.cs`, `cr13_materiel`) : CR13 nul vaut 0, la même rangée répétée. `materiel-cas PB-100` :
+CR13 = 01h puis 00h (256 contre 0) ; 28h en témoin. La TVGA, la GD5429 et la Trio64 lisent aussi un CR13 nul comme 256
+(`vid_tvga.cs`, `vid_cl5429.cs`, `vid_s3.cs`) : hors de l'entrée, leurs fiches n'ont pas été relues.
 
 ### PB-101 — `lpt2_remove_ams` ne retire rien
 
@@ -5017,7 +5022,10 @@ of CRTC 11 » — documenté.
 *Cas qui discrimine* : ET4000, CR35 = 00h, CR11 = 80h, puis OUT 3D4h,35h et OUT 3D5h,02h : PCem CR35 = 02h, soit
 `vtotal` + 400h ; l'ET4000 garde 00h.
 *G13* : (a) — documenté, vérifiable en C# seul.
-*Reproduit* : `Video/vid_et4000.cs`, `et4000_out`, marqueur PB-227 (`:111`).
+*Reproduit* en mode PCem : `Video/vid_et4000.cs`, `et4000_out`, marqueur `fixed in hardware mode: PB-227`.
+*Corrigé en mode matériel* (G13.9e) : sous `if (materiel.pb_227)`, en tête de l'écriture de 3D5h
+(`Video/vid_et4000.Materiel.cs`, `cr35_materiel`) : sous CR11 bit 7, l'écriture de CR35 est ignorée.
+`materiel-cas PB-227` : le cas de l'entrée (02h contre 00h) ; témoins, CR11 = 00h, et CR33 sous CR11 bit 7.
 
 ### PB-228 — L'Input Status 0 de l'EGA rend son bit 7 toujours nul
 
@@ -5058,8 +5066,13 @@ documenté ; la puce exacte de la carte modélisée (« SC1502x », `vid_unk_ram
 *Cas qui discrimine* : ET4000, six lectures de 3C6h de suite, sans autre accès : à la sixième, PCem rend le masque des
 points, la Sierra encore le registre de commande. L'ERPF : aucun cas tant que la puce n'est pas établie.
 *G13* : (b), (c) — (b) l'IPF, documenté ; (c) l'ERPF, ses registres et D3, sur une puce dont l'identité est inconnue.
-*Reproduit* : `Video/vid_unk_ramdac.cs`, marqueurs PB-229 : `unk_ramdac_in` (`:116`, l'IPF) et
-`unk_ramdac_out` (`:45`, l'ERPF et D3).
+*Reproduit* : l'IPF, en mode PCem, `Video/vid_unk_ramdac.cs`, `unk_ramdac_in`, marqueur `fixed in hardware mode:
+PB-229` ; l'ERPF, ses registres et D3 (c), dans les deux modes, `unk_ramdac_out`, commentaire de part.
+*Corrigé en mode matériel*, l'IPF (G13.9e) : sous `if (materiel.pb_229)`, en tête de la lecture de 3C6h
+(`Video/vid_unk_ramdac.Materiel.cs`, `ipf_materiel`) : armé, l'IPF rend le registre de commande à chaque lecture, sans
+retomber ; une écriture ou la lecture de 3C7h à 3C9h le fait retomber, comme chez PCem. `materiel-cas PB-229` : six
+lectures de suite (la sixième, le masque des points chez PCem, le registre de commande sur la Sierra) ; 3C8h lu avant
+la sixième en témoin.
 
 ### PB-230 — Le 6845 de la CGA, de la M24 et du PC1512 : R16-R17 s'écrivent, R0-R13 et l'index se relisent
 

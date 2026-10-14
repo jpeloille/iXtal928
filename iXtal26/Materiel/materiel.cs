@@ -331,6 +331,15 @@ internal static class materiel
     /// <summary>PB-37 : le rendu 24 bpp basse résolution dessine toute la ligne, chaque point doublé.</summary>
     internal static readonly bool pb_37;
 
+    /// <summary>PB-100 : CR13 nul de l'ET4000 vaut 0.</summary>
+    internal static readonly bool pb_100;
+
+    /// <summary>PB-227 : CR35 de l'ET4000 protégé par CR11 bit 7.</summary>
+    internal static readonly bool pb_227;
+
+    /// <summary>PB-229 : l'IPF du RAMDAC Sierra de l'ET4000 tient.</summary>
+    internal static readonly bool pb_229;
+
     /// <summary>PB-99 : l'EGA sans les traits de la VGA que PCem lui prête ; le texte redessiné à chaque ligne.</summary>
     internal static readonly bool pb_99;
 
@@ -652,6 +661,9 @@ internal static class materiel
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);
         pb_37 = ModeMateriel.Demande(37);
+        pb_100 = ModeMateriel.Demande(100);
+        pb_227 = ModeMateriel.Demande(227);
+        pb_229 = ModeMateriel.Demande(229);
         pb_99 = ModeMateriel.Demande(99);
         pb_04 = ModeMateriel.Demande(4);
         pb_230 = ModeMateriel.Demande(230);

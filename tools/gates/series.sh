@@ -828,6 +828,11 @@ done
 # PB-221 les joue avec les lectures) et PB-37 (le rendu 24 bpp basse résolution).
 run materiel-cas-pb37 materiel-cas PB-37
 run materiel-cas-pb37-materiel --hardware-mode PB-37 materiel-cas PB-37
+# G13.9e — l'ET4000 et son RAMDAC : PB-227 (CR35 sous CR11), PB-100 (CR13 nul vaut 0), PB-229 (l'IPF tient).
+for pb in 227 100 229; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
 # G13.9d — l'EGA : PB-99 (la palette, CR11, les bits 9, CR0A bit 5, 10h bit 5, le texte à chaque ligne).
 run materiel-cas-pb99 materiel-cas PB-99
 run materiel-cas-pb99-materiel --hardware-mode PB-99 materiel-cas PB-99
