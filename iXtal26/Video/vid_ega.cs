@@ -101,7 +101,7 @@ internal sealed class ega_t
 }
 
 /*EGA emulation*/
-internal static class vid_ega
+internal static partial class vid_ega
 {
     // pcem: vid_ega.c:14 — `static uint8_t ega_rotate[8][256]`, à plat.
     private static readonly uint8_t[] ega_rotate = new uint8_t[8 * 256];
@@ -136,10 +136,15 @@ internal static class vid_ega
                         ega.attrregs[ega.attraddr & 31] = val;
                         if (ega.attraddr < 16)
                                 fullchange = changeframecount;
-                        // pcem bug, reproduced: PB-99 — l'attribut 10h bit 7 et l'attribut 14h
+                        // pcem bug, fixed in hardware mode: PB-99 — l'attribut 10h bit 7 et l'attribut 14h
                         //   (:39-42) sont des registres de la VGA ; l'EGA ne les a pas.
                         if (ega.attraddr == 0x10 || ega.attraddr == 0x14 || ega.attraddr < 0x10)
                         {
+                                if (materiel.pb_99)
+                                {
+                                        palette_materiel(ega);
+                                        goto palette_faite;
+                                }
                                 for (c = 0; c < 16; c++)
                                 {
                                         if ((ega.attrregs[0x10] & 0x80) != 0)
@@ -149,6 +154,7 @@ internal static class vid_ega
                                 }
                         }
                 }
+                palette_faite:
                 ega.attrff ^= 1;
                 break;
         case 0x3c2:
@@ -234,8 +240,13 @@ internal static class vid_ega
                 // omitted: pclog("Write 3d5 …") (:126) — sortie pure.
                 //                if (ega->crtcreg == 1 && val == 0x14)
                 //                        fatal("Here\n");
-                // pcem bug, reproduced: PB-99 — la protection de CR0-CR7 par CR11 bit 7 (:128) est
+                // pcem bug, fixed in hardware mode: PB-99 — la protection de CR0-CR7 par CR11 bit 7 (:128) est
                 //   celle de la VGA.
+                if (materiel.pb_99)
+                {
+                        crtc_ecrit_materiel(ega, val);
+                        return;
+                }
                 if (ega.crtcreg <= 7 && (ega.crtc[0x11] & 0x80) != 0)
                         return;
                 old = ega.crtc[ega.crtcreg];
@@ -261,8 +272,9 @@ internal static class vid_ega
         if (((addr & 0xfff0) == 0x3d0 || (addr & 0xfff0) == 0x3b0) && (ega.miscout & 1) == 0)
                 addr ^= 0x60;
 
-        // pcem bug, reproduced: PB-99 — tous les registres se relisent (:152-179) ; sur l'EGA, la
-        //   plupart sont en écriture seule (CR10/CR11 rendent le crayon optique).
+        // PB-99, la part inconnue (3), la même dans les deux modes — tous les registres se relisent (:152-179) ;
+        //   sur l'EGA, la plupart sont en écriture seule (CR10/CR11 rendent le crayon optique), et ce qu'ils rendent
+        //   est inconnu.
         switch (addr)
         {
         case 0x3c0:
@@ -299,8 +311,9 @@ internal static class vid_ega
                 return ega.crtc[ega.crtcreg];
         case 0x3da:
                 ega.attrff = 0;
-                // pcem bug, reproduced: PB-99 — « Fools IBM EGA video BIOS self-test » : les bits 4
-                //   et 5 basculent à chaque lecture, au lieu de rendre l'état des broches vidéo.
+                // PB-99, la part (4) qui viendra avec le faisceau (G13.9f), la même dans les deux modes d'ici là —
+                //   « Fools IBM EGA video BIOS self-test » : les bits 4 et 5 basculent à chaque lecture, au lieu de
+                //   rendre l'état des broches vidéo.
                 ega.stat ^= 0x30; /*Fools IBM EGA video BIOS self-test*/
                 return ega.stat;
         }
@@ -319,8 +332,8 @@ internal static class vid_ega
         ega.vsyncstart = ega.crtc[0x10];
         ega.split = ega.crtc[0x18];
 
-        // pcem bug, reproduced: PB-99 — CR07 bits 5-7 et CR09 bit 6 (:200-219) sont les bits 9 de la VGA ; l'EGA
-        //   n'en a pas (07h bits 6-7 et 09h bits 5-7 « Not Used »).
+        // pcem bug, fixed in hardware mode: PB-99 — CR07 bits 5-7 et CR09 bit 6 (:200-219) sont les bits 9 de la
+        //   VGA ; l'EGA n'en a pas (07h bits 6-7 et 09h bits 5-7 « Not Used »).
         if ((ega.crtc[7] & 1) != 0)
                 ega.vtotal |= 0x100;
         if ((ega.crtc[7] & 32) != 0)
@@ -344,6 +357,8 @@ internal static class vid_ega
         if ((ega.crtc[9] & 0x40) != 0)
                 ega.split |= 0x200;
         ega.split += 2;
+        if (materiel.pb_99)
+                bits9_materiel(ega);
 
         ega.hdisp = ega.crtc[1];
         ega.hdisp++;
@@ -415,7 +430,8 @@ internal static class vid_ega
                         }
                 }
 
-                // pcem bug, reproduced: PB-99 — l'adresse de la police n'est pas masquée par vrammask : avec
+                // PB-99, la part (6) qui viendra avec les rendus (G13.9c2), la même dans les deux modes d'ici là —
+                //   l'adresse de la police n'est pas masquée par vrammask : avec
                 //   64 Ko, les tables 1 à 3 de SR3 (0x10002 et au-delà) lisent hors de la mémoire configurée.
                 dat = ega.vram[charaddr + (uint32_t)(ega.sc << 2)];
                 if ((ega.seqregs[1] & 8) != 0)
@@ -700,11 +716,17 @@ internal static class vid_ega
                         }
                         else if ((ega.gdcreg[6] & 1) == 0)
                         {
-                                // pcem bug, reproduced: PB-99 — le texte n'est redessiné que si
+                                // pcem bug, fixed in hardware mode: PB-99 — le texte n'est redessiné que si
                                 //   fullchange (:559) : un changement de curseur, de police (SR3) ou de
                                 //   l'attribut 10h ne se voit qu'au prochain rafraîchissement complet.
+                                if (materiel.pb_99)
+                                {
+                                        texte_materiel(ega);
+                                        goto texte_dessine;
+                                }
                                 if (fullchange != 0)
                                         ega_draw_text(ega);
+                                texte_dessine: ;
                         }
                         else
                         {
@@ -767,21 +789,26 @@ internal static class vid_ega
                 {
                         //                        printf("Split at line %i %i\n",displine,vc);
                         ega.ma = ega.maback = 0;
-                        // pcem bug, reproduced: PB-99 — l'attribut 10h bit 5 (:613) remet le défilement fin à 0
-                        //   après la ligne de partage, comme la VGA ; sur l'EGA, 10h bits 4-7 sont « Not Used ».
+                        // pcem bug, fixed in hardware mode: PB-99 — l'attribut 10h bit 5 (:613) remet le défilement fin
+                        //   à 0 après la ligne de partage, comme la VGA ; sur l'EGA, 10h bits 4-7 sont « Not Used ».
+                        if (materiel.pb_99)
+                                goto partage_fait;
                         if ((ega.attrregs[0x10] & 0x20) != 0)
                                 ega.scrollcache = 0;
+                        partage_fait: ;
                 }
                 if (ega.vc == ega.dispend)
                 {
                         //                        printf("Display over at line %i %i\n",displine,vc);
                         ega.dispon = 0;
-                        // pcem bug, reproduced: PB-99 — CR0A bit 5 (:619) éteint le curseur, comme la VGA ; sur
-                        //   l'EGA, 0Ah bits 5-7 sont « Not Used ».
+                        // pcem bug, fixed in hardware mode: PB-99 — CR0A bit 5 (:619) éteint le curseur, comme la VGA ;
+                        //   sur l'EGA, 0Ah bits 5-7 sont « Not Used ».
                         if ((ega.crtc[10] & 0x20) != 0)
                                 ega.cursoron = 0;
                         else
                                 ega.cursoron = ega.blink & 16;
+                        if (materiel.pb_99)
+                                curseur_materiel(ega);
                         if ((ega.gdcreg[6] & 1) == 0 && (ega.blink & 15) == 0)
                                 fullchange = 2;
                         ega.blink++;
@@ -1202,7 +1229,8 @@ internal static class vid_ega
         monitor_type = device_get_config_int("monitor_type");
         ega_init(ega, monitor_type, (monitor_type & 0xf) == 10 ? 1 : 0);
 
-        // pcem bug, reproduced: PB-99 — le rendu est borné par vrammask, mais les substitutions de rangée
+        // PB-99, la part (6) qui viendra avec les rendus (G13.9c2), la même dans les deux modes d'ici là —
+        //   le rendu est borné par vrammask, mais les substitutions de rangée
         //   de CR17 s'appliquent après (:344-347, :405-408, :477-480) : avec 64 Ko, le bit 0x10000 (CR17
         //   bit 1 = 0) lit des octets qu'une vraie carte de 64 Ko n'a pas. La police du texte, lue sans
         //   masque (:287), sort de même par les tables de SR3 qui dépassent la mémoire.

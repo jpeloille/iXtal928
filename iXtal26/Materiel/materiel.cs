@@ -331,6 +331,9 @@ internal static class materiel
     /// <summary>PB-37 : le rendu 24 bpp basse résolution dessine toute la ligne, chaque point doublé.</summary>
     internal static readonly bool pb_37;
 
+    /// <summary>PB-99 : l'EGA sans les traits de la VGA que PCem lui prête ; le texte redessiné à chaque ligne.</summary>
+    internal static readonly bool pb_99;
+
     /// <summary>PB-04 : la cellule du curseur de la CGA n'est pas éteinte par le clignotement des caractères.</summary>
     internal static readonly bool pb_04;
 
@@ -649,6 +652,7 @@ internal static class materiel
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);
         pb_37 = ModeMateriel.Demande(37);
+        pb_99 = ModeMateriel.Demande(99);
         pb_04 = ModeMateriel.Demande(4);
         pb_230 = ModeMateriel.Demande(230);
         pb_102 = ModeMateriel.Demande(102);

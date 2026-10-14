@@ -42,7 +42,7 @@ internal static class MaterielMode
             Lance("--hardware-mode tout sst-probe", outil, ["--hardware-mode", "tout", "sst-probe"], 2, "--target csharp");
             Lance("boot-diff --config hardware_mode = 1", outil, ["boot-diff", "roms", "10", "--config", hw1], 2,
                   "l'oracle est PCem");
-            Lance("--hardware-mode PB-99", outil, ["--hardware-mode", "PB-99", "config-check"], 2, "n'est pas corrigé");
+            Lance("--hardware-mode PB-36", outil, ["--hardware-mode", "PB-36", "config-check"], 2, "n'est pas corrigé");
             Lance("--hardware-mode sans liste", outil, ["--hardware-mode", "config-check"], 2, "attend une liste");
             Lance("--hardware-mode tout config-check, acceptée", outil, ["--hardware-mode", "tout", "config-check"], 0,
                   "mode materiel (tout)");
@@ -76,7 +76,7 @@ internal static class MaterielMode
                   ["--boot", "roms", "30", "--config", hw1, "--hardware-mode", "aucun"], 0, "initpc OK", "mode materiel");
             Lance("--boot --config hardware_mode = 7", emulateur, ["--boot", "roms", "30", "--config", hw7], 0,
                   "hors de 0 et 1", "mode materiel");
-            Lance("--boot --hardware-mode PB-99", emulateur, ["--boot", "roms", "30", "--hardware-mode", "PB-99"], 2, "n'est pas corrigé");
+            Lance("--boot --hardware-mode PB-36", emulateur, ["--boot", "roms", "30", "--hardware-mode", "PB-36"], 2, "n'est pas corrigé");
         }
         finally
         {

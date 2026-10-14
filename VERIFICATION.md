@@ -11423,3 +11423,57 @@ commandes) ; sous « tout », seule la trace des tranches.
 même verdict ; un seul résumé change, `recensement` (285 défauts, 1 230 marqueurs, quatre de plus qu'à g9a2). Six
 neuves : les `materiel-cas` de PB-04 et de PB-230, en mode PCem et sous chaque PB seul, et PB-04 sous PB-222 et sous
 les trois PB du texte.
+
+## G13.9d — l'EGA
+
+Le 14 octobre 2026. PB-99, les traits de la VGA que PCem prête à l'EGA d'IBM (Options and Adapters, vol. 2, EGA,
+pp. 30-37 et 56-61 : 10h bits 4-7, 07h bits 6-7, 09h et 0Ah bits 5-7, 11h bits 6-7 « Not Used » ; ni 14h) : les parts
+(1), (2), (5) et (7), avec CR0A bit 5 et l'attribut 10h bit 5. Restent, dits au site : (3) la relecture (inconnue),
+(4) 3DAh (G13.9f, le faisceau), (6) la mémoire et la police (G13.9c2, les rendus) ; CR09 bit 7, lu pour la seule
+taille annoncée à l'hôte.
+
+**La correction du mode matériel** (domaine `video`, une, PB-99 ; `Video/vid_ega.Materiel.cs`, neuf ; `vid_ega` devient
+partielle). Six gardes : en tête du calcul de la palette (`palette_materiel`, six bits, puis l'étiquette
+`palette_faite`, avant `attrff`) ; en tête de l'écriture de 3D5h (`crtc_ecrit_materiel`, sans la protection de CR11) ;
+après les totaux (`bits9_materiel`, les bits 8 de CR07 bits 0, 1, 2 et 4, sans bit 9) ; en tête du texte
+(`texte_materiel`, la ligne dessinée à chaque balayage, puis `texte_dessine`) ; à la ligne de partage (un `goto
+partage_fait` : 10h bit 5 sans effet) ; à la fin d'affichage (`curseur_materiel`, sans CR0A bit 5). Déduits, et dits :
+CR07 bit 5 (la source dit 6-7), le défilement qui continue sous le partage, le texte à chaque ligne.
+
+**Les cas**, en C# seul (`MaterielCasEga.cs`, neuf : une IBM XT montée avec l'EGA, sans BIOS lancé ; une ligne ou une
+fin de ligne jouée par un appel de `ega_poll` sur un état posé à la main), verts en mode PCem, sous PB-99 et sous
+« tout » ; rouges sous l'attente de l'autre mode (sept). La palette (egapal[0] F1h contre 01h) ; CR11 = 80h puis CR01
+(gardé contre 27h) ; CR07 = 20h et CR09 = 40h (vtotal 271h contre 71h, split 212h contre 12h) ; CR07 = D7h (dispend et
+vsyncstart, 311h et 319h contre 111h et 119h ; les bits 8 gardés) ; CR0A = 20h à la fin d'affichage (éteint contre
+allumé) ; 10h = 20h à la ligne de partage (le défilement 0 contre 5) ; une ligne de texte sans `fullchange` (laissée
+contre redessinée). Témoins : 10h = 00h (la palette, le partage), CR11 = 00h, CR0A = 00h, une ligne avec `fullchange`.
+
+**Le recensement** : vert, 285 défauts au registre, 1 226 marqueurs (quatre de moins : les parts (3), (4) et (6),
+devenues des commentaires de part).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9d.py, dans l'arbre, chaque faute restaurée) : douze fautes, chacune rougit son
+cas — chacune des six gardes retirée (les trois qui mènent à une étiquette, rendues fausses : retirées, leur étiquette
+ne compile plus) ; la palette sur quatre bits ; split et dispend sans leur bit 8 ; et les attentes inversées ; le
+témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : un bloquant, repris : le banc
+`materiel-mode` prenait PB-99 pour exemple d'une correction absente (`--hardware-mode PB-99` refusé) ; il prend
+maintenant PB-36, une part (d) qui ne sera pas corrigée. Vérifié juste : la palette, l'écriture du CRTC, les totaux et
+leur ordre dans `ega_recalctimings`, le curseur, le partage, les étiquettes (rien de sauté à tort), le mode PCem, les
+marqueurs. Repris : les cas des bits 8 et des bits 9 de dispend et vsyncstart ; une fin d'affichage qui n'emporte pas
+le retour et la fin de trame ; les témoins de CR0A et du partage ; CR09 bit 7 dit ; le déduit dit (CR07 bit 5, le
+partage, le texte à chaque ligne). Laissé : SR1 bit 5 (l'écran éteint de la VGA), que la source n'a pas permis de
+trancher ici.
+
+**M2** (Release du worktree ; un scénario neuf, `xt-ega` : l'XT et l'EGA d'IBM, PC-DOS, DIR, puis sous DEBUG 3DAh,
+l'attribut 10h et 00h, CR11 puis CR01, le curseur) : avec et sans les six gardes, identique (603 méthodes, aucune
+changée) ; contre M2-9c (tous les scénarios), les constructeurs statiques de `materiel` et de `ModeMateriel` et les
+quatre jetons de chaînes habituels ; quatorze apparues, celles de l'EGA.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9d.sh) : l'XT avec l'EGA (son POST, POD14 compris), PC-DOS,
+DIR et la séquence de M2, en mode PCem, sous PB-99 et sous « tout » : aucun arrêt ; sous PB-99, la sortie entière est
+celle du mode PCem ; sous « tout », seule la trace des tranches.
+
+**La série** g9d (le worktree de l'étape, contre g9c) : 674 portes, toutes vertes ; 672 communes à g9c, chacune au même
+verdict, `materiel-mode` compris (l'exemple de PB-36) ; un seul résumé change, `recensement` (285 défauts, 1 226
+marqueurs, quatre de moins qu'à g9c). Deux neuves : les `materiel-cas` de PB-99, en mode PCem et sous PB-99.

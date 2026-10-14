@@ -1857,9 +1857,26 @@ bits 6-7 « Not Used » ; écriture seule hors 0Ch-0Fh (pp. 30-37, 56-61) ; 3DAh
 *Cas qui discrimine* : (1) AC00 = 01h, AC14 = 0Fh, AC10 = 80h : PCem egapal[0] = F1h, l'EGA 01h ; (2) CR11 = 80h puis
 CR01 = 27h : PCem garde l'ancien CR01, l'EGA prend 27h ; (7) CR07 = 20h, CR06 = 70h : PCem `vtotal` = 271h, l'EGA 71h.
 *G13* : (a), (b), (c) — (a) (1), (2), (5), (7) ; (b) (4), un modèle neuf du faisceau, et (6) ; (c) la valeur de (3).
-*Reproduit* : `Video/vid_ega.cs`, marqueurs PB-99 : `:139` (10h bit 7 et 14h), `:237` (CR11), `:264` (la relecture),
-`:302` (3DAh), `:322` (les bits 9), `:418` (la police), `:703` (`fullchange`), `:770` (10h bit 5), `:779` (CR0A bit 5),
-`:1205` (la mémoire). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
+*Reproduit* : les parts (a), en mode PCem, `Video/vid_ega.cs`, marqueurs `fixed in hardware mode: PB-99` (10h bit 7 et
+14h, CR11, les bits 9, `fullchange`, 10h bit 5, CR0A bit 5) ; dans les deux modes, commentaires `PB-99, la part` : (3)
+la relecture, inconnue ; (4) 3DAh, qui viendra avec le faisceau (G13.9f) ; (6) la mémoire et la police, qui viendront
+avec les rendus (G13.9c2). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
+*Corrigé en mode matériel*, les parts (1), (2), (5) et (7) (G13.9d) : sous `if (materiel.pb_99)`
+(`Video/vid_ega.Materiel.cs`) — (1) en tête du calcul de la palette, `palette_materiel` : six bits par registre, ni 10h
+bit 7 ni 14h ; (2) en tête de l'écriture de 3D5h, `crtc_ecrit_materiel` : l'écriture de PCem sans la protection de
+CR11 bit 7 ; (5) en tête du texte, `texte_materiel` : la ligne dessinée à chaque balayage, et non sur `fullchange`
+seulement (un coût d'hôte : le texte de l'EGA redessiné à chaque trame, comme celui de la CGA) ; (7) après le calcul
+des totaux, `bits9_materiel` : sans CR07 bits 5-7 ni CR09 bit 6 ; à la fin d'affichage, `curseur_materiel` : sans
+CR0A bit 5 ; à la ligne de partage, l'attribut 10h bit 5 ne remet plus le défilement fin (que le défilement continue
+sous le partage : déduit). CR07 bit 5 : la source ne le dit pas « Not Used » (07h bits 6-7 seulement), mais l'EGA n'a
+pas de bit 9 à y porter : déduit. CR09 bit 7 (le double balayage de la VGA) reste lu par PCem pour la seule taille
+annoncée à l'hôte (`video_res_y`), sans effet pour l'invité : laissé. Le texte à chaque ligne : déduit (la carte n'a
+pas de tampon d'image). `materiel-cas PB-99` : les
+cas de l'entrée (egapal[0] F1h contre 01h ; CR01 gardé contre 27h ; vtotal 271h contre 71h, split 212h contre 12h),
+CR0A = 20h à la fin d'affichage (éteint contre allumé), 10h = 20h à la ligne de partage (le défilement 0 contre 5),
+une ligne de texte sans `fullchange` (laissée contre redessinée), CR07 = D7h (les bits 8 gardés, dispend et
+vsyncstart sans bit 9) ; témoins, CR11 = 00h, 10h = 00h (la palette et le partage), CR0A = 00h, une ligne avec
+`fullchange`.
 
 ### PB-100 — La Tseng ET4000AX de PCem et son RAMDAC
 

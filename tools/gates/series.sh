@@ -828,6 +828,9 @@ done
 # PB-221 les joue avec les lectures) et PB-37 (le rendu 24 bpp basse résolution).
 run materiel-cas-pb37 materiel-cas PB-37
 run materiel-cas-pb37-materiel --hardware-mode PB-37 materiel-cas PB-37
+# G13.9d — l'EGA : PB-99 (la palette, CR11, les bits 9, CR0A bit 5, 10h bit 5, le texte à chaque ligne).
+run materiel-cas-pb99 materiel-cas PB-99
+run materiel-cas-pb99-materiel --hardware-mode PB-99 materiel-cas PB-99
 # G13.9c — la CGA : PB-04 (la cellule du curseur exemptée du clignotement) et PB-230 (R16 et R17 en lecture seule) ;
 # PB-222 et PB-223 jouent aussi la CGA dans leurs cas (9b). Le texte du mode matériel, PB-04 et PB-222 ensemble.
 for pb in 04 230; do

@@ -1893,3 +1893,21 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **L'émulateur.** PCem les laisse écrire, et un programme relit ce qu'il y a mis.
 - **La correction.** L'écriture n'y change rien. Ce que le 6845 rend quand on relit ses autres registres, en écriture
   seule, n'est pas connu : PCem reste, comme sur la M24 et le PC1512, dont la puce n'a pas été lue.
+
+## G13.9d — l'EGA
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9d.*
+
+### PB-99 — l'EGA qui se prenait pour une VGA
+
+- **Le vrai PC.** L'EGA d'IBM (1984) précède la VGA (1987). Plusieurs bits que la VGA utilisera y sont « Not Used » :
+  l'attribut 10h bits 4-7, CR07 bits 6-7, CR09 et CR0A bits 5-7, CR11 bits 6-7 ; l'attribut 14h n'existe pas. Sa
+  palette prend six bits par registre. Et la carte, sans tampon d'image, dessine le texte à chaque balayage (déduit).
+- **L'émulateur.** PCem a écrit l'EGA à partir de sa VGA : la palette compose 10h bit 7 et 14h, CR11 bit 7 protège
+  CR0-CR7, CR07 et CR09 donnent des bits 9 aux totaux, CR0A bit 5 éteint le curseur, 10h bit 5 remet le défilement fin.
+  Un logiciel écrit pour l'EGA, qui ne connaît pas ces bits et y laisse n'importe quoi, voit des couleurs ou une trame
+  fausses. Et PCem ne redessine le texte qu'au rafraîchissement complet : un curseur qui bouge ou une police changée
+  n'apparaissent qu'avec retard.
+- **La correction.** Ces bits n'ont plus d'effet, et le texte est redessiné à chaque ligne. Restent ceux de PCem : ce
+  que rendent les registres en écriture seule (inconnu), les broches vidéo de 3DAh (avec le faisceau, plus tard), et la
+  mémoire de 64 Ko (avec les rendus, plus tard).

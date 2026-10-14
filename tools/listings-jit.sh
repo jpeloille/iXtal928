@@ -75,6 +75,8 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # G13.9a2 : les deux scénarios de l'ET4000 et de la GD5429 écrivent aussi un double mot et un mot (svga_writel,
 # svga_writew et leurs formes linéaires compilées ; GR8 = 7Fh, le chemin lent pris) ; ami486-tvga24, la TVGA8900D en mode 13h, son RAMDAC TKD8001 passé en 24 bits (3C6h lu quatre fois, puis
 # C0h), CR13 récrit pour recalculer : le rendu 24 bpp basse résolution.
+# G13.9d, l'EGA : xt-ega, l'XT et l'EGA d'IBM, PC-DOS (DIR), puis sous DEBUG 3DAh lu, l'attribut 10h et 00h, CR11 puis
+# CR01, le curseur (ega_out, ega_in, ega_recalctimings, ega_poll, ega_draw_text).
 # G13.9b, la MDA et l'Hercules : xt-mda et xt-hercules, l'XT et la carte, PC-DOS (DIR), puis sous DEBUG 3BAh lu, le
 # curseur 0607h écrit (R10, R11) et R11 relu ; l'Hercules passée en graphique (3BFh, 3B8h) puis rendue au texte
 # (mda_out, mda_in, mda_recalctimings, mda_poll ; hercules_out, hercules_in, hercules_recalctimings).
@@ -107,6 +109,7 @@ SCENARIOS=(
   "ami486-tvga24|--boot roms 6000 --config tools/gates/cfg/ami486-tvga8900d-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_B8_13_00_CD_10_BA_C6_03_EC_EC_EC_EC_B0_C0_EE_BA --type E_110_D4_03_B8_13_29_EF_B8_13_28_EF_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami486-tvga8900d-fd.cfg ami486"
   "xt-mda|--boot roms 8000 --model ibmxt --gfxcard mda --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type I_3BA --type O_3B4_A --type O_3B5_6 --type O_3B4_B --type O_3B5_7 --type I_3B5 --type Q --type @wait_2000"
   "xt-hercules|--boot roms 8000 --model ibmxt --gfxcard hercules --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type I_3BA --type O_3B4_A --type O_3B5_6 --type O_3B4_B --type O_3B5_7 --type I_3B5 --type O_3BF_1 --type O_3B8_2 --type I_3BA --type O_3B8_28 --type O_3BF_0 --type Q --type @wait_2000"
+  "xt-ega|--boot roms 8000 --model ibmxt --gfxcard ega --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type I_3DA --type O_3C0_10 --type O_3C0_0 --type I_3DA --type O_3C0_0 --type O_3C0_7 --type O_3D4_11 --type O_3D5_0 --type O_3D4_A --type O_3D5_6 --type Q --type @wait_2000"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 
