@@ -318,6 +318,15 @@ internal static class materiel
     /// <summary>PB-160 : HWCF3 de l'EMU8000 sans la rustine qui le force à 0004h au premier allumage d'une voix.</summary>
     internal static readonly bool pb_160;
 
+    /// <summary>PB-80 : la lecture en chain4 compact charge les verrous, par la fenêtre linéaire comme par la banque.</summary>
+    internal static readonly bool pb_80;
+
+    /// <summary>PB-220 : le socle SVGA compte CR00 + 5 caractères par ligne, et non + 6.</summary>
+    internal static readonly bool pb_220;
+
+    /// <summary>PB-221 : les lectures rapides de mot et de double mot chargent les verrous de leur dernier octet.</summary>
+    internal static readonly bool pb_221;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -608,6 +617,9 @@ internal static class materiel
         pb_158 = ModeMateriel.Demande(158);
         pb_159 = ModeMateriel.Demande(159);
         pb_160 = ModeMateriel.Demande(160);
+        pb_80 = ModeMateriel.Demande(80);
+        pb_220 = ModeMateriel.Demande(220);
+        pb_221 = ModeMateriel.Demande(221);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

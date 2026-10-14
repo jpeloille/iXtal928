@@ -818,3 +818,9 @@ run materiel-cas-pb285-materiel --hardware-mode PB-285 materiel-cas PB-285
 # Le bloc qui reprend la commande en file (PB-239, par irq_materiel), et la ligne que le MPU tient (PB-154, PB-238).
 run materiel-cas-pb285-pb239 --hardware-mode PB-239,PB-285 materiel-cas PB-285
 run materiel-cas-pb285-pb154 --hardware-mode PB-154,PB-238,PB-285 materiel-cas PB-285
+# G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
+# lectures rapides de mot et de double mot chargent les verrous).
+for pb in 220 80 221; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done

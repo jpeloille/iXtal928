@@ -1474,7 +1474,7 @@ les quatre octets de `addr & ~3`, déduit de la forme par banque ; les verrous d
 d'octet en A000:0008, puis GR5 = 41h (mode d'écriture 1) et écriture d'octet en A000:0010 : VRAM[10h] vaut 00h chez
 PCem, 55h sur la GD542x.
 *G13* : (a) — documenté ; CR22, que PCem ne modélise pas (`vid_cl5429.c:463-489`), en ferait la sonde en mode matériel.
-*Reproduit* : `Video/vid_svga.cs`, `svga_read_linear`, marqueur PB-80 (`:1714`). Atteint par la seule GD5429 : sa
+*Reproduit* en mode PCem : `Video/vid_svga.cs`, `svga_read_linear`, marqueur `fixed in hardware mode: PB-80`. Atteint par la seule GD5429 : sa
 fenêtre linéaire (`gd5429_readb_linear`, `vid_cl5429.c:1276-1283`) et ses lectures de mot et de double mot quand
 `fast` est nul (`:749-771`, `:1284-1300`). La VGA d'IBM, la Trio64 et les Trident ne posent ni `packed_chain4` ni
 `fb_only` ; l'ET4000 pose `packed_chain4`, mais n'a pas de fenêtre linéaire chez PCem. Les lectures du chemin `fast`,
@@ -1482,7 +1482,13 @@ qui sautent aussi les verrous, l'ET4000 comprise : PB-221.
 *G7.1* : la GD5429 porte le même défaut dans sa propre lecture, `gd5429_read_linear`
 (`vid_cl5429.c:1183-1187`), et sa forme par banque, `gd5429_read` (`:741-748`), y passe aussi :
 chez elle, ni la banque ni la fenêtre linéaire ne chargent les verrous en chain4 compact.
-Reproduit, `Video/vid_cl5429.cs`, même marqueur (`:1322`).
+Reproduit en mode PCem, `Video/vid_cl5429.cs`, même marqueur.
+*Corrigé en mode matériel* (G13.9a) : sous `if (materiel.pb_80)`, en tête de la branche du chain4 compact de
+`svga_read_linear` et de `gd5429_read_linear` (`Video/vid_svga.Materiel.cs`, `lit_compact_materiel`) : l'adresse
+réduite par `decode_mask`, hors de la mémoire FFh sans toucher les verrous, comme `svga_read` ; sinon les quatre
+verrous chargés depuis `addr & ~3`, puis l'octet rendu. Les verrous de huit octets de la GD5429 (GRB bit 2) restent
+ceux de PCem : la source ne dit pas ce qu'ils prennent en compact. `materiel-cas PB-80` : le cas de l'entrée, par la
+banque et par la fenêtre linéaire, et le chain4 simple en témoin.
 
 ### PB-81 — La lecture du motif du blitter de la GD5429 sort de la VRAM
 
@@ -4781,7 +4787,12 @@ passé à + 5 en gardant le commentaire, un indice).
 *Cas qui discrimine* : VGA, mode 3 (CR00 = 5Fh, SR1 bit 0 = 0, horloge de 28,322 MHz) : PCem `htotal` = 101, une ligne
 de 32,10 µs ; IBM, 100 et 31,78 µs.
 *G13* : (a) — documenté ; `--menu-check` resserré (31 à 32 kHz aujourd'hui), un commutateur propre (boot-diff SVGA).
-*Reproduit* : `Video/vid_svga.cs`, `svga_recalctimings`, marqueur PB-220 (`:592`).
+*Reproduit* en mode PCem : `Video/vid_svga.cs`, `svga_recalctimings`, marqueur `fixed in hardware mode: PB-220`.
+*Corrigé en mode matériel* (G13.9a) : sous `if (materiel.pb_220)`, après le `+ 6` de PCem (`Video/vid_svga.Materiel.cs`,
+`htotal_materiel`) : `htotal` = CR00 + 5. Les ajouts des cartes viennent après, sur le total corrigé (la Trio64 et
+son bit de débordement, la TVGA qui double par GR0F bit 3). Ce que le + 6 compensait pour Tyrian reste inconnu : le mode
+matériel suit IBM. `materiel-cas PB-220` : CR00 = 5Fh sur les cinq cartes du socle, la TVGA doublée, CR00 = 00h.
+`--menu-check` garde ses bornes larges (31 à 32 kHz) jusqu'à G13.9f.
 
 ### PB-221 — Le chemin rapide des accès en mot ignore le mode d'écriture, la rotation et les verrous
 
@@ -4808,8 +4819,16 @@ d'octet, et que l'ET4000 charge ses verrous de même : déduit.
 *Cas qui discrimine* : ET4000, mode 13h, GR5 = 41h, GR8 = FFh, VRAM[0..3] = 11h 22h 33h 44h : lecture d'octet en
 A000:0000, puis écriture du mot BBAAh en A000:0100 : PCem VRAM[100h..101h] = AAh BBh ; deux écritures d'octet, 11h 22h.
 *G13* : (a), (b) — (a) les verrous des lectures, documentés pour la GD542x ; (b) les écritures. Chemin chaud.
-*Reproduit* : `Video/vid_svga.cs`, marqueurs PB-221 : le calcul de `fast` dans `svga_out` (`:354`, `:451`) ;
-`svga_readw` (`:1896`), `svga_readl` (`:1920`), `svga_readw_linear` (`:2004`), `svga_readl_linear` (`:2026`).
+*Reproduit* : la part (b), dans les deux modes (Q17) : le calcul de `fast` dans `svga_out`, `Video/vid_svga.cs`,
+commentaires `PB-221, la part (b)`. La part (a), en mode PCem : `svga_readw`, `svga_readl`, `svga_readw_linear` et
+`svga_readl_linear`, marqueurs `fixed in hardware mode: PB-221`.
+*Corrigé en mode matériel*, la part (a) (G13.9a) : sous `if (materiel.pb_221)`, en tête du chemin rapide des quatre
+lectures (`Video/vid_svga.Materiel.cs`, `verrous_banque_materiel`, `verrous_lineaire_materiel`) : les quatre verrous
+chargés comme le ferait la lecture d'octet du dernier octet (`addr + 1`, `addr + 3`), par la banque ou la fenêtre
+linéaire ; l'octet rendu et les cycles restent ceux de PCem. Au bord d'une banque, le chemin rapide lit son dernier
+octet sans repli, les verrous celui que la lecture d'octet replie : l'écart de PCem sur l'octet reste. `materiel-cas
+PB-221` : le mot et le double mot sur l'ET4000 et la GD5429 en compact, alignés et à cheval sur deux doubles mots,
+GR8 = 7Fh (le chemin lent) en témoin.
 
 ### PB-222 — Le curseur de la CGA et de la MDA inverse la cellule au lieu de forcer ses points
 

@@ -1768,3 +1768,39 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
   Une ligne basse qui monte fait sa demande, comme chez PCem. Si le programme change l'interruption de la carte
   (80h) pendant que la ligne est haute, la carte ne dit pas ce qui se passe : la levée suivante monte la nouvelle
   ligne, comme chez PCem.
+
+## G13.9a — le socle SVGA
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9a.*
+
+### PB-220 — une ligne d'un caractère de trop
+
+- **Le vrai PC.** CR00 donne la longueur d'une ligne de balayage : le nombre total de caractères moins 5 (IBM). En
+  mode texte 80 colonnes, CR00 vaut 5Fh : 100 caractères par ligne, 31,47 kHz, 70,09 Hz.
+- **L'émulateur.** PCem compte CR00 + 6, pour un jeu (Tyrian, d'après son commentaire) : 101 caractères, 31,16 kHz,
+  69,39 Hz. Toutes les cartes VGA et SVGA de l'émulateur en héritent. Un programme qui mesure la trame, ou qui attend
+  le retour de balayage en comptant, voit 1 % de trop.
+- **La correction.** CR00 + 5, la valeur d'IBM, sur toutes les cartes du socle. Ce que le + 6 rattrapait pour Tyrian
+  n'est pas connu : le mode matériel suit la carte.
+
+### PB-80 — les verrous oubliés en mode compact
+
+- **Le vrai PC.** Toute lecture de la mémoire d'affichage charge les quatre verrous de la carte, un octet par plan.
+  Une écriture en mode 1 recopie ensuite ces verrous : c'est la copie rapide d'écran à écran des pilotes. Cirrus le
+  documente pour la GD542x, à chaque lecture, sans exception : le mode compact en découle.
+- **L'émulateur.** En mode compact (chain4 avec les quatre plans à la suite, le mode des pilotes 256 couleurs), la
+  lecture par la fenêtre linéaire, et sur la GD5429 aussi par la banque, rend l'octet sans charger les verrous. La copie
+  qui suit recopie les verrous d'une lecture plus ancienne.
+- **La correction.** La lecture en mode compact charge les verrous, comme les autres lectures. Les verrous de huit
+  octets de la GD5429 gardent le comportement de PCem : la documentation ne dit pas ce qu'ils prennent en compact.
+
+### PB-221 — les verrous des lectures de mot
+
+- **Le vrai PC.** Un mot ou un double mot lu dans la mémoire d'affichage, ce sont deux ou quatre lectures d'octet sur
+  la carte ; chacune charge les verrous, et ceux qui restent sont ceux du dernier octet (déduit de Cirrus).
+- **L'émulateur.** Quand les registres le permettent (pas de masque de bits, pas de fonction logique, mode compact),
+  PCem lit le mot d'un coup, sans charger les verrous : l'ET4000 et la GD5429 en compact. Une copie en mode 1 qui
+  suit recopie les verrous d'avant.
+- **La correction.** Le chemin rapide garde sa vitesse et son résultat, et charge les verrous du dernier octet.
+  L'autre moitié du défaut, les écritures de mot qui ignorent le mode d'écriture et la rotation, attend la réponse de
+  Julien (Q17) : elle reste celle de PCem dans les deux modes.

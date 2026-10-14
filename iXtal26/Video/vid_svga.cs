@@ -351,9 +351,10 @@ internal static partial class vid_svga
                 case 4:
                         svga.chain2_write = (val & 4) == 0 ? 1 : 0;
                         svga.chain4 = val & 8;
-                        // pcem bug, reproduced: PB-221 — `fast` ne teste ni le mode d'écriture (GR5) ni
-                        //   la rotation (GR3 bits 0-2) : les écritures de mot et de double mot posent alors les
-                        //   octets du processeur tels quels, là où deux écritures d'octet appliquent le mode.
+                        // PB-221, la part (b), la même dans les deux modes (Q17) — `fast` ne teste ni le mode
+                        //   d'écriture (GR5) ni la rotation (GR3 bits 0-2) : les écritures de mot et de double mot
+                        //   posent alors les octets du processeur tels quels, là où deux écritures d'octet appliquent
+                        //   le mode.
                         svga.fast = ((svga.gdcreg[8] == 0xff && (svga.gdcreg[3] & 0x18) == 0 && svga.gdcreg[1] == 0) &&
                                      ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)) ? 1 : 0;
                         break;
@@ -448,7 +449,7 @@ internal static partial class vid_svga
                         break;
                 }
                 svga.gdcreg[svga.gdcaddr & 15] = val;
-                // pcem bug, reproduced: PB-221 — le même `fast`, sans GR5 ni la rotation.
+                // PB-221, la part (b), la même dans les deux modes (Q17) — le même `fast`, sans GR5 ni la rotation.
                 svga.fast = ((svga.gdcreg[8] == 0xff && (svga.gdcreg[3] & 0x18) == 0 && svga.gdcreg[1] == 0) &&
                              ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)) ? 1 : 0;
                 if (((svga.gdcaddr & 15) == 5 && ((val ^ o) & 0x70) != 0) || ((svga.gdcaddr & 15) == 6 && ((val ^ o) & 1) != 0))
@@ -589,10 +590,12 @@ internal static partial class vid_svga
         svga.hdisp = svga.crtc[1];
         svga.hdisp++;
 
-        // pcem bug, reproduced: PB-220 — CR00 + 6 ; IBM définit CR00 comme le total moins 5 : la ligne
-        //   compte un caractère de trop, 31,16 kHz au lieu de 31,47 en mode 3.
+        // pcem bug, fixed in hardware mode: PB-220 — CR00 + 6 ; IBM définit CR00 comme le total moins 5 : la
+        //   ligne compte un caractère de trop, 31,16 kHz au lieu de 31,47 en mode 3.
         svga.htotal = svga.crtc[0];
         svga.htotal += 6; /*+6 is required for Tyrian*/
+        if (materiel.pb_220)
+                htotal_materiel(svga);
 
         svga.rowoffset = svga.crtc[0x13];
 
@@ -707,7 +710,7 @@ internal static partial class vid_svga
         _dispofftime *= crtcconst;
 
         // pcem bug, reproduced: PB-36 — `(uint64_t)_dispofftime` d'un double NÉGATIF, dès
-        //   que hdisp_time dépasse htotal (CR01 + 1 > CR00 + 6). Le C ne le borne pas, et
+        //   que hdisp_time dépasse htotal (CR01 + 1 > CR00 + 6 ; + 5 sous PB-220). Le C ne le borne pas, et
         //   la conversion est de l'UB que GCC compile en cvttsd2si : le négatif devient
         //   (uint64_t)(int64_t)x, une valeur énorme que le `<` non signé de :450 laisse
         //   passer, et timer_advance_u64 fait alors RECULER le chronomètre. C# depuis .NET 9
@@ -1711,11 +1714,13 @@ internal static partial class vid_svga
 
         egareads++;
 
-        // pcem bug, reproduced: PB-80 — EN CHAIN4 COMPACT, LES VERROUS NE SONT PAS CHARGÉS : svga_read
-        //   les recharge depuis `addr & ~3` (vid_svga.c:1085-1089), la forme linéaire rend l'octet et
-        //   sort. Une écriture en mode 1 qui suit recopie donc les verrous de la lecture d'AVANT.
+        // pcem bug, fixed in hardware mode: PB-80 — EN CHAIN4 COMPACT, LES VERROUS NE SONT PAS CHARGÉS :
+        //   svga_read les recharge depuis `addr & ~3` (vid_svga.c:1085-1089), la forme linéaire rend l'octet
+        //   et sort. Une écriture en mode 1 qui suit recopie donc les verrous de la lecture d'AVANT.
         if ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)
         {
+                if (materiel.pb_80)
+                        return lit_compact_materiel(svga, addr);
                 addr &= svga.decode_mask;
                 if (addr >= svga.vram_max)
                         return 0xff;
@@ -1893,8 +1898,10 @@ internal static partial class vid_svga
         if (svga.fast == 0)
                 return (uint16_t)(svga_read(addr, p) | (svga_read(addr + 1, p) << 8));
 
-        // pcem bug, reproduced: PB-221 — la lecture rapide ne charge pas les verrous, que svga_read
-        //   charge (:1085-1089).
+        // pcem bug, fixed in hardware mode: PB-221 — la lecture rapide ne charge pas les verrous, que
+        //   svga_read charge (:1085-1089).
+        if (materiel.pb_221)
+                verrous_banque_materiel(svga, addr + 1);
         egareads += 2;
 
         cycles -= video_timing_read_w;
@@ -1917,7 +1924,9 @@ internal static partial class vid_svga
                 return (uint32_t)(svga_read(addr, p) | (svga_read(addr + 1, p) << 8) | (svga_read(addr + 2, p) << 16) |
                                   (svga_read(addr + 3, p) << 24));
 
-        // pcem bug, reproduced: PB-221 — la lecture rapide ne charge pas les verrous.
+        // pcem bug, fixed in hardware mode: PB-221 — la lecture rapide ne charge pas les verrous.
+        if (materiel.pb_221)
+                verrous_banque_materiel(svga, addr + 3);
         egareads += 4;
 
         cycles -= video_timing_read_l;
@@ -2001,7 +2010,9 @@ internal static partial class vid_svga
         if (svga.fast == 0)
                 return (uint16_t)(svga_read_linear(addr, p) | (svga_read_linear(addr + 1, p) << 8));
 
-        // pcem bug, reproduced: PB-221 — la lecture rapide ne charge pas les verrous.
+        // pcem bug, fixed in hardware mode: PB-221 — la lecture rapide ne charge pas les verrous.
+        if (materiel.pb_221)
+                verrous_lineaire_materiel(svga, addr + 1);
         egareads += 2;
 
         cycles -= video_timing_read_w;
@@ -2023,7 +2034,9 @@ internal static partial class vid_svga
                 return (uint32_t)(svga_read_linear(addr, p) | (svga_read_linear(addr + 1, p) << 8) |
                                   (svga_read_linear(addr + 2, p) << 16) | (svga_read_linear(addr + 3, p) << 24));
 
-        // pcem bug, reproduced: PB-221 — la lecture rapide ne charge pas les verrous.
+        // pcem bug, fixed in hardware mode: PB-221 — la lecture rapide ne charge pas les verrous.
+        if (materiel.pb_221)
+                verrous_lineaire_materiel(svga, addr + 3);
         egareads += 4;
 
         cycles -= video_timing_read_l;

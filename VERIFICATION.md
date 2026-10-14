@@ -11187,3 +11187,62 @@ de 80h ; 82h, IRR, les acquits —, en mode PCem, sous PB-285 et sous « tout »
 **La série** g8d4 (le worktree de l'étape, contre g8f) : 645 portes, toutes vertes ; 641 communes à g8f, chacune au même
 verdict ; un seul résumé change, `recensement` (285 défauts, 1 225 marqueurs, huit de plus qu'à g8f). Quatre neuves :
 les `materiel-cas` de PB-285, en mode PCem, sous PB-285 seul, avec PB-239 et avec PB-154 et PB-238.
+
+## G13.9a — le socle SVGA
+
+Le 14 octobre 2026. La première sous-étape de la vidéo, sans question (PLAN-G13 § G13.9, coupée en six le 14/10 sur
+l'étude de quarante-deux entrées avec D4-video et D4-contre ; Q17 et Q18 posées à Julien). Trois défauts du socle :
+PB-220 (IBM, PS/2 Common Interfaces, p. 2-56, documenté), PB-80 et la part (a) de PB-221 (Cirrus, CL-GD542X, § 6.27,
+p. 6-34, documenté pour la GD542x ; le cycle de mot qui vaut deux cycles d'octet, et l'ET4000, déduits).
+
+**La correction du mode matériel** (domaine `video`, trois ; `Video/vid_svga.Materiel.cs`, neuf). Sept gardes. PB-220,
+après le `+ 6` de `svga_recalctimings` (`htotal_materiel` : CR00 + 5) ; les ajouts des cartes viennent ensuite, sur le
+total corrigé (la Trio64 et l'ET4000 par addition, la TVGA qui double). PB-80, en tête de la branche du chain4 compact de
+`svga_read_linear` et de `gd5429_read_linear` (`lit_compact_materiel` : la suite de `svga_read`, les verrous chargés de
+`addr & ~3`, hors de la mémoire FFh sans les toucher) ; les verrous de huit octets de la GD5429 restent ceux de PCem,
+dit au site (la part inconnue). PB-221 (a), en tête du chemin rapide de `svga_readw`, `svga_readl`, `svga_readw_linear`
+et `svga_readl_linear` (`verrous_banque_materiel`, `verrous_lineaire_materiel` : les verrous du dernier octet, par la
+banque ou la fenêtre) ; l'octet rendu, les cycles et `egareads` restent ceux de PCem. La part (b) de PB-221, le calcul de
+`fast` des écritures, reste celle de PCem dans les deux modes (Q17).
+
+**Les cas**, en C# seul (`MaterielCasVideo.cs`, neuf : une ami486 montée avec la carte, sans BIOS lancé, les registres
+par les ports, la mémoire par ses projections), verts en mode PCem, sous chaque PB seul et sous « tout » ; rouges sous
+l'attente de l'autre mode (sept, deux et huit). PB-220 : CR00 = 5Fh sur la VGA, l'ET4000AX, la GD5429, la Trio64 et la
+TVGA9000B (101 contre 100), la TVGA doublée par GR0F (202 contre 200), CR00 = 01h puis 00h (6 contre 5). PB-80 : le cas
+de l'entrée sur la GD5429 en compact, par la banque et par la fenêtre linéaire (verrous 00000000h et VRAM[10h] = 00h
+contre 55667788h et 55h) ; témoin, le chain4 simple. PB-221 : le mot et le double mot, alignés et à cheval sur deux
+doubles mots, sur l'ET4000 et sur la GD5429 en compact (les verrous posés à 11223344h restent, contre ceux du dernier
+octet) ; témoin, GR8 = 7Fh, le chemin lent.
+
+**Le recensement** : vert, 285 défauts au registre, 1 223 marqueurs (deux de moins : le calcul de `fast`, la part (b)
+de PB-221, n'est plus un marqueur mais un commentaire de part).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9a.py, dans l'arbre, chaque faute restaurée) : quinze fautes, chacune rougit
+son cas — chacune des sept gardes retirée ; CR00 + 4 ; l'octet compact sans les verrous ; le plan 1 des verrous pris au
+2 ; le mot et le double mot linéaire avec les verrous du premier octet ; la banque à une adresse fausse ; et les attentes
+inversées ; le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : chaque aide refait l'adresse et les bornes de la lecture d'octet qu'elle complète ; le mode PCem inchangé ; la
+composition de `htotal` avec les trois cartes qui y ajoutent ; aucun site oublié (`fb_only` n'est jamais posé,
+`packed_chain4` seulement par l'ET4000 et la GD5429 ; la S3 et la TVGA hors du compact et du chemin rapide). Repris : le
+cas CR00 = 00h part de 01h (un changement de valeur) ; la part inconnue des verrous de huit octets dite au site ; la
+source de PB-80 dite « à chaque lecture, sans exception : le compact en découle » ; le bord d'une banque dit dans
+l'entrée de PB-221 ; le seuil de PB-36 sous PB-220 ; la porte de PB-221 sous PB-80, qui n'ajoutait rien, retirée.
+
+**M2** (Release du worktree ; deux scénarios neufs, `ami486-et4000` et `ami486-gd5429` : le mode 13h, la GD5429 passée
+en compact par SR7, la mémoire lue en mot, en double mot et en octet, puis GR8 = 7Fh et les lectures lentes ; et
+`ami486-dx2`) : avec et sans les sept gardes, identique (951 méthodes, aucune changée). Contre M2-8d4 (tous les
+scénarios) : les constructeurs statiques de `materiel` et de `ModeMateriel`, et `process_scsi`, `scsi_hd_command`,
+`scsi_zip_command` et `emu8k_init` (les jetons de chaînes) ; aucune disparue ; trente-six apparues, celles des deux
+cartes neuves et des chemins linéaires qu'elles prennent.
+
+**Les amorçages** (Release du worktree, bac à sable hors dépôt ; /tmp/a9/boots-9a.sh) : l'ET4000AX et la GD5429 sous
+DEBUG — le mode 13h, les lectures des scénarios de M2, puis le mode 3 —, en mode PCem, sous les trois PB et sous
+« tout » : aucun arrêt ; les écrans texte identiques. L'image prise pendant le POST et l'heure de DOS diffèrent de
+quelques centièmes : la ligne plus courte de PB-220 ; sous PB-80 et PB-221 seuls, la sortie entière est celle du mode
+PCem.
+
+**La série** g9a (le worktree de l'étape, contre g8d4) : 651 portes, toutes vertes ; 645 communes à g8d4, chacune au
+même verdict ; un seul résumé change, `recensement` (285 défauts, 1 223 marqueurs, deux de moins qu'à g8d4). Six
+neuves : les `materiel-cas` de PB-220, PB-80 et PB-221, en mode PCem et sous chaque PB seul.

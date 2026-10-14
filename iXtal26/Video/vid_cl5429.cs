@@ -1319,8 +1319,12 @@ internal static partial class vid_cl5429
                 addr <<= 3;
         else if ((svga.chain4 != 0 && svga.packed_chain4 != 0) || svga.fb_only != 0)
         {
-                // pcem bug, reproduced: PB-80 — sort sans charger les verrous ; ici la banque y passe aussi
-                // (gd5429_read appelle cette fonction).
+                // pcem bug, fixed in hardware mode: PB-80 — sort sans charger les verrous ; ici la banque y
+                //   passe aussi (gd5429_read appelle cette fonction).
+                // PB-80, la part inconnue (c), la même dans les deux modes — les verrous de huit octets (GRB bit 2,
+                //   latch_ext) ne sont pas chargés : la documentation ne dit pas ce qu'ils prennent en compact.
+                if (materiel.pb_80)
+                        return vid_svga.lit_compact_materiel(svga, addr);
                 addr &= svga.decode_mask;
                 if (addr >= svga.vram_max)
                         return 0xff;
