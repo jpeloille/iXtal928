@@ -824,3 +824,12 @@ for pb in 220 80 221; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.9b — la MDA et l'Hercules : PB-102 (le caractère de 9 points, 16 en graphique), PB-97 (le 6845 à la largeur de ses
+# registres, sans le « Turbo XT »), PB-96 (la police à la rangée sc & 15), PB-222 (le curseur plein), PB-223 (le curseur
+# sur 16 trames), PB-225 (3BAh bit 7 de l'Hercules).
+for pb in 102 97 96 222 223 225; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+# La ligne de texte du mode matériel, PB-96 et PB-222 ensemble.
+run materiel-cas-pb222-pb96 --hardware-mode PB-96,PB-222 materiel-cas PB-222

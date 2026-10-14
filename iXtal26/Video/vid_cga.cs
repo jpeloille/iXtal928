@@ -272,8 +272,9 @@ internal static partial class vid_cga
                                                 // pcem bug, reproduced: PB-04 — `!cga->drawcursor` (vid_cga.c:165)
                                                 //   lit le CHAMP cga_t.drawcursor, que rien n'écrit — donc
                                                 //   toujours 0 — là où la locale `drawcursor` était visée.
-                                                // pcem bug, reproduced: PB-223 — les caractères clignotent
-                                                //   au bit 3 de cgablink, le rythme du curseur ; la carte : bit 4.
+                                                // PB-223, une part (a) qui viendra avec la CGA (G13.9c), la même dans
+                                                //   les deux modes d'ici là — les caractères clignotent au bit 3 de
+                                                //   cgablink, le rythme du curseur ; la carte : bit 4.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -282,9 +283,9 @@ internal static partial class vid_cga
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
-                                        // pcem bug, reproduced: PB-222 — le curseur inverse le glyphe
-                                        //   (^ 0xffffff) ; la carte force ses points à 1 : un pavé plein, de la
-                                        //   couleur d'avant-plan.
+                                        // PB-222, une part (a) qui viendra avec la CGA (G13.9c), la même dans les
+                                        //   deux modes d'ici là — le curseur inverse le glyphe (^ 0xffffff) ; la
+                                        //   carte force ses points à 1 : un pavé plein, de la couleur d'avant-plan.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)
@@ -323,8 +324,8 @@ internal static partial class vid_cga
                                                 cols[0] = (uint32_t)((attr >> 4) & 7);
                                                 // pcem bug, reproduced: PB-04 — le même champ (vid_cga.c:198), en
                                                 //   40 colonnes.
-                                                // pcem bug, reproduced: PB-223 — le même rythme qu'en 80
-                                                //   colonnes.
+                                                // PB-223, une part (a) qui viendra avec la CGA (G13.9c) — le même
+                                                //   rythme qu'en 80 colonnes.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -334,8 +335,8 @@ internal static partial class vid_cga
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
                                         cga.ma++;
-                                        // pcem bug, reproduced: PB-222 — le même curseur inversé qu'en 80
-                                        //   colonnes.
+                                        // PB-222, une part (a) qui viendra avec la CGA (G13.9c) — le même curseur
+                                        //   inversé qu'en 80 colonnes.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)

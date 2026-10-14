@@ -50,14 +50,14 @@ internal sealed class mda_t
     internal uint8_t[] vram = [];
 }
 
-internal static class vid_mda
+internal static partial class vid_mda
 {
     // pcem: vid_mda.c:11 — `static uint32_t mdacols[256][2][2]`, à plat : [(attr * 2 + blink) * 2 + fg].
     private static readonly uint32_t[] mdacols = new uint32_t[256 * 2 * 2];
 
     private static ref uint32_t mdacol(int attr, int blink, int fg) => ref mdacols[(attr * 2 + blink) * 2 + fg];
 
-    // pcem bug, reproduced: PB-96 — `fontdatm[chr][sc]` (vid_mda.c:119, :122) avec `sc` jusqu'à 31
+    // pcem bug, fixed in hardware mode: PB-96 — `fontdatm[chr][sc]` (vid_mda.c:119, :122) avec `sc` jusqu'à 31
     //   (`&= 31`, :160, :223) dans un `fontdatm[2048][16]` (video.c:921) : la lecture tombe dans
     //   les lignes du caractère suivant, jamais hors du tableau. fontdatm est `[2048, 16]` en C# ;
     //   l'accès se fait donc à plat, comme l'adresse que le C calcule.
@@ -85,10 +85,14 @@ internal static class vid_mda
         case 0x3b3:
         case 0x3b5:
         case 0x3b7:
-                // pcem bug, reproduced: PB-97 — le 6845 de la MDA n'a pas de masques : chaque
-                //   registre s'écrit en entier et se relit (:55), là où le vrai rend R0-R13 en
-                //   écriture seule ; et le correctif du « Generic Turbo XT » (:29-34) réécrit
-                //   R10/R11 = 6/7 en B/C.
+                // pcem bug, fixed in hardware mode: PB-97 — le 6845 de la MDA n'a pas de masques : chaque
+                //   registre s'écrit en entier (:28), là où le MC6845 tient R4, R6, R7, R10 sur 7 bits, R5, R9, R11
+                //   sur 5… ; et le correctif du « Generic Turbo XT » (:29-34) réécrit R10/R11 = 6/7 en B/C.
+                if (materiel.pb_97)
+                {
+                        crtc_ecrit_materiel(mda, val);
+                        return;
+                }
                 mda.crtc[mda.crtcreg] = val;
                 if (mda.crtc[10] == 6 &&
                     mda.crtc[11] == 7) /*Fix for Generic Turbo XT BIOS, which sets up cursor registers wrong*/
@@ -120,6 +124,10 @@ internal static class vid_mda
         case 0x3b3:
         case 0x3b5:
         case 0x3b7:
+                // PB-97, la part inconnue (c), la même dans les deux modes — R0-R13 se relisent (:55) ; le MC6845 les
+                //   tient en écriture seule, et ce qu'il rend est inconnu : la valeur écrite.
+                if (materiel.pb_97)
+                        return crtc_relu_materiel(mda);
                 return mda.crtc[mda.crtcreg];
         case 0x3ba:
                 // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical (mda_poll, :135-136, :150) ;
@@ -154,12 +162,14 @@ internal static class vid_mda
         _dispofftime = disptime - _dispontime;
         _dispontime *= pit.MDACONST;
         _dispofftime *= pit.MDACONST;
-        // pcem bug, reproduced: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
+        // pcem bug, fixed in hardware mode: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
         //   la MDA en dessine 9 : 20,74 kHz au lieu de 18,43.
         // pcem bug, reproduced: PB-36 — même conversion d'un double négatif qu'à
         //   cga_recalctimings, dès que R1 dépasse R0 + 1 (G9.0, PB-36 élargi).
         mda.dispontime = unchecked((uint64_t)(int64_t)_dispontime);
         mda.dispofftime = unchecked((uint64_t)(int64_t)_dispofftime);
+        if (materiel.pb_102)
+                temps_materiel(mda);
     }
 
     // pcem: vid_mda.c:85-231
@@ -179,8 +189,8 @@ internal static class vid_mda
                 mda.stat |= 1;
                 mda.linepos = 1;
                 oldsc = mda.sc;
-                // pcem bug, reproduced: PB-97 — en entrelacé, `(sc << 1) & 7` perd les lignes 8 et
-                //   au-delà (:99-100).
+                // PB-97, la part (b), la même dans les deux modes (Q17) — en entrelacé, `(sc << 1) & 7` perd les
+                //   lignes 8 et au-delà (:99-100).
                 if ((mda.crtc[8] & 3) == 3)
                         mda.sc = (mda.sc << 1) & 7;
                 if (mda.dispon != 0)
@@ -192,6 +202,19 @@ internal static class vid_mda
                         }
                         mda.lastline = mda.displine;
                         int line = mda.displine * Stride;
+                        // pcem bug, fixed in hardware mode: PB-96 — la police lue à la rangée `sc` (jusqu'à 31) ; la
+                        //   carte n'en mène que quatre bits au générateur. La ligne du mode matériel (ligne_materiel).
+                        if (materiel.pb_96)
+                        {
+                                ligne_materiel(mda, line, ca);
+                                goto ligne_dessinee;
+                        }
+                        // pcem bug, fixed in hardware mode: PB-222 — de même, le curseur qui force ses points.
+                        if (materiel.pb_222)
+                        {
+                                ligne_materiel(mda, line, ca);
+                                goto ligne_dessinee;
+                        }
                         // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà de 227,
                         //   (x * 9) + c monte à 2 294 (vid_mda.c:114-130) et déborde sur la ligne suivante de
                         //   buffer32, ici le même tableau plat. Jamais hors du tableau : displine < 500.
@@ -217,7 +240,7 @@ internal static class vid_mda
                                                 Buffer32[line + (x * 9) + 8] = mdacol(attr, blink, 0);
                                 }
                                 mda.ma++;
-                                // pcem bug, reproduced: PB-222 — le curseur inverse la cellule (^=) ; la
+                                // pcem bug, fixed in hardware mode: PB-222 — le curseur inverse la cellule (^=) ; la
                                 //   carte force ses points à 1 : un pavé plein, de la couleur d'avant-plan.
                                 if (drawcursor != 0)
                                 {
@@ -226,6 +249,7 @@ internal static class vid_mda
                                 }
                         }
                 }
+                ligne_dessinee:
                 mda.sc = oldsc;
                 if (mda.vc == mda.crtc[7] && mda.sc == 0)
                 {
@@ -289,12 +313,14 @@ internal static class vid_mda
                                         mda.ma = mda.maback = (uint16_t)((mda.crtc[13] | (mda.crtc[12] << 8)) & 0x3fff);
                                 // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
                                 //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
-                                // pcem bug, reproduced: PB-223 — le curseur clignote au bit 4 de blink ; la
-                                //   carte le fait au bit 3, deux fois plus vite que les caractères.
+                                // pcem bug, fixed in hardware mode: PB-223 — le curseur clignote au bit 4 de blink ;
+                                //   la carte le fait au bit 3, deux fois plus vite que les caractères.
                                 if ((mda.crtc[10] & 0x60) == 0x20)
                                         mda.cursoron = 0;
                                 else
                                         mda.cursoron = mda.blink & 16;
+                                if (materiel.pb_223)
+                                        curseur_materiel(mda);
                         }
                         if (mda.vc == mda.crtc[7])
                         {

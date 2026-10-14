@@ -622,26 +622,35 @@ contre-lecture, M2, sa série entière et son commit :
   GR.0 les aura ; `--menu-check` resserré ; deux séries.
   Coupée en six le 14/10, sur l'étude, en lecture seule, de quarante-deux entrées : vingt-cinq de la vidéo, avec
   D4-video et D4-contre. Une série par sous-étape :
-  - **G13.9a — Le socle SVGA**, sans question. PB-220 (CR00 + 5, d'IBM). PB-80 : la lecture en chain4 compact charge
+  - **G13.9a — Le socle SVGA** ✅ *(14/10, VERIFICATION.md § G13.9a)*, sans question. PB-220 (CR00 + 5, d'IBM). PB-80 : la lecture en chain4 compact charge
     les verrous, dans le socle et la GD5429 ; les verrous de huit octets restent ceux de PCem, hors de la source. La
     part (a) de PB-221 : les lectures rapides de mot et de double mot chargent les verrous de leur dernier octet. La
     part (b) de PB-221, les écritures, et PB-37 attendent Q17.
+  - **G13.9a2 — Le socle SVGA, les parts (b)**, après la réponse à Q17 : la part (b) de PB-221 (le chemin rapide des
+    écritures en mode d'écriture 0 et sans rotation seulement : un mot écrit vaut deux octets) et PB-37 (toute la ligne
+    de 24 bits, chaque point doublé). Après 9b.
   - **G13.9b — La MDA et l'Hercules.** Sans question : PB-102 (le caractère de 9 points), la part (a) de PB-97 (les
     masques, le Turbo XT), la MDA de PB-96, la MDA de PB-222 et de PB-223 (le curseur plein, son rythme), et PB-225.
-    PB-224, l'entrelacé de PB-97 et l'Hercules de PB-96 attendent Q17 et Q18.
+    PB-224 va à 9f (Q18) ; l'entrelacé de PB-97 et l'Hercules de PB-96 restent reproduits (Q17).
   - **G13.9c — La CGA, la M24 et le PC1512.** Sans question : PB-04, la CGA de PB-222 et de PB-223, la part (a) de
-    PB-230 (R16-R17). PB-89 et PB-232 attendent Q17.
-  - **G13.9d — L'EGA.** Sans question : PB-99 (1), (2), (5) et (7). PB-99 (4) et (6), et PB-228, attendent Q17 et Q18.
-  - **G13.9e — L'ET4000 et son RAMDAC.** Sans question : PB-227 (CR35 sous CR11). PB-100 (CR13, la fenêtre de 128 Ko,
-    le KEY posé), PB-226 et l'IPF de PB-229 attendent Q17 et Q18. Avec un « non » à Q17, elle se fond dans 9d.
-  - **G13.9f — La clôture de la vidéo.** EGABANC, ET4BANC, BLTBANC et HERCBANC en C# seul dans les deux modes ;
+    PB-230 (R16-R17) ; et PB-89, la bordure bornée à sa ligne (Q17). PB-232 reste reproduit (Q17).
+  - **G13.9d — L'EGA.** PB-99 (1), (2), (5) et (7) ; (6), la mémoire de 64 Ko qui ne voit pas le bit 0x10000 (déduit,
+    Q17). PB-99 (4) et PB-228 vont à 9f (Q18).
+  - **G13.9e — L'ET4000 et son RAMDAC.** PB-227 (CR35 sous CR11) ; de PB-100, ce que le data book de Tseng établit
+    (CR13 = 0 vaut 0 ; la séquence KEY, sa pose et sa portée, si l'étude de 9e le confirme ; la fenêtre de 128 Ko, à
+    trancher à l'étude), le retrait du KEY restant reproduit ; l'IPF de PB-229 (Q17). PB-226 va à 9f (Q18).
+  - **G13.9f — Le faisceau** (Q18), après 9e : le point sous le faisceau à l'instant de la lecture, tiré du temps de la
+    ligne et de la mémoire d'affichage ; PB-99 (4) (3DAh de l'EGA, POD14 sans bip pour critère), PB-224 (3BAh bit 3 de
+    la MDA et de l'Hercules), PB-226 (les bits 4-5 et 7 de l'Input Status 1 de l'ET4000), PB-228 (l'Input Status 0 de
+    l'EGA, son bit 7 quand l'interruption est autorisée ; le reste, inconnu, reproduit).
+  - **G13.9g — La clôture de la vidéo.** EGABANC, ET4BANC, BLTBANC et HERCBANC en C# seul dans les deux modes ;
     `--menu-check` resserré, avec les bornes du mode matériel ; PERFBANC.
   Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), le retrait du KEY et SR7 de PB-100,
   l'Hercules de PB-223, l'ERPF et D3 de PB-229, l'index et R0-R13 de PB-230, PB-231, PB-233 ; et PB-245, avec le
   clavier de la M24. Hors du mode : PB-09, 81 à 86, 88 (R9) et 93 ; les parts (d) : PB-36, 38, 98, CR3F de PB-100.
   PB-256 va avec la carte mère.
 
-**Les questions de la vidéo (G13.9), posées à Julien le 14/10 ; 9a n'en dépend pas** :
+**Les questions de la vidéo (G13.9), posées à Julien le 14/10 et tranchées le même jour ; 9a n'en dépendait pas** :
 - **Q17 (9a à 9e)** — les parts (b). Je propose de corriger celles qui suivent la documentation sans modèle neuf. La
   part (b) de PB-221 : un mot écrit vaut deux octets, donc le chemin rapide n'est pris qu'en mode d'écriture 0, sans
   rotation. PB-37 : toute la ligne de 24 bits, chaque point doublé. PB-89 : la bordure bornée à sa ligne. CR13 de
@@ -651,6 +660,9 @@ contre-lecture, M2, sa série entière et son commit :
   point sous le faisceau à l'instant de la lecture, tiré du temps de la ligne et de la mémoire d'affichage. POD14, le
   test du BIOS de l'EGA d'IBM, en est le critère, sans bip. Le faire, dans une sous-étape à part après 9e, ou laisser
   ces bits reproduits ? *Proposé : le faire, à part.*
+- **Réponse de Julien (14/10)** : « fais ce qui est conforme au matériel. donc en sous étape après 9e ». Q17 : corriger
+  ce que la documentation du matériel établit ; ce qui n'a que l'intention de PCem pour source reste reproduit, et on le
+  dit. Q18 : le faisceau, une sous-étape après 9e (9f) ; la clôture devient 9g.
 
 ### G13.10 — La clôture
 

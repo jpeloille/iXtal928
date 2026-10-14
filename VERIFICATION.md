@@ -11246,3 +11246,72 @@ PCem.
 **La série** g9a (le worktree de l'étape, contre g8d4) : 651 portes, toutes vertes ; 645 communes à g8d4, chacune au
 même verdict ; un seul résumé change, `recensement` (285 défauts, 1 223 marqueurs, deux de moins qu'à g8d4). Six
 neuves : les `materiel-cas` de PB-220, PB-80 et PB-221, en mode PCem et sous chaque PB seul.
+
+## G13.9b — la MDA et l'Hercules
+
+Le 14 octobre 2026. Après les réponses de Julien à Q17 et Q18 (« fais ce qui est conforme au matériel. donc en sous
+étape après 9e ») : la documentation du matériel tranche, l'intention de PCem seule reste reproduite ; le faisceau
+devient G13.9f, la clôture G13.9g, et les parts (b) du socle G13.9a2. Six défauts, la part documentée de chacun :
+PB-102 (IBM, Options and Adapters, MDA, p. 2 et schéma ; GB101, p. 10), PB-97 (a) (data sheet du MC6845 ; le BIOS
+d'IBM, SET_CTYPE), PB-96, PB-222 et PB-223 sur la MDA (le schéma d'IBM, feuilles 2, 3 et 5), PB-225 (GB101,
+pp. 12-13).
+
+**La correction du mode matériel** (domaine `video`, six ; `Video/vid_mda.Materiel.cs` et
+`Video/vid_hercules.Materiel.cs`, neufs ; `vid_mda` et `vid_hercules` deviennent partielles). Douze gardes. PB-102,
+après le calcul de `mda_recalctimings` et de `hercules_recalctimings` (`temps_materiel` : MDACONST × 9/8 ; l'Hercules,
+0,5625 µs en texte, 1 µs en graphique), et en tête de 3B8h et de 3BFh sur l'Hercules (`ctrl_materiel`,
+`ctrl2_materiel` : le case de PCem, puis le recalcul). PB-97, en tête de l'écriture et de la relecture de 3B5h des deux
+cartes (`crtc_ecrit_materiel` : la table du MC6845, `Masque6845.largeur`, sans le « Turbo XT » ; `crtc_relu_materiel` :
+la valeur écrite, une ombre par carte, `EtatMda`, `EtatHerc`). PB-96 et PB-222, chacune en tête du dessin de la ligne
+de `mda_poll`, vers la même ligne du mode matériel (`ligne_materiel`, la boucle de PCem : la rangée `sc & 15`, le
+curseur qui force ses points), puis l'étiquette `ligne_dessinee`, qui ne saute que la boucle. PB-223, après la ligne de
+PCem dans la fin de trame (`curseur_materiel` : le bit 3). PB-225, en tête de 3BAh (`stat_materiel`). Restent, dits
+dans le code et le registre : l'entrelacé de PB-97 (Q17), la relecture inconnue (la valeur écrite), l'Hercules de
+PB-96 (Q17) et de PB-223 (inconnu), le soulignement à la seule ligne 12 ; la CGA de PB-222 et de PB-223 vient en 9c.
+
+**Les cas**, en C# seul (`MaterielCasMono.cs`, neuf : une IBM XT montée avec la carte, sans BIOS lancé ; les temps lus
+dans la carte ; une ligne de texte et une fin de trame jouées par un appel de `mda_poll` sur un état posé à la main),
+verts en mode PCem, sous chaque PB seul, sous « tout » et sous PB-96 et PB-222 ensemble ; rouges sous l'attente de
+l'autre mode. PB-102 : la MDA en mode 7 (48,225 µs contre 54,254), l'Hercules en texte (48,225 contre 55,125) et en
+graphique, 3B8h et 3BFh avant le CRTC, après, et 3BFh le dernier (26,573 contre 54,000). PB-97 : R10 = 06h puis R11 =
+07h sur les deux cartes (0Bh-0Ch contre 06h-07h), les masques de R3, R4, R6 à R9, R12 et R14 ; témoins, la relecture
+sur les deux cartes et R11 = 08h. PB-96 : 41h à la ligne 19 (la rangée 3 de 42h contre celle de 41h) ; témoin, la
+ligne 3. PB-222 : DBh d'attribut 07h sous le curseur (noir contre l'avant-plan) et 20h ; témoin, 41h hors du curseur.
+PB-223 : la fin de trame, le compteur à 8 et à 16 ; témoin, R10 = 2Bh. PB-225 : 3BAh pendant le retour (89h contre
+09h) et l'affichage (00h contre 80h).
+
+**Le recensement** : vert, 285 défauts au registre, 1 219 marqueurs (quatre de moins : huit marqueurs devenus des
+commentaires de part — l'entrelacé de PB-97 sur les deux cartes, l'Hercules de PB-96 et de PB-223, les quatre sites de
+la CGA de PB-222 et de PB-223 —, et quatre neufs, aux gardes de PB-96 et de PB-222 et de 3B8h et 3BFh).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9b.py, dans l'arbre, chaque faute restaurée) : vingt et une fautes, chacune
+rougit son cas — chacune des douze gardes retirée (PB-96 et PB-222 sous leur seul PB : sous « tout », l'autre garde
+mène à la même ligne) ; l'Hercules en texte et la MDA à 8 points ; R4 sans masque ; le « Turbo XT » gardé ; la rangée
+sans masque ; le curseur inversé ; le bit 4 ; la polarité de PCem ; et les attentes inversées ; le témoin sans faute
+reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : les temps des cas ; la table, sauf R3 ; `ligne_materiel` ligne à ligne contre la boucle de `mda_poll` ;
+l'étiquette, qui ne saute que la boucle ; le mode PCem inchangé ; les marqueurs. Repris : R3 sur 4 bits (le MC6845 de
+Motorola ; la synchronisation verticale est fixe) ; le drapeau de PB-222 lu hors de la boucle par caractère ; les temps
+des cas à trois décimales ; un témoin de relecture sur l'Hercules ; le soulignement et le curseur des attributs qui
+n'affichent rien, dits dans les entrées.
+
+**M2** (Release du worktree ; deux scénarios neufs, `xt-mda` et `xt-hercules` : PC-DOS, DIR, puis sous DEBUG 3BAh,
+le curseur 0607h et R11 relu, l'Hercules passée en graphique et rendue au texte ; et `xt-dos`). La première passe a
+trouvé deux écarts, repris : `hercules_out` changeait avec et sans les gardes (une garde après `mem_mapping_set_addr`
+lui ôtait son appel terminal ; les gardes de 3B8h et de 3BFh vont en tête du case, avec le case de PCem dans l'aide) ;
+le constructeur statique de `vid_mda` changeait (la table, un champ de `vid_mda` ; elle va dans une classe à part,
+`Masque6845`). La seconde : avec et sans les douze gardes, identique (618 méthodes, aucune changée) ; contre M2-9a
+(tous les scénarios), les constructeurs statiques de `materiel` et de `ModeMateriel` et les quatre jetons de chaînes
+habituels ; vingt et une apparues, celles des deux cartes neuves.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9b.sh) : l'XT avec la MDA, puis avec l'Hercules, PC-DOS, DIR et
+la séquence de M2, en mode PCem, sous les six PB, sous les cinq sans PB-102 et sous « tout » : aucun arrêt ; les écrans
+texte identiques, R11 relu 07h partout. Diffèrent seulement le nombre de trames (PB-102 : 4 243 contre 3 772 sur la
+MDA, 8/9), la phase de 3BAh lue sous DEBUG, et son bit 7 sur l'Hercules (PB-225).
+
+**La série** g9b (le worktree de l'étape, contre g9a) : 664 portes, toutes vertes ; 651 communes à g9a, chacune au
+même verdict ; un seul résumé change, `recensement` (285 défauts, 1 219 marqueurs, quatre de moins qu'à g9a). Treize
+neuves : les `materiel-cas` de PB-102, PB-97, PB-96, PB-222, PB-223 et PB-225, en mode PCem et sous chaque PB seul, et
+PB-222 sous PB-96 et PB-222.

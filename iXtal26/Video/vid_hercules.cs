@@ -52,7 +52,7 @@ internal sealed class hercules_t
 }
 
 /*Hercules emulation*/
-internal static class vid_hercules
+internal static partial class vid_hercules
 {
     // pcem: vid_hercules.c:34 — `static uint32_t mdacols[256][2][2]`, à plat, distinct de celui de
     //   vid_mda.c (deux statiques de deux unités de compilation).
@@ -77,8 +77,13 @@ internal static class vid_hercules
         case 0x3b3:
         case 0x3b5:
         case 0x3b7:
-                // pcem bug, reproduced: PB-97 — le 6845 sans masques et le correctif du « Generic
+                // pcem bug, fixed in hardware mode: PB-97 — le 6845 sans masques et le correctif du « Generic
                 //   Turbo XT », comme la MDA (vid_hercules.c:54-60).
+                if (materiel.pb_97)
+                {
+                        crtc_ecrit_materiel(hercules, val);
+                        return;
+                }
                 hercules.crtc[hercules.crtcreg] = val;
                 if (hercules.crtc[10] == 6 &&
                     hercules.crtc[11] == 7) /*Fix for Generic Turbo XT BIOS, which sets up cursor registers wrong*/
@@ -89,9 +94,22 @@ internal static class vid_hercules
                 hercules_recalctimings(hercules);
                 return;
         case 0x3b8:
+                // pcem bug, fixed in hardware mode: PB-102 — le passage au graphique change l'unité du 6845 (16
+                //   points au lieu de 9) ; PCem ne recalcule les temps qu'à l'écriture du CRTC.
+                if (materiel.pb_102)
+                {
+                        ctrl_materiel(hercules, val);
+                        return;
+                }
                 hercules.ctrl = val;
                 return;
         case 0x3bf:
+                // pcem bug, fixed in hardware mode: PB-102 — de même : le bit 0 autorise le graphique.
+                if (materiel.pb_102)
+                {
+                        ctrl2_materiel(hercules, val);
+                        return;
+                }
                 hercules.ctrl2 = val;
                 if ((val & 2) != 0)
                         mem_mapping_set_addr(hercules.mapping, 0xb0000, 0x10000);
@@ -118,12 +136,18 @@ internal static class vid_hercules
         case 0x3b3:
         case 0x3b5:
         case 0x3b7:
+                // PB-97, la part inconnue (c), la même dans les deux modes — R0-R13 se relisent ; ce que rend le 6845,
+                //   qui les tient en écriture seule, est inconnu : la valeur écrite.
+                if (materiel.pb_97)
+                        return crtc_relu_materiel(hercules);
                 return hercules.crtc[hercules.crtcreg];
         case 0x3ba:
                 // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical ; le manuel de la GB101 y
                 //   met les points (« 1 = dots on »).
-                // pcem bug, reproduced: PB-225 — le bit 7 vaut 1 pendant le retour vertical ; le manuel dit
-                //   « 0 = vertical retrace », 1 pendant l'affichage.
+                // pcem bug, fixed in hardware mode: PB-225 — le bit 7 vaut 1 pendant le retour vertical ; le manuel
+                //   dit « 0 = vertical retrace », 1 pendant l'affichage.
+                if (materiel.pb_225)
+                        return stat_materiel(hercules);
                 return (uint8_t)((hercules.stat & 0xf) | ((hercules.stat & 8) << 4));
         }
         return 0xff;
@@ -156,12 +180,14 @@ internal static class vid_hercules
         _dispofftime = disptime - _dispontime;
         _dispontime *= pit.MDACONST;
         _dispofftime *= pit.MDACONST;
-        // pcem bug, reproduced: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
+        // pcem bug, fixed in hardware mode: PB-102 — MDACONST compte un caractère de 8 points (pit.c:42) ;
         //   l'Hercules en dessine 9 en texte, et son unité en fait 16 en graphique.
         // pcem bug, reproduced: PB-36 — la conversion d'un double négatif de la CGA et de la MDA
         //   (G9.1, PB-36 élargi).
         hercules.dispontime = unchecked((uint64_t)(int64_t)_dispontime);
         hercules.dispofftime = unchecked((uint64_t)(int64_t)_dispofftime);
+        if (materiel.pb_102)
+                temps_materiel(hercules);
     }
 
     // pcem: vid_hercules.c:121-299
@@ -183,7 +209,7 @@ internal static class vid_hercules
                 hercules.stat |= 1;
                 hercules.linepos = 1;
                 oldsc = hercules.sc;
-                // pcem bug, reproduced: PB-97 — l'entrelacé perd les lignes 8 et au-delà.
+                // PB-97, la part (b), la même dans les deux modes (Q17) — l'entrelacé perd les lignes 8 et au-delà.
                 if ((hercules.crtc[8] & 3) == 3)
                         hercules.sc = (hercules.sc << 1) & 7;
                 if (hercules.dispon != 0)
@@ -229,8 +255,9 @@ internal static class vid_hercules
                                         }
                                         else
                                         {
-                                                // pcem bug, reproduced: PB-96 — fontdatm lu au-delà de 16 lignes
-                                                //   (vid_hercules.c:173, :176), à plat.
+                                                // PB-96, la part (b), la même dans les deux modes (Q17) — fontdatm lu
+                                                //   au-delà de 16 lignes (vid_hercules.c:173, :176), à plat ; le
+                                                //   schéma de la GB101 n'a pas été lu.
                                                 for (c = 0; c < 8; c++)
                                                         Buffer32[line + (x * 9) + c] =
                                                                 mdacol(attr, blink,
@@ -315,8 +342,9 @@ internal static class vid_hercules
                                                 (uint16_t)((hercules.crtc[13] | (hercules.crtc[12] << 8)) & 0x3fff);
                                 // pcem bug, reproduced: PB-231 — R10 bits 5-6 : seul 01 (pas de curseur) est
                                 //   traité ; 10 et 11 font aussi clignoter le 6845 lui-même, en plus de la carte.
-                                // pcem bug, reproduced: PB-223 — le rythme du curseur de la MDA (bit 4), deux
-                                //   fois trop lent sur la MDA ; celui de la GB101 n'est pas documenté.
+                                // PB-223, la part inconnue (c), la même dans les deux modes — le rythme du curseur de
+                                //   la MDA (bit 4), deux fois trop lent sur la MDA ; celui de la GB101 n'est pas
+                                //   documenté.
                                 if ((hercules.crtc[10] & 0x60) == 0x20)
                                         hercules.cursoron = 0;
                                 else

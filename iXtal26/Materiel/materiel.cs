@@ -327,6 +327,24 @@ internal static class materiel
     /// <summary>PB-221 : les lectures rapides de mot et de double mot chargent les verrous de leur dernier octet.</summary>
     internal static readonly bool pb_221;
 
+    /// <summary>PB-102 : la MDA et l'Hercules balayent avec leur caractère, 9 points (16 en graphique sur l'Hercules).</summary>
+    internal static readonly bool pb_102;
+
+    /// <summary>PB-97 : le 6845 de la MDA et de l'Hercules, ses registres à leur largeur, sans le correctif du Turbo XT.</summary>
+    internal static readonly bool pb_97;
+
+    /// <summary>PB-96 : la police de la MDA lue à la rangée sc &amp; 15.</summary>
+    internal static readonly bool pb_96;
+
+    /// <summary>PB-222 : le curseur de la MDA force les points de la cellule.</summary>
+    internal static readonly bool pb_222;
+
+    /// <summary>PB-223 : le curseur de la MDA clignote sur 16 trames.</summary>
+    internal static readonly bool pb_223;
+
+    /// <summary>PB-225 : 3BAh bit 7 de l'Hercules, 0 pendant le retour vertical.</summary>
+    internal static readonly bool pb_225;
+
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
 
@@ -620,6 +638,12 @@ internal static class materiel
         pb_80 = ModeMateriel.Demande(80);
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);
+        pb_102 = ModeMateriel.Demande(102);
+        pb_97 = ModeMateriel.Demande(97);
+        pb_96 = ModeMateriel.Demande(96);
+        pb_222 = ModeMateriel.Demande(222);
+        pb_223 = ModeMateriel.Demande(223);
+        pb_225 = ModeMateriel.Demande(225);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

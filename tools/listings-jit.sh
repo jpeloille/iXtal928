@@ -72,6 +72,9 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # par SR7) sous DEBUG — le mode 13h, puis la mémoire d'affichage lue en mot, en double mot et en octet par le chemin
 # rapide, puis GR8 = 7Fh et le mot et le double mot par le chemin lent (svga_read_linear, gd5429_read_linear,
 # svga_recalctimings).
+# G13.9b, la MDA et l'Hercules : xt-mda et xt-hercules, l'XT et la carte, PC-DOS (DIR), puis sous DEBUG 3BAh lu, le
+# curseur 0607h écrit (R10, R11) et R11 relu ; l'Hercules passée en graphique (3BFh, 3B8h) puis rendue au texte
+# (mda_out, mda_in, mda_recalctimings, mda_poll ; hercules_out, hercules_in, hercules_recalctimings).
 SCENARIOS=(
   "xt-dos|--boot roms 8000 --model ibmxt --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type A_100 --type SBB_AL,1 --type SBB_AX,1 --type INT_3 --type  --type G=100 --type Q"
   "pc-8087-dos|--boot roms 7000 --config tools/gates/cfg/pc-8087.cfg --floppy-a os/pcdos20/pcdos20b.img --type  --type "
@@ -98,6 +101,8 @@ SCENARIOS=(
   "ami486-awe32|--boot roms 6000 --config tools/gates/cfg/ami486-awe32-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type O_E22_3B --type I_A22 --type I_A22 --type O_E22_34 --type O_A20_34 --type O_A22_12 --type I_A22 --type I_A22 --type O_E22_A0 --type O_A20_80 --type O_A20_0 --type O_E22_3F --type O_A20_4 --type O_E22_A0 --type O_A20_80 --type O_A20_0 --type O_E22_3B --type I_A22 --type Q --type @wait_2000|tools/gates/cfg/ami486-awe32-fd.cfg ami486"
   "ami486-et4000|--boot roms 6000 --config tools/gates/cfg/ami486-et4000-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_B8_13_00_CD_10_B8_00_A0_8E_D8_A1_00_00_66_A1_04 --type E_110_00_A0_08_00_BA_CE_03_B8_08_7F_EF_A1_10_00_66_A1 --type E_120_14_00_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami486-et4000-fd.cfg ami486"
   "ami486-gd5429|--boot roms 6000 --config tools/gates/cfg/ami486-gd5429-fd.cfg --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_B8_13_00_CD_10_BA_C4_03_B8_06_12_EF_B8_07_01_EF --type E_110_B8_00_A0_8E_D8_A1_00_00_66_A1_04_00_A0_08_00_BA --type E_120_CE_03_B8_08_7F_EF_A1_10_00_66_A1_14_00_CC --type G=100 --type Q --type @wait_2000|tools/gates/cfg/ami486-gd5429-fd.cfg ami486"
+  "xt-mda|--boot roms 8000 --model ibmxt --gfxcard mda --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type I_3BA --type O_3B4_A --type O_3B5_6 --type O_3B4_B --type O_3B5_7 --type I_3B5 --type Q --type @wait_2000"
+  "xt-hercules|--boot roms 8000 --model ibmxt --gfxcard hercules --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type DIR --type B:DEBUG --type I_3BA --type O_3B4_A --type O_3B5_6 --type O_3B4_B --type O_3B5_7 --type I_3B5 --type O_3BF_1 --type O_3B8_2 --type I_3BA --type O_3B8_28 --type O_3BF_0 --type Q --type @wait_2000"
   "ami386dx-pm|--boot roms 2500 --config tools/gates/cfg/ami386dx-fd.cfg.in --floppy-a os/pcdos20/pcdos20b.img --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type  --type  --type B:DEBUG --type E_100_8C_C8_66_0F_B7_C0_66_C1_E0_04_66_05_00_02_00_00 --type E_110_66_A3_82_01_0F_01_16_80_01_0F_20_C0_0C_01_0F_22 --type E_120_C0_66_9A_00_00_00_00_08_00 --type E_180_0F_00 --type E_200_00_00_00_00_00_00_00_00_10_00_00_00_00_89_00_00 --type G=100 --type @wait_2000|tools/gates/cfg/ami386dx-fd.cfg.in ami386dx_opti495"
 )
 

@@ -1804,3 +1804,46 @@ commande ADPCM reçue pendant un bloc, que le DSP met en file, vient avec PB-239
 - **La correction.** Le chemin rapide garde sa vitesse et son résultat, et charge les verrous du dernier octet.
   L'autre moitié du défaut, les écritures de mot qui ignorent le mode d'écriture et la rotation, attend la réponse de
   Julien (Q17) : elle reste celle de PCem dans les deux modes.
+
+## G13.9b — la MDA et l'Hercules
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9b.*
+
+### PB-102 — un écran monochrome qui tourne trop vite
+
+- **Le vrai PC.** La MDA d'IBM dessine des caractères de 9 points, avec un quartz de 16,257 MHz : en mode texte, 18,43
+  kHz et 50 Hz, ce que le moniteur monochrome d'IBM attend. L'Hercules fait de même en texte, et en graphique compte des
+  caractères de 16 points : une ligne de 54 µs, encore 50 Hz.
+- **L'émulateur.** PCem compte 8 points par caractère sur les deux cartes, et ne change pas d'unité en graphique : 20,74
+  kHz et 56 Hz en texte, deux fois trop vite en graphique. Le retour de trame qu'un programme attend, et le clignotement,
+  vont trop vite.
+- **La correction.** Le caractère de 9 points, et celui de 16 en graphique sur l'Hercules, recalculé quand le
+  programme passe d'un mode à l'autre.
+
+### PB-97 — le curseur que le logiciel demande
+
+- **Le vrai PC.** Le 6845 garde chaque registre à sa largeur : R4 sur 7 bits, R9 sur 5… Une valeur trop grande y perd
+  ses bits hauts. Le BIOS d'IBM envoie au 6845 le curseur que le programme demande, tel quel.
+- **L'émulateur.** PCem garde les huit bits de chaque registre, et une valeur hors bornes peut bloquer la trame. Il
+  réécrit aussi le curseur 0607h (celui de la CGA) en 0B0Ch, pour un BIOS de clone qui le posait mal : un programme
+  qui demande ce curseur sur la MDA ne l'obtient pas.
+- **La correction.** Les registres à leur largeur, et le curseur tel que le programme l'écrit : à mi-cellule, comme
+  sur la vraie carte. Ce que le 6845 rend quand on relit un registre en écriture seule n'est pas connu : la valeur
+  écrite, comme chez PCem.
+
+### PB-96, PB-222, PB-223 — la police, le curseur et son rythme
+
+- **Le vrai PC.** La MDA mène quatre lignes d'adresse de rangée au générateur de caractères : au-delà de 16 lignes par
+  cellule, le dessin recommence. Le curseur force les points de la cellule : un pavé plein, de la couleur du texte. Il
+  clignote sur 16 trames, deux fois plus vite que les caractères (le schéma d'IBM).
+- **L'émulateur.** PCem lit la police au-delà de la cellule (le haut du caractère suivant), inverse le caractère sous
+  le curseur au lieu de le remplir, et fait clignoter le curseur au rythme des caractères.
+- **La correction.** La rangée prise sur ses quatre bits, le pavé plein, le rythme du schéma. Pour l'Hercules, dont le
+  schéma n'a pas été lu et dont le manuel ne dit pas le rythme, PCem reste.
+
+### PB-225 — le bit qui dit « retour de trame » sur l'Hercules
+
+- **Le vrai PC.** Le manuel de l'Hercules : 3BAh bit 7 vaut 0 pendant le retour vertical et 1 pendant l'affichage. Les
+  programmes s'en servent pour reconnaître la carte et pour attendre le retour.
+- **L'émulateur.** PCem met ce bit à 1 pendant le retour : l'inverse.
+- **La correction.** La polarité du manuel.

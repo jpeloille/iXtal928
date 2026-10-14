@@ -1804,12 +1804,22 @@ tel quel à R10-R11 (M16) — documenté ; la valeur que rend un registre en éc
 19h ; R8 = 03h et R9 = 0Dh : PCem ne dessine que les rangées 0, 2, 4 et 6 de la police, en boucle ; le 6845, les
 rangées 2k + trame, de 0 à 13 (déduit).
 *G13* : (a), (b), (c) — (a) les masques et le Turbo XT ; (b) l'entrelacé ; (c) la valeur relue, inconnue sans mesure.
-*Reproduit* : `Video/vid_mda.cs`, marqueurs PB-97 (`:88`, l'écriture et le Turbo XT ; `:182`, l'entrelacé).
+*Reproduit* : la part (a) en mode PCem, `Video/vid_mda.cs` et `Video/vid_hercules.cs`, l'écriture de 3B5h, marqueurs
+`fixed in hardware mode: PB-97` ; l'entrelacé (b), dans les deux modes (Q17 : l'intention de PCem n'est pas la
+source), et la relecture (c), commentaires `PB-97, la part`.
 *G9.1* : l'Hercules fait de même (`vid_hercules.c:89`, `:54-60`, `:137-138`) ; reproduit,
 `Video/vid_hercules.cs` (`:80`, `:186`). Le banc HERCBANC relit les douze registres du mode graphique.
 *G13.1* : la table de masques du mode matériel se tire du data sheet, pas de `crtcmask` de la CGA, qui laisse R16-R17
 inscriptibles (PB-230). La CGA, la M24 et le PC1512 relisent aussi R0-R13 : PB-230. Le curseur 0607h
 tombe à mi-cellule sur une vraie MDA : le BIOS d'IBM le recopie tel quel (VIDEO_PARMS donne 0B0Ch au seul mode 7).
+*Corrigé en mode matériel*, la part (a) (G13.9b) : sous `if (materiel.pb_97)`, en tête de l'écriture de 3B5h de la MDA
+et de l'Hercules (`crtc_ecrit_materiel`) : le registre à sa largeur (la table du data sheet, `Masque6845.largeur` :
+R3 sur 4 bits, R4, R6, R7, R10 sur 7, R5, R9, R11 sur 5, R8 sur 6, R12 et R14 sur 6 ; R16 et au-delà, ce que PCem en
+fait), sans
+le correctif du « Turbo XT », puis les temps recalculés. La relecture rend la valeur écrite (une ombre par carte,
+`EtatMda`, `EtatHerc`), comme PCem sans son correctif : la vraie, inconnue. Que la GB101 porte un 6845 de Motorola :
+déduit (son manuel décrit les mêmes registres). `materiel-cas PB-97` : R10 = 06h puis R11 = 07h sur les deux cartes,
+les masques de R3, R4, R6 à R9, R12 et R14 ; la relecture, sur les deux cartes, et R11 = 08h en témoins.
 
 ### PB-99 — L'EGA de PCem a des traits de la VGA, et trompe le test de son BIOS
 
@@ -1927,7 +1937,15 @@ texte, 1 µs en graphique (p. 10) — documenté ; l'horloge de 16 MHz de l'Herc
 17,84 ms ; IBM, 54,25 µs (18,43 kHz) et 20,07 ms (49,8 Hz). Hercules en graphique (R0 = 35h, R4 = 5Bh, R5 = 02h,
 R9 = 03h) : PCem 26,57 µs par ligne, la GB101 54 µs (18,52 kHz, 50,05 Hz).
 *G13* : (a) — documenté ; un commutateur propre, `--menu-check` resserré, l'Hercules recalculé aussi sur 3B8h et 3BFh.
-*Reproduit* : `Video/vid_mda.cs`, `Video/vid_hercules.cs`, marqueurs PB-102 (`vid_mda.cs:157`, `vid_hercules.cs:159`).
+*Reproduit* en mode PCem : `Video/vid_mda.cs`, `mda_recalctimings`, et `Video/vid_hercules.cs`,
+`hercules_recalctimings`, marqueurs `fixed in hardware mode: PB-102`.
+*Corrigé en mode matériel* (G13.9b) : sous `if (materiel.pb_102)`, après le calcul de PCem (`Video/vid_mda.Materiel.cs`,
+`Video/vid_hercules.Materiel.cs`, `temps_materiel`) : la MDA, MDACONST × 9/8 par caractère (9 points à 16,257 MHz) ;
+l'Hercules, 0,5625 µs en texte et 1 µs en graphique (le graphique comme `hercules_poll` le dessine, 3B8h bit 1 et 3BFh
+bit 0), recalculé aussi à l'écriture de 3B8h et de 3BFh. La conversion d'un temps négatif reste celle de PCem (PB-36).
+`materiel-cas PB-102` : la MDA en mode 7 (48,23 µs contre 54,25), l'Hercules en texte (48,23 contre 55,125) et en
+graphique, le mode posé avant et après le CRTC (26,57 contre 54,00). `--menu-check` garde ses bornes larges (18 à
+21 kHz) jusqu'à G13.9g.
 
 ### PB-103 — La CH Flightstick Pro et la TM FCS n'ont pas de haut-gauche
 
@@ -4851,9 +4869,14 @@ documenté : le curseur force les points à 1.
 *Cas qui discrimine* : CGA, mode 3, caractère 20h d'attribut 07h sous le curseur, phase allumée : lignes 6-7, PCem
 cgapal[15], la carte cgapal[7] ; MDA, caractère DBh d'attribut 07h, rangées 0Bh-0Ch : PCem noir, la carte cgapal[7].
 *G13* : (a) — documenté par les deux schémas.
-*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-222 (`:285` en 80 colonnes, `:337` en 40) ;
-`Video/vid_mda.cs`, `mda_poll` (`:220`). L'Hercules, la M24 et le PC1512 dessinent le même XOR ; leur matériel n'a pas
-été lu : hors de l'entrée.
+*Reproduit* : la CGA, dans les deux modes jusqu'à G13.9c, `Video/vid_cga.cs`, `cga_poll`, commentaires `PB-222, une part
+(a) qui viendra avec la CGA` ; la MDA, en mode PCem, `Video/vid_mda.cs`, `mda_poll`, marqueur `fixed in hardware mode:
+PB-222`. L'Hercules, la M24 et le PC1512 dessinent le même XOR ; leur matériel n'a pas été lu : hors de l'entrée.
+*Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_222)`, en tête du dessin de la ligne de `mda_poll`
+(`ligne_materiel`, celle de PB-96) : sous le curseur, les neuf points à l'avant-plan de l'attribut (`mdacol(attr, 0,
+1)`) ; sur un attribut qui n'affiche rien (00h, 08h, 80h, 88h), ce point d'avant-plan est le fond, comme chez PCem : le
+schéma n'en dit pas plus. `materiel-cas PB-222` : DBh d'attribut 07h sous le curseur (noir chez PCem, l'avant-plan sur la carte), 20h (le
+même dans les deux), 41h hors du curseur en témoin.
 
 ### PB-223 — Les caractères de la CGA et le curseur de la MDA clignotent au mauvais rythme
 
@@ -4869,9 +4892,14 @@ est la sortie QD d'un compteur avancé par +V SYNC DLY, -BLINK la sortie QA du s
 *Cas qui discrimine* : CGA, mode 3, 3D8h = 29h, caractère d'attribut 87h : trames entre deux bascules de l'avant-plan,
 PCem 8, la carte 16. MDA, mode 7 : trames entre deux bascules du curseur, PCem 16, la carte 8.
 *G13* : (a), (c) — (a) la CGA et la MDA, par leurs schémas ; (c) l'Hercules, dont le manuel ne dit pas le rythme.
-*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-223 (`:275`, `:326`, les caractères) ;
-`Video/vid_mda.cs`, `mda_poll` (`:292`, le curseur) ; `Video/vid_hercules.cs`, `hercules_poll` (`:318`, le curseur).
-La M24 et le PC1512, dont le matériel n'a pas été lu, restent hors de l'entrée.
+*Reproduit* : la CGA, dans les deux modes jusqu'à G13.9c, `Video/vid_cga.cs`, `cga_poll`, commentaires `PB-223, une
+part (a) qui viendra avec la CGA` ; l'Hercules (c), dans les deux modes, `hercules_poll` ; la MDA, en mode PCem,
+`mda_poll`, marqueur `fixed in hardware mode: PB-223`. La M24 et le PC1512, dont le matériel n'a pas été lu, restent
+hors de l'entrée.
+*Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_223)`, après la ligne de PCem dans la fin de trame
+de `mda_poll` (`Video/vid_mda.Materiel.cs`, `curseur_materiel`) : le curseur au bit 3 du compteur de trames ; R10 bits
+5-6 à 01 l'éteint toujours (PB-231 reste). `materiel-cas PB-223` : une fin de trame, le compteur à 8 et à 16 ; R10 =
+2Bh en témoin.
 
 ### PB-224 — Le bit 3 de 3BAh rend le retour vertical sur la MDA et l'Hercules, pas les points vidéo
 
@@ -4902,7 +4930,10 @@ display » — documenté.
 *Cas qui discrimine* : Hercules, 3BAh lu pendant l'affichage actif : PCem bit 7 = 0, la GB101 1 ; pendant les lignes
 où PCem pose le bit 3 : PCem 1, la GB101 0.
 *G13* : (a) — documenté, vérifiable en C# seul.
-*Reproduit* : `Video/vid_hercules.cs`, `hercules_in`, marqueur PB-225 (`:125`).
+*Reproduit* en mode PCem : `Video/vid_hercules.cs`, `hercules_in`, marqueur `fixed in hardware mode: PB-225`.
+*Corrigé en mode matériel* (G13.9b) : sous `if (materiel.pb_225)`, en tête de la lecture de 3BAh
+(`Video/vid_hercules.Materiel.cs`, `stat_materiel`) : le bit 7, l'inverse du retour vertical que PCem pose au bit 3 (le
+sens du bit 3 lui-même, PB-224, va à G13.9f). `materiel-cas PB-225` : 3BAh pendant le retour et pendant l'affichage.
 
 ### PB-226 — L'Input Status 1 de l'ET4000 : bit 7 toujours nul, bits 4-5 basculés
 
@@ -6788,9 +6819,15 @@ rangée = `sc & 15`, les rangées 16-31 répétant 0-15 : déduit ; l'Hercules, 
 *Cas qui discrimine* : MDA, R9 = 1Fh (32 lignes par rangée), caractère 41h : à la ligne 16 de la cellule, PCem dessine
 la ligne 0 du caractère 42h (`fontdatm_plat(41h, 16)`), la carte la ligne 0 du 41h (`sc & 15`).
 *G13* : (a), (b) — (a) la MDA, par son schéma ; (b) l'Hercules, dont le schéma n'a pas été lu.
-*Reproduit* : `Video/vid_mda.cs`, `fontdatm_plat` (`:60`) — l'accès se fait à plat (`chr * 16 + sc`),
+*Reproduit* en mode PCem : `Video/vid_mda.cs`, `fontdatm_plat`, marqueur `fixed in hardware mode: PB-96` — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
-*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:232`).
+*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:232`) ; sa part
+(b) reste celle de PCem dans les deux modes (Q17 : le schéma de la GB101 n'a pas été lu).
+*Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_96)`, en tête du dessin de la ligne de `mda_poll`
+(`Video/vid_mda.Materiel.cs`, `ligne_materiel`, la ligne de PCem) : la police lue à la rangée `sc & 15`. Le
+soulignement reste à la ligne 12 seule, comme chez PCem (avec quatre lignes RA, il reviendrait aussi à la ligne 28 :
+hors de l'entrée). `materiel-cas PB-96` : 41h à la ligne 19 de la cellule (la rangée 3 de 42h chez PCem, de 41h sur la
+carte) ; la ligne 3 en témoin.
 
 ### PB-111 — Le moteur d'images de CD lit de l'indéterminé
 
