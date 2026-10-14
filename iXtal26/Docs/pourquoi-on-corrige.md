@@ -1951,8 +1951,41 @@ Julien à Q17 : la documentation du matériel tranche.*
   entrées.
 - **Ce qui reste.** L'état de la clé à la mise sous tension est inconnu, comme celui des registres qu'elle garde. Le
   BIOS de la carte les écrit avant de poser la clé, puis les relit. Si ces écritures étaient perdues, il relirait les
-  zéros de l'émulateur et se tromperait sur la mémoire de la carte. Jusqu'au premier retrait, tout s'écrit donc,
-  comme chez PCem, sauf 3CDh, qui attend la première pose. Le data book dit aussi qu'un reset synchrone referme 3CDh jusqu'à la pose suivante. Pris à la
-  lettre, cela fermerait 3CDh après chaque changement de mode du BIOS de la carte. Or les programmes écrivent 3CDh
-  juste après, sans poser la clé, et ils marchent sur la vraie carte. La règle exacte est inconnue : le reset ne
-  referme rien, comme chez PCem.
+  zéros de l'émulateur et se tromperait sur la mémoire de la carte. Jusqu'au premier retrait, tout s'écrit donc, comme
+  chez PCem, sauf 3CDh, qui attend la première pose. Le data book dit aussi qu'un reset synchrone referme 3CDh jusqu'à
+  la pose suivante. Pris à la lettre, cela fermerait 3CDh après chaque changement de mode du BIOS de la carte. Or les
+  programmes écrivent 3CDh juste après, sans poser la clé, et ils marchent sur la vraie carte. La règle exacte est
+  inconnue : le reset ne referme rien, comme chez PCem.
+
+## G13.9c2 — la ligne bornée, et la mémoire de l'EGA
+
+*Le 15 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9c2.*
+
+### PB-89 — la ligne qui déborde
+
+- **Le vrai PC.** Le 6845 balaie une ligne de R1 caractères. Sa fiche veut R1 plus petit que R0, le total de la
+  ligne. Un programme peut écrire un R1 plus grand. Ce qui passe la ligne tombe alors dans le retour de ligne : rien
+  de la ligne n ne s'affiche sur la ligne n + 1.
+- **L'émulateur.** PCem dessine chaque ligne dans un tableau de 2 048 points par ligne. Avec un R1 trop grand, la CGA,
+  la MDA, l'Hercules, l'EGA, la M24 et le PC1512 écrivent au-delà, dans la ligne d'en dessous, jusqu'à 4 639 points
+  sur l'EGA. Vingt sites de dessin le font.
+- **La correction.** À l'init de chaque carte, une garde pose un balayage du mode matériel sur la minuterie de la
+  carte. Quand R1 peut sortir de la ligne, il garde les deux lignes suivantes avant le balayage de PCem et les rend
+  après. La ligne elle-même reste celle de PCem. Une garde par carte au lieu de vingt : aucun coût par ligne en mode
+  PCem ; en mode matériel, un appel de plus par ligne, et la copie seulement sous un R1 hors des modes des BIOS.
+- **Ce qui reste.** L'image réelle avec un R1 trop grand dépend du moniteur : elle est inconnue. Le texte de l'EGA se
+  replie sur sa propre ligne au lieu de déborder ; ce n'est pas ce défaut, il reste celui de PCem.
+
+### PB-99 (6) — la mémoire de l'EGA de 64 Ko
+
+- **Le vrai PC.** L'EGA de 64 Ko n'a que 16 Ko par plan. Les bits d'adresse au-delà n'existent pas : une adresse qui
+  les pose retombe dans la mémoire présente.
+- **L'émulateur.** PCem range toujours 256 Ko. Il masque l'adresse d'affichage par la mémoire configurée, puis
+  applique la substitution de rangée de CR17 bit 1, qui pose un bit que la carte de 64 Ko n'a pas. Il lit alors des
+  octets que la carte n'a pas. L'adresse de début de trame, qu'il ne masque qu'après le premier caractère, et les
+  tables de la police que choisit SR3 sortent de même de la mémoire.
+- **La correction.** Le rendu graphique masque d'abord l'adresse de début de ligne. Sur 64 Ko, il tient ensuite CR17
+  bit 1 à 1 le temps d'une ligne. L'adresse masquée garde ce bit à 0, ce qui revient à masquer après la substitution ;
+  le registre est rendu ensuite. Les tables de
+  SR3 sont masquées par la mémoire présente : sur 64 Ko, la table 1 lit la table 0.
+- **Ce qui reste.** Que ces bits soient perdus est déduit de la mémoire par plan, pas lu dans une source.

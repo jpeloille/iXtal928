@@ -246,10 +246,11 @@ internal static partial class vid_cga
                         cga.lastline = cga.displine;
 
                         cols[0] = (uint32_t)(((cga.cgamode & 0x12) == 0x12) ? 0 : (cga.cgacol & 15));
-                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà de 127
-                        //   (254 en 80 colonnes), la bordure (vid_cga.c:147-153), les boucles de 40 colonnes et du
-                        //   graphique (:188-270), hline (:275, :277) et la conversion (:280-294) débordent sur la
-                        //   ligne suivante de buffer32, ici le même tableau plat. Jamais hors du tableau.
+                        // pcem bug, fixed in hardware mode: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà
+                        //   de 127 (254 en 80 colonnes), la bordure (vid_cga.c:147-153), les boucles de 40 colonnes et
+                        //   du graphique (:188-270), hline (:275, :277) et la conversion (:280-294) débordent sur la
+                        //   ligne suivante de buffer32, ici le même tableau plat. Jamais hors du tableau. Le mode
+                        //   matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                         for (c = 0; c < 8; c++)
                         {
                                 Buffer32[cga.displine * Stride + c] = cols[0];
@@ -633,6 +634,10 @@ internal static partial class vid_cga
     internal static void cga_init(cga_t cga)
     {
         timer_add(cga.timer, cga_poll, cga, 1);
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte.
+        if (materiel.pb_89)
+                ligne_init_materiel(cga);
         cga.composite = 0;
     }
 
@@ -655,6 +660,10 @@ internal static partial class vid_cga
         //   dosbox/vid_cga_comp.c, chemin composite.
 
         timer_add(cga.timer, cga_poll, cga, 1);
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte.
+        if (materiel.pb_89)
+                ligne_init_materiel(cga);
         mem_mapping_add(cga.mapping, 0xb8000, 0x08000, cga_read, null, null, cga_write, null, null, null, 0,
                         MEM_MAPPING_EXTERNAL, cga);
         io_sethandler(0x03d0, 0x0010, cga_in, null, null, cga_out, null, null, cga);

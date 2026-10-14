@@ -11594,3 +11594,83 @@ lecture de 3C6h diffèrent par les autres corrections (PB-229, comme en 9e).
 **La série** g9e2 (le worktree de l'étape, contre g9e) : 680 portes, toutes vertes, chacune au même verdict que dans
 g9e ; un seul résumé change, `recensement` (285 défauts, 1 225 marqueurs, six de plus). Aucune porte neuve : les
 `materiel-cas` de PB-100 existent depuis 9e et jouent désormais `Pb100Cle`.
+
+## G13.9c2 — la ligne bornée, et la mémoire de l'EGA
+
+Le 15 octobre 2026. Deux défauts des rendus, après la réponse de Julien à Q17 : PB-89, la ligne qui déborde sur les
+suivantes de `buffer32` quand R1 (CR01 sur l'EGA) passe la largeur d'une ligne, sur la CGA, la MDA, l'Hercules, l'EGA,
+la M24 et le PC1512 (Motorola, data sheet du MC6845 : R1 inférieur à R0 ; ce qui dépasse tombe dans le retour de ligne,
+déduit) ; la part (6) de PB-99, la mémoire de 64 Ko de l'EGA, que les substitutions de rangée de CR17, l'adresse de
+début de trame et les tables de la police de SR3 dépassaient (les bits que la carte n'a pas, perdus : déduit).
+
+**La correction du mode matériel** (domaine `video`).
+- PB-89 : une garde par carte, à l'init, au lieu d'une par site de dessin (vingt) : après le `timer_add` de PCem
+  (`ligne_init_materiel`, qui pose `poll_materiel` par `timer_set_callback` ; la CGA deux fois, `cga_init` et
+  `cga_standalone_init`, l'Hercules, la M24, le PC1512), ou à sa place sur la MDA et l'EGA, où il est le dernier appel
+  (`ligne_add_materiel` ; une garde après lui rompait l'appel terminal, vu par M2, ci-dessous). Le balayage du mode
+  matériel (`poll_materiel`, dans le `.Materiel.cs` de chaque carte ; ceux de la M24 et du PC1512, neufs) appelle celui
+  de PCem seul hors du rendu d'une ligne (`linepos` à 1) ou sous un R1 qui ne peut pas sortir de la ligne
+  (`LigneBornee.deborde` : 18 points par caractère et 48 de bordure au plus, sur 2 048) ; sinon `LigneBornee.bornee`
+  (`Video/video.Materiel.cs`, neuf) garde les deux lignes suivantes, appelle le balayage de PCem et les rend. Le plus
+  long rendu, l'écran éteint de l'EGA à CR01 = FFh, s'arrête à 4 639, dans la ligne n + 2.
+- PB-99 (6) : deux gardes dans `vid_ega.cs`, en tête du rendu graphique de `ega_poll` (`graphique_materiel` :
+  l'adresse de début de ligne masquée par `vrammask`, puis, sur 64 Ko, CR17 bit 1 tenu à 1 le temps de la ligne, le
+  registre rendu ensuite) et en tête de SR3 (`police_materiel` : les tables masquées par `vrammask`).
+Les marqueurs des vingt sites de PB-89 et les deux commentaires de part de PB-99 (6) deviennent `fixed in hardware
+mode` ; une garde, un marqueur.
+
+**Les cas**, en C# seul, verts en mode PCem, sous chaque PB et sous « tout » :
+- `materiel-cas PB-89` (`MaterielCasBordure.cs`, neuf ; `UnMono` devient `UnCfg`, pour la M24 et le PC1512, et prend
+  les réglages de la carte) : une ligne jouée par la minuterie de la carte (le balayage de PCem ou celui du mode
+  matériel), les lignes 10 à 12 de `buffer32` remplies d'un motif. R1 = FFh sur les six cartes (l'EGA en 2 bpp et sous
+  l'écran éteint) ; aux bornes, la MDA à R1 = E4h (2 051) et l'écran éteint de l'EGA à CR01 = 70h (2 065, `hdisp` =
+  CR01 + 1) : PCem écrit la ligne 11 (et la 12 sur l'EGA à FFh), le mode matériel n'y touche pas. Témoins : R1 = 28h
+  (CR01 = 27h) sur chaque carte, et CR01 = 6Fh (2 047, au-dessus du seuil du mode matériel), que la ligne bornée laisse
+  tel quel ; la ligne 10 dessinée dans tous les cas.
+- `materiel-cas PB-99`, cinq cas et quatre témoins de plus (`MaterielCasEga.cs`, la mémoire réglée par cas) : sur 64 Ko,
+  10000h posé à la main, CR17 = 41h, une ligne à la rangée 2, en 2 bpp et en 16 couleurs, puis CR17 = 43h et l'adresse
+  de début à 10000h (le mode octet) : PCem lit 10000h, l'EGA 0, et CR17 se relit tel qu'écrit dans les deux modes ; SR3
+  = 05h sur 64 Ko et 0Ah sur 128 Ko, 41h à la rangée 0 : PCem une autre table, l'EGA la table 0. Témoins, les mêmes sur
+  256 Ko.
+- Les autres cas de la vidéo (PB-04, 222, 223, 96, 97, 102, 225, 230, 100, 227, 229, 220, 80, 221, 37), en mode PCem,
+  sous leur PB et sous « tout » : verts.
+
+**Le recensement** : vert, 285 défauts au registre, 1 236 marqueurs (onze de plus : sept gardes de PB-89, deux de
+PB-99, et les deux commentaires de part de PB-99 (6) devenus marqueurs). **materiel-mode** : vert.
+
+**Les contrôles négatifs** (/tmp/a9/neg-9c2.py, dans l'arbre, chaque faute restaurée) : dix-huit fautes, chacune rougit
+son PB sous ce PB et sous « tout » — la garde de PB-89 retirée, carte par carte (sur la CGA, celle de
+`cga_standalone_init`, la seule appelée) ; les lignes suivantes non rendues ; une seule ligne gardée ; le seuil à 16
+points par caractère ; la ligne bornée hors du rendu seulement ; les deux gardes de PB-99 retirées ; CR17 non rendu
+après la ligne ; la substitution coupée sur toute carte ; l'adresse de début de ligne non masquée ; la table A sans
+masque ; et les attentes inversées ; le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code, les cas, les textes) : aucun bloquant. Vérifié juste : chaque balayage, à
+`linepos` 0, n'écrit que sa ligne et ses débordements (aucun blit, aucune autre ligne : la recopie n'efface rien de
+légitime) ; le seuil couvre la plus grande abscisse de chaque chemin, et deux lignes suffisent ; seules les inits
+posent ces minuteries ; `police_materiel` vaut le masque de chaque adresse lue. Repris : l'adresse de début de trame,
+que PCem ne masque qu'après le premier caractère (en mode octet, la colonne 0 de la première rangée lisait au-delà de
+64 Ko : masquée par `graphique_materiel`, avec son cas) ; les bornes de l'écran éteint de l'EGA (`hdisp` = CR01 + 1 :
+70h déborde, 6Fh non ; mon recompte les avait décalées d'un, le cas en mode PCem l'a montré) ; les maxima des
+commentaires ; le texte du coût en mode matériel ; les lignes de plus de 120 colonnes ; deux cas de plus (16 couleurs,
+128 Ko).
+
+**M2** (Release du worktree ; /tmp/a9/m2-9c2.sh) : une première capture a montré `mda_init` et `ega_init` changées par
+leur garde, posée après le `timer_add` de PCem : le JIT gardait l'appel et un `ret` au lieu du saut terminal. La garde
+passe avant (`ligne_add_materiel`, qui pose la minuterie elle-même, puis `return`). Ensuite, avec et sans les neuf
+gardes (xt-dos, xt-ega, xt-mda, xt-hercules, pc1512) : identique, 686 méthodes, aucune changée ; contre M2-9e2 (tous
+les scénarios) : les constructeurs statiques de `ModeMateriel` et de `materiel` (PB-89 neuf) et les quatre jetons de
+chaînes habituels.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9c2.sh) : la CGA, la MDA et la M24 (PC-DOS, DIR), l'Hercules
+(HERCBANC), l'EGA de 256 Ko et de 64 Ko (EGABANC), le PC1512 (son banc) ; en mode PCem, sous PB-89, sous PB-99 (l'EGA)
+et sous « tout » : aucun arrêt. Sous PB-89 et sous PB-99, la sortie entière est celle du mode PCem (les instructions,
+l'image, l'écran) : les modes des BIOS ne débordent pas, et l'EGA de 64 Ko n'y pose ni CR17 bit 1 à 0 ni une table
+au-delà de sa mémoire. Sous « tout », les sorties diffèrent (le temps, les instructions, un octet de HERCBANC et
+d'EGABANC, le dernier écran de l'EGA de 64 Ko), mais elles sont les mêmes que celles de la build sans les gardes de
+9c2 (/tmp/a9/boots-9c2-sg.sh) : les écarts viennent des autres corrections.
+
+**La série** g9c2 (le worktree de l'étape, contre g9e2) : 682 portes, toutes vertes, chacune au même verdict que dans
+g9e2 ; deux portes neuves, `materiel-cas-pb89` et `materiel-cas-pb89-materiel`, vertes ; un seul résumé change,
+`recensement` (285 défauts, 1 236 marqueurs, onze de plus). Les `materiel-cas` de PB-99 jouent leurs neuf cas neufs
+sous les mêmes résumés.

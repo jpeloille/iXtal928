@@ -16,6 +16,7 @@
 using System.Runtime.CompilerServices;
 using iXtal26.Models;
 using static iXtal26.Video.video;
+using static iXtal26.timer;
 
 namespace iXtal26.Video;
 
@@ -79,7 +80,7 @@ internal static partial class vid_mda
     /// <summary>PB-96 et PB-222 : une ligne de texte, celle de PCem, sauf, selon leurs drapeaux, la police lue à la
     /// rangée `sc & 15` (quatre lignes RA vont au générateur de caractères, p. 3) et le curseur qui force les points de
     /// la cellule à 1 (feuille 5, U3 et U43 : un pavé plein, de la couleur d'avant-plan de l'attribut). Le débordement
-    /// de PB-89 au-delà de R1 = 227 reste celui de PCem.</summary>
+    /// de PB-89 au-delà de R1 = 227, le balayage du mode matériel le borne (poll_materiel).</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ligne_materiel(mda_t mda, int line, uint16_t ca)
     {
@@ -140,4 +141,23 @@ internal static partial class vid_mda
         ModeMateriel.Sonde[223]++;
         mda.cursoron = mda.blink & 8;
     }
+
+    /// <summary>PB-89 : le balayage de la MDA, la ligne bornée à elle-même (LigneBornee) ; celui de PCem seul hors du
+    /// rendu d'une ligne (linepos à 1) ou sous un R1 qui ne peut pas sortir de la ligne.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void poll_materiel(object? p)
+    {
+        mda_t mda = (mda_t)p!;
+        if (mda.linepos != 0 || !LigneBornee.deborde(mda.crtc[1]))
+        {
+                mda_poll(p);
+                return;
+        }
+        LigneBornee.bornee(mda_poll, p, mda.displine);
+    }
+
+    /// <summary>PB-89 : la minuterie de la carte posée avec le balayage du mode matériel (poll_materiel), comme PCem la
+    /// pose avec le sien.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ligne_add_materiel(mda_t mda) => timer_add(mda.timer, poll_materiel, mda, 1);
 }

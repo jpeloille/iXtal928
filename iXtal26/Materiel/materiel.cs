@@ -340,8 +340,13 @@ internal static class materiel
     /// <summary>PB-229 : l'IPF du RAMDAC Sierra de l'ET4000 tient.</summary>
     internal static readonly bool pb_229;
 
-    /// <summary>PB-99 : l'EGA sans les traits de la VGA que PCem lui prête ; le texte redessiné à chaque ligne.</summary>
+    /// <summary>PB-99 : l'EGA sans les traits de la VGA que PCem lui prête ; le texte redessiné à chaque ligne ; le
+    /// rendu et la police dans la mémoire configurée.</summary>
     internal static readonly bool pb_99;
+
+    /// <summary>PB-89 : la ligne bornée à elle-même, sur la CGA, la MDA, l'Hercules, l'EGA, la M24 et le
+    /// PC1512.</summary>
+    internal static readonly bool pb_89;
 
     /// <summary>PB-04 : la cellule du curseur de la CGA n'est pas éteinte par le clignotement des caractères.</summary>
     internal static readonly bool pb_04;
@@ -665,6 +670,7 @@ internal static class materiel
         pb_227 = ModeMateriel.Demande(227);
         pb_229 = ModeMateriel.Demande(229);
         pb_99 = ModeMateriel.Demande(99);
+        pb_89 = ModeMateriel.Demande(89);
         pb_04 = ModeMateriel.Demande(4);
         pb_230 = ModeMateriel.Demande(230);
         pb_102 = ModeMateriel.Demande(102);

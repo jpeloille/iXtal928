@@ -11,18 +11,19 @@
 
 using System.Runtime.CompilerServices;
 using static iXtal26.Video.video;
+using static iXtal26.timer;
 
 namespace iXtal26.Video;
 
 internal static partial class vid_cga
 {
     /// <summary>PB-04, PB-222 et PB-223 : une ligne de texte, celle de PCem en 80 ou en 40 colonnes, sauf, selon leurs
-    /// drapeaux : la cellule du curseur, sur ses lignes, jamais éteinte par le clignotement (feuille 1 : +ALPHA DOTS, le
-    /// NAND de -CURSOR DLY ; l'exemption `(ma == ca) && con`, sans la phase du curseur, R10 ne masquant pas le
-    /// curseur) ; le curseur qui force les points
-    /// à 1, un pavé de la couleur d'avant-plan (feuille 1 : le curseur en OU dans +ALPHA DOTS) ; les caractères qui
-    /// clignotent sur 32 trames, le bit 4 du compteur (feuille 3, U12 : -BLINK, la sortie QA du second compteur). Le
-    /// débordement de PB-89 au-delà de R1 = 127 (254 en 80 colonnes) reste celui de PCem.</summary>
+    /// drapeaux : la cellule du curseur, sur ses lignes, jamais éteinte par le clignotement (feuille 1 : +ALPHA DOTS,
+    /// le NAND de -CURSOR DLY ; l'exemption `(ma == ca) && con`, sans la phase du curseur, R10 ne masquant pas le
+    /// curseur) ; le curseur qui force les points à 1, un pavé de la couleur d'avant-plan (feuille 1 : le curseur en OU
+    /// dans +ALPHA DOTS) ; les caractères qui clignotent sur 32 trames, le bit 4 du compteur (feuille 3, U12 : -BLINK,
+    /// la sortie QA du second compteur). Le débordement de PB-89 (au-delà de R1 = 127, 254 en 80 colonnes), le balayage
+    /// du mode matériel le borne (poll_materiel).</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void texte_materiel(cga_t cga, uint16_t ca, bool colonnes80)
     {
@@ -95,4 +96,22 @@ internal static partial class vid_cga
         ModeMateriel.Sonde[230]++;
         return true;
     }
+
+    /// <summary>PB-89 : le balayage de la CGA, la ligne bornée à elle-même (LigneBornee) ; celui de PCem seul hors du
+    /// rendu d'une ligne (linepos à 1) ou sous un R1 qui ne peut pas sortir de la ligne.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void poll_materiel(object? p)
+    {
+        cga_t cga = (cga_t)p!;
+        if (cga.linepos != 0 || !LigneBornee.deborde(cga.crtc[1]))
+        {
+                cga_poll(p);
+                return;
+        }
+        LigneBornee.bornee(cga_poll, p, cga.displine);
+    }
+
+    /// <summary>PB-89 : le balayage du mode matériel (poll_materiel) sur la minuterie de la carte.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ligne_init_materiel(cga_t cga) => timer_set_callback(cga.timer, poll_materiel);
 }

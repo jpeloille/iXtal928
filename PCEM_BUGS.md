@@ -1645,19 +1645,34 @@ rien de la ligne n ne s'affiche en n + 1 : déduit ; l'image réelle avec R1 > R
 *Cas qui discrimine* : M24, 3D8h = 09h (80 colonnes), R1 = FFh, la ligne n + 1 de `Buffer32` remplie d'un motif :
 après le rendu de la ligne n, PCem a écrit la bordure en `Buffer32[(n + 1) × 2 048 + 0..7]` ; la carte n'y touche pas.
 *G13* : (b) — le comportement réel n'est que déduit : un test borne la ligne, sans image de référence.
-*Reproduit* : `Video/vid_olivetti_m24.cs`, marqueur PB-89 (`:196`, le même tableau plat).
+*Reproduit* en mode PCem : `Video/vid_olivetti_m24.cs`, marqueur `fixed in hardware mode: PB-89` (le même tableau
+plat).
 *G1.2* : le PC1512 fait de même (`vid_pc1512.c:182-193`, `:317-319`), `displine` revenant à 0
-au-delà de 360 (`:326-327`) et de 262 (`:369`) : jamais hors du tableau non plus. Reproduit,
-`Video/vid_pc1512.cs` (`:231`, `:430`).
+au-delà de 360 (`:326-327`) et de 262 (`:369`) : jamais hors du tableau non plus. Reproduit en mode PCem,
+`Video/vid_pc1512.cs` (la bordure, `hline`).
 *G13.1* : la CGA, la MDA, l'Hercules et l'EGA aussi. La CGA déborde dès que R1 dépasse 127 (254 en 80 colonnes) : la
 bordure (`vid_cga.c:147-153`), les boucles de 40 colonnes et du graphique (`:188-270`), `hline` (`:275`, `:277`) et la
 conversion de fin de ligne (`:280-294`). La MDA : `(x * 9) + c` monte à 2 294 quand R1 dépasse 227
 (`vid_mda.c:114-130`). L'Hercules : 2 294 en texte (`vid_hercules.c:167-185`), 4 079 en graphique quand R1 dépasse
 128 (`:155`). L'EGA borne son texte par `& 2047` (`vid_ega.c:291-320`), pas ses rendus graphiques ni l'écran éteint,
 qui suivent CR01 : jusqu'à 4 143 (`:358-381`, `:425-453`), 2 087 (`:497-517`) et 4 639 (`:542-554`). Jamais hors du
-tableau : `displine` reste sous 360 (CGA), 500 (MDA, Hercules) et 502 (EGA). Reproduits, marqueurs PB-89 :
-`Video/vid_cga.cs:244`, `Video/vid_mda.cs:195`, `Video/vid_hercules.cs:198`, `Video/vid_ega.cs:476`, `:528`, `:593`,
-`:676`.
+tableau : `displine` reste sous 360 (CGA), 500 (MDA, Hercules) et 502 (EGA). Reproduits en mode PCem, marqueurs
+`fixed in hardware mode: PB-89` : `Video/vid_cga.cs`, `Video/vid_mda.cs`, `Video/vid_hercules.cs`, `Video/vid_ega.cs`
+(le 2 bpp, le 4 bpp en basse et en haute résolution, l'écran éteint).
+*Corrigé en mode matériel* (G13.9c2) : sous `if (materiel.pb_89)`, à l'init de chaque carte, après le `timer_add` de
+PCem (`ligne_init_materiel`), ou à sa place sur la MDA et l'EGA, où il est le dernier appel (`ligne_add_materiel` ; une
+garde après lui romprait l'appel terminal, M2) : le balayage du mode matériel sur la minuterie de la carte
+(`poll_materiel`, dans les `.Materiel.cs` de la CGA, de la MDA, de l'Hercules, de l'EGA, de la M24 et du PC1512 ;
+`Video/video.Materiel.cs`, `LigneBornee`). Au rendu d'une ligne (`linepos` à 0), quand R1 (CR01 sur l'EGA) peut sortir
+de la ligne (18 points par caractère et 48 de bordure au-delà de 2 048), les deux lignes suivantes de `buffer32` sont
+gardées avant le balayage de PCem et rendues après ; sinon, le balayage de PCem seul. Les points de la ligne elle-même
+restent ceux de PCem ; le texte de l'EGA, qui se replie par `& 2047` sur sa propre ligne, aussi (hors de l'entrée). Que
+ce qui dépasse tombe dans le retour de ligne : déduit ; l'image réelle avec R1 > R0 reste inconnue. La garde est à
+l'init, pas dans le balayage (M2) : en mode matériel, un appel de plus par ligne, et la copie de deux lignes sous un R1
+hors des modes des BIOS seulement. `materiel-cas PB-89` : R1 = FFh, une ligne jouée par la minuterie de la carte, sur
+les six cartes (l'EGA en 2 bpp et sous l'écran éteint), et aux bornes (la MDA à R1 = E4h, l'écran éteint de l'EGA à
+CR01 = 70h) : PCem écrit la ligne 11 (et la 12 sur l'EGA), le mode matériel n'y touche pas ; témoins, R1 = 28h
+(CR01 = 27h), et CR01 = 6Fh, que la ligne bornée laisse tel quel.
 
 ### PB-90 — Le drapeau `DMA_OVER` entre dans l'échantillon ADPCM
 
@@ -1857,10 +1872,10 @@ bits 6-7 « Not Used » ; écriture seule hors 0Ch-0Fh (pp. 30-37, 56-61) ; 3DAh
 *Cas qui discrimine* : (1) AC00 = 01h, AC14 = 0Fh, AC10 = 80h : PCem egapal[0] = F1h, l'EGA 01h ; (2) CR11 = 80h puis
 CR01 = 27h : PCem garde l'ancien CR01, l'EGA prend 27h ; (7) CR07 = 20h, CR06 = 70h : PCem `vtotal` = 271h, l'EGA 71h.
 *G13* : (a), (b), (c) — (a) (1), (2), (5), (7) ; (b) (4), un modèle neuf du faisceau, et (6) ; (c) la valeur de (3).
-*Reproduit* : les parts (a), en mode PCem, `Video/vid_ega.cs`, marqueurs `fixed in hardware mode: PB-99` (10h bit 7 et
-14h, CR11, les bits 9, `fullchange`, 10h bit 5, CR0A bit 5) ; dans les deux modes, commentaires `PB-99, la part` : (3)
-la relecture, inconnue ; (4) 3DAh, qui viendra avec le faisceau (G13.9f) ; (6) la mémoire et la police, qui viendront
-avec les rendus (G13.9c2). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
+*Reproduit* : les parts (a) et (6), en mode PCem, `Video/vid_ega.cs`, marqueurs `fixed in hardware mode: PB-99` (10h
+bit 7 et 14h, CR11, les bits 9, `fullchange`, 10h bit 5, CR0A bit 5 ; les substitutions de CR17 et la police) ; dans
+les deux modes, commentaires `PB-99, la part` : (3) la relecture, inconnue ; (4) 3DAh, qui viendra avec le faisceau
+(G13.9f). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
 *Corrigé en mode matériel*, les parts (1), (2), (5) et (7) (G13.9d) : sous `if (materiel.pb_99)`
 (`Video/vid_ega.Materiel.cs`) — (1) en tête du calcul de la palette, `palette_materiel` : six bits par registre, ni 10h
 bit 7 ni 14h ; (2) en tête de l'écriture de 3D5h, `crtc_ecrit_materiel` : l'écriture de PCem sans la protection de
@@ -1877,6 +1892,19 @@ CR0A = 20h à la fin d'affichage (éteint contre allumé), 10h = 20h à la ligne
 une ligne de texte sans `fullchange` (laissée contre redessinée), CR07 = D7h (les bits 8 gardés, dispend et
 vsyncstart sans bit 9) ; témoins, CR11 = 00h, 10h = 00h (la palette et le partage), CR0A = 00h, une ligne avec
 `fullchange`.
+*Corrigé en mode matériel*, la part (6) (G13.9c2) : sous `if (materiel.pb_99)` — en tête du rendu graphique de
+`ega_poll`, `graphique_materiel` : l'adresse de début de ligne masquée par `vrammask` (PCem ne masque `ma` qu'après
+le premier caractère : en mode octet, l'adresse de début de trame, CR0C:CR0D, lit au-delà de la mémoire ; trouvé à la
+contre-lecture de G13.9c2), puis le rendu de PCem, CR17 bit 1 tenu à 1 le temps de la ligne sur la carte de 64 Ko
+(l'adresse, masquée avant la substitution, garde son bit 0x10000 à 0 : ce que rendrait le masque appliqué après ; le
+registre que l'invité a écrit, rendu ensuite) ; en tête de SR3, `police_materiel` : les tables de
+la police masquées par `vrammask` (sur 64 Ko, la table 1 lit la table 0 ; sur 128 Ko, les tables 2 et 3 lisent 0 et
+1 ; le décalage d'un caractère reste sous 10000h, masquer la table vaut masquer chaque adresse lue). Les bits
+d'adresse que la carte n'a pas (16 Ko par plan sur 64 Ko) sont perdus : déduit. La substitution de CR17 bit 0
+(0x8000) reste dans la mémoire, celle de PCem. `materiel-cas PB-99` : 64 Ko, 10000h posé à la main, CR17 = 41h, une
+ligne à la rangée 2, en 2 bpp et en 16 couleurs, puis CR17 = 43h et l'adresse de début à 10000h : PCem lit 10000h,
+l'EGA 0, CR17 relu tel qu'écrit dans les deux modes ; SR3 = 05h sur 64 Ko et 0Ah sur 128 Ko, 41h à la rangée 0 : PCem
+une autre table, l'EGA la table 0 ; témoins, les mêmes sur 256 Ko.
 
 ### PB-100 — La Tseng ET4000AX de PCem et son RAMDAC
 

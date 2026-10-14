@@ -11,6 +11,7 @@
 // Used »). Les méthodes portent NoInlining (M2, G13.7c2).
 
 using System.Runtime.CompilerServices;
+using static iXtal26.timer;
 using static iXtal26.Video.video;
 
 namespace iXtal26.Video;
@@ -74,4 +75,66 @@ internal static partial class vid_ega
         ModeMateriel.Sonde[99]++;
         ega.cursoron = ega.blink & 16;
     }
+
+    /// <summary>PB-99 (6) : les tables de la police, celles de SR3 (PCem), gardées dans la mémoire configurée. La carte
+    /// de 64 Ko n'a que 16 Ko par plan (128 Ko : 32 Ko) ; les bits d'adresse qu'elle n'a pas sont perdus, la table 1
+    /// lit la table 0 (déduit). Le décalage d'un caractère et de sa rangée (au plus 7FFCh) reste sous 10000h : masquer
+    /// la table vaut masquer chaque adresse lue.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void police_materiel(ega_t ega, uint8_t val)
+    {
+        ModeMateriel.Sonde[99]++;
+        ega.charsetb = (uint32_t)(((((val >> 2) & 3) * 0x10000) + 2) & ega.vrammask);
+        ega.charseta = (uint32_t)((((val & 3) * 0x10000) + 2) & ega.vrammask);
+    }
+
+    /// <summary>PB-99 (6) : une ligne graphique, celle de PCem, sans les bits d'adresse que la carte n'a pas (déduit).
+    /// L'adresse de début de ligne d'abord masquée par vrammask : PCem ne masque `ma` qu'après chaque caractère, et
+    /// l'adresse de début de trame (CR0C:CR0D) peut dépasser la mémoire au premier caractère, en mode octet (CR17
+    /// bit 6) ; dans la carte, ces bits n'existent pas. Puis, sur la carte de 64 Ko, la substitution de CR17 bit 1 (la
+    /// rangée en MA14, le bit 0x10000 de l'adresse de PCem) tombe sur un bit absent : l'adresse, masquée avant la
+    /// substitution, garde ce bit à 0, et le rendu de PCem, CR17 bit 1 tenu à 1 le temps de la ligne, rend ce que
+    /// rendrait le masque appliqué après. Le registre, rendu ensuite, est celui que l'invité a écrit. La substitution
+    /// de CR17 bit 0 (0x8000) reste dans la mémoire : celle de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void graphique_materiel(ega_t ega)
+    {
+        ModeMateriel.Sonde[99]++;
+        ega.ma &= (uint32_t)ega.vrammask;
+        uint8_t cr17 = ega.crtc[0x17];
+        if ((ega.vrammask & 0x10000) == 0)
+                ega.crtc[0x17] |= 2;
+        switch (ega.gdcreg[5] & 0x20)
+        {
+        case 0x00:
+                if ((ega.seqregs[1] & 8) != 0)
+                        ega_draw_4bpp_lowres(ega);
+                else
+                        ega_draw_4bpp_highres(ega);
+                break;
+        case 0x20:
+                ega_draw_2bpp(ega);
+                break;
+        }
+        ega.crtc[0x17] = cr17;
+    }
+
+    /// <summary>PB-89 : le balayage de l'EGA, la ligne bornée à elle-même (LigneBornee) ; celui de PCem seul hors du
+    /// rendu d'une ligne (linepos à 1) ou sous un CR01 qui ne peut pas sortir de la ligne.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void poll_materiel(object? p)
+    {
+        ega_t ega = (ega_t)p!;
+        if (ega.linepos != 0 || !LigneBornee.deborde(ega.hdisp))
+        {
+                ega_poll(p);
+                return;
+        }
+        LigneBornee.bornee(ega_poll, p, ega.displine);
+    }
+
+    /// <summary>PB-89 : la minuterie de la carte posée avec le balayage du mode matériel (poll_materiel), comme PCem la
+    /// pose avec le sien.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ligne_add_materiel(ega_t ega) => timer_add(ega.timer, poll_materiel, ega, 1);
 }

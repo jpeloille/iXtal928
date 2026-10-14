@@ -834,7 +834,8 @@ for pb in 227 100 229; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
-# G13.9d — l'EGA : PB-99 (la palette, CR11, les bits 9, CR0A bit 5, 10h bit 5, le texte à chaque ligne).
+# G13.9d — l'EGA : PB-99 (la palette, CR11, les bits 9, CR0A bit 5, 10h bit 5, le texte à chaque ligne ; en 9c2, la
+# mémoire de 64 Ko : les substitutions de CR17 et la police de SR3).
 run materiel-cas-pb99 materiel-cas PB-99
 run materiel-cas-pb99-materiel --hardware-mode PB-99 materiel-cas PB-99
 # G13.9c — la CGA : PB-04 (la cellule du curseur exemptée du clignotement) et PB-230 (R16 et R17 en lecture seule) ;
@@ -845,6 +846,10 @@ for pb in 04 230; do
 done
 run materiel-cas-pb04-pb222 --hardware-mode PB-04,PB-222 materiel-cas PB-04
 run materiel-cas-pb04-pb223 --hardware-mode PB-04,PB-222,PB-223 materiel-cas PB-04
+# G13.9c2 — les rendus : PB-89 (la ligne bornée à elle-même, sur la CGA, la MDA, l'Hercules, l'EGA, la M24 et le
+# PC1512).
+run materiel-cas-pb89 materiel-cas PB-89
+run materiel-cas-pb89-materiel --hardware-mode PB-89 materiel-cas PB-89
 # G13.9b — la MDA et l'Hercules : PB-102 (le caractère de 9 points, 16 en graphique), PB-97 (le 6845 à la largeur de ses
 # registres, sans le « Turbo XT »), PB-96 (la police à la rangée sc & 15), PB-222 (le curseur plein), PB-223 (le curseur
 # sur 16 trames), PB-225 (3BAh bit 7 de l'Hercules).

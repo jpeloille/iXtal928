@@ -17,12 +17,20 @@ namespace iXtal26.Diff;
 internal static partial class MaterielCas
 {
     /// <summary>Un cas sur une IBM XT montée avec la carte <paramref name="carte"/> (mda ou hercules) : le corps, rendu
-    /// face à l'attendu de PCem ou du matériel.</summary>
+    /// face à l'attendu de PCem ou du matériel. <paramref name="reglages"/> s'ajoute à la configuration (les réglages
+    /// de la carte).</summary>
     private static int UnMono(string nom, string carte, Func<string> corps, string pcem, string mat, bool hw,
-                              bool temoin = false) => AvecCd(d =>
+                              bool temoin = false, string reglages = "") =>
+        UnCfg(nom, $"model = ibmxt\nmem_size = 640\ngfxcard = {carte}\nsndcard = none\n{reglages}", corps, pcem, mat,
+              hw, temoin);
+
+    /// <summary>Un cas sur la machine que décrit la configuration <paramref name="texte"/>, montée sans BIOS lancé : le
+    /// corps, rendu face à l'attendu de PCem ou du matériel.</summary>
+    private static int UnCfg(string nom, string texte, Func<string> corps, string pcem, string mat, bool hw,
+                             bool temoin = false) => AvecCd(d =>
     {
         var cfg = Path.Combine(d, "mono.cfg");
-        File.WriteAllText(cfg, $"model = ibmxt\nmem_size = 640\ngfxcard = {carte}\nsndcard = none\n");
+        File.WriteAllText(cfg, texte);
         try
         {
             if (!pc.loadconfig(cfg))

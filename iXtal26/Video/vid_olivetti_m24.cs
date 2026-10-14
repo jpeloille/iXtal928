@@ -4,7 +4,7 @@
 // ORACLE: pcem-dev/src/video/vid_olivetti_m24.c + includes/private/video/vid_olivetti_m24.h
 // STATUS: transcribed — m24_t, m24_out/m24_in, m24_write/m24_read,
 //         m24_recalctimings, m24_poll, m24_init, m24_close, m24_speed_changed,
-//         m24_device. Omis : les pclog, sortie pure. Déviation R9 : PB-88 ; PB-89 reproduit.
+//         m24_device. Omis : les pclog, sortie pure. Déviation R9 : PB-88 ; PB-89 borné en mode matériel.
 
 /*Olivetti M24 video emulation
   Essentially double-res CGA*/
@@ -194,12 +194,12 @@ internal static partial class vid_olivetti_m24
                         m24.lastline = m24.displine;
                         for (c = 0; c < 8; c++)
                         {
-                                // pcem bug, reproduced: PB-89 — crtc[1] n'est pas masqué (crtcmask[1] = 0xff) ;
-                                //   l'abscisse c + (crtc[1] << 4) + 8 monte à 4 095 et déborde sur la ligne
-                                //   suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69, ici le même
-                                //   tableau plat). Jamais hors du tableau : displine < 720. De même les boucles de
-                                //   40 colonnes et du graphique (vid_olivetti_m24.c:218-231, :258-259, :279) et
-                                //   hline (:287-289).
+                                // pcem bug, fixed in hardware mode: PB-89 — crtc[1] n'est pas masqué (crtcmask[1] =
+                                //   0xff) ; l'abscisse c + (crtc[1] << 4) + 8 monte à 4 095 et déborde sur la ligne
+                                //   suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69, ici le même tableau
+                                //   plat). Jamais hors du tableau : displine < 720. De même les boucles de 40 colonnes
+                                //   et du graphique (vid_olivetti_m24.c:218-231, :258-259, :279) et hline (:287-289).
+                                //   Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                                 if ((m24.cgamode & 0x12) == 0x12)
                                 {
                                         Buffer32[m24.displine * Stride + c] = cgapal[0];
@@ -582,6 +582,10 @@ internal static partial class vid_olivetti_m24
         m24.vram = new uint8_t[0x8000];
 
         timer_add(m24.timer, m24_poll, m24, 1);
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte.
+        if (materiel.pb_89)
+                ligne_init_materiel(m24);
         mem_mapping_add(m24.mapping, 0xb8000, 0x08000, m24_read, null, null, m24_write, null, null, null, 0, 0, m24);
         io_sethandler(0x03d0, 0x0010, m24_in, null, null, m24_out, null, null, m24);
         return m24;

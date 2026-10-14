@@ -222,9 +222,10 @@ internal static partial class vid_hercules
                         }
                         hercules.lastline = hercules.displine;
                         int line = hercules.displine * Stride;
-                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; en graphique,
-                        //   (x << 4) + c monte à 4 079 au-delà de 128 (vid_hercules.c:155), en texte (x * 9) + c à
-                        //   2 294 au-delà de 227 (:167-185) : la ligne suivante de buffer32, jamais hors du tableau.
+                        // pcem bug, fixed in hardware mode: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; en
+                        //   graphique, (x << 4) + c monte à 4 079 au-delà de 128 (vid_hercules.c:155), en texte (x * 9)
+                        //   + c à 2 294 au-delà de 227 (:167-185) : la ligne suivante de buffer32, jamais hors du
+                        //   tableau. Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                         if ((hercules.ctrl & 2) != 0 && (hercules.ctrl2 & 1) != 0)
                         {
                                 ca = (uint16_t)((hercules.sc & 3) * 0x2000);
@@ -425,6 +426,10 @@ internal static partial class vid_hercules
         hercules.vram = new uint8_t[0x10000];
 
         timer_add(hercules.timer, hercules_poll, hercules, 1);
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte.
+        if (materiel.pb_89)
+                ligne_init_materiel(hercules);
         mem_mapping_add(hercules.mapping, 0xb0000, 0x08000, hercules_read, null, null, hercules_write, null, null, null, 0,
                         MEM_MAPPING_EXTERNAL, hercules);
         io_sethandler(0x03b0, 0x0010, hercules_in, null, null, hercules_out, null, null, hercules);

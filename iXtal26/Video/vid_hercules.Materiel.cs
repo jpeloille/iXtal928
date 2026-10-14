@@ -15,6 +15,8 @@
 using System.Runtime.CompilerServices;
 using iXtal26.Models;
 using static iXtal26.Memory.mem;
+using static iXtal26.Video.video;
+using static iXtal26.timer;
 
 namespace iXtal26.Video;
 
@@ -90,4 +92,22 @@ internal static partial class vid_hercules
         ModeMateriel.Sonde[225]++;
         return (uint8_t)((hercules.stat & 0xf) | ((~hercules.stat & 8) << 4));
     }
+
+    /// <summary>PB-89 : le balayage de l'Hercules, la ligne bornée à elle-même (LigneBornee) ; celui de PCem seul hors
+    /// du rendu d'une ligne (linepos à 1) ou sous un R1 qui ne peut pas sortir de la ligne.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void poll_materiel(object? p)
+    {
+        hercules_t hercules = (hercules_t)p!;
+        if (hercules.linepos != 0 || !LigneBornee.deborde(hercules.crtc[1]))
+        {
+                hercules_poll(p);
+                return;
+        }
+        LigneBornee.bornee(hercules_poll, p, hercules.displine);
+    }
+
+    /// <summary>PB-89 : le balayage du mode matériel (poll_materiel) sur la minuterie de la carte.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ligne_init_materiel(hercules_t hercules) => timer_set_callback(hercules.timer, poll_materiel);
 }

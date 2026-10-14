@@ -6,7 +6,8 @@
 // Les cas de l'EGA (G13.9d, PLAN-G13.md) : PB-99, les traits de la VGA que PCem prête à l'EGA — (1) l'attribut 10h
 // bit 7 et 14h dans la palette, (2) la protection de CR0-CR7 par CR11 bit 7, (5) le texte redessiné sur fullchange
 // seulement, (7) les bits 9 de CR07 et CR09, CR0A bit 5 qui éteint le curseur, l'attribut 10h bit 5 qui remet le
-// défilement fin à la ligne de partage. Le banc : une IBM XT montée avec l'EGA, sans BIOS lancé ; les registres par
+// défilement fin à la ligne de partage ; (6) la mémoire de 64 Ko, que les substitutions de CR17 et les tables de la
+// police de SR3 dépassaient (G13.9c2). Le banc : une IBM XT montée avec l'EGA, sans BIOS lancé ; les registres par
 // les ports (3C2h à 01h, les ports en 3Dxh) ; une ligne ou une fin de ligne jouée par un appel de ega_poll sur un état
 // posé à la main.
 
@@ -18,12 +19,13 @@ internal static partial class MaterielCas
 {
     private static ega_t Ega() => vid_ega.Probe ?? throw new InvalidOperationException("pas d'EGA après initpc");
 
-    private static int UnEga(string nom, Func<ega_t, string> corps, string pcem, string mat, bool hw, bool temoin = false) =>
+    private static int UnEga(string nom, Func<ega_t, string> corps, string pcem, string mat, bool hw,
+                             bool temoin = false, int memoire = 256) =>
         UnMono(nom, "ega", () =>
         {
             io.outb(0x3c2, 0x01);
             return corps(Ega());
-        }, pcem, mat, hw, temoin);
+        }, pcem, mat, hw, temoin, $"[EGA]\nmemory = {memoire}\n");
 
     private static void Attr(int idx, int val)
     {
@@ -138,6 +140,74 @@ internal static partial class MaterielCas
         bad += UnEga("EGA : une ligne de texte, sans fullchange", e => Ligne(e, 0), "laissée", "redessinée", hw);
         bad += UnEga("EGA : une ligne de texte, avec fullchange (témoin)", e => Ligne(e, 1), "", "redessinée", hw,
                      temoin: true);
+        // (6) Une ligne graphique, l'adresse en octets (CR17 bit 6 à 1). Les octets 0 à 3 à 00h, 10000h à 10003h à FFh
+        // (posés à la main : la carte de 64 Ko n'en a pas) ; la palette 0 à 00h, 3 et Fh à 3Fh ; le dernier point du
+        // premier caractère, et CR17 après la ligne (le registre que l'invité a écrit). En 2 bpp (GR5 = 20h) et en
+        // 16 couleurs (GR5 = 00h, SR1 bit 3 à 0), CR17 = 41h (bit 1 à 0) à la rangée 2 : la substitution pose le bit
+        // 0x10000 ; en 2 bpp, CR17 = 43h (sans substitution) et l'adresse de début de trame à 10000h (CR0C = 40h), que
+        // PCem ne masque qu'après le premier caractère.
+        string Rangee(ega_t e, int gr5, int cr17, int sc, uint ma)
+        {
+            Attr(0x00, 0x00);
+            Attr(0x03, 0x3f);
+            Attr(0x0f, 0x3f);
+            Attr(0x12, 0x0f);
+            CrtcEga(0x17, cr17);
+            io.outb(0x3c4, 1);
+            io.outb(0x3c5, 0);
+            io.outb(0x3ce, 6);
+            io.outb(0x3cf, 1);
+            io.outb(0x3ce, 5);
+            io.outb(0x3cf, (byte)gr5);
+            for (var k = 0; k < 4; k++)
+                (e.vram[k], e.vram[0x10000 + k]) = (0, 0xff);
+            (e.linepos, e.dispon, e.scrblank, e.displine, e.firstline, e.sc, e.ma, e.scrollcache) =
+                (0, 1, 0, 10, 0, sc, ma, 0);
+            vid_ega.ega_poll(e);
+            var p = Video.video.Buffer32[10 * Video.video.Stride + 32 + (gr5 == 0x20 ? 15 : 7)];
+            var lu = p == e.pallook[0x3f] ? "lu en 10000h" : p == e.pallook[0] ? "lu en 0" : $"{p:X6}";
+            return $"{lu}, CR17={e.crtc[0x17]:X2}";
+        }
+        foreach (var (gr5, cr17, sc, ma, nom) in new[]
+                 {
+                     (0x20, 0x41, 2, 0u, "CR17 = 41h, une ligne en 2 bpp à la rangée 2"),
+                     (0x00, 0x41, 2, 0u, "CR17 = 41h, une ligne en 16 couleurs à la rangée 2"),
+                     (0x20, 0x43, 0, 0x10000u, "CR17 = 43h, une ligne en 2 bpp, l'adresse de début à 10000h"),
+                 })
+        {
+            var r = $"CR17={cr17:X2}";
+            bad += UnEga($"EGA de 64 Ko : {nom}", e => Rangee(e, gr5, cr17, sc, ma), $"lu en 10000h, {r}",
+                         $"lu en 0, {r}", hw, memoire: 64);
+            bad += UnEga($"EGA de 256 Ko : {nom} (témoin)", e => Rangee(e, gr5, cr17, sc, ma), "",
+                         $"lu en 10000h, {r}", hw, temoin: true);
+        }
+        // (6) La police : 41h d'attribut 07h, la rangée 0 ; la table 0 a FFh à cette rangée, les tables 1 et 2 00h
+        // (posées à la main) ; la palette 0 à 00h, 7 à 3Fh ; le premier point, sans curseur. SR3 = 05h (les tables A
+        // et B à 1) sur 64 Ko, SR3 = 0Ah (à 2) sur 128 Ko : la table que la carte n'a pas retombe sur la table 0.
+        string Police(ega_t e, int sr3)
+        {
+            Attr(0x00, 0x00);
+            Attr(0x07, 0x3f);
+            io.outb(0x3c4, 3);
+            io.outb(0x3c5, (byte)sr3);
+            io.outb(0x3ce, 6);
+            io.outb(0x3cf, 0);
+            (e.vram[0], e.vram[1]) = (0x41, 0x07);
+            e.vram[2 + 0x41 * 128] = 0xff;
+            e.vram[0x10002 + 0x41 * 128] = e.vram[0x20002 + 0x41 * 128] = 0x00;
+            (e.linepos, e.dispon, e.scrblank, e.displine, e.firstline, e.sc, e.ma, e.con) = (0, 1, 0, 10, 0, 0, 0, 0);
+            Video.video.fullchange = 1;
+            vid_ega.ega_poll(e);
+            var p = Video.video.Buffer32[10 * Video.video.Stride + 32];
+            return p == e.pallook[e.egapal[7]] ? "la table 0"
+                : p == e.pallook[e.egapal[0]] ? "une autre table" : $"{p:X6}";
+        }
+        bad += UnEga("EGA de 64 Ko : SR3 = 05h, 41h à la rangée 0", e => Police(e, 0x05), "une autre table",
+                     "la table 0", hw, memoire: 64);
+        bad += UnEga("EGA de 128 Ko : SR3 = 0Ah, 41h à la rangée 0", e => Police(e, 0x0a), "une autre table",
+                     "la table 0", hw, memoire: 128);
+        bad += UnEga("EGA de 256 Ko : SR3 = 05h, 41h à la rangée 0 (témoin)", e => Police(e, 0x05), "",
+                     "une autre table", hw, temoin: true);
         return bad;
     }
 }

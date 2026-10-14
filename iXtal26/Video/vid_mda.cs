@@ -216,9 +216,10 @@ internal static partial class vid_mda
                                 ligne_materiel(mda, line, ca);
                                 goto ligne_dessinee;
                         }
-                        // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà de 227,
-                        //   (x * 9) + c monte à 2 294 (vid_mda.c:114-130) et déborde sur la ligne suivante de
-                        //   buffer32, ici le même tableau plat. Jamais hors du tableau : displine < 500.
+                        // pcem bug, fixed in hardware mode: PB-89 — comme la M24 : crtc[1] n'est pas masqué ; au-delà
+                        //   de 227, (x * 9) + c monte à 2 294 (vid_mda.c:114-130) et déborde sur la ligne suivante de
+                        //   buffer32, ici le même tableau plat. Jamais hors du tableau : displine < 500. Le mode
+                        //   matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                         for (x = 0; x < mda.crtc[1]; x++)
                         {
                                 chr = mda.vram[(mda.ma << 1) & 0xfff];
@@ -422,6 +423,14 @@ internal static partial class vid_mda
         mdacol(0x80, 0, 1) = mdacol(0x80, 1, 1) = cgapal[0];
         mdacol(0x88, 0, 1) = mdacol(0x88, 1, 1) = cgapal[0];
 
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte, à la place du timer_add de PCem (dernier appel de la
+        //   fonction : une garde après lui romprait son appel terminal, M2).
+        if (materiel.pb_89)
+        {
+                ligne_add_materiel(mda);
+                return;
+        }
         timer_add(mda.timer, mda_poll, mda, 1);
     }
 

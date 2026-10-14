@@ -183,6 +183,14 @@ internal static partial class vid_ega
                         ega.writemask = (uint8_t)(val & 0xf);
                         break;
                 case 3:
+                        // pcem bug, fixed in hardware mode: PB-99 — l'adresse de la police n'est pas masquée par
+                        //   vrammask (:287) : avec 64 Ko, les tables 1 à 3 de SR3 (0x10002 et au-delà) lisent hors de
+                        //   la mémoire configurée.
+                        if (materiel.pb_99)
+                        {
+                                police_materiel(ega, val);
+                                break;
+                        }
                         ega.charsetb = (uint32_t)((((val >> 2) & 3) * 0x10000) + 2);
                         ega.charseta = (uint32_t)(((val & 3) * 0x10000) + 2);
                         break;
@@ -430,9 +438,9 @@ internal static partial class vid_ega
                         }
                 }
 
-                // PB-99, la part (6) qui viendra avec les rendus (G13.9c2), la même dans les deux modes d'ici là —
-                //   l'adresse de la police n'est pas masquée par vrammask : avec
-                //   64 Ko, les tables 1 à 3 de SR3 (0x10002 et au-delà) lisent hors de la mémoire configurée.
+                // pcem bug, fixed in hardware mode: PB-99 — l'adresse de la police n'est pas masquée par vrammask :
+                //   avec 64 Ko, les tables 1 à 3 de SR3 (0x10002 et au-delà) lisent hors de la mémoire configurée. Le
+                //   mode matériel masque les tables à l'écriture de SR3 (police_materiel).
                 dat = ega.vram[charaddr + (uint32_t)(ega.sc << 2)];
                 if ((ega.seqregs[1] & 8) != 0)
                 {
@@ -489,9 +497,10 @@ internal static partial class vid_ega
         int x;
         int offset = ((8 - ega.scrollcache) << 1) + 16;
         int line = ega.displine * Stride;
-        // pcem bug, reproduced: PB-89 — les colonnes peuvent dépasser 2047 (hdisp, soit CR01 + 1, jusqu'à 256) :
-        //   le C écrit alors dans la ligne suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69), jamais
-        //   hors du bloc — ici de même. Le texte, lui, borne par `& 2047`.
+        // pcem bug, fixed in hardware mode: PB-89 — les colonnes peuvent dépasser 2047 (hdisp, soit CR01 + 1, jusqu'à
+        //   256) : le C écrit alors dans la ligne suivante de buffer32 (lignes contiguës, wx-sdl2-video.c:59-69),
+        //   jamais hors du bloc — ici de même. Le texte, lui, borne par `& 2047`. Le mode matériel borne la ligne à
+        //   elle-même (poll_materiel, posé à l'init).
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -541,7 +550,8 @@ internal static partial class vid_ega
         int x;
         int offset = ((8 - ega.scrollcache) << 1) + 16;
         int line = ega.displine * Stride;
-        // pcem bug, reproduced: PB-89 — comme ega_draw_2bpp : jusqu'à 4 143, dans la ligne suivante.
+        // pcem bug, fixed in hardware mode: PB-89 — comme ega_draw_2bpp : jusqu'à 4 143, dans la ligne suivante.
+        //   Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -606,7 +616,8 @@ internal static partial class vid_ega
         int x;
         int offset = (8 - ega.scrollcache) + 24;
         int line = ega.displine * Stride;
-        // pcem bug, reproduced: PB-89 — comme ega_draw_2bpp : jusqu'à 2 087, dans la ligne suivante.
+        // pcem bug, fixed in hardware mode: PB-89 — comme ega_draw_2bpp : jusqu'à 2 087, dans la ligne suivante.
+        //   Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
 
         for (x = 0; x <= ega.hdisp; x++)
         {
@@ -689,8 +700,9 @@ internal static partial class vid_ega
                         if (ega.scrblank != 0)
                         {
                                 int line = ega.displine * Stride;
-                                // pcem bug, reproduced: PB-89 — (x * 18) + xx + 32 monte à 4 639 (:549-550) :
-                                //   la ligne suivante de buffer32, jamais hors du tableau.
+                                // pcem bug, fixed in hardware mode: PB-89 — (x * 18) + xx + 32 monte à 4 639
+                                //   (:549-550) : la ligne suivante de buffer32, jamais hors du tableau. Le mode
+                                //   matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                                 for (x = 0; x < ega.hdisp; x++)
                                 {
                                         switch (ega.seqregs[1] & 9)
@@ -730,6 +742,15 @@ internal static partial class vid_ega
                         }
                         else
                         {
+                                // pcem bug, fixed in hardware mode: PB-99 — les substitutions de rangée de CR17
+                                //   s'appliquent après le masque de vrammask (:344-347, :405-408, :477-480) : avec
+                                //   64 Ko, le bit 0x10000 (CR17 bit 1 = 0) lit des octets que la carte n'a pas ; et
+                                //   l'adresse de début de trame n'est masquée qu'après le premier caractère.
+                                if (materiel.pb_99)
+                                {
+                                        graphique_materiel(ega);
+                                        goto graphique_dessine;
+                                }
                                 switch (ega.gdcreg[5] & 0x20)
                                 {
                                 case 0x00:
@@ -742,6 +763,7 @@ internal static partial class vid_ega
                                         ega_draw_2bpp(ega);
                                         break;
                                 }
+                                graphique_dessine: ;
                         }
                         if (ega.lastline < ega.displine)
                                 ega.lastline = ega.displine;
@@ -1201,6 +1223,14 @@ internal static partial class vid_ega
         ega.vram_limit = 256 * 1024;
         ega.vrammask = (int)(ega.vram_limit - 1);
 
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte, à la place du timer_add de PCem (dernier appel de la
+        //   fonction : une garde après lui romprait son appel terminal, M2).
+        if (materiel.pb_89)
+        {
+                ligne_add_materiel(ega);
+                return;
+        }
         timer_add(ega.timer, ega_poll, ega, 1);
     }
 
@@ -1229,11 +1259,11 @@ internal static partial class vid_ega
         monitor_type = device_get_config_int("monitor_type");
         ega_init(ega, monitor_type, (monitor_type & 0xf) == 10 ? 1 : 0);
 
-        // PB-99, la part (6) qui viendra avec les rendus (G13.9c2), la même dans les deux modes d'ici là —
-        //   le rendu est borné par vrammask, mais les substitutions de rangée
-        //   de CR17 s'appliquent après (:344-347, :405-408, :477-480) : avec 64 Ko, le bit 0x10000 (CR17
-        //   bit 1 = 0) lit des octets qu'une vraie carte de 64 Ko n'a pas. La police du texte, lue sans
-        //   masque (:287), sort de même par les tables de SR3 qui dépassent la mémoire.
+        // pcem bug, fixed in hardware mode: PB-99 — le rendu est borné par vrammask, mais les substitutions de
+        //   rangée de CR17 s'appliquent après (:344-347, :405-408, :477-480) : avec 64 Ko, le bit 0x10000 (CR17
+        //   bit 1 = 0) lit des octets qu'une vraie carte de 64 Ko n'a pas. La police du texte, lue sans masque
+        //   (:287), sort de même par les tables de SR3 qui dépassent la mémoire. Le mode matériel garde l'une et
+        //   l'autre dans la mémoire configurée (graphique_materiel, police_materiel).
         ega.vram_limit = (uint32_t)(device_get_config_int("memory") * 1024);
         ega.vrammask = (int)(ega.vram_limit - 1);
 

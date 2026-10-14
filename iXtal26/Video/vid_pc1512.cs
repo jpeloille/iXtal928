@@ -5,7 +5,7 @@
 // STATUS: transcribed — pc1512_t, pc1512_out/pc1512_in, pc1512_write/pc1512_read,
 //         pc1512_recalctimings, pc1512_poll, pc1512_init, pc1512_close,
 //         pc1512_speed_changed, pc1512_config, pc1512_device. Le fichier entier.
-//         Omis : les pclog et les blocs commentés, sortie pure. PB-89 reproduit.
+//         Omis : les pclog et les blocs commentés, sortie pure. PB-89 borné en mode matériel.
 
 /*PC1512 CGA emulation
 
@@ -229,12 +229,13 @@ internal static partial class vid_pc1512
                         pc1512.lastline = pc1512.displine;
                         for (c = 0; c < 8; c++)
                         {
-                                // pcem bug, reproduced: PB-89 — comme la M24 : crtc[1] n'est pas masqué
+                                // pcem bug, fixed in hardware mode: PB-89 — comme la M24 : crtc[1] n'est pas masqué
                                 //   (crtcmask[1] = 0xff) ; l'abscisse c + (crtc[1] << 4) + 8 monte à 4 095
                                 //   et déborde sur la ligne suivante de buffer32 (lignes contiguës,
                                 //   wx-sdl2-video.c:59-69, ici le même tableau plat). Jamais hors du
                                 //   tableau : displine < 360 (vid_pc1512.c:326-327), donc l'index plat
                                 //   reste sous 359 * 2048 + 4 095 < 2048 * 2048.
+                                //   Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                                 if ((pc1512.cgamode & 0x12) == 0x12)
                                 {
                                         Buffer32[pc1512.displine * Stride + c] = cgapal[pc1512.border & 15];
@@ -428,9 +429,10 @@ internal static partial class vid_pc1512
                 else
                 {
                         cols[0] = cgapal[((pc1512.cgamode & 0x12) == 0x12) ? 0 : (pc1512.cgacol & 15)];
-                        // pcem bug, reproduced: PB-89 — comme la M24 : x2 = (crtc[1] << 4) + 16 monte à
+                        // pcem bug, fixed in hardware mode: PB-89 — comme la M24 : x2 = (crtc[1] << 4) + 16 monte à
                         //   4 096 : hline déborde sur la ligne suivante, jamais hors du tableau
                         //   (displine < 360).
+                        //   Le mode matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                         if ((pc1512.cgamode & 1) != 0)
                                 hline(0, pc1512.displine, (pc1512.crtc[1] << 3) + 16, (int)cols[0]);
                         else
@@ -586,6 +588,10 @@ internal static partial class vid_pc1512
         display_type = device_get_config_int("display_type");
 
         timer_add(pc1512.timer, pc1512_poll, pc1512, 1);
+        // pcem bug, fixed in hardware mode: PB-89 — la ligne bornée à elle-même : le balayage du mode matériel
+        //   (poll_materiel) sur la minuterie de la carte.
+        if (materiel.pb_89)
+                ligne_init_materiel(pc1512);
         mem_mapping_add(pc1512.mapping, 0xb8000, 0x08000, pc1512_read, null, null, pc1512_write, null, null, null, 0, 0, pc1512);
         io_sethandler(0x03d0, 0x0010, pc1512_in, null, null, pc1512_out, null, null, pc1512);
         cgapal_rebuild(display_type, 0);

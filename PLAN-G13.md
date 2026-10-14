@@ -635,9 +635,13 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.9c — La CGA, la M24 et le PC1512** ✅ *(14/10, VERIFICATION.md § G13.9c)*. PB-04, la CGA de PB-222 et de
     PB-223, la part (a) de PB-230 (R16-R17) ; la M24 et le PC1512 n'ont que des parts inconnues (la relecture, leur
     puce non lue) ou hors de l'entrée (leur curseur). PB-232 reste reproduit (Q17).
-  - **G13.9c2 — Les rendus : la bordure, PB-89, et la mémoire de l'EGA, PB-99 (6)** (Q17), après 9d : tous les rendus
-    qui suivent R1 ou CR01, sur la CGA, la MDA, l'Hercules, l'EGA, la M24 et le PC1512, la ligne bornée à elle-même ; les
-    rendus de l'EGA, les substitutions de CR17 et la police sous vrammask. Une sous-étape à part, pour ses vingt sites.
+  - **G13.9c2 — Les rendus : la bordure, PB-89, et la mémoire de l'EGA, PB-99 (6)** ✅ *(15/10, VERIFICATION.md
+    § G13.9c2)* (Q17), après 9d : tous les rendus qui suivent R1 ou CR01, sur la CGA, la MDA, l'Hercules, l'EGA, la M24
+    et le PC1512, la ligne bornée à elle-même ; les rendus de l'EGA, les substitutions de CR17 et la police sous
+    vrammask. Les vingt sites de PB-89 tiennent en une garde par carte, à l'init : le balayage du mode matériel posé sur
+    la minuterie de la carte, qui garde les deux lignes suivantes de buffer32 autour du balayage de PCem quand R1 peut
+    sortir de la ligne. PB-99 (6) : l'adresse de début de ligne masquée, CR17 bit 1 tenu à 1 le temps d'une ligne
+    graphique sur 64 Ko, les tables de SR3 masquées.
   - **G13.9d — L'EGA** ✅ *(14/10, VERIFICATION.md § G13.9d)*. PB-99 (1), (2), (5) et (7), avec CR0A bit 5 et
     l'attribut 10h bit 5. PB-99 (6), la mémoire de 64 Ko qui ne voit pas le bit 0x10000 (déduit, Q17), va à 9c2 avec les
     rendus qu'elle touche ; PB-99 (4) et PB-228 vont à 9f (Q18).
