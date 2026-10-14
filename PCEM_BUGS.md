@@ -178,7 +178,15 @@ lignes, la cellule du curseur n'est jamais éteinte par le clignotement, quelle 
 où `cgablink & 8` ≠ 0 (le curseur de PCem allumé) : lignes 6-7 de la cellule, PCem peint un pavé uni cgapal[15] ;
 l'exemption `(ma == ca) && con` y laisse le glyphe, inversé (cgapal[8] sur cgapal[15]).
 *G13* : (a) — exemption `(ma == ca) && con`, sans `cursoron`, la locale ne suffisant plus avec PB-223.
-*Reproduit* : `Video/vid_cga.cs`, `cga_poll`, marqueurs PB-04 (`:272` en 80 colonnes, `:324` en 40).
+*Reproduit* en mode PCem : `Video/vid_cga.cs`, `cga_poll`, marqueurs `fixed in hardware mode: PB-04`, en 80 et en
+40 colonnes.
+*Corrigé en mode matériel* (G13.9c) : sous `if (materiel.pb_04)`, en tête du dessin du texte, en 80 et en 40 colonnes
+(`Video/vid_cga.Materiel.cs`, `texte_materiel`, la boucle de PCem ; PB-222 et PB-223 y mènent aussi) : la cellule
+`(ma == ca) && con`, sur les lignes du curseur, n'est pas éteinte par le clignotement, quelle que soit la phase du
+curseur ; R10 bits 5-6 à 01, le 6845 n'émet pas CURSOR : pas d'exemption (ses deux modes de clignotement propres,
+PB-231, restent ceux de PCem). `materiel-cas PB-04` : le cas de l'entrée en 80 et en 40 colonnes (un pavé uni Fh chez
+PCem, le glyphe inversé sur la carte ; sous PB-222, un pavé 0h contre 7h), la phase éteinte du curseur (éteint contre le
+glyphe) ; témoins, hors des lignes du curseur, le curseur masqué par R10, et hors du curseur.
 
 ### PB-05 — `pic.c:369` efface le mauvais bit de `pend`
 
@@ -4887,14 +4895,16 @@ documenté : le curseur force les points à 1.
 *Cas qui discrimine* : CGA, mode 3, caractère 20h d'attribut 07h sous le curseur, phase allumée : lignes 6-7, PCem
 cgapal[15], la carte cgapal[7] ; MDA, caractère DBh d'attribut 07h, rangées 0Bh-0Ch : PCem noir, la carte cgapal[7].
 *G13* : (a) — documenté par les deux schémas.
-*Reproduit* : la CGA, dans les deux modes jusqu'à G13.9c, `Video/vid_cga.cs`, `cga_poll`, commentaires `PB-222, une part
-(a) qui viendra avec la CGA` ; la MDA, en mode PCem, `Video/vid_mda.cs`, `mda_poll`, marqueur `fixed in hardware mode:
-PB-222`. L'Hercules, la M24 et le PC1512 dessinent le même XOR ; leur matériel n'a pas été lu : hors de l'entrée.
+*Reproduit* en mode PCem : la CGA, `Video/vid_cga.cs`, `cga_poll`, en 80 et en 40 colonnes, et la MDA,
+`Video/vid_mda.cs`, `mda_poll`, marqueurs `fixed in hardware mode: PB-222`. L'Hercules, la M24 et le PC1512 dessinent le même XOR ; leur matériel n'a pas été lu : hors de l'entrée.
 *Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_222)`, en tête du dessin de la ligne de `mda_poll`
 (`ligne_materiel`, celle de PB-96) : sous le curseur, les neuf points à l'avant-plan de l'attribut (`mdacol(attr, 0,
 1)`) ; sur un attribut qui n'affiche rien (00h, 08h, 80h, 88h), ce point d'avant-plan est le fond, comme chez PCem : le
-schéma n'en dit pas plus. `materiel-cas PB-222` : DBh d'attribut 07h sous le curseur (noir chez PCem, l'avant-plan sur la carte), 20h (le
-même dans les deux), 41h hors du curseur en témoin.
+schéma n'en dit pas plus. La CGA (G13.9c) : sous `if (materiel.pb_222)`, en tête du dessin du texte, en 80 et en 40
+colonnes (`texte_materiel`, celle de PB-04) : sous le curseur, les points à l'avant-plan de l'attribut.
+`materiel-cas PB-222` : DBh d'attribut 07h sous le curseur (noir chez PCem, l'avant-plan sur la carte), 20h (le même
+dans les deux), 41h hors du curseur en témoin ; la CGA, 20h d'attribut 07h sous le curseur en 80 et en 40 colonnes
+(Fh chez PCem, 7h sur la carte), 41h hors du curseur en témoin.
 
 ### PB-223 — Les caractères de la CGA et le curseur de la MDA clignotent au mauvais rythme
 
@@ -4910,14 +4920,15 @@ est la sortie QD d'un compteur avancé par +V SYNC DLY, -BLINK la sortie QA du s
 *Cas qui discrimine* : CGA, mode 3, 3D8h = 29h, caractère d'attribut 87h : trames entre deux bascules de l'avant-plan,
 PCem 8, la carte 16. MDA, mode 7 : trames entre deux bascules du curseur, PCem 16, la carte 8.
 *G13* : (a), (c) — (a) la CGA et la MDA, par leurs schémas ; (c) l'Hercules, dont le manuel ne dit pas le rythme.
-*Reproduit* : la CGA, dans les deux modes jusqu'à G13.9c, `Video/vid_cga.cs`, `cga_poll`, commentaires `PB-223, une
-part (a) qui viendra avec la CGA` ; l'Hercules (c), dans les deux modes, `hercules_poll` ; la MDA, en mode PCem,
-`mda_poll`, marqueur `fixed in hardware mode: PB-223`. La M24 et le PC1512, dont le matériel n'a pas été lu, restent
+*Reproduit* : la CGA et la MDA, en mode PCem, `cga_poll` et `mda_poll`, marqueurs `fixed in hardware mode: PB-223` ;
+l'Hercules (c), dans les deux modes, `hercules_poll`. La M24 et le PC1512, dont le matériel n'a pas été lu, restent
 hors de l'entrée.
 *Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_223)`, après la ligne de PCem dans la fin de trame
 de `mda_poll` (`Video/vid_mda.Materiel.cs`, `curseur_materiel`) : le curseur au bit 3 du compteur de trames ; R10 bits
 5-6 à 01 l'éteint toujours (PB-231 reste). `materiel-cas PB-223` : une fin de trame, le compteur à 8 et à 16 ; R10 =
-2Bh en témoin.
+2Bh en témoin. La CGA (G13.9c) : sous `if (materiel.pb_223)`, en tête du dessin du texte (`texte_materiel`, celle de
+PB-04) : les caractères au bit 4 du compteur, sur 32 trames ; le curseur reste au bit 3. `materiel-cas PB-223` : 41h
+d'attribut 87h, le compteur à 8 (éteint chez PCem, montré sur la carte) et à 16.
 
 ### PB-224 — Le bit 3 de 3BAh rend le retour vertical sur la MDA et l'Hercules, pas les points vidéo
 
@@ -5048,9 +5059,12 @@ documenté pour la CGA ; la puce de la M24 et du PC1512 n'a pas été lue ; la v
 *Cas qui discrimine* : CGA, OUT 3D4h,10h, OUT 3D5h,5Ah, IN 3D5h : PCem 5Ah ; le 6845 n'écrit pas R16, qui garde le
 verrou du crayon optique. L'index et R0-R13 : aucun cas avant une mesure (DEBUG, `o 3d4 n`, `i 3d5`, `i 3d4`).
 *G13* : (a), (c) — (a) R16-R17 de la CGA ; (c) l'index, R0-R13 relus, la M24 et le PC1512 : valeurs inconnues.
-*Reproduit* : marqueurs PB-230 : `Video/vid_cga.cs` (`:83`, la table ; `:138`, `cga_in`),
-`Video/vid_olivetti_m24.cs` (`:63`, `:110`), `Video/vid_pc1512.cs` (`:70`, `:134`), `Video/vid_mda.cs` (`:117`),
-`Video/vid_hercules.cs` (`:115`).
+*Reproduit* : la part (a), en mode PCem, `Video/vid_cga.cs`, la table et l'écriture de 3D5h, marqueurs `fixed in
+hardware mode: PB-230` ; la part (c), dans les deux modes, commentaires `PB-230, la part inconnue (c)` : `cga_in`, la
+M24 et le PC1512 (`vid_olivetti_m24.cs`, `vid_pc1512.cs` : la table et la relecture), la MDA et l'Hercules (l'index).
+*Corrigé en mode matériel*, la part (a) (G13.9c) : sous `if (materiel.pb_230)`, en tête de l'écriture de 3D5h de la CGA
+(`Video/vid_cga.Materiel.cs`, `crayon_materiel`) : R16 et R17 ne s'écrivent pas ; leur valeur reste celle du verrou du
+crayon optique (0 : PCem n'a pas de crayon). `materiel-cas PB-230` : R16 = 5Ah et R17 = A5h ; R15 en témoin.
 
 ### PB-231 — R10 bits 5-6 : seul « pas de curseur » est traité, pas le clignotement du 6845
 

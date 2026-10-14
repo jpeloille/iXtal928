@@ -80,8 +80,8 @@ internal static partial class vid_cga
     private const int COMPOSITE_NEW = 1;
 
     // pcem: vid_cga.c:16-17
-    // pcem bug, reproduced: PB-230 — R16 et R17, le crayon optique, s'écrivent (masque FFh) ; le 6845 les
-    //   tient en lecture seule.
+    // pcem bug, fixed in hardware mode: PB-230 — R16 et R17, le crayon optique, s'écrivent (masque FFh) ; le
+    //   6845 les tient en lecture seule (corrigé en tête de l'écriture de 3D5h).
     private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
                                                          0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -102,6 +102,11 @@ internal static partial class vid_cga
         case 0x3d3:
         case 0x3d5:
         case 0x3d7:
+                // pcem bug, fixed in hardware mode: PB-230 — R16 et R17, le crayon optique, s'écrivent (crtcmask) ;
+                //   le 6845 les tient en lecture seule.
+                if (materiel.pb_230)
+                        if (crayon_materiel(cga))
+                                return;
                 old = cga.crtc[cga.crtcreg];
                 cga.crtc[cga.crtcreg] = (uint8_t)(val & crtcmask[cga.crtcreg]);
                 if (old != val)
@@ -135,8 +140,8 @@ internal static partial class vid_cga
         switch (addr)
         {
         case 0x3D4:
-                // pcem bug, reproduced: PB-230 — l'index se relit, et R0-R13 aussi (3D5h) ; IBM les tient en
-                //   écriture seule.
+                // PB-230, la part inconnue (c), la même dans les deux modes — l'index se relit, et R0-R13 aussi (3D5h) ;
+                //   IBM les tient en écriture seule, et ce qu'ils rendent est inconnu.
                 return (uint8_t)cga.crtcreg;
         case 0x3D5:
                 return cga.crtc[cga.crtcreg];
@@ -255,6 +260,27 @@ internal static partial class vid_cga
                         }
                         if ((cga.cgamode & 1) != 0)
                         {
+                                // pcem bug, fixed in hardware mode: PB-04 — le champ drawcursor, jamais écrit : la cellule
+                                //   du curseur n'est pas exemptée du clignotement. Le texte du mode matériel
+                                //   (texte_materiel) ; PB-222 et PB-223 y mènent aussi.
+                                if (materiel.pb_04)
+                                {
+                                        texte_materiel(cga, ca, true);
+                                        goto texte_dessine;
+                                }
+                                // pcem bug, fixed in hardware mode: PB-222 — le curseur inversé (texte_materiel).
+                                if (materiel.pb_222)
+                                {
+                                        texte_materiel(cga, ca, true);
+                                        goto texte_dessine;
+                                }
+                                // pcem bug, fixed in hardware mode: PB-223 — les caractères au rythme du curseur
+                                //   (texte_materiel).
+                                if (materiel.pb_223)
+                                {
+                                        texte_materiel(cga, ca, true);
+                                        goto texte_dessine;
+                                }
                                 for (x = 0; x < cga.crtc[1]; x++)
                                 {
                                         if ((cga.cgamode & 8) != 0)
@@ -269,12 +295,11 @@ internal static partial class vid_cga
                                         {
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)((attr >> 4) & 7);
-                                                // pcem bug, reproduced: PB-04 — `!cga->drawcursor` (vid_cga.c:165)
+                                                // pcem bug, fixed in hardware mode: PB-04 — `!cga->drawcursor` (vid_cga.c:165)
                                                 //   lit le CHAMP cga_t.drawcursor, que rien n'écrit — donc
                                                 //   toujours 0 — là où la locale `drawcursor` était visée.
-                                                // PB-223, une part (a) qui viendra avec la CGA (G13.9c), la même dans
-                                                //   les deux modes d'ici là — les caractères clignotent au bit 3 de
-                                                //   cgablink, le rythme du curseur ; la carte : bit 4.
+                                                // pcem bug, fixed in hardware mode: PB-223 — les caractères clignotent
+                                                //   au bit 3 de cgablink, le rythme du curseur ; la carte : bit 4.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -283,9 +308,9 @@ internal static partial class vid_cga
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
-                                        // PB-222, une part (a) qui viendra avec la CGA (G13.9c), la même dans les
-                                        //   deux modes d'ici là — le curseur inverse le glyphe (^ 0xffffff) ; la
-                                        //   carte force ses points à 1 : un pavé plein, de la couleur d'avant-plan.
+                                        // pcem bug, fixed in hardware mode: PB-222 — le curseur inverse le glyphe
+                                        //   (^ 0xffffff) ; la carte force ses points à 1 : un pavé plein, de la
+                                        //   couleur d'avant-plan.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)
@@ -308,6 +333,27 @@ internal static partial class vid_cga
                         }
                         else if ((cga.cgamode & 2) == 0)
                         {
+                                // pcem bug, fixed in hardware mode: PB-04 — le champ drawcursor, jamais écrit : la cellule
+                                //   du curseur n'est pas exemptée du clignotement. Le texte du mode matériel
+                                //   (texte_materiel) ; PB-222 et PB-223 y mènent aussi.
+                                if (materiel.pb_04)
+                                {
+                                        texte_materiel(cga, ca, false);
+                                        goto texte_dessine;
+                                }
+                                // pcem bug, fixed in hardware mode: PB-222 — le curseur inversé (texte_materiel).
+                                if (materiel.pb_222)
+                                {
+                                        texte_materiel(cga, ca, false);
+                                        goto texte_dessine;
+                                }
+                                // pcem bug, fixed in hardware mode: PB-223 — les caractères au rythme du curseur
+                                //   (texte_materiel).
+                                if (materiel.pb_223)
+                                {
+                                        texte_materiel(cga, ca, false);
+                                        goto texte_dessine;
+                                }
                                 for (x = 0; x < cga.crtc[1]; x++)
                                 {
                                         if ((cga.cgamode & 8) != 0)
@@ -322,10 +368,10 @@ internal static partial class vid_cga
                                         {
                                                 cols[1] = (uint32_t)(attr & 15);
                                                 cols[0] = (uint32_t)((attr >> 4) & 7);
-                                                // pcem bug, reproduced: PB-04 — le même champ (vid_cga.c:198), en
-                                                //   40 colonnes.
-                                                // PB-223, une part (a) qui viendra avec la CGA (G13.9c) — le même
-                                                //   rythme qu'en 80 colonnes.
+                                                // pcem bug, fixed in hardware mode: PB-04 — le même champ
+                                                //   (vid_cga.c:198), en 40 colonnes.
+                                                // pcem bug, fixed in hardware mode: PB-223 — le même rythme qu'en 80
+                                                //   colonnes.
                                                 if ((cga.cgablink & 8) != 0 && (attr & 0x80) != 0 && cga.drawcursor == 0)
                                                         cols[1] = cols[0];
                                         }
@@ -335,8 +381,8 @@ internal static partial class vid_cga
                                                 cols[0] = (uint32_t)(attr >> 4);
                                         }
                                         cga.ma++;
-                                        // PB-222, une part (a) qui viendra avec la CGA (G13.9c) — le même curseur
-                                        //   inversé qu'en 80 colonnes.
+                                        // pcem bug, fixed in hardware mode: PB-222 — le même curseur inversé
+                                        //   qu'en 80 colonnes.
                                         if (drawcursor != 0)
                                         {
                                                 for (c = 0; c < 8; c++)
@@ -418,6 +464,7 @@ internal static partial class vid_cga
                                         }
                                 }
                         }
+                        texte_dessine: ;
                 }
                 else
                 {

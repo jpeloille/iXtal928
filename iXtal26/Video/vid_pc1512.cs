@@ -67,8 +67,8 @@ internal sealed class pc1512_t
 internal static partial class vid_pc1512
 {
     // pcem: vid_pc1512.c:45-46
-    // pcem bug, reproduced: PB-230 — R16 et R17 s'écrivent (masque FFh), comme sur la CGA ; un 6845 les
-    //   tient en lecture seule.
+    // PB-230, la part inconnue (c), la même dans les deux modes — R16 et R17 s'écrivent (masque FFh), comme sur
+    //   la CGA ; un 6845 les tient en lecture seule, mais la puce de cette carte n'a pas été lue.
     private static uint8_t[] crtcmask = new uint8_t[32] {0xff, 0xff, 0xff, 0xff, 0x7f, 0x1f, 0x7f, 0x7f, 0xf3, 0x1f, 0x7f, 0x1f, 0x3f, 0xff, 0x3f, 0xff,
                                                          0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -131,7 +131,8 @@ internal static partial class vid_pc1512
         switch (addr)
         {
         case 0x3d4:
-                // pcem bug, reproduced: PB-230 — l'index se relit, et R0-R13 aussi (3D5h), comme sur la CGA.
+                // PB-230, la part inconnue (c), la même dans les deux modes — l'index se relit, et R0-R13 aussi
+                //   (3D5h), comme sur la CGA.
                 return (uint8_t)pc1512.crtcreg;
         case 0x3d5:
                 return pc1512.crtc[pc1512.crtcreg];

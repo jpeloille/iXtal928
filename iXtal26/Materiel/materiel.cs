@@ -331,6 +331,12 @@ internal static class materiel
     /// <summary>PB-37 : le rendu 24 bpp basse résolution dessine toute la ligne, chaque point doublé.</summary>
     internal static readonly bool pb_37;
 
+    /// <summary>PB-04 : la cellule du curseur de la CGA n'est pas éteinte par le clignotement des caractères.</summary>
+    internal static readonly bool pb_04;
+
+    /// <summary>PB-230 : R16 et R17 du 6845 de la CGA ne s'écrivent pas.</summary>
+    internal static readonly bool pb_230;
+
     /// <summary>PB-102 : la MDA et l'Hercules balayent avec leur caractère, 9 points (16 en graphique sur l'Hercules).</summary>
     internal static readonly bool pb_102;
 
@@ -340,10 +346,10 @@ internal static class materiel
     /// <summary>PB-96 : la police de la MDA lue à la rangée sc &amp; 15.</summary>
     internal static readonly bool pb_96;
 
-    /// <summary>PB-222 : le curseur de la MDA force les points de la cellule.</summary>
+    /// <summary>PB-222 : le curseur de la MDA et de la CGA force les points de la cellule.</summary>
     internal static readonly bool pb_222;
 
-    /// <summary>PB-223 : le curseur de la MDA clignote sur 16 trames.</summary>
+    /// <summary>PB-223 : le curseur de la MDA clignote sur 16 trames, les caractères de la CGA sur 32.</summary>
     internal static readonly bool pb_223;
 
     /// <summary>PB-225 : 3BAh bit 7 de l'Hercules, 0 pendant le retour vertical.</summary>
@@ -643,6 +649,8 @@ internal static class materiel
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);
         pb_37 = ModeMateriel.Demande(37);
+        pb_04 = ModeMateriel.Demande(4);
+        pb_230 = ModeMateriel.Demande(230);
         pb_102 = ModeMateriel.Demande(102);
         pb_97 = ModeMateriel.Demande(97);
         pb_96 = ModeMateriel.Demande(96);

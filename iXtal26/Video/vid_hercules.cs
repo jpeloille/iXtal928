@@ -130,7 +130,8 @@ internal static partial class vid_hercules
         case 0x3b2:
         case 0x3b4:
         case 0x3b6:
-                // pcem bug, reproduced: PB-230 — l'index se relit ; le 6845 le tient en écriture seule.
+                // PB-230, la part inconnue (c), la même dans les deux modes — l'index se relit ; le 6845 le tient en
+                //   écriture seule.
                 return (uint8_t)hercules.crtcreg;
         case 0x3b1:
         case 0x3b3:

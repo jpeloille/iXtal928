@@ -208,7 +208,7 @@ internal static partial class MaterielCas
             var v = LigneMda(0x41, 0x07, 3, false);
             return v == PointsPolice(0x41, 3) ? "la rangée 3 de 41h" : v;
         }, "", "la rangée 3 de 41h", hw, temoin: true);
-        return bad;
+        return bad + Pb222Cga(hw);
     }
 
     // PB-223 (a) — le curseur de la MDA clignote sur 16 trames, les caractères sur 32 (feuille 5, U28) : le curseur suit
@@ -234,7 +234,7 @@ internal static partial class MaterielCas
                       "curseur=éteint", hw);
         bad += UnMono("MDA : fin de trame, le compteur à 8, R10 = 2Bh (pas de curseur, témoin)", "mda", () => Fin(8, 0x2b),
                       "", "curseur=éteint", hw, temoin: true);
-        return bad;
+        return bad + Pb223Cga(hw);
     }
 
     // PB-225 (a) — 3BAh bit 7 de l'Hercules : « 0 = vertical retrace … 1 = active display » (GB101, pp. 12-13). PCem y

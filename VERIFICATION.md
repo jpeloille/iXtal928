@@ -11369,3 +11369,57 @@ PB, la sortie entière est celle du mode PCem ; sous « tout », seule la trace 
 **La série** g9a2 (le worktree de l'étape, contre g9b) : 666 portes, toutes vertes ; 664 communes à g9b, chacune au
 même verdict ; un seul résumé change, `recensement` (285 défauts, 1 226 marqueurs, sept de plus qu'à g9b). Deux
 neuves : les `materiel-cas` de PB-37, en mode PCem et sous PB-37 ; celles de PB-221 jouent les écritures.
+
+## G13.9c — la CGA
+
+Le 14 octobre 2026. La CGA d'IBM, d'après son schéma (Options and Adapters, vol. 2, feuilles 1 et 3) et le data sheet
+du MC6845 : PB-04 (la cellule du curseur exemptée du clignotement), la CGA de PB-222 (le curseur plein) et de PB-223
+(les caractères sur 32 trames), la part (a) de PB-230 (R16 et R17 en lecture seule). La M24 et le PC1512 n'ont que des
+parts inconnues (leur puce n'a pas été lue) : leurs sites de PB-230 deviennent des commentaires de part, comme
+l'index relu de la MDA et de l'Hercules. PB-89, la bordure, devient une sous-étape à part (9c2, après 9d).
+
+**La correction du mode matériel** (domaine `video`, deux neuves, PB-04 et PB-230 ; PB-222 et PB-223 élargies ;
+`Video/vid_cga.Materiel.cs`, neuf). Sept gardes. PB-04, PB-222 et PB-223, chacune en tête du dessin du texte, en 80
+et en 40 colonnes, vers la même ligne du mode matériel (`texte_materiel`, la boucle de PCem : l'exemption `(ma == ca)
+&& con`, sans la phase du curseur, R10 ne masquant pas le curseur ; le pavé de l'avant-plan ; le bit 4), puis
+l'étiquette `texte_dessine`, qui ne saute que la boucle. PB-230, en tête de l'écriture de 3D5h (`crayon_materiel` : R16
+et R17 ignorés).
+
+**Les cas**, en C# seul (`MaterielCasCga.cs`, neuf : une IBM XT montée avec la CGA, sans BIOS lancé ; une ligne de texte
+jouée par un appel de `cga_poll` sur un état posé à la main, les points rendus à leur indice de palette ; PB-222 et
+PB-223 enchaînent ces cas à ceux de la MDA), verts en mode PCem, sous chaque PB seul, sous « tout », sous PB-04 et
+PB-222, et sous les trois ; rouges sous l'attente de l'autre mode. PB-04 : 41h d'attribut 87h sous le curseur, la phase
+éteinte des caractères, en 80 et en 40 colonnes (un pavé uni Fh contre le glyphe inversé ; sous PB-222, 0h contre 7h),
+et la phase éteinte du curseur (éteint contre le glyphe) ; témoins, hors des lignes du curseur, le curseur masqué par
+R10, hors du curseur. PB-222 : 20h d'attribut 07h sous le curseur, en 80 et en 40 colonnes (Fh contre 7h). PB-223 :
+41h d'attribut 87h, le compteur à 8 et à 16, en 80 et en 40 colonnes. PB-230 : R16 et R17 (5Ah et A5h contre 00h) ;
+témoin, R15.
+
+**Le recensement** : vert, 285 défauts au registre, 1 230 marqueurs (quatre de plus qu'à g9a2 : les gardes du texte et
+de 3D5h, moins les sites de PB-230 devenus des commentaires de part).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9c.py, dans l'arbre, chaque faute restaurée) : dix-sept fautes, chacune rougit
+son cas — chacune des sept gardes retirée (celles du texte sous leur seul PB : sous « tout », les deux autres mènent à
+la même ligne) ; sans l'exemption ; l'exemption qui suit la phase du curseur ; le curseur masqué par R10 exempté ; sans
+`con` ; le curseur inversé ; le bit 3 ; R17 oublié ; et les attentes inversées ; le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code de PCem et d'iXtal26, les cas, les textes relus) : aucun bloquant. Vérifié
+juste : `texte_materiel` ligne à ligne contre les deux boucles de PCem, aux trois différences voulues près ;
+l'étiquette, qui ne saute que la boucle ; PB-230 avant `old`, `fullchange` et le recalcul (R17 n'entre dans aucun
+calcul) ; les trois PB ensemble ; `cgapal` sans doublon ; les marqueurs. Repris : R10 bits 5-6 à 01, le 6845 n'émet pas
+CURSOR, et la cellule n'est plus exemptée ; les cas de la phase éteinte du curseur, de `con` et du curseur masqué ;
+PB-223 en 40 colonnes ; une porte sous les trois PB du texte.
+
+**M2** (Release du worktree ; les scénarios `xt-dos`, qui monte la CGA, `pc1512`, `xt-mda` et `xt-hercules`) : avec
+et sans les sept gardes, identique (668 méthodes, aucune changée) ; contre M2-9a2 (tous les scénarios), les
+constructeurs statiques de `materiel` et de `ModeMateriel` et les quatre jetons de chaînes habituels.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9c.sh) : l'XT avec la CGA, PC-DOS, DIR, et sous DEBUG le curseur
+0607h, R16 écrit puis relu, 3D8h à 29h puis 2Dh, en mode PCem, sous les quatre PB et sous « tout » : aucun arrêt ; sous
+les quatre PB, la sortie entière est celle du mode PCem (la relecture tombe sur R15 : le BIOS réécrit l'index entre deux
+commandes) ; sous « tout », seule la trace des tranches.
+
+**La série** g9c (le worktree de l'étape, contre g9a2) : 672 portes, toutes vertes ; 666 communes à g9a2, chacune au
+même verdict ; un seul résumé change, `recensement` (285 défauts, 1 230 marqueurs, quatre de plus qu'à g9a2). Six
+neuves : les `materiel-cas` de PB-04 et de PB-230, en mode PCem et sous chaque PB seul, et PB-04 sous PB-222 et sous
+les trois PB du texte.

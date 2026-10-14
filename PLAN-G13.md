@@ -632,8 +632,11 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.9b — La MDA et l'Hercules** ✅ *(14/10, VERIFICATION.md § G13.9b)*. Sans question : PB-102 (le caractère de 9 points), la part (a) de PB-97 (les
     masques, le Turbo XT), la MDA de PB-96, la MDA de PB-222 et de PB-223 (le curseur plein, son rythme), et PB-225.
     PB-224 va à 9f (Q18) ; l'entrelacé de PB-97 et l'Hercules de PB-96 restent reproduits (Q17).
-  - **G13.9c — La CGA, la M24 et le PC1512.** Sans question : PB-04, la CGA de PB-222 et de PB-223, la part (a) de
-    PB-230 (R16-R17) ; et PB-89, la bordure bornée à sa ligne (Q17). PB-232 reste reproduit (Q17).
+  - **G13.9c — La CGA, la M24 et le PC1512** ✅ *(14/10, VERIFICATION.md § G13.9c)*. PB-04, la CGA de PB-222 et de
+    PB-223, la part (a) de PB-230 (R16-R17) ; la M24 et le PC1512 n'ont que des parts inconnues (la relecture, leur
+    puce non lue) ou hors de l'entrée (leur curseur). PB-232 reste reproduit (Q17).
+  - **G13.9c2 — La bordure, PB-89** (Q17 : bornée à sa ligne), après 9d : tous les rendus qui suivent R1 ou CR01, sur la
+    CGA, la MDA, l'Hercules, l'EGA, la M24 et le PC1512 ; une sous-étape à part, pour ses vingt sites.
   - **G13.9d — L'EGA.** PB-99 (1), (2), (5) et (7) ; (6), la mémoire de 64 Ko qui ne voit pas le bit 0x10000 (déduit,
     Q17). PB-99 (4) et PB-228 vont à 9f (Q18).
   - **G13.9e — L'ET4000 et son RAMDAC.** PB-227 (CR35 sous CR11) ; de PB-100, ce que le data book de Tseng établit

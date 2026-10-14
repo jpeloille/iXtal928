@@ -828,6 +828,14 @@ done
 # PB-221 les joue avec les lectures) et PB-37 (le rendu 24 bpp basse résolution).
 run materiel-cas-pb37 materiel-cas PB-37
 run materiel-cas-pb37-materiel --hardware-mode PB-37 materiel-cas PB-37
+# G13.9c — la CGA : PB-04 (la cellule du curseur exemptée du clignotement) et PB-230 (R16 et R17 en lecture seule) ;
+# PB-222 et PB-223 jouent aussi la CGA dans leurs cas (9b). Le texte du mode matériel, PB-04 et PB-222 ensemble.
+for pb in 04 230; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run materiel-cas-pb04-pb222 --hardware-mode PB-04,PB-222 materiel-cas PB-04
+run materiel-cas-pb04-pb223 --hardware-mode PB-04,PB-222,PB-223 materiel-cas PB-04
 # G13.9b — la MDA et l'Hercules : PB-102 (le caractère de 9 points, 16 en graphique), PB-97 (le 6845 à la largeur de ses
 # registres, sans le « Turbo XT »), PB-96 (la police à la rangée sc & 15), PB-222 (le curseur plein), PB-223 (le curseur
 # sur 16 trames), PB-225 (3BAh bit 7 de l'Hercules).

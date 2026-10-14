@@ -1873,3 +1873,23 @@ Julien à Q17 : la documentation du matériel tranche.*
   le reste de l'écran garde l'image d'avant.
 - **La correction.** La sortie avance de huit points par groupe de quatre, comme le rendu voisin le fait. Que la
   Trident 8900D et son RAMDAC offrent vraiment ce mode n'est pas connu ; s'il est atteint, il est dessiné en entier.
+
+## G13.9c — la CGA
+
+*Le 14 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9c.*
+
+### PB-04, PB-222, PB-223 — le texte clignotant et le curseur
+
+- **Le vrai PC.** Le schéma de la CGA d'IBM dit trois choses du mode texte. Le curseur force les points de sa cellule :
+  un pavé de la couleur du caractère. Sur les lignes du curseur, sa cellule n'est jamais éteinte par le clignotement
+  des caractères. Et les caractères clignotent sur 32 trames, deux fois plus lentement que le curseur.
+- **L'émulateur.** PCem inverse le caractère sous le curseur, éteint la cellule du curseur comme les autres (il lit
+  une variable que personne n'écrit), et fait clignoter les caractères au rythme du curseur, deux fois trop vite.
+- **La correction.** Les trois traits du schéma, en 80 et en 40 colonnes.
+
+### PB-230 — le crayon optique
+
+- **Le vrai PC.** R16 et R17 du 6845 gardent la position du crayon optique ; le programme ne peut que les lire.
+- **L'émulateur.** PCem les laisse écrire, et un programme relit ce qu'il y a mis.
+- **La correction.** L'écriture n'y change rien. Ce que le 6845 rend quand on relit ses autres registres, en écriture
+  seule, n'est pas connu : PCem reste, comme sur la M24 et le PC1512, dont la puce n'a pas été lue.
