@@ -1932,3 +1932,27 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **L'émulateur.** PCem le referme dès la première lecture qui le rend : la suivante rend le masque des points.
 - **La correction.** Le registre reste ouvert comme la fiche de Sierra le dit. Le reste de cette puce (ses registres
   étendus, son mode qui contourne la palette) dépend de son modèle exact, inconnu : PCem reste.
+
+## G13.9e2 — la clé de l'ET4000
+
+*Le 15 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9e2.*
+
+### PB-100 — le KEY
+
+- **Le vrai PC.** L'ET4000 ferme ses registres propres derrière une clé, le KEY : 03h écrit en 3BFh, puis A0h en
+  3D8h (3B8h en mono). Sans elle, les registres du CRTC au-delà de 18h ne s'écrivent pas, sauf 33h et 35h, ni TS 6 et
+  TS 7, ni l'ATC 16h. Le registre des banques, 3CDh, ne s'ouvre qu'après une première pose de la clé. Le data book
+  ne dit pas comment la clé se retire. Le BIOS de la carte le montre : il écrit 01h en 3BFh, puis 29h au même registre
+  de mode.
+- **L'émulateur.** PCem n'a pas de clé : tout s'écrit toujours.
+- **La correction.** La clé se pose et se retire par ces deux séquences. Ce qu'elle garde ne s'écrit pas sans elle, et
+  3CDh attend sa première pose. Les autres écritures de 3BFh et du registre de mode laissent la clé telle quelle : leur
+  effet sur la puce est inconnu. Ce que la clé garde en lecture reste aussi celui de PCem : il ne modèle pas ces
+  entrées.
+- **Ce qui reste.** L'état de la clé à la mise sous tension est inconnu, comme celui des registres qu'elle garde. Le
+  BIOS de la carte les écrit avant de poser la clé, puis les relit. Si ces écritures étaient perdues, il relirait les
+  zéros de l'émulateur et se tromperait sur la mémoire de la carte. Jusqu'au premier retrait, tout s'écrit donc,
+  comme chez PCem, sauf 3CDh, qui attend la première pose. Le data book dit aussi qu'un reset synchrone referme 3CDh jusqu'à la pose suivante. Pris à la
+  lettre, cela fermerait 3CDh après chaque changement de mode du BIOS de la carte. Or les programmes écrivent 3CDh
+  juste après, sans poser la clé, et ils marchent sur la vraie carte. La règle exacte est inconnue : le reset ne
+  referme rien, comme chez PCem.

@@ -331,7 +331,7 @@ internal static class materiel
     /// <summary>PB-37 : le rendu 24 bpp basse résolution dessine toute la ligne, chaque point doublé.</summary>
     internal static readonly bool pb_37;
 
-    /// <summary>PB-100 : CR13 nul de l'ET4000 vaut 0.</summary>
+    /// <summary>PB-100 : CR13 nul de l'ET4000 vaut 0 ; le KEY garde ses registres étendus et 3CDh.</summary>
     internal static readonly bool pb_100;
 
     /// <summary>PB-227 : CR35 de l'ET4000 protégé par CR11 bit 7.</summary>

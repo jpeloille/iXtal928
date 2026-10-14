@@ -83,7 +83,7 @@ internal static class ModeMateriel
         new(96, "video", "la police de la MDA lue à la rangée sc & 15 : quatre lignes RA vont au générateur"),
         new(97, "video", "le 6845 de la MDA et de l'Hercules : ses registres à leur largeur, sans le correctif du « Turbo XT »"),
         new(99, "video", "l'EGA sans les traits de la VGA : sa palette, CR11, les bits 9, CR0A bit 5, 10h bit 5 ; le texte redessiné à chaque ligne"),
-        new(100, "video", "CR13 nul de l'ET4000 vaut 0, la même rangée répétée"),
+        new(100, "video", "CR13 nul de l'ET4000 vaut 0, la même rangée répétée ; le KEY garde ses registres étendus et 3CDh"),
         new(101, "carte-mere", "le PC1512 n'a pas de second port parallèle à 278h"),
         new(102, "video", "la MDA et l'Hercules balayent avec leur caractère : 9 points, et 16 en graphique sur l'Hercules"),
         new(103, "carte-mere", "le chapeau de la CH et de la TM lit 315° (haut-gauche) en haut"),

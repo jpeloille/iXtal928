@@ -1893,7 +1893,8 @@ vsyncstart sans bit 9) ; témoins, CR11 = 00h, 10h = 00h (la palette et le parta
 - pas de séquence KEY (03h en 3BFh, puis A0h en 3D8h ou 3B8h, p. 102) : ce qu'elle garde reste ouvert — les écritures
   du CRTC au-delà de 18h hors 33h et 35h (p. 111), CR36-CR37 (pp. 136-137), TS 6 et TS 7 (p. 142), l'ATC 16h (p. 158),
   3CDh avant la première pose (p. 144), et la lecture de l'Input Status 0 bits 5-6 (p. 102) et du bit 7 de 3CAh
-  (p. 104). Le retrait du KEY n'est décrit nulle part dans le data book ;
+  (p. 104). Le retrait du KEY n'est décrit nulle part dans le data book ; le BIOS de la carte (`et4000.bin`) a sa
+  routine de pose en 1038h et une routine de retrait en 1050h : 01h en 3BFh, puis 29h en 3#8 ;
 - SR7 se relit avec le bit 2 forcé (`:269-271`). « Set to 1 (always) » (p. 142) décrit un registre en lecture-écriture :
   une consigne de programmation, pas un bit câblé ; PCem ne force pas non plus le bit 4 que la même page donne en
   révision E. La valeur relue est inconnue.
@@ -1905,20 +1906,42 @@ décodage du code réservé 111 (`:45-58`). Les modes à 4 octets par point exis
 table 2), mais par le registre de repack, l'étendu 10h, que l'ERPF ouvre.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10) ; CR3F, SR7, le KEY et la Sierra repris par la
 reconnaissance de G13 (D4-video, § PB-100 ; D4-contre, § 2 n° 7 à 11).
-*Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), pp. 85, 102-104, 111, 123, 136-137, 142, 144,
-150-151, 158 — documenté, hors le retrait du KEY (inconnu) ; Sierra, data sheet *SC15025/SC15026*, tables 2, 3, 9 et
+*Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), pp. 85, 102-104, 108, 111, 123, 136-137, 142,
+144, 150-151, 158 — documenté, hors le retrait du KEY ; le retrait, déduit du BIOS de la carte (sa routine en 1050h) ;
+l'effet des autres écritures de 3BFh et de 3#8 sur le KEY, inconnu ; Sierra, data sheet *SC15025/SC15026*, tables 2, 3, 9 et
 10, pp. 3-83 à 3-91 — documenté ; la puce exacte de la carte modélisée (« SC1502x ») : inconnue.
 *Cas qui discrimine* : CR13 = 00h : PCem `rowoffset` = 256, l'ET4000 0, la même rangée répétée ; sans KEY, CR36 = 5Ah :
 PCem l'écrit, l'ET4000 l'ignore ; FFh écrit une fois armé : PCem garde le registre de commande, la Sierra y prend FFh.
-*G13* : (b), (c), (d) — (b) CR13, 128 Ko, le KEY posé ; (c) son retrait, SR7, FFh, 24/32 bits, CR30-31 ; (d) CR3F.
-*Reproduit* : CR13, en mode PCem, `Video/vid_et4000.cs`, `et4000_recalctimings`, marqueur `fixed in hardware mode:
-PB-100` ; le reste, dans les deux modes, commentaires `PB-100, une part` : le KEY (b), en écriture et en lecture, qui
-viendra en G13.9e2 ; le masque de CR30-CR31, SR7, FFh et les profondeurs du RAMDAC (c), inconnus ; la fenêtre de 128 Ko,
-sans effet visible.
+*G13* : (b), (c), (d) — (b) CR13, 128 Ko, le KEY posé, et son retrait par la séquence du BIOS ; (c) les autres
+écritures de 3BFh et de 3#8, l'état du KEY à la mise sous tension, la lecture sans le KEY, le reset synchrone pour
+3CDh, SR7, FFh, 24/32 bits, CR30-31 ; (d) CR3F.
+*Reproduit* : CR13 et le KEY, en mode PCem, `Video/vid_et4000.cs`, `et4000_recalctimings`, `et4000_out` et
+`et4000_init`, marqueurs `fixed in hardware mode: PB-100` ; le reste, dans les deux modes, commentaires `PB-100, une
+part` : ce que le KEY garde en lecture (c), que PCem ne modèle pas (3C2h bits 5-6 toujours nuls, 3CAh relu FFh), la
+valeur rendue sans le KEY inconnue, et 3CDh relu avant la pose ; le masque de CR30-CR31, SR7, FFh et les profondeurs
+du RAMDAC (c), inconnus ; la fenêtre de 128 Ko, sans effet visible.
 *Corrigé en mode matériel*, CR13 (G13.9e) : sous `if (materiel.pb_100)`, après la ligne de PCem
 (`Video/vid_et4000.Materiel.cs`, `cr13_materiel`) : CR13 nul vaut 0, la même rangée répétée. `materiel-cas PB-100` :
 CR13 = 01h puis 00h (256 contre 0) ; 28h en témoin. La TVGA, la GD5429 et la Trio64 lisent aussi un CR13 nul comme 256
 (`vid_tvga.cs`, `vid_cl5429.cs`, `vid_s3.cs`) : hors de l'entrée, leurs fiches n'ont pas été relues.
+*Corrigé en mode matériel*, le KEY (G13.9e2) : sous `if (materiel.pb_100)` (`Video/vid_et4000.Materiel.cs`), un
+gestionnaire de 3BFh posé à l'init (`cle_init_materiel`, `herc_materiel`) ; en tête de 3#8, après le rabattement de
+PCem (`cle_materiel`) : A0h, 3BFh à 03h, pose le KEY et ouvre 3CDh ; 29h, 3BFh à 01h, le retire ; en tête de 3D5h
+(`crtc_cle_materiel`), de 3C5h (`ts_cle_materiel`), de 3C0h (`atc_cle_materiel`, la bascule qui bascule) et de 3CDh
+(`banque_cle_materiel`) : sans le KEY, l'écriture ignorée ; 3CDh, avant la première pose depuis la mise sous tension.
+L'état du KEY à la mise sous tension est inconnu, comme les valeurs des registres qu'il garde (le data book n'en donne
+que quelques bits, pp. 136 et 142) : le BIOS de la carte les écrit avant sa première pose, puis relit CR36 et CR37
+pour les compléter ; ces écritures perdues, il relirait les zéros de PCem et poserait CR37 à 03h au lieu de 0Fh (le
+banc ET4BANC ne trouve plus le mode 2Eh ; mesuré). Jusqu'au premier retrait, tout s'écrit donc, comme chez PCem (c),
+sauf 3CDh, qui attend la première pose (le BIOS lit 3CDh avant sa première pose, et ne l'écrit qu'après).
+Le reset synchrone (TS 0 bit 1 à 0), qui referme aussi 3CDh selon la p. 144, ne referme rien, comme chez PCem : à la
+lettre, il fermerait 3CDh à chaque changement de mode du BIOS de la carte (la pose, le reset, 3CDh écrit, le retrait),
+et le banc ET4BANC, qui écrit 3CDh après ce changement de mode sans poser le KEY, perdrait ses banques ; la règle exacte
+est inconnue (c).
+L'état, que `et4000_t` n'a pas, dans une table à part (`EtatEt4`). `materiel-cas PB-100` : sans KEY, CR19 et CR30-CR37
+= FFh (CR30-32, 34, 36, 37 gardés à 00h ; CR33 et CR35 écrits) ; le KEY retiré, CR36 ; 3BFh changé avant A0h ; TS 6 et
+TS 7 ; l'ATC 16h, chacun après un retrait ; 3CDh avant toute pose ; en mono, A0h en 3D8h ; témoins : la mise sous
+tension, le KEY posé, en 3B8h en mono, 3CDh après le retrait, et après le reset synchrone et le retrait.
 
 ### PB-101 — `lpt2_remove_ams` ne retire rien
 

@@ -11528,3 +11528,69 @@ avant la tranche 600, puis le même écran ; sous PB-227 et PB-100, la trace ent
 **La série** g9e (le worktree de l'étape, contre g9dref, la référence refaite) : 680 portes, toutes vertes ; 674
 communes à g9dref, chacune au même verdict ; un seul résumé change, `recensement` (285 défauts, 1 219 marqueurs, sept de
 moins). Six neuves : les `materiel-cas` de PB-227, PB-100 et PB-229, en mode PCem et sous chaque PB seul.
+
+## G13.9e2 — la clé de l'ET4000
+
+Le 15 octobre 2026. La séquence KEY de la Tseng ET4000AX, part (b) de PB-100 (data book ET4000 Graphics Controller,
+1990, pp. 102-104, 108, 111, 136-137, 142, 144, 158). L'étude a trouvé dans le BIOS de la carte (`roms/et4000.bin`) sa
+routine de pose (1038h : 03h en 3BFh, A0h en 3#8, le registre de mode choisi par 3CCh bit 0) et une routine de
+retrait (1050h : 01h en 3BFh, 29h en 3#8), appelée par deux routines du BIOS : le retrait, que le data book ne décrit
+pas, est pris au BIOS (déduit). MAME, en source secondaire, pose et retire sur les mêmes valeurs de 3D8h, sans garder
+aucun registre.
+
+**La correction du mode matériel** (domaine `video` ; `Video/vid_et4000.Materiel.cs`). Sept gardes de PB-100 dans
+`vid_et4000.cs` : à l'init, un gestionnaire de 3BFh (`cle_init_materiel`, `herc_materiel` : PCem ne décode 3BFh
+qu'en mono) ; en tête de 3#8, `case 0x3D8` après le rabattement de PCem (`cle_materiel` : A0h sous 3BFh = 03h pose le
+KEY et ouvre 3CDh ; 29h sous 3BFh = 01h le retire ; le reste le laisse) ; en tête de 3C0h (`atc_cle_materiel` :
+l'ATC 16h ignoré, la bascule qui bascule), de 3C5h (`ts_cle_materiel` : TS 6 et TS 7), de 3CDh
+(`banque_cle_materiel` : avant la première pose) et de 3D5h, après celle de PB-227 (`crtc_cle_materiel` : CR19-CR3F
+hors 33h et 35h). L'état (3BFh, le KEY, 3CDh ouvert), que `et4000_t` n'a pas, dans une table à part (`EtatEt4`).
+
+**Deux parts mesurées, laissées à PCem** (la trace des ports, sur une copie du worktree, jetée) :
+- **l'état du KEY à la mise sous tension.** Le BIOS écrit TS7 = BCh, CR34, CR31, CR32, CR36 = 43h et CR37 = 0Fh
+  (C000:0D1F) avant sa première pose, puis relit CR36 et CR37 pour les compléter. KEY fermé à la mise sous tension,
+  ces écritures perdues, il relit les zéros de PCem (le data book ne donne que quelques bits des valeurs de mise sous
+  tension, pp. 136 et 142) et pose CR37 = 03h au lieu de 0Fh : le banc ET4BANC ne trouve plus le mode 2Eh (CR13 =
+  28h, la VRAM relue FFh). Jusqu'au premier retrait, tout s'écrit donc, sauf 3CDh ;
+- **le reset synchrone de la p. 144**, qui refermerait 3CDh jusqu'à la pose suivante. Chaque changement de mode du
+  BIOS pose le KEY, fait le reset, écrit 3CDh, puis retire le KEY. À la lettre, 3CDh resterait fermé après INT 10h,
+  et le banc ET4BANC, qui écrit 3CDh sans poser le KEY, perdrait ses banques (mesuré : 14 écritures de 3CDh perdues).
+  Le reset ne referme rien, comme chez PCem.
+La lecture que garde le KEY (3C2h bits 5-6, 3CAh bit 7) reste aussi PCem : il ne modèle pas ces entrées.
+
+**Les cas**, en C# seul (`MaterielCasEt4000.cs`, `Pb100Cle`, joués par `materiel-cas PB-100`), verts en mode PCem,
+sous PB-100 et sous « tout ». Après un retrait : CR18, CR19 et CR30-CR37 = FFh (CR18, CR33 et CR35 écrits, CR30-CR32,
+CR34, CR36, CR37 gardés ; CR19 masqué par PCem) ; TS 6 et TS 7 ; l'ATC 16h, puis l'ATC 00h (la bascule) ; la pose
+après un 3BFh changé, et dans l'ordre inverse ; 3CDh avant toute pose ; en mono, A0h en 3D8h, et le retrait en 3B8h.
+Témoins : la mise sous tension ; la pose ; 29h et 00h en 3D8h sous 3BFh = 03h ; la pose en 3B8h en mono ; 3CDh après
+le retrait, et après le reset synchrone. Les autres cas de la vidéo (PB-227, PB-229, PB-220, PB-80, PB-221, PB-37),
+verts sous « tout ».
+
+**Le recensement** : vert, 285 défauts au registre, 1 225 marqueurs (six de plus : un marqueur par site de PB-100).
+
+**Les contrôles négatifs** (/tmp/a9/neg-9e2.py, dans l'arbre, chaque faute restaurée) : seize fautes, chacune rougit
+PB-100 sous PB-100 et sous « tout » — chacune des six gardes de la clé retirée ; le retrait qui ne retire rien ; la
+pose qui n'ouvre pas 3CDh ; l'ATC 16h sans la bascule ; CR33, CR18 gardés ; CR19-CR30 hors du KEY ; la pose et le
+retrait sans 3BFh ; le KEY fermé à la mise sous tension ; et les attentes inversées ; le témoin sans faute reste vert.
+
+**La contre-lecture** (Sonnet ; le code, les cas, le data book, les textes) : aucun bloquant. Vérifié juste : le
+rabattement et le mono (A0h en 3D8h ne pose rien en mono, 3B8h pose) ; le double gestionnaire de 3BFh en mono (le
+nôtre et celui du socle en 3A0h-3BFh, deux emplacements) ; les indices (`seqaddr` non masqué, mais svga ignore au-delà
+de 0Fh) ; l'ordre avec PB-227 ; rien ne change en mode PCem. Repris : la borne de CR18, le retrait sous un autre 3BFh,
+l'ordre inverse et le retrait en mono, testés ; « tout s'écrit, sauf 3CDh » dans les trois textes ; un marqueur par
+site ; le commentaire de `crtc_mask` (CR30-CR31 sous le KEY).
+
+**M2** (Release du worktree ; le scénario `ami486-et4000`) : avec et sans les huit gardes de `vid_et4000.cs`,
+identique (911 méthodes, aucune changée) ; contre M2-9e (tous les scénarios), `et4000_out` (les `case` de 3C0h, 3C5h
+et 3D8h, qui retombent sur `svga_out`) et les quatre jetons de chaînes habituels.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9e2.sh) : l'ami486 et l'ET4000AX, PC-DOS, sous DEBUG le mode
+13h puis le mode 3 (ceux de 9e) ; le banc ET4BANC sur l'ami386dx (les modes 2Eh et 30h, les banques de 3CDh) ; en
+mode PCem, sous PB-100 et sous « tout » : aucun arrêt. Sous PB-100, la sortie entière des deux est celle du mode PCem
+(les instructions, l'image, l'écran) : le BIOS pose le KEY sept fois et le retire six (huit et sept avec le banc),
+et aucune écriture n'est ignorée. Sous « tout », les résultats du banc sont ceux de PCem ; l'image et la sixième
+lecture de 3C6h diffèrent par les autres corrections (PB-229, comme en 9e).
+
+**La série** g9e2 (le worktree de l'étape, contre g9e) : 680 portes, toutes vertes, chacune au même verdict que dans
+g9e ; un seul résumé change, `recensement` (285 défauts, 1 225 marqueurs, six de plus). Aucune porte neuve : les
+`materiel-cas` de PB-100 existent depuis 9e et jouent désormais `Pb100Cle`.

@@ -644,19 +644,21 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.9e — L'ET4000 et son RAMDAC** ✅ *(14/10, VERIFICATION.md § G13.9e)*. PB-227 (CR35 sous CR11), CR13 de
     PB-100 (nul vaut 0), l'IPF de PB-229 (Q17). La fenêtre de 128 Ko de PB-100 : sans effet visible (le BIOS pose un mode
     avant tout accès), laissée. PB-226 va à 9f (Q18).
-  - **G13.9e2 — La séquence KEY de l'ET4000** (PB-100 (b)) : sa pose (03h en 3BFh, puis A0h en 3D8h ou 3B8h) et sa
-    portée (data book Tseng, pp. 102-104, 111, 136-137, 142, 144, 158) ; son retrait, que le data book ne décrit pas,
-    reste ouvert, comme chez PCem. Une sous-étape à part : elle ferme des registres que le BIOS de la carte doit ouvrir,
-    et ses amorçages le vérifient.
+  - **G13.9e2 — La séquence KEY de l'ET4000** ✅ *(15/10, VERIFICATION.md § G13.9e2)* (PB-100 (b)) : sa pose (03h en
+    3BFh, puis A0h en 3D8h ou 3B8h) et sa portée (data book Tseng, pp. 102-104, 111, 136-137, 142, 144, 158) ; son
+    retrait, que le data book ne décrit pas, par la séquence du BIOS de la carte (01h en 3BFh, puis 29h ; sa routine en
+    1050h, trouvée à l'étude). Restent PCem, mesurés aux amorçages : l'état du KEY à la mise sous tension (le BIOS écrit
+    les registres gardés avant sa première pose, puis les relit) et le reset synchrone qui refermerait 3CDh (à la
+    lettre, après chaque changement de mode du BIOS).
   - **G13.9f — Le faisceau** (Q18), après 9e : le point sous le faisceau à l'instant de la lecture, tiré du temps de la
     ligne et de la mémoire d'affichage ; PB-99 (4) (3DAh de l'EGA, POD14 sans bip pour critère), PB-224 (3BAh bit 3 de
     la MDA et de l'Hercules), PB-226 (les bits 4-5 et 7 de l'Input Status 1 de l'ET4000), PB-228 (l'Input Status 0 de
     l'EGA, son bit 7 quand l'interruption est autorisée ; le reste, inconnu, reproduit).
   - **G13.9g — La clôture de la vidéo.** EGABANC, ET4BANC, BLTBANC et HERCBANC en C# seul dans les deux modes ;
     `--menu-check` resserré, avec les bornes du mode matériel ; PERFBANC.
-  Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), le retrait du KEY et SR7 de PB-100,
-  l'Hercules de PB-223, l'ERPF et D3 de PB-229, l'index et R0-R13 de PB-230, PB-231, PB-233 ; et PB-245, avec le
-  clavier de la M24. Hors du mode : PB-09, 81 à 86, 88 (R9) et 93 ; les parts (d) : PB-36, 38, 98, CR3F de PB-100.
+  Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), l'état du KEY à la mise sous tension,
+  le reset synchrone et SR7 de PB-100, l'Hercules de PB-223, l'ERPF et D3 de PB-229, l'index et R0-R13 de PB-230,
+  PB-231, PB-233 ; et PB-245, avec le clavier de la M24. Hors du mode : PB-09, 81 à 86, 88 (R9) et 93 ; les parts (d) : PB-36, 38, 98, CR3F de PB-100.
   PB-256 va avec la carte mère.
 
 **Les questions de la vidéo (G13.9), posées à Julien le 14/10 et tranchées le même jour ; 9a n'en dépendait pas** :
