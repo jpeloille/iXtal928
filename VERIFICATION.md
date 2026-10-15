@@ -11891,3 +11891,57 @@ Windows tourne sur `ixtal26-486-s3.cfg`.
 `os.sha256` n'est pas réécrit. `g5w.sha256` : vérifié par chaque série (« conforme aux empreintes », g9g).
 
 **Pas de série** : l'émulateur ne change pas (les profils et le plan seuls).
+
+
+## G13.10b — la couverture et le registre
+
+Le 15 octobre 2026. La deuxième sous-étape de la clôture de G13.
+
+**La couverture comptée** (`couverture-materiel`, `tools/iXtal26.Diff/MaterielCouverture.cs`, neuf ; acceptée en mode
+matériel, `ModeOutils`). Chaque correction de la table avait déjà son cas, et la série joue chacun sous son seul PB ;
+la commande les joue tous dans un même processus, sous le mode demandé, et compte par domaine les corrections, leurs
+cas verts et les sondes qui ont servi. Rouge : une correction sans cas, un cas sans correction, un cas rouge, une
+sonde muette pour une correction demandée. Sous `--hardware-mode tout` : 183 corrections, 183 cas verts, 183 sondes
+(carte mère 18, processeur 39, son 22, stockage 45, vidéo 20, x87 39), en deux minutes. Une porte neuve,
+`couverture-materiel`, sous « tout » (`series.sh`, après le recensement).
+En mode PCem, joués dans un même processus, douze cas du son et du DMA rougissent : un cas précédent y laisse un état
+(le premier relevé : le cas de PB-144, la configuration de l'AHA-1542C, fait rougir celui de PB-146, le DMA de la SB
+2.0) ; chacun est vert seul, comme la série les joue. La porte ne tourne que sous « tout », son objet ; l'observation
+est dite à Julien, pour une étude à part.
+
+**Le registre** (`PCEM_BUGS.md`). Chaque entrée des sections A et B porte désormais l'un de deux champs : *Corrigé en
+mode matériel* (182 entrées, dont PB-205, ci-dessous ; plus PB-19, en section C) ou *Non corrigé en mode matériel*, avec
+sa raison (81 entrées) — hors du mode (33), inconnu, reproduit dans les deux modes (décision n° 14 ; 20), sans objet
+(12), en attente d'une question (le son : Q13 et Q15, PB-21, 148, 151, 155, 156, 162, 163 ; PB-243 et PB-244, que Q13
+propose de laisser ; PB-142 et PB-260, la 7e3 bis ou la 7e4 ; PB-256, la carte mère ; Q19, PB-107 et PB-178, que l'audit
+a trouvés sans étape), PB-232 resté par Q17, et PB-280, mixte. Le recensement (`Recensement.cs`) l'exige : une entrée
+sans aucun des deux champs, ou avec les deux, rougit.
+
+**PB-205** (C1, l'arrondi vers le haut). L'audit l'a trouvé corrigé depuis G13.6 par le noyau (`indicateurs`, C1 posé
+par `softfloat_roundedUp`, sur le 387, le 486 et le 287XL), sans entrée de table, sans champ, sans cas. Il est inscrit :
+la table (`new(205, "x87", …)`), le groupe du noyau (celui que `materiel.pb_264` active), un drapeau `pb_205`, sa sonde
+dans `indicateurs` (quand C1 est posé), son numéro sur la ligne du marqueur de PB-59, le champ de son entrée, et
+`materiel-cas PB-205` : FLD1 ; FDIV m64 3,0 ; FNSTSW, 3A20h sur le 287XL, le 387 et le 486 contre 3800h chez PCem ;
+témoin, une division exacte, 3800h. Ses portes, `materiel-cas-pb205` et `-materiel`.
+
+**La contre-lecture** (Sonnet ; les 81 raisons contre leur *G13* et le plan, PB-205, le recensement, la commande) :
+aucun bloquant. Vérifiés justes : aucune des 81 entrées n'est corrigée ailleurs (ni table ni marqueur) ; la structure
+des entrées ; les chemins de C1 dans le noyau (l'arithmétique, FSQRT, FSCALE, les transcendantes, FST m32 et m64,
+FIST, FBSTP, FRNDINT ; `arrondi()` remet le sens à faux avant chaque calcul) ; le groupe ; le cas ; la sonde.
+Repris : les raisons du son, citées sous-étape par sous-étape (8c2, 8e, 8f, 8g) et question par question ; PB-243 et
+244, restés par proposition de Q13 ; PB-142, sa réentrance inconnue ; PB-121, hors du mode ; PB-232, (b) ; Q19 posée
+au plan (et Q20, les empreintes de `os/`) ; la place du cas PB-205 ; l'entrée de PB-205, son site ; un PB sans cas
+dans la commande, une faute et non une exception ; des lignes de plus de 120 colonnes.
+
+**Les contrôles négatifs** (/tmp/a9/neg-10b.py, chaque faute restaurée) : PB-205 sans cas, sa sonde muette, C1 jamais
+posé (la couverture sous « tout » rougit) ; un champ *Non corrigé* retiré, les deux champs sur une entrée, PB-205 hors
+de la table (le recensement rougit) ; le témoin, vert.
+
+**M2** (Release du worktree, tous les scénarios ; /tmp/a9/m2-10b.sh) : contre M2-9g, les constructeurs statiques de
+`ModeMateriel` et de `materiel` (PB-205) et les quatre jetons habituels ; `indicateurs`, du mode matériel seul,
+n'est dans aucun scénario du mode PCem.
+
+**La série** (g10b ; Release du worktree, 16 h 40 à 17 h 53) : 700 portes, toutes vertes. Contre g9g (697), les
+trois portes neuves seules : `couverture-materiel` (183 corrections, chacune son cas, tous verts sous « tout »),
+`materiel-cas-pb205` (la valeur de PCem) et `materiel-cas-pb205-materiel` (celle du matériel) ; aucune autre ligne
+ne change. `g5w.sha256` : « conforme aux empreintes ».

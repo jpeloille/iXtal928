@@ -156,6 +156,7 @@ internal static class ModeMateriel
         new(202, "x87", "FINIT, FSAVE et le RESET gardent C3-C0 sur le 8087 et le 287 (le noyau)"),
         new(203, "x87", "au RESET, le coprocesseur prend l'état initial de son type (le noyau)"),
         new(204, "x87", "les ports F0h et F1h de l'AT, le verrou de BUSY# et IGNNE# du 486"),
+        new(205, "x87", "C1, l'arrondi vers le haut, posé après un résultat arrondi (387 et 486 ; le 287XL, déduit)"),
         new(206, "x87", "FLD m32 d'un SNaN lève IE (387, 486 ; le noyau)"),
         new(207, "x87", "FSTENV masque les six exceptions après avoir rangé l'environnement"),
         new(208, "x87", "les étiquettes rangées sont celles du contenu, et recalculées au chargement (287XL, 387, 486 ; le noyau)"),
@@ -223,15 +224,16 @@ internal static class ModeMateriel
     /// le signe du dividende, la capacité du quotient et la pile de l'erreur, dans le même calcul. PB-50 et PB-51 : la
     /// longueur et la limite, lues par le même décodeur en tête d'instruction. PB-32 et PB-192 : la limite de l'IDT et
     /// le code d'erreur de son dépassement, au même test. PB-59, PB-69 et PB-204 : l'exception du x87, posée puis acheminée
-    /// par la carte, au même site (x87.Materiel.cs). PB-48, 52, 54 à 58, 60 à 68, 70, 194 à 203, 206 à 208, 211 à 213, 264 et
-    /// 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
+    /// par la carte, au même site (x87.Materiel.cs). PB-48, 52, 54 à 58, 60 à 68, 70, 194 à 203, 205 à 208, 211 à 213,
+    /// 264 et 265 : le noyau de 80 bits (x87_noyau.Materiel.cs), un seul état, que ses gestionnaires partagent ; il reprend les
     /// corrections en `double` de G13.6a et 6b (PB-57, 58, 61, 63, 64, 66, 67, 70, 207, 213), dont il remplace les tables
     /// (G13.6, le noyau, N7c ; leurs gestionnaires en `double` ont quitté le dépôt en N8a). PB-71 et PB-216 : la ligne
     /// d'interruption d'un canal IDE, dans la même fonction (ide_irq_update, G13.7b). PB-118 et PB-270 : GET EVENT STATUS
     /// NOTIFICATION, servi ou refusé selon la génération du lecteur (G13.7c3).</summary>
     internal static readonly int[][] Groupes =
         [[3, 257], [7, 179], [32, 192], [45, 169, 258], [50, 51], [59, 69, 204], [71, 216], [118, 270],
-         [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 264, 265]];
+         [48, 52, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 194, 195, 196, 197, 198, 199, 200, 201, 202,
+          203, 205, 206, 207, 208, 211, 212, 213, 264, 265]];
 
     /// <summary>Les corrections en chantier, qui n'entrent ni dans « tout », ni dans leur domaine : aucune depuis que le
     /// noyau de 80 bits du x87 est complet (PLAN-G13.md, § G13.6, le noyau, N7c ; décision n° 4). Le mécanisme reste pour

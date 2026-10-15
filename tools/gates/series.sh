@@ -449,6 +449,9 @@ run r9-filet r9-filet
 # entrée ; chaque défaut reproduit des sections A et B a ses sites, sa source, son cas qui discrimine et son champ G13 ;
 # aucun marqueur ne contredit le statut de son entrée.
 run recensement recensement
+# G13.10b — la couverture comptée : tous les cas du mode matériel dans un même processus, sous « tout » ; une correction
+# sans cas, un cas rouge ou une sonde muette rougissent.
+run couverture-materiel --hardware-mode tout couverture-materiel
 # G13.2 — le mode matériel (PLAN-G13.md, R10) : son mécanisme, puis le pilote PB-01, l'AF d'ADC et de SBB du 8088.
 # materiel-mode : les refus (l'oracle est PCem), la clé hardware_mode, --hardware-mode, le gel. materiel-cas : le cas qui
 # discrimine PB-01, la valeur de PCem en mode PCem, celle du 8088 en mode matériel. banc-pb01 : le même défaut sous DEBUG
@@ -628,8 +631,9 @@ done
 # Le noyau avec l'acheminement de G13.6c : le port F1h et l'attente de l'AT et du 486 sur une exception du noyau.
 run materiel-cas-pb264-acheminement --hardware-mode PB-204,PB-264 materiel-cas PB-264
 # G13.6, le noyau, N3a — les mouvements de données, en chantier : FBLD (PB-52), FLD et FSTP m80 (PB-55, PB-56), FBSTP
-# (PB-195), FIST hors bornes (PB-196), FLD m32 et m64 d'un SNaN (PB-206, PB-212).
-for pb in 52 55 56 195 196 206 212; do
+# (PB-195), FIST hors bornes (PB-196), FLD m32 et m64 d'un SNaN (PB-206, PB-212) ; C1, l'arrondi vers le haut
+# (PB-205, inscrit en G13.10b).
+for pb in 52 55 56 195 196 205 206 212; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done

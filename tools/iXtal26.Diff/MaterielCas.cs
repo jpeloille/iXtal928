@@ -57,7 +57,7 @@ internal static partial class MaterielCas
         [106] = Pb106, [108] = Pb108, [109] = Pb109, [122] = Pb122, [123] = Pb123, [214] = Pb214, [215] = Pb215, [125] = Pb125, [126] = Pb126, [128] = Pb128, [129] = Pb129, [130] = Pb130, [131] = Pb131, [132] = Pb132,
         [117] = Pb117, [119] = Pb119, [120] = Pb120, [268] = Pb268, [269] = Pb269, [118] = Pb118, [270] = Pb270, [271] = Pb271, [272] = Pb272, [273] = Pb273,
         [140] = Pb140, [144] = Pb144, [218] = Pb218, [277] = Pb277, [139] = Pb139, [141] = Pb141, [276] = Pb276, [278] = Pb278, [133] = Pb133, [137] = Pb137, [138] = Pb138, [279] = Pb279,
-        [236] = Pb236, [241] = Pb241, [240] = Pb240, [165] = Pb165, [147] = Pb147,
+        [205] = Pb205, [236] = Pb236, [241] = Pb241, [240] = Pb240, [165] = Pb165, [147] = Pb147,
         [224] = Pb224, [226] = Pb226, [228] = Pb228,
         [90] = Pb90, [91] = Pb91, [146] = Pb146, [234] = Pb234, [235] = Pb235, [284] = Pb284,
         [149] = Pb149, [239] = Pb239,
@@ -77,6 +77,9 @@ internal static partial class MaterielCas
         var bad286 = PmCheck.CasMateriel(pb, hw);
         return bad386 < 0 && bad286 < 0 ? 1 : Math.Max(bad386, 0) + Math.Max(bad286, 0);
     };
+
+    /// <summary>Les cas, par numéro PB (la couverture comptée, G13.10b).</summary>
+    internal static IReadOnlyDictionary<int, Func<bool, int>> Liste() => Cas;
 
     internal static int Run(string[] args)
     {
@@ -1599,6 +1602,28 @@ internal static partial class MaterielCas
             var r = op == 0xDF ? W(0x200) : (uint)(W(0x200) | W(0x202) << 16);
             var (a, sw) = hw ? (hv, hsw) : (pv, 0);
             bad += Voir($"{n} ; FNSTSW ({nom})", r == a && W(0x20A) == sw, $"{r:X}, {W(0x20A):X4}", $"{a:X}, {sw:X4}", hw);
+        }
+        return bad;
+    }
+
+    // PB-205 — C1, « arrondi vers le haut » (SDM vol. 1 § 8.1.3.2 et § 8.5.6 ; 387 PRM, annexe C) : le cas de l'entrée,
+    // FNINIT (64 bits, au plus près) ; FLD1 ; FDIV m64 3,0 ; FNSTSW : sur le 387 et le 486, 3A20h (C1 et PE : la
+    // significande AAAAAAAAAAAAAAABh arrondie vers le haut), et sur le 287XL (déduit) ; PCem 3800h, ni C1 ni PE (PB-59).
+    // Le 8087 et le 287 : C1 indéfini, laissé hors du cas. Témoin : FLD1 ; FDIV m64 4,0, exact, 3800h.
+    private static int Pb205(bool hw)
+    {
+        var bad = 0;
+        foreach (var (fpu, nom) in FpusXL)
+        {
+            if (fpu < 3)
+                continue;
+            byte[] code = [0xDB, 0xE3, 0xD9, 0xE8, 0xDC, 0x36, 0x08, 0x03, 0xDD, 0x3F];
+            Jouer87(fpu, code, 4, Ops((0x308, Trois)));
+            var sw = hw ? 0x3A20 : 0x3800;
+            bad += Voir($"FLD1 ; FDIV m64 3 ; FNSTSW ({nom})", W(0x200) == sw, $"{W(0x200):X4}", $"{sw:X4}", hw);
+            Jouer87(fpu, code, 4, Ops((0x308, Le(0x4010000000000000))));
+            bad += Voir($"FLD1 ; FDIV m64 4 ; FNSTSW ({nom}, témoin)", W(0x200) == 0x3800, $"{W(0x200):X4}", "3800",
+                        hw);
         }
         return bad;
     }

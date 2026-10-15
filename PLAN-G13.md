@@ -702,7 +702,7 @@ contre-lecture, M2, sa série entière et son commit :
     modes, chaque écart expliqué : le 5150 jusqu'au BASIC ; l'XT et PC-DOS 2.00 (`VER`, `DIR`) ; l'IBM AT ; l'ami286 et
     l'ami386dx sur leurs disques (`VER`) ; l'ami486 et DOS 5 (`VER`, `MSD /S`) ; Windows 3.11 sur une copie du disque de
     l'ami486. Les originaux intacts : `os/os.sha256`, `g5w.sha256`. Sans changement de l'émulateur : pas de série.
-  - **G13.10b — La couverture et le registre.** La couverture comptée : une porte qui joue, pour chaque correction du
+  - **G13.10b — La couverture et le registre** ✅ *(15/10, VERIFICATION.md § G13.10b)*. La couverture comptée : une porte qui joue, pour chaque correction du
     mode (`ModeMateriel.Corrections`), son cas sous son seul PB, et compte ce que dit la sonde ; une correction qu'aucun
     cas n'atteint rougit. `PCEM_BUGS.md` : chaque entrée des sections A et B porte un champ *Corrigé en mode matériel*,
     ou dit pourquoi elle reste (inconnue, hors du mode, en attente d'une question) ; le recensement le vérifie.
@@ -710,6 +710,17 @@ contre-lecture, M2, sa série entière et son commit :
     `--hardware-mode tout` pour chaque porte qui prend le mode (`ModeOutils`) ; les portes qui le refusent sont dites.
     Les listings de tous les scénarios contre M0 : en mode PCem, le code d'avant G13, aux écarts connus près, chacun
     expliqué. PLAN.md et la fin de `VERIFICATION.md`.
+
+**Les questions de la clôture (G13.10), posées à Julien le 15/10** :
+- **Q19 (10b)** — PB-107 (une image de CD de plus de 2 Gio prend une longueur tronquée) et PB-178 (LOCK du 8088, une
+  instruction d'un octet chez PCem et non un préfixe), que l'audit du registre a trouvés sans étape : aucune ne les a
+  pris. PB-178 suit Intel (« the instruction that follows it ») : un préfixe, l'interruption entre lui et son
+  instruction restant inconnue. PB-107 est une correction d'hôte, sans comportement du matériel documenté (Q2 de
+  D3-stockage, restée sans réponse). *Proposé : corriger PB-178 dans une petite étape avant 10c (la part documentée ;
+  l'interruption, inconnue, reproduite) ; laisser PB-107, dit non corrigé.*
+- **Q20 (10a)** — `os/os.sha256` (04/10) : `386-HDD-C.img` (modifiée le 10/10) et `486-HDD-C.img` (le 11/10) ne
+  concordent plus, hors des portes, qui travaillent sur des copies. Des sessions de l'émulateur ? Récrire les deux
+  empreintes ? *Proposé : les récrire si ces écritures sont les vôtres.*
 
 ## Les décisions (proposées ; à trancher)
 

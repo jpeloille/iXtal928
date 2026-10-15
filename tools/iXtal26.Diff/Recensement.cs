@@ -16,7 +16,8 @@
 //     reproduite, ou l'inverse ;
 //   - que le registre numérote ses entrées sans trou ni doublon, chacune avec un statut ;
 //   - que chaque entrée des sections A et B porte son champ *G13*, et, reproduite, sa *Source* et son *Cas qui
-//     discrimine* ;
+//     discrimine* ; G13.10b : et l'un des deux champs, *Corrigé en mode matériel* ou *Non corrigé en mode matériel*
+//     (sa raison : inconnu, hors du mode, sans objet, ou en attente d'une question), jamais les deux ;
 //   - G13.2 : qu'un défaut corrigé en mode matériel le soit partout d'accord — ses marqueurs « fixed in hardware mode »,
 //     le champ *Corrigé en mode matériel* de son entrée et la table des corrections (ModeMateriel) nomment les mêmes
 //     défauts, et aucun de ses sites ne reste « reproduced » ; G13.3 : un défaut que le mode PCem neutralise (NON
@@ -38,7 +39,7 @@ internal static class Recensement
     private sealed class Entree
     {
         internal char Section;
-        internal bool Reproduit, Absence, NonReproduit, Source, Cas, G13, Corrige;
+        internal bool Reproduit, Absence, NonReproduit, Source, Cas, G13, Corrige, NonCorrige;
     }
 
     internal static int Run()
@@ -110,6 +111,10 @@ internal static class Recensement
                 fautes.Add($"PB-{n:00} (section {e.Section}) : reproduit, mais aucun marqueur « reproduced » ne porte son numéro");
             if (!e.G13)
                 fautes.Add($"PB-{n:00} (section {e.Section}) : sans champ *G13*");
+            if (e.Corrige == e.NonCorrige)
+                fautes.Add($"PB-{n:00} (section {e.Section}) : " + (e.Corrige
+                    ? "les deux champs, *Corrigé* et *Non corrigé en mode matériel*"
+                    : "ni *Corrigé* ni *Non corrigé en mode matériel*"));
             if (e.Reproduit && !(e.Source && e.Cas))
                 fautes.Add($"PB-{n:00} (section {e.Section}) : reproduit, sans {(e.Source ? "" : "*Source* ")}{(e.Cas ? "" : "*Cas qui discrimine*")}".TrimEnd());
         }
@@ -211,6 +216,8 @@ internal static class Recensement
                 cur.G13 = true;
             else if (l.StartsWith("*Corrigé en mode matériel*"))
                 cur.Corrige = true;
+            else if (l.StartsWith("*Non corrigé en mode matériel*"))
+                cur.NonCorrige = true;
         }
 
         var max = entrees.Count == 0 ? 0 : entrees.Keys.Max();

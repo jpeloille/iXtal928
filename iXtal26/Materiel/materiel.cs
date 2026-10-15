@@ -488,6 +488,9 @@ internal static class materiel
     /// <summary>PB-204 : les ports F0h et F1h de l'AT, le verrou de BUSY# (287, 387), IGNNE# (486) ; avec PB-59.</summary>
     internal static readonly bool pb_204;
 
+    /// <summary>PB-205 : C1, l'arrondi vers le haut, posé après un résultat arrondi ; le noyau.</summary>
+    internal static readonly bool pb_205;
+
     /// <summary>PB-206 : FLD m32 d'un SNaN lève IE (387, 486) ; le noyau.</summary>
     internal static readonly bool pb_206;
 
@@ -728,6 +731,7 @@ internal static class materiel
         pb_202 = ModeMateriel.Demande(202);
         pb_203 = ModeMateriel.Demande(203);
         pb_204 = ModeMateriel.Demande(204);
+        pb_205 = ModeMateriel.Demande(205);
         pb_206 = ModeMateriel.Demande(206);
         pb_207 = ModeMateriel.Demande(207);
         pb_208 = ModeMateriel.Demande(208);

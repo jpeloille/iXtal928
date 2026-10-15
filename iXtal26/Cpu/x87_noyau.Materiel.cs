@@ -252,27 +252,26 @@ internal static class _x87_noyau
                                                           : softfloat.softfloat_tininess_afterRounding;
     }
 
-    // pcem bug, fixed in hardware mode: PB-59 — après un calcul : les indicateurs de SoftFloat vers le mot d'état
-    //   (inexact → PE, sous-dépassement → UE, dépassement → OE, infini → ZE, invalide → IE) ; C1, l'arrondi vers le
-    //   haut, sur le 387 et le 486 (et le 287XL : déduit ; 8087 et 287 : indéfini, laissé). DE vient de la classe des
-    //   opérandes, que SoftFloat ne signale pas. La petitesse se juge après l'arrondi, comme SoftFloat le fait pour le
-    //   8086 (SDM vol. 1, 2003, § 4.9.1.5 : « whenever the rounded result of an instruction is tiny »). Après une faute
-    //   de pile masquée, l'opérande est l'indéfini, un QNaN : le calcul est exact et C1 retombe à 0, comme la faute le
-    //   veut d'un sous-débordement ; un débordement de pile pose son C1 après (faute_de_pile). Démasquées (N5) : IE et ZE
-    //   arrêtent l'instruction avant qu'elle range (vrai) ; OE et UE, la destination un registre, laissent ranger le
-    //   résultat à l'exposant décalé de 24 576 (SoftFloat, softfloat_unboundedExp, que pose arrondi ; UE levée pour un
-    //   résultat petit, exact ou non : 387 PRM § 3.2.5.2), C1 et PE compris, puis lèvent (SDM vol. 1, 2003, § 8.5.4 et §
-    //   8.5.5 : « After the result is stored, the OE flag is set and a software exception handler is invoked ») : faux ;
-    //   une PE démasquée, de même (387 PRM § 3.2.6 : « delivers the rounded [...] result to the destination, regardless
-    //   of whether a trap occurs »). L'instruction qui range se termine, dépilement compris (486 PRM § 19.2.5 : « the
-    //   register stack and memory appear as if the instruction has run to completion »). La destination en mémoire
-    //   (`memoire` : FST et FSTP m32 et m64),
-    //   OE ou UE démasquée arrête l'instruction, rien n'est rangé ni dépilé, PE n'est pas signalée et C1 est mis à zéro
-    //   (SDM vol. 1, 2003, § 8.5.6 : « the inexact-result condition is not reported and the C1 flag is cleared » ; 486
-    //   PRM § 19.2.5 : « handled like a before exception; memory is not updated and the stack is not popped ») ; UE y
-    //   est levée pour un résultat petit et exact par l'appelant (petit). La petitesse après l'arrondi n'est écrite que
-    //   par le SDM (le 387 PRM et le 486 PRM disent « tiny » sans plus). Le 8087 et le 287 : seize_arrondi et
-    //   seize_depassement.
+    // pcem bug, fixed in hardware mode: PB-59, PB-205 — après un calcul : les indicateurs de SoftFloat vers le mot
+    //   d'état (inexact → PE, sous-dépassement → UE, dépassement → OE, infini → ZE, invalide → IE) ; C1, l'arrondi vers
+    //   le haut (PB-205), sur le 387 et le 486 (et le 287XL : déduit ; 8087 et 287 : indéfini, laissé). DE vient de la
+    //   classe des opérandes, que SoftFloat ne signale pas. La petitesse se juge après l'arrondi, comme SoftFloat le
+    //   fait pour le 8086 (SDM vol. 1, 2003, § 4.9.1.5 : « whenever the rounded result of an instruction is tiny »).
+    //   Après une faute de pile masquée, l'opérande est l'indéfini, un QNaN : le calcul est exact et C1 retombe à 0,
+    //   comme la faute le veut d'un sous-débordement ; un débordement de pile pose son C1 après (faute_de_pile).
+    //   Démasquées (N5) : IE et ZE arrêtent l'instruction avant qu'elle range (vrai) ; OE et UE, la destination un
+    //   registre, laissent ranger le résultat à l'exposant décalé de 24 576 (SoftFloat, softfloat_unboundedExp, que
+    //   pose arrondi ; UE levée pour un résultat petit, exact ou non : 387 PRM § 3.2.5.2), C1 et PE compris, puis
+    //   lèvent (SDM vol. 1, 2003, § 8.5.4 et § 8.5.5 : « After the result is stored, the OE flag is set and a software
+    //   exception handler is invoked ») : faux ; une PE démasquée, de même (387 PRM § 3.2.6 : « delivers the rounded
+    //   [...] result to the destination, regardless of whether a trap occurs »). L'instruction qui range se termine,
+    //   dépilement compris (486 PRM § 19.2.5 : « the register stack and memory appear as if the instruction has run to
+    //   completion »). La destination en mémoire (`memoire` : FST et FSTP m32 et m64), OE ou UE démasquée arrête
+    //   l'instruction, rien n'est rangé ni dépilé, PE n'est pas signalée et C1 est mis à zéro (SDM vol. 1, 2003, §
+    //   8.5.6 : « the inexact-result condition is not reported and the C1 flag is cleared » ; 486 PRM § 19.2.5 : «
+    //   handled like a before exception; memory is not updated and the stack is not popped ») ; UE y est levée pour un
+    //   résultat petit et exact par l'appelant (petit). La petitesse après l'arrondi n'est écrite que par le SDM (le
+    //   387 PRM et le 486 PRM disent « tiny » sans plus). Le 8087 et le 287 : seize_arrondi et seize_depassement.
     internal static bool indicateurs(bool memoire = false)
     {
         var f = softfloat.softfloat_exceptionFlags;
@@ -296,7 +295,11 @@ internal static class _x87_noyau
                 return lever((uint16_t)(e & ~PE));
         }
         if (cpu_c.fpu_type >= cpu_c.FPU_287XL)
+        {
+                if (softfloat.softfloat_roundedUp)
+                        ModeMateriel.Sonde[205]++;
                 cpu_state.npxs = (uint16_t)((cpu_state.npxs & ~C1) | (softfloat.softfloat_roundedUp ? C1 : 0));
+        }
         if ((demasquees & (OE | UE)) != 0)
                 ModeMateriel.Sonde[59]++;
         if (e == 0 || !lever(e))

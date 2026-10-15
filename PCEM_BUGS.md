@@ -227,6 +227,7 @@ mise sous tension n'est pas défini. Documenté.
 l'esclave) le verrait.
 *G13* : (d) — sans effet observable, et `pic_reset` modélise une mise sous tension, où toute valeur se vaut ; en C.
 *Reproduit* : `Models/pic.cs`, `pic_reset`, marqueur PB-06 (`:72`).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-14 — `disc_set_rate` : le cas 1 retombe dans le cas 2
 
@@ -366,6 +367,7 @@ secteurs, 256 têtes) et l'octet de fin 00h ; le vrai DTC : à mesurer (04h ?). 
 en C# seul dit si l'effet est atteint.
 *G13* : (c) — aucune documentation du DTC 5150X : à mesurer sur la carte.
 *Reproduit* : `Mfm/mfm_xebec.cs` — le fichier porte les deux cartes, on transcrit les deux.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-39 — Un CALL ou un JMP par porte de tâche lève #GP au lieu de changer de tâche
 
@@ -486,6 +488,7 @@ valeur du silicium n'est pas connue.
 *G13* : (c) — valeur réelle inconnue, et garder les moitiés hautes contredirait Intel : reproduit.
 *Reproduit* : `Cpu/x86seg.cs:2303`, taskswitch286, marqueur `PB-41` (l'en-tête de la fonction le
 dit) ; épinglé par l'attente du cas « JMP FAR TSS 286 depuis un 386 » (EAX 0xFFFF1111).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-43 — MOV CRx, DRx et TRx décodent le champ `mod` comme une adresse
 
@@ -535,6 +538,7 @@ correction de PB-43 le rend inobservable.
 *Reproduit* : `Cpu/386_ops_mov_ctrl.cs:313` (MOV DRx,r a32) et `:382` (MOV TRx,r a32), marqueurs
 `PB-44`. En mode matériel, la correction de PB-43 (G13.5) le rend inobservable : le mod ignoré, la taille d'adresse ne
 décode plus rien.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-45 — IDIV octet étend AX par des zéros au lieu du signe
 
@@ -1341,6 +1345,7 @@ chronomètre : PCem choisit l'unité 1, finit le reset sur-le-champ et laisse la
 matériel : inconnu (selon la première lecture d'ATA-3, l'écriture est ignorée et BSY tient jusqu'au bout).
 *G13* : (c) — ATA-1 ne définit rien et ATA-3 se contredit : (b) au mieux, par décision.
 *Reproduit* : `Ide/ide.cs`, `writeide`, marqueur PB-72.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-73 — READ MULTIPLE et WRITE MULTIPLE sans SET MULTIPLE MODE arrêtent l'émulateur
 
@@ -1354,6 +1359,7 @@ malveillant — arrête PCem.
 marqueurs `pcem bug, not reproduced: PB-73` — ABRT (ERR, erreur 04h, IRQ), comme le disque réel.
 Les outils n'envoient jamais ce chemin à l'oracle ; la survie est prouvée en C# seul
 (`tools/idecheck/`, variante `--survie`, VERIFICATION.md § R9).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-74 — VERIFY ne vérifie qu'un secteur et laisse les registres en place
 
@@ -1390,6 +1396,7 @@ a qu'un arrête PCem.
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *Non reproduit* (R9) : `Mfm/mfm_at.cs`, marqueur `pcem bug, not reproduced: PB-75` — la commande
 est refusée : ERR, erreur ABRT, IRQ 14.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-76 — READ LONG et WRITE LONG (avec ECC) arrêtent l'émulateur
 
@@ -1407,6 +1414,7 @@ donne le polynôme, x³² + x²⁸ + x²⁶ + x¹⁹ + x¹⁷ + x¹⁰ + x⁶ + 
 Products Handbook, 1984) le générateur, deux registres de 16 bits alimentés deux bits à la fois ; ni la valeur
 initiale des registres, ni l'ordre des bits, ni ce que couvre le calcul (la marque d'adresse ou non) ne sont dits.
 READ LONG rendrait donc 4 octets inventés : décision n° 14, le comportement sûr reste (ABRT).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-77 — `cpu_features` n'est jamais remis à zéro : un i486 hérite de CR4 et VME d'un iDX4
 
@@ -1426,6 +1434,7 @@ p. 22-17) : documenté ; MOV CR4 sur un i486DX est donc #UD (déduit : registre 
 *G13* : (d) — aucun effet pour l'invité, l'UC étant fixée par processus : outillage seulement
 (D1-contre C20, K12).
 *Reproduit* : `Cpu/cpu.cs:476`, `cpu_set`, marqueur `PB-77` ; l'empreinte CPU compare `cpu_features`.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-78 — LOADALL386 s'exécute sur un 486
 
@@ -1465,6 +1474,7 @@ mémoire installée arrête PCem (segfault). Mesuré : D4 (MOV CR0 avec PG tiré
 *Non reproduit* (R9) : `Memory/mem.cs`, marqueurs `pcem bug, not reproduced: PB-79` — une
 lecture de table hors RAM rend 0xFFFFFFFF (bus ouvert), une écriture y est ignorée. Le fuzzeur
 écarte ce chemin côté oracle ; `r9-mmu` (C# seul) prouve la survie sur le 386 et le 486.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-80 — La lecture linéaire en chain4 compact ne charge pas les verrous
 
@@ -1514,6 +1524,7 @@ abattrait l'hôte. Le silicium reboucle sur sa mémoire.
 tant que la source ne touche pas le haut de la VRAM ; l'oracle n'y est pas conduit.
 `iXtal26.Diff r9-cl5429` (C# seul) : BitBLT en motif, source en 1FFFF8, 8 et 16 bpp — survit ;
 sans la garde, `IndexOutOfRangeException` (mesuré).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-82 — Les modes d'écriture 4 et 5 de la GD5429 écrivent après la VRAM
 
@@ -1530,6 +1541,7 @@ C#, une exception qui abattrait l'hôte.
 (adresse alignée sur 16) sont inchangées. L'oracle n'y est pas conduit. `r9-cl5429` : modes 4
 et 5, GRB = 04, écriture au dernier mot de la VRAM — survit ; sans la garde,
 `IndexOutOfRangeException` (mesuré).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-83 — Sans PCI, la S3 lève et baisse son IRQ dans `pci_irq_routing[-1]`
 
@@ -1544,6 +1556,7 @@ calculée sur ce qu'ils ont lu (`pci.c:128-148`).
 *NON reproduit* (R9) : sur une carte VLB sans PCI, l'IRQ n'est câblée nulle part. Oracle :
 `harness_s3.c` définit `pci_set_irq` / `pci_clear_irq` vides ; C# : `Video/vid_s3.cs`,
 `s3_update_irqs`, marqueur `pcem bug, not reproduced: PB-83`. Aucune IRQ, rien d'écrit.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-84 — Le curseur matériel lit hors de la VRAM
 
@@ -1558,6 +1571,7 @@ VRAM (SR13 = 3F) en sort.
 *NON reproduit* (R9) : `Video/vid_s3.cs`, `Video/vid_cl5429.cs`, marqueurs PB-84, DEVIATION —
 chaque index est masqué par `vram_mask`. `r9-s3`, `r9-cl5429` : survit ; sans la garde,
 `IndexOutOfRangeException` (mesuré).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-85 — Le curseur matériel écrit après la fin de `buffer32`
 
@@ -1570,6 +1584,7 @@ la ligne suivante — reproduit, c'est le même tableau — et, à la dernière 
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : marqueurs PB-85 dans les deux fichiers, DEVIATION — hors du tableau,
 rien n'est écrit. `r9-s3`, `r9-cl5429` : curseur en x = 2040 sur la dernière ligne, survit.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-86 — La pente d'un polygone S3 divise INT_MIN par -1
 
@@ -1583,6 +1598,7 @@ de -1 suffit.
 le quotient est pris replié (`-(end_x - start_x)`, INT_MIN pour INT_MIN), identique à PCem
 partout ailleurs. `r9-s3` : survit, `poly_dx1` = `poly_dx2` = 80000000 ; sans la garde,
 `OverflowException` (mesuré).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-87 — Au repli de l'IP, la lecture d'instruction du 8088 et du 8086 se fait 64 Ko plus loin
 
@@ -1629,6 +1645,7 @@ chaînage compris) : l'invité peut faire tomber l'émulateur. En C#, une except
 *NON reproduit* (R9) : `Video/vid_olivetti_m24.cs`, marqueurs PB-88, DEVIATION — une écriture
 au-delà de 255 est sautée, une lecture rend 0. Identique à PCem tant que R1 ≤ 128 (les modes
 du BIOS : 40 et 80 colonnes).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-89 — La bordure de la M24 déborde sur la ligne suivante de `buffer32`
 
@@ -1750,6 +1767,7 @@ plus, un avertissement de configuration de l'hôte.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_irq`, marqueur PB-92 ; les profils du dépôt prennent l'IRQ 5.
 *G12.0* : la SB Pro v1 propose aussi l'IRQ 10 (`sound_sb.c:1220`) ; les SB 1.0, 1.5 et 2.0 ne la proposent pas
 (`:1149-1153`, `:1179-1183`).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-94 — La souris PS/2 ne répond pas aux commandes qu'elle ne connaît pas
 
@@ -2103,6 +2121,7 @@ chapeau en haut lisent 135°, le manche à gauche 315° ; avec `POV_X | d` et `P
 valeur explicite du .cfg est lue telle quelle, comme chez PCem. *Correction envisagée avant G13* : par défaut
 `POV_X | d` et `POV_Y | d`, le chapeau d de la manette de l'hôte. La contre-lecture de G13 l'a sortie du mode
 matériel (aucune vérité matérielle), et la décision n° 9 de `PLAN-G13.md` la laisse dans les deux modes.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-106 — Le mode 2 à 2 336 octets est lu 16 octets trop loin
 
@@ -2149,6 +2168,8 @@ attendu : l'image refusée avec un avertissement, le lecteur vide (comme PB-116)
 *G13* : (b) — une correction d'hôte plus que de fidélité, sans vrai comportement documenté.
 *Reproduit* : `Cdrom/cdrom_image.cs`, `getLength`, marqueur PB-107. Contrôle négatif : la taille
 bornée au lieu de tronquée rougit la porte.
+*Non corrigé en mode matériel* : aucune étape ne l'a prise : une correction d'hôte, sans comportement du matériel
+documenté (Q2 de D3-stockage, restée sans réponse) ; Q19, posée à Julien en G13.10b (PLAN-G13.md § G13.10).
 
 ### PB-108 — INDEX 00 en 00:00:00 ne compte pas
 
@@ -2240,6 +2261,7 @@ jamais ces feuilles.
 *G10.4, la clé `cdrom_path`* (`pc.c:707-711`, `strcpy` dans le même `image_path`) : au-delà de
 1 023 octets, le chemin est écarté avec un avertissement et le lecteur reste vide (`pc.cs`), prouvé
 par `r9-cdcfg`.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-113 — Le pont ATAPI s'arrête sur dix-neuf fatal(), dont un à la portée de l'invité
 
@@ -2263,6 +2285,7 @@ finit la commande en erreur. Les quatorze sites de la machine d'états finissent
 `atapi_abort` (le pont et le bus au repos, ERR et ABRT, phase d'état, IRQ) ; les deux du bus le
 remettent au repos, et le pont abandonne à son tour. DEVICE RESET garde l'état du pont de PCem.
 Survie : `r9-atapi`, site par site, par un scénario de l'invité ou un état forgé.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-114 — Un PACKET en DMA, sans bus master, appelle un pointeur nul
 
@@ -2276,6 +2299,7 @@ machine du dépôt n'a de contrôleur PCI), les deux sont nuls, et `:246-248`, `
 *Non reproduit* (R9, décision n° 15) : les deux états réarment leur chronomètre, comme si le DMA
 n'avait pas eu lieu — l'invité attend, l'émulateur vit (BSY indéfini, comme WIN_READ_DMA côté
 disque, `ide.c:884`). `r9-atapi` : le lecteur reste BSY, puis DEVICE RESET le rend.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-115 — Le lecteur de CD s'arrête, ou lit et écrit hors de ses tampons
 
@@ -2303,6 +2327,7 @@ périmés jusqu'au bord de `data_in` après un échec de tranche, et où READ CD
 d'emblée en mode matériel, il n'atteint plus ces replis. `data_out` ne déborde plus en mode matériel, MODE SELECT de
 longueur 0 finissant sans phase de données (PB-119). Restent en mode matériel les replis d'un échec de lecture dans
 le disque (un fichier d'image illisible) : un fichier de l'hôte.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-116 — Une image illisible au démarrage laisse le pilote CD nul
 
@@ -2317,6 +2342,7 @@ soit monté ou non.
 *Non reproduit* (R9, décision n° 17) : `pc.cs`, `cdrom_image_open` — le lecteur reste vide, comme
 pour une image absente (`pc.c:302-305`), avec un avertissement. `r9-cdcfg` (vide.iso, sans-pvd.iso,
 un répertoire ; sans la garde, NullReferenceException).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-117 — READ CAPACITY rend le nombre de blocs plus un
 
@@ -2816,6 +2842,7 @@ lit `bios_rom.rom` nul au POST, `:2083`) ; la carte sur un 8088 ou un 8086, que 
 INVDCMD, `:799`, `:841`, `:883` en code 20h, `:530` au statut d'hôte 16h, `:1743` en suivant la phase de la
 cible ; la ROM absente et la règle ISA 16 bits refusent la carte avec un avertissement
 (`pc.check_hdd_controller`). Survie : `r9-aha`, `ahacfg`.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-136 — PROGRAM EEPROM (22h) lit au-delà de ses paramètres
 
@@ -2834,6 +2861,7 @@ PCem est juste) ; 224 octets depuis 32 (AHABANC) : l'état interne chez PCem, in
 n° 14).
 *Reproduit* : `Scsi/scsi_aha1540.cs`, `param_lu` (décision n° 8 de PLAN-G11.md), marqueur PB-136 ; et dans les deux
 modes : `Scsi/scsi_aha1540.Materiel.cs`, la commande 22h du mode matériel (PB-277), marqueur PB-136.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-137 — Le sense automatique : inconditionnel, inversé, et écrit au hasard
 
@@ -3014,6 +3042,8 @@ interpreted as invalid, although they may instead cause the execution of valid c
 IDLE sur la carte. La réentrance (un octet écrit pendant l'autotest ou l'envoi d'un résultat) : à mesurer.
 *G13* : (a) pour la mise sous tension ; la réentrance (c) — inconnue état par état : à mesurer sur une 1542C.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-142 (l'OUT de commande, l'état à l'init).
+*Non corrigé en mode matériel* : la mise sous tension, en attente de Julien (PB-260 et PB-142, une 7e3 bis ou une 7e4 ;
+PLAN-G13.md § G13.7) ; la réentrance, inconnue (c), restera reproduite dans les deux modes (décision n° 14).
 
 ### PB-143 — Une CDB courte est complétée de zéros
 
@@ -3028,6 +3058,7 @@ TEST UNIT READY ; un READ(10) déclaré sur 6 octets s'exécute avec un LBA et u
 un LBA et une longueur tronqués ; déclaré sur 0 octet — PCem exécute TEST UNIT READY ; la carte : 14h ou 1Ah ?
 *G13* : (c) — rien ne documente ce cas : à mesurer sur la carte.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-143.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-144 — Sans EEPROM, la 1542C de PCem n'a pas les réglages d'usine ; une EEPROM pour deux modes
 
@@ -3171,6 +3202,7 @@ micro et la ligne : 80h des deux côtés.
 *Reproduit* : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; A0h et A8h), `Sound/sound_sb.cs` (`sb_get_buffer_sbpro` ; les
 blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`), marqueurs PB-148.
 *G12.1* : la SB 16 aussi : le bloc de `sb_enable_i` (`sound_sb.c:180-197`) ne s'exécute jamais.
+*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e, l'enregistrement ; PLAN-G13.md § G13.8).
 
 ### PB-149 — L'octet de mode de B0h à CFh n'est pas masqué
 
@@ -3213,6 +3245,7 @@ reprend jamais la main.
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : la fréquence 0 est ramenée à 1 Hz, le reste de la commande gardé (`Sound/sound_sb_dsp.cs`,
 garde `sound_sb_dsp.c:393` ; décision n° 10 de PLAN-G12.md). Aucune porte comparée n'envoie 0. Survie : `r9-sb16`.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-153 — Le CT1745 : 80h, 81h, 82h, 0Ah, 01h, 3Dh et 3Eh, la sélection d'entrée
 
@@ -3345,6 +3378,7 @@ secondaires ; les défauts propres aux 4.04 à 4.12 (la retenue perdue de 41h, c
 *Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-155 (`sb_get_buffer_sb16`, `sb_get_buffer_emu8k`), par l'aide de
 conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. `Sound/sound_sb_dsp.cs`, marqueurs PB-155 (40h ; 41h et 42h).
 SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
+*Non corrigé en mode matériel* : en attente de Q15 (G13.8c2 ; PLAN-G13.md § G13.8).
 
 ### PB-157 — La commande du 8237 haut, l'état des requêtes et les registres relus des deux 8237
 
@@ -3541,6 +3575,7 @@ filtre la carte par sa ROM (`wx-config.c:190-193`).
 *NON reproduit* (R9) : `check_sndcard` refuse l'AWE32 sans sa ROM, ou avec une ROM d'une autre taille que
 1 048 576 octets, avec un avertissement (`pc.cs`, garde `sound_emu8k.c:2019` ; décision n° 5 de PLAN-G12.md).
 L'oracle refuse bruyamment de la monter. Survie : `r9-awecfg`.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-121 — Le lecteur de l'amorçage précédent n'est jamais fermé
 
@@ -3567,6 +3602,8 @@ n'écrase plus rien à la sortie. Le flux n'est pas fermé (une image montée de
 Passé de la section C à la section A en G13.0 : l'image de l'utilisateur perdait des écritures, dans l'usage
 courant (le profil `ixtal26-486-scsi.cfg`, puis « Reset materiel » au menu). Le registre de `hdd_file`, que
 `closepc` vide du plus récent au plus ancien puis ferme (DEVIATION hôte, décision n° 7 de PLAN-G11.md), demeure.
+*Non corrigé en mode matériel* : hors du mode, (d) : la fuite reste reproduite, l'image est protégée dans les deux
+modes, comme le dit le champ *G13*.
 
 ### PB-32 — `pmodeint` : une précédence d'opérateurs annule le code d'erreur
 
@@ -3860,6 +3897,8 @@ préfixe et son instruction : inconnu pour ce point.
 *Cas qui discrimine* : banc : ES ≠ DS, `26 F0 A1 00 00` → AX lu dans DS (PCem) ; dans ES (8088).
 *G13* : (b) — comportement déduit, effet limité ; vérification par banc dirigé seulement.
 *Reproduit* : `Cpu/808x.cs:3463`, `case 0xF0`, marqueur `PB-178`.
+*Non corrigé en mode matériel* : aucune étape ne l'a prise : G13.3 ne l'a pas retenue (un comportement déduit,
+vérifiable par un banc seulement) ; Q19, posée à Julien en G13.10b (PLAN-G13.md § G13.10).
 
 ### PB-179 — Un mot à l'offset FFFFh ne replie pas à l'offset 0 du segment
 
@@ -3904,6 +3943,7 @@ d'avant (C#, chemin R9) ; 46h (8088). Puis les cas de débordement de `F6.6` à 
 d'ici là.
 *Reproduit* : `Cpu/808x.cs:3554` (DIV b), `:3586` (IDIV b), `:3670` (DIV w), `:3706` (IDIV w),
 marqueurs `PB-180`.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-181 — L'AF d'ADC du cœur 286/386/486 manque quand le quartet bas de l'opérande vaut Fh
 
@@ -4523,7 +4563,14 @@ annexe C (propre au 387 et à ses successeurs) — documenté.
 *Cas qui discrimine* : FNINIT (64 bits, au plus près) ; FLD1 ; FDIV m64 = 3,0 ; FSTSW m16 → PCem 3800h, silicium (387 et
 suivants) 3A20h (C1 et PE : la significande AAAAAAAAAAAAAAABh est arrondie vers le haut).
 *G13* : (a) — avec le noyau, qui rend le sens de l'arrondi ; 387 et suivants seulement.
-*Reproduit* : par absence, dans tous les gestionnaires ; pas de site propre, pas de marqueur.
+*Reproduit* en mode PCem : par absence, dans tous les gestionnaires ; le site du mode matériel est le marqueur
+`fixed in hardware mode: PB-59, PB-205` du noyau (G13.10b).
+*Corrigé en mode matériel* (G13.6, le noyau ; inscrit en G13.10b, que l'audit du registre a trouvé sans champ) : la
+fonction commune du noyau qui porte les indicateurs de SoftFloat au mot d'état (`Cpu/x87_noyau.Materiel.cs`,
+`indicateurs`, marqueur `fixed in hardware mode: PB-59, PB-205`) pose C1 quand le résultat a été arrondi vers le
+haut (`softfloat_roundedUp`), sur le 387 et le 486, et sur le 287XL (déduit) ; le 8087 et le 287, C1 indéfini, laissé.
+PB-205 entre au groupe du noyau (`ModeMateriel.Groupes`). `materiel-cas PB-205` : le cas de l'entrée, 3A20h contre
+3800h ; témoin, une division exacte, 3800h.
 
 ### PB-206 — FLD m32 d'un SNaN le rend silencieux sans lever IE
 
@@ -4602,6 +4649,7 @@ inconnu — le cas s'écrira sur la mesure.
 *G13* : (c) — le vrai comportement est inconnu ; reproduit tant qu'une mesure ne le tranche pas (décision n° 14).
 *Reproduit* : `Cpu/x87_ops_tables.cs` (rangées DD E0-EF, DA E8, D9 F0) et `Cpu/x87_ops_808x_tables.cs` ;
 `Cpu/x87_timings.cs` (`fprem1` et `fucom` des tables du 8087 et du 287) ; marqueurs PB-209.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-210 — Les alias non documentés, traités à moitié
 
@@ -4619,6 +4667,7 @@ instruire avant toute inscription » : une source primaire, ou DD C9, DE D1, DF 
 *Reproduit* : `Cpu/x87_ops_tables.cs` (rangées DD C8, DE D0, DF C0 à D8) et `Cpu/x87_ops_808x_tables.cs`, marqueurs
 PB-210 (générés par `gentab.py` et `gen46.py`) ; le noyau (G13.6, le noyau, N7c) garde ces gestionnaires de PCem à leurs entrées (`_x87_noyau.table`, et les
 tables du 8087 remplacées en place), et exécute les alias que PCem exécute : le même comportement dans les deux modes.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-211 — FRNDINT perd le signe du zéro
 
@@ -4846,6 +4895,7 @@ entrées 0 et 255 d'abord écrites de valeurs distinctes.
 C lit hors du tableau sans broncher, le C# lèverait ; `vgapal_at` rend les octets de
 `pallook[511]`, comme la disposition mémoire du C. Le diff de la campagne l'a vérifié : les
 registres qui reçoivent ces lectures sont hachés à chaque instruction.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-37 — `svga_render_24bpp_lowres` n'avance jamais son pointeur de sortie
 
@@ -5227,6 +5277,7 @@ clignotement — aucun attendu documenté.
 *G13* : (c) — le combiné des deux clignotements n'est pas documenté ; reproduit jusqu'à une mesure.
 *Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:499`, `Video/vid_mda.cs:290`, `Video/vid_hercules.cs:316`,
 `Video/vid_olivetti_m24.cs:476`, `Video/vid_pc1512.cs:488`.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-232 — En 40 colonnes, la M24 et le PC1512 éteignent le caractère sous le curseur
 
@@ -5248,6 +5299,8 @@ curseur, une inversion, n'y montre qu'un pavé uni.
 `blink & 16` ≠ 0 : sur les lignes du curseur, PCem un pavé uni (le fond inversé) ; avec l'exemption, le glyphe inversé.
 *G13* : (b) — l'intention de PCem est claire, le matériel inconnu ; une vérification par image seulement.
 *Reproduit* : marqueurs PB-232 : `Video/vid_olivetti_m24.cs:289`, `Video/vid_pc1512.cs:319`.
+*Non corrigé en mode matériel* : (b), reste reproduit, par la réponse de Julien à Q17 (14/10) : l'intention de PCem
+seule pour source.
 
 ### PB-233 — La MDA décode 3B0h-3B3h, 3B6h et 3B7h comme son 6845
 
@@ -5264,6 +5317,7 @@ peut-être rien sur la MDA.
 *G13* : (c), faible — le vrai décodage est inconnu, et PCem probablement fidèle.
 *Reproduit* : `Video/vid_mda.cs`, `mda_out`, marqueur PB-233 (`:76`). L'Hercules décode de même
 (`vid_hercules.c:44-53`, `:80-89`) ; son manuel ne décrit que 3B4h-3B5h (pp. 8-9) : hors de l'entrée.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-234 — Un bloc ADPCM finit à la lecture de son dernier octet, avant de le jouer
 
@@ -5537,6 +5591,7 @@ octets de 48h.
 *Cas qui discrimine* : SB 1.0 : D8h, puis 2xEh lu : bit 7 à 1 chez PCem (une donnée, 00h) ; le 1.05, inconnu.
 *G13* : (c) — le comportement du DSP 1.05 n'est pas connu ; reproduit d'ici une mesure.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, 48h et D8h (`sb_exec_command`), marqueurs PB-242.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-243 — Avant la SB 16, les ports jumeaux du DSP ne répètent pas
 
@@ -5553,6 +5608,8 @@ sur la carte, pas chez PCem.
 le reset fait ; PCem, 7Fh et l'octet périmé.
 *G13* : (b) — une source secondaire seulement.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_write` et `sb_read`, marqueurs PB-243.
+*Non corrigé en mode matériel* : reste reproduit, sauf réponse contraire à Q13, qui propose de le laisser (une source
+secondaire seulement ; PLAN-G13.md § G13.8).
 
 ### PB-244 — D1h et D3h agissent sur-le-champ
 
@@ -5568,6 +5625,8 @@ Documenté pour le maximum ; la durée exacte par version se lit au micrologicie
 carte, pas avant la fin de la rampe du 2.02, sous 112 ms.
 *G13* : (b) — la durée n'est donnée qu'en maximum, et varie d'une version à l'autre.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, D1h et D3h (`sb_exec_command`), marqueurs PB-244.
+*Non corrigé en mode matériel* : reste reproduit, sauf réponse contraire à Q13, qui propose de le laisser (une durée
+maximale seulement ; PLAN-G13.md § G13.8).
 
 ### PB-245 — La souris de la M24 envoie ses déplacements négatifs en complément à deux, pas en signe et amplitude
 
@@ -5596,6 +5655,7 @@ et sa souris, ou le pilote d'origine désassemblé (CBW : complément à deux ; 
 envoie FEh FFh 00h ; un clavier à signe et amplitude enverrait FEh 81h 00h.
 *G13* : (c) — le codage du vrai clavier est inconnu : reproduit tant qu'une mesure ou un désassemblage n'a pas tranché.
 *Reproduit* : `Keyboard/keyboard_olim24.cs`, `mouse_olim24_poll`, marqueurs PB-245 (`:287`, `:297`).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-246 — La cascade du 8259 est servie avant l'IRQ 0 et l'IRQ 1
 
@@ -5829,6 +5889,7 @@ sortie 1 du 8253, toutes les 15,13 µs ; la ROM 1.43 de la M24 pose le canal 0 e
 1 ms d'intervalle : PCem, la même ; la machine, une soixantaine de transferts plus loin.
 *G13* : (b) — mécanisme documenté, temps déduit ; il change le temps de deux machines (question n° 2 de D6-contre).
 *Reproduit* : `Models/model.cs`, `olim24_init` et `ams_init`, marqueurs PB-256.
+*Non corrigé en mode matériel* : avec la carte mère, en attente (la question n° 2 de D6-contre ; PLAN-G13.md § G13.9).
 
 ### PB-257 — Le cycle de DMA est facturé avant les tests de masque et de mode
 
@@ -5894,6 +5955,7 @@ de puces du dépôt ; les bits de requête demandent une ligne DREQ que PCem n'a
 requête après chaque transfert arrêterait le POST de l'XT (« HOT TIMER 1 OUTPUT », XT TR p. 5-30), et celui de la
 M24, dont la ROM 1.43 fait le même test (`F000:DC5C-DC62`).
 *Reproduit* : `Models/dma.cs`, `dma_read` (l'état, les lectures illégales) et `dma16_read` (de même), marqueurs PB-259.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-260 — La 1542C, maître de bus, passe outre son canal de DMA et le 8237
 
@@ -5909,6 +5971,7 @@ p. 5-6 (Cascade Mode). Documenté par composition.
 PCem la fait ; l'AT la bloque jusqu'au démasquage.
 *G13* : (a) — documenté par composition ; au domaine du stockage (G13.7), avec la cascade de PB-253.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, les quatre chemins du maître de bus, marqueurs PB-260.
+*Non corrigé en mode matériel* : en attente de Julien : PB-260 et PB-142, une 7e3 bis ou une 7e4 (PLAN-G13.md § G13.7).
 
 ### PB-261 — La lecture à distance de la souris PS/2 (EBh) ne remet pas ses compteurs à zéro
 
@@ -6035,6 +6098,7 @@ sin 1, ni 0 cycle (inconnu ; l'opcode n'est pas du 287).
 *Reproduit* : les rangées D9 F8 de `Cpu/x87_ops_tables.cs` et `Cpu/x87_ops_808x_tables.cs` (générées par `gentab.py` et
 `gen46.py`) et les temps nuls de `Cpu/x87_timings.cs`, marqueurs PB-266. Le noyau (N6) calcule FSIN, FCOS et FSINCOS
 sur tous les types, comme le 387 : le même comportement reproduit.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-267 — Le Xebec s'arrête sur dix-neuf fatal() et sur une unité absente, tous à la portée de l'invité
 
@@ -6068,6 +6132,7 @@ octets du tampon, DRIVE DIAGNOSTIC rend 04h (Not Ready) sur une unité absente ;
 TRACK (le drapeau de piste n'a pas de place dans l'image), READ ECC BURST ERROR LENGTH, READ LONG et WRITE LONG (l'ECC
 n'est pas documenté au bit près, PB-76). Survie : `r9-xebec`, trente et un essais, chaque garde atteinte, la carte
 répond ensuite ; les outils comparés à l'oracle n'empruntent aucun de ces chemins.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-268 — Un READ du lecteur de CD qui sort du disque est servi en partie, ou déborde son compte
 
@@ -6226,6 +6291,7 @@ Seule une mesure sur un ZIP 100 ATAPI dirait le matériel.
 *G13* : (c) — inconnu : reproduit dans les deux modes (décision n° 14), à mesurer.
 *Reproduit* : `Scsi/scsi_zip.cs`, START STOP UNIT, marqueur `reproduced: PB-274` ; comparé des deux côtés par
 `bd-ami486-zip-banc`.
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-275 — VERIFY, MODE SELECT, FORMAT UNIT et SEND DIAGNOSTIC du disque SCSI sont simulés
 
@@ -6244,6 +6310,7 @@ disque, propre au fabricant.
 *G13* : (c) — inconnu : reproduit dans les deux modes (décision n° 14). La plage de VERIFY est jugée par PB-129.
 *Reproduit* : `Scsi/scsi_hd.cs`, VERIFY, MODE SELECT, FORMAT UNIT et SEND DIAGNOSTIC, marqueurs `reproduced: PB-275`
 (la liste vide de SEND DIAGNOSTIC, GOOD, est jugée par PB-131).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-276 — Au bout du CCB, l'AHA fait la navette ; aucun reset de la carte ne libère le bus
 
@@ -6371,6 +6438,8 @@ carte, inconnu.
 *G13* : l'IRQ de code 7 (c), reproduite dans les deux modes (décision n° 14) ; les temps (d), hors G13.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-280 (`set_irq` ; la commande 06h, le marqueur valant pour 06h à
 09h, qui se suivent).
+*Non corrigé en mode matériel* : l'IRQ de code 7, inconnue, reproduite dans les deux modes (décision n° 14) ; les temps,
+(d), hors de G13 — comme le dit le champ *G13*.
 
 ### PB-281 — Un CCB en vol sous SRST ou SCRST : abandonné sans MBI
 
@@ -6386,6 +6455,7 @@ inconnu.
 *G13* : (c), reproduit dans les deux modes (décision n° 14) ; à reprendre si une source apparaît — sous SRST, le bus figé
 est de la famille de PB-276.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-281 (SRST, BRST).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-282 — Le CCB à cheval sur 16 Mo ne boucle pas à 24 bits
 
@@ -6397,6 +6467,7 @@ est de la famille de PB-276.
 *Cas qui discrimine* : un CCB en FFFFF8h : PCem lit sa CDB au-delà de 16 Mo, la carte en 000000h.
 *G13* : (c) — aucun pilote ne pose un CCB là ; reproduit dans les deux modes.
 *Reproduit* : `Scsi/scsi_aha1540.cs`, marqueur PB-282 (`process_cdb`).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 ### PB-283 — Le CD-ROM et le ZIP SCSI à un LUN absent : INQUIRY refusé, REQUEST SENSE celle du LUN 0
 
@@ -6415,6 +6486,7 @@ le LUN du paquet obsolète, puis optionnel, d'une révision à l'autre.
 d'atteinte ici.
 *G13* : (c) — la forme SCSI inatteignable, la forme ATAPI inconnue ; reproduit dans les deux modes (décision n° 14).
 *Reproduit* : `Scsi/scsi_cd.cs`, `Scsi/scsi_zip.cs`, marqueurs PB-283 (le test du LUN ; la branche d'INQUIRY du ZIP).
+*Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
 
 ### PB-284 — Les tables ADPCM 2 bits et 2,6 bits ne sont pas celles du DSP
@@ -6549,6 +6621,7 @@ de périphériques au plus, et l'invité n'en ajoute pas.
 *Cas qui discrimine* : aucun — 256 périphériques ne s'enregistrent jamais.
 *G13* : (d) — sans effet et sans vérité matérielle ; inverser les deux opérandes serait neutre dans les deux modes.
 *Reproduit* : `PluginApi/device.cs`, `pcem_add_device`, marqueur PB-08 (`:327`).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-09 — `charbuffer` du CGA est débordable par le programme invité
 
@@ -6563,6 +6636,7 @@ borne à 510. Même borne à la relecture 80 colonnes (`vid_cga.c:157-158`).
 carte, qui n'a pas de tampon de ligne, et identique à PCem tant qu'il survit (R1 = 129 et 130). Le C# levait
 `IndexOutOfRangeException`, que rien ne rattrapait : un `OUT` de l'invité arrêtait l'émulateur, et les dernières
 écritures des images se perdaient. `r9-cga` le prouve (R1 = 129, 200 et 255).
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-10 — Double `fclose` dans `loadbios`
 
@@ -6576,6 +6650,7 @@ BASIC. `Stream.Close()` étant idempotent en .NET, sans conséquence dans iXtal2
 *Cas qui discrimine* : aucun — `Stream.Close()` est idempotent.
 *G13* : (d) — sans effet dans iXtal26 et sans vérité matérielle.
 *Reproduit* : `Memory/mem_bios.cs`, `loadbios`, marqueur PB-10 (`:284`, numéroté par le domaine du processeur).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-16 — `img_load` éjecte sans remettre `f` à NULL
 
@@ -6602,6 +6677,7 @@ vide.
 *G13* : (d) — sans pendant matériel, et ni l'hôte ni les fichiers ne sont en jeu : laissé (décision n° 9).
 *Reproduit* : `Disc/disc_img.cs`, les deux sites marqués — le lecteur paraît chargé comme chez PCem ;
 `Stream.Close()` est idempotent, le second `fclose` n'a pas de pendant.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-17 — `track_data` fait 20 Ko, une piste XDF ED en demande 23 552
 
@@ -6619,6 +6695,7 @@ dans `img[1]`.
 une BPB admise annonce au plus 25 000 octets par piste, en secteurs d'au moins 128 octets. Le C# levait
 `ArgumentOutOfRangeException` à l'insertion, au démarrage comme au menu ; ces images se lisent désormais entières.
 `r9-disquette` le prouve.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-18 — `disc_load` copie `discfns[drive]` sur lui-même
 
@@ -6636,6 +6713,7 @@ est indéfini — documenté.
 *NON reproduit* (sans objet en C#) : `Disc/disc.cs`, `discfns[drive] = fn`, une affectation de référence, sans
 comportement indéfini ; le résultat est celui de la glibc, la chaîne inchangée. Le marqueur disait « reproduced » :
 il dit « not reproduced » depuis G13.1 (D3-stockage, § 4.1).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-21 — `speakval` divise par `pit->l[0]` sans le tester, et le POST y passe
 
@@ -6674,6 +6752,7 @@ FFh) : `speakval` vaut INT_MIN chez PCem (sortie 0 en mode 0), 1FFFh avec le com
 devait être écrite à la main : .NET **sature** (`(int)float.PositiveInfinity` vaut
 `int.MaxValue`, que le clamp ramène alors à 0x2000) là où x86 rend l'entier indéfini.
 Trouvé par la sonde `speaker-probe` de M9, au premier tir.
+*Non corrigé en mode matériel* : en attente de Q13 (G13.8g, la clôture du son ; PLAN-G13.md § G13.8).
 
 ### PB-24 — `rom_init` expose 12 Ko de tas non initialisé à l'invité
 
@@ -6716,6 +6795,7 @@ série (G7.0, `bd-pcdos-vga`), il valait 8C 50 — divergence à l'instruction 1
 désormais `rom_init` (`--wrap`, `harness_stubs.c`) et met à zéro ce que le fichier n'a pas
 fourni : les trois appels — Xebec, DTC, VGA — sont déterministes et égaux au C#. Le PCem
 vendoré reste intact ; l'arbitrage est inchangé, il est seulement appliqué AUSSI à l'oracle.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 
 ### PB-31 — `cga_close` libère un `mem_mapping_t` encore chaîné, et `closepc()` le traverse
@@ -6763,6 +6843,7 @@ fidèlement (`pc.cs`, `closepc`) ; l'oracle, qui est une bibliothèque et non un
 qui s'arrête, vide ses tampons par `fflush(NULL)` et le dit sur place. Même famille que
 `h_pad_ram` et `PB-24` — ce qui diverge est la gestion mémoire manuelle, pas un
 comportement émulé. VERIFICATION.md § M13.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 
 ### PB-46 — AAM 0 divise par zéro : SIGFPE
@@ -6791,6 +6872,7 @@ de division, celui de DIV par zéro (F6 /6), 83 cycles, marquée `DEVIATION`. Me
 ne tombe plus (il levait `DivideByZeroException`, code 134). Les 47 cas `AAM 0` restent
 **non gagnés** : le silicium pousse des drapeaux déjà recalculés (octet bas 0x46 — ZF et PF
 posés, SF, AF et CF effacés), le C#, comme le chemin de DIV, les pousse inchangés.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-47 — IDIV divise INT_MIN par -1 : SIGFPE
 
@@ -6820,6 +6902,7 @@ sites `_w`, `x86_int(0)` comme la branche de débordement) et `Cpu/386_common.cs
 Mesuré par un pas C# seul : les trois formes prennent INT 0 (IVT[0], SP − 6) ; un IDIV
 ordinaire (-100 / -1) est inchangé. Aucun oracle ne départage : l'oracle meurt, et aucun
 cas SST ne tombe sur ces valeurs.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-49 — L'ombre de SS est une récursion : une suite de POP SS ou MOV SS épuise la pile
 
@@ -6863,6 +6946,7 @@ reprend l'instruction suivante. Marqueurs `// pcem bug, not reproduced: PB-49` :
 mêlés ; 286 et 386) ; au-delà, écart ATTENDU, là où l'oracle survit encore ; RAM entière
 remplie de 0x17, C# seul : 200 pas de 1 025 POP SS, sans plantage ni boucle. Sans la borne,
 le même test fait tomber le C#.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-93 — Une valeur de configuration hors liste indexe hors des tableaux (SB, cartes SVGA)
 
@@ -6910,6 +6994,7 @@ liste : le défaut, averti, prouvé par `r9-sbcfg` (six essais de plus).
 listes (`sound_sb.c:1304-1323`). Hors liste, `emu_addr` près de FFFFh indexerait au-delà (`io.c:45`), et
 `onboard_ram` négatif ferait un `malloc` nul suivi d'un `memset` (`sound_emu8k.c:2046-2047`). Le défaut, averti,
 prouvé par `r9-awecfg`.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-151 — L'entrée stéréo lit un élément au-delà de `record_buffer`
 
@@ -6931,6 +7016,7 @@ l'absence d'alias (déduit, et certain).
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `record_lu` et ses quatre appels, et `Sound/sound_sb.cs`, `record_ecrit` et ses
 deux paires d'appels, marqueurs PB-151 ; une assertion statique de `harness.c` fige la disposition. SB16BANC enregistre
 au-delà de FFFEh, une sortie en cours.
+*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e, l'enregistrement ; PLAN-G13.md § G13.8).
 
 ### PB-152 — Le registre 3Bh du CT1745 indexe hors de sa table
 
@@ -6943,6 +7029,7 @@ mélangeur, celle de 3Bh comprise (`:639-669`). `speaker` n'est lu nulle part (T
 *G13* : hors du mode — non reproduit dans les deux modes ; rien n'y bascule.
 *NON reproduit* : l'indice borné (`Sound/sound_sb.cs`, marqueur PB-152) ; rien d'observable ne change, `speaker`
 reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16BANC écrit 3Bh = C0h sous l'oracle.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-156 — `len × sb_freq` déborde l'entier signé
 
@@ -6959,6 +7046,8 @@ reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16B
 *G13* : (a) — sans effet tant que PB-148 n'est pas corrigé, et inatteignable si le bornage de PB-155 l'est.
 *Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-156, par l'arithmétique enveloppante du C#
 (`CheckForOverflowUnderflow` faux).
+*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e ; inatteignable si PB-155 est borné, en 8c2 ;
+PLAN-G13.md § G13.8).
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
 
@@ -6972,6 +7061,7 @@ par un changement de type de manette à chaud depuis l'interface (`gameport_upda
 *Non reproduit* : `Joystick/joystick_sw_pad.cs`, `sw_close` — sans objet sous GC, l'objet restant
 vivant tant que ses chronomètres le tiennent, et iXtal n'a pas de changement de type à chaud. Sans
 action.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-96 — La police monochrome lue au-delà de ses 16 lignes
 
@@ -7027,6 +7117,7 @@ refusant d'abord une piste de données en 05/64h par `is_track_audio`, qui conve
 D3-contre, K4). Marqueurs `not reproduced: PB-111` devant les sept DEVIATION de `Cdrom/cdrom_image.cs` (ReadSectors,
 CanReadPVD, l'INDEX, GetCueFrame) et de `Cdrom/cdrom-image.cs` (is_track_audio, playaudio, getcurrentsubchannel),
 posés en G13.1.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-124 — Le fil CD lit l'image sans verrou, en même temps que le fil d'émulation
 
@@ -7044,6 +7135,7 @@ dépend de l'ordonnanceur de l'hôte : deux exécutions ne rendent pas le même 
 *NON reproduit — divergence assumée* (décision n° 7 de PLAN-G10, `DEVIATION` dans `Sound/sound.cs`
 et `tools/oracle/harness.c`) : le corps du fil s'exécute sur-le-champ, à l'échéance de
 `sound_poll`, dans le fil d'émulation, des deux côtés.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-161 — La réverbération de l'EMU8000 déborde ses tampons
 
@@ -7060,6 +7152,7 @@ quatre affectations (`Sound/sound_emu8k.cs`, gardes `sound_emu8k.c:1164`, `:1165
 de PLAN-G12.md). La sonde ne hache que les 7 744 premières entrées. Aucune porte comparée n'y va : AWEBANC s'arrête au
 quartet Dh, la dernière taille qui tienne. Survie : `r9-emu8k`, chaque garde atteinte, les entrées au-delà de
 7 744 écrites.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ### PB-162 — Le chorus droit lit sous son tampon, et prend la fraction du gauche
 
@@ -7080,6 +7173,7 @@ indices dans [0, 4000h) et la sortie droite égale à la rampe interpolée au re
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite — la
 contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
 `emu8k-kernel-check` le passe sur des états fabriqués.
+*Non corrigé en mode matériel* : en attente de Q13 (le reste de G13.8f ; PLAN-G13.md § G13.8).
 
 ### PB-163 — Les conversions de la réverbération débordent l'int32
 
@@ -7097,6 +7191,7 @@ l'écho et l'entrée nuls : `filterstore` devient INT_MIN chez PCem (2^31 hors b
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par l'aide de
 conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. Aucun invité n'y arrive en temps de porte : `emu8k-kernel-check`
 compare les sept noyaux sur des états fabriqués, des milliers de sorties à INT_MIN comprises.
+*Non corrigé en mode matériel* : en attente de Q13 (le reste de G13.8f ; PLAN-G13.md § G13.8).
 
 ### PB-164 — L'attaque de l'enveloppe de modulation lit au-delà de sa table
 
@@ -7110,6 +7205,7 @@ d'au plus `attack_amount >> 5`.
 *G13* : (d) — sans effet ; le C# borne déjà l'indice, au résultat identique.
 *Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-164 — DEVIATION de forme : l'indice borné à 10000h, le résultat
 identique (décision n° 15 de PLAN-G12.md). Ce n'est pas un site R9.
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-168 — Une BPB à 0 secteur par piste fait diviser par zéro
 
@@ -7122,6 +7218,7 @@ zéro.
 *G13* : hors du mode — corrigé dans les deux modes en G13.0 (R9, décision n° 2 de PLAN-G13.md).
 *NON reproduit* (R9, G13.0) : une telle BPB est traitée comme une BPB fantaisiste, la géométrie déduite de la taille
 du fichier (`Disc/disc_img.cs`, marqueur PB-168, garde `disc_img.c:219`). `r9-disquette` le prouve.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
 
 ## C. Incohérences sans conséquence observable
 

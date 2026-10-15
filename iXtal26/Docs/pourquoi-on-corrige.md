@@ -2028,3 +2028,17 @@ Julien à Q17 : la documentation du matériel tranche.*
   cachait ce défaut : on l'a vu en rejouant le test sous le faisceau, qui finissait par un bip long et trois courts.
 - **La correction.** En mode matériel, une écriture en 3C1h est une écriture en 3C0h. Le test du BIOS passe alors
   sans bip, le faisceau en place.
+
+## G13.10b — le registre audité, et PB-205
+
+*Le 15 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.10, `VERIFICATION.md` § G13.10b.*
+
+### PB-205 — C1, l'arrondi vers le haut
+
+- **Le vrai PC.** Depuis le 387, quand le résultat d'une opération a dû être arrondi vers le haut, le coprocesseur le
+  dit dans le bit C1 de son mot d'état. Un programme qui teste la précision d'un calcul peut le lire.
+- **L'émulateur.** PCem calcule en `double` et ne sait pas dans quel sens il a arrondi : C1 reste à 0.
+- **La correction.** Elle existait déjà : le noyau de 80 bits de G13.6 tient le sens de chaque arrondi, et pose C1
+  au même endroit que les autres drapeaux. Mais le registre ne le disait pas. L'audit de la clôture l'a trouvé : PB-205
+  a maintenant sa place dans la table, son cas et son champ, comme les autres corrections du noyau.
+

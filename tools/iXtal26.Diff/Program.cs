@@ -354,6 +354,9 @@ switch (args[0])
         return MaterielMode.Run();
     case "materiel-cas":
         return MaterielCas.Run(args.Skip(1).ToArray());
+    // G13.10b — la couverture comptée : tous les cas dans un même processus, sous le mode demandé.
+    case "couverture-materiel":
+        return MaterielCouverture.Run(args.Skip(1).ToArray());
     case "banc":
         return Banc.Run(args.Skip(1).ToArray());
     // G13.6, le noyau, N6 — les transcendantes contre leur référence en précision arbitraire.
