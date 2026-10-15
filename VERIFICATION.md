@@ -11674,3 +11674,106 @@ d'EGABANC, le dernier écran de l'EGA de 64 Ko), mais elles sont les mêmes que 
 g9e2 ; deux portes neuves, `materiel-cas-pb89` et `materiel-cas-pb89-materiel`, vertes ; un seul résumé change,
 `recensement` (285 défauts, 1 236 marqueurs, onze de plus). Les `materiel-cas` de PB-99 jouent leurs neuf cas neufs
 sous les mêmes résumés.
+
+## G13.9f — le faisceau
+
+Le 15 octobre 2026. Quatre défauts des registres d'état, après la réponse de Julien à Q18 : PB-99 (4), 3DAh bits 4-5
+de l'EGA, deux des six sorties de l'attribut que choisit 12h, que PCem bascule à chaque lecture (« Fools IBM EGA video
+BIOS self-test ») ; PB-224, 3BAh bit 3 de la MDA et de l'Hercules, le point vidéo, que PCem tient au retour vertical ;
+PB-226, l'Input Status 1 de l'ET4000, son bit 7 (le complément du retour vertical) et ses bits 4-5 ; PB-228, 3C2h bit 7
+de l'EGA, 1 pendant l'affichage quand l'interruption est autorisée. Le critère de Q18, POD14 sans bip, a trouvé un
+cinquième défaut, inscrit comme part (8) de PB-99 : PCem ignore 3C1h, où le BIOS d'IBM écrit la donnée de l'attribut.
+
+**La correction du mode matériel** (domaine `video`).
+- Le faisceau (`video.Faisceau`, dans `Video/video.Materiel.cs`) : la part écoulée de la phase de la ligne (l'affichage,
+  de la fin du balayage d'une ligne à son rendu, linepos à 0 ; ou le reste), lue à la minuterie de la carte
+  (`timer_get_remaining_u64` contre dispontime ou dispofftime) ; la ligne sous le faisceau, rendue par la carte dans
+  buffer32 sa palette remplacée par l'identité (les sorties de l'attribut, avant le DAC), les trois lignes touchées
+  gardées et rendues ; une fois par phase de la ligne (l'échéance de la minuterie) et par écriture en mémoire
+  (egawrites) ; le blanc du CRTC (`blanc` : un début, une fin sur les bits bas du compteur, le repli au total).
+- PB-99 (4) : en tête de 3DAh, `etat1_materiel` ; le point (`point_materiel`) : dans l'affichage d'une ligne affichée,
+  le point de la ligne rendue (le texte à chaque ligne, le rendu graphique dans sa mémoire, ceux du mode matériel) ;
+  dans le blanc horizontal (CR02, CR03 bits 0-4) ou vertical (CR15 et CR07 bit 3, CR16 bits 0-4), 0 ; ailleurs, la
+  bordure (11h). 12h = 3Fh (« Not Used ») garde la bascule. PB-99 (8) : en tête de `ega_out`, `attribut_materiel`,
+  3C1h devient 3C0h.
+- PB-228 : en tête de 3C2h, `etat0_materiel` : le bit 7 à 1 hors du retour vertical, CR11 bit 5 à 0 ; sinon celui de
+  PCem.
+- PB-224 : en tête de 3BAh, `etat_materiel` (MDA et Hercules) : le bit 3, le point allumé (une autre couleur que le
+  noir) ; la MDA rend sa ligne par `ligne_materiel`, l'Hercules par `ligne_faisceau`, une copie du rendu de
+  `hercules_poll` ; hors de l'affichage, éteint (déduit). Le bit 7 de l'Hercules, celui de PB-225 quand il est corrigé.
+- PB-226 : avant le passage au socle, `in_materiel` : pour 3DAh, le bit 7 ; sous 12h bits 4-5 à 00 et 8 bits par
+  point au plus, les bits 4-5 de P2 et P0 (`svga.render`, la palette identité, le rendu forcé) ; le blanc, CR03 sur 5
+  ou 6 bits et CR16 sur 5 ou 8 selon TS 7 bit 7 ; l'index de l'ATC bit 5 à 0, la bordure. Les trois autres choix de
+  12h, que le data book contredit (pp. 103 et 157), gardent la bascule.
+Les marqueurs reproduits de PB-224 (deux), PB-226 et PB-228 deviennent `fixed in hardware mode`, et le commentaire de
+part de PB-99 (4) un marqueur ; un marqueur neuf pour (8).
+
+**Les cas**, en C# seul (`MaterielCasFaisceau.cs`, neuf ; POD14 dans `MaterielCasEga.cs`), verts en mode PCem, sous
+chaque PB et sous « tout » : la ligne posée à la main, la minuterie de la carte réglée pour que la lecture tombe à une
+part donnée de la phase ; deux lectures au même instant (PCem bascule, la carte rend deux fois son point).
+- `materiel-cas PB-99` : 12h = 0Fh, 1Fh, 2Fh, la palette 4 à 05h, 0Ah, 30h, 04h, 01h, au quart de l'affichage (30h,
+  20h, 10h) et aux trois quarts (00h) ; la bordure (11h = 05h) et le blanc, horizontal (caractère 84) et vertical (aux
+  bornes, lignes 349 à 362) ; une écriture en mémoire (egawrites) entre deux lectures, que la seconde voit ; un blanc
+  qui commence dans l'affichage (CR02 = 20h) ; l'écran éteint de SR1 ; le graphique de 16 couleurs ; témoins, 12h =
+  3Fh, et buffer32 intact après une lecture ; (8), 0Fh/3Fh puis 32h/1Fh en 3C0h-3C1h ; POD14, quinze secondes de
+  l'amorçage d'une XT et de l'EGA, aucun bip dans les deux modes (un garde-fou : PCem passe par sa bascule ; sans (4) ou
+  sans (8), un bip long et trois courts, vu en cours d'étape).
+- `materiel-cas PB-224` : mille lignes jouées par la minuterie, 3BAh lu au milieu de chaque affichage : des espaces
+  d'attribut 07h (PCem 30, la carte 0), 70h (611), sur la MDA et l'Hercules ; l'Hercules en graphique, la page pleine
+  (609) ; l'Hercules, bits 7 et 3 au milieu d'une ligne affichée (le bit 7 de PB-225 sous son drapeau) ; la porte
+  `materiel-cas-pb224-pb225` le joue sous les deux.
+- `materiel-cas PB-226` : le bit 7 (80h contre 00h) ; les bits 4-5 au quart et aux trois quarts ; la bordure et le
+  blanc horizontal ; le blanc vertical en EGA (TS 7 bit 7 à 0, le banc sans BIOS : CR16 sur cinq bits, lignes 406 à
+  409) et en VGA (TS 7 = 80h sous le KEY : huit bits, lignes 440 et 441) ; le graphique de 8 bits ; l'index de l'ATC bit
+  5 à 0 (la bordure) ; témoins, le retour vertical, 12h = 1Fh, les 00h du blanc.
+- `materiel-cas PB-228` : CR11 = 0Bh pendant l'affichage (90h contre 10h) ; témoins, le retour, CR11 = 2Bh.
+- `materiel-cas PB-225` : le bit 3, devenu celui de PB-224, masqué ; les attendus 81h/01h et 00h/80h.
+- Les autres cas de la vidéo (PB-04, 222, 223, 96, 97, 102, 225, 230, 100, 227, 229, 220, 80, 221, 37, 89), en mode
+  PCem, sous leur PB et sous « tout » : verts (PB-225 sous « tout » rougissait avant le masque du bit 3).
+
+**Le recensement** : vert, 285 défauts au registre, 1 238 marqueurs (deux de plus : 3C1h et le second site de
+PB-224 ; le commentaire de part de PB-99 (4) devenu marqueur). **materiel-mode** : vert.
+
+**La contre-lecture** (Sonnet ; le code, les cas, les textes, contre le manuel d'IBM, le data book de Tseng et le
+désassemblage du BIOS de l'EGA) : aucun bloquant. Vérifiés justes : le modèle des phases sur les quatre balayages, la
+part écoulée et ses unités (32:32) ; egawrites compté par tous les chemins d'écriture de ces cartes ; l'état que les
+rendus touchent, rendu ; l'arithmétique du blanc et ses pages ; les sorties de 12h ; la déduction de 3C1h (les deux
+OUT_DX de POD14 se suivent sans lecture de 3DAh : la bascule ne revient à l'index que si 3C1h la fait tourner) ; la
+copie du rendu de l'Hercules ; les gardes. Repris : le coût (la ligne gardée, effacée et lue sur la seule largeur utile
+au lieu de trois lignes entières, environ 100 Ko par ligne lue) ; les cas manquants (egawrites, buffer32 intact, les
+bornes du blanc, le graphique de l'EGA et de l'ET4000, le blanc dans l'affichage, l'écran éteint, le bit 7 de
+l'Hercules sous PB-224 et PB-225) ; egawrites dit dans le code et l'entrée ; (8) dans les textes du mode ; les pages de
+CR11 ; la table de la p. 103 dont la colonne de 12h ne se lit pas ; la place de la garde de l'ET4000 ; des lignes de
+plus de 120 colonnes. Écarté, dit : le cache n'est pas vidé au chargement d'un état (une collision exige la même carte,
+la même échéance et le même egawrites) ; les sondes de PB-96, 99 et 222 comptent aussi les rendus du faisceau.
+
+**Les contrôles négatifs** (/tmp/a9/neg-9f.py, dans l'arbre, chaque faute restaurée) : vingt et une fautes, chacune
+rougit son PB sous ce PB (et sous « tout » pour les gardes) — les six gardes retirées une à une (3DAh, 3C1h, 3C2h, la
+MDA, l'Hercules, l'ET4000) ; l'EGA et l'ET4000 sans la palette identité ; la part écoulée prise à rebours ; le blanc
+vide ; l'EGA sans le blanc vertical, sans la bordure ; le rouge et le bleu échangés ; la MDA allumée hors de
+l'affichage ; l'Hercules sans son graphique ; l'ET4000 sans le bit 7, sans l'index de l'ATC bit 5 ; 3C2h bit 7 sans
+CR11 bit 5 ; le cache sans egawrites ; buffer32 non rendu ; 3C1h ignoré (POD14 et son cas) ; et les attentes
+inversées ; le témoin sans faute reste vert.
+
+**M2** (Release du worktree ; /tmp/a9/m2-9f.sh) : une première capture a montré les constructeurs statiques de
+`vid_ega`, `vid_et4000`, `vid_hercules` et `vid_mda` changés, et leurs classes de lambdas apparues : les rendus du
+faisceau y étaient des champs statiques (des délégués), contre la règle des classes transcrites. Ils sont devenus des
+méthodes (le délégué du groupe de méthodes, mis en cache hors de la classe). Ensuite, avec et sans les six gardes
+(xt-ega, xt-mda, xt-hercules, ami486-et4000) : identique, 1 016 méthodes, aucune changée ; contre M2-9c2 (tous les
+scénarios) : les constructeurs statiques de `ModeMateriel` et de `materiel` (PB-224, 226, 228 neufs) et les quatre
+jetons de chaînes habituels.
+
+**Les amorçages** (Release du worktree ; /tmp/a9/boots-9f.sh) : l'EGA de 256 Ko et de 64 Ko (EGABANC, dont POD14 au
+POST), l'XT et l'EGA (PC-DOS, DIR), la MDA (DIR), l'Hercules (HERCBANC), l'ami486 et l'ET4000AX (DEBUG, le mode 13h
+puis 3) et ET4BANC ; en mode PCem, sous leurs PB et sous « tout » : aucun arrêt. Sous PB-224 et PB-226 (DOS),
+PB-228 : la sortie du mode PCem, aux instructions près. Sous PB-99 : les résultats d'EGABANC identiques (ses
+échantillons de 3DAh voient les bits 4-5 passer, cette fois par les points du texte) ; changent les comptes
+d'instructions, l'heure de DOS et l'instant d'une capture d'écran : POD14 ne dure plus le même temps. Sous PB-226,
+ET4BANC : ses échantillons de 3DAh voient le bit 7 (OU 39h devenu B9h, ET 00h devenu 80h). Sous « tout », contre la
+build sans les gardes de 9f (/tmp/a9/boots-9f.sh avec wt9fs) : les mêmes écarts, plus, dans ET4BANC, un second
+échantillon sans point allumé (OU 81h) : sous « tout », les banques de 3CDh (PB-100) laissent la mémoire affichée vide
+— la build sans les gardes relit les mêmes 00h —, et le faisceau le rend.
+
+**La série** g9f (le worktree de l'étape, contre g9c2) : 689 portes, toutes vertes, chacune au même verdict que dans
+g9c2 ; sept portes neuves, `materiel-cas-pb224`, `-pb226`, `-pb228` et leurs `-materiel`, et `materiel-cas-pb224-pb225`,
+vertes ; un seul résumé change, `recensement` (285 défauts, 1 238 marqueurs, deux de plus).

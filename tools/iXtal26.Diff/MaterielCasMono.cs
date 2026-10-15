@@ -246,16 +246,18 @@ internal static partial class MaterielCas
     }
 
     // PB-225 (a) — 3BAh bit 7 de l'Hercules : « 0 = vertical retrace … 1 = active display » (GB101, pp. 12-13). PCem y
-    // recopie le bit 3, à 1 pendant le retour. Le retour posé à la main (le bit 3 de stat) et levé.
+    // recopie le bit 3, à 1 pendant le retour. Le retour posé à la main (le bit 3 de stat) et levé ; le bit 3 lu, celui
+    // de PB-224 (le point sous le faisceau, G13.9f), masqué.
     private static int Pb225(bool hw)
     {
         string Lu(bool retour)
         {
             var h = Herc();
             h.stat = (byte)(retour ? 0x09 : 0x00);
-            return $"3BAh={io.inb(0x3ba):X2}";
+            return $"3BAh={io.inb(0x3ba) & 0xf7:X2}";
         }
-        var bad = UnMono("Hercules : 3BAh pendant le retour vertical", "hercules", () => Lu(true), "3BAh=89", "3BAh=09", hw);
+        var bad = UnMono("Hercules : 3BAh pendant le retour vertical", "hercules", () => Lu(true), "3BAh=81", "3BAh=01",
+                         hw);
         bad += UnMono("Hercules : 3BAh pendant l'affichage", "hercules", () => Lu(false), "3BAh=00", "3BAh=80", hw);
         return bad;
     }

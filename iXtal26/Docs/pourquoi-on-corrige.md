@@ -1986,6 +1986,45 @@ Julien à Q17 : la documentation du matériel tranche.*
   tables de la police que choisit SR3 sortent de même de la mémoire.
 - **La correction.** Le rendu graphique masque d'abord l'adresse de début de ligne. Sur 64 Ko, il tient ensuite CR17
   bit 1 à 1 le temps d'une ligne. L'adresse masquée garde ce bit à 0, ce qui revient à masquer après la substitution ;
-  le registre est rendu ensuite. Les tables de
-  SR3 sont masquées par la mémoire présente : sur 64 Ko, la table 1 lit la table 0.
+  le registre est rendu ensuite. Les tables de SR3 sont masquées par la mémoire présente : sur 64 Ko, la table 1 lit
+  la table 0.
 - **Ce qui reste.** Que ces bits soient perdus est déduit de la mémoire par plan, pas lu dans une source.
+
+## G13.9f — le faisceau
+
+*Le 15 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.9, `VERIFICATION.md` § G13.9f.*
+
+### Le point sous le faisceau
+
+- **Le vrai PC.** Les cartes vidéo laissent lire, sur un de leurs ports d'état, un ou deux des signaux qu'elles
+  envoient au moniteur à cet instant. C'est le point que le faisceau trace au moment de la lecture. Le test du BIOS de
+  l'EGA d'IBM s'en sert : il remplit une rangée de pavés blancs, puis attend de voir ces signaux s'allumer et
+  s'éteindre.
+- **L'émulateur.** PCem dessine une ligne entière à la fois et ne sait pas où est le faisceau. À la place, il donne
+  autre chose : une valeur qui bascule à chaque lecture sur l'EGA et l'ET4000, ce qui « trompe le test du BIOS de
+  l'EGA » (son propre commentaire) ; le retour vertical sur la MDA et l'Hercules.
+- **La correction.** Un mécanisme commun, le faisceau. La minuterie de chaque carte dit déjà combien de temps reste
+  avant la fin de la phase en cours de la ligne : l'affichage, ou le reste. On en tire la place du faisceau sur la
+  ligne. Pendant l'affichage, on fait rendre la ligne par la carte elle-même, sa palette remplacée par l'identité : on
+  obtient ses signaux de sortie, avant les couleurs. Hors de l'affichage, c'est la couleur de la bordure, ou rien
+  pendant le blanc que règlent les registres du CRTC. La ligne n'est rendue qu'une fois par phase, tant que la mémoire
+  ne change pas : les programmes qui guettent le retour vertical lisent ce port des milliers de fois.
+- **Les cartes.** L'EGA rend deux de ses six signaux, choisis par le registre 12h de l'attribut (PB-99 (4)). La MDA et
+  l'Hercules rendent leur point vidéo, allumé ou non (PB-224). L'ET4000 rend deux de ses huit signaux, et au bit 7 le
+  complément du retour vertical (PB-226). L'Input Status 0 de l'EGA rend en plus son bit 7, 1 pendant l'affichage,
+  quand l'interruption verticale est autorisée (PB-228).
+- **Ce qui reste.** Le choix 11 du registre 12h de l'EGA est « Not Used », et le data book de l'ET4000 donne deux
+  tables contradictoires pour trois des quatre choix : là, PCem reste. Que les signaux soient nuls pendant le blanc, et
+  le point de la MDA éteint pendant les retours, est déduit. Un registre écrit au milieu d'une ligne ne se voit qu'à
+  la phase suivante.
+
+### PB-99 (8) — le port 3C1h de l'EGA
+
+- **Le vrai PC.** L'attribut de l'EGA se charge par paires, l'index puis la donnée, sur une seule bascule. Le BIOS
+  d'IBM écrit l'index en 3C0h et la donnée en 3C1h. Pour que ses paires marchent, la carte doit prendre 3C1h comme
+  3C0h en écriture ; c'est déduit du BIOS.
+- **L'émulateur.** PCem ignore 3C1h. La bascule reste sur la donnée, et l'index suivant devient la valeur du registre
+  d'avant. Dans le test du BIOS, la palette 0Fh reçoit 32h et le registre 12h n'est jamais écrit. La bascule de 3DAh
+  cachait ce défaut : on l'a vu en rejouant le test sous le faisceau, qui finissait par un bip long et trois courts.
+- **La correction.** En mode matériel, une écriture en 3C1h est une écriture en 3C0h. Le test du BIOS passe alors
+  sans bip, le faisceau en place.

@@ -341,7 +341,8 @@ internal static class materiel
     internal static readonly bool pb_229;
 
     /// <summary>PB-99 : l'EGA sans les traits de la VGA que PCem lui prête ; le texte redessiné à chaque ligne ; le
-    /// rendu et la police dans la mémoire configurée.</summary>
+    /// rendu et la police dans la mémoire configurée ; 3DAh bits 4-5, le point sous le faisceau ; 3C1h écrit comme
+    /// 3C0h.</summary>
     internal static readonly bool pb_99;
 
     /// <summary>PB-89 : la ligne bornée à elle-même, sur la CGA, la MDA, l'Hercules, l'EGA, la M24 et le
@@ -371,6 +372,16 @@ internal static class materiel
 
     /// <summary>PB-225 : 3BAh bit 7 de l'Hercules, 0 pendant le retour vertical.</summary>
     internal static readonly bool pb_225;
+
+    /// <summary>PB-224 : 3BAh bit 3 de la MDA et de l'Hercules, le point sous le faisceau.</summary>
+    internal static readonly bool pb_224;
+
+    /// <summary>PB-226 : l'Input Status 1 de l'ET4000, bit 7 le complément du retour vertical, bits 4-5 le point sous
+    /// le faisceau.</summary>
+    internal static readonly bool pb_226;
+
+    /// <summary>PB-228 : l'Input Status 0 de l'EGA, bit 7 à 1 pendant l'affichage, l'interruption autorisée.</summary>
+    internal static readonly bool pb_228;
 
     /// <summary>PB-157 : la commande du 8237 haut est rangée, et DAh se lit sur le temporaire.</summary>
     internal static readonly bool pb_157;
@@ -679,6 +690,9 @@ internal static class materiel
         pb_222 = ModeMateriel.Demande(222);
         pb_223 = ModeMateriel.Demande(223);
         pb_225 = ModeMateriel.Demande(225);
+        pb_224 = ModeMateriel.Demande(224);
+        pb_226 = ModeMateriel.Demande(226);
+        pb_228 = ModeMateriel.Demande(228);
         pb_157 = ModeMateriel.Demande(157);
         pb_169 = ModeMateriel.Demande(169);
         pb_170 = ModeMateriel.Demande(170);

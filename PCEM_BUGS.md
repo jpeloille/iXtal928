@@ -1863,19 +1863,26 @@ les masques de R3, R4, R6 à R9, R12 et R14 ; la relecture, sur les deux cartes,
   aucun mode du BIOS d'IBM ne pose ce bit à 0 (déduit). La police du texte, lue sans masque (`:287`), sort de même
   dès que SR3 choisit une table au-delà de la mémoire (relu en G13.1) ;
 - (7) CR07 bits 5-7 et CR09 bit 6 lus comme les bits 9 de la VGA (`vtotal`, `dispend`, `vsyncstart`, `split`,
-  `:200-219`), et CR0A bit 5 qui éteint le curseur (`:619`) — des registres de la VGA, inscrits en G13.1.
+  `:200-219`), et CR0A bit 5 qui éteint le curseur (`:619`) — des registres de la VGA, inscrits en G13.1 ;
+- (8) `ega_out` n'a pas de 3C1h (`:21-140`) : la donnée de l'attribut que le BIOS d'IBM y écrit (OUT_DX : l'index en
+  DX, la donnée en DX + 1 ; dans POD14, la palette 0Fh puis 12h) se perd, et la bascule de 3C0h reste sur la donnée :
+  l'index suivant devient la valeur du registre d'avant. C'est ce qui fait échouer POD14 sans la bascule de (4).
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défaut n° 6) ; (6) resserré et (7) ajouté par la reconnaissance de
-G13 (D4-contre, § 2 n° 6 ; D4-video, § PB-99).
+G13 (D4-contre, § 2 n° 6 ; D4-video, § PB-99) ; (8) en G13.9f, POD14 rejoué sous le faisceau (un bip long et trois
+courts : la palette 0Fh lue à 32h, 12h jamais écrit).
 *Source* : IBM, *Options and Adapters TR*, vol. 2 (1984), EGA : 10h bits 4-7, 07h bits 6-7, 09h et 0Ah bits 5-7, 11h
 bits 6-7 « Not Used » ; écriture seule hors 0Ch-0Fh (pp. 30-37, 56-61) ; 3DAh bits 4-5, deux sorties vidéo choisies par
-12h (pp. 15-17, 60), que POD14 teste (pp. 113-114) — documenté ; (5), (6) : déduits ; la valeur relue : inconnue.
+12h (pp. 15-17, 60), que POD14 teste (pp. 113-114) — documenté ; (8) : le listing du BIOS (OUT_DX, p. 122, lignes
+2367-2375 ; POD14, p. 114, lignes 1305-1318), dont les paires 3C0h-3C1h ne marchent que si la carte prend 3C1h comme
+3C0h en écriture — déduit ; (5), (6) : déduits ; la valeur relue : inconnue.
 *Cas qui discrimine* : (1) AC00 = 01h, AC14 = 0Fh, AC10 = 80h : PCem egapal[0] = F1h, l'EGA 01h ; (2) CR11 = 80h puis
 CR01 = 27h : PCem garde l'ancien CR01, l'EGA prend 27h ; (7) CR07 = 20h, CR06 = 70h : PCem `vtotal` = 271h, l'EGA 71h.
-*G13* : (a), (b), (c) — (a) (1), (2), (5), (7) ; (b) (4), un modèle neuf du faisceau, et (6) ; (c) la valeur de (3).
-*Reproduit* : les parts (a) et (6), en mode PCem, `Video/vid_ega.cs`, marqueurs `fixed in hardware mode: PB-99` (10h
-bit 7 et 14h, CR11, les bits 9, `fullchange`, 10h bit 5, CR0A bit 5 ; les substitutions de CR17 et la police) ; dans
-les deux modes, commentaires `PB-99, la part` : (3) la relecture, inconnue ; (4) 3DAh, qui viendra avec le faisceau
-(G13.9f). Le banc EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
+*G13* : (a), (b), (c) — (a) (1), (2), (5), (7) ; (b) (4), un modèle neuf du faisceau, (6) et (8) ; (c) la valeur de
+(3).
+*Reproduit* : les parts (a), (4), (6) et (8), en mode PCem, `Video/vid_ega.cs`, marqueurs `fixed in hardware mode:
+PB-99` (10h bit 7 et 14h, CR11, les bits 9, `fullchange`, 10h bit 5, CR0A bit 5 ; les substitutions de CR17 et la
+police ; 3DAh ; 3C1h) ; dans les deux modes, le commentaire `PB-99, la part inconnue (3)` : la relecture. Le banc
+EGABANC relit le CRTC et l'attribut 10h, et voit 3DAh basculer ses bits 4-5.
 *Corrigé en mode matériel*, les parts (1), (2), (5) et (7) (G13.9d) : sous `if (materiel.pb_99)`
 (`Video/vid_ega.Materiel.cs`) — (1) en tête du calcul de la palette, `palette_materiel` : six bits par registre, ni 10h
 bit 7 ni 14h ; (2) en tête de l'écriture de 3D5h, `crtc_ecrit_materiel` : l'écriture de PCem sans la protection de
@@ -1905,6 +1912,24 @@ d'adresse que la carte n'a pas (16 Ko par plan sur 64 Ko) sont perdus : déduit.
 ligne à la rangée 2, en 2 bpp et en 16 couleurs, puis CR17 = 43h et l'adresse de début à 10000h : PCem lit 10000h,
 l'EGA 0, CR17 relu tel qu'écrit dans les deux modes ; SR3 = 05h sur 64 Ko et 0Ah sur 128 Ko, 41h à la rangée 0 : PCem
 une autre table, l'EGA la table 0 ; témoins, les mêmes sur 256 Ko.
+*Corrigé en mode matériel*, les parts (4) et (8) (G13.9f) : sous `if (materiel.pb_99)` — en tête de la lecture de
+3DAh, `etat1_materiel` : les bits 4-5, les deux sorties de l'attribut que choisit 12h bits 4-5 (00 : P2 et P0 ; 01 :
+P3 et P1 ; 10 : P5 et P4), le point sous le faisceau (`point_materiel`) ; 11, « Not Used », garde la bascule de PCem,
+inconnue. Le point : dans l'affichage d'une ligne affichée (de la fin de son balayage à son rendu, linepos à 0), le
+point de la ligne que la carte rend en mode matériel (le texte à chaque ligne, le rendu graphique dans sa mémoire),
+sa palette remplacée par l'identité (`video.Faisceau` : la ligne rendue une fois par phase et par écriture en
+mémoire, egawrites, que comptent tous les chemins d'écriture des cartes ; un registre écrit au milieu de la phase ne se
+voit qu'à la suivante), à la part écoulée de la phase (la
+minuterie de la carte) ; dans le blanc horizontal (CR02, CR03 bits 0-4, pp. 26-27) ou vertical (CR15 et CR07 bit 3,
+CR16 bits 0-4, pp. 39-40), 0 ; ailleurs, la bordure (11h, p. 59). Les sorties nulles pendant le blanc : déduit ; le
+décalage de l'affichage (CR03 bits 5-6) n'est pas compté, comme chez PCem. En tête de `ega_out`,
+`attribut_materiel` : une écriture en 3C1h est une écriture en 3C0h. `materiel-cas PB-99` : 3DAh lu deux fois au même
+instant, au quart de l'affichage (la palette 4 en fond) : 30h deux fois sous 12h = 0Fh, 1Fh et 2Fh (la palette à 05h,
+0Ah, 30h), 20h et 10h (04h, 01h), contre la bascule de PCem ; aux trois quarts, 00h ; hors de l'affichage, la bordure
+(11h = 05h) au caractère 81 et à la ligne 363, 30h, le blanc au caractère 84 et à la ligne 355, 00h ; témoin, 12h =
+3Fh ; 0Fh puis 3Fh, 32h puis 1Fh en 3C0h-3C1h : la palette 0Fh à 3Fh et 12h à 1Fh, contre 32h et 00h ; et POD14,
+quinze secondes de l'amorçage d'une XT et de l'EGA : aucun bip dans les deux modes (sans (4) ou sans (8), un bip long
+et trois courts).
 
 ### PB-100 — La Tseng ET4000AX de PCem et son RAMDAC
 
@@ -5016,8 +5041,19 @@ Hercules, *GB101 Owner's Manual*, pp. 12-13 : bit 3, « 1 = dots on » — docum
 *Cas qui discrimine* : MDA, mode 7, écran d'espaces d'attribut 07h, curseur éteint (R10 = 20h), 3BAh lu à chaque ligne
 d'une trame : PCem rend le bit 3 à 1 pendant 16 lignes ; la carte, jamais.
 *G13* : (b) — il faut le point sous le faisceau à la lecture, le mécanisme neuf de PB-99 (4).
-*Reproduit* : `Video/vid_mda.cs`, `mda_in`, marqueur PB-224 (`:125`) ; `Video/vid_hercules.cs`, `hercules_in`
-(`:123`).
+*Reproduit* en mode PCem : `Video/vid_mda.cs`, `mda_in`, et `Video/vid_hercules.cs`, `hercules_in`, marqueurs `fixed
+in hardware mode: PB-224`.
+*Corrigé en mode matériel* (G13.9f) : sous `if (materiel.pb_224)`, en tête de la lecture de 3BAh
+(`Video/vid_mda.Materiel.cs` et `Video/vid_hercules.Materiel.cs`, `etat_materiel`) : le bit 3, le point sous le
+faisceau (`point_materiel`). Dans l'affichage d'une ligne affichée (de la fin de son balayage à son rendu, linepos à
+0), le point de la ligne que la carte rend (`video.Faisceau`, la ligne rendue une fois par phase et par écriture en
+mémoire), à la part écoulée de la phase (la minuterie de la carte) ; le point allumé, un point d'une autre couleur que
+le noir ; ailleurs, éteint (la vidéo éteinte pendant les retours : déduit). La MDA rend sa ligne par `ligne_materiel`
+(avec PB-96 et PB-222 selon leurs drapeaux) ; l'Hercules, par une copie du rendu de `hercules_poll`
+(`ligne_faisceau`), le texte et le graphique. Le bit 7 de l'Hercules reste celui de PB-225 quand il est corrigé (le
+retour vertical, que PCem tient au bit 3 de son état). `materiel-cas PB-224` : mille lignes jouées par la minuterie,
+3BAh lu au milieu de l'affichage de chacune : des espaces d'attribut 07h, PCem 30 lignes (le retour), la carte 0 ;
+l'attribut 70h, la carte 611 (les lignes affichées) ; l'Hercules de même, et en graphique la page 0 pleine, 609.
 
 ### PB-225 — Le bit 7 de 3BAh de l'Hercules a la polarité inversée
 
@@ -5050,7 +5086,21 @@ ne rendent pas la vidéo que choisit AR12.
 *Cas qui discrimine* : ET4000, IN 3DAh pendant l'affichage actif : PCem bit 7 = 0, l'ET4000 1 ; pendant le retour
 vertical : 0 des deux côtés.
 *G13* : (b) — le bit 7 est simple ; les bits 4-5 demandent le point sous le faisceau, comme PB-99 (4).
-*Reproduit* : `Video/vid_et4000.cs`, `et4000_in`, marqueur PB-226 (`:168`).
+*Reproduit* en mode PCem : `Video/vid_et4000.cs`, `et4000_in`, marqueur `fixed in hardware mode: PB-226`.
+*Corrigé en mode matériel* (G13.9f) : sous `if (materiel.pb_226)`, avant le passage au socle
+(`Video/vid_et4000.Materiel.cs`, `in_materiel`) : la lecture du socle, puis, pour 3DAh, le bit 7 à 1 hors du retour
+vertical (le bit 3) ; les bits 4-5, sous 12h bits 4-5 à 00, P2 et P0, le point sous le faisceau (`point_materiel`,
+`video.Faisceau`) : dans l'affichage d'une ligne affichée, le point de la ligne que rend `svga.render`, la palette
+remplacée par l'identité (les sorties de l'attribut, avant le DAC) ; dans le blanc horizontal (CR02, CR03 bits 0-4, et
+CR05 bit 7 en VGA, pp. 115-116) ou vertical (`vblankstart`, CR16 sur huit bits en VGA, cinq en EGA, pp. 124-125), 0 ;
+ailleurs, et sous l'index de l'ATC bit 5 à 0 (p. 153), la bordure (11h) ; la VGA ou l'EGA, TS 7 bit 7 (p. 143). Les
+sorties nulles pendant le blanc : déduit. Les trois autres choix de 12h restent la bascule de PCem : le data book se
+contredit (p. 103 : P5-P4, P3-P1, P7-P6, dans l'ordre de sa table, dont la colonne des valeurs de 12h n'est pas
+lisible ; p. 157 : SG-SB, PI-PG, SI-SR), inconnus ; de même les modes de plus de 8 bits
+par point, dont le rendu ne passe pas par l'attribut. `materiel-cas PB-226` : le bit 7 pendant l'affichage (80h
+contre 00h) ; la palette 4 à 05h, au quart de l'affichage, deux lectures, 30h deux fois contre la bascule, aux trois
+quarts 00h ; la bordure (11h = 05h) au caractère 82 et à la ligne 445, 30h ; témoins, le blanc (le caractère 90, la
+ligne 408), le retour vertical, 12h = 1Fh.
 
 ### PB-227 — CR11 bit 7 ne protège pas CR35 sur l'ET4000
 
@@ -5092,7 +5142,12 @@ n'autorise pas l'interruption : inconnu.
 *Cas qui discrimine* : EGA, interruption verticale autorisée par CR11 (bits 4-5, pp. 36-37), IN 3C2h pendant l'affichage
 actif : PCem bit 7 = 0, l'EGA 1.
 *G13* : (b) — documenté quand l'interruption est autorisée, inconnu sinon.
-*Reproduit* : `Video/vid_ega.cs`, `ega_in`, marqueur PB-228 (`:273`).
+*Reproduit* en mode PCem : `Video/vid_ega.cs`, `ega_in`, marqueur `fixed in hardware mode: PB-228`.
+*Corrigé en mode matériel* (G13.9f) : sous `if (materiel.pb_228)`, en tête de la lecture de 3C2h
+(`Video/vid_ega.Materiel.cs`, `etat0_materiel`) : le bit 4 de PCem ; le bit 7 à 1 hors du retour vertical (le bit 3
+de 3DAh), quand CR11 bit 5 autorise l'interruption. L'interruption interdite, le bit 7 reste celui de PCem, nul :
+inconnu. Le verrou de l'interruption (CR11 bit 4) et l'IRQ 2 restent absents, hors de l'entrée. `materiel-cas
+PB-228` : CR11 = 0Bh pendant l'affichage, 3C2h = 90h contre 10h ; témoins, le retour vertical et CR11 = 2Bh, 10h.
 
 ### PB-229 — Le RAMDAC Sierra de l'ET4000 : l'IPF tombe trop tôt ; l'ERPF, ses registres et D3 manquent
 

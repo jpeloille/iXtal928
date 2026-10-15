@@ -200,8 +200,11 @@ internal static partial class vid_et4000
         case 0x3D5:
                 return svga.crtc[svga.crtcreg];
         }
-        // pcem bug, reproduced: PB-226 — 3DAh passe au socle (vid_svga.c:262-269) : bit 7 toujours
+        // pcem bug, fixed in hardware mode: PB-226 — 3DAh passe au socle (vid_svga.c:262-269) : bit 7 toujours
         //   nul, bits 4-5 basculés ; l'ET4000 met en 7 le complément du retour vertical et en 4-5 la vidéo d'AR12.
+        //   3DAh n'a pas de case ici : la garde se tient avant le passage au socle.
+        if (materiel.pb_226)
+                return in_materiel(addr, svga);
         return svga_in(addr, svga);
     }
 

@@ -123,6 +123,10 @@ internal static partial class vid_ega
         int c;
         uint8_t o, old;
 
+        // pcem bug, fixed in hardware mode: PB-99 — 3C1h n'est pas décodé en écriture : la donnée de l'attribut que le
+        //   BIOS d'IBM y écrit (OUT_DX, POD14) se perd, et la bascule reste sur la donnée.
+        if (materiel.pb_99)
+                addr = attribut_materiel(addr);
         if (((addr & 0xfff0) == 0x3d0 || (addr & 0xfff0) == 0x3b0) && (ega.miscout & 1) == 0)
                 addr ^= 0x60;
 
@@ -290,8 +294,10 @@ internal static partial class vid_ega
         case 0x3c1:
                 return ega.attrregs[ega.attraddr];
         case 0x3c2:
-                // pcem bug, reproduced: PB-228 — Input Status 0 ne rend que le bit 4 ; son bit 7 (« CRT
+                // pcem bug, fixed in hardware mode: PB-228 — Input Status 0 ne rend que le bit 4 ; son bit 7 (« CRT
                 //   Interrupt », 0 pendant le retour vertical) reste à 0.
+                if (materiel.pb_228)
+                        return etat0_materiel(ega);
                 //                printf("Read egaswitch %02X %02X %i\n",egaswitchread,egaswitches,VGA);
                 switch (egaswitchread)
                 {
@@ -318,10 +324,11 @@ internal static partial class vid_ega
         case 0x3d5:
                 return ega.crtc[ega.crtcreg];
         case 0x3da:
+                // pcem bug, fixed in hardware mode: PB-99 — « Fools IBM EGA video BIOS self-test » : les bits 4 et 5
+                //   basculent à chaque lecture, au lieu de rendre les sorties vidéo que choisit l'attribut 12h.
+                if (materiel.pb_99)
+                        return etat1_materiel(ega);
                 ega.attrff = 0;
-                // PB-99, la part (4) qui viendra avec le faisceau (G13.9f), la même dans les deux modes d'ici là —
-                //   « Fools IBM EGA video BIOS self-test » : les bits 4 et 5 basculent à chaque lecture, au lieu de
-                //   rendre l'état des broches vidéo.
                 ega.stat ^= 0x30; /*Fools IBM EGA video BIOS self-test*/
                 return ega.stat;
         }

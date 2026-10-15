@@ -131,8 +131,10 @@ internal static partial class vid_mda
                         return crtc_relu_materiel(mda);
                 return mda.crtc[mda.crtcreg];
         case 0x3ba:
-                // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical (mda_poll, :135-136, :150) ;
-                //   chez IBM, « +Black/White Video » : le point vidéo sous le faisceau.
+                // pcem bug, fixed in hardware mode: PB-224 — le bit 3 est le retour vertical (mda_poll, :135-136,
+                //   :150) ; chez IBM, « +Black/White Video » : le point vidéo sous le faisceau.
+                if (materiel.pb_224)
+                        return etat_materiel(mda);
                 return (uint8_t)(mda.stat | 0xF0);
         }
         return 0xff;

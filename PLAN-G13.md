@@ -654,10 +654,15 @@ contre-lecture, M2, sa série entière et son commit :
     1050h, trouvée à l'étude). Restent PCem, mesurés aux amorçages : l'état du KEY à la mise sous tension (le BIOS écrit
     les registres gardés avant sa première pose, puis les relit) et le reset synchrone qui refermerait 3CDh (à la
     lettre, après chaque changement de mode du BIOS).
-  - **G13.9f — Le faisceau** (Q18), après 9e : le point sous le faisceau à l'instant de la lecture, tiré du temps de la
-    ligne et de la mémoire d'affichage ; PB-99 (4) (3DAh de l'EGA, POD14 sans bip pour critère), PB-224 (3BAh bit 3 de
-    la MDA et de l'Hercules), PB-226 (les bits 4-5 et 7 de l'Input Status 1 de l'ET4000), PB-228 (l'Input Status 0 de
-    l'EGA, son bit 7 quand l'interruption est autorisée ; le reste, inconnu, reproduit).
+  - **G13.9f — Le faisceau** ✅ *(15/10, VERIFICATION.md § G13.9f)* (Q18), après 9e : le point sous le faisceau à
+    l'instant de la lecture, tiré du temps de la ligne et de la mémoire d'affichage ; PB-99 (4) (3DAh de l'EGA, POD14
+    sans bip pour critère), PB-224 (3BAh bit 3 de la MDA et de l'Hercules), PB-226 (les bits 4-5 et 7 de l'Input Status
+    1 de l'ET4000), PB-228 (l'Input Status 0 de l'EGA, son bit 7 quand l'interruption est autorisée ; le reste, inconnu,
+    reproduit). Le point : la ligne que la carte rend, sa palette remplacée par l'identité (les sorties de l'attribut),
+    une fois par phase de la ligne ; à la part écoulée de la phase, lue à la minuterie de la carte ; la bordure et le
+    blanc hors de l'affichage. POD14 rejoué a trouvé PB-99 (8) : 3C1h, où le BIOS d'IBM écrit la donnée de l'attribut,
+    que PCem ignore. Restent la bascule de PCem sous 12h = 3Fh sur l'EGA (« Not Used ») et sous les trois choix de 12h
+    que le data book de l'ET4000 contredit.
   - **G13.9g — La clôture de la vidéo.** EGABANC, ET4BANC, BLTBANC et HERCBANC en C# seul dans les deux modes ;
     `--menu-check` resserré, avec les bornes du mode matériel ; PERFBANC.
   Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), l'état du KEY à la mise sous tension,

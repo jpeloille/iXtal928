@@ -208,6 +208,35 @@ internal static partial class MaterielCas
                      "la table 0", hw, memoire: 128);
         bad += UnEga("EGA de 256 Ko : SR3 = 05h, 41h à la rangée 0 (témoin)", e => Police(e, 0x05), "",
                      "une autre table", hw, temoin: true);
+        bad += Faisceau99(hw);
+        bad += Pod14(hw);
         return bad;
     }
+
+    /// <summary>Les bips de l'amorçage d'une IBM XT et de l'EGA d'IBM, son BIOS lancé, <paramref name="tranches"/>
+    /// tranches de 10 ms : les fronts montants du haut-parleur (61h bit 1), relevés à chaque tranche.</summary>
+    private static string Bips(int tranches)
+    {
+        int bips = 0, avant = 0;
+        for (int i = 0; i < tranches; i++)
+        {
+            pc.runpc();
+            int now = Sound.sound_speaker.speaker_enable;
+            if (now != 0 && avant == 0)
+                bips++;
+            avant = now;
+        }
+        return $"{bips} bip(s)";
+    }
+
+    // PB-99 (4) — POD14, le test du BIOS de l'EGA (Options and Adapters, vol. 2, EGA, pp. 113-114 ; le listing,
+    // POD14_10 à POD14_17) : une rangée de pavés blancs (la palette 0Fh à 3Fh), puis, pour 12h = 0Fh, 1Fh et 2Fh, il
+    // attend que 3DAh bits 4-5 passent à 1 puis à 0, 65 536 lectures au plus ; sinon, un bip long et trois courts. PCem
+    // bascule ces bits à chaque lecture (« Fools IBM EGA video BIOS self-test ») ; le faisceau les tire des points de
+    // la rangée, et la palette 0Fh et 12h ne s'écrivent qu'avec 3C1h (la part (8)). Les deux modes : aucun bip, quinze
+    // secondes de l'amorçage (POD14 tombe dans les cinq premières ; sans la part (4) ou (8), un bip long et trois
+    // courts).
+    private static int Pod14(bool hw) =>
+        UnEga("XT et EGA, l'amorçage du BIOS, quinze secondes : POD14 sans bip", _ => Bips(1500), "0 bip(s)",
+              "0 bip(s)", hw);
 }

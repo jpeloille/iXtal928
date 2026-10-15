@@ -8,7 +8,8 @@
 // seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
 // PCEM_BUGS.md. La référence : IBM, Options and Adapters Technical Reference, vol. 2 (1984), EGA, pp. 30-37 et 56-61
 // (les registres de l'attribut et du CRTC ; 10h bits 4-7, 07h bits 6-7, 09h et 0Ah bits 5-7, 11h bits 6-7 « Not
-// Used »). Les méthodes portent NoInlining (M2, G13.7c2).
+// Used ») ; pp. 14-17 (les registres d'état), 26-27 et 39-40 (le blanc), 36-37 (CR11), 59-60 (11h et 12h) ; le
+// listing du BIOS, pp. 114 et 122 (POD14, OUT_DX). Les méthodes portent NoInlining (M2, G13.7c2).
 
 using System.Runtime.CompilerServices;
 using static iXtal26.timer;
@@ -137,4 +138,112 @@ internal static partial class vid_ega
     /// pose avec le sien.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ligne_add_materiel(ega_t ega) => timer_add(ega.timer, poll_materiel, ega, 1);
+
+    /// <summary>PB-99 (4) et PB-228 : la ligne sous le faisceau, rendue par la carte telle que le mode matériel la
+    /// dessine (le texte à chaque ligne, le rendu graphique dans sa mémoire ; l'écran éteint de SR1, des zéros), sa
+    /// palette remplacée par l'identité : les sorties de l'attribut, six bits, au lieu des couleurs de
+    /// l'hôte.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void rendu_faisceau(object p)
+    {
+        ega_t ega = (ega_t)p;
+        uint32_t ma = ega.ma;
+        uint32_t[] pallook = ega.pallook;
+        ega.pallook = Faisceau.identite;
+        if (ega.scrblank == 0)
+        {
+                if ((ega.gdcreg[6] & 1) == 0)
+                        ega_draw_text(ega);
+                else
+                        graphique_materiel(ega);
+        }
+        ega.pallook = pallook;
+        ega.ma = ma;
+    }
+
+    /// <summary>PB-99 (4) : le point sous le faisceau, les six sorties de l'attribut (P0 le bleu, P1 le vert, P2 le
+    /// rouge, P3 à P5 les secondaires). La ligne a deux phases chez PCem : l'affichage, de la fin de son balayage
+    /// (linepos à 0) au rendu de la ligne, qui dure hdisp caractères (CR01 + 1), et le reste, jusqu'au total (CR00 +
+    /// 2) ; le caractère sous le faisceau, la part écoulée de la phase (la minuterie de la carte). Dans le blanc
+    /// horizontal (CR02, CR03 bits 0-4) ou vertical (CR15 et CR07 bit 3, CR16 bits 0-4), 0 ; dans l'affichage d'une
+    /// ligne affichée, le point de la ligne rendue ; ailleurs, la bordure (11h, six bits). Les sorties nulles pendant
+    /// le blanc : déduit. Le décalage de l'affichage (CR03 bits 5-6) : non compté, PCem ne le compte pas.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint32_t point_materiel(ega_t ega)
+    {
+        int total = ega.crtc[0] + 2;
+        bool affichage = ega.linepos == 0;
+        double f = Faisceau.part(ega.timer, affichage ? ega.dispontime : ega.dispofftime);
+        int c = affichage ? (int)(f * ega.hdisp) : ega.hdisp + (int)(f * (total - ega.hdisp));
+        if (Faisceau.blanc(c, ega.crtc[2], ega.crtc[3], 5, total))
+                return 0;
+        if (Faisceau.blanc(ega.vc, ega.crtc[0x15] | ((ega.crtc[7] & 8) << 5), ega.crtc[0x16], 5, ega.vtotal))
+                return 0;
+        if (!affichage || ega.dispon == 0)
+                return (uint32_t)(ega.attrregs[0x11] & 0x3f);
+        int largeur = ega.hdisp * ((ega.seqregs[1] & 1) != 0 ? 8 : 9) * ((ega.seqregs[1] & 8) != 0 ? 2 : 1);
+        uint32_t[] points = Faisceau.ligne(ega, ega.timer, ega.displine, largeur, rendu_faisceau);
+        return points[32 + (int)(f * largeur)] & 0x3f;
+    }
+
+    /// <summary>PB-99 (8) : une écriture en 3C1h est une écriture de l'attribut, comme en 3C0h : le BIOS d'IBM y écrit
+    /// la donnée (le listing, p. 122, OUT_DX : l'index en DX, la donnée en DX + 1 ; p. 114, DX = 3C0h dans POD14, pour
+    /// la palette 0Fh et pour 12h), et la bascule de l'index et de la donnée revient à l'index après chaque paire. La
+    /// carte ne distingue donc pas 3C0h et 3C1h en écriture (déduit du BIOS ; le décodage n'est pas lu au
+    /// schéma).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint16_t attribut_materiel(uint16_t addr)
+    {
+        if (addr != 0x3c1)
+                return addr;
+        ModeMateriel.Sonde[99]++;
+        return 0x3c0;
+    }
+
+    /// <summary>PB-99 (4) : 3DAh, l'Input Status One de l'EGA. Les bits 4 et 5 sont deux des six sorties de l'attribut,
+    /// choisies par 12h bits 4-5 (pp. 16-17, 60) : 00, le rouge et le bleu ; 01, le bleu secondaire et le vert ; 10, le
+    /// rouge secondaire et le vert secondaire ; le point sous le faisceau (point_materiel), et non une bascule à chaque
+    /// lecture. 11, « Not Used » : la bascule de PCem, inconnue. Les autres bits, ceux de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t etat1_materiel(ega_t ega)
+    {
+        ModeMateriel.Sonde[99]++;
+        ega.attrff = 0;
+        int p;
+        switch ((ega.attrregs[0x12] >> 4) & 3)
+        {
+        case 0:
+                p = (int)point_materiel(ega);
+                return (uint8_t)((ega.stat & ~0x30) | (((p >> 2) & 1) << 5) | ((p & 1) << 4));
+        case 1:
+                p = (int)point_materiel(ega);
+                return (uint8_t)((ega.stat & ~0x30) | (((p >> 3) & 1) << 5) | (((p >> 1) & 1) << 4));
+        case 2:
+                p = (int)point_materiel(ega);
+                return (uint8_t)((ega.stat & ~0x30) | (((p >> 5) & 1) << 5) | (((p >> 4) & 1) << 4));
+        }
+        ega.stat ^= 0x30;
+        return ega.stat;
+    }
+
+    /// <summary>PB-228 : 3C2h, l'Input Status Zero de l'EGA : le bit 4, l'interrupteur de PCem ; le bit 7, « CRT
+    /// Interrupt » (p. 15), 1 pendant l'affichage, 0 pendant le retour vertical (le bit 3 de 3DAh), quand CR11 bit 5
+    /// autorise l'interruption (pp. 36-37). L'interruption interdite : le bit 7 de PCem, nul, inconnu. Le verrou de
+    /// l'interruption (CR11 bit 4) et l'IRQ 2 : absents de PCem, hors de l'entrée.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t etat0_materiel(ega_t ega)
+    {
+        ModeMateriel.Sonde[228]++;
+        int v = egaswitchread switch
+        {
+                0xc => (egaswitches & 1) != 0 ? 0x10 : 0,
+                0x8 => (egaswitches & 2) != 0 ? 0x10 : 0,
+                0x4 => (egaswitches & 4) != 0 ? 0x10 : 0,
+                0x0 => (egaswitches & 8) != 0 ? 0x10 : 0,
+                _ => 0xff
+        };
+        if (v != 0xff && (ega.crtc[0x11] & 0x20) == 0 && (ega.stat & 8) == 0)
+                v |= 0x80;
+        return (uint8_t)v;
+    }
 }

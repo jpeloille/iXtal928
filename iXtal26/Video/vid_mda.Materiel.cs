@@ -7,8 +7,8 @@
 // Les corrections des défauts de PCem dans vid_mda.c, appelées par les gardes de vid_mda.cs (`if (materiel.pb_nn)`),
 // seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans l'entrée PB de
 // PCEM_BUGS.md. Les références : IBM, Options and Adapters Technical Reference, vol. 2 (1984), MDA (p. 1-3, le schéma,
-// feuilles 2, 3 et 5) ; Motorola, data sheet du MC6845 (la table des registres). Les méthodes portent NoInlining (M2,
-// G13.7c2).
+// feuilles 2, 3 et 5 ; p. 8, 3BAh) ; Motorola, data sheet du MC6845 (la table des registres). Les méthodes portent
+// NoInlining (M2, G13.7c2).
 //
 // L'état que PCem n'a pas (la valeur écrite dans chaque registre du 6845, que la relecture rend) vit dans une table à
 // part (EtatMda) : un champ de plus dans mda_t changerait sa disposition.
@@ -160,4 +160,43 @@ internal static partial class vid_mda
     /// pose avec le sien.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ligne_add_materiel(mda_t mda) => timer_add(mda.timer, poll_materiel, mda, 1);
+
+    /// <summary>PB-224 : la ligne sous le faisceau, rendue par la carte telle que le mode matériel la dessine
+    /// (ligne_materiel), la rangée de l'entrelacé comme au balayage.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void rendu_faisceau(object p)
+    {
+        mda_t mda = (mda_t)p;
+        uint16_t ma = mda.ma;
+        int sc = mda.sc;
+        if ((mda.crtc[8] & 3) == 3)
+                mda.sc = (mda.sc << 1) & 7;
+        ligne_materiel(mda, mda.displine * Stride, (uint16_t)((mda.crtc[15] | (mda.crtc[14] << 8)) & 0x3fff));
+        mda.sc = sc;
+        mda.ma = ma;
+    }
+
+    /// <summary>PB-224 : le point sous le faisceau, allumé ou non. Dans l'affichage d'une ligne affichée (linepos à 0,
+    /// de la fin de son balayage au rendu), le point de la ligne rendue, R1 caractères de 9 points, sous la part
+    /// écoulée de la phase (la minuterie de la carte) ; ailleurs, éteint : la vidéo est éteinte pendant les retours
+    /// (déduit).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool point_materiel(mda_t mda)
+    {
+        if (mda.linepos != 0 || mda.dispon == 0)
+                return false;
+        int largeur = mda.crtc[1] * 9;
+        double f = Faisceau.part(mda.timer, mda.dispontime);
+        uint32_t[] points = Faisceau.ligne(mda, mda.timer, mda.displine, largeur, rendu_faisceau);
+        return points[(int)(f * largeur)] != cgapal[0];
+    }
+
+    /// <summary>PB-224 : 3BAh, le bit 3, « +Black/White Video » (p. 8 ; feuille 5, U54 : +ALPHA DOTS ⊕ RVV), le point
+    /// sous le faisceau (point_materiel), et non le retour vertical. Les autres bits, ceux de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t etat_materiel(mda_t mda)
+    {
+        ModeMateriel.Sonde[224]++;
+        return (uint8_t)((mda.stat & ~8) | 0xF0 | (point_materiel(mda) ? 8 : 0));
+    }
 }

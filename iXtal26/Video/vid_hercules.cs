@@ -143,8 +143,10 @@ internal static partial class vid_hercules
                         return crtc_relu_materiel(hercules);
                 return hercules.crtc[hercules.crtcreg];
         case 0x3ba:
-                // pcem bug, reproduced: PB-224 — le bit 3 est le retour vertical ; le manuel de la GB101 y
+                // pcem bug, fixed in hardware mode: PB-224 — le bit 3 est le retour vertical ; le manuel de la GB101 y
                 //   met les points (« 1 = dots on »).
+                if (materiel.pb_224)
+                        return etat_materiel(hercules);
                 // pcem bug, fixed in hardware mode: PB-225 — le bit 7 vaut 1 pendant le retour vertical ; le manuel
                 //   dit « 0 = vertical retrace », 1 pendant l'affichage.
                 if (materiel.pb_225)
