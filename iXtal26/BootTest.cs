@@ -122,6 +122,22 @@ public static class BootTest
             WritePpm(text[6..]);
             return;
         }
+        // G13.9g — « @vram » : l'empreinte de la mémoire vidéo de la carte (le socle SVGA, l'EGA, la MDA ou
+        // l'Hercules), sans rien taper. Le témoin d'un banc qui reste en graphique, ses relevés dessinés en
+        // points (BLTBANC) : en C# seul, sous `banc`, les deux modes se comparent sur la mémoire entière.
+        if (text == "@vram")
+        {
+            var v = Video.vid_svga.svga_get_pri()?.vram ?? Video.vid_ega.Probe?.vram ?? Video.vid_mda.Probe?.vram ??
+                    Video.vid_hercules.Probe?.vram ?? [];
+            var h = 14695981039346656037UL;
+            foreach (var o in v)
+            {
+                h ^= o;
+                h *= 1099511628211UL;
+            }
+            Console.WriteLine($"\n--- mémoire vidéo : {v.Length} octets, empreinte FNV-1a {h:X16} ---");
+            return;
+        }
         // G8.3 — « @son » : l'état de la carte son, sans rien taper. Le témoin qu'un logiciel
         // (le pilote Sound Blaster de Windows) a parlé au DSP : empreinte des échantillons mixés,
         // dernière commande, DMA 8 bits, IRQ et mélangeur.

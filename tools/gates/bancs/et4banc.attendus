@@ -1,0 +1,25 @@
+# ET4BANC (tools/et4banc) sous PC-DOS 2.00, sur l'ami386dx et la Tseng ET4000AX (CMOS f386.nvr), en C# seul sous --boot
+# (G13.9g), dans les deux modes (le domaine vidéo en mode matériel). Les 41 octets relevés, dans l'ordre :
+#   3CDh au démarrage ; 3DAh lu 2 000 fois sur l'écran texte, le OU et le ET ; le mode 2Eh, trois remplissages par
+#   banques, puis huit octets relus par les banques et 3CDh ; 3DAh lu 2 000 fois en mode 2Eh, le OU et le ET ; CR13, 33,
+#   34 et 35 relus ; le RAMDAC : 3C6h lu cinq fois puis quatre, A0h écrit (HiColor), relu cinq fois puis quatre, 00h
+#   écrit, 3C8h, le masque FFh écrit puis relu ; le mode 30h, un remplissage, un octet relu ; SR7 ; 3CDh en mode 3.
+# Les octets qui changent :
+#   Le premier échantillon de 3DAh (l'écran texte) : PCem OU 31h, ET 00h (le bit 0 ; les bits 4-5, qu'il bascule à
+#     chaque lecture, PB-226) ; l'ET4000 B1h et 80h : le bit 7, complément du retour vertical, reste à 1 (aucun retour
+#     dans la fenêtre), les bits 4-5 viennent du faisceau, les points du texte de DOS (data book, p. 103 ; G13.9f).
+#   Le second (le mode 2Eh) : PCem 31h et 00h ; l'ET4000 81h et 80h : la fenêtre de 2 000 lectures tombe dans le blanc
+#     vertical (la ligne 514 ; vblankstart 488, le total 525, la ligne raccourcie par PB-220), où le faisceau ne voit
+#     aucun point.
+#   Les quatre lectures de 3C6h après les cinq qui ouvrent le registre de commande : PCem FFh, le masque (il referme
+#     l'IPF à la lecture qui rend la commande) ; le RAMDAC Sierra 00h, la commande, l'IPF tenant jusqu'à une écriture ou
+#     la lecture d'une autre adresse (PB-229). De même après A0h écrit et cinq lectures : PCem FFh, Sierra A0h.
+# Les mêmes dans les deux modes : 3CDh, les banques et les octets relus (PB-100 : la clé posée par le BIOS de la carte
+# avant ET4BANC), CR13 à CR35, la cinquième lecture de 3C6h (la commande), 3C8h (F8h), le masque relu après 3C8h (FFh),
+# SR7 relu (FCh : sa relecture, bit 2 forcé, reste celle de PCem, inconnue).
+pcem: 00310000FF00807D00403B7731005000
+materiel: 00B18000FF00807D00403B7781805000
+pcem: 0800FFFFFFFF00FFFFFFFFFFFFFFFFA0
+materiel: 0800FFFFFFFF0000000000FFFFFFFFA0
+pcem: FFFFFFFFF8FFFFFC00
+materiel: A0A0A0A0F8FFFFFC00

@@ -663,8 +663,11 @@ contre-lecture, M2, sa série entière et son commit :
     blanc hors de l'affichage. POD14 rejoué a trouvé PB-99 (8) : 3C1h, où le BIOS d'IBM écrit la donnée de l'attribut,
     que PCem ignore. Restent la bascule de PCem sous 12h = 3Fh sur l'EGA (« Not Used ») et sous les trois choix de 12h
     que le data book de l'ET4000 contredit.
-  - **G13.9g — La clôture de la vidéo.** EGABANC, ET4BANC, BLTBANC et HERCBANC en C# seul dans les deux modes ;
-    `--menu-check` resserré, avec les bornes du mode matériel ; PERFBANC.
+  - **G13.9g — La clôture de la vidéo** ✅ *(15/10, VERIFICATION.md § G13.9g)*. EGABANC, ET4BANC, BLTBANC et
+    HERCBANC en C# seul dans les deux modes, contre leurs attendus (`tools/gates/bancs/`) ; BLTBANC, resté en
+    graphique, par l'empreinte de la mémoire vidéo (`@vram`, neuf) ; `--menu-check` resserré, avec les bornes du mode
+    matériel (il ne prenait pas le mode : le lanceur le pose désormais avant le contrôle) ; PERFBANC, le coût d'une
+    trame (`VideoBanc`). L'explication d'un écart d'ET4BANC donnée en 9f, fausse, corrigée (PB-220, et non PB-100).
   Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), l'état du KEY à la mise sous tension,
   le reset synchrone et SR7 de PB-100, l'Hercules de PB-223, l'ERPF et D3 de PB-229, l'index et R0-R13 de PB-230,
   PB-231, PB-233 ; et PB-245, avec le clavier de la M24. Hors du mode : PB-09, 81 à 86, 88 (R9) et 93 ; les parts (d) : PB-36, 38, 98, CR3F de PB-100.

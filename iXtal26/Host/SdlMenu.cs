@@ -1430,8 +1430,10 @@ internal sealed class SdlMenu
     /// dépôt — choisir l'image, puis la source — ne sont donc pas couverts, et c'est une
     /// limite à connaître plutôt qu'un contrôle à faire semblant d'écrire.
     /// </summary>
+    /// <param name="modeDemande">La liste de --hardware-mode, s'il précède : le contrôle vérifie qu'elle est
+    /// posée.</param>
     /// <returns>0 si tout passe, 1 sinon.</returns>
-    internal static int SelfCheck(string romsPath)
+    internal static int SelfCheck(string romsPath, string? modeDemande = null)
     {
         var m = new SdlMenu(IntPtr.Zero, IntPtr.Zero, romsPath);
         int fail = 0;
@@ -1760,21 +1762,33 @@ internal sealed class SdlMenu
         // Plan qualité du 04/10, § 1c — le moniteur automatique et le signal, carte par carte. La
         // MDA, l'Hercules et l'EGA prenaient le 3V et leur signal se lisait comme celui de la CGA
         // (15,70 kHz) : « hors plage » à la place de l'image. Chaque carte est montée sur un XT,
-        // sans fenêtre, le temps que le BIOS pose son mode texte ; les bornes de fréquence sont
-        // celles de PCem (la MDA et l'Hercules à 20,74 kHz, l'EGA à 21,85 kHz).
+        // sans fenêtre, le temps que le BIOS pose son mode texte. G13.9g : le signal attendu au
+        // centième, celui du mode en cours (--hardware-mode le pose avant le contrôle). En mode
+        // PCem, ses rythmes : la MDA et l'Hercules à 20,74 kHz (MDACONST, des caractères de 8
+        // points), la VGA à 31,16 kHz (CR00 + 6). En mode matériel, ceux des cartes : la MDA à
+        // 18,43 kHz / 49,82 Hz (16,257 MHz, 9 points, 98 caractères, 370 lignes ; PB-102),
+        // l'Hercules à 18,14 kHz / 49,03 Hz (0,5625 µs par caractère, GB101 p. 10 ; PB-102), la
+        // VGA à 31,47 kHz / 70,09 Hz (25,175 MHz, 100 caractères de 8 points, 449 lignes ;
+        // PB-220). La CGA et l'EGA, les mêmes dans les deux modes.
         Console.WriteLine();
         Console.WriteLine("Le moniteur automatique et le signal, carte par carte (XT, 1 500 tranches) :");
 
-        (string Card, CrtMonitor Expected, double MinKHz, double MaxKHz)[] cards =
+        // Le mode demandé est posé : sans lui, les rythmes mesurés et attendus resteraient tous deux ceux de PCem, et
+        // le contrôle passerait sans avoir rien vu du mode matériel.
+        if (modeDemande != null)
+            Check($"--hardware-mode {modeDemande} : le mode est pose", ModeMateriel.Actif == (modeDemande != "aucun"),
+                  ModeMateriel.Description);
+        bool mono = materiel.pb_102, vgaIbm = materiel.pb_220;
+        (string Card, CrtMonitor Expected, double KHz, double Hz)[] cards =
         [
-            ("cga", CrtMonitor.Generic14, 15.0, 16.0),
-            ("mda", CrtMonitor.Generic14, 18.0, 21.0),
-            ("hercules", CrtMonitor.Generic14, 18.0, 21.0),
-            ("ega", CrtMonitor.Generic14, 15.0, 22.0),
-            ("vga", CrtMonitor.Nec3V, 31.0, 32.0),
+            ("cga", CrtMonitor.Generic14, 15.70, 59.92),
+            ("mda", CrtMonitor.Generic14, mono ? 18.43 : 20.74, mono ? 49.82 : 56.04),
+            ("hercules", CrtMonitor.Generic14, mono ? 18.14 : 20.74, mono ? 49.03 : 56.04),
+            ("ega", CrtMonitor.Generic14, 21.85, 59.87),
+            ("vga", CrtMonitor.Nec3V, vgaIbm ? 31.47 : 31.16, vgaIbm ? 70.09 : 69.39),
         ];
 
-        foreach ((string card, CrtMonitor expected, double minKHz, double maxKHz) in cards)
+        foreach ((string card, CrtMonitor expected, double expectedKHz, double expectedHz) in cards)
         {
             if (!pc.setmodel("ibmxt") || !pc.setgfxcard(card) || !pc.initpc(romsPath))
             {
@@ -1790,8 +1804,9 @@ internal sealed class SdlMenu
             (double kHz, double hz) = SdlHost.SignalTiming();
             MonitorProfile profile = DisplaySettings.Profile(monitor, display.VisibleFraction);
             bool shown = profile.IsGeneric || profile.Accepts(kHz, hz);
-            Check($"{card} : auto -> {DisplaySettings.Describe(expected)}, image affichee",
-                  monitor == expected && kHz >= minKHz && kHz <= maxKHz && shown,
+            Check($"{card} : auto -> {DisplaySettings.Describe(expected)}, {expectedKHz:0.00} kHz / " +
+                  $"{expectedHz:0.00} Hz, image affichee",
+                  monitor == expected && Math.Round(kHz, 2) == expectedKHz && Math.Round(hz, 2) == expectedHz && shown,
                   $"{DisplaySettings.Describe(monitor)}, {kHz:0.00} kHz / {hz:0.00} Hz" + (shown ? "" : ", HORS PLAGE"));
             pc.closepc();
         }

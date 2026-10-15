@@ -53,7 +53,12 @@ internal static class Launcher
             case "--setup-check":
                 return (ExitCode)SdlSetup.SelfCheck(paths.resolve_roms_path(options.RomDirectory));
             case "--menu-check":
-                return (ExitCode)SdlMenu.SelfCheck(paths.resolve_roms_path(options.RomDirectory));
+                // G13.9g : le mode matériel, quand --hardware-mode précède, est posé avant le contrôle ; les bornes du
+                // signal, carte par carte, en dépendent.
+                if (!options.Machine.TryApplyHardwareMode())
+                    return ExitCode.UsageError;
+                return (ExitCode)SdlMenu.SelfCheck(paths.resolve_roms_path(options.RomDirectory),
+                                                   options.Machine.HardwareMode);
             case "--fat-check":
                 return (ExitCode)FatImage.SelfCheck();
             case "--speaker-check":

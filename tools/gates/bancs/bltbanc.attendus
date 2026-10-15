@@ -1,0 +1,9 @@
+# BLTBANC (tools/bltbanc) sous PC-DOS, sur l'ami486 et la Cirrus GD5429 (le disque C:, CMOS c486.nvr), en C# seul sous
+# --boot (G13.9g), dans les deux modes (le domaine vidéo en mode matériel). Il reste en 640 × 480 × 256 (le mode 5Fh) :
+# ses relevés sont dessinés en points, et l'écran texte ne les lit pas. L'attendu est l'empreinte de la mémoire vidéo
+# entière, 2 Mo, que pose @vram après le banc (FNV-1a, comme l'empreinte du framebuffer) : ce que le blitter a écrit
+# (copies, motifs, expansions, les seize ROP, 16 bpp, la source système, le MMIO) et les relevés dessinés.
+# La même dans les deux modes, mesurée : le blitter n'a pas de correction du mode matériel, et celles du socle de la
+# GD5429 (PB-80, la lecture en chain4 compact ; PB-221, les écritures de mot et de double mot ; PB-220, CR00 + 5) ne
+# changent pas cette mémoire.
+--- mémoire vidéo : 2097152 octets, empreinte FNV-1a 18D6004205EC3565 ---

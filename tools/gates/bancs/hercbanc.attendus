@@ -1,0 +1,18 @@
+# HERCBANC (tools/hercbanc) sous PC-DOS 2.00, sur le 5150 et l'Hercules, en C# seul sous --boot (G13.9g), dans les
+# deux modes (le domaine vidéo en mode matériel). Les 30 octets relevés, dans l'ordre :
+#   3BAh lu 3 000 fois sur l'écran texte, le OU et le ET ; 3BAh une fois ; la cellule (0,0) de l'écran texte ; 3BAh lu
+#   3 000 fois sur la page 0 du graphique, puis sur la page 1, le OU et le ET ; six octets des pages 0 et 1 ; R0 à R11
+#   relus ; B800:0000, la seconde page fermée (FFh).
+# Une ligne change :
+#   3BAh lu une fois, pendant l'affichage d'une ligne de texte : PCem 00h ; la carte 88h, le bit 7 à 1 pendant
+#     l'affichage (PB-225, GB101 pp. 12-13) et le bit 3, le point sous le faisceau, allumé à cet instant (PB-224, « 1 =
+#     dots on »).
+# Les mêmes dans les deux modes :
+#   les OU et ET des 3 000 lectures, 89h et 00h : les bits 0, 3 et 7 bougent dans les deux modes (chez PCem, le bit 3
+#   et sa copie au bit 7 suivent le retour vertical ; sur la carte, le bit 3 les points, le bit 7 le retour) ;
+#   R0 à R11 relus : la valeur écrite dans les deux modes, chacune dans la largeur de son registre (PB-97 : le mode
+#   matériel rend la valeur écrite, la relecture du 6845 restant inconnue) ;
+#   les pages : aucune correction ne les touche.
+pcem: 8900002D890089000001FFAACB73352D
+materiel: 8900882D890089000001FFAACB73352D
+2E075B02575702030000FF

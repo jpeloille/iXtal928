@@ -11771,9 +11771,79 @@ PB-228 : la sortie du mode PCem, aux instructions près. Sous PB-99 : les résul
 d'instructions, l'heure de DOS et l'instant d'une capture d'écran : POD14 ne dure plus le même temps. Sous PB-226,
 ET4BANC : ses échantillons de 3DAh voient le bit 7 (OU 39h devenu B9h, ET 00h devenu 80h). Sous « tout », contre la
 build sans les gardes de 9f (/tmp/a9/boots-9f.sh avec wt9fs) : les mêmes écarts, plus, dans ET4BANC, un second
-échantillon sans point allumé (OU 81h) : sous « tout », les banques de 3CDh (PB-100) laissent la mémoire affichée vide
-— la build sans les gardes relit les mêmes 00h —, et le faisceau le rend.
+échantillon sans point allumé (OU 81h). Sous « tout », PB-220 (CR00 + 5) raccourcit la ligne : les 2 000 lectures du
+second échantillon tombent dans le blanc vertical du mode 2Eh (la ligne 514, entre vblankstart, 488, et le total, 525),
+où le faisceau ne voit aucun point, à bon droit ; la build sans les gardes y bascule encore. *Corrigé en G13.9g* : la
+première version de ce paragraphe l'attribuait aux banques de 3CDh (PB-100) et à une mémoire affichée vide, à tort
+(les octets relus qui changent sont ceux du RAMDAC, PB-229 ; la mémoire relue est la même) ; G13.9g l'a mesuré, PB-226
+seul, puis avec chaque correction du socle, PB-220 seul en cause.
 
 **La série** g9f (le worktree de l'étape, contre g9c2) : 689 portes, toutes vertes, chacune au même verdict que dans
 g9c2 ; sept portes neuves, `materiel-cas-pb224`, `-pb226`, `-pb228` et leurs `-materiel`, et `materiel-cas-pb224-pb225`,
 vertes ; un seul résumé change, `recensement` (285 défauts, 1 238 marqueurs, deux de plus).
+
+## G13.9g — la clôture de la vidéo
+
+Le 15 octobre 2026. La vidéo du mode matériel close : ses quatre bancs en C# seul dans les deux modes, contre des
+attendus écrits ; `--menu-check` resserré, avec les rythmes du mode matériel ; PERFBANC, le coût d'une trame. Aucune
+correction neuve : les défauts de la vidéo restent ceux de 9a à 9f.
+
+**Les bancs en C# seul** (`banc`, comme PICBANC et DMABANC en G13.4 ; `tools/gates/bancs/*.attendus`, chaque octet qui
+change expliqué, sa source à côté) : joués sous `--boot`, deux séances identiques, en mode PCem et sous le domaine vidéo.
+- EGABANC (le 5150, l'EGA de 256 Ko) : les mêmes 41 octets dans les deux modes. Ses échantillons de 3DAh (OU 39h, ET
+  00h) : chez PCem la bascule, en mode matériel le faisceau, que les points du texte et du motif allument en passant ; ses
+  relectures du CRTC et de l'attribut 10h, inconnues (PB-99 (3)), celles de PCem.
+- HERCBANC (le 5150, l'Hercules) : un octet change, 3BAh lu une fois pendant l'affichage, 00h contre 88h (le bit 7 de
+  PB-225, le point du bit 3 de PB-224).
+- ET4BANC (l'ami386dx, l'ET4000AX) : neuf octets changent — les deux échantillons de 3DAh (le bit 7 et les bits 4-5 de
+  PB-226 ; le second tombe dans le blanc vertical du mode 2Eh, sans point) et huit lectures de 3C6h (l'IPF qui tient,
+  PB-229 : la commande, 00h puis A0h, au lieu du masque).
+- BLTBANC (l'ami486, la GD5429) : il reste en graphique, ses relevés dessinés en points ; une directive neuve de
+  `--boot`, `@vram` (`BootTest.cs`), rend l'empreinte FNV-1a de la mémoire vidéo entière, la même dans les deux modes
+  (18D6004205EC3565, 2 Mo) : le blitter n'a pas de correction, et celles du socle ne changent pas cette mémoire.
+Huit portes neuves, `banc-egabanc`, `banc-hercbanc`, `banc-et4banc`, `banc-bltbanc` et leurs `-materiel`.
+
+**Une erreur de 9f corrigée.** VERIFICATION.md § G13.9f attribuait le second échantillon d'ET4BANC sans point, sous
+« tout », aux banques de 3CDh (PB-100). Mesuré ici, ET4BANC sous PB-226 seul, puis avec PB-100, PB-229, et chaque
+correction du socle : PB-220 seul en cause. La ligne raccourcie (CR00 + 5) déplace la fenêtre des 2 000 lectures dans
+le blanc vertical du mode 2Eh (la ligne 514 ; vblankstart 488, le total 525), où le faisceau ne voit aucun point. Le
+paragraphe de 9f est repris, l'erreur dite.
+
+**`--menu-check`** (`Host/SdlMenu.cs`, `Host/CommandLine/Launcher.cs`). Il ne prenait pas le mode : le lanceur
+répondait à `--menu-check` avant d'appliquer `--hardware-mode` (en mode matériel, la MDA restait à 20,74 kHz). Le mode
+est désormais posé avant le contrôle, comme `--timer-check` le fait. Les bornes du signal, carte par carte, deviennent
+la valeur attendue au centième, celle du mode : en mode PCem, ses rythmes (la MDA et l'Hercules à 20,74 kHz / 56,04 Hz,
+la VGA à 31,16 kHz / 69,39 Hz) ; sous PB-102, la MDA à 18,43 kHz / 49,82 Hz (16,257 MHz, 9 points, 98 caractères, 370
+lignes) et l'Hercules à 18,14 kHz / 49,03 Hz (0,5625 µs par caractère) ; sous PB-220, la VGA à 31,47 kHz / 70,09 Hz
+(25,175 MHz, 800 points, 449 lignes) ; la CGA (15,70 kHz / 59,92 Hz) et l'EGA (21,85 kHz / 59,87 Hz) dans les deux.
+Un contrôle de plus : le mode demandé est posé (sans lui, les rythmes mesurés et attendus restent tous deux ceux de
+PCem, et l'oubli du mode passe inaperçu — le premier contrôle négatif l'a montré). Vert en mode PCem, sous « tout »,
+sous le domaine vidéo, sous PB-102 seul et sous PB-220 seul.
+
+**PERFBANC** (`tools/perfbanc/VideoBanc.cs`, neuf ; BenchmarkDotNet 0.15.8, Release du worktree, un processus par mode) :
+une trame jouée par les événements de la minuterie de la carte, sans lecture ou avec 16 lectures de 3DAh au milieu de
+chaque affichage (une boucle qui guette le retour vertical). Par trame :
+
+| Carte | Lectures | Mode PCem | Mode matériel |
+|---|---|---|---|
+| EGA, texte de 80 colonnes, 365 lignes | 0 | 24,8 µs | 190,7 µs (PB-99 : le texte redessiné à chaque ligne) |
+| | 16 | 52,9 µs | 309,8 µs (PB-99 : avec le faisceau) |
+| ET4000, texte de 80 colonnes, 449 lignes | 0 | 29,8 µs | 32,1 µs (PB-226) |
+| | 16 | 84,8 µs | 151,9 µs (PB-226) |
+
+Une trame dure 14 à 17 ms dans l'émulation : la vidéo du mode matériel y coûte au plus 0,3 ms d'hôte, moins de 2 %. Le
+gros vient du texte de l'EGA redessiné à chaque ligne (PB-99 (5), dit en 9d) ; le faisceau, une ligne rendue par
+phase lue, coûte de 0,2 à 0,3 µs par ligne.
+
+**Les contrôles négatifs** (/tmp/a9/neg-9g.py, chaque faute restaurée) : HERCBANC, l'attendu de PCem pris au matériel,
+et l'inverse ; EGABANC, un octet changé ; `--menu-check` sans le mode posé (PB-102 et PB-220 : rouge, par le contrôle
+du mode demandé ; avant lui, la faute passait au vert) ; `--menu-check`, les rythmes des deux modes échangés (rouge en
+mode PCem et sous « tout ») ; le témoin, vert.
+
+**M2** (Release du worktree, tous les scénarios ; /tmp/a9/m2-9g.sh) : contre M2-9f, deux méthodes de l'hôte changent,
+celles que l'étape touche — `BootTest.TypeAndDump` (`@vram`) et `Launcher.ApplyArgument` (`--menu-check`) —, et les
+quatre jetons de chaînes habituels ; aucune méthode de l'émulation.
+
+**La série** g9g (le worktree de l'étape, contre g9f) : 697 portes, toutes vertes, chacune au même verdict que dans
+g9f ; huit portes neuves, `banc-egabanc`, `banc-hercbanc`, `banc-et4banc`, `banc-bltbanc` et leurs `-materiel`,
+vertes, deux séances identiques chacune ; aucun résumé ne change.

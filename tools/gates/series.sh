@@ -292,6 +292,21 @@ run bd-ami486-et4000-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxc
 mapfile -t T4K < tools/et4banc/et4banc.keys
 T4B=(); for l in "${T4K[@]}"; do T4B+=(--type "$l"); done
 runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${T4B[@]}" --type "^" --type "^"
+# G13.9g — les bancs de la vidéo en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine vidéo) :
+# EGABANC et HERCBANC sur le 5150, ET4BANC sur l'ami386dx, BLTBANC sur l'ami486 et la GD5429 (il reste en graphique :
+# l'empreinte de la mémoire vidéo, @vram). boot-diff les joue contre l'oracle plus haut, et refuse le mode matériel.
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode video)
+  run banc-egabanc$m "${h[@]}" banc tools/gates/bancs/egabanc.attendus -- --boot roms 11000 --gfxcard ega \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${EBB[@]}" --type "@wait 3000"
+  run banc-hercbanc$m "${h[@]}" banc tools/gates/bancs/hercbanc.attendus -- --boot roms 11000 --gfxcard hercules \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${HBB[@]}" --type "@wait 3000"
+  runw banc-et4banc$m f386.nvr ami386dx_opti495 "${h[@]}" banc "$REPO/tools/gates/bancs/et4banc.attendus" -- \
+    --boot roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --floppy-a "$REPO/$DOS" \
+    --floppy-b "$REPO/os/pcdos20/pcdos20s.img" --settle 600 --type "" --type "" "${T4B[@]}" --type "@wait 3000"
+  runw banc-bltbanc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/bltbanc.attendus" -- --boot roms 60000 \
+    --config ami486-ide.cfg --gfxcard cl_gd5429 --settle 600 "${BL[@]}" --type "@wait 3000" --type "@vram"
+done
 # G10.0 — LPT1 et LPT2 (lpt.c) posés sur toutes les machines par common_init, comme chez PCem ;
 # LPT1 porte un périphérique (pc.c:810-818, lpt1_device) : la Disney Sound Source (lpt_dss.c), le
 # Covox (lpt_dac.c) et le Covox stéréo, chacun sous le banc LPTBANC (BDA des ports, registres de
