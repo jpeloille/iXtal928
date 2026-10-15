@@ -194,7 +194,14 @@ internal static partial class _386
         switch (cpu_reg)
         {
         case 0:
-                // pcem bug, reproduced: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0) (386 PRM § 9.8.13).
+                // pcem bug, fixed in hardware mode: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0).
+                if (materiel.pb_286)
+                        if (_386_materiel.cr0_pg_sans_pe_materiel())
+                                return 1;
+                // pcem bug, fixed in hardware mode: PB-287 — NW posé sans CD, accepté ; le 486 lève #GP(0).
+                if (materiel.pb_287)
+                        if (_386_materiel.cr0_nw_sans_cd_materiel())
+                                return 1;
                 if (((cpu_state.regs[cpu_rm].l ^ cr0) & 0x80000001) != 0)
                         Memory.mem.flushmmucache();
                 cr0 = cpu_state.regs[cpu_rm].l;
@@ -256,7 +263,14 @@ internal static partial class _386
         switch (cpu_reg)
         {
         case 0:
-                // pcem bug, reproduced: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0) (386 PRM § 9.8.13).
+                // pcem bug, fixed in hardware mode: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0).
+                if (materiel.pb_286)
+                        if (_386_materiel.cr0_pg_sans_pe_materiel())
+                                return 1;
+                // pcem bug, fixed in hardware mode: PB-287 — NW posé sans CD, accepté ; le 486 lève #GP(0).
+                if (materiel.pb_287)
+                        if (_386_materiel.cr0_nw_sans_cd_materiel())
+                                return 1;
                 if (((cpu_state.regs[cpu_rm].l ^ cr0) & 0x80000001) != 0)
                         Memory.mem.flushmmucache();
                 cr0 = cpu_state.regs[cpu_rm].l;

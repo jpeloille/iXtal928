@@ -211,6 +211,32 @@ internal static class _386_materiel
                 ModeMateriel.Sonde[43]++;
     }
 
+    // pcem bug, fixed in hardware mode: PB-286 — MOV CR0 avec PG = 1 et PE = 0 lève #GP(0) (386 PRM § 9.8.13,
+    //   point 13 ; i486 PRM, l'exception 13) ; une faute laisse l'état d'avant l'instruction (386 PRM, chapitre 9) :
+    //   CR0 n'est pas chargé, déduit. PCem pagine en mode réel. LOADALL386 charge CR0 tel quel sur le 386 : le
+    //   silicium, inconnu, reste reproduit.
+    internal static bool cr0_pg_sans_pe_materiel()
+    {
+        if ((cpu_state.regs[cpu_rm].l & 0x80000001) != 0x80000000)
+                return false;
+        ModeMateriel.Sonde[286]++;
+        x86seg_c.x86gpf(null!, 0);
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-287 — sur le 486, MOV CR0 avec NW = 1 et CD = 0 lève #GP(0) (i486 PRM,
+    //   table 12-1 : « Invalid setting. A general-protection exception with an error code of zero is generated ») ; CR0
+    //   n'est pas chargé, déduit comme pour PB-286. Le 386 n'a ni CD ni NW (bits réservés) : il garde PCem. Les tables
+    //   d'iXtal n'ont que les 486 d'Intel (cpus_i486) : is486 ne désigne qu'eux.
+    internal static bool cr0_nw_sans_cd_materiel()
+    {
+        if (is486 == 0 || (cpu_state.regs[cpu_rm].l & 0x60000000) != 0x20000000)
+                return false;
+        ModeMateriel.Sonde[287]++;
+        x86seg_c.x86gpf(null!, 0);
+        return true;
+    }
+
     // pcem bug, fixed in hardware mode: PB-78 — le 486 n'a plus de LOADALL : 0F 07 lève #UD (R. Collins, « The
     //   LOADALL Instruction » ; l'opcode est absent de la carte du 486). Le geste d'ILLEGAL : pc sur l'instruction,
     //   puis l'exception.

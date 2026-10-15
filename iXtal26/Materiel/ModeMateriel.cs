@@ -131,6 +131,7 @@ internal static class ModeMateriel
         new(175, "processeur", "AAM et AAD posent SF et ZF d'après AL"),
         new(176, "processeur", "SAR par CL rend CF, la copie du signe, au-delà de 8 (16)"),
         new(177, "processeur", "rep() : 6Eh est JLE, REP DS: répète, un préfixe placé avant REP vaut"),
+        new(178, "processeur", "LOCK est un préfixe : il garde le préfixe de segment placé avant lui"),
         new(179, "processeur", "un mot à l'offset FFFFh replie à l'offset 0 du segment"),
         new(181, "processeur", "l'AF d'ADC du cœur 286/386/486 compte la retenue entrante"),
         new(182, "processeur", "LOCK lève #UD hors de sa liste et devant une forme registre (386, 486)"),
@@ -216,6 +217,8 @@ internal static class ModeMateriel
         new(279, "stockage", "la commande BIOS 03h de l'AHA-1542C : le secteur CHS compté à partir de 1"),
         new(284, "son", "les tables ADPCM 2 bits et 2,6 bits du DSP, et le troisième échantillon du 2,6 bits"),
         new(285, "son", "une IRQ du DSP levée sur la ligne déjà haute ne repose pas la demande au PIC : le 8259 la prend sur un front"),
+        new(286, "processeur", "MOV CR0 avec PG = 1 et PE = 0 lève #GP(0), CR0 inchangé (386, 486)"),
+        new(287, "processeur", "MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486)"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 15 octobre 2026, G12 fait ; G13 en clôture
+## Où on en est — 16 octobre 2026, G12 fait ; G13 en clôture
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -152,10 +152,11 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   clôture (9g : EGABANC, HERCBANC, ET4BANC, BLTBANC dans les deux modes). G13.10, la clôture, coupée en trois (15/10) :
   10a ✅ (les profils du mode et les témoins, du 5150 au BASIC jusqu'à Windows 3.11 sur l'ami486) ; 10b ✅ (la couverture
   comptée, 183 corrections ; le registre audité, chaque entrée corrigée ou dite non corrigée, avec sa raison) ; 10c ✅
-  (la série entière en mode PCem et sous `--hardware-mode tout`, les portes refusées et celles du mode PCem seul dites,
-  `r9-mmu` parmi elles jusqu'à Q21 ; les listings de tous les scénarios contre M0 ; PB-286, neuf). Restent ouverts : le
-  son (Q13 à Q16), PB-260 et PB-142 (7e3 bis ou 7e4), PB-256 (la carte mère), Q19 (PB-178, PB-107), Q20 (les empreintes
-  de `os/`), Q21 (PB-286) ; à leur réponse, 10b et 10c seront rejouées.
+  (la série entière en mode PCem et sous `--hardware-mode tout`, les portes refusées et celles du mode PCem seul dites ;
+  les listings de tous les scénarios contre M0 ; PB-286, neuf) ; 10d ✅ (Q19 et Q21 tranchées le 16/10 : LOCK préfixe,
+  PB-178 ; MOV CR0, PB-286 et PB-287, neuf ; PB-107 laissé non corrigé ; la série de 10c rejouée). Restent ouverts : le
+  son (Q13 à Q16), PB-260 et PB-142 (7e3 bis ou 7e4), PB-256 (la carte mère), Q20 (les empreintes de `os/`) ; à leur
+  réponse, 10b et 10c seront rejouées.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

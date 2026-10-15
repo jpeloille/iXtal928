@@ -64,6 +64,7 @@ internal static partial class MaterielCas
         [237] = Pb237, [145] = Pb145, [153] = Pb153, [238] = Pb238, [154] = Pb154,
         [158] = Pb158, [159] = Pb159, [160] = Pb160,
         [285] = Pb285,
+        [178] = Pb178, [286] = Pb286, [287] = Pb287,
         [220] = Pb220, [80] = Pb80, [221] = Pb221, [37] = Pb37,
         [227] = Pb227, [100] = Pb100, [229] = Pb229, [99] = Pb99, [4] = Pb04, [230] = Pb230, [102] = Pb102, [97] = Pb97, [96] = Pb96, [222] = Pb222, [223] = Pb223, [225] = Pb225, [89] = Pb89,
     };
@@ -432,6 +433,44 @@ internal static partial class MaterielCas
         return bad;
     }
 
+    // PB-178 — LOCK est un préfixe de l'instruction qui le suit (Intel, page LOCK ; SST range F0h et F1h parmi les
+    // préfixes) : sous ES:, MOV AX,[0000] lit dans ES ; PCem finit l'instruction sur LOCK, perd ES: et lit DS. REP LOCK
+    // MOVSB copie ses trois octets ; PCem prend LOCK, après REP, pour une chaîne inconnue, rend la main, puis exécute
+    // LOCK et un seul MOVSB. Au 8088 et au 8086. LOCK REP MOVSB, témoin, copie les trois octets dans les deux modes.
+    private static int Pb178(bool hw)
+    {
+        var bad = 0;
+        foreach (var cpu8086 in new[] { false, true })
+        {
+            var nom = cpu8086 ? "8086" : "8088";
+            foreach (var verrou in new byte[] { 0xF0, 0xF1 })
+            {
+                var r = Jouer([0x26, verrou, 0xA1, 0x00, 0x00], r => { r[(int)R.ES] = 0x2000; r[(int)R.DS] = 0x3000; },
+                              () => { mem.ram[0x20000] = 0x11; mem.ram[0x20001] = 0x11; mem.ram[0x30000] = 0x22;
+                                      mem.ram[0x30001] = 0x22; },
+                              pas: 4, cpu8086: cpu8086, jusqua: r => r[(int)R.IP] >= 0x105);
+                var ax = hw ? 0x1111 : 0x2222;
+                bad += Voir($"ES: {verrou:X2} MOV AX,[0000] ({nom})", r[(int)R.AX] == ax && r[(int)R.IP] == 0x105,
+                            $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", $"AX = {ax:X4}, IP = 0105", hw);
+            }
+            foreach (var (code, nomCode, temoin) in new (byte[], string, bool)[]
+                     { ([0xF3, 0xF0, 0xA4], "REP LOCK MOVSB", false),
+                       ([0xF0, 0xF3, 0xA4], "LOCK REP MOVSB, témoin", true) })
+            {
+                var r = Jouer(code, r => { r[(int)R.CX] = 3; r[(int)R.SI] = 0x200; r[(int)R.DI] = 0x300; },
+                              () => { mem.ram[0x200] = 1; mem.ram[0x201] = 2; mem.ram[0x202] = 3; },
+                              pas: 4, cpu8086: cpu8086, jusqua: r => r[(int)R.IP] >= 0x103);
+                var copie = hw || temoin;
+                var octets = $"{mem.ram[0x300]:X2} {mem.ram[0x301]:X2} {mem.ram[0x302]:X2}";
+                bad += Voir($"{nomCode}, CX = 3 ({nom})",
+                            r[(int)R.CX] == (copie ? 0 : 3) && octets == (copie ? "01 02 03" : "01 90 90"),
+                            $"CX = {r[(int)R.CX]:X4}, 0300h à 0302h = {octets}",
+                            copie ? "CX = 0000, 01 02 03" : "CX = 0003, 01 90 90 (un seul MOVSB)", hw);
+            }
+        }
+        return bad;
+    }
+
     // PB-179 — un mot à l'offset FFFFh replie à l'offset 0 du segment (386 PRM § 14.7, point 7) : DS = 1000h, AAh en
     // 1FFFFh, 11h en 10000h, 22h en 20000h. PCem prend l'octet haut en 20000h.
     private static int Pb179(bool hw)
@@ -712,6 +751,39 @@ internal static partial class MaterielCas
         bad += Voir("LOADALL386, ES:EDI = 0000:3000h (386), témoin", (r[(int)R.AX], r[(int)R.IP]) == (0x5A5A, 0x0200),
                     $"AX = {r[(int)R.AX]:X4}, IP = {r[(int)R.IP]:X4}", "AX = 5A5A, IP = 0200", hw);
         return bad;
+    }
+
+    // PB-286 — MOV CR0 avec PG = 1 et PE = 0 lève #GP(0) (386 PRM § 9.8.13, point 13 ; i486 PRM, l'exception 13), CR0
+    // inchangé, l'IP du MOV empilé : MOV EAX,80000000h puis MOV CR0,EAX, en mode réel. PCem pose PG. Au 386 et au 486 ;
+    // CR0 = 10h et PE seul, témoins, se chargent dans les deux modes.
+    private static int Pb286(bool hw) => Cr0(286, 0x80000000, hw, hw) + Cr0(286, 0x80000000, hw, hw, 486) +
+                                         Cr0(286, 0x00000010, false, hw, temoin: true) +
+                                         Cr0(286, 0x00000001, false, hw, temoin: true);
+
+    // PB-287 — sur le 486, MOV CR0 avec NW = 1 et CD = 0 lève #GP(0) (i486 PRM, table 12-1), CR0 inchangé. PCem le
+    // charge. CD = NW = 1 et CD seul, témoins, se chargent dans les deux modes ; et NW seul sur le 386, qui n'a ni CD
+    // ni NW, aussi.
+    private static int Pb287(bool hw) => Cr0(287, 0x20000000, hw, hw, 486) +
+                                         Cr0(287, 0x60000000, false, hw, 486, temoin: true) +
+                                         Cr0(287, 0x40000000, false, hw, 486, temoin: true) +
+                                         Cr0(287, 0x20000000, false, hw, temoin: true);
+
+    /// <summary>MOV EAX,valeur puis MOV CR0,EAX en 0000:0100h : #GP (le vecteur 0Dh en 0000:0700h, l'IP du MOV CR0,
+    /// 0106h, empilé, CR0 inchangé) si `faute`, CR0 chargé sinon.</summary>
+    private static int Cr0(int pb, uint valeur, bool faute, bool hw, int coeur = 386, bool temoin = false)
+    {
+        byte[] code = [0x66, 0xB8, (byte)valeur, (byte)(valeur >> 8), (byte)(valeur >> 16), (byte)(valeur >> 24),
+                       0x0F, 0x22, 0xC0];
+        uint avant = 0;
+        var r = Jouer386(code, _ => { }, () => avant = x86.cr0, coeur: coeur, pas: 2);
+        var apres = x86.cr0;
+        var pile = (ushort)(mem.ram[0xFFF8] | mem.ram[0xFFF9] << 8);
+        var ok = faute ? (r[(int)R.IP], pile, apres) == (0x0700, 0x0106, avant)
+                       : r[(int)R.IP] == 0x0109 && (apres & valeur) == valeur;
+        return Voir($"PB-{pb} : MOV CR0,EAX, EAX = {valeur:X8}h ({coeur}){(temoin ? ", témoin" : "")}", ok,
+                    $"IP = {r[(int)R.IP]:X4}, IP empilé = {pile:X4}, CR0 = {apres:X8}h (avant : {avant:X8}h)",
+                    faute ? $"IP = 0700 (#GP), IP empilé = 0106, CR0 = {avant:X8}h" : $"IP = 0109, CR0 ⊇ {valeur:X8}h",
+                    hw);
     }
 
     // PB-189 — un opérande en mémoire doit tenir entier dans la limite de son segment (386 PRM § 14.7, point 7 ;

@@ -102,19 +102,25 @@ public static class Fuzzer
     /// leur image empilée. G13.3, les corrections du 8088 : l'instruction qu'elles visent, tout son état — PB-02, D3 /2
     /// et /3 ; PB-45 et PB-169, F6 et F7 /6 et /7 ; PB-170, 27 ; PB-171, 2F ; PB-173, D0 à D3 /6 ; PB-174, D2 et D3 /4,
     /// /5 et /7 ; PB-175, D4 et D5 ; PB-176, D2 et D3 /7 ; PB-172 et PB-177, toute instruction précédée d'un REP ;
-    /// PB-87, une instruction qui commence à moins de 16 octets de FFFFh. PB-03 et PB-257 (le temps), PB-07 et PB-179
+    /// PB-87, une instruction qui commence à moins de 16 octets de FFFFh ; PB-178 (G13.10d), toute instruction précédée
+    /// de LOCK, et F1h, l'alias, que la boucle des préfixes ne passe pas. PB-03 et PB-257 (le temps), PB-07 et PB-179
     /// (les accès mot, partout) n'ont pas de périmètre d'instruction : le contrôle les refuse. Rend null dans le
     /// périmètre, la raison sinon.</summary>
     private static string? HorsDuPerimetre(byte[] code, ushort ip, in HState a, in HState b, int cycA, int cycB)
     {
         var i = 0;
         var rep = false;
+        var verrou = false;
         while (i < code.Length - 1 && code[i] is 0x26 or 0x2E or 0x36 or 0x3E or 0xF0 or 0xF2 or 0xF3)
+        {
+            verrou |= code[i] == 0xF0;
             rep |= code[i++] is 0xF2 or 0xF3;
+        }
         var op = code[i];
         var reg = i + 1 < code.Length ? (code[i + 1] >> 3) & 7 : -1;
         if (materiel.pb_87 && ip >= 0xFFF0 ||
             (materiel.pb_172 || materiel.pb_177) && rep ||
+            materiel.pb_178 && (verrou || op == 0xF1) ||
             materiel.pb_02 && op == 0xD3 && reg is 2 or 3 ||
             (materiel.pb_45 || materiel.pb_169) && op is 0xF6 or 0xF7 && reg is 6 or 7 ||
             materiel.pb_170 && op == 0x27 ||

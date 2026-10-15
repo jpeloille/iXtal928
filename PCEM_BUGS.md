@@ -2169,7 +2169,8 @@ attendu : l'image refusée avec un avertissement, le lecteur vide (comme PB-116)
 *Reproduit* : `Cdrom/cdrom_image.cs`, `getLength`, marqueur PB-107. Contrôle négatif : la taille
 bornée au lieu de tronquée rougit la porte.
 *Non corrigé en mode matériel* : aucune étape ne l'a prise : une correction d'hôte, sans comportement du matériel
-documenté (Q2 de D3-stockage, restée sans réponse) ; Q19, posée à Julien en G13.10b (PLAN-G13.md § G13.10).
+documenté (Q2 de D3-stockage, restée sans réponse) ; Q19 (PLAN-G13.md § G13.10), tranchée le 16/10 : laissé non
+corrigé.
 
 ### PB-108 — INDEX 00 en 00:00:00 ne compte pas
 
@@ -3895,10 +3896,21 @@ et son instruction. Effet limité : un PC à un seul maître de bus se sert peu 
 it », Intel, page LOCK) ; aucun texte lu ici ne dit ce que fait le 8088 d'une interruption entre un
 préfixe et son instruction : inconnu pour ce point.
 *Cas qui discrimine* : banc : ES ≠ DS, `26 F0 A1 00 00` → AX lu dans DS (PCem) ; dans ES (8088).
-*G13* : (b) — comportement déduit, effet limité ; vérification par banc dirigé seulement.
-*Reproduit* : `Cpu/808x.cs:3463`, `case 0xF0`, marqueur `PB-178`.
-*Non corrigé en mode matériel* : aucune étape ne l'a prise : G13.3 ne l'a pas retenue (un comportement déduit,
-vérifiable par un banc seulement) ; Q19, posée à Julien en G13.10b (PLAN-G13.md § G13.10).
+*G13* : (b) — comportement déduit, effet limité ; vérification par banc dirigé seulement. Pris en G13.10d, sur Q19.
+*Reproduit* en mode PCem : `Cpu/808x.cs`, `case 0xF0` d'execx86 et le `default` de rep(), marqueurs `fixed in
+hardware mode: PB-178`.
+*Corrigé en mode matériel* (G13.10d) : sous `if (materiel.pb_178)`, LOCK (et F1h, l'alias, que SST range aussi parmi
+les préfixes) est un préfixe : ses 4 cycles, ceux d'un préfixe de segment du cœur, puis `goto opcodestart`, dans la même
+instruction (`lock_prefixe_materiel`) ; le préfixe de segment placé avant lui vaut pour l'instruction. Après REP, rep()
+le lit comme ses préfixes de segment, ses 2 cycles, puis la chaîne (`lock_rep_materiel`) ; PB-177 le passe de même
+quand il regarde ce qui suit le REP. L'interruption et le pas-à-pas entre LOCK et son instruction : rien ne s'y
+intercale plus, la règle du cœur pour tous ses préfixes (ES: compris) ; ce que ferait le silicium reste inconnu, et la
+règle du cœur n'est pas celle de PCem pour LOCK, qui n'en faisait pas un préfixe : le seul moyen de garder le préfixe de
+segment sans le porter d'une instruction à l'autre. Le corpus SST n'a aucun cas précédé de LOCK (946 000 cas du 8088,
+aucun) : `materiel-cas PB-178`, au 8088 et au 8086 — ES: F0 MOV AX,[0000] et ES: F1 MOV AX,[0000] lisent dans ES
+(PCem : DS) ; REP LOCK MOVSB copie trois octets (PCem : un) ; LOCK REP MOVSB, témoin, trois dans les deux modes. La
+correction coupée (`--attendu materiel` en mode PCem), il rougit. `fuite-pb178` : sous PB-178, le fuzzer ne diverge
+de l'oracle que sur une instruction précédée de LOCK, ou F1h.
 
 ### PB-179 — Un mot à l'offset FFFFh ne replie pas à l'offset 0 du segment
 
@@ -6578,16 +6590,40 @@ de pages. Le silicium lève #GP(0) et ne charge pas CR0.
 *Trouvé par* : G13.10c, la série sous `--hardware-mode tout` : `r9-mmu`, qui pose CR0 ainsi sans passer par
 l'instruction, ne rend plus la main sous PB-51 sur le cœur 486 — la #GP de la limite de CS, livrée en mode réel par une
 table de pages hors RAM (PB-79 : FFFFFFFFh lus, les écritures ignorées), revient en FFFF:FFFF, et rien n'y consomme de
-cycle. Un état que le silicium refuse ; la question de la correction est posée à Julien (Q21, `PLAN-G13.md`).
+cycle. Un état que le silicium refuse ; la question de la correction, posée à Julien (Q21, `PLAN-G13.md`), est tranchée
+le 16/10 : corrigé en G13.10d.
 *Source* : documenté — 386 PRM § 9.8.13, point 13 (« Loading CR0 with PG=1 and PE=0 ») ; 486 PRM, l'exception 13
 (« Loading the CR0 register with a set PG bit (paging enabled) and a clear PE bit »). CR0 non chargé : une faute laisse
 l'état d'avant l'instruction (386 PRM, chapitre 9), déduit.
 *Cas qui discrimine* : en mode réel, MOV EAX,80000000h puis MOV CR0,EAX : PCem pose PG ; le silicium, #GP(0) (INT 0Dh),
 CR0 inchangé.
-*G13* : (a) — documenté ; en attente de Q21.
-*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, MOV CR0 des formes a16 et a32 (`case 0`), marqueurs PB-286.
-*Non corrigé en mode matériel* : en attente de Q21 (G13.10c), proposée avec PB-178 dans une petite étape. LOADALL386
-sur le 386 charge CR0 tel quel, PG compris (`x86_ops_misc.h:933`) : le silicium, inconnu, resterait reproduit.
+*G13* : (a) — documenté ; pris en G13.10d, sur Q21.
+*Reproduit* en mode PCem : `Cpu/386_ops_mov_ctrl.cs`, MOV CR0 des formes a16 et a32 (`case 0`), marqueurs `fixed in
+hardware mode: PB-286`.
+*Corrigé en mode matériel* (G13.10d) : sous `if (materiel.pb_286)`, en tête de `case 0`, PG = 1 avec PE = 0 lève
+#GP(0) sans charger CR0 (`cr0_pg_sans_pe_materiel`), sur le 386 et le 486. LOADALL386 sur le 386 charge CR0 tel quel,
+PG compris (`x86_ops_misc.h:933`) : le silicium, inconnu, reste reproduit. `materiel-cas PB-286` : MOV EAX,80000000h
+puis MOV CR0,EAX, en mode réel, au 386 et au 486 : #GP, l'IP du MOV CR0 empilé, CR0 inchangé (PCem : PG posé) ; CR0 =
+10h et PE seul, témoins, chargés dans les deux modes. La correction coupée, il rougit. `r9-mmu` pose CR0 ainsi sans
+passer par l'instruction : elle reste du mode PCem seul.
+
+### PB-287 — MOV CR0 accepte NW sans CD sur le 486
+
+`x86_ops_mov_ctrl.h:110` et `:162` (`case 0`) : `cr0 = cpu_state.regs[cpu_rm].l`, sans regarder CD et NW ensemble.
+*Effet* : un invité qui écrit CR0 avec NW = 1 et CD = 0 sur le 486 garde CR0 ainsi ; le silicium lève #GP(0) et ne
+charge pas CR0. PCem ne modélise pas la politique d'écriture du cache : l'état n'a pas d'autre effet que d'être lu.
+*Trouvé par* : G13.10d, à la lecture de l'i486 PRM pour PB-286, au même site.
+*Source* : documenté — i486 PRM (1990), table 12-1, CD = 0 et NW = 1 : « Invalid setting. A general-protection
+exception with an error code of zero is generated. » CR0 non chargé : déduit, comme pour PB-286. Le 386 n'a ni CD
+ni NW (bits réservés).
+*Cas qui discrimine* : sur le 486, MOV EAX,20000000h puis MOV CR0,EAX : PCem charge NW ; le silicium, #GP(0).
+*G13* : (a) — documenté ; pris en G13.10d, avec PB-286.
+*Reproduit* en mode PCem : `Cpu/386_ops_mov_ctrl.cs`, MOV CR0 des formes a16 et a32 (`case 0`), marqueurs `fixed in
+hardware mode: PB-287`.
+*Corrigé en mode matériel* (G13.10d) : sous `if (materiel.pb_287)`, en tête de `case 0`, sur le 486 seul (`is486` ;
+les tables d'iXtal n'ont que les 486 d'Intel), NW = 1 avec CD = 0 lève #GP(0) sans charger CR0
+(`cr0_nw_sans_cd_materiel`). `materiel-cas PB-287` : au 486, #GP, CR0 inchangé (PCem : NW posé) ; CD = NW = 1 et CD
+seul au 486, et NW seul au 386, témoins, chargés dans les deux modes. La correction coupée, il rougit.
 
 ## B. Comportement indéfini en C
 

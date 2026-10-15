@@ -1115,6 +1115,10 @@ startrep:
                                 cycles -= 2;
                                 goto startrep;
                         }
+                // pcem bug, fixed in hardware mode: PB-178 — LOCK placé après REP est un préfixe de la chaîne.
+                if (materiel.pb_178)
+                        if (lock_rep_materiel(temp))
+                                goto startrep;
                 cpu_state.pc = (uint32_t)(ipc + 1);
                 cycles -= 20;
                 FETCHCLEAR();
@@ -3596,11 +3600,14 @@ startrep:
                         cycles -= 12;
                         break;
 
-                // pcem bug, reproduced: PB-178 — LOCK est une instruction d'un octet, pas un préfixe :
+                // pcem bug, fixed in hardware mode: PB-178 — LOCK est une instruction d'un octet, pas un préfixe :
                 //   un préfixe de segment placé avant lui se perd, et une interruption ou un pas-à-pas peut
                 //   s'intercaler entre LOCK et l'instruction verrouillée.
                 case 0xF0: /*LOCK*/
                 case 0xF1: /*LOCK alias*/
+                        if (materiel.pb_178)
+                                if (lock_prefixe_materiel())
+                                        goto opcodestart;
                         cycles -= 4;
                         break;
 

@@ -710,6 +710,10 @@ contre-lecture, M2, sa série entière et son commit :
     en mode PCem, une fois sous `--hardware-mode tout` pour chaque porte qui prend le mode (`ModeOutils`) ; les portes
     qui le refusent sont dites. Les listings de tous les scénarios contre M0 : en mode PCem, le code d'avant G13, aux
     écarts connus près, chacun expliqué. PLAN.md et la fin de `VERIFICATION.md`.
+  - **G13.10d — LOCK et MOV CR0** ✅ *(16/10, VERIFICATION.md § G13.10d)* (Q19, Q21). PB-178 (LOCK est un préfixe
+    du 8088 et du 8086, avant ou après REP), PB-286 (MOV CR0 lève #GP(0) sur PG sans PE, 386 et 486) et PB-287, neuf
+    (sur NW sans CD, 486), chacun son cas et sa sonde ; le contrôle de fuite de PB-178. La série entière dans les deux
+    modes, qui rejoue 10c, et les listings contre M2-10c.
 
 **Les questions de la clôture (G13.10), posées à Julien le 15/10** :
 - **Q19 (10b)** — PB-107 (une image de CD de plus de 2 Gio prend une longueur tronquée) et PB-178 (LOCK du 8088, une
@@ -717,7 +721,10 @@ contre-lecture, M2, sa série entière et son commit :
   pris. PB-178 suit Intel (« the instruction that follows it ») : un préfixe, l'interruption entre lui et son
   instruction restant inconnue. PB-107 est une correction d'hôte, sans comportement du matériel documenté (Q2 de
   D3-stockage, restée sans réponse). *Proposé : corriger PB-178 dans une petite étape avant 10c (la part documentée ;
-  l'interruption, inconnue, reproduite) ; laisser PB-107, dit non corrigé.*
+  l'interruption, inconnue, reproduite) ; laisser PB-107, dit non corrigé.* **Tranchée le 16/10 : oui** — G13.10d.
+  L'interruption entre LOCK et son instruction n'a pas pu rester celle de PCem : PCem ne fait pas de LOCK un
+  préfixe, et garder la fenêtre en gardant le préfixe de segment porterait celui-ci d'une instruction à l'autre. LOCK
+  suit la règle du cœur pour tous ses préfixes (rien ne s'intercale), le silicium restant inconnu.
 - **Q20 (10a)** — `os/os.sha256` (04/10) : `386-HDD-C.img` (modifiée le 10/10) et `486-HDD-C.img` (le 11/10) ne
   concordent plus, hors des portes, qui travaillent sur des copies. Des sessions de l'émulateur ? Récrire les deux
   empreintes ? *Proposé : les récrire si ces écritures sont les vôtres.*
@@ -729,7 +736,8 @@ contre-lecture, M2, sa série entière et son commit :
   une pile en RAM avance (les écritures comptent leurs cycles, mesuré sous PB-51 et en mode PCem). *Proposé : corriger
   PB-286 en mode matériel dans la petite étape de PB-178 (Q19), avant de rejouer 10c ; `r9-mmu` reste du mode PCem seul
   (`pcem_seul`), puisqu'elle pose CR0 sans l'instruction. LOADALL386 sur le 386 charge CR0 tel quel, PG compris : le
-  silicium, inconnu, reste reproduit.*
+  silicium, inconnu, reste reproduit.* **Tranchée le 16/10 : oui** — G13.10d, avec PB-287 (NW sans CD sur le 486, le
+  même site, trouvé en lisant l'i486 PRM), et la série de 10d rejoue 10c dans les deux modes.
 
 ## Les décisions (proposées ; à trancher)
 

@@ -413,6 +413,9 @@ internal static class materiel
     /// <summary>PB-177 : rep() — 6Eh est JLE, REP DS: répète, un préfixe placé avant REP vaut.</summary>
     internal static readonly bool pb_177;
 
+    /// <summary>PB-178 : LOCK est un préfixe de l'instruction qui le suit, avant ou après REP.</summary>
+    internal static readonly bool pb_178;
+
     /// <summary>PB-179 : un mot à l'offset FFFFh replie à l'offset 0 du segment ; avec PB-07.</summary>
     internal static readonly bool pb_179;
 
@@ -573,6 +576,12 @@ internal static class materiel
     /// <summary>PB-265 : FRNDINT, FIST et FISTP au plus près sans l'arrondi de b + 1,0 ; le noyau.</summary>
     internal static readonly bool pb_265;
 
+    /// <summary>PB-286 : MOV CR0 avec PG = 1 et PE = 0 lève #GP(0), CR0 inchangé (386, 486).</summary>
+    internal static readonly bool pb_286;
+
+    /// <summary>PB-287 : MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486).</summary>
+    internal static readonly bool pb_287;
+
     static materiel()
     {
         ModeMateriel.Gel();
@@ -706,6 +715,7 @@ internal static class materiel
         pb_175 = ModeMateriel.Demande(175);
         pb_176 = ModeMateriel.Demande(176);
         pb_177 = ModeMateriel.Demande(177);
+        pb_178 = ModeMateriel.Demande(178);
         pb_179 = ModeMateriel.Demande(179);
         pb_181 = ModeMateriel.Demande(181);
         pb_182 = ModeMateriel.Demande(182);
@@ -759,5 +769,7 @@ internal static class materiel
         pb_263 = ModeMateriel.Demande(263);
         pb_264 = ModeMateriel.Demande(264);
         pb_265 = ModeMateriel.Demande(265);
+        pb_286 = ModeMateriel.Demande(286);
+        pb_287 = ModeMateriel.Demande(287);
     }
 }

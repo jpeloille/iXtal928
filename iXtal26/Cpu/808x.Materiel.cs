@@ -361,10 +361,13 @@ internal static partial class _808x
 
     private static bool rep_prefixe_materiel()
     {
+        var verrou = materiel.pb_178;
         for (uint32_t k = 0; k < 16; k++)
         {
                 var b = k < prefetchw ? prefetchqueue[k] : readmembf(cs + ((cpu_state.pc + k) & 0xFFFF));
                 if (b is 0x26 or 0x2E or 0x36 or 0x3E)
+                        continue;
+                if (verrou && b is 0xF0 or 0xF1)
                         continue;
                 if (b is (>= 0xA4 and <= 0xA7) or (>= 0xAA and <= 0xAF))
                         return false;
@@ -405,6 +408,31 @@ internal static partial class _808x
         if (!repRelance)
                 return false;
         repRelance = false;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-178 — LOCK est un préfixe : il vaut pour l'instruction qui le suit (« the
+    //   instruction that follows it », Intel, page LOCK ; le corpus SST range F0h et F1h parmi les préfixes,
+    //   documenté, secondaire). Il garde donc le préfixe de segment placé avant lui, comme REP (PB-177, dans
+    //   n'importe quel ordre).
+    //   PCem en fait une instruction d'un octet. Ici, comme ES: dans execx86 : ses 4 cycles, puis opcodestart, dans la
+    //   même instruction. Rien ne s'intercale plus entre LOCK et son instruction : c'est la règle du cœur pour tous ses
+    //   préfixes ; ce que le silicium ferait d'une interruption entre eux reste inconnu. F1h, l'alias, de même.
+    private static bool lock_prefixe_materiel()
+    {
+        cycles -= 4;
+        ModeMateriel.Sonde[178]++;
+        return true;
+    }
+
+    // pcem bug, fixed in hardware mode: PB-178 — après REP, rep() lit LOCK comme ses préfixes de segment : ses 2
+    //   cycles, puis l'octet suivant. PCem le prend pour une chaîne inconnue et rend la main, le REP perdu.
+    private static bool lock_rep_materiel(uint8_t octet)
+    {
+        if (octet is not (0xF0 or 0xF1))
+                return false;
+        cycles -= 2;
+        ModeMateriel.Sonde[178]++;
         return true;
     }
 

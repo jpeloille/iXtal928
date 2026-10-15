@@ -2042,3 +2042,38 @@ Julien à Q17 : la documentation du matériel tranche.*
   au même endroit que les autres drapeaux. Mais le registre ne le disait pas. L'audit de la clôture l'a trouvé : PB-205
   a maintenant sa place dans la table, son cas et son champ, comme les autres corrections du noyau.
 
+
+## G13.10d — LOCK et MOV CR0
+
+*Le 16 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.10 (Q19, Q21), `VERIFICATION.md` § G13.10d.*
+
+### PB-178 — LOCK du 8088 est un préfixe
+
+- **Le vrai PC.** LOCK verrouille le bus pendant l'instruction qui le suit : c'est un préfixe, comme ES: ou REP, et
+  Intel l'écrit ainsi. Un préfixe de segment placé avant lui vaut donc pour cette instruction, et REP LOCK MOVSB
+  répète sa chaîne comme LOCK REP MOVSB. Le corpus de SingleStepTests, relevé sur un vrai 8088, range F0h et son
+  alias F1h parmi les préfixes.
+- **L'émulateur.** PCem fait de LOCK une instruction d'un octet. L'instruction finit sur lui : `ES: LOCK MOV AX,[0]`
+  perd ES: et lit dans DS ; après REP, LOCK passe pour une chaîne inconnue, et la chaîne ne s'exécute qu'une fois.
+- **La correction.** En mode matériel, LOCK est traité comme les préfixes de segment du cœur : il coûte ce qu'eux
+  coûtent, puis l'octet suivant se lit dans la même instruction, avant ou après REP. L'émulateur ne laisse plus
+  tomber d'interruption entre LOCK et son instruction, comme entre ES: et la sienne ; ce que ferait le silicium à
+  cet endroit reste inconnu. Le corpus n'a aucun cas précédé de LOCK : un cas dirigé le vérifie, au 8088 et au 8086.
+
+### PB-286 — MOV CR0 avec la pagination sans la protection
+
+- **Le vrai PC.** Le 386 et le 486 refusent d'écrire dans CR0 la pagination (PG) sans le mode protégé (PE) : le
+  manuel d'Intel range ce cas parmi les fautes de protection générale. CR0 garde sa valeur.
+- **L'émulateur.** PCem accepte : le processeur pagine en mode réel, à travers des tables que personne n'a posées. La
+  série sous le mode matériel l'a trouvé, quand l'émulateur ne rendait plus la main dans cet état.
+- **La correction.** En mode matériel, MOV CR0 lève la faute, et CR0 ne change pas. LOADALL, l'instruction non
+  documentée du 386, charge encore CR0 tel quel : personne ne sait ce qu'en fait le silicium.
+
+### PB-287 — MOV CR0 sur le 486, le cache à écriture différée sans le cache
+
+- **Le vrai PC.** Sur le 486, CD coupe le cache et NW son écriture différée. NW sans CD est une combinaison
+  interdite : le manuel du 486 dit qu'elle lève une faute de protection générale.
+- **L'émulateur.** PCem l'accepte. Il ne modélise pas l'écriture différée : la seule trace est la valeur de CR0, que
+  l'invité relit.
+- **La correction.** En mode matériel, sur le 486, MOV CR0 lève la faute et CR0 ne change pas. Le 386 n'a pas ces
+  deux bits : il garde le comportement de PCem.

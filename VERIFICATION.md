@@ -12041,3 +12041,85 @@ dans la section de son étape :
   compté) : l'assembly gagne des chaînes à chaque étape, la table se décale, le code est le même.
 Aucune autre méthode gardée ne diffère de M0 : exec386, les gestionnaires d'instructions, les poll de la vidéo et du
 son, les commandes du CD et des disques sont ceux d'avant G13, à l'octet.
+
+## G13.10d — LOCK et MOV CR0
+
+Le 16 octobre 2026. Q19 et Q21, tranchées par Julien le 16/10 : PB-178 et PB-286 corrigés dans une petite étape,
+PB-107 laissé non corrigé, la série de 10c rejouée.
+
+**PB-178** (`Cpu/808x.cs`, `808x.Materiel.cs`). LOCK est un préfixe : Intel l'écrit (« the instruction that follows
+it »), et le corpus SST du 8088 range F0h et F1h parmi les préfixes (`metadata.json`). Sous `if (materiel.pb_178)`, en
+tête du `case 0xF0`/`0xF1` d'execx86 : les 4 cycles d'un préfixe de segment du cœur, puis `goto opcodestart`, dans la
+même instruction (`lock_prefixe_materiel`). Dans le `default` de rep(), après la garde de PB-177 : LOCK après REP
+coûte 2 cycles, comme les préfixes de segment de rep(), puis `goto startrep` (`lock_rep_materiel`) ; PCem le prenait
+pour une chaîne inconnue et rendait la main, le REP perdu. `rep_prefixe_materiel` (PB-177) passe LOCK sous PB-178,
+comme les préfixes de segment. L'interruption et le pas-à-pas entre LOCK et son instruction : la proposition de Q19
+disait « reproduite » ; ce n'est pas tenable. PCem ne fait pas de LOCK un préfixe, et garder la fenêtre en gardant le
+préfixe de segment porterait celui-ci d'une instruction à l'autre, ce que ni PCem ni le silicium ne font. LOCK suit la
+règle du cœur pour tous ses préfixes, ES: compris (rien ne s'intercale) ; le silicium reste inconnu, et le registre le
+dit. Le corpus SST n'a aucun cas précédé de LOCK (946 000 cas du 8088 lus, aucun F0h ni F1h parmi leurs préfixes) :
+la vérification est dirigée. `materiel-cas PB-178`, au 8088 et au 8086 : ES: F0 MOV AX,[0000] et ES: F1 MOV AX,[0000]
+lisent dans ES (1111h ; PCem, DS : 2222h) ; REP LOCK MOVSB, CX = 3, copie trois octets (PCem : un, CX = 3) ; LOCK
+REP MOVSB, témoin, trois dans les deux modes ; la sonde : 8 passages. `fuite-pb178` (le fuzzer contre l'oracle, PB-178
+seul, 100 000 instructions) : chaque divergence tombe dans une instruction précédée de LOCK, ou F1h (essai à 20 000 :
+150 divergences, toutes dans le périmètre).
+
+**PB-286** (`Cpu/386_ops_mov_ctrl.cs`, `386.Materiel.cs`). Sous `if (materiel.pb_286)`, en tête du `case 0` des deux
+formes de MOV CR0 (après le contrôle de CPL et le ModRM, comme le silicium) : PG = 1 avec PE = 0 lève #GP(0) et CR0
+reste (`cr0_pg_sans_pe_materiel`). `materiel-cas PB-286` : MOV EAX,80000000h puis MOV CR0,EAX en mode réel, au 386 et
+au 486 : IP = 0700h (le vecteur 0Dh), l'IP du MOV CR0 empilé (0106h), CR0 inchangé (00000000h au 386, 40000000h au
+486) ; PCem : CR0 = 80000010h et 80000000h, IP = 0109h. CR0 = 10h et PE seul, témoins, chargés dans les deux modes
+(PE seul : CR0 = 00000011h, l'entrée au mode protégé). LOADALL386
+charge CR0 tel quel sur le 386 : le silicium, inconnu, reste reproduit. `r9-mmu` pose PG sans PE hors de l'instruction :
+elle reste du mode PCem seul (`pcem_seul`, sa raison récrite).
+
+**PB-287, neuf** (même site). L'i486 PRM, table 12-1 : CD = 0 et NW = 1, « Invalid setting. A general-protection
+exception with an error code of zero is generated. » Trouvé en lisant l'i486 PRM pour PB-286 ; PCem le charge. Sous
+`if (materiel.pb_287)`, après la garde de PB-286, sur le 486 seul (`cr0_nw_sans_cd_materiel`). `materiel-cas
+PB-287` : au 486, #GP, CR0 inchangé (PCem : 20000000h) ; CD = NW = 1 et CD seul au 486, et NW seul au 386, qui n'a
+ni CD ni NW, témoins, chargés dans les deux modes. `is486` ne désigne que les 486 d'Intel : les tables d'iXtal n'ont
+que `cpus_i486`. Inscrit et corrigé dans la même étape, le même site et la même source que PB-286.
+
+**Le registre et la couverture.** PB-178 et PB-286 passent de *Non corrigé* à *Corrigé en mode matériel* (G13.10d) ;
+PB-287 entre, corrigé ; PB-107 garde *Non corrigé*, Q19 tranchée. 80 entrées non corrigées (82 avant). Recensement :
+287 défauts, 1 247 marqueurs. `couverture-materiel` sous « tout » : 186 corrections, chacune son cas, toutes vertes
+(183 en 10c). Trois portes de cas neuves et leurs pendants du mode (`materiel-cas-pb178`, `-pb286`, `-pb287`, et
+`-materiel`), et `fuite-pb178`.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-10d.py`, une faute à la fois, restaurée) : la garde de LOCK d'execx86 coupée
+(`false &&`), `materiel-cas PB-178` sous PB-178 rougit (4 échecs) ; celle de rep(), 2 échecs ; les deux gardes de
+PB-286, 3 échecs (deux cas et la sonde à zéro) ; celles de PB-287, 2 ; le périmètre de PB-178 retiré du contrôle de
+fuite, `fuite-pb178` rougit (FUITE à l'itération 168) ; les trois marqueurs de PB-287 retirés, le recensement rougit (2
+écarts ; les deux du `case 0` seuls retirés, il reste vert : le marqueur de `cr0_nw_sans_cd_materiel` suffit). La
+correction coupée par le masque (`--attendu materiel` en mode PCem), chacun des trois cas rougit.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle confirme le pas-à-pas lu à `opcodestart`, l'override qui
+survit jusqu'à la fin de l'instruction, l'absence de boucle neuve, le geste de la faute — `x86_doabrt` remet `pc` sur
+`oldpc`, `RealModeAbrt` empile sans code d'erreur — et les masques). Reprises : la garde de PB-178 sortie de la boucle
+de `rep_prefixe_materiel` (lue une fois, en tête) ; PB-286 dit tranché au registre ; des témoins de plus (PE seul ;
+CD seul au 486) ; `is486` précisé ; une phrase de `pourquoi-on-corrige.md` (le cœur, et non le silicium, ne laisse
+plus tomber d'interruption) ; une porte neuve, `materiel-cas-pb178-pb177` (REP LOCK MOVSB sous PB-177 et PB-178, que
+`rep_prefixe_materiel` passe). Le périmètre de F1h dans le contrôle de fuite, que la lecture croyait troué après F3h :
+la boucle des préfixes s'arrête sur F1h, qui devient l'opcode, et `op == 0xF1` le prend. `rep_idiv_materiel` passe F0h
+et F1h sans PB-178 depuis G13.3 : sans PB-178, LOCK finit son instruction, et IDIV, qui commence après lui, ne voit
+pas le REP — sans effet.
+
+**Les séries** (le worktree de 10d, la DLL Release figée, `S-g10d`). En mode PCem, g10d (6 h 22 à 7 h 36) : 707
+vertes sur 707 ; contre g10c, seules changent les portes neuves (les six portes de cas, `fuite-pb178` : 779
+divergences sur 100 000 instructions, toutes dans le périmètre), le recensement (287 défauts, 1 247 marqueurs), la
+couverture (186) et `banc-bltbanc`, verte sous le délai de 1 200 s. Sous « tout », g10d-tout (7 h 36 à 7 h 55) : 469
+vertes, 228 refusées, 10 `pcem`, aucune rouge ; contre g10c-tout2, les mêmes portes neuves, le recensement, la
+couverture et la raison récrite de `r9-mmu`. Les reprises de la contre-lecture sont venues après la DLL des séries :
+le Release reconstruit (`iXtal26.dll` change, le hissage de `rep_prefixe_materiel`), vingt portes rejouées
+(`PORTES` : les cas de PB-177, 178, 286 et 287, `materiel-cas-pb178-pb177`, `fuite-g133`, `fuite-pb178`, `sst8088`,
+`sst8086` et leurs pendants du mode, `fuzz8088`, `fuzz8086-s1`, le recensement, la couverture), en mode PCem puis
+sous `MATERIEL=tout` : toutes vertes (ou refusées et `pcem` sous « tout », comme dans la série), leurs lignes celles
+des séries ; `materiel-cas-pb178-pb177`, neuve, verte dans les deux.
+
+**M2-10d** (le Release reconstruit du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-10c,
+1 492 méthodes de part et d'autre, 6 changées, aucune apparue ni disparue. Les constructeurs statiques de `materiel`
+(trois champs) et de `ModeMateriel` (trois entrées) ; `process_scsi` de l'AHA, `scsi_hd_command`, `scsi_zip_command`
+et `emu8k_init` : seuls des jetons de chaînes (`mov edi`), décalés de 398 chacun, la table des chaînes allongée.
+`execx86`, `rep` et les deux formes de `opMOV_CRx_r` sont à l'octet ceux de 10c : les gardes de PB-178, 286 et 287
+sont pliées ; `lock_prefixe_materiel`, `lock_rep_materiel` et les deux contrôles de CR0 ne sont jamais compilés en
+mode PCem.

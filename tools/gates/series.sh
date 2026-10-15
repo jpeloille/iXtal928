@@ -120,8 +120,8 @@ run pm-check-486 pm-check --core 486
 run pm-fuzz-486 pm-fuzz --core 486 --iter 20000
 run x87-pm-fuzz-486 pm-fuzz --core 486 --fpu 387 --iter 20000 --op D8 --op D9 --op DA --op DB --op DC --op DD --op DE --op DF
 run r9-mmu r9-mmu
-pcem_seul r9-mmu "Q21 : sous PB-51, la pagination posée sans PE, une #GP en FFFF:FFFF que la table hors RAM relivre en \
-FFFF:FFFF, sans cycle ; la boucle ne rend jamais la main (le silicium refuse PG sans PE)"
+pcem_seul r9-mmu "pose PG sans PE hors de MOV CR0 (PB-286 corrigé à l'instruction) ; sous PB-51, une #GP en FFFF:FFFF \
+que la table hors RAM relivre en FFFF:FFFF, sans cycle : la boucle ne rend jamais la main"
 # G7.0 — la fenêtre linéaire du socle SVGA, appelée des deux côtés sur une VGA amorcée.
 run svga-linear-check svga-linear-check --iter 50000
 # G7.1 — la Cirrus GD5429 : ami486 (VLB) jusqu'au bout du POST puis DOS sur IDE, ami386dx
@@ -508,6 +508,16 @@ run fuite-g133 --hardware-mode PB-02,PB-45,PB-87,PB-170,PB-171,PB-172,PB-173,PB-
 # G13.3, suite — le temps d'un REP devant autre chose qu'une chaîne (PB-177), le cœur contre la trace du silicium : le
 # surcoût du REP devant IDIV, dans les cas que SST fait partir d'une file vide comme la sonde, dans deux erreurs types.
 run sst-rep-temps-materiel --hardware-mode processeur sst-rep-temps --op F6.7 --op F7.7 --controle
+# G13.10d — LOCK est un préfixe (PB-178, Q19) : le préfixe de segment placé avant lui vaut, et REP LOCK répète. MOV CR0
+# lève #GP(0) sur PG sans PE (PB-286, Q21) et, sur le 486, sur NW sans CD (PB-287). Le contrôle de fuite de PB-178 :
+# le fuzzer ne diverge de l'oracle que sur une instruction précédée de LOCK.
+for pb in 178 286 287; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run fuite-pb178 --hardware-mode PB-178 fuzz --mode single --iter 100000 $ALL --fuite
+# REP LOCK sous PB-177 : rep_prefixe_materiel passe LOCK pour trouver la chaîne.
+run materiel-cas-pb178-pb177 --hardware-mode PB-177,PB-178 materiel-cas PB-178
 # G13.4 — le 8259 (PLAN-G13.md) : PB-05, PB-246, PB-247, PB-248 et PB-255, chacun son cas en C# seul dans les deux
 # modes ; puis PICBANC (tools/picbanc), saisi dans DEBUG sur l'XT et sur l'IBM AT (F1 au POST : le bac à sable n'a
 # pas d'at.nvr, et le BIOS dit 162), contre l'oracle en mode PCem (boot-diff) et, en C# seul, contre ses attendus dans
