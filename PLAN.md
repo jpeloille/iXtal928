@@ -40,7 +40,7 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 7 octobre 2026, G12 fait ; G13 en cours
+## Où on en est — 15 octobre 2026, G12 fait ; G13 en clôture
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
@@ -142,6 +142,20 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   entre au mode, « tout » et le domaine x87, et reprend les corrections de G13.6a et 6b) ; N8 coupé en deux : N8a ✅
   (12/10 : les gestionnaires en double de G13.6a et 6b quittent le dépôt) ; N8b ✅ (12/10 : la couverture comptée, la
   marge du --timer-check sous un invité saturé de flottant, 7,4 sur le 486). Le noyau est clos.
+  G13.7 fait, le stockage (plan validé le 12/10, Q12) : la disquette et le MFM (7a), l'IDE (7b), le CD — son moteur
+  d'images, ses commandes, son jeu selon l'année du modèle, son audio (7c1 à 7c4) —, le ZIP (7d1), le disque SCSI et
+  MODE SENSE (7d2a, 7d2b), l'AHA-1542C — sa configuration, ses mailbox, ses données et son bus, le LUN et le sense
+  automatique, la commande BIOS 03h (7e1a à 7e3). G13.8 en partie, le son : l'état du DSP (8a), l'ADPCM (8b), les
+  commandes de DMA (8c1), les mélangeurs (8d1), la ligne d'IRQ partagée (8d2) et son front (8d4), l'EMU8000 (8f) ; 8c2,
+  8d3, 8e et 8g attendent Q13 à Q16. G13.9 fait, la vidéo : le socle SVGA (9a, 9a2), la MDA et l'Hercules (9b), la CGA
+  (9c), les rendus et la ligne bornée (9c2), l'EGA (9d), l'ET4000, son RAMDAC et sa clé (9e, 9e2), le faisceau (9f), la
+  clôture (9g : EGABANC, HERCBANC, ET4BANC, BLTBANC dans les deux modes). G13.10, la clôture, coupée en trois (15/10) :
+  10a ✅ (les profils du mode et les témoins, du 5150 au BASIC jusqu'à Windows 3.11 sur l'ami486) ; 10b ✅ (la couverture
+  comptée, 183 corrections ; le registre audité, chaque entrée corrigée ou dite non corrigée, avec sa raison) ; 10c ✅
+  (la série entière en mode PCem et sous `--hardware-mode tout`, les portes refusées et celles du mode PCem seul dites,
+  `r9-mmu` parmi elles jusqu'à Q21 ; les listings de tous les scénarios contre M0 ; PB-286, neuf). Restent ouverts : le
+  son (Q13 à Q16), PB-260 et PB-142 (7e3 bis ou 7e4), PB-256 (la carte mère), Q19 (PB-178, PB-107), Q20 (les empreintes
+  de `os/`), Q21 (PB-286) ; à leur réponse, 10b et 10c seront rejouées.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

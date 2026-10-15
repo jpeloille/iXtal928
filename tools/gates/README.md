@@ -40,6 +40,14 @@ signaux compris (SIGKILL excepté).
 touche pas l'émulateur (l'outillage, la documentation, l'hôte). La série entière se joue une fois
 par étape qui change l'émulateur.
 
+`MATERIEL=LISTE` (G13.10c) joue la série sous `--hardware-mode LISTE` (`tout`, des domaines, des
+PB-nn). Chaque porte qui ne pose pas déjà son mode le reçoit en tête de ses arguments ; les portes
+du mode (`-materiel`, et celles qui posent leur liste) gardent la leur. Une porte dont la commande
+refuse le mode (`ModeOutils` : l'oracle est PCem — `boot-diff`, le fuzzeur hors `--fuite` et
+`--accord`, les sondes SST hors `--target csharp`…) rend 2 sans rien jouer ; sa ligne du `.tsv`
+dit `refusée` et la raison, et ne compte pas comme un rouge. Sans `MATERIEL`, les scripts des
+portes sont ceux d'avant, à l'octet.
+
 Une série à la fois sur la machine : `par.sh` prend un verrou `flock` sur
 `/var/tmp/ixtal-par/.verrou-machine` avant d'examiner l'espace, et le garde jusqu'à la fin. Une
 seconde série attend son tour (« en attente du verrou machine »). Les portes héritent du

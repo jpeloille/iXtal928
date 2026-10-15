@@ -5,6 +5,8 @@
 # compare deux séries ligne à ligne. Sourcé par par.sh, qui définit run et runw.
 # Historique : G4.0 à G5.2 (VERIFICATION.md) ; les gardes « depuis quelle étape » ont disparu,
 # tout existe désormais.
+# G13.10c — la série sous MATERIEL=LISTE (par.sh) : chaque porte sous --hardware-mode LISTE, sauf celles du mode PCem
+# seul, que `pcem_seul NOM RAISON` déclare après elles (leur verdict est celui de PCem ; sans MATERIEL, rien).
 C=tools/gates/cfg
 DOS=os/pcdos20/pcdos20b.img
 ALL=$(for i in $(seq 0 255); do printf -- '--op %02X ' $i; done)
@@ -118,6 +120,8 @@ run pm-check-486 pm-check --core 486
 run pm-fuzz-486 pm-fuzz --core 486 --iter 20000
 run x87-pm-fuzz-486 pm-fuzz --core 486 --fpu 387 --iter 20000 --op D8 --op D9 --op DA --op DB --op DC --op DD --op DE --op DF
 run r9-mmu r9-mmu
+pcem_seul r9-mmu "Q21 : sous PB-51, la pagination posée sans PE, une #GP en FFFF:FFFF que la table hors RAM relivre en \
+FFFF:FFFF, sans cycle ; la boucle ne rend jamais la main (le silicium refuse PG sans PE)"
 # G7.0 — la fenêtre linéaire du socle SVGA, appelée des deux côtés sur une VGA amorcée.
 run svga-linear-check svga-linear-check --iter 50000
 # G7.1 — la Cirrus GD5429 : ami486 (VLB) jusqu'au bout du POST puis DOS sur IDE, ami386dx
@@ -400,6 +404,8 @@ ZBB=(); for l in "${ZBK[@]}"; do ZBB+=(--type "$l"); done
 runw bd-ami486-zip-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-zip.cfg --type-at 60000 --type-settle 600 "${ZBB[@]}" --type "^" --type "^" --type "^"
 run r9-zip r9-zip
 run r9-atapi r9-atapi
+pcem_seul r9-zip "ses gardes ne s'atteignent que par PB-125 et PB-126, corrigés (G13.7d1)"
+pcem_seul r9-atapi "ses gardes ne s'atteignent que par PB-119, corrigé (G13.7c2)"
 run r9-cdcfg r9-cdcfg
 # G11 — l'Adaptec AHA-1542C (scsi_aha1540.c) et ses disques (scsi_hd.c), sous la sonde de la carte (--expect-aha :
 # les trois machines d'états, les mailbox, le CCB, l'EEPROM, la RAM d'ombre, le bus, chaque disque ; et aucun
@@ -435,6 +441,8 @@ AHBB=(); for l in "${AHK[@]}"; do AHBB+=(--type "$l"); done
 runw bd-ami486-aha-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AHBB[@]}" --type "@wait 1500" --expect-aha
 run r9-aha r9-aha
 run r9-scsihd r9-scsihd
+pcem_seul r9-aha "quatre de ses gardes ne s'atteignent que par PB-133, PB-137 (G13.7e2b) et PB-138 (G13.7e3), corrigés"
+pcem_seul r9-scsihd "ses gardes ne s'atteignent que par PB-128 et PB-132, corrigés (G13.7d2a)"
 # G13.0 — ce qui n'attendait pas G13 (PLAN-G13.md), en C# seul. r9-cga et r9-m24 : R1 au-delà de 128 en 80 colonnes
 # (PB-09, le tampon de la CGA à 512 octets ; PB-88, la garde de la M24 atteinte). r9-disquette : une piste de plus de
 # 20 Ko (PB-17), une BPB à 0 secteur par piste (PB-168), un fichier vide. reset-scsi-check : l'image SCSI à travers un
@@ -459,6 +467,7 @@ run couverture-materiel --hardware-mode tout couverture-materiel
 # fuite-pb01 : le fuzzeur, PB-01 seul corrigé ; toute divergence avec l'oracle tombe dans son périmètre (AF d'ADC et de
 # SBB, et son image empilée), et au moins une s'y produit.
 run materiel-mode materiel-mode
+pcem_seul materiel-mode "le mécanisme vu du mode PCem : ses contrôles en processus le supposent (le gel, la clé)"
 run materiel-cas-pb01 materiel-cas PB-01
 run materiel-cas-pb01-materiel --hardware-mode PB-01 materiel-cas PB-01
 run banc-pb01 banc tools/gates/bancs/pb01-debug.attendus -- --boot roms 8000 --model ibmxt --floppy-a $DOS \
@@ -474,9 +483,11 @@ run fuite-pb01 --hardware-mode PB-01 fuzz --mode single --iter 100000 $ALL --fui
 # vecteurs manquent rend la porte rouge. En mode PCem, le C# rend les lignes de base de l'oracle à l'identique ; en
 # mode matériel, celles du mode : depuis G13.3, tout le domaine du processeur corrigé (PB-01 en G13.2).
 run sst8088 sst-probe --target csharp --limit 10000 --attendu sst-baseline.tsv
+pcem_seul sst8088 "le relevé de l'oracle ; sous le mode, sst8088-materiel"
 run sst8088-materiel --hardware-mode processeur sst-probe --target csharp --limit 10000 \
   --attendu sst-baseline-materiel.tsv
 run sst8086 sst-probe --cpu 8086 --target csharp --limit 10000 --attendu sst8086-baseline.tsv
+pcem_seul sst8086 "le relevé de l'oracle ; sous le mode, sst8086-materiel"
 run sst8086-materiel --hardware-mode processeur sst-probe --cpu 8086 --target csharp --limit 10000 \
   --attendu sst8086-baseline-materiel.tsv
 # G13.3 — le 8088 et le 8086 (PLAN-G13.md) : dix-sept corrections, en trois groupes qui ne valent qu'ensemble
@@ -573,6 +584,7 @@ for pb in 181 182 183 184 185 186 187 188 262; do
 done
 for c in 386 286; do
   run sst$c sst$c-probe --target csharp --limit 150 --attendu tools/gates/sst/sst$c-150.tsv
+  pcem_seul sst$c "le relevé de l'oracle ; sous le mode, sst$c-materiel"
   run sst$c-materiel --hardware-mode processeur sst$c-probe --target csharp --limit 150 \
     --attendu tools/gates/sst/sst$c-materiel-150.tsv
 done

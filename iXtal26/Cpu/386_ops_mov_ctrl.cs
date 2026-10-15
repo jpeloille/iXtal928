@@ -194,6 +194,7 @@ internal static partial class _386
         switch (cpu_reg)
         {
         case 0:
+                // pcem bug, reproduced: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0) (386 PRM § 9.8.13).
                 if (((cpu_state.regs[cpu_rm].l ^ cr0) & 0x80000001) != 0)
                         Memory.mem.flushmmucache();
                 cr0 = cpu_state.regs[cpu_rm].l;
@@ -255,6 +256,7 @@ internal static partial class _386
         switch (cpu_reg)
         {
         case 0:
+                // pcem bug, reproduced: PB-286 — PG posé sans PE, accepté ; le silicium lève #GP(0) (386 PRM § 9.8.13).
                 if (((cpu_state.regs[cpu_rm].l ^ cr0) & 0x80000001) != 0)
                         Memory.mem.flushmmucache();
                 cr0 = cpu_state.regs[cpu_rm].l;

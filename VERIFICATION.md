@@ -11945,3 +11945,99 @@ n'est dans aucun scénario du mode PCem.
 trois portes neuves seules : `couverture-materiel` (183 corrections, chacune son cas, tous verts sous « tout »),
 `materiel-cas-pb205` (la valeur de PCem) et `materiel-cas-pb205-materiel` (celle du matériel) ; aucune autre ligne
 ne change. `g5w.sha256` : « conforme aux empreintes ».
+
+## G13.10c — la série dans les deux modes, et M0
+
+Le 15 octobre 2026. La dernière sous-étape de la clôture de G13.
+
+**Le mécanisme** (`tools/gates/par.sh`, `series.sh`, `README.md`). `MATERIEL=LISTE` joue la série sous
+`--hardware-mode LISTE` : chaque porte qui ne pose pas déjà son mode le reçoit en tête de ses arguments ; les portes du
+mode (`-materiel`, et celles qui posent leur liste) gardent la leur. Une porte dont la commande refuse le mode
+(`ModeOutils`) rend 2 sans rien jouer ; sa ligne dit `refusée` et la raison, recopiée du refus de `Program.cs`. Une
+porte du mode PCem seul, que `pcem_seul NOM RAISON` déclare après elle dans `series.sh`, ne se joue pas ; sa ligne dit
+`pcem` et la raison. Ni l'une ni l'autre ne compte comme un rouge. Sans `MATERIEL`, les 700 scripts des portes sont ceux
+du `par.sh` de G13.10b à l'octet (DRY, comparés fichier par fichier) : la série en mode PCem ne change pas.
+
+**La première série sous « tout »** (g10c-tout, la DLL figée de g10b, 18 h 01 à 19 h 08) : 461 vertes, 228 refusées,
+onze qui ne l'étaient pas. Chacune expliquée :
+- `sst8088`, `sst8086`, `sst386`, `sst286` (34, 33, 677 et 78 écarts) : leurs attendus sont les relevés de l'oracle.
+  Rejouées sous « tout » contre les relevés du mode (`sst-baseline-materiel.tsv`, `sst8086-baseline-materiel.tsv`,
+  `sst386-materiel-150.tsv`, `sst286-materiel-150.tsv`) : les quatre reproduites à l'identique (103, 103, 941 et 326
+  formes) — « tout » rend sur le silicium ce que rend le domaine du processeur. Déclarées `pcem_seul`, leur pendant
+  du mode étant `-materiel`.
+- `r9-zip`, `r9-atapi`, `r9-scsihd` : leurs gardes ne s'atteignent que par PB-125 et 126, PB-119, PB-128 et 132,
+  corrigés ; `ModeOutils` le disait depuis G13.7d2a. `pcem_seul`.
+- `r9-aha` (quatre essais sur dix) : `ModeOutils` la disait verte sous « tout » depuis G13.7e2a. La série a trouvé
+  ses essais de 980, 799, 841 et 883 passés par PB-133 et PB-137 (G13.7e2b) et PB-138 (G13.7e3) : chaque PB du
+  stockage joué seul, ces trois-là rougissent, aucun autre ; sous le domaine du stockage sans eux, les dix gardes sont
+  atteintes. Le commentaire de `ModeOutils` corrigé ; `pcem_seul`.
+- `materiel-mode` (cinq contrôles) : le mécanisme vu du mode PCem, ses contrôles en processus supposent le mode PCem
+  (« figé, en mode PCem », la clé refusée par loadconfig). `pcem_seul`.
+- `banc-hercbanc` (un attendu) : sous « tout », 3BAh lu une fois rend 80h, et non 88h comme sous le domaine vidéo. La
+  lecture échantillonne le faisceau : les temps du processeur et de la carte mère corrigés déplacent son instant sur
+  un point éteint. Mesuré, la vidéo seule et la vidéo avec le x87, le stockage ou le son : 88h ; la vidéo avec le
+  processeur, ou avec la carte mère : 80h. `banc` prend un attendu neuf, `materiel[LISTE]:`, valable quand la demande
+  est exactement LISTE (les groupes compris ; un mot inconnu refuse le fichier, retour 2) ; `hercbanc.attendus` porte
+  `materiel[video]:` (88h) et `materiel[tout]:` (80h).
+- `r9-mmu` : ne rendait plus la main ; tuée après 53 minutes (rc=143). Voir PB-286.
+
+**PB-286, neuf** (`PCEM_BUGS.md`, section A ; marqueurs aux deux formes de MOV CR0, `386_ops_mov_ctrl.cs`) : `MOV
+CR0` accepte PG = 1 avec PE = 0 ; le silicium lève #GP(0) (386 PRM § 9.8.13, point 13 ; 486 PRM, l'exception 13).
+`r9-mmu` pose cet état sans passer par l'instruction ; sous PB-51 (avec PB-50, son groupe), sur le cœur 486 — CS:IP
+en FFFF:FFFF —, l'instruction à cheval sur la limite lève #GP, que le mode réel livre par une table de pages hors RAM
+(PB-79 : FFFFFFFFh lus, les écritures ignorées) : le vecteur lu ramène en FFFF:FFFF, et rien n'y compte de cycle —
+`exec386` ne sort jamais (instrumenté : la même faute, CS:IP inchangé, `cycles` à 1). Chaque PB du processeur joué
+seul : PB-50 et PB-51, leur groupe, seuls. En mode PCem, IP franchit FFFFh (PB-51) et la porte reste verte. Une boucle
+de fautes en mode réel avec une pile en RAM (le vecteur 0Dh sur `MOV AX,[FFFF]`, ou sous PB-51 sur une instruction à
+cheval sur FFFFh) avance, dans les deux modes : environ 680 fautes par pas, puis un cycle compté. Le défaut est
+inscrit, non corrigé : Q21 est posée à Julien (`PLAN-G13.md`), avec PB-178 (Q19) ; `r9-mmu`, qui pose CR0 sans
+l'instruction, `pcem_seul`.
+
+**Les contrôles négatifs** (/tmp/a9/neg10c) : `materiel[tout]:` changé en 88h, `banc` sous « tout » rougit ;
+`materiel[toutt]:`, `banc` refuse le fichier (retour 2, dans les deux modes) ; `pcem_seul` d'une porte inconnue, la
+série refusée (retour 2) ; les deux marqueurs de PB-286 retirés, le recensement rougit (un seul retiré, vert : un site
+suffit).
+
+**Les séries** (le worktree de 10c, la DLL Release figée, `S-g10c`). En mode PCem, g10c (20 h 03 à 21 h 16) : 699
+vertes sur 700 ; contre g10b, une seule ligne change hors du recensement (286 défauts, 1 240 marqueurs) :
+`banc-bltbanc`, rouge, une séance tuée par le délai du banc, 600 s. Rejouée seule, la machine au repos : verte, 817 s
+les deux séances, la même empreinte de la mémoire vidéo. Ses séances prennent 410 s seules, 460 à 560 s sous la charge
+d'une série (dix portes à la fois) ; la marge manquait, le scénario n'est pas en cause. Le délai de `banc` passe à
+1 200 s. Sous « tout », g10c-tout2 (21 h 16 à 21 h 35 ; la première, 67 minutes, dont les 53 de `r9-mmu`) : 462
+vertes, 228 refusées, 10 `pcem`, aucune rouge ; contre g10c-tout, seules changent les onze portes dites plus haut, les
+dix `pcem` et `banc-hercbanc`, verte. `couverture-materiel` y est verte (183 corrections, chacune son cas).
+`g5w.sha256` : « conforme aux empreintes ».
+
+**Les reprises de la contre-lecture** (Sonnet ; aucun bloquant) : `banc` lit les listes de `materiel[…]:` sans égard à
+la casse, comme `--hardware-mode` ; une ligne d'attendu sans « : » refuse le fichier (retour 2) au lieu de lever ;
+PB-286 nomme aussi LOADALL386, qui charge CR0 tel quel ; la ligne de 10c de `PLAN.md` dit `r9-mmu` du mode PCem seul
+jusqu'à Q21 ; des lignes de plus de 120 caractères recoupées. Ces reprises, et le délai, sont venus après la DLL des
+séries : le Diff reconstruit (`iXtal26.dll` identique à l'octet), les 26 portes `banc-*` et le recensement rejoués
+(`PORTES`), en mode PCem puis sous `MATERIEL=tout` : 27 vertes chaque fois, leurs lignes celles des séries, à
+`banc-bltbanc` près, verte.
+
+**M0, tous les scénarios.** M0 n'avait de capture que pour les dix-huit scénarios d'avant G13.7d1 (`M0-tout` et les
+rejeux de G13.7a à 7c4) ; les douze suivants (`ami486-zip`, `-aha`, `-sb16`, `-adpcm`, `-dma`, `-awe32`, `-et4000`,
+`-gd5429`, `-tvga24`, `xt-mda`, `xt-hercules`, `xt-ega`) n'avaient que leur preuve « sans gardes ». Ils sont rejoués sur
+860f2b1 (`/var/tmp/ixtal-g13/M0-860f2b1-g1310c` ; le build de 860f2b1 rend la DLL de M0 à l'octet, `0ae8827d1e11f38c`,
+le même runtime 10.0.12), avec le script et les configurations d'aujourd'hui. `M0-complet-10c` réunit les trente,
+chacun dans sa capture la plus récente. M2-10c (le Release du worktree, les trente) : contre M2-10b, identique (1 492
+méthodes, aucune changée, apparue ni disparue — les marqueurs de PB-286 sont des commentaires). Contre M0 complet :
+1 484 méthodes contre 1 492, 35 changées, 8 apparues, aucune disparue ; chacune rattachée à la première capture M2 où
+elle a sa forme d'aujourd'hui (`/tmp/a9/attrib-10c.py`, les 58 captures d'étape dans l'ordre), et chacune expliquée
+dans la section de son étape :
+- le mécanisme et les commandes de l'hôte, quatorze, froides (exécutées une fois) : `pc.initpc` et `pc.loadconfig`,
+  `MachineOverrides.TryApplyModelGraphicsCardAndProcessor` et `TryApplyHardwareMode` (apparue), `BootTest.Run`, les
+  constructeurs statiques de `ModeMateriel` et de `materiel`, `ModeMateriel.Figer` et `Gel`, deux méthodes de
+  `SortedSet<int>` (la demande ; apparues) — G13.2 et G13.3 ; `BootVerb.Run` (G13.4c) ; `Launcher.ApplyArgument` et
+  `BootTest.TypeAndDump` (`--menu-check` et `@vram`, G13.9g) ;
+- le filet de l'hôte, `FiletImages` (le lambda qui vide aussi l'image du ZIP, G13.7d1) ; le constructeur statique de
+  `mem` (l'ordre d'initialisation, N7c) ; `model_c.at_init` (l'en-tête du listing seul, G13.6c) ;
+- les reliquats R9 voulus, qui changent le code du mode PCem dans les deux modes (Q12) : le Xebec, cinq (`xebec_read`,
+  `xebec_write`, `xebec_callback`, son constructeur statique, `xebec_absente_r9` apparue ; G13.7a) ; le ZIP, dix-sept
+  (`scsi_zip_c` et `scsi_zip_data`, data_in et data_out prolongés hors de la classe ; G13.7d1) ;
+- `et4000_out` (G13.9e2 : les `case` de 3C0h, 3C5h et 3D8h, qui retombent sur `svga_out`) ;
+- trois jetons de chaînes (`process_scsi` de l'AHA, `scsi_hd_command`, `emu8k_init`, et `scsi_zip_command` déjà
+  compté) : l'assembly gagne des chaînes à chaque étape, la table se décale, le code est le même.
+Aucune autre méthode gardée ne diffère de M0 : exec386, les gestionnaires d'instructions, les poll de la vidéo et du
+son, les commandes du CD et des disques sont ceux d'avant G13, à l'octet.

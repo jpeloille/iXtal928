@@ -706,10 +706,10 @@ contre-lecture, M2, sa série entière et son commit :
     mode (`ModeMateriel.Corrections`), son cas sous son seul PB, et compte ce que dit la sonde ; une correction qu'aucun
     cas n'atteint rougit. `PCEM_BUGS.md` : chaque entrée des sections A et B porte un champ *Corrigé en mode matériel*,
     ou dit pourquoi elle reste (inconnue, hors du mode, en attente d'une question) ; le recensement le vérifie.
-  - **G13.10c — La série dans les deux modes et M0.** La série entière une fois en mode PCem, une fois sous
-    `--hardware-mode tout` pour chaque porte qui prend le mode (`ModeOutils`) ; les portes qui le refusent sont dites.
-    Les listings de tous les scénarios contre M0 : en mode PCem, le code d'avant G13, aux écarts connus près, chacun
-    expliqué. PLAN.md et la fin de `VERIFICATION.md`.
+  - **G13.10c — La série dans les deux modes et M0** ✅ *(15/10, VERIFICATION.md § G13.10c)*. La série entière une fois
+    en mode PCem, une fois sous `--hardware-mode tout` pour chaque porte qui prend le mode (`ModeOutils`) ; les portes
+    qui le refusent sont dites. Les listings de tous les scénarios contre M0 : en mode PCem, le code d'avant G13, aux
+    écarts connus près, chacun expliqué. PLAN.md et la fin de `VERIFICATION.md`.
 
 **Les questions de la clôture (G13.10), posées à Julien le 15/10** :
 - **Q19 (10b)** — PB-107 (une image de CD de plus de 2 Gio prend une longueur tronquée) et PB-178 (LOCK du 8088, une
@@ -721,6 +721,15 @@ contre-lecture, M2, sa série entière et son commit :
 - **Q20 (10a)** — `os/os.sha256` (04/10) : `386-HDD-C.img` (modifiée le 10/10) et `486-HDD-C.img` (le 11/10) ne
   concordent plus, hors des portes, qui travaillent sur des copies. Des sessions de l'émulateur ? Récrire les deux
   empreintes ? *Proposé : les récrire si ces écritures sont les vôtres.*
+- **Q21 (10c)** — PB-286, trouvé par la série sous « tout » : `MOV CR0` accepte PG = 1 avec PE = 0, où le silicium
+  lève #GP(0) (386 PRM § 9.8.13, point 13 ; 486 PRM, l'exception 13 ; documenté). Dans cet état, que `r9-mmu` pose sans
+  passer par l'instruction, sous PB-51 et sur le cœur 486, une #GP de la limite de CS livrée en mode réel par une table
+  de pages hors RAM revient en FFFF:FFFF sans consommer de cycle : l'émulateur ne rend plus la main (mesuré, la porte
+  tuée après 53 minutes). En mode PCem, IP franchit FFFFh (PB-51) et la porte reste verte ; une boucle de fautes avec
+  une pile en RAM avance (les écritures comptent leurs cycles, mesuré sous PB-51 et en mode PCem). *Proposé : corriger
+  PB-286 en mode matériel dans la petite étape de PB-178 (Q19), avant de rejouer 10c ; `r9-mmu` reste du mode PCem seul
+  (`pcem_seul`), puisqu'elle pose CR0 sans l'instruction. LOADALL386 sur le 386 charge CR0 tel quel, PG compris : le
+  silicium, inconnu, reste reproduit.*
 
 ## Les décisions (proposées ; à trancher)
 

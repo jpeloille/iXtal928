@@ -29,6 +29,13 @@
 #          § G10.0). En dessous, la série est refusée, retour 3.
 #   PORTES : des noms de portes, séparés par des espaces ; seules celles-là sont jouées (une
 #          validation ciblée). Un nom inconnu refuse la série, retour 2.
+#   MATERIEL : une liste du mode matériel (tout, des domaines, des PB-nn ; G13.10c) ; la série se joue sous
+#          --hardware-mode MATERIEL. Chaque porte qui ne pose pas déjà son mode le reçoit en tête de ses arguments ;
+#          celles qui le posent (les portes du mode, -materiel) gardent le leur. Une porte dont la commande refuse le
+#          mode (ModeOutils : l'oracle est PCem) rend 2 sans rien jouer ; sa ligne dit « refusée » et la raison, et
+#          ne compte pas comme un rouge. Une porte du mode PCem seul (`pcem_seul` dans series.sh : son verdict est
+#          celui de PCem) ne se joue pas ; sa ligne dit « pcem » et la raison. Sans MATERIEL, les scripts des portes
+#          sont ceux d'avant, à l'octet.
 #
 # Une série à la fois sur la machine : un verrou flock sur /var/tmp/ixtal-par/.verrou-machine,
 # pris avant l'examen de l'espace et gardé jusqu'à la fin. Une seconde série attend, sous le
@@ -81,7 +88,11 @@ PY
 }
 N=0
 EMIS=""
-emit() { local f; N=$((N+1)); f=$(printf '%s/g/%03d-%s.sh' "$D" $N "$1"); EMIS="$EMIS $1"
+# Les arguments d'une porte, sous MATERIEL : le mode en tête, sauf s'il y est déjà.
+args() { if [ -n "${MATERIEL:-}" ] && [ "$1" != --hardware-mode ]; then printf '%q ' --hardware-mode "$MATERIEL"; fi
+  printf '%q ' "$@"; }
+declare -A NUM
+emit() { local f; N=$((N+1)); f=$(printf '%s/g/%03d-%s.sh' "$D" $N "$1"); EMIS="$EMIS $1"; NUM[$1]=$N
   if [ -n "${PORTES:-}" ] && [[ " $PORTES " != *" $1 "* ]]; then cat > /dev/null; else cat > "$f"; fi; }
 # run : une porte « dépôt ». Elle tourne dans $WORK/run/NOM, où chaque entrée du dépôt est un
 # lien, SAUF nvr/ et os/ : une copie de nvr/default/ et de os/pcdos20/ seulement (G9.1, après
@@ -97,7 +108,7 @@ rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr") $(printf %q "$W/os")
 for e in $(printf %q "$REPO")/*; do case "\$(basename "\$e")" in nvr|os) ;; *) ln -s "\$e" $(printf %q "$W")/;; esac; done
 cp -r $(printf %q "$REPO/nvr/default") $(printf %q "$W/nvr/")
 cp -r $(printf %q "$REPO/os/pcdos20") $(printf %q "$W/os/")
-res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
+res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(args "$@") 2>&1); rc=\$?
 printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | tail -1)" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
 echo "\$res" > $(printf %q "$LOGP-$name.txt")
 G
@@ -109,9 +120,24 @@ t0=\$SECONDS
 rm -rf $(printf %q "$W"); mkdir -p $(printf %q "$W/nvr"); ln -s $(printf %q "$REPO/roms") $(printf %q "$W/roms")
 cp -r $(printf %q "$WORK/nvr/default") $(printf %q "$W/nvr/"); cp $(printf %q "$WORK")/*.cfg $(printf %q "$W/")
 cp $(printf %q "$WORK/$nvr") $(printf %q "$W/nvr/.$dest.nvr")
-res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(printf '%q ' "$@") 2>&1); rc=\$?
+res=\$(cd $(printf %q "$W") && dotnet $(printf %q "$DLL") $(args "$@") 2>&1); rc=\$?
 printf '%s\trc=%d\t%ds\t%s\n' $(printf %q "$name") \$rc \$((SECONDS-t0)) "\$(echo "\$res" | grep -v '^\s*\$' | grep -E 'Vert|DIVERG|TRONQUÉE|Image [C-I]' | tr '\n' ' ')" > $(printf %q "$D/r/$(printf %03d $N)-$name.line")
 echo "\$res" > $(printf %q "$LOGP-$name.txt")
+G
+}
+# pcem_seul NOM RAISON, après la porte : une porte du mode PCem seul (G13.10c) — son verdict est celui de PCem (un
+# relevé de l'oracle, des gardes que seuls des défauts corrigés atteignent). Sans MATERIEL, rien. Sous MATERIEL, son
+# script est remplacé : il écrit sa ligne, « pcem » et la raison, sans rien jouer (à sa place dans l'ordre canonique :
+# le numéro de la ligne d'une porte est celui de son script moins un, le heredoc de run étant développé avant emit).
+pcem_seul() { local n=$1 r=$2 f l
+  [[ " $EMIS " == *" $n "* ]] || { echo "par.sh : pcem_seul : porte inconnue : $n" >&2; exit 2; }
+  [ -n "${MATERIEL:-}" ] || return 0
+  f=$(printf '%s/g/%03d-%s.sh' "$D" "${NUM[$n]}" "$n"); [ -f "$f" ] || return 0
+  l=$(printf '%s/r/%03d-%s.line' "$D" $((NUM[$n] - 1)) "$n")
+  cat > "$f" <<G
+#!/usr/bin/env bash
+printf '%s\tpcem\t0s\t%s\n' $(printf %q "$n") $(printf %q "$r") > $(printf %q "$l")
+echo $(printf %q "pcem : $r") > $(printf %q "$LOGP-$n.txt")
 G
 }
 cd "$REPO"
@@ -146,7 +172,16 @@ fi
 export TMPDIR="$T"
 xargs -a "$D/ordre" -P "$P" -I{} bash {}
 cat "$D"/r/*.line > "$OUT"; echo FIN >> "$OUT"
-if awk -F'\t' '$1 != "FIN" && $2 != "rc=0" { bad = 1 } END { exit bad }' "$OUT"; then
+# Sous MATERIEL, une porte refusée (retour 2 et le refus de Program.cs dans son journal) : « refusée », et la raison.
+if [ -n "${MATERIEL:-}" ]; then
+  while IFS=$'\t' read -r n st t r; do
+    if [ "$st" = rc=2 ] && grep -q 'le mode matériel y est refusé' "$LOGP-$n.txt" 2> /dev/null; then
+      printf '%s\trefusée\t%s\t%s\n' "$n" "$t" "$(grep -m1 'le mode matériel y est refusé' "$LOGP-$n.txt")"
+    elif [ "$n" = FIN ]; then echo FIN
+    else printf '%s\t%s\t%s\t%s\n' "$n" "$st" "$t" "$r"; fi
+  done < "$OUT" > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
+fi
+if awk -F'\t' '$1 != "FIN" && $2 != "rc=0" && $2 != "refusée" && $2 != "pcem" { bad = 1 } END { exit bad }' "$OUT"; then
   [ $PROPRE = 1 ] && rm -rf "$T"
 else
   echo "par.sh : des portes ne sont pas vertes ; leurs fichiers temporaires restent dans $T" >&2

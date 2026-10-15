@@ -6569,6 +6569,26 @@ qui reprend la commande en file (sous PB-239, `irq_materiel`) ; IRR7 = 1 en mode
 3Fh au MPU, l'INTA, puis F2h ; les témoins F2h, 2xEh puis F2h, avec et sans l'INTA (un front neuf), F2h, l'INTA, le
 reset du DSP puis F2h, et 80h changé pendant que la ligne est haute ; la correction coupée, il rougit.
 
+### PB-286 — MOV CR0 accepte la pagination sans la protection
+
+`x86_ops_mov_ctrl.h:110` et `:162` (`opMOV_CRx_r_a16`, `opMOV_CRx_r_a32`, `case 0`) : `cr0 = cpu_state.regs[cpu_rm].l`,
+sans regarder PG et PE ensemble.
+*Effet* : un invité qui écrit CR0 avec PG = 1 et PE = 0 pagine en mode réel : chaque accès passe par CR3 et les tables
+de pages. Le silicium lève #GP(0) et ne charge pas CR0.
+*Trouvé par* : G13.10c, la série sous `--hardware-mode tout` : `r9-mmu`, qui pose CR0 ainsi sans passer par
+l'instruction, ne rend plus la main sous PB-51 sur le cœur 486 — la #GP de la limite de CS, livrée en mode réel par une
+table de pages hors RAM (PB-79 : FFFFFFFFh lus, les écritures ignorées), revient en FFFF:FFFF, et rien n'y consomme de
+cycle. Un état que le silicium refuse ; la question de la correction est posée à Julien (Q21, `PLAN-G13.md`).
+*Source* : documenté — 386 PRM § 9.8.13, point 13 (« Loading CR0 with PG=1 and PE=0 ») ; 486 PRM, l'exception 13
+(« Loading the CR0 register with a set PG bit (paging enabled) and a clear PE bit »). CR0 non chargé : une faute laisse
+l'état d'avant l'instruction (386 PRM, chapitre 9), déduit.
+*Cas qui discrimine* : en mode réel, MOV EAX,80000000h puis MOV CR0,EAX : PCem pose PG ; le silicium, #GP(0) (INT 0Dh),
+CR0 inchangé.
+*G13* : (a) — documenté ; en attente de Q21.
+*Reproduit* : `Cpu/386_ops_mov_ctrl.cs`, MOV CR0 des formes a16 et a32 (`case 0`), marqueurs PB-286.
+*Non corrigé en mode matériel* : en attente de Q21 (G13.10c), proposée avec PB-178 dans une petite étape. LOADALL386
+sur le 386 charge CR0 tel quel, PG compris (`x86_ops_misc.h:933`) : le silicium, inconnu, resterait reproduit.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation

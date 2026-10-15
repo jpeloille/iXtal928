@@ -11,9 +11,12 @@
 // PB-126, r9-scsihd par PB-128 et PB-132, r9-aha par PB-276 (l'ancien PB-132, côté carte). PB-119 (G13.7c2), PB-125 et
 // PB-126 (G13.7d1), PB-128 et PB-132 côté cible (G13.7d2a) sont corrigés : en mode matériel, r9-atapi, r9-zip et
 // r9-scsihd n'atteignent plus toutes leurs gardes et rougiraient (« la garde n'a pas été atteinte ») — la série ne les
-// lance qu'en mode PCem, où les gardes sont atteintes ; les corrections ont leurs cas (materiel-cas). PB-276 corrigé
-// (G13.7e2a), r9-aha atteint encore chacune de ses gardes en mode matériel, sous PB-276 comme sous « tout » (ses essais
-// passent par PB-135 et par la configuration, non par la navette) : elle reste acceptée.
+// lance qu'en mode PCem, où les gardes sont atteintes (series.sh, pcem_seul) ; les corrections ont leurs cas
+// (materiel-cas). PB-276 corrigé (G13.7e2a), r9-aha atteignait encore chacune de ses gardes sous PB-276 ; depuis, la
+// série sous « tout » (G13.10c) a trouvé quatre essais qui passent par PB-133, PB-137 (G13.7e2b) et PB-138 (G13.7e3),
+// corrigés : sous « tout », ils rendent l'état du matériel et non plus le chemin de la garde. Elle reste acceptée (sous
+// une liste sans ces trois PB, chaque garde est atteinte), et la série ne la lance qu'en mode PCem, comme les trois
+// autres.
 
 namespace iXtal26.Diff;
 
