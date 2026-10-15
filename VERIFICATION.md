@@ -11847,3 +11847,47 @@ quatre jetons de chaînes habituels ; aucune méthode de l'émulation.
 **La série** g9g (le worktree de l'étape, contre g9f) : 697 portes, toutes vertes, chacune au même verdict que dans
 g9f ; huit portes neuves, `banc-egabanc`, `banc-hercbanc`, `banc-et4banc`, `banc-bltbanc` et leurs `-materiel`,
 vertes, deux séances identiques chacune ; aucun résumé ne change.
+
+## G13.10a — les profils et les témoins
+
+Le 15 octobre 2026. La première des trois sous-étapes de la clôture de G13 (PLAN-G13.md § G13.10, coupée le 15/10 :
+10a, les profils et les témoins ; 10b, la couverture et le registre ; 10c, la série dans les deux modes et M0). Le son
+qui attend Q13 à Q16, PB-260 et PB-142, et PB-256 restent ouverts ; 10b et 10c seront rejouées quand ils viendront.
+
+**Les profils** (`iXtal26/Properties/launchSettings.json`) : « machine de reference, mode materiel, sans turbo »
+(`--model ibmpc --hardware-mode tout`) et « 486DX2/66, IDE, Cirrus GD5429, mode materiel, sans turbo »
+(`--config ixtal26-486.cfg --hardware-mode tout`), à côté de leurs profils en mode PCem. Lancer un profil ouvre la
+fenêtre, que la session ne voit pas : leurs arguments sont ceux des témoins ci-dessous, joués sous `--boot`.
+
+**`--setup-check`** : 36 contrôles verts, dont les quatre du mode (la ligne « Mode », la bascule, la clé
+`hardware_mode` enregistrée et rechargée, l'écran qui ne fige pas le mode). **`--menu-check`** : vert dans les deux
+modes (§ G13.9g).
+
+**Les témoins**, en C# seul (`--boot`, Release ; /tmp/a9/temoins-10a.sh), chaque machine dans un bac à sable (le
+CMOS refait par `--make-nvr`, `os/` lié image par image, `--boot` travaillant sur des copies), en mode PCem puis
+sous `--hardware-mode tout` :
+
+| Machine | Scénario | Les deux modes |
+|---|---|---|
+| IBM PC 5150 | le POST jusqu'au BASIC | le même écran |
+| IBM XT | PC-DOS 2.00 : `VER`, `DIR` | le même écran |
+| IBM AT | PC-DOS 2.00 : `VER`, `DIR` | la même sortie, entière |
+| ami286 (le disque de l'utilisateur) | MS-DOS : `VER`, `DIR C:\` | le même écran |
+| ami386dx (le disque de l'utilisateur) | MS-DOS : `VER`, `DIR C:\` | le même écran |
+| ami486, GD5429 | MS-DOS 5.00 : `VER`, `MSD /S` (« American Megatrend, 486DX », « VGA, Cirrus ») | le même écran |
+| ami486, S3 Trio64 | Windows 3.11 en 1024×768 : le Gestionnaire de programmes | la même image, au pixel près |
+
+Dans chaque sortie, ce qui diffère entre les modes : le nombre de trames et l'empreinte du framebuffer à l'instant
+du relevé d'après l'amorçage (le clignotement du curseur et la cadence des trames, que PB-102 et PB-220 changent), et
+les comptes d'instructions par tranche. Les écrans relevés après les frappes sont identiques.
+Deux réglages du disque de l'ami486 ont demandé la recette de G12.3 : il charge `KEYB FR` (les frappes de `--boot`
+sont en QWERTY) — une copie, son AUTOEXEC.BAT remplacé par `tools/gates/fatpatch.py` comme dans la recette g5w ; et
+son Windows est réglé pour la S3 Trio64 (avec la GD5429, « video device conflict », dans les deux modes) — le témoin
+Windows tourne sur `ixtal26-486-s3.cfg`.
+
+**Les originaux.** Les 153 fichiers de `os/`, leurs empreintes prises avant les témoins, sont les mêmes après. Contre
+`os/os.sha256` (04/10), deux images diffèrent depuis avant G13.10a : `386-HDD-C.img` (modifiée le 10/10) et
+`486-HDD-C.img` (le 11/10) ; les portes et `--boot` travaillent sur des copies. La question est posée à Julien, et
+`os.sha256` n'est pas réécrit. `g5w.sha256` : vérifié par chaque série (« conforme aux empreintes », g9g).
+
+**Pas de série** : l'émulateur ne change pas (les profils et le plan seuls).

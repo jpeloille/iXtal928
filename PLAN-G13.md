@@ -694,6 +694,22 @@ contre-lecture, M2, sa série entière et son commit :
   sonde du mode) ; `PCEM_BUGS.md` (un champ *Corrigé en mode matériel* par entrée) ; `VERIFICATION.md` ; PLAN.md ;
   les originaux intacts.
 - **Vérification** : la série entière dans les deux modes ; les listings contre M0.
+- Coupée en trois le 15/10, sur l'étude, après 9g. Le son qui attend Q13 à Q16 (8c2, 8d3, 8e, 8g), PB-260 et PB-142
+  (7e3 bis ou 7e4) et PB-256 (la carte mère) restent ouverts, et la clôture le dit ; quand ils viendront, 10b et 10c
+  seront rejouées.
+  - **G13.10a — Les profils et les témoins.** Deux profils du mode matériel dans `launchSettings.json` : l'ami486 de
+    référence (`ixtal26-486.cfg`) et le 5150. `--setup-check`. Les témoins, en C# seul (`--boot`), dans les deux
+    modes, chaque écart expliqué : le 5150 jusqu'au BASIC ; l'XT et PC-DOS 2.00 (`VER`, `DIR`) ; l'IBM AT ; l'ami286 et
+    l'ami386dx sur leurs disques (`VER`) ; l'ami486 et DOS 5 (`VER`, `MSD /S`) ; Windows 3.11 sur une copie du disque de
+    l'ami486. Les originaux intacts : `os/os.sha256`, `g5w.sha256`. Sans changement de l'émulateur : pas de série.
+  - **G13.10b — La couverture et le registre.** La couverture comptée : une porte qui joue, pour chaque correction du
+    mode (`ModeMateriel.Corrections`), son cas sous son seul PB, et compte ce que dit la sonde ; une correction qu'aucun
+    cas n'atteint rougit. `PCEM_BUGS.md` : chaque entrée des sections A et B porte un champ *Corrigé en mode matériel*,
+    ou dit pourquoi elle reste (inconnue, hors du mode, en attente d'une question) ; le recensement le vérifie.
+  - **G13.10c — La série dans les deux modes et M0.** La série entière une fois en mode PCem, une fois sous
+    `--hardware-mode tout` pour chaque porte qui prend le mode (`ModeOutils`) ; les portes qui le refusent sont dites.
+    Les listings de tous les scénarios contre M0 : en mode PCem, le code d'avant G13, aux écarts connus près, chacun
+    expliqué. PLAN.md et la fin de `VERIFICATION.md`.
 
 ## Les décisions (proposées ; à trancher)
 
