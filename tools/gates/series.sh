@@ -852,6 +852,12 @@ for pb in 158 159 160; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.8f2 — la fin de l'EMU8000 (Q13) : PB-162 (le chorus droit lit dans sa ligne, à sa fraction) et PB-163 (la
+# réverbération sature) ; l'octet impair de PB-158 entre dans le cas de PB-158.
+for pb in 162 163; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
 # G13.8d4 — le front de la ligne des Sound Blaster : PB-285 (une IRQ du DSP levée sur la ligne déjà haute ne repose
 # pas la demande au PIC).
 run materiel-cas-pb285 materiel-cas PB-285

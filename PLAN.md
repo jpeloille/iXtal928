@@ -154,9 +154,11 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   comptée, 183 corrections ; le registre audité, chaque entrée corrigée ou dite non corrigée, avec sa raison) ; 10c ✅
   (la série entière en mode PCem et sous `--hardware-mode tout`, les portes refusées et celles du mode PCem seul dites ;
   les listings de tous les scénarios contre M0 ; PB-286, neuf) ; 10d ✅ (Q19 et Q21 tranchées le 16/10 : LOCK préfixe,
-  PB-178 ; MOV CR0, PB-286 et PB-287, neuf ; PB-107 laissé non corrigé ; la série de 10c rejouée). Restent ouverts : le
-  son (Q13 à Q16), PB-260 et PB-142 (7e3 bis ou 7e4), PB-256 (la carte mère), Q20 (les empreintes de `os/`) ; à leur
-  réponse, 10b et 10c seront rejouées.
+  PB-178 ; MOV CR0, PB-286 et PB-287, neuf ; PB-107 laissé non corrigé ; la série de 10c rejouée). Le 16/10, toutes
+  les questions tranchées (Q13 à Q16, Q20, Q22 à Q27, PB-260 et PB-142 en 7e4) et la décision n° 17 (sortir de PCem :
+  le mode matériel par défaut, G13.11) : 8f2 ✅ (la fin de l'EMU8000 : l'octet impair de PB-158, PB-162, PB-163).
+  Suivent G13.11, 7e4, 8c2, 8e, 8d3a à c (les cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte
+  mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations
@@ -399,6 +401,9 @@ matériel », désactivée par défaut, et le marqueur `pcem bug, reproduced` de
 in hardware mode: PB-nn`. Le mode PCem reste celui des portes : l'oracle et toutes les séries
 restent intacts. Le mode matériel se vérifie contre la documentation Intel, le corpus SST (8088 et
 386 réels) et des bancs dirigés.
+**Réorienté le 16/10** (décision n° 17 de PLAN-G13.md) : sortir de PCem petit à petit. Le mode
+matériel devient le mode par défaut de l'utilisateur (G13.11) ; le mode PCem reste celui des
+portes et de l'oracle, tant qu'ils servent.
 
 **Ordre proposé** : l'UC et le x87 d'abord (32 PB, le 486 compris), puis les disques, la vidéo,
 le son, la carte mère, la souris et les ports, puis la section B, puis la section C.

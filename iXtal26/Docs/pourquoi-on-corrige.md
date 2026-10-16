@@ -2077,3 +2077,33 @@ Julien à Q17 : la documentation du matériel tranche.*
   l'invité relit.
 - **La correction.** En mode matériel, sur le 486, MOV CR0 lève la faute et CR0 ne change pas. Le 386 n'a pas ces
   deux bits : il garde le comportement de PCem.
+
+## G13.8f2 — la fin de l'EMU8000
+
+*Le 16 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8f2. Q13, tranchée le
+16/10 : corriger ce dont la correction est certaine et se vérifie par cohérence.*
+
+### PB-158 — l'octet impair
+
+- **Le vrai PC.** Sur le bus AT, un octet lu à l'adresse impaire d'une carte de 16 bits rend l'octet haut du mot. Le
+  guide de l'EMU8000 interdit l'accès par octet ; des programmes lisent pourtant des octets pour détecter la carte,
+  à l'adresse paire selon PCem.
+- **L'émulateur.** PCem rend le mot décalé d'un seul bit : les bits 1 à 8, et non 8 à 15.
+- **La correction.** L'octet impair rend l'octet haut. Ce que fait la puce d'un accès par octet (ses effets de bord)
+  reste celui de PCem : le guide ne le dit pas.
+
+### PB-162 — un écho qui lit chez le voisin
+
+- **Le vrai PC.** Le chorus de l'EMU8000 est un programme de sa puce d'effets, qu'E-mu n'a pas publié. On sait au
+  moins qu'une ligne à retard ne lit que dans elle-même, et que chaque voie se lit à sa propre position.
+- **L'émulateur.** Le chorus de PCem est une imitation. Aux réglages extrêmes, la voie droite lit sous son tampon, dans
+  celui de la gauche ; et elle se lit toujours avec la fraction de position de la gauche.
+- **La correction.** Chaque voie lit dans sa ligne, à sa propre fraction. L'effet reste celui de PCem, qui n'est pas
+  celui de la carte, inconnu.
+
+### PB-163 — une réverbération qui claque
+
+- **Le vrai PC.** Un processeur de signal en virgule fixe sature : un signal trop fort reste au maximum.
+- **L'émulateur.** La réverbération de PCem calcule en virgule flottante et convertit comme le C, qui rend la plus
+  grande valeur négative dès qu'un résultat sort des bornes : un son trop fort claque à l'envers.
+- **La correction.** Les conversions saturent. Le reste du calcul est celui de PCem, une imitation lui aussi.

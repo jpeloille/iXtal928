@@ -3436,14 +3436,18 @@ chez PCem, ses bits 8 à 15 sur la carte (déduit).
 *G13* : mixte — (a) pour WC et les registres courants ; (b) pour l'octet impair ; (c) pour l'écriture par octet et les
 effets de bord par octet. AWEBANC ne discrimine pas WC : ses deux lectures se suivent à moins d'une microseconde.
 *Reproduit* en mode PCem : `Sound/sound_emu8k.cs`, marqueur PB-158 (`emu8k_inw`) ; AWEBANC lit par octets aux ports
-pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre. La part (b), l'octet impair
-(Q13), et la part inconnue (c), l'accès par octet, les mêmes dans les deux modes, portent un commentaire (`emu8k_inb`,
-`emu8k_outb` ; G13.8f).
+pairs et impairs, écrit deux octets par SMLD, et relit WC deux fois sans écriture entre. La part (b), l'octet impair,
+marqueur PB-158 (`emu8k_inb`, G13.8f2) ; la part inconnue (c), l'accès par octet, la même dans les deux modes, porte un
+commentaire (`emu8k_outb` ; G13.8f).
 *Corrigé en mode matériel* (G13.8f), la part (a) : sous `if (materiel.pb_158)` — `Sound/sound_emu8k.Materiel.cs`.
 Chaque lecture (`lit_materiel`, en tête d'`emu8k_inw`) fait d'abord avancer la puce jusqu'à l'instant présent
 (`emu8k_update`), comme PCem le fait à chaque écriture : WC, CPF, CVCF et CCCA relus sont courants, au tic de sortie
 près (48 kHz, la résolution de `sound_pos_global`). Le son produit ne change pas : la puce avance par les mêmes
 échantillons, par tranches plus fines.
+La part (b), en G13.8f2 (Q13 tranchée le 16/10) : sous `if (materiel.pb_158)`, en tête d'`emu8k_inb`, un octet lu à
+l'adresse impaire (`octet_impair_materiel`) rend l'octet haut du mot, D15-D8 (déduit : le bus AT) ; l'accès reste un mot
+entier, effets de bord compris, comme chez PCem (la part (c)). `materiel-cas PB-158` : SMALR écrit en A20h (1234h), A21h
+lu par octet, 1Ah chez PCem, 12h ; A20h, l'octet bas, 34h dans les deux modes.
 
 ### PB-159 — Les bits plein et vide de la DRAM sont invisibles ; SMARW n'est pas masqué
 
@@ -7226,10 +7230,15 @@ d'elle-même, et chaque voie interpole à sa propre position.
 linéaire en entrée : PCem lit à droite des indices jusqu'à −8 158 et interpole avec la fraction gauche ; attendu : des
 indices dans [0, 4000h) et la sortie droite égale à la rampe interpolée au retard droit.
 *G13* : (b) — l'effet lui-même est inconnu ; seule sa cohérence se vérifie.
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite — la
-contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
+*Reproduit en mode PCem* : `Sound/sound_emu8k.cs`, marqueur PB-162 : les deux tampons en un seul, gauche puis droite —
+la contiguïté du C est mesurée (décalages 48 et 65 584) — et la fraction du gauche. AWEBANC pose le chorus extrême ;
 `emu8k-kernel-check` le passe sur des états fabriqués.
-*Non corrigé en mode matériel* : en attente de Q13 (le reste de G13.8f ; PLAN-G13.md § G13.8).
+*Corrigé en mode matériel* (G13.8f2 ; Q13 tranchée le 16/10) : sous `if (materiel.pb_162)`, en tête
+d'`emu8k_work_chorus`, le travail d'un tampon (`chorus_materiel`, `Sound/sound_emu8k.Materiel.cs`) : chaque voie lit
+dans sa ligne, l'indice replié modulo 4000h autant de fois qu'il faut, et interpole à sa propre fraction ; les positions
+se calculent dans l'ordre de PCem. L'effet lui-même reste celui de PCem (PB-160 (c)). `materiel-cas PB-162`, le
+moteur joué seul : le chorus extrême, la droite à 2 105 856 chez PCem (la rampe gauche), 18 883 073 ; la droite un
+demi-échantillon plus loin que la gauche (HWCF4 80h), la fraction seule ; témoin, un retard entier.
 
 ### PB-163 — Les conversions de la réverbération débordent l'int32
 
@@ -7243,11 +7252,17 @@ comportement indéfini ; GCC sur x86-64 émet `cvttss2si`, qui rend INT_MIN, mê
 à virgule fixe sature, il ne s'enroule pas (déduit).
 *Cas qui discrimine* : `emu8k_reverb_comb_work` sur un état fabriqué, `filterstore` = 2^30, `damp1` = 2,0, `damp2` = 0,
 l'écho et l'entrée nuls : `filterstore` devient INT_MIN chez PCem (2^31 hors bornes), 2^31 − 1 en conversion saturante.
+`materiel-cas PB-163` le joue par `emu8k_work_reverb` (le premier peigne), avec l'amortisseur et un diffuseur.
 *G13* : (b) — l'effet est inconnu ; seule la saturation se vérifie.
-*Reproduit* : `Sound/sound_emu8k.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par l'aide de
-conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. Aucun invité n'y arrive en temps de porte : `emu8k-kernel-check`
-compare les sept noyaux sur des états fabriqués, des milliers de sorties à INT_MIN comprises.
-*Non corrigé en mode matériel* : en attente de Q13 (le reste de G13.8f ; PLAN-G13.md § G13.8).
+*Reproduit en mode PCem* : `Sound/sound_emu8k.cs`, marqueurs PB-163 (le peigne, le diffuseur, l'amortisseur), par
+l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. Aucun invité n'y arrive en temps de porte :
+`emu8k-kernel-check` compare les sept noyaux sur des états fabriqués, des milliers de sorties à INT_MIN comprises.
+*Corrigé en mode matériel* (G13.8f2 ; Q13 tranchée le 16/10) : sous `if (materiel.pb_163)`, en tête
+d'`emu8k_work_reverb`, le travail d'un tampon (`reverb_materiel`, `Sound/sound_emu8k.Materiel.cs`) : la réverbération
+de PCem, les mêmes calculs dans le même ordre, ses conversions saturantes et `-in` calculé en float, sans débordement.
+Les sommes entières restent celles de PCem. `materiel-cas PB-163`, le moteur joué seul : l'amortisseur et le premier
+peigne à 2^31, INT_MIN chez PCem, 2^31 − 1 ; le diffuseur qui reçoit INT_MIN, INT_MIN chez PCem, 2^31 − 1 ; témoin, dans
+les bornes.
 
 ### PB-164 — L'attaque de l'enveloppe de modulation lit au-delà de sa table
 

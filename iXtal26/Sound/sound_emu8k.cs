@@ -61,7 +61,7 @@ internal sealed class emu8k_envelope_t
 
 // pcem: sound_emu8k.h:95-107. DEVIATION: les deux tampons en un seul, gauche puis droite (chorus_buffer) : le C les a
 //   contigus (mesuré, décalages 48 et 65 584), et le chorus droit, aux réglages extrêmes, lit sous son tampon, dans
-//   le gauche (PB-162, reproduit ; PLAN-G12.md, décision n° 15).
+//   le gauche (PB-162, reproduit en mode PCem ; PLAN-G12.md, décision n° 15).
 internal sealed class emu8k_chorus_eng_t
 {
     internal int32_t write;
@@ -1382,10 +1382,13 @@ internal static partial class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1405-1411
-    // PB-158, la part (b), la même dans les deux modes (Q13) — un octet impair rend `>> 1` (les bits 1 à 8), et non
-    //   l'octet haut (D15-D8 sur un bus AT, déduit).
+    // pcem bug, fixed in hardware mode: PB-158 — un octet impair rend `>> 1` (les bits 1 à 8), et non l'octet haut
+    //   (D15-D8 sur un bus AT, déduit).
     internal static uint8_t emu8k_inb(uint16_t addr, object p)
     {
+        if (materiel.pb_158)
+                if ((addr & 1) != 0)
+                        return octet_impair_materiel(addr, p);
         /* Reading a single byte is a feature that at least Impulse tracker uses,
          * but only on detection code and not for odd addresses.*/
         if ((addr & 1) != 0)
@@ -1408,12 +1411,15 @@ internal static partial class sound_emu8k
 
     /* TODO: This is not a correct emulation, just a workalike implementation. */
     // pcem: sound_emu8k.c:1422-1481. Le tampon droit est chorus_buffer[EMU8K_LFOCHORUS_SIZE + i] (voir le type).
-    // pcem bug, reproduced: PB-162 — le canal droit interpole avec la fraction du canal gauche, et, aux réglages
-    //   extrêmes, lit sous son tampon, dans le gauche.
+    // pcem bug, fixed in hardware mode: PB-162 — le canal droit interpole avec la fraction du canal gauche, et, aux
+    //   réglages extrêmes, lit sous son tampon, dans le gauche.
     // PB-160, la part inconnue (c), la même dans les deux modes — un chorus « workalike » (le TODO ci-dessus) : le
     //   microcode de l'AWE n'est pas publié.
     internal static void emu8k_work_chorus(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff, emu8k_chorus_eng_t engine, int count)
     {
+        if (materiel.pb_162)
+                if (chorus_materiel(inbuf, inoff, outbuf, outoff, engine, count))
+                        return;
         int pos;
         int32_t[] b = engine.chorus_buffer;
         const int R = EMU8K_LFOCHORUS_SIZE;
@@ -1476,8 +1482,8 @@ internal static partial class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1483-1499. Les produits int × float en float ; la conversion du C.
-    // pcem bug, reproduced: PB-163 — la conversion float → int32_t du C (cvttss2si, par CvtI32) : hors bornes,
-    //   INT_MIN, même pour un dépassement positif ; .NET saturerait.
+    // pcem bug, fixed in hardware mode: PB-163 — la conversion float → int32_t du C (cvttss2si, par CvtI32) : hors
+    //   bornes, INT_MIN, même pour un dépassement positif ; .NET saturerait.
     internal static int32_t emu8k_reverb_comb_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
 
@@ -1498,7 +1504,7 @@ internal static partial class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1501-1514. `-in` déborde pour INT_MIN, comme en C.
-    // pcem bug, reproduced: PB-163 — les deux conversions du C (CvtI32), et `-in` qui déborde pour INT_MIN.
+    // pcem bug, fixed in hardware mode: PB-163 — les deux conversions du C (CvtI32), et `-in` qui déborde pour INT_MIN.
     internal static int32_t emu8k_reverb_diffuser_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
 
@@ -1534,7 +1540,7 @@ internal static partial class sound_emu8k
     }
 
     // pcem: sound_emu8k.c:1531-1535
-    // pcem bug, reproduced: PB-163 — la conversion du C (CvtI32) : INT_MIN hors bornes.
+    // pcem bug, fixed in hardware mode: PB-163 — la conversion du C (CvtI32) : INT_MIN hors bornes.
     internal static int32_t emu8k_reverb_damper_work(emu8k_reverb_combfilter_t comb, int32_t @in)
     {
         /* apply lowpass */
@@ -1548,6 +1554,9 @@ internal static partial class sound_emu8k
     //   le microcode de l'AWE n'est pas publié.
     internal static void emu8k_work_reverb(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff, emu8k_reverb_eng_t engine, int count)
     {
+        if (materiel.pb_163)
+                if (reverb_materiel(inbuf, inoff, outbuf, outoff, engine, count))
+                        return;
         int pos;
         if (engine.link_return_type != 0) {
                 for (pos = 0; pos < count; pos++) {

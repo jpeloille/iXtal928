@@ -309,7 +309,8 @@ internal static class materiel
     /// <summary>PB-285 : une IRQ du DSP levée sur la ligne déjà haute ne repose pas la demande au PIC (le front).</summary>
     internal static readonly bool pb_285;
 
-    /// <summary>PB-158 : WC et les registres courants de l'EMU8000 avancent à la lecture.</summary>
+    /// <summary>PB-158 : WC et les registres courants de l'EMU8000 avancent à la lecture ; un octet impair lu rend
+    /// l'octet haut du mot.</summary>
     internal static readonly bool pb_158;
 
     /// <summary>PB-159 : les adresses de la DRAM de l'EMU8000 relues en A22h, le bit 31 et le masque de 24 bits.</summary>
@@ -317,6 +318,12 @@ internal static class materiel
 
     /// <summary>PB-160 : HWCF3 de l'EMU8000 sans la rustine qui le force à 0004h au premier allumage d'une voix.</summary>
     internal static readonly bool pb_160;
+
+    /// <summary>PB-162 : le chorus droit de l'EMU8000 lit dans son tampon, à sa propre position.</summary>
+    internal static readonly bool pb_162;
+
+    /// <summary>PB-163 : la réverbération de l'EMU8000 sature au lieu de s'enrouler.</summary>
+    internal static readonly bool pb_163;
 
     /// <summary>PB-80 : la lecture en chain4 compact charge les verrous, par la fenêtre linéaire comme par la banque.</summary>
     internal static readonly bool pb_80;
@@ -685,6 +692,8 @@ internal static class materiel
         pb_158 = ModeMateriel.Demande(158);
         pb_159 = ModeMateriel.Demande(159);
         pb_160 = ModeMateriel.Demande(160);
+        pb_162 = ModeMateriel.Demande(162);
+        pb_163 = ModeMateriel.Demande(163);
         pb_80 = ModeMateriel.Demande(80);
         pb_220 = ModeMateriel.Demande(220);
         pb_221 = ModeMateriel.Demande(221);

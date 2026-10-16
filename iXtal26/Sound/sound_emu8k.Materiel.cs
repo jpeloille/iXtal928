@@ -8,7 +8,10 @@
 // (`if (materiel.pb_nn)`), seules sur leur ligne. La source, le cas qui discrimine et la panne qui le rougit sont dans
 // l'entrée PB de PCEM_BUGS.md. La référence : le guide de l'EMU8000 (Dave Rossum, AWE32/EMU8000 Programmer's Guide,
 // E-mu/Creative, 1994-1996), p. 11-14 (les adresses de la DRAM, WC, HWCF3) et p. 20 (l'initialisation). Les méthodes
-// portent NoInlining (M2, G13.7c2).
+// portent NoInlining (M2, G13.7c2). Le chorus et la réverbération (PB-162, PB-163) sont ceux de PCem, des « workalike »
+// dont le microcode réel n'est pas publié : seule leur cohérence se corrige, une ligne à retard lue dans elle-même, à
+// sa propre position, et un calcul qui sature ; leurs gardes se tiennent en tête du travail d'un tampon, jamais par
+// échantillon.
 //
 // L'état que PCem n'a pas vit dans une classe à part (EtatEmu) : un champ de plus dans emu8k_t changerait sa
 // disposition, et le code que le JIT tire des méthodes qui le lisent.
@@ -63,6 +66,136 @@ internal static partial class sound_emu8k
         emu8k_outw(addr, val, p);
         EtatEmu.rejoue = false;
         emu8k.hwcf3 = hwcf3;
+        return true;
+    }
+
+    /// <summary>PB-158, la part (b) : un octet lu à l'adresse impaire d'une carte de 16 bits rend D15-D8, l'octet haut
+    /// (le bus AT, déduit). L'accès reste un mot entier, effets de bord compris, comme chez PCem (la part (c), inconnue
+    /// : le guide interdit l'accès par octet).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t octet_impair_materiel(uint16_t addr, object p)
+    {
+        ModeMateriel.Sonde[158]++;
+        return (uint8_t)(emu8k_inw((uint16_t)(addr & ~1), p) >> 8);
+    }
+
+    /// <summary>PB-162 : le chorus de PCem, chaque voie lue dans sa ligne à retard (l'indice replié modulo sa taille,
+    /// autant de fois qu'il faut) et interpolée à sa propre position. Les positions se calculent dans l'ordre de PCem,
+    /// au bit près ; les deux voies écrivent comme chez PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool chorus_materiel(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff,
+                                        emu8k_chorus_eng_t engine, int count)
+    {
+        ModeMateriel.Sonde[162]++;
+        int32_t[] b = engine.chorus_buffer;
+        const int R = EMU8K_LFOCHORUS_SIZE;
+        static int repli(int i)
+        {
+            i %= EMU8K_LFOCHORUS_SIZE;
+            return i < 0 ? i + EMU8K_LFOCHORUS_SIZE : i;
+        }
+        // Une voie : la valeur de sa ligne (à partir de base) au retard `retard`, interpolée à sa fraction.
+        int32_t lit(int @base, double readdouble)
+        {
+            int read = Cpu._386.CvtI32(Math.Floor(readdouble));
+            int fraction = Cpu._386.CvtI32((readdouble - (double)read) * 65536.0);
+            int32_t dat1 = b[@base + repli(read)];
+            int32_t dat2 = b[@base + repli(read + 1)];
+            return dat1 + (((dat2 - dat1) * fraction) >> 16);
+        }
+        for (int pos = 0; pos < count; pos++) {
+                double offset_lfo = chortable[engine.lfo_pos.int_address] * engine.lfodepth_multip;
+                double gauche = (double)engine.write - (double)engine.delay_samples_central - offset_lfo;
+                int32_t dat1 = lit(0, gauche);
+                b[engine.write] = inbuf[inoff] + ((dat1 * engine.feedback) >> 8);
+                double droite = (double)engine.write - (double)engine.delay_samples_central -
+                                engine.delay_offset_samples_right - offset_lfo;
+                int32_t dat3 = lit(R, droite);
+                b[R + engine.write] = inbuf[inoff] + ((dat3 * engine.feedback) >> 8);
+                ++engine.write;
+                engine.write %= EMU8K_LFOCHORUS_SIZE;
+                engine.lfo_pos.addr += engine.lfo_inc.addr;
+                engine.lfo_pos.int_address &= 0xFFFF;
+                outbuf[outoff++] += dat1;
+                outbuf[outoff++] += dat3;
+                inoff++;
+        }
+        return true;
+    }
+
+    /// <summary>PB-163 : la conversion saturante, celle d'un processeur de signal à virgule fixe (déduit). NaN, que des
+    /// entrées finies ne donnent pas, rend INT_MIN comme chez PCem : seuls les dépassements changent.</summary>
+    private static int32_t sature(double d) =>
+        double.IsNaN(d) ? int32_t.MinValue :
+        d >= 2147483647.0 ? int32_t.MaxValue : d <= -2147483648.0 ? int32_t.MinValue : (int32_t)d;
+
+    /// <summary>PB-163 : la réverbération de PCem, ses conversions saturantes, et `-in` calculé sans débordement. Le
+    /// reste, les mêmes calculs dans le même ordre.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool reverb_materiel(int32_t[] inbuf, int inoff, int32_t[] outbuf, int outoff,
+                                        emu8k_reverb_eng_t engine, int count)
+    {
+        ModeMateriel.Sonde[163]++;
+        static int32_t peigne(emu8k_reverb_combfilter_t comb, int32_t @in)
+        {
+            int32_t output = comb.reflection[comb.read_pos];
+            comb.filterstore = sature((double)((output * comb.damp2) + (comb.filterstore * comb.damp1)));
+            comb.reflection[comb.read_pos] = sature((double)(@in - (comb.filterstore * comb.feedback)));
+            if (++comb.read_pos >= comb.bufsize)
+                    comb.read_pos = 0;
+            return sature((double)(output * comb.output_gain));
+        }
+        static int32_t diffuseur(emu8k_reverb_combfilter_t comb, int32_t @in)
+        {
+            int32_t bufout = comb.reflection[comb.read_pos];
+            int32_t bufin = sature((double)(-(float)@in + (bufout * comb.feedback)));
+            int32_t output = sature((double)(bufout - (bufin * comb.feedback)));
+            comb.reflection[comb.read_pos] = bufin;
+            if (++comb.read_pos >= comb.bufsize)
+                    comb.read_pos = 0;
+            return output;
+        }
+        static int32_t queue(emu8k_reverb_combfilter_t comb, emu8k_reverb_combfilter_t[] allpasses, int a0, int32_t @in)
+        {
+            int32_t output = comb.reflection[comb.read_pos];
+            comb.reflection[comb.read_pos] = @in;
+            output = diffuseur(allpasses[a0 + 1], output);
+            output = diffuseur(allpasses[a0 + 2], output);
+            if (++comb.read_pos >= comb.bufsize)
+                    comb.read_pos = 0;
+            return output;
+        }
+        static int32_t amortisseur(emu8k_reverb_combfilter_t comb, int32_t @in)
+        {
+            comb.filterstore = sature((double)((@in * comb.damp2) + (comb.filterstore * comb.damp1)));
+            return comb.filterstore;
+        }
+        bool lie = engine.link_return_type != 0;
+        for (int pos = 0; pos < count; pos++) {
+                int32_t dat1, dat2, @in, in2;
+                @in = amortisseur(engine.damper, inbuf[inoff + pos]);
+                in2 = (@in * engine.refl_in_amp) >> 8;
+                if (lie) {
+                        dat2 = peigne(engine.reflections[0], in2);
+                        dat2 += peigne(engine.reflections[1], in2);
+                        dat1 = peigne(engine.reflections[2], in2);
+                        dat2 += peigne(engine.reflections[3], in2);
+                        dat1 += peigne(engine.reflections[4], in2);
+                        dat2 += peigne(engine.reflections[5], in2);
+                } else {
+                        dat1 = peigne(engine.reflections[0], in2);
+                        dat1 += peigne(engine.reflections[1], in2);
+                        dat1 += peigne(engine.reflections[2], in2);
+                        dat1 += peigne(engine.reflections[3], in2);
+                        dat1 += peigne(engine.reflections[4], in2);
+                        dat1 += peigne(engine.reflections[5], in2);
+                        dat2 = dat1;
+                }
+                dat1 += (queue(engine.tailL, engine.allpass, 0, @in + dat1) * engine.link_return_amp) >> 8;
+                dat2 += (queue(engine.tailR, engine.allpass, 4, @in + dat2) * engine.link_return_amp) >> 8;
+                outbuf[outoff++] += (dat1 * engine.out_mix) >> 8;
+                outbuf[outoff++] += (dat2 * engine.out_mix) >> 8;
+        }
         return true;
     }
 }

@@ -5,10 +5,12 @@
 //
 // Les cas de l'EMU8000 de l'AWE32 (G13.8f, PLAN-G13.md) : PB-158 (WC avance à la lecture), PB-159 (le bit 31 et le
 // masque de 24 bits des adresses de la DRAM, relues en A22h) et PB-160 (HWCF3 sans la rustine), sur le banc du son
-// (MaterielCasSon.cs). L'EMU8000 se conduit par ses ports de mots : le pointeur en E22h (le registre dans les bits 5 à 7,
-// le canal dans les bits 0 à 4), Data1 en A20h, Data2 en A22h. Le temps de sortie se joue à la main : sound_pos_global
-// avance d'un tic par échantillon à 48 kHz, et rien d'autre ne le bouge, le processeur arrêté. Les drapeaux de la DRAM
-// de PCem (dmareadbit, dmawritebit) sont statiques et traversent les machines : chaque cas les remet à zéro.
+// (MaterielCasSon.cs) ; G13.8f2 : l'octet impair de PB-158, et PB-162 (le chorus) et PB-163 (la réverbération), leurs
+// moteurs joués en C# seul sur des états fabriqués, comme emu8k-kernel-check. L'EMU8000 se conduit par ses ports de
+// mots : le pointeur en E22h (le registre dans les bits 5 à 7, le canal dans les bits 0 à 4), Data1 en A20h, Data2 en
+// A22h. Le temps de sortie se joue à la main : sound_pos_global avance d'un tic par échantillon à 48 kHz, et rien
+// d'autre ne le bouge, le processeur arrêté. Les drapeaux de la DRAM de PCem (dmareadbit, dmawritebit) sont statiques
+// et traversent les machines : chaque cas les remet à zéro.
 
 using iXtal26.Sound;
 
@@ -84,6 +86,91 @@ internal static partial class MaterielCas
                      "pos0=0 CVCF=0000", "pos0=0 CVCF=B000", hw);
         bad += UnAwe("AWE32 : WC lu, 240 tics, le pointeur réécrit, WC relu (témoin)", () => Wc(true),
                      "", "pos0=0 ΔWC=220", hw, temoin: true);
+        // La part (b) : un octet lu à l'adresse impaire rend l'octet haut du mot (le bus AT, déduit) ; PCem, les bits 1
+        // à 8. SMALR écrit en A20h seul (sans drapeau), puis lu par octets en A21h et en A20h (témoin, l'octet bas).
+        string Octets()
+        {
+            Pointeur(1, 20);
+            io.outw(0xa20, 0x1234);
+            return $"A21h={io.inb(0xa21):X2} A20h={io.inb(0xa20):X2}";
+        }
+        bad += UnAwe("AWE32 : SMALR écrit en A20h (1234h), puis A21h et A20h lus par octets", Octets,
+                     "A21h=1A A20h=34", "A21h=12 A20h=34", hw);
+        return bad;
+    }
+
+    // PB-162 — le chorus de PCem (un « workalike ») : une ligne à retard ne lit pas hors d'elle-même, et chaque voie
+    // interpole à sa propre position (déduit). Le moteur joué seul, un échantillon : la gauche tient une rampe i × 256,
+    // la droite 1000000h + i × 256 ; la contre-réaction nulle. Aux réglages extrêmes (le délai 1FFFh, la profondeur
+    // FFh, le LFO à son sommet, HWCF4 1FFFFFh), la droite lit à −24 541,996 : PCem replie une fois (−8 158) et lit dans
+    // la gauche, avec la fraction de la gauche (0) ; replié modulo 4000h, 8 226, à sa fraction (256/65 536). Puis la
+    // droite à un retard d'un demi-échantillon de plus que la gauche : la fraction seule. Témoin : un retard entier.
+    private static int Pb162(bool hw)
+    {
+        sound_emu8k.tables_init(); // la table du LFO (chortable), que remplit l'initialisation de la carte
+        string Chorus(int central, int profondeur, ushort lfo, int hwcf4)
+        {
+            var e = new emu8k_chorus_eng_t
+            {
+                write = 0, feedback = 0, delay_samples_central = central,
+                lfodepth_multip = (profondeur * central) >> 8,
+                delay_offset_samples_right = ((double)hwcf4) / 256.0,
+            };
+            e.lfo_pos.int_address = lfo;
+            const int N = sound_emu8k.EMU8K_LFOCHORUS_SIZE;
+            for (var i = 0; i < N; i++)
+            {
+                e.chorus_buffer[i] = i * 256;
+                e.chorus_buffer[N + i] = 0x1000000 + i * 256;
+            }
+            var sortie = new int[2];
+            sound_emu8k.emu8k_work_chorus([0], 0, sortie, 0, e, 1);
+            return $"G={sortie[0]} D={sortie[1]}";
+        }
+        var bad = Voir("chorus extrême : délai 1FFFh, profondeur FFh, LFO au sommet, HWCF4 1FFFFFh",
+                       Chorus(0x1fff, 0xff, 0x4000, 0x1fffff) is var v1 &&
+                       v1 == (hw ? "G=8704 D=18883073" : "G=8704 D=2105856"), v1,
+                       hw ? "G=8704 D=18883073" : "G=8704 D=2105856", hw);
+        bad += Voir("chorus : délai 100, sans LFO, la droite un demi-échantillon plus loin (HWCF4 80h)",
+                    Chorus(100, 0, 0, 0x80) is var v2 && v2 == (hw ? "G=4168704 D=20945792" : "G=4168704 D=20945664"),
+                    v2, hw ? "G=4168704 D=20945792" : "G=4168704 D=20945664", hw);
+        bad += Voir("chorus : délai 100, sans LFO, la droite cinq échantillons plus loin (témoin)",
+                    Chorus(100, 0, 0, 0x500) is var v3 && v3 == "G=4168704 D=20944640", v3, "G=4168704 D=20944640",
+                    hw);
+        return bad;
+    }
+
+    // PB-163 — la réverbération de PCem (un « workalike ») convertit ses calculs en float vers l'int32 comme le C
+    // (cvttss2si : INT_MIN hors bornes, même en positif) ; un processeur de signal à virgule fixe sature (déduit). Le
+    // moteur joué seul, un échantillon d'entrée nul, sur un état fabriqué : l'amortisseur et le premier peigne
+    // (filterstore 2^30, damp1 2,0, damp2 0) rendent 2^31 — INT_MIN chez PCem, 2^31 − 1 saturé (le peigne lit un écho
+    // nul et reçoit une entrée nulle, refl_in_amp 0) ; le premier diffuseur de la queue gauche reçoit INT_MIN
+    // (la queue le tenait) : `-in` déborde chez PCem, et il range INT_MIN ; saturé, 2^31 − 1. Témoin : l'amortisseur
+    // et le peigne dans leurs bornes (filterstore 1000, damp1 0,5), la queue tenant 1234 : 500, 500 et −1234 dans les
+    // deux modes.
+    private static int Pb163(bool hw)
+    {
+        string Reverb(int filtre, float damp1, int queue)
+        {
+            var e = new emu8k_reverb_eng_t { out_mix = 0, link_return_amp = 0, link_return_type = 0, refl_in_amp = 0 };
+            foreach (var c in e.reflections.Concat(e.allpass).Append(e.tailL).Append(e.tailR).Append(e.damper))
+                c.bufsize = 4;
+            e.damper.filterstore = e.reflections[0].filterstore = filtre;
+            e.damper.damp1 = e.reflections[0].damp1 = damp1;
+            e.tailL.reflection[0] = queue;
+            var sortie = new int[2];
+            sound_emu8k.emu8k_work_reverb([0], 0, sortie, 0, e, 1);
+            return $"amortisseur={e.damper.filterstore} peigne={e.reflections[0].filterstore} " +
+                   $"diffuseur={e.allpass[1].reflection[0]}";
+        }
+        const string pcem = "amortisseur=-2147483648 peigne=-2147483648 diffuseur=-2147483648";
+        const string mat = "amortisseur=2147483647 peigne=2147483647 diffuseur=2147483647";
+        var bad = Voir("réverbération : l'amortisseur et le premier peigne à 2^31, la queue gauche tenant INT_MIN",
+                       Reverb(1 << 30, 2.0f, int.MinValue) is var v1 && v1 == (hw ? mat : pcem), v1, hw ? mat : pcem,
+                       hw);
+        const string temoin = "amortisseur=500 peigne=500 diffuseur=-1234";
+        bad += Voir("réverbération : l'amortisseur et le peigne dans leurs bornes (1000 × 0,5), la queue à 1234 (témoin)",
+                    Reverb(1000, 0.5f, 1234) is var v2 && v2 == temoin, v2, temoin, hw);
         return bad;
     }
 

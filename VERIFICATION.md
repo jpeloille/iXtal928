@@ -12123,3 +12123,70 @@ et `emu8k_init` : seuls des jetons de chaînes (`mov edi`), décalés de 398 cha
 `execx86`, `rep` et les deux formes de `opMOV_CRx_r` sont à l'octet ceux de 10c : les gardes de PB-178, 286 et 287
 sont pliées ; `lock_prefixe_materiel`, `lock_rep_materiel` et les deux contrôles de CR0 ne sont jamais compilés en
 mode PCem.
+
+## G13.8f2 — la fin de l'EMU8000
+
+Le 16 octobre 2026. Q13, tranchée par Julien le 16/10 : corriger les parts (b) dont la correction est certaine et se
+vérifie par cohérence. Pour l'EMU8000 : l'octet impair de PB-158, PB-162 et PB-163. Le chorus et la réverbération de
+PCem sont des imitations (« workalike ») ; le microcode de la puce n'est pas publié : seule leur cohérence se corrige,
+l'effet restant celui de PCem (PB-160 (c)).
+
+**PB-158, la part (b)** (`Sound/sound_emu8k.cs`, `sound_emu8k.Materiel.cs`). Sous `if (materiel.pb_158)`, en tête
+d'`emu8k_inb`, un octet lu à l'adresse impaire (`octet_impair_materiel`) rend l'octet haut du mot, D15-D8 (déduit : le
+bus AT) ; l'accès reste un mot entier, effets de bord compris (la part (c), inconnue). `materiel-cas PB-158`, un cas de
+plus : SMALR écrit en A20h (1234h), A21h lu par octet : 1Ah chez PCem (les bits 1 à 8), 12h ; A20h, l'octet bas, 34h
+dans les deux modes.
+
+**PB-162** (même site, `chorus_materiel`). Sous `if (materiel.pb_162)`, en tête d'`emu8k_work_chorus`, le travail d'un
+tampon (jamais par échantillon) : chaque voie lit dans sa ligne, l'indice replié modulo 4000h autant de fois qu'il faut,
+et interpole à sa propre fraction ; les positions se calculent dans l'ordre de PCem. `materiel-cas PB-162`, le moteur
+joué seul sur un état fabriqué (la gauche, une rampe i × 256 ; la droite, 1000000h + i × 256 ; la contre-réaction nulle
+; la table du LFO remplie par `tables_init`) : le chorus extrême (le délai 1FFFh, la profondeur FFh, le LFO à son
+sommet, HWCF4 1FFFFFh), la droite à −24 541,996 : PCem replie une fois (−8 158) et lit la rampe gauche, D = 2 105 856 ;
+replié modulo, 8 226, à sa fraction, D = 18 883 073 ; la gauche, 8 704 dans les deux modes. La droite un
+demi-échantillon plus loin que la gauche (HWCF4 80h) : la fraction seule, 20 945 664 contre 20 945 792. Témoin, un
+retard entier : 20 944 640 dans les deux modes.
+
+**PB-163** (même site, `reverb_materiel`). Sous `if (materiel.pb_163)`, en tête d'`emu8k_work_reverb` : la réverbération
+de PCem, les mêmes calculs dans le même ordre, ses conversions float → int32 saturantes (celles d'un processeur de
+signal à virgule fixe, déduit) et `-in` calculé en float ; les sommes entières restent celles de PCem. `materiel-cas
+PB-163`, le moteur joué seul : l'amortisseur et le premier peigne à 2^31 (filterstore 2^30, damp1 2,0), INT_MIN chez
+PCem, 2^31 − 1 ; le premier diffuseur de la queue gauche, qui reçoit INT_MIN, range INT_MIN chez PCem (`-in` déborde),
+2^31 − 1. Témoin : l'amortisseur et le peigne dans leurs bornes (500), la queue tenant 1234 (−1234), dans les deux
+modes. NaN, que des entrées finies ne donnent pas, rend INT_MIN comme chez PCem.
+
+**Le registre et la couverture.** PB-162 et PB-163 passent de *Non corrigé* à *Corrigé en mode matériel* (G13.8f2) ;
+PB-158 prend sa part (b). 78 entrées non corrigées (80 avant). Recensement : 287 défauts, 1 248 marqueurs.
+`couverture-materiel` sous « tout » : 188 corrections, chacune son cas, toutes vertes (186 en 10d). Deux portes de cas
+neuves et leurs pendants du mode (`materiel-cas-pb162`, `-pb163`, et `-materiel`). `r9-emu8k` (la réverbération au-delà
+de ses tampons) survit sous PB-158, 162 et 163 comme en mode PCem (cinq essais, chaque garde atteinte).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8f2.py`, une faute à la fois, restaurée) : la garde de l'octet impair coupée
+(`false &&`), `materiel-cas PB-158` sous PB-158 rougit (1 échec) ; celle du chorus, 3 (deux cas et la sonde à zéro) ;
+celle de la réverbération, 2 ; le diffuseur qui calcule `-in` en entier, 1 ; le chorus sans sa fraction, 2 ; les trois
+marqueurs de PB-163 retirés, le recensement rougit (2 écarts). La correction coupée par le masque (`--attendu
+materiel` en mode PCem), chacun des trois cas rougit (4, 2 et 1 échecs).
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle refait les attendus à la main et confirme le chorus et la
+réverbération du mode identiques à ceux de PCem hors des deux points corrigés — l'ordre des calculs flottants, les
+deux branches de `link_return_type`, les indices des diffuseurs ; le repli modulo de la voie gauche égal au repli
+simple de PCem partout où celui-ci reste dans le tampon). Reprises : le premier peigne ajouté au cas de PB-163, que
+l'entrée du registre décrivait ; NaN rendu INT_MIN, comme chez PCem ; une phrase de `pourquoi-on-corrige.md` (les
+programmes lisent des octets à l'adresse paire, selon PCem).
+
+**Les séries** (le worktree de 8f2, la DLL Release figée, `S-g8f2`). En mode PCem, g8f2 (18 h 03 à 19 h 18) : 712
+vertes sur 712 ; contre g10d, seules changent les quatre portes neuves, `materiel-cas-pb178-pb177` (venue de la
+contre-lecture de 10d), la couverture (188) et le recensement (1 248 marqueurs). Sous « tout », g8f2-tout (19 h 18 à
+19 h 38) : 474 vertes, 228 refusées, 10 `pcem`, aucune rouge ; contre g10d-tout, les mêmes lignes. Les reprises de la
+contre-lecture sont venues après la DLL des séries : le Release reconstruit (`iXtal26.dll` change : NaN dans
+`sature`), onze portes rejouées (`PORTES` : les cas de PB-158, 162 et 163 et leurs pendants du mode,
+`emu8k-kernel-check`, `emu8k-tables-check`, `r9-emu8k`, le recensement, la couverture), en mode PCem puis sous
+`MATERIEL=tout` : toutes vertes (les deux contrôles de l'oracle refusés sous « tout », comme dans la série), leurs
+lignes celles des séries.
+
+**M2-8f2** (le Release reconstruit du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-10d,
+1 492 méthodes de part et d'autre, 6 changées, aucune apparue ni disparue. Les constructeurs statiques de `materiel`
+(deux champs) et de `ModeMateriel` (deux entrées, et le texte de PB-158) ; `process_scsi` de l'AHA,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init` : seuls des jetons de chaînes (`mov edi`), décalés de 314.
+`emu8k_inb`, `emu8k_work_chorus` et `emu8k_work_reverb`, compilés par le scénario de l'AWE32, sont à l'octet ceux de
+10d : les gardes de PB-158, 162 et 163 sont pliées ; les méthodes du mode ne sont jamais compilées en mode PCem.

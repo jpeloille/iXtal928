@@ -538,6 +538,10 @@ contre-lecture, M2, sa série entière et son commit :
     secteur CHS moins 1) ; attendus déduits, l'interface est privée. PB-283 reclassé (c) à l'étude, et sorti de
     l'étape : sa forme SCSI est inatteignable (ni CD ni ZIP sur le bus de l'AHA, décision n° 2 de PLAN-G11.md), sa
     forme ATAPI inconnue (SFF-8020i réserve l'octet 1 du paquet) ; reproduit dans les deux modes.
+  - **G13.7e4 — La mise sous tension de l'AHA-1542C et son DMA** *(décidée par Julien le 16/10 : « on part pour
+    7e4 »)*. PB-260 (la carte, maître du bus, passe outre son canal de DMA et le 8237 : la vraie carte passe par son
+    canal, en cascade) et PB-142 (la machine des commandes, la mise sous tension). Une étude d'abord (ce que disent le
+    TR d'Adaptec et le 8237 ; ce que PCem fait), puis sa série. Après G13.11.
 
 **Les questions de D3-stockage, tranchées par Julien le 12/10 sur ces propositions** :
 - **Q5 (G13.7c)** — les commandes que la norme du lecteur de 1996 n'a pas (GET EVENT STATUS NOTIFICATION, MODE
@@ -588,7 +592,10 @@ contre-lecture, M2, sa série entière et son commit :
   - **G13.8f — L'EMU8000** ✅ *(14/10, VERIFICATION.md § G13.8f)*, sans question : PB-158 (a) (WC et les registres
     courants avancent à la lecture), PB-159 (a) (le bit 31 et le masque de 24 bits des adresses de la DRAM, en A22h),
     PB-160 (a) (HWCF3 sans la rustine : l'AWE32 non initialisée se tait). Faite avant 8e, que bloquent Q13 et Q15.
-    Restent PB-162 et PB-163 (Q13), avec l'octet impair de PB-158.
+    Restent PB-162 et PB-163 (Q13), avec l'octet impair de PB-158 : **G13.8f2** ✅ *(16/10, VERIFICATION.md
+    § G13.8f2)*, ouverte le 16/10 (Q13 tranchée) —
+    l'octet impair de PB-158 (l'octet haut), PB-162 (le chorus droit dans sa ligne, à sa fraction), PB-163 (la
+    réverbération sature), leurs gardes en tête du travail d'un tampon ; les moteurs joués seuls dans leurs cas.
   - **G13.8g — La clôture du son.** PB-21 ; SBBANC, SB16BANC et AWEBANC en C# seul dans les deux modes ; PERFBANC ;
     les témoins (Q16). Fondue dans 8f si elle reste légère.
   Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244
@@ -600,16 +607,56 @@ contre-lecture, M2, sa série entière et son commit :
   filtres), PB-162 (le chorus droit dans son tampon), PB-163 (la réverbération saturée), 0Ah↔3Ah de PB-153 (à l'échelle
   du guide), l'octet impair de PB-158 (le bus AT) — et laisser reproduits, en le disant, PB-243 (une source secondaire
   seulement), PB-244 (une durée maximale seulement) et les parts (b) de PB-160 (des modèles de PCem ; les corriger
-  serait en inventer un autre) ? *Proposé.*
+  serait en inventer un autre) ? *Proposé.* **Tranchée le 16/10 : oui** — l'EMU8000 (PB-162, PB-163, l'octet impair
+  de PB-158) en G13.8f2 ; PB-148 et 0Ah↔3Ah avec l'enregistrement (8e) ; PB-21 avec la clôture (8g).
 - **Q14 (8d)** — l'IRQ 5 d'usine de la SB 16 et de l'AWE32 (décision n° 13) contre les profils réglés à l'IRQ 7
   (`SET BLASTER … I7`) et le témoin Windows 3.11 de G12.3 : l'usine sans clé neuve, dite dans le profil et la bannière
   du mode (comme Q8) ; un réglage propre viendrait en G16 s'il manque. Autre choix : une clé `sb16_irq` du mode. *Proposé :
-  l'usine.*
+  l'usine.* **Tranchée le 16/10** (la réponse de Julien, donnée pour « Q15 », porte sur celle-ci) : l'utilisateur
+  choisit les IRQ, les DMA et les autres cavaliers des cartes de l'époque, dans la configuration de sa machine, avant
+  de la lancer (précisé le 16/10). 8d3 devient les cavaliers : d'abord leur relevé, carte par carte (ce que la carte
+  réelle permettait, ce qu'iXtal expose), proposé à Julien.
 - **Q15 (8c)** — PB-155 : le registre de fréquence de 8 bits du 4.05 (documenté par le micrologiciel), avec les Hz de
   MAME (secondaire, dit dans l'entrée), et la conversion saturante ; ou la saturation seule, la fréquence de PCem
-  gardée (part reclassée (c)). *Proposé : le registre et la saturation.*
+  gardée (part reclassée (c)). *Proposé : le registre et la saturation.* **Tranchée le 16/10 : le comportement réel de
+  la SB 16** — le registre et la quantification du 4.05 (son micrologiciel, vérifié au binaire) ; les Hz de MAME faute
+  de mesure, dits secondaires ; la saturation (le FIR est le rééchantillonneur de PCem, la carte ne claque pas). 8c2,
+  avec PB-156.
 - **Q16 (8g)** — les témoins : le logiciel de la disquette SB Pro 2 (VPLAY, VEDIT2 pour l'ADPCM, VREC) installé sur une
   copie de disque dans /var/tmp, hors du dépôt, sans porte de série, comme les amorçages de 7e. *Proposé : oui.*
+  **Tranchée le 16/10 : oui.**
+
+**Les questions des cavaliers (8d3, Q14), posées à Julien le 16/10** — le relevé, carte par carte, dans
+`/var/tmp/ixtal-g13/releve-cavaliers-8d3.md` (hors du dépôt) ; en mode PCem, ni table ni lecture ne change :
+- **Q22** — quelle SB 16 : une carte à cavaliers (CT1740 : 220h à 280h, IRQ 2, 5, 7, 10, DMA 0, 1, 3, DMA haut 5, 6, 7,
+  MPU 330h ou 300h) ? *Proposé : les cavaliers posent l'état à l'allumage, 80h et 81h écrits restent ceux de PCem.*
+  **Tranchée le 16/10 : oui**, pour la SB 16 (DSP 4.05, celui des premières cartes à cavaliers) et l'AWE32 (DSP 4.13,
+  monté sans PnP par PCem).
+- **Q23** — l'IRQ 5 d'usine par défaut, les deux profils du dépôt (`ixtal26-486-sb16.cfg`, `-awe32.cfg`) posant
+  `irq = 7`, que leurs témoins attendent ? *Proposé : oui.* **Tranchée le 16/10 : oui.**
+- **Q24** — les listes de DMA que seules des sources secondaires corrigent (le DMA 0 de la Pro, le DMA 3 des 1.x et
+  2.0) ? *Proposé : laissées à PCem tant qu'une source primaire manque.* **Tranchée le 16/10 : oui**, et chercher les
+  manuels d'installation de Creative, qui trancheraient sur pièce. **Trouvés le 16/10**
+  (`/var/tmp/ixtal-g13/manuels-creative/RAPPORT.md`, hors du dépôt ; archive.org) : la 1.5 (URM 1989-1990, p. 63-64)
+  et la 2.0 (User's Guide, 4e éd., 1994, p. 1-6, fig. B-7) n'ont que le DMA 1, « not selectable » — le DMA 3 de PCem
+  est faux ; leurs IRQ 2, 3, 5, 7 ; l'usine IRQ 7 (1.5) et IRQ 5 (2.0, la CT1350B, DSP 2.01). La Pro (URM SBP-0002,
+  Getting Started CSBPP-002, p. 7-8) : DMA 0, 1 ou 3 (le 0 manque chez PCem), IRQ 2, 5, 7, 10, l'usine 220h, IRQ 7,
+  DMA 1. La SB 16 du User's Guide 1992-1994 règle l'IRQ et les DMA par logiciel (DIAGNOSE, 80h et 81h), ses seuls
+  cavaliers l'adresse et le MPU ; l'usine 220h, IRQ 5, DMA 1, DMA 16 bits 5, MPU 330h (p. B-2). Pour 8d3b : deux PB
+  neufs à inscrire (le DMA 3 des 1.x et 2.0 ; le DMA 0 de la Pro), et l'IRQ 5 d'usine de la 2.0.
+- **Q25** — le périmètre : le son (SB 16 et AWE32, l'EMU8000 en BLASTER + 400h ; puis la Pro, les 1.x et 2.0) et
+  l'AHA (8d3a à c) ; l'EGA (SW1-SW4, P3) et le Xebec plus tard ; COM et LPT avec la carte mère ? *Proposé : oui.*
+  **Tranchée le 16/10 : oui** — 8d3a (SB 16, AWE32), 8d3b (Pro, 1.x, 2.0, selon les manuels de Q24), 8d3c (AHA,
+  SW5) ; puis, une étape après le son : l'EGA (SW1-SW4, P3), la police de la CGA (P3), le type de disque du Xebec, les
+  adresses de l'IDE AT et de l'XTIDE ; COM et LPT avec la carte mère (PB-256).
+- **Q26** — une clé du mode matériel posée en mode PCem : ignorée, avec un avertissement ? Les cavaliers à l'écran de
+  construction maintenant, ou en G16 ? *Proposé : l'avertissement ; l'écran en G16.* **Tranchée le 16/10, autrement**
+  (voir la décision n° 17) : les cavaliers valent dans les deux modes ; seul le défaut change (celui de PCem en mode
+  PCem, l'usine en mode matériel), et sans clé, le mode PCem reste celui de PCem. L'écran, en G16.
+- **Q27** — l'AHA-1542C à 334h chez PCem, 330h d'usine : un PB neuf, corrigé (avec la SB 16 ou l'AWE32, le MPU en
+  330h entre alors en conflit, comme sur la carte : un avertissement le dit) ? *Proposé : oui.* **Tranchée le 16/10 :
+  oui** — 330h par défaut en mode matériel, 334h en mode PCem ; l'avertissement de `pc.cs` suit le port réel du MPU ;
+  `ixtal26-486-scsi.cfg` pose déjà 334h.
 
 ### G13.9 — La vidéo
 
@@ -727,7 +774,8 @@ contre-lecture, M2, sa série entière et son commit :
   suit la règle du cœur pour tous ses préfixes (rien ne s'intercale), le silicium restant inconnu.
 - **Q20 (10a)** — `os/os.sha256` (04/10) : `386-HDD-C.img` (modifiée le 10/10) et `486-HDD-C.img` (le 11/10) ne
   concordent plus, hors des portes, qui travaillent sur des copies. Des sessions de l'émulateur ? Récrire les deux
-  empreintes ? *Proposé : les récrire si ces écritures sont les vôtres.*
+  empreintes ? *Proposé : les récrire si ces écritures sont les vôtres.* **Tranchée le 16/10 : oui** — récrites
+  (4e8bde8), l'état actuel devient la référence.
 - **Q21 (10c)** — PB-286, trouvé par la série sous « tout » : `MOV CR0` accepte PG = 1 avec PE = 0, où le silicium
   lève #GP(0) (386 PRM § 9.8.13, point 13 ; 486 PRM, l'exception 13 ; documenté). Dans cet état, que `r9-mmu` pose sans
   passer par l'instruction, sous PB-51 et sur le cœur 486, une #GP de la limite de CS livrée en mode réel par une table
@@ -738,6 +786,26 @@ contre-lecture, M2, sa série entière et son commit :
   (`pcem_seul`), puisqu'elle pose CR0 sans l'instruction. LOADALL386 sur le 386 charge CR0 tel quel, PG compris : le
   silicium, inconnu, reste reproduit.* **Tranchée le 16/10 : oui** — G13.10d, avec PB-287 (NW sans CD sur le 486, le
   même site, trouvé en lisant l'i486 PRM), et la série de 10d rejoue 10c dans les deux modes.
+
+### G13.11 — Le mode matériel par défaut  *(décidé le 16/10 ; après 8f2)*
+
+- La décision n° 17. Les profils du dépôt et le lanceur posent `hardware_mode = tout` par défaut : une machine lancée
+  sans rien de plus tourne en mode matériel. Le mode PCem se demande explicitement ; c'est celui des portes, de
+  l'oracle et des listings M2, qui le posent eux-mêmes.
+- Avant d'agir, un relevé : chaque chemin qui lance une machine (le lanceur, `--boot`, les bancs, `listings-jit.sh`,
+  les portes de `boot-diff` et de `banc`, les témoins), le mode qu'il obtient aujourd'hui et celui qu'il doit avoir ;
+  une valeur explicite du mode PCem pour la clé et l'option ; la bannière du mode.
+- **Vérification** : la série en mode PCem inchangée (les portes posent le mode PCem) ; les listings M2 contre ceux de
+  l'étape d'avant ; une machine lancée sans clé annonce le mode matériel, une machine `hardware_mode = pcem` le mode
+  PCem ; les témoins de G13.10a dans les deux modes.
+- **Le relevé** (16/10, `/var/tmp/ixtal-g13/releve-g13-11.md`) : la clé se lit par `config_get_int` (`pc.cs:570`),
+  `hardware_mode = tout` ou `= pcem` y passe pour absente, sans un mot — seuls 0 et 1 servent ; à lire en chaîne, avec
+  `pcem` (synonyme d'`aucun`) et les listes de l'option. **La conception retenue** : le défaut « tout » posé par le
+  lanceur, en tête de `TryConfigureMachine` (la fenêtre, `--headless`, l'écran de construction) ; la priorité, l'option,
+  puis la clé, puis le défaut ; `--boot`, `--timer-check`, `--menu-check` et `--setup-check`, les verbes des portes,
+  des listings et de la recette g5w, restent en mode PCem sans option, et la série ne change pas d'un octet ; l'outil
+  Diff, figé avant son aiguillage, n'est pas touché. L'annonce dit toujours le mode ; l'écran de construction écrit
+  `tout` par défaut ; une valeur inconnue de la clé, refusée avec un message (le défaut gardé).
 
 ## Les décisions (proposées ; à trancher)
 
@@ -777,6 +845,11 @@ contre-lecture, M2, sa série entière et son commit :
     comportements inconnus restent reproduits.*
 15. **`TRANSCRIPTION.md`** : un relèvement inscrit de R3, de 240 à 260 lignes, pour R10 et ses amendements. *Validé le 07/10.*
 16. **Les rapports de reconnaissance** : commités avec ce plan, dans `iXtal26/Docs/G13-reconnaissance/`. *Validé le 07/10.*
+17. **Sortir de PCem, petit à petit** (Julien, le 16/10 : « la série G13 est là pour nous sortir des défauts de PCem
+    et nous rapprocher du matériel réel de l'époque »). Le mode matériel devient celui de l'utilisateur : les profils
+    et le lanceur le posent par défaut (G13.11) ; le mode PCem reste celui des portes, de l'oracle et des listings,
+    tant qu'ils servent. Ce que PCem n'a pas (les cavaliers de la SB 16 et de l'AWE32) vaut dans les deux modes, seul
+    le défaut suivant le mode, sans clé le mode PCem restant celui de PCem. *Validé le 16/10.*
 
 ## Les risques
 
