@@ -83,7 +83,7 @@ internal sealed class sb_dsp_t
 
     // pcem: sound_sb_dsp.h:63 — G12.1 : sb_enable_i, lu par sb_get_buffer_sb16 et sb_get_buffer_emu8k
     //   (sound_sb.c:180, :272), n'est écrit nulle part : il vaut toujours 0 (l'initialiseur tait CS0649).
-    // pcem bug, reproduced: PB-148 — rien ne remplit record_buffer : l'entrée rend du silence.
+    // pcem bug, fixed in hardware mode: PB-148 — rien ne remplit record_buffer : l'entrée rend du silence.
     // omitted: sbenable — ni lecteur ni écrivain.
     internal int sb_enable_i = 0;
 
@@ -409,6 +409,9 @@ internal static partial class sound_sb_dsp
     // pcem: sound_sb_dsp.c:232-290
     internal static void sb_start_dma_i(sb_dsp_t dsp, int dma8, int autoinit, uint8_t format, int len)
     {
+        // pcem bug, fixed in hardware mode: PB-148 — la tête de lecture garde son écart, quelconque, à l'écriture.
+        if (materiel.pb_148)
+                entree_depart_materiel(dsp);
         if (dma8 != 0) {
                 // omitted: SB_TEST_RECORDING_SAW (:234-245) — #ifdef éteint.
                 dsp.sb_8_length = len;
@@ -559,6 +562,11 @@ internal static partial class sound_sb_dsp
                 dsp.sb_8_length--;
                 break;
         case 0x20: /*8-bit direct input*/
+                // pcem bug, fixed in hardware mode: PB-148 — l'échantillon de la tête de PCem, et le tic d'entrée lancé
+                //   à 45 454 Hz, sb_freq et sblatchi écrasés (un 24h suivant, sans 40h, tourne à 45 454 Hz).
+                if (materiel.pb_148)
+                        if (entree_directe_materiel(dsp))
+                                break;
                 sb_add_data(dsp, (uint8_t)((dsp.record_buffer[dsp.record_pos_read] >> 8) ^ 0x80));
                 /*Due to the current implementation, I need to emulate a samplerate, even if this
                  * mode does not imply such samplerate. Position is increased in sb_poll_i*/
@@ -813,8 +821,9 @@ internal static partial class sound_sb_dsp
                 break;
         case 0xA0: /*Set input mode to mono*/
         case 0xA8: /*Set input mode to stereo*/
-                // pcem bug, reproduced: PB-148 — A0h et A8h ne font rien, et la garde admet la 2.0 (DSP 2.01) quand le
-                //   guide les réserve au 3.xx.
+                // PB-148, une part qui viendra avec le CD et la SB Pro (G13.8e2), la même dans les deux modes d'ici
+                //   là — A0h et A8h ne font rien, et la garde admet la 2.0 (DSP 2.01) quand le guide les réserve au
+                //   3.xx.
                 if (dsp.sb_type < SB2 || dsp.sb_type > SBPRO2)
                         break;
                 // TODO: Implement. 3.xx-only command.
@@ -1599,6 +1608,15 @@ internal static partial class sound_sb_dsp
     internal static void sb_poll_i(object? p)
     {
         sb_dsp_t dsp = (sb_dsp_t)p;
+        // pcem bug, fixed in hardware mode: PB-148 — la trame lue dans un tampon que rien ne remplit, à une tête que
+        //   rien ne cale sur l'écriture.
+        if (materiel.pb_148)
+                if (entree_materiel(p))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
+        if (materiel.pb_151)
+                if (entree_materiel(p))
+                        return;
         int processed = 0;
 
         timer_advance_u64(dsp.input_timer, dsp.sblatchi);
@@ -1624,7 +1642,7 @@ internal static partial class sound_sb_dsp
                 //   SB 16 (G12.1) : sur la SBPRO2, sb_8_format ne vaut en entrée que 0 (0x24, 0x2C, 0x98, 0x99).
                 case 0x20: /*Stereo unsigned*/
                         sb_8_write_dma(dsp, (uint8_t)((dsp.record_buffer[dsp.record_pos_read] >> 8) ^ 0x80));
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_8_write_dma(dsp, (uint8_t)((record_lu(dsp, dsp.record_pos_read + 1) >> 8) ^ 0x80));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1632,7 +1650,7 @@ internal static partial class sound_sb_dsp
                         break;
                 case 0x30: /*Stereo signed*/
                         sb_8_write_dma(dsp, (uint8_t)(dsp.record_buffer[dsp.record_pos_read] >> 8));
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_8_write_dma(dsp, (uint8_t)(record_lu(dsp, dsp.record_pos_read + 1) >> 8));
                         dsp.sb_8_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1684,7 +1702,7 @@ internal static partial class sound_sb_dsp
                 case 0x20: /*Unsigned stereo*/
                         if (sb_16_write_dma(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
                                 return;
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_16_write_dma(dsp, (uint16_t)(record_lu(dsp, dsp.record_pos_read + 1) ^ 0x8000));
                         dsp.sb_16_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1693,7 +1711,7 @@ internal static partial class sound_sb_dsp
                 case 0x30: /*Signed stereo*/
                         if (sb_16_write_dma(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
                                 return;
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF lit buffer[0] (record_lu).
                         sb_16_write_dma(dsp, (uint16_t)record_lu(dsp, dsp.record_pos_read + 1));
                         dsp.sb_16_length -= 2;
                         dsp.record_pos_read += 2;
@@ -1726,8 +1744,8 @@ internal static partial class sound_sb_dsp
         }
     }
 
-    // pcem bug, reproduced: PB-151 — record_buffer[0xFFFF] lit un élément au-delà du tableau de 0xFFFF : dans la
-    //   disposition du C, buffer[0], un échantillon de SORTIE (sound_sb_dsp.h:82-83, int16_t sans bourrage ;
+    // pcem bug, fixed in hardware mode: PB-151 — record_buffer[0xFFFF] lit un élément au-delà du tableau de 0xFFFF :
+    //   dans la disposition du C, buffer[0], un échantillon de SORTIE (sound_sb_dsp.h:82-83, int16_t sans bourrage ;
     //   l'assertion statique de harness.c le fige). Seuls les formats stéréo d'entrée l'atteignent.
     private static int16_t record_lu(sb_dsp_t dsp, int i) => i < 0xFFFF ? dsp.record_buffer[i] : dsp.buffer[i - 0xFFFF];
 

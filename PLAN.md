@@ -160,8 +160,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   G13.11 ✅ (une machine part du mode matériel ; la clé lue comme l'option) ; 7e4 ✅ (l'AHA-1542C : la mise sous
   tension, PB-142, et le maître de bus par son canal du 8237, PB-260 ; Q28 posée) ; 8c2 ✅ (la fréquence du DSP 4.xx :
   le registre de 8 bits du micrologiciel, PB-155 ; le FIR saturant ; PB-288, neuf) ; 8c3 ✅ (le registre différé :
-  40h, 41h et 42h pendant un transfert ne vont au codec qu'au départ suivant, PB-288). Suivent 8e, 8d3a à c (les
-  cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte mère.
+  40h, 41h et 42h pendant un transfert ne vont au codec qu'au départ suivant, PB-288) ; 8e1 ✅ (la SB 16 et l'AWE32
+  enregistrent la MIDI : PB-148, PB-151, la sélection additive et 0Ah↔3Ah de PB-153). Suivent 8e2 (le CD, la SB Pro),
+  8d3a à c (les cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

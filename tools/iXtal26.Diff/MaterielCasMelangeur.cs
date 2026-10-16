@@ -213,6 +213,19 @@ internal static partial class MaterielCas
             MelEcrit(0x224, 0x81, 0x0a);
             return MelLit(0x224, 0x81);
         }, "", "81h=28", temoin: true);
+        // 0Ah, le micro de la Pro, recopié en 3Ah (G13.8e1) : à l'échelle du guide, ((0Ah & 7) × 3 + 10) << 3 ; relu
+        // ((3Ah >> 3) − 10) / 3, borné à 0..7. PCem : 0Ah × 3 + 10, relu (3Ah − 10) / 3 (FDh au démarrage).
+        bad += Un("SB 16 : 0Ah et 3Ah au démarrage", _ => MelLit(0x224, 0x0a, 0x3a), "0Ah=FD 3Ah=00", "0Ah=00 3Ah=00");
+        foreach (var (r, v, pcem, mat) in new[]
+                 {
+                     (0x0a, 0x07, "0Ah=07 3Ah=1F", "0Ah=07 3Ah=F8"), (0x0a, 0xff, "0Ah=FF 3Ah=07", "0Ah=07 3Ah=F8"),
+                     (0x3a, 0xa8, "0Ah=34 3Ah=A8", "0Ah=03 3Ah=A8"),
+                 })
+            bad += Un($"SB 16 : {r:X2}h={v:X2}h, puis 0Ah et 3Ah relus", _ =>
+            {
+                MelEcrit(0x224, r, v);
+                return MelLit(0x224, 0x0a, 0x3a);
+            }, pcem, mat);
         return bad;
     }
 }

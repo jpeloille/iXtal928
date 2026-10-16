@@ -12456,3 +12456,74 @@ de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et d
 `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de BBh. `sb_exec_command`
 et `sb_dsp_reset`, compilés par les scénarios du son (la SB 16, l'ADPCM, l'AWE32, le DMA), ne changent pas : leurs
 gardes sont pliées.
+
+## G13.8e1 — la SB 16 et l'AWE32 enregistrent la MIDI
+
+Le 17 octobre 2026. Q13, tranchée le 16/10 (les chemins documentés de l'enregistrement, sans modèle des filtres).
+L'étude, en lecture seule (`/var/tmp/ixtal-g13/etude-8e.md`), sur le code de PCem et le guide de Creative (fig. 4-5,
+p. 4-14 ; p. 4-15 à 4-17 ; p. 6-22), coupe 8e en deux : 8e1, la MIDI de la SB 16 et de l'AWE32 ; 8e2, le CD (un pont
+entre son flux et celui de la carte) et la SB Pro (0Ch, A0h et A8h).
+
+**PB-148** (`Sound/sound_sb.cs`, `sound_sb_dsp.cs`, leurs `.Materiel.cs`). Sous `if (materiel.pb_148)`. En tête de
+`sb_get_buffer_sb16` et de `sb_get_buffer_emu8k`, leurs copies (`tampon_sb16_materiel`, `tampon_emu8k_materiel`,
+celles de PB-155 ; la conversion du FIR de PCem sans lui, `conversion_fir`) remplissent à chaque tampon un anneau à
+part (`AnneauEntree`, dans l'état à part du DSP, 10000h entrées) : la MIDI après son volume, les interrupteurs de 3Dh
+et 3Eh (`selection_materiel`), le gain d'entrée, la saturation du CAN ; la tête d'écriture avance au reste exact. En
+tête de `sb_poll_i`, sa copie (`entree_materiel`) : la trame lue par `lit_trame_materiel` (le calage au premier tic sur
+l'instant moins un tampon, `recul_materiel` ; la trame tenue quand l'écriture est rattrapée ; le recalage au-delà
+d'un tampon de retard) et la tête avancée par `avance_trame_materiel`. En tête de `sb_start_dma_i` : le calage à
+refaire. En tête du `case 0x20` (`entree_directe_materiel`) : l'échantillon de l'instant, sans tic ni fréquence
+écrasée. Le retard d'un tampon est celui de l'émulateur, qui ne rend ses sources que par tampon (déduit).
+
+**PB-151.** Sous `if (materiel.pb_151)`, en tête de `sb_poll_i`, la même copie : sans PB-148, la tête et le tampon de
+PCem, l'indice FFFFh lu 0 ; l'état traduit de PB-153 (`seize_traduit_i_materiel`) lit par les mêmes fonctions. Sous
+PB-148, l'anneau n'a pas d'alias : PB-151 sans objet.
+
+**PB-153.** La sélection additive (dans les copies, sous PB-148 seulement audible) ; 0Ah↔3Ah à l'échelle du guide, en
+tête des deux `case 0x0A` (`micro_ecrit_materiel`, `micro_lu_materiel`).
+
+**Les cas.** `materiel-cas PB-148` (`MaterielCasEntree.cs`) : le temps joué à la main, `sound_poll` tic par tic et les
+tics d'entrée à `sb_freq` ; une note de l'OPL sur les deux voies, la MIDI à 0 dB. 3Dh=40h, 3Eh=20h, C8h 20h : 80h
+partout chez PCem, les deux voies sonores et égales ; 3Dh=00h, la gauche muette ; en mono, la gauche seule (3Dh=00h
+et 3Eh=60h : muette) ; l'AWE32 ; 3Fh=40h, la gauche doublée ; 3Dh=60h contre 40h, doublée sous PB-153, égale sans
+lui ; 20h huit fois, sonore, 22 050 Hz (PCem : 80h, 45 454) ; une seconde de CEh 20h, sous PB-148 : aux tics de la
+cadence du remplissage, aucune trame tenue ; 10 % plus vite, des trames tenues, la lecture ne dépassant jamais
+l'écriture ; témoin, la SB Pro 2 (24h, le micro), muette. `materiel-cas PB-151` : la tête à FFFEh, `buffer[0]` =
+1234h, C8h 20h (92h contre 80h) et B8h 20h (9234h contre 8000h) ; témoin, le mono. `materiel-cas PB-153`, quatre cas
+de plus : 0Ah et 3Ah au démarrage (FDh/00h contre 00h/00h), 0Ah=07h (3Ah 1Fh contre F8h), 0Ah=FFh (FFh/07h contre
+07h/F8h), 3Ah=A8h (0Ah 34h contre 03h). Verts en mode PCem, sous PB-148, PB-151, PB-153, PB-148 et PB-153, et
+« tout ». Cinq portes : `materiel-cas-pb148`, `-pb148-materiel`, `-pb151`, `-pb151-materiel`, `-pb148-pb153`.
+Recensement : 288 défauts, 1 260 marqueurs ; 73 entrées non corrigées. `couverture-materiel` sous « tout » : 194
+corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8e1.py`) : la garde de `sb_poll_i` coupée, `materiel-cas PB-148` rougit (6
+échecs) ; celle du tampon de la SB 16, 6 ; de l'AWE32, 1 ; de 20h, 1 ; la sélection additive retirée (sous PB-148 et
+PB-153), 1 ; le gain d'entrée gauche retiré, 1 ; le mono qui lit la droite, 2 ; la trame non tenue, 1 ; le reste
+perdu (la troncature de PCem), 1 ; la garde de PB-151 coupée, `materiel-cas PB-151` rougit (3) ; l'alias rendu sous
+PB-151, 2 ; 3Ah sans le décalage, `materiel-cas PB-153` rougit (2) ; 0Ah relu sans borne, 1 ; les quatre marqueurs de
+PB-148 du DSP dits reproduits, le recensement rougit (1 écart). La correction coupée par le masque (`--attendu
+materiel` en mode PCem) : PB-148, 9 échecs ; PB-151, 2 ; PB-153, 13.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle compare `entree_materiel` à `sb_poll_i` et les copies des
+tampons à celles de PCem, refait les indices et les débordements de l'anneau, les combinaisons de PB-148, PB-151,
+PB-153 et PB-155, et à la main les attendus de 0Ah et 3Ah et de PB-151). Reprises : « 0,5 trame par tampon » valait
+pour 22 050 Hz, non 11 025 ; au-delà de 48 000 Hz (41h et 42h de PCem jusqu'à 65 535), les trames finies que le
+dernier échantillon d'un tampon n'atteint pas, écrites ; le premier échantillon d'une trame gagne, dit ; 20h sur les
+cartes d'avant la SB 16, dit ; le libellé de PB-153 dans la table des corrections ; une ligne de 121 caractères.
+Laissés : l'anneau non vidé au reset du DSP (le départ suivant recale la tête) ; les marqueurs de `record_ecrit`, sur
+un bloc mort des deux côtés (le registre le dit) ; la seconde garde de `sb_poll_i` (PB-151), inatteignable sous
+PB-148, qui la précède et la rend sans objet.
+
+**Les séries** (le worktree de 8e1, la DLL Release figée, `S-g8e1`). En mode PCem, g8e1 (6 h 53 à 8 h 09) : 729
+vertes ; contre g8c3, seules changent les cinq portes neuves de PB-148 et PB-151, la couverture (194) et le
+recensement (288 défauts, 1 260 marqueurs). Sous « tout », g8e1-tout (8 h 09 à 8 h 28) : 490 vertes, 228 refusées, 11
+`pcem`, aucune rouge ; contre g8c3-tout, les mêmes. Les reprises de la contre-lecture (les copies des tampons, le
+libellé de PB-153, les textes) sont venues après la DLL des séries : onze portes rejouées (`PORTES` : les cinq de
+PB-148 et PB-151, celles de PB-153 et PB-155, le recensement, la couverture), le Release reconstruit, en mode PCem puis
+sous `MATERIEL=tout` : toutes vertes.
+
+**M2-8e1** (le Release du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-8c3, 1 492 méthodes
+de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et de `ModeMateriel` ; `process_scsi`,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de 116h. `sb_poll_i`,
+`sb_get_buffer_sb16`, `sb_get_buffer_emu8k`, `sb_start_dma_i`, `sb_exec_command` et `sb_ct1745_mixer_write`,
+compilés par les scénarios du son, ne changent pas : leurs gardes sont pliées.

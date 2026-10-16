@@ -162,22 +162,25 @@ internal static partial class sound_sb
 
     // CS8600 et CS8602 : `(sb_t)p`, comme dans sound_sb.cs (son pragma, l. 25).
 #pragma warning disable CS8600, CS8602
-    /// <summary>PB-155 : sb_get_buffer_sb16 de PCem, à la lettre, sauf la conversion du FIR, qui sature au lieu de
-    /// rendre INT_MIN (le FIR est le rééchantillonneur de PCem : la carte ne claque pas). Un tampon entier : la garde
-    /// est en tête de la fonction, jamais par échantillon. Les commentaires sont ceux de la fonction de PCem ; les
-    /// lignes longues, recoupées.</summary>
+    /// <summary>PB-155 et PB-148 : sb_get_buffer_sb16 de PCem, à la lettre, sauf la conversion du FIR, qui sature
+    /// sous PB-155 au lieu de rendre INT_MIN (le FIR est le rééchantillonneur de PCem : la carte ne claque pas), et
+    /// l'enregistrement : la sélection d'entrée (selection_materiel) et, sous PB-148, l'anneau du CAN rempli
+    /// (trame_materiel) à la place du bloc mort de sb_enable_i. Un tampon entier : les gardes sont en tête de la
+    /// fonction, jamais par échantillon. Les commentaires sont ceux de la fonction de PCem ; les lignes longues,
+    /// recoupées.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool tampon_sb16_materiel(int32_t[] buffer, int len, object? p)
     {
-        ModeMateriel.Sonde[155]++;
         sb_t sb = (sb_t)p;
         sb_ct1745_mixer_t mixer = sb.mixer_sb16;
+        var s = selection_materiel(mixer);
+        var an = enregistre_materiel(sb.dsp, out int freq, out long r0);
+        int kprec = -1, dern_l = 0, dern_r = 0;
 
         int c;
 
         opl3_update2(sb.opl);
         sb_dsp_update(sb.dsp);
-        int dsp_rec_pos = sb.dsp.record_pos_write;
         for (c = 0; c < len * 2; c += 2) {
                 int32_t out_l, out_r, in_l, in_r;
 
@@ -185,15 +188,13 @@ internal static partial class sound_sb
                 out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion */
-                in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
-                       : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
-                                                                              : 0;
-                in_r = (mixer.input_selector_right & INPUT_MIDI_L) != 0       ? out_l
-                       : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
-                                                                               : 0;
+                in_l = s.gg * out_l + s.gd * out_r;
+                in_r = s.dg * out_l + s.dd * out_r;
 
-                out_l += (sature((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
-                out_r += (sature((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
+                out_l += (conversion_fir((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) *
+                                                    mixer.voice_l)) / 3) >> 15;
+                out_r += (conversion_fir((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) *
+                                                    mixer.voice_r)) / 3) >> 15;
 
                 out_l = (out_l * mixer.master_l) >> 15;
                 out_r = (out_r * mixer.master_r) >> 15;
@@ -228,26 +229,24 @@ internal static partial class sound_sb
                                                   high_cut_iir(1, (float)out_r) *
                                                           (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
                 }
-                if (sb.dsp.sb_enable_i != 0) {
-                        int c_record = dsp_rec_pos;
-                        c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
-                        in_l <<= mixer.input_gain_L;
-                        in_r <<= mixer.input_gain_R;
-                        if (in_l < -32768)
-                                in_l = -32768;
-                        else if (in_l > 32767)
-                                in_l = 32767;
-
-                        if (in_r < -32768)
-                                in_r = -32768;
-                        else if (in_r > 32767)
-                                in_r = 32767;
-                        record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
-                        record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
+                if (an != null) {
+                        long k = (r0 + (long)(c / 2) * freq) / 48000;
+                        dern_l = in_l << mixer.input_gain_L;
+                        dern_r = in_r << mixer.input_gain_R;
+                        while (kprec < k)
+                                trame_materiel(an, ++kprec, dern_l, dern_r);
                 }
 
                 buffer[c] += (out_l << mixer.output_gain_L);
                 buffer[c + 1] += (out_r << mixer.output_gain_R);
+        }
+        if (an != null) {
+                // Au-delà de 48 000 Hz (41h et 42h jusqu'à 65 535 Hz chez PCem, plus que la carte), les trames finies
+                //   que le dernier échantillon n'a pas atteintes.
+                long finies = (r0 + (long)len * freq) / 48000;
+                while (kprec + 1 < finies)
+                        trame_materiel(an, ++kprec, dern_l, dern_r);
+                sound_sb_dsp.fin_tampon_materiel(an, len, freq);
         }
         sb.dsp.record_pos_write += ((len * sb.dsp.sb_freq) / 48000) * 2;
         sb.dsp.record_pos_write &= 0xFFFF;
@@ -258,22 +257,24 @@ internal static partial class sound_sb
         return true;
     }
 
-    /// <summary>PB-155 : sb_get_buffer_emu8k de PCem, à la lettre, sauf la conversion du FIR, qui sature, comme
-    /// tampon_sb16_materiel. Ses commentaires sont ceux de la fonction de PCem.</summary>
+    /// <summary>PB-155 et PB-148 : sb_get_buffer_emu8k de PCem, à la lettre, sauf la conversion du FIR et
+    /// l'enregistrement, comme tampon_sb16_materiel ; l'EMU8000 entre par la MIDI, sous son volume (PCem, comme la
+    /// carte). Ses commentaires sont ceux de la fonction de PCem.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool tampon_emu8k_materiel(int32_t[] buffer, int len, object? p)
     {
-        ModeMateriel.Sonde[155]++;
         sb_t sb = (sb_t)p;
         sb_ct1745_mixer_t mixer = sb.mixer_sb16;
         emu8k_t emu = sb.emu8k!;
+        var s = selection_materiel(mixer);
+        var an = enregistre_materiel(sb.dsp, out int freq, out long r0);
+        int kprec = -1, dern_l = 0, dern_r = 0;
 
         int c;
 
         opl3_update2(sb.opl);
         sound_emu8k.emu8k_update(emu);
         sb_dsp_update(sb.dsp);
-        int dsp_rec_pos = sb.dsp.record_pos_write;
         for (c = 0; c < len * 2; c += 2) {
                 int32_t out_l, out_r, in_l, in_r;
                 int c_emu8k = (((c / 2) * 44100) / 48000) * 2;
@@ -285,15 +286,13 @@ internal static partial class sound_sb
                 out_r += ((emu.buffer[c_emu8k + 1] * mixer.fm_r) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion  */
-                in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
-                       : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
-                                                                              : 0;
-                in_r = (mixer.input_selector_right & INPUT_MIDI_L) != 0       ? out_l
-                       : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
-                                                                               : 0;
+                in_l = s.gg * out_l + s.gd * out_r;
+                in_r = s.dg * out_l + s.dd * out_r;
 
-                out_l += (sature((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
-                out_r += (sature((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
+                out_l += (conversion_fir((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) *
+                                                    mixer.voice_l)) / 3) >> 15;
+                out_r += (conversion_fir((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) *
+                                                    mixer.voice_r)) / 3) >> 15;
 
                 out_l = (out_l * mixer.master_l) >> 15;
                 out_r = (out_r * mixer.master_r) >> 15;
@@ -328,29 +327,26 @@ internal static partial class sound_sb
                                                   high_cut_iir(1, (float)out_r) *
                                                           (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
                 }
-                if (sb.dsp.sb_enable_i != 0) {
-
-                        int c_record = dsp_rec_pos;
-                        c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
-                        in_l <<= mixer.input_gain_L;
-                        in_r <<= mixer.input_gain_R;
-                        if (in_l < -32768)
-                                in_l = -32768;
-                        else if (in_l > 32767)
-                                in_l = 32767;
-
-                        if (in_r < -32768)
-                                in_r = -32768;
-                        else if (in_r > 32767)
-                                in_r = 32767;
-                        record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
-                        record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
+                if (an != null) {
+                        long k = (r0 + (long)(c / 2) * freq) / 48000;
+                        dern_l = in_l << mixer.input_gain_L;
+                        dern_r = in_r << mixer.input_gain_R;
+                        while (kprec < k)
+                                trame_materiel(an, ++kprec, dern_l, dern_r);
                 }
 
                 buffer[c] += (out_l << mixer.output_gain_L);
                 buffer[c + 1] += (out_r << mixer.output_gain_R);
         }
 
+        if (an != null) {
+                // Au-delà de 48 000 Hz (41h et 42h jusqu'à 65 535 Hz chez PCem, plus que la carte), les trames finies
+                //   que le dernier échantillon n'a pas atteintes.
+                long finies = (r0 + (long)len * freq) / 48000;
+                while (kprec + 1 < finies)
+                        trame_materiel(an, ++kprec, dern_l, dern_r);
+                sound_sb_dsp.fin_tampon_materiel(an, len, freq);
+        }
         sb.dsp.record_pos_write += ((len * sb.dsp.sb_freq) / 48000) * 2;
         sb.dsp.record_pos_write &= 0xFFFF;
         sb.pos = 0;
@@ -358,5 +354,74 @@ internal static partial class sound_sb
         sb.dsp.pos = 0;
         emu.pos = 0;
         return true;
+    }
+
+    /// <summary>La conversion du FIR des copies : saturante sous PB-155, celle de PCem (cvttss2si, INT_MIN)
+    /// sinon.</summary>
+    private static int32_t conversion_fir(double d) => materiel.pb_155 ? sature(d) : Cpu._386.CvtI32(d);
+
+    // ===== G13.8e1 — l'enregistrement : la MIDI du CT1745, l'anneau du CAN =====
+
+    /// <summary>Les interrupteurs MIDI des mélangeurs d'entrée (3Dh, 3Eh) : le gauche reçoit gg × MIDI.L + gd × MIDI.R,
+    /// le droit dg × MIDI.L + dd × MIDI.R.</summary>
+    private readonly record struct Selection(int gg, int gd, int dg, int dd);
+
+    /// <summary>La sélection d'entrée d'un tampon. Sous PB-153, le mélangeur d'entrée additionne les interrupteurs
+    /// fermés (guide, fig. 4-5, p. 4-14) ; sinon, la lecture de PCem : MIDI.L s'il est fermé, sinon MIDI.R.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Selection selection_materiel(sb_ct1745_mixer_t mixer)
+    {
+        int Un(int sel, int bit) => (sel & bit) != 0 ? 1 : 0;
+        int gl = mixer.input_selector_left, dr = mixer.input_selector_right;
+        if (materiel.pb_153)
+                return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_R), Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_R));
+        return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_L) == 0 ? Un(gl, INPUT_MIDI_R) : 0,
+                   Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_L) == 0 ? Un(dr, INPUT_MIDI_R) : 0);
+    }
+
+    /// <summary>PB-148 : l'anneau du CAN à remplir par ce tampon (null sans PB-148), la fréquence de l'entrée et le
+    /// reste de la tête d'écriture.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static sound_sb_dsp.AnneauEntree? enregistre_materiel(sb_dsp_t dsp, out int freq, out long r0)
+    {
+        if (materiel.pb_155)
+                ModeMateriel.Sonde[155]++;
+        freq = Math.Max(dsp.sb_freq, 0);
+        r0 = 0;
+        if (!materiel.pb_148)
+                return null;
+        ModeMateriel.Sonde[148]++;
+        var an = sound_sb_dsp.anneau_materiel(dsp);
+        r0 = an.reste;
+        return an;
+    }
+
+    /// <summary>PB-148 : la trame <paramref name="k"/> du tampon (comptée de la tête d'écriture), le gain d'entrée déjà
+    /// appliqué (3Fh, 40h : 0 à 18 dB) ; le CAN sature, comme PCem. Chaque trame prend le premier échantillon de 48 kHz
+    /// à son instant ou après (PCem écrivait à chaque échantillon : le dernier gagnait).</summary>
+    private static void trame_materiel(sound_sb_dsp.AnneauEntree an, long k, int32_t l, int32_t r)
+    {
+        int i = (int)((an.ecrit + 2 * k) & 0xFFFF);
+        an.e[i] = (int16_t)Math.Clamp(l, -32768, 32767);
+        an.e[i + 1] = (int16_t)Math.Clamp(r, -32768, 32767);
+    }
+
+    /// <summary>PB-153 : 0Ah écrit — 3Ah à l'échelle du guide (p. 4-15 et 4-16) : 0Ah, 3 bits, de −42 à 0 dB par 6 dB ;
+    /// 3Ah, 5 bits en D7:D3, de −62 à 0 dB par 2 dB : ((0Ah & 7) × 3 + 10) << 3. Vrai.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool micro_ecrit_materiel(sb_ct1745_mixer_t mixer)
+    {
+        ModeMateriel.Sonde[153]++;
+        mixer.regs[0x3A] = (uint8_t)((((mixer.regs[0x0A] & 7) * 3) + 10) << 3);
+        return true;
+    }
+
+    /// <summary>PB-153 : 0Ah relu — le pas de 6 dB que 3Ah atteint, ((3Ah >> 3) − 10) / 3, borné à 0..7 (déduit pour
+    /// 3Ah sous 50h, plus bas que −42 dB, que 0Ah ne peut dire).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint8_t micro_lu_materiel(sb_ct1745_mixer_t mixer)
+    {
+        ModeMateriel.Sonde[153]++;
+        return (uint8_t)Math.Clamp(((mixer.regs[0x3A] >> 3) - 10) / 3, 0, 7);
     }
 }

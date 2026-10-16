@@ -2175,3 +2175,36 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **La correction.** La valeur attend le prochain départ, la prochaine reprise ou le reset, comme dans le
   micrologiciel de la carte ; quand rien ne joue, elle s'applique sur-le-champ, ce qui revient au même (une déduction :
   seule la sortie directe, octet par octet, entendrait la différence).
+
+## G13.8e1 — la SB 16 qui enregistre
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8e1.*
+
+### PB-148 — un enregistrement toujours muet
+
+- **Le vrai PC.** La SB 16 enregistre ce qui entre dans son mélangeur d'entrée : la musique de la carte elle-même
+  (la MIDI, l'OPL ; sur l'AWE32, l'EMU8000 aussi), le CD, la ligne, le micro, chacun par son volume et ses
+  interrupteurs, puis par le gain d'entrée. Un programme peut ainsi enregistrer la musique qu'il joue.
+- **L'émulateur.** PCem ne remplit jamais son tampon d'enregistrement : toute entrée rend du silence. Les têtes de
+  lecture et d'écriture de ce tampon ne sont calées sur rien, et l'entrée directe (20h) dérègle la fréquence de
+  l'entrée suivante.
+- **La correction.** La SB 16 et l'AWE32 enregistrent la MIDI comme le décrit le guide de Creative ; la lecture suit
+  l'écriture d'un tampon, le retard que l'émulateur ne peut éviter (il ne rend le son que par tampons) ; 20h prend un
+  échantillon sans rien régler. Le CD et la SB Pro viennent en G13.8e2 ; le micro et la ligne restent muets, faute
+  d'entrée côté hôte, ce qui est juste.
+
+### PB-151 — un échantillon de la lecture dans l'enregistrement
+
+- **Le vrai PC.** La carte n'a pas de tampon d'enregistrement : rien de ce qu'elle joue ne se glisse dans ce qu'elle
+  enregistre.
+- **L'émulateur.** Le tampon de PCem a une case de moins que son anneau : une fois tous les 32 768 échantillons
+  stéréo, la lecture déborde sur le premier échantillon de sortie.
+- **La correction.** Un anneau de la bonne taille ; la case qui manquait se lit vide.
+
+### PB-153 — les interrupteurs d'entrée qui s'additionnent, le micro de la Pro
+
+- **Le vrai PC.** Les interrupteurs fermés de 3Dh et 3Eh s'additionnent dans le mélangeur d'entrée ; 0Ah, le volume
+  du micro de la Pro, se recopie dans 3Ah à l'échelle des décibels.
+- **L'émulateur.** PCem ne prend qu'une source par voie, et recopie 0Ah sans son masque ni son décalage : relu
+  au-delà de 51h, il est faux, et FDh au démarrage.
+- **La correction.** La somme, et la recopie à l'échelle du guide (relue bornée : une déduction sous −42 dB).

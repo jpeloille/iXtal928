@@ -61,6 +61,8 @@ internal static partial class sound_sb_dsp
             /// <summary>40h, 41h ou 42h reçue d'un DSP 4.xx pendant un transfert, et ses deux octets : le registre 37h
             /// du micrologiciel, que le codec n'a pas encore reçu (PB-288) ; -1 sans.</summary>
             internal int freq_commande = -1, freq_d0, freq_d1;
+            /// <summary>L'entrée du CAN (PB-148, PB-151) : l'anneau que remplit le tampon du son, ses têtes.</summary>
+            internal readonly AnneauEntree anneau = new();
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -1147,42 +1149,40 @@ internal static partial class sound_sb_dsp
     }
 
     /// <summary>PB-153 : le tic d'entrée 16 bits pendant la traduction — celui de PCem (sb_poll_i), les mots écrits par
-    /// le canal 8 bits ; PB-151 (record_lu) y reste reproduit. Vrai : le tic est joué.</summary>
+    /// le canal 8 bits ; la trame lue par lit_trame_materiel (PB-148, PB-151, chacun selon sa correction). Vrai : le
+    /// tic est joué.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool seize_traduit_i_materiel(sb_dsp_t dsp)
     {
         if (!traduit_materiel(dsp))
                 return false;
+        lit_trame_materiel(dsp, out int16_t g, out int16_t d);
         switch (dsp.sb_16_format) {
         case 0x00: /*Unsigned mono*/
-                if (mot_ecrit_materiel(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                if (mot_ecrit_materiel(dsp, (uint16_t)(g ^ 0x8000)) != 0)
                         return true;
                 dsp.sb_16_length--;
-                dsp.record_pos_read += 2;
-                dsp.record_pos_read &= 0xFFFF;
+                avance_trame_materiel(dsp);
                 break;
         case 0x10: /*Signed mono*/
-                if (mot_ecrit_materiel(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                if (mot_ecrit_materiel(dsp, (uint16_t)g) != 0)
                         return true;
                 dsp.sb_16_length--;
-                dsp.record_pos_read += 2;
-                dsp.record_pos_read &= 0xFFFF;
+                avance_trame_materiel(dsp);
                 break;
         case 0x20: /*Unsigned stereo*/
-                if (mot_ecrit_materiel(dsp, (uint16_t)(dsp.record_buffer[dsp.record_pos_read] ^ 0x8000)) != 0)
+                if (mot_ecrit_materiel(dsp, (uint16_t)(g ^ 0x8000)) != 0)
                         return true;
-                mot_ecrit_materiel(dsp, (uint16_t)(record_lu(dsp, dsp.record_pos_read + 1) ^ 0x8000));
+                mot_ecrit_materiel(dsp, (uint16_t)(d ^ 0x8000));
                 dsp.sb_16_length -= 2;
-                dsp.record_pos_read += 2;
-                dsp.record_pos_read &= 0xFFFF;
+                avance_trame_materiel(dsp);
                 break;
         case 0x30: /*Signed stereo*/
-                if (mot_ecrit_materiel(dsp, (uint16_t)dsp.record_buffer[dsp.record_pos_read]) != 0)
+                if (mot_ecrit_materiel(dsp, (uint16_t)g) != 0)
                         return true;
-                mot_ecrit_materiel(dsp, (uint16_t)record_lu(dsp, dsp.record_pos_read + 1));
+                mot_ecrit_materiel(dsp, (uint16_t)d);
                 dsp.sb_16_length -= 2;
-                dsp.record_pos_read += 2;
-                dsp.record_pos_read &= 0xFFFF;
+                avance_trame_materiel(dsp);
                 break;
         }
 
@@ -1364,6 +1364,219 @@ internal static partial class sound_sb_dsp
             return false;
         if (dsp.sb_8_enable == 0)
             timer_disable(dsp.output_timer);
+        return true;
+    }
+
+    // ===== G13.8e1 — l'enregistrement : l'anneau du CAN, la lecture au temps du son =====
+
+    /// <summary>L'entrée du CAN, en mode matériel (PB-148, PB-151) : un anneau de 10000h entrées (8000h trames, la
+    /// gauche puis la droite), que remplit le tampon du son de la SB 16 et de l'AWE32 (tampon_sb16_materiel,
+    /// tampon_emu8k_materiel) à la fréquence de l'entrée, et que lit le tic d'entrée. Les sources ne se rendent que par
+    /// tampon de 48 kHz : l'échantillon de l'instant du tic n'existe qu'au tampon suivant ; la lecture suit donc
+    /// l'écriture d'un tampon (le retard de l'émulateur, déduit).</summary>
+    internal sealed class AnneauEntree
+    {
+        internal readonly int16_t[] e = new int16_t[0x10000];
+        /// <summary>La tête d'écriture (une entrée paire) : la trame de l'instant du dernier tampon.</summary>
+        internal int ecrit;
+        /// <summary>Le reste de l'avance de la tête d'écriture, en 48 000es de trame : aucune dérive.</summary>
+        internal long reste;
+        /// <summary>La tête de lecture ; -1 : à caler au premier tic.</summary>
+        internal int lit = -1;
+        /// <summary>Le dernier tic a tenu sa trame (la tête rattrapée) : elle n'avance pas.</summary>
+        internal bool tenue;
+    }
+
+    /// <summary>PB-148 : l'anneau d'entrée du DSP (sound_sb.Materiel.cs).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static AnneauEntree anneau_materiel(sb_dsp_t dsp) => etat_materiel(dsp).anneau;
+
+    /// <summary>PB-148 : la fin d'un tampon de <paramref name="len"/> trames de 48 kHz, à <paramref name="freq"/> Hz :
+    /// la tête d'écriture avance des trames finies, le reste gardé.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void fin_tampon_materiel(AnneauEntree an, int len, int freq)
+    {
+        long total = an.reste + (long)len * Math.Max(freq, 0);
+        an.reste = total % 48000;
+        an.ecrit = (int)((an.ecrit + 2 * (total / 48000)) & 0xFFFF);
+    }
+
+    /// <summary>PB-148 : le recul de la lecture, en trames (au moins une) : l'instant du tic moins un tampon, que le
+    /// dernier tampon a écrit (sound_pos_global trames de 48 kHz depuis lui).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int recul_materiel(sb_dsp_t dsp)
+    {
+        long n = ((long)(sound.sound_buf_len_al - sound.sound_pos_global) * Math.Max(dsp.sb_freq, 0) + 47999) / 48000;
+        return (int)Math.Clamp(n, 1, 0x3FFF);
+    }
+
+    /// <summary>La trame que lit le tic d'entrée, la gauche (le mono) et la droite. Sous PB-148, l'anneau : la tête se
+    /// cale au recul (premier tic, ou plus d'un tampon et deux trames de retard : une pause, une fréquence changée) ;
+    /// rattrapée par l'écriture, elle tient la trame d'avant. Sinon, la tête et le tampon de PCem ; l'indice FFFFh lit
+    /// buffer[0] chez PCem (record_lu), 0 sous PB-151 (l'entrée de l'anneau que personne n'écrit).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void lit_trame_materiel(sb_dsp_t dsp, out int16_t g, out int16_t d)
+    {
+        if (materiel.pb_151)
+                ModeMateriel.Sonde[151]++;
+        if (!materiel.pb_148) {
+                g = dsp.record_buffer[dsp.record_pos_read];
+                d = materiel.pb_151 && dsp.record_pos_read + 1 == 0xFFFF ? (int16_t)0
+                                                                          : record_lu(dsp, dsp.record_pos_read + 1);
+                return;
+        }
+        ModeMateriel.Sonde[148]++;
+        var an = anneau_materiel(dsp);
+        long tampon = ((long)sound.sound_buf_len_al * Math.Max(dsp.sb_freq, 0) + 47999) / 48000;
+        int borne = 2 * (int)Math.Min(tampon, 0x3FFF) + 4;
+        int ecart = (an.ecrit - an.lit) & 0xFFFF;
+        if (an.lit < 0 || ecart > borne) {
+                an.lit = (an.ecrit - 2 * recul_materiel(dsp)) & 0xFFFF;
+                ecart = (an.ecrit - an.lit) & 0xFFFF;
+        }
+        an.tenue = ecart == 0;
+        int i = an.tenue ? (an.lit - 2) & 0xFFFF : an.lit;
+        g = an.e[i];
+        d = an.e[i + 1];
+    }
+
+    /// <summary>Le tic a pris sa trame : la tête avance (sous PB-148, sauf la trame tenue).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void avance_trame_materiel(sb_dsp_t dsp)
+    {
+        if (!materiel.pb_148) {
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+                return;
+        }
+        var an = anneau_materiel(dsp);
+        if (!an.tenue)
+                an.lit = (an.lit + 2) & 0xFFFF;
+    }
+
+    /// <summary>PB-148 : en tête de sb_start_dma_i — la tête de lecture se calera au premier tic (la carte
+    /// échantillonne l'entrée de l'instant).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void entree_depart_materiel(sb_dsp_t dsp) => anneau_materiel(dsp).lit = -1;
+
+    /// <summary>PB-148 : en tête du `case 0x20` — l'entrée directe prend l'échantillon de l'instant (au recul), la
+    /// gauche ; ni le tic d'entrée lancé, ni `sb_freq` et `sblatchi` écrasés (PCem les pose à 45 454 Hz).
+    /// Vrai.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool entree_directe_materiel(sb_dsp_t dsp)
+    {
+        ModeMateriel.Sonde[148]++;
+        var an = anneau_materiel(dsp);
+        sb_add_data(dsp, (uint8_t)((an.e[(an.ecrit - 2 * recul_materiel(dsp)) & 0xFFFF] >> 8) ^ 0x80));
+        return true;
+    }
+
+    /// <summary>PB-148 et PB-151 : en tête de sb_poll_i — le tic d'entrée de PCem, à la lettre, la trame lue et la tête
+    /// avancée par lit_trame_materiel et avance_trame_materiel ; le mode direct (aucun transfert) n'avance que la tête
+    /// de PCem, sous PB-151 seul. Le DMA_NODATA du 16 bits rend la main sans avancer, comme PCem (la trame relue au tic
+    /// suivant). Les gardes de PB-153 et PB-285, celles de PCem. Vrai : le tic est joué.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool entree_materiel(object? p)
+    {
+        sb_dsp_t dsp = (sb_dsp_t)p!;
+        int processed = 0;
+
+        timer_advance_u64(dsp.input_timer, dsp.sblatchi);
+
+        if (dsp.sb_8_enable != 0 && dsp.sb_8_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_8_output == 0) {
+                lit_trame_materiel(dsp, out int16_t g, out int16_t d);
+                switch (dsp.sb_8_format) {
+                case 0x00: /*Mono unsigned As the manual says, only the left channel is recorded*/
+                        sb_8_write_dma(dsp, (uint8_t)((g >> 8) ^ 0x80));
+                        dsp.sb_8_length--;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x10: /*Mono signed As the manual says, only the left channel is recorded*/
+                        sb_8_write_dma(dsp, (uint8_t)(g >> 8));
+                        dsp.sb_8_length--;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x20: /*Stereo unsigned*/
+                        sb_8_write_dma(dsp, (uint8_t)((g >> 8) ^ 0x80));
+                        sb_8_write_dma(dsp, (uint8_t)((d >> 8) ^ 0x80));
+                        dsp.sb_8_length -= 2;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x30: /*Stereo signed*/
+                        sb_8_write_dma(dsp, (uint8_t)(g >> 8));
+                        sb_8_write_dma(dsp, (uint8_t)(d >> 8));
+                        dsp.sb_8_length -= 2;
+                        avance_trame_materiel(dsp);
+                        break;
+                }
+
+                if (dsp.sb_8_length < 0) {
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 1, dsp.input_timer))
+                                        return true;
+                        if (dsp.sb_8_autoinit != 0)
+                                dsp.sb_8_length = dsp.sb_8_autolen;
+                        else {
+                                dsp.sb_8_enable = 0;
+                                timer_disable(dsp.input_timer);
+                        }
+                        sb_irq(dsp, 1);
+                }
+                processed = 1;
+        }
+        if (dsp.sb_16_enable != 0 && dsp.sb_16_pause == 0 && dsp.sb_pausetime < 0 && dsp.sb_16_output == 0) {
+                if (materiel.pb_153)
+                        if (seize_traduit_i_materiel(dsp))
+                                return true;
+                lit_trame_materiel(dsp, out int16_t g, out int16_t d);
+                switch (dsp.sb_16_format) {
+                case 0x00: /*Unsigned mono. As the manual says, only the left channel is recorded*/
+                        if (sb_16_write_dma(dsp, (uint16_t)(g ^ 0x8000)) != 0)
+                                return true;
+                        dsp.sb_16_length--;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x10: /*Signed mono. As the manual says, only the left channel is recorded*/
+                        if (sb_16_write_dma(dsp, (uint16_t)g) != 0)
+                                return true;
+                        dsp.sb_16_length--;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x20: /*Unsigned stereo*/
+                        if (sb_16_write_dma(dsp, (uint16_t)(g ^ 0x8000)) != 0)
+                                return true;
+                        sb_16_write_dma(dsp, (uint16_t)(d ^ 0x8000));
+                        dsp.sb_16_length -= 2;
+                        avance_trame_materiel(dsp);
+                        break;
+                case 0x30: /*Signed stereo*/
+                        if (sb_16_write_dma(dsp, (uint16_t)g) != 0)
+                                return true;
+                        sb_16_write_dma(dsp, (uint16_t)d);
+                        dsp.sb_16_length -= 2;
+                        avance_trame_materiel(dsp);
+                        break;
+                }
+
+                if (dsp.sb_16_length < 0) {
+                        if (materiel.pb_285)
+                                if (fin_bloc_materiel(dsp, 0, dsp.input_timer))
+                                        return true;
+                        if (dsp.sb_16_autoinit != 0)
+                                dsp.sb_16_length = dsp.sb_16_autolen;
+                        else {
+                                dsp.sb_16_enable = 0;
+                                timer_disable(dsp.input_timer);
+                        }
+                        sb_irq(dsp, 0);
+                }
+                processed = 1;
+        }
+        // Assume this is direct mode
+        if (processed == 0 && !materiel.pb_148) {
+                dsp.record_pos_read += 2;
+                dsp.record_pos_read &= 0xFFFF;
+        }
         return true;
     }
 }

@@ -603,7 +603,12 @@ contre-lecture, M2, sa série entière et son commit :
     8e : elle ne sert que l'enregistrement, et se lit par échantillon (la garde au niveau du tampon).
   - **G13.8e — L'enregistrement.** PB-148 (Q13), PB-151, PB-156, la sélection additive de PB-153 ; après 8d.
     Attend Q13 : sans PB-148, l'enregistrement reste muet, PB-151 et PB-156 n'ont aucun effet audible, et PB-156 devient
-    inatteignable si PB-155 est borné (Q15) ; l'étude les joint alors à 8c2.
+    inatteignable si PB-155 est borné (Q15) ; l'étude les joint alors à 8c2. Q13 tranchée le 16/10 (PB-156 sans objet
+    depuis 8c2) ; l'étude (`/var/tmp/ixtal-g13/etude-8e.md`) la coupe en deux le 17/10 : **8e1** ✅ *(17/10,
+    VERIFICATION.md § G13.8e1)*, la SB 16 et l'AWE32 enregistrent la MIDI — PB-148 (l'anneau du CAN rempli par les
+    copies des tampons, la lecture un tampon derrière l'écriture, 20h sans régler l'entrée), PB-151 (l'anneau sans
+    alias), de PB-153 la sélection additive et 0Ah↔3Ah ; **8e2**, le CD (un pont entre son flux et celui de la carte)
+    et la SB Pro (0Ch, A0h et A8h du 3.xx).
   - **G13.8f — L'EMU8000** ✅ *(14/10, VERIFICATION.md § G13.8f)*, sans question : PB-158 (a) (WC et les registres
     courants avancent à la lecture), PB-159 (a) (le bit 31 et le masque de 24 bits des adresses de la DRAM, en A22h),
     PB-160 (a) (HWCF3 sans la rustine : l'AWE32 non initialisée se tait). Faite avant 8e, que bloquent Q13 et Q15.

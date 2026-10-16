@@ -3207,10 +3207,35 @@ réponses exactes des filtres et de la commande de gain ne le sont pas.
 8 bits stéréo, 256 octets) : tous à 80h chez PCem ; sur la carte, non tous à 80h, et corrélés à `sb.opl.buffer`. Le
 micro et la ligne : 80h des deux côtés.
 *G13* : (b) — les chemins sont documentés, pas les fonctions de transfert exactes.
-*Reproduit* : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; A0h et A8h), `Sound/sound_sb.cs` (`sb_get_buffer_sbpro` ; les
-blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`), marqueurs PB-148.
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; `sb_start_dma_i`, 20h et `sb_poll_i`),
+`Sound/sound_sb.cs` (les blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`, et leurs gardes), marqueurs
+`fixed in hardware mode: PB-148` ; A0h et A8h et `sb_get_buffer_sbpro` portent un commentaire qui dit leur part
+(G13.8e2).
 *G12.1* : la SB 16 aussi : le bloc de `sb_enable_i` (`sound_sb.c:180-197`) ne s'exécute jamais.
-*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e, l'enregistrement ; PLAN-G13.md § G13.8).
+*Corrigé en mode matériel* (G13.8e1), en partie, Q13 tranchée le 16/10 (les chemins documentés, sans modèle des filtres)
+: sous `if (materiel.pb_148)` — `Sound/sound_sb.Materiel.cs` et `Sound/sound_sb_dsp.Materiel.cs`. La SB 16 et l'AWE32
+enregistrent la MIDI (l'OPL, et l'EMU8000, qui entre par elle) : en tête de `sb_get_buffer_sb16` et de
+`sb_get_buffer_emu8k`, leurs copies (`tampon_sb16_materiel`, `tampon_emu8k_materiel`, celles de PB-155, la conversion du
+FIR de PCem sans lui) remplissent à chaque tampon un anneau à part (`AnneauEntree`, 10000h entrées) : la MIDI après son
+volume (34h, 35h), les interrupteurs de 3Dh et 3Eh (`selection_materiel` ; additifs sous PB-153), le gain d'entrée (3Fh,
+40h), la saturation du CAN ; la tête d'écriture avance au reste exact (PCem tronque : 0,5 trame par tampon de 2 400 à 22
+050 Hz ; chaque trame prend le premier échantillon de 48 kHz à son instant). Les sources ne se rendent que par tampon de
+48 kHz : la lecture suit l'écriture d'un tampon (le retard de l'émulateur, déduit ; la carte n'en a pas). En tête de
+`sb_poll_i` (`entree_materiel`, le tic de PCem à la lettre) : la tête de lecture se cale, au premier tic d'une entrée
+(`entree_depart_materiel`, en tête de `sb_start_dma_i`), sur l'instant du tic moins un tampon (`sound_pos_global`), puis
+avance d'une trame par tic ; rattrapée, elle tient la trame ; plus d'un tampon en retard (une pause), elle se recale. En
+tête du `case 0x20` (`entree_directe_materiel`) : l'échantillon de l'instant, la gauche, sans lancer le tic d'entrée ni
+écraser `sb_freq` et `sblatchi` (PCem : 45 454 Hz, qu'un 24h suivant sans 40h garde) ; sur toutes les cartes, celles
+d'avant la SB 16 rendant 80h, faute de source. Le DMA_NODATA du 16 bits rend la main sans avancer, comme PCem. Restent :
+le CD et la SB Pro (0Ch, A0h et A8h), en G13.8e2 ; les filtres (le passe-bas du CT1345, le filtrage dynamique du CT1745)
+et l'AGC du micro, inconnus en détail ; le micro et la ligne, sans entrée côté hôte : leur silence est juste ; le CAN de
+16 bits tronqué à 8 (`>> 8`), celui de PCem. `materiel-cas PB-148` : une note de l'OPL sur les deux voies, 3Dh=40h et
+3Eh=20h, C8h 20h (256 octets en stéréo) : 80h partout chez PCem, les deux voies sonores et égales ; 3Dh=00h, la gauche
+muette ; en mono (C8h 00h), la gauche seule ; l'AWE32 de même ; 3Fh=40h, la gauche doublée ; 3Dh=60h contre 40h, doublée
+sous PB-153, égale sans lui ; 20h huit fois, sonore, `sb_freq` à 22 050 Hz (PCem : 80h, 45 454 Hz) ; une seconde
+d'entrée automatique (CEh 20h), sous PB-148 : les tics à la cadence du remplissage, aucune trame tenue (le reste exact :
+la troncature de PCem en tiendrait) ; 10 % plus vite, des trames tenues, la lecture ne dépassant jamais l'écriture;
+témoin : la SB Pro 2 (24h, le micro), muette des deux côtés ; la correction coupée, il rougit.
 
 ### PB-149 — L'octet de mode de B0h à CFh n'est pas masqué
 
@@ -3286,11 +3311,11 @@ carte ; 0Ah = 07h, puis 3Ah relu 1Fh chez PCem, F8h sur la carte ; 81h = 02h, pu
 *G13* : mixte — (a) pour 82h bits 0-2, la traduction 16→8, la sélection additive, 3Dh et 3Eh, l'IRQ 5 d'usine (décision
 n° 13) ; (b) pour 0Ah↔3Ah ; (c) pour 80h et 81h à plusieurs bits ou à 0, 01h, les bits hauts de 82h et le modèle de
 carte ; (d) pour 0Eh, fidèle.
-*Reproduit* en mode PCem : `Sound/sound_sb.cs`, marqueurs `fixed in hardware mode: PB-153` (3Dh/3Eh, 81h sans canal
-16 bits, la relecture de 81h) ; `Sound/sound_sb_dsp.cs`, les états 16 bits de `pollsb` et `sb_poll_i`. Les autres sites,
-les mêmes dans les deux modes, portent un commentaire qui dit leur part (G13.8d1) : les deux sélections, (a), avec
-l'enregistrement (8e) ; 82h, (a), corrigé avec l'IRQ du MPU (PB-154, G13.8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a), après
-Q14 ; 0Ah écrit et relu, (b), Q13 ; 01h, 80h et 81h à plusieurs bits, (c). SB16BANC les relit.
+*Reproduit* en mode PCem : `Sound/sound_sb.cs`, marqueurs `fixed in hardware mode: PB-153` (3Dh/3Eh, 81h sans canal 16
+bits, la relecture de 81h, les deux sélections d'entrée, 0Ah écrit et relu) ; `Sound/sound_sb_dsp.cs`, les états 16 bits
+de `pollsb` et `sb_poll_i`. Les autres sites, les mêmes dans les deux modes, portent un commentaire qui dit leur part
+(G13.8d1) : 82h, (a), corrigé avec l'IRQ du MPU (PB-154, G13.8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a),
+après Q14 ; 01h, 80h et 81h à plusieurs bits, (c). SB16BANC les relit.
 *Corrigé en mode matériel* (G13.8d1), en partie : sous `if (materiel.pb_153)` — `Sound/sound_sb.Materiel.cs` et
 `Sound/sound_sb_dsp.Materiel.cs`. Le reset du CT1745 (`reset_ct1745_materiel`, en tête de `sb_ct1745_mixer_write`,
 partagé avec PB-237, chaque part ne suivant que sa correction) pose 3Dh et 3Eh à 15h et 0Bh. 81h écrit avec un seul canal
@@ -3301,15 +3326,21 @@ Pendant la traduction, 81h se relit sans bit 16 bits, et les états 16 bits de `
 (`seize_traduit_materiel`, `seize_traduit_i_materiel`, en tête de l'état) lisent et écrivent chaque échantillon en deux
 octets sur le canal 8 bits, l'octet bas d'abord (déduit : l'ordre du x86) ; l'IRQ reste celle du 16 bits (déduit, le
 guide n'en dit rien). Ni le reset du mélangeur ni celui du DSP n'arrêtent la traduction : PCem garde 80h et 81h à l'un
-et à l'autre, et le guide ne dit rien de leur reset (déduit). Restent, en
-(a) : l'IRQ 5 d'usine (Q14) ; la sélection additive, qui ne sert que l'enregistrement, avec lui (8e) : elle se lit par
-échantillon, et sa garde se tiendra au niveau du tampon. Le bit 2 de 82h est corrigé avec l'IRQ du MPU (PB-154,
-G13.8d2). `materiel-cas
+et à l'autre, et le guide ne dit rien de leur reset (déduit). Le bit 2 de 82h est corrigé avec l'IRQ du MPU (PB-154,
+G13.8d2). En G13.8e1, avec l'enregistrement (Q13 tranchée le 16/10) : la sélection additive — les copies des tampons de
+la SB 16 et de l'AWE32 (`selection_materiel`, une fois par tampon, `Sound/sound_sb.Materiel.cs`) additionnent les
+interrupteurs MIDI fermés de 3Dh et 3Eh (fig. 4-5), PCem prenant MIDI.L s'il est fermé, sinon MIDI.R ; elle ne s'entend
+que sous PB-148 ; et 0Ah↔3Ah, à l'échelle du guide (p. 4-15 et 4-16 : 0Ah, 3 bits, de −42 à 0 dB par 6 dB ; 3Ah, 5 bits
+en D7:D3, de −62 à 0 dB par 2 dB) — en tête du `case 0x0A` de l'écriture, `3Ah = ((0Ah & 7) × 3 + 10) << 3`
+(`micro_ecrit_materiel`), et de la lecture, `((3Ah >> 3) − 10) / 3` borné à 0..7 (`micro_lu_materiel` ; déduit pour 3Ah
+sous 50h, que 0Ah ne peut dire). Reste, en (a) : l'IRQ 5 d'usine (Q14). `materiel-cas
 PB-153` : 3Dh et 3Eh au démarrage et après un reset (55h et 2Bh contre 15h et 0Bh), 81h=02h relu (22h contre 02h), puis
 B0h 10h sur le canal 1 (aucune IRQ chez PCem ; l'IRQ au 4e tic, le dernier mot DEF0h), B0h 30h en stéréo, B8h 10h à
 l'entrée, 81h après le reset du mélangeur et après celui du DSP, B6h traduit puis B0h en file (avec PB-239, l'IRQ à la
 fin du bloc puis à celle de la file ; sans lui, PCem relance) ; les témoins 81h=22h et 81h=E2h après la traduction,
-81h=0Ah, et la part du reset de PB-237, qui ne suit que sa correction ; la correction coupée, il rougit.
+81h=0Ah, et la part du reset de PB-237, qui ne suit que sa correction ; 0Ah et 3Ah au démarrage (FDh et 00h contre
+00h et 00h), 0Ah=07h (3Ah 1Fh contre F8h), 0Ah=FFh (FFh et 07h contre 07h et F8h), 3Ah=A8h (0Ah relu 34h contre 03h) ;
+la sélection additive dans `materiel-cas PB-148` ; la correction coupée, il rougit.
 
 ### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, des ACK en mode UART
 
@@ -7165,10 +7196,15 @@ l'absence d'alias (déduit, et certain).
 *Cas qui discrimine* : SB 16, `record_pos_read` = FFFEh, `record_buffer` à 0, `dsp.buffer[0]` = 1234h : C8h 20h 01h 00h
 (entrée 8 bits stéréo non signée, 2 octets) : le second octet écrit par le DMA vaut 92h chez PCem, 80h sans alias.
 *G13* : (a) — un anneau de 10000h entrées, lu et écrit.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, `record_lu` et ses quatre appels, et `Sound/sound_sb.cs`, `record_ecrit` et ses
-deux paires d'appels, marqueurs PB-151 ; une assertion statique de `harness.c` fige la disposition. SB16BANC enregistre
-au-delà de FFFEh, une sortie en cours.
-*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e, l'enregistrement ; PLAN-G13.md § G13.8).
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs`, `record_lu` et ses quatre appels, et `Sound/sound_sb.cs`,
+`record_ecrit` et ses deux paires d'appels, marqueurs `fixed in hardware mode: PB-151` ; une assertion statique de
+`harness.c` fige la disposition. SB16BANC enregistre au-delà de FFFEh, une sortie en cours.
+*Corrigé en mode matériel* (G13.8e1) : sous `if (materiel.pb_151)`, en tête de `sb_poll_i` — le tic de PCem à la lettre
+(`entree_materiel`, `Sound/sound_sb_dsp.Materiel.cs`), la trame lue par `lit_trame_materiel` : la tête et le tampon de
+PCem, l'indice FFFFh lu 0, l'entrée de l'anneau que personne n'écrit ; l'état traduit de PB-153 lit de même. Sous
+PB-148, l'anneau du CAN (10000h entrées, lu et écrit) n'a pas d'alias : PB-151 y est sans objet. `materiel-cas PB-151` :
+la tête à FFFEh, `buffer[0]` = 1234h, C8h 20h 01h 00h : le second octet 92h chez PCem, 80h ; B8h 20h 01h 00h (16 bits),
+le second mot 9234h, 8000h ; témoin : C8h 00h (mono), 80h des deux côtés ; la correction coupée, il rougit.
 
 ### PB-152 — Le registre 3Bh du CT1745 indexe hors de sa table
 

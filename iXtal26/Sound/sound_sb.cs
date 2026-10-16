@@ -383,7 +383,8 @@ internal static partial class sound_sb
                         out_l += ((int32_t)(sb.dsp.buffer[c] * mixer.voice_l) / 3) >> 15;
                         out_r += ((int32_t)(sb.dsp.buffer[c + 1] * mixer.voice_r) / 3) >> 15;
                 }
-                // pcem bug, reproduced: PB-148 — rien n'est enregistré : ni le CD ni la ligne que choisit 0Ch.
+                // PB-148, une part qui viendra avec le CD (G13.8e2), la même dans les deux modes d'ici là — rien n'est
+                //   enregistré : ni le CD ni la ligne que choisit 0Ch.
                 // TODO: recording CD, Mic with AGC or line in. Note: mic volume does not affect recording.
 
                 out_l = (out_l * mixer.master_l) >> 15;
@@ -401,11 +402,15 @@ internal static partial class sound_sb
     // pcem: sound_sb.c:127-208 — G12.1, la SB 16. Les conversions float -> int32_t passent par l'aide du C
     //   (cvttss2si : INT_MIN hors bornes et pour NaN ; .NET saturerait), obligatoire à :150-151, uniforme
     //   ailleurs (PLAN-G12.md, décision n° 12). Les entiers débordent comme en C (CheckForOverflowUnderflow faux).
-    // En mode matériel (PB-155), cette boucle ne tourne plus : sa copie, tampon_sb16_materiel (sound_sb.Materiel.cs),
-    //   la remplace ; une correction de l'enregistrement (8e) va dans la copie.
+    // En mode matériel (PB-155, PB-148), cette boucle ne tourne plus : sa copie, tampon_sb16_materiel
+    //   (sound_sb.Materiel.cs), la remplace, l'enregistrement compris.
     internal static void sb_get_buffer_sb16(int32_t[] buffer, int len, object? p)
     {
         if (materiel.pb_155)
+                if (tampon_sb16_materiel(buffer, len, p))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-148 — rien n'est enregistré (sb_enable_i).
+        if (materiel.pb_148)
                 if (tampon_sb16_materiel(buffer, len, p))
                         return;
         sb_t sb = (sb_t)p;
@@ -423,8 +428,8 @@ internal static partial class sound_sb
                 out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion */
-                // PB-153, une part (a) qui viendra avec l'enregistrement (G13.8e), la même dans les deux modes d'ici là —
-                //   `a ? out_l : 0 + b ? out_r : 0` se lit `a ? out_l : ((0 + b) ? out_r : 0)`.
+                // pcem bug, fixed in hardware mode: PB-153 — `a ? out_l : 0 + b ? out_r : 0` se lit
+                //   `a ? out_l : ((0 + b) ? out_r : 0)` ; le mélangeur d'entrée additionne (G13.8e1, sous PB-148).
                 in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
                        : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
                                                                               : 0;
@@ -464,7 +469,7 @@ internal static partial class sound_sb
                                 out_r = Cpu._386.CvtI32((double)((out_r)*sb_bass_treble_4bits[mixer.treble_r] +
                                                   high_cut_iir(1, (float)out_r) * (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
                 }
-                // pcem bug, reproduced: PB-148 — sb_enable_i n'est jamais écrit : ce bloc ne s'exécute pas.
+                // pcem bug, fixed in hardware mode: PB-148 — sb_enable_i n'est jamais écrit : ce bloc ne s'exécute pas.
                 if (sb.dsp.sb_enable_i != 0) {
                         int c_record = dsp_rec_pos;
                         c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
@@ -480,7 +485,7 @@ internal static partial class sound_sb
                                 in_r = -32768;
                         else if (in_r > 32767)
                                 in_r = 32767;
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF écrit buffer[0] (record_ecrit).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF écrit buffer[0] (record_ecrit).
                         record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
                         record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
                 }
@@ -498,8 +503,9 @@ internal static partial class sound_sb
         sb.dsp.pos = 0;
     }
 
-    // pcem bug, reproduced: PB-151 — l'écriture sœur de record_lu (G12.1) : record_buffer[0xFFFF] est buffer[0] dans
-    //   la disposition du C. Seul le bloc mort de sb_enable_i (sound_sb.c:195-196, :303-304) l'emploierait.
+    // pcem bug, fixed in hardware mode: PB-151 — l'écriture sœur de record_lu (G12.1) : record_buffer[0xFFFF] est
+    //   buffer[0] dans la disposition du C. Seul le bloc mort de sb_enable_i (sound_sb.c:195-196, :303-304)
+    //   l'emploierait.
     private static void record_ecrit(sb_dsp_t dsp, int i, int16_t v)
     {
         if (i < 0xFFFF)
@@ -513,11 +519,15 @@ internal static partial class sound_sb
     //   factorise pas.
     // PB-160, la part (b), la même dans les deux modes (Q13) — le rééchantillonnage par répétition, sans interpolation
     //   (repliement).
-    // En mode matériel (PB-155), cette boucle ne tourne plus : sa copie, tampon_emu8k_materiel (sound_sb.Materiel.cs),
-    //   la remplace ; une correction de l'enregistrement (8e) va dans la copie.
+    // En mode matériel (PB-155, PB-148), cette boucle ne tourne plus : sa copie, tampon_emu8k_materiel
+    //   (sound_sb.Materiel.cs), la remplace, l'enregistrement compris.
     internal static void sb_get_buffer_emu8k(int32_t[] buffer, int len, object? p)
     {
         if (materiel.pb_155)
+                if (tampon_emu8k_materiel(buffer, len, p))
+                        return;
+        // pcem bug, fixed in hardware mode: PB-148 — de même.
+        if (materiel.pb_148)
                 if (tampon_emu8k_materiel(buffer, len, p))
                         return;
         sb_t sb = (sb_t)p;
@@ -541,7 +551,7 @@ internal static partial class sound_sb
                 out_r += ((emu.buffer[c_emu8k + 1] * mixer.fm_r) >> 15);
 
                 /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion  */
-                // PB-153, une part (a) qui viendra avec l'enregistrement (G13.8e) — la sélection d'entrée MIDI mal parenthésée.
+                // pcem bug, fixed in hardware mode: PB-153 — la sélection d'entrée MIDI mal parenthésée, de même.
                 in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
                        : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
                                                                               : 0;
@@ -581,7 +591,7 @@ internal static partial class sound_sb
                                 out_r = Cpu._386.CvtI32((double)(out_r * sb_bass_treble_4bits[mixer.treble_r] +
                                                   high_cut_iir(1, (float)out_r) * (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
                 }
-                // pcem bug, reproduced: PB-148 — sb_enable_i n'est jamais écrit : ce bloc ne s'exécute pas.
+                // pcem bug, fixed in hardware mode: PB-148 — sb_enable_i n'est jamais écrit : ce bloc ne s'exécute pas.
                 if (sb.dsp.sb_enable_i != 0) {
                         //                      in_l += (mixer->input_selector_left&INPUT_CD_L) ?
                         //                      audio_cd_buffer[cd_read_pos+c_emu8k] : 0 + (mixer->input_selector_left&INPUT_CD_R)
@@ -605,7 +615,7 @@ internal static partial class sound_sb
                                 in_r = -32768;
                         else if (in_r > 32767)
                                 in_r = 32767;
-                        // pcem bug, reproduced: PB-151 — l'indice 0xFFFF écrit buffer[0] (record_ecrit).
+                        // pcem bug, fixed in hardware mode: PB-151 — l'indice 0xFFFF écrit buffer[0] (record_ecrit).
                         record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
                         record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
                         // omitted: SB_DSP_RECORD_DEBUG (:305-312) — #ifdef éteint.
@@ -943,8 +953,11 @@ internal static partial class sound_sb
                         mixer.regs[0x39] = (uint8_t)(((mixer.regs[0x2E] & 0xf) << 4) | 0x8);
                         break;
                 case 0x0A:
-                        // PB-153, la part (b), la même dans les deux modes (Q13) — 0Ah × 3 + 10, sans `& 7` ni `<< 3` (3Ah a
-                        //   ses 5 bits en D7:D3, que :654 relit `>> 3`), tronqué à 8 bits.
+                        // pcem bug, fixed in hardware mode: PB-153 — 0Ah × 3 + 10, sans `& 7` ni `<< 3` (3Ah a ses 5
+                        //   bits en D7:D3, que :654 relit `>> 3`), tronqué à 8 bits.
+                        if (materiel.pb_153)
+                                if (micro_ecrit_materiel(mixer))
+                                        break;
                         mixer.regs[0x3A] = (uint8_t)((mixer.regs[0x0A] * 3) + 10);
                         break;
 
@@ -1050,8 +1063,10 @@ internal static partial class sound_sb
         case 0x04:
                 return (uint8_t)(((mixer.regs[0x33] >> 4) & 0x0f) | (mixer.regs[0x32] & 0xf0));
         case 0x0a:
-                // PB-153, la part (b), la même dans les deux modes (Q13) — l'aller-retour de 0Ah ne tient que pour
-                //   0Ah <= 51h ; (0 - 10) / 3 vaut -3, tronqué vers zéro comme en C, rendu FDh.
+                // pcem bug, fixed in hardware mode: PB-153 — l'aller-retour de 0Ah ne tient que pour 0Ah <= 51h ;
+                //   (0 - 10) / 3 vaut -3, tronqué vers zéro comme en C, rendu FDh.
+                if (materiel.pb_153)
+                        return micro_lu_materiel(mixer);
                 return (uint8_t)((mixer.regs[0x3a] - 10) / 3);
         case 0x22:
                 return (uint8_t)(((mixer.regs[0x31] >> 4) & 0x0f) | (mixer.regs[0x30] & 0xf0));

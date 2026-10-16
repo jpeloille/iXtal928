@@ -872,6 +872,13 @@ run materiel-cas-pb155-materiel --hardware-mode PB-155 materiel-cas PB-155
 run materiel-cas-pb288 materiel-cas PB-288
 run materiel-cas-pb288-materiel --hardware-mode PB-288 materiel-cas PB-288
 run materiel-cas-pb288-pb155 --hardware-mode PB-155,PB-288 materiel-cas PB-288
+# G13.8e1 — l'enregistrement : PB-148 (la SB 16 et l'AWE32 enregistrent la MIDI ; 20h), PB-151 (l'anneau sans alias) ;
+# la sélection additive de PB-153 ne s'entend qu'avec PB-148.
+for pb in 148 151; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run materiel-cas-pb148-pb153 --hardware-mode PB-148,PB-153 materiel-cas PB-148
 # G13.8f2 — la fin de l'EMU8000 (Q13) : PB-162 (le chorus droit lit dans sa ligne, à sa fraction) et PB-163 (la
 # réverbération sature) ; l'octet impair de PB-158 entre dans le cas de PB-158.
 for pb in 162 163; do
