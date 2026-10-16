@@ -867,6 +867,11 @@ run materiel-cas-pb260-pb157seul --hardware-mode PB-157 materiel-cas PB-260
 # SB 16, 4.13 pour l'AWE32 ; la conversion du FIR sature) ; le registre au reset (38h), avec PB-236.
 run materiel-cas-pb155 materiel-cas PB-155
 run materiel-cas-pb155-materiel --hardware-mode PB-155 materiel-cas PB-155
+# G13.8c3 — le registre différé (PB-288) : 40h, 41h et 42h d'un DSP 4.xx pendant un transfert rangent le registre ;
+# le codec le reçoit au départ ou à la reprise d'un transfert (X0a26), ou au reset. Avec PB-155 : le registre rejoué.
+run materiel-cas-pb288 materiel-cas PB-288
+run materiel-cas-pb288-materiel --hardware-mode PB-288 materiel-cas PB-288
+run materiel-cas-pb288-pb155 --hardware-mode PB-155,PB-288 materiel-cas PB-288
 # G13.8f2 — la fin de l'EMU8000 (Q13) : PB-162 (le chorus droit lit dans sa ligne, à sa fraction) et PB-163 (la
 # réverbération sature) ; l'octet impair de PB-158 entre dans le cas de PB-158.
 for pb in 162 163; do

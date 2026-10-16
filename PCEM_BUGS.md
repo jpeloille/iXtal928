@@ -3405,8 +3405,9 @@ et le filtre recalculé. Avant le 4.xx, le chemin de PCem. Et en tête de `sb_ge
 de PCem, à la lettre, la conversion du FIR saturante (le FIR est le rééchantillonneur de PCem : la carte ne claque
 pas) ; une garde par tampon, jamais par échantillon. Restent ceux de PCem : le filtre lui-même ; 20h, l'entrée directe
 à 45 454 Hz ; les Hz (MAME) ; P2.5 du 4.13, posé pour les registres ≤ 5Ah (un diviseur d'horloge ? inconnu) ;
-l'application immédiate du registre (PB-288). `materiel-cas PB-155` : 41h et 42h FFh FFh, 65 535 contre 45 345 Hz ;
-1Ch sous 13h, 1Bh à 13h ; la retenue perdue (41h 59h 0Ch : 19 916 Hz sur la SB 16, 22 761 sur l'AWE32) ; 40h FFh,
+l'application immédiate du registre, corrigée à part (PB-288, G13.8c3). `materiel-cas PB-155` : 41h et 42h FFh FFh,
+65 535 contre 45 345 Hz ; 1Ch sous 13h, 1Bh à 13h ; la retenue perdue (41h 59h 0Ch : 19 916 Hz sur la SB 16, 22 761 sur
+l'AWE32) ; 40h FFh,
 C8h et 83h, sur les deux cartes ; la salve aux signes du FIR à 37 521 Hz (la même fréquence dans les deux modes) :
 −21 846 chez PCem, +21 844 ; témoins : 22 050 et 44 100 Hz, la salve à 22 050 Hz, et 40h sur la SB Pro 2.
 
@@ -6690,14 +6691,35 @@ carte, le transfert en cours garde la sienne jusqu'à son prochain départ ou sa
 *Source* : micrologiciels 4.05 et 4.13 : 40h, 41h et 42h rangent le registre en 37h (`X0a0e`, `v405:1856-1858`) ; le
 codec ne le reçoit qu'à `X0a26`, appelé au départ ou à la reprise d'un transfert (B0h à CFh, 1Ch, 14h, 24h, 2Ch, 74h
 à 7Fh, 80h, 90h à 99h, D4h, D6h, F0h ; `v405:980`, `:1082`, `:2394`, `:2604`, `:2752`, `:2866`, `:3085`, `:3133`).
-Documenté pour le 4.xx ; les DSP 2.xx et 3.xx, non lus.
+Au 4.13, `X0a0e` et `X0a26` passent par le drapeau P2.4 (`v413:2057-2061`, `:2078-2079`) : bas, le registre irait au
+codec sur-le-champ ; `warm_boot` le lève (`:1031`), rien ne le baisse : le 4.13 diffère comme le 4.05 (déduit du
+listing). Documenté pour le 4.xx ; les DSP 2.xx et 3.xx, non lus.
 *Cas qui discrimine* : SB 16, un automatique 8 bits à 22 050 Hz, puis 41h 2Bh 11h (11 025 Hz) en cours : PCem compte
 le tic suivant à 11 025 Hz ; la carte garde 22 050 Hz jusqu'au prochain départ.
 *G13* : (a) — documenté par les deux micrologiciels.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, le groupe `case 0x41: case 0x42:` et le `case 0x40`, marqueur PB-288, dans les
-deux modes (sous PB-155, le registre s'applique aussi sur-le-champ).
-*Non corrigé en mode matériel* : inscrit en G13.8c2, à corriger dans une sous-étape à part, 8c3 (une file de la
-fréquence et une garde à chaque départ ; PLAN-G13.md § G13.8).
+*Reproduit en mode PCem* : `Sound/sound_sb_dsp.cs`, le `case 0x40` et le groupe `case 0x41: case 0x42:`, marqueurs
+PB-288.
+*Corrigé en mode matériel* (G13.8c3) : sous `if (materiel.pb_288)`, sur un DSP 4.xx. En tête du `case 0x40` et du
+groupe `case 0x41: case 0x42:` (`frequence_differee_materiel`, `Sound/sound_sb_dsp.Materiel.cs`) : pendant un
+transfert (un DMA de sortie ou d'entrée, en pause comprise, ou le silence de 80h), la commande et ses octets sont
+gardés (le registre 37h), la cadence en cours inchangée ; hors transfert, rien ne joue jusqu'au prochain départ, qui
+donnerait 37h au codec : la commande s'applique sur-le-champ, comme chez PCem, et efface celle qui attendait. En tête
+de `sb_exec_command` (`frequence_depart_materiel`) : les commandes qui appellent `X0a26` — du groupe 1 et du groupe 2,
+celles des bits 3 et 2 ; les groupes 7, 8, 9, B et C entiers ; D4h et D6h — appliquent la commande gardée avant leur
+case, comme le micrologiciel en tête de leur gestionnaire (B0h à CFh compris, même mises en file par PB-239). En tête
+de `sb_dsp_reset` (`frequence_reset_materiel`) : le reset arrête le transfert, la commande gardée s'applique (sous
+PB-236, le reset « froid » pose ensuite 38h). L'application : par le registre de PB-155, ou, sans lui, par la copie du
+chemin de PCem. Hors transfert, appliquer sur-le-champ revient à appliquer au départ suivant (déduit) : rien ne joue
+entre les deux, sauf la sortie directe (10h), que le filtre de PCem suit à la nouvelle fréquence et la carte à
+l'ancienne. Restent ceux de PCem : F0h (`cmd_init_dma`, qui pose 5Ah et le donne au codec) et 43h de l'AWE32 (4.13,
+`v413:1895-1923` : le registre par X09a7, en 37h et au codec sur-le-champ), que PCem n'a pas ; `X0a3e`, qui met le
+codec à F8h à l'arrêt et à la pause (rien ne joue). `materiel-cas PB-288` : 1Ch à 22 050 Hz, puis 41h 2Bh 11h
+pendant le transfert (11 025 Hz chez PCem, 22 050 sur la carte), puis D4h, un nouveau 1Ch (11 025 des deux côtés) ;
+la pause (D0h) ; E1h et D3h, qui ne donnent rien au codec ; 42h sur l'AWE32 (4.13) ; 42h pendant 2Ch (l'entrée),
+puis 24h ; B6h (16 bits), puis D5h et D6h ; B6h, puis B0h ; C6h, puis C0h (en file sous PB-239) ; 80h, puis 80h ;
+1Ch, puis 91h, puis 74h ; 40h A6h, puis D4h ; 41h puis 40h, la dernière gagne ; 40h sur l'AWE32 ; le reset « froid »
+et le reset « chaud » (34h, PB-240) ; un simple cycle fini sans départ, puis 41h hors transfert, qui efface la
+commande gardée ; témoins : 41h hors transfert, et 40h sur la SB Pro 2 (DSP 3.02).
 
 ## B. Comportement indéfini en C
 

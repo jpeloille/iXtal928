@@ -12389,3 +12389,70 @@ de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et d
 `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de A9h.
 `sb_get_buffer_sb16`, `sb_get_buffer_emu8k` et `sb_exec_command`, compilés par les scénarios de l'ADPCM et de l'AWE32,
 ne changent pas : leurs gardes sont pliées.
+
+## G13.8c3 — le registre différé du DSP 4.xx
+
+Le 17 octobre 2026. PB-288, inscrit en 8c2, corrigé sans question, dans le sens de Q15 (le comportement réel de la SB
+16).
+Le micrologiciel (4.05 et 4.13, désassemblés, `/var/tmp/ixtal-g13/fw/`) : 40h, 41h et 42h rangent le registre en 37h
+(`X0a0e`) ; `X0a26`, qui le donne au codec, n'est appelé qu'en tête de douze gestionnaires — `cmd_dma8` et
+`cmd_dma16` (B0h à CFh), `cmd_init_dma` (F0h), `dma_rec_autoinit` et `dma_rec_normal` (le groupe 2, bits 3 et 2),
+`cmdg_hs` (9xh), `dma_dac1_autoinit` et `dma_dac1_normal` (le groupe 1, bits 3 et 2), `cmdg_dma_dac2` (7xh),
+`cmdg_silence` (8xh), `cmd_resume_dma8` et `cmd_resume_dma16` (D4h, D6h) ; les douze mêmes au 4.13, où `X0a0e` et
+`X0a26` passent par le drapeau P2.4, que `warm_boot` lève et que rien ne baisse (le différé du 4.05, déduit du
+listing).
+
+**PB-288** (`Sound/sound_sb_dsp.cs`, `.Materiel.cs`). Sous `if (materiel.pb_288)`, sur un DSP 4.xx. En tête du `case
+0x40` et du groupe `case 0x41: case 0x42:`, avant la garde de PB-155 (`frequence_differee_materiel`) : pendant un
+transfert (`sb_8_enable`, `sb_16_enable`, ou le silence de 80h ; la pause comprise), la commande et ses deux octets
+sont gardés dans l'état à part du DSP (`EtatDsp`), la cadence en cours inchangée ; hors transfert, rien ne joue
+jusqu'au prochain départ : la commande s'applique sur-le-champ, par le chemin de PB-155 ou de PCem, et efface celle
+qui attendait. En tête de `sb_exec_command` (`frequence_depart_materiel`) : une commande de la liste de `X0a26`
+(`depart_codec_materiel`) applique la commande gardée avant son case, comme le micrologiciel en tête de son
+gestionnaire. En tête de `sb_dsp_reset` (`frequence_reset_materiel`) : le reset arrête le transfert ; la commande
+gardée s'applique, puis le reset « froid » de PB-236 pose 38h. L'application rejoue la commande : par le registre de
+PB-155 (`registre_commande_materiel`, tiré de `frequence_materiel`), ou, sans lui, par une copie du chemin de PCem
+(40h ; 41h et 42h, la déviation de PB-150 comprise). Hors transfert, l'application sur-le-champ vaut celle du départ
+suivant : déduit (seule la sortie directe, 10h, l'entendrait). Restent ceux de PCem : F0h et 43h (AWE32), que PCem n'a
+pas ; `X0a3e` (le codec à F8h à l'arrêt et à la pause, rien ne joue).
+
+**Les cas** (`materiel-cas PB-288`, `MaterielCasFrequence.cs`) : 1Ch à 22 050 Hz, puis 41h 2Bh 11h pendant le
+transfert : 11 025 Hz chez PCem, 22 050 sur la carte ; puis D4h, puis un nouveau 1Ch : 11 025 des deux côtés ; la
+pause (D0h) avant 41h ; E1h et D3h, qui ne donnent rien au codec ; 42h sur l'AWE32 (4.13) ; 42h pendant 2Ch
+(l'entrée), puis 24h ; B6h (16 bits), puis D5h et D6h ; B6h, puis B0h ; C6h, puis C0h (en file sous PB-239) ; 80h,
+puis 80h ; 1Ch, puis 91h, puis 74h ; 40h A6h, puis D4h (11 111 Hz par PCem, 11 025 par le registre 3Eh de PB-155) ;
+41h puis 40h, la dernière gagne ; 40h sur l'AWE32 ; le reset (11 025 Hz, 9 958 sous PB-236) et le reset « chaud »
+(34h, PB-240) ; un simple cycle fini sans départ, puis 41h ACh 44h hors transfert et 1Ch : 44 100 Hz, la commande
+gardée effacée ; témoins : 41h hors transfert, et 40h D3h sur la SB Pro 2 (DSP 3.02) pendant 1Ch. Les deux fréquences,
+22 050 et 11 025, sont justes dans les deux registres (7Ch, 3Eh) : les attendus ne dépendent pas de PB-155. Trois
+portes : en mode PCem, sous PB-288 seul, sous PB-155 et PB-288 (le registre rejoué). Recensement : 288 défauts, 1 252
+marqueurs ; 75 entrées non corrigées. `couverture-materiel` sous « tout » : 192 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8c3.py`), sous PB-288 seul : la garde du départ coupée, `materiel-cas PB-288`
+rougit (4 échecs) ; celle du reset, 1 ; celle de 41h et 42h, 8 ; celle de 40h, 1 ; D4h retirée des départs, 3 ; D6h, 1
+; le groupe 2 retiré (l'entrée), 1 ; les groupes 7, 8, 9, B et C retirés un à un, 1 chacun ; le silence de 80h hors du
+transfert, 1 ; la commande gardée non effacée hors transfert, 1 ; la copie de 40h de PCem faussée, 1 ; sous PB-155 et
+PB-288, le registre non rejoué (la copie de PCem à sa place), 1 ; les quatre marqueurs de PB-288 retirés, le
+recensement rougit (2 écarts). La correction coupée par le masque (`--attendu materiel` en mode PCem) : 17 échecs.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle refait la liste des douze appels de `X0a26` au 4.05 et au 4.13,
+le dispatch des groupes 1 et 2 par les bits 3 et 2, l'ordre des gardes, la copie du chemin de PCem et les registres
+7Ch, 3Eh et F8h). Reprises : les départs sans cas ni contrôle négatif — B6h, D5h et D6h ; B0h ; C0h en file ; 80h ;
+91h ; 74h ; 41h puis 40h ; 40h sur l'AWE32 ; le reset « chaud » —, leurs cas et six contrôles négatifs ; le drapeau
+P2.4 du 4.13, dit et dit déduit ; l'équivalence « hors transfert, sur-le-champ » dite déduite (la sortie directe) ;
+43h de l'AWE32 aux restes de PCem ; une ligne de 121 caractères. Laissé : après un reset en plein transfert, PCem
+garde `sb_8_enable`, et un 41h suivant est gardé jusqu'au départ — ce que fait la carte.
+
+**Les séries** (le worktree de 8c3, la DLL Release figée, `S-g8c3`). En mode PCem, g8c3 (3 h 59 à 5 h 12) : 724
+vertes ; contre g8c2, seules changent les trois portes neuves de PB-288, la couverture (192) et le recensement (288
+défauts, 1 252 marqueurs). Sous « tout », g8c3-tout (5 h 12 à 5 h 31) : 485 vertes, 228 refusées, 11 `pcem`, aucune
+rouge ; contre g8c2-tout, les mêmes. Les reprises de la contre-lecture (les cas, les commentaires de
+`.Materiel.cs`, les textes) sont venues après la DLL des séries : onze portes rejouées (`PORTES` : les trois de
+PB-288, celles de PB-155, PB-236, PB-240 et PB-239, le recensement, la couverture), le Release reconstruit, en mode
+PCem puis sous `MATERIEL=tout` : toutes vertes.
+
+**M2-8c3** (le Release du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-8c2, 1 492 méthodes
+de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et de `ModeMateriel` ; `process_scsi`,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de BBh. `sb_exec_command`
+et `sb_dsp_reset`, compilés par les scénarios du son (la SB 16, l'ADPCM, l'AWE32, le DMA), ne changent pas : leurs
+gardes sont pliées.

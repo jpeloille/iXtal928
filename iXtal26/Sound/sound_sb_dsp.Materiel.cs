@@ -58,6 +58,9 @@ internal static partial class sound_sb_dsp
             internal bool reset_ligne;
             /// <summary>L'IRQ du PIC sur laquelle la ligne de la carte est montée, à son dernier front (PB-285).</summary>
             internal int ligne;
+            /// <summary>40h, 41h ou 42h reçue d'un DSP 4.xx pendant un transfert, et ses deux octets : le registre 37h
+            /// du micrologiciel, que le codec n'a pas encore reçu (PB-288) ; -1 sans.</summary>
+            internal int freq_commande = -1, freq_d0, freq_d1;
         }
 
         internal static readonly ConditionalWeakTable<sb_dsp_t, Etat> Etats = new();
@@ -340,12 +343,121 @@ internal static partial class sound_sb_dsp
         if (dsp.sb_type < SB16)
             return false;
         ModeMateriel.Sonde[155]++;
+        pose_registre_materiel(dsp, registre_commande_materiel(dsp, dsp.sb_command, dsp.sb_data[0], dsp.sb_data[1]));
+        return true;
+    }
+
+    /// <summary>PB-155 : le registre de 8 bits d'une commande de fréquence d'un DSP 4.xx, et de ses deux
+    /// octets.</summary>
+    private static int registre_commande_materiel(sb_dsp_t dsp, int commande, int d0, int d1)
+    {
         bool v405 = dsp.sb_type == SB16;
         uint8_t[] table = v405 ? TablesFrequence.constante405 : TablesFrequence.constante413;
-        int v = dsp.sb_command == 0x40 ? table[Math.Min((int)dsp.sb_data[0], 0xEB)]
-                                       : registre_materiel(v405, dsp.sb_data[0], dsp.sb_data[1]);
-        pose_registre_materiel(dsp, v);
+        return commande == 0x40 ? table[Math.Min(d0, 0xEB)] : registre_materiel(v405, d0, d1);
+    }
+
+    // ===== G13.8c3 — le registre différé =====
+
+    /// <summary>PB-288 : un transfert en cours, au sens du codec — un DMA de sortie ou d'entrée, en pause comprise, ou
+    /// le silence de 80h.</summary>
+    private static bool transfert_materiel(sb_dsp_t dsp) =>
+        dsp.sb_8_enable != 0 || dsp.sb_16_enable != 0 || dsp.sb_pausetime > -1;
+
+    /// <summary>PB-288 : les commandes d'un DSP 4.xx qui donnent le registre 37h au codec (`X0a26`, `v405:980`,
+    /// `:1082`, `:2394`, `:2414`, `:2513`, `:2604`, `:2624`, `:2752`, `:2866`, `:3085`, `:3133` ; les mêmes au
+    /// 4.13, sous son drapeau P2.4, que le listing ne baisse jamais : déduit) : du groupe 1 et du groupe 2, celles
+    /// des bits 3 (l'automatique) et 2 (le simple cycle) ; les groupes 7, 8, 9, B et C entiers ; D4h et D6h, les
+    /// reprises. F0h aussi (`:2091`), que PCem n'a pas : hors du champ.</summary>
+    private static bool depart_codec_materiel(int c) => (c >> 4) switch
+    {
+        0x1 or 0x2 => (c & 0x0C) != 0,
+        0x7 or 0x8 or 0x9 or 0xB or 0xC => true,
+        0xD => c is 0xD4 or 0xD6,
+        _ => false,
+    };
+
+    /// <summary>PB-288 : 40h, 41h et 42h d'un DSP 4.xx, en tête de leurs cases. Le micrologiciel range le registre
+    /// en 37h (`X0a0e`, `v405:1856-1858`) ; le codec ne le reçoit qu'au départ ou à la reprise d'un transfert. Pendant
+    /// un transfert, la commande est gardée et la cadence en cours ne change pas : vrai, le case rend la main. Hors
+    /// transfert, rien ne joue jusqu'au prochain départ, qui donnerait 37h au codec : faux, la commande s'applique
+    /// sur-le-champ, par le chemin de PB-155 ou de PCem, et celle qui attendait est effacée (l'équivalence est
+    /// déduite : le filtre de PCem suit aussi la sortie directe, 10h, que la carte jouerait à l'ancienne cadence).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool frequence_differee_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type < SB16)
+            return false;
+        var e = etat_materiel(dsp);
+        if (!transfert_materiel(dsp)) {
+            e.freq_commande = -1;
+            return false;
+        }
+        ModeMateriel.Sonde[288]++;
+        e.freq_commande = dsp.sb_command;
+        e.freq_d0 = dsp.sb_data[0];
+        e.freq_d1 = dsp.sb_data[1];
         return true;
+    }
+
+    /// <summary>PB-288 : en tête de sb_exec_command — une commande qui donne 37h au codec applique la commande de
+    /// fréquence gardée, avant son case, comme `X0a26` en tête de son gestionnaire.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void frequence_depart_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type < SB16 || !depart_codec_materiel(dsp.sb_command))
+            return;
+        frequence_appliquee_materiel(dsp);
+    }
+
+    /// <summary>PB-288 : en tête de sb_dsp_reset — le reset arrête le transfert ; plus rien ne joue jusqu'au prochain
+    /// départ, qui donnerait 37h au codec : la commande gardée s'applique (le reset « froid » de PB-236 pose ensuite
+    /// 38h, le « chaud » garde 37h).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void frequence_reset_materiel(sb_dsp_t dsp)
+    {
+        if (dsp.sb_type < SB16)
+            return;
+        frequence_appliquee_materiel(dsp);
+    }
+
+    /// <summary>PB-288 : la commande de fréquence gardée, appliquée puis effacée : par le registre de PB-155, ou, sans
+    /// lui, par la copie du chemin de PCem (sound_sb_dsp.c:379-402).</summary>
+    private static void frequence_appliquee_materiel(sb_dsp_t dsp)
+    {
+        var e = etat_materiel(dsp);
+        if (e.freq_commande < 0)
+            return;
+        int commande = e.freq_commande, d0 = e.freq_d0, d1 = e.freq_d1;
+        e.freq_commande = -1;
+        if (materiel.pb_155) {
+            pose_registre_materiel(dsp, registre_commande_materiel(dsp, commande, d0, d1));
+            return;
+        }
+        int temp;
+        if (commande == 0x40) {
+            dsp.sb_timei = dsp.sb_timeo = d0;
+            dsp.sblatcho = dsp.sblatchi = TIMER_USEC * (uint64_t)(256 - d0);
+            temp = 1000000 / (256 - d0);
+            if (dsp.sb_freq != temp)
+                recalc_sb16_filter(temp);
+            dsp.sb_freq = temp;
+            return;
+        }
+        // La fréquence 0 ramenée à 1 Hz, la déviation de PB-150 (le case de 41h et 42h).
+        int freq = d1 + (d0 << 8);
+        if (freq == 0) {
+            Diag.R9.Garde("sound_sb_dsp.c:393");
+            freq = 1;
+        }
+        dsp.sblatcho = Cpu._386.CvtU64((double)((float)TIMER_USEC * (1000000.0f / (float)freq)));
+        temp = dsp.sb_freq;
+        dsp.sb_freq = freq;
+        dsp.sb_timeo = 256 + dsp.sb_freq;
+        dsp.sblatchi = dsp.sblatcho;
+        dsp.sb_timei = dsp.sb_timeo;
+        if (dsp.sb_freq != temp)
+            recalc_sb16_filter(dsp.sb_freq);
     }
 
     // ===== G13.8b — l'ADPCM =====

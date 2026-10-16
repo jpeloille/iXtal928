@@ -2161,3 +2161,17 @@ Julien à Q17 : la documentation du matériel tranche.*
 ### PB-156 — un calcul qui ne déborde plus
 
 - Sans objet en mode matériel : la fréquence bornée, le compte de l'enregistrement ne peut plus déborder.
+
+## G13.8c3 — la fréquence qui attend son tour
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8c3.*
+
+### PB-288 — une fréquence changée pendant que le son joue
+
+- **Le vrai PC.** Sur la SB 16, un programme qui change la fréquence d'échantillonnage pendant que la carte joue ne
+  change pas ce qui joue : le processeur de la carte range la nouvelle valeur et ne la donne au convertisseur qu'au
+  départ du transfert suivant, ou à sa reprise après une pause.
+- **L'émulateur.** PCem l'applique tout de suite : le son en cours change de vitesse au milieu d'un bloc.
+- **La correction.** La valeur attend le prochain départ, la prochaine reprise ou le reset, comme dans le
+  micrologiciel de la carte ; quand rien ne joue, elle s'applique sur-le-champ, ce qui revient au même (une déduction :
+  seule la sortie directe, octet par octet, entendrait la différence).

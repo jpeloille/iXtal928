@@ -6,7 +6,7 @@
 // Les cas de la fréquence du DSP 4.xx et de la saturation du FIR (G13.8c2, PLAN-G13.md) : PB-155, sur le banc du son
 // (MaterielCasSon.cs). Le registre de fréquence de 8 bits du micrologiciel (4.05 pour la SB 16, 4.13 pour l'AWE32) ;
 // ses Hz, ceux de MAME (46,61512 MHz / 1024 / 256 par pas, secondaire). La saturation, sur le tampon de la carte joué à
-// la main, un échantillon par appel.
+// la main, un échantillon par appel. Le registre différé (G13.8c3) : PB-288.
 
 using iXtal26.Sound;
 
@@ -126,6 +126,206 @@ internal static partial class MaterielCas
         bad += Salve("sb16", 0x56, 0x22, 19135, 19135, true);
         // Les graves et les aigus réglés (12 et 4) : les blocs d'égalisation de la copie du tampon, joués aussi.
         bad += Salve("sbawe32", 0x56, 0x22, 10491, 10491, true, graves: 12, aigus: 4);
+        return bad;
+    }
+    // PB-288 — le registre différé (`X0a0e` range 37h, `X0a26` le donne au codec au départ ou à la reprise d'un
+    // transfert ; `v405:1856-1876`). Un automatique 8 bits (1Ch) à 22 050 Hz, puis 41h 2Bh 11h (11 025 Hz) pendant le
+    // transfert : PCem passe à 11 025 sur-le-champ ; la carte garde 22 050 jusqu'à D4h, à un nouveau 1Ch ou au reset.
+    // Les deux fréquences sont justes dans les deux registres (7Ch et 3Eh, PB-155) : les attendus ne dépendent pas de
+    // PB-155. Au reset, la commande gardée s'applique ; sous PB-236, le reset « froid » pose ensuite 38h (9 958 Hz).
+    // Témoins : 41h hors transfert, sur-le-champ des deux côtés ; 40h sur la SB Pro 2 (DSP 3.02) pendant 1Ch.
+    private static int Pb288(bool hw)
+    {
+        var bad = 0;
+        string Freq(sb_dsp_t d) => $"{d.sb_freq} Hz, {d.sb_timeo:X}h/{d.sb_timei:X}h";
+        string F(int f) => $"{f} Hz, {256 + f:X}h/{256 + f:X}h";
+        // L'automatique de sortie (ou d'entrée), le canal 1 sur 64 Ko, à 22 050 Hz.
+        void Auto(bool entree = false)
+        {
+            Dma1(0x10000, 0xffff, auto: true, entree: entree);
+            Dsp(0x41, 0x56, 0x22);
+            Dsp(0x48, 0xff, 0x00);
+            Dsp(entree ? 0x2c : 0x1c);
+        }
+        int Un(string carte, string nom, Func<sb_dsp_t, string> corps, string pcem, string mat, bool temoin = false) =>
+            AvecSb(carte, d =>
+            {
+                var v = corps(d);
+                var att = hw && !temoin ? mat : pcem;
+                var nomCarte = carte switch { "sb16" => "SB 16", "sbawe32" => "AWE32", _ => "SB Pro 2" };
+                return Voir($"{nomCarte} : {nom}{(temoin ? " (témoin)" : "")}", v == att, v, att, hw);
+            });
+        bad += Un("sb16", "1Ch à 22 050 Hz, 41h 2Bh 11h pendant le transfert", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            return Freq(d);
+        }, F(11025), F(22050));
+        bad += Un("sb16", "1Ch, 41h 2Bh 11h, puis D4h (la reprise)", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            var avant = Freq(d);
+            Dsp(0xd4);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{F(11025)} ; {F(11025)}", $"{F(22050)} ; {F(11025)}");
+        bad += Un("sb16", "1Ch, D0h (la pause), 41h 2Bh 11h, puis D4h", d =>
+        {
+            Auto();
+            Dsp(0xd0);
+            Dsp(0x41, 0x2b, 0x11);
+            var avant = Freq(d);
+            Dsp(0xd4);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{F(11025)} ; {F(11025)}", $"{F(22050)} ; {F(11025)}");
+        bad += Un("sb16", "1Ch, 41h 2Bh 11h, puis 1Ch (un nouveau départ)", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            var avant = Freq(d);
+            Dsp(0x1c);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{F(11025)} ; {F(11025)}", $"{F(22050)} ; {F(11025)}");
+        bad += Un("sb16", "1Ch, 41h 2Bh 11h, puis E1h et D3h (ni départ ni reprise)", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            Dsp(0xe1);
+            LireDsp();
+            Dsp(0xd3);
+            return Freq(d);
+        }, F(11025), F(22050));
+        bad += Un("sbawe32", "1Ch, 42h 2Bh 11h pendant le transfert (le 4.13)", d =>
+        {
+            Auto();
+            Dsp(0x42, 0x2b, 0x11);
+            return Freq(d);
+        }, F(11025), F(22050));
+        bad += Un("sb16", "2Ch (l'entrée) à 22 050 Hz, 42h 2Bh 11h pendant le transfert, puis 24h 0Fh 00h", d =>
+        {
+            Auto(entree: true);
+            Dsp(0x42, 0x2b, 0x11);
+            var avant = Freq(d);
+            Dsp(0x24, 0x0f, 0x00);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{F(11025)} ; {F(11025)}", $"{F(22050)} ; {F(11025)}");
+        // 40h : la constante, gardée de même ; à D4h, la fréquence que 40h A6h donne hors transfert (11 111 Hz chez
+        // PCem ; sous PB-155, le registre 3Eh, 11 025 Hz : jamais 22 050).
+        var hors = "";
+        AvecSb("sb16", d =>
+        {
+            Dsp(0x40, 0xa6);
+            hors = Freq(d);
+            return 0;
+        });
+        bad += Un("sb16", "1Ch, 40h A6h, puis D4h", d =>
+        {
+            Auto();
+            Dsp(0x40, 0xa6);
+            var avant = Freq(d);
+            Dsp(0xd4);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{hors} ; {hors}", $"{F(22050)} ; {hors}");
+        // Le reset : la commande gardée s'applique ; sous PB-236, le reset « froid » pose ensuite 38h.
+        bad += Un("sb16", "1Ch, 41h 2Bh 11h, puis un reset", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            ResetDsp();
+            LireDsp();
+            return Freq(d);
+        }, materiel.pb_236 ? F(9958) : F(11025), materiel.pb_236 ? F(9958) : F(11025));
+        // Les autres départs de `X0a26` : le transfert, 41h 2Bh 11h gardée, puis chaque étape (la fréquence après
+        // chacune) ; sur la carte, la commande gardée s'applique à la première étape de la liste, pas avant.
+        int Etapes(string carte, string nom, Action debut, int[][] etapes, int premier) => Un(carte, nom, d =>
+        {
+            debut();
+            Dsp(0x41, 0x2b, 0x11);
+            var l = new List<string> { Freq(d) };
+            foreach (var e in etapes)
+            {
+                Dsp(e);
+                l.Add(Freq(d));
+            }
+            return string.Join(" ; ", l);
+        }, string.Join(" ; ", Enumerable.Repeat(F(11025), etapes.Length + 1)),
+           string.Join(" ; ", Enumerable.Range(0, etapes.Length + 1).Select(i => F(i > premier ? 11025 : 22050))));
+        void Seize()
+        {
+            Dma5(0x20000, 0xffff, true);
+            Dsp(0x41, 0x56, 0x22);
+            Dsp(0xb6, 0x10, 0xff, 0x00);
+        }
+        bad += Etapes("sb16", "B6h (16 bits), 41h 2Bh 11h, D5h (la pause), puis D6h (la reprise)", Seize,
+                      [[0xd5], [0xd6]], 1);
+        bad += Etapes("sb16", "B6h, 41h 2Bh 11h, puis B0h 10h 0Fh 00h", Seize, [[0xb0, 0x10, 0x0f, 0x00]], 0);
+        bad += Etapes("sb16", "C6h (8 bits), 41h 2Bh 11h, puis C0h 00h 0Fh 00h (en file sous PB-239)", () =>
+        {
+            Dma1(0x10000, 0xffff, auto: true);
+            Dsp(0x41, 0x56, 0x22);
+            Dsp(0xc6, 0x00, 0xff, 0x00);
+        }, [[0xc0, 0x00, 0x0f, 0x00]], 0);
+        bad += Etapes("sb16", "80h FFh 00h (le silence), 41h 2Bh 11h, puis 80h 0Fh 00h", () =>
+        {
+            Dsp(0x41, 0x56, 0x22);
+            Dsp(0x80, 0xff, 0x00);
+        }, [[0x80, 0x0f, 0x00]], 0);
+        bad += Etapes("sb16", "1Ch, 41h 2Bh 11h, puis 91h (la grande vitesse)", () => Auto(), [[0x91]], 0);
+        bad += Etapes("sb16", "1Ch, 41h 2Bh 11h, puis 74h 0Fh 00h (l'ADPCM)", () => Auto(), [[0x74, 0x0f, 0x00]], 0);
+        // 41h puis 40h pendant le transfert : le même registre 37h, la dernière commande gagne.
+        bad += Un("sb16", "1Ch, 41h ACh 44h, 40h A6h, puis D4h", d =>
+        {
+            Auto();
+            Dsp(0x41, 0xac, 0x44);
+            Dsp(0x40, 0xa6);
+            var avant = Freq(d);
+            Dsp(0xd4);
+            return $"{avant} ; {Freq(d)}";
+        }, $"{hors} ; {hors}", $"{F(22050)} ; {hors}");
+        bad += Un("sbawe32", "1Ch, 40h A6h pendant le transfert (le 4.13)", d =>
+        {
+            Auto();
+            Dsp(0x40, 0xa6);
+            return Freq(d);
+        }, "11111 Hz, A6h/A6h", F(22050));
+        // Le reset « chaud » (le mode UART, PB-240) garde 37h : la commande gardée s'y applique aussi.
+        bad += Un("sb16", "1Ch, 41h 2Bh 11h, 34h (le mode UART), puis un reset", d =>
+        {
+            Auto();
+            Dsp(0x41, 0x2b, 0x11);
+            Dsp(0x34);
+            ResetDsp();
+            LireDsp();
+            return Freq(d);
+        }, F(11025), F(11025));
+        // Le transfert fini sans départ, la commande gardée attend toujours ; 41h hors transfert l'efface : le 1Ch
+        // suivant prend 44 100 Hz (F8h), non 11 025.
+        bad += Un("sb16", "14h 0Fh 00h, 41h 2Bh 11h, la fin du bloc, puis 41h ACh 44h et 1Ch", d =>
+        {
+            Dma1(0x10000, 0xffff, auto: true);
+            Dsp(0x41, 0x56, 0x22);
+            Dsp(0x14, 0x0f, 0x00);
+            Dsp(0x41, 0x2b, 0x11);
+            var t = TicsIrq(d, 200);
+            var fin = $"IRQ au tic {t}, {Freq(d)}";
+            Dsp(0x41, 0xac, 0x44);
+            Dsp(0x48, 0xff, 0x00);
+            Dsp(0x1c);
+            return $"{fin} ; {Freq(d)}";
+        }, $"IRQ au tic 16, {F(11025)} ; {F(44100)}", $"IRQ au tic 16, {F(22050)} ; {F(44100)}");
+        bad += Un("sb16", "41h 2Bh 11h hors transfert", d =>
+        {
+            Dsp(0x41, 0x2b, 0x11);
+            return Freq(d);
+        }, F(11025), F(11025), temoin: true);
+        bad += Un("sbprov2", "1Ch, puis 40h D3h pendant le transfert (le DSP 3.02)", d =>
+        {
+            Dma1(0x10000, 0xffff, auto: true);
+            Dsp(0x48, 0xff, 0x00);
+            Dsp(0x1c);
+            Dsp(0x40, 0xd3);
+            return Freq(d);
+        }, "22222 Hz, D3h/D3h", "22222 Hz, D3h/D3h", temoin: true);
         return bad;
     }
 }

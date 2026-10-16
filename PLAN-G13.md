@@ -587,8 +587,10 @@ contre-lecture, M2, sa série entière et son commit :
     (`/var/tmp/ixtal-g13/etude-8c2.md`) ; le registre de 8 bits du micrologiciel, la retenue perdue et la table du 4.05
     sur la SB 16 (la carte réelle, Q15), le 4.13 sur l'AWE32 ; les Hz de MAME ; la conversion du FIR saturante, une
     garde par tampon ; le registre au reset, 38h, sous PB-236 ; PB-156 reclassé (d), sans objet en mode matériel ;
-    r9-sb16 du mode PCem seul ; PB-288, neuf (le registre ne s'applique qu'au départ d'un transfert), inscrit ; **8c3**,
-    PB-288, après 8c2.
+    r9-sb16 du mode PCem seul ; PB-288, neuf (le registre ne s'applique qu'au départ d'un transfert), inscrit ;
+    **8c3** ✅ *(17/10, VERIFICATION.md § G13.8c3)*, PB-288 : pendant un transfert, 40h, 41h et 42h d'un DSP 4.xx
+    sont gardées ; le codec reçoit le registre en tête des commandes qui appellent `X0a26` (les départs, D4h, D6h) et
+    au reset.
   - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14). Coupée
     en deux le 13/10 : **8d1** ✅ *(13/10, VERIFICATION.md § G13.8d1)*, les mélangeurs — PB-237 (les volumes du reset),
     PB-145 (la SB 2.0 sans mélangeur), et de PB-153, 3Dh et 3Eh au reset et la traduction du 16 bits vers le canal 8

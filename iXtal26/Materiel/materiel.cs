@@ -599,6 +599,10 @@ internal static class materiel
     /// <summary>PB-287 : MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486).</summary>
     internal static readonly bool pb_287;
 
+    /// <summary>PB-288 : sur un DSP 4.xx, 40h, 41h et 42h reçues pendant un transfert rangent le registre de
+    /// fréquence ; le codec le reçoit au départ ou à la reprise d'un transfert.</summary>
+    internal static readonly bool pb_288;
+
     static materiel()
     {
         ModeMateriel.Gel();
@@ -793,5 +797,6 @@ internal static class materiel
         pb_265 = ModeMateriel.Demande(265);
         pb_286 = ModeMateriel.Demande(286);
         pb_287 = ModeMateriel.Demande(287);
+        pb_288 = ModeMateriel.Demande(288);
     }
 }

@@ -267,6 +267,9 @@ internal static partial class sound_sb_dsp
         // pcem bug, fixed in hardware mode: PB-239 — la commande mise en file part avec le transfert.
         if (materiel.pb_239)
                 file_reset_materiel(dsp);
+        // pcem bug, fixed in hardware mode: PB-288 — la fréquence gardée pendant le transfert s'applique au reset.
+        if (materiel.pb_288)
+                frequence_reset_materiel(dsp);
         // pcem bug, fixed in hardware mode: PB-241 — le reset reçu en grande vitesse est « chaud » : le bloc gardé.
         if (materiel.pb_241)
                 if (reset_chaud_materiel(dsp, 241))
@@ -474,6 +477,10 @@ internal static partial class sound_sb_dsp
         // pcem bug, fixed in hardware mode: PB-241 — 90h, 91h, 98h, 99h ouvrent la grande vitesse (DSP 2.01 et plus).
         if (materiel.pb_241)
                 grande_vitesse_pose_materiel(dsp);
+        // pcem bug, fixed in hardware mode: PB-288 — sur le DSP 4.xx, le codec ne reçoit le registre de fréquence qu'au
+        //   départ ou à la reprise d'un transfert, en tête de la commande.
+        if (materiel.pb_288)
+                frequence_depart_materiel(dsp);
         //        pclog("sb_exec_command : SB command %02X\n", dsp->sb_command);
         switch (dsp.sb_command) {
         case 0x01: /*???*/
@@ -579,7 +586,11 @@ internal static partial class sound_sb_dsp
         case 0x40: /*Set time constant*/
                 // pcem bug, fixed in hardware mode: PB-155 — sur la SB 16, 1 000 000 / (256 - c), jusqu'à 1 MHz ; le
                 //   DSP 4.05 borne la constante à EBh, puis la traduit par sa table en registre de fréquence.
-                // pcem bug, reproduced: PB-288 — la constante s'applique au tic suivant, transfert en cours compris.
+                // pcem bug, fixed in hardware mode: PB-288 — la constante s'applique au tic suivant, transfert en cours
+                //   compris ; le 4.xx la range et ne la donne au codec qu'au départ ou à la reprise d'un transfert.
+                if (materiel.pb_288)
+                        if (frequence_differee_materiel(dsp))
+                                break;
                 if (materiel.pb_155)
                         if (frequence_materiel(dsp))
                                 break;
@@ -594,6 +605,10 @@ internal static partial class sound_sb_dsp
                 break;
         case 0x41: /*Set output sampling rate*/
         case 0x42: /*Set input sampling rate*/
+                // pcem bug, fixed in hardware mode: PB-288 — de même pour 41h et 42h, le même registre.
+                if (materiel.pb_288)
+                        if (frequence_differee_materiel(dsp))
+                                break;
                 if (materiel.pb_155)
                         if (frequence_materiel(dsp))
                                 break;
@@ -604,8 +619,6 @@ internal static partial class sound_sb_dsp
                 //   (float)f)` : uint64_t par float, en float ; la conversion vers uint64_t est celle de GCC (CvtU64).
                 // pcem bug, fixed in hardware mode: PB-155 — la fréquence reste libre, de 1 à 65 535 Hz ; le DSP 4.05
                 //   la quantifie en un registre de 8 bits (≈ 23 × f / 4096) : FFh dès l'octet fort B1h, 1Ch sous 13h.
-                // pcem bug, reproduced: PB-288 — le registre s'applique au tic suivant, transfert en cours compris ; le
-                //   4.xx le range et ne le donne au codec qu'au départ ou à la reprise d'un transfert (les deux modes).
                 // pcem bug, not reproduced: PB-150 — la fréquence 0 rend sblatcho nul en C (ulong.MaxValue en .NET) :
                 //   l'échéance ne recule plus et timer_process boucle sans fin dès qu'une minuterie du DSP tourne
                 //   (R9). DEVIATION (PLAN-G12.md, décision n° 10) : 0 est ramené à 1 Hz, le reste de la commande

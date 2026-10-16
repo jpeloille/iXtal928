@@ -229,6 +229,7 @@ internal static class ModeMateriel
         new(285, "son", "une IRQ du DSP levée sur la ligne déjà haute ne repose pas la demande au PIC : le 8259 la prend sur un front"),
         new(286, "processeur", "MOV CR0 avec PG = 1 et PE = 0 lève #GP(0), CR0 inchangé (386, 486)"),
         new(287, "processeur", "MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486)"),
+        new(288, "son", "40h, 41h et 42h du DSP 4.xx pendant un transfert : le registre va au codec au départ suivant"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les
