@@ -12320,3 +12320,72 @@ de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et d
 `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de 308. `process_ccb`,
 `process_cmd` et `process_scsi`, compilés par les scénarios de l'AHA, ne changent pas autrement : leurs gardes sont
 pliées.
+
+## G13.8c2 — la fréquence du DSP 4.xx
+
+Le 17 octobre 2026. Q15, tranchée par Julien le 16/10 : le comportement réel de la SB 16. L'étude, en lecture seule
+(`/var/tmp/ixtal-g13/etude-8c2.md`), sur les micrologiciels désassemblés du 4.05 et du 4.13 (`/var/tmp/ixtal-g13/fw/`)
+et MAME (`ct1741.cpp`, téléchargé hors du dépôt pour l'étude) : les règles exactes de X09a7 et des deux tables de 40h,
+la retenue perdue du 4.05, le registre au reset (38h), et un défaut neuf, PB-288. Les deux points que l'étude laissait
+à trancher l'ont été sans question, dans le sens de Q15 : les défauts du micrologiciel 4.05 reproduits sur la SB 16
+(c'est la carte réelle), le 4.13 pour l'AWE32 ; PB-288 inscrit et corrigé à part (8c3).
+
+**PB-155, le registre** (`Sound/sound_sb_dsp.cs`, `.Materiel.cs`). Sous `if (materiel.pb_155)`, en tête du `case
+0x40` et du groupe `case 0x41: case 0x42:` (`frequence_materiel`) : sur un DSP 4.xx, le registre de 8 bits — 41h et
+42h par X09a7 (`registre_materiel` : FFh dès l'octet fort B1h, 1Ch sous 13h, ⌊W / 16⌋ + le bit 3 de W, la retenue
+perdue sur le 4.05), 40h par la table du 4.05 ou du 4.13 (`TablesFrequence`, la constante bornée à EBh) —, puis la
+fréquence du codec (MAME, 46,61512 MHz / 1024 / 256 par pas, arrondie), rangée dans la représentation « Hz » de PCem
+(256 + f), que `sb_dsp_speed_changed` relit, le filtre recalculé (`pose_registre_materiel`). Avant le 4.xx, le
+chemin de PCem. Les tables, recopiées des deux désassemblages (236 octets chacune, deux écarts, 83h et C8h ; 83h non
+vérifié au binaire).
+
+**PB-155, la saturation** (`Sound/sound_sb.cs`, `.Materiel.cs`). La conversion du FIR est par échantillon : la garde
+se tient en tête de `sb_get_buffer_sb16` et de `sb_get_buffer_emu8k`, et appelle leur copie (`tampon_sb16_materiel`,
+`tampon_emu8k_materiel`), la boucle de PCem à la lettre, la conversion du FIR saturante (comparées mécaniquement :
+seules les deux conversions diffèrent). En mode matériel, ces copies sont le code vivant : 8e y portera ses
+corrections (un commentaire le dit en tête des deux fonctions de PCem).
+
+**PB-236, le reset** : la SB 16 et l'AWE32 prennent leur registre à 38h, que `cold_boot` pose (9 958 Hz) ; le filtre de
+PCem reste calé à 6 400 Hz au démarrage jusqu'à la première commande de fréquence (`sb_dsp_init`), dit au registre.
+**PB-156** reclassé (d) : inatteignable en mode matériel (4 800 × 45 454 < 2^31), sans objet. **PB-288**, neuf : le
+registre ne va au codec qu'au départ ou à la reprise d'un transfert (`X0a26`) ; PCem l'applique au tic suivant ;
+inscrit, marqué à 40h et à 41h/42h, à corriger en 8c3. **r9-sb16**, du mode PCem seul : sous PB-155, ses trois essais
+de la fréquence 0 passent par 1Ch, et la garde de PB-150 n'est plus atteinte.
+
+**Les cas** (`materiel-cas PB-155`, `MaterielCasFrequence.cs`) : 41h et 42h FFh FFh (65 535 contre 45 345 Hz, sur
+la SB 16 et l'AWE32) ; 1Ch sous 13h, 1Bh à 13h ; B0h FFh (FEh, 45 167) et B1h 00h (FFh) ; la retenue perdue (41h 59h
+0Ch : 19 916 Hz sur la SB 16, 22 761 sur l'AWE32) ; 40h FFh, C8h (35 565 contre 17 782) et 83h (7 824 contre 8 002) ;
+la salve aux signes du FIR à 37 521 Hz (le registre D3h, la même fréquence dans les deux modes ; Σ|coef| = 2,0156) :
+−21 846 chez PCem, +21 844, sur les deux cartes ; témoins : 22 050 et 44 100 Hz, 40h sur la SB Pro 2, la salve à
+22 050 Hz (19 135), et, les graves et les aigus réglés, 10 491, le même dans les deux modes. `materiel-cas PB-236` :
+la SB 16 et l'AWE32 au démarrage, 27E6h, 9 958 Hz. Recensement : 288 défauts, 1 250 marqueurs ; 76 entrées non
+corrigées (PB-155 corrigé, PB-288 entré). `couverture-materiel` sous « tout » : 191 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8c2.py`) : la retenue perdue retirée, `materiel-cas PB-155` rougit (1
+échec) ; la table du 4.13 sur la SB 16, 2 ; la conversion du FIR remise en `CvtI32`, 2 ; la garde du tampon de l'AWE32
+coupée, 1 ; le registre 38h du reset retiré, `materiel-cas PB-236` rougit (1) ; le marqueur de PB-288 retiré, le
+recensement rougit. La correction coupée par le masque (`--attendu materiel` en mode PCem) : PB-155, 14 échecs ;
+PB-236, 3.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle refait X09a7 et la retenue perdue du 4.05 sur le
+désassemblage, recompare les deux tables octet par octet, vérifie que les copies des tampons ne diffèrent de PCem
+que par les deux conversions, et refait les attendus des salves). Reprises : le marqueur de PB-288 au `case 0x40`, qui
+manquait (le recensement passe à 1 250 marqueurs) ; le texte de PB-236 au registre (le filtre resté à 6 400 Hz) ; les
+cas B0h FFh et B1h 00h (le plus grand registre calculé, puis le seuil) ; 42h sur l'AWE32 ; le démarrage de l'AWE32
+dans `materiel-cas PB-236` ; le témoin des graves et des aigus réglés, qui joue les blocs d'égalisation de la copie ;
+un commentaire en tête des deux boucles de PCem, qui ne tournent plus en mode matériel.
+
+**Les séries** (le worktree de 8c2, la DLL Release figée, `S-g8c2`). En mode PCem, g8c2 (1 h 49 à 3 h 03) : 721
+vertes ; contre g7e4, seules changent les deux portes neuves de PB-155, les deux de PB-260 ajoutées par la
+contre-lecture de 7e4 (après sa série), la couverture (191) et le recensement (288 défauts, 1 249 marqueurs à la DLL
+de la série). Sous « tout », g8c2-tout (3 h 03 à 3 h 23) : 482 vertes, 228 refusées, 11 `pcem`, aucune rouge ; contre
+g7e4-tout, les mêmes, et r9-sb16, passée du mode PCem seul. Les reprises de la contre-lecture (deux commentaires et un
+marqueur dans l'émulateur, les cas, les textes) sont venues après la DLL des séries : sept portes rejouées (`PORTES` :
+les cas de PB-155 et PB-236 et leurs variantes, le recensement, la couverture, r9-sb16), en mode PCem puis sous
+`MATERIEL=tout` : toutes vertes, r9-sb16 `pcem` sous « tout » ; le recensement à 1 250 marqueurs.
+
+**M2-8c2** (le Release du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-7e4, 1 492 méthodes
+de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et de `ModeMateriel` ; `process_scsi`,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de A9h.
+`sb_get_buffer_sb16`, `sb_get_buffer_emu8k` et `sb_exec_command`, compilés par les scénarios de l'ADPCM et de l'AWE32,
+ne changent pas : leurs gardes sont pliées.

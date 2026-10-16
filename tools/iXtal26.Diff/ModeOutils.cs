@@ -16,7 +16,8 @@
 // série sous « tout » (G13.10c) a trouvé quatre essais qui passent par PB-133, PB-137 (G13.7e2b) et PB-138 (G13.7e3),
 // corrigés : sous « tout », ils rendent l'état du matériel et non plus le chemin de la garde. Elle reste acceptée (sous
 // une liste sans ces trois PB, chaque garde est atteinte), et la série ne la lance qu'en mode PCem, comme les trois
-// autres.
+// autres. De même r9-sb16 depuis G13.8c2 : sous PB-155, 41h et 42h rangent la fréquence dans le registre du DSP 4.xx,
+// et ses trois essais de la fréquence 0 n'atteignent plus la garde de PB-150.
 
 namespace iXtal26.Diff;
 

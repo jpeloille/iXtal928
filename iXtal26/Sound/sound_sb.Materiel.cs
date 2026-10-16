@@ -15,6 +15,7 @@
 
 using System.Runtime.CompilerServices;
 using static iXtal26.PluginApi.device;
+using static iXtal26.Sound.sound_opl;
 using static iXtal26.Sound.sound_sb_dsp;
 
 namespace iXtal26.Sound;
@@ -149,5 +150,213 @@ internal static partial class sound_sb
         ModeMateriel.Sonde[154]++;
         return (uint8_t)(((sb.dsp.sb_irq8 != 0) ? 1 : 0) | ((sb.dsp.sb_irq16 != 0) ? 2 : 0) |
                          (mpu_pendante_materiel(sb.dsp) ? 4 : 0));
+    }
+
+    // ===== G13.8c2 — la saturation du FIR =====
+
+    /// <summary>PB-155 : la conversion saturante (NaN, que des entrées finies ne donnent pas, rend INT_MIN, comme chez
+    /// PCem : seuls les dépassements changent).</summary>
+    private static int32_t sature(double d) =>
+        double.IsNaN(d) ? int32_t.MinValue :
+        d >= 2147483647.0 ? int32_t.MaxValue : d <= -2147483648.0 ? int32_t.MinValue : (int32_t)d;
+
+    // CS8600 et CS8602 : `(sb_t)p`, comme dans sound_sb.cs (son pragma, l. 25).
+#pragma warning disable CS8600, CS8602
+    /// <summary>PB-155 : sb_get_buffer_sb16 de PCem, à la lettre, sauf la conversion du FIR, qui sature au lieu de
+    /// rendre INT_MIN (le FIR est le rééchantillonneur de PCem : la carte ne claque pas). Un tampon entier : la garde
+    /// est en tête de la fonction, jamais par échantillon. Les commentaires sont ceux de la fonction de PCem ; les
+    /// lignes longues, recoupées.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool tampon_sb16_materiel(int32_t[] buffer, int len, object? p)
+    {
+        ModeMateriel.Sonde[155]++;
+        sb_t sb = (sb_t)p;
+        sb_ct1745_mixer_t mixer = sb.mixer_sb16;
+
+        int c;
+
+        opl3_update2(sb.opl);
+        sb_dsp_update(sb.dsp);
+        int dsp_rec_pos = sb.dsp.record_pos_write;
+        for (c = 0; c < len * 2; c += 2) {
+                int32_t out_l, out_r, in_l, in_r;
+
+                out_l = ((((sb.opl.buffer[c] * mixer.fm_l) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
+                out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
+
+                /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion */
+                in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
+                                                                              : 0;
+                in_r = (mixer.input_selector_right & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
+                                                                               : 0;
+
+                out_l += (sature((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
+                out_r += (sature((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
+
+                out_l = (out_l * mixer.master_l) >> 15;
+                out_r = (out_r * mixer.master_r) >> 15;
+
+                if (mixer.bass_l != 8 || mixer.bass_r != 8 || mixer.treble_l != 8 || mixer.treble_r != 8) {
+                        if (mixer.bass_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(low_iir(0, (float)out_l) *
+                                                                  sb_bass_treble_4bits[mixer.bass_l]));
+                        if (mixer.bass_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(low_iir(1, (float)out_r) *
+                                                                  sb_bass_treble_4bits[mixer.bass_r]));
+                        if (mixer.treble_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(high_iir(0, (float)out_l) *
+                                                                  sb_bass_treble_4bits[mixer.treble_l]));
+                        if (mixer.treble_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(high_iir(1, (float)out_r) *
+                                                                  sb_bass_treble_4bits[mixer.treble_r]));
+                        if (mixer.bass_l < 8)
+                                out_l = Cpu._386.CvtI32((double)((out_l)*sb_bass_treble_4bits[mixer.bass_l] +
+                                                  low_cut_iir(0, (float)out_l) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.bass_l])));
+                        if (mixer.bass_r < 8)
+                                out_r = Cpu._386.CvtI32((double)((out_r)*sb_bass_treble_4bits[mixer.bass_r] +
+                                                  low_cut_iir(1, (float)out_r) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.bass_r])));
+                        if (mixer.treble_l < 8)
+                                out_l = Cpu._386.CvtI32((double)((out_l)*sb_bass_treble_4bits[mixer.treble_l] +
+                                                  high_cut_iir(0, (float)out_l) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.treble_l])));
+                        if (mixer.treble_r < 8)
+                                out_r = Cpu._386.CvtI32((double)((out_r)*sb_bass_treble_4bits[mixer.treble_r] +
+                                                  high_cut_iir(1, (float)out_r) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
+                }
+                if (sb.dsp.sb_enable_i != 0) {
+                        int c_record = dsp_rec_pos;
+                        c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
+                        in_l <<= mixer.input_gain_L;
+                        in_r <<= mixer.input_gain_R;
+                        if (in_l < -32768)
+                                in_l = -32768;
+                        else if (in_l > 32767)
+                                in_l = 32767;
+
+                        if (in_r < -32768)
+                                in_r = -32768;
+                        else if (in_r > 32767)
+                                in_r = 32767;
+                        record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
+                        record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
+                }
+
+                buffer[c] += (out_l << mixer.output_gain_L);
+                buffer[c + 1] += (out_r << mixer.output_gain_R);
+        }
+        sb.dsp.record_pos_write += ((len * sb.dsp.sb_freq) / 48000) * 2;
+        sb.dsp.record_pos_write &= 0xFFFF;
+
+        sb.pos = 0;
+        sb.opl.pos = 0;
+        sb.dsp.pos = 0;
+        return true;
+    }
+
+    /// <summary>PB-155 : sb_get_buffer_emu8k de PCem, à la lettre, sauf la conversion du FIR, qui sature, comme
+    /// tampon_sb16_materiel. Ses commentaires sont ceux de la fonction de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool tampon_emu8k_materiel(int32_t[] buffer, int len, object? p)
+    {
+        ModeMateriel.Sonde[155]++;
+        sb_t sb = (sb_t)p;
+        sb_ct1745_mixer_t mixer = sb.mixer_sb16;
+        emu8k_t emu = sb.emu8k!;
+
+        int c;
+
+        opl3_update2(sb.opl);
+        sound_emu8k.emu8k_update(emu);
+        sb_dsp_update(sb.dsp);
+        int dsp_rec_pos = sb.dsp.record_pos_write;
+        for (c = 0; c < len * 2; c += 2) {
+                int32_t out_l, out_r, in_l, in_r;
+                int c_emu8k = (((c / 2) * 44100) / 48000) * 2;
+
+                out_l = ((((sb.opl.buffer[c] * mixer.fm_l) >> 15) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 16);
+                out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 15) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 16);
+
+                out_l += ((emu.buffer[c_emu8k] * mixer.fm_l) >> 15);
+                out_r += ((emu.buffer[c_emu8k + 1] * mixer.fm_r) >> 15);
+
+                /*TODO: multi-recording mic with agc/+20db, cd and line in with channel inversion  */
+                in_l = (mixer.input_selector_left & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_left & INPUT_MIDI_R)) != 0 ? out_r
+                                                                              : 0;
+                in_r = (mixer.input_selector_right & INPUT_MIDI_L) != 0       ? out_l
+                       : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
+                                                                               : 0;
+
+                out_l += (sature((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
+                out_r += (sature((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
+
+                out_l = (out_l * mixer.master_l) >> 15;
+                out_r = (out_r * mixer.master_r) >> 15;
+
+                if (mixer.bass_l != 8 || mixer.bass_r != 8 || mixer.treble_l != 8 || mixer.treble_r != 8) {
+                        if (mixer.bass_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(low_iir(0, (float)out_l) *
+                                                                  sb_bass_treble_4bits[mixer.bass_l]));
+                        if (mixer.bass_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(low_iir(1, (float)out_r) *
+                                                                  sb_bass_treble_4bits[mixer.bass_r]));
+                        if (mixer.treble_l > 8)
+                                out_l += Cpu._386.CvtI32((double)(high_iir(0, (float)out_l) *
+                                                                  sb_bass_treble_4bits[mixer.treble_l]));
+                        if (mixer.treble_r > 8)
+                                out_r += Cpu._386.CvtI32((double)(high_iir(1, (float)out_r) *
+                                                                  sb_bass_treble_4bits[mixer.treble_r]));
+                        if (mixer.bass_l < 8)
+                                out_l = Cpu._386.CvtI32((double)(out_l * sb_bass_treble_4bits[mixer.bass_l] +
+                                                  low_cut_iir(0, (float)out_l) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.bass_l])));
+                        if (mixer.bass_r < 8)
+                                out_r = Cpu._386.CvtI32((double)(out_r * sb_bass_treble_4bits[mixer.bass_r] +
+                                                  low_cut_iir(1, (float)out_r) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.bass_r])));
+                        if (mixer.treble_l < 8)
+                                out_l = Cpu._386.CvtI32((double)(out_l * sb_bass_treble_4bits[mixer.treble_l] +
+                                                  high_cut_iir(0, (float)out_l) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.treble_l])));
+                        if (mixer.treble_r < 8)
+                                out_r = Cpu._386.CvtI32((double)(out_r * sb_bass_treble_4bits[mixer.treble_r] +
+                                                  high_cut_iir(1, (float)out_r) *
+                                                          (1.0f - sb_bass_treble_4bits[mixer.treble_r])));
+                }
+                if (sb.dsp.sb_enable_i != 0) {
+
+                        int c_record = dsp_rec_pos;
+                        c_record += (((c / 2) * sb.dsp.sb_freq) / 48000) * 2;
+                        in_l <<= mixer.input_gain_L;
+                        in_r <<= mixer.input_gain_R;
+                        if (in_l < -32768)
+                                in_l = -32768;
+                        else if (in_l > 32767)
+                                in_l = 32767;
+
+                        if (in_r < -32768)
+                                in_r = -32768;
+                        else if (in_r > 32767)
+                                in_r = 32767;
+                        record_ecrit(sb.dsp, c_record & 0xFFFF, (int16_t)in_l);
+                        record_ecrit(sb.dsp, (c_record + 1) & 0xFFFF, (int16_t)in_r);
+                }
+
+                buffer[c] += (out_l << mixer.output_gain_L);
+                buffer[c + 1] += (out_r << mixer.output_gain_R);
+        }
+
+        sb.dsp.record_pos_write += ((len * sb.dsp.sb_freq) / 48000) * 2;
+        sb.dsp.record_pos_write &= 0xFFFF;
+        sb.pos = 0;
+        sb.opl.pos = 0;
+        sb.dsp.pos = 0;
+        emu.pos = 0;
+        return true;
     }
 }

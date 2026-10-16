@@ -2140,3 +2140,24 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **La correction.** La carte attend tant que son canal est masqué, hors cascade ou que son contrôleur est désactivé,
   puis reprend d'elle-même. Sa ROM réglant le canal, un démarrage ordinaire ne change pas ; un logiciel qui masque le
   canal, ou une autre carte réglée sur le même canal, retient la carte, comme sur la machine réelle.
+
+## G13.8c2 — la fréquence de la SB 16
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8c2. Q15, tranchée le
+16/10 : le comportement réel de la SB 16.*
+
+### PB-155 — une fréquence qui n'a que 256 valeurs
+
+- **Le vrai PC.** Le programme demande une fréquence d'échantillonnage en hertz. Le processeur de la carte la range
+  dans un registre de 8 bits : 256 fréquences possibles, d'environ 4 kHz à 45 kHz, par pas de 178 Hz. 44 100 et 22 050
+  Hz tombent juste ; 8 000 Hz devient 8 002. Le micrologiciel de la SB 16 (version 4.05) a même ses erreurs : certaines
+  fréquences sortent 2,8 kHz trop bas, et une constante de l'ancienne commande joue deux fois trop vite.
+- **L'émulateur.** PCem joue la fréquence demandée telle quelle, jusqu'à 65 kHz et même 1 MHz ; et à ces fréquences,
+  son filtre de rééchantillonnage déborde et claque.
+- **La correction.** La fréquence passe par le registre du micrologiciel, erreurs comprises sur la SB 16 (l'AWE32,
+  plus récente, en est corrigée), et le filtre sature au lieu de claquer. Les hertz de chaque valeur viennent de MAME,
+  qui émule la puce : aucune mesure sur une carte.
+
+### PB-156 — un calcul qui ne déborde plus
+
+- Sans objet en mode matériel : la fréquence bornée, le compte de l'enregistrement ne peut plus déborder.

@@ -3253,7 +3253,8 @@ reprend jamais la main.
 *G13* : hors du mode — déjà corrigé dans les deux modes (R9) ; rien n'y bascule.
 *NON reproduit* (R9) : la fréquence 0 est ramenée à 1 Hz, le reste de la commande gardé (`Sound/sound_sb_dsp.cs`,
 garde `sound_sb_dsp.c:393` ; décision n° 10 de PLAN-G12.md). Aucune porte comparée n'envoie 0. Survie : `r9-sb16`.
-*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*.
+*Non corrigé en mode matériel* : hors du mode, comme le dit le champ *G13*. En mode matériel, PB-155 (G13.8c2) range
+41h 0000h en 1Ch : la garde R9 n'est plus atteinte sur la SB 16 ni sur l'AWE32 (r9-sb16, du mode PCem seul).
 
 ### PB-153 — Le CT1745 : 80h, 81h, 82h, 0Ah, 01h, 3Dh et 3Eh, la sélection d'entrée
 
@@ -3383,10 +3384,31 @@ sampling rates range from 5000 to 45 000 Hz inclusive » (guide de Creative, p. 
 +21 845. 41h FFh FFh : `sb_freq` 65 535 chez PCem, le registre FFh (≈ 45 344 Hz) sur la carte.
 *G13* : (a) pour la saturation, un artefact de PCem ; (a) pour le registre de fréquence du 4.05, ses Hz restant
 secondaires ; les défauts propres aux 4.04 à 4.12 (la retenue perdue de 41h, contre-lecture A3) restent à trancher.
-*Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-155 (`sb_get_buffer_sb16`, `sb_get_buffer_emu8k`), par l'aide de
-conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. `Sound/sound_sb_dsp.cs`, marqueurs PB-155 (40h ; 41h et 42h).
-SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
-*Non corrigé en mode matériel* : en attente de Q15 (G13.8c2 ; PLAN-G13.md § G13.8).
+Précisé en G13.8c2 (l'étude, `/var/tmp/ixtal-g13/etude-8c2.md`) : le 4.05 perd la retenue (`v405:1823`, « Error,
+shouldnt be here ») sur 1 652 fréquences, en 14 plages, un registre plus bas de 16 pas (41h 22 796 Hz donne 70h, 19 916
+Hz) ; ses tables de 40h diffèrent de celles du 4.13 en C8h (C8h contre 64h : 40h C8h joue à 35 565 Hz, le double ;
+vérifié au binaire par A3) et en 83h (2Ch contre 2Dh : 40h 83h à 7 824 Hz ; le désassemblage seul, non vérifié au
+binaire). L'AWE32 (DSP 4.13) a la même routine, sans ces défauts : sa source est `v413-8k_e22e9001.asm`. Les Hz :
+MAME (`ct1741.cpp:247-258`, 46,61512 MHz / 1024 / 256 par pas, l'image du 4.13), secondaire. À 40 960 Hz,
+Σ|coef| vaut 1,9905 (le cas ci-dessus ne déborde pas) ; Σ|coef| dépasse 2 entre 34 728 et 40 478 Hz par plages, son
+maximum atteignable en mode matériel au registre D3h (37 521 Hz, 2,0156).
+*Reproduit en mode PCem* : `Sound/sound_sb.cs`, marqueurs PB-155 (`sb_get_buffer_sb16`, `sb_get_buffer_emu8k`), par
+l'aide de conversion du C (`Cpu._386.CvtI32`) ; .NET saturerait. `Sound/sound_sb_dsp.cs`, marqueurs PB-155 (40h ; 41h
+et 42h). SB16BANC joue ce carré, à 65 535 Hz puis à 83 333 Hz.
+*Corrigé en mode matériel* (G13.8c2 ; Q15, tranchée le 16/10 : le comportement réel de la SB 16) : sous `if
+(materiel.pb_155)`, en tête du `case 0x40` et du groupe `case 0x41: case 0x42:` (`frequence_materiel`,
+`Sound/sound_sb_dsp.Materiel.cs`) : sur un DSP 4.xx, le registre de 8 bits du micrologiciel — 41h et 42h par X09a7, la
+retenue perdue sur la SB 16 (4.05), 40h par la table du 4.05 ou du 4.13, la constante bornée à EBh —, puis la
+fréquence du codec (MAME), rangée dans la représentation « Hz » de PCem (256 + f), que `sb_dsp_speed_changed` relit,
+et le filtre recalculé. Avant le 4.xx, le chemin de PCem. Et en tête de `sb_get_buffer_sb16` et de
+`sb_get_buffer_emu8k` (`tampon_sb16_materiel`, `tampon_emu8k_materiel`, `Sound/sound_sb.Materiel.cs`) : les boucles
+de PCem, à la lettre, la conversion du FIR saturante (le FIR est le rééchantillonneur de PCem : la carte ne claque
+pas) ; une garde par tampon, jamais par échantillon. Restent ceux de PCem : le filtre lui-même ; 20h, l'entrée directe
+à 45 454 Hz ; les Hz (MAME) ; P2.5 du 4.13, posé pour les registres ≤ 5Ah (un diviseur d'horloge ? inconnu) ;
+l'application immédiate du registre (PB-288). `materiel-cas PB-155` : 41h et 42h FFh FFh, 65 535 contre 45 345 Hz ;
+1Ch sous 13h, 1Bh à 13h ; la retenue perdue (41h 59h 0Ch : 19 916 Hz sur la SB 16, 22 761 sur l'AWE32) ; 40h FFh,
+C8h et 83h, sur les deux cartes ; la salve aux signes du FIR à 37 521 Hz (la même fréquence dans les deux modes) :
+−21 846 chez PCem, +21 844 ; témoins : 22 050 et 44 100 Hz, la salve à 22 050 Hz, et 40h sur la SB Pro 2.
 
 ### PB-157 — La commande du 8237 haut, l'état des requêtes et les registres relus des deux 8237
 
@@ -5435,8 +5457,11 @@ l'IRQ après 800h octets. D8h rend 00h des deux côtés.
 *Corrigé en mode matériel* (G13.8a) : sous `if (materiel.pb_236)` — `Sound/sound_sb_dsp.Materiel.cs`,
 `reset_materiel`, en tête de `sb_dsp_reset`, donc au démarrage (`sb_doreset`) et par 2x6h : le reset de PCem, le bloc
 à 07FFh ; avant la SB 16, la constante à 9Ch (10 kHz) et la sortie coupée — sur la SB 1.0, avec PB-147 seulement. La
-SB 16 garde sa constante, inconnue au reset (décision n° 14 ; le 4.05 pose 38h, à froid, dans un registre voisin de
-celui de la fréquence, `v405-8k_e51aff23.asm:844` : à revoir avec PB-155, en 8c). Le reset « chaud » (après la grande vitesse ou le mode
+SB 16 et l'AWE32 prennent leur registre de fréquence (37h) à 38h, que `cold_boot` pose (`v405-8k_e51aff23.asm:844`,
+`v413-8k_e22e9001.asm:1011`) : 9 958 Hz, l'équivalent du 9Ch des DSP 2.xx (G13.8c2 ; l'entrée disait un « registre
+voisin », c'est celui de la fréquence) ; au démarrage, `sb_dsp_init` recalcule ensuite le filtre de PCem pour
+6 400 Hz : il le reste jusqu'au premier 40h, 41h ou 42h (le filtre est le rééchantillonneur de PCem, sans pendant sur
+la carte). Le reset « chaud » (après la grande vitesse ou le mode
 UART) est celui de PB-241 et de PB-240, dont les gardes passent avant. `materiel-cas PB-236` (la SB 2.0 au démarrage et
 après 40h D3h, D1h et un reset, puis 1Ch ; la SB 16 au démarrage ; les témoins, 48h, et la SB 1.0 avec PB-147) rend
 l'IRQ au 65 536e octet, la constante gardée et la sortie ouverte en mode PCem ; au 2 048e, 9Ch et coupée en mode
@@ -6655,6 +6680,25 @@ les tables d'iXtal n'ont que les 486 d'Intel), NW = 1 avec CD = 0 lève #GP(0) s
 (`cr0_nw_sans_cd_materiel`). `materiel-cas PB-287` : au 486, #GP, CR0 inchangé (PCem : NW posé) ; CD = NW = 1 et CD
 seul au 486, et NW seul au 386, témoins, chargés dans les deux modes. La correction coupée, il rougit.
 
+### PB-288 — La fréquence du DSP 4.xx s'applique au tic suivant, non au départ du transfert
+
+`sound_sb_dsp.c:379-402` : 40h, 41h et 42h posent `sblatcho` et `sblatchi`, que `pollsb` et `sb_poll_i` prennent à
+leur prochaine échéance (`timer_advance_u64`) : la cadence d'un transfert en cours change sur-le-champ.
+*Effet* : un programme qui change la fréquence pendant un transfert automatique l'entend changer aussitôt ; sur la
+carte, le transfert en cours garde la sienne jusqu'à son prochain départ ou sa reprise.
+*Trouvé par* : l'étude de G13.8c2, à la lecture des micrologiciels.
+*Source* : micrologiciels 4.05 et 4.13 : 40h, 41h et 42h rangent le registre en 37h (`X0a0e`, `v405:1856-1858`) ; le
+codec ne le reçoit qu'à `X0a26`, appelé au départ ou à la reprise d'un transfert (B0h à CFh, 1Ch, 14h, 24h, 2Ch, 74h
+à 7Fh, 80h, 90h à 99h, D4h, D6h, F0h ; `v405:980`, `:1082`, `:2394`, `:2604`, `:2752`, `:2866`, `:3085`, `:3133`).
+Documenté pour le 4.xx ; les DSP 2.xx et 3.xx, non lus.
+*Cas qui discrimine* : SB 16, un automatique 8 bits à 22 050 Hz, puis 41h 2Bh 11h (11 025 Hz) en cours : PCem compte
+le tic suivant à 11 025 Hz ; la carte garde 22 050 Hz jusqu'au prochain départ.
+*G13* : (a) — documenté par les deux micrologiciels.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, le groupe `case 0x41: case 0x42:` et le `case 0x40`, marqueur PB-288, dans les
+deux modes (sous PB-155, le registre s'applique aussi sur-le-champ).
+*Non corrigé en mode matériel* : inscrit en G13.8c2, à corriger dans une sous-étape à part, 8c3 (une file de la
+fréquence et une garde à chaque départ ; PLAN-G13.md § G13.8).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -7129,11 +7173,12 @@ reste hors de la sonde. Ce n'est pas un site R9 : PCem ne s'y arrête pas. SB16B
 (`v405-8k_e51aff23.asm:1688-1692`, PB-155) : le cas est inatteignable sur la carte.
 *Cas qui discrimine* : SB 16, 40h FFh (`sb_freq` = 1 000 000), `record_pos_write` = 1000h : après un tampon de
 2 400 échantillons, PCem pose DB94h (l'ajout vaut −78 956, enveloppé), l'arithmétique exacte 96A0h (+100 000).
-*G13* : (a) — sans effet tant que PB-148 n'est pas corrigé, et inatteignable si le bornage de PB-155 l'est.
+*G13* : (d) — défaut de l'hôte sans pendant matériel, qui ne protège ni fichier ni hôte : laissé (décision n° 9) ;
+reclassé en G13.8c2 (était (a)) : sous PB-155, la fréquence ne dépasse plus 45 454 Hz, et `len` 4 800
+(`MAXSOUNDBUFLEN`) : 4 800 × 45 454 < 2^31, inatteignable en mode matériel.
 *Reproduit* : `Sound/sound_sb.cs`, marqueurs PB-156, par l'arithmétique enveloppante du C#
 (`CheckForOverflowUnderflow` faux).
-*Non corrigé en mode matériel* : en attente de Q13 et de Q15 (G13.8e ; inatteignable si PB-155 est borné, en 8c2 ;
-PLAN-G13.md § G13.8).
+*Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
 
 ### PB-105 — `sw_close` libère la SideWinder sans retirer ses chronomètres
 

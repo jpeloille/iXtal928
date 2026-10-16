@@ -140,8 +140,18 @@ internal static partial class MaterielCas
         bad += AvecSb("sb16", d =>
         {
             var v = Etat(d, "");
-            var att = hw ? "constante 00h/00h, 0 Hz, muted 0, IRQ au 2048e octet" : "constante 00h/00h, 0 Hz, muted 0, IRQ au 65536e octet";
+            // G13.8c2 : le registre de fréquence du 4.05 posé à 38h par `cold_boot`, 9 958 Hz (256 + f = 27E6h).
+            var att = hw ? "constante 27E6h/27E6h, 9958 Hz, muted 0, IRQ au 2048e octet"
+                         : "constante 00h/00h, 0 Hz, muted 0, IRQ au 65536e octet";
             return Voir("SB 16 au démarrage, puis 1Ch", v == att, v, att, hw);
+        });
+        bad += AvecSb("sbawe32", d =>
+        {
+            var v = Etat(d, "");
+            // Le 4.13 de l'AWE32 aussi (`v413-8k_e22e9001.asm:1011`).
+            var att = hw ? "constante 27E6h/27E6h, 9958 Hz, muted 0, IRQ au 2048e octet"
+                         : "constante 00h/00h, 0 Hz, muted 0, IRQ au 65536e octet";
+            return Voir("AWE32 au démarrage, puis 1Ch", v == att, v, att, hw);
         });
         bad += AvecSb("sb2.0", d =>
         {

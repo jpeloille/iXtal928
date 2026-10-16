@@ -123,6 +123,7 @@ internal static class ModeMateriel
         new(149, "son", "B0h à CFh du DSP 4.xx : l'octet de mode réduit à ses bits 4 et 5"),
         new(153, "son", "le CT1745 : 3Dh et 3Eh au reset du guide ; 81h sans canal 16 bits traduit le 16 bits vers le canal 8 bits"),
         new(154, "son", "l'IRQ du MPU-401 de la SB 16 : levée par l'octet qu'il rend (3Fh, FFh), effacée par la lecture de 330h ; 82h bit 2 ; 3Fh ignorée en mode UART"),
+        new(155, "son", "40h, 41h et 42h du DSP 4.xx : le registre de fréquence (4.05, 4.13) ; le FIR sature"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
         new(158, "son", "WC et les registres courants de l'EMU8000 avancent à la lecture ; l'octet impair, le haut"),
         new(159, "son", "les adresses de la DRAM de l'EMU8000 relues en A22h : le bit 31 (MT, FULL), les bits 30 à 24 à zéro"),

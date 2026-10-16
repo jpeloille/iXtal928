@@ -220,6 +220,7 @@ mapfile -t S16K < tools/sb16banc/sb16banc.keys
 S16B=(); for l in "${S16K[@]}"; do S16B+=(--type "$l"); done
 runw bd-ami486-sb16-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-sb16-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${S16B[@]}" --type "@wait 3000" --expect-aha --expect-sb 220,7,1,5
 run r9-sb16 r9-sb16
+pcem_seul r9-sb16 "trois gardes ne s'atteignent que par 41h et 42h en Hz libres, que PB-155 range (G13.8c2)"
 # G12.2 — l'AWE32 et son EMU8000 : les onze tables d'emu8k_init et la ROM chargée, oracle contre C#, au bit près ;
 # les sept noyaux (peigne, diffuseur, queue, amortisseur, chorus, réverbération, volume) sur des états fabriqués ;
 # le POST de l'ami486 sous --expect-emu (la puce en 620h, sa RAM à la taille dite, la ROM des mesures exigée), à
@@ -862,6 +863,10 @@ run materiel-cas-pb260-pb157 --hardware-mode PB-157,PB-260 materiel-cas PB-260
 # Le canal 0 par la cascade du canal 4 (PB-253) ; et PB-157 seul, où le 8237 haut désactivé ne retient pas la carte.
 run materiel-cas-pb260-pb253 --hardware-mode PB-253,PB-260 materiel-cas PB-260
 run materiel-cas-pb260-pb157seul --hardware-mode PB-157 materiel-cas PB-260
+# G13.8c2 — la fréquence du DSP 4.xx (Q15) : PB-155 (40h, 41h et 42h par le registre du micrologiciel, 4.05 pour la
+# SB 16, 4.13 pour l'AWE32 ; la conversion du FIR sature) ; le registre au reset (38h), avec PB-236.
+run materiel-cas-pb155 materiel-cas PB-155
+run materiel-cas-pb155-materiel --hardware-mode PB-155 materiel-cas PB-155
 # G13.8f2 — la fin de l'EMU8000 (Q13) : PB-162 (le chorus droit lit dans sa ligne, à sa fraction) et PB-163 (la
 # réverbération sature) ; l'octet impair de PB-158 entre dans le cas de PB-158.
 for pb in 162 163; do

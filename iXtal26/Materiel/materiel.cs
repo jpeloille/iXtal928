@@ -306,6 +306,10 @@ internal static class materiel
     /// <summary>PB-154 : l'IRQ du MPU-401 de la SB 16, 82h bit 2, et 3Fh ignorée en mode UART.</summary>
     internal static readonly bool pb_154;
 
+    /// <summary>PB-155 : 40h, 41h et 42h du DSP 4.xx par le registre de fréquence de 8 bits du micrologiciel ; la
+    /// conversion du FIR de la SB 16 et de l'AWE32 sature.</summary>
+    internal static readonly bool pb_155;
+
     /// <summary>PB-238 : la ligne d'IRQ partagée de la SB 16 ; 2xEh n'acquitte que l'IRQ 8 bits.</summary>
     internal static readonly bool pb_238;
 
@@ -694,6 +698,7 @@ internal static class materiel
         pb_145 = ModeMateriel.Demande(145);
         pb_153 = ModeMateriel.Demande(153);
         pb_154 = ModeMateriel.Demande(154);
+        pb_155 = ModeMateriel.Demande(155);
         pb_238 = ModeMateriel.Demande(238);
         pb_285 = ModeMateriel.Demande(285);
         pb_158 = ModeMateriel.Demande(158);

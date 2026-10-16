@@ -577,8 +577,12 @@ internal static partial class sound_sb_dsp
                 sb_start_dma_i(dsp, 1, 1, 0, dsp.sb_data[0] + (dsp.sb_data[1] << 8));
                 break;
         case 0x40: /*Set time constant*/
-                // pcem bug, reproduced: PB-155 — sur la SB 16, 1 000 000 / (256 - c), jusqu'à 1 MHz ; le DSP 4.05 borne
-                //   la constante à EBh, puis la traduit par sa table en registre de fréquence.
+                // pcem bug, fixed in hardware mode: PB-155 — sur la SB 16, 1 000 000 / (256 - c), jusqu'à 1 MHz ; le
+                //   DSP 4.05 borne la constante à EBh, puis la traduit par sa table en registre de fréquence.
+                // pcem bug, reproduced: PB-288 — la constante s'applique au tic suivant, transfert en cours compris.
+                if (materiel.pb_155)
+                        if (frequence_materiel(dsp))
+                                break;
                 dsp.sb_timei = dsp.sb_timeo = dsp.sb_data[0];
                 dsp.sblatcho = dsp.sblatchi = TIMER_USEC * (uint64_t)(256 - dsp.sb_data[0]);
                 temp = 256 - dsp.sb_data[0];
@@ -590,13 +594,18 @@ internal static partial class sound_sb_dsp
                 break;
         case 0x41: /*Set output sampling rate*/
         case 0x42: /*Set input sampling rate*/
+                if (materiel.pb_155)
+                        if (frequence_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB16)
                         break;
                 {
                 // pcem: sound_sb_dsp.c:393-401 — G12.1. L'octet FORT vient en premier. `TIMER_USEC * (1000000.0f /
                 //   (float)f)` : uint64_t par float, en float ; la conversion vers uint64_t est celle de GCC (CvtU64).
-                // pcem bug, reproduced: PB-155 — la fréquence reste libre, de 1 à 65 535 Hz ; le DSP 4.05 la quantifie
-                //   en un registre de 8 bits (≈ 23 × f / 4096) : FFh dès l'octet fort B1h, 1Ch sous 13h.
+                // pcem bug, fixed in hardware mode: PB-155 — la fréquence reste libre, de 1 à 65 535 Hz ; le DSP 4.05
+                //   la quantifie en un registre de 8 bits (≈ 23 × f / 4096) : FFh dès l'octet fort B1h, 1Ch sous 13h.
+                // pcem bug, reproduced: PB-288 — le registre s'applique au tic suivant, transfert en cours compris ; le
+                //   4.xx le range et ne le donne au codec qu'au départ ou à la reprise d'un transfert (les deux modes).
                 // pcem bug, not reproduced: PB-150 — la fréquence 0 rend sblatcho nul en C (ulong.MaxValue en .NET) :
                 //   l'échéance ne recule plus et timer_process boucle sans fin dès qu'une minuterie du DSP tourne
                 //   (R9). DEVIATION (PLAN-G12.md, décision n° 10) : 0 est ramené à 1 Hz, le reste de la commande

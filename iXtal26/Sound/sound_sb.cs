@@ -401,8 +401,13 @@ internal static partial class sound_sb
     // pcem: sound_sb.c:127-208 — G12.1, la SB 16. Les conversions float -> int32_t passent par l'aide du C
     //   (cvttss2si : INT_MIN hors bornes et pour NaN ; .NET saturerait), obligatoire à :150-151, uniforme
     //   ailleurs (PLAN-G12.md, décision n° 12). Les entiers débordent comme en C (CheckForOverflowUnderflow faux).
+    // En mode matériel (PB-155), cette boucle ne tourne plus : sa copie, tampon_sb16_materiel (sound_sb.Materiel.cs),
+    //   la remplace ; une correction de l'enregistrement (8e) va dans la copie.
     internal static void sb_get_buffer_sb16(int32_t[] buffer, int len, object? p)
     {
+        if (materiel.pb_155)
+                if (tampon_sb16_materiel(buffer, len, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1745_mixer_t mixer = sb.mixer_sb16;
 
@@ -427,8 +432,8 @@ internal static partial class sound_sb
                        : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
                                                                                : 0;
 
-                // pcem bug, reproduced: PB-155 — au-delà de ~34,7 kHz le FIR dépasse le gain unité : un signal pleine
-                //   échelle déborde la conversion, INT_MIN en C, que CvtI32 rend aussi.
+                // pcem bug, fixed in hardware mode: PB-155 — au-delà de ~34,7 kHz le FIR dépasse le gain unité : un
+                //   signal pleine échelle déborde la conversion, INT_MIN en C, que CvtI32 rend aussi.
                 out_l += (Cpu._386.CvtI32((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
                 out_r += (Cpu._386.CvtI32((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
 
@@ -508,8 +513,13 @@ internal static partial class sound_sb
     //   factorise pas.
     // PB-160, la part (b), la même dans les deux modes (Q13) — le rééchantillonnage par répétition, sans interpolation
     //   (repliement).
+    // En mode matériel (PB-155), cette boucle ne tourne plus : sa copie, tampon_emu8k_materiel (sound_sb.Materiel.cs),
+    //   la remplace ; une correction de l'enregistrement (8e) va dans la copie.
     internal static void sb_get_buffer_emu8k(int32_t[] buffer, int len, object? p)
     {
+        if (materiel.pb_155)
+                if (tampon_emu8k_materiel(buffer, len, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1745_mixer_t mixer = sb.mixer_sb16;
         emu8k_t emu = sb.emu8k!;
@@ -539,7 +549,8 @@ internal static partial class sound_sb
                        : (0 + (mixer.input_selector_right & INPUT_MIDI_R)) != 0 ? out_r
                                                                                : 0;
 
-                // pcem bug, reproduced: PB-155 — la conversion du C (cvttss2si), comme à sb_get_buffer_sb16.
+                // pcem bug, fixed in hardware mode: PB-155 — la conversion du C (cvttss2si), comme à
+                //   sb_get_buffer_sb16.
                 out_l += (Cpu._386.CvtI32((double)(low_fir_sb16(0, (float)sb.dsp.buffer[c]) * mixer.voice_l)) / 3) >> 15;
                 out_r += (Cpu._386.CvtI32((double)(low_fir_sb16(1, (float)sb.dsp.buffer[c + 1]) * mixer.voice_r)) / 3) >> 15;
 

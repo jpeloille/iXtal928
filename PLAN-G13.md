@@ -542,9 +542,9 @@ contre-lecture, M2, sa série entière et son commit :
     par Julien le 16/10 : « on part pour 7e4 »)*. PB-260 (la carte, maître du bus, passe outre son canal de DMA et le
     8237 : la vraie carte passe par son canal, en cascade) et PB-142 (la machine des commandes, la mise sous tension).
     Une étude d'abord (ce que disent le TR d'Adaptec et le 8237 ; ce que PCem fait), puis sa série. Après G13.11.
-    L'étude (`/var/tmp/ixtal-g13/etude-7e4.md`) : la ROM de la carte met son canal en cascade avant tout accès à la mémoire
-    (0x3FE) ; la suspension se fait à l'échéance de 10 µs, en tête de `process_ccb`, `process_scsi`, de 1Ah, 1Bh et des
-    états de 03h qui écrivent ; la mise sous tension joue le HRST de PCem ; PB-142 disait 00h, PCem relit 10h.
+    L'étude (`/var/tmp/ixtal-g13/etude-7e4.md`) : la ROM de la carte met son canal en cascade avant tout accès à la
+    mémoire (0x3FE) ; la suspension se fait à l'échéance de 10 µs, en tête de `process_ccb`, `process_scsi`, de 1Ah, 1Bh
+    et des états de 03h qui écrivent ; la mise sous tension joue le HRST de PCem ; PB-142 disait 00h, PCem relit 10h.
     **Q28, posée le 16/10** — un canal démasqué mais hors cascade (mode simple, bloc ou demande) : le 8237 y pilote
     lui-même le bus, en conflit avec la carte (fiche, Cascade Mode) ; l'issue réelle est inconnue. (A) la condition de
     l'AT TR : la carte attend, comme PB-253 pour le canal 4 ; (B) reproduire PCem, seuls le masque et la désactivation
@@ -582,8 +582,13 @@ contre-lecture, M2, sa série entière et son commit :
     Le vecteur du DSP tic par tic sous PB-234, le tic de PCem refait sous les autres ; quatre attendus par scénario.
   - **G13.8c — Le DSP 4.xx et la fréquence.** PB-149, PB-239, PB-155 (Q15). Coupée en deux le 13/10 : **8c1** ✅
     *(13/10, VERIFICATION.md § G13.8c1)*, PB-149 (l'octet de mode de B0h à CFh) et PB-239 (la commande mise en file :
-    2.0x et 3.xx pendant tout transfert, 4.xx pendant un automatique), qui ne dépendent pas de Q15 ; **8c2**, PB-155,
-    après la réponse à Q15.
+    2.0x et 3.xx pendant tout transfert, 4.xx pendant un automatique), qui ne dépendent pas de Q15 ; **8c2** ✅
+    *(17/10, VERIFICATION.md § G13.8c2)*, PB-155, après la réponse à Q15 (tranchée le 16/10) : l'étude
+    (`/var/tmp/ixtal-g13/etude-8c2.md`) ; le registre de 8 bits du micrologiciel, la retenue perdue et la table du 4.05
+    sur la SB 16 (la carte réelle, Q15), le 4.13 sur l'AWE32 ; les Hz de MAME ; la conversion du FIR saturante, une
+    garde par tampon ; le registre au reset, 38h, sous PB-236 ; PB-156 reclassé (d), sans objet en mode matériel ;
+    r9-sb16 du mode PCem seul ; PB-288, neuf (le registre ne s'applique qu'au départ d'un transfert), inscrit ; **8c3**,
+    PB-288, après 8c2.
   - **G13.8d — Les mélangeurs, le MPU-401 et la ligne partagée.** PB-237, PB-145, PB-153, PB-154, PB-238 (Q14). Coupée
     en deux le 13/10 : **8d1** ✅ *(13/10, VERIFICATION.md § G13.8d1)*, les mélangeurs — PB-237 (les volumes du reset),
     PB-145 (la SB 2.0 sans mélangeur), et de PB-153, 3Dh et 3Eh au reset et la traduction du 16 bits vers le canal 8
