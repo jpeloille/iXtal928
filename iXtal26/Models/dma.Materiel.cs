@@ -110,6 +110,27 @@ internal static partial class dma
         return false;
     }
 
+    // pcem bug, fixed in hardware mode: PB-260 — un maître de bus (l'AHA-1542C) prend le bus par un canal du 8237
+    //   en mode cascade (AT TR p. 1-26, –MASTER ; fiche p. 5-6) : refusé si son 8237 est désactivé (le bit 2 de la
+    //   commande ; celle du haut n'est rangée que sous PB-157), si le canal est masqué, ou s'il n'est pas en cascade
+    //   (Q28) ; le canal 0 passe aussi par la cascade du canal 4 sous PB-253. Les canaux 1 à 4, que la carte ne
+    //   connaît pas (inconnu), et un PC, où la carte est refusée (PB-135), accordent le bus, comme chez PCem.
+    internal static bool dma_maitre_materiel(int canal)
+    {
+        if (AT == 0 || canal is < 0 or > 7 or (>= 1 and <= 4))
+                return true;
+        var commande = canal < 4 ? dma_command : dma16_command;
+        if ((commande & 4) != 0 || (dma_m & (1 << canal)) != 0)
+                return false;
+        if ((dma_[canal].mode & 0xc0) != 0xc0)
+                return false;
+        if (canal == 0)
+                if (materiel.pb_253)
+                        if (!dma_cascade_materiel())
+                                return false;
+        return true;
+    }
+
     // pcem bug, fixed in hardware mode: PB-250 — le registre de requête (09h, D2h ; fiche p. 7 et figure 6) : le bit 2
     //   pose ou efface la requête logicielle du canal des bits 0 et 1. Les requêtes en attente se servent d'abord, avant
     //   tout accès aux registres : un programme ne voit jamais un transfert de bloc à moitié fait.

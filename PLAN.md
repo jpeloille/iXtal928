@@ -157,7 +157,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   PB-178 ; MOV CR0, PB-286 et PB-287, neuf ; PB-107 laissé non corrigé ; la série de 10c rejouée). Le 16/10, toutes
   les questions tranchées (Q13 à Q16, Q20, Q22 à Q27, PB-260 et PB-142 en 7e4) et la décision n° 17 (sortir de PCem :
   le mode matériel par défaut, G13.11) : 8f2 ✅ (la fin de l'EMU8000 : l'octet impair de PB-158, PB-162, PB-163) ;
-  G13.11 ✅ (une machine part du mode matériel ; la clé lue comme l'option). Suivent 7e4, 8c2, 8e, 8d3a à c (les
+  G13.11 ✅ (une machine part du mode matériel ; la clé lue comme l'option) ; 7e4 ✅ (l'AHA-1542C : la mise sous
+  tension, PB-142, et le maître de bus par son canal du 8237, PB-260 ; Q28 posée). Suivent 8c2, 8e, 8d3a à c (les
   cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 

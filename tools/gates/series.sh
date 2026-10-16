@@ -852,6 +852,16 @@ for pb in 158 159 160; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.7e4 — l'AHA-1542C : PB-142 (la mise sous tension par l'autotest) et PB-260 (le maître de bus par son canal du
+# 8237, en cascade, démasqué, son 8237 actif) ; le 8237 haut désactivé, rangé sous PB-157.
+for pb in 142 260; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
+run materiel-cas-pb260-pb157 --hardware-mode PB-157,PB-260 materiel-cas PB-260
+# Le canal 0 par la cascade du canal 4 (PB-253) ; et PB-157 seul, où le 8237 haut désactivé ne retient pas la carte.
+run materiel-cas-pb260-pb253 --hardware-mode PB-253,PB-260 materiel-cas PB-260
+run materiel-cas-pb260-pb157seul --hardware-mode PB-157 materiel-cas PB-260
 # G13.8f2 — la fin de l'EMU8000 (Q13) : PB-162 (le chorus droit lit dans sa ligne, à sa fraction) et PB-163 (la
 # réverbération sature) ; l'octet impair de PB-158 entre dans le cas de PB-158.
 for pb in 162 163; do

@@ -3039,12 +3039,19 @@ répond « prête » à la mailbox.
 *Source* : documenté pour la mise sous tension — AHA-1540C TR, *Hard Reset Operations* — STST pendant l'autotest,
 puis INIT et IDLE. Les octets hors protocole : manuel de l'AHA-1540A/1542A (1989) § 4.2.2, « likely to be
 interpreted as invalid, although they may instead cause the execution of valid commands » — inconnu au détail.
-*Cas qui discrimine* : lecture du port d'état juste après l'init de la carte : 00h chez PCem ; STST, puis INIT |
-IDLE sur la carte. La réentrance (un octet écrit pendant l'autotest ou l'envoi d'un résultat) : à mesurer.
+*Cas qui discrimine* : lecture du port d'état juste après l'init de la carte : 10h chez PCem (l'état 0, et IDLE, que le
+port ajoute ; corrigé en G13.7e4, l'entrée disait 00h) ; STST (80h), puis INIT | IDLE (30h) sur la carte. La réentrance
+(un octet écrit pendant l'autotest ou l'envoi d'un résultat) : à mesurer.
 *G13* : (a) pour la mise sous tension ; la réentrance (c) — inconnue état par état : à mesurer sur une 1542C.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, marqueurs PB-142 (l'OUT de commande, l'état à l'init).
-*Non corrigé en mode matériel* : la mise sous tension, en attente de Julien (PB-260 et PB-142, une 7e3 bis ou une 7e4 ;
-PLAN-G13.md § G13.7) ; la réentrance, inconnue (c), restera reproduite dans les deux modes (décision n° 14).
+*Reproduit en mode PCem* : `Scsi/scsi_aha1540.cs`, marqueur PB-142 (l'état à l'init) ; la réentrance, la part
+inconnue (c), la même dans les deux modes, porte un commentaire (l'OUT de commande).
+*Corrigé en mode matériel* (G13.7e4), la mise sous tension : sous `if (materiel.pb_142)`, à la fin de l'init de la
+carte (`mise_sous_tension_materiel`), le chemin du HRST de PCem — STST, puis INIT et IDLE à l'échéance suivante (la
+première, au temps 0). La durée de l'autotest, inconnue, est celle de PCem (une échéance), DIAGF jamais posé ; la
+réentrance reste reproduite dans les deux modes (décision n° 14). La ROM de la carte commence par HRST : elle ne voit
+pas la mise sous tension. `materiel-cas PB-142` : l'état avant toute tranche, 10h contre 80h, puis 10h contre 30h ;
+après 300 tranches, 10h contre 30h ; témoins : HRST (80h puis 30h dans les deux modes), un NOP écrit pendant
+l'autotest, perdu dans les deux modes.
 
 ### PB-143 — Une CDB courte est complétée de zéros
 
@@ -5844,6 +5851,7 @@ en G13.4, PB-260, au domaine du stockage.
 rangée qu'avec PB-157. `materiel-cas PB-253` (AT, le canal 4 en cascade : un transfert du canal 2 ; le canal 4 masqué ;
 le canal 4 démasqué en mode simple) rend « fait » trois fois en mode PCem, « fait » puis « refusé » deux fois en mode
 matériel ; la correction coupée, il rougit. DMABANC, sur l'AT : le canal 4 masqué retient la requête du canal 1.
+Le maître de bus de l'AHA-1542C sur le canal 0 passe aussi par cette cascade (PB-260, G13.7e4).
 
 ### PB-254 — Les files du 8042 n'ont pas de garde : au seizième octet en attente, elles paraissent vides
 
@@ -5986,8 +5994,26 @@ p. 5-6 (Cascade Mode). Documenté par composition.
 *Cas qui discrimine* : ibmat avec une 1542C sur le canal 7, OUT D4h,07h (le canal 7 masqué), puis une lecture SCSI :
 PCem la fait ; l'AT la bloque jusqu'au démasquage.
 *G13* : (a) — documenté par composition ; au domaine du stockage (G13.7), avec la cascade de PB-253.
-*Reproduit* : `Scsi/scsi_aha1540.cs`, les quatre chemins du maître de bus, marqueurs PB-260.
-*Non corrigé en mode matériel* : en attente de Julien : PB-260 et PB-142, une 7e3 bis ou une 7e4 (PLAN-G13.md § G13.7).
+*Reproduit en mode PCem* : `Scsi/scsi_aha1540.cs`, les quatre chemins du maître de bus, marqueurs PB-260.
+*Corrigé en mode matériel* (G13.7e4 ; Julien, le 16/10 : une 7e4) : sous `if (materiel.pb_260)`, en tête de
+`process_ccb` et de `process_scsi`, des `case` 1Ah et 1Bh, et des états de 03h qui écrivent (08h, 15h) — jamais par
+octet : la carte ne prend le bus (`bus_refuse_materiel`, `Scsi/scsi_aha1540.Materiel.cs`) que si son canal (celui de
+sa configuration, relu à chaque échéance de 10 µs) est démasqué, en mode cascade (provisoire : Q28 (A), posée à
+Julien), et son 8237 actif (le bit 2
+de la commande ; celle du 8237 haut n'est rangée que sous PB-157) ; le canal 0 passe aussi par la cascade du canal 4
+sous PB-253 (`dma_maitre_materiel`, `Models/dma.Materiel.cs`). Refusé, l'échéance passe sans rien faire et la carte
+reprend à la première qui suit. La machine des commandes et le port de contrôle ne sont pas gardés : la ROM de la carte
+envoie HRST, 24h, 04h et 23h avant de mettre son canal en cascade (sa routine 0x3FE, désassemblée en G13.7e4). Restent
+ceux de PCem : les canaux 1 à 4 (inconnus), le côté SCSI arrêté avec le côté hôte (le FIFO, inconnu), les temps
+« bus on / off ». `materiel-cas PB-260` : le canal masqué, un READ(10) posté n'a pas de MBI, la MBO reste à 01h, la
+mémoire intacte, puis s'achève au démasquage ; le CCB récrit pendant le masque se lit au démasquage ; 1Ah et 03h/08h
+sans HACC tant que le canal est masqué, 1Ah lisant le motif récrit pendant le masque ; le canal en mode simple (40h),
+aucun MBI ; sous PB-253, le canal 0 sans la cascade du canal 4 ; sous PB-157, le 8237 haut désactivé (D0h = 04h) ;
+témoins : le canal en cascade, 04h et HRST, qui ne prennent pas le bus. Les états de 03h qui écrivent ne se
+discriminent pas par un cas : leur fenêtre tient entre deux échéances. Le banc des cas met le canal en cascade, comme
+la ROM (le banc s'arrête au POST). En mode matériel, la carte sort d'usine sur le DMA 5 (PB-144), le DMA 16 bits de la
+SB 16 par défaut : un pilote de la SB 16 qui passe le canal 5 en mode simple, ou le masque, retient la carte, comme
+sur la machine réelle ; les cavaliers (G13.8d3) permettront de les séparer.
 
 ### PB-261 — La lecture à distance de la souris PS/2 (EBh) ne remet pas ses compteurs à zéro
 

@@ -234,6 +234,9 @@ internal static class materiel
     /// <summary>PB-141 : les mailbox de l'AHA-1542C : 01h, 02h, le tourniquet, le MBI libre, HRST et SRST.</summary>
     internal static readonly bool pb_141;
 
+    /// <summary>PB-142 : l'AHA-1542C se met sous tension par son autotest, STST puis INIT et IDLE.</summary>
+    internal static readonly bool pb_142;
+
     /// <summary>PB-144 : l'EEPROM de l'AHA-1542C propre au mode matériel ; sans elle, les réglages d'usine.</summary>
     internal static readonly bool pb_144;
 
@@ -567,6 +570,9 @@ internal static class materiel
     /// <summary>PB-258 : l'erreur de division empile dans SS, sous un préfixe de segment ; avec PB-45 et PB-169.</summary>
     internal static readonly bool pb_258;
 
+    /// <summary>PB-260 : l'AHA-1542C, maître du bus, ne le prend que par son canal du 8237, en cascade.</summary>
+    internal static readonly bool pb_260;
+
     /// <summary>PB-261 : la souris PS/2 remet ses compteurs de mouvement à zéro après le paquet d'EBh.</summary>
     internal static readonly bool pb_261;
 
@@ -664,6 +670,7 @@ internal static class materiel
         pb_139 = ModeMateriel.Demande(139);
         pb_140 = ModeMateriel.Demande(140);
         pb_141 = ModeMateriel.Demande(141);
+        pb_142 = ModeMateriel.Demande(142);
         pb_144 = ModeMateriel.Demande(144);
         pb_218 = ModeMateriel.Demande(218);
         pb_276 = ModeMateriel.Demande(276);
@@ -773,6 +780,7 @@ internal static class materiel
         pb_255 = ModeMateriel.Demande(255);
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);
+        pb_260 = ModeMateriel.Demande(260);
         pb_261 = ModeMateriel.Demande(261);
         pb_262 = ModeMateriel.Demande(262);
         pb_263 = ModeMateriel.Demande(263);

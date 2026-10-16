@@ -713,4 +713,27 @@ internal static partial class scsi_aha1540
         ModeMateriel.Sonde[279]++;
         scsi.@params[5]--;
     }
+
+    /// <summary>PB-260 : la carte ne prend le bus que par son canal du 8237, en cascade, démasqué, son 8237 actif
+    /// (dma_maitre_materiel) ; refusé, l'échéance passe sans rien faire, et la carte reprend à la première qui suit.
+    /// Le canal est celui de la configuration, relu à chaque échéance. Vrai : le bus est refusé.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool bus_refuse_materiel(aha154x_t scsi)
+    {
+        if (Models.dma.dma_maitre_materiel(scsi.dma))
+            return false;
+        ModeMateriel.Sonde[260]++;
+        return true;
+    }
+
+    /// <summary>PB-142 : la mise sous tension est l'autotest (le TR, Hard Reset Operations : « identical to that of
+    /// normal power-on ») : STST, puis INIT et IDLE à l'échéance suivante, le chemin du HRST de PCem. Sa durée,
+    /// inconnue, est celle de PCem : une échéance.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void mise_sous_tension_materiel(aha154x_t scsi)
+    {
+        ModeMateriel.Sonde[142]++;
+        scsi.status = STATUS_STST;
+        scsi.cmd_state = CMD_STATE_RESET;
+    }
 }

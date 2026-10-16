@@ -21,7 +21,7 @@ internal static partial class MaterielCas
 
     /// <summary>AvecScsi, puis 600 tranches : le POST efface la mémoire basse entre la 400e et la 450e tranche de la
     /// machine (mesuré), puis attend « Press F1 » sans plus y toucher — la mailbox doit être écrite après.</summary>
-    private static int AvecMb(Func<int> corps) => AvecScsi(() =>
+    private static int AvecMb(Func<int> corps) => AvecScsi(tranches: 300, corps: () =>
     {
         Tourner(600);
         // La mailbox doit tenir : une marque écrite, 100 tranches, relue — sinon le POST y touche encore, le banc est faux.
@@ -30,6 +30,7 @@ internal static partial class MaterielCas
         if (mem.mem_readb_phys(Mb) != 0xA5)
             throw new InvalidOperationException("le POST écrit encore la mémoire de la mailbox après 600 tranches");
         mem.mem_writeb_phys(Mb, 0);
+        CanalAha(masque: false);
         return corps();
     });
 

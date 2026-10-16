@@ -538,10 +538,18 @@ contre-lecture, M2, sa série entière et son commit :
     secteur CHS moins 1) ; attendus déduits, l'interface est privée. PB-283 reclassé (c) à l'étude, et sorti de
     l'étape : sa forme SCSI est inatteignable (ni CD ni ZIP sur le bus de l'AHA, décision n° 2 de PLAN-G11.md), sa
     forme ATAPI inconnue (SFF-8020i réserve l'octet 1 du paquet) ; reproduit dans les deux modes.
-  - **G13.7e4 — La mise sous tension de l'AHA-1542C et son DMA** *(décidée par Julien le 16/10 : « on part pour
-    7e4 »)*. PB-260 (la carte, maître du bus, passe outre son canal de DMA et le 8237 : la vraie carte passe par son
-    canal, en cascade) et PB-142 (la machine des commandes, la mise sous tension). Une étude d'abord (ce que disent le
-    TR d'Adaptec et le 8237 ; ce que PCem fait), puis sa série. Après G13.11.
+  - **G13.7e4 — La mise sous tension de l'AHA-1542C et son DMA** ✅ *(17/10, VERIFICATION.md § G13.7e4 ; décidée
+    par Julien le 16/10 : « on part pour 7e4 »)*. PB-260 (la carte, maître du bus, passe outre son canal de DMA et le
+    8237 : la vraie carte passe par son canal, en cascade) et PB-142 (la machine des commandes, la mise sous tension).
+    Une étude d'abord (ce que disent le TR d'Adaptec et le 8237 ; ce que PCem fait), puis sa série. Après G13.11.
+    L'étude (`/var/tmp/ixtal-g13/etude-7e4.md`) : la ROM de la carte met son canal en cascade avant tout accès à la mémoire
+    (0x3FE) ; la suspension se fait à l'échéance de 10 µs, en tête de `process_ccb`, `process_scsi`, de 1Ah, 1Bh et des
+    états de 03h qui écrivent ; la mise sous tension joue le HRST de PCem ; PB-142 disait 00h, PCem relit 10h.
+    **Q28, posée le 16/10** — un canal démasqué mais hors cascade (mode simple, bloc ou demande) : le 8237 y pilote
+    lui-même le bus, en conflit avec la carte (fiche, Cascade Mode) ; l'issue réelle est inconnue. (A) la condition de
+    l'AT TR : la carte attend, comme PB-253 pour le canal 4 ; (B) reproduire PCem, seuls le masque et la désactivation
+    suspendant. *Proposé : (A) ; codé ainsi en attendant la réponse, une ligne à retirer pour (B).* Faite : la série
+    verte dans les deux modes, et le démarrage témoin (DOS 5 depuis le disque SCSI, sous « tout » comme en mode PCem).
 
 **Les questions de D3-stockage, tranchées par Julien le 12/10 sur ces propositions** :
 - **Q5 (G13.7c)** — les commandes que la norme du lecteur de 1996 n'a pas (GET EVENT STATUS NOTIFICATION, MODE

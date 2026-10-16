@@ -12,9 +12,9 @@
 // omitted: les pclog (sortie pure) ; G11.0 compte à leur place les commandes reçues (commandes_vues).
 //
 // DEVIATIONS (R9, PB-135) : :530, :679, :799, :841, :883, :980, :1743 — la commande finit en erreur (décision
-//   n° 5). Reproduits : PB-136, PB-142, PB-143, PB-280 à PB-282 (PCEM_BUGS.md), dont la lecture de 22h au-delà
-//   de params[64] (PB-136, param_lu) ; les fatal inatteignables de PB-134. Corrigés en mode matériel
-//   (scsi_aha1540.Materiel.cs) : PB-133, PB-137 à PB-141, PB-144, PB-218, PB-276 à PB-279.
+//   n° 5). Reproduits : PB-136, PB-143, PB-280 à PB-282 (PCEM_BUGS.md), dont la lecture de 22h au-delà de
+//   params[64] (PB-136, param_lu), et la réentrance de PB-142 ; les fatal inatteignables de PB-134. Corrigés en
+//   mode matériel (scsi_aha1540.Materiel.cs) : PB-133, PB-137 à PB-142, PB-144, PB-218, PB-260, PB-276 à PB-279.
 
 // CS8981 : `scsi_aha1540` n'a que des minuscules ASCII — le nom de l'unité C, comme scsi.cs.
 #pragma warning disable CS8981
@@ -335,7 +335,8 @@ internal static partial class scsi_aha1540
                         break;
                 scsi.status |= STATUS_CDF;
                 scsi.cmd_data = val;
-                // pcem bug, reproduced: PB-142 — réentrant dans tous les états (RESET, CMD_IN_PROGRESS, SEND_RESULT).
+                // PB-142, la part inconnue (c), la même dans les deux modes — réentrant dans tous les états (RESET,
+                //   CMD_IN_PROGRESS, SEND_RESULT).
                 process_cmd(scsi);
                 break;
         }
@@ -407,7 +408,8 @@ internal static partial class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:407-533
-    // pcem bug, reproduced: PB-260 — le CCB lu en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, fixed in hardware mode: PB-260 — le CCB lu en maître de bus : canal DMA, masque, mode et 8237 ignorés
+    //   (appelé de process_ccb seul, que la garde suspend).
     private static void process_cdb(aha154x_t scsi)
     {
         int c;
@@ -529,7 +531,8 @@ internal static partial class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:535-1369
-    // pcem bug, reproduced: PB-260 — 03h, 1Ah et 1Bh en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, fixed in hardware mode: PB-260 — 03h, 1Ah et 1Bh en maître de bus : canal DMA, masque, mode et 8237
+    //   ignorés.
     private static void process_cmd(aha154x_t scsi)
     {
         uint32_t addr = 0;
@@ -922,6 +925,9 @@ internal static partial class scsi_aha1540
                                                 scsi.bios_cmd_state++;
                                                 break;
                                         case 1:
+                                                if (materiel.pb_260)
+                                                        if (bus_refuse_materiel(scsi))
+                                                                break;
                                                 addr = (uint32_t)(scsi.@params[9] | (scsi.@params[8] << 8) | (scsi.@params[7] << 16));
                                                 mem_writeb_phys(addr, scsi.int_buffer[0]);
                                                 mem_writeb_phys(addr + 1, scsi.int_buffer[1]);
@@ -1002,6 +1008,9 @@ internal static partial class scsi_aha1540
                                                 scsi.bios_cmd_state++;
                                                 break;
                                         case 2:
+                                                if (materiel.pb_260)
+                                                        if (bus_refuse_materiel(scsi))
+                                                                break;
                                                 addr = (uint32_t)(scsi.@params[9] | (scsi.@params[8] << 8) | (scsi.@params[7] << 16));
                                                 mem_writeb_phys(addr, scsi.int_buffer[0]);
                                                 mem_writeb_phys(addr + 1, scsi.int_buffer[1]);
@@ -1134,6 +1143,9 @@ internal static partial class scsi_aha1540
                         break;
 
                 case COMMAND_WRITE_CHANNEL_2_BUF:
+                        if (materiel.pb_260)
+                                if (bus_refuse_materiel(scsi))
+                                        break;
                         addr = (uint32_t)(scsi.@params[2] | (scsi.@params[1] << 8) | (scsi.@params[0] << 16));
                         for (c = 0; c < 64; c++)
                                 scsi.dma_buffer[c] = mem_readb_phys(addr + (uint32_t)c);
@@ -1142,6 +1154,9 @@ internal static partial class scsi_aha1540
                         break;
 
                 case COMMAND_READ_CHANNEL_2_BUF:
+                        if (materiel.pb_260)
+                                if (bus_refuse_materiel(scsi))
+                                        break;
                         addr = (uint32_t)(scsi.@params[2] | (scsi.@params[1] << 8) | (scsi.@params[0] << 16));
                         for (c = 0; c < 64; c++)
                                 mem_writeb_phys(addr + (uint32_t)c, scsi.dma_buffer[c]);
@@ -1278,9 +1293,13 @@ internal static partial class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:1371-1693
-    // pcem bug, reproduced: PB-260 — mailbox, CCB et MBI en maître de bus : canal DMA, masque, 8237 ignorés.
+    // pcem bug, fixed in hardware mode: PB-260 — mailbox, CCB et MBI en maître de bus : canal DMA, masque, 8237
+    //   ignorés.
     private static void process_ccb(aha154x_t scsi)
     {
+        if (materiel.pb_260)
+                if (bus_refuse_materiel(scsi))
+                        return;
         int c;
 
         switch (scsi.ccb_state)
@@ -1599,9 +1618,13 @@ internal static partial class scsi_aha1540
     }
 
     // pcem: scsi_aha1540.c:1695-2057
-    // pcem bug, reproduced: PB-260 — les données en maître de bus : canal DMA, masque, mode et 8237 ignorés.
+    // pcem bug, fixed in hardware mode: PB-260 — les données en maître de bus : canal DMA, masque, mode et 8237
+    //   ignorés.
     private static void process_scsi(aha154x_t scsi)
     {
+        if (materiel.pb_260)
+                if (bus_refuse_materiel(scsi))
+                        return;
         int c;
         int bytes_transferred = 0;
 
@@ -2090,11 +2113,14 @@ internal static partial class scsi_aha1540
         mem_mapping_add(scsi.mapping, addr, 0x4000, aha1542c_read, null, null, aha1542c_write, null, null, scsi.bios_rom.rom,
                         0, 0, scsi);
 
-        // pcem bug, reproduced: PB-142 — état 0 à la mise sous tension : ni STST, ni INIT, ni IDLE avant un reset.
+        // pcem bug, fixed in hardware mode: PB-142 — état 0 à la mise sous tension (relu 10h, IDLE seul) : ni STST ni
+        //   INIT avant un reset.
         scsi.status = 0;
         scsi.cmd_state = CMD_STATE_IDLE;
         scsi.ccb_state = CCB_STATE_IDLE;
         scsi.scsi_state = SCSI_STATE_IDLE;
+        if (materiel.pb_142)
+                mise_sous_tension_materiel(scsi);
 
         timer_add(scsi.timer, aha154x_callback, scsi, 1);
 

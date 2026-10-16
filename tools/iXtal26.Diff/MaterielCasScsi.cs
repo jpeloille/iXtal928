@@ -22,8 +22,13 @@ internal static partial class MaterielCas
     private static string RomsBanc = "roms";
 
     /// <summary>L'ami486, la carte et ses deux disques (celui de l'ID 1 à la géométrie donnée, 20 × 64 × 32 sinon),
-    /// puis le corps ; la machine fermée ensuite. `section` s'ajoute au .cfg (la section du device).</summary>
-    private static int AvecScsi(Func<int> corps, int cyl = 20, int tetes = 64, int spt = 32, string section = "") => AvecCd(d =>
+    /// `tranches` tranches, puis le corps ; la machine fermée ensuite. `section` s'ajoute au .cfg (la section du
+    /// device). Le canal de la carte est mis en cascade, démasqué, comme sa ROM le fait avant tout accès à la mémoire
+    /// (G13.7e4, PB-260) : le banc s'arrête au POST, avant les ROM d'extension. 600 tranches par défaut : le POST de
+    /// l'ami486 désactive le 8237 haut pendant son test du DMA (D0h, rangé sous PB-157) et le réactive avant ; la ROM
+    /// de la carte ne court qu'à la fin du POST.</summary>
+    private static int AvecScsi(Func<int> corps, int cyl = 20, int tetes = 64, int spt = 32, string section = "",
+                                int tranches = 600) => AvecCd(d =>
     {
         for (var u = 0; u < 2; u++)
         {
@@ -41,7 +46,9 @@ internal static partial class MaterielCas
             Floppy.fdd_c.discfns[0] = Floppy.fdd_c.discfns[1] = "";
             if (!pc.initpc(RomsBanc))
                 throw new InvalidOperationException("initpc");
-            R9Atapi.Tranches(300);
+            R9Atapi.Tranches(tranches);
+            if (tranches > 0)
+                CanalAha(masque: false);
             return corps();
         }
         finally
@@ -49,6 +56,24 @@ internal static partial class MaterielCas
             try { pc.closepc(); } catch (Exception) { }
         }
     });
+
+    /// <summary>Le canal du 8237 de la carte (celui de sa configuration), programmé comme sa ROM (0x3FE de la
+    /// banque 0) : le mode (C0h, la cascade, par défaut), puis le masque, posé ou levé. Les canaux 0, 5, 6 et 7, ceux
+    /// de la carte.</summary>
+    private static void CanalAha(bool masque, byte mode = 0xC0)
+    {
+        var c = Scsi.scsi_aha1540.courante()?.dma ?? throw new InvalidOperationException("pas d'AHA-1542C");
+        if (c == 0)
+        {
+            io.outb(0x0b, mode);
+            io.outb(0x0a, (byte)(masque ? 4 : 0));
+        }
+        else if (c >= 5)
+        {
+            io.outb(0xd6, (byte)(mode | (c - 4)));
+            io.outb(0xd4, (byte)((masque ? 4 : 0) | (c - 4)));
+        }
+    }
 
     /// <summary>Un CCB vers l'ID 1, la sense automatique coupée si demandé ; rend le statut d'hôte, le statut cible et
     /// le code du MBI.</summary>

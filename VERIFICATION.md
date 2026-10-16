@@ -12246,3 +12246,77 @@ de part et d'autre, 5 changées, aucune apparue ni disparue. `pc.loadconfig` : l
 `DemanderParCle(string)` au lieu de `sscanf_i` et `DemanderParCle(int)`), exécutée une fois par machine ;
 `process_scsi`, `scsi_hd_command`, `scsi_zip_command` et `emu8k_init` : des jetons de chaînes seuls, décalés de 141.
 Aucune méthode gardée ne change : les scénarios sont des `--boot`, qui partent du mode PCem.
+
+## G13.7e4 — l'AHA-1542C : la mise sous tension et le maître de bus
+
+Le 17 octobre 2026. Julien, le 16/10 : « on part pour 7e4 » (PB-260 et PB-142). L'étude, en lecture seule
+(`/var/tmp/ixtal-g13/etude-7e4.md`) : chaque accès de la carte à la mémoire de l'hôte, leur cadence (une échéance de
+10 µs), le 8237, le HRST de PCem, et la ROM de la carte désassemblée (sa routine 0x3FE met son canal en cascade, puis
+le démasque, avant tout accès à la mémoire, après HRST, 24h, 04h et 23h). Elle a trouvé PB-142 faux sur un point :
+PCem relit 10h à la mise sous tension (l'état 0, et IDLE, que le port ajoute), et non 00h. Q28 posée (un canal
+démasqué hors cascade) ; l'étape est codée selon (A), la proposition, une ligne à retirer pour (B).
+
+**PB-260** (`Scsi/scsi_aha1540.cs`, `.Materiel.cs`, `Models/dma.Materiel.cs`). Sous `if (materiel.pb_260)`, en tête de
+`process_ccb` et de `process_scsi`, des `case` 1Ah et 1Bh, et des états de 03h qui écrivent la mémoire (08h, 15h) :
+la carte ne prend le bus (`bus_refuse_materiel`) que si son canal, celui de sa configuration relu à chaque échéance,
+est démasqué, en cascade, et son 8237 actif ; le canal 0 passe aussi par la cascade du canal 4 sous PB-253
+(`dma_maitre_materiel`). Refusé, l'échéance passe sans rien changer, et la carte reprend à la suivante. Le port de
+contrôle et la machine des commandes ne sont pas gardés (la ROM envoie ses commandes avant de régler son canal).
+`materiel-cas PB-260` : le canal masqué, un READ(10) posté laisse la MBO à 01h, aucun MBI, la mémoire intacte, et
+s'achève au démasquage ; le CCB récrit vers le secteur 1 pendant le masque est lu au démasquage (le secteur 1 ; PCem,
+le 0) ; 1Ah sans HACC pendant le masque, et le motif récrit pendant le masque relu par 1Bh (PCem, l'ancien) ; 03h/08h
+sans HACC, la mémoire intacte ; le canal en mode simple (40h), aucun MBI (Q28 (A)) ; sous PB-253, le canal 0 sans la
+cascade du canal 4 ; sous PB-157, le 8237 haut désactivé ; témoins : le canal en cascade, 04h et HRST pendant le
+masque. Les états de 03h qui écrivent ne se discriminent pas par un cas : leur fenêtre tient entre deux échéances.
+
+**PB-142** (même site). Sous `if (materiel.pb_142)`, à la fin de l'init de la carte (`mise_sous_tension_materiel`),
+le chemin du HRST de PCem : STST, puis INIT et IDLE à l'échéance suivante ; la durée de l'autotest, inconnue, une
+échéance, comme chez PCem ; la réentrance (c) reste reproduite dans les deux modes. `materiel-cas PB-142` : avant
+toute tranche, 10h puis 10h chez PCem, 80h puis 30h ; après 300 tranches, 10h contre 30h ; témoins : HRST (80h puis
+30h dans les deux modes), un NOP écrit pendant l'autotest, perdu dans les deux modes.
+
+**Le banc des cas.** Il s'arrête au POST, avant les ROM d'extension : `AvecScsi` met le canal de la carte en cascade,
+démasqué, comme la ROM (`CanalAha`), et attend 600 tranches (300 avant) : le POST de l'ami486 désactive le 8237 haut
+pendant son test du DMA (D0h, que PB-157 range) et le réactive ensuite ; sous « tout », les cas de PB-128 à 132
+rougissaient à 300. Le banc des mailbox garde son minutage (300 puis 600). Et une fuite du harnais, trouvée par la
+couverture sous « tout » : `Reset386` ne remet pas les drapeaux paresseux (`flags_op`…), que seul
+`ClearSegResidue` remet (avec le x87, dont PB-203 lit l'état de reset) ; après une machine SCSI de 600 tranches, le
+cas de PB-181 lisait ADC sans sa retenue. `Jouer386` les remet ; la couverture repasse au vert (190).
+
+**Le démarrage témoin** (`/tmp/a9/temoin-7e4.sh`, sur une copie du disque SCSI de la recette g5w) : l'ami486, l'AHA et
+sa ROM, DOS 5 depuis le disque SCSI par l'INT 13h de la carte, VER et DIR C:, en mode PCem puis sous « tout » : le
+même écran final (MS-DOS 5.00, les cinq entrées de C:) ; seuls diffèrent la bannière, le minutage (toutes les
+corrections jouent) et une image intermédiaire. La ROM règle bien son canal : sous PB-260, la carte amorce.
+
+**Le registre et la couverture.** PB-260 et PB-142 corrigés (G13.7e4) ; PB-253 cite PB-260 ; 76 entrées non
+corrigées (78 avant). Recensement : 287 défauts, 1 248 marqueurs. `couverture-materiel` sous « tout » : 190
+corrections, chacune son cas, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-7e4.py`) : la garde de `process_ccb` coupée, `materiel-cas PB-260` rougit
+(le CCB lu au démasquage) ; celle de 1Ah, 1 échec ; la mise sous tension coupée, 3 ; la cascade non exigée (Q28 (B)),
+1 ; la désactivation du 8237 ignorée (sous PB-157), 1 ; le marqueur de PB-142 retiré, le recensement rougit (2 écarts).
+La garde des états de 03h coupée reste verte, comme dit plus haut. La correction coupée par le masque (`--attendu
+materiel` en mode PCem) : PB-142, 2 échecs ; PB-260, 5.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle inventorie chaque accès de la carte à la mémoire et les trouve
+tous derrière une garde ; elle vérifie l'encodage du masque et du mode des deux 8237, l'équivalence de PB-142 avec le
+HRST de PCem, la remise des drapeaux paresseux, et refait les attendus). Reprises : le démarrage témoin en mode
+matériel, qui manquait ; un cas du canal 0 par la cascade de PB-253, et sa porte ; 1Ah, qui relit la mémoire au
+démasquage ; un témoin HRST pendant le masque ; une porte sous PB-157 seul, où le cas du 8237 haut prend l'attendu de
+PCem ; le libellé des 300 tranches ; Q28 dite provisoire au registre ; le conflit possible du DMA 5 avec la SB 16, au
+registre ; une phrase de `pourquoi-on-corrige.md` (un logiciel qui masque le canal retient la carte, comme sur la
+machine réelle).
+
+**Les séries** (le worktree de 7e4, la DLL Release figée, `S-g7e4`). En mode PCem, g7e4 (23 h 19 à 0 h 35) : 717
+vertes ; contre gg1311, seules changent les cinq portes neuves et la couverture (190) — les cas de l'AHA, à 600
+tranches, gardent leurs lignes. Sous « tout », g7e4-tout (0 h 35 à 0 h 52) : 479 vertes, 228 refusées, 10 `pcem`,
+aucune rouge ; contre gg1311-tout, les mêmes portes neuves et la couverture. Les reprises de la contre-lecture (les
+cas, les portes, les textes ; l'émulateur inchangé) sont venues après la DLL des séries : treize portes rejouées
+(`PORTES` : les cas de PB-142 et PB-260 et leurs variantes, dont les deux portes neuves, ceux de PB-128, 141, 144 et
+181, le recensement, la couverture), en mode PCem puis sous `MATERIEL=tout` : toutes vertes.
+
+**M2-7e4** (le Release du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-g1311, 1 492 méthodes
+de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et de `ModeMateriel` ; `process_scsi`,
+`scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de 308. `process_ccb`,
+`process_cmd` et `process_scsi`, compilés par les scénarios de l'AHA, ne changent pas autrement : leurs gardes sont
+pliées.

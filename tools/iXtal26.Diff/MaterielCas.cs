@@ -64,7 +64,7 @@ internal static partial class MaterielCas
         [237] = Pb237, [145] = Pb145, [153] = Pb153, [238] = Pb238, [154] = Pb154,
         [158] = Pb158, [159] = Pb159, [160] = Pb160, [162] = Pb162, [163] = Pb163,
         [285] = Pb285,
-        [178] = Pb178, [286] = Pb286, [287] = Pb287,
+        [178] = Pb178, [286] = Pb286, [287] = Pb287, [142] = Pb142, [260] = Pb260,
         [220] = Pb220, [80] = Pb80, [221] = Pb221, [37] = Pb37,
         [227] = Pb227, [100] = Pb100, [229] = Pb229, [99] = Pb99, [4] = Pb04, [230] = Pb230, [102] = Pb102, [97] = Pb97, [96] = Pb96, [222] = Pb222, [223] = Pb223, [225] = Pb225, [89] = Pb89,
     };
@@ -547,6 +547,13 @@ internal static partial class MaterielCas
             _386.Reset486();
         else
             _386.Reset386();
+        // Les drapeaux paresseux, que Reset386 ne remet pas (h_seg_clear_residue le fait, mais remet aussi le x87, dont
+        // PB-203 lit l'état de reset) : sans eux, un cas hérite de la machine d'avant (G13.7e4 : PB-181, ADC lu sans sa
+        // retenue, après une machine SCSI de 600 tranches).
+        _386_common.cpu_state.flags_op = 0;
+        _386_common.cpu_state.flags_res = 0;
+        _386_common.cpu_state.flags_op1 = 0;
+        _386_common.cpu_state.flags_op2 = 0;
         mem.fill_ram(0x90);
         mem.ram[0x02] = 0x00; mem.ram[0x00] = 0x00; mem.ram[0x01] = 0x04; mem.ram[0x03] = 0x00;
         mem.ram[0x18] = 0x00; mem.ram[0x19] = 0x06; mem.ram[0x1A] = 0x00; mem.ram[0x1B] = 0x00;

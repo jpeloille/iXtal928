@@ -2118,3 +2118,25 @@ Julien à Q17 : la documentation du matériel tranche.*
   mot : elle ne se lisait qu'en chiffres.
 - **La correction.** Une machine part du mode matériel ; le mode PCem se demande (`--hardware-mode pcem`, ou la clé),
   et reste celui des vérifications, qui comparent l'émulateur au code de PCem. La clé se lit comme l'option.
+
+## G13.7e4 — l'AHA-1542C : la mise sous tension et le bus
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.7, `VERIFICATION.md` § G13.7e4.*
+
+### PB-142 — une carte qui se teste en s'allumant
+
+- **Le vrai PC.** À la mise sous tension, l'AHA-1542C fait son autotest : son port d'état dit « autotest en cours »,
+  puis « prête ».
+- **L'émulateur.** PCem l'allume dans un état vide, ni en test ni prête, jusqu'au premier reset.
+- **La correction.** La carte s'allume comme après un reset : l'autotest, puis prête. La ROM de la carte, qui commence
+  par un reset, ne voit pas la différence ; un pilote qui lit l'état trop tôt, si.
+
+### PB-260 — prendre le bus, et seulement quand on le lui donne
+
+- **Le vrai PC.** La carte lit et écrit elle-même la mémoire, en maître du bus. Sur l'AT, elle ne prend le bus que par
+  un canal du contrôleur de DMA, réglé en « cascade » ; si ce canal est masqué, ou le contrôleur désactivé, elle
+  attend. Sa ROM règle elle-même son canal au démarrage.
+- **L'émulateur.** PCem fait lire et écrire la mémoire par la carte sans jamais regarder le contrôleur de DMA.
+- **La correction.** La carte attend tant que son canal est masqué, hors cascade ou que son contrôleur est désactivé,
+  puis reprend d'elle-même. Sa ROM réglant le canal, un démarrage ordinaire ne change pas ; un logiciel qui masque le
+  canal, ou une autre carte réglée sur le même canal, retient la carte, comme sur la machine réelle.
