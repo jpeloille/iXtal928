@@ -12,9 +12,9 @@
       "commandName": "Project",
       "commandLineArgs": "--model ibmpc"
     },
-    "iXtal26 (machine de reference, mode materiel, sans turbo)": {
+    "iXtal26 (machine de reference, mode PCem, sans turbo)": {
       "commandName": "Project",
-      "commandLineArgs": "--model ibmpc --hardware-mode tout"
+      "commandLineArgs": "--model ibmpc --hardware-mode pcem"
     },
     "iXtal26 (64 Ko, demarrage court)": {
       "commandName": "Project",
@@ -44,9 +44,9 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486.cfg"
     },
-    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, mode materiel, sans turbo)": {
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, mode PCem, sans turbo)": {
       "commandName": "Project",
-      "commandLineArgs": "--config ixtal26-486.cfg --hardware-mode tout"
+      "commandLineArgs": "--config ixtal26-486.cfg --hardware-mode pcem"
     },
     "iXtal26 (486DX2/66, IDE, S3 Trio64, sans turbo)": {
       "commandName": "Project",

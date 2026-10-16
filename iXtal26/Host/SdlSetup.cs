@@ -1402,12 +1402,15 @@ internal sealed class SdlSetup
         Console.WriteLine();
         Console.WriteLine("Le mode (G13) :");
 
+        // G13.11 : l'écran s'ouvre sur le défaut que le lanceur pose, le mode matériel ; le contrôle le pose de même.
+        bool defaut = ModeMateriel.Demander(ModeMateriel.DefautUtilisateur, "--setup-check");
         int iMode = Array.IndexOf(MainItems, Item.Mode);
-        Check("la ligne « Mode » existe et vaut PCem par défaut",
-              iMode >= 0 && MainLine(Item.Mode).Contains("PCem"), $"ligne « {MainLine(Item.Mode).Trim()} »");
+        Check("la ligne « Mode » existe et vaut le mode matériel par défaut",
+              defaut && iMode >= 0 && MainLine(Item.Mode).Contains("materiel"),
+              $"ligne « {MainLine(Item.Mode).Trim()} »");
         st._mainIndex = iMode;
         st.HandleMain(SDL.Scancode.Return, out _);
-        Check("Entrée la bascule en mode matériel", ModeMateriel.Actif && MainLine(Item.Mode).Contains("materiel"),
+        Check("Entrée la bascule en mode PCem", !ModeMateriel.Actif && MainLine(Item.Mode).Contains("PCem"),
               $"ligne « {MainLine(Item.Mode).Trim()} »");
         string configs = Path.Combine(Path.GetTempPath(), $"setup-check-{Environment.ProcessId}");
         try
@@ -1415,18 +1418,17 @@ internal sealed class SdlSetup
             Directory.CreateDirectory(configs);
             st.SaveMachine(configs);
             string saved = Path.Combine(configs, "machine.cfg");
-            bool cle = File.Exists(saved) && File.ReadAllLines(saved).Any(l => l.Replace(" ", "") == "hardware_mode=1");
+            bool cle = File.Exists(saved) && File.ReadAllLines(saved).Any(l => l.Replace(" ", "") == "hardware_mode=0");
             st.HandleMain(SDL.Scancode.Return, out _);
-            bool rebascule = !ModeMateriel.Actif && MainLine(Item.Mode).Contains("PCem");
-            bool recharge = pc.loadconfig(saved) && ModeMateriel.Actif;
-            Check("enregistrer écrit hardware_mode = 1, Entrée rebascule, recharger rend le mode matériel",
+            bool rebascule = ModeMateriel.Actif && MainLine(Item.Mode).Contains("materiel");
+            bool recharge = pc.loadconfig(saved) && !ModeMateriel.Actif;
+            Check("enregistrer écrit hardware_mode = 0, Entrée rebascule, recharger rend le mode PCem",
                   cle && rebascule && recharge, $"clé {cle}, rebascule {rebascule}, rechargé {recharge}");
         }
         finally
         {
             Directory.Delete(configs, true);
         }
-        st.HandleMain(SDL.Scancode.Return, out _);
         Check("l'écran n'a pas figé le mode, et le laisse en mode PCem", !ModeMateriel.Fige && !ModeMateriel.Actif,
               $"figé {ModeMateriel.Fige}, ligne « {MainLine(Item.Mode).Trim()} »");
 

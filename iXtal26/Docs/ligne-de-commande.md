@@ -176,17 +176,22 @@ reset matériel perd le disque, comme chez PCem.
 
 Le mode matériel (G13, `PLAN-G13.md`) : les défauts de PCem que LISTE nomme sont corrigés d'après la documentation du
 vrai matériel, au lieu d'être reproduits (`PCEM_BUGS.md`, champ *Corrigé en mode matériel*). LISTE est obligatoire :
-`tout`, `aucun`, des domaines (`processeur`, `x87`, `stockage`, `video`, `son`, `carte-mere`) ou des `PB-nn`, séparés
-par des virgules ; un nom inconnu, ou un PB que le mode ne corrige pas, est refusé. Les corrections qui ne valent
-qu'ensemble se demandent ensemble : nommer l'une demande les autres (PB-03 et PB-257 ; PB-07 et PB-179 ; PB-45,
-PB-169 et PB-258, depuis G13.3). L'option l'emporte sur la clé
-`hardware_mode` du .cfg (0 ou 1 ; une autre valeur vaut 0, avec un avertissement), propre à iXtal comme `zip_path` :
-`--hardware-mode aucun` rend le mode PCem par-dessus un fichier qui demande le mode matériel. Une clé absente ne
-demande rien. Le mode se choisit au lancement : il se fige avant le premier cœur, en tête d'initpc, et une demande qui
-le changerait ensuite est refusée (le gel rend gratuit le mode PCem : le JIT plie chaque garde en constante). Valable
-aussi après `--boot` et `--timer-check`, qui le disent dans leur bannière ; la barre de titre l'affiche (« materiel »,
-sans accent, comme le reste du titre). Le mode PCem reste le défaut, et celui des portes : aucune variable
-d'environnement ne pose le mode.
+`tout`, `pcem` (ou `aucun`, le mode PCem, défauts compris), des domaines (`processeur`, `x87`, `stockage`, `video`,
+`son`, `carte-mere`) ou des `PB-nn`, séparés par des virgules ; un nom inconnu, ou un PB que le mode ne corrige pas,
+est refusé. Les corrections qui ne valent qu'ensemble se demandent ensemble : nommer l'une demande les autres (PB-03
+et PB-257 ; PB-07 et PB-179 ; PB-45, PB-169 et PB-258, depuis G13.3).
+
+Depuis G13.11 (décision n° 17, sortir de PCem), une machine part du **mode matériel** (`tout`) : la fenêtre,
+`--headless` et l'écran de construction. La clé `hardware_mode` du .cfg, propre à iXtal comme `zip_path`, le remplace (0
+ou 1, comme l'écran l'écrit, une autre valeur entière valant 0 avec un avertissement ; ou la LISTE de l'option ; une
+liste qui ne se lit pas est ignorée, avec un message), et l'option l'emporte sur la clé : `--hardware-mode pcem` rend le
+mode PCem par-dessus tout le reste. Une clé absente ne demande rien ; une machine enregistrée par l'écran de
+construction porte toujours la clé (0 ou 1), et garde le mode qu'elle avait. Le mode se choisit au lancement : il se
+fige avant le premier cœur, en tête d'initpc, et une demande qui le changerait ensuite est refusée (le gel rend gratuit
+le mode PCem : le JIT plie chaque garde en constante). Valable aussi après `--boot` et `--timer-check`, qui partent du
+mode PCem — les verbes des portes, des listings et des recettes — et disent le mode matériel dans leur bannière ; la
+barre de titre et `--verbose` disent le mode (« PCem », ou « materiel », sans accent, comme le reste du titre). L'outil
+`iXtal26.Diff` part du mode PCem, celui de l'oracle : aucune variable d'environnement ne pose le mode.
 
 ### `--hdd-type N`, `--hdd-d-type N`
 

@@ -565,10 +565,12 @@ internal static partial class pc
         cfg_zip_path = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "zip_path", "");
 
         // G13 — DEVIATION (décision n° 4 de PLAN-G13.md) : hardware_mode, le mode matériel. PCem n'a pas de clé, et ignore
-        //   celles qu'il ne connaît pas. Absente, elle ne demande rien : la ligne de commande, l'écran de construction ou
-        //   la machine précédente décident ; présente après le gel, elle ne peut que confirmer le mode.
-        int hardware_mode = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "hardware_mode", int.MinValue);
-        if (hardware_mode != int.MinValue && !ModeMateriel.DemanderParCle(hardware_mode))
+        //   celles qu'il ne connaît pas. Absente, elle ne demande rien : le défaut du lanceur (G13.11, le mode
+        //   matériel), la ligne de commande, l'écran de construction ou la machine précédente décident ; présente
+        //   après le gel, elle ne peut que confirmer le mode. Lue en chaîne : 0 ou 1, ou la liste de --hardware-mode.
+        string hardware_mode =
+                PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "hardware_mode", "");
+        if (hardware_mode.Trim().Length != 0 && !ModeMateriel.DemanderParCle(hardware_mode))
                 return false;
 
         // pcem: pc.c:707-711 — G10.4 : cdrom_path, copié dans image_path.

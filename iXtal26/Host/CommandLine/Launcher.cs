@@ -87,7 +87,7 @@ internal static class Launcher
                 return KeepParsing;
             case "--hardware-mode":
                 if (!cursor.HasNext)
-                    return Failure.Usage("--hardware-mode attend une liste : tout, aucun, des domaines ou des PB-nn.");
+                    return Failure.Usage("--hardware-mode attend une liste : tout, pcem, des domaines ou des PB-nn.");
                 options.Machine.HardwareMode = cursor.TakeNext();
                 return KeepParsing;
             case "--zip":
@@ -281,6 +281,10 @@ internal static class Launcher
 
     private static bool TryConfigureMachine(MachineRunOptions options)
     {
+        // G13.11 (décision n° 17 de PLAN-G13.md) : la machine de l'utilisateur part du mode matériel ; la clé
+        //   hardware_mode du .cfg, puis --hardware-mode, le remplacent.
+        if (!ModeMateriel.Demander(ModeMateriel.DefautUtilisateur, "le défaut d'iXtal26"))
+            return false;
         if (options.ConfigurationPath is not null && !pc.loadconfig(options.ConfigurationPath))
             return false;
 
@@ -303,6 +307,6 @@ internal static class Launcher
                           $"mem_size = {pc.cfg_mem_size} Ko, " +
                           $"lecteurs {pc.cfg_drive_type[0]}/{pc.cfg_drive_type[1]}" +
                           (configurationPath is null ? " (défauts)" : $" ({configurationPath})") +
-                          (ModeMateriel.Actif ? $", mode {ModeMateriel.Description}" : ""));
+                          $", mode {ModeMateriel.Description}");
     }
 }

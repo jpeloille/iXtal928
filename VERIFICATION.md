@@ -12190,3 +12190,59 @@ lignes celles des séries.
 `scsi_hd_command`, `scsi_zip_command` et `emu8k_init` : seuls des jetons de chaînes (`mov edi`), décalés de 314.
 `emu8k_inb`, `emu8k_work_chorus` et `emu8k_work_reverb`, compilés par le scénario de l'AWE32, sont à l'octet ceux de
 10d : les gardes de PB-158, 162 et 163 sont pliées ; les méthodes du mode ne sont jamais compilées en mode PCem.
+
+## G13.11 — le mode matériel par défaut
+
+Le 16 octobre 2026. La décision n° 17 (Julien, le 16/10 : sortir de PCem petit à petit) : le mode matériel devient
+celui de l'utilisateur ; le mode PCem se demande, et reste celui des portes, de l'oracle et des listings.
+
+**Le relevé** (`/var/tmp/ixtal-g13/releve-g13-11.md`, en lecture seule) : chaque chemin qui lance une machine et le
+mode qu'il obtenait. Il a trouvé un défaut du mécanisme lui-même : la clé `hardware_mode` se lisait par
+`config_get_int`, et `hardware_mode = tout` ou `= pcem` passait pour absente, sans un mot ; seuls 0 et 1 servaient.
+
+**Le mécanisme** (`Materiel/ModeMateriel.cs`, `pc.cs`, `Host/CommandLine/Launcher.cs`). Le lanceur pose
+`ModeMateriel.DefautUtilisateur` (« tout ») en tête de `TryConfigureMachine`, avant la clé et l'option : la priorité,
+l'option, puis la clé, puis le défaut. Il couvre la fenêtre, `--headless` et l'écran de construction. Les verbes des
+outils (`--boot`, `--timer-check`, `--menu-check`, `--setup-check`), que les portes, les listings et la recette g5w
+emploient, retournent avant lui et partent du mode PCem ; l'outil `iXtal26.Diff`, figé avant son aiguillage, n'est pas
+touché. La clé se lit en chaîne (`DemanderParCle(string)`) : un entier comme avant (0, 1 ; un autre ramené à 0 avec
+l'avertissement « hors de 0 et 1 »), sinon la liste de `--hardware-mode` ; une liste qui ne se lit pas est ignorée,
+le message écrit, et le mode reste celui déjà demandé. `pcem` est synonyme d'`aucun`, pour l'option et la clé. La
+barre de titre et `--verbose` disent toujours le mode, « PCem » compris. L'écran de construction s'ouvre sur le mode
+matériel ; il écrit toujours la clé (0 ou 1), et une machine enregistrée garde son mode. Les profils Rider qui
+demandaient `--hardware-mode tout` demandent `pcem` : les autres partent du mode matériel.
+
+**Les contrôles.** `materiel-mode` gagne quinze contrôles, tous verts : `hardware_mode = tout` refusé par boot-diff (2,
+« l'oracle est PCem ») et par `loadconfig` sous le gel du mode PCem ; `= pcem` accepté, qui ne change rien ; `= truc`
+ignoré ; `--hardware-mode pcem` accepté par l'outil et par `--boot` (muet, le mode PCem) ; `--boot --config` avec
+`= tout` qui dit le mode matériel ; et la machine du lanceur (`--headless --slices 5 --verbose`) : sans clé ni option,
+« mode materiel (tout) » ; `= pcem` et `= 0`, « mode PCem » ; `= truc`, le message et le mode matériel gardé ;
+`= tout` avec `--hardware-mode pcem`, le mode PCem ; `= pcem` avec `--hardware-mode processeur`, le domaine.
+`--setup-check` (36 contrôles, adapté : la ligne « Mode » sur le mode matériel, Entrée vers PCem, l'enregistrement de
+`hardware_mode = 0`, la relecture) et `--menu-check` sous `pcem` et sous `tout` : verts.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-g1311.py`, une faute à la fois, restaurée ; `materiel-mode` rougit chaque
+fois) : le défaut du lanceur retiré, 2 échecs ; la clé lue en entier seulement, 5 ; `pcem` retiré de la liste, 4 ; une
+clé illisible refusée au lieu d'être ignorée, 2.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle vérifie qu'aucun chemin des portes, de l'oracle, des listings,
+de la recette g5w, de `banc` ni de `r9-filet` n'atteint le défaut : `TryConfigureMachine` n'a qu'un appelant, après
+le retour des verbes ; l'ordre défaut, clé, option ; la clé illisible, ignorée sans rien changer, avant et après le
+gel). Reprises : le retour du défaut contrôlé par `--setup-check` ; boot-diff ne dit plus « demande le mode
+matériel » pour une clé `00` ou `+0` ; une phrase de `ligne-de-commande.md` (une machine enregistrée par l'écran porte
+la clé, et garde son mode) ; le commentaire du titre. Dits sans reprise : `0x1` et `1abc`, que lisait `sscanf_i`, sont
+maintenant illisibles, donc ignorés (aucun .cfg du dépôt ne porte la clé, le recensement l'interdit aux portes) ; une
+faute de frappe garde le mode matériel, que le titre et `--verbose` disent.
+
+**Les séries** (le worktree de G13.11, la DLL Release figée, `S-gg1311`). En mode PCem, gg1311 (20 h 08 à 21 h 23) :
+712 vertes, chaque ligne celle de g8f2 — le défaut neuf n'atteint aucune porte. Sous « tout », gg1311-tout (21 h 23 à
+21 h 41) : 474 vertes, 228 refusées, 10 `pcem`, chaque ligne celle de g8f2-tout. Les reprises de la contre-lecture
+sont venues après la DLL des séries : le Release reconstruit, cinq portes rejouées (`materiel-mode`, `bd-xtcfg` — le
+seul profil de la racine que lisent les portes —, `config-check`, le recensement, la couverture), en mode PCem puis
+sous `MATERIEL=tout` : leurs lignes celles des séries.
+
+**M2-g1311** (le Release reconstruit, les trente scénarios, aucune méthode en MinOpts) : contre M2-8f2, 1 492 méthodes
+de part et d'autre, 5 changées, aucune apparue ni disparue. `pc.loadconfig` : la clé lue en chaîne (`Trim` et
+`DemanderParCle(string)` au lieu de `sscanf_i` et `DemanderParCle(int)`), exécutée une fois par machine ;
+`process_scsi`, `scsi_hd_command`, `scsi_zip_command` et `emu8k_init` : des jetons de chaînes seuls, décalés de 141.
+Aucune méthode gardée ne change : les scénarios sont des `--boot`, qui partent du mode PCem.

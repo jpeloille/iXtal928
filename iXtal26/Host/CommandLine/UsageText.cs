@@ -122,10 +122,13 @@ internal static class UsageText
                                zip_channel. L'emporte sur la clé zip_path. Un reset
                                matériel la perd, comme chez PCem
           --hardware-mode LISTE  le mode matériel : corrige les défauts de PCem que LISTE
-                               nomme (tout, aucun, processeur, x87, stockage, video, son,
-                               carte-mere, PB-nn ; séparés par des virgules). L'emporte
-                               sur la clé hardware_mode. Se fige au démarrage. Aussi sous
-                               --boot et --timer-check
+                               nomme (tout, processeur, x87, stockage, video, son,
+                               carte-mere, PB-nn ; séparés par des virgules) ; pcem (ou
+                               aucun), le mode PCem, défauts compris. Une machine part du
+                               mode matériel (tout) ; la clé hardware_mode (0, 1 ou une
+                               LISTE) le remplace, et l'option l'emporte sur la clé. Se
+                               fige au démarrage. Aussi sous --boot et --timer-check, qui
+                               partent du mode PCem
           --hdd-type N         force le type de disque de C: quand sa taille en désigne
                                plusieurs — 21 307 392 octets, c'est le type 13 (306x8)
                                ou le type 16 (612x4). --hdd-d-type N : le disque D:

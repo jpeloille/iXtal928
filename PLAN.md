@@ -156,9 +156,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   les listings de tous les scénarios contre M0 ; PB-286, neuf) ; 10d ✅ (Q19 et Q21 tranchées le 16/10 : LOCK préfixe,
   PB-178 ; MOV CR0, PB-286 et PB-287, neuf ; PB-107 laissé non corrigé ; la série de 10c rejouée). Le 16/10, toutes
   les questions tranchées (Q13 à Q16, Q20, Q22 à Q27, PB-260 et PB-142 en 7e4) et la décision n° 17 (sortir de PCem :
-  le mode matériel par défaut, G13.11) : 8f2 ✅ (la fin de l'EMU8000 : l'octet impair de PB-158, PB-162, PB-163).
-  Suivent G13.11, 7e4, 8c2, 8e, 8d3a à c (les cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte
-  mère.
+  le mode matériel par défaut, G13.11) : 8f2 ✅ (la fin de l'EMU8000 : l'octet impair de PB-158, PB-162, PB-163) ;
+  G13.11 ✅ (une machine part du mode matériel ; la clé lue comme l'option). Suivent 7e4, 8c2, 8e, 8d3a à c (les
+  cavaliers), 8g, puis les cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

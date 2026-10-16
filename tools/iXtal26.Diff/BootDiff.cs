@@ -427,7 +427,10 @@ public static class BootDiff
         if (configPath is not null && !pc.loadconfig(configPath))
         {
             // G13 — la clé hardware_mode a refusé de changer le mode figé : l'oracle est PCem.
-            if (PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, null, "hardware_mode", 0) != 0)
+            var cle = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, null, "hardware_mode", "")
+                                      .Trim();
+            if (cle.Length != 0 && !(int.TryParse(cle, out var entier) && entier == 0) &&
+                cle.ToLowerInvariant() is not ("pcem" or "aucun"))
                 Console.Error.WriteLine($"boot-diff : {configPath} demande le mode matériel ; l'oracle est PCem, refusé.");
             return 2;
         }

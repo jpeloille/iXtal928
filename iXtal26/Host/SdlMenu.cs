@@ -1776,7 +1776,8 @@ internal sealed class SdlMenu
         // Le mode demandé est posé : sans lui, les rythmes mesurés et attendus resteraient tous deux ceux de PCem, et
         // le contrôle passerait sans avoir rien vu du mode matériel.
         if (modeDemande != null)
-            Check($"--hardware-mode {modeDemande} : le mode est pose", ModeMateriel.Actif == (modeDemande != "aucun"),
+            Check($"--hardware-mode {modeDemande} : le mode est pose",
+                  ModeMateriel.Actif == (modeDemande.ToLowerInvariant() is not ("aucun" or "pcem")),
                   ModeMateriel.Description);
         bool mono = materiel.pb_102, vgaIbm = materiel.pb_220;
         (string Card, CrtMonitor Expected, double KHz, double Hz)[] cards =

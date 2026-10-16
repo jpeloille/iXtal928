@@ -16,6 +16,11 @@
 // qui ne change rien passe (la seconde machine d'une porte relit sa clé). Un site atteint avant le gel lit la demande
 // (Demande), jamais le champ figé.
 //
+// G13.11 (décision n° 17 de PLAN-G13.md, sortir de PCem) : le mode de l'UTILISATEUR est le mode matériel. Le lanceur
+// pose DefautUtilisateur avant la clé et l'option (l'option, puis la clé, puis le défaut) ; les verbes des outils
+// (--boot, --timer-check, --menu-check, --setup-check) et iXtal26.Diff partent du mode PCem, que demandent les portes,
+// l'oracle et les listings. « pcem » et « aucun » demandent le mode PCem.
+//
 // La sonde : un compteur par correction, incrémenté dans le seul code du mode matériel. Elle dit quelles corrections
 // un scénario a exercées ; en mode PCem, ce code est mort et elle reste à zéro.
 
@@ -268,13 +273,17 @@ internal static class ModeMateriel
     internal static string Description =>
         !Actif ? "PCem" : demande.SetEquals(Tout) ? "materiel (tout)" : $"materiel ({string.Join(", ", demande.Select(n => $"PB-{n:00}"))})";
 
+    /// <summary>Le mode de l'utilisateur, posé par le lanceur avant la clé et l'option (G13.11).</summary>
+    internal const string DefautUtilisateur = "tout";
+
     /// <summary>La demande en liste de ligne de commande (« PB-01,PB-45 », ou « aucun »), pour un processus fils.</summary>
     internal static string ListeDemandee => Actif ? string.Join(",", demande.Select(n => $"PB-{n:00}")) : "aucun";
 
     /// <summary>Toutes les corrections, sauf celles en chantier.</summary>
     internal static SortedSet<int> Tout => [.. Corrections.Select(c => c.Pb).Except(EnChantier)];
 
-    /// <summary>Pose la demande d'une LISTE : « tout », « aucun », des domaines ou des PB-nn, séparés par des virgules.
+    /// <summary>Pose la demande d'une LISTE : « tout », « pcem » ou « aucun », des domaines ou des PB-nn, séparés
+    /// par des virgules.
     /// Rend faux, le message écrit, sur un nom inconnu ou sur un changement après le gel.</summary>
     internal static bool Demander(string liste, string source)
     {
@@ -286,16 +295,30 @@ internal static class ModeMateriel
         return Poser(pbs, source);
     }
 
-    /// <summary>La clé hardware_mode d'un .cfg : 1, toutes les corrections ; 0, aucune. Une autre valeur est ramenée à 0,
-    /// avec un avertissement.</summary>
-    internal static bool DemanderParCle(int valeur)
+    /// <summary>La clé hardware_mode d'un .cfg. Un entier, comme l'écran de construction l'écrit : 1, toutes les
+    /// corrections ; 0, aucune ; un autre est ramené à 0, avec un avertissement. Sinon la LISTE de --hardware-mode
+    /// (« tout », « pcem », des domaines, des PB-nn) ; une liste qui ne se lit pas est ignorée, le message écrit, et le
+    /// mode reste celui déjà demandé (G13.11 : le défaut du lanceur, ou celui de l'outil).</summary>
+    internal static bool DemanderParCle(string brut)
     {
-        if (valeur is not (0 or 1))
+        var texte = brut.Trim();
+        if (Regex.IsMatch(texte, @"^[+-]?\d+$"))
         {
-            Console.Error.WriteLine($"hardware_mode = {valeur} : hors de 0 et 1 ; le mode PCem (0) à la place.");
-            valeur = 0;
+            var valeur = int.TryParse(texte, out var v) ? v : -1;
+            if (valeur is not (0 or 1))
+            {
+                Console.Error.WriteLine($"hardware_mode = {texte} : hors de 0 et 1 ; le mode PCem (0) à la place.");
+                valeur = 0;
+            }
+            return Poser(valeur == 1 ? Tout : [], $"hardware_mode = {valeur}");
         }
-        return Poser(valeur == 1 ? Tout : [], $"hardware_mode = {valeur}");
+        if (!Lire(texte, out var pbs, out var erreur))
+        {
+            Console.Error.WriteLine($"hardware_mode = {texte} : {erreur} La clé est ignorée ; " +
+                                    $"le mode reste {Description}.");
+            return true;
+        }
+        return Poser(pbs, $"hardware_mode = {texte}");
     }
 
     /// <summary>L'interrupteur de l'écran de construction : toutes les corrections, ou aucune.</summary>
@@ -345,7 +368,7 @@ internal static class ModeMateriel
             var mot = brut.ToLowerInvariant();
             if (mot == "tout")
                 pbs.UnionWith(Tout);
-            else if (mot == "aucun")
+            else if (mot is "aucun" or "pcem")
                 continue;
             else if (Domaines.Contains(mot))
                 pbs.UnionWith(Corrections.Where(c => c.Domaine == mot && !EnChantier.Contains(c.Pb)).Select(c => c.Pb));
@@ -362,8 +385,8 @@ internal static class ModeMateriel
             }
             else
             {
-                erreur = $"« {brut} » n'est ni « tout », ni « aucun », ni un domaine ({string.Join(", ", Domaines)}), " +
-                         "ni un PB-nn.";
+                erreur = $"« {brut} » n'est ni « tout », ni « pcem » (ou « aucun »), ni un domaine " +
+                         $"({string.Join(", ", Domaines)}), ni un PB-nn.";
                 return false;
             }
         }

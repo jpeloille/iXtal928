@@ -787,7 +787,7 @@ contre-lecture, M2, sa série entière et son commit :
   silicium, inconnu, reste reproduit.* **Tranchée le 16/10 : oui** — G13.10d, avec PB-287 (NW sans CD sur le 486, le
   même site, trouvé en lisant l'i486 PRM), et la série de 10d rejoue 10c dans les deux modes.
 
-### G13.11 — Le mode matériel par défaut  *(décidé le 16/10 ; après 8f2)*
+### G13.11 — Le mode matériel par défaut  ✅ *(16/10, VERIFICATION.md § G13.11)*
 
 - La décision n° 17. Les profils du dépôt et le lanceur posent `hardware_mode = tout` par défaut : une machine lancée
   sans rien de plus tourne en mode matériel. Le mode PCem se demande explicitement ; c'est celui des portes, de

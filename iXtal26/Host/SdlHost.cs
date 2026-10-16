@@ -33,10 +33,11 @@ public sealed class SdlHost : IDisposable
     /// ASCII pur, délibérément : SDL3-CS ne marshale pas le titre en UTF-8 et le tiret
     /// cadratin ressortait « â€" » dans la barre de fenêtre. Un titre est du texte que
     /// l'utilisateur lit ; ce n'est pas l'endroit où défendre la typographie.
+    ///
+    /// Le mode suit toujours (G13.11) : « PCem », ou « materiel (…) », le défaut de la machine.
     /// </summary>
     private static string WindowTitle() =>
-        $"iXtal26 - {Models.model_c.models[Models.model_c.model].name}" +
-        (ModeMateriel.Actif ? $" - {ModeMateriel.Description}" : "");
+        $"iXtal26 - {Models.model_c.models[Models.model_c.model].name} - {ModeMateriel.Description}";
 
     /// <summary>Repli tant que le CGA n'a pas appelé updatewindowsize : 656 x (200 * 2 + 16).</summary>
     private const int DefaultWindowWidth = 656;

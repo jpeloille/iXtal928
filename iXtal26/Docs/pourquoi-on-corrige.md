@@ -2107,3 +2107,14 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **L'émulateur.** La réverbération de PCem calcule en virgule flottante et convertit comme le C, qui rend la plus
   grande valeur négative dès qu'un résultat sort des bornes : un son trop fort claque à l'envers.
 - **La correction.** Les conversions saturent. Le reste du calcul est celui de PCem, une imitation lui aussi.
+
+## G13.11 — le mode matériel par défaut
+
+*Le 16 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.11 et décision n° 17, `VERIFICATION.md` § G13.11.*
+
+- **Le vrai PC.** Il n'a qu'un mode : le sien.
+- **L'émulateur.** Jusqu'ici, une machine lancée sans rien de plus tournait en mode PCem, les défauts de PCem compris ;
+  le mode matériel, qui les corrige, se demandait. Et la clé `hardware_mode = tout` d'un .cfg ne faisait rien, sans un
+  mot : elle ne se lisait qu'en chiffres.
+- **La correction.** Une machine part du mode matériel ; le mode PCem se demande (`--hardware-mode pcem`, ou la clé),
+  et reste celui des vérifications, qui comparent l'émulateur au code de PCem. La clé se lit comme l'option.

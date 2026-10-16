@@ -13,6 +13,9 @@
 //   - Le lanceur d'iXtal26 : --boot dit le mode quand il est actif, et le fige à son point de gel, en tête d'initpc (un
 //     gel manqué se dit : « hors de son point de gel ») ; la ligne de commande l'emporte sur le fichier ; une valeur de
 //     la clé hors de 0 et 1 retombe sur le mode PCem, avec un avertissement ; un PB inconnu rend 2.
+//   - G13.11, le mode matériel par défaut (décision n° 17) : la clé se lit en chaîne (0, 1, ou la liste de l'option,
+//     « pcem » compris) ; une machine du lanceur part du mode matériel (--headless --verbose le dit), la clé puis
+//     l'option le remplaçant ; une clé illisible est ignorée, avec un message ; --boot part toujours du mode PCem.
 
 using System.Diagnostics;
 
@@ -35,6 +38,13 @@ internal static class MaterielMode
             var hw7 = Path.Combine(tmp, "hw7.cfg");
             File.WriteAllText(hw1, "model = ibmxt\nhardware_mode = 1\n");
             File.WriteAllText(hw7, "model = ibmxt\nhardware_mode = 7\n");
+            var hwPcem = Path.Combine(tmp, "hwpcem.cfg");
+            var hwTout = Path.Combine(tmp, "hwtout.cfg");
+            var hwTruc = Path.Combine(tmp, "hwtruc.cfg");
+            File.WriteAllText(hwPcem, "model = ibmxt\nhardware_mode = pcem\n");
+            File.WriteAllText(hwTout, "model = ibmxt\nhardware_mode = tout\n");
+            File.WriteAllText(hwTruc, "model = ibmxt\nhardware_mode = truc\n");
+            File.WriteAllText(Path.Combine(tmp, "hw0.cfg"), "model = ibmxt\nhardware_mode = 0\n");
 
             Console.WriteLine("Les refus :");
             Lance("--hardware-mode tout boot-diff", outil, ["--hardware-mode", "tout", "boot-diff", "roms", "10"], 2, "refusé");
@@ -46,6 +56,10 @@ internal static class MaterielMode
             Lance("--hardware-mode sans liste", outil, ["--hardware-mode", "config-check"], 2, "attend une liste");
             Lance("--hardware-mode tout config-check, acceptée", outil, ["--hardware-mode", "tout", "config-check"], 0,
                   "mode materiel (tout)");
+            Lance("boot-diff --config hardware_mode = tout", outil, ["boot-diff", "roms", "10", "--config", hwTout], 2,
+                  "l'oracle est PCem");
+            Lance("--hardware-mode pcem config-check, acceptée", outil, ["--hardware-mode", "pcem", "config-check"], 0,
+                  "mode PCem");
 
             Console.WriteLine("\nLe gel, dans ce processus (figé en mode PCem avant l'aiguillage) :");
             Verifie("figé, en mode PCem", ModeMateriel.Fige && !ModeMateriel.Actif && !materiel.pb_01, ModeMateriel.Description);
@@ -53,6 +67,12 @@ internal static class MaterielMode
             Verifie("une demande qui ne change rien passe", ModeMateriel.Demander("aucun", "materiel-mode"), ModeMateriel.Description);
             Verifie("la clé hardware_mode = 1 est refusée par loadconfig", !pc.loadconfig(hw1), ModeMateriel.Description);
             Verifie("la clé hardware_mode = 7 retombe sur le mode PCem, qui ne change rien", pc.loadconfig(hw7) && !ModeMateriel.Actif,
+                    ModeMateriel.Description);
+            Verifie("la clé hardware_mode = pcem ne change rien", pc.loadconfig(hwPcem) && !ModeMateriel.Actif,
+                    ModeMateriel.Description);
+            Verifie("la clé hardware_mode = tout est refusée par loadconfig", !pc.loadconfig(hwTout),
+                    ModeMateriel.Description);
+            Verifie("la clé hardware_mode = truc est ignorée", pc.loadconfig(hwTruc) && !ModeMateriel.Actif,
                     ModeMateriel.Description);
             // G13.6, le noyau, N7c : le noyau de 80 bits entre au mode ; « tout » et le domaine x87 le prennent, et une
             // correction en double de G13.6a ou 6b le demande, qui la reprend.
@@ -77,6 +97,22 @@ internal static class MaterielMode
             Lance("--boot --config hardware_mode = 7", emulateur, ["--boot", "roms", "30", "--config", hw7], 0,
                   "hors de 0 et 1", "mode materiel");
             Lance("--boot --hardware-mode PB-36", emulateur, ["--boot", "roms", "30", "--hardware-mode", "PB-36"], 2, "n'est pas corrigé");
+            Lance("--boot --hardware-mode pcem", emulateur,
+                  ["--boot", "roms", "30", "--model", "ibmxt", "--hardware-mode", "pcem"], 0, "initpc OK", "mode ");
+            Lance("--boot --config hardware_mode = tout", emulateur, ["--boot", "roms", "30", "--config", hwTout], 0,
+                  "mode materiel (tout)");
+
+            Console.WriteLine("\nLe défaut de l'utilisateur (G13.11) : la machine du lanceur part du mode matériel :");
+            string[] Machine(params string[] a) => [.. a, "--headless", "--slices", "5", "--verbose"];
+            Lance("la machine sans clé ni option", emulateur, Machine("--model", "ibmxt"), 0, "mode materiel (tout)");
+            Lance("hardware_mode = pcem", emulateur, Machine("--config", hwPcem), 0, "mode PCem");
+            Lance("hardware_mode = 0", emulateur, Machine("--config", Path.Combine(tmp, "hw0.cfg")), 0, "mode PCem");
+            Lance("hardware_mode = truc, ignorée", emulateur, Machine("--config", hwTruc), 0,
+                  "le mode reste materiel (tout)");
+            Lance("hardware_mode = tout, --hardware-mode pcem", emulateur,
+                  Machine("--config", hwTout, "--hardware-mode", "pcem"), 0, "mode PCem");
+            Lance("hardware_mode = pcem, --hardware-mode processeur", emulateur,
+                  Machine("--config", hwPcem, "--hardware-mode", "processeur"), 0, "mode materiel (PB-");
         }
         finally
         {

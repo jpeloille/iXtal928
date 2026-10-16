@@ -150,7 +150,8 @@ if (args[0] == "--hardware-mode")
 {
     if (args.Length < 3)
     {
-        Console.Error.WriteLine("--hardware-mode attend une liste (tout, aucun, des domaines, des PB-nn), puis une commande.");
+        Console.Error.WriteLine("--hardware-mode attend une liste (tout, pcem, des domaines, des PB-nn), puis une " +
+                                "commande.");
         return 2;
     }
     if (!iXtal26.ModeMateriel.Demander(args[1], "--hardware-mode"))
