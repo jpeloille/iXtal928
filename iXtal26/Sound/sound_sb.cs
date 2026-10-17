@@ -1457,8 +1457,8 @@ internal static partial class sound_sb
     // omitted: sb_pro_mcv_init (sound_sb.c:1026-1048) — la SB Pro MCV, exclue.
 
     // pcem: sound_sb.c:1050-1069 — G12.1, la SB 16. Ni IRQ ni DMA dans sa configuration (TODO :1059) : les défauts de
-    //   sb_dsp_init (IRQ 7, DMA 1, DMA 16 bits 5), que l'invité change par 80h et 81h (PB-153). Le MPU-401 est fixe en
-    //   330h, sans IRQ (PB-154).
+    //   sb_dsp_init (IRQ 7, DMA 1, DMA 16 bits 5), que l'invité change par 80h et 81h (PB-153) ; ses cavaliers, en
+    //   G13.8d3a (sb_16_cavaliers). Le MPU-401 est en 330h chez PCem, sans IRQ (PB-154).
     internal static object? sb_16_init()
     {
         sb_t sb = new sb_t();
@@ -1476,9 +1476,9 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // PB-153, une part (a) qui attend Q14 (G13.8d3), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
-        //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
+        // DEVIATION: (G13.8d3a) les cavaliers, que PCem n'a pas : sb_16_cavaliers.
+        sb_16_cavaliers(sb);
         sb_ct1745_mixer_reset(sb);
         io_sethandler(addr, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
         io_sethandler((uint16_t)(addr + 8), 0x0002, opl3_read, null, null, opl3_write, null, null, sb.opl);
@@ -1486,10 +1486,38 @@ internal static partial class sound_sb
         io_sethandler((uint16_t)(addr + 4), 0x0002, sb_ct1745_mixer_read, null, null, sb_ct1745_mixer_write, null, null, sb);
         sound_add_handler(sb_get_buffer_sb16, sb);
         // pcem bug, fixed in hardware mode: PB-154 — le MPU-401 sans IRQ (-1) ; en mode matériel, il lève celle de la
-        //   carte (sound_mpu401_uart.Materiel.cs). En 330h fixe, le réglage d'usine.
-        sound_mpu401_uart.mpu401_uart_init(sb.mpu, 0x330, -1, 0);
+        //   carte (sound_mpu401_uart.Materiel.cs).
+        // DEVIATION: (G13.8d3a) en 330h fixe chez PCem, le réglage d'usine ; ici, le cavalier mpu_addr (MSEL et MFBEN :
+        //   330h, 300h, ou 0, absent), 330h sans clé, dans les deux modes.
+        int mpu_addr = device_get_config_int("mpu_addr");
+        if (mpu_addr != 0)
+                sound_mpu401_uart.mpu401_uart_init(sb.mpu, (uint16_t)mpu_addr, -1, 0);
 
         return sb;
+    }
+
+    // DEVIATION: (G13.8d3a ; Q14, Q22 et Q26, PLAN-G13.md) les cavaliers de la SB 16 à cavaliers (CT1740, DSP 4.05) et
+    //   de l'AWE32 (CT3900, DSP 4.13), que PCem n'a pas (TODO :1059, :1084) : l'IRQ (IS0 et IS1 : 2, 5, 7, 10), le DMA
+    //   8 bits (DAS0 et DAS1 : 0, 1, 3), le DMA 16 bits (DBS0 et DBS1 : 5, 6, 7, ou 0, « Use Low »), lus dans les deux
+    //   modes (Creative, Solution ID 3039). Ils posent l'état à l'allumage ; 80h et 81h le changent ensuite comme chez
+    //   PCem (Q22). Sans clé, le mode PCem garde ceux de sb_dsp_init : l'IRQ 7, le DMA 1, le DMA 16 bits 5. Le MPU-401
+    //   (mpu_addr) est monté à sa place, en fin d'init.
+    private static void sb_16_cavaliers(sb_t sb)
+    {
+        int irq_defaut = 7;
+        // pcem bug, fixed in hardware mode: PB-153 — sans clé, l'IRQ 7 de sb_dsp_init ; la carte sort d'usine à l'IRQ 5
+        //   (guide, p. 5-5).
+        if (materiel.pb_153)
+                irq_defaut = irq_usine_materiel();
+        sb_dsp_setirq(sb.dsp, device_get_config_int_defaut("irq", irq_defaut));
+        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int dma16 = device_get_config_int("dma16");
+        if (dma16 != 0)
+                sb_dsp_setdma16(sb.dsp, dma16);
+        // pcem bug, fixed in hardware mode: PB-153 — « Use Low » (0) : le DMA 16 bits reste celui de sb_dsp_init (5),
+        //   comme après 81h sans bit 16 bits ; la carte passe le 16 bits par le canal 8 bits.
+        if (materiel.pb_153)
+                seize_bas_materiel(sb.dsp, dma16);
     }
 
     // pcem: sound_sb.c:1071 — G12.2. Lu par device_available (device.c:46-52), donc par pc.check_sndcard ; PCem ne le
@@ -1497,8 +1525,9 @@ internal static partial class sound_sb
     internal static int sb_awe32_available() { return Flash.rom.rom_present("awe32.raw"); }
 
     // pcem: sound_sb.c:1073-1095 — G12.2, l'AWE32. Le DSP 4.13 (le type SB16 + 1, que le `== SB16` de sb_doreset
-    //   écarte : 08h y est sans paramètre, juste, PB-165) ; ni IRQ ni DMA dans la configuration (TODO :1084) ; le
-    //   MPU-401 fixe en 330h, sans IRQ ; l'EMU8000 en emu_addr, +400h et +800h.
+    //   écarte : 08h y est sans paramètre, juste, PB-165) ; ni IRQ ni DMA dans la configuration (TODO :1084) ; ses
+    //   cavaliers, ceux de la SB 16 (G13.8d3a) ; le MPU-401 en 330h chez PCem, sans IRQ ; l'EMU8000 en emu_addr, +400h
+    //   et +800h.
     internal static object? sb_awe32_init()
     {
         sb_t sb = new sb_t();
@@ -1508,6 +1537,9 @@ internal static partial class sound_sb
 
         uint16_t addr = (uint16_t)device_get_config_int("addr");
         uint16_t emu_addr = (uint16_t)device_get_config_int("emu_addr");
+        // pcem bug, fixed in hardware mode: PB-289 — l'EMU8000 réglé à part du DSP ; sur la carte, la base + 400h.
+        if (materiel.pb_289)
+                emu_addr = emu_base_materiel(addr, emu_addr);
         sb.opl_emu = device_get_config_int("opl_emu");
         // DEVIATION: (G8.3) NukedOPL est omis, comme pour la Pro v2 (sb_pro_v2_init).
         if (sb.opl_emu != OPL_DBOPL)
@@ -1518,9 +1550,9 @@ internal static partial class sound_sb
         opl3_init(sb.opl, sb.opl_emu);
         sb_dsp_init(sb.dsp, SB16 + 1, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        // PB-153, une part (a) qui attend Q14 (G13.8d3), la même dans les deux modes d'ici là — ni IRQ ni DMA dans la
-        //   configuration : l'IRQ 7 de sb_dsp_init, quand la carte sort d'usine à l'IRQ 5 (guide p. 5-5).
         // TODO: irq and dma options too?
+        // DEVIATION: (G13.8d3a) les cavaliers, que PCem n'a pas : sb_16_cavaliers.
+        sb_16_cavaliers(sb);
         sb_ct1745_mixer_reset(sb);
         io_sethandler(addr, 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
         io_sethandler((uint16_t)(addr + 8), 0x0002, opl3_read, null, null, opl3_write, null, null, sb.opl);
@@ -1528,8 +1560,12 @@ internal static partial class sound_sb
         io_sethandler((uint16_t)(addr + 4), 0x0002, sb_ct1745_mixer_read, null, null, sb_ct1745_mixer_write, null, null, sb);
         sound_add_handler(sb_get_buffer_emu8k, sb);
         // pcem bug, fixed in hardware mode: PB-154 — le MPU-401 sans IRQ (-1) ; en mode matériel, il lève celle de la
-        //   carte (sound_mpu401_uart.Materiel.cs). En 330h fixe, le réglage d'usine.
-        sound_mpu401_uart.mpu401_uart_init(sb.mpu, 0x330, -1, 0);
+        //   carte (sound_mpu401_uart.Materiel.cs).
+        // DEVIATION: (G13.8d3a) en 330h fixe chez PCem, le réglage d'usine ; ici, le cavalier mpu_addr (MSEL et MFBEN :
+        //   330h, 300h, ou 0, absent), 330h sans clé, dans les deux modes.
+        int mpu_addr = device_get_config_int("mpu_addr");
+        if (mpu_addr != 0)
+                sound_mpu401_uart.mpu401_uart_init(sb.mpu, (uint16_t)mpu_addr, -1, 0);
         sb.emu8k = new emu8k_t();
         sound_emu8k.emu8k_init(sb.emu8k, emu_addr, onboard_ram);
 
@@ -1636,6 +1672,20 @@ internal static partial class sound_sb
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
             selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 },
                          new() { description = "0x260", value = 0x260 }, new() { description = "0x280", value = 0x280 }] },
+        // DEVIATION: (G13.8d3a) les cavaliers, que PCem n'a pas (sb_16_cavaliers) : 0 vaut « Use Low » pour dma16, et
+        //   l'absence du MPU pour mpu_addr. Les défauts sont ceux de PCem ; l'IRQ du mode matériel, l'usine (5).
+        new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+            selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 },
+                         new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+        new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+            selection = [new() { description = "DMA 0", value = 0 }, new() { description = "DMA 1", value = 1 },
+                         new() { description = "DMA 3", value = 3 }] },
+        new device_config_t { name = "dma16", type = CONFIG_SELECTION, default_int = 5,
+            selection = [new() { description = "Use Low", value = 0 }, new() { description = "DMA 5", value = 5 },
+                         new() { description = "DMA 6", value = 6 }, new() { description = "DMA 7", value = 7 }] },
+        new device_config_t { name = "mpu_addr", type = CONFIG_SELECTION, default_int = 0x330,
+            selection = [new() { description = "Disabled", value = 0 }, new() { description = "0x300", value = 0x300 },
+                         new() { description = "0x330", value = 0x330 }] },
         new device_config_t { name = "midi", type = CONFIG_MIDI, default_int = 0 },
         new device_config_t { name = "opl_emu", type = CONFIG_SELECTION, default_int = OPL_DBOPL,
             selection = [new() { description = "DBOPL", value = OPL_DBOPL }, new() { description = "NukedOPL", value = OPL_NUKED }] },
@@ -1648,6 +1698,20 @@ internal static partial class sound_sb
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
             selection = [new() { description = "0x220", value = 0x220 }, new() { description = "0x240", value = 0x240 },
                          new() { description = "0x260", value = 0x260 }, new() { description = "0x280", value = 0x280 }] },
+        // DEVIATION: (G13.8d3a) les cavaliers, que PCem n'a pas (sb_16_cavaliers) : 0 vaut « Use Low » pour dma16, et
+        //   l'absence du MPU pour mpu_addr. Les défauts sont ceux de PCem ; l'IRQ du mode matériel, l'usine (5).
+        new device_config_t { name = "irq", type = CONFIG_SELECTION, default_int = 7,
+            selection = [new() { description = "IRQ 2", value = 2 }, new() { description = "IRQ 5", value = 5 },
+                         new() { description = "IRQ 7", value = 7 }, new() { description = "IRQ 10", value = 10 }] },
+        new device_config_t { name = "dma", type = CONFIG_SELECTION, default_int = 1,
+            selection = [new() { description = "DMA 0", value = 0 }, new() { description = "DMA 1", value = 1 },
+                         new() { description = "DMA 3", value = 3 }] },
+        new device_config_t { name = "dma16", type = CONFIG_SELECTION, default_int = 5,
+            selection = [new() { description = "Use Low", value = 0 }, new() { description = "DMA 5", value = 5 },
+                         new() { description = "DMA 6", value = 6 }, new() { description = "DMA 7", value = 7 }] },
+        new device_config_t { name = "mpu_addr", type = CONFIG_SELECTION, default_int = 0x330,
+            selection = [new() { description = "Disabled", value = 0 }, new() { description = "0x300", value = 0x300 },
+                         new() { description = "0x330", value = 0x330 }] },
         new device_config_t { name = "emu_addr", type = CONFIG_SELECTION, default_int = 0x620,
             selection = [new() { description = "0x620", value = 0x620 }, new() { description = "0x640", value = 0x640 },
                          new() { description = "0x660", value = 0x660 }, new() { description = "0x680", value = 0x680 }] },

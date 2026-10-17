@@ -254,4 +254,29 @@ internal static partial class MaterielCas
                      "", "HWCF3=0000 moteur=0 env=0", hw, temoin: true);
         return bad;
     }
+
+    // PB-289, G13.8d3a — l'EMU8000 d'une AWE32 sans PnP suit la base du DSP (+400h ; EMU8000 Programmer's Guide,
+    // p. 6-7) ; PCem le règle à part (emu_addr, 620h sans clé). Le pointeur (la base + C02h) écrit 45h, relu en E22h et
+    // E42h (ou E62h) : 45h où la puce est montée, FFh ailleurs. L'AWE32 en 240h sans emu_addr : PCem 620h, la carte
+    // 640h ; en 220h avec emu_addr = 660h : PCem 660h, la carte 620h. Témoin : 220h sans clé, 620h des deux côtés.
+    private static int Pb289(bool hw)
+    {
+        int Un(string nom, string section, ushort[] ports, string pcem, string mat, bool temoin = false) =>
+            AvecSb("sbawe32", _ =>
+            {
+                var v = string.Join(" ", ports.Select(p =>
+                {
+                    io.outw(p, 0x45);
+                    return $"{p:X3}h={io.inw(p) & 0xff:X2}";
+                }));
+                var att = temoin || hw ? mat : pcem;
+                return Voir(nom, v == att, v, att, hw);
+            }, "[Sound Blaster AWE32]\nirq = 7\n" + section);
+        var bad = Un("AWE32 en 240h, sans emu_addr", "addr = 576\n", [0xe22, 0xe42], "E22h=45 E42h=FF",
+                     "E22h=FF E42h=45");
+        bad += Un("AWE32 en 220h, emu_addr = 660h", "emu_addr = 1632\n", [0xe22, 0xe62], "E22h=FF E62h=45",
+                  "E22h=45 E62h=FF");
+        bad += Un("AWE32 en 220h, sans emu_addr (témoin)", "", [0xe22, 0xe42], "", "E22h=45 E42h=FF", temoin: true);
+        return bad;
+    }
 }

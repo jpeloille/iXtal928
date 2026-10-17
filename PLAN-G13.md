@@ -596,7 +596,10 @@ contre-lecture, M2, sa série entière et son commit :
     PB-145 (la SB 2.0 sans mélangeur), et de PB-153, 3Dh et 3Eh au reset et la traduction du 16 bits vers le canal 8
     bits (81h), qui ne dépendent d'aucune question ; **8d2** ✅ *(13/10, VERIFICATION.md § G13.8d2)*, la ligne
     partagée — PB-154 (l'IRQ du MPU, 82h bit 2, 3Fh en mode UART) et PB-238 (2xEh, 2xFh et le reset du DSP), sans
-    question ; **8d3**, de PB-153, l'IRQ 5 d'usine, après la réponse à Q14 ; **8d4** ✅ *(14/10, VERIFICATION.md
+    question ; **8d3**, de PB-153, l'IRQ 5 d'usine, après la réponse à Q14 — devenue les cavaliers (Q22 à Q27) :
+    **8d3a** ✅ *(17/10, VERIFICATION.md § G13.8d3a)*, la SB 16 et l'AWE32 — `irq`, `dma`, `dma16` et `mpu_addr`
+    dans les deux modes, l'IRQ 5 d'usine et « Use Low » sous PB-153, PB-289, neuf (l'EMU8000 à la base + 400h) ;
+    **8d4** ✅ *(14/10, VERIFICATION.md
     § G13.8d4)*, ouverte le 14/10 à la demande de Julien, le front de la ligne — PB-285, neuf (une IRQ du DSP levée sur
     la ligne déjà haute ne repose pas la demande au PIC), les gardes en tête de chaque état qui lève, `sb_irq`, inliné
     dans `pollsb`, laissé sans garde. La sélection additive de PB-153 passe en

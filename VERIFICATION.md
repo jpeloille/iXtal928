@@ -12594,3 +12594,76 @@ contre M2-8e1, 1 492 méthodes de part et d'autre, aucune changée — ni constr
 existait), ni jeton de chaîne (l'étape n'ajoute aucune chaîne à l'émulateur). `sound_cd_tick` et `sound_cd_raz`,
 compilés par les trente scénarios, `sb_dsp_reset` et `sb_exec_command`, par ceux du son, ne changent pas : leurs gardes
 sont pliées. `sb_get_buffer_sbpro` n'est compilé par aucun scénario (aucun ne porte de SB Pro).
+
+## G13.8d3a — les cavaliers de la SB 16 et de l'AWE32
+
+Le 17 octobre 2026. Q14 tranchée le 16/10 (l'utilisateur règle les cavaliers des cartes de l'époque), puis Q22 à Q27
+sur le relevé (`/var/tmp/ixtal-g13/releve-cavaliers-8d3.md`, hors du dépôt) : 8d3a, la SB 16 et l'AWE32.
+
+**Les cavaliers** (`Sound/sound_sb.cs`, `PluginApi/device.cs`). Dans les deux modes (Q26) : `sb_16_config` et
+`sb_awe32_config` reçoivent `irq` (2, 5, 7, 10), `dma` (0, 1, 3), `dma16` (5, 6, 7, ou 0, « Use Low ») et `mpu_addr`
+(330h, 300h, ou 0, sans MPU), ceux des cartes à cavaliers (Creative, Solution ID 3039). `sb_16_cavaliers`, appelée par
+`sb_16_init` et `sb_awe32_init` avant le reset du CT1745, pose l'IRQ et les DMA à l'allumage ; 80h et 81h les changent
+ensuite comme chez PCem (Q22). Le MPU est monté à sa place, en fin d'init, au port de `mpu_addr`. Sans clé, le mode
+PCem garde ceux de PCem (l'IRQ 7, le DMA 1, le DMA 16 bits 5, le MPU en 330h). `device_get_config_int_defaut` lit une
+clé dont le défaut suit le mode (la même liste, le même refus, vers ce défaut). L'avertissement de `pc.check_sndcard`
+suit le port du MPU (deux ports, contre les quatre de l'AHA). Les profils `ixtal26-486-sb16.cfg` et `-awe32.cfg`
+posent `irq = 7`, que leur disque attend (Q23) ; le banc des cas aussi (`AvecSb`), sauf les cas des cavaliers.
+
+**PB-153** (`Sound/sound_sb.Materiel.cs`). Sous `if (materiel.pb_153)`, dans `sb_16_cavaliers` : le défaut de l'IRQ,
+sans clé ou hors de sa liste, est l'usine, 5 (`irq_usine_materiel` ; guide, p. 5-5) ; « Use Low » pose la traduction
+de 81h (`seize_bas_materiel`), que PCem n'a pas (il garde le DMA 16 bits 5).
+
+**PB-289**, neuf (`sb_awe32_init`). Sous `if (materiel.pb_289)` : l'EMU8000 à la base du DSP + 400h
+(`emu_base_materiel` ; EMU8000 Programmer's Guide, p. 6-7) ; `emu_addr`, posée autrement, un avertissement, et elle
+ne vaut pas.
+
+**Les cas.** `materiel-cas PB-153`, six de plus : la SB 16 sans clé, 80h relu 04h contre 02h ; l'AWE32 de même ;
+`irq = 9`, hors de la liste, 04h contre 02h ; `dma16 = 0`, 81h relu 22h contre 02h, puis B0h 10h sur le canal 1
+(aucune IRQ chez PCem ; l'IRQ au 4e tic, la sortie DEF0h) ; témoins, deux réglages relus en 80h et 81h (08h et 48h ;
+01h et 81h). `materiel-cas PB-154`, cinq témoins : le MPU en 300h (3Fh, puis FEh relu en 300h, FFh en 330h), sans MPU
+(FFh aux deux) ; l'avertissement, l'AHA en 330h et le MPU en 330h, non en 300h, ni l'AHA sans clé. `materiel-cas
+PB-289` : l'AWE32 en 240h sans `emu_addr` (le pointeur relu en E22h chez PCem, en E42h sur la carte) ; en 220h avec
+`emu_addr = 660h` (E62h contre E22h) ; témoin, 220h sans clé. Deux portes neuves (PB-289, ses deux modes). `r9-awecfg`
+attend, sous PB-289, l'EMU8000 de son essai en 240h à 640h. Verts en mode PCem, sous PB-153, PB-154, PB-289 et
+« tout ». Recensement : 289 défauts, 1 267 marqueurs. `couverture-materiel` sous « tout » : 195 corrections, toutes
+vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8d3a.py`) : la garde de l'IRQ d'usine coupée, `materiel-cas PB-153` sous
+PB-153 rougit (3 échecs) ; celle de « Use Low », 1 ; « Use Low » sans la traduction, 1 ; le refus hors liste vers le
+défaut de PCem, 1 ; la garde de l'EMU8000 coupée, `materiel-cas PB-289` sous PB-289, 2 et la sonde ; l'EMU8000 à la
+base + 420h, 3 ; le cavalier du MPU ignoré, `materiel-cas PB-154` en mode PCem, 1 ; l'avertissement sans le port du
+MPU, 1 ; le cavalier du DMA 8 bits ignoré, `materiel-cas PB-153` en mode PCem, 2 ; le marqueur de PB-289 dit
+reproduit, le recensement (1 écart). La correction coupée par le masque (`--attendu materiel` en mode PCem) : PB-153,
+17 échecs (13 en 8e1) ; PB-154, 7 ; PB-289, 2.
+
+**La contre-lecture** (Sonnet ; elle compare `sb_16_init` et `sb_awe32_init` à PCem — l'ordre des appels et des
+handlers, les défauts sans clé —, `device_get_config_int` avant et après, la traduction de « Use Low » à celle de 81h,
+les lecteurs de `sb.mpu` sans MPU, les ports de l'EMU8000, le chevauchement du MPU et de l'AHA, et à la main les
+attendus). Un bloquant annoncé, écarté : les portes `boot-diff` de la SB 16 et de l'AWE32, sans clé `irq`, attendent
+l'IRQ 7 ; sous « tout », elles sont refusées (elles comparent à l'oracle, qui est PCem), et le mode PCem garde l'IRQ 7.
+Reprises : huit lignes de plus de 120 caractères ; l'avertissement hors liste ne dit plus « de PCem » (les clés neuves
+n'y sont pas) ; celui de PB-289 donne `emu_addr` aussi en hexadécimal ; le profil dit « Use Low » sans effet en mode
+PCem. Laissés : la lecture du défaut de l'AHA (334h) dans `pc.check_sndcard`, que 8d3c fera suivre le mode (Q27) ; la
+SB 16 réglée par logiciel du guide de 1992-1994 (Q24), que Q22 écarte : la carte visée est celle à cavaliers.
+
+**Les séries** (le worktree de 8d3a, la DLL Release figée, `S-g8d3a`). En mode PCem, g8d3a (11 h 19 à 12 h 31) :
+731 vertes ; contre g8e2, changent le recensement (289 défauts, 1 267 marqueurs) et la couverture (195 corrections),
+et s'ajoutent les deux portes de PB-289. Sous « tout », g8d3a-tout (12 h 31 à 12 h 52) : 492 vertes, 228 refusées,
+11 `pcem`, aucune rouge ; contre g8e2-tout, les mêmes écarts. La machine a redémarré à 12 h 52, /tmp vidé : les tsv
+des deux séries sont reconstitués de ceux de g8e2 et du diff relevé avant le redémarrage (le même diff, refait sur
+eux ; les durées des deux portes de PB-289, inconnues, « ?s »). Les reprises de la contre-lecture sont venues après la
+DLL des séries : le worktree recréé, douze portes rejouées (`PORTES` : celles de PB-153, PB-154 et PB-289, PB-148 et
+PB-153, `r9-sbcfg`, `r9-awecfg`, le recensement, la couverture), le Release reconstruit, en mode PCem puis sous
+`MATERIEL=tout` : toutes vertes.
+
+**M2-8d3a** (le Release du worktree recréé, avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8e2, 1 492 méthodes et 1 494 ; onze changées, deux disparues, quatre apparues. Voulues, le mode PCem
+compris (Q26 : les cavaliers dans les deux modes ; sans clé, les valeurs de PCem) : `sb_16_init` et `sb_awe32_init`
+(l'appel de `sb_16_cavaliers`, apparue ; le MPU au port de `mpu_addr` ; la garde de PB-289) ; `device_get_config_int`
+(le défaut passé à `config_hors_liste`, dont la signature change : l'ancienne et sa fermeture disparaissent, la neuve
+et la sienne apparaissent) ; `device_get_config_int_defaut`, apparue ; `pc.check_sndcard` (le port du MPU). Les
+constructeurs statiques de `materiel`, `ModeMateriel` et `sound_sb` (le drapeau et le libellé de PB-289, les clés
+neuves de `sb_16_config` et `sb_awe32_config`). Les jetons de chaînes seuls (l'étape ajoute des chaînes à
+l'émulateur) : `process_scsi` (sept), `scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ;
+rien d'autre n'y change, ligne pour ligne.

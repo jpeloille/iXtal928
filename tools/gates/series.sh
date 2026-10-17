@@ -892,6 +892,11 @@ run materiel-cas-pb285-materiel --hardware-mode PB-285 materiel-cas PB-285
 # Le bloc qui reprend la commande en file (PB-239, par irq_materiel), et la ligne que le MPU tient (PB-154, PB-238).
 run materiel-cas-pb285-pb239 --hardware-mode PB-239,PB-285 materiel-cas PB-285
 run materiel-cas-pb285-pb154 --hardware-mode PB-154,PB-238,PB-285 materiel-cas PB-285
+# G13.8d3a — les cavaliers de la SB 16 et de l'AWE32 (Q14, Q22, Q26) : l'IRQ 5 d'usine et « Use Low » dans
+# materiel-cas PB-153, le MPU (mpu_addr) et l'avertissement de l'AHA dans PB-154 ; PB-289 (l'EMU8000 de l'AWE32 à la
+# base du DSP + 400h).
+run materiel-cas-pb289 materiel-cas PB-289
+run materiel-cas-pb289-materiel --hardware-mode PB-289 materiel-cas PB-289
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

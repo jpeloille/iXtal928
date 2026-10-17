@@ -3340,8 +3340,8 @@ carte ; (d) pour 0Eh, fidèle.
 *Reproduit* en mode PCem : `Sound/sound_sb.cs`, marqueurs `fixed in hardware mode: PB-153` (3Dh/3Eh, 81h sans canal 16
 bits, la relecture de 81h, les deux sélections d'entrée, 0Ah écrit et relu) ; `Sound/sound_sb_dsp.cs`, les états 16 bits
 de `pollsb` et `sb_poll_i`. Les autres sites, les mêmes dans les deux modes, portent un commentaire qui dit leur part
-(G13.8d1) : 82h, (a), corrigé avec l'IRQ du MPU (PB-154, G13.8d2) ; l'IRQ de `sb_16_init` et de `sb_awe32_init`, (a),
-après Q14 ; 01h, 80h et 81h à plusieurs bits, (c). SB16BANC les relit.
+(G13.8d1) : 82h, (a), corrigé avec l'IRQ du MPU (PB-154, G13.8d2) ; 01h, 80h et 81h à plusieurs bits, (c). Depuis
+G13.8d3a, `sb_16_cavaliers` (l'IRQ 7 sans clé ; « Use Low » sans traduction), marqueurs PB-153. SB16BANC les relit.
 *Corrigé en mode matériel* (G13.8d1), en partie : sous `if (materiel.pb_153)` — `Sound/sound_sb.Materiel.cs` et
 `Sound/sound_sb_dsp.Materiel.cs`. Le reset du CT1745 (`reset_ct1745_materiel`, en tête de `sb_ct1745_mixer_write`,
 partagé avec PB-237, chaque part ne suivant que sa correction) pose 3Dh et 3Eh à 15h et 0Bh. 81h écrit avec un seul canal
@@ -3359,7 +3359,7 @@ interrupteurs MIDI fermés de 3Dh et 3Eh (fig. 4-5), PCem prenant MIDI.L s'il es
 que sous PB-148 ; et 0Ah↔3Ah, à l'échelle du guide (p. 4-15 et 4-16 : 0Ah, 3 bits, de −42 à 0 dB par 6 dB ; 3Ah, 5 bits
 en D7:D3, de −62 à 0 dB par 2 dB) — en tête du `case 0x0A` de l'écriture, `3Ah = ((0Ah & 7) × 3 + 10) << 3`
 (`micro_ecrit_materiel`), et de la lecture, `((3Ah >> 3) − 10) / 3` borné à 0..7 (`micro_lu_materiel` ; déduit pour 3Ah
-sous 50h, que 0Ah ne peut dire). Reste, en (a) : l'IRQ 5 d'usine (Q14). `materiel-cas
+sous 50h, que 0Ah ne peut dire). `materiel-cas
 PB-153` : 3Dh et 3Eh au démarrage et après un reset (55h et 2Bh contre 15h et 0Bh), 81h=02h relu (22h contre 02h), puis
 B0h 10h sur le canal 1 (aucune IRQ chez PCem ; l'IRQ au 4e tic, le dernier mot DEF0h), B0h 30h en stéréo, B8h 10h à
 l'entrée, 81h après le reset du mélangeur et après celui du DSP, B6h traduit puis B0h en file (avec PB-239, l'IRQ à la
@@ -3369,6 +3369,18 @@ fin du bloc puis à celle de la file ; sans lui, PCem relance) ; les témoins 81
 la sélection additive dans `materiel-cas PB-148` ; la correction coupée, il rougit. En G13.8e2, le CD : ses
 interrupteurs (CD.L, CD.R) additifs de même, dans la sélection des copies (`selection_materiel`) ; le cas 3Dh=06h de
 `materiel-cas PB-148` (AFh sous PB-153, 8Fh sans lui).
+En G13.8d3a, avec les cavaliers (Q14, Q22 et Q26 tranchées le 16/10) : la SB 16 et l'AWE32 reçoivent, dans les deux
+modes, les clés `irq` (2, 5, 7, 10), `dma` (0, 1, 3), `dma16` (5, 6, 7, ou 0, « Use Low ») et `mpu_addr` (PB-154) des
+cartes à cavaliers (Creative, Solution ID 3039), lues par `sb_16_cavaliers` avant le reset du CT1745 ; elles posent
+l'état à l'allumage, 80h et 81h le changent ensuite comme chez PCem. Sans clé, le mode PCem garde ceux de PCem (l'IRQ
+7, le DMA 1, le DMA 16 bits 5). Sous PB-153, le défaut de l'IRQ, sans clé ou hors de sa liste, est l'usine, 5 (guide,
+p. 5-5 ; `irq_usine_materiel`, par `device_get_config_int_defaut`, le défaut donné par le mode) ; « Use Low » pose la
+traduction de 81h (`seize_bas_materiel`), que PCem n'a pas : il garde le DMA 16 bits 5. Les profils du dépôt
+(`ixtal26-486-sb16.cfg`, `-awe32.cfg`) posent `irq = 7`, que leur disque attend (Q23) ; le banc des cas aussi, sauf
+ceux des cavaliers. `materiel-cas PB-153`, six cas de plus : la SB 16 sans clé, 80h relu 04h contre 02h (81h=22h des
+deux côtés) ; l'AWE32 de même ; `irq = 9`, hors de la liste, 04h contre 02h ; `dma16 = 0`, 81h relu 22h contre 02h,
+puis B0h 10h sur le canal 1 (aucune IRQ chez PCem ; l'IRQ au 4e tic, le dernier mot DEF0h) ; témoins, `irq = 10`,
+`dma = 3`, `dma16 = 6` (80h=08h, 81h=48h) et l'AWE32 à `irq = 2`, `dma = 0`, `dma16 = 7` (80h=01h, 81h=81h).
 
 ### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, des ACK en mode UART
 
@@ -3414,6 +3426,11 @@ ou non (PB-285 la compare pour le DSP). `materiel-cas PB-154` : 3Fh (IRR à 1 et
 ligne tenue avec PB-238, baissée sans lui) ; les témoins 3Fh puis 330h lu, F3h ou F2h et 3Fh puis 330h lu (le DSP
 tient la ligne), et la MIDI en mode UART ; la correction coupée, il rougit.
 *G12.2* : l'AWE32 monte le même MPU, au même endroit.
+*G13.8d3a* : le cavalier du MPU (MSEL et MFBEN), la clé `mpu_addr` dans les deux modes : 330h sans clé, le réglage
+d'usine et celui de PCem ; 300h ; 0, sans MPU. L'avertissement de `pc.check_sndcard` suit son port : l'AHA-1542C sur
+ses ports le croise. `materiel-cas PB-154`, cinq témoins : 3Fh puis la donnée lue, FEh en 300h et FFh en 330h sous
+`mpu_addr = 768`, FFh aux deux sous `mpu_addr = 0` ; l'avertissement, l'AHA en 330h et le MPU en 330h, non en 300h,
+ni l'AHA sans clé (334h).
 
 ### PB-155 — Le FIR de la SB 16 dépasse le gain unité au-delà de 34,7 kHz, et la conversion déborde
 
@@ -6779,6 +6796,26 @@ puis 24h ; B6h (16 bits), puis D5h et D6h ; B6h, puis B0h ; C6h, puis C0h (en fi
 1Ch, puis 91h, puis 74h ; 40h A6h, puis D4h ; 41h puis 40h, la dernière gagne ; 40h sur l'AWE32 ; le reset « froid »
 et le reset « chaud » (34h, PB-240) ; un simple cycle fini sans départ, puis 41h hors transfert, qui efface la
 commande gardée ; témoins : 41h hors transfert, et 40h sur la SB Pro 2 (DSP 3.02).
+
+### PB-289 — L'EMU8000 de l'AWE32 se règle à part de la base du DSP
+
+`sound_sb.c:1079`, `:1092` et `:1304-1312` : `emu_addr` (620h, 640h, 660h ou 680h, 620h sans clé) place l'EMU8000,
+quelle que soit la base du DSP (`addr`, 220h à 280h) : une AWE32 en 240h garde sa puce en 620h, et 220h avec 660h se
+règle.
+*Effet* : sur une AWE32 en 240h, 260h ou 280h, un pilote qui cherche l'EMU8000 en BLASTER + 400h ne le trouve pas ; un
+réglage que la carte ne permet pas (220h et 660h) est accepté.
+*Trouvé par* : le relevé des cavaliers de G13.8d3 (16/10).
+*Source* : EMU8000 Programmer's Guide (E-mu, Creative), p. 6-7 : sur une AWE32 sans PnP, l'EMU8000 est à la base +
+400h, + 800h et + C00h, sans cavalier ; E de BLASTER ne vaut que pour le PnP. Documenté.
+*Cas qui discrimine* : AWE32 en 240h, sans `emu_addr` : PCem monte l'EMU8000 en 620h (le pointeur, E22h, relu 45h ;
+E42h, FFh) ; la carte, en 640h (E42h relu 45h).
+*G13* : (a) — documenté.
+*Reproduit en mode PCem* : `Sound/sound_sb.cs`, `sb_awe32_init`, marqueur PB-289.
+*Corrigé en mode matériel* (G13.8d3a) : sous `if (materiel.pb_289)`, après la lecture de `emu_addr` dans
+`sb_awe32_init` (`emu_base_materiel`, `Sound/sound_sb.Materiel.cs`) : l'EMU8000 en `addr` + 400h ; `emu_addr` posée
+autrement, un avertissement, et elle ne vaut pas. `materiel-cas PB-289` : l'AWE32 en 240h sans `emu_addr` (E22h relu
+45h chez PCem, E42h sur la carte) ; en 220h avec `emu_addr = 660h` (E62h chez PCem, E22h sur la carte) ; témoin, 220h
+sans clé (E22h des deux côtés).
 
 ## B. Comportement indéfini en C
 

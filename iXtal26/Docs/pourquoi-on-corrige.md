@@ -2224,3 +2224,33 @@ Julien à Q17 : la documentation du matériel tranche.*
   échantillons : la SB 16 et l'AWE32 par 36h, 37h, 3Dh et 3Eh, la Pro par 0Ch (sans le volume du CD, qui ne règle que
   la sortie : une déduction). A8h met la Pro en stéréo, A0h et le reset la remettent en mono. Le micro et la ligne
   restent muets, faute d'entrée côté hôte.
+
+## G13.8d3a — les cavaliers de la SB 16 et de l'AWE32
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8 (Q14, Q22 à Q27), `VERIFICATION.md` § G13.8d3a.*
+
+### Les cavaliers — ce que l'utilisateur règle avant d'allumer
+
+- **Le vrai PC.** Une SB 16 à cavaliers se règle sur la carte, avant de la monter : son IRQ (2, 5, 7 ou 10), son DMA
+  8 bits (0, 1 ou 3), son DMA 16 bits (5, 6, 7, ou « Use Low », le 16 bits par le canal 8 bits) et son MPU-401 (330h,
+  300h, ou coupé). L'AWE32 sans PnP a les mêmes. L'utilisateur choisit, puis règle ses logiciels en conséquence.
+- **L'émulateur.** PCem n'offre aucun de ces réglages : l'IRQ 7, le DMA 1, le DMA 16 bits 5 et le MPU en 330h, que
+  seul un pilote Creative peut changer après coup, par les registres 80h et 81h.
+- **La correction.** Ce n'est pas un défaut corrigé dans un seul mode : les cavaliers valent dans les deux (la décision
+  de Julien, Q26). Sans réglage, le mode PCem reste celui de PCem.
+
+### PB-153 — l'IRQ 5 d'usine et « Use Low »
+
+- **Le vrai PC.** La carte sort d'usine à l'IRQ 5. Sur « Use Low », elle passe le son 16 bits par le canal 8 bits.
+- **L'émulateur.** PCem part de l'IRQ 7, et n'a pas cette traduction : son DMA 16 bits reste le 5.
+- **La correction.** En mode matériel, sans réglage, l'IRQ 5 ; « Use Low » traduit le 16 bits, comme le fait déjà le
+  registre 81h en mode matériel. Les deux profils du dépôt fixent l'IRQ 7, que leurs disques attendent.
+
+### PB-289 — l'EMU8000 qui suit la carte
+
+- **Le vrai PC.** Sur une AWE32 sans PnP, la puce de synthèse EMU8000 est toujours à l'adresse de base + 400h : en
+  220h, la puce est en 620h ; en 240h, en 640h. Aucun réglage ne la déplace.
+- **L'émulateur.** PCem la règle à part : une AWE32 en 240h garde sa puce en 620h, là où ses pilotes ne la cherchent
+  pas.
+- **La correction.** En mode matériel, la puce suit la base ; le réglage de PCem, s'il dit autre chose, est ignoré
+  avec un avertissement.

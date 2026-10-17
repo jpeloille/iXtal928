@@ -199,6 +199,59 @@ internal static partial class MaterielCas
                 io.outb(0x330, b);
             return $"MIDI {sound_mpu401_uart.midi_count} {Irr()} {Etat82()}";
         }, "", "MIDI 3 IRR7=0 82h=00", temoin: true);
+        return bad + MpuCavalier(hw);
+    }
+
+    // G13.8d3a — le cavalier du MPU (mpu_addr : 330h, 300h, ou 0, absent), le même dans les deux modes : témoins. 3Fh,
+    // puis la donnée lue (FEh, l'ACK), là où le MPU est monté ; FFh là où rien ne répond. L'avertissement de
+    // pc.check_sndcard (appelé par initpc, ici après loadconfig) suit le port du MPU : l'AHA-1542C en 330h le croise en
+    // 330h, non en 300h ; en 334h, nulle part.
+    private static int MpuCavalier(bool hw)
+    {
+        int Un(string nom, string section, Func<string> corps, string att) =>
+            AvecSb("sb16", _ =>
+            {
+                var v = corps();
+                return Voir(nom, v == att, v, att, hw);
+            }, "[Sound Blaster 16]\nirq = 7\n" + section);
+        string Ack(ushort port)
+        {
+            io.outb((ushort)(port + 1), 0x3f);
+            return $"{port:X3}h={io.inb(port):X2}";
+        }
+        var bad = Un("SB 16, mpu_addr = 300h (témoin)", "mpu_addr = 768\n", () => $"{Ack(0x300)} {Ack(0x330)}",
+                     "300h=FE 330h=FF");
+        bad += Un("SB 16, mpu_addr = 0, sans MPU (témoin)", "mpu_addr = 0\n", () => $"{Ack(0x300)} {Ack(0x330)}",
+                  "300h=FF 330h=FF");
+        foreach (var (aha, mpu, att) in new[]
+                 {
+                     ("addr = 816", "", "averti"), ("addr = 816", "mpu_addr = 768", "rien"), ("", "", "rien"),
+                 })
+            bad += AvecCd(d =>
+            {
+                var cfg = Path.Combine(d, "aha.cfg");
+                var nomAha = Scsi.scsi_aha1540.scsi_aha1542c_device.name;
+                File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\n" +
+                                       "sndcard = sb16\nhdd_controller = aha1542c\n" +
+                                       $"[Sound Blaster 16]\n{mpu}\n[{nomAha}]\n{aha}\n");
+                var err = Console.Error;
+                var capte = new StringWriter();
+                try
+                {
+                    Console.SetError(capte);
+                    if (!pc.loadconfig(cfg))
+                        throw new InvalidOperationException("loadconfig");
+                    pc.check_sndcard();
+                }
+                finally
+                {
+                    Console.SetError(err);
+                }
+                var v = capte.ToString().Contains("MPU-401 de la carte") ? "averti" : "rien";
+                var nom = $"l'AHA-1542C {(aha == "" ? "sans clé (334h)" : "en 330h")}, " +
+                          $"le MPU {(mpu == "" ? "en 330h" : "en 300h")} : l'avertissement (témoin)";
+                return Voir(nom, v == att, v, att, hw);
+            });
         return bad;
     }
 }

@@ -162,8 +162,9 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   le registre de 8 bits du micrologiciel, PB-155 ; le FIR saturant ; PB-288, neuf) ; 8c3 ✅ (le registre différé :
   40h, 41h et 42h pendant un transfert ne vont au codec qu'au départ suivant, PB-288) ; 8e1 ✅ (la SB 16 et l'AWE32
   enregistrent la MIDI : PB-148, PB-151, la sélection additive et 0Ah↔3Ah de PB-153) ; 8e2 ✅ (le CD et la SB Pro
-  enregistrent : le pont du CD, A0h et A8h). Suivent 8d3a à c (les cavaliers), 8g, puis les cavaliers hors du son ;
-  PB-256 avec la carte mère.
+  enregistrent : le pont du CD, A0h et A8h) ; 8d3a ✅ (les cavaliers de la SB 16 et de l'AWE32 : l'IRQ 5 d'usine,
+  « Use Low », le MPU ; PB-289, neuf, l'EMU8000 à la base + 400h). Suivent 8d3b et 8d3c (les cavaliers), 8g, puis
+  les cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

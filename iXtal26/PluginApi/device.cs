@@ -263,9 +263,26 @@ internal static partial class device
         {
             if (string.CompareOrdinal(s, config[i].name) == 0)
                 return config_hors_liste(config[i],
-                                         config_get_int(CFG_MACHINE, current_device.name, s, config[i].default_int));
+                                         config_get_int(CFG_MACHINE, current_device.name, s, config[i].default_int),
+                                         config[i].default_int);
 
             i++;
+        }
+        return 0;
+    }
+
+    // DEVIATION: (G13.8d3a ; Q26 et la décision n° 17) un cavalier dont le défaut suit le mode — celui de PCem en mode
+    //   PCem, l'usine en mode matériel : device_get_config_int, le défaut donné par l'appelant, la même liste, le même
+    //   refus (config_hors_liste, vers ce défaut).
+    internal static int device_get_config_int_defaut(string s, int defaut)
+    {
+        device_config_t[] config = current_device.config;
+
+        for (int i = 0; config[i].type != -1; i++)
+        {
+            if (string.CompareOrdinal(s, config[i].name) == 0)
+                return config_hors_liste(config[i], config_get_int(CFG_MACHINE, current_device.name, s, defaut),
+                                         defaut);
         }
         return 0;
     }
@@ -275,12 +292,13 @@ internal static partial class device
     //   CONFIG_SELECTION, que les valeurs de sa liste `selection`, et pour une clé
     //   CONFIG_BINARY qu'une case à cocher (0 ou 1) ; une autre valeur n'existe que par un .cfg
     //   édité à la main, et PCem la prend telle quelle (device.c:99) — jusqu'à indexer hors de
-    //   ses tableaux (PB-93). Ici, le défaut du device, et un avertissement sur la sortie
-    //   d'erreur : section, clé, valeur rejetée, défaut retenu. L'oracle n'est pas touché ; les
+    //   ses tableaux (PB-93). Ici, le défaut du device (ou celui du mode, G13.8d3a), et
+    //   un avertissement sur la sortie d'erreur : section, clé, valeur rejetée, défaut
+    //   retenu. L'oracle n'est pas touché ; les
     //   portes n'y mènent pas, r9-sbcfg le prouve en C# seul.
     private static readonly HashSet<string> config_hors_liste_avertis = new();
 
-    private static int config_hors_liste(device_config_t c, int val)
+    private static int config_hors_liste(device_config_t c, int val, int defaut)
     {
         bool dans_liste;
         if (c.type == CONFIG_BINARY)
@@ -296,10 +314,10 @@ internal static partial class device
         //   :3008) : la valeur rendue est la même à chaque lecture, l'avertissement n'est dit
         //   qu'une fois par initialisation.
         if (!config_hors_liste_avertis.Add(c.name))
-                return c.default_int;
+                return defaut;
         Console.Error.WriteLine($"iXtal26 : [{current_device.name}] {c.name} = {brut.Trim()} hors de la liste " +
-                                $"de PCem — défaut {c.default_int} retenu.");
-        return c.default_int;
+                                $"— défaut {defaut} retenu.");
+        return defaut;
     }
 
     // pcem: device.c:106-116

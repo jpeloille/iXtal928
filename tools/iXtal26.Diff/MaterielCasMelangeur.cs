@@ -226,6 +226,44 @@ internal static partial class MaterielCas
                 MelEcrit(0x224, r, v);
                 return MelLit(0x224, 0x0a, 0x3a);
             }, pcem, mat);
+        return bad + Pb153Cavaliers(hw);
+    }
+
+    // PB-153, G13.8d3a — les cavaliers de la SB 16 et de l'AWE32 (sb_16_cavaliers), lus dans les deux modes : sans clé,
+    // l'IRQ 7 de PCem, l'IRQ 5 d'usine en mode matériel (80h relu 04h contre 02h), de même hors de la liste ; « Use
+    // Low » (dma16 = 0) : PCem garde le DMA 16 bits 5 (81h=22h, B0h sur un canal 5 que rien ne sert), la carte traduit
+    // le 16 bits vers le canal 8 bits. Témoins, les mêmes dans les deux modes : deux réglages relus en 80h et 81h.
+    private static int Pb153Cavaliers(bool hw)
+    {
+        int Un(string nom, string carte, string section, Func<sb_dsp_t, string> corps, string pcem, string mat,
+               bool temoin = false) =>
+            AvecSb(carte, d =>
+            {
+                var v = corps(d);
+                var att = temoin || hw ? mat : pcem;
+                return Voir(nom, v == att, v, att, hw);
+            }, section);
+        const string Sb16 = "[Sound Blaster 16]\n", Awe = "[Sound Blaster AWE32]\n";
+        var bad = Un("SB 16 sans clé : 80h et 81h au démarrage", "sb16", "", _ => MelLit(0x224, 0x80, 0x81),
+                     "80h=04 81h=22", "80h=02 81h=22");
+        bad += Un("AWE32 sans clé : 80h au démarrage", "sbawe32", "", _ => MelLit(0x224, 0x80), "80h=04", "80h=02");
+        bad += Un("SB 16, irq = 9 (hors de la liste) : 80h", "sb16", Sb16 + "irq = 9\n", _ => MelLit(0x224, 0x80),
+                  "80h=04", "80h=02");
+        bad += Un("SB 16, dma16 = 0 (« Use Low ») : 81h, puis B0h 10h 03h 00h sur le canal 1", "sb16",
+                  Sb16 + "irq = 7\ndma16 = 0\n", d =>
+                  {
+                      byte[] mots = [0x34, 0x12, 0x78, 0x56, 0xbc, 0x9a, 0xf0, 0xde];
+                      for (var i = 0; i < mots.Length; i++)
+                          mem.mem_writeb_phys(0x10000 + (uint)i, mots[i]);
+                      var lu = MelLit(0x224, 0x81);
+                      Dma1(0x10000, 0x07, false);
+                      Dsp(0xb0, 0x10, 0x03, 0x00);
+                      return $"{lu} {TicsDma(d, 12, seize: true)}, sortie {(ushort)d.sbdatl:X4}";
+                  }, "81h=22 IRQ aucune, sortie 0000", "81h=02 IRQ aux tics 4, sortie DEF0");
+        bad += Un("SB 16, irq = 10, dma = 3, dma16 = 6 (témoin)", "sb16", Sb16 + "irq = 10\ndma = 3\ndma16 = 6\n",
+                  _ => MelLit(0x224, 0x80, 0x81), "", "80h=08 81h=48", temoin: true);
+        bad += Un("AWE32, irq = 2, dma = 0, dma16 = 7 (témoin)", "sbawe32", Awe + "irq = 2\ndma = 0\ndma16 = 7\n",
+                  _ => MelLit(0x224, 0x80, 0x81), "", "80h=01 81h=81", temoin: true);
         return bad;
     }
 }

@@ -99,9 +99,11 @@ internal static class R9Awe
             bad += Refus("sound_sb.c:1349", "l'AWE32 sur « ibmxt »", romsPath, "model = ibmxt\nsndcard = sbawe32\n", "ISA 16 bits", ref n);
 
             // (l'essai, la section, l'adresse du DSP, celle de la puce, la RAM en Ko, les avertissements « hors de la liste »)
+            // Sous PB-289 (G13.8d3a), l'EMU8000 suit la base du DSP : 640h, emu_addr ignorée.
             var sections = new (string nom, string section, int dsp, int addr, int ram, int avertis)[]
             {
-                ("dans la liste : le DSP en 240h, l'EMU8000 en 660h, sans RAM", "addr = 576\nemu_addr = 1632\nonboard_ram = 0\n", 0x240, 0x660, 0, 0),
+                ("dans la liste : le DSP en 240h, l'EMU8000 en 660h, sans RAM",
+                 "addr = 576\nemu_addr = 1632\nonboard_ram = 0\n", 0x240, materiel.pb_289 ? 0x640 : 0x660, 0, 0),
                 ("dans la liste : 28 Mo de RAM", "onboard_ram = 28672\n", 0x220, 0x620, 28672, 0),
                 ("PB-93 : emu_addr FFFEh", "emu_addr = 65534\n", 0x220, 0x620, 512, 1),
                 ("PB-93 : onboard_ram -1", "onboard_ram = -1\n", 0x220, 0x620, 512, 1),

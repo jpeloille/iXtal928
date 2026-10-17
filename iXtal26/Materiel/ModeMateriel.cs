@@ -123,7 +123,8 @@ internal static class ModeMateriel
         new(148, "son", "la SB 16 et l'AWE32 enregistrent la MIDI (le mélangeur d'entrée) ; 20h ne règle rien"),
         new(149, "son", "B0h à CFh du DSP 4.xx : l'octet de mode réduit à ses bits 4 et 5"),
         new(151, "son", "l'entrée stéréo du DSP lit un anneau de 10000h entrées, sans alias"),
-        new(153, "son", "le CT1745 : 3Dh et 3Eh au reset, 81h et la traduction, les entrées additionnées, 0Ah et 3Ah"),
+        new(153, "son", "le CT1745 : 3Dh et 3Eh au reset, 81h et la traduction, les entrées additionnées, " +
+                        "0Ah et 3Ah ; l'IRQ 5 d'usine"),
         new(154, "son", "l'IRQ du MPU-401 de la SB 16 : levée par l'octet qu'il rend (3Fh, FFh), effacée par la lecture de 330h ; 82h bit 2 ; 3Fh ignorée en mode UART"),
         new(155, "son", "40h, 41h et 42h du DSP 4.xx : le registre de fréquence (4.05, 4.13) ; le FIR sature"),
         new(157, "carte-mere", "la commande du 8237 haut est rangée, et DAh se lit sur le temporaire"),
@@ -232,6 +233,7 @@ internal static class ModeMateriel
         new(286, "processeur", "MOV CR0 avec PG = 1 et PE = 0 lève #GP(0), CR0 inchangé (386, 486)"),
         new(287, "processeur", "MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486)"),
         new(288, "son", "40h, 41h et 42h du DSP 4.xx pendant un transfert : le registre va au codec au départ suivant"),
+        new(289, "son", "l'EMU8000 de l'AWE32 à la base du DSP + 400h, sans réglage à part"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

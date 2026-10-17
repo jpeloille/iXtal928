@@ -603,6 +603,9 @@ internal static class materiel
     /// fréquence ; le codec le reçoit au départ ou à la reprise d'un transfert.</summary>
     internal static readonly bool pb_288;
 
+    /// <summary>PB-289 : l'EMU8000 de l'AWE32 à la base du DSP + 400h, emu_addr ignorée.</summary>
+    internal static readonly bool pb_289;
+
     /// <summary>PB-148 : la SB 16 et l'AWE32 enregistrent la MIDI (l'OPL, l'EMU8000) par le mélangeur d'entrée du
     /// CT1745 ; la lecture suit l'écriture d'un tampon ; 20h prend un échantillon sans régler l'entrée.</summary>
     internal static readonly bool pb_148;
@@ -805,6 +808,7 @@ internal static class materiel
         pb_286 = ModeMateriel.Demande(286);
         pb_287 = ModeMateriel.Demande(287);
         pb_288 = ModeMateriel.Demande(288);
+        pb_289 = ModeMateriel.Demande(289);
         pb_148 = ModeMateriel.Demande(148);
         pb_151 = ModeMateriel.Demande(151);
     }

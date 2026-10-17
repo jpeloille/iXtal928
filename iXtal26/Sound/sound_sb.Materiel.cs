@@ -513,4 +513,43 @@ internal static partial class sound_sb
         sb.dsp.pos = 0;
         return true;
     }
+
+    // ===== G13.8d3a — les cavaliers de la SB 16 et de l'AWE32 =====
+
+    /// <summary>PB-153 : le défaut de l'IRQ, sans clé ou hors de sa liste — l'usine, 5 (guide, p. 5-5) ; PCem garde
+    /// l'IRQ 7 de sb_dsp_init.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int irq_usine_materiel()
+    {
+        ModeMateriel.Sonde[153]++;
+        return 5;
+    }
+
+    /// <summary>PB-153 : DBS0 et DBS1 sur « Use Low » (dma16 = 0) — la carte passe le 16 bits par le canal 8 bits, la
+    /// traduction que 81h pose sans bit 16 bits (guide, p. 2-7 ; dma_ct1745_materiel) ; 81h la relit sans bit 16
+    /// bits.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void seize_bas_materiel(sb_dsp_t dsp, int dma16)
+    {
+        if (dma16 != 0)
+            return;
+        ModeMateriel.Sonde[153]++;
+        traduction_materiel(dsp, true);
+    }
+
+    /// <summary>PB-289 : l'EMU8000 d'une AWE32 sans PnP suit la base du DSP, à +400h, +800h et +C00h, sans cavalier
+    /// (EMU8000 Programmer's Guide, p. 6-7) ; emu_addr, la clé de PCem, ne vaut plus : posée autrement, un
+    /// avertissement. Rend le port de l'EMU8000.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static uint16_t emu_base_materiel(uint16_t addr, uint16_t emu_addr)
+    {
+        ModeMateriel.Sonde[289]++;
+        uint16_t emu = (uint16_t)(addr + 0x400);
+        string cle = PluginApi.config.config_get_string(PluginApi.config.CFG_MACHINE, current_device!.name, "emu_addr",
+                                                        "").Trim();
+        if (emu_addr != emu && cle != "")
+            Console.Error.WriteLine($"iXtal26 : [{current_device!.name}] emu_addr = {cle} ({emu_addr:X}h) ignorée en " +
+                                    $"mode matériel : l'EMU8000 suit la base du DSP (addr + 400h = {emu:X}h).");
+        return emu;
+    }
 }

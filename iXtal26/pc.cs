@@ -1108,8 +1108,9 @@ internal static partial class pc
     /// DEVIATION (configuration) : PCem ne filtre ses cartes son que dans son écran, par le MCA et la ROM
     ///   (wx-config.c:190-193). Une carte ISA 16 bits (la SB 16, l'AWE32 : drapeaux 0, sound_sb.c:1349-1352) sur une
     ///   machine sans MODEL_AT n'aurait ni DMA 16 bits ni IRQ haute. Ici : un avertissement, et aucune carte son.
-    ///   Le MPU-401 de la SB 16 est fixe en 330h (sound_sb.c:1066) : une AHA-1542C réglée en 330h partagerait ses
-    ///   ports (io.c:106-109, les lectures en ET) ; PCem les monte toutes deux, comme le vrai matériel, et on avertit.
+    ///   Le MPU-401 de la SB 16 est fixe en 330h chez PCem (sound_sb.c:1066), réglé par mpu_addr ici (G13.8d3a : 330h,
+    ///   300h ou absent) : une AHA-1542C réglée sur ses ports les partagerait (io.c:106-109, les lectures en ET) ; PCem
+    ///   les monte toutes deux, comme le vrai matériel, et on avertit.
     /// </summary>
     internal static void check_sndcard()
     {
@@ -1132,10 +1133,20 @@ internal static partial class pc
             Sound.sound.sound_card_current = 0;
             return;
         }
-        if (Host.SoundCards.RequiresAtMachine(name) && cfg_hdd_controller == "aha1542c" &&
-            PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, Scsi.scsi_aha1540.scsi_aha1542c_device.name, "addr", 0x334) == 0x330)
-            Console.Error.WriteLine($"sndcard = {name} : le MPU-401 de la carte est fixe en 330h, où l'AHA-1542C est réglée ; " +
-                                    "les deux partagent les ports 330h et 331h (PCem ne dit rien).");
+        if (Host.SoundCards.RequiresAtMachine(name) && cfg_hdd_controller == "aha1542c")
+        {
+            var section = name == "sbawe32" ? Sound.sound_sb.sb_awe32_device.name : Sound.sound_sb.sb_16_device.name;
+            var mpu = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, section, "mpu_addr", 0x330);
+            if (mpu is not (0 or 0x300 or 0x330))
+                mpu = 0x330;
+            var aha = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE,
+                                                      Scsi.scsi_aha1540.scsi_aha1542c_device.name, "addr", 0x334);
+            // Le MPU occupe deux ports, l'AHA quatre.
+            if (mpu != 0 && mpu <= aha + 3 && aha <= mpu + 1)
+                Console.Error.WriteLine($"sndcard = {name} : le MPU-401 de la carte est en {mpu:X}h, sur les ports " +
+                                        $"de l'AHA-1542C ({aha:X}h) ; les deux partagent {mpu:X}h et {mpu + 1:X}h " +
+                                        "(PCem ne dit rien).");
+        }
     }
 
     // G10.4 — deux configurations que PCem accepte sans rien dire : un cdrom_channel sans contrôleur IDE (resetide
