@@ -164,8 +164,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   enregistrent la MIDI : PB-148, PB-151, la sélection additive et 0Ah↔3Ah de PB-153) ; 8e2 ✅ (le CD et la SB Pro
   enregistrent : le pont du CD, A0h et A8h) ; 8d3a ✅ (les cavaliers de la SB 16 et de l'AWE32 : l'IRQ 5 d'usine,
   « Use Low », le MPU ; PB-289, neuf, l'EMU8000 à la base + 400h) ; 8d3b ✅ (les SB 1.x, 2.0 et Pro : PB-290, le
-  DMA 1 seul et l'IRQ 5 d'usine de la 2.0 ; PB-291, le DMA 0 de la Pro). Suivent 8d3c (l'AHA), 8g, puis les
-  cavaliers hors du son ; PB-256 avec la carte mère.
+  DMA 1 seul et l'IRQ 5 d'usine de la 2.0 ; PB-291, le DMA 0 de la Pro) ; 8d3c ✅ (l'AHA-1542C : PB-292, le
+  port d'usine 330h ; SW5, la clé floppy). Suivent 8g, puis les cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

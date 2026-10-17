@@ -159,13 +159,13 @@ internal static partial class MaterielCas
 
     // PB-140 — Return Setup Data (0Dh) : les octets 00h à 2Bh, 2Ch-FFh à zéro ; « A value of zero is accepted and 256
     // bytes are returned » (TR, chapitre 5). 44 octets : PCem en rend 20 puis 24 zéros ; le matériel 26h (les
-    // interrupteurs : la carte en 334h, SW2 sur On ; SW5 sur On, la carte sans 82077 ; la ROM en DC000h, SW6-SW8 sur
-    // Off : 09h), A3h C2h en 27h-28h, la mailbox du BIOS (25h, posée à 012345h) en 29h-2Bh. 50 octets : 2Ch-31h à
-    // zéro des deux côtés. 0 : aucun octet chez PCem, 256 sur la carte, nuls au-delà de 2Bh — le tampon des résultats
-    // sali d'abord (22h range AAh BBh en 50, hors des 32 octets de l'EEPROM, et 23h de 60 octets les y rend). La ROM en
-    // D8000h (SW6 sur On, bit 4 seul — l'ordre des bits : SW6 et SW8 inversés donneraient le bit 6) : 26h = 19h ; en
-    // C8000h (SW6 et SW8 sur On) : 59h.
-    // Les 20 premiers octets, communs, sont comparés aussi.
+    // interrupteurs : la carte en 334h, SW2 sur On ; SW5 sur Off, l'usine, déduit (G13.8d3c) ; la ROM en DC000h,
+    // SW6-SW8 sur Off : 01h), A3h C2h en 27h-28h, la mailbox du BIOS (25h, posée à 012345h) en 29h-2Bh. 50 octets :
+    // 2Ch-31h à zéro des deux côtés. 0 : aucun octet chez PCem, 256 sur la carte, nuls au-delà de 2Bh — le tampon des
+    // résultats sali d'abord (22h range AAh BBh en 50, hors des 32 octets de l'EEPROM, et 23h de 60 octets les y rend).
+    // La ROM en D8000h (SW6 sur On, bit 4 seul — l'ordre des bits : SW6 et SW8 inversés donneraient le bit 6) : 26h =
+    // 11h ; en C8000h (SW6 et SW8 sur On) : 51h. SW5 sur On (floppy = 0, G13.8d3c) : 09h. Les 20 premiers octets,
+    // communs, sont comparés aussi.
     private static int Pb140(bool hw)
     {
         var bad = AvecNvr(_ => AvecScsi(() =>
@@ -177,7 +177,7 @@ internal static partial class MaterielCas
             b += Voir("0Dh de 44 : la longueur rendue", r.Length == 44, $"{r.Length}", "44", hw);
             b += Voir("0Dh de 44 : les octets 00h-13h", tete == "0000000000000000000000000000000000000000", tete, "20 zéros (rien d'initialisé)", hw);
             var queue = r.Length == 44 ? Hex(r[37..44]) : "?";
-            var att = hw ? "0009A3C2012345" : "00000000000000";
+            var att = hw ? "0001A3C2012345" : "00000000000000";
             b += Voir("0Dh de 44 : les octets 25h-2Bh", queue == att, queue, att, hw);
             var r50 = Commande(0x0D, 50);
             var fin = r50.Length == 50 ? Hex(r50[44..50]) : $"{r50.Length} octets";
@@ -188,18 +188,25 @@ internal static partial class MaterielCas
             var n0 = r0.Length;
             b += Voir("0Dh de 0 : la longueur rendue", n0 == (hw ? 256 : 0), $"{n0}", hw ? "256" : "0", hw);
             if (hw && n0 == 256)
-                b += Voir("0Dh de 0 : 26h-28h, puis le reste nul", Hex(r0[38..41]) == "09A3C2" && r0.Skip(44).All(x => x == 0),
-                          Hex(r0[38..41]) + (r0.Skip(44).All(x => x == 0) ? ", nuls" : ", non nuls"), "09A3C2, nuls", hw);
+            {
+                var nuls = r0.Skip(44).All(x => x == 0);
+                b += Voir("0Dh de 0 : 26h-28h, puis le reste nul", Hex(r0[38..41]) == "01A3C2" && nuls,
+                          Hex(r0[38..41]) + (nuls ? ", nuls" : ", non nuls"), "01A3C2, nuls", hw);
+            }
             return b;
         }));
-        foreach (var (rom, nom, octet) in new[] { (0xD8000, "D8000h", "19"), (0xC8000, "C8000h", "59") })
+        foreach (var (cle, nom, octet) in new[]
+                 {
+                     ("bios_addr = 884736", "ROM en D8000h", "11"), ("bios_addr = 819200", "ROM en C8000h", "51"),
+                     ("floppy = 0", "SW5 sur On (floppy = 0)", "09"),
+                 })
             bad += AvecNvr(_ => AvecScsi(() =>
             {
                 var r = Commande(0x0D, 44);
                 var v = r.Length == 44 ? $"{r[38]:X2}" : $"{r.Length} octets";
                 var att = hw ? octet : "00";
-                return Voir($"ROM en {nom}, 0Dh de 44 : l'octet 26h", v == att, v, att, hw);
-            }, section: $"\n[Adaptec AHA-1542C (SCSI)]\naddr = 820\nbios_addr = {rom}\n"));
+                return Voir($"{nom}, 0Dh de 44 : l'octet 26h", v == att, v, att, hw);
+            }, section: $"\n[Adaptec AHA-1542C (SCSI)]\naddr = 820\n{cle}\n"));
         return bad;
     }
 
@@ -238,5 +245,31 @@ internal static partial class MaterielCas
                 File.WriteAllBytes(Path.Combine(nvr, f), Convert.FromHexString(Reference));
         });
         return Essai(0x72, "22h, l'IRQ de 10 à 11", !hw, true) + Essai(0x71, "22h, l'IRQ inchangée (témoin)", true, false);
+    }
+
+    // PB-292 — l'AHA-1542C sort d'usine en 330h, SW2-SW4 sur Off (TR, chapitre 3) ; PCem, sans clé, la monte en 334h.
+    // Sans clé, puis addr = 999 (hors de la liste) : où le registre d'état répond (330h, 334h ; FFh, rien), et
+    // l'interrupteur relu par la sonde ; l'avertissement de pc.check_sndcard, une SB 16 au MPU en 330h et l'AHA sans
+    // clé (rien chez PCem, averti sur la carte). Témoin : addr = 230h.
+    private static int Pb292(bool hw)
+    {
+        int Un(string nom, string cle, string pcem, string mat, bool temoin = false) => AvecNvr(_ => AvecScsi(() =>
+        {
+            var o = new ulong[Scsi.scsi_aha1540.PROBE_N];
+            Scsi.scsi_aha1540.Probe(o);
+            var rep = new[] { 0x230, 0x330, 0x334 }.Where(p => iXtal26.io.inb((ushort)p) != 0xFF)
+                                                   .Select(p => $"{p:X}h");
+            var v = $"répond en {string.Join(" ", rep)}, interrupteurs {o[42]}";
+            var att = temoin || hw ? mat : pcem;
+            return Voir(nom, v == att, v, att, hw);
+        }, section: $"\n[Adaptec AHA-1542C (SCSI)]\n{cle}"));
+        var bad = Un("sans clé", "", "répond en 334h, interrupteurs 1", "répond en 330h, interrupteurs 0");
+        bad += Un("addr = 999, hors de la liste", "addr = 999\n", "répond en 334h, interrupteurs 1",
+                  "répond en 330h, interrupteurs 0");
+        bad += Un("addr = 230h (témoin)", "addr = 560\n", "", "répond en 230h, interrupteurs 2", temoin: true);
+        var v = AvertAha("", "");
+        var att = hw ? "averti" : "rien";
+        bad += Voir("l'AHA sans clé, la SB 16 au MPU en 330h : l'avertissement", v == att, v, att, hw);
+        return bad;
     }
 }

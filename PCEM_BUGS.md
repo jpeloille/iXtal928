@@ -2980,17 +2980,22 @@ interrupteurs, 0 chez PCem), A3h C2h en 27h-28h et la mailbox du BIOS en 29h-2Bh
 *G13* : (a).
 *Reproduit* en mode PCem : `Scsi/scsi_aha1540.cs`, Return Setup Data, marqueur `fixed in hardware mode: PB-140`.
 *Corrigé en mode matériel* (G13.7e1a) : `Scsi/scsi_aha1540.Materiel.cs` — sous `if (materiel.pb_140)`,
-`setup_data_materiel`, en tête du `case`, fait la commande entière : la longueur demandée, 256 pour 0, les octets 00h
-à 24h de PCem, puis 25h à 2Bh (le réessai à zéro, les
-interrupteurs, A3h C2h, la mailbox du BIOS) et des zéros au-delà. L'octet 26h (TR, chapitre 5 : un interrupteur sur
-On rend 1 ; chapitre 3, les tables) : SW2-SW4 en bits 0-2, le port (`dipsw`) ; SW6-SW8 en bits 4-6, l'adresse de la
-ROM (DC000h : 0, D8000h : 1… C8000h : 5) — documentés ; SW5 en bit 3, sur On : la carte de PCem n'a pas de 82077,
-le contrôleur de disquettes est désactivé — déduit ; le bit 7, la donnée lue de l'EEPROM, inconnu : 0, comme chez
-PCem. `materiel-cas PB-140` (0Dh de 44, de 50 et de 0 ; la ROM en DC000h, D8000h puis C8000h, la carte en 334h) rend 44
-octets dont 25h-2Bh nuls, 0 octet, et 26h = 00h en mode PCem ; `0009A3C2012345` en 25h-2Bh, 256 octets, 26h = 09h, 19h
-(D8000h) puis 59h en mode matériel ; la correction coupée, il rougit. Non couverts : l'octet 0 (la parité, que PCem rend coupée
-quand l'usine l'active) et 10h (la déconnexion) : leur place dans l'EEPROM est inconnue ; la fenêtre de la ROM
-(`:2076-2079`) rend toujours `dipsw` seul, comme chez PCem.
+`setup_data_materiel`, en tête du `case`, fait la commande entière : la longueur demandée, 256 pour 0, les octets 00h à
+24h de PCem, puis 25h à 2Bh (le réessai à zéro, les interrupteurs, A3h C2h, la mailbox du BIOS) et des zéros au-delà.
+L'octet 26h (TR, chapitre 5 : un interrupteur sur On rend 1 ; chapitre 3, les tables) : SW2-SW4 en bits 0-2, le port
+(`dipsw`) ; SW6-SW8 en bits 4-6, l'adresse de la ROM (DC000h : 0, D8000h : 1… C8000h : 5) — documentés ; SW5 en bit 3,
+sur On jusqu'à G13.8d3c (ci-dessous) : la carte de PCem n'a pas de 82077, le contrôleur de disquettes est désactivé —
+déduit ; le bit 7, la donnée lue de l'EEPROM, inconnu : 0, comme chez PCem. `materiel-cas PB-140` (0Dh de 44, de 50 et
+de 0 ; la ROM en DC000h, D8000h puis C8000h, la carte en 334h) rend 44 octets dont 25h-2Bh nuls, 0 octet, et 26h = 00h
+en mode PCem ; `0009A3C2012345` en 25h-2Bh, 256 octets, 26h = 09h, 19h (D8000h) puis 59h en mode matériel (avant
+G13.8d3c) ; la correction coupée, il rougit. Non couverts : l'octet 0 (la parité, que PCem rend coupée quand l'usine
+l'active) et 10h (la déconnexion) : leur place dans l'EEPROM est inconnue ; la fenêtre de la ROM (`:2076-2079`) rend
+toujours `dipsw` seul, comme chez PCem.
+*G13.8d3c* : SW5 devient la clé `floppy` (0, coupé, sur On ; 1, actif, sur Off), dans les deux modes ; sans clé, sur
+Off, actif, l'usine — déduit (th99, la fiche des AHA-1540C/1542C : « Off: Floppy drive enabled » ; l'usine met le port
+et la ROM sur Off ; le guide de la 1542B livre son contrôleur actif), et non plus « la carte de PCem n'a pas de 82077 »,
+celui de la machine répondant en 3F0h à sa place ; contre la proposition du relevé (« désactivé »), soumis à Julien. 26h
+vaut désormais 01h (25h-2Bh : `0001A3C2012345`), 11h et 51h ; `floppy = 0`, 09h, un cas de plus.
 
 ### PB-141 — Les mailbox : le compte des 02h, le balayage BIOS, le MBI non vérifié
 
@@ -6865,6 +6870,26 @@ canal 1, aucune IRQ ; la carte lève l'IRQ au 8e tic.
 0 de la rallonge ne serait relié à rien : non modélisé, comme l'IRQ 10 (PB-92) ; la carte exige un AT. `materiel-cas
 PB-291` : la Pro v2 à `dma = 0` (le canal relu, puis 14h sur le canal 0 : aucune IRQ chez PCem, au 8e tic sur la
 carte) ; la Pro v1 de même ; témoins, `dma = 3` (14h sur le canal 3) et `dma = 2`, refusé partout.
+
+### PB-292 — L'AHA-1542C de PCem n'est pas à son port d'usine
+
+`scsi_aha1540.c:2205-2227` (`aha1542c_config`) : `addr`, sans clé, vaut 334h ; `scsi_aha1542c_init` (`:2120-2161`) y
+monte la carte. L'usine la livre en 330h.
+*Effet* : sans réglage, la carte de PCem n'est pas là où son pilote et ses utilitaires la cherchent d'abord ; sur la
+carte, réglée d'usine, elle partage 330h et 331h avec le MPU-401 d'une SB 16 ou d'une AWE32 (le conflit de l'époque).
+*Trouvé par* : le relevé des cavaliers de G13.8d3 (16/10), Q27.
+*Source* : Adaptec, *AHA-1540C/1542C Technical Reference*, chapitre 3 : SW2-SW4, le port (330h à 134h), l'usine
+330h ; tous les interrupteurs du port sur Off (th99, la fiche des AHA-1540C/1542C). Documenté.
+*Cas qui discrimine* : la carte sans clé : PCem répond en 334h (l'interrupteur relu 1) ; la carte, en 330h (0). Une SB
+16 au MPU en 330h et l'AHA sans clé : `pc.check_sndcard` ne dit rien chez PCem, avertit sur la carte.
+*G13* : (a) — documenté.
+*Reproduit en mode PCem* : `Scsi/scsi_aha1540.cs`, `scsi_aha1542c_init`, et `pc.cs`, `check_sndcard`, marqueur PB-292.
+*Corrigé en mode matériel* (G13.8d3c) : sous `if (materiel.pb_292)`, le défaut d'`addr`, sans clé ou hors de sa liste,
+est l'usine, 330h (`port_usine_materiel`, `Scsi/scsi_aha1540.Materiel.cs`, lu par `device_get_config_int_defaut`) ;
+`pc.check_sndcard` prend le même défaut pour l'avertissement du MPU. `ixtal26-486-scsi.cfg` pose 334h, que son disque
+attend ; les bancs aussi (`AvecScsi`, `r9-aha`, `reset-scsi-check`), sauf les cas de PB-292. `materiel-cas PB-292` :
+sans clé et à `addr = 999` (334h, interrupteur 1, chez PCem ; 330h, 0, sur la carte) ; l'avertissement (rien chez
+PCem, averti sur la carte) ; témoin, `addr = 230h`.
 
 ## B. Comportement indéfini en C
 

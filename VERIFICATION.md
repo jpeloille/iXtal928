@@ -12728,3 +12728,62 @@ le saut vers la neuve, deux octets de plus) — le mode PCem inchangé. Les cons
 `scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ; rien d'autre n'y change. `sb_1_init`,
 `sb_15_init`, `sb_2_init`, `sb_pro_v1_init` et `sb_pro_v2_init` ne sont compilés par aucun scénario (appelés une fois,
 au montage) ; `device_get_config_int_liste`, leur seul appelant, non plus.
+
+## G13.8d3c — l'AHA-1542C à son port d'usine
+
+Le 17 octobre 2026. La fin des cavaliers de 8d3 (Q25, Q27) : l'AHA-1542C, un PB neuf, PB-292, et SW5.
+
+**PB-292**, neuf (`Scsi/scsi_aha1540.cs`, `scsi_aha1540.Materiel.cs`, `pc.cs`). Sous `if (materiel.pb_292)`, dans
+`scsi_aha1542c_init` : le défaut d'`addr`, sans clé ou hors de sa liste, est l'usine, 330h (`port_usine_materiel` ; TR,
+chapitre 3 : SW2-SW4 sur Off), lu par `device_get_config_int_defaut` ; PCem prend 334h. Dans `pc.check_sndcard`, le
+même défaut pour l'avertissement du MPU (une valeur hors de la liste y vaut aussi le défaut). `ixtal26-486-scsi.cfg`
+pose 334h ; les bancs de la carte aussi (`AvecScsi` sans section de l'AHA, `r9-aha`, `reset-scsi-check`).
+
+**SW5** (dans les deux modes, Q26). La clé `floppy` (0, le contrôleur de disquettes coupé, SW5 sur On ; 1, actif, sur
+Off ; 1 sans clé), gardée à côté de la carte (`cavalier_sw5`, `EtatAha.Cavaliers`) ; seul l'octet 26h de 0Dh la relit,
+sous PB-140 (`interrupteurs_materiel`). L'usine, sur Off, est déduite : la fiche des AHA-1540C/1542C de th99 (« Off:
+Floppy drive enabled »), l'usine du port et de la ROM toute sur Off, le guide de la 1542B (le contrôleur livré actif) ;
+le relevé proposait « coupé », sur la seule absence du 82077 dans la carte de PCem — le contrôleur de la machine répond
+en 3F0h à sa place. 26h sans clé passe de 09h à 01h en mode matériel.
+
+**Les cas.** `materiel-cas PB-292`, quatre : la carte sans clé et à `addr = 999` (le registre d'état répond en 334h,
+l'interrupteur relu 1, chez PCem ; en 330h, 0, sur la carte) ; une SB 16 au MPU en 330h et l'AHA sans clé (rien chez
+PCem, l'avertissement sur la carte) ; témoin, `addr = 230h`. Deux portes neuves. `materiel-cas PB-140` : 26h à 01h, 11h
+et 51h, et un cas de plus, `floppy = 0`, 09h. `materiel-cas PB-154` : le témoin de l'AHA sans clé attend l'avertissement
+sous PB-292 (la carte en 330h). `r9-aha` : la carte hors de sa liste revient à 330h sous PB-292. Verts en mode PCem,
+sous PB-140, PB-154, PB-292 et « tout ». Recensement : 292 défauts, 1 275 marqueurs. `couverture-materiel` sous
+« tout » : 198 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8d3c.py`) : la garde du port d'usine coupée, `materiel-cas PB-292` sous
+PB-292 rougit (2 échecs) ; celle de l'avertissement, 1 ; l'usine en 334h, 3 ; SW5 inversé, `materiel-cas PB-140` sous
+PB-140, 5 ; la clé `floppy` non lue, 1 ; SW5 figé sur On (l'ancien déduit), 4 ; le banc sans la carte en 334h,
+`materiel-cas PB-140` sous « tout », 5 ; le défaut de PCem changé, `materiel-cas PB-292` en mode PCem, 2 ; le marqueur
+de `pc.cs` dit reproduit, le recensement (1 écart). La correction coupée par le masque (`--attendu materiel` en mode
+PCem) : PB-292, 3 échecs ; PB-140, 5.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle compare l'init de la carte et `pc.check_sndcard` avant et après
+en mode PCem, l'ordre de `cavalier_sw5` après `dipsw`, l'état d'une carte remontée, les sections des bancs et l'ordre
+des clés, le reflux du paragraphe de PB-140 au diff, et à la main les attendus). Reprises : le choix de SW5, actif
+d'usine, va contre la proposition du relevé (« désactivé ») — dit dans PCEM_BUGS et PLAN-G13, et soumis à Julien ; le
+reflux de PB-140 avait perdu « est » et laissé une ligne commencer par « ; ». Vus : M2 joue ses scénarios par l'outil,
+en mode PCem (la carte d'ami486-aha reste en 334h) ; les portes `boot-diff` de l'AHA, sans clé `addr`, sont refusées
+sous « tout ». Laissés : `floppy` hors de sa liste avertit aussi en mode PCem (une clé neuve, comme celles de 8d3a).
+
+**Les séries** (le worktree de 8d3c, la DLL Release figée, `S-g8d3c`). En mode PCem, g8d3c (15 h 38 à 16 h 51) :
+737 vertes ; contre g8d3b, changent le recensement (292 défauts, 1 275 marqueurs) et la couverture (198 corrections),
+et s'ajoutent les deux portes de PB-292. Sous « tout », g8d3c-tout (16 h 51 à 17 h 15) : 498 vertes, 228 refusées,
+11 `pcem`, aucune rouge ; contre g8d3b-tout, les mêmes écarts. Les reprises de la contre-lecture (du texte seul, dans
+PCEM_BUGS et PLAN-G13) sont venues après la copie de la série : onze portes rejouées (`PORTES` : les deux de PB-292,
+celles de PB-140, PB-154 et PB-238, PB-238 et PB-154, PB-285 et PB-154, `r9-aha`, `reset-scsi-check`, le recensement,
+la couverture), le Release reconstruit, en mode PCem puis sous `MATERIEL=tout` : toutes vertes (`r9-aha` `pcem` sous
+« tout », comme dans la série).
+
+**M2-8d3c** (le Release du worktree, reconstruit avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8d3b, 1 494 méthodes et 1 496 ; neuf changées, aucune disparue, deux apparues. Voulues, le mode PCem compris
+(Q26 : SW5 dans les deux modes) : `scsi_aha1542c_init` (`device_get_config_int_defaut` reçoit 334h, la garde de PB-292
+pliée ; la clé `floppy` lue, `cavalier_sw5` inlinée, la table `EtatAha.Cavaliers`) ; `pc.check_sndcard` (le défaut 334h,
+puis la garde de PB-292 et `port_usine_materiel`) ; le constructeur de la classe `EtatAha.Cavalier` et le constructeur
+statique d'`EtatAha` (la table des cavaliers), apparus. Les constructeurs statiques de `materiel`, `ModeMateriel` et
+`scsi_aha1540` (le drapeau et le libellé de PB-292, la clé `floppy` de la table). Les jetons de chaînes seuls :
+`process_scsi` (sept), `scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ; rien d'autre n'y
+change.

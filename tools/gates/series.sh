@@ -903,6 +903,10 @@ run materiel-cas-pb290 materiel-cas PB-290
 run materiel-cas-pb290-materiel --hardware-mode PB-290 materiel-cas PB-290
 run materiel-cas-pb291 materiel-cas PB-291
 run materiel-cas-pb291-materiel --hardware-mode PB-291 materiel-cas PB-291
+# G13.8d3c — l'AHA-1542C (Q25, Q27) : PB-292 (le port d'usine, 330h ; l'avertissement du MPU suit) ; SW5, la clé
+# floppy, relue par materiel-cas PB-140 ; les bancs de la carte la posent en 334h.
+run materiel-cas-pb292 materiel-cas PB-292
+run materiel-cas-pb292-materiel --hardware-mode PB-292 materiel-cas PB-292
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

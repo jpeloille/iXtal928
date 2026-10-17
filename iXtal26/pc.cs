@@ -1139,8 +1139,14 @@ internal static partial class pc
             var mpu = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, section, "mpu_addr", 0x330);
             if (mpu is not (0 or 0x300 or 0x330))
                 mpu = 0x330;
+            int aha_defaut = 0x334;
+            // pcem bug, fixed in hardware mode: PB-292 — l'AHA sans clé en 334h chez PCem ; l'usine, 330h.
+            if (materiel.pb_292)
+                aha_defaut = Scsi.scsi_aha1540.port_usine_materiel();
             var aha = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE,
-                                                      Scsi.scsi_aha1540.scsi_aha1542c_device.name, "addr", 0x334);
+                                                      Scsi.scsi_aha1540.scsi_aha1542c_device.name, "addr", aha_defaut);
+            if (aha is not (0x130 or 0x134 or 0x230 or 0x234 or 0x330 or 0x334))
+                aha = aha_defaut;
             // Le MPU occupe deux ports, l'AHA quatre.
             if (mpu != 0 && mpu <= aha + 3 && aha <= mpu + 1)
                 Console.Error.WriteLine($"sndcard = {name} : le MPU-401 de la carte est en {mpu:X}h, sur les ports " +

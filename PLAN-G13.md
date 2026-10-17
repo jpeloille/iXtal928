@@ -601,7 +601,10 @@ contre-lecture, M2, sa série entière et son commit :
     dans les deux modes, l'IRQ 5 d'usine et « Use Low » sous PB-153, PB-289, neuf (l'EMU8000 à la base + 400h) ;
     **8d3b** ✅ *(17/10, VERIFICATION.md § G13.8d3b)*, les SB 1.x, 2.0 et Pro, selon les manuels de Q24 — PB-290,
     neuf (le DMA 1 seul des 1.x et 2.0, l'IRQ 5 d'usine de la 2.0), PB-291, neuf (le DMA 0 de la Pro), la liste du
-    mode lue par `device_get_config_int_liste` ;
+    mode lue par `device_get_config_int_liste` ; **8d3c** ✅ *(17/10, VERIFICATION.md § G13.8d3c)*, l'AHA-1542C —
+    PB-292, neuf (le port d'usine, 330h, en mode matériel ; l'avertissement du MPU de `pc.cs` le suit), SW5 en clé
+    `floppy` dans les deux modes (sur Off d'usine, déduit, contre la proposition « désactivé » du relevé, soumis à
+    Julien : l'octet 26h de 0Dh, PB-140, rend 01h) ;
     **8d4** ✅ *(14/10, VERIFICATION.md
     § G13.8d4)*, ouverte le 14/10 à la demande de Julien, le front de la ligne — PB-285, neuf (une IRQ du DSP levée sur
     la ligne déjà haute ne repose pas la demande au PIC), les gardes en tête de chaque état qui lève, `sb_irq`, inliné

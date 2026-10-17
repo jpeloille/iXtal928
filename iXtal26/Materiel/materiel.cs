@@ -612,6 +612,9 @@ internal static class materiel
     /// <summary>PB-291 : le DMA 0 de la SB Pro (v1 et v2).</summary>
     internal static readonly bool pb_291;
 
+    /// <summary>PB-292 : l'AHA-1542C sans clé à son port d'usine, 330h.</summary>
+    internal static readonly bool pb_292;
+
     /// <summary>PB-148 : la SB 16 et l'AWE32 enregistrent la MIDI (l'OPL, l'EMU8000) par le mélangeur d'entrée du
     /// CT1745 ; la lecture suit l'écriture d'un tampon ; 20h prend un échantillon sans régler l'entrée.</summary>
     internal static readonly bool pb_148;
@@ -817,6 +820,7 @@ internal static class materiel
         pb_289 = ModeMateriel.Demande(289);
         pb_290 = ModeMateriel.Demande(290);
         pb_291 = ModeMateriel.Demande(291);
+        pb_292 = ModeMateriel.Demande(292);
         pb_148 = ModeMateriel.Demande(148);
         pb_151 = ModeMateriel.Demande(151);
     }

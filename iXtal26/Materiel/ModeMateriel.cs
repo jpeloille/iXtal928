@@ -236,6 +236,7 @@ internal static class ModeMateriel
         new(289, "son", "l'EMU8000 de l'AWE32 à la base du DSP + 400h, sans réglage à part"),
         new(290, "son", "les SB 1.x et 2.0 sur le DMA 1 seul ; l'IRQ 5 d'usine de la 2.0"),
         new(291, "son", "le DMA 0 de la SB Pro"),
+        new(292, "stockage", "l'AHA-1542C à son port d'usine, 330h"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

@@ -223,35 +223,50 @@ internal static partial class MaterielCas
                      "300h=FE 330h=FF");
         bad += Un("SB 16, mpu_addr = 0, sans MPU (témoin)", "mpu_addr = 0\n", () => $"{Ack(0x300)} {Ack(0x330)}",
                   "300h=FF 330h=FF");
+        // G13.8d3c : l'AHA sans clé est en 330h sous PB-292, sur le MPU : averti.
         foreach (var (aha, mpu, att) in new[]
                  {
-                     ("addr = 816", "", "averti"), ("addr = 816", "mpu_addr = 768", "rien"), ("", "", "rien"),
+                     ("addr = 816", "", "averti"), ("addr = 816", "mpu_addr = 768", "rien"),
+                     ("", "", materiel.pb_292 ? "averti" : "rien"),
                  })
-            bad += AvecCd(d =>
-            {
-                var cfg = Path.Combine(d, "aha.cfg");
-                var nomAha = Scsi.scsi_aha1540.scsi_aha1542c_device.name;
-                File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\n" +
-                                       "sndcard = sb16\nhdd_controller = aha1542c\n" +
-                                       $"[Sound Blaster 16]\n{mpu}\n[{nomAha}]\n{aha}\n");
-                var err = Console.Error;
-                var capte = new StringWriter();
-                try
-                {
-                    Console.SetError(capte);
-                    if (!pc.loadconfig(cfg))
-                        throw new InvalidOperationException("loadconfig");
-                    pc.check_sndcard();
-                }
-                finally
-                {
-                    Console.SetError(err);
-                }
-                var v = capte.ToString().Contains("MPU-401 de la carte") ? "averti" : "rien";
-                var nom = $"l'AHA-1542C {(aha == "" ? "sans clé (334h)" : "en 330h")}, " +
-                          $"le MPU {(mpu == "" ? "en 330h" : "en 300h")} : l'avertissement (témoin)";
-                return Voir(nom, v == att, v, att, hw);
-            });
+        {
+            var v = AvertAha(aha, mpu);
+            var nom = $"l'AHA-1542C {(aha == "" ? "sans clé" : "en 330h")}, " +
+                      $"le MPU {(mpu == "" ? "en 330h" : "en 300h")} : l'avertissement (témoin)";
+            bad += Voir(nom, v == att, v, att, hw);
+        }
         return bad;
+    }
+
+    /// <summary>pc.check_sndcard sur une SB 16 et l'AHA-1542C, réglées par <paramref name="aha"/> et
+    /// <paramref name="mpu"/> (les clés de leurs sections) : « averti » si l'avertissement du MPU sur l'AHA est dit,
+    /// « rien » sinon.</summary>
+    private static string AvertAha(string aha, string mpu)
+    {
+        var v = "";
+        AvecCd(d =>
+        {
+            var cfg = Path.Combine(d, "aha.cfg");
+            var nomAha = Scsi.scsi_aha1540.scsi_aha1542c_device.name;
+            File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\n" +
+                                   "sndcard = sb16\nhdd_controller = aha1542c\n" +
+                                   $"[Sound Blaster 16]\n{mpu}\n[{nomAha}]\n{aha}\n");
+            var err = Console.Error;
+            var capte = new StringWriter();
+            try
+            {
+                Console.SetError(capte);
+                if (!pc.loadconfig(cfg))
+                    throw new InvalidOperationException("loadconfig");
+                pc.check_sndcard();
+            }
+            finally
+            {
+                Console.SetError(err);
+            }
+            v = capte.ToString().Contains("MPU-401 de la carte") ? "averti" : "rien";
+            return 0;
+        });
+        return v;
     }
 }

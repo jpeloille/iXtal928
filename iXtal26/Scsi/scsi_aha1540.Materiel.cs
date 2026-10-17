@@ -87,14 +87,30 @@ internal static partial class scsi_aha1540
     }
 
     /// <summary>L'octet 26h de Return Setup Data : un interrupteur sur On rend 1 (TR, chapitre 5). Bits 0-2 : SW2-SW4,
-    /// le port (`dipsw`, la table du chapitre 3) ; bit 3 : SW5, le contrôleur de disquettes — la carte de PCem n'a pas
-    /// de 82077, SW5 sur On (désactivé) : déduit ; bits 4-6 : SW6-SW8, l'adresse de la ROM (DC000h à C8000h, de 16 Ko
+    /// le port (`dipsw`, la table du chapitre 3) ; bit 3 : SW5, le contrôleur de disquettes — la clé `floppy`
+    /// (G13.8d3c), sur Off (actif) d'usine, déduit ; bits 4-6 : SW6-SW8, l'adresse de la ROM (DC000h à C8000h, de 16 Ko
     /// en 16 Ko) ; bit 7 : la donnée lue de l'EEPROM, inconnue, laissée à 0 comme chez PCem.</summary>
     private static uint8_t interrupteurs_materiel(aha154x_t scsi)
     {
         var rom = (int)((0xdc000 - scsi.mapping.@base) / 0x4000) & 7;
-        return (uint8_t)((scsi.dipsw & 7) | 0x08 | (rom << 4));
+        var sw5 = EtatAha.Cavaliers.GetOrCreateValue(scsi).disquettes_coupees ? 0x08 : 0;
+        return (uint8_t)((scsi.dipsw & 7) | sw5 | (rom << 4));
     }
+
+    /// <summary>PB-292 : le port de la carte sans clé ou hors de sa liste — l'usine, 330h, SW2-SW4 sur Off (TR,
+    /// chapitre 3) ; PCem prend 334h.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static int port_usine_materiel()
+    {
+        ModeMateriel.Sonde[292]++;
+        return 0x330;
+    }
+
+    /// <summary>G13.8d3c, dans les deux modes : SW5, la clé `floppy` (0, le contrôleur de disquettes coupé, SW5 sur
+    /// On ; 1, actif, sur Off). Seul l'octet 26h de 0Dh la relit (PB-140) ; le contrôleur de la carte, un 82077, n'est
+    /// pas transcrit : celui de la machine répond en 3F0h.</summary>
+    private static void cavalier_sw5(aha154x_t scsi, int floppy) =>
+        EtatAha.Cavaliers.GetOrCreateValue(scsi).disquettes_coupees = floppy == 0;
 
     /// <summary>PB-277 : Set EEPROM (22h) en entier — comme chez PCem (PB-136 reproduit, param_lu), mais quand l'IRQ
     /// change avec une interruption en attente, la carte la présente désormais sur la nouvelle ligne (set_irq, à la fin
@@ -166,6 +182,14 @@ internal static partial class scsi_aha1540
         }
 
         internal static readonly ConditionalWeakTable<aha154x_t, Transfert> Transferts = new();
+
+        internal sealed class Cavalier
+        {
+            /// <summary>SW5 sur On : le contrôleur de disquettes de la carte coupé (G13.8d3c, `floppy` à 0).</summary>
+            internal bool disquettes_coupees;
+        }
+
+        internal static readonly ConditionalWeakTable<aha154x_t, Cavalier> Cavaliers = new();
     }
 
     private static EtatAha.Mailbox mailbox_materiel(aha154x_t scsi) => EtatAha.Mailboxes.GetOrCreateValue(scsi);

@@ -35,7 +35,8 @@ internal static class ResetScsiCheck
             using (var f = new FileStream(image, FileMode.Create, FileAccess.Write))
                 f.SetLength(20 * 64 * 32 * 512L);
             File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = aha1542c\n" +
-                                   $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {image}\n");
+                                   $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {image}\n" +
+                                   "\n[Adaptec AHA-1542C (SCSI)]\naddr = 820\n");
             Floppy.fdd_c.discfns[0] = "";
             Floppy.fdd_c.discfns[1] = "";
             if (!pc.loadconfig(cfg) || !pc.initpc(romsPath))

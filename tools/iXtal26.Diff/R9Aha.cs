@@ -26,6 +26,8 @@ namespace iXtal26.Diff;
 internal static class R9Aha
 {
     internal const ushort P = 0x334;
+    // G13.8d3c : la carte en 334h, comme ixtal26-486-scsi.cfg (PB-292 la mettrait en 330h sans clé).
+    private const string Port334 = "\n[Adaptec AHA-1542C (SCSI)]\naddr = 820\n";
     internal const uint Ccb = 0x80000, Mbox = 0x80100, Petit = 0x80200, Buf = 0x100000;
 
     private static int Essais;
@@ -45,7 +47,8 @@ internal static class R9Aha
             }
             File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = aha1542c\n" +
                                    $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {tmp}/d0.img\n" +
-                                   $"hdd_cylinders = 20\nhdd_heads = 64\nhdd_sectors = 32\nhdd_fn = {tmp}/d1.img\n");
+                                   $"hdd_cylinders = 20\nhdd_heads = 64\nhdd_sectors = 32\nhdd_fn = {tmp}/d1.img\n" +
+                                   Port334);
             if (!disque)
                 bad += Carte(romsPath, cfg, tmp);
             else
@@ -136,7 +139,7 @@ internal static class R9Aha
         // Les configurations ramenées (décisions n° 2 et n° 11 de PLAN-G11.md ; config_hors_liste) : pas de site
         // R9, un état attendu.
         var conf = Path.Combine(tmp, "conf.cfg");
-        File.WriteAllText(conf, File.ReadAllText(cfg) + "cdrom_channel = 2\nzip_channel = 3\n" +
+        File.WriteAllText(conf, File.ReadAllText(cfg).Replace(Port334, "") + "cdrom_channel = 2\nzip_channel = 3\n" +
                                 $"hdg_fn = {tmp}/d1.img\n\n[Adaptec AHA-1542C (SCSI)]\naddr = 999\nbios_addr = 1\n");
         bad += Essai("", "cdrom_channel, zip_channel, addr et bios_addr hors liste, hdg_fn sans géométrie", romsPath, conf, () =>
         {
@@ -144,8 +147,11 @@ internal static class R9Aha
             scsi_aha1540.Probe(o);
             if (Ide.ide.cdrom_channel != -1 || Ide.ide.zip_channel != -1)
                 return $"les canaux devaient valoir -1 : {Ide.ide.cdrom_channel}, {Ide.ide.zip_channel}";
-            if (o[0] != 1 || o[42] != 1 || o[43] != 0xDC000)
-                return $"la carte aux défauts (334h, DC000h) attendue : montée {o[0]}, interrupteurs {o[42]}, ROM {o[43]:X5}h";
+            // Sous PB-292, le défaut d'addr est l'usine, 330h (interrupteurs 0).
+            var sw = materiel.pb_292 ? 0UL : 1UL;
+            if (o[0] != 1 || o[42] != sw || o[43] != 0xDC000)
+                return $"la carte aux défauts ({(materiel.pb_292 ? "330h" : "334h")}, DC000h) attendue : " +
+                       $"montée {o[0]}, interrupteurs {o[42]}, ROM {o[43]:X5}h";
             // L'ID 4 : un disque de capacité 0, comme chez PCem (hdd_load ouvre le fichier) — averti seulement.
             return o[63 + 4 * 11] == 1 ? null : "l'ID 4 devait être monté, de capacité 0, comme chez PCem";
         });

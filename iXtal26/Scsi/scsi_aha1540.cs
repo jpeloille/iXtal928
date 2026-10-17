@@ -2124,7 +2124,11 @@ internal static partial class scsi_aha1540
 
         timer_add(scsi.timer, aha154x_callback, scsi, 1);
 
-        addr = (uint32_t)device_get_config_int("addr");
+        int addr_defaut = 0x334;
+        // pcem bug, fixed in hardware mode: PB-292 — sans clé, la carte de PCem en 334h ; l'usine, 330h (TR, chap. 3).
+        if (materiel.pb_292)
+                addr_defaut = port_usine_materiel();
+        addr = (uint32_t)device_get_config_int_defaut("addr", addr_defaut);
         io_sethandler((uint16_t)addr, 0x0004, aha154x_in, null, null, aha154x_out, null, null, scsi);
         for (c = 0; c < 8; c++)
         {
@@ -2134,6 +2138,9 @@ internal static partial class scsi_aha1540
                         break;
                 }
         }
+        // DEVIATION: (G13.8d3c ; Q25, Q26) SW5, le contrôleur de disquettes de la carte, que PCem n'expose pas : relu
+        //   dans l'octet 26h de 0Dh (PB-140, interrupteurs_materiel).
+        cavalier_sw5(scsi, device_get_config_int("floppy"));
 
         scsi_bus_init(scsi.bus);
 
@@ -2161,7 +2168,7 @@ internal static partial class scsi_aha1540
     // pcem: scsi_aha1540.c:2201
     internal static int scsi_aha1542c_available() => Flash.rom.rom_present("adaptec_aha1542c_bios_534201-00.bin");
 
-    // pcem: scsi_aha1540.c:2205-2227
+    // pcem: scsi_aha1540.c:2205-2227. G13.8d3c : en mode matériel, `addr` sans clé est l'usine, 330h (PB-292).
     internal static readonly device_config_t[] aha1542c_config =
     [
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x334,
@@ -2172,6 +2179,10 @@ internal static partial class scsi_aha1540
             selection = [new() { description = "C8000", value = 0xc8000 }, new() { description = "CC000", value = 0xcc000 },
                          new() { description = "D0000", value = 0xd0000 }, new() { description = "D4000", value = 0xd4000 },
                          new() { description = "D8000", value = 0xd8000 }, new() { description = "DC000", value = 0xdc000 }] },
+        // DEVIATION: (G13.8d3c ; Q25, Q26) SW5, que PCem n'a pas : 1, le contrôleur de disquettes actif (SW5 sur Off,
+        //   l'usine, déduit), 0, coupé (On). La carte de PCem n'a pas de 82077 : celui de la machine répond en 3F0h.
+        new device_config_t { name = "floppy", type = CONFIG_SELECTION, default_int = 1,
+            selection = [new() { description = "Disabled", value = 0 }, new() { description = "Enabled", value = 1 }] },
         new device_config_t { type = -1 },
     ];
 

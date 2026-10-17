@@ -2274,3 +2274,25 @@ Julien à Q17 : la documentation du matériel tranche.*
   carte, et passent par la rallonge 16 bits de l'AT.
 - **L'émulateur.** PCem n'offre que 1 et 3 ; le DMA 0, écrit à la main dans la configuration, est refusé.
 - **La correction.** En mode matériel, le DMA 0 est permis, comme sur la carte.
+
+## G13.8d3c — l'AHA-1542C à son port d'usine
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8 (Q25, Q27), `VERIFICATION.md` § G13.8d3c.*
+
+### PB-292 — le port d'usine, 330h
+
+- **Le vrai PC.** L'Adaptec AHA-1542C sort d'usine au port 330h, ses trois interrupteurs de port sur Off. Avec une
+  Sound Blaster 16 ou une AWE32, dont le MPU-401 est aussi en 330h, les deux cartes se gênent : à l'époque, il fallait
+  déplacer l'une d'elles.
+- **L'émulateur.** PCem met la carte en 334h quand rien n'est réglé, là où elle n'est pas d'usine.
+- **La correction.** En mode matériel, la carte est en 330h sans réglage, et l'avertissement du conflit avec le MPU le
+  suit. Le profil SCSI du dépôt la règle en 334h, que son disque attend.
+
+### SW5 — le contrôleur de disquettes de la carte
+
+- **Le vrai PC.** L'interrupteur 5 active ou coupe le contrôleur de disquettes que porte la 1542C ; d'usine, il est
+  actif (déduit des fiches de la carte et du guide de la 1542B).
+- **L'émulateur.** PCem n'expose pas cet interrupteur, et sa carte n'a pas de contrôleur de disquettes.
+- **La correction.** Un réglage, `floppy`, dans les deux modes ; la carte le dit à qui lit ses interrupteurs. Le
+  contrôleur de la machine répond aux disquettes à sa place.
+

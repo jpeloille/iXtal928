@@ -36,6 +36,9 @@ internal static partial class MaterielCas
             f.SetLength(u == 0 ? 20 * 64 * 32 * 512L : (long)cyl * tetes * spt * 512);
         }
         var cfg = Path.Combine(d, "scsi.cfg");
+        // G13.8d3c : sans section de l'AHA, la carte en 334h, comme ixtal26-486-scsi.cfg (PB-292 la mettrait en 330h).
+        if (!section.Contains("[Adaptec"))
+            section += $"\n[{Scsi.scsi_aha1540.scsi_aha1542c_device.name}]\naddr = 820\n";
         File.WriteAllText(cfg, "model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nhdd_controller = aha1542c\n" +
                                $"hdc_cylinders = 20\nhdc_heads = 64\nhdc_sectors = 32\nhdc_fn = {d}/d0.img\n" +
                                $"hdd_cylinders = {cyl}\nhdd_heads = {tetes}\nhdd_sectors = {spt}\nhdd_fn = {d}/d1.img\n" + section);
