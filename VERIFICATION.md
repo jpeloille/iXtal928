@@ -13029,3 +13029,48 @@ de la SB 16 de la carte. Sous le bruit : PB-155 (la somme inchangée, 44 100 Hz 
 quantification), PB-151, PB-237, l'ADPCM (12 à 20 µs ; PB-91 et PB-284, le 2 bits et le 2,6 bits, hors du scénario),
 PB-158 (16 ou 64 lectures de WC, chacune un emu8k_update jusqu'à l'instant). PB-21 et PB-293 ne se mesurent pas : une
 écriture au PIT, une branche rarement prise.
+
+## G13.8g3b — les témoins du son (Q16)
+
+Le 18 octobre 2026. La deuxième des trois parts de 8g3 : le logiciel de Creative joué sous les corrections du son, sans
+porte (Q16). Tout est hors du dépôt, dans `/var/tmp/ixtal-g13/temoins-8g/` ; l'émulateur ne change pas. Ce que les
+témoins prouvent : le logiciel tourne, sans arrêt ni attente sans fin, avec le même écran qu'en mode PCem. Ce n'est pas
+une vérification des valeurs : les cas et les bancs la font.
+
+**L'image préparée** (une fois, en mode PCem, par émulation). La recette g5w refaite dans le worktree
+(`/tmp/a9/g5w-g8g3`, `scsic.img` conforme ; seul `c386.img` diffère, le disque 386 actuel de os/, que les témoins ne
+lisent pas). Une copie de `scsic.img` (DOS 5, 20 Mio), sur l'ami486, l'AHA-1542C en 334h et la Pro v2 ; les deux
+disquettes de la Pro v2 copiées de os/. `INSTALL` depuis B:, la disquette 2 par `@B:` quand il la demande ; Windows
+sauté (Échap). INSTALL écrit `SET SOUND=C:\SBPRO` et `C:\SBPRO\SBP-SET /M:12 /VOC:12 /CD:12 /FM:12` dans AUTOEXEC.BAT ;
+SET-ENV y ajoute `SET BLASTER=A220 I7 D1 T4` : 220h, l'IRQ 7 (son menu propose 5 par défaut), le DMA 1, chacun testé par
+le programme. La suite des touches a été trouvée écran par écran (`essai.sh`), puis rejouée une fois avec `--in-place`
+(`installation.keys.sh`) : `C:\SBPRO`, 16 592 896 octets libres, l'image `sbp-pret.img` (SHA-256 56b470d4…, dans
+`sbp-pret.sha256`).
+
+**Les témoins** (`temoin.sh` : chaque démarrage sur une copie de l'image préparée, en mode PCem, sous « son » et sous
+« tout » ; chaque scénario finit par `@son`) :
+- **VPLAY** de CONGA.VOC (du PCM 8 bits en stéréo, un bloc 8 puis un bloc 1, lus sur l'hôte) : « Voice output ended » et
+  l'invite, dans les trois modes.
+- **L'ADPCM** : VPLAY de SBP.VOC puis de BREATH2.VOC (\SBPRO\MMPLAY), deux fichiers en ADPCM 4 bits (le codage 1 de leur
+  bloc, lu sur l'hôte par un lecteur FAT en lecture seule) : les deux jusqu'au bout dans les trois modes. Le compte du
+  bloc du DSP finit à 0 en mode matériel, à −1 chez PCem. Les commandes du DSP ne sont pas relevées.
+- **VREC**, 2 s à 11 025 Hz depuis le micro (`/A:MIC /S:11025 /T:2`), puis `DIR` et VPLAY du fichier : 24 339 octets en
+  mode PCem et sous « son », 23 137 sous « tout ». Par domaine : 23 137 sous le stockage seul, 24 339 sous la carte
+  mère, le processeur ou la vidéo. VREC écrit son fichier sur le disque SCSI pendant l'enregistrement, et la limite de 2
+  s tombe ailleurs quand l'AHA-1542C change de rythme (déduit). Le fichier se relit jusqu'au bout.
+- **VREC en stéréo**, 2 s à 22 050 Hz (`/M:STEREO`, A8h du 3.xx) : 89 077 octets en mode PCem et sous « son », 89 091
+  sous « tout » ; relu jusqu'au bout.
+- **Les écrans** : sous « son », la sortie entière de `--boot` est celle du mode PCem, les comptes d'instructions de la
+  trace compris, hors de la ligne du mode et du chemin de la copie ; seuls `sound_hash` et l'état du DSP relevé par
+  `@son` changent (le bloc par défaut à 2047, PB-236), et `sound_hash` seul pour VREC en stéréo (le bloc posé par le
+  programme). Sous « tout », le démarrage diffère par les autres domaines, et les écrans des programmes sont les mêmes,
+  hors de la taille des fichiers de VREC.
+
+**Ce qui n'a pas été joué** :
+- **VEDIT2** : il est graphique (l'EGA) ; ses menus attendent sans doute Alt ou la souris, que le script ne tape pas :
+  ni F10 ni la lettre soulignée, essayés, ne les ouvrent. La compression en 2,6 et 2 bits reste sans témoin, et aucun
+  des 13 `.VOC` de l'image préparée n'est codé ainsi : PB-91 et PB-284 n'ont que leurs cas.
+- **La SB 16** : VPLAY, avec le pilote de la Pro, s'y arrête sur « Error 5428 : Incorrect Driver Version », en mode PCem
+  et sous « son ». L'AWE32 n'a pas été essayée (le même refus, déduit).
+- Le contenu des fichiers enregistrés (le silence du micro) n'a pas été lu ; le témoin de la source CD (facultatif) n'a
+  pas été fait.
