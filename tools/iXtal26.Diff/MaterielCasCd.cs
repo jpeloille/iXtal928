@@ -17,10 +17,13 @@ namespace iXtal26.Diff;
 
 internal static partial class MaterielCas
 {
+    /// <summary>Le dossier du TMPDIR d'AvecCd (et d'AvecSb, qui passe par lui).</summary>
+    private static string DossierCd() => Path.Combine(Path.GetTempPath(), $"materiel-cas-cd-{Environment.ProcessId}");
+
     /// <summary>Un cas du moteur, dans un dossier du TMPDIR effacé ensuite ; le pilote d'images remis à zéro.</summary>
     private static int AvecCd(Func<string, int> corps)
     {
-        var tmp = Path.Combine(Path.GetTempPath(), $"materiel-cas-cd-{Environment.ProcessId}");
+        var tmp = DossierCd();
         Directory.CreateDirectory(tmp);
         try
         {

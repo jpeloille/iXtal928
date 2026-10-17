@@ -12527,3 +12527,70 @@ de part et d'autre, 6 changées : les constructeurs statiques de `materiel` et d
 `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls, décalés de 116h. `sb_poll_i`,
 `sb_get_buffer_sb16`, `sb_get_buffer_emu8k`, `sb_start_dma_i`, `sb_exec_command` et `sb_ct1745_mixer_write`,
 compilés par les scénarios du son, ne changent pas : leurs gardes sont pliées.
+
+## G13.8e2 — le CD et la SB Pro enregistrent
+
+Le 17 octobre 2026. La seconde moitié de 8e (l'étude, `/var/tmp/ixtal-g13/etude-8e.md`, § « 8e2, le détail »). PB-148
+s'achève : le CD (un pont entre son flux et celui de la carte) et la SB Pro (0Ch, A0h et A8h).
+
+**Le pont du CD** (`Sound/sound.cs`, `Sound/sound.Materiel.cs`). Sous `if (materiel.pb_148)`. En tête de
+`sound_cd_tick`, sa copie (`cd_tick_materiel`, la boucle du fil de PCem à la lettre : la sortie de l'hôte inchangée)
+garde les deux derniers blocs que sort le lecteur (`lecteur_materiel` : le volume et le choix des voies de l'ATAPI,
+saturés à 16 bits, même sans `soundon`) ; en tête de `sound_cd_raz`, le pont à zéro. Le tampon de la carte lit, pour
+chacun de ses échantillons de 48 kHz, la trame du lecteur à son instant (`cd_trame_materiel` : `cd_pos` moins le recul
+dans le tampon ; avant le tic du CD, le bloc précédent ; au prorata 44 100 / 48 000).
+
+**La SB 16 et l'AWE32** (`Sound/sound_sb.Materiel.cs`). Dans leurs copies : le CD par son volume (36h, 37h), puis les
+interrupteurs CD.L et CD.R de 3Dh et 3Eh (`selection_materiel` : additifs sous PB-153, la priorité de la ligne
+commentée de PCem sinon), avant le gain d'entrée.
+
+**La SB Pro** (`Sound/sound_sb.cs`, `sound_sb_dsp.cs`, leurs `.Materiel.cs`). En tête de `sb_get_buffer_sbpro`, sa copie
+(`tampon_sbpro_materiel`) remplit l'anneau du CAN de la source que choisit 0Ch : le CD, sans son volume (déduit) ; le
+micro et la ligne, muets. En tête des `case 0xA0` et `0xA8` (`mode_entree_materiel`) : le mode d'entrée du DSP 3.xx ;
+la 2.01, que la garde de PCem admet, et le 4.xx l'ignorent (déduit). En stéréo, un tic d'entrée 8 bits prend une voie,
+la gauche d'abord à chaque départ (`voie_materiel`, dans `entree_materiel`). En tête de `sb_dsp_reset`, avant le reset
+« froid » de PB-236 et après les « chauds » de PB-241 et PB-240 (`entree_reset_materiel`) : l'entrée en mono.
+
+**Les cas.** `materiel-cas PB-148`, `Pb148Cd`, quatorze de plus : un disque audio dans le pilote d'images, joué,
+constant (1000h à gauche, 2000h à droite), deux blocs du lecteur avant l'entrée. SB 16, C8h 20h, 3Dh=04h et 3Eh=02h,
+36h=37h=F8h : G 8Fh, D 9Fh (PCem : 80h) ; croisés, G 9Fh, D 8Fh ; 36h=C0h, G 83h ; 3Dh=06h et 3Eh=00h, G AFh sous
+PB-153, 8Fh sans lui ; l'AWE32, G 8Fh, D 9Fh ; l'ATAPI à voies croisées, la gauche du lecteur à 80h (la page 0Eh), G
+9Fh, D 88h ; sous PB-148, le pont lu directement (`Rampe`) : une piste dont la gauche est une rampe, lue à sept reculs
+autour des tics du lecteur (le bloc courant, la fin et le début du précédent), au prorata 44 100 / 48 000, puis le
+silence au-delà ; témoin, le CD arrêté après une machine qui le jouait, muette. SB Pro 2, 24h : 0Ch=02h, 90h ; 28h=00h
+en plus, 90h ; A8h, G 90h et D A0h ; A8h puis A0h, 90h ; A8h puis le reset du DSP, 90h ; témoin, 0Ch=06h (la ligne),
+muette. Verts en mode PCem, sous PB-148, PB-151, PB-153, PB-148 et PB-153, et « tout ». Recensement : 288 défauts, 1 264
+marqueurs. `couverture-materiel` sous « tout » : 194 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8e2.py`, sous PB-148) : la garde du tic du CD coupée, `materiel-cas PB-148`
+rougit (10 échecs) ; celle du tampon de la Pro, 5 ; de A0h et A8h, 1 ; la stéréo qui ne prend que la gauche, 1 ; la
+garde du reset coupée, 1 ; le volume du CD gauche retiré, 1 ; la sélection additive du CD retirée (sous PB-148 et
+PB-153), 2 ; le bloc précédent du lecteur ignoré, 6 ; la Pro qui prend le micro pour le CD, 5 ; le pont non remis à zéro
+à l'amorçage, 1 ; les blocs non échangés, 6 ; le pont décalé d'un échantillon, 1 ; le choix des voies de l'ATAPI mal lu
+(la droite prise sur le bit 1), 7 ; le marqueur du tic du CD dit reproduit, le recensement rougit (1 écart). La
+correction coupée par le masque (`--attendu materiel` en mode PCem) : PB-148, 21 échecs (9 en 8e1) ; PB-151, 2 ; PB-153,
+13.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle compare `cd_tick_materiel` à `sound_cd_tick` et
+`tampon_sbpro_materiel` à `sb_get_buffer_sbpro`, refait le calage du pont aux bords — `p` = 0, −1, 4 799, l'indice
+8 819 —, la sélection et les volumes, l'ordre des resets, et à la main les attendus). Reprises : le calage du pont
+n'était pas éprouvé (un CD constant ne voit ni un décalage ni le bloc précédent) — le cas de la rampe et deux contrôles
+négatifs (le pont décalé d'un échantillon, le choix des voies de l'ATAPI mal lu) ; `lecteur_materiel` non plus — le
+cas des voies croisées ; « onze cas » pour douze, puis quatorze ; la stéréo de 24h et 2Ch dite déduite (le guide ne la
+décrit qu'en grande vitesse) ; la seconde borne de `cd_trame_materiel` dite défensive ; l'étude, `cd_pos − (len − 1) +
+j`. Laissés : le test `!materiel.pb_148` de `voie_materiel`, que la contre-lecture jugeait redondant (la copie de
+`sb_poll_i` sert aussi PB-151 seul, où la voie est la gauche de PCem) ; A8h sur la 2.01 et le 4.xx, sans effet
+observable (PCem ne fait rien non plus) ; le reset « chaud » qui garde la stéréo, déduit et non éprouvé.
+
+**Les séries** (le worktree de 8e2, la DLL Release figée, `S-g8e2`). En mode PCem, g8e2 (9 h 03 à 10 h 16) : 729
+vertes ; contre g8e1, seul change le recensement (1 264 marqueurs, 1 260 avant) ; les portes de PB-148 portent les
+quatorze cas neufs. Sous « tout », g8e2-tout (10 h 16 à 10 h 35) : 490 vertes, 228 refusées, 11 `pcem`, aucune rouge ;
+contre g8e1-tout, le recensement seul. Les reprises de la contre-lecture (la rampe et l'ATAPI croisé, les textes) sont
+venues après la DLL des séries : onze portes rejouées (`PORTES` : les cinq de PB-148 et PB-151, celles de PB-153 et
+PB-155, le recensement, la couverture), le Release reconstruit, en mode PCem puis sous `MATERIEL=tout` : toutes vertes.
+
+**M2-8e2** (le Release du worktree, reconstruit avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8e1, 1 492 méthodes de part et d'autre, aucune changée — ni constructeur statique (le drapeau de PB-148
+existait), ni jeton de chaîne (l'étape n'ajoute aucune chaîne à l'émulateur). `sound_cd_tick` et `sound_cd_raz`,
+compilés par les trente scénarios, `sb_dsp_reset` et `sb_exec_command`, par ceux du son, ne changent pas : leurs gardes
+sont pliées. `sb_get_buffer_sbpro` n'est compilé par aucun scénario (aucun ne porte de SB Pro).

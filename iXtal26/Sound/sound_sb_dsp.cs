@@ -278,6 +278,9 @@ internal static partial class sound_sb_dsp
         if (materiel.pb_240)
                 if (reset_chaud_materiel(dsp, 240))
                         return;
+        // pcem bug, fixed in hardware mode: PB-148 — le reset « froid » remet l'entrée en mono (A0h).
+        if (materiel.pb_148)
+                entree_reset_materiel(dsp);
         // pcem bug, fixed in hardware mode: PB-236 — le reset « froid » : bloc 07FFh, constante 9Ch, sortie coupée.
         if (materiel.pb_236)
                 if (reset_materiel(dsp))
@@ -821,9 +824,11 @@ internal static partial class sound_sb_dsp
                 break;
         case 0xA0: /*Set input mode to mono*/
         case 0xA8: /*Set input mode to stereo*/
-                // PB-148, une part qui viendra avec le CD et la SB Pro (G13.8e2), la même dans les deux modes d'ici
-                //   là — A0h et A8h ne font rien, et la garde admet la 2.0 (DSP 2.01) quand le guide les réserve au
-                //   3.xx.
+                // pcem bug, fixed in hardware mode: PB-148 — A0h et A8h ne font rien, et la garde admet la 2.0 (DSP
+                //   2.01) quand le guide les réserve au 3.xx.
+                if (materiel.pb_148)
+                        if (mode_entree_materiel(dsp))
+                                break;
                 if (dsp.sb_type < SB2 || dsp.sb_type > SBPRO2)
                         break;
                 // TODO: Implement. 3.xx-only command.

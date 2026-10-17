@@ -356,8 +356,13 @@ internal static partial class sound_sb
     //   ordre en C#. Amplitude bornée (|buffer| <= 32768, gain du filtre ~1, voice <= 32767) :
     //   |valeur| < 2^29, loin du débordement de la conversion (où C — cvttsd2si, 0x80000000 —
     //   et .NET 10 — saturation — divergeraient).
+    // En mode matériel (PB-148), cette boucle ne tourne plus : sa copie, tampon_sbpro_materiel (sound_sb.Materiel.cs),
+    //   la remplace, l'enregistrement compris.
     internal static void sb_get_buffer_sbpro(int32_t[] buffer, int len, object? p)
     {
+        if (materiel.pb_148)
+                if (tampon_sbpro_materiel(buffer, len, p))
+                        return;
         sb_t sb = (sb_t)p;
         sb_ct1345_mixer_t mixer = sb.mixer_sbpro;
 
@@ -383,8 +388,8 @@ internal static partial class sound_sb
                         out_l += ((int32_t)(sb.dsp.buffer[c] * mixer.voice_l) / 3) >> 15;
                         out_r += ((int32_t)(sb.dsp.buffer[c + 1] * mixer.voice_r) / 3) >> 15;
                 }
-                // PB-148, une part qui viendra avec le CD (G13.8e2), la même dans les deux modes d'ici là — rien n'est
-                //   enregistré : ni le CD ni la ligne que choisit 0Ch.
+                // pcem bug, fixed in hardware mode: PB-148 — rien n'est enregistré : ni le CD ni la ligne que choisit
+                //   0Ch.
                 // TODO: recording CD, Mic with AGC or line in. Note: mic volume does not affect recording.
 
                 out_l = (out_l * mixer.master_l) >> 15;

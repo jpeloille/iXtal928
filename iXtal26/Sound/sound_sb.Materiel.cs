@@ -176,6 +176,8 @@ internal static partial class sound_sb
         var s = selection_materiel(mixer);
         var an = enregistre_materiel(sb.dsp, out int freq, out long r0);
         int kprec = -1, dern_l = 0, dern_r = 0;
+        int cd_vol_g = sb_att_2dbstep_5bits[mixer.regs[0x36] >> 3];
+        int cd_vol_d = sb_att_2dbstep_5bits[mixer.regs[0x37] >> 3];
 
         int c;
 
@@ -231,8 +233,11 @@ internal static partial class sound_sb
                 }
                 if (an != null) {
                         long k = (r0 + (long)(c / 2) * freq) / 48000;
-                        dern_l = in_l << mixer.input_gain_L;
-                        dern_r = in_r << mixer.input_gain_R;
+                        sound.cd_trame_materiel(len - 1 - c / 2, out int32_t cd_g, out int32_t cd_d);
+                        cd_g = (cd_g * cd_vol_g) >> 15;
+                        cd_d = (cd_d * cd_vol_d) >> 15;
+                        dern_l = (in_l + s.cgg * cd_g + s.cgd * cd_d) << mixer.input_gain_L;
+                        dern_r = (in_r + s.cdg * cd_g + s.cdd * cd_d) << mixer.input_gain_R;
                         while (kprec < k)
                                 trame_materiel(an, ++kprec, dern_l, dern_r);
                 }
@@ -269,6 +274,8 @@ internal static partial class sound_sb
         var s = selection_materiel(mixer);
         var an = enregistre_materiel(sb.dsp, out int freq, out long r0);
         int kprec = -1, dern_l = 0, dern_r = 0;
+        int cd_vol_g = sb_att_2dbstep_5bits[mixer.regs[0x36] >> 3];
+        int cd_vol_d = sb_att_2dbstep_5bits[mixer.regs[0x37] >> 3];
 
         int c;
 
@@ -329,8 +336,11 @@ internal static partial class sound_sb
                 }
                 if (an != null) {
                         long k = (r0 + (long)(c / 2) * freq) / 48000;
-                        dern_l = in_l << mixer.input_gain_L;
-                        dern_r = in_r << mixer.input_gain_R;
+                        sound.cd_trame_materiel(len - 1 - c / 2, out int32_t cd_g, out int32_t cd_d);
+                        cd_g = (cd_g * cd_vol_g) >> 15;
+                        cd_d = (cd_d * cd_vol_d) >> 15;
+                        dern_l = (in_l + s.cgg * cd_g + s.cgd * cd_d) << mixer.input_gain_L;
+                        dern_r = (in_r + s.cdg * cd_g + s.cdd * cd_d) << mixer.input_gain_R;
                         while (kprec < k)
                                 trame_materiel(an, ++kprec, dern_l, dern_r);
                 }
@@ -362,30 +372,42 @@ internal static partial class sound_sb
 
     // ===== G13.8e1 — l'enregistrement : la MIDI du CT1745, l'anneau du CAN =====
 
-    /// <summary>Les interrupteurs MIDI des mélangeurs d'entrée (3Dh, 3Eh) : le gauche reçoit gg × MIDI.L + gd × MIDI.R,
-    /// le droit dg × MIDI.L + dd × MIDI.R.</summary>
-    private readonly record struct Selection(int gg, int gd, int dg, int dd);
+    /// <summary>Les interrupteurs MIDI et CD des mélangeurs d'entrée (3Dh, 3Eh) : le gauche reçoit gg × MIDI.L + gd ×
+    /// MIDI.R + cgg × CD.L + cgd × CD.R, le droit dg × MIDI.L + dd × MIDI.R + cdg × CD.L + cdd × CD.R.</summary>
+    private readonly record struct Selection(int gg, int gd, int dg, int dd, int cgg, int cgd, int cdg, int cdd);
 
     /// <summary>La sélection d'entrée d'un tampon. Sous PB-153, le mélangeur d'entrée additionne les interrupteurs
-    /// fermés (guide, fig. 4-5, p. 4-14) ; sinon, la lecture de PCem : MIDI.L s'il est fermé, sinon MIDI.R.</summary>
+    /// fermés (guide, fig. 4-5, p. 4-14) ; sinon, la lecture de PCem : MIDI.L s'il est fermé, sinon MIDI.R ; de même
+    /// CD.L, sinon CD.R (la ligne du CD, en commentaire chez PCem, s'écrit comme celle de la MIDI).</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static Selection selection_materiel(sb_ct1745_mixer_t mixer)
     {
         int Un(int sel, int bit) => (sel & bit) != 0 ? 1 : 0;
+        int Sinon(int sel, int a, int b) => Un(sel, a) == 0 ? Un(sel, b) : 0;
         int gl = mixer.input_selector_left, dr = mixer.input_selector_right;
         if (materiel.pb_153)
-                return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_R), Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_R));
-        return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_L) == 0 ? Un(gl, INPUT_MIDI_R) : 0,
-                   Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_L) == 0 ? Un(dr, INPUT_MIDI_R) : 0);
+                return new(Un(gl, INPUT_MIDI_L), Un(gl, INPUT_MIDI_R), Un(dr, INPUT_MIDI_L), Un(dr, INPUT_MIDI_R),
+                           Un(gl, INPUT_CD_L), Un(gl, INPUT_CD_R), Un(dr, INPUT_CD_L), Un(dr, INPUT_CD_R));
+        return new(Un(gl, INPUT_MIDI_L), Sinon(gl, INPUT_MIDI_L, INPUT_MIDI_R),
+                   Un(dr, INPUT_MIDI_L), Sinon(dr, INPUT_MIDI_L, INPUT_MIDI_R),
+                   Un(gl, INPUT_CD_L), Sinon(gl, INPUT_CD_L, INPUT_CD_R),
+                   Un(dr, INPUT_CD_L), Sinon(dr, INPUT_CD_L, INPUT_CD_R));
     }
 
-    /// <summary>PB-148 : l'anneau du CAN à remplir par ce tampon (null sans PB-148), la fréquence de l'entrée et le
-    /// reste de la tête d'écriture.</summary>
+    /// <summary>Les copies de la SB 16 et de l'AWE32 : la sonde de PB-155, puis anneau_tampon_materiel.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static sound_sb_dsp.AnneauEntree? enregistre_materiel(sb_dsp_t dsp, out int freq, out long r0)
     {
         if (materiel.pb_155)
                 ModeMateriel.Sonde[155]++;
+        return anneau_tampon_materiel(dsp, out freq, out r0);
+    }
+
+    /// <summary>PB-148 : l'anneau du CAN à remplir par ce tampon (null sans PB-148), la fréquence de l'entrée et le
+    /// reste de la tête d'écriture ; la part commune aux trois cartes qui enregistrent.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static sound_sb_dsp.AnneauEntree? anneau_tampon_materiel(sb_dsp_t dsp, out int freq, out long r0)
+    {
         freq = Math.Max(dsp.sb_freq, 0);
         r0 = 0;
         if (!materiel.pb_148)
@@ -423,5 +445,72 @@ internal static partial class sound_sb
     {
         ModeMateriel.Sonde[153]++;
         return (uint8_t)Math.Clamp(((mixer.regs[0x3A] >> 3) - 10) / 3, 0, 7);
+    }
+
+    // ===== G13.8e2 — l'enregistrement de la SB Pro =====
+
+    /// <summary>PB-148 : sb_get_buffer_sbpro de PCem, à la lettre, sauf l'enregistrement : le CT1345 mène au CAN la
+    /// source que choisit 0Ch (guide, p. 4-8) ; seul le CD a une entrée côté hôte (sound.cd_trame_materiel), sans le
+    /// volume du CD (le guide ne dit que celui du micro sans effet sur l'enregistrement ; les volumes du CT1345 sont
+    /// ceux de la sortie, déduit) ; le micro et la ligne, muets ; le passe-bas d'entrée, non modélisé. L'anneau du CAN,
+    /// rempli comme par tampon_sb16_materiel. Ses commentaires sont ceux de la fonction de PCem.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool tampon_sbpro_materiel(int32_t[] buffer, int len, object? p)
+    {
+        sb_t sb = (sb_t)p;
+        sb_ct1345_mixer_t mixer = sb.mixer_sbpro;
+        var an = anneau_tampon_materiel(sb.dsp, out int freq, out long r0);
+        bool cd = (mixer.input_selector & INPUT_CD_L) != 0;
+        int kprec = -1, dern_l = 0, dern_r = 0;
+
+        int c;
+
+        if (sb.dsp.sb_type == SBPRO)
+                opl2_update2(sb.opl);
+        else
+                opl3_update2(sb.opl);
+
+        sb_dsp_update(sb.dsp);
+        for (c = 0; c < len * 2; c += 2) {
+                int32_t out_l, out_r;
+
+                out_l = ((((sb.opl.buffer[c] * mixer.fm_l) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
+                out_r = ((((sb.opl.buffer[c + 1] * mixer.fm_r) >> 16) * (sb.opl_emu != 0 ? 47000 : 51000)) >> 15);
+
+                /*TODO: Implement the stereo switch on the mixer instead of on the dsp? */
+                if (mixer.output_filter != 0) {
+                        out_l += (int32_t)(((sb_iir(0, (float)sb.dsp.buffer[c]) / 1.3) * mixer.voice_l) / 3) >> 15;
+                        out_r += (int32_t)(((sb_iir(1, (float)sb.dsp.buffer[c + 1]) / 1.3) * mixer.voice_r) / 3) >> 15;
+                } else {
+                        out_l += ((int32_t)(sb.dsp.buffer[c] * mixer.voice_l) / 3) >> 15;
+                        out_r += ((int32_t)(sb.dsp.buffer[c + 1] * mixer.voice_r) / 3) >> 15;
+                }
+                if (an != null) {
+                        long k = (r0 + (long)(c / 2) * freq) / 48000;
+                        dern_l = dern_r = 0;
+                        if (cd)
+                                sound.cd_trame_materiel(len - 1 - c / 2, out dern_l, out dern_r);
+                        while (kprec < k)
+                                trame_materiel(an, ++kprec, dern_l, dern_r);
+                }
+                // TODO: recording CD, Mic with AGC or line in. Note: mic volume does not affect recording.
+
+                out_l = (out_l * mixer.master_l) >> 15;
+                out_r = (out_r * mixer.master_r) >> 15;
+
+                buffer[c] += out_l;
+                buffer[c + 1] += out_r;
+        }
+        if (an != null) {
+                long finies = (r0 + (long)len * freq) / 48000;
+                while (kprec + 1 < finies)
+                        trame_materiel(an, ++kprec, dern_l, dern_r);
+                sound_sb_dsp.fin_tampon_materiel(an, len, freq);
+        }
+
+        sb.pos = 0;
+        sb.opl.pos = 0;
+        sb.dsp.pos = 0;
+        return true;
     }
 }

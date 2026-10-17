@@ -3207,10 +3207,9 @@ réponses exactes des filtres et de la commande de gain ne le sont pas.
 8 bits stéréo, 256 octets) : tous à 80h chez PCem ; sur la carte, non tous à 80h, et corrélés à `sb.opl.buffer`. Le
 micro et la ligne : 80h des deux côtés.
 *G13* : (b) — les chemins sont documentés, pas les fonctions de transfert exactes.
-*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; `sb_start_dma_i`, 20h et `sb_poll_i`),
-`Sound/sound_sb.cs` (les blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`, et leurs gardes), marqueurs
-`fixed in hardware mode: PB-148` ; A0h et A8h et `sb_get_buffer_sbpro` portent un commentaire qui dit leur part
-(G13.8e2).
+*Reproduit* en mode PCem : `Sound/sound_sb_dsp.cs` (`sb_enable_i` ; `sb_start_dma_i`, 20h et `sb_poll_i` ; A0h et A8h,
+le reset du DSP), `Sound/sound_sb.cs` (les blocs morts de `sb_get_buffer_sb16` et `sb_get_buffer_emu8k`, et leurs
+gardes, et `sb_get_buffer_sbpro`), `Sound/sound.cs` (`sound_cd_tick`), marqueurs `fixed in hardware mode: PB-148`.
 *G12.1* : la SB 16 aussi : le bloc de `sb_enable_i` (`sound_sb.c:180-197`) ne s'exécute jamais.
 *Corrigé en mode matériel* (G13.8e1), en partie, Q13 tranchée le 16/10 (les chemins documentés, sans modèle des filtres)
 : sous `if (materiel.pb_148)` — `Sound/sound_sb.Materiel.cs` et `Sound/sound_sb_dsp.Materiel.cs`. La SB 16 et l'AWE32
@@ -3227,7 +3226,7 @@ avance d'une trame par tic ; rattrapée, elle tient la trame ; plus d'un tampon 
 tête du `case 0x20` (`entree_directe_materiel`) : l'échantillon de l'instant, la gauche, sans lancer le tic d'entrée ni
 écraser `sb_freq` et `sblatchi` (PCem : 45 454 Hz, qu'un 24h suivant sans 40h garde) ; sur toutes les cartes, celles
 d'avant la SB 16 rendant 80h, faute de source. Le DMA_NODATA du 16 bits rend la main sans avancer, comme PCem. Restent :
-le CD et la SB Pro (0Ch, A0h et A8h), en G13.8e2 ; les filtres (le passe-bas du CT1345, le filtrage dynamique du CT1745)
+le CD et la SB Pro, faits en G13.8e2 ; les filtres (le passe-bas du CT1345, le filtrage dynamique du CT1745)
 et l'AGC du micro, inconnus en détail ; le micro et la ligne, sans entrée côté hôte : leur silence est juste ; le CAN de
 16 bits tronqué à 8 (`>> 8`), celui de PCem. `materiel-cas PB-148` : une note de l'OPL sur les deux voies, 3Dh=40h et
 3Eh=20h, C8h 20h (256 octets en stéréo) : 80h partout chez PCem, les deux voies sonores et égales ; 3Dh=00h, la gauche
@@ -3236,6 +3235,33 @@ sous PB-153, égale sans lui ; 20h huit fois, sonore, `sb_freq` à 22 050 Hz (PC
 d'entrée automatique (CEh 20h), sous PB-148 : les tics à la cadence du remplissage, aucune trame tenue (le reste exact :
 la troncature de PCem en tiendrait) ; 10 % plus vite, des trames tenues, la lecture ne dépassant jamais l'écriture;
 témoin : la SB Pro 2 (24h, le micro), muette des deux côtés ; la correction coupée, il rougit.
+
+*Corrigé en mode matériel* (G13.8e2), le CD et la SB Pro : sous `if (materiel.pb_148)` — `Sound/sound.cs` et
+`Sound/sound.Materiel.cs`, `Sound/sound_sb.cs`, `Sound/sound_sb_dsp.cs` et leurs `.Materiel.cs`. Le pont du CD : en tête
+de `sound_cd_tick`, sa copie (`cd_tick_materiel`, la boucle de PCem à la lettre) garde les deux derniers blocs que sort
+le lecteur (`lecteur_materiel` : le volume et le choix des voies de l'ATAPI, saturés à 16 bits, même sans `soundon` ; ni
+le volume de la carte ni celui de l'hôte), remis à zéro à l'amorçage (`sound_cd_raz`) ; le tampon de la carte lit, pour
+chacun de ses échantillons de 48 kHz, la trame du lecteur à son instant (`cd_trame_materiel` : `cd_pos` moins le recul
+dans le tampon, le bloc précédent avant le tic du CD, au prorata 44 100 / 48 000). Le CT1745 (les copies de la SB 16 et
+de l'AWE32) : le CD par son volume (36h, 37h, `sb_att_2dbstep_5bits`), puis les interrupteurs CD.L et CD.R de 3Dh et
+3Eh, additifs sous PB-153, la priorité de la ligne commentée de PCem sinon. Le CT1345 : en tête de
+`sb_get_buffer_sbpro`, sa copie (`tampon_sbpro_materiel`) remplit l'anneau du CAN de la source que choisit 0Ch : le CD,
+sans son volume (le guide ne dit que le micro sans effet sur l'enregistrement ; les volumes du CT1345 sont ceux de la
+sortie, déduit) ; le micro et la ligne, muets ; le passe-bas d'entrée, non modélisé. A0h et A8h (`mode_entree_materiel`,
+en tête de leur `case`) : sur un DSP 3.xx, le mode d'entrée ; ailleurs (la 2.01, que la garde de PCem admet ; le 4.xx)
+la commande n'existe pas, ignorée (déduit). En stéréo, un tic d'entrée 8 bits prend une voie, la gauche d'abord à chaque
+départ (`voie_materiel`, dans `entree_materiel` ; la constante de temps réglée au double, guide p. 3-21 et 6-22 ;
+l'ordre, celui de la sortie stéréo du CT1345, p. 4-7, déduit ; le guide ne décrit l'entrée stéréo qu'en grande vitesse,
+24h et 2Ch de même, déduit). Le reset « froid » du DSP remet l'entrée en mono (`entree_reset_materiel`, avant celui de
+PB-236 ; le mode par défaut, p. 6-22 ; le reset « chaud » de PB-241 garde l'état, déduit). `materiel-cas PB-148`,
+quatorze cas de plus : un disque audio joué, constant (1000h à gauche, 2000h à droite) ; sur la SB 16, C8h 20h, 3Dh=04h
+et 3Eh=02h, 36h=37h=F8h : G 8Fh et D 9Fh (PCem : 80h) ; croisés, G 9Fh et D 8Fh ; 36h=C0h (−14 dB), G 83h ; 3Dh=06h, la
+somme AFh sous PB-153, 8Fh sans lui ; l'AWE32 de même ; l'ATAPI à voies croisées, la gauche du lecteur à 80h (la page
+0Eh), G 9Fh et D 88h ; le pont lu directement sur une rampe, à sept reculs autour des tics du lecteur (le bloc courant,
+le précédent, le prorata 44 100 / 48 000), puis le silence au-delà (sous PB-148 seul) ; témoin, le CD arrêté après une
+machine qui le jouait, muette ; sur la SB Pro 2, 0Ch=02h, 24h : 90h, 28h=00h compris ; A8h, 90h et A0h une voie par tic
+; A8h puis A0h, ou A8h puis le reset du DSP, 90h seul ; témoin, 0Ch=06h (la ligne), muette ; la correction coupée, il
+rougit.
 
 ### PB-149 — L'octet de mode de B0h à CFh n'est pas masqué
 
@@ -3340,7 +3366,9 @@ l'entrée, 81h après le reset du mélangeur et après celui du DSP, B6h traduit
 fin du bloc puis à celle de la file ; sans lui, PCem relance) ; les témoins 81h=22h et 81h=E2h après la traduction,
 81h=0Ah, et la part du reset de PB-237, qui ne suit que sa correction ; 0Ah et 3Ah au démarrage (FDh et 00h contre
 00h et 00h), 0Ah=07h (3Ah 1Fh contre F8h), 0Ah=FFh (FFh et 07h contre 07h et F8h), 3Ah=A8h (0Ah relu 34h contre 03h) ;
-la sélection additive dans `materiel-cas PB-148` ; la correction coupée, il rougit.
+la sélection additive dans `materiel-cas PB-148` ; la correction coupée, il rougit. En G13.8e2, le CD : ses
+interrupteurs (CD.L, CD.R) additifs de même, dans la sélection des copies (`selection_materiel`) ; le cas 3Dh=06h de
+`materiel-cas PB-148` (AFh sous PB-153, 8Fh sans lui).
 
 ### PB-154 — Le MPU-401 de la SB 16 et de l'AWE32 : 330h fixe, sans IRQ, des ACK en mode UART
 

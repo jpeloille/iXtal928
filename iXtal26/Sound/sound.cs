@@ -258,6 +258,11 @@ internal static partial class sound
     // pcem: sound.c:143-197 — la boucle du fil CD sans son attente (thread_wait_event, thread_reset_event).
     private static void sound_cd_tick()
     {
+        // pcem bug, fixed in hardware mode: PB-148 — le CD ne va qu'à la sortie de l'hôte : la carte ne l'enregistre
+        //   pas.
+        if (materiel.pb_148)
+                if (cd_tick_materiel())
+                        return;
         int c;
 
         Array.Clear(cd_buffer);
@@ -316,6 +321,8 @@ internal static partial class sound
     //   à zéro au reset matériel, seulement au chargement du programme.
     internal static void sound_cd_raz()
     {
+        if (materiel.pb_148)
+                cd_raz_materiel();
         cd_pos = 0;
         Array.Clear(cd_buffer);
         cd_sound_hash = 1469598103934665603UL;

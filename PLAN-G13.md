@@ -607,8 +607,9 @@ contre-lecture, M2, sa série entière et son commit :
     depuis 8c2) ; l'étude (`/var/tmp/ixtal-g13/etude-8e.md`) la coupe en deux le 17/10 : **8e1** ✅ *(17/10,
     VERIFICATION.md § G13.8e1)*, la SB 16 et l'AWE32 enregistrent la MIDI — PB-148 (l'anneau du CAN rempli par les
     copies des tampons, la lecture un tampon derrière l'écriture, 20h sans régler l'entrée), PB-151 (l'anneau sans
-    alias), de PB-153 la sélection additive et 0Ah↔3Ah ; **8e2**, le CD (un pont entre son flux et celui de la carte)
-    et la SB Pro (0Ch, A0h et A8h du 3.xx).
+    alias), de PB-153 la sélection additive et 0Ah↔3Ah ; **8e2** ✅ *(17/10, VERIFICATION.md § G13.8e2)*, le CD (un
+    pont entre son flux et celui de la carte : 36h, 37h, 3Dh et 3Eh sur la SB 16 et l'AWE32, 0Ch sur la Pro) et la SB
+    Pro (sa copie du tampon ; A0h et A8h du 3.xx, une voie par tic ; le reset en mono).
   - **G13.8f — L'EMU8000** ✅ *(14/10, VERIFICATION.md § G13.8f)*, sans question : PB-158 (a) (WC et les registres
     courants avancent à la lecture), PB-159 (a) (le bit 31 et le masque de 24 bits des adresses de la DRAM, en A22h),
     PB-160 (a) (HWCF3 sans la rustine : l'AWE32 non initialisée se tait). Faite avant 8e, que bloquent Q13 et Q15.

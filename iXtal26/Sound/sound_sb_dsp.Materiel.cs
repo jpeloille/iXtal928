@@ -1370,8 +1370,9 @@ internal static partial class sound_sb_dsp
     // ===== G13.8e1 — l'enregistrement : l'anneau du CAN, la lecture au temps du son =====
 
     /// <summary>L'entrée du CAN, en mode matériel (PB-148, PB-151) : un anneau de 10000h entrées (8000h trames, la
-    /// gauche puis la droite), que remplit le tampon du son de la SB 16 et de l'AWE32 (tampon_sb16_materiel,
-    /// tampon_emu8k_materiel) à la fréquence de l'entrée, et que lit le tic d'entrée. Les sources ne se rendent que par
+    /// gauche puis la droite), que remplit le tampon du son de la SB 16, de l'AWE32 et de la SB Pro
+    /// (tampon_sb16_materiel, tampon_emu8k_materiel, tampon_sbpro_materiel) à la fréquence de l'entrée, et que lit le
+    /// tic d'entrée. Les sources ne se rendent que par
     /// tampon de 48 kHz : l'échantillon de l'instant du tic n'existe qu'au tampon suivant ; la lecture suit donc
     /// l'écriture d'un tampon (le retard de l'émulateur, déduit).</summary>
     internal sealed class AnneauEntree
@@ -1385,6 +1386,11 @@ internal static partial class sound_sb_dsp
         internal int lit = -1;
         /// <summary>Le dernier tic a tenu sa trame (la tête rattrapée) : elle n'avance pas.</summary>
         internal bool tenue;
+        /// <summary>A8h reçue d'un DSP 3.xx : l'entrée stéréo, une voie par tic ; A0h ou le reset « froid » la
+        /// remettent en mono (G13.8e2).</summary>
+        internal bool stereo;
+        /// <summary>En stéréo, le prochain tic prend la droite (la gauche d'abord, à chaque départ).</summary>
+        internal bool droite;
     }
 
     /// <summary>PB-148 : l'anneau d'entrée du DSP (sound_sb.Materiel.cs).</summary>
@@ -1455,9 +1461,14 @@ internal static partial class sound_sb_dsp
     }
 
     /// <summary>PB-148 : en tête de sb_start_dma_i — la tête de lecture se calera au premier tic (la carte
-    /// échantillonne l'entrée de l'instant).</summary>
+    /// échantillonne l'entrée de l'instant) ; en stéréo, la gauche d'abord.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void entree_depart_materiel(sb_dsp_t dsp) => anneau_materiel(dsp).lit = -1;
+    private static void entree_depart_materiel(sb_dsp_t dsp)
+    {
+        var an = anneau_materiel(dsp);
+        an.lit = -1;
+        an.droite = false;
+    }
 
     /// <summary>PB-148 : en tête du `case 0x20` — l'entrée directe prend l'échantillon de l'instant (au recul), la
     /// gauche ; ni le tic d'entrée lancé, ni `sb_freq` et `sblatchi` écrasés (PCem les pose à 45 454 Hz).
@@ -1487,7 +1498,7 @@ internal static partial class sound_sb_dsp
                 lit_trame_materiel(dsp, out int16_t g, out int16_t d);
                 switch (dsp.sb_8_format) {
                 case 0x00: /*Mono unsigned As the manual says, only the left channel is recorded*/
-                        sb_8_write_dma(dsp, (uint8_t)((g >> 8) ^ 0x80));
+                        sb_8_write_dma(dsp, (uint8_t)((voie_materiel(dsp, g, d) >> 8) ^ 0x80));
                         dsp.sb_8_length--;
                         avance_trame_materiel(dsp);
                         break;
@@ -1578,5 +1589,46 @@ internal static partial class sound_sb_dsp
                 dsp.record_pos_read &= 0xFFFF;
         }
         return true;
+    }
+
+    // ===== G13.8e2 — l'entrée stéréo du DSP 3.xx =====
+
+    /// <summary>PB-148 : en tête des `case 0xA0` et `0xA8` — le mode d'entrée du DSP 3.xx (guide, p. 6-22 : A8h la
+    /// stéréo, A0h le mono, « the default input mode is mono ») ; sur les autres DSP (la 2.01, que la garde de PCem
+    /// admet ; le 4.xx, où « this command no longer exists »), la commande n'existe pas : ignorée (déduit). Vrai : la
+    /// commande est faite.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool mode_entree_materiel(sb_dsp_t dsp)
+    {
+        ModeMateriel.Sonde[148]++;
+        if (dsp.sb_type == SBPRO || dsp.sb_type == SBPRO2)
+                anneau_materiel(dsp).stereo = dsp.sb_command == 0xA8;
+        return true;
+    }
+
+    /// <summary>PB-148 : le reset « froid » remet l'entrée en mono (le mode par défaut, guide p. 6-22 ; déduit : le
+    /// reset « chaud » de PB-241 restaure l'état d'avant, et le garde).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void entree_reset_materiel(sb_dsp_t dsp)
+    {
+        var an = anneau_materiel(dsp);
+        an.stereo = false;
+        an.droite = false;
+    }
+
+    /// <summary>La voie que prend un tic d'entrée 8 bits « mono » (24h, 2Ch, 98h, 99h, C8h 00h) : la gauche ; sous
+    /// PB-148, en stéréo (A8h, le DSP 3.xx), la gauche puis la droite, une voie par tic (la constante de temps réglée
+    /// au double, guide p. 6-22 et 3-21 ; l'ordre, celui de la sortie stéréo du CT1345, p. 4-7, déduit ; le guide ne
+    /// décrit l'entrée stéréo qu'en grande vitesse, 98h et 99h : 24h et 2Ch de même, déduit).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int16_t voie_materiel(sb_dsp_t dsp, int16_t g, int16_t d)
+    {
+        if (!materiel.pb_148)
+                return g;
+        var an = anneau_materiel(dsp);
+        if (!an.stereo)
+                return g;
+        an.droite = !an.droite;
+        return an.droite ? g : d;
     }
 }

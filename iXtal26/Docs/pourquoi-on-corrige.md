@@ -2208,3 +2208,19 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **L'émulateur.** PCem ne prend qu'une source par voie, et recopie 0Ah sans son masque ni son décalage : relu
   au-delà de 51h, il est faux, et FDh au démarrage.
 - **La correction.** La somme, et la recopie à l'échelle du guide (relue bornée : une déduction sous −42 dB).
+
+## G13.8e2 — le CD et la SB Pro qui enregistrent
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8, `VERIFICATION.md` § G13.8e2.*
+
+### PB-148 — le CD que la carte n'entendait pas
+
+- **Le vrai PC.** La sortie audio du lecteur de CD-ROM entre dans la carte son par un câble. La SB 16 l'enregistre
+  par son volume du CD et ses interrupteurs, comme la musique ; la SB Pro, quand son registre 0Ch la choisit. La Pro
+  enregistre en stéréo après A8h, une voie après l'autre, jusqu'à A0h ou au reset.
+- **L'émulateur.** PCem envoie le CD directement aux haut-parleurs de l'hôte : la carte ne le voit jamais. A0h et A8h
+  ne font rien.
+- **La correction.** Le son du lecteur est gardé, bloc par bloc, et la carte le lit à l'instant de chacun de ses
+  échantillons : la SB 16 et l'AWE32 par 36h, 37h, 3Dh et 3Eh, la Pro par 0Ch (sans le volume du CD, qui ne règle que
+  la sortie : une déduction). A8h met la Pro en stéréo, A0h et le reset la remettent en mono. Le micro et la ligne
+  restent muets, faute d'entrée côté hôte.
