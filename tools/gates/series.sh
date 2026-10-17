@@ -928,6 +928,15 @@ for m in "" "-materiel"; do
       "${SBB[@]}" --type "@wait 3000" --type "@son"
   done
 done
+# G13.8g2b — SB16BANC et AWEBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) :
+# ils impriment leurs relevés (dump) ; leurs configurations de l'ami486 posent l'IRQ 7 et l'AHA-1542C en 334h.
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode son)
+  runw banc-sb16banc$m aha486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/sb16banc.attendus" -- --boot roms \
+    3000 --config ami486-sb16-banc.cfg --settle 40 --type "" --type "" "${S16B[@]}" --type "@wait 3000" --type "@son"
+  runw banc-awebanc$m aha486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/awebanc.attendus" -- --boot roms \
+    3000 --config ami486-awe32-banc.cfg --settle 40 --type "" --type "" "${AWB[@]}" --type "@wait 3000" --type "@son"
+done
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

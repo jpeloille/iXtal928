@@ -1,0 +1,49 @@
+# SB16BANC (tools/sb16banc) sous DOS 5, sur l'ami486 et la Sound Blaster 16 (cfg/ami486-sb16-banc.cfg.in : l'IRQ 7 et
+# l'AHA-1542C en 334h posées), en C# seul sous --boot (G13.8g2b), dans les deux modes (le domaine son en mode matériel).
+# Les 174 relevés imprimés à la fin (dump), puis la somme de BX, tirée d'eux.
+# Les relevés, dans l'ordre (32 par ligne à l'écran) :
+#   0, AAh au reset ; 1-2, E1h, 4.05 ; 3-47, E3h, le copyright ; 48, E0h ; 49-59, l'ASP ; 60-65, F2h et F3h, 82h et les
+#   acquits ; 66-117, le CT1745 : 30h-46h et 01h relus après le reset (66-87), 0Ah, 04h, 22h, 26h, 28h, 2Eh (88-93), 0Ah
+#   = 03h puis 60h, 0Ah et 3Ah relus (94-97), 3Bh, 30h, 48h, 80h et 81h, 22h et la compatibilité Pro, les tonalités
+#   (98-117) ; 118-124, le MPU-401 ; 125-160, les transferts (82h, 22Eh, 22Fh après chaque IRQ), D0h, DAh et DEh
+#   (152-154) ; 161-162, la somme de 16 bits de l'entrée 16 bits (1 024 octets) ; 163-173, l'enregistrement : AAh, 20h,
+#   82h et les acquits après C8h (165-167) puis après D9h (168-170), la somme de 16 bits des 16 384 octets enregistrés
+#   (171-172), AAh.
+# Les octets qui changent, sous le domaine son :
+#   30h-35h, le général, la voix et la MIDI après le reset : PCem F8h ; la carte C0h, 24, −14 dB (PB-237 ; guide de
+#     Creative, p. 4-15).
+#   3Dh et 3Eh, les interrupteurs d'entrée : PCem 55h et 2Bh ; la carte 15h et 0Bh (PB-153 ; p. 4-16).
+#   0Ah après le reset : PCem FDh, (3Ah − 10) / 3 sans borne ; la carte 00h (PB-153). 04h, 22h et 26h, les registres de
+#     la Pro tirés du CT1745 : FFh contre CCh, le reset de PB-237.
+#   0Ah = 03h, puis 3Ah : PCem 13h, la carte 98h, ((3 × 3) + 10) << 3 ; 0Ah = 60h, puis 0Ah et 3Ah : PCem 0Ah et 2Ah, la
+#     carte 00h et 50h (PB-153, 0Ah↔3Ah à l'échelle du guide).
+#   après C8h (l'enregistrement de 16 384 octets, six tics), 82h : PCem 03h, l'IRQ 8 bits déjà levée ; la carte 02h ;
+#     après D9h et un tic, PCem 00h, la carte 01h. Chez PCem, le 20h du début de la section a lancé le tic d'entrée et
+#     écrasé la fréquence (45 454 Hz) : les 16 384 octets tiennent en six tics ; sur la carte, 20h prend un échantillon
+#     sans rien régler, le transfert va à 22 050 Hz et finit après (PB-148).
+#   la somme des 16 384 octets enregistrés : PCem FF80h, l'indice FFFFh lu dans buffer[0], la sortie 16 bits en cours
+#     (PB-151, l'alias que vise le banc) ; la carte 0000h, 16 384 fois 80h, le silence (PB-151 seul, ou PB-148 seul, le
+#     rendent aussi).
+#   la somme de BX : A60Dh en mode PCem, 6A06h sous le domaine son.
+# Sous « tout », de plus :
+#   DAh, le temporaire du 8237 haut (153) : B4h, le dernier octet écrit, chez PCem et sous le domaine son ; 00h (PB-157,
+#     la carte mère). La somme de BX : 5EC6h.
+# Les mêmes dans les deux modes :
+#   l'ASP, le MPU-401, les IRQ des transferts 8 et 16 bits et de la tonalité adverse, D0h et DEh : PB-149, PB-155 et
+#     PB-288 changent le son, pas ces relevés ;
+#   la somme de l'entrée 16 bits, 0000h : le silence non signé (8000h), sous PB-148 comme chez PCem.
+|C>SB16BANC
+|AA0405434F505952494748542028432920435245415449564520544543484E4F
+|4C4F4759204C54442C20313939322E00551877FF0738000000007FFF017FFF02
+pcem: |FF00F8F8F8F8F8F80000000000001F552B000000008080FFFDFFFFFF00000313
+materiel: |FF00C0C0C0C0C0C00000000000001F150B000000008080FF00CCCCCC00000398
+pcem: |0A2AC0F0000422080804228222DDD8D8A0C03050404000FE80FE8080FE017FFF
+materiel: |0050C0F0000422080804228222DDD8D8A0C03050404000FE80FE8080FE017FFF
+pcem: |017FFF017FFF017FFF027FFF027FFF027FFF027FFF027FFF02B400027FFF027F
+materiel[son]: |017FFF017FFF017FFF027FFF027FFF027FFF027FFF027FFF02B400027FFF027F
+materiel[tout]: |017FFF017FFF017FFF027FFF027FFF027FFF027FFF027FFF020000027FFF027F
+pcem: |FF0000AA80037FFF007FFF80FFAA
+materiel: |FF0000AA80027FFF017FFF0000AA
+pcem: |SB16BANC A60D
+materiel[son]: |SB16BANC 6A06
+materiel[tout]: |SB16BANC 5EC6

@@ -12905,3 +12905,77 @@ deux séances sont identiques, mais un changement des temps du processeur pourra
 en rouge. L'IMR qui masque les lignes 5 et 7 est celle que pose le BIOS du 5150.
 
 M2 : sans objet, l'émulateur ne change pas.
+
+## G13.8g2b — SB16BANC et AWEBANC en C# seul ; le mode qu'un chargement figeait
+
+Le 17 octobre 2026. La seconde moitié de 8g2 (la clôture du son ; l'étude, `/var/tmp/ixtal-g13/etude-8g.md`, hors du
+dépôt) : les deux bancs de l'ami486, joués jusqu'ici contre l'oracle seul, passent en C# seul dans les deux modes. En
+chemin, un défaut d'iXtal venu de 8d3c, corrigé : l'émulateur change, d'où la série entière.
+
+**Les relevés imprimés** (`tools/sb16banc/sb16banc.S`, `tools/awebanc/awebanc.S`). Les deux programmes n'affichaient
+que la somme de BX. Une routine neuve, `dump`, imprime à la fin la zone des relevés en hexadécimal, 32 octets par
+ligne (la fonction 02h du DOS), puis la somme comme avant. Dans SB16BANC, `sum` relevait chaque octet de ses deux blocs
+(1 024 octets de l'entrée 16 bits, 16 384 de l'enregistrement : 17 Ko, illisibles à l'écran) : elle relève désormais
+leur somme de 16 bits, deux octets ; la trace de boot-diff voit toujours chaque octet passer par AL. 174 relevés pour
+SB16BANC, 118 pour AWEBANC. Les `.keys` régénérés ; `bd-ami486-sb16-banc`, `bd-ami486-awe32-banc` les rejouent contre
+l'oracle.
+
+**Les configurations** (`tools/gates/cfg/ami486-sb16-banc.cfg.in`, `ami486-awe32-banc.cfg.in`) : `irq = 7` et l'AHA en
+334h (`addr = 820`) posés, ceux de PCem, que le banc et son disque attendent (Q23). Sans clé, le mode matériel prend
+l'IRQ 5 d'usine (PB-153), que le banc ne masque pas, et l'AHA en 330h (PB-292), sur le MPU-401.
+
+**Le mode figé au chargement** (`pc.cs`, `check_sndcard`). Depuis 8d3c, l'avertissement du MPU-401 sur les ports de
+l'AHA lit la garde de PB-292 pour le défaut de la carte. `check_sndcard` est appelé deux fois : par le `check_cpu` du
+chargement de la configuration, puis par celui d'`initpc`, après `ModeMateriel.Figer()`. Au chargement,
+`--hardware-mode` et la clé `hardware_mode` ne sont pas encore appliqués : lire la garde figeait le mode en PCem (« figé
+hors de son point de gel »), et le mode matériel par défaut (G13.11), la clé ou l'option étaient refusés, sur toute
+machine à l'AHA-1542C et à la SB 16 ou l'AWE32. Aucun profil du dépôt n'a les deux cartes ; le banc de SB16BANC en mode
+matériel l'a montré. L'avertissement attend désormais le mode figé (`ModeMateriel.Fige`) : il est dit une fois, par le
+`check_cpu` d'`initpc`. Mesuré sous `--boot` : la configuration du banc avec `--hardware-mode tout`, et la clé
+`hardware_mode = tout` dans le fichier, passent en mode matériel ; sans l'AHA en 334h, l'avertissement est dit (330h).
+
+**Les attendus** (`tools/gates/bancs/sb16banc.attendus`, `awebanc.attendus`). Chaque octet qui change, attribué par
+une bissection des listes du mode (`/tmp/a9/bisect-8g2b.sh`) et le relevé du programme repéré dans la source :
+- SB16BANC, sous le domaine son : le CT1745 après le reset, 30h-35h F8h contre C0h, 04h, 22h et 26h FFh contre CCh
+  (PB-237, p. 4-15), 3Dh et 3Eh 55h et 2Bh contre 15h et 0Bh, 0Ah FDh contre 00h (PB-153) ; 0Ah↔3Ah, 13h contre 98h,
+  0Ah et 2Ah contre 00h et 50h (PB-153) ; l'enregistrement de 16 Ko, l'IRQ 8 bits levée dans les six tics chez PCem
+  (82h 03h, puis 00h), après sur la carte (02h, puis 01h) : le 20h de PCem lance le tic d'entrée et écrase la fréquence
+  (45 454 Hz), celui de la carte prend un échantillon sans rien régler (PB-148) ; la somme des 16 Ko, FF80h (l'alias de
+  buffer[0], PB-151) contre 0000h ;
+- SB16BANC, sous « tout » de plus : DAh, le temporaire du 8237 haut, B4h contre 00h (PB-157) ;
+- AWEBANC, sous le domaine son : E21h lu par octet, D1h contre E5h, et E23h, 00h contre 84h (PB-158 (b)) ; le bit 15
+  de SMALR et du mot haut de SMARW en A22h (PB-159) ; WC après un tic, AD7Ch contre B29Dh (PB-158 (a)) ; le registre
+  1, canal 30, après une note, 0043h contre 0003h (la rustine de Doom, PB-160 (a)) ;
+- AWEBANC, sous « tout » de plus : CCCA, CPF et CVCF pendant la note, 0800h, 4016h et F2FEh contre 07F8h, 4018h et
+  F2E9h ; mesuré sous le son et le stockage, pas sous le son seul, ni avec la carte mère, le processeur ou la vidéo.
+La somme de BX, par mode. Les lignes communes aux deux modes et celles de PCem seul sous `pcem:`, `materiel:`,
+`materiel[son]:` et `materiel[tout]:`.
+
+**Les portes** (`series.sh`, section G13.8g2b) : `banc-sb16banc`, `banc-awebanc` et leurs `-materiel`
+(`--hardware-mode son`), `@son` en fin de scénario. L'essai (`/tmp/a9/sub8g2b.sh`) : les quatre portes, les cinq
+boot-diff qui lisent ces programmes ou ces configurations, le recensement ; les deux portes de SB16BANC rouges au
+premier tour, une ligne des attendus mal recopiée (deux groupes de trop), reprise et rejouée, verte.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8g2b.sh`, `neg2-8g2b.sh` ; une faute à la fois, le banc de SB16BANC en
+mode matériel) : la correction du mode retirée (`&& ModeMateriel.Fige` ôté, l'émulateur reconstruit), le mode figé en
+PCem au chargement, 9 échecs ; `pcem:` et `materiel:` échangés, 5 ; la configuration sans `irq = 7`, 2 ; les anciens
+`.keys` (la somme de BX seule), 7 ; les lignes `materiel[son]:` et `materiel[tout]:` d'AWEBANC échangées, 1 ; l'AHA
+sans `addr = 820`, verte sous le domaine son (PB-292 est du stockage, la carte reste en 334h), 8 échecs sous « tout »
+(330h, sur le MPU-401). Les témoins, AWEBANC sous le son et SB16BANC sous « tout », verts.
+
+**La contre-lecture** (Sonnet ; aucun bloquant, aucune reprise ; elle réassemble les deux programmes, régénère les
+`.keys`, identiques, relit le désassemblage de `dump`, `nib`, `crlf` et `sum`, les étiquettes numériques réutilisées,
+les registres que salissent `dump` et `sum` ; recalcule les trois sommes de BX de chaque banc sur les octets des
+attendus ; suit les appelants de `check_cpu` et ceux de `check_sndcard`, et cherche d'autres gardes lues au
+chargement : aucune ; `model.cs` lit PB-204 après `Figer()`). Vus : dans un lancement ordinaire, l'avertissement était
+dit deux fois (le chargement et `initpc`), il l'est désormais une ; sous l'outil, qui fige le mode à son départ
+(`Program.cs`), comme avant, et `AvertAha` (`materiel-cas PB-154`, `PB-292`) rend la même réponse. Les portes
+`testsbp`, qui lisent `ami486-sb16-banc.cfg` avec une autre carte, ne voient pas la section de la SB 16, et l'AHA en
+334h y est le défaut de PCem.
+
+**La série entière** (`/tmp/a9/series-8g2b.sh`, worktree, Release ; 22 h 02 à 23 h 41) : en mode PCem 757 vertes
+(741 à 8g1, plus les 16 portes `banc-*` de 8g2a et 8g2b) ; sous « tout » 518 vertes, 228 refusées, 11 `pcem`, aucune
+rouge. Contre les tsv de 8g1, dans les deux modes, rien d'autre que les 16 portes neuves.
+
+**Les listings du JIT** (M2-8g2b contre M2-8g1, `tools/listings-jit.sh`) : 1 496 méthodes de part et d'autre, une
+seule changée, `pc.check_sndcard`, la voulue (la condition `ModeMateriel.Fige`) ; aucune disparue, aucune apparue.

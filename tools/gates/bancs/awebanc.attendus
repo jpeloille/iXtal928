@@ -1,0 +1,40 @@
+# AWEBANC (tools/awebanc) sous DOS 5, sur l'ami486 et la Sound Blaster AWE32, 512 Ko (cfg/ami486-awe32-banc.cfg.in :
+# l'IRQ 7 et l'AHA-1542C en 334h posées), en C# seul sous --boot (G13.8g2b), dans les deux modes (le domaine son en mode
+# matériel). Les 118 relevés imprimés à la fin (dump), les mots l'octet bas d'abord, puis la somme de BX.
+# Les relevés, dans l'ordre (32 par ligne à l'écran) :
+#   0-5, le DSP 4.13 (AAh, E1h, 08h puis E1h) ; 6-17, le pointeur lu trois fois, hwcf1 à hwcf3 ; 18-21, IP du canal 0
+#   posé à E5A3h, puis E20h, E21h, E23h et E22h lus par octet ; 22-41, l'identifiant, les registres 6 et 4 ; 42-59, la
+#   DRAM par SMLD ; 60-67, SMALR (A22h), SMARW et SMALW relus ; 68-91, la DRAM et la ROM relues ; 92-97, WC lu deux fois
+#   sans écriture, puis après un tic ; 98-105, CCCA, CPF et CVCF du canal 0 pendant la note ; 106-109, le registre 1,
+#   canal 30, après hwcf3 remis à 0, puis après une note ; 110-117, CVCF du canal 1, IFATN du canal 5, WC à la fin.
+# Les octets qui changent, sous le domaine son :
+#   E21h lu par octet (19) : PCem D1h, (E5A3h >> 1) & FFh ; la carte E5h, l'octet haut (PB-158 (b)). E23h (20), l'octet
+#     haut du pointeur : PCem 00h ; la carte 84h, l'octet haut du mot, qui avance à chaque lecture (81h à 83h plus
+#     haut).
+#   SMALR relu en A22h (61) et le mot haut de SMARW (65) : le bit 15 (le bit 31 du registre, MT ou FULL) à 0 chez PCem,
+#     à 1 sur la carte (PB-159 ; guide de l'EMU8000, p. 11-12).
+#   WC lu après un tic (96-97) : PCem AD7Ch, le compte du dernier tampon ; la carte B29Dh, avancé jusqu'à l'instant de
+#     la lecture (PB-158 (a)). Les deux lectures sans écriture entre (92-95) rendent le même mot dans les deux modes.
+#   le registre 1, canal 30, après une note (108-109) : PCem 0043h, la rustine de Doom (hwcf3 forcé à 4 au premier
+#     allumage d'un moteur d'enveloppe, `sound_emu8k.c:989-994`) ; la carte 0003h (PB-160 (a), sans la rustine).
+#   la somme de BX : 0A26h en mode PCem, 17EDh sous le domaine son.
+# Sous « tout », de plus :
+#   CCCA, CPF et CVCF du canal 0 pendant la note (98-105) : 0800h, 4016h et F2FEh contre 07F8h, 4018h et F2E9h ; mesuré
+#     sous le son et le stockage, pas sous le son seul, ni avec la carte mère, le processeur ou la vidéo : les
+#     corrections du stockage déplacent l'instant des lectures dans la note (déduit). La somme de BX : B033h.
+# Les mêmes dans les deux modes :
+#   HWCF1 à HWCF3 relus, la DRAM et la ROM : la puce ne rend pas HWCF (part (c), la même relecture) ; PB-162 et PB-163
+#     changent le son, pas ces relevés.
+|C>AWEBANC
+pcem: |AA040D18040D008100820083580003000000A3D100001C001EFFFFFF34127856
+materiel: |AA040D18040D008100820083580003000000A3E584001C001EFFFFFF34127856
+pcem: |BC9A58004300000DC0000000EFBEBF37275C8F80F7A45FC9C7ED2F1220000201
+materiel: |BC9A58004300000DC0000000EFBEBF37275C8F80F7A45FC9C7ED2F1220800201
+pcem: |2000030000002143658700004200004300003200382E4D31FFFF000027A927A9
+materiel: |2080030000002143658700004200004300003200382E4D31FFFF000027A927A9
+pcem: |7CADF80720201840E9F203004300F9E3000001FF1437
+materiel[son]: |9DB2F80720201840E9F203000300F9E3000001FF1437
+materiel[tout]: |9DB2000820201640FEF203000300F9E3000001FF1437
+pcem: |AWEBANC 0A26
+materiel[son]: |AWEBANC 17ED
+materiel[tout]: |AWEBANC B033

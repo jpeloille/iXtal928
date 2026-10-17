@@ -14,3 +14,12 @@ hdc_cylinders = 20
 hdc_heads = 64
 hdc_sectors = 32
 hdc_fn = @WORK@/scsic.img
+
+# G13.8g2b — le banc en C# seul joue aussi le mode matériel : l'IRQ 7 et l'AHA en 334h posées, celles de PCem, que le
+# banc et son disque attendent (Q23). Sans clé, le mode matériel prend l'IRQ 5 d'usine (PB-153), que le banc ne masque
+# pas, et l'AHA en 330h (PB-292), sur le MPU-401.
+[Sound Blaster AWE32]
+irq = 7
+
+[Adaptec AHA-1542C (SCSI)]
+addr = 820

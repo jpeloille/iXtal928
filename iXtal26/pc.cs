@@ -1133,7 +1133,10 @@ internal static partial class pc
             Sound.sound.sound_card_current = 0;
             return;
         }
-        if (Host.SoundCards.RequiresAtMachine(name) && cfg_hdd_controller == "aha1542c")
+        // G13.8g2b — l'avertissement lit le mode (PB-292) : il attend que le mode soit figé, au check_cpu
+        //   d'initpc. Celui de loadconfig vient avant --hardware-mode et la clé hardware_mode : lire la garde y
+        //   figeait le mode en PCem.
+        if (Host.SoundCards.RequiresAtMachine(name) && cfg_hdd_controller == "aha1542c" && ModeMateriel.Fige)
         {
             var section = name == "sbawe32" ? Sound.sound_sb.sb_awe32_device.name : Sound.sound_sb.sb_16_device.name;
             var mpu = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, section, "mpu_addr", 0x330);

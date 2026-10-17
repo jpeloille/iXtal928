@@ -8,6 +8,8 @@
 # boot-diff, qui compare chaque instruction : chaque octet que la carte rend est relu dans un registre (et sommé
 # dans BX), donc vu par la trace ; ce qu'elle JOUE n'est vu que par la sonde du son (sound_hash). La somme
 # s'affiche à la fin, pour les yeux.
+# G13.8g2b : les relevés s'impriment à la fin (dump), 32 octets par ligne, pour le banc en C# seul ; les blocs de
+# l'entrée 16 bits et de l'enregistrement n'y entrent que par leur somme de 16 bits.
 #
 # Machine attendue : l'ami486, la SB 16 à 220h, IRQ 7 (masquée ici : le banc relit 82h, 2xEh et 2xFh lui-même),
 # DMA 1 et DMA 16 bits 5 ; DOS 5 sur le disque SCSI de G11. Dans l'ordre :
@@ -349,6 +351,7 @@ _start:
 # ---- la fin -------------------------------------------------------------------------------------------
     mov al, [oldmask]
     out 0x21, al
+    call dump                       # les relevés (G13.8g2b)
     mov ax, bx                      # la somme, en hexadécimal
     mov si, offset hex + 4
     mov cx, 4
@@ -377,11 +380,64 @@ keep:
     adc bh, 0
     ret
 
-# sum : CX octets en DS:SI, sommés.
+# sum : CX octets en DS:SI, sommés sur 16 bits ; la somme relevée, l'octet bas puis le haut (G13.8g2b : chaque octet
+#   du bloc était relevé, 17 Ko que le banc en C# seul ne peut pas lire à l'écran ; la trace de boot-diff les voit
+#   toujours passer par AL).
 sum:
-    lodsb
+    xor dx, dx
+36: lodsb
+    add dl, al
+    adc dh, 0
+    loop 36b
+    mov al, dl
     call keep
-    loop sum
+    mov al, dh
+    jmp keep
+
+# dump (G13.8g2b) : les relevés de RES à DI, en hexadécimal, 32 octets par ligne, pour le banc en C# seul (--boot,
+#   tools/gates/bancs/*.attendus) ; la somme de BX suit, comme avant.
+dump:
+    mov cx, di
+    sub cx, RES
+    mov si, RES
+    xor bp, bp
+30: jcxz 33f
+    lodsb
+    push ax
+    shr al, 4
+    call nib
+    pop ax
+    and al, 0x0F
+    call nib
+    inc bp
+    test bp, 31
+    jnz 32f
+    call crlf
+32: dec cx
+    jmp 30b
+33: test bp, 31
+    jz 34f
+    call crlf
+34: ret
+
+# nib : le quartet AL (0 à Fh) en un chiffre hexadécimal, par la fonction 02h du DOS.
+nib:
+    add al, '0'
+    cmp al, '9'
+    jbe 35f
+    add al, 7
+35: mov dl, al
+    mov ah, 0x02
+    int 0x21
+    ret
+
+# crlf : la fin de ligne.
+crlf:
+    mov dl, 13
+    mov ah, 0x02
+    int 0x21
+    mov dl, 10
+    int 0x21
     ret
 
 # carre : BUF16, 2 048 trames stéréo d'un carré pleine échelle dont la phase avance de 32 000 sur 65 536 par trame :

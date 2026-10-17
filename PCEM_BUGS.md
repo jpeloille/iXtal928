@@ -6890,7 +6890,9 @@ est l'usine, 330h (`port_usine_materiel`, `Scsi/scsi_aha1540.Materiel.cs`, lu pa
 `pc.check_sndcard` prend le même défaut pour l'avertissement du MPU. `ixtal26-486-scsi.cfg` pose 334h, que son disque
 attend ; les bancs aussi (`AvecScsi`, `r9-aha`, `reset-scsi-check`), sauf les cas de PB-292. `materiel-cas PB-292` :
 sans clé et à `addr = 999` (334h, interrupteur 1, chez PCem ; 330h, 0, sur la carte) ; l'avertissement (rien chez
-PCem, averti sur la carte) ; témoin, `addr = 230h`.
+PCem, averti sur la carte) ; témoin, `addr = 230h`. G13.8g2b : l'avertissement attend le mode figé (le `check_cpu`
+d'`initpc`) ; lu au chargement de la configuration, avant `--hardware-mode` et la clé `hardware_mode`, la garde figeait
+le mode en PCem sur une machine à l'AHA et à la SB 16 ou l'AWE32.
 
 ### PB-293 — Le haut-parleur de PCem prend le compte 0 du canal 2 pour un ton trop aigu
 

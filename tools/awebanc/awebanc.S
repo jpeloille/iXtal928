@@ -8,6 +8,7 @@
 # KeyScript, écrit sur C:, lancé — sous boot-diff, qui compare chaque instruction : chaque mot que la puce rend est
 # relu dans un registre (et sommé dans BX), donc vu par la trace ; ce qu'elle JOUE n'est vu que par la sonde du son
 # et par celle de l'EMU8000. La somme s'affiche à la fin, pour les yeux.
+# G13.8g2b : les relevés s'impriment à la fin (dump), 32 octets par ligne, pour le banc en C# seul.
 #
 # Machine attendue : l'ami486, l'AWE32 en 220h, l'EMU8000 en 620h, 512 Ko de RAM ; DOS 5 sur le disque SCSI de G11.
 # Dans l'ordre :
@@ -520,6 +521,7 @@ _start:
     call rrw
     .byte 1, 27
     .word D2
+    call dump                       # les relevés (G13.8g2b)
     mov ax, bx                      # la somme, en hexadécimal
     mov si, offset hex + 4
     mov cx, 4
@@ -551,6 +553,52 @@ keepw:
     call keep
     mov al, ah
     jmp keep
+
+# dump (G13.8g2b) : les relevés de RES à DI, en hexadécimal, 32 octets par ligne, pour le banc en C# seul (--boot,
+#   tools/gates/bancs/*.attendus) ; la somme de BX suit, comme avant.
+dump:
+    mov cx, di
+    sub cx, RES
+    mov si, RES
+    xor bp, bp
+30: jcxz 33f
+    lodsb
+    push ax
+    shr al, 4
+    call nib
+    pop ax
+    and al, 0x0F
+    call nib
+    inc bp
+    test bp, 31
+    jnz 32f
+    call crlf
+32: dec cx
+    jmp 30b
+33: test bp, 31
+    jz 34f
+    call crlf
+34: ret
+
+# nib : le quartet AL (0 à Fh) en un chiffre hexadécimal, par la fonction 02h du DOS.
+nib:
+    add al, '0'
+    cmp al, '9'
+    jbe 35f
+    add al, 7
+35: mov dl, al
+    mov ah, 0x02
+    int 0x21
+    ret
+
+# crlf : la fin de ligne.
+crlf:
+    mov dl, 13
+    mov ah, 0x02
+    int 0x21
+    mov dl, 10
+    int 0x21
+    ret
 
 # ptrw : le pointeur (E22h) ; en ligne : le registre, le canal.
 ptrw:
