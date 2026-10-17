@@ -166,7 +166,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   « Use Low », le MPU ; PB-289, neuf, l'EMU8000 à la base + 400h) ; 8d3b ✅ (les SB 1.x, 2.0 et Pro : PB-290, le
   DMA 1 seul et l'IRQ 5 d'usine de la 2.0 ; PB-291, le DMA 0 de la Pro) ; 8d3c ✅ (l'AHA-1542C : PB-292, le
   port d'usine 330h ; SW5, la clé floppy) ; 8g1 ✅ (le compte 0 du 8254 dans le haut-parleur : PB-21 ; PB-293,
-  neuf). Suivent 8g2 et 8g3, puis les cavaliers hors du son ; PB-256 avec la carte mère.
+  neuf) ; 8g2a ✅ (les six SBBANC en C# seul, le scénario de PB-146 corrigé). Suivent 8g2b et 8g3, puis les
+  cavaliers hors du son ; PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

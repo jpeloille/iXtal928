@@ -3151,9 +3151,10 @@ première IRQ après 1A6h octets pris au 8237 ; PB-146 seul corrigé, après 180
 bloc du 2.02 (PB-234), après 181h (contre-lecture K6). Le premier octet : référence sur la carte, donnée chez
 PCem.
 *G13* : (a) — documenté deux fois ; l'attendu dépend des corrections retenues ensemble et doit le dire.
-*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 (1Fh, 2Ch, 7Dh, 7Fh) ; SBBANC passe 7Dh après 48h 7Fh 01h, ce
-qui ne distingue pas les deux comportements (les octets « périmés » y sont la taille du bloc) : il faut intercaler une
-commande à paramètre.
+*Reproduit* : `Sound/sound_sb_dsp.cs`, marqueurs PB-146 (1Fh, 2Ch, 7Dh, 7Fh) ; SBBANC passait 7Dh après 48h 7Fh 01h,
+ce qui ne distinguait pas les deux comportements (les octets « périmés » y étaient la taille du bloc). Depuis G13.8g2a,
+il intercale 40h A5h et relit le compte du canal 1 à la première IRQ : 0259h en mode PCem, 027Eh sous le domaine son
+(`tools/gates/bancs/sbbanc-sb15.attendus` et ses voisins).
 *Corrigé en mode matériel* (G13.8b) : sous `if (materiel.pb_146)`, en tête des cas 1Fh, 2Ch, 7Dh et 7Fh de
 `sb_exec_command` (`automatique_materiel`) : le bloc de 48h ; pour 1Fh, 7Dh et 7Fh l'octet de référence d'abord, puis le
 départ de 17h, 75h et 77h de PCem, ou, avec PB-234, celui du DSP. `sb_commands`, partagé, n'est pas touché.

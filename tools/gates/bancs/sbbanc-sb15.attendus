@@ -1,0 +1,24 @@
+# SBBANC (tools/sbbanc, sbbanc.py --carte sb15) sous PC-DOS 2.00, sur le 5150 et la Sound Blaster 1.5 (cfg/pc-sb15.cfg),
+# en C# seul sous --boot (G13.8g2a), dans les deux modes (le domaine son en mode matériel ; « tout » donne les mêmes
+# relevés).
+# Les 21 octets relevés, dans l'ordre :
+#   AAh au reset ; E1h, la version 2.00 (deux octets) ; 22Eh après 14h, après D1h lancé pendant le DMA, après D4h ; 22Eh
+#   après 1Ch, D4h et DAh ; 22Eh après 91h ; à la première IRQ de 7Dh, l'IRR et le compte du canal 1 (bas, haut) ; 22Eh
+#   après 7Dh et après DAh ; 22Eh après 75h ; 388h trois fois et 228h, l'état de l'OPL2 ; D8h.
+# Un octet change :
+#   à la première IRQ de 7Dh (le canal 1 en automatique sur 400h octets, son compte parti de 3FFh ; 48h 7Fh 01h, puis
+#     40h A5h intercalée, puis 7Dh), l'IRR, 80h (la ligne 7), et le compte : PCem 0259h, le DSP a pris 1A6h octets (7Dh
+#     prend A5h, de 40h, et 01h, resté de 48h, pour la taille du bloc) ; la carte 027Eh, 181h octets : le bloc de 48h
+#     (PB-146 ; guide de Creative, p. 6-8 et 6-16), l'octet de référence d'abord (PB-146) et la fin de bloc du
+#     micrologiciel 2.02 (PB-234), ensemble sous le domaine son (PCEM_BUGS.md, PB-146, la contre-lecture K6). PB-146
+#     seul donnerait 027Fh (180h), une liste qu'aucune porte ne joue.
+# Les mêmes dans les deux modes :
+#   les 22Eh rendent l'état de la file de lecture (7Fh ou FFh), pas l'IRQ ;
+#   les corrections du DSP (PB-147, PB-236, PB-241) et de l'ADPCM changent le son et l'instant des IRQ, pas ces relevés,
+#     chaque attente (3 × 65 536 LOOP, 0,7 s environ) dépassant son bloc ;
+#   l'OPL et son état par 388h : aucune correction ne les touche (PB-242 reste reproduit). Sous « tout », les temps de
+#     la carte mère (PB-03) bougent, pas les relevés.
+|B>SBBANC
+pcem: |AA02007F7F7F7F7F7F7F8059027F7F7F
+materiel: |AA02007F7F7F7F7F7F7F807E027F7F7F
+|06C6060600

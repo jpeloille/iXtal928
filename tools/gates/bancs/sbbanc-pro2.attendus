@@ -1,0 +1,20 @@
+# SBBANC (tools/sbbanc, le script de G8.2) sous PC-DOS 2.00, sur le 5150 et la Sound Blaster Pro v2 (cfg/pc-sbpro2.cfg),
+# en C# seul sous --boot (G13.8g2a), dans les deux modes (le domaine son en mode matériel ; « tout » donne les mêmes
+# relevés).
+# Les 18 octets relevés, dans l'ordre :
+#   AAh au reset ; E1h, la version 3.02 (deux octets) ; 22Eh après 14h, 1Ch, D4h et DAh ; le CT1345 relu en 22h, 04h,
+#   0Eh et 0Ch ; 22Eh après le transfert stéréo, puis mono ; 22h relu après le reset du mélangeur ; 22Eh après 75h ;
+#   388h et 220h, l'état de l'OPL3 ; D8h, l'état du haut-parleur.
+# Un octet change :
+#   22h relu après le reset du mélangeur (00h écrit à l'index 0) : PCem EEh, le niveau 7 des deux côtés ; la carte 88h,
+#     le niveau 4, −11 dB (PB-237 ; guide de Creative, p. 4-9).
+# Les mêmes dans les deux modes :
+#   les 22Eh rendent l'état de la file de lecture (7Fh ou FFh), pas l'IRQ ;
+#   les corrections du DSP (PB-147, PB-236, PB-241) et de l'ADPCM changent le son et l'instant des IRQ, pas ces relevés,
+#     chaque attente (3 × 65 536 LOOP, 0,7 s environ) dépassant son bloc ;
+#   l'OPL et son état par 388h : aucune correction ne les touche (PB-242 reste reproduit). Sous « tout », les temps de
+#     la carte mère (PB-03) bougent, pas les relevés.
+|B>SBBANC
+pcem: |AA03027F7F7F7FFFDD02007F7FEE7F00
+materiel: |AA03027F7F7F7FFFDD02007F7F887F00
+|0000

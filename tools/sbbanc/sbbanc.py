@@ -22,6 +22,10 @@
 # en 2x0h sur la 2.0, les deux OPL2 gauche et droite de la Pro v1. Le script de la Pro v2 (le défaut) est celui
 # de G8, inchangé.
 #
+# G13.8g2a — le scénario de PB-146 corrigé (une commande à paramètre intercalée, le compte du 8237 relu à la première
+# IRQ, op 10) ; les relevés lus en C# seul sous --boot, contre leurs attendus dans les deux modes
+# (tools/gates/bancs/sbbanc-*.attendus).
+#
 # Usage :
 #   python3 tools/sbbanc/sbbanc.py                 écrit sbbanc.keys (la Pro v2), affiche le listing
 #   python3 tools/sbbanc/sbbanc.py --carte C       écrit sbbanc-C.keys (sb1, sb15, sb20, sb20mix, sbpro1)
@@ -190,13 +194,34 @@ ins(None, 'loop w8b', 2, lambda L, a: [0xE2, rel8(L, a + 2, 'w8b')])
 nxt()
 
 # op 9 : lire un registre indexé : OUT port,index ; IN port+1 → relevé
-case(9, 'op9', 'done')
+case(9, 'op9', 'op10')
 ins(None, 'lodsw                ; port', 1, lambda L, a: [0xAD])
 ins(None, 'mov dx,ax', 2, lambda L, a: [0x89, 0xC2])
 ins(None, 'lodsb                ; index', 1, lambda L, a: [0xAC])
 ins(None, 'out dx,al', 1, lambda L, a: [0xEE])
 ins(None, 'inc dx', 1, lambda L, a: [0x42])
 ins(None, 'in al,dx', 1, lambda L, a: [0xEC])
+ins(None, 'stosb', 1, lambda L, a: [0xAA])
+nxt()
+
+# op 10 (G13.8g2a) : guetter l'IRR du 8259 (OCW3 0Ah, puis IN 20h) jusqu'à un bit du masque, au plus 65 535 lectures,
+# l'IRQ restant masquée à l'IMR ; puis verrouiller le compte du canal 1 (bascule à zéro, IN 03h deux fois) → trois
+# relevés : l'IRR vu, l'octet bas et l'octet haut du compte
+case(10, 'op10', 'done')
+ins(None, 'lodsb                ; masque', 1, lambda L, a: [0xAC])
+ins(None, 'mov bl,al', 2, lambda L, a: [0x88, 0xC3])
+ins(None, 'mov al,0Ah', 2, lambda L, a: [0xB0, 0x0A])
+ins(None, 'out 20h,al            ; OCW3 : lire l\'IRR', 2, lambda L, a: [0xE6, 0x20])
+ins(None, 'mov cx,0FFFFh', 3, lambda L, a: [0xB9, 0xFF, 0xFF])
+ins('w10', 'in al,20h', 2, lambda L, a: [0xE4, 0x20])
+ins(None, 'test al,bl', 2, lambda L, a: [0x84, 0xD8])
+ins(None, 'jnz w10x', 2, lambda L, a: [0x75, rel8(L, a + 2, 'w10x')])
+ins(None, 'loop w10', 2, lambda L, a: [0xE2, rel8(L, a + 2, 'w10')])
+ins('w10x', 'stosb', 1, lambda L, a: [0xAA])
+ins(None, 'out 0Ch,al            ; bascule à zéro', 2, lambda L, a: [0xE6, 0x0C])
+ins(None, 'in al,03h', 2, lambda L, a: [0xE4, 0x03])
+ins(None, 'stosb', 1, lambda L, a: [0xAA])
+ins(None, 'in al,03h', 2, lambda L, a: [0xE4, 0x03])
 ins(None, 'stosb', 1, lambda L, a: [0xAA])
 nxt()
 
@@ -246,6 +271,7 @@ def FILL(off, n, seed, step): return [6] + w(off) + w(n) + [seed, step]
 def DMA(mode, off, n): return [7, mode] + w(off) + w(n - 1)
 def REGW(port, idx, val): return [8] + w(port) + [idx, val]
 def REGR(port, idx): return [9] + w(port) + [idx]
+def IRR(masque): return [10, masque]
 
 
 BUF = 4096
@@ -308,8 +334,15 @@ def script_g12(carte):
     S += DSPW(0xD0) + WAIT(1) + DSPW(0xD4) + WAIT(2) + INB(0x22E) + DSPW(0xDA) + WAIT(2) + INB(0x22E)
     # -- la grande vitesse : 48h puis 91h (2.0 et plus)
     S += DSPW(0x40, 0xE9) + DMA(0x49, 0, 1024) + DSPW(0x48, 0xFF, 0x03) + DSPW(0x91) + WAIT(2) + INB(0x22E)
-    # -- PB-146 : 7Dh (ADPCM 4 bits automatique, 1.5 et plus) prend les octets de la commande précédente, 48h 7Fh 01h
-    S += DSPW(0x40, 0xA5) + DMA(0x59, 3072, 1024) + DSPW(0x48, 0x7F, 0x01) + DSPW(0x7D) + WAIT(2) + INB(0x22E)
+    # -- PB-146 : 7Dh (ADPCM 4 bits automatique, 1.5 et plus) prend les octets de la commande précédente.
+    #    G13.8g2a : une commande à paramètre intercalée (40h A5h) les distingue de la taille du bloc (48h 7Fh 01h), et
+    #    le compte du canal 1 relu à la première IRQ (l'IRR, les lignes 5 et 7) dit combien d'octets le DSP a pris. La
+    #    SB 1.0, sans 7Dh, garde le scénario d'avant.
+    if carte == 'sb1':
+        S += DSPW(0x40, 0xA5) + DMA(0x59, 3072, 1024) + DSPW(0x48, 0x7F, 0x01) + DSPW(0x7D) + WAIT(2) + INB(0x22E)
+    else:
+        S += DMA(0x59, 3072, 1024) + DSPW(0x48, 0x7F, 0x01) + DSPW(0x40, 0xA5) + DSPW(0x7D) + IRR(0xA0) + WAIT(2)
+        S += INB(0x22E)
     S += DSPW(0xDA) + WAIT(2) + INB(0x22E)
     # -- ADPCM 4 bits avec référence (75h)
     S += DMA(0x49, 3072, 1024) + DSPW(0x75, 0xFF, 0x03) + WAIT(3) + INB(0x22E)

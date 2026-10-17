@@ -913,6 +913,21 @@ for pb in 21 293; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
+# et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
+# l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode son)
+  for SBC in pro2:sbbanc:sbpro2 sb1:sbbanc-sb1:sb1 sb15:sbbanc-sb15:sb15 sb20:sbbanc-sb20:sb20 \
+             sb20mix:sbbanc-sb20mix:sb20-mix pro1:sbbanc-sbpro1:sbpro1; do
+    IFS=: read -r nom cles cfg <<<"$SBC"
+    mapfile -t SBK < tools/sbbanc/$cles.keys
+    SBB=(); for l in "${SBK[@]}"; do SBB+=(--type "$l"); done
+    run banc-sbbanc-$nom$m "${h[@]}" banc tools/gates/bancs/sbbanc-$nom.attendus -- --boot roms 11000 \
+      --config $C/pc-$cfg.cfg --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" \
+      "${SBB[@]}" --type "@wait 3000" --type "@son"
+  done
+done
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

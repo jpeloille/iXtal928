@@ -12847,3 +12847,61 @@ contre M2-8d3c, 1 496 méthodes de part et d'autre ; six changées, aucune dispa
 faux, sont pliées. Les constructeurs statiques de `materiel` et `ModeMateriel` (les drapeaux et les libellés de PB-21
 et PB-293). Les jetons de chaînes seuls : `process_scsi`, `scsi_hd_command`, `scsi_zip_command`, `emu8k_init` ; rien
 d'autre n'y change.
+
+## G13.8g2a — les six SBBANC en C# seul
+
+Le 17 octobre 2026. La première moitié de 8g2 (la clôture du son, PLAN-G13.md § G13.8g ; l'étude,
+`/var/tmp/ixtal-g13/etude-8g.md`, hors du dépôt) : les six bancs SBBANC, joués jusqu'ici contre l'oracle seul par
+boot-diff, passent en C# seul dans les deux modes, à la manière des bancs de la vidéo en 9g. De l'outillage seul :
+l'émulateur ne change pas, ni M2 ni la série entière ; un sous-ensemble ciblé.
+
+**Le scénario de PB-146 corrigé** (`tools/sbbanc/sbbanc.py`, `script_g12`). Le registre le demandait : 7Dh passé
+après 48h 7Fh 01h ne distinguait pas les deux comportements (les octets « périmés » y étaient la taille du bloc). Le
+banc intercale 40h A5h, puis, par une op neuve (10), guette l'IRR du 8259 (OCW3 0Ah, IN 20h ; les lignes 5 et 7,
+l'IRQ masquée à l'IMR) et relit le compte du canal 1 (la bascule à zéro, IN 03h deux fois) : trois relevés. La SB 1.0,
+sans 7Dh, garde le scénario d'avant. Les six `.keys` sont régénérés (le programme grandit de l'op 10, la Pro v2 et la
+1.0 comprises).
+
+**Les attendus** (`tools/gates/bancs/sbbanc-{pro2,sb1,sb15,sb20,sb20mix,pro1}.attendus`, chaque octet qui change
+expliqué, sa source à côté ; l'ancre « |B>SBBANC », puis les lignes des relevés). Mesurés, et tels que l'étude les
+prédisait :
+- la Pro v2 et la Pro v1 : 22h relu après le reset du mélangeur, EEh en mode PCem, 88h en mode matériel (PB-237,
+  −11 dB ; guide, p. 4-9) ;
+- la 2.0 et son CT1335 : 0Ah relu après le reset, 06h contre 00h (PB-237, −46 dB ; p. 4-5) ;
+- la 1.5, la 2.0, la 2.0 et son CT1335, la Pro v1 : à la première IRQ de 7Dh, l'IRR 80h et le compte du canal 1,
+  0259h en mode PCem (1A6h octets pris : 7Dh prend A5h, de 40h, et 01h, resté de 48h, pour la taille du bloc), 027Eh
+  en mode matériel (181h : le bloc de 48h et l'octet de référence de PB-146, la fin de bloc du 2.02 de PB-234,
+  ensemble sous le domaine son ; la contre-lecture K6 de PB-146) ; sous PB-146 seul, 027Fh (180h), une liste
+  qu'aucune porte ne joue ;
+- la 1.0 : aucun octet ne change.
+Sous « tout », les mêmes relevés que sous le domaine son.
+
+**Les configurations.** `--boot` n'a pas d'option de la carte son : cinq `tools/gates/cfg/pc-sb*.cfg` neufs, le 5150
+des portes et la carte ; la 2.0 y pose `irq = 7`, et `pc-sb20-mix.cfg` aussi (sans clé, le mode matériel prend l'IRQ 5
+d'usine, PB-290 ; le banc guette les lignes 5 et 7, mais l'IRR relevé dirait 20h : la règle de Q23, les bancs posent
+ce que posent les profils). En mode PCem, l'IRQ 7 est celle de PCem : `bd-pc-sb20mix-banc` rejoue la même machine.
+
+**Les portes** (`tools/gates/series.sh`, section G13.8g2a) : douze, `banc-sbbanc-{pro2,sb1,sb15,sb20,sb20mix,pro1}`
+et leurs `-materiel` (`--hardware-mode son`), `@son` en fin de scénario (l'état de la carte et l'empreinte du son
+entrent dans la comparaison des deux séances, sans attendu écrit). Le sous-ensemble (`/tmp/a9/sub8g2a.sh`, le
+worktree de l'étape, l'oracle reconstruit) : les douze portes, les six `bd-pc-*-banc` qui rejouent les programmes
+neufs contre l'oracle, le recensement ; en mode PCem, toutes vertes ; sous `MATERIEL=tout`, les douze vertes, les six
+boot-diff refusées (l'oracle est PCem), le recensement vert.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8g2a.sh`) : les attendus des deux modes échangés, la Pro v1 sous le domaine
+son rougit (2 échecs), de même en mode PCem (2) ; un octet changé (le compte 027Eh attendu 027Dh), 1 ; la 2.0 et son
+CT1335 sans l'IRQ 7 posée, 1 (l'IRR 20h) ; le scénario d'avant (les `.keys` de HEAD), la 1.5, 2 ; la 1.5 sous PB-146
+seul, 1 (027Fh). Le témoin, la 1.5 sous le domaine son, vert.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle refait l'encodage de l'op 10 sur le listing, la chaîne des
+`case`, le compte des relevés de chaque script contre les en-têtes des attendus, 3FFh − 1A6h et 3FFh − 181h, les
+valeurs des mélangeurs, les noms des portes, des clés et des configurations, et régénère les six `.keys`, identiques à
+ceux du dépôt). Reprises, du texte des attendus : « les six corrections de l'ADPCM », que le registre ne dit pas (le
+bloc et l'octet de référence de PB-146, la fin de bloc de PB-234) ; ce que 7Dh prend pour la taille du bloc (A5h, de
+40h, et 01h, resté de 48h) ; la page du CT1345, p. 4-9 seule, comme l'entrée de PB-237 ; une ligne qui commençait par
+« ; ». Les douze portes rejouées après les reprises, vertes dans les deux modes. Vus : le compte relu dépend des
+quelques instructions entre l'IRR vu et la lecture de 03h (25 µs au plus, un octet du DMA toutes les 180 µs) ; les
+deux séances sont identiques, mais un changement des temps du processeur pourrait le déplacer d'un octet, et le dirait
+en rouge. L'IMR qui masque les lignes 5 et 7 est celle que pose le BIOS du 5150.
+
+M2 : sans objet, l'émulateur ne change pas.
