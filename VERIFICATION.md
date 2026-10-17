@@ -12667,3 +12667,64 @@ constructeurs statiques de `materiel`, `ModeMateriel` et `sound_sb` (le drapeau 
 neuves de `sb_16_config` et `sb_awe32_config`). Les jetons de chaînes seuls (l'étape ajoute des chaînes à
 l'émulateur) : `process_scsi` (sept), `scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ;
 rien d'autre n'y change, ligne pour ligne.
+
+## G13.8d3b — les cavaliers des SB 1.x, 2.0 et Pro
+
+Le 17 octobre 2026. La suite de 8d3a, selon les manuels de Creative trouvés pour Q24
+(`/var/tmp/ixtal-g13/manuels-creative/RAPPORT.md`, hors du dépôt) : deux PB neufs, PB-290 et PB-291.
+
+**La liste du mode** (`PluginApi/device.cs`). `device_get_config_int_liste` lit une clé dont la liste suit le mode :
+celle de la table sans liste donnée (le mode PCem, à l'identique de `device_get_config_int`), celle de la carte en mode
+matériel ; le refus hors de la liste, vers le défaut de la table, avec l'avertissement de PB-93 (`config_hors_liste`,
+qui prend la liste en paramètre).
+
+**PB-290**, neuf (`Sound/sound_sb.cs`, `sound_sb.Materiel.cs`). Sous `if (materiel.pb_290)`, dans `sb_1_init`,
+`sb_15_init` et `sb_2_init` : la liste de `dma` n'a que le DMA 1 (`dma_un_materiel` ; URM de la 1.5, p. 63-64 ; guide de
+la 2.0, 4e éd., p. 1-6 et B-4) ; `dma = 3` est refusée, avertie. Dans `sb_2_init`, le défaut de l'IRQ, sans clé ou hors
+de sa liste, est l'usine, 5 (`irq_usine_sb2_materiel` ; p. 1-6), lu par `device_get_config_int_defaut`.
+
+**PB-291**, neuf. Sous `if (materiel.pb_291)`, dans `sb_pro_v1_init` et `sb_pro_v2_init` : la liste de `dma` a 0, 1 et
+3 (`dma_pro_materiel` ; Getting Started, CSBPP-002, p. 6 et 8). Le DMA 0 passe par la rallonge de l'AT, comme l'IRQ 10
+(PB-92) : sur un PC ou un XT, non modélisé ; la carte veut un emplacement 16 bits et un AT.
+
+**Les cas.** `materiel-cas PB-290`, sept : la 1.0 à `dma = 3`, le canal relu puis 14h 07h 00h sur le canal 1 programmé
+seul (PCem lit le canal 3, aucune IRQ ; la carte, le DMA 1, l'IRQ au 8e tic) ; la 1.5 à `dma = 3`, de même ; la 2.0 sans
+clé, et à `irq = 10`, hors de sa liste (IRQ 7 contre 5) ; la 2.0 à `dma = 3`, comme la 1.0 ; témoins, la 2.0 à l'IRQ 3
+(14h sur le canal 1) et la 1.0 à l'IRQ 2. `materiel-cas PB-291`, quatre : la Pro v2 à `dma = 0`, 14h sur le canal 0
+(PCem refuse la clé, le DMA 1, aucune IRQ ; la carte, l'IRQ au 8e tic) ; la Pro v1 à `dma = 0`, de même ; témoins,
+`dma = 3` (14h sur le canal 3) et `dma = 2`, refusé partout. Quatre portes neuves. Le banc (`AvecSb`) pose l'IRQ 7 à la
+SB 2.0 sans section, comme à la SB 16 et à l'AWE32 (Q23). `r9-sbcfg` suit le mode (le DMA 3 de la 1.0, l'IRQ de la 2.0,
+un essai neuf, le DMA 0 de la Pro v1). Verts en mode PCem, sous PB-290, PB-291 et « tout ». Recensement : 291 défauts,
+1 273 marqueurs. `couverture-materiel` sous « tout » : 197 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8d3b.py`) : les gardes du DMA 1 seul coupées, `materiel-cas PB-290` sous
+PB-290 rougit (3 échecs) ; la garde de l'IRQ d'usine de la 2.0, 2 ; les gardes du DMA 0 de la Pro, `materiel-cas
+PB-291` sous PB-291, 2 et la sonde ; la liste de la Pro sans le DMA 0, 2 ; la liste du mode ignorée par le refus, 3 ;
+l'usine de la 2.0 à l'IRQ 7, 2 ; la liste des 1.x et 2.0 avec le DMA 3, 3 ; le refus de la liste du mode vers 0, 3 ;
+l'IRQ de la 2.0 sans sa clé, `materiel-cas PB-290` en mode PCem, 1 ; un marqueur de PB-290 dit reproduit, le
+recensement (1 écart). La correction coupée par le masque (`--attendu materiel` en mode PCem) : PB-290, 5 échecs ;
+PB-291, 2.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle compare `device_get_config_int_liste` sans liste à
+`device_get_config_int` — la valeur, le défaut, l'avertissement —, la lecture de l'IRQ de la 2.0 avant et après, le
+défaut de la table dans les listes du mode, les sources à RAPPORT.md, `DmaBas` et les attendus, les autres lecteurs de
+`dma` et `irq`, et les cas qui passent par `AvecSb` sans section). Reprises : « la carte exige un AT (p. 5) » mêlait
+deux sources (la p. 5 du Getting Started dit l'emplacement 16 bits, l'URM SBP-0002 l'AT) ; la 1.5 et la Pro v1, relues
+seulement, jouent aussi 14h sur leur canal. Laissés : un témoin « SB 2.0, `irq = 5` » en mode PCem, non nécessaire.
+
+**Les séries** (le worktree de 8d3b, la DLL Release figée, `S-g8d3b`). En mode PCem, g8d3b (13 h 30 à 14 h 43) :
+735 vertes ; contre g8d3a, changent le recensement (291 défauts, 1 273 marqueurs) et la couverture (197 corrections),
+et s'ajoutent les quatre portes de PB-290 et PB-291. Sous « tout », g8d3b-tout (14 h 43 à 15 h 03) : 496 vertes, 228
+refusées, 11 `pcem`, aucune rouge ; contre g8d3a-tout, les mêmes écarts. Les reprises de la contre-lecture sont venues
+après la DLL des séries : sept portes rejouées (`PORTES` : les quatre de PB-290 et PB-291, `r9-sbcfg`, le recensement,
+la couverture), le Release reconstruit, en mode PCem puis sous `MATERIEL=tout` : toutes vertes.
+
+**M2-8d3b** (le Release du worktree, reconstruit avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8d3a, 1 494 méthodes de part et d'autre ; huit changées, deux disparues, deux apparues. Voulues :
+`config_hors_liste` prend la liste du mode (l'ancienne signature et sa fermeture disparaissent, la neuve et la sienne
+apparaissent) ; `device_get_config_int` et `device_get_config_int_defaut` lui passent `null` (un `xor rcx, rcx`, puis
+le saut vers la neuve, deux octets de plus) — le mode PCem inchangé. Les constructeurs statiques de `materiel` et
+`ModeMateriel` (les drapeaux et les libellés de PB-290 et PB-291). Les jetons de chaînes seuls : `process_scsi` (sept),
+`scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ; rien d'autre n'y change. `sb_1_init`,
+`sb_15_init`, `sb_2_init`, `sb_pro_v1_init` et `sb_pro_v2_init` ne sont compilés par aucun scénario (appelés une fois,
+au montage) ; `device_get_config_int_liste`, leur seul appelant, non plus.

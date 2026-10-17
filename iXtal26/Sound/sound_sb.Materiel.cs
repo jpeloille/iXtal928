@@ -552,4 +552,35 @@ internal static partial class sound_sb
                                     $"mode matériel : l'EMU8000 suit la base du DSP (addr + 400h = {emu:X}h).");
         return emu;
     }
+
+    // ===== G13.8d3b — les cavaliers des SB 1.x, 2.0 et Pro =====
+
+    /// <summary>PB-290 : la liste du DMA des SB 1.0, 1.5 et 2.0 — le canal 1 seul, « not selectable » (URM de la 1.5,
+    /// p. 63-64 ; guide de la 2.0, 4e éd., p. 1-6 et B-4, le seul cavalier DRQ1) ; PCem offre aussi le DMA 3. Une clé
+    /// dma = 3 est refusée, vers le DMA 1, avec l'avertissement de la liste.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int[] dma_un_materiel()
+    {
+        ModeMateriel.Sonde[290]++;
+        return [1];
+    }
+
+    /// <summary>PB-290 : le défaut de l'IRQ de la SB 2.0, sans clé ou hors de sa liste — l'usine, 5 (guide de la 2.0,
+    /// 4e éd., p. 1-6 et 2-1 ; la CT1350B) ; PCem prend l'IRQ 7, celle de la 1.5.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int irq_usine_sb2_materiel()
+    {
+        ModeMateriel.Sonde[290]++;
+        return 5;
+    }
+
+    /// <summary>PB-291 : la liste du DMA de la SB Pro — 0, 1 ou 3, les cavaliers DRQ0/DACK0 compris (Getting Started,
+    /// CSBPP-002, p. 6 et 8 ; URM SBP-0002, p. 2-7) ; PCem n'offre que 1 et 3. Le DMA 0 passe par la rallonge de l'AT,
+    /// comme l'IRQ 10 (PB-92) : la carte exige un AT.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int[] dma_pro_materiel()
+    {
+        ModeMateriel.Sonde[291]++;
+        return [0, 1, 3];
+    }
 }

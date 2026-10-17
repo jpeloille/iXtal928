@@ -2254,3 +2254,23 @@ Julien à Q17 : la documentation du matériel tranche.*
   pas.
 - **La correction.** En mode matériel, la puce suit la base ; le réglage de PCem, s'il dit autre chose, est ignoré
   avec un avertissement.
+
+## G13.8d3b — les cavaliers des Sound Blaster 1.x, 2.0 et Pro
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8 (Q24), `VERIFICATION.md` § G13.8d3b.*
+
+### PB-290 — les SB 1.x et 2.0, le DMA 1 seul
+
+- **Le vrai PC.** Les Sound Blaster 1.0, 1.5 et 2.0 n'ont qu'un canal DMA, le 1 : leur manuel le dit « not
+  selectable », et leur seul cavalier, DRQ1, l'active ou le coupe. La 2.0 sort d'usine à l'IRQ 5.
+- **L'émulateur.** PCem offre aussi le DMA 3 ; une carte réglée ainsi lit un canal qu'elle n'atteindrait pas. Sa 2.0
+  part de l'IRQ 7, celle de la 1.5 — et celle de l'imprimante.
+- **La correction.** En mode matériel, le DMA 3 est refusé, avec un avertissement, et la carte reste au DMA 1 ; la 2.0
+  sans réglage est à l'IRQ 5.
+
+### PB-291 — le DMA 0 de la Pro
+
+- **Le vrai PC.** La Sound Blaster Pro règle son DMA sur 0, 1 ou 3 : les cavaliers DRQ0 et DACK0 sont dessinés sur la
+  carte, et passent par la rallonge 16 bits de l'AT.
+- **L'émulateur.** PCem n'offre que 1 et 3 ; le DMA 0, écrit à la main dans la configuration, est refusé.
+- **La correction.** En mode matériel, le DMA 0 est permis, comme sur la carte.

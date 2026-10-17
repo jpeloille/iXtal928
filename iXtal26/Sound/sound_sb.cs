@@ -1198,7 +1198,11 @@ internal static partial class sound_sb
         sb_dsp_init(sb.dsp, SB1, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
         sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
-        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int[]? dma_liste = null;
+        // pcem bug, fixed in hardware mode: PB-290 — le DMA 3 de PCem ; la carte n'a que le DMA 1 (URM 1.5, p. 63-64).
+        if (materiel.pb_290)
+                dma_liste = dma_un_materiel();
+        sb_dsp_setdma8(sb.dsp, device_get_config_int_liste("dma", dma_liste));
         /* CMS I/O handler is activated on the dedicated sound_cms module
            DSP I/O handler is activated in sb_dsp_setaddr */
         io_sethandler((uint16_t)(addr + 8), 0x0002, opl2_read, null, null, opl2_write, null, null, sb.opl);
@@ -1223,7 +1227,11 @@ internal static partial class sound_sb
         sb_dsp_init(sb.dsp, SB15, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
         sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
-        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int[]? dma_liste = null;
+        // pcem bug, fixed in hardware mode: PB-290 — le DMA 3 de PCem ; la carte n'a que le DMA 1 (URM 1.5, p. 63-64).
+        if (materiel.pb_290)
+                dma_liste = dma_un_materiel();
+        sb_dsp_setdma8(sb.dsp, device_get_config_int_liste("dma", dma_liste));
         /* CMS I/O handler is activated on the dedicated sound_cms module
            DSP I/O handler is activated in sb_dsp_setaddr */
         io_sethandler((uint16_t)(addr + 8), 0x0002, opl2_read, null, null, opl2_write, null, null, sb.opl);
@@ -1259,8 +1267,16 @@ internal static partial class sound_sb
         opl2_init(sb.opl);
         sb_dsp_init(sb.dsp, SB2, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
-        sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
-        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int irq_defaut = 7;
+        // pcem bug, fixed in hardware mode: PB-290 — sans clé, l'IRQ 7 ; la 2.0 sort d'usine à l'IRQ 5 (guide, p. 1-6).
+        if (materiel.pb_290)
+                irq_defaut = irq_usine_sb2_materiel();
+        sb_dsp_setirq(sb.dsp, device_get_config_int_defaut("irq", irq_defaut));
+        int[]? dma_liste = null;
+        // pcem bug, fixed in hardware mode: PB-290 — le DMA 3 de PCem ; la carte n'a que le DMA 1 (guide, p. B-4).
+        if (materiel.pb_290)
+                dma_liste = dma_un_materiel();
+        sb_dsp_setdma8(sb.dsp, device_get_config_int_liste("dma", dma_liste));
         // pcem bug, fixed in hardware mode: PB-145 — le mélangeur remis à zéro même sans mixaddr : le CD à 20/65535.
         sb_ct1335_mixer_reset(sb);
         /* CMS I/O handler is activated on the dedicated sound_cms module
@@ -1299,7 +1315,11 @@ internal static partial class sound_sb
         sb_dsp_init(sb.dsp, SBPRO, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
         sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
-        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int[]? dma_liste = null;
+        // pcem bug, fixed in hardware mode: PB-291 — PCem n'offre pas le DMA 0 de la carte (Getting Started, p. 8).
+        if (materiel.pb_291)
+                dma_liste = dma_pro_materiel();
+        sb_dsp_setdma8(sb.dsp, device_get_config_int_liste("dma", dma_liste));
         sb_ct1345_mixer_reset(sb);
         /* DSP I/O handler is activated in sb_dsp_setaddr */
         io_sethandler((uint16_t)(addr + 0), 0x0002, opl2_l_read, null, null, opl2_l_write, null, null, sb.opl);
@@ -1442,7 +1462,11 @@ internal static partial class sound_sb
         sb_dsp_init(sb.dsp, SBPRO2, SB_SUBTYPE_DEFAULT, sb);
         sb_dsp_setaddr(sb.dsp, addr);
         sb_dsp_setirq(sb.dsp, device_get_config_int("irq"));
-        sb_dsp_setdma8(sb.dsp, device_get_config_int("dma"));
+        int[]? dma_liste = null;
+        // pcem bug, fixed in hardware mode: PB-291 — PCem n'offre pas le DMA 0 de la carte (Getting Started, p. 8).
+        if (materiel.pb_291)
+                dma_liste = dma_pro_materiel();
+        sb_dsp_setdma8(sb.dsp, device_get_config_int_liste("dma", dma_liste));
         sb_ct1345_mixer_reset(sb);
         /* DSP I/O handler is activated in sb_dsp_setaddr */
         io_sethandler((uint16_t)(addr + 0), 0x0004, opl3_read, null, null, opl3_write, null, null, sb.opl);
@@ -1607,6 +1631,7 @@ internal static partial class sound_sb
 
     // pcem: sound_sb.c:1134-1160 — G12.0, les SB 1.0 et 1.5. omitted: `.description`, et l'entrée terminale
     //   `{.description = ""}` de chaque liste (la longueur du tableau en tient lieu, comme sb_pro_v2_config).
+    //   G13.8d3b : en mode matériel, `dma` n'a que le DMA 1 (PB-290, dma_un_materiel).
     internal static readonly device_config_t[] sb_config =
     [
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
@@ -1620,7 +1645,8 @@ internal static partial class sound_sb
         new device_config_t { type = -1 },
     ];
 
-    // pcem: sound_sb.c:1162-1190 — G12.0, la SB 2.0. « No mixer » (0) est une vraie entrée de la liste.
+    // pcem: sound_sb.c:1162-1190 — G12.0, la SB 2.0. « No mixer » (0) est une vraie entrée de la liste. G13.8d3b : en
+    //   mode matériel, `dma` n'a que le DMA 1, et l'IRQ sans clé est l'usine, 5 (PB-290).
     internal static readonly device_config_t[] sb2_config =
     [
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
@@ -1636,7 +1662,8 @@ internal static partial class sound_sb
 
     // omitted: sb_mcv_config (sound_sb.c:1192-1206) — la SB MCV, exclue.
 
-    // pcem: sound_sb.c:1208-1228 — G12.0, la SB Pro v1. L'IRQ 10 est dans la liste (PB-92).
+    // pcem: sound_sb.c:1208-1228 — G12.0, la SB Pro v1. L'IRQ 10 est dans la liste (PB-92). G13.8d3b : en mode
+    //   matériel, `dma` a aussi le DMA 0 (PB-291, dma_pro_materiel).
     internal static readonly device_config_t[] sb_pro_v1_config =
     [
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,
@@ -1649,7 +1676,8 @@ internal static partial class sound_sb
     ];
 
     // pcem: sound_sb.c:1230-1259. omitted: `.description`. Les listes `selection` (G8.3) :
-    //   device_get_config_int y valide la valeur de la section [Sound Blaster Pro v2] du .cfg.
+    //   device_get_config_int y valide la valeur de la section [Sound Blaster Pro v2] du .cfg. G13.8d3b : en mode
+    //   matériel, `dma` a aussi le DMA 0 (PB-291, dma_pro_materiel).
     internal static readonly device_config_t[] sb_pro_v2_config =
     [
         new device_config_t { name = "addr", type = CONFIG_SELECTION, default_int = 0x220,

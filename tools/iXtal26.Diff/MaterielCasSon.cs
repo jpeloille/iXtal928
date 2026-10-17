@@ -23,8 +23,9 @@ internal static partial class MaterielCas
 
     /// <summary>L'ami486 et la carte <paramref name="carte"/> (le nom interne de sound.cs), réglée par
     /// <paramref name="section"/> (la section de son device, ou rien), puis le corps sur son DSP ; l'empreinte MIDI remise
-    /// à zéro ; la machine fermée ensuite. Sans section, la SB 16 et l'AWE32 sont à l'IRQ 7, comme les profils du dépôt
-    /// (Q23) : l'IRQ 5 d'usine du mode matériel (G13.8d3a) a ses cas, qui donnent leur section.</summary>
+    /// à zéro ; la machine fermée ensuite. Sans section, la SB 16, l'AWE32 et la SB 2.0 sont à l'IRQ 7, comme les
+    /// profils du dépôt (Q23) : l'IRQ 5 d'usine du mode matériel (G13.8d3a, G13.8d3b) a ses cas, qui donnent leur
+    /// section.</summary>
     private static int AvecSb(string carte, Func<sb_dsp_t, int> corps, string? section = null) => AvecCd(d =>
     {
         var cfg = Path.Combine(d, "sb.cfg");
@@ -32,6 +33,7 @@ internal static partial class MaterielCas
         {
             "sb16" => "[Sound Blaster 16]\nirq = 7\n",
             "sbawe32" => "[Sound Blaster AWE32]\nirq = 7\n",
+            "sb2.0" => "[Sound Blaster v2.0]\nirq = 7\n",
             _ => "",
         };
         File.WriteAllText(cfg, $"model = ami486\ncpu = 10\nmem_size = 4096\ngfxcard = tvga9000b\nsndcard = {carte}\n{section}");

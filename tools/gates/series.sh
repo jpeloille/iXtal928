@@ -897,6 +897,12 @@ run materiel-cas-pb285-pb154 --hardware-mode PB-154,PB-238,PB-285 materiel-cas P
 # base du DSP + 400h).
 run materiel-cas-pb289 materiel-cas PB-289
 run materiel-cas-pb289-materiel --hardware-mode PB-289 materiel-cas PB-289
+# G13.8d3b — les cavaliers des SB 1.x, 2.0 et Pro (Q24, les manuels de Creative) : PB-290 (le DMA 1 seul des 1.x et
+# 2.0, l'IRQ 5 d'usine de la 2.0), PB-291 (le DMA 0 de la Pro) ; r9-sbcfg suit le mode.
+run materiel-cas-pb290 materiel-cas PB-290
+run materiel-cas-pb290-materiel --hardware-mode PB-290 materiel-cas PB-290
+run materiel-cas-pb291 materiel-cas PB-291
+run materiel-cas-pb291-materiel --hardware-mode PB-291 materiel-cas PB-291
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

@@ -1768,6 +1768,7 @@ plus, un avertissement de configuration de l'hôte.
 *G12.0* : la SB Pro v1 propose aussi l'IRQ 10 (`sound_sb.c:1220`) ; les SB 1.0, 1.5 et 2.0 ne la proposent pas
 (`:1149-1153`, `:1179-1183`).
 *Non corrigé en mode matériel* : sans objet, (d), comme le dit le champ *G13*.
+*G13.8d3b* : le DMA 0 de la Pro, qui passe par la même rallonge et que PCem n'offre pas, est PB-291.
 
 ### PB-94 — La souris PS/2 ne répond pas aux commandes qu'elle ne connaît pas
 
@@ -6816,6 +6817,54 @@ E42h, FFh) ; la carte, en 640h (E42h relu 45h).
 autrement, un avertissement, et elle ne vaut pas. `materiel-cas PB-289` : l'AWE32 en 240h sans `emu_addr` (E22h relu
 45h chez PCem, E42h sur la carte) ; en 220h avec `emu_addr = 660h` (E62h chez PCem, E22h sur la carte) ; témoin, 220h
 sans clé (E22h des deux côtés).
+
+### PB-290 — Les SB 1.x et 2.0 offrent le DMA 3, et la 2.0 sort à l'IRQ 7
+
+`sound_sb.c:1134-1160` (`sb_config`, les SB 1.0 et 1.5) et `:1162-1190` (`sb2_config`, la 2.0) : `dma` offre 1 ou 3 ;
+l'IRQ de la 2.0, sans clé, est 7, celle de la 1.5. `sb_1_init`, `sb_15_init` et `sb_2_init` (`:867-968`) prennent la
+valeur telle quelle.
+*Effet* : une SB 1.x ou 2.0 réglée au DMA 3 sert un canal que la carte n'atteint pas ; la 2.0 sans clé est à l'IRQ 7,
+celle de l'imprimante, quand la carte sort à l'IRQ 5.
+*Trouvé par* : le relevé des cavaliers de G13.8d3 (16/10), tranché par les manuels de Creative (Q24).
+*Source* : *Sound Blaster Version 1.5 User Reference Manual* (Creative, 1989-1990), p. 63-64 : « The DMA channel used
+by the Sound Blaster is not selectable » (le canal 1 ; le cavalier DRQ1 ne fait que l'activer) ; *Sound Blaster User's
+Guide*, 4e éd. (Creative, 1994, la 2.0, CT1350B), p. 1-6 (« The audio card uses DMA channel one », « Interrupt 5 »),
+p. 2-1 et p. B-4 (le DMA 1 d'usine, le seul cavalier DRQ1). Documenté. La 1.0 (CT1310), sans manuel propre, rangée
+avec la 1.5 par le guide de programmation (p. A-2).
+*Cas qui discrimine* : SB 1.0, `dma = 3`, 14h 07h 00h sur le canal 1 programmé seul : PCem lit le canal 3, aucune IRQ ;
+la carte refuse la clé (le DMA 1, averti) et lève l'IRQ au 8e tic. La 2.0 sans clé : IRQ 7 chez PCem, 5 sur la carte.
+*G13* : (a) — documenté.
+*Reproduit en mode PCem* : `Sound/sound_sb.cs`, `sb_1_init`, `sb_15_init` et `sb_2_init` (deux sites), marqueur
+PB-290.
+*Corrigé en mode matériel* (G13.8d3b) : sous `if (materiel.pb_290)`, la liste de `dma` n'a que le DMA 1
+(`dma_un_materiel`, lue par `device_get_config_int_liste`) : `dma = 3` est refusée, vers le DMA 1, avec l'avertissement
+de la liste ; dans `sb_2_init`, le défaut de l'IRQ, sans clé ou hors de sa liste, est l'usine, 5
+(`irq_usine_sb2_materiel`, `Sound/sound_sb.Materiel.cs`). `materiel-cas PB-290` : la 1.0 à `dma = 3` (le canal relu,
+puis 14h sur le canal 1 : aucune IRQ chez PCem, au 8e tic sur la carte) ; la 1.5 de même ; la 2.0 sans clé et à
+`irq = 10`, hors de sa liste (IRQ 7 contre 5) ; la 2.0 à `dma = 3`, comme la 1.0 ; témoins, la 2.0 à l'IRQ 3 (14h sur le
+canal 1, l'IRQ au 8e tic) et la 1.0 à l'IRQ 2. `r9-sbcfg` suit le mode.
+
+### PB-291 — La SB Pro n'offre pas le DMA 0
+
+`sound_sb.c:1208-1228` (`sb_pro_v1_config`) et `:1230-1259` (`sb_pro_v2_config`) : `dma` offre 1 ou 3. La valeur 0, que
+rien n'offre, n'existe que par un .cfg édité à la main ; iXtal la refuse alors, vers le DMA 1 (PB-93).
+*Effet* : une Pro réglée sur le canal 0, comme le permet la carte, ne se configure pas : elle reste au DMA 1.
+*Trouvé par* : le relevé des cavaliers de G13.8d3 (16/10), tranché par les manuels de Creative (Q24).
+*Source* : *Creative Sound Blaster Pro Package — Getting Started* (CSBPP-002, août 1992), p. 6 (les cavaliers DRQ0,
+DRQ1, DRQ3 et DACK0, DACK1, DACK3, figure 1) et p. 8 (« There are three DMA channels available: 0, 1 (default) and
+3 »), p. 22 ; *Sound Blaster Pro User Reference Manual* (SBP-0002, février 1992), p. 2-7. Documenté. Le DMA 0 passe par
+la rallonge de l'AT (DRQ0 et DACK0, D8 et D9 ; IBM, *Technical Reference, Personal Computer AT*, p. 1-21), comme l'IRQ
+10 (PB-92) : la carte veut un emplacement 16 bits (Getting Started, p. 5) et un AT (URM SBP-0002, la configuration
+requise).
+*Cas qui discrimine* : Pro v2, `dma = 0`, 14h 07h 00h sur le canal 0 programmé seul : PCem (iXtal) refuse la clé, lit le
+canal 1, aucune IRQ ; la carte lève l'IRQ au 8e tic.
+*G13* : (a) — documenté.
+*Reproduit en mode PCem* : `Sound/sound_sb.cs`, `sb_pro_v1_init` et `sb_pro_v2_init`, marqueur PB-291.
+*Corrigé en mode matériel* (G13.8d3b) : sous `if (materiel.pb_291)`, la liste de `dma` a 0, 1 et 3
+(`dma_pro_materiel`, `Sound/sound_sb.Materiel.cs`, lue par `device_get_config_int_liste`). Sur un PC ou un XT, le canal
+0 de la rallonge ne serait relié à rien : non modélisé, comme l'IRQ 10 (PB-92) ; la carte exige un AT. `materiel-cas
+PB-291` : la Pro v2 à `dma = 0` (le canal relu, puis 14h sur le canal 0 : aucune IRQ chez PCem, au 8e tic sur la
+carte) ; la Pro v1 de même ; témoins, `dma = 3` (14h sur le canal 3) et `dma = 2`, refusé partout.
 
 ## B. Comportement indéfini en C
 

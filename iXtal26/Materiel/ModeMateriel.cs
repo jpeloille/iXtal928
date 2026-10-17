@@ -234,6 +234,8 @@ internal static class ModeMateriel
         new(287, "processeur", "MOV CR0 avec NW = 1 et CD = 0 lève #GP(0), CR0 inchangé (486)"),
         new(288, "son", "40h, 41h et 42h du DSP 4.xx pendant un transfert : le registre va au codec au départ suivant"),
         new(289, "son", "l'EMU8000 de l'AWE32 à la base du DSP + 400h, sans réglage à part"),
+        new(290, "son", "les SB 1.x et 2.0 sur le DMA 1 seul ; l'IRQ 5 d'usine de la 2.0"),
+        new(291, "son", "le DMA 0 de la SB Pro"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

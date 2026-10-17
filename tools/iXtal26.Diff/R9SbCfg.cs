@@ -55,15 +55,24 @@ internal static class R9SbCfg
             }, () => Sound.sound_sb.sb_pri is { } sb ? $"{sb.dsp.sb_addr:X}h, IRQ {sb.dsp.sb_irqnum}, DMA {sb.dsp.sb_8_dmanum}" : "-");
 
         // G12.0 — les quatre cartes 8 bits. « mixaddr » : l'adresse où l'index écrit se relit (le CT1335 en
-        //   mixaddr + 4), « - » sans mélangeur à chercher, 0 quand ni 254h ni 264h ne répondent.
+        //   mixaddr + 4), « - » sans mélangeur à chercher, 0 quand ni 254h ni 264h ne répondent. G13.8d3b : sous
+        //   PB-290, le DMA 3 des 1.x refusé (le DMA 1, averti) et l'IRQ 5 d'usine de la 2.0 ; sous PB-291, le DMA 0 de
+        //   la Pro.
+        var dma3 = materiel.pb_290 ? 1 : 3;
+        var irq20 = materiel.pb_290 ? 5 : 7;
         var g12 = new (string carte, string device, string nom, string section, string attendu, int avertis)[]
         {
-            ("sb", "Sound Blaster v1.0", "SB 1.0 : 210h, IRQ 3, DMA 3", "addr = 528\nirq = 3\ndma = 3\n", "210h, IRQ 3, DMA 3, mixaddr -", 0),
+            ("sb", "Sound Blaster v1.0", "SB 1.0 : 210h, IRQ 3, DMA 3", "addr = 528\nirq = 3\ndma = 3\n",
+             $"210h, IRQ 3, DMA {dma3}, mixaddr -", materiel.pb_290 ? 1 : 0),
             ("sb", "Sound Blaster v1.0", "SB 1.0 : IRQ 10, DMA 2 hors liste", "irq = 10\ndma = 2\n", "220h, IRQ 7, DMA 1, mixaddr -", 2),
             ("sb1.5", "Sound Blaster v1.5", "SB 1.5 : base 270h hors liste", "addr = 624\n", "220h, IRQ 7, DMA 1, mixaddr -", 1),
-            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : le mélangeur en 260h", "mixaddr = 608\n", "220h, IRQ 7, DMA 1, mixaddr 260h", 0),
-            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : mixaddr 270h hors liste", "mixaddr = 624\n", "220h, IRQ 7, DMA 1, mixaddr 0", 1),
+            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : le mélangeur en 260h", "mixaddr = 608\n",
+             $"220h, IRQ {irq20}, DMA 1, mixaddr 260h", 0),
+            ("sb2.0", "Sound Blaster v2.0", "SB 2.0 : mixaddr 270h hors liste", "mixaddr = 624\n",
+             $"220h, IRQ {irq20}, DMA 1, mixaddr 0", 1),
             ("sbprov1", "Sound Blaster Pro v1", "Pro v1 : IRQ 10, base 260h hors liste", "irq = 10\naddr = 608\n", "220h, IRQ 10, DMA 1, mixaddr -", 1),
+            ("sbprov1", "Sound Blaster Pro v1", "Pro v1 : DMA 0", "dma = 0\n",
+             $"220h, IRQ 7, DMA {(materiel.pb_291 ? 0 : 1)}, mixaddr -", materiel.pb_291 ? 0 : 1),
         };
         foreach (var (carte, device, nom, section, attendu, avertis) in g12)
             bad += Essai(romsPath, nom, $"gfxcard = tvga9000b\nsndcard = {carte}\n\n[{device}]\n{section}", avertis, n++, () =>

@@ -287,22 +287,41 @@ internal static partial class device
         return 0;
     }
 
+    // DEVIATION: (G13.8d3b ; Q24 et la décision n° 17) un cavalier dont la liste suit le mode — celle de PCem en mode
+    //   PCem, celle de la carte en mode matériel : device_get_config_int, la liste donnée par l'appelant (sans elle,
+    //   celle de la table), le même refus, vers le défaut de la table.
+    internal static int device_get_config_int_liste(string s, int[]? liste)
+    {
+        device_config_t[] config = current_device.config;
+
+        for (int i = 0; config[i].type != -1; i++)
+        {
+            if (string.CompareOrdinal(s, config[i].name) == 0)
+                return config_hors_liste(config[i],
+                                         config_get_int(CFG_MACHINE, current_device.name, s, config[i].default_int),
+                                         config[i].default_int, liste);
+        }
+        return 0;
+    }
+
     // DEVIATION: valeur de configuration hors liste → défaut, comme l'interface de PCem
     //   l'impose. Le dialogue de PCem (wx-deviceconfig.cc:40-60) n'offre, pour une clé
     //   CONFIG_SELECTION, que les valeurs de sa liste `selection`, et pour une clé
     //   CONFIG_BINARY qu'une case à cocher (0 ou 1) ; une autre valeur n'existe que par un .cfg
     //   édité à la main, et PCem la prend telle quelle (device.c:99) — jusqu'à indexer hors de
-    //   ses tableaux (PB-93). Ici, le défaut du device (ou celui du mode, G13.8d3a), et
+    //   ses tableaux (PB-93). Ici, le défaut du device (ou celui du mode, G13.8d3a ; la liste du mode, G13.8d3b), et
     //   un avertissement sur la sortie d'erreur : section, clé, valeur rejetée, défaut
     //   retenu. L'oracle n'est pas touché ; les
     //   portes n'y mènent pas, r9-sbcfg le prouve en C# seul.
     private static readonly HashSet<string> config_hors_liste_avertis = new();
 
-    private static int config_hors_liste(device_config_t c, int val, int defaut)
+    private static int config_hors_liste(device_config_t c, int val, int defaut, int[]? liste = null)
     {
         bool dans_liste;
         if (c.type == CONFIG_BINARY)
                 dans_liste = val == 0 || val == 1;
+        else if (c.type == CONFIG_SELECTION && liste != null)
+                dans_liste = Array.IndexOf(liste, val) >= 0;
         else if (c.type == CONFIG_SELECTION && c.selection != null)
                 dans_liste = Array.Exists(c.selection, x => x.value == val);
         else
