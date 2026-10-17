@@ -6891,6 +6891,27 @@ attend ; les bancs aussi (`AvecScsi`, `r9-aha`, `reset-scsi-check`), sauf les ca
 sans clé et à `addr = 999` (334h, interrupteur 1, chez PCem ; 330h, 0, sur la carte) ; l'avertissement (rien chez
 PCem, averti sur la carte) ; témoin, `addr = 230h`.
 
+### PB-293 — Le haut-parleur de PCem prend le compte 0 du canal 2 pour un ton trop aigu
+
+`sound_speaker.c:25-26` (`speaker_update`) : hors des modes 0 et 4 du canal 2, `else if (pit.l[2] < 0x40) val =
+0xa00;` — un niveau continu, la moyenne du carré, pour les tons trop aigus que la sortie ne rendrait pas. Le compte 0
+y tombe.
+*Effet* : un canal 2 en mode 2 ou 3 à 0, le haut-parleur ouvert, sort un niveau continu de 0A00h, sans son,
+là où le 8254 compte 2^16 et joue un carré de 18,2 Hz. `pit_speaker_timer` (`pit.c:568`) lit déjà ce compte 0x10000
+et fait basculer `speakon` à 18,2 Hz ; `speaker_update` ne l'écoute pas.
+*Trouvé par* : l'étude de G13.8g (17/10), en relisant les lecteurs du compte 0 de PB-21.
+*Source* : Intel, fiche 8254 (231164-005), PDF p. 17 : « The largest possible initial count is 0; this is equivalent to
+2^16 for binary counting ». Documenté pour le compte 0 ; le niveau continu des comptes 1 à 3Fh est le modèle de PCem.
+*Cas qui discrimine* : le canal 2 en mode 3 à 0 (43h ← B6h, 42h ← 00h 00h), 61h ← 03h, puis `speaker_update` :
+0A00h chez PCem ; sur la carte, le carré de `speakon` (0000h ou 1400h). De même en mode 2 (43h ← B4h).
+*G13* : (a) — documenté, et la sortie devient celle que PCem donne déjà à tout compte de 40h et plus.
+*Reproduit en mode PCem* : `Sound/sound_speaker.cs`, `speaker_update`, marqueur PB-293.
+*Corrigé en mode matériel* (G13.8g1) : sous `if (materiel.pb_293)`, en fin de la branche du haut-parleur ouvert,
+`haut_parleur_materiel` (`Sound/sound_speaker.Materiel.cs`) rend, pour le compte 0 hors des modes 0 et 4, le carré de
+`speakon` (1400h ou 0). `materiel-cas PB-293` : les modes 3 et 2 à 0, `speakon` posé à 1 puis à 0 (0A00h chez PCem ;
+1400h puis 0000h sur la carte) ; témoins, égaux des deux côtés : les comptes 20h et 3Fh en mode 3 (0A00h), le mode 0
+à 0, `speakval` posé à 1234h (sa sortie).
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation
@@ -7066,15 +7087,21 @@ nominale aurait donné une tension.
 2^16 for binary counting », convention que PCem applique déjà dans `pit_load` (`pit.c:119`). Documenté pour le compte
 0 ; `speakval`, le rapport des comptes des canaux 2 et 0, est le modèle de PCem, sans pendant sur la carte.
 *Cas qui discrimine* : canal 0 chargé à 0 (43h ← 36h, 40h ← 00h 00h), canal 2 en mode 0 à FFFFh (43h ← B0h, 42h ← FFh
-FFh) : `speakval` vaut INT_MIN chez PCem (sortie 0 en mode 0), 1FFFh avec le compte 0 lu comme 65 536
-(`--speaker-check`).
+FFh) : `speakval` vaut INT_MIN chez PCem (sortie 0 en mode 0), 1FFFh avec le compte 0 lu comme 65 536 ; puis le canal
+2 à 0 : INT_MIN (0/0) contre 2000h, le compte 0 lu 65 536 au numérateur aussi (`materiel-cas PB-21`). L'entrée renvoyait
+jusqu'en G13.8g1 à `--speaker-check`, qui ne monte aucune machine : il synthétise le bip du POST pour le modèle du
+haut-parleur de l'hôte (`Host/SpeakerModel.cs`), sans PIT ni `speakval`.
 *G13* : (b) — la correction est certaine, mais la valeur audible reste celle du modèle de PCem.
 *Reproduit* : `Models/pit.cs`, `pit_write`, marqueur PB-21, avec la garde explicite qu'impose .NET — voir la
 `DEVIATION` sur place. C'est le seul endroit du dépôt où une conversion flottant→entier
 devait être écrite à la main : .NET **sature** (`(int)float.PositiveInfinity` vaut
 `int.MaxValue`, que le clamp ramène alors à 0x2000) là où x86 rend l'entier indéfini.
 Trouvé par la sonde `speaker-probe` de M9, au premier tir.
-*Non corrigé en mode matériel* : en attente de Q13 (G13.8g, la clôture du son ; PLAN-G13.md § G13.8).
+*Corrigé en mode matériel* (G13.8g1, Q13) : sous `if (materiel.pb_21)`, après le calcul de PCem, `speakval_materiel`
+(`Models/pit.Materiel.cs`) le refait avec le compte 0 lu 2^16, au dénominateur et au numérateur (la même phrase de la
+fiche) ; le quotient borné par 65 536, la conversion sans dépassement. Le commentaire PB-21 de `pit_write` (le
+marqueur passe à la garde) garde la `DEVIATION`, qui vaut pour le mode PCem. `materiel-cas PB-21` : les deux cas
+ci-dessus ; témoin, 8000h et 4000h, 0 des deux côtés.
 
 ### PB-24 — `rom_init` expose 12 Ko de tas non initialisé à l'invité
 

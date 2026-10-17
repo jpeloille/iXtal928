@@ -46,6 +46,7 @@ internal static class ModeMateriel
         new(7, "processeur", "un mot à cheval sur deux pages prend son octet haut dans la sienne, au repli de 1 Mo"),
         new(14, "stockage", "le débit de 300 kbit/s de la disquette : l'octet dure 80/3 µs"),
         new(19, "stockage", "en écriture hors DMA, l'octet que l'UC n'a pas fourni à temps pose OR"),
+        new(21, "son", "le compte 0 lu 65 536 dans speakval, aux deux comptes"),
         new(22, "stockage", "FORMAT TRACK du Xebec formate la piste désignée depuis son début"),
         new(23, "stockage", "l'octet de fin du Xebec porte le bit d'unité"),
         new(25, "stockage", "la tête égale au nombre de têtes est hors du disque (Xebec, AT)"),
@@ -237,6 +238,7 @@ internal static class ModeMateriel
         new(290, "son", "les SB 1.x et 2.0 sur le DMA 1 seul ; l'IRQ 5 d'usine de la 2.0"),
         new(291, "son", "le DMA 0 de la SB Pro"),
         new(292, "stockage", "l'AHA-1542C à son port d'usine, 330h"),
+        new(293, "son", "le compte 0 du canal 2 joue son carré de 18,2 Hz, hors des modes 0 et 4"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

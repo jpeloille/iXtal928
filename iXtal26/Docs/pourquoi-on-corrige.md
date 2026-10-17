@@ -2296,3 +2296,22 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **La correction.** Un réglage, `floppy`, dans les deux modes ; la carte le dit à qui lit ses interrupteurs. Le
   contrôleur de la machine répond aux disquettes à sa place.
 
+## G13.8g1 — le compte 0 du 8254 dans le haut-parleur
+
+*Le 17 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.8 (Q13), `VERIFICATION.md` § G13.8g1.*
+
+### PB-21 — le rapport des comptes
+
+- **Le vrai PC.** Le 8254 compte un compte initial de 0 comme 65 536 : c'est le plus long, celui que le BIOS donne
+  à l'horloge du canal 0 (18,2 Hz).
+- **L'émulateur.** Pour le haut-parleur en mode 0 ou 4, PCem calcule une tension à partir du rapport des comptes des
+  canaux 2 et 0, et y lit le compte 0 comme 0 : une division par zéro, qui rend une valeur hors de toute plage.
+- **La correction.** En mode matériel, le compte 0 vaut 65 536 dans ce calcul, aux deux comptes, comme partout
+  ailleurs dans le PIT de PCem.
+
+### PB-293 — le ton le plus grave
+
+- **Le vrai PC.** Le canal 2 à 0, en onde carrée, fait sonner le haut-parleur à 18,2 Hz, le ton le plus grave.
+- **L'émulateur.** PCem prend ce compte pour un ton trop aigu et sort un niveau continu : rien ne s'entend.
+- **La correction.** En mode matériel, le compte 0 joue son carré, comme tout autre ton audible.
+

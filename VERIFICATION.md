@@ -12787,3 +12787,63 @@ statique d'`EtatAha` (la table des cavaliers), apparus. Les constructeurs statiq
 `scsi_aha1540` (le drapeau et le libellé de PB-292, la clé `floppy` de la table). Les jetons de chaînes seuls :
 `process_scsi` (sept), `scsi_hd_command` et `scsi_zip_command` (quatre chacune), `emu8k_init` (une) ; rien d'autre n'y
 change.
+
+## G13.8g1 — le compte 0 du 8254 dans le haut-parleur
+
+Le 17 octobre 2026. La première des trois sous-étapes de la clôture du son (G13.8g, coupée le 17/10 sur l'étude,
+`/var/tmp/ixtal-g13/etude-8g.md`, hors du dépôt) : PB-21, tranché par Q13, et PB-293, neuf, trouvé par l'étude.
+
+**PB-21** (`Models/pit.cs`, `pit.Materiel.cs`, neuf). Sous `if (materiel.pb_21)`, après le calcul de PCem dans
+`pit_write`, `speakval_materiel` le refait avec le compte 0 lu 2^16 (8254, 231164-005, PDF p. 17 ; `pit_load` le
+suit, `pit.c:119`), au dénominateur et au numérateur : la même phrase de la fiche, et le titre de Q13 (« le compte 0
+lu 65 536 »). Le calcul reste en float ; le quotient borné par 65 536, la conversion sans dépassement, sans la
+`DEVIATION` de l'entier indéfini, qui reste au commentaire PB-21 pour le mode PCem. Le registre se reprend : son *Cas
+qui discrimine* renvoyait à `--speaker-check`, qui ne monte aucune machine (il synthétise le bip du POST pour le modèle
+du haut-parleur de l'hôte, `Host/SpeakerModel.cs`) ; aucune porte ne jouait le cas. D5-son.md de même.
+
+**PB-293**, neuf (`Sound/sound_speaker.cs`, `sound_speaker.Materiel.cs`, neuf). Hors des modes 0 et 4,
+`speaker_update` sort un niveau continu de 0A00h pour un compte du canal 2 sous 40h (`sound_speaker.c:25-26`) ; le
+compte 0 y tombe, alors que `pit_speaker_timer` (`pit.c:568`) le lit déjà 0x10000 et fait basculer `speakon` à
+18,2 Hz. Sous `if (materiel.pb_293)`, en fin de la branche du haut-parleur ouvert, `haut_parleur_materiel` rend pour
+le compte 0 le carré de `speakon` (1400h ou 0). Les comptes 1 à 3Fh gardent le niveau continu, le modèle de PCem.
+
+**Les cas** (`MaterielCasPit.cs`, neuf ; le 5150, l'UC arrêtée, le PIT et le PPI conduits par leurs ports).
+`materiel-cas PB-21` : le canal 0 à 0, le canal 2 en mode 0 à FFFFh (`speakval` 80000000h chez PCem, 1FFFh sur la
+carte) ; puis le canal 2 à 0 (80000000h contre 2000h) ; témoin, 8000h et 4000h, 0. `materiel-cas PB-293` : le canal
+2 en mode 3, puis en mode 2, à 0, le haut-parleur ouvert, `speakon` posé à 1 puis à 0, quatre échantillons de
+`speaker_update` (lus par réflexion) : 0A00h chez PCem, 1400h puis 0000h sur la carte ; témoins, les comptes 20h et
+3Fh en mode 3 (0A00h) et le mode 0 à 0, `speakval` posé à 1234h (sa sortie). Quatre portes neuves. Verts en mode
+PCem, sous PB-21, PB-293 et « tout ». Recensement : 293 défauts, 1 278 marqueurs. `couverture-materiel` sous
+« tout » : 200 corrections, toutes vertes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-8g1.py`) : la garde de PB-21 coupée, `materiel-cas PB-21` sous PB-21 rougit
+(2 échecs) ; la convention retirée du numérateur, 1 ; le compte 0 lu 32 768, 1 ; la garde de PB-293 coupée,
+`materiel-cas PB-293` sous PB-293, 4 ; tous les comptes sous 40h en carré, 4 ; le carré figé haut, 2 ; les modes 0
+et 4 dans la correction, 2 ; tout compte en carré, 4 ; l'attendu du matériel pris en mode PCem, `materiel-cas PB-21`
+en mode PCem, 2 ; le marqueur de PB-293 dit reproduit, et le numéro retiré de celui de PB-21, le recensement (1 écart
+chacun). Le premier essai du cas de PB-293 laissait passer le carré figé haut (`speakon` valait 1 partout) :
+`speakon` posé à 1 puis à 0 le rougit. La correction coupée par le masque (`--attendu materiel` en mode PCem) : PB-21,
+2 échecs ; PB-293, 4.
+
+**La contre-lecture** (Sonnet ; aucun bloquant fonctionnel ; elle refait à la main les trois valeurs de PB-21 et les
+bornes du calcul, la séquence des ports, la branche et la condition de PB-293, les modes 1, 5, 6 et 7, la sonde par
+échantillon, la réflexion, l'enregistrement et l'ordre de `Corrections`). Reprises : `pit.c:567` pour
+`pit_speaker_timer`, en 568 ; une ligne de 123 caractères ; « la conversion est exacte » (une troncature : « sans
+dépassement ») ; le marqueur de PB-21 devenu commentaire, dit dans l'entrée ; deux témoins de PB-293 (le compte 3Fh et
+le mode 0), sans lesquels retirer l'une des deux exclusions de la condition laissait les cas verts — les deux pannes
+rejouées, rouges. Laissé : `sound_speaker.cs:39-41` de D5-son.md, une référence d'avant G13.
+
+**Les séries** (le worktree de 8g1, la DLL Release figée, `S-g8g1`). En mode PCem, g8g1 (18 h 09 à 19 h 23) : 741
+vertes ; contre g8d3c, aucun verdict ne change, s'ajoutent les quatre portes de PB-21 et PB-293 ; le recensement (293
+défauts, 1 278 marqueurs) et la couverture (200 corrections) suivent. Sous « tout », g8g1-tout (19 h 23 à 19 h 44) :
+502 vertes, 228 refusées, 11 `pcem`, aucune rouge ; contre g8d3c-tout, les mêmes écarts. Les reprises de la
+contre-lecture sont venues après la DLL des séries (les deux témoins de PB-293 dans l'outil, des commentaires et du
+texte ailleurs) : six portes rejouées (`PORTES` : les quatre de PB-21 et PB-293, le recensement, la couverture), le
+Release reconstruit, en mode PCem puis sous `MATERIEL=tout` : toutes vertes.
+
+**M2-8g1** (le Release du worktree, reconstruit avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8d3c, 1 496 méthodes de part et d'autre ; six changées, aucune disparue ni apparue. `pit_write` et
+`speaker_update`, compilés par les scénarios, ne changent pas d'un octet : les deux gardes, sur des `static readonly`
+faux, sont pliées. Les constructeurs statiques de `materiel` et `ModeMateriel` (les drapeaux et les libellés de PB-21
+et PB-293). Les jetons de chaînes seuls : `process_scsi`, `scsi_hd_command`, `scsi_zip_command`, `emu8k_init` ; rien
+d'autre n'y change.

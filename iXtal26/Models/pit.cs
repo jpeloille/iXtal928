@@ -542,9 +542,9 @@ internal static partial class pit
                         pit.wm[t] = 0;
                         break;
                 }
-                // pcem bug, reproduced: PB-21 — pit.c:418 divise par l[0] sans le
-                //   tester, et le POST y passe : tranche 231 d'un amorçage 640 Ko,
-                //   l[0] = 0, l[2] = 65535, donc +inf.
+                // PB-21 : pit.c:418 divise par l[0] sans le tester, et le POST y
+                //   passe : tranche 231 d'un amorçage 640 Ko, l[0] = 0, l[2] = 65535,
+                //   donc +inf (la garde, plus bas).
                 // DEVIATION: le (int) du C rend alors l'entier indéfini de
                 //   cvttss2si, 0x80000000, que le clamp ci-dessous ne rattrape pas.
                 //   .NET SATURE : (int)float.PositiveInfinity vaut int.MaxValue, et
@@ -557,6 +557,9 @@ internal static partial class pit
                     speakf >= -2147483648.0f && speakf < 2147483648.0f ? (int)speakf : int.MinValue;
                 if (Sound.sound_speaker.speakval > 0x2000)
                         Sound.sound_speaker.speakval = 0x2000;
+                // pcem bug, fixed in hardware mode: PB-21 — le compte 0 vaut 2^16 (8254, p. 17), aux deux comptes.
+                if (materiel.pb_21)
+                        speakval_materiel(pit);
                 break;
         }
     }

@@ -907,6 +907,12 @@ run materiel-cas-pb291-materiel --hardware-mode PB-291 materiel-cas PB-291
 # floppy, relue par materiel-cas PB-140 ; les bancs de la carte la posent en 334h.
 run materiel-cas-pb292 materiel-cas PB-292
 run materiel-cas-pb292-materiel --hardware-mode PB-292 materiel-cas PB-292
+# G13.8g1 — le compte 0 du 8254 dans le haut-parleur (Q13) : PB-21 (speakval, aux deux comptes), PB-293 (la sortie
+# hors des modes 0 et 4), sur le 5150, l'UC arrêtée.
+for pb in 21 293; do
+  run materiel-cas-pb$pb materiel-cas PB-$pb
+  run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
+done
 # G13.9a — le socle SVGA : PB-220 (CR00 + 5), PB-80 (la lecture en chain4 compact charge les verrous), PB-221 (a) (les
 # lectures rapides de mot et de double mot chargent les verrous).
 for pb in 220 80 221; do

@@ -681,14 +681,15 @@ par analogie (déduit).
    au PIT, en mode 0 ou 4 du canal 2, le haut-parleur sort `(int16_t)INT_MIN` = 0, le silence, là où la valeur nominale
    donnerait une tension.
 2. **Sites.** C : `models/pit.c:418-423` ; `sound/sound_speaker.c:24` et `:35`. C# : `iXtal26/Models/pit.cs:545-557`
-   (marqueur `:545`) ; `iXtal26/Sound/sound_speaker.cs:39-41`. Outil : `--speaker-check`.
+   (marqueur `:545`) ; `iXtal26/Sound/sound_speaker.cs:39-41`. Outil : `materiel-cas PB-21` (G13.8g1 :
+   `--speaker-check` ne monte aucune machine).
 3. **Vrai comportement.** `speakval` est le modèle analogique de PCem, sans pendant matériel. La convention *documentée*
    pour un compte initial de 0 : « The largest possible initial count is 0; this is equivalent to 2^16 for binary
    counting » ([8254], fig. 22, PDF p. 17). PCem l'applique déjà dans `pit_load` (`pit.c:119`, `l ? l : 0x10000`).
 4. **Correction.** `l0 = l[0] != 0 ? l[0] : 0x10000` ; 1 à 2 lignes dans `pit_write`, pas sur un chemin chaud. Aucun
    temps visible. État sondé : la sonde du haut-parleur, champ 4 (`speakval`).
 5. **Vérification.** En C# seul, à la tranche 231 d'un amorçage de 640 Ko : `speakval` = (65 535 / 65 536) × 4000h −
-   2000h ≈ 1FFFh, au lieu d'INT_MIN (`--speaker-check`).
+   2000h ≈ 1FFFh, au lieu d'INT_MIN (`materiel-cas PB-21`, G13.8g1).
 6. **Classement.** (b). La correction est certaine ; la valeur audible reste celle du modèle de PCem.
 7. **Dépendances.** Aucune.
 

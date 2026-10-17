@@ -43,6 +43,9 @@ internal static partial class sound_speaker
                                 val = 0xa00;
                         else
                                 val = speakon != 0 ? (int16_t)0x1400 : (int16_t)0;
+                        // pcem bug, fixed in hardware mode: PB-293 — le compte 0 (2^16) pris pour un ton trop aigu.
+                        if (materiel.pb_293)
+                                val = haut_parleur_materiel(val);
                 }
                 else
                         val = was_speaker_enable != 0 ? (int16_t)0x1400 : (int16_t)0;

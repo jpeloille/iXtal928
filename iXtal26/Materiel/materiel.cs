@@ -39,6 +39,9 @@ internal static class materiel
     /// <summary>PB-19 : en écriture hors DMA, l'octet que l'UC n'a pas fourni à temps pose OR (µPD765).</summary>
     internal static readonly bool pb_19;
 
+    /// <summary>PB-21 : le compte 0 lu 65 536 dans speakval, au numérateur et au dénominateur (8254).</summary>
+    internal static readonly bool pb_21;
+
     /// <summary>PB-22 : FORMAT TRACK du Xebec formate la piste désignée depuis son début.</summary>
     internal static readonly bool pb_22;
 
@@ -615,6 +618,9 @@ internal static class materiel
     /// <summary>PB-292 : l'AHA-1542C sans clé à son port d'usine, 330h.</summary>
     internal static readonly bool pb_292;
 
+    /// <summary>PB-293 : le compte 0 du canal 2, hors des modes 0 et 4, joue le carré de speakon (18,2 Hz).</summary>
+    internal static readonly bool pb_293;
+
     /// <summary>PB-148 : la SB 16 et l'AWE32 enregistrent la MIDI (l'OPL, l'EMU8000) par le mélangeur d'entrée du
     /// CT1745 ; la lecture suit l'écriture d'un tampon ; 20h prend un échantillon sans régler l'entrée.</summary>
     internal static readonly bool pb_148;
@@ -632,6 +638,7 @@ internal static class materiel
         pb_07 = ModeMateriel.Demande(7);
         pb_14 = ModeMateriel.Demande(14);
         pb_19 = ModeMateriel.Demande(19);
+        pb_21 = ModeMateriel.Demande(21);
         pb_22 = ModeMateriel.Demande(22);
         pb_23 = ModeMateriel.Demande(23);
         pb_25 = ModeMateriel.Demande(25);
@@ -821,6 +828,7 @@ internal static class materiel
         pb_290 = ModeMateriel.Demande(290);
         pb_291 = ModeMateriel.Demande(291);
         pb_292 = ModeMateriel.Demande(292);
+        pb_293 = ModeMateriel.Demande(293);
         pb_148 = ModeMateriel.Demande(148);
         pb_151 = ModeMateriel.Demande(151);
     }

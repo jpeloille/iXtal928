@@ -627,7 +627,11 @@ contre-lecture, M2, sa série entière et son commit :
     l'octet impair de PB-158 (l'octet haut), PB-162 (le chorus droit dans sa ligne, à sa fraction), PB-163 (la
     réverbération sature), leurs gardes en tête du travail d'un tampon ; les moteurs joués seuls dans leurs cas.
   - **G13.8g — La clôture du son.** PB-21 ; SBBANC, SB16BANC et AWEBANC en C# seul dans les deux modes ; PERFBANC ;
-    les témoins (Q16). Fondue dans 8f si elle reste légère.
+    les témoins (Q16). Coupée en trois le 17/10, sur l'étude (`/var/tmp/ixtal-g13/etude-8g.md`, hors du dépôt) :
+    **8g1** ✅ *(17/10, VERIFICATION.md § G13.8g1)*, le compte 0 du 8254 dans le haut-parleur — PB-21 (`speakval`, le
+    compte 0 lu 2^16 aux deux comptes), PB-293, neuf (la sortie de `speaker_update` hors des modes 0 et 4, le carré de
+    18,2 Hz) ; **8g2**, les bancs en C# seul (SB16BANC et AWEBANC impriment leurs relevés ; les bancs de l'ami486 posent
+    `irq = 7` et l'AHA en 334h) ; **8g3**, PERFBANC et les témoins, puis 10b et 10c rejoués.
   Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244
   (b), proposés (Q13). Hors du mode : PB-150, 152, 161, 166 (R9), 93 ; (d) : PB-164, PB-167.
 
