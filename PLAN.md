@@ -169,7 +169,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   neuf) ; 8g2a ✅ (les six SBBANC en C# seul, le scénario de PB-146 corrigé) ; 8g2b ✅ (SB16BANC et AWEBANC en C#
   seul ; le mode qu'un chargement figeait, l'AHA et la SB 16, corrigé) ; 8g3a ✅ (PERFBANC, le coût du son du mode
   matériel : au plus 0,3 %). 8g3b ✅ (les témoins de Q16, hors du dépôt).
-  Suit 8g3c (10b et 10c rejoués), puis les cavaliers hors du son ;
+  8g3c ✅ (10b et 10c rejouées) : le son est clos. Suivent les cavaliers hors du son ;
   PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 

@@ -5740,8 +5740,8 @@ sur la carte, pas chez PCem.
 le reset fait ; PCem, 7Fh et l'octet périmé.
 *G13* : (b) — une source secondaire seulement.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, `sb_write` et `sb_read`, marqueurs PB-243.
-*Non corrigé en mode matériel* : reste reproduit, sauf réponse contraire à Q13, qui propose de le laisser (une source
-secondaire seulement ; PLAN-G13.md § G13.8).
+*Non corrigé en mode matériel* : reste reproduit, comme Q13 le proposait, tranchée le 16/10 (une source secondaire
+seulement ; PLAN-G13.md § G13.8).
 
 ### PB-244 — D1h et D3h agissent sur-le-champ
 
@@ -5757,8 +5757,8 @@ Documenté pour le maximum ; la durée exacte par version se lit au micrologicie
 carte, pas avant la fin de la rampe du 2.02, sous 112 ms.
 *G13* : (b) — la durée n'est donnée qu'en maximum, et varie d'une version à l'autre.
 *Reproduit* : `Sound/sound_sb_dsp.cs`, D1h et D3h (`sb_exec_command`), marqueurs PB-244.
-*Non corrigé en mode matériel* : reste reproduit, sauf réponse contraire à Q13, qui propose de le laisser (une durée
-maximale seulement ; PLAN-G13.md § G13.8).
+*Non corrigé en mode matériel* : reste reproduit, comme Q13 le proposait, tranchée le 16/10 (une durée maximale
+seulement ; PLAN-G13.md § G13.8).
 
 ### PB-245 — La souris de la M24 envoie ses déplacements négatifs en complément à deux, pas en signe et amplitude
 

@@ -638,10 +638,11 @@ contre-lecture, M2, sa série entière et son commit :
     coupée en trois : **8g3a** ✅ *(18/10, VERIFICATION.md § G13.8g3a)*, PERFBANC, `SonBanc` (le coût d'un tampon de
     50 ms : au plus 0,15 ms, 0,3 % ; PB-148 avec une entrée, PB-162 et PB-163 le portent) ; **8g3b**, les témoins
     (Q16) ✅ *(18/10, VERIFICATION.md § G13.8g3b ; hors du dépôt : VPLAY, l'ADPCM 4 bits, VREC mono et stéréo,
-    sur la Pro v2 installée par émulation ; VEDIT2 non joué, ses menus attendent Alt ou la souris)* ; **8g3c**, 10b et
-    10c rejoués.
+    sur la Pro v2 installée par émulation ; VEDIT2 non joué, ses menus attendent Alt ou la souris)* ; **8g3c** ✅
+    *(18/10, VERIFICATION.md § G13.8g3c)*, 10b et 10c rejouées (200 corrections couvertes ; la série de 8g2b ; M0, chaque écart
+    rattaché). Le son est clos.
   Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244
-  (b), proposés (Q13). Hors du mode : PB-150, 152, 161, 166 (R9), 93 ; (d) : PB-164, PB-167.
+  (b), laissés par Q13. Hors du mode : PB-150, 152, 161, 166 (R9), 93 ; (d) : PB-164, PB-167.
 
 **Les questions du son (G13.8), posées à Julien le 13/10 ; 8a n'en dépend pas** :
 - **Q13 (8d, 8e, 8f, 8g)** — les parts (b) : corriger celles dont la correction est certaine et se vérifie par
@@ -785,7 +786,7 @@ contre-lecture, M2, sa série entière et son commit :
 - **Vérification** : la série entière dans les deux modes ; les listings contre M0.
 - Coupée en trois le 15/10, sur l'étude, après 9g. Le son qui attend Q13 à Q16 (8c2, 8d3, 8e, 8g), PB-260 et PB-142
   (7e3 bis ou 7e4) et PB-256 (la carte mère) restent ouverts, et la clôture le dit ; quand ils viendront, 10b et 10c
-  seront rejouées.
+  seront rejouées. Rejouées après le son, en G13.8g3c (18/10) ; PB-256, Q28 et Q29 restent ouverts.
   - **G13.10a — Les profils et les témoins.** Deux profils du mode matériel dans `launchSettings.json` : l'ami486 de
     référence (`ixtal26-486.cfg`) et le 5150. `--setup-check`. Les témoins, en C# seul (`--boot`), dans les deux
     modes, chaque écart expliqué : le 5150 jusqu'au BASIC ; l'XT et PC-DOS 2.00 (`VER`, `DIR`) ; l'IBM AT ; l'ami286 et

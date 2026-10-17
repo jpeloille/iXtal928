@@ -13074,3 +13074,40 @@ le programme. La suite des touches a été trouvée écran par écran (`essai.sh
   et sous « son ». L'AWE32 n'a pas été essayée (le même refus, déduit).
 - Le contenu des fichiers enregistrés (le silence du micro) n'a pas été lu ; le témoin de la source CD (facultatif) n'a
   pas été fait.
+
+## G13.8g3c — 10b et 10c rejouées
+
+Le 18 octobre 2026. La dernière part de 8g3, et la fin du son : la clôture de G13 (G13.10) disait que 10b et 10c
+seraient rejouées quand le son qui attendait Q13 à Q16 viendrait. Il est venu (8c2 à 8g3b) ; PB-256 (la carte mère), Q28
+et Q29 (l'AHA-1542C) restent ouverts. L'émulateur ne change pas.
+
+**10b, la couverture et le registre.** `couverture-materiel` sous « tout » (le Release du worktree, le registre de cette
+étape) : 200 corrections, chacune son cas, tous verts, 200 sondes — carte mère 18, processeur 42, son 33, stockage 48,
+vidéo 20, x87 39 (183 à 10b). Le recensement : 293 défauts au registre (A 245, B 26, C 22), 1 278 marqueurs, vert. Le
+registre contre la table (`/tmp/a9/audit-8g3c.py`) : les 200 PB de `ModeMateriel.Corrections` portent *Corrigé en mode
+matériel*, aucun autre ; 72 *Non corrigé*, aucun dans la table. Les raisons relues, celles qui citaient une question ou
+une étape du son : PB-243 et PB-244 disaient encore « sauf réponse contraire à Q13, qui propose de le laisser » ; Q13 a
+été tranchée le 16/10 comme proposé, et le champ le dit désormais (de même la ligne de PLAN-G13 § G13.8). Les autres
+sont à jour : PB-92 et PB-150 (renvoient à 8d3b et 8c2), PB-107 (Q19), PB-232 (Q17), PB-256 (la carte mère, en attente).
+
+**10c, la série dans les deux modes et M0.** La série entière de 8g2b est la dernière de l'émulateur, qui n'a pas changé
+depuis : en mode PCem 757 vertes, sous « tout » 518 vertes, 228 refusées, 11 `pcem`, aucune rouge (10c : 700, puis 461,
+228 et 11). M2-8g2b contre M0 complet (`M0-complet-10c`) : 1 484 méthodes contre 1 496 ; 42 changées, 14 apparues, 2
+disparues (10c : 35, 8 et 0). Chacune rattachée à la première capture où elle a sa forme d'aujourd'hui
+(`/tmp/a9/attrib-10c.py`, les captures M2 dans l'ordre ; la liste, `/tmp/a9/attrib-8g3c.txt`) :
+- 36 des 43 de 10c, rattachées à la même étape (la liste de G13.10c) ; les sept autres y étaient aussi, et ont depuis
+  une forme plus récente (ci-dessous : `pc.loadconfig`, les deux constructeurs statiques, les quatre jetons) ;
+- les cavaliers, joués dans les deux modes (Q26) : 8d3a, `sound_sb` (son constructeur statique, `sb_16_init`,
+  `sb_awe32_init`, `sb_16_cavaliers` apparue) ; 8d3b, `device_get_config_int` (changée), `device_get_config_int_defaut`
+  et `config_hors_liste` à quatre arguments (apparues) — l'ancienne `config_hors_liste` à deux arguments et son lambda
+  sont les deux disparues ; 8d3c, `scsi_aha1542c_init`, le constructeur statique de `scsi_aha1540`, ceux d'`EtatAha` et
+  de son `Cavalier`, apparus ;
+- G13.11, `pc.loadconfig` (la clé `hardware_mode`, sa forme d'aujourd'hui) ; 8g2b, `pc.check_sndcard` (le mode figé
+  attendu) ;
+- 8g1, les constructeurs statiques de `materiel` et de `ModeMateriel`, apparus en G13.2 (les tables, qui grandissent à
+  chaque correction : leur forme d'aujourd'hui), et quatre jetons de chaînes (`process_scsi`, `scsi_hd_command`,
+  `scsi_zip_command`, `emu8k_init`) : la table des chaînes se décale, le code est le même.
+
+Toutes sont froides (l'initialisation, la configuration, les tables). Les seules de l'émulation sont les initialisations
+des cartes de 8d3 : les cavaliers, joués dans les deux modes, comme Q26 le veut. Les exécuteurs, les gestionnaires
+d'instructions, les poll de la vidéo et du son, les commandes du CD et des disques restent ceux d'avant G13, à l'octet.
