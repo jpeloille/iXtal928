@@ -635,7 +635,9 @@ contre-lecture, M2, sa série entière et son commit :
     **8g2b** ✅ *(17/10, VERIFICATION.md § G13.8g2b)*, SB16BANC et AWEBANC (ils impriment leurs relevés ; les bancs de
     l'ami486 posent `irq = 7` et l'AHA en 334h ; l'avertissement de `pc.check_sndcard` attend le mode figé, que sa garde
     de PB-292 figeait en PCem au chargement d'une machine à l'AHA et à la SB 16 ou l'AWE32, depuis 8d3c) ; **8g3**,
-    PERFBANC et les témoins, puis 10b et 10c rejoués.
+    coupée en trois : **8g3a** ✅ *(18/10, VERIFICATION.md § G13.8g3a)*, PERFBANC, `SonBanc` (le coût d'un tampon de
+    50 ms : au plus 0,15 ms, 0,3 % ; PB-148 avec une entrée, PB-162 et PB-163 le portent) ; **8g3b**, les témoins
+    (Q16) ; **8g3c**, 10b et 10c rejoués.
   Restent reproduits : PB-242 (c), PB-92 (d), les parts (c) de 153, 154, 158, 159, 160, 165 et 240 ; PB-243 et PB-244
   (b), proposés (Q13). Hors du mode : PB-150, 152, 161, 166 (R9), 93 ; (d) : PB-164, PB-167.
 

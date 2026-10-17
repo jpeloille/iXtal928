@@ -12979,3 +12979,53 @@ rouge. Contre les tsv de 8g1, dans les deux modes, rien d'autre que les 16 porte
 
 **Les listings du JIT** (M2-8g2b contre M2-8g1, `tools/listings-jit.sh`) : 1 496 méthodes de part et d'autre, une
 seule changée, `pc.check_sndcard`, la voulue (la condition `ModeMateriel.Fige`) ; aucune disparue, aucune apparue.
+
+## G13.8g3a — PERFBANC, ce que coûte le son du mode matériel
+
+Le 18 octobre 2026. La première des trois parts de 8g3 (la clôture du son ; l'étude, `/var/tmp/ixtal-g13/etude-8g.md`,
+hors du dépôt) : M1 pour le son, sur le patron de VideoBanc (9g). En mode PCem, M2 montre les gardes du son pliées ; ce
+banc mesure l'autre face, le coût du son quand les corrections sont demandées. L'émulateur ne change pas : ni série, ni
+M2, et aucune porte ne construit PERFBANC.
+
+**Le banc** (`tools/perfbanc/SonBanc.cs`, neuf). L'unité est un tampon de sortie, 2 400 tics à 48 kHz (50 ms). La
+machine, l'ami486 et la carte à l'IRQ 7 (Q23), est montée sans exécuter le BIOS (`pc.initpc`), le processeur arrêté ; le
+temps est joué par les minuteries de la machine, le compteur avancé d'échéance en échéance jusqu'à ce que `sound_poll`
+ait rendu le tampon (les gestionnaires des cartes appelés). La carte est conduite par ses ports, le 8237 en automatique
+sur un bloc de 4 Ko en RAM (une dent de scie), l'IRQ jamais acquittée. Les autres minuteries (la vidéo, le PIT) tournent
+dans les deux modes, dans la base. Un processus par cas (BenchmarkDotNet), le mode posé avant le gel ; chacun imprime la
+somme de son tampon et l'état du DSP après deux tampons (le DSP joue dans tous les cas).
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; elle suit la boucle du temps (l'échéance, l'arrêt exact au rendu d'un
+tampon, la répartition des lectures de WC), décode chaque séquence de ports dans sound_sb_dsp.cs, le 8237 dans dma.cs,
+les registres de l'EMU8000 dans sound_emu8k.cs, et explique les sommes égales). Reprises : « sans exécuter le BIOS » ;
+42h pose le registre de 41h, la sortie de Sb16Entree suit à 22 050 Hz ; l'ADPCM ne joue que quatre des six PB de 8b ; le
+pointeur de WC posé par `Preparer`, hors de la mesure ; la réverbération et le chorus de AweVoix sans gain de sortie, le
+mot haut de CCCA par A22h ; les écarts sous ~20 µs dans le bruit d'un processus à l'autre, d'où le second lancement.
+
+**Les mesures** (BenchmarkDotNet 0.15.8, Release du worktree, le job par défaut ; µs par tampon de 50 ms ; deux
+lancements entiers, `/tmp/a9/sonbanc-8g3a.log` et `-2.log`, le second sur le code final, après les reprises de la
+contre-lecture). Dans un processus, l'écart type reste sous 2 µs ; d'un processus à l'autre, le même cas bouge de 10 à
+20 µs (une fois 63 µs, la SB 16 en entrée sous « son ») : un écart plus petit ne se lit pas.
+
+| Banc | PCem | Les PB du banc | « son » |
+|---|---|---|---|
+| SB 16, B6h, 16 bits stéréo à 44 100 Hz | 400,5 / 391,5 | PB-155 408,7 / 408,2 ; PB-148 416,7 / 414,3 | 475,1 / 490,7 |
+| SB 16, CEh en entrée, B6h, 22 050 Hz | 399,5 / 400,4 | PB-151 418,8 / 401,2 ; PB-148 473,4 / 462,3 | 488,2 / 551,6 |
+| Pro v2, 1Ch stéréo, la constante E9h | 291,0 / 282,7 | PB-148 303,0 / 297,0 ; PB-237 278,6 / 290,9 | 291,0 / 300,6 |
+| SB 2.0, 7Dh, l'ADPCM 4 bits à 11 kHz | 207,3 / 212,0 | les six de 8b 227,1 / 224,1 | 228,8 / 224,7 |
+| AWE32, 30 voix, la réverbération et le chorus | 828,1 / 840,6 | PB-162 et PB-163 896,2 / 906,6 | 940,4 / 949,4 |
+| AWE32 sans voix, WC lu 0 fois | 706,7 / 707,9 | PB-158 711,1 / 720,6 | 834,8 / 811,7 |
+| AWE32 sans voix, WC lu 16 fois | 717,7 / 712,5 | PB-158 730,4 / 712,7 | 823,5 / 825,0 |
+| AWE32 sans voix, WC lu 64 fois | 706,4 / 721,3 | PB-158 730,0 / 709,3 | 823,0 / 824,8 |
+
+(PB-237 sur la Pro, au premier lancement, joué à part dans une copie du banc, puis gardé comme cas.)
+
+Le son du mode matériel coûte au plus 0,15 ms d'hôte par tampon de 50 ms, 0,3 % (la SB 16 en entrée sous « son », au
+second lancement). Ce qui le porte, au-dessus du bruit : l'anneau du CAN de PB-148 avec une vraie entrée DMA (62 à
+74 µs ; en sortie seule, sa copie, 12 à 23 µs sur la Pro et la SB 16) ; le chorus et la réverbération saturants de
+PB-162 et PB-163, qui tournent à chaque tampon, voix ou non (66 à 68 µs ; la somme ne les voit pas, leurs gains de
+sortie et leurs retards n'étant pas posés) ; sous « son », sur l'AWE32 sans voix, 104 à 128 µs, ces deux-là et le cœur
+de la SB 16 de la carte. Sous le bruit : PB-155 (la somme inchangée, 44 100 Hz et 22 050 Hz sont des points fixes de sa
+quantification), PB-151, PB-237, l'ADPCM (12 à 20 µs ; PB-91 et PB-284, le 2 bits et le 2,6 bits, hors du scénario),
+PB-158 (16 ou 64 lectures de WC, chacune un emu8k_update jusqu'à l'instant). PB-21 et PB-293 ne se mesurent pas : une
+écriture au PIT, une branche rarement prise.

@@ -167,7 +167,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   DMA 1 seul et l'IRQ 5 d'usine de la 2.0 ; PB-291, le DMA 0 de la Pro) ; 8d3c ✅ (l'AHA-1542C : PB-292, le
   port d'usine 330h ; SW5, la clé floppy) ; 8g1 ✅ (le compte 0 du 8254 dans le haut-parleur : PB-21 ; PB-293,
   neuf) ; 8g2a ✅ (les six SBBANC en C# seul, le scénario de PB-146 corrigé) ; 8g2b ✅ (SB16BANC et AWEBANC en C#
-  seul ; le mode qu'un chargement figeait, l'AHA et la SB 16, corrigé). Suit 8g3, puis les cavaliers hors du son ;
+  seul ; le mode qu'un chargement figeait, l'AHA et la SB 16, corrigé) ; 8g3a ✅ (PERFBANC, le coût du son du mode
+  matériel : au plus 0,3 %). Suivent 8g3b (les témoins), 8g3c (10b et 10c rejoués), puis les cavaliers hors du son ;
   PB-256 avec la carte mère.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
