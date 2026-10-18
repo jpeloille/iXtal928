@@ -919,6 +919,10 @@ done
 run materiel-cas-pb294 materiel-cas PB-294
 run materiel-cas-pb294-materiel --hardware-mode PB-294 materiel-cas PB-294
 run r9-videocfg r9-videocfg
+# G13.12b — les cavaliers des contrôleurs de disque (Q25, Q31, Q33), sans PB : r9-hdccfg, en C# seul, dans les deux
+# modes : drive0_type et drive1_type du Xebec (322h), addr de l'adaptateur de l'AT (1F0h ou 170h), primary et
+# secondary de l'IDE (le canal coupé, averti s'il porte une unité) ; sous l'XTIDE, [Standard IDE] ne compte pas.
+run r9-hdccfg r9-hdccfg
 # G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
 # et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
 # l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.

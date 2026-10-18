@@ -13176,3 +13176,79 @@ de configuration, `io_base` et `font`), de `materiel` et `ModeMateriel` (le drap
 `device_get_config_int_liste` apparue (écrite en 8d3b, compilée désormais par le montage de l'EGA). Les jetons de
 chaînes seuls, vérifiés ligne à ligne : `process_scsi`, `scsi_hd_command`, `scsi_zip_command`, `emu8k_init`. Toutes
 froides ; `ega_in`, `ega_out`, `ega_poll` et `cga_poll` ne changent pas d'un octet.
+
+## G13.12b — les cavaliers des contrôleurs de disque
+
+Le 18 octobre 2026. La deuxième des trois parts de G13.12 (Q25 ; Q31 et Q33 tranchées le 18/10 comme proposé) : des
+clés neuves, sans PB, dans les deux modes, au défaut de PCem (décision n° 14 : aucune usine documentée).
+
+**Le Xebec** (`Mfm/mfm_xebec.cs`, `mfm_xebec.Materiel.cs`). `drive0_type` et `drive1_type` : 0 sans clé, la déduction
+de PCem (`xebec_set_switches`, inchangée) ; 1, 2, 13 ou 16, les types d'IBM de SW1-SW2 et SW3-SW4 (20MB Fixed Disk
+Drive Adapter, p. 3). `xebec_cavaliers`, après la déduction, remplace les deux bits de l'unité (l'unité 0 en bits 3-2,
+l'unité 1 en bits 1-0 ; le rang de `FD_TBL`, listing p. 31-32 : 1, 16, 2, 13) ; un type que l'image n'a pas est averti.
+La table, que PCem n'a pas (`config` nul), est dans une classe imbriquée (`CavaliersXebec`) : aucun champ statique de
+plus dans `mfm_xebec`.
+
+**L'adaptateur de l'AT** (`Mfm/mfm_at.cs`, `mfm_at.Materiel.cs`). `addr` : 1F0h sans clé, les trois `io_sethandler`
+de PCem ; 170h (Fixed Disk and Diskette Drive Adapter, p. 2 et 36), `mfm_at_secondaire` : 170h (octet et mot),
+171h-177h et 376h, chaque port décalé de 80h vers les gestionnaires de PCem, qui distinguent les registres par leur
+port ; l'IRQ 14 dans les deux positions (p. 36). L'avertissement de Q31 : la ROM de l'AT du dépôt (62X0820/62X0821 et
+at111585) charge 1F0h quatre fois, 1F7h six, 3F6h trois, et jamais 170h, 177h ni 376h.
+
+**L'IDE** (`Ide/ide.cs`, `ide.Materiel.cs`). `primary` et `secondary` (CONFIG_BINARY, 1 sans clé, Q33) : `ide_init`
+n'active un canal que si sa clé le veut (`ide_canal_actif`). Les clés ne sont lues que sous `hdd_controller = ide` :
+l'XTIDE monte `ide_device` de l'intérieur (`xtide.cs`), où elles ne vaudraient rien. Un canal coupé qui porte un
+disque, le CD ou le ZIP est averti.
+
+**La porte** `r9-hdccfg` (`R9HdcCfg.cs`, neuf, en C# seul, dans les deux modes ; chaque essai monte la machine sans
+lancer le BIOS, compte les avertissements « hors de la liste » de la section et cherche l'avertissement nommé) :
+- le Xebec, sur l'IBM XT, 322h : sans clé, C: 306/4 (00h) et 612/4 (04h) ; `drive0_type` 1 et 16 sur l'image de leur
+  type (00h, 04h, sans avertissement), puis sur l'autre (00h et 04h, avertis : la clé l'emporte sur la déduction) ; 2
+  et 13 sur 306/4 (08h, 0Ch, avertis) ; `drive1_type = 13` sans D: (03h) ; 1 et 13 avec D: 306/4 (00h ; 03h, averti
+  « l'image de D: ») ; les deux clés ensemble (06h) ; 3, refusé (la déduction, 04h) ;
+- l'adaptateur de l'AT, sur l'IBM AT : sans clé, 496 et 0x1E8 (refusé) — 1F2h relu 5Ah, 1F7h 50h, 1F0h lu par mot
+  0000h, 3F6h écrit 04h puis 1F7h 80h (le reset tenu), 170h-177h et 376h muets ; 0x170, l'inverse, averti (Q31) ;
+- l'IDE, sur l'IBM AT : sans clé, les deux canaux répondent (1F2h et 172h relus 5Ah) ; `primary = 0`, `secondary = 0`,
+  les deux à 0 ; un canal coupé avec C:, D: (l'unité 1), E:, le CD, le ZIP, chacun averti par son unité ;
+  `secondary = 2`, refusé ;
+- l'XTIDE sur l'IBM XT, `[Standard IDE] primary = 0` : 302h répond, 1F2h et 172h muets, aucun avertissement.
+
+Vingt-neuf essais. Recensement inchangé (294 défauts) ; `couverture-materiel`, 201 corrections.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-12b.py` ; une faute à la fois, restaurée, sur l'arbre principal en Debug,
+la porte reprise), tous rouges : N1, `xebec_cavaliers` retiré (8 essais en défaut) ; N2, les unités échangées (8) ;
+N3, l'ordre de `FD_TBL` faux (4) ; N4, le type que l'image n'a pas, sans avertissement (5, sous « tout ») ; N5,
+`addr` ignorée (1) ; N6, 170h lu sans le décalage (1) ; N7, l'avertissement de Q31 sur la sortie standard (1) ; N8,
+`primary` ignorée (4) ; N9, `[Standard IDE]` lue sous l'XTIDE (1) ; N10, le CD d'un canal coupé sans avertissement
+(1) ; N11, les unités du secondaire prises au primaire (3) ; N12, le primaire coupé sans clé (6) ; trois venus de la
+contre-lecture : N13, 376h écrit sans le décalage ; N14, 170h sans lecture par mot ; N15, l'unité 1 nommée C: (un
+essai chacun). La porte non mutée, verte dans les deux modes.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; vérifiés : le codage des bits et la table des types, le mode PCem
+sans clé identique, les décalages de 80h et le port passé à `mfm_writew`, l'IRQ 14, le canal coupé — aucune minuterie
+armée, `ide_close` —, l'ordre de `hdd_controller_name` et des clés du CD et du ZIP, la longueur des lignes). Reprises,
+toutes dans la porte : les cas des types 1 et 16 ne se distinguaient pas de la déduction — les mêmes clés sur l'image
+de l'autre type, ajoutées ; 170h n'était éprouvé que par le compte de secteurs — l'état, le port de données par mot et
+le registre de contrôle, ajoutés, sur les deux positions ; l'unité 1 (D:) sous l'IDE et sous le Xebec, le ZIP, les
+deux canaux coupés ensemble, ajoutés. Laissés : le double avertissement d'une image qu'aucun type ne prend (celui de
+PCem, puis celui de la clé) ; une clé sans image, sans avertissement (une unité absente, que le BIOS de la carte dira).
+
+**Les séries** (le worktree de 12b, la porte reprise, la DLL Release figée, `S-g12b`). En mode PCem, g12b (11 h 57 à
+13 h 13) : 761 vertes ; contre g12a, aucun verdict ne change, s'ajoute `r9-hdccfg` ; le recensement (294 défauts,
+1 280 marqueurs) et la couverture (201 corrections) inchangés. Sous « tout », g12b-tout (13 h 13 à 13 h 34) : 522
+vertes, 228 refusées, 11 `pcem`, aucune rouge ; contre g12a-tout, le même écart.
+
+**Les témoins** (`/tmp/a9/boots-12b.sh`, hors des portes ; le Debug de l'arbre principal, les mêmes sources que le
+worktree ; chacun en mode PCem et sous « tout », les mêmes écrans). Le Xebec sur l'IBM XT, C: 306/4, DEBUG et l'INT
+13h, AH = 08h (l'image du dépôt n'a pas de système) : au type 1, CX = 3051h, DX = 0301h (304 cylindres
+utiles, 4 têtes, 17 secteurs) ; au type 2, CX = 6591h (613) ; au type 13, DX = 0701h (8 têtes) — le BIOS de la carte
+prend la géométrie des interrupteurs. L'adaptateur de l'AT : en 1F0h, le POST passe et l'AT dit « Non-System disk » ;
+en 170h, l'avertissement de Q31, puis « 1782-Disk Controller Failure ». L'IDE : `primary = 1`, le POST passe ;
+`primary = 0`, l'avertissement du canal coupé, puis 1782.
+
+**M2-12b** (le Release du worktree, les trente scénarios, aucune méthode en MinOpts) : contre M2-12a, 1 497 méthodes
+et 1 503 ; six changées, aucune disparue, six apparues. Changées : `xebec_init`, `mfm_init`, `ide_init` (les clés lues
+au montage) et les constructeurs statiques de `mfm_xebec`, `mfm_at` et `ide` (la table de configuration de chaque
+carte). Apparues : les constructeurs statiques de `CavaliersXebec`, `CavalierAt` et `CavaliersIde`, `Types`,
+`xebec_cavaliers` et `ide_canal_actif` ; `mfm_at_secondaire`, qu'aucun scénario n'appelle, n'est pas compilée. Toutes
+froides ; les gestionnaires de ports des trois cartes ne changent pas d'un octet.

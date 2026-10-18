@@ -11,7 +11,10 @@
 // CS8981 : `ide` n'a que des minuscules ASCII — le nom de l'unité C (ide.cs).
 #pragma warning disable CS8981
 
+using iXtal26.Disc;
+using iXtal26.PluginApi;
 using static iXtal26.Models.pic;
+using static iXtal26.PluginApi.device;
 using static iXtal26.pc;
 
 namespace iXtal26.Ide;
@@ -129,5 +132,39 @@ internal static partial class ide
         if (ide.lba == 0 && (ide.sector < 1 || ide.sector > ide.hdd_file.spt || ide.head >= ide.hdd_file.hpc))
                 return true;
         return ide_get_sector(ide) - ide.skip512 >= ide.hdd_file.sectors;
+    }
+
+    // ===== G13.12b — les cavaliers des deux canaux =====
+
+    // La table que PCem n'a pas (`config = null`), dans une classe à part : un champ statique de plus dans `ide`
+    // changerait son constructeur statique.
+    private static class CavaliersIde
+    {
+        /// <summary>Le canal primaire (1F0h, l'IRQ 14) et le secondaire (170h), chacun actif ou coupé (Q33).</summary>
+        internal static readonly device_config_t[] config =
+        [
+            new device_config_t { name = "primary", type = CONFIG_BINARY, default_int = 1 },
+            new device_config_t { name = "secondary", type = CONFIG_BINARY, default_int = 1 },
+            new device_config_t { type = -1 },
+        ];
+    }
+
+    // G13.12b (Q33) — le canal `nom` (ses unités `premiere` et la suivante) est-il actif ? Sous la carte « ide »
+    //   seule : l'XTIDE monte cette carte de l'intérieur (xtide.cs, device_add), et ses clés n'y vaudraient rien — il
+    //   retire ensuite les deux canaux. Un canal coupé qui porte un disque, le CD ou le ZIP est averti.
+    private static bool ide_canal_actif(string nom, int premiere)
+    {
+        if (hdd_c.hdd_controller_name != "ide" || device_get_config_int(nom) != 0)
+                return true;
+        for (int d = premiere; d < premiere + 2; d++)
+        {
+                string quoi = d == cdrom_channel ? "le lecteur de CD-ROM"
+                            : d == zip_channel ? "le lecteur ZIP"
+                            : hdd_c.ide_fn[d].Length != 0 ? $"le disque « {hdd_c.ide_fn[d]} »" : "";
+                if (quoi.Length != 0)
+                        Console.Error.WriteLine($"iXtal26 : [{ide_device.name}] {nom} = 0 : le canal est coupé ; " +
+                                                $"{quoi}, sur l'unité {d}, ne répondra pas.");
+        }
+        return false;
     }
 }

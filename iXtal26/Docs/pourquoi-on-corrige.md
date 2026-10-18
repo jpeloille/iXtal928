@@ -2337,3 +2337,18 @@ Julien à Q17 : la documentation du matériel tranche.*
   sa ROM.
 - **La correction.** Deux réglages, `io_base` et `font`, dans les deux modes, avec la position de PCem par défaut.
   En 2XX, un avertissement dit que le BIOS ne trouvera pas la carte.
+
+## G13.12b — les cavaliers des contrôleurs de disque, sans défaut à corriger
+
+*Le 18 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.12 (Q25, Q31, Q33), `VERIFICATION.md` § G13.12b.*
+
+- **Le vrai PC.** Sur l'adaptateur de disque du PC XT (Xebec), quatre interrupteurs disent au BIOS de la carte le type
+  de chaque disque : 1, 2, 13 ou 16. L'adaptateur de l'AT se règle, par cavalier, en primaire (1F0h) ou en secondaire
+  (170h) ; le BIOS de l'AT ne connaît que le primaire. Les cartes IDE d'époque avaient de quoi couper un canal.
+- **L'émulateur.** PCem règle les interrupteurs du Xebec d'après l'image, comme un installateur qui les poserait pour
+  le disque. Il tient l'adaptateur de l'AT en primaire et les deux canaux de l'IDE actifs. Rien n'est faux ; rien ne
+  se règle.
+- **La correction.** Des réglages, dans les deux modes, avec la position de PCem par défaut : `drive0_type` et
+  `drive1_type` du Xebec, `addr` de l'adaptateur de l'AT, `primary` et `secondary` de l'IDE. Un type que l'image n'a
+  pas, la carte en 170h, un canal coupé qui porte une unité : un avertissement le dit au chargement. L'XTIDE garde ses
+  adresses (Q32 : aucune source ne décrit ses interrupteurs).

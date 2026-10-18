@@ -1135,6 +1135,9 @@ internal static partial class mfm_xebec
         hdd_file.hdd_load(xebec.drives[0].hdd_file, 0, hdd_c.ide_fn[0]);
         hdd_file.hdd_load(xebec.drives[1].hdd_file, 1, hdd_c.ide_fn[1]);
         xebec_set_switches(xebec);
+        // DEVIATION: (G13.12b ; Q25, Q26) SW1-SW4, que PCem déduit de l'image : drive0_type et drive1_type les posent,
+        //   dans les deux modes ; sans clé, la déduction (xebec_cavaliers).
+        xebec_cavaliers(xebec);
 
         rom.rom_init(xebec.bios_rom, "ibm_xebec_62x0822_1985.bin", 0xc8000, 0x4000, 0x3fff, 0, Memory.mem.MEM_MAPPING_EXTERNAL);
 
@@ -1161,8 +1164,9 @@ internal static partial class mfm_xebec
     private static int xebec_available() => rom.rom_present("ibm_xebec_62x0822_1985.bin");
 
     // pcem: mfm_xebec.c:778
+    // DEVIATION: (G13.12b) la table des interrupteurs, que PCem n'a pas (`config` nul) : CavaliersXebec.
     internal static device_t mfm_xebec_device = new device_t("IBM PC Fixed Disk Adapter", 0, xebec_init, xebec_close,
-                                                             xebec_available, null, null, null, null);
+                                                             xebec_available, null, null, null, CavaliersXebec.config);
 
     // pcem: mfm_xebec.c:780-800
     //

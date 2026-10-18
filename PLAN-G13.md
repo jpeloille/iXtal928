@@ -861,7 +861,7 @@ contre-lecture, M2, sa série entière et son commit :
   n'étant documentée (décision n° 14). Coupée en trois parts, chacune sa série entière dans les deux modes :
   - **G13.12a — La vidéo** ✅ : PB-294 ; `io_base` (P3 de l'EGA, 2XX) et `font` (P3 de la CGA, le simple trait) ;
     `materiel-cas PB-294`, `r9-videocfg`.
-  - **G13.12b — Le stockage** : `drive0_type` et `drive1_type` du Xebec (les types 1, 2, 13 et 16, sans clé la
+  - **G13.12b — Le stockage** ✅ : `drive0_type` et `drive1_type` du Xebec (les types 1, 2, 13 et 16, sans clé la
     déduction de PCem) ; `addr` de l'adaptateur de l'AT (1F0h ou 170h) ; `primary` et `secondary` de l'IDE.
   - **G13.12c — L'XTIDE** : selon Q32, rien ne bouge ; il reste en 300h et C8000h, et le registre le dit.
 

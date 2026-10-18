@@ -9,6 +9,9 @@
 // PCEM_BUGS.md. La référence : IBM Fixed Disk Adapter, Hardware Reference Library 6361503, Programming Considerations.
 
 using System.Runtime.CompilerServices;
+using iXtal26.Disc;
+using iXtal26.PluginApi;
+using static iXtal26.PluginApi.device;
 
 namespace iXtal26.Mfm;
 
@@ -95,5 +98,54 @@ internal static partial class mfm_xebec
         }
         a.valide = false;
         ModeMateriel.Sonde[217]++;
+    }
+
+    // ===== G13.12b — les interrupteurs de la carte =====
+
+    // La table que PCem n'a pas (`config = null`), dans une classe à part : un champ statique de plus dans mfm_xebec
+    // changerait son constructeur statique.
+    private static class CavaliersXebec
+    {
+        /// <summary>SW1-SW2, l'unité 0, et SW3-SW4, l'unité 1 : le type d'IBM (20MB Fixed Disk Drive Adapter, p. 3) ;
+        /// 0, sans clé, la déduction de PCem.</summary>
+        internal static readonly device_config_t[] config =
+        [
+            new device_config_t { name = "drive0_type", type = CONFIG_SELECTION, default_int = 0, selection = Types() },
+            new device_config_t { name = "drive1_type", type = CONFIG_SELECTION, default_int = 0, selection = Types() },
+            new device_config_t { type = -1 },
+        ];
+
+        /// <summary>Le type d'IBM de chaque rang de xebec_hd_types (l'ordre de FD_TBL, listing p. 32).</summary>
+        internal static readonly int[] types = [1, 16, 2, 13];
+
+        private static device_config_selection_t[] Types() =>
+        [
+            new() { description = "Auto", value = 0 }, new() { description = "Type 1", value = 1 },
+            new() { description = "Type 2", value = 2 }, new() { description = "Type 13", value = 13 },
+            new() { description = "Type 16", value = 16 },
+        ];
+    }
+
+    // G13.12b (Q25, Q26) — drive0_type et drive1_type, dans les deux modes : une clé posée remplace les deux bits de
+    //   son unité (l'unité 0 en bits 3-2, l'unité 1 en bits 1-0, GET_PARM, listing p. 31) ; un type que l'image n'a
+    //   pas est averti, la carte prenant la géométrie que le BIOS lui donne pour ce type.
+    private static void xebec_cavaliers(xebec_t xebec)
+    {
+        for (int d = 0; d < 2; d++)
+        {
+                int type = device_get_config_int(d != 0 ? "drive1_type" : "drive0_type");
+                if (type == 0)
+                        continue;
+                int c = Array.IndexOf(CavaliersXebec.types, type);
+                int decalage = d != 0 ? 0 : 2;
+                xebec.switches = (uint8_t)((xebec.switches & ~(3 << decalage)) | (c << decalage));
+                hdd_file_t f = xebec.drives[d].hdd_file;
+                var (tracks, hpc) = xebec_hd_types[c];
+                if (f.f != null && (f.spt != 17 || f.hpc != hpc || f.tracks != tracks))
+                        Console.Error.WriteLine($"iXtal26 : [{mfm_xebec_device.name}] drive{d}_type = {type} : " +
+                                                $"l'image de {(d != 0 ? 'D' : 'C')}: fait " +
+                                                $"{f.tracks}/{f.hpc}/{f.spt}, l'interrupteur dit le type {type} " +
+                                                $"({tracks}/{hpc}/17) ; le BIOS de la carte prendra sa géométrie.");
+        }
     }
 }

@@ -676,9 +676,16 @@ internal static partial class mfm_at
         // que passe le secteur — là où 0x1F1-0x1F7 sont des registres d'octets. Le
         // Xebec n'avait aucun accès 16 bits ; c'est le premier usage de inw_fn/outw_fn
         // par une carte de ce dépôt.
-        io_sethandler(0x01f0, 0x0001, mfm_read, mfm_readw, null, mfm_write, mfm_writew, null, mfm);
-        io_sethandler(0x01f1, 0x0007, mfm_read, null, null, mfm_write, null, null, mfm);
-        io_sethandler(0x03f6, 0x0001, null, null, null, mfm_write, null, null, mfm);
+        // DEVIATION: (G13.12b ; Q25, Q26, Q31) le cavalier du disque (Fixed Disk and Diskette Drive Adapter, p. 2 et
+        //   36) : 1F0h, la position de PCem, ou 170h (mfm_at_secondaire), que le BIOS de l'AT n'adresse pas.
+        if (device_get_config_int("addr") == 0x1f0)
+        {
+                io_sethandler(0x01f0, 0x0001, mfm_read, mfm_readw, null, mfm_write, mfm_writew, null, mfm);
+                io_sethandler(0x01f1, 0x0007, mfm_read, null, null, mfm_write, null, null, mfm);
+                io_sethandler(0x03f6, 0x0001, null, null, null, mfm_write, null, null, mfm);
+        }
+        else
+                mfm_at_secondaire(mfm);
 
         timer_add(mfm.callback_timer, mfm_callback, mfm, 0);
 
@@ -697,7 +704,8 @@ internal static partial class mfm_at
     }
 
     // pcem: mfm_at.c:533
+    // DEVIATION: (G13.12b) la table du cavalier, que PCem n'a pas (`config` nul) : CavalierAt.
     internal static device_t mfm_at_device = new device_t("IBM PC AT Fixed Disk Adapter", DEVICE_AT,
                                                          mfm_init, mfm_close,
-                                                         null, null, null, null, null);
+                                                         null, null, null, null, CavalierAt.config);
 }

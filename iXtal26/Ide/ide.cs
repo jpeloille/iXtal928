@@ -1326,8 +1326,12 @@ internal static partial class ide
     // pcem: ide.c:1173-1181
     private static object? ide_init()
     {
-        ide_pri_enable();
-        ide_sec_enable();
+        // DEVIATION: (G13.12b ; Q33) les cavaliers d'activation des deux canaux, que PCem n'a pas : primary et
+        //   secondary, dans les deux modes, actifs sans clé (ide_canal_actif).
+        if (ide_canal_actif("primary", 0))
+                ide_pri_enable();
+        if (ide_canal_actif("secondary", 2))
+                ide_sec_enable();
 
         timer_add(ide_timer[0], ide_callback_pri, null, 0);
         timer_add(ide_timer[1], ide_callback_sec, null, 0);
@@ -1383,6 +1387,7 @@ internal static partial class ide
     }
 
     // pcem: ide.c:1222
+    // DEVIATION: (G13.12b) la table des deux cavaliers, que PCem n'a pas (`config` nul) : CavaliersIde.
     internal static device_t ide_device = new device_t("Standard IDE", DEVICE_AT, ide_init, ide_close,
-                                                      null, null, null, null, null);
+                                                      null, null, null, null, CavaliersIde.config);
 }
