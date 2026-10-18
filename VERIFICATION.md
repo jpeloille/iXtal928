@@ -13315,3 +13315,68 @@ apparue ni disparue. Les constructeurs statiques de `materiel` (le drapeau `pb_2
 de la table) ; `process_scsi`, `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls
 (`mov edi, 0x…`, la chaîne neuve de la table). `ams_init` (le scénario `pc1512`) est identique : la garde, fausse en
 mode PCem, est pliée ; `model_rafraichissement_materiel` n'est pas compilée. La M24 n'a pas de scénario.
+
+## G13.13b — les cartes de COM et de LPT
+
+Le 18 octobre 2026. La seconde et dernière part de G13.13, la carte mère (Q25, Q26) : des clés neuves, sans PB, dans
+les deux modes, au défaut de PCem (décisions n° 14 et 17 ; PB-295 à PB-299, les candidats de l'étude, restent hors de
+la portée, décision n° 1).
+
+**Le code** (`Models/model.Materiel.cs`, `Models/model.cs`, `pc.cs`). `serial1` (COM1, 3F8h, l'IRQ 4), `serial2`
+(COM2, 2F8h, l'IRQ 3), `parallel1` (LPT1, 378h) et `parallel2` (LPT2, 278h), des clés de la machine : 1 sans clé, la
+carte présente à son adresse ; 0, la carte retirée ; une autre valeur refusée, 1 à la place ; une valeur illisible
+rend le défaut (`sscanf_i`). `loadconfig` les lit après la souris et `lpt1_device` (`model_ports_lire`), dans une
+classe imbriquée (`PortsCarteMere`) : aucun champ statique de plus dans `model_c`. `common_init` garde les quatre
+initialisations de PCem et retire ensuite ce que les clés disent absent (`model_ports_retirer`) ; le LPT suit
+`lpt_jeu_hors_service`. Avertis : COM1 retiré sous la souris série (elle suit `serial1` ; son IER reste à 0, elle
+n'envoie rien), LPT1 retiré sous un périphérique de LPT1. Le PC1512 porte COM1 et LPT1 sur sa carte mère (sa ROM pose
+COM1 en 3F8h sans le sonder, F000:C8A3-C8A8 ; LPT1, PB-101) : 0 averti, le port reste. La M24 : aucune source au dépôt
+sur ses ports, les clés y valent comme ailleurs. L'écran de construction garde les clés d'un `.cfg` chargé sans les
+offrir (`config_save` écrit tout le magasin).
+
+**La porte** `r9-portscfg` (`tools/iXtal26.Diff/R9PortsCfg.cs`, en C# seul, dans les deux modes) : dix-neuf essais sur
+l'XT, l'AT, la M24 et le PC1512, montés sans BIOS ; 5Ah écrit au brouillon de COM1 (3FFh) et de COM2 (2FFh), AAh aux
+données de LPT1 (378h) et de LPT2 (278h), relus ; FF, le bus. Le LPT2 du PC1512 suit PB-101 (AA en mode PCem, FF en
+mode matériel). Vert dans les deux modes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-13b.py`, le Debug de l'arbre, chaque mutant joué puis défait) : dix rouges.
+N1, `common_init` sans `model_ports_retirer` : dix essais en défaut ; N2, `loadconfig` sans `model_ports_lire` :
+quatorze ; N3, COM2 jamais retiré : quatre ; N4, `parallel2` qui retire LPT1 : quatre ; N5, le PC1512 qui laisse
+retirer COM1 et LPT1 : deux ; N6, une valeur hors liste prise pour 0 : un ; N7 et N8, les avertissements de la souris
+et de `lpt1_device` coupés : deux et un ; N9, COM1 toujours retiré : quinze ; N10, PB-101 coupé sous « tout » : quatre
+(le LPT2 du PC1512). Les deux témoins, l'arbre rétabli : verts.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; vérifiés : le mode PCem sans clé inchangé, l'ordre de `common_init`
+et de `loadconfig`, le retrait après coup — `io_removehandler` idempotent, l'état résiduel de `serial1` inerte, la
+souris série sans IRQ —, le PC1512 et le double retrait de LPT2 sous PB-101, les quatre appelants de `common_init`,
+`lpt_jeu_hors_service`, les attendus de la porte, l'écran de construction). Reprises : les statiques de
+`PortsCarteMere`, que seul `loadconfig` pose, et la valeur illisible, dits en commentaire ; l'essai `serial2 = abc`
+ajouté ; la porte cherche l'avertissement de la souris par « COM1 retiré », et non plus par « la souris série », que
+le refus de `mouse_type` contient aussi. Laissés : un essai qui pousserait des octets de souris sous COM1 retiré (l'IER
+à 0 l'arrête avant, `mouse_serial_poll`) ; le rechargement est couvert, les essais sans clé suivant des essais à 0
+dans le même processus.
+
+**Les témoins** (`/tmp/a9/boots-13b.sh`, hors des portes, le Release du worktree ; les `.cfg` dans
+`/var/tmp/ixtal-g13/notes/t13b/`). PC-DOS 2.00, DEBUG, `D 40:0 L 12` : les adresses de COM et de LPT que le POST a
+trouvées, puis le mot d'équipement ; les mêmes dans les deux modes, sauf le LPT2 du PC1512 (PB-101).
+
+| Machine, clés | 40:00h (COM1, COM2) | 40:08h (LPT1, LPT2) | 40:11h |
+| --- | --- | --- | --- |
+| XT sans clé | 03F8, 02F8 | 0378, 0278 | 94h : deux LPT, deux COM |
+| XT `serial2 = 0`, `parallel2 = 0` | 03F8, 0000 | 0378, 0000 | 52h : un LPT, un COM |
+| XT, les quatre à 0 | 0000, 0000 | 0000, 0000 | 10h : aucun ; la souris avertie |
+| PC1512 sans clé, mode PCem | 03F8, 02F8 | 0378, 0278 | 8Ch |
+| PC1512 sans clé, mode matériel | 03F8, 02F8 | 0378, 0000 | 4Ch : le LPT2 de PB-101 parti |
+| PC1512 `serial2 = 0`, `parallel2 = 0` | 03F8, 0000 | 0378, 0000 | 4Ah, dans les deux modes |
+
+Chaque carte retirée sort de la table du BIOS et de son compte dans 40:11h (40h par LPT, 02h par COM).
+
+**La série** (`g13b`, le 18/10, 18:21 → 19:40, contre `g13a`) : 764 vertes, `r9-portscfg` en plus, aucun autre
+écart. Sous « tout » (`g13b-tout`, 19:40 → 20:00, contre `g13a-tout`) : 525 vertes, 228 refusées, 11 pcem, aucune
+rouge ; le même écart. Les reprises de la contre-lecture (un commentaire, la porte), après la série : la porte
+rejouée seule dans les deux modes, verte.
+
+**M2** (`M2-13b` contre `M2-13a`, le Release du worktree) : 1 503 méthodes contre 1 507 ; 2 changées, `common_init`
+et `loadconfig` ; 4 apparues, `model_ports_lire`, `model_port_present`, `model_ports_retirer` et le constructeur
+statique de `PortsCarteMere` ; aucune disparue. Toutes froides ; les gestionnaires des ports série et parallèles
+sont inchangés.

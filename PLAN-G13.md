@@ -888,7 +888,7 @@ contre-lecture, M2, sa série entière et son commit :
   inscrits, ni corrigés, gardés dans l'étude.
   - **G13.13a — Le rafraîchissement** ✅ : PB-256 (Q34), la M24 et le PC1512 rafraîchis par le canal 0 du DMA, comme
     l'XT ; `materiel-cas PB-256`.
-  - **G13.13b — COM et LPT** : des clés d'adresse (COM1 et COM2, LPT1 et LPT2 : présent ou absent, l'adresse de la
+  - **G13.13b — COM et LPT** ✅ : des clés d'adresse (COM1 et COM2, LPT1 et LPT2 : présent ou absent, l'adresse de la
     carte), dans les deux modes, au défaut de PCem (Q25, Q26, décisions n° 14 et 17) ; sans PB.
   - Puis la clôture : 10b et 10c rejouées.
 

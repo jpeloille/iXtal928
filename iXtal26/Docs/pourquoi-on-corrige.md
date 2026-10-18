@@ -2366,3 +2366,16 @@ Julien à Q17 : la documentation du matériel tranche.*
   1 ne commande rien : le canal 0 n'avance jamais, et l'UC ne perd aucun cycle.
 - **La correction.** En mode matériel, les deux machines le branchent comme l'XT. Le coût d'un cycle n'est documenté
   pour aucune des deux : on garde celui que PCem donne à l'XT, et le registre le dit.
+
+## G13.13b — les cartes de COM et de LPT, sans défaut à corriger
+
+*Le 18 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.13 (Q25, Q26), `VERIFICATION.md` § G13.13b.*
+
+- **Le vrai PC.** Sur le 5150, l'XT et l'AT, les ports série et parallèles sont des cartes : on en met une, deux, ou
+  aucune. Le PC1512 porte son premier port série et son port parallèle sur la carte mère.
+- **L'émulateur.** PCem soude à toutes les machines deux ports série (COM1 en 3F8h, COM2 en 2F8h) et deux ports
+  parallèles (LPT1 en 378h, LPT2 en 278h). Rien n'est faux : c'est une composition qu'on a pu monter ; mais rien ne
+  se retire.
+- **La correction.** Quatre réglages, dans les deux modes, la carte présente par défaut comme chez PCem : `serial1`,
+  `serial2`, `parallel1` et `parallel2`, 0 pour retirer la carte. Retirer COM1 sous la souris série, ou LPT1 sous un
+  périphérique de LPT1, se dit au chargement. Sur le PC1512, COM1 et LPT1 restent : ils sont sur la carte mère.

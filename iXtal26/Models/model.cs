@@ -440,6 +440,9 @@ internal static partial class model_c
         pit.pit_init();
         serial.serial1_init(0x3f8, 4, 1);
         serial.serial2_init(0x2f8, 3, 1);
+        // DEVIATION: (G13.13b) les cartes de COM et de LPT que serial1, serial2, parallel1 et parallel2 retirent, dans
+        //   les deux modes ; sans clé, les quatre restent (model_ports_retirer, model.Materiel.cs).
+        model_ports_retirer();
     }
 
     // pcem: model.c:202-211

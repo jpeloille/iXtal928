@@ -664,6 +664,11 @@ internal static partial class pc
         }
         mouse_type_selon_machine();
 
+        // DEVIATION: (G13.13b ; Q25, Q26) serial1, serial2, parallel1 et parallel2, les cartes de COM et de LPT, que
+        //   PCem n'a pas : présentes sans clé, retirées à 0 (model.Materiel.cs). Après la souris et lpt1_device, que
+        //   l'avertissement nomme.
+        Models.model_c.model_ports_lire();
+
         load_joysticks();
 
         return true;

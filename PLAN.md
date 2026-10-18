@@ -172,7 +172,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   8g3c ✅ (10b et 10c rejouées) : le son est clos. G13.12, les cavaliers hors du son (Q30 à Q33) : 12a ✅ (l'EGA :
   PB-294, les réglages 8 et 11 de SW1-SW4 ; P3 de l'EGA et de la CGA) ; 12b ✅ (les cavaliers du Xebec, de l'AT et de
   l'IDE) ; 12c ✅ (l'XTIDE en 300h et C8000h, Q32) ; 13a ✅ (PB-256, Q34) ;
-  13b, COM et LPT, puis la clôture.
+  13b ✅ (COM et LPT : serial1, serial2, parallel1, parallel2) ; puis la clôture.
 - **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
 
 ## Les générations

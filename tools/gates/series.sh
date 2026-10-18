@@ -927,6 +927,9 @@ run r9-hdccfg r9-hdccfg
 # xt_init ; le cas monte la M24, le PC1512 et l'XT (témoin) sans BIOS, une milliseconde de minuteries.
 run materiel-cas-pb256 materiel-cas PB-256
 run materiel-cas-pb256-materiel --hardware-mode PB-256 materiel-cas PB-256
+# G13.13b — les cartes de COM et de LPT (Q25, Q26), sans PB : r9-portscfg, en C# seul, dans les deux modes : serial1,
+# serial2, parallel1 et parallel2 (1 sans clé, 0 retire la carte) ; COM1 et LPT1 du PC1512, sur sa carte mère, restent.
+run r9-portscfg r9-portscfg
 # G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
 # et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
 # l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.

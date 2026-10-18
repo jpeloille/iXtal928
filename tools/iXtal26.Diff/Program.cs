@@ -335,6 +335,9 @@ switch (args[0])
         return R9VideoCfg.Run("roms");
     case "r9-hdccfg":
         return R9HdcCfg.Run("roms");
+    // G13.13b — les cartes de COM et de LPT, en C# seul.
+    case "r9-portscfg":
+        return R9PortsCfg.Run("roms");
     // G13.0 — R9 : R1 au-delà de 128 en 80 colonnes sur la CGA (PB-09) et sur la M24 (PB-88), en C# seul.
     case "r9-cga":
         return R9Cga.RunCga("roms");
