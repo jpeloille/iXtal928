@@ -13380,3 +13380,36 @@ rejouée seule dans les deux modes, verte.
 et `loadconfig` ; 4 apparues, `model_ports_lire`, `model_port_present`, `model_ports_retirer` et le constructeur
 statique de `PortsCarteMere` ; aucune disparue. Toutes froides ; les gestionnaires des ports série et parallèles
 sont inchangés.
+
+## G13.13c — la clôture : 10b et 10c rejouées
+
+Le 18 octobre 2026. La clôture de G13 après la carte mère (Julien, le 18/10 : « on G13.13 puis clôture ») : 10b et 10c
+rejouées une dernière fois, comme en G13.8g3c. L'émulateur ne change pas. Restent ouverts Q28 et Q29 (l'AHA-1542C, codés
+selon leur proposition en attendant la réponse).
+
+**10b, la couverture et le registre.** `couverture-materiel` sous « tout » (la série `g13b-tout`) : 202 corrections,
+chacune son cas, tous verts, 202 sondes — carte mère 19, processeur 42, son 33, stockage 48, vidéo 21, x87 39 (200 en
+8g3c : PB-294 en 12a, PB-256 en 13a). Le recensement : 294 défauts au registre, 1 281 marqueurs, vert. Le registre
+contre la table (`/tmp/a9/audit-clos.py`) : les 202 PB de `ModeMateriel.Corrections` portent *Corrigé en mode
+matériel*, aucun autre ; 71 *Non corrigé*, aucun dans la table (72 en 8g3c : PB-256 corrigé). Les raisons relues,
+celles qui citent une question, la carte mère ou une étape : seule PB-107 (Q19, tranchée), à jour.
+
+**10c, la série dans les deux modes et M0.** La série entière de 13b est la dernière de l'émulateur : en mode PCem 764
+vertes, sous « tout » 525 vertes, 228 refusées, 11 `pcem`, aucune rouge (8g3c : 757, puis 518, 228 et 11). M2-13b
+contre M0 complet (`M0-complet-10c`) : 1 484 méthodes contre 1 507 ; 52 changées, 25 apparues, 2 disparues (8g3c : 42,
+14 et 2). Chacune rattachée à la première capture où elle a sa forme d'aujourd'hui (`/tmp/a9/attrib-10c.py` ; la liste,
+`/var/tmp/ixtal-g13/notes/attrib-clos.txt`), aucune sans étape :
+- les 58 de 8g3c, rattachées aux mêmes étapes, sauf huit dont la forme d'aujourd'hui est plus récente : les
+  constructeurs statiques de `materiel` et de `ModeMateriel` et quatre jetons de chaînes (`process_scsi`,
+  `scsi_hd_command`, `scsi_zip_command`, `emu8k_init`), de 13a (la table qui grandit) ; le constructeur statique de
+  `mfm_xebec`, de 12b ; `pc.loadconfig`, de 13b ;
+- 12a, les cavaliers de l'EGA et de la CGA : les initialisations et les constructeurs statiques de `vid_ega` et de
+  `vid_cga`, `device_get_config_int_liste` apparue ;
+- 12b, les cavaliers des contrôleurs de disque : `xebec_init`, `mfm_init`, `ide_init`, les constructeurs statiques
+  de `mfm_at` et d'`ide`, six méthodes apparues (les tables imbriquées, `xebec_cavaliers`, `ide_canal_actif`) ;
+- 13b, les cartes de COM et de LPT : `common_init`, quatre apparues (`PortsCarteMere`, `model_ports_lire`,
+  `model_port_present`, `model_ports_retirer`).
+
+Toutes sont froides (l'initialisation, la configuration, les tables). Le rafraîchissement de 13a n'apparaît pas : sa
+garde, fausse en mode PCem, est pliée. Les exécuteurs, les gestionnaires d'instructions et de ports, les poll de la
+vidéo et du son, les commandes du CD et des disques restent ceux d'avant G13, à l'octet.

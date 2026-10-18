@@ -248,8 +248,8 @@ Une série entière par étape qui change l'émulateur, une seule à la fois ; u
   deux modes ; série g4b1, 325 portes vertes.
 - **G13.4c, le 8042, la souris PS/2 et les ports** ✅ *(09/10, VERIFICATION.md § G13.4c)* : PB-254, PB-94, PB-95,
   PB-261 (inscrit), PB-101, PB-103 corrigés en mode matériel (PB-104 reproduit selon la décision n° 9, PB-33 fait en
-  G13.0 ; PB-256 laissé reproduit, question à Julien) ; PS2BANC et JOYBANC dans les deux modes, `--joystick-check` ;
-  série g4c1, 345 portes vertes.
+  G13.0 ; PB-256 laissé reproduit, question à Julien ; corrigé en 13a) ; PS2BANC et JOYBANC dans les deux modes,
+  `--joystick-check` ; série g4c1, 345 portes vertes.
 
 ### G13.5 — Le 286, le 386 et le 486  ✅ *fait : quatre sous-étapes, chacune sa série et son commit*
 
@@ -761,7 +761,7 @@ contre-lecture, M2, sa série entière et son commit :
   Restent reproduits, les parts (c) : PB-35, la relecture de PB-97, PB-99 (3), l'état du KEY à la mise sous tension,
   le reset synchrone et SR7 de PB-100, l'Hercules de PB-223, l'ERPF et D3 de PB-229, l'index et R0-R13 de PB-230,
   PB-231, PB-233 ; et PB-245, avec le clavier de la M24. Hors du mode : PB-09, 81 à 86, 88 (R9) et 93 ; les parts (d) : PB-36, 38, 98, CR3F de PB-100.
-  PB-256 va avec la carte mère.
+  PB-256 va avec la carte mère (corrigé en G13.13a).
 
 **Les questions de la vidéo (G13.9), posées à Julien le 14/10 et tranchées le même jour ; 9a n'en dépendait pas** :
 - **Q17 (9a à 9e)** — les parts (b). Je propose de corriger celles qui suivent la documentation sans modèle neuf. La
@@ -786,7 +786,8 @@ contre-lecture, M2, sa série entière et son commit :
 - **Vérification** : la série entière dans les deux modes ; les listings contre M0.
 - Coupée en trois le 15/10, sur l'étude, après 9g. Le son qui attend Q13 à Q16 (8c2, 8d3, 8e, 8g), PB-260 et PB-142
   (7e3 bis ou 7e4) et PB-256 (la carte mère) restent ouverts, et la clôture le dit ; quand ils viendront, 10b et 10c
-  seront rejouées. Rejouées après le son, en G13.8g3c (18/10) ; PB-256, Q28 et Q29 restent ouverts.
+  seront rejouées. Rejouées après le son, en G13.8g3c (18/10) ; puis après la carte mère, en G13.13c (18/10) : PB-256
+  corrigé (13a) ; Q28 et Q29 restent ouverts.
   - **G13.10a — Les profils et les témoins.** Deux profils du mode matériel dans `launchSettings.json` : l'ami486 de
     référence (`ixtal26-486.cfg`) et le 5150. `--setup-check`. Les témoins, en C# seul (`--boot`), dans les deux
     modes, chaque écart expliqué : le 5150 jusqu'au BASIC ; l'XT et PC-DOS 2.00 (`VER`, `DIR`) ; l'IBM AT ; l'ami286 et
@@ -890,7 +891,7 @@ contre-lecture, M2, sa série entière et son commit :
     l'XT ; `materiel-cas PB-256`.
   - **G13.13b — COM et LPT** ✅ : des clés d'adresse (COM1 et COM2, LPT1 et LPT2 : présent ou absent, l'adresse de la
     carte), dans les deux modes, au défaut de PCem (Q25, Q26, décisions n° 14 et 17) ; sans PB.
-  - Puis la clôture : 10b et 10c rejouées.
+  - **G13.13c — La clôture** ✅ : 10b et 10c rejouées (VERIFICATION.md § G13.13c).
 
 **La question de la carte mère, posée à Julien le 18/10, tranchée le même jour** :
 - **Q34** — PB-256 (la question n° 2 de D6-contre, A11) : brancher en mode matériel le rafraîchissement de la M24 et
