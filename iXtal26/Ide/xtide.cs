@@ -96,6 +96,13 @@ internal static class xtide
     }
 
     // pcem: xtide.c:73-84
+    //
+    // G13.12c (Q25, Q32) — les interrupteurs de la carte, SW1-SW4 pour l'E/S et SW5-SW8 pour la ROM (le
+    //   concepteur, VCFed, 28/02/2010), ne sont décrits par aucune source primaire : ni schéma ni guide de montage de
+    //   la rev 1. Leurs plages ne viennent que de MAME, un indice (décision n° 8). Selon Q24, la carte reste dans les
+    //   deux modes en 300h et C8000h : les positions de PCem, le défaut que MAME prête à la carte, et celles que la ROM
+    //   du dépôt attend (son port est écrit dans la ROM ; le changer impose de la reflasher, dit le concepteur). Aucune
+    //   clé ; la section [XTIDE] n'en a pas.
     private static object? xtide_init()
     {
         xtide_t xtide = new();

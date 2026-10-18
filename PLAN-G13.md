@@ -863,7 +863,7 @@ contre-lecture, M2, sa série entière et son commit :
     `materiel-cas PB-294`, `r9-videocfg`.
   - **G13.12b — Le stockage** ✅ : `drive0_type` et `drive1_type` du Xebec (les types 1, 2, 13 et 16, sans clé la
     déduction de PCem) ; `addr` de l'adaptateur de l'AT (1F0h ou 170h) ; `primary` et `secondary` de l'IDE.
-  - **G13.12c — L'XTIDE** : selon Q32, rien ne bouge ; il reste en 300h et C8000h, et le registre le dit.
+  - **G13.12c — L'XTIDE** ✅ : selon Q32, rien ne bouge ; il reste en 300h et C8000h, et `xtide.cs` le dit.
 
 **Les questions des cavaliers hors du son, posées à Julien le 18/10, tranchées le même jour comme proposé** :
 - **Q30** — les six réglages « secondaires » de l'EGA (0 à 5), qui supposent une MDA ou une CGA primaire à côté, quand

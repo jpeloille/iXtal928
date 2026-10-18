@@ -13252,3 +13252,17 @@ au montage) et les constructeurs statiques de `mfm_xebec`, `mfm_at` et `ide` (la
 carte). Apparues : les constructeurs statiques de `CavaliersXebec`, `CavalierAt` et `CavaliersIde`, `Types`,
 `xebec_cavaliers` et `ide_canal_actif` ; `mfm_at_secondaire`, qu'aucun scénario n'appelle, n'est pas compilée. Toutes
 froides ; les gestionnaires de ports des trois cartes ne changent pas d'un octet.
+
+## G13.12c — l'XTIDE, sans cavalier
+
+Le 18 octobre 2026. La dernière des trois parts de G13.12 (Q25, Q32) : aucune clé, un commentaire seul.
+
+**La recherche** (Q32 ; `/var/tmp/ixtal-g13/notes/q32-xtide.md`, hors du dépôt) : ni schéma ni guide de montage de
+l'XT-IDE rev 1. Le seul texte du concepteur, le message d'ouverture de son fil de VCFed (28/02/2010), dit que SW1-SW4
+règlent l'E/S et SW5-SW8 la ROM, et que changer l'E/S impose de reflasher la ROM ; les plages et le codage ne viennent
+que de MAME (`xtide.cpp`), un indice (décision n° 8). Selon la règle de Q24, la carte reste en 300h et C8000h dans les
+deux modes : les positions de PCem, le défaut que MAME prête à la carte, et ce qu'attend la ROM du dépôt.
+
+**Le code** (`Ide/xtide.cs`) : le commentaire de G13.12c au-dessus de `xtide_init`, qui le dit ; la section `[XTIDE]`
+n'a pas de clé. Le Debug construit sans avertissement neuf ; le code compilé ne change pas, aucune série (un
+commentaire). `r9-hdccfg` éprouve déjà l'XTIDE en 300h (12b : 302h répond, `[Standard IDE]` ignorée).
