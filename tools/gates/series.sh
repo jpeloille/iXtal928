@@ -923,6 +923,10 @@ run r9-videocfg r9-videocfg
 # modes : drive0_type et drive1_type du Xebec (322h), addr de l'adaptateur de l'AT (1F0h ou 170h), primary et
 # secondary de l'IDE (le canal coupé, averti s'il porte une unité) ; sous l'XTIDE, [Standard IDE] ne compte pas.
 run r9-hdccfg r9-hdccfg
+# G13.13a — la carte mère (Q34) : PB-256, le rafraîchissement de la M24 et du PC1512 par le canal 0 du DMA, comme
+# xt_init ; le cas monte la M24, le PC1512 et l'XT (témoin) sans BIOS, une milliseconde de minuteries.
+run materiel-cas-pb256 materiel-cas PB-256
+run materiel-cas-pb256-materiel --hardware-mode PB-256 materiel-cas PB-256
 # G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
 # et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
 # l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.

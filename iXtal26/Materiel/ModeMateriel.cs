@@ -211,6 +211,7 @@ internal static class ModeMateriel
         new(253, "carte-mere", "les canaux 0 à 3 de l'AT n'ont le bus que par la cascade du canal 4"),
         new(254, "carte-mere", "le clavier de l'AT garde seize codes puis le débordement ; le 8042 ne perd rien d'autre"),
         new(255, "carte-mere", "après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR"),
+        new(256, "carte-mere", "la M24 et le PC1512 rafraîchissent par le canal 0 du DMA, comme le 5150 et l'XT"),
         new(257, "carte-mere", "un transfert de DMA refusé ne coûte pas de cycle"),
         new(258, "processeur", "l'erreur de division empile dans SS, sous un préfixe de segment"),
         new(260, "stockage", "l'AHA-1542C, maître du bus, ne le prend que par son canal du 8237, en cascade"),

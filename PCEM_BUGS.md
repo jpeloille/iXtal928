@@ -6020,9 +6020,17 @@ sortie 1 du 8253, toutes les 15,13 µs ; la ROM 1.43 de la M24 pose le canal 0 e
 (`F000:DC41-DC5A`). Documenté ; le coût d'un rafraîchissement en cycles de ces deux UC ne l'est pas.
 *Cas qui discrimine* : PC1512 ou M24 après le POST, l'adresse courante du canal 0 (deux lectures de 00h) relevée à
 1 ms d'intervalle : PCem, la même ; la machine, une soixantaine de transferts plus loin.
-*G13* : (b) — mécanisme documenté, temps déduit ; il change le temps de deux machines (question n° 2 de D6-contre).
-*Reproduit* : `Models/model.cs`, `olim24_init` et `ams_init`, marqueurs PB-256.
-*Non corrigé en mode matériel* : avec la carte mère, en attente (la question n° 2 de D6-contre ; PLAN-G13.md § G13.9).
+*G13* : (b) — mécanisme documenté, temps déduit ; il change le temps de deux machines (question n° 2 de D6-contre,
+posée en Q34, tranchée oui le 18/10).
+*Reproduit en mode PCem* : `Models/model.cs`, `olim24_init` et `ams_init`, marqueurs PB-256.
+*Corrigé en mode matériel* (G13.13a) : sous `if (materiel.pb_256)`, dans `olim24_init` et `ams_init`, la sortie 1 du PIT
+branchée sur `pit_refresh_timer_xt`, comme `xt_init` (`model_rafraichissement_materiel`, `Models/model.Materiel.cs`).
+Les ROM programment elles-mêmes le canal 0 et le compteur 1. Le coût d'un cycle est celui de PCem pour l'XT
+(`refreshread`), non documenté pour ces deux UC : le temps reste déduit. Seul, sans groupe : PB-03 (les cycles du
+rafraîchissement portés au TSC) et PB-257 (un transfert refusé sans cycle) valent alors aussi pour ces deux machines,
+sous leurs propres drapeaux. `materiel-cas PB-256` : la M24 et le PC1512 sans BIOS, le canal 0 en 58h, le compteur 1 à
+12h, une milliseconde de minuteries : l'adresse du canal 0 à 0 chez PCem, 65 transferts sur la machine ; témoin, l'XT,
+65 dans les deux modes.
 
 ### PB-257 — Le cycle de DMA est facturé avant les tests de masque et de mode
 

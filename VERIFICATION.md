@@ -13266,3 +13266,52 @@ deux modes : les positions de PCem, le défaut que MAME prête à la carte, et c
 **Le code** (`Ide/xtide.cs`) : le commentaire de G13.12c au-dessus de `xtide_init`, qui le dit ; la section `[XTIDE]`
 n'a pas de clé. Le Debug construit sans avertissement neuf ; le code compilé ne change pas, aucune série (un
 commentaire). `r9-hdccfg` éprouve déjà l'XTIDE en 300h (12b : 302h répond, `[Standard IDE]` ignorée).
+
+## G13.13a — le rafraîchissement de la M24 et du PC1512
+
+Le 18 octobre 2026. La première des deux parts de G13.13, la carte mère (Q25), la dernière étape avant la clôture.
+PB-256 corrigé en mode matériel, selon Q34 (la question n° 2 de D6-contre, A11, tranchée oui le 18/10).
+
+**Le code** (`Models/model.cs`, `Models/model.Materiel.cs`, neuf). `olim24_init` et `ams_init` : sous
+`if (materiel.pb_256)`, `model_rafraichissement_materiel` branche la sortie 1 du PIT sur `pit_refresh_timer_xt`, comme
+`xt_init` (`model.c:205`), après `common_init` et `mem_add_bios`, au même rang ; aucun init qui suit ne touche au
+canal 1 du PIT. Les ROM programment le canal 0 et le compteur 1 elles-mêmes. Le coût d'un cycle est celui de PCem pour
+l'XT (`refreshread`), non documenté pour ces deux UC : le temps reste déduit, et l'entrée le dit. PB-256 seul, sans
+groupe : PB-03 et PB-257 valent désormais aussi pour ces deux machines, sous leurs drapeaux. `ModeMateriel`
+(« carte-mere »), `materiel.pb_256`, la sonde.
+
+**La porte** `materiel-cas PB-256`, dans les deux modes : la M24, le PC1512 et l'XT (témoin) montés sans BIOS, le
+canal 0 en 58h, adresse 0, démasqué, le compteur 1 en mode 2 à 12h, une milliseconde de minuteries sans UC, l'adresse
+du canal 0 relue en 00h. En mode PCem, 0 sur la M24 et le PC1512, 65 sur l'XT ; en mode matériel, 65 partout. Le
+recensement : 294 défauts, 1 281 marqueurs (le marqueur de `model.Materiel.cs`), 202 corrigés en mode matériel.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-13a.py`, le Debug de l'arbre, chaque mutant joué puis défait) : cinq
+rouges. N1 et N2, la garde de la M24 puis celle du PC1512 en `if (false && …)` : un échec chacun, sous le mode
+matériel. N3, `pit_refresh_timer_at` au lieu de `pit_refresh_timer_xt` : deux échecs (la M24 et le PC1512 ne
+transfèrent plus). N4, la sonde non comptée : rouge, la porte la réclame. N5, le branchement de `xt_init` ôté :
+rouge en mode PCem, le témoin tombe. Les deux portes, l'arbre rétabli : vertes.
+
+**La contre-lecture** (Sonnet ; aucun bloquant ; vérifiés : la garde et son rang, aucun `pit_set_out_func` ultérieur,
+le mode PCem inchangé, la table triée et la sonde, l'horloge du PIT des trois machines — `setpitclock(14318184)` —, le
+cas sans fuite d'état — `closepc`, `timer_reset` —, le cœur 8086 de la M24 et du PC1512 et `refreshread`, PB-257 sur
+ces deux machines). Reprise : le registre cite PB-03 et PB-257 pour ces machines. Laissés : le groupe (PB-256 est
+indépendant dans le code ; le grouper avec PB-03 et PB-257 ne changerait rien sous « tout ») ; « une soixantaine de
+transferts », la prédiction du champ « Cas qui discrimine », que les 65 mesurés confirment.
+
+**Les témoins** (`/tmp/a9/boots-13a.sh`, hors des portes, le Release du worktree). `--timer-check` de 60 s, la M24 et
+le PC1512, dans les deux modes : le rapport du temps à 1,0000 partout, la marge de 33,6 à 41,7 ; le rafraîchissement
+retire 0,5 % des instructions de la M24 (26 094 749 → 25 965 691) et 0,6 % de celles du PC1512 (32 010 114 →
+31 825 651) sur cette charge (l'estimation de l'étude, 3 à 6 %, supposait un code qui tient le bus). PC-DOS 2.00
+jusqu'à `DIR`, sur les deux machines, dans les deux modes : le même écran (23 fichiers, 31 232 octets libres). Le cas de
+l'entrée, après le POST : DEBUG, `O C 0`, puis deux fois `I 0`, relevé deux fois : 00 00 et 00 00 en mode PCem sur les
+deux machines ; sous « tout », 0C A2 puis 30 3F (la M24), 42 0F puis 8E B6 (le PC1512) — le canal 0 avance.
+
+**La série** (`g13a`, le 18/10, 16:26 → 17:40, contre `g12b`) : 763 vertes, les deux portes neuves en plus ; seuls
+changent `couverture-materiel` (202 corrections) et `recensement` (1 281 marqueurs). Sous « tout » (`g13a-tout`,
+17:40 → 18:00, contre `g12b-tout`) : 524 vertes, 228 refusées, 11 pcem, aucune rouge ; les mêmes écarts.
+
+**M2** (`M2-13a` contre `M2-12b`, le Release du worktree) : 1 503 méthodes des deux côtés, 6 changées, aucune
+apparue ni disparue. Les constructeurs statiques de `materiel` (le drapeau `pb_256`) et de `ModeMateriel` (l'entrée
+de la table) ; `process_scsi`, `scsi_hd_command`, `scsi_zip_command` et `emu8k_init`, des jetons de chaînes seuls
+(`mov edi, 0x…`, la chaîne neuve de la table). `ams_init` (le scénario `pc1512`) est identique : la garde, fausse en
+mode PCem, est pliée ; `model_rafraichissement_materiel` n'est pas compilée. La M24 n'a pas de scénario.

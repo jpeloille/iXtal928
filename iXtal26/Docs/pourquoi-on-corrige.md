@@ -2352,3 +2352,17 @@ Julien à Q17 : la documentation du matériel tranche.*
   `drive1_type` du Xebec, `addr` de l'adaptateur de l'AT, `primary` et `secondary` de l'IDE. Un type que l'image n'a
   pas, la carte en 170h, un canal coupé qui porte une unité : un avertissement le dit au chargement. L'XTIDE garde ses
   adresses (Q32 : aucune source ne décrit ses interrupteurs).
+
+## G13.13a — le rafraîchissement de la M24 et du PC1512
+
+*Le 18 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.13 (Q34), `VERIFICATION.md` § G13.13a.*
+
+### PB-256 — la mémoire qui ne se rafraîchit pas
+
+- **Le vrai PC.** La mémoire dynamique de l'Olivetti M24 et de l'Amstrad PC1512 se rafraîchit comme celle du 5150 et
+  de l'XT : toutes les 15 µs environ, la sortie 1 du 8253 demande au canal 0 du DMA un cycle de bus, que l'UC perd.
+  Les deux ROM programment ce canal et ce compteur au démarrage.
+- **L'émulateur.** PCem ne branche ce rafraîchissement que sur le 5150 et l'XT. Sur la M24 et le PC1512, le compteur
+  1 ne commande rien : le canal 0 n'avance jamais, et l'UC ne perd aucun cycle.
+- **La correction.** En mode matériel, les deux machines le branchent comme l'XT. Le coût d'un cycle n'est documenté
+  pour aucune des deux : on garde celui que PCem donne à l'XT, et le registre le dit.

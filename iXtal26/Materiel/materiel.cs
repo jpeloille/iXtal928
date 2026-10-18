@@ -571,6 +571,9 @@ internal static class materiel
     /// <summary>PB-255 : après ICW1 et à la mise sous tension, le 8259 se lit sur l'IRR.</summary>
     internal static readonly bool pb_255;
 
+    /// <summary>PB-256 : la M24 et le PC1512 rafraîchissent par le canal 0 du DMA, comme le 5150 et l'XT.</summary>
+    internal static readonly bool pb_256;
+
     /// <summary>PB-257 : un transfert de DMA refusé ne coûte pas de cycle (5150, XT, M24, PC1512) ; avec PB-03.</summary>
     internal static readonly bool pb_257;
 
@@ -817,6 +820,7 @@ internal static class materiel
         pb_253 = ModeMateriel.Demande(253);
         pb_254 = ModeMateriel.Demande(254);
         pb_255 = ModeMateriel.Demande(255);
+        pb_256 = ModeMateriel.Demande(256);
         pb_257 = ModeMateriel.Demande(257);
         pb_258 = ModeMateriel.Demande(258);
         pb_260 = ModeMateriel.Demande(260);

@@ -879,6 +879,24 @@ contre-lecture, M2, sa série entière et son commit :
 - **Q33** — la carte « Standard IDE » de PCem, qu'aucune source ne nomme. *Validé : deux clés, `primary` et
   `secondary`, actives par défaut dans les deux modes ; ni adresse ni IRQ libres.*
 
+### G13.13 — La carte mère : COM, LPT et le rafraîchissement
+
+- Q25 : COM et LPT avec la carte mère (PB-256), la dernière étape avant la clôture ; Julien, le 18/10 : « on G13.13
+  puis clôture ». L'étude (18/10, `/var/tmp/ixtal-g13/etude-carte-mere.md`, hors du dépôt) ; de ses six questions, une
+  seule restait ouverte par les décisions (Q34) ; les défauts neufs qu'elle relève (la puce de l'UART, son état au
+  réveil, le port d'imprimante de la MDA, SW1-7/8, le COM2 du PC1512) sortent de la portée (décision n° 1) : ni
+  inscrits, ni corrigés, gardés dans l'étude.
+  - **G13.13a — Le rafraîchissement** ✅ : PB-256 (Q34), la M24 et le PC1512 rafraîchis par le canal 0 du DMA, comme
+    l'XT ; `materiel-cas PB-256`.
+  - **G13.13b — COM et LPT** : des clés d'adresse (COM1 et COM2, LPT1 et LPT2 : présent ou absent, l'adresse de la
+    carte), dans les deux modes, au défaut de PCem (Q25, Q26, décisions n° 14 et 17) ; sans PB.
+  - Puis la clôture : 10b et 10c rejouées.
+
+**La question de la carte mère, posée à Julien le 18/10, tranchée le même jour** :
+- **Q34** — PB-256 (la question n° 2 de D6-contre, A11) : brancher en mode matériel le rafraîchissement de la M24 et
+  du PC1512 par le canal 0 du DMA, comme `xt_init` ? Le coût d'un cycle n'est pas documenté pour ces deux UC.
+  **Tranchée : oui.**
+
 ## Les décisions (proposées ; à trancher)
 
 1. **Le principe et la portée.** Le principe ci-dessus. La portée : les PB des sections A et B, plus les défauts

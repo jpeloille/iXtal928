@@ -67,7 +67,7 @@ internal static partial class MaterielCas
         [178] = Pb178, [286] = Pb286, [287] = Pb287, [142] = Pb142, [260] = Pb260,
         [220] = Pb220, [80] = Pb80, [221] = Pb221, [37] = Pb37,
         [227] = Pb227, [100] = Pb100, [229] = Pb229, [99] = Pb99, [4] = Pb04, [230] = Pb230, [102] = Pb102, [97] = Pb97, [96] = Pb96, [222] = Pb222, [223] = Pb223, [225] = Pb225, [89] = Pb89,
-        [294] = Pb294,
+        [294] = Pb294, [256] = Pb256,
     };
 
     /// <summary>G13.5c — les corrections du mode protégé : les cas de pm-check --core 386 et du banc du 286 qui les
@@ -527,6 +527,38 @@ internal static partial class MaterielCas
         var accepte = (int)memcycs.GetValue(null)!;
         bad += Voir("canal 2 démasqué, en écriture, dma_channel_write", accepte == 4, $"{accepte} cycles de bus facturés",
                     "4", hw);
+        return bad;
+    }
+
+    // PB-256 — la M24 et le PC1512 rafraîchissent par le canal 0 du DMA, demandé par la sortie 1 du 8253 (PC1512 TRM,
+    // section 1, § 1.5, 1.5.1, 1.7.2 ; la ROM 1.43 de la M24, F000:DC41-DC5A), comme le 5150 et l'XT. La machine montée
+    // sans BIOS : le canal 0 en 58h (lecture, auto-initialisé), adresse 0, démasqué ; le compteur 1 en mode 2 à 12h
+    // (15,09 µs) ; une milliseconde de minuteries, sans UC ; puis l'adresse courante du canal 0, relue en 00h. PCem :
+    // 0, le canal jamais servi ; la machine, un transfert par période, 65 (le premier front montant au bout d'une
+    // période pleine, le compte chargé). Témoin : l'XT, que xt_init branche déjà.
+    private static int Pb256(bool hw)
+    {
+        static string Transferts()
+        {
+            Ports(0x0B, 0x58, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x01, 0xFF, 0x0A, 0x00, 0x43, 0x54, 0x41,
+                  0x12);
+            var parUs = timer.TIMER_USEC >> 32;
+            for (var us = 0; us < 1000; us++)
+            {
+                timer.tsc += parUs;
+                timer.timer_process();
+            }
+            io.outb(0x0C, 0x00);
+            var a = io.inb(0x00) | (io.inb(0x00) << 8);
+            return $"{a} transferts";
+        }
+        const string Cfg = "mem_size = 640\nsndcard = none\n";
+        var bad = UnCfg("M24, une milliseconde", "model = olivetti_m24\n" + Cfg, Transferts, "0 transferts",
+                        "65 transferts", hw);
+        bad += UnCfg("PC1512, une milliseconde", "model = pc1512\n" + Cfg, Transferts, "0 transferts", "65 transferts",
+                     hw);
+        bad += UnCfg("IBM XT, une milliseconde (témoin)", "model = ibmxt\n" + Cfg, Transferts, "65 transferts",
+                     "65 transferts", hw, temoin: true);
         return bad;
     }
 
