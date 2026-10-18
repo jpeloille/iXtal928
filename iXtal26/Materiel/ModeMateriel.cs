@@ -239,6 +239,7 @@ internal static class ModeMateriel
         new(291, "son", "le DMA 0 de la SB Pro"),
         new(292, "stockage", "l'AHA-1542C à son port d'usine, 330h"),
         new(293, "son", "le compte 0 du canal 2 joue son carré de 18,2 Hz, hors des modes 0 et 4"),
+        new(294, "video", "l'EGA offre les six réglages primaires de SW1-SW4, 8 et 11 compris"),
     ];
 
     /// <summary>Les corrections qui ne valent qu'ensemble (PLAN-G13.md, § Le mécanisme) : en demander une demande les

@@ -653,6 +653,10 @@ internal static partial class vid_cga
         cga.revision = device_get_config_int("composite_type");
         cga.snow_enabled = device_get_config_int("snow_enabled");
         contrast = device_get_config_int("contrast");
+        // DEVIATION: (G13.12a ; Q25, Q26) P3, la police, que PCem n'a pas : font = 1, le cavalier posé, la police en
+        //   simple trait (Options and Adapters, vol. 2, CGA, p. 5), que loadfont range aux caractères 256 à 511 ; sans
+        //   clé, le double trait, celle de PCem (fontbase à 0).
+        cga.fontbase = device_get_config_int("font") != 0 ? 256 : 0;
 
         cga.vram = new uint8_t[0x4000];
 
@@ -703,6 +707,11 @@ internal static partial class vid_cga
             selection = [new() { description = "Old", value = COMPOSITE_OLD }, new() { description = "New", value = COMPOSITE_NEW }] },
         new device_config_t { name = "snow_enabled", type = CONFIG_BINARY, default_int = 1 },
         new device_config_t { name = "contrast", type = CONFIG_BINARY, default_int = 0 },
+        // DEVIATION: (G13.12a ; Q25, Q26) P3, que PCem n'a pas : 0, le cavalier retiré, le double trait ; 1, posé, le
+        //   simple trait (p. 5).
+        new device_config_t { name = "font", type = CONFIG_SELECTION, default_int = 0,
+            selection = [new() { description = "Double dot", value = 0 },
+                         new() { description = "Single dot", value = 1 }] },
         new device_config_t { type = -1 },
     ];
 

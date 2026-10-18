@@ -850,6 +850,35 @@ contre-lecture, M2, sa série entière et son commit :
   Diff, figé avant son aiguillage, n'est pas touché. L'annonce dit toujours le mode ; l'écran de construction écrit
   `tout` par défaut ; une valeur inconnue de la clé, refusée avec un message (le défaut gardé).
 
+### G13.12 — Les cavaliers hors du son
+
+- Q25 : après le son, l'EGA (SW1-SW4, P3), la police de la CGA (P3), le type de disque du Xebec, les adresses de
+  l'adaptateur de l'AT et de l'XTIDE ; COM et LPT avec la carte mère (PB-256), plus tard. La règle est celle de 8d3 :
+  la décision n° 17 et Q26 (les cavaliers valent dans les deux modes, seul le défaut suit le mode) ; une valeur que la
+  liste de PCem n'a pas, sur une clé que PCem a déjà, est un PB neuf, au modèle de PB-291.
+- L'étude (18/10, `/var/tmp/ixtal-g13/etude-cavaliers.md`, hors du dépôt) : un seul PB neuf, PB-294 (`monitor_type`
+  de l'EGA, quatre des douze réglages de SW1-SW4) ; le reste, des clés neuves sans PB, au défaut de PCem, aucune usine
+  n'étant documentée (décision n° 14). Coupée en trois parts, chacune sa série entière dans les deux modes :
+  - **G13.12a — La vidéo** ✅ : PB-294 ; `io_base` (P3 de l'EGA, 2XX) et `font` (P3 de la CGA, le simple trait) ;
+    `materiel-cas PB-294`, `r9-videocfg`.
+  - **G13.12b — Le stockage** : `drive0_type` et `drive1_type` du Xebec (les types 1, 2, 13 et 16, sans clé la
+    déduction de PCem) ; `addr` de l'adaptateur de l'AT (1F0h ou 170h) ; `primary` et `secondary` de l'IDE.
+  - **G13.12c — L'XTIDE** : selon Q32, rien ne bouge ; il reste en 300h et C8000h, et le registre le dit.
+
+**Les questions des cavaliers hors du son, posées à Julien le 18/10, tranchées le même jour comme proposé** :
+- **Q30** — les six réglages « secondaires » de l'EGA (0 à 5), qui supposent une MDA ou une CGA primaire à côté, quand
+  iXtal ne monte qu'une carte vidéo. *Validé : les six réglages primaires seuls (6 à 11) ; 0 à 5 refusés, avec un
+  avertissement.*
+- **Q31** — les réglages qui cachent la carte à son propre BIOS (l'EGA en 2XX, l'adaptateur de l'AT en 170h, l'XTIDE
+  hors de 300h). *Validé : exposés dans les deux modes, chacun avec un avertissement au chargement.*
+- **Q32** — l'XT-IDE rev 1, sans source primaire pour ses interrupteurs. *Validé : chercher son schéma ou son guide de
+  montage ; à défaut, Q24.* La recherche (18/10, `/var/tmp/ixtal-g13/notes/q32-xtide.md`) n'a trouvé ni l'un ni
+  l'autre : seul le message d'ouverture du concepteur sur le forum de VCFed (28/02/2010) dit que SW1-SW4 règlent l'E/S
+  et SW5-SW8 la ROM, et que changer l'E/S impose de reflasher la ROM ; les plages et le codage ne viennent que de MAME,
+  un indice (décision n° 8). L'XTIDE reste en 300h et C8000h dans les deux modes.
+- **Q33** — la carte « Standard IDE » de PCem, qu'aucune source ne nomme. *Validé : deux clés, `primary` et
+  `secondary`, actives par défaut dans les deux modes ; ni adresse ni IRQ libres.*
+
 ## Les décisions (proposées ; à trancher)
 
 1. **Le principe et la portée.** Le principe ci-dessus. La portée : les PB des sections A et B, plus les défauts

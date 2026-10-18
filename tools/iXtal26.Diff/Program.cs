@@ -331,6 +331,8 @@ switch (args[0])
     case "r9-scsihd":
         return R9Aha.Run("roms", true);
     // G13.0 — R9 : R1 au-delà de 128 en 80 colonnes sur la CGA (PB-09) et sur la M24 (PB-88), en C# seul.
+    case "r9-videocfg":
+        return R9VideoCfg.Run("roms");
     case "r9-cga":
         return R9Cga.RunCga("roms");
     case "r9-m24":

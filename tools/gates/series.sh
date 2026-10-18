@@ -913,6 +913,12 @@ for pb in 21 293; do
   run materiel-cas-pb$pb materiel-cas PB-$pb
   run materiel-cas-pb$pb-materiel --hardware-mode PB-$pb materiel-cas PB-$pb
 done
+# G13.12a — les cavaliers de l'EGA et de la CGA (Q25, Q30, Q31) : PB-294 (monitor_type, les six réglages primaires de
+# SW1-SW4) ; r9-videocfg, en C# seul dans les deux modes : la liste de monitor_type suit le mode, io_base (P3 de l'EGA,
+# 2XX) et font (P3 de la CGA, le simple trait) valent dans les deux.
+run materiel-cas-pb294 materiel-cas PB-294
+run materiel-cas-pb294-materiel --hardware-mode PB-294 materiel-cas PB-294
+run r9-videocfg r9-videocfg
 # G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
 # et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
 # l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.

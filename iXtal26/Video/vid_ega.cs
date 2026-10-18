@@ -1263,8 +1263,17 @@ internal static partial class vid_ega
                 }
         }
 
-        monitor_type = device_get_config_int("monitor_type");
-        ega_init(ega, monitor_type, (monitor_type & 0xf) == 10 ? 1 : 0);
+        int[]? moniteurs = null;
+        // pcem bug, fixed in hardware mode: PB-294 — monitor_type n'offre que quatre des douze réglages de SW1-SW4 ;
+        //   la carte primaire a aussi 8 (l'Enhanced Display en émulation) et 11 (le monochrome, la CGA en 80x25).
+        if (materiel.pb_294)
+                moniteurs = moniteurs_materiel();
+        monitor_type = device_get_config_int_liste("monitor_type", moniteurs);
+        int mono = (monitor_type & 0xf) == 10 ? 1 : 0;
+        // pcem bug, fixed in hardware mode: PB-294 — 11, le monochrome comme 10.
+        if (materiel.pb_294)
+                mono = mono_materiel(monitor_type);
+        ega_init(ega, monitor_type, mono);
 
         // pcem bug, fixed in hardware mode: PB-99 — le rendu est borné par vrammask, mais les substitutions de
         //   rangée de CR17 s'appliquent après (:344-347, :405-408, :477-480) : avec 64 Ko, le bit 0x10000 (CR17
@@ -1276,7 +1285,12 @@ internal static partial class vid_ega
 
         mem_mapping_add(ega.mapping, 0xa0000, 0x20000, ega_read, null, null, ega_write, null, null, null, 0,
                         MEM_MAPPING_EXTERNAL, ega);
-        io_sethandler(0x03a0, 0x0040, ega_in, null, null, ega_out, null, null, ega);
+        // DEVIATION: (G13.12a ; Q25, Q31) P3, que PCem n'a pas : io_base = 0x200 décode toutes les adresses de la
+        //   carte en 2XX (cavalier_p3) ; sans clé, 3XX, la position de PCem.
+        if (device_get_config_int("io_base") == 0x300)
+                io_sethandler(0x03a0, 0x0040, ega_in, null, null, ega_out, null, null, ega);
+        else
+                cavalier_p3(ega);
 
         Probe = ega;
         return ega;
@@ -1329,6 +1343,10 @@ internal static partial class vid_ega
                          new() { description = "EGA Monochrome (white)", value = 10 | (DISPLAY_WHITE << 4) },
                          new() { description = "EGA Monochrome (green)", value = 10 | (DISPLAY_GREEN << 4) },
                          new() { description = "EGA Monochrome (amber)", value = 10 | (DISPLAY_AMBER << 4) }] },
+        // DEVIATION: (G13.12a ; Q25, Q26) P3, que PCem n'a pas : 3XX, la position normale (broches 1-2), ou 2XX
+        //   (broches 2-3), que le BIOS de la carte ne gère pas (Options and Adapters, vol. 2, EGA, p. 85).
+        new device_config_t { name = "io_base", type = CONFIG_SELECTION, default_int = 0x300,
+            selection = [new() { description = "3XX", value = 0x300 }, new() { description = "2XX", value = 0x200 }] },
         new device_config_t { type = -1 },
     ];
 

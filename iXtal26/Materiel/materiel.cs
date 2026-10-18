@@ -621,6 +621,10 @@ internal static class materiel
     /// <summary>PB-293 : le compte 0 du canal 2, hors des modes 0 et 4, joue le carré de speakon (18,2 Hz).</summary>
     internal static readonly bool pb_293;
 
+    /// <summary>PB-294 : l'EGA offre les six réglages primaires de SW1-SW4, 8 et 11 compris ; 11 est
+    /// monochrome.</summary>
+    internal static readonly bool pb_294;
+
     /// <summary>PB-148 : la SB 16 et l'AWE32 enregistrent la MIDI (l'OPL, l'EMU8000) par le mélangeur d'entrée du
     /// CT1745 ; la lecture suit l'écriture d'un tampon ; 20h prend un échantillon sans régler l'entrée.</summary>
     internal static readonly bool pb_148;
@@ -829,6 +833,7 @@ internal static class materiel
         pb_291 = ModeMateriel.Demande(291);
         pb_292 = ModeMateriel.Demande(292);
         pb_293 = ModeMateriel.Demande(293);
+        pb_294 = ModeMateriel.Demande(294);
         pb_148 = ModeMateriel.Demande(148);
         pb_151 = ModeMateriel.Demande(151);
     }

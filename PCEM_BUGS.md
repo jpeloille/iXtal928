@@ -6915,6 +6915,32 @@ et fait basculer `speakon` à 18,2 Hz ; `speaker_update` ne l'écoute pas.
 1400h puis 0000h sur la carte) ; témoins, égaux des deux côtés : les comptes 20h et 3Fh en mode 3 (0A00h), le mode 0
 à 0, `speakval` posé à 1234h (sa sortie).
 
+### PB-294 — L'EGA de PCem n'offre que quatre des douze réglages de ses interrupteurs
+
+`vid_ega.c:1099-1119` (`ega_config`) : `monitor_type` offre 6, 7, 9 et 10 (en trois teintes de tube), 9 par défaut ;
+`ega_standalone_init` (`:1053-1054`) et `ega_init` (`:1028`) posent `egaswitches = monitor_type & 0xf`, que 3C2h relit,
+et le monochrome pour 10 seul. Une autre valeur n'existe que par un .cfg édité à la main ; iXtal la refuse alors, vers 9
+(PB-93).
+*Effet* : une EGA réglée sur 8 (l'Enhanced Display en émulation, le texte sur 200 lignes) ou 11 (le monochrome, une CGA
+secondaire en 80 colonnes), comme le permet la carte, ne se configure pas : elle reste à 9. Le BIOS de la carte, qui lit
+SW1-SW4 (`RD_SWS`) et range le réglage en 40:88h, prend alors des tables de 350 lignes.
+*Trouvé par* : l'étude des cavaliers hors du son (18/10), Q25.
+*Source* : IBM, *Technical Reference Options and Adapters*, vol. 2 (avril 1984), EGA, p. 81-82 : les douze réglages de
+SW1-SW4, un interrupteur fermé lu 0 (p. 15) ; le listing du BIOS, p. 108 (lignes 584-601, la même table) et p. 109
+(`RD_SWS`, lignes 671-704). Documenté. Les réglages 0 à 5 font de l'EGA la carte secondaire, à côté d'une MDA ou d'une
+CGA primaire : iXtal ne monte qu'une carte vidéo, ils restent refusés (Q30).
+*Cas qui discrimine* : `monitor_type = 8`, les interrupteurs relus en 3C2h bit 4 sous les quatre CLKSEL du BIOS (0Dh,
+09h, 05h, 01h) : PCem refuse la clé, 1001b ; la carte rend 1000b. `monitor_type = 91` (11, le tube blanc) : 1001b et la
+palette des couleurs chez PCem ; 1011b et la palette monochrome sur la carte.
+*G13* : (a) — documenté.
+*Reproduit en mode PCem* : `Video/vid_ega.cs`, `ega_standalone_init` (deux sites), marqueur PB-294.
+*Corrigé en mode matériel* (G13.12a) : sous `if (materiel.pb_294)`, la liste de `monitor_type` a les six réglages
+primaires, 6 à 11, 10 et 11 dans les trois teintes de PCem (`moniteurs_materiel`, `Video/vid_ega.Materiel.cs`, lue par
+`device_get_config_int_liste`) ; 11 est monochrome comme 10 (`mono_materiel`). Une clé de 0 à 5 est refusée, vers 9,
+avec l'avertissement de la liste et celui d'une carte secondaire (Q30). Le défaut reste 9 dans les deux modes : l'usine
+n'est pas documentée (décision n° 14). `materiel-cas PB-294` : `monitor_type = 8`, puis 91 (1001b et les couleurs chez
+PCem ; 1000b, puis 1011b en blanc, sur la carte) ; témoins, 7 et 90, égaux des deux côtés. `r9-videocfg` suit le mode.
+
 ## B. Comportement indéfini en C
 
 ### PB-07 — `readmemw` déréférence un `uint16_t*` au-delà de l'allocation

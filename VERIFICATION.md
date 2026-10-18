@@ -13111,3 +13111,68 @@ disparues (10c : 35, 8 et 0). Chacune rattachée à la première capture où ell
 Toutes sont froides (l'initialisation, la configuration, les tables). Les seules de l'émulation sont les initialisations
 des cartes de 8d3 : les cavaliers, joués dans les deux modes, comme Q26 le veut. Les exécuteurs, les gestionnaires
 d'instructions, les poll de la vidéo et du son, les commandes du CD et des disques restent ceux d'avant G13, à l'octet.
+
+## G13.12a — les cavaliers de l'EGA et de la CGA
+
+Le 18 octobre 2026. La première des trois parts de G13.12 (les cavaliers hors du son, Q25 ; l'étude,
+`/var/tmp/ixtal-g13/etude-cavaliers.md`, hors du dépôt ; Q30 à Q33 tranchées le 18/10 comme proposé) : PB-294, neuf,
+et deux cavaliers sans défaut, P3 de l'EGA et P3 de la CGA.
+
+**PB-294** (`Video/vid_ega.cs`, `vid_ega.Materiel.cs`). `monitor_type` n'offre chez PCem que quatre des douze réglages
+de SW1-SW4 (6, 7, 9 et 10, celui-ci en trois teintes de tube) ; la carte primaire a aussi 8 (l'Enhanced Display en
+émulation) et 11 (le monochrome, une CGA secondaire en 80 colonnes ; Options and Adapters, vol. 2, EGA, p. 81-82). Sous
+`if (materiel.pb_294)`, `moniteurs_materiel` rend la liste des six réglages primaires (6 à 11, les trois tubes pour 10
+et 11), lue par `device_get_config_int_liste` comme celle de PB-291 ; `mono_materiel` fait de 11 un monochrome comme
+10. Q30 : les réglages 0 à 5 (l'EGA en carte secondaire) restent refusés dans les deux modes ; en mode matériel,
+l'avertissement dit qu'ils supposent une MDA ou une CGA primaire, qu'iXtal ne monte pas.
+
+**Les cavaliers** (la décision n° 17 et Q26 : dans les deux modes, au défaut de PCem). `io_base` de l'EGA (P3) : 0x300
+par défaut, 0x200 fait répondre la carte en 2A0h-2DFh (`cavalier_p3`, les ports décalés de 100h vers les gestionnaires
+de PCem), avec l'avertissement de Q31 (le BIOS de la carte ne gère pas 2XX, p. 85). `font` de la CGA (P3) : 0 le
+double trait (la ROM en 1800h), 1 le simple trait (1000h, `cga.fontbase = 256`), la police que PCem charge déjà sans
+la proposer.
+
+**Les cas.** `materiel-cas PB-294` (`MaterielCasEga.cs`) : l'EGA montée sur l'IBM XT, 3C2h écrit avec chacune des
+quatre sélections d'horloge, le bit 4 de 3C2h relu (SW4-SW1), et la palette (`pallook[3F]`) : `monitor_type = 8`, 1001
+chez PCem, 1000 sur la carte ; 91 (11, le tube blanc), 1001 et FFFFFF chez PCem, 1011 et FFFDED sur la carte ;
+témoins 7 et 90 (10, le tube blanc). `r9-videocfg` (`R9VideoCfg.cs`, neuf, dans les deux modes) : seize essais sur
+l'IBM XT, le BIOS non lancé, chacun la valeur lue, les avertissements « hors de la liste » comptés et l'avertissement
+nommé cherché — l'EGA sans clé, 7, 8, 91, 3 et 48 (Q30, l'avertissement en mode matériel), 12, 15, 99, `io_base` 0x200
+(3C4h muet, 2C4h répond ; Q31), 768, 0x250 (refusé) ; la CGA sans clé, `font` 0, 1 et 2 (refusé), la rangée 1 du « A »
+rendue par `cga_poll` comparée à la ROM. Trois portes neuves. Recensement : 294 défauts, 1 280 marqueurs.
+`couverture-materiel` sous « tout » : 201 corrections, toutes vertes (vidéo 21).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-12a.py`) : la garde de la liste coupée, `materiel-cas PB-294` sous PB-294
+rougit (2 échecs) ; la garde du monochrome, 1 ; 11 blanc retiré de la liste, 1 ; 8 retiré, 1 ; 11 en couleur, 1 ;
+l'avertissement de Q30 manqué pour 3, `r9-videocfg` sous PB-294, 1 ; manqué pour 48 (la clause du tube coupée), 1 ;
+P3 lu sans le décalage, `r9-videocfg` en mode PCem, 1 ; P3 ignoré, 1 ; la police fine ignorée, 2 ; l'avertissement de
+Q31 hors de la sortie d'erreur, 1 ; l'attendu de PCem faux pour 8, `materiel-cas PB-294` en mode PCem, 1 ; le numéro
+retiré d'un marqueur, le recensement (1 écart). Les quatre témoins verts.
+
+**La contre-lecture** (Sonnet ; aucun bloquant). Reprises : l'avertissement de Q30 ne voyait pas un réglage 0 à 5
+porté avec un tube (48, 0 et le tube vert) — la condition élargie (`(brut & 0xf) <= 5` avec un tube), l'essai de 48
+ajouté à `r9-videocfg`, le contrôle négatif de la clause du tube ajouté, rouge ; une ligne vide en double dans
+`pourquoi-on-corrige.md`. Vérifiés sans reprise : `RangeeA` (la ligne rendue sans `video_wait_for_buffer`), la longueur
+des lignes.
+
+**Les séries** (le worktree de 12a, la DLL Release figée, `S-g12a`). En mode PCem, g12a (9 h 45 à 11 h 00) : 760
+vertes ; contre g8g2b, aucun verdict ne change, s'ajoutent les trois portes de 12a, le recensement (294 défauts,
+1 280 marqueurs) et la couverture (201 corrections) suivent. Sous « tout », g12a-tout (11 h 00 à 11 h 22) : 521
+vertes, 228 refusées, 11 `pcem`, aucune rouge ; contre g8g2b-tout, les mêmes écarts. Les reprises de la contre-lecture
+sont venues après la DLL des séries : le Release reconstruit, six portes rejouées (`/tmp/a9/sous-12a.sh` : PB-294 dans
+les deux modes, `r9-videocfg` en mode PCem et sous « tout », le recensement, la couverture), toutes vertes.
+
+**Les témoins** (`/tmp/a9/boots-12a.sh`, hors des portes ; le 5150, PC-DOS 2.00, DEBUG en B:). `D 40:87 L 3`, l'octet
+où le BIOS de l'EGA range SW1-SW4 : `monitor_type = 8`, 09 en mode PCem (refusé, le défaut), 08 sous « vidéo » et
+« tout » ; 9, 09 dans les trois modes ; 91, 09 en mode PCem, et en mode matériel le BIOS amorce DOS en monochrome
+(l'écran en B000h, lu par `@shot`) : 62 0B, le bit 1 de 40:87h (un écran monochrome) et le réglage 11. `io_base =
+0x200` : l'avertissement une fois, DOS se charge, la carte ne trace rien (son BIOS écrit en 3XX), dans les deux modes.
+La CGA, `font = 1` : DIR rendu au simple trait, `font = 0` au double, chacun identique en mode PCem et sous « tout ».
+
+**M2-12a** (le Release du worktree, reconstruit avec les reprises, les trente scénarios, aucune méthode en MinOpts) :
+contre M2-8g2b, 1 496 méthodes et 1 497 ; dix changées, aucune disparue, une apparue. `ega_standalone_init` et
+`cga_standalone_init` (les clés lues au montage) ; les constructeurs statiques de `vid_ega` et `vid_cga` (les tables
+de configuration, `io_base` et `font`), de `materiel` et `ModeMateriel` (le drapeau et le libellé de PB-294) ;
+`device_get_config_int_liste` apparue (écrite en 8d3b, compilée désormais par le montage de l'EGA). Les jetons de
+chaînes seuls, vérifiés ligne à ligne : `process_scsi`, `scsi_hd_command`, `scsi_zip_command`, `emu8k_init`. Toutes
+froides ; `ega_in`, `ega_out`, `ega_poll` et `cga_poll` ne changent pas d'un octet.

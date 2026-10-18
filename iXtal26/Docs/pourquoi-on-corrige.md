@@ -2315,3 +2315,25 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **L'émulateur.** PCem prend ce compte pour un ton trop aigu et sort un niveau continu : rien ne s'entend.
 - **La correction.** En mode matériel, le compte 0 joue son carré, comme tout autre ton audible.
 
+## G13.12a — les cavaliers de l'EGA et de la CGA
+
+*Le 18 octobre 2026, écrite avec son commit ; `PLAN-G13.md` § G13.12 (Q25, Q30, Q31), `VERIFICATION.md` § G13.12a.*
+
+### PB-294 — les interrupteurs de l'EGA
+
+- **Le vrai PC.** Quatre interrupteurs, au dos de la carte, disent au BIOS de l'EGA quel écran est branché et si une
+  autre carte vidéo est là. Six de leurs douze réglages font de l'EGA la carte principale. Le réglage 8 sert un
+  Enhanced Display en émulation, avec le texte du Color Display ; le réglage 11 sert un écran monochrome, à côté d'une
+  CGA.
+- **L'émulateur.** PCem n'offre que quatre réglages, sans 8 ni 11.
+- **La correction.** En mode matériel, les six réglages principaux. Les six autres supposent une deuxième carte vidéo,
+  qu'iXtal ne monte pas : ils sont refusés, et l'avertissement le dit.
+
+### P3 de l'EGA et P3 de la CGA — deux cavaliers, sans défaut à corriger
+
+- **Le vrai PC.** Le cavalier P3 de l'EGA déplace toutes ses adresses de 3XX en 2XX, que son BIOS ne gère pas.
+  Celui de la CGA choisit la police : le double trait sans cavalier, le simple trait avec.
+- **L'émulateur.** PCem tient la position normale de chacun, sans la laisser changer. La police fine est pourtant dans
+  sa ROM.
+- **La correction.** Deux réglages, `io_base` et `font`, dans les deux modes, avec la position de PCem par défaut.
+  En 2XX, un avertissement dit que le BIOS ne trouvera pas la carte.

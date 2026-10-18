@@ -20,12 +20,12 @@ internal static partial class MaterielCas
     private static ega_t Ega() => vid_ega.Probe ?? throw new InvalidOperationException("pas d'EGA après initpc");
 
     private static int UnEga(string nom, Func<ega_t, string> corps, string pcem, string mat, bool hw,
-                             bool temoin = false, int memoire = 256) =>
+                             bool temoin = false, int memoire = 256, string cles = "") =>
         UnMono(nom, "ega", () =>
         {
             io.outb(0x3c2, 0x01);
             return corps(Ega());
-        }, pcem, mat, hw, temoin, $"[EGA]\nmemory = {memoire}\n");
+        }, pcem, mat, hw, temoin, $"[EGA]\nmemory = {memoire}\n{cles}");
 
     private static void Attr(int idx, int val)
     {
@@ -239,4 +239,36 @@ internal static partial class MaterielCas
     private static int Pod14(bool hw) =>
         UnEga("XT et EGA, l'amorçage du BIOS, quinze secondes : POD14 sans bip", _ => Bips(1500), "0 bip(s)",
               "0 bip(s)", hw);
+
+    // PB-294 — SW1-SW4 (Options and Adapters, vol. 2, EGA, p. 81-82 ; le listing du BIOS, p. 108, RD_SWS p. 109) : six
+    // réglages où l'EGA est primaire, 6 à 11 ; PCem n'offre pas 8 (l'Enhanced Display en émulation) ni 11 (le
+    // monochrome, la CGA secondaire en 80 colonnes). Le cas de l'entrée : monitor_type = 8, puis 91 (11, le tube blanc)
+    // ; les interrupteurs relus en 3C2h bit 4 sous les quatre CLKSEL du BIOS (0Dh, 09h, 05h, 01h : SW1 à SW4), et la
+    // palette du tube (pallook[3Fh]). PCem refuse la clé, vers 9 : 1001b, la palette des couleurs ; la carte rend 8
+    // (0001b) et 11 (1101b) en blanc. Témoins : 7 et 90 (10, le tube blanc), sans écart.
+    private static string Interrupteurs(ega_t e)
+    {
+        var sw = "";
+        foreach (var clk in new byte[] { 0x0d, 0x09, 0x05, 0x01 })
+        {
+            io.outb(0x3c2, clk);
+            sw = ((io.inb(0x3c2) & 0x10) != 0 ? "1" : "0") + sw;
+        }
+        return $"SW4-SW1={sw} pallook[3F]={e.pallook[0x3f]:X6}";
+    }
+
+    private static int Pb294(bool hw)
+    {
+        var bad = UnEga("EGA : monitor_type = 8 (l'Enhanced Display en émulation)", Interrupteurs,
+                        "SW4-SW1=1001 pallook[3F]=FFFFFF", "SW4-SW1=1000 pallook[3F]=FFFFFF", hw,
+                        cles: "monitor_type = 8\n");
+        bad += UnEga("EGA : monitor_type = 91 (11, le monochrome, le tube blanc)", Interrupteurs,
+                     "SW4-SW1=1001 pallook[3F]=FFFFFF", "SW4-SW1=1011 pallook[3F]=FFFDED", hw,
+                     cles: "monitor_type = 91\n");
+        bad += UnEga("EGA : monitor_type = 7 (témoin)", Interrupteurs, "", "SW4-SW1=0111 pallook[3F]=FFFFFF", hw,
+                     temoin: true, cles: "monitor_type = 7\n");
+        bad += UnEga("EGA : monitor_type = 90 (10, le tube blanc ; témoin)", Interrupteurs, "",
+                     "SW4-SW1=1010 pallook[3F]=FFFDED", hw, temoin: true, cles: "monitor_type = 90\n");
+        return bad;
+    }
 }

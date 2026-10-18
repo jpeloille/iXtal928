@@ -12,6 +12,7 @@
 // listing du BIOS, pp. 114 et 122 (POD14, OUT_DX). Les méthodes portent NoInlining (M2, G13.7c2).
 
 using System.Runtime.CompilerServices;
+using static iXtal26.io;
 using static iXtal26.timer;
 using static iXtal26.Video.video;
 
@@ -245,5 +246,47 @@ internal static partial class vid_ega
         if (v != 0xff && (ega.crtc[0x11] & 0x20) == 0 && (ega.stat & 8) == 0)
                 v |= 0x80;
         return (uint8_t)v;
+    }
+
+    // ===== G13.12a — les cavaliers de l'EGA =====
+
+    /// <summary>PB-294 : la liste de monitor_type — les six réglages de SW1-SW4 où l'EGA est la carte primaire
+    /// (Options and Adapters, vol. 2, EGA, p. 81-82 ; le listing du BIOS, p. 108) : 6 et 7 (le Color Display), 8 et
+    /// 9 (l'Enhanced Display, en émulation et en haute résolution), 10 et 11 (le monochrome, la CGA secondaire en 40
+    /// ou 80 colonnes), ceux-ci dans les trois teintes de tube de PCem. PCem n'offre pas 8 ni 11. Les réglages 0 à 5
+    /// (l'EGA secondaire, une MDA ou une CGA primaire à côté) restent refusés (Q30) : iXtal ne monte qu'une carte
+    /// vidéo.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int[] moniteurs_materiel()
+    {
+        ModeMateriel.Sonde[294]++;
+        int brut = PluginApi.config.config_get_int(PluginApi.config.CFG_MACHINE, ega_device.name, "monitor_type", 9);
+        bool tube = (brut >> 4) is DISPLAY_GREEN or DISPLAY_AMBER or DISPLAY_WHITE;
+        if (brut is >= 0 and <= 5 || (brut & 0xf) <= 5 && tube)
+                Console.Error.WriteLine($"iXtal26 : [EGA] monitor_type = {brut} : l'EGA en carte secondaire (SW1-SW4 " +
+                                        "de 0 à 5) suppose une MDA ou une CGA primaire ; iXtal ne monte qu'une carte " +
+                                        "vidéo.");
+        return [6, 7, 8, 9, 10 | (DISPLAY_WHITE << 4), 10 | (DISPLAY_GREEN << 4), 10 | (DISPLAY_AMBER << 4),
+                11 | (DISPLAY_WHITE << 4), 11 | (DISPLAY_GREEN << 4), 11 | (DISPLAY_AMBER << 4)];
+    }
+
+    /// <summary>PB-294 : le monochrome, 10 et 11 (p. 81-82).</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int mono_materiel(int monitor_type)
+    {
+        ModeMateriel.Sonde[294]++;
+        return (monitor_type & 0xf) is 10 or 11 ? 1 : 0;
+    }
+
+    /// <summary>G13.12a, dans les deux modes (Q25, Q31) : P3 sur les broches 2-3, toutes les adresses de la carte en
+    /// 2XX (Options and Adapters, vol. 2, EGA, p. 85) : 2A0h-2DFh, rendus à ega_in et ega_out en 3XX, où le décodage de
+    /// 3Bxh et 3Dxh par 3C2h bit 0 reste celui de la carte. « Operation of the adapter in the 2XX mode is not
+    /// supported in BIOS » : le BIOS de la carte ne la trouve plus, et l'avertissement le dit.</summary>
+    private static void cavalier_p3(ega_t ega)
+    {
+        Console.Error.WriteLine("iXtal26 : [EGA] io_base = 2XX (P3) : la carte répond en 2A0h-2DFh, que son BIOS ne " +
+                                "gère pas (Options and Adapters, vol. 2, EGA, p. 85) ; le BIOS ne la trouvera pas.");
+        io_sethandler(0x02a0, 0x0040, (addr, p) => ega_in((uint16_t)(addr + 0x100), p), null, null,
+                      (addr, val, p) => ega_out((uint16_t)(addr + 0x100), val, p), null, null, ega);
     }
 }
