@@ -71,18 +71,22 @@ Linux.
 - **À trancher dans le plan de conception** : l'articulation avec les clés serial1/2 et parallel1/2 de G13.13b ; les
   machines qui ont déjà une Super I/O sur leur carte mère.
 
-## L'étape suivante (sur feu vert ; l'émulateur ne change pas)
+## L'étape suivante — faite le 20/10 (feu vert de Julien : « télécharge les fiches et fais la note d'écarts »)
 
-1. Télécharger les sources primaires hors de git, dans `iXtal26/Docs/cartes-ide/sources/` (une règle au
-   `.gitignore`) : la fiche du FDC37C651/652, l'AN 4.14 de SMSC, et pour comparaison celles du GM82C765B et de la
-   W83757, avec les fiches TH99 utiles.
-2. Lire la fiche du 652 sur place (`pdftotext`) ; relever ce que l'émulateur fait déjà, en mode matériel, des
-   disquettes, de l'IDE et de 3F7h ; en tirer une note des écarts, sans rien corriger.
-3. Ce qui en sort — les écarts, les clés des cavaliers, la conception des deux modes — fera un plan à part, soumis à
-   Julien.
+1. **Les sources primaires sont téléchargées** hors de git, dans `sources/` à la racine du dépôt, et non dans
+   `iXtal26/Docs/cartes-ide/sources/` comme prévu : le dépôt avait déjà ce dossier, son `.gitignore` et
+   `tools/fetch-sources.sh`. Sept ajouts au manifeste, scellés : SM1 (FDC37C651/652), SM2 (AN 4.14), SM3
+   (FDC37C665IR/666IR), G1 (GM82C765B, déposé à la main : le serveur refuse curl), W1 (W83757), W2 (W83759A) et WD1
+   (WD37C65C). Les fiches TH99, des pages HTML secondaires, n'y sont pas.
+2. **La note des écarts** : `iXtal26/Docs/cartes-ide/ecarts-fdc37c652.md`. Elle relève douze points sur les
+   disquettes, six sur l'IDE et quatre sur les ports, et six questions pour le plan de conception (DRVTYP et le
+   code 11, les bits 6-0 de 3F7h, DMAEN comme défaut de PCem pour tout AT, les deux modes, 3F0h-3F1h, les incohérences de la
+   fiche).
+3. **À suivre, sur feu vert** : le plan de conception — les écarts, les clés des cavaliers, les deux modes —
+   soumis à Julien.
 
-**La vérification** : chaque PDF s'ouvre sous `pdftotext`, son titre et sa révision sont ceux du tableau des sources ;
-`git status` ne montre rien de `sources/`.
+**La vérification** : les sept PDF s'ouvrent sous `pdfinfo` (90, 2, 166, 36, 29, 41 et 58 pages), six ont une
+couche de texte (`W83757.pdf` est un scan sans texte) ; `git status` ne montre de `sources/` que le manifeste.
 
 ## Sources
 
