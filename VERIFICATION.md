@@ -13455,3 +13455,83 @@ compris, sauf `abi` (58) et la porte neuve. La police et la palette ne touchent 
 **Ce que ce vert ne dit pas** : la porte compare les tables, pas l'image. Les formats de police des machines absentes
 ne sont comparés qu'à travers ce que `loadbios` en appelle (WY700, MDSI, IM1024, dont les fichiers manquent des deux
 côtés).
+
+## GR.0b — les sondes hachent l'image ; la sonde de la CGA ; les champs de l'ET4000
+
+Le 20 octobre 2026. Depuis GR.0a, l'oracle a les mêmes polices et la même palette que le C#. GR.0b fait hacher l'image
+par les sondes des cartes non SVGA, qui ne comparaient que les registres et la VRAM : un chemin de points faux restait
+vert. La CGA, sans sonde jusqu'ici, en reçoit une, et l'ET4000 reçoit ses trois champs manquants (R1, GR.1a, regroupé
+ici par la décision n° 3).
+
+**Le harnais, l'ABI 59.**
+- **L'image et les palettes.** `h_image_hash` (`buffer32`, 2048 × 2048 × 4 octets, la même empreinte que la VGA) et
+  `h_cgapal_hash` (`harness.c`). Chaque sonde non SVGA y range le champ 3 (`#buffer32`). Elle range aussi le champ 4 :
+  `#cgapal` pour la CGA, la M24 et le PC1512, `#mdacols` pour la MDA et l'Hercules. L'EGA range `#pallook` au champ 9 :
+  son hachage change quand 3C2h bascule entre `pallook16` et `pallook64`. Une palette fausse se voit ainsi même sur un
+  attribut absent de l'écran.
+- **La CGA** (`harness_cga.c`, neuf, genre 7) : 22 champs à partir de 122. Ce sont les registres, la VRAM de 16 Ko, le
+  balayage, le curseur, la minuterie, la `charbuffer` (hachée sur 256 octets, la taille de PCem) et
+  `revision|composite|snow_enabled`. Le montage efface la VRAM côté oracle : `cga_init` l'alloue par `malloc` sans
+  l'effacer. C'est une déviation de l'oracle, par analogie avec la décision n° 4 de PLAN-G9.
+- **L'ET4000** (`harness_et4000.c`, neuf) : `vid_et4000.c` sort de la liste liée du Makefile pour être inclus.
+  `banking`, `ramdac.state` et `ramdac.ctrl` vont aux places du Trident (`f`, `f + 9`, `f + 10`) : les deux cartes ne
+  coexistent pas. La SVGA garde « 163 champs ».
+- **Le C#.** `vid_svga.cs` (`ProbeCga` et les champs 3, 4 et 9 des autres sondes), `vid_cga.cs` (la carte retenue pour
+  la sonde, dans une classe imbriquée), `mdacols` interne à `vid_mda.cs` et `vid_hercules.cs`. `VgaProbe` nomme les
+  champs par genre et compte ceux qui sont remplis : CGA 25, MDA 20, Hercules 20, EGA 33, M24 24, PC1512 23.
+- **Les refus.** boot-diff refuse (code 2) trois réglages sans pendant chez PCem (décision n° 4) : `font` = 1 sur la
+  CGA, `display_type` composite et `io_base` = 200h sur l'EGA. Seules les valeurs de la liste comptent : une valeur
+  hors liste revient au défaut des deux côtés et reste comparable. Contrôlé à la main : `font` = 1, `io_base` = 200h et
+  le composite sont refusés ; `font` = 7, `io_base` = 250h et `display_type` = 9 restent verts.
+- **`oracle.tsv`** : deux lignes neuves (`vid_cga.cs` → `harness_cga.c`, `vid_et4000.cs` → `harness_et4000.c`), les
+  harnais touchés réancrés ; `check-oracle` : 214 transcrits vérifiés, aucune dérive.
+
+**Le premier vert des pixels.** Tous les boot-diffs non SVGA sont verts dès le premier passage, images comprises, aux
+mêmes comptes d'instructions. Le risque 1 de R0 ne s'est pas réalisé : aucune transcription de chemin de points à
+corriger. Le témoin de l'oracle : `loadfont` rendu à la souche dans l'oracle rougit la MDA et la CGA sur `#buffer32`
+seul.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr0b.py`, une panne côté C# à la fois, restaurée, Debug). Le diff
+d'instructions reste vert ; la sonde rougit sur l'image ou sur le champ nommé, seuls :
+
+| | Panne | Porte | Résultat |
+|---|---|---|---|
+| N1 | CGA : la rangée de la police (`vid_cga.cs:328`, 80 colonnes) | `bd-pcdos-cga` | `#buffer32`, 1 sur 25 |
+| N2 | MDA : la couleur de l'attribut 7 (`vid_mda.cs:413`) | `bd-pcdos-mda` | `#buffer32` et `#mdacols`, 2 sur 20 |
+| N3 | Hercules : la même (`vid_hercules.cs:448`) | `bd-pcdos-hercules` | `#buffer32` et `#mdacols`, 2 sur 20 |
+| N4 | EGA : un poids de `pallook64` (`vid_ega.cs:1219`) | `bd-pcdos-ega` | `#pallook`, 1 sur 33 |
+| N5 | M24 : la rangée de `fontdatm` (`vid_olivetti_m24.cs:271`) | `bd-m24-dir` | `#buffer32`, 1 sur 24 |
+| N6 | PC1512 : les plans 1 et 2 échangés | `bd-pc1512-plan` | `#buffer32`, 1 sur 23 |
+| N7 | ET4000 : `ramdac.state` après la palette (`vid_unk_ramdac.cs:103`) | `bd-ami386dx-et4000` | 1 sur 163 |
+| T | les témoins restaurés | `bd-pcdos-cga`, `bd-ami386dx-et4000` | verts |
+
+Les premières places de N1 et N5 (`vid_cga.cs:319`, `vid_olivetti_m24.cs:261`) tombaient dans la branche du curseur,
+que l'écran final ne montre pas ; les pannes ont été déplacées sur la rangée de la police. Pour N7, le plan prévoyait
+`ramdac.ctrl` sur ET4BANC. Le BIOS relit `ramdac.ctrl` et la banque : faussés, ils divergent dès l'instruction
+99 373 (le diff d'instructions, pas la sonde). `ramdac.state` après la dernière écriture de la palette n'est relu par
+personne, et seule la sonde le voit.
+
+**La série** (l'émulateur change, la série entière ; worktree, Release). Mode PCem (gr0b contre g13b) : 766 portes,
+765 vertes et la porte neuve. Aucun statut ne change. Les messages changent pour 35 portes : `abi` (59) et 34
+boot-diffs, dont la ligne de la sonde est désormais la dernière (CGA) ou nomme l'image (EGA, MDA, Hercules, M24,
+PC1512). Les comptes d'instructions sont identiques à ceux de g13b, ou de GR.0a pour les 13 portes dont g13b ne les
+gardait pas. Sous « tout » (gr0b-tout contre g13b-tout) : 525 vertes, 229 refusées (la porte neuve compare à
+l'oracle), 11 pcem, aucun message changé.
+
+**Après la relecture** (sans bloquant ; les noms des champs de l'Hercules, le genre par un `switch`, les refus affinés,
+des commentaires) : le code final rejoué sur `abi`, la porte neuve, les boot-diffs vidéo et les portes de l'ET4000
+(`/tmp/a9/sub-gr0b.sh`, 75 portes, puis `sub-gr0b2.sh`, les 44 boot-diffs vidéo de GR.0a dont
+la dernière ligne n'est pas une sonde) : 119 portes, toutes vertes, messages identiques à l'octet à ceux de la série.
+
+**Hors porte, un écran par carte.** Une fois, `buffer32` vidé côté C# à la sonde (un ajout temporaire, retiré) pour
+`bd-pcdos-cga`, `bd-pcdos-mda`, `bd-pcdos-hercules`, `bd-pcdos-ega`, `bd-m24-dir` et `bd-pc1512-plan`, toutes vertes,
+donc le même `buffer32` que l'oracle. Chaque image est un écran, pas du noir : l'invite de la date de DOS (CGA, MDA,
+Hercules, EGA), le DIR de la M24 en 80 colonnes, le motif des quatre plans du PC1512 (`/var/tmp/ixtal-g13/notes/
+gr0b-ecrans.png`, hors dépôt).
+
+**Ce que ce vert ne dit pas.**
+- L'image est l'empreinte de `buffer32` entier, à la fin de l'amorçage : pas « l'écran » vu au fil des trames.
+- La `charbuffer` de 512 octets du C# contre 256 chez PCem (PB-09) est hors du hachage. Quand `crtc[1] > 128`, le C
+  écrit au-delà, sur `revision|composite|snow_enabled` : un rouge sur ce champ seul serait PB-09, pas une transcription
+  fausse (R0-contre § 4).
+- Les refus ne sont pas couverts par une porte : ils ont été vérifiés à la main, une fois.

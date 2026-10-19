@@ -88,7 +88,9 @@ public static class Oracle
     // 56 en G12.2 : l'AWE32 et l'EMU8000 (sound_emu8k.c inclus) — h_emu8k_probe, h_emu8k_tables, h_emu8k_kernel.
     // 57 en G13.5 : h_set_carte286, la carte de 16 Mo du cœur 286 (la sonde SST).
     // 58 en GR.0a : loadfont et cgapal_rebuild verbatim dans le harnais ; h_video_fonts, h_cgapal.
-    public const int AbiVersion = 58;
+    // 59 en GR.0b : les sondes non SVGA hachent l'image (champ 3) et leur palette ; la CGA sondée (champ 0 = 7) ;
+    //   la banque et le RAMDAC de l'ET4000 aux places de la Trident (vid_et4000.c inclus par harness_et4000.c).
+    public const int AbiVersion = 59;
 
     static Oracle()
     {

@@ -421,8 +421,8 @@ void initvideo(void) {
          * est alloué une fois et REMIS À ZÉRO, comme video.cs le fait (Array.Clear).
          * Sans ce memset, la phase 2 du boot-diff hériterait des pixels de la phase 1,
          * et la comparaison de framebuffer de fin de course — le seul oracle des pixels
-         * de la VGA — comparerait deux histoires différentes. Neutre pour la CGA :
-         * cgapal est stubé à zéro, donc cga_poll n'y écrit que des zéros. */
+         * de la VGA — comparerait deux histoires différentes. Depuis GR.0b, les sondes de
+         * la CGA, de la MDA, de l'Hercules, de l'EGA, de la M24 et du PC1512 la hachent aussi. */
         memset(buffer32->dat, 0, 2048 * 2048 * 4);
 
         /* omitted: rotatevga[] (video.c:1069-1075) — EGA seule ; vid_svga.c porte sa

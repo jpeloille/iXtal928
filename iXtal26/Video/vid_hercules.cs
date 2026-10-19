@@ -56,7 +56,7 @@ internal static partial class vid_hercules
 {
     // pcem: vid_hercules.c:34 — `static uint32_t mdacols[256][2][2]`, à plat, distinct de celui de
     //   vid_mda.c (deux statiques de deux unités de compilation).
-    private static readonly uint32_t[] mdacols = new uint32_t[256 * 2 * 2];
+    internal static readonly uint32_t[] mdacols = new uint32_t[256 * 2 * 2];
 
     private static ref uint32_t mdacol(int attr, int blink, int fg) => ref mdacols[(attr * 2 + blink) * 2 + fg];
 

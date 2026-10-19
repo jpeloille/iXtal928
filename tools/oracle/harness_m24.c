@@ -14,6 +14,8 @@
 
 /* Le m24_t que m24_init vient de créer, retrouvé dans le registre des devices (device.c:296-316). */
 static m24_t *h_m24;
+uint64_t h_image_hash(void); /* harness.c — GR.0b */
+uint64_t h_cgapal_hash(void);
 extern device_t *devices[];
 extern void *device_priv[];
 
@@ -47,8 +49,8 @@ static uint64_t h_m24_fnv(uint64_t hash, const uint8_t *p, size_t n) {
 }
 
 /* Les vingt et un champs de la M24, après ceux de la Trio64 (offset 122), dans l'ordre de
- * Video.vid_svga.Probe() côté C#. Le champ 0 de la sonde vaut alors 2 (1 : une svga). Pas de
- * framebuffer : la police (fontdatm) n'est pas chargée par l'oracle — pixels seulement. */
+ * Video.vid_svga.Probe() côté C#. Le champ 0 de la sonde vaut alors 2 (1 : une svga). Depuis GR.0b, l'image
+ * (champ 3) et la palette (champ 4). */
 void h_m24_probe(uint64_t *out) {
         const uint64_t basis = 1469598103934665603ULL;
         int f = 122;
@@ -56,6 +58,8 @@ void h_m24_probe(uint64_t *out) {
         if (!h_m24)
                 return;
         out[0] = 2;
+        out[3] = h_image_hash();   /* GR.0b — l'image */
+        out[4] = h_cgapal_hash();  /* la palette : la M24 ne la reconstruit pas, elle lit cgapal */
         out[f++] = h_m24_fnv(basis, h_m24->crtc, sizeof(h_m24->crtc));
         out[f++] = (uint64_t)(int64_t)h_m24->crtcreg;
         out[f++] = h_m24_fnv(basis, h_m24->vram, 0x8000);

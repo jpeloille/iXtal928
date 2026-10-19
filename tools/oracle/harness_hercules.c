@@ -3,8 +3,8 @@
  *
  * G9.1 — L'HERCULES, INCLUSE ET NON LIÉE, pour la raison de harness_m24.c : la sonde de fin de
  * boot-diff lit la hercules_t (registres, VRAM, balayage). vid_hercules.c ne figure pas dans SRC et se
- * compile ICI. La police (fontdatm) n'est pas chargée par l'oracle : la sonde ne lit pas les
- * pixels.
+ * compile ICI. Depuis GR.0b, l'oracle charge la police (loadfont, harness_stubs.c) et la sonde hache
+ * l'image.
  */
 
 #include <stdint.h>
@@ -13,6 +13,8 @@
 #include "../../pcem-dev/src/video/vid_hercules.c"
 
 static hercules_t *h_hercules;
+uint64_t h_image_hash(void); /* harness.c — GR.0b */
+uint64_t h_cgapal_hash(void);
 extern device_t *devices[];
 extern void *device_priv[];
 
@@ -52,6 +54,8 @@ void h_hercules_probe(uint64_t *out) {
         if (!h_hercules)
                 return;
         out[0] = 5;
+        out[3] = h_image_hash();                                       /* GR.0b — l'image */
+        out[4] = h_hercules_fnv(basis, (const uint8_t *)mdacols, sizeof(mdacols)); /* les couleurs des attributs */
         out[f++] = h_hercules_fnv(basis, h_hercules->crtc, sizeof(h_hercules->crtc));
         out[f++] = (uint64_t)(int64_t)h_hercules->crtcreg;
         out[f++] = h_hercules_fnv(basis, h_hercules->vram, 0x10000);

@@ -3,8 +3,8 @@
  *
  * G9.0 — LA MDA, INCLUSE ET NON LIÉE, pour la raison de harness_m24.c : la sonde de fin de
  * boot-diff lit la mda_t (registres, VRAM, balayage). vid_mda.c ne figure pas dans SRC et se
- * compile ICI. La police (fontdatm) n'est pas chargée par l'oracle : la sonde ne lit pas les
- * pixels.
+ * compile ICI. Depuis GR.0b, l'oracle charge la police (loadfont, harness_stubs.c) et la sonde hache
+ * l'image.
  */
 
 #include <stdint.h>
@@ -13,6 +13,8 @@
 #include "../../pcem-dev/src/video/vid_mda.c"
 
 static mda_t *h_mda;
+uint64_t h_image_hash(void); /* harness.c — GR.0b */
+uint64_t h_cgapal_hash(void);
 extern device_t *devices[];
 extern void *device_priv[];
 
@@ -52,6 +54,8 @@ void h_mda_probe(uint64_t *out) {
         if (!h_mda)
                 return;
         out[0] = 4;
+        out[3] = h_image_hash();                                  /* GR.0b — l'image */
+        out[4] = h_mda_fnv(basis, (const uint8_t *)mdacols, sizeof(mdacols)); /* les couleurs des attributs */
         out[f++] = h_mda_fnv(basis, h_mda->crtc, sizeof(h_mda->crtc));
         out[f++] = (uint64_t)(int64_t)h_mda->crtcreg;
         out[f++] = h_mda_fnv(basis, h_mda->vram, 0x1000);

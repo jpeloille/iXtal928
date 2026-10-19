@@ -521,6 +521,10 @@ void h_ega_attach(void);       /* harness_ega.c — G9.2 */
 void h_ega_probe(uint64_t *out);
 void h_ega_forget(void);
 void h_pc1512_forget(void);
+void h_cga_attach(void);       /* harness_cga.c — GR.0b */
+void h_cga_probe(uint64_t *out);
+void h_cga_forget(void);
+void h_et4000_probe(svga_t *svga, uint64_t *out); /* harness_et4000.c — GR.0b */
 #include "sound_adlib.h"      /* G8.1 — l'AdLib */
 /* G8.2 — la Sound Blaster Pro v2, dans l'ordre d'inclusion de sound_sb.c (:1-12) : sb_t embarque
  * opl_t, emu8k_t et mpu401_uart_t. */
@@ -1917,6 +1921,7 @@ int h_boot(const char *romspath) {
         h_mda_forget();
         h_hercules_forget();
         h_ega_forget();
+        h_cga_forget();
         /* G1.2 — video.c:775-777 : le PC1512 a SA vidéo, choisie par le romset. */
         if (romset == ROM_PC1512) {
                 device_add(&pc1512_device);
@@ -1968,8 +1973,10 @@ int h_boot(const char *romspath) {
                 /* G9.0 — video.c:140, la MDA. */
                 device_add(&mda_device);
                 h_mda_attach();
-        } else
+        } else {
                 device_add(&cga_device);
+                h_cga_attach();  /* GR.0b */
+        }
         speaker_init();              /* pc.c:375, juste après video_init() */
         lpt1_device_init();          /* pc.c:376 — G10.0 : lpt1_device_name (h_set_lpt1_device) */
         /* G8.1 — sound_card_init (pc.c:383) : la carte son nommée par h_set_sndcard. G12.0 : les SB 1.0, 1.5, 2.0 et
@@ -2274,6 +2281,7 @@ void h_vga_probe(uint64_t *out) {
                 h_mda_probe(out);   /* G9.0 — la MDA (champ 0 = 4) */
                 h_hercules_probe(out); /* G9.1 — l'Hercules (champ 0 = 5) */
                 h_ega_probe(out);   /* G9.2 — l'EGA (champ 0 = 6) */
+                h_cga_probe(out);   /* GR.0b — la CGA (champ 0 = 7) */
                 return;
         }
 
@@ -2361,6 +2369,18 @@ void h_vga_probe(uint64_t *out) {
         h_tvga_probe(svga, &out[f]);
         h_cl5429_probe(svga, &out[f + 11]);   /* G7.1 */
         h_s3_probe(svga, &out[f + 27]);       /* G7.3 */
+        h_et4000_probe(svga, &out[f]);        /* GR.0b — aux places de la Trident */
+}
+
+/* GR.0b — l'image et la palette, hachées pour les sondes des cartes non SVGA (harness_mda.c,
+ * harness_hercules.c, harness_ega.c, harness_m24.c, harness_pc1512.c, harness_cga.c), avec les
+ * mêmes octets que le champ #buffer32 de la VGA ci-dessus. */
+uint64_t h_image_hash(void) {
+        return h_fnv(1469598103934665603ULL, (const uint8_t *)buffer32->dat, 2048 * 2048 * 4);
+}
+
+uint64_t h_cgapal_hash(void) {
+        return h_fnv(1469598103934665603ULL, (const uint8_t *)cgapal, sizeof(cgapal));
 }
 
 /* Pointeur direct sur la VRAM de l'oracle, NULL sans carte svga : la sonde VGA y lit

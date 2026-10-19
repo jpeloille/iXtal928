@@ -39,7 +39,7 @@ LDLIBS  := -lm
 # harness.c fait #include "808x.c" — 808x.c n'est donc PAS compilé séparément,
 # sans quoi chaque symbole serait défini deux fois. Voir l'en-tête de harness.c.
 # Même chose pour 386_dynarec.c (harness_386.c) et vid_tvga.c (harness_tvga.c, M19), dma.c (harness_dma.c, G12.1) et
-# sound_emu8k.c (harness_emu8k.c, G12.2).
+# sound_emu8k.c (harness_emu8k.c, G12.2), vid_et4000.c (harness_et4000.c, GR.0b).
 SRC := harness.c \
        harness_stubs.c \
        harness_wrap.c \
@@ -51,6 +51,8 @@ SRC := harness.c \
        harness_m24.c \
        harness_pc1512.c \
        harness_mda.c \
+       harness_cga.c \
+       harness_et4000.c \
        harness_hercules.c \
        harness_ega.c \
        harness_ps2.c \
@@ -103,7 +105,6 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_svga_render.c \
        $(PCEM)/src/video/vid_tkd8001_ramdac.c \
        $(PCEM)/src/video/vid_sdac_ramdac.c \
-       $(PCEM)/src/video/vid_et4000.c \
        $(PCEM)/src/video/vid_unk_ramdac.c \
        $(PCEM)/src/lpt/lpt.c \
        $(PCEM)/src/lpt/lpt_dac.c \

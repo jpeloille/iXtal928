@@ -2088,6 +2088,7 @@ internal static partial class vid_svga
                 ProbeMda(o);      // G9.0 — la MDA, si elle est montée (champ 0 = 4)
                 ProbeHercules(o); // G9.1 — l'Hercules, si elle est montée (champ 0 = 5)
                 ProbeEga(o);      // G9.2 — l'EGA, si elle est montée (champ 0 = 6)
+                ProbeCga(o);      // GR.0b — la CGA, si elle est montée (champ 0 = 7)
                 return;
         }
 
@@ -2176,6 +2177,13 @@ internal static partial class vid_svga
         o[f++] = (uint64_t)(long)svga.hdisp_time;
         o[f++] = BitConverter.DoubleToUInt64Bits(svga.clock);
         var cl = f + 11;
+        // GR.0b — la banque et le RAMDAC de l'ET4000 (h_et4000_probe), aux places de la Trident.
+        if (svga.p is et4000_t et4000)
+        {
+                o[f] = et4000.banking;
+                o[f + 9] = (uint64_t)(long)et4000.ramdac.state;
+                o[f + 10] = et4000.ramdac.ctrl;
+        }
         // Les onze champs de la Trident : sa tvga_t et son RAMDAC. Zéro pour une autre
         // carte — svga.p n'est une tvga_t que si la carte en est une.
         if (svga.p is tvga_t tvga)
@@ -2255,6 +2263,8 @@ internal static partial class vid_svga
         if (e == null)
                 return;
         o[0] = 6;
+        o[3] = ImageHash();                                     // GR.0b — l'image
+        o[9] = FnvU32(e.pallook.AsSpan(0, 256));                  // pallook16 ou pallook64, selon vres
         o[f++] = Fnv(e.vram.AsSpan(0, 0x40000));
         o[f++] = Fnv(e.crtc);
         o[f++] = Fnv(e.gdcreg);
@@ -2298,6 +2308,8 @@ internal static partial class vid_svga
         if (m == null)
                 return;
         o[0] = 5;
+        o[3] = ImageHash();                                            // GR.0b — l'image
+        o[4] = FnvU32(vid_hercules.mdacols);                           // les couleurs des attributs
         o[f++] = Fnv(m.crtc);
         o[f++] = (uint64_t)(long)m.crtcreg;
         o[f++] = Fnv(m.vram.AsSpan(0, 0x10000));
@@ -2318,7 +2330,7 @@ internal static partial class vid_svga
     }
 
     // G9.0 — les dix-sept champs de la MDA (h_mda_probe), aux places de la M24 (offset 122 ; les
-    // deux ne se montent jamais ensemble). Pas de framebuffer : l'oracle ne charge pas fontdatm.
+    // deux ne se montent jamais ensemble). Depuis GR.0b, l'image (champ 3) et les couleurs des attributs (4).
     private static void ProbeMda(uint64_t[] o)
     {
         var m = vid_mda.Probe;
@@ -2327,6 +2339,8 @@ internal static partial class vid_svga
         if (m == null)
                 return;
         o[0] = 4;
+        o[3] = ImageHash();                                       // GR.0b — l'image
+        o[4] = FnvU32(vid_mda.mdacols);                           // les couleurs des attributs
         o[f++] = Fnv(m.crtc);
         o[f++] = (uint64_t)(long)m.crtcreg;
         o[f++] = Fnv(m.vram.AsSpan(0, 0x1000));
@@ -2346,8 +2360,8 @@ internal static partial class vid_svga
         o[f++] = (uint32_t)m.firstline | ((uint64_t)(uint32_t)m.lastline << 32);
     }
 
-    // G1.1 — les vingt et un champs de la M24 (h_m24_probe), à partir de l'offset 122. Pas de
-    // framebuffer : l'oracle ne charge pas fontdatm (pixels seulement).
+    // G1.1 — les vingt et un champs de la M24 (h_m24_probe), à partir de l'offset 122. Depuis GR.0b, l'image
+    // (champ 3) et la palette (champ 4).
     private static void ProbeM24(uint64_t[] o)
     {
         var m24 = vid_olivetti_m24.m24_pri;
@@ -2356,6 +2370,8 @@ internal static partial class vid_svga
         if (m24 == null)
                 return;
         o[0] = 2;
+        o[3] = ImageHash();   // GR.0b — l'image
+        o[4] = CgapalHash();  // la palette : la M24 ne la reconstruit pas, elle lit cgapal
         o[f++] = Fnv(m24.crtc);
         o[f++] = (uint64_t)(long)m24.crtcreg;
         o[f++] = Fnv(m24.vram.AsSpan(0, 0x8000));
@@ -2379,8 +2395,8 @@ internal static partial class vid_svga
         o[f++] = (uint32_t)m24.firstline | ((uint64_t)(uint32_t)m24.lastline << 32);
     }
 
-    // G1.2 — les vingt champs du PC1512 (h_pc1512_probe), à partir de l'offset 143. Pas de
-    // framebuffer : l'oracle ne charge pas la police (pixels seulement).
+    // G1.2 — les vingt champs du PC1512 (h_pc1512_probe), à partir de l'offset 143. Depuis GR.0b, l'image
+    // (champ 3) et la palette (champ 4).
     private static void ProbePc1512(uint64_t[] o)
     {
         var p = vid_pc1512.pc1512_pri;
@@ -2389,6 +2405,8 @@ internal static partial class vid_svga
         if (p == null)
                 return;
         o[0] = 3;
+        o[3] = ImageHash();   // GR.0b — l'image
+        o[4] = CgapalHash();  // la palette (cgapal_rebuild, vid_pc1512.c:449)
         o[f++] = Fnv(p.crtc);
         o[f++] = (uint64_t)(long)p.crtcreg;
         o[f++] = Fnv(p.vram.AsSpan(0, 0x10000));
@@ -2410,6 +2428,52 @@ internal static partial class vid_svga
         o[f++] = p.timer.ts_integer | ((uint64_t)p.timer.ts_frac << 32);
         o[f++] = (uint32_t)p.firstline | ((uint64_t)(uint32_t)p.lastline << 32);
     }
+
+    // GR.0b — les vingt-deux champs de la CGA (h_cga_probe), aux places de la M24 (offset 122), plus l'image et la
+    // palette. Le charbuffer haché sur ses 256 octets de PCem : les 256 de plus de PB-09 ne sont pas chez lui.
+    private static void ProbeCga(uint64_t[] o)
+    {
+        var g = vid_cga.Sonde.carte;
+        int f = 122;
+        static uint64_t I(long x) => (uint32_t)x;
+
+        if (g == null)
+                return;
+        o[0] = 7;
+        o[3] = ImageHash();
+        o[4] = CgapalHash();
+        o[f++] = Fnv(g.crtc);
+        o[f++] = I(g.crtcreg);
+        o[f++] = Fnv(g.vram.AsSpan(0, 0x4000));
+        o[f++] = g.cgamode | ((uint64_t)g.cgacol << 8) | ((uint64_t)g.cgastat << 16);
+        o[f++] = I(g.fontbase);
+        o[f++] = I(g.linepos);
+        o[f++] = I(g.displine);
+        o[f++] = I(g.sc);
+        o[f++] = I(g.vc);
+        o[f++] = I(g.cgadispon);
+        o[f++] = I(g.con) | (I(g.coff) << 32);
+        o[f++] = I(g.cursoron) | (I(g.cgablink) << 32);
+        o[f++] = I(g.vsynctime) | (I(g.vadj) << 32);
+        o[f++] = g.ma | ((uint64_t)g.maback << 16);
+        o[f++] = I(g.oddeven);
+        o[f++] = g.dispontime;
+        o[f++] = g.dispofftime;
+        o[f++] = g.timer.ts_integer | ((uint64_t)g.timer.ts_frac << 32);
+        o[f++] = I(g.firstline) | (I(g.lastline) << 32);
+        o[f++] = I(g.drawcursor);
+        o[f++] = Fnv(g.charbuffer.AsSpan(0, 256));
+        o[f++] = I(g.revision) | (I(g.composite) << 16) | (I(g.snow_enabled) << 32);
+    }
+
+    // GR.0b — l'image (h_image_hash) et la palette (h_cgapal_hash), les octets que hache la VGA (#buffer32).
+    private static uint64_t ImageHash() => FnvU32(Buffer32);
+
+    private static uint64_t CgapalHash() => FnvU32(cgapal);
+
+    // Les octets d'un tableau de mots de 32 bits, dans l'ordre de la mémoire (petit-boutiste, comme le C).
+    private static uint64_t FnvU32(ReadOnlySpan<uint32_t> p) =>
+        Fnv(System.Runtime.InteropServices.MemoryMarshal.AsBytes(p));
 
     // FNV-1a 64 bits, le h_fnv de harness.c.
     private static uint64_t Fnv(ReadOnlySpan<uint8_t> p)

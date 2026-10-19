@@ -40,7 +40,7 @@ public static class VgaProbe
         // M19 — l'état que la Trident rend atteignable, puis la tvga_t et son RAMDAC.
         "read_bank", "write_bank", "bpp", "vram_display_mask", "vram_mask", "rowoffset",
         "ma_latch", "interlace", "lowres", "hdisp_time", "clock(bits)",
-        "tvga.id", "tvga.oldmode", "tvga.3d8", "tvga.3d9", "tvga.oldctrl1", "tvga.oldctrl2",
+        "tvga.id|et4000.banking", "tvga.oldmode", "tvga.3d8", "tvga.3d9", "tvga.oldctrl1", "tvga.oldctrl2",
         "tvga.newctrl2", "tvga.vram_size", "tvga.vram_mask", "ramdac.state", "ramdac.ctrl",
         // G7.1 — la gd5429_t, puis le curseur matériel.
         "gd5429.type", "gd5429.bank[0]", "gd5429.bank[1]", "gd5429.mask", "gd5429.vram_mask",
@@ -66,6 +66,91 @@ public static class VgaProbe
         "pc1512.vsynctime|vadj", "pc1512.ma|maback", "pc1512.dispon|blink", "pc1512.dispontime",
         "pc1512.dispofftime", "pc1512.timer", "pc1512.firstline|lastline",
     ];
+
+    // GR.0b — les champs des cartes non SVGA, par genre (le champ 0 de la sonde) : 0 « present », 3 l'image, 4 la
+    // palette ou les couleurs des attributs, 9 `pallook` pour l'EGA, puis les champs de la carte à partir de 122 (143
+    // pour le PC1512). Une carte non SVGA ne remplit que ceux-là ; les autres places restent à zéro des deux côtés.
+    private static readonly string[] Mda =
+    [
+        "#crtc", "crtcreg", "#vram", "ctrl|stat", "linepos", "displine", "sc", "vc", "con|coff", "cursoron|blink",
+        "vsynctime|vadj", "ma|maback", "dispon", "dispontime", "dispofftime", "timer", "firstline|lastline",
+    ];
+
+    private static readonly string[] Hercules =
+    [
+        "#crtc", "crtcreg", "#vram", "ctrl|stat|ctrl2", "linepos", "displine", "sc", "vc", "con|coff",
+        "cursoron|blink", "vsynctime|vadj", "ma|maback", "dispon", "dispontime", "dispofftime", "timer",
+        "firstline|lastline",
+    ];
+
+    private static readonly string[] Ega =
+    [
+        "#vram", "#crtc", "#gdcreg", "#attrregs", "#seqregs", "#egapal", "crtcreg|gdcaddr|attraddr|attrff|seqaddr",
+        "miscout|vidclock|stat|scrblank|vres", "la|lb|lc|ld",
+        "colourcompare|colournocare|readmode|writemode|readplane|chain2_read|chain2_write|writemask",
+        "charseta|charsetb", "vtotal|dispend", "vsyncstart|split", "hdisp|rowoffset", "dispontime", "dispofftime",
+        "timer", "dispon", "ma|maback", "ca", "vc|sc", "linepos|vslines", "con|cursoron", "blink|scrollcache",
+        "firstline|lastline", "displine", "vrammask|vram_limit", "video_res_x|y", "video_bpp|frames",
+        "egaswitchread|egaswitches",
+    ];
+
+    private static readonly string[] Cga =
+    [
+        "#crtc", "crtcreg", "#vram", "cgamode|cgacol|cgastat", "fontbase", "linepos", "displine", "sc", "vc",
+        "cgadispon", "con|coff", "cursoron|cgablink", "vsynctime|vadj", "ma|maback", "oddeven", "dispontime",
+        "dispofftime", "timer", "firstline|lastline", "drawcursor", "#charbuffer", "revision|composite|snow_enabled",
+    ];
+
+    /// <summary>Le nom de la carte d'un genre de sonde (le champ 0).</summary>
+    public static string Genre(ulong genre) => genre switch
+    {
+        1 => "VGA",
+        2 => "M24",
+        3 => "PC1512",
+        4 => "MDA",
+        5 => "Hercules",
+        6 => "EGA",
+        7 => "CGA",
+        _ => "?",
+    };
+
+    /// <summary>Le nom du champ f pour le genre de sonde donné, ou null si ce genre ne le remplit pas.</summary>
+    public static string? FieldName(ulong genre, int f)
+    {
+        if (genre <= 1)
+            return Fields[f];
+        if (f == 0)
+            return "present";
+        if (f == 3)
+            return "#buffer32";
+        if (f == 4 && genre is 2 or 3 or 7)
+            return "#cgapal";
+        if (f == 4 && genre is 4 or 5)
+            return "#mdacols";
+        if (f == 9 && genre == 6)
+            return "#pallook";
+        var propres = genre switch
+        {
+            4 => Mda,
+            5 => Hercules,
+            6 => Ega,
+            7 => Cga,
+            _ => null,
+        };
+        if (propres is not null)
+            return f >= 122 && f < 122 + propres.Length ? $"{Genre(genre).ToLowerInvariant()}.{propres[f - 122]}"
+                                                        : null;
+        return genre switch
+        {
+            2 => f is >= 122 and < 143 ? Fields[f] : null,   // la M24
+            3 => f >= 143 ? Fields[f] : null,                // le PC1512
+            _ => null,
+        };
+    }
+
+    /// <summary>Le nombre de champs que le genre remplit.</summary>
+    public static int FieldCount(ulong genre) =>
+        Enumerable.Range(0, Fields.Length).Count(f => FieldName(genre, f) is not null);
 
     // M19 — la carte, par son internal_name de PCem (video.c:177-191). Indépendant du
     // registre C# : la sonde amorce l'oracle SEUL, avant que le C# connaisse la carte.

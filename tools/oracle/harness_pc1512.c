@@ -12,6 +12,8 @@
 #include "../../pcem-dev/src/video/vid_pc1512.c"
 
 static pc1512_t *h_pc1512;
+uint64_t h_image_hash(void); /* harness.c — GR.0b */
+uint64_t h_cgapal_hash(void);
 extern device_t *devices[];
 extern void *device_priv[];
 
@@ -43,7 +45,7 @@ static uint64_t h_pc1512_fnv(uint64_t hash, const uint8_t *p, size_t n) {
 }
 
 /* Les vingt champs du PC1512, à partir de l'offset 143, dans l'ordre de Video.vid_svga.Probe()
- * côté C#. Le champ 0 de la sonde vaut alors 3. Pas de framebuffer (police non chargée). */
+ * côté C#. Le champ 0 de la sonde vaut alors 3. Depuis GR.0b, l'image (champ 3) et la palette (champ 4). */
 void h_pc1512_probe(uint64_t *out) {
         const uint64_t basis = 1469598103934665603ULL;
         pc1512_t *p = h_pc1512;
@@ -52,6 +54,8 @@ void h_pc1512_probe(uint64_t *out) {
         if (!p)
                 return;
         out[0] = 3;
+        out[3] = h_image_hash();   /* GR.0b — l'image */
+        out[4] = h_cgapal_hash();  /* la palette (cgapal_rebuild, vid_pc1512.c:449) */
         out[f++] = h_pc1512_fnv(basis, p->crtc, sizeof(p->crtc));
         out[f++] = (uint64_t)(int64_t)p->crtcreg;
         out[f++] = h_pc1512_fnv(basis, p->vram, 0x10000);

@@ -743,7 +743,7 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 58
+#define H_ABI_VERSION 59
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
@@ -771,6 +771,8 @@ void h_set_carte286(int seize);
 /* 58 (GR.0a) : loadfont et cgapal_rebuild verbatim dans le harnais ; h_video_fonts, h_cgapal (video-tables-check). */
 int h_video_fonts(const char *romspath, int r, uint8_t *dat, uint8_t *datm);
 void h_cgapal(int display_type, int contrast, uint32_t *pal);
+/* 59 (GR.0b) : les sondes non SVGA hachent l'image (champ 3) et leur palette (4, ou 9 pour l'EGA) ; la CGA sondée
+ * (champ 0 = 7, harness_cga.c) ; la banque et le RAMDAC de l'ET4000 aux places de la Trident (harness_et4000.c). */
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

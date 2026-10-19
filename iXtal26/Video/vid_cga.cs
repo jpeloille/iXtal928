@@ -674,6 +674,7 @@ internal static partial class vid_cga
 
         cgapal_rebuild(display_type, contrast);
 
+        Sonde.carte = cga;
         return cga;
     }
 
@@ -684,6 +685,15 @@ internal static partial class vid_cga
 
         // omitted: free(cga->vram) et free(cga) (vid_cga.c:444-445) — libération
         //   manuelle, sans objet sous GC.
+        Sonde.carte = null;
+    }
+
+    // iXtal26 (outillage, sans pendant C) — GR.0b : la CGA montée, pour la sonde de iXtal26.Diff (pendant de
+    // h_cga_probe). Dans une classe à part : un champ statique de plus dans vid_cga changerait son constructeur
+    // statique.
+    internal static class Sonde
+    {
+        internal static cga_t? carte;
     }
 
     // pcem: vid_cga.c:448-452

@@ -342,6 +342,24 @@ public static class BootDiff
         return 0;
     }
 
+    /// <summary>La première clé du .cfg chargé qui n'a pas de pendant chez PCem, ou null : `font` de la CGA à 1,
+    /// `io_base` de l'EGA à 200h, `display_type` de la CGA en composite. Seules les valeurs de la liste comptent : une
+    /// autre est ramenée au défaut par le C# (device_get_config_int, avec un avertissement), et `font` comme `io_base`
+    /// n'existent pas chez PCem, qui garde son défaut ; un `display_type` hors liste rend chez PCem la palette RGB
+    /// (cgapal_rebuild, `default:`), celle du défaut du C#. Lues quelle que soit la carte : une section d'une carte
+    /// absente est refusée aussi, sans effet sur la machine.</summary>
+    private static string? ClesSansPendant()
+    {
+        var c = PluginApi.config.CFG_MACHINE;
+        if (PluginApi.config.config_get_int(c, "CGA", "font", 0) == 1)
+            return "[CGA] font = 1";
+        if (PluginApi.config.config_get_int(c, "CGA", "display_type", 0) == Video.video.DISPLAY_COMPOSITE)
+            return "[CGA] display_type = composite";
+        if (PluginApi.config.config_get_int(c, "EGA", "io_base", 0x300) == 0x200)
+            return "[EGA] io_base = 200h";
+        return null;
+    }
+
     private static void PousserConfigDevices()
     {
         Oracle.h_clear_device_config();
@@ -432,6 +450,13 @@ public static class BootDiff
             if (cle.Length != 0 && !(int.TryParse(cle, out var entier) && entier == 0) &&
                 cle.ToLowerInvariant() is not ("pcem" or "aucun"))
                 Console.Error.WriteLine($"boot-diff : {configPath} demande le mode matériel ; l'oracle est PCem, refusé.");
+            return 2;
+        }
+        // GR.0b (PLAN-GR.md, décision n° 4) — les cavaliers de G13.12a que PCem n'a pas, et le composite qu'iXtal ne
+        // rend pas : l'oracle ne peut pas les rendre, un vert ou un rouge ne dirait rien.
+        if (configPath is not null && ClesSansPendant() is { } cle2)
+        {
+            Console.Error.WriteLine($"boot-diff : {configPath} pose {cle2}, sans pendant chez PCem ; refusé.");
             return 2;
         }
 
@@ -1015,35 +1040,44 @@ public static class BootDiff
         if (o[0] == 0 && c[0] == 0)
             return 0;
 
+        // GR.0b — les champs nommés par genre : celui de l'oracle, ou du C# si l'oracle n'a rien monté.
+        var genre = o[0] != 0 ? o[0] : c[0];
         var bad = 0;
         for (var f = 0; f < VgaProbe.Fields.Length; f++)
         {
             if (o[f] == c[f])
                 continue;
             bad++;
-            Console.Error.WriteLine($"  VGA {VgaProbe.Fields[f],-20} oracle {o[f],22} | C# {c[f],22}");
+            var nom = VgaProbe.FieldName(genre, f) ?? $"[{f}]";
+            Console.Error.WriteLine($"  {VgaProbe.Genre(genre)} {nom,-20} oracle {o[f],22} | C# {c[f],22}");
         }
 
         if (bad != 0)
         {
-            Console.Error.WriteLine($"Sonde VGA : {bad} champ(s) divergent(s) sur {VgaProbe.Fields.Length}.");
+            Console.Error.WriteLine($"Sonde {VgaProbe.Genre(genre)} : {bad} champ(s) divergent(s) sur " +
+                                    $"{VgaProbe.FieldCount(genre)}.");
             return 1;
         }
 
-        if (o[0] == 6)
-            Console.WriteLine($"Sonde EGA : {VgaProbe.Fields.Length} champs identiques — VRAM de 256 Ko, " +
-                              "registres, palette et balayage de l'EGA (aux places de la M24).");
+        // GR.0b — chaque carte non SVGA compte ses champs remplis, l'image comprise ; la VGA garde ses 163.
+        var n = VgaProbe.FieldCount(o[0]);
+        if (o[0] == 7)
+            Console.WriteLine($"Sonde CGA : {n} champs identiques — image, palette, registres, VRAM de 16 Ko et " +
+                              "balayage de la CGA.");
+        else if (o[0] == 6)
+            Console.WriteLine($"Sonde EGA : {n} champs identiques — image, pallook, VRAM de 256 Ko, " +
+                              "registres, palette et balayage de l'EGA.");
         else if (o[0] == 5)
-            Console.WriteLine($"Sonde Hercules : {VgaProbe.Fields.Length} champs identiques — registres, VRAM " +
-                              "de 64 Ko et balayage de l'Hercules (aux places de la M24).");
+            Console.WriteLine($"Sonde Hercules : {n} champs identiques — image, couleurs des attributs, registres, " +
+                              "VRAM de 64 Ko et balayage de l'Hercules.");
         else if (o[0] == 4)
-            Console.WriteLine($"Sonde MDA : {VgaProbe.Fields.Length} champs identiques — registres, VRAM et " +
-                              "balayage de la MDA (aux places de la M24).");
+            Console.WriteLine($"Sonde MDA : {n} champs identiques — image, couleurs des attributs, registres, VRAM " +
+                              "et balayage de la MDA.");
         else if (o[0] == 3)
-            Console.WriteLine($"Sonde PC1512 : {VgaProbe.Fields.Length} champs identiques — registres et VRAM " +
+            Console.WriteLine($"Sonde PC1512 : {n} champs identiques — image, palette, registres et VRAM " +
                               "de la vidéo de l'Amstrad PC1512.");
         else if (o[0] == 2)
-            Console.WriteLine($"Sonde M24 : {VgaProbe.Fields.Length} champs identiques — registres, VRAM et " +
+            Console.WriteLine($"Sonde M24 : {n} champs identiques — image, palette, registres, VRAM et " +
                               "charbuffer de la vidéo de l'Olivetti M24.");
         else
             Console.WriteLine($"Sonde VGA : {VgaProbe.Fields.Length} champs identiques — VRAM, registres, " +

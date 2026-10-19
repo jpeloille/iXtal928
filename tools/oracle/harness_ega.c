@@ -20,6 +20,8 @@
 #undef printf
 
 static ega_t *h_ega;
+uint64_t h_image_hash(void); /* harness.c — GR.0b */
+uint64_t h_cgapal_hash(void);
 extern device_t *devices[];
 extern void *device_priv[];
 
@@ -64,6 +66,8 @@ void h_ega_probe(uint64_t *out) {
         if (!e)
                 return;
         out[0] = 6;
+        out[3] = h_image_hash();                                        /* GR.0b — l'image */
+        out[9] = h_ega_fnv(basis, (const uint8_t *)e->pallook, 256 * 4); /* pallook16 ou pallook64, selon vres */
         out[f++] = h_ega_fnv(basis, e->vram, 0x40000);
         out[f++] = h_ega_fnv(basis, e->crtc, sizeof(e->crtc));
         out[f++] = h_ega_fnv(basis, e->gdcreg, sizeof(e->gdcreg));

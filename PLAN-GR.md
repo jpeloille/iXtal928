@@ -103,7 +103,7 @@ sous-ensemble ciblé (moins de 15 min).
 - **Les contrôles négatifs** : la police fine et la police épaisse échangées ; une valeur de l'ambre faussée.
 - **La série** : un sous-ensemble ciblé (`abi`, la porte neuve, les 74 boot-diffs non SVGA, environ 1 280 s).
 
-### GR.0b — Les sondes hachent l'image ; la sonde de la CGA ; les champs de l'ET4000
+### GR.0b — Les sondes hachent l'image ; la sonde de la CGA ; les champs de l'ET4000  ✅ *fait, VERIFICATION.md § GR.0b*
 
 - **Le contenu** :
   - la MDA, l'Hercules, l'EGA, la M24 et le PC1512 remplissent `#buffer32`, avec les mêmes octets que la VGA
@@ -115,7 +115,7 @@ sous-ensemble ciblé (moins de 15 min).
   - l'ET4000 reçoit `banking`, `ramdac.state` et `ramdac.ctrl` (R1, GR.1a, regroupé ici : la même ABI, la même série).
     La décision n° 3 dit pourquoi. `vid_et4000.c` sort de la liste liée du Makefile pour être inclus dans un harnais ;
   - `VgaProbe` nomme les champs par genre et compte les champs remplis. La SVGA garde « 163 champs » (PLAN.md:480) ;
-  - boot-diff refuse `font` ≠ 0, `io_base` ≠ 3C0h et `display_type = composite` (code 2), qui n'ont pas de pendant
+  - boot-diff refuse `font` = 1, `io_base` = 200h et `display_type = composite` (code 2), qui n'ont pas de pendant
     chez PCem (décision n° 4).
 - **Les preuves** :
   - tous les boot-diffs non SVGA sont verts, images comprises, aux mêmes comptes ;
