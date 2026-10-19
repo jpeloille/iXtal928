@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 16 octobre 2026, G12 fait ; G13 en clôture
+## Où on en est — 20 octobre 2026, G13 fait ; GR commence
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ── G10 ✅ ── G11 ✅ ── G12 ✅ ──▶ [ICI] G13 ── GR ── G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ── G11 ✅ ── G12 ✅ ── G13 ✅ ──▶ [ICI] GR ── G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -174,7 +174,8 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   l'IDE) ; 12c ✅ (l'XTIDE en 300h et C8000h, Q32) ; 13a ✅ (PB-256, Q34) ;
   13b ✅ (COM et LPT : serial1, serial2, parallel1, parallel2) ; 13c ✅ (la clôture,
   10b et 10c rejouées) : G13 est close, Q28 et Q29 restent ouvertes.
-- **G14 à G17** attendent chacun un feu vert ; **GR**, la reprise de G9 et G10, vient après G13.
+- **GR**, la reprise de G9 et G10 : feu vert le 20/10, le plan sur reconnaissance dans `PLAN-GR.md`.
+- **G14 à G17** attendent chacun un feu vert.
 
 ## Les générations
 
@@ -483,7 +484,7 @@ VGA et 8900D, sonde VGA 163/163, à l'unité, à chaque commit, pour toutes les 
 Rebasés en G10.0, parce que le POST trouve désormais LPT1, LPT2 et le port jeu. L'interrupteur
 « LPT et port jeu hors service » (`--lpt-jeu-hors-service`) rend les anciens chiffres à l'unité.
 
-## GR — La reprise de G9 et G10, en profondeur  *(décision utilisateur du 04/10 ; attend un feu vert)*
+## GR — La reprise de G9 et G10, en profondeur  *(décision utilisateur du 04/10 ; feu vert le 20/10, `PLAN-GR.md`)*
 
 Après G13 et avant la référence de performance figée de G14. D'ici là, G9 et G10 restent en
 l'état. GR les porte au niveau de « Ce qu'un bloc livre » ; chaque étape de G10 y ajoute ce
