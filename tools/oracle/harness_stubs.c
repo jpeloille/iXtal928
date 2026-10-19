@@ -364,11 +364,12 @@ uint8_t tandy_eeprom_read(void) { return 0; }
  *       petit corromprait le tas. Alloué pour de vrai, 2048x2048, comme
  *       video.c:1067 et comme video.cs:84-86.
  *
- *   (b) ce qui ne porte que des PIXELS — cgapal, fontdat, le chemin composite.
- *       Stubé à zéro. Le diff d'amorçage compare l'état du CPU, et aucune de ces
- *       tables ne le touche : elles décident de la COULEUR des points, pas du
- *       nombre de cycles. À REPRENDRE avant l'oracle de framebuffer du plan
- *       (§ Vérification 3), qui hashera justement l'index de couleur.
+ *   (b) ce qui ne porte que des PIXELS — cgapal, les polices, le chemin composite.
+ *       Aucune de ces tables ne touche l'état du CPU : elles décident de la COULEUR
+ *       des points, pas du nombre de cycles. Stubées à zéro jusqu'à GR.0a ; depuis,
+ *       loadfont et cgapal_rebuild sont recopiés verbatim de video.c (ci-dessous),
+ *       pour que les sondes des cartes non SVGA hachent la même image des deux côtés
+ *       (GR.0b). Le chemin composite reste vide, des deux côtés (vid_cga.cs l'omet).
  */
 
 /* Couche hôte, verbatim de wx-ui/wx-sdl2-video.c:49-71. Transcrite UNE fois, en
@@ -463,11 +464,154 @@ int xsize = 1, ysize = 1;
 
 /* (b) pixels seulement — voir l'avertissement en tête de section. */
 uint32_t cgapal[16];
-void cgapal_rebuild(int display_type, int contrast) { (void)display_type; (void)contrast; }
+/* GR.0a — video.c:1162-1299, verbatim : la palette des cartes CGA et monochromes (vid_cga.c:436,
+ * vid_mda.c:252, vid_hercules.c:316, vid_pc1512.c:449). */
+void cgapal_rebuild(int display_type, int contrast) {
+        switch (display_type) {
+        case DISPLAY_GREEN:
+                if (contrast) {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x00, 0x34, 0x0c);
+                        cgapal[0x2] = makecol(0x04, 0x5d, 0x14);
+                        cgapal[0x3] = makecol(0x04, 0x69, 0x18);
+                        cgapal[0x4] = makecol(0x08, 0xa2, 0x24);
+                        cgapal[0x5] = makecol(0x08, 0xb2, 0x28);
+                        cgapal[0x6] = makecol(0x0c, 0xe7, 0x34);
+                        cgapal[0x7] = makecol(0x0c, 0xf3, 0x38);
+                        cgapal[0x8] = makecol(0x00, 0x1c, 0x04);
+                        cgapal[0x9] = makecol(0x04, 0x4d, 0x10);
+                        cgapal[0xa] = makecol(0x04, 0x7d, 0x1c);
+                        cgapal[0xb] = makecol(0x04, 0x8e, 0x20);
+                        cgapal[0xc] = makecol(0x08, 0xc7, 0x2c);
+                        cgapal[0xd] = makecol(0x08, 0xd7, 0x30);
+                        cgapal[0xe] = makecol(0x14, 0xff, 0x45);
+                        cgapal[0xf] = makecol(0x34, 0xff, 0x5d);
+                } else {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x00, 0x34, 0x0c);
+                        cgapal[0x2] = makecol(0x04, 0x55, 0x14);
+                        cgapal[0x3] = makecol(0x04, 0x5d, 0x14);
+                        cgapal[0x4] = makecol(0x04, 0x86, 0x20);
+                        cgapal[0x5] = makecol(0x04, 0x92, 0x20);
+                        cgapal[0x6] = makecol(0x08, 0xba, 0x2c);
+                        cgapal[0x7] = makecol(0x08, 0xc7, 0x2c);
+                        cgapal[0x8] = makecol(0x04, 0x8a, 0x20);
+                        cgapal[0x9] = makecol(0x08, 0xa2, 0x24);
+                        cgapal[0xa] = makecol(0x08, 0xc3, 0x2c);
+                        cgapal[0xb] = makecol(0x08, 0xcb, 0x30);
+                        cgapal[0xc] = makecol(0x0c, 0xe7, 0x34);
+                        cgapal[0xd] = makecol(0x0c, 0xef, 0x38);
+                        cgapal[0xe] = makecol(0x24, 0xff, 0x51);
+                        cgapal[0xf] = makecol(0x34, 0xff, 0x5d);
+                }
+                break;
+        case DISPLAY_AMBER:
+                if (contrast) {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x55, 0x14, 0x00);
+                        cgapal[0x2] = makecol(0x82, 0x2c, 0x00);
+                        cgapal[0x3] = makecol(0x92, 0x34, 0x00);
+                        cgapal[0x4] = makecol(0xcf, 0x61, 0x00);
+                        cgapal[0x5] = makecol(0xdf, 0x6d, 0x00);
+                        cgapal[0x6] = makecol(0xff, 0x9a, 0x04);
+                        cgapal[0x7] = makecol(0xff, 0xae, 0x18);
+                        cgapal[0x8] = makecol(0x2c, 0x08, 0x00);
+                        cgapal[0x9] = makecol(0x6d, 0x20, 0x00);
+                        cgapal[0xa] = makecol(0xa6, 0x45, 0x00);
+                        cgapal[0xb] = makecol(0xba, 0x51, 0x00);
+                        cgapal[0xc] = makecol(0xef, 0x79, 0x00);
+                        cgapal[0xd] = makecol(0xfb, 0x86, 0x00);
+                        cgapal[0xe] = makecol(0xff, 0xcb, 0x28);
+                        cgapal[0xf] = makecol(0xff, 0xe3, 0x34);
+                } else {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x55, 0x14, 0x00);
+                        cgapal[0x2] = makecol(0x79, 0x24, 0x00);
+                        cgapal[0x3] = makecol(0x86, 0x2c, 0x00);
+                        cgapal[0x4] = makecol(0xae, 0x49, 0x00);
+                        cgapal[0x5] = makecol(0xbe, 0x55, 0x00);
+                        cgapal[0x6] = makecol(0xe3, 0x71, 0x00);
+                        cgapal[0x7] = makecol(0xef, 0x79, 0x00);
+                        cgapal[0x8] = makecol(0xb2, 0x4d, 0x00);
+                        cgapal[0x9] = makecol(0xcb, 0x5d, 0x00);
+                        cgapal[0xa] = makecol(0xeb, 0x79, 0x00);
+                        cgapal[0xb] = makecol(0xf3, 0x7d, 0x00);
+                        cgapal[0xc] = makecol(0xff, 0x9e, 0x04);
+                        cgapal[0xd] = makecol(0xff, 0xaa, 0x10);
+                        cgapal[0xe] = makecol(0xff, 0xdb, 0x30);
+                        cgapal[0xf] = makecol(0xff, 0xe3, 0x34);
+                }
+                break;
+        case DISPLAY_WHITE:
+                if (contrast) {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x37, 0x3d, 0x40);
+                        cgapal[0x2] = makecol(0x55, 0x5c, 0x5f);
+                        cgapal[0x3] = makecol(0x61, 0x67, 0x6b);
+                        cgapal[0x4] = makecol(0x8f, 0x95, 0x95);
+                        cgapal[0x5] = makecol(0x9b, 0xa0, 0x9f);
+                        cgapal[0x6] = makecol(0xcc, 0xcf, 0xc8);
+                        cgapal[0x7] = makecol(0xdf, 0xde, 0xd4);
+                        cgapal[0x8] = makecol(0x24, 0x27, 0x29);
+                        cgapal[0x9] = makecol(0x42, 0x48, 0x4c);
+                        cgapal[0xa] = makecol(0x70, 0x76, 0x78);
+                        cgapal[0xb] = makecol(0x81, 0x87, 0x87);
+                        cgapal[0xc] = makecol(0xaf, 0xb3, 0xb0);
+                        cgapal[0xd] = makecol(0xbb, 0xbf, 0xba);
+                        cgapal[0xe] = makecol(0xef, 0xed, 0xdf);
+                        cgapal[0xf] = makecol(0xff, 0xfd, 0xed);
+                } else {
+                        cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                        cgapal[0x1] = makecol(0x37, 0x3d, 0x40);
+                        cgapal[0x2] = makecol(0x4a, 0x50, 0x54);
+                        cgapal[0x3] = makecol(0x55, 0x5c, 0x5f);
+                        cgapal[0x4] = makecol(0x78, 0x7e, 0x80);
+                        cgapal[0x5] = makecol(0x81, 0x87, 0x87);
+                        cgapal[0x6] = makecol(0xa3, 0xa7, 0xa6);
+                        cgapal[0x7] = makecol(0xaf, 0xb3, 0xb0);
+                        cgapal[0x8] = makecol(0x7a, 0x81, 0x83);
+                        cgapal[0x9] = makecol(0x8c, 0x92, 0x92);
+                        cgapal[0xa] = makecol(0xac, 0xb0, 0xad);
+                        cgapal[0xb] = makecol(0xb3, 0xb7, 0xb4);
+                        cgapal[0xc] = makecol(0xd1, 0xd3, 0xcb);
+                        cgapal[0xd] = makecol(0xd9, 0xdb, 0xd2);
+                        cgapal[0xe] = makecol(0xf7, 0xf5, 0xe7);
+                        cgapal[0xf] = makecol(0xff, 0xfd, 0xed);
+                }
+                break;
+
+        default:
+                cgapal[0x0] = makecol(0x00, 0x00, 0x00);
+                cgapal[0x1] = makecol(0x00, 0x00, 0xaa);
+                cgapal[0x2] = makecol(0x00, 0xaa, 0x00);
+                cgapal[0x3] = makecol(0x00, 0xaa, 0xaa);
+                cgapal[0x4] = makecol(0xaa, 0x00, 0x00);
+                cgapal[0x5] = makecol(0xaa, 0x00, 0xaa);
+                if (display_type == DISPLAY_RGB_NO_BROWN) {
+                        cgapal[0x6] = makecol(0xaa, 0xaa, 0x00);
+                } else {
+                        cgapal[0x6] = makecol(0xaa, 0x55, 0x00);
+                }
+                cgapal[0x7] = makecol(0xaa, 0xaa, 0xaa);
+                cgapal[0x8] = makecol(0x55, 0x55, 0x55);
+                cgapal[0x9] = makecol(0x55, 0x55, 0xff);
+                cgapal[0xa] = makecol(0x55, 0xff, 0x55);
+                cgapal[0xb] = makecol(0x55, 0xff, 0xff);
+                cgapal[0xc] = makecol(0xff, 0x55, 0x55);
+                cgapal[0xd] = makecol(0xff, 0x55, 0xff);
+                cgapal[0xe] = makecol(0xff, 0xff, 0x55);
+                cgapal[0xf] = makecol(0xff, 0xff, 0xff);
+                break;
+        }
+}
+/* video.c:920-924. fontdatm : la police 8 × 16 du MDA, que lisent la MDA, l'Hercules et la M24 ; fontdatw,
+ * fontdat8x12 et fontdat12x18 : les tables des formats de loadfont qui ne servent qu'à des cartes absentes, définies
+ * pour que la recopie verbatim compile (loadbios appelle WY700, MDSI et IM1024 sans condition, mem_bios.c:60-62). */
 uint8_t fontdat[2048][8];
-/* G1.1 — video.c:921, la police 8 × 16 du MDA que la vidéo de la M24 lit (vid_olivetti_m24.c) :
- * pixels seulement, comme fontdat ; la sonde de la M24 ne compare pas le framebuffer. */
 uint8_t fontdatm[2048][16];
+uint8_t fontdatw[512][32];
+uint8_t fontdat8x12[256][16];
+uint8_t fontdat12x18[256][36];
 /* video.c:925-926 — lues par svga_render_text_80_ksc5601 SEULEMENT, rendu des cartes
  * coréennes que la VGA n'installe jamais (svga_recalctimings ne le choisit pas).
  * Définies pour l'édition de liens, à zéro, et jamais lues. */
@@ -611,9 +755,127 @@ viewer_t viewer_font, viewer_palette, viewer_palette_16, viewer_vram;
 void viewer_add(char *title, viewer_t *viewer, void *p) { (void)title; (void)viewer; (void)p; }
 void viewer_update(viewer_t *viewer, void *p) { (void)viewer; (void)p; }
 
-/* Chargement des polices : sans rendu, on ne remplit aucune table. Le POST du
- * 5150 n'interroge pas les polices, il écrit dans la VRAM du CGA. */
-void loadfont(char *s, fontformat_t format) { (void)s; (void)format; }
+/* GR.0a — video.c:930-1047, verbatim : les polices, chargées par loadbios (mem_bios.c:59-62, :85). Les formats
+ * PC200, T3100e et SIGMA400 écrivent aussi dans fontdat et fontdatm ; aucune machine du dépôt ne les demande, et le
+ * C# les omet (video.cs). */
+void loadfont(char *s, fontformat_t format) {
+        FILE *f = romfopen(s, "rb");
+        int c, d;
+
+        pclog("loadfont %i %s %p\n", format, s, f);
+        if (!f) {
+                return;
+        }
+        switch (format) {
+        case FONT_MDA: /* MDA */
+                for (c = 0; c < 256; c++) { /* 8x14 MDA in 8x8 cell (lines 0-7) */
+                        for (d = 0; d < 8; d++) {
+                                fontdatm[c][d] = getc(f);
+                        }
+                }
+                for (c = 0; c < 256; c++) { /* 8x14 MDA in 8x8 cell (lines 8-13 + padding lines) */
+                        for (d = 0; d < 8; d++) {
+                                fontdatm[c][d + 8] = getc(f);
+                        }
+                }
+                for (c = 0; c < 256; c++) { /* 8x8 CGA (thin, secondary, normally unused) */
+                        for (d = 0; d < 8; d++) {
+                                fontdat[c + 256][d] = getc(f);
+                        }
+                }
+                for (c = 0; c < 256; c++) { /* 8x8 CGA (thick, primary) */
+                        for (d = 0; d < 8; d++) {
+                                fontdat[c][d] = getc(f);
+                        }
+                }
+                break;
+        case FONT_PC200:                /* PC200 */
+                for (d = 0; d < 4; d++) /* There are 4 fonts in the ROM */
+                {
+                        for (c = 0; c < 256; c++) /* 8x14 MDA in 8x16 cell */
+                        {
+                                fread(&fontdatm[256 * d + c], 1, 16, f);
+                        }
+                        for (c = 0; c < 256; c++) /* 8x8 CGA in 8x16 cell */
+                        {
+                                fread(fontdat[256 * d + c], 1, 8, f);
+                                fseek(f, 8, SEEK_CUR);
+                        }
+                }
+                break;
+        default:
+        case FONT_CGA:                     /* CGA */
+                for (c = 0; c < 2048; c++) /* Allow up to 2048 chars */
+                {
+                        for (d = 0; d < 8; d++) {
+                                fontdat[c][d] = getc(f);
+                        }
+                }
+                break;
+        case FONT_WY700: /* Wyse 700 */
+                for (c = 0; c < 512; c++) {
+                        for (d = 0; d < 32; d++) {
+                                fontdatw[c][d] = getc(f);
+                        }
+                }
+                break;
+        case FONT_MDSI: /* MDSI Genius */
+                for (c = 0; c < 256; c++) {
+                        for (d = 0; d < 16; d++) {
+                                fontdat8x12[c][d] = getc(f);
+                        }
+                }
+                break;
+        case FONT_T3100E:                       /* Toshiba 3100e */
+                for (d = 0; d < 2048; d += 512) /* Four languages... */
+                {
+                        for (c = d; c < d + 256; c++) {
+                                fread(&fontdatm[c][8], 1, 8, f);
+                        }
+                        for (c = d + 256; c < d + 512; c++) {
+                                fread(&fontdatm[c][8], 1, 8, f);
+                        }
+                        for (c = d; c < d + 256; c++) {
+                                fread(&fontdatm[c][0], 1, 8, f);
+                        }
+                        for (c = d + 256; c < d + 512; c++) {
+                                fread(&fontdatm[c][0], 1, 8, f);
+                        }
+                        fseek(f, 4096, SEEK_CUR); /* Skip blank section */
+                        for (c = d; c < d + 256; c++) {
+                                fread(&fontdat[c][0], 1, 8, f);
+                        }
+                        for (c = d + 256; c < d + 512; c++) {
+                                fread(&fontdat[c][0], 1, 8, f);
+                        }
+                }
+                break;
+        case FONT_KSC5601: /* Korean KSC-5601 */
+                for (c = 0; c < 16384; c++) {
+                        for (d = 0; d < 32; d++) {
+                                fontdatksc5601[c][d] = getc(f);
+                        }
+                }
+                break;
+        case FONT_SIGMA400: /* Sigma Color 400 */
+                /* The first 4k of the character ROM holds an 8x8 font */
+                for (c = 0; c < 256; c++) {
+                        fread(&fontdat[c][0], 1, 8, f);
+                        fseek(f, 8, SEEK_CUR);
+                }
+                /* The second 4k holds an 8x16 font */
+                for (c = 0; c < 256; c++) {
+                        fread(&fontdatm[c][0], 1, 16, f);
+                }
+                break;
+        case FONT_IM1024: /* Image Manager 1024 native font */
+                for (c = 0; c < 256; c++) {
+                        fread(&fontdat12x18[c][0], 1, 36, f);
+                }
+                break;
+        }
+        fclose(f);
+}
 
 /* Interrogation du registre des cartes vidéo, video.c:409-540. Deux cartes depuis la
  * VGA, choisies par gfxcard (pc.c:77), que h_set_gfxcard pose AVANT h_boot. Ce sont

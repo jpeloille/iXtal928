@@ -290,6 +290,9 @@ switch (args[0])
     // G7.3 — R9 : la survie au curseur et à la pente de polygone de la Trio64 (PB-84 à PB-86).
     case "r9-s3":
         return R9S3.Run("roms");
+    // GR.0a — les polices (loadbios, machine par machine) et la palette CGA (cgapal_rebuild), oracle contre C#.
+    case "video-tables-check":
+        return VideoTablesCheck.Run("roms");
     // G8.0 — les tables de DBOPL (pow, sin), oracle contre C#.
     case "opl-tables-check":
         return OplTablesCheck.Run();

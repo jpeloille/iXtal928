@@ -168,6 +168,7 @@ P1B=(); for l in "${P1K[@]}"; do P1B+=(--type "$l"); done
 run bd-pc1512-plan boot-diff roms 9000 --model pc1512 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${P1B[@]}" --type "^" --type "^"
 # G8.0 — les tables de DBOPL (pow, sin de la libm), oracle (C++) contre C#.
 run opl-tables-check opl-tables-check
+run video-tables-check video-tables-check
 # G8.1 — l'OPL (DBOPL) et l'AdLib : le 5150 et l'ami486 avec la carte ; le banc OPLBANC (détection
 # AdLib par les minuteries, neuf voix, percussions) saisi dans DEBUG, sous boot-diff, sonde du son.
 run bd-pc-adlib boot-diff roms 3000 --sndcard adlib

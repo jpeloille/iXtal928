@@ -85,7 +85,7 @@ finis, puis viennent les registres et la clôture. Chaque étape est commitée e
 préfixe `gr:`. Une étape qui change l'émulateur joue la série entière dans les deux modes ; les autres jouent un
 sous-ensemble ciblé (moins de 15 min).
 
-### GR.0a — L'oracle reçoit les polices et la palette
+### GR.0a — L'oracle reçoit les polices et la palette  ✅ *fait, VERIFICATION.md § GR.0a*
 
 - **Le contenu** :
   - dans `harness_stubs.c`, `loadfont` recopié verbatim de `video.c:930-1047` et `cgapal_rebuild` de

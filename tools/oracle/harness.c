@@ -2199,6 +2199,29 @@ void h_set_bpb_disable(int v) { bpb_disable = v; }
 extern int romset;
 void h_set_romset(int r) { romset = r; }
 
+/* GR.0a — video-tables-check : les polices que loadbios charge pour le romset r (mem_bios.c:59-62, :85), copiées
+ * telles quelles, hors machine. Les tables gardent ce que les appels précédents y ont laissé, comme chez PCem :
+ * l'appelant parcourt les romsets dans le même ordre des deux côtés. Rend 0 si loadbios échoue. */
+int h_video_fonts(const char *romspath, int r, uint8_t *dat, uint8_t *datm) {
+        h_set_roms_path(romspath);
+        romset = r;
+        if (!h_mem_inited) {
+                mem_init();
+                h_mem_inited = 1;
+        }
+        if (!loadbios())
+                return 0;
+        memcpy(dat, fontdat, sizeof(fontdat));
+        memcpy(datm, fontdatm, sizeof(fontdatm));
+        return 1;
+}
+
+/* GR.0a — la palette que cgapal_rebuild compose (video.c:1162-1298), copiée. */
+void h_cgapal(int display_type, int contrast, uint32_t *pal) {
+        cgapal_rebuild(display_type, contrast);
+        memcpy(pal, cgapal, sizeof(cgapal));
+}
+
 /* G3.0 — les deux chemins que nvrfopen compose (nvr.c:33-54), POUSSES par l'appelant.
  *
  * Ils etaient VIDES : nvr_path et nvr_default_path sont des globales de paths.c, non lie,

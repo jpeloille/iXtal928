@@ -13413,3 +13413,45 @@ contre M0 complet (`M0-complet-10c`) : 1 484 méthodes contre 1 507 ; 52 changé
 Toutes sont froides (l'initialisation, la configuration, les tables). Le rafraîchissement de 13a n'apparaît pas : sa
 garde, fausse en mode PCem, est pliée. Les exécuteurs, les gestionnaires d'instructions et de ports, les poll de la
 vidéo et du son, les commandes du CD et des disques restent ceux d'avant G13, à l'octet.
+
+
+## GR.0a — l'oracle reçoit les polices et la palette
+
+Le 20 octobre 2026. La première étape de GR (`PLAN-GR.md`, feu vert du 20/10). Jusqu'ici, l'oracle avait `loadfont` et
+`cgapal_rebuild` en souches vides (`harness_stubs.c`, la section vidéo, niveau (b) : « à reprendre avant l'oracle de
+framebuffer ») : son image était noire pour la CGA, la MDA, l'Hercules, la M24 et le PC1512, et aucune sonde ne pouvait
+la comparer à celle du C#. GR.0b les fera hacher ; GR.0a donne d'abord à l'oracle les mêmes tables.
+
+**Le harnais.** `loadfont` (`video.c:930-1047`) et `cgapal_rebuild` (`:1162-1299`) recopiés verbatim dans
+`harness_stubs.c`, avec `fontdatw`, `fontdat8x12` et `fontdat12x18` définis : `loadbios` appelle les formats WY700,
+MDSI et IM1024 sans condition (`mem_bios.c:60-62`). Les formats PC200, T3100e et SIGMA400 écrivent aussi dans
+`fontdat` et `fontdatm` ; aucune machine du dépôt ne les demande, et le C# les omet. Le composite reste vide des deux
+côtés. Le PCem vendoré est intact (l'empreinte de l'arbre, `check-oracle`). Deux exports, l'ABI 58 :
+`h_video_fonts` (les polices que `loadbios` charge pour un romset) et `h_cgapal` (la palette d'un type d'écran).
+`oracle.tsv` réancré pour `harness.c`, `harness.h` et `harness_stubs.c` : `harness.c` et `harness.h` dérivaient depuis
+`cb69404` (G13.5a), jamais réancrés (R4-contre A6) ; `check-oracle` à 0 dérive.
+
+**La porte `video-tables-check`** (`tools/iXtal26.Diff/VideoTablesCheck.cs`, hors machine) : pour les neuf machines du
+dépôt, dans l'ordre de la table, `fontdat` et `fontdatm` après `loadbios` des deux côtés, octet par octet. Les tables
+gardent ce que les machines précédentes y ont laissé, comme chez PCem : après le PC1512, dont la police de 8 Ko laisse
+FFh au-delà du caractère 1 023, la M24 garde ces octets. Puis `cgapal` pour les sept types d'écran et les deux
+contrastes. Verte : 442 592 entrées identiques. Une commande qui compare à l'oracle : refusée en mode matériel, comme
+`opl-tables-check`, sans déclaration de plus.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr0a.py`, une faute à la fois, restaurée) :
+
+| | Faute | Résultat |
+|---|---|---|
+| N1 | l'oracle : `loadfont` rendu à la souche | rouge, 69 293 entrées |
+| N2 | le C# : la police fine écrite sur l'épaisse (`FONT_MDA`) | rouge, 12 139 entrées |
+| N3 | le C# : une composante de l'ambre contrasté faussée d'une unité | rouge, 1 entrée |
+| T | le témoin, restauré | vert |
+
+**Le sous-ensemble** (l'émulateur ne change pas ; `/tmp/a9/sub-gr0a.sh`, Release dans un worktree) : `abi`, la porte
+neuve et les 72 boot-diffs des cartes non SVGA (la CGA, la MDA, l'Hercules, l'EGA, la M24, le PC1512, et les 8088, XT
+et AT sans carte nommée), contre g13b : toutes vertes. Les messages sont identiques à l'octet, comptes d'instructions
+compris, sauf `abi` (58) et la porte neuve. La police et la palette ne touchent aucun état du processeur.
+
+**Ce que ce vert ne dit pas** : la porte compare les tables, pas l'image. Les formats de police des machines absentes
+ne sont comparés qu'à travers ce que `loadbios` en appelle (WY700, MDSI, IM1024, dont les fichiers manquent des deux
+côtés).

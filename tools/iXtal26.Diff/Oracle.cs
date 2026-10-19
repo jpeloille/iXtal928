@@ -87,7 +87,8 @@ public static class Oracle
     // 55 en G12.1 : la SB 16 (le MPU-401 lié, dma.c inclus) ; la sonde du son à 62 champs, h_dma_probe, h_sb16_filter.
     // 56 en G12.2 : l'AWE32 et l'EMU8000 (sound_emu8k.c inclus) — h_emu8k_probe, h_emu8k_tables, h_emu8k_kernel.
     // 57 en G13.5 : h_set_carte286, la carte de 16 Mo du cœur 286 (la sonde SST).
-    public const int AbiVersion = 57;
+    // 58 en GR.0a : loadfont et cgapal_rebuild verbatim dans le harnais ; h_video_fonts, h_cgapal.
+    public const int AbiVersion = 58;
 
     static Oracle()
     {
