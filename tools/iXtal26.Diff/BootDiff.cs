@@ -867,6 +867,7 @@ public static class BootDiff
         // remet svga_pri à nul. Sans cette référence, l'écran de fin se lisait par
         // mem_readb_phys — donc par svga_read — sous un en-tête « CGA ».
         var svgaEnd = Video.vid_svga.svga_get_pri();
+        var egaEnd = Video.vid_ega.Probe; // GR.4c — de même : ega_close remet Probe à nul
         pc.closepc();
 
         if (diverged < 0)
@@ -898,7 +899,7 @@ public static class BootDiff
             // inchangée laisse la question « pourquoi la frappe n'a-t-elle rien
             // produit ? » sans réponse, et c'est là qu'elle se lit.
             if (script.Count > 0)
-                iXtal26.BootTest.DumpTextScreen(svgaEnd);
+                iXtal26.BootTest.DumpTextScreen(svgaEnd, egaEnd);
 
             // Le diff d'instructions dit que les deux cœurs font la même chose. Les
             // images disent ce qu'ils ont ÉCRIT — et c'est le seul oracle que le chemin

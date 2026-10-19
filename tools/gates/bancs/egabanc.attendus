@@ -4,13 +4,19 @@
 #   copie des verrous en mode d'écriture 1, la lecture en mode 1 (deux octets, puis « don't care »), les quatre plans
 #   relus (six octets chacun) ; 3DAh lu 2 000 fois sur le motif du mode 0Dh, le OU et le ET ; le plan 2 en 10h (deux
 #   octets) ; B800 en mode 04h (deux octets) ; CR00, 01, 06, 09, 0C, 13, 14 et 17 relus ; l'attribut 10h relu ; 3DAh.
-# Les deux modes rendent les mêmes octets :
+# Les deux modes rendent les mêmes octets, sauf le dernier :
 #   3DAh, OU 39h et ET 00h : PCem bascule les bits 4-5 à chaque lecture (PB-99 (4)) ; en mode matériel, ils viennent
 #     du faisceau (G13.9f), et les points de l'écran (le texte de DOS, puis le motif) les allument en passant ; le bit
-#     0 et le bit 3 bougent dans les deux modes ; le dernier 3DAh, lu une fois, 01h (le bit 0, l'instant de la lecture).
+#     0 et le bit 3 bougent dans les deux modes ; le dernier 3DAh, lu une fois : le bit 0, l'instant de la lecture.
+#     Depuis GR.4c, le vidage de l'écran entre les lignes tapées lit la VRAM brute et ne facture plus 2 000
+#     lectures de cycles à l'invité : l'instant glisse, et le bit vaut 00h en mode PCem et sous « tout », 01h sous
+#     « video » (01h partout avant ; le faisceau dépend de tous les temps du mode, G13.10c). Sous une autre demande
+#     du mode matériel, cette dernière ligne n'est pas vérifiée.
 #   CR00 à CR17 et l'attribut 10h relus : la valeur relue est inconnue (PB-99 (3)), celle de PCem dans les deux modes.
 #   Les plans, les verrous, les modes d'écriture et de lecture : aucune correction ne les touche (PB-99 (6) ne joue
 #   qu'avec 64 Ko).
 2D390030FFFF0000FFFFCF3FFFFFFF00
 CF3FFF00FFFFCF3FFFFFFF00CF3FFF00
-390089B4E7E137270401001400A21001
+pcem: 390089B4E7E137270401001400A21000
+materiel[video]: 390089B4E7E137270401001400A21001
+materiel[tout]: 390089B4E7E137270401001400A21000

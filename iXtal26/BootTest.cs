@@ -365,12 +365,19 @@ public static class BootTest
     /// produit — et sans l'écran, on cherche à l'aveugle.</summary>
     /// <param name="svga">La carte VGA à lire, quand l'appelant l'a retenue avant que
     /// closepc ne la ferme ; sinon celle qui est montée, s'il y en a une.</param>
-    internal static void DumpTextScreen(Video.svga_t? svga = null)
+    /// <param name="ega">GR.4c — de même, l'EGA retenue avant closepc.</param>
+    internal static void DumpTextScreen(Video.svga_t? svga = null, Video.ega_t? ega = null)
     {
         svga ??= Video.vid_svga.svga_get_pri();
         if (svga is not null)
         {
             DumpVgaTextScreen(svga);
+            return;
+        }
+        ega ??= Video.vid_ega.Probe;
+        if (ega is not null)
+        {
+            DumpEgaTextScreen(ega);
             return;
         }
 
@@ -385,6 +392,53 @@ public static class BootTest
             for (var x = 0; x < 80; x++)
             {
                 var c = mem.mem_readb_phys((uint32_t)(seg + (y * 80 + x) * 2));
+                line[x] = c is >= 0x20 and < 0x7F ? (char)c : ' ';
+            }
+
+            var text = new string(line).TrimEnd();
+            if (text.Length == 0) { blank++; continue; }
+            if (blank > 0) { Console.WriteLine($"  [{blank} ligne(s) vide(s)]"); blank = 0; }
+            Console.WriteLine($"  |{text}");
+        }
+
+        if (blank > 0)
+            Console.WriteLine($"  [{blank} ligne(s) vide(s)]");
+    }
+
+    /// <summary>GR.4c — l'écran texte d'une EGA, lu dans sa VRAM BRUTE, pour la raison de la VGA. Jusqu'ici il
+    /// passait par mem_readb_phys, donc par ega_read : le vidage facturait des cycles, comptait dans egareads et
+    /// réécrivait les verrous la..ld, au milieu d'une campagne (après chaque ligne tapée). Et il lisait toujours B800 :
+    /// une EGA sur moniteur monochrome range son texte en B000, et l'écran sortait vide.
+    ///
+    /// En mode texte, l'EGA range le caractère au plan 0, à l'adresse que calcule la branche chain2 de ega_write :
+    /// l'offset o dans la fenêtre (B000 et B800 masqués à 0x7fff), le bit 0 retiré, le bit 14 ramené en bit 0,
+    /// puis décalé de deux. Le segment ne change donc pas l'indice ; seul le moniteur le nomme, par le port du CRTC
+    /// que le BIOS range en 0040:0063 (3B4h en monochrome). Colonnes, page et lignes viennent de la BDA, comme pour
+    /// la VGA.</summary>
+    private static void DumpEgaTextScreen(Video.ega_t ega)
+    {
+        var mono = (mem.ram[0x463] | (mem.ram[0x464] << 8)) == 0x3B4;
+        var cols = mem.ram[0x44A] | (mem.ram[0x44B] << 8);
+        var page = mem.ram[0x44E] | (mem.ram[0x44F] << 8);
+        var rows = mem.ram[0x484] + 1;
+        if (cols is not (40 or 80))
+            cols = 80;
+        if (rows is < 25 or > 50)
+            rows = 25;
+
+        Console.WriteLine($"\n--- écran texte EGA ({(mono ? "B000" : "B800")}, VRAM plan 0, {cols}x{rows}, " +
+                          $"page +0x{page:X}) ---");
+        var blank = 0;
+        for (var y = 0; y < rows; y++)
+        {
+            var line = new char[cols];
+            for (var x = 0; x < cols; x++)
+            {
+                var o = (page + 2 * (y * cols + x)) & 0x7fff & ~1;
+                if ((o & 0x4000) != 0)
+                    o |= 1;
+                var i = (o & ~0x4000) << 2;
+                var c = i < ega.vram.Length ? ega.vram[i] : 0;
                 line[x] = c is >= 0x20 and < 0x7F ? (char)c : ' ';
             }
 

@@ -13621,3 +13621,62 @@ P1, P2, P3, N1 et N3 ont été rejoués sur ce code final, avec les mêmes résu
   défaut antérieur de l'outil (`oldpc` lu sur le cœur 286), hors de l'étape.
 - Le relais de la sortie ne garde que la phase 2 : la sortie d'erreur du processus neuf (« Cannot open file '' »)
   passe telle quelle.
+
+## GR.4c — le vidage `--boot` de l'EGA, sans passer par la carte
+
+Le 20 octobre 2026. Le vidage de l'écran texte de `--boot` (après chaque ligne tapée, à chaque `@wait`, en fin
+d'amorçage ; dans boot-diff, après les sondes) lisait l'EGA comme une CGA. Il passait par `mem_readb_phys`, donc par
+`ega_read`, avec trois effets (R4 § 1.6, R4-contre § 2.3) :
+- il facturait des cycles à l'invité, au milieu d'une campagne ;
+- il comptait dans `egareads` et réécrivait les verrous `la..ld` ;
+- il lisait toujours B800 : une EGA sur moniteur monochrome range son texte en B000, et l'écran sortait vide. Le témoin
+  de G13.12a l'avait contourné par `@shot`.
+
+**L'outil** (`BootTest.cs`). `DumpEgaTextScreen` lit la VRAM brute de la carte montée (`vid_ega.Probe`), comme
+`DumpVgaTextScreen` pour la VGA. Le caractère est au plan 0, à l'indice que calcule la branche chain2 de `ega_write` :
+l'offset dans la fenêtre (B000 et B800 masqués à `0x7fff`), le bit 0 retiré, le bit 14 ramené en bit 0, puis décalé
+de deux. Le segment ne change donc pas l'indice ; seul le moniteur le nomme, par le port du CRTC que le BIOS range en
+0040:0063 (3B4h en monochrome). Les colonnes, la page et les lignes viennent de la BDA (`:004A`, `:004E`, `:0084`).
+boot-diff retient l'EGA avant `closepc` (`ega_close` remet `Probe` à nul), comme la VGA. La CGA garde son chemin
+(décision n° 5) ; la MDA et l'Hercules ne coûtent rien à la lecture (`mda_read`, `hercules_read` : `egareads` seul).
+
+**Les preuves** (Debug, `/tmp/a9/boot-materiel.sh`, le 5150 sous PC-DOS 2.00, DEBUG en B:) :
+- **Le témoin de G13.12a** (`monitor_type = 91`, `--hardware-mode video`) se lit sans `@shot` : « écran texte EGA
+  (B000, …) », DOS, puis `0040:0087  62-0B 00`, comme en § G13.12a. En mode PCem (91 refusé, le défaut) : B800,
+  `60-09`.
+- **Une EGA en 43 lignes** : `INT 10h`, AX = 1112h, BL = 0, assemblé dans DEBUG. `D 40:84 L 1` rend 2Ah, et le
+  vidage lit 80 × 43, le texte au-delà de la 25ᵉ ligne.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr4c.py`, une instrumentation jetable compte `egareads` autour du vidage ;
+le témoin mono) :
+
+| | Panne | Résultat |
+|---|---|---|
+| T | le vidage brut | 7 vidages, 0 lecture de la carte ; l'écran en B000 |
+| N1 | l'ancien chemin (`mem_readb_phys`, B800) | « écran texte CGA », 25 lignes vides |
+| N2 | le caractère lu par la carte | 2 000 `egareads` par vidage |
+
+**EGABANC.** Le vidage ne facture plus de cycles entre les lignes tapées : l'instant des lectures suivantes glisse.
+Des 41 octets d'EGABANC, un seul change, le dernier : 3DAh lu une fois, le bit 0, l'instant de la lecture. Il valait
+01h dans les deux modes ; il vaut 00h en mode PCem et sous « tout », et reste à 01h sous « video ». Les deux 3DAh lus
+2 000 fois (OU, ET), les plans, les verrous et les CRTC ne bougent pas. `egabanc.attendus` porte désormais
+`pcem:`, `materiel[video]:` et `materiel[tout]:` pour cette ligne, comme `hercbanc.attendus`. La preuve que l'octet suit
+le coût du vidage : avec le caractère relu par la carte (N2), la ligne du mode PCem rougit de nouveau (00h absent).
+`banc-egabanc` est vert en mode PCem, sous « video » et sous « tout », deux séances identiques.
+
+**Le sous-ensemble** (`/tmp/a9/sub-gr4c.sh`, Release dans un worktree), contre gr0b :
+- les bancs vidéo de `--boot` dans les deux modes (EGABANC, HERCBANC, ET4BANC, BLTBANC) ;
+- `bd-pc-ega`, `bd-pcdos-ega` et `bd-pc-ega-banc`.
+
+Tout est identique, sauf `banc-egabanc` en mode PCem avant les nouveaux attendus (ci-dessus). boot-diff ne vide
+l'écran qu'après ses sondes : son verdict n'en dépend pas.
+
+**La contre-lecture** (Sonnet, sans bloquant) a refait l'indice contre `ega_write` et vérifié que `vid_ega.Probe`
+n'est posé que par l'EGA autonome. Ses deux points sont repris : quatre lignes longues, et le trou des attendus (sous
+une demande du mode matériel autre que « video » ou « tout », la dernière ligne d'EGABANC n'est pas vérifiée), dit
+dans le fichier.
+
+**Ce que ce vert ne dit pas.**
+- La CGA lit toujours à travers la carte (`cga_read` : quatre cycles et la neige) ; la décision n° 5 la laisse.
+- Le mode 40 colonnes de l'EGA n'a pas de témoin.
+- `@vram` hache la VRAM sans l'afficher : il n'est pas touché.

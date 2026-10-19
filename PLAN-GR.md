@@ -157,7 +157,7 @@ sous-ensemble ciblé (moins de 15 min).
   source, son empreinte change.
 - **La série** : outillage seul. Les portes vertes ne passent jamais par la phase 2 : un sous-ensemble ciblé.
 
-### GR.4c — Le vidage `--boot` de l'EGA, sans passer par la carte
+### GR.4c — Le vidage `--boot` de l'EGA, sans passer par la carte  ✅ *fait, VERIFICATION.md § GR.4c*
 
 - **Le contenu** : `DumpEgaTextScreen` lit la VRAM brute, plan 0. Le segment suit le moniteur (B000 ou B800, d'après
   `0040:0063`), et les colonnes, les lignes et la page viennent de la BDA. La MDA et l'Hercules ne coûtent rien à la
