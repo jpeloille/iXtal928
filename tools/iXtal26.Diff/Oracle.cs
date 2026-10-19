@@ -90,7 +90,8 @@ public static class Oracle
     // 58 en GR.0a : loadfont et cgapal_rebuild verbatim dans le harnais ; h_video_fonts, h_cgapal.
     // 59 en GR.0b : les sondes non SVGA hachent l'image (champ 3) et leur palette ; la CGA sondée (champ 0 = 7) ;
     //   la banque et le RAMDAC de l'ET4000 aux places de la Trident (vid_et4000.c inclus par harness_et4000.c).
-    public const int AbiVersion = 59;
+    // 60 en GR.4b : h_trace_hash_now, le hachage de trace de l'état courant (la phase 2 de boot-diff).
+    public const int AbiVersion = 60;
 
     static Oracle()
     {
@@ -236,6 +237,8 @@ public static class Oracle
     // À la sortie : un dernier vidage des tables de traduction par l'anneau, puis leur balayage ;
     // le nombre d'écarts, -1 si le processus n'a pris aucune remise courte.
     [DllImport(Lib)] public static extern int h_raz_fin();
+    // GR.4b — le hachage de trace de l'état courant, celui que la boucle tracée écrit après chaque pas.
+    [DllImport(Lib)] public static extern ulong h_trace_hash_now();
     // La RAM comparée octet par octet : mem_size de l'oracle, puis -1 si les n premiers octets
     // sont égaux, -2 si n dépasse la RAM de l'oracle, et sinon le premier décalage différent,
     // l'octet de l'oracle à ce décalage dans `octet`. Le tableau C# est épinglé par le

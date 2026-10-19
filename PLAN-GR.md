@@ -141,7 +141,7 @@ sous-ensemble ciblé (moins de 15 min).
   VGA : la police lue à plat, PB-96, le `charbuffer` de 512 de PB-09, la neuvième colonne de la MDA. Un rouge sur le
   seul champ `revision|composite|snow_enabled` de la CGA, avec `crtc[1] > 128`, relève de PB-09.
 
-### GR.4b — La phase 2 de boot-diff rejoue l'exécution
+### GR.4b — La phase 2 de boot-diff rejoue l'exécution  ✅ *fait, VERIFICATION.md § GR.4b*
 
 - **Le contenu** :
   - la phase 2 reçoit le calendrier de frappe, les injections (souris, manette, `--fdb`) et les fins de tranche de la

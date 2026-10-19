@@ -584,6 +584,26 @@ public static class BootDiff
         // passaient --fda explicitement.
         discA ??= Floppy.fdd_c.discfns[0].Length == 0 ? null : Floppy.fdd_c.discfns[0];
         discB ??= Floppy.fdd_c.discfns[1].Length == 0 ? null : Floppy.fdd_c.discfns[1];
+        const int NHd = 7;
+
+        // GR.4b — le processus neuf de la phase 2 : la configuration et le calendrier refaits à l'identique, puis
+        // la phase 2 seule, depuis les images sources.
+        if (Phase2Seule is not null)
+        {
+            var srcHd = new string?[NHd];
+            for (var hd = 0; hd < NHd; hd++)
+                srcHd[hd] = Disc.hdd_c.ide_fn[hd].Length == 0 ? null : Disc.hdd_c.ide_fn[hd];
+            var srcZip = pc.cfg_zip_path.Length == 0 ? null : pc.cfg_zip_path;
+            var r = Phase2Seule.Split(':');
+            var rep = new Repere
+            {
+                Empreinte = Convert.ToUInt64(r[1], 16), Oracle = Convert.ToUInt64(r[2], 16),
+                Csharp = Convert.ToUInt64(r[3], 16)
+            };
+            Console.WriteLine(Phase2Marque);
+            return Phase2(romsPath, int.Parse(r[0]), slices, script, types, typeAt, typeSettle, rep,
+                          discA, discB, srcHd, srcZip);
+        }
 
         var oracleA = CopyForSide(discA, "oracle-a");
         var oracleB = CopyForSide(discB, "oracle-b");
@@ -602,7 +622,6 @@ public static class BootDiff
         // une copie par côté, sans quoi le C# écrivait dans l'image source et l'oracle ne
         // voyait pas le disque.
         // G11.0 — G:, H:, I: : les ID SCSI 4 à 6 de l'AHA-1542C, même règle.
-        const int NHd = 7;
         var discHd = new string?[NHd];
         var oracleHd = new string?[NHd];
         var csharpHd = new string?[NHd];
@@ -797,6 +816,9 @@ public static class BootDiff
         var diverged = -1;
         var n = 0;
         var ev = 0;
+        // GR.4b — l'empreinte des hachages communs avant la divergence, et les deux hachages à l'index : la phase 2
+        // les retrouve si, et seulement si, elle rejoue la même exécution.
+        var repere = new Repere { Empreinte = FnvBase };
         for (var s = 0; s < slices && diverged < 0; s++)
         {
             while (ev < script.Count && script[ev].Slice == s)
@@ -813,8 +835,9 @@ public static class BootDiff
                 if (n < nOracle)
                 {
                     var o = oracleTrace.ReadUInt64();
-                    if (o != h) { diverged = n; break; }
+                    if (o != h) { diverged = n; repere.Oracle = o; repere.Csharp = h; break; }
                 }
+                repere.Empreinte = (repere.Empreinte ^ h) * FnvP;
                 n++;
             }
 
@@ -910,7 +933,7 @@ public static class BootDiff
 
         Console.WriteLine($"\nPREMIÈRE DIVERGENCE à l'instruction {diverged}");
         Console.WriteLine("Phase 2 — rejeu en pas à pas, état complet :\n");
-        return Phase2(romsPath, diverged, discA);
+        return Phase2Relancee(diverged, repere);
     }
 
     /// <summary>Copie une image dans un fichier temporaire propre à un côté, ou rend
@@ -1134,14 +1157,9 @@ public static class BootDiff
         return 0;
     }
 
-    /// <summary>
-    /// Phase 2 : on rejoue les DEUX cœurs depuis le reset, une instruction à la
-    /// fois, et on compare le vecteur d'état complet à l'index fautif. La phase 1
-    /// dit OÙ ; celle-ci dit QUOI.
-    /// </summary>
     /// <summary>M19 — --lockstep N [--lockstep-from S] : les deux côtés avancent
-    /// ENSEMBLE, tranche par tranche, avec la même frappe. La phase 2 ne rejoue pas
-    /// --type, donc une divergence de campagne tapée n'était pas localisable (§ M15) ;
+    /// ENSEMBLE, tranche par tranche, avec la même frappe. La phase 2 ne rejouait pas
+    /// --type avant GR.4b, donc une divergence de campagne tapée n'était pas localisable (§ M15) ;
     /// ici l'état CPU est comparé à chaque fin de tranche, la sonde VGA complète toutes
     /// les N tranches puis à chaque tranche dès S, et le premier écart est NOMMÉ, avec
     /// la ligne tapée en cours. Diagnostic : le verdict reste celui du boot-diff.</summary>
@@ -1239,9 +1257,92 @@ public static class BootDiff
         return CompareVga(vo, vc);
     }
 
-    private static int Phase2(string romsPath, int index, string? discA)
+    /// <summary>GR.4b — `--phase2 INDEX:EMPREINTE:ORACLE:CSHARP` (hexadécimal sauf l'index) : interne, le processus
+    /// neuf où boot-diff relance sa phase 2.</summary>
+    internal static string? Phase2Seule;
+
+    private const string Phase2Marque = "Phase 2 — processus neuf, rejeu de la phase 1 :";
+
+    // GR.4b — LA PHASE 2 TOURNE DANS UN PROCESSUS NEUF. PCem n'amorce qu'une fois par processus ; le diff amorçait
+    // deux fois, et chaque côté entrait en phase 2 avec ce que SA phase 1 avait laissé dans les statiques que ni
+    // h_boot ni initpc ne remettent. Or les deux phases 1 ne s'arrêtent pas au même point : l'oracle a couru tout
+    // l'amorçage, le C# s'est arrêté à la divergence, en pleine frappe parfois. Mesuré : une touche faussée à la
+    // 31 621 429ᵉ instruction, la phase 2 rejouée dans le même processus divergeait dès la 21 108 465ᵉ, avant toute
+    // frappe, les deux côtés ne partant plus du même état (oldkey et keydelay du clavier, keyboard.c, en sont).
+    // Relancé avec les mêmes arguments, le processus refait la configuration, le calendrier et les copies ; les
+    // deux côtés y partent de l'état de la phase 1.
+    private static int Phase2Relancee(int index, Repere repere)
     {
-        Oracle.h_set_discfn(0, discA ?? "");
+        var argv = Environment.GetCommandLineArgs();
+        var psi = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+        {
+            RedirectStandardOutput = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            UseShellExecute = false
+        };
+        if (Path.GetFileNameWithoutExtension(Environment.ProcessPath) == "dotnet")
+            psi.ArgumentList.Add(argv[0]);
+        foreach (var a in argv.Skip(1))
+            psi.ArgumentList.Add(a);
+        psi.ArgumentList.Add("--phase2");
+        psi.ArgumentList.Add($"{index}:{repere.Empreinte:x}:{repere.Oracle:x}:{repere.Csharp:x}");
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        // La configuration, que le processus neuf réimprime, est déjà dite : seule la phase 2 est relayée.
+        var relaie = false;
+        while (p.StandardOutput.ReadLine() is { } l)
+        {
+            relaie |= l == Phase2Marque;
+            if (relaie && l != Phase2Marque)
+                Console.WriteLine(l);
+        }
+        p.WaitForExit();
+        if (!relaie)
+            Console.WriteLine($"  Le processus de la phase 2 s'est arrêté avant elle (code {p.ExitCode}).");
+        return p.ExitCode;
+    }
+
+    /// <summary>GR.4b — ce que la phase 1 sait de son exécution : l'empreinte des hachages communs avant l'index, et
+    /// les deux hachages à l'index. La phase 2 ne rejoue la même exécution que si elle les retrouve.</summary>
+    private sealed class Repere
+    {
+        internal ulong Empreinte;
+        internal ulong Oracle;
+        internal ulong Csharp;
+    }
+
+    // GR.4b — la phase 2 REJOUE LA PHASE 1, ET LE VÉRIFIE.
+    //
+    // Jusqu'à GR.4b, elle avançait instruction par instruction depuis le reset, sans tranches, donc sans frappe, sans
+    // souris, sans manette et sans le clavier de fin de tranche ; elle repartait de l'image SOURCE de A: (la même pour
+    // les deux côtés), des copies de B: et du ZIP que la phase 1 avait écrites, et du disque dur du C# pour les deux.
+    // Sur une campagne tapée, c'était une autre exécution, et son « les états concordent » accusait le hachage à tort
+    // (VERIFICATION.md § G10.0, la DSS). Elle tourne désormais dans un processus neuf (Phase2Relancee), découpe les
+    // mêmes tranches que la phase 1 (le budget de h_runpc tracé, décompté des cycles que rend chaque pas), y rejoue
+    // les mêmes injections, repart de copies fraîches, une par côté, et compare les hachages de trace à chaque pas :
+    // un écart avant l'index, une tranche qui finit d'un seul côté ou une empreinte qui n'est pas celle de la
+    // phase 1, et elle le dit au lieu de conclure.
+    /// <summary>
+    /// Phase 2 : on rejoue les DEUX cœurs depuis le reset, une instruction à la
+    /// fois, et on compare le vecteur d'état complet à l'index fautif. La phase 1
+    /// dit OÙ ; celle-ci dit QUOI.
+    /// </summary>
+    private static int Phase2(string romsPath, int index, int slices, List<KeyScript.Event> script,
+                              IReadOnlyList<string>? types, int typeAt, int typeSettle, Repere repere,
+                              string? discA, string? discB, string?[] discHd, string? discZip)
+    {
+        const int NHd = 7;
+        var oracleHd = new string?[NHd];
+        var csharpHd = new string?[NHd];
+        for (var hd = 0; hd < NHd; hd++)
+        {
+            oracleHd[hd] = CopyForSide(discHd[hd], $"p2-oracle-{(char)('c' + hd)}");
+            csharpHd[hd] = CopyForSide(discHd[hd], $"p2-csharp-{(char)('c' + hd)}");
+        }
+        ZipOracle = CopyForSide(discZip, "p2-oracle-zip");
+        var csharpZip = CopyForSide(discZip, "p2-csharp-zip");
+
+        Oracle.h_set_discfn(0, CopyForSide(discA, "p2-oracle-a") ?? "");
+        Oracle.h_set_discfn(1, CopyForSide(discB, "p2-oracle-b") ?? "");
         Oracle.h_set_mem_size(pc.cfg_mem_size);
         Oracle.h_set_drive_type(0, pc.cfg_drive_type[0]);
         Oracle.h_set_drive_type(1, pc.cfg_drive_type[1]);
@@ -1267,34 +1368,23 @@ public static class BootDiff
         Oracle.h_set_mouse_type(Mouse.mouse.mouse_type);
         PousserCdrom();
         PousserManettes();
-        for (var hd = 0; hd < 7; hd++)
-            Oracle.h_set_hdd(hd, Disc.hdd_c.ide_fn[hd], Disc.hdd_c.hdc[hd].spt,
+        for (var hd = 0; hd < NHd; hd++)
+            Oracle.h_set_hdd(hd, oracleHd[hd] ?? "", Disc.hdd_c.hdc[hd].spt,
                              Disc.hdd_c.hdc[hd].hpc, Disc.hdd_c.hdc[hd].tracks);
         if (Oracle.h_boot(romsPath) == 0) return 1;
+        // Le côté C# comme en phase 1, avant initpc. Dans un processus neuf, ces remises ne trouvent rien à remettre ;
+        // elles restent pour que les deux phases fassent les mêmes gestes. L'oracle n'en reçoit pas : en phase 1, il
+        // ne les reçoit qu'après sa course.
         _808x.ResetDiagState();
-        // L'ÉTAT DE PRÉFETCH DU 286 SE REPORTAIT D'UNE PHASE À L'AUTRE, ET LES DEUX
-        // CÔTÉS ARRIVAIENT SALES DIFFÉREMMENT.
-        //
-        // prefetch_bytes et prefetch_prefixes sont des statiques de 386_dynarec.c que
-        // NI h_boot NI pc.initpc ne remettent — PCem n'amorce qu'une fois par processus,
-        // le diff deux fois : la phase 1 court l'amorçage entier, la phase 2 le rejoue
-        // en pas à pas. Chaque côté entrait donc en phase 2 avec ce que SON propre
-        // phase 1 avait laissé, et comme elle divergeait, les deux restes différaient.
-        //
-        // MESURÉ : au premier boot-diff AT, tsc valait 11 côté oracle et 13 côté C# à
-        // l'instruction 0, CS:IP F000:FFF0. Onze est exactement timing_jmp_rm, que les
-        // DEUX côtés posent à 11 — vérifié. opJMP_far_a16 et prefetch_run sont des
-        // transcriptions fidèles — vérifiées ligne à ligne. Les quatre entrées du modèle
-        // de préfetch s'accordent — vérifiées. Il ne restait que l'état.
-        //
-        // h_prefetch_reset() était au contrat ABI depuis A2.2a sans jamais être importé.
-        // Appelé sans condition de cœur, comme h_reset le fait (harness.c:391) : sur un
-        // 8088 ces statiques ne servent à personne, execx86 portant son propre modèle.
-        Oracle.h_prefetch_reset();
         Cpu._386.prefetch_reset();
-        Oracle.h_seg_clear_residue();
         Cpu._386.ClearSegResidue();
-        Floppy.fdd_c.discfns[0] = discA ?? "";
+        Floppy.fdd_c.discfns[0] = CopyForSide(discA, "p2-csharp-a") ?? "";
+        Floppy.fdd_c.discfns[1] = CopyForSide(discB, "p2-csharp-b") ?? "";
+        for (var hd = 0; hd < NHd; hd++)
+            Disc.hdd_c.ide_fn[hd] = csharpHd[hd] ?? "";
+        if (csharpZip is not null)
+            pc.cfg_zip_path = csharpZip;
+        Diag.R9.Raz();
         if (!pc.initpc(romsPath)) return 1;
 
         var a = Diag.HState.Create();
@@ -1306,70 +1396,171 @@ public static class BootDiff
         var before = new ulong[3][];
         for (var t = 0; t < 3; t++) before[t] = new ulong[PitFields.Length];
 
-        for (var i = 0; i <= index; i++)
+        var empreinte = FnvBase;
+        var e = 0;
+        var i = 0;
+        for (var s = 0; s < slices && i <= index; s++)
         {
-            // État du PIT AVANT l'instruction. Les deux côtés sont encore
-            // d'accord ici : c'est la ligne de départ commune qui rend lisible
-            // ce que l'instruction a fait diverger.
-            if (pitFirst < 0)
-                for (var t = 0; t < 3; t++)
-                    Oracle.h_pit_probe(t, before[t]);
-
-            // LES DEUX PHASES EMPRUNTENT LE MEME PAS, et c'est ce qui rend l'indice de
-            // la phase 1 rejouable. h_step / Step286 posent timer_target pour forcer
-            // cycle_period a 1 ; la boucle tracee de h_runpc ne le fait pas. Utiliser
-            // l'un en phase 1 et l'autre en phase 2 faisait de la phase 2 une TROISIEME
-            // execution, qui n'avait pas la divergence de la phase 1 au meme indice —
-            // le diff le disait sans pouvoir la localiser.
-            var cycC = Oracle.h_step_trace();
-            var cycS = PasCsharpTrace();
-
-            if (pitFirst < 0)
-                Oracle.h_getstate(out a0);
-
-            if (pitFirst < 0 && PitDiverges())
+            // Les touches AVANT la tranche, des deux côtés, comme la phase 1.
+            while (e < script.Count && script[e].Slice == s)
             {
-                pitFirst = i;
-                Console.WriteLine($"  [PIT] premier écart d'état à l'instruction {i}, " +
-                                  $"CS:IP {a0.seg_sel[0]:X4}:{a0.oldpc:X4} — soit {index - i} " +
-                                  "instructions AVANT la divergence architecturale.");
-                DumpPitFull(before);
-                Console.WriteLine();
+                Oracle.h_rawinputkey(script[e].Index, script[e].Value);
+                Keyboard.keyboard.rawinputkey[script[e].Index] = script[e].Value;
+                e++;
             }
 
-            if (i < index - 3)
-                continue;
-
-            Oracle.h_getstate(out a);
-            _808x.GetState(ref b);
-            Oracle.h_getregs(regs);
-
-            var mark = i == index ? ">>" : "  ";
-            Console.WriteLine($"{mark} #{i}  oracle CS:IP {a.seg_sel[0]:X4}:{a.pc:X4} " +
-                              $"AX {a.regs[0]:X4} BX {a.regs[3]:X4} CX {a.regs[1]:X4} DX {a.regs[2]:X4} " +
-                              $"FL {a.flags:X4} cyc {cycC}");
-            Console.WriteLine($"{mark}      C#     CS:IP {b.seg_sel[0]:X4}:{b.pc:X4} " +
-                              $"AX {b.regs[0]:X4} BX {b.regs[3]:X4} CX {b.regs[1]:X4} DX {b.regs[2]:X4} " +
-                              $"FL {b.flags:X4} cyc {cycS}");
-
-            var d = Fuzzer.CompareStates(a, b, cycC, cycS, counters: false);
-            if (d is not null)
+            // Le budget de chaque côté, décompté des cycles que rend son pas : celui de h_runpc tracé côté oracle
+            // (h_slice_budget, harness.c), celui de la boucle de la phase 1 côté C#.
+            var budgetO = Oracle.h_slice_budget();
+            var budgetS = Cpu.cpu_c.cpu_get_speed() / 100;
+            for (; budgetO > 0 && budgetS > 0 && i <= index; i++)
             {
-                Console.WriteLine($"\n  -> {d}");
-                DumpPit();
-                DumpDisc();
-                DumpSpeaker();
-                var lin = (a.seg_base[0] + a.oldpc) & 0xFFFFF;
-                var bo = new byte[6];
-                Oracle.h_read(lin, bo, 6);
-                Console.WriteLine($"  octets à cs:oldpc {lin:X5} : {string.Join(" ", bo.Select(x => x.ToString("X2")))}");
+                // État du PIT AVANT l'instruction. Les deux côtés sont encore
+                // d'accord ici : c'est la ligne de départ commune qui rend lisible
+                // ce que l'instruction a fait diverger.
+                if (pitFirst < 0)
+                    for (var t = 0; t < 3; t++)
+                        Oracle.h_pit_probe(t, before[t]);
+
+                // LES DEUX PHASES EMPRUNTENT LE MEME PAS, et c'est ce qui rend l'indice de
+                // la phase 1 rejouable. h_step / Step286 posent timer_target pour forcer
+                // cycle_period a 1 ; la boucle tracee de h_runpc ne le fait pas. Utiliser
+                // l'un en phase 1 et l'autre en phase 2 faisait de la phase 2 une TROISIEME
+                // execution, qui n'avait pas la divergence de la phase 1 au meme indice —
+                // le diff le disait sans pouvoir la localiser.
+                var cycC = Oracle.h_step_trace();
+                var cycS = PasCsharpTrace();
+                budgetO -= cycC;
+                budgetS -= cycS;
+                var ho = Oracle.h_trace_hash_now();
+                var hs = TraceHash();
+
+                if (pitFirst < 0)
+                    Oracle.h_getstate(out a0);
+
+                if (pitFirst < 0 && PitDiverges())
+                {
+                    pitFirst = i;
+                    Console.WriteLine($"  [PIT] premier écart d'état à l'instruction {i}, " +
+                                      $"CS:IP {a0.seg_sel[0]:X4}:{a0.oldpc:X4} — soit {index - i} " +
+                                      "instructions AVANT la divergence architecturale.");
+                    DumpPitFull(before);
+                    Console.WriteLine();
+                }
+
+                // Avant l'index, la phase 1 a vu les deux hachages égaux : un écart ici est une autre exécution.
+                var tot = i < index && ho != hs;
+                if (i < index - 3 && !tot)
+                {
+                    empreinte = (empreinte ^ hs) * FnvP;
+                    continue;
+                }
+
+                Oracle.h_getstate(out a);
+                _808x.GetState(ref b);
+                Oracle.h_getregs(regs);
+
+                var mark = i == index || tot ? ">>" : "  ";
+                Console.WriteLine($"{mark} #{i}  oracle CS:IP {a.seg_sel[0]:X4}:{a.pc:X4} " +
+                                  $"AX {a.regs[0]:X4} BX {a.regs[3]:X4} CX {a.regs[1]:X4} DX {a.regs[2]:X4} " +
+                                  $"FL {a.flags:X4} cyc {cycC}");
+                Console.WriteLine($"{mark}      C#     CS:IP {b.seg_sel[0]:X4}:{b.pc:X4} " +
+                                  $"AX {b.regs[0]:X4} BX {b.regs[3]:X4} CX {b.regs[1]:X4} DX {b.regs[2]:X4} " +
+                                  $"FL {b.flags:X4} cyc {cycS}");
+
+                var d = Fuzzer.CompareStates(a, b, cycC, cycS, counters: false);
+                if (tot)
+                {
+                    Console.WriteLine($"\n  -> {d ?? "états identiques, hachages différents"}");
+                    Console.WriteLine($"\n  La phase 2 diverge à l'instruction {i}, AVANT l'index {index} de la " +
+                                      "phase 1 : ce n'est pas la même exécution, et cet écart ne dit rien de celui " +
+                                      "de la phase 1. --lockstep le localise.");
+                    return 1;
+                }
+
+                // À l'index : la même exécution si l'empreinte et les deux hachages sont ceux de la phase 1.
+                var meme = i == index && empreinte == repere.Empreinte && ho == repere.Oracle && hs == repere.Csharp;
+                if (d is not null)
+                {
+                    Console.WriteLine($"\n  -> {d}");
+                    var ligne = LigneTapee(types, typeAt, typeSettle, s);
+                    Console.WriteLine($"  tranche {s}, " + (ligne >= 0
+                        ? $"pendant la ligne tapée {ligne} « {types![ligne]} »"
+                        : "hors frappe"));
+                    DumpPit();
+                    DumpDisc();
+                    DumpSpeaker();
+                    var lin = (a.seg_base[0] + a.oldpc) & 0xFFFFF;
+                    var bo = new byte[6];
+                    Oracle.h_read(lin, bo, 6);
+                    Console.WriteLine($"  octets à cs:oldpc {lin:X5} : " +
+                                      string.Join(" ", bo.Select(x => x.ToString("X2"))));
+                    if (i < index)
+                        Console.WriteLine($"\n  L'état complet diverge {index - i} instruction(s) avant le hachage, " +
+                                          "sur des hachages encore égaux.");
+                    else if (!meme)
+                        Console.WriteLine("\n  ATTENTION : la phase 2 ne retrouve pas l'empreinte de la phase 1 ; " +
+                                          "cette divergence peut ne pas être la sienne. --lockstep la localise.");
+                    return 1;
+                }
+                if (i < index)
+                {
+                    empreinte = (empreinte ^ hs) * FnvP;
+                    continue;
+                }
+                if (!meme)
+                {
+                    Console.WriteLine("\n  La phase 2 n'a pas rejoué l'exécution de la phase 1 : l'empreinte de " +
+                                      $"ses {index} premières instructions, ou ses hachages à l'index, ne sont pas " +
+                                      "ceux de la phase 1. Ses états ne disent rien de la divergence ; --lockstep la " +
+                                      "localise.");
+                    return 1;
+                }
+                Console.WriteLine("\n  Les états concordent à l'index signalé, sur la même exécution que la phase 1");
+                Console.WriteLine("  (empreinte et hachages retrouvés) — le hachage porte sur moins de champs que le");
+                Console.WriteLine("  vecteur complet ; vérifier TraceHash contre h_trace_note.");
                 return 1;
             }
+
+            // Une tranche qui finit d'un seul côté : les budgets ne se décomptent plus pareil, et la suite n'est plus
+            // la phase 1.
+            if (budgetO > 0 || budgetS > 0)
+            {
+                var cote = budgetO > 0 ? "C#" : "oracle";
+                var line = LigneTapee(types, typeAt, typeSettle, s);
+                Console.WriteLine($"\n  La tranche {s} finit à l'instruction {i} côté {cote} seulement " +
+                                  $"(reste : oracle {budgetO}, C# {budgetS} cycles), " +
+                                  (line >= 0 ? $"pendant la ligne tapée {line} « {types![line]} »" : "hors frappe") +
+                                  $", avant l'index {index}. La phase 2 ne peut plus rejouer la phase 1 ; " +
+                                  "--lockstep compare tranche par tranche.");
+                return 1;
+            }
+
+            // pc.c:490-491 — runpc() appelle keyboard_poll_host puis keyboard_process APRÈS execx86 ; la souris et la
+            // manette suivent, des deux côtés, comme en phase 1.
+            Oracle.h_kbd_process();
+            SourisOracle(s);
+            ManetteOracle(s);
+            Keyboard.keyboard.keyboard_poll_host();
+            Keyboard.keyboard.keyboard_process();
+            SourisCsharp(s);
+            ManetteCsharp(s);
         }
 
-        Console.WriteLine("\n  Les états concordent à l'index signalé — le hachage porte sur moins de");
-        Console.WriteLine("  champs que le vecteur complet ; vérifier TraceHash contre h_trace_note.");
+        Console.WriteLine($"\n  La phase 2 n'a pas atteint l'index {index} en {slices} tranches ({i} instructions) : " +
+                          "ce n'est pas l'exécution de la phase 1. --lockstep la localise.");
         return 1;
+    }
+
+    /// <summary>GR.4b — la ligne tapée en cours à la tranche s, -1 hors frappe : la règle de Lockstep.</summary>
+    private static int LigneTapee(IReadOnlyList<string>? types, int typeAt, int typeSettle, int s)
+    {
+        if (types is null || s < typeAt)
+            return -1;
+        for (var k = 1; k <= types.Count; k++)
+            if (KeyScript.Build(types.Take(k).ToList(), typeAt, typeSettle).endSlice > s)
+                return k - 1;
+        return -1;
     }
 
     /// <summary>Doit rester le pendant exact de h_trace_note() (harness.c).</summary>

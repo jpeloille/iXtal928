@@ -450,6 +450,8 @@ int h_trace_errno(void);
 uint64_t h_trace_hash_value(int ref, uint16_t sel_cs, uint32_t pc, const uint16_t *regs, uint16_t sel_ds,
                             uint16_t sel_es, uint16_t sel_ss, uint16_t flags, uint64_t t, int notsc);
 int32_t h_raz_fin(void);
+/* GR.4b (ABI 60) : le hachage de trace de l'état courant, celui que la boucle tracée écrit après chaque pas. */
+uint64_t h_trace_hash_now(void);
 int h_mem_size(void);
 int64_t h_ram_cmp(const uint8_t *autre, uint32_t n, uint8_t *octet);
 
@@ -743,7 +745,7 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 59
+#define H_ABI_VERSION 60
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
@@ -773,6 +775,7 @@ int h_video_fonts(const char *romspath, int r, uint8_t *dat, uint8_t *datm);
 void h_cgapal(int display_type, int contrast, uint32_t *pal);
 /* 59 (GR.0b) : les sondes non SVGA hachent l'image (champ 3) et leur palette (4, ou 9 pour l'EGA) ; la CGA sondée
  * (champ 0 = 7, harness_cga.c) ; la banque et le RAMDAC de l'ET4000 aux places de la Trident (harness_et4000.c). */
+/* 60 (GR.4b) : h_trace_hash_now, pour la phase 2 de boot-diff qui rejoue l'exécution de la phase 1. */
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

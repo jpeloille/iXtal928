@@ -63,7 +63,8 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      --lockstep N : diagnostic. Les deux côtés avancent ENSEMBLE, tranche par");
     Console.WriteLine("      tranche, frappe comprise ; état CPU comparé à chaque tranche, sonde VGA");
     Console.WriteLine("      toutes les N (et à chaque tranche dès --lockstep-from S). Nomme le premier");
-    Console.WriteLine("      écart et la ligne tapée en cours — la phase 2 ne rejoue pas --type.");
+    Console.WriteLine("      écart et la ligne tapée en cours. Sur une divergence, la phase 2 rejoue la");
+    Console.WriteLine("      phase 1 (frappe comprise) dans un processus neuf, et dit si elle l'a rejouée.");
     Console.WriteLine();
     Console.WriteLine("  config-check");
     Console.WriteLine("      Aller-retour du moteur de configuration : on écrit un fichier");
@@ -635,6 +636,8 @@ switch (args[0])
                 // M19 — diagnostic : les deux côtés au pas commun, frappe comprise.
                 case "--lockstep" when i + 1 < args.Length: BootDiff.LockstepEvery = int.Parse(args[++i]); break;
                 case "--lockstep-from" when i + 1 < args.Length: BootDiff.LockstepFrom = int.Parse(args[++i]); break;
+                // GR.4b — interne : la phase 2, relancée par boot-diff lui-même dans un processus neuf.
+                case "--phase2" when i + 1 < args.Length: BootDiff.Phase2Seule = args[++i]; break;
                 default:
                     if (args[i].StartsWith("--", StringComparison.Ordinal) || positional > 1)
                     {

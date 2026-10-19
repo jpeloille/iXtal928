@@ -13535,3 +13535,89 @@ gr0b-ecrans.png`, hors dépôt).
   écrit au-delà, sur `revision|composite|snow_enabled` : un rouge sur ce champ seul serait PB-09, pas une transcription
   fausse (R0-contre § 4).
 - Les refus ne sont pas couverts par une porte : ils ont été vérifiés à la main, une fois.
+
+## GR.4b — la phase 2 de boot-diff rejoue l'exécution
+
+Le 20 octobre 2026. Sur une divergence, la phase 1 de boot-diff dit OÙ (l'index de la trace), la phase 2 dit QUOI
+(l'état complet). Jusqu'ici, la phase 2 avançait instruction par instruction depuis le reset, dans le même processus :
+- sans tranches, donc sans frappe, souris, manette, ni le clavier de fin de tranche ;
+- sur l'image SOURCE de A: (la même pour les deux côtés, écrite si l'invité écrit) ;
+- sur les copies de B: et du ZIP que la phase 1 avait écrites ;
+- sur le disque dur du C# pour les deux côtés.
+
+Sur une campagne tapée, c'était une autre exécution. Son « les états concordent » accusait le hachage à tort : la
+DSS de § G10.0 en est l'exemple (R4 § 1.7, R4-contre § 2.2).
+
+**L'outil.**
+- **Un processus neuf.** `Phase2Relancee` relance boot-diff avec les mêmes arguments et
+  `--phase2 INDEX:EMPREINTE:ORACLE:CSHARP` (interne), et relaie la sortie de la phase 2. Le processus refait la
+  configuration, le calendrier de frappe et les copies, puis appelle `Phase2` sans phase 1. La raison est mesurée :
+  rejouée dans le même processus, la phase 2 de P2 (ci-dessous) divergeait dès l'instruction 21 108 465, avant toute
+  frappe, pour un index à 31 621 429 (`cyc` 25 contre 22 en F000:EF3F). Les deux côtés n'y partaient plus du même
+  état. L'oracle avait couru tout l'amorçage, le C# s'était arrêté à la divergence en pleine frappe, et des statiques
+  que ni `h_boot` ni `initpc` ne remettent gardaient cette histoire (`oldkey` et `keydelay` de `keyboard.c`, entre
+  autres). PCem n'amorce qu'une fois par processus ; la phase 2 aussi, désormais.
+- **Les mêmes tranches.** Chaque côté a son budget : `h_slice_budget()` (celui de `h_runpc` tracé) côté oracle,
+  `cpu_get_speed() / 100` côté C#. Chacun est décompté des cycles que rend son pas (`h_step_trace`, `PasCsharpTrace`).
+  Les touches sont posées avant la tranche. Le clavier, la souris et la manette sont joués en fin de tranche, des deux
+  côtés, dans l'ordre de la phase 1.
+- **Les images.** Des copies fraîches, une par côté, de A:, B:, C: à I: et du ZIP, prises sur les sources (`p2-*`).
+- **La vérification du rejeu.** La phase 1 plie les hachages communs avant l'index en une empreinte (FNV) et garde
+  les deux hachages à l'index. La phase 2 compare à chaque pas le hachage de l'oracle (`h_trace_hash_now`, l'ABI 60 :
+  celui que la boucle tracée écrit) à celui du C#. Elle dit qu'elle n'a pas rejoué la phase 1 :
+  - si les deux hachages s'écartent avant l'index ;
+  - si une tranche finit d'un seul côté (elle nomme la tranche et la ligne tapée) ;
+  - si l'empreinte ou les hachages à l'index ne sont pas ceux de la phase 1.
+
+  Dans ces cas, elle renvoie à `--lockstep` au lieu de conclure. « Les états concordent » ne s'imprime plus que sur
+  la même exécution. Une divergence nommée dit sa tranche et la ligne tapée en cours.
+- `oracle.tsv` réancré (`harness.c`, `harness.h`) ; `check-oracle` : 0 dérive.
+
+**Les preuves et les contrôles négatifs** (`/tmp/a9/neg-gr4b.py`, worktree en Release, une panne à la fois,
+restaurée ; `bd-pc-lpt-dss-banc`, le 5150 sous PC DOS 2.00, LPTBANC saisi dans DEBUG, 11 000 tranches) :
+
+| | Panne | Résultat |
+|---|---|---|
+| P1 | la file de la DSS pleine à 15 (`dss_read_status`, le négatif de § G10.0) | nommée, voir plus bas |
+| P2 | côté C#, la touche D lue F (`keyboard_xt_read`, 60h) | nommée, voir plus bas |
+| P3 | la même sur l'IBM AT (`keyboard_at_read`), `bd-ibmat-picbanc` | nommée, voir plus bas |
+| N1 | P1, sans le rejeu des touches en phase 2 | « n'a pas rejoué l'exécution de la phase 1 » |
+| N2 | P1, B: prise à la source en phase 2 | l'empreinte de `pcdos20s.img` change |
+| N3 | P2, le budget C# de la phase 2 grossi de 1 000 cycles | « la tranche 0 finit […] côté oracle seulement » |
+
+- **P1** nomme la divergence de § G10.0 à l'instruction 132 103 671 : `in al,dx` en 0600:0175 (`EC`), DX = 379h,
+  AX = 0340h côté C# contre 0300h chez PCem. C'est la tranche 47 135, pendant la ligne tapée 40 « LPTBANC ». La
+  phase 2 la retrouve sur la même exécution : empreinte et hachages identiques à ceux de la phase 1, aucun
+  avertissement. Les deux sources (`pcdos20b.img`, `pcdos20s.img`) gardent leur `sha256` ; DEBUG a pourtant écrit
+  LPTBANC.COM sur B: avant l'index. Cela mesure aussi le risque 2 de R4 : sur 47 135 tranches, le budget décompté par
+  le pas égale celui de `h_runpc` tracé.
+- **P2** : divergence à l'instruction 31 621 429, F000:E996, AX = 0020h chez PCem contre 0021h côté C#, tranche
+  8 861, pendant la ligne tapée 3 « DEBUG ».
+- **P3**, le cœur 286 : divergence à l'instruction 9 608 341, F000:F859, AX = 4F20h contre 4F21h, tranche 6 377,
+  pendant la ligne tapée 5 « DEBUG ».
+- **N1** retombe sur l'ancien cas : sans les touches, les deux côtés font la même chose jusqu'à l'index (00DB:201E,
+  DOS au repos). L'ancienne phase 2 aurait conclu « les états concordent » ; la nouvelle dit qu'elle n'a pas rejoué.
+
+**Le sous-ensemble** (outillage seul ; `/tmp/a9/sub-gr4b.sh`, Release dans un worktree), contre gr0b. Il comprend
+`abi`, `trace-hash-check`, les 26 boot-diffs tapés ou à injections et huit boot-diffs sans frappe (CGA, EGA, 286,
+ET4000 sur 386 et 486, AT, M24, PC1512). Les 36 sont verts. Les messages sont identiques à l'octet sauf `abi` (60), et
+les durées aussi (1 016 s contre 1 014 s) : le pliage de l'empreinte ne coûte rien. Une porte verte ne passe jamais
+par la phase 2.
+
+**La contre-lecture** (Sonnet, sans bloquant) a refait le compte des pas et des pliages des deux phases. Ses points
+mineurs sont repris :
+- une ligne si le processus neuf s'arrête avant la phase 2 (sa sortie était avalée) ;
+- le relais en UTF-8 ;
+- les remises de l'oracle (`h_prefetch_reset`, `h_seg_clear_residue`) retirées de la phase 2, que la phase 1 ne lui
+  fait qu'après sa course ;
+- deux commentaires périmés et une ligne longue.
+
+P1, P2, P3, N1 et N3 ont été rejoués sur ce code final, avec les mêmes résultats, ligne pour ligne.
+
+**Ce que ce vert ne dit pas.**
+- La phase 2 a été exercée sur le 5150 et l'IBM AT, pas sur les 386 et 486. Leur pas est le même (`h_step_trace`,
+  `exec386(0)`).
+- Sur l'AT, la ligne « octets à cs:oldpc » ne montre pas l'instruction fautive (F34FC pour F000:F859). C'est un
+  défaut antérieur de l'outil (`oldpc` lu sur le cœur 286), hors de l'étape.
+- Le relais de la sortie ne garde que la phase 2 : la sortie d'erreur du processus neuf (« Cannot open file '' »)
+  passe telle quelle.

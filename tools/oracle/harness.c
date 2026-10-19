@@ -1264,7 +1264,9 @@ int h_run(int cycs) {
  * loin.
  *
  * Meme famille que h_prefetch_reset : ce n'est pas le coeur qu'on corrige, c'est le
- * harnais qu'on rend deterministe. A appeler des DEUX cotes au meme point. */
+ * harnais qu'on rend deterministe. A appeler des DEUX cotes au meme point.
+ * Depuis GR.4b, la phase 2 de boot-diff tourne dans un processus neuf ; les autres
+ * commandes qui amorcent plusieurs fois s'en servent encore. */
 /* Les DEUX champs que seg_reset() ne touche pas. */
 static void h_seg_clear_one(x86seg *s) {
         s->limit_raw = 0;
@@ -1651,9 +1653,10 @@ uint64_t h_trace_hash_value(int ref, uint16_t sel_cs, uint32_t pc, const uint16_
 
 static int h_trace_ref = -1; /* IXTAL26_FNV_REF=1 : la trace par l'ancien MIX, lu une fois */
 
-static void h_trace_note(void) {
+/* GR.4b — le hachage de l'état courant, celui que h_trace_note écrit. Statique, pour que la boucle tracée garde un
+ * appel direct ; h_trace_hash_now l'exporte. */
+static uint64_t h_trace_cur(void) {
         uint16_t regs[8];
-        uint64_t h;
 
         for (int i = 0; i < 8; i++)
                 regs[i] = cpu_state.regs[i].w;
@@ -1661,11 +1664,21 @@ static void h_trace_note(void) {
                 const char *e = getenv("IXTAL26_FNV_REF");
                 h_trace_ref = e && !strcmp(e, "1");
         }
-        h = h_trace_ref ? h_trace_hash_ref(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
-                                           cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc,
-                                           h_trace_notsc)
-                        : h_trace_hash(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
-                                       cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc, h_trace_notsc);
+        return h_trace_ref ? h_trace_hash_ref(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
+                                              cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc,
+                                              h_trace_notsc)
+                           : h_trace_hash(cpu_state.seg_cs.seg, cpu_state.pc, regs, cpu_state.seg_ds.seg,
+                                          cpu_state.seg_es.seg, cpu_state.seg_ss.seg, cpu_state.flags, tsc,
+                                          h_trace_notsc);
+}
+
+/* La phase 2 de boot-diff le prend après chaque pas, sans trace, pour savoir si elle rejoue l'exécution de la
+ * phase 1. */
+uint64_t h_trace_hash_now(void) { return h_trace_cur(); }
+
+static void h_trace_note(void) {
+        uint64_t h = h_trace_cur();
+
         if (fwrite(&h, sizeof(h), 1, h_trace_fp) != 1 && !h_trace_err)
                 h_trace_err = errno ? errno : EIO;
 }
