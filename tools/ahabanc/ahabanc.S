@@ -7,7 +7,9 @@
 # d'hôte, la mailbox normale (CCB construits dans son segment), les commandes BIOS 03h. Saisi dans DEBUG.EXE
 # par KeyScript, écrit sur C:, lancé — sous boot-diff, qui compare chaque instruction : chaque octet que la
 # carte rend ou écrit en mémoire est relu dans un registre (et sommé dans BX), donc vu par la trace. La
-# somme s'affiche à la fin, pour les yeux.
+# somme s'affiche à la fin, pour les yeux. GR.2d4 : chaque étape (une commande d'hôte, un CCB, une commande BIOS)
+# imprime aussi le nombre et la somme de ses octets relevés, huit par ligne : le même banc sert en C# seul, contre
+# des attendus des deux modes (tools/gates/bancs/ahabanc.attendus), chaque écart rattaché à son étape.
 #
 # Machine attendue : l'ami486, la carte à 334h (IRQ 10, masquée ici), scsic.img à l'ID 0 (DOS 5, lu
 # seulement), un disque vierge de 20 Mio à l'ID 1 (écrit). L'ORDRE COMPTE (PLAN-G11.md, G11.2) :
@@ -55,52 +57,66 @@ _start:
 1:  in al, dx
     call keep
     loop 1b
+    call pas
     call cmd                        # ADAPTER INQUIRY
     .byte 1, 0x04
     call res
     .byte 4
+    call pas
     call cmd                        # RETURN CONFIG DATA
     .byte 1, 0x0B
     call res
     .byte 3
+    call pas
     call cmd                        # INQUIRE INSTALLED DEVICES
     .byte 1, 0x0A
     call res
     .byte 8
+    call pas
     call cmd                        # RETURN SETUP DATA, 44 octets (PB-140)
     .byte 2, 0x0D, 44
     call res
     .byte 44
+    call pas
     call cmd                        # ECHO
     .byte 2, 0x1F, 0x5A
     call res
     .byte 1
+    call pas
     call cmd                        # RETURN EEPROM DATA, les 32 premiers octets
     .byte 4, 0x23, 0, 32, 0
     call res
     .byte 32
+    call pas
     call cmd                        # GET EXT BIOS INFO
     .byte 1, 0x28
     call res
     .byte 2
+    call pas
     call cmd                        # SET SELECTION TIMEOUT
     .byte 5, 0x06, 1, 0, 0x00, 0xFA
     call hacc
+    call pas
     call cmd                        # BUS ON, BUS OFF, AT BUS SPEED, MBO IRQ ENA
     .byte 2, 0x07, 9
     call hacc
+    call pas
     call cmd
     .byte 2, 0x08, 4
     call hacc
+    call pas
     call cmd
     .byte 2, 0x09, 0x33
     call hacc
+    call pas
     call cmd
     .byte 2, 0x05, 0
     call hacc
+    call pas
     call cmd                        # NOP
     .byte 1, 0x00
     call hacc
+    call pas
     call cmd                        # une commande invalide (40h) : INVDCMD, HACC
     .byte 1, 0x40
     call hacc
@@ -115,6 +131,7 @@ _start:
     mov [p_1a + 1], ah
     shr eax, 16
     mov [p_1a], al
+    call pas
     call cmd
     .byte 4, 0x1A
 p_1a: .byte 0, 0, 0
@@ -125,6 +142,7 @@ p_1a: .byte 0, 0, 0
     mov [p_1b + 1], ah
     shr eax, 16
     mov [p_1b], al
+    call pas
     call cmd
     .byte 4, 0x1B
 p_1b: .byte 0, 0, 0
@@ -147,6 +165,7 @@ p_1b: .byte 0, 0, 0
     mov [p_mb + 2], ah
     shr eax, 16
     mov [p_mb + 1], al
+    call pas
     call cmd
     .byte 5, 0x01
 p_mb: .byte 2, 0, 0, 0
@@ -155,22 +174,27 @@ p_mb: .byte 2, 0, 0, 0
 # ---- 2. les CCB de mailbox ---------------------------------------------------------------------------
 # ccb : opcode, ID/LUN, longueur de CDB, octet de sense, longueur des données (3, grand-boutien), l'offset
 #   des données (FFFFh : l'adresse physique suit, 3 octets), le nombre d'octets de CDB écrits, la CDB.
+    call pas
     call ccb                        # INQUIRY, ID 0
     .byte 0, 0x00, 6, 0, 0, 0, 36
     .word BUF
     .byte 6, 0x12, 0, 0, 0, 36, 0
+    call pas
     call ccb                        # INQUIRY EVPD, page 80h : les données standard (PB-131)
     .byte 0, 0x00, 6, 0, 0, 0, 96
     .word BUF
     .byte 6, 0x12, 1, 0x80, 0, 96, 0
+    call pas
     call ccb                        # TEST UNIT READY, ID 1
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0, 0, 0, 0, 0, 0
+    call pas
     call ccb                        # READ CAPACITY, ID 1 (PB-129 : 40 960)
     .byte 0, 0x20, 10, 0, 0, 0, 8
     .word BUF
     .byte 10, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    call pas
     call ccb                        # READ(10), ID 0, LBA 0, huit secteurs
     .byte 0, 0x00, 10, 0, 0, 0x10, 0
     .word BUF
@@ -185,10 +209,12 @@ p_mb: .byte 2, 0, 0, 0
     mov [si], al
     inc si
     loop 3b
+    call pas
     call ccb
     .byte 0, 0x20, 10, 0, 0, 0x10, 0
     .word BUF2
     .byte 10, 0x2A, 0, 0, 0, 0, 100, 0, 0, 8, 0
+    call pas
     call ccb                        # READ(10), ID 1, LBA 100 : la relecture
     .byte 0, 0x20, 10, 0, 0, 0x10, 0
     .word BUF
@@ -196,10 +222,12 @@ p_mb: .byte 2, 0, 0, 0
     mov si, BUF
     mov cx, 4096
     call sum
+    call pas
     call ccb                        # WRITE(10), ID 1, LBA 200, un secteur ; puis le LBA 40 960 (PB-129)
     .byte 0, 0x20, 10, 0, 0, 0x02, 0
     .word BUF2 + 0x200
     .byte 10, 0x2A, 0, 0, 0, 0, 200, 0, 0, 1, 0
+    call pas
     call ccb
     .byte 0, 0x20, 10, 0, 0, 0x02, 0
     .word BUF
@@ -207,98 +235,122 @@ p_mb: .byte 2, 0, 0, 0
     mov si, BUF
     mov cx, 512
     call sum
+    call pas
     call ccb                        # READ(6), ID 0, LBA 5 ; WRITE(6), ID 1, LBA 6
     .byte 0, 0x00, 6, 0, 0, 0x02, 0
     .word BUF
     .byte 6, 0x08, 0, 0, 5, 1, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0x02, 0
     .word BUF
     .byte 6, 0x0A, 0, 0, 6, 1, 0
+    call pas
     call ccb                        # MODE SENSE(6), page 3Fh, 255 (PB-130 : 170 octets rendus)
     .byte 0, 0x20, 6, 0, 0, 0, 255
     .word BUF
     .byte 6, 0x1A, 0, 0x3F, 0, 255, 0
+    call pas
     call ccb                        # MODE SENSE(6), page 00h, 36 (24 rendus) ; page 04h, 4
     .byte 0, 0x20, 6, 0, 0, 0, 36
     .word BUF
     .byte 6, 0x1A, 0, 0x00, 0, 36, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 4
     .word BUF
     .byte 6, 0x1A, 0, 0x04, 0, 4, 0
+    call pas
     call ccb                        # MODE SELECT(6), 12 octets sortants
     .byte 0, 0x28, 6, 0, 0, 0, 12
     .word BUF2
     .byte 6, 0x15, 0x10, 0, 0, 12, 0
+    call pas
     call ccb                        # un code inconnu, sans sense (octet 3 = 1) : 05/25h retenu
     .byte 0, 0x20, 6, 1, 0, 0, 0
     .word BUF
     .byte 6, 0xC0, 0, 0, 0, 0, 0
+    call pas
     call ccb                        # TEST UNIT READY sans sense, puis REQUEST SENSE : 05/25h (PB-131)
     .byte 0, 0x20, 6, 1, 0, 0, 0
     .word BUF
     .byte 6, 0, 0, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 1, 0, 0, 18
     .word BUF
     .byte 6, 0x03, 0, 0, 0, 18, 0
+    call pas
     call ccb                        # INQUIRY, LUN 1 dans le CCB seul (PB-133), puis dans la CDB (refusé)
     .byte 0, 0x21, 6, 0, 0, 0, 36
     .word BUF
     .byte 6, 0x12, 0, 0, 0, 36, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 36
     .word BUF
     .byte 6, 0x12, 0x20, 0, 0, 36, 0
+    call pas
     call ccb                        # l'ID 5, vide : sélection ratée (statut d'hôte 11h)
     .byte 0, 0xA0, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0, 0, 0, 0, 0, 0
+    call pas
     call ccb                        # READ(10) déclaré sur 9 octets : le dixième, un zéro (PB-143)
     .byte 0, 0x00, 9, 0, 0, 0x02, 0
     .word BUF
     .byte 9, 0x28, 0, 0, 0, 0, 7, 0, 0, 1
+    call pas
     call ccb                        # une CDB de longueur 0 : TEST UNIT READY (PB-143)
     .byte 0, 0x00, 0, 0, 0, 0, 0
     .word BUF
     .byte 0
+    call pas
     call ccb                        # FORMAT UNIT, SEND DIAGNOSTIC, RESERVE, RELEASE, SEEK(10), START STOP,
     .byte 0, 0x20, 6, 0, 0, 0, 0    #   VERIFY(10), REZERO, PREVENT
     .word BUF
     .byte 6, 0x04, 0, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x1D, 0x04, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x16, 0, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x17, 0, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 10, 0, 0, 0, 0
     .word BUF
     .byte 10, 0x2B, 0, 0, 0, 0, 50, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x1B, 0, 0, 0, 1, 0
+    call pas
     call ccb
     .byte 0, 0x20, 10, 0, 0, 0, 0
     .word BUF
     .byte 10, 0x2F, 0, 0, 0, 0, 50, 0, 0, 4, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x01, 0, 0, 0, 0, 0
+    call pas
     call ccb
     .byte 0, 0x20, 6, 0, 0, 0, 0
     .word BUF
     .byte 6, 0x1E, 0, 0, 0, 1, 0
+    call pas
     call ccb                        # READ(10) avec résidu (opcode 3) : 1 024 annoncés, 512 lus
     .byte 3, 0x00, 10, 0, 0, 0x04, 0
     .word BUF
@@ -321,6 +373,7 @@ p_mb: .byte 2, 0, 0, 0
     shr eax, 16
     mov [si + 9], al
     mov byte ptr [si + 1], 1
+    call pas
     call ccb
     .byte 4, 0x00, 10, 0, 0, 0, 12
     .word SGL
@@ -328,6 +381,7 @@ p_mb: .byte 2, 0, 0, 0
     mov si, BUF
     mov cx, 768
     call sum
+    call pas
     call ccb                        # READ(10) de 600 secteurs à 1 Mo : data_in déborde dans data_out,
     .byte 0, 0x00, 10, 0, 0x04, 0xB0, 0x00  # sans dommage (décision n° 9)
     .word 0xFFFF
@@ -344,15 +398,20 @@ p_mb: .byte 2, 0, 0, 0
     shr eax, 16
     mov [p_b08 + 7], al
     mov [p_b15 + 7], al
+    call pas
     call bios                       # 00h, 01h : DF, 0
     .byte 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    call pas
     call bios
     .byte 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    call pas
     call bios                       # 08h, ID 1 : la capacité, et l'achèvement du CCB périmé (PB-138)
 p_b08: .byte 0x08, 1, 0, 0, 0, 0, 0, 0, 0, 0
     call small
+    call pas
     call bios                       # 09h : DF, 0 ; 05h : refusée (INVDCMD)
     .byte 0x09, 1, 0, 0, 0, 0, 0, 0, 0, 0
+    call pas
     call bios
     .byte 0x05, 1, 0, 0, 0, 0, 0, 0, 0, 0
     mov ax, BUF                     # 02h, ID 1, cylindre 0 tête 0 secteur 1 : le LBA 1 (PB-144)
@@ -361,18 +420,22 @@ p_b08: .byte 0x08, 1, 0, 0, 0, 0, 0, 0, 0, 0
     mov [p_b02 + 8], ah
     shr eax, 16
     mov [p_b02 + 7], al
+    call pas
     call bios
 p_b02: .byte 0x02, 1, 0, 0, 0, 1, 1, 0, 0, 0
+    call pas
     call bios                       # 15h, ID 0 : INQUIRY puis capacité ; from_mailbox à 0
 p_b15: .byte 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0
     call small
     mov si, offset p_b02                   # 02h encore : le sense va à ccb.addr + 12h + 10, périmé (PB-137)
+    call pas
     call bios_si
     mov si, CCB
     mov cx, 64
     call sum
 
 # ---- 4. ABORT, 22h, 23h --------------------------------------------------------------------------------
+    call pas
     mov si, MBOX                    # ABORT à l'emplacement 1 : efface mba + 8, le code du MBI 0 (PB-139)
     mov dword ptr [si], 0
     mov ax, CCB
@@ -384,21 +447,25 @@ p_b15: .byte 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0
     mov byte ptr [si + 4], 2
     call mbif
     mov byte ptr [MBOX + 4], 0
+    call pas
     call cmd                        # 22h : 224 octets à partir de 32, lus au-delà de params (PB-136)
     .byte 36, 0x22, 0, 224, 32
     .byte 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10
     .byte 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20
     call hacc
+    call pas
     call cmd                        # 23h : relue
     .byte 4, 0x23, 0, 224, 32
     call res
     .byte 224
+    call pas
     call cmd                        # RETURN SETUP DATA encore : la mailbox posée
     .byte 2, 0x0D, 20
     call res
     .byte 20
     call regs
 
+    call pas
     mov al, [oldmask]
     out 0xA1, al
     mov ax, bx                      # la somme, pour les yeux
@@ -415,7 +482,10 @@ p_b15: .byte 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0
     inc di
     pop ax
     loop 4b
-    mov dx, offset fin
+    test byte ptr [npas], 7         # GR.2d4 : la dernière ligne des étapes finie
+    jz 25f
+    call crlf
+25: mov dx, offset fin
     mov ah, 9
     int 0x21
     ret
@@ -649,6 +719,81 @@ bios_si:
     mov byte ptr [MBOX + 12], 0
     ret
 
+# pas (GR.2d4) : une étape finie — les octets relevés depuis la précédente (de [pdi] à DI), leur nombre et leur
+#   somme (celle de keep, à part de BX), imprimés en hexadécimal ; huit étapes par ligne, la ligne ouverte par le
+#   numéro de sa première étape. Tous les registres gardés : le banc et sa somme ne changent pas.
+pas:
+    pusha
+    mov si, [pdi]
+    mov cx, di
+    sub cx, si
+    mov [pdi], di
+    push cx
+    xor dx, dx
+    jcxz 22f
+21: lodsb
+    rol dx, 1
+    add dl, al
+    adc dh, 0
+    loop 21b
+22: mov al, [npas]
+    test al, 7
+    jnz 23f
+    push dx                         # INT 21h, 02h passe par DL
+    call hex2
+    call blanc
+    pop dx
+23: pop ax
+    push dx
+    call hex4                       # le nombre d'octets
+    pop ax
+    call hex4                       # leur somme
+    call blanc
+    inc byte ptr [npas]
+    test byte ptr [npas], 7
+    jnz 24f
+    call crlf
+24: popa
+    ret
+
+# hex4, hex2, nib : AX, AL, le quartet bas de AL, en hexadécimal (INT 21h, 02h).
+hex4:
+    push ax
+    mov al, ah
+    call hex2
+    pop ax
+hex2:
+    push ax
+    shr al, 4
+    call nib
+    pop ax
+    push ax
+    call nib
+    pop ax
+    ret
+nib:
+    and al, 0x0F
+    add al, 0x30
+    cmp al, 0x39
+    jbe 26f
+    add al, 7
+26: mov dl, al
+    mov ah, 2
+    int 0x21
+    ret
+blanc:
+    mov dl, 0x20
+    mov ah, 2
+    int 0x21
+    ret
+crlf:
+    mov dl, 13
+    mov ah, 2
+    int 0x21
+    mov dl, 10
+    int 0x21
+    ret
+
 # small : les quatre octets écrits par 08h ou 15h.
 small:
     mov si, SMALL
@@ -667,6 +812,8 @@ phys:
     ret
 
 oldmask: .byte 0
+npas: .byte 0
+pdi: .word RES
 fin: .ascii "AHABANC "
 hex: .ascii "0000"
      .byte 13, 10

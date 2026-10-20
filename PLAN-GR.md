@@ -269,7 +269,8 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     esclave du CD, ZIPESC sur l'interprète de ZIPBANC, ses attendus des deux modes ;
   - **GR.2d3** ✅ *fait, § GR.2d3* : FORMAT dans sa porte, ZIPFMT sur l'interprète de ZIPBANC, ses attendus des
     deux modes ;
-  - **GR.2d4** : les attendus d'AHABANC dans les deux modes.
+  - **GR.2d4** ✅ *fait, § GR.2d4* : AHABANC imprime ses 65 étapes, ses attendus des deux modes, la carte posée en
+    334h (PB-292).
 - **GR.2e — La campagne de CUE** :
   - un générateur déterministe dans `isogen.py`, avec des feuilles valides combinées et des feuilles malformées par
     mutation, que `cdimage-check` joue des deux côtés ;

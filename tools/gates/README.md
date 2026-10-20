@@ -100,7 +100,10 @@ L'Adaptec AHA-1542C (G11) : les portes `bd-*-aha-*` montent la carte et ses disq
 `--expect-aha` exige la carte des deux côtés. Sa sonde (140 champs) refuse tout `fatal()` de l'oracle et
 toute garde R9 côté C# : la suite d'un `fatal()` de l'oracle n'est pas comparable. `bd-ami486-aha-banc`
 tape AHABANC (`tools/ahabanc`, GNU as) dans DEBUG ; la carte y écrit `nvr/.aha1542c.nvr` (22h), dans le
-répertoire de la porte. `r9-aha` et `r9-scsihd`, en C# seul, écrivent leurs disques vierges dans le TMPDIR.
+répertoire de la porte. GR.2d4 : AHABANC imprime ses étapes, et `banc-ahabanc` et `-materiel` le jouent en C# seul
+contre `ahabanc.attendus` ; `ami486-aha-banc.cfg` pose la carte en 334h, où le banc la cherche (en mode matériel,
+sans clé, elle serait en 330h, PB-292). `r9-aha` et `r9-scsihd`, en C# seul, écrivent leurs disques vierges dans le
+TMPDIR.
 
 Les Sound Blaster de G12 : les portes `bd-pc-sb*` et `bd-ami486-sb*` montent la carte par `--sndcard` ou par la
 section du device d'un .cfg de `cfg/` (`mixaddr` de la SB 2.0). La sonde du son lit, pour toute SB, le type du

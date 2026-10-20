@@ -14760,3 +14760,72 @@ Ses mineurs sont repris : les citations de lignes, la forme de SFF-8070i dite no
 
 Le secteur 0 et le milieu du disque ne sont pas relus après FORMAT. La contre-lecture relève ces cas ; hors de cette
 part.
+
+## GR.2d4 — AHABANC, ses attendus dans les deux modes
+
+Le 21 octobre 2026. Dernière part de GR.2d (PLAN-GR.md ; R2-g10.md, D5). AHABANC (G11.2) n'était joué que sous
+boot-diff, donc en mode PCem seul. Il n'imprimait que sa somme finale : rien ne disait quelle étape diffère.
+
+**Les étapes.** AHABANC appelle `pas` avant chaque opération de son déroulé : chaque commande d'hôte, chaque CCB,
+chaque commande BIOS 03h, ABORT, et la fin. Cela fait 65 étapes. `pas` imprime, pour les octets relevés depuis
+l'étape précédente, leur nombre et leur somme (celle de `keep`, à part de BX), huit étapes par ligne. Tous les
+registres sont gardés : la somme finale, D7AAh en mode PCem, est celle d'avant, et les relevés aussi. Le programme
+passe de 125 à 146 touches.
+
+**La carte en 334h.** Le premier relevé du mode matériel changeait les 65 étapes, toutes sous PB-292 seul. Sans
+clé, le mode matériel met la carte à son port d'usine, 330h, et AHABANC la cherchait en 334h : il lisait un port
+vide. La fiche de PB-292 le prescrit pour les bancs : `ami486-aha-banc.cfg` pose désormais `addr = 820` (334h). En
+mode PCem, c'est le défaut, et le relevé est identique octet pour octet.
+
+**Les attendus.** Ceux du mode PCem sont ceux de l'oracle. En mode matériel, 48 des 65 étapes changent. Chacune est
+rattachée aux PB qui la changent seuls : le banc a été rejoué sous chacun des vingt PB de la carte et des disques
+SCSI (128 à 133, 137 à 142, 144, 218, 260, 276 à 279, 292).
+- PB-141, presque chaque CCB et chaque commande BIOS. Le MBI est pris en tourniquet, là où PCem écrit toujours le
+  MBI 0, et le banc relève la mailbox entière à chaque CCB. AHABANC poste dans la MBO 0 (ABORT seul en MBO 1) ; le
+  tourniquet de la carte y repasse, et chaque CCB s'exécute : le nombre d'octets relevés ne change à aucune étape.
+  Les commandes BIOS n'écrivent aucun MBI, mais l'adresse laissée dans le MBI 1 reste dans la mailbox qu'elles
+  relèvent.
+- PB-140 (RETURN SETUP DATA entier), PB-144 et PB-218 (l'EEPROM, les options d'usine) : les commandes d'hôte.
+- PB-129, 131, 133, 137, 138, 139 : leurs CCB, avec PB-141.
+- La somme finale : D7AAh contre 7801h.
+
+Neuf étapes (13, 14, 1A, 25, 37, 3A, 3B, 3C, 3D) prennent leur valeur du mode matériel de plusieurs PB ensemble :
+aucun PB seul ne la redonne. Les attendus les rattachent aux PB qui les changent seuls.
+
+Sous « tout », le relevé est celui du domaine stockage.
+
+**Les portes** :
+- `bd-ami486-aha-banc` recomptée : verte, 216 283 386 instructions (185 132 389 avant : les impressions et les touches
+  de plus). La sonde de la carte est identique (140 champs), et l'image D: aussi, des deux côtés (4 591 octets
+  écrits).
+- `banc-ahabanc` et `-materiel` : neuves, en C# seul, contre `ahabanc.attendus`.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2d4.py`) :
+
+| | Panne (`scsi_aha1540.cs`) | Banc en C# seul | boot-diff |
+|---|---|---|---|
+| G1 | ECHO (1Fh) rend l'octet faussé | 2 échecs : la ligne 00, la somme finale | rouge à 212 112 809 |
+| G2 | PB-140 coupé, en mode matériel | `-materiel` : 2 échecs, la ligne 00 et la somme | — |
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, la recette refaite (la
+configuration de la carte en 334h).
+- En mode PCem : `bd-ami486-aha-banc` verte (216 283 386 instructions), `banc-ahabanc` et `-materiel` verts (10
+  attendus, deux séances), `r9-aha` vert.
+- Sous « tout » : les deux bancs verts contre les attendus du mode matériel, le boot-diff refusé.
+
+GR.2d est close : ses quatre parts sont faites.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a :
+- réassemblé le programme et vérifié que `pas` garde tout : BX, DI, DL sous l'INT 21h ; la fin du programme
+  (9ABh) avant le CCB, RES au-delà des tampons ;
+- vérifié les 65 points, aucun entre une commande et ses octets en ligne ;
+- recalculé les attendus depuis les trois relevés, et chaque rattachement ;
+- confronté PB-141 à `scsi_aha1540.Materiel.cs` (le MBI en tourniquet).
+
+Ses mineurs sont repris : ABORT, qui poste en MBO 1 ; les commandes BIOS, changées par l'adresse laissée dans le
+MBI 1 ; les neuf étapes à plusieurs PB ; une ligne de 121 caractères dans la configuration.
+
+**Ce que ce vert ne dit pas.**
+- La partie des tampons lus (BUF) n'est pas isolée dans la somme d'une étape de CCB : le nombre d'octets, inchangé,
+  dit que la lecture a lieu, et le diff du mode PCem compare chaque octet.
+- Aucun contrôle négatif ne porte sur `pas` lui-même : la somme finale, inchangée, le couvre.

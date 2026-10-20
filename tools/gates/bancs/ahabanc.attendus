@@ -1,0 +1,53 @@
+# AHABANC (tools/ahabanc, GR.2d4) sur l'ami486 et l'AHA-1542C en 334h (ami486-aha-banc.cfg, CMOS aha486.nvr) :
+# scsic.img à l'ID 0, scsi20.img vierge à l'ID 1, en C# seul sous --boot (les images copiées), dans les deux modes (le
+# domaine stockage en mode matériel). Chaque ligne : le numéro de sa première étape, puis huit étapes, chacune le
+# nombre d'octets relevés depuis la précédente et leur somme (16 bits chacun) ; une étape par commande d'hôte, par CCB,
+# par commande BIOS 03h, et ABORT ; la dernière ligne, la somme de tout le banc. Les lignes du mode PCem sont celles
+# de l'oracle : bd-ami486-aha-banc les compare à l'instruction près, et compare l'image D:.
+# Les étapes qui changent en mode matériel, chacune rattachée aux PB qui la changent seuls (mesuré, le banc rejoué
+# sous chacun des vingt PB de la carte et des disques SCSI) :
+# - PB-141, presque chaque CCB et commande BIOS : le MBI pris en tourniquet (le premier libre après le dernier servi),
+#   là où PCem écrit toujours le MBI 0 ; le banc poste en MBO 0 (ABORT seul en MBO 1) et relève la mailbox entière à
+#   chaque CCB et chaque commande BIOS, dont l'adresse laissée dans le MBI 1 (mbif n'efface que les codes) ;
+# - PB-140 : RETURN SETUP DATA (0Dh) rendu en entier ; PB-144 et PB-218 : l'EEPROM et ses options d'usine ;
+# - PB-129, 131, 133, 137, 138, 139 : leurs CCB (la capacité, le sense, le LUN, le sense automatique, la commande
+#   BIOS 03h, ABORT), avec PB-141.
+# Neuf étapes (13, 14, 1A, 25, 37, 3A, 3B, 3C, 3D) prennent leur valeur du mode matériel de plusieurs PB ensemble :
+# aucun PB seul ne la redonne. Le nombre d'octets relevés ne change à aucune étape : chaque CCB s'exécute dans les
+# deux modes.
+# étapes 02 : PB-144
+# étapes 04 : PB-140
+# étapes 06 : PB-144, PB-218
+pcem: 00 00060A05 00060EA8 00050910 000A03E4 002E00E4 0003024C 002201FE 000400EC
+materiel: 00 00060A05 00060EA8 00050320 000A03E4 002E438C 0003024C 002201DF 000400EC
+08 000200E4 000200E4 000200E4 000200E4 000200E4 000200E4 000200E6 000200E4
+# étapes 12, 14, 15, 16, 17 : PB-141
+# étapes 13 : PB-131, PB-141
+pcem: 10 00440591 000200A4 00528912 00528492 0052B50A 0052E497 10529A40 00522199
+materiel: 10 00440591 000200A4 00526722 005216FE 0052C4AA 0052F50D 1052A9C4 0052320F
+# étapes 18, 19, 1B, 1C, 1D, 1E, 1F : PB-141
+# étapes 1A : PB-129, PB-141
+pcem: 18 1052B60C 00524DB9 02525210 0052D28B 0052170C 0052E89B 0052850E 00522496
+materiel: 18 1052E77E 00525E2F 0252EA87 0052E301 00522692 0052F911 00529494 0052350C
+# étapes 20, 21, 22, 23, 24, 26, 27 : PB-141
+# étapes 25 : PB-133, PB-137, PB-141
+pcem: 20 00528D10 0052C4C4 0052C50A 00526C93 0052C50D 005284B1 0052B6CC 005223B0
+materiel: 20 00529C96 0052D6A2 0052D490 00527D09 0052D493 0052950D 0052C4EA 00523426
+# étapes 28, 29, 2A, 2B, 2C, 2D, 2E, 2F : PB-141
+pcem: 28 0052F501 00523493 0052950E 00527495 0052950D 0052C698 0052170E 00524719
+materiel: 28 00520488 00524509 0052A494 0052850B 0052A493 0052D70E 00522694 0052578F
+# étapes 30, 31, 32, 33, 34, 35, 36 : PB-141
+# étapes 37 : PB-129, PB-138, PB-141
+pcem: 30 0052D50A 00527696 0052C629 03526FCC 00520A8B 0013CF38 0013CF38 0017F56C
+materiel: 30 0052E490 0052870C 0052D5AF 03528042 00521A11 0013DF36 0013DF36 0017F5AA
+# étapes 38, 39 : PB-141
+# étapes 3A : PB-138, PB-141
+# étapes 3B : PB-129, PB-141
+# étapes 3C : PB-131, PB-137, PB-141
+# étapes 3D : PB-139, PB-141
+# étapes 3F : PB-140, PB-218
+pcem: 38 0013CF38 0013CF2C 0013CFBA 0017F4CC 00530E42 0012AE89 000200A4 00E2A84A
+materiel: 38 0013DF36 0013DF2A 0013DF36 0017F5AA 00531AC0 00129FF5 000200A4 00E200A4
+40 001811B4
+pcem: AHABANC D7AA
+materiel: AHABANC 7801

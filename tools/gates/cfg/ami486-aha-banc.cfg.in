@@ -19,3 +19,8 @@ hdd_cylinders = 20
 hdd_heads = 64
 hdd_sectors = 32
 hdd_fn = @WORK@/scsi20.img
+
+# GR.2d4 — la carte posée en 334h, où AHABANC la cherche : sans clé, le mode matériel la met à l'usine, en 330h
+# (PB-292).
+[Adaptec AHA-1542C (SCSI)]
+addr = 820

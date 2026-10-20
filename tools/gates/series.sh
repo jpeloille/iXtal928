@@ -585,6 +585,14 @@ runw bd-ami486-aha-temoins aha486.nvr ami486 boot-diff roms 3000 --config ami486
 mapfile -t AHK < tools/ahabanc/ahabanc.keys
 AHBB=(); for l in "${AHK[@]}"; do AHBB+=(--type "$l"); done
 runw bd-ami486-aha-banc aha486.nvr ami486 boot-diff roms 3000 --config ami486-aha-banc.cfg --type-at 3000 --type-settle 40 --type "" --type "" "${AHBB[@]}" --type "@wait 1500" --expect-aha
+# GR.2d4 — AHABANC imprime aussi ses étapes (une par commande d'hôte, CCB, commande BIOS ; le nombre et la somme de
+# leurs octets relevés), la carte posée en 334h dans ami486-aha-banc.cfg (PB-292). En C# seul dans les deux modes,
+# contre ahabanc.attendus.
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  runw banc-ahabanc$m aha486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/ahabanc.attendus" -- \
+    --boot roms 3000 --config ami486-aha-banc.cfg --settle 40 --type "" --type "" "${AHBB[@]}" --type "@wait 1500"
+done
 run r9-aha r9-aha
 run r9-scsihd r9-scsihd
 pcem_seul r9-aha "quatre de ses gardes ne s'atteignent que par PB-133, PB-137 (G13.7e2b) et PB-138 (G13.7e3), corrigés"
