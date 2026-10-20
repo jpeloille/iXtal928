@@ -521,6 +521,20 @@ for m in "" "-materiel"; do
   runw banc-zipbanc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/zipbanc.attendus" -- \
     --boot roms 60000 --config ami486-zip.cfg --settle 600 "${ZBB[@]}" --type "@wait 1500" --type "" --type "@wait 1500"
 done
+# GR.2d2 — ZIPESC (atapibanc.py --esclave) : le CD en maître secondaire (iso-2048.iso), le ZIP en esclave
+# (zip_channel = 3) sur zipro.img de la recette, protégé en écriture (chmod 444) ; la protection (MODE SENSE, IOMEGA
+# SENSE, chaque écriture et FORMAT UNIT refusés, 07/27h), puis les deux unités choisies tour à tour, DEVICE RESET et
+# IOMEGA EJECT du seul ZIP. L'image ZIP comparée des deux côtés. En C# seul dans les deux modes, contre zipesc.attendus.
+mapfile -t ZEK < tools/atapibanc/zipesc.keys
+ZEB=(); for l in "${ZEK[@]}"; do ZEB+=(--type "$l"); done
+runw bd-ami486-zip-esclave c486.nvr ami486 boot-diff roms 60000 --config ami486-zip-esclave.cfg --type-at 60000 \
+  --type-settle 600 "${ZEB[@]}" --type "^" --type "^" --type "" --type "^" --type "^" --expect-cd 2,image
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  runw banc-zipesc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/zipesc.attendus" -- \
+    --boot roms 60000 --config ami486-zip-esclave.cfg --settle 600 "${ZEB[@]}" --type "@wait 1500" --type "" \
+    --type "@wait 1500"
+done
 run r9-zip r9-zip
 run r9-atapi r9-atapi
 pcem_seul r9-zip "ses gardes ne s'atteignent que par PB-125 et PB-126, corrigés (G13.7d1)"

@@ -83,7 +83,10 @@ Le lecteur ZIP (G10.6) : `bd-ami486-zip-banc` monte `zip100.img`, un disque vier
 octets que la recette écrit dans le WORK, sur l'unité IDE 2 (`zip_channel`), chargé à la fin de
 l'amorçage (`zip_path`). L'image est copiée par côté, comme les disques durs : ZIPBANC
 (`atapibanc.py --zip`) y écrit deux secteurs, et boot-diff compare les deux copies à la fin. `r9-zip`,
-en C# seul, écrit sa propre image vierge dans le TMPDIR.
+en C# seul, écrit sa propre image vierge dans le TMPDIR. GR.2d2 : `bd-ami486-zip-esclave` monte le ZIP en
+esclave du CD (unité 3) sur `zipro.img`, trois secteurs que la recette remplit (`atapibanc.py --image-ro`) puis
+protège (chmod 444) ; les copies gardent ces droits, et le lecteur ouvre l'image en lecture seule (ZIPESC,
+`atapibanc.py --esclave`).
 
 L'Adaptec AHA-1542C (G11) : les portes `bd-*-aha-*` montent la carte et ses disques SCSI aux ID 0 et 1
 (clés `hdc_` et `hdd_`). La recette prépare quatre familles de fichiers :

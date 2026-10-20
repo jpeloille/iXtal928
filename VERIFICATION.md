@@ -14598,3 +14598,97 @@ Ses points sont repris :
 **Ce que ce vert ne dit pas.**
 - FORMAT, l'image en lecture seule et l'esclave ne sont pas dans cette part (GR.2d2, GR.2d3).
 - PB-125 n'est pas atteint par la table : ses cas sont dans `r9-zip` et `materiel-cas`.
+
+## GR.2d2 — le ZIP protégé, en esclave du CD
+
+Le 21 octobre 2026. Deuxième part de GR.2d (PLAN-GR.md). R2-g10.md relevait deux cas jamais joués (§ 1.2 et § 1.7 :
+« ZIP en esclave », « l'esclave d'un canal à CD ») : un disque ZIP protégé en écriture, et le ZIP en
+esclave du CD. PCem ouvre l'image en `rb+`, puis en `rb` si l'ouverture échoue, et marque alors le disque protégé
+(`scsi_zip.c:110-113`) : aucune clé de configuration ne le fait.
+
+**Le disque protégé.** La recette g5w écrit `zipro.img` : 100 663 296 octets, trois secteurs remplis par
+`atapibanc.py --image-ro` (le secteur 100 : i × 5 + 21h ; 101 : i × 11 + 77h ; 196 607 : i × 17 + C3h). Puis elle le
+protège (chmod 444), et son empreinte entre dans `g5w.sha256`. Les copies de boot-diff et de `--boot` gardent ces
+droits (`File.Copy`), et le lecteur ouvre chaque copie en lecture seule, des deux côtés : le banc le montre côté C#,
+le diff vert côté oracle.
+
+**L'esclave.** `ami486-zip-esclave.cfg` : le CD en maître secondaire (`cdrom_channel = 2`, iso-2048.iso), le ZIP en
+esclave (`zip_channel = 3`, zipro.img).
+
+**ZIPESC** (`atapibanc.py --esclave`) : l'interprète de ZIPBANC, instruction pour instruction (seules les adresses
+de ses données se décalent), sur une table de 44 lignes, 82 touches. ATAPIBNC, ATAPIAUD et ZIPBANC restent octet
+pour octet ceux de HEAD. Chaque unité est choisie par 176h (A0h, B0h), et le choix tient d'une ligne à l'autre.
+- Les deux signatures.
+- Le ZIP : IDENTIFY PACKET, TEST UNIT READY (UNIT ATTENTION puis GOOD), INQUIRY, READ CAPACITY, READ(10) et READ(6).
+- La protection :
+  - MODE SENSE(6) et (10) : l'octet WP à 80h ;
+  - IOMEGA SENSE, page 2 : l'octet 21 à 2 ;
+  - refusés en 07/27h, avant toute phase de données : WRITE(6), WRITE(10), WRITE AND VERIFY(10), WRITE(10) au-delà
+    de la fin (la protection passe avant la plage, dans les deux modes), WRITE(10) de compte 0, FORMAT UNIT ;
+  - les secteurs relus, inchangés, leurs sommes celles des suites.
+- Le CD entre deux commandes du ZIP : IDENTIFY PACKET, TEST UNIT READY, INQUIRY, READ CAPACITY, le PVD (la somme
+  d'isogen).
+- Les registres de chaque unité :
+  - les écritures de l'hôte vont aux deux unités (174h-175h du CD à FFFEh après les paquets du ZIP) ;
+  - l'erreur du ZIP, laissée sans REQUEST SENSE (51h, 74h), reste au ZIP quand le CD est choisi puis quitté.
+- DEVICE RESET du seul ZIP : sa signature ; le CD, relu aussitôt, garde FFFEh (et non 14EBh). Le ZIP choisi ensuite
+  garde 00h et 01h, mais 174h-175h sont ceux du paquet du CD.
+- IOMEGA EJECT : le ZIP vide (02/3Ah), le CD lit encore le PVD.
+
+**Les portes** :
+- `bd-ami486-zip-esclave` : verte, 276 852 832 instructions. Les sondes sont identiques : ATAPI (88 champs, deux
+  unités), CD (37) et ZIP (23). L'image ZIP est identique des deux côtés et inchangée, ce qui est le but.
+- `banc-zipesc` et `-materiel` : neuves, en C# seul, contre `zipesc.attendus`.
+
+**Les attendus.** Ceux du mode PCem sont ceux de l'oracle. En mode matériel, deux lignes changent, chacune sous son
+seul PB (mesuré : le banc rejoué sous PB-126 seul change la première, sous PB-117 seul la seconde) :
+- READ CAPACITY du ZIP : 00030000h contre 0002FFFFh (PB-126) ;
+- READ CAPACITY du CD : 00000021h contre 0000001Fh (PB-117).
+
+Sous « tout », les 44 lignes sont celles du domaine stockage.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2d2.py`) :
+
+| | Panne | Banc en C# seul | boot-diff |
+|---|---|---|---|
+| E1 | MODE SENSE(6) du ZIP, l'octet WP toujours nul (`scsi_zip.cs`) | 1 échec, la ligne 07 | rouge à 270 213 481 |
+| E2 | DEVICE RESET pose aussi la signature de l'autre unité (`ide.cs`) | 1 échec, la ligne 23 | rouge à 273 556 204 |
+| E3 | `zipro.img` laissée inscriptible (644), sans panne du C# | 13 échecs | vert, 276 852 839 |
+
+E2 a d'abord été vert, au banc comme au diff. Le TEST UNIT READY du ZIP qui suivait le reset réécrivait 174h-175h
+des deux unités, et effaçait la signature fautive du CD avant sa lecture. La table relit désormais le CD aussitôt
+après le reset. Le relevé a été remesuré dans les trois modes et sous les deux PB seuls, et le diff rejoué.
+
+E3 montre ce que seul le banc voit : sans la protection, les deux côtés écrivent de même, et le diff reste vert. Les
+13 lignes rouges sont la protection (07 à 09), les six refus (0D à 12), les relectures (13, 1E), et l'erreur gardée
+(1F, 21).
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, la recette refaite (conforme
+aux empreintes, `zipro.img` comprise).
+- En mode PCem, sept portes vertes : `bd-ami486-zip-esclave` (276 852 832 instructions), `banc-zipesc` et `-materiel`
+  (44 attendus, deux séances), `bd-ami486-zip-banc` (277 336 743, comme gr2d1), `banc-zipbanc` et `-materiel`,
+  `r9-zip`.
+- Sous « tout » : les quatre bancs verts contre les attendus du mode matériel, `bd-ami486-zip-esclave` refusée.
+
+Les deux boot-diffs sont d'abord sortis en rc=134, verts mais tombés après le verdict (`System.Security.Cryptography`
+introuvable). La mise à jour automatique d'Ubuntu avait remplacé .NET 10.0.12 par 10.0.13 à 06 h 18, pendant leur
+course (`/var/log/apt/history.log`). Rejoués sous 10.0.13 : verts, rc=0, mêmes comptes.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a :
+- réassemblé les trois autres programmes, identiques à HEAD ;
+- confronté chaque commentaire aux relevés et à `scsi_zip.c` (la protection testée en tête de chaque écriture et de
+  FORMAT) et à `ide.c` (les écritures de l'hôte aux deux unités, :379-392) ;
+- recalculé les sommes et l'empreinte de `zipro.img` ;
+- rattaché les deux lignes du mode matériel à PB-126 et PB-117.
+
+Ses mineurs sont repris :
+- le commentaire de VERIFY(10) ;
+- la clé 7 dite dans les attendus ;
+- un garde dans la recette si l'image reste inscriptible (sous root, ZIPESC rougirait) ;
+- deux lignes peu coûteuses : READ(6) sur le disque protégé, IDENTIFY PACKET du CD.
+
+**Ce que ce vert ne dit pas.**
+- MODE SELECT sur le disque protégé, DEVICE RESET du CD, EXECUTE DEVICE DIAGNOSTIC et SRST sur les deux unités
+  ne sont pas joués (la contre-lecture les relève ; hors de cette part).
+- La sonde du ZIP se prend après l'éjection : la protection y est vue par le banc et par la trace, pas par la sonde.
+- FORMAT effectif est GR.2d3.

@@ -16,6 +16,8 @@
 #   iso-2048.iso       : l'ISO de 32 secteurs d'isogen (tools/isogen), le disque des portes du CD (G10.4) ;
 #   mixte.cue, mixte.bin : la feuille d'isogen, une piste de données et deux pistes audio (G10.5) ;
 #   zip100.img         : un disque ZIP 100 vierge, 100 663 296 octets nuls (G10.6) ;
+#   zipro.img          : le disque de ZIPESC, trois secteurs remplis (atapibanc.py --image-ro), en lecture seule
+#                        (chmod 444 : le lecteur ZIP l'ouvre protégé en écriture) (GR.2d2) ;
 #   dos5-1.img         : os/Dos 5.0/Disk01.img, AUTOEXEC.BAT ramené à « @echo off » (sans SETUP) (G11) ;
 #   dos5-3.img         : os/Dos 5.0/Disk03.img, telle quelle (EXPAND.EXE, en B:) (G11) ;
 #   win3-3.img         : os/Windows_3-11/Disk3.IMA, telle quelle (MSD.EXE, le témoin de G11.3) ;
@@ -54,6 +56,8 @@ cp "$WORK/c8088.img" "$WORK/c8088dos.img"
 cp "$REPO/os/pcdos20/pcdos20b.img" "$WORK/pcdos20b-xtide.img"
 python3 "$REPO/tools/isogen/isogen.py" "$WORK" iso-2048.iso mixte.cue mixte.bin > /dev/null   # G10.4, G10.5
 truncate -s 100663296 "$WORK/zip100.img"                         # G10.6
+python3 "$REPO/tools/atapibanc/atapibanc.py" --image-ro "$WORK/zipro.img"; chmod 444 "$WORK/zipro.img"   # GR.2d2
+[ ! -w "$WORK/zipro.img" ] || { echo "zipro.img reste inscriptible (root ?) : ZIPESC rougirait" >&2; exit 1; }
 cp "$REPO/os/Dos 5.0/Disk01.img" "$WORK/dos5-1.img"              # G11
 cp "$REPO/os/Dos 5.0/Disk03.img" "$WORK/dos5-3.img"
 cp "$REPO/os/Windows_3-11/Disk3.IMA" "$WORK/win3-3.img"
@@ -83,7 +87,9 @@ sed "s|$WORK/scsi20.img|$WORK/scsic.img|" ami486-aha-vierge.cfg > aha-prep.cfg
 cp dos5-1.img dos5-prep.img; cp dos5-3.img dos5-prep3.img
 dotnet "$BIN" --boot "$REPO/roms" 2500 --config aha-prep.cfg --floppy-a dos5-prep.img --floppy-b dos5-prep3.img --in-place --settle 20 "${AT[@]}" > aha-prep.log
 rm nvr/.ami486.nvr aha-prep.cfg dos5-prep.img dos5-prep3.img
-( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img c8088dos.img iso-2048.iso mixte.cue mixte.bin zip100.img dos5-1.img dos5-3.img win3-3.img sbpro2-1.img scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr ) > "$WORK/empreintes"
+( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img \
+    c8088dos.img iso-2048.iso mixte.cue mixte.bin zip100.img zipro.img dos5-1.img dos5-3.img win3-3.img sbpro2-1.img \
+    scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi

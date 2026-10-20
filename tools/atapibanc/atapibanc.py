@@ -43,7 +43,10 @@ ZBUF = 256
 # de G10.4.
 AUDIO = '--audio' in sys.argv
 # G10.6 — `--zip` : ZIPBANC.COM, le même interprète (sans l'op 14), et le script du lecteur ZIP 100.
-ZIP = '--zip' in sys.argv
+# GR.2d2 — `--esclave` : ZIPESC.COM, l'interprète de ZIPBANC octet pour octet, et le script du ZIP en esclave du CD,
+# sur un disque protégé en écriture (zipro.img, IMAGE_RO).
+ESC = '--esclave' in sys.argv
+ZIP = '--zip' in sys.argv or ESC
 # GR.2b — ATAPIBNC.COM tiré d'une table (PLAN-GR.md, GR.2b). L'interprète gagne un paquet compact (op 15), une ligne
 # par paquet imprimée aussitôt (op 16), une pause (op 9). GR.2c : ATAPIAUD.COM aussi, avec l'op 14. GR.2d1 : ZIPBANC.COM
 # aussi, avec l'op 17 (un secteur rempli d'une suite arithmétique par une boucle, au lieu de ses 512 octets saisis) ;
@@ -717,7 +720,7 @@ if AUDIO:
     T('READ TOC, LBA, de nouveau', P(C(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)
 
 
-if ZIP:
+if ZIP and not ESC:
     # G10.6 — le lecteur ZIP 100 en maître secondaire (zip_channel = 2), zip100.img de la recette g5w (100 663 296
     # octets nuls). GR.2d1 : sur la table ; les secteurs écrits, remplis par l'op 17 (100 : i × 7 + 3 ; 101 et 550 :
     # i × 13 + 5Ah ; 102 : i × 3 + 11h), sont relus, et l'image est comparée des deux côtés en fin de porte. Les
@@ -770,6 +773,80 @@ if ZIP:
     T('START STOP UNIT, éjecter', P(C(0x1B)))                                         # START = LOEJ = 0
     T('TEST UNIT READY, encore', P(C(0x00)))
 
+
+# GR.2d2 — zipro.img : le disque de ZIPESC, écrit par la recette g5w (--image-ro) puis protégé (chmod 444) ; zip_load
+# l'ouvre alors en lecture seule (scsi_zip.c:110-113). Trois secteurs remplis : LBA → (A, B) de SUITE.
+IMAGE_RO = {100: (5, 0x21), 101: (11, 0x77), 196607: (17, 0xC3)}
+
+
+def image_ro(chemin):
+    with open(chemin, 'wb') as f:
+        f.truncate(100663296)
+        for lba, (a, b) in IMAGE_RO.items():
+            f.seek(lba * 512)
+            f.write(SUITE(a, b))
+
+
+if ESC:
+    # GR.2d2 — le CD en maître secondaire (cdrom_channel = 2, iso-2048.iso), le ZIP en esclave (zip_channel = 3,
+    # zipro.img, protégé). Chaque unité choisie par 176h (A0h, B0h), le choix gardé d'une ligne à l'autre : les
+    # signatures, la protection vue par MODE SENSE et IOMEGA SENSE, chaque écriture refusée (07/27h) et FORMAT UNIT
+    # aussi, les secteurs relus inchangés ; puis le CD entre deux commandes du ZIP, les registres de chaque unité
+    # gardés (l'erreur du ZIP, laissée sans REQUEST SENSE, n'est pas celle du CD), DEVICE RESET du seul ZIP (le CD
+    # relu aussitôt), IOMEGA EJECT qui laisse le CD chargé. Les écritures de l'hôte vont aux deux unités (174h-175h du CD : FFFEh).
+    def SECT(lba):
+        return _iso().somme_banc(SUITE(*IMAGE_RO[lba]))
+    def W10(lba, n):
+        return C(0x2A, 0, (lba >> 24) & 0xFF, (lba >> 16) & 0xFF, (lba >> 8) & 0xFF, lba & 0xFF, 0, n >> 8, n & 0xFF)
+    CD, ZP = OUT(6, 0xA0), OUT(6, 0xB0)
+    T('signature, le CD', BASE(0x170) + CD + WAIT + REC + LIGNE())                    # 01 01 14 EB
+    T('signature, le ZIP', ZP + WAIT + REC + LIGNE())                                 # 01 01 14 EB
+    T('IDENTIFY PACKET DEVICE', OUT(7, 0xA1) + WDRQ + [3] + w(256) + [24, 54] + REC + LIGNE(), 24, 54)  # le modèle
+    T('TEST UNIT READY', P(C(0x00)))                                                 # UNIT ATTENTION (le disque)
+    T('TEST UNIT READY', P(C(0x00)))                                                 # GOOD
+    T('INQUIRY', P(C(0x12, 0, 0, 0, 36), 22, 8), 22, 8)
+    T('READ CAPACITY', P(C(0x25), 8), 8)                                              # 196 608 (PB-126)
+    T('MODE SENSE(6), toutes', P(C(0x1A, 0, 0x3F, 0, 0xFF), 22), 22)                # la protection : 80h
+    T('MODE SENSE(10), 2Fh', P(C(0x5A, 0, 0x2F, 0, 0, 0, 0, 0, 0x20), 16), 16)      # de même
+    T('IOMEGA SENSE, page 2', P(C(0x06, 0, 2, 0, 0x40), 22), 22)                     # la protection : 2
+    T('READ(10), 100 et 101', P(R10(100, 2), 16), 16, 0,
+      _iso().somme_banc(SUITE(*IMAGE_RO[100]) + SUITE(*IMAGE_RO[101])))
+    T('READ(10), LBA 196 607', P(R10(196607, 1), 8), 8, 0, SECT(196607))            # le dernier
+    T('READ(6), LBA 101', P(C(0x08, 0, 0, 101, 1), 8), 8, 0, SECT(101))
+    T('-remplir', REMPLIR(0xE5, 0x0F))
+    T('WRITE(10), LBA 100', P(W10(100, 1), tampon=256))                              # 07/27h
+    T('WRITE(6), LBA 101', P(C(0x0A, 0, 0, 101, 1), tampon=256))                    # 07/27h
+    T('WRITE AND VERIFY(10), LBA 100', P(C(0x2E) + W10(100, 1)[1:], tampon=256))    # 07/27h
+    T('WRITE(10), LBA 196 608', P(W10(196608, 1), tampon=256))                       # 07/27h, avant la plage
+    T('WRITE(10), compte 0', P(W10(100, 0)))
+    T('FORMAT UNIT', P(C(0x04)))                                                      # 07/27h, rien d'effacé
+    T('READ(10), LBA 100, inchangé', P(R10(100, 1), 8), 8, 0, SECT(100))
+    T('VERIFY(10)', P(C(0x2F, 0, 0, 0, 0, 100, 0, 0, 2)))                          # GOOD : une lecture
+    T('le CD, choisi', CD + WAIT + REC + LIGNE())
+    T('IDENTIFY PACKET DEVICE', OUT(7, 0xA1) + WDRQ + [3] + w(256) + [24, 54] + REC + LIGNE(), 24, 54)  # le CD
+    T('TEST UNIT READY, le CD', P(C(0x00)))                                          # UNIT ATTENTION (le disque)
+    T('TEST UNIT READY, le CD', P(C(0x00)))                                          # GOOD
+    T('INQUIRY, le CD', P(C(0x12, 0, 0, 0, 36), 22, 8), 22, 8)
+    T('READ CAPACITY, le CD', P(C(0x25), 8), 8)                                       # PB-117
+    T('READ(10), le PVD', P(R10(16, 1), 8), 8, 0, SOMME(16, 1))
+    T('le ZIP, choisi', ZP + WAIT + REC + LIGNE())
+    T('TEST UNIT READY', P(C(0x00)))                                                 # GOOD
+    T('READ(10), LBA 101', P(R10(101, 1), 8), 8, 0, SECT(101))
+    T('WRITE(10), LBA 101, sans sense', P(W10(101, 1), sense=False, tampon=256))      # ERR gardé
+    T('le CD, choisi, sans erreur', CD + WAIT + REC + LIGNE())
+    T('le ZIP, choisi, son erreur', ZP + WAIT + REC + LIGNE())
+    T('DEVICE RESET, le ZIP', OUT(7, 0x08) + WAIT + REC + LIGNE())                   # la signature
+    # le CD aussitôt : un paquet du ZIP réécrirait 174h-175h des deux unités, et cacherait un reset qui toucherait le CD
+    T('le CD, après le reset du ZIP', CD + WAIT + REC + LIGNE())                      # FFFEh, pas 14EBh
+    T('TEST UNIT READY, le CD', P(C(0x00)))                                          # GOOD
+    T('le ZIP, choisi', ZP + WAIT + REC + LIGNE())                                    # 00h et 01h ; FFFEh, du CD
+    T('TEST UNIT READY', P(C(0x00)))
+    T('IOMEGA EJECT', P(C(0x0D)))
+    T('TEST UNIT READY, éjecté', P(C(0x00)))                                          # NOT READY, 3Ah
+    T('le CD, choisi', CD + WAIT + REC + LIGNE())
+    T('TEST UNIT READY, le CD', P(C(0x00)))                                          # GOOD
+    T('READ(10), le PVD, encore', P(R10(16, 1), 8), 8, 0, SOMME(16, 1))
+
 S = []
 # GR.2b — la table (PLAN-GR.md, GR.2b ; R2-g10.md § 1.2) : une ligne par commande et par cas limite, sur les
 # 30 étiquettes de scsi_cd_command, sans les sites R9 (R2-g10.md § 1.3 : MECHANISM STATUS de longueur 0,
@@ -818,7 +895,7 @@ def assemble():
     return bytes(out), listing
 
 
-NOM = 'ATAPIAUD' if AUDIO else 'ZIPBANC' if ZIP else 'ATAPIBNC'
+NOM = 'ATAPIAUD' if AUDIO else 'ZIPESC' if ESC else 'ZIPBANC' if ZIP else 'ATAPIBNC'
 
 
 def keys(code):
@@ -830,6 +907,9 @@ def keys(code):
 
 
 if __name__ == '__main__':
+    if '--image-ro' in sys.argv:
+        image_ro(sys.argv[sys.argv.index('--image-ro') + 1])
+        sys.exit(0)
     code, listing = assemble()
     print('\n'.join(listing))
     print(f'\n{len(code)} octets, script {len(S)} octets')
@@ -845,7 +925,9 @@ if __name__ == '__main__':
                   f'(octets du relevé)')
         n += 1
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, 'atapibanc-audio.keys' if AUDIO else 'zipbanc.keys' if ZIP else 'atapibanc.keys'), 'w') as f:
+    fichier = ('atapibanc-audio.keys' if AUDIO else 'zipesc.keys' if ESC else 'zipbanc.keys' if ZIP else
+               'atapibanc.keys')
+    with open(os.path.join(here, fichier), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
         with open(sys.argv[sys.argv.index('--com') + 1], 'wb') as f:
