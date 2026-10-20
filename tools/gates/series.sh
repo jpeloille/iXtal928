@@ -325,12 +325,16 @@ runw bd-ami486-et4000-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-
   --type-at 60000 --type "VER" --type "DIR"
 mapfile -t T4K < tools/et4banc/et4banc.keys
 T4B=(); for l in "${T4K[@]}"; do T4B+=(--type "$l"); done
-runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${T4B[@]}" --type "^" --type "^"
+# GR.1c — le banc imprime ses relevés, attend une touche (la ligne vide), puis finit en 38h, 1024 × 768 en 256
+# couleurs : la sonde compare le mode testé.
+runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax \
+  --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" \
+  "${T4B[@]}" --type "^" --type "^" --type "" --type "^"
 # G13.9g — les bancs de la vidéo en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine vidéo) :
 # EGABANC et HERCBANC sur le 5150, ET4BANC sur l'ami386dx, BLTBANC sur l'ami486 et la GD5429 (il reste en graphique :
 # l'empreinte de la mémoire vidéo, @vram). boot-diff les joue contre l'oracle plus haut, et refuse le mode matériel.
 # GR.0c — EGABANC, HERCBANC et CGABANC (le 5150, la M24) impriment leurs relevés, attendent une touche et finissent
-# dans le mode testé : @vram et @image (l'empreinte de ce que @shot écrirait) après la fin.
+# dans le mode testé : @vram et @image (l'empreinte de ce que @shot écrirait) après la fin. GR.1c : ET4BANC aussi.
 for m in "" "-materiel"; do
   h=(); [ -n "$m" ] && h=(--hardware-mode video)
   fin=(--type "@wait 1200" --type "" --type "@wait 600" --type "@vram" --type "@image")
@@ -345,7 +349,7 @@ for m in "" "-materiel"; do
     "${CMB[@]}" "${fin[@]}"
   runw banc-et4banc$m f386.nvr ami386dx_opti495 "${h[@]}" banc "$REPO/tools/gates/bancs/et4banc.attendus" -- \
     --boot roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --floppy-a "$REPO/$DOS" \
-    --floppy-b "$REPO/os/pcdos20/pcdos20s.img" --settle 600 --type "" --type "" "${T4B[@]}" --type "@wait 3000"
+    --floppy-b "$REPO/os/pcdos20/pcdos20s.img" --settle 600 --type "" --type "" "${T4B[@]}" "${fin[@]}"
   runw banc-bltbanc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/bltbanc.attendus" -- --boot roms 60000 \
     --config ami486-ide.cfg --gfxcard cl_gd5429 --settle 600 "${BL[@]}" --type "@wait 3000" --type "@vram"
 done

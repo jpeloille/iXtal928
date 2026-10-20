@@ -212,8 +212,8 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - `bd-ami486-et4000-dos` ;
   - la mesure de la ROM sur le 8088 dite dans VERIFICATION, sans porte si elle ne tourne pas ;
   - le contrôle négatif : le bit 2 de SR7 non forcé.
-- **GR.1c — ET4BANC jusqu'au 1024 × 768** (la table de C000:7200 ; un second jeu de CRTC, choisi par le bit 5 de
-  `40:0089h`, est à relever) :
+- **GR.1c — ET4BANC jusqu'au 1024 × 768** ✅ *fait, § GR.1c* (la table de C000:7200 ; un second jeu de CRTC,
+  choisi par le bit 5 de `40:0089h`, est à relever) :
   - les relevés en texte, une touche, puis le mode 38h, les douze banques de 64 Ko remplies, CR34, CR35 et 3CDh relus,
     et la sortie dans ce mode ;
   - `bd-ami386dx-et4-banc` est recompté, et les deux attendus du C# seul sont réécrits ;

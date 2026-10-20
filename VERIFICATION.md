@@ -13956,3 +13956,54 @@ Ses points sont repris : l'offset du vecteur (157h et non 155h) et les deux saut
 **Ce que ce vert ne dit pas.**
 - Sur le 8088, ces portes jouent le POST, BASIC et l'invite de PC-DOS 2.00 : aucun mode Tseng n'y est posé.
 - Le désassemblage ne suit que l'init et INT 10h, par blocs de 400h octets au plus.
+
+## GR.1c — ET4BANC jusqu'au 1024 × 768
+
+Le 20 octobre 2026. ET4BANC (G9.3) passait par 2Eh et 30h, puis revenait au texte : le mode 38h (1024 × 768,
+256 couleurs, la table de C000:7200h), le plus grand de la carte, n'était joué par aucune porte (R1 § f).
+
+**Le banc** (`tools/et4banc/et4banc.py`), sur le patron d'EGABANC à GR.0c :
+- il garde ses relevés, et relit en plus 40:0089h avant de quitter le texte. Son bit 5 choisit, pour 38h, l'un des
+  deux jeux de CRTC du BIOS : 7200h ou 729Ah (R1-contre A1). Il vaut 51h dans les deux modes : bit 5 à 0, la table de
+  7200h. Mesuré en 38h par une instrumentation jetable : CR00 = 99h, CR06 = 2Fh, CR07 = F5h, vtotal 817, MISC 27h,
+  les valeurs de cette table ;
+- il imprime ses relevés, attend une touche, puis pose 38h et remplit les douze banques de 64 Ko par 3CDh (lecture et
+  écriture sur la même banque) ;
+- il relit ensuite CR34, CR35 et 3CDh. `done` les imprime en points dans ce mode : « 0A80BB » sur l'image. CR34 =
+  0Ah : avec le MISC 27h, son bit 1 donne l'horloge de 65 MHz, déduit des deux valeurs (R1-contre A2). CR35 = 80h,
+  un bit 7 que PCem ne lit pas. 3CDh = BBh, la banque 11 en lecture et en écriture ;
+- DOS rend la main dans ce mode.
+
+**Les portes** :
+- `bd-ami386dx-et4-banc` recomptée (une frappe de plus, la ligne vide) : verte, 119 479 242 instructions
+  (79 182 023 avant), sonde VGA 163/163. L'écran final est le 1024 × 768 ;
+- `banc-et4banc` et `-materiel` finissent comme les bancs de GR.0c (`@wait 1200`, la touche, `@wait 600`, `@vram`,
+  `@image`). Vertes en mode PCem et sous « tout ».
+
+**Les attendus du C# seul** (`et4banc.attendus`) : 42 octets, un de plus (40:0089h).
+- Le premier 3DAh (l'écran texte) change : PCem OU 39h (31h avant), le matériel B9h et ET 00h (B1h et 80h avant). Le
+  banc est plus long, et sa saisie aussi : il part à un autre instant, et la fenêtre de 2 000 lectures rencontre
+  désormais le retour vertical (le bit 3 à 1 une fois, le bit 7 à 0 en mode matériel).
+- Les autres octets ne bougent pas.
+- La mémoire vidéo (1 Mo) et l'image du 1024 × 768 sont les mêmes dans les trois modes.
+
+**Le contrôle négatif** : `rowoffset` faussé côté C#, CR13 lu sur 7 bits (`vid_svga.cs:600`, `& 0x7f`). Le 38h
+pose CR13 = 80h : la sonde de `bd-ami386dx-et4-banc` rougit sur quatre champs, `rowoffset` (128 chez l'oracle, 256
+côté C#), `ma`, `maback` et `#buffer32`. `banc-et4banc` rougit sur `@image`. Le témoin `bd-ami386dx-et4000` (le POST)
+reste vert : son POST ne pose pas CR13 au-delà de 7Fh. Le fichier est restauré.
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- réassemblé le banc, identique aux frappes ;
+- vérifié 3CDh (l'écriture sur les bits 0 à 3, la lecture sur 4 à 7) et les 768 Ko des douze banques ;
+- refait le calcul de l'horloge ;
+- vérifié la cohérence des nouveaux 3DAh.
+
+Ses points sont repris :
+- la table de 38h, affirmée sur le seul bit 5, est désormais mesurée (ci-dessus) ;
+- CR35 expliqué ;
+- le 65 MHz dit déduit ;
+- la phrase sur PB-220 et PB-226 restreinte à la mémoire et à l'image de ce banc.
+
+**Ce que ce vert ne dit pas.**
+- Le jeu de CRTC de 729Ah (40:0089h bit 5 à 1) n'est pas joué : rien ici ne pose ce bit.
+- Le mode 37h (1024 × 768 en 16 couleurs) non plus.

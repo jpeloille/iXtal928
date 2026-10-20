@@ -8,8 +8,12 @@
 # passe donc par les modes natifs de Tseng, 2Eh (640×480, 256 couleurs) et 30h (800×600, 256
 # couleurs), par INT 10h. Il écrit et relit à travers les banques de 3CDh (lecture et écriture
 # séparées), arme le RAMDAC SC1502x (quatre lectures de 3C6h), relit son registre de commande, le
-# passe en HiColor puis le rend, relit CR33-CR35 et la banque, et revient en texte. Le diff
-# d'instructions voit les lectures ; la sonde SVGA, la VRAM de 1 Mo, les registres et le rendu.
+# passe en HiColor puis le rend, relit CR33-CR35 et la banque, et revient en texte. Puis (GR.1c) il
+# relit 40:0089h (le bit 5 choisit l'un des deux jeux de CRTC du mode 38h, R1-contre A1), imprime ses
+# relevés, attend une touche et finit en 38h (1024×768, 256 couleurs) : les douze banques de 64 Ko
+# remplies, CR34, CR35 et 3CDh relus, imprimés en points dans ce mode ; DOS rend la main dans ce
+# mode. Le diff d'instructions voit les lectures ; la sonde SVGA, la VRAM de 1 Mo, les registres et
+# le rendu du mode testé.
 # Instructions 8086 seules ; saisi dans DEBUG (disquette supplémentaire de PC-DOS 2.00 en B:),
 # écrit sur B:, lancé sous boot-diff.
 #
@@ -151,7 +155,7 @@ ins(None, 'cld', 1, lambda L, a: [0xFC])
 nxt()
 
 # op 8 : écrire un octet en segment:déplacement
-case(8, 'op8', 'done')
+case(8, 'op8', 'op9')
 ins(None, 'push es', 1, lambda L, a: [0x06])
 ins(None, 'lodsw                ; segment', 1, lambda L, a: [0xAD])
 ins(None, 'mov es,ax', 2, lambda L, a: [0x8E, 0xC0])
@@ -162,8 +166,22 @@ ins(None, 'mov [es:bx],al', 3, lambda L, a: [0x26, 0x88, 0x07])
 ins(None, 'pop es', 1, lambda L, a: [0x07])
 nxt()
 
+# op 9 (GR.1c) : afficher les relevés, attendre une touche (INT 16h), puis continuer le script ; les relevés
+# repartent de zéro
+case(9, 'op9', 'done')
+ins(None, 'push si', 1, lambda L, a: [0x56])
+ins(None, 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'pop si', 1, lambda L, a: [0x5E])
+ins(None, 'mov di,results', 3, lambda L, a: [0xBF] + w(L['results']))
+ins(None, 'xor ah,ah', 2, lambda L, a: [0x30, 0xE4])
+ins(None, 'int 16h', 2, lambda L, a: [0xCD, 0x16])
+nxt()
+
 # op 0 (et tout inconnu) : afficher les relevés, seize octets par ligne, puis sortir
-ins('done', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
+ins('done', 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
+ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('imprime', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
 ins(None, 'xor bp,bp', 2, lambda L, a: [0x31, 0xED])
 ins('p0', 'cmp si,di', 2, lambda L, a: [0x39, 0xFE])
 ins(None, 'jae fin', 2, lambda L, a: [0x73, rel8(L, a + 2, 'fin')])
@@ -182,8 +200,7 @@ ins(None, 'mov dx,crlf', 3, lambda L, a: [0xBA] + w(L['crlf']))
 ins(None, 'mov ah,9', 2, lambda L, a: [0xB4, 0x09])
 ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
 ins(None, 'jmp p0', 2, lambda L, a: [0xEB, rel8(L, a + 2, 'p0')])
-ins('fin', 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
-ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('fin', 'ret', 1, lambda L, a: [0xC3])
 ins('nib', "add al,'0'", 2, lambda L, a: [0x04, 0x30])
 ins(None, "cmp al,'9'", 2, lambda L, a: [0x3C, 0x39])
 ins(None, 'jbe nibp', 2, lambda L, a: [0x76, rel8(L, a + 2, 'nibp')])
@@ -207,6 +224,7 @@ def GC(i, v): return OUTB(0x3CE, i) + OUTB(0x3CF, v)
 def SEQ(i, v): return OUTB(0x3C4, i) + OUTB(0x3C5, v)
 A = 0xA000
 def BANK(v): return OUTB(0x3CD, v)
+def PAUSE(): return [9]
 
 S = []
 S += INB(0x3CD) + SAMPLE(0x3DA, 2000)                   # banque au démarrage ; 3DAh
@@ -230,6 +248,14 @@ S += MODE(0x0030) + BANK(0x00) + FILL(A, 0x0000, 0x6000, 0x11, 0x07)   # 800×60
 S += BANK(0x55) + FILL(A, 0x0000, 0x2000, 0xFE, 0xFF) + PEEK(A, 0x1FFF) + WAIT(3)
 S += OUTB(0x3C4, 0x07) + INB(0x3C5)                     # SR7 (lu | 4)
 S += MODE(0x0003) + INB(0x3CD)                          # retour au texte ; la banque
+S += PEEK(0x0040, 0x0089)                               # GR.1c : le bit 5 choisit le jeu de CRTC de 38h
+S += PAUSE()                                            # les relevés, une touche
+S += MODE(0x0038)                                       # puis la fin en 38h, 1024×768, 256 couleurs
+for b in range(12):                                     # les douze banques de 64 Ko, lecture et écriture
+    S += BANK(b << 4 | b) + FILL(A, 0x0000, 0x8000, b * 0x15, 0x01) + FILL(A, 0x8000, 0x8000, 0xFF - b, 0x03)
+for r in (0x34, 0x35):                                  # CR34 (l'horloge, R1-contre A2) et CR35
+    S += OUTB(0x3D4, r) + INB(0x3D5)
+S += INB(0x3CD)                                         # la banque ; ces trois relevés imprimés en points
 S += [0]
 
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))

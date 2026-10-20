@@ -1,13 +1,26 @@
 # ET4BANC (tools/et4banc) sous PC-DOS 2.00, sur l'ami386dx et la Tseng ET4000AX (CMOS f386.nvr), en C# seul sous --boot
-# (G13.9g), dans les deux modes (le domaine vidéo en mode matériel). Les 41 octets relevés, dans l'ordre :
+# (G13.9g), dans les deux modes (le domaine vidéo en mode matériel). Les 42 octets relevés, dans l'ordre :
 #   3CDh au démarrage ; 3DAh lu 2 000 fois sur l'écran texte, le OU et le ET ; le mode 2Eh, trois remplissages par
 #   banques, puis huit octets relus par les banques et 3CDh ; 3DAh lu 2 000 fois en mode 2Eh, le OU et le ET ; CR13, 33,
 #   34 et 35 relus ; le RAMDAC : 3C6h lu cinq fois puis quatre, A0h écrit (HiColor), relu cinq fois puis quatre, 00h
-#   écrit, 3C8h, le masque FFh écrit puis relu ; le mode 30h, un remplissage, un octet relu ; SR7 ; 3CDh en mode 3.
+#   écrit, 3C8h, le masque FFh écrit puis relu ; le mode 30h, un remplissage, un octet relu ; SR7 ; 3CDh en mode 3 ;
+#   GR.1c : 40:0089h, 51h dans les deux modes, son bit 5 à 0 : pour 38h, le BIOS de la carte prend la table de CRTC
+#   de C000:7200h, et non celle de 729Ah (R1-contre A1). Mesuré en 38h par une instrumentation jetable : CR00 = 99h,
+#   CR06 = 2Fh, CR07 = F5h, vtotal 817, MISC 27h, les valeurs de la table de 7200h (celle de 729Ah : A1h, 26h, FDh).
+# GR.1c — puis le banc imprime ses relevés, attend une touche et finit en 38h (1024 × 768, 256 couleurs) : les douze
+#   banques de 64 Ko remplies (3CDh = b × 11h), puis CR34, CR35 et 3CDh relus et imprimés en points dans ce mode (0Ah,
+#   80h, BBh). CR34 = 0Ah : avec le MISC 27h, son bit 1 donne l'index d'horloge 5, 65 MHz (et4000_recalctimings ;
+#   déduit des deux valeurs mesurées, R1-contre A2). CR35 = 80h, le bit 7 de la table, que PCem ne lit pas (seuls les
+#   bits 0 à 4, les débordements verticaux). 3CDh = BBh, la banque 11 en lecture et en écriture. DOS rend la main. La
+#   mémoire vidéo (@vram, 1 Mo) et l'image (@image) après la fin : les mêmes dans les deux modes, mesuré (PB-220 et
+#   PB-226 changent le minutage et 3DAh, ni la mémoire vidéo ni l'image finale de ce banc).
 # Les octets qui changent :
-#   Le premier échantillon de 3DAh (l'écran texte) : PCem OU 31h, ET 00h (le bit 0 ; les bits 4-5, qu'il bascule à
-#     chaque lecture, PB-226) ; l'ET4000 B1h et 80h : le bit 7, complément du retour vertical, reste à 1 (aucun retour
-#     dans la fenêtre), les bits 4-5 viennent du faisceau, les points du texte de DOS (data book, p. 103 ; G13.9f).
+#   Le premier échantillon de 3DAh (l'écran texte) : PCem OU 39h, ET 00h (les bits 0 et 3 ; les bits 4-5, qu'il
+#     bascule à chaque lecture, PB-226) ; l'ET4000 B9h et 00h : le bit 7, complément du retour vertical, passe à 0 dans
+#     la fenêtre, les bits 4-5 viennent du faisceau, les points du texte de DOS (data book, p. 103 ; G13.9f). Jusqu'à
+#     GR.1c, 31h et 00h, B1h et 80h : la fenêtre ne rencontrait pas le retour vertical. Le banc est plus long (sa
+#     saisie dans DEBUG aussi) et part à un autre instant ; dans les deux modes, la fenêtre le rencontre (le bit 3 à 1
+#     une fois, le bit 7 à 0), mesuré.
 #   Le second (le mode 2Eh) : PCem 31h et 00h ; l'ET4000 81h et 80h : la fenêtre de 2 000 lectures tombe dans le blanc
 #     vertical (la ligne 514 ; vblankstart 488, le total 525, la ligne raccourcie par PB-220), où le faisceau ne voit
 #     aucun point.
@@ -17,9 +30,11 @@
 # Les mêmes dans les deux modes : 3CDh, les banques et les octets relus (PB-100 : la clé posée par le BIOS de la carte
 # avant ET4BANC), CR13 à CR35, la cinquième lecture de 3C6h (la commande), 3C8h (F8h), le masque relu après 3C8h (FFh),
 # SR7 relu (FCh : sa relecture, bit 2 forcé, reste celle de PCem, inconnue).
-pcem: 00310000FF00807D00403B7731005000
-materiel: 00B18000FF00807D00403B7781805000
+pcem: 00390000FF00807D00403B7731005000
+materiel: 00B90000FF00807D00403B7781805000
 pcem: 0800FFFFFFFF00FFFFFFFFFFFFFFFFA0
 materiel: 0800FFFFFFFF0000000000FFFFFFFFA0
-pcem: FFFFFFFFF8FFFFFC00
-materiel: A0A0A0A0F8FFFFFC00
+pcem: FFFFFFFFF8FFFFFC0051
+materiel: A0A0A0A0F8FFFFFC0051
+--- mémoire vidéo : 1048576 octets, empreinte FNV-1a CF345A51DB6069B6 ---
+--- image 1024x768, empreinte FNV-1a E101AAF708345DBD ---
