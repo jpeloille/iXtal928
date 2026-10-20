@@ -14213,3 +14213,88 @@ Ses points sont repris :
 - La coupure de la vidéo par 3B8h n'est modélisée dans 3BAh ni par PCem ni par le mode matériel.
 - Les valeurs relues du 6845 sont celles de PCem dans les deux modes : la relecture du MC6845 reste inconnue
   (PB-97 (c)).
+
+## GR.2a — Les sondes de l'ATAPI, du CD, du ZIP, de la DSS et du Covox
+
+Le 20 octobre 2026. L'oracle n'exposait du stockage que le pilote d'images (`h_cd_state`) et le type des unités IDE.
+Ni le pont ATAPI, ni `scsi_cd_data_t`, ni `scsi_zip_data`, ni la DSS, ni le Covox n'étaient sondés (R2 § 1.4). Une faute
+que l'invité ne relit pas y restait invisible au diff d'instructions.
+
+**L'oracle** (l'ABI 61) :
+- `h_atapi_probe`, dans `harness_ide.c` : `atapi_device_t` est publique, et `ide.c`, déjà inclus, suffit
+  (R2-contre A1). Pour chacune des quatre unités : le type, la commande et sa position, l'état, la longueur de
+  transfert, `data` (64 Ko) haché et ses positions, l'état du bus, la carte, le DMA, puis le `scsi_bus_t` du pont. 88
+  champs ;
+- `h_cd_data_probe` : `harness_scsi_cd.c` inclut `scsi_cd.c`, dont `scsi_cd_data_t` est privée. Le lecteur entier,
+  ses deux tampons de 256 Ko hachés, en 37 champs ;
+- `h_zip_probe` : `harness_scsi_zip.c` inclut `scsi_zip.c`, en 23 champs. Une unité de traduction chacun, car
+  `scsi_cd.c`, `scsi_zip.c` et `scsi_hd.c` définissent chacun `BUFFER_SIZE` et un `scsi_add_data` statique ;
+- `h_lpt_probe` : `harness_lpt.c` inclut `lpt.c`, `lpt_dac.c` et `lpt_dss.c` dans une même unité
+  (`lpt1_device_p` est statique). Les registres de LPT1 et LPT2, le périphérique de LPT1, la file de la DSS, ses index,
+  son DAC et son chronomètre, les valeurs et le canal du Covox : 15 champs.
+
+Les cinq fichiers quittent la liste liée du `Makefile`, et les trois harnais y entrent. `oracle.tsv` reçoit les trois
+harnais et est réancré : 217 transcrits, aucune dérive.
+
+**Le C#.** Une méthode `Probe` par classe (`ide_atapi`, `scsi_cd_c`, `scsi_zip_c`, `lpt`), champ pour champ celle
+de l'oracle, avec des constantes et sans champ statique neuf. boot-diff relève les quatre sondes de l'oracle avant
+`h_closepc`, qui éjecte le ZIP et ferme le CD, et celles du C# avant `pc.closepc`, au même point de leur histoire. Un
+champ divergent est nommé et rouge. Une sonde qui concorde ne se dit que si son périphérique est monté : le message
+des autres portes ne change pas.
+
+**Les preuves** (Release, le worktree de la série) :
+- dix portes vertes d'abord : `abi`, le CD vide et ISO, les quatre portes de LPT, l'AHA au POST et à l'amorçage,
+  `bd-pc-cga` ;
+- les sondes s'impriment là où leur périphérique est monté : sur le CD ISO, « le pont de 1 unité(s) ATAPI » et le
+  lecteur ; sur la DSS, sa file pleine, ses index 406/406 ; sur le Covox stéréo, ses deux valeurs.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2a.py`, une panne à la fois côté C#, restaurée). Chacune est une faute que
+l'invité ne relit jamais : le diff d'instructions reste vert, seule la sonde rougit.
+
+| | Panne | Porte | Résultat |
+|---|---|---|---|
+| N1 | un octet écrit après la fin des données ATAPI (`ide_atapi.cs`) | `bd-ami486-atapi-banc` | `U2.data`, 1 sur 88 |
+| N2 | `prefix_len` de MODE SELECT(6) à 7 (`scsi_cd.cs`) | `bd-ami486-atapi-banc` | `prefix_len` 6 contre 7, 1 sur 37 |
+| N3 | `hd_id` du ZIP décalé (`scsi_zip.cs`) | un boot-diff court sur `ami486-zip.cfg` | `hd_id` 2 contre 3, 1 sur 23 |
+| N4 | un octet de la file de la DSS stocké faux (`lpt_dss.cs`) | `bd-pc-lpt-dss-banc` | la file et le DAC, 3 sur 15 ; la sonde du son aussi |
+
+Trois essais n'ont rien montré, et c'est attendu :
+- N1 sur `bd-ami486-cd-iso` : cette porte ne transfère aucune donnée ATAPI ;
+- N2 posé d'abord sur MODE SELECT(10) : la MODE SELECT(6) qui suit dans ATAPIBANC réécrit `prefix_len` ;
+- le ZIP n'a qu'une porte, ZIPBANC (près de 30 minutes) : N3 est joué par un boot-diff court, réglé comme elle.
+
+N4 rougit aussi la sonde du son, car la DSS joue l'octet faussé.
+
+**La série** (Release, le worktree ; contre gr4a, la dernière série entière) :
+- en mode PCem (76 min) : 795 portes vertes, aucune rouge. Les 29 portes neuves sont celles de GR.0c à GR.1g,
+  vertes. Douze messages changent, tous expliqués : `abi` (60 à 61) ; `bd-ami386dx-et4-banc` recomptée (GR.1c) ;
+  l'image B: de `bd-pc-herc-banc` et de `bd-pc-ega-banc`, plus d'octets écrits par l'invité, les bancs plus longs
+  (GR.0c) ; les attendus d'EGABANC (3 à 6), d'HERCBANC (2 à 4) et d'ET4BANC (3 à 5), dans les deux variantes
+  (GR.0c, GR.1c) ; `r9-videocfg` (GR.1f) ; `bd-ami486-lpt-dac-stereo`, dont la dernière ligne est désormais la
+  sonde de LPT ;
+- sous « tout » (21 min) : 534 vertes, 250 refusées, 11 en mode PCem seul, aucune rouge. Des 29 neuves, 8 bancs
+  en C# seul sont verts et 21 boot-diffs refusés. Huit messages changent : les mêmes attendus et `r9-videocfg`, et
+  `r9-gfxfixe`, refusée dans gr4a-tout et verte ici (la série de GR.4a précédait son entrée dans `ModeOutils`,
+  § GR.4a).
+
+Les sondes neuves s'impriment, vertes, sur dix portes : le pont ATAPI 88/88 et le lecteur 37/37 sur les cinq portes
+du CD ; le pont et le ZIP 23/23 sur ZIPBANC (« disque absent » : le banc finit par START STOP UNIT, START = LOEJ = 0,
+qui éjecte) ; la sonde de LPT 15/15 sur les quatre portes de LPT. La file de la DSS est la même que celle du
+sous-ensemble, au même nombre d'instructions : seul l'ordre d'impression de ses deux mots a changé entre les deux.
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- confronté champ pour champ les quatre sondes de l'oracle et du C# : l'ordre, les conversions, le sense empaqueté,
+  `data_in` et `data_out` contigus sans bourrage dans `scsi_zip_data` (comme `io`), le saut des champs du Covox ;
+- vérifié les compteurs (88, 37, 23, 15) et les noms de boot-diff ;
+- vérifié les unités de traduction, sans collision de noms statiques ;
+- vérifié le point de relevé des deux côtés, avant les fermetures.
+
+Ses deux points sont repris : la note d'`oracle.tsv` pour `h_atapi_probe`, et le commentaire du `Probe` du ZIP (le
+mode PCem seul : le prolongement de PB-125 en mode matériel n'y est pas). Ce sont des commentaires, après la série.
+
+
+**Ce que ce vert ne dit pas.**
+- Une sonde d'état final ne voit pas la faute de G10.0 (la file de la DSS dite pleine à 15, un seuil lu et non
+  stocké) : seul le diff d'instructions la voit, pendant une vidange (R2 § 1.4).
+- Le chronomètre des lecteurs n'est comparé que par son drapeau `enabled`, pas par son échéance.
+- Les tampons de son de la DSS et du Covox ne sont pas dans la sonde de LPT : la sonde du son les couvre.

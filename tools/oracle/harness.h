@@ -745,7 +745,7 @@ uint8_t *h_ram(void);
 /* 51 depuis G10.5 : l'audio CD dans la machine — le corps du fil CD à l'échéance de sound_poll,
  * h_cd_sound_probe (H_CD_SOUND_PROBE_N champs), h_cd_audio_stop ; h_boot remet le fil à zéro. */
 /* 52 depuis G10.6 : le lecteur ZIP (scsi_zip.c lié) — h_set_zip ; h_boot charge l'image, h_closepc l'éjecte. */
-#define H_ABI_VERSION 60
+#define H_ABI_VERSION 61
 #define H_CD_SOUND_PROBE_N 6
 /* 53 (G11.0) : l'Adaptec AHA-1542C et ses disques SCSI (harness_aha.c inclut scsi_aha1540.c et scsi_hd.c) —
  * h_aha_probe (H_AHA_PROBE_N champs) ; h_boot monte « aha1542c ». */
@@ -776,6 +776,17 @@ void h_cgapal(int display_type, int contrast, uint32_t *pal);
 /* 59 (GR.0b) : les sondes non SVGA hachent l'image (champ 3) et leur palette (4, ou 9 pour l'EGA) ; la CGA sondée
  * (champ 0 = 7, harness_cga.c) ; la banque et le RAMDAC de l'ET4000 aux places de la Trident (harness_et4000.c). */
 /* 60 (GR.4b) : h_trace_hash_now, pour la phase 2 de boot-diff qui rejoue l'exécution de la phase 1. */
+/* 61 (GR.2a) : les sondes du stockage et du port parallèle — h_atapi_probe (le pont des quatre unités, harness_ide.c),
+ * h_cd_data_probe (scsi_cd.c inclus par harness_scsi_cd.c), h_zip_probe (scsi_zip.c inclus par harness_scsi_zip.c),
+ * h_lpt_probe (lpt.c, lpt_dac.c et lpt_dss.c inclus par harness_lpt.c). */
+#define H_ATAPI_PROBE_N 88
+#define H_CD_DATA_PROBE_N 37
+#define H_ZIP_PROBE_N 23
+#define H_LPT_PROBE_N 15
+void h_atapi_probe(uint64_t *o);
+void h_cd_data_probe(uint64_t *o);
+void h_zip_probe(uint64_t *o);
+void h_lpt_probe(uint64_t *o);
 uint32_t h_abi_version(void);
 
 /* sizeof(h_state) tel que le compilateur C l'a disposé. Le C# l'assène contre son

@@ -237,7 +237,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 
 ### GR.2 — La profondeur de G10
 
-- **GR.2a — Les sondes de l'ATAPI, du CD, du ZIP, de la DSS et du Covox** :
+- **GR.2a — Les sondes de l'ATAPI, du CD, du ZIP, de la DSS et du Covox** ✅ *fait, § GR.2a* :
   - le pont ATAPI se sonde déjà par `harness_ide.c`. `scsi_cd_data_t`, `scsi_zip_data` et les fichiers LPT demandent
     des harnais inclusifs, sur le patron de `harness_aha.c` ;
   - les pendants en C# ; l'ABI 59 ;

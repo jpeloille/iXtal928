@@ -106,9 +106,6 @@ SRC := harness.c \
        $(PCEM)/src/video/vid_tkd8001_ramdac.c \
        $(PCEM)/src/video/vid_sdac_ramdac.c \
        $(PCEM)/src/video/vid_unk_ramdac.c \
-       $(PCEM)/src/lpt/lpt.c \
-       $(PCEM)/src/lpt/lpt_dac.c \
-       $(PCEM)/src/lpt/lpt_dss.c \
        $(PCEM)/src/models/serial.c \
        $(PCEM)/src/mouse/mouse_serial.c \
        $(PCEM)/src/mouse/mouse.c \
@@ -122,10 +119,11 @@ SRC := harness.c \
        $(PCEM)/src/mfm/mfm_at.c \
        harness_ide.c \
        harness_aha.c \
+       harness_scsi_cd.c \
+       harness_scsi_zip.c \
+       harness_lpt.c \
        $(PCEM)/src/ide/ide_atapi.c \
        $(PCEM)/src/scsi/scsi.c \
-       $(PCEM)/src/scsi/scsi_cd.c \
-       $(PCEM)/src/scsi/scsi_zip.c \
        $(PCEM)/src/ide/xtide.c \
        $(PCEM)/src/hdd/hdd_file.c \
        $(PCEM)/src/cdrom/cdrom-null.c

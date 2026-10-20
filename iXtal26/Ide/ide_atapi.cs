@@ -792,4 +792,52 @@ internal static class ide_atapi
         for (int d = 0; d < 4; d++)
                 ide_drives[d].atapi = new atapi_device_t();
     }
+
+    // iXtal26 (outillage, sans pendant C) — GR.2a : la sonde du pont ATAPI, champ pour champ celle d'h_atapi_probe
+    //   (tools/oracle/harness_ide.c) : pour chacune des quatre unités, son type, la commande, l'état, data haché et
+    //   ses positions, puis le bus du pont.
+    internal const int PROBE_N = 88;
+
+    private static uint64_t fnv(uint8_t[] p, int n)
+    {
+        uint64_t h = 1469598103934665603UL;
+        for (var c = 0; c < n; c++)
+        {
+                h ^= p[c];
+                h *= 1099511628211UL;
+        }
+        return h;
+    }
+
+    internal static void Probe(uint64_t[] o)
+    {
+        Array.Clear(o, 0, PROBE_N);
+        var i = 0;
+        for (var d = 0; d < 4; d++)
+        {
+                var a = ide_drives[d].atapi;
+                o[i++] = (uint64_t)ide_drives[d].type;
+                o[i++] = fnv(a.command, 12);
+                o[i++] = (uint32_t)a.command_pos;
+                o[i++] = (uint32_t)a.state;
+                o[i++] = (uint32_t)a.max_transfer_len;
+                o[i++] = fnv(a.data, 65536);
+                o[i++] = (uint32_t)a.data_read_pos;
+                o[i++] = (uint32_t)a.data_write_pos;
+                o[i++] = (uint32_t)a.bus_state;
+                o[i++] = (uint32_t)a.board;
+                o[i++] = (uint32_t)a.use_dma;
+                o[i++] = (uint32_t)a.bus.state;
+                o[i++] = (uint32_t)a.bus.new_state;
+                o[i++] = (uint32_t)a.bus.clear_req;
+                o[i++] = a.bus.bus_in;
+                o[i++] = a.bus.bus_out;
+                o[i++] = (uint32_t)a.bus.dev_id;
+                o[i++] = (uint32_t)a.bus.command_pos;
+                o[i++] = fnv(a.bus.command, CDB_MAX_LEN);
+                o[i++] = (uint32_t)a.bus.change_state_delay;
+                o[i++] = (uint32_t)a.bus.new_req_delay;
+                o[i++] = (uint32_t)a.bus.is_atapi;
+        }
+    }
 }

@@ -91,7 +91,9 @@ public static class Oracle
     // 59 en GR.0b : les sondes non SVGA hachent l'image (champ 3) et leur palette ; la CGA sondée (champ 0 = 7) ;
     //   la banque et le RAMDAC de l'ET4000 aux places de la Trident (vid_et4000.c inclus par harness_et4000.c).
     // 60 en GR.4b : h_trace_hash_now, le hachage de trace de l'état courant (la phase 2 de boot-diff).
-    public const int AbiVersion = 60;
+    // 61 en GR.2a : les sondes du stockage et du port parallèle — h_atapi_probe, h_cd_data_probe (scsi_cd.c inclus),
+    //   h_zip_probe (scsi_zip.c inclus), h_lpt_probe (lpt.c, lpt_dac.c et lpt_dss.c inclus).
+    public const int AbiVersion = 61;
 
     static Oracle()
     {
@@ -359,6 +361,17 @@ public static class Oracle
     // G11.0 — la sonde de l'AHA-1542C et de ses disques SCSI (harness_aha.c, Scsi/scsi_aha1540.cs Probe).
     [DllImport(Lib)] internal static extern void h_aha_probe([Out] ulong[] o);
     public const int AhaProbeN = 140;
+    // GR.2a — les sondes du pont ATAPI (harness_ide.c, Ide/ide_atapi.cs Probe), du lecteur de CD (harness_scsi_cd.c,
+    // Scsi/scsi_cd.cs Probe), du ZIP (harness_scsi_zip.c, Scsi/scsi_zip.cs Probe) et du port parallèle (harness_lpt.c,
+    // Lpt/lpt.cs Probe).
+    [DllImport(Lib)] internal static extern void h_atapi_probe([Out] ulong[] o);
+    public const int AtapiProbeN = 88;
+    [DllImport(Lib)] internal static extern void h_cd_data_probe([Out] ulong[] o);
+    public const int CdDataProbeN = 37;
+    [DllImport(Lib)] internal static extern void h_zip_probe([Out] ulong[] o);
+    public const int ZipProbeN = 23;
+    [DllImport(Lib)] internal static extern void h_lpt_probe([Out] ulong[] o);
+    public const int LptProbeN = 15;
 
     // M15 — vidéo. La carte (GFX_CGA = 0, GFX_VGA = 13, ibm.h:274-289), à poser avant
     // h_boot ; la sonde VGA, pendant de Video.vid_svga.Probe() ; et la VRAM brute,

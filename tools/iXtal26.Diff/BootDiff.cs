@@ -266,6 +266,86 @@ public static class BootDiff
     /// <summary>G11.0 — `--expect-aha` : la carte doit être montée des deux côtés.</summary>
     internal static bool ExpectAha;
 
+    private static readonly string[] AtapiFields =
+    [
+        "type", "command", "cmd_pos", "state", "max_xfer", "data", "pos_lu", "pos_ecrit", "bus_state", "board",
+        "use_dma", "bus.state", "bus.new_state", "bus.clear_req", "bus.in", "bus.out", "bus.dev_id", "bus.cmd_pos",
+        "bus.command", "bus.chg_delay", "bus.req_delay", "bus.is_atapi",
+    ];
+
+    private static readonly string[] CdDataFields =
+    [
+        "monte", "blocks", "cmd_pos", "new_cmd_pos", "timer", "wait_time", "addr", "len", "sector_pos", "buf", "status",
+        "pos_lu", "pos_ecrit", "lus", "attendus", "cdlen", "cdpos", "recus", "requis", "sense", "id", "received_cdb",
+        "cdb", "prev_status", "cd_status", "prefix_len", "page_current", "is_atapi", "pio_mode", "mdma_mode",
+        "short_seek", "long_seek", "max_speed", "cur_speed", "cur_model", "data_in", "data_out",
+    ];
+
+    private static readonly string[] ZipFields =
+    [
+        "monte", "blocks", "cmd_pos", "new_cmd_pos", "addr", "len", "sector_pos", "buf", "status", "io", "pos_lu",
+        "pos_ecrit", "recus", "requis", "disc_loaded", "disc_changed", "sense", "hd_id", "timer", "is_atapi",
+        "read_only", "pio_mode", "mdma_mode",
+    ];
+
+    private static readonly string[] LptFields =
+    [
+        "lpt1_dat", "lpt1_ctrl", "lpt2_dat", "lpt2_ctrl", "lpt1_device", "dss.fifo[0-7]", "dss.fifo[8-15]",
+        "dss.read_idx", "dss.write_idx", "dss.dac_val", "dss.timer", "dac.val_l", "dac.val_r", "dac.stereo",
+        "dac.channel",
+    ];
+
+    /// <summary>GR.2a — les sondes du stockage et du port parallèle (PLAN-GR.md) : le pont ATAPI des quatre unités, le
+    /// lecteur de CD, le ZIP, LPT1 et LPT2 avec la DSS et le Covox. Chaque champ divergent est nommé ; une sonde qui
+    /// concorde ne se dit que si son périphérique est monté (une unité ATAPI, un lecteur, un ZIP, un périphérique sur
+    /// LPT1), pour ne pas changer le message des autres portes.</summary>
+    private static int CompareStockage((ulong[], ulong[], ulong[], ulong[]) o, (ulong[], ulong[], ulong[], ulong[]) c)
+    {
+        var verdict = 0;
+        var unites = Enumerable.Range(0, 4).Count(d => o.Item1[d * AtapiFields.Length] == 2);
+        verdict |= CompareSonde("ATAPI", f => $"U{f / AtapiFields.Length}.{AtapiFields[f % AtapiFields.Length]}",
+                                o.Item1, c.Item1, unites > 0, $"le pont de {unites} unité(s) ATAPI");
+        var cd = o.Item2;
+        verdict |= CompareSonde("du lecteur de CD", f => CdDataFields[f], cd, c.Item2, cd[0] != 0,
+                                $"modèle {cd[34]}, {(cd[27] != 0 ? "ATAPI" : "SCSI")}, statut {cd[10]:X2}h, " +
+                                $"sense {cd[19]:X}h, data_in {cd[35]:X16}");
+        var zip = o.Item3;
+        verdict |= CompareSonde("du ZIP", f => ZipFields[f], zip, c.Item3, zip[0] != 0,
+                                $"{zip[1]} blocs, disque {(zip[14] != 0 ? "chargé" : "absent")}, " +
+                                $"{(zip[19] != 0 ? "ATAPI" : "SCSI")}, io {zip[9]:X16}");
+        var lpt = o.Item4;
+        var nom = lpt[4] switch { 1 => "la DSS", 2 => "le Covox", 3 => "le Covox stéréo", _ => "" };
+        verdict |= CompareSonde("de LPT", f => LptFields[f], lpt, c.Item4, lpt[4] != 0,
+                                lpt[4] == 1
+                                    ? $"{nom} sur LPT1, file {lpt[6]:X16}{lpt[5]:X16}, index {lpt[7]}/{lpt[8]}, " +
+                                      $"DAC {lpt[9]:X2}h"
+                                    : $"{nom} sur LPT1, DAC {lpt[11]:X2}h/{lpt[12]:X2}h, canal {lpt[14]}");
+        return verdict;
+    }
+
+    /// <summary>GR.2a — une sonde comparée champ par champ : les divergences nommées, puis le verdict ; le résumé ne
+    /// s'imprime que si le périphérique est monté.</summary>
+    private static int CompareSonde(string nom, Func<int, string> champ, ulong[] o, ulong[] c, bool monte,
+                                    string resume)
+    {
+        var bad = 0;
+        for (var f = 0; f < o.Length; f++)
+        {
+            if (o[f] == c[f])
+                continue;
+            bad++;
+            Console.Error.WriteLine($"  {champ(f),-16} oracle {o[f],22} | C# {c[f],22}");
+        }
+        if (bad != 0)
+        {
+            Console.Error.WriteLine($"Sonde {nom} : {bad} champ(s) divergent(s) sur {o.Length}.");
+            return 1;
+        }
+        if (monte)
+            Console.WriteLine($"Sonde {nom} : {o.Length} champs identiques — {resume}.");
+        return 0;
+    }
+
     /// <summary>G12.2 — `--expect-emu ADDR,RAM` : l'AWE32 doit être montée des deux côtés, l'EMU8000 en ADDR (hexadécimal),
     /// sa RAM de RAM Ko, et roms/awe32.raw doit être la ROM des mesures (sha256) : sans elle, check_sndcard refuserait la
     /// carte des deux côtés, et la porte serait verte à vide.</summary>
@@ -710,6 +790,14 @@ public static class BootDiff
         var cdOracle = ExpectCd is null ? (0, 0) : (Oracle.h_ide_type(canalCd), Oracle.h_cd_driver());
         Oracle.h_getstate(out var stFin);
         var nFatalOracle = stFin.n_fatal;
+        // GR.2a — les sondes du stockage et du port parallèle, AVANT h_closepc : il éjecte le ZIP et ferme le CD
+        // (pc.c:578, :591), et le C# les relève avant pc.closepc().
+        var stockOracle = (new ulong[Oracle.AtapiProbeN], new ulong[Oracle.CdDataProbeN], new ulong[Oracle.ZipProbeN],
+                           new ulong[Oracle.LptProbeN]);
+        Oracle.h_atapi_probe(stockOracle.Item1);
+        Oracle.h_cd_data_probe(stockOracle.Item2);
+        Oracle.h_zip_probe(stockOracle.Item3);
+        Oracle.h_lpt_probe(stockOracle.Item4);
         Oracle.h_trace_close();
         Oracle.h_closepc();
         if (TraceTronquee(oraclePath))
@@ -860,6 +948,12 @@ public static class BootDiff
         Models.dma.ProbeState(dmaCsharp);
         var emuCsharp = new ulong[Oracle.Emu8kProbeN];
         Sound.sound_emu8k.Probe(emuCsharp);
+        var stockCsharp = (new ulong[Oracle.AtapiProbeN], new ulong[Oracle.CdDataProbeN], new ulong[Oracle.ZipProbeN],
+                           new ulong[Oracle.LptProbeN]);
+        Ide.ide_atapi.Probe(stockCsharp.Item1);
+        Scsi.scsi_cd_c.Probe(stockCsharp.Item2);
+        Scsi.scsi_zip_c.Probe(stockCsharp.Item3);
+        Lpt.lpt.Probe(stockCsharp.Item4);
         var cdCsharp = ExpectCd is null ? (0, 0)
             : (Ide.ide.ide_drives[canalCd].type,
                Ide.ide_atapi.atapi is null ? 0 : Ide.ide_atapi.atapi == Cdrom.cdrom_image.image_atapi ? 2 : 1);
@@ -920,6 +1014,7 @@ public static class BootDiff
                  | CompareAha(ahaOracle, ahaCsharp, nFatalOracle)
                  | CompareDma(dmaOracle, dmaCsharp)
                  | CompareEmu(emuOracle, emuCsharp)
+                 | CompareStockage(stockOracle, stockCsharp)
                  | CompareImages(discA, oracleA, csharpA, "A:")
                  | CompareImages(discB, oracleB, csharpB, "B:")
                  | CompareImages(discHd[0], oracleHd[0], csharpHd[0], "C: (disque dur)")

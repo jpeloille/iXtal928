@@ -1908,4 +1908,65 @@ internal static partial class scsi_cd_c
                                                          scsi_cd_atapi_identify, scsi_cd_atapi_set_feature,
                                                          scsi_cd_read, scsi_cd_write, scsi_cd_read_complete,
                                                          scsi_cd_write_complete);
+
+    // iXtal26 (outillage, sans pendant C) — GR.2a : la sonde du lecteur de CD, champ pour champ celle
+    //   d'h_cd_data_probe (tools/oracle/harness_scsi_cd.c). Sans lecteur monté : tout à zéro.
+    internal const int PROBE_N = 37;
+
+    private static uint64_t fnv(uint8_t[] p, int n)
+    {
+        uint64_t h = 1469598103934665603UL;
+        for (var c = 0; c < n; c++)
+        {
+                h ^= p[c];
+                h *= 1099511628211UL;
+        }
+        return h;
+    }
+
+    internal static void Probe(uint64_t[] o)
+    {
+        Array.Clear(o, 0, PROBE_N);
+        var d = cd_data;
+        var i = 0;
+        if (d is null)
+                return;
+        o[i++] = 1;
+        o[i++] = (uint32_t)d.blocks;
+        o[i++] = (uint32_t)d.cmd_pos;
+        o[i++] = (uint32_t)d.new_cmd_pos;
+        o[i++] = (uint32_t)d.callback_timer.enabled;
+        o[i++] = (uint32_t)d.wait_time;
+        o[i++] = (uint32_t)d.addr;
+        o[i++] = (uint32_t)d.len;
+        o[i++] = (uint32_t)d.sector_pos;
+        o[i++] = fnv(d.buf, 512);
+        o[i++] = d.status;
+        o[i++] = (uint32_t)d.data_pos_read;
+        o[i++] = (uint32_t)d.data_pos_write;
+        o[i++] = (uint32_t)d.data_bytes_read;
+        o[i++] = (uint32_t)d.bytes_expected;
+        o[i++] = (uint32_t)d.cdlen;
+        o[i++] = (uint32_t)d.cdpos;
+        o[i++] = (uint32_t)d.bytes_received;
+        o[i++] = (uint32_t)d.bytes_required;
+        o[i++] = (uint32_t)d.sense_key | ((uint64_t)(uint32_t)d.asc << 16) | ((uint64_t)(uint32_t)d.ascq << 32);
+        o[i++] = (uint32_t)d.id;
+        o[i++] = (uint32_t)d.received_cdb;
+        o[i++] = fnv(d.cdb, CDB_MAX_LEN);
+        o[i++] = (uint32_t)d.prev_status;
+        o[i++] = (uint32_t)d.cd_status;
+        o[i++] = d.prefix_len;
+        o[i++] = d.page_current;
+        o[i++] = (uint32_t)d.is_atapi;
+        o[i++] = (uint32_t)d.pio_mode;
+        o[i++] = (uint32_t)d.mdma_mode;
+        o[i++] = (uint32_t)d.short_seek;
+        o[i++] = (uint32_t)d.long_seek;
+        o[i++] = (uint32_t)d.max_speed;
+        o[i++] = (uint32_t)d.cur_speed;
+        o[i++] = (uint32_t)d.cur_model;
+        o[i++] = fnv(d.data_in, BUFFER_SIZE);
+        o[i++] = fnv(d.data_out, BUFFER_SIZE);
+    }
 }

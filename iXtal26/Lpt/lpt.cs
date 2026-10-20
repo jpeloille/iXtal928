@@ -282,4 +282,43 @@ internal static class lpt
     // iXtal26 — le registre est rempli une fois par processus, comme pcem_add_lpt à l'amorçage de
     // l'application (wx-main, plugin), et non à chaque initpc.
     static lpt() { lpt_init_builtin(); }
+
+    // iXtal26 (outillage, sans pendant C) — GR.2a : la sonde de LPT1 et LPT2, champ pour champ celle d'h_lpt_probe
+    //   (tools/oracle/harness_lpt.c) : les registres des deux ports, le périphérique de LPT1, la DSS (la file en deux
+    //   mots, les index, le DAC, le chronomètre), le Covox (les valeurs, stéréo, le canal).
+    internal const int PROBE_N = 15;
+
+    internal static void Probe(uint64_t[] o)
+    {
+        Array.Clear(o, 0, PROBE_N);
+        var i = 0;
+        o[i++] = lpt1_dat;
+        o[i++] = lpt1_ctrl;
+        o[i++] = lpt2_dat;
+        o[i++] = lpt2_ctrl;
+        if (ReferenceEquals(lpt1_device, lpt_dss.dss_device) && lpt1_device_p is dss_t d)
+        {
+                o[i++] = 1;
+                for (var c = 0; c < 8; c++)
+                {
+                        o[i] |= (uint64_t)d.fifo[c] << (8 * c);
+                        o[i + 1] |= (uint64_t)d.fifo[c + 8] << (8 * c);
+                }
+                i += 2;
+                o[i++] = (uint32_t)d.read_idx;
+                o[i++] = (uint32_t)d.write_idx;
+                o[i++] = d.dac_val;
+                o[i++] = (uint32_t)d.timer.enabled;
+        }
+        else if ((ReferenceEquals(lpt1_device, lpt_dac.lpt_dac_device) ||
+                  ReferenceEquals(lpt1_device, lpt_dac.lpt_dac_stereo_device)) && lpt1_device_p is lpt_dac_t a)
+        {
+                o[i++] = ReferenceEquals(lpt1_device, lpt_dac.lpt_dac_device) ? 2UL : 3UL;
+                i += 6;
+                o[i++] = a.dac_val_l;
+                o[i++] = a.dac_val_r;
+                o[i++] = (uint32_t)a.is_stereo;
+                o[i++] = (uint32_t)a.channel;
+        }
+    }
 }

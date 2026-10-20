@@ -1352,4 +1352,53 @@ internal static partial class scsi_zip_c
                                                           scsi_zip_atapi_identify, scsi_zip_atapi_set_feature,
                                                           scsi_zip_read, scsi_zip_write, scsi_zip_read_complete,
                                                           scsi_zip_write_complete);
+
+    // iXtal26 (outillage, sans pendant C) — GR.2a : la sonde du ZIP, champ pour champ celle d'h_zip_probe
+    //   (tools/oracle/harness_scsi_zip.c) ; io haché sur 2 × BUFFER_SIZE, data_in puis data_out comme dans le struct
+    //   C : le mode PCem seul (boot-diff), le prolongement de PB-125 en mode matériel n'y est pas. Sans ZIP monté :
+    //   tout à zéro.
+    internal const int PROBE_N = 23;
+
+    private static uint64_t fnv(uint8_t[] p, int n)
+    {
+        uint64_t h = 1469598103934665603UL;
+        for (var c = 0; c < n; c++)
+        {
+                h ^= p[c];
+                h *= 1099511628211UL;
+        }
+        return h;
+    }
+
+    internal static void Probe(uint64_t[] o)
+    {
+        Array.Clear(o, 0, PROBE_N);
+        var d = zip_data;
+        var i = 0;
+        if (d is null)
+                return;
+        o[i++] = 1;
+        o[i++] = (uint32_t)d.blocks;
+        o[i++] = (uint32_t)d.cmd_pos;
+        o[i++] = (uint32_t)d.new_cmd_pos;
+        o[i++] = (uint32_t)d.addr;
+        o[i++] = (uint32_t)d.len;
+        o[i++] = (uint32_t)d.sector_pos;
+        o[i++] = fnv(d.buf, 512);
+        o[i++] = d.status;
+        o[i++] = fnv(d.io, 2 * BUFFER_SIZE);
+        o[i++] = (uint32_t)d.data_pos_read;
+        o[i++] = (uint32_t)d.data_pos_write;
+        o[i++] = (uint32_t)d.bytes_received;
+        o[i++] = (uint32_t)d.bytes_required;
+        o[i++] = (uint32_t)d.disc_loaded;
+        o[i++] = (uint32_t)d.disc_changed;
+        o[i++] = (uint32_t)d.sense_key | ((uint64_t)(uint32_t)d.asc << 16) | ((uint64_t)(uint32_t)d.ascq << 32);
+        o[i++] = (uint32_t)d.hd_id;
+        o[i++] = (uint32_t)d.callback_timer.enabled;
+        o[i++] = (uint32_t)d.is_atapi;
+        o[i++] = (uint32_t)d.read_only;
+        o[i++] = (uint32_t)d.pio_mode;
+        o[i++] = (uint32_t)d.mdma_mode;
+    }
 }
