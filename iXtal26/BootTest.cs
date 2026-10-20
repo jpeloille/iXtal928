@@ -123,12 +123,14 @@ public static class BootTest
             return;
         }
         // G13.9g — « @vram » : l'empreinte de la mémoire vidéo de la carte (le socle SVGA, l'EGA, la MDA ou
-        // l'Hercules), sans rien taper. Le témoin d'un banc qui reste en graphique, ses relevés dessinés en
-        // points (BLTBANC) : en C# seul, sous `banc`, les deux modes se comparent sur la mémoire entière.
+        // l'Hercules ; GR.0c : la CGA, la M24 et le PC1512), sans rien taper. Le témoin d'un banc qui reste en
+        // graphique, ses relevés dessinés en points (BLTBANC) : en C# seul, sous `banc`, les deux modes se comparent
+        // sur la mémoire entière.
         if (text == "@vram")
         {
             var v = Video.vid_svga.svga_get_pri()?.vram ?? Video.vid_ega.Probe?.vram ?? Video.vid_mda.Probe?.vram ??
-                    Video.vid_hercules.Probe?.vram ?? [];
+                    Video.vid_hercules.Probe?.vram ?? Video.vid_cga.Sonde.carte?.vram ??
+                    Video.vid_olivetti_m24.m24_pri?.vram ?? Video.vid_pc1512.pc1512_pri?.vram ?? [];
             var h = 14695981039346656037UL;
             foreach (var o in v)
             {
@@ -136,6 +138,22 @@ public static class BootTest
                 h *= 1099511628211UL;
             }
             Console.WriteLine($"\n--- mémoire vidéo : {v.Length} octets, empreinte FNV-1a {h:X16} ---");
+            return;
+        }
+        // GR.0c — « @image » : l'empreinte de ce que @shot écrirait (les points RVB de xsize × ysize, en haut à gauche
+        // de Buffer32), sans fichier. Le témoin d'un banc qui finit en graphique, en C# seul : la mémoire dit ce que
+        // la carte garde, l'image ce que son balayage en a dessiné.
+        if (text == "@image")
+        {
+            var h = 14695981039346656037UL;
+            int w = Video.video.xsize, ht = Video.video.ysize;
+            foreach (var row in ImageRows())
+                foreach (var o in row)
+                {
+                    h ^= o;
+                    h *= 1099511628211UL;
+                }
+            Console.WriteLine($"\n--- image {w}x{ht}, empreinte FNV-1a {h:X16} ---");
             return;
         }
         // G8.3 — « @son » : l'état de la carte son, sans rien taper. Le témoin qu'un logiciel
@@ -280,11 +298,21 @@ public static class BootTest
 
     private static void WritePpm(string path)
     {
-        var b = Video.video.Buffer32;
-        int w = Video.video.xsize, h = Video.video.ysize, stride = Video.video.Stride;
+        int w = Video.video.xsize, h = Video.video.ysize;
         using var f = File.Create(path);
         var head = System.Text.Encoding.ASCII.GetBytes($"P6\n{w} {h}\n255\n");
         f.Write(head);
+        foreach (var row in ImageRows())
+            f.Write(row);
+        Console.WriteLine($"\n--- écran {w}x{h} écrit dans {path} ---");
+    }
+
+    /// <summary>Les rangées de l'image, en RVB : xsize × ysize en haut à gauche de Buffer32, ce que svga_doblit
+    /// présente. Une seule rangée, réécrite à chaque pas.</summary>
+    private static IEnumerable<byte[]> ImageRows()
+    {
+        var b = Video.video.Buffer32;
+        int w = Video.video.xsize, h = Video.video.ysize, stride = Video.video.Stride;
         var row = new byte[w * 3];
         for (var y = 0; y < h; y++)
         {
@@ -295,9 +323,8 @@ public static class BootTest
                 row[x * 3 + 1] = (byte)(px >> 8);
                 row[x * 3 + 2] = (byte)px;
             }
-            f.Write(row);
+            yield return row;
         }
-        Console.WriteLine($"\n--- écran {w}x{h} écrit dans {path} ---");
     }
 
     /// <summary>Le framebuffer, lui, est rempli par cga_poll — un chemin

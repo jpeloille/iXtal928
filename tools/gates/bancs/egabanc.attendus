@@ -1,22 +1,35 @@
 # EGABANC (tools/egabanc) sous PC-DOS 2.00, sur le 5150 et l'EGA d'IBM de 256 Ko, en C# seul sous --boot (G13.9g),
-# dans les deux modes (le domaine vidéo en mode matériel). Les 41 octets relevés, dans l'ordre :
-#   le premier octet de B800:0000 ; 3DAh lu 2 000 fois sur l'écran texte, le OU et le ET ; le verrou relu en XOR, la
-#   copie des verrous en mode d'écriture 1, la lecture en mode 1 (deux octets, puis « don't care »), les quatre plans
-#   relus (six octets chacun) ; 3DAh lu 2 000 fois sur le motif du mode 0Dh, le OU et le ET ; le plan 2 en 10h (deux
-#   octets) ; B800 en mode 04h (deux octets) ; CR00, 01, 06, 09, 0C, 13, 14 et 17 relus ; l'attribut 10h relu ; 3DAh.
+# dans les deux modes (le domaine vidéo en mode matériel). Les 58 octets relevés (48 avant GR.0c, quand l'en-tête en
+# disait 41, R1-contre A8), dans l'ordre :
+#   le premier octet de B800:0000 ; 3DAh lu 2 000 fois sur l'écran texte, le OU et le ET ; le verrou relu en XOR ; les
+#   verrous de AND et de OR relus (GR.0c : C3h et 81h, ceux du plan 0) ; la copie des verrous en mode d'écriture 1, la
+#   lecture en mode 1 (deux octets, puis « don't care ») ; les quatre plans relus (huit octets chacun : 0, 1, 2, 3,
+#   10h, 20h, puis AND en 5 et OR en 6) ; 3DAh lu 2 000 fois sur le motif du mode 0Dh, le OU et le ET ; le plan 2 en
+#   10h (deux octets) ; B800 en mode 04h (deux octets) ; CR00, 01, 06, 09, 0C, 13, 14 et 17 relus ; l'attribut 10h
+#   relu ; 3DAh.
+# GR.0c — AND (GR3 = 08h) et OR (10h), chacun sur des verrous connus, un par plan (C3h, 3Ch, F0h, 0Fh et 81h, 18h,
+#   00h, FFh), l'octet 5Ah écrit : AND rend 42h, 18h, 50h, 0Ah ; OR, DBh, 5Ah, 5Ah, FFh. L'octet 3 des plans suit : il
+#   est écrit sous le masque de bits 0Fh, sa moitié haute tirée des verrous, que le OR vient de charger (8, 1, 0, F ;
+#   3 avant, ceux du XOR).
+# Puis le banc imprime ses relevés, attend une touche et finit en 10h : seize des 64 couleurs, en bandes (le mode
+#   d'écriture 2), le mode de 350 lignes (l'image en présente 349), et l'invite de DOS. La mémoire vidéo (@vram) et
+#   l'image (@image, ce que @shot écrirait) après la fin : les mêmes dans les deux modes, mesuré.
 # Les deux modes rendent les mêmes octets, sauf le dernier :
 #   3DAh, OU 39h et ET 00h : PCem bascule les bits 4-5 à chaque lecture (PB-99 (4)) ; en mode matériel, ils viennent
 #     du faisceau (G13.9f), et les points de l'écran (le texte de DOS, puis le motif) les allument en passant ; le bit
 #     0 et le bit 3 bougent dans les deux modes ; le dernier 3DAh, lu une fois : le bit 0, l'instant de la lecture.
-#     Depuis GR.4c, le vidage de l'écran entre les lignes tapées lit la VRAM brute et ne facture plus 2 000
-#     lectures de cycles à l'invité : l'instant glisse, et le bit vaut 00h en mode PCem et sous « tout », 01h sous
-#     « video » (01h partout avant ; le faisceau dépend de tous les temps du mode, G13.10c). Sous une autre demande
-#     du mode matériel, cette dernière ligne n'est pas vérifiée.
+#     Il suit les temps de tout ce qui précède : 01h dans les deux modes jusqu'à GR.4c ; avec GR.4c (le vidage ne
+#     facture plus de cycles), 00h en mode PCem et sous « tout », 01h sous « video » ; avec GR.0c (le banc plus long,
+#     sa saisie dans DEBUG aussi), 01h en mode PCem, 00h sous « video » et sous « tout » (le faisceau dépend de tous
+#     les temps du mode, G13.10c). Sous une autre demande du mode matériel, cette dernière ligne n'est pas vérifiée.
 #   CR00 à CR17 et l'attribut 10h relus : la valeur relue est inconnue (PB-99 (3)), celle de PCem dans les deux modes.
 #   Les plans, les verrous, les modes d'écriture et de lecture : aucune correction ne les touche (PB-99 (6) ne joue
 #   qu'avec 64 Ko).
-2D390030FFFF0000FFFFCF3FFFFFFF00
-CF3FFF00FFFFCF3FFFFFFF00CF3FFF00
-pcem: 390089B4E7E137270401001400A21000
-materiel[video]: 390089B4E7E137270401001400A21001
-materiel[tout]: 390089B4E7E137270401001400A21000
+2D390030C381FFFF0000FFFFCF8FFFFF
+42DBFF00CF1FFF00185AFFFFCF0FFFFF
+505AFF00CFFFFF000AFF390089B4E7E1
+pcem: 37270401001400A21001
+materiel[video]: 37270401001400A21000
+materiel[tout]: 37270401001400A21000
+--- mémoire vidéo : 262144 octets, empreinte FNV-1a E69B605EEC24EFCF ---
+--- image 640x349, empreinte FNV-1a B3012064DFFC30B8 ---

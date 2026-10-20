@@ -6,10 +6,13 @@
 #
 # Par le BIOS de la carte (INT 10h) il passe en 0Dh, 0Eh, 10h, 04h puis revient en texte ; entre
 # deux, il programme le contrôleur graphique et le séquenceur directement : masque de plans,
-# set/reset, rotation et fonctions logiques, masque de bits, modes d'écriture 0, 1 et 2, lecture
-# en mode 1 (comparaison de couleur) et sélection du plan lu, les verrous ; il remplit les plans,
-# relit des octets et échantillonne 3DAh. Le diff d'instructions voit les lectures ; la sonde de
-# l'EGA, les registres, la palette, la VRAM de 256 Ko et le balayage.
+# set/reset, rotation et fonctions logiques (XOR, AND et OR, GR.0c : chacune sur des verrous
+# connus, un par plan), masque de bits, modes d'écriture 0, 1 et 2, lecture en mode 1
+# (comparaison de couleur) et sélection du plan lu, les verrous ; il remplit les plans, relit des
+# octets et échantillonne 3DAh. Puis il imprime ses relevés en texte, attend une touche et finit
+# en 10h (GR.0c) : seize couleurs prises parmi les 64 de l'attribut, en bandes, 640 × 350 ; DOS
+# rend la main dans ce mode. Le diff d'instructions voit les lectures ; la sonde de l'EGA, les
+# registres, la palette, la VRAM de 256 Ko, le balayage et l'image du mode testé.
 # Instructions 8086 seules ; saisi dans DEBUG (disquette supplémentaire de PC-DOS 2.00 en B:),
 # écrit sur B:, lancé sous boot-diff.
 #
@@ -151,7 +154,7 @@ ins(None, 'cld', 1, lambda L, a: [0xFC])
 nxt()
 
 # op 8 : écrire un octet en segment:déplacement
-case(8, 'op8', 'done')
+case(8, 'op8', 'op9')
 ins(None, 'push es', 1, lambda L, a: [0x06])
 ins(None, 'lodsw                ; segment', 1, lambda L, a: [0xAD])
 ins(None, 'mov es,ax', 2, lambda L, a: [0x8E, 0xC0])
@@ -162,8 +165,29 @@ ins(None, 'mov [es:bx],al', 3, lambda L, a: [0x26, 0x88, 0x07])
 ins(None, 'pop es', 1, lambda L, a: [0x07])
 nxt()
 
+# op 9 (GR.0c) : afficher les relevés, attendre une touche (INT 16h), puis continuer le script ; les relevés
+# repartent de zéro
+case(9, 'op9', 'op10')
+ins(None, 'push si', 1, lambda L, a: [0x56])
+ins(None, 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'pop si', 1, lambda L, a: [0x5E])
+ins(None, 'mov di,results', 3, lambda L, a: [0xBF] + w(L['results']))
+ins(None, 'xor ah,ah', 2, lambda L, a: [0x30, 0xE4])
+ins(None, 'int 16h', 2, lambda L, a: [0xCD, 0x16])
+nxt()
+
+# op 10 (GR.0c) : IN AL,port sans relevé (3DAh : la bascule de l'attribut remise à l'index)
+case(10, 'op10', 'done')
+ins(None, 'lodsw                ; port', 1, lambda L, a: [0xAD])
+ins(None, 'mov dx,ax', 2, lambda L, a: [0x89, 0xC2])
+ins(None, 'in al,dx', 1, lambda L, a: [0xEC])
+nxt()
+
 # op 0 (et tout inconnu) : afficher les relevés, seize octets par ligne, puis sortir
-ins('done', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
+ins('done', 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
+ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('imprime', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
 ins(None, 'xor bp,bp', 2, lambda L, a: [0x31, 0xED])
 ins('p0', 'cmp si,di', 2, lambda L, a: [0x39, 0xFE])
 ins(None, 'jae fin', 2, lambda L, a: [0x73, rel8(L, a + 2, 'fin')])
@@ -182,8 +206,7 @@ ins(None, 'mov dx,crlf', 3, lambda L, a: [0xBA] + w(L['crlf']))
 ins(None, 'mov ah,9', 2, lambda L, a: [0xB4, 0x09])
 ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
 ins(None, 'jmp p0', 2, lambda L, a: [0xEB, rel8(L, a + 2, 'p0')])
-ins('fin', 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
-ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('fin', 'ret', 1, lambda L, a: [0xC3])
 ins('nib', "add al,'0'", 2, lambda L, a: [0x04, 0x30])
 ins(None, "cmp al,'9'", 2, lambda L, a: [0x3C, 0x39])
 ins(None, 'jbe nibp', 2, lambda L, a: [0x76, rel8(L, a + 2, 'nibp')])
@@ -203,6 +226,8 @@ def INB(port): return [5] + w(port)
 def SAMPLE(port, n): return [6] + w(port) + w(n)
 def MODE(m): return [7] + w(m)
 def POKE(seg, off, v): return [8] + w(seg) + w(off) + [v]
+def PAUSE(): return [9]
+def INX(port): return [10] + w(port)
 def GC(i, v): return OUTB(0x3CE, i) + OUTB(0x3CF, v)
 def SEQ(i, v): return OUTB(0x3C4, i) + OUTB(0x3C5, v)
 A = 0xA000
@@ -215,6 +240,12 @@ S += GC(0, 0x05) + GC(1, 0x0F) + POKE(A, 0x0001, 0x00)  # set/reset : plans 0 et
 S += GC(1, 0x00)
 S += GC(3, 0x03) + POKE(A, 0x0002, 0x81)                # rotation de 3
 S += GC(3, 0x18) + PEEK(A, 0x0002) + POKE(A, 0x0002, 0xFF)   # XOR sur les verrous
+S += GC(3, 0x00)                                        # GR.0c : des verrous connus, un par plan, en 5 et en 6
+for p in range(4):
+    S += SEQ(2, 1 << p) + POKE(A, 0x0005, (0xC3, 0x3C, 0xF0, 0x0F)[p]) + POKE(A, 0x0006, (0x81, 0x18, 0x00, 0xFF)[p])
+S += SEQ(2, 0x0F)
+S += GC(3, 0x08) + PEEK(A, 0x0005) + POKE(A, 0x0005, 0x5A)   # AND : 42h, 18h, 50h, 0Ah
+S += GC(3, 0x10) + PEEK(A, 0x0006) + POKE(A, 0x0006, 0x5A)   # OR : DBh, 5Ah, 5Ah, FFh
 S += GC(3, 0x00) + GC(8, 0x0F) + POKE(A, 0x0003, 0xFF) + GC(8, 0xFF)   # masque de bits
 S += SEQ(2, 0x05) + POKE(A, 0x0004, 0xAA) + SEQ(2, 0x0F)              # masque de plans
 S += GC(5, 0x01) + PEEK(A, 0x0000) + POKE(A, 0x0010, 0x00)            # mode 1 : copie des verrous
@@ -223,7 +254,9 @@ S += GC(5, 0x08) + GC(2, 0x05) + GC(7, 0x0F) + PEEK(A, 0x0020) + PEEK(A, 0x0021)
 S += GC(7, 0x05) + PEEK(A, 0x0021)                                    # « don't care »
 S += GC(5, 0x00)
 for p in range(4):                                       # le plan lu
-    S += GC(4, p) + PEEK(A, 0x0000) + PEEK(A, 0x0001) + PEEK(A, 0x0002) + PEEK(A, 0x0003) + PEEK(A, 0x0010) + PEEK(A, 0x0020)
+    S += GC(4, p)
+    for o in (0x0000, 0x0001, 0x0002, 0x0003, 0x0010, 0x0020, 0x0005, 0x0006):
+        S += PEEK(A, o)
 S += FILL(A, 0x0100, 0x1F00, 0x11, 0x0B)                # un motif sur l'écran
 S += WAIT(3) + SAMPLE(0x3DA, 2000)
 S += MODE(0x000E) + FILL(A, 0x0000, 0x4000, 0x3C, 0x05) + WAIT(3)     # 640×200
@@ -235,6 +268,14 @@ for r in (0x00, 0x01, 0x06, 0x09, 0x0C, 0x13, 0x14, 0x17):            # le CRTC 
     S += OUTB(0x3D4, r) + INB(0x3D5)
 S += OUTB(0x3C0, 0x10) + INB(0x3C1) + INB(0x3DA)                      # l'attribut 10h se relit
 S += MODE(0x0003)                                       # retour au texte
+S += PAUSE()                                            # GR.0c : les relevés, une touche
+S += MODE(0x0010) + INX(0x3DA)                          # puis la fin en 10h, 640×350 ; la bascule à l'index
+for i, c in enumerate((0x00, 0x09, 0x12, 0x1B, 0x24, 0x2D, 0x36, 0x3F, 0x08, 0x11, 0x1A, 0x23, 0x2C, 0x35, 0x3E, 0x07)):
+    S += OUTB(0x3C0, i) + OUTB(0x3C0, c)                # l'attribut : seize des 64 couleurs (rgbRGB)
+S += OUTB(0x3C0, 0x20)                                  # la palette rendue au balayage
+S += GC(5, 0x02) + FILL(A, 0x0000, 0x6D60, 0x00, 0x01)  # mode d'écriture 2 : des bandes de seize couleurs
+S += FILL(A, 0x2490, 0x2490, 0x0F, 0xFF)                # le tiers du milieu, à rebours
+S += GC(5, 0x00)
 S += [0]
 
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))

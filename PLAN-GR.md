@@ -187,7 +187,7 @@ sous-ensemble ciblé (moins de 15 min).
 - **Les contrôles négatifs** : l'avertissement retiré ; le filtre de l'écran retiré ; `builtin` refusé.
 - **La série** : `pc.cs` change, la série entière ; attendu : identique à l'unité, plus une porte.
 
-### GR.0c — Les bancs vidéo qui finissent dans le mode testé (avec GR.1e)
+### GR.0c — Les bancs vidéo qui finissent dans le mode testé (avec GR.1e)  ✅ *fait, VERIFICATION.md § GR.0c*
 
 GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, après la sonde de l'image (R0-contre A2).
 

@@ -13759,3 +13759,133 @@ mineurs sont repris :
 - Le `--boot` de la M24 nomme encore son écran « écran texte CGA » : le vidage passe par la carte, en B800.
 - L'option `--gfxcard` d'iXtal26 dit toujours ses cartes sans `builtin` dans l'aide ; aucun essai ne passe par elle
   (elle appelle le même `setgfxcard` que la clé).
+
+## GR.0c — Les bancs vidéo qui finissent dans le mode testé (avec GR.1e)
+
+Le 20 octobre 2026. Depuis GR.0b, la sonde de fin de boot-diff hache l'image de chaque carte. Mais les bancs vidéo
+revenaient au texte avant de sortir (R0-contre C10) : l'image comparée était celle de l'invite de DOS, et aucun chemin
+de points graphique n'était comparé hors de la VGA. GR.1e (AND et OR dans EGABANC) touchait le même générateur : les
+deux font une seule étape (R0-contre A2).
+
+**Les bancs.**
+- **EGABANC** (`tools/egabanc/egabanc.py`) :
+  - il gagne AND (GR3 = 08h) et OR (10h), chacun sur des verrous connus, un par plan (C3h, 3Ch, F0h, 0Fh et 81h,
+    18h, 00h, FFh), avec l'octet 5Ah écrit en 5 et en 6, et les deux relus dans les quatre plans ;
+  - puis il imprime ses relevés en texte, attend une touche (une op neuve, INT 16h) et finit en 10h : seize des 64
+    couleurs posées dans l'attribut, en bandes par le mode d'écriture 2, 350 lignes ;
+  - DOS rend la main dans ce mode.
+- **HERCBANC** (`tools/hercbanc/hercbanc.py`) : les mêmes relevés, puis la touche, puis le graphique sur la page 1, son
+  motif intact. L'invite de DOS s'écrit en B000, dans la page 0, qui ne s'affiche pas.
+- **CGABANC** (`tools/cgabanc/cgabanc.py`, neuf, l'interprète d'EGABANC) :
+  - par le BIOS en 4, en 5, en 6 et en 1 ;
+  - dans chaque mode graphique, un motif sur les 16 Ko, 3DAh lu 2 000 fois, deux octets relus, et 3D9h tourné (le
+    fond et la bordure, l'intensité, la palette) ;
+  - en 1, un écran d'attributs et une bordure rouge ;
+  - R12 à R15 relus ;
+  - puis la touche, et la fin en 4 (la palette 1 intense, le fond bleu).
+
+  Deux jeux de frappes : `cgabanc.keys` pour le 5150 et `cgabanc-m24.keys` pour la M24, qui finit en 40h.
+- **Le 640 × 400 de la M24**, mesuré d'abord, par une instrumentation jetable qui lisait `m24.ctrl` après `INT 10h`
+  dans DEBUG : les modes 40h et 48h posent 3DEh = 01h (le bit 0), le mode 6 laisse 00h ; 4Ah n'est pas un mode. Le
+  banc prend 40h.
+
+**L'outil** (`BootTest.cs`).
+- `@image` : l'empreinte FNV-1a de ce que `@shot` écrirait (les points RVB de `xsize × ysize`, en haut à gauche de
+  `Buffer32`), sans fichier. `@shot` et `@image` partagent les rangées (`ImageRows`).
+- `@vram` couvre aussi la CGA, la M24 et le PC1512.
+
+**Les portes** (`series.sh`) :
+- `bd-pc-ega-banc` et `bd-pc-herc-banc` sont recomptées. Elles ont une frappe de plus, la ligne vide qui passe la
+  touche.
+- Neuves sous boot-diff : `bd-pc-cga-banc` (le 5150) et `bd-m24-cga-banc` (la M24).
+- Neuves en C# seul, dans les deux modes : `banc-cgabanc` et `banc-cgabanc-m24`, chacune avec sa variante
+  `-materiel`.
+- Les quatre bancs en C# seul finissent par `@wait 1200`, la touche, `@wait 600`, `@vram` et `@image`.
+
+| Porte | Sonde | Instructions |
+|---|---|---|
+| `bd-pc-ega-banc` | EGA, 33 champs identiques | 258 854 811 |
+| `bd-pc-herc-banc` | Hercules, 20 | 184 811 743 |
+| `bd-pc-cga-banc` | CGA, 25 | 148 231 940 |
+| `bd-m24-cga-banc` | M24, 24 | 249 534 110 |
+
+Les quatre écrans finaux sont graphiques : l'image comparée est celle du mode testé. Hors porte, les images écrites par
+`@shot` montrent les seize couleurs de l'EGA, le motif de la page 1 de l'Hercules, la palette 1 intense de la CGA sur
+fond bleu, et le 640 × 400 de la M24.
+
+**Les attendus du C# seul**, réécrits ou neufs. Chaque octet est expliqué dans son fichier.
+- **EGABANC** : 58 octets (48 avant GR.0c ; l'en-tête en disait 41, R1-contre A8).
+  - AND rend 42h, 18h, 50h et 0Ah ; OR rend DBh, 5Ah, 5Ah et FFh, comme prédit.
+  - L'octet 3 des plans change : il est écrit sous le masque de bits 0Fh, et sa moitié haute vient des verrous, que
+    le OR vient de charger.
+  - Le dernier 3DAh, lu une fois (le bit 0, l'instant de la lecture), glisse encore : 01h en mode PCem, 00h sous
+    « video » et sous « tout ». Avec GR.4c, c'était l'inverse : le banc est plus long, et sa saisie aussi.
+  - La mémoire vidéo et l'image sont les mêmes dans les trois.
+- **HERCBANC** : 27 octets (l'en-tête en disait 30, R1-contre A8).
+  - Le 3BAh lu une fois vaut 80h sous « video » comme sous « tout » (88h sous « video » avant) : le point sous le
+    faisceau est éteint à ce nouvel instant.
+  - La mémoire vidéo diffère d'un octet entre les modes, en 0DC8h : le caractère « 0 » ou « 8 » de ce même relevé,
+    imprimé dans la page 0. Mesuré en vidant la mémoire dans les deux modes.
+  - L'image : les rangées 22 à 347 sont les mêmes dans les trois, les rangées 0 à 21 changent. Le mode graphique compte
+    370 lignes (R4 = 5Bh, R9 = 3, R5 = 2), dont 348 affichées (R6 = 57h). Le retour vertical remet `displine` à 0
+    (`vid_hercules.cs:360`), et ses 22 lignes passent sans dessin : l'affichage commence à la rangée 22 (`firstline`).
+    Les rangées 0 à 21 de `Buffer32` sont donc des restes des trames d'avant le passage au graphique, et ce qu'il en
+    reste dépend de l'instant du passage. En mode matériel, le caractère dure 1 µs en graphique (PB-102), et l'instant
+    change : ces rangées diffèrent de PCem, et aussi entre « video » et « tout ». Chaque empreinte est attendue sous sa
+    liste.
+- **CGABANC** (5150) : 22 octets, les mêmes dans les trois, de même que la mémoire et l'image. Les octets du motif
+  valent la graine plus le pas fois l'offset ; 3DAh rend OU 09h et ET 00h dans chaque mode.
+- **CGABANC sur la M24** : les mêmes octets, sauf 3DAh :
+  - sur l'écran texte, OU 01h ;
+  - en 4, OU 09h en mode PCem et sous « video », 01h sous « tout » : les 2 000 lectures durent moins d'une trame.
+  La mémoire et l'image sont les mêmes dans les trois.
+
+**Le sous-ensemble** (Release, `/tmp/a9/sub-gr0c.sh`, les douze portes touchées), en mode PCem et sous « tout » : tout
+est vert, et sous « tout » les boot-diffs sont refusées comme les autres. Aucune autre porte ne lit ce que l'étape
+change :
+- les générateurs ne servent qu'à ces bancs ;
+- dans `BootTest.cs`, seuls `@vram`, `@image` et `@shot` changent ;
+- `@vram` garde le socle SVGA en tête, et BLTBANC, son seul autre usager, est sur la GD5429.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr0c.py`, Release dans le worktree, une panne à la fois, restaurée). Chaque
+panne est jouée sur sa porte neuve et sur l'ancien témoin en texte de la même carte :
+
+| | Panne | Porte du banc | Témoin en texte |
+|---|---|---|---|
+| N1 | AND et OR échangés (`ega_logic`) | rouge : instruction 249 632 173, AL 42h contre DBh | `bd-pcdos-ega` vert |
+| N2 | EGA, `ega_draw_4bpp_highres` : le plan 3 masqué | rouge, `#buffer32` seul | `bd-pcdos-ega` vert |
+| N3 | Hercules en graphique : `cgapal[0xf]` au lieu de `[0x7]` | rouge, `#buffer32` seul | `bd-pcdos-hercules` vert |
+| N4 | CGA en 4, palette 1 : `col \| 6` au lieu de `col \| 5` | rouge, `#buffer32` seul | `bd-pcdos-cga` vert |
+| N5 | M24 en 640 × 400 : `cgapal[7]` au lieu de `[15]` | rouge, `#buffer32` seul | `bd-m24-dir` vert |
+| T | restaurés | les quatre portes des bancs vertes | |
+
+Les témoins en texte ne voient aucune de ces pannes : c'est le trou que GR.0c ferme.
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- réassemblé les quatre jeux de frappes en mémoire, identiques aux fichiers ;
+- vérifié les encodages des ops neuves et les registres que la pause rend ;
+- refait à la main AND, OR, l'octet 3 des plans et les octets du motif ;
+- recompté les octets de chaque en-tête ;
+- vérifié que `@vram` n'a qu'une sonde non nulle à la fois, chacune remise à nul à la fermeture.
+
+Ses points sont repris :
+- l'explication des 22 rangées de l'Hercules, qui citait à tort PB-89 (la ligne de 45 caractères ne déborde pas) et
+  parlait d'un dessin pendant le retour : ce sont des restes, réécrit ci-dessus et dans `hercbanc.attendus` ;
+- deux formulations : 3DAh de la M24 « ne rencontre pas » le retour vertical, et les bits du crayon optique de la CGA
+  sont ceux de PCem, inconnus sur la carte ;
+- « 350 lignes » contre l'image de 640 × 349.
+
+Les huit portes `banc-*` sont rejouées sur les attendus finaux : vertes. Le `cld` qu'elle proposait après la pause
+n'est pas pris : rien ne l'exige (l'IRET rend le drapeau), et il aurait changé les frappes mesurées.
+
+**Ce que ce vert ne dit pas.**
+- Le PC1512 n'a pas de banc neuf : PC1512BANC le couvre déjà, en 6 avec ses plans (`bd-pc1512-plan`).
+- Le mode 5 de la CGA, le 6 et le 1 ne sont pas l'écran final : leur image n'est comparée qu'en passant, par ce qu'il
+  en reste dans `Buffer32`. Seuls le 4, le 10h, le graphique de l'Hercules et le 40h de la M24 sont les modes finaux.
+- Le mode 0Dh et le 0Eh de l'EGA, de même.
+- `@image` hache `xsize × ysize` en haut à gauche de `Buffer32`, comme `@shot`, et non le rectangle que la carte
+  présente à partir de `firstline`. Pour l'Hercules en graphique, l'empreinte prend 22 rangées de restes et laisse les
+  22 dernières lignes affichées. La sonde de boot-diff hache `Buffer32` entier : elle les voit.
+- En mode matériel, l'empreinte de l'image est un témoin de non-régression, pas une valeur tirée de la carte (décision
+  n° 2).
+- Les attendus du mode matériel ne valent que pour « video » et « tout » quand un octet suit le faisceau.

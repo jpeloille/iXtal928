@@ -277,7 +277,12 @@ run bd-ibmat-mda boot-diff roms 3000 --model ibmat --gfxcard mda
 run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
 mapfile -t HBK < tools/hercbanc/hercbanc.keys
 HBB=(); for l in "${HBK[@]}"; do HBB+=(--type "$l"); done
-run bd-pc-herc-banc boot-diff roms 11000 --gfxcard hercules --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${HBB[@]}" --type "^" --type "^"
+# GR.0c — le banc imprime ses relevés, attend une touche (la ligne vide), puis finit sur la page 1 du graphique : la
+# sonde compare l'image du mode testé.
+run bd-pc-herc-banc boot-diff roms 11000 --gfxcard hercules \
+  --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" \
+  "${HBB[@]}" --type "^" --type "^" --type "" --type "^"
 # G9.2 — l'EGA d'IBM : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT,
 # l'ami286, l'ami386 ; le banc EGABANC (modes 0Dh, 0Eh, 10h, 04h ; plans, set/reset, rotation,
 # fonctions logiques, masque de bits, modes d'écriture 0-2, lecture en mode 1) saisi dans DEBUG sur
@@ -287,7 +292,26 @@ run bd-ami286-ega boot-diff roms 3000 --model ami286 --gfxcard ega
 run bd-ami386-ega boot-diff roms 3000 --model ami386 --gfxcard ega
 mapfile -t EBK < tools/egabanc/egabanc.keys
 EBB=(); for l in "${EBK[@]}"; do EBB+=(--type "$l"); done
-run bd-pc-ega-banc boot-diff roms 11000 --gfxcard ega --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${EBB[@]}" --type "^" --type "^"
+# GR.0c — AND et OR sur des verrous connus ; les relevés imprimés, une touche, puis la fin en 10h (seize des 64
+# couleurs) : la sonde compare l'image du mode testé.
+run bd-pc-ega-banc boot-diff roms 11000 --gfxcard ega \
+  --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" \
+  "${EBB[@]}" --type "^" --type "^" --type "" --type "^"
+# GR.0c — la CGA d'IBM : le banc CGABANC (modes 4, 5, 6 et 1, 3D9h, l'intensité, la bordure, le 6845 relu) saisi
+# dans DEBUG sur le 5150 ; il finit en 4. Le même sur la M24, qui finit en 40h, le 640 × 400 (3DEh bit 0).
+mapfile -t CBK < tools/cgabanc/cgabanc.keys
+CBB=(); for l in "${CBK[@]}"; do CBB+=(--type "$l"); done
+mapfile -t CMK < tools/cgabanc/cgabanc-m24.keys
+CMB=(); for l in "${CMK[@]}"; do CMB+=(--type "$l"); done
+run bd-pc-cga-banc boot-diff roms 11000 --gfxcard cga \
+  --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" \
+  "${CBB[@]}" --type "^" --type "^" --type "" --type "^"
+run bd-m24-cga-banc boot-diff roms 11000 --model olivetti_m24 \
+  --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" \
+  "${CMB[@]}" --type "^" --type "^" --type "" --type "^"
 # G9.3 — la Tseng ET4000AX (carte ISA) : l'ami286 et l'ami386dx (sans VLB), l'ami486 (POST court et
 # complet) ; le banc ET4BANC (modes Tseng 2Eh et 30h, banques de 3CDh, RAMDAC SC1502x, CR33-CR35)
 # saisi dans DEBUG sur l'ami386dx (CMOS f386.nvr). Le BIOS de la carte ne rend pas VESA (mesuré).
@@ -301,12 +325,20 @@ runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --confi
 # G13.9g — les bancs de la vidéo en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine vidéo) :
 # EGABANC et HERCBANC sur le 5150, ET4BANC sur l'ami386dx, BLTBANC sur l'ami486 et la GD5429 (il reste en graphique :
 # l'empreinte de la mémoire vidéo, @vram). boot-diff les joue contre l'oracle plus haut, et refuse le mode matériel.
+# GR.0c — EGABANC, HERCBANC et CGABANC (le 5150, la M24) impriment leurs relevés, attendent une touche et finissent
+# dans le mode testé : @vram et @image (l'empreinte de ce que @shot écrirait) après la fin.
 for m in "" "-materiel"; do
   h=(); [ -n "$m" ] && h=(--hardware-mode video)
+  fin=(--type "@wait 1200" --type "" --type "@wait 600" --type "@vram" --type "@image")
   run banc-egabanc$m "${h[@]}" banc tools/gates/bancs/egabanc.attendus -- --boot roms 11000 --gfxcard ega \
-    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${EBB[@]}" --type "@wait 3000"
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${EBB[@]}" "${fin[@]}"
   run banc-hercbanc$m "${h[@]}" banc tools/gates/bancs/hercbanc.attendus -- --boot roms 11000 --gfxcard hercules \
-    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${HBB[@]}" --type "@wait 3000"
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${HBB[@]}" "${fin[@]}"
+  run banc-cgabanc$m "${h[@]}" banc tools/gates/bancs/cgabanc.attendus -- --boot roms 11000 --gfxcard cga \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${CBB[@]}" "${fin[@]}"
+  run banc-cgabanc-m24$m "${h[@]}" banc tools/gates/bancs/cgabanc-m24.attendus -- --boot roms 11000 \
+    --model olivetti_m24 --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" \
+    "${CMB[@]}" "${fin[@]}"
   runw banc-et4banc$m f386.nvr ami386dx_opti495 "${h[@]}" banc "$REPO/tools/gates/bancs/et4banc.attendus" -- \
     --boot roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --floppy-a "$REPO/$DOS" \
     --floppy-b "$REPO/os/pcdos20/pcdos20s.img" --settle 600 --type "" --type "" "${T4B[@]}" --type "@wait 3000"

@@ -1,0 +1,21 @@
+# CGABANC (tools/cgabanc, GR.0c) sous PC-DOS 2.00, sur le 5150 et la CGA d'IBM, en C# seul sous --boot, dans les deux
+# modes (le domaine vidéo en mode matériel). Les 22 octets relevés, dans l'ordre :
+#   le premier octet de B800:0000 ; 3DAh lu 2 000 fois sur l'écran texte, le OU
+#   et le ET ; puis en 4, en 5 et en 6, après le motif : 3DAh lu 2 000 fois (OU, ET), B800:0001 et B800:3FFF ; en 1
+#   (40 × 25) : 3DAh lu 2 000 fois, B800:07CF ; R12 à R15 du 6845 relus.
+#   3DAh, OU 09h et ET 00h dans chaque mode : le bit 0 (l'affichage) et le bit 3 (le retour vertical) bougent ; les
+#     bits 1 et 2 (le crayon optique) restent à 0, comme chez PCem : sur la carte réelle, inconnu (le bit 2 suit
+#     l'interrupteur du crayon). 3DAh se lit comme chez PCem (cgastat) ; les 2 000 lectures durent
+#     moins d'une trame, et rencontrent le retour vertical en mode PCem, sous « video » et sous « tout » (mesuré).
+#   Les octets du motif : la graine plus le pas fois l'offset, modulo 256 (1Bh + 1 et 1Bh + 3FFFh en 4 : 1Ch, 1Ah ;
+#     E4h + 3 et E4h + 3 × 3FFFh en 5 : E7h, E1h ; 55h + 7 et 55h + 7 × 3FFFh en 6 : 5Ch, 4Eh ; 41h + 7CFh en 1 : 10h).
+#   R12 à R15 : 0, l'adresse de départ et le curseur que pose le BIOS en 1 ; la valeur relue est celle de PCem dans
+#     les deux modes (PB-230, la seule correction du 6845 de la CGA, ne touche que R16 et R17).
+# Puis le banc imprime ses relevés, attend une touche et finit en 4 : 320 × 200 en quatre couleurs, la palette 1
+#   intense, le fond et la bordure bleus (3D9h = 31h), et l'invite de DOS. La mémoire vidéo (@vram) et l'image
+#   (@image, ce que @shot écrirait) après la fin : les mêmes dans les deux modes, sous « video » et sous « tout »,
+#   mesuré.
+2D090009001C1A0900E7E109005C4E09
+001000000000
+--- mémoire vidéo : 16384 octets, empreinte FNV-1a 7DAC5FC5B335276E ---
+--- image 656x200, empreinte FNV-1a B363382F9EB54C1B ---

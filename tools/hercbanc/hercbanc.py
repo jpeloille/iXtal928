@@ -7,8 +7,11 @@
 # Il programme la carte comme un logiciel graphique de 1987 : 3BFh (graphique autorisé, seconde
 # page ouverte), 3B8h (graphique, page 0 puis 1, vidéo active), les douze registres du 6845 du
 # mode 720×348, puis remplit les deux pages de 32 Ko de motifs (B000:0000 et B800:0000), relit
-# des octets, échantillonne 3BAh (le bit 7 du retour vertical), et repasse en texte. Le diff
-# d'instructions voit les lectures ; la sonde de la carte, les registres, la VRAM et le balayage.
+# des octets, échantillonne 3BAh (le bit 7 du retour vertical), et repasse en texte. Puis il
+# imprime ses relevés, attend une touche et finit sur la page 1 du graphique (GR.0c) ; DOS rend la
+# main dans ce mode, son invite écrite en B000, dans la page 0 qui ne s'affiche pas. Le diff
+# d'instructions voit les lectures ; la sonde de la carte, les registres, la VRAM, le balayage et
+# l'image du mode testé.
 # Instructions 8086 seules ; saisi dans DEBUG (disquette supplémentaire de PC-DOS 2.00 en B:),
 # écrit sur B:, lancé sous boot-diff.
 #
@@ -121,7 +124,7 @@ ins(None, 'stosb', 1, lambda L, a: [0xAA])
 nxt()
 
 # op 6 : N lectures de 3BAh, relevé du OU et du ET des valeurs lues (le bit 7 a-t-il bougé ?)
-case(6, 'op6', 'done')
+case(6, 'op6', 'op9')
 ins(None, 'lodsw                ; N', 1, lambda L, a: [0xAD])
 ins(None, 'mov cx,ax', 2, lambda L, a: [0x89, 0xC1])
 ins(None, 'mov dx,3BAh', 3, lambda L, a: [0xBA, 0xBA, 0x03])
@@ -137,8 +140,22 @@ ins(None, 'mov al,bh', 2, lambda L, a: [0x88, 0xF8])
 ins(None, 'stosb', 1, lambda L, a: [0xAA])
 nxt()
 
+# op 9 (GR.0c) : afficher les relevés, attendre une touche (INT 16h), puis continuer le script ; les relevés
+# repartent de zéro
+case(9, 'op9', 'done')
+ins(None, 'push si', 1, lambda L, a: [0x56])
+ins(None, 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'pop si', 1, lambda L, a: [0x5E])
+ins(None, 'mov di,results', 3, lambda L, a: [0xBF] + w(L['results']))
+ins(None, 'xor ah,ah', 2, lambda L, a: [0x30, 0xE4])
+ins(None, 'int 16h', 2, lambda L, a: [0xCD, 0x16])
+nxt()
+
 # op 0 (et tout inconnu) : afficher les relevés, seize octets par ligne, puis sortir
-ins('done', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
+ins('done', 'call imprime', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'imprime'))
+ins(None, 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
+ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('imprime', 'mov si,results', 3, lambda L, a: [0xBE] + w(L['results']))
 ins(None, 'xor bp,bp', 2, lambda L, a: [0x31, 0xED])
 ins('p0', 'cmp si,di', 2, lambda L, a: [0x39, 0xFE])
 ins(None, 'jae fin', 2, lambda L, a: [0x73, rel8(L, a + 2, 'fin')])
@@ -157,8 +174,7 @@ ins(None, 'mov dx,crlf', 3, lambda L, a: [0xBA] + w(L['crlf']))
 ins(None, 'mov ah,9', 2, lambda L, a: [0xB4, 0x09])
 ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
 ins(None, 'jmp p0', 2, lambda L, a: [0xEB, rel8(L, a + 2, 'p0')])
-ins('fin', 'mov ax,4C00h', 3, lambda L, a: [0xB8, 0x00, 0x4C])
-ins(None, 'int 21h', 2, lambda L, a: [0xCD, 0x21])
+ins('fin', 'ret', 1, lambda L, a: [0xC3])
 ins('nib', "add al,'0'", 2, lambda L, a: [0x04, 0x30])
 ins(None, "cmp al,'9'", 2, lambda L, a: [0x3C, 0x39])
 ins(None, 'jbe nibp', 2, lambda L, a: [0x76, rel8(L, a + 2, 'nibp')])
@@ -176,6 +192,7 @@ def WAIT(n): return [3, n]
 def PEEK(seg, off): return [4] + w(seg) + w(off)
 def INB(port): return [5] + w(port)
 def VSAMPLE(n): return [6] + w(n)
+def PAUSE(): return [9]
 def CRTC(regs):
     out = []
     for i, v in enumerate(regs):
@@ -206,6 +223,9 @@ S += PEEK(0xB800, 0x0000)
 S += OUTB(0x3B8, 0x00) + CRTC(TXT) + OUTB(0x3BF, 0x00) + OUTB(0x3B8, 0x28)   # retour au texte
 S += FILL(0xB000, 0x0000, 0x0FA0, 0x20, 0x00)        # écran effacé (espaces ; attributs aussi)
 S += FILL(0xB000, 0x0001, 0x0001, 0x07, 0x00)
+S += PAUSE()                                         # GR.0c : les relevés, une touche
+S += OUTB(0x3BF, 0x03) + OUTB(0x3B8, 0x02) + CRTC(GFX)   # puis la fin en graphique,
+S += OUTB(0x3B8, 0x8A)                               # la page 1 affichée, son motif intact
 S += [0]
 
 ins('script', 'db script', len(S), lambda L, a, S=S: list(S))

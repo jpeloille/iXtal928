@@ -1,0 +1,17 @@
+# CGABANC (tools/cgabanc, GR.0c, cgabanc-m24.keys) sous PC-DOS 2.00, sur l'Olivetti M24 et sa vidéo intégrée, en C#
+# seul sous --boot, dans les deux modes (le domaine vidéo en mode matériel). Les 22 octets relevés, dans l'ordre de
+# cgabanc.attendus (le même banc, les mêmes motifs, les mêmes octets du motif et du 6845).
+#   3DAh sur l'écran texte, OU 01h : ces 2 000 lectures ne rencontrent pas le retour vertical (bit 3).
+#   3DAh en 4, OU 09h en mode PCem et sous « video », 01h sous « tout » : les 2 000 lectures durent moins d'une trame,
+#     et qu'elles rencontrent le retour vertical dépend de tous les temps du mode (G13.10c), mesuré. Chaque valeur est
+#     attendue sous sa liste ; une autre liste du mode ne vérifie pas cette ligne.
+# Puis le banc imprime ses relevés, attend une touche et finit en 40h : le 640 × 400 de la M24 (3DEh = 01h, le bit 0 ;
+#   mesuré : le mode 40h du BIOS de la M24 le pose, comme le 48h, et le 6 non), les quatre bancs de 8 Ko remplis, et
+#   l'invite de DOS. La mémoire vidéo (@vram) et l'image (@image) après la fin : les mêmes dans les deux modes, sous
+#   « video » et sous « tout », mesuré.
+pcem: 2D010009001C1A0900E7E109005C4E09
+materiel[video]: 2D010009001C1A0900E7E109005C4E09
+materiel[tout]: 2D010001001C1A0900E7E109005C4E09
+001000000000
+--- mémoire vidéo : 32768 octets, empreinte FNV-1a BFAD14B3FAFDBEF1 ---
+--- image 656x400, empreinte FNV-1a 61706CDC5B6EE0FA ---

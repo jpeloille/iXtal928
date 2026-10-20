@@ -1,22 +1,42 @@
 # HERCBANC (tools/hercbanc) sous PC-DOS 2.00, sur le 5150 et l'Hercules, en C# seul sous --boot (G13.9g), dans les
-# deux modes (le domaine vidéo en mode matériel). Les 30 octets relevés, dans l'ordre :
+# deux modes (le domaine vidéo en mode matériel). Les 27 octets relevés (l'en-tête en disait 30 jusqu'à GR.0c,
+# R1-contre A8), dans l'ordre :
 #   3BAh lu 3 000 fois sur l'écran texte, le OU et le ET ; 3BAh une fois ; la cellule (0,0) de l'écran texte ; 3BAh lu
 #   3 000 fois sur la page 0 du graphique, puis sur la page 1, le OU et le ET ; six octets des pages 0 et 1 ; R0 à R11
 #   relus ; B800:0000, la seconde page fermée (FFh).
 # Une ligne change :
-#   3BAh lu une fois, pendant l'affichage d'une ligne de texte : PCem 00h ; la carte 88h, le bit 7 à 1 pendant
-#     l'affichage (PB-225, GB101 pp. 12-13) et le bit 3, le point sous le faisceau, allumé à cet instant (PB-224, « 1 =
-#     dots on »). Sous « tout » (G13.10c), 80h : les temps du processeur et de la carte mère corrigés déplacent
-#     l'instant de la lecture sur un point éteint (le bit 3 à 0) ; le bit 7, le même. Mesuré : la vidéo et le
-#     processeur, ou la vidéo et la carte mère, 80h ; la vidéo avec le x87, le stockage ou le son, 88h. Les deux valeurs
-#     sont attendues chacune sous sa liste ; une autre liste du mode n'en vérifie aucune.
+#   3BAh lu une fois, pendant l'affichage d'une ligne de texte : PCem 00h ; la carte 80h ou 88h, le bit 7 à 1 pendant
+#     l'affichage (PB-225, GB101 pp. 12-13) et le bit 3, le point sous le faisceau, allumé ou non à cet instant (PB-224,
+#     « 1 = dots on »). Jusqu'à GR.0c : 88h sous « video », 80h sous « tout » (G13.10c : les temps du processeur et de
+#     la carte mère corrigés déplacent l'instant de la lecture sur un point éteint). Avec GR.0c, le banc est plus long
+#     (sa saisie dans DEBUG compte plus de lignes) et part à un autre instant : 80h sous les deux listes, le point
+#     éteint (mesuré). Chaque valeur est attendue sous sa liste ; une autre liste du mode n'en vérifie aucune.
 # Les mêmes dans les deux modes :
 #   les OU et ET des 3 000 lectures, 89h et 00h : les bits 0, 3 et 7 bougent dans les deux modes (chez PCem, le bit 3
 #   et sa copie au bit 7 suivent le retour vertical ; sur la carte, le bit 3 les points, le bit 7 le retour) ;
 #   R0 à R11 relus : la valeur écrite dans les deux modes, chacune dans la largeur de son registre (PB-97 : le mode
 #   matériel rend la valeur écrite, la relecture du 6845 restant inconnue) ;
 #   les pages : aucune correction ne les touche.
+# GR.0c — puis le banc imprime ses relevés, attend une touche et finit sur la page 1 du graphique (720 × 348), son
+#   motif intact ; l'invite de DOS s'écrit en B000, dans la page 0 qui ne s'affiche pas. Après la fin :
+#   la mémoire vidéo (@vram) : un octet change d'un mode à l'autre, en 0DC8h, le caractère « 0 » ou « 8 » du relevé
+#     de 3BAh ci-dessus, imprimé en mode texte dans la page 0 (mesuré, la mémoire vidée dans les deux modes) ;
+#   l'image (@image, ce que @shot écrirait : xsize × ysize en haut à gauche de Buffer32) : les rangées 22 à 347 sont
+#     les mêmes dans les trois ; les rangées 0 à 21 changent. Le mode graphique compte 370 lignes (R4 = 5Bh, R9 = 3,
+#     R5 = 2 : 92 × 4 + 2) dont 348 affichées (R6 = 57h). Le retour vertical remet displine à 0
+#     (vid_hercules.cs:360) et ses 22 lignes passent sans dessin : l'affichage commence à la rangée 22 (firstline),
+#     d'où PCem présente l'image. Les rangées 0 à 21 de Buffer32 sont des restes des trames d'avant le passage au
+#     graphique (le texte), et ce qu'il en reste dépend de l'instant du passage ; en mode matériel, le caractère du
+#     6845 dure 1 µs en graphique et non 1/2,032125 µs comme chez PCem (PB-102), et l'instant change : ces rangées
+#     diffèrent de PCem, et aussi entre « video » et « tout » (mesuré, l'image écrite dans les trois). Chaque empreinte
+#     est attendue sous sa liste. Les 22 dernières lignes affichées (rangées 348 à 369) ne sont pas dans l'empreinte.
 pcem: 8900002D890089000001FFAACB73352D
-materiel[video]: 8900882D890089000001FFAACB73352D
+materiel[video]: 8900802D890089000001FFAACB73352D
 materiel[tout]: 8900802D890089000001FFAACB73352D
 2E075B02575702030000FF
+pcem: --- mémoire vidéo : 65536 octets, empreinte FNV-1a AAB795BC5B41646E ---
+materiel[video]: --- mémoire vidéo : 65536 octets, empreinte FNV-1a 6F20A4FBEEDBEBD6 ---
+materiel[tout]: --- mémoire vidéo : 65536 octets, empreinte FNV-1a 6F20A4FBEEDBEBD6 ---
+pcem: --- image 720x348, empreinte FNV-1a 92D5D06A166707B5 ---
+materiel[video]: --- image 720x348, empreinte FNV-1a 0E998E3AD61A6D2D ---
+materiel[tout]: --- image 720x348, empreinte FNV-1a D0CA2FBB6A42724D ---
