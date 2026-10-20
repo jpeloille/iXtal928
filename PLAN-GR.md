@@ -208,7 +208,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 
 ### GR.1 — La profondeur de G9
 
-- **GR.1b — L'ET4000 sous DOS sur l'ami486, et sa ROM sur le 8088 en oracle seul** :
+- **GR.1b — L'ET4000 sous DOS sur l'ami486, et sa ROM sur le 8088 en oracle seul** ✅ *fait, § GR.1b* :
   - `bd-ami486-et4000-dos` ;
   - la mesure de la ROM sur le 8088 dite dans VERIFICATION, sans porte si elle ne tourne pas ;
   - le contrôle négatif : le bit 2 de SR7 non forcé.

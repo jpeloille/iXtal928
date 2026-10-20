@@ -102,7 +102,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      l'exécution de la table // noms: de fdc.cs. L'oracle n'y participe pas,");
     Console.WriteLine("      son instance `fdc` étant static dans fdc.c.");
     Console.WriteLine();
-    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE] [--gfxcard vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64]");
+    Console.WriteLine("  vga-probe [CHEMIN_ROMS] [TRANCHES=1000] [--model NOM=ibmat] [--fda IMAGE] [--gfxcard vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64|et4000ax]");
     Console.WriteLine("      Amorce l'ORACLE SEUL avec une carte VGA et imprime la sonde de la");
     Console.WriteLine("      carte et l'écran texte lu dans sa VRAM brute. Le pendant de la sonde");
     Console.WriteLine("      AT de B2 : l'oracle doit savoir faire tourner la VGA avant qu'une");

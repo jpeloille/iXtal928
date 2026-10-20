@@ -15,7 +15,8 @@ FPUX=$(for i in $(seq 0 255); do case $i in 212) ;; *) printf -- '--op %02X ' $i
 ALL0F=$(for i in $(seq 0 255); do printf -- '--0f %02X ' $i; done)
 run abi abi
 run ops-count ops-count
-for g in cga vga tvga8900d tvga9000b mda hercules ega; do
+# GR.1b — l'ET4000AX aussi : sa ROM tourne sur le 8088 (mesuré par vga-probe, l'oracle seul, VERIFICATION § GR.1b).
+for g in cga vga tvga8900d tvga9000b mda hercules ega et4000ax; do
   run bd-pc-$g boot-diff roms 6000 --gfxcard $g
   run bd-pcdos-$g boot-diff roms 7000 --fda $DOS --gfxcard $g
   run bd-xt-$g boot-diff roms 6000 --model ibmxt --gfxcard $g
@@ -319,6 +320,9 @@ run bd-ami286-et4000 boot-diff roms 3000 --model ami286 --gfxcard et4000ax
 run bd-ami386dx-et4000 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard et4000ax
 run bd-ami486-et4000 boot-diff roms 3000 --config $C/ami486-dx2.cfg --gfxcard et4000ax
 run bd-ami486-et4000-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxcard et4000ax
+# GR.1b — l'ET4000 sous DOS sur l'ami486 (le disque C:, CMOS c486.nvr), sur le patron de la GD5429 et de la Trio64.
+runw bd-ami486-et4000-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard et4000ax \
+  --type-at 60000 --type "VER" --type "DIR"
 mapfile -t T4K < tools/et4banc/et4banc.keys
 T4B=(); for l in "${T4K[@]}"; do T4B+=(--type "$l"); done
 runw bd-ami386dx-et4-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --config ami386dx-fd.cfg --gfxcard et4000ax --fda "$REPO/$DOS" --fdb "$REPO/os/pcdos20/pcdos20s.img" --type-at 2500 --type-settle 600 --type "" --type "" "${T4B[@]}" --type "^" --type "^"

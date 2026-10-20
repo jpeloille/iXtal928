@@ -159,6 +159,7 @@ public static class VgaProbe
         "vga" => Oracle.GFX_VGA,
         "tvga8900d" => Oracle.GFX_TVGA,
         "tvga9000b" => Oracle.GFX_TVGA9000B,
+        "et4000ax" => Oracle.GFX_ET4000,      // GR.1b
         "cl_gd5429" => Oracle.GFX_CL_GD5429,
         "px_trio64" => Oracle.GFX_PHOENIX_TRIO64,
         _ => -1,
@@ -177,7 +178,8 @@ public static class VgaProbe
         var gfx = Card(card);
         if (gfx < 0)
         {
-            Console.Error.WriteLine($"--gfxcard « {card} » : vga, tvga8900d ou tvga9000b.");
+            Console.Error.WriteLine($"--gfxcard « {card} » : vga, tvga8900d, tvga9000b, cl_gd5429, px_trio64 ou " +
+                                    "et4000ax.");
             return 2;
         }
 

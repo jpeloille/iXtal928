@@ -13889,3 +13889,70 @@ n'est pas pris : rien ne l'exige (l'IRET rend le drapeau), et il aurait changé 
 - En mode matériel, l'empreinte de l'image est un témoin de non-régression, pas une valeur tirée de la carte (décision
   n° 2).
 - Les attendus du mode matériel ne valent que pour « video » et « tout » quand un octet suit le faisceau.
+
+## GR.1b — L'ET4000 sous DOS sur l'ami486, et sa ROM sur le 8088
+
+Le 20 octobre 2026. Sous boot-diff, l'ET4000 n'avait que le POST de l'ami486 (`bd-ami486-et4000` et `-post`) ; son
+DOS ne se jouait que sur l'ami386dx, par ET4BANC (R1 § k). Sa ROM n'avait jamais tourné sur un 8088 (R1 § l).
+
+**La porte** `bd-ami486-et4000-dos`, sur le patron de la GD5429 et de la Trio64 : l'ami486, le disque C:, le CMOS
+`c486.nvr`, `VER` et `DIR`. Verte : 183 839 182 instructions, sonde VGA 163/163, le DIR de C: à l'écran. La référence
+`bd-ami486-gd5429-dos`, rejouée à côté : 183 849 253 instructions, le compte des séries.
+
+Une première passe a compté 183 849 111 pour la référence. Le worktree avait été créé sans l'image de C: de la série
+(`mkwt.sh` sans `series`), et `g5w-recipe.sh` signalait `c386.img` non conforme. Rejouée sur la bonne image, la
+référence est revenue à son compte. Le sous-ensemble vérifie désormais les empreintes avant de jouer.
+
+**La ROM sur le 8088** (`vga-probe`, l'oracle seul, 6 000 tranches ; `et4000ax` ajoutée à sa liste, `GFX_ET4000 = 5`,
+`ibm.h:281`) :
+
+| Machine | INT 10h en fin de course | Mode posé | Invite |
+|---|---|---|---|
+| `ibmpc` | C000:10B7 | 3, hdisp 720, 400 lignes | BASIC `Ok` |
+| `ibmxt` | C000:10B7 | 3, hdisp 720, 400 lignes | BASIC `Ok` |
+
+La ROM pose elle-même ce vecteur (offset 157h, `mov word [0040h], 10B7h`) : elle a tourné et rendu la main. Le
+désassemblage récursif (objdump en i8086, `/tmp/a9/rec-rom.py`, comme M19) part de l'init (3h) et d'INT 10h (10B7h). Il
+suit :
+- la table d'INT 10h en 107Dh (1Dh entrées, `cmp ah,1Dh`) ;
+- les enregistrements de trois octets en 1155h et en 27C8h ;
+- la table de 2344h (1Ch entrées) ;
+- celle de 28DEh, indexée par les octets de 28BDh.
+
+Il atteint 4 628 instructions, sans aucun opcode 186+. La contre-lecture a fermé les deux sauts indirects restants :
+- `call ax` en B66h appelle C000:0B9Dh (AX posé en ADEh, rendu par `xchg bx,ax`), le test de la VRAM ;
+- `call word cs:[bx+2869h]` en 288Eh suit une table de huit mots (289Bh à 28B9h), les pointeurs de police d'AX =
+  1130h.
+
+Avec ces cibles, le désassemblage atteint 4 728 instructions, toujours sans opcode 186+. Sa limite : chaque bloc est
+lu sur 400h octets au plus. Sur le 8088 de PCem, un code 186 ne s'arrête pas : les codes 60h-6Fh y sont des alias des
+sauts (R1-contre A7). L'invite atteinte et le mode posé sont donc la mesure, et le désassemblage la complète.
+
+**Les portes du 8088.** La ROM tourne : l'ET4000 rejoint la boucle des cartes du 5150 et du XT (`series.sh`), comme les
+deux Trident de M19. Les quatre portes sont vertes du premier coup, sonde VGA 163/163 :
+
+| Porte | Instructions |
+|---|---:|
+| `bd-pc-et4000ax`, ROM BASIC | 25 426 835 |
+| `bd-pcdos-et4000ax`, PC DOS 2.00 | 26 623 701 |
+| `bd-xt-et4000ax`, ROM BASIC | 23 513 167 |
+| `bd-xtdos-et4000ax`, PC DOS 2.00 | 22 132 303 |
+
+Les portes de la 9000B rejouées à côté (`bd-pc-tvga9000b`, `bd-xtdos-tvga9000b`) rendent les messages de la série.
+
+**Le contrôle négatif** : SR7 relu sans son bit 2 forcé côté C# (`vid_et4000.cs`, PB-100 (c)). La porte DOS rougit à
+l'instruction 40 332, en C000:0D24, pendant l'init de la ROM (un registre à 0704h contre 0700h). `bd-ami486-et4000`
+rougit aussi, de même que `bd-pc-et4000ax` et `bd-xtdos-et4000ax` (en C000:0D28, AL 04h contre 00h, lu en 3C5h). Le
+fichier est restauré.
+
+**La contre-lecture** (Sonnet, sans bloquant) a vérifié :
+- `GFX_ET4000 = 5` contre `ibm.h:281` et `video.c:190` ;
+- le patron de la porte, et le CMOS `c486.nvr` qui dit EGA/VGA pour l'ET4000 comme pour la carte de son `.cfg` ;
+- les bornes de chaque table du désassemblage, et le chemin de 487h, bit 4, qui passe à INT 42h.
+
+Ses points sont repris : l'offset du vecteur (157h et non 155h) et les deux sauts indirects, fermés ci-dessus.
+
+
+**Ce que ce vert ne dit pas.**
+- Sur le 8088, ces portes jouent le POST, BASIC et l'invite de PC-DOS 2.00 : aucun mode Tseng n'y est posé.
+- Le désassemblage ne suit que l'init et INT 10h, par blocs de 400h octets au plus.

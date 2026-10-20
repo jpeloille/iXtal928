@@ -366,6 +366,7 @@ public static class Oracle
     // des cycles : lire l'écran changerait la machine.
     public const int GFX_CGA = 0;
     public const int GFX_TVGA = 4;        // ibm.h:280, la 8900D
+    public const int GFX_ET4000 = 5;      // ibm.h:281, la Tseng ET4000AX
     public const int GFX_VGA = 13;
     public const int GFX_CL_GD5429 = 19;  // ibm.h:295
     public const int GFX_PHOENIX_TRIO64 = 22;  // ibm.h:298
