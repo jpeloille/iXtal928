@@ -271,6 +271,18 @@ internal static class NvrImage
                 return 2;
         }
 
+        // GR.4a — une carte hors du registre est refusée, comme setgfxcard : elle donnait DisplayOwnRom en silence
+        //   (« builtin » compris : la M24 et le PC1512, seules à le porter, n'ont pas de CMOS).
+        if (gfx.Length == 0)
+                gfx = "cga";
+        if (Array.FindIndex(Video.video.video_cards, k => k.internal_name == gfx) < 0)
+        {
+                Console.Error.WriteLine($"--make-nvr : gfxcard = « {gfx} » : carte inconnue. Connues :");
+                foreach (var k in Video.video.video_cards)
+                        Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+                return 2;
+        }
+
         var refPath = Path.Combine(
             paths.resolve_roms_path("nvr/default") is { Length: > 0 } d ? d : "nvr/default", refName);
 

@@ -13680,3 +13680,82 @@ dans le fichier.
 - La CGA lit toujours à travers la carte (`cga_read` : quatre cycles et la neige) ; la décision n° 5 la laisse.
 - Le mode 40 colonnes de l'EGA n'a pas de témoin.
 - `@vram` hache la VRAM sans l'afficher : il n'est pas touché.
+
+## GR.4a — la M24 et le PC1512 : la vidéo intégrée
+
+Le 20 octobre 2026. La M24 et le PC1512 ont leur vidéo sur la carte mère (`MODEL_GFX_FIXED`) ; `video_init` monte
+`m24_device` ou `pc1512_device` par le romset, quelle que soit la carte. Jusqu'ici (R4 § 1.1, R4-contre § 2.1) :
+- une clé `gfxcard = vga` y était acceptée puis ignorée, sans un mot ;
+- `builtin`, le nom que PCem écrit pour ces deux machines (`pc.c:879`, `video.c:387-392`), était refusé : un `.cfg`
+  de PCem pour la M24 ne se chargeait pas ;
+- l'écran SETUP y offrait les dix cartes ;
+- `--make-nvr` tirait `DisplayOwnRom` d'un nom inconnu, en silence.
+
+**Le changement** (décision n° 6) :
+- `setgfxcard` accepte `builtin` et retient le nom de la clé (`pc.CarteVideo.Nom`, une classe imbriquée). `gfxcard`
+  interne reste à la CGA : le mode PCem et l'oracle ne bougent pas.
+- `check_gfxcard`, appelé par `check_cpu` comme `check_sndcard` (la machine finale) :
+  - sur la M24 et le PC1512, une autre carte est ignorée, avec un avertissement (« a sa vidéo intégrée ; la carte est
+    ignorée »), et `gfxcard` revient à la CGA ;
+  - ailleurs, `builtin` est refusé, avec la liste : PCem y lirait `video_cards[-1]` (`video.c:915`).
+- **L'écran SETUP** : sur ces deux machines, la ligne « Video » dit « Built-in video » et ne s'ouvre pas (le message
+  le dit), comme la liste grisée de `wx-config.c:117-124`. `SaveMachine` écrit `builtin`. Le changement de machine
+  suit (`ClampVideo`) : vers l'une d'elles, `builtin` ; depuis l'une d'elles, la CGA (`wx-config.c:135-136`).
+- **`--make-nvr`** refuse un `gfxcard` hors du registre, `builtin` compris (ces machines n'ont pas de CMOS).
+
+**Les preuves.**
+- **`r9-gfxfixe`** (neuve, C# seul, dans la série des deux modes). Sur la M24 et le PC1512 :
+  - sans clé et `builtin` : montées, sans un mot ;
+  - `vga` et `ega` : montées, un avertissement chacune ;
+  - toujours leur vidéo (`Olivetti M24 (video)`, `Amstrad PC1512 (video)`), `gfxcard` 0 ;
+  - un nom inconnu, refusé par `loadconfig`.
+
+  Sur le XT, `builtin` est refusé par `initpc`, et `vga` reste monté. La machine posée après la clé, comme `--model`
+  après `--config` : le XT avec `vga` puis la M24 avertit une fois et monte la M24 ; la M24 avec `builtin` puis le XT
+  est refusée. Chaque essai juge la machine (`check_cpu`) puis la monte (`initpc`, qui la juge de nouveau) :
+  l'avertissement n'est dit qu'une fois. `--make-nvr` sur l'IBM AT rend 0 pour `vga` et `cga`, 2 pour `builtin` et un
+  nom inconnu. La porte est en C# seul : elle entre dans la liste d'acceptation du mode matériel (`ModeOutils`).
+- **`--setup-check`** étendu : sur la M24 et sur le PC1512, la ligne dit « Built-in video », la vidéo ne s'ouvre pas,
+  `gfxcard` 0 et la clé `builtin`. Revenu au XT, les dix cartes et la CGA. Vert.
+- **Le témoin** `--boot` de la M24 avec `gfxcard = vga` (`/tmp/a9/t4c/m24-vga.cfg`) : l'avertissement une fois, puis
+  l'écran de la M24, le DIR de PC-DOS 2.00.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr4a.py`, Debug, une panne à la fois, restaurée) :
+
+| | Panne | Résultat |
+|---|---|---|
+| N1 | l'avertissement retiré | `r9-gfxfixe` rouge : « 0 avertissement(s), ATTENDU 1 » (quatre essais) |
+| N2 | le filtre de l'écran retiré | `--setup-check` rouge : la vidéo s'ouvre, 10 entrées |
+| N3 | `builtin` refusé | `r9-gfxfixe` rouge : `loadconfig` refuse `builtin` sur les deux machines |
+| N4 | `--make-nvr` sans le refus | `r9-gfxfixe` rouge : `builtin` et le nom inconnu rendent 0 |
+| T | restaurés | les deux portes vertes |
+
+**La série** (Release, le worktree, le code d'avant la relecture), contre gr0b :
+- en mode PCem, 766 portes vertes ; deux lignes changent : `abi` (l'ABI 60, de GR.4b) et `r9-gfxfixe`, neuve ;
+- sous « tout », 525 vertes, 230 refusées, 11 pcem ; une ligne neuve, `r9-gfxfixe`, refusée : elle n'était pas encore
+  dans `ModeOutils`.
+
+Le code d'après la relecture (ci-dessous), avec `r9-gfxfixe` acceptée, rejoué sur un sous-ensemble dans les deux modes
+(`/tmp/a9/sub-gr4a.sh`) : les boot-diffs de la M24 et du PC1512 (sept), `r9-m24`, `r9-cga`, `r9-videocfg`,
+`config-check`, `cpu-config-check` et son inverse, `r9-gfxfixe`. Tout est identique à la série, sauf `r9-gfxfixe` sous
+« tout », verte. `--setup-check` vert en Release ; les contrôles négatifs rejoués en Debug, les mêmes rouges.
+
+**La contre-lecture** (Sonnet, sans bloquant) a suivi chaque chemin vers la carte (la clé, `--gfxcard`, boot-diff,
+`--model` après la clé, l'écran SETUP) : tous finissent dans `check_cpu`, donc contre la machine finale, et aucun
+appelant ne prend le `false` de `check_gfxcard` pour une faute du processeur. L'oracle reçoit 0 au lieu de la VGA pour
+une M24 avec `vga`, sans effet : `video_init` et `video_is_*` passent le romset avant la carte, comme PCem. Ses points
+mineurs sont repris :
+- `setgfxcard` retenait le nom avant de le valider ; il le retient après ;
+- le résumé de `ClampSound` avait glissé sur `ClampVideo` ; il est remis à sa place ;
+- le bloc de `--setup-check` ne rendait pas tout l'état qu'il touche ; il sauve et rend la machine, la mémoire, le
+  processeur, la carte et son nom, le son et le contrôleur de disque ;
+- `r9-gfxfixe` ne posait pas la machine après la clé et ne jugeait la machine qu'une fois ; les deux cas et le double
+  jugement y sont (ci-dessus) ;
+- trois lignes de commentaire de `R9GfxFixe.cs` dépassaient 120 caractères ; rabattues.
+
+**Ce que ce vert ne dit pas.**
+- `gfxcard` interne reste à la CGA là où PCem pose `GFX_BUILTIN` (-1) : une déviation de configuration voulue, qui
+  ne change ni la machine ni l'oracle.
+- Le `--boot` de la M24 nomme encore son écran « écran texte CGA » : le vidage passe par la carte, en B800.
+- L'option `--gfxcard` d'iXtal26 dit toujours ses cartes sans `builtin` dans l'aide ; aucun essai ne passe par elle
+  (elle appelle le même `setgfxcard` que la clé).

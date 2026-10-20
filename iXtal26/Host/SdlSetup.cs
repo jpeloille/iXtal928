@@ -313,6 +313,16 @@ internal sealed class SdlSetup
     /// </summary>
     private void BuildVideoList()
     {
+        // GR.4a — pcem: wx-config.c:117-124 : sur la M24 et le PC1512, la seule entrée est « Built-in video », grisée.
+        //   Ici, pas de liste : la ligne reste sur l'écran principal, et le message le dit.
+        if (pc.CarteVideo.Integree)
+        {
+            _pickLabels = [];
+            _pickValues = [];
+            _message = "video integree a cette machine (Built-in video).";
+            return;
+        }
+
         var cards = Video.video.video_cards;
         var labels = new List<string>();
         var values = new List<string>();
@@ -561,6 +571,7 @@ internal sealed class SdlSetup
                 ClampCpu();
                 ClampController();
                 ClampSound();
+                ClampVideo();
                 break;
 
             case Item.Memory:
@@ -631,6 +642,17 @@ internal sealed class SdlSetup
         string note = $"{previous} absent de cette machine : controleur {replacement}.";
 
         _message = _message.Length == 0 ? note : $"{_message} {note}";
+    }
+
+    /// <summary>GR.4a — pcem: wx-config.c:117-124, :135-136 : la machine change, la carte vidéo suit. Vers la M24
+    /// ou le PC1512, la vidéo intégrée ; depuis l'une d'elles, la CGA, que PCem pose aussi (GFX_BUILTIN ramené à
+    /// 0).</summary>
+    private void ClampVideo()
+    {
+        if (pc.CarteVideo.Integree)
+            pc.setgfxcard("builtin");
+        else if (pc.CarteVideo.Nom == "builtin")
+            pc.setgfxcard("");
     }
 
     /// <summary>
@@ -854,9 +876,10 @@ internal sealed class SdlSetup
                                  Cpu.cpu_c.fpu_get_internal_name(Models.model_c.model, Cpu.cpu_c.cpu_manufacturer,
                                                                  Cpu.cpu_c.cpu, Cpu.cpu_c.fpu_type)!);
         config.config_set_int(config.CFG_MACHINE, null, "mem_size", pc.cfg_mem_size);
-        // pcem: pc.c:879
-        config.config_set_string(config.CFG_MACHINE, null, "gfxcard",
-                                 Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)));
+        // pcem: pc.c:879 — GR.4a : « builtin » sur la M24 et le PC1512, comme PCem l'écrit.
+        config.config_set_string(config.CFG_MACHINE, null, "gfxcard", pc.CarteVideo.Integree
+            ? "builtin"
+            : Video.video.video_get_internal_name(Video.video.video_old_to_new(pc.gfxcard)));
         // pcem: pc.c:881 — G12.3 : sans elle, une machine enregistrée perdait sa carte son.
         config.config_set_string(config.CFG_MACHINE, null, "sndcard",
                                  Sound.sound.sound_card_get_internal_name(Sound.sound.sound_card_current));
@@ -1082,7 +1105,9 @@ internal sealed class SdlSetup
                 return Field("Memoire", $"{pc.cfg_mem_size} Ko");
 
             case Item.Video:
-                return Field("Video", Video.video.video_card_getname(Video.video.video_old_to_new(pc.gfxcard)));
+                return Field("Video", pc.CarteVideo.Integree
+                    ? "Built-in video"
+                    : Video.video.video_card_getname(Video.video.video_old_to_new(pc.gfxcard)));
 
             case Item.Sound:
                 return Field("Son", Sound.sound.sound_cards[Sound.sound.sound_card_current].name);
@@ -1278,6 +1303,40 @@ internal sealed class SdlSetup
               $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
         pc.gfxcard = gfxBefore;
         st._screen = Screen.Main;
+
+        // GR.4a — la vidéo intégrée de la M24 et du PC1512 : pas de liste, « Built-in video », « builtin » enregistré ;
+        //   revenu au XT, les cartes du registre. L'état que les changements de machine touchent est rétabli après.
+        int modelVideo = Models.model_c.model, memVideo = pc.cfg_mem_size, gfxVideo = pc.gfxcard;
+        int manuVideo = Cpu.cpu_c.cpu_manufacturer, cpuVideo = Cpu.cpu_c.cpu;
+        int sonVideo = Sound.sound.sound_card_current;
+        string ctrlVideo = pc.cfg_hdd_controller, nomVideo = pc.CarteVideo.Nom;
+        foreach (var machine in new[] { "olivetti_m24", "pc1512" })
+        {
+            st.Activate(Item.Model);
+            st._pickIndex = Array.IndexOf(st._pickValues, machine);
+            st.ApplyPick();
+            Check($"{machine} : la ligne vidéo dit « Built-in video »", MainLine(Item.Video).Contains("Built-in video"),
+                  $"« {MainLine(Item.Video).Trim()} »");
+            st.Activate(Item.Video);
+            Check($"{machine} : la vidéo ne s'ouvre pas", st._pickLabels.Length == 0 && st._screen == Screen.Main,
+                  $"{st._pickLabels.Length} entrée(s), message « {st._message} »");
+            Check($"{machine} : gfxcard interne à la CGA, la clé « builtin »",
+                  pc.gfxcard == 0 && pc.CarteVideo.Nom == "builtin",
+                  $"gfxcard {pc.gfxcard}, nom « {pc.CarteVideo.Nom} »");
+            st._screen = Screen.Main;
+        }
+        st.Activate(Item.Model);
+        st._pickIndex = Array.IndexOf(st._pickValues, "ibmxt");
+        st.ApplyPick();
+        st.Activate(Item.Video);
+        Check("revenu au XT : les cartes du registre, la CGA", st._pickLabels.Length > 1 && pc.CarteVideo.Nom == "",
+              $"{st._pickLabels.Length} carte(s), nom « {pc.CarteVideo.Nom} », « {MainLine(Item.Video).Trim()} »");
+        st._screen = Screen.Main;
+        Models.model_c.model = modelVideo;
+        pc.romset = Models.model_c.model_getromset();
+        (pc.cfg_mem_size, pc.gfxcard, pc.CarteVideo.Nom) = (memVideo, gfxVideo, nomVideo);
+        (Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu) = (manuVideo, cpuVideo);
+        (Sound.sound.sound_card_current, pc.cfg_hdd_controller) = (sonVideo, ctrlVideo);
 
         Console.WriteLine();
         Console.WriteLine("Contrôleur de disque dur, filtré sur la machine :");

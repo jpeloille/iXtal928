@@ -326,6 +326,17 @@ internal static partial class pc
     {
         int c;
 
+        // GR.4a — « builtin », le nom que PCem écrit pour la M24 et le PC1512 (pc.c:879, video.c:387-392 ; son
+        //   écran n'offre que « Built-in video » sur ces machines, wx-config.c:117-124). check_gfxcard le juge contre
+        //   la machine finale. DEVIATION (configuration, décision n° 6 de PLAN-GR.md) : gfxcard reste à la CGA, pas à
+        //   GFX_BUILTIN : video_init et video_is_* passent le romset avant la carte, et l'oracle reçoit gfxcard.
+        if (name == "builtin")
+        {
+                CarteVideo.Nom = name;
+                gfxcard = 0;
+                return true;
+        }
+
         for (c = 0; c < Video.video.video_cards.Length; c++)
         {
                 if (Video.video.video_cards[c].internal_name == name)
@@ -339,6 +350,7 @@ internal static partial class pc
                 return false;
         }
 
+        CarteVideo.Nom = name;
         gfxcard = Video.video.video_get_video_from_internal_name(name);
         return true;
     }
@@ -370,7 +382,7 @@ internal static partial class pc
                 //   toute poussée vers l'oracle. G12.1 : et la carte son.
                 check_hdd_controller();
                 check_sndcard();
-                return true;
+                return check_gfxcard();
         }
 
         Console.Error.WriteLine(cpus is null
@@ -1105,6 +1117,49 @@ internal static partial class pc
                                             "SCSI sera vu vide ou faux (PCem ne dit rien).");
             }
         }
+    }
+
+    /// <summary>
+    /// GR.4a — la carte vidéo contre la machine FINALE, comme check_sndcard (PLAN-GR.md, décision n° 6).
+    ///
+    /// DEVIATION (configuration) : PCem ne juge gfxcard que dans son écran (wx-config.c:117-137). Sur la M24 et le
+    ///   PC1512 (MODEL_GFX_FIXED), la vidéo est intégrée : une autre carte y est montée par la clé puis ignorée par
+    ///   video_init, en silence ; ici, un avertissement, et la vidéo intégrée. Ailleurs, « builtin » ferait lire
+    ///   video_cards[-1] à PCem (video.c:915) : refusé, avec la liste.
+    /// </summary>
+    internal static bool check_gfxcard()
+    {
+        var mdl = Models.model_c.models[Models.model_c.model];
+        var fixe = CarteVideo.Integree;
+        var nom = CarteVideo.Nom;
+        if (!fixe && nom == "builtin")
+        {
+            Console.Error.WriteLine("gfxcard = « builtin » : la vidéo intégrée de la M24 et du PC1512 ; " +
+                                    $"« {mdl.internal_name} » prend une carte. Connues :");
+            foreach (Video.VIDEO_CARD k in Video.video.video_cards)
+                Console.Error.WriteLine($"  {k.internal_name}  ({k.name})");
+            return false;
+        }
+        if (!fixe || nom is "" or "builtin")
+            return true;
+        Console.Error.WriteLine($"gfxcard = « {nom} » : « {mdl.internal_name} » a sa vidéo intégrée ; " +
+                                "la carte est ignorée.");
+        CarteVideo.Nom = "builtin";
+        gfxcard = 0;
+        return true;
+    }
+
+    /// <summary>GR.4a — le nom de la clé gfxcard tel que donné, que gfxcard (l'identifiant hérité) ne garde pas :
+    /// « builtin » n'a pas d'entrée dans video_cards[].</summary>
+    internal static class CarteVideo
+    {
+        internal static string Nom = "";
+
+        /// <summary>La machine courante a sa vidéo intégrée, que rien ne retire (MODEL_GFX_FIXED : la M24 et le
+        /// PC1512).</summary>
+        internal static bool Integree =>
+            (Models.model_c.models[Models.model_c.model].flags & Models.model_c.MODEL_GFX_DISABLE_SW)
+            == Models.model_c.MODEL_GFX_FIXED;
     }
 
     /// <summary>

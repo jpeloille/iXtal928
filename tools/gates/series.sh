@@ -931,6 +931,10 @@ run materiel-cas-pb256-materiel --hardware-mode PB-256 materiel-cas PB-256
 # G13.13b — les cartes de COM et de LPT (Q25, Q26), sans PB : r9-portscfg, en C# seul, dans les deux modes : serial1,
 # serial2, parallel1 et parallel2 (1 sans clé, 0 retire la carte) ; COM1 et LPT1 du PC1512, sur sa carte mère, restent.
 run r9-portscfg r9-portscfg
+# GR.4a — la vidéo intégrée de la M24 et du PC1512 (PLAN-GR.md, décision n° 6), en C# seul : builtin accepté sur ces
+# deux machines, une autre carte ignorée avec un avertissement, un nom inconnu refusé ; builtin refusé ailleurs ;
+# --make-nvr refuse un gfxcard hors du registre.
+run r9-gfxfixe r9-gfxfixe
 # G13.8g2a — les six SBBANC en C# seul sous --boot, contre leurs attendus dans les deux modes (le domaine son) : le 5150
 # et la carte, par sa configuration (--boot n'a pas d'option de la carte son) ; @son ajoute l'état de la carte et
 # l'empreinte du son à la comparaison des deux séances. boot-diff les joue contre l'oracle plus haut.

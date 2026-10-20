@@ -172,7 +172,7 @@ sous-ensemble ciblé (moins de 15 min).
   - une lecture par la carte : `egareads` bouge.
 - **La série** : le sous-ensemble des `banc-*` de la vidéo.
 
-### GR.4a — La M24 et le PC1512 : la vidéo intégrée
+### GR.4a — La M24 et le PC1512 : la vidéo intégrée  ✅ *fait, VERIFICATION.md § GR.4a*
 
 - **Le contenu** :
   - `builtin` est accepté sans mot sur la M24 et le PC1512, et refusé ailleurs. Une autre carte est ignorée sur ces
