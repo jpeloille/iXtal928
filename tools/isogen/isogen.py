@@ -20,8 +20,9 @@
 # (cdrom_image.cpp:169-184), et les calculer serait du code sans porte. Un secteur de 2 336 octets
 # est le secteur brut du mode 2 sans ses 16 premiers octets : sous-en-tête, puis les données.
 #
-# Les feuilles r9-*.cue font tomber PCem (cdrom_image.cpp:183, :427) : elles ne servent qu'à la
-# survie r9-cue, en C# seul, jamais à l'oracle.
+# Les feuilles r9-*.cue font tomber PCem (cdrom_image.cpp:183, :427) ou divergent par l'hôte (r9-repertoire.cue,
+# GR.2e) : elles ne servent qu'à la survie r9-cue, en C# seul, jamais à l'oracle. La campagne de CUE (GR.2e) :
+# camp-v-*.cue et camp-m-*.cue, nommées avec leur empreinte dans campagne.lst.
 #
 # L'image creuse de 2,5 Go (PB-107) n'occupe que ses 32 premiers secteurs : une sonde vérifie avant
 # de l'écrire que le système de fichiers fait des trous (st_blocks, exact) et que le quota de
@@ -273,6 +274,239 @@ def cue(*lignes, fin='\n', derniere=True):
     return (texte + (fin if derniere else '')).encode('ascii')
 
 
+# ---- GR.2e : la campagne de CUE ------------------------------------------------------------------------------
+# Des feuilles valides combinées (un à trois FILE, les quatre formats et l'audio, jusqu'à 99 pistes, INDEX 00 à 99,
+# PREGAP, et les styles : casse, tabulations, CRLF, guillemets, zéros de tête), puis des feuilles malformées par
+# mutation de feuilles valides (nombres à plusieurs chiffres, négatifs, au-delà de 2^31 ; MSF hors bornes ; un PREGAP
+# qui porte le lead-out au-delà de 255 minutes ; guillemets, blancs, fins de ligne, casse ; lignes de 511 et 512 ;
+# mots inconnus, lignes ôtées, doublées, échangées) ; enfin des feuilles ciblées, sans tirage : chaque nombre et chaque
+# MSF de ces listes à chaque place de deux feuilles de base, et des formes brutes (vide, NUL, BOM…). Une graine
+# fixe : deux exécutions écrivent les mêmes feuilles, que campagne.lst nomme avec leur empreinte (isogen.sha256
+# porte celle de campagne.lst).
+# Écartées avant l'oracle : les formes de PB-110 (une piste avant tout FILE, qui fait tomber PCem) et un FILE qui
+# désigne un répertoire (DEVIATION, cdrom_image.cs : ifstream l'ouvre, FileStream le refuse ; r9-cue).
+GRAINE = 20261021
+VALIDES, MUTEES = 150, 250
+
+# Les fichiers des feuilles : le nom, le type de ses pistes (None : mixte.bin, une piste de données puis l'audio), ses
+# secteurs.
+BINS = [('iso-2048.iso', 'MODE1/2048', SECTEURS), ('iso-2352-mode1.bin', 'MODE1/2352', SECTEURS),
+        ('iso-2352-mode2.bin', 'MODE2/2352', SECTEURS), ('iso-2336-mode2.bin', 'MODE2/2336', SECTEURS),
+        ('mixte.bin', None, SECTEURS + 65), ('multi-piste2.bin', 'AUDIO', 25), ('multi-piste3.bin', 'AUDIO', 16)]
+MOTS = ('FILE', 'TRACK', 'INDEX', 'PREGAP', 'POSTGAP', 'REM', 'CATALOG', 'BINARY', 'AUDIO', 'MODE1/2048',
+        'MODE1/2352', 'MODE2/2336', 'MODE2/2352', 'FLAGS', 'TITLE')
+
+
+def msf(f, court=False):
+    m, s, fr = f // 4500, f // 75 % 60, f % 75
+    return f'{m}:{s}:{fr}' if court else f'{m:02d}:{s:02d}:{fr:02d}'
+
+
+def feuille_valide(r, grande=False):
+    """Les lignes d'une feuille valide (sans fin de ligne) ; grande : 99 pistes dans mixte.bin."""
+    lignes = []
+    if r.random() < 0.3:
+        lignes.append('REM campagne isogen')
+    if r.random() < 0.15:
+        lignes.append('CATALOG 0123456789012')
+    if r.random() < 0.08:
+        lignes.append(r.choice(['TITLE "Le disque"', 'PERFORMER "iXtal"', 'CDTEXTFILE "style.cdt"']))
+    choix = [BINS[4]] if grande else [r.choice(BINS) for _ in range(r.choice([1, 1, 2, 3]))]
+    piste = 1
+    for nom, genre, n in choix:
+        lignes.append(f'FILE "{nom}" BINARY')
+        npistes = 99 if grande else (1 if genre not in ('AUDIO', None) else r.choice([1, 2, 3, 5, 12]))
+        frame = 0
+        for j in range(npistes):
+            if piste > 99:
+                break
+            genre_p = genre or ('MODE1/2352' if j == 0 else 'AUDIO')
+            lignes.append(f'  TRACK {piste:02d} {genre_p}')
+            if piste > 1 and r.random() < 0.2:
+                lignes.append(f'    PREGAP {msf(r.randrange(0, 300))}')
+            if j > 0 and r.random() < 0.4:
+                lignes.append(f'    INDEX 00 {msf(frame)}')
+                frame += r.randrange(1, 4)
+            lignes.append(f'    INDEX 01 {msf(frame)}')
+            if r.random() < 0.15:
+                lignes.append(f'    INDEX {r.randrange(2, 100):02d} {msf(frame + r.randrange(1, 5))}')
+            if r.random() < 0.1:
+                lignes.append('    FLAGS DCP')
+            if r.random() < 0.08:
+                lignes.append(r.choice(['    ISRC FRXXX0000001', '    TITLE "piste"', '    PERFORMER "iXtal"',
+                                        '    SONGWRITER "isogen"', '    POSTGAP 00:00:10']))
+            frame += 1 if grande else r.randrange(1, max(2, n // npistes + 1))
+            piste += 1
+    return lignes
+
+
+def style(r, lignes):
+    """Une mise en forme tirée : casse des mots, blancs, retraits, zéros de tête, MSF courts, guillemets ôtés."""
+    casse = r.choice([str.upper, str.upper, str.lower, str.capitalize])
+    sep = r.choice([' ', ' ', '\t', '  ', ' \t'])
+    retrait = r.choice([None, '', '\t', '   '])
+    zeros = r.choice([None, 1, 3])
+    court = r.random() < 0.2
+    nus = r.random() < 0.3
+    out = []
+    for l in lignes:
+        mots = l.split()
+        if retrait is not None:
+            l = retrait * (len(l) - len(l.lstrip()) > 0) + l.lstrip()
+        tete = l[:len(l) - len(l.lstrip())]
+        mots = [casse(m) if m in MOTS else m for m in mots]
+        if mots[0].upper() in ('TRACK', 'INDEX') and zeros is not None:
+            mots[1] = f'{int(mots[1]):0{zeros}d}'
+        if mots[0].upper() in ('INDEX', 'PREGAP') and court:
+            mn, sc, fr = (int(x) for x in mots[-1].split(':'))
+            mots[-1] = f'{mn}:{sc}:{fr}'
+        if mots[0].upper() == 'FILE' and nus:
+            mots[1] = mots[1].strip('"')
+        out.append(tete + sep.join(mots))
+    return out
+
+
+NOMBRES = ['0', '00', '-1', '+1', '-0', '2147483647', '2147483648', '-2147483649', '4294967297',
+           '99999999999999999999', '1x', 'x1', '0x10', '1e3', '1.5']
+MSFS = ['00:00:75', '00:60:00', '00:00:-1', '-1:00:00', '100:00:00', '255:59:74', '0:0:0', '00:00', '00:00:00:00',
+        '00:00:00x', '::', '2147483647:00:00', '00:2147483647:00', '00:00:2147483648', '+1:+1:+1', ' 1: 2: 3',
+        '1 :2:3', '99999999999:00:00', '00:00:099', '99999999999999999999:00:00', '00:00:-99999999999999999999']
+TYPES = ['MODE1/2048', 'MODE1/2352', 'MODE2/2336', 'MODE2/2352', 'AUDIO', 'MODE3/2352', 'CDG', 'MODE1', '']
+
+
+def mute(r, lignes):
+    """Une à trois mutations d'une feuille valide."""
+    l = list(lignes)
+    for _ in range(r.choice([1, 1, 2, 3])):
+        k = r.randrange(len(l))
+        mots = l[k].split()
+        genre = r.randrange(13)
+        if genre == 0 and mots and mots[0].upper() in ('TRACK', 'INDEX') and len(mots) > 1:
+            l[k] = l[k].replace(mots[1], r.choice(NOMBRES), 1)
+        elif genre == 1 and mots and mots[0].upper() in ('INDEX', 'PREGAP'):
+            l[k] = l[k].rsplit(mots[-1], 1)[0] + r.choice(MSFS)
+        elif genre == 2:
+            l.insert(k + 1, f'    PREGAP {r.choice(["255:00:00", "254:59:74", "300:00:00", "999:00:00"])}')
+        elif genre == 3:
+            l.insert(k, r.choice(['FOO bar', 'TRACKS 01 AUDIO', 'INDEXX 01 00:00:00', 'FILE', 'TRACK', 'INDEX 01']))
+        elif genre == 4 and len(l) > 1:
+            del l[k]
+        elif genre == 5:
+            l.insert(k, l[k])
+        elif genre == 6 and k + 1 < len(l):
+            l[k], l[k + 1] = l[k + 1], l[k]
+        elif genre == 7 and mots and mots[0].upper() == 'FILE':
+            l[k] = r.choice([l[k].replace('"', '', 1), l[k][::-1].replace('"', '', 1)[::-1], l[k].replace('"', '""', 1),
+                             l[k].replace('.', ' .', 1)])
+        elif genre == 8 and mots and mots[0].upper() == 'TRACK' and len(mots) > 2:
+            l[k] = l[k].rsplit(mots[-1], 1)[0] + r.choice(TYPES)
+        elif genre == 9 and mots and mots[0].upper() == 'FILE':
+            l[k] = l[k].rsplit(mots[-1], 1)[0] + r.choice(['WAVE', 'MOTOROLA', 'AIFF', 'binary', ''])
+        elif genre == 10:
+            l.insert(k, 'REM ' + 'y' * r.choice([505, 506, 507, 508, 600]))
+        elif genre == 11:
+            l[k] = r.choice([l[k].replace(' ', '\t'), l[k] + '   ', '\t' + l[k], l[k] + '\r', l[k].lower()])
+        elif genre == 12 and mots and mots[0].upper() == 'TRACK' and len(mots) > 1:
+            try:
+                l[k] = l[k].replace(mots[1], f'{int(mots[1]) + r.choice([-1, 1, 2]):02d}', 1)
+            except ValueError:
+                pass
+    return l
+
+
+def nom_de_file(ligne):
+    """Le nom que GetCueString tire d'une ligne FILE (cdrom_image.cpp:526-541)."""
+    reste = ligne.lstrip()
+    reste = reste[len(reste.split()[0]):] if reste.split() else ''
+    mots = reste.split()
+    s = mots[0] if mots else ''
+    if not s.startswith('"'):
+        return s
+    if s.endswith('"'):
+        return s[1:-1]
+    i = reste.find('"')
+    apres = reste[i + 1:]
+    j = apres.find('"')
+    return (apres[:j] if j >= 0 else apres)[:255]
+
+
+def ecartee(d, lignes):
+    """Vrai pour une forme de PB-110 (une ligne TRACK avant toute ligne FILE) ou un FILE qui désigne un répertoire."""
+    vu_file = False
+    for l in lignes:
+        mots = l.split()
+        mot = mots[0].upper() if mots else ''
+        if mot == 'TRACK' and not vu_file:
+            return True
+        if mot == 'FILE':
+            vu_file = True
+            n = nom_de_file(l)
+            for c in (n, os.path.join(d, n), n.replace('\\', '/'), os.path.join(d, n.replace('\\', '/'))):
+                if n.strip() in ('', '.', '..') or os.path.isdir(c):
+                    return True
+    return False
+
+
+def ciblees():
+    """Les feuilles ciblées, sans tirage : chaque nombre et chaque MSF à chaque place de deux feuilles de base (le
+    numéro de piste, le numéro d'INDEX, le MSF d'INDEX 01, un PREGAP), et les PREGAP qui portent le lead-out au-delà de
+    255 minutes."""
+    une = ['FILE "iso-2048.iso" BINARY', '  TRACK {p} MODE1/2048', '    INDEX {i} {m}']
+    deux = ['FILE "mixte.bin" BINARY', '  TRACK 01 MODE1/2352', '    INDEX 01 00:00:00', '  TRACK {p} AUDIO',
+            '    PREGAP {g}', '    INDEX 00 00:00:32', '    INDEX {i} {m}']
+    msfs = MSFS + ['255:00:00', '254:59:74', '300:00:00', '00:00:00']
+    out = []
+    for n in NOMBRES:
+        out.append([l.format(p=n, i='01', m='00:00:00') for l in une])
+        out.append([l.format(p=n, i='01', m='00:00:42', g='00:00:00') for l in deux])
+        out.append([l.format(p='01', i=n, m='00:00:00') for l in une])
+    for m in msfs:
+        out.append([l.format(p='01', i='01', m=m) for l in une])
+        out.append([l.format(p='02', i='01', m=m, g='00:00:00') for l in deux])
+        out.append([l.format(p='02', i='01', m='00:00:42', g=m) for l in deux])
+    return out
+
+
+def campagne(d):
+    """Les feuilles de la campagne, écrites dans d, et campagne.lst."""
+    import hashlib
+    import random
+    r = random.Random(GRAINE)
+    valides = []
+    while len(valides) < VALIDES:
+        lignes = style(r, feuille_valide(r, grande=len(valides) % 25 == 0))
+        valides.append((lignes, r.choice(['\n', '\n', '\r\n']), r.random() < 0.9))
+    mutees, ecartees = [], 0
+    while len(mutees) < MUTEES:
+        lignes, fin, derniere = r.choice(valides)
+        m = mute(r, lignes)
+        if ecartee(d, m):
+            ecartees += 1
+            continue
+        mutees.append((m, fin, derniere))
+    assert ecartees < MUTEES, ecartees
+    liste = []
+    cibles = [(c, '\n', True) for c in ciblees() if not ecartee(d, c)]
+    for pref, feuilles in (('camp-v', valides), ('camp-m', mutees), ('camp-c', cibles)):
+        for i, (lignes, fin, derniere) in enumerate(feuilles):
+            nom = f'{pref}-{i:03d}.cue'
+            octets = cue(*lignes, fin=fin, derniere=derniere)
+            ecrire(d, nom, octets)
+            liste.append(f'{hashlib.sha256(octets).hexdigest()}  {nom}')
+    # Les formes brutes : la feuille vide, un NUL (le « probably a binary file » de getline), le BOM d'UTF-8, deux FILE
+    # du même nom, un INDEX avant toute piste, CATALOG sans argument et entre guillemets.
+    base = b'FILE "iso-2048.iso" BINARY\n  TRACK 01 MODE1/2048\n    INDEX 01 00:00:00\n'
+    brutes = [b'', b'\n', base.replace(b'BINARY', b'BIN\x00ARY'), b'\x00' * 600, b'\xef\xbb\xbf' + base,
+              base + b'FILE "iso-2048.iso" BINARY\n  TRACK 02 MODE1/2048\n    INDEX 01 00:00:00\n',
+              b'INDEX 01 00:00:00\n' + base, b'CATALOG\n' + base, b'CATALOG "0123456789012"\n' + base]
+    for i, octets in enumerate(brutes):
+        nom = f'camp-b-{i:03d}.cue'
+        ecrire(d, nom, octets)
+        liste.append(f'{hashlib.sha256(octets).hexdigest()}  {nom}')
+    ecrire(d, 'campagne.lst', ('\n'.join(liste) + '\n').encode('ascii'))
+    return ecartees
+
+
 def main():
     if len(sys.argv) < 2 or not os.path.isdir(sys.argv[1]):
         sys.exit('usage : isogen.py DOSSIER [NOM…]   (un répertoire existant ; NOM : une image à écrire seule)')
@@ -401,11 +635,19 @@ def main():
                                    '    INDEX 01 00:aa:00'))
     ecrire(d, 'refus-sans-piste.cue', cue('FILE "iso-2048.iso" BINARY'))
 
+    # GR.2e : la campagne.
+    ecartees = campagne(d)
+    if not SEULES:
+        print(f'isogen : la campagne de CUE, {VALIDES + MUTEES} feuilles tirées et les ciblées ; {ecartees} mutations '
+              'écartées (PB-110, un FILE répertoire).')
+
     # R9 : C# seul (r9-cue).
     ecrire(d, 'r9-sans-file.cue', cue('TRACK 01 AUDIO', '  INDEX 01 00:00:00', 'TRACK 02 AUDIO',
                                       '  INDEX 01 00:00:10'))
     ecrire(d, 'r9-piste-avant-file.cue', cue('TRACK 01 AUDIO', '  INDEX 01 00:00:00', 'FILE "mixte.bin" BINARY',
                                              '  TRACK 02 AUDIO', '  INDEX 01 00:00:00'))
+    # GR.2e : un FILE qui désigne un répertoire (DEVIATION : ifstream l'ouvre, FileStream le refuse), C# seul.
+    ecrire(d, 'r9-repertoire.cue', cue('FILE "sous" BINARY', '  TRACK 01 MODE1/2048', '    INDEX 01 00:00:00'))
 
     if SEULES:
         if SEULES - ECRITES:

@@ -63,6 +63,9 @@ les images d'isogen (`tools/isogen/isogen.py`) dans un répertoire de son `TMPDI
 contre `tools/isogen/isogen.sha256` — un générateur qui dérive rougit la porte —, et les efface en
 sortant, signaux compris (SIGKILL excepté). Parmi elles, une image CREUSE de 2,5 Go : 64 Kio seulement
 comptent au quota, ce qu'isogen vérifie par une sonde avant de l'écrire.
+GR.2e : isogen écrit aussi la campagne de CUE, 520 feuilles d'une graine fixe (valides combinées, malformées par
+mutation, ciblées), nommées avec leur empreinte dans `campagne.lst` ; `cdimage-check` les joue toutes des deux côtés
+et compte les feuilles montées et refusées.
 
 Les portes de l'ATAPI (G10.4) montent le lecteur sur l'unité IDE 2 de l'ami486. Leur disque est
 `iso-2048.iso` d'isogen, que la recette g5w écrit dans le WORK (`isogen.py DOSSIER iso-2048.iso`,

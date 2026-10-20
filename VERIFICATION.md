@@ -14829,3 +14829,89 @@ MBI 1 ; les neuf étapes à plusieurs PB ; une ligne de 121 caractères dans la 
 - La partie des tampons lus (BUF) n'est pas isolée dans la somme d'une étape de CCB : le nombre d'octets, inchangé,
   dit que la lecture a lieu, et le diff du mode PCem compare chaque octet.
 - Aucun contrôle négatif ne porte sur `pas` lui-même : la somme finale, inchangée, le couvre.
+
+## GR.2e — La campagne de CUE
+
+Le 21 octobre 2026 (PLAN-GR.md ; R2-g10.md § 1.5, D4). `cdimage-check` jouait 34 cas fixes. Les trous de G10.3 étaient
+tous ouverts : des numéros de piste et d'INDEX à plusieurs chiffres ou qui débordent, des MSF hors bornes, le lead-out
+au-delà de 255 minutes, et le FILE qui désigne un répertoire.
+
+**Le générateur** (`isogen.py`, `campagne`). Une graine fixe (20261021) : deux exécutions écrivent les mêmes octets.
+Les feuilles sont nommées avec leur empreinte dans `campagne.lst`, et `isogen.sha256` porte celle de `campagne.lst`.
+La porte vérifie chaque feuille contre la liste. 529 feuilles :
+- 150 valides combinées (`camp-v`) :
+  - un à trois FILE parmi les sept fichiers d'isogen, les quatre formats de données et l'audio ;
+  - les commandes ignorées (TITLE, PERFORMER, SONGWRITER, ISRC, POSTGAP, CDTEXTFILE) ;
+  - jusqu'à 99 pistes (une feuille sur 25), INDEX 00 et INDEX 02 à 99, PREGAP, FLAGS, REM, CATALOG ;
+  - les styles : la casse, les tabulations, les retraits, les zéros de tête, les MSF courts, les noms sans
+    guillemets, LF ou CRLF, la dernière ligne avec ou sans fin.
+- 250 malformées par mutation d'une feuille valide (`camp-m`), une à trois mutations chacune :
+  - des nombres à plusieurs chiffres, négatifs, au-delà de 2³¹ et de 2⁶³, des MSF hors bornes ;
+  - des PREGAP de 255 à 999 minutes ;
+  - des mots inconnus, des lignes ôtées, doublées ou échangées ;
+  - les guillemets, les types de piste et de fichier, des lignes de 509 à 604 caractères, les blancs, les fins de
+    ligne, la casse.
+- 120 ciblées, sans tirage (`camp-c`) : chaque nombre et chaque MSF des listes, à chaque place de deux feuilles de
+  base (le numéro de piste, le numéro d'INDEX, le MSF d'INDEX 01, un PREGAP).
+- 9 formes brutes (`camp-b`) : la feuille vide, un NUL, 600 NUL, le BOM d'UTF-8, deux FILE du même nom, un INDEX
+  avant toute piste, CATALOG sans argument ou entre guillemets.
+
+Deux formes sont écartées avant l'oracle (`ecartee`) :
+- celle de PB-110 : une ligne TRACK avant toute ligne FILE, qui fait tomber PCem ;
+- un FILE qui désigne un répertoire.
+
+isogen compte les mutations écartées (12), l'imprime, et s'arrête s'il en écarte plus qu'il n'en garde.
+
+**La porte.** `cdimage-check` ouvre chaque feuille des deux côtés et compare l'issue et l'état après chaque appel.
+Une feuille montée passe toute la batterie ; une feuille refusée, Ready et Size. Le compte est donné dans le message.
+Si une feuille valide ne monte pas, la porte rougit : le générateur aurait dérivé.
+
+Le résultat : vert, 563 cas, 195 603 appels et 196 731 états identiques des deux côtés, en 26 s (3 s avant). La
+campagne a 370 feuilles montées et 159 refusées, et les 150 valides sont toutes montées.
+
+**Le FILE qui désigne un répertoire** (D4 ; décision n° 9 de PLAN-G13.md). Il est inscrit en DEVIATION dans
+l'en-tête de `cdrom_image.cs` : ifstream ouvre le répertoire sous Linux, FileStream le refuse, et la feuille est
+refusée. `r9-cue` le prouve par `r9-repertoire.cue`, en C# seul. Le nom non UTF-8 de D4 n'est pas traité : PLAN-GR
+ne retient que le répertoire.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2e.py`) :
+- C1, l'extraction `>>` d'un int (num_get) qui ne sature plus : la campagne reste verte. Un `>>` qui déborde pose
+  failbit. Le mot qui suit (le type de la piste, le MSF de l'INDEX) se lit vide, et la feuille est refusée quelle que
+  soit la valeur. La saturation de num_get n'est pas observable par `image_open` ; le contrôle proposé par R2 est
+  donc sans prise.
+- C2, le `sscanf` des MSF qui rend 0 au débordement au lieu de saturer à la borne du long : rouge, deux cas, dont
+  `camp-c-102.cue` (INDEX 01 à 99999999999999999999:00:00). Sur la glibc 2.43 de l'hôte, ce MSF donne -1 minute
+  (mesuré par un programme C), comme le modèle C#. Ce sont les feuilles ciblées qui l'atteignent : les mutations
+  tirées au hasard ne l'avaient pas monté.
+
+**Ce que ce vert ne dit pas.**
+- Six feuilles montées ont des débuts de piste négatifs. D'autres portent le lead-out au-delà de 255 minutes, ou près
+  de 2³¹ trames. Elles passent par des débordements d'entiers signés en C++ (MSF_TO_FRAMES, `start + 150`,
+  `curr.start += …`). C'est un comportement indéfini, qui n'est identique des deux côtés que parce que gcc enroule.
+  Un autre niveau d'optimisation, ou UBSan, pourrait diverger.
+- La saturation de num_get n'est couverte par aucune porte (C1).
+- Le nom non UTF-8 de D4 n'est pas traité.
+
+**La série.** L'émulateur ne change que d'un commentaire (l'en-tête de `cdrom_image.cs`). Un sous-ensemble sur le
+worktree, en Release :
+- En mode PCem, verts : `cdimage-check`, `r9-cue` (les trois feuilles), `r9-atapi`, `r9-cdcfg`, et, sur la première
+  version de la campagne, `bd-ami486-cd-iso` et `bd-ami486-atapi-audio` (la recette appelle isogen pour ses images
+  seules ; la campagne n'y écrit rien).
+- Sous « tout » : `r9-cue` et `r9-cdcfg` verts, `cdimage-check` refusée, `r9-atapi` PCem seul.
+
+**La contre-lecture** (Sonnet), sur la première version de la campagne (520 feuilles), n'a trouvé aucun bloquant.
+Elle a :
+- rejoué isogen deux fois (un autre répertoire courant, une autre graine de hachage) : les dossiers sont identiques ;
+- porté LoadCueSheet et AddTrack en Python, et retrouvé les mêmes comptes de feuilles montées et refusées ;
+- confirmé que C1 est un mutant équivalent : les deux `>>` d'entier du parseur sont chacun suivis d'une lecture qui
+  échoue, puis du refus ;
+- vérifié qu'`ecartee` suffit : un `file` nul ne survit que par une piste avant tout FILE ;
+- vérifié que 33 feuilles montées portent le lead-out au-delà de 255 minutes.
+
+Ses mineurs sont repris :
+- l'assertion sur les feuilles valides ;
+- la ligne parasite après la campagne ;
+- les commandes ignorées et les formes brutes ;
+- le compte des mutations écartées ;
+- « ouvre » au lieu de « monte » pour le répertoire chez PCem, qui n'est jamais joué sur l'oracle ;
+- une ligne de 124 caractères.

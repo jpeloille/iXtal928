@@ -271,7 +271,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     deux modes ;
   - **GR.2d4** ✅ *fait, § GR.2d4* : AHABANC imprime ses 65 étapes, ses attendus des deux modes, la carte posée en
     334h (PB-292).
-- **GR.2e — La campagne de CUE** :
+- **GR.2e — La campagne de CUE** ✅ *fait, § GR.2e* :
   - un générateur déterministe dans `isogen.py`, avec des feuilles valides combinées et des feuilles malformées par
     mutation, que `cdimage-check` joue des deux côtés ;
   - le FILE qui désigne un répertoire inscrit en DEVIATION (PLAN-G13, décision n° 9) ;

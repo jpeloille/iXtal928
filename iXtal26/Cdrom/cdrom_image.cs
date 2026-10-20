@@ -35,7 +35,8 @@
 //   4. Les chemins : PCem passe des octets à stat() et à l'ifstream. Les noms lus dans la feuille sont
 //      gardés ici octet pour caractère (Latin-1), puis rendus en UTF-8 aux appels du système de
 //      fichiers : identique pour tout nom en UTF-8 valide. Un FILE qui désigne un RÉPERTOIRE diverge :
-//      ifstream l'ouvre sous Linux, FileStream le refuse (non couvert, PLAN-G10.md § les risques).
+//      ifstream l'ouvre sous Linux, FileStream le refuse — DEVIATION (GR.2e, décision n° 9 de PLAN-G13.md) : la
+//      feuille est refusée, prouvé par r9-cue (r9-repertoire.cue) ; la campagne de CUE l'écarte de l'oracle.
 
 using System.Globalization;
 using System.Runtime.InteropServices;

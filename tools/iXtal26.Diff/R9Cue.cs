@@ -50,6 +50,12 @@ internal static class R9Cue
 
             bad += Essai("une piste avant le premier FILE (cdrom_image.cpp:427)", () =>
                 Ouvre(Path.Combine(dossier, "r9-piste-avant-file.cue")) == 1 ? null : "la feuille devait être refusée");
+
+            // GR.2e — DEVIATION, pas R9 : un FILE qui désigne un répertoire ; ifstream l'ouvre sous Linux (déduit :
+            //   la feuille n'est jamais jouée sur l'oracle), FileStream le refuse (Cdrom/cdrom_image.cs, l'en-tête).
+            //   Écarté de la campagne.
+            bad += Essai("un FILE qui désigne un répertoire (DEVIATION)", () =>
+                Ouvre(Path.Combine(dossier, "r9-repertoire.cue")) == 1 ? null : "la feuille devait être refusée");
         }
         finally
         {
@@ -59,7 +65,8 @@ internal static class R9Cue
         }
 
         Console.WriteLine(bad == 0
-            ? "r9-cue : les deux feuilles survivent — la lecture échoue, la feuille fautive est refusée."
+            ? "r9-cue : les trois feuilles survivent — la lecture échoue, la feuille fautive est refusée ; " +
+              "le répertoire refusé (DEVIATION)."
             : $"r9-cue : {bad} essai(s) en défaut.");
         return bad == 0 ? 0 : 1;
     }

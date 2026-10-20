@@ -91,7 +91,8 @@ internal static class CdImageCheck
         Console.WriteLine();
         var vert = casRouges == 0 && constatsFaux == 0 && cas > 0;
         Console.WriteLine(vert
-            ? $"Vert : {cas} cas, {appels} appels et {etats} états identiques des deux côtés ; {constats} constats vérifiés."
+            ? $"Vert : {cas} cas, {appels} appels et {etats} états identiques des deux côtés ; " +
+              $"{constats} constats vérifiés ; la campagne : {montees} feuilles montées, {refusees} refusées."
             : $"ROUGE : {casRouges} cas sur {cas} divergent ({ecarts} écarts), {constatsFaux} constat(s) faux sur {constats}.");
         return vert ? 0 : 1;
     }
@@ -125,6 +126,7 @@ internal static class CdImageCheck
                  })
             Refus(F(nom));
 
+        Campagne(d);
         Suites(d);
         Nulle();
         Constats(d);
@@ -161,6 +163,44 @@ internal static class CdImageCheck
         bilan = "refusée";
         Appel(Op.Ready);
         Appel(Op.Size);
+    }
+
+    // GR.2e — la campagne de CUE d'isogen (campagne.lst) : chaque feuille ouverte des deux côtés, l'issue comparée ;
+    //   montée, toute la batterie ; refusée, Ready et Size. Une ligne par feuille serait trop : le compte seul.
+    private static int montees, refusees, valides, validesMontees;
+
+    private static void Campagne(string d)
+    {
+        foreach (var l in File.ReadAllLines(Path.Combine(d, "campagne.lst")))
+        {
+            var chemin = Path.Combine(d, l[66..]);
+            Debut(l[66..]);
+            muet = true;
+            Lecteur(ide.CDROM_IMAGE, ide.CDROM_IMAGE);
+            var valide = l[66..].StartsWith("camp-v-", StringComparison.Ordinal);
+            valides += valide ? 1 : 0;
+            if (Ouvre(chemin) == 0 && cdrom_image.cdrom is not null)
+            {
+                montees++;
+                validesMontees += valide ? 1 : 0;
+                Batterie();
+                Ferme();
+                Fermee();
+            }
+            else
+            {
+                refusees++;
+                Appel(Op.Ready);
+                Appel(Op.Size);
+            }
+        }
+
+        // muet reste vrai : le Debut suivant n'imprime pas la dernière feuille, puis le remet à faux.
+        Console.WriteLine($"  campagne de CUE : {montees + refusees} feuilles, {montees} montées et " +
+                          $"{refusees} refusées des deux côtés ; des {valides} valides, {validesMontees} montées");
+        // Une feuille valide refusée des deux côtés : le générateur a dérivé, la campagne ne prouve plus ses montées.
+        if (validesMontees != valides || valides == 0)
+            Ecart("campagne", $"{validesMontees} des {valides} feuilles valides montées");
     }
 
     /// <summary>Les suites d'ouvertures : image_changed, medium_changed, cdrom_drive, l'échec d'image_open
@@ -415,9 +455,11 @@ internal static class CdImageCheck
         ide_atapi.atapi = null;
     }
 
+    private static bool muet;
+
     private static void Bilan()
     {
-        if (cas > 0)
+        if (cas > 0 && !muet)
             Console.WriteLine($"  {nomCas}{(bilan.Length > 0 ? $" : {bilan}" : "")} — {appels - appelsAvant} appels{(casRouge ? ", ÉCARTS" : "")}");
         bilan = "";
         appelsAvant = appels;
@@ -426,6 +468,7 @@ internal static class CdImageCheck
     private static void Debut(string nom)
     {
         Bilan();
+        muet = false;
         cas++;
         nomCas = nom;
         casRouge = false;
@@ -731,6 +774,17 @@ internal static class IsoGen
                 calcule = Convert.ToHexStringLower(SHA256.HashData(f));
             if (calcule != attendu)
                 throw new InvalidOperationException($"isogen : {nom} n'a pas l'empreinte d'isogen.sha256 — le générateur a dérivé.");
+            n++;
+        }
+
+        // GR.2e — les feuilles de la campagne, chacune contre l'empreinte de campagne.lst (que isogen.sha256 porte).
+        foreach (var l in File.ReadAllLines(Path.Combine(d, "campagne.lst")))
+        {
+            string calcule;
+            using (var f = File.OpenRead(Path.Combine(d, l[66..])))
+                calcule = Convert.ToHexStringLower(SHA256.HashData(f));
+            if (calcule != l[..64])
+                throw new InvalidOperationException($"isogen : {l[66..]} n'a pas l'empreinte de campagne.lst.");
             n++;
         }
 
