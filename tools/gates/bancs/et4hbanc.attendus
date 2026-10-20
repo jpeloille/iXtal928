@@ -1,0 +1,34 @@
+# ET4HBANC (tools/et4hbanc, GR.1d) sous PC-DOS 2.00, sur l'ami386dx et la Tseng ET4000AX (CMOS f386.nvr), en C# seul
+# sous --boot, dans les deux modes (le domaine vidéo en mode matériel). Les 29 octets relevés, dans l'ordre :
+#   10F1h, AX puis BX (AL, AH, BL, BH) : AX = 0010h (le service rendu), BL le type de RAMDAC que la détection du BIOS
+#     trouve (7CE0h-7E47h, R1-contre C8) ;
+#   10F2h, AX puis BX : la profondeur courante, 00h (8 bits) ;
+#   en 2Eh, FFh écrit sur l'IPF armé, puis deux lectures de 3C6h (armé de nouveau) : la commande, puis ce qui suit ;
+#   pour chacun des codes 40h, C5h, 60h, E5h et E4h, écrit sur l'IPF armé : 3DAh lu 2 000 fois (OU, ET), puis la
+#     commande relue (armé de nouveau), le code écrit dans les deux modes ;
+#   00h rendu, puis 10F2h, AX puis BX : 00h, la profondeur de 8 bits revenue.
+# Les octets qui changent :
+#   Le type de 10F1h : PCem 04h, l'ET4000 02h, comme R1-contre C8 le déduisait du code de la ROM. En mode PCem, la
+#     lecture qui rend la commande referme l'IPF (unk_ramdac_in), et la suivante rend le masque, égal à ~cl : type 4.
+#     En mode matériel, l'IPF tient jusqu'à une écriture ou la lecture d'une autre adresse (PB-229) : la seconde
+#     lecture rend encore la commande, et le BIOS suit l'autre branche jusqu'au type 2.
+#   Après FFh : la commande 00h dans les deux modes (FFh armé ne la touche pas : il tombe sur le masque des pixels,
+#     PB-100 (c), le même dans les deux modes ; le masque valait déjà FFh, seule la commande restée à 00h le
+#     prouve) ; puis PCem FFh (l'IPF refermé, le masque), l'ET4000 00h (l'IPF tenu, la commande encore, PB-229).
+#   3DAh après chaque code : PCem OU 39h ou 31h, ET 00h ; l'ET4000 B9h ou B1h, ET 00h ou 80h. Le bit 3 (le retour
+#     vertical) vu ou non dans la fenêtre, le même code après code dans les deux modes (40h et E5h le voient) ; le bit
+#     7, complément du retour, et les bits 4-5 du faisceau en mode matériel (PB-226, G13.9f) ; les bits 4-5 basculés
+#     à chaque lecture chez PCem.
+# Les mêmes dans les deux modes : AX = 0010h de chaque service, la profondeur de 10F2h, les codes relus.
+# Puis le banc imprime ses relevés, attend une touche et pose le HiColor par 10F0h (BL = 2Eh : 640 × 480 en 15 bits ;
+#   10F0h n'offre pas le 1024 × 768, R1-contre A4), remplit les dix banques de 64 Ko et relit 10F2h. Ces deux
+#   services sont relevés et imprimés par INT 21h, que le BIOS dessine en points dans ce mode : ils ne sont pas dans
+#   ces attendus, seules la sonde de boot-diff, @vram et @image les voient. DOS rend la main. La mémoire vidéo
+#   (@vram) et l'image (@image) après la fin : les mêmes dans les deux modes, sous « video » et sous « tout », mesuré :
+#   malgré les deux types, 10F0h pose le même HiColor.
+pcem: 100004001000000000FF3900403100C5
+materiel: 10000200100000000000B90040B180C5
+pcem: 3100603900E53100E410000000
+materiel: B18060B900E5B180E410000000
+--- mémoire vidéo : 1048576 octets, empreinte FNV-1a 5D11DE363B416F05 ---
+--- image 640x480, empreinte FNV-1a 45FB6550F4FFAD95 ---

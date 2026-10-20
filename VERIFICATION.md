@@ -14007,3 +14007,75 @@ Ses points sont repris :
 **Ce que ce vert ne dit pas.**
 - Le jeu de CRTC de 729Ah (40:0089h bit 5 à 1) n'est pas joué : rien ici ne pose ce bit.
 - Le mode 37h (1024 × 768 en 16 couleurs) non plus.
+
+## GR.1d — Le banc HiColor, ET4HBANC
+
+Le 20 octobre 2026. ET4BANC passait le RAMDAC en HiColor puis le rendait, sans jamais sortir en HiColor, sans 10F0h,
+10F1h ni 10F2h (les services HiColor du BIOS de la carte), et sans les codes du décodeur au-delà de A0h (R1 § g et h).
+
+**La détection, mesurée d'abord** (dans le banc, sous `--boot`, les trois modes). 10F1h rend le type 4 en mode PCem et
+le type 2 en mode matériel, comme R1-contre C8 le déduisait de la ROM :
+- en mode PCem, la lecture qui rend la commande referme l'IPF, et la suivante rend le masque ;
+- en mode matériel, l'IPF tient (PB-229), et le BIOS suit l'autre branche.
+
+L'oracle rend aussi le type 4 : le diff le compare.
+
+**Le banc** (`tools/et4hbanc/et4hbanc.py`, neuf). L'interprète d'ET4BANC, avec deux ops de plus : INX (une lecture
+sans relevé, pour armer l'IPF) et un INT 10h qui passe AX et BX et relève les deux en retour. Le script :
+- 10F1h et 10F2h ;
+- en 2Eh, FFh écrit sur l'IPF armé (PB-100 (c)), puis la commande et ce qui la suit relus ;
+- les codes 40h et C5h (32 bits), 60h et E5h (24 bits), E4h (16 bits ; R1-contre K5), chacun écrit, 3DAh échantillonné,
+  puis relu ;
+- 00h rendu, 10F2h ;
+- les relevés imprimés, une touche, puis 10F0h (BL = 2Eh, 640 × 480 en 15 bits ; 10F0h n'offre pas le 1024 × 768,
+  R1-contre A4) ;
+- les dix banques de 64 Ko remplies, 10F2h relu et imprimé en points, et DOS rend la main en HiColor.
+
+**Les portes** (trois neuves) :
+- `bd-ami386dx-et4h-banc` : verte, 123 780 416 instructions, sonde VGA 163/163 sur l'écran final en HiColor ;
+- `banc-et4hbanc` et `-materiel` : vertes en mode PCem et sous « tout ».
+
+**Les attendus du C# seul** (`et4hbanc.attendus`, 29 octets, chacun expliqué) :
+- le type (04h contre 02h) ;
+- après FFh, ce qui suit la commande : le masque FFh chez PCem, la commande 00h sur la carte (PB-229) ;
+- 3DAh après chaque code (OU 39h ou 31h chez PCem, B9h ou B1h sur la carte, le retour vertical vu dans la fenêtre
+  après le même code dans les deux modes).
+
+La mémoire vidéo et l'image du HiColor sont les mêmes dans les trois modes : malgré les deux types, 10F0h pose le même
+mode.
+
+**Les contrôles négatifs** (Release dans le worktree, une panne à la fois, restaurée) :
+
+| | Panne (`vid_unk_ramdac.cs`) | Résultat |
+|---|---|---|
+| N1 | FFh armé pris pour la commande | rouge dès le POST : la détection tourne à l'amorçage, instruction 99 387, C000:7D48, BX 0004h contre 0003h ; `banc-et4hbanc` rouge |
+| N2 | 40h décodé en 24 bits | vert partout |
+| N3 | A0h décodé en 16 bits | sonde rouge sur `bpp`, `video_bpp` et `#buffer32` (15 contre 16) ; `banc-et4hbanc` rouge sur `@image` ; `bd-ami386dx-et4-banc` vert |
+
+N2 est le contrôle que le plan prévoyait, et il reste vert. Le choix de 32 ou de 24 bits agit sur le moment :
+`et4000_recalctimings` divise `hdisp` en 24 bits, et le rendu change. Mais aucun relevé n'en dépend, car aucune
+instruction ne lit la profondeur. Le retour à 00h remet 8 bits et refait les temps, puis 10F0h pose le HiColor avant
+la sonde.
+
+Une op qui comptait le blanc horizontal (3DAh bit 0) a été essayée pour le voir. Ses comptes variaient de 522 à 528
+d'un code à l'autre, sans lien avec la profondeur, et différaient entre « video » et « tout » : elle est retirée.
+
+N3 est la panne du même décodeur sur le chemin de sortie : la sonde la voit. ET4BANC, qui écrit A0h puis 00h en cours de
+route, ne la voyait pas.
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- réassemblé le banc, identique aux frappes, et compté ses 29 octets ;
+- déroulé les octets de la détection et de FFh sur `vid_unk_ramdac.cs` et sa part matérielle ;
+- vérifié sur la ROM que 10F0h, BL = 2Eh, ne teste le type que pour le mode 13h et pour A0h : les types 4 et 2
+  donnent le même HiColor (le refus de R1-contre C8 ne vaut que pour BL = FFh).
+
+Ses points sont repris :
+- la raison de N2, qui disait à tort que rien ne lit la profondeur (ci-dessus) ;
+- les octets relevés après la touche, qui ne sont pas dans les attendus ;
+- le masque FFh déjà en place.
+
+
+**Ce que ce vert ne dit pas.**
+- Le décodage de 40h, C5h, 60h, E5h et E4h n'est pas vérifié : leur relecture rend le code écrit, quel que soit le
+  décodage, et le banc ne finit pas dans ces profondeurs.
+- Les autres modes que 10F0h accepte (2Dh, 2Fh, 30h, et 13h pour un type 2 ou plus) ne sont pas joués.

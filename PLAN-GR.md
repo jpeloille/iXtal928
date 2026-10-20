@@ -218,7 +218,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     et la sortie dans ce mode ;
   - `bd-ami386dx-et4-banc` est recompté, et les deux attendus du C# seul sont réécrits ;
   - le contrôle négatif : `rowoffset` de 38h faussé.
-- **GR.1d — Le banc HiColor, ET4HBANC** :
+- **GR.1d — Le banc HiColor, ET4HBANC** ✅ *fait, § GR.1d ; le second contrôle négatif, resté vert, y est remplacé* :
   - la détection du RAMDAC (10F1h) est mesurée d'abord, dans les deux modes ;
   - puis le FFh armé, la commande et le masque relus (PB-100 (c)), les codes 32 bits du décodeur (40h, C5h), 60h,
     10F0h, et la sortie en HiColor. 10F0h refuse le 1024 × 768 (BL = 38h) : pas de HiColor dans ce mode ;
