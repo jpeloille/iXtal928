@@ -548,7 +548,7 @@ contre-lecture, M2, sa série entière et son commit :
     **Q28, posée le 16/10** — un canal démasqué mais hors cascade (mode simple, bloc ou demande) : le 8237 y pilote
     lui-même le bus, en conflit avec la carte (fiche, Cascade Mode) ; l'issue réelle est inconnue. (A) la condition de
     l'AT TR : la carte attend, comme PB-253 pour le canal 4 ; (B) reproduire PCem, seuls le masque et la désactivation
-    suspendant. *Proposé : (A) ; codé ainsi en attendant la réponse, une ligne à retirer pour (B).* Faite : la série
+    suspendant. *Proposé : (A) ; codé ainsi en attendant la réponse.* *Validé par Julien le 20/10 : (A).* La série
     verte dans les deux modes, et le démarrage témoin (DOS 5 depuis le disque SCSI, sous « tout » comme en mode PCem).
 
 **Les questions de D3-stockage, tranchées par Julien le 12/10 sur ces propositions** :
@@ -603,8 +603,8 @@ contre-lecture, M2, sa série entière et son commit :
     neuf (le DMA 1 seul des 1.x et 2.0, l'IRQ 5 d'usine de la 2.0), PB-291, neuf (le DMA 0 de la Pro), la liste du
     mode lue par `device_get_config_int_liste` ; **8d3c** ✅ *(17/10, VERIFICATION.md § G13.8d3c)*, l'AHA-1542C —
     PB-292, neuf (le port d'usine, 330h, en mode matériel ; l'avertissement du MPU de `pc.cs` le suit), SW5 en clé
-    `floppy` dans les deux modes (sur Off d'usine, déduit, contre la proposition « désactivé » du relevé, soumis à
-    Julien : l'octet 26h de 0Dh, PB-140, rend 01h) ;
+    `floppy` dans les deux modes (sur Off d'usine, déduit, contre la proposition « désactivé » du relevé ; Q29,
+    *validée par Julien le 20/10 : sur Off, actif* ; l'octet 26h de 0Dh, PB-140, rend 01h) ;
     **8d4** ✅ *(14/10, VERIFICATION.md
     § G13.8d4)*, ouverte le 14/10 à la demande de Julien, le front de la ligne — PB-285, neuf (une IRQ du DSP levée sur
     la ligne déjà haute ne repose pas la demande au PIC), les gardes en tête de chaque état qui lève, `sb_irq`, inliné
@@ -787,7 +787,7 @@ contre-lecture, M2, sa série entière et son commit :
 - Coupée en trois le 15/10, sur l'étude, après 9g. Le son qui attend Q13 à Q16 (8c2, 8d3, 8e, 8g), PB-260 et PB-142
   (7e3 bis ou 7e4) et PB-256 (la carte mère) restent ouverts, et la clôture le dit ; quand ils viendront, 10b et 10c
   seront rejouées. Rejouées après le son, en G13.8g3c (18/10) ; puis après la carte mère, en G13.13c (18/10) : PB-256
-  corrigé (13a) ; Q28 et Q29 restent ouverts.
+  corrigé (13a) ; Q28 et Q29 restent ouverts. Tranchés le 20/10 sur leurs propositions, déjà codées : rien à rejouer.
   - **G13.10a — Les profils et les témoins.** Deux profils du mode matériel dans `launchSettings.json` : l'ami486 de
     référence (`ixtal26-486.cfg`) et le 5150. `--setup-check`. Les témoins, en C# seul (`--boot`), dans les deux
     modes, chaque écart expliqué : le 5150 jusqu'au BASIC ; l'XT et PC-DOS 2.00 (`VER`, `DIR`) ; l'IBM AT ; l'ami286 et

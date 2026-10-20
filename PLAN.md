@@ -173,7 +173,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   PB-294, les réglages 8 et 11 de SW1-SW4 ; P3 de l'EGA et de la CGA) ; 12b ✅ (les cavaliers du Xebec, de l'AT et de
   l'IDE) ; 12c ✅ (l'XTIDE en 300h et C8000h, Q32) ; 13a ✅ (PB-256, Q34) ;
   13b ✅ (COM et LPT : serial1, serial2, parallel1, parallel2) ; 13c ✅ (la clôture,
-  10b et 10c rejouées) : G13 est close, Q28 et Q29 restent ouvertes.
+  10b et 10c rejouées) : G13 est close ; Q28 et Q29, tranchées le 20/10 sur leurs propositions, déjà codées.
 - **GR**, la reprise de G9 et G10 : feu vert le 20/10, le plan sur reconnaissance dans `PLAN-GR.md`.
 - **G14 à G17** attendent chacun un feu vert.
 

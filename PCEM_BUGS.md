@@ -2994,8 +2994,8 @@ toujours `dipsw` seul, comme chez PCem.
 *G13.8d3c* : SW5 devient la clé `floppy` (0, coupé, sur On ; 1, actif, sur Off), dans les deux modes ; sans clé, sur
 Off, actif, l'usine — déduit (th99, la fiche des AHA-1540C/1542C : « Off: Floppy drive enabled » ; l'usine met le port
 et la ROM sur Off ; le guide de la 1542B livre son contrôleur actif), et non plus « la carte de PCem n'a pas de 82077 »,
-celui de la machine répondant en 3F0h à sa place ; contre la proposition du relevé (« désactivé »), soumis à Julien. 26h
-vaut désormais 01h (25h-2Bh : `0001A3C2012345`), 11h et 51h ; `floppy = 0`, 09h, un cas de plus.
+celui de la machine répondant en 3F0h à sa place ; contre la proposition du relevé (« désactivé »), validé (Q29, 20/10).
+26h vaut désormais 01h (25h-2Bh : `0001A3C2012345`), 11h et 51h ; `floppy = 0`, 09h, un cas de plus.
 
 ### PB-141 — Les mailbox : le compte des 02h, le balayage BIOS, le MBI non vérifié
 
@@ -6115,8 +6115,8 @@ PCem la fait ; l'AT la bloque jusqu'au démasquage.
 *Corrigé en mode matériel* (G13.7e4 ; Julien, le 16/10 : une 7e4) : sous `if (materiel.pb_260)`, en tête de
 `process_ccb` et de `process_scsi`, des `case` 1Ah et 1Bh, et des états de 03h qui écrivent (08h, 15h) — jamais par
 octet : la carte ne prend le bus (`bus_refuse_materiel`, `Scsi/scsi_aha1540.Materiel.cs`) que si son canal (celui de
-sa configuration, relu à chaque échéance de 10 µs) est démasqué, en mode cascade (provisoire : Q28 (A), posée à
-Julien), et son 8237 actif (le bit 2
+sa configuration, relu à chaque échéance de 10 µs) est démasqué, en mode cascade (Q28 (A), validée par Julien le
+20/10), et son 8237 actif (le bit 2
 de la commande ; celle du 8237 haut n'est rangée que sous PB-157) ; le canal 0 passe aussi par la cascade du canal 4
 sous PB-253 (`dma_maitre_materiel`, `Models/dma.Materiel.cs`). Refusé, l'échéance passe sans rien faire et la carte
 reprend à la première qui suit. La machine des commandes et le port de contrôle ne sont pas gardés : la ROM de la carte

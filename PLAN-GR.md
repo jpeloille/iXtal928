@@ -360,7 +360,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 ## Les décisions
 
 Le principe de GR, sa portée et sa porte sont décidés (PLAN.md § GR, 04/10). Les décisions ci-dessous découlent des
-décisions déjà prises ; la règle du 18/10 n'en laisse qu'une question à Julien, Q35.
+décisions déjà prises ; la règle du 18/10 n'en laisse qu'une question à Julien, Q35, tranchée le 20/10.
 
 1. **L'ordre** : celui des étapes ci-dessus. GR.0 vient d'abord, parce que GR.1f et GR.1g n'ont de sens qu'avec
    l'image. Les outils de diagnostic précèdent les bancs, et la configuration précède les profils. *(De PLAN.md § GR
@@ -395,7 +395,8 @@ décisions déjà prises ; la règle du 18/10 n'en laisse qu'une question à Jul
 - **Q35 (GR.5)** — `os/486-HDD-C.img` a été écrite le 18/10 à 16 h 18. Elle ne concorde plus avec `os/os.sha256`, récrit
   le 16/10 sur Q20. Aucune porte ni aucun script de G13.13 ne l'a touchée : les portes travaillent sur des copies, et
   les scripts de 13a ne lançaient que la M24 et le PC1512. Est-ce ta séance ? *Proposé : si oui, récrire l'empreinte,
-  comme pour Q20, dans un commit `os:` à part.* Sans réponse, rien ne bloque avant GR.5.
+  comme pour Q20, dans un commit `os:` à part.* *Validé par Julien le 20/10 : sa séance ; l'empreinte récrite
+  (cd6799f).*
 
 ## Les risques
 
