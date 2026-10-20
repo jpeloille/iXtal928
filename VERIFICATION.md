@@ -14522,3 +14522,79 @@ trois modes, les sept PB isolés, le boot-diff et les contrôles négatifs. Ses 
 - Le disque changé n'est pas joué (ci-dessus).
 - PB-109, 214 et 273 ne sont pas discriminés par cette table : leurs cas sont dans `materiel-cas`.
 - L'éjection et REQUEST SENSE après l'audio sont ceux de PCem, dans les deux modes : deux défauts candidats.
+
+
+## GR.2d1 — ZIPBANC sur la table
+
+Le 21 octobre 2026. GR.2d est coupée en quatre (PLAN-GR.md) ; 2d1 en est la première part. ZIPBANC (G10.6) saisissait
+ses deux secteurs de données octet pour octet : 198 lignes de DEBUG, 515 millions d'instructions, la plus longue
+porte de la série (R2-g10.md § 1.8). Cinq de ses 25 commandes n'étaient jamais jouées. Il n'avait pas d'attendus du
+mode matériel.
+
+**Le banc** (`tools/atapibanc/atapibanc.py`) :
+- ZIPBANC passe sur la table de GR.2b. L'ancien interprète (les ops 10 à 13, `words`, l'ancien affichage) est retiré :
+  plus aucun banc ne s'en sert ;
+- l'op 17 remplit un tampon de 512 octets, placé après les relevés, de la suite (i × A + B) & FFh, par une boucle. Le
+  bit 3 des drapeaux de l'op 15 fait partir la phase sortante de ce tampon. L'un et l'autre ne sont émis que pour
+  ZIPBANC : ATAPIBNC et ATAPIAUD restent octet pour octet ceux de GR.2b et GR.2c ;
+- le .COM fait 1 198 octets, dont un script de 414 ; la saisie, 82 lignes de DEBUG (198 avant) ;
+- la table, 41 lignes : celles d'avant, et PREVENT ALLOW, SEEK(6), WRITE AND VERIFY(10) relu, IOMEGA EJECT (qui
+  éjecte), READ FORMAT CAPACITIES sans disque. FORMAT est renvoyé à GR.2d3. L'op 15 garde au plus 22 octets :
+  IDENTIFY, INQUIRY et MODE SENSE(6) en gardent moins qu'avant, et la somme couvre le reste.
+
+**Les sommes des relectures** sont des attendus absolus, ceux des suites écrites : les secteurs 100 et 101 F820, le
+secteur 101 52A8, le secteur 102 B8B9. Mesurées, ce sont celles des anciennes suites saisies : la boucle écrit ce que
+la saisie tapait.
+
+**`--boot`** (`BootImageCopies`, `BootVerb`) :
+- `--boot` copie désormais l'image ZIP, comme les disquettes et les disques durs. Sans cela, ZIPBANC en C# seul
+  écrivait dans le `zip100.img` du WORK, que les autres portes partagent ;
+- les copies sont effacées à la sortie, exception comprise (point de la contre-lecture). Elles restaient dans le
+  répertoire temporaire : 160 Mo par disque dur, et désormais 100 Mo par image ZIP, à chaque passage. `--in-place`
+  (la recette g5w, `r9-filet`) ne fait aucune copie et n'est pas touché.
+
+**Les portes** :
+- `bd-ami486-zip-banc` recomptée : verte, 277 336 743 instructions (515 588 948 avant), sondes ATAPI 88/88 et ZIP
+  23/23, l'image ZIP identique des deux côtés (2 040 octets écrits) ;
+- `banc-zipbanc` et `-materiel` neuves, en C# seul, contre `zipbanc.attendus`.
+
+**Les attendus.** Ceux du mode PCem sont ceux de l'oracle. En mode matériel, deux lignes changent, toutes deux sous
+PB-126 (mesuré : le banc rejoué sous ce seul PB change ces deux lignes, et elles prennent la valeur du mode matériel) :
+READ CAPACITY, 00030000h contre 0002FFFFh ; READ(10) du LBA 196 608, servi contre 05/21h. Sous « tout », les 41
+lignes sont celles du domaine stockage.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2d1.py`) :
+
+| | Panne (`scsi_zip.cs`) | Banc en C# seul | boot-diff |
+|---|---|---|---|
+| Z1 | IOMEGA EJECT ignoré | 2 échecs, après l'éjection | rouge à 274 047 432 |
+| Z2 | la phase sortante, chaque octet reçu faussé | 4 échecs, les relectures | rouge à 270 710 871 |
+| Z3 | PB-126 coupé pour READ CAPACITY, en mode matériel | `-materiel` : 1 échec, READ CAPACITY | — |
+
+**La série.** BootVerb change (`--boot` copie l'image ZIP et efface ses copies) : la série entière, sur le worktree,
+en Release, dans les deux modes. Elle couvre aussi GR.2b et GR.2c, jouées en sous-ensembles.
+- En mode PCem, contre gr2a : 805 portes vertes (795 avant), aucune rouge.
+- Sous « tout », contre gr2a-tout : 542 vertes (534), 252 refusées (250), 11 PCem seul, aucune rouge.
+
+Les différences, toutes expliquées :
+- dix portes neuves en mode PCem : les quatre bancs d'ATAPIBANC et les deux boot-diffs ami286 et ami386dx (GR.2b),
+  les deux bancs d'ATAPIAUD (GR.2c), les deux bancs de ZIPBANC (GR.2d1) ;
+- sous « tout », les huit bancs verts contre les attendus du mode matériel, les deux boot-diffs neufs refusés ;
+- quatre boot-diffs recomptés, verts : `bd-ami486-atapi-banc` et `-vide` (GR.2b, 359 671 766 et 359 671 366
+  instructions), `bd-ami486-atapi-audio` (GR.2c, 287 265 605), `bd-ami486-zip-banc` (277 336 743).
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- régénéré les trois programmes : ATAPIBNC et ATAPIAUD identiques à ceux de HEAD ;
+- vérifié l'op 17, la branche du tampon, la chaîne des ops et ZBUF au désassemblage ;
+- confronté la table à `scsi_zip.c` : les quatre commandes ajoutées, aucun site R9, 512 octets sortants ;
+- comparé les attendus aux trois relevés et recalculé les trois sommes ;
+- vérifié que `zip_path` est lu avant la copie, et que `zip_load` lit la copie.
+
+Ses points sont repris :
+- la ligne 0F (le reliquat de G13.7d1) commentée ;
+- les copies de `--boot` effacées ;
+- les octets gardés réduits, dits.
+
+**Ce que ce vert ne dit pas.**
+- FORMAT, l'image en lecture seule et l'esclave ne sont pas dans cette part (GR.2d2, GR.2d3).
+- PB-125 n'est pas atteint par la table : ses cas sont dans `r9-zip` et `materiel-cas`.

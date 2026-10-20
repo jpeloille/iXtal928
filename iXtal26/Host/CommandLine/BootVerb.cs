@@ -125,6 +125,13 @@ internal static class BootVerb
         if (!inPlace)
             BootImageCopies.CopyMountedImages();
 
-        return (ExitCode)BootTest.Run(paths.resolve_roms_path(romDirectory), sliceCount, typedLines, settleSlices);
+        try
+        {
+            return (ExitCode)BootTest.Run(paths.resolve_roms_path(romDirectory), sliceCount, typedLines, settleSlices);
+        }
+        finally
+        {
+            BootImageCopies.Purge();
+        }
     }
 }

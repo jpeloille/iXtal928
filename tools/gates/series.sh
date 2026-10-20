@@ -493,7 +493,8 @@ done
 mapfile -t AAK < tools/atapibanc/atapibanc-audio.keys
 AAB=(); for l in "${AAK[@]}"; do AAB+=(--type "$l"); done
 runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-audio.cfg --type-at 60000 \
-  --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "" --type "^" --type "^" --expect-cd 2,image --expect-cd-son
+  --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "" --type "^" --type "^" --expect-cd 2,image \
+  --expect-cd-son
 for m in "" "-materiel"; do
   h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
   runw banc-atapiaud$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/atapiaud.attendus" -- \
@@ -510,7 +511,16 @@ done
 # déborde (PB-125).
 mapfile -t ZBK < tools/atapibanc/zipbanc.keys
 ZBB=(); for l in "${ZBK[@]}"; do ZBB+=(--type "$l"); done
-runw bd-ami486-zip-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-zip.cfg --type-at 60000 --type-settle 600 "${ZBB[@]}" --type "^" --type "^" --type "^"
+# GR.2d1 — ZIPBANC sur la table de GR.2b : les secteurs écrits remplis par une boucle (l'op 17), plus saisis ; PREVENT
+# ALLOW, SEEK(6), WRITE AND VERIFY(10) et IOMEGA EJECT ajoutés ; une pause, une touche. En C# seul dans les deux modes,
+# contre zipbanc.attendus (--boot copie désormais l'image ZIP).
+runw bd-ami486-zip-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-zip.cfg --type-at 60000 --type-settle 600 \
+  "${ZBB[@]}" --type "^" --type "^" --type "" --type "^" --type "^"
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  runw banc-zipbanc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/zipbanc.attendus" -- \
+    --boot roms 60000 --config ami486-zip.cfg --settle 600 "${ZBB[@]}" --type "@wait 1500" --type "" --type "@wait 1500"
+done
 run r9-zip r9-zip
 run r9-atapi r9-atapi
 pcem_seul r9-zip "ses gardes ne s'atteignent que par PB-125 et PB-126, corrigés (G13.7d1)"

@@ -261,6 +261,13 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - FORMAT dans une porte à part (100 Mo par côté, sous `ESPACE_MIN_GO`) ;
   - les suites arithmétiques de ZIPBANC passées en boucles d'abord (environ 800 s de moins par série) ;
   - les attendus des deux modes en C# seul ; AHABANC de même.
+
+  Coupée en quatre le 21/10, à la reprise (chaque part commitée à sa série verte) :
+  - **GR.2d1** ✅ *fait, § GR.2d1* : ZIPBANC sur la table, les suites remplies par une boucle (l'op 17), les quatre
+    commandes hors FORMAT, ses attendus des deux modes ; `--boot` copie l'image ZIP et efface ses copies ;
+  - **GR.2d2** : l'image en lecture seule et le ZIP en esclave du CD ;
+  - **GR.2d3** : FORMAT dans sa porte ;
+  - **GR.2d4** : les attendus d'AHABANC dans les deux modes.
 - **GR.2e — La campagne de CUE** :
   - un générateur déterministe dans `isogen.py`, avec des feuilles valides combinées et des feuilles malformées par
     mutation, que `cdimage-check` joue des deux côtés ;
