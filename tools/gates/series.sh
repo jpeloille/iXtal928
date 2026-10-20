@@ -273,6 +273,17 @@ for mt in 2 3; do
 done
 # G9.0 — la MDA : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT.
 run bd-ibmat-mda boot-diff roms 3000 --model ibmat --gfxcard mda
+# GR.1g — le banc MDABANC (R0 à R17 écrits et relus, le curseur par INT 10h et le « Turbo XT », R4 = 99h, 3BAh, 3B8h)
+# saisi dans DEBUG sur le 5150 ; il finit sur un écran en rampe (caractères et attributs), R9 = 13h, entrelacé (R8 = 3,
+# PB-97 (b)) ; la variante -19, non entrelacée, lit les rangées 16 à 19 de la police (PB-96).
+mapfile -t MBK < tools/mdabanc/mdabanc.keys
+MBB=(); for l in "${MBK[@]}"; do MBB+=(--type "$l"); done
+mapfile -t M19K < tools/mdabanc/mdabanc-19.keys
+M19B=(); for l in "${M19K[@]}"; do M19B+=(--type "$l"); done
+run bd-pc-mda-banc boot-diff roms 11000 --gfxcard mda --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" "${MBB[@]}" --type "^" --type "^" --type "" --type "^"
+run bd-pc-mda-banc-19 boot-diff roms 11000 --gfxcard mda --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" "${M19B[@]}" --type "^" --type "^" --type "" --type "^"
 # G9.1 — l'Hercules : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT ; le
 # banc HERCBANC (graphique 720×348, deux pages, 3BAh, le 6845 relu) saisi dans DEBUG sur le 5150.
 run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
@@ -358,7 +369,7 @@ runw bd-ami386dx-et4h-banc f386.nvr ami386dx_opti495 boot-diff roms 40000 --conf
 # l'empreinte de la mémoire vidéo, @vram). boot-diff les joue contre l'oracle plus haut, et refuse le mode matériel.
 # GR.0c — EGABANC, HERCBANC et CGABANC (le 5150, la M24) impriment leurs relevés, attendent une touche et finissent
 # dans le mode testé : @vram et @image (l'empreinte de ce que @shot écrirait) après la fin. GR.1c : ET4BANC aussi ;
-# GR.1d : ET4HBANC, le HiColor.
+# GR.1d : ET4HBANC, le HiColor ; GR.1g : MDABANC, entrelacé.
 for m in "" "-materiel"; do
   h=(); [ -n "$m" ] && h=(--hardware-mode video)
   fin=(--type "@wait 1200" --type "" --type "@wait 600" --type "@vram" --type "@image")
@@ -366,6 +377,8 @@ for m in "" "-materiel"; do
     --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${EBB[@]}" "${fin[@]}"
   run banc-hercbanc$m "${h[@]}" banc tools/gates/bancs/hercbanc.attendus -- --boot roms 11000 --gfxcard hercules \
     --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${HBB[@]}" "${fin[@]}"
+  run banc-mdabanc$m "${h[@]}" banc tools/gates/bancs/mdabanc.attendus -- --boot roms 11000 --gfxcard mda \
+    --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${MBB[@]}" "${fin[@]}"
   run banc-cgabanc$m "${h[@]}" banc tools/gates/bancs/cgabanc.attendus -- --boot roms 11000 --gfxcard cga \
     --floppy-a $DOS --floppy-b os/pcdos20/pcdos20s.img --settle 600 --type "" --type "" "${CBB[@]}" "${fin[@]}"
   run banc-cgabanc-m24$m "${h[@]}" banc tools/gates/bancs/cgabanc-m24.attendus -- --boot roms 11000 \

@@ -1,0 +1,36 @@
+# MDABANC (tools/mdabanc, GR.1g, mdabanc.keys) sous PC-DOS 2.00, sur le 5150 et la MDA d'IBM, en C# seul sous --boot,
+# dans les deux modes (le domaine vidéo en mode matériel). Les 29 octets relevés, dans l'ordre :
+#   3BAh lu 3 000 fois sur l'écran texte, le OU et le ET ; 3BAh une fois ; la cellule (0,0) ; R0 à R17, FFh écrit
+#   puis relu (18 octets) ; après le mode 7 rendu et INT 10h AH = 01h, CX = 0607h : R10 et R11 relus ; R4 = 99h écrit,
+#   relu ; 3BAh lu 3 000 fois sur cette trame (OU, ET) ; 3BAh lu 3 000 fois, la vidéo coupée par 3B8h (OU, ET).
+# Les octets qui changent :
+#   3BAh une fois : F0h en mode PCem et sous « tout », F1h sous « video » : le bit 0 (le retour horizontal), l'instant
+#     de la lecture (G13.10c).
+#   R10 et R11 après INT 10h : PCem 0Bh 0Ch, la MDA 06h 07h. Le BIOS du 5150 écrit 06h et 07h ; PCem les réécrit en
+#     0Bh et 0Ch (le correctif du « Generic Turbo XT », vid_mda.c:29-34), que la carte n'a pas (PB-97).
+#   3BAh sur la trame de R4 = 99h : PCem OU F1h, ET F1h ; la MDA F1h et F0h. PCem tient R4 sur 8 bits, mais compte
+#     les rangées sur 7 (vc &= 127, vid_mda.cs:306) : vc n'atteint jamais 99h, la trame ne se referme pas,
+#     l'affichage reste éteint et le bit 0 reste à 1 jusqu'au mode 7 suivant. Le MC6845 tient R4 sur 7 bits (PB-97) :
+#     99h y vaut 19h, la trame normale, et le bit 0 bouge.
+#   3BAh, la vidéo coupée par 3B8h : PCem OU F9h, ET F0h (le bit 3, son retour vertical, PB-224) ; la MDA F1h et F0h
+#     (le bit 3 est le point sous le faisceau). L'écran vient d'être effacé par le mode 7 : le point est éteint avec
+#     ou sans la coupure, que ni PCem ni le mode matériel ne modèlent dans 3BAh ; cet échantillon ne la discrimine pas.
+# Les mêmes dans les deux modes : le premier échantillon (OU F9h, ET F0h : les bits 0 et 3 bougent, les bits 4 à 7 à 1),
+# la cellule (0,0), R0 à R17 relus à FFh (PCem n'a pas de masque ; le mode matériel rend la valeur écrite, la
+# relecture du MC6845 restant inconnue, PB-97 (c)), R4 relu à 99h.
+# Puis le banc imprime ses relevés, attend une touche, remplit l'écran d'une rampe (128 caractères pairs, 128
+#   attributs impairs), cache le curseur (R10 = 20h) et finit sur R9 = 13h entrelacé (R8 = 3) : la rangée finit à
+#   sc = R9 >> 1, 10 lignes dessinées (250 lignes), et le rendu ne lit que les rangées 0 à 7 de la police (PB-97 (b),
+#   le même dans les deux modes). La mémoire vidéo (@vram) : la même dans les deux modes. L'image (@image) : la même
+#   sous « video » et sous « tout », une autre en mode PCem ; mesuré, PB-97 seul rend l'image du mode matériel (PB-102
+#   seul et PB-224 seul en rendent chacun une autre, PB-89 et PB-223 ne la changent pas). Déduit : l'état final est le
+#   même dans les deux modes ; l'écart vient des restes de la phase où R0 à R17 valent FFh (R1 = FFh, des lignes de
+#   2 295 points, R8 = FFh l'entrelacé, R9 = FFh), que PB-97 masque autrement, et qu'aucune trame suivante ne réécrit.
+pcem: F9F0F02DFFFFFFFFFFFFFFFFFFFFFFFF
+materiel[video]: F9F0F12DFFFFFFFFFFFFFFFFFFFFFFFF
+materiel[tout]: F9F0F02DFFFFFFFFFFFFFFFFFFFFFFFF
+pcem: FFFFFFFFFFFF0B0C99F1F1F9F0
+materiel: FFFFFFFFFFFF060799F1F0F1F0
+--- mémoire vidéo : 4096 octets, empreinte FNV-1a 7A2A6971E061E46B ---
+pcem: --- image 720x250, empreinte FNV-1a 1DE47D65C4F71692 ---
+materiel: --- image 720x250, empreinte FNV-1a B6124E7DD8B1D27F ---

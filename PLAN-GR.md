@@ -229,7 +229,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     EGABANC sur 64 Ko ;
   - `r9-videocfg` étendu à `memory` et à `display_type` hors liste ;
   - les contrôles négatifs : le `^ 0x60` retiré ; l'ambre faussé ; `memory` lu à 128 Ko.
-- **GR.1g — MDABANC** :
+- **GR.1g — MDABANC** ✅ *fait, § GR.1g* :
   - R0 à R17 écrits et relus, le curseur par INT 10h puis R10 et R11 relus (le Turbo XT de PB-97), R4 = 99h, 3BAh
     échantillonné (PB-102), 3B8h, un écran d'attributs, puis l'état final avec R9 = 13h (l'entrelacé, PB-96) ;
   - `bd-pc-mda-banc`, plus le banc en C# seul dans les deux modes, avec l'empreinte de l'image ;

@@ -14143,3 +14143,73 @@ tranches de l'AT sous DOS est en temps émulé : l'invite y est atteinte quelle 
 - Les moniteurs monochromes vert (58) et blanc (90) de l'EGA ne sont pas joués : seul l'ambre l'est.
 - L'EGA de 128 Ko n'a pas de porte.
 - La MDA et l'Hercules en vert, sous DOS, non plus.
+
+## GR.1g — MDABANC
+
+Le 20 octobre 2026. La MDA n'avait pas de banc : le POST et DOS seulement (G9.0). Le correctif « Turbo XT » de PCem, la
+relecture et les masques du 6845 (PB-97), 3BAh (PB-224), l'entrelacé (PB-97 (b)) et les rangées 16 à 19 de la police
+(PB-96) n'étaient joués par aucune porte (R1 § d).
+
+**Le banc** (`tools/mdabanc/mdabanc.py`, neuf ; l'interprète d'HERCBANC, avec un INT 10h à AX et CX de plus) :
+- 3BAh échantillonné sur l'écran texte ;
+- FFh écrit dans R0 à R17, puis relu ;
+- le mode 7 rendu, le curseur posé par INT 10h AH = 01h, CX = 0607h, puis R10 et R11 relus ;
+- R4 = 99h écrit et relu, et 3BAh échantillonné sur cette trame ;
+- 3B8h vidéo coupée, et 3BAh de nouveau ;
+- les relevés imprimés, une touche ;
+- l'écran rempli d'une rampe (128 caractères pairs, 128 attributs impairs), le curseur caché, et la fin sur R9 = 13h
+  entrelacé (R8 = 3 : la rangée finit à `sc = R9 >> 1`, 10 lignes dessinées).
+
+Avec l'entrelacé, le rendu ne lit que les rangées 0 à 7 de la police (`(sc << 1) & 7`) : une seule fin ne peut pas
+montrer à la fois l'entrelacé et les rangées 16 à 19. D'où la variante `mdabanc-19.keys`, la même fin sans
+l'entrelacé, sur le patron des deux variantes de CGABANC.
+
+**Les portes** :
+- `bd-pc-mda-banc`, 152 194 455 instructions ;
+- `bd-pc-mda-banc-19`, 152 194 346 instructions ;
+- `banc-mdabanc` et `-materiel`, la variante entrelacée, vertes en mode PCem et sous « tout ».
+
+Les deux boot-diffs sont verts, sonde MDA 20/20, image comprise. La variante -19 n'a pas de banc en C# seul. Elle
+dessine 500 lignes par trame, et son image mêle plusieurs trames ; mesurée, elle diffère entre « video » et « tout ».
+Son témoin est boot-diff, contre l'oracle.
+
+**Les attendus du C# seul** (`mdabanc.attendus`, 29 octets, chacun expliqué) :
+- R10 et R11 : 0Bh 0Ch chez PCem (le « Turbo XT » réécrit les 06h 07h du BIOS), 06h 07h sur la carte ;
+- 3BAh sur la trame de R4 = 99h : PCem tient R4 sur 8 bits mais compte les rangées sur 7. La trame ne se referme
+  pas, et le bit 0 reste à 1. Le MC6845 tient R4 sur 7 bits : 99h y vaut 19h, la trame normale ;
+- 3BAh, la vidéo coupée : le bit 3 est le retour vertical chez PCem, le point sous le faisceau sur la carte (PB-224).
+  L'écran vient d'être effacé : l'échantillon ne discrimine pas la coupure, que ni l'un ni l'autre ne modèle dans
+  3BAh ;
+- 3BAh lu une fois : l'instant, F0h ou F1h selon la liste.
+
+La mémoire vidéo est la même dans les deux modes. L'image est la même sous « video » et sous « tout », et une autre
+en mode PCem. Mesuré en isolant les listes : PB-97 seul rend l'image du mode matériel. L'état final est le même dans
+les deux modes. Déduit : l'écart vient des restes de la phase où R0 à R17 valent FFh, que PB-97 masque autrement.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr1g.py`, Release dans le worktree, une panne à la fois, restaurée ; le
+témoin en texte `bd-pcdos-mda` vert sous chacune) :
+
+| | Panne (`vid_mda.cs`) | Résultat |
+|---|---|---|
+| N1 | le « Turbo XT » retiré | les deux variantes rouges, instruction 142 440 463, à la relecture de R10 (0Bh contre 06h) |
+| N2 | `& 15` dans l'entrelacé | `#buffer32` rouge sur `bd-pc-mda-banc`, et aussi sur `-19` (déduit : la phase où R8 = FFh) |
+| N3 | `fontdatm` lu à `sc & 15` | `#buffer32` rouge sur `-19` ; le banc entrelacé vert, comme attendu |
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- réassemblé les deux jeux de frappes ;
+- vérifié les masques de PB-97 et la table du mode 7 dans la ROM (R8 = 02h) ;
+- proposé l'explication de N2 sur -19 (la phase où R8, R1 et R9 valent FFh).
+
+Ses points sont repris :
+- la trame de R4 = 99h ne se referme pas chez PCem, au lieu de « 154 rangées » ;
+- l'échantillon de 3B8h ne discrimine pas la coupure ;
+- 10 lignes dessinées en entrelacé, et la rampe de 128 caractères et 128 attributs, au lieu de « 256 » ;
+- l'écart d'image expliqué, déduit ;
+- N1 rejoué sur -19, rouge.
+
+
+**Ce que ce vert ne dit pas.**
+- L'image de la variante -19 n'a pas de témoin en C# seul.
+- La coupure de la vidéo par 3B8h n'est modélisée dans 3BAh ni par PCem ni par le mode matériel.
+- Les valeurs relues du 6845 sont celles de PCem dans les deux modes : la relecture du MC6845 reste inconnue
+  (PB-97 (c)).
