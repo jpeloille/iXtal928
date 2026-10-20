@@ -485,15 +485,21 @@ for m in "" "-materiel"; do
     --boot roms 60000 --config ami486-atapi-vide.cfg --settle 600 "${ABB[@]}" "${fin[@]}"
 done
 # G10.5 — l'audio CD dans la machine : le fil CD de sound.c à l'échéance de sound_poll (décision n° 7),
-# givealbuffer_cd comparé par la sonde du CD. ATAPIAUD (atapibanc.py --audio) sur mixte.cue d'isogen,
-# la SB Pro v2 montée (le volume CD du CT1345) : READ TOC, PLAY AUDIO sur la piste de données (refusé),
-# PLAY AUDIO(10) en LBA 42 (rien ne joue : la position prise décalée de 150), la page audio (canaux
-# croisés, volumes 80h et 40h), PLAY AUDIO MSF de la piste 2, PAUSE, RESUME, PLAY AUDIO(12) de la piste 3
-# à l'adresse plus 150 (refusé, PB-123), STOP, READ SUB-CHANNEL entre chaque ; --expect-cd-son exige des
-# échantillons non nuls des deux côtés.
+# givealbuffer_cd comparé par la sonde du CD. ATAPIAUD (atapibanc.py --audio) sur mixte.cue d'isogen, la SB Pro v2
+# montée (le volume CD du CT1345) ; --expect-cd-son exige des échantillons non nuls des deux côtés.
+# GR.2c — ATAPIAUD sur la table de GR.2b : les deux pistes, une lecture de données pendant l'audio, READ SUB-CHANNEL
+# hors format 01h et sans SubQ, REQUEST SENSE en lecture, en pause et après la fin, SEEK, START STOP UNIT (éjecter,
+# charger) et PREVENT ALLOW ; une pause, une touche. En C# seul dans les deux modes, contre atapiaud.attendus.
 mapfile -t AAK < tools/atapibanc/atapibanc-audio.keys
 AAB=(); for l in "${AAK[@]}"; do AAB+=(--type "$l"); done
-runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-audio.cfg --type-at 60000 --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image --expect-cd-son
+runw bd-ami486-atapi-audio c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-audio.cfg --type-at 60000 \
+  --type-settle 600 "${AAB[@]}" --type "^" --type "^" --type "" --type "^" --type "^" --expect-cd 2,image --expect-cd-son
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  runw banc-atapiaud$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/atapiaud.attendus" -- \
+    --boot roms 60000 --config ami486-atapi-audio.cfg --settle 600 "${AAB[@]}" --type "@wait 1500" --type "" \
+    --type "@wait 1500"
+done
 # G10.6 — le lecteur ZIP 100 (scsi_zip.c) en maître secondaire de l'ami486 (zip_channel = 2), zip100.img de la
 # recette g5w, chargé à la fin de l'amorçage (zip_path, DEVIATION). ZIPBANC (atapibanc.py --zip) : la signature,
 # IDENTIFY PACKET, TEST UNIT READY (UNIT ATTENTION puis GOOD), INQUIRY, READ CAPACITY (PB-126), READ FORMAT

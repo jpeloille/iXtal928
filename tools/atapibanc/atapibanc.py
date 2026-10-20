@@ -43,9 +43,9 @@ AUDIO = '--audio' in sys.argv
 # G10.6 — `--zip` : ZIPBANC.COM, le même interprète (sans l'op 14), et le script du lecteur ZIP 100.
 ZIP = '--zip' in sys.argv
 # GR.2b — sans option : ATAPIBNC.COM tiré d'une table (PLAN-GR.md, GR.2b). L'interprète gagne un paquet compact
-# (op 15), une ligne par paquet imprimée aussitôt (op 16), une pause (op 9) ; ATAPIAUD.COM et ZIPBANC.COM restent
-# octet pour octet ceux de G10.5 et G10.6.
-TABLE = not AUDIO and not ZIP
+# (op 15), une ligne par paquet imprimée aussitôt (op 16), une pause (op 9). GR.2c : ATAPIAUD.COM aussi, avec l'op 14 ;
+# ZIPBANC.COM reste octet pour octet celui de G10.6.
+TABLE = not ZIP
 
 
 def w(v):
@@ -149,7 +149,7 @@ ins(None, 'add ax,206h', 3, lambda L, a: [0x05, 0x06, 0x02])
 ins(None, 'mov bx,ax', 2, lambda L, a: [0x89, 0xC3])
 nxt()
 
-FIN13 = 'op14' if AUDIO else 'op9' if TABLE else 'done'
+FIN13 = 'done'                # GR.2b : op 13 n'est plus émise qu'en --zip
 # GR.2b : en table, les ops 10 à 13 ne servent plus (op 15 les fait) ; ATAPIAUD.COM et ZIPBANC.COM les gardent.
 if not TABLE:
     # op 10 : le paquet, douze octets du script en six mots au port de données
@@ -236,8 +236,8 @@ if not TABLE:
     nxt()
 
 # op 14 (G10.5, ATAPIAUD.COM seul) : attendre N tops de l'horloge du BIOS (0040:006Ch, 18,2 par seconde),
-# le temps que le lecteur joue
-if AUDIO:
+# le temps que le lecteur joue. GR.2c : émise après l'op 16, ATAPIAUD.COM passant par la table.
+def emet_op14():
     ins('op14', 'cmp al,14', 2, lambda L, a: [0x3C, 0x0E])
     ins(None, 'jne done', 2, lambda L, a: [0x75, rel8(L, a + 2, 'done')])
     ins(None, 'lodsb                ; N', 1, lambda L, a: [0xAC])
@@ -254,7 +254,7 @@ if AUDIO:
     ins(None, 'pop es', 1, lambda L, a: [0x07])
     nxt()
 
-# GR.2b (ATAPIBNC.COM seul) — op 9 : une pause, une touche attendue (INT 16h) ; la page de relevés reste à l'écran.
+# GR.2b (en table) — op 9 : une pause, une touche attendue (INT 16h) ; la page de relevés reste à l'écran.
 if TABLE:
     ins('op9', 'cmp al,9', 2, lambda L, a: [0x3C, 0x09])
     ins(None, 'jne op15', 2, lambda L, a: [0x75, rel8(L, a + 2, 'op15')])
@@ -300,9 +300,11 @@ if TABLE:
 
     # op 16 : la ligne des relevés depuis la dernière (la signature, IDENTIFY)
     ins('op16', 'cmp al,16', 2, lambda L, a: [0x3C, 0x10])
-    ins(None, 'jne done', 2, lambda L, a: [0x75, rel8(L, a + 2, 'done')])
+    ins(None, 'jne op14' if AUDIO else 'jne done', 2, lambda L, a: [0x75, rel8(L, a + 2, 'op14' if AUDIO else 'done')])
     ins(None, 'call line', 3, lambda L, a: [0xE8] + rel16(L, a + 3, 'line'))
     nxt()
+    if AUDIO:
+        emet_op14()
 
 # op 0 (et tout inconnu) : afficher les relevés, seize octets par ligne, puis sortir
 if TABLE:
@@ -650,7 +652,14 @@ TABLE_LIGNES = []
 
 def T(nom, rangee, k=0, s_=0, attendu=None):
     # une pause toutes les PAGE lignes : la page reste à l'écran (25 lignes, l'invite et la commande comprises)
-    if TABLE_LIGNES and sum(1 for t in TABLE_LIGNES if t[0] != '-') % PAGE == 0 and TABLE_LIGNES[-1][0] != '-':
+    # (un nom qui commence par « - » n'imprime pas de ligne : la pause, l'attente de l'op 14)
+    # Les lignes comptées depuis la dernière pause : une pause explicite (T('-', PAUSE)) place la page.
+    lignes = 0
+    for t in reversed(TABLE_LIGNES):
+        if t[1] == PAUSE:
+            break
+        lignes += not t[0].startswith('-')
+    if lignes == PAGE and not nom.startswith('-') and rangee != PAUSE:
         TABLE_LIGNES.append(('-', PAUSE, 0, 0, None))
     TABLE_LIGNES.append((nom, rangee, k, s_, attendu))
 
@@ -658,7 +667,7 @@ def T(nom, rangee, k=0, s_=0, attendu=None):
 PAGE = 23
 
 
-if TABLE:
+if TABLE and not AUDIO:
     T('signature', BASE(0x170) + OUT(6, 0xA0) + WAIT + REC + LIGNE())               # 01 01 14 EB
     T('IDENTIFY DEVICE', OUT(7, 0xEC) + WAIT + REC + LIGNE())                        # ABRT
     T('IDENTIFY PACKET DEVICE', OUT(7, 0xA1) + WDRQ + [3] + w(256) + [24, 54] + REC + LIGNE(), 24, 54)  # le modèle
@@ -750,38 +759,78 @@ if TABLE:
     T('un code inconnu', P(C(0xD8)))
 
 
-S = []
 if AUDIO:
-    # G10.5 — l'audio CD sur mixte.cue (isogen) : une piste de données de 32 secteurs (LBA 0), la piste 2
-    # audio en LBA 42 (30 secteurs), la piste 3 audio en LBA 222 (25 secteurs, après un PREGAP de 150).
-    # PCem prend la position d'un PLAY AUDIO comme celle du lecteur, décalée de 150 (cdrom-image.cc:95-110).
+    # GR.2c — ATAPIAUD sur la même table (PLAN-GR.md, GR.2c), sur mixte.cue d'isogen : la piste 1 de données, 32
+    # secteurs en LBA 0 (iso-2048.iso) ; la piste 2 audio en LBA 42, 30 secteurs ; la piste 3 audio en LBA 222, 25
+    # secteurs, après un PREGAP de 150. PCem prend la position d'un PLAY AUDIO comme celle du lecteur, décalée de 150
+    # (PB-123). L'attente (op 14) compte les tops de l'horloge du BIOS, 18,2 par seconde.
     PAGE_0E_AUDIO = [0x0E, 0x0E, 0x05, 0x04, 0x00, 0x80, 0x00, 75,
                      0x02, 0x80, 0x01, 0x40, 0, 0, 0, 0]   # les deux canaux croisés, volumes 80h et 40h
-    S += BASE(0x170) + OUT(6, 0xA0) + WAIT + REC                  # la signature
-    S += PACKET(TUR)                                              # UNIT ATTENTION
-    S += PACKET(TUR)                                              # GOOD
-    S += PACKET(CDB(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 36)         # READ TOC, LBA : trois pistes et le lead-out
-    S += PACKET(CDB(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 36)         # READ TOC, MSF
-    S += PACKET(CDB(0x45, 0, 0, 0, 0, 0, 0, 0, 10))               # PLAY AUDIO(10) de la piste de données : refusé
-    S += PACKET(SENSE, 18)                                        # ILLEGAL REQUEST, 64h
-    S += PACKET(CDB(0x45, 0, 0, 0, 0, 42, 0, 0, 30))              # PLAY AUDIO(10) de la piste 2, LBA 42 : rien
-    S += WAITT(3) + PACKET(SUBQ(0), 16)                           #   ne joue (42 < 150, et la fin 72 < 150)
-    S += PACKET_OUT(CDB(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), [0] * 8 + PAGE_0E_AUDIO)   # la page audio
-    S += PACKET(CDB(0x47, 0, 0, 0, 2, 42, 0, 2, 72))              # PLAY AUDIO MSF, 00:02:42 à 00:02:72 : la piste 2
-    S += WAITT(2) + PACKET(SUBQ(1), 16)                           # en train de jouer (11h)
-    S += PACKET(CDB(0x4B, 0, 0, 0, 0, 0, 0, 0, 0))                # PAUSE
-    S += PACKET(SUBQ(1), 16)                                      # en pause (12h)
-    S += WAITT(2)
-    S += PACKET(CDB(0x4B, 0, 0, 0, 0, 0, 0, 0, 1))                # RESUME
-    S += WAITT(3) + PACKET(SUBQ(0), 16)
-    S += WAITT(6) + PACKET(SUBQ(0), 16)                           # la piste 2 finie (13h)
-    S += PACKET(CDB(0xA5, 0, 0, 0, 1, 116, 0, 0, 0, 25))          # PLAY AUDIO(12), 372 = 222 + 150 : refusé, le
-                                                                  #   contrôle prend l'adresse sans décalage (PB-123)
-    S += WAITT(3) + PACKET(SUBQ(1), 16)
-    S += PACKET(CDB(0x4E))                                        # STOP PLAY/SCAN
-    S += PACKET(SUBQ(0), 16)
-    S += [0]
-elif ZIP:
+
+    def MSF(lba):
+        a = lba + 150
+        return a // 4500, (a // 75) % 60, a % 75
+
+    def PLAYMSF(debut, fin):
+        return C(0x47, 0, 0, *MSF(debut), *MSF(fin))
+
+    def ATTENTE(n):
+        T('-attente', WAITT(n))
+
+    SENSE18 = C(0x03, 0, 0, 0, 18)
+    T('signature', BASE(0x170) + OUT(6, 0xA0) + WAIT + REC + LIGNE())
+    T('TEST UNIT READY', P(C(0x00), sense=False))                                    # UNIT ATTENTION, 28h, gardée
+    T('INQUIRY, sous l\'attention', P(C(0x12, 0, 0, 0, 36), sense=False))            # ALLOW_UA : passe, efface
+    T('TEST UNIT READY', P(C(0x00)))                                                 # GOOD
+    T('READ TOC, LBA', P(C(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)               # trois pistes et le lead-out
+    T('READ TOC, MSF', P(C(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)
+    T('PLAY AUDIO(10), la piste de données', P(C(0x45, 0, 0, 0, 0, 0, 0, 0, 10)))     # 64h
+    T('PLAY AUDIO(10), la piste 2', P(C(0x45, 0, 0, 0, 0, 42, 0, 0, 30)))             # PB-123
+    ATTENTE(3)
+    T('READ SUB-CHANNEL, LBA', P(SUBQ(0), 16), 16)
+    T('REQUEST SENSE', P(SENSE18, 14, sense=False), 14)
+    T('MODE SELECT(10), la page audio', P(C(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), sortie=[0] * 8 + PAGE_0E_AUDIO))
+    T('PLAY AUDIO MSF, la piste 2', P(PLAYMSF(42, 72)))
+    ATTENTE(2)
+    T('READ SUB-CHANNEL, MSF, en lecture', P(SUBQ(1), 16), 16)                       # 11h
+    T('REQUEST SENSE, en lecture', P(SENSE18, 14, sense=False), 14)                  # 00/11h
+    T('PAUSE', P(C(0x4B)))
+    T('READ SUB-CHANNEL, MSF, en pause', P(SUBQ(1), 16), 16)                         # 12h
+    T('REQUEST SENSE, en pause', P(SENSE18, 14, sense=False), 14)                    # 00/12h
+    ATTENTE(2)
+    T('RESUME', P(C(0x4B, 0, 0, 0, 0, 0, 0, 0, 1)))
+    ATTENTE(3)
+    T('READ SUB-CHANNEL, LBA, reprise', P(SUBQ(0), 16), 16)
+    ATTENTE(6)
+    T('READ SUB-CHANNEL, LBA, finie', P(SUBQ(0), 16), 16)                           # 13h
+    T('REQUEST SENSE, audio arrêté', P(SENSE18, 14, sense=False), 14)               # « en pause » : scsi_cd.c:947-950
+    T('-', PAUSE)                                    # la touche avant les deux pistes, qui ne durent que 0,6 s
+    T('PLAY AUDIO MSF, pistes 2 et 3', P(PLAYMSF(42, 247)))
+    ATTENTE(2)
+    T('READ SUB-CHANNEL, MSF, pistes 2 et 3', P(SUBQ(1), 16), 16)
+    T('READ(10) pendant l\'audio', P(R10(16, 1), 8), 8, 0, SOMME(16, 1))            # le PVD
+    T('READ SUB-CHANNEL, après la lecture', P(SUBQ(0), 16), 16)
+    T('READ SUB-CHANNEL, format 2', P(C(0x42, 0, 0x40, 2, 0, 0, 0, 0, 16)))          # 20h
+    T('READ SUB-CHANNEL, sans SubQ', P(C(0x42, 0, 0, 1, 0, 0, 0, 0, 16), 4), 4)     # l'état audio seul
+    T('SEEK(10), la piste 3', P(C(0x2B, 0, 0, 0, 0, 230)))
+    T('READ SUB-CHANNEL, après SEEK', P(SUBQ(0), 16), 16)
+    T('PLAY AUDIO(12), la piste 3', P(C(0xA5, 0, 0, 0, 1, 116, 0, 0, 0, 25)))        # 372 = 222 + 150 ; PB-123, 270
+    T('PLAY AUDIO MSF, la piste 3', P(PLAYMSF(222, 247)))
+    ATTENTE(3)
+    T('READ SUB-CHANNEL, piste 3', P(SUBQ(1), 16), 16)
+    T('STOP PLAY/SCAN', P(C(0x4E)))
+    T('READ SUB-CHANNEL, arrêté', P(SUBQ(0), 16), 16)
+    T('PREVENT ALLOW, empêcher', P(C(0x1E, 0, 0, 0, 1)))
+    T('START STOP UNIT, éjecter', P(C(0x1B, 0, 0, 0, 2)))                            # image_eject, vide chez PCem
+    T('TEST UNIT READY, après l\'éjection', P(C(0x00)))
+    T('START STOP UNIT, charger', P(C(0x1B, 0, 0, 0, 3)))                            # image_load, vide
+    T('TEST UNIT READY, après le chargement', P(C(0x00)))
+    T('PREVENT ALLOW, permettre', P(C(0x1E)))
+    T('READ TOC, LBA, de nouveau', P(C(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)
+
+
+S = []
+if ZIP:
     # G10.6 — le lecteur ZIP 100 en maître secondaire (zip_channel = 2), zip100.img de la recette g5w (100 663 296
     # octets nuls). Les deux secteurs écrits (100 par WRITE(10), 101 par WRITE(6)) sont relus, et l'image est
     # comparée des deux côtés en fin de porte.
@@ -900,7 +949,7 @@ if __name__ == '__main__':
     if TABLE:
         n = 0
         for nom, rangee, k, s_, attendu in TABLE_LIGNES:
-            if nom == '-':
+            if nom.startswith('-'):
                 continue
             # la ligne imprimée : son numéro, puis au plus 38 octets (l'IIR, K, six de la phase, sept registres,
             # ASC et ASCQ) — 79 colonnes

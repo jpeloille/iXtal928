@@ -14436,3 +14436,89 @@ huit contrôles négatifs.
   qu'au premier point où elle touche un registre comparé (N3, N4).
 - La porte `bd-ami486-atapi-banc` reste longue (360 millions d'instructions) : la table compactée ne raccourcit pas
   la saisie, elle tient 89 paquets en 121 lignes au lieu de 22 en 81.
+
+## GR.2c — L'audio du CD
+
+Le 20 octobre 2026. ATAPIAUD (G10.5) jouait la piste 2 seule, sans lecture de données pendant l'audio, sans SEEK,
+sans START STOP UNIT ni PREVENT, et seulement sous boot-diff. READ SUB-CHANNEL n'y était joué qu'au format 01h
+(R2-g10.md § 1.2, § 2).
+
+**Le banc.** ATAPIAUD passe sur la table de GR.2b : le paquet compact, une ligne par paquet. L'op 14 (attendre N
+tops de l'horloge du BIOS) est émise après l'op 16. ZIPBANC et ATAPIBNC restent octet pour octet ceux d'avant
+(régénérés et comparés). Le .COM fait 1 279 octets, dont un script de 516 ; la saisie, 87 lignes de DEBUG (78 avant).
+La table, 41 lignes sur mixte.cue d'isogen :
+- le prologue : l'attention d'unité gardée, puis l'INQUIRY qui l'efface ;
+- la TOC en LBA et en MSF ;
+- PLAY AUDIO(10), de la piste de données puis du LBA 42 ;
+- la page audio, les canaux croisés ;
+- PLAY AUDIO MSF de la piste 2, avec PAUSE et RESUME, et READ SUB-CHANNEL et REQUEST SENSE en lecture, en pause et
+  à l'arrêt ;
+- une pause, puis PLAY AUDIO MSF des pistes 2 et 3. La touche passe avant, car les deux pistes ne durent que 0,6 s ;
+- READ(10) du PVD pendant cette lecture, puis READ SUB-CHANNEL : l'audio continue (11h) ;
+- READ SUB-CHANNEL au format 2 et sans SubQ ;
+- SEEK(10) dans la piste 3 ;
+- PLAY AUDIO(12) et PLAY AUDIO MSF de la piste 3, puis STOP ;
+- PREVENT ALLOW, START STOP UNIT qui éjecte puis charge, TEST UNIT READY après chacun, et la TOC de nouveau.
+
+**Les portes** :
+- `bd-ami486-atapi-audio` recomptée : verte, 287 265 605 instructions (265 762 349 avant). Les sondes du son (62/62)
+  et du CD (6/6, 40 916 échantillons non nuls) concordent, ATAPI 88/88 ;
+- `banc-atapiaud` et `-materiel` neuves, en C# seul, contre `atapiaud.attendus`.
+
+**Les attendus.** Ceux du mode PCem sont ceux de l'oracle. En mode matériel, 16 lignes changent. Chacune est rattachée
+à son PB par la mesure : le banc rejoué sous `--hardware-mode PB-nnn`, un PB à la fois (109, 122, 123, 214, 215,
+270, 273). Sous chacun, seules ses lignes changent, et elles prennent la valeur du mode matériel :
+- PB-122 (le lead-out de la TOC, dont le contrôle est celui de la dernière piste, audio, 10h) : 3 lignes ;
+- PB-123 (la position comptée avec les 150 secteurs de l'amorce) : 9 lignes. PLAY AUDIO(10) du LBA 42 ne joue rien
+  chez PCem, et joue la piste 2 sur le matériel ; les positions de READ SUB-CHANNEL, absolues et relatives ; la piste
+  après SEEK(10) du LBA 230 ;
+- PB-270 (PLAY AUDIO(12), absente du CR-587-B) : 1 ligne ;
+- PB-215 (PLAY AUDIO MSF de la piste 3, que PCem juge hors de l'audio) : 1 ligne ;
+- PB-123 et PB-215 ensemble : les deux READ SUB-CHANNEL qui suivent ;
+- PB-109, 214 et 273 : rien, mixte.cue ne les discrimine pas dans cette table.
+
+Sous « tout », les 41 lignes sont celles du domaine stockage.
+
+**Deux défauts candidats**, relevés et laissés hors de l'étape (règle du 18/10) :
+- START STOP UNIT n'éjecte pas : `image_eject` et `image_load` sont vides (`cdrom-image.cc:255-257`), et TEST UNIT
+  READY rend GOOD après l'éjection ; un vrai lecteur rendrait NOT READY ;
+- REQUEST SENSE d'un lecteur arrêté après une lecture rend 00/12h, « en pause » : tout état autre que la lecture s'y
+  dit en pause (`scsi_cd.c:947-950`), et la branche « terminé » (13h) n'est pas atteinte.
+
+Le disque changé (le chemin de l'attention d'unité par `medium_changed`) reste hors de portée : aucun outil ne change
+l'image de CD en cours de route, et PCem n'éjecte pas.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2c.py`, chaque panne côté C#, construite à part, restaurée) :
+
+| | Panne | Banc en C# seul | boot-diff |
+|---|---|---|---|
+| A1 | PB-123 : la position LBA sans les 150 secteurs, en mode matériel | `-materiel` : 3 échecs, PLAY AUDIO(10) du LBA 42, REQUEST SENSE, et SEEK(10) | — |
+| A2 | l'éjection réelle côté C# (`image_eject` vide le chemin de l'image) | 4 échecs, après l'éjection | rouge à 284 021 914, l'impression du relevé qui suit |
+| A3 | la page audio ignorée : les canaux du CD non croisés (`sound.cs`) | vert : aucun relevé ne lit le mélange | instructions vertes ; la sonde du CD rouge, l'empreinte de ses échantillons |
+
+A3 est la raison de `--expect-cd-son` et de la sonde du CD : le banc ne voit que les relevés du lecteur, et le son
+n'est comparé que par boot-diff.
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, dans les deux modes.
+- En mode PCem, cinq portes vertes : `bd-ami486-atapi-audio` (674 s, 710 avant), `banc-atapiaud` (897 s) et
+  `-materiel` (904 s), les témoins `bd-ami486-cd-iso` et `r9-atapi`.
+- Sous « tout », les deux bancs sont verts (1 045 et 903 s).
+
+ATAPIBNC et ZIPBANC n'ont pas été rejoués : leurs frappes sont identiques à l'octet près à celles de GR.2b et de G10.6.
+
+**La contre-lecture** (Sonnet) a trouvé un bloquant. La pause automatique, posée avant la 24e ligne, tombait entre le
+READ SUB-CHANNEL des pistes 2 et 3 et le READ(10). La touche arrivait après la fin des deux pistes : la lecture de
+données ne se faisait pas pendant l'audio. L'échec de PCem sur cette ligne (05/21h) n'était alors que PB-109, l'échec
+collé par la fin du fichier. Correction : une pause explicite, avant les deux pistes ; le générateur compte désormais
+les lignes depuis la dernière pause, et ATAPIBNC n'en change pas. La table corrigée a été remesurée en entier : les
+trois modes, les sept PB isolés, le boot-diff et les contrôles négatifs. Ses autres points sont repris :
+- le contrôle du lead-out, 10h et non 14h pour mixte.cue ;
+- REQUEST SENSE après l'audio : la branche « en pause » (`scsi_cd.c:947-950`), et non « terminé » ;
+- les deux READ SUB-CHANNEL qui dépendent de PB-123 et de PB-215 ensemble ;
+- `FIN13` mort, et le commentaire G10.5 de `series.sh` périmé.
+
+
+**Ce que ce vert ne dit pas.**
+- Le disque changé n'est pas joué (ci-dessus).
+- PB-109, 214 et 273 ne sont pas discriminés par cette table : leurs cas sont dans `materiel-cas`.
+- L'éjection et REQUEST SENSE après l'audio sont ceux de PCem, dans les deux modes : deux défauts candidats.

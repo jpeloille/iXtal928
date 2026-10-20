@@ -251,9 +251,9 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - en C# seul, dans les deux modes, contre des attendus. Ceux du mode PCem viennent de l'oracle ; ceux du mode
     matériel sont sourcés à SFF-8020i et MMC-2. C'est la dette de G13.7 (PLAN-G13.md:448-450) ;
   - la frappe est compactée par des boucles dans le `.COM`.
-- **GR.2c — L'audio du CD** : ATAPIAUD sur la même table (SEEK, PLAY AUDIO sur deux pistes, lecture de données pendant
-  la lecture audio, READ SUB-CHANNEL, START STOP et l'éjection, PREVENT), sous boot-diff et en C# seul dans les deux
-  modes.
+- **GR.2c — L'audio du CD** ✅ *fait, § GR.2c* : ATAPIAUD sur la même table (SEEK, PLAY AUDIO sur deux pistes, lecture
+  de données pendant la lecture audio, READ SUB-CHANNEL, START STOP et l'éjection, PREVENT), sous boot-diff et en
+  C# seul dans les deux modes.
 - **GR.2d — ZIPBANC complet, et l'esclave** :
   - les cinq commandes manquantes ;
   - une image en lecture seule ;
