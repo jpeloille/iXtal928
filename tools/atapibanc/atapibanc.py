@@ -46,7 +46,9 @@ AUDIO = '--audio' in sys.argv
 # GR.2d2 — `--esclave` : ZIPESC.COM, l'interprète de ZIPBANC octet pour octet, et le script du ZIP en esclave du CD,
 # sur un disque protégé en écriture (zipro.img, IMAGE_RO).
 ESC = '--esclave' in sys.argv
-ZIP = '--zip' in sys.argv or ESC
+# GR.2d3 — `--format` : ZIPFMT.COM, l'interprète de ZIPBANC, et FORMAT UNIT du ZIP 100, dans sa porte (100 Mo écrits).
+FMT = '--format' in sys.argv
+ZIP = '--zip' in sys.argv or ESC or FMT
 # GR.2b — ATAPIBNC.COM tiré d'une table (PLAN-GR.md, GR.2b). L'interprète gagne un paquet compact (op 15), une ligne
 # par paquet imprimée aussitôt (op 16), une pause (op 9). GR.2c : ATAPIAUD.COM aussi, avec l'op 14. GR.2d1 : ZIPBANC.COM
 # aussi, avec l'op 17 (un secteur rempli d'une suite arithmétique par une boucle, au lieu de ses 512 octets saisis) ;
@@ -720,7 +722,7 @@ if AUDIO:
     T('READ TOC, LBA, de nouveau', P(C(0x43, 0, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)
 
 
-if ZIP and not ESC:
+if ZIP and not ESC and not FMT:
     # G10.6 — le lecteur ZIP 100 en maître secondaire (zip_channel = 2), zip100.img de la recette g5w (100 663 296
     # octets nuls). GR.2d1 : sur la table ; les secteurs écrits, remplis par l'op 17 (100 : i × 7 + 3 ; 101 et 550 :
     # i × 13 + 5Ah ; 102 : i × 3 + 11h), sont relus, et l'image est comparée des deux côtés en fin de porte. Les
@@ -847,6 +849,42 @@ if ESC:
     T('TEST UNIT READY, le CD', P(C(0x00)))                                          # GOOD
     T('READ(10), le PVD, encore', P(R10(16, 1), 8), 8, 0, SOMME(16, 1))
 
+if FMT:
+    # GR.2d3 — FORMAT UNIT du ZIP, sur zip100.img (maître secondaire, ami486-zip.cfg) : deux secteurs écrits et relus,
+    # FORMAT UNIT avec FmtData et une liste de 12 octets (l'en-tête, puis 196 608 blocs de 512 octets ; la forme de
+    # SFF-8070i d'après sa description, le texte non relu ; PCem ne demande pas la liste, scsi_zip.c:872-883), les mêmes
+    # secteurs relus nuls, la capacité et
+    # l'état d'après, un secteur écrit après FORMAT ; l'image comparée des deux côtés en fin de porte (boot-diff).
+    def W10(lba, n):
+        return C(0x2A, 0, (lba >> 24) & 0xFF, (lba >> 16) & 0xFF, (lba >> 8) & 0xFF, lba & 0xFF, 0, n >> 8, n & 0xFF)
+    NUL = _iso().somme_banc(bytes(512))
+    LISTE = [0x00, 0xA0, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00]
+    T('signature', BASE(0x170) + OUT(6, 0xA0) + WAIT + REC + LIGNE())                # 01 01 14 EB
+    T('TEST UNIT READY', P(C(0x00)))                                                 # UNIT ATTENTION (le disque)
+    T('TEST UNIT READY', P(C(0x00)))                                                 # GOOD
+    T('READ FORMAT CAPACITIES', P(C(0x23, 0, 0, 0, 0, 0, 0, 0, 20), 20), 20)
+    T('-remplir', REMPLIR(7, 3))
+    T('WRITE(10), LBA 100', P(W10(100, 1), tampon=256))
+    T('-remplir', REMPLIR(13, 0x5A))
+    T('WRITE(10), LBA 196 607', P(W10(196607, 1), tampon=256))                       # le dernier
+    T('READ(10), LBA 100', P(R10(100, 1), 8), 8, 0, _iso().somme_banc(SUITE(7, 3)))
+    T('READ(10), LBA 196 607', P(R10(196607, 1), 8), 8, 0, _iso().somme_banc(SUITE(13, 0x5A)))
+    T('FORMAT UNIT, la liste', P(C(0x04, 0x17), sortie=LISTE))                        # aucune phase sortante
+    T('TEST UNIT READY, après', P(C(0x00)))
+    T('REQUEST SENSE', P(C(0x03, 0, 0, 0, 18), 14, sense=False), 14)
+    T('READ(10), LBA 100, nul', P(R10(100, 1), 8), 8, 0, NUL)
+    T('READ(10), LBA 196 607, nul', P(R10(196607, 1), 8), 8, 0, NUL)
+    T('READ CAPACITY', P(C(0x25), 8), 8)                                              # PB-126
+    T('READ FORMAT CAPACITIES, après', P(C(0x23, 0, 0, 0, 0, 0, 0, 0, 20), 20), 20)
+    T('-remplir', REMPLIR(3, 0x11))
+    T('WRITE(10), LBA 200, après', P(W10(200, 1), tampon=256))
+    T('READ(10), LBA 200', P(R10(200, 1), 8), 8, 0, _iso().somme_banc(SUITE(3, 0x11)))
+    T('FORMAT UNIT, sans liste', P(C(0x04)))                                          # GOOD, tout effacé
+    T('READ(10), LBA 200, nul', P(R10(200, 1), 8), 8, 0, NUL)
+    T('-remplir', REMPLIR(5, 0x21))
+    T('WRITE(10), LBA 300, à la fin', P(W10(300, 1), tampon=256))                      # l'image : ce seul secteur
+    T('READ(10), LBA 300', P(R10(300, 1), 8), 8, 0, _iso().somme_banc(SUITE(5, 0x21)))
+
 S = []
 # GR.2b — la table (PLAN-GR.md, GR.2b ; R2-g10.md § 1.2) : une ligne par commande et par cas limite, sur les
 # 30 étiquettes de scsi_cd_command, sans les sites R9 (R2-g10.md § 1.3 : MECHANISM STATUS de longueur 0,
@@ -895,7 +933,7 @@ def assemble():
     return bytes(out), listing
 
 
-NOM = 'ATAPIAUD' if AUDIO else 'ZIPESC' if ESC else 'ZIPBANC' if ZIP else 'ATAPIBNC'
+NOM = 'ATAPIAUD' if AUDIO else 'ZIPESC' if ESC else 'ZIPFMT' if FMT else 'ZIPBANC' if ZIP else 'ATAPIBNC'
 
 
 def keys(code):
@@ -925,8 +963,8 @@ if __name__ == '__main__':
                   f'(octets du relevé)')
         n += 1
     here = os.path.dirname(os.path.abspath(__file__))
-    fichier = ('atapibanc-audio.keys' if AUDIO else 'zipesc.keys' if ESC else 'zipbanc.keys' if ZIP else
-               'atapibanc.keys')
+    fichier = ('atapibanc-audio.keys' if AUDIO else 'zipesc.keys' if ESC else 'zipfmt.keys' if FMT else
+               'zipbanc.keys' if ZIP else 'atapibanc.keys')
     with open(os.path.join(here, fichier), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:

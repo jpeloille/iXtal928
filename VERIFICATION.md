@@ -14692,3 +14692,71 @@ Ses mineurs sont repris :
   ne sont pas joués (la contre-lecture les relève ; hors de cette part).
 - La sonde du ZIP se prend après l'éjection : la protection y est vue par le banc et par la trace, pas par la sonde.
 - FORMAT effectif est GR.2d3.
+
+## GR.2d3 — FORMAT UNIT du ZIP, dans sa porte
+
+Le 21 octobre 2026. Troisième part de GR.2d (PLAN-GR.md). FORMAT UNIT (04h) n'était jamais joué (R2-g10.md § 1.2).
+PCem efface les 196 608 secteurs de l'image, un par un (`scsi_zip.c:872-883`, `hdd_file.c:228-261`) : 96 Mio écrits
+par côté. La décision D3 de R2 le met dans une porte à part.
+
+**ZIPFMT** (`atapibanc.py --format`) : l'interprète de ZIPBANC, instruction pour instruction, sur une table de 21
+lignes, 73 touches, sans pause. ATAPIBNC, ATAPIAUD, ZIPBANC et ZIPESC restent octet pour octet ceux de HEAD. Le ZIP
+est en maître secondaire, sur `zip100.img` (ami486-zip.cfg).
+- La signature, TEST UNIT READY (UNIT ATTENTION puis GOOD), READ FORMAT CAPACITIES.
+- Les secteurs 100 et 196 607 écrits et relus, chaque somme celle de sa suite.
+- FORMAT UNIT avec cdb[1] = 17h (FmtData) et une liste de 12 octets offerte (l'en-tête, puis 196 608 blocs de 512
+  octets) : la forme de SFF-8070i d'après sa description, le texte de la norme non relu.
+- Après : TEST UNIT READY, REQUEST SENSE (aucune erreur), les deux secteurs relus nuls, READ CAPACITY, READ FORMAT
+  CAPACITIES.
+- Le secteur 200 écrit et relu, puis FORMAT UNIT sans FmtData, puis le secteur 200 relu nul.
+- Le secteur 300 écrit et relu : à la fin, l'image est nulle sauf ce secteur.
+
+Ce que la table montre de PCem :
+- FORMAT rend GOOD aussitôt, sans demander la liste : aucun bloc DRQ, et la phase sortante de l'interprète est sautée ;
+- FORMAT efface tout le disque ;
+- READ FORMAT CAPACITIES rend la même liste avant et après FORMAT : 00030000h blocs de 512 octets, formaté.
+
+**Les portes** :
+- `bd-ami486-zip-format` : verte, 253 938 329 instructions. Les sondes ATAPI (88 champs) et ZIP (23) sont identiques.
+  L'image ZIP est identique des deux côtés, 510 octets non nuls : le secteur 300, dont deux octets de la suite sont
+  nuls.
+  FORMAT a donc effacé les secteurs 100, 196 607 et 200 des deux côtés.
+- `banc-zipfmt` et `-materiel` : neuves, en C# seul, contre `zipfmt.attendus`.
+
+**L'espace.** Une voie de la porte copie C: (152 Mio) et le ZIP (96 Mio) par côté, soit environ 500 Mio, sous les
+1,5 Go par voie qu'exige `par.sh` (`ESPACE_MIN_GO`) : rien à relever.
+
+**Les attendus.** Ceux du mode PCem sont ceux de l'oracle. En mode matériel, une seule ligne change, READ CAPACITY :
+00030000h contre 0002FFFFh. Elle est sous PB-126 (mesuré : le banc rejoué sous ce seul PB la change). Sous « tout »,
+les 21 lignes sont celles du domaine stockage.
+
+**Un défaut candidat**, laissé hors de l'étape (règle du 18/10). PCem ignore FmtData : il ne demande pas la liste de
+paramètres que décrit SFF-8070i (FmtData à 1, une liste de 12 octets). Un pilote qui l'envoie trouverait la commande
+finie avant sa phase de données. Le texte de la norme n'est pas dans le dépôt : à relire avant d'en faire un PB. Le
+comportement du ZIP d'Iomega est inconnu. À proposer à Julien en clôture.
+
+**Le contrôle négatif** (`/tmp/a9/neg-gr2d3.py`). F1 : FORMAT UNIT sans effet côté C# (`scsi_zip.cs`, aucun secteur
+effacé). Le banc a 3 échecs, les trois relectures nulles (0B, 0C, 12). Le boot-diff est rouge à 252 850 977.
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, sous .NET 10.0.13.
+- En mode PCem : `bd-ami486-zip-format` verte (253 938 329 instructions, comme hors série), `banc-zipfmt` et
+  `-materiel` verts (21 attendus, deux séances).
+- Sous « tout » : les deux bancs verts contre les attendus du mode matériel, le boot-diff refusé.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a :
+- régénéré les cinq programmes, les quatre autres identiques à HEAD ;
+- décodé READ FORMAT CAPACITIES (`scsi_zip.c:925-957`) et REQUEST SENSE ;
+- vérifié que les relectures nulles ont reçu un vrai bloc de 512 octets (blk 1, tot 0200h), et non une somme nulle
+  faute de lecture ;
+- rattaché READ CAPACITY à PB-126 par le banc rejoué sous ce seul PB.
+
+Ses mineurs sont repris : les citations de lignes, la forme de SFF-8070i dite non relue, « 510 octets non nuls ».
+
+**Ce que ce vert ne dit pas.** FORMAT n'est pas joué :
+- en première commande, avec l'UNIT ATTENTION pendante ;
+- sans disque ;
+- sur une LUN non nulle ;
+- deux fois de suite.
+
+Le secteur 0 et le milieu du disque ne sont pas relus après FORMAT. La contre-lecture relève ces cas ; hors de cette
+part.

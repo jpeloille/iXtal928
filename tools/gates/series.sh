@@ -535,6 +535,19 @@ for m in "" "-materiel"; do
     --boot roms 60000 --config ami486-zip-esclave.cfg --settle 600 "${ZEB[@]}" --type "@wait 1500" --type "" \
     --type "@wait 1500"
 done
+# GR.2d3 — ZIPFMT (atapibanc.py --format) : FORMAT UNIT du ZIP 100 en maître secondaire, sur zip100.img
+# (ami486-zip.cfg) ; deux secteurs écrits, effacés par FORMAT (avec la liste de SFF-8070i, puis sans), relus nuls, un
+# secteur écrit après ; l'image comparée des deux côtés. Deux FORMAT de 96 Mio chacun par côté, dans la même
+# copie : l'espace d'une voie reste inférieur aux 1,5 Go d'ESPACE_MIN_GO. En C# seul dans les deux modes, contre zipfmt.attendus.
+mapfile -t ZFK < tools/atapibanc/zipfmt.keys
+ZFB=(); for l in "${ZFK[@]}"; do ZFB+=(--type "$l"); done
+runw bd-ami486-zip-format c486.nvr ami486 boot-diff roms 60000 --config ami486-zip.cfg --type-at 60000 \
+  --type-settle 600 "${ZFB[@]}"
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  runw banc-zipfmt$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/zipfmt.attendus" -- \
+    --boot roms 60000 --config ami486-zip.cfg --settle 600 "${ZFB[@]}" --type "@wait 1500" --type "" --type "@wait 1500"
+done
 run r9-zip r9-zip
 run r9-atapi r9-atapi
 pcem_seul r9-zip "ses gardes ne s'atteignent que par PB-125 et PB-126, corrigés (G13.7d1)"

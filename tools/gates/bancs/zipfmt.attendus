@@ -1,0 +1,37 @@
+# ZIPFMT (tools/atapibanc --format, GR.2d3) sur l'ami486, le lecteur ZIP 100 en maître secondaire chargé de zip100.img
+# de la recette g5w (CMOS c486.nvr, ami486-zip.cfg), en C# seul sous --boot (l'image copiée, comme sous boot-diff), dans
+# les deux modes (le domaine stockage en mode matériel). Le relevé est celui d'atapibanc.attendus, dont l'en-tête décrit
+# les lignes ; l'op 17, qui remplit le secteur à écrire, ne fait pas de ligne. Les lignes du mode PCem sont celles de
+# l'oracle : bd-ami486-zip-format les compare à l'instruction près, et compare l'image ZIP (à la fin, nulle sauf le
+# secteur 300 : FORMAT a effacé les secteurs 100, 196 607 et 200 des deux côtés).
+# Les sommes des lectures sont des attendus absolus (atapibanc.py les imprime) : avant FORMAT, le secteur 100
+# (i × 7 + 3) DF19 et le secteur 196 607 (i × 13 + 5Ah) 52A8 ; après, 0000, les secteurs nuls ; le secteur 200
+# (i × 3 + 11h) B8B9, puis 0000 après le second FORMAT ; le secteur 300 (i × 5 + 21h) D071.
+# FORMAT UNIT avec FmtData (cdb[1] = 17h, la forme de SFF-8070i, texte non relu) : PCem ne demande pas la liste (aucun
+# bloc DRQ, la phase sortante de l'interprète sautée) et rend GOOD aussitôt, dans les deux modes ; sans FmtData de
+# même. READ FORMAT CAPACITIES, avant et après : la même liste (00030000h blocs de 512 octets, formaté).
+# Ce qui ne change pas entre les modes (mesuré) : tout, sauf READ CAPACITY.
+# La ligne qui change, sous PB-126 (mesuré, le banc rejoué sous ce seul PB) :
+00 4000010114EBA0
+01 01000000000000516C0301FEFFA02800
+02 0100000000000050000301FEFFA0
+03 010000001000030000020002000003000000000200010214007398500003011400A0
+04 01000000000000500003010002A0
+05 01000000000000500003010002A0
+06 01030A11181F262D3401020002DF19500003010002A0
+07 015A6774818E9BA8B50102000252A8500003010002A0
+08 0100000000000050000301FEFFA0
+09 0100000000000050000301FEFFA0
+0A 017000000000000000000000000000010212000070500003011200A0
+0B 010000000000000000010200020000500003010002A0
+0C 010000000000000000010200020000500003010002A0
+# READ CAPACITY : PCem 00030000h, le nombre de blocs ; le matériel 0002FFFFh, le dernier LBA (PB-126).
+pcem: 0D 010003000000000200010208000218500003010800A0
+materiel: 0D 010002FFFF0000020001020800FE0F500003010800A0
+0E 010000001000030000020002000003000000000200010214007398500003011400A0
+0F 01000000000000500003010002A0
+10 011114171A1D20232601020002B8B9500003010002A0
+11 0100000000000050000301FEFFA0
+12 010000000000000000010200020000500003010002A0
+13 01000000000000500003010002A0
+14 0121262B30353A3F4401020002D071500003010002A0

@@ -267,7 +267,8 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     commandes hors FORMAT, ses attendus des deux modes ; `--boot` copie l'image ZIP et efface ses copies ;
   - **GR.2d2** ✅ *fait, § GR.2d2* : l'image en lecture seule (zipro.img, chmod 444 par la recette) et le ZIP en
     esclave du CD, ZIPESC sur l'interprète de ZIPBANC, ses attendus des deux modes ;
-  - **GR.2d3** : FORMAT dans sa porte ;
+  - **GR.2d3** ✅ *fait, § GR.2d3* : FORMAT dans sa porte, ZIPFMT sur l'interprète de ZIPBANC, ses attendus des
+    deux modes ;
   - **GR.2d4** : les attendus d'AHABANC dans les deux modes.
 - **GR.2e — La campagne de CUE** :
   - un générateur déterministe dans `isogen.py`, avec des feuilles valides combinées et des feuilles malformées par

@@ -87,6 +87,8 @@ en C# seul, écrit sa propre image vierge dans le TMPDIR. GR.2d2 : `bd-ami486-zi
 esclave du CD (unité 3) sur `zipro.img`, trois secteurs que la recette remplit (`atapibanc.py --image-ro`) puis
 protège (chmod 444) ; les copies gardent ces droits, et le lecteur ouvre l'image en lecture seule (ZIPESC,
 `atapibanc.py --esclave`).
+GR.2d3 : `bd-ami486-zip-format` joue FORMAT UNIT (ZIPFMT, `atapibanc.py --format`) sur `zip100.img` : 96 Mio écrits
+par côté et par FORMAT, dans la copie de la porte, sous `ESPACE_MIN_GO`.
 
 L'Adaptec AHA-1542C (G11) : les portes `bd-*-aha-*` montent la carte et ses disques SCSI aux ID 0 et 1
 (clés `hdc_` et `hdd_`). La recette prépare quatre familles de fichiers :
