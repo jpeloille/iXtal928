@@ -459,10 +459,31 @@ run r9-cue r9-cue
 # s'arrête (PB-113 à PB-116) et les clés du lecteur (PB-93, PB-110).
 runw bd-ami486-cd-vide c.nvr aucune boot-diff roms 40000 --config ami486-cd-vide.cfg --expect-cd 2,vide
 runw bd-ami486-cd-iso c.nvr aucune boot-diff roms 40000 --config ami486-cd-iso.cfg --expect-cd 2,image
+# GR.2b — ATAPIBANC tiré d'une table (atapibanc.py, TABLE_LIGNES) : les 30 commandes du lecteur et leurs cas
+# limites, sans les sites R9 ; le volume, README.TXT et DATA.BIN lus de bout en bout, leurs sommes celles d'isogen ; une
+# ligne par paquet, trois pauses (une touche chacune). Sous boot-diff sur l'ami486, chargé et vide, et sur l'ami286 et
+# l'ami386dx, chargés ; en C# seul dans les deux modes, contre des attendus (le mode PCem, celui de l'oracle ; le mode
+# matériel, chaque ligne qui change expliquée par son PB).
 mapfile -t ABK < tools/atapibanc/atapibanc.keys
 ABB=(); for l in "${ABK[@]}"; do ABB+=(--type "$l"); done
-runw bd-ami486-atapi-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,image
-runw bd-ami486-atapi-banc-vide c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-vide.cfg --type-at 60000 --type-settle 600 "${ABB[@]}" --type "^" --type "^" --type "^" --expect-cd 2,vide
+ABF=(--type "^" --type "^" --type "" --type "^" --type "^" --type "" --type "^" --type "^" --type "" --type "^"
+  --type "^")
+ABS=(--type-at 60000 --type-settle 600 "${ABB[@]}" "${ABF[@]}")
+runw bd-ami486-atapi-banc c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi.cfg "${ABS[@]}" \
+  --expect-cd 2,image
+runw bd-ami486-atapi-banc-vide c486.nvr ami486 boot-diff roms 60000 --config ami486-atapi-vide.cfg "${ABS[@]}" \
+  --expect-cd 2,vide
+runw bd-ami286-atapi-banc c.nvr ami286 boot-diff roms 60000 --config ami286-atapi.cfg "${ABS[@]}" --expect-cd 2,image
+runw bd-ami386dx-atapi-banc c386.nvr ami386dx_opti495 boot-diff roms 60000 --config ami386dx-atapi.cfg "${ABS[@]}" \
+  --expect-cd 2,image
+for m in "" "-materiel"; do
+  h=(); [ -n "$m" ] && h=(--hardware-mode stockage)
+  fin=(--type "@wait 1500" --type "" --type "@wait 1500" --type "" --type "@wait 1500" --type "" --type "@wait 1500")
+  runw banc-atapibanc$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/atapibanc.attendus" -- \
+    --boot roms 60000 --config ami486-atapi.cfg --settle 600 "${ABB[@]}" "${fin[@]}"
+  runw banc-atapibanc-vide$m c486.nvr ami486 "${h[@]}" banc "$REPO/tools/gates/bancs/atapibanc-vide.attendus" -- \
+    --boot roms 60000 --config ami486-atapi-vide.cfg --settle 600 "${ABB[@]}" "${fin[@]}"
+done
 # G10.5 — l'audio CD dans la machine : le fil CD de sound.c à l'échéance de sound_poll (décision n° 7),
 # givealbuffer_cd comparé par la sonde du CD. ATAPIAUD (atapibanc.py --audio) sur mixte.cue d'isogen,
 # la SB Pro v2 montée (le volume CD du CT1345) : READ TOC, PLAY AUDIO sur la piste de données (refusé),

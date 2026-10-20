@@ -14298,3 +14298,141 @@ mode PCem seul : le prolongement de PB-125 en mode matériel n'y est pas). Ce so
   stocké) : seul le diff d'instructions la voit, pendant une vidange (R2 § 1.4).
 - Le chronomètre des lecteurs n'est comparé que par son drapeau `enabled`, pas par son échéance.
 - Les tampons de son de la DSS et du Covox ne sont pas dans la sonde de LPT : la sonde du son les couvre.
+
+## GR.2b — ATAPIBANC tiré d'une table
+
+Le 20 octobre 2026. ATAPIBANC (G10.4) envoyait 22 paquets, écrits un à un dans le script. Sur les 30 étiquettes de
+`scsi_cd_command`, 16 étaient atteintes sous l'oracle, 8 en C# seul, 6 jamais. DATA.BIN n'était pas lu en entier,
+aucune somme n'était connue d'avance, et le banc ne jouait qu'en mode PCem, sur l'ami486 (R2-g10.md § 1.2, 1.3,
+1.6).
+
+**Le banc** (`tools/atapibanc/atapibanc.py`) :
+- l'interprète gagne trois ops, en mode table seulement :
+  - 15, le paquet compact : les octets du paquet jusqu'au dernier non nul, S octets sautés et K gardés, la phase
+    sortante ; sur ERR, un REQUEST SENSE aussitôt, dont l'ASC et l'ASCQ rejoignent le relevé ;
+  - 16, la ligne du relevé ;
+  - 9, la pause ;
+- les ops 10 à 13 et `words` quittent ATAPIBNC.COM. ATAPIAUD.COM et ZIPBANC.COM restent octet pour octet ceux de G10.5
+  et G10.6 : régénérés et comparés ;
+- l'attente de BSY passe à 32 fois 65 535 lectures. Une lecture de 40 secteurs à 4x pourrait durer plus que 65 535
+  lectures sur l'ami286 (déduit) ;
+- la table, `TABLE_LIGNES` : 89 lignes, une pause toutes les 23. Chaque ligne s'imprime aussitôt : son numéro,
+  l'IIR, les octets gardés, le nombre de blocs DRQ, l'IIR des blocs, le total des comptes, la somme tournante, les
+  sept registres, et l'ASC et l'ASCQ sur erreur. Le .COM fait 1 815 octets, dont un script de 1 086 ; la saisie,
+  121 lignes de DEBUG (81 avant, pour 22 paquets).
+
+**La table** couvre :
+- les 30 étiquettes, READ CD MSF (B9h, PB-271) et un code inconnu ;
+- le prologue : l'attention d'unité gardée, le TEST UNIT READY qu'elle fait rendre sans rien effacer (`is_error`,
+  `scsi_cd.c:857-874`), l'INQUIRY qui la traverse ; la LUN 1 ; NOT READY, par le lecteur vide ;
+- les cas limites du tableau de R2 § 1.2 : les longueurs nulles ; les pages EVPD 00h et 83h, courte et moyenne ; les
+  lectures hors du disque par READ(6), (10), (12) et READ CD ; READ CD brut ; les formats de la TOC, par l'octet 2 et
+  par l'octet 9 ; READ HEADER en LBA et en MSF ; READ SUB-CHANNEL hors format 01h et sans SubQ ; les pages 01h, 0Dh et
+  08h de MODE SENSE ; GET EVENT STATUS asynchrone et d'une autre classe ; les bornes de SET SPEED et une vitesse
+  intermédiaire ; MECHANISM STATUS tronqué.
+
+Elle exclut les sites R9 : MECHANISM STATUS de longueur 0, MODE SELECT de longueur 0, un PACKET en DMA, un PACKET
+pendant une phase, READ(12) d'un compte de 2^31, et toute lecture au-delà de 40 secteurs. Renvoyés à ATAPIAUD (GR.2c) :
+l'éjection et le chargement, le disque changé qui s'ensuit, RESUME, l'audio qui joue.
+
+**Les sommes d'isogen.** `isogen.py` gagne `somme_banc`, la somme du banc ; le générateur imprime celle de chaque
+lecture. Le PVD, le terminateur, les tables de chemins, la racine, SUBDIR, README.TXT, DATA.BIN (cinq secteurs),
+NESTED.TXT, les secteurs 20 à 23 et le secteur 31 sont lus de bout en bout ; leurs sommes, mesurées, sont celles
+d'isogen, dans les deux modes et sur les trois machines.
+
+**Les portes** :
+- sous boot-diff, quatre portes, vertes. Les deux premières sont recomptées, les deux autres neuves :
+
+| Porte | Instructions | Sondes |
+|---|---:|---|
+| `bd-ami486-atapi-banc` | 359 671 766 | ATAPI 88/88, le lecteur 37/37 |
+| `bd-ami486-atapi-banc-vide` | 359 671 366 | ATAPI 88/88, le lecteur 37/37 |
+| `bd-ami286-atapi-banc` | 336 926 853 | ATAPI 88/88, le lecteur 37/37 |
+| `bd-ami386dx-atapi-banc` | 354 343 525 | ATAPI 88/88, le lecteur 37/37 |
+
+  Les BIOS de l'ami286 et de l'ami386dx ne touchent pas le canal secondaire non plus : `--expect-cd` trouve l'unité
+  des deux côtés, et le banc y rend, mesuré, les 89 lignes de l'ami486 ;
+- en C# seul, `banc-atapibanc` et `banc-atapibanc-vide`, chacune en mode PCem et en mode matériel (le domaine
+  stockage), contre `atapibanc.attendus` et `atapibanc-vide.attendus`.
+
+**Les attendus.** Ceux du mode PCem sont les lignes du C# en mode PCem, que les boot-diffs prouvent égales à l'oracle
+à l'instruction près. Ceux du mode matériel sont mesurés, et chaque ligne qui change porte son PB en commentaire :
+- le CR-587-B (SFF-8020i), 23 lignes : READ CAPACITY (PB-117) ; READ CD MSF (PB-271) ; les lectures de 40 secteurs
+  et READ CD brut hors du disque (PB-268) ; les commandes que SFF-8020i n'a pas, READ(6), SEEK(6), REZERO UNIT,
+  MODE SENSE(6), MODE SELECT(6), GET EVENT STATUS NOTIFICATION, READ DISC INFORMATION et PLAY AUDIO(12) (PB-270) ;
+  le lead-out de la TOC (PB-122) ; la TOC brute (PB-120) ; la position de READ SUB-CHANNEL (PB-123) ; MECHANISM
+  STATUS tronqué (PB-269) ;
+- le lecteur vide, générique, rangé en MMC-2, 12 lignes : READ CD MSF servi, puis NOT READY (PB-271) ; les
+  commandes de six octets (PB-270) ; GET EVENT STATUS NOTIFICATION, servie, qui n'annonce plus de disque neuf et
+  donne sa longueur en grand-boutiste (PB-118) ; MECHANISM STATUS tronqué (PB-269).
+
+Sous « tout », les 89 lignes sont celles du domaine stockage, dans les deux cas : aucune ligne `materiel[tout]:`.
+Avant d'écrire les attendus, une première passe a montré READ CD brut différent entre les deux modes, sans PB. La
+lecture brute d'une piste cuite laisse `data_in` tel quel (`cdrom-image.cc:265-269`, reproduit depuis G10.3), et ses
+octets sont ceux des lignes précédentes, que PB-268 et PB-270 changent. La ligne suit désormais la lecture de quatre
+secteurs, la même dans les deux modes.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr2b.py` et `/tmp/a9/t2b/negrun.sh` ; chaque panne côté C#, construite à
+part, restaurée) :
+
+| | Panne | Banc en C# seul | boot-diff |
+|---|---|---|---|
+| N1 | l'IIR faussé, C/D et I/O inversés (`ide.cs`) | 86 échecs, dès la ligne 03 | rouge à 346 350 243, la lecture de 172h |
+| N2 | READ CAPACITY sans le + 1 de PB-117 (`scsi_cd.cs`) | 1 échec, READ CAPACITY | rouge à 346 380 588 |
+| N3 | GET EVENT STATUS, la longueur en grand-boutiste | 2 échecs, les deux GESN | rouge à 353 066 184 |
+| N4 | NOT READY avec l'ASC 28h, le lecteur vide | `-vide` : 48 échecs | `-vide` rouge à 346 357 426 |
+| N5 | la phase DATA OUT, chaque octet faussé | 2 échecs : la page 0Eh relue, MODE SELECT(6) | rouge à 353 060 691 |
+| N6 | PB-270 coupé en mode matériel | `-materiel` : 9 échecs, les lignes de PB-270 ; le mode PCem vert | — |
+| N7 | une ligne retirée de la table (READ HEADER) | 25 échecs, dès la ligne 35 | vert : le même banc des deux côtés |
+| N8 | un octet de DATA.BIN changé dans l'image | 6 échecs : DATA.BIN, et les lectures qui couvrent le secteur 23 | vert : la même image des deux côtés |
+
+N7 et N8 montrent ce que l'oracle ne voit pas : un banc amputé, ou une image fausse, joués de la même façon des deux
+côtés. Les attendus, et les sommes d'isogen qu'ils portent, les voient. N3 et N4 rougissent au boot-diff à
+l'impression du premier chiffre touché : la trace compare à ses points d'échantillonnage, et la lecture du port de
+données n'en est pas un.
+
+Les boot-diffs des contrôles ont d'abord été lancés huit puis quatre à la fois, avec le TMPDIR de `/tmp` : le quota
+y a tronqué les traces de l'oracle (« TRACE TRONQUÉE », rien comparé). Ils ont été rejoués avec le TMPDIR sur
+`/var/tmp`, comme la série. Le témoin de N6 en mode PCem, tué au délai de 1 200 s sous seize portes à la fois, a été
+rejoué : vert.
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, dans les deux modes.
+- En mode PCem, treize portes vertes :
+  - les quatre boot-diffs de la table : 1 096 s pour l'ami486, contre 739 s avant, et 1 025 s pour le lecteur vide ;
+    l'ami286 211 s, l'ami386dx 393 s ;
+  - les quatre bancs en C# seul, de 1 219 à 1 287 s ;
+  - les témoins inchangés : `bd-ami486-cd-vide` et `-cd-iso`, `bd-ami486-atapi-audio` (ATAPIAUD, le même .COM),
+    `cdimage-check` (isogen gagne une fonction, ses images ne changent pas) et `r9-atapi`.
+- Sous « tout », les quatre bancs sont verts, de 1 095 à 1 429 s, et `r9-atapi` est en mode PCem seul, comme avant.
+
+Chaque banc joue deux séances, d'environ 600 à 700 s chacune sous la charge du sous-ensemble ; le délai d'une séance
+est de 1 200 s. Les quatre bancs ajoutent environ 5 000 s de portes à une série.
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- vérifié les encodages de l'interprète neuf contre le désassemblage, la pile, AH et les registres préservés ;
+- vérifié que les 30 étiquettes sont atteintes, les positions des longueurs dans chaque paquet, l'absence de site
+  R9 et les longueurs des phases sortantes ;
+- comparé les attendus aux six relevés, décodé huit lignes à la main et recalculé les sommes d'isogen ;
+- vérifié les portes de `series.sh`.
+
+Ses points sont repris :
+- la branche de l'attention d'unité qui rend sans effacer (`is_error`) n'était pas atteinte : trois lignes neuves ;
+- le commentaire du REQUEST SENSE, qui disait rien en attente : le 25h de la LUN 1 y est rendu de nouveau ;
+- les pages, de 23, 23, 22 et 11 lignes, et non de 22 : la pause est désormais posée par le générateur ;
+- l'en-tête des attendus : les lignes du PVD, et GET EVENT STATUS asynchrone, 20h dans les deux modes pour deux
+  raisons ;
+- des cas limites manquaient : la page 08h de MODE SENSE, l'EVPD 83h sur 40 octets, une vitesse intermédiaire de
+  SET SPEED, le format de la TOC par l'octet 9, READ(6), READ(12) et READ CD hors du disque, READ CD brut hors du
+  disque. L'éjection, le chargement et RESUME sont dits renvoyés à GR.2c.
+
+La table et les attendus d'après la relecture ont été rejoués en entier : les huit relevés, les quatre boot-diffs et les
+huit contrôles négatifs.
+
+
+**Ce que ce vert ne dit pas.**
+- Le disque changé, l'éjection, le chargement, RESUME et l'audio qui joue ne sont pas dans la table : GR.2c.
+- Les attendus du mode matériel sont la règle des PB, mesurée, et non un lecteur réel (PLAN-G13, décision n° 14).
+- La trace de boot-diff n'échantillonne pas chaque lecture du port de données : une faute de données n'y rougit
+  qu'au premier point où elle touche un registre comparé (N3, N4).
+- La porte `bd-ami486-atapi-banc` reste longue (360 millions d'instructions) : la table compactée ne raccourcit pas
+  la saisie, elle tient 89 paquets en 121 lignes au lieu de 22 en 81.

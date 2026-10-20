@@ -135,6 +135,16 @@ def volume():
     return s
 
 
+def somme_banc(donnees):
+    """GR.2b — la somme tournante d'ATAPIBNC.COM sur une phase de données : pour chaque mot (petit-boutiste), la
+    somme tournée d'un bit à gauche, puis le mot ajouté, sur 16 bits (atapibanc.py, words2)."""
+    s = 0
+    for i in range(0, len(donnees), 2):
+        s = ((s << 1) | (s >> 15)) & 0xFFFF
+        s = (s + donnees[i] + (donnees[i + 1] << 8)) & 0xFFFF
+    return s
+
+
 def bcd(n):
     return ((n // 10) << 4) | (n % 10)
 

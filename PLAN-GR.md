@@ -243,7 +243,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - les pendants en C# ; l'ABI 59 ;
   - un contrôle négatif par sonde : une faute que le diff ne voit pas ;
   - la série entière, dans les deux modes.
-- **GR.2b — ATAPIBANC tiré d'une table** :
+- **GR.2b — ATAPIBANC tiré d'une table** ✅ *fait, § GR.2b* :
   - les 30 commandes et leurs cas limites, sans les sites R9 ;
   - DATA.BIN et README.TXT lus de bout en bout contre les sommes d'isogen ;
   - sous boot-diff : sur l'ami486, avec le lecteur chargé et avec le lecteur vide ; sur l'ami286 et l'ami386dx, avec le
