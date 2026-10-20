@@ -14079,3 +14079,67 @@ Ses points sont repris :
 - Le décodage de 40h, C5h, 60h, E5h et E4h n'est pas vérifié : leur relecture rend le code écrit, quel que soit le
   décodage, et le banc ne finit pas dans ces profondeurs.
 - Les autres modes que 10F0h accepte (2Dh, 2Fh, 30h, et 13h pour un type 2 ou plus) ne sont pas joués.
+
+## GR.1f — Les clés sous boot-diff : 64 Ko, le moniteur monochrome, l'ambre
+
+Le 20 octobre 2026. Aucun `.cfg` de porte n'avait de section `[EGA]`, `[MDA]` ou `[Hercules]` (R1 § b). L'EGA de
+64 Ko, l'EGA sur moniteur monochrome (le BIOS de la carte en 3Bx, le `^ 60h` de `ega_out`) et l'ambre de la MDA et de
+l'Hercules n'étaient comparés à l'oracle par aucune porte. L'ambre attendait GR.0b, la sonde qui hache l'image et les
+couleurs des attributs (R1 § c).
+
+**Les portes** (six `.cfg` neufs dans `tools/gates/cfg/`, onze portes, toutes vertes du premier coup) :
+
+| Porte | Clé | Instructions | Sonde |
+|---|---|---:|---|
+| `bd-pc-ega64` | `[EGA] memory = 64` | 25 218 756 | EGA 33/33 |
+| `bd-pcdos-ega64` | idem, PC-DOS 2.00 | 26 608 144 | EGA 33/33 |
+| `bd-ibmat-ega64` | idem, l'AT | 4 989 040 | EGA 33/33 |
+| `bd-ibmatdos-ega64` | idem, l'AT sous DOS | 8 038 060 | EGA 33/33 |
+| `bd-pc-ega-mono` | `[EGA] monitor_type = 74` | 24 714 522 | EGA 33/33 |
+| `bd-pcdos-ega-mono` | idem, PC-DOS 2.00 | 26 782 039 | EGA 33/33 |
+| `bd-ibmat-ega-mono` | idem, l'AT | 4 709 393 | EGA 33/33 |
+| `bd-ibmatdos-ega-mono` | idem, l'AT sous DOS | 7 719 141 | EGA 33/33 |
+| `bd-pc-mda-ambre` | `[MDA] display_type = 4` | 25 436 246 | MDA 20/20 |
+| `bd-pc-herc-ambre` | `[Hercules] display_type = 4` | 25 436 246 | Hercules 20/20 |
+| `bd-pc-ega64-banc` | EGABANC sur 64 Ko | 258 661 740 | EGA 33/33 |
+
+74 = 4Ah : le monochrome (`& 0Fh` = 10) en ambre (`>> 4` = 4). Rejouées sous `--boot`, ces configurations atteignent
+l'invite de date de DOS sur le 5150 et sur l'AT. Le monochrome écrit en B000 (720 points), et la mémoire de 64 Ko est
+bornée par `vram_limit`.
+
+**`r9-videocfg` étendu** (C# seul, dans les deux modes) :
+- `memory` : 64, 128 et 256 Ko bornent `vram_limit` ; 32 et 512 sont refusés, avec un avertissement, et 256 est
+  retenu ;
+- `display_type` de la MDA et de l'Hercules : 3 donne le vert (34FF5Dh), 4 l'ambre (FFE334h), 5 et l'absence de clé le
+  blanc. 2 et 6 sont refusés, avec un avertissement, et le blanc est retenu. La couleur de l'attribut 0Fh est classée
+  sur ses composantes : le blanc de PCem est un blanc papier, FFFDEDh.
+
+Vert en mode PCem et sous « tout ».
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr1f.py`, Release dans le worktree, une panne à la fois, restaurée) :
+
+| | Panne | Résultat | Témoin |
+|---|---|---|---|
+| N1 | le `^ 60h` retiré de `ega_out` | `bd-pc-ega-mono` rouge, instruction 851 683, C000:0E05 (in de 3BAh, AL 09h contre 01h) ; `bd-ibmat-ega-mono` rouge | `bd-pc-ega` vert |
+| N2 | l'ambre faussé, `cgapal[0Fh]` sans contraste | `#buffer32` et `#mdacols` rouges sur la MDA et l'Hercules en ambre | `bd-pc-mda` vert |
+| N3 | `memory` lu à 128 Ko au moins | `bd-pc-ega64` rouge, instruction 872 268, C000:06A4 (AX FFFFh contre AA55h) ; l'AT et EGABANC sur 64 Ko rouges | `bd-pc-ega` vert |
+
+Deux pannes rougissent plus tôt que le plan ne le disait :
+- N1 : sans le `^ 60h`, les écritures du BIOS en 3Bx se perdent sans toucher un registre du processeur ; le diff
+  rougit à la première lecture qui en dépend, 3BAh (le plan disait « au premier accès en 3B4h ») ;
+- N3 rougit au diff, car le BIOS de l'EGA sonde sa mémoire bien avant la sonde de fin (le plan disait « la sonde,
+  `vrammask` »).
+
+**La contre-lecture** (Sonnet, sans bloquant) a :
+- vérifié les sections et les clés des deux côtés (le C#, et `h_set_device_config` puis `config_get_int` de l'oracle) ;
+- vérifié 74 dans la liste de PCem et les budgets sur le patron des portes voisines ;
+- vérifié les seuils de la classification des couleurs contre `cgapal_rebuild`.
+
+Ses points sont repris : les deux écarts entre la prédiction du plan et la mesure, dits ci-dessus. Le budget de 5 000
+tranches de l'AT sous DOS est en temps émulé : l'invite y est atteinte quelle que soit la charge de l'hôte.
+
+
+**Ce que ce vert ne dit pas.**
+- Les moniteurs monochromes vert (58) et blanc (90) de l'EGA ne sont pas joués : seul l'ambre l'est.
+- L'EGA de 128 Ko n'a pas de porte.
+- La MDA et l'Hercules en vert, sous DOS, non plus.

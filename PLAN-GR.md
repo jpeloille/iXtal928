@@ -224,7 +224,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
     10F0h, et la sortie en HiColor. 10F0h refuse le 1024 × 768 (BL = 38h) : pas de HiColor dans ce mode ;
   - trois portes ;
   - les contrôles négatifs : le FFh armé pris pour une commande ; 40h décodé en 24 bits.
-- **GR.1f — Les clés sous boot-diff** :
+- **GR.1f — Les clés sous boot-diff** ✅ *fait, § GR.1f* :
   - l'EGA de 64 Ko et l'EGA sur moniteur mono (3Bx sous le diff), sur le 5150 et l'AT ; la MDA et l'Hercules en ambre ;
     EGABANC sur 64 Ko ;
   - `r9-videocfg` étendu à `memory` et à `display_type` hors liste ;

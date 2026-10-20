@@ -291,11 +291,27 @@ run bd-pc-herc-banc boot-diff roms 11000 --gfxcard hercules \
 run bd-ibmat-ega boot-diff roms 3000 --model ibmat --gfxcard ega
 run bd-ami286-ega boot-diff roms 3000 --model ami286 --gfxcard ega
 run bd-ami386-ega boot-diff roms 3000 --model ami386 --gfxcard ega
+# GR.1f — les clés sous boot-diff : l'EGA de 64 Ko et l'EGA sur moniteur monochrome ambre (monitor_type = 74 : le
+# BIOS de la carte en 3Bx, le ^ 60h de ega_out), sur le 5150 et l'AT, POST et DOS ; la MDA et l'Hercules en ambre
+# (display_type = 4), POST du 5150 ; EGABANC sur 64 Ko. La sonde voit pallook, mdacols et l'image (GR.0b).
+for k in ega64 ega-mono; do
+  run bd-pc-$k boot-diff roms 6000 --config $C/pc-$k.cfg
+  run bd-pcdos-$k boot-diff roms 7000 --config $C/pc-$k.cfg --fda $DOS
+  run bd-ibmat-$k boot-diff roms 3000 --config $C/ibmat-$k.cfg
+  run bd-ibmatdos-$k boot-diff roms 5000 --config $C/ibmat-$k.cfg --fda $DOS
+done
+run bd-pc-mda-ambre boot-diff roms 6000 --config $C/pc-mda-ambre.cfg
+run bd-pc-herc-ambre boot-diff roms 6000 --config $C/pc-herc-ambre.cfg
 mapfile -t EBK < tools/egabanc/egabanc.keys
 EBB=(); for l in "${EBK[@]}"; do EBB+=(--type "$l"); done
 # GR.0c — AND et OR sur des verrous connus ; les relevés imprimés, une touche, puis la fin en 10h (seize des 64
 # couleurs) : la sonde compare l'image du mode testé.
 run bd-pc-ega-banc boot-diff roms 11000 --gfxcard ega \
+  --fda $DOS --fdb os/pcdos20/pcdos20s.img \
+  --type-at 7000 --type-settle 600 --type "" --type "" \
+  "${EBB[@]}" --type "^" --type "^" --type "" --type "^"
+# GR.1f — EGABANC sur 64 Ko.
+run bd-pc-ega64-banc boot-diff roms 11000 --config $C/pc-ega64.cfg \
   --fda $DOS --fdb os/pcdos20/pcdos20s.img \
   --type-at 7000 --type-settle 600 --type "" --type "" \
   "${EBB[@]}" --type "^" --type "^" --type "" --type "^"

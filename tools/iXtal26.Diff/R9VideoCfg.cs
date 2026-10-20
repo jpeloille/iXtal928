@@ -10,6 +10,10 @@
 // valeur, refusée. La CGA : font (P3) = 1, la rangée du « A » rendue par cga_poll est celle du simple trait de la ROM
 // (mda.rom, 1000h) ; sans clé, celle du double trait (1800h) ; font = 2, refusée. Le verdict d'un essai : la valeur
 // lue, le nombre d'avertissements « hors de la liste », l'avertissement nommé attendu, la survie.
+// GR.1f — memory de l'EGA (64, 128, 256 Ko ; une autre valeur refusée, 256 retenu) : la mémoire que la carte borne
+// (vram_limit) ; display_type de la MDA et de l'Hercules (3 vert, 4 ambre, 5 blanc ; une autre refusée, blanc retenu) :
+// la famille de la couleur de l'attribut 0Fh (cgapal[0Fh] après cgapal_rebuild), lue sur ses trois composantes (le
+// blanc de PCem est un blanc papier, FFFDEDh : le vert et le bleu au-dessus de C0h).
 
 using iXtal26.PluginApi;
 using iXtal26.Video;
@@ -52,6 +56,42 @@ internal static class R9VideoCfg
                 return (lu, lu == attendu ? null : $"ATTENDU {attendu}");
             });
 
+        // GR.1f — la mémoire de l'EGA.
+        var memoire = new (string nom, string cles, uint attendu, int avertis)[]
+        {
+            ("EGA sans memory", "", 256 * 1024, 0),
+            ("EGA memory = 64", "memory = 64\n", 64 * 1024, 0),
+            ("EGA memory = 128", "memory = 128\n", 128 * 1024, 0),
+            ("EGA memory = 256", "memory = 256\n", 256 * 1024, 0),
+            ("EGA memory = 32", "memory = 32\n", 256 * 1024, 1),
+            ("EGA memory = 512", "memory = 512\n", 256 * 1024, 1),
+        };
+        foreach (var (nom, cles, attendu, avertis) in memoire)
+            bad += Essai(romsPath, nom, $"gfxcard = ega\n\n[EGA]\n{cles}", avertis, null, n++, () =>
+            {
+                var ega = vid_ega.Probe ?? throw new InvalidOperationException("pas d'EGA après initpc");
+                var lu = $"vram_limit {ega.vram_limit}";
+                return (lu, ega.vram_limit == attendu ? null : $"ATTENDU {attendu}");
+            });
+
+        // GR.1f — l'écran de la MDA et de l'Hercules.
+        var ecrans = new (string cles, string attendu, int avertis)[]
+        {
+            ("", "blanc", 0), ("display_type = 3\n", "vert", 0), ("display_type = 4\n", "ambre", 0),
+            ("display_type = 5\n", "blanc", 0), ("display_type = 2\n", "blanc", 1), ("display_type = 6\n", "blanc", 1),
+        };
+        foreach (var (carte, section) in new[] { ("mda", "MDA"), ("hercules", "Hercules") })
+            foreach (var (cles, attendu, avertis) in ecrans)
+                bad += Essai(romsPath, $"{section} {(cles.Length == 0 ? "sans display_type" : cles.Trim())}",
+                             $"gfxcard = {carte}\n\n[{section}]\n{cles}", avertis, null, n++, () =>
+                {
+                    var c = video.cgapal[0xf];
+                    int r = (int)((c >> 16) & 0xff), g = (int)((c >> 8) & 0xff), b = (int)(c & 0xff);
+                    var famille = g >= 0xc0 && b >= 0xc0 ? "blanc" : g > r ? "vert" : r > g && g > b ? "ambre" : "?";
+                    var lu = $"cgapal[0Fh] {c & 0xffffff:X6}, {famille}";
+                    return (lu, famille == attendu ? null : $"ATTENDU {attendu}");
+                });
+
         // La CGA : la rangée 1 du « A » (41h), lue dans la ROM (le simple trait en 1000h, le double en 1800h).
         var rom = File.ReadAllBytes(Path.Combine(romsPath, "mda.rom"));
         string Rom(int @base) => Convert.ToString(rom[@base + 0x41 * 8 + 1], 2).PadLeft(8, '0');
@@ -70,8 +110,10 @@ internal static class R9VideoCfg
                 return ($"rangée 1 du A {lu}", lu == attendu ? null : $"ATTENDU {attendu}");
             });
 
-        Console.WriteLine(bad == 0 ? "r9-videocfg : les cavaliers de l'EGA et de la CGA suivent leurs clés."
-                                   : $"r9-videocfg : {bad} essai(s) en défaut.");
+        Console.WriteLine(bad == 0
+            ? "r9-videocfg : les cavaliers de l'EGA et de la CGA, la mémoire de l'EGA et l'écran de la MDA et de " +
+              "l'Hercules suivent leurs clés."
+            : $"r9-videocfg : {bad} essai(s) en défaut.");
         return bad == 0 ? 0 : 1;
     }
 
