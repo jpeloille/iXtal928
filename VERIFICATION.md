@@ -15172,3 +15172,49 @@ boot-diff sur l'ami286. PLAN-GR a mis MSD sous boot-diff sur l'ami486 : 436 s po
 PC1512 contre PB-101, les deux portes et la clé `parallel2` dans `model.Materiel.cs`. Ses points sont repris : « le
 texte à l'écran » et non « l'écran » ; PB-99, que MSD ne sonde pas ; les portes sans `--expect` ; la copie du disque
 486 ; les écarts avec la reconnaissance.
+
+## GR.3e — QBASIC `STICK` et `STRIG` sous boot-diff
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3e, D7). La manette n'avait été lue que par JOYBANC, saisi
+dans DEBUG sur le 5150. Aucun programme d'époque ne la lisait.
+
+**Le programme.** Il tourne sur l'ami286 (D7), `c286.img` de la recette (MS-DOS 5.00, QBASIC, sans `KEYB FR`). Il est
+écrit par `ECHO … >>S.BAS`, KeyScript n'ayant pas de Ctrl-Z pour `COPY CON`, puis lancé par `QBASIC /RUN S.BAS`.
+Seize fois, il imprime `STICK(0)`, `STICK(1)`, `STRIG(1)` et `STRIG(5)` (KeyScript ne tape pas « ; » : la ligne
+arrive en `PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5)`, que QBASIC accepte), séparés par une boucle `FOR J` vide (ni `>`
+ni `<`, que DOS prendrait pour une redirection). Une course de mesure, sans manette, a situé l'exécution. Puis
+quatre états sont injectés des deux côtés par `--joy-at`, pendant que le programme tourne.
+
+**La porte** `bd-ami286-qbasic-stick` : verte, 129 587 929 instructions. Ce qu'elle lit à l'écran :
+
+| L'état injecté | Lignes | STICK(0) | STICK(1) | STRIG(1) | STRIG(5) |
+|---|---|---|---|---|---|
+| aucun encore (le port vide) | 1-3 | 0 | 0 | 0 | 0 |
+| au repos (0, 0) | 4-6 | 90 à 92 | 91 | 0 | 0 |
+| -32767, -32767, le bouton 1 (A1) | 7-10 | 8 à 10 | 9 | -1 | 0 |
+| 32767, 32767, le bouton 2 (A2) | 11-13 | 173 | 173 à 175 | 0 | -1 |
+| 10000, -10000, les deux | 14-16 | 116, 117 | 65 à 67 | -1 | -1 |
+
+**En C# seul, dans les deux modes** (`/tmp/a9/t3e/csq.sh`). Le même programme, la manette posée par `@manette` entre
+des `@wait`, en mode PCem et sous « tout ». Les deux modes suivent les quatre états : les mêmes boutons, et les axes à
+± 1 des mêmes valeurs. Un même mode étale déjà ses lectures de deux comptes (173 à 175), par la phase entre la
+boucle et le chronomètre de 201h : rien ne distingue ici un effet du mode de ce bruit.
+
+**Les contrôles négatifs** :
+- `--joy-at` posé du seul côté C# (`ManetteOracle` vidée dans une copie de l'outil) : divergence à l'instruction
+  114 867 685 ;
+- `--joystick-type 1` (« Standard 4-button joystick », deux axes ; le plan disait « quatre axes ») : le diff reste
+  vert, et l'écran ne change que d'un compte ici et là sur les axes. Le programme ne lit que STRIG(1) et STRIG(5),
+  que les deux types ont : le contrôle est faible, un bruit de cadence donnerait la même chose.
+
+**La série.** L'émulateur ne change pas : une porte neuve. Un sous-ensemble sur le worktree, en Release, mode PCem :
+`bd-ami286-qbasic-stick` verte, 129 587 929 instructions, l'image C: identique des deux côtés (375 octets écrits par
+l'invité) ; `r9-joycfg` verte.
+
+**Ce que la porte ne prouve pas seule.** Elle n'affirme rien sur l'écran : verte si les deux côtés s'accordent, même
+si `--joy-at` était ignoré des deux. Les valeurs relues sont celles de la mesure ci-dessus.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a confronté le tableau à l'écran, la sémantique de
+STICK et STRIG (la fonction STRIG(n) sans `STRIG ON`), la porte à la course de mesure, et `AjouterJoyAt`. Ses points
+sont repris : les « ; » non tapés, dits ; une ligne de 121 caractères ; le contrôle du type 1, dit faible ; le ± 1,
+dit hypothèse.

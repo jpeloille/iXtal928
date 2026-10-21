@@ -448,6 +448,17 @@ for t in 0 1 2 3 4 5 6; do
   run bd-pc-joy-${JON[$t]}-banc boot-diff roms 20000 --joystick-type $t --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 150 --type "" --type "" "${JOB[@]}" "${JOA[@]}"
 done
 run r9-joycfg r9-joycfg
+# GR.3e — QBASIC STICK et STRIG sous boot-diff, sur l'ami286 (c286.img, QBASIC de MS-DOS 5.00) : un programme écrit par
+# ECHO imprime seize fois STICK(0), STICK(1), STRIG(1) et STRIG(5) ; quatre états de la manette injectés des deux côtés
+# par --joy-at pendant qu'il tourne (au repos, les deux extrêmes avec un bouton chacun, un état intermédiaire). KeyScript
+# ne tape pas « ; » : la ligne arrive en PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5), que QBASIC accepte.
+QB=(--type "ECHO FOR I = 1 TO 16 >S.BAS" --type "ECHO PRINT I; STICK(0); STICK(1); STRIG(1); STRIG(5) >>S.BAS"
+  --type "ECHO FOR J = 1 TO 10000: NEXT J >>S.BAS" --type "ECHO NEXT I >>S.BAS" --type "ECHO SYSTEM >>S.BAS"
+  --type "C:\\DOS\\QBASIC /RUN S.BAS" --type "@wait 9000")
+QJ=(--joy-at "66500:0,0,0" --joy-at "67700:-32767,-32767,1" --joy-at "68900:32767,32767,2"
+  --joy-at "70100:10000,-10000,3")
+runw bd-ami286-qbasic-stick c.nvr ami286 boot-diff roms 60000 --config ami286-mfm.cfg --type-at 60000 \
+  --type-settle 600 "${QB[@]}" "${QJ[@]}"
 run trace-hash-check trace-hash-check
 # G10.2 — le XTIDE (xtide.c, la version XT) : l'IDE de G5 derrière une carte 8 bits, sa ROM (XTIDE
 # Universal BIOS v2.0.0 β3) en C800. bd-xt-xtide-format : le disque VIERGE (c8088.img, copie de
