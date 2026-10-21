@@ -100,7 +100,8 @@ internal static class UsageText
                                seule vérification du chemin clavier qui ne dépende
                                pas d'une fenêtre ayant le focus. « @manette x,y,b,z,c »
                                pose l'état de la manette 0 (boutons en masque, chapeau
-                               en degrés, -1 au repos) sans rien taper
+                               en degrés, -1 au repos) sans rien taper ; « @wav CHEMIN »
+                               écrit dès lors le son en WAV (le CD dans CHEMIN.cd.wav)
               --joystick-type N  après --boot : le type de manette (0 à 6), après
                                --config
               --force-ps2 N    après --boot : PORTE DE VÉRIFICATION, pas une machine

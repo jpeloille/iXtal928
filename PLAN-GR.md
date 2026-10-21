@@ -313,7 +313,8 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 - **GR.3h — La marge de `--timer-check` sous lectures CD** ✅ *fait, § GR.3h* : `--charge cd` (PLAY AUDIO, puis des
   READ(10)), mesurée dans les deux modes sur l'ami486.
 - **GR.3i — L'écoute, par Julien** : une disquette d'écoute (une gamme en DSS, en Covox mono et stéréo, et ATAPIAUD) et
-  une feuille CUE d'écoute d'isogen ; sa réponse est inscrite telle quelle.
+  une feuille CUE d'écoute d'isogen ; sa réponse est inscrite telle quelle. *Préparée, § GR.3i* (`tools/ecoute`) ; en
+  face, `@wav` en C# seul dans les deux modes plutôt que `@son` ; l'écoute de Julien attendue.
 
 ### GR.1h, GR.2f — La couverture comptée ; GR.1i — la relecture contradictoire
 

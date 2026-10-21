@@ -37,6 +37,7 @@
 #                                                   y prend iso-2048.iso) ; un nom inconnu est refusé
 
 import ctypes
+import math
 import os
 import struct
 import sys
@@ -176,6 +177,16 @@ def audio(secteurs, graine):
     out = bytearray()
     for i in range(secteurs * 588):
         out += struct.pack('<HH', (i * 97 + graine * 1009) & 0xFFFF, ((i * 61) ^ (graine * 0x3C5A)) & 0xFFFF)
+    return bytes(out)
+
+
+def ton(secondes, frequence, gauche):
+    """Un son pur d'écoute (GR.3i, D6) : 44 100 trames stéréo par seconde, frequence en Hz sur un seul canal, l'autre
+    muet ; 8 000 d'amplitude sur 32 767 (-12 dB)."""
+    out = bytearray()
+    for i in range(secondes * 44100):
+        v = round(8000 * math.sin(2 * math.pi * frequence * i / 44100))
+        out += struct.pack('<hh', v, 0) if gauche else struct.pack('<hh', 0, v)
     return bytes(out)
 
 
@@ -551,6 +562,22 @@ def main():
         '  TRACK 03 AUDIO',
         '    PREGAP 00:02:00',
         '    INDEX 01 00:00:72'))
+    # GR.3i, D6 — la feuille d'écoute, sur la disposition de mixte.cue (la piste 2 en LBA 42, les adresses fixes
+    # d'ATAPIAUD y tombent sur de l'audio) : la piste de données, 10 secteurs de prégap dans le fichier, 440 Hz à gauche
+    # pendant dix secondes, un PREGAP de deux secondes hors du fichier, 880 Hz à droite pendant dix secondes. Le disque
+    # finit en LBA 1692.
+    ecrire(d, 'ecoute.bin', m1 + bytes(10 * BRUT) + ton(10, 440, True) + ton(10, 880, False))
+    ecrire(d, 'ecoute.cue', cue(
+        'REM GR.3i : 440 Hz a gauche, puis 880 Hz a droite',
+        'FILE "ecoute.bin" BINARY',
+        '  TRACK 01 MODE1/2352',
+        '    INDEX 01 00:00:00',
+        '  TRACK 02 AUDIO',
+        '    INDEX 00 00:00:32',
+        '    INDEX 01 00:00:42',
+        '  TRACK 03 AUDIO',
+        '    PREGAP 00:02:00',
+        '    INDEX 01 00:10:42'))
     # Un fichier par piste ; INDEX 00 en 00:00:00 ; le dernier secteur de la piste 3 incomplet.
     ecrire(d, 'multi.cue', cue(
         'REM plusieurs fichiers',

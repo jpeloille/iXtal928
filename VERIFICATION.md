@@ -15494,3 +15494,109 @@ repris :
 - les comptes que la demande voulait (les blocs lus, les secteurs audio), ajoutés ;
 - le refus joué ;
 - la configuration réelle, la marge de `repos` et le coût du journal, dits.
+
+## GR.3i — L'écoute, par Julien : la préparation
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3i, D5 et D6). Aucun son de LPT ni du CD n'avait encore été
+écouté. L'étape prépare l'écoute ; la réponse de Julien sera inscrite telle quelle, à la suite de cette section.
+
+**La disquette d'écoute** (D5) : `tools/ecoute/ecoute.sh` l'écrit dans `/var/tmp/ixtal-gr/`, rien n'est ajouté à
+`os/`. Sans argument, il prépare et dit les quatre écoutes ; avec `dss`, `covox`, `stereo` ou `cd`, il ouvre la
+fenêtre du Release de Rider sur ce profil, la disquette en B:. `ecoute.img` (360 Ko, datée pour une empreinte
+stable : deux préparations, la même) porte trois programmes :
+- `LPTPLAY.COM` (`tools/lptplay`, neuf : `lptplay.S`, assemblé par `lptplay.py` comme AWEBANC). Une gamme d'ut, do 3
+  à do 4 puis retour, quinze notes de 0,3 s en signal carré de 8 bits, sur LPT1 :
+  - `D` : la Disney Sound Source, un octet dès que sa file a de la place (le bit 6 de 379h tombé), la file vidée à
+    7 kHz par l'appareil ;
+  - `C` : le Covox mono, un octet à chaque front montant de la sortie du canal 2 du PIT, lue par le bit 5 de 61h
+    (`pit.cs:713`, `ppispeakon`), le canal en mode 3 à 1193182 / 149 = 8008 Hz, le haut-parleur coupé ;
+  - `S` : le Covox stéréo au même rythme, la gamme montante à gauche (le bit 0 de 37Ah à 0), puis descendante à
+    droite (à 1), l'autre canal au repos ;
+- `ATAPIAUD.COM`, le banc audio de GR.2c (`atapibanc.py --audio`), tel quel ;
+- `CDECOUTE.COM` (`atapibanc.py --ecoute`, neuf), sur l'interprète d'ATAPIAUD. Il met le CD du mélangeur de la SB Pro
+  (28h) au maximum, remet droite la page audio du lecteur (ATAPIAUD la laisse croisée), puis lance un seul PLAY AUDIO
+  MSF de 22 s, suivi de trois relevés de la position : dans la piste 2, dans la piste 3, à la fin. Le guide et PCem
+  mettent le CD du mélangeur au plus bas : sans 28h, la voie du CD crête à 9 sur 32 767 (mesuré).
+
+ATAPIBNC, ATAPIAUD, ZIPBANC, ZIPESC et ZIPFMT restent identiques à l'octet (comparés avant et après).
+
+**La feuille d'écoute** (D6) : `ecoute.cue` et `ecoute.bin` d'isogen. Elle reprend la disposition de `mixte.cue` :
+- la piste de données ;
+- la piste 2 en LBA 42 : 440 Hz à gauche pendant dix secondes, sinus de 8 000 d'amplitude ;
+- un PREGAP de deux secondes, hors du fichier ;
+- la piste 3 en LBA 942 : 880 Hz à droite pendant dix secondes ;
+- la fin du disque en LBA 1692.
+
+`isogen.sha256` gagne ses deux lignes, et les 38 autres empreintes ne changent pas.
+
+Les profils de GR.3b gagnent un mode d'emploi court dans leur en-tête : `ixtal26-486-dss.cfg`, `-covox.cfg`, et
+`ixtal26-486.cfg` pour le CD.
+
+**La preuve en C# seul : `@wav`.** Le plan voulait `@son` dans les deux modes. Son empreinte du mélange diffère déjà
+entre les deux modes au repos, et elle ne dit pas ce qui a sonné. `--boot` gagne donc `@wav CHEMIN`
+(`Host/WavCapture.cs`, l'outil de l'hôte). Il branche deux fichiers WAV de 16 bits stéréo là où `SdlAudio` se branche
+dans la fenêtre : le mélange de la machine (48 kHz) dans CHEMIN, la voie du CD (44,1 kHz) dans CHEMIN.cd.wav.
+L'émulateur ne change pas. Les notes sont mesurées par leurs passages à zéro, interpolés, au cœur de chaque note
+(`/tmp/a9/t3i/notes2.py`, `cdwav.py`).
+
+**Les témoins** (`/tmp/a9/t3i/tem.sh`, le bac à sable de GR.3d, la copie sans `KEYB FR` du disque 486, le CMOS refait
+par `--make-nvr`, la disquette en B:), en Hz. Les huit premières notes (la descente de `D` et de `C` mesurée de même) :
+
+| Témoin | Mode | Notes |
+|---|---|---|
+| attendu | | 261,6 293,7 329,6 349,2 392,0 440,0 493,9 523,3 |
+| `LPTPLAY D` (DSS) | PCem | 261,5 293,6 329,5 349,4 391,9 439,9 494,0 523,3 |
+| | « tout » | 261,6 293,6 329,5 349,4 392,1 439,9 494,0 523,3 |
+| `LPTPLAY C` (Covox) | PCem | 261,5 291,1 329,1 349,6 392,4 441,1 493,4 522,4 |
+| | « tout » | 261,6 293,6 329,7 349,1 392,0 439,9 493,9 523,3 |
+| `LPTPLAY S`, gauche | PCem | 261,6 293,7 329,7 349,1 392,0 440,0 493,9 523,2 |
+| | « tout » | 261,6 293,8 329,8 349,1 392,0 440,0 493,9 523,2 |
+| `LPTPLAY S`, droite | PCem | 523,2 493,9 440,0 392,0 349,1 329,6 293,6 261,6 |
+| | « tout » | 523,3 493,9 440,0 392,0 349,1 329,8 293,7 261,6 |
+
+Ce que les WAV disent de plus :
+- DSS et Covox mono : les quinze notes, montée puis descente, sur les deux canaux à l'identique (4,5 s) ;
+- le Covox stéréo, en crête à crête : pendant la montée, 6 841 à gauche et 2 à droite (6 838 et 8 sous « tout ») ;
+  pendant la descente, 0 à gauche et 6 653 à droite (0 et 6 662) ;
+- `CDECOUTE`, la voie du CD, dans les deux modes : 440,00 Hz à gauche pendant 10,0 s, puis 880,00 Hz à droite. Le
+  dernier relevé dit 13h (lecture finie), dans les deux modes. La crête est de 1 999 en mode PCem et de 502 sous
+  « tout » : 12 dB de moins, le général du mélangeur au défaut du guide (PB-237, déduit).
+
+**Les constats, hors de l'étape** (règle du 18/10) :
+- *un défaut candidat de PCem, le PREGAP lu comme des données* : la droite sonne 12 s, et non 10. Les deux
+  secondes du PREGAP de la piste 3, qui n'est pas dans le fichier, jouent les deux premières secondes du 880 Hz au
+  lieu d'un silence. `AddTrack` (`cdrom_image.cs:650-656`) termine la piste 2 en LBA 791 et commence la piste 3 en
+  942. Entre les deux, la lecture tombe dans la piste 2 et continue dans le fichier : les secteurs 792 et suivants,
+  ceux de la piste 3. Le relevé de la position pris dans ce prégap (un premier essai, à 11,2 s) disait la piste 2 ;
+  un lecteur dirait la piste 3, index 0. Les deux modes le font : le mode matériel ne le corrige pas. PB-108 décrit
+  un défaut voisin, le prégap d'une piste qui ouvre un nouveau FILE (« sa lecture échoue au-delà de son fichier ») ;
+  celui-ci est le PREGAP d'une piste dans le fichier de la précédente, lu comme des données ;
+- en mode PCem, le Covox mono s'écarte d'au plus 1 % sur quelques notes (291,1 Hz pour 293,7 ; 441,1 pour 440,0),
+  à l'identique sur deux passages ; sous « tout », et sur la gauche du Covox stéréo dans les deux modes, les notes
+  sont justes. Le rythme vient des fronts de la sortie du canal 2 du PIT. Cause non cherchée.
+
+**Les contrôles négatifs** :
+- `LPTPLAY D` puis `C` sur `ixtal26-486.cfg` (LPT1 vide) : les deux se terminent (aucune attente sans fin sur l'état
+  de 379h), le WAV reste muet ;
+- `LPTPLAY S` sur le Covox mono : les deux canaux identiques, la gamme montante puis descendante. La séparation
+  mesurée plus haut vient donc du Covox stéréo.
+
+**La série.** L'émulateur ne change pas : l'outil de l'hôte (`@wav`), les outils et la feuille d'isogen. Un
+sous-ensemble sur le worktree, en Release, vert : `cdimage-check`, qui vérifie `isogen.sha256` (les deux lignes
+neuves comprises) ; `r9-cue` ; `bd-cfg-486-cd` ; `banc-sbbanc-pro2` en mode PCem et `-materiel` ; `banc-sb16banc`,
+qui passe par `@son`.
+
+**L'écoute de Julien** : attendue. Pour chaque profil, `tools/ecoute/ecoute.sh` dit quoi taper et ce qu'on devrait
+entendre. Le Release de Rider doit être reconstruit avant (le dernier date du 20 octobre).
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a recalculé les pas et les durées de LPTPLAY, suivi
+ses registres et les ports contre `lpt_dss.cs`, `lpt_dac.cs`, `keyboard_at.cs` et `pit.cs`, reconstruit les
+programmes d'atapibanc avant et après (identiques à l'octet, CDECOUTE compris), relu la disposition de la feuille,
+`WavCapture` et `ecoute.sh`, et refait les mesures sur les WAV : la table, les 12 s de la droite du CD, les crêtes.
+Elle a suivi le défaut du PREGAP dans `GetTrack` (`cdrom_image.cs:316-327`). Ses points sont repris :
+- ATAPIAUD, seul, ne monte pas le CD du mélangeur : `ecoute.sh` dit de le lancer après CDECOUTE ;
+- la fenêtre part en mode matériel : on compare par `--hardware-mode pcem` (et non `tout`), où le CD sort 12 dB plus
+  haut ; les notes, à 0,2 Hz près ;
+- `ecoute.sh` contrôle la fenêtre construite à chaque appel, et dit comment écouter un vrai CD (D6) ;
+- l'en-tête de LPTPLAY dit ce que la fin rétablit, et ce qu'elle laisse ;
+- les crêtes du Covox stéréo dites en crête à crête ; le renvoi à PB-108 ; le plan qui dit `@wav`.

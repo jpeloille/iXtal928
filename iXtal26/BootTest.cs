@@ -156,6 +156,14 @@ public static class BootTest
             Console.WriteLine($"\n--- image {w}x{ht}, empreinte FNV-1a {h:X16} ---");
             return;
         }
+        // GR.3i — « @wav CHEMIN » : dès lors, le mélange de la machine dans CHEMIN et la voie du CD dans CHEMIN.cd.wav,
+        // jusqu'à la fin de --boot (WavCapture). Le témoin d'une écoute, en C# seul.
+        if (text.StartsWith("@wav ", StringComparison.Ordinal))
+        {
+            WavCapture.Start(text[5..]);
+            Console.WriteLine($"\n--- wav : {text[5..]} ---");
+            return;
+        }
         // G8.3 — « @son » : l'état de la carte son, sans rien taper. Le témoin qu'un logiciel
         // (le pilote Sound Blaster de Windows) a parlé au DSP : empreinte des échantillons mixés,
         // dernière commande, DMA 8 bits, IRQ et mélangeur.

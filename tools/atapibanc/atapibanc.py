@@ -41,7 +41,9 @@ ZBUF = 256
 # G10.5 — `--audio` : ATAPIAUD.COM, le même interprète avec l'op 14 (attendre N tops de l'horloge du BIOS),
 # et le script de l'audio CD sur mixte.cue d'isogen. Sans lui, ATAPIBNC.COM reste octet pour octet celui
 # de G10.4.
-AUDIO = '--audio' in sys.argv
+# GR.3i — `--ecoute` : CDECOUTE.COM, l'interprète d'ATAPIAUD, et l'écoute de ecoute.cue d'isogen (D6).
+ECOUTE = '--ecoute' in sys.argv
+AUDIO = '--audio' in sys.argv or ECOUTE
 # G10.6 — `--zip` : ZIPBANC.COM, le même interprète (sans l'op 14), et le script du lecteur ZIP 100.
 # GR.2d2 — `--esclave` : ZIPESC.COM, l'interprète de ZIPBANC octet pour octet, et le script du ZIP en esclave du CD,
 # sur un disque protégé en écriture (zipro.img, IMAGE_RO).
@@ -671,6 +673,32 @@ if AUDIO:
         T('-attente', WAITT(n))
 
     SENSE18 = C(0x03, 0, 0, 0, 18)
+
+if ECOUTE:
+    # GR.3i — l'écoute, par Julien, sur ecoute.cue d'isogen (D6) : la disposition de mixte.cue, la piste 2 (440 Hz à
+    # gauche, dix secondes) en LBA 42, la piste 3 (880 Hz à droite, dix secondes) en LBA 942, après un PREGAP de deux
+    # secondes ; la fin du disque en LBA 1692. D'abord le CD du mélangeur de la SB Pro (28h) au maximum : le guide et
+    # PCem le mettent au plus bas, et l'audio du CD ne s'entendrait pas. La page audio remise droite (le canal 1 à
+    # gauche, le 2 à droite, au maximum), ATAPIAUD la laissant croisée ; puis un seul PLAY de 22 s, que trois relevés
+    # de la position suivent : dans la piste 2, dans la piste 3 (12,9 s, après le prégap), à la fin.
+    PAGE_0E_ECOUTE = [0x0E, 0x0E, 0x04, 0x00, 0x00, 0x80, 0x00, 75,
+                      0x01, 0xFF, 0x02, 0xFF, 0, 0, 0, 0]
+    T('-mélangeur', BASE(0x220) + OUT(4, 0x28) + OUT(5, 0xEE))
+    T('signature', BASE(0x170) + OUT(6, 0xA0) + WAIT + REC + LIGNE())
+    T('TEST UNIT READY', P(C(0x00), sense=False))                                    # UNIT ATTENTION, 28h
+    T('INQUIRY, sous l\'attention', P(C(0x12, 0, 0, 0, 36), sense=False))
+    T('TEST UNIT READY', P(C(0x00)))
+    T('READ TOC, MSF', P(C(0x43, 2, 0, 0, 0, 0, 0, 0, 0x64), 22), 22)
+    T('MODE SELECT(10), la page audio', P(C(0x55, 0x10, 0, 0, 0, 0, 0, 0, 24), sortie=[0] * 8 + PAGE_0E_ECOUTE))
+    T('PLAY AUDIO MSF, les pistes 2 et 3', P(PLAYMSF(42, 1692)))
+    ATTENTE(5)
+    T('READ SUB-CHANNEL, MSF, 440 Hz', P(SUBQ(1), 16), 16)                           # la piste 2
+    ATTENTE(230)
+    T('READ SUB-CHANNEL, MSF, 880 Hz', P(SUBQ(1), 16), 16)                           # la piste 3
+    ATTENTE(175)
+    T('READ SUB-CHANNEL, MSF, finie', P(SUBQ(1), 16), 16)                            # 13h
+
+if AUDIO and not ECOUTE:
     T('signature', BASE(0x170) + OUT(6, 0xA0) + WAIT + REC + LIGNE())
     T('TEST UNIT READY', P(C(0x00), sense=False))                                    # UNIT ATTENTION, 28h, gardée
     T('INQUIRY, sous l\'attention', P(C(0x12, 0, 0, 0, 36), sense=False))            # ALLOW_UA : passe, efface
@@ -933,7 +961,8 @@ def assemble():
     return bytes(out), listing
 
 
-NOM = 'ATAPIAUD' if AUDIO else 'ZIPESC' if ESC else 'ZIPFMT' if FMT else 'ZIPBANC' if ZIP else 'ATAPIBNC'
+NOM = ('CDECOUTE' if ECOUTE else 'ATAPIAUD' if AUDIO else 'ZIPESC' if ESC else 'ZIPFMT' if FMT else 'ZIPBANC' if ZIP
+       else 'ATAPIBNC')
 
 
 def keys(code):
@@ -963,8 +992,8 @@ if __name__ == '__main__':
                   f'(octets du relevé)')
         n += 1
     here = os.path.dirname(os.path.abspath(__file__))
-    fichier = ('atapibanc-audio.keys' if AUDIO else 'zipesc.keys' if ESC else 'zipfmt.keys' if FMT else
-               'zipbanc.keys' if ZIP else 'atapibanc.keys')
+    fichier = ('cdecoute.keys' if ECOUTE else 'atapibanc-audio.keys' if AUDIO else 'zipesc.keys' if ESC else
+               'zipfmt.keys' if FMT else 'zipbanc.keys' if ZIP else 'atapibanc.keys')
     with open(os.path.join(here, fichier), 'w') as f:
         f.write('\n'.join(keys(code)) + '\n')
     if '--com' in sys.argv:
