@@ -297,7 +297,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - `nvr-check` : l'octet 14h attendu par carte ;
   - `bd-ibmat-mda-cmos` et `bd-ami286-hercules-cmos` ;
   - le message de `--make-nvr` corrigé.
-- **GR.3d — Les témoins DOS** :
+- **GR.3d — Les témoins DOS** ✅ *fait, § GR.3d* :
   - `VER`, `MODE`, `MSD /S` (la vidéo, « LPT Ports », « Game Adapter ») et `ECHO >PRN` avec `none`, `dss` et
     `lpt_dac`, dans le bac à sable de G13.10a, dans les deux modes ;
   - `MSD /S` sous boot-diff sur l'ami486, sur le patron de G11.3 ;

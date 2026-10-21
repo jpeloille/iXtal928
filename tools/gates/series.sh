@@ -139,6 +139,10 @@ run bd-ami486-gd5429 boot-diff roms 3000 --config $C/ami486-dx2.cfg --gfxcard cl
 run bd-ami486-gd5429-post boot-diff roms 40000 --config $C/ami486-dx2.cfg --gfxcard cl_gd5429
 run bd-ami386dx-gd5429 boot-diff roms 3000 --config $C/ami386dx-4m.cfg --gfxcard cl_gd5429
 runw bd-ami486-gd5429-dos c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 --type "VER" --type "DIR"
+# GR.3d — MSD /S sous boot-diff sur l'ami486, sur le patron de bd-ami486-aha-temoins (G11.3) : le rapport de MSD sur
+# l'écran, c386.img (MS-DOS 5.00, \WINDOWS\MSD.EXE).
+runw bd-ami486-msd c486.nvr ami486 boot-diff roms 100000 --config ami486-ide.cfg --gfxcard cl_gd5429 --type-at 60000 \
+  --type-settle 600 --type "VER" --type "C:\\WINDOWS\\MSD /S" --type "@wait 3000"
 run r9-cl5429 r9-cl5429
 # G7.2 — le blitter de la GD5429 : BLTBANC.COM saisi dans DEBUG, écrit sur C:, lancé.
 mapfile -t BLK < tools/bltbanc/bltbanc.keys
@@ -417,6 +421,10 @@ for d in dss lpt_dac lpt_dac_stereo; do
   run bd-pc-lpt-$d-banc boot-diff roms 11000 --lpt1 $d --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 --type-settle 600 --type "" --type "" "${LPB[@]}" --type "^" --type "^"
 done
 run bd-ami486-lpt-dac-stereo boot-diff roms 3000 --config $C/ami486-dx2.cfg --lpt1 lpt_dac_stereo
+# GR.3d — LPTBANC sur le PC1512 : PB-101 (le LPT2 de 278h que lpt2_remove_ams ne retire pas) sous boot-diff, en mode
+# PCem.
+run bd-pc1512-lpt boot-diff roms 11000 --model pc1512 --fda $DOS --fdb os/pcdos20/pcdos20s.img --type-at 7000 \
+  --type-settle 600 --type "" --type "" "${LPB[@]}" --type "^" --type "^"
 # G10.1 — la manette : les sept types de joystick_list (gameport.c:17-19), chacun sous le banc
 # JOYBANC (tools/joybanc) saisi dans DEBUG sur le 5150 : douze tours, chacun chronométrant les
 # quatre axes par 201h (boutons à l'armement), une rafale de lectures (les paquets de la SideWinder)

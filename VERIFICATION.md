@@ -15104,3 +15104,71 @@ la section de la CGA, celle du Xebec (XT seulement).
 la boucle des cartes et son état rétabli, `lpt1_device` contre `pc.c:965`, la règle de `nvr-check` et sa somme. Ses
 points sont repris : des valeurs hors défaut (dont `monitor_type = 7`, la valeur 8 n'étant pas dans la liste de PCem) ;
 le commentaire de doc de `SelfCheck` remis à sa place, sa phrase périmée corrigée ; la limite du test, ci-dessus.
+
+## GR.3d — Les témoins DOS
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3d ; R3-contre.md § 2). Ni `VER`, ni `MODE`, ni `ECHO >PRN`
+n'avaient été tapés sur les machines de G9 ni sur les profils 486 ; `MSD /S` ne l'avait été que sur l'ami486 et
+l'AHA (G11.3).
+
+**Les témoins, en C# seul, dans les deux modes** (`/tmp/a9/temoins-3d.sh`, le bac à sable de G13.10a). Chaque profil
+de GR.3a et de GR.3b est amorcé, son CMOS refait par `--make-nvr` depuis le profil. Les disques sont des copies sans
+`KEYB FR` : celles de la recette pour les profils de GR.3a ; pour les profils 486, une copie de `os/486-HDD-C.img`
+dont `fatpatch.py` a remplacé AUTOEXEC.BAT par `tools/gates/autoexec-sans-keyb.bat`, comme la recette. Le témoin tape :
+- sur le 5150 et le XT (PC-DOS 2.00) : la date et l'heure, `VER`, `MODE LPT1:`, `ECHO A >PRN`, puis `A` à la question ;
+- sur les machines AT (MS-DOS 5.00) : `VER`, `MODE CON`, `MODE LPT1`, `ECHO A >PRN` et `A`, puis `MSD /S` vers un
+  fichier, et `FIND` de « VIDEO », « LPT » et « GAME ».
+
+| Profil | `ECHO A >PRN` | MSD : la vidéo | MSD : LPT, jeu | Le texte à l'écran, les deux modes |
+|---|---|---|---|---|
+| 5150 + MDA | « Not ready error writing device PRN » | — | — | le même écran |
+| XT + Hercules | « Not ready error writing device PRN » | — | — | le même écran |
+| 286 + EGA | « Write fault error writing device PRN » | EGA, Unknown | 2 ; Game Adapter | le même écran |
+| 386 + ET4000 | « Write fault … » | VGA, Tseng | 2 ; Game Adapter | le même écran |
+| 486, GD5429 | « Write fault … » | VGA, Cirrus | 2 ; Game Adapter | le même écran |
+| 486, Trio64 | « Write fault … » | VGA, Phoenix | 2 ; Game Adapter | le même écran |
+| 486, DSS | « Write fault … » | VGA, Cirrus | 2 ; Game Adapter | le même écran |
+| 486, Covox | « Write fault … » | VGA, Cirrus | 2 ; Game Adapter | le même écran |
+
+Ce que disent ces témoins :
+- la Disney Sound Source et le Covox laissent DOS dire « Write fault », comme sans périphérique : aucun des deux ne
+  répond comme une imprimante ;
+- MSD voit « EGA » sur le 286, dans les deux modes. Il interroge le BIOS vidéo et ne sonde pas ce que décrit PB-99
+  (la palette, la protection de CR11, les relectures de registres, la bascule de 3DAh) : `bd-pc-ega-banc` le couvre ;
+- « Game Adapter » est vu sur tous les profils AT testés, ceux de GR.3b compris ;
+- `MODE CON` et `MODE LPT1` (`MODE LPT1:` sous PC-DOS 2.00) passent sans erreur ; leur sortie a défilé hors du
+  dernier écran, et le témoin n'en dit rien de plus.
+
+Le texte à l'écran est le même entre les deux modes, l'heure mise à part. L'empreinte du framebuffer et le compte de
+trames, eux, diffèrent (le curseur et la cadence, PB-102), comme en G13.10a.
+
+**Le comportement surprenant : PB-101.** Sur le PC1512 (son profil), `DEBUG` et `D 40:8 L8` relisent les adresses des
+ports parallèles du BDA :
+- en mode PCem : `78 03 78 02`, LPT1 en 378h et un LPT2 en 278h, que `lpt2_remove_ams` ne retire pas ;
+- sous « tout » : `78 03 00 00`, le seul port de la machine (PB-101 corrigé).
+
+**Les portes** :
+- `bd-pc1512-lpt` : LPTBANC sur le PC1512, sous boot-diff, en mode PCem (PB-101 reproduit) : verte, 263 391 184
+  instructions, la sonde du PC1512 identique ; LPTBANC relit le BDA `78 03 78 02`, le LPT2 de 278h ;
+- `bd-ami486-msd` : `VER` et `MSD /S` à l'écran sur l'ami486 (`c386.img`, la GD5429), sur le patron de
+  `bd-ami486-aha-temoins` (G11.3) : verte, 183 848 862 instructions, la sonde VGA identique. La fin du rapport à
+  l'écran : « Other Adapters: Game Adapter », « LPT Ports: 2 », « COM Ports: 2 ».
+
+Aucune des deux portes n'a d'`--expect` sur ce qu'elle montre : le BDA de PB-101 et le rapport de MSD se lisent dans
+leur relevé, la porte prouvant l'accord des deux côtés.
+
+**Le contrôle négatif** : le profil 486 copié avec `parallel2 = 0` (G13.13b ; la clé vaut dans les deux modes,
+`model.Materiel.cs`). MSD n'y voit plus qu'un port LPT, dans les deux modes.
+
+**La série.** L'émulateur ne change pas : deux portes neuves (series.sh), le reste hors des portes. Un sous-ensemble
+sur le worktree, en Release, mode PCem : `bd-pc1512-lpt`, `bd-ami486-msd` et leur voisine `bd-pc-lpt-dss-banc`,
+vertes. Sous « tout », une porte boot-diff est refusée par construction.
+
+**Les écarts avec la reconnaissance** (R3-clotures § GR.3d), PLAN-GR ne les ayant pas retenus : ni `MODE /STATUS`,
+ni `ECHO >PRN` sur la DSS et le Covox du 5150 (seulement sur l'ami486), ni la porte `bd-pc-lpt-dss-prn`, ni MSD sous
+boot-diff sur l'ami286. PLAN-GR a mis MSD sous boot-diff sur l'ami486 : 436 s pour la porte.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a relu chaque dernier écran des témoins, le BDA du
+PC1512 contre PB-101, les deux portes et la clé `parallel2` dans `model.Materiel.cs`. Ses points sont repris : « le
+texte à l'écran » et non « l'écran » ; PB-99, que MSD ne sonde pas ; les portes sans `--expect` ; la copie du disque
+486 ; les écarts avec la reconnaissance.
