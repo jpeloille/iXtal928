@@ -8,6 +8,10 @@
 
 ## Où on en est
 
+> **GR est fait** (20 au 22 octobre 2026), hors l'écoute de GR.3i, préparée, que Julien fera. La synthèse :
+> VERIFICATION.md, « GR — la clôture » (les étapes, les sondes, la couverture, la relecture, les témoins, la dette,
+> ce que ce vert ne dit pas, les originaux).
+
 GR a été décidé le 04/10, avant G11, G12 et G13. Depuis, G13 a ajouté le mode matériel, le défaut de l'utilisateur
 depuis G13.11 ; boot-diff le refuse (il compare à l'oracle, qui est PCem), les bancs en C# seul se jouent dans les deux
 modes contre des attendus. G13.9 a corrigé la vidéo en C# seul, « les images viendront avec GR.0 » (PLAN-G13.md,
@@ -206,7 +210,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   GR.0b (la sonde seule).
 - **La série** : outillage seul, un sous-ensemble (les portes touchées).
 
-### GR.1 — La profondeur de G9
+### GR.1 — La profondeur de G9  ✅
 
 - **GR.1b — L'ET4000 sous DOS sur l'ami486, et sa ROM sur le 8088 en oracle seul** ✅ *fait, § GR.1b* :
   - `bd-ami486-et4000-dos` ;
@@ -235,7 +239,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - `bd-pc-mda-banc`, plus le banc en C# seul dans les deux modes, avec l'empreinte de l'image ;
   - les contrôles négatifs : le Turbo XT retiré ; `& 15` dans l'entrelacé ; `fontdatm` lu `sc & 15`.
 
-### GR.2 — La profondeur de G10
+### GR.2 — La profondeur de G10  ✅
 
 - **GR.2a — Les sondes de l'ATAPI, du CD, du ZIP, de la DSS et du Covox** ✅ *fait, § GR.2a* :
   - le pont ATAPI se sonde déjà par `harness_ide.c`. `scsi_cd_data_t`, `scsi_zip_data` et les fichiers LPT demandent
@@ -277,7 +281,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - le FILE qui désigne un répertoire inscrit en DEVIATION (PLAN-G13, décision n° 9) ;
   - le contrôle négatif : une extraction d'entier qui ne sature plus.
 
-### GR.3 — Les deux clôtures
+### GR.3 — Les deux clôtures  ✅ *(l'écoute de GR.3i attendue)*
 
 - **GR.3a — Les quatre profils de G9** ✅ *fait, § GR.3a* :
   - 5150 + MDA, XT + Hercules (disquette seule), 286 + EGA, 386DX + ET4000AX, en mode matériel (décision n° 17 de
@@ -316,7 +320,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   une feuille CUE d'écoute d'isogen ; sa réponse est inscrite telle quelle. *Préparée, § GR.3i* (`tools/ecoute`) ; en
   face, `@wav` en C# seul dans les deux modes plutôt que `@son` ; l'écoute de Julien attendue.
 
-### GR.1h, GR.2f — La couverture comptée ; GR.1i — la relecture contradictoire
+### GR.1h, GR.2f — La couverture comptée ; GR.1i — la relecture contradictoire  ✅
 
 - La méthode de M15 s'applique, sur une copie jetable : un compteur par méthode, par `case` et par branche, dans les
   deux modes. Pour la vidéo, les cinq fichiers de G9 et leurs `.Materiel.cs` (décision n° 7). Pour le stockage,
@@ -338,7 +342,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   puis READ SUB-CHANNEL en LBA : la piste 00 et l'adresse 0 dans les deux modes) ; l'émulateur change : la série
   entière, verte (827 ; sous « tout », 549 vertes, 267 refusées, 11 en mode PCem seul).
 
-### GR.4d, GR.4e — `make bench`, les registres, les licences, les commentaires
+### GR.4d, GR.4e — `make bench`, les registres, les licences, les commentaires  ✅
 
 - **GR.4d** ✅ *fait, § GR.4d* : `make bench` se lie de nouveau (les objets C++, `--wrap=_Znam`), et la `.so` ne
   change pas ; les 17 symboles comptés ; `bench-native` aussi ; le lien sans DBOPL échoue.
@@ -351,7 +355,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - les commentaires et en-têtes périmés de R4 § 1.5 et R4-contre A2 ; `UsageText` et le README.
   - Les preuves : `sha256sum -c` ; `check-oracle` sans dérive ; `recensement` ; la construction sans avertissement.
 
-### GR.5 — Les documents, et la clôture de GR
+### GR.5 — Les documents, et la clôture de GR  ✅ *fait, VERIFICATION.md, « GR — la clôture »*
 
 - PLAN-G8, G9 et G10 : l'en-tête « est fait », et « Les risques » de PLAN-G9.
 - PLAN-G13 : l'en-tête « G13 est fait ».

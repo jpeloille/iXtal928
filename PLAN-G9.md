@@ -1,5 +1,10 @@
 # G9 — Vidéo, complément : MDA, Hercules, EGA, Tseng ET4000AX ; le plan, sur reconnaissance
 
+> **G9 est fait** (3 et 4 octobre 2026) : G9.0 `66690cd`, G9.1 `f963e04`, G9.2 `af06fcb`, G9.3 `fc87801` ;
+> VERIFICATION.md §§ G9.0 à G9.3 ; PB-96 à PB-100, PB-36 élargi. Sa clôture (« Ce qu'un bloc livre », PLAN.md) est
+> revenue au bloc GR : les sondes de l'image (GR.0), la profondeur des cartes (GR.1), les profils et les témoins
+> (GR.3), la couverture comptée (GR.1h), avec « Les risques » ci-dessous.
+
 > Écrit le 3 octobre 2026, après PS2. Bloc G9 de `PLAN.md` (décision utilisateur du 03/10, feu
 > vert du même jour). Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que
 > vendoré. Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
@@ -133,6 +138,28 @@ décision n° 3.
   registres EGA et ET4000, ROM).
 - **Sondes de fin de boot-diff** : MDA/Hercules (comme la M24), EGA (nouvelle), SVGA (ET4000).
 - **Bancs dirigés** sous boot-diff, comme SBBANC et PS2BANC.
+
+## Les risques
+
+Écrits en clôture, par le bloc GR (PLAN-GR.md) : ce que G9 laissait ouvert, et ce qu'en ont fait G13.9, G13.12a et
+GR.
+1. **L'image n'était pas comparée.** Les sondes de G9 hachaient la VRAM et les registres, pas l'image : l'oracle ne
+   recevait ni les polices ni la palette. GR.0a les lui donne, GR.0b hache l'image de chaque carte non SVGA et
+   sonde les champs de l'ET4000 (`et4000_t`).
+2. **Des clés hors du diff.** L'EGA à 64 Ko, l'EGA sur moniteur monochrome et `display_type` ambre ne passaient sous
+   aucun boot-diff. GR.1f les y met, sur le 5150 et l'AT ; G13.12a a donné à l'EGA et à la CGA leurs cavaliers
+   (PB-294).
+3. **Des bancs incomplets.** EGABANC n'essayait ni AND ni OR (GR.0c) ; la MDA n'avait pas de banc (MDABANC, GR.1g) ;
+   ET4BANC s'arrêtait avant le 1024 × 768 (GR.1c) ; le FFh armé et les codes 32 bits du RAMDAC n'étaient lus par
+   aucun programme (ET4HBANC, GR.1d).
+4. **L'ET4000 sous DOS.** Seul son POST était comparé ; GR.1b ajoute le boot-diff DOS sur l'ami486, et dit ce que sa
+   ROM fait sur le 8088.
+5. **Les défauts de PCem** (PB-96 à PB-100) : PB-96, PB-97, PB-99 et PB-100 corrigés en mode matériel par G13.9,
+   chacun pour les parts que son entrée dit (§§ G13.9b, G13.9d, G13.9e, G13.9e2, G13.9f) ; PB-98, une fuite à la
+   fermeture, reproduit (sans effet sous le ramasse-miettes). La vidéo est close en G13.9g.
+6. **Le vidage `--boot` de l'EGA** passait par la carte, et changeait son état : GR.4c le fait sans elle.
+7. **Les citations.** Vingt et une bornes `// pcem:` de G9 étaient fausses ; GR.1i les corrige, avec la relecture
+   contradictoire de la vidéo de G9.
 
 ## Les décisions à trancher
 

@@ -1,5 +1,10 @@
 # G8 — Le son : la Sound Blaster Pro v2 ; le plan, sur reconnaissance
 
+> **G8 est fait** (2 octobre 2026) : G8.0 `5ad3a8f`, G8.1 `a0f0b71`, G8.2 `59500a5`, G8.3 `1394107`, et
+> `12b01b0` (quatre chiffres remesurés) ; VERIFICATION.md §§ G8.0 à G8.3 ; PB-90 à PB-93. La suite du son est
+> venue avec G12 (les autres Sound Blaster, l'AWE32) et G13.8 (le mode matériel du son) ; `make bench`, que G8 avait
+> laissé sans le C++, se lie de nouveau depuis GR.4d (PLAN-GR.md).
+
 > Écrit le 2 octobre 2026, après G1. Bloc G8 de `PLAN.md` (section G8, e776097).
 > Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré.
 > Les décisions à trancher sont en fin de fichier ; rien ne s'écrit avant leur validation.
@@ -107,6 +112,9 @@ l'écoute réelle par l'hôte (SDL) — au moins un témoin audible consigné.
    moindre écart de minuterie (48 kHz, `sblatcho`, minuteries de l'OPL) déplace le hachage sans
    changer une instruction. La sonde doit garder l'état des minuteries.
 3. **La taille** : ≈ 2 500 lignes de C et C++ ; DBOPL est le plus dense.
+4. **`make bench`** (relevé par la reconnaissance de GR, R4 § 1.8). G8.0 a mis le C++ dans la `.so` seule ; or
+   `harness.c` et `sound_opl.c` appellent DBOPL, et le lien de `bench` échouait. Corrigé en GR.4d : `bench` compile
+   et lie les deux objets C++, comme la `.so`.
 
 ## Les décisions à trancher
 

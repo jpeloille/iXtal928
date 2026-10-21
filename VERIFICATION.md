@@ -15952,3 +15952,168 @@ registres, les notices et les commentaires disaient encore d'avant G9, G10, G12 
   `cpu-config-check`) ; chaque message égal à celui de la série `gr1i2`.
 
 L'émulateur ne change que par des commentaires et l'aide : aucune série entière.
+
+## GR — la clôture : la reprise de G9 et G10
+
+Du 20 au 22 octobre 2026 (PLAN-GR.md, sur la reconnaissance de `iXtal26/Docs/GR-reconnaissance/`). G9 et G10 avaient
+livré leurs cartes et leurs lecteurs sous boot-diff, sans « Ce qu'un bloc livre » (PLAN.md) : les pixels, des bancs
+qui finissent dans le mode testé, les profils, les témoins, la couverture, la relecture. GR les y porte, et solde la
+dette de G1, G7 et G8 qui leur était liée. Chaque étape a sa section ci-dessus ; celle-ci les rassemble.
+
+### Les étapes
+
+| Étape | Commit | Ce qu'elle livre |
+|---|---|---|
+| GR.0a | `5a38296` | l'oracle reçoit les polices et la palette |
+| GR.0b | `89f211c` | les sondes hachent l'image ; la sonde de la CGA ; les champs de l'ET4000 |
+| GR.4b | `73220f2` | la phase 2 de boot-diff rejoue l'exécution |
+| GR.4c | `9190cf4` | le vidage `--boot` de l'EGA, sans passer par la carte |
+| GR.4a | `f590b0b` | la M24 et le PC1512 gardent leur vidéo intégrée (`builtin`) |
+| GR.0c, GR.1e | `13d02ba` | les bancs vidéo finissent dans le mode testé (EGABANC, HERCBANC, CGABANC) |
+| GR.1b | `bed67f7` | l'ET4000 sous DOS sur l'ami486 ; sa ROM sur le 8088 |
+| GR.1c | `3d0b339` | ET4BANC jusqu'au 1024 × 768 |
+| GR.1d | `34819f0` | le banc HiColor, ET4HBANC |
+| GR.1f | `a2ca974` | les clés de la vidéo sous boot-diff (64 Ko, mono, ambre) |
+| GR.1g | `1eef251` | MDABANC |
+| GR.2a | `9a34a50` | les sondes de l'ATAPI, du CD, du ZIP, de la DSS et du Covox |
+| GR.2b | `8e7c042` | ATAPIBANC tiré d'une table |
+| GR.2c | `651240d` | l'audio du CD (ATAPIAUD) |
+| GR.2d1 à 2d4 | `ee3b6e1`, `4ae0158`, `db4f1c2`, `98aae31` | ZIPBANC, le ZIP protégé en esclave, FORMAT UNIT, AHABANC |
+| GR.2e | `99620b2` | la campagne de CUE (529 feuilles) |
+| GR.3a à 3h | `abd2739` à `556968e` | les profils, `--setup-check`, `--make-nvr`, les témoins, Windows, le CD |
+| GR.3i | `677f507` | l'écoute, préparée ; la réponse de Julien attendue |
+| GR.1i | `d656b0f` | la relecture contradictoire ; les 21 bornes de G9 |
+| GR.1h, GR.2f | `446043d` | la couverture comptée |
+| GR.1i2 | `11fdbba` | PB-123 au lead-out |
+| GR.4d | `703e00b` | `make bench` |
+| GR.4e | `328fe16` | les registres, les licences, les commentaires |
+| GR.5 | celui de cette section | les plans « est fait », PLAN.md, cette synthèse |
+
+### Les portes vidéo et leurs sondes
+
+Chaque carte non SVGA hache son image depuis GR.0b ; chaque sonde a sa panne injectée qui la rougit seule, le diff
+d'instructions restant vert (§ GR.0b, § GR.2a).
+
+| Carte | Machines sous boot-diff | Champs de la sonde | Panne injectée | Champ rougi |
+|---|---|---|---|---|
+| CGA | 5150, XT | 25 | la rangée de la police | `#buffer32` |
+| MDA | 5150 (et en ambre, GR.1f), XT, AT | 20 | la couleur de l'attribut 7 | `#buffer32`, `#mdacols` |
+| Hercules | 5150 (et en ambre), XT, AT, ami286 | 20 | la même | `#buffer32`, `#mdacols` |
+| EGA | 5150, XT, AT, ami286, ami386 ; 64 Ko et mono sur le 5150 et l'AT | 33 | un poids de `pallook64` | `#pallook` |
+| M24 | M24 | 24 | la rangée de `fontdatm` | `#buffer32` |
+| PC1512 | PC1512 | 23 | les plans 1 et 2 échangés | `#buffer32` |
+| ET4000 | 5150, XT, ami286, ami386dx, ami486 | 163 (SVGA) | `ramdac.state` après la palette | 1 champ |
+| ATAPI | ami286, ami386dx, ami486 | 88 | un octet après la fin des données | `U2.data` |
+| CD | ami486 | 37 | `prefix_len` de MODE SELECT(6) | `prefix_len` |
+| ZIP | ami486 | 23 | `hd_id` décalé | `hd_id` |
+| DSS, Covox | 5150 ; le Covox stéréo aussi sur l'ami486 | 15 | un octet de la file de la DSS | la file et le DAC |
+
+### La couverture
+
+2 276 compteurs (méthodes, `case`, branches) dans les 23 fichiers de la vidéo de G9 et du stockage : 1 655 atteints en
+mode PCem, 1 758 en mode matériel, 2 022 dans l'un ou l'autre. Les 254 jamais atteints ont chacun leur raison (§ GR.1h,
+GR.2f).
+
+### La relecture contradictoire et ses constats
+
+Neuf tranches lues ligne à ligne contre le C, chacune puis réfutée : 38 constats, 33 confirmés, 5 réfutés (§ GR.1i).
+
+| Sort | Nombre |
+|---|---|
+| citations ou commentaires corrigés (GR.1i) | 31 |
+| laissé tel quel (les omissions de `cdrom_image.cs`, dites dans l'en-tête) | 1 |
+| défaut de comportement, corrigé à part (GR.1i2 : PB-123 au lead-out) | 1 |
+| réfutés | 5 |
+
+### Les témoins
+
+- POST, `VER`, `MODE` et `ECHO >PRN` sur les huit profils, et `MSD /S` sur les six profils AT (MS-DOS 5.00 ; PC-DOS
+  2.00 n'a pas MSD), en C# seul, dans les deux modes (§ GR.3d) : le même texte d'écran dans les deux modes ; MSD voit
+  « Game Adapter » sur tous ;
+- `bd-ami486-msd` et `bd-pc1512-lpt` sous boot-diff : MSD sur l'ami486, PB-101 sur le PC1512 (§ GR.3d) ;
+- QBASIC `STICK` et `STRIG`, `bd-ami286-qbasic-stick` : quatre états de manette injectés, lus des deux côtés
+  (§ GR.3e) ;
+- BIOSDRVS et XTIDECFG sous boot-diff, sur le XT, la M24 et le PC1512 (§ GR.3f) ;
+- Windows 3.11 en EGA et en Hercules, `bd-ami286-win-ega` et `-hercules` : le Gestionnaire de programmes, au pixel
+  près dans les deux modes en C# seul (§ GR.3g) ;
+- `--timer-check --charge cd` sur l'ami486 : la marge sous lectures CD, 7,77 en mode PCem et 6,40 sous « tout »
+  (§ GR.3h) ;
+- l'écoute de la DSS, du Covox et de l'audio CD : préparée, la réponse de Julien attendue (§ GR.3i).
+
+### La dette, point par point
+
+Celle que les lectures avaient trouvée (PLAN-GR.md, « Ce que les lectures ont trouvé ») :
+
+| Point | Sort |
+|---|---|
+| l'oracle sans image hors de la VGA | les polices et la palette (GR.0a), les sondes qui hachent l'image (GR.0b) |
+| la CGA sans sonde ; l'ET4000 sondée par `svga_t` seul | la sonde de la CGA, les champs d'`et4000_t` (GR.0b) |
+| les modes graphiques jamais atteints sous l'oracle | les bancs finissent dans le mode testé (GR.0c, GR.1e) |
+| l'ET4000 sans 1024 × 768 ni HiColor | ET4BANC en 38h (GR.1c), ET4HBANC (GR.1d) |
+| les 17 citations de G9 aux bornes fausses | 21 bornes corrigées, la relecture (GR.1i) |
+| le stockage sans sonde ; ses bancs sans attendus matériels | les sondes (GR.2a), les bancs en table (GR.2b à 2d4) |
+| `cdimage-check` à 34 cas | la campagne de 529 feuilles (GR.2e) |
+| six commandes du CD et cinq du ZIP jamais atteintes | dans les tables d'ATAPIBANC et de ZIPBANC, FORMAT dans ZIPFMT |
+| ZIPBANC, 1 742 s, ses suites d'octets tapées | des boucles dans le `.COM`, le banc tiré d'une table (GR.2d1) |
+| aucun profil de G9 ; ni CD, ni LPT, ni manette au 486 | les profils (GR.3a, GR.3b) |
+| `--setup-check` aveugle aux cartes de G9 et aux clés de G10 | 100 contrôles, `--make-nvr` (GR.3c) |
+| Windows en EGA et en Hercules en C# seul | sous boot-diff (GR.3g) |
+| la M24 et le PC1512 ignorent `gfxcard`, `builtin` refusé | `builtin` accepté sur elles seules (GR.4a) |
+| la phase 2 de boot-diff ne rejoue pas l'exécution | rejouée dans un processus neuf (GR.4b) |
+| le vidage `--boot` de l'EGA passe par la carte | lu dans la mémoire, sans cycles ni verrous (GR.4c) |
+| `check-oracle` en dérive depuis `cb69404` | réancré (GR.0a), 0 dérive depuis |
+| `make bench` ne se lie plus | lié de nouveau, la `.so` inchangée (GR.4d) |
+| les manifestes, les notices, TRANSCRIPTION.md, PCEM_BUGS.md | à jour, chacun avec sa preuve (GR.4e) |
+| PLAN-G8, G9 et G13 sans « est fait » ; PLAN-G9 sans risques ; PLAN.md périmé | ci-dessous (GR.5) |
+
+Ce qui reste, dit et non fait :
+
+- **les quatre trous de la couverture** (§ GR.1h, GR.2f), aucune porte ne les atteint :
+  - l'émission de la DSS et du Covox en mode matériel ;
+  - la recherche du lecteur de CD, sous `MIN_SEEK` ;
+  - le CD et le ZIP sur l'AHA-1542C ;
+  - SET FEATURES et MODE SELECT ;
+- **les défauts candidats de PCem**, hors des étapes (règle du 18/10), à proposer à Julien :
+  - l'éjection du CD sans effet et REQUEST SENSE « en pause » à l'arrêt (GR.2c) ;
+  - FORMAT UNIT du ZIP qui ignore ses données (GR.2d3) ;
+  - le PREGAP d'une piste, logé dans le fichier de la précédente, joué comme des données (GR.3i) ;
+- **les constats hors étape** :
+  - le vidage de l'écran texte relit la MDA après `closepc` (GR.3a) ;
+  - l'IBM AT rend 162 avec tout CMOS de `--make-nvr` (GR.3c) ;
+  - le Covox mono à 1 % près en mode PCem (GR.3i) ;
+- **les images des profils** `os/286-EGA-C.img`, `os/286-EGA-D.img` et `os/386-ET4000-C.img` : à créer par Julien
+  (GR.3a) ;
+- **l'écoute de Julien** (GR.3i) : préparée, sa réponse attendue.
+
+### Ce que ce vert ne dit pas
+
+- **Le mode matériel n'a pas d'oracle.** boot-diff le refuse ; ses bancs se jouent en C# seul, contre des attendus
+  dont chaque octet propre au mode est expliqué par son PB. Ce vert dit que le mode fait ce que ses entrées
+  annoncent, non qu'il est le vrai PC.
+- **L'image de fin est un hachage, pas « l'écran ».** La sonde hache `buffer32` (2048 × 2048 × 4 octets), la palette et
+  la mémoire de la carte à la fin de la porte : une image égale des deux côtés, à cet instant-là. Une image fausse
+  pendant la porte, puis réécrite, n'y laisse rien.
+- **Le vidage `--boot` de la CGA passe encore par la carte** (`cga_read` : quatre cycles et la neige). GR.4c ne l'a
+  ôté qu'à l'EGA (la décision n° 5) ; la MDA et l'Hercules y passent aussi, mais leur lecture ne compte que
+  `egareads`.
+- **L'ET4000 n'a pas de VESA.** `et4000.bin` ne rend pas les services VESA (G9.3, INT 10h 4F00h-4F02h sans réponse) :
+  `SVGA256.DRV` y est sans objet, Windows tourne en `VGA.DRV`. ET4BANC et ET4HBANC passent par les modes du BIOS de la
+  carte (38h, 10F0h-10F2h).
+- **Yeager Air Combat** n'est pas un témoin : en EGA, il passe en 40 colonnes puis attend (G9.2) ; sur la Pro v2, il
+  s'arrête sur une question de sécurité tirée d'un manuel que nous n'avons pas (G12.3).
+- **Aucun pilote de CD sous DOS.** Les bancs ATAPI parlent au lecteur par leurs propres `.COM` ; ni MSCDEX ni un
+  pilote ATAPI d'époque n'a lu un CD dans iXtal.
+- **Aucune manette réelle.** QBASIC lit quatre états injectés (GR.3e) ; une manette de l'hôte n'a pas été branchée.
+- **L'écoute est subjective**, et elle attend Julien (GR.3i) : la mesure dit les fréquences et la séparation des
+  voies, l'oreille dira le reste.
+- **Les quatre trous de la couverture** ci-dessus : aucune porte ne passe par eux.
+
+### Les originaux intacts
+
+- `cd os && sha256sum -c os.sha256` : les 153 fichiers qu'il ancre OK, après une empreinte récrite (`a93c658`) :
+  `486-HDD-C.img`, écrite le 20/10 à 18 h 48 par une séance de Julien (le lancement du 486, demandé à 18 h 47),
+  après le réancrage de Q35 (`cd6799f`) ; le même cas que Q35, traité de même. Aucune porte ne l'a touchée : elles
+  travaillent sur des copies.
+- `tools/gates/g5w-recipe.sh` (la recette des disques des portes, refaite de zéro depuis les originaux pour la série
+  de GR.1i2, `/tmp/a9/g5w-gr1i2`) : « conforme aux empreintes » de `tools/gates/g5w.sha256`.
+- `cd roms && sha256sum -c roms.sha256` : les 34 ROM OK (GR.4e).

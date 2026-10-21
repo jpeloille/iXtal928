@@ -4,6 +4,7 @@
 > G10.4 `3af530b`, G10.5 `62e4a02`, G10.6 `34268db` ; VERIFICATION.md §§ G10.0 à G10.6 ; PB-101 et
 > PB-103 à PB-127. Sans la clôture de « Ce qu'un bloc livre » (PLAN.md) : profils, témoins réels et
 > couverture comptée reviennent au bloc GR (GR.2, GR.3), avec « Les risques » ci-dessous.
+> GR les a faits, du 20 au 22 octobre (`PLAN-GR.md` ; VERIFICATION.md, « GR — la clôture »).
 
 > Écrit le 4 octobre 2026, après G9. Bloc G10 de `PLAN.md` (décision utilisateur du 03/10, feu vert
 > du 04/10). Chaque constat cite la ligne de C qui le fonde, sur `pcem-dev/` tel que vendoré. Les

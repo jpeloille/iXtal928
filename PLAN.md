@@ -40,11 +40,11 @@ ramène. À partir de G11, chaque bloc livre :
 
 G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
 
-## Où on en est — 20 octobre 2026, G13 fait ; GR commence
+## Où on en est — 22 octobre 2026, GR fait (l'écoute de GR.3i attendue) ; G14 attend son feu vert
 
 ```
 8088 ✅ ── 286 ✅ ── G2 ✅ ── G3 ✅ ── G4 ✅ ── G5 ✅ ── G6 ✅ ── G7 ✅ ── G1 ✅ ── G8 ✅ ── PS2 ✅ ── G9 ✅
-     ── G10 ✅ ── G11 ✅ ── G12 ✅ ── G13 ✅ ──▶ [ICI] GR ── G14 ── G15 ── G16 ── G17
+     ── G10 ✅ ── G11 ✅ ── G12 ✅ ── G13 ✅ ── GR ✅ ──▶ [ICI] G14 ── G15 ── G16 ── G17
 ```
 
 - **Derrière** : les générations 8088 et 286, jusqu'à M21 ; **G2**, le cœur 386 (D0 à D7,
@@ -111,7 +111,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   aussi sans sa ROM. Livré avec sa clôture : les profils `ixtal26-486-sb16.cfg` et `-awe32.cfg`,
   l'écran de construction et `--setup-check`, les témoins (TEST-SBP sous l'oracle, Windows 3.11 et ses
   pilotes SNDBLST). PB-145 à PB-167.
-- **G13, en cours** : `PLAN-G13.md`, feu vert du 06/10 ; toutes ses décisions validées le 07/10. G13.0 fait : R9
+- **G13, fait** : `PLAN-G13.md`, feu vert du 06/10 ; toutes ses décisions validées le 07/10. G13.0 fait : R9
   et les fichiers de l'utilisateur, dans les deux modes. G13.1 fait : le registre, 257 défauts, chaque marqueur
   numéroté, la porte `recensement`. G13.2 fait : le mode matériel, son mécanisme et son pilote PB-01, contre
   le silicium (SingleStepTests du 8088 et du 8086). G13.3 fait : le 8088 et le 8086, dix-sept corrections (PB-258
@@ -174,7 +174,11 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   l'IDE) ; 12c ✅ (l'XTIDE en 300h et C8000h, Q32) ; 13a ✅ (PB-256, Q34) ;
   13b ✅ (COM et LPT : serial1, serial2, parallel1, parallel2) ; 13c ✅ (la clôture,
   10b et 10c rejouées) : G13 est close ; Q28 et Q29, tranchées le 20/10 sur leurs propositions, déjà codées.
-- **GR**, la reprise de G9 et G10 : feu vert le 20/10, le plan sur reconnaissance dans `PLAN-GR.md`.
+- **GR, fait** : la reprise de G9 et G10, du 20 au 22 octobre (`PLAN-GR.md`, VERIFICATION.md § GR et sa synthèse,
+  « GR — la clôture »). Les pixels de toutes les cartes non SVGA sous l'oracle, les bancs qui finissent dans le
+  mode testé, le stockage sondé et ses bancs en table dans les deux modes, les profils, les témoins, la couverture
+  comptée, la relecture contradictoire, la dette de G1, G7 et G8. Reste l'écoute de GR.3i, préparée, que Julien
+  fera ; et, dits sans étape, quatre trous de la couverture et quatre défauts candidats de PCem.
 - **G14 à G17** attendent chacun un feu vert.
 
 ## Les générations
@@ -323,16 +327,17 @@ Dans cet ordre :
 
 **Ce qui a été tenu.** Les quatre cartes sous boot-diff sur leurs machines ; un banc dirigé
 pour l'Hercules, l'EGA et l'ET4000. Windows 3.11 tourne en Hercules (720×348) et en EGA
-(640×350). Sur l'ET4000, le 256 couleurs est vu par le banc ET4BANC, mais Windows tourne en VGA :
-la ROM `et4000.bin` ne rend pas les services VESA (mesuré, VERIFICATION.md § G9.3). C'est une
-limite dite, pas un défaut. Ce qui manque en profondeur (les pixels des cartes non SVGA, les
+(640×350). Sur l'ET4000, le 256 couleurs, le 1024 × 768 et le HiColor sont vus par les bancs
+ET4BANC et ET4HBANC (GR.1c, GR.1d), mais Windows tourne en VGA : la ROM `et4000.bin` ne rend pas
+les services VESA (mesuré, VERIFICATION.md § G9.3 ; désassemblé en GR, R1). C'est une limite
+dite, pas un défaut. Ce qui manque en profondeur (les pixels des cartes non SVGA, les
 bancs qui finissent dans le mode testé, la clôture) est renvoyé au bloc GR.
 
 **Hors G9** : InColor, PGC, Plantronics, Sigma, Wyse, Compaq CGA, les variantes coréennes,
 Paradise, Cirrus 5428/5430/5434, Trio32/9FX, et tout ce qui est PCI (Voodoo, Banshee,
 Millennium, Mach64).
 
-### G10 — Le 486 complet : ce qui manque à la machine du quotidien  ✅ *(`PLAN-G10.md`, fait le 5 octobre 2026 ; sa clôture revient à GR)*
+### G10 — Le 486 complet : ce qui manque à la machine du quotidien  ✅ *(`PLAN-G10.md`, fait le 5/10 ; clos par GR)*
 
 **G10 est fait** (G10.0 à G10.6) : LPT1, LPT2 et le port jeu sur toutes les machines XT et AT,
 comme PCem, en un seul recompte du POST ; sur LPT1, la Disney Sound Source et les Covox
@@ -394,7 +399,7 @@ partie transcrits en G8).
 - La SB 16 et l'AWE32 sont des cartes ISA 16 bits : elles doivent être refusées avec
   avertissement sur les machines 8088/8086, par la règle écrite en G11.
 
-### G13 — Corriger les défauts de PCem reproduits  *(décision utilisateur du 03/10 ; feu vert du 06/10, en cours : `PLAN-G13.md`)*
+### G13 — Corriger les défauts de PCem reproduits  ✅ *(décidé le 03/10 ; `PLAN-G13.md`, fait le 18 octobre 2026)*
 
 Pour qu'iXtal soit fidèle au vrai matériel. Comptes refaits le 07/10 après G13.1, sur `PCEM_BUGS.md` (257
 défauts ; la porte `recensement` tient le registre et les marqueurs d'accord ; PB-258, inscrit en G13.3, s'y ajoute
@@ -453,12 +458,13 @@ G7  Cirrus 5429, S3 Trio64   ✅
 G8  son                      ✅
 PS2 souris PS/2              ✅ transcrite, non offerte (03/10)
 G9  MDA, Hercules, EGA, ET4000   ✅
-G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ✅ le 486 complet (clôture : GR)
+G10 LPT1 et port jeu, manette, XTIDE (XT), CD-ROM/ZIP ATAPI   ✅ le 486 complet (clos par GR)
 G11 SCSI : AHA-1542C                    ✅
 G12 les autres Sound Blaster, AWE32     ✅
-G13 défauts de PCem, « mode matériel »  ┐ décisions utilisateur du 03/10
-GR  reprise de G9 et G10, en profondeur │ (GR : du 04/10) ;
-G14 nommer les puces (Ics/)             │ chacun attend un feu vert
+G13 défauts de PCem, « mode matériel »  ✅ le mode matériel, par défaut
+GR  reprise de G9 et G10, en profondeur  ✅ (l'écoute de GR.3i attendue)
+G14 nommer les puces (Ics/)             ┐ décisions utilisateur du 03/10 ;
+                                        │ chacun attend un feu vert
 G15 normaliser le C#, 0 % de perte      │
 G16 robustesse et confort               │
 G17 usage avancé, publication           ┘
@@ -484,7 +490,7 @@ VGA et 8900D, sonde VGA 163/163, à l'unité, à chaque commit, pour toutes les 
 Rebasés en G10.0, parce que le POST trouve désormais LPT1, LPT2 et le port jeu. L'interrupteur
 « LPT et port jeu hors service » (`--lpt-jeu-hors-service`) rend les anciens chiffres à l'unité.
 
-## GR — La reprise de G9 et G10, en profondeur  *(décision utilisateur du 04/10 ; feu vert le 20/10, `PLAN-GR.md`)*
+## GR — La reprise de G9 et G10, en profondeur  ✅ *(décidé le 04/10 ; `PLAN-GR.md`, fait le 22/10 ; GR.3i attendue)*
 
 Après G13 et avant la référence de performance figée de G14. D'ici là, G9 et G10 restent en
 l'état. GR les porte au niveau de « Ce qu'un bloc livre » ; chaque étape de G10 y ajoute ce

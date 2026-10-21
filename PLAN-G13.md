@@ -1,5 +1,10 @@
 # G13 — Corriger les défauts de PCem reproduits : le mode matériel ; le plan, sur reconnaissance
 
+> **G13 est fait** (18 octobre 2026, G13.13c `d56d161`) : G13.0 à G13.13 et leurs sous-étapes, VERIFICATION.md
+> §§ G13.0 à G13.13c. Au registre, 202 défauts corrigés en mode matériel et 71 non corrigés (PCEM_BUGS.md) ; le
+> mode matériel est le défaut de la fenêtre depuis G13.11 (`97133fb`). Les questions restées ouvertes (Q28, Q29) sont
+> tranchées le 20 octobre. La revue de G9 et G10 suit, au bloc GR (PLAN-GR.md).
+
 > Écrit le 6 octobre 2026. Bloc G13 de `PLAN.md` (décision utilisateur du 03/10). Feu vert le 06/10, « commence par
 > le plan ». **Les décisions de la fin du fichier sont validées par l'utilisateur le 07/10** (« d'accord avec les
 > propositions, commence par G13.0 puis attends pour G13.1 ») ; les n° 3, 6 et 14 le sont aussi, le même jour. Chaque constat cite la ligne
@@ -898,7 +903,7 @@ contre-lecture, M2, sa série entière et son commit :
   du PC1512 par le canal 0 du DMA, comme `xt_init` ? Le coût d'un cycle n'est pas documenté pour ces deux UC.
   **Tranchée : oui.**
 
-## Les décisions (proposées ; à trancher)
+## Les décisions (validées le 7 octobre 2026)
 
 1. **Le principe et la portée.** Le principe ci-dessus. La portée : les PB des sections A et B, plus les défauts
    voisins que les contre-lectures ont vérifiés, inscrits d'abord (G13.1). Les drapeaux indéfinis du 386 et les temps
