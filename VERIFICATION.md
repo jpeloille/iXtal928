@@ -15255,3 +15255,60 @@ vertes.
 déterminisme : `touch -d` et `DosStamp` lisent tous deux l'heure locale), les portes (`$'\e^'`, la copie par côté
 de la disquette par boot-diff), KeyScript (`\u0019`, la flèche bas) et les relevés. Ses points sont repris : la
 sortie de BIOSDRVS sur le XT, comparée par la trace ; la portée de la panne ; les scripts cités.
+
+## GR.3g — Windows sous boot-diff, `EGA.DRV` et `HERCULES.DRV`
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3g, D8). Windows n'avait tourné sur l'EGA et l'Hercules qu'en
+C# seul, sur le disque du 486 (G9.1, G9.2), jamais sous boot-diff ni ses pixels contre l'oracle.
+
+**Les disques, par la recette, en C# seul.** Deux copies de `c286.img` (MS-DOS 5.00 et Windows, réglé pour la VGA)
+passent par le SETUP DOS de Windows (`C:\WINDOWS\SETUP`), joué par KeyScript :
+- SETUP avertit d'abord que SETUP.INF n'est pas de sa version (le disque porte un SETUP de Windows 3.11 et un
+  SETUP.INF plus ancien) : Entrée continue ;
+- la ligne « Display » ouverte (sept fois la flèche haut), la liste en butée puis 2 lignes plus bas (EGA) ou 5
+  (Hercules Monochrome), puis « Complete Changes » ;
+- SETUP demande les disquettes 1, 2, 3 et 5 de Windows 3.11, insérées en A: par `@A:` (des copies : `--in-place`
+  écrirait aussi sur elles ; R3 prévoyait la seule disquette 2 en B:) ;
+- pour l'EGA, SETUP modifie CONFIG.SYS (l'option 1) ; pour l'Hercules, il ne le demande pas.
+
+La recette écrit ainsi `c286-ega.img` et `c286-herc.img`, et le CMOS `c286herc.nvr` (l'Hercules à 30h, et le disque
+C:). Deux passages de la recette donnent les mêmes octets ; `g5w.sha256` gagne leurs trois lignes, et rien d'autre
+ne change. Les images C: viennent de l'émulation : leur empreinte seule est gardée (une porte d'installation sous
+boot-diff dépasserait la durée d'une porte).
+
+**Les portes**, sur l'ami286 en mode standard (D8), `WIN` puis une attente de 6 000 tranches, la carte exigée par
+`--expect-carte`, l'image comparée par la sonde de la carte (GR.0b) :
+- `bd-ami286-win-ega` : verte, 105 272 424 instructions, la sonde EGA identique (33 champs), 14 656 octets écrits
+  sur C: des deux côtés ;
+- `bd-ami286-win-hercules` (CMOS à 30h) : verte, 106 046 682 instructions, la sonde Hercules identique (20 champs),
+  7 915 octets écrits.
+
+**En C# seul, dans les deux modes** (`/tmp/a9/t3g/win.sh`, captures `f-*.ppm`) : le même `WIN` sur les disques de la
+recette, `@shot` à la fin, regardées. Le Gestionnaire de programmes en 640 × 349 sur l'EGA (201 403 points non
+noirs), en 720 × 348 sur l'Hercules (153 682). Les captures du mode PCem et de « tout » sont identiques au pixel,
+pour chaque carte. Le coût, en C# seul : quelques dizaines de secondes par carte, la préparation par SETUP comprise
+dans la recette.
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr3g.py`, les portes rejouées sur la panne) :
+- W1, la panne de GR.0b sur l'EGA (un poids de `pallook64`) : le diff d'instructions vert, la sonde EGA rouge
+  (2 champs sur 33 : `#pallook` et `#buffer32`, l'image) ;
+- W2, l'Hercules : les points allumés du graphique en `cgapal[0xf]` au lieu de `[0x7]` : la sonde rouge, `#buffer32`
+  (l'image), 1 champ sur 20 ;
+- EGA.DRV sur l'Hercules (le disque de l'EGA, la carte Hercules, en C# seul) : l'écran reste entièrement noir, même
+  après 20 000 tranches ; Windows ne s'affiche pas (constat : rien ne distingue ici un échec d'un blocage).
+
+**La série.** L'émulateur ne change pas : la recette (refaite, conforme aux empreintes, trois lignes ajoutées) et deux
+portes. Un sous-ensemble sur le worktree, en Release, mode PCem : les deux portes Windows et leur voisine
+`bd-ami286-hercules-cmos`, vertes. Les deux portes ne durent qu'une minute chacune (52 et 68 s).
+
+**Ce que la porte prouve, et ce qu'elle ne prouve pas.** boot-diff n'a ni `@shot` ni `@image` : l'écran graphique ne
+s'y voit pas. La porte prouve que l'oracle et le C# font la même image, et que Windows a tourné : les octets écrits
+sur C:, et W2 qui ne peut rougir que sur des points allumés. Que cette image soit le Gestionnaire de programmes
+repose sur le témoin en C# seul, joué sur le même disque par le même script, et regardé. La porte de l'Hercules
+s'appelle `bd-ami286-win-hercules` (le plan disait `-herc`).
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a relu la recette (`set -eu`, `--in-place` limité aux
+copies du WORK), les écrans du SETUP, les comptes des portes et les pannes. Ses points sont repris : la capture
+Hercules du mode PCem, écrasée par l'essai EGA.DRV, rejouée sous un nom propre ; les captures toutes rejouées sur les
+disques de la recette ; 640 × 349 ; CONFIG.SYS, pour l'EGA seulement ; EGA.DRV laissé à 20 000 tranches ; la portée
+de la preuve, ci-dessus.

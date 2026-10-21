@@ -306,7 +306,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   C# seul dans les deux modes.
 - **GR.3f — Les outils XTIDE** ✅ *fait, § GR.3f* : une disquette fabriquée par la recette, avec `BIOSDRVS` sur le XT, la M24 et le
   PC1512, et `XTIDECFG` ouvert puis quitté sur le XT ; l'image C: inchangée.
-- **GR.3g — Windows sous boot-diff, avec `EGA.DRV` et `HERCULES.DRV`** :
+- **GR.3g — Windows sous boot-diff, avec `EGA.DRV` et `HERCULES.DRV`** ✅ *fait, § GR.3g* :
   - les disques préparés par la recette depuis `c286.img` et la disquette 2 ;
   - le coût mesuré d'abord en C# seul, jusqu'au Gestionnaire de programmes ;
   - `bd-ami286-win-ega` et `bd-ami286-win-herc`, en mode standard, pixels compris.

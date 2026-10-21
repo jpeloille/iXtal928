@@ -303,6 +303,13 @@ run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
 # l'ami286 et l'Hercules ; la carte exigée des deux côtés.
 runw bd-ibmat-mda-cmos at-mda.nvr ibmat boot-diff roms 3000 --config ibmat-mda.cfg --expect-carte MDA
 runw bd-ami286-hercules-cmos herc286.nvr ami286 boot-diff roms 3000 --config ami286-hercules.cfg --expect-carte Hercules
+# GR.3g — Windows sous boot-diff sur l'ami286, en mode standard (D8) : les disques réglés pour l'EGA et pour l'Hercules
+# (CMOS à 30h), préparés par la recette ; WIN jusqu'au Gestionnaire de programmes, l'image comparée par la sonde de la
+# carte (GR.0b).
+runw bd-ami286-win-ega c.nvr ami286 boot-diff roms 60000 --config ami286-win-ega.cfg --type-at 60000 \
+  --type-settle 600 --type "WIN" --type "@wait 6000" --expect-carte EGA
+runw bd-ami286-win-hercules c286herc.nvr ami286 boot-diff roms 60000 --config ami286-win-hercules.cfg --type-at 60000 \
+  --type-settle 600 --type "WIN" --type "@wait 6000" --expect-carte Hercules
 mapfile -t HBK < tools/hercbanc/hercbanc.keys
 HBB=(); for l in "${HBK[@]}"; do HBB+=(--type "$l"); done
 # GR.0c — le banc imprime ses relevés, attend une touche (la ligne vide), puis finit sur la page 1 du graphique : la

@@ -32,6 +32,8 @@
 #   at-mda.nvr, herc286.nvr : CMOS sans disque de l'IBM AT et de la MDA, de l'ami286 et de l'Hercules, 30h en
 #                        0x14 (GR.3c) ;
 #   xtide-outils.img   : une disquette de 360 Ko, BIOSDRVS.COM et XTIDECFG.COM de roms/xtide (GR.3f) ;
+#   c286-ega.img, c286-herc.img : c286.img, Windows réglé par son SETUP DOS pour l'EGA et l'Hercules, PAR ÉMULATION
+#                        en C# seul (GR.3g) ; c286herc.nvr : leur CMOS de l'Hercules (30h, le disque C:) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
 #   ixtal26-486-porte.cfg : le profil ixtal26-486.cfg, son disque remplacé par c386.img (GR.3b) ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
@@ -102,10 +104,34 @@ sed "s|$WORK/scsi20.img|$WORK/scsic.img|" ami486-aha-vierge.cfg > aha-prep.cfg
 cp dos5-1.img dos5-prep.img; cp dos5-3.img dos5-prep3.img
 dotnet "$BIN" --boot "$REPO/roms" 2500 --config aha-prep.cfg --floppy-a dos5-prep.img --floppy-b dos5-prep3.img --in-place --settle 20 "${AT[@]}" > aha-prep.log
 rm nvr/.ami486.nvr aha-prep.cfg dos5-prep.img dos5-prep3.img
+# GR.3g — les disques de Windows réglés pour l'EGA et l'Hercules, en C# seul, sur des copies de c286.img : le SETUP DOS
+#   de Windows (C:\WINDOWS\SETUP), l'avertissement de SETUP.INF passé, la ligne « Display » ouverte, la liste en butée
+#   puis 2 (EGA) ou 5 (Hercules Monochrome) lignes plus bas, « Complete Changes » ; les disquettes 1, 2, 3 et 5 de
+#   Windows 3.11 insérées à la demande (des copies : --in-place écrirait aussi sur elles) ; pour l'EGA, CONFIG.SYS
+#   modifié par SETUP (l'option 1 ; l'Hercules ne le demande pas, l'Entrée tombe sur DOS). La carte de
+#   ami286-mfm.cfg et c.nvr pendant le SETUP, dont le choix ne dépend pas.
+for n in 1 2 3 5; do cp "$REPO/os/Windows_3-11/Disk$n.IMA" "win-$n.img"; done
+for v in ega:2:c286-ega hercules:5:c286-herc; do
+  IFS=: read -r carte bas img <<< "$v"
+  cp c286.img "$img.img"; sed "s|^hdc_fn = .*|hdc_fn = $WORK/$img.img|" ami286-mfm.cfg > win-prep.cfg
+  K=(--type "CD \\WINDOWS" --type "SETUP" --type "@wait 1500" --type "" --type "@wait 900")
+  for i in 1 2 3 4 5 6 7; do K+=(--type $'\x18^'); done
+  K+=(--type "" --type "@wait 900"); for i in $(seq 25); do K+=(--type $'\x18^'); done
+  for i in $(seq "$bas"); do K+=(--type $'\x19^'); done; K+=(--type "" --type "@wait 900")
+  for i in 1 2 3 4 5 6 7; do K+=(--type $'\x19^'); done; K+=(--type "" --type "@wait 1500")
+  for n in 1 2 3 5; do K+=(--type "@A:$WORK/win-$n.img" --type "" --type "@wait 2000"); done
+  K+=(--type "@A:" --type "@wait 600" --type "" --type "@wait 1500")
+  cp c.nvr nvr/.ami286.nvr
+  dotnet "$BIN" --boot "$REPO/roms" 60000 --config win-prep.cfg --in-place --settle 600 "${K[@]}" \
+    > "win-prep-$carte.log"
+  rm nvr/.ami286.nvr win-prep.cfg
+done
+rm win-1.img win-2.img win-3.img win-5.img
+dotnet "$BIN" --make-nvr ami286-win-hercules.cfg c286herc.nvr --force > /dev/null   # 30h et le disque C:
 ( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img \
     c8088dos.img iso-2048.iso mixte.cue mixte.bin zip100.img zipro.img dos5-1.img dos5-3.img win3-3.img sbpro2-1.img \
-    scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr at-mda.nvr herc286.nvr xtide-outils.img ) \
-    > "$WORK/empreintes"
+    scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr at-mda.nvr herc286.nvr xtide-outils.img c286-ega.img \
+    c286-herc.img c286herc.nvr ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi
