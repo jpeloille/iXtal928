@@ -177,7 +177,7 @@ LDFLAGS += -Wl,--no-undefined
 
 # G8.0 — le C++ : DBOPL (src/dosbox/dbopl.cpp, inclus par harness_dbopl.cpp). Mêmes -I, mêmes
 # drapeaux ; le lien de la .so passe par $(CXX), qui tire libstdc++ (les constructeurs statiques
-# de sound_dbopl.cc, G8.1). bench, qui ne lit ni l'OPL ni le DSP, reste en C seul.
+# de sound_dbopl.cc, G8.1). bench aussi (GR.4d) : harness.c et sound_opl.c appellent l'OPL et le CD.
 CXX      := g++
 CXXFLAGS := $(CFLAGS)
 CXXSRC   := harness_dbopl.cpp harness_cdrom.cpp
@@ -185,8 +185,8 @@ CXXSRC   := harness_dbopl.cpp harness_cdrom.cpp
 # G10.3 — le moteur d'images de CD (harness_cdrom.cpp inclut cdrom_image.cpp et cdrom-image.cc). Leur
 # comportement indéfini rendu déterministe (décision n° 2 de G10.3, 04/10) : les variables
 # automatiques non initialisées à zéro, sur ce SEUL objet ; et tout new[] par __wrap__Znam, un calloc
-# (harness_cdrom.cpp) — aucun autre objet ne référence _Znam (nm -u, VERIFICATION.md § G10.3). La .so
-# seule : bench ne lie pas le C++.
+# (harness_cdrom.cpp) — aucun autre objet ne référence _Znam (nm -u, VERIFICATION.md § G10.3). bench
+# fait de même (GR.4d) : __wrap__Znam appelle __real__Znam, que seul --wrap=_Znam résout.
 $(BUILD)/harness_cdrom.o: CXXFLAGS += -ftrivial-auto-var-init=zero
 LDFLAGS += -Wl,--wrap=_Znam
 
@@ -208,6 +208,11 @@ BENCH_FLAGS := -O2 -fomit-frame-pointer -fno-strict-aliasing -flto -march=x86-64
                -Wno-misleading-indentation -Wno-implicit-fallthrough
 BENCH_SRC   := $(filter-out harness_wrap.c,$(SRC))
 BENCH_OBJ   := $(addprefix $(BUILD)/lto/,$(notdir $(BENCH_SRC:.c=.o)))
+# GR.4d — le C++ (DBOPL et le moteur d'images de CD) : harness.c, sound_opl.c et scsi_cd.c y
+# appellent dix-sept symboles. Compilé avec les drapeaux de bench, lié par $(CXX) comme la .so ;
+# harness_cdrom.o garde ses variables automatiques à zéro, et new[] passe par __wrap__Znam.
+BENCH_CXXOBJ := $(addprefix $(BUILD)/lto/,$(notdir $(CXXSRC:.cpp=.o)))
+$(BUILD)/lto/harness_cdrom.o: BENCH_CXXEXTRA := -ftrivial-auto-var-init=zero
 
 .PHONY: all clean selftest bench bench-native
 
@@ -237,21 +242,30 @@ bench: $(BUILD)/bench
 
 # Le lien porte les mêmes drapeaux que la compilation : avec -flto, c'est à
 # l'édition de liens que l'optimisation a lieu, et -march y est relu.
-$(BUILD)/bench: bench.c $(BENCH_OBJ) | $(BUILD)
-	$(CC) $(BENCH_FLAGS) $(INC) -Wl,--no-undefined $(WRAPFLAGS_BOTH) -o $@ bench.c $(BENCH_OBJ) $(LDLIBS)
+$(BUILD)/bench: $(BUILD)/lto/bench.o $(BENCH_OBJ) $(BENCH_CXXOBJ) | $(BUILD)
+	$(CXX) $(BENCH_FLAGS) -Wl,--no-undefined $(WRAPFLAGS_BOTH) -Wl,--wrap=_Znam -o $@ $^ $(LDLIBS)
 
 $(BUILD)/lto/%.o: %.c | $(BUILD)/lto
 	$(CC) $(BENCH_FLAGS) $(INC) -c $< -o $@
+
+$(BUILD)/lto/%.o: %.cpp | $(BUILD)/lto
+	$(CXX) $(BENCH_FLAGS) $(BENCH_CXXEXTRA) $(INC) -c $< -o $@
 
 $(BUILD)/lto:
 	@mkdir -p $(BUILD)/lto
 
 # Variante -march=native, optionnelle : recompile tout d'une traite (pas de
 # cache d'objets), parce que ses objets ne sont pas échangeables avec ceux de
-# build/lto/. Chiffre valable sur CETTE machine seulement.
-bench-native: bench.c $(BENCH_SRC) | $(BUILD)
-	$(CC) $(subst -march=x86-64-v2,-march=native,$(BENCH_FLAGS)) $(INC) -Wl,--no-undefined \
-	      -o $(BUILD)/bench-native bench.c $(BENCH_SRC) $(LDLIBS)
+# build/lto/. Chiffre valable sur CETTE machine seulement. Le C++ est compilé à part
+# dans build/native/ (g++ prendrait les .c pour du C++), puis tout est lié par $(CXX).
+NATIVE_FLAGS := $(subst -march=x86-64-v2,-march=native,$(BENCH_FLAGS))
+bench-native: bench.c $(BENCH_SRC) $(CXXSRC) | $(BUILD)
+	@mkdir -p $(BUILD)/native
+	$(CXX) $(NATIVE_FLAGS) $(INC) -c harness_dbopl.cpp -o $(BUILD)/native/harness_dbopl.o
+	$(CXX) $(NATIVE_FLAGS) -ftrivial-auto-var-init=zero $(INC) -c harness_cdrom.cpp -o $(BUILD)/native/harness_cdrom.o
+	$(CC) $(NATIVE_FLAGS) $(INC) -c bench.c $(BENCH_SRC) && mv *.o $(BUILD)/native/
+	$(CXX) $(NATIVE_FLAGS) -Wl,--no-undefined $(WRAPFLAGS_BOTH) -Wl,--wrap=_Znam \
+	      -o $(BUILD)/bench-native $(BUILD)/native/*.o $(LDLIBS)
 	@echo "bench-native : $(BUILD)/bench-native construit (-march=native)."
 
 clean:

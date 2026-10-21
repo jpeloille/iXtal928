@@ -290,7 +290,7 @@ Ce que G10 laisse, et qui est renvoyé au **bloc GR** (la reprise de G9 et G10, 
   aucune porte (le XTIDE BIOS ne les relit pas). Aucun profil n'a de disque dur XTIDE.
 - **L'outil (GR.4)** : `make bench`, le banc C de l'oracle, ne se lie plus depuis G8 :
   `h_opl_reset` y manque (`harness.c`, `h_boot`), `harness_dbopl.cpp` étant hors de `BENCH_SRC`
-  (`tools/oracle/Makefile`). Constaté le 04/10, identique à `08d0d2f`.
+  (`tools/oracle/Makefile`). Constaté le 04/10, identique à `08d0d2f`. Corrigé en GR.4d (VERIFICATION.md § GR.4d).
 - **G10.3** : le moteur est prouvé hors machine — aucun invité ne le lit encore (G10.4). Les
   numéros de TRACK et d'INDEX des feuilles d'isogen sont tous à deux chiffres avec un zéro de tête :
   l'extraction d'un entier de `num_get` n'est exercée ni au-delà de 9, ni en débordement (les

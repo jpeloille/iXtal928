@@ -15863,3 +15863,33 @@ position 397, la piste 0, l'absolue et la relative à 00000000.
 Aucune porte de la référence ne manque. Les 22 portes neuves et les trois messages changés (`bd-ami486-aha-banc`,
 `cdimage-check`, `r9-cue`) viennent des étapes passées depuis `gr2d1` (GR.2d2 à GR.3g), non de cette correction.
 Aucun défaut neuf.
+
+## GR.4d — `make bench` se lie de nouveau
+
+Le 22 octobre 2026 (PLAN-GR.md § GR.4d ; R4-dette.md, point 9 ; PLAN-G10.md, l'outil). Depuis G8.0, le C++ (DBOPL et
+le moteur d'images de CD) n'entrait que dans la `.so` ; `bench`, lié en C seul, n'avait plus ses symboles.
+
+**Les 17 symboles**, comptés (`nm -u` des objets C de `build/`, sauf `harness_wrap.o`, contre `nm -g --defined-only`
+de `harness_dbopl.o` et `harness_cdrom.o`) — la reconnaissance les avait déduits :
+- `harness.c`, dix : `h_cd_audio_callback`, `h_cd_audio_stop`, `h_cd_boot_raz`, `h_cd_config`, `h_cd_exit`,
+  `h_cd_initpc`, `h_cd_initpc_fin`, `h_cd_resetpchard`, `h_opl_reset`, `h_opl_state` ;
+- `sound_opl.c`, six : `opl2_update`, `opl3_update`, `opl_init`, `opl_read`, `opl_timer_over`, `opl_write` ;
+- `scsi_cd.c` (par `harness_scsi_cd.c`), un : `cdrom_drive`.
+
+**Le Makefile.** `bench` compile les deux `.cpp` avec ses drapeaux (`-O2 -flto -march=x86-64-v2`) dans `build/lto/`,
+`harness_cdrom.o` avec `-ftrivial-auto-var-init=zero` comme pour la `.so`, et se lie par `$(CXX)` avec
+`--wrap=_Znam` (`__wrap__Znam`, dans `harness_cdrom.cpp`, appelle `__real__Znam`). `bench-native` fait de même dans
+`build/native/`, le C compilé par `$(CC)` (g++ prendrait les `.c` pour du C++).
+
+**Ce qui est vérifié** (sur `/tmp/a9/wtgr2a`, à `11fdbba`) :
+- `make bench` construit `build/bench` ; seuls avertissements, ceux de PCem et des bouchons déjà là (`fread` sans
+  retour lu, `-Wlto-type-mismatch` des bouchons de machines hors cible), aucun des objets C++ ;
+- `taskset -c 0-3 build/bench ../../roms 6000 3 600` : médiane 901,5 ms pour 60 s émulées, 35,41 ns par instruction,
+  × 66,56 le temps réel, dispersion 0,4 % ; empreinte `ins 25456707`, `Σcycles 296828110`, RAM `0x8BFA069DCA51BDE8` ;
+- `make bench-native`, puis une répétition : 941,2 ms, la même empreinte ;
+- `libixtal26oracle.so` inchangée : `sha256sum -c` avant et après les deux constructions (`764138cc…89f7`) ;
+- contrôle négatif : le lien sans `harness_dbopl.o` (`BENCH_CXXOBJ` réduit à `harness_cdrom.o`) échoue sur
+  `h_opl_reset`, `opl_init`, `opl_write` et les autres symboles de l'OPL.
+
+Le chiffre de `bench` n'est pas une référence de performance (G14 la posera) : il dit seulement que le banc tourne.
+L'émulateur ne change pas ; la `.so` non plus : aucune série.
