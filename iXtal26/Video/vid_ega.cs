@@ -30,7 +30,7 @@ using static iXtal26.timer;
 
 namespace iXtal26.Video;
 
-// pcem: vid_ega.h:3-70
+// pcem: vid_ega.h:3-68
 // Classe et non struct : son adresse est prise (timer_add, mem_mapping_add, io_sethandler).
 internal sealed class ega_t
 {
@@ -245,11 +245,11 @@ internal static partial class vid_ega
                 }
                 break;
         case 0x3d4:
-                // omitted: pclog("Write 3d4 …") (:122) — sortie pure.
+                // omitted: pclog("Write 3d4 …") (:121) — sortie pure.
                 ega.crtcreg = (uint8_t)(val & 31);
                 return;
         case 0x3d5:
-                // omitted: pclog("Write 3d5 …") (:126) — sortie pure.
+                // omitted: pclog("Write 3d5 …") (:125) — sortie pure.
                 //                if (ega->crtcreg == 1 && val == 0x14)
                 //                        fatal("Here\n");
                 // pcem bug, fixed in hardware mode: PB-99 — la protection de CR0-CR7 par CR11 bit 7 (:128) est
@@ -336,7 +336,7 @@ internal static partial class vid_ega
         return 0xff;
     }
 
-    // pcem: vid_ega.c:189-255
+    // pcem: vid_ega.c:189-256
     internal static void ega_recalctimings(ega_t ega)
     {
         double _dispontime, _dispofftime, disptime;
@@ -380,7 +380,7 @@ internal static partial class vid_ega
 
         ega.rowoffset = ega.crtc[0x13];
 
-        // omitted: printf("Recalc! …") (:228-229) — sortie pure ; l'oracle l'éteint de même
+        // omitted: printf("Recalc! …") (:227-228) — sortie pure ; l'oracle l'éteint de même
         //   (harness_ega.c).
 
         if (ega.vidclock != 0)
@@ -408,7 +408,7 @@ internal static partial class vid_ega
         // omitted: pclog("dispontime …") (:249-250) — sortie pure.
     }
 
-    // pcem: vid_ega.c:257-325
+    // pcem: vid_ega.c:258-326
     private static void ega_draw_text(ega_t ega)
     {
         int x, xx;
@@ -498,7 +498,7 @@ internal static partial class vid_ega
         }
     }
 
-    // pcem: vid_ega.c:327-384
+    // pcem: vid_ega.c:328-383
     private static void ega_draw_2bpp(ega_t ega)
     {
         int x;
@@ -551,7 +551,7 @@ internal static partial class vid_ega
 
     private static uint8_t edat(int a, int b) => edatlookup[a, b];
 
-    // pcem: vid_ega.c:386-458
+    // pcem: vid_ega.c:385-455
     private static void ega_draw_4bpp_lowres(ega_t ega)
     {
         int x;
@@ -617,7 +617,7 @@ internal static partial class vid_ega
         }
     }
 
-    // pcem: vid_ega.c:460-524
+    // pcem: vid_ega.c:457-519
     private static void ega_draw_4bpp_highres(ega_t ega)
     {
         int x;
@@ -683,7 +683,7 @@ internal static partial class vid_ega
         }
     }
 
-    // pcem: vid_ega.c:526-698
+    // pcem: vid_ega.c:521-699
     internal static void ega_poll(object? p)
     {
         ega_t ega = (ega_t)p;
@@ -708,7 +708,7 @@ internal static partial class vid_ega
                         {
                                 int line = ega.displine * Stride;
                                 // pcem bug, fixed in hardware mode: PB-89 — (x * 18) + xx + 32 monte à 4 639
-                                //   (:549-550) : la ligne suivante de buffer32, jamais hors du tableau. Le mode
+                                //   (:549-550) : jusqu'à la ligne n + 2 de buffer32, jamais hors du tableau. Le mode
                                 //   matériel borne la ligne à elle-même (poll_materiel, posé à l'init).
                                 for (x = 0; x < ega.hdisp; x++)
                                 {
@@ -921,7 +921,7 @@ internal static partial class vid_ega
         }
     }
 
-    // pcem: vid_ega.c:700-886
+    // pcem: vid_ega.c:701-884
     internal static void ega_write(uint32_t addr, uint8_t val, object? p)
     {
         ega_t ega = (ega_t)p;
@@ -1033,7 +1033,7 @@ internal static partial class vid_ega
         }
     }
 
-    // DEVIATION: les deux `switch (ega->gdcreg[3] & 0x18)` d'ega_write (:770-823 et :837-880),
+    // DEVIATION: les deux `switch (ega->gdcreg[3] & 0x18)` d'ega_write (:778-819 et :839-880),
     //   identiques au caractère près, en une fonction : Set, AND, OR, XOR sur les quatre plans.
     //   Même arithmétique, mêmes écritures, dans le même ordre.
     private static void ega_logic(ega_t ega, uint32_t addr, int writemask2, uint8_t vala, uint8_t valb, uint8_t valc,
@@ -1084,7 +1084,7 @@ internal static partial class vid_ega
         }
     }
 
-    // pcem: vid_ega.c:886-933
+    // pcem: vid_ega.c:886-932
     internal static uint8_t ega_read(uint32_t addr, object? p)
     {
         ega_t ega = (ega_t)p;
@@ -1138,7 +1138,7 @@ internal static partial class vid_ega
 
     private static void pal(int c, int r, int g, int b) => pallook64[c] = pallook16[c] = makecol32(r, g, b);
 
-    // pcem: vid_ega.c:935-1033
+    // pcem: vid_ega.c:934-1033
     internal static void ega_init(ega_t ega, int monitor_type, int is_mono)
     {
         int c, d, e;

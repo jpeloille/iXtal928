@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/lpt/lpt_dss.c + includes/private/filters.h:218-239 (dss_iir)
+// ORACLE: pcem-dev/src/lpt/lpt_dss.c + includes/private/filters.h:218-241 (dss_iir)
 // STATUS: transcribed — dss_t, dss_update, dss_write_data, dss_write_ctrl, dss_read_status,
 //         dss_get_buffer, dss_callback, dss_init, dss_close, dss_device ; dss_iir.
 //
@@ -32,7 +32,7 @@ internal sealed class dss_t
 
 internal static class lpt_dss
 {
-    // pcem: filters.h:218-239 — dss_iir, NCoef = 2 ; état statique local, voir l'en-tête.
+    // pcem: filters.h:218-241 — dss_iir, NCoef = 2 ; état statique local, voir l'en-tête.
     // fc=3.2kHz - probably incorrect
     private const int NCoef = 2;
     private static readonly float[] dss_iir_ACoef = { (float)0.03356837051492005100, (float)0.06713674102984010200, (float)0.03356837051492005100 };

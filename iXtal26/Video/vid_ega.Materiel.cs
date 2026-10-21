@@ -9,7 +9,8 @@
 // PCEM_BUGS.md. La référence : IBM, Options and Adapters Technical Reference, vol. 2 (1984), EGA, pp. 30-37 et 56-61
 // (les registres de l'attribut et du CRTC ; 10h bits 4-7, 07h bits 6-7, 09h et 0Ah bits 5-7, 11h bits 6-7 « Not
 // Used ») ; pp. 14-17 (les registres d'état), 26-27 et 39-40 (le blanc), 36-37 (CR11), 59-60 (11h et 12h) ; le
-// listing du BIOS, pp. 114 et 122 (POD14, OUT_DX). Les méthodes portent NoInlining (M2, G13.7c2).
+// listing du BIOS, pp. 114 et 122 (POD14, OUT_DX). Les méthodes des corrections portent NoInlining (M2, G13.7c2) ;
+// cavalier_p3 (G13.12a), appelée dans les deux modes, non.
 
 using System.Runtime.CompilerServices;
 using static iXtal26.io;
@@ -140,7 +141,7 @@ internal static partial class vid_ega
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ligne_add_materiel(ega_t ega) => timer_add(ega.timer, poll_materiel, ega, 1);
 
-    /// <summary>PB-99 (4) et PB-228 : la ligne sous le faisceau, rendue par la carte telle que le mode matériel la
+    /// <summary>PB-99 (4) : la ligne sous le faisceau, rendue par la carte telle que le mode matériel la
     /// dessine (le texte à chaque ligne, le rendu graphique dans sa mémoire ; l'écran éteint de SR1, des zéros), sa
     /// palette remplacée par l'identité : les sorties de l'attribut, six bits, au lieu des couleurs de
     /// l'hôte.</summary>

@@ -60,7 +60,7 @@ internal static partial class vid_hercules
 
     private static ref uint32_t mdacol(int attr, int blink, int fg) => ref mdacols[(attr * 2 + blink) * 2 + fg];
 
-    // pcem: vid_hercules.c:40-75
+    // pcem: vid_hercules.c:40-74
     internal static void hercules_out(uint16_t addr, uint8_t val, object? p)
     {
         hercules_t hercules = (hercules_t)p;
@@ -119,7 +119,7 @@ internal static partial class vid_hercules
         }
     }
 
-    // pcem: vid_hercules.c:77-96
+    // pcem: vid_hercules.c:76-94
     internal static uint8_t hercules_in(uint16_t addr, object? p)
     {
         hercules_t hercules = (hercules_t)p;
@@ -156,7 +156,7 @@ internal static partial class vid_hercules
         return 0xff;
     }
 
-    // pcem: vid_hercules.c:98-102
+    // pcem: vid_hercules.c:96-101
     internal static void hercules_write(uint32_t addr, uint8_t val, object? p)
     {
         hercules_t hercules = (hercules_t)p;
@@ -165,7 +165,7 @@ internal static partial class vid_hercules
         hercules.vram[addr & 0xffff] = val;
     }
 
-    // pcem: vid_hercules.c:104-108
+    // pcem: vid_hercules.c:103-107
     internal static uint8_t hercules_read(uint32_t addr, object? p)
     {
         hercules_t hercules = (hercules_t)p;
@@ -173,7 +173,7 @@ internal static partial class vid_hercules
         return hercules.vram[addr & 0xffff];
     }
 
-    // pcem: vid_hercules.c:110-119
+    // pcem: vid_hercules.c:109-119
     internal static void hercules_recalctimings(hercules_t hercules)
     {
         double disptime;
@@ -193,7 +193,7 @@ internal static partial class vid_hercules
                 temps_materiel(hercules);
     }
 
-    // pcem: vid_hercules.c:121-299
+    // pcem: vid_hercules.c:121-300
     internal static void hercules_poll(object? p)
     {
         hercules_t hercules = (hercules_t)p;

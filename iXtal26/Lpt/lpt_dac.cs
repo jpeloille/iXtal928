@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Julien Peloille
 // SPDX-License-Identifier: GPL-2.0-only
 //
-// ORACLE: pcem-dev/src/lpt/lpt_dac.c + includes/private/filters.h:241-270 (dac_iir)
+// ORACLE: pcem-dev/src/lpt/lpt_dac.c + includes/private/filters.h:243-268 (dac_iir)
 // STATUS: transcribed — lpt_dac_t, dac_update, dac_write_data, dac_write_ctrl, dac_read_status,
 //         dac_get_buffer, dac_init, dac_stereo_init, dac_close, lpt_dac_device,
 //         lpt_dac_stereo_device ; dac_iir.
@@ -31,7 +31,7 @@ internal sealed class lpt_dac_t
 
 internal static class lpt_dac
 {
-    // pcem: filters.h:244-270 — dac_iir, NCoef = 1 ; état statique local, voir l'en-tête.
+    // pcem: filters.h:244-268 — dac_iir, NCoef = 1 ; état statique local, voir l'en-tête.
     private const int NCoef = 1;
     private static readonly float[] dac_iir_ACoef = { (float)0.99901119820285345000, (float)-0.99901119820285345000 };
     private static readonly float[] dac_iir_BCoef = { (float)1.00000000000000000000, (float)-0.99869185905052738000 };

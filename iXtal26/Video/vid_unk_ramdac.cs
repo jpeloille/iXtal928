@@ -81,7 +81,7 @@ internal static partial class vid_unk_ramdac
                                         svga.bpp = 16;
                                         break;
                                 }
-                                // pcem: :61-62 — le `case 7` tombe dans `case 1: default: break;`,
+                                // pcem: :59-60 — le `case 7` tombe dans `case 1: default: break;`,
                                 //   sans effet.
                                 break;
                         case 1:

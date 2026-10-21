@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 //
 // ORACLE: pcem-dev/src/scsi/scsi_zip.c  (scsi_zip.h : includes/private/scsi/scsi_zip.h)
-// STATUS: deviated — G10.6 (PLAN-G10.md) : le lecteur ZIP 100 de PCem, entier — zip_load, zip_eject,
+// STATUS: deviated — G10.6 (PLAN-G10.md) : le lecteur ZIP 100 de PCem, entier — zip_load, zip_eject, zip_loaded, les
+//   commandes, l'identification ATAPI et la table scsi_zip.
 //
 // DEVIATION (forme, G13.7d1, le reliquat de G11 ; décision n° 9 de PLAN-G11.md, comme scsi_hd) : data_in et data_out,
 //   contigus dans le struct C (scsi_zip.c:50-51), sont UN tableau `io` de 2 × BUFFER_SIZE — data_in en io[0..],
@@ -27,7 +28,7 @@ using static iXtal26.timer;
 
 namespace iXtal26.Scsi;
 
-// pcem: scsi_zip.c:37-74 — classe : le bus et le pont en gardent l'adresse (device_data, timer_add).
+// pcem: scsi_zip.c:38-74 — classe : le bus et le pont en gardent l'adresse (device_data, timer_add).
 internal sealed class scsi_zip_data
 {
     internal int blocks;
@@ -1043,7 +1044,7 @@ internal static partial class scsi_zip_c
 
         case SCSI_MODE_SELECT_6:
                 // pcem bug, fixed in hardware mode: PB-126 — de longueur 0, la phase de données sortante ne finit
-                //   jamais : write_complete n'est lu qu'après un octet reçu (scsi.c:157-161), et 1 ≠ 0.
+                //   jamais : write_complete n'est lu qu'après un octet reçu (scsi.c:157-162), et 1 ≠ 0.
                 if (materiel.pb_126)
                         if ((bus_state = mode_select_vide_materiel(data, cdb)) >= 0)
                                 break;
@@ -1214,7 +1215,7 @@ internal static partial class scsi_zip_c
         data.bytes_received++;
     }
 
-    // pcem: scsi_zip.c:993-996
+    // pcem: scsi_zip.c:993-997
     // pcem bug, fixed in hardware mode: PB-126 — une lecture de longueur nulle : l'octet lu à l'entrée en DATA IN (scsi.c:241)
     //   désaccorde les deux positions, et la phase ne finit plus.
     private static int scsi_zip_read_complete(object p)

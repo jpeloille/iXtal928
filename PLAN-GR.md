@@ -326,6 +326,12 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   Les 21 bornes fausses de G9 sont corrigées : 17 `// pcem:`, la plage du DEVIATION d'`ega_write` et trois renvois
   en ligne de `vid_ega.cs` (R1-contre K4). Cette relecture ne dépend d'aucune porte et peut avancer plus tôt.
 - La série : des commentaires seuls, donc un sous-ensemble.
+- **GR.1i** ✅ *fait, § GR.1i* : les 21 bornes de G9 corrigées ; 38 constats de la relecture, 33 confirmés (31
+  citations ou commentaires corrigés, un laissé, un défaut de comportement sorti de l'étape) ; des commentaires seuls.
+- **GR.1i2 — PB-123 au lead-out** : en mode matériel, READ SUB-CHANNEL en LBA rend FFFFFF6Ah au lead-out, où PCem rend
+  0 (`lba_absolue_materiel` appliquée quand `GetAudioSub` n'a rien trouvé). La correction ne retranche les 150 que
+  d'une position trouvée ; l'entrée PB-123 le dit ; un cas neuf (la piste 3 jouée jusqu'au bout, puis READ SUB-CHANNEL
+  en LBA : la piste 00 et l'adresse 0 dans les deux modes) ; l'émulateur change : la série entière.
 
 ### GR.4d, GR.4e — `make bench`, les registres, les licences, les commentaires
 

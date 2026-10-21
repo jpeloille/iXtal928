@@ -1850,7 +1850,7 @@ rangées 2k + trame, de 0 à 13 (déduit).
 `fixed in hardware mode: PB-97` ; l'entrelacé (b), dans les deux modes (Q17 : l'intention de PCem n'est pas la
 source), et la relecture (c), commentaires `PB-97, la part`.
 *G9.1* : l'Hercules fait de même (`vid_hercules.c:89`, `:54-60`, `:137-138`) ; reproduit,
-`Video/vid_hercules.cs` (`:80`, `:186`). Le banc HERCBANC relit les douze registres du mode graphique.
+`Video/vid_hercules.cs` (`:80`, `:215`). Le banc HERCBANC relit les douze registres du mode graphique.
 *G13.1* : la table de masques du mode matériel se tire du data sheet, pas de `crtcmask` de la CGA, qui laisse R16-R17
 inscriptibles (PB-230). La CGA, la M24 et le PC1512 relisent aussi R0-R13 : PB-230. Le curseur 0607h
 tombe à mi-cellule sur une vraie MDA : le BIOS d'IBM le recopie tel quel (VIDEO_PARMS donne 0B0Ch au seul mode 7).
@@ -2508,8 +2508,8 @@ deux fois en mode PCem ; `00 14 AA 00` et `00 10 AA 00` en mode matériel ; la c
 `image_cd_pos` et la fin dans `image_cd_end`, alors que ces deux positions comptent les 150
 secteurs de l'amorce (`image_audio_callback` lit `image_cd_pos - 150`, `:36`) ; une position sous
 150 est ramenée à 150. `image_seek` (`:138`) range de même une adresse LBA comme une position.
-Mais `image_is_track_audio` (`:58-75`), que `scsi_cd.c:1375-1376` consulte avant de jouer, prend
-l'adresse LBA sans décalage. Et READ SUB-CHANNEL (`cdrom-image.cc:200-249`) rend des positions
+Mais `image_is_track_audio` (`:59-75`), que `scsi_cd.c:1375-1376` consulte avant de jouer, prend
+l'adresse LBA sans décalage. Et READ SUB-CHANNEL (`cdrom-image.cc:198-253`) rend des positions
 où `GetAudioSub` a ajouté 150 (`dosbox/cdrom_image.cpp:121-122`) : juste pour la position absolue en
 MSF, fausse pour la position absolue en LBA et pour la position relative, en LBA comme en MSF.
 *Effet* : en LBA, aucune adresse ne joue la bonne piste. L'adresse de READ TOC passe le contrôle mais joue 150
@@ -2603,7 +2603,7 @@ rebours de la norme, d'après le commentaire de PCem pour les pilotes Iomega de 
 chaque `resetide` alloue un `scsi_zip_data` neuf, `disc_loaded = 0` : un reset matériel perd le disque.
 Une lecture de longueur nulle (READ(10) d'un compte 0) entre en phase de données sans fin
 (`scsi_zip_read_complete`, `:993-996`, compare des positions que la première lecture désaccorde) ; MODE
-SELECT(6) de longueur 0 de même en phase sortante (`:860-870`, `scsi.c:157-161`).
+SELECT(6) de longueur 0 de même en phase sortante (`:860-870`, `scsi.c:157-162`).
 *Effet* : un pilote qui lit la capacité voit un secteur de trop, et qui le lit reçoit l'ancien
 contenu ; une éjection à la norme n'éjecte pas ; un reset matériel vide le lecteur ; une commande de
 longueur nulle ne finit pas.
@@ -5064,7 +5064,7 @@ bit 6 (fiches Trident non lues).
 *Cas qui discrimine* : SVGA, `bpp` = 24, AR10 bit 6 posé, une ligne dont la VRAM porte des points tous différents : PCem
 n'écrit que les huit premiers points de la ligne, avec le dernier groupe ; attendu, chaque point de 24 bits de la VRAM
 doublé sur toute la ligne. Le diff attendu porte `#buffer32` et `ma`, que le rendu laisse avant son rechargement.
-*G13* : (b) — `x += 4` et `p += 8` sans remappage, `p += 8` avec, dans la fonction (`vid_svga.cs:975` compare `render`).
+*G13* : (b) — `x += 4` et `p += 8` sans remappage, `p += 8` avec, dans la fonction (`vid_svga.cs:976` compare `render`).
 *Reproduit* en mode PCem : `Video/vid_svga_render.cs`, `svga_render_24bpp_lowres`, marqueur `fixed in hardware mode:
 PB-37`. Confronté à l'oracle : la campagne est verte au diff (339 586 475 instructions) ET à la sonde, dont le
 hachage de `buffer32` porte les pixels que ce rendu écrit.
@@ -5404,7 +5404,7 @@ qui en résulte : inconnu, à mesurer (R10 = 46h puis 66h, le curseur relevé su
 *Cas qui discrimine* : CGA, R10 = 46h : PCem fait clignoter le curseur comme avec 06h ; le 6845 y ajoute son propre
 clignotement — aucun attendu documenté.
 *G13* : (c) — le combiné des deux clignotements n'est pas documenté ; reproduit jusqu'à une mesure.
-*Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:499`, `Video/vid_mda.cs:290`, `Video/vid_hercules.cs:316`,
+*Reproduit* : marqueurs PB-231 : `Video/vid_cga.cs:548`, `Video/vid_mda.cs:318`, `Video/vid_hercules.cs:347`,
 `Video/vid_olivetti_m24.cs:476`, `Video/vid_pc1512.cs:488`.
 *Non corrigé en mode matériel* : inconnu, reproduit dans les deux modes (décision n° 14), comme le dit le champ *G13*.
 
@@ -6392,10 +6392,10 @@ traduit le paquet en READ CD (BEh), que PCem sert, avant toute autre étape : l'
 moins le départ), les octets 1, 9 et 10 aux mêmes places ; un départ au-delà de la fin rend INVALID FIELD IN COMMAND
 PACKET (05/24h, SFF-8020i Table 106), une seconde au-delà de 59 ou une image au-delà de 74 aussi (déduit), un départ
 avant 00:02:00 — le prégap de la piste 1, que le moteur ne sert pas — LOGICAL BLOCK ADDRESS OUT OF RANGE (05/21h,
-déduit) ; le reste comme READ CD, dont l'octet 9 autre que 10h ou F8h, 05/20h comme chez PCem. `materiel-cas
-PB-271` rend 05/20h en mode PCem ; en mode matériel le PVD, GOOD sans données pour un départ égal à la fin, 24h pour
-un départ au-delà, vingt secteurs en deux tranches (la commande traduite relancée), 21h avant 00:02:00 et 24h pour
-une image à 75 ; la correction coupée, il rougit.
+déduit) ; le reste comme READ CD, dont l'octet 9 dont les bits 7-3 (`& F8h`) ne valent ni 10h ni F8h, 05/20h
+comme chez PCem. `materiel-cas PB-271` rend 05/20h en mode PCem ; en mode matériel le PVD, GOOD sans données pour un
+départ égal à la fin, 24h pour un départ au-delà, vingt secteurs en deux tranches (la commande traduite relancée), 21h
+avant 00:02:00 et 24h pour une image à 75 ; la correction coupée, il rougit.
 
 ### PB-272 — PLAY AUDIO(12) lit son adresse et sa longueur sur trois octets
 
@@ -7471,7 +7471,7 @@ la ligne 0 du caractère 42h (`fontdatm_plat(41h, 16)`), la carte la ligne 0 du 
 *G13* : (a), (b) — (a) la MDA, par son schéma ; (b) l'Hercules, dont le schéma n'a pas été lu.
 *Reproduit* en mode PCem : `Video/vid_mda.cs`, `fontdatm_plat`, marqueur `fixed in hardware mode: PB-96` — l'accès se fait à plat (`chr * 16 + sc`),
 l'adresse que le C calcule ; un accès `[chr, sc]` au tableau C# `[2048, 16]` lèverait.
-*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:232`) ; sa part
+*G9.1* : l'Hercules aussi (`vid_hercules.c:173`, `:176`) ; même accès à plat (`Video/vid_hercules.cs:262`) ; sa part
 (b) reste celle de PCem dans les deux modes (Q17 : le schéma de la GB101 n'a pas été lu).
 *Corrigé en mode matériel*, la MDA (G13.9b) : sous `if (materiel.pb_96)`, en tête du dessin de la ligne de `mda_poll`
 (`Video/vid_mda.Materiel.cs`, `ligne_materiel`, la ligne de PCem) : la police lue à la rangée `sc & 15`. Le
@@ -7913,7 +7913,7 @@ bits de `3DAh`.
 jamais dans la ligne (déduit), ce que rend déjà l'arithmétique de PCem : la phase « hors affichage » ne dure rien.
 *Cas qui discrimine* : aucun — la période de ligne reste celle de `htotal`, et le C# rend la conversion de GCC.
 *G13* : (d) — sans effet ; une borne n'y changerait rien de visible, et `TIMER_USEC` allongerait la ligne de la SVGA.
-*Reproduit* : `Video/vid_svga.cs` (`:709`) et `Video/vid_cga.cs` (`:198`), marqueur
+*Reproduit* : `Video/vid_svga.cs` (`:712`) et `Video/vid_cga.cs` (`:203`), marqueur
 `// pcem bug, reproduced: PB-36`, par `unchecked((uint64_t)(int64_t)x)`. Le `(uint64_t)x`
 direct n'était PAS fidèle : .NET 9 et au-delà **saturent** à 0 (mesuré sur .NET 10 :
 `(ulong)-5.5 = 0`, `(ulong)(long)-5.5 = 0xFFFFFFFFFFFFFFFB`, GCC -O2 rend le second). Trouvé
@@ -7922,9 +7922,9 @@ pose CR00 = 2Dh sous CR01 = 4Fh et lit `3DAh` 8 192 fois fait rougir le diff d'a
 l'instruction 36 899 042 avec l'ancienne conversion, et le laisse vert — 37 969 642
 instructions — avec la nouvelle.
 
-*G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs` (`:159`). L'Hercules
-(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits (`Video/vid_hercules.cs:161`,
-`Video/vid_ega.cs:374`).
+*G9.0* : la MDA fait de même (`vid_mda.c:74-83`) ; reproduit, `Video/vid_mda.cs` (`:170`). L'Hercules
+(`vid_hercules.c:110-119`, G9.1) et l'EGA (`vid_ega.c:236-249`, G9.2) aussi ; reproduits (`Video/vid_hercules.cs:188`,
+`Video/vid_ega.cs:404`).
 *G13.1* : la M24 aussi (`vid_olivetti_m24.c:104-121`), marquée depuis G1.1 (`Video/vid_olivetti_m24.cs:156`) ; le
 PC1512 non, ses temps sont des constantes (`vid_pc1512.c:143-155`).
 
@@ -8018,12 +8018,12 @@ mémoire libérée — jusqu'au `mem_alloc` de l'amorçage suivant, qui vide la 
 *Source* : sans objet : un état de l'hôte, sans pendant matériel.
 *Cas qui discrimine* : aucun — rien ne parcourt la liste avant le `mem_alloc` de l'amorçage suivant.
 *G13* : (d) — sans effet, sans comportement matériel à viser ; pour G15, ou jamais.
-*Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (`:434` ; la projection reste, l'objet vivant sous GC).
+*Reproduit* : `Video/vid_hercules.cs`, marqueur PB-98 (`:470` ; la projection reste, l'objet vivant sous GC).
 *G10.2* : le XTIDE aussi. `xtide_close` (`xtide.c:106-110`) fait `free(xtide)` sans `rom_deinit` :
 la projection de sa ROM, en C8000, reste dans la liste jusqu'au `mem_alloc` suivant (le Xebec, lui,
 la retire, `mfm_xebec.c:766-774`). Reproduit dans `Ide/xtide.cs`, marqueur PB-98.
 *G13.1* : l'EGA aussi. `ega_close` (`vid_ega.c:1068-1073`) libère la carte sans retirer ni sa projection ni celle de sa
-ROM. Reproduit, `Video/vid_ega.cs`, marqueur PB-98 (`:1226`).
+ROM. Reproduit, `Video/vid_ega.cs`, marqueur PB-98 (`:1305`).
 
 ### PB-112 — Des fichiers d'image laissés ouverts
 

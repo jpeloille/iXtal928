@@ -19,7 +19,7 @@ using iXtal26.Ide;
 
 namespace iXtal26.Scsi;
 
-// pcem: scsi.h:7-25
+// pcem: scsi.h:7-27
 internal delegate object? scsi_init_fn(scsi_bus_t bus, int id);
 internal delegate object? scsi_atapi_init_fn(scsi_bus_t bus, int id, atapi_device_t atapi_dev);
 internal delegate void scsi_close_fn(object p);
@@ -36,7 +36,7 @@ internal delegate void scsi_write_fn(uint8_t val, object p);
 internal delegate int scsi_read_complete_fn(object p);
 internal delegate int scsi_write_complete_fn(object p);
 
-// pcem: scsi.h:7-25 — `uint16_t *buffer` d'atapi_identify : le tampon d'octets de l'IDE (Ide/ide.cs, IDE.buffer).
+// pcem: scsi.h:7-27 — `uint16_t *buffer` d'atapi_identify : le tampon d'octets de l'IDE (Ide/ide.cs, IDE.buffer).
 // Les quatre entrées nullables sont celles que scsi_hd laisse à NULL (scsi_hd.c:768-788).
 internal sealed class scsi_device_t
 {
@@ -86,7 +86,7 @@ internal sealed class scsi_device_t
     }
 }
 
-// pcem: scsi.h:29-47
+// pcem: scsi.h:31-48
 internal sealed class scsi_bus_t
 {
     internal int state;
@@ -109,10 +109,10 @@ internal sealed class scsi_bus_t
 
 internal static class scsi
 {
-    // pcem: scsi.h:27
+    // pcem: scsi.h:29
     internal const int CDB_MAX_LEN = 20;
 
-    // pcem: scsi.h:54-77
+    // pcem: scsi.h:55-83
     internal const uint8_t SCSI_TEST_UNIT_READY = 0x00;
     internal const uint8_t SCSI_REZERO_UNIT = 0x01;
     internal const uint8_t SCSI_REQUEST_SENSE = 0x03;
@@ -143,7 +143,7 @@ internal static class scsi
 
     internal const uint8_t MSG_COMMAND_COMPLETE = 0x00;
 
-    // pcem: scsi.h:85-101 — les lignes du bus. BUS_ATN et BUS_ACK ont la même valeur, comme chez PCem.
+    // pcem: scsi.h:85-100 — les lignes du bus. BUS_ATN et BUS_ACK ont la même valeur, comme chez PCem.
     internal const int BUS_DBP = 0x01;
     internal const int BUS_SEL = 0x02;
     internal const int BUS_IO = 0x04;
@@ -163,7 +163,7 @@ internal static class scsi
 
     internal const int BUS_IDLE = 1 << 31;
 
-    // pcem: scsi.h:113-129
+    // pcem: scsi.h:112-127
     internal const int KEY_NONE = 0;
     internal const int KEY_NOT_READY = 2;
     internal const int KEY_ILLEGAL_REQ = 5;
@@ -181,7 +181,7 @@ internal static class scsi
     internal const int ASC_DATA_PHASE_ERROR = 0x4b;
     internal const int ASC_ILLEGAL_MODE_FOR_THIS_TRACK = 0x64;
 
-    // pcem: scsi.h:131-136
+    // pcem: scsi.h:129-134
     internal const int SCSI_PHASE_DATA_OUT = 0;
     internal const int SCSI_PHASE_DATA_IN = BUS_IO;
     internal const int SCSI_PHASE_COMMAND = BUS_CD;
@@ -189,7 +189,7 @@ internal static class scsi
     internal const int SCSI_PHASE_MESSAGE_OUT = BUS_MSG | BUS_CD;
     internal const int SCSI_PHASE_MESSAGE_IN = BUS_MSG | BUS_CD | BUS_IO;
 
-    // pcem: scsi.h:138-139
+    // pcem: scsi.h:136-137
     internal const int START_STOP_START = 0x01;
     internal const int START_STOP_LOEJ = 0x02;
 

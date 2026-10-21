@@ -88,7 +88,7 @@ internal sealed class ATAPI
     }
 }
 
-// pcem: ide_atapi.h:31-55 — classe : resetide (ide.c:294-298) et scsi_cd (data->atapi_dev) en gardent l'adresse.
+// pcem: ide_atapi.h:33-56 — classe : resetide (ide.c:294-298) et scsi_cd (data->atapi_dev) en gardent l'adresse.
 internal sealed class atapi_device_t
 {
     internal scsi_bus_t bus = new();
@@ -108,7 +108,7 @@ internal sealed class atapi_device_t
     internal IDE? ide;
 
     internal int board;
-    // DEVIATION: atastat, error et cylinder (ide_atapi.h:49-51) — lus et écrits par `ide` (en-tête).
+    // DEVIATION: atastat, error et cylinder (ide_atapi.h:51-53) — lus et écrits par `ide` (en-tête).
 
     internal int use_dma;
 }

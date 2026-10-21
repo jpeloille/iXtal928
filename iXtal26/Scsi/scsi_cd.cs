@@ -11,7 +11,8 @@
 //   lecture au-delà de data_in (:1565) ; le compte négatif passé à readsector (:1187).
 // Reproduits en mode PCem, corrigés en mode matériel (scsi_cd.Materiel.cs, cdrom-image.Materiel.cs) : PB-117 (READ
 //   CAPACITY), PB-118 (GET EVENT STATUS NOTIFICATION), PB-119 (MODE SELECT), PB-120 (la TOC brute), PB-268 (le READ
-//   hors du disque), PB-269 (MECHANISM STATUS), PB-270 (le jeu de commandes du modèle), PB-271 (READ CD MSF).
+//   hors du disque), PB-269 (MECHANISM STATUS), PB-270 (le jeu de commandes du modèle), PB-271 (READ CD MSF),
+//   PB-272 (PLAY AUDIO(12) sur quatre octets), PB-273 (PLAY AUDIO, la plage entière jugée).
 // Reproduits : PB-283 (un LUN non nul).
 
 // CS8981 : `scsi_cd_c` porte le nom de l'unité C, que le membre `scsi_cd` garde (TRANSCRIPTION.md).
@@ -453,7 +454,7 @@ internal static partial class scsi_cd_c
     // pcem: scsi_cd.c:484
     internal static int cd_get_model_speed(int i) => cd_models[i].speed;
 
-    // pcem: scsi_cd.c:486-502
+    // pcem: scsi_cd.c:486-502 — un nom absent lirait cd_models[12] comme cd_set_model (PB-93 ; pc.cs refuse avant).
     internal static string cd_model_to_config(string? model)
     {
         int c = 0;
@@ -475,7 +476,7 @@ internal static partial class scsi_cd_c
         return cd_models[c].model_config_string_40;
     }
 
-    // pcem: scsi_cd.c:504-520
+    // pcem: scsi_cd.c:504-520 — un nom absent lirait cd_models[12] comme cd_set_model (PB-93 ; pc.cs refuse avant).
     internal static string cd_model_from_config(string? config)
     {
         int c = 0;

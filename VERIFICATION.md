@@ -15600,3 +15600,98 @@ Elle a suivi le défaut du PREGAP dans `GetTrack` (`cdrom_image.cs:316-327`). Se
 - `ecoute.sh` contrôle la fenêtre construite à chaque appel, et dit comment écouter un vrai CD (D6) ;
 - l'en-tête de LPTPLAY dit ce que la fin rétablit, et ce qu'elle laisse ;
 - les crêtes du Covox stéréo dites en crête à crête ; le renvoi à PB-108 ; le plan qui dit `@wav`.
+
+## GR.1i — La relecture contradictoire de la vidéo de G9 et du stockage
+
+Le 21 octobre 2026 (PLAN-GR.md § GR.1h, GR.2f — GR.1i ; R1-g9.md § 1.3 n ; R1-contre.md, C1, C2, K4). Le diff prouve
+l'équivalence sur les chemins exercés ; pour le reste, et pour les commentaires que le diff ne voit pas, la relecture.
+
+**Les 21 bornes fausses de G9** (`/tmp/a9/g1i/bornes.py` : chaque plage `// pcem:` confrontée aux blocs de premier
+niveau du C de `pcem-dev/`, de la première ligne de la déclaration à l'accolade fermante) :
+- 16 plages, toutes retrouvées par le script et corrigées : six de `vid_hercules.cs` (40-74, 76-94, 96-101, 103-107,
+  109-119, 121-300) et dix de `vid_ega.cs` (`vid_ega.h:3-68`, puis 189-256, 258-326, 328-383, 385-455, 457-519,
+  521-699, 701-884, 886-932, 934-1033) ;
+- le renvoi `:61-62` du RAMDAC (`vid_unk_ramdac.cs`), qui est en 59-60 ;
+- la plage du `DEVIATION` d'`ega_write`, qui cite désormais `:778-819` et `:839-880` (R1-contre C2) ;
+- les trois renvois en ligne de `vid_ega.cs` (R1-contre K4) : `(:121)`, `(:125)`, `(:227-228)`.
+
+Après correction, le script ne trouve plus aucune plage fausse dans les cinq fichiers.
+
+**La relecture.** Neuf lecteurs (Sonnet) sur des tranches disjointes, chacune lue ligne à ligne contre la source C :
+V1 la MDA ; V2 l'Hercules ; V3 et V4 les deux moitiés de l'EGA ; V5 l'ET4000 et le RAMDAC (chaque fois avec le
+`.Materiel.cs`) ; S1 `ide_atapi` et `scsi` ; S2 `scsi_cd` ; S3 `scsi_zip` et `lpt*` ; S4 le moteur d'images
+(`cdrom_image`, `cdrom-image`). Chacun cherche quatre choses :
+- un écart de comportement non annoncé ;
+- une citation fausse ;
+- un commentaire faux ;
+- une correction du mode matériel qui ne fait pas ce que son entrée annonce.
+
+Puis un sceptique par tranche, chargé de réfuter chaque constat en relisant les deux sources.
+
+| Tranche | Constats | Confirmés | Réfutés |
+|---|---|---|---|
+| V1 MDA | 0 | — | — |
+| V2 Hercules | 3 | 2 | 1 |
+| V3 EGA, 1-686 | 1 | 1 | 0 |
+| V4 EGA, 687-fin | 5 | 3 | 2 |
+| V5 ET4000, RAMDAC | 0 | — | — |
+| S1 ATAPI, SCSI | 10 | 10 | 0 |
+| S2 CD SCSI | 4 | 3 | 1 |
+| S3 ZIP, LPT | 11 | 11 | 0 |
+| S4 images de CD | 4 | 3 | 1 |
+| **total** | **38** | **33** | **5** |
+
+**Le seul défaut de comportement : PB-123 au lead-out, en mode matériel** (S4, confirmé). Quand la position est au
+lead-out — une lecture audio menée jusqu'au bout de la dernière piste —, `GetAudioSub` rend faux et laisse l'adresse
+absolue à zéro. `lba_absolue_materiel` (`cdrom-image.cs:340-342`, `cdrom-image.Materiel.cs:83-87`) en retranche 150,
+et READ SUB-CHANNEL en LBA rend FFFFFF6Ah en mode matériel, où PCem rend 0 (le MSF, 0 des deux côtés). L'entrée
+PB-123 dit pourtant « comme chez PCem » au lead-out. Aucun banc ne le relève : `FFFFFF6A` n'est nulle part dans le
+dépôt, les relevés d'ATAPIAUD sont tous dans les pistes 2 et 3.
+C'est un défaut de notre correction, pas de PCem ; le corriger change l'émulateur (une condition dans
+`cdrom-image.cs`, un cas neuf, une série entière). Il sort de cette étape, qui ne touche que des commentaires, et
+devient GR.1i2.
+
+**Les citations et les commentaires corrigés** (des 32 autres confirmés, 31 corrigés et un laissé ; aucun ne touche au
+comportement) :
+- vidéo : `vid_hercules.Materiel.cs` (`ligne_faisceau` recopie 145-188, et non 153-188) ; `vid_ega.Materiel.cs`
+  (`rendu_faisceau` sert PB-99 (4) seul, pas PB-228 ; l'en-tête ne promet plus NoInlining à `cavalier_p3`) ;
+  `vid_ega.cs` (le débordement de PB-89 va jusqu'à la ligne n + 2 de `buffer32`, et non à la suivante) ;
+- `PCEM_BUGS.md` : huit renvois de lignes périmés vers le C# (PB-36, PB-96, PB-97, PB-98 deux fois, PB-231 trois
+  fois — dont `vid_mda.cs` et `vid_cga.cs`, trouvés en vérifiant), puis cinq de plus relevés par la contre-lecture
+  (PB-36 : `vid_svga.cs`, `vid_cga.cs`, `vid_mda.cs`, `vid_ega.cs` ; PB-37 : `vid_svga.cs`) ; les plages de PB-123 et
+  de PB-126 ; la formule de PB-271 (l'octet 9 jugé par ses bits 7-3, `& F8h`) ;
+- `ide_atapi.cs` et `scsi.cs` : dix bornes d'en-tête (`ide_atapi.h`, `scsi.h`) ;
+- `scsi_cd.cs` et `.Materiel.cs` : PB-272 et PB-273 ajoutés à la liste de l'en-tête ; les deux fonctions du modèle
+  qui liraient `cd_models[12]` pour un nom absent, dites comme `cd_set_model` (PB-93, inatteignable) ; la formule de
+  PB-271 ;
+- `scsi_zip.cs` : deux bornes, un renvoi à `scsi.c:157-162`, l'en-tête tronqué depuis G10.6 complété ;
+- `lpt.cs`, `lpt_dac.cs`, `lpt_dss.cs` : quatre bornes de `lpt.c`, quatre de `filters.h`, les omissions de
+  `devices.h` (`config` n'est pas omis) ; `LPT_MAX` vient de `defines.h:11` et vaut 256 chez PCem, 64 ici : écart
+  annoncé par un `DEVIATION`, sans effet (quatre entrées enregistrées).
+
+**Les constats réfutés** :
+- le terminateur de `selection` (V2) : couvert par le `DEVIATION` de `PluginApi/device.cs:51` ;
+- la forme `// pcem bug, reproduced:` (V4, S2) : la forme du dépôt, définie par TRANSCRIPTION.md (R1 d, R8) et
+  PLAN-G13.md ;
+- `max_len` dans `ega_add_status_info` (V4) : couvert par le `DEVIATION` de `device.cs:37`, sans effet ;
+- le tampon de `GetCueString` (S4) : la libstdc++ de l'oracle écrit un NUL même quand la sentinelle échoue (LWG 243,
+  `istream.tcc:483-486`), et le C# rend la même chaîne vide.
+
+Un constat confirmé est laissé tel quel : les omissions de `cdrom_image.cs`, annoncées dans l'en-tête par « Omis : »,
+sans marqueur en ligne.
+
+**Ce que la relecture n'a pas pu vérifier** : les pages des guides cités (le data book Tseng, SFF-8020i), absents du
+dépôt.
+
+**La série.** Des commentaires seuls : aucune ligne de code ne change (le diff relu ligne à ligne, chaque ligne
+touchée est un commentaire). Un sous-ensemble sur le worktree, en Release, mode PCem, 17 portes vertes : la vidéo de
+G9 (`bd-pc-mda`, `bd-pc-hercules`, `bd-pc-ega`, `bd-pc-ega-banc`, `bd-pc-et4000ax`, `bd-ami486-et4000`, `banc-egabanc`,
+`banc-hercbanc`, `banc-et4banc`) ; le stockage (`bd-ami486-atapi-banc`, `bd-ami486-zip-banc`, `bd-ami486-aha-banc`,
+`r9-scsihd`, `materiel-cas-pb123` et `-materiel`) ; LPT (`bd-pc-lpt-dss-banc`, `bd-pc-lpt-lpt_dac-banc`).
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a relu quarante des citations corrigées contre
+`pcem-dev/` ou le C#, toutes justes ; vérifié que le diff ne touche aucune ligne de code ; rejoué `bornes.py`, muet ;
+recompté la note. Ses points sont repris : les cinq renvois périmés de PB-36 et PB-37 que la relecture avait laissés ;
+le décompte des confirmés reformulé ; le défaut de PB-123 cité à ses lignes (340-342). Laissés : la plage `:95-110` de
+PB-123, qui désigne le corps utile d'`image_playaudio` ; les deux bornes de `filters.h` dans `lpt_dac.cs`, l'une avec
+la redéfinition de NCoef (243-268), l'autre sans (244-268), toutes deux justes pour ce qu'elles couvrent.

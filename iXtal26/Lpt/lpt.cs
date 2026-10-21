@@ -30,8 +30,8 @@ internal delegate void lpt_write_ctrl_fn(uint8_t val, object p);
 internal delegate uint8_t lpt_read_status_fn(object p);
 
 // pcem: devices.h:99-112
-// omitted: available, speed_changed, force_redraw, add_status_info, config (:103-107) — NULL pour
-//   les trois périphériques du registre ; lpt_device_has_config les lit (rend 0).
+// omitted: available, speed_changed, force_redraw, add_status_info (:104-107) — NULL pour les trois
+//   périphériques du registre ; config (:108) est gardé, lpt_device_has_config le lit (rend 0).
 internal sealed class lpt_device_t
 {
     internal string name = "";
@@ -54,7 +54,7 @@ internal sealed class LPT_DEVICE
 
 internal static class lpt
 {
-    // pcem: devices.h — LPT_MAX.
+    // pcem: defines.h:11 — LPT_MAX. DEVIATION : 256 chez PCem, 64 ici ; quatre entrées enregistrées (lpt_init_builtin).
     internal const int LPT_MAX = 64;
 
     // pcem: lpt.c:16-18
@@ -139,7 +139,7 @@ internal static class lpt
         }
     }
 
-    // pcem: lpt.c:80-84
+    // pcem: lpt.c:81-85
     internal static int lpt_device_has_config(int devId)
     {
         if (lpt_devices[devId] == null || lpt_devices[devId]!.device == null)
@@ -147,7 +147,7 @@ internal static class lpt
         return lpt_devices[devId]!.device!.config != null ? 1 : 0;
     }
 
-    // pcem: lpt.c:86-91
+    // pcem: lpt.c:87-92
     internal static lpt_device_t? lpt_get_device(int devId)
     {
         if (lpt_devices[devId] == null || lpt_devices[devId]!.device == null)
@@ -156,7 +156,7 @@ internal static class lpt
         return lpt_devices[devId]!.device;
     }
 
-    // pcem: lpt.c:93-104
+    // pcem: lpt.c:94-104
     internal static int lpt_device_get_from_internal_name(string s)
     {
         int c = 0;
@@ -270,7 +270,7 @@ internal static class lpt
 
     internal static void pcem_add_lpt(LPT_DEVICE lpt) { lpt_devices[lpt_count()] = lpt; }
 
-    // pcem: lpt.c:168-172
+    // pcem: lpt.c:168-173
     internal static void lpt_init_builtin()
     {
         pcem_add_lpt(l_none);

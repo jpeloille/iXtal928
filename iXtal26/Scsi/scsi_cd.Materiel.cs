@@ -267,7 +267,7 @@ internal static partial class scsi_cd_c
     //   mêmes places. Un départ au-delà de la fin : ILLEGAL REQUEST (INVALID FIELD IN COMMAND PACKET, 24h, de la Table 106
     //   de SFF-8020i) ; une seconde au-delà de 59 ou une image au-delà de 74 : 24h aussi (déduit) ; un départ avant
     //   00:02:00 (le prégap de la piste 1, que le moteur ne sert pas) : LOGICAL BLOCK ADDRESS OUT OF RANGE, 21h (déduit).
-    //   Le reste comme READ CD : l'octet 9 autre que 10h ou F8h rend 20h, l'ASC de PCem pour READ CD.
+    //   Le reste comme READ CD : l'octet 9 dont les bits 7-3 (& F8h) ne valent ni 10h ni F8h rend 20h, l'ASC de PCem.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool read_cd_msf_materiel(scsi_cd_data_t data, uint8_t[] cdb)
     {

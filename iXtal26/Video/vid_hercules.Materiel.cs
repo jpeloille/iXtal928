@@ -112,7 +112,7 @@ internal static partial class vid_hercules
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ligne_init_materiel(hercules_t hercules) => timer_set_callback(hercules.timer, poll_materiel);
 
-    /// <summary>PB-224 : une ligne de l'Hercules, le rendu de PCem (vid_hercules.c:153-188, inscrit dans
+    /// <summary>PB-224 : une ligne de l'Hercules, le rendu de PCem (vid_hercules.c:145-188, inscrit dans
     /// hercules_poll), recopié pour le faisceau : le graphique (3B8h bit 1 et 3BFh bit 0), 16 points par caractère, la
     /// page de 3B8h bit 7 ; le texte, 9 points, comme la MDA.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
