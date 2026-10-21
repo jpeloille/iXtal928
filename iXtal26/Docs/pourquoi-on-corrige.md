@@ -2379,3 +2379,18 @@ Julien à Q17 : la documentation du matériel tranche.*
 - **La correction.** Quatre réglages, dans les deux modes, la carte présente par défaut comme chez PCem : `serial1`,
   `serial2`, `parallel1` et `parallel2`, 0 pour retirer la carte. Retirer COM1 sous la souris série, ou LPT1 sous un
   périphérique de LPT1, se dit au chargement. Sur le PC1512, COM1 et LPT1 restent : ils sont sur la carte mère.
+
+## GR.1i2 — le sous-canal du CD au lead-out
+
+*Le 21 octobre 2026, écrite avec son commit ; `PLAN-GR.md` § GR.1i2, `VERIFICATION.md` § GR.1i2.*
+
+### PB-123 — une correction qui retranchait 150 à une position absente
+
+- **Le vrai PC.** Quand la lecture audio s'est menée jusqu'au bout du disque, la tête est au lead-out, hors de
+  toute piste. La norme y veut la piste AAh. iXtal garde ce que rend PCem, la piste 0 et l'adresse 0, dans les deux
+  modes, et l'entrée PB-123 le dit.
+- **L'émulateur.** La correction de PB-123 rend l'adresse absolue en LBA moins 150, les secteurs de l'amorce. Elle
+  s'appliquait aussi au lead-out, où la position n'a pas été trouvée et vaut zéro : le mode matériel rendait
+  FFFFFF6Ah, où PCem rend 0. C'est un défaut de notre correction, que la relecture contradictoire de GR.1i a trouvé.
+- **La correction.** Les 150 ne sont retranchés que d'une position trouvée dans une piste. Au lead-out, les deux modes
+  rendent la piste 0 et l'adresse 0.

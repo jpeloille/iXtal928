@@ -2541,12 +2541,16 @@ type, de PB-273. Restent comme chez PCem :
 l'adresse de départ FFFFFFFFh (« play from the current location of the optics », § 10.8.8), qui n'atteint pas le
 lecteur (le contrôle de piste la refuse, 64h) ; READ SUB-CHANNEL rend la position du
 prochain secteur à lire, là où la norme dit le dernier joué — le tampon de son rend l'écart indécidable au secteur
-près —, l'état 13h après un SEEK (la Table 116 donnerait 15h), et la piste 0 au lead-out (la norme : AAh).
+près —, l'état 13h après un SEEK (la Table 116 donnerait 15h), et, au lead-out, la piste 0 et les adresses 0, en
+MSF comme en LBA (la norme : la piste AAh) — `lba_absolue_materiel` n'y retranche rien, `GetAudioSub` n'ayant
+trouvé aucune piste (GR.1i2 : elle en retranchait 150, FFFFFF6Ah).
 `materiel-cas PB-123` (au niveau du
 pilote d'images, sur mixte.cue : PLAY AUDIO en LBA depuis 42, SEEK au LBA 42, puis PLAY AUDIO MSF depuis 00:02:42,
 huit secteurs joués, et READ SUB-CHANNEL en MSF et en LBA ; le son du premier rappel) rend 150 et 72, des zéros, 42,
 00:02:50 et 00:02:08, 200 et 158 en mode PCem ; 192 et 222, le secteur 42 de mixte.bin, 192, 00:02:50 et 00:00:08, 50
-et 8 en mode matériel ; la correction coupée, il rougit.
+et 8 en mode matériel ; puis la piste 3 jouée jusqu'au lead-out (PLAY AUDIO MSF de 00:05:15 à 00:05:22) : READ
+SUB-CHANNEL en LBA rend la position 397, la piste 0 et les adresses 0 dans les deux modes (GR.1i2) ; la correction
+coupée, il rougit.
 
 ### PB-125 — Le lecteur ZIP écrit et lit hors de ses tampons, et hors de l'image
 

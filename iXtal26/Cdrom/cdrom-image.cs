@@ -301,7 +301,9 @@ internal static partial class cdrom_image
         // DEVIATION: hors des pistes, GetAudioSub n'écrit rien et b[] reçoit l'indéterminé ; zéro (en-tête).
         TMSF relPos = default, absPos = default;
         uint8_t attr = 0, track = 0, index = 0;
-        cdrom.GetAudioSub(unchecked((int)cdpos), ref attr, ref track, ref index, ref relPos, ref absPos);
+        // GR.1i2 : au lead-out, GetAudioSub ne trouve aucune piste et laisse les positions à zéro ; la correction de
+        //   PB-123 ne vaut que pour une position trouvée.
+        bool trouvee = cdrom.GetAudioSub(unchecked((int)cdpos), ref attr, ref track, ref index, ref relPos, ref absPos);
 
         if (image_cd_state == CD_PLAYING)
             ret = 0x11;
@@ -338,7 +340,7 @@ internal static partial class cdrom_image
         else
         {
             uint32_t dat = unchecked((uint32_t)MSFtoLBA(absPos.min, absPos.sec, absPos.fr));
-            if (materiel.pb_123)
+            if (materiel.pb_123 && trouvee)
                 dat = lba_absolue_materiel(dat);
             b[o + pos++] = (uint8_t)((dat >> 24) & 0xff);
             b[o + pos++] = (uint8_t)((dat >> 16) & 0xff);

@@ -15837,3 +15837,29 @@ comprises) ; les refusées qui ne sont pas des comparaisons à l'oracle ; deux c
 reclassés ; le mode d'écriture 1 dit avec son masque partiel ; l'EGA secondaire retirée de K, n'étant pas un
 compteur ; la DSS et le Covox dits par leur émission ; la perte d'un processus tué. Réfuté : quatre lignes de plus de
 120 caractères — comptées en caractères, la plus longue en fait 119.
+
+## GR.1i2 — PB-123 au lead-out
+
+Le 22 octobre 2026 (PLAN-GR.md § GR.1i2 ; constat de S4 dans § GR.1i). La correction de PB-123 rend en LBA la position
+absolue moins 150 (`lba_absolue_materiel`, `cdrom-image.cs`). Au lead-out, `GetAudioSub` ne trouve aucune piste et
+laisse les positions à zéro : PCem rend la piste 0 et les adresses 0 ; le mode matériel retranchait 150 de ce zéro et
+rendait FFFFFF6Ah, une adresse qu'aucun lecteur ne rend.
+
+**La correction.** `image_getcurrentsubchannel` garde le retour de `GetAudioSub` et ne retranche les 150 que d'une
+position trouvée ; l'entrée PB-123 dit ce qui reste comme chez PCem au lead-out (la piste 0, les adresses 0, en MSF
+comme en LBA ; la norme dirait la piste AAh), et `pourquoi-on-corrige.md` a sa section.
+
+**Le cas neuf.** `materiel-cas PB-123` gagne un dernier cas : sur mixte.cue, PLAY AUDIO MSF de 00:05:15 à 00:05:22, la
+piste 3 jouée jusqu'au bout par le rappel du son, puis READ SUB-CHANNEL en LBA. Attendu dans les deux modes : la
+position 397, la piste 0, l'absolue et la relative à 00000000.
+- avant la correction : vert en mode PCem, rouge en mode matériel (`FFFFFF6A`, la sonde à 7 passages) ;
+- après : vert dans les deux modes (la sonde à 6 passages en mode matériel, 0 en mode PCem).
+
+**Les séries entières**, l'émulateur changeant (`/tmp/a9/series-gr1i2.sh`, sur `/tmp/a9/wtgr2a`) :
+- mode PCem, `gr1i2` contre `gr2d1` : 827 portes, toutes vertes ;
+- sous « tout », `gr1i2-tout` contre `gr2d1-tout` : 549 vertes, 267 refusées (boot-diff et ses semblables), 11 en mode
+  PCem seul ; aucune rouge.
+
+Aucune porte de la référence ne manque. Les 22 portes neuves et les trois messages changés (`bd-ami486-aha-banc`,
+`cdimage-check`, `r9-cue`) viennent des étapes passées depuis `gr2d1` (GR.2d2 à GR.3g), non de cette correction.
+Aucun défaut neuf.

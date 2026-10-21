@@ -313,6 +313,21 @@ internal static partial class MaterielCas
         var (la, lr) = (Be(b, 3), Be(b, 7));
         bad += Voir("READ SUB-CHANNEL en LBA : l'absolue, la relative", (la, lr) == (hw ? (50u, 8u) : (200u, 158u)), $"{la}, {lr}",
                     hw ? "50, 8" : "200, 158", hw);
+        // Le lead-out (GR.1i2) : PLAY AUDIO MSF de 00:05:15 à 00:05:22 (les sept derniers secteurs de la piste 3)
+        // joué jusqu'au bout ; la position est au lead-out (LBA 247), où GetAudioSub ne trouve aucune piste. READ
+        // SUB-CHANNEL en LBA rend la piste 0 et l'adresse 0 dans les deux modes (le matériel en retranchait 150 :
+        // FFFFFF6Ah).
+        a.stop();
+        a.playaudio(0x00050F, 0x000516, 1);
+        for (var n = 0; n < 4 && cdrom_image.image_cd_state == cdrom_image.CD_PLAYING; n++)
+            cdrom_image.image_audio_callback(new short[1176 * 8], 1176 * 8);
+        p = cdrom_image.image_cd_pos;
+        a.getcurrentsubchannel(b, 0, 0);
+        var (piste, fa, fr) = (b[1], Be(b, 3), Be(b, 7));
+        bad += Voir("la piste 3 jouée jusqu'au lead-out ; READ SUB-CHANNEL en LBA : la position, la piste, l'absolue, "
+                    + "la relative",
+                    (p, piste, fa, fr) == (397u, (byte)0, 0u, 0u), $"{p}, piste {piste}, {fa:X8}, {fr:X8}",
+                    "397, piste 0, 00000000, 00000000", hw);
         return bad;
     });
 
