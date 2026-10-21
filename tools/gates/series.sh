@@ -450,8 +450,8 @@ done
 run r9-joycfg r9-joycfg
 # GR.3e — QBASIC STICK et STRIG sous boot-diff, sur l'ami286 (c286.img, QBASIC de MS-DOS 5.00) : un programme écrit par
 # ECHO imprime seize fois STICK(0), STICK(1), STRIG(1) et STRIG(5) ; quatre états de la manette injectés des deux côtés
-# par --joy-at pendant qu'il tourne (au repos, les deux extrêmes avec un bouton chacun, un état intermédiaire). KeyScript
-# ne tape pas « ; » : la ligne arrive en PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5), que QBASIC accepte.
+# par --joy-at pendant qu'il tourne (au repos, les deux extrêmes avec un bouton chacun, un état intermédiaire).
+# KeyScript ne tape pas « ; » : la ligne arrive en PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5), que QBASIC accepte.
 QB=(--type "ECHO FOR I = 1 TO 16 >S.BAS" --type "ECHO PRINT I; STICK(0); STICK(1); STRIG(1); STRIG(5) >>S.BAS"
   --type "ECHO FOR J = 1 TO 10000: NEXT J >>S.BAS" --type "ECHO NEXT I >>S.BAS" --type "ECHO SYSTEM >>S.BAS"
   --type "C:\\DOS\\QBASIC /RUN S.BAS" --type "@wait 9000")

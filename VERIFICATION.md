@@ -15181,8 +15181,8 @@ dans DEBUG sur le 5150. Aucun programme d'époque ne la lisait.
 **Le programme.** Il tourne sur l'ami286 (D7), `c286.img` de la recette (MS-DOS 5.00, QBASIC, sans `KEYB FR`). Il est
 écrit par `ECHO … >>S.BAS`, KeyScript n'ayant pas de Ctrl-Z pour `COPY CON`, puis lancé par `QBASIC /RUN S.BAS`.
 Seize fois, il imprime `STICK(0)`, `STICK(1)`, `STRIG(1)` et `STRIG(5)` (KeyScript ne tape pas « ; » : la ligne
-arrive en `PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5)`, que QBASIC accepte), séparés par une boucle `FOR J` vide (ni `>`
-ni `<`, que DOS prendrait pour une redirection). Une course de mesure, sans manette, a situé l'exécution. Puis
+arrive en `PRINT I STICK(0) STICK(1) STRIG(1) STRIG(5)`, que QBASIC accepte), séparés par une boucle `FOR J` vide
+(ni `>` ni `<`, que DOS prendrait pour une redirection). Une course de mesure, sans manette, a situé l'exécution. Puis
 quatre états sont injectés des deux côtés par `--joy-at`, pendant que le programme tourne.
 
 **La porte** `bd-ami286-qbasic-stick` : verte, 129 587 929 instructions. Ce qu'elle lit à l'écran :
