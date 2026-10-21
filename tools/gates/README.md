@@ -62,6 +62,8 @@ Les profils de la racine (`ixtal26-*.cfg`) sont lus tels quels par `bd-xtcfg`, e
 et `bd-cfg-xt-hercules`, depuis le répertoire de la porte (qui lie la racine). `--expect-carte NOM` y exige la carte
 du profil, par la sonde vidéo des deux côtés : sans lui, un profil passé à une autre carte resterait vert. Un profil
 ne porte jamais `hardware_mode` : boot-diff le refuse.
+`bd-cfg-486-cd` (GR.3b) lit `ixtal26-486.cfg` par la recette, qui n'en remplace que le disque (`ixtal26-486-porte.cfg`,
+dans le WORK) : le lecteur de CD vide et la SB Pro y sont exigés des deux côtés (`--expect-cd`, `--expect-sb`).
 
 Les portes du CD (G10.3, `cdimage-check` et `r9-cue`) n'ont pas d'espace préparé : chacune écrit
 les images d'isogen (`tools/isogen/isogen.py`) dans un répertoire de son `TMPDIR`, les vérifie

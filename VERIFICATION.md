@@ -14986,3 +14986,50 @@ l'EGA).
 - confirmé le constat sur l'écran de la MDA, et expliqué celui de l'Hercules par PB-98.
 
 Ses points sont repris : la limite de Windows du 286, reformulée ; la mémoire de l'Hercules, précisée.
+
+## GR.3b — Le CD, LPT et la manette dans les profils 486
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § 1.3 et D4). Les clés existaient depuis G10 (le lecteur de CD, le
+port parallèle, la manette), mais aucun profil ne les posait.
+
+**Les profils 486.** `ixtal26-486.cfg` et `ixtal26-486-s3.cfg` gagnent trois blocs, expliqués dans leur en-tête :
+- le lecteur de CD-ROM ATAPI au canal 2, vide (`cdrom_channel = 2`, `cdrom_drive = -1`), le CR-587-B nommé
+  (`cd_model`). Pour un disque, il faut poser `cdrom_drive = 200` et `cdrom_path`, la fenêtre n'ayant pas de menu
+  pour en charger un. Le BIOS ne touche pas le canal secondaire, et le disque n'a ni pilote ATAPI ni MSCDEX ;
+- `lpt1_device = none` : LPT1 reste vide dans le profil de référence (PLAN-G10.md, décision n° 3) ;
+- la manette : `joystick_type = 0` (deux axes, deux boutons, sur 201h) et une section `[Joysticks]` qui la branche
+  sur la manette 1 de l'hôte (axes 0 et 1, boutons 0 et 1). Sans manette sur l'hôte, l'invité en voit une
+  branchée, au repos ; l'en-tête le dit, et `joystick_0_nr = 0` rend le port vide.
+
+**Les profils d'écoute** (D4) : `ixtal26-486-dss.cfg` et `ixtal26-486-covox.cfg`. C'est la machine de
+`ixtal26-486.cfg`, sans le CD ni la manette, même disque et même CMOS, avec la Disney Sound Source ou le Covox sur
+LPT1. Le lanceur n'a pas de `--lpt1`. `launchSettings.json` gagne deux profils Rider.
+
+**La porte** `bd-cfg-486-cd`. La recette g5w écrit `ixtal26-486-porte.cfg` depuis le profil lui-même, son disque
+remplacé par la copie du WORK (`c386.img`). Elle échoue si la substitution n'a pas eu lieu. Il n'y a donc pas de
+copie `.cfg.in` qui pourrait diverger du profil. La porte joue le POST entier sous boot-diff, avec
+`--expect-cd 2,vide` et `--expect-sb 220,5,1`. Elle est verte : 73 516 427 instructions, la SB Pro en 220h, IRQ 5,
+DMA 1, et le lecteur vide sur l'unité IDE 2, des deux côtés.
+
+**Les profils, en C# seul, dans les deux modes** (`/tmp/a9/temoins-3b.sh`, le bac à sable de G13.10a, le CMOS refait
+par `--make-nvr` depuis chaque profil). On amorce jusqu'à l'invite de DOS :
+- les deux profils 486, avant et après l'étape : le même écran, en mode PCem comme sous « tout ». Aucun recompte, LPT
+  et le port jeu étant déjà là depuis G10.0 ;
+- les quatre profils : le même écran entre les deux modes ;
+- la manette 1 absente de l'hôte : aucun avertissement.
+
+**Les contrôles négatifs** (`/tmp/a9/neg3b/`), sur des copies de la configuration de la porte :
+- sans `cdrom_channel` : rc 1, « Lecteur de CD-ROM : oracle unité vide, … attendu sur l'unité 2 » ;
+- `lpt1_device = dsss` : refusé, rc 2, avec la liste (`none`, `dss`, `lpt_dac`, `lpt_dac_stereo`).
+
+**La série.** L'émulateur ne change pas : un sous-ensemble sur le worktree, en Release, la recette refaite (conforme
+aux empreintes, `ixtal26-486-porte.cfg` écrit). `bd-cfg-486-cd` et `bd-ami486-cd-vide` sont vertes en mode PCem.
+Sous « tout », une porte boot-diff est refusée par construction : elle n'a pas été rejouée.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a confronté les commentaires au code (la table des
+modèles de CD, la DSS, le port jeu), relu le parseur des sections, la recette et la CMOS de la porte. Ses points sont
+repris : la manette absente de l'hôte, dite dans l'en-tête ; les profils d'écoute, « sans le CD ni la manette ».
+
+**Pour GR.3c** (relevé par la contre-lecture) : l'écran de construction n'enregistre pas `lpt1_device`. Un profil
+d'écoute chargé puis enregistré perdrait son LPT1, et l'enregistrement écrit `hardware_mode` (le piège de
+R3-contre).

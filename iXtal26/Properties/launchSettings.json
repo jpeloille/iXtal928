@@ -64,6 +64,14 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486.cfg --hardware-mode pcem"
     },
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, Disney Sound Source, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-dss.cfg"
+    },
+    "iXtal26 (486DX2/66, IDE, Cirrus GD5429, Covox, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-486-covox.cfg"
+    },
     "iXtal26 (486DX2/66, IDE, S3 Trio64, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-486-s3.cfg"

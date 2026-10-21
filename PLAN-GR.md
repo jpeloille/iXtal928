@@ -285,7 +285,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - les profils à disque écrivent sur des images propres au profil, pas sur `os/` ;
   - les en-têtes disent les limites de Windows ;
   - `bd-cfg-5150-mda` et `bd-cfg-xt-hercules` ; les profils à disque en C# seul, dans les deux modes.
-- **GR.3b — Le CD, LPT et la manette dans les profils 486** :
+- **GR.3b — Le CD, LPT et la manette dans les profils 486** ✅ *fait, § GR.3b* :
   - le lecteur au canal 2, vide, et la manette, dans `ixtal26-486.cfg` et `-486-s3.cfg` ;
   - LPT1 reste à `none` (PLAN-G10, décision n° 3) ;
   - deux profils courts pour l'écoute, la DSS et le Covox ;

@@ -465,6 +465,10 @@ run r9-cue r9-cue
 # s'arrête (PB-113 à PB-116) et les clés du lecteur (PB-93, PB-110).
 runw bd-ami486-cd-vide c.nvr aucune boot-diff roms 40000 --config ami486-cd-vide.cfg --expect-cd 2,vide
 runw bd-ami486-cd-iso c.nvr aucune boot-diff roms 40000 --config ami486-cd-iso.cfg --expect-cd 2,image
+# GR.3b — le profil ixtal26-486.cfg lu par la recette (ixtal26-486-porte.cfg, le disque remplacé) : le POST entier,
+# le lecteur de CD vide au canal 2 et la SB Pro des deux côtés.
+runw bd-cfg-486-cd c486.nvr ami486 boot-diff roms 40000 --config ixtal26-486-porte.cfg --expect-cd 2,vide \
+  --expect-sb 220,5,1
 # GR.2b — ATAPIBANC tiré d'une table (atapibanc.py, TABLE_LIGNES) : les 30 commandes du lecteur et leurs cas
 # limites, sans les sites R9 ; le volume, README.TXT et DATA.BIN lus de bout en bout, leurs sommes celles d'isogen ; une
 # ligne par paquet, trois pauses (une touche chacune). Sous boot-diff sur l'ami486, chargé et vide, et sur l'ami286 et

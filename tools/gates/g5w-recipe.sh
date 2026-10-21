@@ -30,6 +30,7 @@
 #                        bd-ami486-aha-format écrit des deux côtés (G11) ;
 #   aha486.nvr, aha386.nvr, aha286.nvr : CMOS sans disque des trois machines de l'AHA-1542C (G11) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
+#   ixtal26-486-porte.cfg : le profil ixtal26-486.cfg, son disque remplacé par c386.img (GR.3b) ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
 #                        en C: et D: ; ami386dx ; ami486, G6.4 ; ami386dx sans disque, PS2.0) ;
 #   nvr/default        : les CMOS de référence de PCem.
@@ -67,6 +68,9 @@ python3 "$G/fatpatch.py" "$WORK/dos5-1.img" AUTOEXEC.BAT "$WORK/ae-dos5.bat" --d
 truncate -s 20971520 "$WORK/scsi20.img"
 cp "$WORK/scsi20.img" "$WORK/scsic.img"
 for t in "$G"/cfg/*.cfg.in; do sed "s|@WORK@|$WORK|g" "$t" > "$WORK/$(basename "$t" .in)"; done
+# GR.3b — le profil ixtal26-486.cfg lui-même, son disque remplacé par la copie du WORK (bd-cfg-486-cd).
+sed "s|^hdc_fn = os/486-HDD-C.img\$|hdc_fn = $WORK/c386.img|" "$REPO/ixtal26-486.cfg" > "$WORK/ixtal26-486-porte.cfg"
+grep -q "^hdc_fn = $WORK/c386.img\$" "$WORK/ixtal26-486-porte.cfg"
 cd "$WORK"
 dotnet "$BIN" --make-nvr ami286-mfm.cfg c.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami286-cd.cfg cd.nvr --force > /dev/null
