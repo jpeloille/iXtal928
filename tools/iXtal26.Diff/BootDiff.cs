@@ -490,6 +490,10 @@ public static class BootDiff
     /// du .cfg est arrivée, et pas seulement que les deux côtés ont pris le même défaut. G12.1 :
     /// `ADDR,IRQ,DMA,DMA16` pour la SB 16, le DMA 16 bits lu dans l'état final.</summary>
     internal static string? ExpectSb;
+    /// <summary>GR.3a — `--expect-carte NOM` (MDA, Hercules, EGA, CGA, VGA, M24, PC1512 ; VGA pour toute SVGA) : la
+    /// porte exige que la sonde vidéo de fin de course soit de ce genre, des deux côtés — preuve que la carte d'un
+    /// profil lu tel quel est arrivée, et pas seulement que les deux côtés ont pris la même.</summary>
+    internal static string? ExpectCarte;
     /// <summary>PS2.0 — `--mouse-type N` (l'indice de mouse_list, pc.c:784), appliqué après
     /// --config et --model, puis jugé contre la machine (pas de PS/2 sans MODEL_PS2).</summary>
     internal static int? MouseTypeOverride;
@@ -988,6 +992,14 @@ public static class BootDiff
             // principe. Sans carte VGA des deux côtés, la sonde est muette : la CGA de
             // l'oracle a une palette stubée, ses pixels ne se comparent pas.
             var vgaVerdict = CompareVga(vgaOracle, vgaCsharp);
+            var genreOracle = VgaProbe.Genre(vgaOracle[0]);
+            if (ExpectCarte is not null && !(vgaOracle[0] == vgaCsharp[0] &&
+                                             genreOracle.Equals(ExpectCarte, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.Error.WriteLine($"Carte : la sonde est {genreOracle} / {VgaProbe.Genre(vgaCsharp[0])}, " +
+                                        $"et non {ExpectCarte} (--expect-carte).");
+                vgaVerdict = 1;
+            }
 
             // L'écran du côté C#, quand on a tapé : un accord parfait sur une image
             // inchangée laisse la question « pourquoi la frappe n'a-t-elle rien

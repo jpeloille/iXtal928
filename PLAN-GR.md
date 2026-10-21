@@ -279,7 +279,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 
 ### GR.3 — Les deux clôtures
 
-- **GR.3a — Les quatre profils de G9** :
+- **GR.3a — Les quatre profils de G9** ✅ *fait, § GR.3a* :
   - 5150 + MDA, XT + Hercules (disquette seule), 286 + EGA, 386DX + ET4000AX, en mode matériel (décision n° 17 de
     G13) ;
   - les profils à disque écrivent sur des images propres au profil, pas sur `os/` ;

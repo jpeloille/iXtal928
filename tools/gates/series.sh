@@ -23,6 +23,12 @@ for g in cga vga tvga8900d tvga9000b mda hercules ega et4000ax; do
   run bd-xtdos-$g boot-diff roms 7000 --config ixtal26-xt.cfg --fda $DOS --gfxcard $g
 done
 run bd-xtcfg boot-diff roms 6000 --config ixtal26-xt.cfg
+# GR.3a — les deux profils de G9 à disquette, lus tels quels comme bd-xtcfg : le POST, PC-DOS 2.00 (la date et
+# l'heure), VER, MODE MONO, DIR ; --expect-carte exige la carte du profil des deux côtés.
+for p in 5150-mda:MDA xt-hercules:Hercules; do
+  run bd-cfg-${p%:*} boot-diff roms 11500 --config ixtal26-${p%:*}.cfg --type-at 7000 --type-settle 600 --type "" \
+    --type "" --type VER --type "MODE MONO" --type DIR --expect-carte ${p#*:}
+done
 run bd-pc-cpu3 boot-diff roms 6000 --cpu 3
 run bd-ibmat boot-diff roms 3000 --model ibmat
 run bd-ibmat-vga boot-diff roms 3000 --model ibmat --gfxcard vga

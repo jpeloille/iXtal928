@@ -14915,3 +14915,74 @@ Ses mineurs sont repris :
 - le compte des mutations écartées ;
 - « ouvre » au lieu de « monte » pour le répertoire chez PCem, qui n'est jamais joué sur l'oracle ;
 - une ligne de 124 caractères.
+
+## GR.3a — Les quatre profils de G9
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § 1.2, D1 à D3 ; R3-contre.md § K et § 1.8). Les cartes de G9 n'avaient
+pas de profil (PLAN.md, la décision du 04/10).
+
+**Les profils.** Ce sont quatre fichiers courts, qui renvoient aux en-têtes de leur profil de base et n'en changent
+que la carte (et, pour ceux à disque, les chemins des disques). Ils tournent en mode matériel, le défaut du lancement
+depuis G13.11 : aucun ne porte `hardware_mode`. Aucun jumeau PCem (D1) : le mode PCem de ces machines est couvert par
+les portes boot-diff.
+- `ixtal26-5150-mda.cfg` : le 5150 de `ixtal26.cfg`, avec la MDA ; un sixième profil du 5150 (R3-contre § K).
+- `ixtal26-xt-hercules.cfg` : le 5160 de `ixtal26-xt.cfg`, avec l'Hercules, sur disquette seule (D2).
+- `ixtal26-286-ega.cfg` : le 286 de `ixtal26-286.cfg`, avec l'EGA. Ses disques sont `os/286-EGA-C.img` et
+  `-D.img`. L'en-tête dit la limite de Windows (D3) : celui du disque est réglé en `VGA.DRV`, sans `EGA.DRV`, et son
+  SETUP DOS est à faire d'abord, sur la copie du profil.
+- `ixtal26-386-et4000.cfg` : le 386 de `ixtal26-386.cfg`, avec l'ET4000AX. Son disque est `os/386-ET4000-C.img`.
+  Windows tourne en `VGA.DRV`, et `SVGA256.DRV` est sans objet (G9.3).
+
+Les profils à disque n'écrivent pas sur les images d'un autre profil (R3-contre § 1.8). Leurs disques sont des copies
+que l'utilisateur crée avant le premier lancement : l'en-tête donne les commandes, comme `ixtal26-486-scsi.cfg`. Les
+CMOS sont partagés avec les profils VGA, l'octet d'équipement étant le même.
+
+`launchSettings.json` gagne quatre profils Rider. Les deux à disquette sont en `--turbo`, comme ceux du 5150 et du XT.
+
+**Les portes** (`series.sh`) : `bd-cfg-5150-mda` et `bd-cfg-xt-hercules`. Elles lisent le profil tel quel, comme
+`bd-xtcfg`, et jouent le POST, PC-DOS 2.00 (la date et l'heure), `VER`, `MODE MONO` et `DIR`, sur 11 500 tranches (la
+frappe va de la tranche 7 000 à 10 272).
+
+boot-diff gagne `--expect-carte NOM` : la sonde vidéo de fin de course doit être de ce genre, des deux côtés. Sans
+lui, un profil passé à une autre carte resterait vert : la ligne du `.tsv` ne garde pas la sonde.
+
+Les deux portes sont vertes :
+- le 5150 et la MDA : 38 489 117 instructions, la sonde MDA identique (20 champs) ;
+- le XT et l'Hercules : 34 100 844 instructions, la sonde Hercules identique.
+
+**Les profils à disque, en C# seul, dans les deux modes** (`/tmp/a9/temoins-3a.sh`, le bac à sable de G13.10a). Les
+disques du profil y sont liés aux copies de la recette g5w (sans `KEYB FR`), et le CMOS est refait par `--make-nvr`
+depuis le profil. Le témoin tape `VER`, `MODE CON`, `MSD /S` (vers un fichier), puis `FIND /I "VIDEO"` :
+- 286 + EGA : MS-DOS 5.00, « Video: EGA, Unknown » ;
+- 386 + ET4000 : MS-DOS 5.00, « Video: VGA, Tseng ».
+
+Les écrans sont identiques entre le mode PCem et « tout ».
+
+**Les contrôles négatifs** (`/tmp/a9/neg3a/`) :
+- le profil du 5150 copié avec `gfxcard = cga` : vert au diff, rouge par `--expect-carte` (« la sonde est CGA / CGA,
+  et non MDA »), rc 1 ;
+- le profil du XT copié avec `hardware_mode = 1` : refusé par boot-diff, rc 2.
+
+**Les originaux.** Les 154 fichiers de `os/` ont les mêmes empreintes avant et après. Aucune image de profil n'y a
+été créée : c'est à l'utilisateur de le faire.
+
+**Un constat, hors de l'étape.** Sous boot-diff, l'écran texte de la MDA se relit vide en fin de course : c'est le
+cas de `bd-cfg-5150-mda`, et déjà de `bd-pc-mda` et `bd-pcdos-mda`. `DumpTextScreen` lit B0000h par
+`mem_readb_phys` après `pc.closepc()`, quand `mda_close` a retiré la projection. La VGA et l'EGA sont retenues avant
+la fermeture, la MDA non. L'Hercules du XT s'affiche parce que `hercules_close` ne retire pas la sienne (PB-98,
+reproduit) : il se viderait aussi le jour où PB-98 serait corrigé. La preuve de la porte reste la sonde, qui compare
+la VRAM. C'est un défaut de l'outil, à reprendre avec les portes de l'hôte (retenir la carte avant `closepc`, comme
+l'EGA).
+
+**La série.** L'émulateur ne change pas. boot-diff gagne une option : un sous-ensemble sur le worktree, en Release.
+- En mode PCem, verts : `bd-cfg-5150-mda`, `bd-cfg-xt-hercules`, `bd-xtcfg`, et quatre portes vidéo qui ne prennent
+  pas l'option (`bd-pc-mda`, `bd-pcdos-ega`, `bd-xtdos-hercules`, `bd-ami286-ega`).
+- Sous « tout » : les trois portes de profil refusées, comme toute porte boot-diff.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a :
+- confronté les en-têtes au code (la création d'un disque vide, `hdd_file.cs` ; l'octet 0x14, `NvrImage.cs`) ;
+- comparé les clés aux profils de base ;
+- relu `--expect-carte` et son code de retour ;
+- confirmé le constat sur l'écran de la MDA, et expliqué celui de l'Hercules par PB-98.
+
+Ses points sont repris : la limite de Windows du 286, reformulée ; la mémoire de l'Hercules, précisée.

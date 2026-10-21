@@ -24,6 +24,10 @@
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26.cfg --turbo --verbose"
     },
+    "iXtal26 (IBM PC 5150, MDA)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-5150-mda.cfg --turbo"
+    },
     "iXtal26 (IBM XT 5160)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-xt.cfg --turbo"
@@ -32,13 +36,25 @@
       "commandName": "Project",
       "commandLineArgs": "--model ibmxt --turbo"
     },
+    "iXtal26 (IBM XT 5160, Hercules)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-xt-hercules.cfg --turbo"
+    },
     "iXtal26 (286, Trident 8900D, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-286.cfg"
     },
+    "iXtal26 (286, EGA, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-286-ega.cfg"
+    },
     "iXtal26 (386DX, Trident 9000B, sans turbo)": {
       "commandName": "Project",
       "commandLineArgs": "--config ixtal26-386.cfg"
+    },
+    "iXtal26 (386DX, ET4000AX, sans turbo)": {
+      "commandName": "Project",
+      "commandLineArgs": "--config ixtal26-386-et4000.cfg"
     },
     "iXtal26 (486DX2/66, IDE, Cirrus GD5429, sans turbo)": {
       "commandName": "Project",

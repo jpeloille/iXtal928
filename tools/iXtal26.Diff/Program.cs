@@ -42,6 +42,7 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("            [--config FICHIER] [--model NOM] [--type TEXTE ...] [--type-at N]");
     Console.WriteLine("            [--type-settle N] [--gfxcard cga|vga|tvga8900d|tvga9000b|cl_gd5429|px_trio64] [--sndcard none|adlib|sb|sb1.5|sb2.0|sbprov1|sbprov2|sb16|sbawe32] [--expect-emu ADDR,RAM] [--lpt1 none|dss|lpt_dac|lpt_dac_stereo] [--lpt-jeu-hors-service] [--expect-sb ADDR,IRQ,DMA[,DMA16]] [--cd-model NOM] [--expect-cd CANAL,vide|image] [--expect-cd-son] [--mouse-type N [--force-ps2]] [--mouse-at T:dx,dy,dz,b] [--joystick-type N] [--joy-at T[/N]:x,y,b[,z[,pov]]] [--cpu N]");
     Console.WriteLine("            [--lockstep N [--lockstep-from S]]");
+    Console.WriteLine("            [--expect-carte MDA|Hercules|EGA|CGA|VGA|M24|PC1512]");
     Console.WriteLine("      Diff de traces d'amorçage. Phase 1 : hachage par instruction des");
     Console.WriteLine("      deux cœurs depuis le reset, pour situer la première divergence.");
     Console.WriteLine("      Phase 2 : rejeu en pas à pas jusque-là, vecteur d'état complet");
@@ -603,6 +604,7 @@ switch (args[0])
                     break;
                 }
                 case "--expect-sb" when i + 1 < args.Length: BootDiff.ExpectSb = args[++i]; break;
+                case "--expect-carte" when i + 1 < args.Length: BootDiff.ExpectCarte = args[++i]; break;
                 case "--mouse-type" when i + 1 < args.Length: BootDiff.MouseTypeOverride = int.Parse(args[++i]); break;
                 // PS2.1 — porte de vérification, pas une machine offerte (BootDiff.ForcePs2).
                 case "--force-ps2": BootDiff.ForcePs2 = true; break;

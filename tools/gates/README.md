@@ -58,6 +58,11 @@ descripteur : une série tuée garde la machine tant qu'une de ses portes tourne
 par émulation en C# seul, `xtide-format.keys`) et vérifie ses empreintes contre `g5w.sha256` ; `cfg/` porte les
 configurations des portes (`*.cfg.in` : gabarits de l'espace disque).
 
+Les profils de la racine (`ixtal26-*.cfg`) sont lus tels quels par `bd-xtcfg`, et depuis GR.3a par `bd-cfg-5150-mda`
+et `bd-cfg-xt-hercules`, depuis le répertoire de la porte (qui lie la racine). `--expect-carte NOM` y exige la carte
+du profil, par la sonde vidéo des deux côtés : sans lui, un profil passé à une autre carte resterait vert. Un profil
+ne porte jamais `hardware_mode` : boot-diff le refuse.
+
 Les portes du CD (G10.3, `cdimage-check` et `r9-cue`) n'ont pas d'espace préparé : chacune écrit
 les images d'isogen (`tools/isogen/isogen.py`) dans un répertoire de son `TMPDIR`, les vérifie
 contre `tools/isogen/isogen.sha256` — un générateur qui dérive rougit la porte —, et les efface en
