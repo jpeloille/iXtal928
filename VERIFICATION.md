@@ -15695,3 +15695,145 @@ recompté la note. Ses points sont repris : les cinq renvois périmés de PB-36 
 le décompte des confirmés reformulé ; le défaut de PB-123 cité à ses lignes (340-342). Laissés : la plage `:95-110` de
 PB-123, qui désigne le corps utile d'`image_playaudio` ; les deux bornes de `filters.h` dans `lpt_dac.cs`, l'une avec
 la redéfinition de NCoef (243-268), l'autre sans (244-268), toutes deux justes pour ce qu'elles couvrent.
+
+## GR.1h, GR.2f — La couverture comptée
+
+Le 21 octobre 2026 (PLAN-GR.md § GR.1h, GR.2f ; la méthode de M15). Le diff prouve l'accord sur les chemins exercés ;
+la couverture dit lesquels le sont, dans chaque mode.
+
+**La méthode.** Sur une copie jetable du worktree (jamais dans le dépôt), un réécrivain Roslyn pose un compteur à
+l'entrée de chaque méthode, de chaque section de `switch` et de chaque branche d'un `if` (le `else` implicite compris),
+dans les 23 fichiers du plan :
+- la vidéo de G9 : `vid_mda`, `vid_hercules`, `vid_ega`, `vid_et4000`, `vid_unk_ramdac`, et leurs `.Materiel.cs` ;
+- le stockage : `ide_atapi`, `scsi`, `scsi_cd`, `scsi_zip`, le moteur d'images (`cdrom_image`, `cdrom-image`), et leurs
+  `.Materiel.cs` ;
+- `lpt`, `lpt_dac`, `lpt_dss`.
+
+2 276 compteurs. Chaque passage est compté selon le mode de l'instant (`ModeMateriel.Actif`). À la sortie, chaque
+processus écrit ses compteurs non nuls par mode, avec sa ligne de commande. La série entière est jouée deux fois sur
+la copie, en Release : sans `MATERIEL` (827 portes vertes), puis sous `MATERIEL=tout` (549 vertes, 267 refusées et
+11 jouées en mode PCem seul : les R9, `materiel-mode`, les relevés SST). Les refusées sont les comparaisons à
+l'oracle (boot-diff, les fuzz hors `--fuite` et `--accord`, `cdimage-check`…) et les trois `pm-check` du mode
+protégé, qui ne se jugent sous le mode qu'en `--target csharp`.
+
+Une première passe rangeait les compteurs par série. C'était faux : la série sans `MATERIEL` joue aussi des portes en
+mode matériel (`materiel-cas-*-materiel`, `banc-*-materiel`), et la série sous « tout » des portes qui posent leur
+propre liste de PB. Les deux séries ont été rejouées avec le compte à l'instant, et les nombres ci-dessous en viennent.
+Une troisième passe de la série sans `MATERIEL`, pour la ligne de commande, rend les mêmes nombres.
+
+**Ce qui est exercé** (méthodes, `case` et branches ; chaque fichier avec son `.Materiel.cs`) :
+
+| Fichier | Compteurs | Mode PCem | Mode matériel | L'un ou l'autre |
+|---|---|---|---|---|
+| `vid_mda` | 122 | 81 | 111 | 118 |
+| `vid_hercules` | 130 | 89 | 121 | 125 |
+| `vid_ega` | 433 | 321 | 348 | 383 |
+| `vid_et4000` | 128 | 64 | 120 | 121 |
+| `vid_unk_ramdac` | 31 | 25 | 28 | 30 |
+| `ide_atapi` | 150 | 132 | 97 | 132 |
+| `scsi` | 89 | 79 | 76 | 79 |
+| `scsi_cd` | 393 | 248 | 289 | 332 |
+| `scsi_zip` | 262 | 166 | 195 | 211 |
+| `cdrom_image` | 295 | 251 | 220 | 271 |
+| `cdrom-image` | 151 | 126 | 118 | 147 |
+| `lpt` | 62 | 43 | 33 | 43 |
+| `lpt_dac` | 15 | 15 | 0 | 15 |
+| `lpt_dss` | 15 | 15 | 2 | 15 |
+| **total** | **2 276** | **1 655** | **1 758** | **2 022** |
+
+**Ce qui n'est atteint que dans un mode.**
+- *En mode matériel seul* : 367. 361 sont du code que le mode PCem n'entre pas par construction : 246 dans les
+  `.Materiel.cs`, 80 branches `materiel.pb_NN`, et 35 branches des gardes qui prennent la main sous une correction
+  (`plage_materiel`, `atc_cle_materiel`, `commande_absente_materiel`…). Six autres sont des états que seul le mode
+  matériel produit : le clignotement de l'EGA, trois états du RAMDAC, une lecture de longueur nulle du CD, une image ISO
+  de 2 336 octets par secteur.
+- *En mode PCem seul* : 264. Sur ces 264, 30 sont les branches de PCem qu'une correction remplace. Les autres viennent
+  des portes que le mode matériel ne joue pas. Par la ligne de commande des processus qui les atteignent :
+  - 71 ne sont atteints que sous boot-diff : 38 de la DSS et du Covox (`lpt`, `lpt_dac`, `lpt_dss`), 17 de l'EGA, 16
+    du CD, de l'ATAPI et du ZIP ;
+  - 67 ne le sont que par `cdimage-check`, la comparaison du moteur d'images à celui de l'oracle (refusée sous le
+    mode) ;
+  - 37 ne le sont que par les R9, les gardes injectées (28 de `ide_atapi`), jouées en mode PCem seul ;
+  - les autres sont atteints par un banc dans son passage en mode PCem et non dans son passage en mode matériel :
+    le chemin change avec la correction (la plupart dans `scsi_cd`, la MDA, l'Hercules et l'EGA).
+
+**Ce qui n'est jamais atteint** : 254 compteurs, chacun classé, aucun sans raison (`/tmp/a9/cov/raisons.py`), la
+contre-lecture ayant fait reclasser quatre compteurs.
+
+| Raison | Nombre |
+|---|---|
+| A. Une commande, un champ ou un accès qu'aucun banc ne fait | 65 |
+| B. Un état vidéo qu'aucune porte ne produit | 45 |
+| C. L'interface de PCem | 39 |
+| D. Un chemin d'erreur de fichier | 34 |
+| E. Le bus SCSI de l'ATAPI répond dans le même pas | 11 |
+| F. La recherche du CD | 13 |
+| G. Le bus master IDE | 10 |
+| H. PB-127 | 8 |
+| I. Le CD et le ZIP sur l'AHA | 8 |
+| J. Une relecture qu'aucun programme ne fait | 7 |
+| K. Un moniteur ou une ROM que les portes ne choisissent pas | 6 |
+| L. PB-121 | 5 |
+| M. Une branche morte de PCem | 2 |
+| N. Une liste de PB que la série ne joue pas | 1 |
+
+Ce que recouvre chaque raison :
+- A : SET FEATURES (le mode de transfert) du CD et du ZIP ; les pages R/W Error, CD-ROM et Capabilities de MODE
+  SELECT ; IOMEGA SENSE, pages 1 et 2 ; GET EVENT STATUS, tiroir ouvert ; l'IDENTIFY en PIO 3 et plus ; un compte
+  d'octets ATAPI de 0 ou 1 ; une lecture du port de données de l'ATAPI avant que les données soient prêtes ;
+- B : sur l'EGA, le mode d'écriture 1 et les opérations logiques avec un masque de plans partiel (le masque complet
+  est exercé), l'horloge divisée, les bits de CR17, le double balayage, l'écran éteint pendant l'affichage ;
+  l'entrelacé de l'Hercules ; la protection de CR0-7 de l'ET4000 en mode PCem ;
+- C : `*_available`, `*_add_status_info`, `force_redraw`, les listes de vitesses et de modèles de CD, `lpt1_init` et
+  `lpt2_init`. Ils sont sans appelant dans iXtal, ou appelés seulement par le refus d'une clé inconnue, que joue un
+  contrôle négatif hors des portes ;
+- D : une feuille CUE fausse, un fichier introuvable, `dirname` sur des chemins rares, une image de ZIP de mauvaise
+  taille ;
+- E : ni attente, ni phase changée, ni arbitrage, et les `fatal()` de PCem qui sont derrière ;
+- F : `seek_time` vaut toujours 0, les images de test ayant moins de `MIN_SEEK` (2 000) secteurs ;
+- G : aucune carte mère d'iXtal ne pose `ide_set_bus_master` ;
+- H : `scsi_add_data` rend 0, et les `fatal()` du ZIP ne sont jamais atteints ;
+- I : aucune porte ne monte le CD ni le ZIP sur le bus SCSI de la carte ;
+- J : les registres en écriture seule de l'EGA (3C0h, 3C5h, 3CEh, 3CFh, 3D4h), et 3B6h de la MDA et de l'Hercules ;
+- K : le moniteur vert de l'EGA et ses quatre teintes, une ROM d'EGA sans signature ;
+- L : `scsi_bus_close` vide ses tableaux avant sa boucle, et aucun périphérique n'est fermé ;
+- M : la branche « LUN absent » d'INQUIRY du ZIP (PB-283), et le `else if` de `lpt1_device_init`, toujours vrai ;
+- N : le curseur en OU exclusif de la MDA dans le code du mode matériel, qu'une liste sans PB-222 atteindrait.
+
+**Le code du mode matériel jamais atteint** (15 des 254, dans les raisons ci-dessus) :
+- trois sont morts par construction. `capacite_materiel` (PB-126), `sortie_ecrire_materiel` (PB-125) et
+  `cdrom_mode_select_materiel` (PB-119) prennent toujours la main, et la suite de PCem derrière elles ne court jamais
+  en mode matériel ;
+- `scsi_zip` : le refus de PB-126 hors de la plage pour READ(6), WRITE(6) et WRITE AND VERIFY (READ(10) et WRITE(10)
+  sont exercés) ; MODE SELECT(6) de longueur non nulle ;
+- `scsi_cd` : sous PB-119, une liste plus courte que son en-tête et une page autre que la page audio ; le dernier
+  bloc de PB-117 pour une image de moins de deux secteurs ;
+- `cdrom-image` : PB-273 sans image ou sur une plage vide ;
+- la vidéo : le curseur de la MDA sans PB-222, le soulignement de l'Hercules en mode faisceau, et son entrelacé.
+
+**Les constats.** Aucun défaut neuf : la couverture ne compare rien, elle dit où le diff et les bancs ne passent pas.
+Quatre trous ont du poids et vont à la dette de GR.5 :
+- en mode matériel, aucune porte n'exerce l'émission de la DSS ni du Covox : deux compteurs de `lpt_dss` seulement,
+  et aucun de `lpt_dac`. Leurs bancs sont des boot-diff, refusés sous le mode. Seule l'écoute de GR.3i les a joués
+  en C# seul ;
+- la recherche du CD n'attend jamais, faute d'une image de plus de 2 000 secteurs ;
+- le CD et le ZIP ne sont jamais montés sur l'AHA ;
+- SET FEATURES et les pages de MODE SELECT ne sont envoyées par aucun banc.
+
+**La série.** La copie jetable seule est instrumentée ; le dépôt ne change pas. Les deux séries entières sur la copie
+sont vertes, et rien n'est commité de l'instrumentation. Les outils (le réécrivain, `CovCompteur.cs`, `serie-cov.sh`,
+`depouille.py`, `raisons.py`, `attrib.py`) sont gardés hors du dépôt, dans `/var/tmp/ixtal-g13/a9-scripts/`.
+
+**Ce que ces nombres ne disent pas.** Un compteur atteint est un chemin parcouru, pas un chemin juste : la justesse
+vient du diff et des attendus. Ni les expressions à l'intérieur d'une condition (`&&`, `||`, `?:`), ni les boucles qui
+ne tournent jamais ne sont comptées. Un processus tué (le délai d'une porte, SIGKILL) perd ses compteurs, écrits à sa
+sortie : aucune porte n'a été tuée dans ces séries, toutes vertes ou refusées. Les numéros de ligne cités sont ceux
+d'avant GR.1i, qui ne change que des commentaires.
+
+**La contre-lecture** (Sonnet) a recompté chaque nombre par les scripts et les tsv des séries, et relu au moins
+deux compteurs par raison dans le code. Ses points sont repris : la branche morte de PB-283 est d'INQUIRY, pas de
+REQUEST SENSE ; le compteur de la MDA est le curseur sans PB-222, non le curseur plein ; les 361 nommés (les gardes
+comprises) ; les refusées qui ne sont pas des comparaisons à l'oracle ; deux compteurs de l'ATAPI et un de `lpt`
+reclassés ; le mode d'écriture 1 dit avec son masque partiel ; l'EGA secondaire retirée de K, n'étant pas un
+compteur ; la DSS et le Covox dits par leur émission ; la perte d'un processus tué. Réfuté : quatre lignes de plus de
+120 caractères — comptées en caractères, la plus longue en fait 119.

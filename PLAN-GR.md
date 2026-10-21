@@ -326,6 +326,10 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   Les 21 bornes fausses de G9 sont corrigées : 17 `// pcem:`, la plage du DEVIATION d'`ega_write` et trois renvois
   en ligne de `vid_ega.cs` (R1-contre K4). Cette relecture ne dépend d'aucune porte et peut avancer plus tôt.
 - La série : des commentaires seuls, donc un sous-ensemble.
+- **GR.1h, GR.2f** ✅ *faits, § GR.1h, GR.2f* : 2 276 compteurs, 1 655 atteints en mode PCem, 1 758 en mode
+  matériel, 2 022 dans l'un ou l'autre ; les 254 jamais atteints classés, chacun avec sa raison ; quatre trous pour
+  la dette de GR.5 (l'émission de la DSS et du Covox en mode matériel, la recherche du CD, le CD et le ZIP sur l'AHA,
+  SET FEATURES et MODE SELECT).
 - **GR.1i** ✅ *fait, § GR.1i* : les 21 bornes de G9 corrigées ; 38 constats de la relecture, 33 confirmés (31
   citations ou commentaires corrigés, un laissé, un défaut de comportement sorti de l'étape) ; des commentaires seuls.
 - **GR.1i2 — PB-123 au lead-out** : en mode matériel, READ SUB-CHANNEL en LBA rend FFFFFF6Ah au lead-out, où PCem rend
