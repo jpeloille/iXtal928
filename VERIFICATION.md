@@ -15893,3 +15893,62 @@ de `harness_dbopl.o` et `harness_cdrom.o`) — la reconnaissance les avait dédu
 
 Le chiffre de `bench` n'est pas une référence de performance (G14 la posera) : il dit seulement que le banc tourne.
 L'émulateur ne change pas ; la `.so` non plus : aucune série.
+
+## GR.4e — Les registres, les licences, les commentaires
+
+Le 22 octobre 2026 (PLAN-GR.md § GR.4e ; R4-dette.md § 1.2 à 1.5 ; R4-contre.md, A2, A6, points 4 et 5). Ce que les
+registres, les notices et les commentaires disaient encore d'avant G9, G10, G12 et G13.
+
+**Les manifestes et les notices.**
+- `roms/roms.sha256` ancre les 34 ROM que le code charge, triées par chemin (`LC_ALL=C`) ; il en ancrait 13. La ligne
+  de `awe32.raw` est égale à `Awe32Sha256` (`tools/iXtal26.Diff/BootDiff.cs`). Le piège de `ide_xt.bin` (à la racine,
+  et `xtide/ide_xt.bin`, deux fichiers différents) est dit dans `VENDORED.md`.
+- `VENDORED.md` : le rôle de l'oracle tel qu'il est (`tools/oracle`, PCem non patché, `--wrap`) ; la section des ROM,
+  le manifeste et sa commande, la liste par machine et par carte, et aucune CI.
+- `THIRD_PARTY_NOTICES.md` : DOSBox passe à « Yes » (`dbopl.cpp`, `cdrom_image.cpp`), avec sa section qui reproduit
+  le bloc de `pcem-dev/NOTICE` et les en-têtes GPL v2 ou ultérieure ; le CGA composite de DOSBox et le Nuked OPL3
+  inscrits (« No ») ; l'Ayumi sans « la cible XT » ; les quatre corpus SingleStepTests et leurs quatre scripts.
+- `TRANSCRIPTION.md` : les dix cartes vidéo transcrites et les 40 autres ; les six contrôleurs de disque câblés ;
+  `mouse_scan` dans `Mouse/mouse_ps2.cs` depuis PS2.0.
+- `.gitignore` : la CI qu'il annonçait n'existe pas, la commande la remplace ; les profils `ixtal26*.cfg` de la
+  racine ; les manifestes des quatre corpus.
+
+**PCEM_BUGS.md.**
+- Le champ *Effet* des six entrées qui n'en avaient pas : PB-97, PB-99 et PB-100 (la liste de GR.4), PB-64, PB-66 et
+  PB-24 (R4-contre, point 4). Les 294 entrées l'ont toutes (un script : pour chaque `### PB-`, `*Effet*` avant la
+  suivante). La porte `recensement` ne l'exige pas : ce serait un changement de porte, une étape à part.
+- « deux cent quatre-vingt-quatorze » pour « deux cent cinquante-sept » (294 entrées, `grep -c "^### PB-"`).
+- La table « Trouvé par » de PB-263 à PB-294, six lignes, une par étape de G13 qui les a inscrites (le commit qui a
+  ajouté chaque entrée, `git log -S`).
+- L'AWE32 dans la portée (G12.2).
+- Le compte des lignes refait avec sa méthode : l'union, par fichier et sans doublon, des plages `c_lines` de
+  `oracle.tsv` qui désignent `pcem-dev/` donne 45 086 lignes de 89 fichiers C et C++, et 15 523 lignes de 59
+  en-têtes, sur 238 641 lignes de C et C++ et 67 996 d'en-têtes dans `pcem-dev/src` et `pcem-dev/includes`. Un
+  plancher : 35 lignes du manifeste désignent un fichier de PCem sans plage. Le « 8 600 des 309 000 » d'avant n'avait
+  pas de méthode écrite.
+
+**Les commentaires et l'aide** (R4 § 1.5, R4-contre A2) :
+- `Video/video.cs`, `PluginApi/device.cs`, `pc.cs`, `Disc/hdd.cs`, `Host/SdlSetup.cs` : dix cartes vidéo, neuf
+  machines, six contrôleurs, la M24 et le PC1512 présents, ce qui est omis et où vit le reste ;
+- `tools/iXtal26.Diff/AtProbe.cs`, `tools/oracle/harness.c`, `harness_stubs.c` : les romsets et les cartes de
+  l'oracle comptés tels qu'ils sont ;
+- `Host/CommandLine/UsageText.cs` : les neuf machines de `--model`, les dix cartes et `builtin` de `--gfxcard`, le
+  lancement sans argument (l'écran de réglage, le 5150 par défaut), `--settle`, `--menu-check`, `--make-nvr` ;
+- `iXtal26/README.md` : de 5150 au 486, les neuf machines, les dix cartes, les ROM renvoyées à `VENDORED.md`.
+
+**`oracle.tsv` réancré.** Les commentaires de `harness.c` et `harness_stubs.c` changent leur empreinte :
+`check-oracle` voyait trois dérives (le contrôle négatif), `--fix` a réancré ces trois lignes, puis 0 dérive.
+
+**Ce qui est vérifié** (sur `/tmp/a9/wtgr2a`, à `703e00b` et les fichiers de l'étape) :
+- `cd roms && sha256sum -c roms.sha256` : 34 OK ; une ligne altérée échoue ;
+- `tools/check-oracle.sh` : 217 transcrits vérifiés, 41 fichiers de l'hôte, 0 dérive, arbre vendoré OK ;
+- la construction Release de `iXtal26` et de `iXtal26.Diff`, de zéro : 0 erreur, 0 avertissement ;
+- la `.so` reconstruite : son empreinte change (`2c4e5a45…`), mais elle ne diffère de celle d'avant que par
+  les informations de débogage (`-g`, les numéros de ligne) et l'identifiant de construction : `objdump -d` et
+  `.rodata` identiques, et les deux `.so` sans débogage ni `.note.gnu.build-id` ont la même empreinte (`32dfa4d5…`) ;
+- le sous-ensemble (`/tmp/a9/sub-gr4e.sh`) : en mode PCem, 15 portes vertes (`abi`, `recensement`, `r9-gfxfixe`, les
+  trois `config-check`, `nvr-check`, `bd-pc-cga`, `bd-ibmat-mda`, `bd-m24`, `bd-pc1512`, `bd-ami486-et4000`,
+  `bd-ami486-msd`, `bd-pc1512-lpt`, `bd-ami486-aha-banc`) ; sous « tout », 4 vertes et 2 refusées (`abi`,
+  `cpu-config-check`) ; chaque message égal à celui de la série `gr1i2`.
+
+L'émulateur ne change que par des commentaires et l'aide : aucune série entière.

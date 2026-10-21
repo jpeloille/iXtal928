@@ -646,7 +646,8 @@ void updatewindowsize(int x, int y) { (void)x; (void)y; }
  * table de la CARTE, et les Trident n'ont pas celle de la ligne 0. video.c n'étant
  * pas lié (90 symboles de cartes), le registre est réduit à h_video_cards[], recopié
  * des entrées de video.c pour les cartes que video.cs enregistre. Le switch (romset)
- * (video.c:607-718) n'a de cas pour aucun des quatre romsets du dépôt. */
+ * (video.c:607-718) n'a de cas que pour deux machines du dépôt, le PC1512 et la M24,
+ * prises plus bas (G1.1, G1.2). */
 enum { VIDEO_ISA = 0, VIDEO_BUS }; /* video.c:62 — local à video.c, pas d'en-tête */
 /* DEVIATION de l'oracle : 0 chez PCem (video.c:594), mais loadconfig() l'écrase
  * toujours par la clé, défaut -1 (pc.c:665) ; l'oracle n'a pas de loadconfig. */
@@ -877,15 +878,16 @@ void loadfont(char *s, fontformat_t format) {
         fclose(f);
 }
 
-/* Interrogation du registre des cartes vidéo, video.c:409-540. Deux cartes depuis la
- * VGA, choisies par gfxcard (pc.c:77), que h_set_gfxcard pose AVANT h_boot. Ce sont
+/* Interrogation du registre des cartes vidéo, video.c:409-540. Les cartes de
+ * h_video_cards[], choisies par gfxcard (pc.c:77), que h_set_gfxcard pose AVANT h_boot. Ce sont
  * ces réponses que le PPI du XT compose en interrupteurs DIP, et le C# rend les mêmes
  * (Video/video.cs).
  *
  * Réduites : le switch sur romset qui ouvre chacune (video.c:410-452, :456-500,
- * :504-538) n'a de cas pour aucun des quatre romsets du dépôt, donc on tombe toujours
- * dans la lecture des drapeaux de la carte — VIDEO_FLAG_TYPE_CGA pour v_cga
- * (video.c:96), VIDEO_FLAG_TYPE_SPECIAL pour v_vga (video.c:191). */
+ * :504-538) n'a de cas que pour le PC1512 et la M24 parmi les machines du dépôt : CGA
+ * oui, MDA et EGA/VGA non. Leur gfxcard vaut la CGA (GR.4a, « builtin » posé à 0 par
+ * pc.cs), et la lecture des drapeaux de la carte rend ces trois réponses ; les sept
+ * autres machines tombent dans cette lecture, comme chez PCem. */
 int gfxcard = 0; /* pc.c:77 ; GFX_CGA = 0 (ibm.h:276) */
 
 /* M19 : lues sur les drapeaux de h_video_cards[], comme video.c:499, :539 et

@@ -8,7 +8,7 @@ obj/
 .vs/
 
 # ROMs — matériel IBM sous copyright, jamais commité.
-# Seul le manifeste de checksums l'est, pour que la CI vérifie ce qu'elle a.
+# Seul le manifeste de checksums l'est : `cd roms && sha256sum -c roms.sha256` (VENDORED.md).
 roms/*
 !roms/roms.sha256
 
@@ -20,12 +20,12 @@ os/*
 
 # Machines construites depuis l'écran de --setup, et enregistrées par config_save.
 # Même règle que os/ : elles pointent des images qui ne sont pas versionnées, et leurs
-# chemins n'ont de sens que sur la machine qui les a écrites. Les deux .cfg de la racine
-# — ixtal26.cfg et ixtal26-xt.cfg — sont les exemples livrés, eux sont suivis.
+# chemins n'ont de sens que sur la machine qui les a écrites. Les .cfg de la racine
+# — ixtal26*.cfg, un profil par machine — sont les exemples livrés, eux sont suivis.
 configs/
 
-# Vecteurs SingleStepTests — 726 Mo, récupérés par tools/fetch-sst.sh.
-# Seul vectors/sst/MANIFEST.sha256 est commité.
+# Vecteurs SingleStepTests 8088 — 726 Mo, récupérés par tools/fetch-sst.sh. De chacun
+# des quatre corpus, seul le MANIFEST.sha256 est commité.
 vectors/*
 !vectors/sst/
 vectors/sst/*

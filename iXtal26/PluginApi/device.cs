@@ -7,7 +7,8 @@
 //         device_speed_changed/device_force_redraw/device_add_status_info,
 //         device_get_config_int/string, pcem_add_device ; omis ici : les registres
 //         MODEL/VIDEO_CARD/SOUND_CARD/HDD_CONTROLLER/NETWORK_CARD/LPT_DEVICE (models[]
-//         vit dans model.cs, video_cards[] dans video.cs), la famille
+//         vit dans model.cs, video_cards[] dans video.cs, SOUND_CARD dans sound.cs,
+//         lpt_devices[] dans lpt.cs), la famille
 //         model_get_config_* et l'API plugin pcem_*_get_config_*.
 
 // CS8600/CS8602/CS8604 : l'analyse de nullabilité de C# ne suit pas l'état des
@@ -126,11 +127,11 @@ internal static partial class device
     internal static object?[] device_priv = new object?[DEV_MAX];
     // omitted: device.c:7-12 — re-déclarations `extern` de ce que le fichier
     //   définit lui-même, sans contrepartie C#.
-    // omitted: sound_cards[], hdd_controllers[], network_cards[], lpt_devices[]
-    //   (device.c:18-21) et les types SOUND_CARD, HDD_CONTROLLER, NETWORK_CARD,
-    //   lpt_device_t, LPT_DEVICE (devices.h:48-118) — registres enfichables.
-    //   models[] et MODEL vivent dans model.cs ; video_cards[] (device.c:17),
-    //   video_timings_t et VIDEO_CARD dans video.cs, réduits à la CGA et à la VGA.
+    // omitted: hdd_controllers[], network_cards[] (device.c:19-20) et les types
+    //   HDD_CONTROLLER, NETWORK_CARD (devices.h) — registres enfichables. Les autres
+    //   vivent ailleurs : models[] et MODEL dans model.cs ; video_cards[] (device.c:17),
+    //   video_timings_t et VIDEO_CARD dans video.cs (dix cartes) ; SOUND_CARD dans
+    //   sound.cs (G8.1) ; lpt_devices[], lpt_device_t et LPT_DEVICE dans lpt.cs (G10.0).
     // pcem: device.c:26 — void (*_sound_speed_changed)(void). Crochet posé par
     // l'IHM chez PCem (wx-sdl2.c:450, qt-sdl2.c:460) ; ici par pc.initpc(), et
     // INCONDITIONNELLEMENT. C'est lui qui pose sound_poll_latch : laissé nul, le
@@ -141,7 +142,7 @@ internal static partial class device
     internal static sound_speed_changed_t? _sound_speed_changed;
     // omitted: model_getdevice (device.c:28), model_get_config_int/string
     //   (device.c:118-152), model_count et pcem_add_model (device.c:212-224) —
-    //   dépendent de MODEL, donc de CPU ; arrivent avec le modèle xt.
+    //   aucun appelant au dépôt : models[] est une table statique (model.cs).
     // omitted: video_count/pcem_add_video, lpt_count/pcem_add_lpt,
     //   sound_count/pcem_add_sound, hdd_controller_count/pcem_add_hddcontroller,
     //   network_card_count/pcem_add_networkcard (device.c:226-294).

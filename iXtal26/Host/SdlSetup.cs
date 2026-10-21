@@ -306,8 +306,9 @@ internal sealed class SdlSetup
     /// pcem: wx-config.c:139-161 — les cartes du registre que video_card_available
     /// déclare présentes, c'est-à-dire dont la ROM est là. Le second test,
     /// gfx_present[], vaut ce même video_card_available (wx-sdl2.c:523). PCem ajoute
-    /// trois filtres (PCI, MCA, et MCA inversé) qu'aucune des deux cartes ni des quatre
-    /// machines ne déclenche : la VGA est proposée partout, comme chez lui.
+    /// trois filtres (PCI, MCA, et MCA inversé) qu'aucune des dix cartes ni des neuf
+    /// machines ne déclenche : chaque carte dont la ROM est là est proposée partout, comme
+    /// chez lui.
     ///
     /// Les chemins de ROM sont posés ICI et pas seulement par initpc : l'écran tourne
     /// AVANT elle, et sans eux rom_present("ibm_vga.bin") rendrait faux — la VGA

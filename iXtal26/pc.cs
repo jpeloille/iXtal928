@@ -239,8 +239,8 @@ internal static partial class pc
     }
 
     /// <summary>
-    /// pcem: pc.c:660-664. Choisit la carte vidéo par son internal_name — "cga" ou
-    /// "vga" — et pose gfxcard, l'identifiant HÉRITÉ. Partagé par la clé `gfxcard` du
+    /// pcem: pc.c:660-664. Choisit la carte vidéo par son internal_name — l'un des dix
+    /// de video_cards, ou « builtin » (GR.4a) — et pose gfxcard, l'identifiant HÉRITÉ. Partagé par la clé `gfxcard` du
     /// fichier et par l'option --gfxcard, pour la même raison que setmodel.
     ///
     /// DEVIATION: video_get_video_from_internal_name rend 0 — la CGA — pour un nom
@@ -1309,10 +1309,10 @@ internal static partial class pc
         // pcem: pc.c:392 — hdd_controller_init(hdd_controller_name).
         //
         // DEVIATION: le registre HDD_CONTROLLER (seize cartes, hdd.c:149-164) est
-        //   écarté comme SOUND_CARD — et comme VIDEO_CARD l'était jusqu'à M15, où la
-        //   VGA l'a fait transcrire, réduit à deux entrées (video.cs). Avec une seule
-        //   carte câblée, hdd_controller_init (hdd.c:128-140) se réduit à son unique
-        //   effet — un device_add.
+        //   écarté comme SOUND_CARD l'était avant G8.1 — et comme VIDEO_CARD jusqu'à
+        //   M15, où la VGA l'a fait transcrire (video.cs). Avec six cartes câblées par
+        //   leur nom, hdd_controller_init (hdd.c:128-140) se réduit à son unique effet :
+        //   un device_add par carte, ci-dessous.
         //
         //   Un nom inconnu, y compris le "" par défaut, ne monte aucune carte et ne
         //   dit rien : c'est exactement ce que fait PCem, dont le `fatal` de

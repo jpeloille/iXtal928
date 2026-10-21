@@ -1,7 +1,10 @@
 # iXtal26
 
-Émulateur d'**IBM PC 5150** et d'**IBM XT 5160** (8088 à 4,77 MHz, CGA, contrôleur de
-disquettes, haut-parleur, et le Fixed Disk Adapter du XT), transcrit de PCem v18 en C#.
+Émulateur de PC transcrit de PCem v18 en C# : de l'**IBM PC 5150** (8088 à 4,77 MHz) au
+486 DX2 d'AMI, en passant par l'XT, l'AT, l'Olivetti M24 et l'Amstrad PC1512 ; leurs
+coprocesseurs ; les cartes vidéo de la CGA à la Trio64 ; les disquettes, les disques MFM,
+IDE, XTIDE et SCSI, le CD-ROM ATAPI et le ZIP ; l'AdLib, les Sound Blaster jusqu'à l'AWE32,
+la Disney Sound Source et le Covox ; la souris, la manette, les ports série et parallèles.
 
 Le cœur est vérifié bit à bit contre le C d'origine, gardé dans `pcem-dev/` : les deux
 exécutent le POST du 5150 puis la ROM BASIC sur **25 457 269 instructions identiques**,
@@ -117,16 +120,17 @@ dotnet run -- --model ibmxt             # l'IBM XT 5160 au lieu du 5150
 dotnet run -- --ram 64                  # 64 Ko : l'invite BASIC en 12 s au lieu de 52
 ```
 
-Deux machines : `ibmpc` (IBM PC 5150, le défaut) et `ibmxt` (IBM XT 5160). Elles partagent
-tout — même 8088, même init, même CGA — sauf le BIOS, le port cassette et la granularité
-RAM : **32 Ko par pas sur le 5150, 64 sur le XT**. `mem_size = 96` est donc accepté sur
-l'un et refusé sur l'autre. Les deux amorcent la ROM BASIC et PC DOS 2.00 ; les deux sont
-vertes au diff contre le C de PCem (`../VERIFICATION.md` § M10).
+Neuf machines, par `--model` ou la clé `model` : `ibmpc` (IBM PC 5150, le défaut), `ibmxt`
+(IBM XT 5160), `ibmat`, `ami286`, `ami386`, `ami386dx`, `ami486`, `pc1512` (Amstrad PC1512)
+et `olivetti_m24`. Les bornes de la mémoire viennent de la machine : **32 Ko par pas sur le
+5150, 64 sur le XT** — `mem_size = 96` est donc accepté sur l'un et refusé sur l'autre. Les
+profils `../ixtal26-*.cfg` en décrivent une par fichier, chaque clé expliquée.
 
-Quatre cartes vidéo, par `--gfxcard` ou la clé `gfxcard` : `cga` (le défaut), `vga` (VGA
-d'IBM, `ibm_vga.bin`), `tvga9000b` (Trident 9000B, 512 Ko, `tvga9000b/BIOS.BIN`) et
-`tvga8900d` (Trident 8900D, 1 Mo, `trident.bin`, jusqu'à 24 bits par pixel). Toutes sont
-vertes au diff contre PCem sur le 5150 et le XT (`../VERIFICATION.md` § M15 et § M19).
+Dix cartes vidéo, par `--gfxcard` ou la clé `gfxcard` : `cga` (le défaut), `mda`,
+`hercules`, `ega`, `vga`, `tvga8900d`, `tvga9000b`, `et4000ax`, `cl_gd5429` et `px_trio64`,
+chacune avec sa ROM (`../VENDORED.md`). La M24 et le PC1512 ont leur vidéo intégrée
+(`builtin`). Chaque machine et chaque carte est vérifiée au diff contre PCem
+(`../VERIFICATION.md`).
 
 Format `.cfg` de PCem : `clé = valeur`, sections `[entre crochets]`, `#` en commentaire.
 
@@ -346,10 +350,11 @@ PCem conservés, une ligne `// pcem:` par fonction. Les règles sont dans
 
 ## ROMs
 
-Matériel IBM sous copyright : non distribué, `.gitignore`d. Attendu dans `roms/` :
-`ibmpc/pc102782.bin` (BIOS 8 Ko) et, pour la ROM BASIC, `ibmpc/basicc11.f6/.f8/.fa/.fc`.
-`mda.rom` fournit la police 8×8 du CGA, que `loadbios` charge inconditionnellement.
-Les empreintes attendues sont dans `../roms/roms.sha256`.
+BIOS et polices sous copyright : non distribués, `.gitignore`d. Le 5150 attend dans
+`roms/` `ibmpc/pc102782.bin` (BIOS 8 Ko) et, pour la ROM BASIC, `ibmpc/basicc11.f6/.f8/.fa/.fc` ;
+`mda.rom` fournit la police 8×8 du CGA, que `loadbios` charge inconditionnellement. Les 34
+fichiers que lit le code, machine par machine et carte par carte, sont dans `../VENDORED.md`,
+et leurs empreintes dans `../roms/roms.sha256` (`cd roms && sha256sum -c roms.sha256`).
 
 ## Faire entrer un fichier du disque Linux
 

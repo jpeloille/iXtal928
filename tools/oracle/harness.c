@@ -1919,11 +1919,11 @@ int h_boot(const char *romspath) {
         mouse_emu_init();
 
         /* video_init(), pc.c:374. On appelle directement device_add plutot que
-         * video_init() : le switch sur romset de video.c:761-914 n'a de cas pour
-         * aucun des quatre romsets du depot, on en sort donc vers la ligne 915, qui
-         * traverse le registre VIDEO_CARD -- et video.c n'est pas lie
-         * (90 symboles de cartes). Le cote C# TRAVERSE ce registre depuis M15 --
-         * video.cs le transcrit reduit a v_cga et v_vga --, et ce raccourci-ci en
+         * video_init() : le switch sur romset de video.c:761-914 n'a de cas que pour
+         * deux machines du depot, le PC1512 et la M24 (ci-dessous) ; les sept autres en
+         * sortent vers la ligne 915, qui traverse le registre VIDEO_CARD -- et video.c
+         * n'est pas lie (90 symboles de cartes). Le cote C# TRAVERSE ce registre depuis
+         * M15 -- video.cs le transcrit, dix cartes --, et ce raccourci-ci en
          * est le pendant exact : gfxcard (h_set_gfxcard) choisit la carte que
          * video_cards[video_old_to_new(gfxcard)]->device designe (video.c:96, :191).
          * Les deux cotes ajoutent donc la MEME carte de la MEME facon -- ce qui est

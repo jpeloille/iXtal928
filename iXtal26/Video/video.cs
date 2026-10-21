@@ -4,8 +4,8 @@
 // ORACLE: pcem-dev/src/video/video.c + includes/private/video/video.h
 // STATUS: partial — buffer32, blit, cgapal/makecol/makecol32/RGB, loadfont (MDA, CGA),
 //         fontdat/fontdatm, edatlookup, xsize/ysize, video_res_*, video_updatetiming
-//         réduit, le registre VIDEO_CARD réduit à v_cga et v_vga, video_init.
-//         Omis : les 62 autres cartes, les shaders et les visionneuses de débogage.
+//         réduit, le registre VIDEO_CARD réduit à dix cartes (video_cards), video_init.
+//         Omis : les 40 autres cartes, les shaders et les visionneuses de débogage.
 
 using System.Runtime.CompilerServices;
 using iXtal26.Cpu;
@@ -64,13 +64,13 @@ internal static partial class video
     //   transcrit. Même forme que mem_bios.cs:20 et rom.cs:32.
     private static void pclog(string s) => Console.Error.Write(s);
 
-    // omitted: les 48 VIDEO_CARD de video.c:69-193 autres que v_cga et v_vga — MDA, EGA,
-    //   SVGA, Voodoo, hors cible. Le registre est TRANSCRIT depuis la VGA, réduit à ses
-    //   deux entrées : avec une seule il était une constante, et video_is_* rendait une
-    //   réponse figée. Voir video_cards plus bas.
+    // omitted: les 40 VIDEO_CARD de video.c:69-193 hors de video_cards — d'autres SVGA,
+    //   Voodoo, hors cible. Le registre est TRANSCRIT depuis la VGA (M15) : avec une seule
+    //   carte il était une constante, et video_is_* rendait une réponse figée. Il porte
+    //   dix cartes ; voir video_cards plus bas.
     // omitted: video_card_has_config et video_card_getid (video.c:340-363) — seule la
-    //   boîte de configuration de l'UI les appelle, et aucune des deux cartes n'a de
-    //   dialogue de réglage.
+    //   boîte de configuration de l'UI de PCem les appelle, que l'écran de construction ne
+    //   transcrit pas : les réglages des cartes passent par le fichier de configuration.
     // omitted: video_fullscreen / video_fullscreen_scale / video_fullscreen_first /
     //   video_force_aspect_ration / vid_disc_indicator / vid_resize / readflash
     //   (video.c:542-544) — état de la fenêtre et des visionneuses de débogage.
@@ -472,8 +472,9 @@ internal static partial class video
 
     // pcem: video.c:409-454, :455-502, :503-540
     // omitted: le switch sur romset qui ouvre chacune des trois (video.c:410-452,
-    //   :456-500, :504-538) — des machines à vidéo intégrée, dont aucune n'est au dépôt :
-    //   les quatre romsets du dépôt tombent tous dans la lecture des drapeaux de la carte.
+    //   :456-500, :504-538) — des machines à vidéo intégrée. Les sept machines à carte du
+    //   dépôt tombent toutes dans la lecture des drapeaux de la carte ; la M24 et le PC1512
+    //   ont leurs cas (G1.1, G1.2, ci-dessous).
     //   Le PPI du XT les lit pour composer les interrupteurs DIP (keyboard_xt.cs), le
     //   8042 de l'AT pour son port d'entrée (keyboard_at.cs). L'oracle rend les mêmes
     //   réponses depuis gfxcard (harness_stubs.c).
@@ -507,8 +508,8 @@ internal static partial class video
         // omitted: le switch sur romset (video.c:761-914) — PCjr, Tandy, PC1512,
         //   PC1640, PC200, PPC512, Olivetti M24, PC2086/3086, MegaPC, SPC4620P,
         //   SPC6033P, Acer 386, AMA932J, PS/1, PS/2, T3100e, T1000, PC425X, PB410A,
-        //   PB570, PB520R, CBM SL386SX25 : aucune n'est au dépôt, et les quatre romsets
-        //   qui y sont tombent tous dans la ligne qui suit.
+        //   PB570, PB520R, CBM SL386SX25. Seuls le PC1512 et la M24 sont au dépôt, avec
+        //   leurs cas ci-dessous ; les sept autres machines tombent dans la carte.
         // pcem: video.c:800-802 — G1.1 : la M24 a SA vidéo, gfxcard ignoré.
         switch (pc.romset)
         {

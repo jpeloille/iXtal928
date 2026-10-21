@@ -1113,6 +1113,9 @@ et le pseudo-zéro, un non normal (déduit) ; le pseudo-infini et le pseudo-NaN,
 
 `x87_ops_misc.h:451-463`, `opFTST` : `==` et `<` contre 0.0, comme opFCOM (PB-57). Un NaN rend
 C3 = C2 = C0 = 0 au lieu de « non ordonné ».
+*Effet* : FTST sur un NaN, et en projectif sur un infini, répond « plus grand que zéro » sans lever IE : un programme
+qui teste C3 et C0 prend la branche du positif au lieu de « non ordonné », et le masque d'invalidité n'est jamais
+sollicité.
 *Trouvé par* : transcription de G4.4.
 *Source* : SDM vol. 2, FTST (non ordonné : C3 C2 C0 = 111, #IA ; « C1 Set to 0 ») ; Numerics Supplement (1980), fiche du
 8087 table 3 et table S-27 (8087 et 287 : un NaN, et ∞ en projectif, « not comparable », IE) — documenté.
@@ -1168,6 +1171,9 @@ Les quatre autres constantes (FLDL2T, FLDL2E, FLDPI, FLDLG2) sont les doubles le
 proches. Aucune ne suit RC (le 387 arrondit ses constantes selon RC). Pour le 8087 et le 287, Intel se contredit :
 l'annexe C du 387 PRM (§ C.4, p. C-5) contre quatre textes (387 PRM § 4.7 p. 4-20, i486 PRM § 17.6, Pentium vol. 3
 § 23.3.4, SDM vol. 2) qui leur donnent la valeur au plus près (D2-contre K20-a).
+*Effet* : FLDLN2 rend ln 2 avec un ulp de trop en double (…39F0 au lieu de …39EF), et tout calcul qui le prend en
+facteur (le logarithme népérien par FYL2X) hérite de l'écart au dernier bit ; sur le 387 et le 486, aucune des cinq
+constantes ne suit RC.
 *Trouvé par* : transcription de G4.4, vérifié en décimal.
 *Source* : SDM vol. 2, FLD1…FLDZ (constantes de 64 bits arrondies selon RC ; au plus près, celles du 8087 et du 287) ;
 387 PRM § 4.7 ; ln 2 calculé exactement (D2 annexe B, recalculé par D2-contre C8) — documenté pour le 387 et le 486 ;
@@ -1838,6 +1844,9 @@ CRTC pour reconnaître la carte voit autre chose que sur le vrai matériel. `:29
 et R11 = 7, PCem les réécrit en Bh/Ch (« Fix for Generic Turbo XT BIOS ») — un curseur choisi par
 le logiciel devient un autre. `:99-100` : en entrelacé, `sc = (sc << 1) & 7` perd les lignes 8 et
 au-delà.
+*Effet* : un logiciel qui relit le CRTC de la MDA ou de l'Hercules pour reconnaître la carte relit ce qu'il a écrit,
+sans les masques du 6845 ; le curseur 0607h qu'un logiciel choisit s'affiche en 0B0Ch ; en entrelacé, seules les rangées
+0, 2, 4 et 6 de la police sont dessinées, en boucle.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 3 et 4).
 *Source* : data sheet MC6845 (Motorola), table des registres : R4, R6, R7, R10 sur 7 bits, R5, R9, R11 sur 5, R8 sur 6,
 R0-R13 non relisibles, l'entrelacé « sync and video » ; IBM PC TR 6025008 (1981), listing du BIOS : SET_CTYPE envoie CX
@@ -1886,6 +1895,11 @@ les masques de R3, R4, R6 à R9, R12 et R14 ; la relecture, sur les deux cartes,
 - (8) `ega_out` n'a pas de 3C1h (`:21-140`) : la donnée de l'attribut que le BIOS d'IBM y écrit (OUT_DX : l'index en
   DX, la donnée en DX + 1 ; dans POD14, la palette 0Fh puis 12h) se perd, et la bascule de 3C0h reste sur la donnée :
   l'index suivant devient la valeur du registre d'avant. C'est ce qui fait échouer POD14 sans la bascule de (4).
+*Effet* : un logiciel qui écrit dans les bits « Not Used » de l'EGA (10h bit 7, 14h, CR11 bit 7, CR07 bits 5-7, CR0A bit
+5) voit la palette, la protection, les totaux ou le curseur de la VGA ; un logiciel qui distingue l'EGA de la VGA en
+relisant un registre se trompe ; un curseur, une police ou un attribut changés n'apparaissent qu'au rafraîchissement
+complet suivant ; sur 64 Ko, une ligne ou une police au-delà de la mémoire lit des octets que la carte n'a pas ; le test
+POD14 du BIOS d'IBM ne passe que grâce à la bascule de 3DAh, qui ne dit rien du faisceau.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défaut n° 6) ; (6) resserré et (7) ajouté par la reconnaissance de
 G13 (D4-contre, § 2 n° 6 ; D4-video, § PB-99) ; (8) en G13.9f, POD14 rejoué sous le faisceau (un bip long et trois
 courts : la palette 0Fh lue à 32h, 12h jamais écrit).
@@ -1976,6 +1990,10 @@ exception, et FFh y pose D4, l'ERPF, avec le code réservé 111 (tables 3 et 10)
 (`:27-61`) tire 24 ou 32 bits de D5, qui choisit chez Sierra les fronts d'horloge (modes 1a/1b, 3a/3b), et invente un
 décodage du code réservé 111 (`:45-58`). Les modes à 4 octets par point existent (3a et 3b, le quatrième octet jeté,
 table 2), mais par le registre de repack, l'étendu 10h, que l'ERPF ouvre.
+*Effet* : un CR13 nul fait avancer chaque rangée d'un pas de 256 (`rowoffset`), où l'ET4000 répète la même rangée ; sans
+la séquence KEY, un logiciel écrit des registres étendus que la carte ignorerait ; FFh écrit dans le RAMDAC armé va au
+masque des pixels et non au registre de commande ; SR7, CR30-CR31 et les profondeurs de 24 et 32 bits rendent une valeur
+que la carte rendrait autrement, inconnue.
 *Trouvé par* : reconnaissance de G9 (PLAN-G9.md, défauts n° 9 et 10) ; CR3F, SR7, le KEY et la Sierra repris par la
 reconnaissance de G13 (D4-video, § PB-100 ; D4-contre, § 2 n° 7 à 11).
 *Source* : Tseng Labs, data book *ET4000 Graphics Controller* (1990), pp. 85, 102-104, 108, 111, 123, 136-137, 142,
@@ -7167,6 +7185,9 @@ Les deux appels du Fixed Disk Adapter le font tous les deux :
 Le masque passé vaut `0x3fff` : les 16 Ko sont adressables, rien ne replie la lecture sur
 la partie chargée.
 
+*Effet* : un invité qui lit au-delà de la part chargée (4 Ko sur le Xebec, 8 Ko sur le DTC, sur 16) voit le tas de
+l'hôte, qui change d'une exécution à l'autre ; sur la VGA (plus bas, G7.1), le balayage des ROM d'extension du 5150 le
+lisait sans autre accès.
 *Atténué en pratique* : l'en-tête des deux ROMs déclare sa vraie longueur — `55 aa 08`
 pour le Xebec (8 × 512 = 4 096) et `55 aa 10` pour le DTC (16 × 512 = 8 192) — donc le
 balayage de ROM d'extension du POST ne somme et n'exécute que ce qui est chargé. Il faut
@@ -8099,7 +8120,7 @@ général (PB-133).
 
 ## Portée de ce registre
 
-Ces **deux cent cinquante-sept** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
+Ces **deux cent quatre-vingt-quatorze** défauts sont ce que les oracles ont éclairé, **pas le résultat d'un
 audit systématique de PCem** :
 
 | Trouvé par | Entrées |
@@ -8156,13 +8177,23 @@ audit systématique de PCem** :
 | Le 8237 en mode matériel (G13.4) : les parts laissées reproduites de PB-157 et de PB-253, inscrites à part | PB-259, PB-260 |
 | Contre-lecture du 8042 et de la souris PS/2 en mode matériel (G13.4c) | PB-261 ; PB-94 élargi (les valeurs par défaut au reset) |
 | SST en mode matériel, le cœur 286/386/486 (G13.5) | PB-262 ; PB-183 élargi (l'adresse de 16 bits replie) |
+| Le mode protégé du 286, du 386 et du 486 en mode matériel (G13.5c) | PB-263 |
+| Le noyau x87 du mode matériel (G13.6 : N1, N4b, N6) | PB-264 à PB-266 |
+| Le stockage en mode matériel (G13.7a à G13.7e2b : le MFM, le CD, le ZIP, le disque SCSI, la 1542C) | PB-267 à PB-283 |
+| Le son en mode matériel (G13.8b, G13.8c2, G13.8d3a à G13.8d4, G13.8g1) | PB-284, PB-285, PB-288 à PB-293 |
+| La série dans les deux modes, LOCK et MOV CR0 (G13.10c, G13.10d) | PB-286, PB-287 |
+| Les cavaliers de l'EGA et de la CGA (G13.12a) | PB-294 |
 
-Le dépôt transcrit environ **8 600 des 309 000 lignes** de PCem. Tout ce qui n'a pas été
-lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les
-cartes son autres que l'AdLib et les SB 1.0 à 16, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4, `scsi_hd.c` et la 1542C, lus en G11) et les images VHD restent hors de ce registre. Le cœur 386, lu en
-G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST 386 recense forme par
-forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un :
-ce registre ne garde que ce qui a été lu à la ligne de C.
+Les plages de `oracle.tsv` couvrent **45 086 lignes distinctes de 89 fichiers C et C++** de `pcem-dev/`, et 15 523
+lignes de 59 en-têtes, sur 238 641 lignes de C et C++ et 67 996 d'en-têtes dans `pcem-dev/src` et `pcem-dev/includes`
+(GR.4e : l'union des plages par fichier, sans doublon ; un plancher, les 35 lignes du manifeste qui désignent un fichier
+de PCem sans plage n'y comptent pas ; le chiffre d'avant, « 8 600 des 309 000 », n'avait pas de méthode écrite). Tout ce
+qui n'a pas été lu n'a pas été examiné : le dynarec, les cartes vidéo autres que la CGA, la MDA, l'Hercules, l'EGA, la
+VGA, les deux Trident, la GD5429, la Trio64 et l'ET4000AX, les cartes son autres que l'AdLib, les SB 1.0 à 16 et
+l'AWE32, le SCSI (hors `scsi.c` et `scsi_cd.c`, lus en G10.4, `scsi_hd.c` et la 1542C, lus en G11) et les images VHD
+restent hors de ce registre. Le cœur 386, lu en G2 (D0 à D7), y est entré — mais les écarts de PCem que le corpus SST
+386 recense forme par forme (`sst386-baseline.tsv`, `VERIFICATION.md` § G2) ne sont PAS instruits ici un par un : ce
+registre ne garde que ce qui a été lu à la ligne de C.
 
 Deux frontières ont bougé et le disaient mal :
 

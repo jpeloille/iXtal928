@@ -153,7 +153,7 @@ public static class AtProbe
 
         // models[ROM_IBMAT]->cpu[0].cpus — IL ÉTAIT NUL JUSQU'À M16.
         //
-        // Depuis M16, h_boot peuple models[] pour les quatre romsets et fait tourner le
+        // Depuis M16, h_boot peuple models[] pour ses romsets et fait tourner le
         // vrai cpu_set() : la sonde le constate (« peuple »). Ce qui suit est l'état
         // d'avant, gardé parce qu'il explique pourquoi cpu_set_edx reste enveloppé —
         // désormais comme une DÉVIATION déclarée (keyboard_at.cs), et non plus par

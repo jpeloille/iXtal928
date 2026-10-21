@@ -16,26 +16,30 @@ internal static class UsageText
                         [--pixel-mm MM] [--crt] [--fill PCT]
                 iXtal26 --boot [CHEMIN] [N] [--floppy-a IMG] [--type TEXTE]...
                 iXtal26 --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER]...
+                iXtal26 --make-nvr CONFIG.cfg SORTIE.nvr [--force]
 
-        Sans argument : ouvre une fenêtre et émule l'IBM PC 5150 jusqu'à sa fermeture.
-        Dans la fenêtre, Ctrl+F12 ouvre le menu : insérer ou éjecter une disquette,
-        réinitialiser la machine. La disquette en place au moment du reset est celle
-        sur laquelle le BIOS amorce.
+        Sans argument : ouvre l'écran de construction, puis une fenêtre qui émule la
+        machine choisie jusqu'à sa fermeture (l'IBM PC 5150 par défaut). Dans la fenêtre,
+        Ctrl+F12 ouvre le menu : insérer ou éjecter une disquette, réinitialiser la
+        machine. La disquette en place au moment du reset est celle sur laquelle le BIOS
+        amorce.
 
           --config CHEMIN      fichier de configuration machine (format .cfg de PCem :
                                « clé = valeur », sections [entre crochets], # en
-                               commentaire). Clés : model, mem_size, drive_a_type,
-                               drive_b_type, disc_a, disc_b, bpb_disable
-          --model NOM          machine : ibmpc (IBM PC 5150) ou ibmxt (IBM XT 5160).
-                               Un nom inconnu est refusé en citant ce qui existe
-          --gfxcard NOM        carte vidéo : cga (défaut), vga (ROM ibm_vga.bin), tvga8900d
-                               (trident.bin, 1 Mo) ou tvga9000b (tvga9000b/BIOS.BIN). Même
+                               commentaire). Les clés sont celles de PCem ; les profils
+                               ixtal26-*.cfg du dépôt les montrent, chacune expliquée
+          --model NOM          machine : ibmpc (IBM PC 5150), ibmxt (IBM XT 5160), ibmat,
+                               ami286, ami386, ami386dx, ami486, pc1512 (Amstrad PC1512)
+                               ou olivetti_m24. Un nom inconnu est refusé en citant ce
+                               qui existe
+          --gfxcard NOM        carte vidéo : cga (défaut), mda, hercules, ega, vga,
+                               tvga8900d, tvga9000b, et4000ax, cl_gd5429 ou px_trio64, si
+                               sa ROM est là ; builtin sur la M24 et le PC1512. Même
                                précédence que --model : l'emporte sur la clé gfxcard
           --cpu N              processeur : l'INDICE dans la table de la machine, appliqué
-                               après --model. ibmpc/ibmxt : 0 = 8088/4.77 … 5 = 8088/16 ;
-                               ibmat : 0 = 286/6, 1 = 286/8 ; ami286 : 0 = 286/6 …
-                               5 = 286/20, 6 = 286/25. Hors table : refusé, en listant
-                               ce qui existe. Aussi sous --boot et --timer-check
+                               après --model (ibmpc/ibmxt : 0 = 8088/4.77 … 5 = 8088/16).
+                               Hors table : refusé, en listant ce qui existe. Aussi sous
+                               --boot et --timer-check
           --ram N              taille RAM en Ko. Les bornes viennent de la MACHINE :
                                64 à 640 par pas de 32 sur ibmpc, par pas de 64 sur ibmxt
           --drive-a T          type de lecteur : 0 aucun, 1 5,25" DD (le 5150),
@@ -45,11 +49,11 @@ internal static class UsageText
           --config aucun fichier n'est lu, et la machine est celle que décrit
           VERIFICATION.md : 640 Ko, deux lecteurs 5,25" DD, CGA.
 
-          --rom-path CHEMIN    où chercher les images de ROM du 5150 (défaut : roms,
+          --rom-path CHEMIN    où chercher les images de ROM (défaut : roms,
                                cherché d'abord depuis le répertoire courant, puis en
                                remontant depuis l'emplacement du binaire)
-          --floppy-a IMG       image .img (brute, 160 à 360 Ko sur ce lecteur 5,25" DD)
-                               montée dans le lecteur A: avant l'amorçage ; le BIOS
+          --floppy-a IMG       image .img brute, du format que lit le lecteur (160 à
+                               360 Ko en 5,25" DD), montée dans A: avant l'amorçage ; le BIOS
                                démarre dessus. --floppy-b IMG : le lecteur B:.
                                Ouverte en lecture-écriture : DOS y écrit pour de vrai
           --slices N           s'arrête au bout de N tranches de 10 ms émulées, et
@@ -104,6 +108,8 @@ internal static class UsageText
                                écrit dès lors le son en WAV (le CD dans CHEMIN.cd.wav)
               --joystick-type N  après --boot : le type de manette (0 à 6), après
                                --config
+              --settle N       après --boot : les tranches laissées à la machine après
+                               chaque --type (défaut 200)
               --force-ps2 N    après --boot : PORTE DE VÉRIFICATION, pas une machine
                                offerte. Monte la souris PS/2 N (2 ou 3) sur une machine
                                sans MODEL_PS2, pour le banc PS2BANC
@@ -190,6 +196,15 @@ internal static class UsageText
           --setup-check        auto-contrôle de l'écran de construction, sans fenêtre :
                                navigation, bascules d'écran, recalage de la liste. Ce
                                code n'a aucun autre moyen d'être exécuté ici
+          --menu-check         auto-contrôle du menu Ctrl+F12, sans fenêtre : ses
+                               chemins clavier, sous le mode de --hardware-mode s'il
+                               précède
+          --make-nvr CONFIG.cfg SORTIE.nvr [--force]
+                               écrit le CMOS d'une machine AT d'après CONFIG : la
+                               mémoire, les lecteurs, les disques, l'affichage, la
+                               somme. Une machine sans CMOS, ou une carte inconnue, est
+                               refusée ; un fichier existant n'est écrasé qu'avec
+                               --force
           -h, --help           affiche cette aide
 
         Codes de sortie : 0 succès, 1 échec d'exécution, 2 erreur d'usage.

@@ -39,14 +39,16 @@ destinée à des répertoires de build amont, mais qui attrape aussi les vrais s
 
 ### Rôle dans ce dépôt
 
-`pcem-dev/` est **l'oracle**, pas une dépendance de build. iXtal26 est une transcription
-en C# de son cœur 8088/XT ; l'arbre C reste dans le dépôt pour qu'on puisse diffé rer la
-traduction contre l'original, et pour compiler `pcem-ref` — un binaire de référence
-instrumenté qui sert de source de vérité aux harnais de test.
+`pcem-dev/` est **l'oracle**, pas une dépendance de build de l'émulateur. iXtal26 est une
+transcription en C# de PCem : les processeurs du 8088 au 486 et leurs coprocesseurs, les
+machines, la vidéo, le stockage, le son et les ports ; l'arbre C reste dans le dépôt pour qu'on
+puisse comparer la traduction à l'original. `tools/oracle/` en compile une partie, telle quelle,
+en `libixtal26oracle.so`, que les portes de `tools/iXtal26.Diff` pilotent à côté du C#.
 
-**Règle absolue : `pcem-dev/` n'est jamais modifié en place.** L'instrumentation de trace
-est livrée comme patch (`patches/000N-*.patch`) appliqué à une copie de travail
-(`pcem-ref-build/`, `.gitignored`). Une référence modifiée n'est plus une référence.
+**Règle absolue : `pcem-dev/` n'est jamais modifié en place.** Le harnais de l'oracle
+(`tools/oracle/harness*.c`, `harness*.cpp`) inclut ou lie les sources de PCem sans les patcher ;
+ce qu'il doit observer ou neutraliser passe par ses propres fichiers et par `-Wl,--wrap`
+(`tools/oracle/Makefile`, `harness_wrap.c`). Une référence modifiée n'est plus une référence.
 
 `tools/check-oracle.sh` vérifie que les fichiers C cités par `oracle.tsv` n'ont pas
 dérivé depuis leur transcription.
@@ -60,18 +62,32 @@ PCem est sous GPL v2.0. Une traduction en C# est une œuvre dérivée au sens de
 ## `roms/`
 
 **Non commité** (voir `.gitignore`). Images de BIOS et de polices IBM, sous copyright ;
-PCem n'en distribue aucune et ce dépôt non plus. Seul `roms/roms.sha256` est commité, pour
-que la CI puisse vérifier qu'elle dispose exactement des bons fichiers, et signaler un
-`SKIPPED` explicite plutôt qu'un échec quand ils sont absents.
+PCem n'en distribue aucune et ce dépôt non plus. Seul `roms/roms.sha256` est commité : c'est la
+seule trace suivie des ROM, et ce qui permet de vérifier qu'on dispose exactement des bons
+fichiers. Le dépôt n'a pas de CI, et rien ne l'appelle d'office : la vérification se lance à la
+main.
 
-Contenu attendu pour la cible IBM PC/XT :
+Le manifeste porte les 34 fichiers que le code lit (`romfopen`, `rom_init`, `rom_present`,
+`loadfont`, `awe32.raw` du lanceur) ; `roms/` en contient bien plus, le paquet de ROM de PCem
+entier, que le manifeste ne suit pas. Vérification : `cd roms && sha256sum -c roms.sha256`.
 
-| Fichier | Taille | Rôle |
-|---|---|---|
-| `ibmxt/xt.rom` | 65 536 | BIOS 5160 du 05/09/86. Vecteur de reset `EA 5B E0 00 F0` à 0xFFFF0. Chemin nominal de `loadbios()`, `mem_bios.c:179` |
-| `ibmxt/5000027.u19` + `ibmxt/1501512.u18` | 32 768 ×2 | Paire alternative, repli si `xt.rom` absent (`mem_bios.c:169-176`) |
-| `mda.rom` | 8 192 | Police. Chargée **inconditionnellement** par `loadbios()` (`mem_bios.c:59`) et lue par le rendu texte CGA via `fontdat[chr + fontbase]` |
-| `wy700.rom`, `8x12.bin` | 16 384 / 4 096 | Polices chargées inconditionnellement aussi (`mem_bios.c:60-61`), inutiles au XT mais évitent un chemin d'erreur |
+- les polices, sur toutes les machines (`mem_bios.c:59-61`) : `mda.rom`, `wy700.rom`, `8x12.bin` ;
+- l'IBM PC 5150 : `ibmpc/pc102782.bin`, `ibmpc/basicc11.f6`, `.f8`, `.fa`, `.fc` ;
+- l'IBM XT 5160 : `ibmxt/xt.rom`, ou la paire `ibmxt/5000027.u19` et `ibmxt/1501512.u18`
+  (`mem_bios.c:169-176`) ;
+- l'IBM AT : `ibmat/62x0820.u27`, `ibmat/62x0821.u47` ;
+- les AMI : `ami286/amic206.bin`, `ami386/ami386.bin`, `ami386dx/opt495sx.ami`, `ami486/ami486.bin` ;
+- l'Olivetti M24 : `olivetti_m24/olivetti_m24_version_1.43_low.bin` et `_high.bin` ;
+- l'Amstrad PC1512 : `pc1512/40043.v1`, `40044.v1`, `40078.ic127` ;
+- la vidéo : `ibm_vga.bin`, `trident.bin` (TVGA8900D), `tvga9000b/BIOS.BIN`, `et4000.bin`,
+  `5429.vbi` (GD5429), `86c764x1.bin` (Trio64), `ibm_6277356_ega_card_u44_27128.bin` (EGA) ;
+- les disques : `ibm_xebec_62x0822_1985.bin`, `dtc_cxd21a.bin`, `ide_xt.bin` (XTIDE),
+  `adaptec_aha1542c_bios_534201-00.bin` ;
+- le son : `awe32.raw`, la ROM de l'EMU8000, contrôlée aussi par `Awe32Sha256`
+  (`tools/iXtal26.Diff/BootDiff.cs`).
 
-`im1024font.bin` (`mem_bios.c:62`) est absent et sans effet : carte IM1024, hors cible.
+`roms/ide_xt.bin`, que lit `Ide/xtide.cs`, n'est pas `roms/xtide/ide_xt.bin` (ils diffèrent dès
+l'octet 5) : `roms/xtide/` porte les outils XTIDE de GR.3f.
+
+`im1024font.bin` (`mem_bios.c:62`) est absent et sans effet : carte IM1024, non transcrite.
 `loadfont()` tolère un fichier manquant (`romfopen` renvoie NULL).

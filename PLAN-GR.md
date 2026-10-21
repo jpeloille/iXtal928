@@ -342,7 +342,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
 
 - **GR.4d** ✅ *fait, § GR.4d* : `make bench` se lie de nouveau (les objets C++, `--wrap=_Znam`), et la `.so` ne
   change pas ; les 17 symboles comptés ; `bench-native` aussi ; le lien sans DBOPL échoue.
-- **GR.4e** :
+- **GR.4e** ✅ *fait, § GR.4e* :
   - les manifestes et les notices : `roms/roms.sha256` (34 lignes), `VENDORED.md`, `THIRD_PARTY_NOTICES.md` (DOSBox
     « Yes », `nukedopl.cpp`, l'Ayumi, les quatre corpus) ;
   - TRANSCRIPTION.md ;

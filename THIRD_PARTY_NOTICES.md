@@ -33,15 +33,48 @@ vendored with the source.
 
 | Component | PCem location | Incorporated into iXtal26? |
 |---|---|---|
-| **DOSBox** (Sjoerd v.d. Berg, Peter Veenstra, et al. — GPL v2) | `src/dosbox/` — OPL, CGA composite, CD-ROM image | **No.** The CGA composite path is deliberately not transcribed |
-| **Ayumi** (Peter Sovietov — MIT) | `src/sound/ayumi/` — AY-3-8910 | **No.** Sound is out of scope for the XT target |
+| **DOSBox** (The DOSBox Team — GPL v2+) | `src/dosbox/dbopl.cpp`, `cdrom_image.cpp` | **Yes**, see below |
+| DOSBox, CGA composite | `src/dosbox/vid_cga_comp.c` | **No.** Deliberately not transcribed |
+| **Nuked OPL3** | `src/dosbox/nukedopl.cpp` | **No.** iXtal26 keeps DBOPL only |
+| **Ayumi** (Peter Sovietov — MIT) | `src/sound/ayumi/` — AY-3-8910 | **No** |
 | **reSID / reSID-fp** (Dag Lem, Antti Lankila — GPL v2) | `src/sound/resid-fp/` — SID | **No** |
 | **MiniVHD** (Sherman Perry — MIT) | VHD disk images | **No** |
 | **Slirp** (Danny Gasparovski et al.) | `src/networking/` — user-mode networking | **No** |
 
-As the scope grows beyond the IBM PC/XT target, any component that starts being
-transcribed must be moved to "yes" here, with its upstream notice reproduced in full from
-`pcem-dev/NOTICE`.
+Any component that starts being transcribed must be moved to "yes" here, with its upstream
+notice reproduced in full from `pcem-dev/NOTICE`.
+
+### DOSBox
+
+Two DOSBox files that PCem carries are transcribed: `src/dosbox/dbopl.cpp`, the OPL2/OPL3
+emulator (`iXtal26/Sound/dbopl.cs`, with `sound_dbopl.cs` for its PCem glue), and
+`src/dosbox/cdrom_image.cpp`, the CD-ROM image engine (`iXtal26/Cdrom/cdrom_image.cs`).
+Their source headers read "Copyright (C) 2002-2010 The DOSBox Team" and "Copyright (C)
+2002-2015 The DOSBox Team", under the GNU General Public License version 2 "or (at your
+option) any later version", which is compatible with iXtal26's GPL v2.0. The notice, as
+`pcem-dev/NOTICE` gives it:
+
+```
+DOSBox
+======
+The DOSBox Team
+---------------
+
+Sjoerd v.d. Berg <harekiet>
+Peter Veenstra <qbix79>
+Ulf Wohlers <finsterr>
+Tommy Frössman <fanskapet>
+Dean Beeler <canadacow>
+Sebastian Strohhäcker <c2woody>
+Ralf Grillenberger <h-a-l-9000>
+
+nick_without_<> @ users.sourceforge.net
+
+Licensed under the GNU General Public License 2.0
+```
+
+`pcem-dev/NOTICE` does not list Nuked OPL3; its source header names no licence. It is not
+transcribed.
 
 ---
 
@@ -103,16 +136,18 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## SingleStepTests
 
 **Authors:** Daniel Balsom (GloriousCow) and the SingleStepTests contributors
-**Source:** <https://github.com/SingleStepTests/8088>
+**Source:** <https://github.com/SingleStepTests>
 
-iXtal26 consumes JSON test vectors from the SingleStepTests 8088 `v2` suite to validate
-the CPU core. The vectors were captured from a physical AMD D8088 via the Arduino8088 rig.
+iXtal26 consumes JSON test vectors from four SingleStepTests suites to validate the CPU
+cores: `8088` (`v2`), `8086` (`v1`), `80286` (`v1_real_mode`) and `80386`
+(`v1_ex_real_mode`). The vectors were captured from physical processors.
 
 **No SingleStepTests source code is redistributed here.** The vectors are fetched at test
-time by `tools/fetch-sst.sh` into a `.gitignored` cache; only `vectors/sst/MANIFEST.sha256`
-is committed. Anyone redistributing iXtal26 *with* the vectors bundled must check the
-upstream licence terms and reproduce them here.
+time by `tools/fetch-sst.sh`, `fetch-sst8086.sh`, `fetch-sst286.sh` and `fetch-sst386.sh`
+into `.gitignored` caches; only their four `vectors/*/MANIFEST.sha256` are committed. Anyone
+redistributing iXtal26 *with* the vectors bundled must check the upstream licence terms and
+reproduce them here.
 
 ---
 
-*Last updated: 2026-10-11*
+*Last updated: 2026-10-21*
