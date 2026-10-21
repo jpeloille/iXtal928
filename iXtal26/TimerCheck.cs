@@ -417,9 +417,9 @@ internal static class TimerCheck
         Console.WriteLine();
 
         Console.WriteLine($"EMPREINTE: tops={ticks} tranches={windowSlices} tsc={dtsc} cons={dcons} ins={dins} insc={dinsc}");
-        // GR.3h — sous la charge « cd », la preuve que la boucle sert le lecteur : les PLAY envoyés et les blocs lus dans
-        //   la fenêtre, les secteurs audio tirés de l'image (588 trames stéréo chacun), l'état de l'audio et le début du
-        //   dernier bloc lu (le PVD d'ISO 9660 : 01h, « CD001 »).
+        // GR.3h — sous la charge « cd », la preuve que la boucle sert le lecteur : les PLAY envoyés et les blocs
+        //   lus dans la fenêtre, les secteurs audio tirés de l'image (588 trames stéréo chacun), l'état de l'audio
+        //   et le début du dernier bloc lu (le PVD d'ISO 9660 : 01h, « CD001 »).
         if (charge == Charge.Cd)
         {
                 var pvd = string.Concat(Enumerable.Range(0, 6)
