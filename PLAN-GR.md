@@ -304,7 +304,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - le comportement surprenant sous boot-diff : `bd-pc1512-lpt` (PB-101) ; PB-99 l'est déjà (`bd-pc-ega-banc`).
 - **GR.3e — QBASIC `STICK` et `STRIG` sous boot-diff** ✅ *fait, § GR.3e* : sur l'ami286, avec des états injectés par `--joy-at`, puis en
   C# seul dans les deux modes.
-- **GR.3f — Les outils XTIDE** : une disquette fabriquée par la recette, avec `BIOSDRVS` sur le XT, la M24 et le
+- **GR.3f — Les outils XTIDE** ✅ *fait, § GR.3f* : une disquette fabriquée par la recette, avec `BIOSDRVS` sur le XT, la M24 et le
   PC1512, et `XTIDECFG` ouvert puis quitté sur le XT ; l'image C: inchangée.
 - **GR.3g — Windows sous boot-diff, avec `EGA.DRV` et `HERCULES.DRV`** :
   - les disques préparés par la recette depuis `c286.img` et la disquette 2 ;

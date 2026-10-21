@@ -472,6 +472,16 @@ runw bd-xt-xtide-format c.nvr aucune boot-diff roms 8000 --config xt-xtide.cfg -
 for m in ibmpc:pc ibmxt:xt olivetti_m24:m24 pc1512:pc1512; do
   runw bd-${m#*:}-xtide-boot c.nvr aucune boot-diff roms 8000 --config xt-xtide-dos.cfg --model ${m%:*} --type-at 8000 --type-settle 300 --type "" --type "" --type "VER" --type "DIR" --type "MD G10" --type "COPY COMMAND.COM G10" --type "DIR G10"
 done
+# GR.3f — les outils du XTIDE (roms/xtide), sur la disquette de la recette (xtide-outils.img) : BIOSDRVS depuis B:, sur
+# le XT, la M24 et le PC1512 qui amorcent c8088dos.img ; XTIDECFG ouvert puis quitté sur le XT (Échap, puis la flèche
+# vers « Yes ») ; l'image C: comparée, inchangée.
+for m in ibmxt:xt olivetti_m24:m24 pc1512:pc1512; do
+  XC=(); [ ${m#*:} = xt ] && XC=(--type "B:XTIDECFG" --type "@wait 900" --type $'\e^' --type "@wait 300" --type $'\x19'
+    --type "@wait 600")
+  runw bd-${m#*:}-xtide-outils c.nvr aucune boot-diff roms 8000 --config xt-xtide-dos.cfg --model ${m%:*} \
+    --fdb "$WORK/xtide-outils.img" --type-at 8000 --type-settle 300 --type "" --type "" --type "B:BIOSDRVS" \
+    --type "@wait 600" "${XC[@]}" --type "VER"
+done
 # G10.3 — le moteur d'images de CD (cdrom_image.cpp, cdrom-image.cc, cdrom-null.c), hors machine. Les
 # deux portes écrivent elles-mêmes les images d'isogen dans le TMPDIR de la série, les vérifient contre
 # tools/isogen/isogen.sha256 et les effacent en sortant, l'image creuse de 2,5 Go comprise (PB-107).

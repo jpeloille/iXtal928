@@ -15218,3 +15218,40 @@ si `--joy-at` était ignoré des deux. Les valeurs relues sont celles de la mesu
 STICK et STRIG (la fonction STRIG(n) sans `STRIG ON`), la porte à la course de mesure, et `AjouterJoyAt`. Ses points
 sont repris : les « ; » non tapés, dits ; une ligne de 121 caractères ; le contrôle du type 1, dit faible ; le ± 1,
 dit hypothèse.
+
+## GR.3f — Les outils XTIDE
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3f). BIOSDRVS et XTIDECFG, les outils du XTIDE Universal BIOS
+(`roms/xtide/`), n'avaient jamais tourné.
+
+**La disquette.** La recette g5w fabrique `xtide-outils.img` : 360 Ko par `--create-floppy`, puis BIOSDRVS.COM et
+XTIDECFG.COM par `--floppy-put`. `--floppy-put` date un fichier par son heure sur l'hôte, qui suit le clone : la
+recette en dépose des copies datées du 15 juin 1995 à midi, le jour du volume d'isogen. Deux fabrications donnent
+les mêmes octets. `g5w.sha256` gagne sa ligne, et rien d'autre ne change.
+
+**Les portes** `bd-{xt,m24,pc1512}-xtide-outils`. Le XT, la M24 et le PC1512 amorcent `c8088dos.img` par le XTIDE,
+la disquette en B: :
+- BIOSDRVS liste le disque 80h : « PCemHD », 306 × 4 × 17 par IDENTIFY (AH=25h), 305 × 4 × 17 par AH=08h, 20 808
+  secteurs par l'EBIOS (AH=48h). À l'écran sur la M24 et le PC1512 ; sur le XT, XTIDECFG efface l'écran, et la
+  sortie n'est comparée que par la trace ;
+- sur le XT seulement, XTIDECFG est ouvert puis quitté. Échap ouvre « Exit to DOS? », la flèche bas (`\x19` de
+  KeyScript) puis Entrée choisissent « Yes », et l'invite revient (`VER` répond) ;
+- l'image C: est comparée, inchangée des deux côtés.
+
+Les trois portes sont vertes : le XT à 37 629 082 instructions, la M24 à 50 657 429, le PC1512 à 58 775 670.
+
+**Les contrôles négatifs** :
+- l'octet haut du verrou du XTIDE faussé à la lecture de 300h (le contrôle de G10.2 ; la panne par
+  `/tmp/a9/neg-gr3f.py`, jouée par `/tmp/a9/t3f/neg.sh` sur la séquence de BIOSDRVS, sans XTIDECFG) : diverge à
+  l'instruction 11 400 990, là où G10.2 divergeait ;
+- BIOSDRVS sur le XT sans XTIDE (un témoin en C# seul, amorcé sur la disquette de PC-DOS) : l'en-tête de l'outil,
+  puis l'invite ; aucun disque listé.
+
+**La série.** L'émulateur ne change pas. La recette, refaite, est conforme aux empreintes (une ligne ajoutée). Un
+sous-ensemble sur le worktree, en Release, mode PCem : les trois portes neuves et leur voisine `bd-xt-xtide-boot`,
+vertes.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a relu la recette (`set -eu`, le répertoire, le
+déterminisme : `touch -d` et `DosStamp` lisent tous deux l'heure locale), les portes (`$'\e^'`, la copie par côté
+de la disquette par boot-diff), KeyScript (`\u0019`, la flèche bas) et les relevés. Ses points sont repris : la
+sortie de BIOSDRVS sur le XT, comparée par la trace ; la portée de la panne ; les scripts cités.
