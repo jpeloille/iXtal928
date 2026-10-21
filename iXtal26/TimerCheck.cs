@@ -89,14 +89,23 @@ internal static class TimerCheck
     private static double _clock;
     private static double _tscPerCycle;
 
-    private static void RunSlices(int n)
+    private static void RunSlices(int n, bool cd = false)
     {
         for (var i = 0; i < n; i++)
         {
+                var pos = Cdrom.cdrom_image.image_cd_pos;
                 pc.runpc();
                 _slices++;
+                if (cd)
+                        _cdAudioSectors += Cdrom.cdrom_image.image_cd_pos >= pos
+                                ? Cdrom.cdrom_image.image_cd_pos - pos
+                                : Math.Max(0, (long)Cdrom.cdrom_image.image_cd_pos - (CdPlayStart + 150));
         }
     }
+
+    private static uint32_t ReadDword(uint32_t a)
+        => mem.mem_readb_phys(a) | ((uint32_t)mem.mem_readb_phys(a + 1) << 8)
+           | ((uint32_t)mem.mem_readb_phys(a + 2) << 16) | ((uint32_t)mem.mem_readb_phys(a + 3) << 24);
 
     /// <summary>Le dword 0040:006C, octet par octet par le chemin physique — le
     /// même que DumpTextScreen emploie pour la VRAM, sans passer par le cache
@@ -264,6 +273,8 @@ internal static class TimerCheck
                 return 1;
         if (charge == Charge.X87 && !InstallRamLoop(X87Loop, "x87"))
                 return 1;
+        if (charge == Charge.Cd && !InstallRamLoop(CdLoop, "cd"))
+                return 1;
 
         // ---------------------------------------------------------------
         // La fenêtre. On l'aligne sur un FRONT du compteur aux deux bouts :
@@ -283,8 +294,10 @@ internal static class TimerCheck
 
         // Le chronomètre de l'hôte ne couvre que la fenêtre elle-même, alignement de
         // fin compris : ce sont les tranches dont on mesure le temps émulé.
+        var plays0 = ReadDword(CdPlays);
+        var reads0 = ReadDword(CdReads);
         var host = Stopwatch.StartNew();
-        RunSlices(seconds * 100);
+        RunSlices(seconds * 100, charge == Charge.Cd);
 
         if (!AlignToTick(out var t1))
                 return 1;
@@ -404,11 +417,23 @@ internal static class TimerCheck
         Console.WriteLine();
 
         Console.WriteLine($"EMPREINTE: tops={ticks} tranches={windowSlices} tsc={dtsc} cons={dcons} ins={dins} insc={dinsc}");
+        // GR.3h — sous la charge « cd », la preuve que la boucle sert le lecteur : les PLAY envoyés et les blocs lus dans
+        //   la fenêtre, les secteurs audio tirés de l'image (588 trames stéréo chacun), l'état de l'audio et le début du
+        //   dernier bloc lu (le PVD d'ISO 9660 : 01h, « CD001 »).
+        if (charge == Charge.Cd)
+        {
+                var pvd = string.Concat(Enumerable.Range(0, 6)
+                                                  .Select(i => $"{mem.mem_readb_phys(0x80000u + (uint32_t)i):X2}"));
+                var joue = Cdrom.cdrom_image.image_cd_state == Cdrom.cdrom_image.CD_PLAYING ? "joue" : "à l'arrêt";
+                Console.WriteLine($"LECTEUR: play={ReadDword(CdPlays) - plays0} read={ReadDword(CdReads) - reads0} " +
+                                  $"secteurs-audio={_cdAudioSectors} trames={_cdAudioSectors * 588} audio {joue}, " +
+                                  $"le tampon commence par {pvd}");
+        }
 
         return 0;
     }
 
-    internal enum Charge { Repos, Ram, X87 }
+    internal enum Charge { Repos, Ram, X87, Cd }
 
     // MOV CX,FFFF / DEC CX / JNZ -3 / JMP -8 : une boucle sur registres, qui ne touche pas
     // la mémoire hors de son propre préfetch.
@@ -429,7 +454,37 @@ internal static class TimerCheck
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0638 : le résultat
     ];
 
+    // LA CHARGE « CD » (GR.3h ; PLAN-GR.md : la marge sous lectures CD) : le lecteur ATAPI maître du canal secondaire
+    // (170h), mixte.cue d'isogen chargé. PLAY AUDIO MSF de 00:02:42 à 00:05:22 (de la piste 2 au lead-out), puis 32
+    // READ(10) du LBA 16, un bloc chacun, en PIO (REP INSW vers 8000:0000, la mémoire libre), puis de nouveau PLAY :
+    // l'audio du CD et les lectures en même temps. Les PLAY envoyés et les blocs de données lus, comptés sur 32 bits en
+    // CdPlays et CdReads. Après PACKET, la boucle attend DRQ ou ERR sans BSY ; ERR, ou un compte de DRQ nul, abandonne
+    // la commande. Assemblé par GNU as (la source est dans VERIFICATION.md § GR.3h).
+    private static readonly byte[] CdLoop =
+    [
+        0x31, 0xC0, 0x8E, 0xD8, 0xFC, 0xBA, 0x76, 0x01, 0xB0, 0xA0, 0xEE, 0xBE, 0x8D, 0x06, 0xE8, 0x18,
+        0x00, 0x83, 0x06, 0xA5, 0x06, 0x01, 0x83, 0x16, 0xA7, 0x06, 0x00, 0xBB, 0x20, 0x00, 0xBE, 0x99,
+        0x06, 0xE8, 0x05, 0x00, 0x4B, 0x75, 0xF7, 0xEB, 0xE2, 0xE8, 0x58, 0x00, 0xBA, 0x71, 0x01, 0x30,
+        0xC0, 0xEE, 0xBA, 0x74, 0x01, 0xEE, 0x42, 0xB0, 0x08, 0xEE, 0xBA, 0x77, 0x01, 0xB0, 0xA0, 0xEE,
+        0xEC, 0xA8, 0x80, 0x75, 0xFB, 0xA8, 0x09, 0x74, 0xF7, 0xA8, 0x01, 0x75, 0x36, 0xBA, 0x70, 0x01,
+        0xB9, 0x06, 0x00, 0xF3, 0x6F, 0xE8, 0x2C, 0x00, 0xA8, 0x08, 0x74, 0x27, 0xBA, 0x74, 0x01, 0xEC,
+        0x88, 0xC1, 0x42, 0xEC, 0x88, 0xC5, 0x41, 0xD1, 0xE9, 0xE3, 0x18, 0xBA, 0x70, 0x01, 0xB8, 0x00,
+        0x80, 0x8E, 0xC0, 0x31, 0xFF, 0xF3, 0x6D, 0x83, 0x06, 0xA9, 0x06, 0x01, 0x83, 0x16, 0xAB, 0x06,
+        0x00, 0xEB, 0xD2, 0xC3, 0xBA, 0x77, 0x01, 0xEC, 0xA8, 0x80, 0x75, 0xFB, 0xC3, 0x47, 0x00, 0x00,
+        0x00, 0x02, 0x2A, 0x00, 0x05, 0x16, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+
     private const uint32_t RamLoopAddr = 0x600;
+    private const uint32_t CdPlays = 0x6A5, CdReads = 0x6A9;
+
+    // Le début du PLAY de CdLoop, en LBA : 00:02:42.
+    private const uint32_t CdPlayStart = 42;
+
+    // Sous la charge « cd », les secteurs audio que le moteur a tirés de l'image (image_cd_pos), sommés tranche par
+    // tranche ; une relance de PLAY ramène la position en arrière, et la tranche où elle tombe ne compte que ce qui
+    // suit la relance.
+    private static long _cdAudioSectors;
 
     /// <summary>
     /// LA CHARGE « RAM », pour mesurer la marge de l'hôte là où elle se décide. À la fin de
@@ -457,6 +512,13 @@ internal static class TimerCheck
                 Console.Error.WriteLine("--charge x87 : la machine n'a pas de coprocesseur.");
                 return false;
         }
+        if (nom == "cd" && (Ide.ide.cdrom_channel != 2 || Ide.ide.ide_drives[2].type != Ide.ide.IDE_CDROM ||
+                            Cdrom.cdrom_ioctl.cdrom_drive != Ide.ide.CDROM_IMAGE))
+        {
+                Console.Error.WriteLine("--charge cd : il faut le lecteur de CD monté au canal 2, une image chargée " +
+                                        "(hdd_controller = ide, cdrom_channel = 2, cdrom_drive = 200, cdrom_path).");
+                return false;
+        }
 
         for (var i = 0; i < boucle.Length; i++)
                 mem.ram[RamLoopAddr + i] = boucle[i];
@@ -467,9 +529,15 @@ internal static class TimerCheck
         mem.flushmmucache();
         _386.prefetch_reset();
 
-        Console.WriteLine(nom == "ram"
-                ? $"--- charge « ram » : boucle MOV CX,FFFF / DEC CX / JNZ / JMP en 0000:{RamLoopAddr:X4}, IF = 1 ---\n"
-                : $"--- charge « x87 » : la boucle de X87BANC (FLD, FPTAN, FDIVP, FSQRT, FMUL, FSTP) en 0000:{RamLoopAddr:X4}, IF = 1 ---\n");
+        Console.WriteLine(nom switch
+        {
+                "ram" => "--- charge « ram » : boucle MOV CX,FFFF / DEC CX / JNZ / JMP en " +
+                         $"0000:{RamLoopAddr:X4}, IF = 1 ---\n",
+                "x87" => "--- charge « x87 » : la boucle de X87BANC (FLD, FPTAN, FDIVP, FSQRT, FMUL, FSTP) en " +
+                         $"0000:{RamLoopAddr:X4}, IF = 1 ---\n",
+                _ => "--- charge « cd » : PLAY AUDIO MSF, puis 32 READ(10) en PIO, en boucle, en " +
+                     $"0000:{RamLoopAddr:X4}, IF = 1 ---\n",
+        });
         return true;
     }
 

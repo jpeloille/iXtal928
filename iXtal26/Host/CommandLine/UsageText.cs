@@ -172,13 +172,15 @@ internal static class UsageText
                                Avec DOSSIER, y écrit les deux versions en WAV
           --timer-check [CHEMIN] [SECONDES] [--model NOM] [--config FICHIER] [--cpu N]
                         [--gfxcard NOM] [--floppy-a IMG] [--floppy-b IMG] [--boot-slices N]
-                        [--charge repos|ram|x87]
+                        [--charge repos|ram|x87|cd]
                                amorce, vérifie que l'INT 8 du BIOS tourne, puis
                                compte les tops de la BDA (0040:006C) sur SECONDES
                                secondes ÉMULÉES et compare à 1193182/65536 =
                                18,2065 Hz (défauts : roms, 300 s). Imprime aussi la
                                CADENCE : fréquence du processeur vue par l'invité,
-                               vitesse du temps invité, et marge de l'hôte
+                               vitesse du temps invité, et marge de l'hôte ; --charge cd :
+                               le lecteur ATAPI du canal 2 joue mixte.cue de la piste 2 à
+                               la fin du disque et sert des READ(10) en PIO (GR.3h)
           --setup              ouvre l'écran de construction de machine avant de
                                démarrer : modèle, mémoire, disquettes, disques durs,
                                charger ou enregistrer une machine de configs/. Il

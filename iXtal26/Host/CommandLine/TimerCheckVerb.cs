@@ -44,9 +44,15 @@ internal static class TimerCheckVerb
                     machine.GraphicsCard = value;
                     break;
                 case "--charge":
-                    if (value is not ("ram" or "repos" or "x87"))
-                        return Failure.Usage("--charge attend « repos », « ram » ou « x87 ».");
-                    charge = value switch { "ram" => TimerCheck.Charge.Ram, "x87" => TimerCheck.Charge.X87, _ => TimerCheck.Charge.Repos };
+                    if (value is not ("ram" or "repos" or "x87" or "cd"))
+                        return Failure.Usage("--charge attend « repos », « ram », « x87 » ou « cd ».");
+                    charge = value switch
+                    {
+                        "ram" => TimerCheck.Charge.Ram,
+                        "x87" => TimerCheck.Charge.X87,
+                        "cd" => TimerCheck.Charge.Cd,
+                        _ => TimerCheck.Charge.Repos,
+                    };
                     break;
                 case "--cpu":
                     if (!int.TryParse(value, out var processorIndex) || processorIndex < 0)

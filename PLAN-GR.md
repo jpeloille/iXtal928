@@ -310,8 +310,8 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - les disques préparés par la recette depuis `c286.img` et la disquette 2 ;
   - le coût mesuré d'abord en C# seul, jusqu'au Gestionnaire de programmes ;
   - `bd-ami286-win-ega` et `bd-ami286-win-herc`, en mode standard, pixels compris.
-- **GR.3h — La marge de `--timer-check` sous lectures CD** : `--charge cd` (PLAY AUDIO, puis des READ(10)), mesurée dans
-  les deux modes sur l'ami486.
+- **GR.3h — La marge de `--timer-check` sous lectures CD** ✅ *fait, § GR.3h* : `--charge cd` (PLAY AUDIO, puis des
+  READ(10)), mesurée dans les deux modes sur l'ami486.
 - **GR.3i — L'écoute, par Julien** : une disquette d'écoute (une gamme en DSS, en Covox mono et stéréo, et ATAPIAUD) et
   une feuille CUE d'écoute d'isogen ; sa réponse est inscrite telle quelle.
 

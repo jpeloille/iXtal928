@@ -15312,3 +15312,185 @@ copies du WORK), les écrans du SETUP, les comptes des portes et les pannes. Ses
 Hercules du mode PCem, écrasée par l'essai EGA.DRV, rejouée sous un nom propre ; les captures toutes rejouées sur les
 disques de la recette ; 640 × 349 ; CONFIG.SYS, pour l'EGA seulement ; EGA.DRV laissé à 20 000 tranches ; la portée
 de la preuve, ci-dessus.
+
+## GR.3h — La marge de `--timer-check` sous lectures CD
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § GR.3h). `--timer-check` mesurait la marge de l'hôte au repos, sous
+une boucle en RAM (`ram`) et sous le flottant (`x87`), jamais sous le lecteur de CD.
+
+**La charge « cd »** (`TimerCheck.cs`, `--charge cd`). Comme `ram` et `x87`, une boucle est écrite en 0000:0600 et
+sautée après l'amorçage, interruptions permises. Elle sert le lecteur ATAPI maître du canal secondaire (170h),
+`mixte.cue` d'isogen chargé :
+- PLAY AUDIO MSF de 00:02:42 à 00:05:22, de la piste 2 à la fin du disque (les pistes 2 et 3, le prégap de 150
+  entre elles) ;
+- puis 32 READ(10) du LBA 16, un bloc chacun, en PIO (REP INSW vers 8000:0000) ;
+- puis de nouveau PLAY. L'audio du CD et les lectures tournent donc ensemble.
+
+Après PACKET, la boucle attend DRQ ou ERR sans BSY. ERR, ou un compte de DRQ nul, abandonne la commande : une panne
+du lecteur ne fige pas la boucle. Deux compteurs de 32 bits, dans la boucle, comptent les PLAY envoyés et les blocs
+de données lus. Le tampon (8000:0000-07FF) est dans les 640 Ko, sans danger : l'amorçage n'a chargé aucun DOS (le
+disque est absent de la configuration).
+
+À la fin de la fenêtre, une ligne `LECTEUR` dit :
+- les PLAY et les blocs lus dans la fenêtre ;
+- les secteurs audio que le moteur a tirés de l'image, et leurs trames (588 par secteur). On les somme tranche par
+  tranche sur `image_cd_pos`, et une relance de PLAY ne compte que ce qui la suit ;
+- l'état de l'audio, et le début du dernier bloc lu.
+
+La charge est refusée (code 1, comme `x87` sans coprocesseur ; le plan disait 2) sans le lecteur de CD monté au
+canal 2 avec une image : `cdrom_channel`, l'unité 2 de type CD (un ZIP en est un aussi) et `cdrom_drive = 200`.
+
+Deux fautes de la première version ont été trouvées par la ligne `LECTEUR`, l'audio restant à l'arrêt et le tampon
+vide :
+- la boucle n'attendait que la fin de BSY après la commande PACKET, et abandonnait faute de DRQ ;
+- la configuration de mesure n'avait pas de contrôleur IDE (`hdd_controller`) : le lecteur n'était pas monté, et la
+  charge tournait à vide. Ce cas est refusé désormais.
+
+La source, assemblée par GNU as (`as --32`, puis `ld -m elf_i386 -Ttext=0x600 --oformat=binary`, 173 octets) :
+
+```
+# La charge « cd » de --timer-check (GR.3h) : en 0000:0600, interruptions permises. Le lecteur ATAPI maître du canal
+# secondaire (170h) : PLAY AUDIO MSF de 00:02:42 à 00:05:22 (de la piste 2 de mixte.cue au lead-out : les pistes 2 et
+# 3, et le prégap de 150 entre elles), puis 32 READ(10) du LBA 16, un bloc chacun, en PIO (REP INSW vers 8000:0000, la
+# mémoire libre) ; puis on recommence. Deux compteurs de 32 bits : les PLAY envoyés, les blocs de données lus. Après
+# PACKET, on attend DRQ ou ERR sans BSY ; ERR, ou un compte de DRQ nul, abandonne la commande.
+.intel_syntax noprefix
+.code16
+.text
+.globl _start
+_start:
+    xor ax, ax
+    mov ds, ax
+    cld
+    mov dx, 0x176
+    mov al, 0xA0
+    out dx, al
+1:  mov si, offset jouer
+    call paquet
+    add word ptr [njouer], 1
+    adc word ptr [njouer+2], 0
+    mov bx, 32
+2:  mov si, offset lire
+    call paquet
+    dec bx
+    jnz 2b
+    jmp 1b
+# paquet : envoie les 12 octets en DS:SI, puis lit les blocs DRQ jusqu'à la fin.
+paquet:
+    call bsy
+    mov dx, 0x171
+    xor al, al
+    out dx, al
+    mov dx, 0x174
+    out dx, al
+    inc dx
+    mov al, 0x08
+    out dx, al
+    mov dx, 0x177
+    mov al, 0xA0
+    out dx, al
+3:  in al, dx
+    test al, 0x80
+    jnz 3b
+    test al, 0x09
+    jz 3b
+    test al, 0x01
+    jnz 5f
+    mov dx, 0x170
+    mov cx, 6
+    rep outsw
+4:  call bsy
+    test al, 0x08
+    jz 5f
+    mov dx, 0x174
+    in al, dx
+    mov cl, al
+    inc dx
+    in al, dx
+    mov ch, al
+    inc cx
+    shr cx, 1
+    jcxz 5f
+    mov dx, 0x170
+    mov ax, 0x8000
+    mov es, ax
+    xor di, di
+    rep insw
+    add word ptr [nlire], 1
+    adc word ptr [nlire+2], 0
+    jmp 4b
+5:  ret
+bsy:
+    mov dx, 0x177
+6:  in al, dx
+    test al, 0x80
+    jnz 6b
+    ret
+jouer: .byte 0x47, 0, 0, 0, 2, 42, 0, 5, 22, 0, 0, 0
+lire:  .byte 0x28, 0, 0, 0, 0, 16, 0, 0, 1, 0, 0, 0
+njouer: .long 0
+nlire:  .long 0
+```
+
+**La mesure.** Release (le worktree de l'étape), 60 s émulées, `taskset -c 0-3`, une mesure à la fois. La
+configuration est l'ami486 DX2/66 de `ami486-dx2.cfg`, avec l'IDE, le lecteur au canal 2 et la SB Pro v2, qui mixe
+l'audio du CD (`mixte.cue` de la recette, dans le WORK) :
+
+```
+model = ami486
+cpu = 10
+mem_size = 4096
+gfxcard = tvga9000b
+hdd_controller = ide
+cdrom_channel = 2
+cdrom_drive = 200
+cdrom_path = /tmp/a9/g5w-gr2d2/mixte.cue
+cd_model = cr-587-b
+sndcard = sbprov2
+[Sound Blaster Pro v2]
+addr = 544
+irq = 5
+dma = 1
+```
+
+| Charge | Marge, mode PCem | Marge, « tout » | Instructions dans la fenêtre, mode PCem |
+|---|---|---|---|
+| repos | 5,94 | 4,87 | 708 639 328 |
+| ram | 8,99 | 7,22 | 667 000 618 |
+| cd | 7,77 | 6,40 | 485 633 153 |
+
+Le repos a une marge plus basse que `ram` : sur ce 486, la boucle d'attente du BIOS exécute plus d'instructions
+dans la fenêtre que la boucle sur registres, donc plus de travail pour l'hôte.
+
+Sous la charge cd, à 60 s émulées, la ligne `LECTEUR` est identique dans les deux modes :
+- 360 PLAY ;
+- 11 531 blocs lus, pour 360 × 32 READ envoyés, aucun abandonné ;
+- 4 745 secteurs audio, 2 790 060 trames. Le temps réel en ferait 4 502 (75 par seconde) : le surplus vient de ce
+  que chaque PLAY vide le tampon de l'audio (`cdrom-image.cs:182`), que le moteur remplit de nouveau ;
+- l'audio qui joue ;
+- le dernier bloc lu, qui commence par `01 43 44 30 30 31`, le PVD (01h, « CD001 »).
+
+Le PLAY étant relancé six fois par seconde, l'audio ne quitte pas le début de la piste 2. Les `EMPREINTE` des deux
+modes diffèrent de 86 instructions sous la charge cd, de 10 et 11 sous `repos` et `ram`.
+
+Partout, la marge reste au-dessus de 1 : le temps réel tient sous les lectures CD et l'audio, avec une réserve de 6,4
+en mode matériel (décision n° 7 de PLAN-G13). Ce sont des mesures de l'hôte, non déterministes. Le moteur du CD
+imprime trois lignes de journal à chaque PLAY (1 080 dans la fenêtre), comme PCem : la marge de la charge cd en paie
+le coût, et c'est une borne basse.
+
+**Les contrôles négatifs.** `--charge cd` sans `hdd_controller` : refusée, code 1. Un ZIP au canal 2, sans lecteur
+de CD (`zip_channel = 2`, `cdrom_channel = -1`) : refusée, code 1.
+
+**La série.** L'émulateur ne change pas : l'outil de l'hôte seul (`TimerCheck.cs`, le verbe, l'aide). Un
+sous-ensemble : `materiel-cas-pb03` et `-materiel`, qui passent par `--timer-check`, verts. M2 n'a rien à
+comparer : aucune méthode de l'émulateur ne change, et aucun scénario des listings du JIT ne joue `--timer-check`.
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a assemblé la source, l'a comparée octet pour octet,
+relu le protocole ATAPI de la boucle, le refus et la ligne `LECTEUR`, et vérifié les chiffres. Ses points sont
+repris :
+- « la piste 2 » corrigé : le PLAY va jusqu'à la fin du disque ;
+- l'attente sans fin sur ERR, et le compte nul, abandonnent la commande ;
+- le refus vérifie aussi `cdrom_channel`, un ZIP au canal 2 passant à tort ;
+- les comptes que la demande voulait (les blocs lus, les secteurs audio), ajoutés ;
+- le refus joué ;
+- la configuration réelle, la marge de `repos` et le coût du journal, dits.
