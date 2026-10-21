@@ -73,6 +73,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
     Console.WriteLine("      config.c n'est pas lié dans l'oracle — il n'y a rien à quoi le");
     Console.WriteLine("      comparer, donc c'est la seule porte de sa moitié écriture.");
     Console.WriteLine();
+    Console.WriteLine("  nvr-check [CHEMIN_ROMS]");
+    Console.WriteLine("      GR.3c — --make-nvr carte par carte : l'octet d'équipement (0x14) de chaque carte du");
+    Console.WriteLine("      registre (20h, 30h, 00h), la somme rangée et non nulle ; une carte inconnue refusée.");
+    Console.WriteLine();
     Console.WriteLine("  speed-check [CHEMIN_ROMS] [TRANCHES]");
     Console.WriteLine("      Où passe le temps ÉMULÉ : cycles consommés contre TSC avancé, par");
     Console.WriteLine("      tranche. Mesure le temps ÉMULÉ, pas la vitesse hôte : voir bench.");
@@ -322,6 +326,9 @@ switch (args[0])
     // G10.3 — R9 : les feuilles CUE qui font tomber PCem, en C# seul.
     case "r9-cue":
         return R9Cue.Run(args.Length > 1 ? args[1] : null);
+    // GR.3c — --make-nvr carte par carte : l'octet d'équipement et la somme (NvrCheck.cs).
+    case "nvr-check":
+        return NvrCheck.Run(args.Length > 1 ? args[1] : "roms");
     // G10.4 — R9 : les sites où PCem s'arrête dans le pont ATAPI, le bus et le lecteur de CD (PB-113 à PB-115).
     case "r9-atapi":
         return R9Atapi.Run("roms", args.Length > 1 ? args[1] : null);

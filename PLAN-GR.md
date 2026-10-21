@@ -290,7 +290,7 @@ GR.0c et GR.1e touchent aux mêmes générateurs : ils font une seule étape, ap
   - LPT1 reste à `none` (PLAN-G10, décision n° 3) ;
   - deux profils courts pour l'écoute, la DSS et le Covox ;
   - `bd-cfg-486-cd`.
-- **GR.3c — `--setup-check` et `--make-nvr`** :
+- **GR.3c — `--setup-check` et `--make-nvr`** ✅ *fait, § GR.3c* :
   - chaque carte de G9 et la CGA proposée, et posée sur un XT et sur un AT ;
   - un aller-retour Charger → Enregistrer de toutes les clés de G10, G12.3, G13.12 et G13.13. L'enregistrement de
     l'écran est corrigé pour elles ;

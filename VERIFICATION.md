@@ -15033,3 +15033,74 @@ repris : la manette absente de l'hôte, dite dans l'en-tête ; les profils d'éc
 **Pour GR.3c** (relevé par la contre-lecture) : l'écran de construction n'enregistre pas `lpt1_device`. Un profil
 d'écoute chargé puis enregistré perdrait son LPT1, et l'enregistrement écrit `hardware_mode` (le piège de
 R3-contre).
+
+## GR.3c — `--setup-check` étendu et `--make-nvr` pour chaque carte
+
+Le 21 octobre 2026 (PLAN-GR.md ; R3-clotures.md § 1.4, § 1.5 ; R3-contre.md, « l'écran SETUP omet plus que
+`lpt1_device` »). L'écran de construction ne contrôlait aucune carte de G9 ni la CGA. Il n'enregistrait pas
+`lpt1_device`. `--make-nvr` n'était joué carte par carte par aucune porte.
+
+**L'écran de construction** (`Host/SdlSetup.cs`) :
+- `SaveMachine` écrit `lpt1_device`, comme PCem (`pc.c:965`). La clé d'une machine chargée ne restait jusque-là que
+  par l'arbre en mémoire, et une machine composée à l'écran n'en avait pas ;
+- `SelfCheck` gagne les cinq cartes (la CGA, la MDA, l'Hercules, l'EGA, l'ET4000AX) sur le XT et sur l'AT. Chacune
+  doit être proposée, et la choisir doit poser `gfxcard` : 20 contrôles ;
+- `SelfCheck` gagne aussi un aller-retour Charger → Enregistrer. La machine `AllerRetour` porte les clés de G10 (le
+  CD, le ZIP, LPT1, la manette et sa section), de G12.3 (la section de la SB 16), de G13.12 (celles de l'EGA et de
+  l'IDE) et de G13.13 (les ports de la carte mère), hors de leur défaut quand c'est possible. Elle est chargée par
+  l'écran puis enregistrée, et chacune de ses 36 clés est relue identique. Celles que l'écran ne réécrit pas restent
+  par l'arbre en mémoire : la déduction de R3 est prouvée ;
+- l'en-tête du fichier, périmé (« deux cartes, la CGA et la VGA »), dit ce que l'écran propose et ce qu'il enregistre.
+
+`--setup-check` : 100 contrôles verts (43 avant). `--menu-check` : vert dans les deux modes.
+
+**`--make-nvr`** (`Host/NvrImage.cs`). Le refus d'une carte inconnue existait déjà (GR.4a). Le message des machines
+sans CMOS ne parlait que du 8088 ; il nomme aussi la M24 et le PC1512, des 8086.
+
+**`nvr-check`** (`tools/iXtal26.Diff/NvrCheck.cs`). Pour chaque carte du registre, le CMOS d'un ami286 qui la porte.
+Les bits 5-4 de 0x14 doivent valoir 20h pour la CGA, 30h pour la MDA et l'Hercules, 00h pour une carte à ROM. La somme
+doit être rangée en 0x2E-0x2F et non nulle. Une carte inconnue doit être refusée (2). Les dix cartes sont justes. La
+commande n'a pas d'oracle : elle est admise sous le mode matériel (`ModeOutils`), et verte sous « tout ».
+
+**Le POST avec un CMOS à 30h.** La recette g5w gagne deux CMOS sans disque, faits par `--make-nvr` sur deux
+configurations : `at-mda.nvr` (l'IBM AT et la MDA, 0x14 = 35h) et `herc286.nvr` (l'ami286 et l'Hercules, 77h).
+`g5w.sha256` gagne leurs deux lignes, et rien d'autre ne change. Deux portes, la carte exigée par `--expect-carte` :
+- `bd-ibmat-mda-cmos` : verte, 5 055 758 instructions ;
+- `bd-ami286-hercules-cmos` : verte, 5 620 789 instructions.
+
+Ce que le POST affiche, en C# seul, dans les deux modes (`/tmp/a9/post-3c.sh`) :
+- l'ami286 et l'Hercules : « Display Type : Monochrome », sans plainte ;
+- l'IBM AT : « 162-System Options Not Set ». C'est le cas de tout CMOS de `--make-nvr` sur cette machine, VGA comprise,
+  et aussi de `nvr/default/at.nvr` (mesuré). L'erreur ne tient donc pas à l'affichage. Constat hors de l'étape :
+  `--make-nvr` ne fait pas encore un CMOS que le POST de l'IBM AT accepte. Le bit 2 de 0x14 (le « clavier » de
+  l'AMI, réservé sur l'AT) est écarté par la mesure : ôté, la somme refaite, le 162 reste. Restent à éprouver, un
+  octet à la fois : 0x0B, 0x0E, et la mémoire étendue (0x17-0x18, 0x30-0x31).
+
+**Les contrôles négatifs** (`/tmp/a9/neg-gr3c.py`) :
+- K1, l'Hercules ramenée à 00h dans `NvrImage` : `nvr-check` rouge (« hercules 00h, attendu 30h »), et le POST du 286
+  sur ce CMOS affiche « CMOS display type mismatch » ;
+- K2, l'EGA retirée de la liste de l'écran : `--setup-check` rouge, quatre contrôles (XT et AT) ;
+- K3, `lpt1_device` enregistrée « none » : l'aller-retour rouge (« relue none »).
+
+**M2.** Les méthodes touchées sont de l'hôte (l'écran, `--make-nvr`, l'outil). Aucun scénario des listings du JIT ne
+les compile, et aucune méthode du cœur ne change : M2 n'a rien à comparer.
+
+**La série.** L'émulateur ne change pas : l'hôte seul (D11). Un sous-ensemble sur le worktree, en Release, la recette
+refaite (conforme aux empreintes, les deux lignes ajoutées).
+- En mode PCem, verts : `config-check`, `nvr-check`, les deux portes neuves ; leurs voisines vidéo `bd-ibmat-mda`,
+  `bd-ibmat-hercules` et `bd-ami286-ega` ; et `bd-ami486-cd-vide`, `bd-cfg-486-cd`, `bd-ami486-zip-banc`, qui lisent
+  un CMOS de `--make-nvr` fait par la recette.
+- Sous « tout » : `config-check` et `nvr-check` verts, les deux portes neuves refusées.
+
+**Ce que l'aller-retour ne prouve pas** (relevé par la contre-lecture). Pour les clés que l'écran réécrit depuis
+l'état (la machine, le CD, le ZIP, LPT1, la manette, la souris), il prouve la lecture puis la réécriture. Pour les
+autres (les sections de l'EGA, de la SB 16 et de l'IDE, les ports de la carte mère), il prouve seulement que Charger
+puis Enregistrer ne vide pas l'arbre. Ni leur lecture, ni une machine composée à l'écran sans Charger. Le plan
+disait « l'enregistrement est corrigé pour elles » : seule `lpt1_device`, que PCem écrit, l'est. Les autres restent
+par l'arbre, ce que l'en-tête de l'écran dit. Ne sont pas couverts : un `cdrom_path` non vide, les clés du chapeau,
+la section de la CGA, celle du Xebec (XT seulement).
+
+**La contre-lecture** (Sonnet) n'a trouvé aucun bloquant. Elle a relu l'aller-retour et `ClesCfg` contre `config.cs`,
+la boucle des cartes et son état rétabli, `lpt1_device` contre `pc.c:965`, la règle de `nvr-check` et sa somme. Ses
+points sont repris : des valeurs hors défaut (dont `monitor_type = 7`, la valeur 8 n'étant pas dans la liste de PCem) ;
+le commentaire de doc de `SelfCheck` remis à sa place, sa phrase périmée corrigée ; la limite du test, ci-dessus.

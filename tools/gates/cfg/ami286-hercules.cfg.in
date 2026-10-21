@@ -1,0 +1,9 @@
+# GR.3c — l'ami286 et l'Hercules, sans disque : le CMOS de la recette (herc286.nvr, --make-nvr sur ce fichier) dit
+# 30h en 0x14, l'affichage monochrome. Porte : bd-ami286-hercules-cmos.
+model = ami286
+cpu = 4
+fpu = 287
+mem_size = 4096
+drive_a_type = 5
+drive_b_type = 2
+gfxcard = hercules

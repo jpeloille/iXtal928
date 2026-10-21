@@ -1,0 +1,7 @@
+# GR.3c — l'IBM AT et la MDA, sans disque : le CMOS de la recette (at-mda.nvr, --make-nvr sur ce fichier) dit 30h
+# en 0x14, l'affichage monochrome. Porte : bd-ibmat-mda-cmos.
+model = ibmat
+mem_size = 640
+drive_a_type = 2
+drive_b_type = 0
+gfxcard = mda

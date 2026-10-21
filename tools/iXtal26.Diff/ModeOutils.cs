@@ -31,6 +31,7 @@ internal static class ModeOutils
         "r9-videocfg", "r9-hdccfg", "r9-portscfg", "r9-gfxfixe",
         "reset-scsi-check", "recensement", "config-check", "ops-count", "speed-check", "boot-profile",
         "refresh-check", "fdc-trace", "materiel-cas", "materiel-mode", "couverture-materiel", "banc", "sst-rep-temps",
+        "nvr-check", // GR.3c — l'hôte seul (--make-nvr), sans oracle
     ];
 
     /// <summary>Vrai si la commande prend le mode matériel ; sinon, la raison du refus.</summary>

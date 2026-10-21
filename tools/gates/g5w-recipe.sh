@@ -29,6 +29,8 @@
 #                        égal octet par octet à l'image C: que
 #                        bd-ami486-aha-format écrit des deux côtés (G11) ;
 #   aha486.nvr, aha386.nvr, aha286.nvr : CMOS sans disque des trois machines de l'AHA-1542C (G11) ;
+#   at-mda.nvr, herc286.nvr : CMOS sans disque de l'IBM AT et de la MDA, de l'ami286 et de l'Hercules, 30h en
+#                        0x14 (GR.3c) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
 #   ixtal26-486-porte.cfg : le profil ixtal26-486.cfg, son disque remplacé par c386.img (GR.3b) ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
@@ -80,6 +82,8 @@ dotnet "$BIN" --make-nvr ami386dx-fd.cfg f386.nvr --force > /dev/null   # PS2.0
 dotnet "$BIN" --make-nvr ami486-aha.cfg aha486.nvr --force > /dev/null   # G11
 dotnet "$BIN" --make-nvr ami386dx-aha.cfg aha386.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami286-aha.cfg aha286.nvr --force > /dev/null
+dotnet "$BIN" --make-nvr ibmat-mda.cfg at-mda.nvr --force > /dev/null   # GR.3c, 0x14 = 30h
+dotnet "$BIN" --make-nvr ami286-hercules.cfg herc286.nvr --force > /dev/null
 # G10.2 — le disque amorçable du XTIDE, en C# seul, sur les copies du WORK (le journal reste là).
 mapfile -t XF < "$G/xtide-format.keys"; XT=(); for l in "${XF[@]}"; do XT+=(--type "$l"); done
 dotnet "$BIN" --boot "$REPO/roms" 8000 --config xt-xtide-prep.cfg --in-place --settle 20 "${XT[@]}" > xtide-prep.log
@@ -93,7 +97,7 @@ dotnet "$BIN" --boot "$REPO/roms" 2500 --config aha-prep.cfg --floppy-a dos5-pre
 rm nvr/.ami486.nvr aha-prep.cfg dos5-prep.img dos5-prep3.img
 ( cd "$WORK" && sha256sum c286.img c386.img vierge46.img c.nvr cd.nvr c386.nvr c486.nvr f386.nvr c8088.img \
     c8088dos.img iso-2048.iso mixte.cue mixte.bin zip100.img zipro.img dos5-1.img dos5-3.img win3-3.img sbpro2-1.img \
-    scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr ) > "$WORK/empreintes"
+    scsi20.img scsic.img aha486.nvr aha386.nvr aha286.nvr at-mda.nvr herc286.nvr ) > "$WORK/empreintes"
 if [ $FIX = 1 ]; then cp "$WORK/empreintes" "$G/g5w.sha256"; echo "empreintes de référence réécrites"; exit 0; fi
 if diff -u "$G/g5w.sha256" "$WORK/empreintes"; then echo "$WORK : conforme aux empreintes."
 else echo "$WORK : les empreintes diffèrent (disques de os/ modifiés ?) — voir l'en-tête." >&2; exit 1; fi

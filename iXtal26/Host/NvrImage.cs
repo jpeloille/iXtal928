@@ -267,7 +267,9 @@ internal static class NvrImage
         if (refName.Length == 0)
         {
                 Console.Error.WriteLine($"--make-nvr : la machine « {modelName} » n'a pas de CMOS.");
-                Console.Error.WriteLine("Seules ibmat, ami286, ami386, ami386dx et ami486 en ont un : les deux machines à 8088 n'en portent pas.");
+                // GR.3c — le registre compte aussi la M24 et le PC1512, des 8086 : la phrase ne parlait que du 8088.
+                Console.Error.WriteLine("--make-nvr ne fabrique que ceux d'ibmat, ami286, ami386, ami386dx et " +
+                                        "ami486 ; ni le 5150 ni le XT (8088), ni la M24 ni le PC1512 (8086).");
                 return 2;
         }
 

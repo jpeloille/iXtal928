@@ -28,13 +28,15 @@
 //   rendez-vous entre deux fils : le recopier ici en ferait une seconde implémentation
 //   d'un mécanisme délicat. L'écran liste os/, ce qui est la demande — « issu de ma
 //   liste disponible » — et --floppy-a / --hdd prennent un chemin quelconque.
-// omitted: tout ce que la boîte de PCem règle et que ces machines n'ont pas — CPU, FPU,
-//   dynarec, waitstates, CD-ROM, ZIP, LPT, souris, joystick, réseau
-//   (wx-config.c, pages 0 à 7). Les proposer serait proposer des machines qui
-//   n'existent pas dans ce dépôt. La CARTE VIDÉO, elle, est proposée depuis M15 : deux
-//   cartes y sont transcrites, la CGA et la VGA. La CARTE SON l'est depuis G12.3, filtrée
-//   par Host/SoundCards (PLAN-G12.md, décision n° 18). Les clés du CD-ROM (G10.4) sont
-//   enregistrées sans ligne à l'écran (GR.3, G16).
+// omitted: les lignes que la boîte de PCem a et que cet écran n'a pas — CPU, FPU, dynarec,
+//   waitstates, CD-ROM, ZIP, LPT, souris, joystick, réseau (wx-config.c, pages 0 à 7). La
+//   CARTE VIDÉO est proposée depuis M15 : toutes celles du registre dont la ROM est là (la
+//   CGA, la MDA et l'Hercules sans ROM ; GR.3c les contrôle avec l'EGA et l'ET4000). La
+//   CARTE SON l'est depuis G12.3, filtrée par Host/SoundCards (PLAN-G12.md, décision n° 18).
+//   Sans ligne à l'écran, les clés sont pourtant enregistrées : le processeur, le
+//   coprocesseur, le CD-ROM (G10.4), le ZIP, LPT1 (GR.3c), la souris et la manette ; les
+//   lignes neuves attendent G16. Les clés des sections de périphérique et des ports de la
+//   carte mère restent par l'arbre en mémoire (l'aller-retour de GR.3c le prouve).
 
 using iXtal26.PluginApi;
 using SDL3;
@@ -925,6 +927,10 @@ internal sealed class SdlSetup
         // pcem: pc.c:893 — G10.6 : zip_channel ; et zip_path, la clé d'iXtal (DEVIATION, pc.cs loadconfig).
         config.config_set_int(config.CFG_MACHINE, null, "zip_channel", Ide.ide.zip_channel);
         config.config_set_string(config.CFG_MACHINE, null, "zip_path", pc.cfg_zip_path);
+        // pcem: pc.c:965 — GR.3c : lpt1_device, tel que loadconfig l'a gardé (lpt1_device_name). Sans elle, la clé
+        //   d'une machine chargée ne restait que par l'arbre en mémoire ; une machine composée à l'écran n'en avait
+        //   pas.
+        config.config_set_string(config.CFG_MACHINE, null, "lpt1_device", Lpt.lpt.lpt1_device_name);
         // G13 — hardware_mode, la clé d'iXtal (DEVIATION, pc.cs loadconfig) : 1 si la ligne « Mode » demande le mode
         //   matériel. Une demande partielle de la ligne de commande s'enregistre comme le mode matériel entier.
         config.config_set_int(config.CFG_MACHINE, null, "hardware_mode", ModeMateriel.Actif ? 1 : 0);
@@ -1174,6 +1180,75 @@ internal sealed class SdlSetup
         return $" {mark} Type {type:D2}  {cylinders,4} cyl x {heads,2} tetes  {mb,3} Mo";
     }
 
+    // GR.3c — la machine de l'aller-retour de SelfCheck : une clé au moins de chaque famille que l'écran doit garder,
+    //   hors de son défaut quand c'est possible (la manette de type 1, quatre boutons ; l'EGA en 2XX, couleur 80×25 ;
+    //   la SB 16 en 240h, DMA 3 et 6).
+    private const string AllerRetour = """
+        model = ami486
+        cpu = 10
+        fpu = builtin
+        mem_size = 4096
+        drive_a_type = 5
+        drive_b_type = 2
+        gfxcard = ega
+        sndcard = sb16
+        hdd_controller = ide
+        cdrom_channel = 2
+        cdrom_drive = -1
+        cd_speed = 8
+        cd_model = cr-587-b
+        zip_channel = 3
+        lpt1_device = dss
+        joystick_type = 1
+        mouse_type = 0
+        serial1 = 0
+        serial2 = 1
+        parallel1 = 1
+        parallel2 = 0
+        [EGA]
+        monitor_type = 7
+        io_base = 512
+        [Sound Blaster 16]
+        addr = 576
+        irq = 5
+        dma = 3
+        dma16 = 6
+        [Standard IDE]
+        primary = 1
+        secondary = 1
+        [Joysticks]
+        joystick_0_nr = 1
+        joystick_0_axis_0 = 1
+        joystick_0_axis_1 = 0
+        joystick_0_button_0 = 3
+        joystick_0_button_1 = 2
+        joystick_0_button_2 = 1
+        joystick_0_button_3 = 0
+
+        """;
+
+    /// <summary>GR.3c — les clés d'un .cfg, « section/clé » (sans section : la clé seule), et leur valeur.</summary>
+    private static Dictionary<string, string> ClesCfg(string chemin)
+    {
+        var d = new Dictionary<string, string>();
+        string section = "";
+        foreach (var brute in File.ReadAllLines(chemin))
+        {
+            var l = brute.Trim();
+            if (l.Length == 0 || l[0] == '#')
+                continue;
+            if (l[0] == '[')
+            {
+                section = l.Trim('[', ']');
+                continue;
+            }
+            int eq = l.IndexOf('=');
+            if (eq > 0)
+                d[(section.Length > 0 ? section + "/" : "") + l[..eq].Trim()] = l[(eq + 1)..].Trim();
+        }
+        return d;
+    }
+
     /// <summary>
     /// Auto-contrôle de la logique de l'écran, sans SDL ni fenêtre.
     ///
@@ -1184,7 +1259,7 @@ internal sealed class SdlSetup
     /// comme un chemin cassé — c'est le motif de `config-check` (ConfigCheck.cs) pour la
     /// moitié écriture du moteur de configuration, et c'est le même ici.
     ///
-    /// Deux des vingt-trois contrôles sont des non-régressions nées d'une relecture : la
+    /// Parmi eux, des non-régressions nées d'une relecture : la
     /// REVISITE d'une liste après changement de modèle (la fenêtre de défilement
     /// doit-elle être remise à zéro ?) et les deux sorties de l'écran principal —
     /// « Demarrer » contre Échap, soit la différence entre une machine qui démarre et un
@@ -1338,6 +1413,44 @@ internal sealed class SdlSetup
         (Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu) = (manuVideo, cpuVideo);
         (Sound.sound.sound_card_current, pc.cfg_hdd_controller) = (sonVideo, ctrlVideo);
 
+        // GR.3c — les cartes de G9 et la CGA, sur un XT et sur un AT : proposées (la CGA, la MDA et l'Hercules sans
+        //   fonction available ; l'EGA et l'ET4000 selon leur ROM), et la choisir pose gfxcard. L'état est rétabli
+        //   après.
+        Console.WriteLine();
+        Console.WriteLine("Les cartes de G9 et la CGA, sur un XT et sur un AT (GR.3c) :");
+        int modelG9 = Models.model_c.model, memG9 = pc.cfg_mem_size, gfxG9 = pc.gfxcard;
+        int manuG9 = Cpu.cpu_c.cpu_manufacturer, cpuG9 = Cpu.cpu_c.cpu;
+        int sonG9 = Sound.sound.sound_card_current;
+        string ctrlG9 = pc.cfg_hdd_controller;
+        foreach (var machine in new[] { "ibmxt", "ibmat" })
+        {
+            st.Activate(Item.Model);
+            st._pickIndex = Array.IndexOf(st._pickValues, machine);
+            st.ApplyPick();
+            st._screen = Screen.Main;
+            foreach (var (nom, gfx) in new[] { ("cga", pc.GFX_CGA), ("mda", pc.GFX_MDA), ("hercules", pc.GFX_HERCULES),
+                                                ("ega", pc.GFX_EGA), ("et4000ax", pc.GFX_ET4000) })
+            {
+                st.Activate(Item.Video);
+                int i = Array.IndexOf(st._pickValues, nom);
+                Check($"{machine} : {nom} est proposée", i >= 0,
+                      $"{st._pickLabels.Length} carte(s) : {string.Join(",", st._pickValues)}");
+                if (i >= 0)
+                {
+                    st._pickIndex = i;
+                    st.ApplyPick();
+                }
+                Check($"{machine} : la choisir pose gfxcard = {gfx}", pc.gfxcard == gfx,
+                      $"gfxcard {pc.gfxcard}, ligne « {MainLine(Item.Video).Trim()} »");
+                st._screen = Screen.Main;
+            }
+        }
+        Models.model_c.model = modelG9;
+        pc.romset = Models.model_c.model_getromset();
+        (pc.cfg_mem_size, pc.gfxcard) = (memG9, gfxG9);
+        (Cpu.cpu_c.cpu_manufacturer, Cpu.cpu_c.cpu) = (manuG9, cpuG9);
+        (Sound.sound.sound_card_current, pc.cfg_hdd_controller) = (sonG9, ctrlG9);
+
         Console.WriteLine();
         Console.WriteLine("Contrôleur de disque dur, filtré sur la machine :");
 
@@ -1490,6 +1603,33 @@ internal sealed class SdlSetup
         }
         Check("l'écran n'a pas figé le mode, et le laisse en mode PCem", !ModeMateriel.Fige && !ModeMateriel.Actif,
               $"figé {ModeMateriel.Fige}, ligne « {MainLine(Item.Mode).Trim()} »");
+
+        // GR.3c — l'aller-retour Charger → Enregistrer : une machine qui porte les clés de G10 (le CD, le ZIP, LPT1,
+        //   la manette), de G12.3 (la section de la SB 16), de G13.12 (celles de l'EGA et de l'IDE) et de G13.13 (les
+        //   ports de la carte mère), chargée par l'écran puis enregistrée ; chaque clé relue identique. Celles que
+        //   l'écran ne réécrit pas restent par l'arbre en mémoire (config_load ne le vide qu'au chargement suivant).
+        Console.WriteLine();
+        Console.WriteLine("L'aller-retour Charger → Enregistrer (GR.3c) :");
+        string ar = Path.Combine(Path.GetTempPath(), $"setup-check-ar-{Environment.ProcessId}");
+        try
+        {
+            Directory.CreateDirectory(ar);
+            string source = Path.Combine(ar, "source.cfg");
+            File.WriteAllText(source, AllerRetour);
+            st.LoadMachine(source);
+            Check("la machine de l'aller-retour se charge", st._message.EndsWith(" charge."), $"« {st._message} »");
+            string sortie = Path.Combine(ar, "configs");
+            st.SaveMachine(sortie);
+            var avant = ClesCfg(source);
+            var apres = ClesCfg(Path.Combine(sortie, "machine.cfg"));
+            foreach (var (cle, val) in avant)
+                Check($"aller-retour : {cle} = {val}", apres.TryGetValue(cle, out var v) && v == val,
+                      apres.TryGetValue(cle, out var w) ? $"relue « {w} »" : "absente");
+        }
+        finally
+        {
+            Directory.Delete(ar, true);
+        }
 
         Console.WriteLine();
         Console.WriteLine("Chemin clavier de l'écran principal :");

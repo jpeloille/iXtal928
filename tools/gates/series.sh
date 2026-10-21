@@ -121,6 +121,8 @@ run pm-check pm-check
 run pm-check-386 pm-check --core 386
 run cpu-config-check cpu-config-check roms
 run config-check config-check
+# GR.3c — --make-nvr carte par carte : l'octet 0x14 de chaque carte du registre, la somme ; une carte inconnue refusée.
+run nvr-check nvr-check
 # G6.2 — le mode protégé et la pagination du 486 ; R9 : la survie à une table hors RAM (C# seul).
 run page-check-486 page-check --core 486
 run pm-check-486 pm-check --core 486
@@ -293,6 +295,10 @@ run bd-pc-mda-banc-19 boot-diff roms 11000 --gfxcard mda --fda $DOS --fdb os/pcd
 # G9.1 — l'Hercules : le 5150, le XT (POST et DOS) par la boucle des cartes ci-dessus ; l'IBM AT ; le
 # banc HERCBANC (graphique 720×348, deux pages, 3BAh, le 6845 relu) saisi dans DEBUG sur le 5150.
 run bd-ibmat-hercules boot-diff roms 3000 --model ibmat --gfxcard hercules
+# GR.3c — le POST avec un CMOS qui dit l'affichage monochrome (30h en 0x14), fait par la recette : l'IBM AT et la MDA,
+# l'ami286 et l'Hercules ; la carte exigée des deux côtés.
+runw bd-ibmat-mda-cmos at-mda.nvr ibmat boot-diff roms 3000 --config ibmat-mda.cfg --expect-carte MDA
+runw bd-ami286-hercules-cmos herc286.nvr ami286 boot-diff roms 3000 --config ami286-hercules.cfg --expect-carte Hercules
 mapfile -t HBK < tools/hercbanc/hercbanc.keys
 HBB=(); for l in "${HBK[@]}"; do HBB+=(--type "$l"); done
 # GR.0c — le banc imprime ses relevés, attend une touche (la ligne vide), puis finit sur la page 1 du graphique : la
