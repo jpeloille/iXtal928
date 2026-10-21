@@ -15286,8 +15286,8 @@ boot-diff dépasserait la durée d'une porte).
 **En C# seul, dans les deux modes** (`/tmp/a9/t3g/win.sh`, captures `f-*.ppm`) : le même `WIN` sur les disques de la
 recette, `@shot` à la fin, regardées. Le Gestionnaire de programmes en 640 × 349 sur l'EGA (201 403 points non
 noirs), en 720 × 348 sur l'Hercules (153 682). Les captures du mode PCem et de « tout » sont identiques au pixel,
-pour chaque carte. Le coût, en C# seul : quelques dizaines de secondes par carte, la préparation par SETUP comprise
-dans la recette.
+pour chaque carte. Le coût, en C# seul (mesuré) : 28 s pour l'amorçage et `WIN` sur l'EGA, 36 s pour la préparation
+d'un disque par SETUP.
 
 **Les contrôles négatifs** (`/tmp/a9/neg-gr3g.py`, les portes rejouées sur la panne) :
 - W1, la panne de GR.0b sur l'EGA (un poids de `pallook64`) : le diff d'instructions vert, la sonde EGA rouge
