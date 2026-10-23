@@ -16274,3 +16274,374 @@ l'efface pas si la machine ne se monte pas. Le `roms/` du worktree était lié u
 entrée par entrée, `roms.sha256` gardé : 34 OK.
 
 L'émulateur ne change pas : aucune série.
+
+## G14.0b — L'outil de comparaison, et sa résolution mesurée
+
+Du 23 au 24 octobre 2026 (PLAN-G14.md § G14.0b, décisions n° 6, 7 et 12 ; R0-reference.md § 2.1, R0.3 à R0.5 ;
+R0-contre.md § 3.1 et § 3.2). Deux fichiers neufs dans `tools/perfbanc/` : `compare-ref.sh` et son comparateur
+`compare_ref.py` (python3 de la machine, bibliothèque standard seule). Rien d'autre ne change : ni l'émulateur, ni
+les bancs. Les journaux sont sous `/var/tmp/ixtal-g14/g14-0b/`, les outils jetables qui les ont produits sous
+`outils/` (`injecter.py`, `calibrer.sh`, `chaine.sh`, `negatifs.py`, `synthese.py`), les tables sous `synthese.txt`.
+
+**L'outil.** `compare-ref.sh [--construire] [--empreintes-r FICHIER] R_ARBRE C_ARBRE SORTIE [GROUPES]`. R est le
+binaire figé, C le candidat, chacun dans son worktree, construit en Release. Pour chaque groupe retenu, quatre
+passages, R C C R (ABBA). Chaque passage est un lancement du banc de son arbre :
+`dotnet <arbre>/tools/perfbanc/bin/Release/net10.0/iXtal26.PerfBanc.dll --filter … --launchCount 3 --warmupCount N
+--iterationCount M [--invocationCount K] --exporters fulljson`, sous `setarch $(uname -m) -R taskset -c 4,6,8,10`.
+Les groupes qui ont un rouge statistique sont rejoués par le script lui-même, dans l'ordre C R R C (la passe 2) ;
+ceux qui y sont rouges encore le sont une troisième fois, par leur groupe seul, dans l'ordre R C C R (la passe 3).
+Le rapport (`rapport.txt`, `rapport.tsv`) donne, par cas, R et C (la médiane des six moyennes de lancement), l'écart,
+son intervalle, l'étendue de chaque côté, les allocations, l'écart et l'intervalle des passes 2 et 3, le verdict et
+sa raison. Codes de sortie : 0 vert, 1 rouge, 3 refus, 2 erreur ; 4 et 5, internes, demandent la passe 2 ou la
+passe 3. `--empreintes-r` sert au gel (G14.0d) : un `sha256sum`
+des trois DLL de R, et un écart refuse la passe.
+
+**Le jeu de cas** (décision n° 6), écrit dans le script : 14 groupes, 65 cas.
+- Les 44 cas neufs de G14.0a, tous.
+- Fetch : FetchPcem et FetchMateriel. FetchPb87 sort, puisque PB-87 est dans « tout ».
+- Exec386 : les trois boucles en mode PCem. Les trois cas par PB sortent. Le chemin du mode matériel d'exec386 (le
+  décodeur de PB-50/51, les limites de PB-189) est mesuré par Exec286 et Exec486 en « tout », sur le même exec386
+  avec toutes les corrections, et sur l'i386SX par Machine ami386 en « tout ».
+- Video : VideoBanc n'a pas de « tout ». PB-99 (l'EGA) et PB-226 (l'ET4000) restent : aucun autre cas ne passe
+  par le mode matériel de ces deux cartes. On garde 16 lectures seulement, puisque la trame à 0 lecture est contenue
+  dans celle à 16.
+- Son : « aucun » et « son » (le domaine entier) de chaque cas ; les PB seuls sortent. SonAweWc est pris à 16
+  lectures seulement.
+- GardeBanc, Is486Banc et les autres cas par PB restent dans le banc, hors de la référence.
+
+| Groupe | Cas | Invocations | Échauff. / itér. | ABBA |
+|---|---:|---:|---|---:|
+| Fetch, Exec8088 | 2, 2 | 512 | 3 / 8 | 1,4 min chacun |
+| Exec386, Exec286, Exec486 | 3, 6, 6 | 512, 512, 384 | 3 / 8 | 1,6 ; 2,5 ; 2,7 min |
+| MemoireLente, RenduCga, Rendu8bpp, Video | 4, 2, 4, 4 | 128, 384, 384, 128 | 3 / 8 | 1,6 à 2,4 min |
+| Son, SonOplPro | 12, 2 | 160 | 3 / 8 | 4,8 ; 1,6 min |
+| Machine808x (ibmpc, ibmxt, pc1512, M24) | 8 | 1 (le banc) | 1 / 4 | 9,3 min |
+| Machine286 (ami286, ibmat) | 4 | 1 | 1 / 4 | 5,1 min |
+| Machine386 (ami386, ami386dx, ami486) | 6 | 1 | 1 / 4 | 12,3 min |
+
+Machine est coupé en trois par cœur, pour qu'un rouge n'y fasse rejouer qu'un tiers. Les invocations visent une
+itération d'environ 100 ms. Elles sont fixées pour une durée prévisible ; MachineBanc garde son `[InvocationCount(1,
+1)]`, que BenchmarkDotNet applique par-dessus la ligne de commande. La durée d'une passe des 65 cas est de 52,7 min
+(le no-op) et 55,6 min (complet2), plus la confirmation : 65,1 min pour complet1, qui a rejoué Exec486 et Machine808x.
+
+**L'affinité.** Les CPU 4, 6, 8 et 10 : quatre cœurs P distincts, un fil chacun (R0-contre § 2.7). Le cœur 0, où
+le noyau sert le plus d'interruptions, reste à l'hôte ; les cœurs E (12 à 19) sont écartés. Quatre cœurs et non
+deux : le banc tourne dans un processus enfant, qui a son parent et le fil du ramasse-miettes. La propriété
+`Affinity` du JSON ne dit rien (R0-contre § 1.8). Le script relève donc lui-même, toutes les 3 s, `Cpus_allowed_list`
+et `/proc/PID/personality` (ADDR_NO_RANDOMIZE, `00040000`) sur chaque processus du banc. La personnalité ne se lit
+qu'avec un `read` intégré du shell, qui est l'ancêtre de ces processus : sous `ptrace_scope = 1`, un `cat` est refusé.
+
+**Les refus** (ni vert ni rouge, code 3). Il y en a pour :
+- l'hôte du JSON : la version de BenchmarkDotNet, le système, le processeur, le runtime, le SDK, la configuration ;
+- le job : il se lit dans le `DisplayInfo` du JSON, l'identifiant ôté, et doit porter `DOTNET_TieredCompilation=0` ;
+- les instructions de l'hôte, et le runtime et le GC que le processus enfant imprime dans le journal ;
+- l'affinité et la personnalité relevées ;
+- `dotnet --list-runtimes` et `--list-sdks`, comparés au début et à la fin de chaque passage et de la passe ;
+- un processus lourd au début ou à la fin d'un passage ;
+- le binaire lancé qui change d'un passage à l'autre d'un même côté ;
+- BenchmarkDotNet qui sort avec un code non nul, un journal absent, un passage sans ses trois moyennes de lancement
+  (n_R et n_C sont imprimés) ;
+- un cas absent des deux côtés ou du côté R, dont l'état change d'un passage à l'autre d'un même côté, ou dont aucun
+  état n'est imprimé des deux côtés (tous les cas de la référence impriment le leur) ;
+- un cas que la passe de confirmation refuse ou n'a pas ;
+- `roms/` qui ne passe pas `roms.sha256`, et les empreintes de R si elles sont données.
+
+« Lourd », c'est le programme lu dans argv[0] ou argv[1], jamais le texte libre de la ligne de commande. Un shell
+dont la commande contient « series.sh » n'est pas une série : c'était le cas du premier essai, que la sonde avait
+refusé. Sont lourds `series.sh`, `par.sh`, `iXtal26.dll`, `dotnet build|test|publish|run|msbuild|restore`, un autre
+banc. VBCSCompiler et MSBuild le sont s'ils travaillent (plus de 0,05 UC) ; tout autre processus, au-delà de 1,5 UC
+sur la seconde de la sonde. Au début d'un passage, le script attend jusqu'à dix minutes que la machine revienne au
+calme. Ce qui dépasse 0,3 UC est noté sans refus : Rider ouvert et `localsearch-3` y montent à 0,6-0,9 UC. Hors de
+complet1 (10 relevés sur 64 passages), il y a eu de 0 à 7 relevés par passe (le no-op 7 sur 56, 386-3 7 sur 44,
+pit-3 6 sur 32). La sonde ne regarde qu'au début et à la fin d'un passage : entre les deux, rien n'est surveillé.
+
+**Les rouges exacts.**
+- L'allocation par opération (`Memory.BytesAllocatedPerOperation`) : à l'octet si elle est stable de chaque côté ;
+  si elle varie d'un passage à l'autre, les intervalles [min, max] des deux côtés doivent se recouvrir, et des
+  intervalles disjoints sont un rouge exact. Le contrôle n'est jamais retiré, et l'en-tête du rapport compte les cas
+  instables. Il y en a eu un en 19 passes : FetchPcem, côté R de 808x-10, à 56 puis 57 octets, contre 56 en C ; la
+  cause n'est pas vérifiée (un arrondi de BenchmarkDotNet sur un cas qui alloue, peut-être).
+- La ligne d'état « // Banc (…) : … », lue dans le journal et rattachée à son cas par l'en-tête « // Benchmark: »,
+  qui porte le `DisplayInfo` du JSON. Quand le filtre ne choisit qu'un type, le journal s'appelle
+  `iXtal26.PerfBanc.<Type>-<date>.log`, et non `BenchmarkRun-<date>.log` : la première version ne lisait que le
+  second, et les 44 états des cas neufs manquaient. C'est corrigé, et toutes les passes ont été réanalysées.
+- L'empreinte de MachineBanc (sa ligne de fin : instructions, cycles, TSC, IRQ servies).
+- Un cas qui manque ou échoue du côté C seul.
+
+**Le rouge statistique** (décision n° 12). L'unité est la moyenne de chaque lancement, reconstruite depuis les
+mesures `Workload`/`Result` du JSON complet, par `LaunchIndex`. Trois lancements par passage et deux passages par
+côté donnent six valeurs par côté. Les mesures `Result` sont celles de BenchmarkDotNet après le retrait de
+l'overhead et des valeurs hautes aberrantes : dans complet1, 165 lancements sur 780 n'en gardent que 7 ou 6 sur 8
+(3 sur 4 pour Machine). La moyenne par lancement est donc tronquée par le haut. La méthode est celle de
+Hodges-Lehmann sur le logarithme :
+- l'écart est la médiane des 36 différences ln C − ln R ;
+- son intervalle est celui de Mann-Whitney, exact, [d₍ₖ₎ ; d₍₃₇₋ₖ₎], k le plus grand tel que P(U ≤ k − 1) ≤ 0,005 ;
+- pour 6 + 6 valeurs, k = 3, et le niveau réel est 1 − 2 × 4/924 = 99,13 % ;
+- un cas est rouge si la borne basse de C/R − 1 dépasse zéro, c'est-à-dire si 34 paires sur 36 au moins ont C
+  au-dessus de R : probabilité 4/924 = 0,43 % sous l'hypothèse nulle ;
+- il doit être confirmé par la passe 2 (C R R C), puis par la passe 3 (R C C R), chacune de son groupe seul et
+  analysée seule : Q37, tranchée par Julien le 24/10 : troisième passe, « Un rouge confirmé deux fois est rejoué une
+  troisième fois, par sa classe seule. Il n'est retenu (à corriger ou annuler) que si cette passe est rouge
+  aussi. » ;
+- l'ordre de la passe 3 est celui de la passe 1 : les trois passes alternent alors R et C en tête, et la dérive
+  d'une passe à l'autre ne pèse pas d'un seul côté ;
+- un refus en passe 2 ou en passe 3 donne un refus ; un rouge exact (allocation, état, empreinte) ne demande pas de
+  passe de plus ;
+- trois passes indépendantes donneraient 0,43 %³ ≈ 8 × 10⁻⁸ par verdict, mais elles ne le sont pas (ci-dessous).
+
+Le bootstrap est écarté : à six valeurs par côté, ses intervalles sont trop étroits et sa couverture n'atteint pas
+le niveau annoncé. Le test de Mann-Whitney est exact sans hypothèse de forme, pourvu que les lancements soient
+échangeables, et l'ABBA y aide en répartissant la dérive de l'hôte. L'exactitude vaut pour le test (la décision
+rouge ou verte) ; la largeur affichée de l'intervalle, elle, suppose que les deux côtés ont le même profil et ne
+diffèrent que d'un décalage. Un C plus rapide (borne haute sous zéro) est dit,
+et reste vert.
+
+**Quelle DLL tourne** (R0-contre § 2.4 et 2.5).
+- BenchmarkDotNet reconstruit le banc, iXtal26 et SoftFloat dans un répertoire qu'il génère sous le banc,
+  `iXtal26.PerfBanc-<job>-1`. L'identifiant du job est tiré des réglages du job, et non du hasard : `Job-BCIWDC`
+  revient d'une passe à l'autre.
+- Le fichier lancé n'est donc pas celui de l'arbre, et son sha256 dépend du chemin.
+- Le script note le sha256 des trois DLL de l'arbre. Il note aussi, pour celles qui sont lancées, le sha256 et une
+  empreinte normalisée : le sha256 après l'effacement de l'horodatage et de la somme du PE, du répertoire de
+  débogage (CodeView, chemin du PDB) et du tas #GUID (le MVID).
+- L'empreinte doit être la même aux deux passages d'un côté. Elle l'a été dans toutes les passes : `d7a2d3e5…` pour
+  wt, `8057e444…` pour aa1, quel que soit le groupe.
+- Les DLL de wt sont restées `d1a5439a…5599a` (iXtal26), `18aae5d4…8a91` (SoftFloat) et `3c6abbe5…a0e8` (PerfBanc).
+
+**Le bruit.** Les passes A/A : R est `wt`, C est `aa1`, un second worktree détaché au même commit `1edebb4`. Le
+no-op n'en est pas une : c'est le worktree `noop`, dont un commentaire d'execx86 est changé (« méthode » →
+« fonction », `808x.cs:1255`). Le plan demande dix A/A complètes. Une passe des 65 cas dure environ 55 min ; dix
+passes et les neuf injections complètes auraient pris une vingtaine d'heures. On a donc réduit :
+- deux A/A complètes (complet1, complet2), et le no-op complet ;
+- sept A/A sur un sous-ensemble de 28 cas, Fetch, Exec286, Son et Machine808x : le décodage 8088 et 286, le son
+  (le plus bruyant d'un processus à l'autre en G13) et la machine entière. Ces 28 cas ont donc neuf A/A et le
+  no-op ; les 37 autres ont deux A/A et le no-op.
+
+| Passe | Cas | Durée | Rouges de passe 1 | Confirmés en passe 2 |
+|---|---:|---:|---|---:|
+| complet1 | 65 | 65,1 min | Exec486 (aucun, prefixe) +0,52 % [+0,04 ; +1,03] | 0 |
+| | | | Machine ibmxt (tout) +0,20 % [+0,09 ; +0,37] | |
+| no-op | 65 | 52,7 min | — | 0 |
+| complet2 | 65 | 55,6 min | Exec486 (aucun, memoire) +0,64 % [+0,04 ; +1,18] | 0 |
+| sous3 à sous9 | 7 × 28 | 18,6 min (sous6 : 23,6) | sous6 : SonAdpcm (son) +0,18 % [+0,01 ; +0,38] | 1 |
+
+Les neuf A/A seules donnent 326 verdicts : 4 rouges de passe 1 (1,23 %, pour 0,43 % attendus) et 1 rouge confirmé par
+la passe 2 (0,31 %), dans une passe sur neuf. Sous la règle de Q37, il est « à rejouer » : sa passe 3 n'a pas été
+jouée (aucun nouveau banc), et il n'est ni vert ni retenu. Le no-op, à part, donne 65 verdicts, tous verts, sans rouge
+de passe 1.
+
+Le rouge confirmé deux fois est SonAdpcm (son) dans sous6, à +0,18 % puis +0,09 %, borne basse +0,004 %. Sur les neuf
+A/A, ce cas est centré sur zéro (médiane +0,01 %, de −0,10 à +0,18 %). Ce n'est donc pas un écart propre aux deux
+arbres, mais deux passes consécutives qui ne sont pas indépendantes à ce niveau. Sur les 32 cas A/A rejoués en passe
+2, l'écart de passe 2 suit celui de passe 1 : la corrélation de Pearson est r = +0,43. L'hypothèse « deux passes
+indépendantes » ne tient donc pas.
+
+Le taux de faux rouges confirmés deux fois repose sur une seule observation : 1 sur 326 verdicts, soit de 0,008 %
+à 1,7 % par verdict (intervalle de Clopper-Pearson à 95 %) ; à l'échelle d'une passe de 65 cas, de l'ordre de 15 à
+20 %, avec un intervalle très large (de 0,5 à 67 %). Le taux attendu de faux rouges retenus après la passe 3 n'est
+pas mesuré ; il se borne ainsi, sur cette seule observation et sur r ≈ +0,43 :
+- si la passe 3 était indépendante des deux premières, elle ne confirmerait un faux rouge qu'avec 0,43 % : de
+  l'ordre de 0,3 % × 0,43 % ≈ 1 × 10⁻⁵ par verdict, soit 0,09 % par passe de 65 cas ;
+- si elle leur ressemble autant que la passe 2 ressemble à la passe 1 (des 4 rouges de passe 1 des A/A, 1 a été
+  confirmé), elle en confirmerait un sur quatre : de l'ordre de 0,08 % par verdict, soit 5 % par passe ;
+- le vrai taux est entre les deux, plus près du second si la corrélation de r ≈ +0,43 tient d'une passe à la
+  suivante.
+
+Ce que coûte la passe 3 : une ABBA de plus des seuls groupes confirmés deux fois, de 1,4 min (Fetch, Exec8088) à
+12,3 min (Machine386) ; 9,3 min pour Machine808x, 5,1 pour Machine286, 4,8 pour Son, 1,6 à 2,7 pour les autres.
+Dans les A/A, elle aurait été jouée une fois en neuf passes (Son, 4,8 min). Sur une vraie régression qui touche
+plusieurs groupes, elle rejoue tous ceux-là : pour pit-3, les trois Machine, 26,7 min de plus sur 62,4.
+
+Aucun cas ne montre d'écart systématique entre wt et aa1, bien que leurs chemins diffèrent : la médiane des écarts
+A/A par cas est comprise entre −0,26 % et +0,57 %. Les deux rouges de passe 1 d'Exec486 en « aucun » (+0,52 % et
++0,64 %) sont l'exception à surveiller : ils viennent de deux cas distincts, et la confirmation n'a pas tenu.
+
+La largeur de l'intervalle à 99,13 % sur les A/A seules (médiane par cas) :
+- de 0,2 à 0,5 point sur Machine ;
+- 0,3 à 0,8 sur le son, sauf AweVoix (aucun) à 1,6 et AweWc (aucun) à 1,1 ;
+- 0,3 à 0,5 sur MemoireLente, sauf ami486 (aucun) à 1,3 ;
+- 0,5 sur Exec8088 ;
+- 0,5 à 0,9 sur Rendu8bpp ;
+- 0,7 à 1,5 sur Exec286 ; 0,7 à 2,2 sur Exec386 ; 0,8 à 2,0 sur Exec486 ;
+- 1,5 et 1,6 sur Fetch ;
+- 1,0 et 1,7 sur RenduCga ;
+- 0,9 à 4,8 sur Video.
+
+**Les injections**, chacune dans un worktree jetable au même commit (`inj-…`, retirés ensuite par `git worktree
+remove --force`). Le coût non pliable est une affectation d'un champ statique `volatile` (`Puits = Puits * 31 + k`),
+en boucle ou écrite N fois. L'allocation est un `new object()` gardé dans un champ statique, une fois par tampon
+rendu, dans la branche de `sound_poll` qui remplit `outbuffer`. Le dosage est mesuré par `calibrer.sh` (R C C R,
+un lancement) sur le cas d'étalonnage.
+- **execx86** : une boucle de 1 tour donne +1 %, 4 tours +3,0 %, 6 tours +7,6 %, 7 tours +9,0 %, 12 tours +20 %.
+- **exec386** : une boucle de 1 tour donne −1,8 % (plus rapide), 3 tours +0,5 %, 4 tours +4,2 %, 5 tours +24 %.
+  Le saut s'explique si le JIT déroule une boucle constante de quatre tours au plus et garde au-delà une vraie
+  boucle ; ce n'est pas vérifié par un listing.
+  Écrites N fois sans boucle, 4 affectations donnent +4,3 %, 7 donnent +8,0 %, 9 donnent +11,8 %.
+
+| Injection | Site | Dose | Cas d'étalonnage | Effet en passe | Durée |
+|---|---|---|---|---:|---:|
+| 808x-3 | `execx86`, avant `oldpc` | boucle de 4 | Exec8088 (aucun) | +3,33 % | 32,9 min |
+| 808x-10 | id. | boucle de 7 | id. | +9,07 % | 25,6 min |
+| 386-3 (~4,5 %) | boucle intérieure d'`exec386` | 4 affectations | Exec286 (aucun, sans-prefixe) | +4,55 % | 31,5 min |
+| 386-10 | id. | 8 affectations | id. | +9,95 % | 14,8 min |
+| pit-3 | `pit_timer_over` | boucle de 30 | Machine ibmpc (aucun) | +3,08 % | 62,4 min |
+| pit-10 | id. | boucle de 90 | id. | +8,89 % | 24,5 min |
+| pic-3 | `picinterrupt` | boucle de 120 000 | Machine ami386 (aucun) | +2,88 % | 54,6 min |
+| pic-10 | id. | boucle de 400 000 | id. | +9,38 % | 36,0 min |
+| son | `sound_poll` | 1 objet par tampon | SonSb16Sortie (aucun) | 24 o par op. | 21,9 min |
+
+Les groupes joués : là où le chemin passe, plus un témoin où il ne passe pas.
+- 808x-3 : Fetch, Exec8088, MemoireLente, Machine808x, et Exec286 en témoin ; 808x-10 : Fetch, Exec8088,
+  Machine808x.
+- 386-3 : Exec386, Exec286, Exec486, MemoireLente, Machine286, et Exec8088 en témoin ; 386-10 : Exec386, Exec286,
+  Exec486.
+- pit-3 : les trois Machine, Son (pour voir si le PIT y échoit), et Exec286 en témoin ; pit-10 : Machine808x, Son.
+- pic-3 : les trois Machine ; pic-10 : Machine286, Machine386.
+- son : Son, SonOplPro, Machine386 (l'ami386dx et l'ami486 ont la Pro v2), et Exec286 en témoin. Machine808x et
+  Machine286 n'ont pas été jouées : l'ami386, sans carte, alloue aussi, `sound_poll` tournant sans carte, et elles
+  seraient rouges de la même façon (déduit).
+Les doses à ~10 % n'ont été jouées que sur les groupes du chemin, pour tenir la durée ; seule pit-10 garde un groupe
+hors du chemin, Son (12 cas). La dose « ~3 % » d'exec386 est en fait de +4,5 % : 3 affectations donnaient +0,5 %,
+et rien d'intermédiaire n'a été essayé.
+
+Ce que chaque injection a donné (rouge = confirmé par la passe 2 ; détail dans `synthese.txt` et les
+`rapport.tsv`). Les passes 3 n'ont pas été jouées : sous la règle de Q37, ces rouges statistiques sont « à rejouer »
+dans la réanalyse, 89 cas en tout ; seuls les 20 rouges exacts de l'allocation y restent rouges.
+- **808x-3.** Rouges : Exec8088 (+3,33 % ; « tout » +0,28 %), FetchPcem +3,75 %, FetchMateriel +6,13 %,
+  MemoireLente ibmxt (+6,54 % ; « tout » +1,32 %), Machine ibmpc, ibmxt, pc1512 en « aucun » (+2,2 à +2,7 %).
+  Verts : les témoins (Exec286, MemoireLente ami486). Verts aussi, sur le chemin : ibmpc, ibmxt et pc1512 en
+  « tout », et la M24 dans les deux modes, plus rapides (ibmpc « tout » −1,36 %, M24 −1,02 et −0,78 %).
+- **808x-10.** Les 12 cas rouges, de +1,57 % (M24, aucun) à +14,2 % (FetchPcem).
+- **386-3.** Rouges : Exec286 (+1,4 à +4,6 % ; « tout » prefixe et sans-prefixe), Exec486 en « aucun » (+3,5 à
+  +5,0 %) et « tout » memoire (+1,61 %), Exec386 prefixe (+2,05 %), MemoireLente ami486 (aucun) +2,49 %, Machine
+  ami286 et ibmat dans les deux modes (+0,18 à +0,43 %). Verts : les témoins (Exec8088, MemoireLente ibmxt). Verts
+  aussi, sur le chemin : Exec286 (tout, memoire), Exec486 (tout, prefixe et sans-prefixe) et MemoireLente ami486
+  (tout) ; la passe 1 d'Exec486 (tout, sans-prefixe), +1,30 %, et celle de MemoireLente (tout), +0,50 %, n'ont pas
+  été confirmées. Exec386Pcem et Exec386Memoire sont plus rapides, à −4,1 % et −3,5 %.
+- **386-10.** 11 rouges sur 15. Verts : Exec286 (tout, memoire) −0,81 %, Exec486 (tout, prefixe) −0,42 % ;
+  Exec386Memoire et Exec386Prefixe plus rapides (−2,0 et −1,8 %), Exec386Pcem rouge à +1,87 %.
+- **pit-3.** Rouges : 16 des 18 cas de Machine, de +0,92 % (ami486, aucun) à +8,84 % (ami286, aucun). Verts :
+  ami486 (tout), à +0,27 % puis +0,37 %, et ami286 (tout), plus rapide de 6,0 %. Verts aussi les 12 cas de Son,
+  entre −0,11 et +0,45 % : le PIT n'échoit pas dans SonBanc, qui monte la machine sans l'exécuter. Le témoin
+  Exec286 est vert.
+- **pit-10.** Les 8 cas de Machine808x rouges (+6,5 à +9,7 %), les 12 de Son verts.
+- **pic-3.** Rouges : ami286, ami386, ami386dx, ami486 et la M24, dans les deux modes (+0,55 à +2,88 %). Verts :
+  ibmpc et ibmxt (3 IRQ servies par fenêtre), ibmat (2), pc1512 (15 ; +0,28 et +0,26 % en passe 1, non confirmés).
+- **pic-10.** Rouges : ami286, ami386, ami386dx et ami486 (+2,0 à +9,4 %). Vert : ibmat, +0,19 % et +0,09 %.
+- **son.** Rouge exact sur les 20 cas qui passent par `sound_poll`. Les 14 de Son et de SonOplPro allouent
+  24 octets par opération. Les 6 de Machine386 en allouent 4 800 de plus (200 tampons par fenêtre de 10 s) :
+  4 192 → 8 992 sur l'ami386, 27 840 → 32 640 sur l'ami386dx, 27 360 → 32 160 sur l'ami486. Le témoin Exec286 est
+  vert. Le temps bouge de −4,8 % à +3,1 % selon le cas : c'est du placement.
+
+**La résolution réelle**, cas par cas, dans `synthese.txt` (« La résolution par cas »). C'est la plus petite
+injection vue rouge et confirmée par la passe 2, parmi les deux ou trois doses jouées sur le cas : une borne haute de
+la résolution, et non un seuil. La règle de Q37 ne la change pas pour les injections, mais une passe de plus
+pourrait la rendre plus grossière : que les doses à ~10 % et les plus petits rouges confirmés (+0,18 % sur l'ami286
+et l'ibmat en « tout ») auraient tenu une passe 3 n'est pas mesuré, faute de banc. Les rouges aux bornes basses
+loin de zéro (les doses à ~10 %, de +1,3 à +13,7 %) le laissent attendre ; ceux dont la borne basse de passe 2 est à
+quelques centièmes de point, non.
+- Machine : selon le cas, de +0,18 % (ami286 et ibmat en « tout », 386-3) à +2,88 % (ami386 en « aucun », pic-3).
+  Les plus grands effets restés verts sur le chemin sont +0,19 % (ibmat, pic-10), +0,27 % (ami486, pit-3) et
+  +0,28 % (pc1512, pic-3).
+- Exec8088 : +0,28 % (« tout », 808x-3).
+- MemoireLente : +1,32 % (ibmxt, « tout ») ; +0,50 % est resté vert (ami486, « tout »).
+- Exec286, Exec386 et Exec486 : selon le cas, de +1,42 % (Exec286, aucun, memoire) à +5,01 % (Exec486, aucun,
+  sans-prefixe) ; +1,3 % est resté vert (Exec486, tout, sans-prefixe). Trois boucles ne sont jamais rouges, même
+  sous 386-10 : Exec286 (tout, memoire), Exec486 (tout, prefixe) et Exec386MemoirePcem. Rien n'établit qu'elles
+  passent par le site injecté : leur résolution n'est pas mesurée.
+- Fetch : +3,75 %.
+- RenduCga, Rendu8bpp, Video, Son et SonOplPro n'ont pas été injectés en temps. Leur résolution ne se lit que dans
+  la largeur de l'intervalle A/A : de 0,3 à 0,9 point, sauf Video (0,9 à 4,8) et RenduCga (1,2 et 2,1).
+
+C'est plus grossier que le « 0 % » du plan sur le décodage en « tout », Fetch, RenduCga et Video (la décision n° 12
+n'admet pas de tolérance), et non mesuré sur les trois boucles d'Exec jamais rouges. Sur ces cas, le 0 % repose sur
+les listings du JIT (G14.0c), ce que « Les risques » de PLAN-G14.md disait déjà pour le son.
+
+**Le placement pèse.** Une ligne ajoutée dans execx86, exec386, `pit_timer_over` ou `sound_poll` déplace d'autres
+cas de −6 % à +3 %, dans les deux sens, selon le mode et la machine. Ce sont ceux qui passent par la méthode changée,
+sans le coût lui-même : ami286 (tout) à −6,0 % sous pit-3, Exec386Pcem à −4,1 % sous 386-3, SonSb16Sortie (son) à
+−4,8 % sous l'allocation. Les cas qui ne passent pas par la méthode changée ne bougent pas : tous les témoins sont
+verts. Un changement de code le produit, et il se lira au banc, sans être forcément un coût. Qu'un renommage pur,
+au code machine identique, ne le produise pas n'est pas vérifié : les noms changent la métadonnée, et peuvent
+changer la disposition des tas du chargeur ; aucun contrôle n'a testé un renommage pur. C'est un risque de G14.1-4
+(ci-dessous).
+
+**Les contrôles négatifs du comparateur**, sur des copies de complet1 (Exec286 et Machine808x) modifiées à la main,
+sans rejouer (`negatifs.py`, `negatifs.log`, `negatifs/`) :
+- témoin, sans modification : vert ;
+- RuntimeVersion 10.0.13 → 10.0.14 dans un JSON de C : refus, « l'hôte (RuntimeVersion) diffère entre les
+  passages » ;
+- `DOTNET_TieredCompilation=0` retiré du job de C, dans le JSON et le journal : refus, « le job diffère » ;
+- `BytesAllocatedPerOperation` + 8 sur Exec286 (tout, prefixe), dans les deux passages de C : rouge exact, « R 0 o,
+  C 8 o » ;
+- « 9676 instructions » → « 9677 » dans la ligne d'état d'Exec286 (aucun, memoire) de C : rouge exact, « l'état
+  imprimé diffère » ;
+- l'empreinte de MachineBanc (ibmpc, aucun) 3588242 → 3588243 instructions dans C : rouge exact, « l'empreinte de
+  la machine diffère » ;
+- l'affinité relevée 4,6,8,10 → 4-7 sur un passage : refus ;
+- `series.sh` ajouté à la sonde de fin d'un passage : refus, « un processus lourd tournait » ;
+- `dotnet --list-runtimes` à 10.0.14 en fin de passage : refus, « a changé pendant le passage » ;
+- allocations R [56, 57] et C [80, 81] sur un cas : rouge exact, « intervalles disjoints » ; témoin R [56, 57] et
+  C [56, 56] : vert, l'instabilité notée, un cas dans l'en-tête ;
+- le cas ibmxt (tout), rouge de passe 1, retiré du JSON d'un passage de R en passe 2 : refus, « la passe de
+  confirmation refuse ce cas » ; le cas ibmpc (aucun) retiré d'un passage de C en passe 2 : rouge exact (le cas
+  manque du côté C, la même règle qu'en passe 1) ;
+- le JSON d'un passage effacé : refus, « aucun JSON de BenchmarkDotNet » ;
+- un cas retiré des deux JSON de C : rouge exact ; d'un seul passage de R : refus ;
+- le journal d'un passage effacé : refus, « le journal de BenchmarkDotNet est absent » ; les quatre journaux
+  effacés : refus, et « aucune ligne d'état imprimée, des deux côtés » ;
+- une ligne d'état changée dans un seul passage de C : refus, « l'état imprimé change d'un passage à l'autre » ;
+- le code de sortie de BenchmarkDotNet à 1 : refus ;
+- les mesures du lancement 3 retirées d'un cas : refus, « un passage n'a pas ses 3 moyennes de lancement ».
+
+- la passe 3, fabriquée sur des copies de sous6 (SonAdpcm (son), rouge en passes 1 et 2) : sans passe 3, « à
+  rejouer » (code 5) ; une passe 3 copiée de la passe 1 verte de sous7 : vert, « non retenu par la passe 3 » ; une
+  passe 3 copiée de la passe 2 de sous6 : rouge, « retenu par la passe 3 » ; la première avec le cas retiré d'un
+  JSON : refus, « la passe 3 refuse ce cas ».
+
+Les 19 passes ont été réanalysées avec le comparateur corrigé (le refus en passe 2, les intervalles d'allocation,
+les journaux, les codes de sortie et les trois lancements) : aucun verdict n'a changé (`reanalyse/`). Puis une
+seconde fois, sous la règle de la passe 3 (`reanalyse-q37/`) : sous6 passe de rouge à « à rejouer » (code 5), le
+seul changement des A/A ; et les 89 rouges statistiques des huit passes d'injection, faute de passe 3, deviennent
+« à rejouer » aussi. Les 20 rouges exacts de l'injection d'allocation restent rouges, et aucun vert ne change.
+La passe 3 a été exercée en vrai une fois, de bout en bout : 808x-10 rejouée sur Fetch et Exec8088
+(`inj/808x-10-q37/`). Le script a joué de lui-même la passe 2 puis la passe 3 ; les 4 cas sont rouges retenus aux
+trois passes (+9,0 à +14,3 %), code 1, en 9 min 22 s.
+
+**Ce qui est vérifié** (dans `/var/tmp/ixtal-g14/wt`, détaché à `1edebb4`, avec les deux fichiers de l'étape) :
+- `iXtal26.dll` identique avant et après l'étape et après toutes les passes : `d1a5439a…5599a` ;
+- `bash -n` et `py_compile` : sans erreur ;
+- les lignes des deux fichiers tiennent en 120 caractères, et aucune ne nomme autre chose que le code et ses
+  sources ;
+- les worktrees `aa1` et `noop` restent, pour G14.0d ; les neuf worktrees d'injection sont retirés ;
+- la mesure a pris 10,2 h en tout (19 passes), plus 1 h de mise au point et d'étalonnage.
+
+**Les risques pour G14.0c et G14.0d** :
+- *Le faux rouge.* Une A/A sur neuf a fini rouge deux fois, sur un écart de +0,1 %, et les deux passes d'un même
+  groupe sont corrélées (r = +0,43). Q37, tranchée par Julien le 24/10 : troisième passe, « Un rouge confirmé deux
+  fois est rejoué une troisième fois, par sa classe seule. Il n'est retenu (à corriger ou annuler) que si cette
+  passe est rouge aussi. » Le taux de faux rouges retenus qui en reste, de 0,09 à 5 % par passe, n'est pas mesuré.
+- *La sonde.* Elle ne regarde qu'au début et à la fin de chaque passage : un passage de 3 min, une passe de groupe
+  de 25 min, ne sont pas surveillés entre les deux.
+- *Le renommage pur.* Rien n'a mesuré qu'un renommage au code machine identique laisse le banc à 0 : les noms
+  changent la métadonnée, et peut-être la disposition des tas du chargeur. Proposition pour G14.0c : la répétition
+  générale (`pic` → `Intel8259A` dans une copie) peut se passer au banc et le mesurer.
+- *La garde de R* (consigne pour G14.0d). `--empreintes-r` contrôle les DLL de `bin/`, pas celles que
+  BenchmarkDotNet reconstruit et lance ; la seule garde du lancé est « la même empreinte aux deux passages d'un
+  côté ». Le sha256 d'une DLL fixe la construction (sa version porte le commit), pas le source : un source modifié et
+  reconstruit dans R ne se verrait que par le sha de `bin/`, et un source modifié sans reconstruction que par
+  l'empreinte du lancé, d'une passe à l'autre si elle est consignée. G14.0d consignera l'empreinte normalisée du
+  lancé de R, et le script devra la vérifier.
+- *Les machines de G14.0a* (le risque de § G14.0a, « L'état qu'une fenêtre laisse à la suivante »). Les transitions de
+  la M24 en « tout », l'alternance du PC1512 et les statiques du NEAT et de l'OPTi ne se sont pas réveillées : sur les
+  190 verdicts Machine des 19 passes (1 076 passages de cas, 3 228 lancements), chaque cas a gardé une seule empreinte
+  du côté R et des A/A, et les allocations sont restées stables à l'octet hors de l'injection d'allocation ; les 8 168
+  octets de plus vus une fois en G14.0a ne sont pas revenus. Un nombre d'invocations ou une fenêtre différents
+  pourraient les réveiller : G14.0d garde le job de Machine tel quel (1 échauffement, 4 itérations, une invocation).
+- *La passe entière.* 55 min plus les passes 2 et 3, à chaque famille, et rien ne doit tourner à côté.
+- *Le runtime.* Il est vérifié à chaque passage, mais il n'est pas épinglé (R0-contre § 2.6) : un `unattended-upgrade`
+  pendant G14 rend la passe refusée, puis toute la référence à refaire.
+- *Les cas trop bruyants pour la règle* (Fetch, Video, RenduCga, le décodage en « tout ») et les trois boucles
+  d'Exec jamais rouges : le 0 % y repose sur les listings.
+
+L'émulateur ne change pas : aucune série.

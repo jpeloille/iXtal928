@@ -106,7 +106,7 @@ Sur le patron des bancs existants : un `Preparer` qui pose le mode avant le gel,
 - une copie de `Preparer` qui diverge exprès est refusée ;
 - `MachineBanc` sans le mode posé le dit.
 
-### G14.0b — L'outil de comparaison, et sa résolution mesurée
+### G14.0b — L'outil de comparaison, et sa résolution mesurée  ✅ *fait, VERIFICATION.md § G14.0b*
 
 Un script, `tools/perfbanc/compare-ref.sh`, avec un comparateur en python3 (rien à installer). Pour chaque classe de
 banc, il joue R puis C puis C puis R (ABBA) :
@@ -125,7 +125,8 @@ une empreinte d'instructions qui diffère.
 **Le rouge statistique** (décision n° 12) :
 - l'unité est la moyenne de chaque lancement : six valeurs par côté et par cas ;
 - un cas est rouge si la borne basse de l'intervalle non paramétrique à 99 % de C/R − 1 est au-dessus de zéro ;
-- un rouge se confirme par une seconde passe ABBA de sa classe ; il n'est retenu que si les deux passes sont rouges.
+- un rouge se confirme par une seconde passe de sa classe, puis par une troisième (Q37) ; il n'est retenu que si les
+  trois passes sont rouges.
 
 **Portes et preuves :**
 - dix passes A/A (R contre un second worktree au même commit), dont le taux de faux rouges est consigné ;
@@ -262,7 +263,8 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 ## Les décisions
 
 Le principe de G14, sa portée et sa porte sont décidés (`PLAN.md` § G14 et § G15, 03/10). Les décisions ci-dessous
-en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10.
+en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10. G14.0b en a
+ouvert une seconde, Q37, tranchée le 24/10.
 
 1. **La portée : le conteneur seul.** La classe, son fichier, son répertoire et son espace de noms changent ; les
    membres et les types d'état (`pic_`, `pit_`, `PIT`, `PIC`, `dma_t`, `SERIAL`, `keyboard_at_t`) gardent leurs noms.
@@ -316,10 +318,10 @@ en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, t
     *(La règle du dépôt : la série entière quand l'émulateur change.)*
 12. **Le rouge statistique** suit G14.0b, sans plancher fixe : la règle de Julien, « toute régression statistiquement
     significative », n'admet pas de tolérance. Le A/A vérifie le taux de faux rouges ; il ne fixe pas de seuil.
-    *(`PLAN.md:591-592` ; R0-contre § 3.2.)*
+    *(`PLAN.md:591-592` ; R0-contre § 3.2.)* La troisième passe vient de Q37 (24/10).
 13. **Le commit** : le préfixe `g14:` pour chaque étape, `plan:` pour ce fichier.
 
-**La question à Julien** :
+**Les questions à Julien** :
 
 - **Q36 (G14.5)** — `PLAN.md` écrit « le CRTC → `Motorola6845` ». Il n'existe aucun module CRTC, ni chez PCem ni
   dans iXtal26 : chacune des cinq cartes (CGA, MDA, Hercules, PC1512, M24) porte ses registres du 6845 et son code
@@ -330,6 +332,13 @@ en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, t
   tu veux le module, il fera une étape à part après G14.4, avec sa propre preuve : séries identiques et banc vert,
   sans l'égalité d'IL.*
   *Validé par Julien le 23/10 : « Q36 : ok pour ta proposition, pas de Motorola6845 en G14 ».*
+
+- **Q37 (G14.0b)** — Sur neuf passes A/A, une a fini sur un rouge confirmé sans cause (`SonAdpcm`, « son » : +0,18 %
+  puis +0,09 %). La statistique est juste, mais deux passes consécutives sont corrélées (r ≈ +0,43) : une passe de
+  65 cas a de l'ordre de 15 % de chances de finir sur un faux rouge, qu'il faudrait corriger ou annuler.
+  *Proposé : un rouge confirmé deux fois est rejoué une troisième fois, sa classe seule ; il n'est retenu que si
+  cette passe est rouge aussi.*
+  *Tranchée par Julien le 24/10 : « Troisième passe ».*
 
 ## Les risques
 
