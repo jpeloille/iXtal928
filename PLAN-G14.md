@@ -245,7 +245,7 @@ ceux qui les exercent.
 - en tête, une fois, la table des anciens et des nouveaux chemins (décision n° 10) ;
 - les commits, les séries, les comparaisons d'IL et de listings avec et sans la table ;
 - les passes du banc et leurs résolutions ;
-- le sort du 6845 (Q36).
+- le sort du 6845 : aucun module en G14 (Q36, tranchée le 23/10).
 
 S'y ajoutent les deux commentaires du harnais qui citent `nvr.cs` et `keyboard_at.cs`
 (`harness.c:2092`, `harness_stubs.c:172`), corrigés avec `check-oracle.sh --fix`. La `.so` est reconstruite, égale
@@ -262,7 +262,7 @@ hors débogage, comme en GR.4e. `PLAN.md` dit « G14 est fait » et met [ICI] av
 ## Les décisions
 
 Le principe de G14, sa portée et sa porte sont décidés (`PLAN.md` § G14 et § G15, 03/10). Les décisions ci-dessous
-en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36.
+en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36, tranchée le 23/10.
 
 1. **La portée : le conteneur seul.** La classe, son fichier, son répertoire et son espace de noms changent ; les
    membres et les types d'état (`pic_`, `pit_`, `PIT`, `PIC`, `dma_t`, `SERIAL`, `keyboard_at_t`) gardent leurs noms.
@@ -329,6 +329,7 @@ en découlent ; la règle du 18/10 n'en laisse qu'une question à Julien, Q36.
   *Proposé : pas de `Motorola6845` en G14 ; le 6845 reste dans les cartes, et leurs blocs `// noms:` le nomment. Si
   tu veux le module, il fera une étape à part après G14.4, avec sa propre preuve : séries identiques et banc vert,
   sans l'égalité d'IL.*
+  *Validé par Julien le 23/10 : « Q36 : ok pour ta proposition, pas de Motorola6845 en G14 ».*
 
 ## Les risques
 

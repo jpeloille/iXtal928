@@ -181,7 +181,7 @@ G11 à G13 seront planifiés avec leur clôture : la dette ne grossit plus.
   fera ; et, dits sans étape, quatre trous de la couverture et quatre défauts candidats de PCem.
 - **G14, en cours** : feu vert du 23/10 ; `PLAN-G14.md`, sur reconnaissance (`iXtal26/Docs/G14-reconnaissance/`).
   D'abord la référence de performance figée et les outils de la preuve (G14.0a-d), puis un commit par famille de
-  puces (G14.1-4), puis la clôture ; Q36 (le 6845) posée.
+  puces (G14.1-4), puis la clôture ; Q36 tranchée le 23/10 (pas de `Motorola6845` en G14).
 - **G15 à G17** attendent chacun un feu vert.
 
 ## Les générations
