@@ -16117,3 +16117,160 @@ Ce qui reste, dit et non fait :
 - `tools/gates/g5w-recipe.sh` (la recette des disques des portes, refaite de zéro depuis les originaux pour la série
   de GR.1i2, `/tmp/a9/g5w-gr1i2`) : « conforme aux empreintes » de `tools/gates/g5w.sha256`.
 - `cd roms && sha256sum -c roms.sha256` : les 34 ROM OK (GR.4e).
+
+## G14.0a — Les bancs que la référence demande
+
+Le 23 octobre 2026 (PLAN-G14.md § G14.0a, décision n° 6 ; R0-reference.md § 2.3, R0.2 ; R0-contre.md § 2, points 1
+à 3). Le banc de G13 mesurait le coût du mode matériel ; aucun cas ne faisait tourner une machine entière, et le 286,
+le 486, la CGA, le rendu graphique et l'OPL qui joue n'y étaient pas. Six fichiers neufs dans `tools/perfbanc/`,
+44 cas ; les six bancs de G13 et leurs 52 cas sont gardés tels quels. 96 cas en tout. Les journaux sont sous
+`/var/tmp/ixtal-g14/g14-0a/` ; les outils jetables qui les ont produits, sous `outils/` ; les essais remplacés, sous
+`essais/`.
+
+**Les cas neufs.** Chacun dans les deux modes, « aucun » (les portes, l'oracle) et « tout » (l'utilisateur) :
+
+| Banc | Ce qu'il mesure | Cas |
+|---|---|---|
+| `Exec286` | les trois boucles d'Exec386Banc, 100 000 cycles d'exec386, sur le 286/16 de l'ami286 (`Reset286`) | 6 |
+| `Exec486` | les mêmes sur l'i486DX2/66 de l'ami486 (`Reset486`) | 6 |
+| `Exec8088` | execx86 : un ModRM mémoire à déplacement, le préfixe ES:, un REP MOVSB de 4 octets | 2 |
+| `MemoireLente` | la ROM lue, la mémoire vidéo écrite, par les gestionnaires (XT et CGA, ami486 et GD5429) | 4 |
+| `RenduCga` | une trame de la CGA en texte de 80 colonnes, cga_poll (262 lignes) | 2 |
+| `Rendu8bpp` | une trame de 640 × 480 en 256 couleurs, svga_render_8bpp_highres (GD5429, 8900D) | 4 |
+| `SonOplPro` | un tampon de 2 400 tics de la SB Pro v2, l'OPL3 en mode OPL3, ses 18 voix qui jouent | 2 |
+| `Machine` (MachineBanc) | pc.runpc depuis la mise sous tension, les neuf modèles | 18 |
+
+**Ce que chaque préparation vérifie** (`Reference.cs`). Le mode est posé avant le gel par `Reference.Demander`, puis
+vérifié après lui : le mode figé doit être celui demandé (« PCem » ou « materiel (tout) »). L'état après la
+préparation est comparé à son attendu (32 attendus, écrits dans le banc : les registres et les instructions d'un
+appel, les accès lents comptés, l'empreinte de la mémoire vidéo ou de l'image, la somme du tampon, l'empreinte de la
+machine) ; un cas sans attendu, ou qui s'en écarte, est refusé. L'état est imprimé en une ligne `// Banc (mode, cas)
+: …`, que le comparateur de G14.0b lira dans le journal ; chaque cas neuf a sa clé propre (SonOplPro monte sa machine
+lui-même et n'emprunte plus la ligne de SonBanc, qui avait la clé de SonProSortie). Le mode ne change l'état d'aucun
+cas du décodage, de la mémoire ni du rendu (12 attendus communs aux deux modes) ; il change celui de l'OPL (les
+volumes du reset de PB-237 : la somme 1 024 940 contre 61 350) et celui des machines. La partie mesurée des cas neufs
+n'alloue rien, sauf MachineBanc : les registres des boucles sont posés dans un tableau gardé (les bancs de G13
+allouent le leur à chaque appel, 56 octets).
+
+**MachineBanc** (`MachineBanc.cs`). Chaque modèle est monté comme son profil de la racine, sans ses disques ; `ibmat`
+et `ami386`, qui n'en ont pas, comme les portes `bd-ibmat` et `bd-ami386` (la CGA, 640 Ko, le premier processeur de la
+table). Le CMOS est lu dans une copie de `nvr/default/`, posée dans un répertoire temporaire qui devient le répertoire
+courant ; rien n'appelle `savenvr`, et la copie est effacée en fin de cas, refus compris.
+- *La fenêtre* : 1 000 tranches (10 s émulées) depuis la mise sous tension, BIOS compris ; 1 720 (17,2 s) sur l'ami286
+  et le PC1512. Mesuré seconde par seconde sur 20 s, les neuf modèles dans les deux modes (`seconde-par-seconde.log`) :
+  sur 5 s, le PC1512 n'a encore ni son rafraîchissement ni l'IRQ 0 (à 6 s), la M24 ni l'IRQ 0 (à 7 s) ni le PIC et le
+  DMA de la fin de son POST (à 9 s) ; et la première IRQ servie n'arrive qu'à 14 s sur l'ami286 (le PIC masqué, FFh,
+  puis le test mémoire en mode protégé, IF = 0), à 16 s sur le PC1512 (son test mémoire, IF = 0).
+- *Les IRQ servies* : le PIC compte lui-même les IRQ levées (`picint`) et servies (`picinterrupt`, l'acquittement par
+  le processeur ; `Diag/Counters.cs:23`, `pic.cs:399` et `:472`). Les deux sont dans l'empreinte et dans l'état ; la
+  préparation exige au moins une IRQ servie, et l'obtient sur les neuf modèles.
+- *Le même état à chaque invocation* : une invocation par itération, sans déroulage (`[InvocationCount(1, 1)]`) ; avant
+  chacune (`[IterationSetup]`, hors de la mesure), la machine est remontée par les remises de BootDiff
+  (`ResetDiagState`, `prefetch_reset`, `ClearSegResidue`) puis `pc.initpc`, et un `GC.Collect` ramasse ce que
+  `initpc` a alloué. L'invocation compare son empreinte (instructions, cycles consommés, TSC, IRQ levées et servies) à
+  celle de la préparation, et échoue sur un écart d'une instruction.
+- *Le régime* : la préparation joue des fenêtres jetées jusqu'à ce que deux de suite aient la même empreinte (au plus
+  cinq), puis une fenêtre comptée et une fenêtre de contrôle, qui doivent être égales. Il en faut deux, trois sur
+  l'ibmpc, l'ami286 et l'ami386dx, quatre sur la M24 en « tout » (voir les constats).
+- *Ce qui est exercé*, compté par la préparation sur la fenêtre comptée (des compteurs posés sur les ports et sur les
+  sorties du PIT, que la remontée suivante efface ; l'empreinte de cette fenêtre est celle des autres). En mode PCem :
+
+| Modèle | Tranches | Instructions | PIC | PIT | DMA | Fronts du PIT (0/1/2) | IRQ levées / servies |
+|---|---:|---:|---:|---:|---:|---|---|
+| `ibmpc` | 1 000 | 3 588 242 | 19 | 31 | 75 | 242 / 1 290 696 / 0 | 122 / 3 |
+| `ibmxt` | 1 000 | 3 386 010 | 29 | 31 | 76 | 195 / 1 240 162 / 1 | 98 / 3 |
+| `ami286` (286/16, 8900D) | 1 720 | 24 675 316 | 726 | 692 995 | 463 | 594 / 2 010 792 / 6 350 | 373 / 46 |
+| `ibmat` (286/6) | 1 000 | 8 170 432 | 45 | 36 | 7 845 | 292 / 1 295 272 / 2 | 146 / 2 |
+| `ami386` (i386SX/16) | 1 000 | 8 692 779 | 277 | 457 | 674 | 351 / 1 294 368 / 742 | 179 / 143 |
+| `ami386dx` (DX/33, Pro v2) | 1 000 | 16 009 312 | 707 | 1 324 138 | 670 | 355 / 1 305 250 / 7 033 | 181 / 83 |
+| `ami486` (DX2/66, Pro v2) | 1 000 | 106 669 349 | 789 | 1 011 | 2 023 | 361 / 1 312 594 / 1 132 | 186 / 165 |
+| `pc1512` (8086/8) | 1 720 | 14 501 158 | 60 | 2 376 | 92 | 410 / 1 485 548 / 169 | 211 / 15 |
+| `olivetti_m24` (8086/7.16) | 1 000 | 7 599 162 | 49 | 182 | 125 | 82 / 1 245 562 / 337 | 54 / 31 |
+
+  Les accès sont ceux de l'invité aux ports du PIC (20h-21h, A0h-A1h), du PIT (40h-43h) et du DMA (00h-0Fh, 80h-8Fh,
+  C0h-DFh) ; la sortie 0 du PIT est l'IRQ 0, la sortie 1 le rafraîchissement. En « tout », la sonde du mode matériel a
+  vu servir de 11 à 17 corrections selon le modèle (PB-03, 246 à 248, 251, 252, 255, 256…) ; en mode PCem, aucune, et
+  la préparation l'exige. Le temps que chaque cas passe dans `pic`, `pit` et `dma` n'est pas mesuré : ce sont des
+  comptes, pas une part de temps (R0-contre § 2.1).
+- *Les allocations* : de 0 à 27 840 octets par fenêtre (0 sur l'ibmpc, l'ibmxt, le PC1512 et la M24 ; 4 192 sur
+  l'ami386, 21 568 sur l'ibmat, 24 128 sur l'ami286, 27 360 sur l'ami486, 27 840 sur l'ami386dx). Elles viennent de
+  l'exécution du processeur, ni des ports ni des minuteries ni du reste de `runpc` : les `new uint16_t[4]` de
+  `x86seg.cs` (`loadseg` en mode protégé `:80`, `loadcscall` `:378`, `pmoderetf` `:790`, `pmodeint` `:1086`,
+  `pmodeiret` `:1498`, `taskswitch286` `:1904`, `loadcsjmp` `:2371`), 32 octets chacun, aux passages du POST en mode
+  protégé (`allocations-pas-a-pas.log` : le cœur avancé pas à pas, les pas qui allouent sont des chargements de
+  segment, IRET, RETF et LMSW en mode protégé). Les mêmes en dry et sur trois lancements du job court (`short1.log`,
+  `short-machine2.log`, `short-machine3.log`). Un premier relevé en avait donné d'autres : il précédait le passage de
+  la fenêtre de 500 à 1 000 tranches, puis à 1 720 sur l'ami286.
+
+**Constats en route** (mesurés ; aucun ne touche l'émulateur) :
+- la boucle à préfixe d'Exec386Banc (`ES: MOV AX,[BX]`, BX accru du mot lu) finit, avec ES = 0, par lire son propre
+  code, puis un mot en FFFFh : #GP. L'i386SX/16 n'y arrive pas en 100 000 cycles ; l'i486DX2/66 si (IP = 9B20h après
+  un appel). Exec286 et Exec486 posent ES = 1000h, une région qui ne porte que 90h ; Exec386Banc n'est pas touché ;
+- la CGA et le socle SVGA n'allument l'affichage qu'au retour de trame : la première trame jouée depuis la mise sous
+  tension ne dessine rien (l'image hachée était vide, l'empreinte finissait par 2325, la base de FNV). Les
+  préparations du rendu jouent deux trames ; le socle ne redessinant qu'une mémoire changée, chaque trame mesurée de
+  `Rendu8bpp` marque toute la mémoire vidéo changée, comme un programme qui redessine l'écran ;
+- `pc.initpc` n'est pas tout à fait la mise sous tension, PCem n'amorçant qu'une fois par processus :
+  - sur l'ami286 et l'ami386dx, la première fenêtre d'un processus n'est pas celle des suivantes, la CGA à la place de
+    la Trident aussi : les registres du NEAT et de l'OPTi 495 sont des statiques que ni `neat_init` ni `opti495_init`
+    ne remettent (`neat.cs:37`, `opti495.cs:36`), et le POST précédent les a programmés (déduit) ;
+  - sur la M24 en « tout », les trois premières fenêtres diffèrent (7 562 156, 7 560 181, puis 7 560 178 instructions,
+    à cycles égaux et à RAM égale dès la deuxième), puis plus rien ne bouge (`m24-transition.log`) ; en « aucun »,
+    toutes égales. Ce qui passe d'une fenêtre à l'autre n'est pas identifié ;
+  - sur le PC1512, une fenêtre trop longue alterne d'une remontée à l'autre entre deux empreintes, sans régime : à
+    1 750 tranches en « aucun », à 1 760 et 1 800 en « tout » ; de 1 680 à 1 740, toutes égales dans les deux modes
+    (`pc1512-alternance.log`). Ce que la fin d'une fenêtre laisse à la suivante n'est pas identifié : `amstrad_dead`
+    (`amstrad.cs:34`) vaut 0 avant chaque remontée, et la piste des têtes de disquette (`fdd.cs:67`), qui passe bien
+    d'une fenêtre à l'autre, remise à 0, ne supprime pas l'alternance. D'où 1 720 tranches.
+
+**Ce qui est vérifié** (dans `/var/tmp/ixtal-g14/wt`, détaché à `e350e6c`, avec les fichiers de l'étape) :
+- `dotnet build -c Release --no-incremental` de `tools/perfbanc` (et donc d'`iXtal26`) : 0 erreur, 0 avertissement
+  (`construction.log`) ; `TreatWarningsAsErrors` reste vrai, `AllowUnsafeBlocks` faux ;
+- `iXtal26.dll` identique avant et après l'étape : `d1a5439a…5599a` (et `iXtal26.SoftFloat.dll`, `18aae5d4…8a91` ;
+  `sha256.log`) ; `cd roms && sha256sum -c roms.sha256` : 34 OK (`roms-sha256.log`) ;
+- `--job dry --filter '*'` : les 96 cas passent, deux fois (116,2 s chacun ; `dry1.log`, `dry2.log`) ; les 106 lignes
+  d'état des deux journaux sont identiques à l'octet (44 des bancs de G13, 44 des préparations neuves, 18 des fins de
+  MachineBanc) ; le job de Machine porte `InvocationCount=1` et `UnrollFactor=1` ;
+- `--job short` sur les 44 cas neufs (317,9 s ; `short1.log`) : les mêmes états qu'en dry ; chaque cas de MachineBanc
+  a fait huit invocations, toutes à l'empreinte de sa préparation, la même qu'en dry ; 0 octet alloué par appel pour
+  les cas neufs hors MachineBanc ; puis deux fois le job court sur Machine seul : les mêmes allocations à l'octet ;
+- les lignes neuves tiennent en 120 caractères ; aucune ne nomme autre chose que le code et ses sources.
+
+Les chiffres des deux jobs ne sont pas une référence : ce sont un job sec et un job court, sans épinglage ni
+`setarch -R` ; la référence est le binaire figé de G14.0d, remesuré par l'outil de G14.0b.
+
+**Les contrôles négatifs**, un défaut par copie jetable du banc, hors du dépôt, effacée ensuite ; chaque journal
+commence par le `diff` de sa copie (`outils/negatif.py` les fabrique) :
+- `negatif-preparation-divergente.log` : la boucle sans préfixe d'Exec286 charge 1235h au lieu de 1234h ; refusée dans
+  les deux modes, « l'état diffère de l'attendu », attendu `BX = 6060`, obtenu `BX = 6ED8` ;
+- `negatif-mode-non-pose.log` : MachineBanc sans `Reference.Demander` ; le cas « tout » est refusé, « le mode demandé
+  est « tout », la machine tourne en PCem : le mode n'a pas été posé avant le gel » ; le cas « aucun » passe, le mode
+  PCem étant celui d'un processus neuf ;
+- `negatif-sans-iterationsetup.log` : sans la remontée avant chaque invocation ; refusé à la première invocation dans
+  les deux modes, « n'est pas partie du même état » (l'ibmpc : 4 368 090 instructions et 0 IRQ servie au lieu de
+  3 588 242 et 3) ;
+- `negatif-irq-servies-zero.log` : le compte des IRQ servies forcé à 0 ; refusé dans les deux modes, « aucune IRQ
+  servie dans la fenêtre (122 levées) : elle ne fait pas passer les IRQ » ;
+- `negatif-m24-sans-regime.log` : une seule fenêtre jetée, sans attendre le régime ; la M24 en « tout » est refusée,
+  « deux fenêtres, deux empreintes » (7 560 181 puis 7 560 178 instructions) ; en « aucun », son état diffère de
+  l'attendu par le seul nombre de fenêtres jetées.
+
+**Les risques pour G14.0b** :
+- *L'état qu'une fenêtre laisse à la suivante.* MachineBanc tient parce qu'il attend le régime et le vérifie à chaque
+  invocation. Mais trois transitions restent sans cause établie (la M24 en « tout », l'alternance du PC1512 au-delà de
+  1 740 tranches, les jeux de puces de l'ami286 et de l'ami386dx, ce dernier déduit) : un nombre d'invocations, une
+  durée de fenêtre ou un ordre de cas différent peut les réveiller. Un écart d'empreinte se lira comme un rouge exact ;
+  il faudra le départager d'une vraie différence entre R et C.
+- *Un processus par cas.* Le mode se fige une fois par processus : chaque cas, chaque mode, tourne dans le sien,
+  comme BenchmarkDotNet le fait par défaut. Un toolchain `InProcess` refuserait le second mode (`ModeMateriel` :
+  « le mode se choisit au lancement »).
+- *Les allocations de MachineBanc* sont stables sur trois lancements et en dry ; un relevé hors de BenchmarkDotNet, par
+  tranche, a vu une fois 8 168 octets de plus, à une tranche qui changeait d'un passage à l'autre (l'ami286, une
+  fenêtre sur quatre ; non retrouvé dans les jobs). Si la passe de G14.0b le revoit, MachineBanc sort du rouge
+  « allocation exacte » et le dit.
+
+**Hors de la portée**, trouvé en route : VideoBanc écrit son fichier de configuration temporaire avant `initpc`, et ne
+l'efface pas si la machine ne se monte pas. Le `roms/` du worktree était lié un cran trop bas (`roms/roms`) ; il est lié
+entrée par entrée, `roms.sha256` gardé : 34 OK.
+
+L'émulateur ne change pas : aucune série.

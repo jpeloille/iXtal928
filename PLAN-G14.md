@@ -85,7 +85,7 @@ change. La preuve en est faite à chaque commit, de quatre façons :
 L'ordre : G14.0a, 0b, 0c, 0d (la référence et les outils, sans toucher l'émulateur), puis G14.1 à G14.4 (un commit
 par famille de puces), puis G14.5 (la clôture). G14.0 ne dépend pas de Q36 ; G14.1 à G14.4 non plus.
 
-### G14.0a — Les bancs que la référence demande
+### G14.0a — Les bancs que la référence demande  ✅ *fait, VERIFICATION.md § G14.0a*
 
 Sur le patron des bancs existants : un `Preparer` qui pose le mode avant le gel, puis vérifie et imprime son état.
 - **Le décodage.** `Exec286` et `Exec486` reprennent les boucles d'Exec386 sous `Reset286` et `Reset486`. Une boucle
