@@ -35,7 +35,7 @@
 #   c286-ega.img, c286-herc.img : c286.img, Windows réglé par son SETUP DOS pour l'EGA et l'Hercules, PAR ÉMULATION
 #                        en C# seul (GR.3g) ; c286herc.nvr : leur CMOS de l'Hercules (30h, le disque C:) ;
 #   *.cfg              : tools/gates/cfg/*.cfg.in, @WORK@ remplacé ;
-#   ixtal26-486-porte.cfg : le profil ixtal26-486.cfg, son disque remplacé par c386.img (GR.3b) ;
+#   ixtal26-486-porte.cfg : le profil ixtal26-486.cfg, son disque remplacé par c386.img, son D: retiré (GR.3b) ;
 #   c.nvr, cd.nvr, c386.nvr, c486.nvr, f386.nvr : CMOS fabriqués par --make-nvr (type 46 en C:,
 #                        en C: et D: ; ami386dx ; ami486, G6.4 ; ami386dx sans disque, PS2.0) ;
 #   nvr/default        : les CMOS de référence de PCem.
@@ -73,9 +73,12 @@ python3 "$G/fatpatch.py" "$WORK/dos5-1.img" AUTOEXEC.BAT "$WORK/ae-dos5.bat" --d
 truncate -s 20971520 "$WORK/scsi20.img"
 cp "$WORK/scsi20.img" "$WORK/scsic.img"
 for t in "$G"/cfg/*.cfg.in; do sed "s|@WORK@|$WORK|g" "$t" > "$WORK/$(basename "$t" .in)"; done
-# GR.3b — le profil ixtal26-486.cfg lui-même, son disque remplacé par la copie du WORK (bd-cfg-486-cd).
-sed "s|^hdc_fn = os/486-HDD-C.img\$|hdc_fn = $WORK/c386.img|" "$REPO/ixtal26-486.cfg" > "$WORK/ixtal26-486-porte.cfg"
+# GR.3b — le profil ixtal26-486.cfg lui-même, son disque remplacé par la copie du WORK (bd-cfg-486-cd). Son D:
+#   (os/486-HDD-D.img) retiré : la porte ne touche pas os/, et c486.nvr ne déclare que C:.
+sed -e "s|^hdc_fn = os/486-HDD-C.img\$|hdc_fn = $WORK/c386.img|" -e '/^hdd_\(cylinders\|heads\|sectors\|fn\) = /d' \
+  "$REPO/ixtal26-486.cfg" > "$WORK/ixtal26-486-porte.cfg"
 grep -q "^hdc_fn = $WORK/c386.img\$" "$WORK/ixtal26-486-porte.cfg"
+if grep -q '^hdd_\(cylinders\|heads\|sectors\|fn\) = ' "$WORK/ixtal26-486-porte.cfg"; then echo "ixtal26-486-porte.cfg : D: non retiré" >&2; exit 1; fi
 cd "$WORK"
 dotnet "$BIN" --make-nvr ami286-mfm.cfg c.nvr --force > /dev/null
 dotnet "$BIN" --make-nvr ami286-cd.cfg cd.nvr --force > /dev/null
